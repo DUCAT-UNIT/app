@@ -112,6 +112,7 @@ export default function App() {
   const appState = useRef(AppState.currentState);
   const inactivityTimer = useRef(null);
   const hasAuthenticatedOnLaunch = useRef(false); // Track if we've authenticated on initial launch
+  const walletExists = useRef(false); // Track if wallet exists without triggering re-renders
   const INACTIVITY_TIMEOUT = 2 * 60 * 1000; // 2 minutes in milliseconds
 
   const fetchBtcPrice = async () => {
@@ -156,6 +157,7 @@ export default function App() {
           });
           setCurrentAccount(accountIndex);
           setSeedConfirmed(true);
+          walletExists.current = true;
 
           // Require authentication before showing wallet (only on first load)
           if (!hasAuthenticatedOnLaunch.current) {
@@ -176,6 +178,7 @@ export default function App() {
           fetchBalance(addresses.segwitAddress, addresses.taprootAddress);
         } else {
           // No wallet exists, allow access to create/import screen
+          walletExists.current = false;
           setIsAuthenticated(true);
         }
       } catch (error) {
@@ -224,7 +227,7 @@ export default function App() {
         nextAppState === 'active'
       ) {
         // App has come to foreground, require re-authentication if wallet exists
-        if (wallet && isBiometricSupported) {
+        if (walletExists.current && isBiometricSupported) {
           setIsAuthenticated(false);
           // Clear inactivity timer when app goes to background
           if (inactivityTimer.current) {
@@ -240,7 +243,7 @@ export default function App() {
     return () => {
       subscription.remove();
     };
-  }, [wallet, isBiometricSupported]);
+  }, [isBiometricSupported]); // Only depend on biometric support, not wallet state
 
   // Cleanup inactivity timer on unmount
   useEffect(() => {
@@ -395,6 +398,7 @@ export default function App() {
         segwitAddress: addresses.segwitAddress,
         taprootAddress: addresses.taprootAddress,
       });
+      walletExists.current = true;
 
       // Temporarily store mnemonic words for verification flow only
       setTempMnemonicWords(mnemonic.split(' '));
@@ -450,6 +454,7 @@ export default function App() {
         segwitAddress: addresses.segwitAddress,
         taprootAddress: addresses.taprootAddress,
       });
+      walletExists.current = true;
 
       // Fetch BTC balances for both addresses
       try {
@@ -583,6 +588,7 @@ export default function App() {
 
     // Clear state
     setWallet(null);
+    walletExists.current = false;
     setTempMnemonicWords([]);
     setShowingSeeds(false);
     setVerifyingSeeds(false);
