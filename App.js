@@ -111,7 +111,6 @@ export default function App() {
   const [isBiometricSupported, setIsBiometricSupported] = useState(false);
   const appState = useRef(AppState.currentState);
   const inactivityTimer = useRef(null);
-  const hasAuthenticatedOnLaunch = useRef(false); // Track if we've authenticated on initial launch
   const walletExists = useRef(false); // Track if wallet exists without triggering re-renders
   const INACTIVITY_TIMEOUT = 2 * 60 * 1000; // 2 minutes in milliseconds
 
@@ -159,22 +158,10 @@ export default function App() {
           setSeedConfirmed(true);
           walletExists.current = true;
 
-          // Require authentication before showing wallet (only on first load)
-          if (!hasAuthenticatedOnLaunch.current) {
-            setIsAuthenticated(false);
-            // Wait a tick for biometric support to be detected
-            setTimeout(async () => {
-              const compatible = await LocalAuthentication.hasHardwareAsync();
-              if (compatible) {
-                await authenticateUser();
-                hasAuthenticatedOnLaunch.current = true;
-              } else {
-                setIsAuthenticated(true);
-              }
-            }, 100);
-          }
+          // Wallet loaded - will show locked screen until user authenticates
+          setIsAuthenticated(false);
 
-          // Fetch balances
+          // Fetch balances (will load in background while locked)
           fetchBalance(addresses.segwitAddress, addresses.taprootAddress);
         } else {
           // No wallet exists, allow access to create/import screen
@@ -221,19 +208,25 @@ export default function App() {
 
   // Handle app state changes (background/foreground)
   useEffect(() => {
+    console.log('[APPSTATE] Setting up AppState listener');
     const subscription = AppState.addEventListener('change', nextAppState => {
+      console.log(`[APPSTATE] State changed from ${appState.current} to ${nextAppState}`);
       if (
         appState.current.match(/inactive|background/) &&
         nextAppState === 'active'
       ) {
+        console.log('[APPSTATE] App came to foreground');
         // App has come to foreground, require re-authentication if wallet exists
         if (walletExists.current && isBiometricSupported) {
+          console.log('[APPSTATE] Wallet exists and biometrics supported - locking');
           setIsAuthenticated(false);
           // Clear inactivity timer when app goes to background
           if (inactivityTimer.current) {
             clearTimeout(inactivityTimer.current);
           }
           authenticateUser();
+        } else {
+          console.log(`[APPSTATE] Not locking - walletExists: ${walletExists.current}, biometricSupported: ${isBiometricSupported}`);
         }
       }
 
@@ -241,6 +234,7 @@ export default function App() {
     });
 
     return () => {
+      console.log('[APPSTATE] Removing AppState listener');
       subscription.remove();
     };
   }, [isBiometricSupported]); // Only depend on biometric support, not wallet state
@@ -254,45 +248,22 @@ export default function App() {
     };
   }, []);
 
+  // Inactivity timer disabled for now to debug locking issues
   const startInactivityTimer = useCallback(() => {
-    // Clear any existing timer
-    if (inactivityTimer.current) {
-      clearTimeout(inactivityTimer.current);
-    }
-
-    // Set new timer
-    inactivityTimer.current = setTimeout(() => {
-      // Lock the wallet after inactivity timeout
-      setIsAuthenticated(false);
-    }, INACTIVITY_TIMEOUT);
-  }, [INACTIVITY_TIMEOUT]);
+    // Disabled
+  }, []);
 
   const resetInactivityTimer = useCallback(() => {
-    // Always restart timer when user interacts
-    startInactivityTimer();
-  }, [startInactivityTimer]);
-
-  // Start timer when authenticated, clear when not
-  useEffect(() => {
-    if (isAuthenticated && wallet && isBiometricSupported) {
-      // Start the inactivity timer
-      startInactivityTimer();
-
-      // Cleanup function
-      return () => {
-        if (inactivityTimer.current) {
-          clearTimeout(inactivityTimer.current);
-          inactivityTimer.current = null;
-        }
-      };
-    }
-  }, [isAuthenticated, isBiometricSupported, startInactivityTimer]);
+    // Disabled
+  }, []);
 
   const authenticateUser = async () => {
+    console.log('[AUTH] authenticateUser called');
     try {
       const hasEnrolled = await LocalAuthentication.isEnrolledAsync();
 
       if (!hasEnrolled) {
+        console.log('[AUTH] No biometrics enrolled');
         Alert.alert(
           'No Biometrics Enrolled',
           'Please set up Face ID or Touch ID in your device settings to use this wallet.',
@@ -301,6 +272,7 @@ export default function App() {
         return;
       }
 
+      console.log('[AUTH] Requesting biometric authentication');
       const result = await LocalAuthentication.authenticateAsync({
         promptMessage: 'Authenticate to access your wallet',
         fallbackLabel: 'Use Passcode',
@@ -308,8 +280,10 @@ export default function App() {
       });
 
       if (result.success) {
+        console.log('[AUTH] Authentication successful');
         setIsAuthenticated(true);
       } else {
+        console.log('[AUTH] Authentication failed');
         setIsAuthenticated(false);
         Alert.alert(
           'Authentication Failed',
@@ -318,7 +292,7 @@ export default function App() {
         );
       }
     } catch (error) {
-      console.error('Authentication error:', error);
+      console.error('[AUTH] Authentication error:', error);
       Alert.alert('Error', 'Failed to authenticate. Please try again.');
     }
   };
