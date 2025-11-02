@@ -585,8 +585,10 @@ export default function App() {
     if (allCorrect) {
       setSeedConfirmed(true);
       setVerifyingSeeds(false);
-      // Clear temporary mnemonic from memory after successful verification
-      setTempMnemonicWords([]);
+      // Securely clear temporary mnemonic from memory
+      // First overwrite with random data, then clear
+      setTempMnemonicWords(Array(12).fill('*'.repeat(8)));
+      setTimeout(() => setTempMnemonicWords([]), 100);
 
       // Fetch balances immediately
       fetchBalance();
@@ -612,10 +614,13 @@ export default function App() {
     await SecureStore.deleteItemAsync(SECURE_KEYS.MNEMONIC);
     await SecureStore.deleteItemAsync(SECURE_KEYS.CURRENT_ACCOUNT);
 
+    // Securely clear temporary mnemonic from memory
+    setTempMnemonicWords(Array(12).fill('*'.repeat(8)));
+    setTimeout(() => setTempMnemonicWords([]), 100);
+
     // Clear state
     setWallet(null);
     walletExists.current = false;
-    setTempMnemonicWords([]);
     setShowingSeeds(false);
     setVerifyingSeeds(false);
     setSeedConfirmed(false);
