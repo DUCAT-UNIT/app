@@ -240,6 +240,20 @@ export default function App() {
     };
   }, []);
 
+  // Start/restart inactivity timer when authenticated
+  useEffect(() => {
+    if (isAuthenticated && wallet && isBiometricSupported) {
+      // Start the inactivity timer
+      startInactivityTimer();
+    } else {
+      // Clear timer if not authenticated
+      if (inactivityTimer.current) {
+        clearTimeout(inactivityTimer.current);
+        inactivityTimer.current = null;
+      }
+    }
+  }, [isAuthenticated, wallet, isBiometricSupported]);
+
   const authenticateUser = async () => {
     try {
       const hasEnrolled = await LocalAuthentication.isEnrolledAsync();
@@ -261,8 +275,6 @@ export default function App() {
 
       if (result.success) {
         setIsAuthenticated(true);
-        // Start inactivity timer after successful authentication
-        startInactivityTimer();
       } else {
         setIsAuthenticated(false);
         Alert.alert(
@@ -283,18 +295,18 @@ export default function App() {
       clearTimeout(inactivityTimer.current);
     }
 
-    // Only set timer if wallet exists and is authenticated
-    if (wallet && isAuthenticated && isBiometricSupported) {
-      inactivityTimer.current = setTimeout(() => {
-        // Lock the wallet after inactivity timeout
-        setIsAuthenticated(false);
-      }, INACTIVITY_TIMEOUT);
-    }
+    // Set new timer
+    inactivityTimer.current = setTimeout(() => {
+      // Lock the wallet after inactivity timeout
+      setIsAuthenticated(false);
+    }, INACTIVITY_TIMEOUT);
   };
 
   const resetInactivityTimer = () => {
-    // Reset the timer on user activity
-    startInactivityTimer();
+    // Only reset if authenticated
+    if (isAuthenticated && wallet && isBiometricSupported) {
+      startInactivityTimer();
+    }
   };
 
   const fetchBalance = async (segwitAddr, taprootAddr) => {
