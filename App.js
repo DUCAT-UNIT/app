@@ -111,6 +111,7 @@ export default function App() {
   const [isBiometricSupported, setIsBiometricSupported] = useState(false);
   const appState = useRef(AppState.currentState);
   const inactivityTimer = useRef(null);
+  const hasAuthenticatedOnLaunch = useRef(false); // Track if we've authenticated on initial launch
   const INACTIVITY_TIMEOUT = 2 * 60 * 1000; // 2 minutes in milliseconds
 
   const fetchBtcPrice = async () => {
@@ -156,11 +157,26 @@ export default function App() {
           setCurrentAccount(accountIndex);
           setSeedConfirmed(true);
 
-          // Require authentication before showing wallet
-          setIsAuthenticated(false);
+          // Require authentication before showing wallet (only on first load)
+          if (!hasAuthenticatedOnLaunch.current) {
+            setIsAuthenticated(false);
+            // Wait a tick for biometric support to be detected
+            setTimeout(async () => {
+              const compatible = await LocalAuthentication.hasHardwareAsync();
+              if (compatible) {
+                await authenticateUser();
+                hasAuthenticatedOnLaunch.current = true;
+              } else {
+                setIsAuthenticated(true);
+              }
+            }, 100);
+          }
 
           // Fetch balances
           fetchBalance(addresses.segwitAddress, addresses.taprootAddress);
+        } else {
+          // No wallet exists, allow access to create/import screen
+          setIsAuthenticated(true);
         }
       } catch (error) {
         console.error('Error loading wallet from secure storage:', error);
@@ -190,23 +206,15 @@ export default function App() {
     };
   }, []);
 
-  // Check biometric support and authenticate when wallet is loaded
+  // Check biometric support on app start
   useEffect(() => {
     const checkBiometricSupport = async () => {
       const compatible = await LocalAuthentication.hasHardwareAsync();
       setIsBiometricSupported(compatible);
-
-      if (compatible && wallet) {
-        // Wallet exists, require authentication immediately
-        await authenticateUser();
-      } else if (!wallet) {
-        // No wallet yet, allow access to create/import
-        setIsAuthenticated(true);
-      }
     };
 
     checkBiometricSupport();
-  }, [wallet]); // Re-run when wallet changes
+  }, []);
 
   // Handle app state changes (background/foreground)
   useEffect(() => {
