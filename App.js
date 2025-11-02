@@ -6,6 +6,7 @@ import * as Crypto from 'expo-crypto';
 import * as SecureStore from 'expo-secure-store';
 import * as ScreenCapture from 'expo-screen-capture';
 import * as LocalAuthentication from 'expo-local-authentication';
+import * as FileSystem from 'expo-file-system';
 
 import { StatusBar } from 'expo-status-bar';
 import { StyleSheet, Text, View, TouchableOpacity, ScrollView, Alert, ActivityIndicator, TextInput, Image, RefreshControl, AppState } from 'react-native';
@@ -39,6 +40,62 @@ const mutinynet = {
 const SECURE_KEYS = {
   MNEMONIC: 'wallet_mnemonic_v1',
   CURRENT_ACCOUNT: 'wallet_current_account_v1',
+};
+
+// Jailbreak detection
+const checkJailbreak = async () => {
+  const jailbreakPaths = [
+    '/Applications/Cydia.app',
+    '/Library/MobileSubstrate/MobileSubstrate.dylib',
+    '/bin/bash',
+    '/usr/sbin/sshd',
+    '/etc/apt',
+    '/private/var/lib/apt/',
+    '/Applications/blackra1n.app',
+    '/Applications/FakeCarrier.app',
+    '/Applications/Icy.app',
+    '/Applications/IntelliScreen.app',
+    '/Applications/MxTube.app',
+    '/Applications/RockApp.app',
+    '/Applications/SBSettings.app',
+    '/Applications/WinterBoard.app',
+    '/private/var/lib/cydia',
+    '/var/cache/apt',
+    '/var/lib/cydia',
+    '/var/log/syslog',
+    '/bin/sh',
+    '/usr/libexec/sftp-server',
+    '/usr/bin/ssh'
+  ];
+
+  try {
+    // Check for common jailbreak files
+    for (const path of jailbreakPaths) {
+      try {
+        const info = await FileSystem.getInfoAsync(path);
+        if (info.exists) {
+          return true; // Jailbreak detected
+        }
+      } catch (e) {
+        // File doesn't exist or can't be accessed - continue checking
+      }
+    }
+
+    // Try to write to system directory (jailbroken devices allow this)
+    try {
+      const testPath = '/private/jailbreak_test.txt';
+      await FileSystem.writeAsStringAsync(testPath, 'test');
+      await FileSystem.deleteAsync(testPath);
+      return true; // If we can write here, device is jailbroken
+    } catch (e) {
+      // Can't write to system directory - good sign
+    }
+
+    return false; // No jailbreak detected
+  } catch (error) {
+    // If checks fail, assume not jailbroken to avoid false positives
+    return false;
+  }
 };
 
 // Helper functions for secure key derivation
@@ -108,6 +165,7 @@ export default function App() {
   const [loadingBtcPrice, setLoadingBtcPrice] = useState(false);
   const [isAuthenticated, setIsAuthenticated] = useState(false); // Biometric auth status
   const [isBiometricSupported, setIsBiometricSupported] = useState(false);
+  const [isJailbroken, setIsJailbroken] = useState(false); // Jailbreak detection status
   const appState = useRef(AppState.currentState);
   const inactivityTimer = useRef(null);
   const walletExists = useRef(false); // Track if wallet exists without triggering re-renders
@@ -134,6 +192,24 @@ export default function App() {
     const interval = setInterval(fetchBtcPrice, 60000);
 
     return () => clearInterval(interval);
+  }, []);
+
+  // Check for jailbreak on app start
+  useEffect(() => {
+    const checkForJailbreak = async () => {
+      const jailbroken = await checkJailbreak();
+      if (jailbroken) {
+        setIsJailbroken(true);
+        Alert.alert(
+          'Security Warning',
+          'This app cannot run on jailbroken devices for security reasons. Your funds could be at risk.',
+          [{ text: 'OK', onPress: () => {} }],
+          { cancelable: false }
+        );
+      }
+    };
+
+    checkForJailbreak();
   }, []);
 
   // Load wallet from secure storage on app start
@@ -595,6 +671,23 @@ export default function App() {
       setSwitchingAccount(false);
     }
   };
+
+  // Show jailbreak warning screen if device is jailbroken
+  if (isJailbroken) {
+    return (
+      <View style={styles.lockedContainer}>
+        <View style={styles.titleContainer}>
+          <Text style={styles.title}>DUCAT</Text>
+        </View>
+        <View style={styles.lockIconContainer}>
+          <Text style={styles.lockIcon}>⚠️</Text>
+          <Text style={styles.lockedText}>Security Warning</Text>
+          <Text style={styles.lockedSubtext}>This app cannot run on jailbroken devices.{'\n'}Your funds could be at risk.</Text>
+        </View>
+        <StatusBar style="dark" />
+      </View>
+    );
+  }
 
   // Show locked screen if not authenticated and wallet exists
   if (!isAuthenticated && wallet) {
