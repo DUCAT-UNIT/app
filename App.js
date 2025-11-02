@@ -4,10 +4,12 @@ global.Buffer = Buffer;
 
 import * as Crypto from 'expo-crypto';
 import * as SecureStore from 'expo-secure-store';
+import * as ScreenCapture from 'expo-screen-capture';
+import * as LocalAuthentication from 'expo-local-authentication';
 
 import { StatusBar } from 'expo-status-bar';
-import { StyleSheet, Text, View, TouchableOpacity, ScrollView, Alert, ActivityIndicator, TextInput, Image, RefreshControl } from 'react-native';
-import { useState, useEffect } from 'react';
+import { StyleSheet, Text, View, TouchableOpacity, ScrollView, Alert, ActivityIndicator, TextInput, Image, RefreshControl, AppState } from 'react-native';
+import { useState, useEffect, useRef } from 'react';
 import * as Clipboard from 'expo-clipboard';
 import * as bip39 from 'bip39';
 import BIP32Factory from 'bip32';
@@ -105,6 +107,9 @@ export default function App() {
   const [showUnitInUnit, setShowUnitInUnit] = useState(true);
   const [btcPrice, setBtcPrice] = useState(null);
   const [loadingBtcPrice, setLoadingBtcPrice] = useState(false);
+  const [isAuthenticated, setIsAuthenticated] = useState(false); // Biometric auth status
+  const [isBiometricSupported, setIsBiometricSupported] = useState(false);
+  const appState = useRef(AppState.currentState);
 
   const fetchBtcPrice = async () => {
     try {
@@ -159,6 +164,101 @@ export default function App() {
 
     loadWallet();
   }, []);
+
+  // Prevent screenshots and screen recording for the entire app
+  useEffect(() => {
+    const preventScreenCapture = async () => {
+      try {
+        await ScreenCapture.preventScreenCaptureAsync();
+      } catch (error) {
+        console.error('Error preventing screen capture:', error);
+      }
+    };
+
+    preventScreenCapture();
+
+    // Cleanup: allow screen capture when component unmounts
+    return () => {
+      ScreenCapture.allowScreenCaptureAsync().catch((error) => {
+        console.error('Error allowing screen capture:', error);
+      });
+    };
+  }, []);
+
+  // Check biometric support and authenticate on app start
+  useEffect(() => {
+    const checkBiometricSupport = async () => {
+      const compatible = await LocalAuthentication.hasHardwareAsync();
+      setIsBiometricSupported(compatible);
+
+      if (compatible && wallet) {
+        // If wallet exists, require authentication
+        await authenticateUser();
+      } else if (!wallet) {
+        // No wallet yet, allow access to create/import
+        setIsAuthenticated(true);
+      }
+    };
+
+    checkBiometricSupport();
+  }, []);
+
+  // Handle app state changes (background/foreground)
+  useEffect(() => {
+    const subscription = AppState.addEventListener('change', nextAppState => {
+      if (
+        appState.current.match(/inactive|background/) &&
+        nextAppState === 'active'
+      ) {
+        // App has come to foreground, require re-authentication if wallet exists
+        if (wallet && isBiometricSupported) {
+          setIsAuthenticated(false);
+          authenticateUser();
+        }
+      }
+
+      appState.current = nextAppState;
+    });
+
+    return () => {
+      subscription.remove();
+    };
+  }, [wallet, isBiometricSupported]);
+
+  const authenticateUser = async () => {
+    try {
+      const hasEnrolled = await LocalAuthentication.isEnrolledAsync();
+
+      if (!hasEnrolled) {
+        Alert.alert(
+          'No Biometrics Enrolled',
+          'Please set up Face ID or Touch ID in your device settings to use this wallet.',
+          [{ text: 'OK' }]
+        );
+        return;
+      }
+
+      const result = await LocalAuthentication.authenticateAsync({
+        promptMessage: 'Authenticate to access your wallet',
+        fallbackLabel: 'Use Passcode',
+        disableDeviceFallback: false,
+      });
+
+      if (result.success) {
+        setIsAuthenticated(true);
+      } else {
+        setIsAuthenticated(false);
+        Alert.alert(
+          'Authentication Failed',
+          'You must authenticate to access your wallet.',
+          [{ text: 'Try Again', onPress: authenticateUser }]
+        );
+      }
+    } catch (error) {
+      console.error('Authentication error:', error);
+      Alert.alert('Error', 'Failed to authenticate. Please try again.');
+    }
+  };
 
   const fetchBalance = async (segwitAddr, taprootAddr) => {
     // If addresses are provided, use them; otherwise use wallet state
@@ -258,6 +358,9 @@ export default function App() {
       setSeedConfirmed(false);
       setSegwitBalance(null);
       setTaprootBalance(null);
+
+      // Wallet created, user authenticated to see seed phrase
+      setIsAuthenticated(true);
     } catch (error) {
       console.error('Error creating wallet:', error);
       Alert.alert('Error', error.message);
@@ -477,6 +580,26 @@ export default function App() {
       setSwitchingAccount(false);
     }
   };
+
+  // Show locked screen if not authenticated and wallet exists
+  if (!isAuthenticated && wallet) {
+    return (
+      <View style={styles.lockedContainer}>
+        <View style={styles.titleContainer}>
+          <Text style={styles.title}>DUCAT</Text>
+        </View>
+        <View style={styles.lockIconContainer}>
+          <Text style={styles.lockIcon}>🔒</Text>
+          <Text style={styles.lockedText}>Wallet Locked</Text>
+          <Text style={styles.lockedSubtext}>Authenticate to access your wallet</Text>
+        </View>
+        <TouchableOpacity style={styles.unlockButton} onPress={authenticateUser}>
+          <Text style={styles.unlockButtonText}>Unlock with Face ID</Text>
+        </TouchableOpacity>
+        <StatusBar style="dark" />
+      </View>
+    );
+  }
 
   return (
     <ScrollView
@@ -1388,6 +1511,43 @@ const styles = StyleSheet.create({
   priceChipValue: {
     fontSize: 14,
     color: '#DDDDDD',
+    fontWeight: 'bold',
+  },
+  lockedContainer: {
+    flex: 1,
+    backgroundColor: '#DDDDDD',
+    alignItems: 'center',
+    justifyContent: 'center',
+    padding: 20,
+  },
+  lockIconContainer: {
+    alignItems: 'center',
+    marginBottom: 40,
+  },
+  lockIcon: {
+    fontSize: 80,
+    marginBottom: 20,
+  },
+  lockedText: {
+    fontSize: 24,
+    fontWeight: 'bold',
+    color: '#333333',
+    marginBottom: 10,
+  },
+  lockedSubtext: {
+    fontSize: 14,
+    color: '#666666',
+    textAlign: 'center',
+  },
+  unlockButton: {
+    backgroundColor: '#0066FF',
+    paddingHorizontal: 30,
+    paddingVertical: 15,
+    borderRadius: 10,
+  },
+  unlockButtonText: {
+    color: '#DDDDDD',
+    fontSize: 16,
     fontWeight: 'bold',
   },
 });
