@@ -156,6 +156,9 @@ export default function App() {
           setCurrentAccount(accountIndex);
           setSeedConfirmed(true);
 
+          // Require authentication before showing wallet
+          setIsAuthenticated(false);
+
           // Fetch balances
           fetchBalance(addresses.segwitAddress, addresses.taprootAddress);
         }
@@ -187,14 +190,14 @@ export default function App() {
     };
   }, []);
 
-  // Check biometric support and authenticate on app start
+  // Check biometric support and authenticate when wallet is loaded
   useEffect(() => {
     const checkBiometricSupport = async () => {
       const compatible = await LocalAuthentication.hasHardwareAsync();
       setIsBiometricSupported(compatible);
 
       if (compatible && wallet) {
-        // If wallet exists, require authentication
+        // Wallet exists, require authentication immediately
         await authenticateUser();
       } else if (!wallet) {
         // No wallet yet, allow access to create/import
@@ -203,7 +206,7 @@ export default function App() {
     };
 
     checkBiometricSupport();
-  }, []);
+  }, [wallet]); // Re-run when wallet changes
 
   // Handle app state changes (background/foreground)
   useEffect(() => {
