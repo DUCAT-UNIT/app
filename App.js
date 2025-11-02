@@ -312,14 +312,38 @@ export default function App() {
     };
   }, []);
 
-  // Inactivity timer disabled for now to debug locking issues
+  // Inactivity timer - locks wallet after 2 minutes of no interaction
   const startInactivityTimer = useCallback(() => {
-    // Disabled
-  }, []);
+    // Clear any existing timer
+    if (inactivityTimer.current) {
+      clearTimeout(inactivityTimer.current);
+    }
+
+    // Set new timer
+    inactivityTimer.current = setTimeout(() => {
+      // Lock the wallet after inactivity timeout
+      setIsAuthenticated(false);
+    }, INACTIVITY_TIMEOUT);
+  }, [INACTIVITY_TIMEOUT]);
 
   const resetInactivityTimer = useCallback(() => {
-    // Disabled
-  }, []);
+    // Restart timer when user interacts
+    startInactivityTimer();
+  }, [startInactivityTimer]);
+
+  // Start timer when authenticated
+  useEffect(() => {
+    if (isAuthenticated && walletExists.current && isBiometricSupported) {
+      startInactivityTimer();
+
+      return () => {
+        if (inactivityTimer.current) {
+          clearTimeout(inactivityTimer.current);
+          inactivityTimer.current = null;
+        }
+      };
+    }
+  }, [isAuthenticated, isBiometricSupported, startInactivityTimer]);
 
   const authenticateUser = async () => {
     try {
