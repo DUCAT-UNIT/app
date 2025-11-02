@@ -9,7 +9,7 @@ import * as LocalAuthentication from 'expo-local-authentication';
 
 import { StatusBar } from 'expo-status-bar';
 import { StyleSheet, Text, View, TouchableOpacity, ScrollView, Alert, ActivityIndicator, TextInput, Image, RefreshControl, AppState } from 'react-native';
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect, useRef, useCallback } from 'react';
 import * as Clipboard from 'expo-clipboard';
 import * as bip39 from 'bip39';
 import BIP32Factory from 'bip32';
@@ -240,19 +240,39 @@ export default function App() {
     };
   }, []);
 
-  // Start/restart inactivity timer when authenticated
+  const startInactivityTimer = useCallback(() => {
+    // Clear any existing timer
+    if (inactivityTimer.current) {
+      clearTimeout(inactivityTimer.current);
+    }
+
+    // Set new timer
+    inactivityTimer.current = setTimeout(() => {
+      // Lock the wallet after inactivity timeout
+      setIsAuthenticated(false);
+    }, INACTIVITY_TIMEOUT);
+  }, [INACTIVITY_TIMEOUT]);
+
+  const resetInactivityTimer = useCallback(() => {
+    // Always restart timer when user interacts
+    startInactivityTimer();
+  }, [startInactivityTimer]);
+
+  // Start timer when authenticated, clear when not
   useEffect(() => {
     if (isAuthenticated && wallet && isBiometricSupported) {
       // Start the inactivity timer
       startInactivityTimer();
-    } else {
-      // Clear timer if not authenticated
-      if (inactivityTimer.current) {
-        clearTimeout(inactivityTimer.current);
-        inactivityTimer.current = null;
-      }
+
+      // Cleanup function
+      return () => {
+        if (inactivityTimer.current) {
+          clearTimeout(inactivityTimer.current);
+          inactivityTimer.current = null;
+        }
+      };
     }
-  }, [isAuthenticated, wallet, isBiometricSupported]);
+  }, [isAuthenticated, isBiometricSupported, startInactivityTimer]);
 
   const authenticateUser = async () => {
     try {
@@ -286,26 +306,6 @@ export default function App() {
     } catch (error) {
       console.error('Authentication error:', error);
       Alert.alert('Error', 'Failed to authenticate. Please try again.');
-    }
-  };
-
-  const startInactivityTimer = () => {
-    // Clear any existing timer
-    if (inactivityTimer.current) {
-      clearTimeout(inactivityTimer.current);
-    }
-
-    // Set new timer
-    inactivityTimer.current = setTimeout(() => {
-      // Lock the wallet after inactivity timeout
-      setIsAuthenticated(false);
-    }, INACTIVITY_TIMEOUT);
-  };
-
-  const resetInactivityTimer = () => {
-    // Only reset if authenticated
-    if (isAuthenticated && wallet && isBiometricSupported) {
-      startInactivityTimer();
     }
   };
 
