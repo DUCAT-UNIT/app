@@ -40,6 +40,7 @@ const mutinynet = {
 const SECURE_KEYS = {
   MNEMONIC: 'wallet_mnemonic_v1',
   CURRENT_ACCOUNT: 'wallet_current_account_v1',
+  PIN: 'wallet_pin_v1',
 };
 
 // Jailbreak detection
@@ -141,6 +142,7 @@ const deriveAddressesFromMnemonic = (mnemonic, accountIndex = 0) => {
 export default function App() {
   const [wallet, setWallet] = useState(null); // Only stores public addresses
   const [tempMnemonicWords, setTempMnemonicWords] = useState([]); // Temporary for seed verification flow
+  const [showingIntro, setShowingIntro] = useState(false);
   const [showingSeeds, setShowingSeeds] = useState(false);
   const [verifyingSeeds, setVerifyingSeeds] = useState(false);
   const [seedConfirmed, setSeedConfirmed] = useState(false);
@@ -166,6 +168,17 @@ export default function App() {
   const [isAuthenticated, setIsAuthenticated] = useState(false); // Biometric auth status
   const [isBiometricSupported, setIsBiometricSupported] = useState(false);
   const [isJailbroken, setIsJailbroken] = useState(false); // Jailbreak detection status
+  const [settingUpPin, setSettingUpPin] = useState(false); // PIN setup flow
+  const [pin, setPin] = useState(''); // Current PIN entry
+  const [confirmPin, setConfirmPin] = useState(''); // PIN confirmation
+  const [showPinEntry, setShowPinEntry] = useState(false); // Show PIN entry screen
+  const [pinError, setPinError] = useState(''); // PIN error message
+  const [pinStep, setPinStep] = useState('enter'); // 'enter' or 'confirm'
+  const [showSettings, setShowSettings] = useState(false); // Settings modal
+  const [viewingSeedPhrase, setViewingSeedPhrase] = useState(false); // Viewing seed phrase
+  const [seedPhraseWords, setSeedPhraseWords] = useState([]); // Seed phrase from keychain
+  const [changingPin, setChangingPin] = useState(false); // Changing PIN flow
+  const [seedPhraseVisible, setSeedPhraseVisible] = useState(false); // Show/hide seed words
   const appState = useRef(AppState.currentState);
   const inactivityTimer = useRef(null);
   const walletExists = useRef(false); // Track if wallet exists without triggering re-renders
@@ -350,17 +363,14 @@ export default function App() {
       const hasEnrolled = await LocalAuthentication.isEnrolledAsync();
 
       if (!hasEnrolled) {
-        Alert.alert(
-          'No Biometrics Enrolled',
-          'Please set up Face ID or Touch ID in your device settings to use this wallet.',
-          [{ text: 'OK' }]
-        );
+        // No biometrics available, use PIN
+        setShowPinEntry(true);
         return;
       }
 
       const result = await LocalAuthentication.authenticateAsync({
         promptMessage: 'Authenticate to access your wallet',
-        fallbackLabel: 'Use Passcode',
+        fallbackLabel: 'Use PIN',
         disableDeviceFallback: false,
       });
 
@@ -368,14 +378,215 @@ export default function App() {
         setIsAuthenticated(true);
       } else {
         setIsAuthenticated(false);
-        Alert.alert(
-          'Authentication Failed',
-          'You must authenticate to access your wallet.',
-          [{ text: 'Try Again', onPress: authenticateUser }]
-        );
+        // Don't show alert, user can try PIN instead
       }
     } catch (error) {
-      Alert.alert('Error', 'Failed to authenticate. Please try again.');
+      // Error authenticating, allow PIN fallback
+      setShowPinEntry(true);
+    }
+  };
+
+  const savePin = async (pinValue) => {
+    try {
+      await SecureStore.setItemAsync(SECURE_KEYS.PIN, pinValue);
+      return true;
+    } catch (error) {
+      return false;
+    }
+  };
+
+  const verifyPin = async (enteredPin) => {
+    try {
+      const storedPin = await SecureStore.getItemAsync(SECURE_KEYS.PIN);
+      return storedPin === enteredPin;
+    } catch (error) {
+      return false;
+    }
+  };
+
+  const handlePinDigit = (digit) => {
+    if (settingUpPin) {
+      // PIN setup flow
+      if (pinStep === 'enter') {
+        if (pin.length < 6) {
+          const newPin = pin + digit;
+          setPin(newPin);
+          if (newPin.length === 6) {
+            // Move to confirmation step
+            setPinStep('confirm');
+            setPinError('');
+          }
+        }
+      } else {
+        // Confirmation step
+        if (confirmPin.length < 6) {
+          const newConfirmPin = confirmPin + digit;
+          setConfirmPin(newConfirmPin);
+          if (newConfirmPin.length === 6) {
+            // Check if PINs match
+            if (newConfirmPin === pin) {
+              // Save PIN and finish setup
+              savePin(pin).then(success => {
+                if (success) {
+                  setSettingUpPin(false);
+                  setPin('');
+                  setConfirmPin('');
+                  setPinStep('enter');
+
+                  if (changingPin) {
+                    // Just changing PIN, not creating wallet
+                    setChangingPin(false);
+                    Alert.alert('Success', 'Your PIN has been changed.');
+                  } else {
+                    // Initial wallet creation
+                    setSeedConfirmed(true);
+                    fetchBalance();
+                    Alert.alert('Wallet Created!', 'Your wallet is ready to use.');
+                  }
+                } else {
+                  setPinError('Failed to save PIN');
+                  setConfirmPin('');
+                }
+              });
+            } else {
+              setPinError('PINs do not match');
+              setConfirmPin('');
+            }
+          }
+        }
+      }
+    } else {
+      // PIN entry for authentication
+      if (pin.length < 6) {
+        const newPin = pin + digit;
+        setPin(newPin);
+        if (newPin.length === 6) {
+          // Verify PIN
+          verifyPin(newPin).then(isValid => {
+            if (isValid) {
+              setIsAuthenticated(true);
+              setShowPinEntry(false);
+              setPin('');
+              setPinError('');
+            } else {
+              setPinError('Incorrect PIN');
+              setPin('');
+            }
+          });
+        }
+      }
+    }
+  };
+
+  const handlePinDelete = () => {
+    if (settingUpPin) {
+      if (pinStep === 'enter') {
+        setPin(pin.slice(0, -1));
+      } else {
+        setConfirmPin(confirmPin.slice(0, -1));
+      }
+    } else {
+      setPin(pin.slice(0, -1));
+    }
+    setPinError('');
+  };
+
+  const handleLogout = () => {
+    Alert.alert(
+      'Logout',
+      'This will lock your wallet. You can unlock it again with Face ID or PIN.',
+      [
+        { text: 'Cancel', style: 'cancel' },
+        {
+          text: 'Logout',
+          style: 'destructive',
+          onPress: () => {
+            setIsAuthenticated(false);
+            setShowSettings(false);
+          }
+        }
+      ]
+    );
+  };
+
+  const handleDeleteWallet = async () => {
+    Alert.alert(
+      'Delete Wallet',
+      'WARNING: This will permanently delete your wallet from this device. Make sure you have your recovery phrase backed up!',
+      [
+        { text: 'Cancel', style: 'cancel' },
+        {
+          text: 'Delete',
+          style: 'destructive',
+          onPress: async () => {
+            try {
+              await SecureStore.deleteItemAsync(SECURE_KEYS.MNEMONIC);
+              await SecureStore.deleteItemAsync(SECURE_KEYS.CURRENT_ACCOUNT);
+              await SecureStore.deleteItemAsync(SECURE_KEYS.PIN);
+
+              setWallet(null);
+              walletExists.current = false;
+              setIsAuthenticated(false);
+              setShowSettings(false);
+              setSegwitBalance(null);
+              setTaprootBalance(null);
+              setRunesBalance([]);
+
+              Alert.alert('Success', 'Wallet has been deleted from this device.');
+            } catch (error) {
+              Alert.alert('Error', 'Failed to delete wallet: ' + error.message);
+            }
+          }
+        }
+      ]
+    );
+  };
+
+  const handleViewSeedPhrase = async () => {
+    try {
+      const result = await LocalAuthentication.authenticateAsync({
+        promptMessage: 'Authenticate to view your recovery phrase',
+        fallbackLabel: 'Use PIN',
+      });
+
+      if (result.success) {
+        const mnemonic = await SecureStore.getItemAsync(SECURE_KEYS.MNEMONIC);
+        if (mnemonic) {
+          setSeedPhraseWords(mnemonic.split(' '));
+          setSeedPhraseVisible(false); // Start with words hidden for security
+          setViewingSeedPhrase(true);
+          setShowSettings(false);
+        } else {
+          Alert.alert('Error', 'Recovery phrase not found.');
+        }
+      } else {
+        Alert.alert('Authentication Failed', 'You must authenticate to view your recovery phrase.');
+      }
+    } catch (error) {
+      Alert.alert('Error', 'Failed to retrieve recovery phrase: ' + error.message);
+    }
+  };
+
+  const handleChangePin = async () => {
+    try {
+      const result = await LocalAuthentication.authenticateAsync({
+        promptMessage: 'Authenticate to change your PIN',
+        fallbackLabel: 'Use current PIN',
+      });
+
+      if (result.success) {
+        setShowSettings(false);
+        setChangingPin(true);
+        setSettingUpPin(true);
+        setPinStep('enter');
+        setPin('');
+        setConfirmPin('');
+        setPinError('');
+      } else {
+        Alert.alert('Authentication Failed', 'You must authenticate to change your PIN.');
+      }
+    } catch (error) {
+      Alert.alert('Error', 'Authentication failed: ' + error.message);
     }
   };
 
@@ -470,7 +681,8 @@ export default function App() {
         setRunesBalance([]);
       }
 
-      setShowingSeeds(true);
+      setShowingIntro(true);
+      setShowingSeeds(false);
       setVerifyingSeeds(false);
       setSeedConfirmed(false);
       setSegwitBalance(null);
@@ -607,15 +819,18 @@ export default function App() {
     }
 
     if (allCorrect) {
-      setSeedConfirmed(true);
       setVerifyingSeeds(false);
       // Securely clear temporary mnemonic from memory
       // First overwrite with random data, then clear
       setTempMnemonicWords(Array(12).fill('*'.repeat(8)));
       setTimeout(() => setTempMnemonicWords([]), 100);
 
-      // Fetch balances immediately
-      fetchBalance();
+      // Trigger PIN setup as final step of wallet creation
+      setSettingUpPin(true);
+      setPinStep('enter');
+      setPin('');
+      setConfirmPin('');
+      setPinError('');
     } else {
       Alert.alert('Verification Failed', 'One or more words are incorrect. Please try again.');
       setVerificationWords({});
@@ -718,28 +933,174 @@ export default function App() {
     );
   }
 
+  // Show PIN entry screen
+  if (showPinEntry || settingUpPin) {
+    const currentPin = settingUpPin && pinStep === 'confirm' ? confirmPin : pin;
+    return (
+      <View style={styles.lockedContainer}>
+        <View style={styles.pinContainer}>
+          {settingUpPin && !changingPin && (
+            <Text style={styles.stepIndicator}>Step 4 of 4: Create Your PIN</Text>
+          )}
+          <Text style={styles.pinTitle}>
+            {settingUpPin
+              ? (changingPin
+                  ? (pinStep === 'enter' ? 'Enter New PIN' : 'Confirm New PIN')
+                  : (pinStep === 'enter' ? 'Enter 6-Digit PIN' : 'Confirm Your PIN'))
+              : 'Enter PIN'}
+          </Text>
+          {settingUpPin && !pinError && (
+            <Text style={styles.pinSubtext}>
+              {pinStep === 'enter'
+                ? 'Choose a 6-digit PIN to secure your wallet'
+                : 'Re-enter your PIN to confirm'}
+            </Text>
+          )}
+          {pinError ? <Text style={styles.pinError}>{pinError}</Text> : null}
+
+          {/* PIN Dots */}
+          <View style={styles.pinDotsContainer}>
+            {[0, 1, 2, 3, 4, 5].map(i => (
+              <View
+                key={i}
+                style={[
+                  styles.pinDot,
+                  i < currentPin.length && styles.pinDotFilled
+                ]}
+              />
+            ))}
+          </View>
+
+          {/* PIN Keypad */}
+          <View style={styles.pinKeypad}>
+            {[[1, 2, 3], [4, 5, 6], [7, 8, 9]].map((row, rowIndex) => (
+              <View key={rowIndex} style={styles.pinRow}>
+                {row.map(num => (
+                  <TouchableOpacity
+                    key={num}
+                    style={styles.pinKey}
+                    onPress={() => handlePinDigit(String(num))}
+                  >
+                    <Text style={styles.pinKeyText}>{num}</Text>
+                  </TouchableOpacity>
+                ))}
+              </View>
+            ))}
+            <View style={styles.pinRow}>
+              <View style={styles.pinKey} />
+              <TouchableOpacity
+                style={styles.pinKey}
+                onPress={() => handlePinDigit('0')}
+              >
+                <Text style={styles.pinKeyText}>0</Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                style={styles.pinKey}
+                onPress={handlePinDelete}
+              >
+                <Text style={styles.pinKeyText}>⌫</Text>
+              </TouchableOpacity>
+            </View>
+          </View>
+
+          {!settingUpPin && (
+            <TouchableOpacity
+              style={styles.pinCancelButton}
+              onPress={() => {
+                setShowPinEntry(false);
+                setPin('');
+                setPinError('');
+              }}
+            >
+              <Text style={styles.pinCancelText}>Cancel</Text>
+            </TouchableOpacity>
+          )}
+        </View>
+        <StatusBar style="dark" />
+      </View>
+    );
+  }
+
   // Show locked screen if not authenticated and wallet exists
   if (!isAuthenticated && wallet) {
     return (
       <View style={styles.lockedContainer}>
-        <View style={styles.titleContainer}>
-          <Text style={styles.title}>DUCAT</Text>
-        </View>
         <View style={styles.lockIconContainer}>
-          <Text style={styles.lockIcon}>🔒</Text>
           <Text style={styles.lockedText}>Wallet Locked</Text>
           <Text style={styles.lockedSubtext}>Authenticate to access your wallet</Text>
         </View>
         <TouchableOpacity style={styles.unlockButton} onPress={authenticateUser}>
           <Text style={styles.unlockButtonText}>Unlock with Face ID</Text>
         </TouchableOpacity>
+        <TouchableOpacity
+          style={[styles.unlockButton, styles.pinButton]}
+          onPress={() => setShowPinEntry(true)}
+        >
+          <Text style={styles.unlockButtonText}>Use PIN</Text>
+        </TouchableOpacity>
         <StatusBar style="dark" />
       </View>
     );
   }
 
+  // Full-screen seed phrase viewing
+  if (viewingSeedPhrase) {
+    return (
+      <ScrollView style={{ backgroundColor: '#DDDDDD' }} contentContainerStyle={styles.container}>
+        <View style={styles.titleRow}>
+          <View style={styles.titleContainer}>
+            <Text style={styles.title}>DUCAT</Text>
+          </View>
+        </View>
+
+        <View style={styles.walletInfo}>
+          <Text style={styles.seedPhraseTitle}>Recovery Phrase</Text>
+
+          <Text style={styles.seedPhraseWarning}>
+            ⚠️ Keep these words safe and private!{'\n'}
+            Never share them with anyone.
+          </Text>
+
+          <View style={styles.seedGrid}>
+            {seedPhraseWords.map((word, index) => (
+              <View key={index} style={styles.seedBox}>
+                <Text style={styles.seedNumber}>{index + 1}</Text>
+                <Text style={styles.seedWord}>
+                  {seedPhraseVisible ? word : '••••••'}
+                </Text>
+              </View>
+            ))}
+          </View>
+
+          {!seedPhraseVisible && (
+            <TouchableOpacity
+              style={styles.button}
+              onPress={() => setSeedPhraseVisible(true)}
+            >
+              <Text style={styles.buttonText}>Show Recovery Phrase</Text>
+            </TouchableOpacity>
+          )}
+
+          <TouchableOpacity
+            style={[styles.button, seedPhraseVisible && styles.secondaryButton]}
+            onPress={() => {
+              setViewingSeedPhrase(false);
+              setSeedPhraseWords([]);
+              setSeedPhraseVisible(false);
+            }}
+          >
+            <Text style={styles.buttonText}>Done</Text>
+          </TouchableOpacity>
+        </View>
+
+        <StatusBar style="dark" />
+      </ScrollView>
+    );
+  }
+
   return (
     <ScrollView
+      style={{ backgroundColor: '#DDDDDD' }}
       contentContainerStyle={styles.container}
       refreshControl={
         wallet && seedConfirmed ? (
@@ -756,8 +1117,19 @@ export default function App() {
         </View>
       </View>
 
+      {/* Settings Button - Absolute Top Right */}
+      {wallet && seedConfirmed && (
+        <TouchableOpacity
+          style={styles.settingsButton}
+          onPress={() => setShowSettings(true)}
+        >
+          <Text style={styles.settingsIcon}>⚙️</Text>
+        </TouchableOpacity>
+      )}
+
       {!wallet && !importingWallet ? (
         <View>
+          <Text style={styles.welcomeTagline}>Your Bitcoin Wallet</Text>
           <TouchableOpacity style={styles.button} onPress={createWallet}>
             <Text style={styles.buttonText}>Create New Wallet</Text>
           </TouchableOpacity>
@@ -803,9 +1175,50 @@ export default function App() {
             <Text style={styles.buttonText}>Cancel</Text>
           </TouchableOpacity>
         </View>
+      ) : showingIntro ? (
+        <View style={styles.walletInfo}>
+          <Text style={styles.stepIndicator}>Step 1 of 4: Getting Started</Text>
+
+          <Text style={styles.introTitle}>Your Wallet Has Been Created!</Text>
+
+          <Text style={styles.introText}>
+            In the next steps, you'll receive a 12-word recovery phrase. This phrase is the master key to your Bitcoin wallet.
+          </Text>
+
+          <View style={styles.infoBox}>
+            <Text style={styles.infoTitle}>Important:</Text>
+            <Text style={styles.infoText}>
+              • Write it down on paper{'\n'}
+              • Store it in a safe place{'\n'}
+              • Never share it with anyone{'\n'}
+              • You'll need it to recover your wallet
+            </Text>
+          </View>
+
+          <Text style={styles.warningText}>
+            ⚠️ If you lose your recovery phrase, you lose access to your Bitcoin forever. There is no way to recover it.
+          </Text>
+
+          <TouchableOpacity
+            style={styles.button}
+            onPress={() => {
+              setShowingIntro(false);
+              setShowingSeeds(true);
+            }}
+          >
+            <Text style={styles.buttonText}>I Understand, Show My Recovery Phrase</Text>
+          </TouchableOpacity>
+
+          <TouchableOpacity
+            style={[styles.button, styles.secondaryButton]}
+            onPress={resetWallet}
+          >
+            <Text style={styles.buttonText}>Cancel</Text>
+          </TouchableOpacity>
+        </View>
       ) : showingSeeds ? (
         <View style={styles.walletInfo}>
-          <Text style={styles.stepIndicator}>Step 1 of 3: Save Your Recovery Phrase</Text>
+          <Text style={styles.stepIndicator}>Step 2 of 4: Save Your Recovery Phrase</Text>
 
           <Text style={styles.label}>Write down these 12 words in order:</Text>
 
@@ -840,7 +1253,7 @@ export default function App() {
         </View>
       ) : verifyingSeeds ? (
         <View style={styles.walletInfo}>
-          <Text style={styles.stepIndicator}>Step 2 of 3: Verify Your Recovery Phrase</Text>
+          <Text style={styles.stepIndicator}>Step 3 of 4: Verify Your Recovery Phrase</Text>
 
           <Text style={styles.label}>Select the correct word for each position:</Text>
 
@@ -928,12 +1341,14 @@ export default function App() {
             {/* Header with Account Number and Plus Button */}
             <View style={styles.headerRow}>
               <Text style={styles.walletTitle}>Account {currentAccount + 1}</Text>
-              <TouchableOpacity
-                style={styles.addAccountButton}
-                onPress={() => setShowAccountPicker(true)}
-              >
-                <Text style={styles.addAccountText}>+</Text>
-              </TouchableOpacity>
+              <View style={styles.headerRight}>
+                <TouchableOpacity
+                  style={styles.addAccountButton}
+                  onPress={() => setShowAccountPicker(true)}
+                >
+                  <Text style={styles.addAccountText}>+</Text>
+                </TouchableOpacity>
+              </View>
             </View>
 
           {/* Account Picker Modal */}
@@ -970,6 +1385,59 @@ export default function App() {
               </View>
             </View>
           )}
+
+          {/* Settings Modal */}
+          {showSettings && (
+            <View style={styles.modalOverlay}>
+              <View style={styles.settingsModal}>
+                <View style={styles.settingsHeader}>
+                  <Text style={styles.settingsTitle}>Settings</Text>
+                  <TouchableOpacity onPress={() => setShowSettings(false)}>
+                    <Text style={styles.closeButton}>✕</Text>
+                  </TouchableOpacity>
+                </View>
+
+                <TouchableOpacity
+                  style={styles.settingsOption}
+                  onPress={handleViewSeedPhrase}
+                >
+                  <Text style={styles.settingsOptionIcon}>🔑</Text>
+                  <Text style={styles.settingsOptionText}>View Recovery Phrase</Text>
+                  <Text style={styles.settingsOptionArrow}>›</Text>
+                </TouchableOpacity>
+
+                <TouchableOpacity
+                  style={styles.settingsOption}
+                  onPress={handleChangePin}
+                >
+                  <Text style={styles.settingsOptionIcon}>🔢</Text>
+                  <Text style={styles.settingsOptionText}>Change PIN</Text>
+                  <Text style={styles.settingsOptionArrow}>›</Text>
+                </TouchableOpacity>
+
+                <TouchableOpacity
+                  style={styles.settingsOption}
+                  onPress={handleLogout}
+                >
+                  <Text style={styles.settingsOptionIcon}>🔒</Text>
+                  <Text style={styles.settingsOptionText}>Lock Wallet</Text>
+                  <Text style={styles.settingsOptionArrow}>›</Text>
+                </TouchableOpacity>
+
+                <View style={styles.settingsDivider} />
+
+                <TouchableOpacity
+                  style={[styles.settingsOption, styles.dangerOption]}
+                  onPress={handleDeleteWallet}
+                >
+                  <Text style={styles.settingsOptionIcon}>⚠️</Text>
+                  <Text style={[styles.settingsOptionText, styles.dangerText]}>Delete Wallet</Text>
+                  <Text style={styles.settingsOptionArrow}>›</Text>
+                </TouchableOpacity>
+              </View>
+            </View>
+          )}
+
 
           {/* Total Balance - Aggregate of both addresses */}
           <TouchableOpacity
@@ -1133,6 +1601,12 @@ const styles = StyleSheet.create({
     textAlign: 'center',
     fontFamily: 'monospace',
   },
+  welcomeTagline: {
+    fontSize: 16,
+    color: '#666666',
+    marginBottom: 40,
+    textAlign: 'center',
+  },
   topAddAccountButton: {
     width: 40,
     height: 40,
@@ -1152,6 +1626,7 @@ const styles = StyleSheet.create({
     color: '#DDDDDD',
     fontSize: 16,
     fontWeight: 'bold',
+    textAlign: 'center',
   },
   resetButton: {
     backgroundColor: '#D04C68',
@@ -1163,7 +1638,7 @@ const styles = StyleSheet.create({
   },
   walletInfo: {
     width: '100%',
-    backgroundColor: '#000000',
+    backgroundColor: '#111015',
     padding: 20,
     borderRadius: 15,
     marginTop: 4,
@@ -1174,6 +1649,49 @@ const styles = StyleSheet.create({
     fontWeight: 'bold',
     marginBottom: 20,
     textAlign: 'center',
+  },
+  introTitle: {
+    fontSize: 24,
+    fontWeight: 'bold',
+    color: '#333333',
+    marginBottom: 20,
+    textAlign: 'center',
+  },
+  introText: {
+    fontSize: 16,
+    color: '#666666',
+    lineHeight: 24,
+    marginBottom: 25,
+    textAlign: 'center',
+  },
+  infoBox: {
+    backgroundColor: '#F5F5F5',
+    borderRadius: 12,
+    padding: 20,
+    marginBottom: 25,
+    borderLeftWidth: 4,
+    borderLeftColor: '#0066FF',
+  },
+  infoTitle: {
+    fontSize: 16,
+    fontWeight: 'bold',
+    color: '#333333',
+    marginBottom: 12,
+  },
+  infoText: {
+    fontSize: 14,
+    color: '#666666',
+    lineHeight: 22,
+  },
+  warningText: {
+    fontSize: 14,
+    color: '#D04C68',
+    backgroundColor: '#FFF5F7',
+    padding: 15,
+    borderRadius: 8,
+    marginBottom: 25,
+    textAlign: 'center',
+    lineHeight: 20,
   },
   headerRow: {
     flexDirection: 'row',
@@ -1206,7 +1724,7 @@ const styles = StyleSheet.create({
   },
   addressToggle: {
     flexDirection: 'row',
-    backgroundColor: '#1A1A1A',
+    backgroundColor: '#1D1C21',
     borderRadius: 8,
     overflow: 'hidden',
   },
@@ -1261,7 +1779,7 @@ const styles = StyleSheet.create({
     minHeight: 144,
   },
   assetCard: {
-    backgroundColor: '#1A1A1A',
+    backgroundColor: '#1D1C21',
     borderRadius: 12,
     padding: 16,
     marginBottom: 12,
@@ -1348,7 +1866,7 @@ const styles = StyleSheet.create({
     borderRadius: 15,
   },
   modalContent: {
-    backgroundColor: '#1A1A1A',
+    backgroundColor: '#1D1C21',
     borderRadius: 15,
     padding: 24,
     width: '80%',
@@ -1368,7 +1886,7 @@ const styles = StyleSheet.create({
     marginBottom: 8,
   },
   accountInput: {
-    backgroundColor: '#000000',
+    backgroundColor: '#0066FF',
     color: '#DDDDDD',
     padding: 12,
     borderRadius: 8,
@@ -1428,7 +1946,7 @@ const styles = StyleSheet.create({
   },
   seedBox: {
     width: '48%',
-    backgroundColor: '#1A1A1A',
+    backgroundColor: '#1D1C21',
     padding: 12,
     borderRadius: 8,
     marginBottom: 10,
@@ -1463,12 +1981,12 @@ const styles = StyleSheet.create({
   },
   choiceButton: {
     width: '48%',
-    backgroundColor: '#1A1A1A',
+    backgroundColor: '#1D1C21',
     padding: 12,
     borderRadius: 8,
     marginBottom: 8,
     borderWidth: 2,
-    borderColor: '#1A1A1A',
+    borderColor: '#1D1C21',
   },
   choiceButtonSelected: {
     backgroundColor: '#0066FF',
@@ -1491,15 +2009,15 @@ const styles = StyleSheet.create({
   },
   addressTypeButton: {
     width: '48%',
-    backgroundColor: '#1A1A1A',
+    backgroundColor: '#1D1C21',
     padding: 15,
     borderRadius: 10,
     borderWidth: 2,
-    borderColor: '#1A1A1A',
+    borderColor: '#1D1C21',
     alignItems: 'center',
   },
   addressTypeButtonSelected: {
-    backgroundColor: '#000000',
+    backgroundColor: '#0066FF',
     borderColor: '#0066FF',
   },
   addressTypeText: {
@@ -1509,7 +2027,7 @@ const styles = StyleSheet.create({
     marginBottom: 5,
   },
   addressTypeTextSelected: {
-    color: '#0066FF',
+    color: '#DDDDDD',
   },
   addressTypeSubtext: {
     color: '#666666',
@@ -1524,7 +2042,7 @@ const styles = StyleSheet.create({
     lineHeight: 18,
   },
   runesContainer: {
-    backgroundColor: '#1A1A1A',
+    backgroundColor: '#1D1C21',
     padding: 15,
     borderRadius: 10,
     marginBottom: 20,
@@ -1544,7 +2062,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     paddingVertical: 8,
     borderBottomWidth: 1,
-    borderBottomColor: '#000000',
+    borderBottomColor: '#0066FF',
   },
   runeName: {
     fontSize: 12,
@@ -1559,7 +2077,7 @@ const styles = StyleSheet.create({
     fontFamily: 'monospace',
   },
   seedInput: {
-    backgroundColor: '#1A1A1A',
+    backgroundColor: '#1D1C21',
     color: '#DDDDDD',
     padding: 15,
     borderRadius: 10,
@@ -1582,7 +2100,7 @@ const styles = StyleSheet.create({
     left: 0,
     right: 0,
     bottom: 0,
-    backgroundColor: 'rgba(0, 0, 0, 0.85)',
+    backgroundColor: 'rgba(0, 0, 0, 0.7)',
     justifyContent: 'center',
     alignItems: 'center',
     zIndex: 2000,
@@ -1623,7 +2141,7 @@ const styles = StyleSheet.create({
     width: '100%',
   },
   priceChip: {
-    backgroundColor: '#1A1A1A',
+    backgroundColor: '#1D1C21',
     borderRadius: 20,
     paddingHorizontal: 14,
     paddingVertical: 8,
@@ -1662,6 +2180,7 @@ const styles = StyleSheet.create({
   },
   lockIconContainer: {
     alignItems: 'center',
+    marginTop: 0,
     marginBottom: 40,
   },
   lockIcon: {
@@ -1689,5 +2208,170 @@ const styles = StyleSheet.create({
     color: '#DDDDDD',
     fontSize: 16,
     fontWeight: 'bold',
+    textAlign: 'center',
+  },
+  pinButton: {
+    backgroundColor: '#666666',
+    marginTop: 15,
+  },
+  pinContainer: {
+    width: '100%',
+    alignItems: 'center',
+    paddingHorizontal: 20,
+    marginTop: 20,
+  },
+  pinTitle: {
+    fontSize: 24,
+    fontWeight: 'bold',
+    color: '#333333',
+    marginBottom: 10,
+  },
+  pinSubtext: {
+    fontSize: 14,
+    color: '#666666',
+    marginBottom: 20,
+    textAlign: 'center',
+    paddingHorizontal: 20,
+  },
+  pinError: {
+    fontSize: 14,
+    color: '#D04C68',
+    marginBottom: 20,
+    textAlign: 'center',
+  },
+  pinDotsContainer: {
+    flexDirection: 'row',
+    marginBottom: 50,
+  },
+  pinDot: {
+    width: 16,
+    height: 16,
+    borderRadius: 8,
+    borderWidth: 2,
+    borderColor: '#DDDDDD',
+    marginHorizontal: 8,
+  },
+  pinDotFilled: {
+    backgroundColor: '#0066FF',
+    borderColor: '#0066FF',
+  },
+  pinKeypad: {
+    width: '100%',
+    maxWidth: 300,
+  },
+  pinRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    marginBottom: 12,
+  },
+  pinKey: {
+    width: 65,
+    height: 65,
+    borderRadius: 32.5,
+    backgroundColor: '#111015',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  pinKeyText: {
+    fontSize: 28,
+    color: '#DDDDDD',
+    fontWeight: '600',
+  },
+  pinCancelButton: {
+    marginTop: 20,
+    paddingVertical: 15,
+  },
+  pinCancelText: {
+    fontSize: 16,
+    color: '#666666',
+    fontWeight: '600',
+  },
+  settingsButton: {
+    position: 'absolute',
+    top: 60,
+    right: 20,
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    backgroundColor: '#666666',
+    justifyContent: 'center',
+    alignItems: 'center',
+    zIndex: 1000,
+  },
+  settingsIcon: {
+    fontSize: 20,
+  },
+  settingsModal: {
+    backgroundColor: '#1D1C21',
+    borderRadius: 20,
+    padding: 0,
+    width: '85%',
+    maxWidth: 400,
+  },
+  settingsHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    padding: 20,
+    borderBottomWidth: 1,
+    borderBottomColor: '#EEEEEE',
+  },
+  settingsTitle: {
+    fontSize: 20,
+    fontWeight: 'bold',
+    color: '#DDDDDD',
+  },
+  closeButton: {
+    fontSize: 24,
+    color: '#666666',
+    fontWeight: '300',
+  },
+  settingsOption: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    padding: 18,
+    borderBottomWidth: 1,
+    borderBottomColor: '#F5F5F5',
+  },
+  settingsOptionIcon: {
+    fontSize: 22,
+    marginRight: 15,
+    width: 30,
+  },
+  settingsOptionText: {
+    flex: 1,
+    fontSize: 16,
+    color: '#DDDDDD',
+  },
+  settingsOptionArrow: {
+    fontSize: 20,
+    color: '#CCCCCC',
+  },
+  settingsDivider: {
+    height: 8,
+    backgroundColor: '#F5F5F5',
+  },
+  dangerOption: {
+    borderBottomWidth: 0,
+  },
+  dangerText: {
+    color: '#D04C68',
+  },
+  seedPhraseTitle: {
+    fontSize: 24,
+    fontWeight: 'bold',
+    color: '#333333',
+    textAlign: 'center',
+    marginBottom: 20,
+  },
+  seedPhraseWarning: {
+    fontSize: 14,
+    color: '#D04C68',
+    backgroundColor: '#FFF5F7',
+    padding: 15,
+    borderRadius: 8,
+    marginBottom: 25,
+    textAlign: 'center',
+    lineHeight: 20,
   },
 });
