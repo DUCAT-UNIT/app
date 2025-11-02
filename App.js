@@ -110,6 +110,8 @@ export default function App() {
   const [isAuthenticated, setIsAuthenticated] = useState(false); // Biometric auth status
   const [isBiometricSupported, setIsBiometricSupported] = useState(false);
   const appState = useRef(AppState.currentState);
+  const inactivityTimer = useRef(null);
+  const INACTIVITY_TIMEOUT = 2 * 60 * 1000; // 2 minutes in milliseconds
 
   const fetchBtcPrice = async () => {
     try {
@@ -213,6 +215,10 @@ export default function App() {
         // App has come to foreground, require re-authentication if wallet exists
         if (wallet && isBiometricSupported) {
           setIsAuthenticated(false);
+          // Clear inactivity timer when app goes to background
+          if (inactivityTimer.current) {
+            clearTimeout(inactivityTimer.current);
+          }
           authenticateUser();
         }
       }
@@ -224,6 +230,15 @@ export default function App() {
       subscription.remove();
     };
   }, [wallet, isBiometricSupported]);
+
+  // Cleanup inactivity timer on unmount
+  useEffect(() => {
+    return () => {
+      if (inactivityTimer.current) {
+        clearTimeout(inactivityTimer.current);
+      }
+    };
+  }, []);
 
   const authenticateUser = async () => {
     try {
@@ -246,6 +261,8 @@ export default function App() {
 
       if (result.success) {
         setIsAuthenticated(true);
+        // Start inactivity timer after successful authentication
+        startInactivityTimer();
       } else {
         setIsAuthenticated(false);
         Alert.alert(
@@ -258,6 +275,26 @@ export default function App() {
       console.error('Authentication error:', error);
       Alert.alert('Error', 'Failed to authenticate. Please try again.');
     }
+  };
+
+  const startInactivityTimer = () => {
+    // Clear any existing timer
+    if (inactivityTimer.current) {
+      clearTimeout(inactivityTimer.current);
+    }
+
+    // Only set timer if wallet exists and is authenticated
+    if (wallet && isAuthenticated && isBiometricSupported) {
+      inactivityTimer.current = setTimeout(() => {
+        // Lock the wallet after inactivity timeout
+        setIsAuthenticated(false);
+      }, INACTIVITY_TIMEOUT);
+    }
+  };
+
+  const resetInactivityTimer = () => {
+    // Reset the timer on user activity
+    startInactivityTimer();
   };
 
   const fetchBalance = async (segwitAddr, taprootAddr) => {
@@ -609,6 +646,9 @@ export default function App() {
           <RefreshControl refreshing={refreshing} onRefresh={onRefresh} />
         ) : undefined
       }
+      onTouchStart={resetInactivityTimer}
+      onScroll={resetInactivityTimer}
+      scrollEventThrottle={400}
     >
       <View style={styles.titleRow}>
         <View style={styles.titleContainer}>
