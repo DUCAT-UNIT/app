@@ -1,0 +1,31 @@
+{
+  "name": "simplewallet",
+  "version": "1.0.0",
+  "main": "index.js",
+  "scripts": {
+    "start": "expo start",
+    "android": "expo run:android",
+    "ios": "expo run:ios",
+    "web": "expo start --web"
+  },
+  "dependencies": {
+    "@bitcoinerlab/secp256k1": "^1.2.0",
+    "bip32": "^5.0.0",
+    "bip39": "^3.1.0",
+    "bitcoinjs-lib": "^7.0.0",
+    "buffer": "^6.0.3",
+    "expo": "~54.0.20",
+    "expo-clipboard": "~8.0.7",
+    "expo-crypto": "~15.0.7",
+    "expo-font": "~14.0.9",
+    "expo-random": "^14.0.1",
+    "expo-status-bar": "~3.0.8",
+    "react": "19.1.0",
+    "react-native": "0.81.5",
+    "react-native-get-random-values": "^2.0.0"
+  },
+  "private": true,
+  "devDependencies": {
+    "sharp": "^0.34.4"
+  }
+}

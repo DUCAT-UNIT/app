@@ -1,0 +1,10 @@
+<svg width="1024" height="1024" viewBox="0 0 1024 1024" fill="none" xmlns="http://www.w3.org/2000/svg">
+  <!-- Black background -->
+  <rect width="1024" height="1024" fill="#000000"/>
+
+  <!-- Outer circle (white stroke) -->
+  <circle cx="512" cy="512" r="400" stroke="#DDDDDD" stroke-width="4" fill="none"/>
+
+  <!-- Inner dot (white/light gray) -->
+  <circle cx="512" cy="512" r="30" fill="#DDDDDD"/>
+</svg>
