@@ -211,19 +211,18 @@ export default function App() {
     console.log('[APPSTATE] Setting up AppState listener');
     const subscription = AppState.addEventListener('change', nextAppState => {
       console.log(`[APPSTATE] State changed from ${appState.current} to ${nextAppState}`);
+
+      // ONLY lock when coming back from background, NOT from inactive
+      // (inactive happens during Face ID, control center, etc.)
       if (
-        appState.current.match(/inactive|background/) &&
+        appState.current === 'background' &&
         nextAppState === 'active'
       ) {
-        console.log('[APPSTATE] App came to foreground');
-        // App has come to foreground, require re-authentication if wallet exists
+        console.log('[APPSTATE] App came back from background');
+        // App has come to foreground from background, require re-authentication if wallet exists
         if (walletExists.current && isBiometricSupported) {
           console.log('[APPSTATE] Wallet exists and biometrics supported - locking');
           setIsAuthenticated(false);
-          // Clear inactivity timer when app goes to background
-          if (inactivityTimer.current) {
-            clearTimeout(inactivityTimer.current);
-          }
           authenticateUser();
         } else {
           console.log(`[APPSTATE] Not locking - walletExists: ${walletExists.current}, biometricSupported: ${isBiometricSupported}`);
