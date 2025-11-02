@@ -3,6 +3,7 @@ import { Buffer } from 'buffer';
 global.Buffer = Buffer;
 
 import * as Crypto from 'expo-crypto';
+import * as SecureStore from 'expo-secure-store';
 
 import { StatusBar } from 'expo-status-bar';
 import { StyleSheet, Text, View, TouchableOpacity, ScrollView, Alert, ActivityIndicator, TextInput, Image, RefreshControl } from 'react-native';
@@ -32,8 +33,56 @@ const mutinynet = {
   wif: 0xef,
 };
 
+// Secure storage keys
+const SECURE_KEYS = {
+  MNEMONIC: 'wallet_mnemonic_v1',
+  CURRENT_ACCOUNT: 'wallet_current_account_v1',
+};
+
+// Helper functions for secure key derivation
+const deriveMnemonicFromSecureStore = async () => {
+  try {
+    const mnemonic = await SecureStore.getItemAsync(SECURE_KEYS.MNEMONIC);
+    return mnemonic;
+  } catch (error) {
+    console.error('Error retrieving mnemonic from secure storage:', error);
+    return null;
+  }
+};
+
+const deriveAddressesFromMnemonic = (mnemonic, accountIndex = 0) => {
+  // Convert mnemonic to seed
+  const seed = bip39.mnemonicToSeedSync(mnemonic);
+
+  // Create HD wallet root
+  const root = bip32.fromSeed(seed, mutinynet);
+
+  // BIP84 - Native SegWit
+  const segwitPath = `m/84'/1'/0'/0/${accountIndex}`;
+  const segwitChild = root.derivePath(segwitPath);
+  const segwitPayment = bitcoin.payments.p2wpkh({
+    pubkey: segwitChild.publicKey,
+    network: mutinynet,
+  });
+
+  // BIP86 - Taproot
+  const taprootPath = `m/86'/1'/0'/0/${accountIndex}`;
+  const taprootChild = root.derivePath(taprootPath);
+  const xOnlyPubkey = taprootChild.publicKey.slice(1, 33);
+  const taprootPayment = bitcoin.payments.p2tr({
+    internalPubkey: xOnlyPubkey,
+    network: mutinynet,
+  });
+
+  return {
+    segwitAddress: segwitPayment.address,
+    taprootAddress: taprootPayment.address,
+  };
+};
+
 export default function App() {
-  const [wallet, setWallet] = useState(null);
+  const [wallet, setWallet] = useState(null); // Only stores public addresses
+  const [tempMnemonicWords, setTempMnemonicWords] = useState([]); // Temporary for seed verification flow
   const [showingSeeds, setShowingSeeds] = useState(false);
   const [verifyingSeeds, setVerifyingSeeds] = useState(false);
   const [seedConfirmed, setSeedConfirmed] = useState(false);
@@ -79,6 +128,36 @@ export default function App() {
     const interval = setInterval(fetchBtcPrice, 60000);
 
     return () => clearInterval(interval);
+  }, []);
+
+  // Load wallet from secure storage on app start
+  useEffect(() => {
+    const loadWallet = async () => {
+      try {
+        const mnemonic = await deriveMnemonicFromSecureStore();
+        if (mnemonic) {
+          // Wallet exists in secure storage, load it
+          const accountIndexStr = await SecureStore.getItemAsync(SECURE_KEYS.CURRENT_ACCOUNT);
+          const accountIndex = accountIndexStr ? parseInt(accountIndexStr) : 0;
+
+          const addresses = deriveAddressesFromMnemonic(mnemonic, accountIndex);
+
+          setWallet({
+            segwitAddress: addresses.segwitAddress,
+            taprootAddress: addresses.taprootAddress,
+          });
+          setCurrentAccount(accountIndex);
+          setSeedConfirmed(true);
+
+          // Fetch balances
+          fetchBalance(addresses.segwitAddress, addresses.taprootAddress);
+        }
+      } catch (error) {
+        console.error('Error loading wallet from secure storage:', error);
+      }
+    };
+
+    loadWallet();
   }, []);
 
   const fetchBalance = async (segwitAddr, taprootAddr) => {
@@ -144,43 +223,25 @@ export default function App() {
       // Generate a 12-word mnemonic
       const mnemonic = bip39.entropyToMnemonic(Buffer.from(randomBytes).toString('hex'));
 
-      // Convert mnemonic to seed
-      const seed = bip39.mnemonicToSeedSync(mnemonic);
+      // Derive addresses from mnemonic
+      const addresses = deriveAddressesFromMnemonic(mnemonic, currentAccount);
 
-      // Create HD wallet root
-      const root = bip32.fromSeed(seed);
+      // Store mnemonic in secure storage (iOS Keychain)
+      await SecureStore.setItemAsync(SECURE_KEYS.MNEMONIC, mnemonic);
+      await SecureStore.setItemAsync(SECURE_KEYS.CURRENT_ACCOUNT, currentAccount.toString());
 
-      // BIP84 - Native SegWit (m/84'/1'/0'/0/i)
-      const segwitPath = `m/84'/1'/0'/0/${currentAccount}`;
-      const segwitChild = root.derivePath(segwitPath);
-      const segwitPayment = bitcoin.payments.p2wpkh({
-        pubkey: segwitChild.publicKey,
-        network: mutinynet,
-      });
-
-      // BIP86 - Taproot (m/86'/1'/0'/0/i)
-      const taprootPath = `m/86'/1'/0'/0/${currentAccount}`;
-      const taprootChild = root.derivePath(taprootPath);
-
-      // For Taproot, we need to use the x-only pubkey (first 32 bytes)
-      const xOnlyPubkey = taprootChild.publicKey.slice(1, 33);
-      const taprootPayment = bitcoin.payments.p2tr({
-        internalPubkey: xOnlyPubkey,
-        network: mutinynet,
-      });
-
+      // Store ONLY public addresses in state
       setWallet({
-        mnemonic,
-        mnemonicWords: mnemonic.split(' '),
-        segwitAddress: segwitPayment.address,
-        taprootAddress: taprootPayment.address,
-        segwitPrivateKey: segwitChild.toWIF(),
-        taprootPrivateKey: taprootChild.toWIF(),
+        segwitAddress: addresses.segwitAddress,
+        taprootAddress: addresses.taprootAddress,
       });
+
+      // Temporarily store mnemonic words for verification flow only
+      setTempMnemonicWords(mnemonic.split(' '));
 
       // Pre-fetch RUNES balance from Taproot address
       try {
-        const runesResponse = await fetch(`https://ord-mutinynet.ducatprotocol.com/address/${taprootPayment.address}`, {
+        const runesResponse = await fetch(`https://ord-mutinynet.ducatprotocol.com/address/${addresses.taprootAddress}`, {
           headers: {
             'Accept': 'application/json'
           }
@@ -214,44 +275,23 @@ export default function App() {
         return;
       }
 
-      // Convert mnemonic to seed
-      const seed = bip39.mnemonicToSeedSync(mnemonic);
+      // Derive addresses from mnemonic
+      const addresses = deriveAddressesFromMnemonic(mnemonic, currentAccount);
 
-      // Create HD wallet root
-      const root = bip32.fromSeed(seed, mutinynet);
+      // Store mnemonic in secure storage (iOS Keychain)
+      await SecureStore.setItemAsync(SECURE_KEYS.MNEMONIC, mnemonic);
+      await SecureStore.setItemAsync(SECURE_KEYS.CURRENT_ACCOUNT, currentAccount.toString());
 
-      // BIP84 - Native SegWit
-      const segwitPath = `m/84'/1'/0'/0/${currentAccount}`;
-      const segwitChild = root.derivePath(segwitPath);
-      const segwitPayment = bitcoin.payments.p2wpkh({
-        pubkey: segwitChild.publicKey,
-        network: mutinynet,
+      // Store ONLY public addresses in state
+      setWallet({
+        segwitAddress: addresses.segwitAddress,
+        taprootAddress: addresses.taprootAddress,
       });
-
-      // BIP86 - Taproot
-      const taprootPath = `m/86'/1'/0'/0/${currentAccount}`;
-      const taprootChild = root.derivePath(taprootPath);
-      const xOnlyPubkey = taprootChild.publicKey.slice(1, 33);
-      const taprootPayment = bitcoin.payments.p2tr({
-        internalPubkey: xOnlyPubkey,
-        network: mutinynet,
-      });
-
-      const newWallet = {
-        mnemonic,
-        mnemonicWords: mnemonic.split(' '),
-        segwitAddress: segwitPayment.address,
-        taprootAddress: taprootPayment.address,
-        segwitPrivateKey: segwitChild.toWIF(),
-        taprootPrivateKey: taprootChild.toWIF(),
-      };
-
-      setWallet(newWallet);
 
       // Fetch BTC balances for both addresses
       try {
         // Fetch SegWit balance
-        const segwitResponse = await fetch(`https://mutinynet.com/api/address/${segwitPayment.address}`);
+        const segwitResponse = await fetch(`https://mutinynet.com/api/address/${addresses.segwitAddress}`);
         const segwitData = await segwitResponse.json();
         const segwitTotalReceived = segwitData.chain_stats?.funded_txo_sum || 0;
         const segwitTotalSpent = segwitData.chain_stats?.spent_txo_sum || 0;
@@ -259,7 +299,7 @@ export default function App() {
         setSegwitBalance(segwitBtcBalance);
 
         // Fetch Taproot balance
-        const taprootResponse = await fetch(`https://mutinynet.com/api/address/${taprootPayment.address}`);
+        const taprootResponse = await fetch(`https://mutinynet.com/api/address/${addresses.taprootAddress}`);
         const taprootData = await taprootResponse.json();
         const taprootTotalReceived = taprootData.chain_stats?.funded_txo_sum || 0;
         const taprootTotalSpent = taprootData.chain_stats?.spent_txo_sum || 0;
@@ -267,7 +307,7 @@ export default function App() {
         setTaprootBalance(taprootBtcBalance);
 
         // Fetch RUNES balance
-        const runesResponse = await fetch(`https://ord-mutinynet.ducatprotocol.com/address/${taprootPayment.address}`, {
+        const runesResponse = await fetch(`https://ord-mutinynet.ducatprotocol.com/address/${addresses.taprootAddress}`, {
           headers: {
             'Accept': 'application/json'
           }
@@ -321,9 +361,8 @@ export default function App() {
 
     // Generate multiple choice options for each word
     const choices = {};
-    const mnemonicWords = wallet.mnemonicWords;
     indices.forEach(index => {
-      choices[index] = generateChoicesForWord(mnemonicWords[index], mnemonicWords);
+      choices[index] = generateChoicesForWord(tempMnemonicWords[index], tempMnemonicWords);
     });
     setWordChoices(choices);
     setVerificationWords({});
@@ -332,7 +371,6 @@ export default function App() {
   };
 
   const verifySeeds = () => {
-    const mnemonicWords = wallet.mnemonicWords;
     let allCorrect = true;
 
     // Check if all words have been selected
@@ -343,7 +381,7 @@ export default function App() {
 
     for (const index of requiredIndices) {
       const userWord = verificationWords[index];
-      const correctWord = mnemonicWords[index];
+      const correctWord = tempMnemonicWords[index];
       if (userWord !== correctWord) {
         allCorrect = false;
         break;
@@ -353,6 +391,8 @@ export default function App() {
     if (allCorrect) {
       setSeedConfirmed(true);
       setVerifyingSeeds(false);
+      // Clear temporary mnemonic from memory after successful verification
+      setTempMnemonicWords([]);
 
       // Fetch balances immediately
       fetchBalance();
@@ -373,8 +413,14 @@ export default function App() {
     Alert.alert('Copied!', 'Address copied to clipboard');
   };
 
-  const resetWallet = () => {
+  const resetWallet = async () => {
+    // Clear secure storage
+    await SecureStore.deleteItemAsync(SECURE_KEYS.MNEMONIC);
+    await SecureStore.deleteItemAsync(SECURE_KEYS.CURRENT_ACCOUNT);
+
+    // Clear state
     setWallet(null);
+    setTempMnemonicWords([]);
     setShowingSeeds(false);
     setVerifyingSeeds(false);
     setSeedConfirmed(false);
@@ -382,7 +428,7 @@ export default function App() {
     setTaprootBalance(null);
     setRunesBalance([]);
     setVerificationWords({});
-    setRequiredIndices({});
+    setRequiredIndices([]);
     setWordChoices({});
     setCurrentAccount(0);
   };
@@ -400,41 +446,30 @@ export default function App() {
     try {
       setSwitchingAccount(true);
 
+      // Retrieve mnemonic from secure storage
+      const mnemonic = await deriveMnemonicFromSecureStore();
+      if (!mnemonic) {
+        throw new Error('Failed to retrieve wallet from secure storage');
+      }
+
       // Derive new addresses for the selected account
-      const seed = bip39.mnemonicToSeedSync(wallet.mnemonic);
-      const root = bip32.fromSeed(seed, mutinynet);
+      const addresses = deriveAddressesFromMnemonic(mnemonic, accountIndex);
 
-      // BIP84 - Native SegWit
-      const segwitPath = `m/84'/1'/0'/0/${accountIndex}`;
-      const segwitChild = root.derivePath(segwitPath);
-      const segwitPayment = bitcoin.payments.p2wpkh({
-        pubkey: segwitChild.publicKey,
-        network: mutinynet,
-      });
-
-      // BIP86 - Taproot
-      const taprootPath = `m/86'/1'/0'/0/${accountIndex}`;
-      const taprootChild = root.derivePath(taprootPath);
-      const xOnlyPubkey = taprootChild.publicKey.slice(1, 33);
-      const taprootPayment = bitcoin.payments.p2tr({
-        internalPubkey: xOnlyPubkey,
-        network: mutinynet,
-      });
-
+      // Update wallet with only public addresses
       setWallet({
-        ...wallet,
-        segwitAddress: segwitPayment.address,
-        taprootAddress: taprootPayment.address,
-        segwitPrivateKey: segwitChild.toWIF(),
-        taprootPrivateKey: taprootChild.toWIF(),
+        segwitAddress: addresses.segwitAddress,
+        taprootAddress: addresses.taprootAddress,
       });
 
+      // Update current account in state and secure storage
       setCurrentAccount(accountIndex);
+      await SecureStore.setItemAsync(SECURE_KEYS.CURRENT_ACCOUNT, accountIndex.toString());
+
       setShowAccountPicker(false);
       setNewAccountIndex('');
 
       // Fetch all balances using the new addresses directly
-      await fetchBalance(segwitPayment.address, taprootPayment.address);
+      await fetchBalance(addresses.segwitAddress, addresses.taprootAddress);
     } catch (error) {
       console.error('Error switching account:', error);
       Alert.alert('Error', 'Failed to switch account');
@@ -512,7 +547,7 @@ export default function App() {
           <Text style={styles.label}>Write down these 12 words in order:</Text>
 
           <View style={styles.seedGrid}>
-            {wallet.mnemonicWords.map((word, index) => (
+            {tempMnemonicWords.map((word, index) => (
               <View key={index} style={styles.seedBox}>
                 <Text style={styles.seedNumber}>{index + 1}</Text>
                 <Text style={styles.seedWord}>{word}</Text>
