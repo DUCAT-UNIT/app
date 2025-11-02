@@ -182,7 +182,8 @@ export default function App() {
 
   // Transaction intent state
   const [sendIntent, setSendIntent] = useState(null); // Current send transaction intent
-  const [intentStep, setIntentStep] = useState('idle'); // 'idle' | 'creating' | 'reviewing' | 'signing' | 'broadcasting' | 'confirmed'
+  const [intentStep, setIntentStep] = useState('idle'); // 'idle' | 'selecting_asset' | 'creating' | 'reviewing' | 'signing' | 'broadcasting' | 'confirmed'
+  const [sendAssetType, setSendAssetType] = useState(null); // 'btc' | 'unit'
   const [sendAmount, setSendAmount] = useState('');
   const [sendRecipient, setSendRecipient] = useState('');
   const [sendAddressType, setSendAddressType] = useState('taproot'); // 'segwit' | 'taproot'
@@ -1875,7 +1876,7 @@ export default function App() {
           <View style={styles.actionsRow}>
             <TouchableOpacity
               style={[styles.actionButton, styles.sendButton]}
-              onPress={() => setIntentStep('creating')}
+              onPress={() => setIntentStep('selecting_asset')}
             >
               <Text style={styles.actionButtonText}>Send</Text>
             </TouchableOpacity>
@@ -1887,8 +1888,57 @@ export default function App() {
             </TouchableOpacity>
           </View>
 
+          {/* Asset Selector Bottom Sheet */}
+          {intentStep === 'selecting_asset' && (
+            <View style={styles.modalOverlay}>
+              <TouchableOpacity
+                style={styles.modalBackdrop}
+                onPress={() => setIntentStep('idle')}
+                activeOpacity={1}
+              />
+              <View style={styles.bottomSheet}>
+                <View style={styles.bottomSheetHandle} />
+                <Text style={styles.bottomSheetTitle}>Send What?</Text>
+
+                <TouchableOpacity
+                  style={styles.assetOption}
+                  onPress={() => {
+                    setSendAssetType('btc');
+                    setIntentStep('creating');
+                  }}
+                >
+                  <View style={styles.assetOptionIcon}>
+                    <Text style={styles.assetOptionIconText}>₿</Text>
+                  </View>
+                  <View style={styles.assetOptionInfo}>
+                    <Text style={styles.assetOptionTitle}>Bitcoin</Text>
+                    <Text style={styles.assetOptionSubtitle}>Send BTC</Text>
+                  </View>
+                  <Text style={styles.assetOptionArrow}>›</Text>
+                </TouchableOpacity>
+
+                <TouchableOpacity
+                  style={styles.assetOption}
+                  onPress={() => {
+                    setSendAssetType('unit');
+                    setIntentStep('creating');
+                  }}
+                >
+                  <View style={[styles.assetOptionIcon, styles.assetOptionIconUnit]}>
+                    <Text style={styles.assetOptionIconText}>U</Text>
+                  </View>
+                  <View style={styles.assetOptionInfo}>
+                    <Text style={styles.assetOptionTitle}>Unit</Text>
+                    <Text style={styles.assetOptionSubtitle}>Send DUCAT•UNIT•RUNE</Text>
+                  </View>
+                  <Text style={styles.assetOptionArrow}>›</Text>
+                </TouchableOpacity>
+              </View>
+            </View>
+          )}
+
           {/* Send Intent Modal */}
-          {intentStep === 'creating' && (
+          {intentStep === 'creating' && sendAssetType && (
             <View style={styles.modalOverlay}>
               <View style={styles.intentModal}>
                 <View style={styles.settingsHeader}>
@@ -2928,5 +2978,82 @@ const styles = StyleSheet.create({
     color: '#666666',
     fontFamily: 'monospace',
     marginTop: 3,
+  },
+  // Bottom sheet styles
+  modalBackdrop: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
+    bottom: 0,
+  },
+  bottomSheet: {
+    position: 'absolute',
+    bottom: 0,
+    left: 0,
+    right: 0,
+    backgroundColor: '#1D1C21',
+    borderTopLeftRadius: 20,
+    borderTopRightRadius: 20,
+    paddingBottom: 40,
+    paddingHorizontal: 20,
+    paddingTop: 15,
+  },
+  bottomSheetHandle: {
+    width: 40,
+    height: 4,
+    backgroundColor: '#666666',
+    borderRadius: 2,
+    alignSelf: 'center',
+    marginBottom: 20,
+  },
+  bottomSheetTitle: {
+    fontSize: 22,
+    fontWeight: 'bold',
+    color: '#DDDDDD',
+    marginBottom: 25,
+    textAlign: 'center',
+  },
+  assetOption: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#111015',
+    padding: 18,
+    borderRadius: 12,
+    marginBottom: 12,
+  },
+  assetOptionIcon: {
+    width: 50,
+    height: 50,
+    borderRadius: 25,
+    backgroundColor: '#0066FF',
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginRight: 15,
+  },
+  assetOptionIconUnit: {
+    backgroundColor: '#59AA8A',
+  },
+  assetOptionIconText: {
+    fontSize: 24,
+    color: '#DDDDDD',
+    fontWeight: 'bold',
+  },
+  assetOptionInfo: {
+    flex: 1,
+  },
+  assetOptionTitle: {
+    fontSize: 18,
+    fontWeight: '600',
+    color: '#DDDDDD',
+    marginBottom: 3,
+  },
+  assetOptionSubtitle: {
+    fontSize: 13,
+    color: '#666666',
+  },
+  assetOptionArrow: {
+    fontSize: 24,
+    color: '#666666',
   },
 });
