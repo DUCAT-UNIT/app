@@ -1888,61 +1888,74 @@ export default function App() {
             </TouchableOpacity>
           </View>
 
-          {/* Asset Selector Bottom Sheet */}
-          {intentStep === 'selecting_asset' && (
-            <View style={styles.modalOverlay}>
-              <TouchableOpacity
-                style={styles.modalBackdrop}
-                onPress={() => setIntentStep('idle')}
-                activeOpacity={1}
+          {/* Asset Selector Bottom Sheet - Outside modal */}
+        </View>
+        </View>
+      )}
+
+      {/* Asset Selector Bottom Sheet - Slides from absolute bottom */}
+      {intentStep === 'selecting_asset' && (
+        <>
+          <TouchableOpacity
+            style={styles.bottomSheetBackdrop}
+            onPress={() => setIntentStep('idle')}
+            activeOpacity={1}
+          />
+          <View style={styles.bottomSheet}>
+            <View style={styles.bottomSheetHandle} />
+            <Text style={styles.bottomSheetTitle}>Send What?</Text>
+
+            <TouchableOpacity
+              style={styles.assetOption}
+              onPress={() => {
+                setSendAssetType('btc');
+                setIntentStep('creating');
+              }}
+            >
+              <Image
+                source={require('./assets/btc-logo.png')}
+                style={styles.assetOptionLogo}
               />
-              <View style={styles.bottomSheet}>
-                <View style={styles.bottomSheetHandle} />
-                <Text style={styles.bottomSheetTitle}>Send What?</Text>
-
-                <TouchableOpacity
-                  style={styles.assetOption}
-                  onPress={() => {
-                    setSendAssetType('btc');
-                    setIntentStep('creating');
-                  }}
-                >
-                  <View style={styles.assetOptionIcon}>
-                    <Text style={styles.assetOptionIconText}>₿</Text>
-                  </View>
-                  <View style={styles.assetOptionInfo}>
-                    <Text style={styles.assetOptionTitle}>Bitcoin</Text>
-                    <Text style={styles.assetOptionSubtitle}>Send BTC</Text>
-                  </View>
-                  <Text style={styles.assetOptionArrow}>›</Text>
-                </TouchableOpacity>
-
-                <TouchableOpacity
-                  style={styles.assetOption}
-                  onPress={() => {
-                    setSendAssetType('unit');
-                    setIntentStep('creating');
-                  }}
-                >
-                  <View style={[styles.assetOptionIcon, styles.assetOptionIconUnit]}>
-                    <Text style={styles.assetOptionIconText}>U</Text>
-                  </View>
-                  <View style={styles.assetOptionInfo}>
-                    <Text style={styles.assetOptionTitle}>Unit</Text>
-                    <Text style={styles.assetOptionSubtitle}>Send DUCAT•UNIT•RUNE</Text>
-                  </View>
-                  <Text style={styles.assetOptionArrow}>›</Text>
-                </TouchableOpacity>
+              <View style={styles.assetOptionInfo}>
+                <Text style={styles.assetOptionTitle}>Bitcoin</Text>
+                <Text style={styles.assetOptionSubtitle}>Send BTC</Text>
               </View>
-            </View>
-          )}
+              <Text style={styles.assetOptionArrow}>›</Text>
+            </TouchableOpacity>
+
+            <TouchableOpacity
+              style={styles.assetOption}
+              onPress={() => {
+                setSendAssetType('unit');
+                setIntentStep('creating');
+              }}
+            >
+              <Image
+                source={require('./assets/unit-logo.png')}
+                style={styles.assetOptionLogo}
+              />
+              <View style={styles.assetOptionInfo}>
+                <Text style={styles.assetOptionTitle}>Unit</Text>
+                <Text style={styles.assetOptionSubtitle}>Send DUCAT•UNIT•RUNE</Text>
+              </View>
+              <Text style={styles.assetOptionArrow}>›</Text>
+            </TouchableOpacity>
+          </View>
+        </>
+      )}
+
+      {wallet && seedConfirmed && (
+        <View>
+        <View>
 
           {/* Send Intent Modal */}
           {intentStep === 'creating' && sendAssetType && (
             <View style={styles.modalOverlay}>
               <View style={styles.intentModal}>
                 <View style={styles.settingsHeader}>
-                  <Text style={styles.settingsTitle}>Send Bitcoin</Text>
+                  <Text style={styles.settingsTitle}>
+                    {sendAssetType === 'btc' ? 'Send Bitcoin' : 'Send Unit'}
+                  </Text>
                   <TouchableOpacity onPress={() => {
                     setIntentStep('idle');
                     setSendAmount('');
@@ -1964,7 +1977,9 @@ export default function App() {
                     autoCorrect={false}
                   />
 
-                  <Text style={styles.modalLabel}>Amount (BTC):</Text>
+                  <Text style={styles.modalLabel}>
+                    Amount ({sendAssetType === 'btc' ? 'BTC' : 'UNIT'}):
+                  </Text>
                   <TextInput
                     style={styles.intentInput}
                     value={sendAmount}
@@ -2987,6 +3002,15 @@ const styles = StyleSheet.create({
     right: 0,
     bottom: 0,
   },
+  bottomSheetBackdrop: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
+    bottom: 0,
+    backgroundColor: 'rgba(0, 0, 0, 0.5)',
+    zIndex: 999,
+  },
   bottomSheet: {
     position: 'absolute',
     bottom: 0,
@@ -2998,6 +3022,7 @@ const styles = StyleSheet.create({
     paddingBottom: 40,
     paddingHorizontal: 20,
     paddingTop: 15,
+    zIndex: 1000,
   },
   bottomSheetHandle: {
     width: 40,
@@ -3022,22 +3047,10 @@ const styles = StyleSheet.create({
     borderRadius: 12,
     marginBottom: 12,
   },
-  assetOptionIcon: {
+  assetOptionLogo: {
     width: 50,
     height: 50,
-    borderRadius: 25,
-    backgroundColor: '#0066FF',
-    justifyContent: 'center',
-    alignItems: 'center',
     marginRight: 15,
-  },
-  assetOptionIconUnit: {
-    backgroundColor: '#59AA8A',
-  },
-  assetOptionIconText: {
-    fontSize: 24,
-    color: '#DDDDDD',
-    fontWeight: 'bold',
   },
   assetOptionInfo: {
     flex: 1,
