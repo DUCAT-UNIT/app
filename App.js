@@ -47,7 +47,6 @@ const deriveMnemonicFromSecureStore = async () => {
     const mnemonic = await SecureStore.getItemAsync(SECURE_KEYS.MNEMONIC);
     return mnemonic;
   } catch (error) {
-    console.error('Error retrieving mnemonic from secure storage:', error);
     return null;
   }
 };
@@ -121,7 +120,6 @@ export default function App() {
       const data = await response.json();
       setBtcPrice(data.bitcoin.usd);
     } catch (error) {
-      console.error('Error fetching BTC price:', error);
       setBtcPrice(null);
     } finally {
       setLoadingBtcPrice(false);
@@ -169,7 +167,6 @@ export default function App() {
           setIsAuthenticated(true);
         }
       } catch (error) {
-        console.error('Error loading wallet from secure storage:', error);
       }
     };
 
@@ -182,7 +179,6 @@ export default function App() {
       try {
         await ScreenCapture.preventScreenCaptureAsync();
       } catch (error) {
-        console.error('Error preventing screen capture:', error);
       }
     };
 
@@ -191,7 +187,6 @@ export default function App() {
     // Cleanup: allow screen capture when component unmounts
     return () => {
       ScreenCapture.allowScreenCaptureAsync().catch((error) => {
-        console.error('Error allowing screen capture:', error);
       });
     };
   }, []);
@@ -208,9 +203,7 @@ export default function App() {
 
   // Handle app state changes (background/foreground)
   useEffect(() => {
-    console.log('[APPSTATE] Setting up AppState listener');
     const subscription = AppState.addEventListener('change', nextAppState => {
-      console.log(`[APPSTATE] State changed from ${appState.current} to ${nextAppState}`);
 
       // ONLY lock when coming back from background, NOT from inactive
       // (inactive happens during Face ID, control center, etc.)
@@ -218,14 +211,11 @@ export default function App() {
         appState.current === 'background' &&
         nextAppState === 'active'
       ) {
-        console.log('[APPSTATE] App came back from background');
         // App has come to foreground from background, require re-authentication if wallet exists
         if (walletExists.current && isBiometricSupported) {
-          console.log('[APPSTATE] Wallet exists and biometrics supported - locking');
           setIsAuthenticated(false);
           authenticateUser();
         } else {
-          console.log(`[APPSTATE] Not locking - walletExists: ${walletExists.current}, biometricSupported: ${isBiometricSupported}`);
         }
       }
 
@@ -233,7 +223,6 @@ export default function App() {
     });
 
     return () => {
-      console.log('[APPSTATE] Removing AppState listener');
       subscription.remove();
     };
   }, [isBiometricSupported]); // Only depend on biometric support, not wallet state
@@ -257,12 +246,10 @@ export default function App() {
   }, []);
 
   const authenticateUser = async () => {
-    console.log('[AUTH] authenticateUser called');
     try {
       const hasEnrolled = await LocalAuthentication.isEnrolledAsync();
 
       if (!hasEnrolled) {
-        console.log('[AUTH] No biometrics enrolled');
         Alert.alert(
           'No Biometrics Enrolled',
           'Please set up Face ID or Touch ID in your device settings to use this wallet.',
@@ -271,7 +258,6 @@ export default function App() {
         return;
       }
 
-      console.log('[AUTH] Requesting biometric authentication');
       const result = await LocalAuthentication.authenticateAsync({
         promptMessage: 'Authenticate to access your wallet',
         fallbackLabel: 'Use Passcode',
@@ -279,10 +265,8 @@ export default function App() {
       });
 
       if (result.success) {
-        console.log('[AUTH] Authentication successful');
         setIsAuthenticated(true);
       } else {
-        console.log('[AUTH] Authentication failed');
         setIsAuthenticated(false);
         Alert.alert(
           'Authentication Failed',
@@ -291,7 +275,6 @@ export default function App() {
         );
       }
     } catch (error) {
-      console.error('[AUTH] Authentication error:', error);
       Alert.alert('Error', 'Failed to authenticate. Please try again.');
     }
   };
@@ -332,11 +315,9 @@ export default function App() {
         const runesData = await runesResponse.json();
         setRunesBalance(runesData.runes_balances || []);
       } catch (runesError) {
-        console.error('Error fetching runes:', runesError);
         setRunesBalance([]);
       }
     } catch (error) {
-      console.error('Error fetching balance:', error);
       setSegwitBalance(0);
       setTaprootBalance(0);
       setRunesBalance([]);
@@ -386,7 +367,6 @@ export default function App() {
         const runesData = await runesResponse.json();
         setRunesBalance(runesData.runes_balances || []);
       } catch (error) {
-        console.error('Error pre-fetching runes:', error);
         setRunesBalance([]);
       }
 
@@ -399,7 +379,6 @@ export default function App() {
       // Wallet created, user authenticated to see seed phrase
       setIsAuthenticated(true);
     } catch (error) {
-      console.error('Error creating wallet:', error);
       Alert.alert('Error', error.message);
     }
   };
@@ -456,7 +435,6 @@ export default function App() {
         const runesData = await runesResponse.json();
         setRunesBalance(runesData.runes_balances || []);
       } catch (error) {
-        console.error('Error fetching balances:', error);
         setSegwitBalance(0);
         setTaprootBalance(0);
         setRunesBalance([]);
@@ -467,7 +445,6 @@ export default function App() {
       setImportingWallet(false);
       setImportSeedPhrase('');
     } catch (error) {
-      console.error('Error importing wallet:', error);
       Alert.alert('Error', 'Failed to import wallet. Please check your seed phrase and try again.');
     }
   };
@@ -613,7 +590,6 @@ export default function App() {
       // Fetch all balances using the new addresses directly
       await fetchBalance(addresses.segwitAddress, addresses.taprootAddress);
     } catch (error) {
-      console.error('Error switching account:', error);
       Alert.alert('Error', 'Failed to switch account');
     } finally {
       setSwitchingAccount(false);
