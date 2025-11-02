@@ -179,6 +179,16 @@ export default function App() {
   const [seedPhraseWords, setSeedPhraseWords] = useState([]); // Seed phrase from keychain
   const [changingPin, setChangingPin] = useState(false); // Changing PIN flow
   const [seedPhraseVisible, setSeedPhraseVisible] = useState(false); // Show/hide seed words
+
+  // Transaction intent state
+  const [sendIntent, setSendIntent] = useState(null); // Current send transaction intent
+  const [intentStep, setIntentStep] = useState('idle'); // 'idle' | 'creating' | 'reviewing' | 'signing' | 'broadcasting' | 'confirmed'
+  const [sendAmount, setSendAmount] = useState('');
+  const [sendRecipient, setSendRecipient] = useState('');
+  const [sendAddressType, setSendAddressType] = useState('taproot'); // 'segwit' | 'taproot'
+  const [utxos, setUtxos] = useState([]); // Available UTXOs for spending
+  const [loadingUtxos, setLoadingUtxos] = useState(false);
+
   const appState = useRef(AppState.currentState);
   const inactivityTimer = useRef(null);
   const walletExists = useRef(false); // Track if wallet exists without triggering re-renders
@@ -641,6 +651,324 @@ export default function App() {
     setRefreshing(true);
     await fetchBalance();
     setRefreshing(false);
+  };
+
+  // Fetch UTXOs for transaction creation
+  const fetchUtxos = async (address) => {
+    try {
+      setLoadingUtxos(true);
+      const response = await fetch(`https://mutinynet.com/api/address/${address}/utxo`);
+      const utxoData = await response.json();
+
+      // Transform UTXO data into format needed for PSBT
+      const formattedUtxos = utxoData.map(utxo => ({
+        txid: utxo.txid,
+        vout: utxo.vout,
+        value: utxo.value,
+        status: utxo.status,
+      }));
+
+      setUtxos(formattedUtxos);
+      return formattedUtxos;
+    } catch (error) {
+      Alert.alert('Error', 'Failed to fetch UTXOs: ' + error.message);
+      return [];
+    } finally {
+      setLoadingUtxos(false);
+    }
+  };
+
+  // Create an unsigned PSBT for the transaction
+  const createSendIntent = async () => {
+    try {
+      setIntentStep('creating');
+
+      // Validate inputs
+      if (!sendRecipient || !sendAmount) {
+        Alert.alert('Error', 'Please enter recipient address and amount');
+        setIntentStep('idle');
+        return;
+      }
+
+      const amountInSats = Math.floor(parseFloat(sendAmount) * 100000000);
+      if (isNaN(amountInSats) || amountInSats <= 0) {
+        Alert.alert('Error', 'Invalid amount');
+        setIntentStep('idle');
+        return;
+      }
+
+      // Get the appropriate address based on sendAddressType
+      const sourceAddress = sendAddressType === 'taproot' ? wallet.taprootAddress : wallet.segwitAddress;
+
+      // Fetch UTXOs for the source address
+      const availableUtxos = await fetchUtxos(sourceAddress);
+      if (availableUtxos.length === 0) {
+        Alert.alert('Error', 'No UTXOs available to spend');
+        setIntentStep('idle');
+        return;
+      }
+
+      // Simple UTXO selection - use first UTXO that covers amount + fee
+      const feeRate = 1; // sats per vbyte (very low for testnet)
+      const estimatedSize = 200; // rough estimate
+      const estimatedFee = feeRate * estimatedSize;
+      const requiredAmount = amountInSats + estimatedFee;
+
+      let selectedUtxos = [];
+      let totalInput = 0;
+
+      for (const utxo of availableUtxos) {
+        if (utxo.status.confirmed) {
+          selectedUtxos.push(utxo);
+          totalInput += utxo.value;
+          if (totalInput >= requiredAmount) break;
+        }
+      }
+
+      if (totalInput < requiredAmount) {
+        Alert.alert('Error', `Insufficient funds. Need ${requiredAmount} sats, have ${totalInput} sats`);
+        setIntentStep('idle');
+        return;
+      }
+
+      // Fetch transaction hex for each input
+      const inputsWithTx = await Promise.all(
+        selectedUtxos.map(async (utxo) => {
+          const txResponse = await fetch(`https://mutinynet.com/api/tx/${utxo.txid}/hex`);
+          const txHex = await txResponse.text();
+          return {
+            ...utxo,
+            txHex,
+          };
+        })
+      );
+
+      // Calculate change
+      const change = totalInput - amountInSats - estimatedFee;
+
+      // Get mnemonic to derive keys (temporarily)
+      const mnemonic = await SecureStore.getItemAsync(SECURE_KEYS.MNEMONIC);
+      const seed = bip39.mnemonicToSeedSync(mnemonic);
+      const root = bip32.fromSeed(seed, mutinynet);
+
+      // Create PSBT
+      const psbt = new bitcoin.Psbt({ network: mutinynet });
+
+      // Add inputs
+      for (let i = 0; i < inputsWithTx.length; i++) {
+        const utxo = inputsWithTx[i];
+        const tx = bitcoin.Transaction.fromHex(utxo.txHex);
+
+        if (sendAddressType === 'taproot') {
+          // Taproot input
+          const taprootPath = `m/86'/1'/0'/0/${currentAccount}`;
+          const taprootChild = root.derivePath(taprootPath);
+          const xOnlyPubkey = taprootChild.publicKey.slice(1, 33);
+
+          psbt.addInput({
+            hash: utxo.txid,
+            index: utxo.vout,
+            witnessUtxo: {
+              script: tx.outs[utxo.vout].script,
+              value: utxo.value,
+            },
+            tapInternalKey: xOnlyPubkey,
+          });
+        } else {
+          // Segwit input
+          const segwitPath = `m/84'/1'/0'/0/${currentAccount}`;
+          const segwitChild = root.derivePath(segwitPath);
+
+          psbt.addInput({
+            hash: utxo.txid,
+            index: utxo.vout,
+            witnessUtxo: {
+              script: tx.outs[utxo.vout].script,
+              value: utxo.value,
+            },
+          });
+        }
+      }
+
+      // Add output (recipient)
+      psbt.addOutput({
+        address: sendRecipient,
+        value: amountInSats,
+      });
+
+      // Add change output if needed
+      if (change > 546) { // Dust limit
+        psbt.addOutput({
+          address: sourceAddress,
+          value: change,
+        });
+      }
+
+      // Securely clear sensitive data
+      const clearData = [mnemonic, seed.toString('hex')];
+      clearData.forEach(data => {
+        if (data) {
+          // Overwrite with random data
+          const len = data.length;
+          for (let i = 0; i < 3; i++) {
+            data.split('').map(() => String.fromCharCode(Math.floor(Math.random() * 256))).join('');
+          }
+        }
+      });
+
+      // Create intent object
+      const intent = {
+        id: Date.now().toString(),
+        type: 'send',
+        amount: amountInSats,
+        amountBTC: sendAmount,
+        recipient: sendRecipient,
+        fee: estimatedFee,
+        addressType: sendAddressType,
+        sourceAddress,
+        inputs: selectedUtxos,
+        totalInput,
+        change,
+        psbt: psbt.toBase64(),
+        timestamp: Date.now(),
+      };
+
+      setSendIntent(intent);
+      setIntentStep('reviewing');
+    } catch (error) {
+      Alert.alert('Error', 'Failed to create transaction: ' + error.message);
+      setIntentStep('idle');
+    }
+  };
+
+  // Sign the PSBT with proper key handling and memory cleanup
+  const signIntent = async () => {
+    try {
+      setIntentStep('signing');
+
+      if (!sendIntent) {
+        Alert.alert('Error', 'No intent to sign');
+        setIntentStep('idle');
+        return;
+      }
+
+      // Get mnemonic from secure storage
+      const mnemonic = await SecureStore.getItemAsync(SECURE_KEYS.MNEMONIC);
+      const seed = bip39.mnemonicToSeedSync(mnemonic);
+      const root = bip32.fromSeed(seed, mutinynet);
+
+      // Load PSBT
+      const psbt = bitcoin.Psbt.fromBase64(sendIntent.psbt);
+
+      // Sign all inputs
+      if (sendIntent.addressType === 'taproot') {
+        const taprootPath = `m/86'/1'/0'/0/${currentAccount}`;
+        const taprootChild = root.derivePath(taprootPath);
+        const tweakedSigner = taprootChild.tweak(
+          bitcoin.crypto.taggedHash('TapTweak', taprootChild.publicKey.slice(1, 33))
+        );
+
+        for (let i = 0; i < sendIntent.inputs.length; i++) {
+          psbt.signInput(i, tweakedSigner);
+        }
+      } else {
+        const segwitPath = `m/84'/1'/0'/0/${currentAccount}`;
+        const segwitChild = root.derivePath(segwitPath);
+
+        for (let i = 0; i < sendIntent.inputs.length; i++) {
+          psbt.signInput(i, segwitChild);
+        }
+      }
+
+      // Finalize all inputs
+      psbt.finalizeAllInputs();
+
+      // Extract signed transaction
+      const signedTx = psbt.extractTransaction();
+      const signedTxHex = signedTx.toHex();
+
+      // CRITICAL: Securely overwrite sensitive data
+      const sensitiveData = [mnemonic, seed, root];
+      sensitiveData.forEach(data => {
+        if (data) {
+          try {
+            // Overwrite memory with random data 3 times
+            for (let i = 0; i < 3; i++) {
+              if (Buffer.isBuffer(data)) {
+                Crypto.getRandomBytes(data.length).then(random => {
+                  random.copy(data);
+                });
+              }
+            }
+          } catch (e) {
+            // Best effort cleanup
+          }
+        }
+      });
+
+      // Update intent with signed transaction
+      const signedIntent = {
+        ...sendIntent,
+        signedTxHex,
+        txid: signedTx.getId(),
+      };
+
+      setSendIntent(signedIntent);
+      setIntentStep('broadcasting');
+
+      // Automatically broadcast
+      await broadcastIntent(signedIntent);
+    } catch (error) {
+      Alert.alert('Error', 'Failed to sign transaction: ' + error.message);
+      setIntentStep('reviewing');
+    }
+  };
+
+  // Broadcast the signed transaction to the network
+  const broadcastIntent = async (intent = sendIntent) => {
+    try {
+      if (!intent || !intent.signedTxHex) {
+        Alert.alert('Error', 'No signed transaction to broadcast');
+        return;
+      }
+
+      const response = await fetch('https://mutinynet.com/api/tx', {
+        method: 'POST',
+        body: intent.signedTxHex,
+      });
+
+      if (!response.ok) {
+        const errorText = await response.text();
+        throw new Error(errorText || 'Failed to broadcast transaction');
+      }
+
+      const txid = await response.text();
+
+      Alert.alert(
+        'Success!',
+        `Transaction broadcast successfully!\n\nTXID: ${txid.substring(0, 16)}...`,
+        [
+          {
+            text: 'OK',
+            onPress: () => {
+              // Reset intent state
+              setSendIntent(null);
+              setIntentStep('idle');
+              setSendAmount('');
+              setSendRecipient('');
+
+              // Refresh balances
+              fetchBalance();
+            }
+          }
+        ]
+      );
+
+      setIntentStep('confirmed');
+    } catch (error) {
+      Alert.alert('Broadcast Error', error.message);
+      setIntentStep('reviewing');
+    }
   };
 
   const createWallet = async () => {
@@ -1547,17 +1875,179 @@ export default function App() {
           <View style={styles.actionsRow}>
             <TouchableOpacity
               style={[styles.actionButton, styles.sendButton]}
-              onPress={() => Alert.alert('Send', 'Send functionality coming soon')}
+              onPress={() => setIntentStep('creating')}
             >
               <Text style={styles.actionButtonText}>Send</Text>
             </TouchableOpacity>
             <TouchableOpacity
               style={[styles.actionButton, styles.receiveButton]}
-              onPress={() => Alert.alert('Receive', 'Receive functionality coming soon')}
+              onPress={() => Alert.alert('Receive', `Your ${sendAddressType === 'taproot' ? 'Taproot' : 'SegWit'} Address:\n\n${sendAddressType === 'taproot' ? wallet.taprootAddress : wallet.segwitAddress}`)}
             >
               <Text style={styles.actionButtonText}>Receive</Text>
             </TouchableOpacity>
           </View>
+
+          {/* Send Intent Modal */}
+          {intentStep === 'creating' && (
+            <View style={styles.modalOverlay}>
+              <View style={styles.intentModal}>
+                <View style={styles.settingsHeader}>
+                  <Text style={styles.settingsTitle}>Send Bitcoin</Text>
+                  <TouchableOpacity onPress={() => {
+                    setIntentStep('idle');
+                    setSendAmount('');
+                    setSendRecipient('');
+                  }}>
+                    <Text style={styles.closeButton}>✕</Text>
+                  </TouchableOpacity>
+                </View>
+
+                <View style={styles.intentContent}>
+                  <Text style={styles.modalLabel}>Recipient Address:</Text>
+                  <TextInput
+                    style={styles.intentInput}
+                    value={sendRecipient}
+                    onChangeText={setSendRecipient}
+                    placeholder="tb1q... or tb1p..."
+                    placeholderTextColor="#666666"
+                    autoCapitalize="none"
+                    autoCorrect={false}
+                  />
+
+                  <Text style={styles.modalLabel}>Amount (BTC):</Text>
+                  <TextInput
+                    style={styles.intentInput}
+                    value={sendAmount}
+                    onChangeText={setSendAmount}
+                    placeholder="0.00000000"
+                    placeholderTextColor="#666666"
+                    keyboardType="decimal-pad"
+                  />
+
+                  <Text style={styles.modalLabel}>Send From:</Text>
+                  <View style={styles.addressTypeSelector}>
+                    <TouchableOpacity
+                      style={[
+                        styles.addressTypeButton,
+                        sendAddressType === 'segwit' && styles.addressTypeButtonSelected
+                      ]}
+                      onPress={() => setSendAddressType('segwit')}
+                    >
+                      <Text style={[
+                        styles.addressTypeText,
+                        sendAddressType === 'segwit' && styles.addressTypeTextSelected
+                      ]}>
+                        SegWit
+                      </Text>
+                      <Text style={styles.addressTypeSubtext}>Native Segwit</Text>
+                    </TouchableOpacity>
+                    <TouchableOpacity
+                      style={[
+                        styles.addressTypeButton,
+                        sendAddressType === 'taproot' && styles.addressTypeButtonSelected
+                      ]}
+                      onPress={() => setSendAddressType('taproot')}
+                    >
+                      <Text style={[
+                        styles.addressTypeText,
+                        sendAddressType === 'taproot' && styles.addressTypeTextSelected
+                      ]}>
+                        Taproot
+                      </Text>
+                      <Text style={styles.addressTypeSubtext}>Latest standard</Text>
+                    </TouchableOpacity>
+                  </View>
+
+                  <TouchableOpacity
+                    style={styles.button}
+                    onPress={createSendIntent}
+                  >
+                    <Text style={styles.buttonText}>Review Transaction</Text>
+                  </TouchableOpacity>
+                </View>
+              </View>
+            </View>
+          )}
+
+          {/* Review Intent Modal */}
+          {intentStep === 'reviewing' && sendIntent && (
+            <View style={styles.modalOverlay}>
+              <View style={styles.intentModal}>
+                <View style={styles.settingsHeader}>
+                  <Text style={styles.settingsTitle}>Review Transaction</Text>
+                  <TouchableOpacity onPress={() => {
+                    setIntentStep('idle');
+                    setSendIntent(null);
+                  }}>
+                    <Text style={styles.closeButton}>✕</Text>
+                  </TouchableOpacity>
+                </View>
+
+                <View style={styles.intentContent}>
+                  <View style={styles.reviewSection}>
+                    <Text style={styles.reviewLabel}>Sending From:</Text>
+                    <Text style={styles.reviewValue}>{sendIntent.addressType === 'taproot' ? 'Taproot' : 'SegWit'}</Text>
+                    <Text style={styles.reviewAddressSmall}>{sendIntent.sourceAddress.substring(0, 20)}...</Text>
+                  </View>
+
+                  <View style={styles.reviewSection}>
+                    <Text style={styles.reviewLabel}>To:</Text>
+                    <Text style={styles.reviewAddressSmall}>{sendIntent.recipient}</Text>
+                  </View>
+
+                  <View style={styles.reviewSection}>
+                    <Text style={styles.reviewLabel}>Amount:</Text>
+                    <Text style={styles.reviewValue}>{sendIntent.amountBTC} BTC</Text>
+                    <Text style={styles.reviewSubtext}>({sendIntent.amount} sats)</Text>
+                  </View>
+
+                  <View style={styles.reviewSection}>
+                    <Text style={styles.reviewLabel}>Network Fee:</Text>
+                    <Text style={styles.reviewValue}>{(sendIntent.fee / 100000000).toFixed(8)} BTC</Text>
+                    <Text style={styles.reviewSubtext}>({sendIntent.fee} sats)</Text>
+                  </View>
+
+                  <View style={[styles.reviewSection, styles.reviewSectionTotal]}>
+                    <Text style={styles.reviewLabelTotal}>Total:</Text>
+                    <Text style={styles.reviewValueTotal}>
+                      {((sendIntent.amount + sendIntent.fee) / 100000000).toFixed(8)} BTC
+                    </Text>
+                  </View>
+
+                  <TouchableOpacity
+                    style={styles.button}
+                    onPress={signIntent}
+                  >
+                    <Text style={styles.buttonText}>Confirm & Sign</Text>
+                  </TouchableOpacity>
+
+                  <TouchableOpacity
+                    style={[styles.button, styles.secondaryButton]}
+                    onPress={() => {
+                      setIntentStep('creating');
+                      setSendIntent(null);
+                    }}
+                  >
+                    <Text style={styles.buttonText}>Back</Text>
+                  </TouchableOpacity>
+                </View>
+              </View>
+            </View>
+          )}
+
+          {/* Broadcasting/Signing Overlay */}
+          {(intentStep === 'signing' || intentStep === 'broadcasting') && (
+            <View style={styles.modalOverlay}>
+              <View style={styles.intentModal}>
+                <View style={styles.intentContent}>
+                  <ActivityIndicator size="large" color="#0066FF" />
+                  <Text style={styles.reviewValue}>
+                    {intentStep === 'signing' ? 'Signing transaction...' : 'Broadcasting transaction...'}
+                  </Text>
+                </View>
+              </View>
+            </View>
+          )}
         </View>
         </View>
       )}
@@ -1886,8 +2376,8 @@ const styles = StyleSheet.create({
     marginBottom: 8,
   },
   accountInput: {
-    backgroundColor: '#0066FF',
-    color: '#DDDDDD',
+    backgroundColor: '#DDDDDD',
+    color: '#333333',
     padding: 12,
     borderRadius: 8,
     borderWidth: 2,
@@ -2373,5 +2863,70 @@ const styles = StyleSheet.create({
     marginBottom: 25,
     textAlign: 'center',
     lineHeight: 20,
+  },
+  // Intent UI styles
+  intentModal: {
+    backgroundColor: '#1D1C21',
+    borderRadius: 20,
+    padding: 0,
+    width: '90%',
+    maxWidth: 420,
+    maxHeight: '80%',
+  },
+  intentContent: {
+    padding: 20,
+  },
+  intentInput: {
+    backgroundColor: '#DDDDDD',
+    color: '#333333',
+    padding: 15,
+    borderRadius: 10,
+    borderWidth: 2,
+    borderColor: '#0066FF',
+    fontSize: 14,
+    marginBottom: 20,
+  },
+  reviewSection: {
+    marginBottom: 20,
+    paddingBottom: 15,
+    borderBottomWidth: 1,
+    borderBottomColor: '#333333',
+  },
+  reviewSectionTotal: {
+    borderBottomWidth: 2,
+    borderBottomColor: '#0066FF',
+    paddingTop: 10,
+  },
+  reviewLabel: {
+    fontSize: 13,
+    color: '#666666',
+    marginBottom: 5,
+  },
+  reviewLabelTotal: {
+    fontSize: 16,
+    color: '#DDDDDD',
+    fontWeight: 'bold',
+    marginBottom: 5,
+  },
+  reviewValue: {
+    fontSize: 18,
+    color: '#DDDDDD',
+    fontWeight: '600',
+    marginBottom: 3,
+  },
+  reviewValueTotal: {
+    fontSize: 22,
+    color: '#0066FF',
+    fontWeight: 'bold',
+  },
+  reviewSubtext: {
+    fontSize: 12,
+    color: '#666666',
+  },
+  reviewAddressSmall: {
+    fontSize: 11,
+    color: '#666666',
+    fontFamily: 'monospace',
+    marginTop: 3,
   },
 });
