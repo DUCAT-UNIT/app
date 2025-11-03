@@ -1,4 +1,5 @@
-import { getRandomBytes } from 'expo-random';
+// Lazy import to avoid blocking during module initialization
+let getRandomValuesImpl = null;
 
 // Polyfill crypto.getRandomValues for React Native
 if (typeof global.crypto !== 'object') {
@@ -7,11 +8,12 @@ if (typeof global.crypto !== 'object') {
 
 if (typeof global.crypto.getRandomValues !== 'function') {
   global.crypto.getRandomValues = function (array) {
-    const bytes = getRandomBytes(array.length);
-    for (let i = 0; i < array.length; i++) {
-      array[i] = bytes[i];
+    // Lazy load expo-crypto only when actually called
+    if (!getRandomValuesImpl) {
+      const ExpoCrypto = require('expo-crypto');
+      getRandomValuesImpl = ExpoCrypto.getRandomValues;
     }
-    return array;
+    return getRandomValuesImpl(array);
   };
 }
 

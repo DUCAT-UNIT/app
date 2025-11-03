@@ -1,5 +1,4 @@
 // Polyfills - MUST BE FIRST
-import 'react-native-get-random-values';
 import './crypto-polyfill';
 import { Buffer } from 'buffer';
 global.Buffer = Buffer;
@@ -44,6 +43,7 @@ const SECURE_KEYS = {
   MNEMONIC: 'wallet_mnemonic_v1',
   CURRENT_ACCOUNT: 'wallet_current_account_v1',
   PIN: 'wallet_pin_v1',
+  BIOMETRIC_ENABLED: 'wallet_biometric_enabled_v1',
 };
 
 // Jailbreak detection
@@ -150,9 +150,10 @@ export default function App() {
   const [verifyingSeeds, setVerifyingSeeds] = useState(false);
   const [seedConfirmed, setSeedConfirmed] = useState(false);
   const [importingWallet, setImportingWallet] = useState(false);
-  const [importSeedPhrase, setImportSeedPhrase] = useState('');
-  const [segwitBalance, setSegwitBalance] = useState(null);
-  const [taprootBalance, setTaprootBalance] = useState(null);
+  const [importSeedPhrase, setImportSeedPhrase] = useState(Array(12).fill(''));
+  const seedInputRefs = useRef([]);
+  const [segwitBalance, setSegwitBalance] = useState(0);
+  const [taprootBalance, setTaprootBalance] = useState(0);
   const [runesBalance, setRunesBalance] = useState([]);
   const [loadingBalance, setLoadingBalance] = useState(false);
   const [refreshing, setRefreshing] = useState(false);
@@ -172,6 +173,7 @@ export default function App() {
   const [isBiometricSupported, setIsBiometricSupported] = useState(false);
   const [isJailbroken, setIsJailbroken] = useState(false); // Jailbreak detection status
   const [settingUpPin, setSettingUpPin] = useState(false); // PIN setup flow
+  const [isImportedWallet, setIsImportedWallet] = useState(false); // Track if wallet was imported
   const [pin, setPin] = useState(''); // Current PIN entry
   const [confirmPin, setConfirmPin] = useState(''); // PIN confirmation
   const [showPinEntry, setShowPinEntry] = useState(false); // Show PIN entry screen
@@ -183,6 +185,10 @@ export default function App() {
   const [changingPin, setChangingPin] = useState(false); // Changing PIN flow
   const [seedPhraseVisible, setSeedPhraseVisible] = useState(false); // Show/hide seed words
   const [privacyMode, setPrivacyMode] = useState(true); // Privacy mode (screenshot blocking)
+  const [isLoading, setIsLoading] = useState(true); // Initial loading state
+  const [showBiometricPrompt, setShowBiometricPrompt] = useState(false); // Show biometric setup prompt
+  const [showFaceIdButton, setShowFaceIdButton] = useState(true); // Show FaceID button on lock screen
+  const [biometricEnabled, setBiometricEnabled] = useState(false); // Track if user has enabled biometric auth
 
   // Transaction intent state
   const [sendIntent, setSendIntent] = useState(null); // Current send transaction intent
@@ -199,8 +205,14 @@ export default function App() {
   const appState = useRef(AppState.currentState);
   const inactivityTimer = useRef(null);
   const walletExists = useRef(false); // Track if wallet exists without triggering re-renders
+  const seedConfirmedRef = useRef(false); // Track if seed backup is confirmed without triggering re-renders
   const amountInputRef = useRef(null);
   const INACTIVITY_TIMEOUT = 2 * 60 * 1000; // 2 minutes in milliseconds
+
+  // Keep seedConfirmedRef in sync with seedConfirmed state
+  useEffect(() => {
+    seedConfirmedRef.current = seedConfirmed;
+  }, [seedConfirmed]);
 
   // Debug: Track intentStep changes
   useEffect(() => {
@@ -274,6 +286,11 @@ export default function App() {
     const loadWallet = async () => {
       try {
         const mnemonic = await deriveMnemonicFromSecureStore();
+
+        // Load biometric preference
+        const biometricPref = await SecureStore.getItemAsync(SECURE_KEYS.BIOMETRIC_ENABLED);
+        setBiometricEnabled(biometricPref === 'true');
+
         if (mnemonic) {
           // Wallet exists in secure storage, load it
           const accountIndexStr = await SecureStore.getItemAsync(SECURE_KEYS.CURRENT_ACCOUNT);
@@ -300,6 +317,9 @@ export default function App() {
           setIsAuthenticated(true);
         }
       } catch (error) {
+      } finally {
+        // Hide loading screen after a brief delay to show the logo
+        setTimeout(() => setIsLoading(false), 1500);
       }
     };
 
@@ -364,8 +384,8 @@ export default function App() {
         appState.current === 'background' &&
         nextAppState === 'active'
       ) {
-        // App has come to foreground from background, require re-authentication if wallet exists
-        if (walletExists.current && isBiometricSupported) {
+        // App has come to foreground from background, require re-authentication if wallet exists AND seed backup is confirmed
+        if (walletExists.current && seedConfirmedRef.current && isBiometricSupported) {
           setIsAuthenticated(false);
           authenticateUser();
         } else {
@@ -408,9 +428,9 @@ export default function App() {
     startInactivityTimer();
   }, [startInactivityTimer]);
 
-  // Start timer when authenticated
+  // Start timer when authenticated (but only if seed backup is confirmed)
   useEffect(() => {
-    if (isAuthenticated && walletExists.current && isBiometricSupported) {
+    if (isAuthenticated && walletExists.current && seedConfirmedRef.current && isBiometricSupported) {
       startInactivityTimer();
 
       return () => {
@@ -424,29 +444,28 @@ export default function App() {
 
   const authenticateUser = async () => {
     try {
-      const hasEnrolled = await LocalAuthentication.isEnrolledAsync();
+      console.log('FaceID button clicked');
 
-      if (!hasEnrolled) {
-        // No biometrics available, use PIN
-        setShowPinEntry(true);
-        return;
-      }
+      // Check if user has already enabled biometric auth
+      if (biometricEnabled) {
+        // User has previously enabled biometrics, trigger it directly
+        const result = await LocalAuthentication.authenticateAsync({
+          promptMessage: 'Authenticate to access your wallet',
+          fallbackLabel: 'Use PIN',
+          disableDeviceFallback: false,
+        });
 
-      const result = await LocalAuthentication.authenticateAsync({
-        promptMessage: 'Authenticate to access your wallet',
-        fallbackLabel: 'Use PIN',
-        disableDeviceFallback: false,
-      });
-
-      if (result.success) {
-        setIsAuthenticated(true);
+        if (result.success) {
+          setIsAuthenticated(true);
+        }
       } else {
-        setIsAuthenticated(false);
-        // Don't show alert, user can try PIN instead
+        // User hasn't enabled biometrics yet, show modal to ask
+        console.log('Showing biometric prompt modal');
+        setShowBiometricPrompt(true);
       }
     } catch (error) {
-      // Error authenticating, allow PIN fallback
-      setShowPinEntry(true);
+      console.log('Error in authenticateUser:', error);
+      setShowBiometricPrompt(true);
     }
   };
 
@@ -492,20 +511,28 @@ export default function App() {
               // Save PIN and finish setup
               savePin(pin).then(success => {
                 if (success) {
-                  setSettingUpPin(false);
-                  setPin('');
-                  setConfirmPin('');
-                  setPinStep('enter');
-
                   if (changingPin) {
                     // Just changing PIN, not creating wallet
+                    setSettingUpPin(false);
                     setChangingPin(false);
+                    setIsImportedWallet(false);
+                    setPin('');
+                    setConfirmPin('');
+                    setPinStep('enter');
                     Alert.alert('Success', 'Your PIN has been changed.');
                   } else {
-                    // Initial wallet creation
+                    // Initial wallet creation or import - authenticate first to prevent lock screen flash
+                    setIsAuthenticated(true); // Unlock the wallet immediately BEFORE clearing settingUpPin
                     setSeedConfirmed(true);
+                    setSettingUpPin(false);
+                    setIsImportedWallet(false); // Reset imported wallet flag
+                    setPin('');
+                    setConfirmPin('');
+                    setPinStep('enter');
                     fetchBalance();
-                    Alert.alert('Wallet Created!', 'Your wallet is ready to use.');
+                    if (isBiometricSupported) {
+                      setShowBiometricPrompt(true);
+                    }
                   }
                 } else {
                   setPinError('Failed to save PIN');
@@ -532,6 +559,8 @@ export default function App() {
               setShowPinEntry(false);
               setPin('');
               setPinError('');
+              // Restore FaceID button for next time
+              setShowFaceIdButton(true);
             } else {
               setPinError('Incorrect PIN');
               setPin('');
@@ -664,35 +693,60 @@ export default function App() {
     try {
       setLoadingBalance(true);
 
-      // Fetch SegWit balance
-      const segwitResponse = await fetch(`https://mutinynet.com/api/address/${segwitAddress}`);
-      const segwitData = await segwitResponse.json();
-      const segwitTotalReceived = segwitData.chain_stats?.funded_txo_sum || 0;
-      const segwitTotalSpent = segwitData.chain_stats?.spent_txo_sum || 0;
-      const segwitBtcBalance = (segwitTotalReceived - segwitTotalSpent) / 100000000;
-      setSegwitBalance(segwitBtcBalance);
+      // Fetch all balances in parallel with 10 second timeout
+      const timeout = 10000;
 
-      // Fetch Taproot balance
-      const taprootResponse = await fetch(`https://mutinynet.com/api/address/${taprootAddress}`);
-      const taprootData = await taprootResponse.json();
-      const taprootTotalReceived = taprootData.chain_stats?.funded_txo_sum || 0;
-      const taprootTotalSpent = taprootData.chain_stats?.spent_txo_sum || 0;
-      const taprootBtcBalance = (taprootTotalReceived - taprootTotalSpent) / 100000000;
-      setTaprootBalance(taprootBtcBalance);
+      const fetchWithTimeout = (url, options = {}) => {
+        return Promise.race([
+          fetch(url, options),
+          new Promise((_, reject) =>
+            setTimeout(() => reject(new Error('Request timeout')), timeout)
+          )
+        ]);
+      };
 
-      // Always fetch RUNES balance from Taproot address (RUNES are always on Taproot)
-      try {
-        const runesResponse = await fetch(`https://ord-mutinynet.ducatprotocol.com/address/${taprootAddress}`, {
-          headers: {
-            'Accept': 'application/json'
-          }
-        });
-        const runesData = await runesResponse.json();
-        setRunesBalance(runesData.runes_balances || []);
-      } catch (runesError) {
-        setRunesBalance([]);
-      }
+      const results = await Promise.allSettled([
+        // Fetch SegWit balance
+        fetchWithTimeout(`https://mutinynet.com/api/address/${segwitAddress}`)
+          .then(res => res.json())
+          .then(data => {
+            const totalReceived = data.chain_stats?.funded_txo_sum || 0;
+            const totalSpent = data.chain_stats?.spent_txo_sum || 0;
+            const balance = (totalReceived - totalSpent) / 100000000;
+            setSegwitBalance(balance);
+          }),
+
+        // Fetch Taproot balance
+        fetchWithTimeout(`https://mutinynet.com/api/address/${taprootAddress}`)
+          .then(res => res.json())
+          .then(data => {
+            const totalReceived = data.chain_stats?.funded_txo_sum || 0;
+            const totalSpent = data.chain_stats?.spent_txo_sum || 0;
+            const balance = (totalReceived - totalSpent) / 100000000;
+            setTaprootBalance(balance);
+          }),
+
+        // Fetch RUNES balance
+        fetchWithTimeout(`https://ord-mutinynet.ducatprotocol.com/address/${taprootAddress}`, {
+          headers: { 'Accept': 'application/json' }
+        })
+          .then(res => res.json())
+          .then(data => {
+            setRunesBalance(data.runes_balances || []);
+          })
+      ]);
+
+      // Handle any failures gracefully
+      results.forEach((result, index) => {
+        if (result.status === 'rejected') {
+          console.log(`Balance fetch ${index} failed:`, result.reason);
+          if (index === 0) setSegwitBalance(0);
+          if (index === 1) setTaprootBalance(0);
+          if (index === 2) setRunesBalance([]);
+        }
+      });
     } catch (error) {
+      console.error('Balance fetch error:', error);
       setSegwitBalance(0);
       setTaprootBalance(0);
       setRunesBalance([]);
@@ -1527,6 +1581,14 @@ export default function App() {
       await SecureStore.setItemAsync(SECURE_KEYS.MNEMONIC, mnemonic);
       await SecureStore.setItemAsync(SECURE_KEYS.CURRENT_ACCOUNT, currentAccount.toString());
 
+      // Set showingIntro FIRST, before setting wallet, to prevent lock screen flash
+      setShowingIntro(true);
+      setShowingSeeds(false);
+      setVerifyingSeeds(false);
+      setSeedConfirmed(false);
+      // Wallet created, user authenticated to see seed phrase
+      setIsAuthenticated(true);
+
       // Store ONLY public addresses in state
       setWallet({
         segwitAddress: addresses.segwitAddress,
@@ -1550,15 +1612,9 @@ export default function App() {
         setRunesBalance([]);
       }
 
-      setShowingIntro(true);
-      setShowingSeeds(false);
-      setVerifyingSeeds(false);
-      setSeedConfirmed(false);
+      // State was already set above before wallet creation
       setSegwitBalance(null);
       setTaprootBalance(null);
-
-      // Wallet created, user authenticated to see seed phrase
-      setIsAuthenticated(true);
     } catch (error) {
       Alert.alert('Error', error.message);
     }
@@ -1566,8 +1622,8 @@ export default function App() {
 
   const importWallet = async () => {
     try {
-      // Trim and normalize the input
-      const mnemonic = importSeedPhrase.trim().toLowerCase();
+      // Join the array of words and trim/normalize
+      const mnemonic = importSeedPhrase.map(word => word.trim().toLowerCase()).join(' ').trim();
 
       // Validate the mnemonic
       if (!bip39.validateMnemonic(mnemonic)) {
@@ -1581,6 +1637,14 @@ export default function App() {
       // Store mnemonic in secure storage (iOS Keychain)
       await SecureStore.setItemAsync(SECURE_KEYS.MNEMONIC, mnemonic);
       await SecureStore.setItemAsync(SECURE_KEYS.CURRENT_ACCOUNT, currentAccount.toString());
+
+      // Set PIN setup state FIRST, before setting wallet, to prevent lock screen flash
+      setSettingUpPin(true);
+      setIsImportedWallet(true); // Mark as imported wallet
+      // Ensure seed creation flow screens are not shown for imported wallets
+      setShowingIntro(false);
+      setShowingSeeds(false);
+      setVerifyingSeeds(false);
 
       // Store ONLY public addresses in state
       setWallet({
@@ -1621,10 +1685,11 @@ export default function App() {
         setRunesBalance([]);
       }
 
-      // Skip seed verification for imported wallets, go straight to wallet view
-      setSeedConfirmed(true);
+      // Skip seed verification for imported wallets
+      // settingUpPin and other setup states were already set above
+      // Don't set seedConfirmed here - it will be set after PIN is saved
       setImportingWallet(false);
-      setImportSeedPhrase('');
+      setImportSeedPhrase(Array(12).fill(''));
     } catch (error) {
       Alert.alert('Error', 'Failed to import wallet. Please check your seed phrase and try again.');
     }
@@ -1688,18 +1753,18 @@ export default function App() {
     }
 
     if (allCorrect) {
+      // Set both states immediately to prevent lock screen flash
       setVerifyingSeeds(false);
-      // Securely clear temporary mnemonic from memory
-      // First overwrite with random data, then clear
-      setTempMnemonicWords(Array(12).fill('*'.repeat(8)));
-      setTimeout(() => setTempMnemonicWords([]), 100);
-
-      // Trigger PIN setup as final step of wallet creation
       setSettingUpPin(true);
       setPinStep('enter');
       setPin('');
       setConfirmPin('');
       setPinError('');
+
+      // Securely clear temporary mnemonic from memory
+      // First overwrite with random data, then clear
+      setTempMnemonicWords(Array(12).fill('*'.repeat(8)));
+      setTimeout(() => setTempMnemonicWords([]), 100);
     } else {
       Alert.alert('Verification Failed', 'One or more words are incorrect. Please try again.');
       setVerificationWords({});
@@ -1785,6 +1850,22 @@ export default function App() {
     }
   };
 
+  // Show loading splash screen while initializing
+  if (isLoading) {
+    return (
+      <View style={styles.splashContainer}>
+        <Image
+          source={require('./assets/unit-logo.png')}
+          style={styles.splashLogo}
+          resizeMode="contain"
+        />
+        <Text style={styles.splashTitle}>UNIT</Text>
+        <Text style={styles.splashSubtitle}>Mutinynet Edition</Text>
+        <StatusBar style="dark" />
+      </View>
+    );
+  }
+
   // Show jailbreak warning screen if device is jailbroken
   if (isJailbroken) {
     return (
@@ -1806,112 +1887,17 @@ export default function App() {
   if (showPinEntry || settingUpPin) {
     const currentPin = settingUpPin && pinStep === 'confirm' ? confirmPin : pin;
     return (
-      <View style={styles.lockedContainer}>
-        <View style={styles.pinContainer}>
-          {settingUpPin && !changingPin && (
-            <Text style={styles.stepIndicator}>Step 4 of 4: Create Your PIN</Text>
-          )}
-          <Text style={styles.pinTitle}>
-            {settingUpPin
-              ? (changingPin
-                  ? (pinStep === 'enter' ? 'Enter New PIN' : 'Confirm New PIN')
-                  : (pinStep === 'enter' ? 'Enter 6-Digit PIN' : 'Confirm Your PIN'))
-              : 'Enter PIN'}
-          </Text>
-          {settingUpPin && !pinError && (
-            <Text style={styles.pinSubtext}>
-              {pinStep === 'enter'
-                ? 'Choose a 6-digit PIN to secure your wallet'
-                : 'Re-enter your PIN to confirm'}
-            </Text>
-          )}
-          {pinError ? <Text style={styles.pinError}>{pinError}</Text> : null}
-
-          {/* PIN Dots */}
-          <View style={styles.pinDotsContainer}>
-            {[0, 1, 2, 3, 4, 5].map(i => (
-              <View
-                key={i}
-                style={[
-                  styles.pinDot,
-                  i < currentPin.length && styles.pinDotFilled
-                ]}
-              />
-            ))}
-          </View>
-
-          {/* PIN Keypad */}
-          <View style={styles.pinKeypad}>
-            {[[1, 2, 3], [4, 5, 6], [7, 8, 9]].map((row, rowIndex) => (
-              <View key={rowIndex} style={styles.pinRow}>
-                {row.map(num => (
-                  <TouchableOpacity
-                    key={num}
-                    style={styles.pinKey}
-                    onPress={() => handlePinDigit(String(num))}
-                  >
-                    <Text style={styles.pinKeyText}>{num}</Text>
-                  </TouchableOpacity>
-                ))}
-              </View>
-            ))}
-            <View style={styles.pinRow}>
-              <View style={styles.pinKey} />
-              <TouchableOpacity
-                style={styles.pinKey}
-                onPress={() => handlePinDigit('0')}
-              >
-                <Text style={styles.pinKeyText}>0</Text>
-              </TouchableOpacity>
-              <TouchableOpacity
-                style={styles.pinKey}
-                onPress={handlePinDelete}
-              >
-                <Text style={styles.pinKeyText}>⌫</Text>
-              </TouchableOpacity>
-            </View>
-          </View>
-
-          {!settingUpPin && (
-            <TouchableOpacity
-              style={styles.pinCancelButton}
-              onPress={() => {
-                setShowPinEntry(false);
-                setPin('');
-                setPinError('');
-              }}
-            >
-              <Text style={styles.pinCancelText}>Cancel</Text>
-            </TouchableOpacity>
-          )}
-        </View>
-        <StatusBar style="dark" />
-      </View>
-    );
-  }
-
-  // Show locked screen if not authenticated and wallet exists
-  if (!isAuthenticated && wallet) {
-    return (
       <View style={styles.lockScreen}>
         <StatusBar style="light" />
 
-        {/* Lock Icon */}
-        <View style={styles.lockIconArea}>
-          <View style={styles.lockPasswordIcon}>
-            <Text style={styles.lockPasswordText}>***</Text>
-            <Text style={styles.lockPadlock}>🔓</Text>
-          </View>
-        </View>
-
         {/* Title */}
-        <Text style={styles.lockTitle}>Enter PIN to unlock wallet</Text>
-
-        {/* FaceID Button */}
-        <TouchableOpacity style={styles.faceIdButton} onPress={authenticateUser}>
-          <Text style={styles.faceIdText}>FaceID</Text>
-          <Text style={styles.faceIdArrow}>→</Text>
-        </TouchableOpacity>
+        <Text style={styles.lockTitle}>
+          {settingUpPin
+            ? (changingPin
+                ? (pinStep === 'enter' ? 'Enter New PIN' : 'Confirm New PIN')
+                : (pinStep === 'enter' ? 'Enter 6-Digit PIN' : 'Confirm Your PIN'))
+            : 'Enter PIN'}
+        </Text>
 
         {/* PIN Error */}
         {pinError ? <Text style={styles.lockPinError}>{pinError}</Text> : null}
@@ -1923,7 +1909,7 @@ export default function App() {
               key={i}
               style={[
                 styles.lockPinDot,
-                i < pin.length && styles.lockPinDotFilled
+                i < currentPin.length && styles.lockPinDotFilled
               ]}
             />
           ))}
@@ -1956,11 +1942,133 @@ export default function App() {
               style={styles.lockKey}
               onPress={handlePinDelete}
             >
-              <Text style={styles.lockKeyDelete}>✕</Text>
+              <Text style={styles.lockKeyText}>⌫</Text>
             </TouchableOpacity>
           </View>
         </View>
       </View>
+    );
+  }
+
+  // Show locked screen if not authenticated and wallet exists AND seed backup confirmed AND not in setup flow
+  if (!isAuthenticated && wallet && seedConfirmed && !showingIntro && !showingSeeds && !verifyingSeeds && !settingUpPin) {
+    return (
+      <>
+        <View style={styles.lockScreen}>
+          <StatusBar style="light" />
+
+          {/* Title */}
+          <Text style={styles.lockTitle}>Enter PIN to unlock wallet</Text>
+
+          {/* FaceID Button */}
+          {showFaceIdButton && !showBiometricPrompt && (
+            <TouchableOpacity style={styles.faceIdButton} onPress={authenticateUser}>
+              <Text style={styles.faceIdText}>FaceID</Text>
+              <Text style={styles.faceIdArrow}>→</Text>
+            </TouchableOpacity>
+          )}
+
+          {/* PIN Error */}
+          {pinError ? <Text style={styles.lockPinError}>{pinError}</Text> : null}
+
+          {/* PIN Dots */}
+          <View style={styles.lockPinDots}>
+            {[0, 1, 2, 3, 4, 5].map(i => (
+              <View
+                key={i}
+                style={[
+                  styles.lockPinDot,
+                  i < pin.length && styles.lockPinDotFilled
+                ]}
+              />
+            ))}
+          </View>
+
+          {/* Keypad */}
+          <View style={styles.lockKeypad}>
+            {[[1, 2, 3], [4, 5, 6], [7, 8, 9]].map((row, rowIndex) => (
+              <View key={rowIndex} style={styles.lockKeypadRow}>
+                {row.map(num => (
+                  <TouchableOpacity
+                    key={num}
+                    style={styles.lockKey}
+                    onPress={() => handlePinDigit(String(num))}
+                  >
+                    <Text style={styles.lockKeyText}>{num}</Text>
+                  </TouchableOpacity>
+                ))}
+              </View>
+            ))}
+            <View style={styles.lockKeypadRow}>
+              <View style={styles.lockKey} />
+              <TouchableOpacity
+                style={styles.lockKey}
+                onPress={() => handlePinDigit('0')}
+              >
+                <Text style={styles.lockKeyText}>0</Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                style={styles.lockKey}
+                onPress={handlePinDelete}
+              >
+                <Text style={styles.lockKeyDelete}>✕</Text>
+              </TouchableOpacity>
+            </View>
+          </View>
+        </View>
+
+        {/* Biometric Authentication Prompt - Rendered at top level */}
+        {showBiometricPrompt && (
+          <View style={styles.modalOverlay}>
+            <View style={styles.biometricPromptModal}>
+              <Text style={styles.biometricPromptTitle}>Biometric Authentication</Text>
+              <Text style={styles.biometricPromptText}>
+                Do you want to use biometric authentication (FaceID or TouchID) for UNIT Wallet?
+              </Text>
+              <View style={styles.biometricPromptButtons}>
+                <TouchableOpacity
+                  style={[styles.biometricPromptButton, styles.biometricPromptButtonYes]}
+                  onPress={async () => {
+                    setShowBiometricPrompt(false);
+                    try {
+                      // Save the preference
+                      await SecureStore.setItemAsync(SECURE_KEYS.BIOMETRIC_ENABLED, 'true');
+                      setBiometricEnabled(true);
+
+                      // Trigger biometric authentication
+                      const result = await LocalAuthentication.authenticateAsync({
+                        promptMessage: 'Authenticate to enable biometric login',
+                        fallbackLabel: 'Use PIN instead',
+                      });
+                      if (result.success) {
+                        setIsAuthenticated(true);
+                      }
+                    } catch (error) {
+                      console.log('Biometric auth error:', error);
+                    }
+                  }}
+                >
+                  <Text style={styles.biometricPromptButtonText}>Yes, Enable</Text>
+                </TouchableOpacity>
+                <TouchableOpacity
+                  style={[styles.biometricPromptButton, styles.biometricPromptButtonNo]}
+                  onPress={async () => {
+                    setShowBiometricPrompt(false);
+                    // Save the preference as disabled
+                    await SecureStore.setItemAsync(SECURE_KEYS.BIOMETRIC_ENABLED, 'false');
+                    // Hide FaceID button and authenticate user
+                    setShowFaceIdButton(false);
+                    // User has completed setup, authenticate them
+                    setIsAuthenticated(true);
+                  }}
+                >
+                  <Text style={styles.biometricPromptButtonTextNo}>No, Thanks</Text>
+                </TouchableOpacity>
+              </View>
+            </View>
+          </View>
+        )}
+      </>
     );
   }
 
@@ -2020,21 +2128,21 @@ export default function App() {
   }
 
   return (
-    <ScrollView
-      style={{ backgroundColor: '#DDDDDD' }}
-      contentContainerStyle={styles.container}
-      refreshControl={
-        wallet && seedConfirmed ? (
-          <RefreshControl refreshing={refreshing} onRefresh={onRefresh} />
-        ) : undefined
-      }
-      onTouchStart={resetInactivityTimer}
-      onScroll={resetInactivityTimer}
-      scrollEventThrottle={400}
-    >
+    <>
+      <ScrollView
+        style={{ backgroundColor: '#DDDDDD' }}
+        contentContainerStyle={styles.container}
+        refreshControl={
+          wallet && seedConfirmed ? (
+            <RefreshControl refreshing={refreshing} onRefresh={onRefresh} />
+          ) : undefined
+        }
+        onTouchStart={resetInactivityTimer}
+        onScroll={resetInactivityTimer}
+        scrollEventThrottle={400}
+      >
       <View style={styles.titleRow}>
         <View style={styles.titleContainer}>
-          <Text style={styles.title}>DUCAT</Text>
           <Text style={styles.subtitle}>Mutinynet Edition</Text>
         </View>
       </View>
@@ -2050,36 +2158,95 @@ export default function App() {
       )}
 
       {!wallet && !importingWallet ? (
-        <View>
-          <Text style={styles.welcomeTagline}>Your Bitcoin Wallet</Text>
-          <TouchableOpacity style={styles.button} onPress={createWallet}>
-            <Text style={styles.buttonText}>Create New Wallet</Text>
-          </TouchableOpacity>
-          <TouchableOpacity
-            style={[styles.button, styles.secondaryButton]}
-            onPress={() => setImportingWallet(true)}
-          >
-            <Text style={styles.buttonText}>Import Existing Wallet</Text>
-          </TouchableOpacity>
+        <View style={styles.welcomeContainer}>
+          <View style={styles.welcomeContent}>
+            <Image
+              source={require('./assets/unit-logo.png')}
+              style={styles.welcomeLogo}
+              resizeMode="contain"
+            />
+          </View>
+          <View style={styles.welcomeButtons}>
+            <Text style={styles.welcomeTitle}>UNIT Wallet</Text>
+            <Text style={styles.welcomeTagline} numberOfLines={1} adjustsFontSizeToFit>A Decentralised Credit Token</Text>
+            <TouchableOpacity style={styles.button} onPress={createWallet}>
+              <Text style={styles.buttonText}>Create a new wallet</Text>
+            </TouchableOpacity>
+            <TouchableOpacity
+              style={[styles.button, styles.secondaryButton]}
+              onPress={() => setImportingWallet(true)}
+            >
+              <Text style={styles.buttonText}>Restore an existing wallet</Text>
+            </TouchableOpacity>
+          </View>
         </View>
       ) : importingWallet ? (
         <View style={styles.walletInfo}>
           <Text style={styles.stepIndicator}>Import Wallet</Text>
           <Text style={styles.label}>Enter your 12-word seed phrase:</Text>
-          <TextInput
-            style={styles.seedInput}
-            value={importSeedPhrase}
-            onChangeText={setImportSeedPhrase}
-            placeholder="word1 word2 word3 ..."
-            placeholderTextColor="#666666"
-            multiline
-            numberOfLines={4}
-            autoCapitalize="none"
-            autoCorrect={false}
-          />
+          <View style={styles.seedWordsGrid}>
+            {importSeedPhrase.map((word, index) => (
+              <View key={index} style={styles.seedWordContainer}>
+                <Text style={styles.seedWordNumber}>{index + 1}</Text>
+                <TextInput
+                  ref={(ref) => seedInputRefs.current[index] = ref}
+                  style={styles.seedWordInput}
+                  value={word}
+                  onChangeText={(text) => {
+                    // Handle paste - if text contains spaces, split across inputs
+                    if (text.includes(' ')) {
+                      const words = text.trim().split(/\s+/);
+                      const newPhrase = [...importSeedPhrase];
+
+                      // Fill in words starting from current index
+                      words.forEach((word, i) => {
+                        if (index + i < 12) {
+                          newPhrase[index + i] = word.toLowerCase().trim();
+                        }
+                      });
+
+                      setImportSeedPhrase(newPhrase);
+
+                      // Focus next empty input or last filled input
+                      const nextIndex = Math.min(index + words.length, 11);
+                      if (seedInputRefs.current[nextIndex]) {
+                        setTimeout(() => seedInputRefs.current[nextIndex].focus(), 50);
+                      }
+                    } else {
+                      // Normal typing - update current input
+                      const newPhrase = [...importSeedPhrase];
+                      newPhrase[index] = text.toLowerCase().trim();
+                      setImportSeedPhrase(newPhrase);
+
+                      // Auto-advance if word looks complete (no spaces, reasonable length)
+                      if (text.length >= 3 && index < 11 && text.trim() && !text.includes(' ')) {
+                        // Small delay to ensure smooth typing experience
+                        const checkAdvance = setTimeout(() => {
+                          if (seedInputRefs.current[index + 1]) {
+                            seedInputRefs.current[index + 1].focus();
+                          }
+                        }, 300);
+                        return () => clearTimeout(checkAdvance);
+                      }
+                    }
+                  }}
+                  placeholder={`Word ${index + 1}`}
+                  placeholderTextColor="#666666"
+                  autoCapitalize="none"
+                  autoCorrect={false}
+                  autoComplete="off"
+                  returnKeyType={index < 11 ? 'next' : 'done'}
+                  onSubmitEditing={() => {
+                    if (index < 11 && seedInputRefs.current[index + 1]) {
+                      seedInputRefs.current[index + 1].focus();
+                    }
+                  }}
+                />
+              </View>
+            ))}
+          </View>
           <Text style={styles.warning}>
-            Enter the 12 words separated by spaces.{'\n'}
-            Make sure they are in the correct order!
+            Enter each word in the correct order!
           </Text>
           <TouchableOpacity
             style={styles.button}
@@ -2091,7 +2258,7 @@ export default function App() {
             style={[styles.button, styles.secondaryButton]}
             onPress={() => {
               setImportingWallet(false);
-              setImportSeedPhrase('');
+              setImportSeedPhrase(Array(12).fill(''));
             }}
           >
             <Text style={styles.buttonText}>Cancel</Text>
@@ -2341,7 +2508,6 @@ export default function App() {
                   style={styles.settingsOption}
                   onPress={handleLogout}
                 >
-                  <Text style={styles.settingsOptionIcon}>🔒</Text>
                   <Text style={styles.settingsOptionText}>Lock Wallet</Text>
                   <Text style={styles.settingsOptionArrow}>›</Text>
                 </TouchableOpacity>
@@ -2387,11 +2553,7 @@ export default function App() {
           >
             <Text style={styles.totalBalanceLabel}>Total Balance</Text>
             <View style={styles.balanceContainer}>
-              {loadingBalance ? (
-                <View style={styles.loadingContainer}>
-                  <ActivityIndicator size="small" color="#0066FF" />
-                </View>
-              ) : showTotalInBTC ? (
+              {showTotalInBTC ? (
                 <View style={styles.balanceWithIcon}>
                   <Image source={require('./assets/btc-symbol.png')} style={styles.balanceIcon} resizeMode="contain" />
                   <Text style={[
@@ -2941,16 +3103,87 @@ export default function App() {
 
       <StatusBar style="dark" />
     </ScrollView>
+
+    {/* Biometric Authentication Prompt - Rendered at top level */}
+    {showBiometricPrompt && (
+      <View style={styles.modalOverlay}>
+        <View style={styles.biometricPromptModal}>
+          <Text style={styles.biometricPromptTitle}>Biometric Authentication</Text>
+          <Text style={styles.biometricPromptText}>
+            Do you want to use biometric authentication (FaceID or TouchID) for UNIT Wallet?
+          </Text>
+          <View style={styles.biometricPromptButtons}>
+            <TouchableOpacity
+              style={[styles.biometricPromptButton, styles.biometricPromptButtonYes]}
+              onPress={async () => {
+                setShowBiometricPrompt(false);
+                // Enable biometric authentication
+                try {
+                  const result = await LocalAuthentication.authenticateAsync({
+                    promptMessage: 'Authenticate to enable biometric login',
+                    fallbackLabel: 'Use PIN instead',
+                  });
+                  if (result.success) {
+                    setIsAuthenticated(true);
+                  }
+                } catch (error) {
+                  console.log('Biometric auth error:', error);
+                }
+              }}
+            >
+              <Text style={styles.biometricPromptButtonText}>Yes, Enable</Text>
+            </TouchableOpacity>
+            <TouchableOpacity
+              style={[styles.biometricPromptButton, styles.biometricPromptButtonNo]}
+              onPress={() => {
+                setShowBiometricPrompt(false);
+                // If not authenticated yet, show PIN entry
+                if (!isAuthenticated) {
+                  setShowPinEntry(true);
+                }
+              }}
+            >
+              <Text style={styles.biometricPromptButtonTextNo}>No, Thanks</Text>
+            </TouchableOpacity>
+          </View>
+        </View>
+      </View>
+    )}
+    </>
   );
 }
 
 const styles = StyleSheet.create({
   container: {
     flexGrow: 1,
-    backgroundColor: '#DDDDDD',
+    backgroundColor: '#000000',
     alignItems: 'center',
     justifyContent: 'center',
     padding: 20,
+  },
+  splashContainer: {
+    flex: 1,
+    backgroundColor: '#DDDDDD',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  splashLogo: {
+    width: 150,
+    height: 150,
+    marginBottom: 20,
+  },
+  splashTitle: {
+    fontSize: 36,
+    fontWeight: 'bold',
+    color: '#333333',
+    marginBottom: 5,
+    letterSpacing: 2,
+  },
+  splashSubtitle: {
+    fontSize: 14,
+    fontWeight: '300',
+    color: '#9B59B6',
+    letterSpacing: 1,
   },
   titleRow: {
     flexDirection: 'row',
@@ -2972,18 +3205,49 @@ const styles = StyleSheet.create({
     textAlign: 'center',
   },
   subtitle: {
-    fontSize: 9,
+    fontSize: 14,
     fontWeight: '300',
     color: '#9B59B6',
     marginBottom: 30,
     textAlign: 'center',
     letterSpacing: 0.5,
   },
+  welcomeContainer: {
+    flex: 1,
+    width: '100%',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    padding: 20,
+  },
+  welcomeContent: {
+    flex: 1,
+    alignItems: 'center',
+    justifyContent: 'center',
+    width: '100%',
+  },
+  welcomeButtons: {
+    width: '100%',
+    paddingBottom: 20,
+  },
+  welcomeLogo: {
+    width: 120,
+    height: 120,
+  },
+  welcomeTitle: {
+    fontSize: 24,
+    color: '#FFFFFF',
+    marginBottom: 8,
+    textAlign: 'center',
+    fontWeight: 'bold',
+    paddingHorizontal: 10,
+  },
   welcomeTagline: {
     fontSize: 16,
-    color: '#666666',
-    marginBottom: 40,
+    color: '#FFFFFF',
+    marginBottom: 30,
     textAlign: 'center',
+    fontWeight: '400',
+    paddingHorizontal: 10,
   },
   topAddAccountButton: {
     width: 40,
@@ -2995,10 +3259,11 @@ const styles = StyleSheet.create({
   },
   button: {
     backgroundColor: '#0066FF',
-    paddingHorizontal: 30,
-    paddingVertical: 15,
+    paddingVertical: 16,
     borderRadius: 10,
-    marginTop: 20,
+    marginTop: 15,
+    width: '100%',
+    alignItems: 'center',
   },
   buttonText: {
     color: '#DDDDDD',
@@ -3241,7 +3506,6 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     alignItems: 'center',
     zIndex: 1000,
-    borderRadius: 15,
   },
   modalContent: {
     backgroundColor: '#1D1C21',
@@ -3465,6 +3729,36 @@ const styles = StyleSheet.create({
     marginBottom: 15,
     textAlignVertical: 'top',
     minHeight: 100,
+  },
+  seedWordsGrid: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    justifyContent: 'space-between',
+    marginBottom: 15,
+  },
+  seedWordContainer: {
+    width: '48%',
+    marginBottom: 12,
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
+  seedWordNumber: {
+    color: '#DDDDDD',
+    fontSize: 12,
+    fontWeight: 'bold',
+    width: 25,
+    textAlign: 'right',
+    marginRight: 8,
+  },
+  seedWordInput: {
+    flex: 1,
+    backgroundColor: '#1D1C21',
+    color: '#DDDDDD',
+    padding: 10,
+    borderRadius: 8,
+    borderWidth: 1,
+    borderColor: '#0066FF',
+    fontSize: 14,
   },
   label: {
     fontSize: 14,
@@ -4173,5 +4467,52 @@ const styles = StyleSheet.create({
     fontSize: 28,
     color: '#FFFFFF',
     fontWeight: '300',
+  },
+  // Biometric Prompt styles
+  biometricPromptModal: {
+    backgroundColor: '#1A1A1A',
+    borderRadius: 20,
+    padding: 30,
+    width: '85%',
+    maxWidth: 400,
+  },
+  biometricPromptTitle: {
+    fontSize: 22,
+    fontWeight: 'bold',
+    color: '#DDDDDD',
+    marginBottom: 15,
+    textAlign: 'center',
+  },
+  biometricPromptText: {
+    fontSize: 16,
+    color: '#DDDDDD',
+    marginBottom: 25,
+    textAlign: 'center',
+    lineHeight: 24,
+  },
+  biometricPromptButtons: {
+    gap: 12,
+  },
+  biometricPromptButton: {
+    paddingVertical: 16,
+    paddingHorizontal: 20,
+    borderRadius: 12,
+    alignItems: 'center',
+  },
+  biometricPromptButtonYes: {
+    backgroundColor: '#0066FF',
+  },
+  biometricPromptButtonNo: {
+    backgroundColor: '#F5F5F5',
+  },
+  biometricPromptButtonText: {
+    fontSize: 16,
+    fontWeight: '600',
+    color: '#FFFFFF',
+  },
+  biometricPromptButtonTextNo: {
+    fontSize: 16,
+    fontWeight: '600',
+    color: '#333333',
   },
 });
