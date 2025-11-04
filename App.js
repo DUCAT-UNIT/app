@@ -941,68 +941,11 @@ export default function App() {
   if (!isAuthenticated && wallet && seedConfirmed && !showingIntro && !showingSeeds && !verifyingSeeds && !settingUpPin) {
     return (
       <>
-        <View style={styles.lockScreen}>
-          <StatusBar style="light" />
-
-          {/* Title */}
-          <Text style={styles.lockTitle}>Enter PIN to unlock wallet</Text>
-
-          {/* FaceID Button */}
-          {showFaceIdButton && !showBiometricPrompt && (
-            <TouchableOpacity style={styles.faceIdButton} onPress={authenticateUser}>
-              <Text style={styles.faceIdText}>FaceID</Text>
-              <Text style={styles.faceIdArrow}>→</Text>
-            </TouchableOpacity>
-          )}
-
-          {/* PIN Error */}
-          {pinError ? <Text style={styles.lockPinError}>{pinError}</Text> : null}
-
-          {/* PIN Dots */}
-          <View style={styles.lockPinDots}>
-            {[0, 1, 2, 3, 4, 5].map(i => (
-              <View
-                key={i}
-                style={[
-                  styles.lockPinDot,
-                  i < pin.length && styles.lockPinDotFilled
-                ]}
-              />
-            ))}
-          </View>
-
-          {/* Keypad */}
-          <View style={styles.lockKeypad}>
-            {[[1, 2, 3], [4, 5, 6], [7, 8, 9]].map((row, rowIndex) => (
-              <View key={rowIndex} style={styles.lockKeypadRow}>
-                {row.map(num => (
-                  <TouchableOpacity
-                    key={num}
-                    style={styles.lockKey}
-                    onPress={() => handlePinDigit(String(num))}
-                  >
-                    <Text style={styles.lockKeyText}>{num}</Text>
-                  </TouchableOpacity>
-                ))}
-              </View>
-            ))}
-            <View style={styles.lockKeypadRow}>
-              <View style={styles.lockKey} />
-              <TouchableOpacity
-                style={styles.lockKey}
-                onPress={() => handlePinDigit('0')}
-              >
-                <Text style={styles.lockKeyText}>0</Text>
-              </TouchableOpacity>
-              <TouchableOpacity
-                style={styles.lockKey}
-                onPress={handlePinDelete}
-              >
-                <Text style={styles.lockKeyDelete}>✕</Text>
-              </TouchableOpacity>
-            </View>
-          </View>
-        </View>
+        <LockScreen
+          onAuthenticated={handleLockScreenAuthenticated}
+          showFaceIdButton={showFaceIdButton && !showBiometricPrompt}
+          onFaceIdPress={authenticateUser}
+        />
 
         {/* Biometric Authentication Prompt - Rendered at top level */}
         {showBiometricPrompt && (

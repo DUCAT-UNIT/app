@@ -10,7 +10,7 @@ import { StatusBar } from 'expo-status-bar';
 import * as AuthService from '../services/authService';
 import styles from '../styles';
 
-export default function LockScreen({ onAuthenticated }) {
+export default function LockScreen({ onAuthenticated, showFaceIdButton, onFaceIdPress }) {
   const [pin, setPin] = useState('');
   const [pinError, setPinError] = useState('');
 
@@ -61,6 +61,14 @@ export default function LockScreen({ onAuthenticated }) {
           />
         ))}
       </View>
+
+      {/* FaceID Button */}
+      {showFaceIdButton && onFaceIdPress && (
+        <TouchableOpacity style={styles.faceIdButton} onPress={onFaceIdPress}>
+          <Text style={styles.faceIdText}>FaceID</Text>
+          <Text style={styles.faceIdArrow}>→</Text>
+        </TouchableOpacity>
+      )}
 
       {/* Keypad */}
       <View style={styles.lockKeypad}>
