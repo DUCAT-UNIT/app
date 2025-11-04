@@ -199,13 +199,15 @@ export const createUnitIntent = async (recipient, amount, taprootAddress, segwit
   try {
     console.log('Creating UNIT transaction intent...');
 
-    // Parse amount
+    // Parse amount and multiply by 100 for runestone encoding
     const normalizedAmount = amount.replace(',', '.');
-    const amountInRunes = parseInt(normalizedAmount);
-    if (isNaN(amountInRunes) || amountInRunes <= 0) {
+    const userAmount = parseInt(normalizedAmount);
+    if (isNaN(userAmount) || userAmount <= 0) {
       throw new Error('Invalid amount');
     }
-    console.log('Sending', amountInRunes, 'runes to', recipient);
+    // Multiply by 100 for runestone encoding (UNIT display amount * 100)
+    const amountInRunes = userAmount * 100;
+    console.log('User specified', userAmount, 'UNIT, sending', amountInRunes, 'runes to', recipient);
 
     // Get mnemonic and derive keys
     const mnemonic = await AuthService.getMnemonic();

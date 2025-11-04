@@ -1039,7 +1039,7 @@ export default function App() {
   // Full-screen seed phrase viewing
   if (viewingSeedPhrase) {
     return (
-      <ScrollView style={{ backgroundColor: COLORS.VERY_LIGHT_GRAY }} contentContainerStyle={styles.container}>
+      <ScrollView style={{ backgroundColor: COLORS.VERY_LIGHT_GRAY }} contentContainerStyle={styles.container} keyboardShouldPersistTaps="always">
         <View style={styles.titleRow}>
           <View style={styles.titleContainer}>
             <Text style={styles.title}>DUCAT</Text>
@@ -1096,6 +1096,7 @@ export default function App() {
       <ScrollView
         style={{ backgroundColor: COLORS.VERY_LIGHT_GRAY }}
         contentContainerStyle={styles.container}
+        keyboardShouldPersistTaps="always"
         refreshControl={
           wallet && seedConfirmed ? (
             <RefreshControl refreshing={refreshing} onRefresh={onRefresh} />
@@ -1368,6 +1369,9 @@ export default function App() {
         broadcastedTxid={broadcastedTxid}
         keyboardHeight={keyboardHeight}
         amountInputRef={amountInputRef}
+        btcBalance={segwitBalance}
+        unitBalance={runesBalance.length > 0 ? parseFloat(runesBalance[0][1]) : 0}
+        btcPrice={btcPrice}
         setIntentStep={setIntentStep}
         setSendAssetType={setSendAssetType}
         setSendAmount={setSendAmount}
