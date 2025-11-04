@@ -70,12 +70,18 @@ export default function PinSetupScreen({
                 }
               } else {
                 setPinError('Failed to save PIN');
+                // Reset entire PIN process
+                setPin('');
                 setConfirmPin('');
+                setPinStep('enter');
               }
             });
           } else {
             setPinError('PINs do not match');
+            // Reset entire PIN process so user starts fresh
+            setPin('');
             setConfirmPin('');
+            setPinStep('enter');
           }
         }
       }
