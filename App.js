@@ -956,6 +956,21 @@ export default function App() {
     return <LockScreen onAuthenticated={handleLockScreenAuthenticated} />;
   }
 
+  // Settings Screen
+  if (showSettings) {
+    return (
+      <SettingsScreen
+        onClose={() => setShowSettings(false)}
+        onViewSeedPhrase={handleViewSeedPhrase}
+        onChangePin={handleChangePin}
+        onLockWallet={handleLogout}
+        onDeleteWallet={handleDeleteWallet}
+        onPrivacyModeToggle={handlePrivacyModeToggle}
+        privacyMode={privacyMode}
+      />
+    );
+  }
+
   // Show locked screen if not authenticated and wallet exists AND seed backup confirmed AND not in setup flow
   if (!isAuthenticated && wallet && seedConfirmed && !showingIntro && !showingSeeds && !verifyingSeeds && !settingUpPin) {
     return (
@@ -1219,18 +1234,6 @@ export default function App() {
             </View>
           )}
 
-          {/* Settings Modal */}
-          {showSettings && (
-            <SettingsScreen
-              onClose={() => setShowSettings(false)}
-              onViewSeedPhrase={handleViewSeedPhrase}
-              onChangePin={handleChangePin}
-              onLockWallet={handleLogout}
-              onDeleteWallet={handleDeleteWallet}
-              onPrivacyModeToggle={handlePrivacyModeToggle}
-              privacyMode={privacyMode}
-            />
-          )}
 
 
           {/* Total Balance - Aggregate of both addresses */}
