@@ -509,7 +509,7 @@ export default function SendScreen({
               <View style={{ backgroundColor: COLORS.CARD_BG, borderRadius: 12, padding: 16, marginBottom: 32, width: '100%' }}>
                 <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12, width: '100%' }}>
                   <Text style={{ fontSize: 16, color: COLORS.MEDIUM_GRAY, fontWeight: '600' }}>Network:</Text>
-                  <Text style={{ fontSize: 16, fontWeight: '600', color: COLORS.VERY_LIGHT_GRAY }}>Signet</Text>
+                  <Text style={{ fontSize: 16, fontWeight: '600', color: COLORS.VERY_LIGHT_GRAY }}>Mutinynet</Text>
                 </View>
                 <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', width: '100%' }}>
                   <Text style={{ fontSize: 16, color: COLORS.MEDIUM_GRAY, fontWeight: '600' }}>Total fees:</Text>
