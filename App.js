@@ -10,7 +10,7 @@ import * as LocalAuthentication from 'expo-local-authentication';
 import * as FileSystem from 'expo-file-system';
 
 import { StatusBar } from 'expo-status-bar';
-import { StyleSheet, Text, View, TouchableOpacity, ScrollView, Alert, ActivityIndicator, TextInput, Image, RefreshControl, AppState, Keyboard, Platform, Linking } from 'react-native';
+import { Text, View, TouchableOpacity, ScrollView, Alert, ActivityIndicator, TextInput, Image, RefreshControl, AppState, Keyboard, Platform, Linking } from 'react-native';
 import { useState, useEffect, useRef, useCallback } from 'react';
 import * as Clipboard from 'expo-clipboard';
 import * as bip39 from 'bip39';
@@ -19,128 +19,24 @@ import * as bitcoin from 'bitcoinjs-lib';
 import * as ecc from '@bitcoinerlab/secp256k1';
 import { encodeRunestone } from './runestone-encoder';
 
+// Import utilities
+import { satoshisToBTC, btcToSatoshis, formatAddress, formatSatoshis, formatBTC } from './utils/formatters';
+import { fetchWithTimeout } from './utils/api';
+import { deriveAddressesFromMnemonic, MUTINYNET_NETWORK } from './utils/bitcoin';
+import { SECURE_KEYS } from './utils/constants';
+import { COLORS } from './utils/colors';
+import styles from './styles';
+
+// Import services
+import { fetchWalletBalances, fetchUtxos as fetchUtxosService, fetchBtcPrice as fetchBtcPriceService } from './services/balanceService';
+import * as AuthService from './services/authService';
+import * as WalletService from './services/walletService';
+
 // Initialize BIP32
 const bip32 = BIP32Factory(ecc);
 
 // Initialize ECC library for bitcoinjs-lib (required for Taproot)
 bitcoin.initEccLib(ecc);
-
-// Mutinynet signet network configuration
-const mutinynet = {
-  messagePrefix: '\x18Bitcoin Signed Message:\n',
-  bech32: 'tb',
-  bip32: {
-    public: 0x043587cf,
-    private: 0x04358394,
-  },
-  pubKeyHash: 0x6f,
-  scriptHash: 0xc4,
-  wif: 0xef,
-};
-
-// Secure storage keys
-const SECURE_KEYS = {
-  MNEMONIC: 'wallet_mnemonic_v1',
-  CURRENT_ACCOUNT: 'wallet_current_account_v1',
-  PIN: 'wallet_pin_v1',
-  BIOMETRIC_ENABLED: 'wallet_biometric_enabled_v1',
-};
-
-// Jailbreak detection
-const checkJailbreak = async () => {
-  const jailbreakPaths = [
-    '/Applications/Cydia.app',
-    '/Library/MobileSubstrate/MobileSubstrate.dylib',
-    '/bin/bash',
-    '/usr/sbin/sshd',
-    '/etc/apt',
-    '/private/var/lib/apt/',
-    '/Applications/blackra1n.app',
-    '/Applications/FakeCarrier.app',
-    '/Applications/Icy.app',
-    '/Applications/IntelliScreen.app',
-    '/Applications/MxTube.app',
-    '/Applications/RockApp.app',
-    '/Applications/SBSettings.app',
-    '/Applications/WinterBoard.app',
-    '/private/var/lib/cydia',
-    '/var/cache/apt',
-    '/var/lib/cydia',
-    '/var/log/syslog',
-    '/bin/sh',
-    '/usr/libexec/sftp-server',
-    '/usr/bin/ssh'
-  ];
-
-  try {
-    // Check for common jailbreak files
-    for (const path of jailbreakPaths) {
-      try {
-        const info = await FileSystem.getInfoAsync(path);
-        if (info.exists) {
-          return true; // Jailbreak detected
-        }
-      } catch (e) {
-        // File doesn't exist or can't be accessed - continue checking
-      }
-    }
-
-    // Try to write to system directory (jailbroken devices allow this)
-    try {
-      const testPath = '/private/jailbreak_test.txt';
-      await FileSystem.writeAsStringAsync(testPath, 'test');
-      await FileSystem.deleteAsync(testPath);
-      return true; // If we can write here, device is jailbroken
-    } catch (e) {
-      // Can't write to system directory - good sign
-    }
-
-    return false; // No jailbreak detected
-  } catch (error) {
-    // If checks fail, assume not jailbroken to avoid false positives
-    return false;
-  }
-};
-
-// Helper functions for secure key derivation
-const deriveMnemonicFromSecureStore = async () => {
-  try {
-    const mnemonic = await SecureStore.getItemAsync(SECURE_KEYS.MNEMONIC);
-    return mnemonic;
-  } catch (error) {
-    return null;
-  }
-};
-
-const deriveAddressesFromMnemonic = (mnemonic, accountIndex = 0) => {
-  // Convert mnemonic to seed
-  const seed = bip39.mnemonicToSeedSync(mnemonic);
-
-  // Create HD wallet root
-  const root = bip32.fromSeed(seed, mutinynet);
-
-  // BIP84 - Native SegWit
-  const segwitPath = `m/84'/1'/0'/0/${accountIndex}`;
-  const segwitChild = root.derivePath(segwitPath);
-  const segwitPayment = bitcoin.payments.p2wpkh({
-    pubkey: segwitChild.publicKey,
-    network: mutinynet,
-  });
-
-  // BIP86 - Taproot
-  const taprootPath = `m/86'/1'/0'/0/${accountIndex}`;
-  const taprootChild = root.derivePath(taprootPath);
-  const xOnlyPubkey = taprootChild.publicKey.slice(1, 33);
-  const taprootPayment = bitcoin.payments.p2tr({
-    internalPubkey: xOnlyPubkey,
-    network: mutinynet,
-  });
-
-  return {
-    segwitAddress: segwitPayment.address,
-    taprootAddress: taprootPayment.address,
-  };
-};
 
 export default function App() {
   const [wallet, setWallet] = useState(null); // Only stores public addresses
@@ -171,7 +67,6 @@ export default function App() {
   const [loadingBtcPrice, setLoadingBtcPrice] = useState(false);
   const [isAuthenticated, setIsAuthenticated] = useState(false); // Biometric auth status
   const [isBiometricSupported, setIsBiometricSupported] = useState(false);
-  const [isJailbroken, setIsJailbroken] = useState(false); // Jailbreak detection status
   const [settingUpPin, setSettingUpPin] = useState(false); // PIN setup flow
   const [isImportedWallet, setIsImportedWallet] = useState(false); // Track if wallet was imported
   const [pin, setPin] = useState(''); // Current PIN entry
@@ -222,10 +117,10 @@ export default function App() {
   const fetchBtcPrice = async () => {
     try {
       setLoadingBtcPrice(true);
-      const response = await fetch('https://api.coingecko.com/api/v3/simple/price?ids=bitcoin&vs_currencies=usd');
-      const data = await response.json();
-      setBtcPrice(data.bitcoin.usd);
+      const price = await fetchBtcPriceService();
+      setBtcPrice(price);
     } catch (error) {
+      console.error('Failed to fetch BTC price:', error);
       setBtcPrice(null);
     } finally {
       setLoadingBtcPrice(false);
@@ -263,39 +158,17 @@ export default function App() {
     };
   }, []);
 
-  // Check for jailbreak on app start
-  useEffect(() => {
-    const checkForJailbreak = async () => {
-      const jailbroken = await checkJailbreak();
-      if (jailbroken) {
-        setIsJailbroken(true);
-        Alert.alert(
-          'Security Warning',
-          'This app cannot run on jailbroken devices for security reasons. Your funds could be at risk.',
-          [{ text: 'OK', onPress: () => {} }],
-          { cancelable: false }
-        );
-      }
-    };
-
-    checkForJailbreak();
-  }, []);
-
   // Load wallet from secure storage on app start
   useEffect(() => {
     const loadWallet = async () => {
       try {
-        const mnemonic = await deriveMnemonicFromSecureStore();
-
-        // Load biometric preference
+        // Load wallet and biometric preference from storage
+        const { mnemonic, accountIndex } = await WalletService.loadWalletFromStorage();
         const biometricPref = await SecureStore.getItemAsync(SECURE_KEYS.BIOMETRIC_ENABLED);
         setBiometricEnabled(biometricPref === 'true');
 
         if (mnemonic) {
           // Wallet exists in secure storage, load it
-          const accountIndexStr = await SecureStore.getItemAsync(SECURE_KEYS.CURRENT_ACCOUNT);
-          const accountIndex = accountIndexStr ? parseInt(accountIndexStr) : 0;
-
           const addresses = deriveAddressesFromMnemonic(mnemonic, accountIndex);
 
           setWallet({
@@ -387,7 +260,10 @@ export default function App() {
         // App has come to foreground from background, require re-authentication if wallet exists AND seed backup is confirmed
         if (walletExists.current && seedConfirmedRef.current && isBiometricSupported) {
           setIsAuthenticated(false);
-          authenticateUser();
+          // Only auto-trigger biometrics if user has enabled it
+          if (biometricEnabled) {
+            authenticateUser();
+          }
         } else {
         }
       }
@@ -398,7 +274,7 @@ export default function App() {
     return () => {
       subscription.remove();
     };
-  }, [isBiometricSupported]); // Only depend on biometric support, not wallet state
+  }, [isBiometricSupported, biometricEnabled]); // Depend on biometric support and enabled state
 
   // Cleanup inactivity timer on unmount
   useEffect(() => {
@@ -469,23 +345,6 @@ export default function App() {
     }
   };
 
-  const savePin = async (pinValue) => {
-    try {
-      await SecureStore.setItemAsync(SECURE_KEYS.PIN, pinValue);
-      return true;
-    } catch (error) {
-      return false;
-    }
-  };
-
-  const verifyPin = async (enteredPin) => {
-    try {
-      const storedPin = await SecureStore.getItemAsync(SECURE_KEYS.PIN);
-      return storedPin === enteredPin;
-    } catch (error) {
-      return false;
-    }
-  };
 
   const handlePinDigit = (digit) => {
     if (settingUpPin) {
@@ -509,7 +368,7 @@ export default function App() {
             // Check if PINs match
             if (newConfirmPin === pin) {
               // Save PIN and finish setup
-              savePin(pin).then(success => {
+              AuthService.savePin(pin).then(success => {
                 if (success) {
                   if (changingPin) {
                     // Just changing PIN, not creating wallet
@@ -553,7 +412,7 @@ export default function App() {
         setPin(newPin);
         if (newPin.length === 6) {
           // Verify PIN
-          verifyPin(newPin).then(isValid => {
+          AuthService.verifyPin(newPin).then(isValid => {
             if (isValid) {
               setIsAuthenticated(true);
               setShowPinEntry(false);
@@ -613,19 +472,22 @@ export default function App() {
           style: 'destructive',
           onPress: async () => {
             try {
-              await SecureStore.deleteItemAsync(SECURE_KEYS.MNEMONIC);
-              await SecureStore.deleteItemAsync(SECURE_KEYS.CURRENT_ACCOUNT);
-              await SecureStore.deleteItemAsync(SECURE_KEYS.PIN);
+              const success = await AuthService.deleteWalletData();
+              if (success) {
+                setWallet(null);
+                walletExists.current = false;
+                setIsAuthenticated(false);
+                setShowSettings(false);
+                setSegwitBalance(null);
+                setTaprootBalance(null);
+                setRunesBalance([]);
+                setBiometricEnabled(false); // Reset biometric preference
+                setShowFaceIdButton(true); // Reset FaceID button visibility
 
-              setWallet(null);
-              walletExists.current = false;
-              setIsAuthenticated(false);
-              setShowSettings(false);
-              setSegwitBalance(null);
-              setTaprootBalance(null);
-              setRunesBalance([]);
-
-              Alert.alert('Success', 'Wallet has been deleted from this device.');
+                Alert.alert('Success', 'Wallet has been deleted from this device.');
+              } else {
+                Alert.alert('Error', 'Failed to delete wallet.');
+              }
             } catch (error) {
               Alert.alert('Error', 'Failed to delete wallet: ' + error.message);
             }
@@ -637,13 +499,13 @@ export default function App() {
 
   const handleViewSeedPhrase = async () => {
     try {
-      const result = await LocalAuthentication.authenticateAsync({
-        promptMessage: 'Authenticate to view your recovery phrase',
-        fallbackLabel: 'Use PIN',
-      });
+      const result = await AuthService.authenticateWithBiometrics(
+        'Authenticate to view your recovery phrase',
+        'Use PIN'
+      );
 
       if (result.success) {
-        const mnemonic = await SecureStore.getItemAsync(SECURE_KEYS.MNEMONIC);
+        const mnemonic = await AuthService.getMnemonic();
         if (mnemonic) {
           setSeedPhraseWords(mnemonic.split(' '));
           setSeedPhraseVisible(false); // Start with words hidden for security
@@ -662,10 +524,10 @@ export default function App() {
 
   const handleChangePin = async () => {
     try {
-      const result = await LocalAuthentication.authenticateAsync({
-        promptMessage: 'Authenticate to change your PIN',
-        fallbackLabel: 'Use current PIN',
-      });
+      const result = await AuthService.authenticateWithBiometrics(
+        'Authenticate to change your PIN',
+        'Use current PIN'
+      );
 
       if (result.success) {
         setShowSettings(false);
@@ -692,59 +554,10 @@ export default function App() {
 
     try {
       setLoadingBalance(true);
-
-      // Fetch all balances in parallel with 10 second timeout
-      const timeout = 10000;
-
-      const fetchWithTimeout = (url, options = {}) => {
-        return Promise.race([
-          fetch(url, options),
-          new Promise((_, reject) =>
-            setTimeout(() => reject(new Error('Request timeout')), timeout)
-          )
-        ]);
-      };
-
-      const results = await Promise.allSettled([
-        // Fetch SegWit balance
-        fetchWithTimeout(`https://mutinynet.com/api/address/${segwitAddress}`)
-          .then(res => res.json())
-          .then(data => {
-            const totalReceived = data.chain_stats?.funded_txo_sum || 0;
-            const totalSpent = data.chain_stats?.spent_txo_sum || 0;
-            const balance = (totalReceived - totalSpent) / 100000000;
-            setSegwitBalance(balance);
-          }),
-
-        // Fetch Taproot balance
-        fetchWithTimeout(`https://mutinynet.com/api/address/${taprootAddress}`)
-          .then(res => res.json())
-          .then(data => {
-            const totalReceived = data.chain_stats?.funded_txo_sum || 0;
-            const totalSpent = data.chain_stats?.spent_txo_sum || 0;
-            const balance = (totalReceived - totalSpent) / 100000000;
-            setTaprootBalance(balance);
-          }),
-
-        // Fetch RUNES balance
-        fetchWithTimeout(`https://ord-mutinynet.ducatprotocol.com/address/${taprootAddress}`, {
-          headers: { 'Accept': 'application/json' }
-        })
-          .then(res => res.json())
-          .then(data => {
-            setRunesBalance(data.runes_balances || []);
-          })
-      ]);
-
-      // Handle any failures gracefully
-      results.forEach((result, index) => {
-        if (result.status === 'rejected') {
-          console.log(`Balance fetch ${index} failed:`, result.reason);
-          if (index === 0) setSegwitBalance(0);
-          if (index === 1) setTaprootBalance(0);
-          if (index === 2) setRunesBalance([]);
-        }
-      });
+      const balances = await fetchWalletBalances(segwitAddress, taprootAddress);
+      setSegwitBalance(balances.segwitBalance);
+      setTaprootBalance(balances.taprootBalance);
+      setRunesBalance(balances.runesBalance);
     } catch (error) {
       console.error('Balance fetch error:', error);
       setSegwitBalance(0);
@@ -765,17 +578,7 @@ export default function App() {
   const fetchUtxos = async (address) => {
     try {
       setLoadingUtxos(true);
-      const response = await fetch(`https://mutinynet.com/api/address/${address}/utxo`);
-      const utxoData = await response.json();
-
-      // Transform UTXO data into format needed for PSBT
-      const formattedUtxos = utxoData.map(utxo => ({
-        txid: utxo.txid,
-        vout: utxo.vout,
-        value: utxo.value,
-        status: utxo.status,
-      }));
-
+      const formattedUtxos = await fetchUtxosService(address);
       setUtxos(formattedUtxos);
       return formattedUtxos;
     } catch (error) {
@@ -908,12 +711,12 @@ export default function App() {
       console.log('Loading mnemonic and deriving keys...');
       const mnemonic = await SecureStore.getItemAsync(SECURE_KEYS.MNEMONIC);
       const seed = bip39.mnemonicToSeedSync(mnemonic);
-      const root = bip32.fromSeed(seed, mutinynet);
+      const root = bip32.fromSeed(seed, MUTINYNET_NETWORK);
       console.log('Keys derived successfully');
 
       // Create PSBT
       console.log('Creating PSBT...');
-      const psbt = new bitcoin.Psbt({ network: mutinynet });
+      const psbt = new bitcoin.Psbt({ network: MUTINYNET_NETWORK });
 
       // Add inputs (BTC always uses segwit)
       console.log('Adding', inputsWithTx.length, 'inputs to PSBT...');
@@ -1023,7 +826,7 @@ export default function App() {
       // Get mnemonic and derive keys
       const mnemonic = await SecureStore.getItemAsync(SECURE_KEYS.MNEMONIC);
       const seed = bip39.mnemonicToSeedSync(mnemonic);
-      const root = bip32.fromSeed(seed, mutinynet);
+      const root = bip32.fromSeed(seed, MUTINYNET_NETWORK);
 
       // Derive Taproot address (holds runes)
       const taprootPath = `m/86'/1'/0'/0/${currentAccount}`;
@@ -1031,7 +834,7 @@ export default function App() {
       const xOnlyPubkey = Buffer.from(taprootChild.publicKey.slice(1, 33));
       const taprootPayment = bitcoin.payments.p2tr({
         internalPubkey: xOnlyPubkey,
-        network: mutinynet,
+        network: MUTINYNET_NETWORK,
       });
       const taprootAddress = taprootPayment.address;
       console.log('Taproot address:', taprootAddress);
@@ -1041,7 +844,7 @@ export default function App() {
       const segwitChild = root.derivePath(segwitPath);
       const p2wpkhPayment = bitcoin.payments.p2wpkh({
         pubkey: segwitChild.publicKey,
-        network: mutinynet,
+        network: MUTINYNET_NETWORK,
       });
       const p2wpkhAddress = p2wpkhPayment.address;
       console.log('P2WPKH address:', p2wpkhAddress);
@@ -1141,7 +944,7 @@ export default function App() {
 
       // Create PSBT
       console.log('Creating PSBT...');
-      const psbt = new bitcoin.Psbt({ network: mutinynet });
+      const psbt = new bitcoin.Psbt({ network: MUTINYNET_NETWORK });
 
       // Fetch transaction hex for inputs
       const satTxResponse = await fetch(`https://mutinynet.com/api/tx/${satUtxo.txid}/hex`);
@@ -1315,7 +1118,7 @@ export default function App() {
       // Get mnemonic from secure storage
       const mnemonic = await SecureStore.getItemAsync(SECURE_KEYS.MNEMONIC);
       const seed = bip39.mnemonicToSeedSync(mnemonic);
-      const root = bip32.fromSeed(seed, mutinynet);
+      const root = bip32.fromSeed(seed, MUTINYNET_NETWORK);
 
       // Load PSBT
       const psbt = bitcoin.Psbt.fromBase64(sendIntent.psbt);
@@ -1568,18 +1371,11 @@ export default function App() {
 
   const createWallet = async () => {
     try {
-      // Generate random bytes using expo-crypto
-      const randomBytes = await Crypto.getRandomBytesAsync(16);
+      // Generate wallet using WalletService
+      const { mnemonic, addresses } = await WalletService.generateWallet(currentAccount);
 
-      // Generate a 12-word mnemonic
-      const mnemonic = bip39.entropyToMnemonic(Buffer.from(randomBytes).toString('hex'));
-
-      // Derive addresses from mnemonic
-      const addresses = deriveAddressesFromMnemonic(mnemonic, currentAccount);
-
-      // Store mnemonic in secure storage (iOS Keychain)
-      await SecureStore.setItemAsync(SECURE_KEYS.MNEMONIC, mnemonic);
-      await SecureStore.setItemAsync(SECURE_KEYS.CURRENT_ACCOUNT, currentAccount.toString());
+      // Store wallet in secure storage
+      await WalletService.saveWalletToStorage(mnemonic, currentAccount);
 
       // Set showingIntro FIRST, before setting wallet, to prevent lock screen flash
       setShowingIntro(true);
@@ -1625,18 +1421,11 @@ export default function App() {
       // Join the array of words and trim/normalize
       const mnemonic = importSeedPhrase.map(word => word.trim().toLowerCase()).join(' ').trim();
 
-      // Validate the mnemonic
-      if (!bip39.validateMnemonic(mnemonic)) {
-        Alert.alert('Invalid Seed Phrase', 'The seed phrase you entered is not valid. Please check and try again.');
-        return;
-      }
+      // Import wallet using WalletService (validates and derives addresses)
+      const { addresses } = await WalletService.importWallet(mnemonic, currentAccount);
 
-      // Derive addresses from mnemonic
-      const addresses = deriveAddressesFromMnemonic(mnemonic, currentAccount);
-
-      // Store mnemonic in secure storage (iOS Keychain)
-      await SecureStore.setItemAsync(SECURE_KEYS.MNEMONIC, mnemonic);
-      await SecureStore.setItemAsync(SECURE_KEYS.CURRENT_ACCOUNT, currentAccount.toString());
+      // Store wallet in secure storage
+      await WalletService.saveWalletToStorage(mnemonic, currentAccount);
 
       // Set PIN setup state FIRST, before setting wallet, to prevent lock screen flash
       setSettingUpPin(true);
@@ -1653,37 +1442,8 @@ export default function App() {
       });
       walletExists.current = true;
 
-      // Fetch BTC balances for both addresses
-      try {
-        // Fetch SegWit balance
-        const segwitResponse = await fetch(`https://mutinynet.com/api/address/${addresses.segwitAddress}`);
-        const segwitData = await segwitResponse.json();
-        const segwitTotalReceived = segwitData.chain_stats?.funded_txo_sum || 0;
-        const segwitTotalSpent = segwitData.chain_stats?.spent_txo_sum || 0;
-        const segwitBtcBalance = (segwitTotalReceived - segwitTotalSpent) / 100000000;
-        setSegwitBalance(segwitBtcBalance);
-
-        // Fetch Taproot balance
-        const taprootResponse = await fetch(`https://mutinynet.com/api/address/${addresses.taprootAddress}`);
-        const taprootData = await taprootResponse.json();
-        const taprootTotalReceived = taprootData.chain_stats?.funded_txo_sum || 0;
-        const taprootTotalSpent = taprootData.chain_stats?.spent_txo_sum || 0;
-        const taprootBtcBalance = (taprootTotalReceived - taprootTotalSpent) / 100000000;
-        setTaprootBalance(taprootBtcBalance);
-
-        // Fetch RUNES balance
-        const runesResponse = await fetch(`https://ord-mutinynet.ducatprotocol.com/address/${addresses.taprootAddress}`, {
-          headers: {
-            'Accept': 'application/json'
-          }
-        });
-        const runesData = await runesResponse.json();
-        setRunesBalance(runesData.runes_balances || []);
-      } catch (error) {
-        setSegwitBalance(0);
-        setTaprootBalance(0);
-        setRunesBalance([]);
-      }
+      // Fetch all balances using BalanceService
+      await fetchBalance(addresses.segwitAddress, addresses.taprootAddress);
 
       // Skip seed verification for imported wallets
       // settingUpPin and other setup states were already set above
@@ -1819,14 +1579,8 @@ export default function App() {
     try {
       setSwitchingAccount(true);
 
-      // Retrieve mnemonic from secure storage
-      const mnemonic = await deriveMnemonicFromSecureStore();
-      if (!mnemonic) {
-        throw new Error('Failed to retrieve wallet from secure storage');
-      }
-
-      // Derive new addresses for the selected account
-      const addresses = deriveAddressesFromMnemonic(mnemonic, accountIndex);
+      // Switch to new account using WalletService
+      const { addresses } = await WalletService.switchToAccount(accountIndex);
 
       // Update wallet with only public addresses
       setWallet({
@@ -1834,9 +1588,8 @@ export default function App() {
         taprootAddress: addresses.taprootAddress,
       });
 
-      // Update current account in state and secure storage
+      // Update current account in state
       setCurrentAccount(accountIndex);
-      await SecureStore.setItemAsync(SECURE_KEYS.CURRENT_ACCOUNT, accountIndex.toString());
 
       setShowAccountPicker(false);
       setNewAccountIndex('');
@@ -1861,23 +1614,6 @@ export default function App() {
         />
         <Text style={styles.splashTitle}>UNIT</Text>
         <Text style={styles.splashSubtitle}>Mutinynet Edition</Text>
-        <StatusBar style="dark" />
-      </View>
-    );
-  }
-
-  // Show jailbreak warning screen if device is jailbroken
-  if (isJailbroken) {
-    return (
-      <View style={styles.lockedContainer}>
-        <View style={styles.titleContainer}>
-          <Text style={styles.title}>DUCAT</Text>
-        </View>
-        <View style={styles.lockIconContainer}>
-          <Text style={styles.lockIcon}>⚠️</Text>
-          <Text style={styles.lockedText}>Security Warning</Text>
-          <Text style={styles.lockedSubtext}>This app cannot run on jailbroken devices.{'\n'}Your funds could be at risk.</Text>
-        </View>
         <StatusBar style="dark" />
       </View>
     );
@@ -2056,10 +1792,9 @@ export default function App() {
                     setShowBiometricPrompt(false);
                     // Save the preference as disabled
                     await SecureStore.setItemAsync(SECURE_KEYS.BIOMETRIC_ENABLED, 'false');
-                    // Hide FaceID button and authenticate user
-                    setShowFaceIdButton(false);
-                    // User has completed setup, authenticate them
-                    setIsAuthenticated(true);
+                    setBiometricEnabled(false);
+                    // Keep FaceID button visible so user can enable it later
+                    // On lock screen: Don't authenticate, user must enter PIN
                   }}
                 >
                   <Text style={styles.biometricPromptButtonTextNo}>No, Thanks</Text>
@@ -2075,7 +1810,7 @@ export default function App() {
   // Full-screen seed phrase viewing
   if (viewingSeedPhrase) {
     return (
-      <ScrollView style={{ backgroundColor: '#DDDDDD' }} contentContainerStyle={styles.container}>
+      <ScrollView style={{ backgroundColor: COLORS.VERY_LIGHT_GRAY }} contentContainerStyle={styles.container}>
         <View style={styles.titleRow}>
           <View style={styles.titleContainer}>
             <Text style={styles.title}>DUCAT</Text>
@@ -2130,7 +1865,7 @@ export default function App() {
   return (
     <>
       <ScrollView
-        style={{ backgroundColor: '#DDDDDD' }}
+        style={{ backgroundColor: COLORS.VERY_LIGHT_GRAY }}
         contentContainerStyle={styles.container}
         refreshControl={
           wallet && seedConfirmed ? (
@@ -2398,7 +2133,7 @@ export default function App() {
               />
               <Text style={styles.priceChipName}>Bitcoin BTC</Text>
               {loadingBtcPrice ? (
-                <ActivityIndicator size="small" color="#DDDDDD" />
+                <ActivityIndicator size="small" color={COLORS.VERY_LIGHT_GRAY} />
               ) : (
                 <Text style={styles.priceChipValue}>
                   $ {btcPrice ? btcPrice.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) : '0.00'}
@@ -2422,7 +2157,7 @@ export default function App() {
             {/* Loading overlay while switching accounts */}
             {switchingAccount && (
               <View style={styles.switchingOverlay}>
-                <ActivityIndicator size="large" color="#0066FF" />
+                <ActivityIndicator size="large" color={COLORS.PRIMARY_BLUE} />
                 <Text style={styles.switchingText}>Switching account...</Text>
               </View>
             )}
@@ -3089,7 +2824,7 @@ export default function App() {
             <View style={styles.modalOverlay}>
               <View style={styles.intentModal}>
                 <View style={styles.intentContent}>
-                  <ActivityIndicator size="large" color="#0066FF" />
+                  <ActivityIndicator size="large" color={COLORS.PRIMARY_BLUE} />
                   <Text style={styles.reviewValue}>
                     {intentStep === 'signing' ? 'Signing transaction...' : 'Broadcasting transaction...'}
                   </Text>
@@ -3117,8 +2852,12 @@ export default function App() {
               style={[styles.biometricPromptButton, styles.biometricPromptButtonYes]}
               onPress={async () => {
                 setShowBiometricPrompt(false);
-                // Enable biometric authentication
                 try {
+                  // Save the preference
+                  await SecureStore.setItemAsync(SECURE_KEYS.BIOMETRIC_ENABLED, 'true');
+                  setBiometricEnabled(true);
+
+                  // Trigger biometric authentication
                   const result = await LocalAuthentication.authenticateAsync({
                     promptMessage: 'Authenticate to enable biometric login',
                     fallbackLabel: 'Use PIN instead',
@@ -3135,8 +2874,11 @@ export default function App() {
             </TouchableOpacity>
             <TouchableOpacity
               style={[styles.biometricPromptButton, styles.biometricPromptButtonNo]}
-              onPress={() => {
+              onPress={async () => {
                 setShowBiometricPrompt(false);
+                // Save the preference as disabled
+                await SecureStore.setItemAsync(SECURE_KEYS.BIOMETRIC_ENABLED, 'false');
+                setBiometricEnabled(false);
                 // If not authenticated yet, show PIN entry
                 if (!isAuthenticated) {
                   setShowPinEntry(true);
@@ -3152,1367 +2894,3 @@ export default function App() {
     </>
   );
 }
-
-const styles = StyleSheet.create({
-  container: {
-    flexGrow: 1,
-    backgroundColor: '#000000',
-    alignItems: 'center',
-    justifyContent: 'center',
-    padding: 20,
-  },
-  splashContainer: {
-    flex: 1,
-    backgroundColor: '#DDDDDD',
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  splashLogo: {
-    width: 150,
-    height: 150,
-    marginBottom: 20,
-  },
-  splashTitle: {
-    fontSize: 36,
-    fontWeight: 'bold',
-    color: '#333333',
-    marginBottom: 5,
-    letterSpacing: 2,
-  },
-  splashSubtitle: {
-    fontSize: 14,
-    fontWeight: '300',
-    color: '#9B59B6',
-    letterSpacing: 1,
-  },
-  titleRow: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    width: '100%',
-    marginBottom: 0,
-  },
-  titleContainer: {
-    flex: 1,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  title: {
-    fontSize: 32,
-    fontWeight: 'bold',
-    color: '#333333',
-    marginBottom: 2,
-    textAlign: 'center',
-  },
-  subtitle: {
-    fontSize: 14,
-    fontWeight: '300',
-    color: '#9B59B6',
-    marginBottom: 30,
-    textAlign: 'center',
-    letterSpacing: 0.5,
-  },
-  welcomeContainer: {
-    flex: 1,
-    width: '100%',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    padding: 20,
-  },
-  welcomeContent: {
-    flex: 1,
-    alignItems: 'center',
-    justifyContent: 'center',
-    width: '100%',
-  },
-  welcomeButtons: {
-    width: '100%',
-    paddingBottom: 20,
-  },
-  welcomeLogo: {
-    width: 120,
-    height: 120,
-  },
-  welcomeTitle: {
-    fontSize: 24,
-    color: '#FFFFFF',
-    marginBottom: 8,
-    textAlign: 'center',
-    fontWeight: 'bold',
-    paddingHorizontal: 10,
-  },
-  welcomeTagline: {
-    fontSize: 16,
-    color: '#FFFFFF',
-    marginBottom: 30,
-    textAlign: 'center',
-    fontWeight: '400',
-    paddingHorizontal: 10,
-  },
-  topAddAccountButton: {
-    width: 40,
-    height: 40,
-    borderRadius: 20,
-    backgroundColor: '#0066FF',
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  button: {
-    backgroundColor: '#0066FF',
-    paddingVertical: 16,
-    borderRadius: 10,
-    marginTop: 15,
-    width: '100%',
-    alignItems: 'center',
-  },
-  buttonText: {
-    color: '#DDDDDD',
-    fontSize: 16,
-    fontWeight: 'bold',
-    textAlign: 'center',
-  },
-  resetButton: {
-    backgroundColor: '#D04C68',
-    marginTop: 30,
-  },
-  secondaryButton: {
-    backgroundColor: '#666666',
-    marginTop: 15,
-  },
-  walletInfo: {
-    width: '100%',
-    backgroundColor: '#111015',
-    padding: 20,
-    borderRadius: 15,
-    marginTop: 4,
-  },
-  stepIndicator: {
-    fontSize: 16,
-    color: '#0066FF',
-    fontWeight: 'bold',
-    marginBottom: 20,
-    textAlign: 'center',
-  },
-  introTitle: {
-    fontSize: 24,
-    fontWeight: 'bold',
-    color: '#333333',
-    marginBottom: 20,
-    textAlign: 'center',
-  },
-  introText: {
-    fontSize: 16,
-    color: '#666666',
-    lineHeight: 24,
-    marginBottom: 25,
-    textAlign: 'center',
-  },
-  infoBox: {
-    backgroundColor: '#F5F5F5',
-    borderRadius: 12,
-    padding: 20,
-    marginBottom: 25,
-    borderLeftWidth: 4,
-    borderLeftColor: '#0066FF',
-  },
-  infoTitle: {
-    fontSize: 16,
-    fontWeight: 'bold',
-    color: '#333333',
-    marginBottom: 12,
-  },
-  infoText: {
-    fontSize: 14,
-    color: '#666666',
-    lineHeight: 22,
-  },
-  warningText: {
-    fontSize: 14,
-    color: '#D04C68',
-    backgroundColor: '#FFF5F7',
-    padding: 15,
-    borderRadius: 8,
-    marginBottom: 25,
-    textAlign: 'center',
-    lineHeight: 20,
-  },
-  headerRow: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    marginBottom: 30,
-  },
-  walletTitle: {
-    fontSize: 16,
-    color: '#DDDDDD',
-    fontWeight: '600',
-    flex: 1,
-  },
-  headerRight: {
-    flexDirection: 'row',
-    alignItems: 'center',
-  },
-  addAccountButton: {
-    width: 32,
-    height: 32,
-    borderRadius: 16,
-    backgroundColor: '#0066FF',
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  addAccountText: {
-    fontSize: 20,
-    color: '#DDDDDD',
-    fontWeight: 'bold',
-  },
-  addressToggle: {
-    flexDirection: 'row',
-    backgroundColor: '#1D1C21',
-    borderRadius: 8,
-    overflow: 'hidden',
-  },
-  toggleButton: {
-    paddingHorizontal: 16,
-    paddingVertical: 8,
-  },
-  toggleButtonLeft: {
-    borderTopLeftRadius: 8,
-    borderBottomLeftRadius: 8,
-  },
-  toggleButtonRight: {
-    borderTopRightRadius: 8,
-    borderBottomRightRadius: 8,
-  },
-  toggleButtonActive: {
-    backgroundColor: '#0066FF',
-  },
-  toggleText: {
-    fontSize: 12,
-    color: '#666666',
-    fontWeight: '600',
-  },
-  toggleTextActive: {
-    color: '#DDDDDD',
-  },
-  totalBalanceSection: {
-    marginBottom: 30,
-  },
-  totalBalanceLabel: {
-    fontSize: 14,
-    color: '#666666',
-    marginBottom: 8,
-  },
-  balanceContainer: {
-    minHeight: 43,
-    justifyContent: 'center',
-  },
-  loadingContainer: {
-    height: 43,
-    justifyContent: 'center',
-  },
-  totalBalanceAmount: {
-    fontSize: 36,
-    color: '#DDDDDD',
-    fontWeight: 'bold',
-  },
-  totalBalanceAmountSmall: {
-    fontSize: 28,
-  },
-  assetsContainer: {
-    minHeight: 144,
-  },
-  assetCard: {
-    backgroundColor: '#1D1C21',
-    borderRadius: 12,
-    padding: 16,
-    marginBottom: 12,
-    height: 72,
-  },
-  assetCardPlaceholder: {
-    opacity: 0,
-    height: 72,
-  },
-  assetRow: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-  },
-  assetLeft: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    flex: 1,
-  },
-  btcIcon: {
-    width: 40,
-    height: 40,
-    borderRadius: 20,
-    justifyContent: 'center',
-    alignItems: 'center',
-    marginRight: 12,
-    overflow: 'hidden',
-  },
-  ducatIcon: {
-    // Unit icon styling (if needed)
-  },
-  logoImage: {
-    width: 40,
-    height: 40,
-  },
-  assetName: {
-    fontSize: 16,
-    color: '#DDDDDD',
-    fontWeight: '600',
-    marginBottom: 4,
-  },
-  assetSubtext: {
-    fontSize: 12,
-    color: '#666666',
-  },
-  assetValue: {
-    fontSize: 16,
-    color: '#DDDDDD',
-    fontWeight: '600',
-  },
-  addressSection: {
-    marginTop: 20,
-    marginBottom: 20,
-  },
-  addressLabel: {
-    fontSize: 12,
-    color: '#666666',
-    marginBottom: 8,
-  },
-  addressContainer: {
-    minHeight: 36,
-  },
-  addressText: {
-    fontSize: 12,
-    color: '#DDDDDD',
-    fontFamily: 'monospace',
-    marginBottom: 4,
-  },
-  copyHint: {
-    fontSize: 10,
-    color: '#0066FF',
-    fontStyle: 'italic',
-  },
-  modalOverlay: {
-    position: 'absolute',
-    top: 0,
-    left: 0,
-    right: 0,
-    bottom: 0,
-    backgroundColor: 'rgba(0, 0, 0, 0.7)',
-    justifyContent: 'center',
-    alignItems: 'center',
-    zIndex: 1000,
-  },
-  modalContent: {
-    backgroundColor: '#1D1C21',
-    borderRadius: 15,
-    padding: 24,
-    width: '80%',
-    maxWidth: 300,
-    overflow: 'hidden',
-  },
-  modalTitle: {
-    fontSize: 18,
-    color: '#DDDDDD',
-    fontWeight: 'bold',
-    marginBottom: 16,
-    textAlign: 'center',
-  },
-  modalLabel: {
-    fontSize: 14,
-    color: '#DDDDDD',
-    marginBottom: 8,
-  },
-  accountInput: {
-    backgroundColor: '#DDDDDD',
-    color: '#333333',
-    padding: 12,
-    borderRadius: 8,
-    borderWidth: 2,
-    borderColor: '#0066FF',
-    fontSize: 16,
-    marginBottom: 20,
-  },
-  modalButtons: {
-    flexDirection: 'row',
-  },
-  modalButton: {
-    flex: 1,
-    padding: 12,
-    borderRadius: 8,
-    alignItems: 'center',
-  },
-  modalButtonCancel: {
-    backgroundColor: '#666666',
-    marginRight: 12,
-  },
-  modalButtonConfirm: {
-    backgroundColor: '#0066FF',
-  },
-  modalButtonText: {
-    color: '#DDDDDD',
-    fontSize: 14,
-    fontWeight: '600',
-  },
-  actionsRow: {
-    flexDirection: 'row',
-    marginTop: 24,
-  },
-  actionButton: {
-    flex: 1,
-    paddingVertical: 14,
-    borderRadius: 10,
-    alignItems: 'center',
-  },
-  sendButton: {
-    backgroundColor: '#0066FF',
-    marginRight: 12,
-  },
-  receiveButton: {
-    backgroundColor: '#59AA8A',
-  },
-  actionButtonText: {
-    color: '#DDDDDD',
-    fontSize: 14,
-    fontWeight: '600',
-  },
-  seedGrid: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
-    justifyContent: 'space-between',
-    marginBottom: 10,
-  },
-  seedBox: {
-    width: '48%',
-    backgroundColor: '#1D1C21',
-    padding: 12,
-    borderRadius: 8,
-    marginBottom: 10,
-    flexDirection: 'row',
-    alignItems: 'center',
-  },
-  seedNumber: {
-    fontSize: 12,
-    color: '#0066FF',
-    fontWeight: 'bold',
-    marginRight: 8,
-    minWidth: 20,
-  },
-  seedWord: {
-    fontSize: 14,
-    color: '#DDDDDD',
-    fontWeight: '600',
-  },
-  verifyBox: {
-    marginBottom: 20,
-  },
-  verifyLabel: {
-    fontSize: 16,
-    color: '#0066FF',
-    fontWeight: 'bold',
-    marginBottom: 10,
-  },
-  choicesContainer: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
-    justifyContent: 'space-between',
-  },
-  choiceButton: {
-    width: '48%',
-    backgroundColor: '#1D1C21',
-    padding: 12,
-    borderRadius: 8,
-    marginBottom: 8,
-    borderWidth: 2,
-    borderColor: '#1D1C21',
-  },
-  choiceButtonSelected: {
-    backgroundColor: '#0066FF',
-    borderColor: '#0066FF',
-  },
-  choiceText: {
-    color: '#DDDDDD',
-    fontSize: 14,
-    textAlign: 'center',
-    fontWeight: '600',
-  },
-  choiceTextSelected: {
-    color: '#DDDDDD',
-    fontWeight: 'bold',
-  },
-  addressTypeSelector: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    marginBottom: 20,
-  },
-  addressTypeButton: {
-    width: '48%',
-    backgroundColor: '#1D1C21',
-    padding: 15,
-    borderRadius: 10,
-    borderWidth: 2,
-    borderColor: '#1D1C21',
-    alignItems: 'center',
-  },
-  addressTypeButtonSelected: {
-    backgroundColor: '#0066FF',
-    borderColor: '#0066FF',
-  },
-  addressTypeText: {
-    color: '#DDDDDD',
-    fontSize: 14,
-    fontWeight: 'bold',
-    marginBottom: 5,
-  },
-  addressTypeTextSelected: {
-    color: '#DDDDDD',
-  },
-  addressTypeSubtext: {
-    color: '#666666',
-    fontSize: 11,
-  },
-  warning: {
-    fontSize: 12,
-    color: '#D04C68',
-    marginTop: 15,
-    textAlign: 'center',
-    fontWeight: 'bold',
-    lineHeight: 18,
-  },
-  runesContainer: {
-    backgroundColor: '#1D1C21',
-    padding: 15,
-    borderRadius: 10,
-    marginBottom: 20,
-    borderWidth: 2,
-    borderColor: '#59AA8A',
-  },
-  runesLabel: {
-    fontSize: 14,
-    color: '#59AA8A',
-    fontWeight: 'bold',
-    marginBottom: 10,
-    textAlign: 'center',
-  },
-  runeItem: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    paddingVertical: 8,
-    borderBottomWidth: 1,
-    borderBottomColor: '#0066FF',
-  },
-  runeName: {
-    fontSize: 12,
-    color: '#DDDDDD',
-    fontWeight: '600',
-    flex: 1,
-  },
-  runeAmount: {
-    fontSize: 16,
-    color: '#59AA8A',
-    fontWeight: 'bold',
-    fontFamily: 'monospace',
-  },
-  seedInput: {
-    backgroundColor: '#1D1C21',
-    color: '#DDDDDD',
-    padding: 15,
-    borderRadius: 10,
-    borderWidth: 2,
-    borderColor: '#0066FF',
-    fontSize: 14,
-    marginBottom: 15,
-    textAlignVertical: 'top',
-    minHeight: 100,
-  },
-  seedWordsGrid: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
-    justifyContent: 'space-between',
-    marginBottom: 15,
-  },
-  seedWordContainer: {
-    width: '48%',
-    marginBottom: 12,
-    flexDirection: 'row',
-    alignItems: 'center',
-  },
-  seedWordNumber: {
-    color: '#DDDDDD',
-    fontSize: 12,
-    fontWeight: 'bold',
-    width: 25,
-    textAlign: 'right',
-    marginRight: 8,
-  },
-  seedWordInput: {
-    flex: 1,
-    backgroundColor: '#1D1C21',
-    color: '#DDDDDD',
-    padding: 10,
-    borderRadius: 8,
-    borderWidth: 1,
-    borderColor: '#0066FF',
-    fontSize: 14,
-  },
-  label: {
-    fontSize: 14,
-    color: '#DDDDDD',
-    fontWeight: 'bold',
-    marginBottom: 10,
-  },
-  switchingOverlay: {
-    position: 'absolute',
-    top: 0,
-    left: 0,
-    right: 0,
-    bottom: 0,
-    backgroundColor: 'rgba(0, 0, 0, 0.7)',
-    justifyContent: 'center',
-    alignItems: 'center',
-    zIndex: 2000,
-    borderRadius: 15,
-  },
-  switchingText: {
-    color: '#DDDDDD',
-    fontSize: 16,
-    fontWeight: '600',
-    marginTop: 12,
-  },
-  balanceWithIcon: {
-    flexDirection: 'row',
-    alignItems: 'center',
-  },
-  balanceIcon: {
-    width: 24,
-    height: 24,
-    marginRight: 4,
-  },
-  assetValueWithIcon: {
-    flexDirection: 'row',
-    alignItems: 'center',
-  },
-  assetIcon: {
-    width: 14,
-    height: 14,
-    marginRight: 3,
-  },
-  walletContainer: {
-    width: '100%',
-    alignItems: 'center',
-    marginTop: 20,
-  },
-  priceChipsContainer: {
-    flexDirection: 'row',
-    marginBottom: 0,
-    width: '100%',
-  },
-  priceChip: {
-    backgroundColor: '#1D1C21',
-    borderRadius: 20,
-    paddingHorizontal: 14,
-    paddingVertical: 8,
-    flexDirection: 'row',
-    alignItems: 'center',
-  },
-  priceChipBTC: {
-    flex: 2,
-    marginRight: 8,
-  },
-  priceChipUnit: {
-    flex: 1,
-  },
-  priceChipIcon: {
-    width: 24,
-    height: 24,
-    marginRight: 6,
-  },
-  priceChipName: {
-    fontSize: 13,
-    color: '#DDDDDD',
-    fontWeight: '500',
-    marginRight: 8,
-  },
-  priceChipValue: {
-    fontSize: 14,
-    color: '#DDDDDD',
-    fontWeight: 'bold',
-  },
-  lockedContainer: {
-    flex: 1,
-    backgroundColor: '#DDDDDD',
-    alignItems: 'center',
-    justifyContent: 'center',
-    padding: 20,
-  },
-  lockIconContainer: {
-    alignItems: 'center',
-    marginTop: 0,
-    marginBottom: 40,
-  },
-  lockIcon: {
-    fontSize: 80,
-    marginBottom: 20,
-  },
-  lockedText: {
-    fontSize: 24,
-    fontWeight: 'bold',
-    color: '#333333',
-    marginBottom: 10,
-  },
-  lockedSubtext: {
-    fontSize: 14,
-    color: '#666666',
-    textAlign: 'center',
-  },
-  unlockButton: {
-    backgroundColor: '#0066FF',
-    paddingHorizontal: 30,
-    paddingVertical: 15,
-    borderRadius: 10,
-  },
-  unlockButtonText: {
-    color: '#DDDDDD',
-    fontSize: 16,
-    fontWeight: 'bold',
-    textAlign: 'center',
-  },
-  pinButton: {
-    backgroundColor: '#666666',
-    marginTop: 15,
-  },
-  pinContainer: {
-    width: '100%',
-    alignItems: 'center',
-    paddingHorizontal: 20,
-    marginTop: 20,
-  },
-  pinTitle: {
-    fontSize: 24,
-    fontWeight: 'bold',
-    color: '#333333',
-    marginBottom: 10,
-  },
-  pinSubtext: {
-    fontSize: 14,
-    color: '#666666',
-    marginBottom: 20,
-    textAlign: 'center',
-    paddingHorizontal: 20,
-  },
-  pinError: {
-    fontSize: 14,
-    color: '#D04C68',
-    marginBottom: 20,
-    textAlign: 'center',
-  },
-  pinDotsContainer: {
-    flexDirection: 'row',
-    marginBottom: 50,
-  },
-  pinDot: {
-    width: 16,
-    height: 16,
-    borderRadius: 8,
-    borderWidth: 2,
-    borderColor: '#DDDDDD',
-    marginHorizontal: 8,
-  },
-  pinDotFilled: {
-    backgroundColor: '#0066FF',
-    borderColor: '#0066FF',
-  },
-  pinKeypad: {
-    width: '100%',
-    maxWidth: 300,
-  },
-  pinRow: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    marginBottom: 12,
-  },
-  pinKey: {
-    width: 65,
-    height: 65,
-    borderRadius: 32.5,
-    backgroundColor: '#111015',
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  pinKeyText: {
-    fontSize: 28,
-    color: '#DDDDDD',
-    fontWeight: '600',
-  },
-  pinCancelButton: {
-    marginTop: 20,
-    paddingVertical: 15,
-  },
-  pinCancelText: {
-    fontSize: 16,
-    color: '#666666',
-    fontWeight: '600',
-  },
-  settingsButton: {
-    position: 'absolute',
-    top: 60,
-    right: 20,
-    width: 40,
-    height: 40,
-    borderRadius: 20,
-    backgroundColor: '#666666',
-    justifyContent: 'center',
-    alignItems: 'center',
-    zIndex: 1000,
-  },
-  settingsIcon: {
-    fontSize: 20,
-  },
-  settingsModal: {
-    backgroundColor: '#1D1C21',
-    borderRadius: 20,
-    padding: 0,
-    width: '85%',
-    maxWidth: 400,
-  },
-  settingsHeader: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    padding: 20,
-    borderBottomWidth: 1,
-    borderBottomColor: '#EEEEEE',
-  },
-  settingsTitle: {
-    fontSize: 20,
-    fontWeight: 'bold',
-    color: '#DDDDDD',
-  },
-  closeButton: {
-    fontSize: 24,
-    color: '#666666',
-    fontWeight: '300',
-  },
-  settingsOption: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    padding: 18,
-    borderBottomWidth: 1,
-    borderBottomColor: '#F5F5F5',
-  },
-  settingsOptionIcon: {
-    fontSize: 22,
-    marginRight: 15,
-    width: 30,
-  },
-  settingsOptionText: {
-    flex: 1,
-    fontSize: 16,
-    color: '#DDDDDD',
-  },
-  settingsOptionArrow: {
-    fontSize: 20,
-    color: '#CCCCCC',
-  },
-  settingsToggle: {
-    fontSize: 14,
-    fontWeight: '600',
-    color: '#666666',
-    paddingHorizontal: 12,
-    paddingVertical: 4,
-    borderRadius: 12,
-    backgroundColor: '#333333',
-  },
-  settingsToggleOn: {
-    color: '#FFFFFF',
-    backgroundColor: '#0066FF',
-  },
-  settingsDivider: {
-    height: 8,
-    backgroundColor: '#F5F5F5',
-  },
-  dangerOption: {
-    borderBottomWidth: 0,
-  },
-  dangerText: {
-    color: '#D04C68',
-  },
-  seedPhraseTitle: {
-    fontSize: 24,
-    fontWeight: 'bold',
-    color: '#333333',
-    textAlign: 'center',
-    marginBottom: 20,
-  },
-  seedPhraseWarning: {
-    fontSize: 14,
-    color: '#D04C68',
-    backgroundColor: '#FFF5F7',
-    padding: 15,
-    borderRadius: 8,
-    marginBottom: 25,
-    textAlign: 'center',
-    lineHeight: 20,
-  },
-  // Intent UI styles
-  intentModal: {
-    backgroundColor: '#1D1C21',
-    borderRadius: 20,
-    padding: 0,
-    width: '90%',
-    maxWidth: 420,
-    maxHeight: '80%',
-  },
-  intentContent: {
-    padding: 20,
-  },
-  intentInput: {
-    backgroundColor: '#DDDDDD',
-    color: '#333333',
-    padding: 15,
-    borderRadius: 10,
-    borderWidth: 2,
-    borderColor: '#0066FF',
-    fontSize: 14,
-    marginBottom: 20,
-  },
-  reviewSection: {
-    marginBottom: 20,
-    paddingBottom: 15,
-    borderBottomWidth: 1,
-    borderBottomColor: '#333333',
-  },
-  reviewSectionTotal: {
-    borderBottomWidth: 2,
-    borderBottomColor: '#0066FF',
-    paddingTop: 10,
-  },
-  reviewLabel: {
-    fontSize: 13,
-    color: '#666666',
-    marginBottom: 5,
-  },
-  reviewLabelTotal: {
-    fontSize: 16,
-    color: '#DDDDDD',
-    fontWeight: 'bold',
-    marginBottom: 5,
-  },
-  reviewValue: {
-    fontSize: 18,
-    color: '#DDDDDD',
-    fontWeight: '600',
-    marginBottom: 3,
-  },
-  reviewValueTotal: {
-    fontSize: 22,
-    color: '#0066FF',
-    fontWeight: 'bold',
-  },
-  reviewSubtext: {
-    fontSize: 12,
-    color: '#666666',
-  },
-  reviewAddressSmall: {
-    fontSize: 11,
-    color: '#666666',
-    fontFamily: 'monospace',
-    marginTop: 3,
-  },
-  // Bottom sheet styles
-  modalBackdrop: {
-    position: 'absolute',
-    top: 0,
-    left: 0,
-    right: 0,
-    bottom: 0,
-  },
-  bottomSheetBackdrop: {
-    position: 'absolute',
-    top: 0,
-    left: 0,
-    right: 0,
-    bottom: 0,
-    backgroundColor: 'rgba(0, 0, 0, 0.5)',
-    zIndex: 999,
-  },
-  bottomSheet: {
-    position: 'absolute',
-    bottom: 0,
-    left: 0,
-    right: 0,
-    backgroundColor: '#1D1C21',
-    borderTopLeftRadius: 20,
-    borderTopRightRadius: 20,
-    paddingBottom: 40,
-    paddingHorizontal: 20,
-    paddingTop: 15,
-    zIndex: 1000,
-  },
-  bottomSheetHandle: {
-    width: 40,
-    height: 4,
-    backgroundColor: '#666666',
-    borderRadius: 2,
-    alignSelf: 'center',
-    marginBottom: 20,
-  },
-  bottomSheetTitle: {
-    fontSize: 22,
-    fontWeight: 'bold',
-    color: '#DDDDDD',
-    marginBottom: 25,
-    textAlign: 'center',
-  },
-  assetOption: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: '#111015',
-    padding: 18,
-    borderRadius: 12,
-    marginBottom: 12,
-  },
-  assetOptionLogo: {
-    width: 50,
-    height: 50,
-    marginRight: 15,
-  },
-  assetOptionInfo: {
-    flex: 1,
-  },
-  assetOptionTitle: {
-    fontSize: 18,
-    fontWeight: '600',
-    color: '#DDDDDD',
-    marginBottom: 3,
-  },
-  assetOptionSubtitle: {
-    fontSize: 13,
-    color: '#666666',
-  },
-  assetOptionArrow: {
-    fontSize: 24,
-    color: '#666666',
-  },
-  // Amount input bottom sheet styles
-  bottomSheetBackButton: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    marginBottom: 20,
-  },
-  bottomSheetBackArrow: {
-    fontSize: 24,
-    color: '#0066FF',
-    marginRight: 5,
-  },
-  bottomSheetBackText: {
-    fontSize: 16,
-    color: '#0066FF',
-  },
-  amountInputContainer: {
-    alignItems: 'center',
-    paddingVertical: 20,
-    width: '100%',
-  },
-  amountInputRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    marginBottom: 5,
-  },
-  amountAssetSymbol: {
-    width: 35,
-    height: 35,
-    marginRight: 12,
-  },
-  amountInput: {
-    fontSize: 48,
-    fontWeight: 'bold',
-    color: '#DDDDDD',
-    minWidth: 100,
-  },
-  amountInputLabel: {
-    fontSize: 18,
-    color: '#666666',
-    marginBottom: 40,
-  },
-  amountContinueButton: {
-    backgroundColor: '#0066FF',
-    paddingVertical: 16,
-    paddingHorizontal: 60,
-    borderRadius: 12,
-    minWidth: 200,
-  },
-  amountContinueButtonDisabled: {
-    backgroundColor: '#333333',
-  },
-  amountContinueButtonText: {
-    color: '#FFFFFF',
-    fontSize: 18,
-    fontWeight: '600',
-    textAlign: 'center',
-  },
-  // Address input styles
-  addressInputTitle: {
-    fontSize: 18,
-    color: '#DDDDDD',
-    marginBottom: 20,
-    textAlign: 'center',
-  },
-  addressInput: {
-    backgroundColor: '#111015',
-    color: '#DDDDDD',
-    fontSize: 14,
-    padding: 16,
-    borderRadius: 12,
-    borderWidth: 2,
-    borderColor: '#333333',
-    marginBottom: 30,
-    width: '100%',
-  },
-  // Review bottom sheet styles
-  reviewTitle: {
-    fontSize: 20,
-    fontWeight: '600',
-    color: '#DDDDDD',
-    marginBottom: 30,
-    textAlign: 'center',
-  },
-  reviewLabel: {
-    fontSize: 13,
-    color: '#888888',
-    marginTop: 20,
-    marginBottom: 6,
-    textAlign: 'center',
-  },
-  reviewValue: {
-    fontSize: 16,
-    color: '#DDDDDD',
-    fontWeight: '500',
-    textAlign: 'center',
-    marginBottom: 10,
-  },
-  reviewAmountLarge: {
-    fontSize: 42,
-    fontWeight: 'bold',
-    color: '#DDDDDD',
-    textAlign: 'center',
-    marginBottom: 4,
-  },
-  reviewAmountSats: {
-    fontSize: 14,
-    color: '#666666',
-    textAlign: 'center',
-    marginBottom: 10,
-  },
-  reviewTotal: {
-    fontSize: 20,
-    fontWeight: 'bold',
-    color: '#0066FF',
-    textAlign: 'center',
-    marginBottom: 30,
-  },
-  // Success screen styles
-  successCloseButton: {
-    position: 'absolute',
-    top: 15,
-    right: 20,
-    zIndex: 10,
-    padding: 10,
-  },
-  successCloseText: {
-    fontSize: 28,
-    color: '#666666',
-    fontWeight: '300',
-  },
-  successCheckmarkContainer: {
-    marginBottom: 20,
-    marginTop: 10,
-  },
-  successCheckmark: {
-    width: 70,
-    height: 70,
-    borderRadius: 35,
-    backgroundColor: 'transparent',
-    borderWidth: 3,
-    borderColor: '#6FCF97',
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  successCheckmarkText: {
-    fontSize: 40,
-    color: '#6FCF97',
-    fontWeight: 'bold',
-  },
-  successTitle: {
-    fontSize: 24,
-    fontWeight: 'bold',
-    color: '#DDDDDD',
-    marginBottom: 30,
-    textAlign: 'center',
-  },
-  successTxid: {
-    fontSize: 13,
-    color: '#0066FF',
-    fontFamily: Platform.OS === 'ios' ? 'Courier' : 'monospace',
-    textAlign: 'center',
-    marginBottom: 20,
-  },
-
-  // Lock Screen Styles
-  lockScreen: {
-    flex: 1,
-    backgroundColor: '#000000',
-    alignItems: 'center',
-    justifyContent: 'center',
-    paddingHorizontal: 20,
-  },
-  lockIconArea: {
-    marginBottom: 30,
-    alignItems: 'center',
-  },
-  lockPasswordIcon: {
-    position: 'relative',
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  lockPasswordText: {
-    fontSize: 32,
-    color: '#FFFFFF',
-    fontWeight: 'bold',
-    letterSpacing: 8,
-    marginBottom: 8,
-  },
-  lockPadlock: {
-    fontSize: 40,
-    position: 'absolute',
-    right: -25,
-    top: -5,
-  },
-  lockTitle: {
-    fontSize: 18,
-    color: '#FFFFFF',
-    marginBottom: 30,
-    textAlign: 'center',
-  },
-  faceIdButton: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: 'transparent',
-    paddingHorizontal: 20,
-    paddingVertical: 10,
-    borderRadius: 20,
-    marginBottom: 40,
-  },
-  faceIdText: {
-    fontSize: 18,
-    color: '#0066FF',
-    fontWeight: '500',
-    marginRight: 8,
-  },
-  faceIdArrow: {
-    fontSize: 18,
-    color: '#0066FF',
-    fontWeight: 'bold',
-  },
-  lockPinError: {
-    color: '#FF3B30',
-    fontSize: 14,
-    marginBottom: 20,
-    textAlign: 'center',
-  },
-  lockPinDots: {
-    flexDirection: 'row',
-    justifyContent: 'center',
-    marginBottom: 50,
-    gap: 15,
-  },
-  lockPinDot: {
-    width: 14,
-    height: 14,
-    borderRadius: 7,
-    backgroundColor: '#666666',
-  },
-  lockPinDotFilled: {
-    backgroundColor: '#FFFFFF',
-  },
-  lockKeypad: {
-    width: '100%',
-    maxWidth: 350,
-  },
-  lockKeypadRow: {
-    flexDirection: 'row',
-    justifyContent: 'center',
-    marginBottom: 20,
-    gap: 30,
-  },
-  lockKey: {
-    width: 75,
-    height: 75,
-    borderRadius: 37.5,
-    alignItems: 'center',
-    justifyContent: 'center',
-    backgroundColor: 'transparent',
-  },
-  lockKeyText: {
-    fontSize: 32,
-    color: '#FFFFFF',
-    fontWeight: '300',
-  },
-  lockKeyDelete: {
-    fontSize: 28,
-    color: '#FFFFFF',
-    fontWeight: '300',
-  },
-  // Biometric Prompt styles
-  biometricPromptModal: {
-    backgroundColor: '#1A1A1A',
-    borderRadius: 20,
-    padding: 30,
-    width: '85%',
-    maxWidth: 400,
-  },
-  biometricPromptTitle: {
-    fontSize: 22,
-    fontWeight: 'bold',
-    color: '#DDDDDD',
-    marginBottom: 15,
-    textAlign: 'center',
-  },
-  biometricPromptText: {
-    fontSize: 16,
-    color: '#DDDDDD',
-    marginBottom: 25,
-    textAlign: 'center',
-    lineHeight: 24,
-  },
-  biometricPromptButtons: {
-    gap: 12,
-  },
-  biometricPromptButton: {
-    paddingVertical: 16,
-    paddingHorizontal: 20,
-    borderRadius: 12,
-    alignItems: 'center',
-  },
-  biometricPromptButtonYes: {
-    backgroundColor: '#0066FF',
-  },
-  biometricPromptButtonNo: {
-    backgroundColor: '#F5F5F5',
-  },
-  biometricPromptButtonText: {
-    fontSize: 16,
-    fontWeight: '600',
-    color: '#FFFFFF',
-  },
-  biometricPromptButtonTextNo: {
-    fontSize: 16,
-    fontWeight: '600',
-    color: '#333333',
-  },
-});
