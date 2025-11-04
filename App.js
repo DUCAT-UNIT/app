@@ -37,6 +37,7 @@ import * as TransactionService from './services/transactionService';
 import WelcomeScreen from './components/WelcomeScreen';
 import PinSetupScreen from './components/PinSetupScreen';
 import LockScreen from './components/LockScreen';
+import SettingsScreen from './components/SettingsScreen';
 
 // Initialize BIP32
 const bip32 = BIP32Factory(ecc);
@@ -447,6 +448,16 @@ export default function App() {
     setShowSettings(false);
     setChangingPin(true);
     setIsAuthenticated(false);
+  };
+
+  const handlePrivacyModeToggle = async () => {
+    const newPrivacyMode = !privacyMode;
+    setPrivacyMode(newPrivacyMode);
+    try {
+      await SecureStore.setItemAsync('privacyMode', String(newPrivacyMode));
+    } catch (error) {
+      console.error('Failed to save privacy mode:', error);
+    }
   };
 
   const fetchBalance = async (segwitAddr, taprootAddr) => {
@@ -1210,72 +1221,15 @@ export default function App() {
 
           {/* Settings Modal */}
           {showSettings && (
-            <View style={styles.modalOverlay}>
-              <View style={styles.settingsModal}>
-                <View style={styles.settingsHeader}>
-                  <Text style={styles.settingsTitle}>Settings</Text>
-                  <TouchableOpacity onPress={() => setShowSettings(false)}>
-                    <Text style={styles.closeButton}>✕</Text>
-                  </TouchableOpacity>
-                </View>
-
-                <TouchableOpacity
-                  style={styles.settingsOption}
-                  onPress={handleViewSeedPhrase}
-                >
-                  <Text style={styles.settingsOptionIcon}>🔑</Text>
-                  <Text style={styles.settingsOptionText}>View Recovery Phrase</Text>
-                  <Text style={styles.settingsOptionArrow}>›</Text>
-                </TouchableOpacity>
-
-                <TouchableOpacity
-                  style={styles.settingsOption}
-                  onPress={handleChangePin}
-                >
-                  <Text style={styles.settingsOptionIcon}>🔢</Text>
-                  <Text style={styles.settingsOptionText}>Change PIN</Text>
-                  <Text style={styles.settingsOptionArrow}>›</Text>
-                </TouchableOpacity>
-
-                <TouchableOpacity
-                  style={styles.settingsOption}
-                  onPress={handleLogout}
-                >
-                  <Text style={styles.settingsOptionText}>Lock Wallet</Text>
-                  <Text style={styles.settingsOptionArrow}>›</Text>
-                </TouchableOpacity>
-
-                <TouchableOpacity
-                  style={styles.settingsOption}
-                  onPress={async () => {
-                    const newPrivacyMode = !privacyMode;
-                    setPrivacyMode(newPrivacyMode);
-                    try {
-                      await SecureStore.setItemAsync('privacyMode', String(newPrivacyMode));
-                    } catch (error) {
-                      console.error('Failed to save privacy mode:', error);
-                    }
-                  }}
-                >
-                  <Text style={styles.settingsOptionIcon}>👁️</Text>
-                  <Text style={styles.settingsOptionText}>Privacy Mode</Text>
-                  <Text style={[styles.settingsToggle, privacyMode && styles.settingsToggleOn]}>
-                    {privacyMode ? 'ON' : 'OFF'}
-                  </Text>
-                </TouchableOpacity>
-
-                <View style={styles.settingsDivider} />
-
-                <TouchableOpacity
-                  style={[styles.settingsOption, styles.dangerOption]}
-                  onPress={handleDeleteWallet}
-                >
-                  <Text style={styles.settingsOptionIcon}>⚠️</Text>
-                  <Text style={[styles.settingsOptionText, styles.dangerText]}>Delete Wallet</Text>
-                  <Text style={styles.settingsOptionArrow}>›</Text>
-                </TouchableOpacity>
-              </View>
-            </View>
+            <SettingsScreen
+              onClose={() => setShowSettings(false)}
+              onViewSeedPhrase={handleViewSeedPhrase}
+              onChangePin={handleChangePin}
+              onLockWallet={handleLogout}
+              onDeleteWallet={handleDeleteWallet}
+              onPrivacyModeToggle={handlePrivacyModeToggle}
+              privacyMode={privacyMode}
+            />
           )}
 
 
