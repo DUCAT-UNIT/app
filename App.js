@@ -338,7 +338,19 @@ export default function App() {
         });
 
         if (result.success) {
-          setIsAuthenticated(true);
+          if (changingPin) {
+            // User authenticated to change PIN, proceed to PIN setup
+            setSettingUpPin(true);
+            setPinStep('enter');
+            setPin('');
+            setConfirmPin('');
+            setPinError('');
+            // Stay authenticated but in PIN setup mode
+            setIsAuthenticated(true);
+          } else {
+            // Normal unlock
+            setIsAuthenticated(true);
+          }
         }
       } else {
         // User hasn't enabled biometrics yet, show modal to ask
@@ -430,27 +442,11 @@ export default function App() {
     }
   };
 
-  const handleChangePin = async () => {
-    try {
-      const result = await AuthService.authenticateWithBiometrics(
-        'Authenticate to change your PIN',
-        'Use current PIN'
-      );
-
-      if (result.success) {
-        setShowSettings(false);
-        setChangingPin(true);
-        setSettingUpPin(true);
-        setPinStep('enter');
-        setPin('');
-        setConfirmPin('');
-        setPinError('');
-      } else {
-        Alert.alert('Authentication Failed', 'You must authenticate to change your PIN.');
-      }
-    } catch (error) {
-      Alert.alert('Error', 'Authentication failed: ' + error.message);
-    }
+  const handleChangePin = () => {
+    // Close settings and show lock screen to verify current PIN
+    setShowSettings(false);
+    setChangingPin(true);
+    setIsAuthenticated(false);
   };
 
   const fetchBalance = async (segwitAddr, taprootAddr) => {
@@ -896,10 +892,22 @@ export default function App() {
 
   // Lock screen authentication callback
   const handleLockScreenAuthenticated = () => {
-    setIsAuthenticated(true);
-    setShowPinEntry(false);
-    // Restore FaceID button for next time
-    setShowFaceIdButton(true);
+    if (changingPin) {
+      // User authenticated to change PIN, proceed to PIN setup
+      setSettingUpPin(true);
+      setPinStep('enter');
+      setPin('');
+      setConfirmPin('');
+      setPinError('');
+      // Stay authenticated but in PIN setup mode
+      setIsAuthenticated(true);
+    } else {
+      // Normal unlock
+      setIsAuthenticated(true);
+      setShowPinEntry(false);
+      // Restore FaceID button for next time
+      setShowFaceIdButton(true);
+    }
   };
 
   // Show loading splash screen while initializing
