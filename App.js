@@ -35,6 +35,7 @@ import * as TransactionService from './services/transactionService';
 
 // Import components
 import WelcomeScreen from './components/WelcomeScreen';
+import PinSetupScreen from './components/PinSetupScreen';
 
 // Initialize BIP32
 const bip32 = BIP32Factory(ecc);
@@ -351,99 +352,32 @@ export default function App() {
 
 
   const handlePinDigit = (digit) => {
-    if (settingUpPin) {
-      // PIN setup flow
-      if (pinStep === 'enter') {
-        if (pin.length < 6) {
-          const newPin = pin + digit;
-          setPin(newPin);
-          if (newPin.length === 6) {
-            // Move to confirmation step
-            setPinStep('confirm');
+    // PIN entry for authentication (lock screen)
+    if (pin.length < 6) {
+      const newPin = pin + digit;
+      setPin(newPin);
+      if (newPin.length === 6) {
+        // Verify PIN
+        AuthService.verifyPin(newPin).then(isValid => {
+          if (isValid) {
+            setIsAuthenticated(true);
+            setShowPinEntry(false);
+            setPin('');
             setPinError('');
+            // Restore FaceID button for next time
+            setShowFaceIdButton(true);
+          } else {
+            setPinError('Incorrect PIN');
+            setPin('');
           }
-        }
-      } else {
-        // Confirmation step
-        if (confirmPin.length < 6) {
-          const newConfirmPin = confirmPin + digit;
-          setConfirmPin(newConfirmPin);
-          if (newConfirmPin.length === 6) {
-            // Check if PINs match
-            if (newConfirmPin === pin) {
-              // Save PIN and finish setup
-              AuthService.savePin(pin).then(success => {
-                if (success) {
-                  if (changingPin) {
-                    // Just changing PIN, not creating wallet
-                    setSettingUpPin(false);
-                    setChangingPin(false);
-                    setIsImportedWallet(false);
-                    setPin('');
-                    setConfirmPin('');
-                    setPinStep('enter');
-                    Alert.alert('Success', 'Your PIN has been changed.');
-                  } else {
-                    // Initial wallet creation or import - authenticate first to prevent lock screen flash
-                    setIsAuthenticated(true); // Unlock the wallet immediately BEFORE clearing settingUpPin
-                    setSeedConfirmed(true);
-                    setSettingUpPin(false);
-                    setIsImportedWallet(false); // Reset imported wallet flag
-                    setPin('');
-                    setConfirmPin('');
-                    setPinStep('enter');
-                    fetchBalance();
-                    if (isBiometricSupported) {
-                      setShowBiometricPrompt(true);
-                    }
-                  }
-                } else {
-                  setPinError('Failed to save PIN');
-                  setConfirmPin('');
-                }
-              });
-            } else {
-              setPinError('PINs do not match');
-              setConfirmPin('');
-            }
-          }
-        }
-      }
-    } else {
-      // PIN entry for authentication
-      if (pin.length < 6) {
-        const newPin = pin + digit;
-        setPin(newPin);
-        if (newPin.length === 6) {
-          // Verify PIN
-          AuthService.verifyPin(newPin).then(isValid => {
-            if (isValid) {
-              setIsAuthenticated(true);
-              setShowPinEntry(false);
-              setPin('');
-              setPinError('');
-              // Restore FaceID button for next time
-              setShowFaceIdButton(true);
-            } else {
-              setPinError('Incorrect PIN');
-              setPin('');
-            }
-          });
-        }
+        });
       }
     }
   };
 
   const handlePinDelete = () => {
-    if (settingUpPin) {
-      if (pinStep === 'enter') {
-        setPin(pin.slice(0, -1));
-      } else {
-        setConfirmPin(confirmPin.slice(0, -1));
-      }
-    } else {
-      setPin(pin.slice(0, -1));
-    }
+    // PIN delete for authentication (lock screen)
+    setPin(pin.slice(0, -1));
     setPinError('');
   };
 
@@ -974,6 +908,22 @@ export default function App() {
     }
   };
 
+  // PIN setup completion callbacks
+  const handlePinSetupComplete = () => {
+    // Initial wallet creation or import - authenticate to prevent lock screen flash
+    setIsAuthenticated(true);
+    setSeedConfirmed(true);
+    setSettingUpPin(false);
+    setIsImportedWallet(false);
+  };
+
+  const handlePinChangeComplete = () => {
+    // Just changing PIN, not creating wallet
+    setSettingUpPin(false);
+    setChangingPin(false);
+    setIsImportedWallet(false);
+  };
+
   // Show loading splash screen while initializing
   if (isLoading) {
     return (
@@ -991,20 +941,27 @@ export default function App() {
   }
 
   // Show PIN entry screen
-  if (showPinEntry || settingUpPin) {
-    const currentPin = settingUpPin && pinStep === 'confirm' ? confirmPin : pin;
+  // PIN Setup Screen (Step 4 of onboarding)
+  if (settingUpPin) {
+    return (
+      <PinSetupScreen
+        changingPin={changingPin}
+        isBiometricSupported={isBiometricSupported}
+        onPinSetupComplete={handlePinSetupComplete}
+        onPinChangeComplete={handlePinChangeComplete}
+        fetchBalance={fetchBalance}
+      />
+    );
+  }
+
+  // Lock Screen (PIN entry for authentication)
+  if (showPinEntry) {
     return (
       <View style={styles.lockScreen}>
         <StatusBar style="light" />
 
         {/* Title */}
-        <Text style={styles.lockTitle}>
-          {settingUpPin
-            ? (changingPin
-                ? (pinStep === 'enter' ? 'Enter New PIN' : 'Confirm New PIN')
-                : (pinStep === 'enter' ? 'Enter 6-Digit PIN' : 'Confirm Your PIN'))
-            : 'Enter PIN'}
-        </Text>
+        <Text style={styles.lockTitle}>Enter PIN</Text>
 
         {/* PIN Error */}
         {pinError ? <Text style={styles.lockPinError}>{pinError}</Text> : null}
@@ -1016,7 +973,7 @@ export default function App() {
               key={i}
               style={[
                 styles.lockPinDot,
-                i < currentPin.length && styles.lockPinDotFilled
+                i < pin.length && styles.lockPinDotFilled
               ]}
             />
           ))}
