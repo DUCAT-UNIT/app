@@ -36,6 +36,7 @@ import * as TransactionService from './services/transactionService';
 // Import components
 import WelcomeScreen from './components/WelcomeScreen';
 import PinSetupScreen from './components/PinSetupScreen';
+import LockScreen from './components/LockScreen';
 
 // Initialize BIP32
 const bip32 = BIP32Factory(ecc);
@@ -348,37 +349,6 @@ export default function App() {
       console.log('Error in authenticateUser:', error);
       setShowBiometricPrompt(true);
     }
-  };
-
-
-  const handlePinDigit = (digit) => {
-    // PIN entry for authentication (lock screen)
-    if (pin.length < 6) {
-      const newPin = pin + digit;
-      setPin(newPin);
-      if (newPin.length === 6) {
-        // Verify PIN
-        AuthService.verifyPin(newPin).then(isValid => {
-          if (isValid) {
-            setIsAuthenticated(true);
-            setShowPinEntry(false);
-            setPin('');
-            setPinError('');
-            // Restore FaceID button for next time
-            setShowFaceIdButton(true);
-          } else {
-            setPinError('Incorrect PIN');
-            setPin('');
-          }
-        });
-      }
-    }
-  };
-
-  const handlePinDelete = () => {
-    // PIN delete for authentication (lock screen)
-    setPin(pin.slice(0, -1));
-    setPinError('');
   };
 
   const handleLogout = () => {
@@ -924,6 +894,14 @@ export default function App() {
     setIsImportedWallet(false);
   };
 
+  // Lock screen authentication callback
+  const handleLockScreenAuthenticated = () => {
+    setIsAuthenticated(true);
+    setShowPinEntry(false);
+    // Restore FaceID button for next time
+    setShowFaceIdButton(true);
+  };
+
   // Show loading splash screen while initializing
   if (isLoading) {
     return (
@@ -956,62 +934,7 @@ export default function App() {
 
   // Lock Screen (PIN entry for authentication)
   if (showPinEntry) {
-    return (
-      <View style={styles.lockScreen}>
-        <StatusBar style="light" />
-
-        {/* Title */}
-        <Text style={styles.lockTitle}>Enter PIN</Text>
-
-        {/* PIN Error */}
-        {pinError ? <Text style={styles.lockPinError}>{pinError}</Text> : null}
-
-        {/* PIN Dots */}
-        <View style={styles.lockPinDots}>
-          {[0, 1, 2, 3, 4, 5].map(i => (
-            <View
-              key={i}
-              style={[
-                styles.lockPinDot,
-                i < pin.length && styles.lockPinDotFilled
-              ]}
-            />
-          ))}
-        </View>
-
-        {/* Keypad */}
-        <View style={styles.lockKeypad}>
-          {[[1, 2, 3], [4, 5, 6], [7, 8, 9]].map((row, rowIndex) => (
-            <View key={rowIndex} style={styles.lockKeypadRow}>
-              {row.map(num => (
-                <TouchableOpacity
-                  key={num}
-                  style={styles.lockKey}
-                  onPress={() => handlePinDigit(String(num))}
-                >
-                  <Text style={styles.lockKeyText}>{num}</Text>
-                </TouchableOpacity>
-              ))}
-            </View>
-          ))}
-          <View style={styles.lockKeypadRow}>
-            <View style={styles.lockKey} />
-            <TouchableOpacity
-              style={styles.lockKey}
-              onPress={() => handlePinDigit('0')}
-            >
-              <Text style={styles.lockKeyText}>0</Text>
-            </TouchableOpacity>
-            <TouchableOpacity
-              style={styles.lockKey}
-              onPress={handlePinDelete}
-            >
-              <Text style={styles.lockKeyText}>⌫</Text>
-            </TouchableOpacity>
-          </View>
-        </View>
-      </View>
-    );
+    return <LockScreen onAuthenticated={handleLockScreenAuthenticated} />;
   }
 
   // Show locked screen if not authenticated and wallet exists AND seed backup confirmed AND not in setup flow

@@ -1,0 +1,98 @@
+/**
+ * LockScreen Component
+ * Handles PIN entry for authentication
+ * Displayed when app is locked and user needs to authenticate
+ */
+
+import React, { useState } from 'react';
+import { Text, View, TouchableOpacity } from 'react-native';
+import { StatusBar } from 'expo-status-bar';
+import * as AuthService from '../services/authService';
+import styles from '../styles';
+
+export default function LockScreen({ onAuthenticated }) {
+  const [pin, setPin] = useState('');
+  const [pinError, setPinError] = useState('');
+
+  const handlePinDigit = (digit) => {
+    if (pin.length < 6) {
+      const newPin = pin + digit;
+      setPin(newPin);
+      if (newPin.length === 6) {
+        // Verify PIN
+        AuthService.verifyPin(newPin).then(isValid => {
+          if (isValid) {
+            setPin('');
+            setPinError('');
+            onAuthenticated();
+          } else {
+            setPinError('Incorrect PIN');
+            setPin('');
+          }
+        });
+      }
+    }
+  };
+
+  const handlePinDelete = () => {
+    setPin(pin.slice(0, -1));
+    setPinError('');
+  };
+
+  return (
+    <View style={styles.lockScreen}>
+      <StatusBar style="light" />
+
+      {/* Title */}
+      <Text style={styles.lockTitle}>Enter PIN</Text>
+
+      {/* PIN Error */}
+      {pinError ? <Text style={styles.lockPinError}>{pinError}</Text> : null}
+
+      {/* PIN Dots */}
+      <View style={styles.lockPinDots}>
+        {[0, 1, 2, 3, 4, 5].map(i => (
+          <View
+            key={i}
+            style={[
+              styles.lockPinDot,
+              i < pin.length && styles.lockPinDotFilled
+            ]}
+          />
+        ))}
+      </View>
+
+      {/* Keypad */}
+      <View style={styles.lockKeypad}>
+        {[[1, 2, 3], [4, 5, 6], [7, 8, 9]].map((row, rowIndex) => (
+          <View key={rowIndex} style={styles.lockKeypadRow}>
+            {row.map(num => (
+              <TouchableOpacity
+                key={num}
+                style={styles.lockKey}
+                onPress={() => handlePinDigit(String(num))}
+              >
+                <Text style={styles.lockKeyText}>{num}</Text>
+              </TouchableOpacity>
+            ))}
+          </View>
+        ))}
+        <View style={styles.lockKeypadRow}>
+          <View style={styles.lockKey} />
+          <TouchableOpacity
+            style={styles.lockKey}
+            onPress={() => handlePinDigit('0')}
+          >
+            <Text style={styles.lockKeyText}>0</Text>
+          </TouchableOpacity>
+          <TouchableOpacity
+            style={styles.lockKey}
+            onPress={handlePinDelete}
+          >
+            <Text style={styles.lockKeyText}>⌫</Text>
+          </TouchableOpacity>
+        </View>
+      </View>
+    </View>
+  );
+}
