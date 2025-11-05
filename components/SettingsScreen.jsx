@@ -4,13 +4,23 @@
  */
 
 import React from 'react';
-import { Text, View, TouchableOpacity, ScrollView, StyleSheet, StatusBar } from 'react-native';
+import { Text, View, TouchableOpacity, ScrollView, StyleSheet, Platform, Dimensions, StatusBar } from 'react-native';
+
+// Get device dimensions for responsive sizing
+const { width: SCREEN_WIDTH } = Dimensions.get('window');
+
+// Get safe area top inset - accounts for notch/status bar on different devices
+const STATUS_BAR_HEIGHT = Platform.OS === 'ios' ? 50 : (StatusBar.currentHeight || 0);
+
+// Responsive horizontal padding
+const HORIZONTAL_PADDING = SCREEN_WIDTH < 375 ? 16 : (SCREEN_WIDTH > 414 ? 24 : 20);
 
 export default function SettingsScreen({
   // Callbacks
   onClose,
   onViewSeedPhrase,
   onChangePin,
+  onSwitchAccount,
   onLockWallet,
   onDeleteWallet,
   onPrivacyModeToggle,
@@ -20,8 +30,6 @@ export default function SettingsScreen({
 }) {
   return (
     <View style={localStyles.container}>
-      <StatusBar barStyle="light-content" />
-
       {/* Header */}
       <View style={localStyles.header}>
         <TouchableOpacity onPress={onClose} style={localStyles.backButton}>
@@ -43,6 +51,11 @@ export default function SettingsScreen({
             icon="🔢"
             title="Change PIN"
             onPress={onChangePin}
+          />
+          <SettingsOption
+            icon="🔄"
+            title="Switch Account"
+            onPress={onSwitchAccount}
           />
           <SettingsOption
             icon="🔒"
@@ -95,8 +108,8 @@ const localStyles = StyleSheet.create({
     backgroundColor: '#1a1a1a',
   },
   header: {
-    paddingTop: 60,
-    paddingHorizontal: 20,
+    paddingTop: 0,
+    paddingHorizontal: HORIZONTAL_PADDING,
     paddingBottom: 10,
   },
   backButton: {
@@ -107,10 +120,11 @@ const localStyles = StyleSheet.create({
   backArrow: {
     fontSize: 28,
     color: '#fff',
+    fontFamily: 'CabinetGrotesk-Regular',
   },
   content: {
     flex: 1,
-    paddingHorizontal: 20,
+    paddingHorizontal: HORIZONTAL_PADDING,
   },
   title: {
     fontSize: 32,
@@ -118,6 +132,7 @@ const localStyles = StyleSheet.create({
     color: '#fff',
     marginBottom: 30,
     marginTop: 10,
+    fontFamily: 'CabinetGrotesk-Bold',
   },
   section: {
     marginBottom: 30,
@@ -140,11 +155,13 @@ const localStyles = StyleSheet.create({
     fontSize: 22,
     marginRight: 16,
     width: 28,
+    fontFamily: 'CabinetGrotesk-Regular',
   },
   optionTitle: {
     fontSize: 16,
     color: '#fff',
     fontWeight: '400',
+    fontFamily: 'CabinetGrotesk-Regular',
   },
   optionRight: {
     flexDirection: 'row',
@@ -154,11 +171,13 @@ const localStyles = StyleSheet.create({
   optionRightText: {
     fontSize: 14,
     color: '#888',
+    fontFamily: 'CabinetGrotesk-Regular',
   },
   optionArrow: {
     fontSize: 24,
     color: '#666',
     marginLeft: 4,
+    fontFamily: 'CabinetGrotesk-Regular',
   },
   dangerText: {
     color: '#ff4444',

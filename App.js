@@ -8,9 +8,10 @@ import * as SecureStore from 'expo-secure-store';
 import * as ScreenCapture from 'expo-screen-capture';
 import * as LocalAuthentication from 'expo-local-authentication';
 import * as FileSystem from 'expo-file-system';
+import { useFonts } from 'expo-font';
 
 import { StatusBar } from 'expo-status-bar';
-import { Text, View, TouchableOpacity, ScrollView, Alert, ActivityIndicator, TextInput, Image, RefreshControl, AppState, Keyboard, Platform, Linking } from 'react-native';
+import { Text, View, TouchableOpacity, ScrollView, Alert, ActivityIndicator, TextInput, Image, RefreshControl, AppState, Keyboard, Platform, Linking, SafeAreaView, StatusBar as RNStatusBar, Dimensions } from 'react-native';
 import { useState, useEffect, useRef, useCallback } from 'react';
 import * as Clipboard from 'expo-clipboard';
 import * as bip39 from 'bip39';
@@ -39,6 +40,7 @@ import PinSetupScreen from './components/PinSetupScreen';
 import LockScreen from './components/LockScreen';
 import SettingsScreen from './components/SettingsScreen';
 import SendScreen from './components/SendScreen';
+import WalletScreen from './components/WalletScreen';
 
 // Import contexts
 import { useWallet } from './contexts/WalletContext';
@@ -50,6 +52,18 @@ const bip32 = BIP32Factory(ecc);
 bitcoin.initEccLib(ecc);
 
 export default function App() {
+  // Load Cabinet Grotesk font
+  const [fontsLoaded] = useFonts({
+    'CabinetGrotesk-Regular': require('./assets/fonts/CabinetGrotesk-Regular.otf'),
+    'CabinetGrotesk-Medium': require('./assets/fonts/CabinetGrotesk-Medium.otf'),
+    'CabinetGrotesk-Bold': require('./assets/fonts/CabinetGrotesk-Bold.otf'),
+  });
+
+  // Responsive constants
+  const SCREEN_WIDTH = Dimensions.get('window').width;
+  const STATUS_BAR_HEIGHT = Platform.OS === 'ios' ? 50 : (RNStatusBar.currentHeight || 0);
+  const HORIZONTAL_PADDING = SCREEN_WIDTH < 375 ? 16 : (SCREEN_WIDTH > 414 ? 24 : 20);
+
   // Wallet context
   const {
     wallet,
@@ -822,6 +836,11 @@ export default function App() {
     }
   };
 
+  // Wait for fonts to load
+  if (!fontsLoaded) {
+    return null;
+  }
+
   // Show loading splash screen while initializing
   if (isLoading) {
     return (
@@ -833,7 +852,7 @@ export default function App() {
         />
         <Text style={styles.splashTitle}>UNIT</Text>
         <Text style={styles.splashSubtitle}>Mutinynet Edition</Text>
-        <StatusBar style="dark" />
+        <StatusBar style="light" />
       </View>
     );
   }
@@ -842,40 +861,110 @@ export default function App() {
   // PIN Setup Screen (Step 4 of onboarding)
   if (settingUpPin) {
     return (
-      <PinSetupScreen
-        changingPin={changingPin}
-        isBiometricSupported={isBiometricSupported}
-        onPinSetupComplete={handlePinSetupComplete}
-        onPinChangeComplete={handlePinChangeComplete}
-        fetchBalance={fetchBalance}
-      />
+      <View style={{ flex: 1, backgroundColor: '#1A1A1A', paddingHorizontal: 0 }}>
+        <View style={styles.mutinynetBanner}>
+          <Text style={styles.mutinynetBannerText}>Mutinynet Edition</Text>
+        </View>
+        <PinSetupScreen
+          changingPin={changingPin}
+          isBiometricSupported={isBiometricSupported}
+          onPinSetupComplete={handlePinSetupComplete}
+          onPinChangeComplete={handlePinChangeComplete}
+          fetchBalance={fetchBalance}
+        />
+        <StatusBar style="light" />
+      </View>
     );
   }
 
   // Lock Screen (PIN entry for authentication)
   if (showPinEntry) {
-    return <LockScreen onAuthenticated={handleLockScreenAuthenticated} />;
+    return (
+      <View style={{ flex: 1, backgroundColor: '#1A1A1A', paddingHorizontal: 0 }}>
+        <View style={styles.mutinynetBanner}>
+          <Text style={styles.mutinynetBannerText}>Mutinynet Edition</Text>
+        </View>
+        <LockScreen onAuthenticated={handleLockScreenAuthenticated} />
+        <StatusBar style="light" />
+      </View>
+    );
   }
 
   // Settings Screen
   if (showSettings) {
     return (
-      <SettingsScreen
-        onClose={() => setShowSettings(false)}
-        onViewSeedPhrase={handleViewSeedPhrase}
-        onChangePin={handleChangePin}
-        onLockWallet={handleLogout}
-        onDeleteWallet={handleDeleteWallet}
-        onPrivacyModeToggle={handlePrivacyModeToggle}
-        privacyMode={privacyMode}
-      />
+      <View style={{ flex: 1, backgroundColor: '#1A1A1A', paddingHorizontal: 0 }}>
+        <View style={styles.mutinynetBanner}>
+          <Text style={styles.mutinynetBannerText}>Mutinynet Edition</Text>
+        </View>
+        <SettingsScreen
+          onClose={() => setShowSettings(false)}
+          onViewSeedPhrase={handleViewSeedPhrase}
+          onChangePin={handleChangePin}
+          onSwitchAccount={() => {
+            setShowSettings(false);
+            setShowAccountPicker(true);
+          }}
+          onLockWallet={handleLogout}
+          onDeleteWallet={handleDeleteWallet}
+          onPrivacyModeToggle={handlePrivacyModeToggle}
+          privacyMode={privacyMode}
+        />
+        <StatusBar style="light" />
+      </View>
+    );
+  }
+
+  // Account Picker Modal
+  if (showAccountPicker) {
+    return (
+      <View style={{ flex: 1, backgroundColor: '#1A1A1A', paddingHorizontal: 0 }}>
+        <View style={styles.mutinynetBanner}>
+          <Text style={styles.mutinynetBannerText}>Mutinynet Edition</Text>
+        </View>
+        <View style={styles.modalOverlay}>
+          <View style={styles.modalContent}>
+            <Text style={styles.modalTitle}>Switch Account</Text>
+            <Text style={styles.modalLabel}>Enter account number:</Text>
+            <TextInput
+              style={styles.accountInput}
+              value={newAccountIndex}
+              onChangeText={setNewAccountIndex}
+              placeholder="1"
+              placeholderTextColor="#666666"
+              keyboardType="number-pad"
+            />
+            <View style={styles.modalButtons}>
+              <TouchableOpacity
+                style={[styles.modalButton, styles.modalButtonCancel]}
+                onPress={() => {
+                  setShowAccountPicker(false);
+                  setNewAccountIndex('');
+                }}
+              >
+                <Text style={styles.modalButtonText}>Cancel</Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                style={[styles.modalButton, styles.modalButtonConfirm]}
+                onPress={switchAccount}
+              >
+                <Text style={styles.modalButtonText}>Switch</Text>
+              </TouchableOpacity>
+            </View>
+          </View>
+        </View>
+        <StatusBar style="light" />
+      </View>
     );
   }
 
   // Show locked screen if not authenticated and wallet exists AND seed backup confirmed AND not in setup flow
   if (!isAuthenticated && wallet && seedConfirmed && !showingIntro && !showingSeeds && !verifyingSeeds && !settingUpPin) {
     return (
-      <>
+      <View style={{ flex: 1, backgroundColor: '#1A1A1A', paddingHorizontal: 0 }}>
+        <View style={styles.mutinynetBanner}>
+          <Text style={styles.mutinynetBannerText}>Mutinynet Edition</Text>
+        </View>
         <LockScreen
           onAuthenticated={handleLockScreenAuthenticated}
           showFaceIdButton={showFaceIdButton && !showBiometricPrompt}
@@ -932,70 +1021,79 @@ export default function App() {
             </View>
           </View>
         )}
-      </>
+        <StatusBar style="light" />
+      </View>
     );
   }
 
   // Full-screen seed phrase viewing
   if (viewingSeedPhrase) {
     return (
-      <ScrollView style={{ backgroundColor: COLORS.VERY_LIGHT_GRAY }} contentContainerStyle={styles.container} keyboardShouldPersistTaps="always">
-        <View style={styles.titleRow}>
-          <View style={styles.titleContainer}>
-            <Text style={styles.title}>DUCAT</Text>
-          </View>
+      <View style={{ flex: 1, backgroundColor: '#1A1A1A' }}>
+        <View style={styles.mutinynetBanner}>
+          <Text style={styles.mutinynetBannerText}>Mutinynet Edition</Text>
         </View>
-
-        <View style={styles.walletInfo}>
-          <Text style={styles.seedPhraseTitle}>Recovery Phrase</Text>
-
-          <Text style={styles.seedPhraseWarning}>
-            ⚠️ Keep these words safe and private!{'\n'}
-            Never share them with anyone.
-          </Text>
-
-          <View style={styles.seedGrid}>
-            {seedPhraseWords.map((word, index) => (
-              <View key={index} style={styles.seedBox}>
-                <Text style={styles.seedNumber}>{index + 1}</Text>
-                <Text style={styles.seedWord}>
-                  {seedPhraseVisible ? word : '••••••'}
-                </Text>
-              </View>
-            ))}
+        <ScrollView
+          style={{ flex: 1 }}
+          contentContainerStyle={[styles.container, { paddingTop: 0 }]}
+          keyboardShouldPersistTaps="always"
+        >
+          <View style={styles.titleRow}>
+            <View style={styles.titleContainer}>
+              <Text style={styles.title}>DUCAT</Text>
+            </View>
           </View>
 
-          {!seedPhraseVisible && (
+          <View style={styles.walletInfo}>
+            <Text style={styles.seedPhraseTitle}>Recovery Phrase</Text>
+
+            <Text style={styles.seedPhraseWarning}>
+              ⚠️ Keep these words safe and private!{'\n'}
+              Never share them with anyone.
+            </Text>
+
+            <View style={styles.seedGrid}>
+              {seedPhraseWords.map((word, index) => (
+                <View key={index} style={styles.seedBox}>
+                  <Text style={styles.seedNumber}>{index + 1}</Text>
+                  <Text style={styles.seedWord}>
+                    {seedPhraseVisible ? word : '••••••'}
+                  </Text>
+                </View>
+              ))}
+            </View>
+
+            {!seedPhraseVisible && (
+              <TouchableOpacity
+                style={styles.button}
+                onPress={() => setSeedPhraseVisible(true)}
+              >
+                <Text style={styles.buttonText}>Show Recovery Phrase</Text>
+              </TouchableOpacity>
+            )}
+
             <TouchableOpacity
-              style={styles.button}
-              onPress={() => setSeedPhraseVisible(true)}
+              style={[styles.button, seedPhraseVisible && styles.secondaryButton]}
+              onPress={() => {
+                setViewingSeedPhrase(false);
+                setSeedPhraseWords([]);
+                setSeedPhraseVisible(false);
+              }}
             >
-              <Text style={styles.buttonText}>Show Recovery Phrase</Text>
+              <Text style={styles.buttonText}>Done</Text>
             </TouchableOpacity>
-          )}
-
-          <TouchableOpacity
-            style={[styles.button, seedPhraseVisible && styles.secondaryButton]}
-            onPress={() => {
-              setViewingSeedPhrase(false);
-              setSeedPhraseWords([]);
-              setSeedPhraseVisible(false);
-            }}
-          >
-            <Text style={styles.buttonText}>Done</Text>
-          </TouchableOpacity>
-        </View>
-
-        <StatusBar style="dark" />
-      </ScrollView>
+          </View>
+        </ScrollView>
+        <StatusBar style="light" />
+      </View>
     );
   }
 
   return (
     <>
       <ScrollView
-        style={{ backgroundColor: COLORS.VERY_LIGHT_GRAY }}
-        contentContainerStyle={styles.container}
+        style={{ backgroundColor: wallet && seedConfirmed ? '#1A1A1A' : '#1A1A1A' }}
+        contentContainerStyle={{ flexGrow: 1, backgroundColor: '#1A1A1A', paddingHorizontal: 0 }}
         keyboardShouldPersistTaps="always"
         refreshControl={
           wallet && seedConfirmed ? (
@@ -1006,21 +1104,10 @@ export default function App() {
         onScroll={resetInactivityTimer}
         scrollEventThrottle={400}
       >
-      <View style={styles.titleRow}>
-        <View style={styles.titleContainer}>
-          <Text style={styles.subtitle}>Mutinynet Edition</Text>
-        </View>
+      {/* Mutinynet Banner - Shows on all screens */}
+      <View style={styles.mutinynetBanner}>
+        <Text style={styles.mutinynetBannerText}>Mutinynet Edition</Text>
       </View>
-
-      {/* Settings Button - Absolute Top Right */}
-      {wallet && seedConfirmed && (
-        <TouchableOpacity
-          style={styles.settingsButton}
-          onPress={() => setShowSettings(true)}
-        >
-          <Text style={styles.settingsIcon}>⚙️</Text>
-        </TouchableOpacity>
-      )}
 
       {(!wallet || importingWallet || showingIntro || showingSeeds || verifyingSeeds) ? (
         <WelcomeScreen
@@ -1047,216 +1134,15 @@ export default function App() {
           verifySeeds={verifySeeds}
         />
       ) : (
-        <View style={styles.walletContainer}>
-          {/* Price Chips - Outside main dialog */}
-          <View style={styles.priceChipsContainer}>
-            {/* Bitcoin Price Chip */}
-            <View style={[styles.priceChip, styles.priceChipBTC]}>
-              <Image
-                source={require('./assets/btc-logo.png')}
-                style={styles.priceChipIcon}
-                resizeMode="contain"
-              />
-              <Text style={styles.priceChipName}>Bitcoin BTC</Text>
-              {loadingBtcPrice ? (
-                <ActivityIndicator size="small" color={COLORS.VERY_LIGHT_GRAY} />
-              ) : (
-                <Text style={styles.priceChipValue}>
-                  $ {btcPrice ? btcPrice.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) : '0.00'}
-                </Text>
-              )}
-            </View>
-
-            {/* Unit Price Chip */}
-            <View style={[styles.priceChip, styles.priceChipUnit]}>
-              <Image
-                source={require('./assets/unit-logo.png')}
-                style={styles.priceChipIcon}
-                resizeMode="contain"
-              />
-              <Text style={styles.priceChipName}>Unit</Text>
-              <Text style={styles.priceChipValue}>$ 1.00</Text>
-            </View>
-          </View>
-
-          <View style={styles.walletInfo}>
-            {/* Loading overlay while switching accounts */}
-            {switchingAccount && (
-              <View style={styles.switchingOverlay}>
-                <ActivityIndicator size="large" color={COLORS.PRIMARY_BLUE} />
-                <Text style={styles.switchingText}>Switching account...</Text>
-              </View>
-            )}
-
-            {/* Header with Account Number and Plus Button */}
-            <View style={styles.headerRow}>
-              <Text style={styles.walletTitle}>Account {currentAccount + 1}</Text>
-              <View style={styles.headerRight}>
-                <TouchableOpacity
-                  style={styles.addAccountButton}
-                  onPress={() => setShowAccountPicker(true)}
-                >
-                  <Text style={styles.addAccountText}>+</Text>
-                </TouchableOpacity>
-              </View>
-            </View>
-
-          {/* Account Picker Modal */}
-          {showAccountPicker && (
-            <View style={styles.modalOverlay}>
-              <View style={styles.modalContent}>
-                <Text style={styles.modalTitle}>Switch Address</Text>
-                <Text style={styles.modalLabel}>Enter account number:</Text>
-                <TextInput
-                  style={styles.accountInput}
-                  value={newAccountIndex}
-                  onChangeText={setNewAccountIndex}
-                  placeholder="1"
-                  placeholderTextColor="#666666"
-                  keyboardType="number-pad"
-                />
-                <View style={styles.modalButtons}>
-                  <TouchableOpacity
-                    style={[styles.modalButton, styles.modalButtonCancel]}
-                    onPress={() => {
-                      setShowAccountPicker(false);
-                      setNewAccountIndex('');
-                    }}
-                  >
-                    <Text style={styles.modalButtonText}>Cancel</Text>
-                  </TouchableOpacity>
-                  <TouchableOpacity
-                    style={[styles.modalButton, styles.modalButtonConfirm]}
-                    onPress={switchAccount}
-                  >
-                    <Text style={styles.modalButtonText}>Switch</Text>
-                  </TouchableOpacity>
-                </View>
-              </View>
-            </View>
-          )}
-
-
-
-          {/* Total Balance - Aggregate of both addresses */}
-          <TouchableOpacity
-            style={styles.totalBalanceSection}
-            onPress={() => setShowTotalInBTC(!showTotalInBTC)}
-          >
-            <Text style={styles.totalBalanceLabel}>Total Balance</Text>
-            <View style={styles.balanceContainer}>
-              {showTotalInBTC ? (
-                <View style={styles.balanceWithIcon}>
-                  <Image source={require('./assets/btc-symbol.png')} style={styles.balanceIcon} resizeMode="contain" />
-                  <Text style={[
-                    styles.totalBalanceAmount,
-                    ((segwitBalance || 0) + (taprootBalance || 0)) >= 1000 && styles.totalBalanceAmountSmall
-                  ]}>
-                    {((segwitBalance || 0) + (taprootBalance || 0)).toFixed(8)}
-                  </Text>
-                </View>
-              ) : (
-                <Text style={[
-                  styles.totalBalanceAmount,
-                  ((segwitBalance || 0) + (taprootBalance || 0)) >= 1000 && styles.totalBalanceAmountSmall
-                ]}>
-                  $ {(((segwitBalance || 0) + (taprootBalance || 0)) * (btcPrice || 0)).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
-                </Text>
-              )}
-            </View>
-          </TouchableOpacity>
-
-          {/* Assets Container - Fixed height to prevent jumping */}
-          <View style={styles.assetsContainer}>
-            {/* Bitcoin Balance Card - Shows aggregate */}
-            <TouchableOpacity
-              style={styles.assetCard}
-              onPress={() => setShowBTCInBTC(!showBTCInBTC)}
-            >
-              <View style={styles.assetRow}>
-                <View style={styles.assetLeft}>
-                  <View style={styles.btcIcon}>
-                    <Image
-                      source={require('./assets/btc-logo.png')}
-                      style={styles.logoImage}
-                      resizeMode="contain"
-                    />
-                  </View>
-                  <Text style={styles.assetName}>Bitcoin</Text>
-                </View>
-                {showBTCInBTC ? (
-                  <View style={styles.assetValueWithIcon}>
-                    <Image source={require('./assets/btc-symbol.png')} style={styles.assetIcon} resizeMode="contain" />
-                    <Text style={styles.assetValue}>
-                      {((segwitBalance || 0) + (taprootBalance || 0)).toFixed(8)}
-                    </Text>
-                  </View>
-                ) : (
-                  <Text style={styles.assetValue}>
-                    $ {(((segwitBalance || 0) + (taprootBalance || 0)) * (btcPrice || 0)).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
-                  </Text>
-                )}
-              </View>
-            </TouchableOpacity>
-
-            {/* DUCAT UNIT Card - Always reserve space */}
-            {runesBalance.length > 0 ? (
-              runesBalance.map((rune, index) => (
-                <TouchableOpacity
-                  key={index}
-                  style={styles.assetCard}
-                  onPress={() => setShowUnitInUnit(!showUnitInUnit)}
-                >
-                  <View style={styles.assetRow}>
-                    <View style={styles.assetLeft}>
-                      <View style={[styles.btcIcon, styles.ducatIcon]}>
-                        <Image
-                          source={require('./assets/unit-logo.png')}
-                          style={styles.logoImage}
-                          resizeMode="contain"
-                        />
-                      </View>
-                      <Text style={styles.assetName}>Unit</Text>
-                    </View>
-                    {showUnitInUnit ? (
-                      <View style={styles.assetValueWithIcon}>
-                        <Image source={require('./assets/unit-symbol.png')} style={styles.assetIcon} resizeMode="contain" />
-                        <Text style={styles.assetValue}>
-                          {parseFloat(rune[1]).toLocaleString()}
-                        </Text>
-                      </View>
-                    ) : (
-                      <Text style={styles.assetValue}>
-                        $ {(parseFloat(rune[1]) * 1.0).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
-                      </Text>
-                    )}
-                  </View>
-                </TouchableOpacity>
-              ))
-            ) : (
-              <View style={[styles.assetCard, styles.assetCardPlaceholder]} />
-            )}
-          </View>
-
-          {/* Actions - Send and Receive buttons */}
-          <View style={styles.actionsRow}>
-            <TouchableOpacity
-              style={[styles.actionButton, styles.sendButton]}
-              onPress={() => setIntentStep('selecting_asset')}
-            >
-              <Text style={styles.actionButtonText}>Send</Text>
-            </TouchableOpacity>
-            <TouchableOpacity
-              style={[styles.actionButton, styles.receiveButton]}
-              onPress={() => Alert.alert('Receive', `Your ${sendAddressType === 'taproot' ? 'Taproot' : 'SegWit'} Address:\n\n${sendAddressType === 'taproot' ? wallet.taprootAddress : wallet.segwitAddress}`)}
-            >
-              <Text style={styles.actionButtonText}>Receive</Text>
-            </TouchableOpacity>
-          </View>
-
-          {/* Asset Selector Bottom Sheet - Outside modal */}
-        </View>
-        </View>
+        <>
+          <WalletScreen
+            styles={styles}
+            onSendPress={() => setIntentStep('selecting_asset')}
+            onSettingsPress={() => setShowSettings(true)}
+            sendAddressType={sendAddressType}
+            switchingAccount={switchingAccount}
+          />
+        </>
       )}
 
       {/* Send Transaction Bottom Sheets */}
@@ -1282,7 +1168,7 @@ export default function App() {
         signIntent={signIntent}
       />
 
-      <StatusBar style="dark" />
+      <StatusBar style="light" />
     </ScrollView>
 
     {/* Biometric Authentication Prompt - Rendered at top level */}

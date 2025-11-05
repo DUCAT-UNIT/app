@@ -137,11 +137,8 @@ export default function WelcomeScreen({
             </View>
           ))}
         </View>
-        <Text style={styles.warning}>
-          Enter each word in the correct order!
-        </Text>
         <TouchableOpacity
-          style={styles.button}
+          style={[styles.button, { marginTop: 5 }]}
           onPress={importWallet}
         >
           <Text style={styles.buttonText}>Import Wallet</Text>

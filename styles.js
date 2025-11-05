@@ -1,13 +1,36 @@
-import { StyleSheet, Platform } from 'react-native';
+import { StyleSheet, Platform, StatusBar, Dimensions } from 'react-native';
 import { COLORS } from './utils/colors';
+
+// Get device dimensions for responsive sizing
+const { width: SCREEN_WIDTH } = Dimensions.get('window');
+
+// Get safe area top inset - accounts for notch/status bar on different devices
+const STATUS_BAR_HEIGHT = Platform.OS === 'ios' ? 50 : (StatusBar.currentHeight || 0);
+
+// Responsive horizontal padding based on screen width
+// Small devices (< 375): 16px
+// Medium devices (375-414): 20px
+// Large devices (> 414): 24px
+const HORIZONTAL_PADDING = SCREEN_WIDTH < 375 ? 16 : (SCREEN_WIDTH > 414 ? 24 : 20);
+
+// Helper function to get Cabinet Grotesk font based on weight
+const getCabinetFont = (weight) => {
+  if (weight === 'bold' || weight === '700' || weight === '800' || weight === '900') {
+    return 'CabinetGrotesk-Bold';
+  } else if (weight === '500' || weight === '600') {
+    return 'CabinetGrotesk-Medium';
+  }
+  return 'CabinetGrotesk-Regular';
+};
 
 const styles = StyleSheet.create({
   container: {
     flexGrow: 1,
-    backgroundColor: COLORS.BLACK,
+    backgroundColor: '#1A1A1A',
     alignItems: 'center',
-    justifyContent: 'center',
-    padding: 20,
+    justifyContent: 'flex-start',
+    padding: HORIZONTAL_PADDING,
+    paddingTop: HORIZONTAL_PADDING,
   },
   splashContainer: {
     flex: 1,
@@ -22,6 +45,7 @@ const styles = StyleSheet.create({
   },
   splashTitle: {
     fontSize: 36,
+    fontFamily: 'CabinetGrotesk-Bold',
     fontWeight: 'bold',
     color: COLORS.DARK_GRAY,
     marginBottom: 5,
@@ -29,6 +53,7 @@ const styles = StyleSheet.create({
   },
   splashSubtitle: {
     fontSize: 14,
+    fontFamily: 'CabinetGrotesk-Regular',
     fontWeight: '300',
     color: COLORS.PURPLE,
     letterSpacing: 1,
@@ -47,6 +72,7 @@ const styles = StyleSheet.create({
   },
   title: {
     fontSize: 32,
+    fontFamily: 'CabinetGrotesk-Bold',
     fontWeight: 'bold',
     color: COLORS.DARK_GRAY,
     marginBottom: 2,
@@ -54,6 +80,7 @@ const styles = StyleSheet.create({
   },
   subtitle: {
     fontSize: 14,
+    fontFamily: 'CabinetGrotesk-Regular',
     fontWeight: '300',
     color: COLORS.PURPLE,
     marginBottom: 30,
@@ -65,7 +92,10 @@ const styles = StyleSheet.create({
     width: '100%',
     alignItems: 'center',
     justifyContent: 'space-between',
-    padding: 20,
+    paddingHorizontal: HORIZONTAL_PADDING,
+    paddingTop: 0,
+    paddingBottom: HORIZONTAL_PADDING,
+    backgroundColor: '#1A1A1A',
   },
   welcomeContent: {
     flex: 1,
@@ -75,7 +105,7 @@ const styles = StyleSheet.create({
   },
   welcomeButtons: {
     width: '100%',
-    paddingBottom: 20,
+    paddingBottom: HORIZONTAL_PADDING,
   },
   welcomeLogo: {
     width: 120,
@@ -83,6 +113,7 @@ const styles = StyleSheet.create({
   },
   welcomeTitle: {
     fontSize: 24,
+    fontFamily: 'CabinetGrotesk-Bold',
     color: COLORS.WHITE,
     marginBottom: 8,
     textAlign: 'center',
@@ -91,6 +122,7 @@ const styles = StyleSheet.create({
   },
   welcomeTagline: {
     fontSize: 16,
+    fontFamily: 'CabinetGrotesk-Bold',
     color: COLORS.WHITE,
     marginBottom: 30,
     textAlign: 'center',
@@ -116,6 +148,7 @@ const styles = StyleSheet.create({
   buttonText: {
     color: COLORS.VERY_LIGHT_GRAY,
     fontSize: 16,
+    fontFamily: 'CabinetGrotesk-Bold',
     fontWeight: 'bold',
     textAlign: 'center',
   },
@@ -129,13 +162,15 @@ const styles = StyleSheet.create({
   },
   walletInfo: {
     width: '100%',
-    backgroundColor: COLORS.DARK_BG,
-    padding: 20,
+    backgroundColor: '#1A1A1A',
+    padding: HORIZONTAL_PADDING,
+    marginHorizontal: 0,
     borderRadius: 15,
     marginTop: 4,
   },
   stepIndicator: {
     fontSize: 16,
+    fontFamily: 'CabinetGrotesk-Bold',
     color: COLORS.PRIMARY_BLUE,
     fontWeight: 'bold',
     marginBottom: 20,
@@ -143,6 +178,7 @@ const styles = StyleSheet.create({
   },
   introTitle: {
     fontSize: 24,
+    fontFamily: 'CabinetGrotesk-Bold',
     fontWeight: 'bold',
     color: COLORS.DARK_GRAY,
     marginBottom: 20,
@@ -150,6 +186,7 @@ const styles = StyleSheet.create({
   },
   introText: {
     fontSize: 16,
+    fontFamily: 'CabinetGrotesk-Regular',
     color: COLORS.MEDIUM_GRAY,
     lineHeight: 24,
     marginBottom: 25,
@@ -165,17 +202,20 @@ const styles = StyleSheet.create({
   },
   infoTitle: {
     fontSize: 16,
+    fontFamily: 'CabinetGrotesk-Bold',
     fontWeight: 'bold',
     color: COLORS.DARK_GRAY,
     marginBottom: 12,
   },
   infoText: {
     fontSize: 14,
+    fontFamily: 'CabinetGrotesk-Bold',
     color: COLORS.MEDIUM_GRAY,
     lineHeight: 22,
   },
   warningText: {
     fontSize: 14,
+    fontFamily: 'CabinetGrotesk-Regular',
     color: COLORS.DANGER_RED,
     backgroundColor: COLORS.PINK_WHITE,
     padding: 15,
@@ -192,6 +232,7 @@ const styles = StyleSheet.create({
   },
   walletTitle: {
     fontSize: 16,
+    fontFamily: 'CabinetGrotesk-Medium',
     color: COLORS.VERY_LIGHT_GRAY,
     fontWeight: '600',
     flex: 1,
@@ -210,6 +251,7 @@ const styles = StyleSheet.create({
   },
   addAccountText: {
     fontSize: 20,
+    fontFamily: 'CabinetGrotesk-Bold',
     color: COLORS.VERY_LIGHT_GRAY,
     fontWeight: 'bold',
   },
@@ -236,6 +278,7 @@ const styles = StyleSheet.create({
   },
   toggleText: {
     fontSize: 12,
+    fontFamily: 'CabinetGrotesk-Medium',
     color: COLORS.MEDIUM_GRAY,
     fontWeight: '600',
   },
@@ -247,6 +290,7 @@ const styles = StyleSheet.create({
   },
   totalBalanceLabel: {
     fontSize: 14,
+    fontFamily: 'CabinetGrotesk-Regular',
     color: COLORS.MEDIUM_GRAY,
     marginBottom: 8,
   },
@@ -260,14 +304,17 @@ const styles = StyleSheet.create({
   },
   totalBalanceAmount: {
     fontSize: 36,
+    fontFamily: 'CabinetGrotesk-Bold',
     color: COLORS.VERY_LIGHT_GRAY,
     fontWeight: 'bold',
   },
   totalBalanceAmountSmall: {
     fontSize: 28,
+    fontFamily: 'CabinetGrotesk-Bold',
   },
   assetsContainer: {
     minHeight: 144,
+    paddingHorizontal: HORIZONTAL_PADDING,
   },
   assetCard: {
     backgroundColor: COLORS.CARD_BG,
@@ -308,16 +355,19 @@ const styles = StyleSheet.create({
   },
   assetName: {
     fontSize: 16,
+    fontFamily: 'CabinetGrotesk-Medium',
     color: COLORS.VERY_LIGHT_GRAY,
     fontWeight: '600',
     marginBottom: 4,
   },
   assetSubtext: {
     fontSize: 12,
+    fontFamily: 'CabinetGrotesk-Medium',
     color: COLORS.MEDIUM_GRAY,
   },
   assetValue: {
     fontSize: 16,
+    fontFamily: 'CabinetGrotesk-Medium',
     color: COLORS.VERY_LIGHT_GRAY,
     fontWeight: '600',
   },
@@ -327,6 +377,7 @@ const styles = StyleSheet.create({
   },
   addressLabel: {
     fontSize: 12,
+    fontFamily: 'CabinetGrotesk-Regular',
     color: COLORS.MEDIUM_GRAY,
     marginBottom: 8,
   },
@@ -341,6 +392,7 @@ const styles = StyleSheet.create({
   },
   copyHint: {
     fontSize: 10,
+    fontFamily: 'CabinetGrotesk-Regular',
     color: COLORS.PRIMARY_BLUE,
     fontStyle: 'italic',
   },
@@ -365,6 +417,7 @@ const styles = StyleSheet.create({
   },
   modalTitle: {
     fontSize: 18,
+    fontFamily: 'CabinetGrotesk-Bold',
     color: COLORS.VERY_LIGHT_GRAY,
     fontWeight: 'bold',
     marginBottom: 16,
@@ -372,6 +425,7 @@ const styles = StyleSheet.create({
   },
   modalLabel: {
     fontSize: 14,
+    fontFamily: 'CabinetGrotesk-Bold',
     color: COLORS.VERY_LIGHT_GRAY,
     marginBottom: 8,
   },
@@ -383,6 +437,7 @@ const styles = StyleSheet.create({
     borderWidth: 2,
     borderColor: COLORS.PRIMARY_BLUE,
     fontSize: 16,
+    fontFamily: 'CabinetGrotesk-Regular',
     marginBottom: 20,
   },
   modalButtons: {
@@ -404,6 +459,7 @@ const styles = StyleSheet.create({
   modalButtonText: {
     color: COLORS.VERY_LIGHT_GRAY,
     fontSize: 14,
+    fontFamily: 'CabinetGrotesk-Medium',
     fontWeight: '600',
   },
   actionsRow: {
@@ -426,6 +482,7 @@ const styles = StyleSheet.create({
   actionButtonText: {
     color: COLORS.VERY_LIGHT_GRAY,
     fontSize: 14,
+    fontFamily: 'CabinetGrotesk-Medium',
     fontWeight: '600',
   },
   seedGrid: {
@@ -445,6 +502,7 @@ const styles = StyleSheet.create({
   },
   seedNumber: {
     fontSize: 12,
+    fontFamily: 'CabinetGrotesk-Bold',
     color: COLORS.PRIMARY_BLUE,
     fontWeight: 'bold',
     marginRight: 8,
@@ -452,6 +510,7 @@ const styles = StyleSheet.create({
   },
   seedWord: {
     fontSize: 14,
+    fontFamily: 'CabinetGrotesk-Bold',
     color: COLORS.VERY_LIGHT_GRAY,
     fontWeight: '600',
   },
@@ -460,6 +519,7 @@ const styles = StyleSheet.create({
   },
   verifyLabel: {
     fontSize: 16,
+    fontFamily: 'CabinetGrotesk-Bold',
     color: COLORS.PRIMARY_BLUE,
     fontWeight: 'bold',
     marginBottom: 10,
@@ -485,6 +545,7 @@ const styles = StyleSheet.create({
   choiceText: {
     color: COLORS.VERY_LIGHT_GRAY,
     fontSize: 14,
+    fontFamily: 'CabinetGrotesk-Medium',
     textAlign: 'center',
     fontWeight: '600',
   },
@@ -513,6 +574,7 @@ const styles = StyleSheet.create({
   addressTypeText: {
     color: COLORS.VERY_LIGHT_GRAY,
     fontSize: 14,
+    fontFamily: 'CabinetGrotesk-Bold',
     fontWeight: 'bold',
     marginBottom: 5,
   },
@@ -522,9 +584,11 @@ const styles = StyleSheet.create({
   addressTypeSubtext: {
     color: COLORS.MEDIUM_GRAY,
     fontSize: 11,
+    fontFamily: 'CabinetGrotesk-Regular',
   },
   warning: {
     fontSize: 12,
+    fontFamily: 'CabinetGrotesk-Bold',
     color: COLORS.DANGER_RED,
     marginTop: 15,
     textAlign: 'center',
@@ -541,6 +605,7 @@ const styles = StyleSheet.create({
   },
   runesLabel: {
     fontSize: 14,
+    fontFamily: 'CabinetGrotesk-Bold',
     color: COLORS.TEAL,
     fontWeight: 'bold',
     marginBottom: 10,
@@ -556,6 +621,7 @@ const styles = StyleSheet.create({
   },
   runeName: {
     fontSize: 12,
+    fontFamily: 'CabinetGrotesk-Medium',
     color: COLORS.VERY_LIGHT_GRAY,
     fontWeight: '600',
     flex: 1,
@@ -574,6 +640,7 @@ const styles = StyleSheet.create({
     borderWidth: 2,
     borderColor: COLORS.PRIMARY_BLUE,
     fontSize: 14,
+    fontFamily: 'CabinetGrotesk-Regular',
     marginBottom: 15,
     textAlignVertical: 'top',
     minHeight: 100,
@@ -581,11 +648,12 @@ const styles = StyleSheet.create({
   seedWordsGrid: {
     flexDirection: 'row',
     flexWrap: 'wrap',
-    justifyContent: 'space-between',
+    justifyContent: 'space-evenly',
     marginBottom: 15,
+    width: '100%',
   },
   seedWordContainer: {
-    width: '48%',
+    width: '47%',
     marginBottom: 12,
     flexDirection: 'row',
     alignItems: 'center',
@@ -593,10 +661,11 @@ const styles = StyleSheet.create({
   seedWordNumber: {
     color: COLORS.VERY_LIGHT_GRAY,
     fontSize: 12,
+    fontFamily: 'CabinetGrotesk-Bold',
     fontWeight: 'bold',
-    width: 25,
+    width: 20,
     textAlign: 'right',
-    marginRight: 8,
+    marginRight: 6,
   },
   seedWordInput: {
     flex: 1,
@@ -607,9 +676,11 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: COLORS.PRIMARY_BLUE,
     fontSize: 14,
+    fontFamily: 'CabinetGrotesk-Regular',
   },
   label: {
     fontSize: 14,
+    fontFamily: 'CabinetGrotesk-Bold',
     color: COLORS.VERY_LIGHT_GRAY,
     fontWeight: 'bold',
     marginBottom: 10,
@@ -629,6 +700,7 @@ const styles = StyleSheet.create({
   switchingText: {
     color: COLORS.VERY_LIGHT_GRAY,
     fontSize: 16,
+    fontFamily: 'CabinetGrotesk-Medium',
     fontWeight: '600',
     marginTop: 12,
   },
@@ -651,9 +723,32 @@ const styles = StyleSheet.create({
     marginRight: 3,
   },
   walletContainer: {
+    flex: 1,
     width: '100%',
+    paddingHorizontal: 0,
+    paddingTop: 0,
+    backgroundColor: '#1A1A1A',
+  },
+  // Mutinynet banner - Full Width
+  mutinynetBanner: {
+    backgroundColor: '#27272A',
+    paddingVertical: 6,
+    paddingHorizontal: 0,
+    width: '100%',
+    alignSelf: 'stretch',
+    borderRadius: 0,
+    marginTop: STATUS_BAR_HEIGHT,
+    marginBottom: HORIZONTAL_PADDING,
+    marginLeft: 0,
+    marginRight: 0,
     alignItems: 'center',
-    marginTop: 20,
+  },
+  mutinynetBannerText: {
+    color: '#8B5CF6',
+    fontSize: 16,
+    fontWeight: '600',
+    letterSpacing: 0.5,
+    fontFamily: 'CabinetGrotesk-Medium',
   },
   priceChipsContainer: {
     flexDirection: 'row',
@@ -682,21 +777,174 @@ const styles = StyleSheet.create({
   },
   priceChipName: {
     fontSize: 13,
+    fontFamily: 'CabinetGrotesk-Medium',
     color: COLORS.VERY_LIGHT_GRAY,
     fontWeight: '500',
     marginRight: 8,
   },
   priceChipValue: {
     fontSize: 14,
+    fontFamily: 'CabinetGrotesk-Medium',
     color: COLORS.VERY_LIGHT_GRAY,
     fontWeight: 'bold',
   },
+  // Xverse-style header
+  xverseHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 30,
+    paddingHorizontal: HORIZONTAL_PADDING,
+  },
+  xverseHeaderLeft: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10,
+  },
+  copyButton: {
+    padding: 4,
+  },
+  accountIcon: {
+    width: 32,
+    height: 32,
+    borderRadius: 16,
+    backgroundColor: COLORS.PRIMARY_BLUE,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  accountIconText: {
+    fontSize: 16,
+    fontFamily: 'CabinetGrotesk-Regular',
+  },
+  xverseAccountName: {
+    fontSize: 16,
+    fontFamily: 'CabinetGrotesk-Medium',
+    color: COLORS.VERY_LIGHT_GRAY,
+    fontWeight: '600',
+  },
+  copyIconButton: {
+    padding: 4,
+  },
+  copyIcon: {
+    fontSize: 18,
+    fontFamily: 'CabinetGrotesk-Regular',
+  },
+  xverseHeaderRight: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+  },
+  headerIconButton: {
+    width: 36,
+    height: 36,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  headerIcon: {
+    fontSize: 20,
+    fontFamily: 'CabinetGrotesk-Regular',
+  },
+  // Xverse-style balance section
+  xverseBalanceSection: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 20,
+    paddingHorizontal: HORIZONTAL_PADDING,
+  },
+  xverseBalanceLeft: {
+    flex: 1,
+    minWidth: 0,
+  },
+  xverseBalanceLabel: {
+    fontSize: 14,
+    fontFamily: 'CabinetGrotesk-Regular',
+    color: COLORS.MEDIUM_GRAY,
+    marginBottom: 8,
+  },
+  xverseBalanceAmount: {
+    fontSize: 42,
+    fontFamily: 'CabinetGrotesk-Bold',
+    color: COLORS.VERY_LIGHT_GRAY,
+    fontWeight: 'bold',
+    flex: 1,
+  },
+  balanceWithIcon: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    width: '100%',
+  },
+  balanceIcon: {
+    width: 28,
+    height: 28,
+    flexShrink: 0,
+  },
+  balanceDivider: {
+    height: 1,
+    backgroundColor: '#2a2a2a',
+    marginHorizontal: 0,
+    marginBottom: 20,
+  },
+  portfolioButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: COLORS.CARD_BG,
+    paddingVertical: 10,
+    paddingHorizontal: 16,
+    borderRadius: 20,
+    gap: 6,
+  },
+  portfolioIcon: {
+    fontSize: 16,
+    fontFamily: 'CabinetGrotesk-Regular',
+  },
+  portfolioText: {
+    fontSize: 14,
+    fontFamily: 'CabinetGrotesk-Medium',
+    color: COLORS.VERY_LIGHT_GRAY,
+    fontWeight: '500',
+  },
+  // Xverse-style action buttons
+  xverseActionsRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    marginTop: 24,
+    gap: 12,
+    paddingHorizontal: HORIZONTAL_PADDING,
+  },
+  xverseActionButton: {
+    flex: 1,
+    alignItems: 'center',
+    gap: 8,
+  },
+  xverseActionIcon: {
+    width: 60,
+    height: 60,
+    borderRadius: 16,
+    backgroundColor: COLORS.VERY_LIGHT_GRAY,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  xverseActionIconText: {
+    fontSize: 24,
+    fontFamily: 'CabinetGrotesk-Medium',
+    color: COLORS.BLACK,
+    fontWeight: '600',
+  },
+  xverseActionLabel: {
+    fontSize: 13,
+    fontFamily: 'CabinetGrotesk-Medium',
+    color: COLORS.VERY_LIGHT_GRAY,
+    fontWeight: '500',
+  },
   lockedContainer: {
     flex: 1,
-    backgroundColor: COLORS.VERY_LIGHT_GRAY,
+    backgroundColor: '#1A1A1A',
     alignItems: 'center',
-    justifyContent: 'center',
-    padding: 20,
+    justifyContent: 'flex-start',
+    padding: HORIZONTAL_PADDING,
+    paddingTop: HORIZONTAL_PADDING,
   },
   lockIconContainer: {
     alignItems: 'center',
@@ -705,16 +953,19 @@ const styles = StyleSheet.create({
   },
   lockIcon: {
     fontSize: 80,
+    fontFamily: 'CabinetGrotesk-Regular',
     marginBottom: 20,
   },
   lockedText: {
     fontSize: 24,
+    fontFamily: 'CabinetGrotesk-Bold',
     fontWeight: 'bold',
     color: COLORS.DARK_GRAY,
     marginBottom: 10,
   },
   lockedSubtext: {
     fontSize: 14,
+    fontFamily: 'CabinetGrotesk-Bold',
     color: COLORS.MEDIUM_GRAY,
     textAlign: 'center',
   },
@@ -727,6 +978,7 @@ const styles = StyleSheet.create({
   unlockButtonText: {
     color: COLORS.VERY_LIGHT_GRAY,
     fontSize: 16,
+    fontFamily: 'CabinetGrotesk-Bold',
     fontWeight: 'bold',
     textAlign: 'center',
   },
@@ -742,12 +994,14 @@ const styles = StyleSheet.create({
   },
   pinTitle: {
     fontSize: 24,
+    fontFamily: 'CabinetGrotesk-Bold',
     fontWeight: 'bold',
     color: COLORS.DARK_GRAY,
     marginBottom: 10,
   },
   pinSubtext: {
     fontSize: 14,
+    fontFamily: 'CabinetGrotesk-Bold',
     color: COLORS.MEDIUM_GRAY,
     marginBottom: 20,
     textAlign: 'center',
@@ -755,6 +1009,7 @@ const styles = StyleSheet.create({
   },
   pinError: {
     fontSize: 14,
+    fontFamily: 'CabinetGrotesk-Regular',
     color: COLORS.DANGER_RED,
     marginBottom: 20,
     textAlign: 'center',
@@ -794,6 +1049,7 @@ const styles = StyleSheet.create({
   },
   pinKeyText: {
     fontSize: 28,
+    fontFamily: 'CabinetGrotesk-Medium',
     color: COLORS.VERY_LIGHT_GRAY,
     fontWeight: '600',
   },
@@ -803,6 +1059,7 @@ const styles = StyleSheet.create({
   },
   pinCancelText: {
     fontSize: 16,
+    fontFamily: 'CabinetGrotesk-Medium',
     color: COLORS.MEDIUM_GRAY,
     fontWeight: '600',
   },
@@ -820,6 +1077,7 @@ const styles = StyleSheet.create({
   },
   settingsIcon: {
     fontSize: 20,
+    fontFamily: 'CabinetGrotesk-Regular',
   },
   settingsModal: {
     backgroundColor: COLORS.CARD_BG,
@@ -838,11 +1096,13 @@ const styles = StyleSheet.create({
   },
   settingsTitle: {
     fontSize: 20,
+    fontFamily: 'CabinetGrotesk-Bold',
     fontWeight: 'bold',
     color: COLORS.VERY_LIGHT_GRAY,
   },
   closeButton: {
     fontSize: 24,
+    fontFamily: 'CabinetGrotesk-Bold',
     color: COLORS.MEDIUM_GRAY,
     fontWeight: '300',
   },
@@ -855,20 +1115,24 @@ const styles = StyleSheet.create({
   },
   settingsOptionIcon: {
     fontSize: 22,
+    fontFamily: 'CabinetGrotesk-Regular',
     marginRight: 15,
     width: 30,
   },
   settingsOptionText: {
     flex: 1,
     fontSize: 16,
+    fontFamily: 'CabinetGrotesk-Regular',
     color: COLORS.VERY_LIGHT_GRAY,
   },
   settingsOptionArrow: {
     fontSize: 20,
+    fontFamily: 'CabinetGrotesk-Regular',
     color: COLORS.LIGHT_GRAY,
   },
   settingsToggle: {
     fontSize: 14,
+    fontFamily: 'CabinetGrotesk-Medium',
     fontWeight: '600',
     color: COLORS.MEDIUM_GRAY,
     paddingHorizontal: 12,
@@ -892,6 +1156,7 @@ const styles = StyleSheet.create({
   },
   seedPhraseTitle: {
     fontSize: 24,
+    fontFamily: 'CabinetGrotesk-Bold',
     fontWeight: 'bold',
     color: COLORS.DARK_GRAY,
     textAlign: 'center',
@@ -899,6 +1164,7 @@ const styles = StyleSheet.create({
   },
   seedPhraseWarning: {
     fontSize: 14,
+    fontFamily: 'CabinetGrotesk-Regular',
     color: COLORS.DANGER_RED,
     backgroundColor: COLORS.PINK_WHITE,
     padding: 15,
@@ -927,6 +1193,7 @@ const styles = StyleSheet.create({
     borderWidth: 2,
     borderColor: COLORS.PRIMARY_BLUE,
     fontSize: 14,
+    fontFamily: 'CabinetGrotesk-Regular',
     marginBottom: 20,
   },
   reviewSection: {
@@ -942,28 +1209,33 @@ const styles = StyleSheet.create({
   },
   reviewLabel: {
     fontSize: 13,
+    fontFamily: 'CabinetGrotesk-Regular',
     color: COLORS.MEDIUM_GRAY,
     marginBottom: 5,
   },
   reviewLabelTotal: {
     fontSize: 16,
+    fontFamily: 'CabinetGrotesk-Bold',
     color: COLORS.VERY_LIGHT_GRAY,
     fontWeight: 'bold',
     marginBottom: 5,
   },
   reviewValue: {
     fontSize: 18,
+    fontFamily: 'CabinetGrotesk-Bold',
     color: COLORS.VERY_LIGHT_GRAY,
     fontWeight: '600',
     marginBottom: 3,
   },
   reviewValueTotal: {
     fontSize: 22,
+    fontFamily: 'CabinetGrotesk-Medium',
     color: COLORS.PRIMARY_BLUE,
     fontWeight: 'bold',
   },
   reviewSubtext: {
     fontSize: 12,
+    fontFamily: 'CabinetGrotesk-Bold',
     color: COLORS.MEDIUM_GRAY,
   },
   reviewAddressSmall: {
@@ -1013,6 +1285,7 @@ const styles = StyleSheet.create({
   },
   bottomSheetTitle: {
     fontSize: 22,
+    fontFamily: 'CabinetGrotesk-Bold',
     fontWeight: 'bold',
     color: COLORS.VERY_LIGHT_GRAY,
     marginBottom: 25,
@@ -1036,16 +1309,19 @@ const styles = StyleSheet.create({
   },
   assetOptionTitle: {
     fontSize: 18,
+    fontFamily: 'CabinetGrotesk-Medium',
     fontWeight: '600',
     color: COLORS.VERY_LIGHT_GRAY,
     marginBottom: 3,
   },
   assetOptionSubtitle: {
     fontSize: 13,
+    fontFamily: 'CabinetGrotesk-Medium',
     color: COLORS.MEDIUM_GRAY,
   },
   assetOptionArrow: {
     fontSize: 24,
+    fontFamily: 'CabinetGrotesk-Regular',
     color: COLORS.MEDIUM_GRAY,
   },
   // Amount input bottom sheet styles
@@ -1056,11 +1332,13 @@ const styles = StyleSheet.create({
   },
   bottomSheetBackArrow: {
     fontSize: 24,
+    fontFamily: 'CabinetGrotesk-Regular',
     color: COLORS.PRIMARY_BLUE,
     marginRight: 5,
   },
   bottomSheetBackText: {
     fontSize: 16,
+    fontFamily: 'CabinetGrotesk-Regular',
     color: COLORS.PRIMARY_BLUE,
   },
   amountInputContainer: {
@@ -1084,12 +1362,14 @@ const styles = StyleSheet.create({
   },
   amountInput: {
     fontSize: 48,
+    fontFamily: 'CabinetGrotesk-Bold',
     fontWeight: 'bold',
     color: COLORS.VERY_LIGHT_GRAY,
     minWidth: 100,
   },
   amountInputLabel: {
     fontSize: 18,
+    fontFamily: 'CabinetGrotesk-Bold',
     color: COLORS.MEDIUM_GRAY,
     marginBottom: 40,
   },
@@ -1106,18 +1386,21 @@ const styles = StyleSheet.create({
   amountContinueButtonText: {
     color: COLORS.WHITE,
     fontSize: 18,
+    fontFamily: 'CabinetGrotesk-Medium',
     fontWeight: '600',
     textAlign: 'center',
   },
   // Address input styles
   addressInputTitle: {
     fontSize: 18,
+    fontFamily: 'CabinetGrotesk-Medium',
     color: COLORS.VERY_LIGHT_GRAY,
     marginBottom: 20,
     textAlign: 'center',
   },
   addressInputTitleLeft: {
     fontSize: 14,
+    fontFamily: 'CabinetGrotesk-Regular',
     color: COLORS.VERY_LIGHT_GRAY,
     marginBottom: 4,
     textAlign: 'left',
@@ -1135,6 +1418,7 @@ const styles = StyleSheet.create({
     backgroundColor: COLORS.DARK_BG,
     color: COLORS.VERY_LIGHT_GRAY,
     fontSize: 12,
+    fontFamily: 'CabinetGrotesk-Regular',
     padding: 16,
     borderRadius: 12,
     borderWidth: 2,
@@ -1152,11 +1436,13 @@ const styles = StyleSheet.create({
   pasteButtonText: {
     color: COLORS.VERY_LIGHT_GRAY,
     fontSize: 14,
+    fontFamily: 'CabinetGrotesk-Medium',
     fontWeight: '600',
   },
   addressError: {
     color: '#ff4444',
     fontSize: 12,
+    fontFamily: 'CabinetGrotesk-Medium',
     textAlign: 'left',
     marginBottom: 4,
   },
@@ -1190,10 +1476,12 @@ const styles = StyleSheet.create({
   },
   sendToLabel: {
     fontSize: 14,
+    fontFamily: 'CabinetGrotesk-Regular',
     color: COLORS.MEDIUM_GRAY,
   },
   sendToAddress: {
     fontSize: 14,
+    fontFamily: 'CabinetGrotesk-Medium',
     color: COLORS.VERY_LIGHT_GRAY,
     fontWeight: '500',
   },
@@ -1205,6 +1493,7 @@ const styles = StyleSheet.create({
   },
   addressTypeText: {
     fontSize: 12,
+    fontFamily: 'CabinetGrotesk-Regular',
     color: COLORS.MEDIUM_GRAY,
   },
   // Amount Balance Row
@@ -1217,6 +1506,7 @@ const styles = StyleSheet.create({
   },
   amountBalanceLabel: {
     fontSize: 14,
+    fontFamily: 'CabinetGrotesk-Regular',
     color: COLORS.MEDIUM_GRAY,
   },
   maxButton: {
@@ -1229,12 +1519,14 @@ const styles = StyleSheet.create({
   },
   maxButtonText: {
     fontSize: 12,
+    fontFamily: 'CabinetGrotesk-Medium',
     color: COLORS.PRIMARY_BLUE,
     fontWeight: '600',
   },
   // Amount Input Large
   amountInputLarge: {
     fontSize: 56,
+    fontFamily: 'CabinetGrotesk-Medium',
     fontWeight: 'bold',
     color: COLORS.VERY_LIGHT_GRAY,
     flex: 1,
@@ -1246,6 +1538,7 @@ const styles = StyleSheet.create({
   },
   amountUsdValue: {
     fontSize: 18,
+    fontFamily: 'CabinetGrotesk-Regular',
     color: COLORS.MEDIUM_GRAY,
     marginTop: 8,
     marginBottom: 40,
@@ -1253,6 +1546,7 @@ const styles = StyleSheet.create({
   // Review bottom sheet styles
   reviewTitle: {
     fontSize: 20,
+    fontFamily: 'CabinetGrotesk-Medium',
     fontWeight: '600',
     color: COLORS.VERY_LIGHT_GRAY,
     marginBottom: 30,
@@ -1260,6 +1554,7 @@ const styles = StyleSheet.create({
   },
   reviewLabel: {
     fontSize: 13,
+    fontFamily: 'CabinetGrotesk-Regular',
     color: COLORS.LIGHT_MEDIUM_GRAY,
     marginTop: 20,
     marginBottom: 6,
@@ -1267,6 +1562,7 @@ const styles = StyleSheet.create({
   },
   reviewValue: {
     fontSize: 16,
+    fontFamily: 'CabinetGrotesk-Medium',
     color: COLORS.VERY_LIGHT_GRAY,
     fontWeight: '500',
     textAlign: 'center',
@@ -1274,6 +1570,7 @@ const styles = StyleSheet.create({
   },
   reviewAmountLarge: {
     fontSize: 42,
+    fontFamily: 'CabinetGrotesk-Medium',
     fontWeight: 'bold',
     color: COLORS.VERY_LIGHT_GRAY,
     textAlign: 'center',
@@ -1281,12 +1578,14 @@ const styles = StyleSheet.create({
   },
   reviewAmountSats: {
     fontSize: 14,
+    fontFamily: 'CabinetGrotesk-Regular',
     color: COLORS.MEDIUM_GRAY,
     textAlign: 'center',
     marginBottom: 10,
   },
   reviewTotal: {
     fontSize: 20,
+    fontFamily: 'CabinetGrotesk-Bold',
     fontWeight: 'bold',
     color: COLORS.PRIMARY_BLUE,
     textAlign: 'center',
@@ -1302,6 +1601,7 @@ const styles = StyleSheet.create({
   },
   successCloseText: {
     fontSize: 28,
+    fontFamily: 'CabinetGrotesk-Regular',
     color: COLORS.MEDIUM_GRAY,
     fontWeight: '300',
   },
@@ -1321,11 +1621,13 @@ const styles = StyleSheet.create({
   },
   successCheckmarkText: {
     fontSize: 40,
+    fontFamily: 'CabinetGrotesk-Bold',
     color: COLORS.LIGHT_GREEN,
     fontWeight: 'bold',
   },
   successTitle: {
     fontSize: 24,
+    fontFamily: 'CabinetGrotesk-Bold',
     fontWeight: 'bold',
     color: COLORS.VERY_LIGHT_GRAY,
     marginBottom: 30,
@@ -1342,14 +1644,17 @@ const styles = StyleSheet.create({
   // Lock Screen Styles
   lockScreen: {
     flex: 1,
-    backgroundColor: COLORS.BLACK,
+    backgroundColor: '#1A1A1A',
     alignItems: 'center',
-    justifyContent: 'center',
-    paddingHorizontal: 20,
+    justifyContent: 'flex-start',
+    paddingHorizontal: 0,
+    paddingTop: 0,
   },
   lockIconArea: {
-    marginBottom: 30,
+    flex: 1,
+    justifyContent: 'center',
     alignItems: 'center',
+    marginBottom: 30,
   },
   lockPasswordIcon: {
     position: 'relative',
@@ -1358,6 +1663,7 @@ const styles = StyleSheet.create({
   },
   lockPasswordText: {
     fontSize: 32,
+    fontFamily: 'CabinetGrotesk-Bold',
     color: COLORS.WHITE,
     fontWeight: 'bold',
     letterSpacing: 8,
@@ -1365,47 +1671,57 @@ const styles = StyleSheet.create({
   },
   lockPadlock: {
     fontSize: 40,
+    fontFamily: 'CabinetGrotesk-Bold',
     position: 'absolute',
     right: -25,
     top: -5,
   },
   lockTitle: {
     fontSize: 18,
+    fontFamily: 'CabinetGrotesk-Regular',
     color: COLORS.WHITE,
     marginBottom: 30,
+    marginTop: 80,
     textAlign: 'center',
+    paddingHorizontal: HORIZONTAL_PADDING,
   },
   faceIdButton: {
     flexDirection: 'row',
     alignItems: 'center',
     backgroundColor: 'transparent',
-    paddingHorizontal: 20,
+    paddingHorizontal: HORIZONTAL_PADDING,
     paddingVertical: 10,
     borderRadius: 20,
     marginBottom: 40,
+    marginHorizontal: HORIZONTAL_PADDING,
   },
   faceIdText: {
     fontSize: 18,
+    fontFamily: 'CabinetGrotesk-Medium',
     color: COLORS.PRIMARY_BLUE,
     fontWeight: '500',
     marginRight: 8,
   },
   faceIdArrow: {
     fontSize: 18,
+    fontFamily: 'CabinetGrotesk-Medium',
     color: COLORS.PRIMARY_BLUE,
     fontWeight: 'bold',
   },
   lockPinError: {
     color: COLORS.BRIGHT_RED,
     fontSize: 14,
+    fontFamily: 'CabinetGrotesk-Bold',
     marginBottom: 20,
     textAlign: 'center',
+    paddingHorizontal: HORIZONTAL_PADDING,
   },
   lockPinDots: {
     flexDirection: 'row',
     justifyContent: 'center',
     marginBottom: 50,
     gap: 15,
+    paddingHorizontal: HORIZONTAL_PADDING,
   },
   lockPinDot: {
     width: 14,
@@ -1419,6 +1735,8 @@ const styles = StyleSheet.create({
   lockKeypad: {
     width: '100%',
     maxWidth: 350,
+    marginBottom: 80,
+    paddingHorizontal: HORIZONTAL_PADDING,
   },
   lockKeypadRow: {
     flexDirection: 'row',
@@ -1436,11 +1754,13 @@ const styles = StyleSheet.create({
   },
   lockKeyText: {
     fontSize: 32,
+    fontFamily: 'CabinetGrotesk-Regular',
     color: COLORS.WHITE,
     fontWeight: '300',
   },
   lockKeyDelete: {
     fontSize: 28,
+    fontFamily: 'CabinetGrotesk-Regular',
     color: COLORS.WHITE,
     fontWeight: '300',
   },
@@ -1454,6 +1774,7 @@ const styles = StyleSheet.create({
   },
   biometricPromptTitle: {
     fontSize: 22,
+    fontFamily: 'CabinetGrotesk-Bold',
     fontWeight: 'bold',
     color: COLORS.VERY_LIGHT_GRAY,
     marginBottom: 15,
@@ -1461,6 +1782,7 @@ const styles = StyleSheet.create({
   },
   biometricPromptText: {
     fontSize: 16,
+    fontFamily: 'CabinetGrotesk-Regular',
     color: COLORS.VERY_LIGHT_GRAY,
     marginBottom: 25,
     textAlign: 'center',
@@ -1483,11 +1805,13 @@ const styles = StyleSheet.create({
   },
   biometricPromptButtonText: {
     fontSize: 16,
+    fontFamily: 'CabinetGrotesk-Medium',
     fontWeight: '600',
     color: COLORS.WHITE,
   },
   biometricPromptButtonTextNo: {
     fontSize: 16,
+    fontFamily: 'CabinetGrotesk-Medium',
     fontWeight: '600',
     color: COLORS.DARK_GRAY,
   },
