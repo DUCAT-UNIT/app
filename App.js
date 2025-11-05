@@ -40,6 +40,9 @@ import LockScreen from './components/LockScreen';
 import SettingsScreen from './components/SettingsScreen';
 import SendScreen from './components/SendScreen';
 
+// Import contexts
+import { useWallet } from './contexts/WalletContext';
+
 // Initialize BIP32
 const bip32 = BIP32Factory(ecc);
 
@@ -47,7 +50,35 @@ const bip32 = BIP32Factory(ecc);
 bitcoin.initEccLib(ecc);
 
 export default function App() {
-  const [wallet, setWallet] = useState(null); // Only stores public addresses
+  // Wallet context
+  const {
+    wallet,
+    currentAccount,
+    segwitBalance,
+    taprootBalance,
+    runesBalance,
+    loadingBalance,
+    refreshing,
+    btcPrice,
+    loadingBtcPrice,
+    utxos,
+    loadingUtxos,
+    showTotalInBTC,
+    setShowTotalInBTC,
+    showBTCInBTC,
+    setShowBTCInBTC,
+    showUnitInUnit,
+    setShowUnitInUnit,
+    fetchBalance,
+    onRefresh,
+    fetchUtxos,
+    loadWallet,
+    setWalletAddresses,
+    switchAccount: switchAccountContext,
+    resetWallet,
+  } = useWallet();
+
+  // Onboarding and auth state
   const [tempMnemonicWords, setTempMnemonicWords] = useState([]); // Temporary for seed verification flow
   const [showingIntro, setShowingIntro] = useState(false);
   const [showingSeeds, setShowingSeeds] = useState(false);
@@ -56,23 +87,12 @@ export default function App() {
   const [importingWallet, setImportingWallet] = useState(false);
   const [importSeedPhrase, setImportSeedPhrase] = useState(Array(12).fill(''));
   const seedInputRefs = useRef([]);
-  const [segwitBalance, setSegwitBalance] = useState(0);
-  const [taprootBalance, setTaprootBalance] = useState(0);
-  const [runesBalance, setRunesBalance] = useState([]);
-  const [loadingBalance, setLoadingBalance] = useState(false);
-  const [refreshing, setRefreshing] = useState(false);
   const [verificationWords, setVerificationWords] = useState({});
   const [requiredIndices, setRequiredIndices] = useState([]);
   const [wordChoices, setWordChoices] = useState({});
-  const [currentAccount, setCurrentAccount] = useState(0); // Account index for HD derivation
   const [showAccountPicker, setShowAccountPicker] = useState(false);
   const [newAccountIndex, setNewAccountIndex] = useState('');
   const [switchingAccount, setSwitchingAccount] = useState(false);
-  const [showTotalInBTC, setShowTotalInBTC] = useState(true);
-  const [showBTCInBTC, setShowBTCInBTC] = useState(true);
-  const [showUnitInUnit, setShowUnitInUnit] = useState(true);
-  const [btcPrice, setBtcPrice] = useState(null);
-  const [loadingBtcPrice, setLoadingBtcPrice] = useState(false);
   const [isAuthenticated, setIsAuthenticated] = useState(false); // Biometric auth status
   const [isBiometricSupported, setIsBiometricSupported] = useState(false);
   const [settingUpPin, setSettingUpPin] = useState(false); // PIN setup flow
@@ -101,8 +121,6 @@ export default function App() {
   const [sendRecipient, setSendRecipient] = useState('');
   const [sendAddressType, setSendAddressType] = useState('taproot'); // 'segwit' | 'taproot'
   const [broadcastedTxid, setBroadcastedTxid] = useState(null); // TXID of broadcasted transaction
-  const [utxos, setUtxos] = useState([]); // Available UTXOs for spending
-  const [loadingUtxos, setLoadingUtxos] = useState(false);
   const [keyboardHeight, setKeyboardHeight] = useState(0);
 
   const appState = useRef(AppState.currentState);
@@ -122,28 +140,6 @@ export default function App() {
     console.log('intentStep changed to:', intentStep, 'sendIntent:', sendIntent?.id, 'wallet:', !!wallet, 'seedConfirmed:', seedConfirmed);
   }, [intentStep, sendIntent]);
 
-  const fetchBtcPrice = async () => {
-    try {
-      setLoadingBtcPrice(true);
-      const price = await fetchBtcPriceService();
-      setBtcPrice(price);
-    } catch (error) {
-      console.error('Failed to fetch BTC price:', error);
-      setBtcPrice(null);
-    } finally {
-      setLoadingBtcPrice(false);
-    }
-  };
-
-  useEffect(() => {
-    // Fetch BTC price on mount
-    fetchBtcPrice();
-
-    // Refresh BTC price every 60 seconds
-    const interval = setInterval(fetchBtcPrice, 60000);
-
-    return () => clearInterval(interval);
-  }, []);
 
   // Keyboard listeners for bottom sheet
   useEffect(() => {
@@ -168,44 +164,36 @@ export default function App() {
 
   // Load wallet from secure storage on app start
   useEffect(() => {
-    const loadWallet = async () => {
+    const initializeWallet = async () => {
       try {
-        // Load wallet and biometric preference from storage
-        const { mnemonic, accountIndex } = await WalletService.loadWalletFromStorage();
+        // Load biometric preference from storage
         const biometricPref = await SecureStore.getItemAsync(SECURE_KEYS.BIOMETRIC_ENABLED);
         setBiometricEnabled(biometricPref === 'true');
 
-        if (mnemonic) {
-          // Wallet exists in secure storage, load it
-          const addresses = deriveAddressesFromMnemonic(mnemonic, accountIndex);
+        // Load wallet using context (handles addresses and balances)
+        const result = await loadWallet();
 
-          setWallet({
-            segwitAddress: addresses.segwitAddress,
-            taprootAddress: addresses.taprootAddress,
-          });
-          setCurrentAccount(accountIndex);
+        if (result.exists) {
+          // Wallet exists - set up auth flow
           setSeedConfirmed(true);
           walletExists.current = true;
-
-          // Wallet loaded - will show locked screen until user authenticates
-          setIsAuthenticated(false);
-
-          // Fetch balances (will load in background while locked)
-          fetchBalance(addresses.segwitAddress, addresses.taprootAddress);
+          setIsAuthenticated(false); // Show locked screen
         } else {
-          // No wallet exists, allow access to create/import screen
+          // No wallet exists - allow access to create/import screen
           walletExists.current = false;
           setIsAuthenticated(true);
         }
       } catch (error) {
+        console.error('Failed to initialize wallet:', error);
       } finally {
         // Hide loading screen after a brief delay to show the logo
         setTimeout(() => setIsLoading(false), 1500);
       }
     };
 
-    loadWallet();
-  }, []);
+    initializeWallet();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []); // Only run once on mount
 
   // Load privacy mode setting on mount
   useEffect(() => {
@@ -396,13 +384,10 @@ export default function App() {
             try {
               const success = await AuthService.deleteWalletData();
               if (success) {
-                setWallet(null);
+                resetWallet(); // Reset context wallet state
                 walletExists.current = false;
                 setIsAuthenticated(false);
                 setShowSettings(false);
-                setSegwitBalance(null);
-                setTaprootBalance(null);
-                setRunesBalance([]);
                 setBiometricEnabled(false); // Reset biometric preference
                 setShowFaceIdButton(true); // Reset FaceID button visibility
 
@@ -461,50 +446,6 @@ export default function App() {
     }
   };
 
-  const fetchBalance = async (segwitAddr, taprootAddr) => {
-    // If addresses are provided, use them; otherwise use wallet state
-    const segwitAddress = segwitAddr || wallet?.segwitAddress;
-    const taprootAddress = taprootAddr || wallet?.taprootAddress;
-
-    if (!segwitAddress || !taprootAddress) return;
-
-    try {
-      setLoadingBalance(true);
-      const balances = await fetchWalletBalances(segwitAddress, taprootAddress);
-      setSegwitBalance(balances.segwitBalance);
-      setTaprootBalance(balances.taprootBalance);
-      setRunesBalance(balances.runesBalance);
-    } catch (error) {
-      console.error('Balance fetch error:', error);
-      setSegwitBalance(0);
-      setTaprootBalance(0);
-      setRunesBalance([]);
-    } finally {
-      setLoadingBalance(false);
-    }
-  };
-
-  const onRefresh = async () => {
-    setRefreshing(true);
-    await fetchBalance();
-    setRefreshing(false);
-  };
-
-  // Fetch UTXOs for transaction creation
-  const fetchUtxos = async (address) => {
-    try {
-      setLoadingUtxos(true);
-      const formattedUtxos = await fetchUtxosService(address);
-      setUtxos(formattedUtxos);
-      return formattedUtxos;
-    } catch (error) {
-      console.error('Failed to fetch UTXOs:', error);
-      Alert.alert('Error', 'Failed to fetch UTXOs: ' + error.message);
-      return [];
-    } finally {
-      setLoadingUtxos(false);
-    }
-  };
 
   // Create an unsigned PSBT for the transaction
   const createSendIntent = async () => {
@@ -668,32 +609,12 @@ export default function App() {
       // Wallet created, user authenticated to see seed phrase
       setIsAuthenticated(true);
 
-      // Store ONLY public addresses in state
-      setWallet({
-        segwitAddress: addresses.segwitAddress,
-        taprootAddress: addresses.taprootAddress,
-      });
+      // Store addresses in context and fetch balances
+      setWalletAddresses(addresses, 0);
       walletExists.current = true;
 
       // Temporarily store mnemonic words for verification flow only
       setTempMnemonicWords(mnemonic.split(' '));
-
-      // Pre-fetch RUNES balance from Taproot address
-      try {
-        const runesResponse = await fetch(`https://ord-mutinynet.ducatprotocol.com/address/${addresses.taprootAddress}`, {
-          headers: {
-            'Accept': 'application/json'
-          }
-        });
-        const runesData = await runesResponse.json();
-        setRunesBalance(runesData.runes_balances || []);
-      } catch (error) {
-        setRunesBalance([]);
-      }
-
-      // State was already set above before wallet creation
-      setSegwitBalance(null);
-      setTaprootBalance(null);
     } catch (error) {
       Alert.alert('Error', error.message);
     }
@@ -718,15 +639,9 @@ export default function App() {
       setShowingSeeds(false);
       setVerifyingSeeds(false);
 
-      // Store ONLY public addresses in state
-      setWallet({
-        segwitAddress: addresses.segwitAddress,
-        taprootAddress: addresses.taprootAddress,
-      });
+      // Store addresses in context and fetch balances
+      setWalletAddresses(addresses, currentAccount);
       walletExists.current = true;
-
-      // Fetch all balances using BalanceService
-      await fetchBalance(addresses.segwitAddress, addresses.taprootAddress);
 
       // Skip seed verification for imported wallets
       // settingUpPin and other setup states were already set above
@@ -825,7 +740,7 @@ export default function App() {
     Alert.alert('Copied!', 'Address copied to clipboard');
   };
 
-  const resetWallet = async () => {
+  const resetWalletAndState = async () => {
     // Clear secure storage
     await SecureStore.deleteItemAsync(SECURE_KEYS.MNEMONIC);
     await SecureStore.deleteItemAsync(SECURE_KEYS.CURRENT_ACCOUNT);
@@ -835,18 +750,14 @@ export default function App() {
     setTimeout(() => setTempMnemonicWords([]), 100);
 
     // Clear state
-    setWallet(null);
+    resetWallet(); // Reset context wallet state
     walletExists.current = false;
     setShowingSeeds(false);
     setVerifyingSeeds(false);
     setSeedConfirmed(false);
-    setSegwitBalance(null);
-    setTaprootBalance(null);
-    setRunesBalance([]);
     setVerificationWords({});
     setRequiredIndices([]);
     setWordChoices({});
-    setCurrentAccount(0);
   };
 
   const switchAccount = async () => {
@@ -862,25 +773,14 @@ export default function App() {
     try {
       setSwitchingAccount(true);
 
-      // Switch to new account using WalletService
-      const { addresses } = await WalletService.switchToAccount(accountIndex);
-
-      // Update wallet with only public addresses
-      setWallet({
-        segwitAddress: addresses.segwitAddress,
-        taprootAddress: addresses.taprootAddress,
-      });
-
-      // Update current account in state
-      setCurrentAccount(accountIndex);
+      // Switch account using context
+      await switchAccountContext(accountIndex);
 
       setShowAccountPicker(false);
       setNewAccountIndex('');
-
-      // Fetch all balances using the new addresses directly
-      await fetchBalance(addresses.segwitAddress, addresses.taprootAddress);
     } catch (error) {
-      Alert.alert('Error', 'Failed to switch account');
+      console.error('Switch account error:', error);
+      Alert.alert('Error', `Failed to switch account: ${error.message}`);
     } finally {
       setSwitchingAccount(false);
     }
@@ -1142,7 +1042,7 @@ export default function App() {
           setShowingSeeds={setShowingSeeds}
           createWallet={createWallet}
           importWallet={importWallet}
-          resetWallet={resetWallet}
+          resetWallet={resetWalletAndState}
           proceedToVerification={proceedToVerification}
           verifySeeds={verifySeeds}
         />
