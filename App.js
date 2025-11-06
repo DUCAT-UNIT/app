@@ -51,6 +51,7 @@ import { useWallet } from './contexts/WalletContext';
 // Import hooks
 import { useToast } from './hooks/useToast';
 import { useAppLifecycle } from './hooks/useAppLifecycle';
+import { useAuth } from './hooks/useAuth';
 
 // Initialize BIP32
 const bip32 = BIP32Factory(ecc);
@@ -114,26 +115,14 @@ export default function App() {
   const [showAccountPicker, setShowAccountPicker] = useState(false);
   const [newAccountIndex, setNewAccountIndex] = useState('');
   const [switchingAccount, setSwitchingAccount] = useState(false);
-  const [isAuthenticated, setIsAuthenticated] = useState(false); // Biometric auth status
-  const [isBiometricSupported, setIsBiometricSupported] = useState(false);
-  const [settingUpPin, setSettingUpPin] = useState(false); // PIN setup flow
   const [isImportedWallet, setIsImportedWallet] = useState(false); // Track if wallet was imported
-  const [pin, setPin] = useState(''); // Current PIN entry
-  const [confirmPin, setConfirmPin] = useState(''); // PIN confirmation
-  const [showPinEntry, setShowPinEntry] = useState(false); // Show PIN entry screen
-  const [pinError, setPinError] = useState(''); // PIN error message
-  const [pinStep, setPinStep] = useState('enter'); // 'enter' or 'confirm'
   const [showSettings, setShowSettings] = useState(false); // Settings modal
   const [showReceiveSheet, setShowReceiveSheet] = useState(false); // Receive bottom sheet
   const [viewingSeedPhrase, setViewingSeedPhrase] = useState(false); // Viewing seed phrase
   const [seedPhraseWords, setSeedPhraseWords] = useState([]); // Seed phrase from keychain
-  const [changingPin, setChangingPin] = useState(false); // Changing PIN flow
   const [seedPhraseVisible, setSeedPhraseVisible] = useState(false); // Show/hide seed words
   const [privacyMode, setPrivacyMode] = useState(true); // Privacy mode (screenshot blocking)
   const [isLoading, setIsLoading] = useState(true); // Initial loading state
-  const [showBiometricPrompt, setShowBiometricPrompt] = useState(false); // Show biometric setup prompt
-  const [showFaceIdButton, setShowFaceIdButton] = useState(true); // Show FaceID button on lock screen
-  const [biometricEnabled, setBiometricEnabled] = useState(false); // Track if user has enabled biometric auth
 
   // Transaction intent state
   const [sendIntent, setSendIntent] = useState(null); // Current send transaction intent
@@ -151,6 +140,38 @@ export default function App() {
 
   // Toast notification hook
   const { showToast, toastMessage, toastVisible } = useToast();
+
+  // Auth hook - handles authentication, biometrics, PIN
+  const {
+    isAuthenticated,
+    isBiometricSupported,
+    biometricEnabled,
+    showBiometricPrompt,
+    showFaceIdButton,
+    settingUpPin,
+    changingPin,
+    showPinEntry,
+    pin,
+    confirmPin,
+    pinError,
+    pinStep,
+    setIsAuthenticated,
+    setBiometricEnabled,
+    setShowBiometricPrompt,
+    setShowFaceIdButton,
+    setShowPinEntry,
+    setPin,
+    setConfirmPin,
+    setPinError,
+    setPinStep,
+    authenticateUser,
+    handlePinSetupComplete,
+    handlePinChangeComplete,
+    handleLockScreenAuthenticated,
+    loadBiometricPreference,
+    resetAuth,
+    startPinChange,
+  } = useAuth({ onSeedConfirmed: setSeedConfirmed });
 
   // App lifecycle hook - handles screen capture, app state, and inactivity
   const { resetInactivityTimer } = useAppLifecycle({
@@ -207,8 +228,7 @@ export default function App() {
     const initializeWallet = async () => {
       try {
         // Load biometric preference from storage
-        const biometricPref = await SecureStore.getItemAsync(SECURE_KEYS.BIOMETRIC_ENABLED);
-        setBiometricEnabled(biometricPref === 'true');
+        await loadBiometricPreference();
 
         // Load wallet using context (handles addresses and balances)
         const result = await loadWallet();
@@ -248,16 +268,6 @@ export default function App() {
       }
     };
     loadPrivacyMode();
-  }, []);
-
-  // Check biometric support on app start
-  useEffect(() => {
-    const checkBiometricSupport = async () => {
-      const compatible = await LocalAuthentication.hasHardwareAsync();
-      setIsBiometricSupported(compatible);
-    };
-
-    checkBiometricSupport();
   }, []);
 
   // Create pan responders for swipe gestures
@@ -329,46 +339,6 @@ export default function App() {
     });
   }
 
-
-  const authenticateUser = async () => {
-    try {
-      console.log('FaceID button clicked');
-
-      // Check if user has already enabled biometric auth
-      if (biometricEnabled) {
-        // User has previously enabled biometrics, trigger it directly
-        const result = await LocalAuthentication.authenticateAsync({
-          promptMessage: 'Authenticate to access your wallet',
-          fallbackLabel: 'Use PIN',
-          disableDeviceFallback: false,
-        });
-
-        if (result.success) {
-          if (changingPin) {
-            // User authenticated to change PIN, proceed to PIN setup
-            setSettingUpPin(true);
-            setPinStep('enter');
-            setPin('');
-            setConfirmPin('');
-            setPinError('');
-            // Stay authenticated but in PIN setup mode
-            setIsAuthenticated(true);
-          } else {
-            // Normal unlock
-            setIsAuthenticated(true);
-          }
-        }
-      } else {
-        // User hasn't enabled biometrics yet, show modal to ask
-        console.log('Showing biometric prompt modal');
-        setShowBiometricPrompt(true);
-      }
-    } catch (error) {
-      console.log('Error in authenticateUser:', error);
-      setShowBiometricPrompt(true);
-    }
-  };
-
   const handleLogout = () => {
     Alert.alert(
       'Logout',
@@ -402,10 +372,8 @@ export default function App() {
               if (success) {
                 resetWallet(); // Reset context wallet state
                 walletExists.current = false;
-                setIsAuthenticated(false);
+                resetAuth(); // Reset all auth state
                 setShowSettings(false);
-                setBiometricEnabled(false); // Reset biometric preference
-                setShowFaceIdButton(true); // Reset FaceID button visibility
 
                 Alert.alert('Success', 'Wallet has been deleted from this device.');
               } else {
@@ -449,8 +417,7 @@ export default function App() {
   const handleChangePin = () => {
     // Close settings and show lock screen to verify current PIN
     setShowSettings(false);
-    setChangingPin(true);
-    setIsAuthenticated(false);
+    startPinChange();
   };
 
   const handlePrivacyModeToggle = async () => {
@@ -797,40 +764,16 @@ export default function App() {
     }
   };
 
-  // PIN setup completion callbacks
-  const handlePinSetupComplete = () => {
-    // Initial wallet creation or import - authenticate to prevent lock screen flash
-    setIsAuthenticated(true);
-    setSeedConfirmed(true);
-    setSettingUpPin(false);
+  // PIN setup completion callback wrapper (adds isImportedWallet reset)
+  const handlePinSetupCompleteWrapper = () => {
+    handlePinSetupComplete();
     setIsImportedWallet(false);
   };
 
-  const handlePinChangeComplete = () => {
-    // Just changing PIN, not creating wallet
-    setSettingUpPin(false);
-    setChangingPin(false);
+  // PIN change completion callback wrapper (adds isImportedWallet reset)
+  const handlePinChangeCompleteWrapper = () => {
+    handlePinChangeComplete();
     setIsImportedWallet(false);
-  };
-
-  // Lock screen authentication callback
-  const handleLockScreenAuthenticated = () => {
-    if (changingPin) {
-      // User authenticated to change PIN, proceed to PIN setup
-      setSettingUpPin(true);
-      setPinStep('enter');
-      setPin('');
-      setConfirmPin('');
-      setPinError('');
-      // Stay authenticated but in PIN setup mode
-      setIsAuthenticated(true);
-    } else {
-      // Normal unlock
-      setIsAuthenticated(true);
-      setShowPinEntry(false);
-      // Restore FaceID button for next time
-      setShowFaceIdButton(true);
-    }
   };
 
   // Wait for fonts to load
@@ -865,8 +808,8 @@ export default function App() {
         <PinSetupScreen
           changingPin={changingPin}
           isBiometricSupported={isBiometricSupported}
-          onPinSetupComplete={handlePinSetupComplete}
-          onPinChangeComplete={handlePinChangeComplete}
+          onPinSetupComplete={handlePinSetupCompleteWrapper}
+          onPinChangeComplete={handlePinChangeCompleteWrapper}
           fetchBalance={fetchBalance}
           showToast={showToast}
         />

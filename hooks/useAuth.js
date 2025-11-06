@@ -1,0 +1,189 @@
+/**
+ * useAuth Hook
+ * Manages authentication state and flows including:
+ * - Biometric authentication (FaceID/TouchID)
+ * - PIN setup and verification
+ * - Lock/unlock state
+ * - Authentication callbacks
+ */
+
+import { useState, useEffect } from 'react';
+import * as LocalAuthentication from 'expo-local-authentication';
+import * as SecureStore from 'expo-secure-store';
+import { SECURE_KEYS } from '../utils/constants';
+
+export function useAuth({ onSeedConfirmed }) {
+  // Authentication state
+  const [isAuthenticated, setIsAuthenticated] = useState(false);
+  const [isBiometricSupported, setIsBiometricSupported] = useState(false);
+  const [biometricEnabled, setBiometricEnabled] = useState(false);
+  const [showBiometricPrompt, setShowBiometricPrompt] = useState(false);
+  const [showFaceIdButton, setShowFaceIdButton] = useState(true);
+
+  // PIN state
+  const [settingUpPin, setSettingUpPin] = useState(false);
+  const [changingPin, setChangingPin] = useState(false);
+  const [showPinEntry, setShowPinEntry] = useState(false);
+  const [pin, setPin] = useState('');
+  const [confirmPin, setConfirmPin] = useState('');
+  const [pinError, setPinError] = useState('');
+  const [pinStep, setPinStep] = useState('enter'); // 'enter' or 'confirm'
+
+  // Check biometric support on mount
+  useEffect(() => {
+    const checkBiometricSupport = async () => {
+      const compatible = await LocalAuthentication.hasHardwareAsync();
+      setIsBiometricSupported(compatible);
+    };
+
+    checkBiometricSupport();
+  }, []);
+
+  // Load biometric preference
+  const loadBiometricPreference = async () => {
+    try {
+      const biometricPref = await SecureStore.getItemAsync(SECURE_KEYS.BIOMETRIC_ENABLED);
+      setBiometricEnabled(biometricPref === 'true');
+    } catch (error) {
+      console.error('Failed to load biometric preference:', error);
+    }
+  };
+
+  // Authenticate user with biometrics
+  const authenticateUser = async () => {
+    try {
+      console.log('FaceID button clicked');
+
+      // Check if user has already enabled biometric auth
+      if (biometricEnabled) {
+        // User has previously enabled biometrics, trigger it directly
+        const result = await LocalAuthentication.authenticateAsync({
+          promptMessage: 'Authenticate to access your wallet',
+          fallbackLabel: 'Use PIN',
+          disableDeviceFallback: false,
+        });
+
+        if (result.success) {
+          if (changingPin) {
+            // User authenticated to change PIN, proceed to PIN setup
+            setSettingUpPin(true);
+            setPinStep('enter');
+            setPin('');
+            setConfirmPin('');
+            setPinError('');
+            // Stay authenticated but in PIN setup mode
+            setIsAuthenticated(true);
+          } else {
+            // Normal unlock
+            setIsAuthenticated(true);
+          }
+        }
+      } else {
+        // User hasn't enabled biometrics yet, show modal to ask
+        console.log('Showing biometric prompt modal');
+        setShowBiometricPrompt(true);
+      }
+    } catch (error) {
+      console.log('Error in authenticateUser:', error);
+      setShowBiometricPrompt(true);
+    }
+  };
+
+  // PIN setup completion for initial wallet creation
+  const handlePinSetupComplete = () => {
+    setIsAuthenticated(true);
+    setSettingUpPin(false);
+    if (onSeedConfirmed) {
+      onSeedConfirmed(true);
+    }
+  };
+
+  // PIN change completion
+  const handlePinChangeComplete = () => {
+    setSettingUpPin(false);
+    setChangingPin(false);
+  };
+
+  // Lock screen authentication success
+  const handleLockScreenAuthenticated = () => {
+    if (changingPin) {
+      // User authenticated to change PIN, proceed to PIN setup
+      setSettingUpPin(true);
+      setPinStep('enter');
+      setPin('');
+      setConfirmPin('');
+      setPinError('');
+      // Stay authenticated but in PIN setup mode
+      setIsAuthenticated(true);
+    } else {
+      // Normal unlock
+      setIsAuthenticated(true);
+      setShowPinEntry(false);
+      // Restore FaceID button for next time
+      setShowFaceIdButton(true);
+    }
+  };
+
+  // Lock the wallet
+  const lock = () => {
+    setIsAuthenticated(false);
+  };
+
+  // Reset auth state (for wallet deletion)
+  const resetAuth = () => {
+    setIsAuthenticated(false);
+    setBiometricEnabled(false);
+    setShowFaceIdButton(true);
+    setShowBiometricPrompt(false);
+    setSettingUpPin(false);
+    setChangingPin(false);
+    setShowPinEntry(false);
+    setPin('');
+    setConfirmPin('');
+    setPinError('');
+    setPinStep('enter');
+  };
+
+  // Start PIN change flow
+  const startPinChange = () => {
+    setChangingPin(true);
+    setIsAuthenticated(false);
+  };
+
+  return {
+    // State
+    isAuthenticated,
+    isBiometricSupported,
+    biometricEnabled,
+    showBiometricPrompt,
+    showFaceIdButton,
+    settingUpPin,
+    changingPin,
+    showPinEntry,
+    pin,
+    confirmPin,
+    pinError,
+    pinStep,
+
+    // Setters
+    setIsAuthenticated,
+    setBiometricEnabled,
+    setShowBiometricPrompt,
+    setShowFaceIdButton,
+    setShowPinEntry,
+    setPin,
+    setConfirmPin,
+    setPinError,
+    setPinStep,
+
+    // Functions
+    authenticateUser,
+    handlePinSetupComplete,
+    handlePinChangeComplete,
+    handleLockScreenAuthenticated,
+    loadBiometricPreference,
+    lock,
+    resetAuth,
+    startPinChange,
+  };
+}
