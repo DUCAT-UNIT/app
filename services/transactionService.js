@@ -326,10 +326,6 @@ export const createUnitIntent = async (recipient, amount, taprootAddress, segwit
         },
       ],
     };
-      typeof value === 'bigint' ? value.toString() + 'n' : value
-    ));
-
-    // Debug the actual types
 
     // Try calling encodeRunestone with minimal test first
     try {
