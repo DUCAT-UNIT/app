@@ -27,23 +27,31 @@ export default function ReceiveScreen({
   const receiveTranslateY = useRef(new Animated.Value(0)).current;
 
   const panResponder = PanResponder.create({
-    onStartShouldSetPanResponder: () => !showQrModal && true,
+    onStartShouldSetPanResponder: () => !showQrModal,
     onStartShouldSetPanResponderCapture: () => false,
     onMoveShouldSetPanResponder: (_, gestureState) => {
       if (showQrModal) return false;
-      return gestureState.dy > 10 && Math.abs(gestureState.dy) > Math.abs(gestureState.dx);
+      // Detect downward swipe
+      const isDownwardSwipe = gestureState.dy > 5 && Math.abs(gestureState.dy) > Math.abs(gestureState.dx);
+      return isDownwardSwipe;
     },
     onMoveShouldSetPanResponderCapture: (_, gestureState) => {
       if (showQrModal) return false;
-      return gestureState.dy > 10 && Math.abs(gestureState.dy) > Math.abs(gestureState.dx);
+      const isDownwardSwipe = gestureState.dy > 5 && Math.abs(gestureState.dy) > Math.abs(gestureState.dx);
+      return isDownwardSwipe;
     },
-    onPanResponderMove: (_, gestureState) => {
-      if (showQrModal) return;
-      // Move with the finger (downward only)
-      if (gestureState.dy > 0) {
-        receiveTranslateY.setValue(gestureState.dy);
+    onPanResponderMove: Animated.event(
+      [null, { dy: receiveTranslateY }],
+      {
+        useNativeDriver: false,
+        listener: (_, gestureState) => {
+          // Only allow downward movement
+          if (gestureState.dy < 0) {
+            receiveTranslateY.setValue(0);
+          }
+        }
       }
-    },
+    ),
     onPanResponderRelease: (_, gestureState) => {
       if (showQrModal) return;
 
