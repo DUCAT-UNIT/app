@@ -5,6 +5,7 @@
  */
 
 import React from 'react';
+import PropTypes from 'prop-types';
 import { Text, View, TouchableOpacity, Linking, Animated } from 'react-native';
 import styles from '../../styles';
 
@@ -70,3 +71,13 @@ export default function ConfirmationSheet({
     </>
   );
 }
+
+ConfirmationSheet.propTypes = {
+  visible: PropTypes.bool.isRequired,
+  opacity: PropTypes.object.isRequired, // Animated.Value
+  translateY: PropTypes.object.isRequired, // Animated.Value
+  panHandlers: PropTypes.object,
+  broadcastedTxid: PropTypes.string,
+  onDismiss: PropTypes.func.isRequired,
+  onClose: PropTypes.func.isRequired,
+};

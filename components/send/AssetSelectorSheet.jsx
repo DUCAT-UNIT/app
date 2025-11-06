@@ -4,6 +4,7 @@
  */
 
 import React from 'react';
+import PropTypes from 'prop-types';
 import { Text, View, TouchableOpacity, Image, Animated } from 'react-native';
 import styles from '../../styles';
 
@@ -104,3 +105,15 @@ export default function AssetSelectorSheet({
     </>
   );
 }
+
+AssetSelectorSheet.propTypes = {
+  visible: PropTypes.bool.isRequired,
+  opacity: PropTypes.object.isRequired, // Animated.Value
+  translateY: PropTypes.object.isRequired, // Animated.Value
+  panHandlers: PropTypes.object,
+  btcBalance: PropTypes.number,
+  unitBalance: PropTypes.number,
+  btcPrice: PropTypes.number,
+  onDismiss: PropTypes.func.isRequired,
+  onSelectAsset: PropTypes.func.isRequired,
+};

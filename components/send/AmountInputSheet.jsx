@@ -5,6 +5,7 @@
  */
 
 import React from 'react';
+import PropTypes from 'prop-types';
 import { Text, View, TouchableOpacity, TextInput, Pressable, Image, Animated } from 'react-native';
 import styles from '../../styles';
 import { formatNumberWithCommas } from '../../utils/sendHelpers';
@@ -168,3 +169,22 @@ export default function AmountInputSheet({
     </>
   );
 }
+
+AmountInputSheet.propTypes = {
+  visible: PropTypes.bool.isRequired,
+  opacity: PropTypes.object.isRequired, // Animated.Value
+  translateY: PropTypes.object.isRequired, // Animated.Value
+  panHandlers: PropTypes.object,
+  keyboardHeight: PropTypes.number.isRequired,
+  sendAssetType: PropTypes.oneOf(['btc', 'unit', 'ducat']).isRequired,
+  sendAmount: PropTypes.string.isRequired,
+  sendRecipient: PropTypes.string.isRequired,
+  btcBalance: PropTypes.number,
+  unitBalance: PropTypes.number,
+  btcPrice: PropTypes.number,
+  amountInputRef: PropTypes.object.isRequired,
+  onDismiss: PropTypes.func.isRequired,
+  onBack: PropTypes.func.isRequired,
+  onAmountChange: PropTypes.func.isRequired,
+  onReview: PropTypes.func.isRequired,
+};

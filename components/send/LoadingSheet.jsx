@@ -5,6 +5,7 @@
  */
 
 import React from 'react';
+import PropTypes from 'prop-types';
 import { Text, View, TouchableOpacity, ActivityIndicator } from 'react-native';
 import { COLORS } from '../../utils/colors';
 import styles from '../../styles';
@@ -43,3 +44,11 @@ export default function LoadingSheet({
     </>
   );
 }
+
+LoadingSheet.propTypes = {
+  visible: PropTypes.bool.isRequired,
+  title: PropTypes.string.isRequired,
+  message: PropTypes.string,
+  dismissible: PropTypes.bool,
+  onDismiss: PropTypes.func,
+};

@@ -5,6 +5,7 @@
  */
 
 import React from 'react';
+import PropTypes from 'prop-types';
 import { Text, View, TouchableWithoutFeedback, TextInput, Pressable, Image, ScrollView, Modal, Animated } from 'react-native';
 import * as Clipboard from 'expo-clipboard';
 import styles from '../../styles';
@@ -139,3 +140,18 @@ export default function AddressInputSheet({
     </Modal>
   );
 }
+
+AddressInputSheet.propTypes = {
+  visible: PropTypes.bool.isRequired,
+  opacity: PropTypes.object.isRequired, // Animated.Value
+  translateY: PropTypes.object.isRequired, // Animated.Value
+  panHandlers: PropTypes.object,
+  keyboardHeight: PropTypes.number.isRequired,
+  sendRecipient: PropTypes.string.isRequired,
+  addressError: PropTypes.string.isRequired,
+  addressInputRef: PropTypes.object.isRequired,
+  onDismiss: PropTypes.func.isRequired,
+  onBack: PropTypes.func.isRequired,
+  onContinue: PropTypes.func.isRequired,
+  onRecipientChange: PropTypes.func.isRequired,
+};

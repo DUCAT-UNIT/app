@@ -5,6 +5,7 @@
  */
 
 import React from 'react';
+import PropTypes from 'prop-types';
 import { Text, View, TouchableOpacity, Image, Animated } from 'react-native';
 import { COLORS } from '../../utils/colors';
 import styles from '../../styles';
@@ -157,3 +158,22 @@ export default function ReviewSheet({
     </>
   );
 }
+
+ReviewSheet.propTypes = {
+  visible: PropTypes.bool.isRequired,
+  opacity: PropTypes.object.isRequired, // Animated.Value
+  translateY: PropTypes.object.isRequired, // Animated.Value
+  panHandlers: PropTypes.object,
+  sendIntent: PropTypes.shape({
+    recipient: PropTypes.string.isRequired,
+    assetType: PropTypes.string.isRequired,
+    amount: PropTypes.string,
+    amountBTC: PropTypes.string,
+    fee: PropTypes.number.isRequired,
+  }),
+  btcPrice: PropTypes.number,
+  onDismiss: PropTypes.func.isRequired,
+  onBack: PropTypes.func.isRequired,
+  onCancel: PropTypes.func.isRequired,
+  onConfirm: PropTypes.func.isRequired,
+};
