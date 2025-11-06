@@ -52,6 +52,8 @@ import { useWallet } from './contexts/WalletContext';
 import { useToast } from './hooks/useToast';
 import { useAppLifecycle } from './hooks/useAppLifecycle';
 import { useAuth } from './hooks/useAuth';
+import { useSettings } from './hooks/useSettings';
+import { useAccountSwitcher } from './hooks/useAccountSwitcher';
 
 // Initialize BIP32
 const bip32 = BIP32Factory(ecc);
@@ -112,9 +114,6 @@ export default function App() {
   const [verificationWords, setVerificationWords] = useState({});
   const [requiredIndices, setRequiredIndices] = useState([]);
   const [wordChoices, setWordChoices] = useState({});
-  const [showAccountPicker, setShowAccountPicker] = useState(false);
-  const [newAccountIndex, setNewAccountIndex] = useState('');
-  const [switchingAccount, setSwitchingAccount] = useState(false);
   const [isImportedWallet, setIsImportedWallet] = useState(false); // Track if wallet was imported
   const [showSettings, setShowSettings] = useState(false); // Settings modal
   const [showReceiveSheet, setShowReceiveSheet] = useState(false); // Receive bottom sheet
@@ -122,7 +121,6 @@ export default function App() {
   const [seedPhraseWords, setSeedPhraseWords] = useState([]); // Seed phrase from keychain
   const [seedPhraseVisible, setSeedPhraseVisible] = useState(false); // Show/hide seed words
   const [requestingSeedPhrase, setRequestingSeedPhrase] = useState(false); // Flag to show seed phrase after PIN auth
-  const [privacyMode, setPrivacyMode] = useState(true); // Privacy mode (screenshot blocking)
   const [isLoading, setIsLoading] = useState(true); // Initial loading state
 
   // Transaction intent state
@@ -173,6 +171,40 @@ export default function App() {
     resetAuth,
     startPinChange,
   } = useAuth({ onSeedConfirmed: setSeedConfirmed });
+
+  // Settings hook - handles settings actions
+  const {
+    privacyMode,
+    handleLogout,
+    handleDeleteWallet,
+    handleViewSeedPhrase,
+    handleChangePin,
+    handlePrivacyModeToggle,
+  } = useSettings({
+    biometricEnabled,
+    resetAuth,
+    resetWallet,
+    startPinChange,
+    walletExistsRef: walletExists,
+    seedPhraseTranslateX,
+    setIsAuthenticated,
+    setShowSettings,
+    setShowPinEntry,
+    setRequestingSeedPhrase,
+    setSeedPhraseWords,
+    setSeedPhraseVisible,
+    setViewingSeedPhrase,
+  });
+
+  // Account switcher hook - handles account switching
+  const {
+    showAccountPicker,
+    setShowAccountPicker,
+    newAccountIndex,
+    setNewAccountIndex,
+    switchingAccount,
+    switchAccount,
+  } = useAccountSwitcher({ switchAccountContext });
 
   // App lifecycle hook - handles screen capture, app state, and inactivity
   const { resetInactivityTimer } = useAppLifecycle({
@@ -256,21 +288,6 @@ export default function App() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []); // Only run once on mount
 
-  // Load privacy mode setting on mount
-  useEffect(() => {
-    const loadPrivacyMode = async () => {
-      try {
-        const savedPrivacyMode = await SecureStore.getItemAsync('privacyMode');
-        if (savedPrivacyMode !== null) {
-          setPrivacyMode(savedPrivacyMode === 'true');
-        }
-      } catch (error) {
-        console.error('Failed to load privacy mode:', error);
-      }
-    };
-    loadPrivacyMode();
-  }, []);
-
   // Create pan responders for swipe gestures
   // Settings screen pan responder
   if (!settingsPanResponderRef.current) {
@@ -340,105 +357,6 @@ export default function App() {
     });
   }
 
-  const handleLogout = () => {
-    Alert.alert(
-      'Logout',
-      'This will lock your wallet. You can unlock it again with Face ID or PIN.',
-      [
-        { text: 'Cancel', style: 'cancel' },
-        {
-          text: 'Logout',
-          style: 'destructive',
-          onPress: () => {
-            setIsAuthenticated(false);
-            setShowSettings(false);
-          }
-        }
-      ]
-    );
-  };
-
-  const handleDeleteWallet = async () => {
-    Alert.alert(
-      'Delete Wallet',
-      'WARNING: This will permanently delete your wallet from this device. Make sure you have your recovery phrase backed up!',
-      [
-        { text: 'Cancel', style: 'cancel' },
-        {
-          text: 'Delete',
-          style: 'destructive',
-          onPress: async () => {
-            try {
-              const success = await AuthService.deleteWalletData();
-              if (success) {
-                resetWallet(); // Reset context wallet state
-                walletExists.current = false;
-                resetAuth(); // Reset all auth state
-                setShowSettings(false);
-
-                Alert.alert('Success', 'Wallet has been deleted from this device.');
-              } else {
-                Alert.alert('Error', 'Failed to delete wallet.');
-              }
-            } catch (error) {
-              Alert.alert('Error', 'Failed to delete wallet: ' + error.message);
-            }
-          }
-        }
-      ]
-    );
-  };
-
-  const handleViewSeedPhrase = async () => {
-    try {
-      // If biometric is not enabled, show PIN entry instead
-      if (!biometricEnabled) {
-        setRequestingSeedPhrase(true);
-        setShowSettings(false);
-        setShowPinEntry(true);
-        return;
-      }
-
-      // Biometric is enabled, use biometric auth
-      const result = await AuthService.authenticateWithBiometrics(
-        'Authenticate to view your recovery phrase',
-        'Use PIN'
-      );
-
-      if (result.success) {
-        const mnemonic = await AuthService.getMnemonic();
-        if (mnemonic) {
-          setSeedPhraseWords(mnemonic.split(' '));
-          setSeedPhraseVisible(false); // Start with words hidden for security
-          seedPhraseTranslateX.setValue(0);
-          setViewingSeedPhrase(true);
-          setShowSettings(false);
-        } else {
-          Alert.alert('Error', 'Recovery phrase not found.');
-        }
-      } else {
-        Alert.alert('Authentication Failed', 'You must authenticate to view your recovery phrase.');
-      }
-    } catch (error) {
-      Alert.alert('Error', 'Failed to retrieve recovery phrase: ' + error.message);
-    }
-  };
-
-  const handleChangePin = () => {
-    // Close settings and show lock screen to verify current PIN
-    setShowSettings(false);
-    startPinChange();
-  };
-
-  const handlePrivacyModeToggle = async () => {
-    const newPrivacyMode = !privacyMode;
-    setPrivacyMode(newPrivacyMode);
-    try {
-      await SecureStore.setItemAsync('privacyMode', String(newPrivacyMode));
-    } catch (error) {
-      console.error('Failed to save privacy mode:', error);
-    }
-  };
 
 
   // Create an unsigned PSBT for the transaction
@@ -754,25 +672,6 @@ export default function App() {
     setWordChoices({});
   };
 
-  const switchAccount = async (accountNum) => {
-    // Convert account number to index (Account 1 = index 0)
-    const accountIndex = accountNum - 1;
-
-    try {
-      setSwitchingAccount(true);
-
-      // Switch account using context
-      await switchAccountContext(accountIndex);
-
-      setShowAccountPicker(false);
-      setNewAccountIndex('');
-    } catch (error) {
-      console.error('Switch account error:', error);
-      Alert.alert('Error', `Failed to switch account: ${error.message}`);
-    } finally {
-      setSwitchingAccount(false);
-    }
-  };
 
   // PIN setup completion callback wrapper (adds isImportedWallet reset)
   const handlePinSetupCompleteWrapper = () => {
