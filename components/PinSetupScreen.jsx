@@ -5,6 +5,7 @@
  */
 
 import React, { useState } from 'react';
+import PropTypes from 'prop-types';
 import { Text, View, TouchableOpacity } from 'react-native';
 import { StatusBar } from 'expo-status-bar';
 import * as SecureStore from 'expo-secure-store';
@@ -216,3 +217,12 @@ export default function PinSetupScreen({
     </>
   );
 }
+
+PinSetupScreen.propTypes = {
+  changingPin: PropTypes.bool.isRequired,
+  isBiometricSupported: PropTypes.bool.isRequired,
+  onPinSetupComplete: PropTypes.func.isRequired,
+  onPinChangeComplete: PropTypes.func.isRequired,
+  fetchBalance: PropTypes.func.isRequired,
+  showToast: PropTypes.func.isRequired,
+};
