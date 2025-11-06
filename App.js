@@ -5,13 +5,12 @@ global.Buffer = Buffer;
 
 import * as Crypto from 'expo-crypto';
 import * as SecureStore from 'expo-secure-store';
-import * as ScreenCapture from 'expo-screen-capture';
 import * as LocalAuthentication from 'expo-local-authentication';
 import * as FileSystem from 'expo-file-system';
 import { useFonts } from 'expo-font';
 
 import { StatusBar } from 'expo-status-bar';
-import { Text, View, TouchableOpacity, Alert, ActivityIndicator, TextInput, Image, AppState, Keyboard, Platform, Linking, SafeAreaView, StatusBar as RNStatusBar, Dimensions, Animated, PanResponder } from 'react-native';
+import { Text, View, TouchableOpacity, Alert, ActivityIndicator, TextInput, Image, Keyboard, Platform, Linking, SafeAreaView, StatusBar as RNStatusBar, Dimensions, Animated, PanResponder } from 'react-native';
 import { useState, useEffect, useRef, useCallback } from 'react';
 import * as Clipboard from 'expo-clipboard';
 import * as bip39 from 'bip39';
@@ -51,6 +50,7 @@ import { useWallet } from './contexts/WalletContext';
 
 // Import hooks
 import { useToast } from './hooks/useToast';
+import { useAppLifecycle } from './hooks/useAppLifecycle';
 
 // Initialize BIP32
 const bip32 = BIP32Factory(ecc);
@@ -145,16 +145,24 @@ export default function App() {
   const [broadcastedTxid, setBroadcastedTxid] = useState(null); // TXID of broadcasted transaction
   const [keyboardHeight, setKeyboardHeight] = useState(0);
 
-  const appState = useRef(AppState.currentState);
-  const inactivityTimer = useRef(null);
   const walletExists = useRef(false); // Track if wallet exists without triggering re-renders
+  const seedConfirmedRef = useRef(false); // Track if seed backup is confirmed without triggering re-renders
+  const amountInputRef = useRef(null);
 
   // Toast notification hook
   const { showToast, toastMessage, toastVisible } = useToast();
 
-  const seedConfirmedRef = useRef(false); // Track if seed backup is confirmed without triggering re-renders
-  const amountInputRef = useRef(null);
-  const INACTIVITY_TIMEOUT = 2 * 60 * 1000; // 2 minutes in milliseconds
+  // App lifecycle hook - handles screen capture, app state, and inactivity
+  const { resetInactivityTimer } = useAppLifecycle({
+    privacyMode,
+    isAuthenticated,
+    walletExists,
+    seedConfirmedRef,
+    isBiometricSupported,
+    biometricEnabled,
+    onLock: () => setIsAuthenticated(false),
+    onAuthenticateUser: () => authenticateUser(),
+  });
 
   // Animated values for swipe gestures
   const seedPhraseTranslateX = useRef(new Animated.Value(0)).current;
@@ -242,29 +250,6 @@ export default function App() {
     loadPrivacyMode();
   }, []);
 
-  // Prevent screenshots and screen recording based on privacy mode
-  useEffect(() => {
-    const manageScreenCapture = async () => {
-      try {
-        if (privacyMode) {
-          await ScreenCapture.preventScreenCaptureAsync();
-        } else {
-          await ScreenCapture.allowScreenCaptureAsync();
-        }
-      } catch (error) {
-        console.error('Screen capture error:', error);
-      }
-    };
-
-    manageScreenCapture();
-
-    // Cleanup: allow screen capture when component unmounts
-    return () => {
-      ScreenCapture.allowScreenCaptureAsync().catch((error) => {
-      });
-    };
-  }, [privacyMode]);
-
   // Check biometric support on app start
   useEffect(() => {
     const checkBiometricSupport = async () => {
@@ -274,58 +259,6 @@ export default function App() {
 
     checkBiometricSupport();
   }, []);
-
-  // Handle app state changes (background/foreground)
-  useEffect(() => {
-    const subscription = AppState.addEventListener('change', nextAppState => {
-
-      // ONLY lock when coming back from background, NOT from inactive
-      // (inactive happens during Face ID, control center, etc.)
-      if (
-        appState.current === 'background' &&
-        nextAppState === 'active'
-      ) {
-        // App has come to foreground from background, require re-authentication if wallet exists AND seed backup is confirmed
-        if (walletExists.current && seedConfirmedRef.current && isBiometricSupported) {
-          setIsAuthenticated(false);
-          // Only auto-trigger biometrics if user has enabled it
-          if (biometricEnabled) {
-            authenticateUser();
-          }
-        } else {
-        }
-      }
-
-      appState.current = nextAppState;
-    });
-
-    return () => {
-      subscription.remove();
-    };
-  }, [isBiometricSupported, biometricEnabled]); // Depend on biometric support and enabled state
-
-  // Cleanup inactivity timer on unmount
-  useEffect(() => {
-    return () => {
-      if (inactivityTimer.current) {
-        clearTimeout(inactivityTimer.current);
-      }
-    };
-  }, []);
-
-  // Inactivity timer - locks wallet after 2 minutes of no interaction
-  const startInactivityTimer = useCallback(() => {
-    // Clear any existing timer
-    if (inactivityTimer.current) {
-      clearTimeout(inactivityTimer.current);
-    }
-
-    // Set new timer
-    inactivityTimer.current = setTimeout(() => {
-      // Lock the wallet after inactivity timeout
-      setIsAuthenticated(false);
-    }, INACTIVITY_TIMEOUT);
-  }, [INACTIVITY_TIMEOUT]);
 
   // Create pan responders for swipe gestures
   // Settings screen pan responder
@@ -408,25 +341,6 @@ export default function App() {
       seedPhraseTranslateX.setValue(0);
     }
   }, [viewingSeedPhrase]);
-
-  const resetInactivityTimer = useCallback(() => {
-    // Restart timer when user interacts
-    startInactivityTimer();
-  }, [startInactivityTimer]);
-
-  // Start timer when authenticated (but only if seed backup is confirmed)
-  useEffect(() => {
-    if (isAuthenticated && walletExists.current && seedConfirmedRef.current && isBiometricSupported) {
-      startInactivityTimer();
-
-      return () => {
-        if (inactivityTimer.current) {
-          clearTimeout(inactivityTimer.current);
-          inactivityTimer.current = null;
-        }
-      };
-    }
-  }, [isAuthenticated, isBiometricSupported, startInactivityTimer]);
 
   const authenticateUser = async () => {
     try {
