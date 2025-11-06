@@ -4,6 +4,7 @@
  */
 
 import React from 'react';
+import PropTypes from 'prop-types';
 import { View, Text } from 'react-native';
 
 export default function Toast({ visible, message, styles }) {
@@ -15,3 +16,9 @@ export default function Toast({ visible, message, styles }) {
     </View>
   );
 }
+
+Toast.propTypes = {
+  visible: PropTypes.bool.isRequired,
+  message: PropTypes.string.isRequired,
+  styles: PropTypes.object.isRequired,
+};
