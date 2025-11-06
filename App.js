@@ -121,6 +121,7 @@ export default function App() {
   const [viewingSeedPhrase, setViewingSeedPhrase] = useState(false); // Viewing seed phrase
   const [seedPhraseWords, setSeedPhraseWords] = useState([]); // Seed phrase from keychain
   const [seedPhraseVisible, setSeedPhraseVisible] = useState(false); // Show/hide seed words
+  const [requestingSeedPhrase, setRequestingSeedPhrase] = useState(false); // Flag to show seed phrase after PIN auth
   const [privacyMode, setPrivacyMode] = useState(true); // Privacy mode (screenshot blocking)
   const [isLoading, setIsLoading] = useState(true); // Initial loading state
 
@@ -390,6 +391,15 @@ export default function App() {
 
   const handleViewSeedPhrase = async () => {
     try {
+      // If biometric is not enabled, show PIN entry instead
+      if (!biometricEnabled) {
+        setRequestingSeedPhrase(true);
+        setShowSettings(false);
+        setShowPinEntry(true);
+        return;
+      }
+
+      // Biometric is enabled, use biometric auth
       const result = await AuthService.authenticateWithBiometrics(
         'Authenticate to view your recovery phrase',
         'Use PIN'
@@ -776,6 +786,29 @@ export default function App() {
     setIsImportedWallet(false);
   };
 
+  // Lock screen authentication callback wrapper (checks for seed phrase request)
+  const handleLockScreenAuthenticatedWrapper = async () => {
+    handleLockScreenAuthenticated();
+
+    // Check if user was trying to view seed phrase
+    if (requestingSeedPhrase) {
+      setRequestingSeedPhrase(false);
+      try {
+        const mnemonic = await AuthService.getMnemonic();
+        if (mnemonic) {
+          setSeedPhraseWords(mnemonic.split(' '));
+          setSeedPhraseVisible(false);
+          seedPhraseTranslateX.setValue(0);
+          setViewingSeedPhrase(true);
+        } else {
+          Alert.alert('Error', 'Recovery phrase not found.');
+        }
+      } catch (error) {
+        Alert.alert('Error', 'Failed to retrieve recovery phrase: ' + error.message);
+      }
+    }
+  };
+
   // Wait for fonts to load
   if (!fontsLoaded) {
     return null;
@@ -825,7 +858,7 @@ export default function App() {
         <View style={styles.mutinynetBanner}>
           <Text style={styles.mutinynetBannerText}>Mutinynet Edition</Text>
         </View>
-        <LockScreen onAuthenticated={handleLockScreenAuthenticated} />
+        <LockScreen onAuthenticated={handleLockScreenAuthenticatedWrapper} />
         <StatusBar style="light" />
       </View>
     );
@@ -854,7 +887,7 @@ export default function App() {
           <Text style={styles.mutinynetBannerText}>Mutinynet Edition</Text>
         </View>
         <LockScreen
-          onAuthenticated={handleLockScreenAuthenticated}
+          onAuthenticated={handleLockScreenAuthenticatedWrapper}
           showFaceIdButton={showFaceIdButton && !showBiometricPrompt}
           onFaceIdPress={authenticateUser}
         />
