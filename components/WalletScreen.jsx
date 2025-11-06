@@ -1,4 +1,5 @@
 import React from 'react';
+import PropTypes from 'prop-types';
 import { View, Text, TouchableOpacity, Image, ActivityIndicator } from 'react-native';
 import { useWallet } from '../contexts/WalletContext';
 import { COLORS } from '../utils/colors';
@@ -197,3 +198,12 @@ export default function WalletScreen({
     </View>
   );
 }
+
+WalletScreen.propTypes = {
+  styles: PropTypes.object.isRequired,
+  onSendPress: PropTypes.func.isRequired,
+  onReceivePress: PropTypes.func.isRequired,
+  onSettingsPress: PropTypes.func.isRequired,
+  sendAddressType: PropTypes.oneOf(['taproot', 'segwit']),
+  switchingAccount: PropTypes.bool.isRequired,
+};
