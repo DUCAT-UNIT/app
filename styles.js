@@ -2060,5 +2060,34 @@ const styles = StyleSheet.create({
     color: COLORS.VERY_LIGHT_GRAY,
     fontWeight: '600',
   },
+  // Toast notification styles
+  toastContainer: {
+    position: 'absolute',
+    bottom: 100,
+    left: 20,
+    right: 20,
+    backgroundColor: COLORS.WHITE,
+    paddingHorizontal: 24,
+    paddingVertical: 16,
+    borderRadius: 16,
+    alignItems: 'center',
+    justifyContent: 'center',
+    shadowColor: '#000',
+    shadowOffset: {
+      width: 0,
+      height: 4,
+    },
+    shadowOpacity: 0.3,
+    shadowRadius: 8,
+    elevation: 8,
+    zIndex: 999999,
+  },
+  toastText: {
+    fontSize: 15,
+    fontFamily: 'CabinetGrotesk-Medium',
+    color: COLORS.BLACK,
+    fontWeight: '600',
+    textAlign: 'center',
+  },
 });
 export default styles;

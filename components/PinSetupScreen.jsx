@@ -5,7 +5,7 @@
  */
 
 import React, { useState } from 'react';
-import { Text, View, TouchableOpacity, Alert } from 'react-native';
+import { Text, View, TouchableOpacity } from 'react-native';
 import { StatusBar } from 'expo-status-bar';
 import * as SecureStore from 'expo-secure-store';
 import * as LocalAuthentication from 'expo-local-authentication';
@@ -22,6 +22,7 @@ export default function PinSetupScreen({
   onPinSetupComplete,
   onPinChangeComplete,
   fetchBalance,
+  showToast,
 }) {
   const [pin, setPin] = useState('');
   const [confirmPin, setConfirmPin] = useState('');
@@ -53,7 +54,7 @@ export default function PinSetupScreen({
               if (success) {
                 if (changingPin) {
                   // Just changing PIN, not creating wallet
-                  Alert.alert('Success', 'Your PIN has been changed.');
+                  showToast('Your PIN has been changed');
                   onPinChangeComplete();
                 } else {
                   // Initial wallet creation or import

@@ -1,5 +1,5 @@
 import React, { useState, useRef } from 'react';
-import { View, Text, TouchableOpacity, PanResponder, Alert, Image, Share, Animated, Dimensions } from 'react-native';
+import { View, Text, TouchableOpacity, PanResponder, Image, Share, Animated, Dimensions } from 'react-native';
 import * as Clipboard from 'expo-clipboard';
 import QRCode from 'react-native-qrcode-svg';
 import { COLORS } from '../utils/colors';
@@ -13,6 +13,7 @@ export default function ReceiveScreen({
   onClose,
   segwitAddress,
   taprootAddress,
+  showToast,
 }) {
   const [showQrModal, setShowQrModal] = useState(false);
   const [selectedAddress, setSelectedAddress] = useState(null);
@@ -23,16 +24,46 @@ export default function ReceiveScreen({
   const qrOpacity = useRef(new Animated.Value(0)).current;
 
   // Pan responder for swipe-down to dismiss
+  const receiveTranslateY = useRef(new Animated.Value(0)).current;
+
   const panResponder = PanResponder.create({
-    onStartShouldSetPanResponder: () => !showQrModal && false,
+    onStartShouldSetPanResponder: () => !showQrModal && true,
+    onStartShouldSetPanResponderCapture: () => false,
     onMoveShouldSetPanResponder: (_, gestureState) => {
       if (showQrModal) return false;
       return gestureState.dy > 10 && Math.abs(gestureState.dy) > Math.abs(gestureState.dx);
     },
+    onMoveShouldSetPanResponderCapture: (_, gestureState) => {
+      if (showQrModal) return false;
+      return gestureState.dy > 10 && Math.abs(gestureState.dy) > Math.abs(gestureState.dx);
+    },
+    onPanResponderMove: (_, gestureState) => {
+      if (showQrModal) return;
+      // Move with the finger (downward only)
+      if (gestureState.dy > 0) {
+        receiveTranslateY.setValue(gestureState.dy);
+      }
+    },
     onPanResponderRelease: (_, gestureState) => {
       if (showQrModal) return;
-      if (gestureState.dy > 100) {
-        onClose();
+
+      if (gestureState.dy > 100 || gestureState.vy > 0.5) {
+        // Animate slide down
+        Animated.timing(receiveTranslateY, {
+          toValue: SCREEN_HEIGHT,
+          duration: 250,
+          useNativeDriver: true,
+        }).start(() => {
+          onClose();
+          receiveTranslateY.setValue(0);
+        });
+      } else {
+        // Snap back
+        Animated.spring(receiveTranslateY, {
+          toValue: 0,
+          useNativeDriver: true,
+          friction: 8,
+        }).start();
       }
     },
   });
@@ -54,11 +85,17 @@ export default function ReceiveScreen({
       // Move with the finger (horizontal only)
       if (gestureState.dx > 0) {
         translateX.setValue(gestureState.dx);
+
+        // Fade in receive sheet as we start swiping
+        const progress = Math.min(gestureState.dx / 100, 1);
+        receiveOpacity.setValue(progress);
       }
     },
     onPanResponderRelease: (_, gestureState) => {
       if (gestureState.dx > 100 || gestureState.vx > 0.5) {
-        // Animate slide to the right with fade
+        // Start showing receive sheet immediately, then animate
+        setShowQrModal(false);
+
         Animated.parallel([
           Animated.timing(translateX, {
             toValue: SCREEN_WIDTH,
@@ -67,29 +104,36 @@ export default function ReceiveScreen({
           }),
           Animated.timing(qrOpacity, {
             toValue: 0,
-            duration: 250,
+            duration: 150,
             useNativeDriver: true,
           }),
-        ]).start(() => {
-          setTimeout(() => {
-            setShowQrModal(false);
-            receiveOpacity.setValue(1);
-          }, 100);
-        });
+          Animated.timing(receiveOpacity, {
+            toValue: 1,
+            duration: 150,
+            useNativeDriver: true,
+          }),
+        ]).start();
       } else {
         // Snap back
-        Animated.spring(translateX, {
-          toValue: 0,
-          useNativeDriver: true,
-          friction: 8,
-        }).start();
+        Animated.parallel([
+          Animated.spring(translateX, {
+            toValue: 0,
+            useNativeDriver: true,
+            friction: 8,
+          }),
+          Animated.timing(receiveOpacity, {
+            toValue: 0,
+            duration: 150,
+            useNativeDriver: true,
+          }),
+        ]).start();
       }
     },
   });
 
   const handleCopyAddress = (address, type) => {
     Clipboard.setString(address);
-    Alert.alert('Copied', `${type} address copied to clipboard`);
+    showToast(`${type} address copied to clipboard`);
   };
 
   const handleQrPress = (address, type, tag) => {
@@ -116,14 +160,23 @@ export default function ReceiveScreen({
 
   return (
     <>
-      {!showQrModal && (
-        <>
-          <TouchableOpacity
-            style={styles.bottomSheetBackdrop}
-            activeOpacity={1}
-            onPress={onClose}
-          />
-          <Animated.View style={[styles.bottomSheet, { opacity: receiveOpacity }]} {...panResponder.panHandlers}>
+      <TouchableOpacity
+        style={styles.bottomSheetBackdrop}
+        activeOpacity={1}
+        onPress={onClose}
+        pointerEvents={showQrModal ? 'none' : 'auto'}
+      />
+      <Animated.View
+        style={[
+          styles.bottomSheet,
+          {
+            opacity: receiveOpacity,
+            transform: [{ translateY: receiveTranslateY }],
+          },
+        ]}
+        {...panResponder.panHandlers}
+        pointerEvents={showQrModal ? 'none' : 'auto'}
+      >
             <View style={styles.bottomSheetHandle} />
 
             <Text style={styles.bottomSheetTitle}>Receive Bitcoin</Text>
@@ -192,8 +245,6 @@ export default function ReceiveScreen({
           </TouchableOpacity>
         </TouchableOpacity>
       </Animated.View>
-        </>
-      )}
 
       {/* QR Code Modal */}
       {selectedAddress && (
@@ -220,6 +271,9 @@ export default function ReceiveScreen({
             <View style={styles.qrModalHeader}>
               <TouchableOpacity
                 onPress={() => {
+                  // Start showing receive sheet immediately, then animate
+                  setShowQrModal(false);
+
                   Animated.parallel([
                     Animated.timing(translateX, {
                       toValue: SCREEN_WIDTH,
@@ -228,15 +282,15 @@ export default function ReceiveScreen({
                     }),
                     Animated.timing(qrOpacity, {
                       toValue: 0,
-                      duration: 250,
+                      duration: 150,
                       useNativeDriver: true,
                     }),
-                  ]).start(() => {
-                    setTimeout(() => {
-                      setShowQrModal(false);
-                      receiveOpacity.setValue(1);
-                    }, 100);
-                  });
+                    Animated.timing(receiveOpacity, {
+                      toValue: 1,
+                      duration: 150,
+                      useNativeDriver: true,
+                    }),
+                  ]).start();
                 }}
                 style={styles.qrModalBackButton}
               >

@@ -142,6 +142,11 @@ export default function App() {
   const appState = useRef(AppState.currentState);
   const inactivityTimer = useRef(null);
   const walletExists = useRef(false); // Track if wallet exists without triggering re-renders
+
+  // Toast notification state
+  const [toastMessage, setToastMessage] = useState('');
+  const [toastVisible, setToastVisible] = useState(false);
+  const toastTimeout = useRef(null);
   const seedConfirmedRef = useRef(false); // Track if seed backup is confirmed without triggering re-renders
   const amountInputRef = useRef(null);
   const INACTIVITY_TIMEOUT = 2 * 60 * 1000; // 2 minutes in milliseconds
@@ -751,9 +756,20 @@ export default function App() {
     return wallet.taprootAddress;
   };
 
+  const showToast = (message) => {
+    if (toastTimeout.current) {
+      clearTimeout(toastTimeout.current);
+    }
+    setToastMessage(message);
+    setToastVisible(true);
+    toastTimeout.current = setTimeout(() => {
+      setToastVisible(false);
+    }, 2000);
+  };
+
   const copyToClipboard = async (text) => {
     await Clipboard.setStringAsync(text);
-    Alert.alert('Copied!', 'Address copied to clipboard');
+    showToast('Address copied to clipboard');
   };
 
   const resetWalletAndState = async () => {
@@ -873,6 +889,7 @@ export default function App() {
           onPinSetupComplete={handlePinSetupComplete}
           onPinChangeComplete={handlePinChangeComplete}
           fetchBalance={fetchBalance}
+          showToast={showToast}
         />
         <StatusBar style="light" />
       </View>
@@ -1163,9 +1180,17 @@ export default function App() {
         onClose={() => setShowReceiveSheet(false)}
         segwitAddress={wallet?.segwitAddress || ''}
         taprootAddress={wallet?.taprootAddress || ''}
+        showToast={showToast}
       />
 
       <StatusBar style="light" />
+
+      {/* Toast Notification */}
+      {toastVisible && (
+        <View style={styles.toastContainer}>
+          <Text style={styles.toastText}>{toastMessage}</Text>
+        </View>
+      )}
     </View>
 
     {/* Biometric Authentication Prompt - Rendered at top level */}
