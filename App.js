@@ -159,6 +159,8 @@ export default function App() {
     setShowBiometricPrompt,
     setShowFaceIdButton,
     setShowPinEntry,
+    setSettingUpPin,
+    setChangingPin,
     setPin,
     setConfirmPin,
     setPinError,

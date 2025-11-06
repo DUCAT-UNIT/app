@@ -171,6 +171,8 @@ export function useAuth({ onSeedConfirmed }) {
     setShowBiometricPrompt,
     setShowFaceIdButton,
     setShowPinEntry,
+    setSettingUpPin,
+    setChangingPin,
     setPin,
     setConfirmPin,
     setPinError,
