@@ -4,6 +4,7 @@
  */
 
 import React from 'react';
+import PropTypes from 'prop-types';
 import { Text, View, TouchableOpacity, StyleSheet, Platform, Dimensions, StatusBar } from 'react-native';
 
 // Get device dimensions for responsive sizing
@@ -101,6 +102,17 @@ function SettingsOption({ icon, title, onPress, rightText, isDanger }) {
     </TouchableOpacity>
   );
 }
+
+SettingsScreen.propTypes = {
+  onClose: PropTypes.func.isRequired,
+  onViewSeedPhrase: PropTypes.func.isRequired,
+  onChangePin: PropTypes.func.isRequired,
+  onSwitchAccount: PropTypes.func.isRequired,
+  onLockWallet: PropTypes.func.isRequired,
+  onDeleteWallet: PropTypes.func.isRequired,
+  onPrivacyModeToggle: PropTypes.func.isRequired,
+  privacyMode: PropTypes.bool.isRequired,
+};
 
 const localStyles = StyleSheet.create({
   container: {

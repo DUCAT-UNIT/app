@@ -1,4 +1,5 @@
 import React, { useState, useRef } from 'react';
+import PropTypes from 'prop-types';
 import { View, Text, TouchableOpacity, PanResponder, Image, Share, Animated, Dimensions } from 'react-native';
 import * as Clipboard from 'expo-clipboard';
 import QRCode from 'react-native-qrcode-svg';
@@ -347,3 +348,12 @@ export default function ReceiveScreen({
     </>
   );
 }
+
+ReceiveScreen.propTypes = {
+  styles: PropTypes.object.isRequired,
+  showReceiveSheet: PropTypes.bool.isRequired,
+  onClose: PropTypes.func.isRequired,
+  segwitAddress: PropTypes.string.isRequired,
+  taprootAddress: PropTypes.string.isRequired,
+  showToast: PropTypes.func.isRequired,
+};
