@@ -4,6 +4,7 @@
  */
 
 import React from 'react';
+import PropTypes from 'prop-types';
 import { View, Text, TouchableOpacity } from 'react-native';
 import * as SecureStore from 'expo-secure-store';
 import * as LocalAuthentication from 'expo-local-authentication';
@@ -83,3 +84,13 @@ export default function BiometricPromptModal({
     </View>
   );
 }
+
+BiometricPromptModal.propTypes = {
+  visible: PropTypes.bool.isRequired,
+  isAuthenticated: PropTypes.bool.isRequired,
+  onClose: PropTypes.func.isRequired,
+  onBiometricEnabled: PropTypes.func.isRequired,
+  onBiometricDisabled: PropTypes.func.isRequired,
+  onShowPinEntry: PropTypes.func,
+  styles: PropTypes.object.isRequired,
+};

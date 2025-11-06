@@ -4,6 +4,7 @@
  */
 
 import React from 'react';
+import PropTypes from 'prop-types';
 import { View, Text, TextInput, TouchableOpacity, Alert } from 'react-native';
 import { StatusBar } from 'expo-status-bar';
 
@@ -77,3 +78,13 @@ export default function AccountSwitcherModal({
     </View>
   );
 }
+
+AccountSwitcherModal.propTypes = {
+  visible: PropTypes.bool.isRequired,
+  accountIndex: PropTypes.string.isRequired,
+  switchingAccount: PropTypes.bool.isRequired,
+  onClose: PropTypes.func.isRequired,
+  onAccountIndexChange: PropTypes.func.isRequired,
+  onSwitch: PropTypes.func.isRequired,
+  styles: PropTypes.object.isRequired,
+};
