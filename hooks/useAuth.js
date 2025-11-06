@@ -52,7 +52,6 @@ export function useAuth({ onSeedConfirmed }) {
   // Authenticate user with biometrics
   const authenticateUser = async () => {
     try {
-      console.log('FaceID button clicked');
 
       // Check if user has already enabled biometric auth
       if (biometricEnabled) {
@@ -80,11 +79,9 @@ export function useAuth({ onSeedConfirmed }) {
         }
       } else {
         // User hasn't enabled biometrics yet, show modal to ask
-        console.log('Showing biometric prompt modal');
         setShowBiometricPrompt(true);
       }
     } catch (error) {
-      console.log('Error in authenticateUser:', error);
       setShowBiometricPrompt(true);
     }
   };

@@ -45,7 +45,6 @@ export default function AssetSelectorSheet({
         <TouchableOpacity
           style={styles.assetOption}
           onPress={() => {
-            console.log('BTC asset selected');
             onSelectAsset('btc');
           }}
         >
@@ -65,7 +64,6 @@ export default function AssetSelectorSheet({
         <TouchableOpacity
           style={styles.assetOption}
           onPress={() => {
-            console.log('UNIT asset selected');
             onSelectAsset('unit');
           }}
         >
@@ -85,7 +83,6 @@ export default function AssetSelectorSheet({
         <TouchableOpacity
           style={styles.assetOption}
           onPress={() => {
-            console.log('DUCAT asset selected');
             onSelectAsset('ducat');
           }}
         >

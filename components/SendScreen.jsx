@@ -356,7 +356,6 @@ export default function SendScreen({
         btcPrice={btcPrice}
         onDismiss={handleAssetSelectorDismiss}
         onSelectAsset={(assetType) => {
-          console.log(`${assetType.toUpperCase()} asset selected`);
           setSendAssetType(assetType);
           setIntentStep('entering_address');
         }}
@@ -422,7 +421,6 @@ export default function SendScreen({
           setSendIntent(null);
         }}
         onConfirm={() => {
-          console.log('Confirm button pressed!');
           signIntent();
         }}
       />

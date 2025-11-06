@@ -233,7 +233,6 @@ export default function App() {
 
   // Debug: Track intentStep changes
   useEffect(() => {
-    console.log('intentStep changed to:', intentStep, 'sendIntent:', sendIntent?.id, 'wallet:', !!wallet, 'seedConfirmed:', seedConfirmed);
   }, [intentStep, sendIntent]);
 
 
@@ -366,7 +365,6 @@ export default function App() {
     try {
       // Trim whitespace from recipient address
       const trimmedRecipient = sendRecipient.trim();
-      console.log('createSendIntent called - assetType:', sendAssetType, 'amount:', sendAmount, 'recipient:', trimmedRecipient);
       setIntentStep('creating');
 
       // Validate inputs
@@ -381,12 +379,9 @@ export default function App() {
       setSendRecipient(trimmedRecipient);
 
       // Branch based on asset type
-      console.log('Branching to asset type:', sendAssetType);
       if (sendAssetType === 'btc') {
-        console.log('Calling createBtcIntent...');
         await createBtcIntent();
       } else if (sendAssetType === 'unit') {
-        console.log('Calling createUnitIntent...');
         await createUnitIntent();
       } else {
         console.error('Invalid asset type:', sendAssetType);
@@ -410,14 +405,11 @@ export default function App() {
         currentAccount
       );
 
-      console.log('Intent created, setting state and moving to review...');
       setSendIntent(intent);
       setIntentStep('reviewing');
-      console.log('State updated: intentStep=reviewing, sendIntent=', intent.id);
 
       // Debug: Check state after a moment
       setTimeout(() => {
-        console.log('After state update - intentStep should be reviewing');
       }, 100);
     } catch (error) {
       console.error('Failed to create BTC transaction:', error);
@@ -438,7 +430,6 @@ export default function App() {
         currentAccount
       );
 
-      console.log('UNIT intent created:', intent.id);
       setSendIntent(intent);
       setIntentStep('reviewing');
     } catch (error) {
@@ -452,7 +443,6 @@ export default function App() {
   // Sign the PSBT using TransactionService
   const signIntent = async () => {
     try {
-      console.log('signIntent called with intent:', sendIntent);
       setIntentStep('signing');
 
       if (!sendIntent) {
@@ -485,7 +475,6 @@ export default function App() {
   // Broadcast the signed transaction using TransactionService
   const broadcastIntent = async (intent = sendIntent) => {
     try {
-      console.log('broadcastIntent called with intent:', intent);
       if (!intent || !intent.signedTxHex) {
         console.error('No signed transaction to broadcast');
         Alert.alert('Error', 'No signed transaction to broadcast');

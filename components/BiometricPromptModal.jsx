@@ -43,7 +43,6 @@ export default function BiometricPromptModal({
         onBiometricEnabled(true, result.success);
       }
     } catch (error) {
-      console.log('Biometric auth error:', error);
     }
   };
 

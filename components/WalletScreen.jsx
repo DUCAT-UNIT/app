@@ -29,7 +29,6 @@ export default function WalletScreen({
   } = useWallet();
 
   // Debug: Log wallet data
-  console.log('WalletScreen render:', {
     segwitBalance,
     taprootBalance,
     btcPrice,

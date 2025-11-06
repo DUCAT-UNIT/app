@@ -28,4 +28,3 @@ if (typeof window !== 'undefined') {
 }
 
 // Verify it's set
-console.log('crypto.getRandomValues polyfilled:', typeof global.crypto.getRandomValues === 'function');

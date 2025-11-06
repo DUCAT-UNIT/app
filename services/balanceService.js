@@ -55,7 +55,6 @@ export const fetchWalletBalances = async (segwitAddress, taprootAddress) => {
   results.forEach((result, index) => {
     if (result.status === 'rejected') {
       const balanceType = ['SegWit', 'Taproot', 'Runes'][index];
-      console.log(`${balanceType} balance fetch failed:`, result.reason);
     }
   });
 

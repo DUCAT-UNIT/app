@@ -77,9 +77,6 @@ export function encodeRunestone(config) {
     payloadBuffer
   ]);
 
-  console.log('Custom encoder - payload length:', payloadBuffer.length);
-  console.log('Custom encoder - payload hex:', payloadBuffer.toString('hex'));
-  console.log('Custom encoder - full script hex:', script.toString('hex'));
 
   return {
     encodedRunestone: script,

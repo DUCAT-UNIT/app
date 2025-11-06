@@ -114,7 +114,6 @@ export default function PinSetupScreen({
       // Complete setup regardless of biometric result
       onPinSetupComplete();
     } catch (error) {
-      console.log('Biometric auth error:', error);
       onPinSetupComplete();
     }
   };
