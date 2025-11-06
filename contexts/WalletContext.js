@@ -183,6 +183,22 @@ export const WalletProvider = ({ children }) => {
     return () => clearInterval(interval);
   }, [fetchBtcPrice]);
 
+  // Auto-refresh balance every 10 seconds when wallet exists
+  useEffect(() => {
+    if (!wallet) return;
+
+    // Fetch balance immediately
+    fetchBalance();
+
+    // Set up interval to fetch every 10 seconds
+    const interval = setInterval(() => {
+      fetchBalance();
+    }, 10000);
+
+    // Cleanup interval on unmount or when wallet changes
+    return () => clearInterval(interval);
+  }, [wallet, fetchBalance]);
+
   const value = {
     // Wallet state
     wallet,
