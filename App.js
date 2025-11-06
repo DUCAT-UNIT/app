@@ -329,18 +329,18 @@ export default function App() {
     });
   }
 
-  // Reset positions when screens open
+  // Reset positions when screens close (not open, to avoid flash)
   useEffect(() => {
-    if (showSettings) {
+    if (!showSettings) {
       settingsTranslateX.setValue(0);
     }
-  }, [showSettings]);
+  }, [showSettings, settingsTranslateX]);
 
   useEffect(() => {
-    if (viewingSeedPhrase) {
+    if (!viewingSeedPhrase) {
       seedPhraseTranslateX.setValue(0);
     }
-  }, [viewingSeedPhrase]);
+  }, [viewingSeedPhrase, seedPhraseTranslateX]);
 
   const authenticateUser = async () => {
     try {
