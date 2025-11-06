@@ -44,9 +44,13 @@ import ReceiveScreen from './components/ReceiveScreen';
 import WalletScreen from './components/WalletScreen';
 import AccountSwitcherModal from './components/AccountSwitcherModal';
 import BiometricPromptModal from './components/BiometricPromptModal';
+import Toast from './components/Toast';
 
 // Import contexts
 import { useWallet } from './contexts/WalletContext';
+
+// Import hooks
+import { useToast } from './hooks/useToast';
 
 // Initialize BIP32
 const bip32 = BIP32Factory(ecc);
@@ -145,10 +149,9 @@ export default function App() {
   const inactivityTimer = useRef(null);
   const walletExists = useRef(false); // Track if wallet exists without triggering re-renders
 
-  // Toast notification state
-  const [toastMessage, setToastMessage] = useState('');
-  const [toastVisible, setToastVisible] = useState(false);
-  const toastTimeout = useRef(null);
+  // Toast notification hook
+  const { showToast, toastMessage, toastVisible } = useToast();
+
   const seedConfirmedRef = useRef(false); // Track if seed backup is confirmed without triggering re-renders
   const amountInputRef = useRef(null);
   const INACTIVITY_TIMEOUT = 2 * 60 * 1000; // 2 minutes in milliseconds
@@ -846,17 +849,6 @@ export default function App() {
     return wallet.taprootAddress;
   };
 
-  const showToast = (message) => {
-    if (toastTimeout.current) {
-      clearTimeout(toastTimeout.current);
-    }
-    setToastMessage(message);
-    setToastVisible(true);
-    toastTimeout.current = setTimeout(() => {
-      setToastVisible(false);
-    }, 2000);
-  };
-
   const copyToClipboard = async (text) => {
     await Clipboard.setStringAsync(text);
     showToast('Address copied to clipboard');
@@ -1121,11 +1113,7 @@ export default function App() {
       <StatusBar style="light" />
 
       {/* Toast Notification */}
-      {toastVisible && (
-        <View style={styles.toastContainer}>
-          <Text style={styles.toastText}>{toastMessage}</Text>
-        </View>
-      )}
+      <Toast visible={toastVisible} message={toastMessage} styles={styles} />
     </View>
 
     {/* Settings Screen Overlay */}
