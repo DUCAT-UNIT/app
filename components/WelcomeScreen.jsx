@@ -9,6 +9,7 @@
  */
 
 import React from 'react';
+import PropTypes from 'prop-types';
 import { Text, View, TouchableOpacity, TextInput, Image } from 'react-native';
 import styles from '../styles';
 
@@ -295,3 +296,32 @@ export default function WelcomeScreen({
   // If we get here, something's wrong - return null
   return null;
 }
+
+WelcomeScreen.propTypes = {
+  // State
+  wallet: PropTypes.object,
+  importingWallet: PropTypes.bool.isRequired,
+  showingIntro: PropTypes.bool.isRequired,
+  showingSeeds: PropTypes.bool.isRequired,
+  verifyingSeeds: PropTypes.bool.isRequired,
+  tempMnemonicWords: PropTypes.arrayOf(PropTypes.string).isRequired,
+  importSeedPhrase: PropTypes.arrayOf(PropTypes.string).isRequired,
+  verificationWords: PropTypes.object.isRequired,
+  requiredIndices: PropTypes.arrayOf(PropTypes.number).isRequired,
+  wordChoices: PropTypes.object.isRequired,
+  seedInputRefs: PropTypes.object.isRequired,
+
+  // State setters
+  setImportingWallet: PropTypes.func.isRequired,
+  setImportSeedPhrase: PropTypes.func.isRequired,
+  setVerificationWords: PropTypes.func.isRequired,
+  setShowingIntro: PropTypes.func.isRequired,
+  setShowingSeeds: PropTypes.func.isRequired,
+
+  // Functions
+  createWallet: PropTypes.func.isRequired,
+  importWallet: PropTypes.func.isRequired,
+  resetWallet: PropTypes.func.isRequired,
+  proceedToVerification: PropTypes.func.isRequired,
+  verifySeeds: PropTypes.func.isRequired,
+};
