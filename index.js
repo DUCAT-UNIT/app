@@ -2,12 +2,20 @@ import { registerRootComponent } from 'expo';
 import React from 'react';
 import App from './App';
 import { WalletProvider } from './contexts/WalletContext';
+import ErrorBoundary from './components/ErrorBoundary';
 
-// Wrap App with WalletProvider
+// Wrap App with ErrorBoundary and WalletProvider
 const AppWithProviders = () => (
-  <WalletProvider>
-    <App />
-  </WalletProvider>
+  <ErrorBoundary
+    fallbackMessage="The UNIT Wallet encountered an error. Your funds are safe. Please restart the app."
+    onReset={() => {
+      // Optional: Add any cleanup logic here
+    }}
+  >
+    <WalletProvider>
+      <App />
+    </WalletProvider>
+  </ErrorBoundary>
 );
 
 // registerRootComponent calls AppRegistry.registerComponent('main', () => App);
