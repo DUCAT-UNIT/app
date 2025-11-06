@@ -4,7 +4,7 @@
  */
 
 import React from 'react';
-import { Text, View, TouchableOpacity, ScrollView, StyleSheet, Platform, Dimensions, StatusBar } from 'react-native';
+import { Text, View, TouchableOpacity, StyleSheet, Platform, Dimensions, StatusBar } from 'react-native';
 
 // Get device dimensions for responsive sizing
 const { width: SCREEN_WIDTH } = Dimensions.get('window');
@@ -37,7 +37,7 @@ export default function SettingsScreen({
         </TouchableOpacity>
       </View>
 
-      <ScrollView style={localStyles.content} showsVerticalScrollIndicator={false}>
+      <View style={localStyles.content}>
         <Text style={localStyles.title}>Settings</Text>
 
         {/* Security Section */}
@@ -79,7 +79,7 @@ export default function SettingsScreen({
             isDanger
           />
         </View>
-      </ScrollView>
+      </View>
     </View>
   );
 }

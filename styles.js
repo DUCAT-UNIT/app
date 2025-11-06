@@ -347,7 +347,7 @@ const styles = StyleSheet.create({
     overflow: 'hidden',
   },
   ducatIcon: {
-    // Unit icon styling (if needed)
+    borderRadius: 20,
   },
   logoImage: {
     width: 40,
@@ -817,7 +817,7 @@ const styles = StyleSheet.create({
     fontFamily: 'CabinetGrotesk-Regular',
   },
   xverseAccountName: {
-    fontSize: 16,
+    fontSize: 20,
     fontFamily: 'CabinetGrotesk-Medium',
     color: COLORS.VERY_LIGHT_GRAY,
     fontWeight: '600',
@@ -854,7 +854,6 @@ const styles = StyleSheet.create({
   },
   xverseBalanceLeft: {
     flex: 1,
-    minWidth: 0,
   },
   xverseBalanceLabel: {
     fontSize: 14,
@@ -867,7 +866,6 @@ const styles = StyleSheet.create({
     fontFamily: 'CabinetGrotesk-Bold',
     color: COLORS.VERY_LIGHT_GRAY,
     fontWeight: 'bold',
-    flex: 1,
   },
   balanceWithIcon: {
     flexDirection: 'row',
@@ -1272,7 +1270,8 @@ const styles = StyleSheet.create({
     paddingBottom: 40,
     paddingHorizontal: 20,
     paddingTop: 15,
-    minHeight: '50%',
+    minHeight: '60%',
+    maxHeight: '60%',
     zIndex: 1000,
   },
   bottomSheetHandle: {
@@ -1295,14 +1294,16 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     backgroundColor: COLORS.DARK_BG,
-    padding: 18,
+    paddingVertical: 10,
+    paddingHorizontal: 5,
     borderRadius: 12,
     marginBottom: 12,
   },
   assetOptionLogo: {
-    width: 50,
-    height: 50,
+    width: 42,
+    height: 42,
     marginRight: 15,
+    borderRadius: 21,
   },
   assetOptionInfo: {
     flex: 1,
@@ -1323,6 +1324,12 @@ const styles = StyleSheet.create({
     fontSize: 24,
     fontFamily: 'CabinetGrotesk-Regular',
     color: COLORS.MEDIUM_GRAY,
+  },
+  assetOptionValue: {
+    fontSize: 16,
+    fontFamily: 'CabinetGrotesk-Medium',
+    color: COLORS.VERY_LIGHT_GRAY,
+    fontWeight: '600',
   },
   // Amount input bottom sheet styles
   bottomSheetBackButton: {
@@ -1389,6 +1396,43 @@ const styles = StyleSheet.create({
     fontFamily: 'CabinetGrotesk-Medium',
     fontWeight: '600',
     textAlign: 'center',
+  },
+  // Balance footer at bottom of send sheets
+  sendBalanceFooter: {
+    position: 'absolute',
+    bottom: 40,
+    left: 20,
+    right: 20,
+    flexDirection: 'column',
+    gap: 16,
+    paddingTop: 16,
+    borderTopWidth: 1,
+    borderTopColor: '#2a2a2a',
+  },
+  sendBalanceFooterRow: {
+    flexDirection: 'column',
+  },
+  sendBalanceFooterHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 4,
+  },
+  sendBalanceFooterLabel: {
+    fontSize: 14,
+    fontFamily: 'CabinetGrotesk-Medium',
+    color: COLORS.VERY_LIGHT_GRAY,
+    fontWeight: '600',
+  },
+  sendBalanceFooterAmount: {
+    fontSize: 14,
+    fontFamily: 'CabinetGrotesk-Regular',
+    color: COLORS.MEDIUM_GRAY,
+  },
+  sendBalanceFooterUsd: {
+    fontSize: 14,
+    fontFamily: 'CabinetGrotesk-Regular',
+    color: COLORS.MEDIUM_GRAY,
   },
   // Address input styles
   addressInputTitle: {
@@ -1814,6 +1858,207 @@ const styles = StyleSheet.create({
     fontFamily: 'CabinetGrotesk-Medium',
     fontWeight: '600',
     color: COLORS.DARK_GRAY,
+  },
+  // Receive address styles
+  receiveAddressRow: {
+    backgroundColor: '#2a2a2a',
+    borderRadius: 12,
+    padding: 15,
+    marginBottom: 12,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+  },
+  receiveAddressInfo: {
+    flex: 1,
+    marginRight: 12,
+  },
+  receiveAddressLabelRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginBottom: 8,
+    gap: 8,
+  },
+  receiveAddressLabel: {
+    fontSize: 14,
+    fontFamily: 'CabinetGrotesk-Medium',
+    color: COLORS.VERY_LIGHT_GRAY,
+    fontWeight: '600',
+  },
+  receiveAddress: {
+    fontSize: 13,
+    fontFamily: 'CabinetGrotesk-Regular',
+    color: COLORS.MEDIUM_GRAY,
+  },
+  receiveAddressTag: {
+    backgroundColor: '#3a3a3a',
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    borderRadius: 6,
+  },
+  receiveAddressTagText: {
+    fontSize: 11,
+    fontFamily: 'CabinetGrotesk-Medium',
+    color: COLORS.MEDIUM_GRAY,
+    fontWeight: '600',
+  },
+  receiveQrButton: {
+    justifyContent: 'center',
+    alignItems: 'center',
+    padding: 8,
+  },
+  receiveQrIcon: {
+    width: 24,
+    height: 24,
+    tintColor: COLORS.VERY_LIGHT_GRAY,
+  },
+  // QR Modal styles
+  qrModalContainer: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
+    bottom: 0,
+    backgroundColor: COLORS.DARK_BG,
+    zIndex: 99999,
+  },
+  qrModalNetworkBar: {
+    backgroundColor: '#27272A',
+    paddingVertical: 6,
+    paddingHorizontal: 0,
+    width: '100%',
+    alignSelf: 'stretch',
+    borderRadius: 0,
+    marginTop: STATUS_BAR_HEIGHT,
+    marginBottom: 0,
+    marginLeft: 0,
+    marginRight: 0,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  qrModalNetworkText: {
+    color: '#8B5CF6',
+    fontSize: 16,
+    fontWeight: '600',
+    letterSpacing: 0.5,
+    fontFamily: 'CabinetGrotesk-Medium',
+  },
+  qrModalHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingHorizontal: 16,
+    paddingTop: 16,
+    paddingBottom: 16,
+  },
+  qrModalBackButton: {
+    width: 40,
+    height: 40,
+    justifyContent: 'center',
+    alignItems: 'flex-start',
+  },
+  qrModalBackArrow: {
+    fontSize: 36,
+    color: COLORS.VERY_LIGHT_GRAY,
+    fontWeight: '300',
+  },
+  qrModalMenuButton: {
+    width: 40,
+    height: 40,
+    justifyContent: 'center',
+    alignItems: 'flex-end',
+  },
+  qrModalMenuIcon: {
+    fontSize: 24,
+    color: COLORS.VERY_LIGHT_GRAY,
+  },
+  qrModalContent: {
+    flex: 1,
+    alignItems: 'center',
+    paddingHorizontal: 24,
+    paddingTop: 20,
+  },
+  qrModalTitle: {
+    fontSize: 28,
+    fontFamily: 'CabinetGrotesk-Bold',
+    color: COLORS.VERY_LIGHT_GRAY,
+    fontWeight: 'bold',
+    marginBottom: 8,
+    textAlign: 'center',
+  },
+  qrModalSubtitle: {
+    fontSize: 15,
+    fontFamily: 'CabinetGrotesk-Regular',
+    color: COLORS.MEDIUM_GRAY,
+    marginBottom: 40,
+    textAlign: 'center',
+  },
+  qrCodeContainer: {
+    backgroundColor: COLORS.WHITE,
+    padding: 20,
+    borderRadius: 16,
+    marginBottom: 32,
+  },
+  qrAddressContainer: {
+    width: '100%',
+    backgroundColor: '#2a2a2a',
+    borderRadius: 12,
+    padding: 16,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    marginBottom: 16,
+  },
+  qrAddressLeft: {
+    flex: 1,
+    marginRight: 12,
+  },
+  qrAddressLabelText: {
+    fontSize: 13,
+    fontFamily: 'CabinetGrotesk-Medium',
+    color: COLORS.MEDIUM_GRAY,
+    fontWeight: '600',
+    marginBottom: 8,
+  },
+  qrAddressFullText: {
+    fontSize: 14,
+    fontFamily: 'CabinetGrotesk-Regular',
+    color: COLORS.VERY_LIGHT_GRAY,
+    lineHeight: 20,
+  },
+  qrCopyButton: {
+    backgroundColor: COLORS.WHITE,
+    paddingHorizontal: 24,
+    paddingVertical: 10,
+    borderRadius: 20,
+  },
+  qrCopyButtonText: {
+    fontSize: 15,
+    fontFamily: 'CabinetGrotesk-Medium',
+    color: COLORS.DARK_BG,
+    fontWeight: '600',
+  },
+  qrShareButton: {
+    width: '100%',
+    backgroundColor: 'transparent',
+    borderWidth: 1,
+    borderColor: '#3a3a3a',
+    paddingVertical: 14,
+    borderRadius: 12,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 6,
+  },
+  qrShareIcon: {
+    fontSize: 18,
+    color: COLORS.VERY_LIGHT_GRAY,
+  },
+  qrShareButtonText: {
+    fontSize: 16,
+    fontFamily: 'CabinetGrotesk-Medium',
+    color: COLORS.VERY_LIGHT_GRAY,
+    fontWeight: '600',
   },
 });
 export default styles;

@@ -36,9 +36,9 @@ export const WalletProvider = ({ children }) => {
   const [loadingUtxos, setLoadingUtxos] = useState(false);
 
   // Display preferences
-  const [showTotalInBTC, setShowTotalInBTC] = useState(true);
-  const [showBTCInBTC, setShowBTCInBTC] = useState(true);
-  const [showUnitInUnit, setShowUnitInUnit] = useState(true);
+  const [showTotalInBTC, setShowTotalInBTC] = useState(false);
+  const [showBTCInBTC, setShowBTCInBTC] = useState(false);
+  const [showUnitInUnit, setShowUnitInUnit] = useState(false);
 
   // Fetch BTC price
   const fetchBtcPrice = useCallback(async () => {

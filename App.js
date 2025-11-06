@@ -11,7 +11,7 @@ import * as FileSystem from 'expo-file-system';
 import { useFonts } from 'expo-font';
 
 import { StatusBar } from 'expo-status-bar';
-import { Text, View, TouchableOpacity, ScrollView, Alert, ActivityIndicator, TextInput, Image, RefreshControl, AppState, Keyboard, Platform, Linking, SafeAreaView, StatusBar as RNStatusBar, Dimensions } from 'react-native';
+import { Text, View, TouchableOpacity, Alert, ActivityIndicator, TextInput, Image, AppState, Keyboard, Platform, Linking, SafeAreaView, StatusBar as RNStatusBar, Dimensions } from 'react-native';
 import { useState, useEffect, useRef, useCallback } from 'react';
 import * as Clipboard from 'expo-clipboard';
 import * as bip39 from 'bip39';
@@ -40,6 +40,7 @@ import PinSetupScreen from './components/PinSetupScreen';
 import LockScreen from './components/LockScreen';
 import SettingsScreen from './components/SettingsScreen';
 import SendScreen from './components/SendScreen';
+import ReceiveScreen from './components/ReceiveScreen';
 import WalletScreen from './components/WalletScreen';
 
 // Import contexts
@@ -117,6 +118,7 @@ export default function App() {
   const [pinError, setPinError] = useState(''); // PIN error message
   const [pinStep, setPinStep] = useState('enter'); // 'enter' or 'confirm'
   const [showSettings, setShowSettings] = useState(false); // Settings modal
+  const [showReceiveSheet, setShowReceiveSheet] = useState(false); // Receive bottom sheet
   const [viewingSeedPhrase, setViewingSeedPhrase] = useState(false); // Viewing seed phrase
   const [seedPhraseWords, setSeedPhraseWords] = useState([]); // Seed phrase from keychain
   const [changingPin, setChangingPin] = useState(false); // Changing PIN flow
@@ -1033,11 +1035,7 @@ export default function App() {
         <View style={styles.mutinynetBanner}>
           <Text style={styles.mutinynetBannerText}>Mutinynet Edition</Text>
         </View>
-        <ScrollView
-          style={{ flex: 1 }}
-          contentContainerStyle={[styles.container, { paddingTop: 0 }]}
-          keyboardShouldPersistTaps="always"
-        >
+        <View style={[styles.container, { paddingTop: 0, flex: 1 }]}>
           <View style={styles.titleRow}>
             <View style={styles.titleContainer}>
               <Text style={styles.title}>DUCAT</Text>
@@ -1083,7 +1081,7 @@ export default function App() {
               <Text style={styles.buttonText}>Done</Text>
             </TouchableOpacity>
           </View>
-        </ScrollView>
+        </View>
         <StatusBar style="light" />
       </View>
     );
@@ -1091,18 +1089,9 @@ export default function App() {
 
   return (
     <>
-      <ScrollView
-        style={{ backgroundColor: wallet && seedConfirmed ? '#1A1A1A' : '#1A1A1A' }}
-        contentContainerStyle={{ flexGrow: 1, backgroundColor: '#1A1A1A', paddingHorizontal: 0 }}
-        keyboardShouldPersistTaps="always"
-        refreshControl={
-          wallet && seedConfirmed ? (
-            <RefreshControl refreshing={refreshing} onRefresh={onRefresh} />
-          ) : undefined
-        }
+      <View
+        style={{ flex: 1, backgroundColor: '#1A1A1A' }}
         onTouchStart={resetInactivityTimer}
-        onScroll={resetInactivityTimer}
-        scrollEventThrottle={400}
       >
       {/* Mutinynet Banner - Shows on all screens */}
       <View style={styles.mutinynetBanner}>
@@ -1134,15 +1123,14 @@ export default function App() {
           verifySeeds={verifySeeds}
         />
       ) : (
-        <>
-          <WalletScreen
-            styles={styles}
-            onSendPress={() => setIntentStep('selecting_asset')}
-            onSettingsPress={() => setShowSettings(true)}
-            sendAddressType={sendAddressType}
-            switchingAccount={switchingAccount}
-          />
-        </>
+        <WalletScreen
+          styles={styles}
+          onSendPress={() => setIntentStep('selecting_asset')}
+          onReceivePress={() => setShowReceiveSheet(true)}
+          onSettingsPress={() => setShowSettings(true)}
+          sendAddressType={sendAddressType}
+          switchingAccount={switchingAccount}
+        />
       )}
 
       {/* Send Transaction Bottom Sheets */}
@@ -1168,8 +1156,17 @@ export default function App() {
         signIntent={signIntent}
       />
 
+      {/* Receive Bottom Sheet */}
+      <ReceiveScreen
+        styles={styles}
+        showReceiveSheet={showReceiveSheet}
+        onClose={() => setShowReceiveSheet(false)}
+        segwitAddress={wallet?.segwitAddress || ''}
+        taprootAddress={wallet?.taprootAddress || ''}
+      />
+
       <StatusBar style="light" />
-    </ScrollView>
+    </View>
 
     {/* Biometric Authentication Prompt - Rendered at top level */}
     {showBiometricPrompt && (

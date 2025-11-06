@@ -9,7 +9,7 @@
  */
 
 import React, { useState, useEffect } from 'react';
-import { Text, View, TouchableOpacity, TextInput, ActivityIndicator, Image, Linking, Alert, ScrollView, Pressable, TouchableWithoutFeedback, Keyboard, KeyboardAvoidingView, Platform, Modal } from 'react-native';
+import { Text, View, TouchableOpacity, TextInput, ActivityIndicator, Image, Linking, Alert, ScrollView, Pressable, TouchableWithoutFeedback, Keyboard, KeyboardAvoidingView, Platform, Modal, PanResponder } from 'react-native';
 import * as Clipboard from 'expo-clipboard';
 import { COLORS } from '../utils/colors';
 import styles from '../styles';
@@ -135,6 +135,53 @@ export default function SendScreen({
     }
   }, [intentStep, sendAssetType]);
 
+  // Pan responder for swipe-down to dismiss
+  const createPanResponder = (onDismiss) => {
+    return PanResponder.create({
+      onStartShouldSetPanResponder: () => false,
+      onMoveShouldSetPanResponder: (_, gestureState) => {
+        // Only activate if swiping down (dy > 0) and moved more than 10px
+        return gestureState.dy > 10 && Math.abs(gestureState.dy) > Math.abs(gestureState.dx);
+      },
+      onPanResponderRelease: (_, gestureState) => {
+        // If swiped down more than 100px, dismiss
+        if (gestureState.dy > 100) {
+          onDismiss();
+        }
+      },
+    });
+  };
+
+  // Create pan responders for different sheets
+  const assetSelectorPanResponder = createPanResponder(() => setIntentStep('idle'));
+
+  const addressInputPanResponder = createPanResponder(() => {
+    setIntentStep('idle');
+    setSendAssetType(null);
+    setSendRecipient('');
+  });
+
+  const amountInputPanResponder = createPanResponder(() => {
+    setIntentStep('idle');
+    setSendAssetType(null);
+    setSendAmount('');
+    setSendRecipient('');
+  });
+
+  const reviewPanResponder = createPanResponder(() => {
+    setIntentStep('idle');
+    setSendIntent(null);
+  });
+
+  const confirmedPanResponder = createPanResponder(() => {
+    setSendIntent(null);
+    setIntentStep('idle');
+    setSendAmount('');
+    setSendRecipient('');
+    setSendAssetType(null);
+    setBroadcastedTxid(null);
+  });
+
   // If not in any send flow, don't render anything
   if (intentStep === 'idle') {
     return null;
@@ -150,7 +197,7 @@ export default function SendScreen({
             onPress={() => setIntentStep('idle')}
             activeOpacity={1}
           />
-          <View style={styles.bottomSheet}>
+          <View style={styles.bottomSheet} {...assetSelectorPanResponder.panHandlers}>
             <View style={styles.bottomSheetHandle} />
             <Text style={styles.bottomSheetTitle}>Send What?</Text>
 
@@ -168,9 +215,11 @@ export default function SendScreen({
               />
               <View style={styles.assetOptionInfo}>
                 <Text style={styles.assetOptionTitle}>Bitcoin</Text>
-                <Text style={styles.assetOptionSubtitle}>Send BTC</Text>
+                <Text style={styles.assetOptionSubtitle}>{(btcBalance || 0).toFixed(8)} BTC</Text>
               </View>
-              <Text style={styles.assetOptionArrow}>›</Text>
+              <Text style={styles.assetOptionValue}>
+                ${((btcBalance || 0) * (btcPrice || 0)).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+              </Text>
             </TouchableOpacity>
 
             <TouchableOpacity
@@ -186,10 +235,33 @@ export default function SendScreen({
                 style={styles.assetOptionLogo}
               />
               <View style={styles.assetOptionInfo}>
-                <Text style={styles.assetOptionTitle}>Unit</Text>
-                <Text style={styles.assetOptionSubtitle}>Send DUCAT•UNIT•RUNE</Text>
+                <Text style={styles.assetOptionTitle}>UNIT•RUNE</Text>
+                <Text style={styles.assetOptionSubtitle}>{(unitBalance || 0).toLocaleString()} UNIT</Text>
               </View>
-              <Text style={styles.assetOptionArrow}>›</Text>
+              <Text style={styles.assetOptionValue}>
+                ${(unitBalance || 0).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+              </Text>
+            </TouchableOpacity>
+
+            <TouchableOpacity
+              style={styles.assetOption}
+              onPress={() => {
+                console.log('DUCAT asset selected');
+                setSendAssetType('ducat');
+                setIntentStep('entering_address');
+              }}
+            >
+              <Image
+                source={require('../assets/ducat-logo.png')}
+                style={styles.assetOptionLogo}
+              />
+              <View style={styles.assetOptionInfo}>
+                <Text style={styles.assetOptionTitle}>DUCAT•RUNE</Text>
+                <Text style={styles.assetOptionSubtitle}>0 DUCAT</Text>
+              </View>
+              <Text style={styles.assetOptionValue}>
+                $0.00
+              </Text>
             </TouchableOpacity>
           </View>
         </>
@@ -215,7 +287,7 @@ export default function SendScreen({
         >
           <View style={styles.bottomSheetBackdrop} />
         </TouchableWithoutFeedback>
-        <View style={[styles.bottomSheet, { bottom: keyboardHeight, flex: 1, paddingBottom: 10, paddingHorizontal: 0 }]}>
+        <View style={[styles.bottomSheet, { bottom: keyboardHeight, flex: 1, paddingBottom: 10, paddingHorizontal: 0 }]} {...addressInputPanResponder.panHandlers}>
           <ScrollView
             keyboardShouldPersistTaps="always"
             keyboardDismissMode="none"
@@ -315,7 +387,7 @@ export default function SendScreen({
             }}
             activeOpacity={1}
           />
-          <View style={[styles.bottomSheet, { bottom: keyboardHeight, paddingBottom: 10, paddingHorizontal: 0 }]}>
+          <View style={[styles.bottomSheet, { bottom: keyboardHeight, paddingBottom: 10, paddingHorizontal: 0 }]} {...amountInputPanResponder.panHandlers}>
             <View style={styles.bottomSheetHandle} />
 
             {/* Back button */}
@@ -446,7 +518,7 @@ export default function SendScreen({
             }}
             activeOpacity={1}
           />
-          <View style={styles.bottomSheet}>
+          <View style={styles.bottomSheet} {...reviewPanResponder.panHandlers}>
             <View style={styles.bottomSheetHandle} />
 
             <TouchableOpacity
@@ -484,7 +556,7 @@ export default function SendScreen({
                   <View style={{ flex: 1 }}>
                     <Text style={{ fontSize: 16, fontWeight: '600', color: COLORS.VERY_LIGHT_GRAY, marginBottom: 4 }}>Amount</Text>
                     <Text style={{ fontSize: 12, color: COLORS.MEDIUM_GRAY }}>
-                      {sendIntent.assetType === 'UNIT' ? 'Unit' : 'Bitcoin'}
+                      {sendIntent.assetType === 'UNIT' ? 'UNIT•RUNE' : 'Bitcoin'}
                     </Text>
                   </View>
                   <View style={{ alignItems: 'flex-end' }}>
@@ -575,7 +647,7 @@ export default function SendScreen({
             }}
             activeOpacity={1}
           />
-          <View style={styles.bottomSheet}>
+          <View style={styles.bottomSheet} {...confirmedPanResponder.panHandlers}>
             <View style={styles.bottomSheetHandle} />
 
             <TouchableOpacity

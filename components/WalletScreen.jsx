@@ -1,11 +1,12 @@
 import React from 'react';
-import { View, Text, TouchableOpacity, Image, Alert, ActivityIndicator, Clipboard } from 'react-native';
+import { View, Text, TouchableOpacity, Image, ActivityIndicator } from 'react-native';
 import { useWallet } from '../contexts/WalletContext';
 import { COLORS } from '../utils/colors';
 
 export default function WalletScreen({
   styles,
   onSendPress,
+  onReceivePress,
   onSettingsPress,
   sendAddressType,
   switchingAccount,
@@ -26,11 +27,14 @@ export default function WalletScreen({
     setShowUnitInUnit,
   } = useWallet();
 
-  const handleCopyAddress = () => {
-    const address = sendAddressType === 'taproot' ? wallet.taprootAddress : wallet.segwitAddress;
-    Clipboard.setString(address);
-    Alert.alert('Copied', 'Address copied to clipboard');
-  };
+  // Debug: Log wallet data
+  console.log('WalletScreen render:', {
+    segwitBalance,
+    taprootBalance,
+    btcPrice,
+    showTotalInBTC,
+    walletExists: !!wallet
+  });
 
   return (
     <View style={styles.walletContainer}>
@@ -42,13 +46,10 @@ export default function WalletScreen({
         </View>
       )}
 
-      {/* Header with Account Number, Copy Icon, and Settings Icon */}
+      {/* Header with Account Number and Settings Icon */}
       <View style={styles.xverseHeader}>
         <View style={styles.xverseHeaderLeft}>
           <Text style={styles.xverseAccountName}>Account {currentAccount + 1}</Text>
-          <TouchableOpacity onPress={handleCopyAddress} style={styles.copyButton}>
-            <Text style={styles.copyIcon}>📋</Text>
-          </TouchableOpacity>
         </View>
         <View style={styles.xverseHeaderRight}>
           <TouchableOpacity
@@ -68,12 +69,12 @@ export default function WalletScreen({
             {showTotalInBTC ? (
               <View style={styles.balanceWithIcon}>
                 <Image source={require('../assets/btc-symbol.png')} style={styles.balanceIcon} resizeMode="contain" />
-                <Text style={styles.xverseBalanceAmount} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.5}>
+                <Text style={styles.xverseBalanceAmount}>
                   {((segwitBalance || 0) + (taprootBalance || 0)).toFixed(8)}
                 </Text>
               </View>
             ) : (
-              <Text style={styles.xverseBalanceAmount} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.5}>
+              <Text style={styles.xverseBalanceAmount}>
                 ${(((segwitBalance || 0) + (taprootBalance || 0)) * (btcPrice || 0)).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
               </Text>
             )}
@@ -117,43 +118,58 @@ export default function WalletScreen({
           </View>
         </TouchableOpacity>
 
-        {/* DUCAT UNIT Card - Always reserve space */}
-        {runesBalance.length > 0 ? (
-          runesBalance.map((rune, index) => (
-            <TouchableOpacity
-              key={index}
-              style={styles.assetCard}
-              onPress={() => setShowUnitInUnit(!showUnitInUnit)}
-            >
-              <View style={styles.assetRow}>
-                <View style={styles.assetLeft}>
-                  <View style={[styles.btcIcon, styles.ducatIcon]}>
-                    <Image
-                      source={require('../assets/unit-logo.png')}
-                      style={styles.logoImage}
-                      resizeMode="contain"
-                    />
-                  </View>
-                  <Text style={styles.assetName}>Unit</Text>
-                </View>
-                {showUnitInUnit ? (
-                  <View style={styles.assetValueWithIcon}>
-                    <Image source={require('../assets/unit-symbol.png')} style={styles.assetIcon} resizeMode="contain" />
-                    <Text style={styles.assetValue}>
-                      {parseFloat(rune[1]).toLocaleString()}
-                    </Text>
-                  </View>
-                ) : (
-                  <Text style={styles.assetValue}>
-                    $ {(parseFloat(rune[1]) * 1.0).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
-                  </Text>
-                )}
+        {/* UNIT•RUNE Card */}
+        <TouchableOpacity
+          style={styles.assetCard}
+          onPress={() => setShowUnitInUnit(!showUnitInUnit)}
+        >
+          <View style={styles.assetRow}>
+            <View style={styles.assetLeft}>
+              <View style={[styles.btcIcon, styles.ducatIcon]}>
+                <Image
+                  source={require('../assets/unit-logo.png')}
+                  style={styles.logoImage}
+                  resizeMode="contain"
+                />
               </View>
-            </TouchableOpacity>
-          ))
-        ) : (
-          <View style={[styles.assetCard, styles.assetCardPlaceholder]} />
-        )}
+              <Text style={styles.assetName}>UNIT•RUNE</Text>
+            </View>
+            {showUnitInUnit ? (
+              <View style={styles.assetValueWithIcon}>
+                <Image source={require('../assets/unit-symbol.png')} style={styles.assetIcon} resizeMode="contain" />
+                <Text style={styles.assetValue}>
+                  {runesBalance.length > 0 ? parseFloat(runesBalance[0][1]).toLocaleString() : '0'}
+                </Text>
+              </View>
+            ) : (
+              <Text style={styles.assetValue}>
+                $ {runesBalance.length > 0
+                  ? (parseFloat(runesBalance[0][1]) * 1.0).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })
+                  : '0.00'}
+              </Text>
+            )}
+          </View>
+        </TouchableOpacity>
+
+        {/* DUCAT•RUNE Card */}
+        <TouchableOpacity
+          style={styles.assetCard}
+          onPress={() => {}}
+        >
+          <View style={styles.assetRow}>
+            <View style={styles.assetLeft}>
+              <View style={[styles.btcIcon, styles.ducatIcon]}>
+                <Image
+                  source={require('../assets/ducat-logo.png')}
+                  style={styles.logoImage}
+                  resizeMode="contain"
+                />
+              </View>
+              <Text style={styles.assetName}>DUCAT•RUNE</Text>
+            </View>
+            <Text style={styles.assetValue}>$ 0.00</Text>
+          </View>
+        </TouchableOpacity>
       </View>
 
       {/* Actions - Send and Receive Buttons - Full Width */}
@@ -170,7 +186,7 @@ export default function WalletScreen({
 
         <TouchableOpacity
           style={styles.xverseActionButton}
-          onPress={() => Alert.alert('Receive', `Your ${sendAddressType === 'taproot' ? 'Taproot' : 'SegWit'} Address:\n\n${sendAddressType === 'taproot' ? wallet.taprootAddress : wallet.segwitAddress}`)}
+          onPress={onReceivePress}
         >
           <View style={styles.xverseActionIcon}>
             <Text style={styles.xverseActionIconText}>↓</Text>
