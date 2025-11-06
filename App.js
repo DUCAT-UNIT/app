@@ -54,6 +54,7 @@ import { useAppLifecycle } from './hooks/useAppLifecycle';
 import { useAuth } from './hooks/useAuth';
 import { useSettings } from './hooks/useSettings';
 import { useAccountSwitcher } from './hooks/useAccountSwitcher';
+import { useOnboarding } from './hooks/useOnboarding';
 
 // Initialize BIP32
 const bip32 = BIP32Factory(ecc);
@@ -102,19 +103,8 @@ export default function App() {
     resetWallet,
   } = useWallet();
 
-  // Onboarding and auth state
-  const [tempMnemonicWords, setTempMnemonicWords] = useState([]); // Temporary for seed verification flow
-  const [showingIntro, setShowingIntro] = useState(false);
-  const [showingSeeds, setShowingSeeds] = useState(false);
-  const [verifyingSeeds, setVerifyingSeeds] = useState(false);
+  // Auth state
   const [seedConfirmed, setSeedConfirmed] = useState(false);
-  const [importingWallet, setImportingWallet] = useState(false);
-  const [importSeedPhrase, setImportSeedPhrase] = useState(Array(12).fill(''));
-  const seedInputRefs = useRef([]);
-  const [verificationWords, setVerificationWords] = useState({});
-  const [requiredIndices, setRequiredIndices] = useState([]);
-  const [wordChoices, setWordChoices] = useState({});
-  const [isImportedWallet, setIsImportedWallet] = useState(false); // Track if wallet was imported
   const [showSettings, setShowSettings] = useState(false); // Settings modal
   const [showReceiveSheet, setShowReceiveSheet] = useState(false); // Receive bottom sheet
   const [viewingSeedPhrase, setViewingSeedPhrase] = useState(false); // Viewing seed phrase
@@ -133,7 +123,6 @@ export default function App() {
   const [broadcastedTxid, setBroadcastedTxid] = useState(null); // TXID of broadcasted transaction
   const [keyboardHeight, setKeyboardHeight] = useState(0);
 
-  const walletExists = useRef(false); // Track if wallet exists without triggering re-renders
   const seedConfirmedRef = useRef(false); // Track if seed backup is confirmed without triggering re-renders
   const amountInputRef = useRef(null);
 
@@ -207,6 +196,39 @@ export default function App() {
     switchingAccount,
     switchAccount,
   } = useAccountSwitcher({ switchAccountContext });
+
+  // Onboarding hook - handles wallet creation and import flow
+  const {
+    tempMnemonicWords,
+    showingIntro,
+    showingSeeds,
+    verifyingSeeds,
+    importingWallet,
+    importSeedPhrase,
+    verificationWords,
+    requiredIndices,
+    wordChoices,
+    isImportedWallet,
+    seedInputRefs,
+    walletExistsRef: walletExists,
+    setShowingIntro,
+    setShowingSeeds,
+    setImportingWallet,
+    setImportSeedPhrase,
+    setVerificationWords,
+    setIsImportedWallet,
+    createWallet,
+    importWallet,
+    proceedToVerification,
+    verifySeeds,
+    resetOnboarding,
+  } = useOnboarding({
+    currentAccount,
+    setIsAuthenticated,
+    setSettingUpPin,
+    setIsImportedWallet,
+    setSeedConfirmed,
+  });
 
   // App lifecycle hook - handles screen capture, app state, and inactivity
   const { resetInactivityTimer } = useAppLifecycle({
@@ -496,150 +518,6 @@ export default function App() {
     }
   };
 
-  const createWallet = async () => {
-    try {
-      // Generate wallet using WalletService
-      const { mnemonic, addresses } = await WalletService.generateWallet(currentAccount);
-
-      // Store wallet in secure storage
-      await WalletService.saveWalletToStorage(mnemonic, currentAccount);
-
-      // Set showingIntro FIRST, before setting wallet, to prevent lock screen flash
-      setShowingIntro(true);
-      setShowingSeeds(false);
-      setVerifyingSeeds(false);
-      setSeedConfirmed(false);
-      // Wallet created, user authenticated to see seed phrase
-      setIsAuthenticated(true);
-
-      // Store addresses in context and fetch balances
-      setWalletAddresses(addresses, 0);
-      walletExists.current = true;
-
-      // Temporarily store mnemonic words for verification flow only
-      setTempMnemonicWords(mnemonic.split(' '));
-    } catch (error) {
-      Alert.alert('Error', error.message);
-    }
-  };
-
-  const importWallet = async () => {
-    try {
-      // Join the array of words and trim/normalize
-      const mnemonic = importSeedPhrase.map(word => word.trim().toLowerCase()).join(' ').trim();
-
-      // Import wallet using WalletService (validates and derives addresses)
-      const { addresses } = await WalletService.importWallet(mnemonic, currentAccount);
-
-      // Store wallet in secure storage
-      await WalletService.saveWalletToStorage(mnemonic, currentAccount);
-
-      // Set PIN setup state FIRST, before setting wallet, to prevent lock screen flash
-      setSettingUpPin(true);
-      setIsImportedWallet(true); // Mark as imported wallet
-      // Ensure seed creation flow screens are not shown for imported wallets
-      setShowingIntro(false);
-      setShowingSeeds(false);
-      setVerifyingSeeds(false);
-
-      // Store addresses in context and fetch balances
-      // Don't let balance fetch errors break the import flow
-      try {
-        setWalletAddresses(addresses, currentAccount);
-      } catch (balanceError) {
-        console.error('Failed to fetch balance during import:', balanceError);
-        // Continue anyway - wallet is imported, balance will be fetched later
-      }
-
-      walletExists.current = true;
-
-      // Skip seed verification for imported wallets
-      // settingUpPin and other setup states were already set above
-      // Don't set seedConfirmed here - it will be set after PIN is saved
-      setImportingWallet(false);
-      setImportSeedPhrase(Array(12).fill(''));
-    } catch (error) {
-      console.error('Import wallet error:', error);
-      Alert.alert('Error', 'Failed to import wallet. Please check your seed phrase and try again.');
-    }
-  };
-
-  const generateChoicesForWord = (correctWord, allWords) => {
-    // Get all unique words from BIP39 wordlist
-    const choices = [correctWord];
-    const otherWords = allWords.filter(w => w !== correctWord);
-
-    // Add 3 random wrong choices
-    while (choices.length < 4) {
-      const randomWord = otherWords[Math.floor(Math.random() * otherWords.length)];
-      if (!choices.includes(randomWord)) {
-        choices.push(randomWord);
-      }
-    }
-
-    // Shuffle choices
-    return choices.sort(() => Math.random() - 0.5);
-  };
-
-  const proceedToVerification = () => {
-    // Select 3 random indices for verification
-    const indices = [];
-    while (indices.length < 3) {
-      const randomIndex = Math.floor(Math.random() * 12);
-      if (!indices.includes(randomIndex)) {
-        indices.push(randomIndex);
-      }
-    }
-    setRequiredIndices(indices.sort((a, b) => a - b));
-
-    // Generate multiple choice options for each word
-    const choices = {};
-    indices.forEach(index => {
-      choices[index] = generateChoicesForWord(tempMnemonicWords[index], tempMnemonicWords);
-    });
-    setWordChoices(choices);
-    setVerificationWords({});
-    setShowingSeeds(false);
-    setVerifyingSeeds(true);
-  };
-
-  const verifySeeds = () => {
-    let allCorrect = true;
-
-    // Check if all words have been selected
-    if (Object.keys(verificationWords).length !== requiredIndices.length) {
-      Alert.alert('Incomplete', 'Please select an answer for all words.');
-      return;
-    }
-
-    for (const index of requiredIndices) {
-      const userWord = verificationWords[index];
-      const correctWord = tempMnemonicWords[index];
-      if (userWord !== correctWord) {
-        allCorrect = false;
-        break;
-      }
-    }
-
-    if (allCorrect) {
-      // Set both states immediately to prevent lock screen flash
-      setVerifyingSeeds(false);
-      setSettingUpPin(true);
-      setPinStep('enter');
-      setPin('');
-      setConfirmPin('');
-      setPinError('');
-
-      // Securely clear temporary mnemonic from memory
-      // First overwrite with random data, then clear
-      setTempMnemonicWords(Array(12).fill('*'.repeat(8)));
-      setTimeout(() => setTempMnemonicWords([]), 100);
-    } else {
-      Alert.alert('Verification Failed', 'One or more words are incorrect. Please try again.');
-      setVerificationWords({});
-    }
-  };
-
   const getCurrentAddress = () => {
     // Return taproot address as default for displaying
     if (!wallet) return null;
@@ -656,19 +534,11 @@ export default function App() {
     await SecureStore.deleteItemAsync(SECURE_KEYS.MNEMONIC);
     await SecureStore.deleteItemAsync(SECURE_KEYS.CURRENT_ACCOUNT);
 
-    // Securely clear temporary mnemonic from memory
-    setTempMnemonicWords(Array(12).fill('*'.repeat(8)));
-    setTimeout(() => setTempMnemonicWords([]), 100);
+    // Reset onboarding state (clears temp mnemonic, resets wallet, etc.)
+    resetOnboarding();
 
-    // Clear state
-    resetWallet(); // Reset context wallet state
-    walletExists.current = false;
-    setShowingSeeds(false);
-    setVerifyingSeeds(false);
+    // Clear auth state
     setSeedConfirmed(false);
-    setVerificationWords({});
-    setRequiredIndices([]);
-    setWordChoices({});
   };
 
 
