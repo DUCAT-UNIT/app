@@ -28,14 +28,6 @@ export default function WalletScreen({
     setShowUnitInUnit,
   } = useWallet();
 
-  // Debug: Log wallet data
-    segwitBalance,
-    taprootBalance,
-    btcPrice,
-    showTotalInBTC,
-    walletExists: !!wallet
-  });
-
   return (
     <View style={styles.walletContainer}>
       {/* Loading overlay while switching accounts */}
