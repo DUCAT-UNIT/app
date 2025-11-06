@@ -144,46 +144,104 @@ export default function SendScreen({
   const reviewTranslateY = useRef(new Animated.Value(0)).current;
   const confirmedTranslateY = useRef(new Animated.Value(0)).current;
 
-  // Pan responder for swipe-down to dismiss
-  const createPanResponder = (onDismiss, translateY) => {
-    return PanResponder.create({
-      onStartShouldSetPanResponder: () => false,
-      onStartShouldSetPanResponderCapture: () => false,
+  const assetSelectorOpacity = useRef(new Animated.Value(0)).current;
+  const addressInputOpacity = useRef(new Animated.Value(0)).current;
+  const amountInputOpacity = useRef(new Animated.Value(0)).current;
+  const reviewOpacity = useRef(new Animated.Value(0)).current;
+  const confirmedOpacity = useRef(new Animated.Value(0)).current;
+
+  // Pan responder refs - create once and reuse
+  const assetSelectorPanResponderRef = useRef(null);
+  const addressInputPanResponderRef = useRef(null);
+  const amountInputPanResponderRef = useRef(null);
+  const reviewPanResponderRef = useRef(null);
+  const confirmedPanResponderRef = useRef(null);
+
+  // Handle dismiss functions for each sheet
+  const handleAssetSelectorDismiss = () => {
+    Animated.timing(assetSelectorTranslateY, {
+      toValue: SCREEN_HEIGHT,
+      duration: 250,
+      useNativeDriver: true,
+    }).start(() => {
+      assetSelectorOpacity.setValue(0);
+      setIntentStep('idle');
+    });
+  };
+
+  const handleAddressInputDismiss = () => {
+    Animated.timing(addressInputTranslateY, {
+      toValue: SCREEN_HEIGHT,
+      duration: 250,
+      useNativeDriver: true,
+    }).start(() => {
+      addressInputOpacity.setValue(0);
+      setIntentStep('idle');
+      setSendAssetType(null);
+      setSendRecipient('');
+    });
+  };
+
+  const handleAmountInputDismiss = () => {
+    Animated.timing(amountInputTranslateY, {
+      toValue: SCREEN_HEIGHT,
+      duration: 250,
+      useNativeDriver: true,
+    }).start(() => {
+      amountInputOpacity.setValue(0);
+      setIntentStep('idle');
+      setSendAssetType(null);
+      setSendAmount('');
+      setSendRecipient('');
+    });
+  };
+
+  const handleReviewDismiss = () => {
+    Animated.timing(reviewTranslateY, {
+      toValue: SCREEN_HEIGHT,
+      duration: 250,
+      useNativeDriver: true,
+    }).start(() => {
+      reviewOpacity.setValue(0);
+      setIntentStep('idle');
+      setSendIntent(null);
+    });
+  };
+
+  const handleConfirmedDismiss = () => {
+    Animated.timing(confirmedTranslateY, {
+      toValue: SCREEN_HEIGHT,
+      duration: 250,
+      useNativeDriver: true,
+    }).start(() => {
+      confirmedOpacity.setValue(0);
+      setSendIntent(null);
+      setIntentStep('idle');
+      setSendAmount('');
+      setSendRecipient('');
+      setSendAssetType(null);
+      setBroadcastedTxid(null);
+    });
+  };
+
+  // Create pan responders once
+  if (!assetSelectorPanResponderRef.current) {
+    assetSelectorPanResponderRef.current = PanResponder.create({
+      onStartShouldSetPanResponder: () => true,
       onMoveShouldSetPanResponder: (_, gestureState) => {
-        // Detect downward swipe
         const isDownwardSwipe = gestureState.dy > 5 && Math.abs(gestureState.dy) > Math.abs(gestureState.dx);
         return isDownwardSwipe;
       },
-      onMoveShouldSetPanResponderCapture: (_, gestureState) => {
-        const isDownwardSwipe = gestureState.dy > 5 && Math.abs(gestureState.dy) > Math.abs(gestureState.dx);
-        return isDownwardSwipe;
-      },
-      onPanResponderMove: Animated.event(
-        [null, { dy: translateY }],
-        {
-          useNativeDriver: false,
-          listener: (_, gestureState) => {
-            // Only allow downward movement
-            if (gestureState.dy < 0) {
-              translateY.setValue(0);
-            }
-          }
+      onPanResponderMove: (_, gestureState) => {
+        if (gestureState.dy > 0) {
+          assetSelectorTranslateY.setValue(gestureState.dy);
         }
-      ),
+      },
       onPanResponderRelease: (_, gestureState) => {
         if (gestureState.dy > 100 || gestureState.vy > 0.5) {
-          // Animate slide down
-          Animated.timing(translateY, {
-            toValue: SCREEN_HEIGHT,
-            duration: 250,
-            useNativeDriver: true,
-          }).start(() => {
-            onDismiss();
-            translateY.setValue(0);
-          });
+          handleAssetSelectorDismiss();
         } else {
-          // Snap back
-          Animated.spring(translateY, {
+          Animated.spring(assetSelectorTranslateY, {
             toValue: 0,
             useNativeDriver: true,
             friction: 8,
@@ -191,42 +249,142 @@ export default function SendScreen({
         }
       },
     });
-  };
-
-  // Create pan responders for different sheets
-  const assetSelectorPanResponder = createPanResponder(() => setIntentStep('idle'), assetSelectorTranslateY);
-
-  const addressInputPanResponder = createPanResponder(() => {
-    setIntentStep('idle');
-    setSendAssetType(null);
-    setSendRecipient('');
-  }, addressInputTranslateY);
-
-  const amountInputPanResponder = createPanResponder(() => {
-    setIntentStep('idle');
-    setSendAssetType(null);
-    setSendAmount('');
-    setSendRecipient('');
-  }, amountInputTranslateY);
-
-  const reviewPanResponder = createPanResponder(() => {
-    setIntentStep('idle');
-    setSendIntent(null);
-  }, reviewTranslateY);
-
-  const confirmedPanResponder = createPanResponder(() => {
-    setSendIntent(null);
-    setIntentStep('idle');
-    setSendAmount('');
-    setSendRecipient('');
-    setSendAssetType(null);
-    setBroadcastedTxid(null);
-  }, confirmedTranslateY);
-
-  // If not in any send flow, don't render anything
-  if (intentStep === 'idle') {
-    return null;
   }
+
+  if (!addressInputPanResponderRef.current) {
+    addressInputPanResponderRef.current = PanResponder.create({
+      onStartShouldSetPanResponder: () => true,
+      onMoveShouldSetPanResponder: (_, gestureState) => {
+        const isDownwardSwipe = gestureState.dy > 5 && Math.abs(gestureState.dy) > Math.abs(gestureState.dx);
+        return isDownwardSwipe;
+      },
+      onPanResponderMove: (_, gestureState) => {
+        if (gestureState.dy > 0) {
+          addressInputTranslateY.setValue(gestureState.dy);
+        }
+      },
+      onPanResponderRelease: (_, gestureState) => {
+        if (gestureState.dy > 100 || gestureState.vy > 0.5) {
+          handleAddressInputDismiss();
+        } else {
+          Animated.spring(addressInputTranslateY, {
+            toValue: 0,
+            useNativeDriver: true,
+            friction: 8,
+          }).start();
+        }
+      },
+    });
+  }
+
+  if (!amountInputPanResponderRef.current) {
+    amountInputPanResponderRef.current = PanResponder.create({
+      onStartShouldSetPanResponder: () => true,
+      onMoveShouldSetPanResponder: (_, gestureState) => {
+        const isDownwardSwipe = gestureState.dy > 5 && Math.abs(gestureState.dy) > Math.abs(gestureState.dx);
+        return isDownwardSwipe;
+      },
+      onPanResponderMove: (_, gestureState) => {
+        if (gestureState.dy > 0) {
+          amountInputTranslateY.setValue(gestureState.dy);
+        }
+      },
+      onPanResponderRelease: (_, gestureState) => {
+        if (gestureState.dy > 100 || gestureState.vy > 0.5) {
+          handleAmountInputDismiss();
+        } else {
+          Animated.spring(amountInputTranslateY, {
+            toValue: 0,
+            useNativeDriver: true,
+            friction: 8,
+          }).start();
+        }
+      },
+    });
+  }
+
+  if (!reviewPanResponderRef.current) {
+    reviewPanResponderRef.current = PanResponder.create({
+      onStartShouldSetPanResponder: () => true,
+      onMoveShouldSetPanResponder: (_, gestureState) => {
+        const isDownwardSwipe = gestureState.dy > 5 && Math.abs(gestureState.dy) > Math.abs(gestureState.dx);
+        return isDownwardSwipe;
+      },
+      onPanResponderMove: (_, gestureState) => {
+        if (gestureState.dy > 0) {
+          reviewTranslateY.setValue(gestureState.dy);
+        }
+      },
+      onPanResponderRelease: (_, gestureState) => {
+        if (gestureState.dy > 100 || gestureState.vy > 0.5) {
+          handleReviewDismiss();
+        } else {
+          Animated.spring(reviewTranslateY, {
+            toValue: 0,
+            useNativeDriver: true,
+            friction: 8,
+          }).start();
+        }
+      },
+    });
+  }
+
+  if (!confirmedPanResponderRef.current) {
+    confirmedPanResponderRef.current = PanResponder.create({
+      onStartShouldSetPanResponder: () => true,
+      onMoveShouldSetPanResponder: (_, gestureState) => {
+        const isDownwardSwipe = gestureState.dy > 5 && Math.abs(gestureState.dy) > Math.abs(gestureState.dx);
+        return isDownwardSwipe;
+      },
+      onPanResponderMove: (_, gestureState) => {
+        if (gestureState.dy > 0) {
+          confirmedTranslateY.setValue(gestureState.dy);
+        }
+      },
+      onPanResponderRelease: (_, gestureState) => {
+        if (gestureState.dy > 100 || gestureState.vy > 0.5) {
+          handleConfirmedDismiss();
+        } else {
+          Animated.spring(confirmedTranslateY, {
+            toValue: 0,
+            useNativeDriver: true,
+            friction: 8,
+          }).start();
+        }
+      },
+    });
+  }
+
+  // Control opacity for each sheet based on intentStep
+  const prevIntentStep = useRef(null);
+
+  // Only reset position and opacity when transitioning INTO a step
+  if (intentStep === 'selecting_asset' && prevIntentStep.current !== 'selecting_asset') {
+    assetSelectorTranslateY.setValue(0);
+    assetSelectorOpacity.setValue(1);
+  }
+
+  if (intentStep === 'entering_address' && prevIntentStep.current !== 'entering_address') {
+    addressInputTranslateY.setValue(0);
+    addressInputOpacity.setValue(1);
+  }
+
+  if (intentStep === 'entering_amount' && prevIntentStep.current !== 'entering_amount') {
+    amountInputTranslateY.setValue(0);
+    amountInputOpacity.setValue(1);
+  }
+
+  if (intentStep === 'reviewing' && prevIntentStep.current !== 'reviewing') {
+    reviewTranslateY.setValue(0);
+    reviewOpacity.setValue(1);
+  }
+
+  if (intentStep === 'confirmed' && prevIntentStep.current !== 'confirmed') {
+    confirmedTranslateY.setValue(0);
+    confirmedOpacity.setValue(1);
+  }
+
+  prevIntentStep.current = intentStep;
 
   return (
     <>
@@ -235,15 +393,19 @@ export default function SendScreen({
         <>
           <TouchableOpacity
             style={styles.bottomSheetBackdrop}
-            onPress={() => setIntentStep('idle')}
+            onPress={handleAssetSelectorDismiss}
             activeOpacity={1}
           />
           <Animated.View
             style={[
               styles.bottomSheet,
-              { transform: [{ translateY: assetSelectorTranslateY }] }
+              {
+                opacity: assetSelectorOpacity,
+                transform: [{ translateY: assetSelectorTranslateY }]
+              }
             ]}
-            {...assetSelectorPanResponder.panHandlers}
+            pointerEvents={intentStep !== 'selecting_asset' ? 'none' : 'auto'}
+            {...assetSelectorPanResponderRef.current.panHandlers}
           >
             <View style={styles.bottomSheetHandle} />
             <Text style={styles.bottomSheetTitle}>Send What?</Text>
@@ -319,18 +481,10 @@ export default function SendScreen({
         visible={intentStep === 'entering_address' && !!sendAssetType}
         transparent={true}
         animationType="none"
-        onRequestClose={() => {
-          setIntentStep('idle');
-          setSendAssetType(null);
-          setSendRecipient('');
-        }}
+        onRequestClose={handleAddressInputDismiss}
       >
         <TouchableWithoutFeedback
-          onPress={() => {
-            setIntentStep('idle');
-            setSendAssetType(null);
-            setSendRecipient('');
-          }}
+          onPress={handleAddressInputDismiss}
         >
           <View style={styles.bottomSheetBackdrop} />
         </TouchableWithoutFeedback>
@@ -342,10 +496,11 @@ export default function SendScreen({
               flex: 1,
               paddingBottom: 10,
               paddingHorizontal: 0,
+              opacity: addressInputOpacity,
               transform: [{ translateY: addressInputTranslateY }]
             }
           ]}
-          {...addressInputPanResponder.panHandlers}
+          {...addressInputPanResponderRef.current.panHandlers}
         >
           <ScrollView
             keyboardShouldPersistTaps="always"
@@ -438,12 +593,7 @@ export default function SendScreen({
         <>
           <TouchableOpacity
             style={styles.bottomSheetBackdrop}
-            onPress={() => {
-              setIntentStep('idle');
-              setSendAssetType(null);
-              setSendAmount('');
-              setSendRecipient('');
-            }}
+            onPress={handleAmountInputDismiss}
             activeOpacity={1}
           />
           <Animated.View
@@ -453,10 +603,11 @@ export default function SendScreen({
                 bottom: keyboardHeight,
                 paddingBottom: 10,
                 paddingHorizontal: 0,
+                opacity: amountInputOpacity,
                 transform: [{ translateY: amountInputTranslateY }]
               }
             ]}
-            {...amountInputPanResponder.panHandlers}
+            {...amountInputPanResponderRef.current.panHandlers}
           >
             <View style={styles.bottomSheetHandle} />
 
@@ -582,18 +733,18 @@ export default function SendScreen({
         <>
           <TouchableOpacity
             style={styles.bottomSheetBackdrop}
-            onPress={() => {
-              setIntentStep('idle');
-              setSendIntent(null);
-            }}
+            onPress={handleReviewDismiss}
             activeOpacity={1}
           />
           <Animated.View
             style={[
               styles.bottomSheet,
-              { transform: [{ translateY: reviewTranslateY }] }
+              {
+                opacity: reviewOpacity,
+                transform: [{ translateY: reviewTranslateY }]
+              }
             ]}
-            {...reviewPanResponder.panHandlers}
+            {...reviewPanResponderRef.current.panHandlers}
           >
             <View style={styles.bottomSheetHandle} />
 
@@ -713,22 +864,18 @@ export default function SendScreen({
         <>
           <TouchableOpacity
             style={styles.bottomSheetBackdrop}
-            onPress={() => {
-              setSendIntent(null);
-              setIntentStep('idle');
-              setSendAmount('');
-              setSendRecipient('');
-              setSendAssetType(null);
-              setBroadcastedTxid(null);
-            }}
+            onPress={handleConfirmedDismiss}
             activeOpacity={1}
           />
           <Animated.View
             style={[
               styles.bottomSheet,
-              { transform: [{ translateY: confirmedTranslateY }] }
+              {
+                opacity: confirmedOpacity,
+                transform: [{ translateY: confirmedTranslateY }]
+              }
             ]}
-            {...confirmedPanResponder.panHandlers}
+            {...confirmedPanResponderRef.current.panHandlers}
           >
             <View style={styles.bottomSheetHandle} />
 

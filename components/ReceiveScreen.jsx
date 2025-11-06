@@ -18,126 +18,18 @@ export default function ReceiveScreen({
   const [showQrModal, setShowQrModal] = useState(false);
   const [selectedAddress, setSelectedAddress] = useState(null);
   const [selectedType, setSelectedType] = useState(null);
+  const isDismissing = useRef(false);
   const translateX = useRef(new Animated.Value(0)).current;
   const translateY = useRef(new Animated.Value(0)).current;
+  const receiveSheetOpacity = useRef(new Animated.Value(0)).current;
   const receiveOpacity = useRef(new Animated.Value(1)).current;
   const qrOpacity = useRef(new Animated.Value(0)).current;
 
   // Pan responder for swipe-down to dismiss
   const receiveTranslateY = useRef(new Animated.Value(0)).current;
 
-  const panResponder = PanResponder.create({
-    onStartShouldSetPanResponder: () => !showQrModal,
-    onStartShouldSetPanResponderCapture: () => false,
-    onMoveShouldSetPanResponder: (_, gestureState) => {
-      if (showQrModal) return false;
-      // Detect downward swipe
-      const isDownwardSwipe = gestureState.dy > 5 && Math.abs(gestureState.dy) > Math.abs(gestureState.dx);
-      return isDownwardSwipe;
-    },
-    onMoveShouldSetPanResponderCapture: (_, gestureState) => {
-      if (showQrModal) return false;
-      const isDownwardSwipe = gestureState.dy > 5 && Math.abs(gestureState.dy) > Math.abs(gestureState.dx);
-      return isDownwardSwipe;
-    },
-    onPanResponderMove: Animated.event(
-      [null, { dy: receiveTranslateY }],
-      {
-        useNativeDriver: false,
-        listener: (_, gestureState) => {
-          // Only allow downward movement
-          if (gestureState.dy < 0) {
-            receiveTranslateY.setValue(0);
-          }
-        }
-      }
-    ),
-    onPanResponderRelease: (_, gestureState) => {
-      if (showQrModal) return;
-
-      if (gestureState.dy > 100 || gestureState.vy > 0.5) {
-        // Animate slide down
-        Animated.timing(receiveTranslateY, {
-          toValue: SCREEN_HEIGHT,
-          duration: 250,
-          useNativeDriver: true,
-        }).start(() => {
-          onClose();
-          receiveTranslateY.setValue(0);
-        });
-      } else {
-        // Snap back
-        Animated.spring(receiveTranslateY, {
-          toValue: 0,
-          useNativeDriver: true,
-          friction: 8,
-        }).start();
-      }
-    },
-  });
-
-  // Pan responder for swipe-right to dismiss QR modal
-  const qrModalPanResponder = PanResponder.create({
-    onStartShouldSetPanResponder: () => true,
-    onStartShouldSetPanResponderCapture: () => false,
-    onMoveShouldSetPanResponder: (_, gestureState) => {
-      // Allow swipe right only
-      const isSwipeRight = gestureState.dx > 10 && Math.abs(gestureState.dx) > Math.abs(gestureState.dy);
-      return isSwipeRight;
-    },
-    onMoveShouldSetPanResponderCapture: (_, gestureState) => {
-      const isSwipeRight = gestureState.dx > 10 && Math.abs(gestureState.dx) > Math.abs(gestureState.dy);
-      return isSwipeRight;
-    },
-    onPanResponderMove: (_, gestureState) => {
-      // Move with the finger (horizontal only)
-      if (gestureState.dx > 0) {
-        translateX.setValue(gestureState.dx);
-
-        // Fade in receive sheet as we start swiping
-        const progress = Math.min(gestureState.dx / 100, 1);
-        receiveOpacity.setValue(progress);
-      }
-    },
-    onPanResponderRelease: (_, gestureState) => {
-      if (gestureState.dx > 100 || gestureState.vx > 0.5) {
-        // Start showing receive sheet immediately, then animate
-        setShowQrModal(false);
-
-        Animated.parallel([
-          Animated.timing(translateX, {
-            toValue: SCREEN_WIDTH,
-            duration: 250,
-            useNativeDriver: true,
-          }),
-          Animated.timing(qrOpacity, {
-            toValue: 0,
-            duration: 150,
-            useNativeDriver: true,
-          }),
-          Animated.timing(receiveOpacity, {
-            toValue: 1,
-            duration: 150,
-            useNativeDriver: true,
-          }),
-        ]).start();
-      } else {
-        // Snap back
-        Animated.parallel([
-          Animated.spring(translateX, {
-            toValue: 0,
-            useNativeDriver: true,
-            friction: 8,
-          }),
-          Animated.timing(receiveOpacity, {
-            toValue: 0,
-            duration: 150,
-            useNativeDriver: true,
-          }),
-        ]).start();
-      }
-    },
-  });
+  const panResponderRef = useRef(null);
+  const qrModalPanResponderRef = useRef(null);
 
   const handleCopyAddress = (address, type) => {
     Clipboard.setString(address);
@@ -164,26 +56,132 @@ export default function ReceiveScreen({
     }
   };
 
-  if (!showReceiveSheet) return null;
+  const handleDismiss = () => {
+    Animated.timing(receiveTranslateY, {
+      toValue: SCREEN_HEIGHT,
+      duration: 250,
+      useNativeDriver: true,
+    }).start(() => {
+      receiveSheetOpacity.setValue(0);
+      onClose();
+    });
+  };
+
+  // Create pan responders once after functions are defined
+  if (!panResponderRef.current) {
+    panResponderRef.current = PanResponder.create({
+      onStartShouldSetPanResponder: () => true,
+      onMoveShouldSetPanResponder: (_, gestureState) => {
+        if (showQrModal) return false;
+        const isDownwardSwipe = gestureState.dy > 5 && Math.abs(gestureState.dy) > Math.abs(gestureState.dx);
+        return isDownwardSwipe;
+      },
+      onPanResponderMove: (_, gestureState) => {
+        if (showQrModal) return;
+        if (gestureState.dy > 0) {
+          receiveTranslateY.setValue(gestureState.dy);
+        }
+      },
+      onPanResponderRelease: (_, gestureState) => {
+        if (showQrModal) return;
+
+        if (gestureState.dy > 100 || gestureState.vy > 0.5) {
+          handleDismiss();
+        } else {
+          Animated.spring(receiveTranslateY, {
+            toValue: 0,
+            useNativeDriver: true,
+            friction: 8,
+          }).start();
+        }
+      },
+    });
+  }
+
+  if (!qrModalPanResponderRef.current) {
+    qrModalPanResponderRef.current = PanResponder.create({
+      onStartShouldSetPanResponder: () => true,
+      onMoveShouldSetPanResponder: (_, gestureState) => {
+        const isSwipeRight = gestureState.dx > 10 && Math.abs(gestureState.dx) > Math.abs(gestureState.dy);
+        return isSwipeRight;
+      },
+      onPanResponderMove: (_, gestureState) => {
+        if (gestureState.dx > 0) {
+          translateX.setValue(gestureState.dx);
+          const progress = Math.min(gestureState.dx / 100, 1);
+          receiveOpacity.setValue(progress);
+        }
+      },
+      onPanResponderRelease: (_, gestureState) => {
+        if (gestureState.dx > 100 || gestureState.vx > 0.5) {
+          setShowQrModal(false);
+
+          Animated.parallel([
+            Animated.timing(translateX, {
+              toValue: SCREEN_WIDTH,
+              duration: 250,
+              useNativeDriver: true,
+            }),
+            Animated.timing(qrOpacity, {
+              toValue: 0,
+              duration: 150,
+              useNativeDriver: true,
+            }),
+            Animated.timing(receiveOpacity, {
+              toValue: 1,
+              duration: 150,
+              useNativeDriver: true,
+            }),
+          ]).start();
+        } else {
+          Animated.parallel([
+            Animated.spring(translateX, {
+              toValue: 0,
+              useNativeDriver: true,
+              friction: 8,
+            }),
+            Animated.timing(receiveOpacity, {
+              toValue: 0,
+              duration: 150,
+              useNativeDriver: true,
+            }),
+          ]).start();
+        }
+      },
+    });
+  }
+
+  // Reset position when opening, force invisible when closed
+  const prevShowReceiveSheet = useRef(showReceiveSheet);
+  if (showReceiveSheet && !prevShowReceiveSheet.current) {
+    // Just opened - reset to visible position
+    receiveTranslateY.setValue(0);
+    receiveSheetOpacity.setValue(1);
+  } else if (!showReceiveSheet && prevShowReceiveSheet.current) {
+    // Just closed - force invisible immediately
+    receiveSheetOpacity.setValue(0);
+  }
+  prevShowReceiveSheet.current = showReceiveSheet;
 
   return (
     <>
-      <TouchableOpacity
-        style={styles.bottomSheetBackdrop}
-        activeOpacity={1}
-        onPress={onClose}
-        pointerEvents={showQrModal ? 'none' : 'auto'}
-      />
+      {showReceiveSheet && !showQrModal && (
+        <TouchableOpacity
+          style={styles.bottomSheetBackdrop}
+          activeOpacity={1}
+          onPress={handleDismiss}
+        />
+      )}
       <Animated.View
         style={[
           styles.bottomSheet,
           {
-            opacity: receiveOpacity,
+            opacity: receiveSheetOpacity,
             transform: [{ translateY: receiveTranslateY }],
           },
         ]}
-        {...panResponder.panHandlers}
-        pointerEvents={showQrModal ? 'none' : 'auto'}
+        pointerEvents={!showReceiveSheet || showQrModal ? 'none' : 'auto'}
+        {...panResponderRef.current.panHandlers}
       >
             <View style={styles.bottomSheetHandle} />
 
@@ -268,7 +266,7 @@ export default function ReceiveScreen({
             },
           ]}
           pointerEvents={showQrModal ? 'auto' : 'none'}
-          {...qrModalPanResponder.panHandlers}
+          {...qrModalPanResponderRef.current.panHandlers}
         >
               {/* Network header bar */}
               <View style={styles.qrModalNetworkBar}>
