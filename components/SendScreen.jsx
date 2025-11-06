@@ -9,6 +9,7 @@
  */
 
 import React, { useState, useEffect, useRef } from 'react';
+import PropTypes from 'prop-types';
 import { PanResponder, Animated, Dimensions } from 'react-native';
 import { validateBitcoinAddress } from '../utils/sendHelpers';
 import AssetSelectorSheet from './send/AssetSelectorSheet';
@@ -454,3 +455,25 @@ export default function SendScreen({
     </>
   );
 }
+
+SendScreen.propTypes = {
+  intentStep: PropTypes.oneOf(['idle', 'selecting_asset', 'entering_address', 'entering_amount', 'creating', 'reviewing', 'signing', 'broadcasting', 'confirmed']).isRequired,
+  sendAssetType: PropTypes.oneOf(['btc', 'unit', 'ducat']),
+  sendAmount: PropTypes.string.isRequired,
+  sendRecipient: PropTypes.string.isRequired,
+  sendIntent: PropTypes.object,
+  broadcastedTxid: PropTypes.string,
+  keyboardHeight: PropTypes.number.isRequired,
+  amountInputRef: PropTypes.object.isRequired,
+  btcBalance: PropTypes.number,
+  unitBalance: PropTypes.number,
+  btcPrice: PropTypes.number,
+  setIntentStep: PropTypes.func.isRequired,
+  setSendAssetType: PropTypes.func.isRequired,
+  setSendAmount: PropTypes.func.isRequired,
+  setSendRecipient: PropTypes.func.isRequired,
+  setSendIntent: PropTypes.func.isRequired,
+  setBroadcastedTxid: PropTypes.func.isRequired,
+  createSendIntent: PropTypes.func.isRequired,
+  signIntent: PropTypes.func.isRequired,
+};
