@@ -103,6 +103,14 @@ function SettingsOption({ icon, title, onPress, rightText, isDanger }) {
   );
 }
 
+SettingsOption.propTypes = {
+  icon: PropTypes.string.isRequired,
+  title: PropTypes.string.isRequired,
+  onPress: PropTypes.func.isRequired,
+  rightText: PropTypes.string,
+  isDanger: PropTypes.bool,
+};
+
 SettingsScreen.propTypes = {
   onClose: PropTypes.func.isRequired,
   onViewSeedPhrase: PropTypes.func.isRequired,
