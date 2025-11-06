@@ -15,7 +15,6 @@ export function useOnboarding({
   currentAccount,
   setIsAuthenticated,
   setSettingUpPin,
-  setIsImportedWallet,
   setSeedConfirmed,
 }) {
   const { setWalletAddresses, resetWallet } = useWallet();

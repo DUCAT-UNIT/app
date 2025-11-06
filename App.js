@@ -226,7 +226,6 @@ export default function App() {
     currentAccount,
     setIsAuthenticated,
     setSettingUpPin,
-    setIsImportedWallet,
     setSeedConfirmed,
   });
 
