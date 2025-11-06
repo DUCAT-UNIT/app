@@ -163,6 +163,12 @@ export default function App() {
     startPinChange,
   } = useAuth({ onSeedConfirmed: setSeedConfirmed });
 
+  // Animated values for swipe gestures (must be defined before hooks that use them)
+  const seedPhraseTranslateX = useRef(new Animated.Value(0)).current;
+  const seedPhrasePanResponderRef = useRef(null);
+  const settingsTranslateX = useRef(new Animated.Value(0)).current;
+  const settingsPanResponderRef = useRef(null);
+
   // Settings hook - handles settings actions
   const {
     privacyMode,
@@ -240,12 +246,6 @@ export default function App() {
     onLock: () => setIsAuthenticated(false),
     onAuthenticateUser: () => authenticateUser(),
   });
-
-  // Animated values for swipe gestures
-  const seedPhraseTranslateX = useRef(new Animated.Value(0)).current;
-  const seedPhrasePanResponderRef = useRef(null);
-  const settingsTranslateX = useRef(new Animated.Value(0)).current;
-  const settingsPanResponderRef = useRef(null);
 
   // Keep seedConfirmedRef in sync with seedConfirmed state
   useEffect(() => {
