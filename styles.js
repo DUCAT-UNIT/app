@@ -2082,12 +2082,98 @@ const styles = StyleSheet.create({
     elevation: 8,
     zIndex: 999999,
   },
+  toastContainerError: {
+    backgroundColor: '#ff4444',
+  },
   toastText: {
     fontSize: 15,
     fontFamily: 'CabinetGrotesk-Medium',
     color: COLORS.BLACK,
     fontWeight: '600',
     textAlign: 'center',
+  },
+  // Transaction History styles
+  historySheet: {
+    maxHeight: '70%',
+    paddingBottom: 20,
+  },
+  historyScrollView: {
+    flex: 1,
+    width: '100%',
+  },
+  historyLoadingContainer: {
+    flex: 1,
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingVertical: 60,
+  },
+  historyLoadingText: {
+    fontSize: 15,
+    fontFamily: 'CabinetGrotesk-Regular',
+    color: COLORS.MEDIUM_GRAY,
+    marginTop: 16,
+  },
+  historyEmptyContainer: {
+    flex: 1,
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingVertical: 60,
+  },
+  historyEmptyText: {
+    fontSize: 16,
+    fontFamily: 'CabinetGrotesk-Regular',
+    color: COLORS.MEDIUM_GRAY,
+  },
+  historyTxRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingVertical: 16,
+    paddingHorizontal: 4,
+    borderBottomWidth: 1,
+    borderBottomColor: '#2a2a2a',
+  },
+  historyTxLeft: {
+    flex: 1,
+  },
+  historyTxId: {
+    fontSize: 15,
+    fontFamily: 'CabinetGrotesk-Medium',
+    color: COLORS.WHITE,
+    fontWeight: '600',
+    marginBottom: 4,
+  },
+  historyTxDate: {
+    fontSize: 13,
+    fontFamily: 'CabinetGrotesk-Regular',
+    color: COLORS.MEDIUM_GRAY,
+  },
+  historyTxRight: {
+    marginLeft: 12,
+  },
+  historyTxStatusConfirmed: {
+    backgroundColor: '#2d7a2d',
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    borderRadius: 12,
+  },
+  historyTxStatusPending: {
+    backgroundColor: '#8a6a2d',
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    borderRadius: 12,
+  },
+  historyTxStatusText: {
+    fontSize: 12,
+    fontFamily: 'CabinetGrotesk-Medium',
+    color: '#90EE90',
+    fontWeight: '600',
+  },
+  historyTxStatusTextPending: {
+    fontSize: 12,
+    fontFamily: 'CabinetGrotesk-Medium',
+    color: '#FFD700',
+    fontWeight: '600',
   },
 });
 export default styles;

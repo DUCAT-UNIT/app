@@ -7,7 +7,6 @@
  */
 
 import { useState, useRef } from 'react';
-import { Alert } from 'react-native';
 import * as WalletService from '../services/walletService';
 import { useWallet } from '../contexts/WalletContext';
 
@@ -16,6 +15,7 @@ export function useOnboarding({
   setIsAuthenticated,
   setSettingUpPin,
   setSeedConfirmed,
+  showToast,
 }) {
   const { setWalletAddresses, resetWallet } = useWallet();
   const walletExistsRef = useRef(false);
@@ -78,7 +78,7 @@ export function useOnboarding({
       // Temporarily store mnemonic words for verification flow only
       setTempMnemonicWords(mnemonic.split(' '));
     } catch (error) {
-      Alert.alert('Error', error.message);
+      showToast(error.message || 'Failed to create wallet', 'error');
     }
   };
 
@@ -122,7 +122,7 @@ export function useOnboarding({
       setImportSeedPhrase(Array(12).fill(''));
     } catch (error) {
       console.error('Import wallet error:', error);
-      Alert.alert('Error', 'Failed to import wallet. Please check your seed phrase and try again.');
+      showToast('Failed to import wallet. Please check your seed phrase and try again.', 'error');
     }
   };
 
@@ -159,7 +159,7 @@ export function useOnboarding({
 
     // Check if all words have been selected
     if (Object.keys(verificationWords).length !== requiredIndices.length) {
-      Alert.alert('Incomplete', 'Please select an answer for all words.');
+      showToast('Please select an answer for all words', 'error');
       return;
     }
 
@@ -182,7 +182,7 @@ export function useOnboarding({
       setTempMnemonicWords(Array(12).fill('*'.repeat(8)));
       setTimeout(() => setTempMnemonicWords([]), 100);
     } else {
-      Alert.alert('Verification Failed', 'One or more words are incorrect. Please try again.');
+      showToast('One or more words are incorrect. Please try again.', 'error');
       setVerificationWords({});
     }
   };

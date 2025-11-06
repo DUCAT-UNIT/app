@@ -10,9 +10,10 @@ import { useState, useRef } from 'react';
 export function useToast() {
   const [toastMessage, setToastMessage] = useState('');
   const [toastVisible, setToastVisible] = useState(false);
+  const [toastType, setToastType] = useState('success'); // 'success' or 'error'
   const toastTimeout = useRef(null);
 
-  const showToast = (message) => {
+  const showToast = (message, type = 'success') => {
     // Clear any existing timeout
     if (toastTimeout.current) {
       clearTimeout(toastTimeout.current);
@@ -20,17 +21,20 @@ export function useToast() {
 
     // Show new toast
     setToastMessage(message);
+    setToastType(type);
     setToastVisible(true);
 
-    // Auto-hide after 2 seconds
+    // Auto-hide after 3 seconds (longer for errors to read)
+    const duration = type === 'error' ? 3500 : 2000;
     toastTimeout.current = setTimeout(() => {
       setToastVisible(false);
-    }, 2000);
+    }, duration);
   };
 
   return {
     showToast,
     toastMessage,
     toastVisible,
+    toastType,
   };
 }

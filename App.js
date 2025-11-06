@@ -10,7 +10,7 @@ import * as FileSystem from 'expo-file-system';
 import { useFonts } from 'expo-font';
 
 import { StatusBar } from 'expo-status-bar';
-import { Text, View, TouchableOpacity, Alert, ActivityIndicator, TextInput, Image, Keyboard, Platform, Linking, SafeAreaView, StatusBar as RNStatusBar, Dimensions, Animated, PanResponder } from 'react-native';
+import { Text, View, TouchableOpacity, ActivityIndicator, TextInput, Image, Keyboard, Platform, Linking, SafeAreaView, StatusBar as RNStatusBar, Dimensions, Animated, PanResponder } from 'react-native';
 import { useState, useEffect, useRef, useCallback } from 'react';
 import * as Clipboard from 'expo-clipboard';
 import * as bip39 from 'bip39';
@@ -41,6 +41,7 @@ import SettingsScreen from './components/SettingsScreen';
 import SendScreen from './components/SendScreen';
 import ReceiveScreen from './components/ReceiveScreen';
 import WalletScreen from './components/WalletScreen';
+import TransactionHistoryScreen from './components/TransactionHistoryScreen';
 import AccountSwitcherModal from './components/AccountSwitcherModal';
 import BiometricPromptModal from './components/BiometricPromptModal';
 import Toast from './components/Toast';
@@ -107,6 +108,7 @@ export default function App() {
   const [seedConfirmed, setSeedConfirmed] = useState(false);
   const [showSettings, setShowSettings] = useState(false); // Settings modal
   const [showReceiveSheet, setShowReceiveSheet] = useState(false); // Receive bottom sheet
+  const [showTxHistory, setShowTxHistory] = useState(false); // Transaction history sheet
   const [viewingSeedPhrase, setViewingSeedPhrase] = useState(false); // Viewing seed phrase
   const [seedPhraseWords, setSeedPhraseWords] = useState([]); // Seed phrase from keychain
   const [seedPhraseVisible, setSeedPhraseVisible] = useState(false); // Show/hide seed words
@@ -127,7 +129,7 @@ export default function App() {
   const amountInputRef = useRef(null);
 
   // Toast notification hook
-  const { showToast, toastMessage, toastVisible } = useToast();
+  const { showToast, toastMessage, toastVisible, toastType } = useToast();
 
   // Auth hook - handles authentication, biometrics, PIN
   const {
@@ -233,6 +235,7 @@ export default function App() {
     setIsAuthenticated,
     setSettingUpPin,
     setSeedConfirmed,
+    showToast,
   });
 
   // App lifecycle hook - handles screen capture, app state, and inactivity
@@ -391,7 +394,7 @@ export default function App() {
       // Validate inputs
       if (!trimmedRecipient || !sendAmount) {
         console.error('Missing recipient or amount');
-        Alert.alert('Error', 'Please enter recipient address and amount');
+        showToast('Please enter recipient address and amount', 'error');
         setIntentStep('idle');
         return;
       }
@@ -406,12 +409,12 @@ export default function App() {
         await createUnitIntent();
       } else {
         console.error('Invalid asset type:', sendAssetType);
-        Alert.alert('Error', 'Invalid asset type');
+        showToast('Invalid asset type', 'error');
         setIntentStep('idle');
       }
     } catch (error) {
       console.error('Failed to create transaction:', error);
-      Alert.alert('Error', 'Failed to create transaction: ' + error.message);
+      showToast('Failed to create transaction: ' + error.message, 'error');
       setIntentStep('idle');
     }
   };
@@ -434,7 +437,7 @@ export default function App() {
       }, 100);
     } catch (error) {
       console.error('Failed to create BTC transaction:', error);
-      Alert.alert('Error', 'Failed to create BTC transaction: ' + error.message);
+      showToast('Failed to create BTC transaction: ' + error.message, 'error');
       setIntentStep('idle');
       throw error;
     }
@@ -455,7 +458,7 @@ export default function App() {
       setIntentStep('reviewing');
     } catch (error) {
       console.error('Failed to create UNIT transaction:', error);
-      Alert.alert('Error', 'Failed to create UNIT transaction: ' + error.message);
+      showToast('Failed to create UNIT transaction: ' + error.message, 'error');
       setIntentStep('idle');
       throw error;
     }
@@ -467,7 +470,7 @@ export default function App() {
       setIntentStep('signing');
 
       if (!sendIntent) {
-        Alert.alert('Error', 'No intent to sign');
+        showToast('No intent to sign', 'error');
         setIntentStep('idle');
         return;
       }
@@ -488,7 +491,7 @@ export default function App() {
       await broadcastIntent(signedIntent);
     } catch (error) {
       console.error('Failed to sign transaction:', error);
-      Alert.alert('Error', 'Failed to sign transaction: ' + error.message);
+      showToast('Failed to sign transaction: ' + error.message, 'error');
       setIntentStep('reviewing');
     }
   };
@@ -498,7 +501,7 @@ export default function App() {
     try {
       if (!intent || !intent.signedTxHex) {
         console.error('No signed transaction to broadcast');
-        Alert.alert('Error', 'No signed transaction to broadcast');
+        showToast('No signed transaction to broadcast', 'error');
         return;
       }
 
@@ -512,7 +515,7 @@ export default function App() {
       fetchBalance();
     } catch (error) {
       console.error('Broadcast error:', error);
-      Alert.alert('Broadcast Error', error.message);
+      showToast('Broadcast error: ' + error.message, 'error');
       setIntentStep('reviewing');
     }
   };
@@ -568,10 +571,10 @@ export default function App() {
           seedPhraseTranslateX.setValue(0);
           setViewingSeedPhrase(true);
         } else {
-          Alert.alert('Error', 'Recovery phrase not found.');
+          showToast('Recovery phrase not found', 'error');
         }
       } catch (error) {
-        Alert.alert('Error', 'Failed to retrieve recovery phrase: ' + error.message);
+        showToast('Failed to retrieve recovery phrase: ' + error.message, 'error');
       }
     }
   };
@@ -717,6 +720,7 @@ export default function App() {
           styles={styles}
           onSendPress={() => setIntentStep('selecting_asset')}
           onReceivePress={() => setShowReceiveSheet(true)}
+          onHistoryPress={() => setShowTxHistory(true)}
           onSettingsPress={() => {
             settingsTranslateX.setValue(0);
             setShowSettings(true);
@@ -759,10 +763,19 @@ export default function App() {
         showToast={showToast}
       />
 
+      {/* Transaction History Bottom Sheet */}
+      <TransactionHistoryScreen
+        styles={styles}
+        showHistorySheet={showTxHistory}
+        onClose={() => setShowTxHistory(false)}
+        segwitAddress={wallet?.segwitAddress || ''}
+        taprootAddress={wallet?.taprootAddress || ''}
+      />
+
       <StatusBar style="light" />
 
       {/* Toast Notification */}
-      <Toast visible={toastVisible} message={toastMessage} styles={styles} />
+      <Toast visible={toastVisible} message={toastMessage} type={toastType} styles={styles} />
     </View>
 
     {/* Settings Screen Overlay */}

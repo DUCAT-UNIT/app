@@ -46,6 +46,12 @@ export default function WalletScreen({
         <View style={styles.xverseHeaderRight}>
           <TouchableOpacity
             style={styles.headerIconButton}
+            onPress={onHistoryPress}
+          >
+            <Text style={styles.headerIcon}>🕐</Text>
+          </TouchableOpacity>
+          <TouchableOpacity
+            style={styles.headerIconButton}
             onPress={onSettingsPress}
           >
             <Text style={styles.headerIcon}>⚙️</Text>
@@ -195,6 +201,7 @@ WalletScreen.propTypes = {
   onSendPress: PropTypes.func.isRequired,
   onReceivePress: PropTypes.func.isRequired,
   onSettingsPress: PropTypes.func.isRequired,
+  onHistoryPress: PropTypes.func.isRequired,
   sendAddressType: PropTypes.oneOf(['taproot', 'segwit']),
   switchingAccount: PropTypes.bool.isRequired,
 };
