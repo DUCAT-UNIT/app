@@ -329,18 +329,6 @@ export default function App() {
     });
   }
 
-  // Reset positions when screens close (not open, to avoid flash)
-  useEffect(() => {
-    if (!showSettings) {
-      settingsTranslateX.setValue(0);
-    }
-  }, [showSettings, settingsTranslateX]);
-
-  useEffect(() => {
-    if (!viewingSeedPhrase) {
-      seedPhraseTranslateX.setValue(0);
-    }
-  }, [viewingSeedPhrase, seedPhraseTranslateX]);
 
   const authenticateUser = async () => {
     try {
@@ -444,6 +432,7 @@ export default function App() {
         if (mnemonic) {
           setSeedPhraseWords(mnemonic.split(' '));
           setSeedPhraseVisible(false); // Start with words hidden for security
+          seedPhraseTranslateX.setValue(0);
           setViewingSeedPhrase(true);
           setShowSettings(false);
         } else {
@@ -985,7 +974,10 @@ export default function App() {
           styles={styles}
           onSendPress={() => setIntentStep('selecting_asset')}
           onReceivePress={() => setShowReceiveSheet(true)}
-          onSettingsPress={() => setShowSettings(true)}
+          onSettingsPress={() => {
+            settingsTranslateX.setValue(0);
+            setShowSettings(true);
+          }}
           sendAddressType={sendAddressType}
           switchingAccount={switchingAccount}
         />
