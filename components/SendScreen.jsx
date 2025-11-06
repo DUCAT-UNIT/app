@@ -8,11 +8,13 @@
  * - Success confirmation
  */
 
-import React, { useState, useEffect } from 'react';
-import { Text, View, TouchableOpacity, TextInput, ActivityIndicator, Image, Linking, Alert, ScrollView, Pressable, TouchableWithoutFeedback, Keyboard, KeyboardAvoidingView, Platform, Modal, PanResponder } from 'react-native';
+import React, { useState, useEffect, useRef } from 'react';
+import { Text, View, TouchableOpacity, TextInput, ActivityIndicator, Image, Linking, Alert, ScrollView, Pressable, TouchableWithoutFeedback, Keyboard, KeyboardAvoidingView, Platform, Modal, PanResponder, Animated, Dimensions } from 'react-native';
 import * as Clipboard from 'expo-clipboard';
 import { COLORS } from '../utils/colors';
 import styles from '../styles';
+
+const SCREEN_HEIGHT = Dimensions.get('window').height;
 
 // Format number with commas while preserving decimals
 const formatNumberWithCommas = (value) => {
@@ -135,43 +137,82 @@ export default function SendScreen({
     }
   }, [intentStep, sendAssetType]);
 
+  // Animated values for swipe-down dismissal
+  const assetSelectorTranslateY = useRef(new Animated.Value(0)).current;
+  const addressInputTranslateY = useRef(new Animated.Value(0)).current;
+  const amountInputTranslateY = useRef(new Animated.Value(0)).current;
+  const reviewTranslateY = useRef(new Animated.Value(0)).current;
+  const confirmedTranslateY = useRef(new Animated.Value(0)).current;
+
   // Pan responder for swipe-down to dismiss
-  const createPanResponder = (onDismiss) => {
+  const createPanResponder = (onDismiss, translateY) => {
     return PanResponder.create({
       onStartShouldSetPanResponder: () => false,
+      onStartShouldSetPanResponderCapture: () => false,
       onMoveShouldSetPanResponder: (_, gestureState) => {
-        // Only activate if swiping down (dy > 0) and moved more than 10px
-        return gestureState.dy > 10 && Math.abs(gestureState.dy) > Math.abs(gestureState.dx);
+        // Detect downward swipe
+        const isDownwardSwipe = gestureState.dy > 5 && Math.abs(gestureState.dy) > Math.abs(gestureState.dx);
+        return isDownwardSwipe;
       },
+      onMoveShouldSetPanResponderCapture: (_, gestureState) => {
+        const isDownwardSwipe = gestureState.dy > 5 && Math.abs(gestureState.dy) > Math.abs(gestureState.dx);
+        return isDownwardSwipe;
+      },
+      onPanResponderMove: Animated.event(
+        [null, { dy: translateY }],
+        {
+          useNativeDriver: false,
+          listener: (_, gestureState) => {
+            // Only allow downward movement
+            if (gestureState.dy < 0) {
+              translateY.setValue(0);
+            }
+          }
+        }
+      ),
       onPanResponderRelease: (_, gestureState) => {
-        // If swiped down more than 100px, dismiss
-        if (gestureState.dy > 100) {
-          onDismiss();
+        if (gestureState.dy > 100 || gestureState.vy > 0.5) {
+          // Animate slide down
+          Animated.timing(translateY, {
+            toValue: SCREEN_HEIGHT,
+            duration: 250,
+            useNativeDriver: true,
+          }).start(() => {
+            onDismiss();
+            translateY.setValue(0);
+          });
+        } else {
+          // Snap back
+          Animated.spring(translateY, {
+            toValue: 0,
+            useNativeDriver: true,
+            friction: 8,
+          }).start();
         }
       },
     });
   };
 
   // Create pan responders for different sheets
-  const assetSelectorPanResponder = createPanResponder(() => setIntentStep('idle'));
+  const assetSelectorPanResponder = createPanResponder(() => setIntentStep('idle'), assetSelectorTranslateY);
 
   const addressInputPanResponder = createPanResponder(() => {
     setIntentStep('idle');
     setSendAssetType(null);
     setSendRecipient('');
-  });
+  }, addressInputTranslateY);
 
   const amountInputPanResponder = createPanResponder(() => {
     setIntentStep('idle');
     setSendAssetType(null);
     setSendAmount('');
     setSendRecipient('');
-  });
+  }, amountInputTranslateY);
 
   const reviewPanResponder = createPanResponder(() => {
     setIntentStep('idle');
     setSendIntent(null);
-  });
+  }, reviewTranslateY);
 
   const confirmedPanResponder = createPanResponder(() => {
     setSendIntent(null);
@@ -180,7 +221,7 @@ export default function SendScreen({
     setSendRecipient('');
     setSendAssetType(null);
     setBroadcastedTxid(null);
-  });
+  }, confirmedTranslateY);
 
   // If not in any send flow, don't render anything
   if (intentStep === 'idle') {
@@ -197,7 +238,13 @@ export default function SendScreen({
             onPress={() => setIntentStep('idle')}
             activeOpacity={1}
           />
-          <View style={styles.bottomSheet} {...assetSelectorPanResponder.panHandlers}>
+          <Animated.View
+            style={[
+              styles.bottomSheet,
+              { transform: [{ translateY: assetSelectorTranslateY }] }
+            ]}
+            {...assetSelectorPanResponder.panHandlers}
+          >
             <View style={styles.bottomSheetHandle} />
             <Text style={styles.bottomSheetTitle}>Send What?</Text>
 
@@ -263,7 +310,7 @@ export default function SendScreen({
                 $0.00
               </Text>
             </TouchableOpacity>
-          </View>
+          </Animated.View>
         </>
       )}
 
@@ -287,7 +334,19 @@ export default function SendScreen({
         >
           <View style={styles.bottomSheetBackdrop} />
         </TouchableWithoutFeedback>
-        <View style={[styles.bottomSheet, { bottom: keyboardHeight, flex: 1, paddingBottom: 10, paddingHorizontal: 0 }]} {...addressInputPanResponder.panHandlers}>
+        <Animated.View
+          style={[
+            styles.bottomSheet,
+            {
+              bottom: keyboardHeight,
+              flex: 1,
+              paddingBottom: 10,
+              paddingHorizontal: 0,
+              transform: [{ translateY: addressInputTranslateY }]
+            }
+          ]}
+          {...addressInputPanResponder.panHandlers}
+        >
           <ScrollView
             keyboardShouldPersistTaps="always"
             keyboardDismissMode="none"
@@ -371,7 +430,7 @@ export default function SendScreen({
               </Pressable>
             </View>
           </ScrollView>
-        </View>
+        </Animated.View>
       </Modal>
 
       {/* Amount Input Bottom Sheet - After address entry (SECOND) */}
@@ -387,7 +446,18 @@ export default function SendScreen({
             }}
             activeOpacity={1}
           />
-          <View style={[styles.bottomSheet, { bottom: keyboardHeight, paddingBottom: 10, paddingHorizontal: 0 }]} {...amountInputPanResponder.panHandlers}>
+          <Animated.View
+            style={[
+              styles.bottomSheet,
+              {
+                bottom: keyboardHeight,
+                paddingBottom: 10,
+                paddingHorizontal: 0,
+                transform: [{ translateY: amountInputTranslateY }]
+              }
+            ]}
+            {...amountInputPanResponder.panHandlers}
+          >
             <View style={styles.bottomSheetHandle} />
 
             {/* Back button */}
@@ -503,7 +573,7 @@ export default function SendScreen({
                 <Text style={styles.amountContinueButtonText}>Review</Text>
               </TouchableOpacity>
             </View>
-          </View>
+          </Animated.View>
         </>
       )}
 
@@ -518,7 +588,13 @@ export default function SendScreen({
             }}
             activeOpacity={1}
           />
-          <View style={styles.bottomSheet} {...reviewPanResponder.panHandlers}>
+          <Animated.View
+            style={[
+              styles.bottomSheet,
+              { transform: [{ translateY: reviewTranslateY }] }
+            ]}
+            {...reviewPanResponder.panHandlers}
+          >
             <View style={styles.bottomSheetHandle} />
 
             <TouchableOpacity
@@ -628,7 +704,7 @@ export default function SendScreen({
                 </TouchableOpacity>
               </View>
             </View>
-          </View>
+          </Animated.View>
         </>
       )}
 
@@ -647,7 +723,13 @@ export default function SendScreen({
             }}
             activeOpacity={1}
           />
-          <View style={styles.bottomSheet} {...confirmedPanResponder.panHandlers}>
+          <Animated.View
+            style={[
+              styles.bottomSheet,
+              { transform: [{ translateY: confirmedTranslateY }] }
+            ]}
+            {...confirmedPanResponder.panHandlers}
+          >
             <View style={styles.bottomSheetHandle} />
 
             <TouchableOpacity
@@ -683,7 +765,7 @@ export default function SendScreen({
                 <Text style={styles.amountContinueButtonText}>View on Explorer</Text>
               </TouchableOpacity>
             </View>
-          </View>
+          </Animated.View>
         </>
       )}
 
