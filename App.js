@@ -42,6 +42,8 @@ import SettingsScreen from './components/SettingsScreen';
 import SendScreen from './components/SendScreen';
 import ReceiveScreen from './components/ReceiveScreen';
 import WalletScreen from './components/WalletScreen';
+import AccountSwitcherModal from './components/AccountSwitcherModal';
+import BiometricPromptModal from './components/BiometricPromptModal';
 
 // Import contexts
 import { useWallet } from './contexts/WalletContext';
@@ -880,13 +882,7 @@ export default function App() {
     setWordChoices({});
   };
 
-  const switchAccount = async () => {
-    const accountNum = parseInt(newAccountIndex);
-    if (isNaN(accountNum) || accountNum < 1) {
-      Alert.alert('Invalid Account', 'Please enter a valid account number (1 or greater)');
-      return;
-    }
-
+  const switchAccount = async (accountNum) => {
     // Convert account number to index (Account 1 = index 0)
     const accountIndex = accountNum - 1;
 
@@ -1000,43 +996,15 @@ export default function App() {
   // Account Picker Modal
   if (showAccountPicker) {
     return (
-      <View style={{ flex: 1, backgroundColor: '#1A1A1A', paddingHorizontal: 0 }}>
-        <View style={styles.mutinynetBanner}>
-          <Text style={styles.mutinynetBannerText}>Mutinynet Edition</Text>
-        </View>
-        <View style={styles.modalOverlay}>
-          <View style={styles.modalContent}>
-            <Text style={styles.modalTitle}>Switch Account</Text>
-            <Text style={styles.modalLabel}>Enter account number:</Text>
-            <TextInput
-              style={styles.accountInput}
-              value={newAccountIndex}
-              onChangeText={setNewAccountIndex}
-              placeholder="1"
-              placeholderTextColor="#666666"
-              keyboardType="number-pad"
-            />
-            <View style={styles.modalButtons}>
-              <TouchableOpacity
-                style={[styles.modalButton, styles.modalButtonCancel]}
-                onPress={() => {
-                  setShowAccountPicker(false);
-                  setNewAccountIndex('');
-                }}
-              >
-                <Text style={styles.modalButtonText}>Cancel</Text>
-              </TouchableOpacity>
-              <TouchableOpacity
-                style={[styles.modalButton, styles.modalButtonConfirm]}
-                onPress={switchAccount}
-              >
-                <Text style={styles.modalButtonText}>Switch</Text>
-              </TouchableOpacity>
-            </View>
-          </View>
-        </View>
-        <StatusBar style="light" />
-      </View>
+      <AccountSwitcherModal
+        visible={showAccountPicker}
+        accountIndex={newAccountIndex}
+        switchingAccount={switchingAccount}
+        onClose={() => setShowAccountPicker(false)}
+        onAccountIndexChange={setNewAccountIndex}
+        onSwitch={switchAccount}
+        styles={styles}
+      />
     );
   }
 
@@ -1053,56 +1021,19 @@ export default function App() {
           onFaceIdPress={authenticateUser}
         />
 
-        {/* Biometric Authentication Prompt - Rendered at top level */}
-        {showBiometricPrompt && (
-          <View style={styles.modalOverlay}>
-            <View style={styles.biometricPromptModal}>
-              <Text style={styles.biometricPromptTitle}>Biometric Authentication</Text>
-              <Text style={styles.biometricPromptText}>
-                Do you want to use biometric authentication (FaceID or TouchID) for UNIT Wallet?
-              </Text>
-              <View style={styles.biometricPromptButtons}>
-                <TouchableOpacity
-                  style={[styles.biometricPromptButton, styles.biometricPromptButtonYes]}
-                  onPress={async () => {
-                    setShowBiometricPrompt(false);
-                    try {
-                      // Save the preference
-                      await SecureStore.setItemAsync(SECURE_KEYS.BIOMETRIC_ENABLED, 'true');
-                      setBiometricEnabled(true);
-
-                      // Trigger biometric authentication
-                      const result = await LocalAuthentication.authenticateAsync({
-                        promptMessage: 'Authenticate to enable biometric login',
-                        fallbackLabel: 'Use PIN instead',
-                      });
-                      if (result.success) {
-                        setIsAuthenticated(true);
-                      }
-                    } catch (error) {
-                      console.log('Biometric auth error:', error);
-                    }
-                  }}
-                >
-                  <Text style={styles.biometricPromptButtonText}>Yes, Enable</Text>
-                </TouchableOpacity>
-                <TouchableOpacity
-                  style={[styles.biometricPromptButton, styles.biometricPromptButtonNo]}
-                  onPress={async () => {
-                    setShowBiometricPrompt(false);
-                    // Save the preference as disabled
-                    await SecureStore.setItemAsync(SECURE_KEYS.BIOMETRIC_ENABLED, 'false');
-                    setBiometricEnabled(false);
-                    // Keep FaceID button visible so user can enable it later
-                    // On lock screen: Don't authenticate, user must enter PIN
-                  }}
-                >
-                  <Text style={styles.biometricPromptButtonTextNo}>No, Thanks</Text>
-                </TouchableOpacity>
-              </View>
-            </View>
-          </View>
-        )}
+        <BiometricPromptModal
+          visible={showBiometricPrompt}
+          isAuthenticated={isAuthenticated}
+          onClose={() => setShowBiometricPrompt(false)}
+          onBiometricEnabled={(enabled, authSuccess) => {
+            setBiometricEnabled(enabled);
+            if (authSuccess) {
+              setIsAuthenticated(true);
+            }
+          }}
+          onBiometricDisabled={() => setBiometricEnabled(false)}
+          styles={styles}
+        />
         <StatusBar style="light" />
       </View>
     );
@@ -1299,58 +1230,20 @@ export default function App() {
       </Animated.View>
     )}
 
-    {/* Biometric Authentication Prompt - Rendered at top level */}
-    {showBiometricPrompt && (
-      <View style={styles.modalOverlay}>
-        <View style={styles.biometricPromptModal}>
-          <Text style={styles.biometricPromptTitle}>Biometric Authentication</Text>
-          <Text style={styles.biometricPromptText}>
-            Do you want to use biometric authentication (FaceID or TouchID) for UNIT Wallet?
-          </Text>
-          <View style={styles.biometricPromptButtons}>
-            <TouchableOpacity
-              style={[styles.biometricPromptButton, styles.biometricPromptButtonYes]}
-              onPress={async () => {
-                setShowBiometricPrompt(false);
-                try {
-                  // Save the preference
-                  await SecureStore.setItemAsync(SECURE_KEYS.BIOMETRIC_ENABLED, 'true');
-                  setBiometricEnabled(true);
-
-                  // Trigger biometric authentication
-                  const result = await LocalAuthentication.authenticateAsync({
-                    promptMessage: 'Authenticate to enable biometric login',
-                    fallbackLabel: 'Use PIN instead',
-                  });
-                  if (result.success) {
-                    setIsAuthenticated(true);
-                  }
-                } catch (error) {
-                  console.log('Biometric auth error:', error);
-                }
-              }}
-            >
-              <Text style={styles.biometricPromptButtonText}>Yes, Enable</Text>
-            </TouchableOpacity>
-            <TouchableOpacity
-              style={[styles.biometricPromptButton, styles.biometricPromptButtonNo]}
-              onPress={async () => {
-                setShowBiometricPrompt(false);
-                // Save the preference as disabled
-                await SecureStore.setItemAsync(SECURE_KEYS.BIOMETRIC_ENABLED, 'false');
-                setBiometricEnabled(false);
-                // If not authenticated yet, show PIN entry
-                if (!isAuthenticated) {
-                  setShowPinEntry(true);
-                }
-              }}
-            >
-              <Text style={styles.biometricPromptButtonTextNo}>No, Thanks</Text>
-            </TouchableOpacity>
-          </View>
-        </View>
-      </View>
-    )}
+    <BiometricPromptModal
+      visible={showBiometricPrompt}
+      isAuthenticated={isAuthenticated}
+      onClose={() => setShowBiometricPrompt(false)}
+      onBiometricEnabled={(enabled, authSuccess) => {
+        setBiometricEnabled(enabled);
+        if (authSuccess) {
+          setIsAuthenticated(true);
+        }
+      }}
+      onBiometricDisabled={() => setBiometricEnabled(false)}
+      onShowPinEntry={() => setShowPinEntry(true)}
+      styles={styles}
+    />
     </>
   );
 }
