@@ -5,6 +5,7 @@
  */
 
 import React, { useState } from 'react';
+import PropTypes from 'prop-types';
 import { Text, View, TouchableOpacity } from 'react-native';
 import { StatusBar } from 'expo-status-bar';
 import * as AuthService from '../services/authService';
@@ -104,3 +105,9 @@ export default function LockScreen({ onAuthenticated, showFaceIdButton, onFaceId
     </View>
   );
 }
+
+LockScreen.propTypes = {
+  onAuthenticated: PropTypes.func.isRequired,
+  showFaceIdButton: PropTypes.bool,
+  onFaceIdPress: PropTypes.func,
+};
