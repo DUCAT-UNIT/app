@@ -552,7 +552,14 @@ export default function App() {
       setVerifyingSeeds(false);
 
       // Store addresses in context and fetch balances
-      setWalletAddresses(addresses, currentAccount);
+      // Don't let balance fetch errors break the import flow
+      try {
+        setWalletAddresses(addresses, currentAccount);
+      } catch (balanceError) {
+        console.error('Failed to fetch balance during import:', balanceError);
+        // Continue anyway - wallet is imported, balance will be fetched later
+      }
+
       walletExists.current = true;
 
       // Skip seed verification for imported wallets
@@ -561,6 +568,7 @@ export default function App() {
       setImportingWallet(false);
       setImportSeedPhrase(Array(12).fill(''));
     } catch (error) {
+      console.error('Import wallet error:', error);
       Alert.alert('Error', 'Failed to import wallet. Please check your seed phrase and try again.');
     }
   };
