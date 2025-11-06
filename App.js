@@ -11,7 +11,7 @@ import * as FileSystem from 'expo-file-system';
 import { useFonts } from 'expo-font';
 
 import { StatusBar } from 'expo-status-bar';
-import { Text, View, TouchableOpacity, Alert, ActivityIndicator, TextInput, Image, AppState, Keyboard, Platform, Linking, SafeAreaView, StatusBar as RNStatusBar, Dimensions } from 'react-native';
+import { Text, View, TouchableOpacity, Alert, ActivityIndicator, TextInput, Image, AppState, Keyboard, Platform, Linking, SafeAreaView, StatusBar as RNStatusBar, Dimensions, Animated, PanResponder } from 'react-native';
 import { useState, useEffect, useRef, useCallback } from 'react';
 import * as Clipboard from 'expo-clipboard';
 import * as bip39 from 'bip39';
@@ -150,6 +150,12 @@ export default function App() {
   const seedConfirmedRef = useRef(false); // Track if seed backup is confirmed without triggering re-renders
   const amountInputRef = useRef(null);
   const INACTIVITY_TIMEOUT = 2 * 60 * 1000; // 2 minutes in milliseconds
+
+  // Animated values for swipe gestures
+  const seedPhraseTranslateX = useRef(new Animated.Value(0)).current;
+  const seedPhrasePanResponderRef = useRef(null);
+  const settingsTranslateX = useRef(new Animated.Value(0)).current;
+  const settingsPanResponderRef = useRef(null);
 
   // Keep seedConfirmedRef in sync with seedConfirmed state
   useEffect(() => {
@@ -315,6 +321,88 @@ export default function App() {
       setIsAuthenticated(false);
     }, INACTIVITY_TIMEOUT);
   }, [INACTIVITY_TIMEOUT]);
+
+  // Create pan responders for swipe gestures
+  // Settings screen pan responder
+  if (!settingsPanResponderRef.current) {
+    settingsPanResponderRef.current = PanResponder.create({
+      onStartShouldSetPanResponder: () => true,
+      onMoveShouldSetPanResponder: (_, gestureState) => {
+        const isSwipeRight = gestureState.dx > 10 && Math.abs(gestureState.dx) > Math.abs(gestureState.dy);
+        return isSwipeRight;
+      },
+      onPanResponderMove: (_, gestureState) => {
+        if (gestureState.dx > 0) {
+          settingsTranslateX.setValue(gestureState.dx);
+        }
+      },
+      onPanResponderRelease: (_, gestureState) => {
+        if (gestureState.dx > 100 || gestureState.vx > 0.5) {
+          Animated.timing(settingsTranslateX, {
+            toValue: SCREEN_WIDTH,
+            duration: 250,
+            useNativeDriver: true,
+          }).start(() => {
+            setShowSettings(false);
+          });
+        } else {
+          Animated.spring(settingsTranslateX, {
+            toValue: 0,
+            useNativeDriver: true,
+            friction: 8,
+          }).start();
+        }
+      },
+    });
+  }
+
+  // Seed phrase screen pan responder
+  if (!seedPhrasePanResponderRef.current) {
+    seedPhrasePanResponderRef.current = PanResponder.create({
+      onStartShouldSetPanResponder: () => true,
+      onMoveShouldSetPanResponder: (_, gestureState) => {
+        const isSwipeRight = gestureState.dx > 10 && Math.abs(gestureState.dx) > Math.abs(gestureState.dy);
+        return isSwipeRight;
+      },
+      onPanResponderMove: (_, gestureState) => {
+        if (gestureState.dx > 0) {
+          seedPhraseTranslateX.setValue(gestureState.dx);
+        }
+      },
+      onPanResponderRelease: (_, gestureState) => {
+        if (gestureState.dx > 100 || gestureState.vx > 0.5) {
+          Animated.timing(seedPhraseTranslateX, {
+            toValue: SCREEN_WIDTH,
+            duration: 250,
+            useNativeDriver: true,
+          }).start(() => {
+            setViewingSeedPhrase(false);
+            setSeedPhraseWords([]);
+            setSeedPhraseVisible(false);
+          });
+        } else {
+          Animated.spring(seedPhraseTranslateX, {
+            toValue: 0,
+            useNativeDriver: true,
+            friction: 8,
+          }).start();
+        }
+      },
+    });
+  }
+
+  // Reset positions when screens open
+  useEffect(() => {
+    if (showSettings) {
+      settingsTranslateX.setValue(0);
+    }
+  }, [showSettings]);
+
+  useEffect(() => {
+    if (viewingSeedPhrase) {
+      seedPhraseTranslateX.setValue(0);
+    }
+  }, [viewingSeedPhrase]);
 
   const resetInactivityTimer = useCallback(() => {
     // Restart timer when user interacts
@@ -909,31 +997,6 @@ export default function App() {
     );
   }
 
-  // Settings Screen
-  if (showSettings) {
-    return (
-      <View style={{ flex: 1, backgroundColor: '#1A1A1A', paddingHorizontal: 0 }}>
-        <View style={styles.mutinynetBanner}>
-          <Text style={styles.mutinynetBannerText}>Mutinynet Edition</Text>
-        </View>
-        <SettingsScreen
-          onClose={() => setShowSettings(false)}
-          onViewSeedPhrase={handleViewSeedPhrase}
-          onChangePin={handleChangePin}
-          onSwitchAccount={() => {
-            setShowSettings(false);
-            setShowAccountPicker(true);
-          }}
-          onLockWallet={handleLogout}
-          onDeleteWallet={handleDeleteWallet}
-          onPrivacyModeToggle={handlePrivacyModeToggle}
-          privacyMode={privacyMode}
-        />
-        <StatusBar style="light" />
-      </View>
-    );
-  }
-
   // Account Picker Modal
   if (showAccountPicker) {
     return (
@@ -1045,65 +1108,6 @@ export default function App() {
     );
   }
 
-  // Full-screen seed phrase viewing
-  if (viewingSeedPhrase) {
-    return (
-      <View style={{ flex: 1, backgroundColor: '#1A1A1A' }}>
-        <View style={styles.mutinynetBanner}>
-          <Text style={styles.mutinynetBannerText}>Mutinynet Edition</Text>
-        </View>
-        <View style={[styles.container, { paddingTop: 0, flex: 1 }]}>
-          <View style={styles.titleRow}>
-            <View style={styles.titleContainer}>
-              <Text style={styles.title}>DUCAT</Text>
-            </View>
-          </View>
-
-          <View style={styles.walletInfo}>
-            <Text style={styles.seedPhraseTitle}>Recovery Phrase</Text>
-
-            <Text style={styles.seedPhraseWarning}>
-              ⚠️ Keep these words safe and private!{'\n'}
-              Never share them with anyone.
-            </Text>
-
-            <View style={styles.seedGrid}>
-              {seedPhraseWords.map((word, index) => (
-                <View key={index} style={styles.seedBox}>
-                  <Text style={styles.seedNumber}>{index + 1}</Text>
-                  <Text style={styles.seedWord}>
-                    {seedPhraseVisible ? word : '••••••'}
-                  </Text>
-                </View>
-              ))}
-            </View>
-
-            {!seedPhraseVisible && (
-              <TouchableOpacity
-                style={styles.button}
-                onPress={() => setSeedPhraseVisible(true)}
-              >
-                <Text style={styles.buttonText}>Show Recovery Phrase</Text>
-              </TouchableOpacity>
-            )}
-
-            <TouchableOpacity
-              style={[styles.button, seedPhraseVisible && styles.secondaryButton]}
-              onPress={() => {
-                setViewingSeedPhrase(false);
-                setSeedPhraseWords([]);
-                setSeedPhraseVisible(false);
-              }}
-            >
-              <Text style={styles.buttonText}>Done</Text>
-            </TouchableOpacity>
-          </View>
-        </View>
-        <StatusBar style="light" />
-      </View>
-    );
-  }
-
   return (
     <>
       <View
@@ -1192,6 +1196,108 @@ export default function App() {
         </View>
       )}
     </View>
+
+    {/* Settings Screen Overlay */}
+    {showSettings && (
+      <Animated.View
+        style={{
+          position: 'absolute',
+          top: 0,
+          left: 0,
+          right: 0,
+          bottom: 0,
+          backgroundColor: '#1A1A1A',
+          zIndex: 1000,
+          transform: [{ translateX: settingsTranslateX }]
+        }}
+        {...settingsPanResponderRef.current.panHandlers}
+      >
+        <View style={styles.mutinynetBanner}>
+          <Text style={styles.mutinynetBannerText}>Mutinynet Edition</Text>
+        </View>
+        <SettingsScreen
+          onClose={() => setShowSettings(false)}
+          onViewSeedPhrase={handleViewSeedPhrase}
+          onChangePin={handleChangePin}
+          onSwitchAccount={() => {
+            setShowSettings(false);
+            setShowAccountPicker(true);
+          }}
+          onLockWallet={handleLogout}
+          onDeleteWallet={handleDeleteWallet}
+          onPrivacyModeToggle={handlePrivacyModeToggle}
+          privacyMode={privacyMode}
+        />
+      </Animated.View>
+    )}
+
+    {/* Seed Phrase Viewing Screen Overlay */}
+    {viewingSeedPhrase && (
+      <Animated.View
+        style={{
+          position: 'absolute',
+          top: 0,
+          left: 0,
+          right: 0,
+          bottom: 0,
+          backgroundColor: '#1A1A1A',
+          zIndex: 1000,
+          transform: [{ translateX: seedPhraseTranslateX }]
+        }}
+        {...seedPhrasePanResponderRef.current.panHandlers}
+      >
+        <View style={styles.mutinynetBanner}>
+          <Text style={styles.mutinynetBannerText}>Mutinynet Edition</Text>
+        </View>
+        <View style={[styles.container, { paddingTop: 0, flex: 1 }]}>
+          <View style={styles.titleRow}>
+            <View style={styles.titleContainer}>
+              <Text style={styles.title}>DUCAT</Text>
+            </View>
+          </View>
+
+          <View style={styles.walletInfo}>
+            <Text style={styles.seedPhraseTitle}>Recovery Phrase</Text>
+
+            <Text style={styles.seedPhraseWarning}>
+              ⚠️ Keep these words safe and private!{'\n'}
+              Never share them with anyone.
+            </Text>
+
+            <View style={styles.seedGrid}>
+              {seedPhraseWords.map((word, index) => (
+                <View key={index} style={styles.seedBox}>
+                  <Text style={styles.seedNumber}>{index + 1}</Text>
+                  <Text style={styles.seedWord}>
+                    {seedPhraseVisible ? word : '••••••'}
+                  </Text>
+                </View>
+              ))}
+            </View>
+
+            {!seedPhraseVisible && (
+              <TouchableOpacity
+                style={styles.button}
+                onPress={() => setSeedPhraseVisible(true)}
+              >
+                <Text style={styles.buttonText}>Show Recovery Phrase</Text>
+              </TouchableOpacity>
+            )}
+
+            <TouchableOpacity
+              style={[styles.button, seedPhraseVisible && styles.secondaryButton]}
+              onPress={() => {
+                setViewingSeedPhrase(false);
+                setSeedPhraseWords([]);
+                setSeedPhraseVisible(false);
+              }}
+            >
+              <Text style={styles.buttonText}>Done</Text>
+            </TouchableOpacity>
+          </View>
+        </View>
+      </Animated.View>
+    )}
 
     {/* Biometric Authentication Prompt - Rendered at top level */}
     {showBiometricPrompt && (
