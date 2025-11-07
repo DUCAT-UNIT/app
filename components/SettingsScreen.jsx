@@ -163,7 +163,7 @@ const localStyles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
-    paddingVertical: 16,
+    paddingVertical: 20,
     paddingHorizontal: 4,
     borderBottomWidth: 1,
     borderBottomColor: COLORS.BORDER_COLOR,
@@ -172,11 +172,11 @@ const localStyles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     flex: 1,
+    gap: 16,
   },
   optionIconImage: {
     width: 24,
     height: 24,
-    marginRight: 16,
     tintColor: COLORS.VERY_LIGHT_GRAY,
   },
   optionTitle: {

@@ -333,9 +333,9 @@ const styles = StyleSheet.create({
   assetCard: {
     backgroundColor: COLORS.CARD_BG,
     borderRadius: 12,
-    padding: 16,
-    marginBottom: 12,
-    height: 72,
+    padding: 18,
+    marginBottom: 16,
+    height: 78,
   },
   assetCardPlaceholder: {
     opacity: 0,
@@ -357,7 +357,7 @@ const styles = StyleSheet.create({
     borderRadius: 20,
     justifyContent: 'center',
     alignItems: 'center',
-    marginRight: 12,
+    marginRight: 16,
     overflow: 'hidden',
   },
   ducatIcon: {
@@ -369,14 +369,13 @@ const styles = StyleSheet.create({
   },
   assetInfo: {
     flex: 1,
-    marginLeft: 12,
   },
   assetName: {
     fontSize: 16,
     fontFamily: 'CabinetGrotesk-Medium',
     color: COLORS.VERY_LIGHT_GRAY,
     fontWeight: '600',
-    marginBottom: 4,
+    marginBottom: 6,
   },
   assetAmount: {
     fontSize: 14,
@@ -455,12 +454,12 @@ const styles = StyleSheet.create({
     fontSize: 14,
     fontFamily: 'CabinetGrotesk-Bold',
     color: COLORS.VERY_LIGHT_GRAY,
-    marginBottom: 8,
+    marginBottom: 12,
   },
   accountInput: {
     backgroundColor: COLORS.VERY_LIGHT_GRAY,
     color: COLORS.DARK_GRAY,
-    padding: 12,
+    padding: 16,
     borderRadius: 8,
     borderWidth: 2,
     borderColor: COLORS.PRIMARY_BLUE,
@@ -473,13 +472,13 @@ const styles = StyleSheet.create({
   },
   modalButton: {
     flex: 1,
-    padding: 12,
+    padding: 16,
     borderRadius: 8,
     alignItems: 'center',
   },
   modalButtonCancel: {
     backgroundColor: COLORS.MEDIUM_GRAY,
-    marginRight: 12,
+    marginRight: 16,
   },
   modalButtonConfirm: {
     backgroundColor: COLORS.PRIMARY_BLUE,
@@ -496,13 +495,13 @@ const styles = StyleSheet.create({
   },
   actionButton: {
     flex: 1,
-    paddingVertical: 14,
+    paddingVertical: 16,
     borderRadius: 10,
     alignItems: 'center',
   },
   sendButton: {
     backgroundColor: COLORS.PRIMARY_BLUE,
-    marginRight: 12,
+    marginRight: 16,
   },
   receiveButton: {
     backgroundColor: COLORS.TEAL,
@@ -522,9 +521,9 @@ const styles = StyleSheet.create({
   seedBox: {
     width: '48%',
     backgroundColor: COLORS.CARD_BG,
-    padding: 12,
+    padding: 14,
     borderRadius: 8,
-    marginBottom: 10,
+    marginBottom: 12,
     flexDirection: 'row',
     alignItems: 'center',
   },
@@ -821,7 +820,7 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    marginBottom: 30,
+    marginBottom: 36,
     paddingHorizontal: HORIZONTAL_PADDING,
   },
   xverseHeaderLeft: {
@@ -860,7 +859,7 @@ const styles = StyleSheet.create({
   xverseHeaderRight: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 12,
+    gap: 16,
   },
   headerIconButton: {
     width: 36,
@@ -882,7 +881,7 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    marginBottom: 20,
+    marginBottom: 24,
     paddingHorizontal: HORIZONTAL_PADDING,
   },
   xverseBalanceLeft: {
@@ -892,7 +891,7 @@ const styles = StyleSheet.create({
     fontSize: 14,
     fontFamily: 'CabinetGrotesk-Regular',
     color: COLORS.SECONDARY_TEXT,
-    marginBottom: 8,
+    marginBottom: 12,
   },
   xverseBalanceAmount: {
     fontSize: 42,
@@ -915,7 +914,7 @@ const styles = StyleSheet.create({
     height: 1,
     backgroundColor: COLORS.CARD_BG,
     marginHorizontal: 0,
-    marginBottom: 20,
+    marginBottom: 24,
   },
   portfolioButton: {
     flexDirection: 'row',
@@ -941,17 +940,17 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     justifyContent: 'space-between',
     marginTop: 24,
-    gap: 12,
+    gap: 16,
     paddingHorizontal: HORIZONTAL_PADDING,
   },
   xverseActionButton: {
     flex: 1,
     alignItems: 'center',
-    gap: 8,
+    gap: 10,
   },
   xverseActionIcon: {
-    width: 60,
-    height: 60,
+    width: 64,
+    height: 64,
     borderRadius: 16,
     backgroundColor: COLORS.VERY_LIGHT_GRAY,
     justifyContent: 'center',
@@ -1914,20 +1913,20 @@ const styles = StyleSheet.create({
   receiveAddressRow: {
     backgroundColor: COLORS.CARD_BG,
     borderRadius: 12,
-    padding: 15,
-    marginBottom: 12,
+    padding: 18,
+    marginBottom: 16,
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
   },
   receiveAddressInfo: {
     flex: 1,
-    marginRight: 12,
+    marginRight: 16,
   },
   receiveAddressLabelRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    marginBottom: 8,
+    marginBottom: 10,
     gap: 8,
   },
   receiveAddressLabel: {
