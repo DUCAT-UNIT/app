@@ -881,7 +881,7 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    marginBottom: 24,
+    marginBottom: 20,
     paddingHorizontal: HORIZONTAL_PADDING,
   },
   xverseBalanceLeft: {
@@ -914,7 +914,7 @@ const styles = StyleSheet.create({
     height: 1,
     backgroundColor: COLORS.CARD_BG,
     marginHorizontal: 0,
-    marginBottom: 24,
+    marginBottom: 20,
   },
   portfolioButton: {
     flexDirection: 'row',
@@ -1398,7 +1398,7 @@ const styles = StyleSheet.create({
   },
   amountInputRow: {
     flexDirection: 'row',
-    alignItems: 'center',
+    alignItems: 'baseline',
     marginBottom: 5,
   },
   amountAssetSymbol: {
@@ -1549,8 +1549,8 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    paddingVertical: 12,
-    marginBottom: 20,
+    paddingVertical: 8,
+    marginBottom: 12,
   },
   sendToLeft: {
     flexDirection: 'row',
@@ -1585,7 +1585,7 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between',
     alignItems: 'center',
     width: '100%',
-    marginBottom: 20,
+    marginBottom: 12,
   },
   amountBalanceLabel: {
     fontSize: 14,
@@ -1615,9 +1615,10 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   amountAssetSymbolRight: {
-    width: 40,
-    height: 40,
-    marginLeft: 12,
+    width: 32,
+    height: 32,
+    marginLeft: 8,
+    marginBottom: 8,
   },
   amountUsdValue: {
     fontSize: 18,

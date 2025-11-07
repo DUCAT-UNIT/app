@@ -7,6 +7,8 @@
 import React from 'react';
 import PropTypes from 'prop-types';
 import { Text, View, TouchableOpacity, TextInput, Pressable, Image, Animated } from 'react-native';
+import { COLORS } from '../../utils/colors';
+import Icon from '../Icon';
 import styles from '../../styles';
 import { formatNumberWithCommas } from '../../utils/sendHelpers';
 
@@ -91,7 +93,7 @@ export default function AmountInputSheet({
             style={[styles.bottomSheetBackButton, { paddingHorizontal: 15 }]}
             onPress={onBack}
           >
-            <Text style={styles.bottomSheetBackArrow}>‹</Text>
+            <Icon name="back" size={20} color={COLORS.PRIMARY_BLUE} />
             <Text style={styles.bottomSheetBackText}>Back</Text>
           </TouchableOpacity>
         </View>

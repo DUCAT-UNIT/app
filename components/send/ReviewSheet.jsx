@@ -8,6 +8,7 @@ import React from 'react';
 import PropTypes from 'prop-types';
 import { Text, View, TouchableOpacity, Image, Animated } from 'react-native';
 import { COLORS } from '../../utils/colors';
+import Icon from '../Icon';
 import styles from '../../styles';
 import { formatBTC } from '../../utils/sendHelpers';
 
@@ -56,22 +57,22 @@ export default function ReviewSheet({
             style={styles.bottomSheetBackButton}
             onPress={onBack}
           >
-            <Text style={styles.bottomSheetBackArrow}>‹</Text>
+            <Icon name="back" size={20} color={COLORS.PRIMARY_BLUE} />
             <Text style={styles.bottomSheetBackText}>Back</Text>
           </TouchableOpacity>
         </View>
 
         <View style={styles.amountInputContainer}>
-          <Text style={{ fontSize: 20, fontWeight: '500', color: COLORS.VERY_LIGHT_GRAY, marginBottom: 24 }}>
+          <Text style={{ fontSize: 18, fontWeight: '500', color: COLORS.VERY_LIGHT_GRAY, marginBottom: 16 }}>
             You will send
           </Text>
 
           {/* To and Amount Card */}
-          <View style={{ backgroundColor: COLORS.CARD_BG, borderRadius: 12, padding: 16, marginBottom: 32, width: '100%' }}>
+          <View style={{ backgroundColor: COLORS.CARD_BG, borderRadius: 12, padding: 14, marginBottom: 20, width: '100%' }}>
             {/* To Row */}
-            <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', width: '100%', marginBottom: 16 }}>
-              <Text style={{ fontSize: 16, color: COLORS.SECONDARY_TEXT, fontWeight: '600' }}>To:</Text>
-              <Text style={{ fontSize: 16, fontWeight: '600', color: COLORS.VERY_LIGHT_GRAY }}>
+            <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', width: '100%', marginBottom: 12 }}>
+              <Text style={{ fontSize: 14, color: COLORS.SECONDARY_TEXT, fontWeight: '600' }}>To:</Text>
+              <Text style={{ fontSize: 14, fontWeight: '600', color: COLORS.VERY_LIGHT_GRAY }}>
                 {sendIntent.recipient.substring(0, 8)}...{sendIntent.recipient.substring(sendIntent.recipient.length - 7)}
               </Text>
             </View>
@@ -82,21 +83,21 @@ export default function ReviewSheet({
                 source={sendIntent.assetType === 'UNIT'
                   ? require('../../assets/unit-logo.png')
                   : require('../../assets/btc-logo.png')}
-                style={{ width: 42, height: 42, marginRight: 14 }}
+                style={{ width: 38, height: 38, marginRight: 12 }}
               />
               <View style={{ flex: 1 }}>
-                <Text style={{ fontSize: 16, fontWeight: '600', color: COLORS.VERY_LIGHT_GRAY, marginBottom: 4 }}>
+                <Text style={{ fontSize: 15, fontWeight: '600', color: COLORS.VERY_LIGHT_GRAY, marginBottom: 3 }}>
                   Amount
                 </Text>
-                <Text style={{ fontSize: 12, color: COLORS.SECONDARY_TEXT }}>
+                <Text style={{ fontSize: 11, color: COLORS.SECONDARY_TEXT }}>
                   {sendIntent.assetType === 'UNIT' ? 'UNIT•RUNE' : 'Bitcoin'}
                 </Text>
               </View>
               <View style={{ alignItems: 'flex-end' }}>
-                <Text style={{ fontSize: 16, fontWeight: '600', color: COLORS.VERY_LIGHT_GRAY, marginBottom: 4 }}>
+                <Text style={{ fontSize: 15, fontWeight: '600', color: COLORS.VERY_LIGHT_GRAY, marginBottom: 3 }}>
                   {displayAmount}
                 </Text>
-                <Text style={{ fontSize: 12, color: COLORS.SECONDARY_TEXT }}>
+                <Text style={{ fontSize: 11, color: COLORS.SECONDARY_TEXT }}>
                   $ {usdAmount} USD
                 </Text>
               </View>
@@ -104,26 +105,26 @@ export default function ReviewSheet({
           </View>
 
           {/* Transaction Details Section */}
-          <Text style={{ fontSize: 17, fontWeight: '600', color: COLORS.VERY_LIGHT_GRAY, marginBottom: 16 }}>
+          <Text style={{ fontSize: 16, fontWeight: '600', color: COLORS.VERY_LIGHT_GRAY, marginBottom: 12 }}>
             Transaction details
           </Text>
 
           {/* Transaction Details Card */}
-          <View style={{ backgroundColor: COLORS.CARD_BG, borderRadius: 12, padding: 16, marginBottom: 32, width: '100%' }}>
-            <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12, width: '100%' }}>
-              <Text style={{ fontSize: 16, color: COLORS.SECONDARY_TEXT, fontWeight: '600' }}>Network:</Text>
-              <Text style={{ fontSize: 16, fontWeight: '600', color: COLORS.VERY_LIGHT_GRAY }}>Mutinynet</Text>
+          <View style={{ backgroundColor: COLORS.CARD_BG, borderRadius: 12, padding: 14, marginBottom: 24, width: '100%' }}>
+            <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 10, width: '100%' }}>
+              <Text style={{ fontSize: 14, color: COLORS.SECONDARY_TEXT, fontWeight: '600' }}>Network:</Text>
+              <Text style={{ fontSize: 14, fontWeight: '600', color: COLORS.VERY_LIGHT_GRAY }}>Mutinynet</Text>
             </View>
             <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', width: '100%' }}>
-              <Text style={{ fontSize: 16, color: COLORS.SECONDARY_TEXT, fontWeight: '600' }}>Total fees:</Text>
-              <Text style={{ fontSize: 16, fontWeight: '600', color: COLORS.VERY_LIGHT_GRAY }}>
+              <Text style={{ fontSize: 14, color: COLORS.SECONDARY_TEXT, fontWeight: '600' }}>Total fees:</Text>
+              <Text style={{ fontSize: 14, fontWeight: '600', color: COLORS.VERY_LIGHT_GRAY }}>
                 {sendIntent.fee.toLocaleString()} sats
               </Text>
             </View>
           </View>
 
           {/* Buttons */}
-          <View style={{ flexDirection: 'row', gap: 14 }}>
+          <View style={{ flexDirection: 'row', gap: 12 }}>
             <TouchableOpacity
               style={{
                 flex: 1,

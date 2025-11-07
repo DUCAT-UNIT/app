@@ -8,6 +8,8 @@ import React from 'react';
 import PropTypes from 'prop-types';
 import { Text, View, TouchableOpacity, TextInput, Pressable, Image, ScrollView, Animated } from 'react-native';
 import * as Clipboard from 'expo-clipboard';
+import { COLORS } from '../../utils/colors';
+import Icon from '../Icon';
 import styles from '../../styles';
 import { validateBitcoinAddress } from '../../utils/sendHelpers';
 
@@ -74,7 +76,7 @@ export default function AddressInputSheet({
           style={[styles.bottomSheetBackButton, { paddingHorizontal: 15 }]}
           onPress={onBack}
         >
-          <Text style={styles.bottomSheetBackArrow}>‹</Text>
+          <Icon name="back" size={20} color={COLORS.PRIMARY_BLUE} />
           <Text style={styles.bottomSheetBackText}>Back</Text>
         </Pressable>
 
@@ -105,10 +107,7 @@ export default function AddressInputSheet({
                   style={styles.pasteButton}
                   onPress={handlePaste}
                 >
-                  <Image
-                    source={require('../../assets/paste-icon.png')}
-                    style={{ width: 16, height: 16, tintColor: 'white' }}
-                  />
+                  <Icon name="paste" size={18} color={COLORS.WHITE} />
                 </Pressable>
               </View>
 
