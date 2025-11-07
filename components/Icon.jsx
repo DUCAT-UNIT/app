@@ -189,6 +189,15 @@ const IconComponents = {
       <Path d="M18.5 15a0.5 0.5 0 0 1 -0.5 0.5H8.205a0.5 0.5 0 0 1 -0.353 -0.146l-3 -3a0.5 0.5 0 0 1 0 -0.707l3 -3a0.5 0.5 0 0 1 0.353 -0.147H18a0.5 0.5 0 0 1 0.5 0.5Z" fill="none" stroke={color} strokeLinecap="round" strokeLinejoin="round" strokeWidth="1" />
     </Svg>
   ),
+
+  done: ({ width, height, color }) => (
+    <Svg width={width} height={height} viewBox="0 0 24 24" fill="none">
+      <G>
+        <Path d="m18 7 -6.38 8.66a1 1 0 0 1 -0.68 0.4 1 1 0 0 1 -0.75 -0.21L6 12.5" fill="none" stroke={color} strokeLinecap="round" strokeLinejoin="round" strokeWidth="1" />
+        <Path d="M0.5 12a11.5 11.5 0 1 0 23 0 11.5 11.5 0 1 0 -23 0" fill="none" stroke={color} strokeLinecap="round" strokeLinejoin="round" strokeWidth="1" />
+      </G>
+    </Svg>
+  ),
 };
 
 /**

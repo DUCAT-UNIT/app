@@ -7,6 +7,8 @@
 import React from 'react';
 import PropTypes from 'prop-types';
 import { Text, View, TouchableOpacity, Linking, Animated } from 'react-native';
+import { COLORS } from '../../utils/colors';
+import Icon from '../Icon';
 import styles from '../../styles';
 
 export default function ConfirmationSheet({
@@ -53,9 +55,7 @@ export default function ConfirmationSheet({
 
         <View style={[styles.amountInputContainer, { alignItems: 'center', justifyContent: 'center' }]}>
           <View style={styles.successCheckmarkContainer}>
-            <View style={styles.successCheckmark}>
-              <Text style={styles.successCheckmarkText}>✓</Text>
-            </View>
+            <Icon name="done" size={80} color={COLORS.TEAL} />
           </View>
 
           <Text style={[styles.successTitle, { textAlign: 'center' }]}>Transaction Sent</Text>

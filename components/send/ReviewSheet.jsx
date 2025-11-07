@@ -71,8 +71,8 @@ export default function ReviewSheet({
           <View style={{ backgroundColor: COLORS.CARD_BG, borderRadius: 12, padding: 14, marginBottom: 20, width: '100%' }}>
             {/* To Row */}
             <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', width: '100%', marginBottom: 12 }}>
-              <Text style={{ fontSize: 14, color: COLORS.SECONDARY_TEXT, fontWeight: '600' }}>To:</Text>
-              <Text style={{ fontSize: 14, fontWeight: '600', color: COLORS.VERY_LIGHT_GRAY }}>
+              <Text style={{ fontSize: 14, color: COLORS.SECONDARY_TEXT, fontWeight: '400' }}>To:</Text>
+              <Text style={{ fontSize: 14, fontWeight: '400', color: COLORS.VERY_LIGHT_GRAY }}>
                 {sendIntent.recipient.substring(0, 8)}...{sendIntent.recipient.substring(sendIntent.recipient.length - 7)}
               </Text>
             </View>
@@ -83,10 +83,10 @@ export default function ReviewSheet({
                 source={sendIntent.assetType === 'UNIT'
                   ? require('../../assets/unit-logo.png')
                   : require('../../assets/btc-logo.png')}
-                style={{ width: 38, height: 38, marginRight: 12 }}
+                style={{ width: 32, height: 32, marginRight: 12 }}
               />
               <View style={{ flex: 1 }}>
-                <Text style={{ fontSize: 15, fontWeight: '600', color: COLORS.VERY_LIGHT_GRAY, marginBottom: 3 }}>
+                <Text style={{ fontSize: 15, fontWeight: '400', color: COLORS.VERY_LIGHT_GRAY, marginBottom: 3 }}>
                   Amount
                 </Text>
                 <Text style={{ fontSize: 11, color: COLORS.SECONDARY_TEXT }}>
@@ -94,7 +94,7 @@ export default function ReviewSheet({
                 </Text>
               </View>
               <View style={{ alignItems: 'flex-end' }}>
-                <Text style={{ fontSize: 15, fontWeight: '600', color: COLORS.VERY_LIGHT_GRAY, marginBottom: 3 }}>
+                <Text style={{ fontSize: 15, fontWeight: '400', color: COLORS.VERY_LIGHT_GRAY, marginBottom: 3 }}>
                   {displayAmount}
                 </Text>
                 <Text style={{ fontSize: 11, color: COLORS.SECONDARY_TEXT }}>
@@ -105,19 +105,19 @@ export default function ReviewSheet({
           </View>
 
           {/* Transaction Details Section */}
-          <Text style={{ fontSize: 16, fontWeight: '600', color: COLORS.VERY_LIGHT_GRAY, marginBottom: 12 }}>
+          <Text style={{ fontSize: 16, fontWeight: '400', color: COLORS.VERY_LIGHT_GRAY, marginBottom: 12 }}>
             Transaction details
           </Text>
 
           {/* Transaction Details Card */}
           <View style={{ backgroundColor: COLORS.CARD_BG, borderRadius: 12, padding: 14, marginBottom: 24, width: '100%' }}>
             <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 10, width: '100%' }}>
-              <Text style={{ fontSize: 14, color: COLORS.SECONDARY_TEXT, fontWeight: '600' }}>Network:</Text>
-              <Text style={{ fontSize: 14, fontWeight: '600', color: COLORS.VERY_LIGHT_GRAY }}>Mutinynet</Text>
+              <Text style={{ fontSize: 14, color: COLORS.SECONDARY_TEXT, fontWeight: '400' }}>Network:</Text>
+              <Text style={{ fontSize: 14, fontWeight: '400', color: COLORS.VERY_LIGHT_GRAY }}>Mutinynet</Text>
             </View>
             <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', width: '100%' }}>
-              <Text style={{ fontSize: 14, color: COLORS.SECONDARY_TEXT, fontWeight: '600' }}>Total fees:</Text>
-              <Text style={{ fontSize: 14, fontWeight: '600', color: COLORS.VERY_LIGHT_GRAY }}>
+              <Text style={{ fontSize: 14, color: COLORS.SECONDARY_TEXT, fontWeight: '400' }}>Total fees:</Text>
+              <Text style={{ fontSize: 14, fontWeight: '400', color: COLORS.VERY_LIGHT_GRAY }}>
                 {sendIntent.fee.toLocaleString()} sats
               </Text>
             </View>
