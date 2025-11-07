@@ -6,7 +6,7 @@ export const COLORS = {
   // Blacks and very dark colors
   BLACK: '#000000',
   DARK_BG: '#111015',
-  VERY_DARK_GRAY: '#1A1A1A',
+  VERY_DARK_GRAY: '#1D1C21',
   CARD_BG: '#1D1C21',
 
   // Grays

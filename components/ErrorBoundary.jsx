@@ -142,7 +142,7 @@ const styles = StyleSheet.create({
     fontFamily: 'CabinetGrotesk-Medium',
   },
   errorDetails: {
-    backgroundColor: '#2a2a2a',
+    backgroundColor: COLORS.CARD_BG,
     borderRadius: 8,
     padding: 16,
     marginBottom: 20,

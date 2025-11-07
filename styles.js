@@ -759,7 +759,7 @@ const styles = StyleSheet.create({
   },
   // Mutinynet banner - Full Width
   mutinynetBanner: {
-    backgroundColor: '#27272A',
+    backgroundColor: COLORS.CARD_BG,
     paddingVertical: 6,
     paddingHorizontal: 0,
     width: '100%',
@@ -913,7 +913,7 @@ const styles = StyleSheet.create({
   },
   balanceDivider: {
     height: 1,
-    backgroundColor: '#2a2a2a',
+    backgroundColor: COLORS.CARD_BG,
     marginHorizontal: 0,
     marginBottom: 20,
   },
@@ -1447,7 +1447,7 @@ const styles = StyleSheet.create({
     gap: 16,
     paddingTop: 16,
     borderTopWidth: 1,
-    borderTopColor: '#2a2a2a',
+    borderTopColor: COLORS.CARD_BG,
   },
   sendBalanceFooterRow: {
     flexDirection: 'column',
@@ -1912,7 +1912,7 @@ const styles = StyleSheet.create({
   },
   // Receive address styles
   receiveAddressRow: {
-    backgroundColor: '#2a2a2a',
+    backgroundColor: COLORS.CARD_BG,
     borderRadius: 12,
     padding: 15,
     marginBottom: 12,
@@ -1942,7 +1942,7 @@ const styles = StyleSheet.create({
     color: COLORS.MEDIUM_GRAY,
   },
   receiveAddressTag: {
-    backgroundColor: '#3a3a3a',
+    backgroundColor: COLORS.CARD_BG,
     paddingHorizontal: 8,
     paddingVertical: 4,
     borderRadius: 6,
@@ -1974,7 +1974,7 @@ const styles = StyleSheet.create({
     zIndex: 99999,
   },
   qrModalNetworkBar: {
-    backgroundColor: '#27272A',
+    backgroundColor: COLORS.CARD_BG,
     paddingVertical: SCREEN_WIDTH < 375 ? 4 : 6,
     paddingHorizontal: 0,
     width: '100%',
@@ -2058,7 +2058,7 @@ const styles = StyleSheet.create({
   },
   qrAddressContainer: {
     width: '100%',
-    backgroundColor: '#2a2a2a',
+    backgroundColor: COLORS.CARD_BG,
     borderRadius: 12,
     padding: SCREEN_WIDTH < 375 ? 12 : 16,
     flexDirection: 'row',
@@ -2099,7 +2099,7 @@ const styles = StyleSheet.create({
     width: '100%',
     backgroundColor: 'transparent',
     borderWidth: 1,
-    borderColor: '#3a3a3a',
+    borderColor: COLORS.CARD_BG,
     paddingVertical: SCREEN_WIDTH < 375 ? 12 : 14,
     borderRadius: 12,
     flexDirection: 'row',
@@ -2195,7 +2195,7 @@ const styles = StyleSheet.create({
     paddingVertical: 16,
     paddingHorizontal: 4,
     borderBottomWidth: 1,
-    borderBottomColor: '#2a2a2a',
+    borderBottomColor: COLORS.CARD_BG,
   },
   historyLogoImage: {
     width: 40,

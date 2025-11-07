@@ -173,7 +173,7 @@ const localStyles = StyleSheet.create({
     paddingVertical: 16,
     paddingHorizontal: 4,
     borderBottomWidth: 1,
-    borderBottomColor: '#2a2a2a',
+    borderBottomColor: COLORS.CARD_BG,
   },
   optionLeft: {
     flexDirection: 'row',
