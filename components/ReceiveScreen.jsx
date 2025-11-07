@@ -4,6 +4,7 @@ import { View, Text, TouchableOpacity, PanResponder, Image, Share, Animated, Dim
 import * as Clipboard from 'expo-clipboard';
 import QRCode from 'react-native-qrcode-svg';
 import { COLORS } from '../utils/colors';
+import Icon from './Icon';
 
 const SCREEN_WIDTH = Dimensions.get('window').width;
 const SCREEN_HEIGHT = Dimensions.get('window').height;
@@ -320,11 +321,7 @@ export default function ReceiveScreen({
                   }}
                   style={[SCREEN_WIDTH <= 400 && { position: 'absolute', left: 0 }]}
                 >
-                  <Image
-                    source={require('../assets/icons/back.png')}
-                    style={[styles.qrModalBackIcon, SCREEN_WIDTH <= 400 && { width: 28, height: 28 }]}
-                    resizeMode="contain"
-                  />
+                  <Icon name="back" size={SCREEN_WIDTH <= 400 ? 28 : 24} color={COLORS.VERY_LIGHT_GRAY} />
                 </TouchableOpacity>
                 <Text style={styles.qrModalTitle}>Bitcoin address</Text>
               </View>

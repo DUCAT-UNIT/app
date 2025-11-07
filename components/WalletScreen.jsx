@@ -3,6 +3,7 @@ import PropTypes from 'prop-types';
 import { View, Text, TouchableOpacity, Image, ActivityIndicator } from 'react-native';
 import { useWallet } from '../contexts/WalletContext';
 import { COLORS } from '../utils/colors';
+import Icon from './Icon';
 
 export default function WalletScreen({
   styles,
@@ -45,21 +46,13 @@ export default function WalletScreen({
             style={styles.headerIconButton}
             onPress={onHistoryPress}
           >
-            <Image
-              source={require('../assets/icons/transaction_history.png')}
-              style={styles.headerIconImage}
-              resizeMode="contain"
-            />
+            <Icon name="transaction_history" size={22} color={COLORS.VERY_LIGHT_GRAY} />
           </TouchableOpacity>
           <TouchableOpacity
             style={styles.headerIconButton}
             onPress={onSettingsPress}
           >
-            <Image
-              source={require('../assets/icons/settings.png')}
-              style={styles.headerIconImage}
-              resizeMode="contain"
-            />
+            <Icon name="settings" size={22} color={COLORS.VERY_LIGHT_GRAY} />
           </TouchableOpacity>
         </View>
       </View>
@@ -199,11 +192,7 @@ export default function WalletScreen({
           onPress={onSendPress}
         >
           <View style={styles.xverseActionIcon}>
-            <Image
-              source={require('../assets/icons/send.png')}
-              style={styles.xverseActionIconImage}
-              resizeMode="contain"
-            />
+            <Icon name="send" size={20} color={COLORS.BLACK} />
           </View>
           <Text style={styles.xverseActionLabel}>Send</Text>
         </TouchableOpacity>
@@ -213,11 +202,7 @@ export default function WalletScreen({
           onPress={onReceivePress}
         >
           <View style={styles.xverseActionIcon}>
-            <Image
-              source={require('../assets/icons/receive.png')}
-              style={styles.xverseActionIconImage}
-              resizeMode="contain"
-            />
+            <Icon name="receive" size={20} color={COLORS.BLACK} />
           </View>
           <Text style={styles.xverseActionLabel}>Receive</Text>
         </TouchableOpacity>

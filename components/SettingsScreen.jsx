@@ -5,8 +5,9 @@
 
 import React from 'react';
 import PropTypes from 'prop-types';
-import { Text, View, TouchableOpacity, StyleSheet, Platform, Dimensions, StatusBar, Image } from 'react-native';
+import { Text, View, TouchableOpacity, StyleSheet, Platform, Dimensions, StatusBar } from 'react-native';
 import { COLORS } from '../utils/colors';
+import Icon from './Icon';
 
 // Get device dimensions for responsive sizing
 const { width: SCREEN_WIDTH } = Dimensions.get('window');
@@ -35,11 +36,7 @@ export default function SettingsScreen({
       {/* Header */}
       <View style={localStyles.header}>
         <TouchableOpacity onPress={onClose} style={localStyles.backButton}>
-          <Image
-            source={require('../assets/icons/back.png')}
-            style={localStyles.backIcon}
-            resizeMode="contain"
-          />
+          <Icon name="back" size={24} color={COLORS.VERY_LIGHT_GRAY} />
         </TouchableOpacity>
       </View>
 
@@ -49,27 +46,27 @@ export default function SettingsScreen({
         {/* Security Section */}
         <View style={localStyles.section}>
           <SettingsOption
-            iconSource={require('../assets/icons/recovery_phrase.png')}
+            iconName="recovery_phrase"
             title="View Recovery Phrase"
             onPress={onViewSeedPhrase}
           />
           <SettingsOption
-            iconSource={require('../assets/icons/pin.png')}
+            iconName="pin"
             title="Change PIN"
             onPress={onChangePin}
           />
           <SettingsOption
-            iconSource={require('../assets/icons/switch_account.png')}
+            iconName="switch_account"
             title="Switch Account"
             onPress={onSwitchAccount}
           />
           <SettingsOption
-            iconSource={require('../assets/icons/logout.png')}
+            iconName="logout"
             title="Lock Wallet"
             onPress={onLockWallet}
           />
           <SettingsOption
-            iconSource={privacyMode ? require('../assets/icons/privacy_on.png') : require('../assets/icons/privacy_off.png')}
+            iconName={privacyMode ? "privacy_on" : "privacy_off"}
             title="Privacy Mode"
             onPress={onPrivacyModeToggle}
             rightText={privacyMode ? 'ON' : 'OFF'}
@@ -79,7 +76,7 @@ export default function SettingsScreen({
         {/* Danger Zone */}
         <View style={localStyles.section}>
           <SettingsOption
-            iconSource={require('../assets/icons/delete_wallet.png')}
+            iconName="delete_wallet"
             title="Delete Wallet"
             onPress={onDeleteWallet}
             isDanger
@@ -91,15 +88,11 @@ export default function SettingsScreen({
 }
 
 // Individual settings option component
-function SettingsOption({ iconSource, title, onPress, rightText, isDanger }) {
+function SettingsOption({ iconName, title, onPress, rightText, isDanger }) {
   return (
     <TouchableOpacity style={localStyles.option} onPress={onPress}>
       <View style={localStyles.optionLeft}>
-        <Image
-          source={iconSource}
-          style={localStyles.optionIconImage}
-          resizeMode="contain"
-        />
+        <Icon name={iconName} size={24} color={COLORS.VERY_LIGHT_GRAY} />
         <Text style={[localStyles.optionTitle, isDanger && localStyles.dangerText]}>
           {title}
         </Text>
@@ -113,7 +106,7 @@ function SettingsOption({ iconSource, title, onPress, rightText, isDanger }) {
 }
 
 SettingsOption.propTypes = {
-  iconSource: PropTypes.number.isRequired,
+  iconName: PropTypes.string.isRequired,
   title: PropTypes.string.isRequired,
   onPress: PropTypes.func.isRequired,
   rightText: PropTypes.string,

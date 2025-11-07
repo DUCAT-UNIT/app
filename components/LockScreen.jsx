@@ -6,10 +6,12 @@
 
 import React, { useState } from 'react';
 import PropTypes from 'prop-types';
-import { Text, View, TouchableOpacity, Image } from 'react-native';
+import { Text, View, TouchableOpacity } from 'react-native';
 import { StatusBar } from 'expo-status-bar';
 import * as AuthService from '../services/authService';
 import { ERRORS } from '../utils/messages';
+import { COLORS } from '../utils/colors';
+import Icon from './Icon';
 import styles from '../styles';
 
 export default function LockScreen({ onAuthenticated, showFaceIdButton, onFaceIdPress }) {
@@ -103,11 +105,7 @@ export default function LockScreen({ onAuthenticated, showFaceIdButton, onFaceId
             style={styles.lockKey}
             onPress={handlePinDelete}
           >
-            <Image
-              source={require('../assets/icons/back.png')}
-              style={styles.lockKeyIcon}
-              resizeMode="contain"
-            />
+            <Icon name="back" size={24} color={COLORS.WHITE} />
           </TouchableOpacity>
         </View>
       </View>
