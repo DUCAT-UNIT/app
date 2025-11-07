@@ -46,6 +46,7 @@ import WalletScreen from './components/WalletScreen';
 import TransactionHistoryScreen from './components/TransactionHistoryScreen';
 import AccountSwitcherModal from './components/AccountSwitcherModal';
 import BiometricPromptModal from './components/BiometricPromptModal';
+import ConfirmationModal from './components/ConfirmationModal';
 import Toast from './components/Toast';
 
 // Import contexts
@@ -181,6 +182,12 @@ export default function App() {
     handleViewSeedPhrase,
     handleChangePin,
     handlePrivacyModeToggle,
+    showLogoutModal,
+    showDeleteModal,
+    confirmLogout,
+    cancelLogout,
+    confirmDeleteWallet,
+    cancelDeleteWallet,
   } = useSettings({
     biometricEnabled,
     resetAuth,
@@ -195,6 +202,7 @@ export default function App() {
     setSeedPhraseWords,
     setSeedPhraseVisible,
     setViewingSeedPhrase,
+    showToast,
   });
 
   // Account switcher hook - handles account switching
@@ -842,8 +850,7 @@ export default function App() {
         <View style={[styles.container, { paddingTop: 0, flex: 1 }]}>
           <View style={styles.walletInfo}>
             <Text style={styles.seedPhraseWarning}>
-              ⚠️ Keep these words safe and private!{'\n'}
-              Never share them with anyone.
+              ⚠️ Keep these words safe and private! Never share them with anyone.
             </Text>
 
             <View style={styles.seedGrid}>
@@ -893,6 +900,28 @@ export default function App() {
       }}
       onBiometricDisabled={() => setBiometricEnabled(false)}
       onShowPinEntry={() => setShowPinEntry(true)}
+      styles={styles}
+    />
+
+    <ConfirmationModal
+      visible={showLogoutModal}
+      title="Lock Wallet"
+      message="Are you sure you want to lock your wallet? You'll need to enter your PIN to access it again."
+      confirmText="Lock"
+      confirmStyle="primary"
+      onConfirm={confirmLogout}
+      onCancel={cancelLogout}
+      styles={styles}
+    />
+
+    <ConfirmationModal
+      visible={showDeleteModal}
+      title="Delete Wallet"
+      message="Are you sure you want to delete your wallet? This action cannot be undone. Make sure you have backed up your recovery phrase."
+      confirmText="Delete"
+      confirmStyle="destructive"
+      onConfirm={confirmDeleteWallet}
+      onCancel={cancelDeleteWallet}
       styles={styles}
     />
     </>

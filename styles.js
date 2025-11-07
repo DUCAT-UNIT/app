@@ -139,9 +139,9 @@ const styles = StyleSheet.create({
   },
   button: {
     backgroundColor: COLORS.PRIMARY_BLUE,
-    paddingVertical: 16,
+    paddingVertical: 14,
     borderRadius: 10,
-    marginTop: 15,
+    marginTop: 8,
     width: '100%',
     alignItems: 'center',
   },
@@ -158,7 +158,7 @@ const styles = StyleSheet.create({
   },
   secondaryButton: {
     backgroundColor: COLORS.MEDIUM_GRAY,
-    marginTop: 15,
+    marginTop: 8,
   },
   walletInfo: {
     width: '100%',
@@ -516,7 +516,7 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     flexWrap: 'wrap',
     justifyContent: 'space-between',
-    marginBottom: 10,
+    marginBottom: 6,
   },
   seedBox: {
     width: '48%',
@@ -1200,15 +1200,15 @@ const styles = StyleSheet.create({
     marginBottom: 20,
   },
   seedPhraseWarning: {
-    fontSize: 14,
+    fontSize: 13,
     fontFamily: 'CabinetGrotesk-Regular',
     color: COLORS.DANGER_RED,
     backgroundColor: COLORS.PINK_WHITE,
-    padding: 15,
+    padding: 10,
     borderRadius: 8,
-    marginBottom: 25,
+    marginBottom: 12,
     textAlign: 'center',
-    lineHeight: 20,
+    lineHeight: 18,
   },
   // Intent UI styles
   intentModal: {
@@ -1905,6 +1905,60 @@ const styles = StyleSheet.create({
     color: COLORS.VERY_LIGHT_GRAY,
   },
   biometricPromptButtonTextNo: {
+    fontSize: 16,
+    fontFamily: 'CabinetGrotesk-Medium',
+    fontWeight: '600',
+    color: COLORS.DARK_GRAY,
+  },
+  // Confirmation Modal styles
+  confirmationModal: {
+    backgroundColor: COLORS.VERY_DARK_GRAY,
+    borderRadius: 20,
+    padding: 30,
+    width: '85%',
+    maxWidth: 400,
+  },
+  confirmationModalTitle: {
+    fontSize: 22,
+    fontFamily: 'CabinetGrotesk-Bold',
+    fontWeight: 'bold',
+    color: COLORS.VERY_LIGHT_GRAY,
+    marginBottom: 15,
+    textAlign: 'center',
+  },
+  confirmationModalText: {
+    fontSize: 16,
+    fontFamily: 'CabinetGrotesk-Regular',
+    color: COLORS.VERY_LIGHT_GRAY,
+    marginBottom: 25,
+    textAlign: 'center',
+    lineHeight: 22,
+  },
+  confirmationModalButtons: {
+    gap: 12,
+  },
+  confirmationModalButton: {
+    paddingVertical: 16,
+    paddingHorizontal: 20,
+    borderRadius: 12,
+    alignItems: 'center',
+  },
+  confirmationModalButtonPrimary: {
+    backgroundColor: COLORS.PRIMARY_BLUE,
+  },
+  confirmationModalButtonDestructive: {
+    backgroundColor: COLORS.DANGER_RED,
+  },
+  confirmationModalButtonCancel: {
+    backgroundColor: COLORS.OFF_WHITE,
+  },
+  confirmationModalButtonText: {
+    fontSize: 16,
+    fontFamily: 'CabinetGrotesk-Medium',
+    fontWeight: '600',
+    color: COLORS.VERY_LIGHT_GRAY,
+  },
+  confirmationModalButtonTextCancel: {
     fontSize: 16,
     fontFamily: 'CabinetGrotesk-Medium',
     fontWeight: '600',

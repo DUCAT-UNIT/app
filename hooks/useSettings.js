@@ -28,8 +28,11 @@ export function useSettings({
   setSeedPhraseWords,
   setSeedPhraseVisible,
   setViewingSeedPhrase,
+  showToast,
 }) {
   const [privacyMode, setPrivacyMode] = useState(true);
+  const [showLogoutModal, setShowLogoutModal] = useState(false);
+  const [showDeleteModal, setShowDeleteModal] = useState(false);
 
   // Load privacy mode setting on mount
   useEffect(() => {
@@ -47,54 +50,53 @@ export function useSettings({
   }, []);
 
   const handleLogout = () => {
-    Alert.alert(
-      DIALOGS.LOGOUT_TITLE,
-      WARNINGS.WALLET_LOGOUT_WARNING,
-      [
-        { text: 'Cancel', style: 'cancel' },
-        {
-          text: 'Logout',
-          style: 'destructive',
-          onPress: () => {
-            setIsAuthenticated(false);
-            setShowSettings(false);
-          }
-        }
-      ]
-    );
+    setShowLogoutModal(true);
   };
 
-  const handleDeleteWallet = async () => {
-    Alert.alert(
-      DIALOGS.DELETE_WALLET_TITLE,
-      WARNINGS.WALLET_DELETE_WARNING,
-      [
-        { text: 'Cancel', style: 'cancel' },
-        {
-          text: 'Delete',
-          style: 'destructive',
-          onPress: async () => {
-            try {
-              const success = await AuthService.deleteWalletData();
-              if (success) {
-                resetWallet(); // Reset context wallet state
-                if (walletExistsRef && walletExistsRef.current !== undefined) {
-                  walletExistsRef.current = false;
-                }
-                resetAuth(); // Reset all auth state
-                setShowSettings(false);
+  const confirmLogout = () => {
+    setShowLogoutModal(false);
+    setIsAuthenticated(false);
+    setShowSettings(false);
+  };
 
-                Alert.alert('Success', SUCCESS.WALLET_DELETED);
-              } else {
-                Alert.alert(DIALOGS.ERROR_TITLE, ERRORS.WALLET_DELETE_FAILED);
-              }
-            } catch (error) {
-              Alert.alert(DIALOGS.ERROR_TITLE, ERRORS.WALLET_DELETE_FAILED);
-            }
-          }
+  const cancelLogout = () => {
+    setShowLogoutModal(false);
+  };
+
+  const handleDeleteWallet = () => {
+    setShowDeleteModal(true);
+  };
+
+  const confirmDeleteWallet = async () => {
+    setShowDeleteModal(false);
+    try {
+      const success = await AuthService.deleteWalletData();
+      if (success) {
+        resetWallet(); // Reset context wallet state
+        if (walletExistsRef && walletExistsRef.current !== undefined) {
+          walletExistsRef.current = false;
         }
-      ]
-    );
+        resetAuth(); // Reset all auth state
+        setShowSettings(false);
+
+        // Show success toast instead of Alert
+        if (showToast) {
+          showToast(SUCCESS.WALLET_DELETED, 'success');
+        }
+      } else {
+        if (showToast) {
+          showToast(ERRORS.WALLET_DELETE_FAILED, 'error');
+        }
+      }
+    } catch (error) {
+      if (showToast) {
+        showToast(ERRORS.WALLET_DELETE_FAILED, 'error');
+      }
+    }
+  };
+
+  const cancelDeleteWallet = () => {
+    setShowDeleteModal(false);
   };
 
   const handleViewSeedPhrase = async () => {
@@ -155,5 +157,13 @@ export function useSettings({
     handleViewSeedPhrase,
     handleChangePin,
     handlePrivacyModeToggle,
+    // Modal state
+    showLogoutModal,
+    showDeleteModal,
+    // Modal handlers
+    confirmLogout,
+    cancelLogout,
+    confirmDeleteWallet,
+    cancelDeleteWallet,
   };
 }
