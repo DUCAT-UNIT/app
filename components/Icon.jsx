@@ -183,10 +183,9 @@ const IconComponents = {
 
   delete: ({ width, height, color }) => (
     <Svg width={width} height={height} viewBox="0 0 24 24" fill="none">
-      <Path d="M4.498 0.497h15s4 0 4 4v15s0 4 -4 4h-15s-4 0 -4 -4v-15s0 -4 4 -4" fill="none" stroke={color} strokeLinecap="round" strokeLinejoin="round" strokeWidth="1" />
-      <Path d="m14.498 10.497 -3 3" fill="none" stroke={color} strokeLinecap="round" strokeLinejoin="round" strokeWidth="1" />
-      <Path d="m14.498 13.497 -3 -3" fill="none" stroke={color} strokeLinecap="round" strokeLinejoin="round" strokeWidth="1" />
-      <Path d="M18.5 15a0.5 0.5 0 0 1 -0.5 0.5H8.205a0.5 0.5 0 0 1 -0.353 -0.146l-3 -3a0.5 0.5 0 0 1 0 -0.707l3 -3a0.5 0.5 0 0 1 0.353 -0.147H18a0.5 0.5 0 0 1 0.5 0.5Z" fill="none" stroke={color} strokeLinecap="round" strokeLinejoin="round" strokeWidth="1" />
+      <Path d="M8.284 3.5h14.049a1 1 0 0 1 1 1v15a1 1 0 0 1 -1 1H8.284a1 1 0 0 1 -0.75 -0.338l-6.617 -7.5a1 1 0 0 1 0 -1.324l6.617 -7.5a1 1 0 0 1 0.75 -0.338Z" fill="none" stroke={color} strokeLinecap="round" strokeLinejoin="round" strokeWidth="1" />
+      <Path d="m10.833 8 8 8" fill="none" stroke={color} strokeLinecap="round" strokeLinejoin="round" strokeWidth="1" />
+      <Path d="m18.833 8 -8 8" fill="none" stroke={color} strokeLinecap="round" strokeLinejoin="round" strokeWidth="1" />
     </Svg>
   ),
 
