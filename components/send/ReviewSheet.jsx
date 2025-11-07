@@ -130,7 +130,7 @@ export default function ReviewSheet({
                 paddingVertical: 14,
                 borderRadius: 10,
                 borderWidth: 1.5,
-                borderColor: '#444444',
+                borderColor: COLORS.BORDER_COLOR,
                 backgroundColor: 'transparent',
                 alignItems: 'center',
               }}

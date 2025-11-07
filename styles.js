@@ -564,7 +564,7 @@ const styles = StyleSheet.create({
     borderRadius: 8,
     marginBottom: 4,
     borderWidth: 2,
-    borderColor: COLORS.CARD_BG,
+    borderColor: COLORS.BORDER_COLOR,
   },
   choiceButtonSelected: {
     backgroundColor: COLORS.PRIMARY_BLUE,
@@ -592,7 +592,7 @@ const styles = StyleSheet.create({
     padding: 15,
     borderRadius: 10,
     borderWidth: 2,
-    borderColor: COLORS.CARD_BG,
+    borderColor: COLORS.BORDER_COLOR,
     alignItems: 'center',
   },
   addressTypeButtonSelected: {
@@ -1059,7 +1059,7 @@ const styles = StyleSheet.create({
     height: 16,
     borderRadius: 8,
     borderWidth: 2,
-    borderColor: COLORS.VERY_LIGHT_GRAY,
+    borderColor: COLORS.BORDER_COLOR,
     marginHorizontal: 8,
   },
   pinDotFilled: {
@@ -1130,7 +1130,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     padding: 20,
     borderBottomWidth: 1,
-    borderBottomColor: COLORS.OFF_WHITE_GRAY,
+    borderBottomColor: COLORS.BORDER_COLOR,
   },
   settingsTitle: {
     fontSize: 20,
@@ -1149,7 +1149,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     padding: 18,
     borderBottomWidth: 1,
-    borderBottomColor: COLORS.OFF_WHITE,
+    borderBottomColor: COLORS.BORDER_COLOR,
   },
   settingsOptionIcon: {
     fontSize: 22,
@@ -1238,7 +1238,7 @@ const styles = StyleSheet.create({
     marginBottom: 20,
     paddingBottom: 15,
     borderBottomWidth: 1,
-    borderBottomColor: COLORS.DARK_GRAY,
+    borderBottomColor: COLORS.BORDER_COLOR,
   },
   reviewSectionTotal: {
     borderBottomWidth: 2,
@@ -1447,7 +1447,7 @@ const styles = StyleSheet.create({
     gap: 16,
     paddingTop: 16,
     borderTopWidth: 1,
-    borderTopColor: COLORS.CARD_BG,
+    borderTopColor: COLORS.BORDER_COLOR,
   },
   sendBalanceFooterRow: {
     flexDirection: 'column',
@@ -1506,7 +1506,7 @@ const styles = StyleSheet.create({
     padding: 16,
     borderRadius: 12,
     borderWidth: 2,
-    borderColor: COLORS.DARK_GRAY,
+    borderColor: COLORS.BORDER_COLOR,
     textAlign: 'left',
   },
   pasteButton: {
@@ -2099,7 +2099,7 @@ const styles = StyleSheet.create({
     width: '100%',
     backgroundColor: 'transparent',
     borderWidth: 1,
-    borderColor: COLORS.CARD_BG,
+    borderColor: COLORS.BORDER_COLOR,
     paddingVertical: SCREEN_WIDTH < 375 ? 12 : 14,
     borderRadius: 12,
     flexDirection: 'row',
@@ -2195,7 +2195,7 @@ const styles = StyleSheet.create({
     paddingVertical: 16,
     paddingHorizontal: 4,
     borderBottomWidth: 1,
-    borderBottomColor: COLORS.CARD_BG,
+    borderBottomColor: COLORS.BORDER_COLOR,
   },
   historyLogoImage: {
     width: 40,
