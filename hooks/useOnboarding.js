@@ -9,6 +9,7 @@
 import { useState, useRef } from 'react';
 import * as WalletService from '../services/walletService';
 import { useWallet } from '../contexts/WalletContext';
+import { parseErrorMessage } from '../utils/errorParser';
 
 export function useOnboarding({
   currentAccount,
@@ -78,7 +79,7 @@ export function useOnboarding({
       // Temporarily store mnemonic words for verification flow only
       setTempMnemonicWords(mnemonic.split(' '));
     } catch (error) {
-      showToast(error.message || 'Failed to create wallet', 'error');
+      showToast(parseErrorMessage(error), 'error');
     }
   };
 

@@ -63,7 +63,6 @@ export default function AddressInputSheet({
           styles.bottomSheet,
           {
             bottom: keyboardHeight,
-            flex: 1,
             paddingBottom: 10,
             paddingHorizontal: 0,
             opacity,
@@ -72,23 +71,23 @@ export default function AddressInputSheet({
         ]}
         {...panHandlers}
       >
+        <View style={styles.bottomSheetHandle} />
+
+        {/* Back button */}
+        <Pressable
+          style={[styles.bottomSheetBackButton, { paddingHorizontal: 15 }]}
+          onPress={onBack}
+        >
+          <Text style={styles.bottomSheetBackArrow}>‹</Text>
+          <Text style={styles.bottomSheetBackText}>Back</Text>
+        </Pressable>
+
         <ScrollView
           keyboardShouldPersistTaps="always"
           keyboardDismissMode="none"
           scrollEnabled={false}
-          contentContainerStyle={{ flex: 1 }}
+          style={{ flex: 1 }}
         >
-          <View style={styles.bottomSheetHandle} />
-
-          {/* Back button */}
-          <Pressable
-            style={[styles.bottomSheetBackButton, { paddingHorizontal: 15 }]}
-            onPress={onBack}
-          >
-            <Text style={styles.bottomSheetBackArrow}>‹</Text>
-            <Text style={styles.bottomSheetBackText}>Back</Text>
-          </Pressable>
-
           <View style={[styles.amountInputContainer, { paddingHorizontal: 15 }]} pointerEvents="box-none">
             <View style={{ width: '100%' }}>
               <Text style={styles.addressInputTitleLeft}>Recipient Address</Text>

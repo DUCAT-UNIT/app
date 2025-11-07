@@ -8,6 +8,7 @@ export default function WalletScreen({
   styles,
   onSendPress,
   onReceivePress,
+  onHistoryPress,
   onSettingsPress,
   sendAddressType,
   switchingAccount,
@@ -22,10 +23,6 @@ export default function WalletScreen({
     btcPrice,
     showTotalInBTC,
     setShowTotalInBTC,
-    showBTCInBTC,
-    setShowBTCInBTC,
-    showUnitInUnit,
-    setShowUnitInUnit,
   } = useWallet();
 
   return (
@@ -85,11 +82,8 @@ export default function WalletScreen({
 
       {/* Assets Container - Fixed height to prevent jumping */}
       <View style={styles.assetsContainer}>
-        {/* Bitcoin Balance Card - Shows aggregate */}
-        <TouchableOpacity
-          style={styles.assetCard}
-          onPress={() => setShowBTCInBTC(!showBTCInBTC)}
-        >
+        {/* Bitcoin Balance Card - Non-clickable */}
+        <View style={styles.assetCard}>
           <View style={styles.assetRow}>
             <View style={styles.assetLeft}>
               <View style={styles.btcIcon}>
@@ -99,9 +93,17 @@ export default function WalletScreen({
                   resizeMode="contain"
                 />
               </View>
-              <Text style={styles.assetName}>Bitcoin</Text>
+              <View style={styles.assetInfo}>
+                <Text style={styles.assetName}>Bitcoin</Text>
+                <View style={styles.balanceWithIcon}>
+                  <Image source={require('../assets/btc-symbol.png')} style={styles.assetAmountIcon} resizeMode="contain" />
+                  <Text style={styles.assetAmount}>
+                    {((segwitBalance || 0) + (taprootBalance || 0)).toFixed(8)}
+                  </Text>
+                </View>
+              </View>
             </View>
-            {showBTCInBTC ? (
+            {showTotalInBTC ? (
               <View style={styles.assetValueWithIcon}>
                 <Image source={require('../assets/btc-symbol.png')} style={styles.assetIcon} resizeMode="contain" />
                 <Text style={styles.assetValue}>
@@ -114,13 +116,10 @@ export default function WalletScreen({
               </Text>
             )}
           </View>
-        </TouchableOpacity>
+        </View>
 
-        {/* UNIT•RUNE Card */}
-        <TouchableOpacity
-          style={styles.assetCard}
-          onPress={() => setShowUnitInUnit(!showUnitInUnit)}
-        >
+        {/* UNIT•RUNE Card - Non-clickable */}
+        <View style={styles.assetCard}>
           <View style={styles.assetRow}>
             <View style={styles.assetLeft}>
               <View style={[styles.btcIcon, styles.ducatIcon]}>
@@ -130,30 +129,35 @@ export default function WalletScreen({
                   resizeMode="contain"
                 />
               </View>
-              <Text style={styles.assetName}>UNIT•RUNE</Text>
+              <View style={styles.assetInfo}>
+                <Text style={styles.assetName}>UNIT•RUNE</Text>
+                <View style={styles.balanceWithIcon}>
+                  <Image source={require('../assets/unit-symbol.png')} style={styles.assetAmountIcon} resizeMode="contain" />
+                  <Text style={styles.assetAmount}>
+                    {runesBalance.length > 0 ? parseFloat(runesBalance[0][1]).toLocaleString() : '0'}
+                  </Text>
+                </View>
+              </View>
             </View>
-            {showUnitInUnit ? (
+            {showTotalInBTC ? (
               <View style={styles.assetValueWithIcon}>
-                <Image source={require('../assets/unit-symbol.png')} style={styles.assetIcon} resizeMode="contain" />
+                <Image source={require('../assets/btc-symbol.png')} style={styles.assetIcon} resizeMode="contain" />
                 <Text style={styles.assetValue}>
-                  {runesBalance.length > 0 ? parseFloat(runesBalance[0][1]).toLocaleString() : '0'}
+                  {runesBalance.length > 0 ? (parseFloat(runesBalance[0][1]) / (btcPrice || 1)).toFixed(8) : '0.00000000'}
                 </Text>
               </View>
             ) : (
               <Text style={styles.assetValue}>
                 $ {runesBalance.length > 0
-                  ? (parseFloat(runesBalance[0][1]) * 1.0).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })
-                  : '0.00'}
+                    ? parseFloat(runesBalance[0][1]).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })
+                    : '0.00'}
               </Text>
             )}
           </View>
-        </TouchableOpacity>
+        </View>
 
-        {/* DUCAT•RUNE Card */}
-        <TouchableOpacity
-          style={styles.assetCard}
-          onPress={() => {}}
-        >
+        {/* DUCAT•RUNE Card - Non-clickable */}
+        <View style={styles.assetCard}>
           <View style={styles.assetRow}>
             <View style={styles.assetLeft}>
               <View style={[styles.btcIcon, styles.ducatIcon]}>
@@ -163,11 +167,21 @@ export default function WalletScreen({
                   resizeMode="contain"
                 />
               </View>
-              <Text style={styles.assetName}>DUCAT•RUNE</Text>
+              <View style={styles.assetInfo}>
+                <Text style={styles.assetName}>DUCAT•RUNE</Text>
+                <Text style={styles.assetAmount}>0</Text>
+              </View>
             </View>
-            <Text style={styles.assetValue}>$ 0.00</Text>
+            {showTotalInBTC ? (
+              <View style={styles.assetValueWithIcon}>
+                <Image source={require('../assets/btc-symbol.png')} style={styles.assetIcon} resizeMode="contain" />
+                <Text style={styles.assetValue}>0.00</Text>
+              </View>
+            ) : (
+              <Text style={styles.assetValue}>$ 0.00</Text>
+            )}
           </View>
-        </TouchableOpacity>
+        </View>
       </View>
 
       {/* Actions - Send and Receive Buttons - Full Width */}

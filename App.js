@@ -25,6 +25,7 @@ import { fetchWithTimeout } from './utils/api';
 import { deriveAddressesFromMnemonic, MUTINYNET_NETWORK } from './utils/bitcoin';
 import { SECURE_KEYS } from './utils/constants';
 import { COLORS } from './utils/colors';
+import { parseErrorMessage } from './utils/errorParser';
 import styles from './styles';
 
 // Import services
@@ -414,7 +415,7 @@ export default function App() {
       }
     } catch (error) {
       console.error('Failed to create transaction:', error);
-      showToast('Failed to create transaction: ' + error.message, 'error');
+      showToast(parseErrorMessage(error), 'error');
       setIntentStep('idle');
     }
   };
@@ -437,7 +438,7 @@ export default function App() {
       }, 100);
     } catch (error) {
       console.error('Failed to create BTC transaction:', error);
-      showToast('Failed to create BTC transaction: ' + error.message, 'error');
+      showToast(parseErrorMessage(error), 'error');
       setIntentStep('idle');
       throw error;
     }
@@ -458,7 +459,7 @@ export default function App() {
       setIntentStep('reviewing');
     } catch (error) {
       console.error('Failed to create UNIT transaction:', error);
-      showToast('Failed to create UNIT transaction: ' + error.message, 'error');
+      showToast(parseErrorMessage(error), 'error');
       setIntentStep('idle');
       throw error;
     }
@@ -491,7 +492,7 @@ export default function App() {
       await broadcastIntent(signedIntent);
     } catch (error) {
       console.error('Failed to sign transaction:', error);
-      showToast('Failed to sign transaction: ' + error.message, 'error');
+      showToast(parseErrorMessage(error), 'error');
       setIntentStep('reviewing');
     }
   };
@@ -515,7 +516,7 @@ export default function App() {
       fetchBalance();
     } catch (error) {
       console.error('Broadcast error:', error);
-      showToast('Broadcast error: ' + error.message, 'error');
+      showToast(parseErrorMessage(error), 'error');
       setIntentStep('reviewing');
     }
   };
@@ -574,7 +575,7 @@ export default function App() {
           showToast('Recovery phrase not found', 'error');
         }
       } catch (error) {
-        showToast('Failed to retrieve recovery phrase: ' + error.message, 'error');
+        showToast(parseErrorMessage(error), 'error');
       }
     }
   };

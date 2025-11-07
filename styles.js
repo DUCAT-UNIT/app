@@ -353,12 +353,26 @@ const styles = StyleSheet.create({
     width: 40,
     height: 40,
   },
+  assetInfo: {
+    flex: 1,
+    marginLeft: 12,
+  },
   assetName: {
     fontSize: 16,
     fontFamily: 'CabinetGrotesk-Medium',
     color: COLORS.VERY_LIGHT_GRAY,
     fontWeight: '600',
     marginBottom: 4,
+  },
+  assetAmount: {
+    fontSize: 14,
+    fontFamily: 'CabinetGrotesk-Regular',
+    color: COLORS.MEDIUM_GRAY,
+  },
+  assetAmountIcon: {
+    width: 10,
+    height: 10,
+    marginRight: 0,
   },
   assetSubtext: {
     fontSize: 12,
@@ -870,7 +884,7 @@ const styles = StyleSheet.create({
   balanceWithIcon: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 8,
+    gap: 2,
     width: '100%',
   },
   balanceIcon: {
@@ -1270,8 +1284,8 @@ const styles = StyleSheet.create({
     paddingBottom: 40,
     paddingHorizontal: 20,
     paddingTop: 15,
-    minHeight: '60%',
-    maxHeight: '60%',
+    minHeight: '50%',
+    maxHeight: '90%',
     zIndex: 1000,
   },
   bottomSheetHandle: {
@@ -2097,6 +2111,13 @@ const styles = StyleSheet.create({
     maxHeight: '70%',
     paddingBottom: 20,
   },
+  historyHandleArea: {
+    paddingTop: 12,
+    paddingBottom: 20,
+    paddingHorizontal: 20,
+    alignItems: 'center',
+    width: '100%',
+  },
   historyScrollView: {
     flex: 1,
     width: '100%',
@@ -2133,15 +2154,43 @@ const styles = StyleSheet.create({
     borderBottomWidth: 1,
     borderBottomColor: '#2a2a2a',
   },
-  historyTxLeft: {
+  historyLogoImage: {
+    width: 40,
+    height: 40,
+    marginRight: 12,
+  },
+  historyTxCenter: {
     flex: 1,
   },
-  historyTxId: {
+  historyTxAmount: {
     fontSize: 15,
     fontFamily: 'CabinetGrotesk-Medium',
-    color: COLORS.WHITE,
     fontWeight: '600',
     marginBottom: 4,
+  },
+  historyTxAmountSent: {
+    color: '#ff6b6b',
+  },
+  historyTxAmountReceived: {
+    color: '#51cf66',
+  },
+  historyTxAmountRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    marginBottom: 4,
+  },
+  historySelfTransferTag: {
+    backgroundColor: '#ffd43b',
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    borderRadius: 6,
+  },
+  historySelfTransferText: {
+    fontSize: 11,
+    fontFamily: 'CabinetGrotesk-Medium',
+    fontWeight: '600',
+    color: '#1A1A1A',
   },
   historyTxDate: {
     fontSize: 13,
@@ -2150,6 +2199,7 @@ const styles = StyleSheet.create({
   },
   historyTxRight: {
     marginLeft: 12,
+    alignItems: 'flex-end',
   },
   historyTxStatusConfirmed: {
     backgroundColor: '#2d7a2d',

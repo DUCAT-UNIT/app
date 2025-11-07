@@ -44,26 +44,63 @@ export const createBtcIntent = async (recipient, amount, segwitAddress, currentA
       throw new Error('No UTXOs available to spend');
     }
 
-    // Simple UTXO selection - use first UTXO that covers amount + fee
+    /**
+     * Dynamic fee calculation based on transaction size
+     * Transaction size = base + (inputs * input_size) + (outputs * output_size)
+     * - Base: ~10 vbytes (version, locktime, etc.)
+     * - P2WPKH input: ~68 vbytes (input + witness data)
+     * - P2PKH output: ~34 vbytes
+     * - P2WPKH output: ~31 vbytes
+     */
     const feeRate = 1; // sats per vbyte (very low for testnet)
-    const estimatedSize = 200; // rough estimate
-    const estimatedFee = feeRate * estimatedSize;
-    const requiredAmount = amountInSats + estimatedFee;
+    const BASE_TX_SIZE = 10;
+    const P2WPKH_INPUT_SIZE = 68;
+    const P2WPKH_OUTPUT_SIZE = 31;
 
+    /**
+     * Calculate transaction fee based on number of inputs and outputs
+     */
+    const calculateFee = (numInputs, numOutputs) => {
+      const txSize = BASE_TX_SIZE + (numInputs * P2WPKH_INPUT_SIZE) + (numOutputs * P2WPKH_OUTPUT_SIZE);
+      return Math.ceil(txSize * feeRate);
+    };
+
+    /**
+     * Iterative UTXO selection with dynamic fee calculation
+     * Select UTXOs until we have enough to cover amount + fee
+     * Recalculate fee if more inputs are needed
+     */
     let selectedUtxos = [];
     let totalInput = 0;
+    let estimatedFee = 0;
+    let previousFee = 0;
 
-    for (const utxo of availableUtxos) {
-      if (utxo.status.confirmed) {
-        selectedUtxos.push(utxo);
-        totalInput += utxo.value;
-        if (totalInput >= requiredAmount) break;
+    // Iteratively select UTXOs and recalculate fee
+    do {
+      previousFee = estimatedFee;
+      const numOutputs = 2; // recipient + change (we'll adjust if no change needed)
+      estimatedFee = calculateFee(selectedUtxos.length + 1, numOutputs);
+      const requiredAmount = amountInSats + estimatedFee;
+
+      // If we don't have enough, add more UTXOs
+      while (totalInput < requiredAmount && selectedUtxos.length < availableUtxos.length) {
+        const nextUtxo = availableUtxos.find(
+          utxo => utxo.status.confirmed && !selectedUtxos.includes(utxo)
+        );
+        if (!nextUtxo) break;
+
+        selectedUtxos.push(nextUtxo);
+        totalInput += nextUtxo.value;
+
+        // Recalculate fee with new input count
+        estimatedFee = calculateFee(selectedUtxos.length, numOutputs);
       }
-    }
+    } while (estimatedFee !== previousFee && selectedUtxos.length < availableUtxos.length);
 
-
+    // Final check for sufficient funds
+    const requiredAmount = amountInSats + estimatedFee;
     if (totalInput < requiredAmount) {
-      throw new Error(`Insufficient funds. Need ${requiredAmount} sats, have ${totalInput} sats`);
+      throw new Error(`Insufficient funds. Need ${requiredAmount} sats (amount: ${amountInSats}, fee: ${estimatedFee}), have ${totalInput} sats`);
     }
 
     // Fetch transaction hex for each input
@@ -78,8 +115,22 @@ export const createBtcIntent = async (recipient, amount, segwitAddress, currentA
       })
     );
 
-    // Calculate change
-    const change = totalInput - amountInSats - estimatedFee;
+    // Calculate change and adjust fee if no change output is needed
+    const DUST_LIMIT = 546; // Bitcoin dust limit in satoshis
+    let change = totalInput - amountInSats - estimatedFee;
+    let finalFee = estimatedFee;
+
+    // If change is below dust limit, recalculate fee for 1 output instead of 2
+    if (change < DUST_LIMIT) {
+      finalFee = calculateFee(selectedUtxos.length, 1); // Only recipient output
+      change = totalInput - amountInSats - finalFee;
+
+      // If still below dust after recalculation, change goes to miner as fee
+      if (change < DUST_LIMIT) {
+        finalFee = totalInput - amountInSats; // All remaining goes to fee
+        change = 0;
+      }
+    }
 
     // Get mnemonic to derive keys (temporarily)
     const mnemonic = await AuthService.getMnemonic();
@@ -114,13 +165,12 @@ export const createBtcIntent = async (recipient, amount, segwitAddress, currentA
       value: BigInt(amountInSats),
     });
 
-    // Add change output if needed
-    if (change > 546) { // Dust limit
+    // Add change output if above dust limit
+    if (change > DUST_LIMIT) {
       psbt.addOutput({
         address: sourceAddress,
         value: BigInt(change),
       });
-    } else {
     }
 
     // Securely clear sensitive data
@@ -142,10 +192,11 @@ export const createBtcIntent = async (recipient, amount, segwitAddress, currentA
       amount: amountInSats,
       amountBTC: amount,
       recipient,
-      fee: estimatedFee,
+      fee: finalFee,
       addressType, // Always 'segwit' for BTC
       sourceAddress,
       inputs: selectedUtxos,
+      inputCount: selectedUtxos.length,
       totalInput,
       change,
       psbt: psbt.toBase64(),

@@ -107,69 +107,34 @@ export default function SendScreen({
 
   // Handle dismiss functions for each sheet
   const handleAssetSelectorDismiss = () => {
-    Animated.timing(assetSelectorTranslateY, {
-      toValue: SCREEN_HEIGHT,
-      duration: 250,
-      useNativeDriver: true,
-    }).start(() => {
-      assetSelectorOpacity.setValue(0);
-      setIntentStep('idle');
-    });
+    setIntentStep('idle');
   };
 
   const handleAddressInputDismiss = () => {
-    Animated.timing(addressInputTranslateY, {
-      toValue: SCREEN_HEIGHT,
-      duration: 250,
-      useNativeDriver: true,
-    }).start(() => {
-      addressInputOpacity.setValue(0);
-      setIntentStep('idle');
-      setSendAssetType(null);
-      setSendRecipient('');
-    });
+    setIntentStep('idle');
+    setSendAssetType(null);
+    setSendRecipient('');
   };
 
   const handleAmountInputDismiss = () => {
-    Animated.timing(amountInputTranslateY, {
-      toValue: SCREEN_HEIGHT,
-      duration: 250,
-      useNativeDriver: true,
-    }).start(() => {
-      amountInputOpacity.setValue(0);
-      setIntentStep('idle');
-      setSendAssetType(null);
-      setSendAmount('');
-      setSendRecipient('');
-    });
+    setIntentStep('idle');
+    setSendAssetType(null);
+    setSendAmount('');
+    setSendRecipient('');
   };
 
   const handleReviewDismiss = () => {
-    Animated.timing(reviewTranslateY, {
-      toValue: SCREEN_HEIGHT,
-      duration: 250,
-      useNativeDriver: true,
-    }).start(() => {
-      reviewOpacity.setValue(0);
-      setIntentStep('idle');
-      setSendIntent(null);
-    });
+    setIntentStep('idle');
+    setSendIntent(null);
   };
 
   const handleConfirmedDismiss = () => {
-    Animated.timing(confirmedTranslateY, {
-      toValue: SCREEN_HEIGHT,
-      duration: 250,
-      useNativeDriver: true,
-    }).start(() => {
-      confirmedOpacity.setValue(0);
-      setSendIntent(null);
-      setIntentStep('idle');
-      setSendAmount('');
-      setSendRecipient('');
-      setSendAssetType(null);
-      setBroadcastedTxid(null);
-    });
+    setIntentStep('idle');
+    setSendIntent(null);
+    setSendAmount('');
+    setSendRecipient('');
+    setSendAssetType(null);
+    setBroadcastedTxid(null);
   };
 
   const handleConfirmedClose = () => {
@@ -184,7 +149,7 @@ export default function SendScreen({
   // Create pan responders once
   if (!assetSelectorPanResponderRef.current) {
     assetSelectorPanResponderRef.current = PanResponder.create({
-      onStartShouldSetPanResponder: () => true,
+      onStartShouldSetPanResponder: () => false,
       onMoveShouldSetPanResponder: (_, gestureState) => {
         const isDownwardSwipe = gestureState.dy > 5 && Math.abs(gestureState.dy) > Math.abs(gestureState.dx);
         return isDownwardSwipe;
@@ -210,7 +175,7 @@ export default function SendScreen({
 
   if (!addressInputPanResponderRef.current) {
     addressInputPanResponderRef.current = PanResponder.create({
-      onStartShouldSetPanResponder: () => true,
+      onStartShouldSetPanResponder: () => false,
       onMoveShouldSetPanResponder: (_, gestureState) => {
         const isDownwardSwipe = gestureState.dy > 5 && Math.abs(gestureState.dy) > Math.abs(gestureState.dx);
         return isDownwardSwipe;
@@ -236,7 +201,7 @@ export default function SendScreen({
 
   if (!amountInputPanResponderRef.current) {
     amountInputPanResponderRef.current = PanResponder.create({
-      onStartShouldSetPanResponder: () => true,
+      onStartShouldSetPanResponder: () => false,
       onMoveShouldSetPanResponder: (_, gestureState) => {
         const isDownwardSwipe = gestureState.dy > 5 && Math.abs(gestureState.dy) > Math.abs(gestureState.dx);
         return isDownwardSwipe;
@@ -262,7 +227,7 @@ export default function SendScreen({
 
   if (!reviewPanResponderRef.current) {
     reviewPanResponderRef.current = PanResponder.create({
-      onStartShouldSetPanResponder: () => true,
+      onStartShouldSetPanResponder: () => false,
       onMoveShouldSetPanResponder: (_, gestureState) => {
         const isDownwardSwipe = gestureState.dy > 5 && Math.abs(gestureState.dy) > Math.abs(gestureState.dx);
         return isDownwardSwipe;
@@ -288,7 +253,7 @@ export default function SendScreen({
 
   if (!confirmedPanResponderRef.current) {
     confirmedPanResponderRef.current = PanResponder.create({
-      onStartShouldSetPanResponder: () => true,
+      onStartShouldSetPanResponder: () => false,
       onMoveShouldSetPanResponder: (_, gestureState) => {
         const isDownwardSwipe = gestureState.dy > 5 && Math.abs(gestureState.dy) > Math.abs(gestureState.dx);
         return isDownwardSwipe;
