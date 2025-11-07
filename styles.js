@@ -820,7 +820,7 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    marginBottom: 36,
+    marginBottom: 10,
     paddingHorizontal: HORIZONTAL_PADDING,
   },
   xverseHeaderLeft: {
