@@ -5,7 +5,8 @@
 
 import React from 'react';
 import PropTypes from 'prop-types';
-import { Text, View, TouchableOpacity, Image, Animated } from 'react-native';
+import { Text, View, TouchableOpacity, Animated } from 'react-native';
+import Icon from '../Icon';
 import styles from '../../styles';
 
 export default function AssetSelectorSheet({
@@ -49,10 +50,7 @@ export default function AssetSelectorSheet({
             onSelectAsset('btc');
           }}
         >
-          <Image
-            source={require('../../assets/btc-logo.png')}
-            style={styles.assetOptionLogo}
-          />
+          <Icon name="btc_logo" size={42} />
           <View style={styles.assetOptionInfo}>
             <Text style={styles.assetOptionTitle}>Bitcoin</Text>
             <Text style={styles.assetOptionSubtitle}>{(btcBalance || 0).toFixed(8)} BTC</Text>
@@ -68,10 +66,7 @@ export default function AssetSelectorSheet({
             onSelectAsset('unit');
           }}
         >
-          <Image
-            source={require('../../assets/unit-logo.png')}
-            style={styles.assetOptionLogo}
-          />
+          <Icon name="unit_logo" size={42} />
           <View style={styles.assetOptionInfo}>
             <Text style={styles.assetOptionTitle}>UNIT•RUNE</Text>
             <Text style={styles.assetOptionSubtitle}>{(unitBalance || 0).toLocaleString()} UNIT</Text>
@@ -87,10 +82,7 @@ export default function AssetSelectorSheet({
             onSelectAsset('ducat');
           }}
         >
-          <Image
-            source={require('../../assets/ducat-logo.png')}
-            style={styles.assetOptionLogo}
-          />
+          <Icon name="ducat_logo" size={42} />
           <View style={styles.assetOptionInfo}>
             <Text style={styles.assetOptionTitle}>DUCAT•RUNE</Text>
             <Text style={styles.assetOptionSubtitle}>0 DUCAT</Text>

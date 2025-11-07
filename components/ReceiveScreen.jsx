@@ -334,7 +334,7 @@ export default function ReceiveScreen({
                   size={QR_SIZE}
                   backgroundColor="white"
                   color="black"
-                  logo={require('../assets/btc-logo.png')}
+                  logo={require('../assets/logos/btc-logo.png')}
                   logoSize={LOGO_SIZE}
                   logoBackgroundColor="white"
                   logoBorderRadius={Math.floor(LOGO_SIZE / 2)}

@@ -5,9 +5,10 @@
 
 import React, { useState, useEffect, useRef } from 'react';
 import PropTypes from 'prop-types';
-import { View, Text, TouchableOpacity, Animated, Dimensions, ActivityIndicator, ScrollView, Linking, Image } from 'react-native';
+import { View, Text, TouchableOpacity, Animated, Dimensions, ActivityIndicator, ScrollView, Linking } from 'react-native';
 import { COLORS } from '../utils/colors';
 import { decodeRunestone } from '../runestone-encoder';
+import Icon from './Icon';
 
 const SCREEN_HEIGHT = Dimensions.get('window').height;
 
@@ -314,10 +315,9 @@ export default function TransactionHistoryScreen({
                   activeOpacity={0.7}
                 >
                   {/* Asset Logo */}
-                  <Image
-                    source={assetType === 'UNIT' ? require('../assets/unit-logo.png') : require('../assets/btc-logo.png')}
-                    style={styles.historyLogoImage}
-                    resizeMode="contain"
+                  <Icon
+                    name={assetType === 'UNIT' ? 'unit_logo' : 'btc_logo'}
+                    size={40}
                   />
 
                   {/* Amount and Date */}

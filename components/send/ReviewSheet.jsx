@@ -79,11 +79,10 @@ export default function ReviewSheet({
 
             {/* Amount Row */}
             <View style={{ flexDirection: 'row', alignItems: 'center', width: '100%' }}>
-              <Image
-                source={sendIntent.assetType === 'UNIT'
-                  ? require('../../assets/unit-logo.png')
-                  : require('../../assets/btc-logo.png')}
-                style={{ width: 32, height: 32, marginRight: 12 }}
+              <Icon
+                name={sendIntent.assetType === 'UNIT' ? 'unit_logo' : 'btc_logo'}
+                size={32}
+                style={{ marginRight: 12 }}
               />
               <View style={{ flex: 1 }}>
                 <Text style={{ fontSize: 15, fontWeight: '400', color: COLORS.VERY_LIGHT_GRAY, marginBottom: 3 }}>

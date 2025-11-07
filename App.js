@@ -606,11 +606,7 @@ export default function App() {
   if (isLoading) {
     return (
       <View style={styles.splashContainer}>
-        <Image
-          source={require('./assets/unit-logo.png')}
-          style={styles.splashLogo}
-          resizeMode="contain"
-        />
+        <Icon name="unit_logo" size={120} />
         <Text style={styles.splashTitle}>UNIT</Text>
         <Text style={styles.splashSubtitle}>Mutinynet Edition</Text>
         <StatusBar style="light" />

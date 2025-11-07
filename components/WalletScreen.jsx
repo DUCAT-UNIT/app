@@ -64,7 +64,7 @@ export default function WalletScreen({
           <TouchableOpacity onPress={() => setShowTotalInBTC(!showTotalInBTC)}>
             {showTotalInBTC ? (
               <View style={styles.balanceWithIcon}>
-                <Image source={require('../assets/btc-symbol.png')} style={styles.balanceIcon} resizeMode="contain" />
+                <Icon name="btc_symbol" size={12} color={COLORS.VERY_LIGHT_GRAY} style={styles.balanceIcon} />
                 <Text style={styles.xverseBalanceAmount}>
                   {((segwitBalance || 0) + (taprootBalance || 0)).toFixed(8)}
                 </Text>
@@ -88,16 +88,12 @@ export default function WalletScreen({
           <View style={styles.assetRow}>
             <View style={styles.assetLeft}>
               <View style={styles.btcIcon}>
-                <Image
-                  source={require('../assets/btc-logo.png')}
-                  style={styles.logoImage}
-                  resizeMode="contain"
-                />
+                <Icon name="btc_logo" size={42} />
               </View>
               <View style={styles.assetInfo}>
                 <Text style={styles.assetName}>Bitcoin</Text>
                 <View style={styles.balanceWithIcon}>
-                  <Image source={require('../assets/btc-symbol.png')} style={styles.assetAmountIcon} resizeMode="contain" />
+                  <Icon name="btc_symbol" size={10} color={COLORS.SECONDARY_TEXT} style={styles.assetAmountIcon} />
                   <Text style={styles.assetAmount}>
                     {((segwitBalance || 0) + (taprootBalance || 0)).toFixed(8)}
                   </Text>
@@ -106,7 +102,7 @@ export default function WalletScreen({
             </View>
             {showTotalInBTC ? (
               <View style={styles.assetValueWithIcon}>
-                <Image source={require('../assets/btc-symbol.png')} style={styles.assetIcon} resizeMode="contain" />
+                <Icon name="btc_symbol" size={10} color={COLORS.SECONDARY_TEXT} style={styles.assetIcon} />
                 <Text style={styles.assetValue}>
                   {((segwitBalance || 0) + (taprootBalance || 0)).toFixed(8)}
                 </Text>
@@ -124,16 +120,12 @@ export default function WalletScreen({
           <View style={styles.assetRow}>
             <View style={styles.assetLeft}>
               <View style={[styles.btcIcon, styles.ducatIcon]}>
-                <Image
-                  source={require('../assets/unit-logo.png')}
-                  style={styles.logoImage}
-                  resizeMode="contain"
-                />
+                <Icon name="unit_logo" size={42} />
               </View>
               <View style={styles.assetInfo}>
                 <Text style={styles.assetName}>UNIT•RUNE</Text>
                 <View style={styles.balanceWithIcon}>
-                  <Image source={require('../assets/unit-symbol.png')} style={styles.assetAmountIcon} resizeMode="contain" />
+                  <Icon name="unit_symbol" size={10} color={COLORS.SECONDARY_TEXT} style={styles.assetAmountIcon} />
                   <Text style={styles.assetAmount}>
                     {runesBalance.length > 0 ? parseFloat(runesBalance[0][1]).toLocaleString() : '0'}
                   </Text>
@@ -142,7 +134,7 @@ export default function WalletScreen({
             </View>
             {showTotalInBTC ? (
               <View style={styles.assetValueWithIcon}>
-                <Image source={require('../assets/btc-symbol.png')} style={styles.assetIcon} resizeMode="contain" />
+                <Icon name="btc_symbol" size={10} color={COLORS.SECONDARY_TEXT} style={styles.assetIcon} />
                 <Text style={styles.assetValue}>
                   {runesBalance.length > 0 ? (parseFloat(runesBalance[0][1]) / (btcPrice || 1)).toFixed(8) : '0.00000000'}
                 </Text>
@@ -162,11 +154,7 @@ export default function WalletScreen({
           <View style={styles.assetRow}>
             <View style={styles.assetLeft}>
               <View style={[styles.btcIcon, styles.ducatIcon]}>
-                <Image
-                  source={require('../assets/ducat-logo.png')}
-                  style={styles.logoImage}
-                  resizeMode="contain"
-                />
+                <Icon name="ducat_logo" size={42} />
               </View>
               <View style={styles.assetInfo}>
                 <Text style={styles.assetName}>DUCAT•RUNE</Text>
@@ -175,7 +163,7 @@ export default function WalletScreen({
             </View>
             {showTotalInBTC ? (
               <View style={styles.assetValueWithIcon}>
-                <Image source={require('../assets/btc-symbol.png')} style={styles.assetIcon} resizeMode="contain" />
+                <Icon name="btc_symbol" size={10} color={COLORS.SECONDARY_TEXT} style={styles.assetIcon} />
                 <Text style={styles.assetValue}>0.00</Text>
               </View>
             ) : (

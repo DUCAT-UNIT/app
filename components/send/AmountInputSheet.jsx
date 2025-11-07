@@ -144,11 +144,10 @@ export default function AmountInputSheet({
               autoFocus={true}
               onSubmitEditing={handleSubmit}
             />
-            <Image
-              source={sendAssetType === 'btc'
-                ? require('../../assets/btc-symbol.png')
-                : require('../../assets/unit-symbol.png')}
-              style={styles.amountAssetSymbolRight}
+            <Icon
+              name={sendAssetType === 'btc' ? 'btc_symbol' : 'unit_symbol'}
+              size={32}
+              color={COLORS.VERY_LIGHT_GRAY}
             />
           </View>
 

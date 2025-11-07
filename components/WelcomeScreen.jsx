@@ -10,7 +10,8 @@
 
 import React from 'react';
 import PropTypes from 'prop-types';
-import { Text, View, TouchableOpacity, TextInput, Image } from 'react-native';
+import { Text, View, TouchableOpacity, TextInput } from 'react-native';
+import Icon from './Icon';
 import styles from '../styles';
 
 export default function WelcomeScreen({
@@ -46,11 +47,7 @@ export default function WelcomeScreen({
     return (
       <View style={styles.welcomeContainer}>
         <View style={styles.welcomeContent}>
-          <Image
-            source={require('../assets/unit-logo.png')}
-            style={styles.welcomeLogo}
-            resizeMode="contain"
-          />
+          <Icon name="unit_logo" size={120} />
         </View>
         <View style={styles.welcomeButtons}>
           <Text style={styles.welcomeTitle}>UNIT Wallet</Text>

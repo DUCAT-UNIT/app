@@ -4,11 +4,11 @@
     "slug": "SimpleWallet",
     "version": "1.0.0",
     "orientation": "portrait",
-    "icon": "./assets/icon.png",
+    "icon": "./assets/logos/icon.png",
     "userInterfaceStyle": "light",
     "newArchEnabled": true,
     "splash": {
-      "image": "./assets/ducat-logo.png",
+      "image": "./assets/logos/ducat-logo.png",
       "resizeMode": "contain",
       "backgroundColor": "#111015"
     },
@@ -18,14 +18,14 @@
     },
     "android": {
       "adaptiveIcon": {
-        "foregroundImage": "./assets/adaptive-icon.png",
+        "foregroundImage": "./assets/logos/adaptive-icon.png",
         "backgroundColor": "#111015"
       },
       "edgeToEdgeEnabled": true,
       "package": "com.anonymous.SimpleWallet"
     },
     "web": {
-      "favicon": "./assets/favicon.png"
+      "favicon": "./assets/logos/favicon.png"
     },
     "plugins": [
       "expo-secure-store"
