@@ -9,6 +9,24 @@ import PropTypes from 'prop-types';
 import { Image } from 'react-native';
 import Svg, { Path, G, Rect, Circle } from 'react-native-svg';
 
+// PNG icon fallbacks - static imports required for React Native
+const PngIcons = {
+  back: require('../assets/icons/back.png'),
+  send: require('../assets/icons/send.png'),
+  receive: require('../assets/icons/receive.png'),
+  settings: require('../assets/icons/settings.png'),
+  transaction_history: require('../assets/icons/transaction_history.png'),
+  copy: require('../assets/icons/copy.png'),
+  paste: require('../assets/icons/paste.png'),
+  recovery_phrase: require('../assets/icons/recovery_phrase.png'),
+  pin: require('../assets/icons/pin.png'),
+  switch_account: require('../assets/icons/switch_account.png'),
+  logout: require('../assets/icons/logout.png'),
+  privacy_on: require('../assets/icons/privacy_on.png'),
+  privacy_off: require('../assets/icons/privacy_off.png'),
+  delete_wallet: require('../assets/icons/delete_wallet.png'),
+};
+
 // Icon components - these will render the actual SVG paths
 const IconComponents = {
   back: ({ width, height, color }) => (
@@ -123,10 +141,9 @@ export default function Icon({ name, size = 24, color = '#DDDDDD', style }) {
   const IconComponent = IconComponents[name];
 
   if (!IconComponent) {
-    console.warn(`Icon "${name}" not found, using fallback`);
     // Fallback to PNG if SVG component not found
-    try {
-      const pngIcon = require(`../assets/icons/${name}.png`);
+    const pngIcon = PngIcons[name];
+    if (pngIcon) {
       return (
         <Image
           source={pngIcon}
@@ -134,10 +151,10 @@ export default function Icon({ name, size = 24, color = '#DDDDDD', style }) {
           resizeMode="contain"
         />
       );
-    } catch (e) {
-      console.error(`Icon "${name}" not found in PNG or SVG`);
-      return null;
     }
+
+    console.error(`Icon "${name}" not found in PNG or SVG`);
+    return null;
   }
 
   return (
