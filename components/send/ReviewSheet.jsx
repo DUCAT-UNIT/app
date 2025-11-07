@@ -58,7 +58,6 @@ export default function ReviewSheet({
             onPress={onBack}
           >
             <Icon name="back" size={20} color={COLORS.PRIMARY_BLUE} />
-            <Text style={styles.bottomSheetBackText}>Back</Text>
           </TouchableOpacity>
         </View>
 
@@ -79,11 +78,12 @@ export default function ReviewSheet({
 
             {/* Amount Row */}
             <View style={{ flexDirection: 'row', alignItems: 'center', width: '100%' }}>
-              <Icon
-                name={sendIntent.assetType === 'UNIT' ? 'unit_logo' : 'btc_logo'}
-                size={32}
-                style={{ marginRight: 12 }}
-              />
+              <View style={{ marginRight: 20 }}>
+                <Icon
+                  name={sendIntent.assetType === 'UNIT' ? 'unit_logo' : 'btc_logo'}
+                  size={30}
+                />
+              </View>
               <View style={{ flex: 1 }}>
                 <Text style={{ fontSize: 15, fontWeight: '400', color: COLORS.VERY_LIGHT_GRAY, marginBottom: 3 }}>
                   Amount

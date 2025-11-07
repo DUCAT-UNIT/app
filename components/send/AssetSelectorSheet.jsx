@@ -50,7 +50,9 @@ export default function AssetSelectorSheet({
             onSelectAsset('btc');
           }}
         >
-          <Icon name="btc_logo" size={42} />
+          <View style={{ marginRight: 20 }}>
+            <Icon name="btc_logo" size={36} />
+          </View>
           <View style={styles.assetOptionInfo}>
             <Text style={styles.assetOptionTitle}>Bitcoin</Text>
             <Text style={styles.assetOptionSubtitle}>{(btcBalance || 0).toFixed(8)} BTC</Text>
@@ -66,7 +68,9 @@ export default function AssetSelectorSheet({
             onSelectAsset('unit');
           }}
         >
-          <Icon name="unit_logo" size={42} />
+          <View style={{ marginRight: 20 }}>
+            <Icon name="unit_logo" size={36} />
+          </View>
           <View style={styles.assetOptionInfo}>
             <Text style={styles.assetOptionTitle}>UNIT•RUNE</Text>
             <Text style={styles.assetOptionSubtitle}>{(unitBalance || 0).toLocaleString()} UNIT</Text>
@@ -82,7 +86,9 @@ export default function AssetSelectorSheet({
             onSelectAsset('ducat');
           }}
         >
-          <Icon name="ducat_logo" size={42} />
+          <View style={{ marginRight: 20 }}>
+            <Icon name="ducat_logo" size={36} />
+          </View>
           <View style={styles.assetOptionInfo}>
             <Text style={styles.assetOptionTitle}>DUCAT•RUNE</Text>
             <Text style={styles.assetOptionSubtitle}>0 DUCAT</Text>

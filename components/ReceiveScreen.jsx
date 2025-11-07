@@ -285,17 +285,8 @@ export default function ReceiveScreen({
               contentContainerStyle={styles.qrModalContent}
               showsVerticalScrollIndicator={false}
             >
-              {/* Header with back button and title on same line for small screens */}
-              <View style={[
-                SCREEN_WIDTH <= 400 && {
-                  flexDirection: 'row',
-                  alignItems: 'center',
-                  width: '100%',
-                  justifyContent: 'center',
-                  position: 'relative',
-                  marginTop: 20,
-                }
-              ]}>
+              {/* Header with back button and title */}
+              <View style={{ marginTop: 20, flexDirection: 'row', alignItems: 'center', width: '100%', position: 'relative' }}>
                 <TouchableOpacity
                   onPress={() => {
                     // Start showing receive sheet immediately, then animate
@@ -319,11 +310,13 @@ export default function ReceiveScreen({
                       }),
                     ]).start();
                   }}
-                  style={[SCREEN_WIDTH <= 400 && { position: 'absolute', left: 0 }]}
+                  style={{ position: 'absolute', left: -10 }}
                 >
-                  <Icon name="back" size={SCREEN_WIDTH <= 400 ? 28 : 24} color={COLORS.VERY_LIGHT_GRAY} />
+                  <Icon name="back" size={24} color={COLORS.VERY_LIGHT_GRAY} />
                 </TouchableOpacity>
-                <Text style={styles.qrModalTitle}>Bitcoin address</Text>
+                <View style={{ flex: 1, alignItems: 'center' }}>
+                  <Text style={styles.qrModalTitle}>Bitcoin address</Text>
+                </View>
               </View>
               <Text style={styles.qrModalSubtitle}>Only use this address to receive Bitcoin.</Text>
 
@@ -334,26 +327,27 @@ export default function ReceiveScreen({
                   size={QR_SIZE}
                   backgroundColor="white"
                   color="black"
-                  logo={require('../assets/logos/ducat-logo.png')}
+                  logo={require('../assets/logos/btc-logo.png')}
                   logoSize={LOGO_SIZE}
                   logoBackgroundColor="white"
                   logoBorderRadius={Math.floor(LOGO_SIZE / 2)}
                 />
               </View>
 
-              {/* Address container with label and copy button */}
-              <View style={styles.qrAddressContainer}>
-                <View style={styles.qrAddressLeft}>
-                  <Text style={styles.qrAddressLabelText}>{selectedType}</Text>
+              {/* Address container - tap to copy */}
+              <TouchableOpacity
+                style={styles.qrAddressContainer}
+                onPress={() => handleCopyAddress(selectedAddress, selectedType)}
+                activeOpacity={0.7}
+              >
+                <View style={{ flex: 1 }}>
+                  <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 }}>
+                    <Text style={styles.qrAddressLabelText}>{selectedType}</Text>
+                    <Text style={{ fontSize: 12, color: COLORS.PRIMARY_BLUE, fontFamily: 'CabinetGrotesk-Medium' }}>Tap to copy</Text>
+                  </View>
                   <Text style={styles.qrAddressFullText}>{selectedAddress}</Text>
                 </View>
-                <TouchableOpacity
-                  style={styles.qrCopyButton}
-                  onPress={() => handleCopyAddress(selectedAddress, selectedType)}
-                >
-                  <Text style={styles.qrCopyButtonText}>Copy</Text>
-                </TouchableOpacity>
-              </View>
+              </TouchableOpacity>
 
               {/* Share button */}
               <TouchableOpacity style={styles.qrShareButton} onPress={handleShare}>

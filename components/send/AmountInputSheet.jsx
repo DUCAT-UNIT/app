@@ -94,7 +94,6 @@ export default function AmountInputSheet({
             onPress={onBack}
           >
             <Icon name="back" size={20} color={COLORS.PRIMARY_BLUE} />
-            <Text style={styles.bottomSheetBackText}>Back</Text>
           </TouchableOpacity>
         </View>
 

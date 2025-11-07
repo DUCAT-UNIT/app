@@ -315,10 +315,12 @@ export default function TransactionHistoryScreen({
                   activeOpacity={0.7}
                 >
                   {/* Asset Logo */}
-                  <Icon
-                    name={assetType === 'UNIT' ? 'unit_logo' : 'btc_logo'}
-                    size={40}
-                  />
+                  <View style={{ marginRight: 20 }}>
+                    <Icon
+                      name={assetType === 'UNIT' ? 'unit_logo' : 'btc_logo'}
+                      size={30}
+                    />
+                  </View>
 
                   {/* Amount and Date */}
                   <View style={styles.historyTxCenter}>

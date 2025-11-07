@@ -88,7 +88,7 @@ export default function WalletScreen({
           <View style={styles.assetRow}>
             <View style={styles.assetLeft}>
               <View style={styles.btcIcon}>
-                <Icon name="btc_logo" size={42} />
+                <Icon name="btc_logo" size={36} />
               </View>
               <View style={styles.assetInfo}>
                 <Text style={styles.assetName}>Bitcoin</Text>
@@ -120,7 +120,7 @@ export default function WalletScreen({
           <View style={styles.assetRow}>
             <View style={styles.assetLeft}>
               <View style={[styles.btcIcon, styles.ducatIcon]}>
-                <Icon name="unit_logo" size={42} />
+                <Icon name="unit_logo" size={36} />
               </View>
               <View style={styles.assetInfo}>
                 <Text style={styles.assetName}>UNIT•RUNE</Text>
@@ -154,7 +154,7 @@ export default function WalletScreen({
           <View style={styles.assetRow}>
             <View style={styles.assetLeft}>
               <View style={[styles.btcIcon, styles.ducatIcon]}>
-                <Icon name="ducat_logo" size={42} />
+                <Icon name="ducat_logo" size={36} />
               </View>
               <View style={styles.assetInfo}>
                 <Text style={styles.assetName}>DUCAT•RUNE</Text>

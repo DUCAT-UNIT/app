@@ -1398,7 +1398,7 @@ const styles = StyleSheet.create({
   },
   amountInputRow: {
     flexDirection: 'row',
-    alignItems: 'baseline',
+    alignItems: 'center',
     marginBottom: 5,
   },
   amountAssetSymbol: {
