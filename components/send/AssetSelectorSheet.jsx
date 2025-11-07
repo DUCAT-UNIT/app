@@ -37,10 +37,11 @@ export default function AssetSelectorSheet({
           }
         ]}
         pointerEvents={visible ? 'auto' : 'none'}
-        {...panHandlers}
       >
-        <View style={styles.bottomSheetHandle} />
-        <Text style={styles.bottomSheetTitle}>Send What?</Text>
+        <View {...panHandlers}>
+          <View style={styles.bottomSheetHandle} />
+          <Text style={styles.bottomSheetTitle}>Send What?</Text>
+        </View>
 
         <TouchableOpacity
           style={styles.assetOption}

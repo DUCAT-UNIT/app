@@ -161,26 +161,25 @@ export default function WelcomeScreen({
   if (showingIntro) {
     return (
       <View style={styles.walletInfo}>
-        <Text style={styles.stepIndicator}>Step 1 of 4: Getting Started</Text>
+        <Text style={styles.stepIndicator}>Step 1 of 4</Text>
 
-        <Text style={styles.introTitle}>Your Wallet Has Been Created!</Text>
+        <Text style={styles.introTitle}>Wallet Created!</Text>
 
         <Text style={styles.introText}>
-          In the next steps, you'll receive a 12-word recovery phrase. This phrase is the master key to your Bitcoin wallet.
+          Next, you'll see your 12-word recovery phrase. This is your wallet's master key.
         </Text>
 
         <View style={styles.infoBox}>
-          <Text style={styles.infoTitle}>Important:</Text>
+          <Text style={styles.infoTitle}>You must:</Text>
           <Text style={styles.infoText}>
-            • Write it down on paper{'\n'}
-            • Store it in a safe place{'\n'}
-            • Never share it with anyone{'\n'}
-            • You'll need it to recover your wallet
+            • Write it down{'\n'}
+            • Store it safely{'\n'}
+            • Never share it
           </Text>
         </View>
 
         <Text style={styles.warningText}>
-          ⚠️ If you lose your recovery phrase, you lose access to your Bitcoin forever. There is no way to recover it.
+          ⚠️ Lost phrase = lost Bitcoin forever
         </Text>
 
         <TouchableOpacity
@@ -190,7 +189,7 @@ export default function WelcomeScreen({
             setShowingSeeds(true);
           }}
         >
-          <Text style={styles.buttonText}>I Understand, Show My Recovery Phrase</Text>
+          <Text style={styles.buttonText}>Show Recovery Phrase</Text>
         </TouchableOpacity>
 
         <TouchableOpacity
@@ -207,9 +206,9 @@ export default function WelcomeScreen({
   if (showingSeeds) {
     return (
       <View style={styles.walletInfo}>
-        <Text style={styles.stepIndicator}>Step 2 of 4: Save Your Recovery Phrase</Text>
+        <Text style={styles.stepIndicator}>Step 2 of 4</Text>
 
-        <Text style={styles.label}>Write down these 12 words in order:</Text>
+        <Text style={styles.label}>Write down these 12 words:</Text>
 
         <View style={styles.seedGrid}>
           {tempMnemonicWords.map((word, index) => (
@@ -221,16 +220,14 @@ export default function WelcomeScreen({
         </View>
 
         <Text style={styles.warning}>
-          ⚠️ Write these words down and keep them safe!{'\n'}
-          This is the ONLY way to recover your wallet.{'\n'}
-          Never share them with anyone!
+          ⚠️ Write them down and keep them safe!
         </Text>
 
         <TouchableOpacity
           style={styles.button}
           onPress={proceedToVerification}
         >
-          <Text style={styles.buttonText}>I've Written Down My Words</Text>
+          <Text style={styles.buttonText}>I've Written Them Down</Text>
         </TouchableOpacity>
 
         <TouchableOpacity
@@ -247,9 +244,9 @@ export default function WelcomeScreen({
   if (verifyingSeeds) {
     return (
       <View style={styles.walletInfo}>
-        <Text style={styles.stepIndicator}>Step 3 of 4: Verify Your Recovery Phrase</Text>
+        <Text style={styles.stepIndicator}>Step 3 of 4</Text>
 
-        <Text style={styles.label}>Select the correct word for each position:</Text>
+        <Text style={styles.label}>Select the correct word:</Text>
 
         {requiredIndices.map((index) => (
           <View key={index} style={styles.verifyBox}>

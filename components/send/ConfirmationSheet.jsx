@@ -39,9 +39,10 @@ export default function ConfirmationSheet({
             transform: [{ translateY }]
           }
         ]}
-        {...panHandlers}
       >
-        <View style={styles.bottomSheetHandle} />
+        <View {...panHandlers}>
+          <View style={styles.bottomSheetHandle} />
+        </View>
 
         <TouchableOpacity
           style={styles.successCloseButton}

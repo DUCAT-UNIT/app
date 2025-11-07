@@ -22,6 +22,7 @@ export default function PinSetupScreen({
   // Callbacks
   onPinSetupComplete,
   onPinChangeComplete,
+  onCancel,
   fetchBalance,
   showToast,
 }) {
@@ -30,6 +31,9 @@ export default function PinSetupScreen({
   const [pinStep, setPinStep] = useState('enter'); // 'enter' or 'confirm'
   const [pinError, setPinError] = useState('');
   const [showBiometricPrompt, setShowBiometricPrompt] = useState(false);
+
+  // Debug: Log when component renders
+  console.log('PinSetupScreen render:', { changingPin, onCancel: !!onCancel });
 
   const handlePinDigit = (digit) => {
     if (pinStep === 'enter') {
@@ -171,7 +175,16 @@ export default function PinSetupScreen({
             </View>
           ))}
           <View style={styles.lockKeypadRow}>
-            <View style={styles.lockKey} />
+            {changingPin && onCancel ? (
+              <TouchableOpacity
+                style={styles.lockKey}
+                onPress={onCancel}
+              >
+                <Text style={styles.lockKeyCancelText}>Cancel</Text>
+              </TouchableOpacity>
+            ) : (
+              <View style={styles.lockKey} />
+            )}
             <TouchableOpacity
               style={styles.lockKey}
               onPress={() => handlePinDigit('0')}
@@ -222,6 +235,7 @@ PinSetupScreen.propTypes = {
   isBiometricSupported: PropTypes.bool.isRequired,
   onPinSetupComplete: PropTypes.func.isRequired,
   onPinChangeComplete: PropTypes.func.isRequired,
+  onCancel: PropTypes.func,
   fetchBalance: PropTypes.func.isRequired,
   showToast: PropTypes.func.isRequired,
 };

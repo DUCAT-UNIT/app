@@ -77,7 +77,9 @@ export function useSettings({
               const success = await AuthService.deleteWalletData();
               if (success) {
                 resetWallet(); // Reset context wallet state
-                walletExistsRef.current = false;
+                if (walletExistsRef && walletExistsRef.current !== undefined) {
+                  walletExistsRef.current = false;
+                }
                 resetAuth(); // Reset all auth state
                 setShowSettings(false);
 

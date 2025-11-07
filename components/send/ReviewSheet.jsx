@@ -48,17 +48,18 @@ export default function ReviewSheet({
             transform: [{ translateY }]
           }
         ]}
-        {...panHandlers}
       >
-        <View style={styles.bottomSheetHandle} />
+        <View {...panHandlers}>
+          <View style={styles.bottomSheetHandle} />
 
-        <TouchableOpacity
-          style={styles.bottomSheetBackButton}
-          onPress={onBack}
-        >
-          <Text style={styles.bottomSheetBackArrow}>‹</Text>
-          <Text style={styles.bottomSheetBackText}>Back</Text>
-        </TouchableOpacity>
+          <TouchableOpacity
+            style={styles.bottomSheetBackButton}
+            onPress={onBack}
+          >
+            <Text style={styles.bottomSheetBackArrow}>‹</Text>
+            <Text style={styles.bottomSheetBackText}>Back</Text>
+          </TouchableOpacity>
+        </View>
 
         <View style={styles.amountInputContainer}>
           <Text style={{ fontSize: 20, fontWeight: '500', color: COLORS.VERY_LIGHT_GRAY, marginBottom: 24 }}>

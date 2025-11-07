@@ -318,7 +318,7 @@ export default function App() {
   // Settings screen pan responder
   if (!settingsPanResponderRef.current) {
     settingsPanResponderRef.current = PanResponder.create({
-      onStartShouldSetPanResponder: () => true,
+      onStartShouldSetPanResponder: () => false,
       onMoveShouldSetPanResponder: (_, gestureState) => {
         const isSwipeRight = gestureState.dx > 10 && Math.abs(gestureState.dx) > Math.abs(gestureState.dy);
         return isSwipeRight;
@@ -351,7 +351,7 @@ export default function App() {
   // Seed phrase screen pan responder
   if (!seedPhrasePanResponderRef.current) {
     seedPhrasePanResponderRef.current = PanResponder.create({
-      onStartShouldSetPanResponder: () => true,
+      onStartShouldSetPanResponder: () => false,
       onMoveShouldSetPanResponder: (_, gestureState) => {
         const isSwipeRight = gestureState.dx > 10 && Math.abs(gestureState.dx) > Math.abs(gestureState.dy);
         return isSwipeRight;
@@ -557,6 +557,14 @@ export default function App() {
     setIsImportedWallet(false);
   };
 
+  // PIN change cancel callback
+  const handleCancelPinChange = () => {
+    setSettingUpPin(false);
+    setChangingPin(false);
+    setShowSettings(false);
+    // User returns to main wallet page
+  };
+
   // Lock screen authentication callback wrapper (checks for seed phrase request)
   const handleLockScreenAuthenticatedWrapper = async () => {
     handleLockScreenAuthenticated();
@@ -614,6 +622,7 @@ export default function App() {
           isBiometricSupported={isBiometricSupported}
           onPinSetupComplete={handlePinSetupCompleteWrapper}
           onPinChangeComplete={handlePinChangeCompleteWrapper}
+          onCancel={handleCancelPinChange}
           fetchBalance={fetchBalance}
           showToast={showToast}
         />
@@ -792,9 +801,8 @@ export default function App() {
           zIndex: 1000,
           transform: [{ translateX: settingsTranslateX }]
         }}
-        {...settingsPanResponderRef.current.panHandlers}
       >
-        <View style={styles.mutinynetBanner}>
+        <View style={styles.mutinynetBanner} {...settingsPanResponderRef.current.panHandlers}>
           <Text style={styles.mutinynetBannerText}>Mutinynet Edition</Text>
         </View>
         <SettingsScreen
@@ -826,21 +834,12 @@ export default function App() {
           zIndex: 1000,
           transform: [{ translateX: seedPhraseTranslateX }]
         }}
-        {...seedPhrasePanResponderRef.current.panHandlers}
       >
-        <View style={styles.mutinynetBanner}>
+        <View style={styles.mutinynetBanner} {...seedPhrasePanResponderRef.current.panHandlers}>
           <Text style={styles.mutinynetBannerText}>Mutinynet Edition</Text>
         </View>
         <View style={[styles.container, { paddingTop: 0, flex: 1 }]}>
-          <View style={styles.titleRow}>
-            <View style={styles.titleContainer}>
-              <Text style={styles.title}>DUCAT</Text>
-            </View>
-          </View>
-
           <View style={styles.walletInfo}>
-            <Text style={styles.seedPhraseTitle}>Recovery Phrase</Text>
-
             <Text style={styles.seedPhraseWarning}>
               ⚠️ Keep these words safe and private!{'\n'}
               Never share them with anyone.

@@ -82,18 +82,19 @@ export default function AmountInputSheet({
             transform: [{ translateY }]
           }
         ]}
-        {...panHandlers}
       >
-        <View style={styles.bottomSheetHandle} />
+        <View {...panHandlers}>
+          <View style={styles.bottomSheetHandle} />
 
-        {/* Back button */}
-        <TouchableOpacity
-          style={[styles.bottomSheetBackButton, { paddingHorizontal: 15 }]}
-          onPress={onBack}
-        >
-          <Text style={styles.bottomSheetBackArrow}>‹</Text>
-          <Text style={styles.bottomSheetBackText}>Back</Text>
-        </TouchableOpacity>
+          {/* Back button */}
+          <TouchableOpacity
+            style={[styles.bottomSheetBackButton, { paddingHorizontal: 15 }]}
+            onPress={onBack}
+          >
+            <Text style={styles.bottomSheetBackArrow}>‹</Text>
+            <Text style={styles.bottomSheetBackText}>Back</Text>
+          </TouchableOpacity>
+        </View>
 
         {/* Recipient Address Header */}
         <View style={[styles.sendToHeader, { paddingHorizontal: 15 }]}>

@@ -169,11 +169,11 @@ const styles = StyleSheet.create({
     marginTop: 4,
   },
   stepIndicator: {
-    fontSize: 16,
+    fontSize: 14,
     fontFamily: 'CabinetGrotesk-Bold',
     color: COLORS.PRIMARY_BLUE,
     fontWeight: 'bold',
-    marginBottom: 20,
+    marginBottom: 12,
     textAlign: 'center',
   },
   introTitle: {
@@ -529,14 +529,14 @@ const styles = StyleSheet.create({
     fontWeight: '600',
   },
   verifyBox: {
-    marginBottom: 20,
+    marginBottom: 8,
   },
   verifyLabel: {
-    fontSize: 16,
+    fontSize: 13,
     fontFamily: 'CabinetGrotesk-Bold',
     color: COLORS.PRIMARY_BLUE,
     fontWeight: 'bold',
-    marginBottom: 10,
+    marginBottom: 4,
   },
   choicesContainer: {
     flexDirection: 'row',
@@ -546,9 +546,9 @@ const styles = StyleSheet.create({
   choiceButton: {
     width: '48%',
     backgroundColor: COLORS.CARD_BG,
-    padding: 12,
+    padding: 8,
     borderRadius: 8,
-    marginBottom: 8,
+    marginBottom: 4,
     borderWidth: 2,
     borderColor: COLORS.CARD_BG,
   },
@@ -693,11 +693,11 @@ const styles = StyleSheet.create({
     fontFamily: 'CabinetGrotesk-Regular',
   },
   label: {
-    fontSize: 14,
+    fontSize: 13,
     fontFamily: 'CabinetGrotesk-Bold',
     color: COLORS.VERY_LIGHT_GRAY,
     fontWeight: 'bold',
-    marginBottom: 10,
+    marginBottom: 8,
   },
   switchingOverlay: {
     position: 'absolute',
@@ -1068,12 +1068,14 @@ const styles = StyleSheet.create({
   pinCancelButton: {
     marginTop: 20,
     paddingVertical: 15,
+    alignItems: 'center',
   },
   pinCancelText: {
     fontSize: 16,
     fontFamily: 'CabinetGrotesk-Medium',
     color: COLORS.MEDIUM_GRAY,
     fontWeight: '600',
+    textAlign: 'center',
   },
   settingsButton: {
     position: 'absolute',
@@ -1739,7 +1741,7 @@ const styles = StyleSheet.create({
     fontFamily: 'CabinetGrotesk-Regular',
     color: COLORS.WHITE,
     marginBottom: 30,
-    marginTop: 80,
+    marginTop: 20,
     textAlign: 'center',
     paddingHorizontal: HORIZONTAL_PADDING,
   },
@@ -1748,9 +1750,9 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     backgroundColor: 'transparent',
     paddingHorizontal: HORIZONTAL_PADDING,
-    paddingVertical: 10,
+    paddingVertical: 5,
     borderRadius: 20,
-    marginBottom: 40,
+    marginBottom: 20,
     marginHorizontal: HORIZONTAL_PADDING,
   },
   faceIdText: {
@@ -1793,7 +1795,7 @@ const styles = StyleSheet.create({
   lockKeypad: {
     width: '100%',
     maxWidth: 350,
-    marginBottom: 80,
+    marginBottom: 40,
     paddingHorizontal: HORIZONTAL_PADDING,
   },
   lockKeypadRow: {
@@ -1812,6 +1814,12 @@ const styles = StyleSheet.create({
   },
   lockKeyText: {
     fontSize: 32,
+    fontFamily: 'CabinetGrotesk-Regular',
+    color: COLORS.WHITE,
+    fontWeight: '300',
+  },
+  lockKeyCancelText: {
+    fontSize: 16,
     fontFamily: 'CabinetGrotesk-Regular',
     color: COLORS.WHITE,
     fontWeight: '300',

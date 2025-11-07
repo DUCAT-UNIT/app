@@ -6,7 +6,7 @@
 
 import React from 'react';
 import PropTypes from 'prop-types';
-import { Text, View, TouchableWithoutFeedback, TextInput, Pressable, Image, ScrollView, Modal, Animated } from 'react-native';
+import { Text, View, TouchableOpacity, TextInput, Pressable, Image, ScrollView, Animated } from 'react-native';
 import * as Clipboard from 'expo-clipboard';
 import styles from '../../styles';
 import { validateBitcoinAddress } from '../../utils/sendHelpers';
@@ -48,15 +48,12 @@ export default function AddressInputSheet({
   };
 
   return (
-    <Modal
-      visible={visible}
-      transparent={true}
-      animationType="none"
-      onRequestClose={onDismiss}
-    >
-      <TouchableWithoutFeedback onPress={onDismiss}>
-        <View style={styles.bottomSheetBackdrop} />
-      </TouchableWithoutFeedback>
+    <>
+      <TouchableOpacity
+        style={styles.bottomSheetBackdrop}
+        onPress={onDismiss}
+        activeOpacity={1}
+      />
 
       <Animated.View
         style={[
@@ -69,7 +66,6 @@ export default function AddressInputSheet({
             transform: [{ translateY }]
           }
         ]}
-        {...panHandlers}
       >
         <View style={styles.bottomSheetHandle} />
 
@@ -136,7 +132,7 @@ export default function AddressInputSheet({
           </View>
         </ScrollView>
       </Animated.View>
-    </Modal>
+    </>
   );
 }
 
