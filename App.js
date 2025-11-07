@@ -614,7 +614,7 @@ export default function App() {
   // PIN Setup Screen (Step 4 of onboarding)
   if (settingUpPin) {
     return (
-      <View style={{ flex: 1, backgroundColor: '#1A1A1A', paddingHorizontal: 0 }}>
+      <View style={{ flex: 1, backgroundColor: COLORS.DARK_BG, paddingHorizontal: 0 }}>
         <View style={styles.mutinynetBanner}>
           <Text style={styles.mutinynetBannerText}>Mutinynet Edition</Text>
         </View>
@@ -635,7 +635,7 @@ export default function App() {
   // Lock Screen (PIN entry for authentication)
   if (showPinEntry) {
     return (
-      <View style={{ flex: 1, backgroundColor: '#1A1A1A', paddingHorizontal: 0 }}>
+      <View style={{ flex: 1, backgroundColor: COLORS.DARK_BG, paddingHorizontal: 0 }}>
         <View style={styles.mutinynetBanner}>
           <Text style={styles.mutinynetBannerText}>Mutinynet Edition</Text>
         </View>
@@ -663,7 +663,7 @@ export default function App() {
   // Show locked screen if not authenticated and wallet exists AND seed backup confirmed AND not in setup flow
   if (!isAuthenticated && wallet && seedConfirmed && !showingIntro && !showingSeeds && !verifyingSeeds && !settingUpPin) {
     return (
-      <View style={{ flex: 1, backgroundColor: '#1A1A1A', paddingHorizontal: 0 }}>
+      <View style={{ flex: 1, backgroundColor: COLORS.DARK_BG, paddingHorizontal: 0 }}>
         <View style={styles.mutinynetBanner}>
           <Text style={styles.mutinynetBannerText}>Mutinynet Edition</Text>
         </View>
@@ -694,7 +694,7 @@ export default function App() {
   return (
     <>
       <View
-        style={{ flex: 1, backgroundColor: '#1A1A1A' }}
+        style={{ flex: 1, backgroundColor: COLORS.DARK_BG }}
         onTouchStart={resetInactivityTimer}
       >
       {/* Mutinynet Banner - Shows on all screens */}
@@ -798,7 +798,7 @@ export default function App() {
           left: 0,
           right: 0,
           bottom: 0,
-          backgroundColor: '#1A1A1A',
+          backgroundColor: COLORS.DARK_BG,
           zIndex: 1000,
           transform: [{ translateX: settingsTranslateX }]
         }}
@@ -831,7 +831,7 @@ export default function App() {
           left: 0,
           right: 0,
           bottom: 0,
-          backgroundColor: '#1A1A1A',
+          backgroundColor: COLORS.DARK_BG,
           zIndex: 1000,
           transform: [{ translateX: seedPhraseTranslateX }]
         }}

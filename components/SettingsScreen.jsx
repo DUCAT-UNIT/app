@@ -134,7 +134,7 @@ SettingsScreen.propTypes = {
 const localStyles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#1a1a1a',
+    backgroundColor: COLORS.DARK_BG,
   },
   header: {
     paddingTop: 0,

@@ -35,7 +35,7 @@ export default function AccountSwitcherModal({
   };
 
   return (
-    <View style={{ flex: 1, backgroundColor: '#1A1A1A', paddingHorizontal: 0 }}>
+    <View style={{ flex: 1, backgroundColor: COLORS.DARK_BG, paddingHorizontal: 0 }}>
       <View style={styles.mutinynetBanner}>
         <Text style={styles.mutinynetBannerText}>Mutinynet Edition</Text>
       </View>

@@ -26,7 +26,7 @@ const getCabinetFont = (weight) => {
 const styles = StyleSheet.create({
   container: {
     flexGrow: 1,
-    backgroundColor: '#1A1A1A',
+    backgroundColor: COLORS.DARK_BG,
     alignItems: 'center',
     justifyContent: 'flex-start',
     padding: HORIZONTAL_PADDING,
@@ -95,7 +95,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: HORIZONTAL_PADDING,
     paddingTop: 0,
     paddingBottom: HORIZONTAL_PADDING,
-    backgroundColor: '#1A1A1A',
+    backgroundColor: COLORS.DARK_BG,
   },
   welcomeContent: {
     flex: 1,
@@ -162,7 +162,7 @@ const styles = StyleSheet.create({
   },
   walletInfo: {
     width: '100%',
-    backgroundColor: '#1A1A1A',
+    backgroundColor: COLORS.DARK_BG,
     padding: HORIZONTAL_PADDING,
     marginHorizontal: 0,
     borderRadius: 15,
@@ -755,7 +755,7 @@ const styles = StyleSheet.create({
     width: '100%',
     paddingHorizontal: 0,
     paddingTop: 0,
-    backgroundColor: '#1A1A1A',
+    backgroundColor: COLORS.DARK_BG,
   },
   // Mutinynet banner - Full Width
   mutinynetBanner: {
@@ -976,7 +976,7 @@ const styles = StyleSheet.create({
   },
   lockedContainer: {
     flex: 1,
-    backgroundColor: '#1A1A1A',
+    backgroundColor: COLORS.DARK_BG,
     alignItems: 'center',
     justifyContent: 'flex-start',
     padding: HORIZONTAL_PADDING,
@@ -1728,7 +1728,7 @@ const styles = StyleSheet.create({
   // Lock Screen Styles
   lockScreen: {
     flex: 1,
-    backgroundColor: '#1A1A1A',
+    backgroundColor: COLORS.DARK_BG,
     alignItems: 'center',
     justifyContent: 'flex-start',
     paddingHorizontal: 0,
