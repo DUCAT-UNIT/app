@@ -36,6 +36,7 @@ import * as WalletService from './services/walletService';
 import * as TransactionService from './services/transactionService';
 
 // Import components
+import Icon from './components/Icon';
 import WelcomeScreen from './components/WelcomeScreen';
 import PinSetupScreen from './components/PinSetupScreen';
 import LockScreen from './components/LockScreen';
