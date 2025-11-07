@@ -12,6 +12,7 @@ import * as SecureStore from 'expo-secure-store';
 import * as LocalAuthentication from 'expo-local-authentication';
 import * as AuthService from '../services/authService';
 import { SECURE_KEYS } from '../utils/constants';
+import { ERRORS, SUCCESS, PROMPTS } from '../utils/messages';
 import styles from '../styles';
 
 export default function PinSetupScreen({
@@ -59,7 +60,7 @@ export default function PinSetupScreen({
               if (success) {
                 if (changingPin) {
                   // Just changing PIN, not creating wallet
-                  showToast('Your PIN has been changed');
+                  showToast(SUCCESS.PIN_CHANGED);
                   onPinChangeComplete();
                 } else {
                   // Initial wallet creation or import
@@ -75,7 +76,7 @@ export default function PinSetupScreen({
                   }
                 }
               } else {
-                setPinError('Failed to save PIN');
+                setPinError(ERRORS.PIN_SAVE_FAILED);
                 // Reset entire PIN process
                 setPin('');
                 setConfirmPin('');
@@ -83,7 +84,7 @@ export default function PinSetupScreen({
               }
             });
           } else {
-            setPinError('PINs do not match');
+            setPinError(ERRORS.PINS_DO_NOT_MATCH);
             // Reset entire PIN process so user starts fresh
             setPin('');
             setConfirmPin('');

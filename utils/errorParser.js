@@ -1,10 +1,12 @@
+import { ERRORS } from './messages';
+
 /**
  * Parse and simplify error messages for user display
  * @param {Error|string} error - The error object or message
  * @returns {string} A user-friendly error message
  */
 export function parseErrorMessage(error) {
-  if (!error) return 'An unknown error occurred';
+  if (!error) return ERRORS.UNKNOWN_ERROR;
 
   const errorMessage = typeof error === 'string' ? error : error.message || String(error);
 
@@ -12,75 +14,75 @@ export function parseErrorMessage(error) {
   const errorPatterns = [
     {
       pattern: /insufficient funds|not enough/i,
-      message: 'Insufficient funds for this transaction'
+      message: ERRORS.INSUFFICIENT_FUNDS
     },
     {
       pattern: /network request failed|fetch failed|ECONNREFUSED/i,
-      message: 'Network connection failed. Please check your internet.'
+      message: ERRORS.NETWORK_FAILED
     },
     {
       pattern: /timeout|timed out/i,
-      message: 'Request timed out. Please try again.'
+      message: ERRORS.REQUEST_TIMEOUT
     },
     {
       pattern: /invalid address/i,
-      message: 'Invalid Bitcoin address'
+      message: ERRORS.INVALID_ADDRESS
     },
     {
       pattern: /transaction too large/i,
-      message: 'Transaction size exceeds limit'
+      message: ERRORS.TRANSACTION_TOO_LARGE
     },
     {
       pattern: /dust|amount too small/i,
-      message: 'Amount too small (below dust limit)'
+      message: ERRORS.AMOUNT_TOO_SMALL
     },
     {
       pattern: /fee too (low|high)/i,
-      message: 'Transaction fee is outside acceptable range'
+      message: ERRORS.FEE_OUT_OF_RANGE
     },
     {
       pattern: /bad-txns-inputs-missingorspent/i,
-      message: 'Transaction inputs already spent'
+      message: ERRORS.TRANSACTION_ALREADY_SPENT
     },
     {
       pattern: /mempool conflict|txn-mempool-conflict/i,
-      message: 'Transaction conflicts with another in mempool'
+      message: ERRORS.TRANSACTION_CONFLICT
     },
     {
       pattern: /non-final/i,
-      message: 'Transaction is not yet final'
+      message: ERRORS.TRANSACTION_NOT_FINAL
     },
     {
       pattern: /min relay fee not met/i,
-      message: 'Transaction fee too low'
+      message: ERRORS.FEE_TOO_LOW
     },
     {
       pattern: /authentication failed|unauthorized/i,
-      message: 'Authentication failed'
+      message: ERRORS.BIOMETRIC_AUTH_FAILED
     },
     {
       pattern: /biometric|fingerprint|face id/i,
-      message: 'Biometric authentication failed'
+      message: ERRORS.BIOMETRIC_AUTH_FAILED
     },
     {
       pattern: /pin (incorrect|wrong|invalid)/i,
-      message: 'Incorrect PIN'
+      message: ERRORS.INCORRECT_PIN
     },
     {
       pattern: /broadcast.*failed/i,
-      message: 'Failed to broadcast transaction'
+      message: ERRORS.BROADCAST_FAILED
     },
     {
       pattern: /decode.*failed|invalid hex/i,
-      message: 'Invalid transaction format'
+      message: ERRORS.INVALID_TRANSACTION
     },
     {
       pattern: /No UTXO.*with sufficient UNIT balance/i,
-      message: 'No available UNIT balance to send'
+      message: ERRORS.NO_UNIT_BALANCE
     },
     {
       pattern: /No confirmed UTXOs available/i,
-      message: 'No confirmed funds available'
+      message: ERRORS.NO_CONFIRMED_FUNDS
     }
   ];
 

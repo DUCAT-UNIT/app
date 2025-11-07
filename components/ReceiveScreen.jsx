@@ -1,12 +1,17 @@
 import React, { useState, useRef } from 'react';
 import PropTypes from 'prop-types';
-import { View, Text, TouchableOpacity, PanResponder, Image, Share, Animated, Dimensions } from 'react-native';
+import { View, Text, TouchableOpacity, PanResponder, Image, Share, Animated, Dimensions, ScrollView } from 'react-native';
 import * as Clipboard from 'expo-clipboard';
 import QRCode from 'react-native-qrcode-svg';
 import { COLORS } from '../utils/colors';
 
 const SCREEN_WIDTH = Dimensions.get('window').width;
 const SCREEN_HEIGHT = Dimensions.get('window').height;
+
+// Calculate QR code size based on screen width
+// iPhone SE has 320px width, larger phones have 375-430px
+const QR_SIZE = SCREEN_WIDTH < 375 ? Math.min(SCREEN_WIDTH * 0.5, 180) : Math.min(SCREEN_WIDTH * 0.6, 220);
+const LOGO_SIZE = Math.floor(QR_SIZE * 0.21); // 21% of QR size
 
 export default function ReceiveScreen({
   styles,
@@ -274,52 +279,64 @@ export default function ReceiveScreen({
                 <Text style={styles.qrModalNetworkText}>Mutinynet Edition</Text>
               </View>
 
-            {/* Header with back button */}
-            <View style={styles.qrModalHeader}>
-              <TouchableOpacity
-                onPress={() => {
-                  // Start showing receive sheet immediately, then animate
-                  setShowQrModal(false);
+            <ScrollView
+              style={{ flex: 1 }}
+              contentContainerStyle={styles.qrModalContent}
+              showsVerticalScrollIndicator={false}
+            >
+              {/* Header with back button and title on same line for small screens */}
+              <View style={[
+                SCREEN_WIDTH <= 400 && {
+                  flexDirection: 'row',
+                  alignItems: 'center',
+                  width: '100%',
+                  justifyContent: 'center',
+                  position: 'relative',
+                  marginTop: 20,
+                }
+              ]}>
+                <TouchableOpacity
+                  onPress={() => {
+                    // Start showing receive sheet immediately, then animate
+                    setShowQrModal(false);
 
-                  Animated.parallel([
-                    Animated.timing(translateX, {
-                      toValue: SCREEN_WIDTH,
-                      duration: 250,
-                      useNativeDriver: true,
-                    }),
-                    Animated.timing(qrOpacity, {
-                      toValue: 0,
-                      duration: 150,
-                      useNativeDriver: true,
-                    }),
-                    Animated.timing(receiveOpacity, {
-                      toValue: 1,
-                      duration: 150,
-                      useNativeDriver: true,
-                    }),
-                  ]).start();
-                }}
-                style={styles.qrModalBackButton}
-              >
-                <Text style={styles.qrModalBackArrow}>‹</Text>
-              </TouchableOpacity>
-            </View>
-
-            <View style={styles.qrModalContent}>
-              <Text style={styles.qrModalTitle}>Bitcoin address</Text>
+                    Animated.parallel([
+                      Animated.timing(translateX, {
+                        toValue: SCREEN_WIDTH,
+                        duration: 250,
+                        useNativeDriver: true,
+                      }),
+                      Animated.timing(qrOpacity, {
+                        toValue: 0,
+                        duration: 150,
+                        useNativeDriver: true,
+                      }),
+                      Animated.timing(receiveOpacity, {
+                        toValue: 1,
+                        duration: 150,
+                        useNativeDriver: true,
+                      }),
+                    ]).start();
+                  }}
+                  style={[SCREEN_WIDTH <= 400 && { position: 'absolute', left: 0 }]}
+                >
+                  <Text style={[styles.qrModalBackArrow, SCREEN_WIDTH <= 400 && { fontSize: 36 }]}>‹</Text>
+                </TouchableOpacity>
+                <Text style={styles.qrModalTitle}>Bitcoin address</Text>
+              </View>
               <Text style={styles.qrModalSubtitle}>Only use this address to receive Bitcoin.</Text>
 
               {/* QR Code */}
               <View style={styles.qrCodeContainer}>
                 <QRCode
                   value={selectedAddress}
-                  size={280}
+                  size={QR_SIZE}
                   backgroundColor="white"
                   color="black"
                   logo={require('../assets/btc-logo.png')}
-                  logoSize={60}
+                  logoSize={LOGO_SIZE}
                   logoBackgroundColor="white"
-                  logoBorderRadius={30}
+                  logoBorderRadius={Math.floor(LOGO_SIZE / 2)}
                 />
               </View>
 
@@ -342,7 +359,7 @@ export default function ReceiveScreen({
                 <Text style={styles.qrShareIcon}>↗</Text>
                 <Text style={styles.qrShareButtonText}>Share</Text>
               </TouchableOpacity>
-            </View>
+            </ScrollView>
         </Animated.View>
       )}
     </>

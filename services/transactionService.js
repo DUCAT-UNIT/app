@@ -10,6 +10,7 @@ import { encodeRunestone } from '../runestone-encoder';
 import { MUTINYNET_NETWORK } from '../utils/bitcoin';
 import { fetchUtxos as fetchUtxosService } from './balanceService';
 import * as AuthService from './authService';
+import { ERRORS } from '../utils/messages';
 
 // Initialize BIP32 and ECC library
 const bip32 = BIP32Factory(ecc);
@@ -31,7 +32,7 @@ export const createBtcIntent = async (recipient, amount, segwitAddress, currentA
     const amountInSats = Math.floor(parseFloat(normalizedAmount) * 100000000);
 
     if (isNaN(amountInSats) || amountInSats <= 0) {
-      throw new Error('Invalid amount');
+      throw new Error(ERRORS.INVALID_AMOUNT);
     }
 
     const sourceAddress = segwitAddress;
@@ -41,7 +42,7 @@ export const createBtcIntent = async (recipient, amount, segwitAddress, currentA
     const availableUtxos = await fetchUtxosService(sourceAddress);
 
     if (availableUtxos.length === 0) {
-      throw new Error('No UTXOs available to spend');
+      throw new Error(ERRORS.NO_CONFIRMED_FUNDS);
     }
 
     /**
@@ -100,7 +101,7 @@ export const createBtcIntent = async (recipient, amount, segwitAddress, currentA
     // Final check for sufficient funds
     const requiredAmount = amountInSats + estimatedFee;
     if (totalInput < requiredAmount) {
-      throw new Error(`Insufficient funds. Need ${requiredAmount} sats (amount: ${amountInSats}, fee: ${estimatedFee}), have ${totalInput} sats`);
+      throw new Error(ERRORS.INSUFFICIENT_FUNDS);
     }
 
     // Fetch transaction hex for each input
@@ -226,7 +227,7 @@ export const createUnitIntent = async (recipient, amount, taprootAddress, segwit
     const normalizedAmount = amount.replace(',', '.');
     const userAmount = parseInt(normalizedAmount);
     if (isNaN(userAmount) || userAmount <= 0) {
-      throw new Error('Invalid amount');
+      throw new Error(ERRORS.INVALID_AMOUNT);
     }
     // Multiply by 100 for runestone encoding (UNIT display amount * 100)
     const amountInRunes = userAmount * 100;
@@ -298,7 +299,7 @@ export const createUnitIntent = async (recipient, amount, taprootAddress, segwit
     }
 
     if (!runeUtxo) {
-      throw new Error(`No UTXO found with at least ${amountInRunes} runes`);
+      throw new Error(ERRORS.NO_UNIT_BALANCE);
     }
 
     // Fetch regular UTXOs for fees
@@ -319,7 +320,7 @@ export const createUnitIntent = async (recipient, amount, taprootAddress, segwit
     }
 
     if (!satUtxo) {
-      throw new Error('No UTXO found with at least 12000 sats for fees');
+      throw new Error(ERRORS.INSUFFICIENT_FUNDS_FOR_FEES);
     }
 
     // Calculate amounts
@@ -330,7 +331,7 @@ export const createUnitIntent = async (recipient, amount, taprootAddress, segwit
     const change = totalInput - fee - recipientSats - dustLimit;
 
     if (change < 0) {
-      throw new Error(`Insufficient funds. Need ${fee + recipientSats + dustLimit}, have ${totalInput}`);
+      throw new Error(ERRORS.INSUFFICIENT_FUNDS);
     }
 
     // Create PSBT
@@ -469,7 +470,7 @@ export const signIntent = async (intent, currentAccount) => {
   try {
 
     if (!intent) {
-      throw new Error('No intent to sign');
+      throw new Error(ERRORS.TRANSACTION_CANCELLED);
     }
 
     // Get mnemonic from secure storage

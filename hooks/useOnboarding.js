@@ -10,6 +10,7 @@ import { useState, useRef } from 'react';
 import * as WalletService from '../services/walletService';
 import { useWallet } from '../contexts/WalletContext';
 import { parseErrorMessage } from '../utils/errorParser';
+import { ERRORS } from '../utils/messages';
 
 export function useOnboarding({
   currentAccount,
@@ -123,7 +124,7 @@ export function useOnboarding({
       setImportSeedPhrase(Array(12).fill(''));
     } catch (error) {
       console.error('Import wallet error:', error);
-      showToast('Failed to import wallet. Please check your seed phrase and try again.', 'error');
+      showToast(ERRORS.WALLET_IMPORT_FAILED, 'error');
     }
   };
 
@@ -160,7 +161,7 @@ export function useOnboarding({
 
     // Check if all words have been selected
     if (Object.keys(verificationWords).length !== requiredIndices.length) {
-      showToast('Please select an answer for all words', 'error');
+      showToast(ERRORS.SEED_PHRASE_INCOMPLETE, 'error');
       return;
     }
 
@@ -183,7 +184,7 @@ export function useOnboarding({
       setTempMnemonicWords(Array(12).fill('*'.repeat(8)));
       setTimeout(() => setTempMnemonicWords([]), 100);
     } else {
-      showToast('One or more words are incorrect. Please try again.', 'error');
+      showToast(ERRORS.SEED_PHRASE_INCORRECT, 'error');
       setVerificationWords({});
     }
   };

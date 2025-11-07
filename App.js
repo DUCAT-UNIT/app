@@ -26,6 +26,7 @@ import { deriveAddressesFromMnemonic, MUTINYNET_NETWORK } from './utils/bitcoin'
 import { SECURE_KEYS } from './utils/constants';
 import { COLORS } from './utils/colors';
 import { parseErrorMessage } from './utils/errorParser';
+import { ERRORS, SUCCESS } from './utils/messages';
 import styles from './styles';
 
 // Import services
@@ -395,7 +396,7 @@ export default function App() {
       // Validate inputs
       if (!trimmedRecipient || !sendAmount) {
         console.error('Missing recipient or amount');
-        showToast('Please enter recipient address and amount', 'error');
+        showToast(ERRORS.MISSING_RECIPIENT_AMOUNT, 'error');
         setIntentStep('idle');
         return;
       }
@@ -410,7 +411,7 @@ export default function App() {
         await createUnitIntent();
       } else {
         console.error('Invalid asset type:', sendAssetType);
-        showToast('Invalid asset type', 'error');
+        showToast(ERRORS.ASSET_SELECTION_REQUIRED, 'error');
         setIntentStep('idle');
       }
     } catch (error) {
@@ -471,7 +472,7 @@ export default function App() {
       setIntentStep('signing');
 
       if (!sendIntent) {
-        showToast('No intent to sign', 'error');
+        showToast(ERRORS.TRANSACTION_CANCELLED, 'error');
         setIntentStep('idle');
         return;
       }
@@ -502,7 +503,7 @@ export default function App() {
     try {
       if (!intent || !intent.signedTxHex) {
         console.error('No signed transaction to broadcast');
-        showToast('No signed transaction to broadcast', 'error');
+        showToast(ERRORS.TRANSACTION_CANCELLED, 'error');
         return;
       }
 
@@ -580,7 +581,7 @@ export default function App() {
           seedPhraseTranslateX.setValue(0);
           setViewingSeedPhrase(true);
         } else {
-          showToast('Recovery phrase not found', 'error');
+          showToast(ERRORS.SEED_PHRASE_NOT_FOUND, 'error');
         }
       } catch (error) {
         showToast(parseErrorMessage(error), 'error');

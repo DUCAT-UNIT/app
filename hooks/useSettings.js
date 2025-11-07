@@ -12,6 +12,7 @@ import { useState, useEffect } from 'react';
 import { Alert } from 'react-native';
 import * as SecureStore from 'expo-secure-store';
 import * as AuthService from '../services/authService';
+import { ERRORS, SUCCESS, WARNINGS, DIALOGS } from '../utils/messages';
 
 export function useSettings({
   biometricEnabled,
@@ -47,8 +48,8 @@ export function useSettings({
 
   const handleLogout = () => {
     Alert.alert(
-      'Logout',
-      'This will lock your wallet. You can unlock it again with Face ID or PIN.',
+      DIALOGS.LOGOUT_TITLE,
+      WARNINGS.WALLET_LOGOUT_WARNING,
       [
         { text: 'Cancel', style: 'cancel' },
         {
@@ -65,8 +66,8 @@ export function useSettings({
 
   const handleDeleteWallet = async () => {
     Alert.alert(
-      'Delete Wallet',
-      'WARNING: This will permanently delete your wallet from this device. Make sure you have your recovery phrase backed up!',
+      DIALOGS.DELETE_WALLET_TITLE,
+      WARNINGS.WALLET_DELETE_WARNING,
       [
         { text: 'Cancel', style: 'cancel' },
         {
@@ -83,12 +84,12 @@ export function useSettings({
                 resetAuth(); // Reset all auth state
                 setShowSettings(false);
 
-                Alert.alert('Success', 'Wallet has been deleted from this device.');
+                Alert.alert('Success', SUCCESS.WALLET_DELETED);
               } else {
-                Alert.alert('Error', 'Failed to delete wallet.');
+                Alert.alert(DIALOGS.ERROR_TITLE, ERRORS.WALLET_DELETE_FAILED);
               }
             } catch (error) {
-              Alert.alert('Error', 'Failed to delete wallet: ' + error.message);
+              Alert.alert(DIALOGS.ERROR_TITLE, ERRORS.WALLET_DELETE_FAILED);
             }
           }
         }
@@ -121,13 +122,13 @@ export function useSettings({
           setViewingSeedPhrase(true);
           setShowSettings(false);
         } else {
-          Alert.alert('Error', 'Recovery phrase not found.');
+          Alert.alert(DIALOGS.ERROR_TITLE, ERRORS.SEED_PHRASE_NOT_FOUND);
         }
       } else {
-        Alert.alert('Authentication Failed', 'You must authenticate to view your recovery phrase.');
+        Alert.alert(DIALOGS.AUTH_FAILED_TITLE, ERRORS.AUTH_REQUIRED);
       }
     } catch (error) {
-      Alert.alert('Error', 'Failed to retrieve recovery phrase: ' + error.message);
+      Alert.alert(DIALOGS.ERROR_TITLE, ERRORS.SEED_PHRASE_RETRIEVAL_FAILED);
     }
   };
 

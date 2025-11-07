@@ -7,6 +7,7 @@ import React from 'react';
 import PropTypes from 'prop-types';
 import { View, Text, TextInput, TouchableOpacity, Alert } from 'react-native';
 import { StatusBar } from 'expo-status-bar';
+import { ERRORS, DIALOGS } from '../utils/messages';
 
 export default function AccountSwitcherModal({
   // State
@@ -27,7 +28,7 @@ export default function AccountSwitcherModal({
   const handleSwitch = () => {
     const accountNum = parseInt(accountIndex);
     if (isNaN(accountNum) || accountNum < 1) {
-      Alert.alert('Invalid Account', 'Please enter a valid account number (1 or greater)');
+      Alert.alert(DIALOGS.INVALID_ACCOUNT_TITLE, ERRORS.INVALID_ACCOUNT_NUMBER);
       return;
     }
     onSwitch(accountNum);

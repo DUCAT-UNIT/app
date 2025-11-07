@@ -9,6 +9,7 @@ import PropTypes from 'prop-types';
 import { Text, View, TouchableOpacity } from 'react-native';
 import { StatusBar } from 'expo-status-bar';
 import * as AuthService from '../services/authService';
+import { ERRORS } from '../utils/messages';
 import styles from '../styles';
 
 export default function LockScreen({ onAuthenticated, showFaceIdButton, onFaceIdPress }) {
@@ -27,7 +28,7 @@ export default function LockScreen({ onAuthenticated, showFaceIdButton, onFaceId
             setPinError('');
             onAuthenticated();
           } else {
-            setPinError('Incorrect PIN');
+            setPinError(ERRORS.INCORRECT_PIN);
             setPin('');
           }
         });
