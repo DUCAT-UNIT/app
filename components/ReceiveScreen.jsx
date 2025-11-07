@@ -218,10 +218,10 @@ export default function ReceiveScreen({
               handleQrPress(segwitAddress, 'Native SegWit', 'BTC');
             }}
           >
-            <Image
-              source={require('../assets/qr-code.png')}
-              style={styles.receiveQrIcon}
-              resizeMode="contain"
+            <Icon
+              name="qr_code"
+              size={24}
+              color={COLORS.PRIMARY_BLUE}
             />
           </TouchableOpacity>
         </TouchableOpacity>
@@ -250,10 +250,10 @@ export default function ReceiveScreen({
               handleQrPress(taprootAddress, 'Taproot', 'Runes');
             }}
           >
-            <Image
-              source={require('../assets/qr-code.png')}
-              style={styles.receiveQrIcon}
-              resizeMode="contain"
+            <Icon
+              name="qr_code"
+              size={24}
+              color={COLORS.PRIMARY_BLUE}
             />
           </TouchableOpacity>
         </TouchableOpacity>
