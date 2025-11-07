@@ -198,7 +198,7 @@ export default function PinSetupScreen({
               style={styles.lockKey}
               onPress={handlePinDelete}
             >
-              <Icon name="back" size={24} color={COLORS.WHITE} />
+              <Icon name="delete" size={28} color={COLORS.WHITE} />
             </TouchableOpacity>
           </View>
         </View>

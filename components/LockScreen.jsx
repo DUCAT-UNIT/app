@@ -70,14 +70,6 @@ export default function LockScreen({ onAuthenticated, showFaceIdButton, onFaceId
         ))}
       </View>
 
-      {/* FaceID Button */}
-      {showFaceIdButton && onFaceIdPress && (
-        <TouchableOpacity style={styles.faceIdButton} onPress={onFaceIdPress}>
-          <Text style={styles.faceIdText}>FaceID</Text>
-          <Text style={styles.faceIdArrow}>→</Text>
-        </TouchableOpacity>
-      )}
-
       {/* Keypad */}
       <View style={styles.lockKeypad}>
         {[[1, 2, 3], [4, 5, 6], [7, 8, 9]].map((row, rowIndex) => (
@@ -94,7 +86,17 @@ export default function LockScreen({ onAuthenticated, showFaceIdButton, onFaceId
           </View>
         ))}
         <View style={styles.lockKeypadRow}>
-          <View style={styles.lockKey} />
+          {/* FaceID Button - Bottom Left */}
+          {showFaceIdButton && onFaceIdPress ? (
+            <TouchableOpacity
+              style={styles.lockKey}
+              onPress={onFaceIdPress}
+            >
+              <Icon name="face_id" size={32} color={COLORS.PRIMARY_BLUE} />
+            </TouchableOpacity>
+          ) : (
+            <View style={styles.lockKey} />
+          )}
           <TouchableOpacity
             style={styles.lockKey}
             onPress={() => handlePinDigit('0')}
@@ -105,7 +107,7 @@ export default function LockScreen({ onAuthenticated, showFaceIdButton, onFaceId
             style={styles.lockKey}
             onPress={handlePinDelete}
           >
-            <Icon name="back" size={24} color={COLORS.WHITE} />
+            <Icon name="delete" size={28} color={COLORS.WHITE} />
           </TouchableOpacity>
         </View>
       </View>

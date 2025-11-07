@@ -167,6 +167,28 @@ const IconComponents = {
       <Path d="m14 18.5 0 5" fill="none" stroke={color} strokeLinecap="round" strokeLinejoin="round" strokeWidth="1" />
     </Svg>
   ),
+
+  face_id: ({ width, height, color }) => (
+    <Svg width={width} height={height} viewBox="0 0 24 24" fill="none">
+      <Path d="M0.5 6.5v-3a3 3 0 0 1 3 -3h3" fill="none" stroke={color} strokeLinecap="round" strokeLinejoin="round" strokeWidth="1" />
+      <Path d="M23.5 6.5v-3a3 3 0 0 0 -3 -3h-3" fill="none" stroke={color} strokeLinecap="round" strokeLinejoin="round" strokeWidth="1" />
+      <Path d="M0.5 17.5v3a3 3 0 0 0 3 3h3" fill="none" stroke={color} strokeLinecap="round" strokeLinejoin="round" strokeWidth="1" />
+      <Path d="M23.5 17.5v3a3 3 0 0 1 -3 3h-3" fill="none" stroke={color} strokeLinecap="round" strokeLinejoin="round" strokeWidth="1" />
+      <Path d="M12.5 8v4.5A1.5 1.5 0 0 1 11 14h-0.5" fill="none" stroke={color} strokeLinecap="round" strokeLinejoin="round" strokeWidth="1" />
+      <Path d="m7.5 8 0 2.5" fill="none" stroke={color} strokeLinecap="round" strokeLinejoin="round" strokeWidth="1" />
+      <Path d="m17.5 8 0 2.5" fill="none" stroke={color} strokeLinecap="round" strokeLinejoin="round" strokeWidth="1" />
+      <Path d="M8.233 17a5.48 5.48 0 0 0 7.534 0" fill="none" stroke={color} strokeLinecap="round" strokeLinejoin="round" strokeWidth="1" />
+    </Svg>
+  ),
+
+  delete: ({ width, height, color }) => (
+    <Svg width={width} height={height} viewBox="0 0 24 24" fill="none">
+      <Path d="M4.498 0.497h15s4 0 4 4v15s0 4 -4 4h-15s-4 0 -4 -4v-15s0 -4 4 -4" fill="none" stroke={color} strokeLinecap="round" strokeLinejoin="round" strokeWidth="1" />
+      <Path d="m14.498 10.497 -3 3" fill="none" stroke={color} strokeLinecap="round" strokeLinejoin="round" strokeWidth="1" />
+      <Path d="m14.498 13.497 -3 -3" fill="none" stroke={color} strokeLinecap="round" strokeLinejoin="round" strokeWidth="1" />
+      <Path d="M18.5 15a0.5 0.5 0 0 1 -0.5 0.5H8.205a0.5 0.5 0 0 1 -0.353 -0.146l-3 -3a0.5 0.5 0 0 1 0 -0.707l3 -3a0.5 0.5 0 0 1 0.353 -0.147H18a0.5 0.5 0 0 1 0.5 0.5Z" fill="none" stroke={color} strokeLinecap="round" strokeLinejoin="round" strokeWidth="1" />
+    </Svg>
+  ),
 };
 
 /**
