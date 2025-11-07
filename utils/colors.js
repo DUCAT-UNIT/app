@@ -24,8 +24,9 @@ export const COLORS = {
   WHITE: '#FFFFFF',
 
   // Brand colors
-  PURPLE: '#9B59B6',
-  PRIMARY_BLUE: '#0066FF',
+  PURPLE: '#8B5CF6',
+  PRIMARY_BLUE: '#1858E4',
+  BLUE: '#1858E4',
 
   // Success/info colors
   TEAL: '#59AA8A',

@@ -772,7 +772,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   mutinynetBannerText: {
-    color: '#8B5CF6',
+    color: COLORS.PURPLE,
     fontSize: 16,
     fontWeight: '600',
     letterSpacing: 0.5,
@@ -1988,7 +1988,7 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
   },
   qrModalNetworkText: {
-    color: '#8B5CF6',
+    color: COLORS.PURPLE,
     fontSize: 16,
     fontWeight: '600',
     letterSpacing: 0.5,
