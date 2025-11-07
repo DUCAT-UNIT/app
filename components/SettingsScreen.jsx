@@ -149,7 +149,7 @@ const localStyles = StyleSheet.create({
   backIcon: {
     width: 24,
     height: 24,
-    tintColor: '#fff',
+    tintColor: COLORS.VERY_LIGHT_GRAY,
   },
   content: {
     flex: 1,
@@ -158,7 +158,7 @@ const localStyles = StyleSheet.create({
   title: {
     fontSize: 32,
     fontWeight: 'bold',
-    color: '#fff',
+    color: COLORS.VERY_LIGHT_GRAY,
     marginBottom: 30,
     marginTop: 10,
     fontFamily: 'CabinetGrotesk-Bold',
@@ -184,11 +184,11 @@ const localStyles = StyleSheet.create({
     width: 24,
     height: 24,
     marginRight: 16,
-    tintColor: '#fff',
+    tintColor: COLORS.VERY_LIGHT_GRAY,
   },
   optionTitle: {
     fontSize: 16,
-    color: '#fff',
+    color: COLORS.VERY_LIGHT_GRAY,
     fontWeight: '400',
     fontFamily: 'CabinetGrotesk-Regular',
   },

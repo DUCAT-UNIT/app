@@ -875,7 +875,7 @@ const styles = StyleSheet.create({
   headerIconImage: {
     width: 22,
     height: 22,
-    tintColor: '#fff',
+    tintColor: COLORS.VERY_LIGHT_GRAY,
   },
   // Xverse-style balance section
   xverseBalanceSection: {
