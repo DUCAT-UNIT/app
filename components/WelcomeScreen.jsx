@@ -163,24 +163,21 @@ export default function WelcomeScreen({
       <View style={styles.walletInfo}>
         <Text style={styles.stepIndicator}>Step 1 of 4</Text>
 
-        <Text style={styles.introTitle}>Wallet Created!</Text>
+        <View style={styles.introIconContainer}>
+          <Text style={styles.introIcon}>✓</Text>
+        </View>
+
+        <Text style={styles.introTitle}>Wallet Created</Text>
 
         <Text style={styles.introText}>
-          Next, you'll see your 12-word recovery phrase. This is your wallet's master key.
+          Your recovery phrase is the only way to restore your wallet. Keep it safe.
         </Text>
 
         <View style={styles.infoBox}>
-          <Text style={styles.infoTitle}>You must:</Text>
-          <Text style={styles.infoText}>
-            • Write it down{'\n'}
-            • Store it safely{'\n'}
-            • Never share it
-          </Text>
+          <Text style={styles.infoItem}>✓ Write it down</Text>
+          <Text style={styles.infoItem}>✓ Store it safely</Text>
+          <Text style={styles.infoItem}>✓ Never share it</Text>
         </View>
-
-        <Text style={styles.warningText}>
-          ⚠️ Lost phrase = lost Bitcoin forever
-        </Text>
 
         <TouchableOpacity
           style={styles.button}
@@ -189,7 +186,7 @@ export default function WelcomeScreen({
             setShowingSeeds(true);
           }}
         >
-          <Text style={styles.buttonText}>Show Recovery Phrase</Text>
+          <Text style={styles.buttonText}>Continue</Text>
         </TouchableOpacity>
 
         <TouchableOpacity
