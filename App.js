@@ -10,7 +10,7 @@ import * as FileSystem from 'expo-file-system';
 import { useFonts } from 'expo-font';
 
 import { StatusBar } from 'expo-status-bar';
-import { Text, View, TouchableOpacity, ActivityIndicator, TextInput, Image, Keyboard, Platform, Linking, SafeAreaView, StatusBar as RNStatusBar, Dimensions, Animated, PanResponder } from 'react-native';
+import { Text, View, TouchableOpacity, ActivityIndicator, TextInput, Image, Keyboard, Platform, Linking, SafeAreaView, StatusBar as RNStatusBar, Dimensions, Animated, PanResponder, AppState } from 'react-native';
 import { useState, useEffect, useRef, useCallback } from 'react';
 import * as Clipboard from 'expo-clipboard';
 import * as bip39 from 'bip39';
@@ -37,6 +37,7 @@ import * as TransactionService from './services/transactionService';
 
 // Import components
 import Icon from './components/Icon';
+import SplashScreen from './components/SplashScreen';
 import WelcomeScreen from './components/WelcomeScreen';
 import PinSetupScreen from './components/PinSetupScreen';
 import LockScreen from './components/LockScreen';
@@ -118,6 +119,7 @@ export default function App() {
   const [seedPhraseVisible, setSeedPhraseVisible] = useState(false); // Show/hide seed words
   const [requestingSeedPhrase, setRequestingSeedPhrase] = useState(false); // Flag to show seed phrase after PIN auth
   const [isLoading, setIsLoading] = useState(true); // Initial loading state
+  const [showBackgroundSplash, setShowBackgroundSplash] = useState(false); // Show splash when app is backgrounded
 
   // Transaction intent state
   const [sendIntent, setSendIntent] = useState(null); // Current send transaction intent
@@ -269,6 +271,21 @@ export default function App() {
   // Debug: Track intentStep changes
   useEffect(() => {
   }, [intentStep, sendIntent]);
+
+  // Show splash screen when app goes to background/inactive (for app switcher preview)
+  useEffect(() => {
+    const subscription = AppState.addEventListener('change', nextAppState => {
+      if (nextAppState === 'background' || nextAppState === 'inactive') {
+        setShowBackgroundSplash(true);
+      } else if (nextAppState === 'active') {
+        setShowBackgroundSplash(false);
+      }
+    });
+
+    return () => {
+      subscription.remove();
+    };
+  }, []);
 
 
   // Keyboard listeners for bottom sheet
@@ -605,14 +622,7 @@ export default function App() {
 
   // Show loading splash screen while initializing
   if (isLoading) {
-    return (
-      <View style={styles.splashContainer}>
-        <Icon name="unit_logo" size={120} />
-        <Text style={styles.splashTitle}>UNIT</Text>
-        <Text style={styles.splashSubtitle}>Mutinynet Edition</Text>
-        <StatusBar style="light" />
-      </View>
-    );
+    return <SplashScreen />;
   }
 
   // Show PIN entry screen
@@ -921,6 +931,20 @@ export default function App() {
       onCancel={cancelDeleteWallet}
       styles={styles}
     />
+
+    {/* Splash Screen Overlay (shown when app is backgrounded) */}
+    {showBackgroundSplash && (
+      <View style={{
+        position: 'absolute',
+        top: 0,
+        left: 0,
+        right: 0,
+        bottom: 0,
+        zIndex: 9999,
+      }}>
+        <SplashScreen />
+      </View>
+    )}
     </>
   );
 }

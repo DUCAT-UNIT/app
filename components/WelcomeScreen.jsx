@@ -10,7 +10,7 @@
 
 import React from 'react';
 import PropTypes from 'prop-types';
-import { Text, View, TouchableOpacity, TextInput } from 'react-native';
+import { Text, View, TouchableOpacity, TextInput, Image } from 'react-native';
 import Icon from './Icon';
 import styles from '../styles';
 
@@ -47,12 +47,12 @@ export default function WelcomeScreen({
     return (
       <View style={styles.welcomeContainer}>
         <View style={styles.welcomeContent}>
-          <Icon name="unit_logo" size={120} />
+          <Icon name="ducat_logo" size={100} />
         </View>
         <View style={styles.welcomeButtons}>
-          <Text style={styles.welcomeTitle}>UNIT Wallet</Text>
+          <Text style={styles.welcomeTitle}>DUCΔT</Text>
           <Text style={styles.welcomeTagline} numberOfLines={1} adjustsFontSizeToFit>
-            A Decentralised Credit Token
+            A Decentralised Credit Platform
           </Text>
           <TouchableOpacity style={styles.button} onPress={createWallet}>
             <Text style={styles.buttonText}>Create a new wallet</Text>

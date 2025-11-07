@@ -34,7 +34,7 @@ const styles = StyleSheet.create({
   },
   splashContainer: {
     flex: 1,
-    backgroundColor: COLORS.VERY_LIGHT_GRAY,
+    backgroundColor: COLORS.DARK_BG,
     alignItems: 'center',
     justifyContent: 'center',
   },
@@ -47,7 +47,7 @@ const styles = StyleSheet.create({
     fontSize: 36,
     fontFamily: 'CabinetGrotesk-Bold',
     fontWeight: 'bold',
-    color: COLORS.DARK_GRAY,
+    color: COLORS.VERY_LIGHT_GRAY,
     marginBottom: 5,
     letterSpacing: 2,
   },
