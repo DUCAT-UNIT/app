@@ -6,7 +6,7 @@
 
 import React, { useState } from 'react';
 import PropTypes from 'prop-types';
-import { Text, View, TouchableOpacity } from 'react-native';
+import { Text, View, TouchableOpacity, Image } from 'react-native';
 import { StatusBar } from 'expo-status-bar';
 import * as AuthService from '../services/authService';
 import { ERRORS } from '../utils/messages';
@@ -21,14 +21,18 @@ export default function LockScreen({ onAuthenticated, showFaceIdButton, onFaceId
       const newPin = pin + digit;
       setPin(newPin);
       if (newPin.length === 6) {
-        // Verify PIN
-        AuthService.verifyPin(newPin).then(isValid => {
-          if (isValid) {
+        // Verify PIN with rate limiting
+        AuthService.verifyPin(newPin).then(result => {
+          if (result.success) {
             setPin('');
             setPinError('');
             onAuthenticated();
           } else {
-            setPinError(ERRORS.INCORRECT_PIN);
+            const errorMsg = result.error || ERRORS.INCORRECT_PIN;
+            const attemptsMsg = result.remainingAttempts
+              ? ` (${result.remainingAttempts} attempts remaining)`
+              : '';
+            setPinError(errorMsg + attemptsMsg);
             setPin('');
           }
         });
@@ -99,7 +103,11 @@ export default function LockScreen({ onAuthenticated, showFaceIdButton, onFaceId
             style={styles.lockKey}
             onPress={handlePinDelete}
           >
-            <Text style={styles.lockKeyText}>⌫</Text>
+            <Image
+              source={require('../assets/icons/back.png')}
+              style={styles.lockKeyIcon}
+              resizeMode="contain"
+            />
           </TouchableOpacity>
         </View>
       </View>

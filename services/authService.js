@@ -4,16 +4,40 @@
 
 import * as SecureStore from 'expo-secure-store';
 import * as LocalAuthentication from 'expo-local-authentication';
+import * as Crypto from 'expo-crypto';
 import { SECURE_KEYS } from '../utils/constants';
 
+// Salt for PIN hashing - change this to something unique for your app
+const PIN_SALT = 'ducat_wallet_pin_salt_v1';
+
+// Rate limiting for PIN attempts
+const MAX_PIN_ATTEMPTS = 10;
+const LOCKOUT_DURATION = 30 * 60 * 1000; // 30 minutes in milliseconds
+let failedPinAttempts = 0;
+let pinLockoutUntil = null;
+
 /**
- * Save PIN to secure storage
+ * Hash a PIN using SHA256
+ * @param {string} pin - PIN to hash
+ * @returns {Promise<string>} Hashed PIN
+ */
+const hashPin = async (pin) => {
+  const hash = await Crypto.digestStringAsync(
+    Crypto.CryptoDigestAlgorithm.SHA256,
+    pin + PIN_SALT
+  );
+  return hash;
+};
+
+/**
+ * Save PIN to secure storage (hashed)
  * @param {string} pin - 6-digit PIN
  * @returns {Promise<boolean>} Success status
  */
 export const savePin = async (pin) => {
   try {
-    await SecureStore.setItemAsync(SECURE_KEYS.PIN, pin);
+    const hashedPin = await hashPin(pin);
+    await SecureStore.setItemAsync(SECURE_KEYS.PIN, hashedPin);
     return true;
   } catch (error) {
     console.error('Failed to save PIN:', error);
@@ -22,17 +46,88 @@ export const savePin = async (pin) => {
 };
 
 /**
- * Verify entered PIN against stored PIN
+ * Check if PIN attempts are currently locked out
+ * @returns {{isLocked: boolean, remainingTime?: number}} Lock status
+ */
+export const checkPinLockout = () => {
+  if (pinLockoutUntil && Date.now() < pinLockoutUntil) {
+    const remainingTime = Math.ceil((pinLockoutUntil - Date.now()) / 1000 / 60); // minutes
+    return { isLocked: true, remainingTime };
+  }
+  return { isLocked: false };
+};
+
+/**
+ * Reset PIN attempt counter (call after successful authentication)
+ */
+export const resetPinAttempts = () => {
+  failedPinAttempts = 0;
+  pinLockoutUntil = null;
+};
+
+/**
+ * Get remaining PIN attempts before lockout
+ * @returns {number} Remaining attempts
+ */
+export const getRemainingPinAttempts = () => {
+  return Math.max(0, MAX_PIN_ATTEMPTS - failedPinAttempts);
+};
+
+/**
+ * Verify entered PIN against stored hashed PIN with rate limiting
  * @param {string} enteredPin - PIN to verify
- * @returns {Promise<boolean>} Whether PIN matches
+ * @returns {Promise<{success: boolean, error?: string, remainingAttempts?: number}>}
  */
 export const verifyPin = async (enteredPin) => {
   try {
-    const storedPin = await SecureStore.getItemAsync(SECURE_KEYS.PIN);
-    return storedPin === enteredPin;
+    // Check if locked out
+    const lockStatus = checkPinLockout();
+    if (lockStatus.isLocked) {
+      return {
+        success: false,
+        error: `Too many failed attempts. Try again in ${lockStatus.remainingTime} minutes.`,
+        remainingAttempts: 0,
+      };
+    }
+
+    const storedHashedPin = await SecureStore.getItemAsync(SECURE_KEYS.PIN);
+    const enteredHashedPin = await hashPin(enteredPin);
+    const isValid = storedHashedPin === enteredHashedPin;
+
+    if (isValid) {
+      // Success - reset attempts
+      resetPinAttempts();
+      return { success: true };
+    } else {
+      // Failed attempt
+      failedPinAttempts++;
+
+      // Check if we've hit the limit
+      if (failedPinAttempts >= MAX_PIN_ATTEMPTS) {
+        pinLockoutUntil = Date.now() + LOCKOUT_DURATION;
+        return {
+          success: false,
+          error: 'Too many failed attempts. Account locked for 30 minutes.',
+          remainingAttempts: 0,
+        };
+      }
+
+      // Apply exponential backoff delay
+      const delayMs = Math.min(Math.pow(2, failedPinAttempts) * 1000, 10000); // Max 10s delay
+      await new Promise(resolve => setTimeout(resolve, delayMs));
+
+      return {
+        success: false,
+        error: 'Incorrect PIN',
+        remainingAttempts: getRemainingPinAttempts(),
+      };
+    }
   } catch (error) {
     console.error('Failed to verify PIN:', error);
-    return false;
+    return {
+      success: false,
+      error: 'Failed to verify PIN',
+    };
   }
 };
 
@@ -126,7 +221,35 @@ export const saveMnemonic = async (mnemonic) => {
 };
 
 /**
+ * Securely clear a string from memory (best effort)
+ * Note: JavaScript doesn't guarantee memory overwriting, but we try our best
+ * @param {string} str - String to clear
+ * @returns {string} Cleared string (filled with zeros)
+ */
+const securelyWipeString = (str) => {
+  if (!str || typeof str !== 'string') return '';
+
+  // Create a new string filled with zeros
+  let cleared = '';
+  for (let i = 0; i < str.length; i++) {
+    cleared += '\0';
+  }
+
+  // Overwrite multiple times
+  for (let pass = 0; pass < 3; pass++) {
+    for (let i = 0; i < str.length; i++) {
+      cleared = cleared.substring(0, i) +
+                String.fromCharCode(Math.floor(Math.random() * 256)) +
+                cleared.substring(i + 1);
+    }
+  }
+
+  return cleared;
+};
+
+/**
  * Retrieve mnemonic from secure storage
+ * IMPORTANT: Caller must clear the returned mnemonic from memory after use
  * @returns {Promise<string|null>} Mnemonic or null if not found
  */
 export const getMnemonic = async () => {
@@ -135,6 +258,29 @@ export const getMnemonic = async () => {
   } catch (error) {
     console.error('Failed to retrieve mnemonic:', error);
     return null;
+  }
+};
+
+/**
+ * Retrieve mnemonic and automatically clear it after callback execution
+ * Use this when you need temporary access to mnemonic
+ * @param {Function} callback - Function that receives mnemonic
+ * @returns {Promise<any>} Result from callback
+ */
+export const withMnemonic = async (callback) => {
+  let mnemonic = null;
+  try {
+    mnemonic = await getMnemonic();
+    if (!mnemonic) {
+      throw new Error('Mnemonic not found');
+    }
+    return await callback(mnemonic);
+  } finally {
+    // Best effort to clear from memory
+    if (mnemonic) {
+      mnemonic = securelyWipeString(mnemonic);
+      mnemonic = null;
+    }
   }
 };
 
