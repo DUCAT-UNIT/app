@@ -114,14 +114,14 @@ const styles = StyleSheet.create({
   title: {
     fontSize: 24,
     fontWeight: 'bold',
-    color: COLORS.TEXT_PRIMARY,
+    color: COLORS.VERY_LIGHT_GRAY,
     marginBottom: 12,
     textAlign: 'center',
     fontFamily: 'CabinetGrotesk-Bold',
   },
   message: {
     fontSize: 16,
-    color: COLORS.TEXT_SECONDARY,
+    color: COLORS.SECONDARY_TEXT,
     textAlign: 'center',
     marginBottom: 30,
     lineHeight: 24,
@@ -135,7 +135,7 @@ const styles = StyleSheet.create({
     minWidth: 150,
   },
   buttonText: {
-    color: '#FFFFFF',
+    color: COLORS.VERY_LIGHT_GRAY,
     fontSize: 16,
     fontWeight: '600',
     textAlign: 'center',

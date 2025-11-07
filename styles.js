@@ -114,7 +114,7 @@ const styles = StyleSheet.create({
   welcomeTitle: {
     fontSize: 24,
     fontFamily: 'CabinetGrotesk-Bold',
-    color: COLORS.WHITE,
+    color: COLORS.VERY_LIGHT_GRAY,
     marginBottom: 8,
     textAlign: 'center',
     fontWeight: 'bold',
@@ -123,7 +123,7 @@ const styles = StyleSheet.create({
   welcomeTagline: {
     fontSize: 16,
     fontFamily: 'CabinetGrotesk-Bold',
-    color: COLORS.WHITE,
+    color: COLORS.VERY_LIGHT_GRAY,
     marginBottom: 30,
     textAlign: 'center',
     fontWeight: '400',
@@ -195,7 +195,7 @@ const styles = StyleSheet.create({
   introText: {
     fontSize: 15,
     fontFamily: 'CabinetGrotesk-Regular',
-    color: COLORS.MEDIUM_GRAY,
+    color: COLORS.SECONDARY_TEXT,
     lineHeight: 22,
     marginBottom: 30,
     textAlign: 'center',
@@ -224,7 +224,7 @@ const styles = StyleSheet.create({
   infoText: {
     fontSize: 14,
     fontFamily: 'CabinetGrotesk-Bold',
-    color: COLORS.MEDIUM_GRAY,
+    color: COLORS.SECONDARY_TEXT,
     lineHeight: 22,
   },
   warningText: {
@@ -293,7 +293,7 @@ const styles = StyleSheet.create({
   toggleText: {
     fontSize: 12,
     fontFamily: 'CabinetGrotesk-Medium',
-    color: COLORS.MEDIUM_GRAY,
+    color: COLORS.SECONDARY_TEXT,
     fontWeight: '600',
   },
   toggleTextActive: {
@@ -305,7 +305,7 @@ const styles = StyleSheet.create({
   totalBalanceLabel: {
     fontSize: 14,
     fontFamily: 'CabinetGrotesk-Regular',
-    color: COLORS.MEDIUM_GRAY,
+    color: COLORS.SECONDARY_TEXT,
     marginBottom: 8,
   },
   balanceContainer: {
@@ -381,7 +381,7 @@ const styles = StyleSheet.create({
   assetAmount: {
     fontSize: 14,
     fontFamily: 'CabinetGrotesk-Regular',
-    color: COLORS.MEDIUM_GRAY,
+    color: COLORS.SECONDARY_TEXT,
   },
   assetAmountIcon: {
     width: 10,
@@ -391,7 +391,7 @@ const styles = StyleSheet.create({
   assetSubtext: {
     fontSize: 12,
     fontFamily: 'CabinetGrotesk-Medium',
-    color: COLORS.MEDIUM_GRAY,
+    color: COLORS.SECONDARY_TEXT,
   },
   assetValue: {
     fontSize: 16,
@@ -406,7 +406,7 @@ const styles = StyleSheet.create({
   addressLabel: {
     fontSize: 12,
     fontFamily: 'CabinetGrotesk-Regular',
-    color: COLORS.MEDIUM_GRAY,
+    color: COLORS.SECONDARY_TEXT,
     marginBottom: 8,
   },
   addressContainer: {
@@ -610,7 +610,7 @@ const styles = StyleSheet.create({
     color: COLORS.VERY_LIGHT_GRAY,
   },
   addressTypeSubtext: {
-    color: COLORS.MEDIUM_GRAY,
+    color: COLORS.SECONDARY_TEXT,
     fontSize: 11,
     fontFamily: 'CabinetGrotesk-Regular',
   },
@@ -891,7 +891,7 @@ const styles = StyleSheet.create({
   xverseBalanceLabel: {
     fontSize: 14,
     fontFamily: 'CabinetGrotesk-Regular',
-    color: COLORS.MEDIUM_GRAY,
+    color: COLORS.SECONDARY_TEXT,
     marginBottom: 8,
   },
   xverseBalanceAmount: {
@@ -1002,7 +1002,7 @@ const styles = StyleSheet.create({
   lockedSubtext: {
     fontSize: 14,
     fontFamily: 'CabinetGrotesk-Bold',
-    color: COLORS.MEDIUM_GRAY,
+    color: COLORS.SECONDARY_TEXT,
     textAlign: 'center',
   },
   unlockButton: {
@@ -1038,7 +1038,7 @@ const styles = StyleSheet.create({
   pinSubtext: {
     fontSize: 14,
     fontFamily: 'CabinetGrotesk-Bold',
-    color: COLORS.MEDIUM_GRAY,
+    color: COLORS.SECONDARY_TEXT,
     marginBottom: 20,
     textAlign: 'center',
     paddingHorizontal: 20,
@@ -1097,7 +1097,7 @@ const styles = StyleSheet.create({
   pinCancelText: {
     fontSize: 16,
     fontFamily: 'CabinetGrotesk-Medium',
-    color: COLORS.MEDIUM_GRAY,
+    color: COLORS.SECONDARY_TEXT,
     fontWeight: '600',
     textAlign: 'center',
   },
@@ -1141,7 +1141,7 @@ const styles = StyleSheet.create({
   closeButton: {
     fontSize: 24,
     fontFamily: 'CabinetGrotesk-Bold',
-    color: COLORS.MEDIUM_GRAY,
+    color: COLORS.SECONDARY_TEXT,
     fontWeight: '300',
   },
   settingsOption: {
@@ -1172,14 +1172,14 @@ const styles = StyleSheet.create({
     fontSize: 14,
     fontFamily: 'CabinetGrotesk-Medium',
     fontWeight: '600',
-    color: COLORS.MEDIUM_GRAY,
+    color: COLORS.SECONDARY_TEXT,
     paddingHorizontal: 12,
     paddingVertical: 4,
     borderRadius: 12,
     backgroundColor: COLORS.DARK_GRAY,
   },
   settingsToggleOn: {
-    color: COLORS.WHITE,
+    color: COLORS.VERY_LIGHT_GRAY,
     backgroundColor: COLORS.PRIMARY_BLUE,
   },
   settingsDivider: {
@@ -1248,7 +1248,7 @@ const styles = StyleSheet.create({
   reviewLabel: {
     fontSize: 13,
     fontFamily: 'CabinetGrotesk-Regular',
-    color: COLORS.MEDIUM_GRAY,
+    color: COLORS.SECONDARY_TEXT,
     marginBottom: 5,
   },
   reviewLabelTotal: {
@@ -1274,11 +1274,11 @@ const styles = StyleSheet.create({
   reviewSubtext: {
     fontSize: 12,
     fontFamily: 'CabinetGrotesk-Bold',
-    color: COLORS.MEDIUM_GRAY,
+    color: COLORS.SECONDARY_TEXT,
   },
   reviewAddressSmall: {
     fontSize: 11,
-    color: COLORS.MEDIUM_GRAY,
+    color: COLORS.SECONDARY_TEXT,
     fontFamily: 'monospace',
     marginTop: 3,
   },
@@ -1358,12 +1358,12 @@ const styles = StyleSheet.create({
   assetOptionSubtitle: {
     fontSize: 13,
     fontFamily: 'CabinetGrotesk-Medium',
-    color: COLORS.MEDIUM_GRAY,
+    color: COLORS.SECONDARY_TEXT,
   },
   assetOptionArrow: {
     fontSize: 24,
     fontFamily: 'CabinetGrotesk-Regular',
-    color: COLORS.MEDIUM_GRAY,
+    color: COLORS.SECONDARY_TEXT,
   },
   assetOptionValue: {
     fontSize: 16,
@@ -1417,7 +1417,7 @@ const styles = StyleSheet.create({
   amountInputLabel: {
     fontSize: 18,
     fontFamily: 'CabinetGrotesk-Bold',
-    color: COLORS.MEDIUM_GRAY,
+    color: COLORS.SECONDARY_TEXT,
     marginBottom: 40,
   },
   amountContinueButton: {
@@ -1431,7 +1431,7 @@ const styles = StyleSheet.create({
     backgroundColor: COLORS.DARK_GRAY,
   },
   amountContinueButtonText: {
-    color: COLORS.WHITE,
+    color: COLORS.VERY_LIGHT_GRAY,
     fontSize: 18,
     fontFamily: 'CabinetGrotesk-Medium',
     fontWeight: '600',
@@ -1467,12 +1467,12 @@ const styles = StyleSheet.create({
   sendBalanceFooterAmount: {
     fontSize: 14,
     fontFamily: 'CabinetGrotesk-Regular',
-    color: COLORS.MEDIUM_GRAY,
+    color: COLORS.SECONDARY_TEXT,
   },
   sendBalanceFooterUsd: {
     fontSize: 14,
     fontFamily: 'CabinetGrotesk-Regular',
-    color: COLORS.MEDIUM_GRAY,
+    color: COLORS.SECONDARY_TEXT,
   },
   // Address input styles
   addressInputTitle: {
@@ -1561,7 +1561,7 @@ const styles = StyleSheet.create({
   sendToLabel: {
     fontSize: 14,
     fontFamily: 'CabinetGrotesk-Regular',
-    color: COLORS.MEDIUM_GRAY,
+    color: COLORS.SECONDARY_TEXT,
   },
   sendToAddress: {
     fontSize: 14,
@@ -1578,7 +1578,7 @@ const styles = StyleSheet.create({
   addressTypeText: {
     fontSize: 12,
     fontFamily: 'CabinetGrotesk-Regular',
-    color: COLORS.MEDIUM_GRAY,
+    color: COLORS.SECONDARY_TEXT,
   },
   // Amount Balance Row
   amountBalanceRow: {
@@ -1591,7 +1591,7 @@ const styles = StyleSheet.create({
   amountBalanceLabel: {
     fontSize: 14,
     fontFamily: 'CabinetGrotesk-Regular',
-    color: COLORS.MEDIUM_GRAY,
+    color: COLORS.SECONDARY_TEXT,
   },
   maxButton: {
     backgroundColor: 'transparent',
@@ -1623,7 +1623,7 @@ const styles = StyleSheet.create({
   amountUsdValue: {
     fontSize: 18,
     fontFamily: 'CabinetGrotesk-Regular',
-    color: COLORS.MEDIUM_GRAY,
+    color: COLORS.SECONDARY_TEXT,
     marginTop: 8,
     marginBottom: 40,
   },
@@ -1663,7 +1663,7 @@ const styles = StyleSheet.create({
   reviewAmountSats: {
     fontSize: 14,
     fontFamily: 'CabinetGrotesk-Regular',
-    color: COLORS.MEDIUM_GRAY,
+    color: COLORS.SECONDARY_TEXT,
     textAlign: 'center',
     marginBottom: 10,
   },
@@ -1686,7 +1686,7 @@ const styles = StyleSheet.create({
   successCloseText: {
     fontSize: 28,
     fontFamily: 'CabinetGrotesk-Regular',
-    color: COLORS.MEDIUM_GRAY,
+    color: COLORS.SECONDARY_TEXT,
     fontWeight: '300',
   },
   successCheckmarkContainer: {
@@ -1748,7 +1748,7 @@ const styles = StyleSheet.create({
   lockPasswordText: {
     fontSize: 32,
     fontFamily: 'CabinetGrotesk-Bold',
-    color: COLORS.WHITE,
+    color: COLORS.VERY_LIGHT_GRAY,
     fontWeight: 'bold',
     letterSpacing: 8,
     marginBottom: 8,
@@ -1763,7 +1763,7 @@ const styles = StyleSheet.create({
   lockTitle: {
     fontSize: 18,
     fontFamily: 'CabinetGrotesk-Regular',
-    color: COLORS.WHITE,
+    color: COLORS.VERY_LIGHT_GRAY,
     marginBottom: 30,
     marginTop: 20,
     textAlign: 'center',
@@ -1839,7 +1839,7 @@ const styles = StyleSheet.create({
   lockKeyText: {
     fontSize: 32,
     fontFamily: 'CabinetGrotesk-Regular',
-    color: COLORS.WHITE,
+    color: COLORS.VERY_LIGHT_GRAY,
     fontWeight: '300',
   },
   lockKeyIcon: {
@@ -1850,13 +1850,13 @@ const styles = StyleSheet.create({
   lockKeyCancelText: {
     fontSize: 16,
     fontFamily: 'CabinetGrotesk-Regular',
-    color: COLORS.WHITE,
+    color: COLORS.VERY_LIGHT_GRAY,
     fontWeight: '300',
   },
   lockKeyDelete: {
     fontSize: 28,
     fontFamily: 'CabinetGrotesk-Regular',
-    color: COLORS.WHITE,
+    color: COLORS.VERY_LIGHT_GRAY,
     fontWeight: '300',
   },
   // Biometric Prompt styles
@@ -1902,7 +1902,7 @@ const styles = StyleSheet.create({
     fontSize: 16,
     fontFamily: 'CabinetGrotesk-Medium',
     fontWeight: '600',
-    color: COLORS.WHITE,
+    color: COLORS.VERY_LIGHT_GRAY,
   },
   biometricPromptButtonTextNo: {
     fontSize: 16,
@@ -1939,7 +1939,7 @@ const styles = StyleSheet.create({
   receiveAddress: {
     fontSize: 13,
     fontFamily: 'CabinetGrotesk-Regular',
-    color: COLORS.MEDIUM_GRAY,
+    color: COLORS.SECONDARY_TEXT,
   },
   receiveAddressTag: {
     backgroundColor: COLORS.CARD_BG,
@@ -1950,7 +1950,7 @@ const styles = StyleSheet.create({
   receiveAddressTagText: {
     fontSize: 11,
     fontFamily: 'CabinetGrotesk-Medium',
-    color: COLORS.MEDIUM_GRAY,
+    color: COLORS.SECONDARY_TEXT,
     fontWeight: '600',
   },
   receiveQrButton: {
@@ -2046,7 +2046,7 @@ const styles = StyleSheet.create({
   qrModalSubtitle: {
     fontSize: SCREEN_WIDTH < 375 ? 12 : 15,
     fontFamily: 'CabinetGrotesk-Regular',
-    color: COLORS.MEDIUM_GRAY,
+    color: COLORS.SECONDARY_TEXT,
     marginBottom: SCREEN_WIDTH <= 400 ? 8 : 40,
     textAlign: 'center',
   },
@@ -2073,7 +2073,7 @@ const styles = StyleSheet.create({
   qrAddressLabelText: {
     fontSize: 13,
     fontFamily: 'CabinetGrotesk-Medium',
-    color: COLORS.MEDIUM_GRAY,
+    color: COLORS.SECONDARY_TEXT,
     fontWeight: '600',
     marginBottom: 8,
   },
@@ -2174,7 +2174,7 @@ const styles = StyleSheet.create({
   historyLoadingText: {
     fontSize: 15,
     fontFamily: 'CabinetGrotesk-Regular',
-    color: COLORS.MEDIUM_GRAY,
+    color: COLORS.SECONDARY_TEXT,
     marginTop: 16,
   },
   historyEmptyContainer: {
@@ -2186,7 +2186,7 @@ const styles = StyleSheet.create({
   historyEmptyText: {
     fontSize: 16,
     fontFamily: 'CabinetGrotesk-Regular',
-    color: COLORS.MEDIUM_GRAY,
+    color: COLORS.SECONDARY_TEXT,
   },
   historyTxRow: {
     flexDirection: 'row',
@@ -2238,7 +2238,7 @@ const styles = StyleSheet.create({
   historyTxDate: {
     fontSize: 13,
     fontFamily: 'CabinetGrotesk-Regular',
-    color: COLORS.MEDIUM_GRAY,
+    color: COLORS.SECONDARY_TEXT,
   },
   historyTxRight: {
     marginLeft: 12,

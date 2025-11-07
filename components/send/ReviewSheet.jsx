@@ -70,7 +70,7 @@ export default function ReviewSheet({
           <View style={{ backgroundColor: COLORS.CARD_BG, borderRadius: 12, padding: 16, marginBottom: 32, width: '100%' }}>
             {/* To Row */}
             <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', width: '100%', marginBottom: 16 }}>
-              <Text style={{ fontSize: 16, color: COLORS.MEDIUM_GRAY, fontWeight: '600' }}>To:</Text>
+              <Text style={{ fontSize: 16, color: COLORS.SECONDARY_TEXT, fontWeight: '600' }}>To:</Text>
               <Text style={{ fontSize: 16, fontWeight: '600', color: COLORS.VERY_LIGHT_GRAY }}>
                 {sendIntent.recipient.substring(0, 8)}...{sendIntent.recipient.substring(sendIntent.recipient.length - 7)}
               </Text>
@@ -88,7 +88,7 @@ export default function ReviewSheet({
                 <Text style={{ fontSize: 16, fontWeight: '600', color: COLORS.VERY_LIGHT_GRAY, marginBottom: 4 }}>
                   Amount
                 </Text>
-                <Text style={{ fontSize: 12, color: COLORS.MEDIUM_GRAY }}>
+                <Text style={{ fontSize: 12, color: COLORS.SECONDARY_TEXT }}>
                   {sendIntent.assetType === 'UNIT' ? 'UNIT•RUNE' : 'Bitcoin'}
                 </Text>
               </View>
@@ -96,7 +96,7 @@ export default function ReviewSheet({
                 <Text style={{ fontSize: 16, fontWeight: '600', color: COLORS.VERY_LIGHT_GRAY, marginBottom: 4 }}>
                   {displayAmount}
                 </Text>
-                <Text style={{ fontSize: 12, color: COLORS.MEDIUM_GRAY }}>
+                <Text style={{ fontSize: 12, color: COLORS.SECONDARY_TEXT }}>
                   $ {usdAmount} USD
                 </Text>
               </View>
@@ -111,11 +111,11 @@ export default function ReviewSheet({
           {/* Transaction Details Card */}
           <View style={{ backgroundColor: COLORS.CARD_BG, borderRadius: 12, padding: 16, marginBottom: 32, width: '100%' }}>
             <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12, width: '100%' }}>
-              <Text style={{ fontSize: 16, color: COLORS.MEDIUM_GRAY, fontWeight: '600' }}>Network:</Text>
+              <Text style={{ fontSize: 16, color: COLORS.SECONDARY_TEXT, fontWeight: '600' }}>Network:</Text>
               <Text style={{ fontSize: 16, fontWeight: '600', color: COLORS.VERY_LIGHT_GRAY }}>Mutinynet</Text>
             </View>
             <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', width: '100%' }}>
-              <Text style={{ fontSize: 16, color: COLORS.MEDIUM_GRAY, fontWeight: '600' }}>Total fees:</Text>
+              <Text style={{ fontSize: 16, color: COLORS.SECONDARY_TEXT, fontWeight: '600' }}>Total fees:</Text>
               <Text style={{ fontSize: 16, fontWeight: '600', color: COLORS.VERY_LIGHT_GRAY }}>
                 {sendIntent.fee.toLocaleString()} sats
               </Text>
