@@ -872,6 +872,11 @@ const styles = StyleSheet.create({
     fontSize: 20,
     fontFamily: 'CabinetGrotesk-Regular',
   },
+  headerIconImage: {
+    width: 22,
+    height: 22,
+    tintColor: '#fff',
+  },
   // Xverse-style balance section
   xverseBalanceSection: {
     flexDirection: 'row',
@@ -957,6 +962,11 @@ const styles = StyleSheet.create({
     fontFamily: 'CabinetGrotesk-Medium',
     color: COLORS.BLACK,
     fontWeight: '600',
+  },
+  xverseActionIconImage: {
+    width: 20,
+    height: 20,
+    tintColor: COLORS.BLACK,
   },
   xverseActionLabel: {
     fontSize: 13,
@@ -1832,6 +1842,11 @@ const styles = StyleSheet.create({
     color: COLORS.WHITE,
     fontWeight: '300',
   },
+  lockKeyIcon: {
+    width: 24,
+    height: 24,
+    tintColor: COLORS.WHITE,
+  },
   lockKeyCancelText: {
     fontSize: 16,
     fontFamily: 'CabinetGrotesk-Regular',
@@ -1997,6 +2012,11 @@ const styles = StyleSheet.create({
     fontSize: 36,
     color: COLORS.VERY_LIGHT_GRAY,
     fontWeight: '300',
+  },
+  qrModalBackIcon: {
+    width: 24,
+    height: 24,
+    tintColor: COLORS.VERY_LIGHT_GRAY,
   },
   qrModalMenuButton: {
     width: 40,

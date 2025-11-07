@@ -320,7 +320,11 @@ export default function ReceiveScreen({
                   }}
                   style={[SCREEN_WIDTH <= 400 && { position: 'absolute', left: 0 }]}
                 >
-                  <Text style={[styles.qrModalBackArrow, SCREEN_WIDTH <= 400 && { fontSize: 36 }]}>‹</Text>
+                  <Image
+                    source={require('../assets/icons/back.png')}
+                    style={[styles.qrModalBackIcon, SCREEN_WIDTH <= 400 && { width: 28, height: 28 }]}
+                    resizeMode="contain"
+                  />
                 </TouchableOpacity>
                 <Text style={styles.qrModalTitle}>Bitcoin address</Text>
               </View>

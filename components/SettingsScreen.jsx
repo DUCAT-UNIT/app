@@ -5,7 +5,7 @@
 
 import React from 'react';
 import PropTypes from 'prop-types';
-import { Text, View, TouchableOpacity, StyleSheet, Platform, Dimensions, StatusBar } from 'react-native';
+import { Text, View, TouchableOpacity, StyleSheet, Platform, Dimensions, StatusBar, Image } from 'react-native';
 
 // Get device dimensions for responsive sizing
 const { width: SCREEN_WIDTH } = Dimensions.get('window');
@@ -34,7 +34,11 @@ export default function SettingsScreen({
       {/* Header */}
       <View style={localStyles.header}>
         <TouchableOpacity onPress={onClose} style={localStyles.backButton}>
-          <Text style={localStyles.backArrow}>←</Text>
+          <Image
+            source={require('../assets/icons/back.png')}
+            style={localStyles.backIcon}
+            resizeMode="contain"
+          />
         </TouchableOpacity>
       </View>
 
@@ -44,27 +48,27 @@ export default function SettingsScreen({
         {/* Security Section */}
         <View style={localStyles.section}>
           <SettingsOption
-            icon="🔑"
+            iconSource={require('../assets/icons/recovery_phrase.png')}
             title="View Recovery Phrase"
             onPress={onViewSeedPhrase}
           />
           <SettingsOption
-            icon="🔢"
+            iconSource={require('../assets/icons/pin.png')}
             title="Change PIN"
             onPress={onChangePin}
           />
           <SettingsOption
-            icon="🔄"
+            iconSource={require('../assets/icons/switch_account.png')}
             title="Switch Account"
             onPress={onSwitchAccount}
           />
           <SettingsOption
-            icon="🔒"
+            iconSource={require('../assets/icons/logout.png')}
             title="Lock Wallet"
             onPress={onLockWallet}
           />
           <SettingsOption
-            icon="👁️"
+            iconSource={privacyMode ? require('../assets/icons/privacy_on.png') : require('../assets/icons/privacy_off.png')}
             title="Privacy Mode"
             onPress={onPrivacyModeToggle}
             rightText={privacyMode ? 'ON' : 'OFF'}
@@ -74,7 +78,7 @@ export default function SettingsScreen({
         {/* Danger Zone */}
         <View style={localStyles.section}>
           <SettingsOption
-            icon="⚠️"
+            iconSource={require('../assets/icons/delete_wallet.png')}
             title="Delete Wallet"
             onPress={onDeleteWallet}
             isDanger
@@ -86,11 +90,15 @@ export default function SettingsScreen({
 }
 
 // Individual settings option component
-function SettingsOption({ icon, title, onPress, rightText, isDanger }) {
+function SettingsOption({ iconSource, title, onPress, rightText, isDanger }) {
   return (
     <TouchableOpacity style={localStyles.option} onPress={onPress}>
       <View style={localStyles.optionLeft}>
-        <Text style={localStyles.optionIcon}>{icon}</Text>
+        <Image
+          source={iconSource}
+          style={localStyles.optionIconImage}
+          resizeMode="contain"
+        />
         <Text style={[localStyles.optionTitle, isDanger && localStyles.dangerText]}>
           {title}
         </Text>
@@ -104,7 +112,7 @@ function SettingsOption({ icon, title, onPress, rightText, isDanger }) {
 }
 
 SettingsOption.propTypes = {
-  icon: PropTypes.string.isRequired,
+  iconSource: PropTypes.number.isRequired,
   title: PropTypes.string.isRequired,
   onPress: PropTypes.func.isRequired,
   rightText: PropTypes.string,
@@ -137,10 +145,10 @@ const localStyles = StyleSheet.create({
     height: 40,
     justifyContent: 'center',
   },
-  backArrow: {
-    fontSize: 28,
-    color: '#fff',
-    fontFamily: 'CabinetGrotesk-Regular',
+  backIcon: {
+    width: 24,
+    height: 24,
+    tintColor: '#fff',
   },
   content: {
     flex: 1,
@@ -171,11 +179,11 @@ const localStyles = StyleSheet.create({
     alignItems: 'center',
     flex: 1,
   },
-  optionIcon: {
-    fontSize: 22,
+  optionIconImage: {
+    width: 24,
+    height: 24,
     marginRight: 16,
-    width: 28,
-    fontFamily: 'CabinetGrotesk-Regular',
+    tintColor: '#fff',
   },
   optionTitle: {
     fontSize: 16,

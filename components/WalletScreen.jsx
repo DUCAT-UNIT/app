@@ -45,13 +45,21 @@ export default function WalletScreen({
             style={styles.headerIconButton}
             onPress={onHistoryPress}
           >
-            <Text style={styles.headerIcon}>🕐</Text>
+            <Image
+              source={require('../assets/icons/transaction_history.png')}
+              style={styles.headerIconImage}
+              resizeMode="contain"
+            />
           </TouchableOpacity>
           <TouchableOpacity
             style={styles.headerIconButton}
             onPress={onSettingsPress}
           >
-            <Text style={styles.headerIcon}>⚙️</Text>
+            <Image
+              source={require('../assets/icons/settings.png')}
+              style={styles.headerIconImage}
+              resizeMode="contain"
+            />
           </TouchableOpacity>
         </View>
       </View>
@@ -191,7 +199,11 @@ export default function WalletScreen({
           onPress={onSendPress}
         >
           <View style={styles.xverseActionIcon}>
-            <Text style={styles.xverseActionIconText}>↑</Text>
+            <Image
+              source={require('../assets/icons/send.png')}
+              style={styles.xverseActionIconImage}
+              resizeMode="contain"
+            />
           </View>
           <Text style={styles.xverseActionLabel}>Send</Text>
         </TouchableOpacity>
@@ -201,7 +213,11 @@ export default function WalletScreen({
           onPress={onReceivePress}
         >
           <View style={styles.xverseActionIcon}>
-            <Text style={styles.xverseActionIconText}>↓</Text>
+            <Image
+              source={require('../assets/icons/receive.png')}
+              style={styles.xverseActionIconImage}
+              resizeMode="contain"
+            />
           </View>
           <Text style={styles.xverseActionLabel}>Receive</Text>
         </TouchableOpacity>
