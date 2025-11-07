@@ -29,9 +29,14 @@ export const COLORS = {
 
   // Success/info colors
   TEAL: '#59AA8A',
-  LIGHT_GREEN: '#6FCF97',
+  LIGHT_GREEN: '#59AA8A',
+  GREEN: '#59AA8A',
+
+  // Warning/accent colors
+  YELLOW: '#F5E4A2',
 
   // Error/danger colors
   DANGER_RED: '#D04C68',
-  BRIGHT_RED: '#FF3B30',
+  BRIGHT_RED: '#D04C68',
+  RED: '#D04C68',
 };

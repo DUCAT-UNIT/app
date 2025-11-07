@@ -6,6 +6,7 @@
 import React from 'react';
 import PropTypes from 'prop-types';
 import { Text, View, TouchableOpacity, StyleSheet, Platform, Dimensions, StatusBar, Image } from 'react-native';
+import { COLORS } from '../utils/colors';
 
 // Get device dimensions for responsive sizing
 const { width: SCREEN_WIDTH } = Dimensions.get('window');
@@ -208,6 +209,6 @@ const localStyles = StyleSheet.create({
     fontFamily: 'CabinetGrotesk-Regular',
   },
   dangerText: {
-    color: '#ff4444',
+    color: COLORS.DANGER_RED,
   },
 });

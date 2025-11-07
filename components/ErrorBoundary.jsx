@@ -150,14 +150,14 @@ const styles = StyleSheet.create({
     alignSelf: 'stretch',
   },
   errorTitle: {
-    color: '#ff6b6b',
+    color: COLORS.DANGER_RED,
     fontSize: 14,
     fontWeight: 'bold',
     marginBottom: 8,
     fontFamily: 'CabinetGrotesk-Bold',
   },
   errorText: {
-    color: '#ff6b6b',
+    color: COLORS.DANGER_RED,
     fontSize: 12,
     marginBottom: 8,
     fontFamily: 'CabinetGrotesk-Regular',

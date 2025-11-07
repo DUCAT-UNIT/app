@@ -1524,7 +1524,7 @@ const styles = StyleSheet.create({
     fontWeight: '600',
   },
   addressError: {
-    color: '#ff4444',
+    color: COLORS.DANGER_RED,
     fontSize: 12,
     fontFamily: 'CabinetGrotesk-Medium',
     textAlign: 'left',
@@ -2140,7 +2140,7 @@ const styles = StyleSheet.create({
     zIndex: 999999,
   },
   toastContainerError: {
-    backgroundColor: '#ff4444',
+    backgroundColor: COLORS.DANGER_RED,
   },
   toastText: {
     fontSize: 15,
@@ -2212,10 +2212,10 @@ const styles = StyleSheet.create({
     marginBottom: 4,
   },
   historyTxAmountSent: {
-    color: '#ff6b6b',
+    color: COLORS.DANGER_RED,
   },
   historyTxAmountReceived: {
-    color: '#51cf66',
+    color: COLORS.TEAL,
   },
   historyTxAmountRow: {
     flexDirection: 'row',
@@ -2224,7 +2224,7 @@ const styles = StyleSheet.create({
     marginBottom: 4,
   },
   historySelfTransferTag: {
-    backgroundColor: '#ffd43b',
+    backgroundColor: COLORS.YELLOW,
     paddingHorizontal: 12,
     paddingVertical: 6,
     borderRadius: 6,
@@ -2233,7 +2233,7 @@ const styles = StyleSheet.create({
     fontSize: 11,
     fontFamily: 'CabinetGrotesk-Medium',
     fontWeight: '600',
-    color: '#1A1A1A',
+    color: COLORS.VERY_DARK_GRAY,
   },
   historyTxDate: {
     fontSize: 13,
@@ -2245,13 +2245,13 @@ const styles = StyleSheet.create({
     alignItems: 'flex-end',
   },
   historyTxStatusConfirmed: {
-    backgroundColor: '#2d7a2d',
+    backgroundColor: COLORS.TEAL,
     paddingHorizontal: 12,
     paddingVertical: 6,
     borderRadius: 12,
   },
   historyTxStatusPending: {
-    backgroundColor: '#8a6a2d',
+    backgroundColor: COLORS.YELLOW,
     paddingHorizontal: 12,
     paddingVertical: 6,
     borderRadius: 12,
@@ -2259,13 +2259,13 @@ const styles = StyleSheet.create({
   historyTxStatusText: {
     fontSize: 12,
     fontFamily: 'CabinetGrotesk-Medium',
-    color: '#90EE90',
+    color: COLORS.VERY_DARK_GRAY,
     fontWeight: '600',
   },
   historyTxStatusTextPending: {
     fontSize: 12,
     fontFamily: 'CabinetGrotesk-Medium',
-    color: '#FFD700',
+    color: COLORS.VERY_DARK_GRAY,
     fontWeight: '600',
   },
 });
