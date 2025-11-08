@@ -945,8 +945,11 @@ const styles = StyleSheet.create({
   },
   xverseActionButton: {
     flex: 1,
+    height: 56,
+    backgroundColor: COLORS.VERY_LIGHT_GRAY,
+    borderRadius: 16,
+    justifyContent: 'center',
     alignItems: 'center',
-    gap: 10,
   },
   xverseActionIcon: {
     width: 64,
@@ -968,10 +971,10 @@ const styles = StyleSheet.create({
     tintColor: COLORS.BLACK,
   },
   xverseActionLabel: {
-    fontSize: 13,
+    fontSize: 16,
     fontFamily: 'CabinetGrotesk-Medium',
-    color: COLORS.VERY_LIGHT_GRAY,
-    fontWeight: '500',
+    color: COLORS.BLACK,
+    fontWeight: '600',
   },
   lockedContainer: {
     flex: 1,

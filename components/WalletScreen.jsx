@@ -193,9 +193,6 @@ export default function WalletScreen({
           style={styles.xverseActionButton}
           onPress={onSendPress}
         >
-          <View style={styles.xverseActionIcon}>
-            <Icon name="send" size={20} color={COLORS.BLACK} />
-          </View>
           <Text style={styles.xverseActionLabel}>Send</Text>
         </TouchableOpacity>
 
@@ -203,9 +200,6 @@ export default function WalletScreen({
           style={styles.xverseActionButton}
           onPress={onReceivePress}
         >
-          <View style={styles.xverseActionIcon}>
-            <Icon name="receive" size={20} color={COLORS.BLACK} />
-          </View>
           <Text style={styles.xverseActionLabel}>Receive</Text>
         </TouchableOpacity>
       </View>
