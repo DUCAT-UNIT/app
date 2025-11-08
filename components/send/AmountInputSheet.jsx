@@ -29,6 +29,7 @@ export default function AmountInputSheet({
   onBack,
   onAmountChange,
   onReview,
+  onMaxPress,
 }) {
   if (!visible) return null;
 
@@ -119,7 +120,7 @@ export default function AmountInputSheet({
             </Text>
             <Pressable
               style={styles.maxButton}
-              onPress={() => onAmountChange(String(balance || 0))}
+              onPress={onMaxPress || (() => onAmountChange(String(balance || 0)))}
             >
               <Text style={styles.maxButtonText}>MAX</Text>
             </Pressable>
@@ -188,4 +189,5 @@ AmountInputSheet.propTypes = {
   onBack: PropTypes.func.isRequired,
   onAmountChange: PropTypes.func.isRequired,
   onReview: PropTypes.func.isRequired,
+  onMaxPress: PropTypes.func,
 };

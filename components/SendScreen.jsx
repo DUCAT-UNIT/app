@@ -34,6 +34,7 @@ export default function SendScreen({
   btcBalance,
   unitBalance,
   btcPrice,
+  wallet,
 
   // Setters
   setIntentStep,
@@ -308,6 +309,81 @@ export default function SendScreen({
     }
   };
 
+  // Handle MAX button for BTC - calculate max sendable amount minus estimated fees
+  const handleMaxPress = async () => {
+    if (sendAssetType === 'btc') {
+      try {
+        // Fetch UTXOs to calculate realistic fee based on actual inputs needed
+        const sourceAddress = sendRecipient.startsWith('tb1p') || sendRecipient.startsWith('bc1p')
+          ? wallet?.taprootAddress
+          : wallet?.p2wpkhAddress;
+
+        if (!sourceAddress) {
+          // Fallback to simple estimation if we can't fetch UTXOs
+          const estimatedFee = 140;
+          const btcBalanceInSats = Math.floor(btcBalance * 100000000);
+          const maxSendable = Math.max(0, btcBalanceInSats - estimatedFee);
+          const maxBtc = maxSendable / 100000000;
+          setSendAmount(String(maxBtc));
+          return;
+        }
+
+        const utxoResponse = await fetch(`https://mutinynet.com/api/address/${sourceAddress}/utxo`);
+        const utxos = await utxoResponse.json();
+        const confirmedUtxos = utxos.filter(u => u.status.confirmed);
+
+        // Transaction size calculation constants
+        const BASE_TX_SIZE = 10;
+        const P2WPKH_INPUT_SIZE = 68;
+        const P2WPKH_OUTPUT_SIZE = 31;
+        const feeRate = 1; // sats per vbyte (testnet)
+
+        // Calculate fee for given number of inputs and outputs
+        const calculateFee = (numInputs, numOutputs) => {
+          const txSize = BASE_TX_SIZE + (numInputs * P2WPKH_INPUT_SIZE) + (numOutputs * P2WPKH_OUTPUT_SIZE);
+          return Math.ceil(txSize * feeRate);
+        };
+
+        // For MAX, use ALL confirmed UTXOs to send the absolute maximum
+        // Calculate total value of all UTXOs
+        const totalInputValue = confirmedUtxos.reduce((sum, utxo) => sum + utxo.value, 0);
+        const numInputsNeeded = confirmedUtxos.length;
+
+        console.log('[MAX] Total UTXOs:', numInputsNeeded, 'Total value:', totalInputValue, 'sats');
+
+        // For MAX, we want to send everything, so we only need 1 output (recipient)
+        // No change output since we're sending the maximum
+        const DUST_LIMIT = 546;
+        const feeWithOneOutput = calculateFee(numInputsNeeded, 1);
+        const actualMaxSendable = totalInputValue - feeWithOneOutput;
+
+        console.log('[MAX] Fee for', numInputsNeeded, 'inputs + 1 output:', feeWithOneOutput, 'sats');
+        console.log('[MAX] Max sendable amount:', actualMaxSendable, 'sats');
+
+        // Ensure we're above dust limit
+        if (actualMaxSendable < DUST_LIMIT) {
+          console.error('Max sendable amount is below dust limit');
+          setSendAmount('0');
+          return;
+        }
+
+        const maxBtc = actualMaxSendable / 100000000;
+        setSendAmount(String(maxBtc));
+      } catch (error) {
+        console.error('Error calculating max amount:', error);
+        // Fallback to simple estimation
+        const estimatedFee = 140;
+        const btcBalanceInSats = Math.floor(btcBalance * 100000000);
+        const maxSendable = Math.max(0, btcBalanceInSats - estimatedFee);
+        const maxBtc = maxSendable / 100000000;
+        setSendAmount(String(maxBtc));
+      }
+    } else {
+      // For UNIT, just use the full balance
+      setSendAmount(String(unitBalance || 0));
+    }
+  };
+
   return (
     <>
       {/* Asset Selector Bottom Sheet */}
@@ -366,6 +442,7 @@ export default function SendScreen({
         }}
         onAmountChange={setSendAmount}
         onReview={createSendIntent}
+        onMaxPress={handleMaxPress}
       />
 
       {/* Review Transaction Bottom Sheet */}
@@ -390,9 +467,9 @@ export default function SendScreen({
         }}
       />
 
-      {/* Transaction Success Bottom Sheet */}
+      {/* Transaction Success Bottom Sheet - Disabled, using toast instead */}
       <ConfirmationSheet
-        visible={intentStep === 'confirmed' && !!broadcastedTxid}
+        visible={false}
         opacity={confirmedOpacity}
         translateY={confirmedTranslateY}
         panHandlers={confirmedPanResponderRef.current?.panHandlers}
