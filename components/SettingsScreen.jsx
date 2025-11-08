@@ -60,6 +60,11 @@ export default function SettingsScreen({
             onPress={onChangePin}
           />
           <SettingsOption
+            iconName="switch_account"
+            title="Switch Account"
+            onPress={onSwitchAccount}
+          />
+          <SettingsOption
             iconName="face_id"
             title="Face ID"
             onPress={onFaceIdToggle}
@@ -72,20 +77,15 @@ export default function SettingsScreen({
             rightText={notificationsEnabled ? 'ON' : 'OFF'}
           />
           <SettingsOption
-            iconName="switch_account"
-            title="Switch Account"
-            onPress={onSwitchAccount}
+            iconName={privacyMode ? "privacy_on" : "privacy_off"}
+            title="Privacy Mode"
+            onPress={onPrivacyModeToggle}
+            rightText={privacyMode ? 'ON' : 'OFF'}
           />
           <SettingsOption
             iconName="logout"
             title="Lock Wallet"
             onPress={onLockWallet}
-          />
-          <SettingsOption
-            iconName={privacyMode ? "privacy_on" : "privacy_off"}
-            title="Privacy Mode"
-            onPress={onPrivacyModeToggle}
-            rightText={privacyMode ? 'ON' : 'OFF'}
           />
         </View>
 
