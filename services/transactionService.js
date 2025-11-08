@@ -76,31 +76,62 @@ export const createBtcIntent = async (recipient, amount, segwitAddress, currentA
     let estimatedFee = 0;
     let previousFee = 0;
 
+    // Calculate total available balance
+    const totalAvailable = availableUtxos.reduce((sum, utxo) => sum + utxo.value, 0);
+    console.log('[createBtcIntent] Total available balance:', totalAvailable, 'sats');
+    console.log('[createBtcIntent] Requested amount:', amountInSats, 'sats');
+
     // Iteratively select UTXOs and recalculate fee
     do {
       previousFee = estimatedFee;
       const numOutputs = 2; // recipient + change (we'll adjust if no change needed)
-      estimatedFee = calculateFee(selectedUtxos.length + 1, numOutputs);
-      const requiredAmount = amountInSats + estimatedFee;
 
       // If we don't have enough, add more UTXOs
-      while (totalInput < requiredAmount && selectedUtxos.length < availableUtxos.length) {
+      while (selectedUtxos.length < availableUtxos.length) {
+        // Find next available UTXO
         const nextUtxo = availableUtxos.find(
           utxo => utxo.status.confirmed && !selectedUtxos.includes(utxo)
         );
         if (!nextUtxo) break;
 
+        // Add UTXO to selection
         selectedUtxos.push(nextUtxo);
         totalInput += nextUtxo.value;
 
-        // Recalculate fee with new input count
+        // Calculate fee with current number of selected UTXOs
         estimatedFee = calculateFee(selectedUtxos.length, numOutputs);
+        const requiredAmount = amountInSats + estimatedFee;
+
+        // Check if we now have enough
+        if (totalInput >= requiredAmount) {
+          break;
+        }
       }
+
+      // Final fee calculation with actual selected UTXOs
+      estimatedFee = calculateFee(selectedUtxos.length, numOutputs);
     } while (estimatedFee !== previousFee && selectedUtxos.length < availableUtxos.length);
+
+    console.log('[createBtcIntent] Selected', selectedUtxos.length, 'UTXOs with total value:', totalInput, 'sats');
+    console.log('[createBtcIntent] Estimated fee:', estimatedFee, 'sats');
+
+    // Calculate preliminary change to determine if we need 1 or 2 outputs
+    const DUST_LIMIT = 546; // Bitcoin dust limit in satoshis
+    let preliminaryChange = totalInput - amountInSats - estimatedFee;
+    console.log('[createBtcIntent] Preliminary change with 2 outputs:', preliminaryChange, 'sats');
+
+    // If change would be below dust (including negative), recalculate fee for 1 output (no change)
+    if (preliminaryChange < DUST_LIMIT) {
+      console.log('[createBtcIntent] Change below dust limit (' + preliminaryChange + ' sats), recalculating fee for 1 output');
+      estimatedFee = calculateFee(selectedUtxos.length, 1);
+      preliminaryChange = totalInput - amountInSats - estimatedFee;
+      console.log('[createBtcIntent] New fee with 1 output:', estimatedFee, 'sats, new change:', preliminaryChange, 'sats');
+    }
 
     // Final check for sufficient funds
     const requiredAmount = amountInSats + estimatedFee;
     if (totalInput < requiredAmount) {
+      console.error('[createBtcIntent] Insufficient funds. Need:', requiredAmount, 'Have:', totalInput, 'Available:', totalAvailable);
       throw new Error(ERRORS.INSUFFICIENT_FUNDS);
     }
 
@@ -116,21 +147,14 @@ export const createBtcIntent = async (recipient, amount, segwitAddress, currentA
       })
     );
 
-    // Calculate change and adjust fee if no change output is needed
-    const DUST_LIMIT = 546; // Bitcoin dust limit in satoshis
+    // Calculate final change (already adjusted for dust limit above)
     let change = totalInput - amountInSats - estimatedFee;
     let finalFee = estimatedFee;
 
-    // If change is below dust limit, recalculate fee for 1 output instead of 2
-    if (change < DUST_LIMIT) {
-      finalFee = calculateFee(selectedUtxos.length, 1); // Only recipient output
-      change = totalInput - amountInSats - finalFee;
-
-      // If still below dust after recalculation, change goes to miner as fee
-      if (change < DUST_LIMIT) {
-        finalFee = totalInput - amountInSats; // All remaining goes to fee
-        change = 0;
-      }
+    // If change is still below dust after fee adjustment, it goes entirely to miners
+    if (change > 0 && change < DUST_LIMIT) {
+      finalFee = totalInput - amountInSats; // All remaining goes to fee
+      change = 0;
     }
 
     // Get mnemonic to derive keys (temporarily)

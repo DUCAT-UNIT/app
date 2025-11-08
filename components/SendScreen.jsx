@@ -313,21 +313,27 @@ export default function SendScreen({
   const handleMaxPress = async () => {
     if (sendAssetType === 'btc') {
       try {
-        // Fetch UTXOs to calculate realistic fee based on actual inputs needed
-        const sourceAddress = sendRecipient.startsWith('tb1p') || sendRecipient.startsWith('bc1p')
-          ? wallet?.taprootAddress
-          : wallet?.p2wpkhAddress;
+        // Determine source address based on recipient address type
+        let sourceAddress = null;
+        if (sendRecipient && (sendRecipient.startsWith('tb1p') || sendRecipient.startsWith('bc1p'))) {
+          sourceAddress = wallet?.taprootAddress;
+        } else {
+          sourceAddress = wallet?.segwitAddress;
+        }
 
         if (!sourceAddress) {
-          // Fallback to simple estimation if we can't fetch UTXOs
-          const estimatedFee = 140;
-          const btcBalanceInSats = Math.floor(btcBalance * 100000000);
+          console.error('[MAX] No source address available. Wallet:', !!wallet, 'Recipient:', sendRecipient);
+          // Fallback: use balance-based estimation
+          const estimatedFee = 250; // Conservative estimate
+          const btcBalanceInSats = Math.round(btcBalance * 100000000);
           const maxSendable = Math.max(0, btcBalanceInSats - estimatedFee);
           const maxBtc = maxSendable / 100000000;
+          console.log('[MAX] Using balance-based fallback. Balance:', btcBalanceInSats, 'Max:', maxSendable);
           setSendAmount(String(maxBtc));
           return;
         }
 
+        // Fetch UTXOs to calculate realistic fee based on actual inputs needed
         const utxoResponse = await fetch(`https://mutinynet.com/api/address/${sourceAddress}/utxo`);
         const utxos = await utxoResponse.json();
         const confirmedUtxos = utxos.filter(u => u.status.confirmed);
@@ -354,11 +360,19 @@ export default function SendScreen({
         // For MAX, we want to send everything, so we only need 1 output (recipient)
         // No change output since we're sending the maximum
         const DUST_LIMIT = 546;
-        const feeWithOneOutput = calculateFee(numInputsNeeded, 1);
-        const actualMaxSendable = totalInputValue - feeWithOneOutput;
 
-        console.log('[MAX] Fee for', numInputsNeeded, 'inputs + 1 output:', feeWithOneOutput, 'sats');
+        // When sending MAX, there's only 1 output (recipient), no change
+        // Calculate fee for all inputs and 1 output
+        const estimatedFee = calculateFee(numInputsNeeded, 1);
+        const actualMaxSendable = totalInputValue - estimatedFee;
+
+        console.log('[MAX] ========== MAX BUTTON PRESSED ==========');
+        console.log('[MAX] Total UTXOs value:', totalInputValue, 'sats');
+        console.log('[MAX] Number of UTXOs:', numInputsNeeded);
+        console.log('[MAX] Fee for', numInputsNeeded, 'inputs, 1 output:', estimatedFee, 'sats');
         console.log('[MAX] Max sendable amount:', actualMaxSendable, 'sats');
+        console.log('[MAX] Max sendable in BTC:', (actualMaxSendable / 100000000).toFixed(8));
+        console.log('[MAX] =========================================');
 
         // Ensure we're above dust limit
         if (actualMaxSendable < DUST_LIMIT) {
@@ -370,12 +384,13 @@ export default function SendScreen({
         const maxBtc = actualMaxSendable / 100000000;
         setSendAmount(String(maxBtc));
       } catch (error) {
-        console.error('Error calculating max amount:', error);
-        // Fallback to simple estimation
-        const estimatedFee = 140;
-        const btcBalanceInSats = Math.floor(btcBalance * 100000000);
+        console.error('[MAX] Error calculating max amount:', error);
+        // Fallback on error: use balance-based estimation
+        const estimatedFee = 250; // Conservative estimate
+        const btcBalanceInSats = Math.round(btcBalance * 100000000);
         const maxSendable = Math.max(0, btcBalanceInSats - estimatedFee);
         const maxBtc = maxSendable / 100000000;
+        console.log('[MAX] Using error fallback. Balance:', btcBalanceInSats, 'Max:', maxSendable);
         setSendAmount(String(maxBtc));
       }
     } else {
