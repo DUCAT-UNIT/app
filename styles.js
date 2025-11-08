@@ -1931,6 +1931,10 @@ const styles = StyleSheet.create({
     width: '85%',
     maxWidth: 400,
   },
+  confirmationModalIconContainer: {
+    alignItems: 'center',
+    marginBottom: 16,
+  },
   confirmationModalTitle: {
     fontSize: 22,
     fontFamily: 'CabinetGrotesk-Bold',

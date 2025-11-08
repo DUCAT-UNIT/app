@@ -5,7 +5,7 @@
 
 import React from 'react';
 import PropTypes from 'prop-types';
-import { Text, View, TouchableOpacity, StyleSheet, Platform, Dimensions, StatusBar } from 'react-native';
+import { Text, View, TouchableOpacity, StyleSheet, Platform, Dimensions, StatusBar, ScrollView } from 'react-native';
 import { COLORS } from '../utils/colors';
 import Icon from './Icon';
 
@@ -27,24 +27,28 @@ export default function SettingsScreen({
   onLockWallet,
   onDeleteWallet,
   onPrivacyModeToggle,
+  onFaceIdToggle,
+  onNotificationsToggle,
 
   // State
   privacyMode,
+  faceIdEnabled,
+  notificationsEnabled,
 }) {
   return (
     <View style={localStyles.container}>
-      {/* Header */}
+      {/* Header with back button and title on same line */}
       <View style={localStyles.header}>
         <TouchableOpacity onPress={onClose} style={localStyles.backButton}>
           <Icon name="back" size={24} color={COLORS.VERY_LIGHT_GRAY} />
         </TouchableOpacity>
+        <Text style={localStyles.title}>Settings</Text>
       </View>
 
-      <View style={localStyles.content}>
-        <Text style={localStyles.title}>Settings</Text>
-
-        {/* Security Section */}
-        <View style={localStyles.section}>
+      <ScrollView style={localStyles.scrollView} showsVerticalScrollIndicator={false}>
+        <View style={localStyles.content}>
+          {/* Security Section */}
+          <View style={localStyles.section}>
           <SettingsOption
             iconName="recovery_phrase"
             title="View Recovery Phrase"
@@ -54,6 +58,18 @@ export default function SettingsScreen({
             iconName="pin"
             title="Change PIN"
             onPress={onChangePin}
+          />
+          <SettingsOption
+            iconName="face_id"
+            title="Face ID"
+            onPress={onFaceIdToggle}
+            rightText={faceIdEnabled ? 'ON' : 'OFF'}
+          />
+          <SettingsOption
+            iconName="notification"
+            title="Notifications"
+            onPress={onNotificationsToggle}
+            rightText={notificationsEnabled ? 'ON' : 'OFF'}
           />
           <SettingsOption
             iconName="switch_account"
@@ -73,16 +89,17 @@ export default function SettingsScreen({
           />
         </View>
 
-        {/* Danger Zone */}
-        <View style={localStyles.section}>
-          <SettingsOption
-            iconName="delete_wallet"
-            title="Delete Wallet"
-            onPress={onDeleteWallet}
-            isDanger
-          />
+          {/* Danger Zone */}
+          <View style={localStyles.section}>
+            <SettingsOption
+              iconName="delete_wallet"
+              title="Delete Wallet"
+              onPress={onDeleteWallet}
+              isDanger
+            />
+          </View>
         </View>
-      </View>
+      </ScrollView>
     </View>
   );
 }
@@ -92,7 +109,7 @@ function SettingsOption({ iconName, title, onPress, rightText, isDanger }) {
   return (
     <TouchableOpacity style={localStyles.option} onPress={onPress}>
       <View style={localStyles.optionLeft}>
-        <Icon name={iconName} size={24} color={isDanger ? COLORS.DANGER_RED : COLORS.VERY_LIGHT_GRAY} />
+        <Icon name={iconName} size={24} color={isDanger ? COLORS.DANGER_RED : '#DDDDDD'} />
         <Text style={[localStyles.optionTitle, isDanger && localStyles.dangerText]}>
           {title}
         </Text>
@@ -121,7 +138,11 @@ SettingsScreen.propTypes = {
   onLockWallet: PropTypes.func.isRequired,
   onDeleteWallet: PropTypes.func.isRequired,
   onPrivacyModeToggle: PropTypes.func.isRequired,
+  onFaceIdToggle: PropTypes.func.isRequired,
+  onNotificationsToggle: PropTypes.func.isRequired,
   privacyMode: PropTypes.bool.isRequired,
+  faceIdEnabled: PropTypes.bool.isRequired,
+  notificationsEnabled: PropTypes.bool.isRequired,
 };
 
 const localStyles = StyleSheet.create({
@@ -130,31 +151,36 @@ const localStyles = StyleSheet.create({
     backgroundColor: COLORS.DARK_BG,
   },
   header: {
+    flexDirection: 'row',
+    alignItems: 'center',
     paddingTop: 0,
     paddingHorizontal: HORIZONTAL_PADDING,
-    paddingBottom: 10,
+    paddingBottom: 20,
   },
   backButton: {
     width: 40,
     height: 40,
     justifyContent: 'center',
+    marginRight: 8,
   },
   backIcon: {
     width: 24,
     height: 24,
     tintColor: COLORS.VERY_LIGHT_GRAY,
   },
-  content: {
+  scrollView: {
     flex: 1,
+  },
+  content: {
     paddingHorizontal: HORIZONTAL_PADDING,
+    paddingBottom: 40,
   },
   title: {
     fontSize: 32,
     fontWeight: 'bold',
     color: COLORS.VERY_LIGHT_GRAY,
-    marginBottom: 30,
-    marginTop: 10,
     fontFamily: 'CabinetGrotesk-Bold',
+    flex: 1,
   },
   section: {
     marginBottom: 30,

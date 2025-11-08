@@ -6,6 +6,7 @@
 import React from 'react';
 import PropTypes from 'prop-types';
 import { View, Text, TouchableOpacity } from 'react-native';
+import Icon from './Icon';
 
 export default function ConfirmationModal({
   // State
@@ -15,6 +16,7 @@ export default function ConfirmationModal({
   confirmText,
   cancelText,
   confirmStyle, // 'destructive' or 'primary'
+  iconName, // Optional icon to display at the top
 
   // Callbacks
   onConfirm,
@@ -28,6 +30,11 @@ export default function ConfirmationModal({
   return (
     <View style={styles.modalOverlay}>
       <View style={styles.confirmationModal}>
+        {iconName && (
+          <View style={styles.confirmationModalIconContainer}>
+            <Icon name={iconName} size={48} color="#DDDDDD" />
+          </View>
+        )}
         <Text style={styles.confirmationModalTitle}>{title}</Text>
         <Text style={styles.confirmationModalText}>{message}</Text>
         <View style={styles.confirmationModalButtons}>
@@ -61,6 +68,7 @@ ConfirmationModal.propTypes = {
   confirmText: PropTypes.string,
   cancelText: PropTypes.string,
   confirmStyle: PropTypes.oneOf(['destructive', 'primary']),
+  iconName: PropTypes.string,
   onConfirm: PropTypes.func.isRequired,
   onCancel: PropTypes.func.isRequired,
   styles: PropTypes.object.isRequired,

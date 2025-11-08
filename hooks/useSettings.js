@@ -16,6 +16,7 @@ import { ERRORS, SUCCESS, WARNINGS, DIALOGS } from '../utils/messages';
 
 export function useSettings({
   biometricEnabled,
+  setBiometricEnabled,
   resetAuth,
   resetWallet,
   startPinChange,
@@ -31,22 +32,30 @@ export function useSettings({
   showToast,
 }) {
   const [privacyMode, setPrivacyMode] = useState(true);
+  const [notificationsEnabled, setNotificationsEnabled] = useState(false);
   const [showLogoutModal, setShowLogoutModal] = useState(false);
   const [showDeleteModal, setShowDeleteModal] = useState(false);
+  const [showFaceIdModal, setShowFaceIdModal] = useState(false);
+  const [showNotificationsModal, setShowNotificationsModal] = useState(false);
 
-  // Load privacy mode setting on mount
+  // Load privacy mode and notifications settings on mount
   useEffect(() => {
-    const loadPrivacyMode = async () => {
+    const loadSettings = async () => {
       try {
         const savedPrivacyMode = await SecureStore.getItemAsync('privacyMode');
         if (savedPrivacyMode !== null) {
           setPrivacyMode(savedPrivacyMode === 'true');
         }
+
+        const savedNotificationsEnabled = await SecureStore.getItemAsync('notificationsEnabled');
+        if (savedNotificationsEnabled !== null) {
+          setNotificationsEnabled(savedNotificationsEnabled === 'true');
+        }
       } catch (error) {
-        console.error('Failed to load privacy mode:', error);
+        console.error('Failed to load settings:', error);
       }
     };
-    loadPrivacyMode();
+    loadSettings();
   }, []);
 
   const handleLogout = () => {
@@ -150,20 +159,85 @@ export function useSettings({
     }
   };
 
+  const handleFaceIdToggle = async () => {
+    if (biometricEnabled) {
+      // Disable Face ID
+      const newValue = false;
+      setBiometricEnabled(newValue);
+      try {
+        await SecureStore.setItemAsync('biometricEnabled', String(newValue));
+        if (showToast) {
+          showToast('Face ID disabled', 'success');
+        }
+      } catch (error) {
+        console.error('Failed to save Face ID setting:', error);
+      }
+    } else {
+      // Show modal to enable Face ID (directs to system settings)
+      setShowFaceIdModal(true);
+    }
+  };
+
+  const confirmEnableFaceId = () => {
+    setShowFaceIdModal(false);
+    // This will be handled in the modal - open system settings
+  };
+
+  const cancelFaceIdModal = () => {
+    setShowFaceIdModal(false);
+  };
+
+  const handleNotificationsToggle = async () => {
+    if (notificationsEnabled) {
+      // Disable notifications
+      const newValue = false;
+      setNotificationsEnabled(newValue);
+      try {
+        await SecureStore.setItemAsync('notificationsEnabled', String(newValue));
+        if (showToast) {
+          showToast('Notifications disabled', 'success');
+        }
+      } catch (error) {
+        console.error('Failed to save notifications setting:', error);
+      }
+    } else {
+      // Show modal to enable notifications (directs to system settings)
+      setShowNotificationsModal(true);
+    }
+  };
+
+  const confirmEnableNotifications = () => {
+    setShowNotificationsModal(false);
+    // This will be handled in the modal - open system settings
+  };
+
+  const cancelNotificationsModal = () => {
+    setShowNotificationsModal(false);
+  };
+
   return {
     privacyMode,
+    notificationsEnabled,
     handleLogout,
     handleDeleteWallet,
     handleViewSeedPhrase,
     handleChangePin,
     handlePrivacyModeToggle,
+    handleFaceIdToggle,
+    handleNotificationsToggle,
     // Modal state
     showLogoutModal,
     showDeleteModal,
+    showFaceIdModal,
+    showNotificationsModal,
     // Modal handlers
     confirmLogout,
     cancelLogout,
     confirmDeleteWallet,
     cancelDeleteWallet,
+    confirmEnableFaceId,
+    cancelFaceIdModal,
+    confirmEnableNotifications,
+    cancelNotificationsModal,
   };
 }
