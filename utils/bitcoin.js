@@ -27,7 +27,7 @@ export const MUTINYNET_NETWORK = {
  * Derive SegWit and Taproot addresses from a BIP39 mnemonic
  * @param {string} mnemonic - BIP39 mnemonic phrase
  * @param {number} accountIndex - Account index for derivation (default: 0)
- * @returns {Object} Object containing segwitAddress and taprootAddress
+ * @returns {Object} Object containing segwitAddress, taprootAddress, segwitPubkey, taprootPubkey
  */
 export const deriveAddressesFromMnemonic = (mnemonic, accountIndex = 0) => {
   // Convert mnemonic to seed
@@ -56,5 +56,7 @@ export const deriveAddressesFromMnemonic = (mnemonic, accountIndex = 0) => {
   return {
     segwitAddress: segwitPayment.address,
     taprootAddress: taprootPayment.address,
+    segwitPubkey: segwitChild.publicKey.toString('hex'),
+    taprootPubkey: taprootChild.publicKey.toString('hex'),
   };
 };
