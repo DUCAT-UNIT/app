@@ -30,7 +30,15 @@ export default function TransactionHistoryScreen({
   const translateY = useRef(new Animated.Value(0)).current;
 
   const handleDismiss = () => {
-    onClose();
+    Animated.timing(translateY, {
+      toValue: SCREEN_HEIGHT,
+      duration: 250,
+      useNativeDriver: true,
+    }).start(() => {
+      translateY.setValue(0);
+      historySheetOpacity.setValue(0);
+      onClose();
+    });
   };
 
   // Pan responder for swipe down gesture on handle area
@@ -48,14 +56,7 @@ export default function TransactionHistoryScreen({
       },
       onPanResponderRelease: (_, gestureState) => {
         if (gestureState.dy > 100 || gestureState.vy > 0.5) {
-          Animated.timing(translateY, {
-            toValue: SCREEN_HEIGHT,
-            duration: 250,
-            useNativeDriver: true,
-          }).start(() => {
-            translateY.setValue(0);
-            handleDismiss();
-          });
+          handleDismiss();
         } else {
           Animated.spring(translateY, {
             toValue: 0,
