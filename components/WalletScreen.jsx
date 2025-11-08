@@ -66,12 +66,26 @@ export default function WalletScreen({
               <View style={styles.balanceWithIcon}>
                 <Icon name="btc_symbol" size={12} color={COLORS.VERY_LIGHT_GRAY} style={styles.balanceIcon} />
                 <Text style={styles.xverseBalanceAmount}>
-                  {((segwitBalance || 0) + (taprootBalance || 0)).toFixed(8)}
+                  {(() => {
+                    // Convert all assets to BTC equivalent
+                    const btcValue = segwitBalance || 0;
+                    const unitValue = runesBalance.length > 0 ? parseFloat(runesBalance[0][1]) / (btcPrice || 1) : 0;
+                    const ducatValue = 0; // DUCAT value in BTC
+                    const totalBtc = btcValue + unitValue + ducatValue;
+                    return totalBtc.toFixed(8);
+                  })()}
                 </Text>
               </View>
             ) : (
               <Text style={styles.xverseBalanceAmount}>
-                ${(((segwitBalance || 0) + (taprootBalance || 0)) * (btcPrice || 0)).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                ${(() => {
+                  // Calculate total USD value of all assets
+                  const btcUsdValue = (segwitBalance || 0) * (btcPrice || 0);
+                  const unitUsdValue = runesBalance.length > 0 ? parseFloat(runesBalance[0][1]) : 0;
+                  const ducatUsdValue = 0; // DUCAT value in USD
+                  const totalUsd = btcUsdValue + unitUsdValue + ducatUsdValue;
+                  return totalUsd.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+                })()}
               </Text>
             )}
           </TouchableOpacity>
@@ -95,7 +109,7 @@ export default function WalletScreen({
                 <View style={styles.balanceWithIcon}>
                   <Icon name="btc_symbol" size={10} color={COLORS.SECONDARY_TEXT} style={styles.assetAmountIcon} />
                   <Text style={styles.assetAmount}>
-                    {((segwitBalance || 0) + (taprootBalance || 0)).toFixed(8)}
+                    {(segwitBalance || 0).toFixed(8)}
                   </Text>
                 </View>
               </View>
@@ -104,12 +118,12 @@ export default function WalletScreen({
               <View style={styles.assetValueWithIcon}>
                 <Icon name="btc_symbol" size={10} color={COLORS.SECONDARY_TEXT} style={styles.assetIcon} />
                 <Text style={styles.assetValue}>
-                  {((segwitBalance || 0) + (taprootBalance || 0)).toFixed(8)}
+                  {(segwitBalance || 0).toFixed(8)}
                 </Text>
               </View>
             ) : (
               <Text style={styles.assetValue}>
-                $ {(((segwitBalance || 0) + (taprootBalance || 0)) * (btcPrice || 0)).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                $ {((segwitBalance || 0) * (btcPrice || 0)).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
               </Text>
             )}
           </View>
