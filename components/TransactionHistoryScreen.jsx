@@ -208,34 +208,44 @@ export default function TransactionHistoryScreen({
     }
 
     // Otherwise calculate BTC amount
-    let netChange = 0;
+    // Calculate total inputs from our addresses
+    let ourInputs = 0;
+    let ourOutputs = 0;
+    let hasNonOurOutput = false;
 
-    // Check inputs - if any are from our addresses, we're sending
+    // Check if any inputs are from our addresses
     const isOurInput = tx.vin?.some(input => {
-      return input.prevout?.scriptpubkey_address === segwitAddress ||
-             input.prevout?.scriptpubkey_address === taprootAddress;
+      const isOurs = input.prevout?.scriptpubkey_address === segwitAddress ||
+                     input.prevout?.scriptpubkey_address === taprootAddress;
+      if (isOurs) {
+        ourInputs += input.prevout?.value || 0;
+      }
+      return isOurs;
     });
 
-    // Check outputs
+    // Sum up outputs to our addresses and check for external outputs
     tx.vout?.forEach(output => {
       const isOurOutput = output.scriptpubkey_address === segwitAddress ||
                          output.scriptpubkey_address === taprootAddress;
-
       if (isOurOutput) {
-        netChange += output.value;
+        ourOutputs += output.value;
+      } else if (output.scriptpubkey_type !== 'op_return') {
+        // Not our output and not OP_RETURN (ignore OP_RETURN for runes/metadata)
+        hasNonOurOutput = true;
       }
     });
 
-    // If we're sending (our input), subtract all non-change outputs
-    if (isOurInput) {
-      tx.vout?.forEach(output => {
-        const isOurOutput = output.scriptpubkey_address === segwitAddress ||
-                           output.scriptpubkey_address === taprootAddress;
-        if (!isOurOutput) {
-          netChange -= output.value;
-        }
-      });
+    // Detect self-transfer: all inputs are ours AND all non-OP_RETURN outputs are ours
+    if (isOurInput && !hasNonOurOutput) {
+      // This is a self-transfer (consolidation or moving to own address)
+      // Return 0 to indicate self-transfer
+      return { amount: 0, type: 'BTC', isSelfTransfer: true };
     }
+
+    // Calculate net change
+    // If we're sending (have inputs), net = outputs - inputs (will be negative)
+    // If we're receiving (no inputs), net = outputs (will be positive)
+    const netChange = isOurInput ? ourOutputs - ourInputs : ourOutputs;
 
     return { amount: netChange, type: 'BTC' };
   };
@@ -300,12 +310,13 @@ export default function TransactionHistoryScreen({
               const txData = calculateTxAmount(tx);
               const amount = typeof txData === 'object' ? txData.amount : txData;
               const assetType = typeof txData === 'object' ? txData.type : 'BTC';
+              const isSelfTransferFlag = typeof txData === 'object' ? txData.isSelfTransfer : false;
 
               // Handle BigInt for UNIT amounts
               const numericAmount = typeof amount === 'bigint' ? Number(amount) : amount;
               const isSent = numericAmount < 0;
               const isReceived = numericAmount > 0;
-              const isSelfTransfer = numericAmount === 0 && assetType === 'UNIT';
+              const isSelfTransfer = isSelfTransferFlag || (numericAmount === 0 && assetType === 'UNIT');
 
               return (
                 <TouchableOpacity
@@ -318,7 +329,7 @@ export default function TransactionHistoryScreen({
                   <View style={{ marginRight: 20 }}>
                     <Icon
                       name={assetType === 'UNIT' ? 'unit_logo' : 'btc_logo'}
-                      size={30}
+                      size={35}
                     />
                   </View>
 

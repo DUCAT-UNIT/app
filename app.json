@@ -14,7 +14,13 @@
     },
     "ios": {
       "supportsTablet": true,
-      "bundleIdentifier": "com.anonymous.SimpleWallet"
+      "bundleIdentifier": "com.anonymous.SimpleWallet",
+      "infoPlist": {
+        "UIBackgroundModes": [
+          "remote-notification",
+          "fetch"
+        ]
+      }
     },
     "android": {
       "adaptiveIcon": {
@@ -28,7 +34,14 @@
       "favicon": "./assets/logos/favicon.png"
     },
     "plugins": [
-      "expo-secure-store"
+      "expo-secure-store",
+      [
+        "expo-notifications",
+        {
+          "icon": "./assets/logos/icon.png",
+          "color": "#ffffff"
+        }
+      ]
     ]
   }
 }
