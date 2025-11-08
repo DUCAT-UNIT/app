@@ -667,6 +667,10 @@ export default function App() {
       // Derive addresses and public keys for current account
       const addresses = deriveAddressesFromMnemonic(mnemonic, currentAccount);
 
+      console.log('[handleOpenVault] Using account:', currentAccount);
+      console.log('[handleOpenVault] SegWit address:', addresses.segwitAddress);
+      console.log('[handleOpenVault] Taproot address:', addresses.taprootAddress);
+
       // Set credentials for vault WebView
       setVaultCredentials({
         satsAddress: addresses.segwitAddress,

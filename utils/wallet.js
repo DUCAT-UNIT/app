@@ -105,8 +105,17 @@ export async function signPsbt(psbtBase64, signInputs) {
     throw new Error('No mnemonic found in secure storage');
   }
 
-  // Get current account index (for now, hardcode to 0)
-  const accountIndex = 0;
+  // Try to get current account index from storage, default to 0
+  let accountIndex = 0;
+  try {
+    const storedAccount = await SecureStore.getItemAsync(SECURE_KEYS.CURRENT_ACCOUNT);
+    if (storedAccount) {
+      accountIndex = parseInt(storedAccount, 10);
+      console.log(`[signPsbt] Using stored account index: ${accountIndex}`);
+    }
+  } catch (error) {
+    console.log('[signPsbt] Could not get account index, using 0:', error);
+  }
 
   // Convert mnemonic to seed
   const seed = bip39.mnemonicToSeedSync(mnemonic);

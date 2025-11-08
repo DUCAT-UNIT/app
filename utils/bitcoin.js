@@ -57,6 +57,6 @@ export const deriveAddressesFromMnemonic = (mnemonic, accountIndex = 0) => {
     segwitAddress: segwitPayment.address,
     taprootAddress: taprootPayment.address,
     segwitPubkey: Buffer.from(segwitChild.publicKey).toString('hex'),
-    taprootPubkey: Buffer.from(taprootChild.publicKey).toString('hex'),
+    taprootPubkey: Buffer.from(xOnlyPubkey).toString('hex'), // Use x-only pubkey (32 bytes) for Taproot
   };
 };
