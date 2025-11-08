@@ -334,7 +334,7 @@ const styles = StyleSheet.create({
     backgroundColor: COLORS.CARD_BG,
     borderRadius: 12,
     padding: 18,
-    marginBottom: 16,
+    marginBottom: 8,
     height: 78,
   },
   assetCardPlaceholder: {
@@ -914,7 +914,7 @@ const styles = StyleSheet.create({
     height: 1,
     backgroundColor: COLORS.CARD_BG,
     marginHorizontal: 0,
-    marginBottom: 20,
+    marginBottom: 10,
   },
   portfolioButton: {
     flexDirection: 'row',
@@ -939,7 +939,7 @@ const styles = StyleSheet.create({
   xverseActionsRow: {
     flexDirection: 'row',
     justifyContent: 'space-between',
-    marginTop: 24,
+    marginTop: 12,
     gap: 16,
     paddingHorizontal: HORIZONTAL_PADDING,
   },
