@@ -34,6 +34,7 @@ import { fetchWalletBalances, fetchUtxos as fetchUtxosService, fetchBtcPrice as 
 import * as AuthService from './services/authService';
 import * as WalletService from './services/walletService';
 import * as TransactionService from './services/transactionService';
+import * as BackgroundTaskService from './services/backgroundTaskService';
 
 // Import components
 import Icon from './components/Icon';
@@ -50,6 +51,8 @@ import AccountSwitcherModal from './components/AccountSwitcherModal';
 import BiometricPromptModal from './components/BiometricPromptModal';
 import ConfirmationModal from './components/ConfirmationModal';
 import Toast from './components/Toast';
+import TransactionToast from './components/TransactionToast';
+import MutinynetBanner from './components/MutinynetBanner';
 
 // Import contexts
 import { useWallet } from './contexts/WalletContext';
@@ -57,6 +60,8 @@ import { useWallet } from './contexts/WalletContext';
 // Import hooks
 import { useToast } from './hooks/useToast';
 import { useAppLifecycle } from './hooks/useAppLifecycle';
+import { useTransactionPolling } from './hooks/useTransactionPolling';
+import { useNotifications } from './hooks/useNotifications';
 import { useAuth } from './hooks/useAuth';
 import { useSettings } from './hooks/useSettings';
 import { useAccountSwitcher } from './hooks/useAccountSwitcher';
@@ -123,12 +128,13 @@ export default function App() {
 
   // Transaction intent state
   const [sendIntent, setSendIntent] = useState(null); // Current send transaction intent
-  const [intentStep, setIntentStep] = useState('idle'); // 'idle' | 'selecting_asset' | 'entering_amount' | 'entering_address' | 'creating' | 'reviewing' | 'signing' | 'broadcasting' | 'confirmed'
+  const [intentStep, setIntentStep] = useState('idle'); // 'idle' | 'selecting_asset' | 'entering_amount' | 'entering_address' | 'creating' | 'reviewing' | 'signing' | 'broadcasting' | 'pending' | 'confirmed'
   const [sendAssetType, setSendAssetType] = useState(null); // 'btc' | 'unit'
   const [sendAmount, setSendAmount] = useState('');
   const [sendRecipient, setSendRecipient] = useState('');
   const [sendAddressType, setSendAddressType] = useState('taproot'); // 'segwit' | 'taproot'
   const [broadcastedTxid, setBroadcastedTxid] = useState(null); // TXID of broadcasted transaction
+  const [toastDismissed, setToastDismissed] = useState(false); // Track if user dismissed pending toast
   const [keyboardHeight, setKeyboardHeight] = useState(0);
 
   const seedConfirmedRef = useRef(false); // Track if seed backup is confirmed without triggering re-renders
@@ -136,6 +142,8 @@ export default function App() {
 
   // Toast notification hook
   const { showToast, toastMessage, toastVisible, toastType } = useToast();
+  const { startPolling: startTransactionPolling } = useTransactionPolling();
+  const { sendTransactionConfirmedNotification } = useNotifications();
 
   // Auth hook - handles authentication, biometrics, PIN
   const {
@@ -268,9 +276,29 @@ export default function App() {
     seedConfirmedRef.current = seedConfirmed;
   }, [seedConfirmed]);
 
-  // Debug: Track intentStep changes
+  // Note: Background fetch removed - iOS limitations make it unreliable
+  // Foreground polling will continue even when app is backgrounded for a short time
+
+  // Track transaction toast visibility and auto-hide on confirmed
   useEffect(() => {
-  }, [intentStep, sendIntent]);
+    if (intentStep === 'confirmed') {
+      // Reset toast dismissed state when confirmed (so it shows again)
+      setToastDismissed(false);
+
+      // Clear transaction fields so they don't persist
+      setSendRecipient('');
+      setSendAmount('');
+      setSendAssetType(null);
+
+      // Auto-hide toast after 10 seconds when confirmed
+      const timer = setTimeout(() => {
+        setIntentStep('idle');
+        setBroadcastedTxid(null);
+        setToastDismissed(false);
+      }, 10000);
+      return () => clearTimeout(timer);
+    }
+  }, [intentStep]);
 
   // Show splash screen when app goes to background/inactive (for app switcher preview)
   useEffect(() => {
@@ -535,12 +563,33 @@ export default function App() {
 
       const txid = await TransactionService.broadcastTransaction(intent.signedTxHex);
 
-      // Store txid and show success screen
+      // Store txid and move to pending state (this closes the bottom sheet)
       setBroadcastedTxid(txid);
-      setIntentStep('confirmed');
+      setIntentStep('pending'); // Change to pending so bottom sheet closes
+      setToastDismissed(false); // Reset dismissed state for new transaction
 
-      // Refresh balances
-      fetchBalance();
+      // Add to background monitoring for notifications when app is backgrounded
+      const assetType = sendAssetType === 'unit' ? 'UNIT' : 'BTC';
+      await BackgroundTaskService.addPendingTransaction(txid, assetType, sendAmount, 'withdraw');
+      console.log('[App] Added transaction to background monitoring:', txid);
+
+      // Start polling for confirmation using the hook
+      startTransactionPolling(
+        txid,
+        (isConfirmed) => {
+          // On confirmation (or max attempts)
+          console.log('[App] Transaction polling callback triggered. isConfirmed:', isConfirmed);
+          if (isConfirmed) {
+            // Send push notification with amount and asset type
+            console.log('[App] Calling sendTransactionConfirmedNotification with:', { assetType, amount: sendAmount, txid });
+            sendTransactionConfirmedNotification(assetType, sendAmount, txid, 'withdraw');
+            // Remove from background monitoring since it's confirmed
+            BackgroundTaskService.removePendingTransaction(txid);
+          }
+          setIntentStep('confirmed');
+          fetchBalance(); // Refresh balances when confirmed
+        }
+      );
     } catch (error) {
       console.error('Broadcast error:', error);
       showToast(parseErrorMessage(error), 'error');
@@ -630,9 +679,7 @@ export default function App() {
   if (settingUpPin) {
     return (
       <View style={{ flex: 1, backgroundColor: COLORS.DARK_BG, paddingHorizontal: 0 }}>
-        <View style={styles.mutinynetBanner}>
-          <Text style={styles.mutinynetBannerText}>Mutinynet Edition</Text>
-        </View>
+        <MutinynetBanner />
         <PinSetupScreen
           changingPin={changingPin}
           isBiometricSupported={isBiometricSupported}
@@ -651,9 +698,7 @@ export default function App() {
   if (showPinEntry) {
     return (
       <View style={{ flex: 1, backgroundColor: COLORS.DARK_BG, paddingHorizontal: 0 }}>
-        <View style={styles.mutinynetBanner}>
-          <Text style={styles.mutinynetBannerText}>Mutinynet Edition</Text>
-        </View>
+        <MutinynetBanner />
         <LockScreen onAuthenticated={handleLockScreenAuthenticatedWrapper} />
         <StatusBar style="light" />
       </View>
@@ -679,9 +724,7 @@ export default function App() {
   if (!isAuthenticated && wallet && seedConfirmed && !showingIntro && !showingSeeds && !verifyingSeeds && !settingUpPin) {
     return (
       <View style={{ flex: 1, backgroundColor: COLORS.DARK_BG, paddingHorizontal: 0 }}>
-        <View style={styles.mutinynetBanner}>
-          <Text style={styles.mutinynetBannerText}>Mutinynet Edition</Text>
-        </View>
+        <MutinynetBanner />
         <LockScreen
           onAuthenticated={handleLockScreenAuthenticatedWrapper}
           showFaceIdButton={showFaceIdButton && !showBiometricPrompt}
@@ -713,9 +756,7 @@ export default function App() {
         onTouchStart={resetInactivityTimer}
       >
       {/* Mutinynet Banner - Shows on all screens */}
-      <View style={styles.mutinynetBanner}>
-        <Text style={styles.mutinynetBannerText}>Mutinynet Edition</Text>
-      </View>
+      <MutinynetBanner />
 
       {(!wallet || importingWallet || showingIntro || showingSeeds || verifyingSeeds) ? (
         <WelcomeScreen
@@ -769,6 +810,7 @@ export default function App() {
         btcBalance={segwitBalance}
         unitBalance={runesBalance.length > 0 ? parseFloat(runesBalance[0][1]) : 0}
         btcPrice={btcPrice}
+        wallet={wallet}
         setIntentStep={setIntentStep}
         setSendAssetType={setSendAssetType}
         setSendAmount={setSendAmount}
@@ -802,6 +844,23 @@ export default function App() {
 
       {/* Toast Notification */}
       <Toast visible={toastVisible} message={toastMessage} type={toastType} styles={styles} />
+
+      {/* Transaction Toast */}
+      <TransactionToast
+        visible={
+          ['pending', 'confirmed'].includes(intentStep) &&
+          (intentStep === 'confirmed' || !toastDismissed)
+        }
+        status={intentStep}
+        message={
+          intentStep === 'pending' ? 'Transaction pending...' :
+          intentStep === 'confirmed' ? 'Transaction mined!' :
+          ''
+        }
+        txid={broadcastedTxid}
+        assetType={sendAssetType === 'unit' ? 'UNIT' : 'BTC'}
+        onClose={() => setToastDismissed(true)}
+      />
     </View>
 
     {/* Settings Screen Overlay */}
@@ -818,9 +877,7 @@ export default function App() {
           transform: [{ translateX: settingsTranslateX }]
         }}
       >
-        <View style={styles.mutinynetBanner} {...settingsPanResponderRef.current.panHandlers}>
-          <Text style={styles.mutinynetBannerText}>Mutinynet Edition</Text>
-        </View>
+        <MutinynetBanner panHandlers={settingsPanResponderRef.current.panHandlers} />
         <SettingsScreen
           onClose={() => setShowSettings(false)}
           onViewSeedPhrase={handleViewSeedPhrase}
@@ -851,9 +908,7 @@ export default function App() {
           transform: [{ translateX: seedPhraseTranslateX }]
         }}
       >
-        <View style={styles.mutinynetBanner} {...seedPhrasePanResponderRef.current.panHandlers}>
-          <Text style={styles.mutinynetBannerText}>Mutinynet Edition</Text>
-        </View>
+        <MutinynetBanner panHandlers={seedPhrasePanResponderRef.current.panHandlers} />
         <View style={[styles.container, { paddingTop: 0, flex: 1 }]}>
           <View style={styles.walletInfo}>
             <Text style={styles.seedPhraseWarning}>
