@@ -50,6 +50,7 @@ import TransactionHistoryScreen from './components/TransactionHistoryScreen';
 import AccountSwitcherModal from './components/AccountSwitcherModal';
 import BiometricPromptModal from './components/BiometricPromptModal';
 import ConfirmationModal from './components/ConfirmationModal';
+import SettingsModal from './components/SettingsModal';
 import Toast from './components/Toast';
 import TransactionToast from './components/TransactionToast';
 import MutinynetBanner from './components/MutinynetBanner';
@@ -188,19 +189,29 @@ export default function App() {
   // Settings hook - handles settings actions
   const {
     privacyMode,
+    notificationsEnabled,
     handleLogout,
     handleDeleteWallet,
     handleViewSeedPhrase,
     handleChangePin,
     handlePrivacyModeToggle,
+    handleFaceIdToggle,
+    handleNotificationsToggle,
     showLogoutModal,
     showDeleteModal,
+    showFaceIdModal,
+    showNotificationsModal,
     confirmLogout,
     cancelLogout,
     confirmDeleteWallet,
     cancelDeleteWallet,
+    confirmEnableFaceId,
+    cancelFaceIdModal,
+    confirmEnableNotifications,
+    cancelNotificationsModal,
   } = useSettings({
     biometricEnabled,
+    setBiometricEnabled,
     resetAuth,
     resetWallet,
     startPinChange,
@@ -580,9 +591,13 @@ export default function App() {
           // On confirmation (or max attempts)
           console.log('[App] Transaction polling callback triggered. isConfirmed:', isConfirmed);
           if (isConfirmed) {
-            // Send push notification with amount and asset type
-            console.log('[App] Calling sendTransactionConfirmedNotification with:', { assetType, amount: sendAmount, txid });
-            sendTransactionConfirmedNotification(assetType, sendAmount, txid, 'withdraw');
+            // Send push notification with amount and asset type (only if notifications are enabled)
+            if (notificationsEnabled) {
+              console.log('[App] Calling sendTransactionConfirmedNotification with:', { assetType, amount: sendAmount, txid });
+              sendTransactionConfirmedNotification(assetType, sendAmount, txid, 'withdraw');
+            } else {
+              console.log('[App] Notifications disabled, skipping notification');
+            }
             // Remove from background monitoring since it's confirmed
             BackgroundTaskService.removePendingTransaction(txid);
           }
@@ -889,7 +904,11 @@ export default function App() {
           onLockWallet={handleLogout}
           onDeleteWallet={handleDeleteWallet}
           onPrivacyModeToggle={handlePrivacyModeToggle}
+          onFaceIdToggle={handleFaceIdToggle}
+          onNotificationsToggle={handleNotificationsToggle}
           privacyMode={privacyMode}
+          faceIdEnabled={biometricEnabled}
+          notificationsEnabled={notificationsEnabled}
         />
       </Animated.View>
     )}
@@ -971,6 +990,7 @@ export default function App() {
       message="Are you sure you want to lock your wallet? You'll need to enter your PIN to access it again."
       confirmText="Lock"
       confirmStyle="primary"
+      iconName="logout"
       onConfirm={confirmLogout}
       onCancel={cancelLogout}
       styles={styles}
@@ -982,9 +1002,26 @@ export default function App() {
       message="Are you sure you want to delete your wallet? This action cannot be undone. Make sure you have backed up your recovery phrase."
       confirmText="Delete"
       confirmStyle="destructive"
+      iconName="delete_wallet"
       onConfirm={confirmDeleteWallet}
       onCancel={cancelDeleteWallet}
       styles={styles}
+    />
+
+    <SettingsModal
+      visible={showFaceIdModal}
+      onClose={cancelFaceIdModal}
+      title="Enable Face ID"
+      message="To enable Face ID, please go to your device Settings and grant biometric permissions to this app."
+      iconName="face_id"
+    />
+
+    <SettingsModal
+      visible={showNotificationsModal}
+      onClose={cancelNotificationsModal}
+      title="Enable Notifications"
+      message="To enable notifications, please go to your device Settings and grant notification permissions to this app."
+      iconName="notification"
     />
 
     {/* Splash Screen Overlay (shown when app is backgrounded) */}
