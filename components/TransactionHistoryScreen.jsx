@@ -5,12 +5,13 @@
 
 import React, { useState, useEffect, useRef } from 'react';
 import PropTypes from 'prop-types';
-import { View, Text, TouchableOpacity, Animated, Dimensions, ActivityIndicator, ScrollView, Linking } from 'react-native';
+import { View, Text, TouchableOpacity, Animated, Dimensions, ActivityIndicator, ScrollView, Linking, PanResponder } from 'react-native';
 import { COLORS } from '../utils/colors';
 import { decodeRunestone } from '../runestone-encoder';
 import Icon from './Icon';
 
 const SCREEN_HEIGHT = Dimensions.get('window').height;
+const SCREEN_WIDTH = Dimensions.get('window').width;
 
 // UNIT•RUNE identifier
 const UNIT_RUNE_BLOCK = 1527352n;
@@ -26,10 +27,45 @@ export default function TransactionHistoryScreen({
   const [transactions, setTransactions] = useState([]);
   const [loading, setLoading] = useState(true);
   const historySheetOpacity = useRef(new Animated.Value(0)).current;
+  const translateY = useRef(new Animated.Value(0)).current;
 
   const handleDismiss = () => {
     onClose();
   };
+
+  // Pan responder for swipe down gesture on handle area
+  const panResponder = useRef(
+    PanResponder.create({
+      onStartShouldSetPanResponder: () => true,
+      onMoveShouldSetPanResponder: (_, gestureState) => {
+        // Only respond to downward swipes
+        return gestureState.dy > 5 && Math.abs(gestureState.dy) > Math.abs(gestureState.dx);
+      },
+      onPanResponderMove: (_, gestureState) => {
+        if (gestureState.dy > 0) {
+          translateY.setValue(gestureState.dy);
+        }
+      },
+      onPanResponderRelease: (_, gestureState) => {
+        if (gestureState.dy > 100 || gestureState.vy > 0.5) {
+          Animated.timing(translateY, {
+            toValue: SCREEN_HEIGHT,
+            duration: 250,
+            useNativeDriver: true,
+          }).start(() => {
+            translateY.setValue(0);
+            handleDismiss();
+          });
+        } else {
+          Animated.spring(translateY, {
+            toValue: 0,
+            useNativeDriver: true,
+            friction: 8,
+          }).start();
+        }
+      },
+    })
+  ).current;
 
   // Fetch transaction history when sheet opens
   useEffect(() => {
@@ -286,11 +322,12 @@ export default function TransactionHistoryScreen({
           styles.historySheet,
           {
             opacity: historySheetOpacity,
+            transform: [{ translateY }],
           },
         ]}
         pointerEvents={!showHistorySheet ? 'none' : 'auto'}
       >
-        <View style={styles.historyHandleArea}>
+        <View style={styles.historyHandleArea} {...panResponder.panHandlers}>
           <View style={styles.bottomSheetHandle} />
           <Text style={styles.bottomSheetTitle}>Transaction History</Text>
         </View>
@@ -326,10 +363,10 @@ export default function TransactionHistoryScreen({
                   activeOpacity={0.7}
                 >
                   {/* Asset Logo */}
-                  <View style={{ marginRight: 20 }}>
+                  <View style={{ marginRight: 10 }}>
                     <Icon
                       name={assetType === 'UNIT' ? 'unit_logo' : 'btc_logo'}
-                      size={35}
+                      size={40}
                     />
                   </View>
 
