@@ -1370,6 +1370,19 @@ const styles = StyleSheet.create({
     color: COLORS.VERY_LIGHT_GRAY,
     fontWeight: '600',
   },
+  // Disabled asset option styles
+  assetOptionDisabled: {
+    opacity: 0.4,
+  },
+  assetOptionTitleDisabled: {
+    color: COLORS.SECONDARY_TEXT,
+  },
+  assetOptionSubtitleDisabled: {
+    color: COLORS.SECONDARY_TEXT,
+  },
+  assetOptionValueDisabled: {
+    color: COLORS.SECONDARY_TEXT,
+  },
   // Amount input bottom sheet styles
   bottomSheetBackButton: {
     flexDirection: 'row',

@@ -22,6 +22,47 @@ export default function AssetSelectorSheet({
 }) {
   if (!visible) return null;
 
+  console.log('[AssetSelector] btcBalance:', btcBalance, 'unitBalance:', unitBalance, 'btcPrice:', btcPrice);
+
+  // Calculate USD values
+  const btcUsdValue = (btcBalance || 0) * (btcPrice || 0);
+  const unitUsdValue = unitBalance || 0;
+  const ducatUsdValue = 0;
+
+  // Create asset array with all data
+  const assets = [
+    {
+      id: 'btc',
+      name: 'Bitcoin',
+      icon: 'btc_logo',
+      balance: btcBalance || 0,
+      balanceText: `${(btcBalance || 0).toFixed(8)} BTC`,
+      usdValue: btcUsdValue,
+      disabled: btcBalance === 0,
+    },
+    {
+      id: 'unit',
+      name: 'UNIT•RUNE',
+      icon: 'unit_logo',
+      balance: unitBalance || 0,
+      balanceText: `${(unitBalance || 0).toLocaleString()} UNIT`,
+      usdValue: unitUsdValue,
+      disabled: unitBalance === 0,
+    },
+    {
+      id: 'ducat',
+      name: 'DUCAT•RUNE',
+      icon: 'ducat_logo',
+      balance: 0,
+      balanceText: '0 DUCAT',
+      usdValue: ducatUsdValue,
+      disabled: true,
+    },
+  ];
+
+  // Sort by USD value (highest first)
+  const sortedAssets = assets.sort((a, b) => b.usdValue - a.usdValue);
+
   return (
     <>
       <TouchableOpacity
@@ -44,59 +85,46 @@ export default function AssetSelectorSheet({
           <Text style={styles.bottomSheetTitle}>Send What?</Text>
         </View>
 
-        <TouchableOpacity
-          style={styles.assetOption}
-          onPress={() => {
-            onSelectAsset('btc');
-          }}
-        >
-          <View style={{ marginRight: 20 }}>
-            <Icon name="btc_logo" size={36} />
-          </View>
-          <View style={styles.assetOptionInfo}>
-            <Text style={styles.assetOptionTitle}>Bitcoin</Text>
-            <Text style={styles.assetOptionSubtitle}>{(btcBalance || 0).toFixed(8)} BTC</Text>
-          </View>
-          <Text style={styles.assetOptionValue}>
-            ${((btcBalance || 0) * (btcPrice || 0)).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
-          </Text>
-        </TouchableOpacity>
-
-        <TouchableOpacity
-          style={styles.assetOption}
-          onPress={() => {
-            onSelectAsset('unit');
-          }}
-        >
-          <View style={{ marginRight: 20 }}>
-            <Icon name="unit_logo" size={36} />
-          </View>
-          <View style={styles.assetOptionInfo}>
-            <Text style={styles.assetOptionTitle}>UNIT•RUNE</Text>
-            <Text style={styles.assetOptionSubtitle}>{(unitBalance || 0).toLocaleString()} UNIT</Text>
-          </View>
-          <Text style={styles.assetOptionValue}>
-            ${(unitBalance || 0).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
-          </Text>
-        </TouchableOpacity>
-
-        <TouchableOpacity
-          style={styles.assetOption}
-          onPress={() => {
-            onSelectAsset('ducat');
-          }}
-        >
-          <View style={{ marginRight: 20 }}>
-            <Icon name="ducat_logo" size={36} />
-          </View>
-          <View style={styles.assetOptionInfo}>
-            <Text style={styles.assetOptionTitle}>DUCAT•RUNE</Text>
-            <Text style={styles.assetOptionSubtitle}>0 DUCAT</Text>
-          </View>
-          <Text style={styles.assetOptionValue}>
-            $0.00
-          </Text>
-        </TouchableOpacity>
+        {sortedAssets.map((asset) => (
+          <TouchableOpacity
+            key={asset.id}
+            style={[
+              styles.assetOption,
+              asset.disabled && styles.assetOptionDisabled
+            ]}
+            onPress={() => {
+              if (!asset.disabled) {
+                onSelectAsset(asset.id);
+              }
+            }}
+            disabled={asset.disabled}
+            activeOpacity={asset.disabled ? 1 : 0.7}
+          >
+            <View style={{ marginRight: 20 }}>
+              <Icon name={asset.icon} size={36} />
+            </View>
+            <View style={styles.assetOptionInfo}>
+              <Text style={[
+                styles.assetOptionTitle,
+                asset.disabled && styles.assetOptionTitleDisabled
+              ]}>
+                {asset.name}
+              </Text>
+              <Text style={[
+                styles.assetOptionSubtitle,
+                asset.disabled && styles.assetOptionSubtitleDisabled
+              ]}>
+                {asset.balanceText}
+              </Text>
+            </View>
+            <Text style={[
+              styles.assetOptionValue,
+              asset.disabled && styles.assetOptionValueDisabled
+            ]}>
+              ${asset.usdValue.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+            </Text>
+          </TouchableOpacity>
+        ))}
       </Animated.View>
     </>
   );
