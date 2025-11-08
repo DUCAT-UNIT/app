@@ -3,9 +3,9 @@
  * Full-screen settings view with modern dark aesthetic
  */
 
-import React from 'react';
+import React, { useRef } from 'react';
 import PropTypes from 'prop-types';
-import { Text, View, TouchableOpacity, StyleSheet, Platform, Dimensions, StatusBar, ScrollView } from 'react-native';
+import { Text, View, TouchableOpacity, StyleSheet, Platform, Dimensions, StatusBar, ScrollView, Animated, PanResponder } from 'react-native';
 import { COLORS } from '../utils/colors';
 import Icon from './Icon';
 
@@ -35,8 +35,45 @@ export default function SettingsScreen({
   faceIdEnabled,
   notificationsEnabled,
 }) {
+  const translateX = useRef(new Animated.Value(0)).current;
+
+  const panResponder = useRef(
+    PanResponder.create({
+      onMoveShouldSetPanResponder: (evt, gestureState) => {
+        return gestureState.dx > 10 && Math.abs(gestureState.dx) > Math.abs(gestureState.dy);
+      },
+      onPanResponderMove: (evt, gestureState) => {
+        if (gestureState.dx > 0) {
+          translateX.setValue(gestureState.dx);
+        }
+      },
+      onPanResponderRelease: (evt, gestureState) => {
+        if (gestureState.dx > SCREEN_WIDTH * 0.3) {
+          Animated.timing(translateX, {
+            toValue: SCREEN_WIDTH,
+            duration: 200,
+            useNativeDriver: true,
+          }).start(() => {
+            onClose();
+          });
+        } else {
+          Animated.spring(translateX, {
+            toValue: 0,
+            useNativeDriver: true,
+          }).start();
+        }
+      },
+    })
+  ).current;
+
   return (
-    <View style={localStyles.container}>
+    <Animated.View
+      style={[
+        localStyles.container,
+        { transform: [{ translateX }] }
+      ]}
+      {...panResponder.panHandlers}
+    >
       {/* Header with back button and title on same line */}
       <View style={localStyles.header}>
         <TouchableOpacity onPress={onClose} style={localStyles.backButton}>
@@ -100,7 +137,7 @@ export default function SettingsScreen({
           </View>
         </View>
       </ScrollView>
-    </View>
+    </Animated.View>
   );
 }
 
