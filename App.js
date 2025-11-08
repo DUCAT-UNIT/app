@@ -649,9 +649,30 @@ export default function App() {
     // User returns to main wallet page
   };
 
-  // Lock screen authentication callback wrapper (checks for seed phrase request)
+  // Lock screen authentication callback wrapper (checks for seed phrase request and pending settings)
   const handleLockScreenAuthenticatedWrapper = async () => {
     handleLockScreenAuthenticated();
+
+    // Check if user was trying to enable Face ID
+    const pendingFaceId = await SecureStore.getItemAsync('pendingFaceIdEnable');
+    if (pendingFaceId === 'true') {
+      await SecureStore.deleteItemAsync('pendingFaceIdEnable');
+      setBiometricEnabled(true);
+      await SecureStore.setItemAsync('biometricEnabled', 'true');
+      showToast('Face ID enabled', 'success');
+      setShowSettings(true);
+      return;
+    }
+
+    // Check if user was trying to enable notifications
+    const pendingNotifications = await SecureStore.getItemAsync('pendingNotificationsEnable');
+    if (pendingNotifications === 'true') {
+      await SecureStore.deleteItemAsync('pendingNotificationsEnable');
+      await SecureStore.setItemAsync('notificationsEnabled', 'true');
+      showToast('Notifications enabled', 'success');
+      setShowSettings(true);
+      return;
+    }
 
     // Check if user was trying to view seed phrase
     if (requestingSeedPhrase) {

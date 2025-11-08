@@ -159,6 +159,35 @@ export function useSettings({
 
   const handleFaceIdToggle = async () => {
     const newValue = !biometricEnabled;
+
+    // If enabling, require authentication first
+    if (newValue) {
+      try {
+        // Try biometric auth first if available
+        const result = await AuthService.authenticateWithBiometrics(
+          'Authenticate to enable Face ID',
+          'Use PIN'
+        );
+
+        if (!result.success) {
+          // Biometric failed or not available, fall back to PIN
+          setRequestingSeedPhrase(false);
+          setShowSettings(false);
+          setShowPinEntry(true);
+          // Set a flag to indicate we're enabling Face ID after PIN verification
+          await SecureStore.setItemAsync('pendingFaceIdEnable', 'true');
+          return;
+        }
+      } catch (error) {
+        console.error('Authentication failed:', error);
+        if (showToast) {
+          showToast('Authentication required to enable Face ID', 'error');
+        }
+        return;
+      }
+    }
+
+    // Authentication successful or disabling, proceed with toggle
     setBiometricEnabled(newValue);
     try {
       await SecureStore.setItemAsync('biometricEnabled', String(newValue));
@@ -175,6 +204,35 @@ export function useSettings({
 
   const handleNotificationsToggle = async () => {
     const newValue = !notificationsEnabled;
+
+    // If enabling, require authentication first
+    if (newValue) {
+      try {
+        // Try biometric auth first if available
+        const result = await AuthService.authenticateWithBiometrics(
+          'Authenticate to enable notifications',
+          'Use PIN'
+        );
+
+        if (!result.success) {
+          // Biometric failed or not available, fall back to PIN
+          setRequestingSeedPhrase(false);
+          setShowSettings(false);
+          setShowPinEntry(true);
+          // Set a flag to indicate we're enabling notifications after PIN verification
+          await SecureStore.setItemAsync('pendingNotificationsEnable', 'true');
+          return;
+        }
+      } catch (error) {
+        console.error('Authentication failed:', error);
+        if (showToast) {
+          showToast('Authentication required to enable notifications', 'error');
+        }
+        return;
+      }
+    }
+
+    // Authentication successful or disabling, proceed with toggle
     setNotificationsEnabled(newValue);
     try {
       await SecureStore.setItemAsync('notificationsEnabled', String(newValue));
