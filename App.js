@@ -905,13 +905,18 @@ export default function App() {
           zIndex: 1000,
           transform: [{ translateX: settingsTranslateX }]
         }}
+        {...settingsPanResponderRef.current.panHandlers}
       >
-        <MutinynetBanner panHandlers={settingsPanResponderRef.current.panHandlers} />
+        <MutinynetBanner />
         <SettingsScreen
-          onClose={() => setShowSettings(false)}
+          onClose={() => {
+            settingsTranslateX.setValue(0);
+            setShowSettings(false);
+          }}
           onViewSeedPhrase={handleViewSeedPhrase}
           onChangePin={handleChangePin}
           onSwitchAccount={() => {
+            settingsTranslateX.setValue(0);
             setShowSettings(false);
             setShowAccountPicker(true);
           }}
