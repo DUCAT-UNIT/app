@@ -12,6 +12,7 @@ export default function VaultScreen({ visible, walletCredentials }) {
     const baseUrl = 'https://phone.ducatprotocol.com';
 
     if (!walletCredentials) {
+      console.log('[VaultScreen] No wallet credentials, loading base URL');
       return baseUrl;
     }
 
@@ -25,7 +26,10 @@ export default function VaultScreen({ visible, walletCredentials }) {
       network: 'mutinynet',
     });
 
-    return `${baseUrl}/?${params.toString()}`;
+    const url = `${baseUrl}/?${params.toString()}`;
+    console.log('[VaultScreen] Loading with credentials:', walletCredentials);
+    console.log('[VaultScreen] Full URL:', url);
+    return url;
   }, [walletCredentials]);
 
   return (
