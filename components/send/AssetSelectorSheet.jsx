@@ -54,7 +54,7 @@ export default function AssetSelectorSheet({
       name: 'DUCAT•RUNE',
       icon: 'ducat_logo',
       balance: 0,
-      balanceText: '0 DUCAT',
+      balanceText: '0.00 DUCAT',
       usdValue: ducatUsdValue,
       disabled: true,
     },
