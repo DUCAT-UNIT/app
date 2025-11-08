@@ -92,7 +92,7 @@ function SettingsOption({ iconName, title, onPress, rightText, isDanger }) {
   return (
     <TouchableOpacity style={localStyles.option} onPress={onPress}>
       <View style={localStyles.optionLeft}>
-        <Icon name={iconName} size={24} color={COLORS.VERY_LIGHT_GRAY} />
+        <Icon name={iconName} size={24} color={isDanger ? COLORS.DANGER_RED : COLORS.VERY_LIGHT_GRAY} />
         <Text style={[localStyles.optionTitle, isDanger && localStyles.dangerText]}>
           {title}
         </Text>
