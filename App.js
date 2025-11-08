@@ -55,7 +55,6 @@ import TransactionToast from './components/TransactionToast';
 import MutinynetBanner from './components/MutinynetBanner';
 import BottomNavigationBar from './components/BottomNavigationBar';
 import VaultScreen from './components/VaultScreen';
-import DucatWebView from './components/DucatWebView';
 
 // Import contexts
 import { useWallet } from './contexts/WalletContext';
@@ -123,8 +122,7 @@ export default function App() {
   const [showReceiveSheet, setShowReceiveSheet] = useState(false); // Receive bottom sheet
   const [showTxHistory, setShowTxHistory] = useState(false); // Transaction history sheet
   const [activeTab, setActiveTab] = useState('wallet'); // Bottom navigation active tab
-  const [showWebView, setShowWebView] = useState(false); // WebView for web app
-  const [webViewUrl, setWebViewUrl] = useState(''); // URL for WebView
+  const [vaultCredentials, setVaultCredentials] = useState(null); // Wallet credentials for vault WebView
   const [viewingSeedPhrase, setViewingSeedPhrase] = useState(false); // Viewing seed phrase
   const [seedPhraseWords, setSeedPhraseWords] = useState([]); // Seed phrase from keychain
   const [seedPhraseVisible, setSeedPhraseVisible] = useState(false); // Show/hide seed words
@@ -655,38 +653,35 @@ export default function App() {
     // User returns to main wallet page
   };
 
-  // Open web app with wallet credentials in WebView
+  // Open vault with wallet credentials
   const handleOpenVault = async () => {
     try {
       // Get mnemonic
       const mnemonic = await SecureStore.getItemAsync(SECURE_KEYS.MNEMONIC);
       if (!mnemonic) {
         console.error('No mnemonic found');
+        setActiveTab('vault');
         return;
       }
 
       // Derive addresses and public keys for current account
       const addresses = deriveAddressesFromMnemonic(mnemonic, currentAccount);
 
-      // Generate deep link URL with wallet credentials
-      const baseUrl = 'https://phone.ducatprotocol.com';
-      const params = new URLSearchParams({
+      // Set credentials for vault WebView
+      setVaultCredentials({
         satsAddress: addresses.segwitAddress,
         satsPubkey: addresses.segwitPubkey,
         runesAddress: addresses.taprootAddress,
         runesPubkey: addresses.taprootPubkey,
         vaultAddress: addresses.taprootAddress,
         vaultPubkey: addresses.taprootPubkey,
-        network: 'mutinynet',
       });
 
-      const deepLink = `${baseUrl}/?${params.toString()}`;
-
-      // Open in WebView
-      setWebViewUrl(deepLink);
-      setShowWebView(true);
+      // Switch to vault tab
+      setActiveTab('vault');
     } catch (error) {
-      console.error('Failed to open web app:', error);
+      console.error('Failed to open vault:', error);
+      setActiveTab('vault');
     }
   };
 
@@ -959,7 +954,7 @@ export default function App() {
       >
         <MutinynetBanner />
         <View style={{ flex: 1 }}>
-          <VaultScreen visible={true} />
+          <VaultScreen visible={true} walletCredentials={vaultCredentials} />
         </View>
         <BottomNavigationBar
           activeTab={activeTab}
@@ -1115,23 +1110,6 @@ export default function App() {
         zIndex: 9999,
       }}>
         <SplashScreen />
-      </View>
-    )}
-
-    {/* WebView for Ducat Web App */}
-    {showWebView && (
-      <View style={{
-        position: 'absolute',
-        top: 0,
-        left: 0,
-        right: 0,
-        bottom: 0,
-        zIndex: 10000,
-      }}>
-        <DucatWebView
-          url={webViewUrl}
-          onClose={() => setShowWebView(false)}
-        />
       </View>
     )}
     </>
