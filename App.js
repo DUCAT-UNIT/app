@@ -55,6 +55,7 @@ import TransactionToast from './components/TransactionToast';
 import MutinynetBanner from './components/MutinynetBanner';
 import BottomNavigationBar from './components/BottomNavigationBar';
 import VaultScreen from './components/VaultScreen';
+import DucatWebView from './components/DucatWebView';
 
 // Import contexts
 import { useWallet } from './contexts/WalletContext';
@@ -122,6 +123,8 @@ export default function App() {
   const [showReceiveSheet, setShowReceiveSheet] = useState(false); // Receive bottom sheet
   const [showTxHistory, setShowTxHistory] = useState(false); // Transaction history sheet
   const [activeTab, setActiveTab] = useState('wallet'); // Bottom navigation active tab
+  const [showWebView, setShowWebView] = useState(false); // WebView for web app
+  const [webViewUrl, setWebViewUrl] = useState(''); // URL for WebView
   const [viewingSeedPhrase, setViewingSeedPhrase] = useState(false); // Viewing seed phrase
   const [seedPhraseWords, setSeedPhraseWords] = useState([]); // Seed phrase from keychain
   const [seedPhraseVisible, setSeedPhraseVisible] = useState(false); // Show/hide seed words
@@ -652,7 +655,7 @@ export default function App() {
     // User returns to main wallet page
   };
 
-  // Open web app with wallet credentials
+  // Open web app with wallet credentials in WebView
   const handleOpenVault = async () => {
     try {
       // Get mnemonic
@@ -679,8 +682,9 @@ export default function App() {
 
       const deepLink = `${baseUrl}/?${params.toString()}`;
 
-      // Open in browser
-      await Linking.openURL(deepLink);
+      // Open in WebView
+      setWebViewUrl(deepLink);
+      setShowWebView(true);
     } catch (error) {
       console.error('Failed to open web app:', error);
     }
@@ -1111,6 +1115,23 @@ export default function App() {
         zIndex: 9999,
       }}>
         <SplashScreen />
+      </View>
+    )}
+
+    {/* WebView for Ducat Web App */}
+    {showWebView && (
+      <View style={{
+        position: 'absolute',
+        top: 0,
+        left: 0,
+        right: 0,
+        bottom: 0,
+        zIndex: 10000,
+      }}>
+        <DucatWebView
+          url={webViewUrl}
+          onClose={() => setShowWebView(false)}
+        />
       </View>
     )}
     </>
