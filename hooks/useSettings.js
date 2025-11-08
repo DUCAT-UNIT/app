@@ -35,8 +35,6 @@ export function useSettings({
   const [notificationsEnabled, setNotificationsEnabled] = useState(false);
   const [showLogoutModal, setShowLogoutModal] = useState(false);
   const [showDeleteModal, setShowDeleteModal] = useState(false);
-  const [showFaceIdModal, setShowFaceIdModal] = useState(false);
-  const [showNotificationsModal, setShowNotificationsModal] = useState(false);
 
   // Load privacy mode and notifications settings on mount
   useEffect(() => {
@@ -160,59 +158,35 @@ export function useSettings({
   };
 
   const handleFaceIdToggle = async () => {
-    if (biometricEnabled) {
-      // Disable Face ID
-      const newValue = false;
-      setBiometricEnabled(newValue);
-      try {
-        await SecureStore.setItemAsync('biometricEnabled', String(newValue));
-        if (showToast) {
-          showToast('Face ID disabled', 'success');
-        }
-      } catch (error) {
-        console.error('Failed to save Face ID setting:', error);
+    const newValue = !biometricEnabled;
+    setBiometricEnabled(newValue);
+    try {
+      await SecureStore.setItemAsync('biometricEnabled', String(newValue));
+      if (showToast) {
+        showToast(`Face ID ${newValue ? 'enabled' : 'disabled'}`, 'success');
       }
-    } else {
-      // Show modal to enable Face ID (directs to system settings)
-      setShowFaceIdModal(true);
+    } catch (error) {
+      console.error('Failed to save Face ID setting:', error);
+      if (showToast) {
+        showToast('Failed to update Face ID setting', 'error');
+      }
     }
-  };
-
-  const confirmEnableFaceId = () => {
-    setShowFaceIdModal(false);
-    // This will be handled in the modal - open system settings
-  };
-
-  const cancelFaceIdModal = () => {
-    setShowFaceIdModal(false);
   };
 
   const handleNotificationsToggle = async () => {
-    if (notificationsEnabled) {
-      // Disable notifications
-      const newValue = false;
-      setNotificationsEnabled(newValue);
-      try {
-        await SecureStore.setItemAsync('notificationsEnabled', String(newValue));
-        if (showToast) {
-          showToast('Notifications disabled', 'success');
-        }
-      } catch (error) {
-        console.error('Failed to save notifications setting:', error);
+    const newValue = !notificationsEnabled;
+    setNotificationsEnabled(newValue);
+    try {
+      await SecureStore.setItemAsync('notificationsEnabled', String(newValue));
+      if (showToast) {
+        showToast(`Notifications ${newValue ? 'enabled' : 'disabled'}`, 'success');
       }
-    } else {
-      // Show modal to enable notifications (directs to system settings)
-      setShowNotificationsModal(true);
+    } catch (error) {
+      console.error('Failed to save notifications setting:', error);
+      if (showToast) {
+        showToast('Failed to update notifications setting', 'error');
+      }
     }
-  };
-
-  const confirmEnableNotifications = () => {
-    setShowNotificationsModal(false);
-    // This will be handled in the modal - open system settings
-  };
-
-  const cancelNotificationsModal = () => {
-    setShowNotificationsModal(false);
   };
 
   return {
@@ -228,16 +202,10 @@ export function useSettings({
     // Modal state
     showLogoutModal,
     showDeleteModal,
-    showFaceIdModal,
-    showNotificationsModal,
     // Modal handlers
     confirmLogout,
     cancelLogout,
     confirmDeleteWallet,
     cancelDeleteWallet,
-    confirmEnableFaceId,
-    cancelFaceIdModal,
-    confirmEnableNotifications,
-    cancelNotificationsModal,
   };
 }

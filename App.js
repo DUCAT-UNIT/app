@@ -50,7 +50,6 @@ import TransactionHistoryScreen from './components/TransactionHistoryScreen';
 import AccountSwitcherModal from './components/AccountSwitcherModal';
 import BiometricPromptModal from './components/BiometricPromptModal';
 import ConfirmationModal from './components/ConfirmationModal';
-import SettingsModal from './components/SettingsModal';
 import Toast from './components/Toast';
 import TransactionToast from './components/TransactionToast';
 import MutinynetBanner from './components/MutinynetBanner';
@@ -199,16 +198,10 @@ export default function App() {
     handleNotificationsToggle,
     showLogoutModal,
     showDeleteModal,
-    showFaceIdModal,
-    showNotificationsModal,
     confirmLogout,
     cancelLogout,
     confirmDeleteWallet,
     cancelDeleteWallet,
-    confirmEnableFaceId,
-    cancelFaceIdModal,
-    confirmEnableNotifications,
-    cancelNotificationsModal,
   } = useSettings({
     biometricEnabled,
     setBiometricEnabled,
@@ -1006,22 +999,6 @@ export default function App() {
       onConfirm={confirmDeleteWallet}
       onCancel={cancelDeleteWallet}
       styles={styles}
-    />
-
-    <SettingsModal
-      visible={showFaceIdModal}
-      onClose={cancelFaceIdModal}
-      title="Enable Face ID"
-      message="To enable Face ID, please go to your device Settings and grant biometric permissions to this app."
-      iconName="face_id"
-    />
-
-    <SettingsModal
-      visible={showNotificationsModal}
-      onClose={cancelNotificationsModal}
-      title="Enable Notifications"
-      message="To enable notifications, please go to your device Settings and grant notification permissions to this app."
-      iconName="notification"
     />
 
     {/* Splash Screen Overlay (shown when app is backgrounded) */}
