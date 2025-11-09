@@ -123,7 +123,7 @@ export default function App() {
   const [showTxHistory, setShowTxHistory] = useState(false); // Transaction history sheet
   const [activeTab, setActiveTab] = useState('wallet'); // Bottom navigation active tab
   const [vaultCredentials, setVaultCredentials] = useState(null); // Wallet credentials for vault WebView
-  const [autoCreateVault, setAutoCreateVault] = useState(false); // Flag to auto-click create vault button
+  const [autoCreateVaultTrigger, setAutoCreateVaultTrigger] = useState(0); // Counter to trigger vault auto-creation
   const [viewingSeedPhrase, setViewingSeedPhrase] = useState(false); // Viewing seed phrase
   const [seedPhraseWords, setSeedPhraseWords] = useState([]); // Seed phrase from keychain
   const [seedPhraseVisible, setSeedPhraseVisible] = useState(false); // Show/hide seed words
@@ -312,13 +312,7 @@ export default function App() {
     }
   }, [intentStep]);
 
-  // Reset autoCreateVault flag when leaving vault tab
-  useEffect(() => {
-    if (activeTab !== 'vault' && autoCreateVault) {
-      console.log('[App] Leaving vault tab, resetting autoCreateVault flag');
-      setAutoCreateVault(false);
-    }
-  }, [activeTab, autoCreateVault]);
+  // No need to reset counter when leaving vault tab - counter approach handles retries automatically
 
   // Show splash screen when app goes to background/inactive (for app switcher preview)
   useEffect(() => {
@@ -701,8 +695,11 @@ export default function App() {
         vaultPubkey: addresses.taprootPubkey,
       });
 
-      // Set auto-create flag if requested
-      setAutoCreateVault(shouldAutoCreate);
+      // Trigger auto-create if requested by incrementing counter
+      if (shouldAutoCreate) {
+        console.log('[handleOpenVault] Triggering auto-create by incrementing counter');
+        setAutoCreateVaultTrigger(prev => prev + 1);
+      }
 
       // Switch to vault tab
       setActiveTab('vault');
@@ -988,11 +985,7 @@ export default function App() {
         <VaultScreen
           visible={activeTab === 'vault'}
           walletCredentials={vaultCredentials}
-          autoCreateVault={autoCreateVault}
-          onVaultCreated={() => {
-            console.log('[App] Vault creation completed, resetting autoCreateVault flag');
-            setAutoCreateVault(false);
-          }}
+          autoCreateVaultTrigger={autoCreateVaultTrigger}
         />
       </View>
       <BottomNavigationBar

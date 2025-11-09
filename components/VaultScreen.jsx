@@ -5,7 +5,7 @@ import { WebView } from 'react-native-webview';
 import { COLORS } from '../utils/colors';
 import { signPsbt } from '../utils/wallet';
 
-export default function VaultScreen({ visible, walletCredentials, autoCreateVault, onVaultCreated }) {
+export default function VaultScreen({ visible, walletCredentials, autoCreateVaultTrigger }) {
   const webViewRef = useRef(null);
   const messageIndexRef = useRef(0);
   const hasAutoClickedRef = useRef(false);
@@ -66,27 +66,13 @@ export default function VaultScreen({ visible, walletCredentials, autoCreateVaul
     }
   }, [visible]);
 
-  // Reset state when autoCreateVault changes from true to false
-  const prevAutoCreateVault = React.useRef(autoCreateVault);
-  React.useEffect(() => {
-    if (prevAutoCreateVault.current === true && autoCreateVault === false) {
-      console.log('[VaultScreen] autoCreateVault changed to false, resetting state');
-      setPreparingVault(false);
-      setPreparingMessage('Preparing the vault for you');
-      setWebViewLoaded(false);
-      messageIndexRef.current = 0;
-      hasAutoClickedRef.current = false;
-    }
-    prevAutoCreateVault.current = autoCreateVault;
-  }, [autoCreateVault]);
-
   // Track when webview loads to inject script
   const [webViewLoaded, setWebViewLoaded] = React.useState(false);
 
-  // Auto-click create vault button when flag is set
+  // Auto-click create vault button when trigger counter changes
   React.useEffect(() => {
-    if (autoCreateVault && visible) {
-      console.log('[VaultScreen] autoCreateVault is true, resetting state and reloading webview...');
+    if (autoCreateVaultTrigger > 0 && visible) {
+      console.log('[VaultScreen] autoCreateVaultTrigger changed to', autoCreateVaultTrigger, '- resetting state and reloading webview...');
 
       // Reset all state including hasAutoClickedRef
       hasAutoClickedRef.current = false;
@@ -101,13 +87,13 @@ export default function VaultScreen({ visible, walletCredentials, autoCreateVaul
       setPreparingVault(true);
       setPreparingMessage('Preparing the vault for you');
     }
-  }, [autoCreateVault, visible]);
+  }, [autoCreateVaultTrigger, visible]);
 
   // Inject script after webview loads
   React.useEffect(() => {
-    if (autoCreateVault && visible && webViewLoaded && !hasAutoClickedRef.current) {
+    if (autoCreateVaultTrigger > 0 && visible && webViewLoaded && !hasAutoClickedRef.current) {
       console.log('[VaultScreen] WebView loaded, will inject auto-click script in 1 second...');
-      console.log('[VaultScreen] State check - autoCreateVault:', autoCreateVault, 'visible:', visible, 'webViewLoaded:', webViewLoaded, 'hasAutoClicked:', hasAutoClickedRef.current);
+      console.log('[VaultScreen] State check - trigger:', autoCreateVaultTrigger, 'visible:', visible, 'webViewLoaded:', webViewLoaded, 'hasAutoClicked:', hasAutoClickedRef.current);
 
       // Mark as clicked BEFORE injecting to prevent double injection
       hasAutoClickedRef.current = true;
@@ -471,10 +457,6 @@ export default function VaultScreen({ visible, walletCredentials, autoCreateVaul
               console.log('[VaultScreen] Vault Health detected, hiding loader');
               setIsLoading(false);
               setPreparingVault(false);
-              // Notify parent that vault creation is complete
-              if (onVaultCreated) {
-                onVaultCreated();
-              }
               return;
             }
 
@@ -483,10 +465,6 @@ export default function VaultScreen({ visible, walletCredentials, autoCreateVaul
               console.log('[VaultScreen] Vault creation button click failed');
               setPreparingVault(false);
               setIsLoading(false);
-              // Notify parent that vault creation failed
-              if (onVaultCreated) {
-                onVaultCreated();
-              }
               return;
             }
 
@@ -591,8 +569,7 @@ VaultScreen.propTypes = {
     vaultAddress: PropTypes.string.isRequired,
     vaultPubkey: PropTypes.string.isRequired,
   }),
-  autoCreateVault: PropTypes.bool,
-  onVaultCreated: PropTypes.func,
+  autoCreateVaultTrigger: PropTypes.number,
 };
 
 const styles = StyleSheet.create({
