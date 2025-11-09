@@ -8,11 +8,13 @@ import { signPsbt } from '../utils/wallet';
 export default function VaultScreen({ visible, walletCredentials, autoCreateVault }) {
   const webViewRef = useRef(null);
   const [isLoading, setIsLoading] = React.useState(true);
+  const [preparingVault, setPreparingVault] = React.useState(false);
 
   // Auto-click create vault button when flag is set
   React.useEffect(() => {
     if (autoCreateVault && visible && webViewRef.current) {
       console.log('[VaultScreen] autoCreateVault is true, injecting auto-click script...');
+      setPreparingVault(true);
 
       // Wait a bit for the page to be ready, then inject the script
       setTimeout(() => {
@@ -46,6 +48,9 @@ export default function VaultScreen({ visible, walletCredentials, autoCreateVaul
                 console.log('[AutoCreateVault] Found button with text: "' + buttonText + '", clicking...');
                 createVaultButton.click();
                 console.log('[AutoCreateVault] Button clicked successfully');
+
+                // Notify React Native that button was clicked
+                window.ReactNativeWebView?.postMessage(JSON.stringify({ type: 'VAULT_BUTTON_CLICKED' }));
                 return true;
               }
 
@@ -70,6 +75,7 @@ export default function VaultScreen({ visible, walletCredentials, autoCreateVaul
                 setTimeout(tryAutoClick, 1000);
               } else {
                 console.log('[AutoCreateVault] Failed after ' + maxAttempts + ' attempts');
+                window.ReactNativeWebView?.postMessage(JSON.stringify({ type: 'VAULT_BUTTON_CLICK_FAILED' }));
               }
             }
 
@@ -265,6 +271,26 @@ export default function VaultScreen({ visible, walletCredentials, autoCreateVaul
             if (message.type === 'VAULT_LOADED') {
               console.log('[VaultScreen] Vault Health detected, hiding loader');
               setIsLoading(false);
+              setPreparingVault(false);
+              return;
+            }
+
+            // Handle vault button clicked
+            if (message.type === 'VAULT_BUTTON_CLICKED') {
+              console.log('[VaultScreen] Vault creation button clicked, waiting for name input screen...');
+              // Wait a bit for the next screen to load, then hide preparing message
+              setTimeout(() => {
+                setPreparingVault(false);
+                setIsLoading(false);
+              }, 2000);
+              return;
+            }
+
+            // Handle vault button click failed
+            if (message.type === 'VAULT_BUTTON_CLICK_FAILED') {
+              console.log('[VaultScreen] Vault creation button click failed');
+              setPreparingVault(false);
+              setIsLoading(false);
               return;
             }
 
@@ -347,9 +373,12 @@ export default function VaultScreen({ visible, walletCredentials, autoCreateVaul
           console.error('[VaultScreen] HTTP error:', nativeEvent.statusCode, nativeEvent.url);
         }}
       />
-      {isLoading && (
+      {(isLoading || preparingVault) && (
         <View style={styles.loadingOverlay}>
           <ActivityIndicator size="large" color={COLORS.PRIMARY_BLUE} />
+          {preparingVault && (
+            <Text style={styles.preparingText}>Preparing the vault for you</Text>
+          )}
         </View>
       )}
     </View>
@@ -398,5 +427,11 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     backgroundColor: COLORS.DARK_BG,
     zIndex: 1000,
+  },
+  preparingText: {
+    marginTop: 16,
+    fontSize: 16,
+    color: COLORS.VERY_LIGHT_GRAY,
+    fontFamily: 'CabinetGrotesk-Medium',
   },
 });
