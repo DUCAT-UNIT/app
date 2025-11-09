@@ -71,21 +71,30 @@ export default function VaultScreen({ visible, walletCredentials, autoCreateVaul
 
   // Auto-click create vault button when trigger counter changes
   React.useEffect(() => {
+    console.log('[VaultScreen] Effect triggered - trigger:', autoCreateVaultTrigger, 'visible:', visible);
+
     if (autoCreateVaultTrigger > 0 && visible) {
-      console.log('[VaultScreen] autoCreateVaultTrigger changed to', autoCreateVaultTrigger, '- resetting state and reloading webview...');
+      console.log('[VaultScreen] ✓ Conditions met - resetting state and reloading webview...');
 
       // Reset all state including hasAutoClickedRef
+      console.log('[VaultScreen] Resetting hasAutoClickedRef to false');
       hasAutoClickedRef.current = false;
+
+      console.log('[VaultScreen] Setting webViewLoaded to false');
       setWebViewLoaded(false);
 
       // Increment the key to force webview reload with fresh state
       setWebViewKey(prev => {
-        console.log('[VaultScreen] Incrementing webview key from', prev, 'to', prev + 1);
-        return prev + 1;
+        const newKey = prev + 1;
+        console.log('[VaultScreen] Incrementing webview key from', prev, 'to', newKey);
+        return newKey;
       });
 
+      console.log('[VaultScreen] Setting preparingVault to true');
       setPreparingVault(true);
       setPreparingMessage('Preparing the vault for you');
+    } else {
+      console.log('[VaultScreen] ✗ Conditions not met - skipping');
     }
   }, [autoCreateVaultTrigger, visible]);
 
