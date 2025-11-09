@@ -400,6 +400,8 @@ const styles = StyleSheet.create({
     fontFamily: 'CabinetGrotesk-Bold',
   },
   vaultDetailsContainer: {
+    marginLeft: 56,
+    marginTop: 4,
   },
   vaultDetailRow: {
     flexDirection: 'row',

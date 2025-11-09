@@ -106,8 +106,8 @@ export default function WalletScreen({
         {/* Vault Card */}
         {vaultData && vaultData.latestTransaction && (
           <View style={styles.vaultCard}>
-            <View style={styles.assetRow}>
-              <View style={styles.assetLeft}>
+            <View style={styles.vaultHeader}>
+              <View style={styles.vaultHeaderLeft}>
                 <View style={styles.vaultIconContainer}>
                   <Icon name="vault_logo" size={40} color="#DDDDDD" />
                   <View style={[
@@ -126,30 +126,6 @@ export default function WalletScreen({
                 </View>
                 <View style={styles.assetInfo}>
                   <Text style={styles.assetName}>{vaultData.vaultTag}'s Vault</Text>
-                  <View style={styles.vaultDetailsContainer}>
-                    <View style={styles.vaultDetailRow}>
-                      <Text style={styles.vaultLabel}>Overall Debt</Text>
-                      <View style={styles.balanceWithIcon}>
-                        <Icon name="unit_symbol" size={10} color={COLORS.SECONDARY_TEXT} style={styles.assetAmountIcon} />
-                        <Text style={styles.assetAmount}>
-                          {vaultData.latestTransaction.amountBorrowed
-                            ? (vaultData.latestTransaction.amountBorrowed / 100).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })
-                            : '0.00'}
-                        </Text>
-                      </View>
-                    </View>
-                    <View style={styles.vaultDetailRow}>
-                      <Text style={styles.vaultLabel}>Total collateral</Text>
-                      <View style={styles.balanceWithIcon}>
-                        <Icon name="btc_symbol" size={10} color={COLORS.SECONDARY_TEXT} style={styles.assetAmountIcon} />
-                        <Text style={styles.assetAmount}>
-                          {vaultData.latestTransaction.vaultAmount
-                            ? (vaultData.latestTransaction.vaultAmount / 100000000)
-                            : '0'}
-                        </Text>
-                      </View>
-                    </View>
-                  </View>
                 </View>
               </View>
               <Text style={[
@@ -172,6 +148,30 @@ export default function WalletScreen({
                   return `${health}%`;
                 })()}
               </Text>
+            </View>
+            <View style={styles.vaultDetailsContainer}>
+              <View style={styles.vaultDetailRow}>
+                <Text style={styles.vaultLabel}>Overall Debt</Text>
+                <View style={styles.balanceWithIcon}>
+                  <Icon name="unit_symbol" size={10} color={COLORS.SECONDARY_TEXT} style={styles.assetAmountIcon} />
+                  <Text style={styles.assetAmount}>
+                    {vaultData.latestTransaction.amountBorrowed
+                      ? (vaultData.latestTransaction.amountBorrowed / 100).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })
+                      : '0.00'}
+                  </Text>
+                </View>
+              </View>
+              <View style={styles.vaultDetailRow}>
+                <Text style={styles.vaultLabel}>Total collateral</Text>
+                <View style={styles.balanceWithIcon}>
+                  <Icon name="btc_symbol" size={10} color={COLORS.SECONDARY_TEXT} style={styles.assetAmountIcon} />
+                  <Text style={styles.assetAmount}>
+                    {vaultData.latestTransaction.vaultAmount
+                      ? (vaultData.latestTransaction.vaultAmount / 100000000)
+                      : '0'}
+                  </Text>
+                </View>
+              </View>
             </View>
           </View>
         )}
