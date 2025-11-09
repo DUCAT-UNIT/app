@@ -17,8 +17,6 @@ export default function VaultScreen({ visible, walletCredentials, autoCreateVaul
 
   // Rotate through preparing messages
   React.useEffect(() => {
-    console.log('[VaultScreen] Message rotation effect triggered, preparingVault:', preparingVault);
-
     if (!preparingVault) {
       messageIndexRef.current = 0;
       setPreparingMessage('Preparing the vault for you');
@@ -38,19 +36,14 @@ export default function VaultScreen({ visible, walletCredentials, autoCreateVaul
     // Reset to first message when starting
     messageIndexRef.current = 0;
     setPreparingMessage(messages[0]);
-    console.log('[VaultScreen] Starting message rotation with:', messages[0]);
 
     const interval = setInterval(() => {
       messageIndexRef.current = (messageIndexRef.current + 1) % messages.length;
       const newMessage = messages[messageIndexRef.current];
-      console.log('[VaultScreen] Rotating to message index', messageIndexRef.current, ':', newMessage);
       setPreparingMessage(newMessage);
     }, 2000);
 
-    console.log('[VaultScreen] Interval created with ID:', interval);
-
     return () => {
-      console.log('[VaultScreen] Cleaning up interval:', interval);
       clearInterval(interval);
     };
   }, [preparingVault]);
@@ -73,46 +66,32 @@ export default function VaultScreen({ visible, walletCredentials, autoCreateVaul
 
   // Auto-click create vault button when trigger counter changes
   React.useEffect(() => {
-    console.log('[VaultScreen] Effect triggered - trigger:', autoCreateVaultTrigger, 'visible:', visible);
-
     if (autoCreateVaultTrigger > 0 && visible) {
-      console.log('[VaultScreen] ✓ Conditions met - resetting state and reloading webview...');
+      console.log('[VaultScreen] Auto-create vault triggered');
 
       // Reset all state including hasAutoClickedRef
-      console.log('[VaultScreen] Resetting hasAutoClickedRef to false');
       hasAutoClickedRef.current = false;
-
-      console.log('[VaultScreen] Setting webViewLoaded to false');
       setWebViewLoaded(false);
       setScriptInjected(false);
 
       // Increment the key to force webview reload with fresh state
-      setWebViewKey(prev => {
-        const newKey = prev + 1;
-        console.log('[VaultScreen] Incrementing webview key from', prev, 'to', newKey);
-        return newKey;
-      });
+      setWebViewKey(prev => prev + 1);
 
-      console.log('[VaultScreen] Setting preparingVault to true');
       setPreparingVault(true);
       setPreparingMessage('Preparing the vault for you');
-    } else {
-      console.log('[VaultScreen] ✗ Conditions not met - skipping');
     }
   }, [autoCreateVaultTrigger, visible]);
 
   // Inject script after webview loads
   React.useEffect(() => {
     if (autoCreateVaultTrigger > 0 && visible && webViewLoaded && !hasAutoClickedRef.current) {
-      console.log('[VaultScreen] WebView loaded, will inject auto-click script in 1 second...');
-      console.log('[VaultScreen] State check - trigger:', autoCreateVaultTrigger, 'visible:', visible, 'webViewLoaded:', webViewLoaded, 'hasAutoClicked:', hasAutoClickedRef.current);
+      console.log('[VaultScreen] WebView loaded, injecting auto-click script...');
 
       // Mark as clicked BEFORE injecting to prevent double injection
       hasAutoClickedRef.current = true;
 
       // Give a little extra time for the page to fully render
       const timeoutId = setTimeout(() => {
-        console.log('[VaultScreen] Executing auto-click script now...');
         setScriptInjected(true);
 
         if (!webViewRef.current) {
@@ -566,9 +545,6 @@ export default function VaultScreen({ visible, walletCredentials, autoCreateVaul
           {preparingVault && (
             <>
               <Text style={styles.preparingText}>{preparingMessage}</Text>
-              <Text style={[styles.preparingText, { fontSize: 12, marginTop: 8, opacity: 0.5 }]}>
-                Trigger: {autoCreateVaultTrigger} | Key: {webViewKey} | Loaded: {webViewLoaded ? 'Y' : 'N'} | Injected: {scriptInjected ? 'Y' : 'N'}
-              </Text>
             </>
           )}
         </View>
