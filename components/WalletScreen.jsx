@@ -106,7 +106,6 @@ export default function WalletScreen({
         {/* Vault Card */}
         {vaultData && vaultData.latestTransaction && (
           <View style={styles.vaultCard}>
-            <View style={{ flex: 1 }} />
             <View style={styles.vaultHeader}>
               <View style={styles.vaultHeaderLeft}>
                 <View style={styles.vaultIconContainer}>
@@ -176,7 +175,6 @@ export default function WalletScreen({
                 </View>
               </View>
             </View>
-            <View style={{ flex: 1 }} />
           </View>
         )}
 
