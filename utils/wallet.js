@@ -242,27 +242,28 @@ export async function signPsbt(psbtBase64, signInputs) {
 
             console.log(`[signPsbt] Script-path signature:`, signatureBuffer.toString('hex').substring(0, 32) + '...');
 
-            // Build the witness stack manually like Xverse does
-            // For Taproot script-path: [signature, script, control_block]
-            // This needs to be a witness stack serialization, not script compilation
-            const witnessStack = [
-              signatureBuffer,
-              tapLeafScript.script,
-              tapLeafScript.controlBlock,
-            ];
+            // Extract x-only pubkey for tapScriptSig
+            const xOnlyPubkey = keyPair.publicKey.slice(1, 33);
 
-            console.log(`[signPsbt] Building witness stack with ${witnessStack.length} elements:`);
+            // For Taproot script-path spending, we need to set tapScriptSig (NOT finalScriptWitness)
+            // tapScriptSig is an array of {pubkey, leafHash, signature} objects
+            const tapScriptSig = [{
+              pubkey: xOnlyPubkey,
+              leafHash: tapleafHash,
+              signature: signatureBuffer,
+            }];
+
+            console.log(`[signPsbt] Setting tapScriptSig with:`);
+            console.log(`[signPsbt]   - Pubkey: ${xOnlyPubkey.toString('hex').substring(0, 32)}...`);
+            console.log(`[signPsbt]   - LeafHash: ${tapleafHash.toString('hex').substring(0, 32)}...`);
             console.log(`[signPsbt]   - Signature: ${signatureBuffer.length} bytes - ${signatureBuffer.toString('hex').substring(0, 32)}...`);
-            console.log(`[signPsbt]   - Script: ${tapLeafScript.script.length} bytes`);
-            console.log(`[signPsbt]   - Control block: ${tapLeafScript.controlBlock.length} bytes`);
 
-            // Use bitcoinjs-lib's witness serialization
-            // The witness needs to be a vector of byte vectors
+            // Update the PSBT with tapScriptSig (not finalized yet)
             psbt.updateInput(inputIndex, {
-              finalScriptWitness: witnessToScriptWitness(witnessStack),
+              tapScriptSig,
             });
 
-            console.log(`[signPsbt] finalScriptWitness set for script-path spending`);
+            console.log(`[signPsbt] tapScriptSig set for script-path spending`);
           } else {
             // KEY-PATH spending (for regular transfers)
             console.log(`[signPsbt] Using KEY-PATH signing for Taproot`);
