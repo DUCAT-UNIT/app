@@ -8,6 +8,7 @@ import { signPsbt } from '../utils/wallet';
 export default function VaultScreen({ visible, walletCredentials, autoCreateVault, onVaultCreated }) {
   const webViewRef = useRef(null);
   const messageIndexRef = useRef(0);
+  const [webViewKey, setWebViewKey] = React.useState(0);
   const [isLoading, setIsLoading] = React.useState(true);
   const [preparingVault, setPreparingVault] = React.useState(false);
   const [preparingMessage, setPreparingMessage] = React.useState('Preparing the vault for you');
@@ -58,13 +59,30 @@ export default function VaultScreen({ visible, walletCredentials, autoCreateVaul
       console.log('[VaultScreen] Not visible, resetting state');
       setPreparingVault(false);
       setPreparingMessage('Preparing the vault for you');
+      messageIndexRef.current = 0;
     }
   }, [visible]);
 
+  // Reset state when autoCreateVault changes from true to false
+  const prevAutoCreateVault = React.useRef(autoCreateVault);
+  React.useEffect(() => {
+    if (prevAutoCreateVault.current === true && autoCreateVault === false) {
+      console.log('[VaultScreen] autoCreateVault changed to false, resetting state');
+      setPreparingVault(false);
+      setPreparingMessage('Preparing the vault for you');
+      messageIndexRef.current = 0;
+    }
+    prevAutoCreateVault.current = autoCreateVault;
+  }, [autoCreateVault]);
+
   // Auto-click create vault button when flag is set
   React.useEffect(() => {
-    if (autoCreateVault && visible && webViewRef.current) {
-      console.log('[VaultScreen] autoCreateVault is true, injecting auto-click script...');
+    if (autoCreateVault && visible) {
+      console.log('[VaultScreen] autoCreateVault is true, reloading webview and injecting auto-click script...');
+
+      // Increment the key to force webview reload with fresh state
+      setWebViewKey(prev => prev + 1);
+
       setPreparingVault(true);
       setPreparingMessage('Preparing the vault for you');
 
@@ -317,6 +335,7 @@ export default function VaultScreen({ visible, walletCredentials, autoCreateVaul
   return (
     <View style={styles.container}>
       <WebView
+        key={webViewKey}
         ref={webViewRef}
         source={{ uri: webViewUrl }}
         style={styles.webview}
