@@ -87,40 +87,58 @@ export default function VaultScreen({ visible, walletCredentials, autoCreateVaul
             function autoClickCreateVault() {
               console.log('[AutoCreateVault] Searching for create vault button...');
 
-              // Try multiple selectors to find the button
-              const selectors = [
-                'button:contains("Create Vault")',
-                'button:contains("create vault")',
-                'button:contains("CREATE VAULT")',
-                '[data-testid="create-vault"]',
-                '.create-vault-button',
-                '#create-vault',
-              ];
+              // Find all buttons on the page
+              const buttons = Array.from(document.querySelectorAll('button, [role="button"], a'));
+              console.log('[AutoCreateVault] Found ' + buttons.length + ' clickable elements');
 
-              // Also try finding by text content
-              const buttons = Array.from(document.querySelectorAll('button'));
+              // Log all button texts for debugging
+              buttons.forEach((btn, idx) => {
+                const text = (btn.textContent || btn.innerText || '').trim();
+                if (text) {
+                  console.log('[AutoCreateVault] Button ' + idx + ': "' + text + '"');
+                }
+              });
+
+              // Try finding by text content (case insensitive, flexible matching)
               const createVaultButton = buttons.find(btn => {
-                const text = btn.textContent || btn.innerText || '';
-                return text.toLowerCase().includes('create vault') || text.toLowerCase().includes('create a vault');
+                const text = (btn.textContent || btn.innerText || '').toLowerCase().trim();
+                return text.includes('create') && text.includes('vault');
               });
 
               if (createVaultButton) {
-                console.log('[AutoCreateVault] Found button, clicking...');
+                const buttonText = (createVaultButton.textContent || createVaultButton.innerText || '').trim();
+                console.log('[AutoCreateVault] Found button with text: "' + buttonText + '", clicking...');
                 createVaultButton.click();
+                console.log('[AutoCreateVault] Button clicked successfully');
                 return true;
               }
 
-              console.log('[AutoCreateVault] Button not found yet');
+              console.log('[AutoCreateVault] Create vault button not found');
               return false;
             }
 
-            // Try clicking after a short delay to let the page load
-            setTimeout(() => {
-              if (!autoClickCreateVault()) {
-                // Try again after more time if first attempt failed
-                setTimeout(autoClickCreateVault, 1000);
+            // Try clicking with multiple retries
+            let attempts = 0;
+            const maxAttempts = 5;
+
+            function tryAutoClick() {
+              attempts++;
+              console.log('[AutoCreateVault] Attempt ' + attempts + ' of ' + maxAttempts);
+
+              if (autoClickCreateVault()) {
+                console.log('[AutoCreateVault] Success!');
+                return;
               }
-            }, 500);
+
+              if (attempts < maxAttempts) {
+                setTimeout(tryAutoClick, 1000);
+              } else {
+                console.log('[AutoCreateVault] Failed after ' + maxAttempts + ' attempts');
+              }
+            }
+
+            // Start trying after page loads
+            setTimeout(tryAutoClick, 1000);
             ` : ''}
 
             // Check for "Vault health" text on the page (note: lowercase 'h')
