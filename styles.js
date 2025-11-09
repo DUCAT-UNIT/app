@@ -354,6 +354,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: 8,
     marginBottom: SCREEN_WIDTH <= 375 ? 4 : 12,
     minHeight: 120,
+    flexDirection: 'column',
   },
   vaultContentWrapper: {
   },
