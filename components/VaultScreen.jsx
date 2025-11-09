@@ -8,6 +8,7 @@ import { signPsbt } from '../utils/wallet';
 export default function VaultScreen({ visible, walletCredentials, autoCreateVault, onVaultCreated }) {
   const webViewRef = useRef(null);
   const messageIndexRef = useRef(0);
+  const hasAutoClickedRef = useRef(false);
   const [webViewKey, setWebViewKey] = React.useState(0);
   const [isLoading, setIsLoading] = React.useState(true);
   const [preparingVault, setPreparingVault] = React.useState(false);
@@ -60,6 +61,7 @@ export default function VaultScreen({ visible, walletCredentials, autoCreateVaul
       setPreparingVault(false);
       setPreparingMessage('Preparing the vault for you');
       messageIndexRef.current = 0;
+      hasAutoClickedRef.current = false;
     }
   }, [visible]);
 
@@ -71,6 +73,7 @@ export default function VaultScreen({ visible, walletCredentials, autoCreateVaul
       setPreparingVault(false);
       setPreparingMessage('Preparing the vault for you');
       messageIndexRef.current = 0;
+      hasAutoClickedRef.current = false;
     }
     prevAutoCreateVault.current = autoCreateVault;
   }, [autoCreateVault]);
@@ -78,16 +81,29 @@ export default function VaultScreen({ visible, walletCredentials, autoCreateVaul
   // Auto-click create vault button when flag is set
   React.useEffect(() => {
     if (autoCreateVault && visible) {
-      console.log('[VaultScreen] autoCreateVault is true, reloading webview and injecting auto-click script...');
+      console.log('[VaultScreen] autoCreateVault is true, reloading webview...');
 
       // Increment the key to force webview reload with fresh state
-      setWebViewKey(prev => prev + 1);
+      setWebViewKey(prev => {
+        console.log('[VaultScreen] Incrementing webview key from', prev, 'to', prev + 1);
+        return prev + 1;
+      });
 
       setPreparingVault(true);
       setPreparingMessage('Preparing the vault for you');
+    }
+  }, [autoCreateVault, visible]);
 
-      // Wait a bit for the page to be ready, then inject the script
-      setTimeout(() => {
+  // Separate effect to inject script after webview loads
+  React.useEffect(() => {
+    if (autoCreateVault && visible && !hasAutoClickedRef.current) {
+      console.log('[VaultScreen] Waiting for webview to be ready before injecting script...');
+
+      // Wait for the webview to reload and be ready
+      const timeoutId = setTimeout(() => {
+        console.log('[VaultScreen] Injecting auto-click script now...');
+        hasAutoClickedRef.current = true;
+
         webViewRef.current?.injectJavaScript(`
           (function() {
             console.log('[AutoCreateVault] Starting auto-click from effect...');
@@ -300,9 +316,14 @@ export default function VaultScreen({ visible, walletCredentials, autoCreateVaul
           })();
           true;
         `);
-      }, 1000);
+      }, 2000); // Increased timeout to give webview more time to reload
+
+      return () => {
+        console.log('[VaultScreen] Cleaning up auto-click timeout');
+        clearTimeout(timeoutId);
+      };
     }
-  }, [autoCreateVault, visible]);
+  }, [autoCreateVault, visible, webViewKey]); // Add webViewKey as dependency
 
   // Don't return null - always render to preload in background
   // if (!visible) return null;
