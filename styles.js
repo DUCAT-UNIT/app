@@ -105,7 +105,7 @@ const styles = StyleSheet.create({
   },
   welcomeButtons: {
     width: '100%',
-    paddingBottom: HORIZONTAL_PADDING,
+    paddingBottom: HORIZONTAL_PADDING + 20,
   },
   welcomeLogo: {
     width: 120,
@@ -919,7 +919,7 @@ const styles = StyleSheet.create({
     width: '100%',
     alignSelf: 'stretch',
     borderRadius: 0,
-    marginTop: STATUS_BAR_HEIGHT,
+    marginTop: STATUS_BAR_HEIGHT + 10,
     marginBottom: HORIZONTAL_PADDING,
     marginLeft: 0,
     marginRight: 0,
