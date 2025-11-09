@@ -158,7 +158,7 @@ export default function WalletScreen({
                   <Text style={styles.vaultValue}>
                     {vaultData.latestTransaction.amountBorrowed
                       ? (vaultData.latestTransaction.amountBorrowed / 100).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })
-                      : '0.00'} UNIT
+                      : '0.00'}
                   </Text>
                 </View>
               </View>
@@ -170,7 +170,7 @@ export default function WalletScreen({
                   <Text style={styles.vaultValue}>
                     {vaultData.latestTransaction.vaultAmount
                       ? (vaultData.latestTransaction.vaultAmount / 100000000)
-                      : '0'} BTC
+                      : '0'}
                   </Text>
                 </View>
               </View>
