@@ -45,13 +45,14 @@ export default function VaultScreen({ visible, walletCredentials, autoCreateVaul
     };
   }, [preparingVault]);
 
-  // Reset state when not visible or autoCreateVault is false
+  // Reset state when leaving the vault screen
   React.useEffect(() => {
-    if (!visible || !autoCreateVault) {
+    if (!visible) {
+      console.log('[VaultScreen] Not visible, resetting state');
       setPreparingVault(false);
       setPreparingMessage('Preparing the vault for you');
     }
-  }, [visible, autoCreateVault]);
+  }, [visible]);
 
   // Auto-click create vault button when flag is set
   React.useEffect(() => {
