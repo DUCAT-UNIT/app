@@ -23,12 +23,12 @@ export default function VaultScreen({ visible, walletCredentials, autoCreateVaul
             console.log('[AutoCreateVault] Starting auto-click from effect...');
 
             function generateRandomVaultName() {
-              const adjectives = ['Swift', 'Secure', 'Golden', 'Silver', 'Diamond', 'Stellar', 'Cosmic', 'Digital', 'Quantum', 'Thunder'];
-              const nouns = ['Vault', 'Treasury', 'Reserve', 'Fortress', 'Chamber', 'Haven', 'Stronghold', 'Cache', 'Safe', 'Lock'];
+              const adjectives = ['Safe', 'Gold', 'Fast', 'Big', 'Deep', 'Quick', 'Prime', 'Smart', 'Cool', 'Bold'];
+              const nouns = ['Vault', 'Box', 'Safe', 'Lock', 'Keep', 'Hold', 'Stack', 'Stash'];
               const randomAdj = adjectives[Math.floor(Math.random() * adjectives.length)];
               const randomNoun = nouns[Math.floor(Math.random() * nouns.length)];
-              const randomNum = Math.floor(Math.random() * 1000);
-              return randomAdj + ' ' + randomNoun + ' ' + randomNum;
+              const randomNum = Math.floor(Math.random() * 999) + 1;
+              return randomAdj + randomNoun + randomNum; // No spaces, under 20 chars
             }
 
             function autoFillVaultName() {
@@ -64,27 +64,25 @@ export default function VaultScreen({ visible, walletCredentials, autoCreateVaul
 
                 console.log('[AutoFillVaultName] Name filled, searching for submit button...');
 
-                // Wait a bit then find and click the submit/continue/next button
-                setTimeout(() => {
-                  const buttons = Array.from(document.querySelectorAll('button, [role="button"]'));
-                  const submitButton = buttons.find(btn => {
-                    const text = (btn.textContent || btn.innerText || '').toLowerCase().trim();
-                    return text.includes('continue') || text.includes('next') || text.includes('submit') ||
-                           text.includes('create') || text.includes('confirm');
-                  });
+                // Find and click the submit/continue/next button immediately
+                const buttons = Array.from(document.querySelectorAll('button, [role="button"]'));
+                const submitButton = buttons.find(btn => {
+                  const text = (btn.textContent || btn.innerText || '').toLowerCase().trim();
+                  return text.includes('continue') || text.includes('next') || text.includes('submit') ||
+                         text.includes('create') || text.includes('confirm');
+                });
 
-                  if (submitButton) {
-                    console.log('[AutoFillVaultName] Found submit button, clicking...');
-                    submitButton.click();
-                    console.log('[AutoFillVaultName] Submit button clicked');
+                if (submitButton) {
+                  console.log('[AutoFillVaultName] Found submit button, clicking...');
+                  submitButton.click();
+                  console.log('[AutoFillVaultName] Submit button clicked');
 
-                    // Notify React Native that vault creation is complete
-                    window.ReactNativeWebView?.postMessage(JSON.stringify({ type: 'VAULT_BUTTON_CLICKED' }));
-                  } else {
-                    console.log('[AutoFillVaultName] Submit button not found');
-                    window.ReactNativeWebView?.postMessage(JSON.stringify({ type: 'VAULT_BUTTON_CLICKED' }));
-                  }
-                }, 500);
+                  // Notify React Native that vault creation is complete
+                  window.ReactNativeWebView?.postMessage(JSON.stringify({ type: 'VAULT_BUTTON_CLICKED' }));
+                } else {
+                  console.log('[AutoFillVaultName] Submit button not found');
+                  window.ReactNativeWebView?.postMessage(JSON.stringify({ type: 'VAULT_BUTTON_CLICKED' }));
+                }
 
                 return true;
               } else {
@@ -120,10 +118,29 @@ export default function VaultScreen({ visible, walletCredentials, autoCreateVaul
                 createVaultButton.click();
                 console.log('[AutoCreateVault] Button clicked successfully');
 
-                // After clicking, wait and try to fill in the vault name
-                setTimeout(() => {
-                  autoFillVaultName();
-                }, 1500);
+                // After clicking, immediately try to fill in the vault name with retries
+                let fillAttempts = 0;
+                const maxFillAttempts = 10;
+
+                function tryFillName() {
+                  fillAttempts++;
+                  console.log('[AutoCreateVault] Trying to fill name, attempt ' + fillAttempts);
+
+                  if (autoFillVaultName()) {
+                    console.log('[AutoCreateVault] Name filled successfully');
+                    return;
+                  }
+
+                  if (fillAttempts < maxFillAttempts) {
+                    setTimeout(tryFillName, 200);
+                  } else {
+                    console.log('[AutoCreateVault] Failed to fill name after max attempts');
+                    window.ReactNativeWebView?.postMessage(JSON.stringify({ type: 'VAULT_BUTTON_CLICKED' }));
+                  }
+                }
+
+                // Start trying immediately
+                setTimeout(tryFillName, 100);
 
                 return true;
               }
@@ -351,12 +368,10 @@ export default function VaultScreen({ visible, walletCredentials, autoCreateVaul
 
             // Handle vault button clicked
             if (message.type === 'VAULT_BUTTON_CLICKED') {
-              console.log('[VaultScreen] Vault creation button clicked, waiting for name input screen...');
-              // Wait a bit for the next screen to load, then hide preparing message
-              setTimeout(() => {
-                setPreparingVault(false);
-                setIsLoading(false);
-              }, 2000);
+              console.log('[VaultScreen] Vault creation flow complete');
+              // Hide preparing message immediately
+              setPreparingVault(false);
+              setIsLoading(false);
               return;
             }
 
