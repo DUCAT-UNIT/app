@@ -9,6 +9,7 @@ import { View, Text, TouchableOpacity, Animated, Dimensions, ActivityIndicator, 
 import { COLORS } from '../utils/colors';
 import { decodeRunestone } from '../runestone-encoder';
 import Icon from './Icon';
+import { fetchVaultHistory } from '../services/vaultService';
 
 const SCREEN_HEIGHT = Dimensions.get('window').height;
 const SCREEN_WIDTH = Dimensions.get('window').width;
@@ -72,24 +73,80 @@ export default function TransactionHistoryScreen({
   useEffect(() => {
     if (showHistorySheet) {
       fetchTransactionHistory();
+      // Animate in
+      historySheetOpacity.setValue(0);
+      translateY.setValue(SCREEN_HEIGHT);
+      Animated.parallel([
+        Animated.timing(historySheetOpacity, {
+          toValue: 1,
+          duration: 300,
+          useNativeDriver: true,
+        }),
+        Animated.timing(translateY, {
+          toValue: 0,
+          duration: 300,
+          useNativeDriver: true,
+        }),
+      ]).start();
+    } else {
+      historySheetOpacity.setValue(0);
+      translateY.setValue(SCREEN_HEIGHT);
     }
   }, [showHistorySheet, segwitAddress, taprootAddress]);
 
   const fetchTransactionHistory = async () => {
     setLoading(true);
     try {
-      // Fetch transactions for both addresses
-      const [segwitTxs, taprootTxs] = await Promise.all([
+      // Fetch transactions for both addresses and vault history
+      const [segwitTxs, taprootTxs, vaultHistory] = await Promise.all([
         fetchAddressTransactions(segwitAddress),
         fetchAddressTransactions(taprootAddress),
+        fetchVaultHistory(),
       ]);
 
-      // Combine and deduplicate by txid
+      // First, collect all vault transaction IDs
+      const vaultTxIds = new Set();
+      console.log('[TxHistory] Processing vault history, count:', vaultHistory.length);
+      vaultHistory.forEach(vaultTx => {
+        if (vaultTx.transaction_id) {
+          console.log('[TxHistory] Adding vault transaction_id to set:', vaultTx.transaction_id);
+          vaultTxIds.add(vaultTx.transaction_id);
+        }
+      });
+      console.log('[TxHistory] Total vault tx IDs collected:', vaultTxIds.size);
+
+      // Combine and deduplicate by txid, but exclude any that are vault transactions
       const txMap = new Map();
       [...segwitTxs, ...taprootTxs].forEach(tx => {
-        if (!txMap.has(tx.txid)) {
+        // Skip if this txid is a vault transaction
+        if (!vaultTxIds.has(tx.txid) && !txMap.has(tx.txid)) {
           txMap.set(tx.txid, tx);
+        } else if (vaultTxIds.has(tx.txid)) {
+          console.log('[TxHistory] Filtering out duplicate tx:', tx.txid);
         }
+      });
+
+      // Add vault transactions
+      vaultHistory.forEach(vaultTx => {
+        // Create a synthetic transaction object for vault transactions
+        const syntheticTx = {
+          txid: vaultTx.transaction_id || `vault-${vaultTx.timestamp}`,
+          status: {
+            confirmed: true,
+            block_time: vaultTx.timestamp,
+          },
+          vaultTransaction: true,
+          vaultData: {
+            action: vaultTx.action,
+            amountBorrowed: vaultTx.amount_borrowed,
+            vaultAmount: vaultTx.vault_amount,
+            btcAmount: vaultTx.btc_amt,
+            unitAmount: vaultTx.unit_amt,
+            oraclePrice: vaultTx.oracle_price,
+          },
+        };
+
+        txMap.set(syntheticTx.txid, syntheticTx);
       });
 
       // Convert back to array and sort by timestamp (most recent first)
@@ -291,22 +348,13 @@ export default function TransactionHistoryScreen({
     if (type === 'UNIT') {
       // UNIT is stored with 100x multiplier, so divide by 100 for display
       const unitAmount = Number(value) / 100;
-      return unitAmount.toLocaleString();
+      return unitAmount.toLocaleString('en-US');
     } else {
       // BTC in satoshis
       const btc = value / 100000000;
       return btc.toFixed(8);
     }
   };
-
-  // Reset opacity when opening/closing
-  const prevShowHistorySheet = useRef(showHistorySheet);
-  if (showHistorySheet && !prevShowHistorySheet.current) {
-    historySheetOpacity.setValue(1);
-  } else if (!showHistorySheet && prevShowHistorySheet.current) {
-    historySheetOpacity.setValue(0);
-  }
-  prevShowHistorySheet.current = showHistorySheet;
 
   return (
     <>
@@ -345,6 +393,106 @@ export default function TransactionHistoryScreen({
         ) : (
           <ScrollView style={styles.historyScrollView} showsVerticalScrollIndicator={false}>
             {transactions.map((tx, index) => {
+              // Check if this is a vault transaction
+              if (tx.vaultTransaction) {
+                const vaultData = tx.vaultData;
+                const action = vaultData.action;
+
+                return (
+                  <TouchableOpacity
+                    key={`${tx.txid}-${index}`}
+                    style={styles.historyTxRow}
+                    onPress={() => {}}
+                    activeOpacity={0.7}
+                  >
+                    {/* Vault Logo */}
+                    <View style={{ marginRight: 10 }}>
+                      <Icon name="vault_logo" size={40} />
+                    </View>
+
+                    {/* Main Content Container */}
+                    <View style={{ flex: 1 }}>
+                      {/* First Row: Action on left, Confirmation + Amount on right */}
+                      <View style={styles.historyTxTopRow}>
+                        <View style={styles.historyTxColumn1}>
+                          <Text style={[styles.historyTxAmount, { color: '#DDDDDD' }]}>
+                            {action === 'Borrow' ? 'Borrow' : action === 'Repay' ? 'Repay' : action === 'Deposit' ? 'Deposit' : action === 'Withdraw' ? 'Withdraw' : action}
+                          </Text>
+                        </View>
+                        <View style={styles.historyTxRightGroup}>
+                          <View style={styles.historyTxColumn2}>
+                            <View style={[
+                              styles.vaultAmountChip,
+                              {
+                                backgroundColor: 'rgba(89, 170, 138, 0.2)',
+                                marginLeft: 0
+                              }
+                            ]}>
+                              <Text style={[
+                                styles.vaultAmountChipText,
+                                {
+                                  color: COLORS.GREEN
+                                }
+                              ]}>
+                                Confirmed
+                              </Text>
+                            </View>
+                          </View>
+                          <View style={styles.historyTxColumn3}>
+                            {vaultData.btcAmount > 0 ? (
+                              <View style={styles.balanceWithIcon}>
+                                <Icon
+                                  name="btc_symbol"
+                                  size={12}
+                                  color={(action === 'Deposit' || action === 'Repay') ? COLORS.GREEN : COLORS.RED}
+                                  style={styles.assetAmountIcon}
+                                />
+                                <Text style={[
+                                  styles.assetAmount,
+                                  {
+                                    color: (action === 'Deposit' || action === 'Repay')
+                                      ? COLORS.GREEN
+                                      : COLORS.RED
+                                  }
+                                ]}>
+                                  {(vaultData.btcAmount / 100000000).toLocaleString('en-US', { minimumFractionDigits: 8, maximumFractionDigits: 8 })}
+                                </Text>
+                              </View>
+                            ) : vaultData.unitAmount > 0 ? (
+                              <View style={styles.balanceWithIcon}>
+                                <Icon
+                                  name="unit_symbol"
+                                  size={12}
+                                  color={(action === 'Deposit' || action === 'Repay') ? COLORS.GREEN : COLORS.RED}
+                                  style={styles.assetAmountIcon}
+                                />
+                                <Text style={[
+                                  styles.assetAmount,
+                                  {
+                                    color: (action === 'Deposit' || action === 'Repay')
+                                      ? COLORS.GREEN
+                                      : COLORS.RED
+                                  }
+                                ]}>
+                                  {(vaultData.unitAmount / 100).toLocaleString('en-US')}
+                                </Text>
+                              </View>
+                            ) : null}
+                          </View>
+                        </View>
+                      </View>
+                      {/* Second Row: Date */}
+                      <View style={styles.historyTxBottomRow}>
+                        <Text style={styles.historyTxDate}>
+                          {formatDate(tx.status.block_time)}
+                        </Text>
+                      </View>
+                    </View>
+                  </TouchableOpacity>
+                );
+              }
+
+              // Regular transaction logic
               const txData = calculateTxAmount(tx);
               const amount = typeof txData === 'object' ? txData.amount : txData;
               const assetType = typeof txData === 'object' ? txData.type : 'BTC';
@@ -355,6 +503,11 @@ export default function TransactionHistoryScreen({
               const isSent = numericAmount < 0;
               const isReceived = numericAmount > 0;
               const isSelfTransfer = isSelfTransferFlag || (numericAmount === 0 && assetType === 'UNIT');
+
+              // Skip self transfers
+              if (isSelfTransfer) {
+                return null;
+              }
 
               return (
                 <TouchableOpacity
@@ -371,39 +524,67 @@ export default function TransactionHistoryScreen({
                     />
                   </View>
 
-                  {/* Amount and Date */}
-                  <View style={styles.historyTxCenter}>
-                    {isSelfTransfer ? (
-                      <View style={styles.historyTxAmountRow}>
-                        <View style={styles.historySelfTransferTag}>
-                          <Text style={styles.historySelfTransferText}>Self Transfer</Text>
+                  {/* Main Content Container */}
+                  <View style={{ flex: 1 }}>
+                    {/* First Row: Action on left, Confirmation + Amount on right */}
+                    <View style={styles.historyTxTopRow}>
+                      <View style={styles.historyTxColumn1}>
+                        <Text style={[styles.historyTxAmount, { color: '#DDDDDD' }]}>
+                          {isSelfTransfer ? 'Self Transfer' : (isSent ? 'Sent' : 'Received')}
+                        </Text>
+                      </View>
+                      <View style={styles.historyTxRightGroup}>
+                        <View style={styles.historyTxColumn2}>
+                          <View style={[
+                            styles.vaultAmountChip,
+                            {
+                              backgroundColor: tx.status.confirmed
+                                ? 'rgba(89, 170, 138, 0.2)'
+                                : 'rgba(255, 165, 0, 0.2)',
+                              marginLeft: 0
+                            }
+                          ]}>
+                            <Text style={[
+                              styles.vaultAmountChipText,
+                              {
+                                color: tx.status.confirmed ? COLORS.GREEN : COLORS.YELLOW
+                              }
+                            ]}>
+                              {tx.status.confirmed ? 'Confirmed' : 'Pending'}
+                            </Text>
+                          </View>
+                        </View>
+                        <View style={styles.historyTxColumn3}>
+                          {!isSelfTransfer && numericAmount !== 0 && (
+                            <View style={styles.balanceWithIcon}>
+                              <Icon
+                                name={assetType === 'UNIT' ? 'unit_symbol' : 'btc_symbol'}
+                                size={12}
+                                color={isReceived ? COLORS.GREEN : COLORS.RED}
+                                style={styles.assetAmountIcon}
+                              />
+                              <Text style={[
+                                styles.assetAmount,
+                                {
+                                  color: isReceived ? COLORS.GREEN : COLORS.RED
+                                }
+                              ]}>
+                                {assetType === 'UNIT'
+                                  ? (Math.abs(numericAmount) / 100).toLocaleString('en-US')
+                                  : (Math.abs(numericAmount) / 100000000).toLocaleString('en-US', { minimumFractionDigits: 8, maximumFractionDigits: 8 })
+                                }
+                              </Text>
+                            </View>
+                          )}
                         </View>
                       </View>
-                    ) : numericAmount !== 0 ? (
-                      <Text style={[
-                        styles.historyTxAmount,
-                        isSent && styles.historyTxAmountSent,
-                        isReceived && styles.historyTxAmountReceived
-                      ]}>
-                        {isSent ? '-' : '+'}{formatAmount(Math.abs(numericAmount), assetType)} {assetType}
+                    </View>
+                    {/* Second Row: Date */}
+                    <View style={styles.historyTxBottomRow}>
+                      <Text style={styles.historyTxDate}>
+                        {formatDate(tx.status.block_time)}
                       </Text>
-                    ) : null}
-                    <Text style={styles.historyTxDate}>
-                      {formatDate(tx.status.block_time)}
-                    </Text>
-                  </View>
-
-                  {/* Confirmation Status */}
-                  <View style={styles.historyTxRight}>
-                    {tx.status.confirmed ? (
-                      <View style={styles.historyTxStatusConfirmed}>
-                        <Text style={styles.historyTxStatusText}>Confirmed</Text>
-                      </View>
-                    ) : (
-                      <View style={styles.historyTxStatusPending}>
-                        <Text style={styles.historyTxStatusTextPending}>Pending</Text>
-                      </View>
-                    )}
+                    </View>
                   </View>
                 </TouchableOpacity>
               );

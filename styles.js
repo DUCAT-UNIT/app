@@ -341,7 +341,7 @@ const styles = StyleSheet.create({
     backgroundColor: COLORS.CARD_BG,
     borderRadius: 12,
     paddingHorizontal: 8,
-    paddingVertical: 8,
+    paddingTop:12,
     marginBottom: SCREEN_WIDTH <= 375 ? 4 : 12,
     height: 64,
   },
@@ -351,17 +351,18 @@ const styles = StyleSheet.create({
   vaultCard: {
     backgroundColor: COLORS.CARD_BG,
     borderRadius: 12,
-    paddingHorizontal: 8,
-    paddingVertical: 16,
+    padding: 16,
     marginBottom: SCREEN_WIDTH <= 375 ? 4 : 12,
+    flexDirection: 'row',
   },
   vaultContentWrapper: {
+    flex: 1,
   },
   vaultHeader: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    marginBottom: 10,
+    marginBottom: 0,
   },
   vaultHeaderLeft: {
     flexDirection: 'row',
@@ -376,6 +377,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     marginRight: 16,
     position: 'relative',
+    alignSelf: 'center',
   },
   vaultStatusIndicator: {
     position: 'absolute',
@@ -400,8 +402,9 @@ const styles = StyleSheet.create({
     fontFamily: 'CabinetGrotesk-Bold',
   },
   vaultDetailsContainer: {
-    marginLeft: 56,
-    marginTop: 4,
+    marginLeft: 0,
+    marginTop: 0,
+    marginBottom: 0,
   },
   vaultDetailRow: {
     flexDirection: 'row',
@@ -516,12 +519,21 @@ const styles = StyleSheet.create({
     fontFamily: 'CabinetGrotesk-Medium',
     color: COLORS.VERY_LIGHT_GRAY,
     fontWeight: '600',
-    marginBottom: 8,
+    marginBottom: 0,
+  },
+  vaultAssetName: {
+    fontSize: 16,
+    fontFamily: 'CabinetGrotesk-Medium',
+    color: COLORS.VERY_LIGHT_GRAY,
+    fontWeight: '600',
+    paddingTop:4,
+    marginBottom: 0,
   },
   assetAmount: {
     fontSize: 16,
     fontFamily: 'CabinetGrotesk-Regular',
     color: COLORS.SECONDARY_TEXT,
+    textAlign: 'right',
   },
   assetAmountIcon: {
     width: 12,
@@ -657,14 +669,14 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     flexWrap: 'wrap',
     justifyContent: 'space-between',
-    marginBottom: 8,
+    marginBottom: SCREEN_WIDTH <= 375 ? 6 : 8,
   },
   seedBox: {
     width: '48%',
     backgroundColor: COLORS.CARD_BG,
-    padding: 16,
+    padding: SCREEN_WIDTH <= 375 ? 12 : 16,
     borderRadius: 8,
-    marginBottom: 12,
+    marginBottom: SCREEN_WIDTH <= 375 ? 8 : 12,
     flexDirection: 'row',
     alignItems: 'center',
   },
@@ -677,7 +689,7 @@ const styles = StyleSheet.create({
     minWidth: 20,
   },
   seedWord: {
-    fontSize: 16,
+    fontSize: SCREEN_WIDTH <= 375 ? 14 : 16,
     fontFamily: 'CabinetGrotesk-Bold',
     color: COLORS.VERY_LIGHT_GRAY,
     fontWeight: '600',
@@ -875,6 +887,8 @@ const styles = StyleSheet.create({
   balanceWithIcon: {
     flexDirection: 'row',
     alignItems: 'center',
+    justifyContent: 'flex-end',
+    width: '100%',
   },
   balanceIcon: {
     width: 24,
@@ -1272,7 +1286,7 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    padding: 20,
+    padding: SCREEN_WIDTH <= 375 ? 8 : 20,
     borderBottomWidth: 1,
     borderBottomColor: COLORS.BORDER_COLOR,
   },
@@ -1291,14 +1305,14 @@ const styles = StyleSheet.create({
   settingsOption: {
     flexDirection: 'row',
     alignItems: 'center',
-    padding: 20,
+    padding: SCREEN_WIDTH <= 375 ? 8 : 20,
     borderBottomWidth: 1,
     borderBottomColor: COLORS.BORDER_COLOR,
   },
   settingsOptionIcon: {
     fontSize: 24,
     fontFamily: 'CabinetGrotesk-Regular',
-    marginRight: 16,
+    marginRight: SCREEN_WIDTH <= 375 ? 8 : 16,
     width: 32,
   },
   settingsOptionText: {
@@ -2406,8 +2420,6 @@ const styles = StyleSheet.create({
   },
   historyTxRow: {
     flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
     paddingVertical: 16,
     paddingHorizontal: 4,
     borderBottomWidth: 1,
@@ -2416,10 +2428,28 @@ const styles = StyleSheet.create({
   historyLogoImage: {
     width: 40,
     height: 40,
-    marginRight: 12,
   },
-  historyTxCenter: {
+  historyTxTopRow: {
+    flexDirection: 'row',
+    marginBottom: 4,
+    alignItems: 'center',
+  },
+  historyTxBottomRow: {
+    flexDirection: 'row',
+  },
+  historyTxColumn1: {
     flex: 1,
+  },
+  historyTxRightGroup: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    flex: 3,
+    justifyContent: 'space-between',
+  },
+  historyTxColumn2: {
+  },
+  historyTxColumn3: {
+    alignItems: 'flex-end',
   },
   historyTxAmount: {
     fontSize: 16,
@@ -2436,20 +2466,26 @@ const styles = StyleSheet.create({
   historyTxAmountRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 8,
+    gap: 4,
     marginBottom: 4,
   },
-  historySelfTransferTag: {
-    backgroundColor: COLORS.YELLOW,
-    paddingHorizontal: 12,
-    paddingVertical: 8,
-    borderRadius: 8,
+  vaultAmountChip: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    borderRadius: 6,
+    marginLeft: 4,
+    minWidth: 85,
+    justifyContent: 'center',
   },
-  historySelfTransferText: {
-    fontSize: 12,
-    fontFamily: 'CabinetGrotesk-Medium',
+  vaultAmountChipIcon: {
+    marginRight: 8,
+  },
+  vaultAmountChipText: {
+    fontSize: 14,
+    fontFamily: 'CabinetGrotesk-Bold',
     fontWeight: '600',
-    color: COLORS.VERY_DARK_GRAY,
   },
   historyTxDate: {
     fontSize: 12,
@@ -2457,32 +2493,9 @@ const styles = StyleSheet.create({
     color: COLORS.SECONDARY_TEXT,
   },
   historyTxRight: {
-    marginLeft: 12,
+    justifyContent: 'center',
     alignItems: 'flex-end',
-  },
-  historyTxStatusConfirmed: {
-    backgroundColor: COLORS.TEAL,
-    paddingHorizontal: 12,
-    paddingVertical: 8,
-    borderRadius: 12,
-  },
-  historyTxStatusPending: {
-    backgroundColor: COLORS.YELLOW,
-    paddingHorizontal: 12,
-    paddingVertical: 8,
-    borderRadius: 12,
-  },
-  historyTxStatusText: {
-    fontSize: 12,
-    fontFamily: 'CabinetGrotesk-Medium',
-    color: COLORS.VERY_DARK_GRAY,
-    fontWeight: '600',
-  },
-  historyTxStatusTextPending: {
-    fontSize: 12,
-    fontFamily: 'CabinetGrotesk-Medium',
-    color: COLORS.VERY_DARK_GRAY,
-    fontWeight: '600',
+    minWidth: 120,
   },
 });
 export default styles;
