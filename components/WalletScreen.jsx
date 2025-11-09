@@ -106,8 +106,8 @@ export default function WalletScreen({
         {/* Vault Card */}
         {vaultData && vaultData.latestTransaction && (
           <View style={styles.vaultCard}>
-            <View style={styles.vaultHeader}>
-              <View style={styles.vaultHeaderLeft}>
+            <View style={styles.assetRow}>
+              <View style={styles.assetLeft}>
                 <View style={styles.vaultIconContainer}>
                   <Icon name="vault_logo" size={40} color="#DDDDDD" />
                   <View style={[
@@ -124,12 +124,22 @@ export default function WalletScreen({
                     }
                   ]} />
                 </View>
-                <View style={styles.vaultInfo}>
-                  <Text style={styles.vaultTitle}>{vaultData.vaultTag}'s Vault</Text>
+                <View style={styles.assetInfo}>
+                  <Text style={styles.assetName}>{vaultData.vaultTag}'s Vault</Text>
+                  <View style={styles.balanceWithIcon}>
+                    <Text style={styles.assetAmount}>
+                      {(() => {
+                        const debt = vaultData.latestTransaction.amountBorrowed / 100;
+                        const collateralValue = vaultData.totalCollateral * (btcPrice || vaultData.latestTransaction.oraclePrice);
+                        const health = debt > 0 ? Math.floor((collateralValue / debt) * 100) : 0;
+                        return `${health}%`;
+                      })()}
+                    </Text>
+                  </View>
                 </View>
               </View>
               <Text style={[
-                styles.vaultHealth,
+                styles.assetValue,
                 {
                   color: (() => {
                     const debt = vaultData.latestTransaction.amountBorrowed / 100;
@@ -141,39 +151,8 @@ export default function WalletScreen({
                   })()
                 }
               ]}>
-                {(() => {
-                  const debt = vaultData.latestTransaction.amountBorrowed / 100;
-                  const collateralValue = vaultData.totalCollateral * (btcPrice || vaultData.latestTransaction.oraclePrice);
-                  const health = debt > 0 ? Math.floor((collateralValue / debt) * 100) : 0;
-                  return `${health}%`;
-                })()}
+                Healthy
               </Text>
-            </View>
-
-            <View style={styles.vaultDetailsContainer}>
-              <View style={styles.vaultRow}>
-                <Text style={styles.vaultLabel}>Overall Debt</Text>
-                <View style={styles.vaultValueWithIcon}>
-                  <Icon name="unit_symbol" size={10} color={COLORS.SECONDARY_TEXT} />
-                  <Text style={styles.vaultValue}>
-                    {vaultData.latestTransaction.amountBorrowed
-                      ? (vaultData.latestTransaction.amountBorrowed / 100).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })
-                      : '0.00'}
-                  </Text>
-                </View>
-              </View>
-
-              <View style={styles.vaultRow}>
-                <Text style={styles.vaultLabel}>Total collateral</Text>
-                <View style={styles.vaultValueWithIcon}>
-                  <Icon name="btc_symbol" size={10} color={COLORS.SECONDARY_TEXT} />
-                  <Text style={styles.vaultValue}>
-                    {vaultData.latestTransaction.vaultAmount
-                      ? (vaultData.latestTransaction.vaultAmount / 100000000)
-                      : '0'}
-                  </Text>
-                </View>
-              </View>
             </View>
           </View>
         )}

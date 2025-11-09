@@ -354,8 +354,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: 8,
     paddingVertical: 8,
     marginBottom: SCREEN_WIDTH <= 375 ? 4 : 12,
-    height: 120,
-    justifyContent: 'center',
+    height: 64,
   },
   vaultContentWrapper: {
   },
