@@ -359,7 +359,7 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    marginBottom: 8,
+    marginBottom: 12,
   },
   vaultHeaderLeft: {
     flexDirection: 'row',
@@ -399,12 +399,13 @@ const styles = StyleSheet.create({
   },
   vaultDetailsContainer: {
     marginLeft: 56,
+    marginTop: 4,
   },
   vaultRow: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    marginBottom: 8,
+    marginBottom: 4,
   },
   vaultLabel: {
     fontSize: 12,
