@@ -11,6 +11,7 @@ export default function WalletScreen({
   onReceivePress,
   onHistoryPress,
   onSettingsPress,
+  onCreateVaultPress,
   sendAddressType,
   switchingAccount,
   showZeroAssets,
@@ -179,6 +180,19 @@ export default function WalletScreen({
               </View>
             </View>
           </View>
+
+          {/* Create Vault Overlay - Only show when no vault exists */}
+          {(!vaultData || !vaultData.latestTransaction) && (
+            <View style={styles.vaultOverlay}>
+              <TouchableOpacity
+                style={styles.createVaultButton}
+                onPress={onCreateVaultPress}
+                activeOpacity={0.8}
+              >
+                <Text style={styles.createVaultButtonText}>Create Vault</Text>
+              </TouchableOpacity>
+            </View>
+          )}
         </View>
 
         {/* Bitcoin Balance Card - Non-clickable */}
@@ -298,6 +312,7 @@ WalletScreen.propTypes = {
   onSendPress: PropTypes.func.isRequired,
   onReceivePress: PropTypes.func.isRequired,
   onSettingsPress: PropTypes.func.isRequired,
+  onCreateVaultPress: PropTypes.func.isRequired,
   onHistoryPress: PropTypes.func.isRequired,
   sendAddressType: PropTypes.oneOf(['taproot', 'segwit']),
   switchingAccount: PropTypes.bool.isRequired,

@@ -260,6 +260,7 @@ export default function App() {
     importWallet,
     proceedToVerification,
     verifySeeds,
+    saveWalletAfterPinSetup,
     resetOnboarding,
   } = useOnboarding({
     currentAccount,
@@ -635,8 +636,16 @@ export default function App() {
   };
 
 
-  // PIN setup completion callback wrapper (adds isImportedWallet reset)
-  const handlePinSetupCompleteWrapper = () => {
+  // PIN setup completion callback wrapper (adds wallet save and isImportedWallet reset)
+  const handlePinSetupCompleteWrapper = async () => {
+    // Save wallet to storage now that PIN is set (only for new wallets, not imported)
+    if (!isImportedWallet) {
+      const saved = await saveWalletAfterPinSetup();
+      if (!saved) {
+        showToast('Failed to save wallet', 'error');
+        return;
+      }
+    }
     handlePinSetupComplete();
     setIsImportedWallet(false);
   };
@@ -865,6 +874,7 @@ export default function App() {
                   settingsTranslateX.setValue(0);
                   setShowSettings(true);
                 }}
+                onCreateVaultPress={handleOpenVault}
                 sendAddressType={sendAddressType}
                 switchingAccount={switchingAccount}
                 showZeroAssets={showZeroAssets}
@@ -920,6 +930,7 @@ export default function App() {
         onClose={() => setShowTxHistory(false)}
         segwitAddress={wallet?.segwitAddress || ''}
         taprootAddress={wallet?.taprootAddress || ''}
+        vaultPubkey={wallet?.taprootPubkey || ''}
       />
 
       <StatusBar style="light" />
