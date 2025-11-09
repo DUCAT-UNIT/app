@@ -404,7 +404,7 @@ const styles = StyleSheet.create({
   vaultDetailRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 8,
+    justifyContent: 'space-between',
   },
   vaultRow: {
     flexDirection: 'row',
