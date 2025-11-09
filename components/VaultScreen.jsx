@@ -13,7 +13,10 @@ export default function VaultScreen({ visible, walletCredentials, autoCreateVaul
 
   // Rotate through preparing messages
   React.useEffect(() => {
-    if (!preparingVault) return;
+    if (!preparingVault) {
+      setPreparingMessage('Preparing the vault for you');
+      return;
+    }
 
     const messages = [
       'Preparing the vault for you',
@@ -31,8 +34,18 @@ export default function VaultScreen({ visible, walletCredentials, autoCreateVaul
       setPreparingMessage(messages[messageIndex]);
     }, 2000);
 
-    return () => clearInterval(interval);
+    return () => {
+      clearInterval(interval);
+    };
   }, [preparingVault]);
+
+  // Reset state when not visible or autoCreateVault is false
+  React.useEffect(() => {
+    if (!visible || !autoCreateVault) {
+      setPreparingVault(false);
+      setPreparingMessage('Preparing the vault for you');
+    }
+  }, [visible, autoCreateVault]);
 
   // Auto-click create vault button when flag is set
   React.useEffect(() => {
