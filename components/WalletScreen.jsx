@@ -127,13 +127,11 @@ export default function WalletScreen({
                 <View style={styles.assetInfo}>
                   <Text style={styles.assetName}>{vaultData.vaultTag}'s Vault</Text>
                   <View style={styles.balanceWithIcon}>
+                    <Icon name="unit_symbol" size={10} color={COLORS.SECONDARY_TEXT} style={styles.assetAmountIcon} />
                     <Text style={styles.assetAmount}>
-                      {(() => {
-                        const debt = vaultData.latestTransaction.amountBorrowed / 100;
-                        const collateralValue = vaultData.totalCollateral * (btcPrice || vaultData.latestTransaction.oraclePrice);
-                        const health = debt > 0 ? Math.floor((collateralValue / debt) * 100) : 0;
-                        return `${health}%`;
-                      })()}
+                      {vaultData.latestTransaction.amountBorrowed
+                        ? (vaultData.latestTransaction.amountBorrowed / 100).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })
+                        : '0.00'}
                     </Text>
                   </View>
                 </View>
@@ -151,7 +149,12 @@ export default function WalletScreen({
                   })()
                 }
               ]}>
-                Healthy
+                {(() => {
+                  const debt = vaultData.latestTransaction.amountBorrowed / 100;
+                  const collateralValue = vaultData.totalCollateral * (btcPrice || vaultData.latestTransaction.oraclePrice);
+                  const health = debt > 0 ? Math.floor((collateralValue / debt) * 100) : 0;
+                  return `${health}%`;
+                })()}
               </Text>
             </View>
           </View>
