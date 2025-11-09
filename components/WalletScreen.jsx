@@ -179,8 +179,7 @@ export default function WalletScreen({
         )}
 
         {/* Bitcoin Balance Card - Non-clickable */}
-        {(showZeroAssets || (segwitBalance || 0) > 0) && (
-          <View style={styles.assetCard}>
+        <View style={styles.assetCard}>
             <View style={styles.assetRow}>
               <View style={styles.assetLeft}>
                 <View style={styles.btcIcon}>
@@ -210,11 +209,9 @@ export default function WalletScreen({
               )}
             </View>
           </View>
-        )}
 
         {/* UNIT•RUNE Card - Non-clickable */}
-        {(showZeroAssets || (runesBalance.length > 0 && parseFloat(runesBalance[0][1]) > 0)) && (
-          <View style={styles.assetCard}>
+        <View style={styles.assetCard}>
             <View style={styles.assetRow}>
               <View style={styles.assetLeft}>
                 <View style={[styles.btcIcon, styles.ducatIcon]}>
@@ -246,7 +243,6 @@ export default function WalletScreen({
               )}
             </View>
           </View>
-        )}
 
         {/* DUCAT•RUNE Card - Non-clickable */}
         {showZeroAssets && (
