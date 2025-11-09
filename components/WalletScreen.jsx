@@ -1,6 +1,6 @@
 import React from 'react';
 import PropTypes from 'prop-types';
-import { View, Text, TouchableOpacity, Image, ActivityIndicator } from 'react-native';
+import { View, Text, TouchableOpacity, Image, ActivityIndicator, ScrollView } from 'react-native';
 import { useWallet } from '../contexts/WalletContext';
 import { COLORS } from '../utils/colors';
 import Icon from './Icon';
@@ -95,8 +95,12 @@ export default function WalletScreen({
       {/* Divider */}
       <View style={styles.balanceDivider} />
 
-      {/* Assets Container - Fixed height to prevent jumping */}
-      <View style={styles.assetsContainer}>
+      {/* Scrollable Assets Container */}
+      <ScrollView
+        style={styles.assetsScrollContainer}
+        contentContainerStyle={styles.assetsScrollContent}
+        showsVerticalScrollIndicator={false}
+      >
         {/* Bitcoin Balance Card - Non-clickable */}
         <View style={styles.assetCard}>
           <View style={styles.assetRow}>
@@ -164,7 +168,7 @@ export default function WalletScreen({
         </View>
 
         {/* DUCAT•RUNE Card - Non-clickable */}
-        <View style={styles.assetCard}>
+        <View style={[styles.assetCard, styles.assetCardLast]}>
           <View style={styles.assetRow}>
             <View style={styles.assetLeft}>
               <View style={[styles.btcIcon, styles.ducatIcon]}>
@@ -185,9 +189,9 @@ export default function WalletScreen({
             )}
           </View>
         </View>
-      </View>
+      </ScrollView>
 
-      {/* Actions - Send and Receive Buttons - Full Width */}
+      {/* Actions - Send and Receive Buttons - Fixed at Bottom */}
       <View style={styles.xverseActionsRow}>
         <TouchableOpacity
           style={styles.xverseActionButton}

@@ -330,12 +330,23 @@ const styles = StyleSheet.create({
     minHeight: 144,
     paddingHorizontal: HORIZONTAL_PADDING,
   },
+  assetsScrollContainer: {
+    flex: 1,
+  },
+  assetsScrollContent: {
+    paddingHorizontal: HORIZONTAL_PADDING,
+    paddingBottom: 0,
+  },
   assetCard: {
     backgroundColor: COLORS.CARD_BG,
     borderRadius: 12,
-    padding: SCREEN_WIDTH <= 375 ? 10 : 20,
-    marginBottom: 8,
+    paddingHorizontal: SCREEN_WIDTH <= 375 ? 12 : 20,
+    paddingVertical: SCREEN_WIDTH <= 375 ? 16 : 20,
+    marginBottom: SCREEN_WIDTH <= 375 ? 4 : 8,
     height: 80,
+  },
+  assetCardLast: {
+    marginBottom: 0,
   },
   assetCardPlaceholder: {
     opacity: 0,
@@ -820,7 +831,7 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    marginBottom: 12,
+    marginBottom: SCREEN_WIDTH <= 375 ? 8 : 12,
     paddingHorizontal: HORIZONTAL_PADDING,
   },
   xverseHeaderLeft: {
@@ -881,7 +892,7 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    marginBottom: 20,
+    marginBottom: SCREEN_WIDTH <= 375 ? 12 : 20,
     paddingHorizontal: HORIZONTAL_PADDING,
   },
   xverseBalanceLeft: {
@@ -891,10 +902,10 @@ const styles = StyleSheet.create({
     fontSize: 16,
     fontFamily: 'CabinetGrotesk-Regular',
     color: COLORS.SECONDARY_TEXT,
-    marginBottom: 12,
+    marginBottom: SCREEN_WIDTH <= 375 ? 8 : 12,
   },
   xverseBalanceAmount: {
-    fontSize: 44,
+    fontSize: SCREEN_WIDTH <= 375 ? 36 : 44,
     fontFamily: 'CabinetGrotesk-Bold',
     color: COLORS.VERY_LIGHT_GRAY,
     fontWeight: 'bold',
@@ -939,7 +950,8 @@ const styles = StyleSheet.create({
   xverseActionsRow: {
     flexDirection: 'row',
     justifyContent: 'space-between',
-    marginTop: 12,
+    marginTop: 0,
+    marginBottom: SCREEN_WIDTH <= 375 ? 12 : 16,
     gap: 16,
     paddingHorizontal: HORIZONTAL_PADDING,
   },
