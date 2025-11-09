@@ -185,7 +185,7 @@ export default function WalletScreen({
           {/* Create Vault Overlay - Only show when no vault exists */}
           {(!vaultData || !vaultData.latestTransaction) && (
             <LinearGradient
-              colors={['rgba(20, 20, 20, 0.1)', 'rgba(20, 20, 20, 0.95)']}
+              colors={['rgba(20, 20, 20, 0.3)', 'rgba(20, 20, 20, 1)']}
               style={styles.vaultOverlay}
               start={{ x: 0.5, y: 0 }}
               end={{ x: 0.5, y: 1 }}
