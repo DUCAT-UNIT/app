@@ -1,18 +1,27 @@
-const VAULT_API_BASE = 'https://validator.ducatprotocol.com/api';
-const VAULT_PUBKEY = '3034746ae6b21aec0d3bb9cc973006c1d2b5f06354390e0b9db72b8c0822dc82';
+import { retrySilently } from '../utils/retry';
 
-export const fetchVaultHistory = async () => {
+const VAULT_API_BASE = 'https://validator.ducatprotocol.com/api';
+
+export const fetchVaultHistory = async (vaultPubkey) => {
   try {
+    if (!vaultPubkey) {
+      console.log('No vault pubkey provided');
+      return [];
+    }
+
     // Step 1: Get vault list to retrieve vault_id
-    const vaultListResponse = await fetch(`${VAULT_API_BASE}/vault_list`, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify({
-        vault_pubkey: VAULT_PUBKEY,
+    const vaultListResponse = await retrySilently(
+      () => fetch(`${VAULT_API_BASE}/vault_list`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          vault_pubkey: vaultPubkey,
+        }),
       }),
-    });
+      'Fetch vault list'
+    );
 
     const vaultListData = await vaultListResponse.json();
 
@@ -27,21 +36,24 @@ export const fetchVaultHistory = async () => {
     const now = Math.floor(Date.now() / 1000);
     const thirtyDaysAgo = now - (30 * 24 * 60 * 60);
 
-    const vaultHistoryResponse = await fetch(`${VAULT_API_BASE}/vault_history_tx`, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify({
-        vault_id: vaultId,
-        timestamp_start: thirtyDaysAgo,
-        timestamp_end: now,
-        pagination: {
-          limit: 250,
-          offset: 0,
+    const vaultHistoryResponse = await retrySilently(
+      () => fetch(`${VAULT_API_BASE}/vault_history_tx`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
         },
+        body: JSON.stringify({
+          vault_id: vaultId,
+          timestamp_start: thirtyDaysAgo,
+          timestamp_end: now,
+          pagination: {
+            limit: 250,
+            offset: 0,
+          },
+        }),
       }),
-    });
+      'Fetch vault history'
+    );
 
     const vaultHistoryData = await vaultHistoryResponse.json();
 
@@ -58,18 +70,26 @@ export const fetchVaultHistory = async () => {
   }
 };
 
-export const fetchVaultData = async () => {
+export const fetchVaultData = async (vaultPubkey) => {
   try {
+    if (!vaultPubkey) {
+      console.log('No vault pubkey provided');
+      return null;
+    }
+
     // Step 1: Get vault list to retrieve vault_id
-    const vaultListResponse = await fetch(`${VAULT_API_BASE}/vault_list`, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify({
-        vault_pubkey: VAULT_PUBKEY,
+    const vaultListResponse = await retrySilently(
+      () => fetch(`${VAULT_API_BASE}/vault_list`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          vault_pubkey: vaultPubkey,
+        }),
       }),
-    });
+      'Fetch vault data list'
+    );
 
     const vaultListData = await vaultListResponse.json();
 
@@ -85,21 +105,24 @@ export const fetchVaultData = async () => {
     const now = Math.floor(Date.now() / 1000);
     const thirtyDaysAgo = now - (30 * 24 * 60 * 60);
 
-    const vaultHistoryResponse = await fetch(`${VAULT_API_BASE}/vault_history_tx`, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify({
-        vault_id: vaultId,
-        timestamp_start: thirtyDaysAgo,
-        timestamp_end: now,
-        pagination: {
-          limit: 250,
-          offset: 0,
+    const vaultHistoryResponse = await retrySilently(
+      () => fetch(`${VAULT_API_BASE}/vault_history_tx`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
         },
+        body: JSON.stringify({
+          vault_id: vaultId,
+          timestamp_start: thirtyDaysAgo,
+          timestamp_end: now,
+          pagination: {
+            limit: 250,
+            offset: 0,
+          },
+        }),
       }),
-    });
+      'Fetch vault data history'
+    );
 
     const vaultHistoryData = await vaultHistoryResponse.json();
 
@@ -136,3 +159,4 @@ export const fetchVaultData = async () => {
     return null;
   }
 };
+

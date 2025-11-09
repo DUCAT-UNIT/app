@@ -10,6 +10,7 @@ import { COLORS } from '../utils/colors';
 import { decodeRunestone } from '../runestone-encoder';
 import Icon from './Icon';
 import { fetchVaultHistory } from '../services/vaultService';
+import { retrySilently } from '../utils/retry';
 
 const SCREEN_HEIGHT = Dimensions.get('window').height;
 const SCREEN_WIDTH = Dimensions.get('window').width;
@@ -24,6 +25,7 @@ export default function TransactionHistoryScreen({
   onClose,
   segwitAddress,
   taprootAddress,
+  vaultPubkey,
 }) {
   const [transactions, setTransactions] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -101,7 +103,7 @@ export default function TransactionHistoryScreen({
       const [segwitTxs, taprootTxs, vaultHistory] = await Promise.all([
         fetchAddressTransactions(segwitAddress),
         fetchAddressTransactions(taprootAddress),
-        fetchVaultHistory(),
+        fetchVaultHistory(vaultPubkey),
       ]);
 
       // First, collect all vault transaction IDs
@@ -162,7 +164,10 @@ export default function TransactionHistoryScreen({
 
   const fetchAddressTransactions = async (address) => {
     try {
-      const response = await fetch(`https://mutinynet.com/api/address/${address}/txs`);
+      const response = await retrySilently(
+        () => fetch(`https://mutinynet.com/api/address/${address}/txs`),
+        `Fetch transactions for ${address.substring(0, 8)}...`
+      );
       if (!response.ok) {
         throw new Error('Failed to fetch transactions');
       }
@@ -602,4 +607,5 @@ TransactionHistoryScreen.propTypes = {
   onClose: PropTypes.func.isRequired,
   segwitAddress: PropTypes.string.isRequired,
   taprootAddress: PropTypes.string.isRequired,
+  vaultPubkey: PropTypes.string,
 };

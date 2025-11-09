@@ -31,7 +31,7 @@ export function useSettings({
   setViewingSeedPhrase,
   showToast,
 }) {
-  const [privacyMode, setPrivacyMode] = useState(true);
+  const [privacyMode, setPrivacyMode] = useState(false);
   const [notificationsEnabled, setNotificationsEnabled] = useState(false);
   const [showZeroAssets, setShowZeroAssets] = useState(false);
   const [showLogoutModal, setShowLogoutModal] = useState(false);

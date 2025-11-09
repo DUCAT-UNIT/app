@@ -312,6 +312,14 @@ export default function App() {
     }
   }, [intentStep]);
 
+  // Reset autoCreateVault flag when leaving vault tab
+  useEffect(() => {
+    if (activeTab !== 'vault' && autoCreateVault) {
+      console.log('[App] Leaving vault tab, resetting autoCreateVault flag');
+      setAutoCreateVault(false);
+    }
+  }, [activeTab, autoCreateVault]);
+
   // Show splash screen when app goes to background/inactive (for app switcher preview)
   useEffect(() => {
     const subscription = AppState.addEventListener('change', nextAppState => {
@@ -981,6 +989,10 @@ export default function App() {
           visible={activeTab === 'vault'}
           walletCredentials={vaultCredentials}
           autoCreateVault={autoCreateVault}
+          onVaultCreated={() => {
+            console.log('[App] Vault creation completed, resetting autoCreateVault flag');
+            setAutoCreateVault(false);
+          }}
         />
       </View>
       <BottomNavigationBar

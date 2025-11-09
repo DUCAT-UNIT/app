@@ -5,7 +5,7 @@ import { WebView } from 'react-native-webview';
 import { COLORS } from '../utils/colors';
 import { signPsbt } from '../utils/wallet';
 
-export default function VaultScreen({ visible, walletCredentials, autoCreateVault }) {
+export default function VaultScreen({ visible, walletCredentials, autoCreateVault, onVaultCreated }) {
   const webViewRef = useRef(null);
   const messageIndexRef = useRef(0);
   const [isLoading, setIsLoading] = React.useState(true);
@@ -14,6 +14,8 @@ export default function VaultScreen({ visible, walletCredentials, autoCreateVaul
 
   // Rotate through preparing messages
   React.useEffect(() => {
+    console.log('[VaultScreen] Message rotation effect triggered, preparingVault:', preparingVault);
+
     if (!preparingVault) {
       messageIndexRef.current = 0;
       setPreparingMessage('Preparing the vault for you');
@@ -33,14 +35,19 @@ export default function VaultScreen({ visible, walletCredentials, autoCreateVaul
     // Reset to first message when starting
     messageIndexRef.current = 0;
     setPreparingMessage(messages[0]);
+    console.log('[VaultScreen] Starting message rotation with:', messages[0]);
 
     const interval = setInterval(() => {
       messageIndexRef.current = (messageIndexRef.current + 1) % messages.length;
-      setPreparingMessage(messages[messageIndexRef.current]);
-      console.log('[VaultScreen] Rotating message to:', messages[messageIndexRef.current]);
+      const newMessage = messages[messageIndexRef.current];
+      console.log('[VaultScreen] Rotating to message index', messageIndexRef.current, ':', newMessage);
+      setPreparingMessage(newMessage);
     }, 2000);
 
+    console.log('[VaultScreen] Interval created with ID:', interval);
+
     return () => {
+      console.log('[VaultScreen] Cleaning up interval:', interval);
       clearInterval(interval);
     };
   }, [preparingVault]);
@@ -463,6 +470,10 @@ export default function VaultScreen({ visible, walletCredentials, autoCreateVaul
               console.log('[VaultScreen] Vault Health detected, hiding loader');
               setIsLoading(false);
               setPreparingVault(false);
+              // Notify parent that vault creation is complete
+              if (onVaultCreated) {
+                onVaultCreated();
+              }
               return;
             }
 
@@ -471,6 +482,10 @@ export default function VaultScreen({ visible, walletCredentials, autoCreateVaul
               console.log('[VaultScreen] Vault creation button click failed');
               setPreparingVault(false);
               setIsLoading(false);
+              // Notify parent that vault creation failed
+              if (onVaultCreated) {
+                onVaultCreated();
+              }
               return;
             }
 
@@ -576,6 +591,7 @@ VaultScreen.propTypes = {
     vaultPubkey: PropTypes.string.isRequired,
   }),
   autoCreateVault: PropTypes.bool,
+  onVaultCreated: PropTypes.func,
 };
 
 const styles = StyleSheet.create({

@@ -11,6 +11,7 @@ import { MUTINYNET_NETWORK } from '../utils/bitcoin';
 import { fetchUtxos as fetchUtxosService } from './balanceService';
 import * as AuthService from './authService';
 import { ERRORS } from '../utils/messages';
+import { retrySilently } from '../utils/retry';
 
 // Initialize BIP32 and ECC library
 const bip32 = BIP32Factory(ecc);
@@ -691,10 +692,14 @@ export const signIntent = async (intent, currentAccount) => {
  */
 export const broadcastTransaction = async (signedTxHex) => {
   try {
-    const response = await fetch('https://mutinynet.com/api/tx', {
-      method: 'POST',
-      body: signedTxHex,
-    });
+    const response = await retrySilently(
+      () => fetch('https://mutinynet.com/api/tx', {
+        method: 'POST',
+        body: signedTxHex,
+      }),
+      'Broadcast transaction',
+      { maxRetries: 2 } // Fewer retries for broadcasts
+    );
 
     if (!response.ok) {
       const errorText = await response.text();

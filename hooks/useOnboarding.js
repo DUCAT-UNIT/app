@@ -24,6 +24,7 @@ export function useOnboarding({
 
   // Onboarding state
   const [tempMnemonicWords, setTempMnemonicWords] = useState([]); // Temporary for seed verification
+  const [tempMnemonic, setTempMnemonic] = useState(''); // Full mnemonic string to save after PIN setup
   const [showingIntro, setShowingIntro] = useState(false);
   const [showingSeeds, setShowingSeeds] = useState(false);
   const [verifyingSeeds, setVerifyingSeeds] = useState(false);
@@ -62,8 +63,8 @@ export function useOnboarding({
       // Generate wallet using WalletService
       const { mnemonic, addresses } = await WalletService.generateWallet(currentAccount);
 
-      // Store wallet in secure storage
-      await WalletService.saveWalletToStorage(mnemonic, currentAccount);
+      // DO NOT save wallet to secure storage yet - wait until after PIN setup
+      // This prevents users from closing the app and skipping verification/PIN setup
 
       // Set showingIntro FIRST, before setting wallet, to prevent lock screen flash
       setShowingIntro(true);
@@ -75,9 +76,10 @@ export function useOnboarding({
 
       // Store addresses in context and fetch balances
       setWalletAddresses(addresses, 0);
-      walletExistsRef.current = true;
+      walletExistsRef.current = false; // Not truly created until PIN is set
 
-      // Temporarily store mnemonic words for verification flow only
+      // Temporarily store mnemonic for later saving after PIN setup
+      setTempMnemonic(mnemonic);
       setTempMnemonicWords(mnemonic.split(' '));
     } catch (error) {
       showToast(parseErrorMessage(error), 'error');
@@ -190,10 +192,41 @@ export function useOnboarding({
   };
 
   /**
+   * Save wallet after PIN setup completes
+   * This is called from PinSetupScreen after PIN is successfully saved
+   */
+  const saveWalletAfterPinSetup = async () => {
+    try {
+      if (!tempMnemonic) {
+        console.error('No mnemonic to save');
+        return false;
+      }
+
+      // Save wallet to secure storage
+      await WalletService.saveWalletToStorage(tempMnemonic, currentAccount);
+
+      // Mark wallet as truly existing now
+      walletExistsRef.current = true;
+
+      // Securely clear temporary mnemonic from memory
+      setTempMnemonic('*'.repeat(tempMnemonic.length));
+      setTimeout(() => setTempMnemonic(''), 100);
+      setTempMnemonicWords(Array(12).fill('*'.repeat(8)));
+      setTimeout(() => setTempMnemonicWords([]), 100);
+
+      return true;
+    } catch (error) {
+      console.error('Failed to save wallet after PIN setup:', error);
+      return false;
+    }
+  };
+
+  /**
    * Reset onboarding state
    */
   const resetOnboarding = () => {
     // Securely clear temporary mnemonic from memory
+    setTempMnemonic('');
     setTempMnemonicWords(Array(12).fill('*'.repeat(8)));
     setTimeout(() => setTempMnemonicWords([]), 100);
 
@@ -238,6 +271,7 @@ export function useOnboarding({
     importWallet,
     proceedToVerification,
     verifySeeds,
+    saveWalletAfterPinSetup,
     resetOnboarding,
   };
 }

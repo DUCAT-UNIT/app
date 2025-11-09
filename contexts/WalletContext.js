@@ -18,7 +18,7 @@ export const useWallet = () => {
 
 export const WalletProvider = ({ children }) => {
   // Wallet state
-  const [wallet, setWallet] = useState(null); // { segwitAddress, taprootAddress }
+  const [wallet, setWallet] = useState(null); // { segwitAddress, taprootAddress, taprootPubkey }
   const [currentAccount, setCurrentAccount] = useState(0);
 
   // Balance state
@@ -62,8 +62,12 @@ export const WalletProvider = ({ children }) => {
   // Fetch vault data
   const fetchVault = useCallback(async () => {
     try {
+      if (!wallet?.taprootPubkey) {
+        console.log('No vault pubkey available');
+        return;
+      }
       setLoadingVault(true);
-      const data = await fetchVaultData();
+      const data = await fetchVaultData(wallet.taprootPubkey);
       setVaultData(data);
     } catch (error) {
       console.error('Failed to fetch vault data:', error);
@@ -71,7 +75,7 @@ export const WalletProvider = ({ children }) => {
     } finally {
       setLoadingVault(false);
     }
-  }, []);
+  }, [wallet?.taprootPubkey]);
 
   // Fetch wallet balance
   const fetchBalance = useCallback(async (segwitAddr, taprootAddr) => {
@@ -129,6 +133,7 @@ export const WalletProvider = ({ children }) => {
         setWallet({
           segwitAddress: addresses.segwitAddress,
           taprootAddress: addresses.taprootAddress,
+          taprootPubkey: addresses.taprootPubkey,
         });
         setCurrentAccount(accountIndex);
 
@@ -150,6 +155,7 @@ export const WalletProvider = ({ children }) => {
     setWallet({
       segwitAddress: addresses.segwitAddress,
       taprootAddress: addresses.taprootAddress,
+      taprootPubkey: addresses.taprootPubkey,
     });
     setCurrentAccount(accountIndex);
 
@@ -179,6 +185,7 @@ export const WalletProvider = ({ children }) => {
       setWallet({
         segwitAddress: addresses.segwitAddress,
         taprootAddress: addresses.taprootAddress,
+        taprootPubkey: addresses.taprootPubkey,
       });
       setCurrentAccount(accountIndex);
 
@@ -187,7 +194,7 @@ export const WalletProvider = ({ children }) => {
 
       // Fetch balances and vault data for new account
       await fetchBalance(addresses.segwitAddress, addresses.taprootAddress);
-      await fetchVault();
+      // fetchVault will be called automatically when wallet.taprootPubkey is set
 
       return addresses;
     } catch (error) {
