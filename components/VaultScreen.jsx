@@ -9,12 +9,37 @@ export default function VaultScreen({ visible, walletCredentials, autoCreateVaul
   const webViewRef = useRef(null);
   const [isLoading, setIsLoading] = React.useState(true);
   const [preparingVault, setPreparingVault] = React.useState(false);
+  const [preparingMessage, setPreparingMessage] = React.useState('Preparing the vault for you');
+
+  // Rotate through preparing messages
+  React.useEffect(() => {
+    if (!preparingVault) return;
+
+    const messages = [
+      'Preparing the vault for you',
+      'Initializing secure parameters',
+      'Generating vault credentials',
+      'Configuring collateral settings',
+      'Establishing Bitcoin connection',
+      'Verifying network parameters',
+      'Almost there...'
+    ];
+
+    let messageIndex = 0;
+    const interval = setInterval(() => {
+      messageIndex = (messageIndex + 1) % messages.length;
+      setPreparingMessage(messages[messageIndex]);
+    }, 2000);
+
+    return () => clearInterval(interval);
+  }, [preparingVault]);
 
   // Auto-click create vault button when flag is set
   React.useEffect(() => {
     if (autoCreateVault && visible && webViewRef.current) {
       console.log('[VaultScreen] autoCreateVault is true, injecting auto-click script...');
       setPreparingVault(true);
+      setPreparingMessage('Preparing the vault for you');
 
       // Wait a bit for the page to be ready, then inject the script
       setTimeout(() => {
@@ -512,7 +537,7 @@ export default function VaultScreen({ visible, walletCredentials, autoCreateVaul
         <View style={styles.loadingOverlay}>
           <ActivityIndicator size="large" color={COLORS.PRIMARY_BLUE} />
           {preparingVault && (
-            <Text style={styles.preparingText}>Preparing the vault for you</Text>
+            <Text style={styles.preparingText}>{preparingMessage}</Text>
           )}
         </View>
       )}
