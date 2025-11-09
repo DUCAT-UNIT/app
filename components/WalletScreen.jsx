@@ -124,28 +124,30 @@ export default function WalletScreen({
                     }
                   ]} />
                 </View>
-                <Text style={styles.vaultTitle}>{vaultData.vaultTag}'s Vault</Text>
+                <View style={styles.vaultInfo}>
+                  <Text style={styles.vaultTitle}>{vaultData.vaultTag}'s Vault</Text>
+                  <Text style={[
+                    styles.vaultHealth,
+                    {
+                      color: (() => {
+                        const debt = vaultData.latestTransaction.amountBorrowed / 100;
+                        const collateralValue = vaultData.totalCollateral * (btcPrice || vaultData.latestTransaction.oraclePrice);
+                        const collateralRatio = debt > 0 ? (collateralValue / debt) * 100 : 0;
+                        if (collateralRatio >= 200) return COLORS.GREEN; // Green
+                        if (collateralRatio >= 161) return COLORS.YELLOW; // Yellow
+                        return COLORS.RED; // Red
+                      })()
+                    }
+                  ]}>
+                    {(() => {
+                      const debt = vaultData.latestTransaction.amountBorrowed / 100;
+                      const collateralValue = vaultData.totalCollateral * (btcPrice || vaultData.latestTransaction.oraclePrice);
+                      const health = debt > 0 ? Math.floor((collateralValue / debt) * 100) : 0;
+                      return `${health}%`;
+                    })()}
+                  </Text>
+                </View>
               </View>
-              <Text style={[
-                styles.vaultHealth,
-                {
-                  color: (() => {
-                    const debt = vaultData.latestTransaction.amountBorrowed / 100;
-                    const collateralValue = vaultData.totalCollateral * (btcPrice || vaultData.latestTransaction.oraclePrice);
-                    const collateralRatio = debt > 0 ? (collateralValue / debt) * 100 : 0;
-                    if (collateralRatio >= 200) return COLORS.GREEN; // Green
-                    if (collateralRatio >= 161) return COLORS.YELLOW; // Yellow
-                    return COLORS.RED; // Red
-                  })()
-                }
-              ]}>
-                {(() => {
-                  const debt = vaultData.latestTransaction.amountBorrowed / 100;
-                  const collateralValue = vaultData.totalCollateral * (btcPrice || vaultData.latestTransaction.oraclePrice);
-                  const health = debt > 0 ? Math.floor((collateralValue / debt) * 100) : 0;
-                  return `${health}%`;
-                })()}
-              </Text>
             </View>
 
             <View style={styles.vaultRow}>

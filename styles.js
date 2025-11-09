@@ -360,14 +360,19 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between',
     alignItems: 'center',
     marginBottom: 8,
-    marginLeft: -8,
   },
   vaultHeaderLeft: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 12,
+    flex: 1,
   },
   vaultIconContainer: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginRight: 16,
     position: 'relative',
   },
   vaultStatusIndicator: {
@@ -379,14 +384,20 @@ const styles = StyleSheet.create({
     borderRadius: 3,
     backgroundColor: '#59AA8A',
   },
+  vaultInfo: {
+    flex: 1,
+  },
   vaultTitle: {
     fontSize: 16,
     fontFamily: 'CabinetGrotesk-Medium',
     color: COLORS.VERY_LIGHT_GRAY,
+    fontWeight: '600',
+    marginBottom: 8,
   },
   vaultHealth: {
     fontSize: 16,
-    fontFamily: 'CabinetGrotesk-Bold',
+    fontFamily: 'CabinetGrotesk-Regular',
+    color: COLORS.SECONDARY_TEXT,
   },
   vaultRow: {
     flexDirection: 'row',
