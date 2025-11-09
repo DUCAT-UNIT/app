@@ -352,20 +352,17 @@ const styles = StyleSheet.create({
     backgroundColor: COLORS.CARD_BG,
     borderRadius: 12,
     paddingHorizontal: 8,
-    paddingVertical: 8,
     marginBottom: SCREEN_WIDTH <= 375 ? 4 : 12,
-    minHeight: 140,
+    height: 140,
     justifyContent: 'center',
   },
   vaultContentWrapper: {
-    flex: 1,
-    justifyContent: 'center',
   },
   vaultHeader: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    marginBottom: 12,
+    marginBottom: 8,
   },
   vaultHeaderLeft: {
     flexDirection: 'row',
@@ -405,13 +402,12 @@ const styles = StyleSheet.create({
   },
   vaultDetailsContainer: {
     marginLeft: 56,
-    marginTop: 4,
   },
   vaultRow: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    marginBottom: 4,
+    marginBottom: 6,
   },
   vaultLabel: {
     fontSize: 12,
