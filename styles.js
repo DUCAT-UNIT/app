@@ -352,9 +352,9 @@ const styles = StyleSheet.create({
     backgroundColor: COLORS.CARD_BG,
     borderRadius: 12,
     paddingHorizontal: 8,
+    paddingTop: 20,
+    paddingBottom: 20,
     marginBottom: SCREEN_WIDTH <= 375 ? 4 : 12,
-    height: 140,
-    justifyContent: 'center',
   },
   vaultContentWrapper: {
   },
@@ -362,7 +362,7 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    marginBottom: 8,
+    marginBottom: 10,
   },
   vaultHeaderLeft: {
     flexDirection: 'row',
