@@ -352,9 +352,8 @@ const styles = StyleSheet.create({
     backgroundColor: COLORS.CARD_BG,
     borderRadius: 12,
     paddingHorizontal: 8,
-    paddingVertical: 8,
+    paddingVertical: 12,
     marginBottom: SCREEN_WIDTH <= 375 ? 4 : 12,
-    height: 64,
   },
   vaultContentWrapper: {
   },
@@ -401,7 +400,11 @@ const styles = StyleSheet.create({
     fontFamily: 'CabinetGrotesk-Bold',
   },
   vaultDetailsContainer: {
-    marginLeft: 56,
+  },
+  vaultDetailRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
   },
   vaultRow: {
     flexDirection: 'row',

@@ -126,13 +126,29 @@ export default function WalletScreen({
                 </View>
                 <View style={styles.assetInfo}>
                   <Text style={styles.assetName}>{vaultData.vaultTag}'s Vault</Text>
-                  <View style={styles.balanceWithIcon}>
-                    <Icon name="unit_symbol" size={10} color={COLORS.SECONDARY_TEXT} style={styles.assetAmountIcon} />
-                    <Text style={styles.assetAmount}>
-                      {vaultData.latestTransaction.amountBorrowed
-                        ? (vaultData.latestTransaction.amountBorrowed / 100).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })
-                        : '0.00'}
-                    </Text>
+                  <View style={styles.vaultDetailsContainer}>
+                    <View style={styles.vaultDetailRow}>
+                      <Text style={styles.vaultLabel}>Overall Debt</Text>
+                      <View style={styles.balanceWithIcon}>
+                        <Icon name="unit_symbol" size={10} color={COLORS.SECONDARY_TEXT} style={styles.assetAmountIcon} />
+                        <Text style={styles.assetAmount}>
+                          {vaultData.latestTransaction.amountBorrowed
+                            ? (vaultData.latestTransaction.amountBorrowed / 100).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })
+                            : '0.00'}
+                        </Text>
+                      </View>
+                    </View>
+                    <View style={styles.vaultDetailRow}>
+                      <Text style={styles.vaultLabel}>Total collateral</Text>
+                      <View style={styles.balanceWithIcon}>
+                        <Icon name="btc_symbol" size={10} color={COLORS.SECONDARY_TEXT} style={styles.assetAmountIcon} />
+                        <Text style={styles.assetAmount}>
+                          {vaultData.latestTransaction.vaultAmount
+                            ? (vaultData.latestTransaction.vaultAmount / 100000000)
+                            : '0'}
+                        </Text>
+                      </View>
+                    </View>
                   </View>
                 </View>
               </View>
