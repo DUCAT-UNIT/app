@@ -335,7 +335,7 @@ export default function VaultScreen({ visible, walletCredentials, autoCreateVaul
         clearTimeout(timeoutId);
       };
     }
-  }, [autoCreateVault, visible, webViewLoaded]); // Trigger when webview loads
+  }, [autoCreateVaultTrigger, visible, webViewLoaded]); // Trigger when webview loads
 
   // Don't return null - always render to preload in background
   // if (!visible) return null;
@@ -560,7 +560,12 @@ export default function VaultScreen({ visible, walletCredentials, autoCreateVaul
         <View style={styles.loadingOverlay}>
           <ActivityIndicator size="large" color={COLORS.PRIMARY_BLUE} />
           {preparingVault && (
-            <Text style={styles.preparingText}>{preparingMessage}</Text>
+            <>
+              <Text style={styles.preparingText}>{preparingMessage}</Text>
+              <Text style={[styles.preparingText, { fontSize: 12, marginTop: 8, opacity: 0.5 }]}>
+                Trigger: {autoCreateVaultTrigger} | Key: {webViewKey} | Loaded: {webViewLoaded ? 'Y' : 'N'}
+              </Text>
+            </>
           )}
         </View>
       )}
