@@ -392,12 +392,13 @@ const styles = StyleSheet.create({
     fontFamily: 'CabinetGrotesk-Medium',
     color: COLORS.VERY_LIGHT_GRAY,
     fontWeight: '600',
-    marginBottom: 8,
   },
   vaultHealth: {
     fontSize: 16,
-    fontFamily: 'CabinetGrotesk-Regular',
-    color: COLORS.SECONDARY_TEXT,
+    fontFamily: 'CabinetGrotesk-Bold',
+  },
+  vaultDetailsContainer: {
+    marginLeft: 56,
   },
   vaultRow: {
     flexDirection: 'row',
