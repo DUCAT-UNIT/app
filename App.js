@@ -193,6 +193,7 @@ export default function App() {
   const {
     privacyMode,
     notificationsEnabled,
+    showZeroAssets,
     handleLogout,
     handleDeleteWallet,
     handleViewSeedPhrase,
@@ -200,6 +201,7 @@ export default function App() {
     handlePrivacyModeToggle,
     handleFaceIdToggle,
     handleNotificationsToggle,
+    handleShowZeroAssetsToggle,
     showLogoutModal,
     showDeleteModal,
     confirmLogout,
@@ -865,6 +867,7 @@ export default function App() {
                 }}
                 sendAddressType={sendAddressType}
                 switchingAccount={switchingAccount}
+                showZeroAssets={showZeroAssets}
               />
               <BottomNavigationBar
                 activeTab={activeTab}
@@ -942,31 +945,31 @@ export default function App() {
       />
     </View>
 
-    {/* Vault Screen Full Screen Overlay */}
-    {activeTab === 'vault' && wallet && (
-      <View
-        style={{
-          position: 'absolute',
-          top: 0,
-          left: 0,
-          right: 0,
-          bottom: 0,
-          backgroundColor: COLORS.DARK_BG,
-          zIndex: 500,
-          flexDirection: 'column',
-        }}
-      >
-        <MutinynetBanner />
-        <View style={{ flex: 1 }}>
-          <VaultScreen visible={true} walletCredentials={vaultCredentials} />
-        </View>
-        <BottomNavigationBar
-          activeTab={activeTab}
-          onVaultPress={handleOpenVault}
-          onWalletPress={() => setActiveTab('wallet')}
-        />
+    {/* Vault Screen Full Screen Overlay - Always rendered to preload in background */}
+    <View
+      style={{
+        position: 'absolute',
+        top: 0,
+        left: 0,
+        right: 0,
+        bottom: 0,
+        backgroundColor: COLORS.DARK_BG,
+        zIndex: activeTab === 'vault' ? 500 : -1,
+        opacity: activeTab === 'vault' ? 1 : 0,
+        pointerEvents: activeTab === 'vault' ? 'auto' : 'none',
+        flexDirection: 'column',
+      }}
+    >
+      <MutinynetBanner />
+      <View style={{ flex: 1 }}>
+        <VaultScreen visible={activeTab === 'vault'} walletCredentials={vaultCredentials} />
       </View>
-    )}
+      <BottomNavigationBar
+        activeTab={activeTab}
+        onVaultPress={handleOpenVault}
+        onWalletPress={() => setActiveTab('wallet')}
+      />
+    </View>
 
     {/* Settings Screen Overlay */}
     {showSettings && (
@@ -1001,9 +1004,11 @@ export default function App() {
           onPrivacyModeToggle={handlePrivacyModeToggle}
           onFaceIdToggle={handleFaceIdToggle}
           onNotificationsToggle={handleNotificationsToggle}
+          onShowZeroAssetsToggle={handleShowZeroAssetsToggle}
           privacyMode={privacyMode}
           faceIdEnabled={biometricEnabled}
           notificationsEnabled={notificationsEnabled}
+          showZeroAssets={showZeroAssets}
         />
       </Animated.View>
     )}

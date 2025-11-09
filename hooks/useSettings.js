@@ -33,6 +33,7 @@ export function useSettings({
 }) {
   const [privacyMode, setPrivacyMode] = useState(true);
   const [notificationsEnabled, setNotificationsEnabled] = useState(false);
+  const [showZeroAssets, setShowZeroAssets] = useState(false);
   const [showLogoutModal, setShowLogoutModal] = useState(false);
   const [showDeleteModal, setShowDeleteModal] = useState(false);
 
@@ -48,6 +49,11 @@ export function useSettings({
         const savedNotificationsEnabled = await SecureStore.getItemAsync('notificationsEnabled');
         if (savedNotificationsEnabled !== null) {
           setNotificationsEnabled(savedNotificationsEnabled === 'true');
+        }
+
+        const savedShowZeroAssets = await SecureStore.getItemAsync('showZeroAssets');
+        if (savedShowZeroAssets !== null) {
+          setShowZeroAssets(savedShowZeroAssets === 'true');
         }
       } catch (error) {
         console.error('Failed to load settings:', error);
@@ -202,6 +208,12 @@ export function useSettings({
     }
   };
 
+  const handleShowZeroAssetsToggle = async () => {
+    const newValue = !showZeroAssets;
+    setShowZeroAssets(newValue);
+    await SecureStore.setItemAsync('showZeroAssets', newValue.toString());
+  };
+
   const handleNotificationsToggle = async () => {
     const newValue = !notificationsEnabled;
 
@@ -257,6 +269,8 @@ export function useSettings({
     handlePrivacyModeToggle,
     handleFaceIdToggle,
     handleNotificationsToggle,
+    handleShowZeroAssetsToggle,
+    showZeroAssets,
     // Modal state
     showLogoutModal,
     showDeleteModal,

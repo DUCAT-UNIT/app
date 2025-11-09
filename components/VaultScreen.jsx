@@ -7,8 +7,10 @@ import { signPsbt } from '../utils/wallet';
 
 export default function VaultScreen({ visible, walletCredentials }) {
   const webViewRef = useRef(null);
+  const [isLoading, setIsLoading] = React.useState(true);
 
-  if (!visible) return null;
+  // Don't return null - always render to preload in background
+  // if (!visible) return null;
 
   // Build URL with wallet credentials
   const webViewUrl = useMemo(() => {
@@ -46,6 +48,18 @@ export default function VaultScreen({ visible, walletCredentials }) {
         javaScriptEnabled={true}
         domStorageEnabled={true}
         webviewDebuggingEnabled={true}
+        onLoadStart={() => {
+          console.log('[VaultScreen] Loading started');
+          setIsLoading(true);
+        }}
+        onLoadEnd={() => {
+          console.log('[VaultScreen] Initial page load completed, waiting for Vault Health...');
+          // Set a timeout fallback in case VAULT_LOADED never comes
+          setTimeout(() => {
+            console.log('[VaultScreen] Timeout reached, hiding loader anyway');
+            setIsLoading(false);
+          }, 10000); // 10 second fallback
+        }}
         injectedJavaScript={`
           // Intercept console logs from the web page
           (function() {
@@ -67,6 +81,45 @@ export default function VaultScreen({ visible, walletCredentials }) {
               window.ReactNativeWebView?.postMessage(JSON.stringify({ type: 'CONSOLE_LOG', level: 'debug', args: args.map(String) }));
               originalDebug.apply(console, args);
             };
+
+            // Check for "Vault health" text on the page (note: lowercase 'h')
+            function checkForVaultHealth() {
+              const bodyText = document.body.innerText || document.body.textContent || '';
+              console.log('[VaultHealth Check] Body text length:', bodyText.length);
+
+              // Check for various possible variations
+              if (bodyText.includes('Vault health') ||
+                  bodyText.includes('Vault Health') ||
+                  bodyText.includes('VAULT HEALTH')) {
+                console.log('[VaultHealth Check] Found vault health text! Waiting 1 second...');
+                // Wait 1 second before notifying that vault is loaded
+                setTimeout(() => {
+                  window.ReactNativeWebView?.postMessage(JSON.stringify({ type: 'VAULT_LOADED' }));
+                }, 1000);
+                return true;
+              }
+              return false;
+            }
+
+            // Start checking after page load
+            const observer = new MutationObserver(() => {
+              if (checkForVaultHealth()) {
+                observer.disconnect();
+              }
+            });
+
+            // Observe DOM changes
+            if (document.body) {
+              observer.observe(document.body, { childList: true, subtree: true });
+            } else {
+              // If body not ready, wait for it
+              document.addEventListener('DOMContentLoaded', () => {
+                observer.observe(document.body, { childList: true, subtree: true });
+              });
+            }
+
+            // Also check immediately in case content is already there
+            setTimeout(checkForVaultHealth, 100);
           })();
           true;
         `}
@@ -75,6 +128,13 @@ export default function VaultScreen({ visible, walletCredentials }) {
           try {
             const message = JSON.parse(event.nativeEvent.data);
             console.log('[VaultScreen] Parsed message type:', message.type);
+
+            // Handle vault loaded event
+            if (message.type === 'VAULT_LOADED') {
+              console.log('[VaultScreen] Vault Health detected, hiding loader');
+              setIsLoading(false);
+              return;
+            }
 
             // Handle console logs from WebView
             if (message.type === 'CONSOLE_LOG') {
@@ -144,17 +204,22 @@ export default function VaultScreen({ visible, walletCredentials }) {
             <ActivityIndicator size="large" color={COLORS.PRIMARY_BLUE} />
           </View>
         )}
-        onLoadStart={() => console.log('[VaultScreen] Loading started')}
-        onLoadEnd={() => console.log('[VaultScreen] Loading completed')}
         onError={(syntheticEvent) => {
+          setIsLoading(false);
           const { nativeEvent } = syntheticEvent;
           console.error('[VaultScreen] WebView error:', nativeEvent);
         }}
         onHttpError={(syntheticEvent) => {
+          setIsLoading(false);
           const { nativeEvent } = syntheticEvent;
           console.error('[VaultScreen] HTTP error:', nativeEvent.statusCode, nativeEvent.url);
         }}
       />
+      {isLoading && (
+        <View style={styles.loadingOverlay}>
+          <ActivityIndicator size="large" color={COLORS.PRIMARY_BLUE} />
+        </View>
+      )}
     </View>
   );
 }
@@ -189,5 +254,16 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     alignItems: 'center',
     backgroundColor: COLORS.DARK_BG,
+  },
+  loadingOverlay: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
+    bottom: 0,
+    justifyContent: 'center',
+    alignItems: 'center',
+    backgroundColor: COLORS.DARK_BG,
+    zIndex: 1000,
   },
 });

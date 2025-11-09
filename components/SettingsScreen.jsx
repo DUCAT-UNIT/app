@@ -29,11 +29,13 @@ export default function SettingsScreen({
   onPrivacyModeToggle,
   onFaceIdToggle,
   onNotificationsToggle,
+  onShowZeroAssetsToggle,
 
   // State
   privacyMode,
   faceIdEnabled,
   notificationsEnabled,
+  showZeroAssets,
 }) {
   return (
     <View style={localStyles.container}>
@@ -63,6 +65,12 @@ export default function SettingsScreen({
             iconName="switch_account"
             title="Switch Account"
             onPress={onSwitchAccount}
+          />
+          <SettingsOption
+            iconName="asset"
+            title="Show Zero Value Assets"
+            onPress={onShowZeroAssetsToggle}
+            rightText={showZeroAssets ? 'ON' : 'OFF'}
           />
           <SettingsOption
             iconName="face_id"
@@ -140,9 +148,11 @@ SettingsScreen.propTypes = {
   onPrivacyModeToggle: PropTypes.func.isRequired,
   onFaceIdToggle: PropTypes.func.isRequired,
   onNotificationsToggle: PropTypes.func.isRequired,
+  onShowZeroAssetsToggle: PropTypes.func.isRequired,
   privacyMode: PropTypes.bool.isRequired,
   faceIdEnabled: PropTypes.bool.isRequired,
   notificationsEnabled: PropTypes.bool.isRequired,
+  showZeroAssets: PropTypes.bool.isRequired,
 };
 
 const localStyles = StyleSheet.create({

@@ -3,6 +3,7 @@ import * as SecureStore from 'expo-secure-store';
 import { deriveAddressesFromMnemonic } from '../utils/bitcoin';
 import { fetchWalletBalances, fetchUtxos as fetchUtxosService, fetchBtcPrice as fetchBtcPriceService } from '../services/balanceService';
 import * as WalletService from '../services/walletService';
+import { fetchVaultData } from '../services/vaultService';
 import { SECURE_KEYS } from '../utils/constants';
 
 const WalletContext = createContext();
@@ -26,6 +27,10 @@ export const WalletProvider = ({ children }) => {
   const [runesBalance, setRunesBalance] = useState([]);
   const [loadingBalance, setLoadingBalance] = useState(false);
   const [refreshing, setRefreshing] = useState(false);
+
+  // Vault state
+  const [vaultData, setVaultData] = useState(null);
+  const [loadingVault, setLoadingVault] = useState(false);
 
   // BTC price state
   const [btcPrice, setBtcPrice] = useState(null);
@@ -51,6 +56,20 @@ export const WalletProvider = ({ children }) => {
       setBtcPrice(null);
     } finally {
       setLoadingBtcPrice(false);
+    }
+  }, []);
+
+  // Fetch vault data
+  const fetchVault = useCallback(async () => {
+    try {
+      setLoadingVault(true);
+      const data = await fetchVaultData();
+      setVaultData(data);
+    } catch (error) {
+      console.error('Failed to fetch vault data:', error);
+      setVaultData(null);
+    } finally {
+      setLoadingVault(false);
     }
   }, []);
 
@@ -179,9 +198,13 @@ export const WalletProvider = ({ children }) => {
   // Fetch BTC price on mount and refresh every 60 seconds
   useEffect(() => {
     fetchBtcPrice();
-    const interval = setInterval(fetchBtcPrice, 60000);
+    fetchVault();
+    const interval = setInterval(() => {
+      fetchBtcPrice();
+      fetchVault();
+    }, 60000);
     return () => clearInterval(interval);
-  }, [fetchBtcPrice]);
+  }, [fetchBtcPrice, fetchVault]);
 
   // Auto-refresh balance every 10 seconds when wallet exists
   useEffect(() => {
@@ -211,6 +234,10 @@ export const WalletProvider = ({ children }) => {
     loadingBalance,
     refreshing,
 
+    // Vault state
+    vaultData,
+    loadingVault,
+
     // BTC price state
     btcPrice,
     loadingBtcPrice,
@@ -232,6 +259,7 @@ export const WalletProvider = ({ children }) => {
     onRefresh,
     fetchUtxos,
     fetchBtcPrice,
+    fetchVault,
     loadWallet,
     setWalletAddresses,
     switchAccount,
