@@ -236,7 +236,7 @@ export default function ReceiveScreen({
             <View style={styles.receiveAddressLabelRow}>
               <Text style={styles.receiveAddressLabel}>Taproot</Text>
               <View style={[styles.receiveAddressTag, { backgroundColor: COLORS.PRIMARY_BLUE }]}>
-                <Text style={[styles.receiveAddressTagText, { color: '#FFFFFF' }]}>UNIT</Text>
+                <Text style={[styles.receiveAddressTagText, { color: '#DDDDDD' }]}>UNIT</Text>
               </View>
             </View>
             <Text style={styles.receiveAddress} numberOfLines={1} ellipsizeMode="middle">
