@@ -352,7 +352,8 @@ const styles = StyleSheet.create({
     backgroundColor: COLORS.CARD_BG,
     borderRadius: 12,
     paddingHorizontal: 8,
-    paddingVertical: 18,
+    paddingTop: 22,
+    paddingBottom: 22,
     marginBottom: SCREEN_WIDTH <= 375 ? 4 : 12,
   },
   vaultContentWrapper: {
