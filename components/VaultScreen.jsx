@@ -38,6 +38,17 @@ export default function VaultScreen({ visible, walletCredentials, autoCreateVaul
               const inputs = Array.from(document.querySelectorAll('input[type="text"], input:not([type]), input[type="search"]'));
               console.log('[AutoFillVaultName] Found ' + inputs.length + ' input fields');
 
+              // Log all inputs for debugging
+              inputs.forEach((input, idx) => {
+                console.log('[AutoFillVaultName] Input ' + idx + ':', {
+                  placeholder: input.placeholder,
+                  name: input.name,
+                  id: input.id,
+                  type: input.type,
+                  visible: input.offsetParent !== null
+                });
+              });
+
               // Try to find the vault name input
               let vaultNameInput = inputs.find(input => {
                 const placeholder = (input.placeholder || '').toLowerCase();
@@ -50,19 +61,44 @@ export default function VaultScreen({ visible, walletCredentials, autoCreateVaul
 
               // If not found by specific attributes, try the first visible text input
               if (!vaultNameInput && inputs.length > 0) {
+                vaultNameInput = inputs.find(input => input.offsetParent !== null);
+              }
+
+              // If still not found, just use the first input
+              if (!vaultNameInput && inputs.length > 0) {
                 vaultNameInput = inputs[0];
               }
 
               if (vaultNameInput) {
                 const vaultName = generateRandomVaultName();
-                console.log('[AutoFillVaultName] Found input, filling with name: ' + vaultName);
+                console.log('[AutoFillVaultName] Found input field');
+                console.log('[AutoFillVaultName] Input element:', vaultNameInput);
+                console.log('[AutoFillVaultName] Generated name: ' + vaultName);
 
-                // Fill the input
-                vaultNameInput.value = vaultName;
-                vaultNameInput.dispatchEvent(new Event('input', { bubbles: true }));
-                vaultNameInput.dispatchEvent(new Event('change', { bubbles: true }));
+                // Try multiple methods to fill the input
+                try {
+                  // Method 1: Direct value assignment
+                  vaultNameInput.value = vaultName;
 
-                console.log('[AutoFillVaultName] Name filled, searching for submit button...');
+                  // Method 2: Focus and set value
+                  vaultNameInput.focus();
+                  vaultNameInput.value = vaultName;
+
+                  // Method 3: Use React's native setter if available
+                  const nativeInputValueSetter = Object.getOwnPropertyDescriptor(window.HTMLInputElement.prototype, 'value').set;
+                  nativeInputValueSetter.call(vaultNameInput, vaultName);
+
+                  // Dispatch events that React expects
+                  vaultNameInput.dispatchEvent(new Event('input', { bubbles: true }));
+                  vaultNameInput.dispatchEvent(new Event('change', { bubbles: true }));
+                  vaultNameInput.dispatchEvent(new Event('blur', { bubbles: true }));
+
+                  console.log('[AutoFillVaultName] Name filled successfully: ' + vaultNameInput.value);
+                } catch (e) {
+                  console.log('[AutoFillVaultName] Error filling input: ' + e.message);
+                }
+
+                console.log('[AutoFillVaultName] Searching for submit button...');
 
                 // Find and click the submit/continue/next button immediately
                 const buttons = Array.from(document.querySelectorAll('button, [role="button"]'));
