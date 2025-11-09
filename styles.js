@@ -333,7 +333,7 @@ const styles = StyleSheet.create({
   assetCard: {
     backgroundColor: COLORS.CARD_BG,
     borderRadius: 12,
-    padding: 20,
+    padding: SCREEN_WIDTH <= 375 ? 10 : 20,
     marginBottom: 8,
     height: 80,
   },
