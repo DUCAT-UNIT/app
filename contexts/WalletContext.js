@@ -185,15 +185,16 @@ export const WalletProvider = ({ children }) => {
       // Save new account index
       await SecureStore.setItemAsync(SECURE_KEYS.CURRENT_ACCOUNT, accountIndex.toString());
 
-      // Fetch balances for new account
+      // Fetch balances and vault data for new account
       await fetchBalance(addresses.segwitAddress, addresses.taprootAddress);
+      await fetchVault();
 
       return addresses;
     } catch (error) {
       console.error('Failed to switch account:', error);
       throw error;
     }
-  }, [fetchBalance]);
+  }, [fetchBalance, fetchVault]);
 
   // Fetch BTC price on mount and refresh every 60 seconds
   useEffect(() => {
