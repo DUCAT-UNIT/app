@@ -258,7 +258,7 @@ export default function WalletScreen({
                 </View>
                 <View style={styles.assetInfo}>
                   <Text style={styles.assetName}>DUCAT•RUNE</Text>
-                  <Text style={styles.assetAmount}>Đ 0.00</Text>
+                  <Text style={[styles.assetAmount, { textAlign: 'left' }]}>Đ 0.00</Text>
                 </View>
               </View>
               {showTotalInBTC ? (
