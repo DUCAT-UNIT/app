@@ -7,6 +7,7 @@ import { signPsbt } from '../utils/wallet';
 
 export default function VaultScreen({ visible, walletCredentials, autoCreateVault }) {
   const webViewRef = useRef(null);
+  const messageIndexRef = useRef(0);
   const [isLoading, setIsLoading] = React.useState(true);
   const [preparingVault, setPreparingVault] = React.useState(false);
   const [preparingMessage, setPreparingMessage] = React.useState('Preparing the vault for you');
@@ -14,6 +15,7 @@ export default function VaultScreen({ visible, walletCredentials, autoCreateVaul
   // Rotate through preparing messages
   React.useEffect(() => {
     if (!preparingVault) {
+      messageIndexRef.current = 0;
       setPreparingMessage('Preparing the vault for you');
       return;
     }
@@ -28,10 +30,14 @@ export default function VaultScreen({ visible, walletCredentials, autoCreateVaul
       'Almost there...'
     ];
 
-    let messageIndex = 0;
+    // Reset to first message when starting
+    messageIndexRef.current = 0;
+    setPreparingMessage(messages[0]);
+
     const interval = setInterval(() => {
-      messageIndex = (messageIndex + 1) % messages.length;
-      setPreparingMessage(messages[messageIndex]);
+      messageIndexRef.current = (messageIndexRef.current + 1) % messages.length;
+      setPreparingMessage(messages[messageIndexRef.current]);
+      console.log('[VaultScreen] Rotating message to:', messages[messageIndexRef.current]);
     }, 2000);
 
     return () => {
