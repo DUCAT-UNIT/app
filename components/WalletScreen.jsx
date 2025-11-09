@@ -106,8 +106,7 @@ export default function WalletScreen({
         {/* Vault Card */}
         {vaultData && vaultData.latestTransaction && (
           <View style={styles.vaultCard}>
-            <View style={styles.vaultContentWrapper}>
-              <View style={styles.vaultHeader}>
+            <View style={styles.vaultHeader}>
                 <View style={styles.vaultHeaderLeft}>
                   <View style={styles.vaultIconContainer}>
                     <Icon name="vault_logo" size={40} color="#DDDDDD" />
@@ -177,7 +176,6 @@ export default function WalletScreen({
                 </View>
               </View>
             </View>
-          </View>
         )}
 
         {/* Bitcoin Balance Card - Non-clickable */}
