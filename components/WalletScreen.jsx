@@ -79,16 +79,18 @@ export default function WalletScreen({
                 </Text>
               </View>
             ) : (
-              <Text style={styles.xverseBalanceAmount}>
-                ${(() => {
-                  // Calculate total USD value of all assets
-                  const btcUsdValue = (segwitBalance || 0) * (btcPrice || 0);
-                  const unitUsdValue = runesBalance.length > 0 ? parseFloat(runesBalance[0][1]) : 0;
-                  const ducatUsdValue = 0; // DUCAT value in USD
-                  const totalUsd = btcUsdValue + unitUsdValue + ducatUsdValue;
-                  return totalUsd.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
-                })()}
-              </Text>
+              (() => {
+                // Calculate total USD value of all assets
+                const btcUsdValue = (segwitBalance || 0) * (btcPrice || 0);
+                const unitUsdValue = runesBalance.length > 0 ? parseFloat(runesBalance[0][1]) : 0;
+                const ducatUsdValue = 0; // DUCAT value in USD
+                const totalUsd = btcUsdValue + unitUsdValue + ducatUsdValue;
+                return (
+                  <Text style={[styles.xverseBalanceAmount, totalUsd >= 10000000 && { fontSize: 32 }]}>
+                    ${totalUsd.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                  </Text>
+                );
+              })()
             )}
           </TouchableOpacity>
         </View>
@@ -104,14 +106,36 @@ export default function WalletScreen({
         showsVerticalScrollIndicator={false}
       >
         {/* Vault Card */}
-        {vaultData && vaultData.latestTransaction && (
-          <View style={styles.vaultCard}>
-            <View style={styles.vaultIconContainer}>
-              <Icon name="vault_logo" size={40} color="#DDDDDD" />
-              <View style={[
-                styles.vaultStatusIndicator,
+        <View style={styles.vaultCard}>
+          <View style={styles.vaultIconContainer}>
+            <Icon name="vault_logo" size={40} color="#DDDDDD" />
+            <View style={[
+              styles.vaultStatusIndicator,
+              {
+                backgroundColor: (() => {
+                  if (!vaultData || !vaultData.latestTransaction) return COLORS.SECONDARY_TEXT;
+                  const debt = vaultData.latestTransaction.amountBorrowed / 100;
+                  const collateralValue = vaultData.totalCollateral * (btcPrice || vaultData.latestTransaction.oraclePrice);
+                  const collateralRatio = debt > 0 ? (collateralValue / debt) * 100 : 0;
+                  if (collateralRatio >= 200) return COLORS.GREEN; // Green
+                  if (collateralRatio >= 161) return COLORS.YELLOW; // Yellow
+                  return COLORS.RED; // Red
+                })()
+              }
+            ]} />
+          </View>
+          <View style={styles.vaultContentWrapper}>
+            <View style={styles.vaultHeader}>
+              <View style={styles.vaultHeaderLeft}>
+                <View style={styles.assetInfo}>
+                  <Text style={styles.vaultAssetName}>Vault</Text>
+                </View>
+              </View>
+              <Text style={[
+                styles.assetValue,
                 {
-                  backgroundColor: (() => {
+                  color: (() => {
+                    if (!vaultData || !vaultData.latestTransaction) return COLORS.SECONDARY_TEXT;
                     const debt = vaultData.latestTransaction.amountBorrowed / 100;
                     const collateralValue = vaultData.totalCollateral * (btcPrice || vaultData.latestTransaction.oraclePrice);
                     const collateralRatio = debt > 0 ? (collateralValue / debt) * 100 : 0;
@@ -120,63 +144,42 @@ export default function WalletScreen({
                     return COLORS.RED; // Red
                   })()
                 }
-              ]} />
+              ]}>
+                {(() => {
+                  if (!vaultData || !vaultData.latestTransaction) return '0%';
+                  const debt = vaultData.latestTransaction.amountBorrowed / 100;
+                  const collateralValue = vaultData.totalCollateral * (btcPrice || vaultData.latestTransaction.oraclePrice);
+                  const health = debt > 0 ? Math.floor((collateralValue / debt) * 100) : 0;
+                  return `${health}%`;
+                })()}
+              </Text>
             </View>
-            <View style={styles.vaultContentWrapper}>
-              <View style={styles.vaultHeader}>
-                <View style={styles.vaultHeaderLeft}>
-                  <View style={styles.assetInfo}>
-                    <Text style={styles.vaultAssetName}>{vaultData.vaultTag}'s Vault</Text>
-                  </View>
+            <View style={styles.vaultDetailsContainer}>
+              <View style={styles.vaultDetailRow}>
+                <Text style={styles.vaultLabel}>Overall Debt</Text>
+                <View style={styles.vaultValueContainer}>
+                  <Icon name="unit_symbol" size={10} color={COLORS.SECONDARY_TEXT} style={styles.assetAmountIcon} />
+                  <Text style={styles.assetAmount}>
+                    {vaultData && vaultData.latestTransaction && vaultData.latestTransaction.amountBorrowed
+                      ? (vaultData.latestTransaction.amountBorrowed / 100).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })
+                      : '0.00'}
+                  </Text>
                 </View>
-                <Text style={[
-                  styles.assetValue,
-                  {
-                    color: (() => {
-                      const debt = vaultData.latestTransaction.amountBorrowed / 100;
-                      const collateralValue = vaultData.totalCollateral * (btcPrice || vaultData.latestTransaction.oraclePrice);
-                      const collateralRatio = debt > 0 ? (collateralValue / debt) * 100 : 0;
-                      if (collateralRatio >= 200) return COLORS.GREEN; // Green
-                      if (collateralRatio >= 161) return COLORS.YELLOW; // Yellow
-                      return COLORS.RED; // Red
-                    })()
-                  }
-                ]}>
-                  {(() => {
-                    const debt = vaultData.latestTransaction.amountBorrowed / 100;
-                    const collateralValue = vaultData.totalCollateral * (btcPrice || vaultData.latestTransaction.oraclePrice);
-                    const health = debt > 0 ? Math.floor((collateralValue / debt) * 100) : 0;
-                    return `${health}%`;
-                  })()}
-                </Text>
               </View>
-              <View style={styles.vaultDetailsContainer}>
-                <View style={styles.vaultDetailRow}>
-                  <Text style={styles.vaultLabel}>Overall Debt</Text>
-                  <View style={styles.vaultValueContainer}>
-                    <Icon name="unit_symbol" size={10} color={COLORS.SECONDARY_TEXT} style={styles.assetAmountIcon} />
-                    <Text style={styles.assetAmount}>
-                      {vaultData.latestTransaction.amountBorrowed
-                        ? (vaultData.latestTransaction.amountBorrowed / 100).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })
-                        : '0.00'}
-                    </Text>
-                  </View>
-                </View>
-                <View style={styles.vaultDetailRow}>
-                  <Text style={styles.vaultLabel}>Total collateral</Text>
-                  <View style={styles.vaultValueContainer}>
-                    <Icon name="btc_symbol" size={10} color={COLORS.SECONDARY_TEXT} style={styles.assetAmountIcon} />
-                    <Text style={styles.assetAmount}>
-                      {vaultData.latestTransaction.vaultAmount
-                        ? (vaultData.latestTransaction.vaultAmount / 100000000).toLocaleString('en-US', { minimumFractionDigits: 8, maximumFractionDigits: 8 })
-                        : '0.00000000'}
-                    </Text>
-                  </View>
+              <View style={styles.vaultDetailRow}>
+                <Text style={styles.vaultLabel}>Total collateral</Text>
+                <View style={styles.vaultValueContainer}>
+                  <Icon name="btc_symbol" size={10} color={COLORS.SECONDARY_TEXT} style={styles.assetAmountIcon} />
+                  <Text style={styles.assetAmount}>
+                    {vaultData && vaultData.latestTransaction && vaultData.latestTransaction.vaultAmount
+                      ? (vaultData.latestTransaction.vaultAmount / 100000000).toLocaleString('en-US', { minimumFractionDigits: 8, maximumFractionDigits: 8 })
+                      : '0.00000000'}
+                  </Text>
                 </View>
               </View>
             </View>
           </View>
-        )}
+        </View>
 
         {/* Bitcoin Balance Card - Non-clickable */}
         <View style={styles.assetCard}>
