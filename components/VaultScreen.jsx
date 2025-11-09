@@ -22,6 +22,77 @@ export default function VaultScreen({ visible, walletCredentials, autoCreateVaul
           (function() {
             console.log('[AutoCreateVault] Starting auto-click from effect...');
 
+            function generateRandomVaultName() {
+              const adjectives = ['Swift', 'Secure', 'Golden', 'Silver', 'Diamond', 'Stellar', 'Cosmic', 'Digital', 'Quantum', 'Thunder'];
+              const nouns = ['Vault', 'Treasury', 'Reserve', 'Fortress', 'Chamber', 'Haven', 'Stronghold', 'Cache', 'Safe', 'Lock'];
+              const randomAdj = adjectives[Math.floor(Math.random() * adjectives.length)];
+              const randomNoun = nouns[Math.floor(Math.random() * nouns.length)];
+              const randomNum = Math.floor(Math.random() * 1000);
+              return randomAdj + ' ' + randomNoun + ' ' + randomNum;
+            }
+
+            function autoFillVaultName() {
+              console.log('[AutoFillVaultName] Searching for vault name input...');
+
+              // Find input fields
+              const inputs = Array.from(document.querySelectorAll('input[type="text"], input:not([type]), input[type="search"]'));
+              console.log('[AutoFillVaultName] Found ' + inputs.length + ' input fields');
+
+              // Try to find the vault name input
+              let vaultNameInput = inputs.find(input => {
+                const placeholder = (input.placeholder || '').toLowerCase();
+                const name = (input.name || '').toLowerCase();
+                const id = (input.id || '').toLowerCase();
+                return placeholder.includes('vault') || placeholder.includes('name') ||
+                       name.includes('vault') || name.includes('name') ||
+                       id.includes('vault') || id.includes('name');
+              });
+
+              // If not found by specific attributes, try the first visible text input
+              if (!vaultNameInput && inputs.length > 0) {
+                vaultNameInput = inputs[0];
+              }
+
+              if (vaultNameInput) {
+                const vaultName = generateRandomVaultName();
+                console.log('[AutoFillVaultName] Found input, filling with name: ' + vaultName);
+
+                // Fill the input
+                vaultNameInput.value = vaultName;
+                vaultNameInput.dispatchEvent(new Event('input', { bubbles: true }));
+                vaultNameInput.dispatchEvent(new Event('change', { bubbles: true }));
+
+                console.log('[AutoFillVaultName] Name filled, searching for submit button...');
+
+                // Wait a bit then find and click the submit/continue/next button
+                setTimeout(() => {
+                  const buttons = Array.from(document.querySelectorAll('button, [role="button"]'));
+                  const submitButton = buttons.find(btn => {
+                    const text = (btn.textContent || btn.innerText || '').toLowerCase().trim();
+                    return text.includes('continue') || text.includes('next') || text.includes('submit') ||
+                           text.includes('create') || text.includes('confirm');
+                  });
+
+                  if (submitButton) {
+                    console.log('[AutoFillVaultName] Found submit button, clicking...');
+                    submitButton.click();
+                    console.log('[AutoFillVaultName] Submit button clicked');
+
+                    // Notify React Native that vault creation is complete
+                    window.ReactNativeWebView?.postMessage(JSON.stringify({ type: 'VAULT_BUTTON_CLICKED' }));
+                  } else {
+                    console.log('[AutoFillVaultName] Submit button not found');
+                    window.ReactNativeWebView?.postMessage(JSON.stringify({ type: 'VAULT_BUTTON_CLICKED' }));
+                  }
+                }, 500);
+
+                return true;
+              } else {
+                console.log('[AutoFillVaultName] Vault name input not found');
+                return false;
+              }
+            }
+
             function autoClickCreateVault() {
               console.log('[AutoCreateVault] Searching for create vault button...');
 
@@ -49,8 +120,11 @@ export default function VaultScreen({ visible, walletCredentials, autoCreateVaul
                 createVaultButton.click();
                 console.log('[AutoCreateVault] Button clicked successfully');
 
-                // Notify React Native that button was clicked
-                window.ReactNativeWebView?.postMessage(JSON.stringify({ type: 'VAULT_BUTTON_CLICKED' }));
+                // After clicking, wait and try to fill in the vault name
+                setTimeout(() => {
+                  autoFillVaultName();
+                }, 1500);
+
                 return true;
               }
 
