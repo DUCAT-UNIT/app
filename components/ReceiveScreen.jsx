@@ -192,7 +192,7 @@ export default function ReceiveScreen({
       >
             <View style={styles.bottomSheetHandle} />
 
-            <Text style={styles.bottomSheetTitle}>Receive Bitcoin</Text>
+            <Text style={styles.bottomSheetTitle}>Receive</Text>
 
         {/* Native SegWit Address Row */}
         <TouchableOpacity
@@ -203,8 +203,8 @@ export default function ReceiveScreen({
           <View style={styles.receiveAddressInfo}>
             <View style={styles.receiveAddressLabelRow}>
               <Text style={styles.receiveAddressLabel}>Native SegWit</Text>
-              <View style={styles.receiveAddressTag}>
-                <Text style={styles.receiveAddressTagText}>BTC</Text>
+              <View style={[styles.receiveAddressTag, { backgroundColor: '#FFB800' }]}>
+                <Text style={[styles.receiveAddressTagText, { color: COLORS.DARK_BG }]}>BTC</Text>
               </View>
             </View>
             <Text style={styles.receiveAddress} numberOfLines={1} ellipsizeMode="middle">
@@ -235,8 +235,8 @@ export default function ReceiveScreen({
           <View style={styles.receiveAddressInfo}>
             <View style={styles.receiveAddressLabelRow}>
               <Text style={styles.receiveAddressLabel}>Taproot</Text>
-              <View style={styles.receiveAddressTag}>
-                <Text style={styles.receiveAddressTagText}>Runes</Text>
+              <View style={[styles.receiveAddressTag, { backgroundColor: COLORS.PRIMARY_BLUE }]}>
+                <Text style={[styles.receiveAddressTagText, { color: COLORS.DARK_BG }]}>UNIT</Text>
               </View>
             </View>
             <Text style={styles.receiveAddress} numberOfLines={1} ellipsizeMode="middle">
