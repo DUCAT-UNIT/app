@@ -77,21 +77,33 @@ export default function VaultScreen({ visible, walletCredentials, autoCreateVaul
 
                 // Try multiple methods to fill the input
                 try {
-                  // Method 1: Direct value assignment
-                  vaultNameInput.value = vaultName;
-
-                  // Method 2: Focus and set value
+                  // Focus the input first
                   vaultNameInput.focus();
-                  vaultNameInput.value = vaultName;
 
-                  // Method 3: Use React's native setter if available
+                  // Clear any existing value
+                  vaultNameInput.value = '';
+
+                  // Get React's internal value setter
                   const nativeInputValueSetter = Object.getOwnPropertyDescriptor(window.HTMLInputElement.prototype, 'value').set;
-                  nativeInputValueSetter.call(vaultNameInput, vaultName);
 
-                  // Dispatch events that React expects
-                  vaultNameInput.dispatchEvent(new Event('input', { bubbles: true }));
+                  // Simulate typing each character
+                  for (let i = 0; i < vaultName.length; i++) {
+                    const char = vaultName[i];
+
+                    // Set the value incrementally
+                    const currentValue = vaultName.substring(0, i + 1);
+                    nativeInputValueSetter.call(vaultNameInput, currentValue);
+
+                    // Dispatch input event for each character (React listens to this)
+                    const inputEvent = new Event('input', { bubbles: true });
+                    vaultNameInput.dispatchEvent(inputEvent);
+                  }
+
+                  // Dispatch final change event
                   vaultNameInput.dispatchEvent(new Event('change', { bubbles: true }));
-                  vaultNameInput.dispatchEvent(new Event('blur', { bubbles: true }));
+
+                  // Remove focus
+                  vaultNameInput.blur();
 
                   console.log('[AutoFillVaultName] Name filled successfully: ' + vaultNameInput.value);
                 } catch (e) {
@@ -100,25 +112,33 @@ export default function VaultScreen({ visible, walletCredentials, autoCreateVaul
 
                 console.log('[AutoFillVaultName] Searching for submit button...');
 
-                // Find and click the submit/continue/next button immediately
-                const buttons = Array.from(document.querySelectorAll('button, [role="button"]'));
-                const submitButton = buttons.find(btn => {
-                  const text = (btn.textContent || btn.innerText || '').toLowerCase().trim();
-                  return text.includes('continue') || text.includes('next') || text.includes('submit') ||
-                         text.includes('create') || text.includes('confirm');
-                });
+                // Wait a tiny bit for React to process the input and enable the button
+                setTimeout(() => {
+                  const buttons = Array.from(document.querySelectorAll('button, [role="button"]'));
+                  console.log('[AutoFillVaultName] Found ' + buttons.length + ' buttons');
 
-                if (submitButton) {
-                  console.log('[AutoFillVaultName] Found submit button, clicking...');
-                  submitButton.click();
-                  console.log('[AutoFillVaultName] Submit button clicked');
+                  const submitButton = buttons.find(btn => {
+                    const text = (btn.textContent || btn.innerText || '').toLowerCase().trim();
+                    const isMatch = text.includes('continue') || text.includes('next') || text.includes('submit') ||
+                           text.includes('create') || text.includes('confirm');
+                    if (isMatch) {
+                      console.log('[AutoFillVaultName] Potential submit button: "' + text + '", disabled: ' + btn.disabled);
+                    }
+                    return isMatch && !btn.disabled;
+                  });
 
-                  // Notify React Native that vault creation is complete
-                  window.ReactNativeWebView?.postMessage(JSON.stringify({ type: 'VAULT_BUTTON_CLICKED' }));
-                } else {
-                  console.log('[AutoFillVaultName] Submit button not found');
-                  window.ReactNativeWebView?.postMessage(JSON.stringify({ type: 'VAULT_BUTTON_CLICKED' }));
-                }
+                  if (submitButton) {
+                    console.log('[AutoFillVaultName] Found enabled submit button, clicking...');
+                    submitButton.click();
+                    console.log('[AutoFillVaultName] Submit button clicked');
+
+                    // Notify React Native that vault creation is complete
+                    window.ReactNativeWebView?.postMessage(JSON.stringify({ type: 'VAULT_BUTTON_CLICKED' }));
+                  } else {
+                    console.log('[AutoFillVaultName] Submit button not found or still disabled, will retry');
+                    window.ReactNativeWebView?.postMessage(JSON.stringify({ type: 'VAULT_BUTTON_CLICKED' }));
+                  }
+                }, 300);
 
                 return true;
               } else {
