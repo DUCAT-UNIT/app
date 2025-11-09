@@ -353,7 +353,7 @@ const styles = StyleSheet.create({
     borderRadius: 12,
     paddingHorizontal: 8,
     marginBottom: SCREEN_WIDTH <= 375 ? 4 : 12,
-    minHeight: 120,
+    height: 140,
     flexDirection: 'column',
   },
   vaultContentWrapper: {
