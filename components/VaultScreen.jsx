@@ -60,6 +60,7 @@ export default function VaultScreen({ visible, walletCredentials, autoCreateVaul
       console.log('[VaultScreen] Not visible, resetting state');
       setPreparingVault(false);
       setPreparingMessage('Preparing the vault for you');
+      setWebViewLoaded(false);
       messageIndexRef.current = 0;
       hasAutoClickedRef.current = false;
     }
@@ -72,16 +73,23 @@ export default function VaultScreen({ visible, walletCredentials, autoCreateVaul
       console.log('[VaultScreen] autoCreateVault changed to false, resetting state');
       setPreparingVault(false);
       setPreparingMessage('Preparing the vault for you');
+      setWebViewLoaded(false);
       messageIndexRef.current = 0;
       hasAutoClickedRef.current = false;
     }
     prevAutoCreateVault.current = autoCreateVault;
   }, [autoCreateVault]);
 
+  // Track when webview loads to inject script
+  const [webViewLoaded, setWebViewLoaded] = React.useState(false);
+
   // Auto-click create vault button when flag is set
   React.useEffect(() => {
     if (autoCreateVault && visible) {
       console.log('[VaultScreen] autoCreateVault is true, reloading webview...');
+
+      // Reset loaded state
+      setWebViewLoaded(false);
 
       // Increment the key to force webview reload with fresh state
       setWebViewKey(prev => {
@@ -94,15 +102,15 @@ export default function VaultScreen({ visible, walletCredentials, autoCreateVaul
     }
   }, [autoCreateVault, visible]);
 
-  // Separate effect to inject script after webview loads
+  // Inject script after webview loads
   React.useEffect(() => {
-    if (autoCreateVault && visible && !hasAutoClickedRef.current) {
-      console.log('[VaultScreen] Waiting for webview to be ready before injecting script...');
+    if (autoCreateVault && visible && webViewLoaded && !hasAutoClickedRef.current) {
+      console.log('[VaultScreen] WebView loaded, injecting auto-click script...');
+      hasAutoClickedRef.current = true;
 
-      // Wait for the webview to reload and be ready
+      // Give a little extra time for the page to fully render
       const timeoutId = setTimeout(() => {
-        console.log('[VaultScreen] Injecting auto-click script now...');
-        hasAutoClickedRef.current = true;
+        console.log('[VaultScreen] Executing auto-click script now...');
 
         webViewRef.current?.injectJavaScript(`
           (function() {
@@ -316,14 +324,14 @@ export default function VaultScreen({ visible, walletCredentials, autoCreateVaul
           })();
           true;
         `);
-      }, 2000); // Increased timeout to give webview more time to reload
+      }, 1000); // Wait 1 second after load for page to render
 
       return () => {
         console.log('[VaultScreen] Cleaning up auto-click timeout');
         clearTimeout(timeoutId);
       };
     }
-  }, [autoCreateVault, visible, webViewKey]); // Add webViewKey as dependency
+  }, [autoCreateVault, visible, webViewLoaded]); // Trigger when webview loads
 
   // Don't return null - always render to preload in background
   // if (!visible) return null;
@@ -368,9 +376,12 @@ export default function VaultScreen({ visible, walletCredentials, autoCreateVaul
         onLoadStart={() => {
           console.log('[VaultScreen] Loading started');
           setIsLoading(true);
+          setWebViewLoaded(false);
         }}
         onLoadEnd={() => {
-          console.log('[VaultScreen] Initial page load completed, waiting for Vault Health...');
+          console.log('[VaultScreen] Page load completed');
+          setWebViewLoaded(true);
+
           // Set a timeout fallback in case VAULT_LOADED never comes
           setTimeout(() => {
             console.log('[VaultScreen] Timeout reached, hiding loader anyway');
