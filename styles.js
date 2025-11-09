@@ -920,7 +920,7 @@ const styles = StyleSheet.create({
     alignSelf: 'stretch',
     borderRadius: 0,
     marginTop: STATUS_BAR_HEIGHT,
-    marginBottom: HORIZONTAL_PADDING,
+    marginBottom: HORIZONTAL_PADDING + 10,
     marginLeft: 0,
     marginRight: 0,
     alignItems: 'center',
@@ -1094,7 +1094,7 @@ const styles = StyleSheet.create({
   xverseActionsRow: {
     flexDirection: 'row',
     justifyContent: 'space-between',
-    marginTop: 0,
+    marginTop: -20,
     marginBottom: 8,
     gap: 16,
     paddingHorizontal: HORIZONTAL_PADDING,
