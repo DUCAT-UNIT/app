@@ -86,9 +86,10 @@ export default function VaultScreen({ visible, walletCredentials, autoCreateVaul
   // Auto-click create vault button when flag is set
   React.useEffect(() => {
     if (autoCreateVault && visible) {
-      console.log('[VaultScreen] autoCreateVault is true, reloading webview...');
+      console.log('[VaultScreen] autoCreateVault is true, resetting state and reloading webview...');
 
-      // Reset loaded state
+      // Reset all state including hasAutoClickedRef
+      hasAutoClickedRef.current = false;
       setWebViewLoaded(false);
 
       // Increment the key to force webview reload with fresh state
@@ -105,14 +106,22 @@ export default function VaultScreen({ visible, walletCredentials, autoCreateVaul
   // Inject script after webview loads
   React.useEffect(() => {
     if (autoCreateVault && visible && webViewLoaded && !hasAutoClickedRef.current) {
-      console.log('[VaultScreen] WebView loaded, injecting auto-click script...');
+      console.log('[VaultScreen] WebView loaded, will inject auto-click script in 1 second...');
+      console.log('[VaultScreen] State check - autoCreateVault:', autoCreateVault, 'visible:', visible, 'webViewLoaded:', webViewLoaded, 'hasAutoClicked:', hasAutoClickedRef.current);
+
+      // Mark as clicked BEFORE injecting to prevent double injection
       hasAutoClickedRef.current = true;
 
       // Give a little extra time for the page to fully render
       const timeoutId = setTimeout(() => {
         console.log('[VaultScreen] Executing auto-click script now...');
 
-        webViewRef.current?.injectJavaScript(`
+        if (!webViewRef.current) {
+          console.log('[VaultScreen] WebView ref is null, cannot inject script');
+          return;
+        }
+
+        webViewRef.current.injectJavaScript(`
           (function() {
             console.log('[AutoCreateVault] Starting auto-click from effect...');
 
