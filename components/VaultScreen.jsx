@@ -13,6 +13,7 @@ export default function VaultScreen({ visible, walletCredentials, autoCreateVaul
   const [isLoading, setIsLoading] = React.useState(true);
   const [preparingVault, setPreparingVault] = React.useState(false);
   const [preparingMessage, setPreparingMessage] = React.useState('Preparing the vault for you');
+  const [scriptInjected, setScriptInjected] = React.useState(false);
 
   // Rotate through preparing messages
   React.useEffect(() => {
@@ -61,6 +62,7 @@ export default function VaultScreen({ visible, walletCredentials, autoCreateVaul
       setPreparingVault(false);
       setPreparingMessage('Preparing the vault for you');
       setWebViewLoaded(false);
+      setScriptInjected(false);
       messageIndexRef.current = 0;
       hasAutoClickedRef.current = false;
     }
@@ -82,6 +84,7 @@ export default function VaultScreen({ visible, walletCredentials, autoCreateVaul
 
       console.log('[VaultScreen] Setting webViewLoaded to false');
       setWebViewLoaded(false);
+      setScriptInjected(false);
 
       // Increment the key to force webview reload with fresh state
       setWebViewKey(prev => {
@@ -110,6 +113,7 @@ export default function VaultScreen({ visible, walletCredentials, autoCreateVaul
       // Give a little extra time for the page to fully render
       const timeoutId = setTimeout(() => {
         console.log('[VaultScreen] Executing auto-click script now...');
+        setScriptInjected(true);
 
         if (!webViewRef.current) {
           console.log('[VaultScreen] WebView ref is null, cannot inject script');
@@ -563,7 +567,7 @@ export default function VaultScreen({ visible, walletCredentials, autoCreateVaul
             <>
               <Text style={styles.preparingText}>{preparingMessage}</Text>
               <Text style={[styles.preparingText, { fontSize: 12, marginTop: 8, opacity: 0.5 }]}>
-                Trigger: {autoCreateVaultTrigger} | Key: {webViewKey} | Loaded: {webViewLoaded ? 'Y' : 'N'}
+                Trigger: {autoCreateVaultTrigger} | Key: {webViewKey} | Loaded: {webViewLoaded ? 'Y' : 'N'} | Injected: {scriptInjected ? 'Y' : 'N'}
               </Text>
             </>
           )}
