@@ -130,13 +130,12 @@ export default function VaultScreen({ visible, walletCredentials, autoCreateVaul
                   if (submitButton) {
                     console.log('[AutoFillVaultName] Found enabled submit button, clicking...');
                     submitButton.click();
-                    console.log('[AutoFillVaultName] Submit button clicked');
-
-                    // Notify React Native that vault creation is complete
-                    window.ReactNativeWebView?.postMessage(JSON.stringify({ type: 'VAULT_BUTTON_CLICKED' }));
+                    console.log('[AutoFillVaultName] Submit button clicked, waiting for vault creation to complete...');
+                    // Don't notify yet - wait for VAULT_LOADED message when vault health appears
                   } else {
-                    console.log('[AutoFillVaultName] Submit button not found or still disabled, will retry');
-                    window.ReactNativeWebView?.postMessage(JSON.stringify({ type: 'VAULT_BUTTON_CLICKED' }));
+                    console.log('[AutoFillVaultName] Submit button not found or still disabled');
+                    // If we can't find the button, notify that we're done trying
+                    window.ReactNativeWebView?.postMessage(JSON.stringify({ type: 'VAULT_BUTTON_CLICK_FAILED' }));
                   }
                 }, 300);
 
@@ -191,7 +190,7 @@ export default function VaultScreen({ visible, walletCredentials, autoCreateVaul
                     setTimeout(tryFillName, 200);
                   } else {
                     console.log('[AutoCreateVault] Failed to fill name after max attempts');
-                    window.ReactNativeWebView?.postMessage(JSON.stringify({ type: 'VAULT_BUTTON_CLICKED' }));
+                    window.ReactNativeWebView?.postMessage(JSON.stringify({ type: 'VAULT_BUTTON_CLICK_FAILED' }));
                   }
                 }
 
@@ -419,15 +418,6 @@ export default function VaultScreen({ visible, walletCredentials, autoCreateVaul
               console.log('[VaultScreen] Vault Health detected, hiding loader');
               setIsLoading(false);
               setPreparingVault(false);
-              return;
-            }
-
-            // Handle vault button clicked
-            if (message.type === 'VAULT_BUTTON_CLICKED') {
-              console.log('[VaultScreen] Vault creation flow complete');
-              // Hide preparing message immediately
-              setPreparingVault(false);
-              setIsLoading(false);
               return;
             }
 
