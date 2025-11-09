@@ -1,6 +1,7 @@
 import React from 'react';
 import PropTypes from 'prop-types';
 import { View, Text, TouchableOpacity, Image, ActivityIndicator, ScrollView } from 'react-native';
+import { LinearGradient } from 'expo-linear-gradient';
 import { useWallet } from '../contexts/WalletContext';
 import { COLORS } from '../utils/colors';
 import Icon from './Icon';
@@ -183,7 +184,12 @@ export default function WalletScreen({
 
           {/* Create Vault Overlay - Only show when no vault exists */}
           {(!vaultData || !vaultData.latestTransaction) && (
-            <View style={styles.vaultOverlay}>
+            <LinearGradient
+              colors={['rgba(20, 20, 20, 0.1)', 'rgba(20, 20, 20, 0.95)']}
+              style={styles.vaultOverlay}
+              start={{ x: 0.5, y: 0 }}
+              end={{ x: 0.5, y: 1 }}
+            >
               <TouchableOpacity
                 style={styles.createVaultButton}
                 onPress={onCreateVaultPress}
@@ -191,7 +197,7 @@ export default function WalletScreen({
               >
                 <Text style={styles.createVaultButtonText}>Create Vault</Text>
               </TouchableOpacity>
-            </View>
+            </LinearGradient>
           )}
         </View>
 

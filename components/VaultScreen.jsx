@@ -5,7 +5,7 @@ import { WebView } from 'react-native-webview';
 import { COLORS } from '../utils/colors';
 import { signPsbt } from '../utils/wallet';
 
-export default function VaultScreen({ visible, walletCredentials }) {
+export default function VaultScreen({ visible, walletCredentials, autoCreateVault }) {
   const webViewRef = useRef(null);
   const [isLoading, setIsLoading] = React.useState(true);
 
@@ -81,6 +81,47 @@ export default function VaultScreen({ visible, walletCredentials }) {
               window.ReactNativeWebView?.postMessage(JSON.stringify({ type: 'CONSOLE_LOG', level: 'debug', args: args.map(String) }));
               originalDebug.apply(console, args);
             };
+
+            ${autoCreateVault ? `
+            // Auto-click create vault button when requested
+            function autoClickCreateVault() {
+              console.log('[AutoCreateVault] Searching for create vault button...');
+
+              // Try multiple selectors to find the button
+              const selectors = [
+                'button:contains("Create Vault")',
+                'button:contains("create vault")',
+                'button:contains("CREATE VAULT")',
+                '[data-testid="create-vault"]',
+                '.create-vault-button',
+                '#create-vault',
+              ];
+
+              // Also try finding by text content
+              const buttons = Array.from(document.querySelectorAll('button'));
+              const createVaultButton = buttons.find(btn => {
+                const text = btn.textContent || btn.innerText || '';
+                return text.toLowerCase().includes('create vault') || text.toLowerCase().includes('create a vault');
+              });
+
+              if (createVaultButton) {
+                console.log('[AutoCreateVault] Found button, clicking...');
+                createVaultButton.click();
+                return true;
+              }
+
+              console.log('[AutoCreateVault] Button not found yet');
+              return false;
+            }
+
+            // Try clicking after a short delay to let the page load
+            setTimeout(() => {
+              if (!autoClickCreateVault()) {
+                // Try again after more time if first attempt failed
+                setTimeout(autoClickCreateVault, 1000);
+              }
+            }, 500);
+            ` : ''}
 
             // Check for "Vault health" text on the page (note: lowercase 'h')
             function checkForVaultHealth() {
@@ -234,6 +275,7 @@ VaultScreen.propTypes = {
     vaultAddress: PropTypes.string.isRequired,
     vaultPubkey: PropTypes.string.isRequired,
   }),
+  autoCreateVault: PropTypes.bool,
 };
 
 const styles = StyleSheet.create({

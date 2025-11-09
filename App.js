@@ -123,6 +123,7 @@ export default function App() {
   const [showTxHistory, setShowTxHistory] = useState(false); // Transaction history sheet
   const [activeTab, setActiveTab] = useState('wallet'); // Bottom navigation active tab
   const [vaultCredentials, setVaultCredentials] = useState(null); // Wallet credentials for vault WebView
+  const [autoCreateVault, setAutoCreateVault] = useState(false); // Flag to auto-click create vault button
   const [viewingSeedPhrase, setViewingSeedPhrase] = useState(false); // Viewing seed phrase
   const [seedPhraseWords, setSeedPhraseWords] = useState([]); // Seed phrase from keychain
   const [seedPhraseVisible, setSeedPhraseVisible] = useState(false); // Show/hide seed words
@@ -665,7 +666,7 @@ export default function App() {
   };
 
   // Open vault with wallet credentials
-  const handleOpenVault = async () => {
+  const handleOpenVault = async (shouldAutoCreate = false) => {
     try {
       // Get mnemonic
       const mnemonic = await SecureStore.getItemAsync(SECURE_KEYS.MNEMONIC);
@@ -691,6 +692,9 @@ export default function App() {
         vaultAddress: addresses.taprootAddress,
         vaultPubkey: addresses.taprootPubkey,
       });
+
+      // Set auto-create flag if requested
+      setAutoCreateVault(shouldAutoCreate);
 
       // Switch to vault tab
       setActiveTab('vault');
@@ -874,7 +878,7 @@ export default function App() {
                   settingsTranslateX.setValue(0);
                   setShowSettings(true);
                 }}
-                onCreateVaultPress={handleOpenVault}
+                onCreateVaultPress={() => handleOpenVault(true)}
                 sendAddressType={sendAddressType}
                 switchingAccount={switchingAccount}
                 showZeroAssets={showZeroAssets}
@@ -973,7 +977,11 @@ export default function App() {
     >
       <MutinynetBanner />
       <View style={{ flex: 1 }}>
-        <VaultScreen visible={activeTab === 'vault'} walletCredentials={vaultCredentials} />
+        <VaultScreen
+          visible={activeTab === 'vault'}
+          walletCredentials={vaultCredentials}
+          autoCreateVault={autoCreateVault}
+        />
       </View>
       <BottomNavigationBar
         activeTab={activeTab}
