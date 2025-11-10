@@ -58,13 +58,13 @@ import VaultScreen from './components/VaultScreen';
 
 // Import contexts
 import { useWallet } from './contexts/WalletContext';
+import { useAuth, AuthProvider } from './contexts/AuthContext';
 
 // Import hooks
 import { useToast } from './hooks/useToast';
 import { useAppLifecycle } from './hooks/useAppLifecycle';
 import { useTransactionPolling } from './hooks/useTransactionPolling';
 import { useNotifications } from './hooks/useNotifications';
-import { useAuth } from './hooks/useAuth';
 import { useSettings } from './hooks/useSettings';
 import { useAccountSwitcher } from './hooks/useAccountSwitcher';
 import { useOnboarding } from './hooks/useOnboarding';
@@ -75,7 +75,20 @@ const bip32 = BIP32Factory(ecc);
 // Initialize ECC library for bitcoinjs-lib (required for Taproot)
 bitcoin.initEccLib(ecc);
 
+// Main App component - wraps everything with providers
 export default function App() {
+  // seedConfirmed state needs to be here to pass to AuthProvider
+  const [seedConfirmed, setSeedConfirmed] = useState(false);
+
+  return (
+    <AuthProvider onSeedConfirmed={setSeedConfirmed}>
+      <AppContent seedConfirmed={seedConfirmed} setSeedConfirmed={setSeedConfirmed} />
+    </AuthProvider>
+  );
+}
+
+// AppContent - actual app logic
+function AppContent({ seedConfirmed, setSeedConfirmed }) {
   // Load Cabinet Grotesk font
   const [fontsLoaded] = useFonts({
     'CabinetGrotesk-Regular': require('./assets/fonts/CabinetGrotesk-Regular.otf'),
@@ -117,7 +130,7 @@ export default function App() {
   } = useWallet();
 
   // Auth state
-  const [seedConfirmed, setSeedConfirmed] = useState(false);
+  // seedConfirmed now passed as prop from App wrapper
   const [showSettings, setShowSettings] = useState(false); // Settings modal
   const [showReceiveSheet, setShowReceiveSheet] = useState(false); // Receive bottom sheet
   const [showTxHistory, setShowTxHistory] = useState(false); // Transaction history sheet
@@ -150,7 +163,7 @@ export default function App() {
   const { startPolling: startTransactionPolling } = useTransactionPolling();
   const { sendTransactionConfirmedNotification } = useNotifications();
 
-  // Auth hook - handles authentication, biometrics, PIN
+  // Auth hook - now from AuthContext
   const {
     isAuthenticated,
     isBiometricSupported,
@@ -182,7 +195,7 @@ export default function App() {
     loadBiometricPreference,
     resetAuth,
     startPinChange,
-  } = useAuth({ onSeedConfirmed: setSeedConfirmed });
+  } = useAuth();
 
   // Animated values for swipe gestures (must be defined before hooks that use them)
   const seedPhraseTranslateX = useRef(new Animated.Value(0)).current;
