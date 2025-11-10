@@ -142,9 +142,11 @@ export const BalanceProvider = ({ children }) => {
       }
 
       const totalBtcBalance = segwitBalance + taprootBalance;
+      console.log('Checking balance - SegWit:', segwitBalance, 'Taproot:', taprootBalance, 'Total:', totalBtcBalance);
 
       // If balance is 0, request airdrop (with rate limiting to respect faucet limits)
       if (totalBtcBalance === 0) {
+        console.log('Balance is 0, attempting airdrop...');
         try {
           // Check when we last requested an airdrop to respect faucet rate limits
           const lastAirdropTime = await SecureStore.getItemAsync('lastAirdropTime');
@@ -160,6 +162,7 @@ export const BalanceProvider = ({ children }) => {
 
           // Request airdrop
           const result = await AirdropService.requestAirdrop(wallet.segwitAddress);
+          console.log('Airdrop successful, txId:', result.txId);
 
           // Store the time of successful airdrop
           await SecureStore.setItemAsync('lastAirdropTime', now.toString());
@@ -167,6 +170,7 @@ export const BalanceProvider = ({ children }) => {
           // Show celebration modal
           setAirdropTxId(result.txId);
           setShowAirdropModal(true);
+          console.log('Airdrop modal should be visible now');
 
           // Fetch balance again after a few seconds to see the new balance
           setTimeout(() => {
