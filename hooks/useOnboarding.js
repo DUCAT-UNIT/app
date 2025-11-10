@@ -48,7 +48,6 @@ export function useOnboarding({
         const savedState = await AsyncStorage.getItem(ONBOARDING_STATE_KEY);
         if (savedState) {
           const state = JSON.parse(savedState);
-          console.log('[useOnboarding] Restoring persisted state:', state);
 
           // Restore all onboarding state
           if (state.tempMnemonicWords) setTempMnemonicWords(state.tempMnemonicWords);
@@ -64,7 +63,7 @@ export function useOnboarding({
           if (state.isImportedWallet !== undefined) setIsImportedWallet(state.isImportedWallet);
         }
       } catch (error) {
-        console.error('[useOnboarding] Failed to load persisted state:', error);
+        // Silently fail - state will be empty on first run
       } finally {
         setStateLoaded(true);
       }
@@ -93,9 +92,8 @@ export function useOnboarding({
           isImportedWallet,
         };
         await AsyncStorage.setItem(ONBOARDING_STATE_KEY, JSON.stringify(state));
-        console.log('[useOnboarding] Persisted state');
       } catch (error) {
-        console.error('[useOnboarding] Failed to persist state:', error);
+        // Silently fail
       }
     };
 
@@ -119,9 +117,8 @@ export function useOnboarding({
   const clearPersistedState = async () => {
     try {
       await AsyncStorage.removeItem(ONBOARDING_STATE_KEY);
-      console.log('[useOnboarding] Cleared persisted state');
     } catch (error) {
-      console.error('[useOnboarding] Failed to clear persisted state:', error);
+      // Silently fail
     }
   };
 

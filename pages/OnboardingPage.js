@@ -89,18 +89,6 @@ export default function OnboardingPage({
     showToast,
   });
 
-  console.log('[OnboardingPage] Render state:', {
-    settingUpPin,
-    showPinEntry,
-    isAuthenticated,
-    wallet: !!wallet,
-    seedConfirmed,
-    showingIntro,
-    showingSeeds,
-    verifyingSeeds,
-    importingWallet
-  });
-
   // PIN setup completion wrapper - saves wallet and resets state
   const handlePinSetupCompleteInternal = async () => {
     // Save wallet to storage now that PIN is set (only for new wallets, not imported)
@@ -217,7 +205,6 @@ export default function OnboardingPage({
   // the onboarding state was lost (e.g., from app backgrounding).
   // Show WelcomeScreen as fallback to let user continue onboarding.
   if (wallet && !seedConfirmed) {
-    console.warn('[OnboardingPage] Onboarding state lost! Showing WelcomeScreen as fallback');
     return (
       <View style={{ flex: 1, backgroundColor: COLORS.DARK_BG }}>
         <MutinynetBanner />
