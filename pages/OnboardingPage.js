@@ -213,6 +213,42 @@ export default function OnboardingPage({
     );
   }
 
+  // CRITICAL FIX: If we reach here with wallet but seedConfirmed=false,
+  // the onboarding state was lost (e.g., from app backgrounding).
+  // Show WelcomeScreen as fallback to let user continue onboarding.
+  if (wallet && !seedConfirmed) {
+    console.warn('[OnboardingPage] Onboarding state lost! Showing WelcomeScreen as fallback');
+    return (
+      <View style={{ flex: 1, backgroundColor: COLORS.DARK_BG }}>
+        <MutinynetBanner />
+        <WelcomeScreen
+          wallet={wallet}
+          importingWallet={false}
+          showingIntro={true}  // Force show intro to restart flow
+          showingSeeds={false}
+          verifyingSeeds={false}
+          tempMnemonicWords={[]}
+          importSeedPhrase={importSeedPhrase}
+          verificationWords={{}}
+          requiredIndices={[]}
+          wordChoices={{}}
+          seedInputRefs={seedInputRefs}
+          setImportingWallet={setImportingWallet}
+          setImportSeedPhrase={setImportSeedPhrase}
+          setVerificationWords={setVerificationWords}
+          setShowingIntro={setShowingIntro}
+          setShowingSeeds={setShowingSeeds}
+          createWallet={createWallet}
+          importWallet={importWallet}
+          resetWallet={resetWalletAndState}
+          proceedToVerification={proceedToVerification}
+          verifySeeds={verifySeeds}
+        />
+        <StatusBar style="light" />
+      </View>
+    );
+  }
+
   // If we reach here, user is authenticated and has a wallet - don't render anything
   // Let the parent (App.js) render the WalletPage
   return null;
