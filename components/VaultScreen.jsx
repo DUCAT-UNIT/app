@@ -8,17 +8,13 @@ import { signPsbt } from '../utils/wallet';
 export default function VaultScreen({ visible, walletCredentials, autoCreateVaultTrigger }) {
   const webViewRef = useRef(null);
   const messageIndexRef = useRef(0);
-  const hasAutoClickedRef = useRef(false);
-  const lastTriggerValueRef = useRef(0);
-  const loadGenerationRef = useRef(0);
-  const targetLoadGenerationRef = useRef(0);
-  const [webViewKey, setWebViewKey] = React.useState(0);
+  const hasLoadedOnceRef = useRef(false);
   const [isLoading, setIsLoading] = React.useState(true);
   const [preparingVault, setPreparingVault] = React.useState(false);
   const [preparingMessage, setPreparingMessage] = React.useState('Preparing the vault for you');
   const [webViewLoaded, setWebViewLoaded] = React.useState(false);
 
-  const shouldShowLoading = (isLoading || preparingVault) || (visible && autoCreateVaultTrigger > 0 && !webViewLoaded);
+  const shouldShowLoading = (isLoading || preparingVault) && !hasLoadedOnceRef.current;
 
   // Rotate through preparing messages
   React.useEffect(() => {
@@ -60,245 +56,9 @@ export default function VaultScreen({ visible, walletCredentials, autoCreateVaul
       setPreparingMessage('Preparing the vault for you');
       setWebViewLoaded(false);
       messageIndexRef.current = 0;
-      hasAutoClickedRef.current = false;
-      lastTriggerValueRef.current = 0;
     }
   }, [visible]);
 
-  // Show loading overlay immediately when auto-create is triggered
-  React.useEffect(() => {
-    if (autoCreateVaultTrigger > 0 && visible) {
-      setPreparingVault(true);
-      setIsLoading(true);
-      setPreparingMessage('Preparing the vault for you');
-    }
-  }, [autoCreateVaultTrigger, visible]);
-
-  // Handle auto-create vault trigger
-  React.useEffect(() => {
-    if (autoCreateVaultTrigger > 0 && visible && autoCreateVaultTrigger !== lastTriggerValueRef.current) {
-      lastTriggerValueRef.current = autoCreateVaultTrigger;
-
-      // CRITICAL: Reset hasAutoClicked and webViewLoaded BEFORE anything else
-      // This prevents script injection into the old WebView
-      hasAutoClickedRef.current = false;
-      setWebViewLoaded(false);
-
-      // Immediately reload WebView (don't wait 100ms)
-      const newKey = webViewKey + 1;
-      setWebViewKey(newKey);
-
-      // Set target load generation AFTER incrementing key
-      // The next load will be loadGenerationRef.current + 1
-      setTimeout(() => {
-        targetLoadGenerationRef.current = loadGenerationRef.current;
-      }, 50);
-
-      const safetyTimeout = setTimeout(() => {
-        setPreparingVault(false);
-        setIsLoading(false);
-      }, 10000);
-
-      return () => clearTimeout(safetyTimeout);
-    }
-  }, [autoCreateVaultTrigger, visible, webViewKey]);
-
-  // Inject auto-click script when conditions are met
-  React.useEffect(() => {
-    const shouldInject = autoCreateVaultTrigger > 0 &&
-                        visible &&
-                        webViewLoaded &&
-                        !hasAutoClickedRef.current &&
-                        loadGenerationRef.current >= targetLoadGenerationRef.current;
-
-    if (shouldInject) {
-      hasAutoClickedRef.current = true;
-
-      if (!webViewRef.current) return;
-
-      const timeoutId = setTimeout(() => {
-        if (!webViewRef.current) return;
-
-        const scriptToInject = `
-            (function() {
-              try {
-                if (window.__vaultScriptExecuted) return;
-                window.__vaultScriptExecuted = true;
-
-                window.ReactNativeWebView.postMessage(JSON.stringify({ type: 'SCRIPT_EXECUTING' }));
-
-                function generateRandomVaultName() {
-                  const adjectives = ['Safe', 'Gold', 'Fast', 'Big', 'Deep', 'Quick', 'Prime', 'Smart', 'Cool', 'Bold'];
-                  const nouns = ['Vault', 'Box', 'Safe', 'Lock', 'Keep', 'Hold', 'Stack', 'Stash'];
-                  const randomAdj = adjectives[Math.floor(Math.random() * adjectives.length)];
-                  const randomNoun = nouns[Math.floor(Math.random() * nouns.length)];
-                  const randomNum = Math.floor(Math.random() * 999) + 1;
-                  return randomAdj + randomNoun + randomNum;
-                }
-
-                function autoFillVaultName() {
-                  const inputs = Array.from(document.querySelectorAll('input[type="text"], input:not([type]), input[type="search"]'));
-
-                  let vaultNameInput = inputs.find(input => {
-                    const placeholder = (input.placeholder || '').toLowerCase();
-                    const name = (input.name || '').toLowerCase();
-                    const id = (input.id || '').toLowerCase();
-                    return placeholder.includes('vault') || placeholder.includes('name') ||
-                           name.includes('vault') || name.includes('name') ||
-                           id.includes('vault') || id.includes('name');
-                  });
-
-                  if (!vaultNameInput && inputs.length > 0) {
-                    vaultNameInput = inputs.find(input => input.offsetParent !== null);
-                  }
-
-                  if (!vaultNameInput && inputs.length > 0) {
-                    vaultNameInput = inputs[0];
-                  }
-
-                  if (vaultNameInput) {
-                    const vaultName = generateRandomVaultName();
-
-                    try {
-                      vaultNameInput.focus();
-                      vaultNameInput.value = '';
-                      const nativeInputValueSetter = Object.getOwnPropertyDescriptor(window.HTMLInputElement.prototype, 'value').set;
-
-                      for (let i = 0; i < vaultName.length; i++) {
-                        const currentValue = vaultName.substring(0, i + 1);
-                        nativeInputValueSetter.call(vaultNameInput, currentValue);
-                        const inputEvent = new Event('input', { bubbles: true });
-                        vaultNameInput.dispatchEvent(inputEvent);
-                      }
-
-                      vaultNameInput.dispatchEvent(new Event('change', { bubbles: true }));
-                      vaultNameInput.blur();
-                    } catch (e) {
-                      window.ReactNativeWebView.postMessage(JSON.stringify({
-                        type: 'SCRIPT_ERROR',
-                        error: 'Failed to fill input: ' + e.toString()
-                      }));
-                    }
-
-                    setTimeout(() => {
-                      const buttons = Array.from(document.querySelectorAll('button, [role="button"]'));
-                      const submitButton = buttons.find(btn => {
-                        const text = (btn.textContent || btn.innerText || '').toLowerCase().trim();
-                        return (text.includes('continue') || text.includes('next') ||
-                                text.includes('submit') || text.includes('create') ||
-                                text.includes('confirm')) && !btn.disabled;
-                      });
-
-                      if (submitButton) {
-                        submitButton.click();
-                      } else {
-                        window.ReactNativeWebView.postMessage(JSON.stringify({ type: 'VAULT_BUTTON_CLICK_FAILED' }));
-                      }
-                    }, 300);
-
-                    return true;
-                  } else {
-                    return false;
-                  }
-                }
-
-                function autoClickCreateVault() {
-                  const buttons = Array.from(document.querySelectorAll('button, [role="button"], a'));
-                  const buttonTexts = buttons.map(btn => (btn.textContent || btn.innerText || '').trim()).filter(t => t);
-
-                  window.ReactNativeWebView.postMessage(JSON.stringify({
-                    type: 'DEBUG_BUTTONS',
-                    buttons: buttonTexts.slice(0, 10)
-                  }));
-
-                  let vaultButton = buttons.find(btn => {
-                    const text = (btn.textContent || btn.innerText || '').toLowerCase().trim();
-                    return text.includes('create vault');
-                  });
-
-                  if (!vaultButton) {
-                    vaultButton = buttons.find(btn => {
-                      const text = (btn.textContent || btn.innerText || '').toLowerCase().trim();
-                      return text.includes('vault') && !text.includes('overview');
-                    });
-                  }
-
-                  if (vaultButton) {
-                    vaultButton.click();
-
-                    setTimeout(() => {
-                      const buttons2 = Array.from(document.querySelectorAll('button, [role="button"], a'));
-                      const createButton = buttons2.find(btn => {
-                        const text = (btn.textContent || btn.innerText || '').toLowerCase().trim();
-                        return text.includes('create vault');
-                      });
-
-                      if (createButton) {
-                        createButton.click();
-                      }
-
-                      let fillAttempts = 0;
-                      const maxFillAttempts = 10;
-
-                      function tryFillName() {
-                        fillAttempts++;
-
-                        if (autoFillVaultName()) {
-                          return;
-                        }
-
-                        if (fillAttempts < maxFillAttempts) {
-                          setTimeout(tryFillName, 200);
-                        } else {
-                          window.ReactNativeWebView.postMessage(JSON.stringify({ type: 'VAULT_BUTTON_CLICK_FAILED' }));
-                        }
-                      }
-
-                      setTimeout(tryFillName, 500);
-                    }, 500);
-
-                    return true;
-                  } else {
-                    return false;
-                  }
-                }
-
-                let attempts = 0;
-                const maxAttempts = 5;
-
-                function tryAutoClick() {
-                  attempts++;
-
-                  if (autoClickCreateVault()) {
-                    return;
-                  }
-
-                  if (attempts < maxAttempts) {
-                    setTimeout(tryAutoClick, 1000);
-                  } else {
-                    window.ReactNativeWebView.postMessage(JSON.stringify({ type: 'VAULT_BUTTON_CLICK_FAILED' }));
-                  }
-                }
-
-                tryAutoClick();
-              } catch (error) {
-                window.ReactNativeWebView.postMessage(JSON.stringify({
-                  type: 'SCRIPT_ERROR',
-                  error: error.toString()
-                }));
-              }
-            })();
-            true;
-          `;
-
-        webViewRef.current.injectJavaScript(scriptToInject);
-      }, 500); // Wait 500ms for page to render
-
-      return () => {
-        clearTimeout(timeoutId);
-      };
-    }
-  }, [autoCreateVaultTrigger, visible, webViewLoaded, webViewKey]); // Include webViewKey to re-check after reload
 
   // Don't return null - always render to preload in background
   // if (!visible) return null;
@@ -352,7 +112,6 @@ export default function VaultScreen({ visible, walletCredentials, autoCreateVaul
   return (
     <View style={styles.container}>
       <WebView
-        key={webViewKey}
         ref={webViewRef}
         source={{ uri: webViewUrl }}
         style={[styles.webview, shouldShowLoading && styles.webviewHidden]}
@@ -363,18 +122,12 @@ export default function VaultScreen({ visible, walletCredentials, autoCreateVaul
         webviewDebuggingEnabled={true}
         onShouldStartLoadWithRequest={handleShouldStartLoad}
         onLoadStart={() => {
-          loadGenerationRef.current += 1;
           setIsLoading(true);
           setWebViewLoaded(false);
         }}
         onLoadEnd={() => {
-          const currentGen = loadGenerationRef.current;
-          const targetGen = targetLoadGenerationRef.current;
-
-          if (currentGen >= targetGen) {
-            setWebViewLoaded(true);
-          }
-
+          setWebViewLoaded(true);
+          hasLoadedOnceRef.current = true;
           setTimeout(() => {
             setIsLoading(false);
           }, 10000);
@@ -427,29 +180,9 @@ export default function VaultScreen({ visible, walletCredentials, autoCreateVaul
           try {
             const message = JSON.parse(event.nativeEvent.data);
 
-            if (message.type === 'SCRIPT_EXECUTING') {
-              return;
-            }
-
-            if (message.type === 'SCRIPT_ERROR') {
-              setPreparingVault(false);
-              setIsLoading(false);
-              return;
-            }
-
-            if (message.type === 'DEBUG_BUTTONS') {
-              return;
-            }
-
             if (message.type === 'VAULT_LOADED') {
               setIsLoading(false);
               setPreparingVault(false);
-              return;
-            }
-
-            if (message.type === 'VAULT_BUTTON_CLICK_FAILED') {
-              setPreparingVault(false);
-              setIsLoading(false);
               return;
             }
 
@@ -517,10 +250,10 @@ export default function VaultScreen({ visible, walletCredentials, autoCreateVaul
       {shouldShowLoading && (
         <View style={styles.loadingOverlay}>
           <ActivityIndicator size="large" color={COLORS.PRIMARY_BLUE} />
-          {(preparingVault || autoCreateVaultTrigger > 0) && (
-            <>
-              <Text style={styles.preparingText}>{preparingMessage}</Text>
-            </>
+          {preparingVault ? (
+            <Text style={styles.preparingText}>{preparingMessage}</Text>
+          ) : (
+            <Text style={styles.preparingText}>Initialising Vault</Text>
           )}
         </View>
       )}
