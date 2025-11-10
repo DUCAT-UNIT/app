@@ -15,7 +15,6 @@ export function useTransactionPolling() {
    * @param {function} onError - Optional error callback
    */
   const startPolling = useCallback((txid, onConfirmed, onError) => {
-    console.log('[POLLING] Starting poll for txid:', txid);
     const maxAttempts = 60; // Poll for up to 60 attempts (5 minutes with 5 second intervals)
     let attempts = 0;
 
@@ -27,17 +26,13 @@ export function useTransactionPolling() {
         }
         const tx = await response.json();
 
-        console.log('[POLLING] Attempt', attempts, 'status:', tx.status);
-
         // Check if transaction is confirmed
         if (tx.status && tx.status.confirmed) {
-          console.log('[POLLING] Transaction confirmed!');
           return true;
         }
 
         return false;
       } catch (error) {
-        console.log('[POLLING] Error checking confirmation:', error);
         if (onError) {
           onError(error);
         }
@@ -56,16 +51,12 @@ export function useTransactionPolling() {
       const isConfirmed = await checkConfirmation();
 
       if (isConfirmed || attempts >= maxAttempts) {
-        console.log('[POLLING] Stopping poll. Confirmed:', isConfirmed, 'Attempts:', attempts);
         clearInterval(pollIntervalRef.current);
         pollIntervalRef.current = null;
 
         // Call confirmation callback
         if (onConfirmed) {
-          console.log('[POLLING] Calling onConfirmed callback');
           onConfirmed(isConfirmed);
-        } else {
-          console.log('[POLLING] WARNING: No onConfirmed callback provided!');
         }
       }
     }, 5000); // Check every 5 seconds

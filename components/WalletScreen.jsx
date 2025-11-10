@@ -32,11 +32,7 @@ export default function WalletScreen({
   // Prevent multiple rapid clicks on create vault button
   const [creatingVault, setCreatingVault] = React.useState(false);
   const handleCreateVault = React.useCallback(() => {
-    if (creatingVault) {
-      console.log('[WALLET] Already creating vault, ignoring click');
-      return;
-    }
-    console.log('[WALLET] Create vault button clicked');
+    if (creatingVault) return;
     setCreatingVault(true);
     onCreateVaultPress();
     // Reset after 2 seconds to allow retry if needed

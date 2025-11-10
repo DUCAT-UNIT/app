@@ -185,11 +185,9 @@ export const TransactionProvider = ({
       await BackgroundTaskService.addPendingTransaction(txid, assetType, sendAmount, 'withdraw');
 
       // Start polling for confirmation
-      console.log('[TX] Starting transaction polling for:', txid);
       startTransactionPolling(
         txid,
         (isConfirmed) => {
-          console.log('[TX] Polling callback fired! isConfirmed:', isConfirmed);
           if (isConfirmed) {
             if (notificationsEnabled) {
               sendTransactionConfirmedNotification(assetType, sendAmount, txid, 'withdraw');
@@ -200,7 +198,6 @@ export const TransactionProvider = ({
           fetchBalance();
         },
         (error) => {
-          console.log('[TX] Polling error callback fired:', error);
           // Error polling, but don't block the user - just mark as confirmed after timeout
           setIntentStep('confirmed');
           fetchBalance();

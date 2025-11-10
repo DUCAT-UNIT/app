@@ -24,8 +24,6 @@ export const VaultProvider = ({ children, currentAccount }) => {
 
   const openVault = async (shouldAutoCreate = false) => {
     try {
-      console.log('[VAULT_CTX] openVault called with shouldAutoCreate:', shouldAutoCreate);
-
       // Switch to vault tab immediately for better UX
       setActiveTab('vault');
 
@@ -50,14 +48,9 @@ export const VaultProvider = ({ children, currentAccount }) => {
 
       // Trigger auto-create if requested by incrementing counter
       if (shouldAutoCreate) {
-        console.log('[VAULT_CTX] Incrementing autoCreateVaultTrigger');
-        setAutoCreateVaultTrigger(prev => {
-          console.log('[VAULT_CTX] Previous trigger value:', prev, 'New value:', prev + 1);
-          return prev + 1;
-        });
+        setAutoCreateVaultTrigger(prev => prev + 1);
       }
     } catch (error) {
-      console.error('[VAULT_CTX] Error in openVault:', error);
       setActiveTab('vault');
     }
   };
