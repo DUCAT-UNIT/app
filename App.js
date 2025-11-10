@@ -670,9 +670,9 @@ function AppContent({ seedConfirmed, setSeedConfirmed }) {
 
   // At this point, user is authenticated and has a wallet - show the main wallet UI
   const settingsHandlers = {
-    privacyMode,
-    notificationsEnabled,
-    showZeroAssets,
+    privacyMode: privacyMode || false,
+    notificationsEnabled: notificationsEnabled || false,
+    showZeroAssets: showZeroAssets || false,
     handleLogout,
     handleDeleteWallet,
     handleViewSeedPhrase,
