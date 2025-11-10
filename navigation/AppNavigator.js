@@ -12,6 +12,7 @@ import RootNavigator from './RootNavigator';
 
 // Components
 import AccountSwitcherModal from '../components/AccountSwitcherModal';
+import ConfirmationModal from '../components/ConfirmationModal';
 import MutinynetBanner from '../components/MutinynetBanner';
 import SplashScreen from '../components/SplashScreen';
 
@@ -190,6 +191,12 @@ function AppNavigatorContent({
     handleFaceIdToggle,
     handleNotificationsToggle,
     handleShowZeroAssetsToggle,
+    showLogoutModal,
+    showDeleteModal,
+    confirmLogout,
+    cancelLogout,
+    confirmDeleteWallet,
+    cancelDeleteWallet,
   } = useSettings({
     biometricEnabled,
     setBiometricEnabled,
@@ -441,6 +448,31 @@ function AppNavigatorContent({
           </View>
         </Animated.View>
       )}
+
+      {/* Confirmation Modals */}
+      <ConfirmationModal
+        visible={showLogoutModal}
+        title="Lock Wallet"
+        message="Are you sure you want to lock your wallet? You'll need to enter your PIN to access it again."
+        confirmText="Lock"
+        confirmStyle="primary"
+        iconName="logout"
+        onConfirm={confirmLogout}
+        onCancel={cancelLogout}
+        styles={styles}
+      />
+
+      <ConfirmationModal
+        visible={showDeleteModal}
+        title="Delete Wallet"
+        message="Are you sure you want to delete your wallet? This action cannot be undone. Make sure you have backed up your recovery phrase."
+        confirmText="Delete"
+        confirmStyle="destructive"
+        iconName="delete_wallet"
+        onConfirm={confirmDeleteWallet}
+        onCancel={cancelDeleteWallet}
+        styles={styles}
+      />
     </>
   );
 }
