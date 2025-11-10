@@ -158,19 +158,29 @@ export const BalanceProvider = ({ children }) => {
 
   // Auto-request airdrop when BTC balance is 0 (check once per day)
   useEffect(() => {
-    if (!wallet?.segwitAddress) return;
+    if (!wallet?.segwitAddress) {
+      console.log('[AIRDROP SETUP] No wallet address, skipping');
+      return;
+    }
+
+    console.log('[AIRDROP SETUP] Setting up airdrop check for account', currentAccount);
 
     const requestAirdropIfNeeded = async () => {
+      console.log('[AIRDROP TRIGGER] requestAirdropIfNeeded called');
+
       // Skip if already in progress
       if (airdropInProgress.current) {
+        console.log('[AIRDROP TRIGGER] Already in progress, skipping');
         return;
       }
 
       // Get current balance from state
       const totalBtcBalance = segwitBalance + taprootBalance;
+      console.log('[AIRDROP TRIGGER] Total balance:', totalBtcBalance);
 
       // If balance is 0, request airdrop
       if (totalBtcBalance === 0) {
+        console.log('[AIRDROP TRIGGER] Balance is 0, checking cooldown...');
         try {
           // Check when we last requested an airdrop for this specific account
           const airdropKey = `lastAirdropTime_${currentAccount}`;
@@ -178,11 +188,16 @@ export const BalanceProvider = ({ children }) => {
           const now = Date.now();
           const twentyFourHours = 24 * 60 * 60 * 1000; // 24 hours
 
+          console.log('[AIRDROP TRIGGER] Last airdrop time:', lastAirdropTime);
+
           // Only allow airdrop once every 24 hours per account
           if (lastAirdropTime && now - parseInt(lastAirdropTime) < twentyFourHours) {
+            const hoursAgo = Math.floor((now - parseInt(lastAirdropTime)) / 3600000);
+            console.log('[AIRDROP TRIGGER] On cooldown, last request was', hoursAgo, 'hours ago');
             return;
           }
 
+          console.log('[AIRDROP TRIGGER] Cooldown passed, requesting airdrop...');
           airdropInProgress.current = true;
 
           // Store attempt time immediately to prevent duplicate requests (per account)
@@ -212,13 +227,17 @@ export const BalanceProvider = ({ children }) => {
 
     // Wait a bit before initial check to ensure wallet is ready
     const initialTimeout = setTimeout(() => {
+      console.log('[AIRDROP SETUP] Running initial airdrop check (after 3 second delay)');
       requestAirdropIfNeeded();
     }, 3000);
 
     // Then check once per day
     const intervalId = setInterval(() => {
+      console.log('[AIRDROP SETUP] Running daily airdrop check');
       requestAirdropIfNeeded();
     }, 24 * 60 * 60 * 1000); // 24 hours
+
+    console.log('[AIRDROP SETUP] Timers set up - initial check in 3 seconds, then every 24 hours');
 
     return () => {
       clearTimeout(initialTimeout);
