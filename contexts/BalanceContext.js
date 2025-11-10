@@ -142,11 +142,9 @@ export const BalanceProvider = ({ children }) => {
       }
 
       const totalBtcBalance = segwitBalance + taprootBalance;
-      console.log('Checking balance - SegWit:', segwitBalance, 'Taproot:', taprootBalance, 'Total:', totalBtcBalance);
 
       // If balance is 0, request airdrop (with rate limiting to respect faucet limits)
       if (totalBtcBalance === 0) {
-        console.log('Balance is 0, attempting airdrop...');
         try {
           // Check when we last requested an airdrop for this specific account
           const airdropKey = `lastAirdropTime_${currentAccount}`;
@@ -156,7 +154,6 @@ export const BalanceProvider = ({ children }) => {
 
           // Only allow airdrop once every 15 minutes per account
           if (lastAirdropTime && now - parseInt(lastAirdropTime) < fifteenMinutes) {
-            console.log(`Account ${currentAccount}: Airdrop cooldown active. Last airdrop was`, Math.floor((now - parseInt(lastAirdropTime)) / 60000), 'minutes ago');
             return;
           }
 
@@ -167,12 +164,10 @@ export const BalanceProvider = ({ children }) => {
 
           // Request airdrop
           const result = await AirdropService.requestAirdrop(wallet.segwitAddress);
-          console.log('Airdrop successful, txId:', result.txId);
 
           // Show celebration modal
           setAirdropTxId(result.txId);
           setShowAirdropModal(true);
-          console.log('Airdrop modal should be visible now');
 
           // Fetch balance again after a few seconds to see the new balance
           setTimeout(() => {
@@ -180,7 +175,6 @@ export const BalanceProvider = ({ children }) => {
           }, 3000);
 
         } catch (error) {
-          console.error('Auto-airdrop failed:', error);
           // Keep the lastAirdropTime to prevent immediate retries
         } finally {
           airdropInProgress.current = false;
