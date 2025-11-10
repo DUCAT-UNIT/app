@@ -61,11 +61,21 @@ export default function SendScreen({
   useEffect(() => {
     if (intentStep === 'entering_address' && sendRecipient) {
       const validation = validateBitcoinAddress(sendRecipient);
-      setAddressError(validation.error);
+
+      // Additional validation for UNIT transfers - require Taproot address
+      if (validation.valid && sendAssetType === 'unit') {
+        const trimmedAddress = sendRecipient.trim();
+        if (!trimmedAddress.startsWith('tb1p') && !trimmedAddress.startsWith('bc1p')) {
+          setAddressError('UNIT transfers require a Taproot address (starting with tb1p)');
+          return;
+        }
+      }
+
+      setAddressError(validation.error || '');
     } else {
       setAddressError('');
     }
-  }, [sendRecipient, intentStep]);
+  }, [sendRecipient, intentStep, sendAssetType]);
 
   // Cycle through loading messages
   useEffect(() => {

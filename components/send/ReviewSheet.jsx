@@ -52,19 +52,21 @@ export default function ReviewSheet({
       >
         <View {...panHandlers}>
           <View style={styles.bottomSheetHandle} />
+        </View>
 
+        <View style={{ flexDirection: 'row', alignItems: 'center', paddingHorizontal: 20, marginBottom: 2 }}>
           <TouchableOpacity
-            style={styles.bottomSheetBackButton}
+            style={{ padding: 8, marginRight: 12 }}
             onPress={onBack}
           >
             <Icon name="back" size={20} color={COLORS.PRIMARY_BLUE} />
           </TouchableOpacity>
-        </View>
-
-        <View style={styles.amountInputContainer}>
-          <Text style={{ fontSize: 18, fontWeight: '500', color: COLORS.VERY_LIGHT_GRAY, marginBottom: 16 }}>
+          <Text style={{ fontSize: 18, fontWeight: '500', color: COLORS.VERY_LIGHT_GRAY }}>
             You will send
           </Text>
+        </View>
+
+        <View style={[styles.amountInputContainer, { paddingTop: 0 }]}>
 
           {/* To and Amount Card */}
           <View style={{ backgroundColor: COLORS.CARD_BG, borderRadius: 12, padding: 14, marginBottom: 20, width: '100%' }}>

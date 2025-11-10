@@ -222,6 +222,11 @@ export const createUnitIntent = async (recipient, amount, taprootAddress, segwit
     // Validate and normalize recipient address
     const validatedRecipient = validateAndNormalizeAddress(recipient);
 
+    // Force Taproot address for UNIT transfers
+    if (!validatedRecipient.startsWith('tb1p') && !validatedRecipient.startsWith('bc1p')) {
+      throw new Error('UNIT transfers require a Taproot address (starting with tb1p)');
+    }
+
     // Parse amount and multiply by 100 for runestone encoding
     const normalizedAmount = amount.replace(',', '.');
     const userAmount = parseInt(normalizedAmount);
