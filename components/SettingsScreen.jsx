@@ -26,13 +26,11 @@ export default function SettingsScreen({
   onSwitchAccount,
   onLockWallet,
   onDeleteWallet,
-  onPrivacyModeToggle,
   onFaceIdToggle,
   onNotificationsToggle,
   onShowZeroAssetsToggle,
 
   // State
-  privacyMode,
   faceIdEnabled,
   notificationsEnabled,
   showZeroAssets,
@@ -83,12 +81,6 @@ export default function SettingsScreen({
             title="Notifications"
             onPress={onNotificationsToggle}
             rightText={notificationsEnabled ? 'ON' : 'OFF'}
-          />
-          <SettingsOption
-            iconName={privacyMode ? "privacy_on" : "privacy_off"}
-            title="Privacy Mode"
-            onPress={onPrivacyModeToggle}
-            rightText={privacyMode ? 'ON' : 'OFF'}
           />
           <SettingsOption
             iconName="logout"
@@ -145,11 +137,9 @@ SettingsScreen.propTypes = {
   onSwitchAccount: PropTypes.func.isRequired,
   onLockWallet: PropTypes.func.isRequired,
   onDeleteWallet: PropTypes.func.isRequired,
-  onPrivacyModeToggle: PropTypes.func.isRequired,
   onFaceIdToggle: PropTypes.func.isRequired,
   onNotificationsToggle: PropTypes.func.isRequired,
   onShowZeroAssetsToggle: PropTypes.func.isRequired,
-  privacyMode: PropTypes.bool.isRequired,
   faceIdEnabled: PropTypes.bool.isRequired,
   notificationsEnabled: PropTypes.bool.isRequired,
   showZeroAssets: PropTypes.bool.isRequired,

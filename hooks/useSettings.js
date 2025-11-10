@@ -24,7 +24,6 @@ export function useSettings({
   setIsAuthenticated,
   showToast,
 }) {
-  const [privacyMode, setPrivacyMode] = useState(false);
   const [notificationsEnabled, setNotificationsEnabled] = useState(false);
   const [showZeroAssets, setShowZeroAssets] = useState(false);
   const [showLogoutModal, setShowLogoutModal] = useState(false);
@@ -38,11 +37,6 @@ export function useSettings({
   useEffect(() => {
     const loadSettings = async () => {
       try {
-        const savedPrivacyMode = await SecureStore.getItemAsync('privacyMode');
-        if (savedPrivacyMode !== null) {
-          setPrivacyMode(savedPrivacyMode === 'true');
-        }
-
         const savedNotificationsEnabled = await SecureStore.getItemAsync('notificationsEnabled');
         if (savedNotificationsEnabled !== null) {
           setNotificationsEnabled(savedNotificationsEnabled === 'true');
@@ -79,6 +73,31 @@ export function useSettings({
 
   const confirmDeleteWallet = async () => {
     setShowDeleteModal(false);
+
+    // Require authentication before deleting wallet
+    try {
+      // Try biometric auth first if available
+      const result = await AuthService.authenticateWithBiometrics(
+        'Authenticate to delete wallet',
+        'Use PIN'
+      );
+
+      if (!result.success) {
+        // Biometric failed or not available, fall back to PIN
+        // Set a flag to indicate we're deleting wallet after PIN verification
+        await SecureStore.setItemAsync('pendingWalletDelete', 'true');
+        // Lock wallet to trigger PIN entry
+        setIsAuthenticated(false);
+        return;
+      }
+    } catch (error) {
+      if (showToast) {
+        showToast('Authentication required to delete wallet', 'error');
+      }
+      return;
+    }
+
+    // Authentication successful, proceed with deletion
     try {
       const success = await AuthService.deleteWalletData();
       if (success) {
@@ -117,20 +136,32 @@ export function useSettings({
 
   const handleChangePin = () => {
     // Trigger PIN change flow
+    // This will lock the wallet, which triggers authentication
+    // If Face ID is enabled, it will be shown automatically
+    // After authentication (Face ID or PIN), the PIN setup screen will be shown
     startPinChange();
   };
 
-  const handlePrivacyModeToggle = async () => {
-    const newPrivacyMode = !privacyMode;
-    setPrivacyMode(newPrivacyMode);
-    try {
-      await SecureStore.setItemAsync('privacyMode', String(newPrivacyMode));
-    } catch (error) {
-    }
-  };
-
-  const handleFaceIdToggle = () => {
+  const handleFaceIdToggle = async () => {
     const newValue = !biometricEnabled;
+
+    // If disabling, just turn it off immediately without modal
+    if (!newValue) {
+      setBiometricEnabled(false);
+      try {
+        await SecureStore.setItemAsync('biometricEnabled', 'false');
+        if (showToast) {
+          showToast('Face ID disabled', 'success');
+        }
+      } catch (error) {
+        if (showToast) {
+          showToast('Failed to update Face ID setting', 'error');
+        }
+      }
+      return;
+    }
+
+    // If enabling, show modal
     setPendingFaceIdValue(newValue);
     setShowFaceIdModal(true);
   };
@@ -152,6 +183,8 @@ export function useSettings({
           // Biometric failed or not available, fall back to PIN
           // Set a flag to indicate we're enabling Face ID after PIN verification
           await SecureStore.setItemAsync('pendingFaceIdEnable', 'true');
+          // Set flag to return to settings after PIN entry
+          await SecureStore.setItemAsync('returnToSettingsAfterAuth', 'true');
           // Lock wallet to trigger PIN entry
           setIsAuthenticated(false);
           return;
@@ -188,8 +221,26 @@ export function useSettings({
     await SecureStore.setItemAsync('showZeroAssets', newValue.toString());
   };
 
-  const handleNotificationsToggle = () => {
+  const handleNotificationsToggle = async () => {
     const newValue = !notificationsEnabled;
+
+    // If disabling, just turn it off immediately without modal
+    if (!newValue) {
+      setNotificationsEnabled(false);
+      try {
+        await SecureStore.setItemAsync('notificationsEnabled', 'false');
+        if (showToast) {
+          showToast('Notifications disabled', 'success');
+        }
+      } catch (error) {
+        if (showToast) {
+          showToast('Failed to update notifications setting', 'error');
+        }
+      }
+      return;
+    }
+
+    // If enabling, show modal
     setPendingNotificationsValue(newValue);
     setShowNotificationsModal(true);
   };
@@ -211,6 +262,8 @@ export function useSettings({
           // Biometric failed or not available, fall back to PIN
           // Set a flag to indicate we're enabling notifications after PIN verification
           await SecureStore.setItemAsync('pendingNotificationsEnable', 'true');
+          // Set flag to return to settings after PIN entry
+          await SecureStore.setItemAsync('returnToSettingsAfterAuth', 'true');
           // Lock wallet to trigger PIN entry
           setIsAuthenticated(false);
           return;
@@ -242,13 +295,11 @@ export function useSettings({
   };
 
   return {
-    privacyMode,
     notificationsEnabled,
     handleLogout,
     handleDeleteWallet,
     handleViewSeedPhrase,
     handleChangePin,
-    handlePrivacyModeToggle,
     handleFaceIdToggle,
     handleNotificationsToggle,
     handleShowZeroAssetsToggle,

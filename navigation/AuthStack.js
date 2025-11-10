@@ -26,7 +26,7 @@ export default function AuthStack({
       screenOptions={{
         headerShown: false,
         cardStyle: { backgroundColor: '#0a0a0a' },
-        animationEnabled: true,
+        animationEnabled: false,
       }}
     >
       <Stack.Screen name="Onboarding">

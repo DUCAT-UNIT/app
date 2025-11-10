@@ -104,12 +104,13 @@ export function useAuth({ onSeedConfirmed }) {
   const handleLockScreenAuthenticated = () => {
     if (changingPin) {
       // User authenticated to change PIN, proceed to PIN setup
-      setSettingUpPin(true);
+      setShowPinEntry(false); // Hide lock screen
+      setSettingUpPin(true); // Show PIN setup screen
       setPinStep('enter');
       setPin('');
       setConfirmPin('');
       setPinError('');
-      // Stay authenticated but in PIN setup mode
+      // Set authenticated to true so they can proceed, but settingUpPin keeps them in auth flow
       setIsAuthenticated(true);
     } else {
       // Normal unlock
@@ -141,10 +142,12 @@ export function useAuth({ onSeedConfirmed }) {
   };
 
   // Start PIN change flow
-  const startPinChange = () => {
+  const startPinChange = async () => {
     setChangingPin(true);
-    setSettingUpPin(true); // Also set this so RootNavigator shows auth flow
-    setIsAuthenticated(false);
+    // Save flag to return to settings after PIN change
+    await SecureStore.setItemAsync('returnToSettingsAfterPinChange', 'true');
+    // Don't set settingUpPin yet - wait until after authentication
+    setIsAuthenticated(false); // Lock wallet to trigger authentication
   };
 
   return {

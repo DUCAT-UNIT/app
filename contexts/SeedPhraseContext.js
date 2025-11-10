@@ -4,6 +4,7 @@
 
 import React, { createContext, useContext, useState, useRef } from 'react';
 import { Animated, Dimensions, PanResponder } from 'react-native';
+import * as SecureStore from 'expo-secure-store';
 import * as AuthService from '../services/authService';
 import { parseErrorMessage } from '../utils/errorParser';
 import { ERRORS } from '../utils/messages';
@@ -23,6 +24,7 @@ export const SeedPhraseProvider = ({ children, showToast, setIsAuthenticated }) 
   const [seedPhraseWords, setSeedPhraseWords] = useState([]);
   const [seedPhraseVisible, setSeedPhraseVisible] = useState(false);
   const [requestingSeedPhrase, setRequestingSeedPhrase] = useState(false);
+  const [returnToSettings, setReturnToSettings] = useState(false);
 
   const seedPhraseTranslateX = useRef(new Animated.Value(0)).current;
   const seedPhrasePanResponderRef = useRef(null);
@@ -64,9 +66,30 @@ export const SeedPhraseProvider = ({ children, showToast, setIsAuthenticated }) 
     });
   }
 
-  // Request seed phrase viewing (will show PIN prompt first)
-  const requestViewSeedPhrase = () => {
+  // Request seed phrase viewing (will try Face ID first if enabled, then PIN)
+  const requestViewSeedPhrase = async () => {
     setRequestingSeedPhrase(true);
+    setReturnToSettings(true); // Mark that we should return to settings after viewing
+
+    // Persist the flag so it survives wallet lock/unlock
+    await SecureStore.setItemAsync('returnToSettingsAfterSeedPhrase', 'true');
+
+    // Try biometric authentication first if available
+    try {
+      const result = await AuthService.authenticateWithBiometrics(
+        'Authenticate to view recovery phrase',
+        'Use PIN'
+      );
+
+      if (result.success) {
+        // Authentication successful, show seed phrase
+        await loadSeedPhrase();
+        return;
+      }
+    } catch (error) {
+      // Biometric failed or not available, fall back to PIN
+    }
+
     // Lock the wallet to trigger PIN entry
     if (setIsAuthenticated) {
       setIsAuthenticated(false);
@@ -96,6 +119,7 @@ export const SeedPhraseProvider = ({ children, showToast, setIsAuthenticated }) 
     setViewingSeedPhrase(false);
     setSeedPhraseWords([]);
     setSeedPhraseVisible(false);
+    // Don't reset returnToSettings here - let WalletPage handle it
   };
 
   const value = {
@@ -103,6 +127,7 @@ export const SeedPhraseProvider = ({ children, showToast, setIsAuthenticated }) 
     seedPhraseWords,
     seedPhraseVisible,
     requestingSeedPhrase,
+    returnToSettings,
     seedPhraseTranslateX,
     seedPhrasePanResponderRef,
     requestViewSeedPhrase,
@@ -110,6 +135,7 @@ export const SeedPhraseProvider = ({ children, showToast, setIsAuthenticated }) 
     closeSeedPhrase,
     setSeedPhraseVisible,
     setRequestingSeedPhrase,
+    setReturnToSettings,
   };
 
   return (

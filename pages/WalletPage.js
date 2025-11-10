@@ -3,9 +3,11 @@
  * Contains wallet screen, vault, settings, and transaction flows
  */
 
-import React, { useState, useRef } from 'react';
+import React, { useState, useRef, useEffect } from 'react';
 import { View, Animated, PanResponder, Dimensions } from 'react-native';
 import { StatusBar } from 'expo-status-bar';
+import { useFocusEffect } from '@react-navigation/native';
+import * as SecureStore from 'expo-secure-store';
 
 // Components
 import WalletScreen from '../components/WalletScreen';
@@ -22,6 +24,7 @@ import TransactionToast from '../components/TransactionToast';
 // Contexts
 import { useWallet } from '../contexts/WalletContext';
 import { useTransaction } from '../contexts/TransactionContext';
+import { useSeedPhrase } from '../contexts/SeedPhraseContext';
 
 // Hooks
 import { useToast } from '../hooks/useToast';
@@ -79,6 +82,9 @@ export default function WalletPage({
   // Toast hook
   const { toastVisible, toastMessage, toastType, showToast } = useToast();
 
+  // Seed phrase context
+  const { viewingSeedPhrase, returnToSettings, setReturnToSettings } = useSeedPhrase();
+
   // Local state (not passed from parent)
   const [showReceiveSheet, setShowReceiveSheet] = useState(false);
   const [showTxHistory, setShowTxHistory] = useState(false);
@@ -86,6 +92,7 @@ export default function WalletPage({
 
   // Animated values for settings swipe
   const settingsTranslateX = useRef(new Animated.Value(0)).current;
+  const settingsOpacity = useRef(new Animated.Value(0)).current;
   const settingsPanResponderRef = useRef(null);
 
   // Create settings pan responder
@@ -119,6 +126,62 @@ export default function WalletPage({
       },
     });
   }
+
+  // Check when screen comes into focus if we should open settings (after viewing seed phrase, changing PIN, or toggling Face ID/Notifications)
+  useFocusEffect(
+    React.useCallback(() => {
+      const checkReturnToSettings = async () => {
+        // Only check if settings is not already showing (prevent flicker on dismiss)
+        if (showSettings) {
+          return;
+        }
+
+        // Small delay to ensure flags are persisted
+        await new Promise(resolve => setTimeout(resolve, 100));
+
+        const shouldReturnSeedPhrase = await SecureStore.getItemAsync('returnToSettingsAfterSeedPhrase');
+        const shouldReturnPinChange = await SecureStore.getItemAsync('returnToSettingsAfterPinChange');
+        const shouldReturnAuth = await SecureStore.getItemAsync('returnToSettingsAfterAuth');
+
+        console.log('Check return to settings:', { shouldReturnSeedPhrase, shouldReturnPinChange, shouldReturnAuth });
+
+        if (shouldReturnSeedPhrase === 'true' || shouldReturnPinChange === 'true' || shouldReturnAuth === 'true') {
+          // Open settings
+          console.log('Opening settings from flags');
+          setShowSettings(true);
+          settingsTranslateX.setValue(0);
+          // Clear the flags
+          await SecureStore.deleteItemAsync('returnToSettingsAfterSeedPhrase');
+          await SecureStore.deleteItemAsync('returnToSettingsAfterPinChange');
+          await SecureStore.deleteItemAsync('returnToSettingsAfterAuth');
+          setReturnToSettings(false);
+        }
+      };
+      checkReturnToSettings();
+    }, [settingsTranslateX, showSettings])
+  );
+
+  // Watch for seed phrase closing - if returnToSettings is true, re-open settings
+  useEffect(() => {
+    if (!viewingSeedPhrase && returnToSettings) {
+      // Seed phrase just closed and we should return to settings
+      setShowSettings(true);
+      settingsTranslateX.setValue(0);
+      setReturnToSettings(false); // Reset the flag
+    }
+  }, [viewingSeedPhrase, returnToSettings, settingsTranslateX]);
+
+  // Handle settings opacity to prevent flicker (similar to ReceiveScreen pattern)
+  const prevShowSettings = useRef(showSettings);
+  if (showSettings && !prevShowSettings.current) {
+    // Just opened - make visible
+    settingsTranslateX.setValue(0);
+    settingsOpacity.setValue(1);
+  } else if (!showSettings && prevShowSettings.current) {
+    // Just closed - force invisible immediately to prevent flicker
+    settingsOpacity.setValue(0);
+  }
+  prevShowSettings.current = showSettings;
 
   return (
     <>
@@ -251,20 +314,21 @@ export default function WalletPage({
       </View>
 
       {/* Settings Screen Overlay */}
-      {showSettings && (
-        <Animated.View
-          style={{
-            position: 'absolute',
-            top: 0,
-            left: 0,
-            right: 0,
-            bottom: 0,
-            backgroundColor: COLORS.DARK_BG,
-            zIndex: 1000,
-            transform: [{ translateX: settingsTranslateX }]
-          }}
-          {...settingsPanResponderRef.current.panHandlers}
-        >
+      <Animated.View
+        style={{
+          position: 'absolute',
+          top: 0,
+          left: 0,
+          right: 0,
+          bottom: 0,
+          backgroundColor: COLORS.DARK_BG,
+          zIndex: 1000,
+          opacity: settingsOpacity,
+          transform: [{ translateX: settingsTranslateX }]
+        }}
+        pointerEvents={!showSettings ? 'none' : 'auto'}
+        {...settingsPanResponderRef.current.panHandlers}
+      >
           <MutinynetBanner />
           <SettingsScreen
             onClose={() => {
@@ -274,23 +338,19 @@ export default function WalletPage({
             onViewSeedPhrase={settingsHandlers.handleViewSeedPhrase}
             onChangePin={settingsHandlers.handleChangePin}
             onSwitchAccount={() => {
-              settingsTranslateX.setValue(0);
-              setShowSettings(false);
+              // Don't close settings - modal should overlay settings
               setShowAccountPicker(true);
             }}
             onLockWallet={settingsHandlers.handleLogout}
             onDeleteWallet={settingsHandlers.handleDeleteWallet}
-            onPrivacyModeToggle={settingsHandlers.handlePrivacyModeToggle}
             onFaceIdToggle={settingsHandlers.handleFaceIdToggle}
             onNotificationsToggle={settingsHandlers.handleNotificationsToggle}
             onShowZeroAssetsToggle={settingsHandlers.handleShowZeroAssetsToggle}
-            privacyMode={settingsHandlers.privacyMode}
             faceIdEnabled={biometricEnabled}
             notificationsEnabled={settingsHandlers.notificationsEnabled}
             showZeroAssets={settingsHandlers.showZeroAssets}
           />
-        </Animated.View>
-      )}
+      </Animated.View>
     </>
   );
 }

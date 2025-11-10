@@ -181,13 +181,11 @@ function AppNavigatorContent({
 
   // Settings hook
   const {
-    privacyMode,
     notificationsEnabled,
     showZeroAssets,
     handleLogout,
     handleDeleteWallet,
     handleChangePin,
-    handlePrivacyModeToggle,
     handleFaceIdToggle,
     handleNotificationsToggle,
     handleShowZeroAssetsToggle,
@@ -226,7 +224,6 @@ function AppNavigatorContent({
 
   // App lifecycle hook
   const { resetInactivityTimer } = useAppLifecycle({
-    privacyMode,
     isAuthenticated,
     walletExists,
     seedConfirmedRef,
@@ -269,9 +266,13 @@ function AppNavigatorContent({
   };
 
   // PIN change cancel
-  const handleCancelPinChange = () => {
+  const handleCancelPinChange = async () => {
     setSettingUpPin(false);
     setChangingPin(false);
+    // Set flag to return to settings after canceling
+    await SecureStore.setItemAsync('returnToSettingsAfterPinChange', 'true');
+    // Authenticate the user so they can access the app
+    setIsAuthenticated(true);
   };
 
   // Lock screen authenticated (missing from auth hook - need to define)
@@ -281,6 +282,14 @@ function AppNavigatorContent({
 
   // Lock screen authenticated wrapper
   const handleLockScreenAuthenticatedWrapper = async () => {
+    // Check if user was trying to change PIN
+    if (changingPin) {
+      // User authenticated to change PIN, proceed to PIN setup
+      setSettingUpPin(true);
+      setIsAuthenticated(true);
+      return;
+    }
+
     handleLockScreenAuthenticated();
 
     // Check if user was trying to enable Face ID
@@ -302,6 +311,30 @@ function AppNavigatorContent({
       return;
     }
 
+    // Check if user was trying to delete wallet
+    const pendingWalletDelete = await SecureStore.getItemAsync('pendingWalletDelete');
+    if (pendingWalletDelete === 'true') {
+      await SecureStore.deleteItemAsync('pendingWalletDelete');
+      // Trigger wallet deletion
+      try {
+        const AuthService = require('../services/authService');
+        const success = await AuthService.deleteWalletData();
+        if (success) {
+          resetWallet();
+          if (walletExists && walletExists.current !== undefined) {
+            walletExists.current = false;
+          }
+          resetAuth();
+          showToast('Wallet deleted successfully', 'success');
+        } else {
+          showToast('Failed to delete wallet', 'error');
+        }
+      } catch (error) {
+        showToast('Failed to delete wallet', 'error');
+      }
+      return;
+    }
+
     // Check if user was trying to view seed phrase
     if (requestingSeedPhrase) {
       await loadSeedPhrase();
@@ -310,14 +343,12 @@ function AppNavigatorContent({
 
   // Settings handlers for WalletPage
   const settingsHandlers = {
-    privacyMode: privacyMode || false,
     notificationsEnabled: notificationsEnabled || false,
     showZeroAssets: showZeroAssets || false,
     handleLogout,
     handleDeleteWallet,
     handleViewSeedPhrase: requestViewSeedPhrase, // Use SeedPhraseContext function
     handleChangePin,
-    handlePrivacyModeToggle,
     handleFaceIdToggle,
     handleNotificationsToggle,
     handleShowZeroAssetsToggle,
@@ -326,50 +357,6 @@ function AppNavigatorContent({
   // Show loading splash
   if (isLoading || showBackgroundSplash) {
     return <SplashScreen />;
-  }
-
-  // Show account picker modal (overlays navigation)
-  if (showAccountPicker) {
-    return (
-      <>
-        <RootNavigator
-          isAuthenticated={isAuthenticated}
-          wallet={wallet}
-          seedConfirmed={seedConfirmed}
-          settingUpPin={settingUpPin}
-          showPinEntry={showPinEntry}
-          setSeedConfirmed={setSeedConfirmed}
-          showToast={showToast}
-          fetchBalance={fetchBalance}
-          resetWalletAndState={resetWalletAndState}
-          handlePinSetupCompleteWrapper={handlePinSetupCompleteWrapper}
-          handlePinChangeCompleteWrapper={handlePinChangeCompleteWrapper}
-          handleCancelPinChange={handleCancelPinChange}
-          handleLockScreenAuthenticatedWrapper={handleLockScreenAuthenticatedWrapper}
-          resetInactivityTimer={resetInactivityTimer}
-          handleOpenVault={openVault}
-          vaultCredentials={vaultCredentials}
-          autoCreateVaultTrigger={autoCreateVaultTrigger}
-          amountInputRef={amountInputRef}
-          setShowAccountPicker={setShowAccountPicker}
-          settingsHandlers={settingsHandlers}
-          biometricEnabled={biometricEnabled}
-          activeTab={activeTab}
-          setActiveTab={setActiveTab}
-          keyboardHeight={keyboardHeight}
-          styles={styles}
-        />
-        <AccountSwitcherModal
-          visible={showAccountPicker}
-          accountIndex={newAccountIndex}
-          switchingAccount={switchingAccount}
-          onClose={() => setShowAccountPicker(false)}
-          onAccountIndexChange={setNewAccountIndex}
-          onSwitch={switchAccount}
-          styles={styles}
-        />
-      </>
-    );
   }
 
   // Main navigation
@@ -501,6 +488,17 @@ function AppNavigatorContent({
         iconName="notifications"
         onConfirm={confirmNotificationsToggle}
         onCancel={cancelNotificationsToggle}
+        styles={styles}
+      />
+
+      {/* Account Switcher Modal */}
+      <AccountSwitcherModal
+        visible={showAccountPicker}
+        accountIndex={newAccountIndex}
+        switchingAccount={switchingAccount}
+        onClose={() => setShowAccountPicker(false)}
+        onAccountIndexChange={setNewAccountIndex}
+        onSwitch={switchAccount}
         styles={styles}
       />
     </>

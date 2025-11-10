@@ -1,7 +1,7 @@
 /**
  * useAppLifecycle Hook
  * Manages app lifecycle events including:
- * - Screen capture prevention based on privacy mode
+ * - Screen capture prevention (always enabled for security)
  * - App state changes (background/foreground)
  * - Inactivity timer for auto-lock
  * - Cleanup on unmount
@@ -14,7 +14,6 @@ import * as ScreenCapture from 'expo-screen-capture';
 const INACTIVITY_TIMEOUT = 2 * 60 * 1000; // 2 minutes in milliseconds
 
 export function useAppLifecycle({
-  privacyMode,
   isAuthenticated,
   walletExists,
   seedConfirmedRef,
@@ -26,15 +25,11 @@ export function useAppLifecycle({
   const appState = useRef(AppState.currentState);
   const inactivityTimer = useRef(null);
 
-  // Prevent screenshots and screen recording based on privacy mode
+  // Prevent screenshots and screen recording for security
   useEffect(() => {
     const manageScreenCapture = async () => {
       try {
-        if (privacyMode) {
-          await ScreenCapture.preventScreenCaptureAsync();
-        } else {
-          await ScreenCapture.allowScreenCaptureAsync();
-        }
+        await ScreenCapture.preventScreenCaptureAsync();
       } catch (error) {
       }
     };
@@ -47,7 +42,7 @@ export function useAppLifecycle({
         // Ignore cleanup errors
       });
     };
-  }, [privacyMode]);
+  }, []);
 
   // Handle app state changes (background/foreground)
   useEffect(() => {
