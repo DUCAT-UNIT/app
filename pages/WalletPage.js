@@ -24,6 +24,7 @@ import SplashScreen from '../components/SplashScreen';
 
 // Contexts
 import { useWallet } from '../contexts/WalletContext';
+import { useBalance } from '../contexts/BalanceContext';
 import { useTransaction } from '../contexts/TransactionContext';
 import { useSeedPhrase } from '../contexts/SeedPhraseContext';
 
@@ -51,13 +52,8 @@ export default function WalletPage({
   keyboardHeight, // Passed from App.js
 }) {
   // Wallet context
-  const {
-    wallet,
-    segwitBalance,
-    runesBalance,
-    btcPrice,
-    switchingAccount,
-  } = useWallet();
+  const { wallet } = useWallet();
+  const { segwitBalance, runesBalance, btcPrice } = useBalance();
 
   // Transaction context
   const {
@@ -231,7 +227,7 @@ export default function WalletPage({
               }}
               onCreateVaultPress={() => handleOpenVault(true)}
               sendAddressType={sendAddressType}
-              switchingAccount={switchingAccount}
+              switchingAccount={false}
               showZeroAssets={settingsHandlers.showZeroAssets}
             />
             <BottomNavigationBar

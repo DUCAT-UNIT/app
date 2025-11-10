@@ -18,6 +18,7 @@ import SplashScreen from '../components/SplashScreen';
 // Contexts
 import { useAuth } from '../contexts/AuthContext';
 import { useWallet } from '../contexts/WalletContext';
+import { useBalance } from '../contexts/BalanceContext';
 import { TransactionProvider } from '../contexts/TransactionContext';
 import { VaultProvider, useVault } from '../contexts/VaultContext';
 import { SeedPhraseProvider, useSeedPhrase } from '../contexts/SeedPhraseContext';
@@ -41,7 +42,8 @@ import styles from '../styles';
 
 export default function AppNavigator({ seedConfirmed, setSeedConfirmed }) {
   // Get wallet and auth contexts (available from App.js providers)
-  const { wallet, currentAccount, loadWallet, resetWallet, switchAccount: switchAccountContext, fetchBalance } = useWallet();
+  const { wallet, currentAccount, loadWallet, resetWallet, switchAccount: switchAccountContext } = useWallet();
+  const { fetchBalance } = useBalance();
   const {
     isAuthenticated,
     isBiometricSupported,

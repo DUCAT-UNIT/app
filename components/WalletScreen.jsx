@@ -3,6 +3,8 @@ import PropTypes from 'prop-types';
 import { View, Text, TouchableOpacity, Image, ActivityIndicator, ScrollView } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useWallet } from '../contexts/WalletContext';
+import { useBalance } from '../contexts/BalanceContext';
+import { useDisplayPreferences } from '../contexts/DisplayPreferencesContext';
 import { COLORS } from '../utils/colors';
 import Icon from './Icon';
 
@@ -17,18 +19,15 @@ export default function WalletScreen({
   switchingAccount,
   showZeroAssets,
 }) {
+  const { wallet, currentAccount, vaultData } = useWallet();
   const {
-    wallet,
-    currentAccount,
     segwitBalance,
     taprootBalance,
     runesBalance,
-    vaultData,
     loadingBtcPrice,
     btcPrice,
-    showTotalInBTC,
-    setShowTotalInBTC,
-  } = useWallet();
+  } = useBalance();
+  const { showTotalInBTC, setShowTotalInBTC } = useDisplayPreferences();
 
   return (
     <View style={styles.walletContainer}>
