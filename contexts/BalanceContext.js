@@ -133,23 +133,20 @@ export const BalanceProvider = ({ children }) => {
     return () => clearInterval(interval);
   }, [wallet, fetchBalance, resetBalances]);
 
-  // Auto-request airdrop when BTC balance is 0
+  // Auto-request airdrop when BTC balance is 0 (check once per day)
   useEffect(() => {
+    if (!wallet?.segwitAddress) return;
+
     const requestAirdropIfNeeded = async () => {
-      // Only check if wallet exists and balances are loaded
-      if (!wallet?.segwitAddress || loadingBalance || airdropInProgress.current) {
-        console.log('Airdrop check skipped:', {
-          hasWallet: !!wallet?.segwitAddress,
-          loadingBalance,
-          airdropInProgress: airdropInProgress.current
-        });
+      // Skip if already in progress
+      if (airdropInProgress.current) {
         return;
       }
 
       const totalBtcBalance = segwitBalance + taprootBalance;
-      console.log('Checking airdrop - Balance:', totalBtcBalance);
+      console.log('Daily airdrop check - Balance:', totalBtcBalance);
 
-      // If balance is 0, request airdrop (with rate limiting to respect faucet limits)
+      // If balance is 0, request airdrop
       if (totalBtcBalance === 0) {
         console.log('Balance is 0, checking cooldown...');
         try {
@@ -157,11 +154,11 @@ export const BalanceProvider = ({ children }) => {
           const airdropKey = `lastAirdropTime_${currentAccount}`;
           const lastAirdropTime = await SecureStore.getItemAsync(airdropKey);
           const now = Date.now();
-          const fifteenMinutes = 15 * 60 * 1000; // 15 minutes
+          const twentyFourHours = 24 * 60 * 60 * 1000; // 24 hours
 
-          // Only allow airdrop once every 15 minutes per account
-          if (lastAirdropTime && now - parseInt(lastAirdropTime) < fifteenMinutes) {
-            console.log('Airdrop on cooldown. Last request:', Math.floor((now - parseInt(lastAirdropTime)) / 60000), 'min ago');
+          // Only allow airdrop once every 24 hours per account
+          if (lastAirdropTime && now - parseInt(lastAirdropTime) < twentyFourHours) {
+            console.log('Airdrop on cooldown. Last request:', Math.floor((now - parseInt(lastAirdropTime)) / 3600000), 'hours ago');
             return;
           }
 
@@ -183,7 +180,7 @@ export const BalanceProvider = ({ children }) => {
           // Fetch balance again after a few seconds to see the new balance
           setTimeout(() => {
             fetchBalance();
-          }, 3000);
+          }, 5000);
 
         } catch (error) {
           console.error('Airdrop failed:', error.message || error);
@@ -194,8 +191,16 @@ export const BalanceProvider = ({ children }) => {
       }
     };
 
+    // Check immediately on mount
     requestAirdropIfNeeded();
-  }, [segwitBalance, taprootBalance, wallet, loadingBalance, fetchBalance, currentAccount]);
+
+    // Then check once per day
+    const intervalId = setInterval(() => {
+      requestAirdropIfNeeded();
+    }, 24 * 60 * 60 * 1000); // 24 hours
+
+    return () => clearInterval(intervalId);
+  }, [wallet, currentAccount, segwitBalance, taprootBalance, fetchBalance]);
 
   const value = {
     // Balance state
