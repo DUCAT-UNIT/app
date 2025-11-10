@@ -4,13 +4,17 @@
  * - Wallet creation with seed phrase verification
  * - Wallet import from existing seed phrase
  * - Seed phrase display and verification
+ * - Persists onboarding state across app backgrounding
  */
 
-import { useState, useRef } from 'react';
+import { useState, useRef, useEffect } from 'react';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 import * as WalletService from '../services/walletService';
 import { useWallet } from '../contexts/WalletContext';
 import { parseErrorMessage } from '../utils/errorParser';
 import { ERRORS } from '../utils/messages';
+
+const ONBOARDING_STATE_KEY = 'onboarding_state';
 
 export function useOnboarding({
   currentAccount,
@@ -21,6 +25,7 @@ export function useOnboarding({
 }) {
   const { setWalletAddresses, resetWallet } = useWallet();
   const walletExistsRef = useRef(false);
+  const [stateLoaded, setStateLoaded] = useState(false);
 
   // Onboarding state
   const [tempMnemonicWords, setTempMnemonicWords] = useState([]); // Temporary for seed verification
@@ -35,6 +40,90 @@ export function useOnboarding({
   const [wordChoices, setWordChoices] = useState({});
   const [isImportedWallet, setIsImportedWallet] = useState(false); // Track if wallet was imported
   const seedInputRefs = useRef([]);
+
+  // Load persisted onboarding state on mount
+  useEffect(() => {
+    const loadState = async () => {
+      try {
+        const savedState = await AsyncStorage.getItem(ONBOARDING_STATE_KEY);
+        if (savedState) {
+          const state = JSON.parse(savedState);
+          console.log('[useOnboarding] Restoring persisted state:', state);
+
+          // Restore all onboarding state
+          if (state.tempMnemonicWords) setTempMnemonicWords(state.tempMnemonicWords);
+          if (state.tempMnemonic) setTempMnemonic(state.tempMnemonic);
+          if (state.showingIntro !== undefined) setShowingIntro(state.showingIntro);
+          if (state.showingSeeds !== undefined) setShowingSeeds(state.showingSeeds);
+          if (state.verifyingSeeds !== undefined) setVerifyingSeeds(state.verifyingSeeds);
+          if (state.importingWallet !== undefined) setImportingWallet(state.importingWallet);
+          if (state.importSeedPhrase) setImportSeedPhrase(state.importSeedPhrase);
+          if (state.verificationWords) setVerificationWords(state.verificationWords);
+          if (state.requiredIndices) setRequiredIndices(state.requiredIndices);
+          if (state.wordChoices) setWordChoices(state.wordChoices);
+          if (state.isImportedWallet !== undefined) setIsImportedWallet(state.isImportedWallet);
+        }
+      } catch (error) {
+        console.error('[useOnboarding] Failed to load persisted state:', error);
+      } finally {
+        setStateLoaded(true);
+      }
+    };
+
+    loadState();
+  }, []);
+
+  // Persist onboarding state whenever it changes
+  useEffect(() => {
+    if (!stateLoaded) return; // Don't save until we've loaded initial state
+
+    const saveState = async () => {
+      try {
+        const state = {
+          tempMnemonicWords,
+          tempMnemonic,
+          showingIntro,
+          showingSeeds,
+          verifyingSeeds,
+          importingWallet,
+          importSeedPhrase,
+          verificationWords,
+          requiredIndices,
+          wordChoices,
+          isImportedWallet,
+        };
+        await AsyncStorage.setItem(ONBOARDING_STATE_KEY, JSON.stringify(state));
+        console.log('[useOnboarding] Persisted state');
+      } catch (error) {
+        console.error('[useOnboarding] Failed to persist state:', error);
+      }
+    };
+
+    saveState();
+  }, [
+    stateLoaded,
+    tempMnemonicWords,
+    tempMnemonic,
+    showingIntro,
+    showingSeeds,
+    verifyingSeeds,
+    importingWallet,
+    importSeedPhrase,
+    verificationWords,
+    requiredIndices,
+    wordChoices,
+    isImportedWallet,
+  ]);
+
+  // Clear persisted state when onboarding completes
+  const clearPersistedState = async () => {
+    try {
+      await AsyncStorage.removeItem(ONBOARDING_STATE_KEY);
+      console.log('[useOnboarding] Cleared persisted state');
+    } catch (error) {
+      console.error('[useOnboarding] Failed to clear persisted state:', error);
+    }
+  };
 
   /**
    * Generate multiple choice options for seed word verification
@@ -211,6 +300,9 @@ export function useOnboarding({
       setTempMnemonicWords(Array(12).fill('*'.repeat(8)));
       setTimeout(() => setTempMnemonicWords([]), 100);
 
+      // Clear persisted onboarding state (onboarding complete!)
+      await clearPersistedState();
+
       return true;
     } catch (error) {
       return false;
@@ -220,7 +312,7 @@ export function useOnboarding({
   /**
    * Reset onboarding state
    */
-  const resetOnboarding = () => {
+  const resetOnboarding = async () => {
     // Securely clear temporary mnemonic from memory
     setTempMnemonic('');
     setTempMnemonicWords(Array(12).fill('*'.repeat(8)));
@@ -233,6 +325,9 @@ export function useOnboarding({
     setVerifyingSeeds(false);
     setShowingIntro(false);
     setImportingWallet(false);
+
+    // Clear persisted onboarding state
+    await clearPersistedState();
     setImportSeedPhrase(Array(12).fill(''));
     setVerificationWords({});
     setRequiredIndices([]);
