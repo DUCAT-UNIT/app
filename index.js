@@ -1,10 +1,10 @@
 import { registerRootComponent } from 'expo';
 import React from 'react';
 import App from './App';
-import { WalletProvider } from './contexts/WalletContext';
 import ErrorBoundary from './components/ErrorBoundary';
 
-// Wrap App with ErrorBoundary and WalletProvider
+// Wrap App with ErrorBoundary only
+// WalletProvider and other context providers are in App.js
 const AppWithProviders = () => (
   <ErrorBoundary
     fallbackMessage="The UNIT Wallet encountered an error. Your funds are safe. Please restart the app."
@@ -12,9 +12,7 @@ const AppWithProviders = () => (
       // Optional: Add any cleanup logic here
     }}
   >
-    <WalletProvider>
-      <App />
-    </WalletProvider>
+    <App />
   </ErrorBoundary>
 );
 
