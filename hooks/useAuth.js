@@ -75,17 +75,13 @@ export function useAuth({ onSeedConfirmed }) {
             // Normal unlock
             setIsAuthenticated(true);
           }
-        } else {
-          // CRITICAL FIX: Biometric auth failed/cancelled - show PIN entry as fallback
-          setShowPinEntry(true);
         }
       } else {
         // User hasn't enabled biometrics yet, show modal to ask
         setShowBiometricPrompt(true);
       }
     } catch (error) {
-      // CRITICAL FIX: On error, show PIN entry as fallback
-      setShowPinEntry(true);
+      setShowBiometricPrompt(true);
     }
   };
 
