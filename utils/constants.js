@@ -7,6 +7,7 @@ export const SECURE_KEYS = {
   MNEMONIC: 'wallet_mnemonic_v1',
   CURRENT_ACCOUNT: 'wallet_current_account_v1',
   PIN: 'wallet_pin_v1',
+  PIN_SALT: 'wallet_pin_salt_v1',
   BIOMETRIC_ENABLED: 'wallet_biometric_enabled_v1',
 };
 

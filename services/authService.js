@@ -7,9 +7,6 @@ import * as LocalAuthentication from 'expo-local-authentication';
 import * as Crypto from 'expo-crypto';
 import { SECURE_KEYS } from '../utils/constants';
 
-// Salt for PIN hashing - change this to something unique for your app
-const PIN_SALT = 'ducat_wallet_pin_salt_v1';
-
 // Rate limiting for PIN attempts
 const MAX_PIN_ATTEMPTS = 10;
 const LOCKOUT_DURATION = 30 * 60 * 1000; // 30 minutes in milliseconds
@@ -17,27 +14,45 @@ let failedPinAttempts = 0;
 let pinLockoutUntil = null;
 
 /**
- * Hash a PIN using SHA256
+ * Generate a cryptographically secure random salt
+ * @returns {Promise<string>} Random salt in hex format
+ */
+const generateSalt = async () => {
+  const randomBytes = await Crypto.getRandomBytesAsync(32);
+  return Array.from(randomBytes)
+    .map(byte => byte.toString(16).padStart(2, '0'))
+    .join('');
+};
+
+/**
+ * Hash a PIN using SHA256 with a unique salt
  * @param {string} pin - PIN to hash
+ * @param {string} salt - Unique salt for this user
  * @returns {Promise<string>} Hashed PIN
  */
-const hashPin = async (pin) => {
+const hashPin = async (pin, salt) => {
   const hash = await Crypto.digestStringAsync(
     Crypto.CryptoDigestAlgorithm.SHA256,
-    pin + PIN_SALT
+    pin + salt
   );
   return hash;
 };
 
 /**
- * Save PIN to secure storage (hashed)
+ * Save PIN to secure storage (hashed with unique salt)
  * @param {string} pin - 6-digit PIN
  * @returns {Promise<boolean>} Success status
  */
 export const savePin = async (pin) => {
   try {
-    const hashedPin = await hashPin(pin);
+    // Generate a unique salt for this user
+    const salt = await generateSalt();
+    const hashedPin = await hashPin(pin, salt);
+
+    // Store both the hashed PIN and the salt
     await SecureStore.setItemAsync(SECURE_KEYS.PIN, hashedPin);
+    await SecureStore.setItemAsync(SECURE_KEYS.PIN_SALT, salt);
+
     return true;
   } catch (error) {
     return false;
@@ -89,8 +104,19 @@ export const verifyPin = async (enteredPin) => {
       };
     }
 
+    // Retrieve the stored salt and hashed PIN
     const storedHashedPin = await SecureStore.getItemAsync(SECURE_KEYS.PIN);
-    const enteredHashedPin = await hashPin(enteredPin);
+    const storedSalt = await SecureStore.getItemAsync(SECURE_KEYS.PIN_SALT);
+
+    // If salt doesn't exist, this might be an old PIN that needs migration
+    if (!storedSalt) {
+      return {
+        success: false,
+        error: 'PIN needs to be reset for security upgrade',
+      };
+    }
+
+    const enteredHashedPin = await hashPin(enteredPin, storedSalt);
     const isValid = storedHashedPin === enteredHashedPin;
 
     if (isValid) {
@@ -326,6 +352,7 @@ export const deleteWalletData = async () => {
       SecureStore.deleteItemAsync(SECURE_KEYS.MNEMONIC),
       SecureStore.deleteItemAsync(SECURE_KEYS.CURRENT_ACCOUNT),
       SecureStore.deleteItemAsync(SECURE_KEYS.PIN),
+      SecureStore.deleteItemAsync(SECURE_KEYS.PIN_SALT),
       SecureStore.deleteItemAsync(SECURE_KEYS.BIOMETRIC_ENABLED),
     ]);
     return true;
