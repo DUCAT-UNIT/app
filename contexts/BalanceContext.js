@@ -35,7 +35,6 @@ export const BalanceProvider = ({ children }) => {
   // Airdrop modal state
   const [showAirdropModal, setShowAirdropModal] = useState(false);
   const [airdropTxId, setAirdropTxId] = useState('');
-  const [pendingAirdropTxId, setPendingAirdropTxId] = useState(null);
 
   // Fetch BTC price
   const fetchBtcPrice = useCallback(async () => {
@@ -105,20 +104,25 @@ export const BalanceProvider = ({ children }) => {
   // Track if airdrop is in progress to prevent duplicate requests
   const airdropInProgress = useRef(false);
 
-  // Show pending airdrop modal when balance updates
+  // Check for pending airdrop modal on mount and when balance updates
   useEffect(() => {
-    if (pendingAirdropTxId && (segwitBalance > 0 || taprootBalance > 0)) {
-      // Wait a bit to ensure user has finished onboarding and is viewing the wallet
-      const timer = setTimeout(() => {
-        console.log('Showing pending airdrop modal');
-        setAirdropTxId(pendingAirdropTxId);
-        setShowAirdropModal(true);
-        setPendingAirdropTxId(null); // Clear pending state
-      }, 3000); // 3 second delay after balance updates
+    const checkPendingAirdrop = async () => {
+      if (!currentAccount) return;
 
-      return () => clearTimeout(timer);
-    }
-  }, [pendingAirdropTxId, segwitBalance, taprootBalance]);
+      const pendingKey = `pendingAirdrop_${currentAccount}`;
+      const pendingTxId = await SecureStore.getItemAsync(pendingKey);
+
+      // If there's a pending airdrop and balance is now > 0, show the modal
+      if (pendingTxId && (segwitBalance > 0 || taprootBalance > 0)) {
+        setAirdropTxId(pendingTxId);
+        setShowAirdropModal(true);
+        // Clear the pending airdrop
+        await SecureStore.deleteItemAsync(pendingKey);
+      }
+    };
+
+    checkPendingAirdrop();
+  }, [currentAccount, segwitBalance, taprootBalance]);
 
   // Fetch BTC price on mount and refresh every 60 seconds
   useEffect(() => {
@@ -184,8 +188,9 @@ export const BalanceProvider = ({ children }) => {
           // Request airdrop
           const result = await AirdropService.requestAirdrop(wallet.segwitAddress);
 
-          // Store pending airdrop to show modal later (after user completes onboarding)
-          setPendingAirdropTxId(result.txId);
+          // Store pending airdrop in SecureStore (survives state resets during onboarding)
+          const pendingKey = `pendingAirdrop_${currentAccount}`;
+          await SecureStore.setItemAsync(pendingKey, result.txId);
 
           // Fetch balance again after a few seconds to see the new balance
           setTimeout(() => {
