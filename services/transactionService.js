@@ -324,13 +324,17 @@ export const createUnitIntent = async (recipient, amount, taprootAddress, segwit
     const runeTxHex = await runeTxResponse.text();
     const runeTx = bitcoin.Transaction.fromHex(runeTxHex);
 
+    // Decode addresses to get the pubkey data
+    const { data: taprootData } = bitcoin.address.fromBech32(taprootAddress);
+    const tapInternalKey = Buffer.from(taprootData);
+
     // Add inputs - exactly like working example
     // Input 0: P2WPKH (for fees)
     psbt.addInput({
       hash: satUtxo.txid,
       index: parseInt(satUtxo.vout),
       witnessUtxo: {
-        script: Buffer.from(p2wpkhPayment.output),
+        script: Buffer.from(satTx.outs[satUtxo.vout].script),
         value: BigInt(satUtxo.value),
       },
     });
@@ -340,10 +344,10 @@ export const createUnitIntent = async (recipient, amount, taprootAddress, segwit
       hash: runeUtxo.transaction,
       index: parseInt(runeUtxo.vout),
       witnessUtxo: {
-        script: Buffer.from(taprootPayment.output),
+        script: Buffer.from(runeTx.outs[runeUtxo.vout].script),
         value: BigInt(runeUtxo.value),
       },
-      tapInternalKey: xOnlyPubkey,
+      tapInternalKey: tapInternalKey,
     });
 
     // Create runestone

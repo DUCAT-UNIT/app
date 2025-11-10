@@ -61,6 +61,10 @@ export const TransactionProvider = ({
   // Create UNIT (Rune) transaction using TransactionService
   const createUnitIntent = async () => {
     try {
+      if (!wallet || !wallet.taprootAddress || !wallet.segwitAddress) {
+        throw new Error('Wallet not initialized');
+      }
+
       const intent = await TransactionService.createUnitIntent(
         sendRecipient,
         sendAmount,

@@ -56,6 +56,9 @@ import MutinynetBanner from './components/MutinynetBanner';
 import BottomNavigationBar from './components/BottomNavigationBar';
 import VaultScreen from './components/VaultScreen';
 
+// Import pages
+import OnboardingPage from './pages/OnboardingPage';
+
 // Import contexts
 import { useWallet } from './contexts/WalletContext';
 import { useAuth, AuthProvider } from './contexts/AuthContext';
@@ -529,24 +532,14 @@ function AppContent({ seedConfirmed, setSeedConfirmed }) {
   };
 
 
-  // PIN setup completion callback wrapper (adds wallet save and isImportedWallet reset)
-  const handlePinSetupCompleteWrapper = async () => {
-    // Save wallet to storage now that PIN is set (only for new wallets, not imported)
-    if (!isImportedWallet) {
-      const saved = await saveWalletAfterPinSetup();
-      if (!saved) {
-        showToast('Failed to save wallet', 'error');
-        return;
-      }
-    }
+  // PIN setup completion callback wrapper
+  const handlePinSetupCompleteWrapper = () => {
     handlePinSetupComplete();
-    setIsImportedWallet(false);
   };
 
-  // PIN change completion callback wrapper (adds isImportedWallet reset)
+  // PIN change completion callback wrapper
   const handlePinChangeCompleteWrapper = () => {
     handlePinChangeComplete();
-    setIsImportedWallet(false);
   };
 
   // PIN change cancel callback
@@ -646,38 +639,37 @@ function AppContent({ seedConfirmed, setSeedConfirmed }) {
     return <SplashScreen />;
   }
 
-  // Show PIN entry screen
-  // PIN Setup Screen (Step 4 of onboarding)
-  if (settingUpPin) {
+  // Check if we should show onboarding/auth screens
+  // Show onboarding if:
+  // - No wallet yet OR
+  // - Wallet exists but seed not confirmed (still in creation flow) OR
+  // - Setting up PIN OR
+  // - Showing PIN entry OR
+  // - Locked (not authenticated but wallet exists and seed confirmed)
+  const shouldShowOnboarding = !wallet ||
+    (wallet && !seedConfirmed) ||
+    settingUpPin ||
+    showPinEntry ||
+    (!isAuthenticated && wallet && seedConfirmed);
+
+  if (shouldShowOnboarding) {
     return (
-      <View style={{ flex: 1, backgroundColor: COLORS.DARK_BG, paddingHorizontal: 0 }}>
-        <MutinynetBanner />
-        <PinSetupScreen
-          changingPin={changingPin}
-          isBiometricSupported={isBiometricSupported}
-          onPinSetupComplete={handlePinSetupCompleteWrapper}
-          onPinChangeComplete={handlePinChangeCompleteWrapper}
-          onCancel={handleCancelPinChange}
-          fetchBalance={fetchBalance}
-          showToast={showToast}
-        />
-        <StatusBar style="light" />
-      </View>
+      <OnboardingPage
+        seedConfirmed={seedConfirmed}
+        setSeedConfirmed={setSeedConfirmed}
+        showToast={showToast}
+        fetchBalance={fetchBalance}
+        resetWalletAndState={resetWalletAndState}
+        handlePinSetupCompleteWrapper={handlePinSetupCompleteWrapper}
+        handlePinChangeCompleteWrapper={handlePinChangeCompleteWrapper}
+        handleCancelPinChange={handleCancelPinChange}
+        handleLockScreenAuthenticatedWrapper={handleLockScreenAuthenticatedWrapper}
+        styles={styles}
+      />
     );
   }
 
-  // Lock Screen (PIN entry for authentication)
-  if (showPinEntry) {
-    return (
-      <View style={{ flex: 1, backgroundColor: COLORS.DARK_BG, paddingHorizontal: 0 }}>
-        <MutinynetBanner />
-        <LockScreen onAuthenticated={handleLockScreenAuthenticatedWrapper} />
-        <StatusBar style="light" />
-      </View>
-    );
-  }
-
-  // Account Picker Modal
+  // Account Picker Modal (only shown when authenticated and wallet exists)
   if (showAccountPicker) {
     return (
       <AccountSwitcherModal
@@ -692,35 +684,7 @@ function AppContent({ seedConfirmed, setSeedConfirmed }) {
     );
   }
 
-  // Show locked screen if not authenticated and wallet exists AND seed backup confirmed AND not in setup flow
-  if (!isAuthenticated && wallet && seedConfirmed && !showingIntro && !showingSeeds && !verifyingSeeds && !settingUpPin) {
-    return (
-      <View style={{ flex: 1, backgroundColor: COLORS.DARK_BG, paddingHorizontal: 0 }}>
-        <MutinynetBanner />
-        <LockScreen
-          onAuthenticated={handleLockScreenAuthenticatedWrapper}
-          showFaceIdButton={showFaceIdButton && !showBiometricPrompt}
-          onFaceIdPress={authenticateUser}
-        />
-
-        <BiometricPromptModal
-          visible={showBiometricPrompt}
-          isAuthenticated={isAuthenticated}
-          onClose={() => setShowBiometricPrompt(false)}
-          onBiometricEnabled={(enabled, authSuccess) => {
-            setBiometricEnabled(enabled);
-            if (authSuccess) {
-              setIsAuthenticated(true);
-            }
-          }}
-          onBiometricDisabled={() => setBiometricEnabled(false)}
-          styles={styles}
-        />
-        <StatusBar style="light" />
-      </View>
-    );
-  }
-
+  // At this point, user is authenticated and has a wallet - show the main wallet UI
   return (
     <>
       <View
@@ -730,57 +694,29 @@ function AppContent({ seedConfirmed, setSeedConfirmed }) {
       {/* Mutinynet Banner - Shows on all screens */}
       <MutinynetBanner />
 
-      {(!wallet || importingWallet || showingIntro || showingSeeds || verifyingSeeds) ? (
-        <WelcomeScreen
-          wallet={wallet}
-          importingWallet={importingWallet}
-          showingIntro={showingIntro}
-          showingSeeds={showingSeeds}
-          verifyingSeeds={verifyingSeeds}
-          tempMnemonicWords={tempMnemonicWords}
-          importSeedPhrase={importSeedPhrase}
-          verificationWords={verificationWords}
-          requiredIndices={requiredIndices}
-          wordChoices={wordChoices}
-          seedInputRefs={seedInputRefs}
-          setImportingWallet={setImportingWallet}
-          setImportSeedPhrase={setImportSeedPhrase}
-          setVerificationWords={setVerificationWords}
-          setShowingIntro={setShowingIntro}
-          setShowingSeeds={setShowingSeeds}
-          createWallet={createWallet}
-          importWallet={importWallet}
-          resetWallet={resetWalletAndState}
-          proceedToVerification={proceedToVerification}
-          verifySeeds={verifySeeds}
-        />
-      ) : (
+      {activeTab === 'wallet' ? (
         <>
-          {activeTab === 'wallet' ? (
-            <>
-              <WalletScreen
-                styles={styles}
-                onSendPress={() => setIntentStep('selecting_asset')}
-                onReceivePress={() => setShowReceiveSheet(true)}
-                onHistoryPress={() => setShowTxHistory(true)}
-                onSettingsPress={() => {
-                  settingsTranslateX.setValue(0);
-                  setShowSettings(true);
-                }}
-                onCreateVaultPress={() => handleOpenVault(true)}
-                sendAddressType={sendAddressType}
-                switchingAccount={switchingAccount}
-                showZeroAssets={showZeroAssets}
-              />
-              <BottomNavigationBar
-                activeTab={activeTab}
-                onVaultPress={handleOpenVault}
-                onWalletPress={() => setActiveTab('wallet')}
-              />
-            </>
-          ) : null}
+          <WalletScreen
+            styles={styles}
+            onSendPress={() => setIntentStep('selecting_asset')}
+            onReceivePress={() => setShowReceiveSheet(true)}
+            onHistoryPress={() => setShowTxHistory(true)}
+            onSettingsPress={() => {
+              settingsTranslateX.setValue(0);
+              setShowSettings(true);
+            }}
+            onCreateVaultPress={() => handleOpenVault(true)}
+            sendAddressType={sendAddressType}
+            switchingAccount={switchingAccount}
+            showZeroAssets={showZeroAssets}
+          />
+          <BottomNavigationBar
+            activeTab={activeTab}
+            onVaultPress={handleOpenVault}
+            onWalletPress={() => setActiveTab('wallet')}
+          />
         </>
-      )}
+      ) : null}
 
       {/* Send Transaction Bottom Sheets */}
       <SendScreen
