@@ -3,7 +3,7 @@
  * Manages send/receive transaction flows
  */
 
-import React, { createContext, useContext, useState } from 'react';
+import React, { createContext, useContext, useState, useEffect } from 'react';
 import * as TransactionService from '../services/transactionService';
 import * as BackgroundTaskService from '../services/backgroundTaskService';
 import { parseErrorMessage } from '../utils/errorParser';
@@ -38,6 +38,27 @@ export const TransactionProvider = ({
   const [sendAddressType, setSendAddressType] = useState('taproot'); // 'segwit' | 'taproot'
   const [broadcastedTxid, setBroadcastedTxid] = useState(null);
   const [toastDismissed, setToastDismissed] = useState(false);
+
+  // Auto-manage transaction completion flow
+  useEffect(() => {
+    if (intentStep === 'confirmed') {
+      // Reset toast dismissed state when confirmed (so it shows again)
+      setToastDismissed(false);
+
+      // Clear transaction fields so they don't persist
+      setSendRecipient('');
+      setSendAmount('');
+      setSendAssetType(null);
+
+      // Auto-hide toast after 10 seconds when confirmed
+      const timer = setTimeout(() => {
+        setIntentStep('idle');
+        setBroadcastedTxid(null);
+        setToastDismissed(false);
+      }, 10000);
+      return () => clearTimeout(timer);
+    }
+  }, [intentStep]);
 
   // Create BTC transaction using TransactionService
   const createBtcIntent = async () => {

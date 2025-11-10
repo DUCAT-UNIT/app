@@ -21,14 +21,7 @@ export function useSettings({
   resetWallet,
   startPinChange,
   walletExistsRef,
-  seedPhraseTranslateX,
   setIsAuthenticated,
-  setShowSettings,
-  setShowPinEntry,
-  setRequestingSeedPhrase,
-  setSeedPhraseWords,
-  setSeedPhraseVisible,
-  setViewingSeedPhrase,
   showToast,
 }) {
   const [privacyMode, setPrivacyMode] = useState(false);
@@ -62,13 +55,13 @@ export function useSettings({
   }, []);
 
   const handleLogout = () => {
-    setShowLogoutModal(true);
+    // Simply lock the wallet
+    setIsAuthenticated(false);
   };
 
   const confirmLogout = () => {
-    setShowLogoutModal(false);
+    // Deprecated - keeping for compatibility
     setIsAuthenticated(false);
-    setShowSettings(false);
   };
 
   const cancelLogout = () => {
@@ -111,44 +104,15 @@ export function useSettings({
     setShowDeleteModal(false);
   };
 
-  const handleViewSeedPhrase = async () => {
-    try {
-      // If biometric is not enabled, show PIN entry instead
-      if (!biometricEnabled) {
-        setRequestingSeedPhrase(true);
-        setShowSettings(false);
-        setShowPinEntry(true);
-        return;
-      }
-
-      // Biometric is enabled, use biometric auth
-      const result = await AuthService.authenticateWithBiometrics(
-        'Authenticate to view your recovery phrase',
-        'Use PIN'
-      );
-
-      if (result.success) {
-        const mnemonic = await AuthService.getMnemonic();
-        if (mnemonic) {
-          setSeedPhraseWords(mnemonic.split(' '));
-          setSeedPhraseVisible(false); // Start with words hidden for security
-          seedPhraseTranslateX.setValue(0);
-          setViewingSeedPhrase(true);
-          setShowSettings(false);
-        } else {
-          Alert.alert(DIALOGS.ERROR_TITLE, ERRORS.SEED_PHRASE_NOT_FOUND);
-        }
-      } else {
-        Alert.alert(DIALOGS.AUTH_FAILED_TITLE, ERRORS.AUTH_REQUIRED);
-      }
-    } catch (error) {
-      Alert.alert(DIALOGS.ERROR_TITLE, ERRORS.SEED_PHRASE_RETRIEVAL_FAILED);
-    }
+  // View seed phrase - returns a callback that parent can wire up
+  const handleViewSeedPhrase = () => {
+    // Return callback that tells parent to trigger seed phrase flow
+    // Parent should handle: requestViewSeedPhrase() from SeedPhraseContext
+    return 'REQUEST_VIEW_SEED_PHRASE';
   };
 
   const handleChangePin = () => {
-    // Close settings and show lock screen to verify current PIN
-    setShowSettings(false);
+    // Trigger PIN change flow
     startPinChange();
   };
 
