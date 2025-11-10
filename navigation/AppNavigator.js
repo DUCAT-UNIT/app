@@ -294,11 +294,15 @@ function AppNavigatorContent({
 
     // Check if user was trying to enable Face ID
     const pendingFaceId = await SecureStore.getItemAsync('pendingFaceIdEnable');
+    const returnToSettingsFlag = await SecureStore.getItemAsync('returnToSettingsAfterAuth');
+    console.log('After auth - pendingFaceId:', pendingFaceId, 'returnToSettingsAfterAuth:', returnToSettingsFlag);
+
     if (pendingFaceId === 'true') {
       await SecureStore.deleteItemAsync('pendingFaceIdEnable');
       setBiometricEnabled(true);
       await SecureStore.setItemAsync('biometricEnabled', 'true');
       showToast('Face ID enabled', 'success');
+      console.log('Face ID enabled, returnToSettingsAfterAuth flag should still be:', returnToSettingsFlag);
       return;
     }
 

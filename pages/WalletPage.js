@@ -3,7 +3,7 @@
  * Contains wallet screen, vault, settings, and transaction flows
  */
 
-import React, { useState, useRef, useEffect } from 'react';
+import React, { useState, useRef, useEffect, useLayoutEffect } from 'react';
 import { View, Animated, PanResponder, Dimensions } from 'react-native';
 import { StatusBar } from 'expo-status-bar';
 import { useFocusEffect } from '@react-navigation/native';
@@ -20,6 +20,7 @@ import MutinynetBanner from '../components/MutinynetBanner';
 import BottomNavigationBar from '../components/BottomNavigationBar';
 import Toast from '../components/Toast';
 import TransactionToast from '../components/TransactionToast';
+import SplashScreen from '../components/SplashScreen';
 
 // Contexts
 import { useWallet } from '../contexts/WalletContext';
@@ -89,6 +90,40 @@ export default function WalletPage({
   const [showReceiveSheet, setShowReceiveSheet] = useState(false);
   const [showTxHistory, setShowTxHistory] = useState(false);
   const [showSettings, setShowSettings] = useState(false);
+  const [hasCheckedInitialFlags, setHasCheckedInitialFlags] = useState(false);
+
+  // Log component mount
+  useEffect(() => {
+    console.log('WalletPage MOUNTED');
+    return () => {
+      console.log('WalletPage UNMOUNTED');
+    };
+  }, []);
+
+  // Log when showSettings changes
+  useEffect(() => {
+    console.log('showSettings changed to:', showSettings);
+  }, [showSettings]);
+
+  // Check flags before first render to prevent flicker
+  useLayoutEffect(() => {
+    const checkFlagsSync = async () => {
+      const shouldReturnAuth = await SecureStore.getItemAsync('returnToSettingsAfterAuth');
+      const shouldReturnPinChange = await SecureStore.getItemAsync('returnToSettingsAfterPinChange');
+      const shouldReturnSeedPhrase = await SecureStore.getItemAsync('returnToSettingsAfterSeedPhrase');
+
+      if (shouldReturnAuth === 'true' || shouldReturnPinChange === 'true' || shouldReturnSeedPhrase === 'true') {
+        console.log('useLayoutEffect opening settings immediately');
+        // Set settings visible immediately without animation
+        settingsOpacity.setValue(1);
+        settingsTranslateX.setValue(0);
+        setShowSettings(true);
+      }
+
+      setHasCheckedInitialFlags(true);
+    };
+    checkFlagsSync();
+  }, []);
 
   // Animated values for settings swipe
   const settingsTranslateX = useRef(new Animated.Value(0)).current;
@@ -109,11 +144,13 @@ export default function WalletPage({
       },
       onPanResponderRelease: (evt, gestureState) => {
         if (gestureState.dx > SCREEN_WIDTH * 0.4) {
+          console.log('Pan responder closing settings');
           Animated.timing(settingsTranslateX, {
             toValue: SCREEN_WIDTH,
             duration: 200,
             useNativeDriver: true,
           }).start(() => {
+            console.log('Pan animation complete, closing settings');
             setShowSettings(false);
             settingsTranslateX.setValue(0);
           });
@@ -128,16 +165,17 @@ export default function WalletPage({
   }
 
   // Check when screen comes into focus if we should open settings (after viewing seed phrase, changing PIN, or toggling Face ID/Notifications)
+  const checkingFlags = useRef(false);
   useFocusEffect(
     React.useCallback(() => {
       const checkReturnToSettings = async () => {
-        // Only check if settings is not already showing (prevent flicker on dismiss)
-        if (showSettings) {
+        // Prevent multiple simultaneous checks
+        if (checkingFlags.current) {
+          console.log('Already checking flags, skipping...');
           return;
         }
 
-        // Small delay to ensure flags are persisted
-        await new Promise(resolve => setTimeout(resolve, 100));
+        checkingFlags.current = true;
 
         const shouldReturnSeedPhrase = await SecureStore.getItemAsync('returnToSettingsAfterSeedPhrase');
         const shouldReturnPinChange = await SecureStore.getItemAsync('returnToSettingsAfterPinChange');
@@ -148,17 +186,19 @@ export default function WalletPage({
         if (shouldReturnSeedPhrase === 'true' || shouldReturnPinChange === 'true' || shouldReturnAuth === 'true') {
           // Open settings
           console.log('Opening settings from flags');
-          setShowSettings(true);
           settingsTranslateX.setValue(0);
+          setShowSettings(true);
           // Clear the flags
           await SecureStore.deleteItemAsync('returnToSettingsAfterSeedPhrase');
           await SecureStore.deleteItemAsync('returnToSettingsAfterPinChange');
           await SecureStore.deleteItemAsync('returnToSettingsAfterAuth');
           setReturnToSettings(false);
         }
+
+        checkingFlags.current = false;
       };
       checkReturnToSettings();
-    }, [settingsTranslateX, showSettings])
+    }, [settingsTranslateX])
   );
 
   // Watch for seed phrase closing - if returnToSettings is true, re-open settings
@@ -175,13 +215,20 @@ export default function WalletPage({
   const prevShowSettings = useRef(showSettings);
   if (showSettings && !prevShowSettings.current) {
     // Just opened - make visible
+    console.log('Settings opening - setting opacity to 1');
     settingsTranslateX.setValue(0);
     settingsOpacity.setValue(1);
   } else if (!showSettings && prevShowSettings.current) {
     // Just closed - force invisible immediately to prevent flicker
+    console.log('Settings closing - setting opacity to 0');
     settingsOpacity.setValue(0);
   }
   prevShowSettings.current = showSettings;
+
+  // Show splash screen until we've checked flags to prevent flicker
+  if (!hasCheckedInitialFlags) {
+    return <SplashScreen />;
+  }
 
   return (
     <>
@@ -332,6 +379,7 @@ export default function WalletPage({
           <MutinynetBanner />
           <SettingsScreen
             onClose={() => {
+              console.log('SettingsScreen onClose called!');
               settingsTranslateX.setValue(0);
               setShowSettings(false);
             }}

@@ -167,11 +167,13 @@ export function useSettings({
   };
 
   const confirmFaceIdToggle = async () => {
+    console.log('confirmFaceIdToggle called');
     setShowFaceIdModal(false);
     const newValue = pendingFaceIdValue;
 
     // If enabling, require authentication first
     if (newValue) {
+      console.log('Enabling Face ID, requesting authentication...');
       try {
         // Try biometric auth first if available
         const result = await AuthService.authenticateWithBiometrics(
@@ -179,17 +181,26 @@ export function useSettings({
           'Use PIN'
         );
 
+        console.log('Biometric auth result:', result);
+
         if (!result.success) {
           // Biometric failed or not available, fall back to PIN
+          console.log('Biometric failed, falling back to PIN');
           // Set a flag to indicate we're enabling Face ID after PIN verification
           await SecureStore.setItemAsync('pendingFaceIdEnable', 'true');
           // Set flag to return to settings after PIN entry
           await SecureStore.setItemAsync('returnToSettingsAfterAuth', 'true');
+          console.log('SET returnToSettingsAfterAuth flag for Face ID');
           // Lock wallet to trigger PIN entry
           setIsAuthenticated(false);
           return;
         }
+
+        console.log('Biometric auth succeeded, enabling Face ID directly');
+        // Set flag to return to settings after Face ID is enabled (component might remount)
+        await SecureStore.setItemAsync('returnToSettingsAfterAuth', 'true');
       } catch (error) {
+        console.log('Biometric auth error:', error);
         if (showToast) {
           showToast('Authentication required to enable Face ID', 'error');
         }
@@ -198,6 +209,7 @@ export function useSettings({
     }
 
     // Authentication successful or disabling, proceed with toggle
+    console.log('Proceeding to toggle Face ID, newValue:', newValue);
     setBiometricEnabled(newValue);
     try {
       await SecureStore.setItemAsync('biometricEnabled', String(newValue));
@@ -246,11 +258,13 @@ export function useSettings({
   };
 
   const confirmNotificationsToggle = async () => {
+    console.log('confirmNotificationsToggle called');
     setShowNotificationsModal(false);
     const newValue = pendingNotificationsValue;
 
     // If enabling, require authentication first
     if (newValue) {
+      console.log('Enabling Notifications, requesting authentication...');
       try {
         // Try biometric auth first if available
         const result = await AuthService.authenticateWithBiometrics(
@@ -258,7 +272,10 @@ export function useSettings({
           'Use PIN'
         );
 
+        console.log('Biometric auth result for notifications:', result);
+
         if (!result.success) {
+          console.log('Biometric failed for notifications, falling back to PIN');
           // Biometric failed or not available, fall back to PIN
           // Set a flag to indicate we're enabling notifications after PIN verification
           await SecureStore.setItemAsync('pendingNotificationsEnable', 'true');
@@ -268,7 +285,12 @@ export function useSettings({
           setIsAuthenticated(false);
           return;
         }
+
+        console.log('Biometric auth succeeded for notifications, enabling directly');
+        // Biometric auth succeeded, set flag to return to settings after toggle (component might remount)
+        await SecureStore.setItemAsync('returnToSettingsAfterAuth', 'true');
       } catch (error) {
+        console.log('Biometric auth error for notifications:', error);
         if (showToast) {
           showToast('Authentication required to enable notifications', 'error');
         }
@@ -277,6 +299,7 @@ export function useSettings({
     }
 
     // Authentication successful or disabling, proceed with toggle
+    console.log('Proceeding to toggle Notifications, newValue:', newValue);
     setNotificationsEnabled(newValue);
     try {
       await SecureStore.setItemAsync('notificationsEnabled', String(newValue));
