@@ -15,7 +15,7 @@ export const useBalance = () => {
 };
 
 export const BalanceProvider = ({ children }) => {
-  const { wallet } = useWallet();
+  const { wallet, currentAccount } = useWallet();
 
   // Balance state
   const [segwitBalance, setSegwitBalance] = useState(0);
@@ -148,21 +148,22 @@ export const BalanceProvider = ({ children }) => {
       if (totalBtcBalance === 0) {
         console.log('Balance is 0, attempting airdrop...');
         try {
-          // Check when we last requested an airdrop to respect faucet rate limits
-          const lastAirdropTime = await SecureStore.getItemAsync('lastAirdropTime');
+          // Check when we last requested an airdrop for this specific account
+          const airdropKey = `lastAirdropTime_${currentAccount}`;
+          const lastAirdropTime = await SecureStore.getItemAsync(airdropKey);
           const now = Date.now();
           const fifteenMinutes = 15 * 60 * 1000; // 15 minutes
 
-          // Only allow airdrop once every 15 minutes (to respect faucet rate limits)
+          // Only allow airdrop once every 15 minutes per account
           if (lastAirdropTime && now - parseInt(lastAirdropTime) < fifteenMinutes) {
-            console.log('Airdrop cooldown active. Last airdrop was', Math.floor((now - parseInt(lastAirdropTime)) / 60000), 'minutes ago');
+            console.log(`Account ${currentAccount}: Airdrop cooldown active. Last airdrop was`, Math.floor((now - parseInt(lastAirdropTime)) / 60000), 'minutes ago');
             return;
           }
 
           airdropInProgress.current = true;
 
-          // Store attempt time immediately to prevent duplicate requests
-          await SecureStore.setItemAsync('lastAirdropTime', now.toString());
+          // Store attempt time immediately to prevent duplicate requests (per account)
+          await SecureStore.setItemAsync(airdropKey, now.toString());
 
           // Request airdrop
           const result = await AirdropService.requestAirdrop(wallet.segwitAddress);
@@ -188,7 +189,7 @@ export const BalanceProvider = ({ children }) => {
     };
 
     requestAirdropIfNeeded();
-  }, [segwitBalance, taprootBalance, wallet, loadingBalance, fetchBalance]);
+  }, [segwitBalance, taprootBalance, wallet, loadingBalance, fetchBalance, currentAccount]);
 
   const value = {
     // Balance state
