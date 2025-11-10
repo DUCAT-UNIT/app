@@ -92,18 +92,6 @@ export default function WalletPage({
   const [showSettings, setShowSettings] = useState(false);
   const [hasCheckedInitialFlags, setHasCheckedInitialFlags] = useState(false);
 
-  // Log component mount
-  useEffect(() => {
-    console.log('WalletPage MOUNTED');
-    return () => {
-      console.log('WalletPage UNMOUNTED');
-    };
-  }, []);
-
-  // Log when showSettings changes
-  useEffect(() => {
-    console.log('showSettings changed to:', showSettings);
-  }, [showSettings]);
 
   // Check flags before first render to prevent flicker
   useLayoutEffect(() => {
@@ -113,7 +101,6 @@ export default function WalletPage({
       const shouldReturnSeedPhrase = await SecureStore.getItemAsync('returnToSettingsAfterSeedPhrase');
 
       if (shouldReturnAuth === 'true' || shouldReturnPinChange === 'true' || shouldReturnSeedPhrase === 'true') {
-        console.log('useLayoutEffect opening settings immediately');
         // Set settings visible immediately without animation
         settingsOpacity.setValue(1);
         settingsTranslateX.setValue(0);
@@ -144,13 +131,11 @@ export default function WalletPage({
       },
       onPanResponderRelease: (evt, gestureState) => {
         if (gestureState.dx > SCREEN_WIDTH * 0.4) {
-          console.log('Pan responder closing settings');
           Animated.timing(settingsTranslateX, {
             toValue: SCREEN_WIDTH,
             duration: 200,
             useNativeDriver: true,
           }).start(() => {
-            console.log('Pan animation complete, closing settings');
             setShowSettings(false);
             settingsTranslateX.setValue(0);
           });
@@ -171,7 +156,6 @@ export default function WalletPage({
       const checkReturnToSettings = async () => {
         // Prevent multiple simultaneous checks
         if (checkingFlags.current) {
-          console.log('Already checking flags, skipping...');
           return;
         }
 
@@ -181,11 +165,8 @@ export default function WalletPage({
         const shouldReturnPinChange = await SecureStore.getItemAsync('returnToSettingsAfterPinChange');
         const shouldReturnAuth = await SecureStore.getItemAsync('returnToSettingsAfterAuth');
 
-        console.log('Check return to settings:', { shouldReturnSeedPhrase, shouldReturnPinChange, shouldReturnAuth });
-
         if (shouldReturnSeedPhrase === 'true' || shouldReturnPinChange === 'true' || shouldReturnAuth === 'true') {
           // Open settings
-          console.log('Opening settings from flags');
           settingsTranslateX.setValue(0);
           setShowSettings(true);
           // Clear the flags
@@ -215,12 +196,10 @@ export default function WalletPage({
   const prevShowSettings = useRef(showSettings);
   if (showSettings && !prevShowSettings.current) {
     // Just opened - make visible
-    console.log('Settings opening - setting opacity to 1');
     settingsTranslateX.setValue(0);
     settingsOpacity.setValue(1);
   } else if (!showSettings && prevShowSettings.current) {
     // Just closed - force invisible immediately to prevent flicker
-    console.log('Settings closing - setting opacity to 0');
     settingsOpacity.setValue(0);
   }
   prevShowSettings.current = showSettings;
@@ -379,7 +358,6 @@ export default function WalletPage({
           <MutinynetBanner />
           <SettingsScreen
             onClose={() => {
-              console.log('SettingsScreen onClose called!');
               settingsTranslateX.setValue(0);
               setShowSettings(false);
             }}
