@@ -210,10 +210,10 @@ export const BalanceProvider = ({ children, seedConfirmed }) => {
       }
     };
 
-    // Wait briefly before checking airdrop
+    // Wait for app to be fully ready before checking airdrop
     const initialTimeout = setTimeout(() => {
       requestAirdropIfNeeded();
-    }, 2000);
+    }, 3000);
 
     // Then check once per day
     const intervalId = setInterval(() => {
