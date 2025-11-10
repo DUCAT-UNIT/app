@@ -10,7 +10,6 @@ export default function VaultScreen({ visible, walletCredentials, autoCreateVaul
   const messageIndexRef = useRef(0);
   const hasAutoClickedRef = useRef(false);
   const lastTriggerValueRef = useRef(0);
-  const lastInjectedTriggerRef = useRef(0); // Track which trigger we injected for
   const loadGenerationRef = useRef(0);
   const targetLoadGenerationRef = useRef(0);
   const [webViewKey, setWebViewKey] = React.useState(0);
@@ -106,11 +105,7 @@ export default function VaultScreen({ visible, walletCredentials, autoCreateVaul
 
   // Inject auto-click script when conditions are met
   React.useEffect(() => {
-    // Only inject if this is a NEW auto-create request (not already processed)
-    const isNewAutoCreateRequest = autoCreateVaultTrigger > 0 &&
-                                   autoCreateVaultTrigger !== lastInjectedTriggerRef.current;
-
-    const shouldInject = isNewAutoCreateRequest &&
+    const shouldInject = autoCreateVaultTrigger > 0 &&
                         visible &&
                         webViewLoaded &&
                         !hasAutoClickedRef.current &&
@@ -118,7 +113,6 @@ export default function VaultScreen({ visible, walletCredentials, autoCreateVaul
 
     if (shouldInject) {
       hasAutoClickedRef.current = true;
-      lastInjectedTriggerRef.current = autoCreateVaultTrigger; // Mark this trigger as processed
 
       if (!webViewRef.current) return;
 
