@@ -29,6 +29,10 @@ export function useSettings({
   const [showZeroAssets, setShowZeroAssets] = useState(false);
   const [showLogoutModal, setShowLogoutModal] = useState(false);
   const [showDeleteModal, setShowDeleteModal] = useState(false);
+  const [showFaceIdModal, setShowFaceIdModal] = useState(false);
+  const [pendingFaceIdValue, setPendingFaceIdValue] = useState(false);
+  const [showNotificationsModal, setShowNotificationsModal] = useState(false);
+  const [pendingNotificationsValue, setPendingNotificationsValue] = useState(false);
 
   // Load privacy mode and notifications settings on mount
   useEffect(() => {
@@ -125,8 +129,15 @@ export function useSettings({
     }
   };
 
-  const handleFaceIdToggle = async () => {
+  const handleFaceIdToggle = () => {
     const newValue = !biometricEnabled;
+    setPendingFaceIdValue(newValue);
+    setShowFaceIdModal(true);
+  };
+
+  const confirmFaceIdToggle = async () => {
+    setShowFaceIdModal(false);
+    const newValue = pendingFaceIdValue;
 
     // If enabling, require authentication first
     if (newValue) {
@@ -167,14 +178,25 @@ export function useSettings({
     }
   };
 
+  const cancelFaceIdToggle = () => {
+    setShowFaceIdModal(false);
+  };
+
   const handleShowZeroAssetsToggle = async () => {
     const newValue = !showZeroAssets;
     setShowZeroAssets(newValue);
     await SecureStore.setItemAsync('showZeroAssets', newValue.toString());
   };
 
-  const handleNotificationsToggle = async () => {
+  const handleNotificationsToggle = () => {
     const newValue = !notificationsEnabled;
+    setPendingNotificationsValue(newValue);
+    setShowNotificationsModal(true);
+  };
+
+  const confirmNotificationsToggle = async () => {
+    setShowNotificationsModal(false);
+    const newValue = pendingNotificationsValue;
 
     // If enabling, require authentication first
     if (newValue) {
@@ -215,6 +237,10 @@ export function useSettings({
     }
   };
 
+  const cancelNotificationsToggle = () => {
+    setShowNotificationsModal(false);
+  };
+
   return {
     privacyMode,
     notificationsEnabled,
@@ -230,10 +256,16 @@ export function useSettings({
     // Modal state
     showLogoutModal,
     showDeleteModal,
+    showFaceIdModal,
+    showNotificationsModal,
     // Modal handlers
     confirmLogout,
     cancelLogout,
     confirmDeleteWallet,
     cancelDeleteWallet,
+    confirmFaceIdToggle,
+    cancelFaceIdToggle,
+    confirmNotificationsToggle,
+    cancelNotificationsToggle,
   };
 }

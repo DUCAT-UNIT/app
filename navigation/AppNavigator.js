@@ -193,10 +193,16 @@ function AppNavigatorContent({
     handleShowZeroAssetsToggle,
     showLogoutModal,
     showDeleteModal,
+    showFaceIdModal,
+    showNotificationsModal,
     confirmLogout,
     cancelLogout,
     confirmDeleteWallet,
     cancelDeleteWallet,
+    confirmFaceIdToggle,
+    cancelFaceIdToggle,
+    confirmNotificationsToggle,
+    cancelNotificationsToggle,
   } = useSettings({
     biometricEnabled,
     setBiometricEnabled,
@@ -471,6 +477,30 @@ function AppNavigatorContent({
         iconName="delete_wallet"
         onConfirm={confirmDeleteWallet}
         onCancel={cancelDeleteWallet}
+        styles={styles}
+      />
+
+      <ConfirmationModal
+        visible={showFaceIdModal}
+        title={biometricEnabled ? "Disable Face ID" : "Enable Face ID"}
+        message={biometricEnabled ? "Are you sure you want to disable Face ID authentication?" : "Enable Face ID for quick and secure authentication?"}
+        confirmText={biometricEnabled ? "Disable" : "Enable"}
+        confirmStyle="primary"
+        iconName="face_id"
+        onConfirm={confirmFaceIdToggle}
+        onCancel={cancelFaceIdToggle}
+        styles={styles}
+      />
+
+      <ConfirmationModal
+        visible={showNotificationsModal}
+        title={notificationsEnabled ? "Disable Notifications" : "Enable Notifications"}
+        message={notificationsEnabled ? "Are you sure you want to disable transaction notifications?" : "Enable notifications for transaction confirmations?"}
+        confirmText={notificationsEnabled ? "Disable" : "Enable"}
+        confirmStyle="primary"
+        iconName="notifications"
+        onConfirm={confirmNotificationsToggle}
+        onCancel={cancelNotificationsToggle}
         styles={styles}
       />
     </>
