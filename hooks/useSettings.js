@@ -55,12 +55,13 @@ export function useSettings({
   }, []);
 
   const handleLogout = () => {
-    // Simply lock the wallet
-    setIsAuthenticated(false);
+    // Show confirmation modal
+    setShowLogoutModal(true);
   };
 
   const confirmLogout = () => {
-    // Deprecated - keeping for compatibility
+    // Lock the wallet
+    setShowLogoutModal(false);
     setIsAuthenticated(false);
   };
 

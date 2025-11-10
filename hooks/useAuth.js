@@ -143,6 +143,7 @@ export function useAuth({ onSeedConfirmed }) {
   // Start PIN change flow
   const startPinChange = () => {
     setChangingPin(true);
+    setSettingUpPin(true); // Also set this so RootNavigator shows auth flow
     setIsAuthenticated(false);
   };
 
