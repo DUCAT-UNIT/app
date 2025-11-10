@@ -3,7 +3,7 @@
  * Handles requesting testnet coins from the faucet for new users
  */
 
-const FAUCET_URL = 'https://faucet.ducatprotocol.com/unit/faucet/test';
+const FAUCET_URL = 'https://faucet.ducatprotocol.com/btc/faucet';
 const DUMMY_CAPTCHA = 'XXXX.DUMMY.TOKEN.XXXX';
 
 /**
