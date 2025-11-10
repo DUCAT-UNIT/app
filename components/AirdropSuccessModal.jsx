@@ -19,6 +19,7 @@ export default function AirdropSuccessModal({ visible, onClose, txId }) {
   const confettiRef = useRef(null);
 
   useEffect(() => {
+    console.log('[MODAL] AirdropSuccessModal visible changed:', visible, 'txId:', txId);
     if (visible) {
       // Trigger confetti
       if (confettiRef.current) {

@@ -107,13 +107,16 @@ export const BalanceProvider = ({ children }) => {
   // Check for pending airdrop modal on mount and when balance updates
   useEffect(() => {
     const checkPendingAirdrop = async () => {
-      if (!currentAccount) return;
+      if (!currentAccount && currentAccount !== 0) return;
 
       const pendingKey = `pendingAirdrop_${currentAccount}`;
       const pendingTxId = await SecureStore.getItemAsync(pendingKey);
 
+      console.log('[AIRDROP CHECK] Account:', currentAccount, 'Balance:', segwitBalance + taprootBalance, 'Pending TxId:', pendingTxId);
+
       // If there's a pending airdrop and balance is now > 0, show the modal
       if (pendingTxId && (segwitBalance > 0 || taprootBalance > 0)) {
+        console.log('[AIRDROP SHOW] Showing modal for TxId:', pendingTxId);
         setAirdropTxId(pendingTxId);
         setShowAirdropModal(true);
         // Clear the pending airdrop
@@ -187,10 +190,12 @@ export const BalanceProvider = ({ children }) => {
 
           // Request airdrop
           const result = await AirdropService.requestAirdrop(wallet.segwitAddress);
+          console.log('[AIRDROP REQUEST] Success for account', currentAccount, 'TxId:', result.txId);
 
           // Store pending airdrop in SecureStore (survives state resets during onboarding)
           const pendingKey = `pendingAirdrop_${currentAccount}`;
           await SecureStore.setItemAsync(pendingKey, result.txId);
+          console.log('[AIRDROP STORE] Stored pending airdrop in SecureStore with key:', pendingKey);
 
           // Fetch balance again after a few seconds to see the new balance
           setTimeout(() => {
