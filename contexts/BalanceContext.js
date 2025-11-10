@@ -103,8 +103,9 @@ export const BalanceProvider = ({ children, seedConfirmed }) => {
     setUtxos([]);
   }, []);
 
-  // Track if airdrop is in progress using state (more reliable than ref)
-  const [airdropInProgress, setAirdropInProgress] = useState(false);
+  // Track if airdrop is in progress using ref + lock mechanism
+  // Using ref avoids infinite loops from state updates triggering effects
+  const airdropInProgress = useRef(false);
 
   // Clean up expired airdrop locks on mount
   useEffect(() => {
@@ -188,8 +189,8 @@ export const BalanceProvider = ({ children, seedConfirmed }) => {
     if (!seedConfirmed) return;
 
     const requestAirdropIfNeeded = async () => {
-      // Skip if already in progress (using state, not ref)
-      if (airdropInProgress) return;
+      // Skip if already in progress
+      if (airdropInProgress.current) return;
 
       const airdropKey = `lastAirdropTime_${wallet.segwitAddress}_${currentAccount}`;
       const lockKey = `airdropLock_${wallet.segwitAddress}_${currentAccount}`;
@@ -224,9 +225,9 @@ export const BalanceProvider = ({ children, seedConfirmed }) => {
             return;
           }
 
-          // Acquire lock BEFORE setting state
+          // Acquire lock BEFORE setting ref
           await SecureStore.setItemAsync(lockKey, now.toString());
-          setAirdropInProgress(true);
+          airdropInProgress.current = true;
 
           try {
             // Store attempt time immediately to prevent duplicate requests (per account)
@@ -250,14 +251,14 @@ export const BalanceProvider = ({ children, seedConfirmed }) => {
           } catch (error) {
             // Keep the lastAirdropTime to prevent immediate retries
           } finally {
-            // Release lock and clear state
-            setAirdropInProgress(false);
+            // Release lock and clear ref
+            airdropInProgress.current = false;
             await SecureStore.deleteItemAsync(lockKey);
           }
         }
       } catch (error) {
         // Ensure we clean up on any error
-        setAirdropInProgress(false);
+        airdropInProgress.current = false;
         await SecureStore.deleteItemAsync(lockKey).catch(() => {});
       }
     };
@@ -276,7 +277,7 @@ export const BalanceProvider = ({ children, seedConfirmed }) => {
       clearTimeout(initialTimeout);
       clearInterval(intervalId);
     };
-  }, [wallet, currentAccount, isAuthenticated, seedConfirmed, airdropInProgress, segwitBalance, taprootBalance]);
+  }, [wallet, currentAccount, isAuthenticated, seedConfirmed]);
 
   const value = {
     // Balance state
