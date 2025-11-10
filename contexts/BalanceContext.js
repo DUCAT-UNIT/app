@@ -107,6 +107,16 @@ export const BalanceProvider = ({ children, seedConfirmed }) => {
   // Using ref avoids infinite loops from state updates triggering effects
   const airdropInProgress = useRef(false);
 
+  // Store balance values in refs so airdrop logic always reads fresh values
+  const segwitBalanceRef = useRef(segwitBalance);
+  const taprootBalanceRef = useRef(taprootBalance);
+
+  // Update refs whenever balances change
+  useEffect(() => {
+    segwitBalanceRef.current = segwitBalance;
+    taprootBalanceRef.current = taprootBalance;
+  }, [segwitBalance, taprootBalance]);
+
   // Clean up expired airdrop locks on mount
   useEffect(() => {
     const cleanupExpiredLocks = async () => {
@@ -210,8 +220,8 @@ export const BalanceProvider = ({ children, seedConfirmed }) => {
           // Lock expired, we can proceed and will create a new one
         }
 
-        // Get current balance from state
-        const totalBtcBalance = segwitBalance + taprootBalance;
+        // Get current balance from refs (always fresh, not stale closure values)
+        const totalBtcBalance = segwitBalanceRef.current + taprootBalanceRef.current;
 
         // If balance is 0, request airdrop
         if (totalBtcBalance === 0) {
