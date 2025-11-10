@@ -59,6 +59,7 @@ import VaultScreen from './components/VaultScreen';
 // Import contexts
 import { useWallet } from './contexts/WalletContext';
 import { useAuth, AuthProvider } from './contexts/AuthContext';
+import { useTransaction, TransactionProvider } from './contexts/TransactionContext';
 
 // Import hooks
 import { useToast } from './hooks/useToast';
@@ -82,8 +83,30 @@ export default function App() {
 
   return (
     <AuthProvider onSeedConfirmed={setSeedConfirmed}>
-      <AppContent seedConfirmed={seedConfirmed} setSeedConfirmed={setSeedConfirmed} />
+      <WalletProviderWrapper seedConfirmed={seedConfirmed} setSeedConfirmed={setSeedConfirmed} />
     </AuthProvider>
+  );
+}
+
+// Wrapper to access wallet context and provide transaction context
+function WalletProviderWrapper({ seedConfirmed, setSeedConfirmed }) {
+  const wallet = useWallet();
+  const { showToast } = useToast();
+  const { startPolling: startTransactionPolling } = useTransactionPolling();
+  const { sendTransactionConfirmedNotification, notificationsEnabled } = useNotifications();
+
+  return (
+    <TransactionProvider
+      wallet={wallet.wallet}
+      currentAccount={wallet.currentAccount}
+      showToast={showToast}
+      startTransactionPolling={startTransactionPolling}
+      sendTransactionConfirmedNotification={sendTransactionConfirmedNotification}
+      notificationsEnabled={notificationsEnabled}
+      fetchBalance={wallet.fetchBalance}
+    >
+      <AppContent seedConfirmed={seedConfirmed} setSeedConfirmed={setSeedConfirmed} />
+    </TransactionProvider>
   );
 }
 
@@ -144,15 +167,28 @@ function AppContent({ seedConfirmed, setSeedConfirmed }) {
   const [isLoading, setIsLoading] = useState(true); // Initial loading state
   const [showBackgroundSplash, setShowBackgroundSplash] = useState(false); // Show splash when app is backgrounded
 
-  // Transaction intent state
-  const [sendIntent, setSendIntent] = useState(null); // Current send transaction intent
-  const [intentStep, setIntentStep] = useState('idle'); // 'idle' | 'selecting_asset' | 'entering_amount' | 'entering_address' | 'creating' | 'reviewing' | 'signing' | 'broadcasting' | 'pending' | 'confirmed'
-  const [sendAssetType, setSendAssetType] = useState(null); // 'btc' | 'unit'
-  const [sendAmount, setSendAmount] = useState('');
-  const [sendRecipient, setSendRecipient] = useState('');
-  const [sendAddressType, setSendAddressType] = useState('taproot'); // 'segwit' | 'taproot'
-  const [broadcastedTxid, setBroadcastedTxid] = useState(null); // TXID of broadcasted transaction
-  const [toastDismissed, setToastDismissed] = useState(false); // Track if user dismissed pending toast
+  // Transaction state - now from TransactionContext
+  const {
+    sendIntent,
+    intentStep,
+    sendAssetType,
+    sendAmount,
+    sendRecipient,
+    sendAddressType,
+    broadcastedTxid,
+    toastDismissed,
+    setSendIntent,
+    setIntentStep,
+    setSendAssetType,
+    setSendAmount,
+    setSendRecipient,
+    setSendAddressType,
+    setBroadcastedTxid,
+    setToastDismissed,
+    createSendIntent,
+    signIntent,
+  } = useTransaction();
+
   const [keyboardHeight, setKeyboardHeight] = useState(0);
 
   const seedConfirmedRef = useRef(false); // Track if seed backup is confirmed without triggering re-renders
@@ -467,153 +503,7 @@ function AppContent({ seedConfirmed, setSeedConfirmed }) {
 
 
   // Create an unsigned PSBT for the transaction
-  const createSendIntent = async () => {
-    try {
-      // Trim whitespace from recipient address
-      const trimmedRecipient = sendRecipient.trim();
-      setIntentStep('creating');
-
-      // Validate inputs
-      if (!trimmedRecipient || !sendAmount) {
-        showToast(ERRORS.MISSING_RECIPIENT_AMOUNT, 'error');
-        setIntentStep('idle');
-        return;
-      }
-
-      // Update the state with trimmed recipient
-      setSendRecipient(trimmedRecipient);
-
-      // Branch based on asset type
-      if (sendAssetType === 'btc') {
-        await createBtcIntent();
-      } else if (sendAssetType === 'unit') {
-        await createUnitIntent();
-      } else {
-        showToast(ERRORS.ASSET_SELECTION_REQUIRED, 'error');
-        setIntentStep('idle');
-      }
-    } catch (error) {
-      showToast(parseErrorMessage(error), 'error');
-      setIntentStep('idle');
-    }
-  };
-
-  // Create BTC transaction using TransactionService
-  const createBtcIntent = async () => {
-    try {
-      const intent = await TransactionService.createBtcIntent(
-        sendRecipient,
-        sendAmount,
-        wallet.segwitAddress,
-        currentAccount
-      );
-
-      setSendIntent(intent);
-      setIntentStep('reviewing');
-
-      // Debug: Check state after a moment
-      setTimeout(() => {
-      }, 100);
-    } catch (error) {
-      showToast(parseErrorMessage(error), 'error');
-      setIntentStep('idle');
-      throw error;
-    }
-  };
-
-  // Create UNIT (Rune) transaction using TransactionService
-  const createUnitIntent = async () => {
-    try {
-      const intent = await TransactionService.createUnitIntent(
-        sendRecipient,
-        sendAmount,
-        wallet.taprootAddress,
-        wallet.segwitAddress,
-        currentAccount
-      );
-
-      setSendIntent(intent);
-      setIntentStep('reviewing');
-    } catch (error) {
-      showToast(parseErrorMessage(error), 'error');
-      setIntentStep('idle');
-      throw error;
-    }
-  };
-
-  // Sign the PSBT using TransactionService
-  const signIntent = async () => {
-    try {
-      setIntentStep('signing');
-
-      if (!sendIntent) {
-        showToast(ERRORS.TRANSACTION_CANCELLED, 'error');
-        setIntentStep('idle');
-        return;
-      }
-
-      const { signedTxHex, txid } = await TransactionService.signIntent(sendIntent, currentAccount);
-
-      // Update intent with signed transaction
-      const signedIntent = {
-        ...sendIntent,
-        signedTxHex,
-        txid,
-      };
-
-      setSendIntent(signedIntent);
-      setIntentStep('broadcasting');
-
-      // Automatically broadcast
-      await broadcastIntent(signedIntent);
-    } catch (error) {
-      showToast(parseErrorMessage(error), 'error');
-      setIntentStep('reviewing');
-    }
-  };
-
-  // Broadcast the signed transaction using TransactionService
-  const broadcastIntent = async (intent = sendIntent) => {
-    try {
-      if (!intent || !intent.signedTxHex) {
-        showToast(ERRORS.TRANSACTION_CANCELLED, 'error');
-        return;
-      }
-
-      const txid = await TransactionService.broadcastTransaction(intent.signedTxHex);
-
-      // Store txid and move to pending state (this closes the bottom sheet)
-      setBroadcastedTxid(txid);
-      setIntentStep('pending'); // Change to pending so bottom sheet closes
-      setToastDismissed(false); // Reset dismissed state for new transaction
-
-      // Add to background monitoring for notifications when app is backgrounded
-      const assetType = sendAssetType === 'unit' ? 'UNIT' : 'BTC';
-      await BackgroundTaskService.addPendingTransaction(txid, assetType, sendAmount, 'withdraw');
-
-      // Start polling for confirmation using the hook
-      startTransactionPolling(
-        txid,
-        (isConfirmed) => {
-          // On confirmation (or max attempts)
-          if (isConfirmed) {
-            // Send push notification with amount and asset type (only if notifications are enabled)
-            if (notificationsEnabled) {
-              sendTransactionConfirmedNotification(assetType, sendAmount, txid, 'withdraw');
-            } else {
-            }
-            // Remove from background monitoring since it's confirmed
-            BackgroundTaskService.removePendingTransaction(txid);
-          }
-          setIntentStep('confirmed');
-          fetchBalance(); // Refresh balances when confirmed
-        }
-      );
-    } catch (error) {
-      showToast(parseErrorMessage(error), 'error');
-      setIntentStep('reviewing');
-    }
-  };
+  // Transaction handlers now provided by TransactionContext
 
   const getCurrentAddress = () => {
     // Return taproot address as default for displaying
