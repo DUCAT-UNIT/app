@@ -143,7 +143,7 @@ export default function WalletPage({
               onCreateVaultPress={() => handleOpenVault(true)}
               sendAddressType={sendAddressType}
               switchingAccount={switchingAccount}
-              showZeroAssets={showZeroAssets}
+              showZeroAssets={settingsHandlers.showZeroAssets}
             />
             <BottomNavigationBar
               activeTab={activeTab}
