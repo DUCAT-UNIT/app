@@ -76,7 +76,7 @@ export default function AppNavigator({ seedConfirmed, setSeedConfirmed }) {
       fetchBalance={fetchBalance}
     >
       <VaultProvider currentAccount={currentAccount}>
-        <SeedPhraseProvider showToast={showToast}>
+        <SeedPhraseProvider showToast={showToast} setIsAuthenticated={setIsAuthenticated}>
           <AppNavigatorContent
             seedConfirmed={seedConfirmed}
             setSeedConfirmed={setSeedConfirmed}

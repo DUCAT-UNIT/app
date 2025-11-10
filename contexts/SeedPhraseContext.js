@@ -18,7 +18,7 @@ export const useSeedPhrase = () => {
   return context;
 };
 
-export const SeedPhraseProvider = ({ children, showToast }) => {
+export const SeedPhraseProvider = ({ children, showToast, setIsAuthenticated }) => {
   const [viewingSeedPhrase, setViewingSeedPhrase] = useState(false);
   const [seedPhraseWords, setSeedPhraseWords] = useState([]);
   const [seedPhraseVisible, setSeedPhraseVisible] = useState(false);
@@ -67,6 +67,10 @@ export const SeedPhraseProvider = ({ children, showToast }) => {
   // Request seed phrase viewing (will show PIN prompt first)
   const requestViewSeedPhrase = () => {
     setRequestingSeedPhrase(true);
+    // Lock the wallet to trigger PIN entry
+    if (setIsAuthenticated) {
+      setIsAuthenticated(false);
+    }
   };
 
   // Load and display seed phrase (called after PIN authentication)
