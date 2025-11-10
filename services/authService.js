@@ -40,7 +40,6 @@ export const savePin = async (pin) => {
     await SecureStore.setItemAsync(SECURE_KEYS.PIN, hashedPin);
     return true;
   } catch (error) {
-    console.error('Failed to save PIN:', error);
     return false;
   }
 };
@@ -123,7 +122,6 @@ export const verifyPin = async (enteredPin) => {
       };
     }
   } catch (error) {
-    console.error('Failed to verify PIN:', error);
     return {
       success: false,
       error: 'Failed to verify PIN',
@@ -141,7 +139,6 @@ export const checkBiometricSupport = async () => {
     const isEnrolled = await LocalAuthentication.isEnrolledAsync();
     return hasHardware && isEnrolled;
   } catch (error) {
-    console.error('Failed to check biometric support:', error);
     return false;
   }
 };
@@ -168,7 +165,6 @@ export const authenticateWithBiometrics = async (
       error: result.error,
     };
   } catch (error) {
-    console.error('Biometric authentication error:', error);
     return {
       success: false,
       error: error.message,
@@ -185,7 +181,6 @@ export const isBiometricEnabled = async () => {
     const enabled = await SecureStore.getItemAsync(SECURE_KEYS.BIOMETRIC_ENABLED);
     return enabled === 'true';
   } catch (error) {
-    console.error('Failed to check biometric enabled status:', error);
     return false;
   }
 };
@@ -200,7 +195,6 @@ export const setBiometricEnabled = async (enabled) => {
     await SecureStore.setItemAsync(SECURE_KEYS.BIOMETRIC_ENABLED, enabled ? 'true' : 'false');
     return true;
   } catch (error) {
-    console.error('Failed to set biometric enabled status:', error);
     return false;
   }
 };
@@ -215,7 +209,6 @@ export const saveMnemonic = async (mnemonic) => {
     await SecureStore.setItemAsync(SECURE_KEYS.MNEMONIC, mnemonic);
     return true;
   } catch (error) {
-    console.error('Failed to save mnemonic:', error);
     return false;
   }
 };
@@ -256,7 +249,6 @@ export const getMnemonic = async () => {
   try {
     return await SecureStore.getItemAsync(SECURE_KEYS.MNEMONIC);
   } catch (error) {
-    console.error('Failed to retrieve mnemonic:', error);
     return null;
   }
 };
@@ -293,7 +285,6 @@ export const deleteMnemonic = async () => {
     await SecureStore.deleteItemAsync(SECURE_KEYS.MNEMONIC);
     return true;
   } catch (error) {
-    console.error('Failed to delete mnemonic:', error);
     return false;
   }
 };
@@ -308,7 +299,6 @@ export const saveCurrentAccount = async (accountIndex) => {
     await SecureStore.setItemAsync(SECURE_KEYS.CURRENT_ACCOUNT, accountIndex.toString());
     return true;
   } catch (error) {
-    console.error('Failed to save current account:', error);
     return false;
   }
 };
@@ -322,7 +312,6 @@ export const getCurrentAccount = async () => {
     const account = await SecureStore.getItemAsync(SECURE_KEYS.CURRENT_ACCOUNT);
     return account ? parseInt(account, 10) : 0;
   } catch (error) {
-    console.error('Failed to retrieve current account:', error);
     return 0;
   }
 };
@@ -341,7 +330,6 @@ export const deleteWalletData = async () => {
     ]);
     return true;
   } catch (error) {
-    console.error('Failed to delete wallet data:', error);
     return false;
   }
 };

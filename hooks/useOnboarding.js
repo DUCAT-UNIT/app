@@ -113,7 +113,6 @@ export function useOnboarding({
       try {
         setWalletAddresses(addresses, currentAccount);
       } catch (balanceError) {
-        console.error('Failed to fetch balance during import:', balanceError);
         // Continue anyway - wallet is imported, balance will be fetched later
       }
 
@@ -125,7 +124,6 @@ export function useOnboarding({
       setImportingWallet(false);
       setImportSeedPhrase(Array(12).fill(''));
     } catch (error) {
-      console.error('Import wallet error:', error);
       showToast(ERRORS.WALLET_IMPORT_FAILED, 'error');
     }
   };
@@ -198,7 +196,6 @@ export function useOnboarding({
   const saveWalletAfterPinSetup = async () => {
     try {
       if (!tempMnemonic) {
-        console.error('No mnemonic to save');
         return false;
       }
 
@@ -216,7 +213,6 @@ export function useOnboarding({
 
       return true;
     } catch (error) {
-      console.error('Failed to save wallet after PIN setup:', error);
       return false;
     }
   };

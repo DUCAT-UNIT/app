@@ -322,13 +322,11 @@ export default function SendScreen({
         }
 
         if (!sourceAddress) {
-          console.error('[MAX] No source address available. Wallet:', !!wallet, 'Recipient:', sendRecipient);
           // Fallback: use balance-based estimation
           const estimatedFee = 250; // Conservative estimate
           const btcBalanceInSats = Math.round(btcBalance * 100000000);
           const maxSendable = Math.max(0, btcBalanceInSats - estimatedFee);
           const maxBtc = maxSendable / 100000000;
-          console.log('[MAX] Using balance-based fallback. Balance:', btcBalanceInSats, 'Max:', maxSendable);
           setSendAmount(String(maxBtc));
           return;
         }
@@ -355,7 +353,6 @@ export default function SendScreen({
         const totalInputValue = confirmedUtxos.reduce((sum, utxo) => sum + utxo.value, 0);
         const numInputsNeeded = confirmedUtxos.length;
 
-        console.log('[MAX] Total UTXOs:', numInputsNeeded, 'Total value:', totalInputValue, 'sats');
 
         // For MAX, we want to send everything, so we only need 1 output (recipient)
         // No change output since we're sending the maximum
@@ -366,17 +363,9 @@ export default function SendScreen({
         const estimatedFee = calculateFee(numInputsNeeded, 1);
         const actualMaxSendable = totalInputValue - estimatedFee;
 
-        console.log('[MAX] ========== MAX BUTTON PRESSED ==========');
-        console.log('[MAX] Total UTXOs value:', totalInputValue, 'sats');
-        console.log('[MAX] Number of UTXOs:', numInputsNeeded);
-        console.log('[MAX] Fee for', numInputsNeeded, 'inputs, 1 output:', estimatedFee, 'sats');
-        console.log('[MAX] Max sendable amount:', actualMaxSendable, 'sats');
-        console.log('[MAX] Max sendable in BTC:', (actualMaxSendable / 100000000).toFixed(8));
-        console.log('[MAX] =========================================');
 
         // Ensure we're above dust limit
         if (actualMaxSendable < DUST_LIMIT) {
-          console.error('Max sendable amount is below dust limit');
           setSendAmount('0');
           return;
         }
@@ -384,13 +373,11 @@ export default function SendScreen({
         const maxBtc = actualMaxSendable / 100000000;
         setSendAmount(String(maxBtc));
       } catch (error) {
-        console.error('[MAX] Error calculating max amount:', error);
         // Fallback on error: use balance-based estimation
         const estimatedFee = 250; // Conservative estimate
         const btcBalanceInSats = Math.round(btcBalance * 100000000);
         const maxSendable = Math.max(0, btcBalanceInSats - estimatedFee);
         const maxBtc = maxSendable / 100000000;
-        console.log('[MAX] Using error fallback. Balance:', btcBalanceInSats, 'Max:', maxSendable);
         setSendAmount(String(maxBtc));
       }
     } else {

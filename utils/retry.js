@@ -109,7 +109,6 @@ export async function retrySilently(fn, operationName = 'Operation', retryOption
     shouldRetry: (error) => {
       const shouldRetry = originalShouldRetry(error);
       if (shouldRetry) {
-        console.log(`${operationName} failed, retrying...`, error.message);
       }
       return shouldRetry;
     },

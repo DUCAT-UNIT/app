@@ -310,7 +310,6 @@ export default function Icon({ name, size = 24, color = '#DDDDDD', style }) {
   const IconComponent = IconComponents[name];
 
   if (!IconComponent) {
-    console.error(`Icon "${name}" not found`);
     return null;
   }
 

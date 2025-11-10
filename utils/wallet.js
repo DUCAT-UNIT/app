@@ -97,7 +97,6 @@ function varIntSize(value) {
  * @returns {Promise<string>} Signed PSBT in base64 format
  */
 export async function signPsbt(psbtBase64, signInputs) {
-  console.log('[signPsbt] Signing PSBT with inputs:', signInputs);
 
   // Get mnemonic from secure storage
   const mnemonic = await SecureStore.getItemAsync(SECURE_KEYS.MNEMONIC);
@@ -111,10 +110,8 @@ export async function signPsbt(psbtBase64, signInputs) {
     const storedAccount = await SecureStore.getItemAsync(SECURE_KEYS.CURRENT_ACCOUNT);
     if (storedAccount) {
       accountIndex = parseInt(storedAccount, 10);
-      console.log(`[signPsbt] Using stored account index: ${accountIndex}`);
     }
   } catch (error) {
-    console.log('[signPsbt] Could not get account index, using 0:', error);
   }
 
   // Convert mnemonic to seed
@@ -126,7 +123,6 @@ export async function signPsbt(psbtBase64, signInputs) {
 
   // Derive keys and sign inputs
   for (const [address, inputIndices] of Object.entries(signInputs)) {
-    console.log(`[signPsbt] Signing inputs for address ${address}:`, inputIndices);
 
     // Determine which derivation path to use based on address type
     let derivationPath;
@@ -147,8 +143,6 @@ export async function signPsbt(psbtBase64, signInputs) {
       // Log the pubkeys for debugging
       const compressedPubkey = child.publicKey;
       const xOnlyPubkey = compressedPubkey.slice(1, 33);
-      console.log(`[signPsbt] Taproot derived pubkey (compressed):`, compressedPubkey.toString('hex'));
-      console.log(`[signPsbt] Taproot derived pubkey (x-only):`, xOnlyPubkey.toString('hex'));
 
       // For Taproot, DON'T tweak the signer - bitcoinjs-lib will handle tweaking
       // when it sees tapInternalKey in the PSBT input
@@ -158,29 +152,17 @@ export async function signPsbt(psbtBase64, signInputs) {
       throw new Error(`Unsupported address type: ${address}`);
     }
 
-    console.log(`[signPsbt] Using derivation path: ${derivationPath}`);
 
     // Sign each input
     for (const inputIndex of inputIndices) {
-      console.log(`[signPsbt] Signing input ${inputIndex} for address ${address}`);
-      console.log(`[signPsbt] Address type check: startsWith('tb1p') = ${address.startsWith('tb1p')}`);
 
       try {
-        // Log PSBT input state before signing
-        const inputBefore = psbt.data.inputs[inputIndex];
-        console.log(`[signPsbt] Input ${inputIndex} before signing:`, {
-          hasTapInternalKey: !!inputBefore.tapInternalKey,
-          hasWitnessUtxo: !!inputBefore.witnessUtxo,
-          tapInternalKeyHex: inputBefore.tapInternalKey?.toString('hex'),
-        });
-
         // Use different signing methods based on address type
         if (address.startsWith('tb1p')) {
           // Taproot: Check if this is script-path or key-path spending
           const input = psbt.data.inputs[inputIndex];
           const isScriptPath = !!(input.tapLeafScript && input.tapLeafScript.length > 0);
 
-          console.log(`[signPsbt] Taproot signing - isScriptPath: ${isScriptPath}`);
 
           // Ensure privateKey is a Buffer
           let privateKey = keyPair.privateKey;
@@ -199,11 +181,8 @@ export async function signPsbt(psbtBase64, signInputs) {
 
           if (isScriptPath) {
             // SCRIPT-PATH spending (for deposits)
-            console.log(`[signPsbt] Using SCRIPT-PATH signing for Taproot`);
 
             const tapLeafScript = input.tapLeafScript[0];
-            console.log(`[signPsbt] Script:`, tapLeafScript.script.toString('hex'));
-            console.log(`[signPsbt] Control block:`, tapLeafScript.controlBlock.toString('hex'));
 
             // Compute the tapleaf hash
             const leafVersion = tapLeafScript.leafVersion;
@@ -222,7 +201,6 @@ export async function signPsbt(psbtBase64, signInputs) {
               ])
             );
 
-            console.log(`[signPsbt] Tapleaf hash:`, tapleafHash.toString('hex'));
 
             // Get the sighash for script-path spending
             const sighash = input.sighashType || 0x00; // SIGHASH_DEFAULT
@@ -234,13 +212,11 @@ export async function signPsbt(psbtBase64, signInputs) {
               tapleafHash
             );
 
-            console.log(`[signPsbt] Computed sighash for script-path`);
 
             // Sign with UNTWEAKED private key for script-path
             const signature = ecc.signSchnorr(hash, privateKey);
             const signatureBuffer = Buffer.from(signature);
 
-            console.log(`[signPsbt] Script-path signature:`, signatureBuffer.toString('hex').substring(0, 32) + '...');
 
             // Extract x-only pubkey for tapScriptSig
             const xOnlyPubkey = keyPair.publicKey.slice(1, 33);
@@ -253,20 +229,14 @@ export async function signPsbt(psbtBase64, signInputs) {
               signature: signatureBuffer,
             }];
 
-            console.log(`[signPsbt] Setting tapScriptSig with:`);
-            console.log(`[signPsbt]   - Pubkey: ${xOnlyPubkey.toString('hex').substring(0, 32)}...`);
-            console.log(`[signPsbt]   - LeafHash: ${tapleafHash.toString('hex').substring(0, 32)}...`);
-            console.log(`[signPsbt]   - Signature: ${signatureBuffer.length} bytes - ${signatureBuffer.toString('hex').substring(0, 32)}...`);
 
             // Update the PSBT with tapScriptSig (not finalized yet)
             psbt.updateInput(inputIndex, {
               tapScriptSig,
             });
 
-            console.log(`[signPsbt] tapScriptSig set for script-path spending`);
           } else {
             // KEY-PATH spending (for regular transfers)
-            console.log(`[signPsbt] Using KEY-PATH signing for Taproot`);
 
             // Get the sighash for key-path spending
             const sighash = input.sighashType || 0x00; // SIGHASH_DEFAULT
@@ -277,7 +247,6 @@ export async function signPsbt(psbtBase64, signInputs) {
               sighash
             );
 
-            console.log(`[signPsbt] Computed sighash for key-path`);
 
             // Get the private key and tweak it for key-path
             const xOnlyPubkey = keyPair.publicKey.slice(1, 33);
@@ -301,34 +270,19 @@ export async function signPsbt(psbtBase64, signInputs) {
               tapKeySig: signatureBuffer,
             });
 
-            console.log(`[signPsbt] Key-path signature added:`, signatureBuffer.toString('hex').substring(0, 32) + '...');
           }
         } else {
-          console.log(`[signPsbt] Using signInput for SegWit`);
           psbt.signInput(inputIndex, keyPair);
 
           // Finalize the SegWit input immediately after signing
           try {
             psbt.finalizeInput(inputIndex);
-            console.log(`[signPsbt] Finalized SegWit input ${inputIndex}`);
           } catch (error) {
-            console.error(`[signPsbt] Failed to finalize SegWit input ${inputIndex}:`, error);
           }
         }
 
-        // Log PSBT input state after signing
-        const inputAfter = psbt.data.inputs[inputIndex];
-        console.log(`[signPsbt] Input ${inputIndex} after signing:`, {
-          tapKeySig: inputAfter.tapKeySig?.toString('hex'),
-          hasTapScriptSig: !!inputAfter.tapScriptSig,
-          tapScriptSigCount: inputAfter.tapScriptSig?.length || 0,
-          hasPartialSig: !!inputAfter.partialSig,
-          partialSigCount: inputAfter.partialSig?.length || 0,
-        });
 
-        console.log(`[signPsbt] Successfully signed input ${inputIndex}`);
       } catch (error) {
-        console.error(`[signPsbt] Failed to sign input ${inputIndex}:`, error);
         throw error;
       }
     }
@@ -337,20 +291,6 @@ export async function signPsbt(psbtBase64, signInputs) {
   // Don't finalize - let the SDK handle that
   // Just return the signed PSBT
   const signedPsbtBase64 = psbt.toBase64();
-  console.log('[signPsbt] PSBT signing complete');
-
-  // Log PSBT state for debugging
-  console.log('[signPsbt] Final PSBT inputs:');
-  psbt.data.inputs.forEach((input, idx) => {
-    console.log(`  Input ${idx}:`, {
-      hasTapKeySig: !!input.tapKeySig,
-      tapKeySigLength: input.tapKeySig?.length,
-      hasTapScriptSig: !!input.tapScriptSig,
-      tapScriptSigCount: input.tapScriptSig?.length || 0,
-      hasPartialSig: !!input.partialSig,
-      hasFinalScriptWitness: !!input.finalScriptWitness,
-    });
-  });
 
   return signedPsbtBase64;
 }
@@ -362,7 +302,6 @@ export async function signPsbt(psbtBase64, signInputs) {
  * @returns {Promise<string>} Signature
  */
 export async function signMessage(address, message) {
-  console.log('[signMessage] Signing message for address:', address);
 
   // Get mnemonic from secure storage
   const mnemonic = await SecureStore.getItemAsync(SECURE_KEYS.MNEMONIC);
@@ -395,7 +334,6 @@ export async function signMessage(address, message) {
   const messageHash = bitcoin.crypto.sha256(Buffer.from(message, 'utf8'));
   const signature = keyPair.sign(messageHash);
 
-  console.log('[signMessage] Message signed successfully');
 
   return signature.toString('hex');
 }

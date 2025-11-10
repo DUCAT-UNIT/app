@@ -59,7 +59,6 @@ export default function ReceiveScreen({
         message: selectedAddress,
       });
     } catch (error) {
-      console.error('Error sharing:', error);
     }
   };
 

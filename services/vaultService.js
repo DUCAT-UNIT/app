@@ -5,7 +5,6 @@ const VAULT_API_BASE = 'https://validator.ducatprotocol.com/api';
 export const fetchVaultHistory = async (vaultPubkey) => {
   try {
     if (!vaultPubkey) {
-      console.log('No vault pubkey provided');
       return [];
     }
 
@@ -26,7 +25,6 @@ export const fetchVaultHistory = async (vaultPubkey) => {
     const vaultListData = await vaultListResponse.json();
 
     if (!vaultListData.vaults || vaultListData.vaults.length === 0) {
-      console.log('No vaults found');
       return [];
     }
 
@@ -58,14 +56,12 @@ export const fetchVaultHistory = async (vaultPubkey) => {
     const vaultHistoryData = await vaultHistoryResponse.json();
 
     if (!vaultHistoryData.history || vaultHistoryData.history.length === 0) {
-      console.log('No vault history found');
       return [];
     }
 
     // Return the full history array
     return vaultHistoryData.history;
   } catch (error) {
-    console.error('Error fetching vault history:', error);
     return [];
   }
 };
@@ -73,7 +69,6 @@ export const fetchVaultHistory = async (vaultPubkey) => {
 export const fetchVaultData = async (vaultPubkey) => {
   try {
     if (!vaultPubkey) {
-      console.log('No vault pubkey provided');
       return null;
     }
 
@@ -94,7 +89,6 @@ export const fetchVaultData = async (vaultPubkey) => {
     const vaultListData = await vaultListResponse.json();
 
     if (!vaultListData.vaults || vaultListData.vaults.length === 0) {
-      console.log('No vaults found');
       return null;
     }
 
@@ -127,7 +121,6 @@ export const fetchVaultData = async (vaultPubkey) => {
     const vaultHistoryData = await vaultHistoryResponse.json();
 
     if (!vaultHistoryData.history || vaultHistoryData.history.length === 0) {
-      console.log('No vault history found');
       return {
         vaultTag,
         totalDebt: vaultListData.total_debt,
@@ -155,7 +148,6 @@ export const fetchVaultData = async (vaultPubkey) => {
       },
     };
   } catch (error) {
-    console.error('Error fetching vault data:', error);
     return null;
   }
 };

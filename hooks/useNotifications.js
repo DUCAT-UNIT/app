@@ -31,12 +31,10 @@ export function useNotifications() {
 
     // Listen for notifications received while app is foregrounded
     notificationListener.current = Notifications.addNotificationReceivedListener(notification => {
-      console.log('Notification received:', notification);
     });
 
     // Listen for user interactions with notifications
     responseListener.current = Notifications.addNotificationResponseReceivedListener(response => {
-      console.log('Notification response:', response);
     });
 
     return () => {
@@ -63,7 +61,6 @@ export function useNotifications() {
       }
 
       if (finalStatus !== 'granted') {
-        console.log('Failed to get push notification permissions');
         return false;
       }
 
@@ -79,7 +76,6 @@ export function useNotifications() {
 
       return true;
     } catch (error) {
-      console.error('Error requesting notification permissions:', error);
       return false;
     }
   };
@@ -93,7 +89,6 @@ export function useNotifications() {
    */
   const sendTransactionConfirmedNotification = async (assetType, amount, txid, type = 'withdraw') => {
     try {
-      console.log('[Notification] Attempting to send notification:', { assetType, amount, txid, type });
 
       const notificationId = await Notifications.scheduleNotificationAsync({
         content: {
@@ -106,9 +101,7 @@ export function useNotifications() {
         trigger: null, // null means immediate
       });
 
-      console.log('[Notification] Successfully scheduled notification with ID:', notificationId);
     } catch (error) {
-      console.error('[Notification] Error sending notification:', error);
     }
   };
 

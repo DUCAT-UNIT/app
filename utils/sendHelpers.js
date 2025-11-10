@@ -3,6 +3,8 @@
  * Utilities for formatting and validating send transaction inputs
  */
 
+import { validateBitcoinAddress as validateBitcoinAddressCore } from './bitcoin';
+
 // Format number with commas while preserving decimals
 export const formatNumberWithCommas = (value) => {
   if (!value) return '';
@@ -37,25 +39,10 @@ export const formatBTC = (value) => {
   return trimmed;
 };
 
-// Bitcoin address validation
+// Bitcoin address validation using bitcoinjs-lib for proper validation
 export const validateBitcoinAddress = (address) => {
   if (!address) return { valid: false, error: '' };
 
-  const trimmed = address.trim();
-
-  // Check for basic bitcoin address patterns
-  const isValidFormat =
-    /^(bc1|tb1|[13])[a-zA-HJ-NP-Z0-9]{25,62}$/.test(trimmed) || // Mainnet/Testnet
-    /^[mn2][a-zA-HJ-NP-Z0-9]{25,34}$/.test(trimmed); // Legacy testnet
-
-  if (!isValidFormat) {
-    return { valid: false, error: 'Invalid Bitcoin address format' };
-  }
-
-  // Check length constraints
-  if (trimmed.length < 26 || trimmed.length > 90) {
-    return { valid: false, error: 'Address length is invalid' };
-  }
-
-  return { valid: true, error: '' };
+  // Use the core validation function from bitcoin.js
+  return validateBitcoinAddressCore(address);
 };

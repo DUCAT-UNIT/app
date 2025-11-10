@@ -58,7 +58,6 @@ export const fetchWithRetry = async (url, options = {}, maxRetries = 3, timeout 
       // If it's the last attempt, throw the error
       if (attempt === maxRetries) {
         if (!silent) {
-          console.error(`Request failed after ${maxRetries + 1} attempts:`, url, error);
         }
         throw error;
       }
@@ -67,7 +66,6 @@ export const fetchWithRetry = async (url, options = {}, maxRetries = 3, timeout 
       const backoffDelay = Math.min(1000 * Math.pow(2, attempt), 5000);
 
       if (!silent) {
-        console.log(`Request failed (attempt ${attempt + 1}/${maxRetries + 1}), retrying in ${backoffDelay}ms...`);
       }
 
       // Wait before retrying

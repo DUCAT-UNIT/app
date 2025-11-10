@@ -52,7 +52,6 @@ export const WalletProvider = ({ children }) => {
       const price = await fetchBtcPriceService();
       setBtcPrice(price);
     } catch (error) {
-      console.error('Failed to fetch BTC price:', error);
       setBtcPrice(null);
     } finally {
       setLoadingBtcPrice(false);
@@ -63,14 +62,12 @@ export const WalletProvider = ({ children }) => {
   const fetchVault = useCallback(async () => {
     try {
       if (!wallet?.taprootPubkey) {
-        console.log('No vault pubkey available');
         return;
       }
       setLoadingVault(true);
       const data = await fetchVaultData(wallet.taprootPubkey);
       setVaultData(data);
     } catch (error) {
-      console.error('Failed to fetch vault data:', error);
       setVaultData(null);
     } finally {
       setLoadingVault(false);
@@ -92,7 +89,6 @@ export const WalletProvider = ({ children }) => {
       setTaprootBalance(balances.taprootBalance);
       setRunesBalance(balances.runesBalance);
     } catch (error) {
-      console.error('Balance fetch error:', error);
       setSegwitBalance(0);
       setTaprootBalance(0);
       setRunesBalance([]);
@@ -116,7 +112,6 @@ export const WalletProvider = ({ children }) => {
       setUtxos(formattedUtxos);
       return formattedUtxos;
     } catch (error) {
-      console.error('Failed to fetch UTXOs:', error);
       throw error;
     } finally {
       setLoadingUtxos(false);
@@ -145,7 +140,6 @@ export const WalletProvider = ({ children }) => {
 
       return { exists: false };
     } catch (error) {
-      console.error('Failed to load wallet:', error);
       return { exists: false };
     }
   }, [fetchBalance]);
@@ -198,7 +192,6 @@ export const WalletProvider = ({ children }) => {
 
       return addresses;
     } catch (error) {
-      console.error('Failed to switch account:', error);
       throw error;
     }
   }, [fetchBalance, fetchVault]);

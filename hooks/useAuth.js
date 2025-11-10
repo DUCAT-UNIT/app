@@ -45,7 +45,6 @@ export function useAuth({ onSeedConfirmed }) {
       const biometricPref = await SecureStore.getItemAsync(SECURE_KEYS.BIOMETRIC_ENABLED);
       setBiometricEnabled(biometricPref === 'true');
     } catch (error) {
-      console.error('Failed to load biometric preference:', error);
     }
   };
 

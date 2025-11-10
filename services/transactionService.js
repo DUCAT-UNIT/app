@@ -7,7 +7,7 @@ import BIP32Factory from 'bip32';
 import * as bip39 from 'bip39';
 import * as ecc from '@bitcoinerlab/secp256k1';
 import { encodeRunestone } from '../runestone-encoder';
-import { MUTINYNET_NETWORK } from '../utils/bitcoin';
+import { MUTINYNET_NETWORK, validateAndNormalizeAddress } from '../utils/bitcoin';
 import { fetchUtxos as fetchUtxosService } from './balanceService';
 import * as AuthService from './authService';
 import { ERRORS } from '../utils/messages';
@@ -27,6 +27,8 @@ bitcoin.initEccLib(ecc);
  */
 export const createBtcIntent = async (recipient, amount, segwitAddress, currentAccount) => {
   try {
+    // Validate and normalize recipient address
+    const validatedRecipient = validateAndNormalizeAddress(recipient);
 
     // Replace comma with period for locales that use comma as decimal separator
     const normalizedAmount = amount.replace(',', '.');
@@ -79,8 +81,6 @@ export const createBtcIntent = async (recipient, amount, segwitAddress, currentA
 
     // Calculate total available balance
     const totalAvailable = availableUtxos.reduce((sum, utxo) => sum + utxo.value, 0);
-    console.log('[createBtcIntent] Total available balance:', totalAvailable, 'sats');
-    console.log('[createBtcIntent] Requested amount:', amountInSats, 'sats');
 
     // Iteratively select UTXOs and recalculate fee
     do {
@@ -113,26 +113,20 @@ export const createBtcIntent = async (recipient, amount, segwitAddress, currentA
       estimatedFee = calculateFee(selectedUtxos.length, numOutputs);
     } while (estimatedFee !== previousFee && selectedUtxos.length < availableUtxos.length);
 
-    console.log('[createBtcIntent] Selected', selectedUtxos.length, 'UTXOs with total value:', totalInput, 'sats');
-    console.log('[createBtcIntent] Estimated fee:', estimatedFee, 'sats');
 
     // Calculate preliminary change to determine if we need 1 or 2 outputs
     const DUST_LIMIT = 546; // Bitcoin dust limit in satoshis
     let preliminaryChange = totalInput - amountInSats - estimatedFee;
-    console.log('[createBtcIntent] Preliminary change with 2 outputs:', preliminaryChange, 'sats');
 
     // If change would be below dust (including negative), recalculate fee for 1 output (no change)
     if (preliminaryChange < DUST_LIMIT) {
-      console.log('[createBtcIntent] Change below dust limit (' + preliminaryChange + ' sats), recalculating fee for 1 output');
       estimatedFee = calculateFee(selectedUtxos.length, 1);
       preliminaryChange = totalInput - amountInSats - estimatedFee;
-      console.log('[createBtcIntent] New fee with 1 output:', estimatedFee, 'sats, new change:', preliminaryChange, 'sats');
     }
 
     // Final check for sufficient funds
     const requiredAmount = amountInSats + estimatedFee;
     if (totalInput < requiredAmount) {
-      console.error('[createBtcIntent] Insufficient funds. Need:', requiredAmount, 'Have:', totalInput, 'Available:', totalAvailable);
       throw new Error(ERRORS.INSUFFICIENT_FUNDS);
     }
 
@@ -187,7 +181,7 @@ export const createBtcIntent = async (recipient, amount, segwitAddress, currentA
 
     // Add output (recipient)
     psbt.addOutput({
-      address: recipient,
+      address: validatedRecipient,
       value: BigInt(amountInSats),
     });
 
@@ -217,7 +211,7 @@ export const createBtcIntent = async (recipient, amount, segwitAddress, currentA
       type: 'send',
       amount: amountInSats,
       amountBTC: amount,
-      recipient,
+      recipient: validatedRecipient,
       fee: finalFee,
       addressType, // Always 'segwit' for BTC
       sourceAddress,
@@ -231,7 +225,6 @@ export const createBtcIntent = async (recipient, amount, segwitAddress, currentA
 
     return intent;
   } catch (error) {
-    console.error('Failed to create BTC transaction:', error);
     throw error;
   }
 };
@@ -247,6 +240,8 @@ export const createBtcIntent = async (recipient, amount, segwitAddress, currentA
  */
 export const createUnitIntent = async (recipient, amount, taprootAddress, segwitAddress, currentAccount) => {
   try {
+    // Validate and normalize recipient address
+    const validatedRecipient = validateAndNormalizeAddress(recipient);
 
     // Parse amount and multiply by 100 for runestone encoding
     const normalizedAmount = amount.replace(',', '.');
@@ -422,7 +417,6 @@ export const createUnitIntent = async (recipient, amount, taprootAddress, segwit
     if (runestoneScript) {
       const scriptHex = Buffer.from(runestoneScript).toString('hex');
     } else {
-      console.error('ERROR: runestoneScript is null/undefined!');
     }
 
     // Add outputs (OP_RETURN last) - exactly like working example
@@ -434,7 +428,7 @@ export const createUnitIntent = async (recipient, amount, taprootAddress, segwit
 
     // Output 1: Recipient (gets specified runes via edict)
     psbt.addOutput({
-      address: recipient,
+      address: validatedRecipient,
       value: BigInt(recipientSats),
     });
 
@@ -465,7 +459,7 @@ export const createUnitIntent = async (recipient, amount, taprootAddress, segwit
       assetType: 'UNIT',
       amount: amountInRunes,
       amountDisplay: `${amountInRunes} UNIT`,
-      recipient,
+      recipient: validatedRecipient,
       fee: fee,
       addressType: 'taproot',
       sourceAddress: derivedTaprootAddress,
@@ -480,7 +474,6 @@ export const createUnitIntent = async (recipient, amount, taprootAddress, segwit
 
     return intent;
   } catch (error) {
-    console.error('Failed to create UNIT transaction:', error);
     throw error;
   }
 };
@@ -680,7 +673,6 @@ export const signIntent = async (intent, currentAccount) => {
       txid: signedTx.getId(),
     };
   } catch (error) {
-    console.error('Failed to sign transaction:', error);
     throw error;
   }
 };
@@ -710,7 +702,6 @@ export const broadcastTransaction = async (signedTxHex) => {
 
     return txid;
   } catch (error) {
-    console.error('Broadcast error:', error);
     throw error;
   }
 };

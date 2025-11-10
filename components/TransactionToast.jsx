@@ -63,7 +63,6 @@ export default function TransactionToast({ visible, status, message, txid, asset
         await Linking.openURL(url);
       }
     } catch (error) {
-      console.error('Error opening transaction in explorer:', error);
     }
   };
 

@@ -191,7 +191,6 @@ export function decodeRunestone(script) {
 
     return { edicts };
   } catch (error) {
-    console.error('Failed to decode runestone:', error);
     return null;
   }
 }

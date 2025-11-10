@@ -22,7 +22,6 @@ export default function AssetSelectorSheet({
 }) {
   if (!visible) return null;
 
-  console.log('[AssetSelector] btcBalance:', btcBalance, 'unitBalance:', unitBalance, 'btcPrice:', btcPrice);
 
   // Calculate USD values
   const btcUsdValue = (btcBalance || 0) * (btcPrice || 0);

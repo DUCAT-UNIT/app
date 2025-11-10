@@ -36,7 +36,6 @@ export default function PinSetupScreen({
   const [showBiometricPrompt, setShowBiometricPrompt] = useState(false);
 
   // Debug: Log when component renders
-  console.log('PinSetupScreen render:', { changingPin, onCancel: !!onCancel });
 
   const handlePinDigit = (digit) => {
     if (pinStep === 'enter') {

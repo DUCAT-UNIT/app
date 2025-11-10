@@ -56,7 +56,6 @@ export function useSettings({
           setShowZeroAssets(savedShowZeroAssets === 'true');
         }
       } catch (error) {
-        console.error('Failed to load settings:', error);
       }
     };
     loadSettings();
@@ -159,7 +158,6 @@ export function useSettings({
     try {
       await SecureStore.setItemAsync('privacyMode', String(newPrivacyMode));
     } catch (error) {
-      console.error('Failed to save privacy mode:', error);
     }
   };
 
@@ -185,7 +183,6 @@ export function useSettings({
           return;
         }
       } catch (error) {
-        console.error('Authentication failed:', error);
         if (showToast) {
           showToast('Authentication required to enable Face ID', 'error');
         }
@@ -201,7 +198,6 @@ export function useSettings({
         showToast(`Face ID ${newValue ? 'enabled' : 'disabled'}`, 'success');
       }
     } catch (error) {
-      console.error('Failed to save Face ID setting:', error);
       if (showToast) {
         showToast('Failed to update Face ID setting', 'error');
       }
@@ -236,7 +232,6 @@ export function useSettings({
           return;
         }
       } catch (error) {
-        console.error('Authentication failed:', error);
         if (showToast) {
           showToast('Authentication required to enable notifications', 'error');
         }
@@ -252,7 +247,6 @@ export function useSettings({
         showToast(`Notifications ${newValue ? 'enabled' : 'disabled'}`, 'success');
       }
     } catch (error) {
-      console.error('Failed to save notifications setting:', error);
       if (showToast) {
         showToast('Failed to update notifications setting', 'error');
       }

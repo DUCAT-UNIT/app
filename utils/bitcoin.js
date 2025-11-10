@@ -60,3 +60,69 @@ export const deriveAddressesFromMnemonic = (mnemonic, accountIndex = 0) => {
     taprootPubkey: Buffer.from(xOnlyPubkey).toString('hex'), // Use x-only pubkey (32 bytes) for Taproot
   };
 };
+
+/**
+ * Validate a Bitcoin address for the current network
+ * @param {string} address - Bitcoin address to validate
+ * @returns {{valid: boolean, type?: string, error?: string}} Validation result
+ */
+export const validateBitcoinAddress = (address) => {
+  if (!address || typeof address !== 'string') {
+    return { valid: false, error: 'Address is required' };
+  }
+
+  const trimmedAddress = address.trim();
+
+  if (trimmedAddress.length === 0) {
+    return { valid: false, error: 'Address cannot be empty' };
+  }
+
+  try {
+    // Try to decode the address using bitcoinjs-lib
+    const decoded = bitcoin.address.toOutputScript(trimmedAddress, MUTINYNET_NETWORK);
+
+    // Determine address type based on prefix
+    let addressType = 'unknown';
+    if (trimmedAddress.startsWith('tb1p')) {
+      addressType = 'taproot'; // Bech32m (P2TR)
+    } else if (trimmedAddress.startsWith('tb1q')) {
+      addressType = 'segwit'; // Bech32 (P2WPKH)
+    } else if (trimmedAddress.startsWith('2') || trimmedAddress.startsWith('m') || trimmedAddress.startsWith('n')) {
+      addressType = 'legacy'; // P2SH or P2PKH
+    }
+
+    return {
+      valid: true,
+      type: addressType,
+    };
+  } catch (error) {
+    // Check if it might be a mainnet address
+    if (address.startsWith('bc1') || address.startsWith('1') || address.startsWith('3')) {
+      return {
+        valid: false,
+        error: 'Mainnet address detected. Please use a testnet address (starting with tb1, 2, m, or n)',
+      };
+    }
+
+    return {
+      valid: false,
+      error: 'Invalid Bitcoin address format',
+    };
+  }
+};
+
+/**
+ * Validate and normalize a Bitcoin address
+ * @param {string} address - Bitcoin address to validate and normalize
+ * @returns {string} Normalized address (trimmed)
+ * @throws {Error} If address is invalid
+ */
+export const validateAndNormalizeAddress = (address) => {
+  const validation = validateBitcoinAddress(address);
+
+  if (!validation.valid) {
+    throw new Error(validation.error);
+  }
+
+  return address.trim();
+};

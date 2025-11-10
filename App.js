@@ -372,7 +372,6 @@ export default function App() {
           setIsAuthenticated(true);
         }
       } catch (error) {
-        console.error('Failed to initialize wallet:', error);
       } finally {
         // Hide loading screen after a brief delay to show the logo
         setTimeout(() => setIsLoading(false), 1500);
@@ -463,7 +462,6 @@ export default function App() {
 
       // Validate inputs
       if (!trimmedRecipient || !sendAmount) {
-        console.error('Missing recipient or amount');
         showToast(ERRORS.MISSING_RECIPIENT_AMOUNT, 'error');
         setIntentStep('idle');
         return;
@@ -478,12 +476,10 @@ export default function App() {
       } else if (sendAssetType === 'unit') {
         await createUnitIntent();
       } else {
-        console.error('Invalid asset type:', sendAssetType);
         showToast(ERRORS.ASSET_SELECTION_REQUIRED, 'error');
         setIntentStep('idle');
       }
     } catch (error) {
-      console.error('Failed to create transaction:', error);
       showToast(parseErrorMessage(error), 'error');
       setIntentStep('idle');
     }
@@ -506,7 +502,6 @@ export default function App() {
       setTimeout(() => {
       }, 100);
     } catch (error) {
-      console.error('Failed to create BTC transaction:', error);
       showToast(parseErrorMessage(error), 'error');
       setIntentStep('idle');
       throw error;
@@ -527,7 +522,6 @@ export default function App() {
       setSendIntent(intent);
       setIntentStep('reviewing');
     } catch (error) {
-      console.error('Failed to create UNIT transaction:', error);
       showToast(parseErrorMessage(error), 'error');
       setIntentStep('idle');
       throw error;
@@ -560,7 +554,6 @@ export default function App() {
       // Automatically broadcast
       await broadcastIntent(signedIntent);
     } catch (error) {
-      console.error('Failed to sign transaction:', error);
       showToast(parseErrorMessage(error), 'error');
       setIntentStep('reviewing');
     }
@@ -570,7 +563,6 @@ export default function App() {
   const broadcastIntent = async (intent = sendIntent) => {
     try {
       if (!intent || !intent.signedTxHex) {
-        console.error('No signed transaction to broadcast');
         showToast(ERRORS.TRANSACTION_CANCELLED, 'error');
         return;
       }
@@ -585,21 +577,17 @@ export default function App() {
       // Add to background monitoring for notifications when app is backgrounded
       const assetType = sendAssetType === 'unit' ? 'UNIT' : 'BTC';
       await BackgroundTaskService.addPendingTransaction(txid, assetType, sendAmount, 'withdraw');
-      console.log('[App] Added transaction to background monitoring:', txid);
 
       // Start polling for confirmation using the hook
       startTransactionPolling(
         txid,
         (isConfirmed) => {
           // On confirmation (or max attempts)
-          console.log('[App] Transaction polling callback triggered. isConfirmed:', isConfirmed);
           if (isConfirmed) {
             // Send push notification with amount and asset type (only if notifications are enabled)
             if (notificationsEnabled) {
-              console.log('[App] Calling sendTransactionConfirmedNotification with:', { assetType, amount: sendAmount, txid });
               sendTransactionConfirmedNotification(assetType, sendAmount, txid, 'withdraw');
             } else {
-              console.log('[App] Notifications disabled, skipping notification');
             }
             // Remove from background monitoring since it's confirmed
             BackgroundTaskService.removePendingTransaction(txid);
@@ -609,7 +597,6 @@ export default function App() {
         }
       );
     } catch (error) {
-      console.error('Broadcast error:', error);
       showToast(parseErrorMessage(error), 'error');
       setIntentStep('reviewing');
     }
@@ -673,7 +660,6 @@ export default function App() {
       // Get mnemonic
       const mnemonic = await SecureStore.getItemAsync(SECURE_KEYS.MNEMONIC);
       if (!mnemonic) {
-        console.error('No mnemonic found');
         setActiveTab('vault');
         return;
       }
@@ -681,9 +667,6 @@ export default function App() {
       // Derive addresses and public keys for current account
       const addresses = deriveAddressesFromMnemonic(mnemonic, currentAccount);
 
-      console.log('[handleOpenVault] Using account:', currentAccount);
-      console.log('[handleOpenVault] SegWit address:', addresses.segwitAddress);
-      console.log('[handleOpenVault] Taproot address:', addresses.taprootAddress);
 
       // Set credentials for vault WebView
       setVaultCredentials({
@@ -697,14 +680,12 @@ export default function App() {
 
       // Trigger auto-create if requested by incrementing counter
       if (shouldAutoCreate) {
-        console.log('[handleOpenVault] Triggering auto-create by incrementing counter');
         setAutoCreateVaultTrigger(prev => prev + 1);
       }
 
       // Switch to vault tab
       setActiveTab('vault');
     } catch (error) {
-      console.error('Failed to open vault:', error);
       setActiveTab('vault');
     }
   };

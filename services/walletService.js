@@ -28,7 +28,6 @@ export const generateWallet = async (accountIndex = 0) => {
       addresses,
     };
   } catch (error) {
-    console.error('Failed to generate wallet:', error);
     throw new Error('Failed to generate wallet: ' + error.message);
   }
 };
@@ -56,7 +55,6 @@ export const importWallet = async (mnemonic, accountIndex = 0) => {
       addresses,
     };
   } catch (error) {
-    console.error('Failed to import wallet:', error);
     throw error;
   }
 };
@@ -75,7 +73,6 @@ export const loadWalletFromStorage = async () => {
       accountIndex,
     };
   } catch (error) {
-    console.error('Failed to load wallet from storage:', error);
     throw new Error('Failed to load wallet from storage: ' + error.message);
   }
 };
@@ -103,7 +100,6 @@ export const switchToAccount = async (accountIndex) => {
       addresses,
     };
   } catch (error) {
-    console.error('Failed to switch account:', error);
     throw new Error('Failed to switch account: ' + error.message);
   }
 };
@@ -121,7 +117,6 @@ export const saveWalletToStorage = async (mnemonic, accountIndex = 0) => {
 
     return mnemonicSaved && accountSaved;
   } catch (error) {
-    console.error('Failed to save wallet to storage:', error);
     return false;
   }
 };

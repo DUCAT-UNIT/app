@@ -33,7 +33,6 @@ export function useTransactionPolling() {
 
         return false;
       } catch (error) {
-        console.error('Error polling transaction:', error);
         if (onError) {
           onError(error);
         }

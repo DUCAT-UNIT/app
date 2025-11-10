@@ -36,7 +36,6 @@ export function useAppLifecycle({
           await ScreenCapture.allowScreenCaptureAsync();
         }
       } catch (error) {
-        console.error('Screen capture error:', error);
       }
     };
 

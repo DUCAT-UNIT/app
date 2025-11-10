@@ -17,12 +17,10 @@ const PENDING_TX_KEY = 'pending_transactions';
  */
 TaskManager.defineTask(BACKGROUND_FETCH_TASK, async () => {
   try {
-    console.log('[Background] Checking for transaction confirmations...');
 
     // Get pending transactions from storage
     const pendingTxsJson = await SecureStore.getItemAsync(PENDING_TX_KEY);
     if (!pendingTxsJson) {
-      console.log('[Background] No pending transactions');
       return BackgroundFetch.BackgroundFetchResult.NoData;
     }
 
@@ -56,7 +54,6 @@ TaskManager.defineTask(BACKGROUND_FETCH_TASK, async () => {
       ? BackgroundFetch.BackgroundFetchResult.NewData
       : BackgroundFetch.BackgroundFetchResult.NoData;
   } catch (error) {
-    console.error('[Background] Error checking transactions:', error);
     return BackgroundFetch.BackgroundFetchResult.Failed;
   }
 });
@@ -72,7 +69,6 @@ async function checkTransactionConfirmation(txid) {
     const tx = await response.json();
     return tx.status && tx.status.confirmed;
   } catch (error) {
-    console.error('[Background] Error fetching tx:', error);
     return false;
   }
 }
@@ -87,9 +83,7 @@ export async function registerBackgroundFetchAsync() {
       stopOnTerminate: false, // Continue after app is closed
       startOnBoot: true, // Start on device reboot
     });
-    console.log('[Background] Task registered successfully');
   } catch (error) {
-    console.error('[Background] Failed to register task:', error);
   }
 }
 
@@ -99,9 +93,7 @@ export async function registerBackgroundFetchAsync() {
 export async function unregisterBackgroundFetchAsync() {
   try {
     await BackgroundFetch.unregisterTaskAsync(BACKGROUND_FETCH_TASK);
-    console.log('[Background] Task unregistered');
   } catch (error) {
-    console.error('[Background] Failed to unregister task:', error);
   }
 }
 
@@ -123,9 +115,7 @@ export async function addPendingTransaction(txid, assetType, amount, type = 'wit
     });
 
     await SecureStore.setItemAsync(PENDING_TX_KEY, JSON.stringify(pendingTxs));
-    console.log('[Background] Added pending transaction:', txid);
   } catch (error) {
-    console.error('[Background] Failed to add pending transaction:', error);
   }
 }
 
@@ -141,9 +131,7 @@ export async function removePendingTransaction(txid) {
     const updatedTxs = pendingTxs.filter(tx => tx.txid !== txid);
 
     await SecureStore.setItemAsync(PENDING_TX_KEY, JSON.stringify(updatedTxs));
-    console.log('[Background] Removed pending transaction:', txid);
   } catch (error) {
-    console.error('[Background] Failed to remove pending transaction:', error);
   }
 }
 
@@ -155,7 +143,6 @@ export async function getPendingTransactions() {
     const pendingTxsJson = await SecureStore.getItemAsync(PENDING_TX_KEY);
     return pendingTxsJson ? JSON.parse(pendingTxsJson) : [];
   } catch (error) {
-    console.error('[Background] Failed to get pending transactions:', error);
     return [];
   }
 }

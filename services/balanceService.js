@@ -111,7 +111,6 @@ export const fetchBtcPrice = async () => {
       return data.bitcoin.usd;
     }, 'Fetch BTC price');
   } catch (error) {
-    console.error('Failed to fetch BTC price:', error);
     return null;
   }
 };

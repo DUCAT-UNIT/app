@@ -108,14 +108,11 @@ export default function TransactionHistoryScreen({
 
       // First, collect all vault transaction IDs
       const vaultTxIds = new Set();
-      console.log('[TxHistory] Processing vault history, count:', vaultHistory.length);
       vaultHistory.forEach(vaultTx => {
         if (vaultTx.transaction_id) {
-          console.log('[TxHistory] Adding vault transaction_id to set:', vaultTx.transaction_id);
           vaultTxIds.add(vaultTx.transaction_id);
         }
       });
-      console.log('[TxHistory] Total vault tx IDs collected:', vaultTxIds.size);
 
       // Combine and deduplicate by txid, but exclude any that are vault transactions
       const txMap = new Map();
@@ -124,7 +121,6 @@ export default function TransactionHistoryScreen({
         if (!vaultTxIds.has(tx.txid) && !txMap.has(tx.txid)) {
           txMap.set(tx.txid, tx);
         } else if (vaultTxIds.has(tx.txid)) {
-          console.log('[TxHistory] Filtering out duplicate tx:', tx.txid);
         }
       });
 
@@ -156,7 +152,6 @@ export default function TransactionHistoryScreen({
 
       setTransactions(allTxs);
     } catch (error) {
-      console.error('Failed to fetch transaction history:', error);
     } finally {
       setLoading(false);
     }
@@ -174,7 +169,6 @@ export default function TransactionHistoryScreen({
       const txs = await response.json();
       return txs || [];
     } catch (error) {
-      console.error('Error fetching transactions for', address, error);
       return [];
     }
   };
@@ -207,10 +201,8 @@ export default function TransactionHistoryScreen({
       if (supported) {
         await Linking.openURL(url);
       } else {
-        console.error('Cannot open URL:', url);
       }
     } catch (error) {
-      console.error('Error opening transaction in explorer:', error);
     }
   };
 
@@ -258,7 +250,6 @@ export default function TransactionHistoryScreen({
         const targetOutput = tx.vout?.[outputIndex];
 
         if (!targetOutput) {
-          console.warn('UNIT edict references missing output:', outputIndex);
           continue;
         }
 
@@ -289,8 +280,6 @@ export default function TransactionHistoryScreen({
 
       return null;
     } catch (error) {
-      console.error('Failed to parse rune transfer for tx:', tx.txid, error);
-      console.error('Error details:', error.message, error.stack);
       return null;
     }
   };

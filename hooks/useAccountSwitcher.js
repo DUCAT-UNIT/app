@@ -25,7 +25,6 @@ export function useAccountSwitcher({ switchAccountContext }) {
       setShowAccountPicker(false);
       setNewAccountIndex('');
     } catch (error) {
-      console.error('Switch account error:', error);
       Alert.alert(DIALOGS.ERROR_TITLE, ERRORS.ACCOUNT_SWITCH_FAILED);
     } finally {
       setSwitchingAccount(false);
