@@ -41,9 +41,8 @@ import SplashScreen from './components/SplashScreen';
 import AccountSwitcherModal from './components/AccountSwitcherModal';
 import ConfirmationModal from './components/ConfirmationModal';
 
-// Import pages
-import OnboardingPage from './pages/OnboardingPage';
-import WalletPage from './pages/WalletPage';
+// Import navigation
+import RootNavigator from './navigation/RootNavigator';
 
 // Import contexts
 import { useWallet } from './contexts/WalletContext';
@@ -623,52 +622,7 @@ function AppContent({ seedConfirmed, setSeedConfirmed }) {
     return <SplashScreen />;
   }
 
-  // Check if we should show onboarding/auth screens
-  // Show onboarding if:
-  // - No wallet yet OR
-  // - Wallet exists but seed not confirmed (still in creation flow) OR
-  // - Setting up PIN OR
-  // - Showing PIN entry OR
-  // - Locked (not authenticated but wallet exists and seed confirmed)
-  const shouldShowOnboarding = !wallet ||
-    (wallet && !seedConfirmed) ||
-    settingUpPin ||
-    showPinEntry ||
-    (!isAuthenticated && wallet && seedConfirmed);
-
-  if (shouldShowOnboarding) {
-    return (
-      <OnboardingPage
-        seedConfirmed={seedConfirmed}
-        setSeedConfirmed={setSeedConfirmed}
-        showToast={showToast}
-        fetchBalance={fetchBalance}
-        resetWalletAndState={resetWalletAndState}
-        handlePinSetupCompleteWrapper={handlePinSetupCompleteWrapper}
-        handlePinChangeCompleteWrapper={handlePinChangeCompleteWrapper}
-        handleCancelPinChange={handleCancelPinChange}
-        handleLockScreenAuthenticatedWrapper={handleLockScreenAuthenticatedWrapper}
-        styles={styles}
-      />
-    );
-  }
-
-  // Account Picker Modal (only shown when authenticated and wallet exists)
-  if (showAccountPicker) {
-    return (
-      <AccountSwitcherModal
-        visible={showAccountPicker}
-        accountIndex={newAccountIndex}
-        switchingAccount={switchingAccount}
-        onClose={() => setShowAccountPicker(false)}
-        onAccountIndexChange={setNewAccountIndex}
-        onSwitch={switchAccount}
-        styles={styles}
-      />
-    );
-  }
-
-  // At this point, user is authenticated and has a wallet - show the main wallet UI
+  // Settings handlers for WalletPage
   const settingsHandlers = {
     privacyMode: privacyMode || false,
     notificationsEnabled: notificationsEnabled || false,
@@ -683,9 +637,65 @@ function AppContent({ seedConfirmed, setSeedConfirmed }) {
     handleShowZeroAssetsToggle,
   };
 
+  // Account Picker Modal (overlays navigation)
+  if (showAccountPicker) {
+    return (
+      <>
+        <RootNavigator
+          isAuthenticated={isAuthenticated}
+          wallet={wallet}
+          seedConfirmed={seedConfirmed}
+          settingUpPin={settingUpPin}
+          showPinEntry={showPinEntry}
+          setSeedConfirmed={setSeedConfirmed}
+          showToast={showToast}
+          fetchBalance={fetchBalance}
+          resetWalletAndState={resetWalletAndState}
+          handlePinSetupCompleteWrapper={handlePinSetupCompleteWrapper}
+          handlePinChangeCompleteWrapper={handlePinChangeCompleteWrapper}
+          handleCancelPinChange={handleCancelPinChange}
+          handleLockScreenAuthenticatedWrapper={handleLockScreenAuthenticatedWrapper}
+          resetInactivityTimer={resetInactivityTimer}
+          handleOpenVault={handleOpenVault}
+          vaultCredentials={vaultCredentials}
+          autoCreateVaultTrigger={autoCreateVaultTrigger}
+          amountInputRef={amountInputRef}
+          setShowAccountPicker={setShowAccountPicker}
+          settingsHandlers={settingsHandlers}
+          biometricEnabled={biometricEnabled}
+          activeTab={activeTab}
+          setActiveTab={setActiveTab}
+          keyboardHeight={keyboardHeight}
+          styles={styles}
+        />
+        <AccountSwitcherModal
+          visible={showAccountPicker}
+          accountIndex={newAccountIndex}
+          switchingAccount={switchingAccount}
+          onClose={() => setShowAccountPicker(false)}
+          onAccountIndexChange={setNewAccountIndex}
+          onSwitch={switchAccount}
+          styles={styles}
+        />
+      </>
+    );
+  }
+
   return (
-    <WalletPage
-      styles={styles}
+    <RootNavigator
+      isAuthenticated={isAuthenticated}
+      wallet={wallet}
+      seedConfirmed={seedConfirmed}
+      settingUpPin={settingUpPin}
+      showPinEntry={showPinEntry}
+      setSeedConfirmed={setSeedConfirmed}
+      showToast={showToast}
+      fetchBalance={fetchBalance}
+      resetWalletAndState={resetWalletAndState}
+      handlePinSetupCompleteWrapper={handlePinSetupCompleteWrapper}
+      handlePinChangeCompleteWrapper={handlePinChangeCompleteWrapper}
+      handleCancelPinChange={handleCancelPinChange}
+      handleLockScreenAuthenticatedWrapper={handleLockScreenAuthenticatedWrapper}
       resetInactivityTimer={resetInactivityTimer}
       handleOpenVault={handleOpenVault}
       vaultCredentials={vaultCredentials}
@@ -697,6 +707,7 @@ function AppContent({ seedConfirmed, setSeedConfirmed }) {
       activeTab={activeTab}
       setActiveTab={setActiveTab}
       keyboardHeight={keyboardHeight}
+      styles={styles}
     />
   );
 }
