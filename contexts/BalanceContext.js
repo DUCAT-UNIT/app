@@ -1,5 +1,6 @@
 import React, { createContext, useContext, useState, useEffect, useCallback, useRef } from 'react';
 import { fetchWalletBalances, fetchUtxos as fetchUtxosService, fetchBtcPrice as fetchBtcPriceService } from '../services/balanceService';
+import { fetchVaultData } from '../services/vaultService';
 import { useWallet } from './WalletContext';
 import { useAuth } from './AuthContext';
 import * as SecureStore from 'expo-secure-store';
@@ -33,6 +34,10 @@ export const BalanceProvider = ({ children, seedConfirmed }) => {
   // UTXOs state
   const [utxos, setUtxos] = useState([]);
   const [loadingUtxos, setLoadingUtxos] = useState(false);
+
+  // Vault data state
+  const [vaultData, setVaultData] = useState(null);
+  const [loadingVault, setLoadingVault] = useState(false);
 
   // Airdrop modal state
   const [showAirdropModal, setShowAirdropModal] = useState(false);
@@ -74,12 +79,29 @@ export const BalanceProvider = ({ children, seedConfirmed }) => {
     }
   }, [wallet]);
 
-  // Refresh balances (pull-to-refresh)
+  // Fetch vault data
+  const fetchVault = useCallback(async () => {
+    const vaultPubkey = wallet?.taprootPubkey;
+
+    if (!vaultPubkey) return;
+
+    try {
+      setLoadingVault(true);
+      const data = await fetchVaultData(vaultPubkey);
+      setVaultData(data);
+    } catch (error) {
+      setVaultData(null);
+    } finally {
+      setLoadingVault(false);
+    }
+  }, [wallet]);
+
+  // Refresh balances and vault data (pull-to-refresh)
   const onRefresh = useCallback(async () => {
     setRefreshing(true);
-    await fetchBalance();
+    await Promise.all([fetchBalance(), fetchVault()]);
     setRefreshing(false);
-  }, [fetchBalance]);
+  }, [fetchBalance, fetchVault]);
 
   // Fetch UTXOs for transaction creation
   const fetchUtxos = useCallback(async (address) => {
@@ -95,12 +117,13 @@ export const BalanceProvider = ({ children, seedConfirmed }) => {
     }
   }, []);
 
-  // Reset balances (called when wallet is reset)
+  // Reset balances and vault data (called when wallet is reset)
   const resetBalances = useCallback(() => {
     setSegwitBalance(0);
     setTaprootBalance(0);
     setRunesBalance([]);
     setUtxos([]);
+    setVaultData(null);
   }, []);
 
   // Track if airdrop is in progress using ref + lock mechanism
@@ -172,7 +195,7 @@ export const BalanceProvider = ({ children, seedConfirmed }) => {
     return () => clearInterval(interval);
   }, [fetchBtcPrice]);
 
-  // Auto-refresh balance every 10 seconds when wallet exists
+  // Auto-refresh balance and vault data every 10 seconds when wallet exists
   useEffect(() => {
     if (!wallet) {
       // Reset balances when no wallet
@@ -180,17 +203,19 @@ export const BalanceProvider = ({ children, seedConfirmed }) => {
       return;
     }
 
-    // Fetch balance immediately
+    // Fetch balance and vault data immediately
     fetchBalance();
+    fetchVault();
 
     // Set up interval to fetch every 10 seconds
     const interval = setInterval(() => {
       fetchBalance();
+      fetchVault();
     }, 10000);
 
     // Cleanup interval on unmount or when wallet changes
     return () => clearInterval(interval);
-  }, [wallet, fetchBalance, resetBalances]);
+  }, [wallet, fetchBalance, fetchVault, resetBalances]);
 
   // Auto-request airdrop when BTC balance is 0 (check once per day)
   useEffect(() => {
@@ -305,6 +330,10 @@ export const BalanceProvider = ({ children, seedConfirmed }) => {
     utxos,
     loadingUtxos,
 
+    // Vault data state
+    vaultData,
+    loadingVault,
+
     // Airdrop modal state
     showAirdropModal,
     setShowAirdropModal,
@@ -312,6 +341,7 @@ export const BalanceProvider = ({ children, seedConfirmed }) => {
 
     // Functions
     fetchBalance,
+    fetchVault,
     onRefresh,
     fetchUtxos,
     fetchBtcPrice,
