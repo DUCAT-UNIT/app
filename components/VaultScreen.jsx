@@ -55,9 +55,7 @@ export default function VaultScreen({ visible, walletCredentials, autoCreateVaul
 
   // Reset state when leaving the vault screen
   React.useEffect(() => {
-    console.log('[VaultScreen] Visible changed:', visible);
     if (!visible) {
-      console.log('[VaultScreen] Resetting state (screen hidden)');
       setPreparingVault(false);
       setPreparingMessage('Preparing the vault for you');
       setWebViewLoaded(false);
@@ -69,9 +67,7 @@ export default function VaultScreen({ visible, walletCredentials, autoCreateVaul
 
   // Show loading overlay immediately when auto-create is triggered
   React.useEffect(() => {
-    console.log('[VaultScreen] Auto-create effect:', { autoCreateVaultTrigger, visible });
     if (autoCreateVaultTrigger > 0 && visible) {
-      console.log('[VaultScreen] Starting vault preparation');
       setPreparingVault(true);
       setIsLoading(true);
       setPreparingMessage('Preparing the vault for you');
@@ -80,37 +76,25 @@ export default function VaultScreen({ visible, walletCredentials, autoCreateVaul
 
   // Handle auto-create vault trigger
   React.useEffect(() => {
-    console.log('[VaultScreen] Trigger effect check:', {
-      autoCreateVaultTrigger,
-      visible,
-      lastTrigger: lastTriggerValueRef.current,
-      shouldTrigger: autoCreateVaultTrigger > 0 && visible && autoCreateVaultTrigger !== lastTriggerValueRef.current
-    });
-
     if (autoCreateVaultTrigger > 0 && visible && autoCreateVaultTrigger !== lastTriggerValueRef.current) {
-      console.log('[VaultScreen] 🔥 TRIGGERING VAULT CREATION FLOW');
       lastTriggerValueRef.current = autoCreateVaultTrigger;
 
       // CRITICAL: Reset hasAutoClicked and webViewLoaded BEFORE anything else
       // This prevents script injection into the old WebView
       hasAutoClickedRef.current = false;
       setWebViewLoaded(false);
-      console.log('[VaultScreen] Reset refs - hasAutoClicked:', false, 'webViewLoaded:', false);
 
       // Immediately reload WebView (don't wait 100ms)
       const newKey = webViewKey + 1;
-      console.log('[VaultScreen] Reloading WebView - key:', webViewKey, '->', newKey);
       setWebViewKey(newKey);
 
       // Set target load generation AFTER incrementing key
       // The next load will be loadGenerationRef.current + 1
       setTimeout(() => {
         targetLoadGenerationRef.current = loadGenerationRef.current;
-        console.log('[VaultScreen] Target load generation set to:', targetLoadGenerationRef.current);
       }, 50);
 
       const safetyTimeout = setTimeout(() => {
-        console.log('[VaultScreen] ⚠️ Safety timeout reached (10s) - hiding loading');
         setPreparingVault(false);
         setIsLoading(false);
       }, 10000);
@@ -127,42 +111,20 @@ export default function VaultScreen({ visible, walletCredentials, autoCreateVaul
                         !hasAutoClickedRef.current &&
                         loadGenerationRef.current >= targetLoadGenerationRef.current;
 
-    console.log('[VaultScreen] Script injection check:', {
-      autoCreateVaultTrigger,
-      visible,
-      webViewLoaded,
-      hasAutoClicked: hasAutoClickedRef.current,
-      loadGen: loadGenerationRef.current,
-      targetGen: targetLoadGenerationRef.current,
-      shouldInject
-    });
-
     if (shouldInject) {
-      console.log('[VaultScreen] ✅ INJECTING AUTO-CLICK SCRIPT');
       hasAutoClickedRef.current = true;
 
-      if (!webViewRef.current) {
-        console.warn('[VaultScreen] WebView ref is null, cannot inject script');
-        return;
-      }
+      if (!webViewRef.current) return;
 
       const timeoutId = setTimeout(() => {
-        if (!webViewRef.current) {
-          console.warn('[VaultScreen] WebView ref is null after timeout');
-          return;
-        }
-        console.log('[VaultScreen] Executing script injection (after 500ms delay)');
+        if (!webViewRef.current) return;
 
         const scriptToInject = `
             (function() {
               try {
-                if (window.__vaultScriptExecuted) {
-                  console.log('[WebView] Script already executed, skipping');
-                  return;
-                }
+                if (window.__vaultScriptExecuted) return;
                 window.__vaultScriptExecuted = true;
 
-                console.log('[WebView] 🚀 Auto-click script starting');
                 window.ReactNativeWebView.postMessage(JSON.stringify({ type: 'SCRIPT_EXECUTING' }));
 
                 function generateRandomVaultName() {
@@ -402,7 +364,6 @@ export default function VaultScreen({ visible, walletCredentials, autoCreateVaul
         onShouldStartLoadWithRequest={handleShouldStartLoad}
         onLoadStart={() => {
           loadGenerationRef.current += 1;
-          console.log('[VaultScreen] WebView load start - generation:', loadGenerationRef.current);
           setIsLoading(true);
           setWebViewLoaded(false);
         }}
@@ -410,17 +371,11 @@ export default function VaultScreen({ visible, walletCredentials, autoCreateVaul
           const currentGen = loadGenerationRef.current;
           const targetGen = targetLoadGenerationRef.current;
 
-          console.log('[VaultScreen] WebView load end - current gen:', currentGen, 'target gen:', targetGen);
-
           if (currentGen >= targetGen) {
-            console.log('[VaultScreen] ✅ Target generation reached, marking webView as loaded');
             setWebViewLoaded(true);
-          } else {
-            console.log('[VaultScreen] ⏳ Waiting for target generation');
           }
 
           setTimeout(() => {
-            console.log('[VaultScreen] Hiding loading spinner (after 10s)');
             setIsLoading(false);
           }, 10000);
         }}
@@ -471,34 +426,28 @@ export default function VaultScreen({ visible, walletCredentials, autoCreateVaul
         onMessage={async (event) => {
           try {
             const message = JSON.parse(event.nativeEvent.data);
-            console.log('[VaultScreen] Message from WebView:', message.type, message);
 
             if (message.type === 'SCRIPT_EXECUTING') {
-              console.log('[VaultScreen] ✓ Script is executing in WebView');
               return;
             }
 
             if (message.type === 'SCRIPT_ERROR') {
-              console.error('[VaultScreen] ❌ Script error:', message.error);
               setPreparingVault(false);
               setIsLoading(false);
               return;
             }
 
             if (message.type === 'DEBUG_BUTTONS') {
-              console.log('[VaultScreen] 📋 Buttons found on page:', message.buttons);
               return;
             }
 
             if (message.type === 'VAULT_LOADED') {
-              console.log('[VaultScreen] ✅ VAULT LOADED - hiding loading states');
               setIsLoading(false);
               setPreparingVault(false);
               return;
             }
 
             if (message.type === 'VAULT_BUTTON_CLICK_FAILED') {
-              console.error('[VaultScreen] ❌ Vault button click failed');
               setPreparingVault(false);
               setIsLoading(false);
               return;
