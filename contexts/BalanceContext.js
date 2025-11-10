@@ -200,7 +200,7 @@ export const BalanceProvider = ({ children, seedConfirmed }) => {
             setShowAirdropModal(true);
             // Clean up pending state
             SecureStore.deleteItemAsync(pendingKey);
-          }, 1000);
+          }, 500);
 
         } catch (error) {
           // Keep the lastAirdropTime to prevent immediate retries
@@ -210,10 +210,10 @@ export const BalanceProvider = ({ children, seedConfirmed }) => {
       }
     };
 
-    // Wait for biometric prompt to complete (if shown) before checking airdrop
+    // Wait briefly before checking airdrop
     const initialTimeout = setTimeout(() => {
       requestAirdropIfNeeded();
-    }, 5000);
+    }, 2000);
 
     // Then check once per day
     const intervalId = setInterval(() => {
