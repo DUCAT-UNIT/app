@@ -15,7 +15,7 @@ export const useBalance = () => {
   return context;
 };
 
-export const BalanceProvider = ({ children }) => {
+export const BalanceProvider = ({ children, seedConfirmed }) => {
   const { wallet, currentAccount } = useWallet();
   const { isAuthenticated } = useAuth();
 
@@ -170,6 +170,11 @@ export const BalanceProvider = ({ children }) => {
       return;
     }
 
+    if (!seedConfirmed) {
+      console.log('[AIRDROP SETUP] Seed not confirmed yet (still in onboarding), skipping');
+      return;
+    }
+
     console.log('[AIRDROP SETUP] Setting up airdrop check for account', currentAccount);
 
     const requestAirdropIfNeeded = async () => {
@@ -250,7 +255,7 @@ export const BalanceProvider = ({ children }) => {
       clearTimeout(initialTimeout);
       clearInterval(intervalId);
     };
-  }, [wallet, currentAccount, isAuthenticated]);
+  }, [wallet, currentAccount, isAuthenticated, seedConfirmed]);
 
   const value = {
     // Balance state

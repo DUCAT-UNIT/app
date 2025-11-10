@@ -48,7 +48,7 @@ export default function App() {
   return (
     <AuthProvider onSeedConfirmed={setSeedConfirmed}>
       <WalletProvider>
-        <BalanceProvider>
+        <BalanceProvider seedConfirmed={seedConfirmed}>
           <DisplayPreferencesProvider>
             <AppNavigator seedConfirmed={seedConfirmed} setSeedConfirmed={setSeedConfirmed} />
           </DisplayPreferencesProvider>
