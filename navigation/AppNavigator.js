@@ -61,6 +61,9 @@ export default function AppNavigator({ seedConfirmed, setSeedConfirmed }) {
   const { keyboardHeight } = useKeyboard();
   const { showBackgroundSplash } = useBackgroundSplash();
 
+  // Wallet exists ref (shared between components)
+  const walletExists = useRef(false);
+
   // Wrap with remaining providers
   return (
     <TransactionProvider
