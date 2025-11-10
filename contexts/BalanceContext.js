@@ -224,10 +224,14 @@ export const BalanceProvider = ({ children, seedConfirmed }) => {
           await SecureStore.setItemAsync(pendingKey, result.txId);
           console.log('[AIRDROP STORE] Stored pending airdrop in SecureStore with key:', pendingKey);
 
-          // Fetch balance again after a few seconds to see the new balance
+          // Show modal immediately - don't wait for balance update
           setTimeout(() => {
-            fetchBalance();
-          }, 5000);
+            setAirdropTxId(result.txId);
+            setShowAirdropModal(true);
+            // Clean up pending state
+            SecureStore.deleteItemAsync(pendingKey);
+            console.log('[AIRDROP SHOW] Showing modal immediately after request');
+          }, 1000);
 
         } catch (error) {
           // Keep the lastAirdropTime to prevent immediate retries
