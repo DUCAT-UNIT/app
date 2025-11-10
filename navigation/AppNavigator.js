@@ -310,7 +310,9 @@ function AppNavigatorContent({
   };
 
   // Show loading splash
+  console.log('[AppNavigator] Render check:', { isLoading, showBackgroundSplash });
   if (isLoading || showBackgroundSplash) {
+    console.log('[AppNavigator] Showing SplashScreen');
     return <SplashScreen />;
   }
 
