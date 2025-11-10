@@ -35,6 +35,7 @@ export const BalanceProvider = ({ children }) => {
   // Airdrop modal state
   const [showAirdropModal, setShowAirdropModal] = useState(false);
   const [airdropTxId, setAirdropTxId] = useState('');
+  const [pendingAirdropTxId, setPendingAirdropTxId] = useState(null);
 
   // Fetch BTC price
   const fetchBtcPrice = useCallback(async () => {
@@ -104,6 +105,21 @@ export const BalanceProvider = ({ children }) => {
   // Track if airdrop is in progress to prevent duplicate requests
   const airdropInProgress = useRef(false);
 
+  // Show pending airdrop modal when balance updates
+  useEffect(() => {
+    if (pendingAirdropTxId && (segwitBalance > 0 || taprootBalance > 0)) {
+      // Wait a bit to ensure user has finished onboarding and is viewing the wallet
+      const timer = setTimeout(() => {
+        console.log('Showing pending airdrop modal');
+        setAirdropTxId(pendingAirdropTxId);
+        setShowAirdropModal(true);
+        setPendingAirdropTxId(null); // Clear pending state
+      }, 3000); // 3 second delay after balance updates
+
+      return () => clearTimeout(timer);
+    }
+  }, [pendingAirdropTxId, segwitBalance, taprootBalance]);
+
   // Fetch BTC price on mount and refresh every 60 seconds
   useEffect(() => {
     fetchBtcPrice();
@@ -145,11 +161,9 @@ export const BalanceProvider = ({ children }) => {
 
       // Get current balance from state
       const totalBtcBalance = segwitBalance + taprootBalance;
-      console.log('Daily airdrop check - Balance:', totalBtcBalance);
 
       // If balance is 0, request airdrop
       if (totalBtcBalance === 0) {
-        console.log('Balance is 0, checking cooldown...');
         try {
           // Check when we last requested an airdrop for this specific account
           const airdropKey = `lastAirdropTime_${currentAccount}`;
@@ -159,11 +173,9 @@ export const BalanceProvider = ({ children }) => {
 
           // Only allow airdrop once every 24 hours per account
           if (lastAirdropTime && now - parseInt(lastAirdropTime) < twentyFourHours) {
-            console.log('Airdrop on cooldown. Last request:', Math.floor((now - parseInt(lastAirdropTime)) / 3600000), 'hours ago');
             return;
           }
 
-          console.log('Requesting airdrop for account', currentAccount);
           airdropInProgress.current = true;
 
           // Store attempt time immediately to prevent duplicate requests (per account)
@@ -171,14 +183,9 @@ export const BalanceProvider = ({ children }) => {
 
           // Request airdrop
           const result = await AirdropService.requestAirdrop(wallet.segwitAddress);
-          console.log('Airdrop successful! TxId:', result.txId);
 
-          // Show celebration modal - delay to ensure app is ready
-          setTimeout(() => {
-            setAirdropTxId(result.txId);
-            setShowAirdropModal(true);
-            console.log('Showing airdrop modal');
-          }, 1000);
+          // Store pending airdrop to show modal later (after user completes onboarding)
+          setPendingAirdropTxId(result.txId);
 
           // Fetch balance again after a few seconds to see the new balance
           setTimeout(() => {
@@ -186,7 +193,6 @@ export const BalanceProvider = ({ children }) => {
           }, 5000);
 
         } catch (error) {
-          console.error('Airdrop failed:', error.message || error);
           // Keep the lastAirdropTime to prevent immediate retries
         } finally {
           airdropInProgress.current = false;
@@ -194,7 +200,7 @@ export const BalanceProvider = ({ children }) => {
       }
     };
 
-    // Wait a bit before initial check to ensure app is fully loaded
+    // Wait a bit before initial check to ensure wallet is ready
     const initialTimeout = setTimeout(() => {
       requestAirdropIfNeeded();
     }, 3000);
