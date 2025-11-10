@@ -103,8 +103,34 @@ export const BalanceProvider = ({ children, seedConfirmed }) => {
     setUtxos([]);
   }, []);
 
-  // Track if airdrop is in progress to prevent duplicate requests
-  const airdropInProgress = useRef(false);
+  // Track if airdrop is in progress using state (more reliable than ref)
+  const [airdropInProgress, setAirdropInProgress] = useState(false);
+
+  // Clean up expired airdrop locks on mount
+  useEffect(() => {
+    const cleanupExpiredLocks = async () => {
+      if (!wallet?.segwitAddress) return;
+
+      const lockKey = `airdropLock_${wallet.segwitAddress}_${currentAccount}`;
+      try {
+        const existingLock = await SecureStore.getItemAsync(lockKey);
+        if (existingLock) {
+          const lockTime = parseInt(existingLock);
+          const now = Date.now();
+          const lockTimeout = 60 * 1000; // 60 second timeout
+
+          // If lock is expired (older than 60 seconds), clean it up
+          if (now - lockTime >= lockTimeout) {
+            await SecureStore.deleteItemAsync(lockKey);
+          }
+        }
+      } catch (error) {
+        // Ignore errors during cleanup
+      }
+    };
+
+    cleanupExpiredLocks();
+  }, [wallet?.segwitAddress, currentAccount]);
 
   // Check for pending airdrop modal on mount and when balance updates
   useEffect(() => {
@@ -162,17 +188,33 @@ export const BalanceProvider = ({ children, seedConfirmed }) => {
     if (!seedConfirmed) return;
 
     const requestAirdropIfNeeded = async () => {
-      // Skip if already in progress
-      if (airdropInProgress.current) return;
+      // Skip if already in progress (using state, not ref)
+      if (airdropInProgress) return;
 
-      // Get current balance from state
-      const totalBtcBalance = segwitBalance + taprootBalance;
+      const airdropKey = `lastAirdropTime_${wallet.segwitAddress}_${currentAccount}`;
+      const lockKey = `airdropLock_${wallet.segwitAddress}_${currentAccount}`;
 
-      // If balance is 0, request airdrop
-      if (totalBtcBalance === 0) {
-        try {
+      try {
+        // Check for existing lock (prevents race conditions across mounts)
+        const existingLock = await SecureStore.getItemAsync(lockKey);
+        if (existingLock) {
+          const lockTime = parseInt(existingLock);
+          const now = Date.now();
+          const lockTimeout = 60 * 1000; // 60 second timeout for locks
+
+          // If lock is less than 60 seconds old, skip
+          if (now - lockTime < lockTimeout) {
+            return;
+          }
+          // Lock expired, we can proceed and will create a new one
+        }
+
+        // Get current balance from state
+        const totalBtcBalance = segwitBalance + taprootBalance;
+
+        // If balance is 0, request airdrop
+        if (totalBtcBalance === 0) {
           // Check when we last requested an airdrop for this specific wallet+account combo
-          const airdropKey = `lastAirdropTime_${wallet.segwitAddress}_${currentAccount}`;
           const lastAirdropTime = await SecureStore.getItemAsync(airdropKey);
           const now = Date.now();
           const twentyFourHours = 24 * 60 * 60 * 1000; // 24 hours
@@ -182,31 +224,41 @@ export const BalanceProvider = ({ children, seedConfirmed }) => {
             return;
           }
 
-          airdropInProgress.current = true;
+          // Acquire lock BEFORE setting state
+          await SecureStore.setItemAsync(lockKey, now.toString());
+          setAirdropInProgress(true);
 
-          // Store attempt time immediately to prevent duplicate requests (per account)
-          await SecureStore.setItemAsync(airdropKey, now.toString());
+          try {
+            // Store attempt time immediately to prevent duplicate requests (per account)
+            await SecureStore.setItemAsync(airdropKey, now.toString());
 
-          // Request airdrop
-          const result = await AirdropService.requestAirdrop(wallet.segwitAddress);
+            // Request airdrop
+            const result = await AirdropService.requestAirdrop(wallet.segwitAddress);
 
-          // Store pending airdrop in SecureStore (survives state resets during onboarding)
-          const pendingKey = `pendingAirdrop_${wallet.segwitAddress}_${currentAccount}`;
-          await SecureStore.setItemAsync(pendingKey, result.txId);
+            // Store pending airdrop in SecureStore (survives state resets during onboarding)
+            const pendingKey = `pendingAirdrop_${wallet.segwitAddress}_${currentAccount}`;
+            await SecureStore.setItemAsync(pendingKey, result.txId);
 
-          // Show modal immediately - don't wait for balance update
-          setTimeout(() => {
-            setAirdropTxId(result.txId);
-            setShowAirdropModal(true);
-            // Clean up pending state
-            SecureStore.deleteItemAsync(pendingKey);
-          }, 500);
+            // Show modal immediately - don't wait for balance update
+            setTimeout(() => {
+              setAirdropTxId(result.txId);
+              setShowAirdropModal(true);
+              // Clean up pending state
+              SecureStore.deleteItemAsync(pendingKey);
+            }, 500);
 
-        } catch (error) {
-          // Keep the lastAirdropTime to prevent immediate retries
-        } finally {
-          airdropInProgress.current = false;
+          } catch (error) {
+            // Keep the lastAirdropTime to prevent immediate retries
+          } finally {
+            // Release lock and clear state
+            setAirdropInProgress(false);
+            await SecureStore.deleteItemAsync(lockKey);
+          }
         }
+      } catch (error) {
+        // Ensure we clean up on any error
+        setAirdropInProgress(false);
+        await SecureStore.deleteItemAsync(lockKey).catch(() => {});
       }
     };
 
@@ -224,7 +276,7 @@ export const BalanceProvider = ({ children, seedConfirmed }) => {
       clearTimeout(initialTimeout);
       clearInterval(intervalId);
     };
-  }, [wallet, currentAccount, isAuthenticated, seedConfirmed]);
+  }, [wallet, currentAccount, isAuthenticated, seedConfirmed, airdropInProgress, segwitBalance, taprootBalance]);
 
   const value = {
     // Balance state
