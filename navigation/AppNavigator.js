@@ -14,6 +14,7 @@ import AccountSwitcherModal from '../components/AccountSwitcherModal';
 import AppModals from '../components/AppModals';
 import SeedPhraseOverlay from '../components/SeedPhraseOverlay';
 import SplashScreen from '../components/SplashScreen';
+import AirdropSuccessModal from '../components/AirdropSuccessModal';
 
 // Contexts
 import { useAuth } from '../contexts/AuthContext';
@@ -178,6 +179,7 @@ function AppNavigatorContent({
     closeSeedPhrase,
     setSeedPhraseVisible,
   } = useSeedPhrase();
+  const { showAirdropModal, setShowAirdropModal, airdropTxId } = useBalance();
 
   // Refs
   const seedConfirmedRef = useRef(false);
@@ -383,6 +385,13 @@ function AppNavigatorContent({
         onAccountIndexChange={setNewAccountIndex}
         onSwitch={switchAccount}
         styles={styles}
+      />
+
+      {/* Airdrop Success Modal */}
+      <AirdropSuccessModal
+        visible={showAirdropModal}
+        onClose={() => setShowAirdropModal(false)}
+        txId={airdropTxId}
       />
     </>
   );

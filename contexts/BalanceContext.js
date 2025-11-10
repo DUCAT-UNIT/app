@@ -32,6 +32,10 @@ export const BalanceProvider = ({ children }) => {
   const [utxos, setUtxos] = useState([]);
   const [loadingUtxos, setLoadingUtxos] = useState(false);
 
+  // Airdrop modal state
+  const [showAirdropModal, setShowAirdropModal] = useState(false);
+  const [airdropTxId, setAirdropTxId] = useState('');
+
   // Fetch BTC price
   const fetchBtcPrice = useCallback(async () => {
     try {
@@ -160,6 +164,10 @@ export const BalanceProvider = ({ children }) => {
           // Store the time of successful airdrop
           await SecureStore.setItemAsync('lastAirdropTime', now.toString());
 
+          // Show celebration modal
+          setAirdropTxId(result.txId);
+          setShowAirdropModal(true);
+
           // Fetch balance again after a few seconds to see the new balance
           setTimeout(() => {
             fetchBalance();
@@ -191,6 +199,11 @@ export const BalanceProvider = ({ children }) => {
     // UTXOs state
     utxos,
     loadingUtxos,
+
+    // Airdrop modal state
+    showAirdropModal,
+    setShowAirdropModal,
+    airdropTxId,
 
     // Functions
     fetchBalance,
