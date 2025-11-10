@@ -114,11 +114,8 @@ export const BalanceProvider = ({ children, seedConfirmed }) => {
       const pendingKey = `pendingAirdrop_${wallet.segwitAddress}_${currentAccount}`;
       const pendingTxId = await SecureStore.getItemAsync(pendingKey);
 
-      console.log('[AIRDROP CHECK] Account:', currentAccount, 'Balance:', segwitBalance + taprootBalance, 'Pending TxId:', pendingTxId);
-
       // If there's a pending airdrop and balance is now > 0, show the modal
       if (pendingTxId && (segwitBalance > 0 || taprootBalance > 0)) {
-        console.log('[AIRDROP SHOW] Showing modal for TxId:', pendingTxId);
         setAirdropTxId(pendingTxId);
         setShowAirdropModal(true);
         // Clear the pending airdrop
@@ -160,39 +157,19 @@ export const BalanceProvider = ({ children, seedConfirmed }) => {
 
   // Auto-request airdrop when BTC balance is 0 (check once per day)
   useEffect(() => {
-    if (!wallet?.segwitAddress) {
-      console.log('[AIRDROP SETUP] No wallet address, skipping');
-      return;
-    }
-
-    if (!isAuthenticated) {
-      console.log('[AIRDROP SETUP] Not authenticated yet, skipping');
-      return;
-    }
-
-    if (!seedConfirmed) {
-      console.log('[AIRDROP SETUP] Seed not confirmed yet (still in onboarding), skipping');
-      return;
-    }
-
-    console.log('[AIRDROP SETUP] Setting up airdrop check for account', currentAccount);
+    if (!wallet?.segwitAddress) return;
+    if (!isAuthenticated) return;
+    if (!seedConfirmed) return;
 
     const requestAirdropIfNeeded = async () => {
-      console.log('[AIRDROP TRIGGER] requestAirdropIfNeeded called');
-
       // Skip if already in progress
-      if (airdropInProgress.current) {
-        console.log('[AIRDROP TRIGGER] Already in progress, skipping');
-        return;
-      }
+      if (airdropInProgress.current) return;
 
       // Get current balance from state
       const totalBtcBalance = segwitBalance + taprootBalance;
-      console.log('[AIRDROP TRIGGER] Total balance:', totalBtcBalance);
 
       // If balance is 0, request airdrop
       if (totalBtcBalance === 0) {
-        console.log('[AIRDROP TRIGGER] Balance is 0, checking cooldown...');
         try {
           // Check when we last requested an airdrop for this specific wallet+account combo
           const airdropKey = `lastAirdropTime_${wallet.segwitAddress}_${currentAccount}`;
@@ -200,16 +177,11 @@ export const BalanceProvider = ({ children, seedConfirmed }) => {
           const now = Date.now();
           const twentyFourHours = 24 * 60 * 60 * 1000; // 24 hours
 
-          console.log('[AIRDROP TRIGGER] Last airdrop time:', lastAirdropTime);
-
           // Only allow airdrop once every 24 hours per account
           if (lastAirdropTime && now - parseInt(lastAirdropTime) < twentyFourHours) {
-            const hoursAgo = Math.floor((now - parseInt(lastAirdropTime)) / 3600000);
-            console.log('[AIRDROP TRIGGER] On cooldown, last request was', hoursAgo, 'hours ago');
             return;
           }
 
-          console.log('[AIRDROP TRIGGER] Cooldown passed, requesting airdrop...');
           airdropInProgress.current = true;
 
           // Store attempt time immediately to prevent duplicate requests (per account)
@@ -217,12 +189,10 @@ export const BalanceProvider = ({ children, seedConfirmed }) => {
 
           // Request airdrop
           const result = await AirdropService.requestAirdrop(wallet.segwitAddress);
-          console.log('[AIRDROP REQUEST] Success for account', currentAccount, 'TxId:', result.txId);
 
           // Store pending airdrop in SecureStore (survives state resets during onboarding)
           const pendingKey = `pendingAirdrop_${wallet.segwitAddress}_${currentAccount}`;
           await SecureStore.setItemAsync(pendingKey, result.txId);
-          console.log('[AIRDROP STORE] Stored pending airdrop in SecureStore with key:', pendingKey);
 
           // Show modal immediately - don't wait for balance update
           setTimeout(() => {
@@ -230,7 +200,6 @@ export const BalanceProvider = ({ children, seedConfirmed }) => {
             setShowAirdropModal(true);
             // Clean up pending state
             SecureStore.deleteItemAsync(pendingKey);
-            console.log('[AIRDROP SHOW] Showing modal immediately after request');
           }, 1000);
 
         } catch (error) {
@@ -243,17 +212,13 @@ export const BalanceProvider = ({ children, seedConfirmed }) => {
 
     // Wait for biometric prompt to complete (if shown) before checking airdrop
     const initialTimeout = setTimeout(() => {
-      console.log('[AIRDROP SETUP] Running initial airdrop check (after 5 second delay)');
       requestAirdropIfNeeded();
     }, 5000);
 
     // Then check once per day
     const intervalId = setInterval(() => {
-      console.log('[AIRDROP SETUP] Running daily airdrop check');
       requestAirdropIfNeeded();
     }, 24 * 60 * 60 * 1000); // 24 hours
-
-    console.log('[AIRDROP SETUP] Timers set up - initial check in 5 seconds (after auth), then every 24 hours');
 
     return () => {
       clearTimeout(initialTimeout);
