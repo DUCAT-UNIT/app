@@ -15,7 +15,10 @@ export const useBackgroundSplash = () => {
       // (inactive happens during Face ID, notifications, control center, etc.)
       if (nextAppState === 'background') {
         setShowBackgroundSplash(true);
-      } else if (nextAppState === 'active') {
+      } else if (nextAppState === 'active' || nextAppState === 'inactive') {
+        // CRITICAL FIX: Clear splash on both 'active' AND 'inactive' states
+        // iOS can transition: background → inactive → active
+        // If we only clear on 'active', the splash can get stuck during 'inactive'
         setShowBackgroundSplash(false);
       }
     });
