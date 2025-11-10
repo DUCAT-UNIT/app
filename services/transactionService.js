@@ -152,22 +152,13 @@ export const createBtcIntent = async (recipient, amount, segwitAddress, currentA
       change = 0;
     }
 
-    // Get mnemonic to derive keys (temporarily)
-    const mnemonic = await AuthService.getMnemonic();
-    const seed = bip39.mnemonicToSeedSync(mnemonic);
-    const root = bip32.fromSeed(seed, MUTINYNET_NETWORK);
-
-    // Create PSBT
+    // Create PSBT (unsigned - no mnemonic needed)
     const psbt = new bitcoin.Psbt({ network: MUTINYNET_NETWORK });
 
     // Add inputs (BTC always uses segwit)
     for (let i = 0; i < inputsWithTx.length; i++) {
       const utxo = inputsWithTx[i];
       const tx = bitcoin.Transaction.fromHex(utxo.txHex);
-
-      // Segwit input
-      const segwitPath = `m/84'/1'/0'/0/${currentAccount}`;
-      const segwitChild = root.derivePath(segwitPath);
 
       psbt.addInput({
         hash: utxo.txid,
@@ -192,18 +183,6 @@ export const createBtcIntent = async (recipient, amount, segwitAddress, currentA
         value: BigInt(change),
       });
     }
-
-    // Securely clear sensitive data
-    const clearData = [mnemonic, seed.toString('hex')];
-    clearData.forEach(data => {
-      if (data) {
-        // Overwrite with random data
-        const len = data.length;
-        for (let i = 0; i < 3; i++) {
-          data.split('').map(() => String.fromCharCode(Math.floor(Math.random() * 256))).join('');
-        }
-      }
-    });
 
     // Create intent object
     const intent = {
@@ -252,33 +231,12 @@ export const createUnitIntent = async (recipient, amount, taprootAddress, segwit
     // Multiply by 100 for runestone encoding (UNIT display amount * 100)
     const amountInRunes = userAmount * 100;
 
-    // Get mnemonic and derive keys
-    const mnemonic = await AuthService.getMnemonic();
-    const seed = bip39.mnemonicToSeedSync(mnemonic);
-    const root = bip32.fromSeed(seed, MUTINYNET_NETWORK);
-
-    // Derive Taproot address (holds runes)
-    const taprootPath = `m/86'/1'/0'/0/${currentAccount}`;
-    const taprootChild = root.derivePath(taprootPath);
-    const xOnlyPubkey = Buffer.from(taprootChild.publicKey.slice(1, 33));
-    const taprootPayment = bitcoin.payments.p2tr({
-      internalPubkey: xOnlyPubkey,
-      network: MUTINYNET_NETWORK,
-    });
-    const derivedTaprootAddress = taprootPayment.address;
-
-    // Derive P2WPKH address (pays fees)
-    const segwitPath = `m/84'/1'/0'/0/${currentAccount}`;
-    const segwitChild = root.derivePath(segwitPath);
-    const p2wpkhPayment = bitcoin.payments.p2wpkh({
-      pubkey: segwitChild.publicKey,
-      network: MUTINYNET_NETWORK,
-    });
-    const p2wpkhAddress = p2wpkhPayment.address;
+    // Use addresses passed as parameters (no mnemonic needed for PSBT creation)
+    // These addresses are already derived from the wallet's mnemonic
 
     // Fetch rune UTXOs from ord API
     const ordResponse = await fetch(
-      `https://ord-mutinynet.ducatprotocol.com/address/${derivedTaprootAddress}`,
+      `https://ord-mutinynet.ducatprotocol.com/address/${taprootAddress}`,
       { headers: { 'Accept': 'application/json' } }
     );
     const ordData = await ordResponse.json();
@@ -323,7 +281,7 @@ export const createUnitIntent = async (recipient, amount, taprootAddress, segwit
     }
 
     // Fetch regular UTXOs for fees
-    const utxoResponse = await fetch(`https://mutinynet.com/api/address/${p2wpkhAddress}/utxo`);
+    const utxoResponse = await fetch(`https://mutinynet.com/api/address/${segwitAddress}/utxo`);
     const utxos = await utxoResponse.json();
 
     // Find a UTXO with at least 12000 sats for fees
@@ -422,7 +380,7 @@ export const createUnitIntent = async (recipient, amount, taprootAddress, segwit
     // Add outputs (OP_RETURN last) - exactly like working example
     // Output 0: Rune return (gets unallocated runes)
     psbt.addOutput({
-      address: derivedTaprootAddress,
+      address: taprootAddress,
       value: BigInt(dustLimit),
     });
 
@@ -435,7 +393,7 @@ export const createUnitIntent = async (recipient, amount, taprootAddress, segwit
     // Output 2: Change (if any)
     if (change > dustLimit) {
       psbt.addOutput({
-        address: p2wpkhAddress,
+        address: segwitAddress,
         value: BigInt(change),
       });
     }
@@ -462,8 +420,8 @@ export const createUnitIntent = async (recipient, amount, taprootAddress, segwit
       recipient: validatedRecipient,
       fee: fee,
       addressType: 'taproot',
-      sourceAddress: derivedTaprootAddress,
-      feeAddress: p2wpkhAddress,
+      sourceAddress: taprootAddress,
+      feeAddress: segwitAddress,
       runeUtxo,
       satUtxo,
       totalInput,
@@ -485,16 +443,20 @@ export const createUnitIntent = async (recipient, amount, taprootAddress, segwit
  * @returns {Promise<{signedTxHex: string, txid: string}>} Signed transaction
  */
 export const signIntent = async (intent, currentAccount) => {
-  try {
+  // Minimize mnemonic exposure with scoped variables
+  let mnemonic = null;
+  let seed = null;
+  let root = null;
 
+  try {
     if (!intent) {
       throw new Error(ERRORS.TRANSACTION_CANCELLED);
     }
 
-    // Get mnemonic from secure storage
-    const mnemonic = await AuthService.getMnemonic();
-    const seed = bip39.mnemonicToSeedSync(mnemonic);
-    const root = bip32.fromSeed(seed, MUTINYNET_NETWORK);
+    // Get mnemonic from secure storage (minimize scope)
+    mnemonic = await AuthService.getMnemonic();
+    seed = bip39.mnemonicToSeedSync(mnemonic);
+    root = bip32.fromSeed(seed, MUTINYNET_NETWORK);
 
     // Load PSBT
     const psbt = bitcoin.Psbt.fromBase64(intent.psbt);
@@ -646,7 +608,14 @@ export const signIntent = async (intent, currentAccount) => {
       });
     }
 
-    // CRITICAL: Securely overwrite sensitive data
+    return {
+      signedTxHex,
+      txid: signedTx.getId(),
+    };
+  } catch (error) {
+    throw error;
+  } finally {
+    // CRITICAL: Securely overwrite sensitive data (always runs, even on error)
     const sensitiveData = [mnemonic, seed, root];
     sensitiveData.forEach(data => {
       if (data) {
@@ -660,6 +629,9 @@ export const signIntent = async (intent, currentAccount) => {
                 randomBytes[j] = Math.floor(Math.random() * 256);
               }
               randomBytes.copy(data);
+            } else if (typeof data === 'string') {
+              // For string data, try to overwrite (limited effectiveness in JS)
+              data = null;
             }
           }
         } catch (e) {
@@ -668,12 +640,10 @@ export const signIntent = async (intent, currentAccount) => {
       }
     });
 
-    return {
-      signedTxHex,
-      txid: signedTx.getId(),
-    };
-  } catch (error) {
-    throw error;
+    // Nullify references
+    mnemonic = null;
+    seed = null;
+    root = null;
   }
 };
 
