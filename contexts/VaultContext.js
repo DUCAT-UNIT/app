@@ -3,9 +3,9 @@
  */
 
 import React, { createContext, useContext, useState } from 'react';
-import * as SecureStore from 'expo-secure-store';
 import { SECURE_KEYS } from '../utils/constants';
 import { deriveAddressesFromMnemonic } from '../utils/bitcoin';
+import { withMnemonic } from '../services/authService';
 
 const VaultContext = createContext();
 
@@ -27,29 +27,26 @@ export const VaultProvider = ({ children, currentAccount }) => {
       // Switch to vault tab immediately for better UX
       setActiveTab('vault');
 
-      // Get mnemonic
-      const mnemonic = await SecureStore.getItemAsync(SECURE_KEYS.MNEMONIC);
-      if (!mnemonic) {
-        return;
-      }
+      // Use withMnemonic to ensure proper cleanup of sensitive data
+      await withMnemonic(async (mnemonic) => {
+        // Derive addresses and public keys for current account
+        const addresses = deriveAddressesFromMnemonic(mnemonic, currentAccount);
 
-      // Derive addresses and public keys for current account
-      const addresses = deriveAddressesFromMnemonic(mnemonic, currentAccount);
+        // Set credentials for vault WebView
+        setVaultCredentials({
+          satsAddress: addresses.segwitAddress,
+          satsPubkey: addresses.segwitPubkey,
+          runesAddress: addresses.taprootAddress,
+          runesPubkey: addresses.taprootPubkey,
+          vaultAddress: addresses.taprootAddress,
+          vaultPubkey: addresses.taprootPubkey,
+        });
 
-      // Set credentials for vault WebView
-      setVaultCredentials({
-        satsAddress: addresses.segwitAddress,
-        satsPubkey: addresses.segwitPubkey,
-        runesAddress: addresses.taprootAddress,
-        runesPubkey: addresses.taprootPubkey,
-        vaultAddress: addresses.taprootAddress,
-        vaultPubkey: addresses.taprootPubkey,
+        // Trigger auto-create if requested by incrementing counter
+        if (shouldAutoCreate) {
+          setAutoCreateVaultTrigger(prev => prev + 1);
+        }
       });
-
-      // Trigger auto-create if requested by incrementing counter
-      if (shouldAutoCreate) {
-        setAutoCreateVaultTrigger(prev => prev + 1);
-      }
     } catch (error) {
       setActiveTab('vault');
     }
