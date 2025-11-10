@@ -21,6 +21,7 @@ export default function AuthStack({
   handleLockScreenAuthenticatedWrapper,
   styles,
 }) {
+  console.log('[AuthStack] Rendering');
   return (
     <Stack.Navigator
       screenOptions={{

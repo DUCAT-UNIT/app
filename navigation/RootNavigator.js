@@ -59,6 +59,16 @@ export default function RootNavigator({
     showPinEntry ||
     (!isAuthenticated && wallet && seedConfirmed);
 
+  console.log('[RootNavigator] Render decision:', {
+    wallet: !!wallet,
+    seedConfirmed,
+    settingUpPin,
+    changingPin,
+    showPinEntry,
+    isAuthenticated,
+    shouldShowAuth
+  });
+
   return (
     <NavigationContainer>
       <Stack.Navigator

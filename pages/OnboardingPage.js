@@ -89,6 +89,18 @@ export default function OnboardingPage({
     showToast,
   });
 
+  console.log('[OnboardingPage] Render state:', {
+    settingUpPin,
+    showPinEntry,
+    isAuthenticated,
+    wallet: !!wallet,
+    seedConfirmed,
+    showingIntro,
+    showingSeeds,
+    verifyingSeeds,
+    importingWallet
+  });
+
   // PIN setup completion wrapper - saves wallet and resets state
   const handlePinSetupCompleteInternal = async () => {
     // Save wallet to storage now that PIN is set (only for new wallets, not imported)
