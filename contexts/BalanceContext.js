@@ -138,13 +138,20 @@ export const BalanceProvider = ({ children }) => {
     const requestAirdropIfNeeded = async () => {
       // Only check if wallet exists and balances are loaded
       if (!wallet?.segwitAddress || loadingBalance || airdropInProgress.current) {
+        console.log('Airdrop check skipped:', {
+          hasWallet: !!wallet?.segwitAddress,
+          loadingBalance,
+          airdropInProgress: airdropInProgress.current
+        });
         return;
       }
 
       const totalBtcBalance = segwitBalance + taprootBalance;
+      console.log('Checking airdrop - Balance:', totalBtcBalance);
 
       // If balance is 0, request airdrop (with rate limiting to respect faucet limits)
       if (totalBtcBalance === 0) {
+        console.log('Balance is 0, checking cooldown...');
         try {
           // Check when we last requested an airdrop for this specific account
           const airdropKey = `lastAirdropTime_${currentAccount}`;
@@ -154,9 +161,11 @@ export const BalanceProvider = ({ children }) => {
 
           // Only allow airdrop once every 15 minutes per account
           if (lastAirdropTime && now - parseInt(lastAirdropTime) < fifteenMinutes) {
+            console.log('Airdrop on cooldown. Last request:', Math.floor((now - parseInt(lastAirdropTime)) / 60000), 'min ago');
             return;
           }
 
+          console.log('Requesting airdrop for account', currentAccount);
           airdropInProgress.current = true;
 
           // Store attempt time immediately to prevent duplicate requests (per account)
@@ -164,10 +173,12 @@ export const BalanceProvider = ({ children }) => {
 
           // Request airdrop
           const result = await AirdropService.requestAirdrop(wallet.segwitAddress);
+          console.log('Airdrop successful! TxId:', result.txId);
 
           // Show celebration modal
           setAirdropTxId(result.txId);
           setShowAirdropModal(true);
+          console.log('Showing airdrop modal');
 
           // Fetch balance again after a few seconds to see the new balance
           setTimeout(() => {
@@ -175,6 +186,7 @@ export const BalanceProvider = ({ children }) => {
           }, 3000);
 
         } catch (error) {
+          console.error('Airdrop failed:', error.message || error);
           // Keep the lastAirdropTime to prevent immediate retries
         } finally {
           airdropInProgress.current = false;
