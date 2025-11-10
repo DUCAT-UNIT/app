@@ -90,17 +90,24 @@ export default function VaultScreen({ visible, walletCredentials, autoCreateVaul
     if (autoCreateVaultTrigger > 0 && visible && autoCreateVaultTrigger !== lastTriggerValueRef.current) {
       console.log('[VaultScreen] 🔥 TRIGGERING VAULT CREATION FLOW');
       lastTriggerValueRef.current = autoCreateVaultTrigger;
+
+      // CRITICAL: Reset hasAutoClicked and webViewLoaded BEFORE anything else
+      // This prevents script injection into the old WebView
       hasAutoClickedRef.current = false;
       setWebViewLoaded(false);
       console.log('[VaultScreen] Reset refs - hasAutoClicked:', false, 'webViewLoaded:', false);
 
+      // Immediately reload WebView (don't wait 100ms)
+      const newKey = webViewKey + 1;
+      console.log('[VaultScreen] Reloading WebView - key:', webViewKey, '->', newKey);
+      setWebViewKey(newKey);
+
+      // Set target load generation AFTER incrementing key
+      // The next load will be loadGenerationRef.current + 1
       setTimeout(() => {
-        const newKey = webViewKey + 1;
-        console.log('[VaultScreen] Reloading WebView - key:', webViewKey, '->', newKey);
-        setWebViewKey(newKey);
-        targetLoadGenerationRef.current = loadGenerationRef.current + 1;
-        console.log('[VaultScreen] Target load generation:', targetLoadGenerationRef.current);
-      }, 100);
+        targetLoadGenerationRef.current = loadGenerationRef.current;
+        console.log('[VaultScreen] Target load generation set to:', targetLoadGenerationRef.current);
+      }, 50);
 
       const safetyTimeout = setTimeout(() => {
         console.log('[VaultScreen] ⚠️ Safety timeout reached (10s) - hiding loading');
@@ -329,7 +336,7 @@ export default function VaultScreen({ visible, walletCredentials, autoCreateVaul
         clearTimeout(timeoutId);
       };
     }
-  }, [autoCreateVaultTrigger, visible, webViewLoaded]); // Trigger when webview loads
+  }, [autoCreateVaultTrigger, visible, webViewLoaded, webViewKey]); // Include webViewKey to re-check after reload
 
   // Don't return null - always render to preload in background
   // if (!visible) return null;
