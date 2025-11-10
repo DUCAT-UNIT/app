@@ -141,9 +141,8 @@ export function useSettings({
           // Biometric failed or not available, fall back to PIN
           // Set a flag to indicate we're enabling Face ID after PIN verification
           await SecureStore.setItemAsync('pendingFaceIdEnable', 'true');
-          if (showToast) {
-            showToast('Please authenticate with PIN to enable Face ID', 'info');
-          }
+          // Lock wallet to trigger PIN entry
+          setIsAuthenticated(false);
           return;
         }
       } catch (error) {
@@ -190,9 +189,8 @@ export function useSettings({
           // Biometric failed or not available, fall back to PIN
           // Set a flag to indicate we're enabling notifications after PIN verification
           await SecureStore.setItemAsync('pendingNotificationsEnable', 'true');
-          if (showToast) {
-            showToast('Please authenticate with PIN to enable notifications', 'info');
-          }
+          // Lock wallet to trigger PIN entry
+          setIsAuthenticated(false);
           return;
         }
       } catch (error) {
