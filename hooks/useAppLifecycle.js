@@ -25,18 +25,18 @@ export function useAppLifecycle({
   const appState = useRef(AppState.currentState);
   const inactivityTimer = useRef(null);
 
-  // Prevent screenshots and screen recording for security
+  // Allow screenshots by default (privacy mode disabled)
   useEffect(() => {
     const manageScreenCapture = async () => {
       try {
-        await ScreenCapture.preventScreenCaptureAsync();
+        await ScreenCapture.allowScreenCaptureAsync();
       } catch (error) {
       }
     };
 
     manageScreenCapture();
 
-    // Cleanup: allow screen capture when component unmounts
+    // Cleanup: ensure screen capture is allowed when component unmounts
     return () => {
       ScreenCapture.allowScreenCaptureAsync().catch((error) => {
         // Ignore cleanup errors
