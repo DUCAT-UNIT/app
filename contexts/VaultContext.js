@@ -24,10 +24,14 @@ export const VaultProvider = ({ children, currentAccount }) => {
 
   const openVault = async (shouldAutoCreate = false) => {
     try {
+      console.log('[VAULT_CTX] openVault called with shouldAutoCreate:', shouldAutoCreate);
+
+      // Switch to vault tab immediately for better UX
+      setActiveTab('vault');
+
       // Get mnemonic
       const mnemonic = await SecureStore.getItemAsync(SECURE_KEYS.MNEMONIC);
       if (!mnemonic) {
-        setActiveTab('vault');
         return;
       }
 
@@ -46,12 +50,14 @@ export const VaultProvider = ({ children, currentAccount }) => {
 
       // Trigger auto-create if requested by incrementing counter
       if (shouldAutoCreate) {
-        setAutoCreateVaultTrigger(prev => prev + 1);
+        console.log('[VAULT_CTX] Incrementing autoCreateVaultTrigger');
+        setAutoCreateVaultTrigger(prev => {
+          console.log('[VAULT_CTX] Previous trigger value:', prev, 'New value:', prev + 1);
+          return prev + 1;
+        });
       }
-
-      // Switch to vault tab
-      setActiveTab('vault');
     } catch (error) {
+      console.error('[VAULT_CTX] Error in openVault:', error);
       setActiveTab('vault');
     }
   };

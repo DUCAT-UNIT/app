@@ -29,6 +29,20 @@ export default function WalletScreen({
   } = useBalance();
   const { showTotalInBTC, setShowTotalInBTC } = useDisplayPreferences();
 
+  // Prevent multiple rapid clicks on create vault button
+  const [creatingVault, setCreatingVault] = React.useState(false);
+  const handleCreateVault = React.useCallback(() => {
+    if (creatingVault) {
+      console.log('[WALLET] Already creating vault, ignoring click');
+      return;
+    }
+    console.log('[WALLET] Create vault button clicked');
+    setCreatingVault(true);
+    onCreateVaultPress();
+    // Reset after 2 seconds to allow retry if needed
+    setTimeout(() => setCreatingVault(false), 2000);
+  }, [creatingVault, onCreateVaultPress]);
+
   return (
     <View style={styles.walletContainer}>
       {/* Loading overlay while switching accounts */}
@@ -191,8 +205,9 @@ export default function WalletScreen({
             >
               <TouchableOpacity
                 style={styles.createVaultButton}
-                onPress={onCreateVaultPress}
+                onPress={handleCreateVault}
                 activeOpacity={0.8}
+                disabled={creatingVault}
               >
                 <Text style={styles.createVaultButtonText}>Create Vault</Text>
               </TouchableOpacity>
