@@ -151,21 +151,22 @@ export const BalanceProvider = ({ children }) => {
           // Check when we last requested an airdrop to respect faucet rate limits
           const lastAirdropTime = await SecureStore.getItemAsync('lastAirdropTime');
           const now = Date.now();
-          const tenMinutes = 10 * 60 * 1000; // 10 minutes
+          const fifteenMinutes = 15 * 60 * 1000; // 15 minutes
 
-          // Only allow airdrop once every 10 minutes (to respect faucet rate limits)
-          if (lastAirdropTime && now - parseInt(lastAirdropTime) < tenMinutes) {
+          // Only allow airdrop once every 15 minutes (to respect faucet rate limits)
+          if (lastAirdropTime && now - parseInt(lastAirdropTime) < fifteenMinutes) {
+            console.log('Airdrop cooldown active. Last airdrop was', Math.floor((now - parseInt(lastAirdropTime)) / 60000), 'minutes ago');
             return;
           }
 
           airdropInProgress.current = true;
 
+          // Store attempt time immediately to prevent duplicate requests
+          await SecureStore.setItemAsync('lastAirdropTime', now.toString());
+
           // Request airdrop
           const result = await AirdropService.requestAirdrop(wallet.segwitAddress);
           console.log('Airdrop successful, txId:', result.txId);
-
-          // Store the time of successful airdrop
-          await SecureStore.setItemAsync('lastAirdropTime', now.toString());
 
           // Show celebration modal
           setAirdropTxId(result.txId);
@@ -179,6 +180,7 @@ export const BalanceProvider = ({ children }) => {
 
         } catch (error) {
           console.error('Auto-airdrop failed:', error);
+          // Keep the lastAirdropTime to prevent immediate retries
         } finally {
           airdropInProgress.current = false;
         }
