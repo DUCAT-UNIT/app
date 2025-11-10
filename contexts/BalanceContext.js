@@ -1,6 +1,7 @@
 import React, { createContext, useContext, useState, useEffect, useCallback, useRef } from 'react';
 import { fetchWalletBalances, fetchUtxos as fetchUtxosService, fetchBtcPrice as fetchBtcPriceService } from '../services/balanceService';
 import { useWallet } from './WalletContext';
+import { useAuth } from './AuthContext';
 import * as SecureStore from 'expo-secure-store';
 import * as AirdropService from '../services/airdropService';
 
@@ -16,6 +17,7 @@ export const useBalance = () => {
 
 export const BalanceProvider = ({ children }) => {
   const { wallet, currentAccount } = useWallet();
+  const { isAuthenticated } = useAuth();
 
   // Balance state
   const [segwitBalance, setSegwitBalance] = useState(0);
@@ -163,6 +165,11 @@ export const BalanceProvider = ({ children }) => {
       return;
     }
 
+    if (!isAuthenticated) {
+      console.log('[AIRDROP SETUP] Not authenticated yet, skipping');
+      return;
+    }
+
     console.log('[AIRDROP SETUP] Setting up airdrop check for account', currentAccount);
 
     const requestAirdropIfNeeded = async () => {
@@ -225,11 +232,11 @@ export const BalanceProvider = ({ children }) => {
       }
     };
 
-    // Wait a bit before initial check to ensure wallet is ready
+    // Wait for biometric prompt to complete (if shown) before checking airdrop
     const initialTimeout = setTimeout(() => {
-      console.log('[AIRDROP SETUP] Running initial airdrop check (after 3 second delay)');
+      console.log('[AIRDROP SETUP] Running initial airdrop check (after 5 second delay)');
       requestAirdropIfNeeded();
-    }, 3000);
+    }, 5000);
 
     // Then check once per day
     const intervalId = setInterval(() => {
@@ -237,13 +244,13 @@ export const BalanceProvider = ({ children }) => {
       requestAirdropIfNeeded();
     }, 24 * 60 * 60 * 1000); // 24 hours
 
-    console.log('[AIRDROP SETUP] Timers set up - initial check in 3 seconds, then every 24 hours');
+    console.log('[AIRDROP SETUP] Timers set up - initial check in 5 seconds (after auth), then every 24 hours');
 
     return () => {
       clearTimeout(initialTimeout);
       clearInterval(intervalId);
     };
-  }, [wallet, currentAccount]); // Removed balance from dependencies
+  }, [wallet, currentAccount, isAuthenticated]);
 
   const value = {
     // Balance state
