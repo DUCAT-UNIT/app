@@ -58,6 +58,7 @@ import VaultScreen from './components/VaultScreen';
 
 // Import pages
 import OnboardingPage from './pages/OnboardingPage';
+import WalletPage from './pages/WalletPage';
 
 // Import contexts
 import { useWallet } from './contexts/WalletContext';
@@ -685,15 +686,40 @@ function AppContent({ seedConfirmed, setSeedConfirmed }) {
   }
 
   // At this point, user is authenticated and has a wallet - show the main wallet UI
-  return (
-    <>
-      <View
-        style={{ flex: 1, backgroundColor: COLORS.DARK_BG }}
-        onTouchStart={resetInactivityTimer}
-      >
-      {/* Mutinynet Banner - Shows on all screens */}
-      <MutinynetBanner />
+  const settingsHandlers = {
+    privacyMode,
+    notificationsEnabled,
+    showZeroAssets,
+    handleLogout,
+    handleDeleteWallet,
+    handleViewSeedPhrase,
+    handleChangePin,
+    handlePrivacyModeToggle,
+    handleFaceIdToggle,
+    handleNotificationsToggle,
+    handleShowZeroAssetsToggle,
+  };
 
+  return (
+    <WalletPage
+      styles={styles}
+      resetInactivityTimer={resetInactivityTimer}
+      handleOpenVault={handleOpenVault}
+      vaultCredentials={vaultCredentials}
+      autoCreateVaultTrigger={autoCreateVaultTrigger}
+      amountInputRef={amountInputRef}
+      setShowAccountPicker={setShowAccountPicker}
+      settingsHandlers={settingsHandlers}
+      biometricEnabled={biometricEnabled}
+    />
+  );
+}
+
+// Old wallet UI code removed - now handled by WalletPage
+// Keeping this comment for reference during refactoring
+
+// Legacy code below can be removed after testing
+/*
       {activeTab === 'wallet' ? (
         <>
           <WalletScreen
@@ -953,18 +979,4 @@ function AppContent({ seedConfirmed, setSeedConfirmed }) {
     />
 
     {/* Splash Screen Overlay (shown when app is backgrounded) */}
-    {showBackgroundSplash && (
-      <View style={{
-        position: 'absolute',
-        top: 0,
-        left: 0,
-        right: 0,
-        bottom: 0,
-        zIndex: 9999,
-      }}>
-        <SplashScreen />
-      </View>
-    )}
-    </>
-  );
-}
+*/
