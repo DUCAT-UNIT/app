@@ -107,9 +107,9 @@ export const BalanceProvider = ({ children }) => {
   // Check for pending airdrop modal on mount and when balance updates
   useEffect(() => {
     const checkPendingAirdrop = async () => {
-      if (!currentAccount && currentAccount !== 0) return;
+      if (!wallet?.segwitAddress) return;
 
-      const pendingKey = `pendingAirdrop_${currentAccount}`;
+      const pendingKey = `pendingAirdrop_${wallet.segwitAddress}_${currentAccount}`;
       const pendingTxId = await SecureStore.getItemAsync(pendingKey);
 
       console.log('[AIRDROP CHECK] Account:', currentAccount, 'Balance:', segwitBalance + taprootBalance, 'Pending TxId:', pendingTxId);
@@ -125,7 +125,7 @@ export const BalanceProvider = ({ children }) => {
     };
 
     checkPendingAirdrop();
-  }, [currentAccount, segwitBalance, taprootBalance]);
+  }, [wallet, currentAccount, segwitBalance, taprootBalance]);
 
   // Fetch BTC price on mount and refresh every 60 seconds
   useEffect(() => {
@@ -182,8 +182,8 @@ export const BalanceProvider = ({ children }) => {
       if (totalBtcBalance === 0) {
         console.log('[AIRDROP TRIGGER] Balance is 0, checking cooldown...');
         try {
-          // Check when we last requested an airdrop for this specific account
-          const airdropKey = `lastAirdropTime_${currentAccount}`;
+          // Check when we last requested an airdrop for this specific wallet+account combo
+          const airdropKey = `lastAirdropTime_${wallet.segwitAddress}_${currentAccount}`;
           const lastAirdropTime = await SecureStore.getItemAsync(airdropKey);
           const now = Date.now();
           const twentyFourHours = 24 * 60 * 60 * 1000; // 24 hours
@@ -208,7 +208,7 @@ export const BalanceProvider = ({ children }) => {
           console.log('[AIRDROP REQUEST] Success for account', currentAccount, 'TxId:', result.txId);
 
           // Store pending airdrop in SecureStore (survives state resets during onboarding)
-          const pendingKey = `pendingAirdrop_${currentAccount}`;
+          const pendingKey = `pendingAirdrop_${wallet.segwitAddress}_${currentAccount}`;
           await SecureStore.setItemAsync(pendingKey, result.txId);
           console.log('[AIRDROP STORE] Stored pending airdrop in SecureStore with key:', pendingKey);
 
