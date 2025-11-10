@@ -100,15 +100,18 @@ export const SeedPhraseProvider = ({ children, showToast, setIsAuthenticated }) 
   const loadSeedPhrase = async () => {
     setRequestingSeedPhrase(false);
     try {
-      const mnemonic = await AuthService.getMnemonic();
-      if (mnemonic) {
-        setSeedPhraseWords(mnemonic.split(' '));
-        setSeedPhraseVisible(false);
-        seedPhraseTranslateX.setValue(0);
-        setViewingSeedPhrase(true);
-      } else {
-        showToast(ERRORS.SEED_PHRASE_NOT_FOUND, 'error');
-      }
+      // Use withMnemonic for secure access
+      await AuthService.withMnemonic(async (mnemonic) => {
+        if (mnemonic) {
+          // Store words in state for display (intentional - user is viewing seed)
+          setSeedPhraseWords(mnemonic.split(' '));
+          setSeedPhraseVisible(false);
+          seedPhraseTranslateX.setValue(0);
+          setViewingSeedPhrase(true);
+        } else {
+          showToast(ERRORS.SEED_PHRASE_NOT_FOUND, 'error');
+        }
+      });
     } catch (error) {
       showToast(parseErrorMessage(error), 'error');
     }

@@ -1,6 +1,5 @@
 import React, { createContext, useContext, useState, useEffect, useCallback } from 'react';
 import * as SecureStore from 'expo-secure-store';
-import { deriveAddressesFromMnemonic } from '../utils/bitcoin';
 import * as WalletService from '../services/walletService';
 import { fetchVaultData } from '../services/vaultService';
 import { SECURE_KEYS } from '../utils/constants';
@@ -43,10 +42,9 @@ export const WalletProvider = ({ children }) => {
   // Load wallet from secure storage
   const loadWallet = useCallback(async () => {
     try {
-      const { mnemonic, accountIndex } = await WalletService.loadWalletFromStorage();
+      const { addresses, accountIndex } = await WalletService.loadWalletFromStorage();
 
-      if (mnemonic) {
-        const addresses = deriveAddressesFromMnemonic(mnemonic, accountIndex);
+      if (addresses) {
         setWallet({
           segwitAddress: addresses.segwitAddress,
           taprootAddress: addresses.taprootAddress,
@@ -83,12 +81,11 @@ export const WalletProvider = ({ children }) => {
   // Switch account
   const switchAccount = useCallback(async (accountIndex) => {
     try {
-      const { mnemonic } = await WalletService.loadWalletFromStorage();
-      if (!mnemonic) {
+      const { addresses } = await WalletService.switchToAccount(accountIndex);
+      if (!addresses) {
         throw new Error('No wallet found');
       }
 
-      const addresses = deriveAddressesFromMnemonic(mnemonic, accountIndex);
       setWallet({
         segwitAddress: addresses.segwitAddress,
         taprootAddress: addresses.taprootAddress,

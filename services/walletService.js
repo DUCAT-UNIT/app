@@ -60,16 +60,23 @@ export const importWallet = async (mnemonic, accountIndex = 0) => {
 };
 
 /**
- * Load wallet from secure storage
- * @returns {Promise<{mnemonic: string|null, accountIndex: number}>}
+ * Load wallet from secure storage and derive addresses
+ * @returns {Promise<{addresses: object|null, accountIndex: number}>}
  */
 export const loadWalletFromStorage = async () => {
   try {
-    const mnemonic = await AuthService.getMnemonic();
     const accountIndex = await AuthService.getCurrentAccount();
 
+    // Use withMnemonic to ensure proper cleanup
+    const addresses = await AuthService.withMnemonic(async (mnemonic) => {
+      if (!mnemonic) {
+        return null;
+      }
+      return deriveAddressesFromMnemonic(mnemonic, accountIndex);
+    });
+
     return {
-      mnemonic,
+      addresses,
       accountIndex,
     };
   } catch (error) {
@@ -84,14 +91,15 @@ export const loadWalletFromStorage = async () => {
  */
 export const switchToAccount = async (accountIndex) => {
   try {
-    // Retrieve mnemonic from secure storage
-    const mnemonic = await AuthService.getMnemonic();
-    if (!mnemonic) {
-      throw new Error('Failed to retrieve wallet from secure storage');
-    }
+    // Use withMnemonic to ensure proper cleanup
+    const addresses = await AuthService.withMnemonic(async (mnemonic) => {
+      if (!mnemonic) {
+        throw new Error('Failed to retrieve wallet from secure storage');
+      }
 
-    // Derive new addresses for the selected account
-    const addresses = deriveAddressesFromMnemonic(mnemonic, accountIndex);
+      // Derive new addresses for the selected account
+      return deriveAddressesFromMnemonic(mnemonic, accountIndex);
+    });
 
     // Save the new account index
     await AuthService.saveCurrentAccount(accountIndex);
