@@ -4,6 +4,7 @@
  */
 
 import React, { useRef } from 'react';
+import { View, Text, TouchableOpacity, Animated } from 'react-native';
 import * as SecureStore from 'expo-secure-store';
 
 // Navigation
@@ -11,6 +12,7 @@ import RootNavigator from './RootNavigator';
 
 // Components
 import AccountSwitcherModal from '../components/AccountSwitcherModal';
+import MutinynetBanner from '../components/MutinynetBanner';
 import SplashScreen from '../components/SplashScreen';
 
 // Contexts
@@ -32,6 +34,7 @@ import { useOnboarding } from '../hooks/useOnboarding';
 
 // Utils
 import { SECURE_KEYS } from '../utils/constants';
+import { COLORS } from '../utils/colors';
 import styles from '../styles';
 
 export default function AppNavigator({ seedConfirmed, setSeedConfirmed }) {
@@ -147,10 +150,17 @@ function AppNavigatorContent({
   // Now we have access to Vault and SeedPhrase contexts
   const { activeTab, setActiveTab, vaultCredentials, openVault, autoCreateVaultTrigger } = useVault();
   const {
+    viewingSeedPhrase,
+    seedPhraseWords,
+    seedPhraseVisible,
     requestingSeedPhrase,
+    seedPhraseTranslateX,
+    seedPhrasePanResponderRef,
     setRequestingSeedPhrase,
     requestViewSeedPhrase,
     loadSeedPhrase,
+    closeSeedPhrase,
+    setSeedPhraseVisible,
   } = useSeedPhrase();
 
   // Refs
@@ -351,32 +361,86 @@ function AppNavigatorContent({
 
   // Main navigation
   return (
-    <RootNavigator
-      isAuthenticated={isAuthenticated}
-      wallet={wallet}
-      seedConfirmed={seedConfirmed}
-      settingUpPin={settingUpPin}
-      showPinEntry={showPinEntry}
-      setSeedConfirmed={setSeedConfirmed}
-      showToast={showToast}
-      fetchBalance={fetchBalance}
-      resetWalletAndState={resetWalletAndState}
-      handlePinSetupCompleteWrapper={handlePinSetupCompleteWrapper}
-      handlePinChangeCompleteWrapper={handlePinChangeCompleteWrapper}
-      handleCancelPinChange={handleCancelPinChange}
-      handleLockScreenAuthenticatedWrapper={handleLockScreenAuthenticatedWrapper}
-      resetInactivityTimer={resetInactivityTimer}
-      handleOpenVault={openVault}
-      vaultCredentials={vaultCredentials}
-      autoCreateVaultTrigger={autoCreateVaultTrigger}
-      amountInputRef={amountInputRef}
-      setShowAccountPicker={setShowAccountPicker}
-      settingsHandlers={settingsHandlers}
-      biometricEnabled={biometricEnabled}
-      activeTab={activeTab}
-      setActiveTab={setActiveTab}
-      keyboardHeight={keyboardHeight}
-      styles={styles}
-    />
+    <>
+      <RootNavigator
+        isAuthenticated={isAuthenticated}
+        wallet={wallet}
+        seedConfirmed={seedConfirmed}
+        settingUpPin={settingUpPin}
+        showPinEntry={showPinEntry}
+        setSeedConfirmed={setSeedConfirmed}
+        showToast={showToast}
+        fetchBalance={fetchBalance}
+        resetWalletAndState={resetWalletAndState}
+        handlePinSetupCompleteWrapper={handlePinSetupCompleteWrapper}
+        handlePinChangeCompleteWrapper={handlePinChangeCompleteWrapper}
+        handleCancelPinChange={handleCancelPinChange}
+        handleLockScreenAuthenticatedWrapper={handleLockScreenAuthenticatedWrapper}
+        resetInactivityTimer={resetInactivityTimer}
+        handleOpenVault={openVault}
+        vaultCredentials={vaultCredentials}
+        autoCreateVaultTrigger={autoCreateVaultTrigger}
+        amountInputRef={amountInputRef}
+        setShowAccountPicker={setShowAccountPicker}
+        settingsHandlers={settingsHandlers}
+        biometricEnabled={biometricEnabled}
+        activeTab={activeTab}
+        setActiveTab={setActiveTab}
+        keyboardHeight={keyboardHeight}
+        styles={styles}
+      />
+
+      {/* Seed Phrase Viewing Screen Overlay */}
+      {viewingSeedPhrase && (
+        <Animated.View
+          style={{
+            position: 'absolute',
+            top: 0,
+            left: 0,
+            right: 0,
+            bottom: 0,
+            backgroundColor: COLORS.DARK_BG,
+            zIndex: 1000,
+            transform: [{ translateX: seedPhraseTranslateX }]
+          }}
+        >
+          <MutinynetBanner panHandlers={seedPhrasePanResponderRef.current.panHandlers} />
+          <View style={[styles.container, { paddingTop: 0, flex: 1 }]}>
+            <View style={styles.walletInfo}>
+              <Text style={styles.seedPhraseWarning}>
+                ⚠️ Keep these words safe and private! Never share them with anyone.
+              </Text>
+
+              <View style={styles.seedGrid}>
+                {seedPhraseWords.map((word, index) => (
+                  <View key={index} style={styles.seedBox}>
+                    <Text style={styles.seedNumber}>{index + 1}</Text>
+                    <Text style={styles.seedWord}>
+                      {seedPhraseVisible ? word : '••••••'}
+                    </Text>
+                  </View>
+                ))}
+              </View>
+
+              {!seedPhraseVisible && (
+                <TouchableOpacity
+                  style={styles.button}
+                  onPress={() => setSeedPhraseVisible(true)}
+                >
+                  <Text style={styles.buttonText}>Show Recovery Phrase</Text>
+                </TouchableOpacity>
+              )}
+
+              <TouchableOpacity
+                style={[styles.button, seedPhraseVisible && styles.secondaryButton]}
+                onPress={closeSeedPhrase}
+              >
+                <Text style={styles.buttonText}>Done</Text>
+              </TouchableOpacity>
+            </View>
+          </View>
+        </Animated.View>
+      )}
+    </>
   );
 }
