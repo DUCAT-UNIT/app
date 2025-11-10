@@ -82,7 +82,6 @@ export function useSettings({
           walletExistsRef.current = false;
         }
         resetAuth(); // Reset all auth state
-        setShowSettings(false);
 
         // Show success toast instead of Alert
         if (showToast) {
@@ -139,11 +138,11 @@ export function useSettings({
 
         if (!result.success) {
           // Biometric failed or not available, fall back to PIN
-          setRequestingSeedPhrase(false);
-          setShowSettings(false);
-          setShowPinEntry(true);
           // Set a flag to indicate we're enabling Face ID after PIN verification
           await SecureStore.setItemAsync('pendingFaceIdEnable', 'true');
+          if (showToast) {
+            showToast('Please authenticate with PIN to enable Face ID', 'info');
+          }
           return;
         }
       } catch (error) {
@@ -188,11 +187,11 @@ export function useSettings({
 
         if (!result.success) {
           // Biometric failed or not available, fall back to PIN
-          setRequestingSeedPhrase(false);
-          setShowSettings(false);
-          setShowPinEntry(true);
           // Set a flag to indicate we're enabling notifications after PIN verification
           await SecureStore.setItemAsync('pendingNotificationsEnable', 'true');
+          if (showToast) {
+            showToast('Please authenticate with PIN to enable notifications', 'info');
+          }
           return;
         }
       } catch (error) {
