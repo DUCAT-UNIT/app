@@ -1,6 +1,7 @@
 import React, { createContext, useContext, useState, useEffect, useCallback, useRef } from 'react';
 import { fetchWalletBalances, fetchUtxos as fetchUtxosService, fetchBtcPrice as fetchBtcPriceService } from '../services/balanceService';
 import { useWallet } from './WalletContext';
+import * as SecureStore from 'expo-secure-store';
 import * as AirdropService from '../services/airdropService';
 
 const BalanceContext = createContext();
@@ -138,13 +139,26 @@ export const BalanceProvider = ({ children }) => {
 
       const totalBtcBalance = segwitBalance + taprootBalance;
 
-      // If balance is 0, request airdrop immediately
+      // If balance is 0, request airdrop (with rate limiting to respect faucet limits)
       if (totalBtcBalance === 0) {
         try {
+          // Check when we last requested an airdrop to respect faucet rate limits
+          const lastAirdropTime = await SecureStore.getItemAsync('lastAirdropTime');
+          const now = Date.now();
+          const tenMinutes = 10 * 60 * 1000; // 10 minutes
+
+          // Only allow airdrop once every 10 minutes (to respect faucet rate limits)
+          if (lastAirdropTime && now - parseInt(lastAirdropTime) < tenMinutes) {
+            return;
+          }
+
           airdropInProgress.current = true;
 
           // Request airdrop
           const result = await AirdropService.requestAirdrop(wallet.segwitAddress);
+
+          // Store the time of successful airdrop
+          await SecureStore.setItemAsync('lastAirdropTime', now.toString());
 
           // Fetch balance again after a few seconds to see the new balance
           setTimeout(() => {
