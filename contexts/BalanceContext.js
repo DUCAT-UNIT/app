@@ -143,6 +143,7 @@ export const BalanceProvider = ({ children }) => {
         return;
       }
 
+      // Get current balance from state
       const totalBtcBalance = segwitBalance + taprootBalance;
       console.log('Daily airdrop check - Balance:', totalBtcBalance);
 
@@ -172,10 +173,12 @@ export const BalanceProvider = ({ children }) => {
           const result = await AirdropService.requestAirdrop(wallet.segwitAddress);
           console.log('Airdrop successful! TxId:', result.txId);
 
-          // Show celebration modal
-          setAirdropTxId(result.txId);
-          setShowAirdropModal(true);
-          console.log('Showing airdrop modal');
+          // Show celebration modal - delay to ensure app is ready
+          setTimeout(() => {
+            setAirdropTxId(result.txId);
+            setShowAirdropModal(true);
+            console.log('Showing airdrop modal');
+          }, 1000);
 
           // Fetch balance again after a few seconds to see the new balance
           setTimeout(() => {
@@ -191,16 +194,21 @@ export const BalanceProvider = ({ children }) => {
       }
     };
 
-    // Check immediately on mount
-    requestAirdropIfNeeded();
+    // Wait a bit before initial check to ensure app is fully loaded
+    const initialTimeout = setTimeout(() => {
+      requestAirdropIfNeeded();
+    }, 3000);
 
     // Then check once per day
     const intervalId = setInterval(() => {
       requestAirdropIfNeeded();
     }, 24 * 60 * 60 * 1000); // 24 hours
 
-    return () => clearInterval(intervalId);
-  }, [wallet, currentAccount, segwitBalance, taprootBalance, fetchBalance]);
+    return () => {
+      clearTimeout(initialTimeout);
+      clearInterval(intervalId);
+    };
+  }, [wallet, currentAccount]); // Removed balance from dependencies
 
   const value = {
     // Balance state
