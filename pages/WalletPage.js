@@ -42,6 +42,9 @@ export default function WalletPage({
   setShowAccountPicker,
   settingsHandlers, // All settings handlers from App.js
   biometricEnabled,
+  activeTab, // Passed from App.js
+  setActiveTab, // Passed from App.js
+  keyboardHeight, // Passed from App.js
 }) {
   // Wallet context
   const {
@@ -76,12 +79,10 @@ export default function WalletPage({
   // Toast hook
   const { toastVisible, toastMessage, toastType, showToast } = useToast();
 
-  // Local state
-  const [activeTab, setActiveTab] = useState('wallet');
+  // Local state (not passed from parent)
   const [showReceiveSheet, setShowReceiveSheet] = useState(false);
   const [showTxHistory, setShowTxHistory] = useState(false);
   const [showSettings, setShowSettings] = useState(false);
-  const [keyboardHeight, setKeyboardHeight] = useState(0);
 
   // Animated values for settings swipe
   const settingsTranslateX = useRef(new Animated.Value(0)).current;

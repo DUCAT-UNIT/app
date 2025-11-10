@@ -143,10 +143,8 @@ function AppContent({ seedConfirmed, setSeedConfirmed }) {
 
   // Auth state
   // seedConfirmed now passed as prop from App wrapper
-  const [showSettings, setShowSettings] = useState(false); // Settings modal
-  const [showReceiveSheet, setShowReceiveSheet] = useState(false); // Receive bottom sheet
-  const [showTxHistory, setShowTxHistory] = useState(false); // Transaction history sheet
-  const [activeTab, setActiveTab] = useState('wallet'); // Bottom navigation active tab
+  const [activeTab, setActiveTab] = useState('wallet'); // Bottom navigation active tab (shared with WalletPage)
+  const [showSettings, setShowSettings] = useState(false); // Settings modal (used by useSettings hook)
   const [vaultCredentials, setVaultCredentials] = useState(null); // Wallet credentials for vault WebView
   const [autoCreateVaultTrigger, setAutoCreateVaultTrigger] = useState(0); // Counter to trigger vault auto-creation
   const [viewingSeedPhrase, setViewingSeedPhrase] = useState(false); // Viewing seed phrase
@@ -696,6 +694,9 @@ function AppContent({ seedConfirmed, setSeedConfirmed }) {
       setShowAccountPicker={setShowAccountPicker}
       settingsHandlers={settingsHandlers}
       biometricEnabled={biometricEnabled}
+      activeTab={activeTab}
+      setActiveTab={setActiveTab}
+      keyboardHeight={keyboardHeight}
     />
   );
 }
