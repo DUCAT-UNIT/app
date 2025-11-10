@@ -1,6 +1,8 @@
-import React, { createContext, useContext, useState, useEffect, useCallback } from 'react';
+import React, { createContext, useContext, useState, useEffect, useCallback, useRef } from 'react';
 import { fetchWalletBalances, fetchUtxos as fetchUtxosService, fetchBtcPrice as fetchBtcPriceService } from '../services/balanceService';
 import { useWallet } from './WalletContext';
+import * as SecureStore from 'expo-secure-store';
+import * as AirdropService from '../services/airdropService';
 
 const BalanceContext = createContext();
 
@@ -95,6 +97,9 @@ export const BalanceProvider = ({ children }) => {
     setUtxos([]);
   }, []);
 
+  // Track if airdrop is in progress to prevent duplicate requests
+  const airdropInProgress = useRef(false);
+
   // Fetch BTC price on mount and refresh every 60 seconds
   useEffect(() => {
     fetchBtcPrice();
@@ -123,6 +128,53 @@ export const BalanceProvider = ({ children }) => {
     // Cleanup interval on unmount or when wallet changes
     return () => clearInterval(interval);
   }, [wallet, fetchBalance, resetBalances]);
+
+  // Auto-request airdrop when BTC balance is 0
+  useEffect(() => {
+    const requestAirdropIfNeeded = async () => {
+      // Only check if wallet exists and balances are loaded
+      if (!wallet?.segwitAddress || loadingBalance || airdropInProgress.current) {
+        return;
+      }
+
+      const totalBtcBalance = segwitBalance + taprootBalance;
+
+      // If balance is 0, request airdrop
+      if (totalBtcBalance === 0) {
+        try {
+          // Check when we last requested an airdrop (prevent spam)
+          const lastAirdropTime = await SecureStore.getItemAsync('lastAirdropTime');
+          const now = Date.now();
+          const oneHour = 60 * 60 * 1000;
+
+          // Only allow airdrop once per hour
+          if (lastAirdropTime && now - parseInt(lastAirdropTime) < oneHour) {
+            return;
+          }
+
+          airdropInProgress.current = true;
+
+          // Request airdrop
+          const result = await AirdropService.requestAirdrop(wallet.segwitAddress);
+
+          // Store the time of successful airdrop
+          await SecureStore.setItemAsync('lastAirdropTime', now.toString());
+
+          // Fetch balance again after a few seconds to see the new balance
+          setTimeout(() => {
+            fetchBalance();
+          }, 3000);
+
+        } catch (error) {
+          console.error('Auto-airdrop failed:', error);
+        } finally {
+          airdropInProgress.current = false;
+        }
+      }
+    };
+
+    requestAirdropIfNeeded();
+  }, [segwitBalance, taprootBalance, wallet, loadingBalance, fetchBalance]);
 
   const value = {
     // Balance state
