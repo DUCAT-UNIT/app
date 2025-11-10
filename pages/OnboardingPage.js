@@ -13,7 +13,6 @@ import PinSetupScreen from '../components/PinSetupScreen';
 import LockScreen from '../components/LockScreen';
 import MutinynetBanner from '../components/MutinynetBanner';
 import BiometricPromptModal from '../components/BiometricPromptModal';
-import AirdropSuccessModal from '../components/AirdropSuccessModal';
 
 // Contexts
 import { useAuth } from '../contexts/AuthContext';
@@ -21,9 +20,6 @@ import { useWallet } from '../contexts/WalletContext';
 
 // Hooks
 import { useOnboarding } from '../hooks/useOnboarding';
-
-// Services
-import * as AirdropService from '../services/airdropService';
 
 // Utils
 import { COLORS } from '../utils/colors';
@@ -59,10 +55,6 @@ export default function OnboardingPage({
 
   // Wallet context
   const { wallet, currentAccount } = useWallet();
-
-  // Airdrop modal state
-  const [showAirdropModal, setShowAirdropModal] = useState(false);
-  const [airdropTxId, setAirdropTxId] = useState('');
 
   // Onboarding hook
   const {
@@ -105,27 +97,6 @@ export default function OnboardingPage({
       if (!saved) {
         showToast('Failed to save wallet', 'error');
         return;
-      }
-
-      // Request airdrop for new wallets (not imported)
-      try {
-        if (wallet?.segwitAddress) {
-          const result = await AirdropService.requestAirdrop(wallet.segwitAddress);
-          setAirdropTxId(result.txId);
-
-          // Complete PIN setup first
-          handlePinSetupCompleteWrapper();
-          setIsImportedWallet(false);
-
-          // Then show airdrop success modal
-          setTimeout(() => {
-            setShowAirdropModal(true);
-          }, 500);
-          return;
-        }
-      } catch (error) {
-        console.error('Airdrop request failed:', error);
-        // Continue even if airdrop fails - don't block user
       }
     }
     handlePinSetupCompleteWrapper();
@@ -232,13 +203,5 @@ export default function OnboardingPage({
 
   // If we reach here, user is authenticated and has a wallet - don't render anything
   // Let the parent (App.js) render the WalletPage
-  return (
-    <>
-      <AirdropSuccessModal
-        visible={showAirdropModal}
-        onClose={() => setShowAirdropModal(false)}
-        txId={airdropTxId}
-      />
-    </>
-  );
+  return null;
 }
