@@ -102,18 +102,7 @@ export default function AppNavigator({ seedConfirmed, setSeedConfirmed }) {
             showToast={showToast}
             keyboardHeight={keyboardHeight}
             showBackgroundSplash={showBackgroundSplash}
-            settingsHandlersBase={{
-              privacyMode,
-              notificationsEnabled,
-              showZeroAssets,
-              handleLogout,
-              handleDeleteWallet,
-              handleChangePin,
-              handlePrivacyModeToggle,
-              handleFaceIdToggle,
-              handleNotificationsToggle,
-              handleShowZeroAssetsToggle,
-            }}
+            walletExists={walletExists}
           />
         </SeedPhraseProvider>
       </VaultProvider>
@@ -150,7 +139,7 @@ function AppNavigatorContent({
   showToast,
   keyboardHeight,
   showBackgroundSplash,
-  settingsHandlersBase,
+  walletExists,
 }) {
   // Now we have access to Vault and SeedPhrase contexts
   const { activeTab, setActiveTab, vaultCredentials, openVault, autoCreateVaultTrigger } = useVault();
@@ -167,7 +156,6 @@ function AppNavigatorContent({
 
   // Onboarding hook
   const {
-    walletExistsRef: walletExists,
     resetOnboarding,
   } = useOnboarding({
     currentAccount,
@@ -199,12 +187,6 @@ function AppNavigatorContent({
     setIsAuthenticated,
     showToast,
   });
-
-  // Wrap handleViewSeedPhrase to use SeedPhraseContext
-  const handleViewSeedPhrase = () => {
-    // Will be wired up in AppNavigatorContent where we have access to SeedPhraseContext
-    return 'REQUEST_VIEW_SEED_PHRASE';
-  };
 
   // Account switcher hook
   const {
@@ -300,10 +282,19 @@ function AppNavigatorContent({
     }
   };
 
-  // Settings handlers for WalletPage - override handleViewSeedPhrase with actual implementation
+  // Settings handlers for WalletPage
   const settingsHandlers = {
-    ...settingsHandlersBase,
+    privacyMode: privacyMode || false,
+    notificationsEnabled: notificationsEnabled || false,
+    showZeroAssets: showZeroAssets || false,
+    handleLogout,
+    handleDeleteWallet,
     handleViewSeedPhrase: requestViewSeedPhrase, // Use SeedPhraseContext function
+    handleChangePin,
+    handlePrivacyModeToggle,
+    handleFaceIdToggle,
+    handleNotificationsToggle,
+    handleShowZeroAssetsToggle,
   };
 
   // Show loading splash
