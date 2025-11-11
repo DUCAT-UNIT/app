@@ -28,7 +28,7 @@ function getECPair() {
  * Convert witness stack to script witness format
  * Properly serializes witness elements with compact size prefixes
  */
-function witnessToScriptWitness(witness) {
+function _witnessToScriptWitness(witness) {
   const buffer = Buffer.allocUnsafe(getWitnessSize(witness));
   let offset = 0;
 
@@ -105,8 +105,7 @@ export async function signPsbt(psbtBase64, signInputs) {
     if (storedAccount) {
       accountIndex = parseInt(storedAccount, 10);
     }
-  } catch (error) {
-  }
+  } catch (error) {}
 
   // Use withMnemonic to ensure proper cleanup of sensitive data
   return await withMnemonic(async (mnemonic) => {
@@ -119,7 +118,6 @@ export async function signPsbt(psbtBase64, signInputs) {
 
     // Derive keys and sign inputs
     for (const [address, inputIndices] of Object.entries(signInputs)) {
-
       // Determine which derivation path to use based on address type
       let derivationPath;
       let keyPair;
@@ -138,7 +136,7 @@ export async function signPsbt(psbtBase64, signInputs) {
 
         // Log the pubkeys for debugging
         const compressedPubkey = child.publicKey;
-        const xOnlyPubkey = compressedPubkey.slice(1, 33);
+        const _xOnlyPubkey = compressedPubkey.slice(1, 33);
 
         // For Taproot, DON'T tweak the signer - bitcoinjs-lib will handle tweaking
         // when it sees tapInternalKey in the PSBT input
@@ -148,17 +146,14 @@ export async function signPsbt(psbtBase64, signInputs) {
         throw new Error(`Unsupported address type: ${address}`);
       }
 
-
       // Sign each input
       for (const inputIndex of inputIndices) {
-
         try {
           // Use different signing methods based on address type
           if (address.startsWith('tb1p')) {
             // Taproot: Check if this is script-path or key-path spending
             const input = psbt.data.inputs[inputIndex];
             const isScriptPath = !!(input.tapLeafScript && input.tapLeafScript.length > 0);
-
 
             // Ensure privateKey is a Buffer
             let privateKey = keyPair.privateKey;
@@ -170,7 +165,9 @@ export async function signPsbt(psbtBase64, signInputs) {
             if (keyPair.publicKey[0] === 0x03) {
               const privKeyHex = privateKey.toString('hex');
               const privKeyNum = BigInt('0x' + privKeyHex);
-              const CURVE_ORDER = BigInt('0xfffffffffffffffffffffffffffffffebaaedce6af48a03bbfd25e8cd0364141');
+              const CURVE_ORDER = BigInt(
+                '0xfffffffffffffffffffffffffffffffebaaedce6af48a03bbfd25e8cd0364141'
+              );
               const negatedNum = CURVE_ORDER - privKeyNum;
               privateKey = Buffer.from(negatedNum.toString(16).padStart(64, '0'), 'hex');
             }
@@ -190,47 +187,40 @@ export async function signPsbt(psbtBase64, signInputs) {
 
               const tapleafHash = bitcoin.crypto.taggedHash(
                 'TapLeaf',
-                Buffer.concat([
-                  Buffer.from([leafVersion]),
-                  scriptLengthVarint,
-                  script,
-                ])
+                Buffer.concat([Buffer.from([leafVersion]), scriptLengthVarint, script])
               );
-
 
               // Get the sighash for script-path spending
               const sighash = input.sighashType || 0x00; // SIGHASH_DEFAULT
               const hash = psbt.__CACHE.__TX.hashForWitnessV1(
                 inputIndex,
-                psbt.data.inputs.map(i => i.witnessUtxo.script),
-                psbt.data.inputs.map(i => i.witnessUtxo.value),
+                psbt.data.inputs.map((i) => i.witnessUtxo.script),
+                psbt.data.inputs.map((i) => i.witnessUtxo.value),
                 sighash,
                 tapleafHash
               );
-
 
               // Sign with UNTWEAKED private key for script-path
               const signature = ecc.signSchnorr(hash, privateKey);
               const signatureBuffer = Buffer.from(signature);
 
-
               // Extract x-only pubkey for tapScriptSig
-              const xOnlyPubkey = keyPair.publicKey.slice(1, 33);
+              const _xOnlyPubkey = keyPair.publicKey.slice(1, 33);
 
               // For Taproot script-path spending, we need to set tapScriptSig (NOT finalScriptWitness)
               // tapScriptSig is an array of {pubkey, leafHash, signature} objects
-              const tapScriptSig = [{
-                pubkey: xOnlyPubkey,
-                leafHash: tapleafHash,
-                signature: signatureBuffer,
-              }];
-
+              const tapScriptSig = [
+                {
+                  pubkey: xOnlyPubkey,
+                  leafHash: tapleafHash,
+                  signature: signatureBuffer,
+                },
+              ];
 
               // Update the PSBT with tapScriptSig (not finalized yet)
               psbt.updateInput(inputIndex, {
                 tapScriptSig,
               });
-
             } else {
               // KEY-PATH spending (for regular transfers)
 
@@ -238,14 +228,13 @@ export async function signPsbt(psbtBase64, signInputs) {
               const sighash = input.sighashType || 0x00; // SIGHASH_DEFAULT
               const hash = psbt.__CACHE.__TX.hashForWitnessV1(
                 inputIndex,
-                psbt.data.inputs.map(i => i.witnessUtxo.script),
-                psbt.data.inputs.map(i => i.witnessUtxo.value),
+                psbt.data.inputs.map((i) => i.witnessUtxo.script),
+                psbt.data.inputs.map((i) => i.witnessUtxo.value),
                 sighash
               );
 
-
               // Get the private key and tweak it for key-path
-              const xOnlyPubkey = keyPair.publicKey.slice(1, 33);
+              const _xOnlyPubkey = keyPair.publicKey.slice(1, 33);
               const tweakHash = bitcoin.crypto.taggedHash('TapTweak', xOnlyPubkey);
 
               // Add the tweak
@@ -253,9 +242,14 @@ export async function signPsbt(psbtBase64, signInputs) {
               const tweakHashHex = Buffer.from(tweakHash).toString('hex');
               const privKeyNum = BigInt('0x' + privKeyHex);
               const tweakNum = BigInt('0x' + tweakHashHex);
-              const CURVE_ORDER = BigInt('0xfffffffffffffffffffffffffffffffebaaedce6af48a03bbfd25e8cd0364141');
+              const CURVE_ORDER = BigInt(
+                '0xfffffffffffffffffffffffffffffffebaaedce6af48a03bbfd25e8cd0364141'
+              );
               const tweakedNum = (privKeyNum + tweakNum) % CURVE_ORDER;
-              const tweakedPrivateKey = Buffer.from(tweakedNum.toString(16).padStart(64, '0'), 'hex');
+              const tweakedPrivateKey = Buffer.from(
+                tweakedNum.toString(16).padStart(64, '0'),
+                'hex'
+              );
 
               // Sign with Schnorr
               const signature = ecc.signSchnorr(hash, tweakedPrivateKey);
@@ -265,7 +259,6 @@ export async function signPsbt(psbtBase64, signInputs) {
               psbt.updateInput(inputIndex, {
                 tapKeySig: signatureBuffer,
               });
-
             }
           } else {
             psbt.signInput(inputIndex, keyPair);
@@ -273,11 +266,8 @@ export async function signPsbt(psbtBase64, signInputs) {
             // Finalize the SegWit input immediately after signing
             try {
               psbt.finalizeInput(inputIndex);
-            } catch (error) {
-            }
+            } catch (error) {}
           }
-
-
         } catch (error) {
           throw error;
         }

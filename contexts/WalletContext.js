@@ -1,4 +1,4 @@
-import React, { createContext, useContext, useState, useEffect, useCallback } from 'react';
+import React, { createContext, useContext, useState,  useCallback } from 'react';
 import * as SecureStore from 'expo-secure-store';
 import * as WalletService from '../services/walletService';
 import { SECURE_KEYS } from '../utils/constants';
@@ -54,7 +54,6 @@ export const WalletProvider = ({ children }) => {
   const resetWallet = useCallback(() => {
     setWallet(null);
     setCurrentAccount(0);
-    setVaultData(null);
   }, []);
 
   // Switch account
@@ -93,9 +92,5 @@ export const WalletProvider = ({ children }) => {
     resetWallet,
   };
 
-  return (
-    <WalletContext.Provider value={value}>
-      {children}
-    </WalletContext.Provider>
-  );
+  return <WalletContext.Provider value={value}>{children}</WalletContext.Provider>;
 };

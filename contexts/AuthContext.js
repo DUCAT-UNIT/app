@@ -19,9 +19,5 @@ export const useAuth = () => {
 export const AuthProvider = ({ children, onSeedConfirmed }) => {
   const authState = useAuthHook({ onSeedConfirmed });
 
-  return (
-    <AuthContext.Provider value={authState}>
-      {children}
-    </AuthContext.Provider>
-  );
+  return <AuthContext.Provider value={authState}>{children}</AuthContext.Provider>;
 };

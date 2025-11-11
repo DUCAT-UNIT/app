@@ -44,14 +44,12 @@ export function useAuth({ onSeedConfirmed }) {
     try {
       const biometricPref = await SecureStore.getItemAsync(SECURE_KEYS.BIOMETRIC_ENABLED);
       setBiometricEnabled(biometricPref === 'true');
-    } catch (error) {
-    }
+    } catch (error) {}
   };
 
   // Authenticate user with biometrics
   const authenticateUser = async () => {
     try {
-
       // Check if user has already enabled biometric auth
       if (biometricEnabled) {
         // User has previously enabled biometrics, trigger it directly
