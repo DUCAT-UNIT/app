@@ -20,6 +20,7 @@ import AirdropSuccessModal from '../components/AirdropSuccessModal';
 import { useAuth } from '../contexts/AuthContext';
 import { useWallet } from '../contexts/WalletContext';
 import { useBalance } from '../contexts/BalanceContext';
+import { useAirdrop } from '../contexts/AirdropContext';
 import { TransactionProvider } from '../contexts/TransactionContext';
 import { VaultProvider, useVault } from '../contexts/VaultContext';
 import { SeedPhraseProvider, useSeedPhrase } from '../contexts/SeedPhraseContext';
@@ -179,7 +180,7 @@ function AppNavigatorContent({
     closeSeedPhrase,
     setSeedPhraseVisible,
   } = useSeedPhrase();
-  const { showAirdropModal, setShowAirdropModal, airdropTxId } = useBalance();
+  const { showAirdropModal, setShowAirdropModal, airdropTxId } = useAirdrop();
 
   // Refs
   const seedConfirmedRef = useRef(false);
@@ -310,9 +311,7 @@ function AppNavigatorContent({
   };
 
   // Show loading splash
-  console.log('[AppNavigator] Render check:', { isLoading, showBackgroundSplash });
   if (isLoading || showBackgroundSplash) {
-    console.log('[AppNavigator] Showing SplashScreen');
     return <SplashScreen />;
   }
 

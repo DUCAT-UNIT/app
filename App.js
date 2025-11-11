@@ -21,6 +21,7 @@ import { BalanceProvider } from './contexts/BalanceContext';
 import { PriceProvider } from './contexts/PriceContext';
 import { VaultDataProvider } from './contexts/VaultDataContext';
 import { TransactionHistoryProvider } from './contexts/TransactionHistoryContext';
+import { AirdropProvider } from './contexts/AirdropContext';
 import { DisplayPreferencesProvider } from './contexts/DisplayPreferencesContext';
 
 // Navigation
@@ -53,12 +54,14 @@ export default function App() {
       <WalletProvider>
         <PriceProvider>
           <VaultDataProvider>
-            <BalanceProvider seedConfirmed={seedConfirmed}>
-              <TransactionHistoryProvider>
-                <DisplayPreferencesProvider>
-                  <AppNavigator seedConfirmed={seedConfirmed} setSeedConfirmed={setSeedConfirmed} />
-                </DisplayPreferencesProvider>
-              </TransactionHistoryProvider>
+            <BalanceProvider>
+              <AirdropProvider seedConfirmed={seedConfirmed}>
+                <TransactionHistoryProvider>
+                  <DisplayPreferencesProvider>
+                    <AppNavigator seedConfirmed={seedConfirmed} setSeedConfirmed={setSeedConfirmed} />
+                  </DisplayPreferencesProvider>
+                </TransactionHistoryProvider>
+              </AirdropProvider>
             </BalanceProvider>
           </VaultDataProvider>
         </PriceProvider>
