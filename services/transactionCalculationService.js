@@ -83,21 +83,17 @@ export const calculateMaxSendableBTC = async ({ sourceAddress, btcBalance, feeRa
 };
 
 /**
- * Determine source address based on recipient address type
+ * Determine source address for BTC transactions
+ * Note: Always uses segwit for BTC sends regardless of recipient type
  * @param {string} recipientAddress - Recipient's Bitcoin address
  * @param {Object} wallet - Wallet object with segwitAddress and taprootAddress
- * @returns {string|null} Source address to use (taproot or segwit)
+ * @returns {string|null} Source address to use (always segwit for BTC)
  */
 export const determineSourceAddress = (recipientAddress, wallet) => {
   if (!recipientAddress || !wallet) {
     return null;
   }
 
-  // If recipient is taproot (bc1p or tb1p), use taproot address
-  if (recipientAddress.startsWith('tb1p') || recipientAddress.startsWith('bc1p')) {
-    return wallet.taprootAddress;
-  }
-
-  // Otherwise use segwit
+  // Always use segwit for BTC transactions
   return wallet.segwitAddress;
 };
