@@ -5,7 +5,16 @@
 
 import React from 'react';
 import PropTypes from 'prop-types';
-import { Text, View, TouchableOpacity, StyleSheet, Platform, Dimensions, StatusBar, ScrollView } from 'react-native';
+import {
+  Text,
+  View,
+  TouchableOpacity,
+  StyleSheet,
+  Platform,
+  Dimensions,
+  StatusBar,
+  ScrollView,
+} from 'react-native';
 import { COLORS } from '../utils/colors';
 import Icon from './Icon';
 
@@ -13,10 +22,10 @@ import Icon from './Icon';
 const { width: SCREEN_WIDTH } = Dimensions.get('window');
 
 // Get safe area top inset - accounts for notch/status bar on different devices
-const STATUS_BAR_HEIGHT = Platform.OS === 'ios' ? 50 : (StatusBar.currentHeight || 0);
+const _STATUS_BAR_HEIGHT = Platform.OS === 'ios' ? 50 : StatusBar.currentHeight || 0;
 
 // Responsive horizontal padding
-const HORIZONTAL_PADDING = SCREEN_WIDTH < 375 ? 16 : (SCREEN_WIDTH > 414 ? 24 : 20);
+const HORIZONTAL_PADDING = SCREEN_WIDTH < 375 ? 16 : SCREEN_WIDTH > 414 ? 24 : 20;
 
 export default function SettingsScreen({
   // Callbacks
@@ -49,45 +58,37 @@ export default function SettingsScreen({
         <View style={localStyles.content}>
           {/* Security Section */}
           <View style={localStyles.section}>
-          <SettingsOption
-            iconName="recovery_phrase"
-            title="View Recovery Phrase"
-            onPress={onViewSeedPhrase}
-          />
-          <SettingsOption
-            iconName="pin"
-            title="Change PIN"
-            onPress={onChangePin}
-          />
-          <SettingsOption
-            iconName="switch_account"
-            title="Switch Account"
-            onPress={onSwitchAccount}
-          />
-          <SettingsOption
-            iconName="asset"
-            title="Show Zero Value Assets"
-            onPress={onShowZeroAssetsToggle}
-            rightText={showZeroAssets ? 'ON' : 'OFF'}
-          />
-          <SettingsOption
-            iconName="face_id"
-            title="Face ID"
-            onPress={onFaceIdToggle}
-            rightText={faceIdEnabled ? 'ON' : 'OFF'}
-          />
-          <SettingsOption
-            iconName="notification"
-            title="Notifications"
-            onPress={onNotificationsToggle}
-            rightText={notificationsEnabled ? 'ON' : 'OFF'}
-          />
-          <SettingsOption
-            iconName="logout"
-            title="Lock Wallet"
-            onPress={onLockWallet}
-          />
-        </View>
+            <SettingsOption
+              iconName="recovery_phrase"
+              title="View Recovery Phrase"
+              onPress={onViewSeedPhrase}
+            />
+            <SettingsOption iconName="pin" title="Change PIN" onPress={onChangePin} />
+            <SettingsOption
+              iconName="switch_account"
+              title="Switch Account"
+              onPress={onSwitchAccount}
+            />
+            <SettingsOption
+              iconName="asset"
+              title="Show Zero Value Assets"
+              onPress={onShowZeroAssetsToggle}
+              rightText={showZeroAssets ? 'ON' : 'OFF'}
+            />
+            <SettingsOption
+              iconName="face_id"
+              title="Face ID"
+              onPress={onFaceIdToggle}
+              rightText={faceIdEnabled ? 'ON' : 'OFF'}
+            />
+            <SettingsOption
+              iconName="notification"
+              title="Notifications"
+              onPress={onNotificationsToggle}
+              rightText={notificationsEnabled ? 'ON' : 'OFF'}
+            />
+            <SettingsOption iconName="logout" title="Lock Wallet" onPress={onLockWallet} />
+          </View>
 
           {/* Danger Zone */}
           <View style={localStyles.section}>
@@ -110,9 +111,7 @@ function SettingsOption({ iconName, title, onPress, rightText, isDanger }) {
     <TouchableOpacity style={localStyles.option} onPress={onPress}>
       <View style={localStyles.optionLeft}>
         <Icon name={iconName} size={24} color={isDanger ? COLORS.DANGER_RED : '#DDDDDD'} />
-        <Text style={[localStyles.optionTitle, isDanger && localStyles.dangerText]}>
-          {title}
-        </Text>
+        <Text style={[localStyles.optionTitle, isDanger && localStyles.dangerText]}>{title}</Text>
       </View>
       <View style={localStyles.optionRight}>
         {rightText && <Text style={localStyles.optionRightText}>{rightText}</Text>}
@@ -163,11 +162,7 @@ const localStyles = StyleSheet.create({
     justifyContent: 'center',
     marginRight: 8,
   },
-  backIcon: {
-    width: 24,
-    height: 24,
-    tintColor: COLORS.VERY_LIGHT_GRAY,
-  },
+  // backIcon removed - not currently used
   scrollView: {
     flex: 1,
   },
@@ -200,11 +195,7 @@ const localStyles = StyleSheet.create({
     flex: 1,
     gap: 16,
   },
-  optionIconImage: {
-    width: 24,
-    height: 24,
-    tintColor: COLORS.VERY_LIGHT_GRAY,
-  },
+  // optionIconImage removed - not currently used
   optionTitle: {
     fontSize: 16,
     color: COLORS.VERY_LIGHT_GRAY,

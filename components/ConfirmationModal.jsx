@@ -49,7 +49,7 @@ export default function ConfirmationModal({
               styles.confirmationModalButton,
               confirmStyle === 'destructive'
                 ? styles.confirmationModalButtonDestructive
-                : styles.confirmationModalButtonPrimary
+                : styles.confirmationModalButtonPrimary,
             ]}
             onPress={onConfirm}
           >

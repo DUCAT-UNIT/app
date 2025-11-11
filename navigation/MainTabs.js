@@ -10,20 +10,7 @@ import { COLORS } from '../utils/colors';
 
 const Tab = createBottomTabNavigator();
 
-export default function MainTabs({
-  styles,
-  resetInactivityTimer,
-  handleOpenVault,
-  vaultCredentials,
-  autoCreateVaultTrigger,
-  amountInputRef,
-  setShowAccountPicker,
-  settingsHandlers,
-  biometricEnabled,
-  activeTab,
-  setActiveTab,
-  keyboardHeight,
-}) {
+export default function MainTabs() {
   return (
     <Tab.Navigator
       screenOptions={{
@@ -33,25 +20,7 @@ export default function MainTabs({
         tabBarInactiveTintColor: COLORS.MEDIUM_GRAY,
       }}
     >
-      <Tab.Screen name="WalletTab">
-        {(props) => (
-          <WalletPage
-            {...props}
-            styles={styles}
-            resetInactivityTimer={resetInactivityTimer}
-            handleOpenVault={handleOpenVault}
-            vaultCredentials={vaultCredentials}
-            autoCreateVaultTrigger={autoCreateVaultTrigger}
-            amountInputRef={amountInputRef}
-            setShowAccountPicker={setShowAccountPicker}
-            settingsHandlers={settingsHandlers}
-            biometricEnabled={biometricEnabled}
-            activeTab={activeTab}
-            setActiveTab={setActiveTab}
-            keyboardHeight={keyboardHeight}
-          />
-        )}
-      </Tab.Screen>
+      <Tab.Screen name="WalletTab" component={WalletPage} />
     </Tab.Navigator>
   );
 }

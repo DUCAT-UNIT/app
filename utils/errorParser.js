@@ -14,76 +14,76 @@ export function parseErrorMessage(error) {
   const errorPatterns = [
     {
       pattern: /insufficient funds|not enough/i,
-      message: ERRORS.INSUFFICIENT_FUNDS
+      message: ERRORS.INSUFFICIENT_FUNDS,
     },
     {
       pattern: /network request failed|fetch failed|ECONNREFUSED/i,
-      message: ERRORS.NETWORK_FAILED
+      message: ERRORS.NETWORK_FAILED,
     },
     {
       pattern: /timeout|timed out/i,
-      message: ERRORS.REQUEST_TIMEOUT
+      message: ERRORS.REQUEST_TIMEOUT,
     },
     {
       pattern: /invalid address/i,
-      message: ERRORS.INVALID_ADDRESS
+      message: ERRORS.INVALID_ADDRESS,
     },
     {
       pattern: /transaction too large/i,
-      message: ERRORS.TRANSACTION_TOO_LARGE
+      message: ERRORS.TRANSACTION_TOO_LARGE,
     },
     {
       pattern: /dust|amount too small/i,
-      message: ERRORS.AMOUNT_TOO_SMALL
+      message: ERRORS.AMOUNT_TOO_SMALL,
     },
     {
       pattern: /fee too (low|high)/i,
-      message: ERRORS.FEE_OUT_OF_RANGE
+      message: ERRORS.FEE_OUT_OF_RANGE,
     },
     {
       pattern: /bad-txns-inputs-missingorspent/i,
-      message: ERRORS.TRANSACTION_ALREADY_SPENT
+      message: ERRORS.TRANSACTION_ALREADY_SPENT,
     },
     {
       pattern: /mempool conflict|txn-mempool-conflict/i,
-      message: ERRORS.TRANSACTION_CONFLICT
+      message: ERRORS.TRANSACTION_CONFLICT,
     },
     {
       pattern: /non-final/i,
-      message: ERRORS.TRANSACTION_NOT_FINAL
+      message: ERRORS.TRANSACTION_NOT_FINAL,
     },
     {
       pattern: /min relay fee not met/i,
-      message: ERRORS.FEE_TOO_LOW
+      message: ERRORS.FEE_TOO_LOW,
     },
     {
       pattern: /authentication failed|unauthorized/i,
-      message: ERRORS.BIOMETRIC_AUTH_FAILED
+      message: ERRORS.BIOMETRIC_AUTH_FAILED,
     },
     {
       pattern: /biometric|fingerprint|face id/i,
-      message: ERRORS.BIOMETRIC_AUTH_FAILED
+      message: ERRORS.BIOMETRIC_AUTH_FAILED,
     },
     {
       pattern: /pin (incorrect|wrong|invalid)/i,
-      message: ERRORS.INCORRECT_PIN
+      message: ERRORS.INCORRECT_PIN,
     },
     {
       pattern: /broadcast.*failed/i,
-      message: ERRORS.BROADCAST_FAILED
+      message: ERRORS.BROADCAST_FAILED,
     },
     {
       pattern: /decode.*failed|invalid hex/i,
-      message: ERRORS.INVALID_TRANSACTION
+      message: ERRORS.INVALID_TRANSACTION,
     },
     {
       pattern: /No UTXO.*with sufficient UNIT balance/i,
-      message: ERRORS.NO_UNIT_BALANCE
+      message: ERRORS.NO_UNIT_BALANCE,
     },
     {
       pattern: /No confirmed UTXOs available/i,
-      message: ERRORS.NO_CONFIRMED_FUNDS
-    }
+      message: ERRORS.NO_CONFIRMED_FUNDS,
+    },
   ];
 
   // Check each pattern

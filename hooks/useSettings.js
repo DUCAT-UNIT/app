@@ -9,10 +9,9 @@
  */
 
 import { useState, useEffect } from 'react';
-import { Alert } from 'react-native';
 import * as SecureStore from 'expo-secure-store';
 import * as AuthService from '../services/authService';
-import { ERRORS, SUCCESS, WARNINGS, DIALOGS } from '../utils/messages';
+import { ERRORS, SUCCESS,  } from '../utils/messages';
 
 export function useSettings({
   biometricEnabled,
@@ -46,8 +45,7 @@ export function useSettings({
         if (savedShowZeroAssets !== null) {
           setShowZeroAssets(savedShowZeroAssets === 'true');
         }
-      } catch (error) {
-      }
+      } catch (error) {}
     };
     loadSettings();
   }, []);

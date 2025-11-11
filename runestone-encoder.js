@@ -56,7 +56,7 @@ export function encodeRunestone(config) {
     // Empty runestone: OP_RETURN + OP_13
     return {
       encodedRunestone: Buffer.from([0x6a, 0x5d, 0x00]),
-      etchingCommitment: undefined
+      etchingCommitment: undefined,
     };
   }
 
@@ -99,13 +99,12 @@ export function encodeRunestone(config) {
     Buffer.from([0x6a]), // OP_RETURN
     Buffer.from([0x5d]), // OP_13 (Runes protocol identifier)
     Buffer.from([payloadBuffer.length]), // OP_PUSHBYTES_N (where N is the length)
-    payloadBuffer
+    payloadBuffer,
   ]);
-
 
   return {
     encodedRunestone: script,
-    etchingCommitment: undefined
+    etchingCommitment: undefined,
   };
 }
 
@@ -117,9 +116,7 @@ export function encodeRunestone(config) {
 export function decodeRunestone(script) {
   try {
     // Convert hex string to Buffer if needed
-    const scriptBuffer = typeof script === 'string'
-      ? Buffer.from(script, 'hex')
-      : script;
+    const scriptBuffer = typeof script === 'string' ? Buffer.from(script, 'hex') : script;
 
     // Check if it's an OP_RETURN (0x6a)
     if (scriptBuffer[0] !== 0x6a) {
@@ -181,7 +178,7 @@ export function decodeRunestone(script) {
       edicts.push({
         id: { block, tx },
         amount,
-        output
+        output,
       });
 
       // Update previous values for delta encoding

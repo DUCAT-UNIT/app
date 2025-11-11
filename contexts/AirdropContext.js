@@ -47,7 +47,7 @@ export const AirdropProvider = ({ children, seedConfirmed }) => {
       try {
         const existingLock = await SecureStore.getItemAsync(lockKey);
         if (existingLock) {
-          const lockTime = parseInt(existingLock);
+          const lockTime = parseInt(existingLock, 10);
           const now = Date.now();
           const lockTimeout = 60 * 1000; // 60 second timeout
 
@@ -101,7 +101,7 @@ export const AirdropProvider = ({ children, seedConfirmed }) => {
         // Check for existing lock (prevents race conditions across mounts)
         const existingLock = await SecureStore.getItemAsync(lockKey);
         if (existingLock) {
-          const lockTime = parseInt(existingLock);
+          const lockTime = parseInt(existingLock, 10);
           const now = Date.now();
           const lockTimeout = 60 * 1000; // 60 second timeout for locks
 
@@ -123,7 +123,7 @@ export const AirdropProvider = ({ children, seedConfirmed }) => {
           const twentyFourHours = 24 * 60 * 60 * 1000; // 24 hours
 
           // Only allow airdrop once every 24 hours per account
-          if (lastAirdropTime && now - parseInt(lastAirdropTime) < twentyFourHours) {
+          if (lastAirdropTime && now - parseInt(lastAirdropTime, 10) < twentyFourHours) {
             return;
           }
 
@@ -149,7 +149,6 @@ export const AirdropProvider = ({ children, seedConfirmed }) => {
               // Clean up pending state
               SecureStore.deleteItemAsync(pendingKey);
             }, 500);
-
           } catch (error) {
             // Keep the lastAirdropTime to prevent immediate retries
           } finally {
@@ -171,9 +170,12 @@ export const AirdropProvider = ({ children, seedConfirmed }) => {
     }, 3000);
 
     // Then check once per day
-    const intervalId = setInterval(() => {
-      requestAirdropIfNeeded();
-    }, 24 * 60 * 60 * 1000); // 24 hours
+    const intervalId = setInterval(
+      () => {
+        requestAirdropIfNeeded();
+      },
+      24 * 60 * 60 * 1000
+    ); // 24 hours
 
     return () => {
       clearTimeout(initialTimeout);
@@ -188,9 +190,5 @@ export const AirdropProvider = ({ children, seedConfirmed }) => {
     airdropTxId,
   };
 
-  return (
-    <AirdropContext.Provider value={value}>
-      {children}
-    </AirdropContext.Provider>
-  );
+  return <AirdropContext.Provider value={value}>{children}</AirdropContext.Provider>;
 };

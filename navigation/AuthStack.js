@@ -6,22 +6,29 @@
 import React from 'react';
 import { createStackNavigator } from '@react-navigation/stack';
 import OnboardingPage from '../pages/OnboardingPage';
+import { useOnboardingFlow } from '../contexts/OnboardingFlowContext';
+import { useNavigationHandlers } from '../contexts/NavigationHandlersContext';
+import { useBalance } from '../contexts/BalanceContext';
+import { useToastContext } from '../contexts/ToastContext';
+import { useKeyboard } from '../hooks/useKeyboard';
+import styles from '../styles';
 
 const Stack = createStackNavigator();
 
-export default function AuthStack({
-  seedConfirmed,
-  setSeedConfirmed,
-  showToast,
-  fetchBalance,
-  resetWalletAndState,
-  handlePinSetupCompleteWrapper,
-  handlePinChangeCompleteWrapper,
-  handleCancelPinChange,
-  handleLockScreenAuthenticatedWrapper,
-  styles,
-}) {
-  console.log('[AuthStack] Rendering');
+export default function AuthStack() {
+  // Consume contexts
+  const { seedConfirmed, setSeedConfirmed, resetWalletAndState } = useOnboardingFlow();
+  const { fetchBalance } = useBalance();
+  const { showToast } = useToastContext();
+  const { keyboardHeight } = useKeyboard();
+
+  // Get handlers from context
+  const {
+    handlePinSetupCompleteWrapper,
+    handlePinChangeCompleteWrapper,
+    handleCancelPinChange,
+    handleLockScreenAuthenticatedWrapper,
+  } = useNavigationHandlers();
   return (
     <Stack.Navigator
       screenOptions={{
@@ -43,6 +50,7 @@ export default function AuthStack({
             handlePinChangeCompleteWrapper={handlePinChangeCompleteWrapper}
             handleCancelPinChange={handleCancelPinChange}
             handleLockScreenAuthenticatedWrapper={handleLockScreenAuthenticatedWrapper}
+            keyboardHeight={keyboardHeight}
             styles={styles}
           />
         )}

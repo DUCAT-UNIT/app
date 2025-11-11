@@ -12,7 +12,7 @@ import * as SecureStore from 'expo-secure-store';
 import * as LocalAuthentication from 'expo-local-authentication';
 import * as AuthService from '../services/authService';
 import { SECURE_KEYS } from '../utils/constants';
-import { ERRORS, SUCCESS, PROMPTS } from '../utils/messages';
+import { ERRORS, SUCCESS } from '../utils/messages';
 import { COLORS } from '../utils/colors';
 import Icon from './Icon';
 import styles from '../styles';
@@ -57,7 +57,7 @@ export default function PinSetupScreen({
           // Check if PINs match
           if (newConfirmPin === pin) {
             // Save PIN and finish setup
-            AuthService.savePin(pin).then(success => {
+            AuthService.savePin(pin).then((success) => {
               if (success) {
                 if (changingPin) {
                   // Just changing PIN, not creating wallet
@@ -112,7 +112,7 @@ export default function PinSetupScreen({
       await SecureStore.setItemAsync(SECURE_KEYS.BIOMETRIC_ENABLED, 'true');
 
       // Trigger biometric authentication
-      const result = await LocalAuthentication.authenticateAsync({
+      const _result = await LocalAuthentication.authenticateAsync({
         promptMessage: 'Authenticate to enable biometric login',
         fallbackLabel: 'Use PIN instead',
       });
@@ -141,8 +141,12 @@ export default function PinSetupScreen({
         {/* Title */}
         <Text style={styles.lockTitle}>
           {changingPin
-            ? (pinStep === 'enter' ? 'Enter New PIN' : 'Confirm New PIN')
-            : (pinStep === 'enter' ? 'Enter 6-Digit PIN' : 'Confirm Your PIN')}
+            ? pinStep === 'enter'
+              ? 'Enter New PIN'
+              : 'Confirm New PIN'
+            : pinStep === 'enter'
+              ? 'Enter 6-Digit PIN'
+              : 'Confirm Your PIN'}
         </Text>
 
         {/* PIN Error */}
@@ -150,22 +154,23 @@ export default function PinSetupScreen({
 
         {/* PIN Dots */}
         <View style={styles.lockPinDots}>
-          {[0, 1, 2, 3, 4, 5].map(i => (
+          {[0, 1, 2, 3, 4, 5].map((i) => (
             <View
               key={i}
-              style={[
-                styles.lockPinDot,
-                i < currentPin.length && styles.lockPinDotFilled
-              ]}
+              style={[styles.lockPinDot, i < currentPin.length && styles.lockPinDotFilled]}
             />
           ))}
         </View>
 
         {/* Keypad */}
         <View style={styles.lockKeypad}>
-          {[[1, 2, 3], [4, 5, 6], [7, 8, 9]].map((row, rowIndex) => (
+          {[
+            [1, 2, 3],
+            [4, 5, 6],
+            [7, 8, 9],
+          ].map((row, rowIndex) => (
             <View key={rowIndex} style={styles.lockKeypadRow}>
-              {row.map(num => (
+              {row.map((num) => (
                 <TouchableOpacity
                   key={num}
                   style={styles.lockKey}
@@ -178,25 +183,16 @@ export default function PinSetupScreen({
           ))}
           <View style={styles.lockKeypadRow}>
             {changingPin && onCancel ? (
-              <TouchableOpacity
-                style={styles.lockKey}
-                onPress={onCancel}
-              >
+              <TouchableOpacity style={styles.lockKey} onPress={onCancel}>
                 <Text style={styles.lockKeyCancelText}>Cancel</Text>
               </TouchableOpacity>
             ) : (
               <View style={styles.lockKey} />
             )}
-            <TouchableOpacity
-              style={styles.lockKey}
-              onPress={() => handlePinDigit('0')}
-            >
+            <TouchableOpacity style={styles.lockKey} onPress={() => handlePinDigit('0')}>
               <Text style={styles.lockKeyText}>0</Text>
             </TouchableOpacity>
-            <TouchableOpacity
-              style={styles.lockKey}
-              onPress={handlePinDelete}
-            >
+            <TouchableOpacity style={styles.lockKey} onPress={handlePinDelete}>
               <Icon name="delete" size={28} color={COLORS.WHITE} />
             </TouchableOpacity>
           </View>

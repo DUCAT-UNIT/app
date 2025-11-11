@@ -19,7 +19,7 @@ class ErrorBoundary extends React.Component {
     };
   }
 
-  static getDerivedStateFromError(error) {
+  static getDerivedStateFromError(_error) {
     // Update state so the next render will show the fallback UI
     return { hasError: true };
   }
@@ -60,7 +60,8 @@ class ErrorBoundary extends React.Component {
             <Text style={styles.emoji}>⚠️</Text>
             <Text style={styles.title}>Something went wrong</Text>
             <Text style={styles.message}>
-              {this.props.fallbackMessage || 'The app encountered an unexpected error. Please try again.'}
+              {this.props.fallbackMessage ||
+                'The app encountered an unexpected error. Please try again.'}
             </Text>
 
             {__DEV__ && this.state.error && (
@@ -68,9 +69,7 @@ class ErrorBoundary extends React.Component {
                 <Text style={styles.errorTitle}>Error Details (Dev Only):</Text>
                 <Text style={styles.errorText}>{this.state.error.toString()}</Text>
                 {this.state.errorInfo && (
-                  <Text style={styles.errorStack}>
-                    {this.state.errorInfo.componentStack}
-                  </Text>
+                  <Text style={styles.errorStack}>{this.state.errorInfo.componentStack}</Text>
                 )}
               </View>
             )}

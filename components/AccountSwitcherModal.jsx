@@ -5,7 +5,7 @@
 
 import React from 'react';
 import PropTypes from 'prop-types';
-import { View, Text, TextInput, TouchableOpacity, Alert } from 'react-native';
+import { View, Text, TextInput, TouchableOpacity, Alert, StyleSheet } from 'react-native';
 import { StatusBar } from 'expo-status-bar';
 import { ERRORS, DIALOGS } from '../utils/messages';
 import { COLORS } from '../utils/colors';
@@ -27,7 +27,7 @@ export default function AccountSwitcherModal({
   if (!visible) return null;
 
   const handleSwitch = () => {
-    const accountNum = parseInt(accountIndex);
+    const accountNum = parseInt(accountIndex, 10);
     if (isNaN(accountNum) || accountNum < 1) {
       Alert.alert(DIALOGS.INVALID_ACCOUNT_TITLE, ERRORS.INVALID_ACCOUNT_NUMBER);
       return;
@@ -36,15 +36,7 @@ export default function AccountSwitcherModal({
   };
 
   return (
-    <View style={{
-      position: 'absolute',
-      top: 0,
-      left: 0,
-      right: 0,
-      bottom: 0,
-      backgroundColor: COLORS.DARK_BG,
-      zIndex: 1000,
-    }}>
+    <View style={localStyles.modalContainer}>
       <View style={styles.mutinynetBanner}>
         <Text style={styles.mutinynetBannerText}>Mutinynet Edition</Text>
       </View>
@@ -88,6 +80,18 @@ export default function AccountSwitcherModal({
     </View>
   );
 }
+
+const localStyles = StyleSheet.create({
+  modalContainer: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
+    bottom: 0,
+    backgroundColor: COLORS.DARK_BG,
+    zIndex: 1000,
+  },
+});
 
 AccountSwitcherModal.propTypes = {
   visible: PropTypes.bool.isRequired,

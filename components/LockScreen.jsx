@@ -24,7 +24,7 @@ export default function LockScreen({ onAuthenticated, showFaceIdButton, onFaceId
       setPin(newPin);
       if (newPin.length === 6) {
         // Verify PIN with rate limiting
-        AuthService.verifyPin(newPin).then(result => {
+        AuthService.verifyPin(newPin).then((result) => {
           if (result.success) {
             setPin('');
             setPinError('');
@@ -59,22 +59,20 @@ export default function LockScreen({ onAuthenticated, showFaceIdButton, onFaceId
 
       {/* PIN Dots */}
       <View style={styles.lockPinDots}>
-        {[0, 1, 2, 3, 4, 5].map(i => (
-          <View
-            key={i}
-            style={[
-              styles.lockPinDot,
-              i < pin.length && styles.lockPinDotFilled
-            ]}
-          />
+        {[0, 1, 2, 3, 4, 5].map((i) => (
+          <View key={i} style={[styles.lockPinDot, i < pin.length && styles.lockPinDotFilled]} />
         ))}
       </View>
 
       {/* Keypad */}
       <View style={styles.lockKeypad}>
-        {[[1, 2, 3], [4, 5, 6], [7, 8, 9]].map((row, rowIndex) => (
+        {[
+          [1, 2, 3],
+          [4, 5, 6],
+          [7, 8, 9],
+        ].map((row, rowIndex) => (
           <View key={rowIndex} style={styles.lockKeypadRow}>
-            {row.map(num => (
+            {row.map((num) => (
               <TouchableOpacity
                 key={num}
                 style={styles.lockKey}
@@ -88,25 +86,16 @@ export default function LockScreen({ onAuthenticated, showFaceIdButton, onFaceId
         <View style={styles.lockKeypadRow}>
           {/* FaceID Button - Bottom Left */}
           {showFaceIdButton && onFaceIdPress ? (
-            <TouchableOpacity
-              style={styles.lockKey}
-              onPress={onFaceIdPress}
-            >
+            <TouchableOpacity style={styles.lockKey} onPress={onFaceIdPress}>
               <Icon name="face_id" size={32} color={COLORS.PRIMARY_BLUE} />
             </TouchableOpacity>
           ) : (
             <View style={styles.lockKey} />
           )}
-          <TouchableOpacity
-            style={styles.lockKey}
-            onPress={() => handlePinDigit('0')}
-          >
+          <TouchableOpacity style={styles.lockKey} onPress={() => handlePinDigit('0')}>
             <Text style={styles.lockKeyText}>0</Text>
           </TouchableOpacity>
-          <TouchableOpacity
-            style={styles.lockKey}
-            onPress={handlePinDelete}
-          >
+          <TouchableOpacity style={styles.lockKey} onPress={handlePinDelete}>
             <Icon name="delete" size={28} color={COLORS.WHITE} />
           </TouchableOpacity>
         </View>

@@ -74,9 +74,5 @@ export const VaultDataProvider = ({ children }) => {
     resetVaultData,
   };
 
-  return (
-    <VaultDataContext.Provider value={value}>
-      {children}
-    </VaultDataContext.Provider>
-  );
+  return <VaultDataContext.Provider value={value}>{children}</VaultDataContext.Provider>;
 };

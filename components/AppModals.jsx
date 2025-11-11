@@ -62,9 +62,13 @@ export default function AppModals({
       {/* Face ID Toggle Modal */}
       <ConfirmationModal
         visible={showFaceIdModal}
-        title={biometricEnabled ? "Disable Face ID" : "Enable Face ID"}
-        message={biometricEnabled ? "Are you sure you want to disable Face ID authentication?" : "Enable Face ID for quick and secure authentication?"}
-        confirmText={biometricEnabled ? "Disable" : "Enable"}
+        title={biometricEnabled ? 'Disable Face ID' : 'Enable Face ID'}
+        message={
+          biometricEnabled
+            ? 'Are you sure you want to disable Face ID authentication?'
+            : 'Enable Face ID for quick and secure authentication?'
+        }
+        confirmText={biometricEnabled ? 'Disable' : 'Enable'}
         confirmStyle="primary"
         iconName="face_id"
         onConfirm={confirmFaceIdToggle}
@@ -75,9 +79,13 @@ export default function AppModals({
       {/* Notifications Toggle Modal */}
       <ConfirmationModal
         visible={showNotificationsModal}
-        title={notificationsEnabled ? "Disable Notifications" : "Enable Notifications"}
-        message={notificationsEnabled ? "Are you sure you want to disable transaction notifications?" : "Enable notifications for transaction confirmations?"}
-        confirmText={notificationsEnabled ? "Disable" : "Enable"}
+        title={notificationsEnabled ? 'Disable Notifications' : 'Enable Notifications'}
+        message={
+          notificationsEnabled
+            ? 'Are you sure you want to disable transaction notifications?'
+            : 'Enable notifications for transaction confirmations?'
+        }
+        confirmText={notificationsEnabled ? 'Disable' : 'Enable'}
         confirmStyle="primary"
         iconName="notification"
         onConfirm={confirmNotificationsToggle}

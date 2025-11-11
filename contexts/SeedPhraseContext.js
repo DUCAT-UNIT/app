@@ -36,7 +36,8 @@ export const SeedPhraseProvider = ({ children, showToast, setIsAuthenticated }) 
     seedPhrasePanResponderRef.current = PanResponder.create({
       onStartShouldSetPanResponder: () => false,
       onMoveShouldSetPanResponder: (_, gestureState) => {
-        const isSwipeRight = gestureState.dx > 10 && Math.abs(gestureState.dx) > Math.abs(gestureState.dy);
+        const isSwipeRight =
+          gestureState.dx > 10 && Math.abs(gestureState.dx) > Math.abs(gestureState.dy);
         return isSwipeRight;
       },
       onPanResponderMove: (_, gestureState) => {
@@ -141,9 +142,5 @@ export const SeedPhraseProvider = ({ children, showToast, setIsAuthenticated }) 
     setReturnToSettings,
   };
 
-  return (
-    <SeedPhraseContext.Provider value={value}>
-      {children}
-    </SeedPhraseContext.Provider>
-  );
+  return <SeedPhraseContext.Provider value={value}>{children}</SeedPhraseContext.Provider>;
 };

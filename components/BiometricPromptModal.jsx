@@ -42,8 +42,7 @@ export default function BiometricPromptModal({
         // Only set authenticated if this callback is provided
         onBiometricEnabled(true, result.success);
       }
-    } catch (error) {
-    }
+    } catch (error) {}
   };
 
   const handleSkip = async () => {

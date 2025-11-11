@@ -8,10 +8,7 @@ export default function BottomNavigationBar({ activeTab, onVaultPress, onWalletP
   return (
     <View style={styles.container}>
       <View style={styles.tabButtonContainer}>
-        <TouchableOpacity
-          style={styles.tabButton}
-          onPress={onVaultPress}
-        >
+        <TouchableOpacity style={styles.tabButton} onPress={onVaultPress}>
           <Icon
             name="vault"
             size={24}
@@ -21,10 +18,7 @@ export default function BottomNavigationBar({ activeTab, onVaultPress, onWalletP
       </View>
 
       <View style={styles.tabButtonContainer}>
-        <TouchableOpacity
-          style={styles.tabButton}
-          onPress={onWalletPress}
-        >
+        <TouchableOpacity style={styles.tabButton} onPress={onWalletPress}>
           <Icon
             name="wallet"
             size={24}

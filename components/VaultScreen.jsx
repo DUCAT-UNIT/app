@@ -6,14 +6,14 @@ import { COLORS } from '../utils/colors';
 import { signPsbt } from '../utils/wallet';
 import { API } from '../utils/constants';
 
-export default function VaultScreen({ visible, walletCredentials, autoCreateVaultTrigger }) {
+export default function VaultScreen({ visible, walletCredentials, _autoCreateVaultTrigger }) {
   const webViewRef = useRef(null);
   const messageIndexRef = useRef(0);
   const hasLoadedOnceRef = useRef(false);
   const [isLoading, setIsLoading] = React.useState(true);
   const [preparingVault, setPreparingVault] = React.useState(false);
   const [preparingMessage, setPreparingMessage] = React.useState('Preparing the vault for you');
-  const [webViewLoaded, setWebViewLoaded] = React.useState(false);
+  const [_webViewLoaded, setWebViewLoaded] = React.useState(false);
 
   const shouldShowLoading = (isLoading || preparingVault) && !hasLoadedOnceRef.current;
 
@@ -32,7 +32,7 @@ export default function VaultScreen({ visible, walletCredentials, autoCreateVaul
       'Configuring collateral settings',
       'Establishing Bitcoin connection',
       'Verifying network parameters',
-      'Almost there...'
+      'Almost there...',
     ];
 
     // Reset to first message when starting
@@ -59,7 +59,6 @@ export default function VaultScreen({ visible, walletCredentials, autoCreateVaul
       messageIndexRef.current = 0;
     }
   }, [visible]);
-
 
   // Don't return null - always render to preload in background
   // if (!visible) return null;
@@ -99,8 +98,8 @@ export default function VaultScreen({ visible, walletCredentials, autoCreateVaul
     }
 
     // Open external links (like mempool explorers) in system browser
-    Linking.openURL(url).catch(err => {
-      console.error('Failed to open URL:', err);
+    Linking.openURL(url).catch(() => {
+      // Silently fail if URL can't be opened
     });
 
     // Prevent WebView from navigating to external URL
@@ -129,9 +128,6 @@ export default function VaultScreen({ visible, walletCredentials, autoCreateVaul
           setTimeout(() => {
             setIsLoading(false);
           }, 10000);
-        }}
-        onError={(syntheticEvent) => {
-          setIsLoading(false);
         }}
         injectedJavaScript={`
           // Check for "Vault health" text on the page
@@ -208,7 +204,6 @@ export default function VaultScreen({ visible, walletCredentials, autoCreateVaul
                   true;
                 `);
               } catch (error) {
-
                 // Send error response back to WebView
                 const responseData = {
                   type: 'SIGN_PSBT_RESPONSE',
@@ -227,22 +222,20 @@ export default function VaultScreen({ visible, walletCredentials, autoCreateVaul
               }
               return;
             }
-
-          } catch (e) {
-          }
+          } catch (e) {}
         }}
         renderLoading={() => (
           <View style={styles.loadingContainer}>
             <ActivityIndicator size="large" color={COLORS.PRIMARY_BLUE} />
           </View>
         )}
-        onError={(syntheticEvent) => {
+        onError={(_syntheticEvent) => {
           setIsLoading(false);
-          const { nativeEvent } = syntheticEvent;
+          const { nativeEvent: _nativeEvent } = _syntheticEvent;
         }}
-        onHttpError={(syntheticEvent) => {
+        onHttpError={(_syntheticEvent) => {
           setIsLoading(false);
-          const { nativeEvent } = syntheticEvent;
+          const { nativeEvent: _nativeEvent } = _syntheticEvent;
         }}
       />
       {shouldShowLoading && (
@@ -269,7 +262,7 @@ VaultScreen.propTypes = {
     vaultAddress: PropTypes.string.isRequired,
     vaultPubkey: PropTypes.string.isRequired,
   }),
-  autoCreateVaultTrigger: PropTypes.number,
+  _autoCreateVaultTrigger: PropTypes.number,
 };
 
 const styles = StyleSheet.create({

@@ -30,15 +30,14 @@ export function useAppLifecycle({
     const manageScreenCapture = async () => {
       try {
         await ScreenCapture.allowScreenCaptureAsync();
-      } catch (error) {
-      }
+      } catch (_error) {}
     };
 
     manageScreenCapture();
 
     // Cleanup: ensure screen capture is allowed when component unmounts
     return () => {
-      ScreenCapture.allowScreenCaptureAsync().catch((error) => {
+      ScreenCapture.allowScreenCaptureAsync().catch((_error) => {
         // Ignore cleanup errors
       });
     };
@@ -46,13 +45,10 @@ export function useAppLifecycle({
 
   // Handle app state changes (background/foreground)
   useEffect(() => {
-    const subscription = AppState.addEventListener('change', nextAppState => {
+    const subscription = AppState.addEventListener('change', (nextAppState) => {
       // ONLY lock when coming back from background, NOT from inactive
       // (inactive happens during Face ID, control center, etc.)
-      if (
-        appState.current === 'background' &&
-        nextAppState === 'active'
-      ) {
+      if (appState.current === 'background' && nextAppState === 'active') {
         // App has come to foreground from background, require re-authentication if wallet exists AND seed backup is confirmed
         if (walletExists.current && seedConfirmedRef.current && isBiometricSupported) {
           onLock();
@@ -69,7 +65,14 @@ export function useAppLifecycle({
     return () => {
       subscription.remove();
     };
-  }, [isBiometricSupported, biometricEnabled, onLock, onAuthenticateUser, walletExists, seedConfirmedRef]);
+  }, [
+    isBiometricSupported,
+    biometricEnabled,
+    onLock,
+    onAuthenticateUser,
+    walletExists,
+    seedConfirmedRef,
+  ]);
 
   // Inactivity timer - locks wallet after 2 minutes of no interaction
   const startInactivityTimer = useCallback(() => {
@@ -92,7 +95,12 @@ export function useAppLifecycle({
 
   // Start timer when authenticated (but only if seed backup is confirmed)
   useEffect(() => {
-    if (isAuthenticated && walletExists.current && seedConfirmedRef.current && isBiometricSupported) {
+    if (
+      isAuthenticated &&
+      walletExists.current &&
+      seedConfirmedRef.current &&
+      isBiometricSupported
+    ) {
       startInactivityTimer();
 
       return () => {

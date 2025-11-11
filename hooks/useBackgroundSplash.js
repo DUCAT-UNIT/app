@@ -10,7 +10,7 @@ export const useBackgroundSplash = () => {
   const [showBackgroundSplash, setShowBackgroundSplash] = useState(false);
 
   useEffect(() => {
-    const subscription = AppState.addEventListener('change', nextAppState => {
+    const subscription = AppState.addEventListener('change', (nextAppState) => {
       // Only show splash when truly backgrounded, not during inactive state
       // (inactive happens during Face ID, notifications, control center, etc.)
       if (nextAppState === 'background') {

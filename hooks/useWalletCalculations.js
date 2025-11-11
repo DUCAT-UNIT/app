@@ -15,7 +15,7 @@ import { COLORS } from '../utils/colors';
  */
 export const useWalletCalculations = ({
   segwitBalance = 0,
-  taprootBalance = 0,
+  _taprootBalance = 0,
   runesBalance = [],
   btcPrice = 0,
   vaultData = null,
@@ -26,9 +26,8 @@ export const useWalletCalculations = ({
    */
   const totalBalanceBTC = useMemo(() => {
     const btcValue = segwitBalance || 0;
-    const unitValue = runesBalance.length > 0
-      ? parseFloat(runesBalance[0][1]) / (btcPrice || 1)
-      : 0;
+    const unitValue =
+      runesBalance.length > 0 ? parseFloat(runesBalance[0][1]) / (btcPrice || 1) : 0;
     const ducatValue = 0; // DUCAT value in BTC (currently 0)
 
     return btcValue + unitValue + ducatValue;
@@ -40,9 +39,7 @@ export const useWalletCalculations = ({
    */
   const totalBalanceUSD = useMemo(() => {
     const btcUsdValue = (segwitBalance || 0) * (btcPrice || 0);
-    const unitUsdValue = runesBalance.length > 0
-      ? parseFloat(runesBalance[0][1])
-      : 0;
+    const unitUsdValue = runesBalance.length > 0 ? parseFloat(runesBalance[0][1]) : 0;
     const ducatUsdValue = 0; // DUCAT value in USD (currently 0)
 
     return btcUsdValue + unitUsdValue + ducatUsdValue;
@@ -58,9 +55,8 @@ export const useWalletCalculations = ({
     }
 
     const debt = vaultData.latestTransaction.amountBorrowed / 100;
-    const collateralValue = vaultData.totalCollateral * (
-      btcPrice || vaultData.latestTransaction.oraclePrice
-    );
+    const collateralValue =
+      vaultData.totalCollateral * (btcPrice || vaultData.latestTransaction.oraclePrice);
 
     if (debt === 0) {
       return 0;

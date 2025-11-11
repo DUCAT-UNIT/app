@@ -79,7 +79,7 @@ export const validateBitcoinAddress = (address) => {
 
   try {
     // Try to decode the address using bitcoinjs-lib
-    const decoded = bitcoin.address.toOutputScript(trimmedAddress, MUTINYNET_NETWORK);
+    const _decoded = bitcoin.address.toOutputScript(trimmedAddress, MUTINYNET_NETWORK);
 
     // Determine address type based on prefix
     let addressType = 'unknown';
@@ -87,7 +87,11 @@ export const validateBitcoinAddress = (address) => {
       addressType = 'taproot'; // Bech32m (P2TR)
     } else if (trimmedAddress.startsWith('tb1q')) {
       addressType = 'segwit'; // Bech32 (P2WPKH)
-    } else if (trimmedAddress.startsWith('2') || trimmedAddress.startsWith('m') || trimmedAddress.startsWith('n')) {
+    } else if (
+      trimmedAddress.startsWith('2') ||
+      trimmedAddress.startsWith('m') ||
+      trimmedAddress.startsWith('n')
+    ) {
       addressType = 'legacy'; // P2SH or P2PKH
     }
 
@@ -100,7 +104,8 @@ export const validateBitcoinAddress = (address) => {
     if (address.startsWith('bc1') || address.startsWith('1') || address.startsWith('3')) {
       return {
         valid: false,
-        error: 'Mainnet address detected. Please use a testnet address (starting with tb1, 2, m, or n)',
+        error:
+          'Mainnet address detected. Please use a testnet address (starting with tb1, 2, m, or n)',
       };
     }
 

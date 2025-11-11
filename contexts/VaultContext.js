@@ -3,7 +3,7 @@
  */
 
 import React, { createContext, useContext, useState } from 'react';
-import { SECURE_KEYS } from '../utils/constants';
+
 import { deriveAddressesFromMnemonic } from '../utils/bitcoin';
 import { withMnemonic } from '../services/authService';
 
@@ -44,7 +44,7 @@ export const VaultProvider = ({ children, currentAccount }) => {
 
         // Trigger auto-create if requested by incrementing counter
         if (shouldAutoCreate) {
-          setAutoCreateVaultTrigger(prev => prev + 1);
+          setAutoCreateVaultTrigger((prev) => prev + 1);
         }
       });
     } catch (error) {
@@ -60,9 +60,5 @@ export const VaultProvider = ({ children, currentAccount }) => {
     openVault,
   };
 
-  return (
-    <VaultContext.Provider value={value}>
-      {children}
-    </VaultContext.Provider>
-  );
+  return <VaultContext.Provider value={value}>{children}</VaultContext.Provider>;
 };

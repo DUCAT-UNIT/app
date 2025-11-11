@@ -6,7 +6,6 @@
 import { useEffect, useRef } from 'react';
 import * as Notifications from 'expo-notifications';
 import { Platform } from 'react-native';
-import { registerBackgroundFetchAsync } from '../services/backgroundTaskService';
 
 // Configure how notifications should be handled when app is in foreground
 Notifications.setNotificationHandler({
@@ -30,12 +29,14 @@ export function useNotifications() {
     // registerBackgroundFetchAsync();
 
     // Listen for notifications received while app is foregrounded
-    notificationListener.current = Notifications.addNotificationReceivedListener(notification => {
-    });
+    notificationListener.current = Notifications.addNotificationReceivedListener(
+      (_notification) => {}
+    );
 
     // Listen for user interactions with notifications
-    responseListener.current = Notifications.addNotificationResponseReceivedListener(response => {
-    });
+    responseListener.current = Notifications.addNotificationResponseReceivedListener(
+      (_response) => {}
+    );
 
     return () => {
       if (notificationListener.current) {
@@ -87,10 +88,14 @@ export function useNotifications() {
    * @param {string} txid - Transaction ID
    * @param {string} type - 'deposit' or 'withdraw'
    */
-  const sendTransactionConfirmedNotification = async (assetType, amount, txid, type = 'withdraw') => {
+  const sendTransactionConfirmedNotification = async (
+    assetType,
+    amount,
+    txid,
+    type = 'withdraw'
+  ) => {
     try {
-
-      const notificationId = await Notifications.scheduleNotificationAsync({
+      const _notificationId = await Notifications.scheduleNotificationAsync({
         content: {
           title: 'Transaction Confirmed',
           body: `The ${type} transaction for ${amount} ${assetType} has been confirmed on Mutinynet.`,
@@ -100,9 +105,7 @@ export function useNotifications() {
         },
         trigger: null, // null means immediate
       });
-
-    } catch (error) {
-    }
+    } catch (error) {}
   };
 
   return {

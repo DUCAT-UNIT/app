@@ -27,27 +27,30 @@ export const BalanceProvider = ({ children }) => {
   const [loadingUtxos, setLoadingUtxos] = useState(false);
 
   // Fetch wallet balance
-  const fetchBalance = useCallback(async (segwitAddr, taprootAddr) => {
-    // If addresses are provided, use them; otherwise use wallet state
-    const segwitAddress = segwitAddr || wallet?.segwitAddress;
-    const taprootAddress = taprootAddr || wallet?.taprootAddress;
+  const fetchBalance = useCallback(
+    async (segwitAddr, taprootAddr) => {
+      // If addresses are provided, use them; otherwise use wallet state
+      const segwitAddress = segwitAddr || wallet?.segwitAddress;
+      const taprootAddress = taprootAddr || wallet?.taprootAddress;
 
-    if (!segwitAddress || !taprootAddress) return;
+      if (!segwitAddress || !taprootAddress) return;
 
-    try {
-      setLoadingBalance(true);
-      const balances = await fetchWalletBalances(segwitAddress, taprootAddress);
-      setSegwitBalance(balances.segwitBalance);
-      setTaprootBalance(balances.taprootBalance);
-      setRunesBalance(balances.runesBalance);
-    } catch (error) {
-      setSegwitBalance(0);
-      setTaprootBalance(0);
-      setRunesBalance([]);
-    } finally {
-      setLoadingBalance(false);
-    }
-  }, [wallet]);
+      try {
+        setLoadingBalance(true);
+        const balances = await fetchWalletBalances(segwitAddress, taprootAddress);
+        setSegwitBalance(balances.segwitBalance);
+        setTaprootBalance(balances.taprootBalance);
+        setRunesBalance(balances.runesBalance);
+      } catch (error) {
+        setSegwitBalance(0);
+        setTaprootBalance(0);
+        setRunesBalance([]);
+      } finally {
+        setLoadingBalance(false);
+      }
+    },
+    [wallet]
+  );
 
   // Refresh balances (pull-to-refresh)
   const onRefresh = useCallback(async () => {
@@ -117,9 +120,5 @@ export const BalanceProvider = ({ children }) => {
     resetBalances,
   };
 
-  return (
-    <BalanceContext.Provider value={value}>
-      {children}
-    </BalanceContext.Provider>
-  );
+  return <BalanceContext.Provider value={value}>{children}</BalanceContext.Provider>;
 };

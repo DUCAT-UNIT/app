@@ -49,9 +49,5 @@ export const PriceProvider = ({ children }) => {
     fetchBtcPrice,
   };
 
-  return (
-    <PriceContext.Provider value={value}>
-      {children}
-    </PriceContext.Provider>
-  );
+  return <PriceContext.Provider value={value}>{children}</PriceContext.Provider>;
 };

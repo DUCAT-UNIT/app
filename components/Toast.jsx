@@ -10,9 +10,8 @@ import { View, Text } from 'react-native';
 export default function Toast({ visible, message, type, styles }) {
   if (!visible) return null;
 
-  const containerStyle = type === 'error'
-    ? [styles.toastContainer, styles.toastContainerError]
-    : styles.toastContainer;
+  const containerStyle =
+    type === 'error' ? [styles.toastContainer, styles.toastContainerError] : styles.toastContainer;
 
   return (
     <View style={containerStyle}>

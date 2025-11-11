@@ -25,7 +25,7 @@ function isNetworkError(error) {
     /network error/i,
   ];
 
-  return networkPatterns.some(pattern => pattern.test(errorMessage));
+  return networkPatterns.some((pattern) => pattern.test(errorMessage));
 }
 
 /**
@@ -67,7 +67,7 @@ export async function retryWithBackoff(fn, options = {}) {
       const finalDelay = delay + jitter;
 
       // Wait before retrying
-      await new Promise(resolve => setTimeout(resolve, finalDelay));
+      await new Promise((resolve) => setTimeout(resolve, finalDelay));
     }
   }
 
@@ -82,15 +82,12 @@ export async function retryWithBackoff(fn, options = {}) {
  * @returns {Promise<Response>} Fetch response
  */
 export async function fetchWithRetry(url, options = {}, retryOptions = {}) {
-  return retryWithBackoff(
-    () => fetch(url, options),
-    {
-      maxRetries: 2, // Fewer retries for fetches
-      initialDelay: 500,
-      maxDelay: 3000,
-      ...retryOptions,
-    }
-  );
+  return retryWithBackoff(() => fetch(url, options), {
+    maxRetries: 2, // Fewer retries for fetches
+    initialDelay: 500,
+    maxDelay: 3000,
+    ...retryOptions,
+  });
 }
 
 /**
@@ -101,7 +98,7 @@ export async function fetchWithRetry(url, options = {}, retryOptions = {}) {
  * @param {Object} retryOptions - Retry options
  * @returns {Promise} Result of the function
  */
-export async function retrySilently(fn, operationName = 'Operation', retryOptions = {}) {
+export async function retrySilently(fn, _operationName = 'Operation', retryOptions = {}) {
   const originalShouldRetry = retryOptions.shouldRetry || isNetworkError;
 
   return retryWithBackoff(fn, {
