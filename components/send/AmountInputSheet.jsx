@@ -89,25 +89,28 @@ export default function AmountInputSheet({
         <View {...panHandlers}>
           <View style={styles.bottomSheetHandle} />
 
-          {/* Back button */}
-          <TouchableOpacity
-            style={[styles.bottomSheetBackButton, { paddingHorizontal: 15 }]}
-            onPress={onBack}
-          >
-            <Icon name="back" size={20} color={COLORS.PRIMARY_BLUE} />
-          </TouchableOpacity>
-        </View>
+          {/* Header with Back button and Recipient Address */}
+          <View style={[styles.sendToHeader, { paddingHorizontal: 15, marginBottom: 20 }]}>
+            {/* Back button */}
+            <TouchableOpacity
+              style={{ marginRight: 12 }}
+              onPress={onBack}
+            >
+              <Icon name="back" size={20} color={COLORS.PRIMARY_BLUE} />
+            </TouchableOpacity>
 
-        {/* Recipient Address Header */}
-        <View style={[styles.sendToHeader, { paddingHorizontal: 15 }]}>
-          <View style={styles.sendToLeft}>
-            <Text style={styles.sendToLabel}>To:</Text>
-            <Text style={styles.sendToAddress}>
-              {sendRecipient.substring(0, 8)}...{sendRecipient.substring(sendRecipient.length - 6)}
-            </Text>
-          </View>
-          <View style={styles.addressTypeTag}>
-            <Text style={styles.addressTypeText}>{addressType}</Text>
+            {/* To: Address */}
+            <View style={{ flex: 1, flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }}>
+              <View style={styles.sendToLeft}>
+                <Text style={styles.sendToLabel}>To:</Text>
+                <Text style={styles.sendToAddress}>
+                  {sendRecipient.substring(0, 8)}...{sendRecipient.substring(sendRecipient.length - 6)}
+                </Text>
+              </View>
+              <View style={styles.addressTypeTag}>
+                <Text style={styles.addressTypeText}>{addressType}</Text>
+              </View>
+            </View>
           </View>
         </View>
 
