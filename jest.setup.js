@@ -15,6 +15,9 @@ if (!global.crypto) {
 // Suppress expo winter import warnings
 global.__ExpoImportMetaRegistry = {};
 
+// Mock expo module to bypass winter
+jest.mock('expo', () => ({}));
+
 // Mock expo-secure-store
 jest.mock('expo-secure-store', () => ({
   getItemAsync: jest.fn(),
@@ -31,14 +34,23 @@ jest.mock('expo-local-authentication', () => ({
 
 // Mock expo-crypto with real crypto implementation for testing
 jest.mock('expo-crypto', () => {
-  const { webcrypto } = require('node:crypto');
+  const { webcrypto, createHash } = require('node:crypto');
   return {
-    getRandomBytes: (size) => {
+    getRandomBytesAsync: async (size) => {
       const buffer = new Uint8Array(size);
       webcrypto.getRandomValues(buffer);
       return buffer;
     },
-    digestStringAsync: jest.fn(),
+    digestStringAsync: async (algorithm, data) => {
+      // Map Expo algorithm names to Node crypto algorithm names
+      const algoMap = {
+        'SHA-256': 'sha256',
+        'SHA-384': 'sha384',
+        'SHA-512': 'sha512',
+      };
+      const hashAlgo = algoMap[algorithm] || 'sha256';
+      return createHash(hashAlgo).update(data).digest('hex');
+    },
     CryptoDigestAlgorithm: {
       SHA256: 'SHA-256',
       SHA384: 'SHA-384',
