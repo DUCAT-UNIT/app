@@ -5,7 +5,18 @@
 
 import React, { useState, useEffect, useRef, useMemo, useCallback } from 'react';
 import PropTypes from 'prop-types';
-import { View, Text, TouchableOpacity, Animated, Dimensions, ActivityIndicator, FlatList, Linking, PanResponder } from 'react-native';
+import {
+  View,
+  Text,
+  TouchableOpacity,
+  Animated,
+  Dimensions,
+  ActivityIndicator,
+  FlatList,
+  Linking,
+  PanResponder,
+  StyleSheet,
+} from 'react-native';
 import { COLORS } from '../utils/colors';
 import Icon from './Icon';
 import { calculateTransactionAmount } from '../services/transactionHistoryService';
@@ -13,7 +24,7 @@ import { useTransactionHistory } from '../contexts/TransactionHistoryContext';
 import { getTxUrl, getOrdTxUrl } from '../utils/constants';
 
 const SCREEN_HEIGHT = Dimensions.get('window').height;
-const SCREEN_WIDTH = Dimensions.get('window').width;
+const _SCREEN_WIDTH = Dimensions.get('window').width;
 
 export default function TransactionHistoryScreen({
   styles,
@@ -21,10 +32,11 @@ export default function TransactionHistoryScreen({
   onClose,
   segwitAddress,
   taprootAddress,
-  vaultPubkey,
+  _vaultPubkey,
 }) {
   // Get transaction history from context (pre-loaded in background)
-  const { transactionHistory, loadingTransactionHistory, fetchTransactionHistory } = useTransactionHistory();
+  const { transactionHistory, loadingTransactionHistory, fetchTransactionHistory } =
+    useTransactionHistory();
 
   const [loading, setLoading] = useState(false);
   const historySheetOpacity = useRef(new Animated.Value(0)).current;
@@ -97,6 +109,7 @@ export default function TransactionHistoryScreen({
       historySheetOpacity.setValue(0);
       translateY.setValue(SCREEN_HEIGHT);
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [showHistorySheet]);
 
   // Update loading state when context loading changes
@@ -108,7 +121,9 @@ export default function TransactionHistoryScreen({
       setLoading(false);
     }
   }, [loadingTransactionHistory, transactionHistory]);
+   
 
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   const formatDate = (timestamp) => {
     if (!timestamp) return 'Pending';
     const date = new Date(timestamp * 1000);
@@ -121,11 +136,12 @@ export default function TransactionHistoryScreen({
     });
   };
 
-  const formatTxid = (txid) => {
+  const _formatTxid = (txid) => {
     if (!txid) return '';
     return `${txid.slice(0, 8)}...${txid.slice(-8)}`;
   };
 
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   const openTxInExplorer = async (txid, assetType) => {
     try {
       // Use ord explorer for UNIT transactions, regular explorer for BTC
@@ -136,11 +152,10 @@ export default function TransactionHistoryScreen({
         await Linking.openURL(url);
       } else {
       }
-    } catch (error) {
-    }
+    } catch (error) {}
   };
 
-  const formatAmount = (value, type) => {
+  const _formatAmount = (value, type) => {
     if (type === 'UNIT') {
       // UNIT is stored with 100x multiplier, so divide by 100 for display
       const unitAmount = Number(value) / 100;
@@ -155,206 +170,212 @@ export default function TransactionHistoryScreen({
   // Filter out self-transfers and prepare display data
   // useMemo prevents recalculating on every render
   const displayTransactions = useMemo(() => {
-    return transactionHistory.filter(tx => {
+    return transactionHistory.filter((tx) => {
       if (tx.vaultTransaction) return true; // Always show vault transactions
 
       const txData = calculateTransactionAmount(tx, segwitAddress, taprootAddress);
-      const isSelfTransfer = txData.isSelfTransfer ||
-        (txData.amount === 0n || txData.amount === 0);
+      const isSelfTransfer = txData.isSelfTransfer || txData.amount === 0n || txData.amount === 0;
 
       return !isSelfTransfer; // Filter out self-transfers
     });
   }, [transactionHistory, segwitAddress, taprootAddress]);
 
   // Render function for each transaction (memoized with useCallback)
-  const renderTransaction = useCallback(({ item: tx }) => {
-    // Check if this is a vault transaction
-    if (tx.vaultTransaction) {
-      const vaultData = tx.vaultData;
-      const action = vaultData.action;
+  const renderTransaction = useCallback(
+    ({ item: tx }) => {
+      // Check if this is a vault transaction
+      if (tx.vaultTransaction) {
+        const vaultData = tx.vaultData;
+        const action = vaultData.action;
+
+        return (
+          <TouchableOpacity style={styles.historyTxRow} onPress={() => {}} activeOpacity={0.7}>
+            {/* Vault Logo */}
+            <View style={localStyles.vaultLogo}>
+              <Icon name="vault_logo" size={40} />
+            </View>
+
+            {/* Main Content Container */}
+            <View style={localStyles.txContentContainer}>
+              {/* First Row: Action on left, Confirmation + Amount on right */}
+              <View style={styles.historyTxTopRow}>
+                <View style={styles.historyTxColumn1}>
+                  <Text style={[styles.historyTxAmount, localStyles.actionText]}>
+                    {action === 'Borrow'
+                      ? 'Borrow'
+                      : action === 'Repay'
+                        ? 'Repay'
+                        : action === 'Deposit'
+                          ? 'Deposit'
+                          : action === 'Withdraw'
+                            ? 'Withdraw'
+                            : action}
+                  </Text>
+                </View>
+                <View style={styles.historyTxRightGroup}>
+                  <View style={styles.historyTxColumn2}>
+                    <View style={[styles.vaultAmountChip, localStyles.vaultConfirmedChip]}>
+                      <Text style={[styles.vaultAmountChipText, localStyles.vaultConfirmedText]}>
+                        Confirmed
+                      </Text>
+                    </View>
+                  </View>
+                  <View style={styles.historyTxColumn3}>
+                    {vaultData.btcAmount > 0 ? (
+                      <View style={styles.balanceWithIcon}>
+                        <Icon
+                          name="btc_symbol"
+                          size={12}
+                          color={
+                            action === 'Deposit' || action === 'Repay' ? COLORS.GREEN : COLORS.RED
+                          }
+                          style={styles.assetAmountIcon}
+                        />
+                        <Text
+                          style={[
+                            styles.assetAmount,
+                            {
+                              color:
+                                action === 'Deposit' || action === 'Repay'
+                                  ? COLORS.GREEN
+                                  : COLORS.RED,
+                            },
+                          ]}
+                        >
+                          {(vaultData.btcAmount / 100000000).toLocaleString('en-US', {
+                            minimumFractionDigits: 8,
+                            maximumFractionDigits: 8,
+                          })}
+                        </Text>
+                      </View>
+                    ) : vaultData.unitAmount > 0 ? (
+                      <View style={styles.balanceWithIcon}>
+                        <Icon
+                          name="unit_symbol"
+                          size={12}
+                          color={
+                            action === 'Deposit' || action === 'Repay' ? COLORS.GREEN : COLORS.RED
+                          }
+                          style={styles.assetAmountIcon}
+                        />
+                        <Text
+                          style={[
+                            styles.assetAmount,
+                            {
+                              color:
+                                action === 'Deposit' || action === 'Repay'
+                                  ? COLORS.GREEN
+                                  : COLORS.RED,
+                            },
+                          ]}
+                        >
+                          {(vaultData.unitAmount / 100).toLocaleString('en-US')}
+                        </Text>
+                      </View>
+                    ) : null}
+                  </View>
+                </View>
+              </View>
+              {/* Second Row: Date */}
+              <View style={styles.historyTxBottomRow}>
+                <Text style={styles.historyTxDate}>{formatDate(tx.status.block_time)}</Text>
+              </View>
+            </View>
+          </TouchableOpacity>
+        );
+      }
+
+      // Regular transaction logic
+      const txData = calculateTransactionAmount(tx, segwitAddress, taprootAddress);
+      const amount = typeof txData === 'object' ? txData.amount : txData;
+      const assetType = typeof txData === 'object' ? txData.type : 'BTC';
+
+      // Handle BigInt for UNIT amounts
+      const numericAmount = typeof amount === 'bigint' ? Number(amount) : amount;
+      const isSent = numericAmount < 0;
+      const isReceived = numericAmount > 0;
 
       return (
         <TouchableOpacity
           style={styles.historyTxRow}
-          onPress={() => {}}
+          onPress={() => openTxInExplorer(tx.txid, assetType)}
           activeOpacity={0.7}
         >
-          {/* Vault Logo */}
-          <View style={{ marginRight: 10 }}>
-            <Icon name="vault_logo" size={40} />
+          {/* Asset Logo */}
+          <View style={localStyles.assetLogo}>
+            <Icon name={assetType === 'UNIT' ? 'unit_logo' : 'btc_logo'} size={40} />
           </View>
 
           {/* Main Content Container */}
-          <View style={{ flex: 1 }}>
+          <View style={localStyles.txContentContainer}>
             {/* First Row: Action on left, Confirmation + Amount on right */}
             <View style={styles.historyTxTopRow}>
               <View style={styles.historyTxColumn1}>
-                <Text style={[styles.historyTxAmount, { color: '#DDDDDD' }]}>
-                  {action === 'Borrow' ? 'Borrow' : action === 'Repay' ? 'Repay' : action === 'Deposit' ? 'Deposit' : action === 'Withdraw' ? 'Withdraw' : action}
+                <Text style={[styles.historyTxAmount, localStyles.actionText]}>
+                  {isSent ? 'Sent' : 'Received'}
                 </Text>
               </View>
               <View style={styles.historyTxRightGroup}>
                 <View style={styles.historyTxColumn2}>
-                  <View style={[
-                    styles.vaultAmountChip,
-                    {
-                      backgroundColor: 'rgba(89, 170, 138, 0.2)',
-                      marginLeft: 0
-                    }
-                  ]}>
-                    <Text style={[
-                      styles.vaultAmountChipText,
-                      {
-                        color: COLORS.GREEN
-                      }
-                    ]}>
-                      Confirmed
+                  <View
+                    style={[
+                      styles.vaultAmountChip,
+                      tx.status.confirmed
+                        ? localStyles.confirmedChip
+                        : localStyles.pendingChip,
+                    ]}
+                  >
+                    <Text
+                      style={[
+                        styles.vaultAmountChipText,
+                        tx.status.confirmed
+                          ? localStyles.confirmedChipText
+                          : localStyles.pendingChipText,
+                      ]}
+                    >
+                      {tx.status.confirmed ? 'Confirmed' : 'Pending'}
                     </Text>
                   </View>
                 </View>
                 <View style={styles.historyTxColumn3}>
-                  {vaultData.btcAmount > 0 ? (
+                  {numericAmount !== 0 && (
                     <View style={styles.balanceWithIcon}>
                       <Icon
-                        name="btc_symbol"
+                        name={assetType === 'UNIT' ? 'unit_symbol' : 'btc_symbol'}
                         size={12}
-                        color={(action === 'Deposit' || action === 'Repay') ? COLORS.GREEN : COLORS.RED}
+                        color={isReceived ? COLORS.GREEN : COLORS.RED}
                         style={styles.assetAmountIcon}
                       />
-                      <Text style={[
-                        styles.assetAmount,
-                        {
-                          color: (action === 'Deposit' || action === 'Repay')
-                            ? COLORS.GREEN
-                            : COLORS.RED
-                        }
-                      ]}>
-                        {(vaultData.btcAmount / 100000000).toLocaleString('en-US', { minimumFractionDigits: 8, maximumFractionDigits: 8 })}
+                      <Text
+                        style={[
+                          styles.assetAmount,
+                          {
+                            color: isReceived ? COLORS.GREEN : COLORS.RED,
+                          },
+                        ]}
+                      >
+                        {assetType === 'UNIT'
+                          ? (Math.abs(numericAmount) / 100).toLocaleString('en-US')
+                          : (Math.abs(numericAmount) / 100000000).toLocaleString('en-US', {
+                              minimumFractionDigits: 8,
+                              maximumFractionDigits: 8,
+                            })}
                       </Text>
                     </View>
-                  ) : vaultData.unitAmount > 0 ? (
-                    <View style={styles.balanceWithIcon}>
-                      <Icon
-                        name="unit_symbol"
-                        size={12}
-                        color={(action === 'Deposit' || action === 'Repay') ? COLORS.GREEN : COLORS.RED}
-                        style={styles.assetAmountIcon}
-                      />
-                      <Text style={[
-                        styles.assetAmount,
-                        {
-                          color: (action === 'Deposit' || action === 'Repay')
-                            ? COLORS.GREEN
-                            : COLORS.RED
-                        }
-                      ]}>
-                        {(vaultData.unitAmount / 100).toLocaleString('en-US')}
-                      </Text>
-                    </View>
-                  ) : null}
+                  )}
                 </View>
               </View>
             </View>
             {/* Second Row: Date */}
             <View style={styles.historyTxBottomRow}>
-              <Text style={styles.historyTxDate}>
-                {formatDate(tx.status.block_time)}
-              </Text>
+              <Text style={styles.historyTxDate}>{formatDate(tx.status.block_time)}</Text>
             </View>
           </View>
         </TouchableOpacity>
       );
-    }
-
-    // Regular transaction logic
-    const txData = calculateTransactionAmount(tx, segwitAddress, taprootAddress);
-    const amount = typeof txData === 'object' ? txData.amount : txData;
-    const assetType = typeof txData === 'object' ? txData.type : 'BTC';
-
-    // Handle BigInt for UNIT amounts
-    const numericAmount = typeof amount === 'bigint' ? Number(amount) : amount;
-    const isSent = numericAmount < 0;
-    const isReceived = numericAmount > 0;
-
-    return (
-      <TouchableOpacity
-        style={styles.historyTxRow}
-        onPress={() => openTxInExplorer(tx.txid, assetType)}
-        activeOpacity={0.7}
-      >
-        {/* Asset Logo */}
-        <View style={{ marginRight: 10 }}>
-          <Icon
-            name={assetType === 'UNIT' ? 'unit_logo' : 'btc_logo'}
-            size={40}
-          />
-        </View>
-
-        {/* Main Content Container */}
-        <View style={{ flex: 1 }}>
-          {/* First Row: Action on left, Confirmation + Amount on right */}
-          <View style={styles.historyTxTopRow}>
-            <View style={styles.historyTxColumn1}>
-              <Text style={[styles.historyTxAmount, { color: '#DDDDDD' }]}>
-                {isSent ? 'Sent' : 'Received'}
-              </Text>
-            </View>
-            <View style={styles.historyTxRightGroup}>
-              <View style={styles.historyTxColumn2}>
-                <View style={[
-                  styles.vaultAmountChip,
-                  {
-                    backgroundColor: tx.status.confirmed
-                      ? 'rgba(89, 170, 138, 0.2)'
-                      : 'rgba(255, 165, 0, 0.2)',
-                    marginLeft: 0
-                  }
-                ]}>
-                  <Text style={[
-                    styles.vaultAmountChipText,
-                    {
-                      color: tx.status.confirmed ? COLORS.GREEN : COLORS.YELLOW
-                    }
-                  ]}>
-                    {tx.status.confirmed ? 'Confirmed' : 'Pending'}
-                  </Text>
-                </View>
-              </View>
-              <View style={styles.historyTxColumn3}>
-                {numericAmount !== 0 && (
-                  <View style={styles.balanceWithIcon}>
-                    <Icon
-                      name={assetType === 'UNIT' ? 'unit_symbol' : 'btc_symbol'}
-                      size={12}
-                      color={isReceived ? COLORS.GREEN : COLORS.RED}
-                      style={styles.assetAmountIcon}
-                    />
-                    <Text style={[
-                      styles.assetAmount,
-                      {
-                        color: isReceived ? COLORS.GREEN : COLORS.RED
-                      }
-                    ]}>
-                      {assetType === 'UNIT'
-                        ? (Math.abs(numericAmount) / 100).toLocaleString('en-US')
-                        : (Math.abs(numericAmount) / 100000000).toLocaleString('en-US', { minimumFractionDigits: 8, maximumFractionDigits: 8 })
-                      }
-                    </Text>
-                  </View>
-                )}
-              </View>
-            </View>
-          </View>
-          {/* Second Row: Date */}
-          <View style={styles.historyTxBottomRow}>
-            <Text style={styles.historyTxDate}>
-              {formatDate(tx.status.block_time)}
-            </Text>
-          </View>
-        </View>
-      </TouchableOpacity>
-    );
-  }, [styles, segwitAddress, taprootAddress, formatDate, openTxInExplorer]);
+    },
+    [styles, segwitAddress, taprootAddress, formatDate, openTxInExplorer]
+  );
 
   // KeyExtractor for FlatList
   const keyExtractor = useCallback((item) => item.txid, []);
@@ -411,6 +432,41 @@ export default function TransactionHistoryScreen({
   );
 }
 
+const localStyles = StyleSheet.create({
+  vaultLogo: {
+    marginRight: 10,
+  },
+  assetLogo: {
+    marginRight: 10,
+  },
+  txContentContainer: {
+    flex: 1,
+  },
+  actionText: {
+    color: '#DDDDDD',
+  },
+  vaultConfirmedChip: {
+    backgroundColor: 'rgba(89, 170, 138, 0.2)',
+    marginLeft: 0,
+  },
+  vaultConfirmedText: {
+    color: COLORS.GREEN,
+  },
+  confirmedChip: {
+    backgroundColor: 'rgba(89, 170, 138, 0.2)',
+    marginLeft: 0,
+  },
+  confirmedChipText: {
+    color: COLORS.GREEN,
+  },
+  pendingChip: {
+    backgroundColor: 'rgba(255, 165, 0, 0.2)',
+    marginLeft: 0,
+  },
+  pendingChipText: {
+    color: COLORS.YELLOW,
+  },
+});
 
 TransactionHistoryScreen.propTypes = {
   styles: PropTypes.object.isRequired,
@@ -418,5 +474,5 @@ TransactionHistoryScreen.propTypes = {
   onClose: PropTypes.func.isRequired,
   segwitAddress: PropTypes.string.isRequired,
   taprootAddress: PropTypes.string.isRequired,
-  vaultPubkey: PropTypes.string,
+  _vaultPubkey: PropTypes.string,
 };

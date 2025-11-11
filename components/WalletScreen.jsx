@@ -1,6 +1,6 @@
 import React from 'react';
 import PropTypes from 'prop-types';
-import { View, Text, TouchableOpacity, Image, ActivityIndicator, ScrollView } from 'react-native';
+import { View, Text, TouchableOpacity,  ActivityIndicator, ScrollView, StyleSheet } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useWallet } from '../contexts/WalletContext';
 import { useBalance } from '../contexts/BalanceContext';
@@ -18,17 +18,13 @@ export default function WalletScreen({
   onHistoryPress,
   onSettingsPress,
   onCreateVaultPress,
-  sendAddressType,
+  _sendAddressType,
   switchingAccount,
   showZeroAssets,
 }) {
-  const { wallet, currentAccount } = useWallet();
-  const {
-    segwitBalance,
-    taprootBalance,
-    runesBalance,
-  } = useBalance();
-  const { btcPrice, loadingBtcPrice } = usePrice();
+  const { wallet: _wallet, currentAccount } = useWallet();
+  const { segwitBalance, taprootBalance, runesBalance } = useBalance();
+  const { btcPrice, _loadingBtcPrice } = usePrice();
   const { vaultData } = useVaultData();
   const { showTotalInBTC, setShowTotalInBTC } = useDisplayPreferences();
 
@@ -76,16 +72,10 @@ export default function WalletScreen({
           <Text style={styles.xverseAccountName}>Account {currentAccount + 1}</Text>
         </View>
         <View style={styles.xverseHeaderRight}>
-          <TouchableOpacity
-            style={styles.headerIconButton}
-            onPress={onHistoryPress}
-          >
+          <TouchableOpacity style={styles.headerIconButton} onPress={onHistoryPress}>
             <Icon name="transaction_history" size={22} color={COLORS.VERY_LIGHT_GRAY} />
           </TouchableOpacity>
-          <TouchableOpacity
-            style={styles.headerIconButton}
-            onPress={onSettingsPress}
-          >
+          <TouchableOpacity style={styles.headerIconButton} onPress={onSettingsPress}>
             <Icon name="settings" size={22} color={COLORS.VERY_LIGHT_GRAY} />
           </TouchableOpacity>
         </View>
@@ -98,14 +88,31 @@ export default function WalletScreen({
           <TouchableOpacity onPress={() => setShowTotalInBTC(!showTotalInBTC)}>
             {showTotalInBTC ? (
               <View style={styles.balanceWithIcon}>
-                <Icon name="btc_symbol" size={12} color={COLORS.VERY_LIGHT_GRAY} style={styles.balanceIcon} />
+                <Icon
+                  name="btc_symbol"
+                  size={12}
+                  color={COLORS.VERY_LIGHT_GRAY}
+                  style={styles.balanceIcon}
+                />
                 <Text style={styles.xverseBalanceAmount}>
-                  {totalBalanceBTC.toLocaleString('en-US', { minimumFractionDigits: 8, maximumFractionDigits: 8 })}
+                  {totalBalanceBTC.toLocaleString('en-US', {
+                    minimumFractionDigits: 8,
+                    maximumFractionDigits: 8,
+                  })}
                 </Text>
               </View>
             ) : (
-              <Text style={[styles.xverseBalanceAmount, totalBalanceUSD >= 10000000 && { fontSize: 32 }]}>
-                ${totalBalanceUSD.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+              <Text
+                style={[
+                  styles.xverseBalanceAmount,
+                  totalBalanceUSD >= 10000000 && localStyles.largeBalanceAmount,
+                ]}
+              >
+                $
+                {totalBalanceUSD.toLocaleString('en-US', {
+                  minimumFractionDigits: 2,
+                  maximumFractionDigits: 2,
+                })}
               </Text>
             )}
           </TouchableOpacity>
@@ -125,10 +132,7 @@ export default function WalletScreen({
         <View style={styles.vaultCard}>
           <View style={styles.vaultIconContainer}>
             <Icon name="vault_logo" size={40} color="#DDDDDD" />
-            <View style={[
-              styles.vaultStatusIndicator,
-              { backgroundColor: vaultHealthColor }
-            ]} />
+            <View style={[styles.vaultStatusIndicator, { backgroundColor: vaultHealthColor }]} />
           </View>
           <View style={styles.vaultContentWrapper}>
             <View style={styles.vaultHeader}>
@@ -137,10 +141,7 @@ export default function WalletScreen({
                   <Text style={styles.vaultAssetName}>Vault</Text>
                 </View>
               </View>
-              <Text style={[
-                styles.assetValue,
-                { color: vaultHealthColor }
-              ]}>
+              <Text style={[styles.assetValue, { color: vaultHealthColor }]}>
                 {vaultHealthPercentage}%
               </Text>
             </View>
@@ -148,18 +149,34 @@ export default function WalletScreen({
               <View style={styles.vaultDetailRow}>
                 <Text style={styles.vaultLabel}>Overall Debt</Text>
                 <View style={styles.vaultValueContainer}>
-                  <Icon name="unit_symbol" size={10} color={COLORS.SECONDARY_TEXT} style={styles.assetAmountIcon} />
+                  <Icon
+                    name="unit_symbol"
+                    size={10}
+                    color={COLORS.SECONDARY_TEXT}
+                    style={styles.assetAmountIcon}
+                  />
                   <Text style={styles.assetAmount}>
-                    {vaultDebt.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                    {vaultDebt.toLocaleString('en-US', {
+                      minimumFractionDigits: 2,
+                      maximumFractionDigits: 2,
+                    })}
                   </Text>
                 </View>
               </View>
               <View style={styles.vaultDetailRow}>
                 <Text style={styles.vaultLabel}>Total collateral</Text>
                 <View style={styles.vaultValueContainer}>
-                  <Icon name="btc_symbol" size={10} color={COLORS.SECONDARY_TEXT} style={styles.assetAmountIcon} />
+                  <Icon
+                    name="btc_symbol"
+                    size={10}
+                    color={COLORS.SECONDARY_TEXT}
+                    style={styles.assetAmountIcon}
+                  />
                   <Text style={styles.assetAmount}>
-                    {vaultCollateral.toLocaleString('en-US', { minimumFractionDigits: 8, maximumFractionDigits: 8 })}
+                    {vaultCollateral.toLocaleString('en-US', {
+                      minimumFractionDigits: 8,
+                      maximumFractionDigits: 8,
+                    })}
                   </Text>
                 </View>
               </View>
@@ -188,69 +205,108 @@ export default function WalletScreen({
 
         {/* Bitcoin Balance Card - Non-clickable */}
         <View style={styles.assetCard}>
-            <View style={styles.assetRow}>
-              <View style={styles.assetLeft}>
-                <View style={styles.btcIcon}>
-                  <Icon name="btc_logo" size={36} />
-                </View>
-                <View style={styles.assetInfo}>
-                  <Text style={styles.assetName}>Bitcoin</Text>
-                  <View style={styles.balanceWithIcon}>
-                    <Icon name="btc_symbol" size={10} color={COLORS.SECONDARY_TEXT} style={styles.assetAmountIcon} />
-                    <Text style={styles.assetAmount}>
-                      {(segwitBalance || 0).toLocaleString('en-US', { minimumFractionDigits: 8, maximumFractionDigits: 8 })}
-                    </Text>
-                  </View>
-                </View>
+          <View style={styles.assetRow}>
+            <View style={styles.assetLeft}>
+              <View style={styles.btcIcon}>
+                <Icon name="btc_logo" size={36} />
               </View>
-              {showTotalInBTC ? (
-                <View style={styles.assetValueWithIcon}>
-                  <Icon name="btc_symbol" size={10} color={COLORS.SECONDARY_TEXT} style={styles.assetIcon} />
-                  <Text style={styles.assetValue}>
-                    {(segwitBalance || 0).toLocaleString('en-US', { minimumFractionDigits: 8, maximumFractionDigits: 8 })}
+              <View style={styles.assetInfo}>
+                <Text style={styles.assetName}>Bitcoin</Text>
+                <View style={styles.balanceWithIcon}>
+                  <Icon
+                    name="btc_symbol"
+                    size={10}
+                    color={COLORS.SECONDARY_TEXT}
+                    style={styles.assetAmountIcon}
+                  />
+                  <Text style={styles.assetAmount}>
+                    {(segwitBalance || 0).toLocaleString('en-US', {
+                      minimumFractionDigits: 8,
+                      maximumFractionDigits: 8,
+                    })}
                   </Text>
                 </View>
-              ) : (
-                <Text style={styles.assetValue}>
-                  $ {((segwitBalance || 0) * (btcPrice || 0)).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
-                </Text>
-              )}
+              </View>
             </View>
+            {showTotalInBTC ? (
+              <View style={styles.assetValueWithIcon}>
+                <Icon
+                  name="btc_symbol"
+                  size={10}
+                  color={COLORS.SECONDARY_TEXT}
+                  style={styles.assetIcon}
+                />
+                <Text style={styles.assetValue}>
+                  {(segwitBalance || 0).toLocaleString('en-US', {
+                    minimumFractionDigits: 8,
+                    maximumFractionDigits: 8,
+                  })}
+                </Text>
+              </View>
+            ) : (
+              <Text style={styles.assetValue}>
+                ${' '}
+                {((segwitBalance || 0) * (btcPrice || 0)).toLocaleString('en-US', {
+                  minimumFractionDigits: 2,
+                  maximumFractionDigits: 2,
+                })}
+              </Text>
+            )}
           </View>
+        </View>
 
         {/* UNIT•RUNE Card - Non-clickable */}
         <View style={styles.assetCard}>
-            <View style={styles.assetRow}>
-              <View style={styles.assetLeft}>
-                <View style={[styles.btcIcon, styles.ducatIcon]}>
-                  <Icon name="unit_logo" size={36} />
-                </View>
-                <View style={styles.assetInfo}>
-                  <Text style={styles.assetName}>UNIT•RUNE</Text>
-                  <View style={styles.balanceWithIcon}>
-                    <Icon name="unit_symbol" size={10} color={COLORS.SECONDARY_TEXT} style={styles.assetAmountIcon} />
-                    <Text style={styles.assetAmount}>
-                      {runesBalance.length > 0 ? parseFloat(runesBalance[0][1]).toLocaleString() : '0'}
-                    </Text>
-                  </View>
-                </View>
+          <View style={styles.assetRow}>
+            <View style={styles.assetLeft}>
+              <View style={[styles.btcIcon, styles.ducatIcon]}>
+                <Icon name="unit_logo" size={36} />
               </View>
-              {showTotalInBTC ? (
-                <View style={styles.assetValueWithIcon}>
-                  <Icon name="btc_symbol" size={10} color={COLORS.SECONDARY_TEXT} style={styles.assetIcon} />
-                  <Text style={styles.assetValue}>
-                    {unitValueInBTC.toLocaleString('en-US', { minimumFractionDigits: 8, maximumFractionDigits: 8 })}
+              <View style={styles.assetInfo}>
+                <Text style={styles.assetName}>UNIT•RUNE</Text>
+                <View style={styles.balanceWithIcon}>
+                  <Icon
+                    name="unit_symbol"
+                    size={10}
+                    color={COLORS.SECONDARY_TEXT}
+                    style={styles.assetAmountIcon}
+                  />
+                  <Text style={styles.assetAmount}>
+                    {runesBalance.length > 0
+                      ? parseFloat(runesBalance[0][1]).toLocaleString()
+                      : '0'}
                   </Text>
                 </View>
-              ) : (
-                <Text style={styles.assetValue}>
-                  $ {runesBalance.length > 0
-                      ? parseFloat(runesBalance[0][1]).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })
-                      : '0.00'}
-                </Text>
-              )}
+              </View>
             </View>
+            {showTotalInBTC ? (
+              <View style={styles.assetValueWithIcon}>
+                <Icon
+                  name="btc_symbol"
+                  size={10}
+                  color={COLORS.SECONDARY_TEXT}
+                  style={styles.assetIcon}
+                />
+                <Text style={styles.assetValue}>
+                  {unitValueInBTC.toLocaleString('en-US', {
+                    minimumFractionDigits: 8,
+                    maximumFractionDigits: 8,
+                  })}
+                </Text>
+              </View>
+            ) : (
+              <Text style={styles.assetValue}>
+                ${' '}
+                {runesBalance.length > 0
+                  ? parseFloat(runesBalance[0][1]).toLocaleString('en-US', {
+                      minimumFractionDigits: 2,
+                      maximumFractionDigits: 2,
+                    })
+                  : '0.00'}
+              </Text>
+            )}
           </View>
+        </View>
 
         {/* DUCAT•RUNE Card - Non-clickable */}
         {showZeroAssets && (
@@ -262,12 +318,17 @@ export default function WalletScreen({
                 </View>
                 <View style={styles.assetInfo}>
                   <Text style={styles.assetName}>DUCAT•RUNE</Text>
-                  <Text style={[styles.assetAmount, { textAlign: 'left' }]}>Đ 0.00</Text>
+                  <Text style={[styles.assetAmount, localStyles.ducatAmount]}>Đ 0.00</Text>
                 </View>
               </View>
               {showTotalInBTC ? (
                 <View style={styles.assetValueWithIcon}>
-                  <Icon name="btc_symbol" size={10} color={COLORS.SECONDARY_TEXT} style={styles.assetIcon} />
+                  <Icon
+                    name="btc_symbol"
+                    size={10}
+                    color={COLORS.SECONDARY_TEXT}
+                    style={styles.assetIcon}
+                  />
                   <Text style={styles.assetValue}>0.00</Text>
                 </View>
               ) : (
@@ -280,23 +341,26 @@ export default function WalletScreen({
 
       {/* Actions - Send and Receive Buttons - Fixed at Bottom */}
       <View style={styles.xverseActionsRow}>
-        <TouchableOpacity
-          style={styles.xverseActionButton}
-          onPress={onSendPress}
-        >
+        <TouchableOpacity style={styles.xverseActionButton} onPress={onSendPress}>
           <Text style={styles.xverseActionLabel}>Send</Text>
         </TouchableOpacity>
 
-        <TouchableOpacity
-          style={styles.xverseActionButton}
-          onPress={onReceivePress}
-        >
+        <TouchableOpacity style={styles.xverseActionButton} onPress={onReceivePress}>
           <Text style={styles.xverseActionLabel}>Receive</Text>
         </TouchableOpacity>
       </View>
     </View>
   );
 }
+
+const localStyles = StyleSheet.create({
+  largeBalanceAmount: {
+    fontSize: 32,
+  },
+  ducatAmount: {
+    textAlign: 'left',
+  },
+});
 
 WalletScreen.propTypes = {
   styles: PropTypes.object.isRequired,

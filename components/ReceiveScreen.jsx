@@ -1,6 +1,16 @@
 import React, { useState, useRef } from 'react';
 import PropTypes from 'prop-types';
-import { View, Text, TouchableOpacity, PanResponder, Image, Share, Animated, Dimensions, ScrollView } from 'react-native';
+import {
+  View,
+  Text,
+  TouchableOpacity,
+  PanResponder,
+  Share,
+  Animated,
+  Dimensions,
+  ScrollView,
+  StyleSheet,
+} from 'react-native';
 import * as Clipboard from 'expo-clipboard';
 import QRCode from 'react-native-qrcode-svg';
 import { COLORS } from '../utils/colors';
@@ -11,7 +21,8 @@ const SCREEN_HEIGHT = Dimensions.get('window').height;
 
 // Calculate QR code size based on screen width
 // iPhone SE has 320px width, larger phones have 375-430px
-const QR_SIZE = SCREEN_WIDTH < 375 ? Math.min(SCREEN_WIDTH * 0.5, 180) : Math.min(SCREEN_WIDTH * 0.6, 220);
+const QR_SIZE =
+  SCREEN_WIDTH < 375 ? Math.min(SCREEN_WIDTH * 0.5, 180) : Math.min(SCREEN_WIDTH * 0.6, 220);
 const LOGO_SIZE = Math.floor(QR_SIZE * 0.21); // 21% of QR size
 
 export default function ReceiveScreen({
@@ -25,7 +36,7 @@ export default function ReceiveScreen({
   const [showQrModal, setShowQrModal] = useState(false);
   const [selectedAddress, setSelectedAddress] = useState(null);
   const [selectedType, setSelectedType] = useState(null);
-  const isDismissing = useRef(false);
+  const _isDismissing = useRef(false);
   const translateX = useRef(new Animated.Value(0)).current;
   const translateY = useRef(new Animated.Value(0)).current;
   const receiveSheetOpacity = useRef(new Animated.Value(0)).current;
@@ -43,7 +54,7 @@ export default function ReceiveScreen({
     showToast(`${type} address copied to clipboard`);
   };
 
-  const handleQrPress = (address, type, tag) => {
+  const handleQrPress = (address, type, _tag) => {
     setSelectedAddress(address);
     setSelectedType(type);
     setShowQrModal(true);
@@ -58,8 +69,7 @@ export default function ReceiveScreen({
       await Share.share({
         message: selectedAddress,
       });
-    } catch (error) {
-    }
+    } catch (error) {}
   };
 
   const handleDismiss = () => {
@@ -79,7 +89,8 @@ export default function ReceiveScreen({
       onStartShouldSetPanResponder: () => true,
       onMoveShouldSetPanResponder: (_, gestureState) => {
         if (showQrModal) return false;
-        const isDownwardSwipe = gestureState.dy > 5 && Math.abs(gestureState.dy) > Math.abs(gestureState.dx);
+        const isDownwardSwipe =
+          gestureState.dy > 5 && Math.abs(gestureState.dy) > Math.abs(gestureState.dx);
         return isDownwardSwipe;
       },
       onPanResponderMove: (_, gestureState) => {
@@ -108,7 +119,8 @@ export default function ReceiveScreen({
     qrModalPanResponderRef.current = PanResponder.create({
       onStartShouldSetPanResponder: () => true,
       onMoveShouldSetPanResponder: (_, gestureState) => {
-        const isSwipeRight = gestureState.dx > 10 && Math.abs(gestureState.dx) > Math.abs(gestureState.dy);
+        const isSwipeRight =
+          gestureState.dx > 10 && Math.abs(gestureState.dx) > Math.abs(gestureState.dy);
         return isSwipeRight;
       },
       onPanResponderMove: (_, gestureState) => {
@@ -189,9 +201,9 @@ export default function ReceiveScreen({
         pointerEvents={!showReceiveSheet || showQrModal ? 'none' : 'auto'}
         {...panResponderRef.current.panHandlers}
       >
-            <View style={styles.bottomSheetHandle} />
+        <View style={styles.bottomSheetHandle} />
 
-            <Text style={styles.bottomSheetTitle}>Receive</Text>
+        <Text style={styles.bottomSheetTitle}>Receive</Text>
 
         {/* Native SegWit Address Row */}
         <TouchableOpacity
@@ -202,8 +214,8 @@ export default function ReceiveScreen({
           <View style={styles.receiveAddressInfo}>
             <View style={styles.receiveAddressLabelRow}>
               <Text style={styles.receiveAddressLabel}>Native SegWit</Text>
-              <View style={[styles.receiveAddressTag, { backgroundColor: '#FFB800' }]}>
-                <Text style={[styles.receiveAddressTagText, { color: COLORS.DARK_BG }]}>BTC</Text>
+              <View style={[styles.receiveAddressTag, localStyles.btcTag]}>
+                <Text style={[styles.receiveAddressTagText, localStyles.btcTagText]}>BTC</Text>
               </View>
             </View>
             <Text style={styles.receiveAddress} numberOfLines={1} ellipsizeMode="middle">
@@ -217,11 +229,7 @@ export default function ReceiveScreen({
               handleQrPress(segwitAddress, 'Native SegWit', 'BTC');
             }}
           >
-            <Icon
-              name="qr_code"
-              size={24}
-              color={COLORS.PRIMARY_BLUE}
-            />
+            <Icon name="qr_code" size={24} color={COLORS.PRIMARY_BLUE} />
           </TouchableOpacity>
         </TouchableOpacity>
 
@@ -234,8 +242,8 @@ export default function ReceiveScreen({
           <View style={styles.receiveAddressInfo}>
             <View style={styles.receiveAddressLabelRow}>
               <Text style={styles.receiveAddressLabel}>Taproot</Text>
-              <View style={[styles.receiveAddressTag, { backgroundColor: COLORS.PRIMARY_BLUE }]}>
-                <Text style={[styles.receiveAddressTagText, { color: '#DDDDDD' }]}>UNIT</Text>
+              <View style={[styles.receiveAddressTag, localStyles.unitTag]}>
+                <Text style={[styles.receiveAddressTagText, localStyles.unitTagText]}>UNIT</Text>
               </View>
             </View>
             <Text style={styles.receiveAddress} numberOfLines={1} ellipsizeMode="middle">
@@ -249,11 +257,7 @@ export default function ReceiveScreen({
               handleQrPress(taprootAddress, 'Taproot', 'Runes');
             }}
           >
-            <Icon
-              name="qr_code"
-              size={24}
-              color={COLORS.PRIMARY_BLUE}
-            />
+            <Icon name="qr_code" size={24} color={COLORS.PRIMARY_BLUE} />
           </TouchableOpacity>
         </TouchableOpacity>
       </Animated.View>
@@ -265,100 +269,144 @@ export default function ReceiveScreen({
             styles.qrModalContainer,
             {
               opacity: qrOpacity,
-              transform: [
-                { translateX },
-                { translateY },
-              ],
+              transform: [{ translateX }, { translateY }],
             },
           ]}
           pointerEvents={showQrModal ? 'auto' : 'none'}
           {...qrModalPanResponderRef.current.panHandlers}
         >
-              {/* Network header bar */}
-              <View style={styles.qrModalNetworkBar}>
-                <Text style={styles.qrModalNetworkText}>Mutinynet Edition</Text>
-              </View>
+          {/* Network header bar */}
+          <View style={styles.qrModalNetworkBar}>
+            <Text style={styles.qrModalNetworkText}>Mutinynet Edition</Text>
+          </View>
 
-            <ScrollView
-              style={{ flex: 1 }}
-              contentContainerStyle={styles.qrModalContent}
-              showsVerticalScrollIndicator={false}
-            >
-              {/* Header with back button and title */}
-              <View style={{ marginTop: 20, flexDirection: 'row', alignItems: 'center', width: '100%', position: 'relative' }}>
-                <TouchableOpacity
-                  onPress={() => {
-                    // Start showing receive sheet immediately, then animate
-                    setShowQrModal(false);
-
-                    Animated.parallel([
-                      Animated.timing(translateX, {
-                        toValue: SCREEN_WIDTH,
-                        duration: 250,
-                        useNativeDriver: true,
-                      }),
-                      Animated.timing(qrOpacity, {
-                        toValue: 0,
-                        duration: 150,
-                        useNativeDriver: true,
-                      }),
-                      Animated.timing(receiveOpacity, {
-                        toValue: 1,
-                        duration: 150,
-                        useNativeDriver: true,
-                      }),
-                    ]).start();
-                  }}
-                  style={{ position: 'absolute', left: -10 }}
-                >
-                  <Icon name="back" size={24} color={COLORS.VERY_LIGHT_GRAY} />
-                </TouchableOpacity>
-                <View style={{ flex: 1, alignItems: 'center' }}>
-                  <Text style={styles.qrModalTitle}>Bitcoin address</Text>
-                </View>
-              </View>
-              <Text style={styles.qrModalSubtitle}>Only use this address to receive Bitcoin.</Text>
-
-              {/* QR Code */}
-              <View style={styles.qrCodeContainer}>
-                <QRCode
-                  value={selectedAddress}
-                  size={QR_SIZE}
-                  backgroundColor="white"
-                  color="black"
-                  logo={require('../assets/logos/btc-logo.png')}
-                  logoSize={LOGO_SIZE}
-                  logoBackgroundColor="white"
-                  logoBorderRadius={Math.floor(LOGO_SIZE / 2)}
-                />
-              </View>
-
-              {/* Address container - tap to copy */}
+          <ScrollView
+            style={localStyles.scrollContainer}
+            contentContainerStyle={styles.qrModalContent}
+            showsVerticalScrollIndicator={false}
+          >
+            {/* Header with back button and title */}
+            <View style={localStyles.qrHeader}>
               <TouchableOpacity
-                style={styles.qrAddressContainer}
-                onPress={() => handleCopyAddress(selectedAddress, selectedType)}
-                activeOpacity={0.7}
-              >
-                <View style={{ flex: 1 }}>
-                  <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 }}>
-                    <Text style={styles.qrAddressLabelText}>{selectedType}</Text>
-                    <Text style={{ fontSize: 12, color: COLORS.PRIMARY_BLUE, fontFamily: 'CabinetGrotesk-Medium' }}>Tap to copy</Text>
-                  </View>
-                  <Text style={styles.qrAddressFullText}>{selectedAddress}</Text>
-                </View>
-              </TouchableOpacity>
+                onPress={() => {
+                  // Start showing receive sheet immediately, then animate
+                  setShowQrModal(false);
 
-              {/* Share button */}
-              <TouchableOpacity style={styles.qrShareButton} onPress={handleShare}>
-                <Text style={styles.qrShareIcon}>↗</Text>
-                <Text style={styles.qrShareButtonText}>Share</Text>
+                  Animated.parallel([
+                    Animated.timing(translateX, {
+                      toValue: SCREEN_WIDTH,
+                      duration: 250,
+                      useNativeDriver: true,
+                    }),
+                    Animated.timing(qrOpacity, {
+                      toValue: 0,
+                      duration: 150,
+                      useNativeDriver: true,
+                    }),
+                    Animated.timing(receiveOpacity, {
+                      toValue: 1,
+                      duration: 150,
+                      useNativeDriver: true,
+                    }),
+                  ]).start();
+                }}
+                style={localStyles.backButton}
+              >
+                <Icon name="back" size={24} color={COLORS.VERY_LIGHT_GRAY} />
               </TouchableOpacity>
-            </ScrollView>
+              <View style={localStyles.titleContainer}>
+                <Text style={styles.qrModalTitle}>Bitcoin address</Text>
+              </View>
+            </View>
+            <Text style={styles.qrModalSubtitle}>Only use this address to receive Bitcoin.</Text>
+
+            {/* QR Code */}
+            <View style={styles.qrCodeContainer}>
+              <QRCode
+                value={selectedAddress}
+                size={QR_SIZE}
+                backgroundColor="white"
+                color="black"
+                logo={require('../assets/logos/btc-logo.png')}
+                logoSize={LOGO_SIZE}
+                logoBackgroundColor="white"
+                logoBorderRadius={Math.floor(LOGO_SIZE / 2)}
+              />
+            </View>
+
+            {/* Address container - tap to copy */}
+            <TouchableOpacity
+              style={styles.qrAddressContainer}
+              onPress={() => handleCopyAddress(selectedAddress, selectedType)}
+              activeOpacity={0.7}
+            >
+              <View style={localStyles.addressContentContainer}>
+                <View style={localStyles.addressLabelRow}>
+                  <Text style={styles.qrAddressLabelText}>{selectedType}</Text>
+                  <Text style={localStyles.tapToCopyText}>Tap to copy</Text>
+                </View>
+                <Text style={styles.qrAddressFullText}>{selectedAddress}</Text>
+              </View>
+            </TouchableOpacity>
+
+            {/* Share button */}
+            <TouchableOpacity style={styles.qrShareButton} onPress={handleShare}>
+              <Text style={styles.qrShareIcon}>↗</Text>
+              <Text style={styles.qrShareButtonText}>Share</Text>
+            </TouchableOpacity>
+          </ScrollView>
         </Animated.View>
       )}
     </>
   );
 }
+
+const localStyles = StyleSheet.create({
+  btcTag: {
+    backgroundColor: '#FFB800',
+  },
+  btcTagText: {
+    color: COLORS.DARK_BG,
+  },
+  unitTag: {
+    backgroundColor: COLORS.PRIMARY_BLUE,
+  },
+  unitTagText: {
+    color: '#DDDDDD',
+  },
+  scrollContainer: {
+    flex: 1,
+  },
+  qrHeader: {
+    marginTop: 20,
+    flexDirection: 'row',
+    alignItems: 'center',
+    width: '100%',
+    position: 'relative',
+  },
+  backButton: {
+    position: 'absolute',
+    left: -10,
+  },
+  titleContainer: {
+    flex: 1,
+    alignItems: 'center',
+  },
+  addressContentContainer: {
+    flex: 1,
+  },
+  addressLabelRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 8,
+  },
+  tapToCopyText: {
+    fontSize: 12,
+    color: COLORS.PRIMARY_BLUE,
+    fontFamily: 'CabinetGrotesk-Medium',
+  },
+});
 
 ReceiveScreen.propTypes = {
   styles: PropTypes.object.isRequired,

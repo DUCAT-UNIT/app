@@ -4,7 +4,7 @@
  */
 
 import React from 'react';
-import { View } from 'react-native';
+import { View, StyleSheet } from 'react-native';
 import { NavigationContainer } from '@react-navigation/native';
 import { createStackNavigator } from '@react-navigation/stack';
 import AuthStack from './AuthStack';
@@ -13,61 +13,35 @@ import PinSetupScreen from '../components/PinSetupScreen';
 import MutinynetBanner from '../components/MutinynetBanner';
 import { COLORS } from '../utils/colors';
 import { useAuth } from '../contexts/AuthContext';
+import { useWallet } from '../contexts/WalletContext';
+import { useBalance } from '../contexts/BalanceContext';
+import { useOnboardingFlow } from '../contexts/OnboardingFlowContext';
+import { useNavigationHandlers } from '../contexts/NavigationHandlersContext';
+import { useToastContext } from '../contexts/ToastContext';
 
 const Stack = createStackNavigator();
 
-export default function RootNavigator({
-  // Auth state
-  isAuthenticated,
-  wallet,
-  seedConfirmed,
-  settingUpPin,
-  showPinEntry,
+export default function RootNavigator() {
+  // Consume contexts
+  const { isAuthenticated, changingPin, settingUpPin, showPinEntry, isBiometricSupported } =
+    useAuth();
+  const { wallet } = useWallet();
+  const { fetchBalance } = useBalance();
+  const { seedConfirmed } = useOnboardingFlow();
+  const { showToast } = useToastContext();
 
-  // Auth flow props
-  setSeedConfirmed,
-  showToast,
-  fetchBalance,
-  resetWalletAndState,
-  handlePinSetupCompleteWrapper,
-  handlePinChangeCompleteWrapper,
-  handleCancelPinChange,
-  handleLockScreenAuthenticatedWrapper,
-
-  // Main app props
-  resetInactivityTimer,
-  handleOpenVault,
-  vaultCredentials,
-  autoCreateVaultTrigger,
-  amountInputRef,
-  setShowAccountPicker,
-  settingsHandlers,
-  biometricEnabled,
-  activeTab,
-  setActiveTab,
-  keyboardHeight,
-
-  styles,
-}) {
-  const { changingPin, isBiometricSupported } = useAuth();
+  // Get handlers from context
+  const { handlePinSetupCompleteWrapper, handlePinChangeCompleteWrapper, handleCancelPinChange } =
+    useNavigationHandlers();
 
   // Determine if we should show onboarding/auth flow
   // Exclude settingUpPin when changing PIN (it will be shown as overlay)
-  const shouldShowAuth = !wallet ||
+  const shouldShowAuth =
+    !wallet ||
     (wallet && !seedConfirmed) ||
     (settingUpPin && !changingPin) ||
     showPinEntry ||
     (!isAuthenticated && wallet && seedConfirmed);
-
-  console.log('[RootNavigator] Render decision:', {
-    wallet: !!wallet,
-    seedConfirmed,
-    settingUpPin,
-    changingPin,
-    showPinEntry,
-    isAuthenticated,
-    shouldShowAuth
-  });
 
   return (
     <NavigationContainer>
@@ -79,59 +53,15 @@ export default function RootNavigator({
         }}
       >
         {shouldShowAuth ? (
-          <Stack.Screen name="Auth">
-            {(props) => (
-              <AuthStack
-                {...props}
-                seedConfirmed={seedConfirmed}
-                setSeedConfirmed={setSeedConfirmed}
-                showToast={showToast}
-                fetchBalance={fetchBalance}
-                resetWalletAndState={resetWalletAndState}
-                handlePinSetupCompleteWrapper={handlePinSetupCompleteWrapper}
-                handlePinChangeCompleteWrapper={handlePinChangeCompleteWrapper}
-                handleCancelPinChange={handleCancelPinChange}
-                handleLockScreenAuthenticatedWrapper={handleLockScreenAuthenticatedWrapper}
-                styles={styles}
-              />
-            )}
-          </Stack.Screen>
+          <Stack.Screen name="Auth" component={AuthStack} />
         ) : (
-          <Stack.Screen name="Main">
-            {(props) => (
-              <MainTabs
-                {...props}
-                styles={styles}
-                resetInactivityTimer={resetInactivityTimer}
-                handleOpenVault={handleOpenVault}
-                vaultCredentials={vaultCredentials}
-                autoCreateVaultTrigger={autoCreateVaultTrigger}
-                amountInputRef={amountInputRef}
-                setShowAccountPicker={setShowAccountPicker}
-                settingsHandlers={settingsHandlers}
-                biometricEnabled={biometricEnabled}
-                activeTab={activeTab}
-                setActiveTab={setActiveTab}
-                keyboardHeight={keyboardHeight}
-              />
-            )}
-          </Stack.Screen>
+          <Stack.Screen name="Main" component={MainTabs} />
         )}
       </Stack.Navigator>
 
       {/* PIN Change Overlay - shown on top of main app */}
       {settingUpPin && changingPin && (
-        <View
-          style={{
-            position: 'absolute',
-            top: 0,
-            left: 0,
-            right: 0,
-            bottom: 0,
-            backgroundColor: COLORS.DARK_BG,
-            zIndex: 1000,
-          }}
-        >
+        <View style={localStyles.pinOverlay}>
           <MutinynetBanner />
           <PinSetupScreen
             changingPin={changingPin}
@@ -147,3 +77,15 @@ export default function RootNavigator({
     </NavigationContainer>
   );
 }
+
+const localStyles = StyleSheet.create({
+  pinOverlay: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
+    bottom: 0,
+    backgroundColor: COLORS.DARK_BG,
+    zIndex: 1000,
+  },
+});

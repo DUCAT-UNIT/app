@@ -10,7 +10,17 @@
 
 import React from 'react';
 import PropTypes from 'prop-types';
-import { Text, View, TouchableOpacity, TextInput, Image } from 'react-native';
+import {
+  Text,
+  View,
+  TouchableOpacity,
+  TextInput,
+
+  ScrollView,
+  TouchableWithoutFeedback,
+  Keyboard,
+  StyleSheet,
+} from 'react-native';
 import Icon from './Icon';
 import styles from '../styles';
 
@@ -41,7 +51,25 @@ export default function WelcomeScreen({
   resetWallet,
   proceedToVerification,
   verifySeeds,
+
+  // Keyboard
+  keyboardHeight,
 }) {
+  const scrollViewRef = React.useRef(null);
+
+  // Auto-scroll when keyboard appears
+  React.useEffect(() => {
+    const keyboardDidShowListener = Keyboard.addListener('keyboardDidShow', () => {
+      setTimeout(() => {
+        scrollViewRef.current?.scrollToEnd({ animated: true });
+      }, 100);
+    });
+
+    return () => {
+      keyboardDidShowListener.remove();
+    };
+  }, []);
+
   // Initial welcome screen (no wallet exists)
   if (!wallet && !importingWallet) {
     return (
@@ -70,86 +98,106 @@ export default function WelcomeScreen({
 
   // Import wallet screen
   if (importingWallet) {
+    // Compute dynamic padding for keyboard
+    const scrollContentStyle = [
+      localStyles.scrollContent,
+      { paddingBottom: keyboardHeight > 0 ? keyboardHeight + 20 : 60 },
+    ];
+
     return (
-      <View style={styles.walletInfo}>
-        <Text style={styles.stepIndicator}>Import Wallet</Text>
-        <Text style={styles.label}>Enter your 12-word seed phrase:</Text>
-        <View style={styles.seedWordsGrid}>
-          {importSeedPhrase.map((word, index) => (
-            <View key={index} style={styles.seedWordContainer}>
-              <Text style={styles.seedWordNumber}>{index + 1}</Text>
-              <TextInput
-                ref={(ref) => seedInputRefs.current[index] = ref}
-                style={styles.seedWordInput}
-                value={word}
-                onChangeText={(text) => {
-                  // Handle paste - if text contains spaces, split across inputs
-                  if (text.includes(' ')) {
-                    const words = text.trim().split(/\s+/);
-                    const newPhrase = [...importSeedPhrase];
+      <View style={localStyles.importContainer}>
+        <TouchableWithoutFeedback onPress={Keyboard.dismiss}>
+          <ScrollView
+            ref={scrollViewRef}
+            style={localStyles.scrollContainer}
+            contentContainerStyle={scrollContentStyle}
+            keyboardShouldPersistTaps="handled"
+            showsVerticalScrollIndicator={false}
+          >
+            <View style={styles.walletInfo}>
+              <Text style={styles.stepIndicator}>Import Wallet</Text>
+              <Text style={styles.label}>Enter your 12-word seed phrase:</Text>
+              <View style={styles.seedWordsGrid}>
+                {importSeedPhrase.map((word, index) => (
+                  <View key={index} style={styles.seedWordContainer}>
+                    <Text style={styles.seedWordNumber}>{index + 1}</Text>
+                    <TextInput
+                      ref={(ref) => (seedInputRefs.current[index] = ref)}
+                      style={styles.seedWordInput}
+                      value={word}
+                      onChangeText={(text) => {
+                        // Handle paste - if text contains spaces, split across inputs
+                        if (text.includes(' ')) {
+                          const words = text.trim().split(/\s+/);
+                          const newPhrase = [...importSeedPhrase];
 
-                    // Fill in words starting from current index
-                    words.forEach((word, i) => {
-                      if (index + i < 12) {
-                        newPhrase[index + i] = word.toLowerCase().trim();
-                      }
-                    });
+                          // Fill in words starting from current index
+                          words.forEach((pastedWord, i) => {
+                            if (index + i < 12) {
+                              newPhrase[index + i] = pastedWord.toLowerCase().trim();
+                            }
+                          });
 
-                    setImportSeedPhrase(newPhrase);
+                          setImportSeedPhrase(newPhrase);
 
-                    // Focus next empty input or last filled input
-                    const nextIndex = Math.min(index + words.length, 11);
-                    if (seedInputRefs.current[nextIndex]) {
-                      setTimeout(() => seedInputRefs.current[nextIndex].focus(), 50);
-                    }
-                  } else {
-                    // Normal typing - update current input
-                    const newPhrase = [...importSeedPhrase];
-                    newPhrase[index] = text.toLowerCase().trim();
-                    setImportSeedPhrase(newPhrase);
+                          // Focus next empty input or last filled input
+                          const nextIndex = Math.min(index + words.length, 11);
+                          if (seedInputRefs.current[nextIndex]) {
+                            setTimeout(() => seedInputRefs.current[nextIndex].focus(), 50);
+                          }
+                        } else {
+                          // Normal typing - update current input
+                          const newPhrase = [...importSeedPhrase];
+                          newPhrase[index] = text.toLowerCase().trim();
+                          setImportSeedPhrase(newPhrase);
 
-                    // Auto-advance if word looks complete (no spaces, reasonable length)
-                    if (text.length >= 3 && index < 11 && text.trim() && !text.includes(' ')) {
-                      // Small delay to ensure smooth typing experience
-                      const checkAdvance = setTimeout(() => {
-                        if (seedInputRefs.current[index + 1]) {
+                          // Auto-advance if word looks complete (no spaces, reasonable length)
+                          if (
+                            text.length >= 3 &&
+                            index < 11 &&
+                            text.trim() &&
+                            !text.includes(' ')
+                          ) {
+                            // Small delay to ensure smooth typing experience
+                            const checkAdvance = setTimeout(() => {
+                              if (seedInputRefs.current[index + 1]) {
+                                seedInputRefs.current[index + 1].focus();
+                              }
+                            }, 300);
+                            return () => clearTimeout(checkAdvance);
+                          }
+                        }
+                      }}
+                      placeholder={`Word ${index + 1}`}
+                      placeholderTextColor="#666666"
+                      autoCapitalize="none"
+                      autoCorrect={false}
+                      autoComplete="off"
+                      returnKeyType={index < 11 ? 'next' : 'done'}
+                      onSubmitEditing={() => {
+                        if (index < 11 && seedInputRefs.current[index + 1]) {
                           seedInputRefs.current[index + 1].focus();
                         }
-                      }, 300);
-                      return () => clearTimeout(checkAdvance);
-                    }
-                  }
+                      }}
+                    />
+                  </View>
+                ))}
+              </View>
+              <TouchableOpacity style={[styles.button, localStyles.importButton]} onPress={importWallet}>
+                <Text style={styles.buttonText}>Import Wallet</Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                style={[styles.button, styles.secondaryButton]}
+                onPress={() => {
+                  setImportingWallet(false);
+                  setImportSeedPhrase(Array(12).fill(''));
                 }}
-                placeholder={`Word ${index + 1}`}
-                placeholderTextColor="#666666"
-                autoCapitalize="none"
-                autoCorrect={false}
-                autoComplete="off"
-                returnKeyType={index < 11 ? 'next' : 'done'}
-                onSubmitEditing={() => {
-                  if (index < 11 && seedInputRefs.current[index + 1]) {
-                    seedInputRefs.current[index + 1].focus();
-                  }
-                }}
-              />
+              >
+                <Text style={styles.buttonText}>Cancel</Text>
+              </TouchableOpacity>
             </View>
-          ))}
-        </View>
-        <TouchableOpacity
-          style={[styles.button, { marginTop: 5 }]}
-          onPress={importWallet}
-        >
-          <Text style={styles.buttonText}>Import Wallet</Text>
-        </TouchableOpacity>
-        <TouchableOpacity
-          style={[styles.button, styles.secondaryButton]}
-          onPress={() => {
-            setImportingWallet(false);
-            setImportSeedPhrase(Array(12).fill(''));
-          }}
-        >
-          <Text style={styles.buttonText}>Cancel</Text>
-        </TouchableOpacity>
+          </ScrollView>
+        </TouchableWithoutFeedback>
       </View>
     );
   }
@@ -186,10 +234,7 @@ export default function WelcomeScreen({
           <Text style={styles.buttonText}>Continue</Text>
         </TouchableOpacity>
 
-        <TouchableOpacity
-          style={[styles.button, styles.secondaryButton]}
-          onPress={resetWallet}
-        >
+        <TouchableOpacity style={[styles.button, styles.secondaryButton]} onPress={resetWallet}>
           <Text style={styles.buttonText}>Cancel</Text>
         </TouchableOpacity>
       </View>
@@ -213,21 +258,13 @@ export default function WelcomeScreen({
           ))}
         </View>
 
-        <Text style={styles.warning}>
-          ⚠️ Write them down and keep them safe!
-        </Text>
+        <Text style={styles.warning}>⚠️ Write them down and keep them safe!</Text>
 
-        <TouchableOpacity
-          style={styles.button}
-          onPress={proceedToVerification}
-        >
+        <TouchableOpacity style={styles.button} onPress={proceedToVerification}>
           <Text style={styles.buttonText}>I've Written Them Down</Text>
         </TouchableOpacity>
 
-        <TouchableOpacity
-          style={[styles.button, styles.secondaryButton]}
-          onPress={resetWallet}
-        >
+        <TouchableOpacity style={[styles.button, styles.secondaryButton]} onPress={resetWallet}>
           <Text style={styles.buttonText}>Cancel</Text>
         </TouchableOpacity>
       </View>
@@ -251,14 +288,16 @@ export default function WelcomeScreen({
                   key={choiceIndex}
                   style={[
                     styles.choiceButton,
-                    verificationWords[index] === choice && styles.choiceButtonSelected
+                    verificationWords[index] === choice && styles.choiceButtonSelected,
                   ]}
-                  onPress={() => setVerificationWords({...verificationWords, [index]: choice})}
+                  onPress={() => setVerificationWords({ ...verificationWords, [index]: choice })}
                 >
-                  <Text style={[
-                    styles.choiceText,
-                    verificationWords[index] === choice && styles.choiceTextSelected
-                  ]}>
+                  <Text
+                    style={[
+                      styles.choiceText,
+                      verificationWords[index] === choice && styles.choiceTextSelected,
+                    ]}
+                  >
                     {choice}
                   </Text>
                 </TouchableOpacity>
@@ -267,17 +306,11 @@ export default function WelcomeScreen({
           </View>
         ))}
 
-        <TouchableOpacity
-          style={styles.button}
-          onPress={verifySeeds}
-        >
+        <TouchableOpacity style={styles.button} onPress={verifySeeds}>
           <Text style={styles.buttonText}>Verify</Text>
         </TouchableOpacity>
 
-        <TouchableOpacity
-          style={[styles.button, styles.secondaryButton]}
-          onPress={resetWallet}
-        >
+        <TouchableOpacity style={[styles.button, styles.secondaryButton]} onPress={resetWallet}>
           <Text style={styles.buttonText}>Start Over</Text>
         </TouchableOpacity>
       </View>
@@ -287,6 +320,21 @@ export default function WelcomeScreen({
   // If we get here, something's wrong - return null
   return null;
 }
+
+const localStyles = StyleSheet.create({
+  importContainer: {
+    flex: 1,
+  },
+  scrollContainer: {
+    flex: 1,
+  },
+  scrollContent: {
+    // Base style for scrollContent, paddingBottom is dynamic
+  },
+  importButton: {
+    marginTop: 5,
+  },
+});
 
 WelcomeScreen.propTypes = {
   // State
@@ -315,4 +363,7 @@ WelcomeScreen.propTypes = {
   resetWallet: PropTypes.func.isRequired,
   proceedToVerification: PropTypes.func.isRequired,
   verifySeeds: PropTypes.func.isRequired,
+
+  // Keyboard
+  keyboardHeight: PropTypes.number,
 };

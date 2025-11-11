@@ -7,12 +7,19 @@
 
 import React, { useEffect, useRef } from 'react';
 import PropTypes from 'prop-types';
-import { View, Text, Animated, ActivityIndicator, TouchableOpacity, Linking } from 'react-native';
+import { View, Text, Animated, ActivityIndicator, TouchableOpacity, Linking, StyleSheet } from 'react-native';
 import { COLORS } from '../utils/colors';
 import Icon from './Icon';
 import { getTxUrl, getOrdTxUrl } from '../utils/constants';
 
-export default function TransactionToast({ visible, status, message, txid, assetType = 'BTC', onClose }) {
+export default function TransactionToast({
+  visible,
+  status,
+  message,
+  txid,
+  assetType = 'BTC',
+  onClose,
+}) {
   const slideAnim = useRef(new Animated.Value(-100)).current;
   const opacity = useRef(new Animated.Value(0)).current;
 
@@ -46,6 +53,7 @@ export default function TransactionToast({ visible, status, message, txid, asset
         }),
       ]).start();
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [visible]);
 
   if (!visible) return null;
@@ -61,8 +69,7 @@ export default function TransactionToast({ visible, status, message, txid, asset
       if (supported) {
         await Linking.openURL(url);
       }
-    } catch (error) {
-    }
+    } catch (error) {}
   };
 
   // Determine styles based on status
@@ -110,70 +117,47 @@ export default function TransactionToast({ visible, status, message, txid, asset
 
   return (
     <Animated.View
-      style={{
-        position: 'absolute',
-        top: 60, // Below Mutinynet banner (moved down from 40)
-        left: 16,
-        right: 16,
-        borderRadius: 20, // Increased from 12
-        shadowColor: '#000',
-        shadowOffset: { width: 0, height: 2 },
-        shadowOpacity: 0.3,
-        shadowRadius: 4,
-        elevation: 5,
-        zIndex: 999,
-        transform: [{ translateY: slideAnim }],
-        opacity: opacity,
-      }}
+      style={[
+        localStyles.toastContainer,
+        {
+          transform: [{ translateY: slideAnim }],
+          opacity: opacity,
+        },
+      ]}
     >
       <TouchableOpacity
         onPress={handlePress}
         disabled={!txid}
         activeOpacity={txid ? 0.7 : 1}
-        style={{
-          backgroundColor: config.backgroundColor,
-          borderRadius: 20,
-          padding: 16,
-          flexDirection: 'row',
-          alignItems: 'center',
-        }}
+        style={[localStyles.toastContent, { backgroundColor: config.backgroundColor }]}
       >
         {config.showSpinner && (
           <ActivityIndicator
             size="small"
             color={status === 'pending' ? COLORS.DARK_BG : COLORS.PRIMARY_BLUE}
-            style={{ marginRight: 12 }}
+            style={localStyles.spinner}
           />
         )}
 
         {config.icon && (
-          <View style={{ marginRight: 12 }}>
+          <View style={localStyles.iconContainer}>
             <Icon name={config.icon} size={20} color={config.textColor} />
           </View>
         )}
 
-        <View style={{ flex: 1 }}>
+        <View style={localStyles.textContainer}>
           <Text
-            style={{
-              fontSize: 14,
-              fontFamily: 'CabinetGrotesk-Medium',
-              color: config.textColor,
-              marginBottom: txid ? 4 : 0,
-            }}
+            style={[
+              localStyles.messageText,
+              { color: config.textColor },
+              txid && localStyles.messageWithTxid,
+            ]}
           >
             {message}
           </Text>
 
           {txid && (status === 'confirmed' || status === 'pending') && (
-            <Text
-              style={{
-                fontSize: 11,
-                fontFamily: 'CabinetGrotesk-Regular',
-                color: config.textColor,
-                opacity: 0.8,
-              }}
-              numberOfLines={1}
-            >
+            <Text style={[localStyles.txidText, { color: config.textColor }]} numberOfLines={1}>
               {txid.substring(0, 8)}...{txid.substring(txid.length - 8)}
             </Text>
           )}
@@ -186,7 +170,7 @@ export default function TransactionToast({ visible, status, message, txid, asset
               e.stopPropagation();
               onClose();
             }}
-            style={{ marginLeft: 8, padding: 4 }}
+            style={localStyles.closeButton}
             hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
           >
             <Icon name="delete" size={16} color={config.textColor} />
@@ -196,6 +180,53 @@ export default function TransactionToast({ visible, status, message, txid, asset
     </Animated.View>
   );
 }
+
+const localStyles = StyleSheet.create({
+  toastContainer: {
+    position: 'absolute',
+    top: 60,
+    left: 16,
+    right: 16,
+    borderRadius: 20,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.3,
+    shadowRadius: 4,
+    elevation: 5,
+    zIndex: 999,
+  },
+  toastContent: {
+    borderRadius: 20,
+    padding: 16,
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
+  spinner: {
+    marginRight: 12,
+  },
+  iconContainer: {
+    marginRight: 12,
+  },
+  textContainer: {
+    flex: 1,
+  },
+  messageText: {
+    fontSize: 14,
+    fontFamily: 'CabinetGrotesk-Medium',
+  },
+  messageWithTxid: {
+    marginBottom: 4,
+  },
+  txidText: {
+    fontSize: 11,
+    fontFamily: 'CabinetGrotesk-Regular',
+    opacity: 0.8,
+  },
+  closeButton: {
+    marginLeft: 8,
+    padding: 4,
+  },
+});
 
 TransactionToast.propTypes = {
   visible: PropTypes.bool.isRequired,

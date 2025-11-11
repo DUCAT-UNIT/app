@@ -5,13 +5,13 @@
 
 import React, { useEffect, useRef } from 'react';
 import PropTypes from 'prop-types';
-import { View, Text, Modal, TouchableOpacity, Animated, Dimensions } from 'react-native';
+import { View, Text, Modal, TouchableOpacity, Animated, Dimensions, StyleSheet } from 'react-native';
 import ConfettiCannon from 'react-native-confetti-cannon';
 import { COLORS } from '../utils/colors';
 import Icon from './Icon';
 
 const SCREEN_WIDTH = Dimensions.get('window').width;
-const SCREEN_HEIGHT = Dimensions.get('window').height;
+const _SCREEN_HEIGHT = Dimensions.get('window').height;
 
 export default function AirdropSuccessModal({ visible, onClose, txId }) {
   const scaleAnim = useRef(new Animated.Value(0.8)).current;
@@ -43,136 +43,48 @@ export default function AirdropSuccessModal({ visible, onClose, txId }) {
       scaleAnim.setValue(0.8);
       opacityAnim.setValue(0);
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [visible]);
 
   return (
-    <Modal
-      visible={visible}
-      transparent={true}
-      animationType="none"
-      onRequestClose={onClose}
-    >
-      <View
-        style={{
-          flex: 1,
-          backgroundColor: 'rgba(0, 0, 0, 0.85)',
-          justifyContent: 'center',
-          alignItems: 'center',
-          padding: 24,
-        }}
-      >
+    <Modal visible={visible} transparent={true} animationType="none" onRequestClose={onClose}>
+      <View style={localStyles.modalOverlay}>
         <Animated.View
-          style={{
-            backgroundColor: COLORS.CARD_BG,
-            borderRadius: 24,
-            padding: 32,
-            width: '100%',
-            maxWidth: 400,
-            alignItems: 'center',
-            opacity: opacityAnim,
-            transform: [{ scale: scaleAnim }],
-          }}
+          style={[
+            localStyles.modalContent,
+            {
+              opacity: opacityAnim,
+              transform: [{ scale: scaleAnim }],
+            },
+          ]}
         >
           {/* Success Icon */}
-          <View
-            style={{
-              width: 80,
-              height: 80,
-              borderRadius: 40,
-              backgroundColor: COLORS.TEAL,
-              justifyContent: 'center',
-              alignItems: 'center',
-              marginBottom: 24,
-            }}
-          >
+          <View style={localStyles.successIcon}>
             <Icon name="done" size={48} color={COLORS.WHITE} />
           </View>
 
           {/* Title */}
-          <Text
-            style={{
-              fontSize: 28,
-              fontWeight: '700',
-              color: COLORS.VERY_LIGHT_GRAY,
-              marginBottom: 12,
-              textAlign: 'center',
-            }}
-          >
-            Welcome Gift! 🎉
-          </Text>
+          <Text style={localStyles.title}>Welcome Gift! 🎉</Text>
 
           {/* Message */}
-          <Text
-            style={{
-              fontSize: 16,
-              color: COLORS.SECONDARY_TEXT,
-              textAlign: 'center',
-              lineHeight: 24,
-              marginBottom: 24,
-            }}
-          >
+          <Text style={localStyles.message}>
             Congratulations! We've sent you a complimentary Mutinynet airdrop to get you started.
             Use these testnet coins to create your first vault and explore the app.
           </Text>
 
           {/* Transaction ID */}
           {txId && (
-            <View
-              style={{
-                backgroundColor: COLORS.DARK_BG,
-                borderRadius: 12,
-                padding: 16,
-                width: '100%',
-                marginBottom: 24,
-              }}
-            >
-              <Text
-                style={{
-                  fontSize: 12,
-                  color: COLORS.SECONDARY_TEXT,
-                  marginBottom: 6,
-                  textAlign: 'center',
-                }}
-              >
-                Transaction ID
-              </Text>
-              <Text
-                style={{
-                  fontSize: 11,
-                  color: COLORS.VERY_LIGHT_GRAY,
-                  textAlign: 'center',
-                  fontFamily: 'monospace',
-                }}
-                numberOfLines={1}
-                ellipsizeMode="middle"
-              >
+            <View style={localStyles.txIdContainer}>
+              <Text style={localStyles.txIdLabel}>Transaction ID</Text>
+              <Text style={localStyles.txIdText} numberOfLines={1} ellipsizeMode="middle">
                 {txId.substring(0, 16)}...{txId.substring(txId.length - 16)}
               </Text>
             </View>
           )}
 
           {/* Close Button */}
-          <TouchableOpacity
-            style={{
-              backgroundColor: COLORS.PRIMARY_BLUE,
-              borderRadius: 12,
-              paddingVertical: 16,
-              paddingHorizontal: 32,
-              width: '100%',
-              alignItems: 'center',
-            }}
-            onPress={onClose}
-            activeOpacity={0.8}
-          >
-            <Text
-              style={{
-                fontSize: 16,
-                fontWeight: '600',
-                color: COLORS.WHITE,
-              }}
-            >
-              Get Started
-            </Text>
+          <TouchableOpacity style={localStyles.closeButton} onPress={onClose} activeOpacity={0.8}>
+            <Text style={localStyles.closeButtonText}>Get Started</Text>
           </TouchableOpacity>
         </Animated.View>
 
@@ -190,6 +102,79 @@ export default function AirdropSuccessModal({ visible, onClose, txId }) {
     </Modal>
   );
 }
+
+const localStyles = StyleSheet.create({
+  modalOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(0, 0, 0, 0.85)',
+    justifyContent: 'center',
+    alignItems: 'center',
+    padding: 24,
+  },
+  modalContent: {
+    backgroundColor: COLORS.CARD_BG,
+    borderRadius: 24,
+    padding: 32,
+    width: '100%',
+    maxWidth: 400,
+    alignItems: 'center',
+  },
+  successIcon: {
+    width: 80,
+    height: 80,
+    borderRadius: 40,
+    backgroundColor: COLORS.TEAL,
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginBottom: 24,
+  },
+  title: {
+    fontSize: 28,
+    fontWeight: '700',
+    color: COLORS.VERY_LIGHT_GRAY,
+    marginBottom: 12,
+    textAlign: 'center',
+  },
+  message: {
+    fontSize: 16,
+    color: COLORS.SECONDARY_TEXT,
+    textAlign: 'center',
+    lineHeight: 24,
+    marginBottom: 24,
+  },
+  txIdContainer: {
+    backgroundColor: COLORS.DARK_BG,
+    borderRadius: 12,
+    padding: 16,
+    width: '100%',
+    marginBottom: 24,
+  },
+  txIdLabel: {
+    fontSize: 12,
+    color: COLORS.SECONDARY_TEXT,
+    marginBottom: 6,
+    textAlign: 'center',
+  },
+  txIdText: {
+    fontSize: 11,
+    color: COLORS.VERY_LIGHT_GRAY,
+    textAlign: 'center',
+    fontFamily: 'monospace',
+  },
+  closeButton: {
+    backgroundColor: COLORS.PRIMARY_BLUE,
+    borderRadius: 12,
+    paddingVertical: 16,
+    paddingHorizontal: 32,
+    width: '100%',
+    alignItems: 'center',
+  },
+  closeButtonText: {
+    fontSize: 16,
+    fontWeight: '600',
+    color: COLORS.WHITE,
+  },
+});
 
 AirdropSuccessModal.propTypes = {
   visible: PropTypes.bool.isRequired,

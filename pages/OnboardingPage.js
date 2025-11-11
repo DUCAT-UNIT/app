@@ -3,8 +3,8 @@
  * Contains WelcomeScreen, PinSetupScreen, and LockScreen
  */
 
-import React, { useState } from 'react';
-import { View, StatusBar as RNStatusBar } from 'react-native';
+import React from 'react';
+import { View, StyleSheet } from 'react-native';
 import { StatusBar } from 'expo-status-bar';
 
 // Components
@@ -13,13 +13,17 @@ import PinSetupScreen from '../components/PinSetupScreen';
 import LockScreen from '../components/LockScreen';
 import MutinynetBanner from '../components/MutinynetBanner';
 import BiometricPromptModal from '../components/BiometricPromptModal';
+import ToastContainer from '../components/ToastContainer';
 
 // Contexts
 import { useAuth } from '../contexts/AuthContext';
 import { useWallet } from '../contexts/WalletContext';
 
 // Hooks
-import { useOnboarding } from '../hooks/useOnboarding';
+import { useWalletCreation } from '../hooks/useWalletCreation';
+import { useWalletImport } from '../hooks/useWalletImport';
+import { useSeedVerification } from '../hooks/useSeedVerification';
+import { useToastContext } from '../contexts/ToastContext';
 
 // Utils
 import { COLORS } from '../utils/colors';
@@ -27,20 +31,24 @@ import { COLORS } from '../utils/colors';
 export default function OnboardingPage({
   seedConfirmed,
   setSeedConfirmed,
-  showToast,
+  showToast: _showToastProp, // Receive but don't use - we'll use our own
   fetchBalance,
   resetWalletAndState,
   handlePinSetupCompleteWrapper,
   handlePinChangeCompleteWrapper,
   handleCancelPinChange,
   handleLockScreenAuthenticatedWrapper,
+  keyboardHeight,
   styles,
 }) {
+  // Toast context
+  const { showToast, toasts } = useToastContext();
+
   // Auth context
   const {
     isAuthenticated,
     isBiometricSupported,
-    biometricEnabled,
+    _biometricEnabled,
     showBiometricPrompt,
     showFaceIdButton,
     settingUpPin,
@@ -54,38 +62,56 @@ export default function OnboardingPage({
   } = useAuth();
 
   // Wallet context
-  const { wallet, currentAccount } = useWallet();
+  const { wallet, currentAccount, loadWallet } = useWallet();
 
-  // Onboarding hook
+  // Wallet creation hook
   const {
     tempMnemonicWords,
     showingIntro,
     showingSeeds,
-    verifyingSeeds,
+    walletExistsRef: _walletExists,
+    setShowingIntro,
+    setShowingSeeds,
+    createWallet,
+    saveWalletAfterPinSetup,
+  } = useWalletCreation({
+    currentAccount,
+    setIsAuthenticated,
+    setSeedConfirmed,
+    showToast,
+    loadWallet,
+  });
+
+  // Wallet import hook
+  const {
     importingWallet,
     importSeedPhrase,
+    isImportedWallet,
+    seedInputRefs,
+    setImportingWallet,
+    setImportSeedPhrase,
+    setIsImportedWallet,
+    importWallet,
+  } = useWalletImport({
+    currentAccount,
+    setSettingUpPin,
+    showToast,
+    loadWallet,
+  });
+
+  // Seed verification hook
+  const {
+    verifyingSeeds,
     verificationWords,
     requiredIndices,
     wordChoices,
-    seedInputRefs,
-    isImportedWallet,
-    walletExistsRef: walletExists,
-    setShowingIntro,
-    setShowingSeeds,
-    setImportingWallet,
-    setImportSeedPhrase,
     setVerificationWords,
-    setIsImportedWallet,
-    createWallet,
-    importWallet,
     proceedToVerification,
     verifySeeds,
-    saveWalletAfterPinSetup,
-  } = useOnboarding({
-    currentAccount,
-    setIsAuthenticated,
+  } = useSeedVerification({
+    tempMnemonicWords,
     setSettingUpPin,
-    setSeedConfirmed,
+    setShowingSeeds,
     showToast,
   });
 
@@ -112,7 +138,7 @@ export default function OnboardingPage({
   // PIN Setup Screen (Step 4 of onboarding or PIN change)
   if (settingUpPin) {
     return (
-      <View style={{ flex: 1, backgroundColor: COLORS.DARK_BG, paddingHorizontal: 0 }}>
+      <View style={localStyles.container}>
         <MutinynetBanner />
         <PinSetupScreen
           changingPin={changingPin}
@@ -123,6 +149,7 @@ export default function OnboardingPage({
           fetchBalance={fetchBalance}
           showToast={showToast}
         />
+        <ToastContainer toasts={toasts} />
         <StatusBar style="light" />
       </View>
     );
@@ -131,18 +158,27 @@ export default function OnboardingPage({
   // Lock Screen (PIN entry for authentication)
   if (showPinEntry) {
     return (
-      <View style={{ flex: 1, backgroundColor: COLORS.DARK_BG, paddingHorizontal: 0 }}>
+      <View style={localStyles.container}>
         <MutinynetBanner />
         <LockScreen onAuthenticated={handleLockScreenAuthenticatedWrapper} />
+        <ToastContainer toasts={toasts} />
         <StatusBar style="light" />
       </View>
     );
   }
 
   // Show locked screen if not authenticated and wallet exists AND seed backup confirmed AND not in setup flow
-  if (!isAuthenticated && wallet && seedConfirmed && !showingIntro && !showingSeeds && !verifyingSeeds && !settingUpPin) {
+  if (
+    !isAuthenticated &&
+    wallet &&
+    seedConfirmed &&
+    !showingIntro &&
+    !showingSeeds &&
+    !verifyingSeeds &&
+    !settingUpPin
+  ) {
     return (
-      <View style={{ flex: 1, backgroundColor: COLORS.DARK_BG, paddingHorizontal: 0 }}>
+      <View style={localStyles.container}>
         <MutinynetBanner />
         <LockScreen
           onAuthenticated={handleLockScreenAuthenticatedWrapper}
@@ -163,6 +199,7 @@ export default function OnboardingPage({
           onBiometricDisabled={() => setBiometricEnabled(false)}
           styles={styles}
         />
+        <ToastContainer toasts={toasts} />
         <StatusBar style="light" />
       </View>
     );
@@ -171,7 +208,7 @@ export default function OnboardingPage({
   // Welcome/Onboarding Screen (wallet creation/import/seed verification)
   if (!wallet || importingWallet || showingIntro || showingSeeds || verifyingSeeds) {
     return (
-      <View style={{ flex: 1, backgroundColor: COLORS.DARK_BG }}>
+      <View style={localStyles.welcomeContainer}>
         <MutinynetBanner />
         <WelcomeScreen
           wallet={wallet}
@@ -195,7 +232,9 @@ export default function OnboardingPage({
           resetWallet={resetWalletAndState}
           proceedToVerification={proceedToVerification}
           verifySeeds={verifySeeds}
+          keyboardHeight={keyboardHeight}
         />
+        <ToastContainer toasts={toasts} />
         <StatusBar style="light" />
       </View>
     );
@@ -206,12 +245,12 @@ export default function OnboardingPage({
   // Show WelcomeScreen as fallback to let user continue onboarding.
   if (wallet && !seedConfirmed) {
     return (
-      <View style={{ flex: 1, backgroundColor: COLORS.DARK_BG }}>
+      <View style={localStyles.welcomeContainer}>
         <MutinynetBanner />
         <WelcomeScreen
           wallet={wallet}
           importingWallet={false}
-          showingIntro={true}  // Force show intro to restart flow
+          showingIntro={true} // Force show intro to restart flow
           showingSeeds={false}
           verifyingSeeds={false}
           tempMnemonicWords={[]}
@@ -230,7 +269,9 @@ export default function OnboardingPage({
           resetWallet={resetWalletAndState}
           proceedToVerification={proceedToVerification}
           verifySeeds={verifySeeds}
+          keyboardHeight={keyboardHeight}
         />
+        <ToastContainer toasts={toasts} />
         <StatusBar style="light" />
       </View>
     );
@@ -240,3 +281,15 @@ export default function OnboardingPage({
   // Let the parent (App.js) render the WalletPage
   return null;
 }
+
+const localStyles = StyleSheet.create({
+  container: {
+    flex: 1,
+    backgroundColor: COLORS.DARK_BG,
+    paddingHorizontal: 0,
+  },
+  welcomeContainer: {
+    flex: 1,
+    backgroundColor: COLORS.DARK_BG,
+  },
+});
