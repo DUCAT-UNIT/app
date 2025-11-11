@@ -9,7 +9,7 @@ import { View, Text, TouchableOpacity, Animated, Dimensions, ActivityIndicator, 
 import { COLORS } from '../utils/colors';
 import Icon from './Icon';
 import { calculateTransactionAmount } from '../services/transactionHistoryService';
-import { useBalance } from '../contexts/BalanceContext';
+import { useTransactionHistory } from '../contexts/TransactionHistoryContext';
 
 const SCREEN_HEIGHT = Dimensions.get('window').height;
 const SCREEN_WIDTH = Dimensions.get('window').width;
@@ -23,7 +23,7 @@ export default function TransactionHistoryScreen({
   vaultPubkey,
 }) {
   // Get transaction history from context (pre-loaded in background)
-  const { transactionHistory, loadingTransactionHistory, fetchTransactionHistory } = useBalance();
+  const { transactionHistory, loadingTransactionHistory, fetchTransactionHistory } = useTransactionHistory();
 
   const [loading, setLoading] = useState(false);
   const historySheetOpacity = useRef(new Animated.Value(0)).current;

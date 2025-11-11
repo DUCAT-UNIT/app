@@ -1,7 +1,6 @@
 import React, { createContext, useContext, useState, useEffect, useCallback, useRef } from 'react';
 import { fetchWalletBalances, fetchUtxos as fetchUtxosService, fetchBtcPrice as fetchBtcPriceService } from '../services/balanceService';
 import { fetchVaultData } from '../services/vaultService';
-import { fetchAllTransactionHistory } from '../services/transactionHistoryService';
 import { useWallet } from './WalletContext';
 import { useAuth } from './AuthContext';
 import * as SecureStore from 'expo-secure-store';
@@ -39,10 +38,6 @@ export const BalanceProvider = ({ children, seedConfirmed }) => {
   // Vault data state
   const [vaultData, setVaultData] = useState(null);
   const [loadingVault, setLoadingVault] = useState(false);
-
-  // Transaction history state
-  const [transactionHistory, setTransactionHistory] = useState([]);
-  const [loadingTransactionHistory, setLoadingTransactionHistory] = useState(false);
 
   // Airdrop modal state
   const [showAirdropModal, setShowAirdropModal] = useState(false);
@@ -101,31 +96,12 @@ export const BalanceProvider = ({ children, seedConfirmed }) => {
     }
   }, [wallet]);
 
-  // Fetch transaction history in background
-  const fetchTransactionHistory = useCallback(async () => {
-    const segwitAddress = wallet?.segwitAddress;
-    const taprootAddress = wallet?.taprootAddress;
-    const vaultPubkey = wallet?.taprootPubkey;
-
-    if (!segwitAddress || !taprootAddress || !vaultPubkey) return;
-
-    try {
-      setLoadingTransactionHistory(true);
-      const history = await fetchAllTransactionHistory(segwitAddress, taprootAddress, vaultPubkey);
-      setTransactionHistory(history);
-    } catch (error) {
-      setTransactionHistory([]);
-    } finally {
-      setLoadingTransactionHistory(false);
-    }
-  }, [wallet]);
-
   // Refresh balances and vault data (pull-to-refresh)
   const onRefresh = useCallback(async () => {
     setRefreshing(true);
-    await Promise.all([fetchBalance(), fetchVault(), fetchTransactionHistory()]);
+    await Promise.all([fetchBalance(), fetchVault()]);
     setRefreshing(false);
-  }, [fetchBalance, fetchVault, fetchTransactionHistory]);
+  }, [fetchBalance, fetchVault]);
 
   // Fetch UTXOs for transaction creation
   const fetchUtxos = useCallback(async (address) => {
@@ -148,7 +124,6 @@ export const BalanceProvider = ({ children, seedConfirmed }) => {
     setRunesBalance([]);
     setUtxos([]);
     setVaultData(null);
-    setTransactionHistory([]);
   }, []);
 
   // Track if airdrop is in progress using ref + lock mechanism
@@ -241,22 +216,6 @@ export const BalanceProvider = ({ children, seedConfirmed }) => {
     // Cleanup interval on unmount or when wallet changes
     return () => clearInterval(interval);
   }, [wallet, fetchBalance, fetchVault, resetBalances]);
-
-  // Auto-refresh transaction history every 30 seconds when wallet exists
-  useEffect(() => {
-    if (!wallet) return;
-
-    // Fetch transaction history immediately
-    fetchTransactionHistory();
-
-    // Set up interval to fetch every 30 seconds
-    const interval = setInterval(() => {
-      fetchTransactionHistory();
-    }, 30000);
-
-    // Cleanup interval on unmount or when wallet changes
-    return () => clearInterval(interval);
-  }, [wallet, fetchTransactionHistory]);
 
   // Auto-request airdrop when BTC balance is 0 (check once per day)
   useEffect(() => {
@@ -375,10 +334,6 @@ export const BalanceProvider = ({ children, seedConfirmed }) => {
     vaultData,
     loadingVault,
 
-    // Transaction history state
-    transactionHistory,
-    loadingTransactionHistory,
-
     // Airdrop modal state
     showAirdropModal,
     setShowAirdropModal,
@@ -387,7 +342,6 @@ export const BalanceProvider = ({ children, seedConfirmed }) => {
     // Functions
     fetchBalance,
     fetchVault,
-    fetchTransactionHistory,
     onRefresh,
     fetchUtxos,
     fetchBtcPrice,

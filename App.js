@@ -18,6 +18,7 @@ import * as ecc from '@bitcoinerlab/secp256k1';
 import { AuthProvider } from './contexts/AuthContext';
 import { WalletProvider } from './contexts/WalletContext';
 import { BalanceProvider } from './contexts/BalanceContext';
+import { TransactionHistoryProvider } from './contexts/TransactionHistoryContext';
 import { DisplayPreferencesProvider } from './contexts/DisplayPreferencesContext';
 
 // Navigation
@@ -49,9 +50,11 @@ export default function App() {
     <AuthProvider onSeedConfirmed={setSeedConfirmed}>
       <WalletProvider>
         <BalanceProvider seedConfirmed={seedConfirmed}>
-          <DisplayPreferencesProvider>
-            <AppNavigator seedConfirmed={seedConfirmed} setSeedConfirmed={setSeedConfirmed} />
-          </DisplayPreferencesProvider>
+          <TransactionHistoryProvider>
+            <DisplayPreferencesProvider>
+              <AppNavigator seedConfirmed={seedConfirmed} setSeedConfirmed={setSeedConfirmed} />
+            </DisplayPreferencesProvider>
+          </TransactionHistoryProvider>
         </BalanceProvider>
       </WalletProvider>
     </AuthProvider>
