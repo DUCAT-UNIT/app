@@ -78,7 +78,7 @@ export const fetchAddressTransactions = async (address) => {
 export const parseRuneTransfer = (tx, segwitAddress, taprootAddress) => {
   try {
     // Look for OP_RETURN output
-    const opReturnOutput = tx.vout?.find(output => {
+    const opReturnOutput = tx.vout?.find((output) => {
       return output.scriptpubkey?.startsWith('6a5d'); // OP_RETURN + OP_13
     });
 
@@ -93,8 +93,8 @@ export const parseRuneTransfer = (tx, segwitAddress, taprootAddress) => {
     }
 
     // Find UNIT rune edicts
-    const unitEdicts = runestone.edicts.filter(edict =>
-      edict.id.block === UNIT_RUNE_BLOCK && edict.id.tx === UNIT_RUNE_TX
+    const unitEdicts = runestone.edicts.filter(
+      (edict) => edict.id.block === UNIT_RUNE_BLOCK && edict.id.tx === UNIT_RUNE_TX
     );
 
     if (unitEdicts.length === 0) {
@@ -102,9 +102,11 @@ export const parseRuneTransfer = (tx, segwitAddress, taprootAddress) => {
     }
 
     // Determine if we're sending or receiving
-    const isOurInput = tx.vin?.some(input => {
-      return input.prevout?.scriptpubkey_address === segwitAddress ||
-             input.prevout?.scriptpubkey_address === taprootAddress;
+    const isOurInput = tx.vin?.some((input) => {
+      return (
+        input.prevout?.scriptpubkey_address === segwitAddress ||
+        input.prevout?.scriptpubkey_address === taprootAddress
+      );
     });
 
     let netUnitChange = 0n;
@@ -118,8 +120,9 @@ export const parseRuneTransfer = (tx, segwitAddress, taprootAddress) => {
         continue;
       }
 
-      const isOurOutput = targetOutput.scriptpubkey_address === segwitAddress ||
-                         targetOutput.scriptpubkey_address === taprootAddress;
+      const isOurOutput =
+        targetOutput.scriptpubkey_address === segwitAddress ||
+        targetOutput.scriptpubkey_address === taprootAddress;
 
       if (isOurOutput) {
         hasOurOutput = true;
@@ -171,9 +174,10 @@ export const calculateTransactionAmount = (tx, segwitAddress, taprootAddress) =>
   let hasNonOurOutput = false;
 
   // Check if any inputs are from our addresses
-  const isOurInput = tx.vin?.some(input => {
-    const isOurs = input.prevout?.scriptpubkey_address === segwitAddress ||
-                   input.prevout?.scriptpubkey_address === taprootAddress;
+  const isOurInput = tx.vin?.some((input) => {
+    const isOurs =
+      input.prevout?.scriptpubkey_address === segwitAddress ||
+      input.prevout?.scriptpubkey_address === taprootAddress;
     if (isOurs) {
       ourInputs += input.prevout?.value || 0;
     }
@@ -181,9 +185,10 @@ export const calculateTransactionAmount = (tx, segwitAddress, taprootAddress) =>
   });
 
   // Sum up outputs to our addresses and check for external outputs
-  tx.vout?.forEach(output => {
-    const isOurOutput = output.scriptpubkey_address === segwitAddress ||
-                       output.scriptpubkey_address === taprootAddress;
+  tx.vout?.forEach((output) => {
+    const isOurOutput =
+      output.scriptpubkey_address === segwitAddress ||
+      output.scriptpubkey_address === taprootAddress;
     if (isOurOutput) {
       ourOutputs += output.value;
     } else if (output.scriptpubkey_type !== 'op_return') {
@@ -225,7 +230,7 @@ export const fetchAllTransactionHistory = async (segwitAddress, taprootAddress, 
 
     // First, collect all vault transaction IDs
     const vaultTxIds = new Set();
-    vaultHistory.forEach(vaultTx => {
+    vaultHistory.forEach((vaultTx) => {
       if (vaultTx.transaction_id) {
         vaultTxIds.add(vaultTx.transaction_id);
       }
@@ -233,7 +238,7 @@ export const fetchAllTransactionHistory = async (segwitAddress, taprootAddress, 
 
     // Combine and deduplicate by txid, but exclude any that are vault transactions
     const txMap = new Map();
-    [...segwitTxs, ...taprootTxs].forEach(tx => {
+    [...segwitTxs, ...taprootTxs].forEach((tx) => {
       // Skip if this txid is a vault transaction
       if (!vaultTxIds.has(tx.txid) && !txMap.has(tx.txid)) {
         txMap.set(tx.txid, tx);
@@ -241,7 +246,7 @@ export const fetchAllTransactionHistory = async (segwitAddress, taprootAddress, 
     });
 
     // Add vault transactions
-    vaultHistory.forEach(vaultTx => {
+    vaultHistory.forEach((vaultTx) => {
       // Create a synthetic transaction object for vault transactions
       const syntheticTx = {
         txid: vaultTx.transaction_id || `vault-${vaultTx.timestamp}`,
@@ -264,8 +269,8 @@ export const fetchAllTransactionHistory = async (segwitAddress, taprootAddress, 
     });
 
     // Convert back to array and sort by timestamp (most recent first)
-    const allTxs = Array.from(txMap.values()).sort((a, b) =>
-      b.status.block_time - a.status.block_time
+    const allTxs = Array.from(txMap.values()).sort(
+      (a, b) => b.status.block_time - a.status.block_time
     );
 
     return allTxs;

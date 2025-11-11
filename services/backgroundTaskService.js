@@ -18,7 +18,6 @@ const PENDING_TX_KEY = 'pending_transactions';
  */
 TaskManager.defineTask(BACKGROUND_FETCH_TASK, async () => {
   try {
-
     // Get pending transactions from storage
     const pendingTxsJson = await SecureStore.getItemAsync(PENDING_TX_KEY);
     if (!pendingTxsJson) {
@@ -45,7 +44,7 @@ TaskManager.defineTask(BACKGROUND_FETCH_TASK, async () => {
         });
 
         // Remove from pending list
-        const updatedTxs = pendingTxs.filter(t => t.txid !== tx.txid);
+        const updatedTxs = pendingTxs.filter((t) => t.txid !== tx.txid);
         await SecureStore.setItemAsync(PENDING_TX_KEY, JSON.stringify(updatedTxs));
         hasUpdates = true;
       }
@@ -84,8 +83,7 @@ export async function registerBackgroundFetchAsync() {
       stopOnTerminate: false, // Continue after app is closed
       startOnBoot: true, // Start on device reboot
     });
-  } catch (error) {
-  }
+  } catch (error) {}
 }
 
 /**
@@ -94,8 +92,7 @@ export async function registerBackgroundFetchAsync() {
 export async function unregisterBackgroundFetchAsync() {
   try {
     await BackgroundFetch.unregisterTaskAsync(BACKGROUND_FETCH_TASK);
-  } catch (error) {
-  }
+  } catch (error) {}
 }
 
 /**
@@ -116,8 +113,7 @@ export async function addPendingTransaction(txid, assetType, amount, type = 'wit
     });
 
     await SecureStore.setItemAsync(PENDING_TX_KEY, JSON.stringify(pendingTxs));
-  } catch (error) {
-  }
+  } catch (error) {}
 }
 
 /**
@@ -129,11 +125,10 @@ export async function removePendingTransaction(txid) {
     if (!pendingTxsJson) return;
 
     const pendingTxs = JSON.parse(pendingTxsJson);
-    const updatedTxs = pendingTxs.filter(tx => tx.txid !== txid);
+    const updatedTxs = pendingTxs.filter((tx) => tx.txid !== txid);
 
     await SecureStore.setItemAsync(PENDING_TX_KEY, JSON.stringify(updatedTxs));
-  } catch (error) {
-  }
+  } catch (error) {}
 }
 
 /**

@@ -9,15 +9,16 @@ export const fetchVaultHistory = async (vaultPubkey) => {
 
     // Step 1: Get vault list to retrieve vault_id
     const vaultListResponse = await retrySilently(
-      () => fetch(`${API.VAULT}/vault_list`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          vault_pubkey: vaultPubkey,
+      () =>
+        fetch(`${API.VAULT}/vault_list`, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({
+            vault_pubkey: vaultPubkey,
+          }),
         }),
-      }),
       'Fetch vault list'
     );
 
@@ -31,7 +32,7 @@ export const fetchVaultHistory = async (vaultPubkey) => {
 
     // Step 2: Get all vault history with pagination
     const now = Math.floor(Date.now() / 1000);
-    const eighteenMonthsAgo = now - (540 * 24 * 60 * 60); // 18 months of history
+    const eighteenMonthsAgo = now - 540 * 24 * 60 * 60; // 18 months of history
     const allHistory = [];
     let offset = 0;
     const limit = 250;
@@ -43,21 +44,22 @@ export const fetchVaultHistory = async (vaultPubkey) => {
 
     while (hasMore && pageCount < maxPages) {
       const vaultHistoryResponse = await retrySilently(
-        () => fetch(`${API.VAULT}/vault_history_tx`, {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-          },
-          body: JSON.stringify({
-            vault_id: vaultId,
-            timestamp_start: eighteenMonthsAgo,
-            timestamp_end: now,
-            pagination: {
-              limit,
-              offset,
+        () =>
+          fetch(`${API.VAULT}/vault_history_tx`, {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
             },
+            body: JSON.stringify({
+              vault_id: vaultId,
+              timestamp_start: eighteenMonthsAgo,
+              timestamp_end: now,
+              pagination: {
+                limit,
+                offset,
+              },
+            }),
           }),
-        }),
         `Fetch vault history (page ${pageCount + 1})`
       );
 
@@ -94,15 +96,16 @@ export const fetchVaultData = async (vaultPubkey) => {
 
     // Step 1: Get vault list to retrieve vault_id
     const vaultListResponse = await retrySilently(
-      () => fetch(`${API.VAULT}/vault_list`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          vault_pubkey: vaultPubkey,
+      () =>
+        fetch(`${API.VAULT}/vault_list`, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({
+            vault_pubkey: vaultPubkey,
+          }),
         }),
-      }),
       'Fetch vault data list'
     );
 
@@ -117,24 +120,25 @@ export const fetchVaultData = async (vaultPubkey) => {
 
     // Step 2: Get vault history to retrieve transaction details
     const now = Math.floor(Date.now() / 1000);
-    const thirtyDaysAgo = now - (30 * 24 * 60 * 60);
+    const thirtyDaysAgo = now - 30 * 24 * 60 * 60;
 
     const vaultHistoryResponse = await retrySilently(
-      () => fetch(`${API.VAULT}/vault_history_tx`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          vault_id: vaultId,
-          timestamp_start: thirtyDaysAgo,
-          timestamp_end: now,
-          pagination: {
-            limit: 250,
-            offset: 0,
+      () =>
+        fetch(`${API.VAULT}/vault_history_tx`, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
           },
+          body: JSON.stringify({
+            vault_id: vaultId,
+            timestamp_start: thirtyDaysAgo,
+            timestamp_end: now,
+            pagination: {
+              limit: 250,
+              offset: 0,
+            },
+          }),
         }),
-      }),
       'Fetch vault data history'
     );
 
@@ -171,4 +175,3 @@ export const fetchVaultData = async (vaultPubkey) => {
     return null;
   }
 };
-

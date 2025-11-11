@@ -3,7 +3,7 @@
  */
 
 import { fetchWithTimeout } from '../utils/api';
-import { fetchWithRetry, retrySilently } from '../utils/retry';
+import { retrySilently } from '../utils/retry';
 import { getAddressUrl, getAddressUtxoUrl, getOrdAddressUrl } from '../utils/constants';
 
 const BALANCE_FETCH_TIMEOUT = 10000; // 10 seconds
@@ -42,12 +42,12 @@ export const fetchWalletBalances = async (segwitAddress, taprootAddress) => {
     retrySilently(async () => {
       const res = await fetchWithTimeout(
         getOrdAddressUrl(taprootAddress),
-        { headers: { 'Accept': 'application/json' } },
+        { headers: { Accept: 'application/json' } },
         BALANCE_FETCH_TIMEOUT
       );
       const data = await res.json();
       return data.runes_balances || [];
-    }, 'Fetch Runes balance')
+    }, 'Fetch Runes balance'),
   ]);
 
   // Extract results or use defaults on failure
@@ -58,7 +58,7 @@ export const fetchWalletBalances = async (segwitAddress, taprootAddress) => {
   // Log any failures
   results.forEach((result, index) => {
     if (result.status === 'rejected') {
-      const balanceType = ['SegWit', 'Taproot', 'Runes'][index];
+      const _balanceType = ['SegWit', 'Taproot', 'Runes'][index];
     }
   });
 
@@ -88,7 +88,7 @@ export const fetchUtxos = async (address) => {
     const utxoData = await response.json();
 
     // Transform UTXO data into format needed for PSBT
-    return utxoData.map(utxo => ({
+    return utxoData.map((utxo) => ({
       txid: utxo.txid,
       vout: utxo.vout,
       value: utxo.value,
@@ -104,7 +104,9 @@ export const fetchUtxos = async (address) => {
 export const fetchBtcPrice = async () => {
   try {
     return await retrySilently(async () => {
-      const response = await fetch('https://api.coingecko.com/api/v3/simple/price?ids=bitcoin&vs_currencies=usd');
+      const response = await fetch(
+        'https://api.coingecko.com/api/v3/simple/price?ids=bitcoin&vs_currencies=usd'
+      );
       if (!response.ok) {
         throw new Error(`Failed to fetch BTC price: ${response.statusText}`);
       }

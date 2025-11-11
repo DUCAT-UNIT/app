@@ -20,7 +20,7 @@ const DEFAULT_FEE_RATE = 1; // sats per vbyte (testnet)
  * @returns {number} Estimated fee in satoshis
  */
 export const calculateTransactionFee = (numInputs, numOutputs, feeRate = DEFAULT_FEE_RATE) => {
-  const txSize = BASE_TX_SIZE + (numInputs * P2WPKH_INPUT_SIZE) + (numOutputs * P2WPKH_OUTPUT_SIZE);
+  const txSize = BASE_TX_SIZE + numInputs * P2WPKH_INPUT_SIZE + numOutputs * P2WPKH_OUTPUT_SIZE;
   return Math.ceil(txSize * feeRate);
 };
 
@@ -32,7 +32,7 @@ export const calculateTransactionFee = (numInputs, numOutputs, feeRate = DEFAULT
 export const fetchUtxosForAddress = async (address) => {
   const response = await fetch(getAddressUtxoUrl(address));
   const utxos = await response.json();
-  return utxos.filter(u => u.status.confirmed);
+  return utxos.filter((u) => u.status.confirmed);
 };
 
 /**
@@ -45,7 +45,11 @@ export const fetchUtxosForAddress = async (address) => {
  * @param {number} params.feeRate - Fee rate in sats per vbyte (optional)
  * @returns {Promise<number>} Maximum sendable amount in BTC
  */
-export const calculateMaxSendableBTC = async ({ sourceAddress, btcBalance, feeRate = DEFAULT_FEE_RATE }) => {
+export const calculateMaxSendableBTC = async ({
+  sourceAddress,
+  btcBalance,
+  feeRate = DEFAULT_FEE_RATE,
+}) => {
   try {
     if (!sourceAddress) {
       // Fallback: use balance-based estimation
