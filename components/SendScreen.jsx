@@ -13,6 +13,7 @@ import PropTypes from 'prop-types';
 import { PanResponder, Animated, Dimensions } from 'react-native';
 import { validateBitcoinAddress } from '../utils/sendHelpers';
 import { usePrice } from '../contexts/PriceContext';
+import { calculateMaxSendableBTC, determineSourceAddress } from '../services/transactionCalculationService';
 import AssetSelectorSheet from './send/AssetSelectorSheet';
 import AddressInputSheet from './send/AddressInputSheet';
 import AmountInputSheet from './send/AmountInputSheet';
@@ -325,74 +326,17 @@ export default function SendScreen({
   // Handle MAX button for BTC - calculate max sendable amount minus estimated fees
   const handleMaxPress = async () => {
     if (sendAssetType === 'btc') {
-      try {
-        // Determine source address based on recipient address type
-        let sourceAddress = null;
-        if (sendRecipient && (sendRecipient.startsWith('tb1p') || sendRecipient.startsWith('bc1p'))) {
-          sourceAddress = wallet?.taprootAddress;
-        } else {
-          sourceAddress = wallet?.segwitAddress;
-        }
+      // Determine source address based on recipient address type
+      const sourceAddress = determineSourceAddress(sendRecipient, wallet);
 
-        if (!sourceAddress) {
-          // Fallback: use balance-based estimation
-          const estimatedFee = 250; // Conservative estimate
-          const btcBalanceInSats = Math.round(btcBalance * 100000000);
-          const maxSendable = Math.max(0, btcBalanceInSats - estimatedFee);
-          const maxBtc = maxSendable / 100000000;
-          setSendAmount(String(maxBtc));
-          return;
-        }
+      // Calculate max sendable amount using service
+      const maxBtc = await calculateMaxSendableBTC({
+        sourceAddress,
+        btcBalance,
+        feeRate: 1, // sats per vbyte (testnet)
+      });
 
-        // Fetch UTXOs to calculate realistic fee based on actual inputs needed
-        const utxoResponse = await fetch(`https://mutinynet.com/api/address/${sourceAddress}/utxo`);
-        const utxos = await utxoResponse.json();
-        const confirmedUtxos = utxos.filter(u => u.status.confirmed);
-
-        // Transaction size calculation constants
-        const BASE_TX_SIZE = 10;
-        const P2WPKH_INPUT_SIZE = 68;
-        const P2WPKH_OUTPUT_SIZE = 31;
-        const feeRate = 1; // sats per vbyte (testnet)
-
-        // Calculate fee for given number of inputs and outputs
-        const calculateFee = (numInputs, numOutputs) => {
-          const txSize = BASE_TX_SIZE + (numInputs * P2WPKH_INPUT_SIZE) + (numOutputs * P2WPKH_OUTPUT_SIZE);
-          return Math.ceil(txSize * feeRate);
-        };
-
-        // For MAX, use ALL confirmed UTXOs to send the absolute maximum
-        // Calculate total value of all UTXOs
-        const totalInputValue = confirmedUtxos.reduce((sum, utxo) => sum + utxo.value, 0);
-        const numInputsNeeded = confirmedUtxos.length;
-
-
-        // For MAX, we want to send everything, so we only need 1 output (recipient)
-        // No change output since we're sending the maximum
-        const DUST_LIMIT = 546;
-
-        // When sending MAX, there's only 1 output (recipient), no change
-        // Calculate fee for all inputs and 1 output
-        const estimatedFee = calculateFee(numInputsNeeded, 1);
-        const actualMaxSendable = totalInputValue - estimatedFee;
-
-
-        // Ensure we're above dust limit
-        if (actualMaxSendable < DUST_LIMIT) {
-          setSendAmount('0');
-          return;
-        }
-
-        const maxBtc = actualMaxSendable / 100000000;
-        setSendAmount(String(maxBtc));
-      } catch (error) {
-        // Fallback on error: use balance-based estimation
-        const estimatedFee = 250; // Conservative estimate
-        const btcBalanceInSats = Math.round(btcBalance * 100000000);
-        const maxSendable = Math.max(0, btcBalanceInSats - estimatedFee);
-        const maxBtc = maxSendable / 100000000;
-        setSendAmount(String(maxBtc));
-      }
+      setSendAmount(String(maxBtc));
     } else {
       // For UNIT, just use the full balance
       setSendAmount(String(unitBalance || 0));
