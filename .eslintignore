@@ -1,0 +1,11 @@
+# Test files
+test-*.js
+
+# Build output
+node_modules/
+.expo/
+dist/
+build/
+
+# Generated files
+*.generated.js

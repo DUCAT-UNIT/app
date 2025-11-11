@@ -6,7 +6,11 @@
     "start": "expo start",
     "android": "expo run:android",
     "ios": "expo run:ios",
-    "web": "expo start --web"
+    "web": "expo start --web",
+    "lint": "eslint . --ext .js,.jsx",
+    "lint:fix": "eslint . --ext .js,.jsx --fix",
+    "format": "prettier --write \"**/*.{js,jsx,json,md}\"",
+    "format:check": "prettier --check \"**/*.{js,jsx,json,md}\""
   },
   "dependencies": {
     "@bitcoinerlab/secp256k1": "^1.2.0",
@@ -15,6 +19,7 @@
     "@react-navigation/bottom-tabs": "^7.8.4",
     "@react-navigation/native": "^7.1.19",
     "@react-navigation/stack": "^7.6.3",
+    "@sentry/react-native": "^7.6.0",
     "bip32": "^5.0.0",
     "bip39": "^3.1.0",
     "bitcoinjs-lib": "^7.0.0",
@@ -47,6 +52,15 @@
   },
   "private": true,
   "devDependencies": {
+    "@babel/core": "^7.28.5",
+    "@babel/eslint-parser": "^7.28.5",
+    "@babel/preset-react": "^7.28.5",
+    "@react-native/eslint-config": "^0.82.1",
+    "eslint": "^8.57.1",
+    "eslint-config-prettier": "^10.1.8",
+    "eslint-plugin-react": "^7.37.5",
+    "eslint-plugin-react-native": "^5.0.0",
+    "prettier": "^3.6.2",
     "sharp": "^0.34.4"
   }
 }
