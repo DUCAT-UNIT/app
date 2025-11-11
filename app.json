@@ -15,11 +15,11 @@
     "ios": {
       "supportsTablet": true,
       "bundleIdentifier": "com.anonymous.SimpleWallet",
+      "buildNumber": "1",
       "infoPlist": {
-        "UIBackgroundModes": [
-          "remote-notification",
-          "fetch"
-        ]
+        "UIBackgroundModes": ["remote-notification", "fetch"],
+        "NSFaceIDUsageDescription": "We use Face ID to securely authenticate and protect your wallet.",
+        "NSCameraUsageDescription": "We need camera access to scan QR codes for sending Bitcoin."
       }
     },
     "android": {
