@@ -1,7 +1,6 @@
 import React, { createContext, useContext, useState, useEffect, useCallback } from 'react';
 import * as SecureStore from 'expo-secure-store';
 import * as WalletService from '../services/walletService';
-import { fetchVaultData } from '../services/vaultService';
 import { SECURE_KEYS } from '../utils/constants';
 
 const WalletContext = createContext();
@@ -18,26 +17,6 @@ export const WalletProvider = ({ children }) => {
   // Wallet state
   const [wallet, setWallet] = useState(null); // { segwitAddress, taprootAddress, taprootPubkey }
   const [currentAccount, setCurrentAccount] = useState(0);
-
-  // Vault state
-  const [vaultData, setVaultData] = useState(null);
-  const [loadingVault, setLoadingVault] = useState(false);
-
-  // Fetch vault data
-  const fetchVault = useCallback(async () => {
-    try {
-      if (!wallet?.taprootPubkey) {
-        return;
-      }
-      setLoadingVault(true);
-      const data = await fetchVaultData(wallet.taprootPubkey);
-      setVaultData(data);
-    } catch (error) {
-      setVaultData(null);
-    } finally {
-      setLoadingVault(false);
-    }
-  }, [wallet?.taprootPubkey]);
 
   // Load wallet from secure storage
   const loadWallet = useCallback(async () => {
@@ -96,34 +75,18 @@ export const WalletProvider = ({ children }) => {
       // Save new account index
       await SecureStore.setItemAsync(SECURE_KEYS.CURRENT_ACCOUNT, accountIndex.toString());
 
-      // fetchVault will be called automatically when wallet.taprootPubkey is set
-
       return addresses;
     } catch (error) {
       throw error;
     }
   }, []);
 
-  // Fetch vault data on mount and refresh every 60 seconds
-  useEffect(() => {
-    fetchVault();
-    const interval = setInterval(() => {
-      fetchVault();
-    }, 60000);
-    return () => clearInterval(interval);
-  }, [fetchVault]);
-
   const value = {
     // Wallet state
     wallet,
     currentAccount,
 
-    // Vault state
-    vaultData,
-    loadingVault,
-
     // Functions
-    fetchVault,
     loadWallet,
     setWalletAddresses,
     switchAccount,

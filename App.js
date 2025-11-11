@@ -19,6 +19,7 @@ import { AuthProvider } from './contexts/AuthContext';
 import { WalletProvider } from './contexts/WalletContext';
 import { BalanceProvider } from './contexts/BalanceContext';
 import { PriceProvider } from './contexts/PriceContext';
+import { VaultDataProvider } from './contexts/VaultDataContext';
 import { TransactionHistoryProvider } from './contexts/TransactionHistoryContext';
 import { DisplayPreferencesProvider } from './contexts/DisplayPreferencesContext';
 
@@ -51,13 +52,15 @@ export default function App() {
     <AuthProvider onSeedConfirmed={setSeedConfirmed}>
       <WalletProvider>
         <PriceProvider>
-          <BalanceProvider seedConfirmed={seedConfirmed}>
-            <TransactionHistoryProvider>
-              <DisplayPreferencesProvider>
-                <AppNavigator seedConfirmed={seedConfirmed} setSeedConfirmed={setSeedConfirmed} />
-              </DisplayPreferencesProvider>
-            </TransactionHistoryProvider>
-          </BalanceProvider>
+          <VaultDataProvider>
+            <BalanceProvider seedConfirmed={seedConfirmed}>
+              <TransactionHistoryProvider>
+                <DisplayPreferencesProvider>
+                  <AppNavigator seedConfirmed={seedConfirmed} setSeedConfirmed={setSeedConfirmed} />
+                </DisplayPreferencesProvider>
+              </TransactionHistoryProvider>
+            </BalanceProvider>
+          </VaultDataProvider>
         </PriceProvider>
       </WalletProvider>
     </AuthProvider>
