@@ -5,16 +5,16 @@ import { COLORS } from './utils/colors';
 const { width: SCREEN_WIDTH } = Dimensions.get('window');
 
 // Get safe area top inset - accounts for notch/status bar on different devices
-const STATUS_BAR_HEIGHT = Platform.OS === 'ios' ? 50 : (StatusBar.currentHeight || 0);
+const STATUS_BAR_HEIGHT = Platform.OS === 'ios' ? 50 : StatusBar.currentHeight || 0;
 
 // Responsive horizontal padding based on screen width
 // Small devices (< 375): 16px
 // Medium devices (375-414): 20px
 // Large devices (> 414): 24px
-const HORIZONTAL_PADDING = SCREEN_WIDTH < 375 ? 16 : (SCREEN_WIDTH > 414 ? 24 : 20);
+const HORIZONTAL_PADDING = SCREEN_WIDTH < 375 ? 16 : SCREEN_WIDTH > 414 ? 24 : 20;
 
 // Helper function to get Cabinet Grotesk font based on weight
-const getCabinetFont = (weight) => {
+const _getCabinetFont = (weight) => {
   if (weight === 'bold' || weight === '700' || weight === '800' || weight === '900') {
     return 'CabinetGrotesk-Bold';
   } else if (weight === '500' || weight === '600') {
@@ -341,7 +341,7 @@ const styles = StyleSheet.create({
     backgroundColor: COLORS.CARD_BG,
     borderRadius: 12,
     paddingHorizontal: 8,
-    paddingTop:12,
+    paddingTop: 12,
     marginBottom: SCREEN_WIDTH <= 375 ? 4 : 12,
     height: 64,
   },
@@ -548,14 +548,13 @@ const styles = StyleSheet.create({
     fontFamily: 'CabinetGrotesk-Medium',
     color: COLORS.VERY_LIGHT_GRAY,
     fontWeight: '600',
-    paddingTop:4,
+    paddingTop: 4,
     marginBottom: 0,
   },
   assetAmount: {
     fontSize: 16,
     fontFamily: 'CabinetGrotesk-Regular',
     color: COLORS.SECONDARY_TEXT,
-    textAlign: 'right',
   },
   assetAmountIcon: {
     width: 12,
@@ -909,8 +908,6 @@ const styles = StyleSheet.create({
   balanceWithIcon: {
     flexDirection: 'row',
     alignItems: 'center',
-    justifyContent: 'flex-end',
-    width: '100%',
   },
   balanceIcon: {
     width: 24,
@@ -1076,17 +1073,7 @@ const styles = StyleSheet.create({
     color: COLORS.VERY_LIGHT_GRAY,
     fontWeight: 'bold',
   },
-  balanceWithIcon: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 4,
-    width: '100%',
-  },
-  balanceIcon: {
-    width: 28,
-    height: 28,
-    flexShrink: 0,
-  },
+  // Removed duplicates - using balanceWithIcon and balanceIcon at lines 909-918
   balanceDivider: {
     height: 0,
     backgroundColor: COLORS.CARD_BG,
@@ -1768,11 +1755,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: 12,
     borderRadius: 8,
   },
-  addressTypeText: {
-    fontSize: 12,
-    fontFamily: 'CabinetGrotesk-Regular',
-    color: COLORS.SECONDARY_TEXT,
-  },
+  // Removed duplicate - using addressTypeText at line 776
   // Amount Balance Row
   amountBalanceRow: {
     flexDirection: 'row',
@@ -1830,22 +1813,7 @@ const styles = StyleSheet.create({
     marginBottom: 32,
     textAlign: 'center',
   },
-  reviewLabel: {
-    fontSize: 12,
-    fontFamily: 'CabinetGrotesk-Regular',
-    color: COLORS.LIGHT_MEDIUM_GRAY,
-    marginTop: 20,
-    marginBottom: 8,
-    textAlign: 'center',
-  },
-  reviewValue: {
-    fontSize: 16,
-    fontFamily: 'CabinetGrotesk-Medium',
-    color: COLORS.VERY_LIGHT_GRAY,
-    fontWeight: '500',
-    textAlign: 'center',
-    marginBottom: 12,
-  },
+  // Removed duplicates - using reviewLabel and reviewValue at lines 1418-1434
   reviewAmountLarge: {
     fontSize: 44,
     fontFamily: 'CabinetGrotesk-Medium',
@@ -2468,8 +2436,7 @@ const styles = StyleSheet.create({
     flex: 3,
     justifyContent: 'space-between',
   },
-  historyTxColumn2: {
-  },
+  historyTxColumn2: {},
   historyTxColumn3: {
     alignItems: 'flex-end',
   },
