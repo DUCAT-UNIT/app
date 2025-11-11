@@ -22,6 +22,7 @@ DUCAT Wallet is a mobile Bitcoin wallet that provides a seamless experience for 
 ## Technical Stack
 
 ### Core Technologies
+
 - **React Native**: Cross-platform mobile framework
 - **Expo**: Development and build tooling
 - **bitcoinjs-lib v7**: Bitcoin transaction construction and signing
@@ -29,6 +30,7 @@ DUCAT Wallet is a mobile Bitcoin wallet that provides a seamless experience for 
 - **bip32/bip39**: HD wallet key derivation
 
 ### Key Libraries
+
 - `expo-secure-store`: Secure mnemonic storage
 - `expo-local-authentication`: Biometric authentication
 - `expo-screen-capture`: Privacy mode (screenshot blocking)
@@ -38,6 +40,7 @@ DUCAT Wallet is a mobile Bitcoin wallet that provides a seamless experience for 
 ## Installation
 
 ### Prerequisites
+
 - Node.js 18+ and npm
 - Expo CLI (`npm install -g expo-cli`)
 - iOS Simulator (Mac) or Android Emulator
@@ -99,9 +102,9 @@ The wallet implements a custom runestone encoder (`runestone-encoder.js`) that f
     {
       id: { block: BigInt, tx: BigInt },
       amount: BigInt,
-      output: number
-    }
-  ]
+      output: number,
+    },
+  ];
 }
 ```
 
@@ -117,21 +120,25 @@ For ordinal-aware transactions, output order is strictly enforced:
 ## Security Features
 
 ### Key Management
+
 - **BIP39 Mnemonic**: 12-word seed phrase stored in device keychain
 - **Secure Memory Handling**: Sensitive data overwritten with random bytes after use
 - **No Key Export**: Private keys never leave secure storage
 
 ### Authentication
+
 - **Biometric Lock**: Face ID / Touch ID required for sensitive operations
 - **PIN Protection**: 6-digit PIN as fallback authentication
 - **Inactivity Timeout**: Auto-lock after 2 minutes of inactivity
 
 ### Privacy
+
 - **Screenshot Protection**: Prevents screenshots when privacy mode enabled
 - **Jailbreak Detection**: Warns users of compromised device security
 - **No Analytics**: No tracking or data collection
 
 ### Transaction Security
+
 - **Review-Before-Sign**: All transactions reviewed before signing
 - **UTXO Verification**: Checks UTXO spend status before broadcasting
 - **Ordinal Awareness**: Prevents accidental transfer of inscriptions/runes
@@ -216,16 +223,19 @@ Full Script: 6a 5d 07 00b89c5d016401
 ### Common Issues
 
 **Build failures on iOS:**
+
 - Ensure Xcode Command Line Tools are installed: `xcode-select --install`
 - Clean derived data: `rm -rf ~/Library/Developer/Xcode/DerivedData`
 - Reinstall dependencies: `rm -rf node_modules && npm install`
 
 **Crypto errors in React Native:**
+
 - The app includes necessary polyfills (`crypto-polyfill.js`)
 - Ensure `react-native-get-random-values` is imported first
 - Rebuild app after dependency changes
 
 **Empty runestone edicts:**
+
 - Verify `@magiceden-oss/runestone-lib` is NOT being used (broken in RN)
 - Ensure custom encoder (`runestone-encoder.js`) is imported
 - Check that edict values are BigInt type
@@ -253,6 +263,7 @@ MIT License - see LICENSE file for details
 ## Support
 
 For issues and questions:
+
 - GitHub Issues: https://github.com/DUCAT-UNIT/app/issues
 - Documentation: https://docs.ducatprotocol.com
 
