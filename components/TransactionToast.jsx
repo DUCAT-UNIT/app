@@ -10,6 +10,7 @@ import PropTypes from 'prop-types';
 import { View, Text, Animated, ActivityIndicator, TouchableOpacity, Linking } from 'react-native';
 import { COLORS } from '../utils/colors';
 import Icon from './Icon';
+import { getTxUrl, getOrdTxUrl } from '../utils/constants';
 
 export default function TransactionToast({ visible, status, message, txid, assetType = 'BTC', onClose }) {
   const slideAnim = useRef(new Animated.Value(-100)).current;
@@ -54,9 +55,7 @@ export default function TransactionToast({ visible, status, message, txid, asset
 
     try {
       // Use ord explorer for UNIT transactions, regular explorer for BTC
-      const url = assetType === 'UNIT'
-        ? `https://ord-mutinynet.ducatprotocol.com/tx/${txid}`
-        : `https://mutinynet.com/tx/${txid}`;
+      const url = assetType === 'UNIT' ? getOrdTxUrl(txid) : getTxUrl(txid);
 
       const supported = await Linking.canOpenURL(url);
       if (supported) {

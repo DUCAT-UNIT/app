@@ -10,6 +10,7 @@ import { COLORS } from '../utils/colors';
 import Icon from './Icon';
 import { calculateTransactionAmount } from '../services/transactionHistoryService';
 import { useTransactionHistory } from '../contexts/TransactionHistoryContext';
+import { getTxUrl, getOrdTxUrl } from '../utils/constants';
 
 const SCREEN_HEIGHT = Dimensions.get('window').height;
 const SCREEN_WIDTH = Dimensions.get('window').width;
@@ -128,9 +129,7 @@ export default function TransactionHistoryScreen({
   const openTxInExplorer = async (txid, assetType) => {
     try {
       // Use ord explorer for UNIT transactions, regular explorer for BTC
-      const url = assetType === 'UNIT'
-        ? `https://ord-mutinynet.ducatprotocol.com/tx/${txid}`
-        : `https://mutinynet.com/tx/${txid}`;
+      const url = assetType === 'UNIT' ? getOrdTxUrl(txid) : getTxUrl(txid);
 
       const supported = await Linking.canOpenURL(url);
       if (supported) {

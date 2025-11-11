@@ -12,6 +12,14 @@ import { fetchUtxos as fetchUtxosService } from './balanceService';
 import * as AuthService from './authService';
 import { ERRORS } from '../utils/messages';
 import { retrySilently } from '../utils/retry';
+import {
+  getTxHexUrl,
+  getOrdAddressUrl,
+  getOrdOutputUrl,
+  getTxOutspendUrl,
+  getAddressUtxoUrl,
+  getBroadcastUrl,
+} from '../utils/constants';
 
 // Initialize BIP32 and ECC library
 const bip32 = BIP32Factory(ecc);
@@ -133,7 +141,7 @@ export const createBtcIntent = async (recipient, amount, segwitAddress, currentA
     // Fetch transaction hex for each input
     const inputsWithTx = await Promise.all(
       selectedUtxos.map(async (utxo) => {
-        const txResponse = await fetch(`https://mutinynet.com/api/tx/${utxo.txid}/hex`);
+        const txResponse = await fetch(getTxHexUrl(utxo.txid));
         const txHex = await txResponse.text();
         return {
           ...utxo,
@@ -241,7 +249,7 @@ export const createUnitIntent = async (recipient, amount, taprootAddress, segwit
 
     // Fetch rune UTXOs from ord API
     const ordResponse = await fetch(
-      `https://ord-mutinynet.ducatprotocol.com/address/${taprootAddress}`,
+      getOrdAddressUrl(taprootAddress),
       { headers: { 'Accept': 'application/json' } }
     );
     const ordData = await ordResponse.json();
@@ -250,7 +258,7 @@ export const createUnitIntent = async (recipient, amount, taprootAddress, segwit
     let runeUtxo = null;
     for (const output of ordData.outputs || []) {
       const utxoResponse = await fetch(
-        `https://ord-mutinynet.ducatprotocol.com/output/${output}`,
+        getOrdOutputUrl(output),
         { headers: { 'Accept': 'application/json' } }
       );
       const utxoData = await utxoResponse.json();
@@ -264,7 +272,7 @@ export const createUnitIntent = async (recipient, amount, taprootAddress, segwit
 
           // Check if unspent
           const spendResponse = await fetch(
-            `https://mutinynet.com/api/tx/${utxoData.transaction}/outspend/${vout}`
+            getTxOutspendUrl(utxoData.transaction, vout)
           );
           const spendData = await spendResponse.json();
 
@@ -286,7 +294,7 @@ export const createUnitIntent = async (recipient, amount, taprootAddress, segwit
     }
 
     // Fetch regular UTXOs for fees
-    const utxoResponse = await fetch(`https://mutinynet.com/api/address/${segwitAddress}/utxo`);
+    const utxoResponse = await fetch(getAddressUtxoUrl(segwitAddress));
     const utxos = await utxoResponse.json();
 
     // Find a UTXO with at least 12000 sats for fees
@@ -321,11 +329,11 @@ export const createUnitIntent = async (recipient, amount, taprootAddress, segwit
     const psbt = new bitcoin.Psbt({ network: MUTINYNET_NETWORK });
 
     // Fetch transaction hex for inputs
-    const satTxResponse = await fetch(`https://mutinynet.com/api/tx/${satUtxo.txid}/hex`);
+    const satTxResponse = await fetch(getTxHexUrl(satUtxo.txid));
     const satTxHex = await satTxResponse.text();
     const satTx = bitcoin.Transaction.fromHex(satTxHex);
 
-    const runeTxResponse = await fetch(`https://mutinynet.com/api/tx/${runeUtxo.transaction}/hex`);
+    const runeTxResponse = await fetch(getTxHexUrl(runeUtxo.transaction));
     const runeTxHex = await runeTxResponse.text();
     const runeTx = bitcoin.Transaction.fromHex(runeTxHex);
 
@@ -664,7 +672,7 @@ export const signIntent = async (intent, currentAccount) => {
 export const broadcastTransaction = async (signedTxHex) => {
   try {
     const response = await retrySilently(
-      () => fetch('https://mutinynet.com/api/tx', {
+      () => fetch(getBroadcastUrl(), {
         method: 'POST',
         body: signedTxHex,
       }),

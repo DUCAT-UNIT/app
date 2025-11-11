@@ -10,6 +10,7 @@ import { Text, View, TouchableOpacity, Linking, Animated } from 'react-native';
 import { COLORS } from '../../utils/colors';
 import Icon from '../Icon';
 import styles from '../../styles';
+import { getTxUrl } from '../../utils/constants';
 
 export default function ConfirmationSheet({
   visible,
@@ -23,7 +24,7 @@ export default function ConfirmationSheet({
   if (!visible || !broadcastedTxid) return null;
 
   const handleViewExplorer = () => {
-    Linking.openURL(`https://mutinynet.com/tx/${broadcastedTxid}`);
+    Linking.openURL(getTxUrl(broadcastedTxid));
   };
 
   return (

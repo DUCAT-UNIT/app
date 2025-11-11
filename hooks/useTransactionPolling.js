@@ -4,6 +4,7 @@
  */
 
 import { useEffect, useRef, useCallback } from 'react';
+import { getTxApiUrl } from '../utils/constants';
 
 export function useTransactionPolling() {
   const pollIntervalRef = useRef(null);
@@ -20,7 +21,7 @@ export function useTransactionPolling() {
 
     const checkConfirmation = async () => {
       try {
-        const response = await fetch(`https://mutinynet.com/api/tx/${txid}`);
+        const response = await fetch(getTxApiUrl(txid));
         if (!response.ok) {
           throw new Error('Failed to fetch transaction status');
         }

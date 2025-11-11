@@ -47,32 +47,19 @@ export function useAppLifecycle({
   // Handle app state changes (background/foreground)
   useEffect(() => {
     const subscription = AppState.addEventListener('change', nextAppState => {
-      console.log('[AppLifecycle] AppState changed:', appState.current, '->', nextAppState);
-
       // ONLY lock when coming back from background, NOT from inactive
       // (inactive happens during Face ID, control center, etc.)
       if (
         appState.current === 'background' &&
         nextAppState === 'active'
       ) {
-        console.log('[AppLifecycle] Checking if should lock:', {
-          walletExists: walletExists.current,
-          seedConfirmed: seedConfirmedRef.current,
-          isBiometricSupported,
-          biometricEnabled
-        });
-
         // App has come to foreground from background, require re-authentication if wallet exists AND seed backup is confirmed
         if (walletExists.current && seedConfirmedRef.current && isBiometricSupported) {
-          console.log('[AppLifecycle] Locking app');
           onLock();
           // Only auto-trigger biometrics if user has enabled it
           if (biometricEnabled) {
-            console.log('[AppLifecycle] Auto-triggering biometrics');
             onAuthenticateUser();
           }
-        } else {
-          console.log('[AppLifecycle] NOT locking (conditions not met)');
         }
       }
 

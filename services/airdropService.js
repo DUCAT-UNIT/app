@@ -3,7 +3,8 @@
  * Handles requesting testnet coins from the faucet for new users
  */
 
-const FAUCET_URL = 'https://faucet.ducatprotocol.com/btc/faucet';
+import { API } from '../utils/constants';
+
 const DUMMY_CAPTCHA = 'XXXX.DUMMY.TOKEN.XXXX';
 
 /**
@@ -13,7 +14,7 @@ const DUMMY_CAPTCHA = 'XXXX.DUMMY.TOKEN.XXXX';
  */
 export const requestAirdrop = async (segwitAddress) => {
   try {
-    const response = await fetch(FAUCET_URL, {
+    const response = await fetch(API.FAUCET, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',

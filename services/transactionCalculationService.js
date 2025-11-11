@@ -3,6 +3,8 @@
  * Handles transaction fee estimation and max sendable amount calculations
  */
 
+import { getAddressUtxoUrl } from '../utils/constants';
+
 // Transaction size calculation constants
 const BASE_TX_SIZE = 10;
 const P2WPKH_INPUT_SIZE = 68;
@@ -28,7 +30,7 @@ export const calculateTransactionFee = (numInputs, numOutputs, feeRate = DEFAULT
  * @returns {Promise<Array>} Array of confirmed UTXOs
  */
 export const fetchUtxosForAddress = async (address) => {
-  const response = await fetch(`https://mutinynet.com/api/address/${address}/utxo`);
+  const response = await fetch(getAddressUtxoUrl(address));
   const utxos = await response.json();
   return utxos.filter(u => u.status.confirmed);
 };

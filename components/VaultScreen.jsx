@@ -4,6 +4,7 @@ import { View, Text, StyleSheet, ActivityIndicator, Linking } from 'react-native
 import { WebView } from 'react-native-webview';
 import { COLORS } from '../utils/colors';
 import { signPsbt } from '../utils/wallet';
+import { API } from '../utils/constants';
 
 export default function VaultScreen({ visible, walletCredentials, autoCreateVaultTrigger }) {
   const webViewRef = useRef(null);
@@ -65,10 +66,8 @@ export default function VaultScreen({ visible, walletCredentials, autoCreateVaul
 
   // Build URL with wallet credentials
   const webViewUrl = useMemo(() => {
-    const baseUrl = 'https://phone.ducatprotocol.com';
-
     if (!walletCredentials) {
-      return baseUrl;
+      return API.PHONE;
     }
 
     const params = new URLSearchParams({
@@ -81,14 +80,13 @@ export default function VaultScreen({ visible, walletCredentials, autoCreateVaul
       network: 'mutinynet',
     });
 
-    const url = `${baseUrl}/?${params.toString()}`;
+    const url = `${API.PHONE}/?${params.toString()}`;
     return url;
   }, [walletCredentials]);
 
   // Handle external link navigation - open in browser instead of WebView
   const handleShouldStartLoad = (request) => {
     const { url } = request;
-    const baseUrl = 'https://phone.ducatprotocol.com';
 
     // Allow internal browser navigation (about:blank, data:, etc.)
     if (url.startsWith('about:') || url.startsWith('data:') || url.startsWith('file:')) {
@@ -96,7 +94,7 @@ export default function VaultScreen({ visible, walletCredentials, autoCreateVaul
     }
 
     // Allow navigation within the vault app
-    if (url.startsWith(baseUrl)) {
+    if (url.startsWith(API.PHONE)) {
       return true;
     }
 

@@ -4,6 +4,7 @@
 
 import { fetchWithTimeout } from '../utils/api';
 import { fetchWithRetry, retrySilently } from '../utils/retry';
+import { getAddressUrl, getAddressUtxoUrl, getOrdAddressUrl } from '../utils/constants';
 
 const BALANCE_FETCH_TIMEOUT = 10000; // 10 seconds
 
@@ -21,7 +22,7 @@ export const fetchWalletBalances = async (segwitAddress, taprootAddress) => {
   const results = await Promise.allSettled([
     // Fetch SegWit balance with retry
     retrySilently(async () => {
-      const res = await fetchWithTimeout(`https://mutinynet.com/api/address/${segwitAddress}`, {}, BALANCE_FETCH_TIMEOUT);
+      const res = await fetchWithTimeout(getAddressUrl(segwitAddress), {}, BALANCE_FETCH_TIMEOUT);
       const data = await res.json();
       const totalReceived = data.chain_stats?.funded_txo_sum || 0;
       const totalSpent = data.chain_stats?.spent_txo_sum || 0;
@@ -30,7 +31,7 @@ export const fetchWalletBalances = async (segwitAddress, taprootAddress) => {
 
     // Fetch Taproot balance with retry
     retrySilently(async () => {
-      const res = await fetchWithTimeout(`https://mutinynet.com/api/address/${taprootAddress}`, {}, BALANCE_FETCH_TIMEOUT);
+      const res = await fetchWithTimeout(getAddressUrl(taprootAddress), {}, BALANCE_FETCH_TIMEOUT);
       const data = await res.json();
       const totalReceived = data.chain_stats?.funded_txo_sum || 0;
       const totalSpent = data.chain_stats?.spent_txo_sum || 0;
@@ -40,7 +41,7 @@ export const fetchWalletBalances = async (segwitAddress, taprootAddress) => {
     // Fetch RUNES balance with retry
     retrySilently(async () => {
       const res = await fetchWithTimeout(
-        `https://ord-mutinynet.ducatprotocol.com/address/${taprootAddress}`,
+        getOrdAddressUrl(taprootAddress),
         { headers: { 'Accept': 'application/json' } },
         BALANCE_FETCH_TIMEOUT
       );
@@ -79,7 +80,7 @@ export const fetchUtxos = async (address) => {
   }
 
   return retrySilently(async () => {
-    const response = await fetch(`https://mutinynet.com/api/address/${address}/utxo`);
+    const response = await fetch(getAddressUtxoUrl(address));
     if (!response.ok) {
       throw new Error(`Failed to fetch UTXOs: ${response.statusText}`);
     }

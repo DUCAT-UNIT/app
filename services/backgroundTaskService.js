@@ -7,6 +7,7 @@ import * as BackgroundFetch from 'expo-background-fetch';
 import * as TaskManager from 'expo-task-manager';
 import * as Notifications from 'expo-notifications';
 import * as SecureStore from 'expo-secure-store';
+import { getTxApiUrl } from '../utils/constants';
 
 const BACKGROUND_FETCH_TASK = 'background-transaction-check';
 const PENDING_TX_KEY = 'pending_transactions';
@@ -63,7 +64,7 @@ TaskManager.defineTask(BACKGROUND_FETCH_TASK, async () => {
  */
 async function checkTransactionConfirmation(txid) {
   try {
-    const response = await fetch(`https://mutinynet.com/api/tx/${txid}`);
+    const response = await fetch(getTxApiUrl(txid));
     if (!response.ok) return false;
 
     const tx = await response.json();
