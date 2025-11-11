@@ -8,7 +8,14 @@ export const SECURE_KEYS = {
   CURRENT_ACCOUNT: 'wallet_current_account_v1',
   PIN: 'wallet_pin_v1',
   PIN_SALT: 'wallet_pin_salt_v1',
+  PIN_VERSION: 'wallet_pin_version_v1', // Track PIN hashing algorithm version
   BIOMETRIC_ENABLED: 'wallet_biometric_enabled_v1',
+};
+
+// PIN hashing versions
+export const PIN_HASH_VERSION = {
+  SHA256_LEGACY: '1', // Old SHA256 hashing
+  PBKDF2_10K: '2', // New PBKDF2-like with 10K iterations
 };
 
 // API endpoints

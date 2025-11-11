@@ -12,7 +12,7 @@ export const fetchWithTimeout = async (url, options = {}, timeout = 10000) => {
   try {
     const response = await fetch(url, {
       ...options,
-      signal: controller.signal
+      signal: controller.signal,
     });
     clearTimeout(id);
     return response;
@@ -32,7 +32,13 @@ export const fetchWithTimeout = async (url, options = {}, timeout = 10000) => {
  * @param {boolean} silent - If true, don't log errors (default: false)
  * @returns {Promise<Response>}
  */
-export const fetchWithRetry = async (url, options = {}, maxRetries = 3, timeout = 10000, silent = false) => {
+export const fetchWithRetry = async (
+  url,
+  options = {},
+  maxRetries = 3,
+  timeout = 10000,
+  silent = false
+) => {
   let lastError;
 
   for (let attempt = 0; attempt <= maxRetries; attempt++) {
@@ -51,7 +57,6 @@ export const fetchWithRetry = async (url, options = {}, maxRetries = 3, timeout 
 
       // For 5xx errors, retry
       lastError = new Error(`HTTP ${response.status}: ${response.statusText}`);
-
     } catch (error) {
       lastError = error;
 
@@ -69,7 +74,7 @@ export const fetchWithRetry = async (url, options = {}, maxRetries = 3, timeout 
       }
 
       // Wait before retrying
-      await new Promise(resolve => setTimeout(resolve, backoffDelay));
+      await new Promise((resolve) => setTimeout(resolve, backoffDelay));
     }
   }
 
