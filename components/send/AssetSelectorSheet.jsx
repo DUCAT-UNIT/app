@@ -5,7 +5,7 @@
 
 import React from 'react';
 import PropTypes from 'prop-types';
-import { Text, View, TouchableOpacity, Animated } from 'react-native';
+import { Text, View, TouchableOpacity, Animated, StyleSheet } from 'react-native';
 import Icon from '../Icon';
 import styles from '../../styles';
 
@@ -21,7 +21,6 @@ export default function AssetSelectorSheet({
   onSelectAsset,
 }) {
   if (!visible) return null;
-
 
   // Calculate USD values
   const btcUsdValue = (btcBalance || 0) * (btcPrice || 0);
@@ -64,18 +63,14 @@ export default function AssetSelectorSheet({
 
   return (
     <>
-      <TouchableOpacity
-        style={styles.bottomSheetBackdrop}
-        onPress={onDismiss}
-        activeOpacity={1}
-      />
+      <TouchableOpacity style={styles.bottomSheetBackdrop} onPress={onDismiss} activeOpacity={1} />
       <Animated.View
         style={[
           styles.bottomSheet,
           {
             opacity,
-            transform: [{ translateY }]
-          }
+            transform: [{ translateY }],
+          },
         ]}
         pointerEvents={visible ? 'auto' : 'none'}
       >
@@ -87,10 +82,7 @@ export default function AssetSelectorSheet({
         {sortedAssets.map((asset) => (
           <TouchableOpacity
             key={asset.id}
-            style={[
-              styles.assetOption,
-              asset.disabled && styles.assetOptionDisabled
-            ]}
+            style={[styles.assetOption, asset.disabled && styles.assetOptionDisabled]}
             onPress={() => {
               if (!asset.disabled) {
                 onSelectAsset(asset.id);
@@ -99,28 +91,32 @@ export default function AssetSelectorSheet({
             disabled={asset.disabled}
             activeOpacity={asset.disabled ? 1 : 0.7}
           >
-            <View style={{ marginRight: 20 }}>
+            <View style={localStyles.assetIcon}>
               <Icon name={asset.icon} size={36} />
             </View>
             <View style={styles.assetOptionInfo}>
-              <Text style={[
-                styles.assetOptionTitle,
-                asset.disabled && styles.assetOptionTitleDisabled
-              ]}>
+              <Text
+                style={[styles.assetOptionTitle, asset.disabled && styles.assetOptionTitleDisabled]}
+              >
                 {asset.name}
               </Text>
-              <Text style={[
-                styles.assetOptionSubtitle,
-                asset.disabled && styles.assetOptionSubtitleDisabled
-              ]}>
+              <Text
+                style={[
+                  styles.assetOptionSubtitle,
+                  asset.disabled && styles.assetOptionSubtitleDisabled,
+                ]}
+              >
                 {asset.balanceText}
               </Text>
             </View>
-            <Text style={[
-              styles.assetOptionValue,
-              asset.disabled && styles.assetOptionValueDisabled
-            ]}>
-              ${asset.usdValue.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+            <Text
+              style={[styles.assetOptionValue, asset.disabled && styles.assetOptionValueDisabled]}
+            >
+              $
+              {asset.usdValue.toLocaleString('en-US', {
+                minimumFractionDigits: 2,
+                maximumFractionDigits: 2,
+              })}
             </Text>
           </TouchableOpacity>
         ))}
@@ -128,6 +124,12 @@ export default function AssetSelectorSheet({
     </>
   );
 }
+
+const localStyles = StyleSheet.create({
+  assetIcon: {
+    marginRight: 20,
+  },
+});
 
 AssetSelectorSheet.propTypes = {
   visible: PropTypes.bool.isRequired,

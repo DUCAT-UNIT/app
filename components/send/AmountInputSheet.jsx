@@ -6,7 +6,7 @@
 
 import React from 'react';
 import PropTypes from 'prop-types';
-import { Text, View, TouchableOpacity, TextInput, Pressable, Image, Animated } from 'react-native';
+import { Text, View, TouchableOpacity, TextInput, Pressable, Animated, StyleSheet } from 'react-native';
 import { COLORS } from '../../utils/colors';
 import Icon from '../Icon';
 import styles from '../../styles';
@@ -35,7 +35,10 @@ export default function AmountInputSheet({
 
   const balance = sendAssetType === 'btc' ? btcBalance : unitBalance;
   const assetLabel = sendAssetType === 'btc' ? 'BTC' : 'UNIT';
-  const addressType = sendRecipient.startsWith('tb1p') || sendRecipient.startsWith('bc1p') ? 'Taproot' : 'Native SegWit';
+  const addressType =
+    sendRecipient.startsWith('tb1p') || sendRecipient.startsWith('bc1p')
+      ? 'Taproot'
+      : 'Native SegWit';
 
   const handleAmountChange = (text) => {
     // Handle decimal comma from keyboard
@@ -48,7 +51,7 @@ export default function AmountInputSheet({
     }
 
     // Remove all remaining commas (thousand separators)
-    let cleaned = processed.replace(/,/g, '');
+    const cleaned = processed.replace(/,/g, '');
 
     // Only allow numbers and one decimal point
     if (cleaned === '' || /^\d*\.?\d*$/.test(cleaned)) {
@@ -63,48 +66,45 @@ export default function AmountInputSheet({
     }
   };
 
-  const usdValue = sendAmount && (sendAssetType === 'btc' ? btcPrice : 1)
-    ? (parseFloat(sendAmount) * (sendAssetType === 'btc' ? btcPrice : 1)).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })
-    : '0.00';
+  const usdValue =
+    sendAmount && (sendAssetType === 'btc' ? btcPrice : 1)
+      ? (parseFloat(sendAmount) * (sendAssetType === 'btc' ? btcPrice : 1)).toLocaleString(
+          'en-US',
+          { minimumFractionDigits: 2, maximumFractionDigits: 2 }
+        )
+      : '0.00';
 
   return (
     <>
-      <TouchableOpacity
-        style={styles.bottomSheetBackdrop}
-        onPress={onDismiss}
-        activeOpacity={1}
-      />
+      <TouchableOpacity style={styles.bottomSheetBackdrop} onPress={onDismiss} activeOpacity={1} />
       <Animated.View
         style={[
           styles.bottomSheet,
+          localStyles.sheet,
           {
             bottom: keyboardHeight,
-            paddingBottom: 10,
-            paddingHorizontal: 0,
             opacity,
-            transform: [{ translateY }]
-          }
+            transform: [{ translateY }],
+          },
         ]}
       >
         <View {...panHandlers}>
           <View style={styles.bottomSheetHandle} />
 
           {/* Header with Back button and Recipient Address */}
-          <View style={[styles.sendToHeader, { paddingHorizontal: 15, marginBottom: 20 }]}>
+          <View style={[styles.sendToHeader, localStyles.headerContainer]}>
             {/* Back button */}
-            <TouchableOpacity
-              style={{ marginRight: 12 }}
-              onPress={onBack}
-            >
+            <TouchableOpacity style={localStyles.backButton} onPress={onBack}>
               <Icon name="back" size={20} color={COLORS.PRIMARY_BLUE} />
             </TouchableOpacity>
 
             {/* To: Address */}
-            <View style={{ flex: 1, flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }}>
+            <View style={localStyles.addressContainer}>
               <View style={styles.sendToLeft}>
                 <Text style={styles.sendToLabel}>To:</Text>
                 <Text style={styles.sendToAddress}>
-                  {sendRecipient.substring(0, 8)}...{sendRecipient.substring(sendRecipient.length - 6)}
+                  {sendRecipient.substring(0, 8)}...
+                  {sendRecipient.substring(sendRecipient.length - 6)}
                 </Text>
               </View>
               <View style={styles.addressTypeTag}>
@@ -114,12 +114,19 @@ export default function AmountInputSheet({
           </View>
         </View>
 
-        <View style={[styles.amountInputContainer, { paddingHorizontal: 15 }]}>
+        <View style={[styles.amountInputContainer, localStyles.inputContainer]}>
           <View style={styles.amountBalanceRow}>
             <Text style={styles.amountBalanceLabel}>
-              {assetLabel} Balance: {sendAssetType === 'btc'
-                ? (balance || 0).toLocaleString('en-US', { minimumFractionDigits: 0, maximumFractionDigits: 8 })
-                : (balance || 0).toLocaleString('en-US', { minimumFractionDigits: 0, maximumFractionDigits: 0 })}
+              {assetLabel} Balance:{' '}
+              {sendAssetType === 'btc'
+                ? (balance || 0).toLocaleString('en-US', {
+                    minimumFractionDigits: 0,
+                    maximumFractionDigits: 8,
+                  })
+                : (balance || 0).toLocaleString('en-US', {
+                    minimumFractionDigits: 0,
+                    maximumFractionDigits: 0,
+                  })}
             </Text>
             <Pressable
               style={styles.maxButton}
@@ -134,9 +141,9 @@ export default function AmountInputSheet({
               ref={amountInputRef}
               style={[
                 styles.amountInputLarge,
-                formatNumberWithCommas(sendAmount).length > 8 && { fontSize: 44 },
-                formatNumberWithCommas(sendAmount).length > 12 && { fontSize: 36 },
-                formatNumberWithCommas(sendAmount).length > 15 && { fontSize: 28 }
+                formatNumberWithCommas(sendAmount).length > 8 && localStyles.mediumText,
+                formatNumberWithCommas(sendAmount).length > 12 && localStyles.smallText,
+                formatNumberWithCommas(sendAmount).length > 15 && localStyles.xsmallText,
               ]}
               value={formatNumberWithCommas(sendAmount)}
               onChangeText={handleAmountChange}
@@ -154,14 +161,12 @@ export default function AmountInputSheet({
             />
           </View>
 
-          <Text style={styles.amountUsdValue}>
-            ≈ ${usdValue} USD
-          </Text>
+          <Text style={styles.amountUsdValue}>≈ ${usdValue} USD</Text>
 
           <TouchableOpacity
             style={[
               styles.amountContinueButton,
-              !sendAmount && styles.amountContinueButtonDisabled
+              !sendAmount && styles.amountContinueButtonDisabled,
             ]}
             activeOpacity={0.7}
             onPress={handleSubmit}
@@ -174,6 +179,38 @@ export default function AmountInputSheet({
     </>
   );
 }
+
+const localStyles = StyleSheet.create({
+  sheet: {
+    paddingBottom: 10,
+    paddingHorizontal: 0,
+  },
+  headerContainer: {
+    paddingHorizontal: 15,
+    marginBottom: 20,
+  },
+  backButton: {
+    marginRight: 12,
+  },
+  addressContainer: {
+    flex: 1,
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+  },
+  inputContainer: {
+    paddingHorizontal: 15,
+  },
+  mediumText: {
+    fontSize: 44,
+  },
+  smallText: {
+    fontSize: 36,
+  },
+  xsmallText: {
+    fontSize: 28,
+  },
+});
 
 AmountInputSheet.propTypes = {
   visible: PropTypes.bool.isRequired,

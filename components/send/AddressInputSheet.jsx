@@ -6,7 +6,17 @@
 
 import React from 'react';
 import PropTypes from 'prop-types';
-import { Text, View, TouchableOpacity, TextInput, Pressable, Image, ScrollView, Animated } from 'react-native';
+import {
+  Text,
+  View,
+  TouchableOpacity,
+  TextInput,
+  Pressable,
+
+  ScrollView,
+  Animated,
+  StyleSheet,
+} from 'react-native';
 import * as Clipboard from 'expo-clipboard';
 import { COLORS } from '../../utils/colors';
 import Icon from '../Icon';
@@ -17,7 +27,7 @@ export default function AddressInputSheet({
   visible,
   opacity,
   translateY,
-  panHandlers,
+  _panHandlers,
   keyboardHeight,
   sendRecipient,
   addressError,
@@ -51,31 +61,23 @@ export default function AddressInputSheet({
 
   return (
     <>
-      <TouchableOpacity
-        style={styles.bottomSheetBackdrop}
-        onPress={onDismiss}
-        activeOpacity={1}
-      />
+      <TouchableOpacity style={styles.bottomSheetBackdrop} onPress={onDismiss} activeOpacity={1} />
 
       <Animated.View
         style={[
           styles.bottomSheet,
+          localStyles.sheet,
           {
             bottom: keyboardHeight,
-            paddingBottom: 10,
-            paddingHorizontal: 0,
             opacity,
-            transform: [{ translateY }]
-          }
+            transform: [{ translateY }],
+          },
         ]}
       >
         <View style={styles.bottomSheetHandle} />
 
         {/* Back button */}
-        <Pressable
-          style={[styles.bottomSheetBackButton, { paddingHorizontal: 15 }]}
-          onPress={onBack}
-        >
+        <Pressable style={[styles.bottomSheetBackButton, localStyles.backButton]} onPress={onBack}>
           <Icon name="back" size={20} color={COLORS.PRIMARY_BLUE} />
         </Pressable>
 
@@ -83,10 +85,10 @@ export default function AddressInputSheet({
           keyboardShouldPersistTaps="always"
           keyboardDismissMode="none"
           scrollEnabled={false}
-          style={{ flex: 1 }}
+          style={localStyles.scrollView}
         >
-          <View style={[styles.amountInputContainer, { paddingHorizontal: 15 }]} pointerEvents="box-none">
-            <View style={{ width: '100%' }}>
+          <View style={[styles.amountInputContainer, localStyles.inputContainer]} pointerEvents="box-none">
+            <View style={localStyles.formContent}>
               <Text style={styles.addressInputTitleLeft}>Recipient Address</Text>
 
               <View style={styles.addressInputRow}>
@@ -102,25 +104,20 @@ export default function AddressInputSheet({
                   autoFocus={true}
                   blurOnSubmit={false}
                 />
-                <Pressable
-                  style={styles.pasteButton}
-                  onPress={handlePaste}
-                >
+                <Pressable style={styles.pasteButton} onPress={handlePaste}>
                   <Icon name="paste" size={18} color={COLORS.WHITE} />
                 </Pressable>
               </View>
 
-              <View style={{ minHeight: 20 }}>
-                {addressError ? (
-                  <Text style={styles.addressError}>{addressError}</Text>
-                ) : null}
+              <View style={localStyles.errorContainer}>
+                {addressError ? <Text style={styles.addressError}>{addressError}</Text> : null}
               </View>
             </View>
 
             <Pressable
               style={[
                 styles.addressContinueButton,
-                (!sendRecipient || addressError) && styles.addressContinueButtonDisabled
+                (!sendRecipient || addressError) && styles.addressContinueButtonDisabled,
               ]}
               onPress={handleContinue}
               disabled={!sendRecipient || !!addressError}
@@ -134,11 +131,33 @@ export default function AddressInputSheet({
   );
 }
 
+const localStyles = StyleSheet.create({
+  sheet: {
+    paddingBottom: 10,
+    paddingHorizontal: 0,
+  },
+  backButton: {
+    paddingHorizontal: 15,
+  },
+  scrollView: {
+    flex: 1,
+  },
+  inputContainer: {
+    paddingHorizontal: 15,
+  },
+  formContent: {
+    width: '100%',
+  },
+  errorContainer: {
+    minHeight: 20,
+  },
+});
+
 AddressInputSheet.propTypes = {
   visible: PropTypes.bool.isRequired,
   opacity: PropTypes.object.isRequired, // Animated.Value
   translateY: PropTypes.object.isRequired, // Animated.Value
-  panHandlers: PropTypes.object,
+  _panHandlers: PropTypes.object,
   keyboardHeight: PropTypes.number.isRequired,
   sendRecipient: PropTypes.string.isRequired,
   addressError: PropTypes.string.isRequired,

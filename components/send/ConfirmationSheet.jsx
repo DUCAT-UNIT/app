@@ -6,7 +6,7 @@
 
 import React from 'react';
 import PropTypes from 'prop-types';
-import { Text, View, TouchableOpacity, Linking, Animated } from 'react-native';
+import { Text, View, TouchableOpacity, Linking, Animated, StyleSheet } from 'react-native';
 import { COLORS } from '../../utils/colors';
 import Icon from '../Icon';
 import styles from '../../styles';
@@ -29,37 +29,30 @@ export default function ConfirmationSheet({
 
   return (
     <>
-      <TouchableOpacity
-        style={styles.bottomSheetBackdrop}
-        onPress={onDismiss}
-        activeOpacity={1}
-      />
+      <TouchableOpacity style={styles.bottomSheetBackdrop} onPress={onDismiss} activeOpacity={1} />
       <Animated.View
         style={[
           styles.bottomSheet,
           {
             opacity,
-            transform: [{ translateY }]
-          }
+            transform: [{ translateY }],
+          },
         ]}
       >
         <View {...panHandlers}>
           <View style={styles.bottomSheetHandle} />
         </View>
 
-        <TouchableOpacity
-          style={styles.successCloseButton}
-          onPress={onClose}
-        >
+        <TouchableOpacity style={styles.successCloseButton} onPress={onClose}>
           <Text style={styles.successCloseText}>✕</Text>
         </TouchableOpacity>
 
-        <View style={[styles.amountInputContainer, { alignItems: 'center', justifyContent: 'center' }]}>
+        <View style={[styles.amountInputContainer, localStyles.contentContainer]}>
           <View style={styles.successCheckmarkContainer}>
             <Icon name="done" size={80} color={COLORS.TEAL} />
           </View>
 
-          <Text style={[styles.successTitle, { textAlign: 'center' }]}>Transaction Sent</Text>
+          <Text style={[styles.successTitle, localStyles.titleText]}>Transaction Sent</Text>
 
           <TouchableOpacity
             style={styles.amountContinueButton}
@@ -73,6 +66,16 @@ export default function ConfirmationSheet({
     </>
   );
 }
+
+const localStyles = StyleSheet.create({
+  contentContainer: {
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  titleText: {
+    textAlign: 'center',
+  },
+});
 
 ConfirmationSheet.propTypes = {
   visible: PropTypes.bool.isRequired,

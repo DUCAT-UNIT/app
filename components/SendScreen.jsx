@@ -8,12 +8,19 @@
  * - Success confirmation
  */
 
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useRef, useEffect } from 'react';
 import PropTypes from 'prop-types';
-import { PanResponder, Animated, Dimensions } from 'react-native';
-import { validateBitcoinAddress } from '../utils/sendHelpers';
 import { usePrice } from '../contexts/PriceContext';
-import { calculateMaxSendableBTC, determineSourceAddress } from '../services/transactionCalculationService';
+import { useSendFlow } from '../contexts/SendFlowContext';
+import { useTransactionBuild } from '../contexts/TransactionBuildContext';
+import { useTransactionExecution } from '../contexts/TransactionExecutionContext';
+import {
+  calculateMaxSendableBTC,
+  determineSourceAddress,
+} from '../services/transactionCalculationService';
+import { useSendSheetAnimations } from '../hooks/useSendSheetAnimations';
+import { useSendValidation } from '../hooks/useSendValidation';
+import { useSendFlowNavigation } from '../hooks/useSendFlowNavigation';
 import AssetSelectorSheet from './send/AssetSelectorSheet';
 import AddressInputSheet from './send/AddressInputSheet';
 import AmountInputSheet from './send/AmountInputSheet';
@@ -21,296 +28,73 @@ import ReviewSheet from './send/ReviewSheet';
 import ConfirmationSheet from './send/ConfirmationSheet';
 import LoadingSheet from './send/LoadingSheet';
 
-const SCREEN_HEIGHT = Dimensions.get('window').height;
-
 export default function SendScreen({
-  // State
-  intentStep,
-  sendAssetType,
-  sendAmount,
-  sendRecipient,
-  sendIntent,
-  broadcastedTxid,
   keyboardHeight,
   amountInputRef,
   btcBalance,
   unitBalance,
   wallet,
-
-  // Setters
-  setIntentStep,
-  setSendAssetType,
-  setSendAmount,
-  setSendRecipient,
-  setSendIntent,
-  setBroadcastedTxid,
-
-  // Handlers
-  createSendIntent,
-  signIntent,
 }) {
-  // Get BTC price from context
+  // Get contexts
   const { btcPrice } = usePrice();
+  const {
+    intentStep,
+    sendAssetType,
+    sendAmount,
+    sendRecipient,
+    setIntentStep,
+    setSendAssetType,
+    setSendAmount,
+    setSendRecipient,
+  } = useSendFlow();
+  const { sendIntent, setSendIntent, createSendIntent } = useTransactionBuild();
+  const { broadcastedTxid, _setBroadcastedTxid, signIntent } = useTransactionExecution();
 
-  // Address validation state
-  const [addressError, setAddressError] = useState('');
+  // Validation and loading states
+  const { addressError, loadingMessageIndex } = useSendValidation({
+    intentStep,
+    sendRecipient,
+    sendAssetType,
+  });
 
-  // Loading message state for creating transaction
-  const [loadingMessageIndex, setLoadingMessageIndex] = useState(0);
+  // Flow navigation and dismiss handlers
+  const {
+    handleAssetSelectorDismiss,
+    handleAddressInputDismiss,
+    handleAmountInputDismiss,
+    handleReviewDismiss,
+    handleConfirmedDismiss,
+    handleConfirmedClose,
+    handleSheetDismiss,
+  } = useSendFlowNavigation();
+
+  // Sheet animations and swipe gestures
+  const { assetSelector, addressInput, amountInput, review, confirmed } = useSendSheetAnimations({
+    onDismiss: handleSheetDismiss,
+  });
 
   // Ref for address input to maintain focus
-  const addressInputRef = React.useRef(null);
-
-  // Auto-validate address on change
-  useEffect(() => {
-    if (intentStep === 'entering_address' && sendRecipient) {
-      const validation = validateBitcoinAddress(sendRecipient);
-
-      // Additional validation for UNIT transfers - require Taproot address
-      if (validation.valid && sendAssetType === 'unit') {
-        const trimmedAddress = sendRecipient.trim();
-        if (!trimmedAddress.startsWith('tb1p') && !trimmedAddress.startsWith('bc1p')) {
-          setAddressError('UNIT transfers require a Taproot address (starting with tb1p)');
-          return;
-        }
-      }
-
-      setAddressError(validation.error || '');
-    } else {
-      setAddressError('');
-    }
-  }, [sendRecipient, intentStep, sendAssetType]);
-
-  // Cycle through loading messages
-  useEffect(() => {
-    if (intentStep === 'creating') {
-      setLoadingMessageIndex(0);
-      const maxMessages = sendAssetType === 'btc' ? 2 : 3;
-
-      const timer = setInterval(() => {
-        setLoadingMessageIndex((prev) => {
-          if (prev < maxMessages - 1) {
-            return prev + 1;
-          }
-          return prev; // Stay on last message
-        });
-      }, 500); // 500ms between messages
-
-      return () => clearInterval(timer);
-    }
-  }, [intentStep, sendAssetType]);
-
-  // Animated values for swipe-down dismissal
-  const assetSelectorTranslateY = useRef(new Animated.Value(0)).current;
-  const addressInputTranslateY = useRef(new Animated.Value(0)).current;
-  const amountInputTranslateY = useRef(new Animated.Value(0)).current;
-  const reviewTranslateY = useRef(new Animated.Value(0)).current;
-  const confirmedTranslateY = useRef(new Animated.Value(0)).current;
-
-  const assetSelectorOpacity = useRef(new Animated.Value(0)).current;
-  const addressInputOpacity = useRef(new Animated.Value(0)).current;
-  const amountInputOpacity = useRef(new Animated.Value(0)).current;
-  const reviewOpacity = useRef(new Animated.Value(0)).current;
-  const confirmedOpacity = useRef(new Animated.Value(0)).current;
-
-  // Pan responder refs - create once and reuse
-  const assetSelectorPanResponderRef = useRef(null);
-  const addressInputPanResponderRef = useRef(null);
-  const amountInputPanResponderRef = useRef(null);
-  const reviewPanResponderRef = useRef(null);
-  const confirmedPanResponderRef = useRef(null);
-
-  // Handle dismiss functions for each sheet
-  const handleAssetSelectorDismiss = () => {
-    setIntentStep('idle');
-  };
-
-  const handleAddressInputDismiss = () => {
-    setIntentStep('idle');
-    setSendAssetType(null);
-    setSendRecipient('');
-  };
-
-  const handleAmountInputDismiss = () => {
-    setIntentStep('idle');
-    setSendAssetType(null);
-    setSendAmount('');
-    setSendRecipient('');
-  };
-
-  const handleReviewDismiss = () => {
-    setIntentStep('idle');
-    setSendIntent(null);
-  };
-
-  const handleConfirmedDismiss = () => {
-    setIntentStep('idle');
-    setSendIntent(null);
-    setSendAmount('');
-    setSendRecipient('');
-    setSendAssetType(null);
-    setBroadcastedTxid(null);
-  };
-
-  const handleConfirmedClose = () => {
-    setSendIntent(null);
-    setIntentStep('idle');
-    setSendAmount('');
-    setSendRecipient('');
-    setSendAssetType(null);
-    setBroadcastedTxid(null);
-  };
-
-  // Create pan responders once
-  if (!assetSelectorPanResponderRef.current) {
-    assetSelectorPanResponderRef.current = PanResponder.create({
-      onStartShouldSetPanResponder: () => false,
-      onMoveShouldSetPanResponder: (_, gestureState) => {
-        const isDownwardSwipe = gestureState.dy > 5 && Math.abs(gestureState.dy) > Math.abs(gestureState.dx);
-        return isDownwardSwipe;
-      },
-      onPanResponderMove: (_, gestureState) => {
-        if (gestureState.dy > 0) {
-          assetSelectorTranslateY.setValue(gestureState.dy);
-        }
-      },
-      onPanResponderRelease: (_, gestureState) => {
-        if (gestureState.dy > 100 || gestureState.vy > 0.5) {
-          handleAssetSelectorDismiss();
-        } else {
-          Animated.spring(assetSelectorTranslateY, {
-            toValue: 0,
-            useNativeDriver: true,
-            friction: 8,
-          }).start();
-        }
-      },
-    });
-  }
-
-  if (!addressInputPanResponderRef.current) {
-    addressInputPanResponderRef.current = PanResponder.create({
-      onStartShouldSetPanResponder: () => false,
-      onMoveShouldSetPanResponder: (_, gestureState) => {
-        const isDownwardSwipe = gestureState.dy > 5 && Math.abs(gestureState.dy) > Math.abs(gestureState.dx);
-        return isDownwardSwipe;
-      },
-      onPanResponderMove: (_, gestureState) => {
-        if (gestureState.dy > 0) {
-          addressInputTranslateY.setValue(gestureState.dy);
-        }
-      },
-      onPanResponderRelease: (_, gestureState) => {
-        if (gestureState.dy > 100 || gestureState.vy > 0.5) {
-          handleAddressInputDismiss();
-        } else {
-          Animated.spring(addressInputTranslateY, {
-            toValue: 0,
-            useNativeDriver: true,
-            friction: 8,
-          }).start();
-        }
-      },
-    });
-  }
-
-  if (!amountInputPanResponderRef.current) {
-    amountInputPanResponderRef.current = PanResponder.create({
-      onStartShouldSetPanResponder: () => false,
-      onMoveShouldSetPanResponder: (_, gestureState) => {
-        const isDownwardSwipe = gestureState.dy > 5 && Math.abs(gestureState.dy) > Math.abs(gestureState.dx);
-        return isDownwardSwipe;
-      },
-      onPanResponderMove: (_, gestureState) => {
-        if (gestureState.dy > 0) {
-          amountInputTranslateY.setValue(gestureState.dy);
-        }
-      },
-      onPanResponderRelease: (_, gestureState) => {
-        if (gestureState.dy > 100 || gestureState.vy > 0.5) {
-          handleAmountInputDismiss();
-        } else {
-          Animated.spring(amountInputTranslateY, {
-            toValue: 0,
-            useNativeDriver: true,
-            friction: 8,
-          }).start();
-        }
-      },
-    });
-  }
-
-  if (!reviewPanResponderRef.current) {
-    reviewPanResponderRef.current = PanResponder.create({
-      onStartShouldSetPanResponder: () => false,
-      onMoveShouldSetPanResponder: (_, gestureState) => {
-        const isDownwardSwipe = gestureState.dy > 5 && Math.abs(gestureState.dy) > Math.abs(gestureState.dx);
-        return isDownwardSwipe;
-      },
-      onPanResponderMove: (_, gestureState) => {
-        if (gestureState.dy > 0) {
-          reviewTranslateY.setValue(gestureState.dy);
-        }
-      },
-      onPanResponderRelease: (_, gestureState) => {
-        if (gestureState.dy > 100 || gestureState.vy > 0.5) {
-          handleReviewDismiss();
-        } else {
-          Animated.spring(reviewTranslateY, {
-            toValue: 0,
-            useNativeDriver: true,
-            friction: 8,
-          }).start();
-        }
-      },
-    });
-  }
-
-  if (!confirmedPanResponderRef.current) {
-    confirmedPanResponderRef.current = PanResponder.create({
-      onStartShouldSetPanResponder: () => false,
-      onMoveShouldSetPanResponder: (_, gestureState) => {
-        const isDownwardSwipe = gestureState.dy > 5 && Math.abs(gestureState.dy) > Math.abs(gestureState.dx);
-        return isDownwardSwipe;
-      },
-      onPanResponderMove: (_, gestureState) => {
-        if (gestureState.dy > 0) {
-          confirmedTranslateY.setValue(gestureState.dy);
-        }
-      },
-      onPanResponderRelease: (_, gestureState) => {
-        if (gestureState.dy > 100 || gestureState.vy > 0.5) {
-          handleConfirmedDismiss();
-        } else {
-          Animated.spring(confirmedTranslateY, {
-            toValue: 0,
-            useNativeDriver: true,
-            friction: 8,
-          }).start();
-        }
-      },
-    });
-  }
+  const addressInputRef = useRef(null);
 
   // Animate sheets in when they become visible
   useEffect(() => {
     if (intentStep === 'selecting_asset') {
-      assetSelectorOpacity.setValue(1);
-      assetSelectorTranslateY.setValue(0);
+      assetSelector.opacity.setValue(1);
+      assetSelector.translateY.setValue(0);
     } else if (intentStep === 'entering_address') {
-      addressInputOpacity.setValue(1);
-      addressInputTranslateY.setValue(0);
+      addressInput.opacity.setValue(1);
+      addressInput.translateY.setValue(0);
     } else if (intentStep === 'entering_amount') {
-      amountInputOpacity.setValue(1);
-      amountInputTranslateY.setValue(0);
+      amountInput.opacity.setValue(1);
+      amountInput.translateY.setValue(0);
     } else if (intentStep === 'reviewing') {
-      reviewOpacity.setValue(1);
-      reviewTranslateY.setValue(0);
+      review.opacity.setValue(1);
+      review.translateY.setValue(0);
     } else if (intentStep === 'confirmed') {
-      confirmedOpacity.setValue(1);
-      confirmedTranslateY.setValue(0);
+      confirmed.opacity.setValue(1);
+      confirmed.translateY.setValue(0);
     }
-  }, [intentStep]);
+  }, [intentStep, assetSelector, addressInput, amountInput, review, confirmed]);
 
   // Get loading messages for creating transaction
   const getLoadingMessage = () => {
@@ -318,7 +102,11 @@ export default function SendScreen({
       const messages = ['Collecting UTXOs...', 'Building PSBT...'];
       return messages[loadingMessageIndex];
     } else {
-      const messages = ['Collecting rune UTXOs...', 'Constructing runestone...', 'Building PSBT...'];
+      const messages = [
+        'Collecting rune UTXOs...',
+        'Constructing runestone...',
+        'Building PSBT...',
+      ];
       return messages[loadingMessageIndex];
     }
   };
@@ -348,9 +136,9 @@ export default function SendScreen({
       {/* Asset Selector Bottom Sheet */}
       <AssetSelectorSheet
         visible={intentStep === 'selecting_asset'}
-        opacity={assetSelectorOpacity}
-        translateY={assetSelectorTranslateY}
-        panHandlers={assetSelectorPanResponderRef.current?.panHandlers}
+        opacity={assetSelector.opacity}
+        translateY={assetSelector.translateY}
+        panHandlers={assetSelector.panHandlers}
         btcBalance={btcBalance}
         unitBalance={unitBalance}
         btcPrice={btcPrice}
@@ -364,9 +152,9 @@ export default function SendScreen({
       {/* Address Input Bottom Sheet */}
       <AddressInputSheet
         visible={intentStep === 'entering_address' && !!sendAssetType}
-        opacity={addressInputOpacity}
-        translateY={addressInputTranslateY}
-        panHandlers={addressInputPanResponderRef.current?.panHandlers}
+        opacity={addressInput.opacity}
+        translateY={addressInput.translateY}
+        panHandlers={addressInput.panHandlers}
         keyboardHeight={keyboardHeight}
         sendRecipient={sendRecipient}
         addressError={addressError}
@@ -383,9 +171,9 @@ export default function SendScreen({
       {/* Amount Input Bottom Sheet */}
       <AmountInputSheet
         visible={intentStep === 'entering_amount' && !!sendAssetType}
-        opacity={amountInputOpacity}
-        translateY={amountInputTranslateY}
-        panHandlers={amountInputPanResponderRef.current?.panHandlers}
+        opacity={amountInput.opacity}
+        translateY={amountInput.translateY}
+        panHandlers={amountInput.panHandlers}
         keyboardHeight={keyboardHeight}
         sendAssetType={sendAssetType}
         sendAmount={sendAmount}
@@ -407,9 +195,9 @@ export default function SendScreen({
       {/* Review Transaction Bottom Sheet */}
       <ReviewSheet
         visible={intentStep === 'reviewing' && !!sendIntent}
-        opacity={reviewOpacity}
-        translateY={reviewTranslateY}
-        panHandlers={reviewPanResponderRef.current?.panHandlers}
+        opacity={review.opacity}
+        translateY={review.translateY}
+        panHandlers={review.panHandlers}
         sendIntent={sendIntent}
         btcPrice={btcPrice}
         onDismiss={handleReviewDismiss}
@@ -429,9 +217,9 @@ export default function SendScreen({
       {/* Transaction Success Bottom Sheet - Disabled, using toast instead */}
       <ConfirmationSheet
         visible={false}
-        opacity={confirmedOpacity}
-        translateY={confirmedTranslateY}
-        panHandlers={confirmedPanResponderRef.current?.panHandlers}
+        opacity={confirmed.opacity}
+        translateY={confirmed.translateY}
+        panHandlers={confirmed.panHandlers}
         broadcastedTxid={broadcastedTxid}
         onDismiss={handleConfirmedDismiss}
         onClose={handleConfirmedClose}
@@ -456,22 +244,9 @@ export default function SendScreen({
 }
 
 SendScreen.propTypes = {
-  intentStep: PropTypes.oneOf(['idle', 'selecting_asset', 'entering_address', 'entering_amount', 'creating', 'reviewing', 'signing', 'broadcasting', 'confirmed']).isRequired,
-  sendAssetType: PropTypes.oneOf(['btc', 'unit', 'ducat']),
-  sendAmount: PropTypes.string.isRequired,
-  sendRecipient: PropTypes.string.isRequired,
-  sendIntent: PropTypes.object,
-  broadcastedTxid: PropTypes.string,
   keyboardHeight: PropTypes.number.isRequired,
   amountInputRef: PropTypes.object.isRequired,
   btcBalance: PropTypes.number,
   unitBalance: PropTypes.number,
-  setIntentStep: PropTypes.func.isRequired,
-  setSendAssetType: PropTypes.func.isRequired,
-  setSendAmount: PropTypes.func.isRequired,
-  setSendRecipient: PropTypes.func.isRequired,
-  setSendIntent: PropTypes.func.isRequired,
-  setBroadcastedTxid: PropTypes.func.isRequired,
-  createSendIntent: PropTypes.func.isRequired,
-  signIntent: PropTypes.func.isRequired,
+  wallet: PropTypes.object,
 };
