@@ -1,5 +1,5 @@
 import React, { createContext, useContext, useState, useEffect, useCallback, useRef } from 'react';
-import { fetchWalletBalances, fetchUtxos as fetchUtxosService, fetchBtcPrice as fetchBtcPriceService } from '../services/balanceService';
+import { fetchWalletBalances, fetchUtxos as fetchUtxosService } from '../services/balanceService';
 import { fetchVaultData } from '../services/vaultService';
 import { useWallet } from './WalletContext';
 import { useAuth } from './AuthContext';
@@ -27,10 +27,6 @@ export const BalanceProvider = ({ children, seedConfirmed }) => {
   const [loadingBalance, setLoadingBalance] = useState(false);
   const [refreshing, setRefreshing] = useState(false);
 
-  // BTC price state
-  const [btcPrice, setBtcPrice] = useState(null);
-  const [loadingBtcPrice, setLoadingBtcPrice] = useState(false);
-
   // UTXOs state
   const [utxos, setUtxos] = useState([]);
   const [loadingUtxos, setLoadingUtxos] = useState(false);
@@ -42,19 +38,6 @@ export const BalanceProvider = ({ children, seedConfirmed }) => {
   // Airdrop modal state
   const [showAirdropModal, setShowAirdropModal] = useState(false);
   const [airdropTxId, setAirdropTxId] = useState('');
-
-  // Fetch BTC price
-  const fetchBtcPrice = useCallback(async () => {
-    try {
-      setLoadingBtcPrice(true);
-      const price = await fetchBtcPriceService();
-      setBtcPrice(price);
-    } catch (error) {
-      setBtcPrice(null);
-    } finally {
-      setLoadingBtcPrice(false);
-    }
-  }, []);
 
   // Fetch wallet balance
   const fetchBalance = useCallback(async (segwitAddr, taprootAddr) => {
@@ -186,15 +169,6 @@ export const BalanceProvider = ({ children, seedConfirmed }) => {
     checkPendingAirdrop();
   }, [wallet, currentAccount, segwitBalance, taprootBalance]);
 
-  // Fetch BTC price on mount and refresh every 60 seconds
-  useEffect(() => {
-    fetchBtcPrice();
-    const interval = setInterval(() => {
-      fetchBtcPrice();
-    }, 60000);
-    return () => clearInterval(interval);
-  }, [fetchBtcPrice]);
-
   // Auto-refresh balance and vault data every 10 seconds when wallet exists
   useEffect(() => {
     if (!wallet) {
@@ -322,10 +296,6 @@ export const BalanceProvider = ({ children, seedConfirmed }) => {
     loadingBalance,
     refreshing,
 
-    // BTC price state
-    btcPrice,
-    loadingBtcPrice,
-
     // UTXOs state
     utxos,
     loadingUtxos,
@@ -344,7 +314,6 @@ export const BalanceProvider = ({ children, seedConfirmed }) => {
     fetchVault,
     onRefresh,
     fetchUtxos,
-    fetchBtcPrice,
     resetBalances,
   };
 

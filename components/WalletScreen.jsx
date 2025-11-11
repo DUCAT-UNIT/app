@@ -4,6 +4,7 @@ import { View, Text, TouchableOpacity, Image, ActivityIndicator, ScrollView } fr
 import { LinearGradient } from 'expo-linear-gradient';
 import { useWallet } from '../contexts/WalletContext';
 import { useBalance } from '../contexts/BalanceContext';
+import { usePrice } from '../contexts/PriceContext';
 import { useDisplayPreferences } from '../contexts/DisplayPreferencesContext';
 import { useWalletCalculations } from '../hooks/useWalletCalculations';
 import { COLORS } from '../utils/colors';
@@ -25,9 +26,8 @@ export default function WalletScreen({
     segwitBalance,
     taprootBalance,
     runesBalance,
-    loadingBtcPrice,
-    btcPrice,
   } = useBalance();
+  const { btcPrice, loadingBtcPrice } = usePrice();
   const { showTotalInBTC, setShowTotalInBTC } = useDisplayPreferences();
 
   // Calculate all wallet-related values (business logic extracted to hook)

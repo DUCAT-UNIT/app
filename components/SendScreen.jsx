@@ -12,6 +12,7 @@ import React, { useState, useEffect, useRef } from 'react';
 import PropTypes from 'prop-types';
 import { PanResponder, Animated, Dimensions } from 'react-native';
 import { validateBitcoinAddress } from '../utils/sendHelpers';
+import { usePrice } from '../contexts/PriceContext';
 import AssetSelectorSheet from './send/AssetSelectorSheet';
 import AddressInputSheet from './send/AddressInputSheet';
 import AmountInputSheet from './send/AmountInputSheet';
@@ -33,7 +34,6 @@ export default function SendScreen({
   amountInputRef,
   btcBalance,
   unitBalance,
-  btcPrice,
   wallet,
 
   // Setters
@@ -48,6 +48,9 @@ export default function SendScreen({
   createSendIntent,
   signIntent,
 }) {
+  // Get BTC price from context
+  const { btcPrice } = usePrice();
+
   // Address validation state
   const [addressError, setAddressError] = useState('');
 
@@ -519,7 +522,6 @@ SendScreen.propTypes = {
   amountInputRef: PropTypes.object.isRequired,
   btcBalance: PropTypes.number,
   unitBalance: PropTypes.number,
-  btcPrice: PropTypes.number,
   setIntentStep: PropTypes.func.isRequired,
   setSendAssetType: PropTypes.func.isRequired,
   setSendAmount: PropTypes.func.isRequired,
