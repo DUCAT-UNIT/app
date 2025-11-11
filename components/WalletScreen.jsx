@@ -5,6 +5,7 @@ import { LinearGradient } from 'expo-linear-gradient';
 import { useWallet } from '../contexts/WalletContext';
 import { useBalance } from '../contexts/BalanceContext';
 import { useDisplayPreferences } from '../contexts/DisplayPreferencesContext';
+import { useWalletCalculations } from '../hooks/useWalletCalculations';
 import { COLORS } from '../utils/colors';
 import Icon from './Icon';
 
@@ -28,6 +29,24 @@ export default function WalletScreen({
     btcPrice,
   } = useBalance();
   const { showTotalInBTC, setShowTotalInBTC } = useDisplayPreferences();
+
+  // Calculate all wallet-related values (business logic extracted to hook)
+  const {
+    totalBalanceBTC,
+    totalBalanceUSD,
+    vaultHealthColor,
+    vaultHealthPercentage,
+    vaultDebt,
+    vaultCollateral,
+    hasVault,
+    unitValueInBTC,
+  } = useWalletCalculations({
+    segwitBalance,
+    taprootBalance,
+    runesBalance,
+    btcPrice,
+    vaultData,
+  });
 
   // Prevent multiple rapid clicks on create vault button
   const [creatingVault, setCreatingVault] = React.useState(false);
@@ -79,29 +98,13 @@ export default function WalletScreen({
               <View style={styles.balanceWithIcon}>
                 <Icon name="btc_symbol" size={12} color={COLORS.VERY_LIGHT_GRAY} style={styles.balanceIcon} />
                 <Text style={styles.xverseBalanceAmount}>
-                  {(() => {
-                    // Convert all assets to BTC equivalent
-                    const btcValue = segwitBalance || 0;
-                    const unitValue = runesBalance.length > 0 ? parseFloat(runesBalance[0][1]) / (btcPrice || 1) : 0;
-                    const ducatValue = 0; // DUCAT value in BTC
-                    const totalBtc = btcValue + unitValue + ducatValue;
-                    return totalBtc.toLocaleString('en-US', { minimumFractionDigits: 8, maximumFractionDigits: 8 });
-                  })()}
+                  {totalBalanceBTC.toLocaleString('en-US', { minimumFractionDigits: 8, maximumFractionDigits: 8 })}
                 </Text>
               </View>
             ) : (
-              (() => {
-                // Calculate total USD value of all assets
-                const btcUsdValue = (segwitBalance || 0) * (btcPrice || 0);
-                const unitUsdValue = runesBalance.length > 0 ? parseFloat(runesBalance[0][1]) : 0;
-                const ducatUsdValue = 0; // DUCAT value in USD
-                const totalUsd = btcUsdValue + unitUsdValue + ducatUsdValue;
-                return (
-                  <Text style={[styles.xverseBalanceAmount, totalUsd >= 10000000 && { fontSize: 32 }]}>
-                    ${totalUsd.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
-                  </Text>
-                );
-              })()
+              <Text style={[styles.xverseBalanceAmount, totalBalanceUSD >= 10000000 && { fontSize: 32 }]}>
+                ${totalBalanceUSD.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+              </Text>
             )}
           </TouchableOpacity>
         </View>
@@ -122,17 +125,7 @@ export default function WalletScreen({
             <Icon name="vault_logo" size={40} color="#DDDDDD" />
             <View style={[
               styles.vaultStatusIndicator,
-              {
-                backgroundColor: (() => {
-                  if (!vaultData || !vaultData.latestTransaction) return COLORS.SECONDARY_TEXT;
-                  const debt = vaultData.latestTransaction.amountBorrowed / 100;
-                  const collateralValue = vaultData.totalCollateral * (btcPrice || vaultData.latestTransaction.oraclePrice);
-                  const collateralRatio = debt > 0 ? (collateralValue / debt) * 100 : 0;
-                  if (collateralRatio >= 200) return COLORS.GREEN; // Green
-                  if (collateralRatio >= 161) return COLORS.YELLOW; // Yellow
-                  return COLORS.RED; // Red
-                })()
-              }
+              { backgroundColor: vaultHealthColor }
             ]} />
           </View>
           <View style={styles.vaultContentWrapper}>
@@ -144,25 +137,9 @@ export default function WalletScreen({
               </View>
               <Text style={[
                 styles.assetValue,
-                {
-                  color: (() => {
-                    if (!vaultData || !vaultData.latestTransaction) return COLORS.SECONDARY_TEXT;
-                    const debt = vaultData.latestTransaction.amountBorrowed / 100;
-                    const collateralValue = vaultData.totalCollateral * (btcPrice || vaultData.latestTransaction.oraclePrice);
-                    const collateralRatio = debt > 0 ? (collateralValue / debt) * 100 : 0;
-                    if (collateralRatio >= 200) return COLORS.GREEN; // Green
-                    if (collateralRatio >= 161) return COLORS.YELLOW; // Yellow
-                    return COLORS.RED; // Red
-                  })()
-                }
+                { color: vaultHealthColor }
               ]}>
-                {(() => {
-                  if (!vaultData || !vaultData.latestTransaction) return '0%';
-                  const debt = vaultData.latestTransaction.amountBorrowed / 100;
-                  const collateralValue = vaultData.totalCollateral * (btcPrice || vaultData.latestTransaction.oraclePrice);
-                  const health = debt > 0 ? Math.floor((collateralValue / debt) * 100) : 0;
-                  return `${health}%`;
-                })()}
+                {vaultHealthPercentage}%
               </Text>
             </View>
             <View style={styles.vaultDetailsContainer}>
@@ -171,9 +148,7 @@ export default function WalletScreen({
                 <View style={styles.vaultValueContainer}>
                   <Icon name="unit_symbol" size={10} color={COLORS.SECONDARY_TEXT} style={styles.assetAmountIcon} />
                   <Text style={styles.assetAmount}>
-                    {vaultData && vaultData.latestTransaction && vaultData.latestTransaction.amountBorrowed
-                      ? (vaultData.latestTransaction.amountBorrowed / 100).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })
-                      : '0.00'}
+                    {vaultDebt.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                   </Text>
                 </View>
               </View>
@@ -182,9 +157,7 @@ export default function WalletScreen({
                 <View style={styles.vaultValueContainer}>
                   <Icon name="btc_symbol" size={10} color={COLORS.SECONDARY_TEXT} style={styles.assetAmountIcon} />
                   <Text style={styles.assetAmount}>
-                    {vaultData && vaultData.latestTransaction && vaultData.latestTransaction.vaultAmount
-                      ? (vaultData.latestTransaction.vaultAmount / 100000000).toLocaleString('en-US', { minimumFractionDigits: 8, maximumFractionDigits: 8 })
-                      : '0.00000000'}
+                    {vaultCollateral.toLocaleString('en-US', { minimumFractionDigits: 8, maximumFractionDigits: 8 })}
                   </Text>
                 </View>
               </View>
@@ -192,7 +165,7 @@ export default function WalletScreen({
           </View>
 
           {/* Create Vault Overlay - Only show when no vault exists */}
-          {(!vaultData || !vaultData.latestTransaction) && (
+          {!hasVault && (
             <LinearGradient
               colors={['rgba(20, 20, 20, 0.8)', 'rgba(20, 20, 20, 1)']}
               style={styles.vaultOverlay}
@@ -264,7 +237,7 @@ export default function WalletScreen({
                 <View style={styles.assetValueWithIcon}>
                   <Icon name="btc_symbol" size={10} color={COLORS.SECONDARY_TEXT} style={styles.assetIcon} />
                   <Text style={styles.assetValue}>
-                    {runesBalance.length > 0 ? (parseFloat(runesBalance[0][1]) / (btcPrice || 1)).toLocaleString('en-US', { minimumFractionDigits: 8, maximumFractionDigits: 8 }) : '0.00000000'}
+                    {unitValueInBTC.toLocaleString('en-US', { minimumFractionDigits: 8, maximumFractionDigits: 8 })}
                   </Text>
                 </View>
               ) : (
