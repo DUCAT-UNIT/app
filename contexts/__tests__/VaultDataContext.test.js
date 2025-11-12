@@ -58,7 +58,7 @@ describe('VaultDataContext', () => {
 
     expect(() => {
       renderHook(() => useVaultData());
-    }).toThrow('useVaultData must be used within a VaultDataProvider');
+    }).toThrow('useWalletData must be used within a WalletDataProvider');
 
     consoleError.mockRestore();
   });

@@ -58,7 +58,7 @@ describe('BalanceContext', () => {
 
     expect(() => {
       renderHook(() => useBalance());
-    }).toThrow('useBalance must be used within a BalanceProvider');
+    }).toThrow('useWalletData must be used within a WalletDataProvider');
 
     consoleError.mockRestore();
   });

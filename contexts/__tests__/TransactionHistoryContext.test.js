@@ -58,7 +58,7 @@ describe('TransactionHistoryContext', () => {
 
     expect(() => {
       renderHook(() => useTransactionHistory());
-    }).toThrow('useTransactionHistory must be used within a TransactionHistoryProvider');
+    }).toThrow('useWalletData must be used within a WalletDataProvider');
 
     consoleError.mockRestore();
   });
