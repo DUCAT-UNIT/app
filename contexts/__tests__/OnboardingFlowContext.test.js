@@ -50,7 +50,7 @@ describe('OnboardingFlowContext', () => {
 
     expect(() => {
       renderHook(() => useOnboardingFlow());
-    }).toThrow('useOnboardingFlow must be used within OnboardingFlowProvider');
+    }).toThrow('useAuth must be used within an AuthProvider');
 
     consoleError.mockRestore();
   });

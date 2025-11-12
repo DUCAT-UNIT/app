@@ -56,7 +56,11 @@ describe('AuthContext', () => {
     const wrapper = ({ children }) => <AuthProvider>{children}</AuthProvider>;
     const { result } = renderHook(() => useAuth(), { wrapper });
 
-    expect(result.current).toEqual(mockAuthState);
+    // Should include all auth state from the hook
+    expect(result.current).toMatchObject(mockAuthState);
+    // Should also include onboarding state
+    expect(result.current).toHaveProperty('seedConfirmed');
+    expect(result.current).toHaveProperty('onboarding');
   });
 
   it('should pass onSeedConfirmed to hook', () => {
