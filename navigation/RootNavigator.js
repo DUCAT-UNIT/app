@@ -13,35 +13,25 @@ import PinSetupScreen from '../components/PinSetupScreen';
 import MutinynetBanner from '../components/MutinynetBanner';
 import { COLORS } from '../utils/colors';
 import { useAuth } from '../contexts/AuthContext';
-import { useWallet } from '../contexts/WalletContext';
 import { useBalance } from '../contexts/BalanceContext';
-import { useOnboardingFlow } from '../contexts/OnboardingFlowContext';
 import { useNavigationHandlers } from '../contexts/NavigationHandlersContext';
 import { useToastContext } from '../contexts/ToastContext';
+import { useNavigationState } from '../hooks/useNavigationState';
 
 const Stack = createStackNavigator();
 
 export default function RootNavigator() {
-  // Consume contexts
-  const { isAuthenticated, changingPin, settingUpPin, showPinEntry, isBiometricSupported } =
-    useAuth();
-  const { wallet } = useWallet();
+  // Determine navigation state
+  const { shouldShowAuth, shouldShowPinOverlay } = useNavigationState();
+
+  // Get auth-specific data needed for PIN overlay
+  const { isBiometricSupported } = useAuth();
   const { fetchBalance } = useBalance();
-  const { seedConfirmed } = useOnboardingFlow();
   const { showToast } = useToastContext();
 
   // Get handlers from context
   const { handlePinSetupCompleteWrapper, handlePinChangeCompleteWrapper, handleCancelPinChange } =
     useNavigationHandlers();
-
-  // Determine if we should show onboarding/auth flow
-  // Exclude settingUpPin when changing PIN (it will be shown as overlay)
-  const shouldShowAuth =
-    !wallet ||
-    (wallet && !seedConfirmed) ||
-    (settingUpPin && !changingPin) ||
-    showPinEntry ||
-    (!isAuthenticated && wallet && seedConfirmed);
 
   return (
     <NavigationContainer>
@@ -60,11 +50,11 @@ export default function RootNavigator() {
       </Stack.Navigator>
 
       {/* PIN Change Overlay - shown on top of main app */}
-      {settingUpPin && changingPin && (
+      {shouldShowPinOverlay && (
         <View style={localStyles.pinOverlay}>
           <MutinynetBanner />
           <PinSetupScreen
-            changingPin={changingPin}
+            changingPin={true}
             isBiometricSupported={isBiometricSupported}
             onPinSetupComplete={handlePinSetupCompleteWrapper}
             onPinChangeComplete={handlePinChangeCompleteWrapper}
