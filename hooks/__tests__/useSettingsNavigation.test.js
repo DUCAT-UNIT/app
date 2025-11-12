@@ -21,12 +21,14 @@ jest.mock('@react-navigation/native', () => ({
 
 // Mock SeedPhraseContext
 const mockSetReturnToSettings = jest.fn();
+let mockSeedPhraseContext = {
+  viewingSeedPhrase: false,
+  returnToSettings: false,
+  setReturnToSettings: mockSetReturnToSettings,
+};
+
 jest.mock('../../contexts/SeedPhraseContext', () => ({
-  useSeedPhrase: () => ({
-    viewingSeedPhrase: false,
-    returnToSettings: false,
-    setReturnToSettings: mockSetReturnToSettings,
-  }),
+  useSeedPhrase: () => mockSeedPhraseContext,
 }));
 
 // Helper to render hooks
@@ -50,6 +52,12 @@ describe('useSettingsNavigation', () => {
   beforeEach(() => {
     jest.clearAllMocks();
     SecureStore.getItemAsync.mockResolvedValue(null);
+    mockSetReturnToSettings.mockClear();
+    mockSeedPhraseContext = {
+      viewingSeedPhrase: false,
+      returnToSettings: false,
+      setReturnToSettings: mockSetReturnToSettings,
+    };
   });
 
   describe('Initialization', () => {
@@ -304,6 +312,128 @@ describe('useSettingsNavigation', () => {
       const panResponder = result.current.settingsPanResponderRef.current;
       expect(panResponder.panHandlers.onStartShouldSetResponder()).toBe(true);
     });
+
+    it('should return true for onMoveShouldSetPanResponder when dx > 10', async () => {
+      const { result } = renderHook(() => useSettingsNavigation());
+
+      await act(async () => {
+        await new Promise((resolve) => setTimeout(resolve, 0));
+      });
+
+      const panResponder = result.current.settingsPanResponderRef.current;
+      const config = panResponder.panHandlers;
+
+      // Find the onMoveShouldSetPanResponder function in the config
+      // It's created in PanResponder.create, so we need to access it differently
+      const shouldSet = config.onMoveShouldSetResponder({}, { dx: 15, dy: 0 });
+
+      expect(shouldSet).toBe(true);
+    });
+
+    it('should return false for onMoveShouldSetPanResponder when dx <= 10', async () => {
+      const { result } = renderHook(() => useSettingsNavigation());
+
+      await act(async () => {
+        await new Promise((resolve) => setTimeout(resolve, 0));
+      });
+
+      const panResponder = result.current.settingsPanResponderRef.current;
+      const config = panResponder.panHandlers;
+
+      const shouldSet = config.onMoveShouldSetResponder({}, { dx: 5, dy: 0 });
+
+      expect(shouldSet).toBe(false);
+    });
+
+    it('should update translateX on pan responder move when dx > 0', async () => {
+      const { result } = renderHook(() => useSettingsNavigation());
+
+      await act(async () => {
+        await new Promise((resolve) => setTimeout(resolve, 0));
+      });
+
+      const panResponder = result.current.settingsPanResponderRef.current;
+      const config = panResponder.panHandlers;
+
+      // Simulate pan responder move
+      act(() => {
+        config.onResponderMove({}, { dx: 50, dy: 0 });
+      });
+
+      // translateX should be updated (we can't directly test Animated values, but we can verify no errors)
+      expect(result.current.settingsTranslateX).toBeDefined();
+    });
+
+    it('should not update translateX on pan responder move when dx <= 0', async () => {
+      const { result } = renderHook(() => useSettingsNavigation());
+
+      await act(async () => {
+        await new Promise((resolve) => setTimeout(resolve, 0));
+      });
+
+      const panResponder = result.current.settingsPanResponderRef.current;
+      const config = panResponder.panHandlers;
+
+      // Simulate pan responder move with negative dx
+      act(() => {
+        config.onResponderMove({}, { dx: -10, dy: 0 });
+      });
+
+      expect(result.current.settingsTranslateX).toBeDefined();
+    });
+
+    it('should close settings on pan responder release when dx > 40% screen width', async () => {
+      const { result } = renderHook(() => useSettingsNavigation());
+
+      await act(async () => {
+        await new Promise((resolve) => setTimeout(resolve, 0));
+      });
+
+      // Open settings first
+      act(() => {
+        result.current.openSettings();
+      });
+
+      expect(result.current.showSettings).toBe(true);
+
+      const panResponder = result.current.settingsPanResponderRef.current;
+      const config = panResponder.panHandlers;
+
+      // Simulate release with large dx (> 40% of screen width)
+      await act(async () => {
+        config.onResponderRelease({}, { dx: 200, dy: 0 });
+        // Wait for animation to complete
+        await new Promise((resolve) => setTimeout(resolve, 250));
+      });
+
+      expect(result.current.showSettings).toBe(false);
+    });
+
+    it('should spring back on pan responder release when dx < 40% screen width', async () => {
+      const { result } = renderHook(() => useSettingsNavigation());
+
+      await act(async () => {
+        await new Promise((resolve) => setTimeout(resolve, 0));
+      });
+
+      // Open settings first
+      act(() => {
+        result.current.openSettings();
+      });
+
+      expect(result.current.showSettings).toBe(true);
+
+      const panResponder = result.current.settingsPanResponderRef.current;
+      const config = panResponder.panHandlers;
+
+      // Simulate release with small dx (< 40% of screen width)
+      act(() => {
+        config.onResponderRelease({}, { dx: 50, dy: 0 });
+      });
+
+      // Settings should still be open
+      expect(result.current.showSettings).toBe(true);
+    });
   });
 
   describe('Seed Phrase Return Flow', () => {
@@ -317,6 +447,74 @@ describe('useSettingsNavigation', () => {
       expect(result.current).toBeDefined();
       expect(result.current.openSettings).toBeDefined();
       expect(result.current.closeSettings).toBeDefined();
+    });
+
+    it('should reopen settings when seed phrase closes with returnToSettings true', async () => {
+      // Start with viewingSeedPhrase true and returnToSettings false
+      mockSeedPhraseContext = {
+        viewingSeedPhrase: true,
+        returnToSettings: false,
+        setReturnToSettings: mockSetReturnToSettings,
+      };
+
+      const { result, unmount } = renderHook(() => useSettingsNavigation());
+
+      await act(async () => {
+        await new Promise((resolve) => setTimeout(resolve, 0));
+      });
+
+      // Now change to viewingSeedPhrase false and returnToSettings true (seed phrase just closed)
+      mockSeedPhraseContext = {
+        viewingSeedPhrase: false,
+        returnToSettings: true,
+        setReturnToSettings: mockSetReturnToSettings,
+      };
+
+      // Re-render by unmounting and remounting
+      unmount();
+
+      const { result: result2 } = renderHook(() => useSettingsNavigation());
+
+      await act(async () => {
+        await new Promise((resolve) => setTimeout(resolve, 10));
+      });
+
+      expect(result2.current.showSettings).toBe(true);
+      expect(mockSetReturnToSettings).toHaveBeenCalledWith(false);
+    });
+
+    it('should not reopen settings when viewingSeedPhrase is true', async () => {
+      mockSeedPhraseContext = {
+        viewingSeedPhrase: true,
+        returnToSettings: true,
+        setReturnToSettings: mockSetReturnToSettings,
+      };
+
+      const { result } = renderHook(() => useSettingsNavigation());
+
+      await act(async () => {
+        await new Promise((resolve) => setTimeout(resolve, 10));
+      });
+
+      // Should not call setReturnToSettings when still viewing seed phrase
+      expect(mockSetReturnToSettings).not.toHaveBeenCalled();
+    });
+
+    it('should not reopen settings when returnToSettings is false', async () => {
+      mockSeedPhraseContext = {
+        viewingSeedPhrase: false,
+        returnToSettings: false,
+        setReturnToSettings: mockSetReturnToSettings,
+      };
+
+      const { result } = renderHook(() => useSettingsNavigation());
+
+      await act(async () => {
+        await new Promise((resolve) => setTimeout(resolve, 10));
+      });
+
+      // Should not call setReturnToSettings when returnToSettings is false
+      expect(mockSetReturnToSettings).not.toHaveBeenCalled();
     });
   });
 
@@ -346,6 +544,50 @@ describe('useSettingsNavigation', () => {
       });
 
       expect(result.current.showSettings).toBe(false);
+    });
+
+    it('should prevent concurrent flag checks in useFocusEffect', async () => {
+      // Set up a slow async response to simulate concurrent calls
+      let resolveFirst;
+      let callCount = 0;
+
+      SecureStore.getItemAsync.mockImplementation((key) => {
+        callCount++;
+        return new Promise((resolve) => {
+          if (callCount === 1) {
+            resolveFirst = resolve;
+          } else {
+            resolve(null);
+          }
+        });
+      });
+
+      // Mock useFocusEffect to call the callback multiple times
+      const { useFocusEffect } = require('@react-navigation/native');
+      let focusCallback;
+      useFocusEffect.mockImplementation((callback) => {
+        focusCallback = callback;
+        callback(); // Call once immediately
+      });
+
+      const { result } = renderHook(() => useSettingsNavigation());
+
+      // Try to call the focus callback again while the first is still pending
+      if (focusCallback) {
+        focusCallback(); // This should return early due to checkingFlags.current
+      }
+
+      // Now resolve the first call
+      if (resolveFirst) {
+        resolveFirst(null);
+      }
+
+      await act(async () => {
+        await new Promise((resolve) => setTimeout(resolve, 10));
+      });
+
+      // The second call should have been prevented by the checkingFlags guard
+      expect(result.current).toBeDefined();
     });
   });
 

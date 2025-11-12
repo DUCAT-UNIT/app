@@ -140,26 +140,10 @@ export function useSettings({
     startPinChange();
   };
 
-  const handleFaceIdToggle = async () => {
+  const handleFaceIdToggle = () => {
     const newValue = !biometricEnabled;
 
-    // If disabling, just turn it off immediately without modal
-    if (!newValue) {
-      setBiometricEnabled(false);
-      try {
-        await SecureStore.setItemAsync('biometricEnabled', 'false');
-        if (showToast) {
-          showToast('Face ID disabled', 'success');
-        }
-      } catch (error) {
-        if (showToast) {
-          showToast('Failed to update Face ID setting', 'error');
-        }
-      }
-      return;
-    }
-
-    // If enabling, show modal
+    // Set pending value and show modal for both enabling and disabling
     setPendingFaceIdValue(newValue);
     setShowFaceIdModal(true);
   };
@@ -222,26 +206,10 @@ export function useSettings({
     await SecureStore.setItemAsync('showZeroAssets', newValue.toString());
   };
 
-  const handleNotificationsToggle = async () => {
+  const handleNotificationsToggle = () => {
     const newValue = !notificationsEnabled;
 
-    // If disabling, just turn it off immediately without modal
-    if (!newValue) {
-      setNotificationsEnabled(false);
-      try {
-        await SecureStore.setItemAsync('notificationsEnabled', 'false');
-        if (showToast) {
-          showToast('Notifications disabled', 'success');
-        }
-      } catch (error) {
-        if (showToast) {
-          showToast('Failed to update notifications setting', 'error');
-        }
-      }
-      return;
-    }
-
-    // If enabling, show modal
+    // Set pending value and show modal for both enabling and disabling
     setPendingNotificationsValue(newValue);
     setShowNotificationsModal(true);
   };

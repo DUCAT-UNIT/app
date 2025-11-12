@@ -235,6 +235,25 @@ describe('useSettings', () => {
       expect(mockProps.showToast).toHaveBeenCalledWith('Failed to delete wallet', 'error');
     });
 
+    it('should handle exceptions during wallet deletion', async () => {
+      AuthService.authenticateWithBiometrics.mockResolvedValue({ success: true });
+      AuthService.deleteWalletData.mockRejectedValue(new Error('Deletion error'));
+
+      const { result } = renderHook(() => useSettings(mockProps), {
+        initialProps: mockProps,
+      });
+
+      act(() => {
+        result.current.handleDeleteWallet();
+      });
+
+      await act(async () => {
+        await result.current.confirmDeleteWallet();
+      });
+
+      expect(mockProps.showToast).toHaveBeenCalledWith('Failed to delete wallet', 'error');
+    });
+
     it('should cancel deletion on cancelDeleteWallet', () => {
       const { result } = renderHook(() => useSettings(mockProps), {
         initialProps: mockProps,
@@ -279,15 +298,33 @@ describe('useSettings', () => {
   });
 
   describe('Face ID Toggle', () => {
-    it('should disable Face ID immediately without modal', async () => {
+    it('should show modal when disabling Face ID', () => {
       mockProps.biometricEnabled = true;
 
       const { result } = renderHook(() => useSettings(mockProps), {
         initialProps: mockProps,
       });
 
+      act(() => {
+        result.current.handleFaceIdToggle();
+      });
+
+      expect(result.current.showFaceIdModal).toBe(true);
+    });
+
+    it('should disable Face ID on confirmFaceIdToggle', async () => {
+      mockProps.biometricEnabled = true;
+
+      const { result } = renderHook(() => useSettings(mockProps), {
+        initialProps: mockProps,
+      });
+
+      act(() => {
+        result.current.handleFaceIdToggle();
+      });
+
       await act(async () => {
-        await result.current.handleFaceIdToggle();
+        await result.current.confirmFaceIdToggle();
       });
 
       expect(mockProps.setBiometricEnabled).toHaveBeenCalledWith(false);
@@ -323,7 +360,57 @@ describe('useSettings', () => {
       });
 
       expect(mockProps.setBiometricEnabled).toHaveBeenCalledWith(true);
+      expect(SecureStore.setItemAsync).toHaveBeenCalledWith('biometricEnabled', 'true');
+      expect(SecureStore.setItemAsync).toHaveBeenCalledWith('returnToSettingsAfterAuth', 'true');
       expect(mockProps.showToast).toHaveBeenCalledWith('Face ID enabled', 'success');
+    });
+
+    it('should handle storage error during Face ID enable after authentication', async () => {
+      AuthService.authenticateWithBiometrics.mockResolvedValue({ success: true });
+      SecureStore.setItemAsync.mockImplementation((key, value) => {
+        if (key === 'biometricEnabled') {
+          return Promise.reject(new Error('Storage error'));
+        }
+        return Promise.resolve();
+      });
+
+      const { result } = renderHook(() => useSettings(mockProps), {
+        initialProps: mockProps,
+      });
+
+      act(() => {
+        result.current.handleFaceIdToggle();
+      });
+
+      await act(async () => {
+        await result.current.confirmFaceIdToggle();
+      });
+
+      expect(mockProps.showToast).toHaveBeenCalledWith(
+        'Failed to update Face ID setting',
+        'error'
+      );
+    });
+
+    it('should handle authentication error during Face ID enable', async () => {
+      AuthService.authenticateWithBiometrics.mockRejectedValue(new Error('Auth error'));
+
+      const { result } = renderHook(() => useSettings(mockProps), {
+        initialProps: mockProps,
+      });
+
+      act(() => {
+        result.current.handleFaceIdToggle();
+      });
+
+      await act(async () => {
+        await result.current.confirmFaceIdToggle();
+      });
+
+      expect(mockProps.showToast).toHaveBeenCalledWith(
+        'Authentication required to enable Face ID',
+        'error'
+      );
     });
 
     it('should set pending flag if biometric fails', async () => {
@@ -361,10 +448,11 @@ describe('useSettings', () => {
 
       expect(result.current.showFaceIdModal).toBe(false);
     });
+
   });
 
   describe('Notifications Toggle', () => {
-    it('should disable notifications immediately without modal', async () => {
+    it('should show modal when disabling notifications', async () => {
       SecureStore.getItemAsync.mockImplementation((key) => {
         if (key === 'notificationsEnabled') return Promise.resolve('true');
         return Promise.resolve(null);
@@ -378,10 +466,36 @@ describe('useSettings', () => {
         await Promise.resolve();
       });
 
-      await act(async () => {
-        await result.current.handleNotificationsToggle();
+      act(() => {
+        result.current.handleNotificationsToggle();
       });
 
+      expect(result.current.showNotificationsModal).toBe(true);
+    });
+
+    it('should disable notifications on confirmNotificationsToggle', async () => {
+      SecureStore.getItemAsync.mockImplementation((key) => {
+        if (key === 'notificationsEnabled') return Promise.resolve('true');
+        return Promise.resolve(null);
+      });
+
+      const { result } = renderHook(() => useSettings(mockProps), {
+        initialProps: mockProps,
+      });
+
+      await act(async () => {
+        await Promise.resolve();
+      });
+
+      act(() => {
+        result.current.handleNotificationsToggle();
+      });
+
+      await act(async () => {
+        await result.current.confirmNotificationsToggle();
+      });
+
+      expect(result.current.notificationsEnabled).toBe(false);
       expect(SecureStore.setItemAsync).toHaveBeenCalledWith('notificationsEnabled', 'false');
       expect(mockProps.showToast).toHaveBeenCalledWith('Notifications disabled', 'success');
     });
@@ -396,6 +510,124 @@ describe('useSettings', () => {
       });
 
       expect(result.current.showNotificationsModal).toBe(true);
+    });
+
+    it('should enable notifications with biometric success', async () => {
+      AuthService.authenticateWithBiometrics.mockResolvedValue({ success: true });
+
+      const { result } = renderHook(() => useSettings(mockProps), {
+        initialProps: mockProps,
+      });
+
+      act(() => {
+        result.current.handleNotificationsToggle();
+      });
+
+      await act(async () => {
+        await result.current.confirmNotificationsToggle();
+      });
+
+      expect(result.current.notificationsEnabled).toBe(true);
+      expect(SecureStore.setItemAsync).toHaveBeenCalledWith('notificationsEnabled', 'true');
+      expect(SecureStore.setItemAsync).toHaveBeenCalledWith('returnToSettingsAfterAuth', 'true');
+      expect(mockProps.showToast).toHaveBeenCalledWith('Notifications enabled', 'success');
+    });
+
+    it('should set pending flag if biometric fails for notifications', async () => {
+      AuthService.authenticateWithBiometrics.mockResolvedValue({ success: false });
+
+      const { result } = renderHook(() => useSettings(mockProps), {
+        initialProps: mockProps,
+      });
+
+      act(() => {
+        result.current.handleNotificationsToggle();
+      });
+
+      await act(async () => {
+        await result.current.confirmNotificationsToggle();
+      });
+
+      expect(SecureStore.setItemAsync).toHaveBeenCalledWith('pendingNotificationsEnable', 'true');
+      expect(SecureStore.setItemAsync).toHaveBeenCalledWith('returnToSettingsAfterAuth', 'true');
+      expect(mockProps.setIsAuthenticated).toHaveBeenCalledWith(false);
+    });
+
+    it('should handle authentication error during notifications enable', async () => {
+      AuthService.authenticateWithBiometrics.mockRejectedValue(new Error('Auth error'));
+
+      const { result } = renderHook(() => useSettings(mockProps), {
+        initialProps: mockProps,
+      });
+
+      act(() => {
+        result.current.handleNotificationsToggle();
+      });
+
+      await act(async () => {
+        await result.current.confirmNotificationsToggle();
+      });
+
+      expect(mockProps.showToast).toHaveBeenCalledWith(
+        'Authentication required to enable notifications',
+        'error'
+      );
+    });
+
+    it('should handle storage error during notifications enable', async () => {
+      AuthService.authenticateWithBiometrics.mockResolvedValue({ success: true });
+      SecureStore.setItemAsync.mockImplementation((key, value) => {
+        if (key === 'notificationsEnabled') {
+          return Promise.reject(new Error('Storage error'));
+        }
+        return Promise.resolve();
+      });
+
+      const { result } = renderHook(() => useSettings(mockProps), {
+        initialProps: mockProps,
+      });
+
+      act(() => {
+        result.current.handleNotificationsToggle();
+      });
+
+      await act(async () => {
+        await result.current.confirmNotificationsToggle();
+      });
+
+      expect(mockProps.showToast).toHaveBeenCalledWith(
+        'Failed to update notifications setting',
+        'error'
+      );
+    });
+
+    it('should handle storage error during notifications disable', async () => {
+      SecureStore.getItemAsync.mockImplementation((key) => {
+        if (key === 'notificationsEnabled') return Promise.resolve('true');
+        return Promise.resolve(null);
+      });
+      SecureStore.setItemAsync.mockRejectedValue(new Error('Storage error'));
+
+      const { result } = renderHook(() => useSettings(mockProps), {
+        initialProps: mockProps,
+      });
+
+      await act(async () => {
+        await Promise.resolve();
+      });
+
+      act(() => {
+        result.current.handleNotificationsToggle();
+      });
+
+      await act(async () => {
+        await result.current.confirmNotificationsToggle();
+      });
+
+      expect(mockProps.showToast).toHaveBeenCalledWith(
+        'Failed to update notifications setting',
+        'error'
+      );
     });
 
     it('should cancel notifications toggle', async () => {
@@ -448,8 +680,12 @@ describe('useSettings', () => {
         initialProps: mockProps,
       });
 
+      act(() => {
+        result.current.handleFaceIdToggle();
+      });
+
       await act(async () => {
-        await result.current.handleFaceIdToggle();
+        await result.current.confirmFaceIdToggle();
       });
 
       expect(mockProps.showToast).toHaveBeenCalledWith(
@@ -479,4 +715,337 @@ describe('useSettings', () => {
       );
     });
   });
+
+  describe('Without showToast', () => {
+    beforeEach(() => {
+      mockProps.showToast = undefined;
+    });
+
+    it('should handle wallet deletion without showToast on auth error', async () => {
+      AuthService.authenticateWithBiometrics.mockRejectedValue(new Error('Auth error'));
+
+      const { result } = renderHook(() => useSettings(mockProps), {
+        initialProps: mockProps,
+      });
+
+      act(() => {
+        result.current.handleDeleteWallet();
+      });
+
+      await act(async () => {
+        await result.current.confirmDeleteWallet();
+      });
+
+      expect(mockProps.showToast).toBeUndefined();
+    });
+
+    it('should handle wallet deletion success without showToast', async () => {
+      AuthService.authenticateWithBiometrics.mockResolvedValue({ success: true });
+      AuthService.deleteWalletData.mockResolvedValue(true);
+
+      const { result } = renderHook(() => useSettings(mockProps), {
+        initialProps: mockProps,
+      });
+
+      act(() => {
+        result.current.handleDeleteWallet();
+      });
+
+      await act(async () => {
+        await result.current.confirmDeleteWallet();
+      });
+
+      expect(mockProps.resetWallet).toHaveBeenCalled();
+    });
+
+    it('should handle wallet deletion failure without showToast', async () => {
+      AuthService.authenticateWithBiometrics.mockResolvedValue({ success: true });
+      AuthService.deleteWalletData.mockResolvedValue(false);
+
+      const { result } = renderHook(() => useSettings(mockProps), {
+        initialProps: mockProps,
+      });
+
+      act(() => {
+        result.current.handleDeleteWallet();
+      });
+
+      await act(async () => {
+        await result.current.confirmDeleteWallet();
+      });
+
+      expect(mockProps.resetWallet).not.toHaveBeenCalled();
+    });
+
+    it('should handle wallet deletion exception without showToast', async () => {
+      AuthService.authenticateWithBiometrics.mockResolvedValue({ success: true });
+      AuthService.deleteWalletData.mockRejectedValue(new Error('Delete error'));
+
+      const { result } = renderHook(() => useSettings(mockProps), {
+        initialProps: mockProps,
+      });
+
+      act(() => {
+        result.current.handleDeleteWallet();
+      });
+
+      await act(async () => {
+        await result.current.confirmDeleteWallet();
+      });
+
+      expect(mockProps.resetWallet).not.toHaveBeenCalled();
+    });
+
+    it('should handle Face ID disable without showToast on success', async () => {
+      mockProps.biometricEnabled = true;
+
+      const { result } = renderHook(() => useSettings(mockProps), {
+        initialProps: mockProps,
+      });
+
+      act(() => {
+        result.current.handleFaceIdToggle();
+      });
+
+      await act(async () => {
+        await result.current.confirmFaceIdToggle();
+      });
+
+      expect(mockProps.setBiometricEnabled).toHaveBeenCalledWith(false);
+    });
+
+    it('should handle Face ID disable without showToast on error', async () => {
+      mockProps.biometricEnabled = true;
+      SecureStore.setItemAsync.mockRejectedValue(new Error('Storage error'));
+
+      const { result } = renderHook(() => useSettings(mockProps), {
+        initialProps: mockProps,
+      });
+
+      act(() => {
+        result.current.handleFaceIdToggle();
+      });
+
+      await act(async () => {
+        await result.current.confirmFaceIdToggle();
+      });
+
+      expect(mockProps.setBiometricEnabled).toHaveBeenCalledWith(false);
+    });
+
+    it('should handle Face ID enable auth error without showToast', async () => {
+      AuthService.authenticateWithBiometrics.mockRejectedValue(new Error('Auth error'));
+
+      const { result } = renderHook(() => useSettings(mockProps), {
+        initialProps: mockProps,
+      });
+
+      act(() => {
+        result.current.handleFaceIdToggle();
+      });
+
+      await act(async () => {
+        await result.current.confirmFaceIdToggle();
+      });
+
+      expect(result.current.showFaceIdModal).toBe(false);
+    });
+
+    it('should handle Face ID enable success without showToast', async () => {
+      AuthService.authenticateWithBiometrics.mockResolvedValue({ success: true });
+
+      const { result } = renderHook(() => useSettings(mockProps), {
+        initialProps: mockProps,
+      });
+
+      act(() => {
+        result.current.handleFaceIdToggle();
+      });
+
+      await act(async () => {
+        await result.current.confirmFaceIdToggle();
+      });
+
+      expect(mockProps.setBiometricEnabled).toHaveBeenCalledWith(true);
+    });
+
+    it('should handle Face ID enable storage error without showToast', async () => {
+      AuthService.authenticateWithBiometrics.mockResolvedValue({ success: true });
+      SecureStore.setItemAsync.mockImplementation((key) => {
+        if (key === 'biometricEnabled') {
+          return Promise.reject(new Error('Storage error'));
+        }
+        return Promise.resolve();
+      });
+
+      const { result } = renderHook(() => useSettings(mockProps), {
+        initialProps: mockProps,
+      });
+
+      act(() => {
+        result.current.handleFaceIdToggle();
+      });
+
+      await act(async () => {
+        await result.current.confirmFaceIdToggle();
+      });
+
+      expect(mockProps.setBiometricEnabled).toHaveBeenCalledWith(true);
+    });
+
+    it('should handle notifications disable success without showToast', async () => {
+      SecureStore.getItemAsync.mockImplementation((key) => {
+        if (key === 'notificationsEnabled') return Promise.resolve('true');
+        return Promise.resolve(null);
+      });
+
+      const { result } = renderHook(() => useSettings(mockProps), {
+        initialProps: mockProps,
+      });
+
+      await act(async () => {
+        await Promise.resolve();
+      });
+
+      act(() => {
+        result.current.handleNotificationsToggle();
+      });
+
+      await act(async () => {
+        await result.current.confirmNotificationsToggle();
+      });
+
+      expect(result.current.notificationsEnabled).toBe(false);
+    });
+
+    it('should handle notifications disable error without showToast', async () => {
+      SecureStore.getItemAsync.mockImplementation((key) => {
+        if (key === 'notificationsEnabled') return Promise.resolve('true');
+        return Promise.resolve(null);
+      });
+      SecureStore.setItemAsync.mockRejectedValue(new Error('Storage error'));
+
+      const { result } = renderHook(() => useSettings(mockProps), {
+        initialProps: mockProps,
+      });
+
+      await act(async () => {
+        await Promise.resolve();
+      });
+
+      act(() => {
+        result.current.handleNotificationsToggle();
+      });
+
+      await act(async () => {
+        await result.current.confirmNotificationsToggle();
+      });
+
+      expect(result.current.notificationsEnabled).toBe(false);
+    });
+
+    it('should handle notifications enable auth error without showToast', async () => {
+      AuthService.authenticateWithBiometrics.mockRejectedValue(new Error('Auth error'));
+
+      const { result } = renderHook(() => useSettings(mockProps), {
+        initialProps: mockProps,
+      });
+
+      act(() => {
+        result.current.handleNotificationsToggle();
+      });
+
+      await act(async () => {
+        await result.current.confirmNotificationsToggle();
+      });
+
+      expect(result.current.showNotificationsModal).toBe(false);
+    });
+
+    it('should handle notifications enable success without showToast', async () => {
+      AuthService.authenticateWithBiometrics.mockResolvedValue({ success: true });
+
+      const { result } = renderHook(() => useSettings(mockProps), {
+        initialProps: mockProps,
+      });
+
+      act(() => {
+        result.current.handleNotificationsToggle();
+      });
+
+      await act(async () => {
+        await result.current.confirmNotificationsToggle();
+      });
+
+      expect(result.current.notificationsEnabled).toBe(true);
+    });
+
+    it('should handle notifications enable storage error without showToast', async () => {
+      AuthService.authenticateWithBiometrics.mockResolvedValue({ success: true });
+      SecureStore.setItemAsync.mockImplementation((key) => {
+        if (key === 'notificationsEnabled') {
+          return Promise.reject(new Error('Storage error'));
+        }
+        return Promise.resolve();
+      });
+
+      const { result } = renderHook(() => useSettings(mockProps), {
+        initialProps: mockProps,
+      });
+
+      act(() => {
+        result.current.handleNotificationsToggle();
+      });
+
+      await act(async () => {
+        await result.current.confirmNotificationsToggle();
+      });
+
+      expect(result.current.notificationsEnabled).toBe(true);
+    });
+  });
+
+  describe('walletExistsRef variations', () => {
+    it('should handle wallet deletion with undefined walletExistsRef', async () => {
+      AuthService.authenticateWithBiometrics.mockResolvedValue({ success: true });
+      AuthService.deleteWalletData.mockResolvedValue(true);
+      mockProps.walletExistsRef = undefined;
+
+      const { result } = renderHook(() => useSettings(mockProps), {
+        initialProps: mockProps,
+      });
+
+      act(() => {
+        result.current.handleDeleteWallet();
+      });
+
+      await act(async () => {
+        await result.current.confirmDeleteWallet();
+      });
+
+      expect(mockProps.resetWallet).toHaveBeenCalled();
+    });
+
+    it('should handle wallet deletion with walletExistsRef.current undefined', async () => {
+      AuthService.authenticateWithBiometrics.mockResolvedValue({ success: true });
+      AuthService.deleteWalletData.mockResolvedValue(true);
+      mockProps.walletExistsRef = { current: undefined };
+
+      const { result } = renderHook(() => useSettings(mockProps), {
+        initialProps: mockProps,
+      });
+
+      act(() => {
+        result.current.handleDeleteWallet();
+      });
+
+      await act(async () => {
+        await result.current.confirmDeleteWallet();
+      });
+
+      expect(mockProps.resetWallet).toHaveBeenCalled();
+    });
+  });
+
 });
+
