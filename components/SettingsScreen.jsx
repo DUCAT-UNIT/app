@@ -27,7 +27,7 @@ const _STATUS_BAR_HEIGHT = Platform.OS === 'ios' ? 50 : StatusBar.currentHeight 
 // Responsive horizontal padding
 const HORIZONTAL_PADDING = SCREEN_WIDTH < 375 ? 16 : SCREEN_WIDTH > 414 ? 24 : 20;
 
-export default function SettingsScreen({
+const SettingsScreen = React.memo(function SettingsScreen({
   // Callbacks
   onClose,
   onViewSeedPhrase,
@@ -103,10 +103,10 @@ export default function SettingsScreen({
       </ScrollView>
     </View>
   );
-}
+});
 
 // Individual settings option component
-function SettingsOption({ iconName, title, onPress, rightText, isDanger }) {
+const SettingsOption = React.memo(function SettingsOption({ iconName, title, onPress, rightText, isDanger }) {
   return (
     <TouchableOpacity style={localStyles.option} onPress={onPress}>
       <View style={localStyles.optionLeft}>
@@ -119,7 +119,7 @@ function SettingsOption({ iconName, title, onPress, rightText, isDanger }) {
       </View>
     </TouchableOpacity>
   );
-}
+});
 
 SettingsOption.propTypes = {
   iconName: PropTypes.string.isRequired,
@@ -143,6 +143,8 @@ SettingsScreen.propTypes = {
   notificationsEnabled: PropTypes.bool.isRequired,
   showZeroAssets: PropTypes.bool.isRequired,
 };
+
+export default SettingsScreen;
 
 const localStyles = StyleSheet.create({
   container: {

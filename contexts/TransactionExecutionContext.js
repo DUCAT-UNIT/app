@@ -4,7 +4,7 @@
  * Depends on TransactionBuildContext for the intent and SendFlowContext for metadata
  */
 
-import React, { createContext, useContext, useState, useEffect } from 'react';
+import React, { createContext, useContext, useState, useEffect, useMemo, useCallback } from 'react';
 import * as TransactionService from '../services/transactionService';
 import * as BackgroundTaskService from '../services/backgroundTaskService';
 import { parseErrorMessage } from '../utils/errorParser';
@@ -45,39 +45,8 @@ export const TransactionExecutionProvider = ({
     }
   }, [broadcastedTxid]);
 
-  // Sign the PSBT
-  const signIntent = async () => {
-    try {
-      setIntentStep('signing');
-
-      if (!sendIntent) {
-        showToast(ERRORS.TRANSACTION_CANCELLED, 'error');
-        setIntentStep('idle');
-        return;
-      }
-
-      const { signedTxHex, txid } = await TransactionService.signIntent(sendIntent, currentAccount);
-
-      // Update intent with signed transaction
-      const signedIntent = {
-        ...sendIntent,
-        signedTxHex,
-        txid,
-      };
-
-      setSendIntent(signedIntent);
-      setIntentStep('broadcasting');
-
-      // Automatically broadcast
-      await broadcastIntent(signedIntent);
-    } catch (_error) {
-      showToast(parseErrorMessage(_error), 'error');
-      setIntentStep('reviewing');
-    }
-  };
-
   // Broadcast the signed transaction
-  const broadcastIntent = async (intent = sendIntent) => {
+  const broadcastIntent = useCallback(async (intent = sendIntent) => {
     try {
       if (!intent || !intent.signedTxHex) {
         showToast(ERRORS.TRANSACTION_CANCELLED, 'error');
@@ -118,21 +87,56 @@ export const TransactionExecutionProvider = ({
       showToast(parseErrorMessage(_error), 'error');
       setIntentStep('reviewing');
     }
-  };
+  }, [sendIntent, showToast, setIntentStep, sendAssetType, sendAmount, startTransactionPolling, notificationsEnabled, sendTransactionConfirmedNotification, fetchBalance]);
 
-  const value = {
-    // State
-    broadcastedTxid,
-    toastDismissed,
+  // Sign the PSBT
+  const signIntent = useCallback(async () => {
+    try {
+      setIntentStep('signing');
 
-    // Setters
-    setBroadcastedTxid,
-    setToastDismissed,
+      if (!sendIntent) {
+        showToast(ERRORS.TRANSACTION_CANCELLED, 'error');
+        setIntentStep('idle');
+        return;
+      }
 
-    // Handlers
-    signIntent,
-    broadcastIntent,
-  };
+      const { signedTxHex, txid } = await TransactionService.signIntent(sendIntent, currentAccount);
+
+      // Update intent with signed transaction
+      const signedIntent = {
+        ...sendIntent,
+        signedTxHex,
+        txid,
+      };
+
+      setSendIntent(signedIntent);
+      setIntentStep('broadcasting');
+
+      // Automatically broadcast
+      await broadcastIntent(signedIntent);
+    } catch (_error) {
+      showToast(parseErrorMessage(_error), 'error');
+      setIntentStep('reviewing');
+    }
+  }, [sendIntent, currentAccount, setIntentStep, setSendIntent, showToast, broadcastIntent]);
+
+  // Memoize the value object to prevent unnecessary re-renders
+  const value = useMemo(
+    () => ({
+      // State
+      broadcastedTxid,
+      toastDismissed,
+
+      // Setters
+      setBroadcastedTxid,
+      setToastDismissed,
+
+      // Handlers
+      signIntent,
+      broadcastIntent,
+    }),
+    [broadcastedTxid, toastDismissed, signIntent, broadcastIntent]
+  );
 
   return (
     <TransactionExecutionContext.Provider value={value}>

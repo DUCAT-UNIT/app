@@ -6,7 +6,7 @@ import { COLORS } from '../utils/colors';
 import { signPsbt } from '../utils/wallet';
 import { API } from '../utils/constants';
 
-export default function VaultScreen({ visible, walletCredentials, _autoCreateVaultTrigger }) {
+const VaultScreen = React.memo(function VaultScreen({ visible, walletCredentials, _autoCreateVaultTrigger }) {
   const webViewRef = useRef(null);
   const messageIndexRef = useRef(0);
   const hasLoadedOnceRef = useRef(false);
@@ -59,6 +59,19 @@ export default function VaultScreen({ visible, walletCredentials, _autoCreateVau
       messageIndexRef.current = 0;
     }
   }, [visible]);
+
+  // Reload webview when wallet credentials change (account switch)
+  React.useEffect(() => {
+    if (webViewRef.current && walletCredentials) {
+      // Reset loading state for new account
+      setIsLoading(true);
+      setWebViewLoaded(false);
+      hasLoadedOnceRef.current = false;
+
+      // Reload the webview with new credentials
+      webViewRef.current.reload();
+    }
+  }, [walletCredentials]);
 
   // Don't return null - always render to preload in background
   // if (!visible) return null;
@@ -250,7 +263,7 @@ export default function VaultScreen({ visible, walletCredentials, _autoCreateVau
       )}
     </View>
   );
-}
+});
 
 VaultScreen.propTypes = {
   visible: PropTypes.bool.isRequired,
@@ -264,6 +277,8 @@ VaultScreen.propTypes = {
   }),
   _autoCreateVaultTrigger: PropTypes.number,
 };
+
+export default VaultScreen;
 
 const styles = StyleSheet.create({
   container: {

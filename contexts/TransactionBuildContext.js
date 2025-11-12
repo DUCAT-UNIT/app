@@ -4,7 +4,7 @@
  * Depends on SendFlowContext for form data
  */
 
-import React, { createContext, useContext, useState } from 'react';
+import React, { createContext, useContext, useState, useMemo, useCallback } from 'react';
 import * as TransactionService from '../services/transactionService';
 import { parseErrorMessage } from '../utils/errorParser';
 import { ERRORS } from '../utils/messages';
@@ -28,7 +28,7 @@ export const TransactionBuildProvider = ({ children, wallet, currentAccount, sho
   const [sendIntent, setSendIntent] = useState(null);
 
   // Create BTC transaction using TransactionService
-  const createBtcIntent = async () => {
+  const createBtcIntent = useCallback(async () => {
     try {
       const intent = await TransactionService.createBtcIntent(
         sendRecipient,
@@ -47,10 +47,10 @@ export const TransactionBuildProvider = ({ children, wallet, currentAccount, sho
         setIntentStep('entering_amount');
       }, 100);
     }
-  };
+  }, [sendRecipient, sendAmount, wallet, currentAccount, setIntentStep, showToast]);
 
   // Create UNIT (Rune) transaction using TransactionService
-  const createUnitIntent = async () => {
+  const createUnitIntent = useCallback(async () => {
     try {
       if (!wallet || !wallet.taprootAddress || !wallet.segwitAddress) {
         throw new Error('Wallet not initialized');
@@ -74,10 +74,10 @@ export const TransactionBuildProvider = ({ children, wallet, currentAccount, sho
         setIntentStep('entering_amount');
       }, 100);
     }
-  };
+  }, [sendRecipient, sendAmount, wallet, currentAccount, setIntentStep, showToast]);
 
   // Main create intent function (routes to BTC or UNIT)
-  const createSendIntent = async () => {
+  const createSendIntent = useCallback(async () => {
     const trimmedRecipient = sendRecipient.trim();
     setIntentStep('creating');
 
@@ -105,18 +105,22 @@ export const TransactionBuildProvider = ({ children, wallet, currentAccount, sho
         setIntentStep('selecting_asset');
       }, 100);
     }
-  };
+  }, [sendRecipient, sendAmount, sendAssetType, setIntentStep, setSendRecipient, showToast, createBtcIntent, createUnitIntent]);
 
-  const value = {
-    // State
-    sendIntent,
+  // Memoize the value object to prevent unnecessary re-renders
+  const value = useMemo(
+    () => ({
+      // State
+      sendIntent,
 
-    // Setters
-    setSendIntent,
+      // Setters
+      setSendIntent,
 
-    // Handlers
-    createSendIntent,
-  };
+      // Handlers
+      createSendIntent,
+    }),
+    [sendIntent, createSendIntent]
+  );
 
   return (
     <TransactionBuildContext.Provider value={value}>{children}</TransactionBuildContext.Provider>

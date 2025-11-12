@@ -25,7 +25,7 @@ const QR_SIZE =
   SCREEN_WIDTH < 375 ? Math.min(SCREEN_WIDTH * 0.5, 180) : Math.min(SCREEN_WIDTH * 0.6, 220);
 const LOGO_SIZE = Math.floor(QR_SIZE * 0.21); // 21% of QR size
 
-export default function ReceiveScreen({
+const ReceiveScreen = React.memo(function ReceiveScreen({
   styles,
   showReceiveSheet,
   onClose,
@@ -359,7 +359,7 @@ export default function ReceiveScreen({
       )}
     </>
   );
-}
+});
 
 const localStyles = StyleSheet.create({
   btcTag: {
@@ -416,3 +416,5 @@ ReceiveScreen.propTypes = {
   taprootAddress: PropTypes.string.isRequired,
   showToast: PropTypes.func.isRequired,
 };
+
+export default ReceiveScreen;

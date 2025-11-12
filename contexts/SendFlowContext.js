@@ -4,7 +4,7 @@
  * No dependencies on other contexts - pure UI state
  */
 
-import React, { createContext, useContext, useState, useEffect } from 'react';
+import React, { createContext, useContext, useState, useEffect, useMemo } from 'react';
 
 const SendFlowContext = createContext();
 
@@ -43,21 +43,25 @@ export const SendFlowProvider = ({ children }) => {
     }
   }, [intentStep]);
 
-  const value = {
-    // State
-    intentStep,
-    sendAssetType,
-    sendAmount,
-    sendRecipient,
-    sendAddressType,
+  // Memoize the value object to prevent unnecessary re-renders
+  const value = useMemo(
+    () => ({
+      // State
+      intentStep,
+      sendAssetType,
+      sendAmount,
+      sendRecipient,
+      sendAddressType,
 
-    // Setters
-    setIntentStep,
-    setSendAssetType,
-    setSendAmount,
-    setSendRecipient,
-    setSendAddressType,
-  };
+      // Setters
+      setIntentStep,
+      setSendAssetType,
+      setSendAmount,
+      setSendRecipient,
+      setSendAddressType,
+    }),
+    [intentStep, sendAssetType, sendAmount, sendRecipient, sendAddressType]
+  );
 
   return <SendFlowContext.Provider value={value}>{children}</SendFlowContext.Provider>;
 };

@@ -1,4 +1,4 @@
-import React, { createContext, useContext, useState,  useCallback } from 'react';
+import React, { createContext, useContext, useState, useCallback, useMemo } from 'react';
 import * as SecureStore from 'expo-secure-store';
 import * as WalletService from '../services/walletService';
 import { SECURE_KEYS } from '../utils/constants';
@@ -80,17 +80,21 @@ export const WalletProvider = ({ children }) => {
     }
   }, []);
 
-  const value = {
-    // Wallet state
-    wallet,
-    currentAccount,
+  // Memoize the value object to prevent unnecessary re-renders
+  const value = useMemo(
+    () => ({
+      // Wallet state
+      wallet,
+      currentAccount,
 
-    // Functions
-    loadWallet,
-    setWalletAddresses,
-    switchAccount,
-    resetWallet,
-  };
+      // Functions
+      loadWallet,
+      setWalletAddresses,
+      switchAccount,
+      resetWallet,
+    }),
+    [wallet, currentAccount, loadWallet, setWalletAddresses, switchAccount, resetWallet]
+  );
 
   return <WalletContext.Provider value={value}>{children}</WalletContext.Provider>;
 };

@@ -4,7 +4,7 @@
  * Provides a single context for all global UI state
  */
 
-import React, { createContext, useContext, useState, useRef } from 'react';
+import React, { createContext, useContext, useState, useRef, useMemo, useCallback } from 'react';
 
 const UIContext = createContext();
 
@@ -43,7 +43,7 @@ export const UIProvider = ({ children }) => {
   const [toasts, setToasts] = useState([]);
   const timeoutsRef = useRef({});
 
-  const showToast = (message, type = 'success') => {
+  const showToast = useCallback((message, type = 'success') => {
     // Clear all existing timeouts
     Object.keys(timeoutsRef.current).forEach((key) => {
       clearTimeout(timeoutsRef.current[key]);
@@ -62,9 +62,9 @@ export const UIProvider = ({ children }) => {
       setToasts([]);
       delete timeoutsRef.current[id];
     }, duration);
-  };
+  }, []);
 
-  const dismissToast = (id) => {
+  const dismissToast = useCallback((id) => {
     // Clear timeout
     if (timeoutsRef.current[id]) {
       clearTimeout(timeoutsRef.current[id]);
@@ -73,45 +73,67 @@ export const UIProvider = ({ children }) => {
 
     // Remove toast
     setToasts((prev) => prev.filter((toast) => toast.id !== id));
-  };
+  }, []);
 
   // ============================================================
-  // CONSOLIDATED VALUE
+  // CONSOLIDATED VALUE (MEMOIZED)
   // ============================================================
-  const value = {
-    // Display preferences namespace
-    displayPreferences: {
+  // Memoize the value object to prevent unnecessary re-renders
+  // Computed values for backwards compatibility
+  const toastMessage = toasts[0]?.message || '';
+  const toastVisible = toasts.length > 0;
+  const toastType = toasts[0]?.type || 'success';
+
+  const value = useMemo(
+    () => ({
+      // Display preferences namespace
+      displayPreferences: {
+        showTotalInBTC,
+        setShowTotalInBTC,
+        showBTCInBTC,
+        setShowBTCInBTC,
+        showUnitInUnit,
+        setShowUnitInUnit,
+      },
+      // Toast namespace
+      toast: {
+        showToast,
+        toasts,
+        dismissToast,
+        // Legacy props for backwards compatibility
+        toastMessage,
+        toastVisible,
+        toastType,
+      },
+      // Direct exports for convenience (backwards compatibility)
       showTotalInBTC,
       setShowTotalInBTC,
       showBTCInBTC,
       setShowBTCInBTC,
       showUnitInUnit,
       setShowUnitInUnit,
-    },
-    // Toast namespace
-    toast: {
       showToast,
       toasts,
       dismissToast,
-      // Legacy props for backwards compatibility
-      toastMessage: toasts[0]?.message || '',
-      toastVisible: toasts.length > 0,
-      toastType: toasts[0]?.type || 'success',
-    },
-    // Direct exports for convenience (backwards compatibility)
-    showTotalInBTC,
-    setShowTotalInBTC,
-    showBTCInBTC,
-    setShowBTCInBTC,
-    showUnitInUnit,
-    setShowUnitInUnit,
-    showToast,
-    toasts,
-    dismissToast,
-    toastMessage: toasts[0]?.message || '',
-    toastVisible: toasts.length > 0,
-    toastType: toasts[0]?.type || 'success',
-  };
+      toastMessage,
+      toastVisible,
+      toastType,
+    }),
+    [
+      showTotalInBTC,
+      setShowTotalInBTC,
+      showBTCInBTC,
+      setShowBTCInBTC,
+      showUnitInUnit,
+      setShowUnitInUnit,
+      showToast,
+      toasts,
+      dismissToast,
+      toastMessage,
+      toastVisible,
+      toastType,
+    ]
+  );
 
   return <UIContext.Provider value={value}>{children}</UIContext.Provider>;
 };

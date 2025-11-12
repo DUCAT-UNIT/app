@@ -28,7 +28,7 @@ import ReviewSheet from './send/ReviewSheet';
 import ConfirmationSheet from './send/ConfirmationSheet';
 import LoadingSheet from './send/LoadingSheet';
 
-export default function SendScreen({
+const SendScreen = React.memo(function SendScreen({
   keyboardHeight,
   amountInputRef,
   btcBalance,
@@ -241,7 +241,7 @@ export default function SendScreen({
       />
     </>
   );
-}
+});
 
 SendScreen.propTypes = {
   keyboardHeight: PropTypes.number.isRequired,
@@ -250,3 +250,5 @@ SendScreen.propTypes = {
   unitBalance: PropTypes.number,
   wallet: PropTypes.object,
 };
+
+export default SendScreen;

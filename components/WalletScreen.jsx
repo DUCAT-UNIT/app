@@ -8,10 +8,11 @@ import { usePrice } from '../contexts/PriceContext';
 import { useVaultData } from '../contexts/VaultDataContext';
 import { useDisplayPreferences } from '../contexts/DisplayPreferencesContext';
 import { useWalletCalculations } from '../hooks/useWalletCalculations';
+import { useFormattedBalances } from '../hooks/useFormattedBalances';
 import { COLORS } from '../utils/colors';
 import Icon from './Icon';
 
-export default function WalletScreen({
+const WalletScreen = React.memo(function WalletScreen({
   styles,
   onSendPress,
   onReceivePress,
@@ -23,7 +24,7 @@ export default function WalletScreen({
   showZeroAssets,
 }) {
   const { wallet: _wallet, currentAccount } = useWallet();
-  const { segwitBalance, taprootBalance, runesBalance } = useBalance();
+  const { segwitBalance, taprootBalance, runesBalance, balanceError, setBalanceError, fetchBalance } = useBalance();
   const { btcPrice, _loadingBtcPrice } = usePrice();
   const { vaultData } = useVaultData();
   const { showTotalInBTC, setShowTotalInBTC } = useDisplayPreferences();
@@ -46,6 +47,16 @@ export default function WalletScreen({
     vaultData,
   });
 
+  // Memoize formatted balances to avoid repeated toLocaleString() calls
+  const formatted = useFormattedBalances({
+    totalBalanceBTC,
+    totalBalanceUSD,
+    segwitBalance,
+    taprootBalance,
+    runesBalance: runesBalance && runesBalance.length > 0 ? parseFloat(runesBalance[0][1]) : 0,
+    btcPrice,
+  });
+
   // Prevent multiple rapid clicks on create vault button
   const [creatingVault, setCreatingVault] = React.useState(false);
   const handleCreateVault = React.useCallback(() => {
@@ -55,6 +66,12 @@ export default function WalletScreen({
     // Reset after 2 seconds to allow retry if needed
     setTimeout(() => setCreatingVault(false), 2000);
   }, [creatingVault, onCreateVaultPress]);
+
+  // Handle retry when balance fetch fails
+  const handleRetryBalance = React.useCallback(async () => {
+    setBalanceError(null);
+    await fetchBalance();
+  }, [setBalanceError, fetchBalance]);
 
   return (
     <View style={styles.walletContainer}>
@@ -81,6 +98,18 @@ export default function WalletScreen({
         </View>
       </View>
 
+      {/* Error Banner - Show when balance fetch fails */}
+      {balanceError && (
+        <TouchableOpacity
+          style={localStyles.errorBanner}
+          onPress={handleRetryBalance}
+          activeOpacity={0.8}
+        >
+          <Icon name="warning" size={18} color={COLORS.DANGER_RED} style={localStyles.errorIcon} />
+          <Text style={localStyles.errorText}>{balanceError}</Text>
+        </TouchableOpacity>
+      )}
+
       {/* Total Balance Section - Xverse Style */}
       <View style={styles.xverseBalanceSection}>
         <View style={styles.xverseBalanceLeft}>
@@ -94,12 +123,7 @@ export default function WalletScreen({
                   color={COLORS.VERY_LIGHT_GRAY}
                   style={styles.balanceIcon}
                 />
-                <Text style={styles.xverseBalanceAmount}>
-                  {totalBalanceBTC.toLocaleString('en-US', {
-                    minimumFractionDigits: 8,
-                    maximumFractionDigits: 8,
-                  })}
-                </Text>
+                <Text style={styles.xverseBalanceAmount}>{formatted.totalBTC}</Text>
               </View>
             ) : (
               <Text
@@ -108,11 +132,7 @@ export default function WalletScreen({
                   totalBalanceUSD >= 10000000 && localStyles.largeBalanceAmount,
                 ]}
               >
-                $
-                {totalBalanceUSD.toLocaleString('en-US', {
-                  minimumFractionDigits: 2,
-                  maximumFractionDigits: 2,
-                })}
+                ${formatted.totalUSD}
               </Text>
             )}
           </TouchableOpacity>
@@ -219,12 +239,7 @@ export default function WalletScreen({
                     color={COLORS.SECONDARY_TEXT}
                     style={styles.assetAmountIcon}
                   />
-                  <Text style={styles.assetAmount}>
-                    {(segwitBalance || 0).toLocaleString('en-US', {
-                      minimumFractionDigits: 8,
-                      maximumFractionDigits: 8,
-                    })}
-                  </Text>
+                  <Text style={styles.assetAmount}>{formatted.segwitBTC}</Text>
                 </View>
               </View>
             </View>
@@ -236,21 +251,10 @@ export default function WalletScreen({
                   color={COLORS.SECONDARY_TEXT}
                   style={styles.assetIcon}
                 />
-                <Text style={styles.assetValue}>
-                  {(segwitBalance || 0).toLocaleString('en-US', {
-                    minimumFractionDigits: 8,
-                    maximumFractionDigits: 8,
-                  })}
-                </Text>
+                <Text style={styles.assetValue}>{formatted.segwitBTC}</Text>
               </View>
             ) : (
-              <Text style={styles.assetValue}>
-                ${' '}
-                {((segwitBalance || 0) * (btcPrice || 0)).toLocaleString('en-US', {
-                  minimumFractionDigits: 2,
-                  maximumFractionDigits: 2,
-                })}
-              </Text>
+              <Text style={styles.assetValue}>$ {formatted.segwitUSD}</Text>
             )}
           </View>
         </View>
@@ -272,9 +276,7 @@ export default function WalletScreen({
                     style={styles.assetAmountIcon}
                   />
                   <Text style={styles.assetAmount}>
-                    {runesBalance.length > 0
-                      ? parseFloat(runesBalance[0][1]).toLocaleString()
-                      : '0'}
+                    {runesBalance.length > 0 ? formatted.runes : '0'}
                   </Text>
                 </View>
               </View>
@@ -351,7 +353,7 @@ export default function WalletScreen({
       </View>
     </View>
   );
-}
+});
 
 const localStyles = StyleSheet.create({
   largeBalanceAmount: {
@@ -359,6 +361,28 @@ const localStyles = StyleSheet.create({
   },
   ducatAmount: {
     textAlign: 'left',
+  },
+  errorBanner: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: 'rgba(208, 76, 104, 0.1)',
+    borderLeftWidth: 3,
+    borderLeftColor: COLORS.DANGER_RED,
+    paddingVertical: 12,
+    paddingHorizontal: 16,
+    marginHorizontal: 16,
+    marginTop: 8,
+    marginBottom: 4,
+    borderRadius: 8,
+  },
+  errorIcon: {
+    marginRight: 10,
+  },
+  errorText: {
+    flex: 1,
+    color: COLORS.DANGER_RED,
+    fontSize: 13,
+    fontWeight: '500',
   },
 });
 
@@ -373,3 +397,5 @@ WalletScreen.propTypes = {
   switchingAccount: PropTypes.bool.isRequired,
   showZeroAssets: PropTypes.bool.isRequired,
 };
+
+export default WalletScreen;

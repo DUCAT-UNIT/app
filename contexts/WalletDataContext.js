@@ -4,11 +4,12 @@
  * Manages all wallet-related data fetching with unified auto-refresh logic
  */
 
-import React, { createContext, useContext, useState, useEffect, useCallback } from 'react';
+import React, { createContext, useContext, useState, useEffect, useCallback, useMemo, useRef } from 'react';
 import { fetchWalletBalances, fetchUtxos as fetchUtxosService } from '../services/balanceService';
 import { fetchAllTransactionHistory } from '../services/transactionHistoryService';
 import { fetchVaultData } from '../services/vaultService';
 import { useWallet } from './WalletContext';
+import { usePolling } from '../hooks/usePolling';
 
 const WalletDataContext = createContext();
 
@@ -47,6 +48,7 @@ export const WalletDataProvider = ({ children }) => {
   const [runesBalance, setRunesBalance] = useState([]);
   const [loadingBalance, setLoadingBalance] = useState(false);
   const [refreshing, setRefreshing] = useState(false);
+  const [balanceError, setBalanceError] = useState(null);
 
   // UTXOs state
   const [utxos, setUtxos] = useState([]);
@@ -57,12 +59,14 @@ export const WalletDataProvider = ({ children }) => {
   // ============================================================
   const [transactionHistory, setTransactionHistory] = useState([]);
   const [loadingTransactionHistory, setLoadingTransactionHistory] = useState(false);
+  const [historyError, setHistoryError] = useState(null);
 
   // ============================================================
   // VAULT DATA STATE
   // ============================================================
   const [vaultData, setVaultData] = useState(null);
   const [loadingVault, setLoadingVault] = useState(false);
+  const [vaultError, setVaultError] = useState(null);
 
   // ============================================================
   // BALANCE FUNCTIONS
@@ -79,14 +83,15 @@ export const WalletDataProvider = ({ children }) => {
 
       try {
         setLoadingBalance(true);
+        setBalanceError(null); // Clear previous error
         const balances = await fetchWalletBalances(segwitAddress, taprootAddress);
         setSegwitBalance(balances.segwitBalance);
         setTaprootBalance(balances.taprootBalance);
         setRunesBalance(balances.runesBalance);
       } catch (error) {
-        setSegwitBalance(0);
-        setTaprootBalance(0);
-        setRunesBalance([]);
+        // Set error state instead of silently failing with 0
+        setBalanceError('Failed to fetch balance. Tap to retry.');
+        // Don't reset balances to 0 - keep last known values
       } finally {
         setLoadingBalance(false);
       }
@@ -140,10 +145,13 @@ export const WalletDataProvider = ({ children }) => {
 
     try {
       setLoadingTransactionHistory(true);
+      setHistoryError(null); // Clear previous error
       const history = await fetchAllTransactionHistory(segwitAddress, taprootAddress, vaultPubkey);
       setTransactionHistory(history);
     } catch (error) {
-      setTransactionHistory([]);
+      // Set error state instead of silently failing with empty array
+      setHistoryError('Failed to fetch transaction history');
+      // Don't reset history - keep last known values
     } finally {
       setLoadingTransactionHistory(false);
     }
@@ -170,10 +178,13 @@ export const WalletDataProvider = ({ children }) => {
 
     try {
       setLoadingVault(true);
+      setVaultError(null); // Clear previous error
       const data = await fetchVaultData(vaultPubkey);
       setVaultData(data);
     } catch (error) {
-      setVaultData(null);
+      // Set error state instead of silently failing
+      setVaultError('Failed to fetch vault data');
+      // Don't reset vault data - keep last known values
     } finally {
       setLoadingVault(false);
     }
@@ -187,120 +198,151 @@ export const WalletDataProvider = ({ children }) => {
   }, []);
 
   // ============================================================
-  // AUTO-REFRESH EFFECTS
+  // UNIFIED AUTO-REFRESH POLLING
   // ============================================================
 
-  // Auto-refresh balance every 10 seconds when wallet exists
-  useEffect(() => {
-    if (!wallet) {
-      // Reset balances when no wallet
-      resetBalances();
-      return;
-    }
+  // Track last transaction history fetch time for less frequent polling
+  const lastHistoryFetchRef = useRef(0);
+  // Track previous wallet to detect changes (account switches)
+  const prevWalletRef = useRef(null);
 
-    // Fetch balance immediately
+  // Unified polling callback - fetches all data on a coordinated schedule
+  const pollAllData = useCallback(() => {
+    if (!wallet) return;
+
+    // Always fetch balance and vault together (every 10s)
     fetchBalance();
-
-    // Set up interval to fetch every 10 seconds
-    const interval = setInterval(() => {
-      fetchBalance();
-    }, 10000);
-
-    // Cleanup interval on unmount or when wallet changes
-    return () => clearInterval(interval);
-  }, [wallet, fetchBalance, resetBalances]);
-
-  // Auto-refresh transaction history every 30 seconds when wallet exists
-  useEffect(() => {
-    if (!wallet) {
-      resetTransactionHistory();
-      return;
-    }
-
-    // Fetch transaction history immediately
-    fetchTransactionHistory();
-
-    // Set up interval to fetch every 30 seconds
-    const interval = setInterval(() => {
-      fetchTransactionHistory();
-    }, 30000);
-
-    // Cleanup interval on unmount or when wallet changes
-    return () => clearInterval(interval);
-  }, [wallet, fetchTransactionHistory, resetTransactionHistory]);
-
-  // Auto-refresh vault data every 10 seconds when wallet exists
-  useEffect(() => {
-    if (!wallet) {
-      resetVaultData();
-      return;
-    }
-
-    // Fetch vault data immediately
     fetchVault();
 
-    // Set up interval to fetch every 10 seconds
-    const interval = setInterval(() => {
+    // Fetch transaction history less frequently (every 30s)
+    const now = Date.now();
+    if (now - lastHistoryFetchRef.current >= 30000) {
+      fetchTransactionHistory();
+      lastHistoryFetchRef.current = now;
+    }
+  }, [wallet, fetchBalance, fetchVault, fetchTransactionHistory]);
+
+  // Handle wallet changes - reset data when removed, fetch immediately when changed
+  useEffect(() => {
+    const prevWallet = prevWalletRef.current;
+    prevWalletRef.current = wallet;
+
+    if (!wallet) {
+      // Wallet removed - reset all data
+      resetBalances();
+      resetTransactionHistory();
+      resetVaultData();
+      lastHistoryFetchRef.current = 0;
+    } else if (prevWallet && wallet &&
+               (prevWallet.segwitAddress !== wallet.segwitAddress ||
+                prevWallet.taprootAddress !== wallet.taprootAddress)) {
+      // Wallet changed (account switch) - immediately fetch all data
+      fetchBalance();
       fetchVault();
-    }, 10000);
+      fetchTransactionHistory();
+      lastHistoryFetchRef.current = Date.now();
+    }
+    // Note: On initial mount (prevWallet is null), we rely on usePolling's immediate: true
+  }, [wallet, resetBalances, resetTransactionHistory, resetVaultData, fetchBalance, fetchVault, fetchTransactionHistory]);
 
-    // Cleanup interval on unmount or when wallet changes
-    return () => clearInterval(interval);
-  }, [wallet, fetchVault, resetVaultData]);
+  // Single unified polling mechanism (10 second interval)
+  usePolling({
+    onPoll: pollAllData,
+    interval: 10000,
+    enabled: !!wallet,
+    immediate: true,
+  });
 
   // ============================================================
-  // CONSOLIDATED VALUE
+  // CONSOLIDATED VALUE (MEMOIZED)
   // ============================================================
-  const value = {
-    // Balance namespace
-    balance: {
+  // Memoize the value object to prevent unnecessary re-renders of consumers
+  // Only recreate when actual data or functions change
+  const value = useMemo(
+    () => ({
+      // Balance namespace
+      balance: {
+        segwitBalance,
+        taprootBalance,
+        runesBalance,
+        loadingBalance,
+        refreshing,
+        balanceError,
+        utxos,
+        loadingUtxos,
+        fetchBalance,
+        onRefresh,
+        fetchUtxos,
+        resetBalances,
+      },
+      // Transaction history namespace
+      history: {
+        transactionHistory,
+        loadingTransactionHistory,
+        historyError,
+        fetchTransactionHistory,
+        resetTransactionHistory,
+      },
+      // Vault data namespace
+      vault: {
+        vaultData,
+        loadingVault,
+        vaultError,
+        fetchVault,
+        resetVaultData,
+      },
+      // Direct exports for backwards compatibility
       segwitBalance,
       taprootBalance,
       runesBalance,
       loadingBalance,
       refreshing,
+      balanceError,
+      setBalanceError,
       utxos,
       loadingUtxos,
       fetchBalance,
       onRefresh,
       fetchUtxos,
       resetBalances,
-    },
-    // Transaction history namespace
-    history: {
       transactionHistory,
       loadingTransactionHistory,
+      historyError,
       fetchTransactionHistory,
       resetTransactionHistory,
-    },
-    // Vault data namespace
-    vault: {
       vaultData,
       loadingVault,
+      vaultError,
       fetchVault,
       resetVaultData,
-    },
-    // Direct exports for backwards compatibility
-    segwitBalance,
-    taprootBalance,
-    runesBalance,
-    loadingBalance,
-    refreshing,
-    utxos,
-    loadingUtxos,
-    fetchBalance,
-    onRefresh,
-    fetchUtxos,
-    resetBalances,
-    transactionHistory,
-    loadingTransactionHistory,
-    fetchTransactionHistory,
-    resetTransactionHistory,
-    vaultData,
-    loadingVault,
-    fetchVault,
-    resetVaultData,
-  };
+    }),
+    [
+      // All state dependencies
+      segwitBalance,
+      taprootBalance,
+      runesBalance,
+      loadingBalance,
+      refreshing,
+      balanceError,
+      utxos,
+      loadingUtxos,
+      transactionHistory,
+      loadingTransactionHistory,
+      historyError,
+      vaultData,
+      loadingVault,
+      vaultError,
+      // All function dependencies (already memoized with useCallback)
+      fetchBalance,
+      onRefresh,
+      fetchUtxos,
+      resetBalances,
+      fetchTransactionHistory,
+      resetTransactionHistory,
+      fetchVault,
+      resetVaultData,
+    ]
+  );
 
   return <WalletDataContext.Provider value={value}>{children}</WalletDataContext.Provider>;
 };
