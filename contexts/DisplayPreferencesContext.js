@@ -1,33 +1,13 @@
-import React, { createContext, useContext, useState } from 'react';
+/**
+ * DisplayPreferencesContext - DEPRECATED
+ * This context has been merged into UIContext
+ * This file provides backwards compatibility by re-exporting from UIContext
+ *
+ * @deprecated Use UIContext instead
+ */
 
-const DisplayPreferencesContext = createContext();
+import { UIProvider, useDisplayPreferences } from './UIContext';
 
-export const useDisplayPreferences = () => {
-  const context = useContext(DisplayPreferencesContext);
-  if (!context) {
-    throw new Error('useDisplayPreferences must be used within a DisplayPreferencesProvider');
-  }
-  return context;
-};
-
-export const DisplayPreferencesProvider = ({ children }) => {
-  // Display preferences - UI toggle states for showing values in different units
-  const [showTotalInBTC, setShowTotalInBTC] = useState(false);
-  const [showBTCInBTC, setShowBTCInBTC] = useState(false);
-  const [showUnitInUnit, setShowUnitInUnit] = useState(false);
-
-  const value = {
-    showTotalInBTC,
-    setShowTotalInBTC,
-    showBTCInBTC,
-    setShowBTCInBTC,
-    showUnitInUnit,
-    setShowUnitInUnit,
-  };
-
-  return (
-    <DisplayPreferencesContext.Provider value={value}>
-      {children}
-    </DisplayPreferencesContext.Provider>
-  );
-};
+// Re-export for backwards compatibility
+export { useDisplayPreferences };
+export const DisplayPreferencesProvider = UIProvider;

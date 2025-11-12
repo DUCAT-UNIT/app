@@ -31,7 +31,7 @@ describe('DisplayPreferencesContext', () => {
 
     expect(() => {
       renderHook(() => useDisplayPreferences());
-    }).toThrow('useDisplayPreferences must be used within a DisplayPreferencesProvider');
+    }).toThrow('useUI must be used within a UIProvider');
 
     consoleError.mockRestore();
   });

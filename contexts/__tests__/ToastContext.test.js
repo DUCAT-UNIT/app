@@ -42,7 +42,7 @@ describe('ToastContext', () => {
 
     expect(() => {
       renderHook(() => useToastContext());
-    }).toThrow('useToastContext must be used within a ToastProvider');
+    }).toThrow('useUI must be used within a UIProvider');
 
     consoleError.mockRestore();
   });
