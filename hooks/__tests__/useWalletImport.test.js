@@ -130,6 +130,71 @@ describe('useWalletImport', () => {
 
       expect(result.current.importingWallet).toBe(false);
     });
+
+    it('should load partial persisted state', async () => {
+      // Only importingWallet is present, other fields missing
+      const savedState = {
+        importingWallet: true,
+      };
+      AsyncStorage.getItem.mockResolvedValue(JSON.stringify(savedState));
+
+      const { result } = renderHook(() => useWalletImport(mockProps), {
+        initialProps: mockProps,
+      });
+
+      await act(async () => {
+        await Promise.resolve();
+      });
+
+      expect(result.current.importingWallet).toBe(true);
+      expect(result.current.importSeedPhrase).toEqual(Array(12).fill(''));
+      expect(result.current.isImportedWallet).toBe(false);
+    });
+
+    it('should handle persisted state with undefined values', async () => {
+      // State with undefined values
+      const savedState = {
+        importingWallet: undefined,
+        importSeedPhrase: null,
+        isImportedWallet: undefined,
+      };
+      AsyncStorage.getItem.mockResolvedValue(JSON.stringify(savedState));
+
+      const { result } = renderHook(() => useWalletImport(mockProps), {
+        initialProps: mockProps,
+      });
+
+      await act(async () => {
+        await Promise.resolve();
+      });
+
+      // Should not set values when they are null/undefined
+      expect(result.current.importingWallet).toBe(false);
+      expect(result.current.importSeedPhrase).toEqual(Array(12).fill(''));
+      expect(result.current.isImportedWallet).toBe(false);
+    });
+
+    it('should handle persisted state with false values', async () => {
+      // State with explicit false values (should be loaded)
+      const savedState = {
+        importingWallet: false,
+        importSeedPhrase: ['test', 'words', '', '', '', '', '', '', '', '', '', ''],
+        isImportedWallet: false,
+      };
+      AsyncStorage.getItem.mockResolvedValue(JSON.stringify(savedState));
+
+      const { result } = renderHook(() => useWalletImport(mockProps), {
+        initialProps: mockProps,
+      });
+
+      await act(async () => {
+        await Promise.resolve();
+      });
+
+      expect(result.current.importingWallet).toBe(false);
+      expect(result.current.importSeedPhrase).toEqual(savedState.importSeedPhrase);
+      expect(result.current.isImportedWallet).toBe(false);
+    });
   });
 
   describe('Import Wallet', () => {
@@ -322,6 +387,39 @@ describe('useWalletImport', () => {
       });
 
       expect(mockProps.setSettingUpPin).toHaveBeenCalledWith(true);
+    });
+
+    it('should handle balance fetch errors gracefully', async () => {
+      // Mock setWalletAddresses from context to throw an error
+      const { useWallet } = require('../../contexts/WalletContext');
+      const mockSetWalletAddresses = jest.fn(() => {
+        throw new Error('Balance fetch failed');
+      });
+
+      jest.clearAllMocks();
+      jest.mock('../../contexts/WalletContext', () => ({
+        useWallet: () => ({
+          setWalletAddresses: mockSetWalletAddresses,
+        }),
+      }));
+
+      const { result } = renderHook(() => useWalletImport(mockProps), {
+        initialProps: mockProps,
+      });
+
+      const seedPhrase = Array(12).fill('abandon');
+
+      act(() => {
+        result.current.setImportSeedPhrase(seedPhrase);
+      });
+
+      await act(async () => {
+        await result.current.importWallet();
+      });
+
+      // Should still complete import successfully despite balance error
+      expect(result.current.isImportedWallet).toBe(true);
+      expect(result.current.importingWallet).toBe(false);
     });
   });
 

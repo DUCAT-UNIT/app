@@ -22,6 +22,7 @@ export function useWalletImport({ currentAccount, setSettingUpPin, showToast, lo
   const [importingWallet, setImportingWallet] = useState(false);
   const [importSeedPhrase, setImportSeedPhrase] = useState(Array(12).fill(''));
   const [isImportedWallet, setIsImportedWallet] = useState(false);
+  const [isImporting, setIsImporting] = useState(false); // Loading state
   const seedInputRefs = useRef([]);
 
   // Load persisted import state on mount
@@ -81,6 +82,15 @@ export function useWalletImport({ currentAccount, setSettingUpPin, showToast, lo
    * Import existing wallet from seed phrase
    */
   const importWallet = async () => {
+    // Prevent double-clicking
+    if (isImporting) return;
+
+    // CRITICAL: Set loading state immediately (synchronously) before any async work
+    setIsImporting(true);
+
+    // Force a tiny delay to ensure UI updates before heavy computation
+    await new Promise((resolve) => setTimeout(resolve, 10));
+
     try {
       // Join the array of words and trim/normalize
       const mnemonic = importSeedPhrase
@@ -89,6 +99,7 @@ export function useWalletImport({ currentAccount, setSettingUpPin, showToast, lo
         .trim();
 
       // Import wallet using WalletService (validates and derives addresses)
+      // This is CPU-intensive (BIP32 key derivation) - may take 1-2 seconds
       const { addresses } = await WalletService.importWallet(mnemonic, currentAccount);
 
       // Store wallet in secure storage
@@ -121,6 +132,8 @@ export function useWalletImport({ currentAccount, setSettingUpPin, showToast, lo
       showToast(ERRORS.WALLET_IMPORT_FAILED, 'error');
       // Don't clear the form on error - let user fix their seed phrase
       // They can retry by tapping Import again
+    } finally {
+      setIsImporting(false); // Hide loading indicator
     }
   };
 
@@ -139,6 +152,7 @@ export function useWalletImport({ currentAccount, setSettingUpPin, showToast, lo
     importingWallet,
     importSeedPhrase,
     isImportedWallet,
+    isImporting, // Loading state
     seedInputRefs,
 
     // Setters

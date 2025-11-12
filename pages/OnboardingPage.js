@@ -87,6 +87,7 @@ export default function OnboardingPage({
     importingWallet,
     importSeedPhrase,
     isImportedWallet,
+    isImporting,
     seedInputRefs,
     setImportingWallet,
     setImportSeedPhrase,
@@ -222,6 +223,7 @@ export default function OnboardingPage({
           requiredIndices={requiredIndices}
           wordChoices={wordChoices}
           seedInputRefs={seedInputRefs}
+          isImporting={isImporting}
           setImportingWallet={setImportingWallet}
           setImportSeedPhrase={setImportSeedPhrase}
           setVerificationWords={setVerificationWords}
@@ -259,6 +261,7 @@ export default function OnboardingPage({
           requiredIndices={[]}
           wordChoices={{}}
           seedInputRefs={seedInputRefs}
+          isImporting={isImporting}
           setImportingWallet={setImportingWallet}
           setImportSeedPhrase={setImportSeedPhrase}
           setVerificationWords={setVerificationWords}

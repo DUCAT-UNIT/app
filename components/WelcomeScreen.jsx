@@ -37,6 +37,7 @@ export default function WelcomeScreen({
   requiredIndices,
   wordChoices,
   seedInputRefs,
+  isImporting, // Loading state for import
 
   // State setters
   setImportingWallet,
@@ -57,11 +58,13 @@ export default function WelcomeScreen({
 }) {
   const scrollViewRef = React.useRef(null);
 
-  // Auto-scroll when keyboard appears
+  // Auto-scroll when keyboard appears (minimal scroll distance)
   React.useEffect(() => {
-    const keyboardDidShowListener = Keyboard.addListener('keyboardDidShow', () => {
+    const keyboardDidShowListener = Keyboard.addListener('keyboardDidShow', (e) => {
       setTimeout(() => {
-        scrollViewRef.current?.scrollToEnd({ animated: true });
+        // Scroll only 10% of keyboard height for minimal upward movement
+        const scrollOffset = e.endCoordinates.height * 0.1;
+        scrollViewRef.current?.scrollTo({ y: scrollOffset, animated: true });
       }, 100);
     });
 
@@ -183,8 +186,14 @@ export default function WelcomeScreen({
                   </View>
                 ))}
               </View>
-              <TouchableOpacity style={[styles.button, localStyles.importButton]} onPress={importWallet}>
-                <Text style={styles.buttonText}>Import Wallet</Text>
+              <TouchableOpacity
+                style={[styles.button, localStyles.importButton, isImporting && styles.buttonDisabled]}
+                onPress={importWallet}
+                disabled={isImporting}
+              >
+                <Text style={styles.buttonText}>
+                  {isImporting ? 'Importing...' : 'Import Wallet'}
+                </Text>
               </TouchableOpacity>
               <TouchableOpacity
                 style={[styles.button, styles.secondaryButton]}
@@ -349,6 +358,7 @@ WelcomeScreen.propTypes = {
   requiredIndices: PropTypes.arrayOf(PropTypes.number).isRequired,
   wordChoices: PropTypes.object.isRequired,
   seedInputRefs: PropTypes.object.isRequired,
+  isImporting: PropTypes.bool,
 
   // State setters
   setImportingWallet: PropTypes.func.isRequired,
