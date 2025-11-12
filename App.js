@@ -18,12 +18,10 @@ import * as Sentry from '@sentry/react-native';
 // Contexts
 import { AuthProvider } from './contexts/AuthContext';
 import { WalletProvider } from './contexts/WalletContext';
-import { BalanceProvider } from './contexts/BalanceContext';
+import { WalletDataProvider } from './contexts/WalletDataContext';
 import { PriceProvider } from './contexts/PriceContext';
-import { VaultDataProvider } from './contexts/VaultDataContext';
-import { TransactionHistoryProvider } from './contexts/TransactionHistoryContext';
 // AirdropProvider removed - not currently used in provider hierarchy
-import { DisplayPreferencesProvider } from './contexts/DisplayPreferencesContext';
+import { UIProvider } from './contexts/UIContext';
 
 // Navigation
 import AppNavigator from './navigation/AppNavigator';
@@ -73,17 +71,13 @@ export default function App() {
   return (
     <AuthProvider>
       <WalletProvider>
-        <PriceProvider>
-          <VaultDataProvider>
-            <BalanceProvider>
-              <TransactionHistoryProvider>
-                <DisplayPreferencesProvider>
-                  <AppNavigator />
-                </DisplayPreferencesProvider>
-              </TransactionHistoryProvider>
-            </BalanceProvider>
-          </VaultDataProvider>
-        </PriceProvider>
+        <WalletDataProvider>
+          <PriceProvider>
+            <UIProvider>
+              <AppNavigator />
+            </UIProvider>
+          </PriceProvider>
+        </WalletDataProvider>
       </WalletProvider>
     </AuthProvider>
   );
