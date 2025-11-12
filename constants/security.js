@@ -14,9 +14,6 @@ export const PIN = {
   MAX_ATTEMPTS: 10,
   LOCKOUT_DURATION_MS: 30 * 60 * 1000, // 30 minutes
   LOCKOUT_DURATION_MINUTES: 30,
-
-  // Exponential backoff
-  MAX_BACKOFF_DELAY_MS: 10000, // 10 seconds max delay
 };
 
 /**

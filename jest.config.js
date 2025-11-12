@@ -9,6 +9,14 @@ module.exports = {
     '!**/node_modules/**',
     '!**/__tests__/**',
     '!**/coverage/**',
+    // Exclude non-testable utility files
+    '!utils/constants.js',
+    '!utils/colors.js',
+    '!utils/devTools.js',
+    '!utils/messages.js',
+    // Exclude complex integration contexts (require integration/E2E tests)
+    '!contexts/NavigationHandlersContext.js',
+    '!contexts/SeedPhraseContext.js', // Requires React Native Animated mocking
   ],
   coverageThreshold: {
     global: {

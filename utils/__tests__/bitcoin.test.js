@@ -2,9 +2,119 @@
  * Tests for Bitcoin utility functions
  */
 
-import { validateBitcoinAddress, validateAndNormalizeAddress } from '../bitcoin';
+import * as bitcoin from 'bitcoinjs-lib';
+import * as ecc from '@bitcoinerlab/secp256k1';
+import { validateBitcoinAddress, validateAndNormalizeAddress, deriveAddressesFromMnemonic, MUTINYNET_NETWORK } from '../bitcoin';
+
+// Initialize ECC library for bitcoinjs-lib
+bitcoin.initEccLib(ecc);
 
 describe('bitcoin utilities', () => {
+  describe('deriveAddressesFromMnemonic', () => {
+    const testMnemonic = 'abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon about';
+
+    it('should derive segwit and taproot addresses from mnemonic', () => {
+      const result = deriveAddressesFromMnemonic(testMnemonic, 0);
+
+      expect(result).toHaveProperty('segwitAddress');
+      expect(result).toHaveProperty('taprootAddress');
+      expect(result).toHaveProperty('segwitPubkey');
+      expect(result).toHaveProperty('taprootPubkey');
+
+      // Verify address formats
+      expect(result.segwitAddress).toMatch(/^tb1q[a-z0-9]+$/);
+      expect(result.taprootAddress).toMatch(/^tb1p[a-z0-9]+$/);
+    });
+
+    it('should generate different addresses for different account indices', () => {
+      const account0 = deriveAddressesFromMnemonic(testMnemonic, 0);
+      const account1 = deriveAddressesFromMnemonic(testMnemonic, 1);
+      const account2 = deriveAddressesFromMnemonic(testMnemonic, 2);
+
+      // Addresses should be different for different accounts
+      expect(account0.segwitAddress).not.toBe(account1.segwitAddress);
+      expect(account1.segwitAddress).not.toBe(account2.segwitAddress);
+      expect(account0.taprootAddress).not.toBe(account1.taprootAddress);
+      expect(account1.taprootAddress).not.toBe(account2.taprootAddress);
+    });
+
+    it('should consistently generate same addresses for same mnemonic and account', () => {
+      const result1 = deriveAddressesFromMnemonic(testMnemonic, 0);
+      const result2 = deriveAddressesFromMnemonic(testMnemonic, 0);
+
+      // Should be deterministic
+      expect(result1.segwitAddress).toBe(result2.segwitAddress);
+      expect(result1.taprootAddress).toBe(result2.taprootAddress);
+      expect(result1.segwitPubkey).toBe(result2.segwitPubkey);
+      expect(result1.taprootPubkey).toBe(result2.taprootPubkey);
+    });
+
+    it('should generate hex-encoded public keys', () => {
+      const result = deriveAddressesFromMnemonic(testMnemonic, 0);
+
+      // Segwit pubkey should be 66 chars (33 bytes compressed)
+      expect(result.segwitPubkey).toMatch(/^[0-9a-f]{66}$/);
+      // Taproot pubkey should be 64 chars (32 bytes x-only)
+      expect(result.taprootPubkey).toMatch(/^[0-9a-f]{64}$/);
+    });
+
+    it('should use BIP84 path for segwit (m/84\'/1\'/0\'/0/{index})', () => {
+      // This is implicitly tested by verifying we get valid tb1q addresses
+      const result = deriveAddressesFromMnemonic(testMnemonic, 0);
+      expect(result.segwitAddress).toMatch(/^tb1q/);
+    });
+
+    it('should use BIP86 path for taproot (m/86\'/1\'/0\'/0/{index})', () => {
+      // This is implicitly tested by verifying we get valid tb1p addresses
+      const result = deriveAddressesFromMnemonic(testMnemonic, 0);
+      expect(result.taprootAddress).toMatch(/^tb1p/);
+    });
+
+    it('should default to account index 0 when not specified', () => {
+      const withoutIndex = deriveAddressesFromMnemonic(testMnemonic);
+      const withIndex0 = deriveAddressesFromMnemonic(testMnemonic, 0);
+
+      expect(withoutIndex.segwitAddress).toBe(withIndex0.segwitAddress);
+      expect(withoutIndex.taprootAddress).toBe(withIndex0.taprootAddress);
+    });
+
+    it('should handle high account indices', () => {
+      const result = deriveAddressesFromMnemonic(testMnemonic, 100);
+
+      expect(result.segwitAddress).toMatch(/^tb1q/);
+      expect(result.taprootAddress).toMatch(/^tb1p/);
+      expect(result).toHaveProperty('segwitPubkey');
+      expect(result).toHaveProperty('taprootPubkey');
+    });
+
+    it('should derive addresses for different mnemonics', () => {
+      const mnemonic1 = 'abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon about';
+      const mnemonic2 = 'legal winner thank year wave sausage worth useful legal winner thank yellow';
+
+      const result1 = deriveAddressesFromMnemonic(mnemonic1, 0);
+      const result2 = deriveAddressesFromMnemonic(mnemonic2, 0);
+
+      // Different mnemonics should generate different addresses
+      expect(result1.segwitAddress).not.toBe(result2.segwitAddress);
+      expect(result1.taprootAddress).not.toBe(result2.taprootAddress);
+    });
+  });
+
+  describe('MUTINYNET_NETWORK', () => {
+    it('should have correct testnet configuration', () => {
+      expect(MUTINYNET_NETWORK.bech32).toBe('tb');
+      expect(MUTINYNET_NETWORK.messagePrefix).toBe('\x18Bitcoin Signed Message:\n');
+      expect(MUTINYNET_NETWORK.pubKeyHash).toBe(0x6f);
+      expect(MUTINYNET_NETWORK.scriptHash).toBe(0xc4);
+      expect(MUTINYNET_NETWORK.wif).toBe(0xef);
+    });
+
+    it('should have correct BIP32 configuration', () => {
+      expect(MUTINYNET_NETWORK.bip32.public).toBe(0x043587cf);
+      expect(MUTINYNET_NETWORK.bip32.private).toBe(0x04358394);
+    });
+  });
+
   describe('validateBitcoinAddress', () => {
     describe('valid addresses', () => {
       it('should validate segwit testnet address (tb1q)', () => {
@@ -121,11 +231,36 @@ describe('bitcoin utilities', () => {
         expect(result.type).toBe('segwit');
       });
 
-      // Taproot address type detection - skip for now due to address format issues
-      // it('should detect taproot (tb1p) type', () => {
-      //   const result = validateBitcoinAddress('tb1pqqqqp399et2xygdj5xreqhjjvcmzhxw4aywxecjdzew6hylgvsesf3hn0c');
-      //   expect(result.type).toBe('taproot');
-      // });
+      it('should detect taproot (tb1p) type', () => {
+        // Generate a real taproot address from the test mnemonic
+        const testMnemonic = 'abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon about';
+        const { taprootAddress } = deriveAddressesFromMnemonic(testMnemonic, 0);
+
+        const result = validateBitcoinAddress(taprootAddress);
+        expect(result.valid).toBe(true);
+        expect(result.type).toBe('taproot');
+      });
+
+      it('should detect legacy P2SH type (2)', () => {
+        // P2SH testnet addresses start with '2'
+        const result = validateBitcoinAddress('2MzQwSSnBHWHqSAqtTVQ6v47XtaisrJa1Vc');
+        expect(result.valid).toBe(true);
+        expect(result.type).toBe('legacy');
+      });
+
+      it('should detect legacy P2PKH type (m)', () => {
+        // P2PKH testnet addresses can start with 'm'
+        const result = validateBitcoinAddress('mipcBbFg9gMiCh81Kj8tqqdgoZub1ZJRfn');
+        expect(result.valid).toBe(true);
+        expect(result.type).toBe('legacy');
+      });
+
+      it('should detect legacy P2PKH type (n)', () => {
+        // P2PKH testnet addresses can start with 'n'
+        const result = validateBitcoinAddress('n3GNqMveyvaPvUbH469vDRadqpJMPc84JA');
+        expect(result.valid).toBe(true);
+        expect(result.type).toBe('legacy');
+      });
     });
   });
 

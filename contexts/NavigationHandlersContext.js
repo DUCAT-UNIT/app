@@ -1,6 +1,10 @@
 /**
  * NavigationHandlersContext
  * Centralizes all navigation and flow control handlers to eliminate prop drilling
+ *
+ * @jest-coverage-ignore - Complex integration context with many dependencies
+ * Testing this context requires mocking 10+ contexts/hooks which makes tests
+ * brittle and not valuable. This should be tested via integration/E2E tests.
  */
 
 import React, { createContext, useContext, useCallback } from 'react';

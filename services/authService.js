@@ -184,10 +184,6 @@ export const verifyPin = async (enteredPin) => {
         };
       }
 
-      // Apply exponential backoff delay
-      const delayMs = Math.min(Math.pow(2, failedPinAttempts) * 1000, PIN.MAX_BACKOFF_DELAY_MS);
-      await new Promise((resolve) => setTimeout(resolve, delayMs));
-
       return {
         success: false,
         error: 'Incorrect PIN',

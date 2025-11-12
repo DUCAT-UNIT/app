@@ -5,9 +5,22 @@
 import {
   calculateTransactionFee,
   determineSourceAddress,
+  fetchUtxosForAddress,
+  calculateMaxSendableBTC,
 } from '../transactionCalculationService';
 
+// Mock fetch
+global.fetch = jest.fn();
+
+jest.mock('../../utils/constants', () => ({
+  getAddressUtxoUrl: jest.fn((address) => `https://api.example.com/address/${address}/utxo`),
+}));
+
 describe('transactionCalculationService', () => {
+  beforeEach(() => {
+    jest.clearAllMocks();
+  });
+
   describe('calculateTransactionFee', () => {
     it('should calculate fee for single input single output', () => {
       const fee = calculateTransactionFee(1, 1);
@@ -180,6 +193,205 @@ describe('transactionCalculationService', () => {
       const fee = calculateTransactionFee(1.5, 2.5, 1);
       // 10 + 1.5*68 + 2.5*31 = 10 + 102 + 77.5 = 189.5, ceiled to 190
       expect(fee).toBe(190);
+    });
+  });
+
+  describe('fetchUtxosForAddress', () => {
+    it('should fetch and filter confirmed UTXOs', async () => {
+      const mockUtxos = [
+        { txid: 'tx1', vout: 0, value: 10000, status: { confirmed: true } },
+        { txid: 'tx2', vout: 1, value: 20000, status: { confirmed: false } },
+        { txid: 'tx3', vout: 0, value: 30000, status: { confirmed: true } },
+      ];
+
+      global.fetch.mockResolvedValueOnce({
+        json: async () => mockUtxos,
+      });
+
+      const result = await fetchUtxosForAddress('tb1qtest');
+
+      expect(result).toEqual([
+        { txid: 'tx1', vout: 0, value: 10000, status: { confirmed: true } },
+        { txid: 'tx3', vout: 0, value: 30000, status: { confirmed: true } },
+      ]);
+    });
+
+    it('should return empty array if all UTXOs are unconfirmed', async () => {
+      const mockUtxos = [
+        { txid: 'tx1', vout: 0, value: 10000, status: { confirmed: false } },
+        { txid: 'tx2', vout: 1, value: 20000, status: { confirmed: false } },
+      ];
+
+      global.fetch.mockResolvedValueOnce({
+        json: async () => mockUtxos,
+      });
+
+      const result = await fetchUtxosForAddress('tb1qtest');
+
+      expect(result).toEqual([]);
+    });
+
+    it('should return empty array if no UTXOs', async () => {
+      global.fetch.mockResolvedValueOnce({
+        json: async () => [],
+      });
+
+      const result = await fetchUtxosForAddress('tb1qtest');
+
+      expect(result).toEqual([]);
+    });
+  });
+
+  describe('calculateMaxSendableBTC', () => {
+    it('should calculate max sendable with UTXOs', async () => {
+      const mockUtxos = [
+        { txid: 'tx1', vout: 0, value: 100000, status: { confirmed: true } },
+        { txid: 'tx2', vout: 1, value: 50000, status: { confirmed: true } },
+      ];
+
+      global.fetch.mockResolvedValueOnce({
+        json: async () => mockUtxos,
+      });
+
+      const result = await calculateMaxSendableBTC({
+        sourceAddress: 'tb1qtest',
+        btcBalance: 0.0015,
+        feeRate: 1,
+      });
+
+      // Total: 150000 sats
+      // Fee for 2 inputs, 1 output: 10 + 2*68 + 1*31 = 177 sats
+      // Max sendable: 150000 - 177 = 149823 sats = 0.00149823 BTC
+      expect(result).toBeCloseTo(0.00149823, 8);
+    });
+
+    it('should use fallback estimation when no source address', async () => {
+      const result = await calculateMaxSendableBTC({
+        sourceAddress: null,
+        btcBalance: 0.001,
+        feeRate: 1,
+      });
+
+      // 0.001 BTC = 100000 sats
+      // Estimated fee: 250 sats
+      // Max: (100000 - 250) / 100000000 = 0.0009975 BTC
+      expect(result).toBe(0.0009975);
+    });
+
+    it('should return 0 if result is below dust limit', async () => {
+      const mockUtxos = [
+        { txid: 'tx1', vout: 0, value: 600, status: { confirmed: true } },
+      ];
+
+      global.fetch.mockResolvedValueOnce({
+        json: async () => mockUtxos,
+      });
+
+      const result = await calculateMaxSendableBTC({
+        sourceAddress: 'tb1qtest',
+        btcBalance: 0.000006,
+        feeRate: 1,
+      });
+
+      // 600 - fee = below 546 (dust limit)
+      expect(result).toBe(0);
+    });
+
+    it('should handle fetch errors with fallback', async () => {
+      global.fetch.mockRejectedValueOnce(new Error('Network error'));
+
+      const result = await calculateMaxSendableBTC({
+        sourceAddress: 'tb1qtest',
+        btcBalance: 0.001,
+        feeRate: 1,
+      });
+
+      // Should fall back to balance-based estimation
+      // 0.001 BTC = 100000 sats
+      // Estimated fee: 250 sats
+      // Max: (100000 - 250) / 100000000 = 0.0009975 BTC
+      expect(result).toBe(0.0009975);
+    });
+
+    it('should handle empty UTXO list with fallback', async () => {
+      global.fetch.mockResolvedValueOnce({
+        json: async () => [],
+      });
+
+      const result = await calculateMaxSendableBTC({
+        sourceAddress: 'tb1qtest',
+        btcBalance: 0.001,
+        feeRate: 1,
+      });
+
+      // Total value: 0
+      // Fee: 10 sats (0 inputs, 1 output)
+      // Result: -10 sats, which is < 546, so returns 0
+      expect(result).toBe(0);
+    });
+
+    it('should use custom fee rate', async () => {
+      const mockUtxos = [
+        { txid: 'tx1', vout: 0, value: 100000, status: { confirmed: true } },
+      ];
+
+      global.fetch.mockResolvedValueOnce({
+        json: async () => mockUtxos,
+      });
+
+      const result = await calculateMaxSendableBTC({
+        sourceAddress: 'tb1qtest',
+        btcBalance: 0.001,
+        feeRate: 5,
+      });
+
+      // Total: 100000 sats
+      // Fee for 1 input, 1 output at 5 sat/vbyte: (10 + 68 + 31) * 5 = 545 sats
+      // Max sendable: 100000 - 545 = 99455 sats = 0.00099455 BTC
+      expect(result).toBeCloseTo(0.00099455, 8);
+    });
+
+    it('should calculate correctly with many UTXOs', async () => {
+      const mockUtxos = Array.from({ length: 10 }, (_, i) => ({
+        txid: `tx${i}`,
+        vout: 0,
+        value: 10000,
+        status: { confirmed: true },
+      }));
+
+      global.fetch.mockResolvedValueOnce({
+        json: async () => mockUtxos,
+      });
+
+      const result = await calculateMaxSendableBTC({
+        sourceAddress: 'tb1qtest',
+        btcBalance: 0.001,
+        feeRate: 1,
+      });
+
+      // Total: 10 * 10000 = 100000 sats
+      // Fee for 10 inputs, 1 output: 10 + 10*68 + 1*31 = 721 sats
+      // Max sendable: 100000 - 721 = 99279 sats = 0.00099279 BTC
+      expect(result).toBeCloseTo(0.00099279, 8);
+    });
+
+    it('should handle negative balance after fees', async () => {
+      const mockUtxos = [
+        { txid: 'tx1', vout: 0, value: 100, status: { confirmed: true } },
+      ];
+
+      global.fetch.mockResolvedValueOnce({
+        json: async () => mockUtxos,
+      });
+
+      const result = await calculateMaxSendableBTC({
+        sourceAddress: 'tb1qtest',
+        btcBalance: 0.000001,
+        feeRate: 1,
+      });
+
+      // 100 - fee (109) = negative, which is < 546, so returns 0
+      expect(result).toBe(0);
     });
   });
 });

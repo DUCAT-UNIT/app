@@ -1,0 +1,274 @@
+/**
+ * Tests for useNotifications Hook
+ * Validates push notification permissions and local notification sending
+ */
+
+import React from 'react';
+import { create, act } from 'react-test-renderer';
+import { useNotifications } from '../useNotifications';
+import * as Notifications from 'expo-notifications';
+import { Platform } from 'react-native';
+
+// Mock expo-notifications
+jest.mock('expo-notifications', () => ({
+  setNotificationHandler: jest.fn(),
+  getPermissionsAsync: jest.fn(),
+  requestPermissionsAsync: jest.fn(),
+  setNotificationChannelAsync: jest.fn(),
+  scheduleNotificationAsync: jest.fn(),
+  addNotificationReceivedListener: jest.fn(() => ({ remove: jest.fn() })),
+  addNotificationResponseReceivedListener: jest.fn(() => ({ remove: jest.fn() })),
+  AndroidImportance: {
+    MAX: 5,
+  },
+  AndroidNotificationPriority: {
+    HIGH: 'high',
+  },
+}));
+
+// Helper to render hooks
+function renderHook(hook) {
+  const result = { current: null };
+  function TestComponent() {
+    result.current = hook();
+    return null;
+  }
+  let component;
+  act(() => {
+    component = create(<TestComponent />);
+  });
+  return {
+    result,
+    unmount: () => component.unmount(),
+  };
+}
+
+describe('useNotifications', () => {
+  beforeEach(() => {
+    jest.clearAllMocks();
+    Platform.OS = 'ios';
+  });
+
+  describe('Initialization', () => {
+    it('should initialize and request permissions on mount', () => {
+      Notifications.getPermissionsAsync.mockResolvedValue({ status: 'granted' });
+
+      const { result } = renderHook(() => useNotifications());
+
+      expect(result.current).toBeDefined();
+      expect(result.current.sendTransactionConfirmedNotification).toBeDefined();
+      expect(result.current.registerForPushNotificationsAsync).toBeDefined();
+    });
+
+    it('should set up notification listeners on mount', () => {
+      Notifications.getPermissionsAsync.mockResolvedValue({ status: 'granted' });
+
+      renderHook(() => useNotifications());
+
+      expect(Notifications.addNotificationReceivedListener).toHaveBeenCalled();
+      expect(Notifications.addNotificationResponseReceivedListener).toHaveBeenCalled();
+    });
+
+    it('should clean up listeners on unmount', () => {
+      Notifications.getPermissionsAsync.mockResolvedValue({ status: 'granted' });
+
+      const { unmount, result } = renderHook(() => useNotifications());
+
+      expect(result.current).toBeDefined();
+      expect(() => unmount()).not.toThrow();
+    });
+  });
+
+  describe('Permission Handling', () => {
+    it('should request permissions when not already granted', async () => {
+      Notifications.getPermissionsAsync.mockResolvedValue({ status: 'undetermined' });
+      Notifications.requestPermissionsAsync.mockResolvedValue({ status: 'granted' });
+
+      const { result } = renderHook(() => useNotifications());
+
+      await act(async () => {
+        const success = await result.current.registerForPushNotificationsAsync();
+        expect(success).toBe(true);
+      });
+
+      expect(Notifications.requestPermissionsAsync).toHaveBeenCalled();
+    });
+
+    it('should return false when permissions are denied', async () => {
+      Notifications.getPermissionsAsync.mockResolvedValue({ status: 'denied' });
+      Notifications.requestPermissionsAsync.mockResolvedValue({ status: 'denied' });
+
+      const { result } = renderHook(() => useNotifications());
+
+      await act(async () => {
+        const success = await result.current.registerForPushNotificationsAsync();
+        expect(success).toBe(false);
+      });
+    });
+
+    it('should not request permissions if already granted', async () => {
+      Notifications.getPermissionsAsync.mockResolvedValue({ status: 'granted' });
+
+      const { result } = renderHook(() => useNotifications());
+
+      await act(async () => {
+        const success = await result.current.registerForPushNotificationsAsync();
+        expect(success).toBe(true);
+      });
+
+      expect(Notifications.requestPermissionsAsync).not.toHaveBeenCalled();
+    });
+
+    it('should handle permission request errors gracefully', async () => {
+      Notifications.getPermissionsAsync.mockRejectedValue(new Error('Permission error'));
+
+      const { result } = renderHook(() => useNotifications());
+
+      await act(async () => {
+        const success = await result.current.registerForPushNotificationsAsync();
+        expect(success).toBe(false);
+      });
+    });
+  });
+
+  describe('Android Notification Channel', () => {
+    it('should configure notification channel on Android', async () => {
+      Platform.OS = 'android';
+      Notifications.getPermissionsAsync.mockResolvedValue({ status: 'granted' });
+
+      const { result } = renderHook(() => useNotifications());
+
+      await act(async () => {
+        await result.current.registerForPushNotificationsAsync();
+      });
+
+      expect(Notifications.setNotificationChannelAsync).toHaveBeenCalledWith('default', {
+        name: 'default',
+        importance: 5,
+        vibrationPattern: [0, 250, 250, 250],
+        lightColor: '#FF231F7C',
+      });
+    });
+
+    it('should not configure notification channel on iOS', async () => {
+      Platform.OS = 'ios';
+      Notifications.getPermissionsAsync.mockResolvedValue({ status: 'granted' });
+
+      const { result } = renderHook(() => useNotifications());
+
+      await act(async () => {
+        await result.current.registerForPushNotificationsAsync();
+      });
+
+      expect(Notifications.setNotificationChannelAsync).not.toHaveBeenCalled();
+    });
+  });
+
+  describe('Transaction Notifications', () => {
+    it('should send BTC withdraw notification', async () => {
+      Notifications.scheduleNotificationAsync.mockResolvedValue('notification-id-123');
+
+      const { result } = renderHook(() => useNotifications());
+
+      await act(async () => {
+        await result.current.sendTransactionConfirmedNotification(
+          'BTC',
+          '0.001',
+          'abc123txid',
+          'withdraw'
+        );
+      });
+
+      expect(Notifications.scheduleNotificationAsync).toHaveBeenCalledWith({
+        content: {
+          title: 'Transaction Confirmed',
+          body: 'The withdraw transaction for 0.001 BTC has been confirmed on Mutinynet.',
+          data: { txid: 'abc123txid', assetType: 'BTC', amount: '0.001', type: 'withdraw' },
+          sound: true,
+          priority: 'high',
+        },
+        trigger: null,
+      });
+    });
+
+    it('should send UNIT deposit notification', async () => {
+      Notifications.scheduleNotificationAsync.mockResolvedValue('notification-id-456');
+
+      const { result } = renderHook(() => useNotifications());
+
+      await act(async () => {
+        await result.current.sendTransactionConfirmedNotification(
+          'UNIT',
+          '1000',
+          'def456txid',
+          'deposit'
+        );
+      });
+
+      expect(Notifications.scheduleNotificationAsync).toHaveBeenCalledWith({
+        content: {
+          title: 'Transaction Confirmed',
+          body: 'The deposit transaction for 1000 UNIT has been confirmed on Mutinynet.',
+          data: { txid: 'def456txid', assetType: 'UNIT', amount: '1000', type: 'deposit' },
+          sound: true,
+          priority: 'high',
+        },
+        trigger: null,
+      });
+    });
+
+    it('should handle notification scheduling errors gracefully', async () => {
+      Notifications.scheduleNotificationAsync.mockRejectedValue(new Error('Scheduling failed'));
+
+      const { result } = renderHook(() => useNotifications());
+
+      await act(async () => {
+        // Should not throw
+        await expect(
+          result.current.sendTransactionConfirmedNotification('BTC', '0.001', 'txid123', 'withdraw')
+        ).resolves.not.toThrow();
+      });
+    });
+
+    it('should send notification immediately (null trigger)', async () => {
+      Notifications.scheduleNotificationAsync.mockResolvedValue('notification-id-789');
+
+      const { result } = renderHook(() => useNotifications());
+
+      await act(async () => {
+        await result.current.sendTransactionConfirmedNotification(
+          'BTC',
+          '0.5',
+          'immediate-txid',
+          'withdraw'
+        );
+      });
+
+      const call = Notifications.scheduleNotificationAsync.mock.calls[0][0];
+      expect(call.trigger).toBeNull();
+    });
+  });
+
+  describe('Edge Cases', () => {
+    it('should handle missing notification data gracefully', async () => {
+      Notifications.scheduleNotificationAsync.mockResolvedValue('notification-id');
+
+      const { result } = renderHook(() => useNotifications());
+
+      await act(async () => {
+        await result.current.sendTransactionConfirmedNotification('', '', '', '');
+      });
+
+      expect(Notifications.scheduleNotificationAsync).toHaveBeenCalled();
+    });
+
+    it('should handle listener removal when listeners are null', () => {
+      Notifications.addNotificationReceivedListener.mockReturnValue(null);
+      Notifications.addNotificationResponseReceivedListener.mockReturnValue(null);
+
+      const { unmount } = renderHook(() => useNotifications());
+
+      expect(() => unmount()).not.toThrow();
+    });
+  });
+});

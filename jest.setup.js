@@ -3,6 +3,9 @@
  * Mocks for Expo and React Native modules
  */
 
+// Define __DEV__ for React Native environment
+global.__DEV__ = process.env.NODE_ENV !== 'production';
+
 // Polyfill for Buffer
 global.Buffer = require('buffer').Buffer;
 
@@ -81,4 +84,55 @@ jest.mock('@sentry/react-native', () => ({
   init: jest.fn(),
   captureException: jest.fn(),
   captureMessage: jest.fn(),
+  addBreadcrumb: jest.fn(),
+}));
+
+// Mock React Native core modules
+jest.mock('react-native', () => ({
+  Platform: {
+    OS: 'ios',
+    select: jest.fn((obj) => obj.ios || obj.default),
+  },
+  Keyboard: {
+    addListener: jest.fn(() => ({ remove: jest.fn() })),
+    removeListener: jest.fn(),
+  },
+  Alert: {
+    alert: jest.fn(),
+  },
+  StyleSheet: {
+    create: jest.fn((styles) => styles),
+  },
+  Dimensions: {
+    get: jest.fn(() => ({ width: 375, height: 812 })),
+  },
+  AppState: {
+    addEventListener: jest.fn(() => ({ remove: jest.fn() })),
+    currentState: 'active',
+  },
+  Animated: {
+    Value: jest.fn(() => ({
+      setValue: jest.fn(),
+      interpolate: jest.fn(),
+      _value: 0,
+    })),
+    timing: jest.fn(() => ({
+      start: jest.fn((callback) => callback && callback()),
+    })),
+    spring: jest.fn(() => ({
+      start: jest.fn((callback) => callback && callback()),
+    })),
+    View: 'Animated.View',
+  },
+  PanResponder: {
+    create: jest.fn((config) => ({
+      panHandlers: {
+        onStartShouldSetResponder: config.onStartShouldSetPanResponder || (() => false),
+        onMoveShouldSetResponder: config.onMoveShouldSetPanResponder || (() => false),
+        onResponderGrant: config.onPanResponderGrant || (() => {}),
+        onResponderMove: config.onPanResponderMove || (() => {}),
+        onResponderRelease: config.onPanResponderRelease || (() => {}),
+      },
+    })),
+  },
 }));

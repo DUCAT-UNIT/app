@@ -15,7 +15,7 @@
     "ios": {
       "supportsTablet": true,
       "bundleIdentifier": "com.anonymous.SimpleWallet",
-      "buildNumber": "1",
+      "buildNumber": "2",
       "infoPlist": {
         "UIBackgroundModes": ["remote-notification", "fetch"],
         "NSFaceIDUsageDescription": "We use Face ID to securely authenticate and protect your wallet.",

@@ -19,17 +19,24 @@
     "production": {
       "distribution": "store",
       "ios": {
-        "simulator": false
+        "simulator": false,
+        "buildConfiguration": "Release"
+      },
+      "env": {
+        "EXPO_PUBLIC_ENV": "production"
       }
     }
   },
   "submit": {
     "production": {
       "ios": {
-        "appleId": "your-apple-id@example.com",
-        "ascAppId": "your-app-store-connect-app-id",
-        "appleTeamId": "your-team-id"
+        "appleId": "LUCAS@DUCATPROTOCOL.COM",
+        "ascAppId": "1234567890",
+        "appleTeamId": "Q8HU4KXHK4"
       }
     }
+  },
+  "project": {
+    "id": "e2ab7ac3-3da0-4033-b470-a287e6b982ad"
   }
 }

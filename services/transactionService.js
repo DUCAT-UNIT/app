@@ -614,7 +614,7 @@ export const signIntent = async (intent, currentAccount) => {
     // VERIFY: Check that runestone is in the transaction (for UNIT transactions)
     if (intent.assetType === 'UNIT') {
       signedTx.outs.forEach((output, _index) => {
-        const _scriptHex = output.script.toString('hex');
+        const scriptHex = output.script.toString('hex');
 
         if (scriptHex.startsWith('6a')) {
           // Check if it contains the runestone marker (0x0d = 13 in decimal, the Runes protocol tag)

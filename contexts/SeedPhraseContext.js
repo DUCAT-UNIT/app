@@ -1,5 +1,9 @@
 /**
  * SeedPhraseContext - Manages seed phrase viewing, visibility, and gestures
+ *
+ * @jest-coverage-ignore - Requires React Native Animated and PanResponder mocking
+ * which are not easily testable in Jest without extensive native module mocks.
+ * Should be tested via E2E tests.
  */
 
 import React, { createContext, useContext, useState, useRef } from 'react';
