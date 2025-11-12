@@ -44,9 +44,45 @@ function renderHook(hook) {
 }
 
 describe('useNotifications', () => {
+  // Capture the notification handler before any tests run
+  let capturedNotificationHandler;
+
+  beforeAll(() => {
+    // The setNotificationHandler is called at module load time
+    // Capture it before any tests run
+    if (Notifications.setNotificationHandler.mock.calls.length > 0) {
+      capturedNotificationHandler = Notifications.setNotificationHandler.mock.calls[0][0];
+    }
+  });
+
   beforeEach(() => {
+    // Don't clear setNotificationHandler mock since it's called at module level
+    const setHandlerCalls = Notifications.setNotificationHandler.mock.calls;
     jest.clearAllMocks();
+    // Restore setNotificationHandler calls
+    if (setHandlerCalls.length > 0) {
+      Notifications.setNotificationHandler.mock.calls = setHandlerCalls;
+    }
     Platform.OS = 'ios';
+  });
+
+  describe('Notification Handler Configuration', () => {
+    it('should configure notification handler to show alerts and banners', async () => {
+      // Use the captured handler or get from mock calls
+      const handler = capturedNotificationHandler || Notifications.setNotificationHandler.mock.calls[0][0];
+      expect(handler).toBeDefined();
+      expect(handler.handleNotification).toBeDefined();
+
+      // Call the handleNotification function and verify it returns correct config
+      const config = await handler.handleNotification();
+
+      expect(config).toEqual({
+        shouldShowAlert: true,
+        shouldShowBanner: true,
+        shouldPlaySound: true,
+        shouldSetBadge: false,
+      });
+    });
   });
 
   describe('Initialization', () => {
@@ -67,6 +103,65 @@ describe('useNotifications', () => {
 
       expect(Notifications.addNotificationReceivedListener).toHaveBeenCalled();
       expect(Notifications.addNotificationResponseReceivedListener).toHaveBeenCalled();
+    });
+
+    it('should handle notification received callback', () => {
+      Notifications.getPermissionsAsync.mockResolvedValue({ status: 'granted' });
+      let notificationCallback;
+
+      Notifications.addNotificationReceivedListener.mockImplementation((callback) => {
+        notificationCallback = callback;
+        return { remove: jest.fn() };
+      });
+
+      renderHook(() => useNotifications());
+
+      // Verify callback was registered
+      expect(notificationCallback).toBeDefined();
+
+      // Call the callback with a mock notification
+      const mockNotification = {
+        request: {
+          content: {
+            title: 'Test',
+            body: 'Test notification',
+          },
+        },
+      };
+
+      // Should not throw when called
+      expect(() => notificationCallback(mockNotification)).not.toThrow();
+    });
+
+    it('should handle notification response callback', () => {
+      Notifications.getPermissionsAsync.mockResolvedValue({ status: 'granted' });
+      let responseCallback;
+
+      Notifications.addNotificationResponseReceivedListener.mockImplementation((callback) => {
+        responseCallback = callback;
+        return { remove: jest.fn() };
+      });
+
+      renderHook(() => useNotifications());
+
+      // Verify callback was registered
+      expect(responseCallback).toBeDefined();
+
+      // Call the callback with a mock response
+      const mockResponse = {
+        notification: {
+          request: {
+            content: {
+              title: 'Test',
+              body: 'Test notification',
+            },
+          },
+        },
+        actionIdentifier: 'default',
+      };
+
+      // Should not throw when called
+      expect(() => responseCallback(mockResponse)).not.toThrow();
     });
 
     it('should clean up listeners on unmount', () => {
@@ -215,6 +310,25 @@ describe('useNotifications', () => {
         },
         trigger: null,
       });
+    });
+
+    it('should use default withdraw type when type parameter is omitted', async () => {
+      Notifications.scheduleNotificationAsync.mockResolvedValue('notification-id-default');
+
+      const { result } = renderHook(() => useNotifications());
+
+      await act(async () => {
+        // Call without the type parameter to test default value
+        await result.current.sendTransactionConfirmedNotification(
+          'BTC',
+          '0.002',
+          'default-txid'
+        );
+      });
+
+      const call = Notifications.scheduleNotificationAsync.mock.calls[0][0];
+      expect(call.content.body).toContain('withdraw');
+      expect(call.content.data.type).toBe('withdraw');
     });
 
     it('should handle notification scheduling errors gracefully', async () => {

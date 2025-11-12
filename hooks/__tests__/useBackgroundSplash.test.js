@@ -108,11 +108,24 @@ describe('useBackgroundSplash', () => {
   });
 
   it('should clean up listener on unmount', () => {
-    const removeMock = jest.fn();
-    AppState.addEventListener = jest.fn(() => ({ remove: removeMock }));
-
     const { unmount } = renderHook(() => useBackgroundSplash());
 
+    // Verify listener was registered
+    expect(AppState.addEventListener).toHaveBeenCalledWith('change', expect.any(Function));
+
+    // Unmount should not throw
     expect(() => unmount()).not.toThrow();
+  });
+
+  it('should handle unknown app states gracefully', () => {
+    const { result } = renderHook(() => useBackgroundSplash());
+
+    // Test an unknown/future app state value
+    act(() => {
+      mockListeners.change('unknown');
+    });
+
+    // Should not change state for unknown values
+    expect(result.current.showBackgroundSplash).toBe(false);
   });
 });

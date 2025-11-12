@@ -139,6 +139,73 @@ describe('useWalletCreation', () => {
 
       expect(result.current.tempMnemonicWords).toEqual([]);
     });
+
+    it('should load partial persisted state', async () => {
+      // Only tempMnemonicWords is present, other fields missing
+      const savedState = {
+        tempMnemonicWords: ['abandon', 'ability', 'able', 'about', 'above', 'absent', 'absorb', 'abstract', 'absurd', 'abuse', 'access', 'accident'],
+      };
+      AsyncStorage.getItem.mockResolvedValue(JSON.stringify(savedState));
+
+      const { result } = renderHook(() => useWalletCreation(mockProps), {
+        initialProps: mockProps,
+      });
+
+      await act(async () => {
+        await Promise.resolve();
+      });
+
+      expect(result.current.tempMnemonicWords).toEqual(savedState.tempMnemonicWords);
+      expect(result.current.showingIntro).toBe(false);
+      expect(result.current.showingSeeds).toBe(false);
+    });
+
+    it('should handle persisted state with undefined values', async () => {
+      // State with undefined values
+      const savedState = {
+        tempMnemonicWords: null,
+        tempMnemonic: null,
+        showingIntro: undefined,
+        showingSeeds: undefined,
+      };
+      AsyncStorage.getItem.mockResolvedValue(JSON.stringify(savedState));
+
+      const { result } = renderHook(() => useWalletCreation(mockProps), {
+        initialProps: mockProps,
+      });
+
+      await act(async () => {
+        await Promise.resolve();
+      });
+
+      // Should not set values when they are null/undefined
+      expect(result.current.tempMnemonicWords).toEqual([]);
+      expect(result.current.showingIntro).toBe(false);
+      expect(result.current.showingSeeds).toBe(false);
+    });
+
+    it('should handle persisted state with false values', async () => {
+      // State with explicit false values (should be loaded)
+      const savedState = {
+        tempMnemonicWords: ['test', 'words'],
+        tempMnemonic: 'test mnemonic',
+        showingIntro: false,
+        showingSeeds: false,
+      };
+      AsyncStorage.getItem.mockResolvedValue(JSON.stringify(savedState));
+
+      const { result } = renderHook(() => useWalletCreation(mockProps), {
+        initialProps: mockProps,
+      });
+
+      await act(async () => {
+        await Promise.resolve();
+      });
+
+      expect(result.current.tempMnemonicWords).toEqual(savedState.tempMnemonicWords);
+      expect(result.current.showingIntro).toBe(false);
+      expect(result.current.showingSeeds).toBe(false);
+    });
   });
 
   describe('Create Wallet', () => {

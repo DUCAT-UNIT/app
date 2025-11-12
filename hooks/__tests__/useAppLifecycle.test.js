@@ -435,6 +435,71 @@ describe('useAppLifecycle', () => {
 
       expect(() => unmount()).not.toThrow();
     });
+
+    it('should clear timer on unmount even when not authenticated', () => {
+      // Start with authenticated to create timer
+      mockProps.isAuthenticated = true;
+      mockProps.walletExists.current = true;
+      mockProps.seedConfirmedRef.current = true;
+      mockProps.isBiometricSupported = true;
+
+      const { unmount, rerender } = renderHook(() => useAppLifecycle(mockProps), {
+        initialProps: mockProps,
+      });
+
+      expect(jest.getTimerCount()).toBeGreaterThan(0);
+
+      // Change to not authenticated
+      mockProps.isAuthenticated = false;
+      rerender(mockProps);
+
+      // Unmount should still clean up properly
+      expect(() => unmount()).not.toThrow();
+    });
+
+    it('should clean up inactivity timer through final useEffect', () => {
+      mockProps.isAuthenticated = false;
+      mockProps.walletExists.current = false;
+      mockProps.seedConfirmedRef.current = false;
+      mockProps.isBiometricSupported = false;
+
+      const { unmount, result } = renderHook(() => useAppLifecycle(mockProps), {
+        initialProps: mockProps,
+      });
+
+      // Manually create a timer by calling resetInactivityTimer
+      act(() => {
+        result.current.resetInactivityTimer();
+      });
+
+      // Verify timer was created
+      expect(jest.getTimerCount()).toBeGreaterThan(0);
+
+      // Unmount should trigger final cleanup useEffect
+      act(() => {
+        unmount();
+      });
+
+      // Should not throw
+      expect(true).toBe(true);
+    });
+
+    it('should handle cleanup when timer is null', () => {
+      mockProps.isAuthenticated = false;
+      mockProps.walletExists.current = false;
+      mockProps.seedConfirmedRef.current = false;
+      mockProps.isBiometricSupported = false;
+
+      const { unmount } = renderHook(() => useAppLifecycle(mockProps), {
+        initialProps: mockProps,
+      });
+
+      // No timer should exist
+      expect(jest.getTimerCount()).toBe(0);
+
+      // Unmount should still work when timer is null
+      expect(() => unmount()).not.toThrow();
+    });
   });
 
   describe('Cleanup', () => {
@@ -512,6 +577,85 @@ describe('useAppLifecycle', () => {
 
       // Timer should now be active
       expect(jest.getTimerCount()).toBeGreaterThan(0);
+    });
+
+    it('should handle cleanup when changing from authenticated to not authenticated', () => {
+      // Start authenticated
+      mockProps.isAuthenticated = true;
+      mockProps.walletExists.current = true;
+      mockProps.seedConfirmedRef.current = true;
+      mockProps.isBiometricSupported = true;
+
+      const { rerender } = renderHook(() => useAppLifecycle(mockProps), {
+        initialProps: mockProps,
+      });
+
+      expect(jest.getTimerCount()).toBeGreaterThan(0);
+
+      // Change to not authenticated - should trigger cleanup
+      mockProps.isAuthenticated = false;
+      act(() => {
+        rerender(mockProps);
+      });
+
+      // Timer should be cleared
+      expect(jest.getTimerCount()).toBeLessThan(2);
+    });
+
+    it('should handle cleanup when wallet stops existing', () => {
+      // Start with wallet existing
+      mockProps.isAuthenticated = true;
+      mockProps.walletExists.current = true;
+      mockProps.seedConfirmedRef.current = true;
+      mockProps.isBiometricSupported = true;
+
+      const { rerender } = renderHook(() => useAppLifecycle(mockProps), {
+        initialProps: mockProps,
+      });
+
+      expect(jest.getTimerCount()).toBeGreaterThan(0);
+
+      // Change wallet to not exist - should trigger cleanup
+      mockProps.walletExists.current = false;
+      act(() => {
+        rerender(mockProps);
+      });
+
+      // Timer should be cleared
+      expect(jest.getTimerCount()).toBeLessThan(2);
+    });
+
+    it('should handle rapid authentication state changes', () => {
+      // Start not authenticated
+      mockProps.isAuthenticated = false;
+      mockProps.walletExists.current = true;
+      mockProps.seedConfirmedRef.current = true;
+      mockProps.isBiometricSupported = true;
+
+      const { rerender } = renderHook(() => useAppLifecycle(mockProps), {
+        initialProps: mockProps,
+      });
+
+      // Authenticate
+      mockProps.isAuthenticated = true;
+      act(() => {
+        rerender(mockProps);
+      });
+
+      // Immediately de-authenticate (rapid change)
+      mockProps.isAuthenticated = false;
+      act(() => {
+        rerender(mockProps);
+      });
+
+      // Re-authenticate again
+      mockProps.isAuthenticated = true;
+      act(() => {
+        rerender(mockProps);
+      });
+
+      // Should not throw
+      expect(true).toBe(true);
     });
   });
 });

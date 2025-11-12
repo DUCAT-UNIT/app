@@ -185,4 +185,133 @@ describe('useTransactionPolling', () => {
 
     expect(onConfirmed).not.toHaveBeenCalled();
   });
+
+  it('should handle HTTP error responses', async () => {
+    const { result } = renderHook(() => useTransactionPolling());
+    const onConfirmed = jest.fn();
+    const onError = jest.fn();
+
+    global.fetch.mockResolvedValue({
+      ok: false,
+      status: 404,
+    });
+
+    act(() => {
+      result.current.startPolling('test-txid', onConfirmed, onError);
+    });
+
+    await act(async () => {
+      jest.advanceTimersByTime(5000);
+      await Promise.resolve();
+    });
+
+    expect(onError).toHaveBeenCalledWith(expect.any(Error));
+    expect(onError.mock.calls[0][0].message).toBe('Failed to fetch transaction status');
+  });
+
+  it('should clear existing interval when starting new poll', async () => {
+    const { result } = renderHook(() => useTransactionPolling());
+    const onConfirmed1 = jest.fn();
+    const onConfirmed2 = jest.fn();
+
+    global.fetch.mockResolvedValue({
+      ok: true,
+      json: async () => ({ status: { confirmed: false } }),
+    });
+
+    // Start first poll
+    act(() => {
+      result.current.startPolling('txid-1', onConfirmed1);
+    });
+
+    // Start second poll immediately (should clear first)
+    act(() => {
+      result.current.startPolling('txid-2', onConfirmed2);
+    });
+
+    await act(async () => {
+      jest.advanceTimersByTime(5000);
+      await Promise.resolve();
+    });
+
+    // Only second poll should be called
+    expect(global.fetch).toHaveBeenCalledWith('https://api.test/tx/txid-2');
+    expect(global.fetch).not.toHaveBeenCalledWith('https://api.test/tx/txid-1');
+  });
+
+  it('should reach max attempts and call onConfirmed with false', async () => {
+    const { result } = renderHook(() => useTransactionPolling());
+    const onConfirmed = jest.fn();
+
+    global.fetch.mockResolvedValue({
+      ok: true,
+      json: async () => ({ status: { confirmed: false } }),
+    });
+
+    act(() => {
+      result.current.startPolling('test-txid', onConfirmed);
+    });
+
+    // Advance through all 60 attempts (60 * 5 seconds = 300 seconds)
+    for (let i = 0; i < 60; i++) {
+      await act(async () => {
+        jest.advanceTimersByTime(5000);
+        await Promise.resolve();
+      });
+    }
+
+    expect(onConfirmed).toHaveBeenCalledWith(false);
+  });
+
+  it('should handle onError being undefined', async () => {
+    const { result } = renderHook(() => useTransactionPolling());
+    const onConfirmed = jest.fn();
+
+    global.fetch.mockRejectedValue(new Error('Network error'));
+
+    act(() => {
+      result.current.startPolling('test-txid', onConfirmed);
+    });
+
+    await act(async () => {
+      jest.advanceTimersByTime(5000);
+      await Promise.resolve();
+    });
+
+    // Should not throw when onError is undefined
+    expect(onConfirmed).not.toHaveBeenCalled();
+  });
+
+  it('should handle onConfirmed being undefined', async () => {
+    const { result } = renderHook(() => useTransactionPolling());
+
+    global.fetch.mockResolvedValue({
+      ok: true,
+      json: async () => ({ status: { confirmed: true } }),
+    });
+
+    act(() => {
+      result.current.startPolling('test-txid');
+    });
+
+    await act(async () => {
+      jest.advanceTimersByTime(5000);
+      await Promise.resolve();
+    });
+
+    // Should not throw when onConfirmed is undefined
+    expect(global.fetch).toHaveBeenCalled();
+  });
+
+  it('should handle stopPolling when no polling is active', () => {
+    const { result } = renderHook(() => useTransactionPolling());
+
+    // Call stopPolling without starting any poll
+    act(() => {
+      result.current.stopPolling();
+    });
+
+    // Should not throw
+    expect(result.current).toBeDefined();
+  });
 });
