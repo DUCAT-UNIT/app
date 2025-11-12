@@ -17,9 +17,15 @@
       "bundleIdentifier": "com.anonymous.SimpleWallet",
       "buildNumber": "2",
       "infoPlist": {
-        "UIBackgroundModes": ["remote-notification", "fetch"],
+        "UIBackgroundModes": [
+          "remote-notification",
+          "fetch",
+          "remote-notification",
+          "fetch"
+        ],
         "NSFaceIDUsageDescription": "We use Face ID to securely authenticate and protect your wallet.",
-        "NSCameraUsageDescription": "We need camera access to scan QR codes for sending Bitcoin."
+        "NSCameraUsageDescription": "We need camera access to scan QR codes for sending Bitcoin.",
+        "ITSAppUsesNonExemptEncryption": false
       }
     },
     "android": {
@@ -42,6 +48,12 @@
           "color": "#ffffff"
         }
       ]
-    ]
+    ],
+    "extra": {
+      "eas": {
+        "projectId": "0f1d2d8f-944e-49f8-a48d-bf4c96b96ebb"
+      }
+    },
+    "owner": "zk_bit"
   }
 }

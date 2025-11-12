@@ -31,12 +31,9 @@
     "production": {
       "ios": {
         "appleId": "LUCAS@DUCATPROTOCOL.COM",
-        "ascAppId": "1234567890",
+        "ascAppId": "6755183500",
         "appleTeamId": "Q8HU4KXHK4"
       }
     }
-  },
-  "project": {
-    "id": "e2ab7ac3-3da0-4033-b470-a287e6b982ad"
   }
 }
