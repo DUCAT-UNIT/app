@@ -205,6 +205,14 @@ export const WalletDataProvider = ({ children }) => {
       setVaultError(null); // Clear previous error
       const data = await fetchVaultData(vaultPubkey);
       console.log('🏦 WalletDataContext: Vault data received:', data ? 'Data exists' : 'null (no vault)');
+      if (data) {
+        console.log('🏦 Wallet Card Vault Data:', {
+          vaultTag: data.vaultTag,
+          totalDebt: data.totalDebt,
+          totalCollateral: data.totalCollateral,
+          currentPrice: data.currentPrice,
+        });
+      }
       setVaultData(data);
     } catch (error) {
       console.error('❌ WalletDataContext: Error fetching vault data:', error);

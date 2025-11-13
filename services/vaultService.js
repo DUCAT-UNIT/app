@@ -114,14 +114,29 @@ export const fetchVaultData = async (vaultPubkey) => {
 
     const vaultListData = await vaultListResponse.json();
     console.log('🏦 Vault list response:', vaultListData);
+    console.log('🏦 Number of vaults found:', vaultListData.vaults?.length || 0);
 
     if (!vaultListData.vaults || vaultListData.vaults.length === 0) {
       console.log('⚠️ No vaults found for this pubkey - vault not created yet');
       return null;
     }
 
+    // If multiple vaults, log them all
+    if (vaultListData.vaults.length > 1) {
+      console.log('⚠️ MULTIPLE VAULTS FOUND for this pubkey:');
+      vaultListData.vaults.forEach((vault, index) => {
+        console.log(`  Vault ${index + 1}:`, {
+          vault_id: vault.vault_id,
+          vault_tag: vault.vault_tag,
+          btc_locked: vault.btc_locked,
+          unit_borrowed: vault.unit_borrowed,
+        });
+      });
+    }
+
     const vaultId = vaultListData.vaults[0].vault_id;
     const vaultTag = vaultListData.vaults[0].vault_tag;
+    console.log('🏦 Using vault:', { vault_id: vaultId, vault_tag: vaultTag });
 
     // Step 2: Get vault history to retrieve transaction details
     const now = Math.floor(Date.now() / 1000);

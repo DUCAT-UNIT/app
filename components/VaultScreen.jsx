@@ -99,6 +99,12 @@ const VaultScreen = React.memo(function VaultScreen({ visible, walletCredentials
   React.useEffect(() => {
     if (visible) {
       console.log('🏦 Vault became visible - will inject wallet credentials');
+      console.log('🏦 Vault WebView credentials:', {
+        vaultAddress: walletCredentials?.vaultAddress,
+        vaultPubkey: walletCredentials?.vaultPubkey,
+        satsAddress: walletCredentials?.satsAddress,
+        runesAddress: walletCredentials?.runesAddress,
+      });
       setTimeout(() => {
         injectWalletCredentials();
       }, 1000);
