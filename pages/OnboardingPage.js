@@ -48,7 +48,7 @@ export default function OnboardingPage({
   const {
     isAuthenticated,
     isBiometricSupported,
-    _biometricEnabled,
+    biometricEnabled,
     showBiometricPrompt,
     showFaceIdButton,
     settingUpPin,
