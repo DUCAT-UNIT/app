@@ -167,21 +167,25 @@ export const fetchVaultData = async (vaultPubkey) => {
     const vaultHistoryData = await vaultHistoryResponse.json();
 
     if (!vaultHistoryData.history || vaultHistoryData.history.length === 0) {
+      // Use data from first vault only (not totals across all vaults)
+      const firstVault = vaultListData.vaults[0];
       return {
         vaultTag,
-        totalDebt: vaultListData.total_debt,
-        totalCollateral: vaultListData.total_collateral,
+        totalDebt: firstVault.unit_borrowed,
+        totalCollateral: firstVault.btc_locked,
         currentPrice: vaultListData.current_price,
       };
     }
 
     const latestTransaction = vaultHistoryData.history[0];
 
+    // Use data from first vault only (not totals across all vaults)
+    const firstVault = vaultListData.vaults[0];
     const vaultData = {
       vaultId,
       vaultTag,
-      totalDebt: vaultListData.total_debt,
-      totalCollateral: vaultListData.total_collateral,
+      totalDebt: firstVault.unit_borrowed,
+      totalCollateral: firstVault.btc_locked,
       currentPrice: vaultListData.current_price,
       latestTransaction: {
         amountBorrowed: latestTransaction.amount_borrowed,
@@ -194,10 +198,10 @@ export const fetchVaultData = async (vaultPubkey) => {
       },
     };
 
-    console.log('✅ Vault data fetched successfully:', {
+    console.log('✅ Vault data fetched successfully (first vault only):', {
       vaultTag,
-      totalDebt: vaultListData.total_debt,
-      totalCollateral: vaultListData.total_collateral,
+      totalDebt: firstVault.unit_borrowed,
+      totalCollateral: firstVault.btc_locked,
     });
 
     return vaultData;
