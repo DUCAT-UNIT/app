@@ -102,6 +102,7 @@ export const createBtcIntent = async (recipient, amount, segwitAddress, _current
      * Recalculate fee if more inputs are needed
      */
     const selectedUtxos = [];
+    const selectedUtxoKeys = new Set(); // Track selected UTXOs by txid:vout
     let totalInput = 0;
     let estimatedFee = 0;
     let previousFee = 0;
@@ -117,18 +118,22 @@ export const createBtcIntent = async (recipient, amount, segwitAddress, _current
       // If we don't have enough, add more UTXOs
       while (selectedUtxos.length < availableUtxos.length) {
         // Find next available UTXO (prefer confirmed, but allow unconfirmed for chaining)
-        let nextUtxo = availableUtxos.find(
-          (utxo) => utxo.status.confirmed && !selectedUtxos.includes(utxo)
-        );
+        let nextUtxo = availableUtxos.find((utxo) => {
+          const key = `${utxo.txid}:${utxo.vout}`;
+          return utxo.status.confirmed && !selectedUtxoKeys.has(key);
+        });
         // If no confirmed UTXOs available, use unconfirmed
         if (!nextUtxo) {
-          nextUtxo = availableUtxos.find(
-            (utxo) => !selectedUtxos.includes(utxo)
-          );
+          nextUtxo = availableUtxos.find((utxo) => {
+            const key = `${utxo.txid}:${utxo.vout}`;
+            return !selectedUtxoKeys.has(key);
+          });
         }
         if (!nextUtxo) break;
 
         // Add UTXO to selection
+        const key = `${nextUtxo.txid}:${nextUtxo.vout}`;
+        selectedUtxoKeys.add(key);
         selectedUtxos.push(nextUtxo);
         totalInput += nextUtxo.value;
 
@@ -162,24 +167,9 @@ export const createBtcIntent = async (recipient, amount, segwitAddress, _current
       throw new Error(ERRORS.INSUFFICIENT_FUNDS);
     }
 
-    // Deduplicate selectedUtxos by txid:vout (safety check)
-    const selectedUtxosMap = new Map();
-    selectedUtxos.forEach(utxo => {
-      const key = `${utxo.txid}:${utxo.vout}`;
-      if (!selectedUtxosMap.has(key)) {
-        selectedUtxosMap.set(key, utxo);
-      }
-    });
-    const uniqueSelectedUtxos = Array.from(selectedUtxosMap.values());
-
-    // Detect duplicate inputs
-    if (uniqueSelectedUtxos.length < selectedUtxos.length) {
-      console.warn(`Detected duplicate inputs: ${selectedUtxos.length} -> ${uniqueSelectedUtxos.length}`);
-    }
-
     // Fetch transaction hex for each input
     const inputsWithTx = await Promise.all(
-      uniqueSelectedUtxos.map(async (utxo) => {
+      selectedUtxos.map(async (utxo) => {
         const txResponse = await fetch(getTxHexUrl(utxo.txid));
         const txHex = await txResponse.text();
         return {
@@ -241,8 +231,8 @@ export const createBtcIntent = async (recipient, amount, segwitAddress, _current
       fee: finalFee,
       addressType, // Always 'segwit' for BTC
       sourceAddress,
-      inputs: uniqueSelectedUtxos,
-      inputCount: uniqueSelectedUtxos.length,
+      inputs: selectedUtxos,
+      inputCount: selectedUtxos.length,
       totalInput,
       change,
       psbt: psbt.toBase64(),
