@@ -68,6 +68,13 @@ export default function WalletPage() {
   // Toast context
   const { toasts, showToast, notification, dismissNotification, showNotification } = useToastContext();
 
+  // Debug: Log when notification changes
+  React.useEffect(() => {
+    if (notification) {
+      console.log('🔔 Notification state updated:', notification);
+    }
+  }, [notification]);
+
   // Navigation hooks
   const {
     showSettings,
@@ -333,13 +340,6 @@ export default function WalletPage() {
         {/* Toast Notification */}
         <ToastContainer toasts={toasts} />
 
-        {/* Rich Notification Modal */}
-        <NotificationModal
-          visible={!!notification}
-          notification={notification}
-          onClose={dismissNotification}
-        />
-
         {/* Transaction Toast */}
         <TransactionToast
           visible={
@@ -391,6 +391,13 @@ export default function WalletPage() {
           showZeroAssets={settingsHandlers.showZeroAssets}
         />
       </Animated.View>
+
+      {/* Rich Notification Modal - Rendered outside main container for top z-index */}
+      <NotificationModal
+        visible={!!notification}
+        notification={notification}
+        onClose={dismissNotification}
+      />
     </>
   );
 }
