@@ -59,7 +59,7 @@ export default function AirdropSuccessModal({ visible, onClose, txId }) {
           ]}
         >
           {/* Success Icon */}
-          <Icon name="party" size={48} color="#DDDDDD" style={{ marginBottom: 24 }} />
+          <Icon name="party" size={48} color="#DDDDDD" style={{ marginBottom: 34 }} />
 
           {/* Title */}
           <Text style={localStyles.title}>Mutiny BTC Airdropped</Text>
