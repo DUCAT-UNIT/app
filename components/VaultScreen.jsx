@@ -105,16 +105,31 @@ const VaultScreen = React.memo(function VaultScreen({ visible, walletCredentials
     }
   }, [visible, injectWalletCredentials]);
 
+  // Track when credentials change to force proper reload
+  const credentialsKeyRef = React.useRef('');
+  const [forceReloadKey, setForceReloadKey] = React.useState(0);
+
   // Reload webview when wallet credentials change (account switch)
   React.useEffect(() => {
-    if (webViewRef.current && walletCredentials) {
-      // Reset loading state for new account
-      setIsLoading(true);
-      setWebViewLoaded(false);
-      hasLoadedOnceRef.current = false;
+    if (walletCredentials) {
+      const newKey = `${walletCredentials.vaultPubkey}_${walletCredentials.satsAddress}`;
 
-      // Reload the webview with new credentials
-      webViewRef.current.reload();
+      if (credentialsKeyRef.current && credentialsKeyRef.current !== newKey) {
+        console.log('🔄 Account switched detected - forcing complete vault reload');
+        console.log('Old key:', credentialsKeyRef.current);
+        console.log('New key:', newKey);
+
+        // Reset loading state for new account
+        setIsLoading(true);
+        setWebViewLoaded(false);
+        hasLoadedOnceRef.current = false;
+        setPreparingVault(true);
+
+        // Force complete reload by changing key (unmount/remount WebView)
+        setForceReloadKey(prev => prev + 1);
+      }
+
+      credentialsKeyRef.current = newKey;
     }
   }, [walletCredentials]);
 
@@ -167,6 +182,7 @@ const VaultScreen = React.memo(function VaultScreen({ visible, walletCredentials
   return (
     <View style={styles.container}>
       <WebView
+        key={`vault-webview-${forceReloadKey}`}
         ref={webViewRef}
         source={{ uri: webViewUrl }}
         style={[styles.webview, shouldShowLoading && styles.webviewHidden]}
