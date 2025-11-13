@@ -266,7 +266,7 @@ function AppNavigatorContent({
 
       {/* Airdrop Success Modal */}
       <AirdropSuccessModal
-        visible={showAirdropModal}
+        visible={true}
         onClose={() => setShowAirdropModal(false)}
         txId={airdropTxId}
       />
