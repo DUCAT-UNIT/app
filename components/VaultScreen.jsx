@@ -60,6 +60,41 @@ const VaultScreen = React.memo(function VaultScreen({ visible, walletCredentials
     }
   }, [visible]);
 
+  // Force wallet connection when vault becomes visible
+  React.useEffect(() => {
+    if (visible && webViewRef.current && walletCredentials) {
+      console.log('🏦 Vault became visible - forcing wallet connection');
+
+      // Inject wallet credentials directly into the page
+      const credentialsScript = `
+        (function() {
+          console.log('Mobile app injecting wallet credentials');
+
+          // Store credentials in window object for the app to access
+          window.mobileWalletCredentials = {
+            satsAddress: '${walletCredentials.satsAddress}',
+            satsPubkey: '${walletCredentials.satsPubkey}',
+            runesAddress: '${walletCredentials.runesAddress}',
+            runesPubkey: '${walletCredentials.runesPubkey}',
+            vaultAddress: '${walletCredentials.vaultAddress}',
+            vaultPubkey: '${walletCredentials.vaultPubkey}',
+            network: 'mutinynet'
+          };
+
+          // Dispatch event to notify app that credentials are ready
+          window.dispatchEvent(new CustomEvent('mobileWalletReady', {
+            detail: window.mobileWalletCredentials
+          }));
+
+          console.log('Mobile wallet credentials injected and event dispatched');
+        })();
+        true;
+      `;
+
+      webViewRef.current.injectJavaScript(credentialsScript);
+    }
+  }, [visible, walletCredentials]);
+
   // Reload webview when wallet credentials change (account switch)
   React.useEffect(() => {
     if (webViewRef.current && walletCredentials) {
