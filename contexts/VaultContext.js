@@ -2,7 +2,7 @@
  * VaultContext - Manages vault access, credentials, and navigation
  */
 
-import React, { createContext, useContext, useState } from 'react';
+import React, { createContext, useContext, useState, useEffect } from 'react';
 
 import { deriveAddressesFromMnemonic } from '../utils/bitcoin';
 import { withMnemonic } from '../services/authService';
@@ -22,31 +22,44 @@ export const VaultProvider = ({ children, currentAccount }) => {
   const [autoCreateVaultTrigger, setAutoCreateVaultTrigger] = useState(0);
   const [activeTab, setActiveTab] = useState('wallet');
 
+  // Load vault credentials in background whenever account changes
+  useEffect(() => {
+    const loadVaultCredentials = async () => {
+      try {
+        console.log('🏦 Loading vault credentials in background for account:', currentAccount);
+
+        // Use withMnemonic to ensure proper cleanup of sensitive data
+        await withMnemonic(async (mnemonic) => {
+          // Derive addresses and public keys for current account
+          const addresses = deriveAddressesFromMnemonic(mnemonic, currentAccount);
+
+          // Set credentials for vault WebView (loads in background)
+          setVaultCredentials({
+            satsAddress: addresses.segwitAddress,
+            satsPubkey: addresses.segwitPubkey,
+            runesAddress: addresses.taprootAddress,
+            runesPubkey: addresses.taprootPubkey,
+            vaultAddress: addresses.taprootAddress,
+            vaultPubkey: addresses.taprootPubkey,
+          });
+        });
+      } catch (error) {
+        console.error('❌ Error loading vault credentials:', error);
+      }
+    };
+
+    loadVaultCredentials();
+  }, [currentAccount]);
+
   const openVault = async (shouldAutoCreate = false) => {
     try {
       // Switch to vault tab immediately for better UX
       setActiveTab('vault');
 
-      // Use withMnemonic to ensure proper cleanup of sensitive data
-      await withMnemonic(async (mnemonic) => {
-        // Derive addresses and public keys for current account
-        const addresses = deriveAddressesFromMnemonic(mnemonic, currentAccount);
-
-        // Set credentials for vault WebView
-        setVaultCredentials({
-          satsAddress: addresses.segwitAddress,
-          satsPubkey: addresses.segwitPubkey,
-          runesAddress: addresses.taprootAddress,
-          runesPubkey: addresses.taprootPubkey,
-          vaultAddress: addresses.taprootAddress,
-          vaultPubkey: addresses.taprootPubkey,
-        });
-
-        // Trigger auto-create if requested by incrementing counter
-        if (shouldAutoCreate) {
-          setAutoCreateVaultTrigger((prev) => prev + 1);
-        }
-      });
+      // Trigger auto-create if requested by incrementing counter
+      if (shouldAutoCreate) {
+        setAutoCreateVaultTrigger((prev) => prev + 1);
+      }
     } catch (error) {
       setActiveTab('vault');
     }

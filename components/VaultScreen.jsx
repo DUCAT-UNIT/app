@@ -145,32 +145,77 @@ const VaultScreen = React.memo(function VaultScreen({ visible, walletCredentials
   const loadedVaultPubkeyRef = React.useRef('');
   const [forceReloadKey, setForceReloadKey] = React.useState(0);
 
-  // Reload webview when vaultData is fetched for a different account
+  // Detect account change immediately and show loading, then reload when data is ready
   React.useEffect(() => {
     // Only trigger reload when we have wallet credentials
     if (!walletCredentials?.vaultPubkey) return;
 
     const currentPubkey = walletCredentials.vaultPubkey;
 
-    // Check if vaultData has been fetched (or confirmed as null) for this pubkey
-    // vaultData being null is valid (means no vault created yet)
+    // If pubkey changed, immediately show loading (prevent flash of old vault)
+    if (loadedVaultPubkeyRef.current && loadedVaultPubkeyRef.current !== currentPubkey) {
+      console.log('🔄 Account switch detected - showing loading immediately');
+      console.log('Old pubkey:', loadedVaultPubkeyRef.current);
+      console.log('New pubkey:', currentPubkey);
+
+      // Immediately show loading spinner to prevent flash of old vault
+      setIsLoading(true);
+      setWebViewLoaded(false);
+      hasLoadedOnceRef.current = false;
+      setPreparingVault(true);
+
+      // Check if vaultData has been fetched (or confirmed as null) for this pubkey
+      // vaultData being null is valid (means no vault created yet)
+      const vaultDataFetched = vaultData !== undefined;
+
+      if (vaultDataFetched) {
+        console.log('🔄 Vault data already fetched for new account, reloading now');
+        console.log('New vault data:', vaultData ? {
+          vaultTag: vaultData.vaultTag,
+          totalDebt: vaultData.totalDebt,
+          totalCollateral: vaultData.totalCollateral,
+        } : 'No vault (null)');
+
+        // Force complete reload by changing key (unmount/remount WebView)
+        const newReloadKey = Date.now();
+        console.log('🔄 Setting forceReloadKey to:', newReloadKey);
+        setForceReloadKey(newReloadKey);
+
+        // Update ref to track the new pubkey being loaded
+        loadedVaultPubkeyRef.current = currentPubkey;
+
+        // Inject credentials after WebView has time to fully reload
+        setTimeout(() => {
+          console.log('🔄 Re-injecting credentials after account switch (2000ms)');
+          console.log('🔄 Injecting for vault:', currentPubkey);
+          injectWalletCredentials();
+        }, 2000);
+      } else {
+        console.log('🔄 Waiting for vault data to be fetched...');
+        // Will trigger reload when vaultData changes
+      }
+    } else if (!loadedVaultPubkeyRef.current) {
+      // Initial load - just set the ref without triggering reload
+      console.log('🔄 Initial vault load for pubkey:', currentPubkey);
+      loadedVaultPubkeyRef.current = currentPubkey;
+    }
+  }, [walletCredentials, injectWalletCredentials]);
+
+  // Reload when vaultData is fetched after account switch
+  React.useEffect(() => {
+    if (!walletCredentials?.vaultPubkey) return;
+
+    const currentPubkey = walletCredentials.vaultPubkey;
     const vaultDataFetched = vaultData !== undefined;
 
-    if (vaultDataFetched && loadedVaultPubkeyRef.current && loadedVaultPubkeyRef.current !== currentPubkey) {
-      console.log('🔄 Account switch detected - vault card has new data for different pubkey');
-      console.log('Loaded pubkey in WebView:', loadedVaultPubkeyRef.current);
-      console.log('New pubkey from vault card:', currentPubkey);
+    // If we're waiting for vault data after account switch
+    if (vaultDataFetched && loadedVaultPubkeyRef.current !== currentPubkey && isLoading) {
+      console.log('🔄 Vault data fetched, reloading WebView now');
       console.log('New vault data:', vaultData ? {
         vaultTag: vaultData.vaultTag,
         totalDebt: vaultData.totalDebt,
         totalCollateral: vaultData.totalCollateral,
       } : 'No vault (null)');
-
-      // Reset all state for new account
-      setIsLoading(true);
-      setWebViewLoaded(false);
-      hasLoadedOnceRef.current = false;
-      setPreparingVault(true);
 
       // Force complete reload by changing key (unmount/remount WebView)
       const newReloadKey = Date.now();
@@ -182,16 +227,12 @@ const VaultScreen = React.memo(function VaultScreen({ visible, walletCredentials
 
       // Inject credentials after WebView has time to fully reload
       setTimeout(() => {
-        console.log('🔄 Re-injecting credentials after account switch (2000ms)');
+        console.log('🔄 Re-injecting credentials after vault data fetch (2000ms)');
         console.log('🔄 Injecting for vault:', currentPubkey);
         injectWalletCredentials();
       }, 2000);
-    } else if (vaultDataFetched && !loadedVaultPubkeyRef.current) {
-      // Initial load - just set the ref without triggering reload
-      console.log('🔄 Initial vault load for pubkey:', currentPubkey);
-      loadedVaultPubkeyRef.current = currentPubkey;
     }
-  }, [vaultData, walletCredentials, injectWalletCredentials]);
+  }, [vaultData, walletCredentials, isLoading, injectWalletCredentials]);
 
   // Don't return null - always render to preload in background
   // if (!visible) return null;
