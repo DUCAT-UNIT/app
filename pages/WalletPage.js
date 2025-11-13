@@ -85,6 +85,21 @@ export default function WalletPage() {
   const walletTranslateX = useRef(new Animated.Value(0)).current;
   const [isSwiping, setIsSwiping] = useState(false);
 
+  // Keep positions in sync with activeTab
+  React.useEffect(() => {
+    if (!isSwiping) {
+      if (activeTab === 'vault') {
+        // Vault is active - wallet should be off screen right, vault centered
+        walletTranslateX.setValue(SCREEN_WIDTH);
+        vaultTranslateX.setValue(0);
+      } else {
+        // Wallet is active - wallet centered, vault off screen left
+        walletTranslateX.setValue(0);
+        vaultTranslateX.setValue(-SCREEN_WIDTH);
+      }
+    }
+  }, [activeTab, isSwiping, walletTranslateX, vaultTranslateX]);
+
   // Pan responder for wallet screen - right swipe to reveal vault
   const walletPanResponder = useRef(
     PanResponder.create({
@@ -124,9 +139,7 @@ export default function WalletPage() {
             }),
           ]).start(() => {
             openVault();
-            // Reset positions after tab change
-            walletTranslateX.setValue(0);
-            vaultTranslateX.setValue(-SCREEN_WIDTH);
+            // Don't reset - let useEffect handle positioning based on activeTab
           });
         } else {
           // Spring back to original position
@@ -197,9 +210,7 @@ export default function WalletPage() {
             }),
           ]).start(() => {
             setActiveTab('wallet');
-            // Reset positions after tab change
-            vaultTranslateX.setValue(-SCREEN_WIDTH);
-            walletTranslateX.setValue(0);
+            // Don't reset - let useEffect handle positioning based on activeTab
           });
         } else {
           // Spring back to original position
