@@ -3,10 +3,12 @@
  * Contains wallet screen, vault, settings, and transaction flows
  */
 
-import React from 'react';
-import { View, Animated, StyleSheet } from 'react-native';
+import React, { useRef, useState } from 'react';
+import { View, Animated, StyleSheet, Dimensions, PanResponder } from 'react-native';
 import { StatusBar } from 'expo-status-bar';
 import { useNavigation } from '@react-navigation/native';
+
+const SCREEN_WIDTH = Dimensions.get('window').width;
 
 // Components
 import WalletScreen from '../components/WalletScreen';
@@ -78,6 +80,75 @@ export default function WalletPage() {
   const { showReceiveSheet, setShowReceiveSheet, showTxHistory, setShowTxHistory } =
     useSheetNavigation();
 
+  // Vault swipe animation state
+  const vaultTranslateX = useRef(new Animated.Value(SCREEN_WIDTH)).current;
+  const walletTranslateX = useRef(new Animated.Value(0)).current;
+  const [isSwiping, setIsSwiping] = useState(false);
+
+  // Pan responder for swipe gesture
+  const vaultPanResponder = useRef(
+    PanResponder.create({
+      onMoveShouldSetPanResponder: (_, gestureState) => {
+        // Only activate for horizontal swipes on wallet screen
+        if (activeTab !== 'wallet') return false;
+        return Math.abs(gestureState.dx) > Math.abs(gestureState.dy) && Math.abs(gestureState.dx) > 10;
+      },
+      onPanResponderGrant: () => {
+        setIsSwiping(true);
+      },
+      onPanResponderMove: (_, gestureState) => {
+        // Only allow right swipe (positive dx)
+        if (gestureState.dx > 0) {
+          walletTranslateX.setValue(-gestureState.dx);
+          vaultTranslateX.setValue(SCREEN_WIDTH - gestureState.dx);
+        }
+      },
+      onPanResponderRelease: (_, gestureState) => {
+        setIsSwiping(false);
+
+        // If swiped more than 50% of screen width, complete the transition
+        if (gestureState.dx > SCREEN_WIDTH * 0.5) {
+          // Complete animation to vault
+          Animated.parallel([
+            Animated.spring(walletTranslateX, {
+              toValue: -SCREEN_WIDTH,
+              useNativeDriver: true,
+              tension: 65,
+              friction: 11,
+            }),
+            Animated.spring(vaultTranslateX, {
+              toValue: 0,
+              useNativeDriver: true,
+              tension: 65,
+              friction: 11,
+            }),
+          ]).start(() => {
+            openVault();
+            // Reset positions after tab change
+            walletTranslateX.setValue(0);
+            vaultTranslateX.setValue(SCREEN_WIDTH);
+          });
+        } else {
+          // Spring back to original position
+          Animated.parallel([
+            Animated.spring(walletTranslateX, {
+              toValue: 0,
+              useNativeDriver: true,
+              tension: 65,
+              friction: 11,
+            }),
+            Animated.spring(vaultTranslateX, {
+              toValue: SCREEN_WIDTH,
+              useNativeDriver: true,
+              tension: 65,
+              friction: 11,
+            }),
+          ]).start();
+        }
+      },
+    })
+  ).current;
+
   // Show splash screen until we've checked flags to prevent flicker
   if (!hasCheckedInitialFlags) {
     return <SplashScreen />;
@@ -86,30 +157,36 @@ export default function WalletPage() {
   return (
     <>
       <View style={localStyles.container} onTouchStart={resetInactivityTimer}>
-        {/* Mutinynet Banner - Shows on all screens */}
-        <MutinynetBanner />
-
-        {activeTab === 'wallet' ? (
-          <>
-            <WalletScreen
-              styles={styles}
-              onSendPress={() => navigation.navigate('SendFlow', { screen: 'AssetSelector' })}
-              onReceivePress={() => setShowReceiveSheet(true)}
-              onHistoryPress={() => setShowTxHistory(true)}
-              onSettingsPress={openSettings}
-              onCreateVaultPress={() => openVault(true)}
-              onVaultPress={openVault}
-              sendAddressType={sendAddressType}
-              switchingAccount={false}
-              showZeroAssets={settingsHandlers.showZeroAssets}
-            />
-            <BottomNavigationBar
-              activeTab={activeTab}
-              onVaultPress={openVault}
-              onWalletPress={() => setActiveTab('wallet')}
-            />
-          </>
-        ) : null}
+        {/* Animated Wallet Screen */}
+        <Animated.View
+          style={[
+            localStyles.screenContainer,
+            {
+              transform: [{ translateX: walletTranslateX }],
+            },
+          ]}
+          pointerEvents={activeTab === 'wallet' && !isSwiping ? 'auto' : 'none'}
+          {...vaultPanResponder.panHandlers}
+        >
+          <MutinynetBanner />
+          <WalletScreen
+            styles={styles}
+            onSendPress={() => navigation.navigate('SendFlow', { screen: 'AssetSelector' })}
+            onReceivePress={() => setShowReceiveSheet(true)}
+            onHistoryPress={() => setShowTxHistory(true)}
+            onSettingsPress={openSettings}
+            onCreateVaultPress={() => openVault(true)}
+            onVaultPress={openVault}
+            sendAddressType={sendAddressType}
+            switchingAccount={false}
+            showZeroAssets={settingsHandlers.showZeroAssets}
+          />
+          <BottomNavigationBar
+            activeTab={activeTab}
+            onVaultPress={openVault}
+            onWalletPress={() => setActiveTab('wallet')}
+          />
+        </Animated.View>
 
         {/* Receive Bottom Sheet */}
         <ReceiveScreen
@@ -156,12 +233,15 @@ export default function WalletPage() {
         />
       </View>
 
-      {/* Vault Screen Full Screen Overlay - Always rendered to preload in background */}
-      <View
+      {/* Animated Vault Screen - Slides in from right */}
+      <Animated.View
         style={[
           localStyles.vaultOverlay,
-          activeTab === 'vault' ? localStyles.vaultActive : localStyles.vaultHidden,
+          {
+            transform: [{ translateX: vaultTranslateX }],
+          },
         ]}
+        pointerEvents={activeTab === 'vault' || isSwiping ? 'auto' : 'none'}
       >
         <MutinynetBanner />
         <View style={localStyles.vaultContent}>
@@ -176,7 +256,7 @@ export default function WalletPage() {
           onVaultPress={openVault}
           onWalletPress={() => setActiveTab('wallet')}
         />
-      </View>
+      </Animated.View>
 
       {/* Settings Screen Overlay */}
       <Animated.View
@@ -218,7 +298,7 @@ const localStyles = StyleSheet.create({
     flex: 1,
     backgroundColor: COLORS.DARK_BG,
   },
-  vaultOverlay: {
+  screenContainer: {
     position: 'absolute',
     top: 0,
     left: 0,
@@ -227,15 +307,14 @@ const localStyles = StyleSheet.create({
     backgroundColor: COLORS.DARK_BG,
     flexDirection: 'column',
   },
-  vaultActive: {
-    zIndex: 500,
-    opacity: 1,
-    pointerEvents: 'auto',
-  },
-  vaultHidden: {
-    zIndex: -1,
-    opacity: 0,
-    pointerEvents: 'none',
+  vaultOverlay: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    width: SCREEN_WIDTH,
+    bottom: 0,
+    backgroundColor: COLORS.DARK_BG,
+    flexDirection: 'column',
   },
   vaultContent: {
     flex: 1,

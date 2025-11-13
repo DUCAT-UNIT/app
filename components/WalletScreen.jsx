@@ -1,6 +1,6 @@
 import React from 'react';
 import PropTypes from 'prop-types';
-import { View, Text, TouchableOpacity, ActivityIndicator, ScrollView, StyleSheet, PanResponder } from 'react-native';
+import { View, Text, TouchableOpacity, ActivityIndicator, ScrollView, StyleSheet } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useWallet } from '../contexts/WalletContext';
 import { useBalance } from '../contexts/WalletDataContext';
@@ -74,24 +74,8 @@ const WalletScreen = React.memo(function WalletScreen({
     await fetchBalance();
   }, [setBalanceError, fetchBalance]);
 
-  // Swipe right gesture to open vault
-  const panResponder = React.useRef(
-    PanResponder.create({
-      onMoveShouldSetPanResponder: (_, gestureState) => {
-        // Only activate for horizontal swipes (right swipe)
-        return Math.abs(gestureState.dx) > Math.abs(gestureState.dy) && gestureState.dx > 20;
-      },
-      onPanResponderRelease: (_, gestureState) => {
-        // If swiped right more than 100 pixels, open vault
-        if (gestureState.dx > 100 && onVaultPress) {
-          onVaultPress();
-        }
-      },
-    })
-  ).current;
-
   return (
-    <View style={styles.walletContainer} {...panResponder.panHandlers}>
+    <View style={styles.walletContainer}>
       {/* Loading overlay while switching accounts */}
       {switchingAccount && (
         <View style={styles.switchingOverlay}>
