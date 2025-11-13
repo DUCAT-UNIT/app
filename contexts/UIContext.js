@@ -23,8 +23,12 @@ export const useDisplayPreferences = () => {
 };
 
 export const useToastContext = () => {
-  const { toast } = useUI();
-  return toast;
+  const { toast, notification } = useUI();
+  // Merge toast and notification objects for backwards compatibility
+  return {
+    ...toast,
+    ...notification,
+  };
 };
 
 let nextToastId = 0;
