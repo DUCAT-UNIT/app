@@ -9,6 +9,7 @@ import { useVaultData } from '../contexts/WalletDataContext';
 import { useDisplayPreferences } from '../contexts/UIContext';
 import { useWalletCalculations } from '../hooks/useWalletCalculations';
 import { useFormattedBalances } from '../hooks/useFormattedBalances';
+import { usePendingTransactions } from '../contexts/PendingTransactionsContext';
 import { COLORS } from '../utils/colors';
 import Icon from './Icon';
 
@@ -28,6 +29,11 @@ const WalletScreen = React.memo(function WalletScreen({
   const { btcPrice, _loadingBtcPrice } = usePrice();
   const { vaultData } = useVaultData();
   const { showTotalInBTC, setShowTotalInBTC } = useDisplayPreferences();
+  const { getUnconfirmedBalance } = usePendingTransactions();
+
+  // Get unconfirmed balances
+  const unconfirmedBalance = getUnconfirmedBalance('all');
+  const hasUnconfirmedUnit = unconfirmedBalance.runes > 0;
 
   // Calculate all wallet-related values (business logic extracted to hook)
   const {
@@ -267,7 +273,14 @@ const WalletScreen = React.memo(function WalletScreen({
                 <Icon name="unit_logo" size={36} />
               </View>
               <View style={styles.assetInfo}>
-                <Text style={styles.assetName}>UNIT•RUNE</Text>
+                <View style={localStyles.assetNameRow}>
+                  <Text style={styles.assetName}>UNIT•RUNE</Text>
+                  {hasUnconfirmedUnit && (
+                    <View style={localStyles.unconfirmedBadge}>
+                      <Icon name="warning" size={12} color={COLORS.YELLOW} />
+                    </View>
+                  )}
+                </View>
                 <View style={styles.balanceWithIcon}>
                   <Icon
                     name="unit_symbol"
@@ -308,6 +321,14 @@ const WalletScreen = React.memo(function WalletScreen({
               </Text>
             )}
           </View>
+          {hasUnconfirmedUnit && (
+            <View style={localStyles.unconfirmedWarning}>
+              <Icon name="warning" size={14} color={COLORS.YELLOW} style={localStyles.warningIcon} />
+              <Text style={localStyles.unconfirmedWarningText}>
+                Includes {unconfirmedBalance.runes.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} UNIT from unconfirmed transactions
+              </Text>
+            </View>
+          )}
         </View>
 
         {/* DUCAT•RUNE Card - Non-clickable */}
@@ -383,6 +404,39 @@ const localStyles = StyleSheet.create({
     color: COLORS.DANGER_RED,
     fontSize: 13,
     fontWeight: '500',
+  },
+  assetNameRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+  },
+  unconfirmedBadge: {
+    width: 18,
+    height: 18,
+    borderRadius: 9,
+    backgroundColor: COLORS.YELLOW + '20',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  unconfirmedWarning: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: COLORS.YELLOW + '15',
+    borderRadius: 8,
+    paddingVertical: 8,
+    paddingHorizontal: 10,
+    marginTop: 10,
+    borderWidth: 1,
+    borderColor: COLORS.YELLOW + '30',
+  },
+  warningIcon: {
+    marginRight: 8,
+  },
+  unconfirmedWarningText: {
+    flex: 1,
+    color: COLORS.SECONDARY_TEXT,
+    fontSize: 11,
+    lineHeight: 15,
   },
 });
 
