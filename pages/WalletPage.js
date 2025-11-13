@@ -168,24 +168,26 @@ export default function WalletPage() {
           pointerEvents={activeTab === 'wallet' && !isSwiping ? 'auto' : 'none'}
           {...vaultPanResponder.panHandlers}
         >
-          <MutinynetBanner />
-          <WalletScreen
-            styles={styles}
-            onSendPress={() => navigation.navigate('SendFlow', { screen: 'AssetSelector' })}
-            onReceivePress={() => setShowReceiveSheet(true)}
-            onHistoryPress={() => setShowTxHistory(true)}
-            onSettingsPress={openSettings}
-            onCreateVaultPress={() => openVault(true)}
-            onVaultPress={openVault}
-            sendAddressType={sendAddressType}
-            switchingAccount={false}
-            showZeroAssets={settingsHandlers.showZeroAssets}
-          />
-          <BottomNavigationBar
-            activeTab={activeTab}
-            onVaultPress={openVault}
-            onWalletPress={() => setActiveTab('wallet')}
-          />
+          <View style={localStyles.screenContent}>
+            <MutinynetBanner />
+            <WalletScreen
+              styles={styles}
+              onSendPress={() => navigation.navigate('SendFlow', { screen: 'AssetSelector' })}
+              onReceivePress={() => setShowReceiveSheet(true)}
+              onHistoryPress={() => setShowTxHistory(true)}
+              onSettingsPress={openSettings}
+              onCreateVaultPress={() => openVault(true)}
+              onVaultPress={openVault}
+              sendAddressType={sendAddressType}
+              switchingAccount={false}
+              showZeroAssets={settingsHandlers.showZeroAssets}
+            />
+            <BottomNavigationBar
+              activeTab={activeTab}
+              onVaultPress={openVault}
+              onWalletPress={() => setActiveTab('wallet')}
+            />
+          </View>
         </Animated.View>
 
         {/* Receive Bottom Sheet */}
@@ -243,19 +245,21 @@ export default function WalletPage() {
         ]}
         pointerEvents={activeTab === 'vault' || isSwiping ? 'auto' : 'none'}
       >
-        <MutinynetBanner />
-        <View style={localStyles.vaultContent}>
-          <VaultScreen
-            visible={activeTab === 'vault'}
-            walletCredentials={vaultCredentials}
-            autoCreateVaultTrigger={autoCreateVaultTrigger}
+        <View style={localStyles.screenContent}>
+          <MutinynetBanner />
+          <View style={localStyles.vaultContent}>
+            <VaultScreen
+              visible={activeTab === 'vault'}
+              walletCredentials={vaultCredentials}
+              autoCreateVaultTrigger={autoCreateVaultTrigger}
+            />
+          </View>
+          <BottomNavigationBar
+            activeTab={activeTab}
+            onVaultPress={openVault}
+            onWalletPress={() => setActiveTab('wallet')}
           />
         </View>
-        <BottomNavigationBar
-          activeTab={activeTab}
-          onVaultPress={openVault}
-          onWalletPress={() => setActiveTab('wallet')}
-        />
       </Animated.View>
 
       {/* Settings Screen Overlay */}
@@ -305,6 +309,9 @@ const localStyles = StyleSheet.create({
     right: 0,
     bottom: 0,
     backgroundColor: COLORS.DARK_BG,
+  },
+  screenContent: {
+    flex: 1,
     flexDirection: 'column',
   },
   vaultOverlay: {
