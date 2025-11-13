@@ -247,7 +247,10 @@ export default function WalletPage() {
   return (
     <>
       <View style={localStyles.container} onTouchStart={resetInactivityTimer}>
-        {/* Content area - slides without navigation bar */}
+        {/* Fixed Mutinynet Banner */}
+        <MutinynetBanner />
+
+        {/* Content area - slides without banner and navigation bar */}
         <View style={localStyles.contentArea}>
           {/* Animated Vault Content - Rendered first (below wallet) */}
           <Animated.View
@@ -259,7 +262,6 @@ export default function WalletPage() {
             ]}
             pointerEvents={activeTab === 'vault' || isSwiping ? 'auto' : 'none'}
           >
-            <MutinynetBanner />
             <View style={localStyles.vaultContent}>
               <VaultScreen
                 visible={activeTab === 'vault'}
@@ -284,7 +286,6 @@ export default function WalletPage() {
             pointerEvents={activeTab === 'wallet' && !isSwiping ? 'auto' : 'none'}
             {...walletPanResponder.panHandlers}
           >
-            <MutinynetBanner />
             <WalletScreen
               styles={styles}
               onSendPress={() => navigation.navigate('SendFlow', { screen: 'AssetSelector' })}
