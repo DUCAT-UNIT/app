@@ -61,12 +61,9 @@ export const TransactionExecutionProvider = ({
 
       const txid = await TransactionService.broadcastTransaction(intent.signedTxHex);
 
-      // Store txid and move to pending state
-      setBroadcastedTxid(txid);
-      setIntentStep('pending');
-      setToastDismissed(false);
-
-      // Extract outputs from signed transaction for pending tracking
+      // Extract outputs from signed transaction for pending tracking FIRST
+      // This must happen before setting intentStep to 'pending' so that the outputs
+      // are available for the next transaction if the user creates one immediately
       try {
         const tx = bitcoin.Transaction.fromHex(intent.signedTxHex);
         const outputs = [];
@@ -153,6 +150,12 @@ export const TransactionExecutionProvider = ({
         console.error('Error details:', error.message, error.stack);
         // Non-critical error, continue with broadcast
       }
+
+      // NOW move to pending state after outputs are extracted and saved
+      // This ensures the outputs are available for the next transaction
+      setBroadcastedTxid(txid);
+      setIntentStep('pending');
+      setToastDismissed(false);
 
       // Add to background monitoring
       const assetType = sendAssetType === 'unit' ? 'UNIT' : 'BTC';
