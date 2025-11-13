@@ -50,12 +50,11 @@ const VaultScreen = React.memo(function VaultScreen({ visible, walletCredentials
     };
   }, [preparingVault]);
 
-  // Reset state when leaving the vault screen
+  // Reset loading message when leaving the vault screen (but keep loaded state)
   React.useEffect(() => {
     if (!visible) {
       setPreparingVault(false);
       setPreparingMessage('Preparing the vault for you');
-      setWebViewLoaded(false);
       messageIndexRef.current = 0;
     }
   }, [visible]);
@@ -126,10 +125,10 @@ const VaultScreen = React.memo(function VaultScreen({ visible, walletCredentials
     }
   }, [walletCredentials]);
 
-  // Inject wallet credentials when vault becomes visible
+  // Inject wallet credentials when vault becomes visible (only first time)
   React.useEffect(() => {
-    if (visible) {
-      console.log('🏦 Vault became visible - will inject wallet credentials');
+    if (visible && !hasLoadedOnceRef.current) {
+      console.log('🏦 Vault became visible for first time - will inject wallet credentials');
       console.log('🏦 Vault WebView credentials:', {
         vaultAddress: walletCredentials?.vaultAddress,
         vaultPubkey: walletCredentials?.vaultPubkey,
@@ -187,7 +186,7 @@ const VaultScreen = React.memo(function VaultScreen({ visible, walletCredentials
   // Don't return null - always render to preload in background
   // if (!visible) return null;
 
-  // Build URL with wallet credentials + cache busting
+  // Build URL with wallet credentials + cache busting on account switch only
   const webViewUrl = useMemo(() => {
     if (!walletCredentials) {
       return API.PHONE;
@@ -201,13 +200,13 @@ const VaultScreen = React.memo(function VaultScreen({ visible, walletCredentials
       vaultAddress: walletCredentials.vaultAddress,
       vaultPubkey: walletCredentials.vaultPubkey,
       network: 'mutinynet',
-      // Add cache buster to force fresh load on account switch
-      _t: Date.now(),
+      // Only add timestamp when forceReloadKey changes (account switch)
+      ...(forceReloadKey > 0 && { _t: forceReloadKey }),
     });
 
     const url = `${API.PHONE}/?${params.toString()}`;
     return url;
-  }, [walletCredentials, forceReloadKey]); // Also depend on forceReloadKey for additional cache busting
+  }, [walletCredentials, forceReloadKey]);
 
   // Handle external link navigation - open in browser instead of WebView
   const handleShouldStartLoad = (request) => {
