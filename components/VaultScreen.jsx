@@ -11,11 +11,11 @@ const VaultScreen = React.memo(function VaultScreen({ visible, walletCredentials
   const messageIndexRef = useRef(0);
   const hasLoadedOnceRef = useRef(false);
   const [isLoading, setIsLoading] = React.useState(true);
-  const [preparingVault, setPreparingVault] = React.useState(false);
+  const [preparingVault, setPreparingVault] = React.useState(true); // Start true to show loading initially
   const [preparingMessage, setPreparingMessage] = React.useState('Preparing the vault for you');
   const [_webViewLoaded, setWebViewLoaded] = React.useState(false);
 
-  const shouldShowLoading = (isLoading || preparingVault) && !hasLoadedOnceRef.current;
+  const shouldShowLoading = isLoading || preparingVault;
 
   // Rotate through preparing messages
   React.useEffect(() => {
@@ -194,6 +194,7 @@ const VaultScreen = React.memo(function VaultScreen({ visible, walletCredentials
         onShouldStartLoadWithRequest={handleShouldStartLoad}
         onLoadStart={() => {
           setIsLoading(true);
+          setPreparingVault(true);
           setWebViewLoaded(false);
         }}
         onLoadEnd={() => {
