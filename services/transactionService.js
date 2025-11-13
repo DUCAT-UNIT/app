@@ -286,7 +286,9 @@ export const createUnitIntent = async (
 
     // First check unconfirmed taproot UTXOs for runes
     let runeUtxo = null;
+    console.log('Checking unconfirmed taproot UTXOs:', unconfirmedTaprootUtxos.length);
     for (const utxo of unconfirmedTaprootUtxos) {
+      console.log('Checking UTXO:', utxo.txid, 'runeAmount:', utxo.runeAmount, 'needed:', amountInRunes);
       if (utxo.runeAmount && utxo.runeAmount >= amountInRunes) {
         runeUtxo = {
           transaction: utxo.txid,
@@ -295,6 +297,7 @@ export const createUnitIntent = async (
           runeAmount: utxo.runeAmount,
           status: { confirmed: false }, // Mark as unconfirmed
         };
+        console.log('Selected unconfirmed rune UTXO:', runeUtxo.transaction);
         break;
       }
     }
@@ -343,8 +346,11 @@ export const createUnitIntent = async (
       throw new Error(ERRORS.NO_UNIT_BALANCE);
     }
 
+    console.log('Found rune UTXO:', runeUtxo);
+
     // First check unconfirmed segwit UTXOs for fees
     let satUtxo = null;
+    console.log('Checking unconfirmed segwit UTXOs:', unconfirmedSegwitUtxos.length);
     for (const utxo of unconfirmedSegwitUtxos) {
       if (utxo.value >= 12000) {
         satUtxo = {
@@ -353,6 +359,7 @@ export const createUnitIntent = async (
           value: utxo.value,
           status: { confirmed: false }, // Mark as unconfirmed
         };
+        console.log('Selected unconfirmed sat UTXO:', satUtxo.txid);
         break;
       }
     }
@@ -396,13 +403,19 @@ export const createUnitIntent = async (
     const psbt = new bitcoin.Psbt({ network: MUTINYNET_NETWORK });
 
     // Fetch transaction hex for inputs
+    console.log('Fetching sat tx:', satUtxo.txid);
     const satTxResponse = await fetch(getTxHexUrl(satUtxo.txid));
     const satTxHex = await satTxResponse.text();
+    console.log('Sat tx hex length:', satTxHex.length);
     const satTx = bitcoin.Transaction.fromHex(satTxHex);
+    console.log('Sat tx outputs:', satTx.outs.length, 'need vout:', satUtxo.vout);
 
+    console.log('Fetching rune tx:', runeUtxo.transaction);
     const runeTxResponse = await fetch(getTxHexUrl(runeUtxo.transaction));
     const runeTxHex = await runeTxResponse.text();
+    console.log('Rune tx hex length:', runeTxHex.length);
     const runeTx = bitcoin.Transaction.fromHex(runeTxHex);
+    console.log('Rune tx outputs:', runeTx.outs.length, 'need vout:', runeUtxo.vout);
 
     // Decode addresses to get the pubkey data
     const { data: taprootData } = bitcoin.address.fromBech32(taprootAddress);
@@ -410,6 +423,7 @@ export const createUnitIntent = async (
 
     // Add inputs - exactly like working example
     // Input 0: P2WPKH (for fees)
+    console.log('Adding sat input - vout:', satUtxo.vout, 'available outputs:', satTx.outs.length);
     psbt.addInput({
       hash: satUtxo.txid,
       index: parseInt(satUtxo.vout, 10),
@@ -418,8 +432,10 @@ export const createUnitIntent = async (
         value: BigInt(satUtxo.value),
       },
     });
+    console.log('Sat input added successfully');
 
     // Input 1: Taproot (with runes)
+    console.log('Adding rune input - vout:', runeUtxo.vout, 'available outputs:', runeTx.outs.length);
     psbt.addInput({
       hash: runeUtxo.transaction,
       index: parseInt(runeUtxo.vout, 10),
@@ -429,6 +445,7 @@ export const createUnitIntent = async (
       },
       tapInternalKey: tapInternalKey,
     });
+    console.log('Rune input added successfully');
 
     // Create runestone
     const runestoneConfig = {
