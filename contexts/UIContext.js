@@ -24,22 +24,22 @@ export const useDisplayPreferences = () => {
 
 export const useToastContext = () => {
   const context = useUI();
-  console.log('🔔 useToastContext - raw context keys:', Object.keys(context));
-  console.log('🔔 useToastContext - toast keys:', context.toast ? Object.keys(context.toast) : 'undefined');
-  console.log('🔔 useToastContext - notification keys:', context.notification ? Object.keys(context.notification) : 'undefined');
-  console.log('🔔 useToastContext - has showNotification direct?', !!context.showNotification);
 
-  const { toast, notification } = context;
-  // Merge toast and notification objects for backwards compatibility
-  const merged = {
-    ...toast,
-    ...notification,
+  // Return all toast and notification functions directly from context
+  // This ensures backwards compatibility while including all new features
+  return {
+    // Toast functions (legacy)
+    showToast: context.showToast,
+    toasts: context.toasts,
+    dismissToast: context.dismissToast,
+    toastMessage: context.toastMessage,
+    toastVisible: context.toastVisible,
+    toastType: context.toastType,
+    // Notification functions (new)
+    showNotification: context.showNotification,
+    notification: context.notification,
+    dismissNotification: context.dismissNotification,
   };
-
-  console.log('🔔 useToastContext - merged keys:', Object.keys(merged));
-  console.log('🔔 useToastContext - merged has showNotification?', !!merged.showNotification);
-
-  return merged;
 };
 
 let nextToastId = 0;

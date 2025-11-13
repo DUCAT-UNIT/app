@@ -10,13 +10,6 @@ import { Feather } from '@expo/vector-icons';
 import { COLORS } from '../utils/colors';
 
 export default function NotificationModal({ visible, notification, onClose }) {
-  // Debug logging
-  React.useEffect(() => {
-    if (visible && notification) {
-      console.log('🔔 NotificationModal rendering with:', { visible, notification });
-    }
-  }, [visible, notification]);
-
   if (!visible || !notification) {
     return null;
   }

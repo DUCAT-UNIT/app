@@ -500,9 +500,6 @@ const VaultScreen = React.memo(function VaultScreen({ visible, walletCredentials
 
             // Handle notification messages from web app
             if (message.type === 'SHOW_NOTIFICATION') {
-              console.log('📬 SHOW_NOTIFICATION received from web app:', message.payload);
-              console.log('📬 showNotification available?', typeof showNotification, !!showNotification);
-              console.log('📬 showToast available?', typeof showToast, !!showToast);
               const {
                 notificationType,
                 message: notificationMessage,
@@ -522,7 +519,6 @@ const VaultScreen = React.memo(function VaultScreen({ visible, walletCredentials
                   linkText: linkText,
                   duration: duration,
                 });
-                console.log(`✅ Displayed ${notificationType} notification: ${title || notificationMessage}`);
               } else if (showToast) {
                 // Fallback to simple toast if showNotification not available
                 const toastTypeMap = {
@@ -534,7 +530,6 @@ const VaultScreen = React.memo(function VaultScreen({ visible, walletCredentials
                 };
                 const toastType = toastTypeMap[notificationType] || 'success';
                 showToast(notificationMessage, toastType);
-                console.log(`✅ Displayed ${notificationType} toast: ${notificationMessage}`);
               }
               return;
             }
