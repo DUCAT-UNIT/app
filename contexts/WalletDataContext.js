@@ -254,8 +254,10 @@ export const WalletDataProvider = ({ children }) => {
       lastHistoryFetchRef.current = 0;
     } else if (prevWallet && wallet &&
                (prevWallet.segwitAddress !== wallet.segwitAddress ||
-                prevWallet.taprootAddress !== wallet.taprootAddress)) {
+                prevWallet.taprootAddress !== wallet.taprootAddress ||
+                prevWallet.taprootPubkey !== wallet.taprootPubkey)) {
       // Wallet changed (account switch) - immediately fetch all data
+      console.log('🔄 Account switch detected - fetching all data for new account');
       fetchBalance();
       fetchVault();
       fetchTransactionHistory();
