@@ -10,6 +10,13 @@ import { Feather } from '@expo/vector-icons';
 import { COLORS } from '../utils/colors';
 
 export default function NotificationModal({ visible, notification, onClose }) {
+  // Debug logging
+  React.useEffect(() => {
+    if (visible && notification) {
+      console.log('🔔 NotificationModal rendering with:', { visible, notification });
+    }
+  }, [visible, notification]);
+
   if (!visible || !notification) {
     return null;
   }
@@ -67,7 +74,9 @@ export default function NotificationModal({ visible, notification, onClose }) {
           {/* Optional link */}
           {link && linkText && (
             <TouchableOpacity onPress={handleLinkPress} style={styles.linkContainer}>
-              <Feather name="external-link" size={18} color={COLORS.PRIMARY_BLUE} />
+              <View style={styles.linkIcon}>
+                <Feather name="external-link" size={18} color={COLORS.PRIMARY_BLUE} />
+              </View>
               <Text style={styles.linkText}>{linkText}</Text>
             </TouchableOpacity>
           )}
@@ -125,10 +134,12 @@ const styles = StyleSheet.create({
   linkContainer: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 8,
     paddingTop: 8,
     borderTopWidth: 1,
     borderTopColor: COLORS.MEDIUM_GRAY,
+  },
+  linkIcon: {
+    marginRight: 8,
   },
   linkText: {
     fontSize: 16,

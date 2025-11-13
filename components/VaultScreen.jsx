@@ -492,6 +492,8 @@ const VaultScreen = React.memo(function VaultScreen({ visible, walletCredentials
             // Handle notification messages from web app
             if (message.type === 'SHOW_NOTIFICATION') {
               console.log('📬 SHOW_NOTIFICATION received from web app:', message.payload);
+              console.log('📬 showNotification available?', typeof showNotification, !!showNotification);
+              console.log('📬 showToast available?', typeof showToast, !!showToast);
               const {
                 notificationType,
                 message: notificationMessage,
