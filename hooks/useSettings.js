@@ -190,30 +190,35 @@ export function useSettings({
 
     // If enabling, require authentication first
     if (newValue) {
-      try {
-        // Try biometric auth first if available
-        const result = await AuthService.authenticateWithBiometrics(
-          'Authenticate to enable notifications',
-          'Use PIN'
-        );
+      // Only try biometric if it's enabled in settings
+      if (biometricEnabled) {
+        try {
+          const result = await AuthService.authenticateWithBiometrics(
+            'Authenticate to enable notifications',
+            'Use PIN'
+          );
 
-        if (!result.success) {
-          // Biometric failed or not available, fall back to PIN
-          // Set a flag to indicate we're enabling notifications after PIN verification
-          await SecureStore.setItemAsync('pendingNotificationsEnable', 'true');
-          // Set flag to return to settings after PIN entry
+          if (!result.success) {
+            // Biometric failed, fall back to PIN
+            await SecureStore.setItemAsync('pendingNotificationsEnable', 'true');
+            await SecureStore.setItemAsync('returnToSettingsAfterAuth', 'true');
+            setIsAuthenticated(false);
+            return;
+          }
+
+          // Biometric auth succeeded, set flag to return to settings
           await SecureStore.setItemAsync('returnToSettingsAfterAuth', 'true');
-          // Lock wallet to trigger PIN entry
-          setIsAuthenticated(false);
+        } catch (error) {
+          if (showToast) {
+            showToast('Authentication required to enable notifications', 'error');
+          }
           return;
         }
-
-        // Biometric auth succeeded, set flag to return to settings after toggle (component might remount)
+      } else {
+        // Biometric disabled, go straight to PIN
+        await SecureStore.setItemAsync('pendingNotificationsEnable', 'true');
         await SecureStore.setItemAsync('returnToSettingsAfterAuth', 'true');
-      } catch (error) {
-        if (showToast) {
-          showToast('Authentication required to enable notifications', 'error');
-        }
+        setIsAuthenticated(false);
         return;
       }
     }

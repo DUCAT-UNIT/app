@@ -23,7 +23,7 @@ export const useSeedPhrase = () => {
   return context;
 };
 
-export const SeedPhraseProvider = ({ children, showToast, setIsAuthenticated }) => {
+export const SeedPhraseProvider = ({ children, showToast, setIsAuthenticated, biometricEnabled }) => {
   const [viewingSeedPhrase, setViewingSeedPhrase] = useState(false);
   const [seedPhraseWords, setSeedPhraseWords] = useState([]);
   const [seedPhraseVisible, setSeedPhraseVisible] = useState(false);
@@ -79,22 +79,25 @@ export const SeedPhraseProvider = ({ children, showToast, setIsAuthenticated }) 
     // Persist the flag so it survives wallet lock/unlock
     await SecureStore.setItemAsync('returnToSettingsAfterSeedPhrase', 'true');
 
-    // Try biometric authentication first if available
-    try {
-      const result = await AuthService.authenticateWithBiometrics(
-        'Authenticate to view recovery phrase',
-        'Use PIN'
-      );
+    // Only try biometric authentication if it's enabled in settings
+    if (biometricEnabled) {
+      try {
+        const result = await AuthService.authenticateWithBiometrics(
+          'Authenticate to view recovery phrase',
+          'Use PIN'
+        );
 
-      if (result.success) {
-        // Authentication successful, show seed phrase
-        await loadSeedPhrase();
-        return;
+        if (result.success) {
+          // Authentication successful, show seed phrase
+          await loadSeedPhrase();
+          return;
+        }
+      } catch (error) {
+        // Biometric failed, will fall back to PIN below
       }
-    } catch (error) {
-      // Biometric failed or not available, fall back to PIN
     }
 
+    // Biometric disabled, failed, or not available - fall back to PIN
     // Lock the wallet to trigger PIN entry
     if (setIsAuthenticated) {
       setIsAuthenticated(false);
