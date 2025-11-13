@@ -59,16 +59,14 @@ export default function AirdropSuccessModal({ visible, onClose, txId }) {
           ]}
         >
           {/* Success Icon */}
-          <View style={localStyles.successIcon}>
-            <Icon name="party" size={48} color="#DDDDDD" />
-          </View>
+          <Icon name="party" size={48} color="#DDDDDD" style={{ marginBottom: 24 }} />
 
           {/* Title */}
           <Text style={localStyles.title}>Mutiny BTC Airdropped</Text>
 
           {/* Message */}
           <Text style={localStyles.message}>
-            An airdrop is on the way. You should see it reflected in your balance in 30 seconds.
+            An airdrop is on the way.{'\n'}You should see it reflected in your balance in 30 seconds.
           </Text>
 
           {/* Transaction ID */}
@@ -118,17 +116,8 @@ const localStyles = StyleSheet.create({
     maxWidth: 400,
     alignItems: 'center',
   },
-  successIcon: {
-    width: 80,
-    height: 80,
-    borderRadius: 40,
-    backgroundColor: COLORS.TEAL,
-    justifyContent: 'center',
-    alignItems: 'center',
-    marginBottom: 24,
-  },
   title: {
-    fontSize: 28,
+    fontSize: 22,
     fontWeight: '700',
     color: COLORS.VERY_LIGHT_GRAY,
     marginBottom: 12,
