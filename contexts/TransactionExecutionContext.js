@@ -59,7 +59,13 @@ export const TransactionExecutionProvider = ({
         return;
       }
 
+      console.log('📡 Broadcasting transaction...');
+      console.log('Intent inputs:', intent.inputs?.map(i => `${i.txid}:${i.vout}`) || 'none');
+      if (intent.runeUtxo) console.log('Rune UTXO:', `${intent.runeUtxo.transaction}:${intent.runeUtxo.vout}`);
+      if (intent.satUtxo) console.log('Sat UTXO:', `${intent.satUtxo.txid}:${intent.satUtxo.vout}`);
+
       const txid = await TransactionService.broadcastTransaction(intent.signedTxHex);
+      console.log('✅ Broadcast successful, txid:', txid);
 
       // Extract outputs from signed transaction for pending tracking FIRST
       // This must happen before setting intentStep to 'pending' so that the outputs
@@ -183,6 +189,8 @@ export const TransactionExecutionProvider = ({
         }
       );
     } catch (_error) {
+      console.error('❌ Broadcast failed:', _error);
+      console.error('Error message:', _error.message || _error);
       showToast(parseErrorMessage(_error), 'error');
       setIntentStep('reviewing');
 
