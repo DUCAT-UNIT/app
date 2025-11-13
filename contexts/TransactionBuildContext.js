@@ -46,6 +46,8 @@ export const TransactionBuildProvider = ({ children, wallet, currentAccount, sho
       setSendIntent(intent);
       setIntentStep('reviewing');
     } catch (error) {
+      // Log the full error for debugging
+      console.error('Error creating BTC intent:', error);
       // Show error toast first, then transition after a brief delay
       showToast(parseErrorMessage(error), 'error');
       // Small delay to ensure toast is visible before screen transition
@@ -79,6 +81,8 @@ export const TransactionBuildProvider = ({ children, wallet, currentAccount, sho
       setSendIntent(intent);
       setIntentStep('reviewing');
     } catch (error) {
+      // Log the full error for debugging
+      console.error('Error creating UNIT intent:', error);
       // Show error toast first, then transition after a brief delay
       showToast(parseErrorMessage(error), 'error');
       // Small delay to ensure toast is visible before screen transition
