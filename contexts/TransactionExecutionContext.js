@@ -71,6 +71,9 @@ export const TransactionExecutionProvider = ({
         const tx = bitcoin.Transaction.fromHex(intent.signedTxHex);
         const outputs = [];
 
+        console.log('🔍 Extracting outputs from broadcasted tx:', txid);
+        console.log('Total outputs in tx:', tx.outs.length);
+
         // Check if any inputs are from pending transactions (for parent-child tracking)
         // Also mark those UTXOs as spent
         let parentTxid = null;
@@ -78,12 +81,15 @@ export const TransactionExecutionProvider = ({
           const inputTxid = Buffer.from(input.hash).reverse().toString('hex');
           const inputVout = input.index;
 
+          console.log('Input:', inputTxid, 'vout:', inputVout);
+
           // Check if this input is spending from a pending transaction
           if (pendingTransactions[inputTxid] && pendingTransactions[inputTxid].status === 'pending') {
             if (!parentTxid) {
               parentTxid = inputTxid; // Set first pending input as parent
             }
 
+            console.log('Marking input as spent:', inputTxid, 'vout:', inputVout);
             // Mark this UTXO as spent so it won't be selected again
             await markUtxoAsSpent(inputTxid, inputVout);
           }
@@ -93,6 +99,7 @@ export const TransactionExecutionProvider = ({
         let runeChangeAmount = 0;
         if (sendAssetType === 'unit' && intent.runeUtxo && intent.amount) {
           runeChangeAmount = intent.runeUtxo.runeAmount - intent.amount;
+          console.log('Rune change amount:', runeChangeAmount);
         }
 
         // Decode each output
@@ -101,10 +108,14 @@ export const TransactionExecutionProvider = ({
             const address = bitcoin.address.fromOutputScript(output.script, MUTINYNET_NETWORK);
             const value = Number(output.value);
 
+            console.log(`Output ${vout}: ${address} = ${value} sats`);
+
             // Check if this is a change output (going back to our wallet)
             const isChange =
               address === wallet?.segwitAddress ||
               address === wallet?.taprootAddress;
+
+            console.log(`Is change? ${isChange} (segwit: ${wallet?.segwitAddress}, taproot: ${wallet?.taprootAddress})`);
 
             if (isChange) {
               const outputData = {
@@ -118,17 +129,24 @@ export const TransactionExecutionProvider = ({
                 outputData.runeAmount = runeChangeAmount;
               }
 
+              console.log('✅ Adding change output:', outputData);
               outputs.push(outputData);
             }
           } catch (_error) {
+            console.log(`Output ${vout}: OP_RETURN or non-standard`);
             // Could be OP_RETURN or other non-standard output, skip
           }
         });
 
+        console.log('Total change outputs found:', outputs.length);
+
         // If we have change outputs, store them as pending with parent tracking
         if (outputs.length > 0) {
           const assetType = sendAssetType === 'unit' ? 'UNIT' : 'BTC';
+          console.log('💾 Adding pending transaction:', txid, 'with', outputs.length, 'outputs');
           await addPendingTransaction(txid, outputs, assetType, parentTxid);
+        } else {
+          console.log('⚠️ No change outputs found to save');
         }
       } catch (error) {
         console.error('❌ Error extracting change outputs:', error);
