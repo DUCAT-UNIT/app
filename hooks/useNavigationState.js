@@ -6,7 +6,7 @@
 import { useMemo } from 'react';
 import { useAuth } from '../contexts/AuthContext';
 import { useWallet } from '../contexts/WalletContext';
-import { useOnboardingFlow } from '../contexts/OnboardingFlowContext';
+import { useOnboardingFlow } from '../contexts/AuthContext';
 
 /**
  * Hook to determine navigation state

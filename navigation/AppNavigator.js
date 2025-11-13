@@ -19,20 +19,20 @@ import AirdropSuccessModal from '../components/AirdropSuccessModal';
 // Contexts
 import { useAuth } from '../contexts/AuthContext';
 import { useWallet } from '../contexts/WalletContext';
-import { useBalance } from '../contexts/BalanceContext';
+import { useBalance } from '../contexts/WalletDataContext';
 import { useAirdrop } from '../contexts/AirdropContext';
 import { SendFlowProvider } from '../contexts/SendFlowContext';
 import { TransactionBuildProvider } from '../contexts/TransactionBuildContext';
 import { TransactionExecutionProvider } from '../contexts/TransactionExecutionContext';
 import { VaultProvider, useVault } from '../contexts/VaultContext';
 import { SeedPhraseProvider, useSeedPhrase } from '../contexts/SeedPhraseContext';
-import { OnboardingFlowProvider, useOnboardingFlow } from '../contexts/OnboardingFlowContext';
+import { useOnboardingFlow } from '../contexts/AuthContext';
 import { AirdropProvider } from '../contexts/AirdropContext';
 import {
   NavigationHandlersProvider,
   useNavigationHandlers,
 } from '../contexts/NavigationHandlersContext';
-import { ToastProvider, useToastContext } from '../contexts/ToastContext';
+import { useToastContext } from '../contexts/UIContext';
 
 // Hooks
 import { useWalletInitialization } from '../hooks/useWalletInitialization';
@@ -76,26 +76,22 @@ export default function AppNavigator() {
     loadNotificationsPreference();
   }, []);
 
-  // Wrap with remaining providers
+  // Wrap with remaining providers (UIProvider and AuthProvider already provided by App.js)
   return (
-    <ToastProvider>
-      <OnboardingFlowProvider resetWallet={resetWallet}>
-        <ProvidersWrapper
-          wallet={wallet}
-          currentAccount={currentAccount}
-          notificationsEnabled={notificationsEnabled}
-          startPolling={startPolling}
-          sendTransactionConfirmedNotification={sendTransactionConfirmedNotification}
-          fetchBalance={fetchBalance}
-          setIsAuthenticated={setIsAuthenticated}
-          loadWallet={loadWallet}
-          loadBiometricPreference={loadBiometricPreference}
-          isBiometricSupported={isBiometricSupported}
-          showBackgroundSplash={showBackgroundSplash}
-          walletExists={walletExists}
-        />
-      </OnboardingFlowProvider>
-    </ToastProvider>
+    <ProvidersWrapper
+      wallet={wallet}
+      currentAccount={currentAccount}
+      notificationsEnabled={notificationsEnabled}
+      startPolling={startPolling}
+      sendTransactionConfirmedNotification={sendTransactionConfirmedNotification}
+      fetchBalance={fetchBalance}
+      setIsAuthenticated={setIsAuthenticated}
+      loadWallet={loadWallet}
+      loadBiometricPreference={loadBiometricPreference}
+      isBiometricSupported={isBiometricSupported}
+      showBackgroundSplash={showBackgroundSplash}
+      walletExists={walletExists}
+    />
   );
 }
 

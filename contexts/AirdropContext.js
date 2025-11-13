@@ -1,5 +1,5 @@
 import React, { createContext, useContext, useState, useEffect, useRef } from 'react';
-import { useBalance } from './BalanceContext';
+import { useBalance } from './WalletDataContext';
 import { useWallet } from './WalletContext';
 import { useAuth } from './AuthContext';
 import * as SecureStore from 'expo-secure-store';

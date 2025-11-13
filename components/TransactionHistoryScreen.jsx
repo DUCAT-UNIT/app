@@ -20,7 +20,7 @@ import {
 import { COLORS } from '../utils/colors';
 import Icon from './Icon';
 import { calculateTransactionAmount } from '../services/transactionHistoryService';
-import { useTransactionHistory } from '../contexts/TransactionHistoryContext';
+import { useTransactionHistory } from '../contexts/WalletDataContext';
 import { getTxUrl, getOrdTxUrl } from '../utils/constants';
 
 const SCREEN_HEIGHT = Dimensions.get('window').height;

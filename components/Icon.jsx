@@ -1131,6 +1131,32 @@ const IconComponents = {
       />
     </Svg>
   ),
+
+  chevron_down: ({ width, height, color }) => (
+    <Svg width={width} height={height} viewBox="0 0 24 24" fill="none">
+      <Path
+        d="m6 9 6 6 6 -6"
+        fill="none"
+        stroke={color}
+        strokeLinecap="round"
+        strokeLinejoin="round"
+        strokeWidth="1"
+      />
+    </Svg>
+  ),
+
+  chevron_up: ({ width, height, color }) => (
+    <Svg width={width} height={height} viewBox="0 0 24 24" fill="none">
+      <Path
+        d="m18 15 -6 -6 -6 6"
+        fill="none"
+        stroke={color}
+        strokeLinecap="round"
+        strokeLinejoin="round"
+        strokeWidth="1"
+      />
+    </Svg>
+  ),
 };
 
 /**

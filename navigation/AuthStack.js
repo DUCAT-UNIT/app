@@ -6,10 +6,10 @@
 import React from 'react';
 import { createStackNavigator } from '@react-navigation/stack';
 import OnboardingPage from '../pages/OnboardingPage';
-import { useOnboardingFlow } from '../contexts/OnboardingFlowContext';
+import { useOnboardingFlow } from '../contexts/AuthContext';
 import { useNavigationHandlers } from '../contexts/NavigationHandlersContext';
-import { useBalance } from '../contexts/BalanceContext';
-import { useToastContext } from '../contexts/ToastContext';
+import { useBalance } from '../contexts/WalletDataContext';
+import { useToastContext } from '../contexts/UIContext';
 import { useKeyboard } from '../hooks/useKeyboard';
 import styles from '../styles';
 

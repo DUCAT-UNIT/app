@@ -9,13 +9,14 @@ import { NavigationContainer } from '@react-navigation/native';
 import { createStackNavigator } from '@react-navigation/stack';
 import AuthStack from './AuthStack';
 import MainTabs from './MainTabs';
+import SendNavigator from './SendNavigator';
 import PinSetupScreen from '../components/PinSetupScreen';
 import MutinynetBanner from '../components/MutinynetBanner';
 import { COLORS } from '../utils/colors';
 import { useAuth } from '../contexts/AuthContext';
-import { useBalance } from '../contexts/BalanceContext';
+import { useBalance } from '../contexts/WalletDataContext';
 import { useNavigationHandlers } from '../contexts/NavigationHandlersContext';
-import { useToastContext } from '../contexts/ToastContext';
+import { useToastContext } from '../contexts/UIContext';
 import { useNavigationState } from '../hooks/useNavigationState';
 
 const Stack = createStackNavigator();
@@ -45,7 +46,17 @@ export default function RootNavigator() {
         {shouldShowAuth ? (
           <Stack.Screen name="Auth" component={AuthStack} />
         ) : (
-          <Stack.Screen name="Main" component={MainTabs} />
+          <>
+            <Stack.Screen name="Main" component={MainTabs} />
+            <Stack.Screen
+              name="SendFlow"
+              component={SendNavigator}
+              options={{
+                presentation: 'modal',
+                animationEnabled: true,
+              }}
+            />
+          </>
         )}
       </Stack.Navigator>
 

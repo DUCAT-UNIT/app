@@ -264,9 +264,7 @@ export const createUnitIntent = async (
 
     // First check unconfirmed taproot UTXOs for runes
     let runeUtxo = null;
-    console.log('Checking unconfirmed taproot UTXOs for runes:', unconfirmedTaprootUtxos.length, 'UTXOs available');
     for (const utxo of unconfirmedTaprootUtxos) {
-      console.log('Unconfirmed rune UTXO:', utxo.txid?.substring(0, 8), 'runeAmount:', utxo.runeAmount, 'needed:', amountInRunes);
       if (utxo.runeAmount && utxo.runeAmount >= amountInRunes) {
         runeUtxo = {
           transaction: utxo.txid,
@@ -274,7 +272,6 @@ export const createUnitIntent = async (
           value: utxo.value,
           runeAmount: utxo.runeAmount,
         };
-        console.log('✅ Found suitable unconfirmed rune UTXO:', runeUtxo.transaction.substring(0, 8));
         break;
       }
     }

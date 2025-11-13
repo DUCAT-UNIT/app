@@ -68,10 +68,8 @@ export const TransactionExecutionProvider = ({
 
       // Extract outputs from signed transaction for pending tracking
       try {
-        console.log('🔍 Extracting outputs from signed transaction:', txid.substring(0, 8));
         const tx = bitcoin.Transaction.fromHex(intent.signedTxHex);
         const outputs = [];
-        console.log('Transaction has', tx.outs.length, 'outputs');
 
         // Check if any inputs are from pending transactions (for parent-child tracking)
         let parentTxid = null;
@@ -88,11 +86,6 @@ export const TransactionExecutionProvider = ({
         let runeChangeAmount = 0;
         if (sendAssetType === 'unit' && intent.runeUtxo && intent.amount) {
           runeChangeAmount = intent.runeUtxo.runeAmount - intent.amount;
-          console.log('💎 Calculating rune change:', {
-            inputRuneAmount: intent.runeUtxo.runeAmount,
-            sentAmount: intent.amount,
-            changeAmount: runeChangeAmount,
-          });
         }
 
         // Decode each output
@@ -100,14 +93,11 @@ export const TransactionExecutionProvider = ({
           try {
             const address = bitcoin.address.fromOutputScript(output.script, MUTINYNET_NETWORK);
             const value = Number(output.value);
-            console.log(`Output ${vout}:`, address.substring(0, 10) + '...', value, 'sats');
 
             // Check if this is a change output (going back to our wallet)
             const isChange =
               address === wallet?.segwitAddress ||
               address === wallet?.taprootAddress;
-
-            console.log(`  Is change? ${isChange} (segwit: ${wallet?.segwitAddress?.substring(0, 10)}... taproot: ${wallet?.taprootAddress?.substring(0, 10)}...)`);
 
             if (isChange) {
               const outputData = {
@@ -119,11 +109,9 @@ export const TransactionExecutionProvider = ({
               // For UNIT transactions, output 0 is the rune return (change)
               if (sendAssetType === 'unit' && vout === 0 && runeChangeAmount > 0) {
                 outputData.runeAmount = runeChangeAmount;
-                console.log('💎 Adding rune amount to output 0:', runeChangeAmount);
               }
 
               outputs.push(outputData);
-              console.log('📦 Storing change output:', { address, value, vout, runeAmount: outputData.runeAmount });
             }
           } catch (_error) {
             // Could be OP_RETURN or other non-standard output, skip
@@ -133,7 +121,6 @@ export const TransactionExecutionProvider = ({
         // If we have change outputs, store them as pending with parent tracking
         if (outputs.length > 0) {
           const assetType = sendAssetType === 'unit' ? 'UNIT' : 'BTC';
-          console.log('💾 Storing pending transaction:', { txid: txid.substring(0, 8), outputCount: outputs.length, assetType, parentTxid: parentTxid?.substring(0, 8) });
           await addPendingTransaction(txid, outputs, assetType, parentTxid);
         }
       } catch (error) {

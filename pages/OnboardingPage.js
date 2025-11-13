@@ -23,7 +23,7 @@ import { useWallet } from '../contexts/WalletContext';
 import { useWalletCreation } from '../hooks/useWalletCreation';
 import { useWalletImport } from '../hooks/useWalletImport';
 import { useSeedVerification } from '../hooks/useSeedVerification';
-import { useToastContext } from '../contexts/ToastContext';
+import { useToastContext } from '../contexts/UIContext';
 
 // Utils
 import { COLORS } from '../utils/colors';

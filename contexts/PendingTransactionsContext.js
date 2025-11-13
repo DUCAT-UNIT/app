@@ -75,8 +75,6 @@ export const PendingTransactionsProvider = ({ children, currentAccount, showToas
 
     setPendingTransactions(updated);
     await savePendingTransactions(updated);
-
-    console.log('Added pending transaction:', txid, 'with', outputs.length, 'outputs');
   }, [pendingTransactions, currentAccount]);
 
   /**
@@ -88,8 +86,6 @@ export const PendingTransactionsProvider = ({ children, currentAccount, showToas
 
     setPendingTransactions(updated);
     await savePendingTransactions(updated);
-
-    console.log('Confirmed transaction:', txid);
   }, [pendingTransactions, currentAccount]);
 
   /**
@@ -129,7 +125,6 @@ export const PendingTransactionsProvider = ({ children, currentAccount, showToas
         ? `1 transaction has been invalidated: ${reason}`
         : `${count} transactions have been invalidated: ${reason}`;
       showToast(message, 'error');
-      console.log('Invalidated transactions:', invalidated);
     }
 
     return invalidated;
@@ -202,7 +197,6 @@ export const PendingTransactionsProvider = ({ children, currentAccount, showToas
     if (cleaned > 0) {
       setPendingTransactions(updated);
       await savePendingTransactions(updated);
-      console.log('Cleaned up', cleaned, 'invalid transactions');
     }
   }, [pendingTransactions, currentAccount]);
 

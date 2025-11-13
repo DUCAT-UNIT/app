@@ -6,10 +6,10 @@
 import React from 'react';
 import { View, Animated, StyleSheet } from 'react-native';
 import { StatusBar } from 'expo-status-bar';
+import { useNavigation } from '@react-navigation/native';
 
 // Components
 import WalletScreen from '../components/WalletScreen';
-import SendScreen from '../components/SendScreen';
 import ReceiveScreen from '../components/ReceiveScreen';
 import TransactionHistoryScreen from '../components/TransactionHistoryScreen';
 import VaultScreen from '../components/VaultScreen';
@@ -22,18 +22,15 @@ import SplashScreen from '../components/SplashScreen';
 
 // Contexts
 import { useWallet } from '../contexts/WalletContext';
-import { useBalance } from '../contexts/BalanceContext';
+import { useBalance } from '../contexts/WalletDataContext';
 import { useSendFlow } from '../contexts/SendFlowContext';
-import { useTransactionBuild } from '../contexts/TransactionBuildContext';
 import { useTransactionExecution } from '../contexts/TransactionExecutionContext';
 import { useVault } from '../contexts/VaultContext';
-import { useOnboardingFlow } from '../contexts/OnboardingFlowContext';
+import { useOnboardingFlow } from '../contexts/AuthContext';
 import { useNavigationHandlers } from '../contexts/NavigationHandlersContext';
-import { useToastContext } from '../contexts/ToastContext';
+import { useToastContext } from '../contexts/UIContext';
 
 // Hooks
-import { } from '../hooks/useSettings';
-import { useKeyboard } from '../hooks/useKeyboard';
 import { useSettingsNavigation } from '../hooks/useSettingsNavigation';
 import { useSheetNavigation } from '../hooks/useSheetNavigation';
 
@@ -41,11 +38,12 @@ import { useSheetNavigation } from '../hooks/useSheetNavigation';
 import { COLORS } from '../utils/colors';
 
 export default function WalletPage() {
+  const navigation = useNavigation();
+
   // Consume contexts instead of props
   const { activeTab, setActiveTab, vaultCredentials, autoCreateVaultTrigger, openVault } =
     useVault();
-  const { resetInactivityTimer, amountInputRef } = useOnboardingFlow();
-  const { keyboardHeight } = useKeyboard();
+  const { resetInactivityTimer } = useOnboardingFlow();
   const { settingsHandlers, biometricEnabled, setShowAccountPicker } = useNavigationHandlers();
   const styles = require('../styles').default;
   // Wallet context
@@ -57,18 +55,11 @@ export default function WalletPage() {
     intentStep,
     sendAssetType,
     sendAmount,
-    sendRecipient,
     sendAddressType,
     setIntentStep,
-    setSendAssetType,
-    setSendAmount,
-    setSendRecipient,
   } = useSendFlow();
 
-  const { sendIntent, setSendIntent, createSendIntent } = useTransactionBuild();
-
-  const { broadcastedTxid, toastDismissed, setBroadcastedTxid, setToastDismissed, signIntent } =
-    useTransactionExecution();
+  const { broadcastedTxid, toastDismissed, setToastDismissed } = useTransactionExecution();
 
   // Toast context
   const { toasts, showToast } = useToastContext();
@@ -102,7 +93,7 @@ export default function WalletPage() {
           <>
             <WalletScreen
               styles={styles}
-              onSendPress={() => setIntentStep('selecting_asset')}
+              onSendPress={() => navigation.navigate('SendFlow', { screen: 'AssetSelector' })}
               onReceivePress={() => setShowReceiveSheet(true)}
               onHistoryPress={() => setShowTxHistory(true)}
               onSettingsPress={openSettings}
@@ -118,30 +109,6 @@ export default function WalletPage() {
             />
           </>
         ) : null}
-
-        {/* Send Transaction Bottom Sheets */}
-        <SendScreen
-          intentStep={intentStep}
-          sendAssetType={sendAssetType}
-          sendAmount={sendAmount}
-          sendRecipient={sendRecipient}
-          sendIntent={sendIntent}
-          broadcastedTxid={broadcastedTxid}
-          keyboardHeight={keyboardHeight}
-          amountInputRef={amountInputRef}
-          btcBalance={segwitBalance}
-          unitBalance={runesBalance.length > 0 ? parseFloat(runesBalance[0][1]) : 0}
-          btcPrice={btcPrice}
-          wallet={wallet}
-          setIntentStep={setIntentStep}
-          setSendAssetType={setSendAssetType}
-          setSendAmount={setSendAmount}
-          setSendRecipient={setSendRecipient}
-          setSendIntent={setSendIntent}
-          setBroadcastedTxid={setBroadcastedTxid}
-          createSendIntent={createSendIntent}
-          signIntent={signIntent}
-        />
 
         {/* Receive Bottom Sheet */}
         <ReceiveScreen
