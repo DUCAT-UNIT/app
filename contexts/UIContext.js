@@ -43,6 +43,42 @@ export const UIProvider = ({ children }) => {
   const [toasts, setToasts] = useState([]);
   const timeoutsRef = useRef({});
 
+  // ============================================================
+  // RICH NOTIFICATIONS (NEW)
+  // ============================================================
+  const [notification, setNotification] = useState(null);
+  const notificationTimeoutRef = useRef(null);
+
+  // New rich notification function (supports title, link, etc.)
+  const showNotification = useCallback((notificationData) => {
+    // Clear existing notification timeout
+    if (notificationTimeoutRef.current) {
+      clearTimeout(notificationTimeoutRef.current);
+      notificationTimeoutRef.current = null;
+    }
+
+    // Set the new notification
+    setNotification(notificationData);
+
+    // Auto-dismiss after duration if specified
+    if (notificationData.duration !== false) {
+      const duration = notificationData.duration || 5000;
+      notificationTimeoutRef.current = setTimeout(() => {
+        setNotification(null);
+        notificationTimeoutRef.current = null;
+      }, duration);
+    }
+  }, []);
+
+  const dismissNotification = useCallback(() => {
+    if (notificationTimeoutRef.current) {
+      clearTimeout(notificationTimeoutRef.current);
+      notificationTimeoutRef.current = null;
+    }
+    setNotification(null);
+  }, []);
+
+  // Legacy toast function (backwards compatible)
   const showToast = useCallback((message, type = 'success') => {
     // Clear all existing timeouts
     Object.keys(timeoutsRef.current).forEach((key) => {
@@ -105,6 +141,12 @@ export const UIProvider = ({ children }) => {
         toastVisible,
         toastType,
       },
+      // Rich notification namespace
+      notification: {
+        showNotification,
+        notification,
+        dismissNotification,
+      },
       // Direct exports for convenience (backwards compatibility)
       showTotalInBTC,
       setShowTotalInBTC,
@@ -118,6 +160,9 @@ export const UIProvider = ({ children }) => {
       toastMessage,
       toastVisible,
       toastType,
+      showNotification,
+      notification,
+      dismissNotification,
     }),
     [
       showTotalInBTC,
@@ -132,6 +177,9 @@ export const UIProvider = ({ children }) => {
       toastMessage,
       toastVisible,
       toastType,
+      showNotification,
+      notification,
+      dismissNotification,
     ]
   );
 

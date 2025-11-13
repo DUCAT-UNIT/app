@@ -8,6 +8,7 @@ export const COLORS = {
   DARK_BG: '#111015',
   VERY_DARK_GRAY: '#1D1C21',
   CARD_BG: '#1D1C21',
+  DARK_CARD_BG: '#1D1C21',
 
   // Grays
   DARK_GRAY: '#333333',
@@ -34,9 +35,11 @@ export const COLORS = {
   TEAL: '#59AA8A',
   LIGHT_GREEN: '#59AA8A',
   GREEN: '#59AA8A',
+  SUCCESS_GREEN: '#59AA8A',
 
   // Warning/accent colors
   YELLOW: '#F5E4A2',
+  WARNING_ORANGE: '#F5A623',
 
   // Error/danger colors
   DANGER_RED: '#D04C68',

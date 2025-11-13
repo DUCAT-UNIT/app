@@ -21,6 +21,7 @@ import BottomNavigationBar from '../components/BottomNavigationBar';
 import ToastContainer from '../components/ToastContainer';
 import TransactionToast from '../components/TransactionToast';
 import SplashScreen from '../components/SplashScreen';
+import NotificationModal from '../components/NotificationModal';
 
 // Contexts
 import { useWallet } from '../contexts/WalletContext';
@@ -65,7 +66,7 @@ export default function WalletPage() {
   const { broadcastedTxid, toastDismissed, setToastDismissed } = useTransactionExecution();
 
   // Toast context
-  const { toasts, showToast } = useToastContext();
+  const { toasts, showToast, notification, dismissNotification, showNotification } = useToastContext();
 
   // Navigation hooks
   const {
@@ -270,6 +271,7 @@ export default function WalletPage() {
               autoCreateVaultTrigger={autoCreateVaultTrigger}
               vaultData={vaultData}
               showToast={showToast}
+              showNotification={showNotification}
             />
           </Animated.View>
 
@@ -330,6 +332,13 @@ export default function WalletPage() {
 
         {/* Toast Notification */}
         <ToastContainer toasts={toasts} />
+
+        {/* Rich Notification Modal */}
+        <NotificationModal
+          visible={!!notification}
+          notification={notification}
+          onClose={dismissNotification}
+        />
 
         {/* Transaction Toast */}
         <TransactionToast

@@ -6,7 +6,7 @@ import { COLORS } from '../utils/colors';
 import { signPsbt } from '../utils/wallet';
 import { API } from '../utils/constants';
 
-const VaultScreen = React.memo(function VaultScreen({ visible, walletCredentials, _autoCreateVaultTrigger, vaultData, showToast }) {
+const VaultScreen = React.memo(function VaultScreen({ visible, walletCredentials, _autoCreateVaultTrigger, vaultData, showToast, showNotification }) {
   const webViewRef = useRef(null);
   const messageIndexRef = useRef(0);
   const hasLoadedOnceRef = useRef(false);
@@ -293,7 +293,7 @@ const VaultScreen = React.memo(function VaultScreen({ visible, walletCredentials
         userAgent="DucatMobile/1.0"
         javaScriptEnabled={true}
         domStorageEnabled={true}
-        webviewDebuggingEnabled={false}
+        webviewDebuggingEnabled={true}
         incognito={false}
         cacheEnabled={false}
         cacheMode="LOAD_NO_CACHE"
@@ -324,6 +324,46 @@ const VaultScreen = React.memo(function VaultScreen({ visible, walletCredentials
           return () => clearTimeout(loadingTimeout);
         }}
         injectedJavaScript={`
+          // Intercept console logs and forward to React Native
+          (function() {
+            const originalLog = console.log;
+            const originalWarn = console.warn;
+            const originalError = console.error;
+
+            console.log = function(...args) {
+              originalLog.apply(console, args);
+              try {
+                window.ReactNativeWebView?.postMessage(JSON.stringify({
+                  type: 'CONSOLE_LOG',
+                  level: 'log',
+                  args: args.map(arg => typeof arg === 'object' ? JSON.stringify(arg) : String(arg))
+                }));
+              } catch (e) {}
+            };
+
+            console.warn = function(...args) {
+              originalWarn.apply(console, args);
+              try {
+                window.ReactNativeWebView?.postMessage(JSON.stringify({
+                  type: 'CONSOLE_LOG',
+                  level: 'warn',
+                  args: args.map(arg => typeof arg === 'object' ? JSON.stringify(arg) : String(arg))
+                }));
+              } catch (e) {}
+            };
+
+            console.error = function(...args) {
+              originalError.apply(console, args);
+              try {
+                window.ReactNativeWebView?.postMessage(JSON.stringify({
+                  type: 'CONSOLE_LOG',
+                  level: 'error',
+                  args: args.map(arg => typeof arg === 'object' ? JSON.stringify(arg) : String(arg))
+                }));
+              } catch (e) {}
+            };
+          })();
+
           // Check for vault page loaded - with or without vault
           (function() {
             let notified = false;
@@ -386,6 +426,13 @@ const VaultScreen = React.memo(function VaultScreen({ visible, walletCredentials
           try {
             const message = JSON.parse(event.nativeEvent.data);
 
+            // Forward WebView console logs to Metro console
+            if (message.type === 'CONSOLE_LOG') {
+              const prefix = message.level === 'error' ? '❌' : message.level === 'warn' ? '⚠️' : '📱';
+              console.log(`${prefix} [WebView Console]`, ...message.args);
+              return;
+            }
+
             if (message.type === 'VAULT_LOADED') {
               console.log('✅ VAULT_LOADED message received - vault page is ready');
               setIsLoading(false);
@@ -445,20 +492,36 @@ const VaultScreen = React.memo(function VaultScreen({ visible, walletCredentials
             // Handle notification messages from web app
             if (message.type === 'SHOW_NOTIFICATION') {
               console.log('📬 SHOW_NOTIFICATION received from web app:', message.payload);
-              const { notificationType, message: notificationMessage, timestamp } = message.payload;
+              const {
+                notificationType,
+                message: notificationMessage,
+                title,
+                link,
+                linkText,
+                duration,
+              } = message.payload;
 
-              // Map web app notification types to toast types
-              const toastTypeMap = {
-                'success': 'success',
-                'error': 'error',
-                'warning': 'error', // Use error styling for warnings
-                'info': 'success',  // Use success styling for info
-                'loading': 'success', // Use success styling for loading
-              };
-
-              const toastType = toastTypeMap[notificationType] || 'success';
-
-              if (showToast) {
+              // Use rich notification if showNotification is available
+              if (showNotification) {
+                showNotification({
+                  type: notificationType || 'success',
+                  title: title,
+                  message: notificationMessage,
+                  link: link,
+                  linkText: linkText,
+                  duration: duration,
+                });
+                console.log(`✅ Displayed ${notificationType} notification: ${title || notificationMessage}`);
+              } else if (showToast) {
+                // Fallback to simple toast if showNotification not available
+                const toastTypeMap = {
+                  'success': 'success',
+                  'error': 'error',
+                  'warning': 'error',
+                  'info': 'success',
+                  'loading': 'success',
+                };
+                const toastType = toastTypeMap[notificationType] || 'success';
                 showToast(notificationMessage, toastType);
                 console.log(`✅ Displayed ${notificationType} toast: ${notificationMessage}`);
               }
@@ -514,6 +577,7 @@ VaultScreen.propTypes = {
     currentPrice: PropTypes.number,
   }),
   showToast: PropTypes.func,
+  showNotification: PropTypes.func,
 };
 
 export default VaultScreen;
