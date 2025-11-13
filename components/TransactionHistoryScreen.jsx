@@ -88,6 +88,7 @@ export default function TransactionHistoryScreen({
       setLoading(transactionHistory.length === 0 && loadingTransactionHistory);
 
       // Trigger a fresh fetch in background (context will update automatically)
+      console.log('📜 Transaction History opened - fetching latest transactions');
       fetchTransactionHistory();
 
       // Animate in
