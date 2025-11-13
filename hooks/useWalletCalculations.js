@@ -50,13 +50,16 @@ export const useWalletCalculations = ({
    * Formula: (collateralValue / debt) * 100
    */
   const vaultCollateralRatio = useMemo(() => {
-    if (!vaultData || !vaultData.latestTransaction) {
+    if (!vaultData) {
       return 0;
     }
 
-    const debt = vaultData.latestTransaction.amountBorrowed / 100;
-    const collateralValue =
-      vaultData.totalCollateral * (btcPrice || vaultData.latestTransaction.oraclePrice);
+    // Use totalDebt from vault list API (already in UNIT, not cents)
+    const debt = vaultData.totalDebt || 0;
+
+    // Get oracle price - prefer from latest transaction, fallback to current price
+    const oraclePrice = vaultData.latestTransaction?.oraclePrice || vaultData.currentPrice || btcPrice;
+    const collateralValue = (vaultData.totalCollateral || 0) * oraclePrice;
 
     if (debt === 0) {
       return 0;
@@ -70,7 +73,7 @@ export const useWalletCalculations = ({
    * Returns the collateral ratio as a percentage (e.g., 250 for 250%)
    */
   const vaultHealthPercentage = useMemo(() => {
-    if (!vaultData || !vaultData.latestTransaction) {
+    if (!vaultData) {
       return 0;
     }
 
@@ -85,7 +88,7 @@ export const useWalletCalculations = ({
    * Gray: No vault data
    */
   const vaultHealthColor = useMemo(() => {
-    if (!vaultData || !vaultData.latestTransaction) {
+    if (!vaultData) {
       return COLORS.SECONDARY_TEXT; // Gray
     }
 
@@ -117,11 +120,12 @@ export const useWalletCalculations = ({
    * Returns the amount borrowed from vault
    */
   const vaultDebt = useMemo(() => {
-    if (!vaultData || !vaultData.latestTransaction || !vaultData.latestTransaction.amountBorrowed) {
+    if (!vaultData || !vaultData.totalDebt) {
       return 0;
     }
 
-    return vaultData.latestTransaction.amountBorrowed / 100;
+    // totalDebt from API is already in UNIT (not cents)
+    return vaultData.totalDebt;
   }, [vaultData]);
 
   /**
@@ -129,18 +133,20 @@ export const useWalletCalculations = ({
    * Returns the vault amount in BTC
    */
   const vaultCollateral = useMemo(() => {
-    if (!vaultData || !vaultData.latestTransaction || !vaultData.latestTransaction.vaultAmount) {
+    if (!vaultData || !vaultData.totalCollateral) {
       return 0;
     }
 
-    return vaultData.latestTransaction.vaultAmount / 100000000;
+    // totalCollateral from API is already in BTC (not sats)
+    return vaultData.totalCollateral;
   }, [vaultData]);
 
   /**
    * Check if vault exists
+   * Vault exists if we have vaultData with debt or collateral
    */
   const hasVault = useMemo(() => {
-    return !!(vaultData && vaultData.latestTransaction);
+    return !!(vaultData && (vaultData.totalDebt || vaultData.totalCollateral));
   }, [vaultData]);
 
   return {
