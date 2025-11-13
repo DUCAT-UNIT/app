@@ -17,19 +17,34 @@ export default function ReviewScreen({ navigation }) {
   const [isDetailsExpanded, setIsDetailsExpanded] = useState(false);
   const [runeUtxoBalance, setRuneUtxoBalance] = useState(null);
 
+  // Get UNIT balance from rune UTXO (it's already in the object)
+  React.useEffect(() => {
+    if (sendIntent?.assetType === 'UNIT' && sendIntent?.runeUtxo && sendIntent?.runeUtxo.runeAmount) {
+      console.log('Setting rune balance from UTXO:', sendIntent.runeUtxo.runeAmount);
+      setRuneUtxoBalance(sendIntent.runeUtxo.runeAmount);
+    }
+  }, [sendIntent]);
+
+  // Check if any inputs are unconfirmed (must be before early return)
+  const hasUnconfirmedInputs = useMemo(() => {
+    if (!sendIntent) return false;
+
+    if (sendIntent.assetType === 'UNIT') {
+      // Check rune UTXO and sat UTXO
+      const runeUnconfirmed = sendIntent.runeUtxo?.status?.confirmed === false;
+      const satUnconfirmed = sendIntent.satUtxo?.status?.confirmed === false;
+      return runeUnconfirmed || satUnconfirmed;
+    } else {
+      // Check BTC inputs
+      return (sendIntent.inputs || []).some(input => input.status?.confirmed === false);
+    }
+  }, [sendIntent]);
+
   if (!sendIntent) {
     // Should not happen, but handle gracefully
     navigation.goBack();
     return null;
   }
-
-  // Get UNIT balance from rune UTXO (it's already in the object)
-  React.useEffect(() => {
-    if (sendIntent.assetType === 'UNIT' && sendIntent.runeUtxo && sendIntent.runeUtxo.runeAmount) {
-      console.log('Setting rune balance from UTXO:', sendIntent.runeUtxo.runeAmount);
-      setRuneUtxoBalance(sendIntent.runeUtxo.runeAmount);
-    }
-  }, [sendIntent]);
 
   // Calculate display values
   const displayAmount =
@@ -213,6 +228,19 @@ export default function ReviewScreen({ navigation }) {
               </View>
             </View>
           </View>
+
+          {/* Unconfirmed Inputs Warning */}
+          {hasUnconfirmedInputs && (
+            <View style={localStyles.warningBanner}>
+              <View style={localStyles.warningHeader}>
+                <Icon name="warning" size={18} color={COLORS.YELLOW} />
+                <Text style={localStyles.warningTitle}>Using Unconfirmed Outputs</Text>
+              </View>
+              <Text style={localStyles.warningText}>
+                This transaction uses outputs from a pending transaction that hasn't been confirmed yet. If the parent transaction fails or is replaced, this transaction will also fail.
+              </Text>
+            </View>
+          )}
 
           {/* Transaction Details Section */}
           <Text style={localStyles.sectionTitle}>Transaction details</Text>
@@ -652,6 +680,30 @@ const localStyles = StyleSheet.create({
     fontWeight: '400',
     color: COLORS.VERY_LIGHT_GRAY,
     textAlign: 'right',
+  },
+  warningBanner: {
+    backgroundColor: COLORS.YELLOW + '15',
+    borderRadius: 12,
+    padding: 14,
+    marginBottom: 20,
+    borderWidth: 1,
+    borderColor: COLORS.YELLOW + '40',
+  },
+  warningHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginBottom: 8,
+    gap: 8,
+  },
+  warningTitle: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: COLORS.YELLOW,
+  },
+  warningText: {
+    fontSize: 13,
+    color: COLORS.VERY_LIGHT_GRAY,
+    lineHeight: 18,
   },
   buttonContainer: {
     flexDirection: 'row',
