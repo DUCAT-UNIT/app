@@ -51,8 +51,25 @@ export const createBtcIntent = async (recipient, amount, segwitAddress, _current
     // Fetch confirmed UTXOs for the source address
     const confirmedUtxos = await fetchUtxosService(sourceAddress);
 
-    // Merge confirmed and unconfirmed UTXOs
-    const availableUtxos = [...confirmedUtxos, ...unconfirmedUtxos];
+    // Merge confirmed and unconfirmed UTXOs, removing duplicates
+    // Deduplicate by txid+vout to avoid using the same UTXO twice
+    const utxoMap = new Map();
+
+    // Add confirmed UTXOs first
+    confirmedUtxos.forEach(utxo => {
+      const key = `${utxo.txid}:${utxo.vout}`;
+      utxoMap.set(key, utxo);
+    });
+
+    // Add unconfirmed UTXOs, but don't overwrite if already present
+    unconfirmedUtxos.forEach(utxo => {
+      const key = `${utxo.txid}:${utxo.vout}`;
+      if (!utxoMap.has(key)) {
+        utxoMap.set(key, utxo);
+      }
+    });
+
+    const availableUtxos = Array.from(utxoMap.values());
 
     if (availableUtxos.length === 0) {
       throw new Error(ERRORS.NO_CONFIRMED_FUNDS);
