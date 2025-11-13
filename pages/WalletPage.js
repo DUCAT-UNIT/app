@@ -81,7 +81,7 @@ export default function WalletPage() {
     useSheetNavigation();
 
   // Vault swipe animation state
-  const vaultTranslateX = useRef(new Animated.Value(SCREEN_WIDTH)).current;
+  const vaultTranslateX = useRef(new Animated.Value(-SCREEN_WIDTH)).current; // Start on left
   const walletTranslateX = useRef(new Animated.Value(0)).current;
   const [isSwiping, setIsSwiping] = useState(false);
 
@@ -97,10 +97,10 @@ export default function WalletPage() {
         setIsSwiping(true);
       },
       onPanResponderMove: (_, gestureState) => {
-        // Only allow right swipe (positive dx)
+        // Only allow right swipe (positive dx) - wallet moves right, vault reveals from left
         if (gestureState.dx > 0) {
-          walletTranslateX.setValue(-gestureState.dx);
-          vaultTranslateX.setValue(SCREEN_WIDTH - gestureState.dx);
+          walletTranslateX.setValue(gestureState.dx);
+          vaultTranslateX.setValue(-SCREEN_WIDTH + gestureState.dx);
         }
       },
       onPanResponderRelease: (_, gestureState) => {
@@ -108,10 +108,10 @@ export default function WalletPage() {
 
         // If swiped more than 50% of screen width, complete the transition
         if (gestureState.dx > SCREEN_WIDTH * 0.5) {
-          // Complete animation to vault
+          // Complete animation to vault - wallet moves right off screen, vault moves to center
           Animated.parallel([
             Animated.spring(walletTranslateX, {
-              toValue: -SCREEN_WIDTH,
+              toValue: SCREEN_WIDTH,
               useNativeDriver: true,
               tension: 65,
               friction: 11,
@@ -126,7 +126,7 @@ export default function WalletPage() {
             openVault();
             // Reset positions after tab change
             walletTranslateX.setValue(0);
-            vaultTranslateX.setValue(SCREEN_WIDTH);
+            vaultTranslateX.setValue(-SCREEN_WIDTH);
           });
         } else {
           // Spring back to original position
@@ -138,7 +138,7 @@ export default function WalletPage() {
               friction: 11,
             }),
             Animated.spring(vaultTranslateX, {
-              toValue: SCREEN_WIDTH,
+              toValue: -SCREEN_WIDTH,
               useNativeDriver: true,
               tension: 65,
               friction: 11,
@@ -318,7 +318,7 @@ const localStyles = StyleSheet.create({
     position: 'absolute',
     top: 0,
     left: 0,
-    width: SCREEN_WIDTH,
+    right: 0,
     bottom: 0,
     backgroundColor: COLORS.DARK_BG,
     flexDirection: 'column',
