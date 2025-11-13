@@ -64,7 +64,7 @@ export default function AirdropSuccessModal({ visible, onClose, txId }) {
           </View>
 
           {/* Title */}
-          <Text style={localStyles.title}>Mutiny BTC airdropped</Text>
+          <Text style={localStyles.title}>Mutiny BTC Airdropped</Text>
 
           {/* Message */}
           <Text style={localStyles.message}>

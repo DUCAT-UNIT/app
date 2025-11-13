@@ -1157,6 +1157,187 @@ const IconComponents = {
       />
     </Svg>
   ),
+
+  party: ({ width, height, color }) => (
+    <Svg width={width} height={height} viewBox="0 0 24 24" fill="none">
+      <Path
+        d="M16.483 12.216a4.967 4.967 0 0 1 7.017 0"
+        fill="none"
+        stroke={color}
+        strokeLinecap="round"
+        strokeLinejoin="round"
+        strokeWidth="1"
+      />
+      <Path
+        d="M11.768 7.518a4.961 4.961 0 0 0 0 -7.018"
+        fill="none"
+        stroke={color}
+        strokeLinecap="round"
+        strokeLinejoin="round"
+        strokeWidth="1"
+      />
+      <Path
+        d="m18.075 8.249 3.509 -1.168"
+        fill="none"
+        stroke={color}
+        strokeLinecap="round"
+        strokeLinejoin="round"
+        strokeWidth="1"
+      />
+      <Path
+        d="m15.736 5.912 1.17 -3.51"
+        fill="none"
+        stroke={color}
+        strokeLinecap="round"
+        strokeLinejoin="round"
+        strokeWidth="1"
+      />
+      <Path
+        d="M7.965 4.771a0.25 0.25 0 0 1 0.25 0.25"
+        fill="none"
+        stroke={color}
+        strokeLinecap="round"
+        strokeLinejoin="round"
+        strokeWidth="1"
+      />
+      <Path
+        d="M7.715 5.021a0.25 0.25 0 0 1 0.25 -0.25"
+        fill="none"
+        stroke={color}
+        strokeLinecap="round"
+        strokeLinejoin="round"
+        strokeWidth="1"
+      />
+      <Path
+        d="M7.965 5.271a0.25 0.25 0 0 1 -0.25 -0.25"
+        fill="none"
+        stroke={color}
+        strokeLinecap="round"
+        strokeLinejoin="round"
+        strokeWidth="1"
+      />
+      <Path
+        d="M8.215 5.021a0.25 0.25 0 0 1 -0.25 0.25"
+        fill="none"
+        stroke={color}
+        strokeLinecap="round"
+        strokeLinejoin="round"
+        strokeWidth="1"
+      />
+      <Path
+        d="M15.465 7.771a0.25 0.25 0 0 1 0.25 0.25"
+        fill="none"
+        stroke={color}
+        strokeLinecap="round"
+        strokeLinejoin="round"
+        strokeWidth="1"
+      />
+      <Path
+        d="M15.215 8.021a0.25 0.25 0 0 1 0.25 -0.25"
+        fill="none"
+        stroke={color}
+        strokeLinecap="round"
+        strokeLinejoin="round"
+        strokeWidth="1"
+      />
+      <Path
+        d="M15.465 8.271a0.25 0.25 0 0 1 -0.25 -0.25"
+        fill="none"
+        stroke={color}
+        strokeLinecap="round"
+        strokeLinejoin="round"
+        strokeWidth="1"
+      />
+      <Path
+        d="M15.715 8.021a0.25 0.25 0 0 1 -0.25 0.25"
+        fill="none"
+        stroke={color}
+        strokeLinecap="round"
+        strokeLinejoin="round"
+        strokeWidth="1"
+      />
+      <Path
+        d="M19.465 13.771a0.25 0.25 0 0 1 0.25 0.25"
+        fill="none"
+        stroke={color}
+        strokeLinecap="round"
+        strokeLinejoin="round"
+        strokeWidth="1"
+      />
+      <Path
+        d="M19.215 14.021a0.25 0.25 0 0 1 0.25 -0.25"
+        fill="none"
+        stroke={color}
+        strokeLinecap="round"
+        strokeLinejoin="round"
+        strokeWidth="1"
+      />
+      <Path
+        d="M19.465 14.271a0.25 0.25 0 0 1 -0.25 -0.25"
+        fill="none"
+        stroke={color}
+        strokeLinecap="round"
+        strokeLinejoin="round"
+        strokeWidth="1"
+      />
+      <Path
+        d="M19.715 14.021a0.25 0.25 0 0 1 -0.25 0.25"
+        fill="none"
+        stroke={color}
+        strokeLinecap="round"
+        strokeLinejoin="round"
+        strokeWidth="1"
+      />
+      <Path
+        d="M19.965 3.771a0.25 0.25 0 0 1 0.25 0.25"
+        fill="none"
+        stroke={color}
+        strokeLinecap="round"
+        strokeLinejoin="round"
+        strokeWidth="1"
+      />
+      <Path
+        d="M19.715 4.021a0.25 0.25 0 0 1 0.25 -0.25"
+        fill="none"
+        stroke={color}
+        strokeLinecap="round"
+        strokeLinejoin="round"
+        strokeWidth="1"
+      />
+      <Path
+        d="M19.965 4.271a0.25 0.25 0 0 1 -0.25 -0.25"
+        fill="none"
+        stroke={color}
+        strokeLinecap="round"
+        strokeLinejoin="round"
+        strokeWidth="1"
+      />
+      <Path
+        d="M20.215 4.021a0.25 0.25 0 0 1 -0.25 0.25"
+        fill="none"
+        stroke={color}
+        strokeLinecap="round"
+        strokeLinejoin="round"
+        strokeWidth="1"
+      />
+      <Path
+        d="M9.7337957955 14.266045307a5.5 2.5 45 1 0 3.535533906 -3.5355339059 5.5 2.5 45 1 0 -3.535533906 3.535533906Z"
+        fill="none"
+        stroke={color}
+        strokeLinecap="round"
+        strokeLinejoin="round"
+        strokeWidth="1"
+      />
+      <Path
+        d="M15.145 16.575 2.484 23.341A1.348 1.348 0 0 1 0.66 21.516L7.425 8.855"
+        fill="none"
+        stroke={color}
+        strokeLinecap="round"
+        strokeLinejoin="round"
+        strokeWidth="1"
+      />
+    </Svg>
+  ),
 };
 
 /**
