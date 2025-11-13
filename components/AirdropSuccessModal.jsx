@@ -60,16 +60,15 @@ export default function AirdropSuccessModal({ visible, onClose, txId }) {
         >
           {/* Success Icon */}
           <View style={localStyles.successIcon}>
-            <Icon name="done" size={48} color={COLORS.WHITE} />
+            <Icon name="party" size={48} color="#DDDDDD" />
           </View>
 
           {/* Title */}
-          <Text style={localStyles.title}>Welcome Gift! 🎉</Text>
+          <Text style={localStyles.title}>Mutiny BTC airdropped</Text>
 
           {/* Message */}
           <Text style={localStyles.message}>
-            Congratulations! We've sent you a complimentary Mutinynet airdrop to get you started.
-            Use these testnet coins to create your first vault and explore the app.
+            An airdrop is on the way. You should see it reflected in your balance in 30 seconds.
           </Text>
 
           {/* Transaction ID */}
