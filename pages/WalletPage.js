@@ -230,7 +230,38 @@ export default function WalletPage() {
   return (
     <>
       <View style={localStyles.container} onTouchStart={resetInactivityTimer}>
-        {/* Animated Wallet Screen */}
+        {/* Animated Vault Screen - Rendered first (below wallet) */}
+        <Animated.View
+          style={[
+            localStyles.vaultContainer,
+            {
+              transform: [{ translateX: vaultTranslateX }],
+            },
+          ]}
+          pointerEvents={activeTab === 'vault' || isSwiping ? 'auto' : 'none'}
+        >
+          <View style={localStyles.screenContent}>
+            <MutinynetBanner />
+            <View style={localStyles.vaultContent}>
+              <VaultScreen
+                visible={activeTab === 'vault'}
+                walletCredentials={vaultCredentials}
+                autoCreateVaultTrigger={autoCreateVaultTrigger}
+              />
+              {/* Transparent swipe overlay for vault screen */}
+              {activeTab === 'vault' && (
+                <View style={localStyles.swipeOverlay} {...vaultPanResponder.panHandlers} />
+              )}
+            </View>
+            <BottomNavigationBar
+              activeTab={activeTab}
+              onVaultPress={openVault}
+              onWalletPress={() => setActiveTab('wallet')}
+            />
+          </View>
+        </Animated.View>
+
+        {/* Animated Wallet Screen - Rendered second (above vault) */}
         <Animated.View
           style={[
             localStyles.screenContainer,
@@ -308,37 +339,6 @@ export default function WalletPage() {
         />
       </View>
 
-      {/* Animated Vault Screen - Slides in from left */}
-      <Animated.View
-        style={[
-          localStyles.vaultOverlay,
-          {
-            transform: [{ translateX: vaultTranslateX }],
-          },
-        ]}
-        pointerEvents={activeTab === 'vault' || isSwiping ? 'auto' : 'none'}
-      >
-        <View style={localStyles.screenContent}>
-          <MutinynetBanner />
-          <View style={localStyles.vaultContent}>
-            <VaultScreen
-              visible={activeTab === 'vault'}
-              walletCredentials={vaultCredentials}
-              autoCreateVaultTrigger={autoCreateVaultTrigger}
-            />
-            {/* Transparent swipe overlay for vault screen */}
-            {activeTab === 'vault' && (
-              <View style={localStyles.swipeOverlay} {...vaultPanResponder.panHandlers} />
-            )}
-          </View>
-          <BottomNavigationBar
-            activeTab={activeTab}
-            onVaultPress={openVault}
-            onWalletPress={() => setActiveTab('wallet')}
-          />
-        </View>
-      </Animated.View>
-
       {/* Settings Screen Overlay */}
       <Animated.View
         style={[
@@ -379,6 +379,15 @@ const localStyles = StyleSheet.create({
     flex: 1,
     backgroundColor: COLORS.DARK_BG,
   },
+  vaultContainer: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
+    bottom: 0,
+    backgroundColor: COLORS.DARK_BG,
+    zIndex: 1,
+  },
   screenContainer: {
     position: 'absolute',
     top: 0,
@@ -386,18 +395,10 @@ const localStyles = StyleSheet.create({
     right: 0,
     bottom: 0,
     backgroundColor: COLORS.DARK_BG,
+    zIndex: 2,
   },
   screenContent: {
     flex: 1,
-    flexDirection: 'column',
-  },
-  vaultOverlay: {
-    position: 'absolute',
-    top: 0,
-    left: 0,
-    right: 0,
-    bottom: 0,
-    backgroundColor: COLORS.DARK_BG,
     flexDirection: 'column',
   },
   vaultContent: {
