@@ -34,6 +34,10 @@ export const TransactionBuildProvider = ({ children, wallet, currentAccount, sho
     try {
       // Get unconfirmed UTXOs for segwit (BTC), excluding any already used in current intent
       const unconfirmedUtxos = getUnconfirmedUTXOs('segwit', sendIntent);
+      console.log('🔍 Available unconfirmed segwit UTXOs for BTC tx:', unconfirmedUtxos.length);
+      unconfirmedUtxos.forEach(utxo => {
+        console.log(`  - ${utxo.txid}:${utxo.vout} = ${utxo.value} sats`);
+      });
 
       const intent = await TransactionService.createBtcIntent(
         sendRecipient,
@@ -67,6 +71,15 @@ export const TransactionBuildProvider = ({ children, wallet, currentAccount, sho
       // Get unconfirmed UTXOs for taproot (UNIT) and segwit (fees), excluding any already used in current intent
       const unconfirmedTaprootUtxos = getUnconfirmedUTXOs('taproot', sendIntent);
       const unconfirmedSegwitUtxos = getUnconfirmedUTXOs('segwit', sendIntent);
+
+      console.log('🔍 Available unconfirmed taproot UTXOs for UNIT tx:', unconfirmedTaprootUtxos.length);
+      unconfirmedTaprootUtxos.forEach(utxo => {
+        console.log(`  - ${utxo.txid}:${utxo.vout} = ${utxo.value} sats, runes: ${utxo.runeAmount}`);
+      });
+      console.log('🔍 Available unconfirmed segwit UTXOs for UNIT tx:', unconfirmedSegwitUtxos.length);
+      unconfirmedSegwitUtxos.forEach(utxo => {
+        console.log(`  - ${utxo.txid}:${utxo.vout} = ${utxo.value} sats`);
+      });
 
       const intent = await TransactionService.createUnitIntent(
         sendRecipient,
