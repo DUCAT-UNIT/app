@@ -12,6 +12,7 @@ import * as SecureStore from 'expo-secure-store';
 import * as AuthService from '../services/authService';
 import { parseErrorMessage } from '../utils/errorParser';
 import { ERRORS } from '../utils/messages';
+import { useAuth } from './AuthContext';
 
 const SeedPhraseContext = createContext();
 
@@ -23,7 +24,8 @@ export const useSeedPhrase = () => {
   return context;
 };
 
-export const SeedPhraseProvider = ({ children, showToast, setIsAuthenticated, biometricEnabled }) => {
+export const SeedPhraseProvider = ({ children, showToast, setIsAuthenticated }) => {
+  const { biometricEnabled } = useAuth();
   const [viewingSeedPhrase, setViewingSeedPhrase] = useState(false);
   const [seedPhraseWords, setSeedPhraseWords] = useState([]);
   const [seedPhraseVisible, setSeedPhraseVisible] = useState(false);

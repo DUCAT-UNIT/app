@@ -54,7 +54,6 @@ export default function AppNavigator() {
   const { fetchBalance } = useBalance();
   const {
     isBiometricSupported,
-    biometricEnabled,
     setIsAuthenticated,
     loadBiometricPreference,
   } = useAuth();
@@ -131,7 +130,7 @@ function ProvidersWrapper({
             fetchBalance={fetchBalance}
           >
             <VaultProvider currentAccount={currentAccount}>
-              <SeedPhraseProvider showToast={showToast} setIsAuthenticated={setIsAuthenticated} biometricEnabled={biometricEnabled}>
+              <SeedPhraseProvider showToast={showToast} setIsAuthenticated={setIsAuthenticated}>
                 <NavigationHandlersProvider walletExists={walletExists}>
                   <AppNavigatorContent
                     loadWallet={loadWallet}
