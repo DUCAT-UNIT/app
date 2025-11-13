@@ -193,14 +193,21 @@ export const WalletDataProvider = ({ children }) => {
   const fetchVault = useCallback(async () => {
     const vaultPubkey = wallet?.taprootPubkey;
 
-    if (!vaultPubkey) return;
+    if (!vaultPubkey) {
+      console.log('⚠️ fetchVault: No wallet or taprootPubkey available');
+      return;
+    }
+
+    console.log('🏦 WalletDataContext: Starting vault fetch for pubkey:', vaultPubkey);
 
     try {
       setLoadingVault(true);
       setVaultError(null); // Clear previous error
       const data = await fetchVaultData(vaultPubkey);
+      console.log('🏦 WalletDataContext: Vault data received:', data ? 'Data exists' : 'null (no vault)');
       setVaultData(data);
     } catch (error) {
+      console.error('❌ WalletDataContext: Error fetching vault data:', error);
       // Set error state instead of silently failing
       setVaultError('Failed to fetch vault data');
       // Don't reset vault data - keep last known values

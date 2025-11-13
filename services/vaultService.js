@@ -91,8 +91,11 @@ export const fetchVaultHistory = async (vaultPubkey) => {
 export const fetchVaultData = async (vaultPubkey) => {
   try {
     if (!vaultPubkey) {
+      console.log('⚠️ fetchVaultData: No vaultPubkey provided');
       return null;
     }
+
+    console.log('🏦 Fetching vault data for pubkey:', vaultPubkey);
 
     // Step 1: Get vault list to retrieve vault_id
     const vaultListResponse = await retrySilently(
@@ -110,8 +113,10 @@ export const fetchVaultData = async (vaultPubkey) => {
     );
 
     const vaultListData = await vaultListResponse.json();
+    console.log('🏦 Vault list response:', vaultListData);
 
     if (!vaultListData.vaults || vaultListData.vaults.length === 0) {
+      console.log('⚠️ No vaults found for this pubkey - vault not created yet');
       return null;
     }
 
@@ -155,7 +160,7 @@ export const fetchVaultData = async (vaultPubkey) => {
 
     const latestTransaction = vaultHistoryData.history[0];
 
-    return {
+    const vaultData = {
       vaultId,
       vaultTag,
       totalDebt: vaultListData.total_debt,
@@ -171,7 +176,16 @@ export const fetchVaultData = async (vaultPubkey) => {
         action: latestTransaction.action,
       },
     };
+
+    console.log('✅ Vault data fetched successfully:', {
+      vaultTag,
+      totalDebt: vaultListData.total_debt,
+      totalCollateral: vaultListData.total_collateral,
+    });
+
+    return vaultData;
   } catch (error) {
+    console.error('❌ Error fetching vault data:', error);
     return null;
   }
 };
