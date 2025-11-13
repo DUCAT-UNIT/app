@@ -141,46 +141,55 @@ const VaultScreen = React.memo(function VaultScreen({ visible, walletCredentials
     }
   }, [visible, injectWalletCredentials]);
 
-  // Track when vault data changes to force proper reload
-  const vaultDataKeyRef = React.useRef('');
+  // Track the pubkey that corresponds to current WebView state
+  const loadedVaultPubkeyRef = React.useRef('');
   const [forceReloadKey, setForceReloadKey] = React.useState(0);
 
-  // Reload webview when vault pubkey changes (account switch detected by vault card)
+  // Reload webview when vaultData is fetched for a different account
   React.useEffect(() => {
-    if (walletCredentials) {
-      // Use vaultPubkey as unique identifier for this account
-      const newKey = walletCredentials.vaultPubkey;
+    // Only trigger reload when we have wallet credentials
+    if (!walletCredentials?.vaultPubkey) return;
 
-      if (vaultDataKeyRef.current && vaultDataKeyRef.current !== newKey) {
-        console.log('🔄 Account switch detected via vault pubkey - forcing complete vault reload');
-        console.log('Old vault pubkey:', vaultDataKeyRef.current);
-        console.log('New vault pubkey:', newKey);
-        console.log('New vault data:', vaultData ? {
-          vaultTag: vaultData.vaultTag,
-          totalDebt: vaultData.totalDebt,
-          totalCollateral: vaultData.totalCollateral,
-        } : 'No vault data (vault not created)');
+    const currentPubkey = walletCredentials.vaultPubkey;
 
-        // Reset all state for new account
-        setIsLoading(true);
-        setWebViewLoaded(false);
-        hasLoadedOnceRef.current = false;
-        setPreparingVault(true);
+    // Check if vaultData has been fetched (or confirmed as null) for this pubkey
+    // vaultData being null is valid (means no vault created yet)
+    const vaultDataFetched = vaultData !== undefined;
 
-        // Force complete reload by changing key (unmount/remount WebView)
-        const newReloadKey = Date.now();
-        console.log('🔄 Setting forceReloadKey to:', newReloadKey);
-        setForceReloadKey(newReloadKey);
+    if (vaultDataFetched && loadedVaultPubkeyRef.current && loadedVaultPubkeyRef.current !== currentPubkey) {
+      console.log('🔄 Account switch detected - vault card has new data for different pubkey');
+      console.log('Loaded pubkey in WebView:', loadedVaultPubkeyRef.current);
+      console.log('New pubkey from vault card:', currentPubkey);
+      console.log('New vault data:', vaultData ? {
+        vaultTag: vaultData.vaultTag,
+        totalDebt: vaultData.totalDebt,
+        totalCollateral: vaultData.totalCollateral,
+      } : 'No vault (null)');
 
-        // Inject credentials after WebView has time to fully reload
-        setTimeout(() => {
-          console.log('🔄 Re-injecting credentials after account switch (2000ms)');
-          console.log('🔄 Injecting for vault:', walletCredentials.vaultPubkey);
-          injectWalletCredentials();
-        }, 2000);
-      }
+      // Reset all state for new account
+      setIsLoading(true);
+      setWebViewLoaded(false);
+      hasLoadedOnceRef.current = false;
+      setPreparingVault(true);
 
-      vaultDataKeyRef.current = newKey;
+      // Force complete reload by changing key (unmount/remount WebView)
+      const newReloadKey = Date.now();
+      console.log('🔄 Setting forceReloadKey to:', newReloadKey);
+      setForceReloadKey(newReloadKey);
+
+      // Update ref to track the new pubkey being loaded
+      loadedVaultPubkeyRef.current = currentPubkey;
+
+      // Inject credentials after WebView has time to fully reload
+      setTimeout(() => {
+        console.log('🔄 Re-injecting credentials after account switch (2000ms)');
+        console.log('🔄 Injecting for vault:', currentPubkey);
+        injectWalletCredentials();
+      }, 2000);
+    } else if (vaultDataFetched && !loadedVaultPubkeyRef.current) {
+      // Initial load - just set the ref without triggering reload
+      console.log('🔄 Initial vault load for pubkey:', currentPubkey);
+      loadedVaultPubkeyRef.current = currentPubkey;
     }
   }, [vaultData, walletCredentials, injectWalletCredentials]);
 
