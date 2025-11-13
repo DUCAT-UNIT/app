@@ -38,7 +38,7 @@ export const TransactionExecutionProvider = ({
   const { setIntentStep, sendAssetType, sendAmount } = useSendFlow();
   const { sendIntent, setSendIntent } = useTransactionBuild();
   const { wallet } = useWallet();
-  const { addPendingTransaction, confirmTransaction, invalidateTransaction, pendingTransactions } = usePendingTransactions();
+  const { addPendingTransaction, confirmTransaction, invalidateTransaction, pendingTransactions, markUtxoAsSpent } = usePendingTransactions();
 
   // Execution state
   const [broadcastedTxid, setBroadcastedTxid] = useState(null);
@@ -72,13 +72,20 @@ export const TransactionExecutionProvider = ({
         const outputs = [];
 
         // Check if any inputs are from pending transactions (for parent-child tracking)
+        // Also mark those UTXOs as spent
         let parentTxid = null;
         for (const input of tx.ins) {
           const inputTxid = Buffer.from(input.hash).reverse().toString('hex');
+          const inputVout = input.index;
+
           // Check if this input is spending from a pending transaction
           if (pendingTransactions[inputTxid] && pendingTransactions[inputTxid].status === 'pending') {
-            parentTxid = inputTxid;
-            break; // We only need one parent for tracking
+            if (!parentTxid) {
+              parentTxid = inputTxid; // Set first pending input as parent
+            }
+
+            // Mark this UTXO as spent so it won't be selected again
+            await markUtxoAsSpent(inputTxid, inputVout);
           }
         }
 
@@ -163,7 +170,7 @@ export const TransactionExecutionProvider = ({
         await invalidateTransaction(intent.txid, 'Transaction broadcast failed');
       }
     }
-  }, [sendIntent, wallet, showToast, setIntentStep, sendAssetType, sendAmount, startTransactionPolling, notificationsEnabled, sendTransactionConfirmedNotification, fetchBalance, addPendingTransaction, confirmTransaction, invalidateTransaction, pendingTransactions]);
+  }, [sendIntent, wallet, showToast, setIntentStep, sendAssetType, sendAmount, startTransactionPolling, notificationsEnabled, sendTransactionConfirmedNotification, fetchBalance, addPendingTransaction, confirmTransaction, invalidateTransaction, pendingTransactions, markUtxoAsSpent]);
 
   // Sign the PSBT
   const signIntent = useCallback(async () => {

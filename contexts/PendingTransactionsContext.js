@@ -181,6 +181,27 @@ export const PendingTransactionsProvider = ({ children, currentAccount, showToas
   }, [getUnconfirmedUTXOs]);
 
   /**
+   * Mark a UTXO as spent by removing it from pending transaction outputs
+   * This prevents it from being selected again when creating new transactions
+   */
+  const markUtxoAsSpent = useCallback(async (txid, vout) => {
+    const updated = { ...pendingTransactions };
+
+    if (updated[txid] && updated[txid].outputs) {
+      // Remove the specific output from the transaction's outputs
+      updated[txid].outputs = updated[txid].outputs.filter(output => output.vout !== vout);
+
+      // If no outputs left, remove the transaction entirely
+      if (updated[txid].outputs.length === 0) {
+        delete updated[txid];
+      }
+
+      setPendingTransactions(updated);
+      await savePendingTransactions(updated);
+    }
+  }, [pendingTransactions, currentAccount]);
+
+  /**
    * Clean up old invalid transactions
    */
   const cleanupInvalidTransactions = useCallback(async () => {
@@ -207,6 +228,7 @@ export const PendingTransactionsProvider = ({ children, currentAccount, showToas
     invalidateTransaction,
     getUnconfirmedUTXOs,
     getUnconfirmedBalance,
+    markUtxoAsSpent,
     cleanupInvalidTransactions,
   };
 
