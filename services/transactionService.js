@@ -162,9 +162,24 @@ export const createBtcIntent = async (recipient, amount, segwitAddress, _current
       throw new Error(ERRORS.INSUFFICIENT_FUNDS);
     }
 
+    // Deduplicate selectedUtxos by txid:vout (safety check)
+    const selectedUtxosMap = new Map();
+    selectedUtxos.forEach(utxo => {
+      const key = `${utxo.txid}:${utxo.vout}`;
+      if (!selectedUtxosMap.has(key)) {
+        selectedUtxosMap.set(key, utxo);
+      }
+    });
+    const uniqueSelectedUtxos = Array.from(selectedUtxosMap.values());
+
+    // Detect duplicate inputs
+    if (uniqueSelectedUtxos.length < selectedUtxos.length) {
+      console.warn(`Detected duplicate inputs: ${selectedUtxos.length} -> ${uniqueSelectedUtxos.length}`);
+    }
+
     // Fetch transaction hex for each input
     const inputsWithTx = await Promise.all(
-      selectedUtxos.map(async (utxo) => {
+      uniqueSelectedUtxos.map(async (utxo) => {
         const txResponse = await fetch(getTxHexUrl(utxo.txid));
         const txHex = await txResponse.text();
         return {
@@ -226,8 +241,8 @@ export const createBtcIntent = async (recipient, amount, segwitAddress, _current
       fee: finalFee,
       addressType, // Always 'segwit' for BTC
       sourceAddress,
-      inputs: selectedUtxos,
-      inputCount: selectedUtxos.length,
+      inputs: uniqueSelectedUtxos,
+      inputCount: uniqueSelectedUtxos.length,
       totalInput,
       change,
       psbt: psbt.toBase64(),
