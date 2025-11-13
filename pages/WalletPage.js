@@ -247,17 +247,18 @@ export default function WalletPage() {
   return (
     <>
       <View style={localStyles.container} onTouchStart={resetInactivityTimer}>
-        {/* Animated Vault Screen - Rendered first (below wallet) */}
-        <Animated.View
-          style={[
-            localStyles.vaultContainer,
-            {
-              transform: [{ translateX: vaultTranslateX }],
-            },
-          ]}
-          pointerEvents={activeTab === 'vault' || isSwiping ? 'auto' : 'none'}
-        >
-          <View style={localStyles.screenContent}>
+        {/* Content area - slides without navigation bar */}
+        <View style={localStyles.contentArea}>
+          {/* Animated Vault Content - Rendered first (below wallet) */}
+          <Animated.View
+            style={[
+              localStyles.vaultContainer,
+              {
+                transform: [{ translateX: vaultTranslateX }],
+              },
+            ]}
+            pointerEvents={activeTab === 'vault' || isSwiping ? 'auto' : 'none'}
+          >
             <MutinynetBanner />
             <View style={localStyles.vaultContent}>
               <VaultScreen
@@ -270,26 +271,19 @@ export default function WalletPage() {
                 <View style={localStyles.swipeOverlay} {...vaultPanResponder.panHandlers} />
               )}
             </View>
-            <BottomNavigationBar
-              activeTab={activeTab}
-              onVaultPress={openVault}
-              onWalletPress={() => setActiveTab('wallet')}
-            />
-          </View>
-        </Animated.View>
+          </Animated.View>
 
-        {/* Animated Wallet Screen - Rendered second (above vault) */}
-        <Animated.View
-          style={[
-            localStyles.screenContainer,
-            {
-              transform: [{ translateX: walletTranslateX }],
-            },
-          ]}
-          pointerEvents={activeTab === 'wallet' && !isSwiping ? 'auto' : 'none'}
-          {...walletPanResponder.panHandlers}
-        >
-          <View style={localStyles.screenContent}>
+          {/* Animated Wallet Content - Rendered second (above vault) */}
+          <Animated.View
+            style={[
+              localStyles.screenContainer,
+              {
+                transform: [{ translateX: walletTranslateX }],
+              },
+            ]}
+            pointerEvents={activeTab === 'wallet' && !isSwiping ? 'auto' : 'none'}
+            {...walletPanResponder.panHandlers}
+          >
             <MutinynetBanner />
             <WalletScreen
               styles={styles}
@@ -303,13 +297,15 @@ export default function WalletPage() {
               switchingAccount={false}
               showZeroAssets={settingsHandlers.showZeroAssets}
             />
-            <BottomNavigationBar
-              activeTab={activeTab}
-              onVaultPress={openVault}
-              onWalletPress={() => setActiveTab('wallet')}
-            />
-          </View>
-        </Animated.View>
+          </Animated.View>
+        </View>
+
+        {/* Fixed Bottom Navigation */}
+        <BottomNavigationBar
+          activeTab={activeTab}
+          onVaultPress={openVault}
+          onWalletPress={() => setActiveTab('wallet')}
+        />
 
         {/* Receive Bottom Sheet */}
         <ReceiveScreen
@@ -396,6 +392,10 @@ const localStyles = StyleSheet.create({
     flex: 1,
     backgroundColor: COLORS.DARK_BG,
   },
+  contentArea: {
+    flex: 1,
+    overflow: 'hidden',
+  },
   vaultContainer: {
     position: 'absolute',
     top: 0,
@@ -404,6 +404,7 @@ const localStyles = StyleSheet.create({
     bottom: 0,
     backgroundColor: COLORS.DARK_BG,
     zIndex: 1,
+    flexDirection: 'column',
   },
   screenContainer: {
     position: 'absolute',
@@ -413,9 +414,6 @@ const localStyles = StyleSheet.create({
     bottom: 0,
     backgroundColor: COLORS.DARK_BG,
     zIndex: 2,
-  },
-  screenContent: {
-    flex: 1,
     flexDirection: 'column',
   },
   vaultContent: {
