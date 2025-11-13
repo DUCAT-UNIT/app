@@ -21,7 +21,7 @@ import BottomNavigationBar from '../components/BottomNavigationBar';
 import ToastContainer from '../components/ToastContainer';
 import TransactionToast from '../components/TransactionToast';
 import SplashScreen from '../components/SplashScreen';
-import NotificationModal from '../components/NotificationModal';
+import Snackbar from '../components/Snackbar';
 
 // Contexts
 import { useWallet } from '../contexts/WalletContext';
@@ -65,8 +65,8 @@ export default function WalletPage() {
 
   const { broadcastedTxid, toastDismissed, setToastDismissed } = useTransactionExecution();
 
-  // Toast context
-  const { toasts, showToast, notification, dismissNotification, showNotification } = useToastContext();
+  // Toast and Snackbar context
+  const { toasts, showToast, snackbar, dismissSnackbar, showSnackbar } = useToastContext();
 
   // Navigation hooks
   const {
@@ -270,8 +270,7 @@ export default function WalletPage() {
               walletCredentials={vaultCredentials}
               autoCreateVaultTrigger={autoCreateVaultTrigger}
               vaultData={vaultData}
-              showToast={showToast}
-              showNotification={showNotification}
+              showSnackbar={showSnackbar}
             />
           </Animated.View>
 
@@ -385,12 +384,13 @@ export default function WalletPage() {
         />
       </Animated.View>
 
-      {/* Rich Notification Modal - Rendered outside main container for top z-index */}
-      <NotificationModal
-        visible={!!notification}
-        notification={notification}
-        onClose={dismissNotification}
-      />
+      {/* Snackbar - Rendered outside main container at the top */}
+      {snackbar && (
+        <Snackbar
+          params={snackbar}
+          onClose={dismissSnackbar}
+        />
+      )}
     </>
   );
 }

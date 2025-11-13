@@ -6,20 +6,12 @@ import { COLORS } from '../utils/colors';
 import { signPsbt } from '../utils/wallet';
 import { API } from '../utils/constants';
 
-const VaultScreen = React.memo(function VaultScreen({ visible, walletCredentials, _autoCreateVaultTrigger, vaultData, showToast, showNotification }) {
+const VaultScreen = React.memo(function VaultScreen({ visible, walletCredentials, _autoCreateVaultTrigger, vaultData, showSnackbar }) {
   const webViewRef = useRef(null);
   const messageIndexRef = useRef(0);
   const hasLoadedOnceRef = useRef(false);
   const [isLoading, setIsLoading] = React.useState(true);
 
-  // Debug: Log props on mount
-  React.useEffect(() => {
-    console.log('🏦 VaultScreen props:', {
-      hasShowToast: !!showToast,
-      hasShowNotification: !!showNotification,
-      showNotificationType: typeof showNotification,
-    });
-  }, [showToast, showNotification]);
   const [preparingVault, setPreparingVault] = React.useState(true); // Start true to show loading initially
   const [preparingMessage, setPreparingMessage] = React.useState('Preparing the vault for you');
   const [_webViewLoaded, setWebViewLoaded] = React.useState(false);
@@ -498,38 +490,10 @@ const VaultScreen = React.memo(function VaultScreen({ visible, walletCredentials
               return;
             }
 
-            // Handle notification messages from web app
-            if (message.type === 'SHOW_NOTIFICATION') {
-              const {
-                notificationType,
-                message: notificationMessage,
-                title,
-                link,
-                linkText,
-                duration,
-              } = message.payload;
-
-              // Use rich notification if showNotification is available
-              if (showNotification) {
-                showNotification({
-                  type: notificationType || 'success',
-                  title: title,
-                  message: notificationMessage,
-                  link: link,
-                  linkText: linkText,
-                  duration: duration,
-                });
-              } else if (showToast) {
-                // Fallback to simple toast if showNotification not available
-                const toastTypeMap = {
-                  'success': 'success',
-                  'error': 'error',
-                  'warning': 'error',
-                  'info': 'success',
-                  'loading': 'success',
-                };
-                const toastType = toastTypeMap[notificationType] || 'success';
-                showToast(notificationMessage, toastType);
+            // Handle snackbar messages from web app
+            if (message.type === 'SHOW_SNACKBAR') {
+              if (showSnackbar) {
+                showSnackbar(message.payload);
               }
               return;
             }
@@ -582,8 +546,7 @@ VaultScreen.propTypes = {
     totalCollateral: PropTypes.number,
     currentPrice: PropTypes.number,
   }),
-  showToast: PropTypes.func,
-  showNotification: PropTypes.func,
+  showSnackbar: PropTypes.func,
 };
 
 export default VaultScreen;
