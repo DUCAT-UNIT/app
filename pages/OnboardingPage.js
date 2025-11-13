@@ -183,7 +183,7 @@ export default function OnboardingPage({
         <MutinynetBanner />
         <LockScreen
           onAuthenticated={handleLockScreenAuthenticatedWrapper}
-          showFaceIdButton={showFaceIdButton && !showBiometricPrompt && biometricEnabled}
+          showFaceIdButton={showFaceIdButton && !showBiometricPrompt}
           onFaceIdPress={authenticateUser}
         />
 
