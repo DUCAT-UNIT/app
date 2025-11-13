@@ -262,19 +262,14 @@ export default function WalletPage() {
               },
             ]}
             pointerEvents={activeTab === 'vault' || isSwiping ? 'auto' : 'none'}
+            {...(activeTab === 'vault' ? vaultPanResponder.panHandlers : {})}
           >
-            <View style={localStyles.vaultContent}>
-              <VaultScreen
-                visible={activeTab === 'vault'}
-                walletCredentials={vaultCredentials}
-                autoCreateVaultTrigger={autoCreateVaultTrigger}
-                vaultData={vaultData}
-              />
-              {/* Transparent swipe overlay for vault screen */}
-              {activeTab === 'vault' && (
-                <View style={localStyles.swipeOverlay} {...vaultPanResponder.panHandlers} />
-              )}
-            </View>
+            <VaultScreen
+              visible={activeTab === 'vault'}
+              walletCredentials={vaultCredentials}
+              autoCreateVaultTrigger={autoCreateVaultTrigger}
+              vaultData={vaultData}
+            />
           </Animated.View>
 
           {/* Animated Wallet Content - Rendered second (above vault) */}
@@ -418,18 +413,6 @@ const localStyles = StyleSheet.create({
     backgroundColor: COLORS.DARK_BG,
     zIndex: 2,
     flexDirection: 'column',
-  },
-  vaultContent: {
-    flex: 1,
-  },
-  swipeOverlay: {
-    position: 'absolute',
-    top: 0,
-    left: 0,
-    right: 0,
-    bottom: 0,
-    backgroundColor: 'transparent',
-    zIndex: 10,
   },
   settingsOverlay: {
     position: 'absolute',
