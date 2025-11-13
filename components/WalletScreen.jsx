@@ -1,6 +1,6 @@
 import React from 'react';
 import PropTypes from 'prop-types';
-import { View, Text, TouchableOpacity,  ActivityIndicator, ScrollView, StyleSheet } from 'react-native';
+import { View, Text, TouchableOpacity, ActivityIndicator, ScrollView, StyleSheet, PanResponder } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useWallet } from '../contexts/WalletContext';
 import { useBalance } from '../contexts/WalletDataContext';
@@ -19,6 +19,7 @@ const WalletScreen = React.memo(function WalletScreen({
   onHistoryPress,
   onSettingsPress,
   onCreateVaultPress,
+  onVaultPress,
   _sendAddressType,
   switchingAccount,
   showZeroAssets,
@@ -73,8 +74,24 @@ const WalletScreen = React.memo(function WalletScreen({
     await fetchBalance();
   }, [setBalanceError, fetchBalance]);
 
+  // Swipe right gesture to open vault
+  const panResponder = React.useRef(
+    PanResponder.create({
+      onMoveShouldSetPanResponder: (_, gestureState) => {
+        // Only activate for horizontal swipes (right swipe)
+        return Math.abs(gestureState.dx) > Math.abs(gestureState.dy) && gestureState.dx > 20;
+      },
+      onPanResponderRelease: (_, gestureState) => {
+        // If swiped right more than 100 pixels, open vault
+        if (gestureState.dx > 100 && onVaultPress) {
+          onVaultPress();
+        }
+      },
+    })
+  ).current;
+
   return (
-    <View style={styles.walletContainer}>
+    <View style={styles.walletContainer} {...panResponder.panHandlers}>
       {/* Loading overlay while switching accounts */}
       {switchingAccount && (
         <View style={styles.switchingOverlay}>
@@ -149,7 +166,12 @@ const WalletScreen = React.memo(function WalletScreen({
         showsVerticalScrollIndicator={false}
       >
         {/* Vault Card */}
-        <View style={styles.vaultCard}>
+        <TouchableOpacity
+          style={styles.vaultCard}
+          onPress={hasVault ? onVaultPress : undefined}
+          activeOpacity={hasVault ? 0.7 : 1}
+          disabled={!hasVault}
+        >
           <View style={styles.vaultIconContainer}>
             <Icon name="vault_logo" size={40} color="#DDDDDD" />
             <View style={[styles.vaultStatusIndicator, { backgroundColor: vaultHealthColor }]} />
@@ -221,7 +243,7 @@ const WalletScreen = React.memo(function WalletScreen({
               </TouchableOpacity>
             </LinearGradient>
           )}
-        </View>
+        </TouchableOpacity>
 
         {/* Bitcoin Balance Card - Non-clickable */}
         <View style={styles.assetCard}>
@@ -392,6 +414,7 @@ WalletScreen.propTypes = {
   onReceivePress: PropTypes.func.isRequired,
   onSettingsPress: PropTypes.func.isRequired,
   onCreateVaultPress: PropTypes.func.isRequired,
+  onVaultPress: PropTypes.func.isRequired,
   onHistoryPress: PropTypes.func.isRequired,
   sendAddressType: PropTypes.oneOf(['taproot', 'segwit']),
   switchingAccount: PropTypes.bool.isRequired,

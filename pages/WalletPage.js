@@ -98,6 +98,7 @@ export default function WalletPage() {
               onHistoryPress={() => setShowTxHistory(true)}
               onSettingsPress={openSettings}
               onCreateVaultPress={() => openVault(true)}
+              onVaultPress={openVault}
               sendAddressType={sendAddressType}
               switchingAccount={false}
               showZeroAssets={settingsHandlers.showZeroAssets}
