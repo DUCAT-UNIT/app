@@ -60,7 +60,7 @@ export default function AirdropSuccessModal({ visible, onClose, txId }) {
         >
           {/* Success Icon */}
           <View style={{ paddingBottom: 48 }}>
-            <Icon name="party" size={48} color="#DDDDDD" />
+            <Icon name="party" size={55} color="#DDDDDD" />
           </View>
 
           {/* Title */}
