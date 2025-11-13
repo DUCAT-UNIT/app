@@ -68,6 +68,15 @@ export default function WalletPage() {
   // Toast context
   const { toasts, showToast, notification, dismissNotification, showNotification } = useToastContext();
 
+  // Debug: Check if showNotification is available
+  React.useEffect(() => {
+    console.log('🔔 WalletPage context check:', {
+      hasShowToast: !!showToast,
+      hasShowNotification: !!showNotification,
+      showNotificationType: typeof showNotification,
+    });
+  }, [showToast, showNotification]);
+
   // Debug: Log when notification changes
   React.useEffect(() => {
     if (notification) {

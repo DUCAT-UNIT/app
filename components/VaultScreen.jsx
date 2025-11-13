@@ -11,6 +11,15 @@ const VaultScreen = React.memo(function VaultScreen({ visible, walletCredentials
   const messageIndexRef = useRef(0);
   const hasLoadedOnceRef = useRef(false);
   const [isLoading, setIsLoading] = React.useState(true);
+
+  // Debug: Log props on mount
+  React.useEffect(() => {
+    console.log('🏦 VaultScreen props:', {
+      hasShowToast: !!showToast,
+      hasShowNotification: !!showNotification,
+      showNotificationType: typeof showNotification,
+    });
+  }, [showToast, showNotification]);
   const [preparingVault, setPreparingVault] = React.useState(true); // Start true to show loading initially
   const [preparingMessage, setPreparingMessage] = React.useState('Preparing the vault for you');
   const [_webViewLoaded, setWebViewLoaded] = React.useState(false);
