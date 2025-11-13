@@ -269,6 +269,7 @@ export default function WalletPage() {
               walletCredentials={vaultCredentials}
               autoCreateVaultTrigger={autoCreateVaultTrigger}
               vaultData={vaultData}
+              showToast={showToast}
             />
           </Animated.View>
 

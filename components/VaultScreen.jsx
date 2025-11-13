@@ -6,7 +6,7 @@ import { COLORS } from '../utils/colors';
 import { signPsbt } from '../utils/wallet';
 import { API } from '../utils/constants';
 
-const VaultScreen = React.memo(function VaultScreen({ visible, walletCredentials, _autoCreateVaultTrigger, vaultData }) {
+const VaultScreen = React.memo(function VaultScreen({ visible, walletCredentials, _autoCreateVaultTrigger, vaultData, showToast }) {
   const webViewRef = useRef(null);
   const messageIndexRef = useRef(0);
   const hasLoadedOnceRef = useRef(false);
@@ -441,7 +441,32 @@ const VaultScreen = React.memo(function VaultScreen({ visible, walletCredentials
               }
               return;
             }
-          } catch (e) {}
+
+            // Handle notification messages from web app
+            if (message.type === 'SHOW_NOTIFICATION') {
+              console.log('📬 SHOW_NOTIFICATION received from web app:', message.payload);
+              const { notificationType, message: notificationMessage, timestamp } = message.payload;
+
+              // Map web app notification types to toast types
+              const toastTypeMap = {
+                'success': 'success',
+                'error': 'error',
+                'warning': 'error', // Use error styling for warnings
+                'info': 'success',  // Use success styling for info
+                'loading': 'success', // Use success styling for loading
+              };
+
+              const toastType = toastTypeMap[notificationType] || 'success';
+
+              if (showToast) {
+                showToast(notificationMessage, toastType);
+                console.log(`✅ Displayed ${notificationType} toast: ${notificationMessage}`);
+              }
+              return;
+            }
+          } catch (e) {
+            console.error('❌ Error parsing WebView message:', e);
+          }
         }}
         renderLoading={() => (
           <View style={styles.loadingContainer}>
@@ -488,6 +513,7 @@ VaultScreen.propTypes = {
     totalCollateral: PropTypes.number,
     currentPrice: PropTypes.number,
   }),
+  showToast: PropTypes.func,
 };
 
 export default VaultScreen;
