@@ -7,12 +7,10 @@ import { create, act } from 'react-test-renderer';
 import { useNavigationState } from '../useNavigationState';
 import * as AuthContext from '../../contexts/AuthContext';
 import * as WalletContext from '../../contexts/WalletContext';
-import * as OnboardingFlowContext from '../../contexts/OnboardingFlowContext';
 
 // Mock the context hooks
 jest.mock('../../contexts/AuthContext');
 jest.mock('../../contexts/WalletContext');
-jest.mock('../../contexts/OnboardingFlowContext');
 
 // Helper to render hooks
 function renderHook(hook) {
@@ -50,7 +48,7 @@ describe('useNavigationState', () => {
         showPinEntry: false,
       });
       WalletContext.useWallet.mockReturnValue({ wallet: null });
-      OnboardingFlowContext.useOnboardingFlow.mockReturnValue({ seedConfirmed: false });
+      AuthContext.useOnboardingFlow.mockReturnValue({ seedConfirmed: false });
 
       const { result } = renderHook(() => useNavigationState());
 
@@ -65,7 +63,7 @@ describe('useNavigationState', () => {
         showPinEntry: false,
       });
       WalletContext.useWallet.mockReturnValue({ wallet: { mnemonic: 'test' } });
-      OnboardingFlowContext.useOnboardingFlow.mockReturnValue({ seedConfirmed: false });
+      AuthContext.useOnboardingFlow.mockReturnValue({ seedConfirmed: false });
 
       const { result } = renderHook(() => useNavigationState());
 
@@ -80,7 +78,7 @@ describe('useNavigationState', () => {
         showPinEntry: false,
       });
       WalletContext.useWallet.mockReturnValue({ wallet: { mnemonic: 'test' } });
-      OnboardingFlowContext.useOnboardingFlow.mockReturnValue({ seedConfirmed: true });
+      AuthContext.useOnboardingFlow.mockReturnValue({ seedConfirmed: true });
 
       const { result } = renderHook(() => useNavigationState());
 
@@ -95,7 +93,7 @@ describe('useNavigationState', () => {
         showPinEntry: false,
       });
       WalletContext.useWallet.mockReturnValue({ wallet: { mnemonic: 'test' } });
-      OnboardingFlowContext.useOnboardingFlow.mockReturnValue({ seedConfirmed: true });
+      AuthContext.useOnboardingFlow.mockReturnValue({ seedConfirmed: true });
 
       const { result } = renderHook(() => useNavigationState());
 
@@ -110,7 +108,7 @@ describe('useNavigationState', () => {
         showPinEntry: true,
       });
       WalletContext.useWallet.mockReturnValue({ wallet: { mnemonic: 'test' } });
-      OnboardingFlowContext.useOnboardingFlow.mockReturnValue({ seedConfirmed: true });
+      AuthContext.useOnboardingFlow.mockReturnValue({ seedConfirmed: true });
 
       const { result } = renderHook(() => useNavigationState());
 
@@ -125,7 +123,7 @@ describe('useNavigationState', () => {
         showPinEntry: false,
       });
       WalletContext.useWallet.mockReturnValue({ wallet: { mnemonic: 'test' } });
-      OnboardingFlowContext.useOnboardingFlow.mockReturnValue({ seedConfirmed: true });
+      AuthContext.useOnboardingFlow.mockReturnValue({ seedConfirmed: true });
 
       const { result } = renderHook(() => useNavigationState());
 
@@ -140,7 +138,7 @@ describe('useNavigationState', () => {
         showPinEntry: false,
       });
       WalletContext.useWallet.mockReturnValue({ wallet: { mnemonic: 'test' } });
-      OnboardingFlowContext.useOnboardingFlow.mockReturnValue({ seedConfirmed: true });
+      AuthContext.useOnboardingFlow.mockReturnValue({ seedConfirmed: true });
 
       const { result } = renderHook(() => useNavigationState());
 
@@ -157,7 +155,7 @@ describe('useNavigationState', () => {
         showPinEntry: false,
       });
       WalletContext.useWallet.mockReturnValue({ wallet: { mnemonic: 'test' } });
-      OnboardingFlowContext.useOnboardingFlow.mockReturnValue({ seedConfirmed: true });
+      AuthContext.useOnboardingFlow.mockReturnValue({ seedConfirmed: true });
 
       const { result } = renderHook(() => useNavigationState());
 
@@ -172,7 +170,7 @@ describe('useNavigationState', () => {
         showPinEntry: false,
       });
       WalletContext.useWallet.mockReturnValue({ wallet: { mnemonic: 'test' } });
-      OnboardingFlowContext.useOnboardingFlow.mockReturnValue({ seedConfirmed: true });
+      AuthContext.useOnboardingFlow.mockReturnValue({ seedConfirmed: true });
 
       const { result } = renderHook(() => useNavigationState());
 
@@ -187,7 +185,7 @@ describe('useNavigationState', () => {
         showPinEntry: false,
       });
       WalletContext.useWallet.mockReturnValue({ wallet: { mnemonic: 'test' } });
-      OnboardingFlowContext.useOnboardingFlow.mockReturnValue({ seedConfirmed: true });
+      AuthContext.useOnboardingFlow.mockReturnValue({ seedConfirmed: true });
 
       const { result } = renderHook(() => useNavigationState());
 
@@ -208,7 +206,7 @@ describe('useNavigationState', () => {
 
       AuthContext.useAuth.mockReturnValue(authValue);
       WalletContext.useWallet.mockReturnValue(walletValue);
-      OnboardingFlowContext.useOnboardingFlow.mockReturnValue(onboardingValue);
+      AuthContext.useOnboardingFlow.mockReturnValue(onboardingValue);
 
       const { result, rerender } = renderHook(() => useNavigationState());
       const firstResult = result.current;
@@ -229,7 +227,7 @@ describe('useNavigationState', () => {
         showPinEntry: false,
       });
       WalletContext.useWallet.mockReturnValue({ wallet: null });
-      OnboardingFlowContext.useOnboardingFlow.mockReturnValue({ seedConfirmed: false });
+      AuthContext.useOnboardingFlow.mockReturnValue({ seedConfirmed: false });
 
       const { result, rerender } = renderHook(() => useNavigationState());
 
@@ -243,7 +241,7 @@ describe('useNavigationState', () => {
         showPinEntry: false,
       });
       WalletContext.useWallet.mockReturnValue({ wallet: { mnemonic: 'test' } });
-      OnboardingFlowContext.useOnboardingFlow.mockReturnValue({ seedConfirmed: true });
+      AuthContext.useOnboardingFlow.mockReturnValue({ seedConfirmed: true });
 
       rerender();
 
@@ -260,7 +258,7 @@ describe('useNavigationState', () => {
         showPinEntry: false,
       });
       WalletContext.useWallet.mockReturnValue({ wallet: undefined });
-      OnboardingFlowContext.useOnboardingFlow.mockReturnValue({ seedConfirmed: false });
+      AuthContext.useOnboardingFlow.mockReturnValue({ seedConfirmed: false });
 
       const { result } = renderHook(() => useNavigationState());
 
@@ -275,7 +273,7 @@ describe('useNavigationState', () => {
         showPinEntry: true, // This should force auth screen
       });
       WalletContext.useWallet.mockReturnValue({ wallet: { mnemonic: 'test' } });
-      OnboardingFlowContext.useOnboardingFlow.mockReturnValue({ seedConfirmed: true });
+      AuthContext.useOnboardingFlow.mockReturnValue({ seedConfirmed: true });
 
       const { result } = renderHook(() => useNavigationState());
 

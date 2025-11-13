@@ -6,6 +6,7 @@ import React from 'react';
 import { create, act } from 'react-test-renderer';
 import { TransactionBuildProvider, useTransactionBuild } from '../TransactionBuildContext';
 import { useSendFlow } from '../SendFlowContext';
+import { usePendingTransactions } from '../PendingTransactionsContext';
 import * as TransactionService from '../../services/transactionService';
 import { ERRORS } from '../../utils/messages';
 
@@ -30,6 +31,7 @@ function renderHook(hook, { wrapper: Wrapper } = {}) {
 
 // Mock dependencies
 jest.mock('../SendFlowContext');
+jest.mock('../PendingTransactionsContext');
 jest.mock('../../services/transactionService');
 
 describe('TransactionBuildContext', () => {
@@ -52,6 +54,10 @@ describe('TransactionBuildContext', () => {
       sendAssetType: 'btc',
       setIntentStep: mockSetIntentStep,
       setSendRecipient: mockSetSendRecipient,
+    });
+
+    usePendingTransactions.mockReturnValue({
+      getUnconfirmedUTXOs: jest.fn().mockReturnValue([]),
     });
   });
 
@@ -102,7 +108,8 @@ describe('TransactionBuildContext', () => {
       'bc1qrecipient',
       '0.001',
       mockWallet.segwitAddress,
-      0
+      0,
+      [] // unconfirmed UTXOs
     );
     expect(result.current.sendIntent).toEqual(mockIntent);
     expect(mockSetIntentStep).toHaveBeenCalledWith('reviewing');
@@ -137,7 +144,9 @@ describe('TransactionBuildContext', () => {
       '100',
       mockWallet.taprootAddress,
       mockWallet.segwitAddress,
-      0
+      0,
+      [], // unconfirmed taproot UTXOs
+      []  // unconfirmed segwit UTXOs
     );
     expect(result.current.sendIntent).toEqual(mockIntent);
     expect(mockSetIntentStep).toHaveBeenCalledWith('reviewing');
@@ -289,7 +298,8 @@ describe('TransactionBuildContext', () => {
       '  bc1qrecipient  ',
       '0.001',
       mockWallet.segwitAddress,
-      0
+      0,
+      [] // unconfirmed UTXOs
     );
   });
 

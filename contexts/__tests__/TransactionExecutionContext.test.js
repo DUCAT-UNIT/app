@@ -10,7 +10,11 @@ import {
 } from '../TransactionExecutionContext';
 import { useSendFlow } from '../SendFlowContext';
 import { useTransactionBuild } from '../TransactionBuildContext';
+import { useWallet } from '../WalletContext';
+import { usePendingTransactions } from '../PendingTransactionsContext';
 import * as TransactionService from '../../services/transactionService';
+import * as TransactionSigningService from '../../services/transactionSigningService';
+import * as TransactionBroadcastService from '../../services/transactionBroadcastService';
 import * as BackgroundTaskService from '../../services/backgroundTaskService';
 import { ERRORS } from '../../utils/messages';
 
@@ -36,7 +40,11 @@ function renderHook(hook, { wrapper: Wrapper } = {}) {
 // Mock dependencies
 jest.mock('../SendFlowContext');
 jest.mock('../TransactionBuildContext');
+jest.mock('../WalletContext');
+jest.mock('../PendingTransactionsContext');
 jest.mock('../../services/transactionService');
+jest.mock('../../services/transactionSigningService');
+jest.mock('../../services/transactionBroadcastService');
 jest.mock('../../services/backgroundTaskService', () => ({
   addPendingTransaction: jest.fn(),
   removePendingTransaction: jest.fn(),
@@ -75,6 +83,23 @@ describe('TransactionExecutionContext', () => {
       sendIntent: mockIntent,
       setSendIntent: mockSetSendIntent,
     });
+
+    useWallet.mockReturnValue({
+      wallet: {
+        segwitAddress: 'tb1qtest',
+        taprootAddress: 'tb1ptest',
+      },
+    });
+
+    usePendingTransactions.mockReturnValue({
+      pendingTransactions: {},
+      addPendingTransaction: jest.fn(),
+      confirmTransaction: jest.fn(),
+      invalidateTransaction: jest.fn(),
+    });
+
+    TransactionSigningService.signIntent = jest.fn().mockResolvedValue(mockSignedIntent);
+    TransactionBroadcastService.broadcastTransaction = jest.fn().mockResolvedValue('mock_txid');
   });
 
   it('should throw error when used outside provider', () => {

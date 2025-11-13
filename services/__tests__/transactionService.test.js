@@ -369,7 +369,7 @@ describe('transactionService', () => {
             {
               txid: 'mock_sat_tx',
               vout: 0,
-              value: 20000, // Sufficient for fees
+              value: 30000, // Sufficient for fees + 2x 10k outputs + change
               status: { confirmed: true },
             },
           ],
@@ -431,23 +431,33 @@ describe('transactionService', () => {
           json: async () => ({ spent: false }),
         })
         // Mock segwit UTXOs with insufficient sats
-        // Total: 546 (rune) + 10500 (sat) = 11046
-        // Needed: 1000 (fee) + 10000 (recipient) + 546 (dust) = 11546
-        // Change = 11046 - 11546 = -500 (negative!)
+        // Total: 546 (rune) + 12000 (sat) = 12546
+        // Needed: 1000 (fee) + 10000 (recipient) + 10000 (rune return) = 21000
+        // Change = 12546 - 21000 = -8454 (negative!)
         .mockResolvedValueOnce({
           json: async () => [
             {
               txid: 'mock_sat_tx',
               vout: 0,
-              value: 10500, // Not enough!
+              value: 12000, // Passes initial filter but still insufficient for transaction
               status: { confirmed: true },
             },
           ],
+        })
+        // Mock transaction hex for sat UTXO
+        .mockResolvedValueOnce({
+          text: async () =>
+            '0200000000010100000000000000000000000000000000000000000000000000000000000000000000000000ffffffff0100e1f50500000000160014000000000000000000000000000000000000000000000000',
+        })
+        // Mock transaction hex for rune UTXO
+        .mockResolvedValueOnce({
+          text: async () =>
+            '0200000000010100000000000000000000000000000000000000000000000000000000000000000000000000ffffffff0100e1f50500000000160014000000000000000000000000000000000000000000000000',
         });
 
       await expect(
         TransactionService.createUnitIntent('tb1precipient', '100', 'tb1ptaproot', 'tb1qsegwit', 0)
-      ).rejects.toThrow(ERRORS.INSUFFICIENT_FUNDS_FOR_FEES);
+      ).rejects.toThrow(ERRORS.INSUFFICIENT_FUNDS);
     });
   });
 
@@ -938,37 +948,5 @@ describe('transactionService', () => {
     });
   });
 
-  describe('broadcastTransaction', () => {
-    it('should broadcast transaction successfully', async () => {
-      const mockTxid = 'broadcasted_txid_123';
-
-      global.fetch.mockResolvedValue({
-        ok: true,
-        text: async () => mockTxid,
-      });
-
-      const result = await TransactionService.broadcastTransaction('signed_tx_hex');
-
-      expect(result).toBe(mockTxid);
-    });
-
-    it('should throw error when broadcast fails', async () => {
-      global.fetch.mockResolvedValue({
-        ok: false,
-        text: async () => 'Transaction already exists',
-      });
-
-      await expect(TransactionService.broadcastTransaction('signed_tx_hex')).rejects.toThrow(
-        'Transaction already exists'
-      );
-    });
-
-    it('should throw error when network error occurs', async () => {
-      global.fetch.mockRejectedValue(new Error('Network error'));
-
-      await expect(TransactionService.broadcastTransaction('signed_tx_hex')).rejects.toThrow(
-        'Network error'
-      );
-    });
-  });
+  // broadcastTransaction tests moved to transactionBroadcastService.test.js
 });

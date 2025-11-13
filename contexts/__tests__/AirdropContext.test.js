@@ -5,7 +5,7 @@
 import React from 'react';
 import { create, act } from 'react-test-renderer';
 import { AirdropProvider, useAirdrop } from '../AirdropContext';
-import { useBalance } from '../BalanceContext';
+import { useBalance } from '../WalletDataContext';
 import { useWallet } from '../WalletContext';
 import { useAuth } from '../AuthContext';
 import * as SecureStore from 'expo-secure-store';
@@ -31,7 +31,7 @@ function renderHook(hook, { wrapper: Wrapper } = {}) {
 }
 
 // Mock dependencies
-jest.mock('../BalanceContext');
+jest.mock('../WalletDataContext');
 jest.mock('../WalletContext');
 jest.mock('../AuthContext');
 jest.mock('expo-secure-store');

@@ -23,9 +23,9 @@
         <div class='clearfix'>
             
             <div class='fl pad1y space-right2'>
-                <span class="strong">0% </span>
+                <span class="strong">4.72% </span>
                 <span class="quiet">Statements</span>
-                <span class='fraction'>0/127</span>
+                <span class='fraction'>6/127</span>
             </div>
         
             
@@ -44,9 +44,9 @@
         
             
             <div class='fl pad1y space-right2'>
-                <span class="strong">0% </span>
+                <span class="strong">4.87% </span>
                 <span class="quiet">Lines</span>
-                <span class='fraction'>0/123</span>
+                <span class='fraction'>6/123</span>
             </div>
         
             
@@ -448,33 +448,33 @@
 <span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
-<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-yes">1x</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
-<span class="cline-any cline-no">&nbsp;</span>
-<span class="cline-any cline-no">&nbsp;</span>
-<span class="cline-any cline-no">&nbsp;</span>
-<span class="cline-any cline-no">&nbsp;</span>
-<span class="cline-any cline-neutral">&nbsp;</span>
-<span class="cline-any cline-no">&nbsp;</span>
-<span class="cline-any cline-neutral">&nbsp;</span>
-<span class="cline-any cline-neutral">&nbsp;</span>
-<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-yes">1x</span>
 <span class="cline-any cline-no">&nbsp;</span>
 <span class="cline-any cline-no">&nbsp;</span>
 <span class="cline-any cline-no">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
-<span class="cline-any cline-neutral">&nbsp;</span>
-<span class="cline-any cline-no">&nbsp;</span>
-<span class="cline-any cline-no">&nbsp;</span>
 <span class="cline-any cline-no">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
-<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-yes">1x</span>
 <span class="cline-any cline-no">&nbsp;</span>
 <span class="cline-any cline-no">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-yes">1x</span>
 <span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-yes">1x</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-yes">1x</span>
 <span class="cline-any cline-no">&nbsp;</span>
 <span class="cline-any cline-no">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
@@ -819,9 +819,9 @@ import { useWallet } from './WalletContext';
 import { usePendingTransactions } from './PendingTransactionsContext';
 import { usePolling } from '../hooks/usePolling';
 &nbsp;
-const WalletDataContext = <span class="cstat-no" title="statement not covered" >createContext();</span>
+const WalletDataContext = createContext();
 &nbsp;
-export const useWalletData = <span class="cstat-no" title="statement not covered" ><span class="fstat-no" title="function not covered" >()</span> =&gt; {</span>
+export const useWalletData = <span class="fstat-no" title="function not covered" >()</span> =&gt; {
   const context = <span class="cstat-no" title="statement not covered" >useContext(WalletDataContext);</span>
 <span class="cstat-no" title="statement not covered" >  if (!context) {</span>
 <span class="cstat-no" title="statement not covered" >    throw new Error('useWalletData must be used within a WalletDataProvider');</span>
@@ -830,22 +830,22 @@ export const useWalletData = <span class="cstat-no" title="statement not covered
 };
 &nbsp;
 // Backwards compatibility hooks
-export const useBalance = <span class="cstat-no" title="statement not covered" ><span class="fstat-no" title="function not covered" >()</span> =&gt; {</span>
+export const useBalance = <span class="fstat-no" title="function not covered" >()</span> =&gt; {
   const { balance } = <span class="cstat-no" title="statement not covered" >useWalletData();</span>
 <span class="cstat-no" title="statement not covered" >  return balance;</span>
 };
 &nbsp;
-export const useTransactionHistory = <span class="cstat-no" title="statement not covered" ><span class="fstat-no" title="function not covered" >()</span> =&gt; {</span>
+export const useTransactionHistory = <span class="fstat-no" title="function not covered" >()</span> =&gt; {
   const { history } = <span class="cstat-no" title="statement not covered" >useWalletData();</span>
 <span class="cstat-no" title="statement not covered" >  return history;</span>
 };
 &nbsp;
-export const useVaultData = <span class="cstat-no" title="statement not covered" ><span class="fstat-no" title="function not covered" >()</span> =&gt; {</span>
+export const useVaultData = <span class="fstat-no" title="function not covered" >()</span> =&gt; {
   const { vault } = <span class="cstat-no" title="statement not covered" >useWalletData();</span>
 <span class="cstat-no" title="statement not covered" >  return vault;</span>
 };
 &nbsp;
-export const WalletDataProvider = <span class="cstat-no" title="statement not covered" ><span class="fstat-no" title="function not covered" >({</span> children }) =&gt; {</span>
+export const WalletDataProvider = <span class="fstat-no" title="function not covered" >({</span> children }) =&gt; {
   const { wallet } = <span class="cstat-no" title="statement not covered" >useWallet();</span>
   const { getUnconfirmedBalance } = <span class="cstat-no" title="statement not covered" >usePendingTransactions();</span>
 &nbsp;
@@ -1183,7 +1183,7 @@ export const WalletDataProvider = <span class="cstat-no" title="statement not co
             <div class='footer quiet pad2 space-top1 center small'>
                 Code coverage generated by
                 <a href="https://istanbul.js.org/" target="_blank" rel="noopener noreferrer">istanbul</a>
-                at 2025-11-13T01:12:57.333Z
+                at 2025-11-13T01:57:14.191Z
             </div>
         <script src="../prettify.js"></script>
         <script>
