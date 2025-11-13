@@ -303,6 +303,7 @@ export const createUnitIntent = async (
           vout: utxo.vout,
           value: utxo.value,
           runeAmount: utxo.runeAmount,
+          status: { confirmed: false }, // Mark as unconfirmed
         };
         break;
       }
@@ -339,6 +340,7 @@ export const createUnitIntent = async (
                 vout: vout,
                 value: utxoData.value,
                 runeAmount: runeAmount,
+                status: { confirmed: true }, // Mark as confirmed
               };
               break;
             }
@@ -359,6 +361,7 @@ export const createUnitIntent = async (
           txid: utxo.txid,
           vout: utxo.vout,
           value: utxo.value,
+          status: { confirmed: false }, // Mark as unconfirmed
         };
         break;
       }
@@ -376,6 +379,7 @@ export const createUnitIntent = async (
             txid: utxo.txid,
             vout: utxo.vout,
             value: utxo.value,
+            status: { confirmed: true }, // Mark as confirmed
           };
           break;
         }
