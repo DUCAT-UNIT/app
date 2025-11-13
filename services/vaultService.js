@@ -121,9 +121,9 @@ export const fetchVaultData = async (vaultPubkey) => {
       return null;
     }
 
-    // If multiple vaults, log them all
+    // If multiple vaults exist for this pubkey, always use the FIRST one
     if (vaultListData.vaults.length > 1) {
-      console.log('⚠️ MULTIPLE VAULTS FOUND for this pubkey:');
+      console.log('⚠️ MULTIPLE VAULTS FOUND for this pubkey - using FIRST vault:');
       vaultListData.vaults.forEach((vault, index) => {
         console.log(`  Vault ${index + 1}:`, {
           vault_id: vault.vault_id,
@@ -132,8 +132,10 @@ export const fetchVaultData = async (vaultPubkey) => {
           unit_borrowed: vault.unit_borrowed,
         });
       });
+      console.log('📌 Selected: Using vault #1 (first in array)');
     }
 
+    // Always use first vault in the array
     const vaultId = vaultListData.vaults[0].vault_id;
     const vaultTag = vaultListData.vaults[0].vault_tag;
     console.log('🏦 Using vault:', { vault_id: vaultId, vault_tag: vaultTag });
