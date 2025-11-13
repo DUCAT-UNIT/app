@@ -133,14 +133,43 @@ export const PendingTransactionsProvider = ({ children, currentAccount, showToas
   /**
    * Get all unconfirmed UTXOs that can be spent
    * Returns UTXOs from pending (non-invalid) transactions
+   * @param {string} addressType - Filter by address type ('all', 'segwit', 'taproot')
+   * @param {object} excludeFromIntent - Optional intent object whose inputs should be excluded
    */
-  const getUnconfirmedUTXOs = useCallback((addressType = 'all') => {
+  const getUnconfirmedUTXOs = useCallback((addressType = 'all', excludeFromIntent = null) => {
     const utxos = [];
+
+    // Build a set of UTXOs to exclude (from the active intent)
+    const excludedKeys = new Set();
+    if (excludeFromIntent) {
+      // Exclude BTC inputs
+      if (excludeFromIntent.inputs) {
+        excludeFromIntent.inputs.forEach(input => {
+          const key = `${input.txid}:${input.vout}`;
+          excludedKeys.add(key);
+        });
+      }
+      // Exclude UNIT inputs (runeUtxo and satUtxo)
+      if (excludeFromIntent.runeUtxo) {
+        const key = `${excludeFromIntent.runeUtxo.transaction}:${excludeFromIntent.runeUtxo.vout}`;
+        excludedKeys.add(key);
+      }
+      if (excludeFromIntent.satUtxo) {
+        const key = `${excludeFromIntent.satUtxo.txid}:${excludeFromIntent.satUtxo.vout}`;
+        excludedKeys.add(key);
+      }
+    }
 
     Object.values(pendingTransactions).forEach(tx => {
       // Only include pending transactions (not invalid)
       if (tx.status === 'pending') {
         tx.outputs.forEach(output => {
+          // Check if this UTXO should be excluded
+          const key = `${tx.txid}:${output.vout}`;
+          if (excludedKeys.has(key)) {
+            return; // Skip this UTXO
+          }
+
           // Filter by address type if specified
           const isSegwit = output.address.startsWith('tb1q') || output.address.startsWith('bc1q');
           const isTaproot = output.address.startsWith('tb1p') || output.address.startsWith('bc1p');

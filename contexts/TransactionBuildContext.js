@@ -32,8 +32,8 @@ export const TransactionBuildProvider = ({ children, wallet, currentAccount, sho
   // Create BTC transaction using TransactionService
   const createBtcIntent = useCallback(async () => {
     try {
-      // Get unconfirmed UTXOs for segwit (BTC)
-      const unconfirmedUtxos = getUnconfirmedUTXOs('segwit');
+      // Get unconfirmed UTXOs for segwit (BTC), excluding any already used in current intent
+      const unconfirmedUtxos = getUnconfirmedUTXOs('segwit', sendIntent);
 
       const intent = await TransactionService.createBtcIntent(
         sendRecipient,
@@ -55,7 +55,7 @@ export const TransactionBuildProvider = ({ children, wallet, currentAccount, sho
         setIntentStep('entering_amount');
       }, 100);
     }
-  }, [sendRecipient, sendAmount, wallet, currentAccount, setIntentStep, showToast, getUnconfirmedUTXOs]);
+  }, [sendRecipient, sendAmount, wallet, currentAccount, setIntentStep, showToast, getUnconfirmedUTXOs, sendIntent]);
 
   // Create UNIT (Rune) transaction using TransactionService
   const createUnitIntent = useCallback(async () => {
@@ -64,9 +64,9 @@ export const TransactionBuildProvider = ({ children, wallet, currentAccount, sho
         throw new Error('Wallet not initialized');
       }
 
-      // Get unconfirmed UTXOs for taproot (UNIT) and segwit (fees)
-      const unconfirmedTaprootUtxos = getUnconfirmedUTXOs('taproot');
-      const unconfirmedSegwitUtxos = getUnconfirmedUTXOs('segwit');
+      // Get unconfirmed UTXOs for taproot (UNIT) and segwit (fees), excluding any already used in current intent
+      const unconfirmedTaprootUtxos = getUnconfirmedUTXOs('taproot', sendIntent);
+      const unconfirmedSegwitUtxos = getUnconfirmedUTXOs('segwit', sendIntent);
 
       const intent = await TransactionService.createUnitIntent(
         sendRecipient,
@@ -90,7 +90,7 @@ export const TransactionBuildProvider = ({ children, wallet, currentAccount, sho
         setIntentStep('entering_amount');
       }, 100);
     }
-  }, [sendRecipient, sendAmount, wallet, currentAccount, setIntentStep, showToast, getUnconfirmedUTXOs]);
+  }, [sendRecipient, sendAmount, wallet, currentAccount, setIntentStep, showToast, getUnconfirmedUTXOs, sendIntent]);
 
   // Main create intent function (routes to BTC or UNIT)
   const createSendIntent = useCallback(async () => {
