@@ -4,7 +4,7 @@
  */
 
 import React, { useRef, useState } from 'react';
-import { View, Animated, StyleSheet, Dimensions, PanResponder } from 'react-native';
+import { View, Animated, StyleSheet, Dimensions, PanResponder, Easing } from 'react-native';
 import { StatusBar } from 'expo-status-bar';
 import { useNavigation } from '@react-navigation/native';
 
@@ -84,10 +84,13 @@ export default function WalletPage() {
   const vaultTranslateX = useRef(new Animated.Value(-SCREEN_WIDTH)).current; // Start on left
   const walletTranslateX = useRef(new Animated.Value(0)).current;
   const [isSwiping, setIsSwiping] = useState(false);
+  const isAnimatingRef = useRef(false);
+  const lastActiveTabRef = useRef(activeTab);
 
-  // Keep positions in sync with activeTab
+  // Keep positions in sync with activeTab - but only when clicking nav buttons, not after swipe
   React.useEffect(() => {
-    if (!isSwiping) {
+    // Only update positions if tab changed via button press (not swipe) and not currently animating
+    if (activeTab !== lastActiveTabRef.current && !isSwiping && !isAnimatingRef.current) {
       if (activeTab === 'vault') {
         // Vault is active - wallet should be off screen right, vault centered
         walletTranslateX.setValue(SCREEN_WIDTH);
@@ -98,6 +101,7 @@ export default function WalletPage() {
         vaultTranslateX.setValue(-SCREEN_WIDTH);
       }
     }
+    lastActiveTabRef.current = activeTab;
   }, [activeTab, isSwiping, walletTranslateX, vaultTranslateX]);
 
   // Pan responder for wallet screen - right swipe to reveal vault
@@ -123,38 +127,39 @@ export default function WalletPage() {
 
         // If swiped more than 50% of screen width, complete the transition
         if (gestureState.dx > SCREEN_WIDTH * 0.5) {
+          isAnimatingRef.current = true;
           // Complete animation to vault - wallet moves right off screen, vault moves to center
           Animated.parallel([
-            Animated.spring(walletTranslateX, {
+            Animated.timing(walletTranslateX, {
               toValue: SCREEN_WIDTH,
+              duration: 300,
+              easing: Easing.out(Easing.cubic),
               useNativeDriver: true,
-              tension: 65,
-              friction: 11,
             }),
-            Animated.spring(vaultTranslateX, {
+            Animated.timing(vaultTranslateX, {
               toValue: 0,
+              duration: 300,
+              easing: Easing.out(Easing.cubic),
               useNativeDriver: true,
-              tension: 65,
-              friction: 11,
             }),
           ]).start(() => {
             openVault();
-            // Don't reset - let useEffect handle positioning based on activeTab
+            isAnimatingRef.current = false;
           });
         } else {
           // Spring back to original position
           Animated.parallel([
-            Animated.spring(walletTranslateX, {
+            Animated.timing(walletTranslateX, {
               toValue: 0,
+              duration: 250,
+              easing: Easing.out(Easing.ease),
               useNativeDriver: true,
-              tension: 65,
-              friction: 11,
             }),
-            Animated.spring(vaultTranslateX, {
+            Animated.timing(vaultTranslateX, {
               toValue: -SCREEN_WIDTH,
+              duration: 250,
+              easing: Easing.out(Easing.ease),
               useNativeDriver: true,
-              tension: 65,
-              friction: 11,
             }),
           ]).start();
         }
@@ -194,38 +199,39 @@ export default function WalletPage() {
 
         // If swiped more than 50% of screen width, complete the transition
         if (gestureState.dx < -SCREEN_WIDTH * 0.5) {
+          isAnimatingRef.current = true;
           // Complete animation to wallet - vault moves left off screen, wallet moves to center
           Animated.parallel([
-            Animated.spring(vaultTranslateX, {
+            Animated.timing(vaultTranslateX, {
               toValue: -SCREEN_WIDTH,
+              duration: 300,
+              easing: Easing.out(Easing.cubic),
               useNativeDriver: true,
-              tension: 65,
-              friction: 11,
             }),
-            Animated.spring(walletTranslateX, {
+            Animated.timing(walletTranslateX, {
               toValue: 0,
+              duration: 300,
+              easing: Easing.out(Easing.cubic),
               useNativeDriver: true,
-              tension: 65,
-              friction: 11,
             }),
           ]).start(() => {
             setActiveTab('wallet');
-            // Don't reset - let useEffect handle positioning based on activeTab
+            isAnimatingRef.current = false;
           });
         } else {
           // Spring back to original position
           Animated.parallel([
-            Animated.spring(vaultTranslateX, {
+            Animated.timing(vaultTranslateX, {
               toValue: 0,
+              duration: 250,
+              easing: Easing.out(Easing.ease),
               useNativeDriver: true,
-              tension: 65,
-              friction: 11,
             }),
-            Animated.spring(walletTranslateX, {
+            Animated.timing(walletTranslateX, {
               toValue: SCREEN_WIDTH,
+              duration: 250,
+              easing: Easing.out(Easing.ease),
               useNativeDriver: true,
-              tension: 65,
-              friction: 11,
             }),
           ]).start();
         }
