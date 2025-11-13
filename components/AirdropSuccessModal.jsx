@@ -13,7 +13,7 @@ import Icon from './Icon';
 const SCREEN_WIDTH = Dimensions.get('window').width;
 const _SCREEN_HEIGHT = Dimensions.get('window').height;
 
-export default function AirdropSuccessModal({ visible, onClose, txId }) {
+export default function AirdropSuccessModal({ visible, onClose }) {
   const scaleAnim = useRef(new Animated.Value(0.8)).current;
   const opacityAnim = useRef(new Animated.Value(0)).current;
   const confettiRef = useRef(null);
@@ -71,16 +71,6 @@ export default function AirdropSuccessModal({ visible, onClose, txId }) {
             An airdrop is on the way.{'\n'}You should see it reflected in your balance in 30 seconds.
           </Text>
 
-          {/* Transaction ID */}
-          {txId && (
-            <View style={localStyles.txIdContainer}>
-              <Text style={localStyles.txIdLabel}>Transaction ID</Text>
-              <Text style={localStyles.txIdText} numberOfLines={1} ellipsizeMode="middle">
-                {txId.substring(0, 16)}...{txId.substring(txId.length - 16)}
-              </Text>
-            </View>
-          )}
-
           {/* Close Button */}
           <TouchableOpacity style={localStyles.closeButton} onPress={onClose} activeOpacity={0.8}>
             <Text style={localStyles.closeButtonText}>Get Started</Text>
@@ -132,25 +122,6 @@ const localStyles = StyleSheet.create({
     lineHeight: 24,
     marginBottom: 24,
   },
-  txIdContainer: {
-    backgroundColor: COLORS.DARK_BG,
-    borderRadius: 12,
-    padding: 16,
-    width: '100%',
-    marginBottom: 24,
-  },
-  txIdLabel: {
-    fontSize: 12,
-    color: COLORS.SECONDARY_TEXT,
-    marginBottom: 6,
-    textAlign: 'center',
-  },
-  txIdText: {
-    fontSize: 11,
-    color: COLORS.VERY_LIGHT_GRAY,
-    textAlign: 'center',
-    fontFamily: 'monospace',
-  },
   closeButton: {
     backgroundColor: COLORS.PRIMARY_BLUE,
     borderRadius: 12,
@@ -169,5 +140,4 @@ const localStyles = StyleSheet.create({
 AirdropSuccessModal.propTypes = {
   visible: PropTypes.bool.isRequired,
   onClose: PropTypes.func.isRequired,
-  txId: PropTypes.string,
 };
