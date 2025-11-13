@@ -25,7 +25,7 @@
             <div class='fl pad1y space-right2'>
                 <span class="strong">100% </span>
                 <span class="quiet">Statements</span>
-                <span class='fraction'>50/50</span>
+                <span class='fraction'>52/52</span>
             </div>
         
             
@@ -46,7 +46,7 @@
             <div class='fl pad1y space-right2'>
                 <span class="strong">100% </span>
                 <span class="quiet">Lines</span>
-                <span class='fraction'>50/50</span>
+                <span class='fraction'>52/52</span>
             </div>
         
             
@@ -203,7 +203,11 @@
 <a name='L138'></a><a href='#L138'>138</a>
 <a name='L139'></a><a href='#L139'>139</a>
 <a name='L140'></a><a href='#L140'>140</a>
-<a name='L141'></a><a href='#L141'>141</a></td><td class="line-coverage quiet"><span class="cline-any cline-neutral">&nbsp;</span>
+<a name='L141'></a><a href='#L141'>141</a>
+<a name='L142'></a><a href='#L142'>142</a>
+<a name='L143'></a><a href='#L143'>143</a>
+<a name='L144'></a><a href='#L144'>144</a>
+<a name='L145'></a><a href='#L145'>145</a></td><td class="line-coverage quiet"><span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
@@ -255,6 +259,8 @@
 <span class="cline-any cline-yes">1x</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-yes">1x</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-yes">1x</span>
 <span class="cline-any cline-yes">1x</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
@@ -284,6 +290,8 @@
 <span class="cline-any cline-yes">1x</span>
 <span class="cline-any cline-yes">1x</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-yes">2x</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-yes">2x</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
@@ -377,8 +385,8 @@ export const TransactionBuildProvider = ({ children, wallet, currentAccount, sho
   // Create BTC transaction using TransactionService
   const createBtcIntent = useCallback(async () =&gt; {
     try {
-      // Get unconfirmed UTXOs for segwit (BTC)
-      const unconfirmedUtxos = getUnconfirmedUTXOs('segwit');
+      // Get unconfirmed UTXOs for segwit (BTC), excluding any already used in current intent
+      const unconfirmedUtxos = getUnconfirmedUTXOs('segwit', sendIntent);
 &nbsp;
       const intent = await TransactionService.createBtcIntent(
         sendRecipient,
@@ -391,6 +399,8 @@ export const TransactionBuildProvider = ({ children, wallet, currentAccount, sho
       setSendIntent(intent);
       setIntentStep('reviewing');
     } catch (error) {
+      // Log the full error for debugging
+      console.error('Error creating BTC intent:', error);
       // Show error toast first, then transition after a brief delay
       showToast(parseErrorMessage(error), 'error');
       // Small delay to ensure toast is visible before screen transition
@@ -398,7 +408,7 @@ export const TransactionBuildProvider = ({ children, wallet, currentAccount, sho
         setIntentStep('entering_amount');
       }, 100);
     }
-  }, [sendRecipient, sendAmount, wallet, currentAccount, setIntentStep, showToast, getUnconfirmedUTXOs]);
+  }, [sendRecipient, sendAmount, wallet, currentAccount, setIntentStep, showToast, getUnconfirmedUTXOs, sendIntent]);
 &nbsp;
   // Create UNIT (Rune) transaction using TransactionService
   const createUnitIntent = useCallback(async () =&gt; {
@@ -407,9 +417,9 @@ export const TransactionBuildProvider = ({ children, wallet, currentAccount, sho
         throw new Error('Wallet not initialized');
       }
 &nbsp;
-      // Get unconfirmed UTXOs for taproot (UNIT) and segwit (fees)
-      const unconfirmedTaprootUtxos = getUnconfirmedUTXOs('taproot');
-      const unconfirmedSegwitUtxos = getUnconfirmedUTXOs('segwit');
+      // Get unconfirmed UTXOs for taproot (UNIT) and segwit (fees), excluding any already used in current intent
+      const unconfirmedTaprootUtxos = getUnconfirmedUTXOs('taproot', sendIntent);
+      const unconfirmedSegwitUtxos = getUnconfirmedUTXOs('segwit', sendIntent);
 &nbsp;
       const intent = await TransactionService.createUnitIntent(
         sendRecipient,
@@ -424,6 +434,8 @@ export const TransactionBuildProvider = ({ children, wallet, currentAccount, sho
       setSendIntent(intent);
       setIntentStep('reviewing');
     } catch (error) {
+      // Log the full error for debugging
+      console.error('Error creating UNIT intent:', error);
       // Show error toast first, then transition after a brief delay
       showToast(parseErrorMessage(error), 'error');
       // Small delay to ensure toast is visible before screen transition
@@ -431,7 +443,7 @@ export const TransactionBuildProvider = ({ children, wallet, currentAccount, sho
         setIntentStep('entering_amount');
       }, 100);
     }
-  }, [sendRecipient, sendAmount, wallet, currentAccount, setIntentStep, showToast, getUnconfirmedUTXOs]);
+  }, [sendRecipient, sendAmount, wallet, currentAccount, setIntentStep, showToast, getUnconfirmedUTXOs, sendIntent]);
 &nbsp;
   // Main create intent function (routes to BTC or UNIT)
   const createSendIntent = useCallback(async () =&gt; {
@@ -490,7 +502,7 @@ export const TransactionBuildProvider = ({ children, wallet, currentAccount, sho
             <div class='footer quiet pad2 space-top1 center small'>
                 Code coverage generated by
                 <a href="https://istanbul.js.org/" target="_blank" rel="noopener noreferrer">istanbul</a>
-                at 2025-11-13T10:30:26.041Z
+                at 2025-11-13T12:35:33.603Z
             </div>
         <script src="../prettify.js"></script>
         <script>

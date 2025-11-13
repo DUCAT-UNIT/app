@@ -129,7 +129,7 @@ const VaultScreen = React.memo(function VaultScreen({ visible, walletCredentials
         userAgent="DucatMobile/1.0"
         javaScriptEnabled={true}
         domStorageEnabled={true}
-        webviewDebuggingEnabled={true}
+        webviewDebuggingEnabled={false}
         onShouldStartLoadWithRequest={handleShouldStartLoad}
         onLoadStart={() => {
           setIsLoading(true);

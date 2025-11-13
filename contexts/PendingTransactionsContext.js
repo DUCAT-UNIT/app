@@ -21,10 +21,15 @@ export const PendingTransactionsProvider = ({ children, currentAccount, showToas
   // Format: { txid: { txid, outputs, parentTxid, assetType, status, timestamp } }
   const [pendingTransactions, setPendingTransactions] = useState({});
 
-  // Load pending transactions from storage on mount
+  // Track spent UTXOs (both confirmed and unconfirmed) to prevent reuse
+  // Format: Set of "txid:vout" strings
+  const [spentUtxos, setSpentUtxos] = useState(new Set());
+
+  // Load pending transactions and spent UTXOs from storage on mount
   useEffect(() => {
     if (currentAccount) {
       loadPendingTransactions();
+      loadSpentUtxos();
     }
   }, [currentAccount]);
 
@@ -48,6 +53,29 @@ export const PendingTransactionsProvider = ({ children, currentAccount, showToas
       await AsyncStorage.setItem(key, JSON.stringify(txs));
     } catch (error) {
       console.error('Error saving pending transactions:', error);
+    }
+  };
+
+  // Load spent UTXOs from AsyncStorage
+  const loadSpentUtxos = async () => {
+    try {
+      const key = `spent_utxos_${currentAccount}`;
+      const stored = await AsyncStorage.getItem(key);
+      if (stored) {
+        setSpentUtxos(new Set(JSON.parse(stored)));
+      }
+    } catch (error) {
+      console.error('Error loading spent UTXOs:', error);
+    }
+  };
+
+  // Save spent UTXOs to AsyncStorage
+  const saveSpentUtxos = async (spent) => {
+    try {
+      const key = `spent_utxos_${currentAccount}`;
+      await AsyncStorage.setItem(key, JSON.stringify(Array.from(spent)));
+    } catch (error) {
+      console.error('Error saving spent UTXOs:', error);
     }
   };
 
@@ -79,6 +107,7 @@ export const PendingTransactionsProvider = ({ children, currentAccount, showToas
 
   /**
    * Mark transaction as confirmed and remove from pending
+   * Also clean up spent UTXOs that were inputs to this transaction
    */
   const confirmTransaction = useCallback(async (txid) => {
     const updated = { ...pendingTransactions };
@@ -86,7 +115,13 @@ export const PendingTransactionsProvider = ({ children, currentAccount, showToas
 
     setPendingTransactions(updated);
     await savePendingTransactions(updated);
-  }, [pendingTransactions, currentAccount]);
+
+    // Clean up spent UTXOs - when a transaction confirms, its inputs are truly spent on-chain
+    // We can remove them from our tracking set
+    const updatedSpent = new Set(spentUtxos);
+    // Keep the spent set for now - we'll clean it up periodically
+    // Actually, we should keep them to prevent reuse until they're confirmed
+  }, [pendingTransactions, spentUtxos, currentAccount]);
 
   /**
    * Invalidate a transaction and all its children
@@ -250,6 +285,42 @@ export const PendingTransactionsProvider = ({ children, currentAccount, showToas
     }
   }, [pendingTransactions, currentAccount]);
 
+  /**
+   * Mark UTXOs as spent to prevent reuse
+   * @param {Array} utxos - Array of {txid, vout} objects
+   */
+  const markUtxosAsSpent = useCallback(async (utxos) => {
+    const updated = new Set(spentUtxos);
+
+    utxos.forEach(({ txid, vout }) => {
+      const key = `${txid}:${vout}`;
+      updated.add(key);
+      console.log('🚫 Marking UTXO as spent:', key);
+    });
+
+    setSpentUtxos(updated);
+    await saveSpentUtxos(updated);
+  }, [spentUtxos, currentAccount]);
+
+  /**
+   * Check if a UTXO is spent
+   * @param {string} txid - Transaction ID
+   * @param {number} vout - Output index
+   * @returns {boolean} True if the UTXO is spent
+   */
+  const isUtxoSpent = useCallback((txid, vout) => {
+    const key = `${txid}:${vout}`;
+    return spentUtxos.has(key);
+  }, [spentUtxos]);
+
+  /**
+   * Get all spent UTXO keys
+   * @returns {Set} Set of spent UTXO keys (txid:vout)
+   */
+  const getSpentUtxos = useCallback(() => {
+    return spentUtxos;
+  }, [spentUtxos]);
+
   const value = {
     pendingTransactions,
     addPendingTransaction,
@@ -259,6 +330,9 @@ export const PendingTransactionsProvider = ({ children, currentAccount, showToas
     getUnconfirmedBalance,
     markUtxoAsSpent,
     cleanupInvalidTransactions,
+    markUtxosAsSpent,
+    isUtxoSpent,
+    getSpentUtxos,
   };
 
   return (

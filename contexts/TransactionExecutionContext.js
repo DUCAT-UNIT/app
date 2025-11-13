@@ -38,7 +38,7 @@ export const TransactionExecutionProvider = ({
   const { setIntentStep, sendAssetType, sendAmount } = useSendFlow();
   const { sendIntent, setSendIntent } = useTransactionBuild();
   const { wallet } = useWallet();
-  const { addPendingTransaction, confirmTransaction, invalidateTransaction, pendingTransactions, markUtxoAsSpent } = usePendingTransactions();
+  const { addPendingTransaction, confirmTransaction, invalidateTransaction, pendingTransactions, markUtxoAsSpent, markUtxosAsSpent } = usePendingTransactions();
 
   // Execution state
   const [broadcastedTxid, setBroadcastedTxid] = useState(null);
@@ -77,25 +77,34 @@ export const TransactionExecutionProvider = ({
         console.log('🔍 Extracting outputs from broadcasted tx:', txid);
         console.log('Total outputs in tx:', tx.outs.length);
 
-        // Check if any inputs are from pending transactions (for parent-child tracking)
-        // Also mark those UTXOs as spent
+        // Mark ALL inputs as spent to prevent reuse
+        const spentInputs = [];
         let parentTxid = null;
+
         for (const input of tx.ins) {
           const inputTxid = Buffer.from(input.hash).reverse().toString('hex');
           const inputVout = input.index;
 
           console.log('Input:', inputTxid, 'vout:', inputVout);
 
-          // Check if this input is spending from a pending transaction
+          // Add to spent list
+          spentInputs.push({ txid: inputTxid, vout: inputVout });
+
+          // Check if this input is spending from a pending transaction (for parent-child tracking)
           if (pendingTransactions[inputTxid] && pendingTransactions[inputTxid].status === 'pending') {
             if (!parentTxid) {
               parentTxid = inputTxid; // Set first pending input as parent
             }
 
-            console.log('Marking input as spent:', inputTxid, 'vout:', inputVout);
-            // Mark this UTXO as spent so it won't be selected again
+            console.log('Removing pending output:', inputTxid, 'vout:', inputVout);
+            // Mark this pending UTXO as spent (removes it from pending outputs)
             await markUtxoAsSpent(inputTxid, inputVout);
           }
+        }
+
+        // Mark all inputs as spent (both confirmed and pending)
+        if (spentInputs.length > 0) {
+          await markUtxosAsSpent(spentInputs);
         }
 
         // For UNIT transactions, calculate rune change amount
@@ -199,7 +208,7 @@ export const TransactionExecutionProvider = ({
         await invalidateTransaction(intent.txid, 'Transaction broadcast failed');
       }
     }
-  }, [sendIntent, wallet, showToast, setIntentStep, sendAssetType, sendAmount, startTransactionPolling, notificationsEnabled, sendTransactionConfirmedNotification, fetchBalance, addPendingTransaction, confirmTransaction, invalidateTransaction, pendingTransactions, markUtxoAsSpent]);
+  }, [sendIntent, wallet, showToast, setIntentStep, sendAssetType, sendAmount, startTransactionPolling, notificationsEnabled, sendTransactionConfirmedNotification, fetchBalance, addPendingTransaction, confirmTransaction, invalidateTransaction, pendingTransactions, markUtxoAsSpent, markUtxosAsSpent]);
 
   // Sign the PSBT
   const signIntent = useCallback(async () => {

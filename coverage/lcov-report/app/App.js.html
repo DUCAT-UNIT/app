@@ -25,7 +25,7 @@
             <div class='fl pad1y space-right2'>
                 <span class="strong">0% </span>
                 <span class="quiet">Statements</span>
-                <span class='fraction'>0/12</span>
+                <span class='fraction'>0/15</span>
             </div>
         
             
@@ -39,14 +39,14 @@
             <div class='fl pad1y space-right2'>
                 <span class="strong">0% </span>
                 <span class="quiet">Functions</span>
-                <span class='fraction'>0/2</span>
+                <span class='fraction'>0/3</span>
             </div>
         
             
             <div class='fl pad1y space-right2'>
                 <span class="strong">0% </span>
                 <span class="quiet">Lines</span>
-                <span class='fraction'>0/12</span>
+                <span class='fraction'>0/15</span>
             </div>
         
             
@@ -153,7 +153,16 @@
 <a name='L88'></a><a href='#L88'>88</a>
 <a name='L89'></a><a href='#L89'>89</a>
 <a name='L90'></a><a href='#L90'>90</a>
-<a name='L91'></a><a href='#L91'>91</a></td><td class="line-coverage quiet"><span class="cline-any cline-neutral">&nbsp;</span>
+<a name='L91'></a><a href='#L91'>91</a>
+<a name='L92'></a><a href='#L92'>92</a>
+<a name='L93'></a><a href='#L93'>93</a>
+<a name='L94'></a><a href='#L94'>94</a>
+<a name='L95'></a><a href='#L95'>95</a>
+<a name='L96'></a><a href='#L96'>96</a>
+<a name='L97'></a><a href='#L97'>97</a>
+<a name='L98'></a><a href='#L98'>98</a>
+<a name='L99'></a><a href='#L99'>99</a>
+<a name='L100'></a><a href='#L100'>100</a></td><td class="line-coverage quiet"><span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
@@ -186,7 +195,6 @@
 <span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
-<span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-no">&nbsp;</span>
 <span class="cline-any cline-no">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
@@ -214,6 +222,22 @@
 <span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-no">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
@@ -226,12 +250,6 @@
 <span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-no">&nbsp;</span>
-<span class="cline-any cline-neutral">&nbsp;</span>
-<span class="cline-any cline-neutral">&nbsp;</span>
-<span class="cline-any cline-neutral">&nbsp;</span>
-<span class="cline-any cline-neutral">&nbsp;</span>
-<span class="cline-any cline-neutral">&nbsp;</span>
-<span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
@@ -262,13 +280,12 @@ import * as Sentry from '@sentry/react-native';
 &nbsp;
 // Contexts
 import { AuthProvider } from './contexts/AuthContext';
-import { WalletProvider } from './contexts/WalletContext';
-import { BalanceProvider } from './contexts/BalanceContext';
+import { WalletProvider, useWallet } from './contexts/WalletContext';
+import { PendingTransactionsProvider } from './contexts/PendingTransactionsContext';
+import { WalletDataProvider } from './contexts/WalletDataContext';
 import { PriceProvider } from './contexts/PriceContext';
-import { VaultDataProvider } from './contexts/VaultDataContext';
-import { TransactionHistoryProvider } from './contexts/TransactionHistoryContext';
 // AirdropProvider removed - not currently used in provider hierarchy
-import { DisplayPreferencesProvider } from './contexts/DisplayPreferencesContext';
+import { UIProvider, useToastContext } from './contexts/UIContext';
 &nbsp;
 // Navigation
 import AppNavigator from './navigation/AppNavigator';
@@ -302,6 +319,22 @@ import SplashScreen from './components/SplashScreen';
 //   Sentry.captureMessage('🧪 Test Message - Sentry integration successful', 'info');
 // }, 3000);
 &nbsp;
+// Inner component to access wallet and toast contexts
+function <span class="fstat-no" title="function not covered" >AppProviders(</span>{ children }) {
+  const { currentAccount } = <span class="cstat-no" title="statement not covered" >useWallet();</span>
+  const { showToast } = <span class="cstat-no" title="statement not covered" >useToastContext();</span>
+&nbsp;
+<span class="cstat-no" title="statement not covered" >  return (</span>
+    &lt;PendingTransactionsProvider currentAccount={currentAccount} showToast={showToast}&gt;
+      &lt;WalletDataProvider&gt;
+        &lt;PriceProvider&gt;
+          {children}
+        &lt;/PriceProvider&gt;
+      &lt;/WalletDataProvider&gt;
+    &lt;/PendingTransactionsProvider&gt;
+  );
+}
+&nbsp;
 // Main App - Provider setup only
 export default function <span class="fstat-no" title="function not covered" >App(</span>) {
   // Load fonts
@@ -318,17 +351,11 @@ export default function <span class="fstat-no" title="function not covered" >App
 <span class="cstat-no" title="statement not covered" >  return (</span>
     &lt;AuthProvider&gt;
       &lt;WalletProvider&gt;
-        &lt;PriceProvider&gt;
-          &lt;VaultDataProvider&gt;
-            &lt;BalanceProvider&gt;
-              &lt;TransactionHistoryProvider&gt;
-                &lt;DisplayPreferencesProvider&gt;
-                  &lt;AppNavigator /&gt;
-                &lt;/DisplayPreferencesProvider&gt;
-              &lt;/TransactionHistoryProvider&gt;
-            &lt;/BalanceProvider&gt;
-          &lt;/VaultDataProvider&gt;
-        &lt;/PriceProvider&gt;
+        &lt;UIProvider&gt;
+          &lt;AppProviders&gt;
+            &lt;AppNavigator /&gt;
+          &lt;/AppProviders&gt;
+        &lt;/UIProvider&gt;
       &lt;/WalletProvider&gt;
     &lt;/AuthProvider&gt;
   );
@@ -340,7 +367,7 @@ export default function <span class="fstat-no" title="function not covered" >App
             <div class='footer quiet pad2 space-top1 center small'>
                 Code coverage generated by
                 <a href="https://istanbul.js.org/" target="_blank" rel="noopener noreferrer">istanbul</a>
-                at 2025-11-12T09:53:36.119Z
+                at 2025-11-13T10:49:20.669Z
             </div>
         <script src="../prettify.js"></script>
         <script>

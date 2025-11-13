@@ -25,7 +25,7 @@
             <div class='fl pad1y space-right2'>
                 <span class="strong">100% </span>
                 <span class="quiet">Statements</span>
-                <span class='fraction'>45/45</span>
+                <span class='fraction'>50/50</span>
             </div>
         
             
@@ -39,14 +39,14 @@
             <div class='fl pad1y space-right2'>
                 <span class="strong">100% </span>
                 <span class="quiet">Functions</span>
-                <span class='fraction'>9/9</span>
+                <span class='fraction'>10/10</span>
             </div>
         
             
             <div class='fl pad1y space-right2'>
                 <span class="strong">100% </span>
                 <span class="quiet">Lines</span>
-                <span class='fraction'>45/45</span>
+                <span class='fraction'>50/50</span>
             </div>
         
             
@@ -187,7 +187,24 @@
 <a name='L122'></a><a href='#L122'>122</a>
 <a name='L123'></a><a href='#L123'>123</a>
 <a name='L124'></a><a href='#L124'>124</a>
-<a name='L125'></a><a href='#L125'>125</a></td><td class="line-coverage quiet"><span class="cline-any cline-neutral">&nbsp;</span>
+<a name='L125'></a><a href='#L125'>125</a>
+<a name='L126'></a><a href='#L126'>126</a>
+<a name='L127'></a><a href='#L127'>127</a>
+<a name='L128'></a><a href='#L128'>128</a>
+<a name='L129'></a><a href='#L129'>129</a>
+<a name='L130'></a><a href='#L130'>130</a>
+<a name='L131'></a><a href='#L131'>131</a>
+<a name='L132'></a><a href='#L132'>132</a>
+<a name='L133'></a><a href='#L133'>133</a>
+<a name='L134'></a><a href='#L134'>134</a>
+<a name='L135'></a><a href='#L135'>135</a>
+<a name='L136'></a><a href='#L136'>136</a>
+<a name='L137'></a><a href='#L137'>137</a>
+<a name='L138'></a><a href='#L138'>138</a>
+<a name='L139'></a><a href='#L139'>139</a>
+<a name='L140'></a><a href='#L140'>140</a>
+<a name='L141'></a><a href='#L141'>141</a></td><td class="line-coverage quiet"><span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
@@ -212,6 +229,7 @@
 <span class="cline-any cline-yes">2x</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-yes">14x</span>
+<span class="cline-any cline-yes">14x</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-yes">14x</span>
@@ -219,7 +237,11 @@
 <span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-yes">14x</span>
 <span class="cline-any cline-yes">3x</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-yes">3x</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-yes">3x</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
@@ -245,7 +267,13 @@
 <span class="cline-any cline-yes">1x</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-yes">2x</span>
+<span class="cline-any cline-yes">2x</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-yes">2x</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
@@ -296,7 +324,11 @@
 <span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-yes">14x</span>
+<span class="cline-any cline-yes">14x</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
@@ -317,11 +349,12 @@
  * Depends on SendFlowContext for form data
  */
 &nbsp;
-import React, { createContext, useContext, useState } from 'react';
+import React, { createContext, useContext, useState, useMemo, useCallback } from 'react';
 import * as TransactionService from '../services/transactionService';
 import { parseErrorMessage } from '../utils/errorParser';
 import { ERRORS } from '../utils/messages';
 import { useSendFlow } from './SendFlowContext';
+import { usePendingTransactions } from './PendingTransactionsContext';
 &nbsp;
 const TransactionBuildContext = createContext();
 &nbsp;
@@ -336,18 +369,23 @@ export const useTransactionBuild = () =&gt; {
 export const TransactionBuildProvider = ({ children, wallet, currentAccount, showToast }) =&gt; {
   const { sendRecipient, sendAmount, sendAssetType, setIntentStep, setSendRecipient } =
     useSendFlow();
+  const { getUnconfirmedUTXOs } = usePendingTransactions();
 &nbsp;
   // The created PSBT intent
   const [sendIntent, setSendIntent] = useState(null);
 &nbsp;
   // Create BTC transaction using TransactionService
-  const createBtcIntent = async () =&gt; {
+  const createBtcIntent = useCallback(async () =&gt; {
     try {
+      // Get unconfirmed UTXOs for segwit (BTC)
+      const unconfirmedUtxos = getUnconfirmedUTXOs('segwit');
+&nbsp;
       const intent = await TransactionService.createBtcIntent(
         sendRecipient,
         sendAmount,
         wallet.segwitAddress,
-        currentAccount
+        currentAccount,
+        unconfirmedUtxos
       );
 &nbsp;
       setSendIntent(intent);
@@ -360,21 +398,27 @@ export const TransactionBuildProvider = ({ children, wallet, currentAccount, sho
         setIntentStep('entering_amount');
       }, 100);
     }
-  };
+  }, [sendRecipient, sendAmount, wallet, currentAccount, setIntentStep, showToast, getUnconfirmedUTXOs]);
 &nbsp;
   // Create UNIT (Rune) transaction using TransactionService
-  const createUnitIntent = async () =&gt; {
+  const createUnitIntent = useCallback(async () =&gt; {
     try {
       if (!wallet || !wallet.taprootAddress || !wallet.segwitAddress) {
         throw new Error('Wallet not initialized');
       }
+&nbsp;
+      // Get unconfirmed UTXOs for taproot (UNIT) and segwit (fees)
+      const unconfirmedTaprootUtxos = getUnconfirmedUTXOs('taproot');
+      const unconfirmedSegwitUtxos = getUnconfirmedUTXOs('segwit');
 &nbsp;
       const intent = await TransactionService.createUnitIntent(
         sendRecipient,
         sendAmount,
         wallet.taprootAddress,
         wallet.segwitAddress,
-        currentAccount
+        currentAccount,
+        unconfirmedTaprootUtxos,
+        unconfirmedSegwitUtxos
       );
 &nbsp;
       setSendIntent(intent);
@@ -387,10 +431,10 @@ export const TransactionBuildProvider = ({ children, wallet, currentAccount, sho
         setIntentStep('entering_amount');
       }, 100);
     }
-  };
+  }, [sendRecipient, sendAmount, wallet, currentAccount, setIntentStep, showToast, getUnconfirmedUTXOs]);
 &nbsp;
   // Main create intent function (routes to BTC or UNIT)
-  const createSendIntent = async () =&gt; {
+  const createSendIntent = useCallback(async () =&gt; {
     const trimmedRecipient = sendRecipient.trim();
     setIntentStep('creating');
 &nbsp;
@@ -418,18 +462,22 @@ export const TransactionBuildProvider = ({ children, wallet, currentAccount, sho
         setIntentStep('selecting_asset');
       }, 100);
     }
-  };
+  }, [sendRecipient, sendAmount, sendAssetType, setIntentStep, setSendRecipient, showToast, createBtcIntent, createUnitIntent]);
 &nbsp;
-  const value = {
-    // State
-    sendIntent,
+  // Memoize the value object to prevent unnecessary re-renders
+  const value = useMemo(
+    () =&gt; ({
+      // State
+      sendIntent,
 &nbsp;
-    // Setters
-    setSendIntent,
+      // Setters
+      setSendIntent,
 &nbsp;
-    // Handlers
-    createSendIntent,
-  };
+      // Handlers
+      createSendIntent,
+    }),
+    [sendIntent, createSendIntent]
+  );
 &nbsp;
   return (
     &lt;TransactionBuildContext.Provider value={value}&gt;{children}&lt;/TransactionBuildContext.Provider&gt;
@@ -442,7 +490,7 @@ export const TransactionBuildProvider = ({ children, wallet, currentAccount, sho
             <div class='footer quiet pad2 space-top1 center small'>
                 Code coverage generated by
                 <a href="https://istanbul.js.org/" target="_blank" rel="noopener noreferrer">istanbul</a>
-                at 2025-11-12T09:53:36.119Z
+                at 2025-11-13T10:49:20.669Z
             </div>
         <script src="../../prettify.js"></script>
         <script>

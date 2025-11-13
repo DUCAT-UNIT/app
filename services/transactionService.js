@@ -30,9 +30,11 @@ bitcoin.initEccLib(ecc);
  * @param {string} amount - Amount in BTC (as string, e.g. "0.001")
  * @param {string} segwitAddress - Source SegWit address
  * @param {number} currentAccount - Current account index
+ * @param {Array} unconfirmedUtxos - Array of unconfirmed UTXOs to include
+ * @param {Set} spentUtxos - Set of spent UTXO keys (txid:vout) to exclude
  * @returns {Promise<{id: string, psbt: string, ...}>} Transaction intent object
  */
-export const createBtcIntent = async (recipient, amount, segwitAddress, _currentAccount, unconfirmedUtxos = []) => {
+export const createBtcIntent = async (recipient, amount, segwitAddress, _currentAccount, unconfirmedUtxos = [], spentUtxos = new Set()) => {
   try {
     // Validate and normalize recipient address
     const validatedRecipient = validateAndNormalizeAddress(recipient);
@@ -69,7 +71,15 @@ export const createBtcIntent = async (recipient, amount, segwitAddress, _current
       }
     });
 
-    const availableUtxos = Array.from(utxoMap.values());
+    // Filter out spent UTXOs
+    const availableUtxos = Array.from(utxoMap.values()).filter(utxo => {
+      const key = `${utxo.txid}:${utxo.vout}`;
+      if (spentUtxos.has(key)) {
+        console.log('⚠️ Filtering out spent UTXO:', key);
+        return false;
+      }
+      return true;
+    });
 
     if (availableUtxos.length === 0) {
       throw new Error(ERRORS.NO_CONFIRMED_FUNDS);
@@ -261,7 +271,8 @@ export const createUnitIntent = async (
   segwitAddress,
   _currentAccount,
   unconfirmedTaprootUtxos = [],
-  unconfirmedSegwitUtxos = []
+  unconfirmedSegwitUtxos = [],
+  spentUtxos = new Set()
 ) => {
   try {
     // Validate and normalize recipient address
@@ -288,6 +299,11 @@ export const createUnitIntent = async (
     let runeUtxo = null;
     console.log('Checking unconfirmed taproot UTXOs:', unconfirmedTaprootUtxos.length);
     for (const utxo of unconfirmedTaprootUtxos) {
+      const key = `${utxo.txid}:${utxo.vout}`;
+      if (spentUtxos.has(key)) {
+        console.log('⚠️ Skipping spent rune UTXO:', key);
+        continue;
+      }
       console.log('Checking UTXO:', utxo.txid, 'runeAmount:', utxo.runeAmount, 'needed:', amountInRunes);
       if (utxo.runeAmount && utxo.runeAmount >= amountInRunes) {
         runeUtxo = {
@@ -322,8 +338,15 @@ export const createUnitIntent = async (
 
           if (runeAmount >= amountInRunes) {
             const vout = parseInt(output.match(/:(.*)$/)[1], 10);
+            const key = `${utxoData.transaction}:${vout}`;
 
-            // Check if unspent
+            // Check if already spent in our local tracking
+            if (spentUtxos.has(key)) {
+              console.log('⚠️ Skipping spent rune UTXO from ord API:', key);
+              continue;
+            }
+
+            // Check if unspent on blockchain
             const spendResponse = await fetch(getTxOutspendUrl(utxoData.transaction, vout));
             const spendData = await spendResponse.json();
 
@@ -352,6 +375,11 @@ export const createUnitIntent = async (
     let satUtxo = null;
     console.log('Checking unconfirmed segwit UTXOs:', unconfirmedSegwitUtxos.length);
     for (const utxo of unconfirmedSegwitUtxos) {
+      const key = `${utxo.txid}:${utxo.vout}`;
+      if (spentUtxos.has(key)) {
+        console.log('⚠️ Skipping spent sat UTXO:', key);
+        continue;
+      }
       if (utxo.value >= 12000) {
         satUtxo = {
           txid: utxo.txid,
@@ -371,6 +399,11 @@ export const createUnitIntent = async (
 
       // Find a UTXO with at least 12000 sats for fees
       for (const utxo of utxos) {
+        const key = `${utxo.txid}:${utxo.vout}`;
+        if (spentUtxos.has(key)) {
+          console.log('⚠️ Skipping spent sat UTXO from blockchain API:', key);
+          continue;
+        }
         if (utxo.status.confirmed && utxo.value >= 12000) {
           satUtxo = {
             txid: utxo.txid,

@@ -24,7 +24,7 @@ export const useTransactionBuild = () => {
 export const TransactionBuildProvider = ({ children, wallet, currentAccount, showToast }) => {
   const { sendRecipient, sendAmount, sendAssetType, setIntentStep, setSendRecipient } =
     useSendFlow();
-  const { getUnconfirmedUTXOs } = usePendingTransactions();
+  const { getUnconfirmedUTXOs, getSpentUtxos } = usePendingTransactions();
 
   // The created PSBT intent
   const [sendIntent, setSendIntent] = useState(null);
@@ -39,12 +39,16 @@ export const TransactionBuildProvider = ({ children, wallet, currentAccount, sho
         console.log(`  - ${utxo.txid}:${utxo.vout} = ${utxo.value} sats`);
       });
 
+      // Get spent UTXOs to filter them out
+      const spentUtxos = getSpentUtxos();
+
       const intent = await TransactionService.createBtcIntent(
         sendRecipient,
         sendAmount,
         wallet.segwitAddress,
         currentAccount,
-        unconfirmedUtxos
+        unconfirmedUtxos,
+        spentUtxos
       );
 
       setSendIntent(intent);
@@ -59,7 +63,7 @@ export const TransactionBuildProvider = ({ children, wallet, currentAccount, sho
         setIntentStep('entering_amount');
       }, 100);
     }
-  }, [sendRecipient, sendAmount, wallet, currentAccount, setIntentStep, showToast, getUnconfirmedUTXOs, sendIntent]);
+  }, [sendRecipient, sendAmount, wallet, currentAccount, setIntentStep, showToast, getUnconfirmedUTXOs, getSpentUtxos, sendIntent]);
 
   // Create UNIT (Rune) transaction using TransactionService
   const createUnitIntent = useCallback(async () => {
@@ -81,6 +85,9 @@ export const TransactionBuildProvider = ({ children, wallet, currentAccount, sho
         console.log(`  - ${utxo.txid}:${utxo.vout} = ${utxo.value} sats`);
       });
 
+      // Get spent UTXOs to filter them out
+      const spentUtxos = getSpentUtxos();
+
       const intent = await TransactionService.createUnitIntent(
         sendRecipient,
         sendAmount,
@@ -88,7 +95,8 @@ export const TransactionBuildProvider = ({ children, wallet, currentAccount, sho
         wallet.segwitAddress,
         currentAccount,
         unconfirmedTaprootUtxos,
-        unconfirmedSegwitUtxos
+        unconfirmedSegwitUtxos,
+        spentUtxos
       );
 
       setSendIntent(intent);
@@ -103,7 +111,7 @@ export const TransactionBuildProvider = ({ children, wallet, currentAccount, sho
         setIntentStep('entering_amount');
       }, 100);
     }
-  }, [sendRecipient, sendAmount, wallet, currentAccount, setIntentStep, showToast, getUnconfirmedUTXOs, sendIntent]);
+  }, [sendRecipient, sendAmount, wallet, currentAccount, setIntentStep, showToast, getUnconfirmedUTXOs, getSpentUtxos, sendIntent]);
 
   // Main create intent function (routes to BTC or UNIT)
   const createSendIntent = useCallback(async () => {
