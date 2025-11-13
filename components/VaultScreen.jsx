@@ -76,8 +76,23 @@ const VaultScreen = React.memo(function VaultScreen({ visible, walletCredentials
           console.log('Mobile app injecting wallet credentials');
           console.log('Vault pubkey:', '${walletCredentials.vaultPubkey}');
 
-          // Clear any existing credentials first
+          // Clear any existing credentials and localStorage
           delete window.mobileWalletCredentials;
+          try {
+            // Clear any cached vault data that might be stored
+            if (window.localStorage) {
+              const keysToRemove = [];
+              for (let i = 0; i < localStorage.length; i++) {
+                const key = localStorage.key(i);
+                if (key && (key.includes('vault') || key.includes('wallet') || key.includes('credentials'))) {
+                  keysToRemove.push(key);
+                }
+              }
+              keysToRemove.forEach(key => localStorage.removeItem(key));
+            }
+          } catch (e) {
+            console.log('Could not clear localStorage:', e);
+          }
 
           // Store credentials in window object for the app to access
           window.mobileWalletCredentials = {
@@ -87,7 +102,8 @@ const VaultScreen = React.memo(function VaultScreen({ visible, walletCredentials
             runesPubkey: '${walletCredentials.runesPubkey}',
             vaultAddress: '${walletCredentials.vaultAddress}',
             vaultPubkey: '${walletCredentials.vaultPubkey}',
-            network: 'mutinynet'
+            network: 'mutinynet',
+            timestamp: Date.now() // Add timestamp to force refresh detection
           };
 
           // Dispatch event to notify app that credentials are ready
@@ -95,7 +111,12 @@ const VaultScreen = React.memo(function VaultScreen({ visible, walletCredentials
             detail: window.mobileWalletCredentials
           }));
 
-          console.log('Mobile wallet credentials injected and event dispatched');
+          // Also dispatch account change event for web app to detect
+          window.dispatchEvent(new CustomEvent('mobileAccountChanged', {
+            detail: window.mobileWalletCredentials
+          }));
+
+          console.log('Mobile wallet credentials injected and events dispatched');
           console.log('Credentials:', window.mobileWalletCredentials);
         })();
         true;
@@ -140,20 +161,23 @@ const VaultScreen = React.memo(function VaultScreen({ visible, walletCredentials
           satsAddress: walletCredentials.satsAddress,
         });
 
-        // Reset loading state for new account
+        // Reset all state for new account
         setIsLoading(true);
         setWebViewLoaded(false);
         hasLoadedOnceRef.current = false;
         setPreparingVault(true);
 
         // Force complete reload by changing key (unmount/remount WebView)
-        setForceReloadKey(prev => prev + 1);
+        const newReloadKey = Date.now();
+        console.log('🔄 Setting forceReloadKey to:', newReloadKey);
+        setForceReloadKey(newReloadKey);
 
-        // Inject credentials after a delay to ensure WebView is ready
+        // Inject credentials after WebView has time to fully reload
         setTimeout(() => {
-          console.log('🔄 Re-injecting credentials after account switch');
+          console.log('🔄 Re-injecting credentials after account switch (2000ms)');
+          console.log('🔄 Injecting for vault:', walletCredentials.vaultPubkey);
           injectWalletCredentials();
-        }, 1500);
+        }, 2000);
       }
 
       credentialsKeyRef.current = newKey;
@@ -163,7 +187,7 @@ const VaultScreen = React.memo(function VaultScreen({ visible, walletCredentials
   // Don't return null - always render to preload in background
   // if (!visible) return null;
 
-  // Build URL with wallet credentials
+  // Build URL with wallet credentials + cache busting
   const webViewUrl = useMemo(() => {
     if (!walletCredentials) {
       return API.PHONE;
@@ -177,11 +201,13 @@ const VaultScreen = React.memo(function VaultScreen({ visible, walletCredentials
       vaultAddress: walletCredentials.vaultAddress,
       vaultPubkey: walletCredentials.vaultPubkey,
       network: 'mutinynet',
+      // Add cache buster to force fresh load on account switch
+      _t: Date.now(),
     });
 
     const url = `${API.PHONE}/?${params.toString()}`;
     return url;
-  }, [walletCredentials]);
+  }, [walletCredentials, forceReloadKey]); // Also depend on forceReloadKey for additional cache busting
 
   // Handle external link navigation - open in browser instead of WebView
   const handleShouldStartLoad = (request) => {
@@ -218,6 +244,9 @@ const VaultScreen = React.memo(function VaultScreen({ visible, walletCredentials
         javaScriptEnabled={true}
         domStorageEnabled={true}
         webviewDebuggingEnabled={false}
+        incognito={false}
+        cacheEnabled={false}
+        cacheMode="LOAD_NO_CACHE"
         onShouldStartLoadWithRequest={handleShouldStartLoad}
         onLoadStart={() => {
           setIsLoading(true);
