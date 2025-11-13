@@ -145,22 +145,21 @@ const VaultScreen = React.memo(function VaultScreen({ visible, walletCredentials
   const vaultDataKeyRef = React.useRef('');
   const [forceReloadKey, setForceReloadKey] = React.useState(0);
 
-  // Reload webview when vault data changes (account switch detected by vault card)
+  // Reload webview when vault pubkey changes (account switch detected by vault card)
   React.useEffect(() => {
-    if (vaultData && walletCredentials) {
-      // Use vaultTag + vaultPubkey as unique identifier for this account's vault
-      const newKey = `${vaultData.vaultTag || 'no-vault'}_${walletCredentials.vaultPubkey}`;
+    if (walletCredentials) {
+      // Use vaultPubkey as unique identifier for this account
+      const newKey = walletCredentials.vaultPubkey;
 
       if (vaultDataKeyRef.current && vaultDataKeyRef.current !== newKey) {
-        console.log('🔄 Account switch detected via vault data - forcing complete vault reload');
-        console.log('Old vault key:', vaultDataKeyRef.current);
-        console.log('New vault key:', newKey);
-        console.log('New vault data:', {
+        console.log('🔄 Account switch detected via vault pubkey - forcing complete vault reload');
+        console.log('Old vault pubkey:', vaultDataKeyRef.current);
+        console.log('New vault pubkey:', newKey);
+        console.log('New vault data:', vaultData ? {
           vaultTag: vaultData.vaultTag,
-          vaultPubkey: walletCredentials.vaultPubkey,
           totalDebt: vaultData.totalDebt,
           totalCollateral: vaultData.totalCollateral,
-        });
+        } : 'No vault data (vault not created)');
 
         // Reset all state for new account
         setIsLoading(true);
@@ -181,25 +180,6 @@ const VaultScreen = React.memo(function VaultScreen({ visible, walletCredentials
         }, 2000);
       }
 
-      vaultDataKeyRef.current = newKey;
-    } else if (!vaultData && walletCredentials) {
-      // Handle case where vault doesn't exist yet (null vaultData)
-      const newKey = `no-vault_${walletCredentials.vaultPubkey}`;
-      if (vaultDataKeyRef.current && vaultDataKeyRef.current !== newKey) {
-        console.log('🔄 Account switch to account with no vault');
-
-        setIsLoading(true);
-        setWebViewLoaded(false);
-        hasLoadedOnceRef.current = false;
-        setPreparingVault(true);
-
-        const newReloadKey = Date.now();
-        setForceReloadKey(newReloadKey);
-
-        setTimeout(() => {
-          injectWalletCredentials();
-        }, 2000);
-      }
       vaultDataKeyRef.current = newKey;
     }
   }, [vaultData, walletCredentials, injectWalletCredentials]);
