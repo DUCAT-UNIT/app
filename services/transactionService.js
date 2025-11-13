@@ -32,7 +32,7 @@ bitcoin.initEccLib(ecc);
  * @param {number} currentAccount - Current account index
  * @returns {Promise<{id: string, psbt: string, ...}>} Transaction intent object
  */
-export const createBtcIntent = async (recipient, amount, segwitAddress, _currentAccount) => {
+export const createBtcIntent = async (recipient, amount, segwitAddress, _currentAccount, unconfirmedUtxos = []) => {
   try {
     // Validate and normalize recipient address
     const validatedRecipient = validateAndNormalizeAddress(recipient);
@@ -48,8 +48,11 @@ export const createBtcIntent = async (recipient, amount, segwitAddress, _current
     const sourceAddress = segwitAddress;
     const addressType = 'segwit';
 
-    // Fetch UTXOs for the source address
-    const availableUtxos = await fetchUtxosService(sourceAddress);
+    // Fetch confirmed UTXOs for the source address
+    const confirmedUtxos = await fetchUtxosService(sourceAddress);
+
+    // Merge confirmed and unconfirmed UTXOs
+    const availableUtxos = [...confirmedUtxos, ...unconfirmedUtxos];
 
     if (availableUtxos.length === 0) {
       throw new Error(ERRORS.NO_CONFIRMED_FUNDS);
@@ -96,10 +99,16 @@ export const createBtcIntent = async (recipient, amount, segwitAddress, _current
 
       // If we don't have enough, add more UTXOs
       while (selectedUtxos.length < availableUtxos.length) {
-        // Find next available UTXO
-        const nextUtxo = availableUtxos.find(
+        // Find next available UTXO (prefer confirmed, but allow unconfirmed for chaining)
+        let nextUtxo = availableUtxos.find(
           (utxo) => utxo.status.confirmed && !selectedUtxos.includes(utxo)
         );
+        // If no confirmed UTXOs available, use unconfirmed
+        if (!nextUtxo) {
+          nextUtxo = availableUtxos.find(
+            (utxo) => !selectedUtxos.includes(utxo)
+          );
+        }
         if (!nextUtxo) break;
 
         // Add UTXO to selection
@@ -228,7 +237,9 @@ export const createUnitIntent = async (
   amount,
   taprootAddress,
   segwitAddress,
-  _currentAccount
+  _currentAccount,
+  unconfirmedTaprootUtxos = [],
+  unconfirmedSegwitUtxos = []
 ) => {
   try {
     // Validate and normalize recipient address
@@ -251,39 +262,57 @@ export const createUnitIntent = async (
     // Use addresses passed as parameters (no mnemonic needed for PSBT creation)
     // These addresses are already derived from the wallet's mnemonic
 
-    // Fetch rune UTXOs from ord API
-    const ordResponse = await fetch(getOrdAddressUrl(taprootAddress), {
-      headers: { Accept: 'application/json' },
-    });
-    const ordData = await ordResponse.json();
-
-    // Find a UTXO with sufficient runes
+    // First check unconfirmed taproot UTXOs for runes
     let runeUtxo = null;
-    for (const output of ordData.outputs || []) {
-      const utxoResponse = await fetch(getOrdOutputUrl(output), {
+    console.log('Checking unconfirmed taproot UTXOs for runes:', unconfirmedTaprootUtxos.length, 'UTXOs available');
+    for (const utxo of unconfirmedTaprootUtxos) {
+      console.log('Unconfirmed rune UTXO:', utxo.txid?.substring(0, 8), 'runeAmount:', utxo.runeAmount, 'needed:', amountInRunes);
+      if (utxo.runeAmount && utxo.runeAmount >= amountInRunes) {
+        runeUtxo = {
+          transaction: utxo.txid,
+          vout: utxo.vout,
+          value: utxo.value,
+          runeAmount: utxo.runeAmount,
+        };
+        console.log('✅ Found suitable unconfirmed rune UTXO:', runeUtxo.transaction.substring(0, 8));
+        break;
+      }
+    }
+
+    // If no suitable unconfirmed rune UTXO, fetch from ord API
+    if (!runeUtxo) {
+      const ordResponse = await fetch(getOrdAddressUrl(taprootAddress), {
         headers: { Accept: 'application/json' },
       });
-      const utxoData = await utxoResponse.json();
+      const ordData = await ordResponse.json();
 
-      // Check if this UTXO has DUCAT•UNIT•RUNE
-      if (utxoData.runes && utxoData.runes['DUCAT•UNIT•RUNE']) {
-        const runeAmount = parseInt(utxoData.runes['DUCAT•UNIT•RUNE'].amount, 10);
+      // Find a UTXO with sufficient runes
+      for (const output of ordData.outputs || []) {
+        const utxoResponse = await fetch(getOrdOutputUrl(output), {
+          headers: { Accept: 'application/json' },
+        });
+        const utxoData = await utxoResponse.json();
 
-        if (runeAmount >= amountInRunes) {
-          const vout = parseInt(output.match(/:(.*)$/)[1], 10);
+        // Check if this UTXO has DUCAT•UNIT•RUNE
+        if (utxoData.runes && utxoData.runes['DUCAT•UNIT•RUNE']) {
+          const runeAmount = parseInt(utxoData.runes['DUCAT•UNIT•RUNE'].amount, 10);
 
-          // Check if unspent
-          const spendResponse = await fetch(getTxOutspendUrl(utxoData.transaction, vout));
-          const spendData = await spendResponse.json();
+          if (runeAmount >= amountInRunes) {
+            const vout = parseInt(output.match(/:(.*)$/)[1], 10);
 
-          if (!spendData.spent) {
-            runeUtxo = {
-              transaction: utxoData.transaction,
-              vout: vout,
-              value: utxoData.value,
-              runeAmount: runeAmount,
-            };
-            break;
+            // Check if unspent
+            const spendResponse = await fetch(getTxOutspendUrl(utxoData.transaction, vout));
+            const spendData = await spendResponse.json();
+
+            if (!spendData.spent) {
+              runeUtxo = {
+                transaction: utxoData.transaction,
+                vout: vout,
+                value: utxoData.value,
+                runeAmount: runeAmount,
+              };
+              break;
+            }
           }
         }
       }
@@ -293,14 +322,10 @@ export const createUnitIntent = async (
       throw new Error(ERRORS.NO_UNIT_BALANCE);
     }
 
-    // Fetch regular UTXOs for fees
-    const utxoResponse = await fetch(getAddressUtxoUrl(segwitAddress));
-    const utxos = await utxoResponse.json();
-
-    // Find a UTXO with at least 12000 sats for fees
+    // First check unconfirmed segwit UTXOs for fees
     let satUtxo = null;
-    for (const utxo of utxos) {
-      if (utxo.status.confirmed && utxo.value >= 12000) {
+    for (const utxo of unconfirmedSegwitUtxos) {
+      if (utxo.value >= 12000) {
         satUtxo = {
           txid: utxo.txid,
           vout: utxo.vout,
@@ -310,16 +335,35 @@ export const createUnitIntent = async (
       }
     }
 
+    // If no suitable unconfirmed UTXO, fetch confirmed UTXOs
+    if (!satUtxo) {
+      const utxoResponse = await fetch(getAddressUtxoUrl(segwitAddress));
+      const utxos = await utxoResponse.json();
+
+      // Find a UTXO with at least 12000 sats for fees
+      for (const utxo of utxos) {
+        if (utxo.status.confirmed && utxo.value >= 12000) {
+          satUtxo = {
+            txid: utxo.txid,
+            vout: utxo.vout,
+            value: utxo.value,
+          };
+          break;
+        }
+      }
+    }
+
     if (!satUtxo) {
       throw new Error(ERRORS.INSUFFICIENT_FUNDS_FOR_FEES);
     }
 
     // Calculate amounts
     const fee = 1000;
-    const recipientSats = 10000;
+    const recipientSats = 10000; // Recipient output with runes
+    const runeReturnSats = 10000; // Rune return output (also has runes)
     const dustLimit = 546;
     const totalInput = satUtxo.value + runeUtxo.value;
-    const change = totalInput - fee - recipientSats - dustLimit;
+    const change = totalInput - fee - recipientSats - runeReturnSats;
 
     if (change < 0) {
       throw new Error(ERRORS.INSUFFICIENT_FUNDS);
@@ -394,10 +438,10 @@ export const createUnitIntent = async (
     }
 
     // Add outputs (OP_RETURN last) - exactly like working example
-    // Output 0: Rune return (gets unallocated runes)
+    // Output 0: Rune return (gets unallocated runes) - needs 10k sats for rune protocol
     psbt.addOutput({
       address: taprootAddress,
-      value: BigInt(dustLimit),
+      value: BigInt(runeReturnSats),
     });
 
     // Output 1: Recipient (gets specified runes via edict)

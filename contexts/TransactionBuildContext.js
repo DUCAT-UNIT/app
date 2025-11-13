@@ -9,6 +9,7 @@ import * as TransactionService from '../services/transactionService';
 import { parseErrorMessage } from '../utils/errorParser';
 import { ERRORS } from '../utils/messages';
 import { useSendFlow } from './SendFlowContext';
+import { usePendingTransactions } from './PendingTransactionsContext';
 
 const TransactionBuildContext = createContext();
 
@@ -23,6 +24,7 @@ export const useTransactionBuild = () => {
 export const TransactionBuildProvider = ({ children, wallet, currentAccount, showToast }) => {
   const { sendRecipient, sendAmount, sendAssetType, setIntentStep, setSendRecipient } =
     useSendFlow();
+  const { getUnconfirmedUTXOs } = usePendingTransactions();
 
   // The created PSBT intent
   const [sendIntent, setSendIntent] = useState(null);
@@ -30,11 +32,15 @@ export const TransactionBuildProvider = ({ children, wallet, currentAccount, sho
   // Create BTC transaction using TransactionService
   const createBtcIntent = useCallback(async () => {
     try {
+      // Get unconfirmed UTXOs for segwit (BTC)
+      const unconfirmedUtxos = getUnconfirmedUTXOs('segwit');
+
       const intent = await TransactionService.createBtcIntent(
         sendRecipient,
         sendAmount,
         wallet.segwitAddress,
-        currentAccount
+        currentAccount,
+        unconfirmedUtxos
       );
 
       setSendIntent(intent);
@@ -47,7 +53,7 @@ export const TransactionBuildProvider = ({ children, wallet, currentAccount, sho
         setIntentStep('entering_amount');
       }, 100);
     }
-  }, [sendRecipient, sendAmount, wallet, currentAccount, setIntentStep, showToast]);
+  }, [sendRecipient, sendAmount, wallet, currentAccount, setIntentStep, showToast, getUnconfirmedUTXOs]);
 
   // Create UNIT (Rune) transaction using TransactionService
   const createUnitIntent = useCallback(async () => {
@@ -56,12 +62,18 @@ export const TransactionBuildProvider = ({ children, wallet, currentAccount, sho
         throw new Error('Wallet not initialized');
       }
 
+      // Get unconfirmed UTXOs for taproot (UNIT) and segwit (fees)
+      const unconfirmedTaprootUtxos = getUnconfirmedUTXOs('taproot');
+      const unconfirmedSegwitUtxos = getUnconfirmedUTXOs('segwit');
+
       const intent = await TransactionService.createUnitIntent(
         sendRecipient,
         sendAmount,
         wallet.taprootAddress,
         wallet.segwitAddress,
-        currentAccount
+        currentAccount,
+        unconfirmedTaprootUtxos,
+        unconfirmedSegwitUtxos
       );
 
       setSendIntent(intent);
@@ -74,7 +86,7 @@ export const TransactionBuildProvider = ({ children, wallet, currentAccount, sho
         setIntentStep('entering_amount');
       }, 100);
     }
-  }, [sendRecipient, sendAmount, wallet, currentAccount, setIntentStep, showToast]);
+  }, [sendRecipient, sendAmount, wallet, currentAccount, setIntentStep, showToast, getUnconfirmedUTXOs]);
 
   // Main create intent function (routes to BTC or UNIT)
   const createSendIntent = useCallback(async () => {

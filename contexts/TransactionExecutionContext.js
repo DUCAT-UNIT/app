@@ -5,12 +5,16 @@
  */
 
 import React, { createContext, useContext, useState, useEffect, useMemo, useCallback } from 'react';
+import * as bitcoin from 'bitcoinjs-lib';
 import * as TransactionService from '../services/transactionService';
 import * as BackgroundTaskService from '../services/backgroundTaskService';
 import { parseErrorMessage } from '../utils/errorParser';
 import { ERRORS } from '../utils/messages';
+import { MUTINYNET_NETWORK } from '../utils/bitcoin';
 import { useSendFlow } from './SendFlowContext';
 import { useTransactionBuild } from './TransactionBuildContext';
+import { usePendingTransactions } from './PendingTransactionsContext';
+import { useWallet } from './WalletContext';
 
 const TransactionExecutionContext = createContext();
 
@@ -33,6 +37,8 @@ export const TransactionExecutionProvider = ({
 }) => {
   const { setIntentStep, sendAssetType, sendAmount } = useSendFlow();
   const { sendIntent, setSendIntent } = useTransactionBuild();
+  const { wallet } = useWallet();
+  const { addPendingTransaction, confirmTransaction, invalidateTransaction, pendingTransactions } = usePendingTransactions();
 
   // Execution state
   const [broadcastedTxid, setBroadcastedTxid] = useState(null);
@@ -60,6 +66,82 @@ export const TransactionExecutionProvider = ({
       setIntentStep('pending');
       setToastDismissed(false);
 
+      // Extract outputs from signed transaction for pending tracking
+      try {
+        console.log('🔍 Extracting outputs from signed transaction:', txid.substring(0, 8));
+        const tx = bitcoin.Transaction.fromHex(intent.signedTxHex);
+        const outputs = [];
+        console.log('Transaction has', tx.outs.length, 'outputs');
+
+        // Check if any inputs are from pending transactions (for parent-child tracking)
+        let parentTxid = null;
+        for (const input of tx.ins) {
+          const inputTxid = Buffer.from(input.hash).reverse().toString('hex');
+          // Check if this input is spending from a pending transaction
+          if (pendingTransactions[inputTxid] && pendingTransactions[inputTxid].status === 'pending') {
+            parentTxid = inputTxid;
+            break; // We only need one parent for tracking
+          }
+        }
+
+        // For UNIT transactions, calculate rune change amount
+        let runeChangeAmount = 0;
+        if (sendAssetType === 'unit' && intent.runeUtxo && intent.amount) {
+          runeChangeAmount = intent.runeUtxo.runeAmount - intent.amount;
+          console.log('💎 Calculating rune change:', {
+            inputRuneAmount: intent.runeUtxo.runeAmount,
+            sentAmount: intent.amount,
+            changeAmount: runeChangeAmount,
+          });
+        }
+
+        // Decode each output
+        tx.outs.forEach((output, vout) => {
+          try {
+            const address = bitcoin.address.fromOutputScript(output.script, MUTINYNET_NETWORK);
+            const value = Number(output.value);
+            console.log(`Output ${vout}:`, address.substring(0, 10) + '...', value, 'sats');
+
+            // Check if this is a change output (going back to our wallet)
+            const isChange =
+              address === wallet?.segwitAddress ||
+              address === wallet?.taprootAddress;
+
+            console.log(`  Is change? ${isChange} (segwit: ${wallet?.segwitAddress?.substring(0, 10)}... taproot: ${wallet?.taprootAddress?.substring(0, 10)}...)`);
+
+            if (isChange) {
+              const outputData = {
+                address,
+                value,
+                vout,
+              };
+
+              // For UNIT transactions, output 0 is the rune return (change)
+              if (sendAssetType === 'unit' && vout === 0 && runeChangeAmount > 0) {
+                outputData.runeAmount = runeChangeAmount;
+                console.log('💎 Adding rune amount to output 0:', runeChangeAmount);
+              }
+
+              outputs.push(outputData);
+              console.log('📦 Storing change output:', { address, value, vout, runeAmount: outputData.runeAmount });
+            }
+          } catch (_error) {
+            // Could be OP_RETURN or other non-standard output, skip
+          }
+        });
+
+        // If we have change outputs, store them as pending with parent tracking
+        if (outputs.length > 0) {
+          const assetType = sendAssetType === 'unit' ? 'UNIT' : 'BTC';
+          console.log('💾 Storing pending transaction:', { txid: txid.substring(0, 8), outputCount: outputs.length, assetType, parentTxid: parentTxid?.substring(0, 8) });
+          await addPendingTransaction(txid, outputs, assetType, parentTxid);
+        }
+      } catch (error) {
+        console.error('❌ Error extracting change outputs:', error);
+        console.error('Error details:', error.message, error.stack);
+        // Non-critical error, continue with broadcast
+      }
+
       // Add to background monitoring
       const assetType = sendAssetType === 'unit' ? 'UNIT' : 'BTC';
       await BackgroundTaskService.addPendingTransaction(txid, assetType, sendAmount, 'withdraw');
@@ -73,6 +155,8 @@ export const TransactionExecutionProvider = ({
               sendTransactionConfirmedNotification(assetType, sendAmount, txid, 'withdraw');
             }
             BackgroundTaskService.removePendingTransaction(txid);
+            // Mark pending transaction as confirmed
+            confirmTransaction(txid);
           }
           setIntentStep('confirmed');
           fetchBalance();
@@ -86,8 +170,13 @@ export const TransactionExecutionProvider = ({
     } catch (_error) {
       showToast(parseErrorMessage(_error), 'error');
       setIntentStep('reviewing');
+
+      // Invalidate the transaction if broadcast failed
+      if (intent?.txid) {
+        await invalidateTransaction(intent.txid, 'Transaction broadcast failed');
+      }
     }
-  }, [sendIntent, showToast, setIntentStep, sendAssetType, sendAmount, startTransactionPolling, notificationsEnabled, sendTransactionConfirmedNotification, fetchBalance]);
+  }, [sendIntent, wallet, showToast, setIntentStep, sendAssetType, sendAmount, startTransactionPolling, notificationsEnabled, sendTransactionConfirmedNotification, fetchBalance, addPendingTransaction, confirmTransaction, invalidateTransaction, pendingTransactions]);
 
   // Sign the PSBT
   const signIntent = useCallback(async () => {
@@ -97,7 +186,7 @@ export const TransactionExecutionProvider = ({
       if (!sendIntent) {
         showToast(ERRORS.TRANSACTION_CANCELLED, 'error');
         setIntentStep('idle');
-        return;
+        return false;
       }
 
       const { signedTxHex, txid } = await TransactionService.signIntent(sendIntent, currentAccount);
@@ -114,9 +203,12 @@ export const TransactionExecutionProvider = ({
 
       // Automatically broadcast
       await broadcastIntent(signedIntent);
+      return true;
     } catch (_error) {
+      console.error('Error signing transaction:', _error);
       showToast(parseErrorMessage(_error), 'error');
       setIntentStep('reviewing');
+      return false;
     }
   }, [sendIntent, currentAccount, setIntentStep, setSendIntent, showToast, broadcastIntent]);
 

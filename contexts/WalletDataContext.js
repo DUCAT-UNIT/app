@@ -9,6 +9,7 @@ import { fetchWalletBalances, fetchUtxos as fetchUtxosService } from '../service
 import { fetchAllTransactionHistory } from '../services/transactionHistoryService';
 import { fetchVaultData } from '../services/vaultService';
 import { useWallet } from './WalletContext';
+import { usePendingTransactions } from './PendingTransactionsContext';
 import { usePolling } from '../hooks/usePolling';
 
 const WalletDataContext = createContext();
@@ -39,6 +40,7 @@ export const useVaultData = () => {
 
 export const WalletDataProvider = ({ children }) => {
   const { wallet } = useWallet();
+  const { getUnconfirmedBalance } = usePendingTransactions();
 
   // ============================================================
   // BALANCE STATE
@@ -49,6 +51,11 @@ export const WalletDataProvider = ({ children }) => {
   const [loadingBalance, setLoadingBalance] = useState(false);
   const [refreshing, setRefreshing] = useState(false);
   const [balanceError, setBalanceError] = useState(null);
+
+  // Unconfirmed balance from pending transactions
+  const [unconfirmedSegwitBalance, setUnconfirmedSegwitBalance] = useState(0);
+  const [unconfirmedTaprootBalance, setUnconfirmedTaprootBalance] = useState(0);
+  const [unconfirmedRunesBalance, setUnconfirmedRunesBalance] = useState(0);
 
   // UTXOs state
   const [utxos, setUtxos] = useState([]);
@@ -88,6 +95,13 @@ export const WalletDataProvider = ({ children }) => {
         setSegwitBalance(balances.segwitBalance);
         setTaprootBalance(balances.taprootBalance);
         setRunesBalance(balances.runesBalance);
+
+        // Also fetch unconfirmed balances from pending transactions
+        const unconfirmedSegwit = getUnconfirmedBalance('segwit');
+        const unconfirmedTaproot = getUnconfirmedBalance('taproot');
+        setUnconfirmedSegwitBalance(unconfirmedSegwit.btc);
+        setUnconfirmedTaprootBalance(unconfirmedTaproot.btc);
+        setUnconfirmedRunesBalance(unconfirmedTaproot.runes);
       } catch (error) {
         // Set error state instead of silently failing with 0
         setBalanceError('Failed to fetch balance. Tap to retry.');
@@ -96,7 +110,7 @@ export const WalletDataProvider = ({ children }) => {
         setLoadingBalance(false);
       }
     },
-    [wallet]
+    [wallet, getUnconfirmedBalance]
   );
 
   // Refresh balances (pull-to-refresh)
@@ -265,6 +279,9 @@ export const WalletDataProvider = ({ children }) => {
         segwitBalance,
         taprootBalance,
         runesBalance,
+        unconfirmedSegwitBalance,
+        unconfirmedTaprootBalance,
+        unconfirmedRunesBalance,
         loadingBalance,
         refreshing,
         balanceError,
@@ -295,6 +312,9 @@ export const WalletDataProvider = ({ children }) => {
       segwitBalance,
       taprootBalance,
       runesBalance,
+      unconfirmedSegwitBalance,
+      unconfirmedTaprootBalance,
+      unconfirmedRunesBalance,
       loadingBalance,
       refreshing,
       balanceError,
@@ -321,6 +341,9 @@ export const WalletDataProvider = ({ children }) => {
       segwitBalance,
       taprootBalance,
       runesBalance,
+      unconfirmedSegwitBalance,
+      unconfirmedTaprootBalance,
+      unconfirmedRunesBalance,
       loadingBalance,
       refreshing,
       balanceError,

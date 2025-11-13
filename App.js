@@ -17,11 +17,12 @@ import * as Sentry from '@sentry/react-native';
 
 // Contexts
 import { AuthProvider } from './contexts/AuthContext';
-import { WalletProvider } from './contexts/WalletContext';
+import { WalletProvider, useWallet } from './contexts/WalletContext';
+import { PendingTransactionsProvider } from './contexts/PendingTransactionsContext';
 import { WalletDataProvider } from './contexts/WalletDataContext';
 import { PriceProvider } from './contexts/PriceContext';
 // AirdropProvider removed - not currently used in provider hierarchy
-import { UIProvider } from './contexts/UIContext';
+import { UIProvider, useToastContext } from './contexts/UIContext';
 
 // Navigation
 import AppNavigator from './navigation/AppNavigator';
@@ -55,6 +56,22 @@ Sentry.init({
 //   Sentry.captureMessage('🧪 Test Message - Sentry integration successful', 'info');
 // }, 3000);
 
+// Inner component to access wallet and toast contexts
+function AppProviders({ children }) {
+  const { currentAccount } = useWallet();
+  const { showToast } = useToastContext();
+
+  return (
+    <PendingTransactionsProvider currentAccount={currentAccount} showToast={showToast}>
+      <WalletDataProvider>
+        <PriceProvider>
+          {children}
+        </PriceProvider>
+      </WalletDataProvider>
+    </PendingTransactionsProvider>
+  );
+}
+
 // Main App - Provider setup only
 export default function App() {
   // Load fonts
@@ -71,13 +88,11 @@ export default function App() {
   return (
     <AuthProvider>
       <WalletProvider>
-        <WalletDataProvider>
-          <PriceProvider>
-            <UIProvider>
-              <AppNavigator />
-            </UIProvider>
-          </PriceProvider>
-        </WalletDataProvider>
+        <UIProvider>
+          <AppProviders>
+            <AppNavigator />
+          </AppProviders>
+        </UIProvider>
       </WalletProvider>
     </AuthProvider>
   );

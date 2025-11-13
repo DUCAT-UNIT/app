@@ -53,8 +53,8 @@ export const signIntent = async (intent, currentAccount) => {
       deriveSigningKeys(mnemonic, currentAccount)
     );
 
-    // Load PSBT
-    const psbt = bitcoin.Psbt.fromBase64(intent.psbt);
+    // Load PSBT with correct network (testnet)
+    const psbt = bitcoin.Psbt.fromBase64(intent.psbt, { network: MUTINYNET_NETWORK });
 
     // Sign all inputs
     if (intent.assetType === 'UNIT') {
