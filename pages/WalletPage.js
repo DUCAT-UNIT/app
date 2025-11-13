@@ -85,8 +85,8 @@ export default function WalletPage() {
   const walletTranslateX = useRef(new Animated.Value(0)).current;
   const [isSwiping, setIsSwiping] = useState(false);
 
-  // Pan responder for swipe gesture
-  const vaultPanResponder = useRef(
+  // Pan responder for wallet screen - right swipe to reveal vault
+  const walletPanResponder = useRef(
     PanResponder.create({
       onMoveShouldSetPanResponder: (_, gestureState) => {
         // Only activate for horizontal swipes on wallet screen
@@ -149,6 +149,70 @@ export default function WalletPage() {
     })
   ).current;
 
+  // Pan responder for vault screen - left swipe to go back to wallet
+  const vaultPanResponder = useRef(
+    PanResponder.create({
+      onMoveShouldSetPanResponder: (_, gestureState) => {
+        // Only activate for horizontal swipes on vault screen
+        if (activeTab !== 'vault') return false;
+        return Math.abs(gestureState.dx) > Math.abs(gestureState.dy) && Math.abs(gestureState.dx) > 10;
+      },
+      onPanResponderGrant: () => {
+        setIsSwiping(true);
+      },
+      onPanResponderMove: (_, gestureState) => {
+        // Only allow left swipe (negative dx) - vault moves left, wallet reveals from right
+        if (gestureState.dx < 0) {
+          vaultTranslateX.setValue(gestureState.dx);
+          walletTranslateX.setValue(SCREEN_WIDTH + gestureState.dx);
+        }
+      },
+      onPanResponderRelease: (_, gestureState) => {
+        setIsSwiping(false);
+
+        // If swiped more than 50% of screen width, complete the transition
+        if (gestureState.dx < -SCREEN_WIDTH * 0.5) {
+          // Complete animation to wallet - vault moves left off screen, wallet moves to center
+          Animated.parallel([
+            Animated.spring(vaultTranslateX, {
+              toValue: -SCREEN_WIDTH,
+              useNativeDriver: true,
+              tension: 65,
+              friction: 11,
+            }),
+            Animated.spring(walletTranslateX, {
+              toValue: 0,
+              useNativeDriver: true,
+              tension: 65,
+              friction: 11,
+            }),
+          ]).start(() => {
+            setActiveTab('wallet');
+            // Reset positions after tab change
+            vaultTranslateX.setValue(-SCREEN_WIDTH);
+            walletTranslateX.setValue(0);
+          });
+        } else {
+          // Spring back to original position
+          Animated.parallel([
+            Animated.spring(vaultTranslateX, {
+              toValue: 0,
+              useNativeDriver: true,
+              tension: 65,
+              friction: 11,
+            }),
+            Animated.spring(walletTranslateX, {
+              toValue: SCREEN_WIDTH,
+              useNativeDriver: true,
+              tension: 65,
+              friction: 11,
+            }),
+          ]).start();
+        }
+      },
+    })
+  ).current;
+
   // Show splash screen until we've checked flags to prevent flicker
   if (!hasCheckedInitialFlags) {
     return <SplashScreen />;
@@ -166,7 +230,7 @@ export default function WalletPage() {
             },
           ]}
           pointerEvents={activeTab === 'wallet' && !isSwiping ? 'auto' : 'none'}
-          {...vaultPanResponder.panHandlers}
+          {...walletPanResponder.panHandlers}
         >
           <View style={localStyles.screenContent}>
             <MutinynetBanner />
@@ -235,7 +299,7 @@ export default function WalletPage() {
         />
       </View>
 
-      {/* Animated Vault Screen - Slides in from right */}
+      {/* Animated Vault Screen - Slides in from left */}
       <Animated.View
         style={[
           localStyles.vaultOverlay,
@@ -244,6 +308,7 @@ export default function WalletPage() {
           },
         ]}
         pointerEvents={activeTab === 'vault' || isSwiping ? 'auto' : 'none'}
+        {...vaultPanResponder.panHandlers}
       >
         <View style={localStyles.screenContent}>
           <MutinynetBanner />
