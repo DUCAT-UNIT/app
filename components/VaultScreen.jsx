@@ -60,10 +60,10 @@ const VaultScreen = React.memo(function VaultScreen({ visible, walletCredentials
     }
   }, [visible]);
 
-  // Force wallet connection when vault becomes visible
-  React.useEffect(() => {
-    if (visible && webViewRef.current && walletCredentials) {
-      console.log('🏦 Vault became visible - forcing wallet connection');
+  // Force wallet connection when vault becomes visible AND page is loaded
+  const injectWalletCredentials = React.useCallback(() => {
+    if (webViewRef.current && walletCredentials) {
+      console.log('🏦 Injecting wallet credentials into vault page');
 
       // Inject wallet credentials directly into the page
       const credentialsScript = `
@@ -93,7 +93,17 @@ const VaultScreen = React.memo(function VaultScreen({ visible, walletCredentials
 
       webViewRef.current.injectJavaScript(credentialsScript);
     }
-  }, [visible, walletCredentials]);
+  }, [walletCredentials]);
+
+  // Inject wallet credentials when vault becomes visible
+  React.useEffect(() => {
+    if (visible) {
+      console.log('🏦 Vault became visible - will inject wallet credentials');
+      setTimeout(() => {
+        injectWalletCredentials();
+      }, 1000);
+    }
+  }, [visible, injectWalletCredentials]);
 
   // Reload webview when wallet credentials change (account switch)
   React.useEffect(() => {
@@ -176,6 +186,11 @@ const VaultScreen = React.memo(function VaultScreen({ visible, walletCredentials
           setTimeout(() => {
             setIsLoading(false);
           }, 10000);
+
+          // Inject wallet credentials after page loads
+          setTimeout(() => {
+            injectWalletCredentials();
+          }, 500);
         }}
         injectedJavaScript={`
           // Check for "Vault health" text on the page
@@ -225,6 +240,11 @@ const VaultScreen = React.memo(function VaultScreen({ visible, walletCredentials
             if (message.type === 'VAULT_LOADED') {
               setIsLoading(false);
               setPreparingVault(false);
+
+              // Inject wallet credentials when vault is fully loaded
+              setTimeout(() => {
+                injectWalletCredentials();
+              }, 500);
               return;
             }
 
