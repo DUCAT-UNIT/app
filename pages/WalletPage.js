@@ -152,10 +152,19 @@ export default function WalletPage() {
   // Pan responder for vault screen - left swipe to go back to wallet
   const vaultPanResponder = useRef(
     PanResponder.create({
+      onStartShouldSetPanResponderCapture: () => false, // Don't capture at start, let WebView handle taps
       onMoveShouldSetPanResponder: (_, gestureState) => {
-        // Only activate for horizontal swipes on vault screen
+        // Only activate for clear horizontal left swipes on vault screen
         if (activeTab !== 'vault') return false;
-        return Math.abs(gestureState.dx) > Math.abs(gestureState.dy) && Math.abs(gestureState.dx) > 10;
+        const isHorizontal = Math.abs(gestureState.dx) > Math.abs(gestureState.dy);
+        const isLeftSwipe = gestureState.dx < -10;
+        return isHorizontal && isLeftSwipe;
+      },
+      onMoveShouldSetPanResponderCapture: (_, gestureState) => {
+        // Capture horizontal swipes, let vertical scrolls pass through
+        const isHorizontal = Math.abs(gestureState.dx) > Math.abs(gestureState.dy);
+        const isLeftSwipe = gestureState.dx < -10;
+        return isHorizontal && isLeftSwipe;
       },
       onPanResponderGrant: () => {
         setIsSwiping(true);
@@ -308,7 +317,6 @@ export default function WalletPage() {
           },
         ]}
         pointerEvents={activeTab === 'vault' || isSwiping ? 'auto' : 'none'}
-        {...vaultPanResponder.panHandlers}
       >
         <View style={localStyles.screenContent}>
           <MutinynetBanner />
@@ -318,6 +326,10 @@ export default function WalletPage() {
               walletCredentials={vaultCredentials}
               autoCreateVaultTrigger={autoCreateVaultTrigger}
             />
+            {/* Transparent swipe overlay for vault screen */}
+            {activeTab === 'vault' && (
+              <View style={localStyles.swipeOverlay} {...vaultPanResponder.panHandlers} />
+            )}
           </View>
           <BottomNavigationBar
             activeTab={activeTab}
@@ -390,6 +402,15 @@ const localStyles = StyleSheet.create({
   },
   vaultContent: {
     flex: 1,
+  },
+  swipeOverlay: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
+    bottom: 0,
+    backgroundColor: 'transparent',
+    zIndex: 10,
   },
   settingsOverlay: {
     position: 'absolute',
