@@ -221,12 +221,17 @@ export const calculateTransactionAmount = (tx, segwitAddress, taprootAddress) =>
  */
 export const fetchAllTransactionHistory = async (segwitAddress, taprootAddress, vaultPubkey) => {
   try {
+    console.log('🌐 Making fresh API calls to blockchain explorer and vault...');
     // Fetch transactions for both addresses and vault history
     const [segwitTxs, taprootTxs, vaultHistory] = await Promise.all([
       fetchAddressTransactions(segwitAddress),
       fetchAddressTransactions(taprootAddress),
       fetchVaultHistory(vaultPubkey),
     ]);
+    console.log('📊 API responses received:');
+    console.log('  - Segwit transactions:', segwitTxs.length);
+    console.log('  - Taproot transactions:', taprootTxs.length);
+    console.log('  - Vault transactions:', vaultHistory.length);
 
     // First, collect all vault transaction IDs
     const vaultTxIds = new Set();

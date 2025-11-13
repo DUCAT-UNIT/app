@@ -88,8 +88,9 @@ export default function TransactionHistoryScreen({
       setLoading(transactionHistory.length === 0 && loadingTransactionHistory);
 
       // Trigger a fresh fetch in background (context will update automatically)
-      console.log('📜 Transaction History opened - fetching latest transactions');
+      console.log('📜 Transaction History sheet opened - triggering fresh fetch from blockchain API');
       fetchTransactionHistory();
+      console.log('📜 Fetch triggered - will show all confirmed and pending transactions');
 
       // Animate in
       historySheetOpacity.setValue(0);

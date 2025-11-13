@@ -158,11 +158,16 @@ export const WalletDataProvider = ({ children }) => {
     if (!segwitAddress || !taprootAddress || !vaultPubkey) return;
 
     try {
+      console.log('🔄 Fetching fresh transaction history from blockchain API...');
+      console.log('  - Segwit address:', segwitAddress);
+      console.log('  - Taproot address:', taprootAddress);
       setLoadingTransactionHistory(true);
       setHistoryError(null); // Clear previous error
       const history = await fetchAllTransactionHistory(segwitAddress, taprootAddress, vaultPubkey);
+      console.log('✅ Fetched', history.length, 'transactions (including pending)');
       setTransactionHistory(history);
     } catch (error) {
+      console.error('❌ Failed to fetch transaction history:', error);
       // Set error state instead of silently failing with empty array
       setHistoryError('Failed to fetch transaction history');
       // Don't reset history - keep last known values
