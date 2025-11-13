@@ -6,7 +6,7 @@ import { COLORS } from '../utils/colors';
 import { signPsbt } from '../utils/wallet';
 import { API } from '../utils/constants';
 
-const VaultScreen = React.memo(function VaultScreen({ visible, walletCredentials, _autoCreateVaultTrigger }) {
+const VaultScreen = React.memo(function VaultScreen({ visible, walletCredentials, _autoCreateVaultTrigger, vaultData }) {
   const webViewRef = useRef(null);
   const messageIndexRef = useRef(0);
   const hasLoadedOnceRef = useRef(false);
@@ -141,23 +141,25 @@ const VaultScreen = React.memo(function VaultScreen({ visible, walletCredentials
     }
   }, [visible, injectWalletCredentials]);
 
-  // Track when credentials change to force proper reload
-  const credentialsKeyRef = React.useRef('');
+  // Track when vault data changes to force proper reload
+  const vaultDataKeyRef = React.useRef('');
   const [forceReloadKey, setForceReloadKey] = React.useState(0);
 
-  // Reload webview when wallet credentials change (account switch)
+  // Reload webview when vault data changes (account switch detected by vault card)
   React.useEffect(() => {
-    if (walletCredentials) {
-      const newKey = `${walletCredentials.vaultPubkey}_${walletCredentials.satsAddress}`;
+    if (vaultData && walletCredentials) {
+      // Use vaultTag + vaultPubkey as unique identifier for this account's vault
+      const newKey = `${vaultData.vaultTag || 'no-vault'}_${walletCredentials.vaultPubkey}`;
 
-      if (credentialsKeyRef.current && credentialsKeyRef.current !== newKey) {
-        console.log('🔄 Account switched detected - forcing complete vault reload');
-        console.log('Old key:', credentialsKeyRef.current);
-        console.log('New key:', newKey);
-        console.log('New credentials:', {
+      if (vaultDataKeyRef.current && vaultDataKeyRef.current !== newKey) {
+        console.log('🔄 Account switch detected via vault data - forcing complete vault reload');
+        console.log('Old vault key:', vaultDataKeyRef.current);
+        console.log('New vault key:', newKey);
+        console.log('New vault data:', {
+          vaultTag: vaultData.vaultTag,
           vaultPubkey: walletCredentials.vaultPubkey,
-          vaultAddress: walletCredentials.vaultAddress,
-          satsAddress: walletCredentials.satsAddress,
+          totalDebt: vaultData.totalDebt,
+          totalCollateral: vaultData.totalCollateral,
         });
 
         // Reset all state for new account
@@ -179,9 +181,28 @@ const VaultScreen = React.memo(function VaultScreen({ visible, walletCredentials
         }, 2000);
       }
 
-      credentialsKeyRef.current = newKey;
+      vaultDataKeyRef.current = newKey;
+    } else if (!vaultData && walletCredentials) {
+      // Handle case where vault doesn't exist yet (null vaultData)
+      const newKey = `no-vault_${walletCredentials.vaultPubkey}`;
+      if (vaultDataKeyRef.current && vaultDataKeyRef.current !== newKey) {
+        console.log('🔄 Account switch to account with no vault');
+
+        setIsLoading(true);
+        setWebViewLoaded(false);
+        hasLoadedOnceRef.current = false;
+        setPreparingVault(true);
+
+        const newReloadKey = Date.now();
+        setForceReloadKey(newReloadKey);
+
+        setTimeout(() => {
+          injectWalletCredentials();
+        }, 2000);
+      }
+      vaultDataKeyRef.current = newKey;
     }
-  }, [walletCredentials, injectWalletCredentials]);
+  }, [vaultData, walletCredentials, injectWalletCredentials]);
 
   // Don't return null - always render to preload in background
   // if (!visible) return null;
@@ -431,6 +452,12 @@ VaultScreen.propTypes = {
     vaultPubkey: PropTypes.string.isRequired,
   }),
   _autoCreateVaultTrigger: PropTypes.number,
+  vaultData: PropTypes.shape({
+    vaultTag: PropTypes.string,
+    totalDebt: PropTypes.number,
+    totalCollateral: PropTypes.number,
+    currentPrice: PropTypes.number,
+  }),
 };
 
 export default VaultScreen;

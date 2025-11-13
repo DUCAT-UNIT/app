@@ -51,6 +51,7 @@ export default function WalletPage() {
   // Wallet context
   const { wallet } = useWallet();
   const { segwitBalance, runesBalance, btcPrice } = useBalance();
+  const { vaultData } = require('../contexts/WalletDataContext').useVaultData();
 
   // Transaction contexts
   const {
@@ -267,6 +268,7 @@ export default function WalletPage() {
                 visible={activeTab === 'vault'}
                 walletCredentials={vaultCredentials}
                 autoCreateVaultTrigger={autoCreateVaultTrigger}
+                vaultData={vaultData}
               />
               {/* Transparent swipe overlay for vault screen */}
               {activeTab === 'vault' && (
