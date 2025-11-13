@@ -64,11 +64,20 @@ const VaultScreen = React.memo(function VaultScreen({ visible, walletCredentials
   const injectWalletCredentials = React.useCallback(() => {
     if (webViewRef.current && walletCredentials) {
       console.log('🏦 Injecting wallet credentials into vault page');
+      console.log('🏦 Credentials being injected:', {
+        vaultPubkey: walletCredentials.vaultPubkey,
+        vaultAddress: walletCredentials.vaultAddress,
+        satsAddress: walletCredentials.satsAddress,
+      });
 
       // Inject wallet credentials directly into the page
       const credentialsScript = `
         (function() {
           console.log('Mobile app injecting wallet credentials');
+          console.log('Vault pubkey:', '${walletCredentials.vaultPubkey}');
+
+          // Clear any existing credentials first
+          delete window.mobileWalletCredentials;
 
           // Store credentials in window object for the app to access
           window.mobileWalletCredentials = {
@@ -87,6 +96,7 @@ const VaultScreen = React.memo(function VaultScreen({ visible, walletCredentials
           }));
 
           console.log('Mobile wallet credentials injected and event dispatched');
+          console.log('Credentials:', window.mobileWalletCredentials);
         })();
         true;
       `;
@@ -124,6 +134,11 @@ const VaultScreen = React.memo(function VaultScreen({ visible, walletCredentials
         console.log('🔄 Account switched detected - forcing complete vault reload');
         console.log('Old key:', credentialsKeyRef.current);
         console.log('New key:', newKey);
+        console.log('New credentials:', {
+          vaultPubkey: walletCredentials.vaultPubkey,
+          vaultAddress: walletCredentials.vaultAddress,
+          satsAddress: walletCredentials.satsAddress,
+        });
 
         // Reset loading state for new account
         setIsLoading(true);
@@ -133,11 +148,17 @@ const VaultScreen = React.memo(function VaultScreen({ visible, walletCredentials
 
         // Force complete reload by changing key (unmount/remount WebView)
         setForceReloadKey(prev => prev + 1);
+
+        // Inject credentials after a delay to ensure WebView is ready
+        setTimeout(() => {
+          console.log('🔄 Re-injecting credentials after account switch');
+          injectWalletCredentials();
+        }, 1500);
       }
 
       credentialsKeyRef.current = newKey;
     }
-  }, [walletCredentials]);
+  }, [walletCredentials, injectWalletCredentials]);
 
   // Don't return null - always render to preload in background
   // if (!visible) return null;
@@ -204,31 +225,57 @@ const VaultScreen = React.memo(function VaultScreen({ visible, walletCredentials
           setWebViewLoaded(false);
         }}
         onLoadEnd={() => {
+          console.log('🏦 WebView onLoadEnd fired');
           setWebViewLoaded(true);
           hasLoadedOnceRef.current = true;
-          setTimeout(() => {
+
+          // Longer timeout for slow networks or account switching
+          const loadingTimeout = setTimeout(() => {
+            console.log('⏱️ Loading timeout reached - hiding loading screen');
             setIsLoading(false);
-          }, 10000);
+            setPreparingVault(false);
+          }, 15000);
 
           // Inject wallet credentials after page loads
           setTimeout(() => {
+            console.log('🏦 Injecting credentials after page load');
             injectWalletCredentials();
-          }, 500);
+          }, 800);
+
+          return () => clearTimeout(loadingTimeout);
         }}
         injectedJavaScript={`
-          // Check for "Vault health" text on the page
+          // Check for vault page loaded - with or without vault
           (function() {
-            function checkForVaultHealth() {
+            let notified = false;
+
+            function checkForVaultLoaded() {
+              if (notified) return true;
+
               const bodyText = document.body.innerText || document.body.textContent || '';
 
-              // Check for various possible variations
-              if (bodyText.includes('Vault health') ||
-                  bodyText.includes('Vault Health') ||
-                  bodyText.includes('VAULT HEALTH')) {
-                // Wait 1 second before notifying that vault is loaded
+              // Check if vault exists (has vault health)
+              const hasVaultHealth = bodyText.includes('Vault health') ||
+                                     bodyText.includes('Vault Health') ||
+                                     bodyText.includes('VAULT HEALTH');
+
+              // Check if "create vault" UI is shown (no vault exists)
+              const hasCreateVault = bodyText.includes('Create Vault') ||
+                                     bodyText.includes('create vault') ||
+                                     bodyText.includes('CREATE VAULT');
+
+              // Check if main content is loaded
+              const hasMainContent = document.querySelector('[class*="main"]') ||
+                                    document.querySelector('[class*="content"]') ||
+                                    document.querySelector('[id*="root"]');
+
+              if ((hasVaultHealth || hasCreateVault) && hasMainContent) {
+                console.log('✅ Vault page loaded:', hasVaultHealth ? 'Vault exists' : 'No vault (create UI)');
+                notified = true;
+                // Wait a moment before notifying that vault is loaded
                 setTimeout(() => {
                   window.ReactNativeWebView?.postMessage(JSON.stringify({ type: 'VAULT_LOADED' }));
-                }, 1000);
+                }, 800);
                 return true;
               }
               return false;
@@ -236,7 +283,7 @@ const VaultScreen = React.memo(function VaultScreen({ visible, walletCredentials
 
             // Start checking after page load
             const observer = new MutationObserver(() => {
-              if (checkForVaultHealth()) {
+              if (checkForVaultLoaded()) {
                 observer.disconnect();
               }
             });
@@ -252,7 +299,7 @@ const VaultScreen = React.memo(function VaultScreen({ visible, walletCredentials
             }
 
             // Also check immediately in case content is already there
-            setTimeout(checkForVaultHealth, 100);
+            setTimeout(checkForVaultLoaded, 200);
           })();
           true;
         `}
@@ -261,11 +308,13 @@ const VaultScreen = React.memo(function VaultScreen({ visible, walletCredentials
             const message = JSON.parse(event.nativeEvent.data);
 
             if (message.type === 'VAULT_LOADED') {
+              console.log('✅ VAULT_LOADED message received - vault page is ready');
               setIsLoading(false);
               setPreparingVault(false);
 
-              // Inject wallet credentials when vault is fully loaded
+              // Inject wallet credentials one more time when vault is fully loaded
               setTimeout(() => {
+                console.log('🏦 Final credential injection after VAULT_LOADED');
                 injectWalletCredentials();
               }, 500);
               return;
