@@ -303,4 +303,269 @@ describe('AirdropContext', () => {
     expect(true).toBe(true);
   });
 
+  it('should request airdrop when balance is 0 and no recent airdrop', async () => {
+    const mockWallet = createMockWallet('requestairdrop');
+    const mockTxId = 'airdrop_txid_123';
+
+    useBalance.mockReturnValue({ segwitBalance: 0, taprootBalance: 0 });
+    useWallet.mockReturnValue({ wallet: mockWallet, currentAccount: 0 });
+    useAuth.mockReturnValue({ isAuthenticated: true });
+
+    AirdropService.requestAirdrop.mockResolvedValue({ txId: mockTxId });
+
+    const wrapper = ({ children }) => (
+      <AirdropProvider seedConfirmed={true}>{children}</AirdropProvider>
+    );
+
+    let result;
+    await act(async () => {
+      const hook = renderHook(() => useAirdrop(), { wrapper });
+      result = hook.result;
+    });
+
+    // Trigger the initial timeout
+    await act(async () => {
+      jest.advanceTimersByTime(3000);
+      await Promise.resolve(); // Let microtasks run
+    });
+
+    // Wait for the 500ms delay before modal shows
+    await act(async () => {
+      jest.advanceTimersByTime(500);
+      await Promise.resolve();
+    });
+
+    expect(AirdropService.requestAirdrop).toHaveBeenCalledWith(mockWallet.segwitAddress);
+    expect(result.current.showAirdropModal).toBe(true);
+    expect(result.current.airdropTxId).toBe(mockTxId);
+  });
+
+  it('should request airdrop after 24 hours on interval', async () => {
+    const mockWallet = createMockWallet('intervalrequest');
+    const mockTxId = 'interval_airdrop_txid';
+
+    useBalance.mockReturnValue({ segwitBalance: 0, taprootBalance: 0 });
+    useWallet.mockReturnValue({ wallet: mockWallet, currentAccount: 0 });
+    useAuth.mockReturnValue({ isAuthenticated: true });
+
+    AirdropService.requestAirdrop.mockResolvedValue({ txId: mockTxId });
+
+    const wrapper = ({ children }) => (
+      <AirdropProvider seedConfirmed={true}>{children}</AirdropProvider>
+    );
+
+    await act(async () => {
+      renderHook(() => useAirdrop(), { wrapper });
+    });
+
+    // Skip initial timeout
+    await act(async () => {
+      jest.advanceTimersByTime(3000);
+      await Promise.resolve();
+    });
+
+    // Clear the first call
+    AirdropService.requestAirdrop.mockClear();
+
+    // Advance by 24 hours to trigger interval
+    await act(async () => {
+      jest.advanceTimersByTime(24 * 60 * 60 * 1000);
+      await Promise.resolve();
+    });
+
+    expect(AirdropService.requestAirdrop).toHaveBeenCalled();
+  });
+
+  it('should handle airdrop request error gracefully', async () => {
+    const mockWallet = createMockWallet('airdropfail');
+
+    useBalance.mockReturnValue({ segwitBalance: 0, taprootBalance: 0 });
+    useWallet.mockReturnValue({ wallet: mockWallet, currentAccount: 0 });
+    useAuth.mockReturnValue({ isAuthenticated: true });
+
+    AirdropService.requestAirdrop.mockRejectedValue(new Error('Network error'));
+
+    const wrapper = ({ children }) => (
+      <AirdropProvider seedConfirmed={true}>{children}</AirdropProvider>
+    );
+
+    let result;
+    await act(async () => {
+      const hook = renderHook(() => useAirdrop(), { wrapper });
+      result = hook.result;
+    });
+
+    await act(async () => {
+      jest.advanceTimersByTime(3000);
+      await Promise.resolve();
+    });
+
+    expect(AirdropService.requestAirdrop).toHaveBeenCalled();
+    // Should not crash or show modal on error
+    expect(result.current.showAirdropModal).toBe(false);
+  });
+
+  it('should prevent duplicate airdrop requests when already in progress', async () => {
+    const mockWallet = createMockWallet('duplicaterequest');
+    const mockTxId = 'airdrop_txid_dup';
+
+    useBalance.mockReturnValue({ segwitBalance: 0, taprootBalance: 0 });
+    useWallet.mockReturnValue({ wallet: mockWallet, currentAccount: 0 });
+    useAuth.mockReturnValue({ isAuthenticated: true });
+
+    // Make airdrop request slow
+    let resolveAirdrop;
+    const airdropPromise = new Promise((resolve) => {
+      resolveAirdrop = resolve;
+    });
+    AirdropService.requestAirdrop.mockReturnValue(airdropPromise);
+
+    const wrapper = ({ children }) => (
+      <AirdropProvider seedConfirmed={true}>{children}</AirdropProvider>
+    );
+
+    await act(async () => {
+      renderHook(() => useAirdrop(), { wrapper });
+    });
+
+    // Trigger first request
+    await act(async () => {
+      jest.advanceTimersByTime(3000);
+      await Promise.resolve();
+    });
+
+    const firstCallCount = AirdropService.requestAirdrop.mock.calls.length;
+
+    // Try to trigger another request while first is in progress
+    await act(async () => {
+      jest.advanceTimersByTime(24 * 60 * 60 * 1000);
+      await Promise.resolve();
+    });
+
+    // Should not make a second call (still in progress)
+    expect(AirdropService.requestAirdrop.mock.calls.length).toBe(firstCallCount);
+
+    // Complete the first request
+    await act(async () => {
+      resolveAirdrop({ txId: mockTxId });
+      await Promise.resolve();
+    });
+  });
+
+  it('should allow airdrop after 24 hours have passed', async () => {
+    const mockWallet = createMockWallet('after24hours');
+    const oldAirdropTime = Date.now() - 25 * 60 * 60 * 1000; // 25 hours ago
+    const mockTxId = 'new_airdrop_txid';
+
+    useBalance.mockReturnValue({ segwitBalance: 0, taprootBalance: 0 });
+    useWallet.mockReturnValue({ wallet: mockWallet, currentAccount: 0 });
+    useAuth.mockReturnValue({ isAuthenticated: true });
+
+    SecureStore.getItemAsync.mockImplementation((key) => {
+      if (key === `lastAirdropTime_${mockWallet.segwitAddress}_0`) {
+        return Promise.resolve(oldAirdropTime.toString());
+      }
+      return Promise.resolve(null);
+    });
+
+    AirdropService.requestAirdrop.mockResolvedValue({ txId: mockTxId });
+
+    const wrapper = ({ children }) => (
+      <AirdropProvider seedConfirmed={true}>{children}</AirdropProvider>
+    );
+
+    await act(async () => {
+      renderHook(() => useAirdrop(), { wrapper });
+    });
+
+    await act(async () => {
+      jest.advanceTimersByTime(3000);
+      await Promise.resolve();
+    });
+
+    // Should allow airdrop since > 24 hours have passed
+    expect(AirdropService.requestAirdrop).toHaveBeenCalled();
+  });
+
+  it('should handle SecureStore errors gracefully during airdrop', async () => {
+    const mockWallet = createMockWallet('securestoreerror');
+
+    useBalance.mockReturnValue({ segwitBalance: 0, taprootBalance: 0 });
+    useWallet.mockReturnValue({ wallet: mockWallet, currentAccount: 0 });
+    useAuth.mockReturnValue({ isAuthenticated: true });
+
+    // Make SecureStore fail during airdrop
+    SecureStore.setItemAsync.mockRejectedValue(new Error('Storage error'));
+
+    const wrapper = ({ children }) => (
+      <AirdropProvider seedConfirmed={true}>{children}</AirdropProvider>
+    );
+
+    let result;
+    await act(async () => {
+      const hook = renderHook(() => useAirdrop(), { wrapper });
+      result = hook.result;
+      jest.advanceTimersByTime(3000);
+      await Promise.resolve();
+    });
+
+    // Should not crash
+    expect(result.current.showAirdropModal).toBe(false);
+  });
+
+  it('should clean up lock after successful airdrop', async () => {
+    const mockWallet = createMockWallet('cleanuplock');
+    const lockKey = `airdropLock_${mockWallet.segwitAddress}_0`;
+    const mockTxId = 'cleanup_txid';
+
+    useBalance.mockReturnValue({ segwitBalance: 0, taprootBalance: 0 });
+    useWallet.mockReturnValue({ wallet: mockWallet, currentAccount: 0 });
+    useAuth.mockReturnValue({ isAuthenticated: true });
+
+    AirdropService.requestAirdrop.mockResolvedValue({ txId: mockTxId });
+
+    const wrapper = ({ children }) => (
+      <AirdropProvider seedConfirmed={true}>{children}</AirdropProvider>
+    );
+
+    await act(async () => {
+      renderHook(() => useAirdrop(), { wrapper });
+    });
+
+    await act(async () => {
+      jest.advanceTimersByTime(3000);
+      await Promise.resolve();
+    });
+
+    // Should delete lock after completion
+    expect(SecureStore.deleteItemAsync).toHaveBeenCalledWith(lockKey);
+  });
+
+  it('should clean up lock after airdrop error', async () => {
+    const mockWallet = createMockWallet('cleanuplocker ror');
+    const lockKey = `airdropLock_${mockWallet.segwitAddress}_0`;
+
+    useBalance.mockReturnValue({ segwitBalance: 0, taprootBalance: 0 });
+    useWallet.mockReturnValue({ wallet: mockWallet, currentAccount: 0 });
+    useAuth.mockReturnValue({ isAuthenticated: true });
+
+    AirdropService.requestAirdrop.mockRejectedValue(new Error('Airdrop failed'));
+
+    const wrapper = ({ children }) => (
+      <AirdropProvider seedConfirmed={true}>{children}</AirdropProvider>
+    );
+
+    await act(async () => {
+      renderHook(() => useAirdrop(), { wrapper });
+    });
+
+    await act(async () => {
+      jest.advanceTimersByTime(3000);
+      await Promise.resolve();
+    });
+
+    // Should delete lock even on error
+    expect(SecureStore.deleteItemAsync).toHaveBeenCalledWith(lockKey);
+  });
+
 });
