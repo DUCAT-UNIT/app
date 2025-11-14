@@ -6,7 +6,7 @@
 import { useCallback } from 'react';
 import { signPsbt } from '../utils/wallet';
 
-export function useVaultMessages(webViewRef, showSnackbar, injectWalletCredentials, setIsLoading, setPreparingVault) {
+export function useVaultMessages(webViewRef, showSnackbar, injectWalletCredentials, setIsLoading, setPreparingVault, loadingTimeoutRef) {
   const handleMessage = useCallback(async (event) => {
     try {
       const message = JSON.parse(event.nativeEvent.data);
@@ -21,6 +21,14 @@ export function useVaultMessages(webViewRef, showSnackbar, injectWalletCredentia
       // Handle vault loaded event
       if (message.type === 'VAULT_LOADED') {
         console.log('✅ VAULT_LOADED message received - vault page is ready');
+
+        // Clear the loading timeout since vault is ready
+        if (loadingTimeoutRef?.current) {
+          clearTimeout(loadingTimeoutRef.current);
+          loadingTimeoutRef.current = null;
+          console.log('🧹 Cleared loading timeout - vault responded in time');
+        }
+
         setIsLoading(false);
         setPreparingVault(false);
 
@@ -49,7 +57,7 @@ export function useVaultMessages(webViewRef, showSnackbar, injectWalletCredentia
     } catch (e) {
       console.error('❌ Error parsing WebView message:', e);
     }
-  }, [webViewRef, showSnackbar, injectWalletCredentials, setIsLoading, setPreparingVault]);
+  }, [webViewRef, showSnackbar, injectWalletCredentials, setIsLoading, setPreparingVault, loadingTimeoutRef]);
 
   return { handleMessage };
 }

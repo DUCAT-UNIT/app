@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useRef } from 'react';
 import PropTypes from 'prop-types';
 import { View, Text, StyleSheet, ActivityIndicator, Linking } from 'react-native';
 import { WebView } from 'react-native-webview';
@@ -16,6 +16,9 @@ const VaultScreen = React.memo(function VaultScreen({
   vaultData,
   showSnackbar
 }) {
+  // Timeout ref to track and clear loading timeout
+  const loadingTimeoutRef = useRef(null);
+
   // Loading state management
   const {
     isLoading,
@@ -43,7 +46,8 @@ const VaultScreen = React.memo(function VaultScreen({
     showSnackbar,
     injectWalletCredentials,
     setIsLoading,
-    setPreparingVault
+    setPreparingVault,
+    loadingTimeoutRef
   );
 
   // Handle external link navigation - open in browser instead of WebView
@@ -95,11 +99,17 @@ const VaultScreen = React.memo(function VaultScreen({
           setWebViewLoaded(true);
           hasLoadedOnceRef.current = true;
 
-          // Longer timeout for slow networks or account switching
-          const loadingTimeout = setTimeout(() => {
+          // Clear any existing timeout
+          if (loadingTimeoutRef.current) {
+            clearTimeout(loadingTimeoutRef.current);
+          }
+
+          // Set timeout for slow networks or account switching
+          loadingTimeoutRef.current = setTimeout(() => {
             console.log('⏱️ Loading timeout reached - hiding loading screen');
             setIsLoading(false);
             setPreparingVault(false);
+            loadingTimeoutRef.current = null;
           }, 15000);
 
           // Inject wallet credentials after page loads
@@ -107,8 +117,6 @@ const VaultScreen = React.memo(function VaultScreen({
             console.log('🏦 Injecting credentials after page load');
             injectWalletCredentials();
           }, 800);
-
-          return () => clearTimeout(loadingTimeout);
         }}
         injectedJavaScript={combinedInjectedScript}
         onMessage={handleMessage}
