@@ -8,6 +8,7 @@
  * - hooks/useAppSettings
  */
 
+import { useMemo } from 'react';
 import { useAuthSettings } from './useAuthSettings';
 import { useWalletActions } from './useWalletActions';
 import { useAppSettings } from './useAppSettings';
@@ -17,9 +18,13 @@ export function useSettings(props) {
   const walletActions = useWalletActions(props);
   const appSettings = useAppSettings(props);
 
-  return {
-    ...authSettings,
-    ...walletActions,
-    ...appSettings,
-  };
+  // Memoize the return object to prevent recreating on every render
+  return useMemo(
+    () => ({
+      ...authSettings,
+      ...walletActions,
+      ...appSettings,
+    }),
+    [authSettings, walletActions, appSettings]
+  );
 }
