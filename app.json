@@ -15,7 +15,7 @@
     "ios": {
       "supportsTablet": true,
       "bundleIdentifier": "com.anonymous.SimpleWallet",
-      "buildNumber": "5",
+      "buildNumber": "6",
       "infoPlist": {
         "UIBackgroundModes": [
           "remote-notification",
