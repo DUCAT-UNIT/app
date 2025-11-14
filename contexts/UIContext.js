@@ -140,10 +140,10 @@ export const UIProvider = ({ children }) => {
   // CONSOLIDATED VALUE (MEMOIZED)
   // ============================================================
   // Memoize the value object to prevent unnecessary re-renders
-  // Computed values for backwards compatibility
-  const toastMessage = toasts[0]?.message || '';
-  const toastVisible = toasts.length > 0;
-  const toastType = toasts[0]?.type || 'success';
+  // Computed values for backwards compatibility - memoized with toasts dependency
+  const toastMessage = useMemo(() => toasts[0]?.message || '', [toasts]);
+  const toastVisible = useMemo(() => toasts.length > 0, [toasts]);
+  const toastType = useMemo(() => toasts[0]?.type || 'success', [toasts]);
 
   const value = useMemo(
     () => ({
@@ -186,11 +186,8 @@ export const UIProvider = ({ children }) => {
     }),
     [
       showTotalInBTC,
-      setShowTotalInBTC,
       showBTCInBTC,
-      setShowBTCInBTC,
       showUnitInUnit,
-      setShowUnitInUnit,
       showToast,
       toasts,
       dismissToast,
