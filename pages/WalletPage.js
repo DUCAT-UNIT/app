@@ -149,7 +149,9 @@ export default function WalletPage() {
       onMoveShouldSetPanResponder: (_, gestureState) => {
         // Only activate for horizontal swipes on wallet screen
         if (activeTab !== 'wallet') return false;
-        return Math.abs(gestureState.dx) > Math.abs(gestureState.dy) && Math.abs(gestureState.dx) > 10;
+        const isHorizontal = Math.abs(gestureState.dx) > Math.abs(gestureState.dy);
+        const hasMinimumMovement = Math.abs(gestureState.dx) > 20; // Increased from 10 for less sensitivity
+        return isHorizontal && hasMinimumMovement;
       },
       onPanResponderGrant: () => {
         setIsSwiping(true);
@@ -164,21 +166,33 @@ export default function WalletPage() {
       onPanResponderRelease: (_, gestureState) => {
         setIsSwiping(false);
 
-        // If swiped more than 50% of screen width, complete the transition
-        if (gestureState.dx > SCREEN_WIDTH * 0.5) {
+        // Determine if we should complete the transition based on:
+        // 1. Distance (30% threshold instead of 50%)
+        // 2. Velocity (fast swipes trigger easier)
+        const swipeDistance = gestureState.dx;
+        const swipeVelocity = gestureState.vx;
+        const distanceThreshold = SCREEN_WIDTH * 0.3;
+        const velocityThreshold = 0.5;
+
+        const shouldComplete =
+          swipeDistance > distanceThreshold || swipeVelocity > velocityThreshold;
+
+        if (shouldComplete) {
           isAnimatingRef.current = true;
           // Complete animation to vault - wallet moves right off screen, vault moves to center
           Animated.parallel([
-            Animated.timing(walletTranslateX, {
+            Animated.spring(walletTranslateX, {
               toValue: SCREEN_WIDTH,
-              duration: 300,
-              easing: Easing.out(Easing.cubic),
+              velocity: swipeVelocity,
+              tension: 65,
+              friction: 10,
               useNativeDriver: true,
             }),
-            Animated.timing(vaultTranslateX, {
+            Animated.spring(vaultTranslateX, {
               toValue: 0,
-              duration: 300,
-              easing: Easing.out(Easing.cubic),
+              velocity: swipeVelocity,
+              tension: 65,
+              friction: 10,
               useNativeDriver: true,
             }),
           ]).start(() => {
@@ -188,16 +202,18 @@ export default function WalletPage() {
         } else {
           // Spring back to original position
           Animated.parallel([
-            Animated.timing(walletTranslateX, {
+            Animated.spring(walletTranslateX, {
               toValue: 0,
-              duration: 250,
-              easing: Easing.out(Easing.ease),
+              velocity: -swipeVelocity,
+              tension: 65,
+              friction: 10,
               useNativeDriver: true,
             }),
-            Animated.timing(vaultTranslateX, {
+            Animated.spring(vaultTranslateX, {
               toValue: -SCREEN_WIDTH,
-              duration: 250,
-              easing: Easing.out(Easing.ease),
+              velocity: -swipeVelocity,
+              tension: 65,
+              friction: 10,
               useNativeDriver: true,
             }),
           ]).start();
@@ -207,21 +223,15 @@ export default function WalletPage() {
   ).current;
 
   // Pan responder for vault screen - left swipe to go back to wallet
+  // Now only attached to the edge area, so simplified logic
   const vaultPanResponder = useRef(
     PanResponder.create({
-      onStartShouldSetPanResponderCapture: () => false, // Don't capture at start, let WebView handle taps
       onMoveShouldSetPanResponder: (_, gestureState) => {
-        // Only activate for clear horizontal left swipes on vault screen
-        if (activeTab !== 'vault') return false;
+        // Since this is only on the edge, we can be more permissive
         const isHorizontal = Math.abs(gestureState.dx) > Math.abs(gestureState.dy);
+        const hasMovement = Math.abs(gestureState.dx) > 10;
         const isLeftSwipe = gestureState.dx < -10;
-        return isHorizontal && isLeftSwipe;
-      },
-      onMoveShouldSetPanResponderCapture: (_, gestureState) => {
-        // Capture horizontal swipes, let vertical scrolls pass through
-        const isHorizontal = Math.abs(gestureState.dx) > Math.abs(gestureState.dy);
-        const isLeftSwipe = gestureState.dx < -10;
-        return isHorizontal && isLeftSwipe;
+        return isHorizontal && isLeftSwipe && hasMovement;
       },
       onPanResponderGrant: () => {
         setIsSwiping(true);
@@ -236,21 +246,33 @@ export default function WalletPage() {
       onPanResponderRelease: (_, gestureState) => {
         setIsSwiping(false);
 
-        // If swiped more than 50% of screen width, complete the transition
-        if (gestureState.dx < -SCREEN_WIDTH * 0.5) {
+        // Determine if we should complete the transition based on:
+        // 1. Distance (30% threshold instead of 50%)
+        // 2. Velocity (fast swipes trigger easier)
+        const swipeDistance = Math.abs(gestureState.dx);
+        const swipeVelocity = Math.abs(gestureState.vx);
+        const distanceThreshold = SCREEN_WIDTH * 0.3;
+        const velocityThreshold = 0.5;
+
+        const shouldComplete =
+          swipeDistance > distanceThreshold || swipeVelocity > velocityThreshold;
+
+        if (shouldComplete) {
           isAnimatingRef.current = true;
           // Complete animation to wallet - vault moves left off screen, wallet moves to center
           Animated.parallel([
-            Animated.timing(vaultTranslateX, {
+            Animated.spring(vaultTranslateX, {
               toValue: -SCREEN_WIDTH,
-              duration: 300,
-              easing: Easing.out(Easing.cubic),
+              velocity: -swipeVelocity,
+              tension: 65,
+              friction: 10,
               useNativeDriver: true,
             }),
-            Animated.timing(walletTranslateX, {
+            Animated.spring(walletTranslateX, {
               toValue: 0,
-              duration: 300,
-              easing: Easing.out(Easing.cubic),
+              velocity: -swipeVelocity,
+              tension: 65,
+              friction: 10,
               useNativeDriver: true,
             }),
           ]).start(() => {
@@ -260,16 +282,18 @@ export default function WalletPage() {
         } else {
           // Spring back to original position
           Animated.parallel([
-            Animated.timing(vaultTranslateX, {
+            Animated.spring(vaultTranslateX, {
               toValue: 0,
-              duration: 250,
-              easing: Easing.out(Easing.ease),
+              velocity: swipeVelocity,
+              tension: 65,
+              friction: 10,
               useNativeDriver: true,
             }),
-            Animated.timing(walletTranslateX, {
+            Animated.spring(walletTranslateX, {
               toValue: SCREEN_WIDTH,
-              duration: 250,
-              easing: Easing.out(Easing.ease),
+              velocity: swipeVelocity,
+              tension: 65,
+              friction: 10,
               useNativeDriver: true,
             }),
           ]).start();
@@ -300,7 +324,6 @@ export default function WalletPage() {
               },
             ]}
             pointerEvents={activeTab === 'vault' || isSwiping ? 'auto' : 'none'}
-            {...(activeTab === 'vault' ? vaultPanResponder.panHandlers : {})}
           >
             <VaultScreen
               visible={activeTab === 'vault'}
@@ -309,6 +332,13 @@ export default function WalletPage() {
               vaultData={vaultData}
               showSnackbar={showSnackbar}
             />
+            {/* Edge swipe detection area - only on the right edge */}
+            {activeTab === 'vault' && (
+              <View
+                style={localStyles.rightEdgeSwipeArea}
+                {...vaultPanResponder.panHandlers}
+              />
+            )}
           </Animated.View>
 
           {/* Animated Wallet Content - Rendered second (above vault) */}
@@ -450,5 +480,14 @@ const localStyles = StyleSheet.create({
     bottom: 0,
     backgroundColor: COLORS.DARK_BG,
     zIndex: 1000,
+  },
+  rightEdgeSwipeArea: {
+    position: 'absolute',
+    top: 0,
+    right: 0,
+    bottom: 0,
+    width: 30, // 30px invisible strip on the right edge
+    backgroundColor: 'transparent',
+    zIndex: 10, // Above the WebView content
   },
 });

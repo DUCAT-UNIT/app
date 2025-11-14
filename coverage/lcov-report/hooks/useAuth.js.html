@@ -25,7 +25,7 @@
             <div class='fl pad1y space-right2'>
                 <span class="strong">100% </span>
                 <span class="quiet">Statements</span>
-                <span class='fraction'>75/75</span>
+                <span class='fraction'>76/76</span>
             </div>
         
             
@@ -39,14 +39,14 @@
             <div class='fl pad1y space-right2'>
                 <span class="strong">100% </span>
                 <span class="quiet">Functions</span>
-                <span class='fraction'>11/11</span>
+                <span class='fraction'>12/12</span>
             </div>
         
             
             <div class='fl pad1y space-right2'>
                 <span class="strong">100% </span>
                 <span class="quiet">Lines</span>
-                <span class='fraction'>75/75</span>
+                <span class='fraction'>76/76</span>
             </div>
         
             
@@ -253,7 +253,32 @@
 <a name='L188'></a><a href='#L188'>188</a>
 <a name='L189'></a><a href='#L189'>189</a>
 <a name='L190'></a><a href='#L190'>190</a>
-<a name='L191'></a><a href='#L191'>191</a></td><td class="line-coverage quiet"><span class="cline-any cline-neutral">&nbsp;</span>
+<a name='L191'></a><a href='#L191'>191</a>
+<a name='L192'></a><a href='#L192'>192</a>
+<a name='L193'></a><a href='#L193'>193</a>
+<a name='L194'></a><a href='#L194'>194</a>
+<a name='L195'></a><a href='#L195'>195</a>
+<a name='L196'></a><a href='#L196'>196</a>
+<a name='L197'></a><a href='#L197'>197</a>
+<a name='L198'></a><a href='#L198'>198</a>
+<a name='L199'></a><a href='#L199'>199</a>
+<a name='L200'></a><a href='#L200'>200</a>
+<a name='L201'></a><a href='#L201'>201</a>
+<a name='L202'></a><a href='#L202'>202</a>
+<a name='L203'></a><a href='#L203'>203</a>
+<a name='L204'></a><a href='#L204'>204</a>
+<a name='L205'></a><a href='#L205'>205</a>
+<a name='L206'></a><a href='#L206'>206</a>
+<a name='L207'></a><a href='#L207'>207</a>
+<a name='L208'></a><a href='#L208'>208</a>
+<a name='L209'></a><a href='#L209'>209</a>
+<a name='L210'></a><a href='#L210'>210</a>
+<a name='L211'></a><a href='#L211'>211</a>
+<a name='L212'></a><a href='#L212'>212</a>
+<a name='L213'></a><a href='#L213'>213</a>
+<a name='L214'></a><a href='#L214'>214</a>
+<a name='L215'></a><a href='#L215'>215</a>
+<a name='L216'></a><a href='#L216'>216</a></td><td class="line-coverage quiet"><span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
@@ -404,7 +429,32 @@
 <span class="cline-any cline-yes">1x</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-yes">85x</span>
+<span class="cline-any cline-yes">85x</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
@@ -452,7 +502,7 @@
  * - Authentication callbacks
  */
 &nbsp;
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo, useCallback } from 'react';
 import * as LocalAuthentication from 'expo-local-authentication';
 import * as SecureStore from 'expo-secure-store';
 import { SECURE_KEYS } from '../utils/constants';
@@ -485,15 +535,15 @@ export function useAuth({ onSeedConfirmed }) {
   }, []);
 &nbsp;
   // Load biometric preference
-  const loadBiometricPreference = async () =&gt; {
+  const loadBiometricPreference = useCallback(async () =&gt; {
     try {
       const biometricPref = await SecureStore.getItemAsync(SECURE_KEYS.BIOMETRIC_ENABLED);
       setBiometricEnabled(biometricPref === 'true');
     } catch (error) {}
-  };
+  }, []);
 &nbsp;
   // Authenticate user with biometrics
-  const authenticateUser = async () =&gt; {
+  const authenticateUser = useCallback(async () =&gt; {
     try {
       // Check if user has already enabled biometric auth
       if (biometricEnabled) {
@@ -527,25 +577,25 @@ export function useAuth({ onSeedConfirmed }) {
       // On error, show biometric prompt so user can enable it
       setShowBiometricPrompt(true);
     }
-  };
+  }, [biometricEnabled, changingPin]);
 &nbsp;
   // PIN setup completion for initial wallet creation
-  const handlePinSetupComplete = () =&gt; {
+  const handlePinSetupComplete = useCallback(() =&gt; {
     setIsAuthenticated(true);
     setSettingUpPin(false);
     if (onSeedConfirmed) {
       onSeedConfirmed(true);
     }
-  };
+  }, [onSeedConfirmed]);
 &nbsp;
   // PIN change completion
-  const handlePinChangeComplete = () =&gt; {
+  const handlePinChangeComplete = useCallback(() =&gt; {
     setSettingUpPin(false);
     setChangingPin(false);
-  };
+  }, []);
 &nbsp;
   // Lock screen authentication success
-  const handleLockScreenAuthenticated = () =&gt; {
+  const handleLockScreenAuthenticated = useCallback(() =&gt; {
     if (changingPin) {
       // User authenticated to change PIN, proceed to PIN setup
       setShowPinEntry(false); // Hide lock screen
@@ -563,15 +613,15 @@ export function useAuth({ onSeedConfirmed }) {
       // Restore FaceID button for next time
       setShowFaceIdButton(true);
     }
-  };
+  }, [changingPin]);
 &nbsp;
   // Lock the wallet
-  const lock = () =&gt; {
+  const lock = useCallback(() =&gt; {
     setIsAuthenticated(false);
-  };
+  }, []);
 &nbsp;
   // Reset auth state (for wallet deletion)
-  const resetAuth = () =&gt; {
+  const resetAuth = useCallback(() =&gt; {
     setIsAuthenticated(false);
     setBiometricEnabled(false);
     setShowFaceIdButton(true);
@@ -583,55 +633,80 @@ export function useAuth({ onSeedConfirmed }) {
     setConfirmPin('');
     setPinError('');
     setPinStep('enter');
-  };
+  }, []);
 &nbsp;
   // Start PIN change flow
-  const startPinChange = async () =&gt; {
+  const startPinChange = useCallback(async () =&gt; {
     setChangingPin(true);
     // Save flag to return to settings after PIN change
     await SecureStore.setItemAsync('returnToSettingsAfterPinChange', 'true');
     // Don't set settingUpPin yet - wait until after authentication
     setIsAuthenticated(false); // Lock wallet to trigger authentication
-  };
+  }, []);
 &nbsp;
-  return {
-    // State
-    isAuthenticated,
-    isBiometricSupported,
-    biometricEnabled,
-    showBiometricPrompt,
-    showFaceIdButton,
-    settingUpPin,
-    changingPin,
-    showPinEntry,
-    pin,
-    confirmPin,
-    pinError,
-    pinStep,
+  // Memoize return object to prevent recreation on every render
+  return useMemo(
+    () =&gt; ({
+      // State
+      isAuthenticated,
+      isBiometricSupported,
+      biometricEnabled,
+      showBiometricPrompt,
+      showFaceIdButton,
+      settingUpPin,
+      changingPin,
+      showPinEntry,
+      pin,
+      confirmPin,
+      pinError,
+      pinStep,
 &nbsp;
-    // Setters
-    setIsAuthenticated,
-    setBiometricEnabled,
-    setShowBiometricPrompt,
-    setShowFaceIdButton,
-    setShowPinEntry,
-    setSettingUpPin,
-    setChangingPin,
-    setPin,
-    setConfirmPin,
-    setPinError,
-    setPinStep,
+      // Setters
+      setIsAuthenticated,
+      setBiometricEnabled,
+      setShowBiometricPrompt,
+      setShowFaceIdButton,
+      setShowPinEntry,
+      setSettingUpPin,
+      setChangingPin,
+      setPin,
+      setConfirmPin,
+      setPinError,
+      setPinStep,
 &nbsp;
-    // Functions
-    authenticateUser,
-    handlePinSetupComplete,
-    handlePinChangeComplete,
-    handleLockScreenAuthenticated,
-    loadBiometricPreference,
-    lock,
-    resetAuth,
-    startPinChange,
-  };
+      // Functions
+      authenticateUser,
+      handlePinSetupComplete,
+      handlePinChangeComplete,
+      handleLockScreenAuthenticated,
+      loadBiometricPreference,
+      lock,
+      resetAuth,
+      startPinChange,
+    }),
+    [
+      isAuthenticated,
+      isBiometricSupported,
+      biometricEnabled,
+      showBiometricPrompt,
+      showFaceIdButton,
+      settingUpPin,
+      changingPin,
+      showPinEntry,
+      pin,
+      confirmPin,
+      pinError,
+      pinStep,
+      authenticateUser,
+      handlePinSetupComplete,
+      handlePinChangeComplete,
+      handleLockScreenAuthenticated,
+      loadBiometricPreference,
+      lock,
+      resetAuth,
+      startPinChange,
+    ]
+  );
 }
 &nbsp;</pre></td></tr></table></pre>
 
@@ -640,7 +715,7 @@ export function useAuth({ onSeedConfirmed }) {
             <div class='footer quiet pad2 space-top1 center small'>
                 Code coverage generated by
                 <a href="https://istanbul.js.org/" target="_blank" rel="noopener noreferrer">istanbul</a>
-                at 2025-11-14T19:17:45.662Z
+                at 2025-11-14T21:36:19.653Z
             </div>
         <script src="../prettify.js"></script>
         <script>

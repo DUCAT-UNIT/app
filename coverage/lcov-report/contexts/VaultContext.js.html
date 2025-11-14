@@ -23,30 +23,30 @@
         <div class='clearfix'>
             
             <div class='fl pad1y space-right2'>
-                <span class="strong">96.42% </span>
+                <span class="strong">96.66% </span>
                 <span class="quiet">Statements</span>
-                <span class='fraction'>27/28</span>
+                <span class='fraction'>29/30</span>
             </div>
         
             
             <div class='fl pad1y space-right2'>
-                <span class="strong">100% </span>
+                <span class="strong">88.88% </span>
                 <span class="quiet">Branches</span>
-                <span class='fraction'>7/7</span>
+                <span class='fraction'>8/9</span>
             </div>
         
             
             <div class='fl pad1y space-right2'>
                 <span class="strong">100% </span>
                 <span class="quiet">Functions</span>
-                <span class='fraction'>7/7</span>
+                <span class='fraction'>8/8</span>
             </div>
         
             
             <div class='fl pad1y space-right2'>
-                <span class="strong">96.29% </span>
+                <span class="strong">96.55% </span>
                 <span class="quiet">Lines</span>
-                <span class='fraction'>26/27</span>
+                <span class='fraction'>28/29</span>
             </div>
         
             
@@ -141,7 +141,14 @@
 <a name='L76'></a><a href='#L76'>76</a>
 <a name='L77'></a><a href='#L77'>77</a>
 <a name='L78'></a><a href='#L78'>78</a>
-<a name='L79'></a><a href='#L79'>79</a></td><td class="line-coverage quiet"><span class="cline-any cline-neutral">&nbsp;</span>
+<a name='L79'></a><a href='#L79'>79</a>
+<a name='L80'></a><a href='#L80'>80</a>
+<a name='L81'></a><a href='#L81'>81</a>
+<a name='L82'></a><a href='#L82'>82</a>
+<a name='L83'></a><a href='#L83'>83</a>
+<a name='L84'></a><a href='#L84'>84</a>
+<a name='L85'></a><a href='#L85'>85</a>
+<a name='L86'></a><a href='#L86'>86</a></td><td class="line-coverage quiet"><span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
@@ -187,7 +194,11 @@
 <span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-yes">2x</span>
+<span class="cline-any cline-yes">2x</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
@@ -210,6 +221,9 @@
 <span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-yes">20x</span>
+<span class="cline-any cline-yes">20x</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
@@ -223,7 +237,7 @@
  * VaultContext - Manages vault access, credentials, and navigation
  */
 &nbsp;
-import React, { createContext, useContext, useState, useEffect } from 'react';
+import React, { createContext, useContext, useState, useEffect, useMemo, useCallback } from 'react';
 &nbsp;
 import { deriveAddressesFromMnemonic } from '../utils/bitcoin';
 import { withMnemonic } from '../services/authService';
@@ -265,14 +279,18 @@ export const VaultProvider = ({ children, currentAccount }) =&gt; {
           });
         });
       } catch (error) {
-        console.error('❌ Error loading vault credentials:', error);
+        // Silently handle - no mnemonic is expected for new users
+        // Only log if it's a different error
+        <span class="missing-if-branch" title="else path not taken" >E</span>if (error.message !== 'Mnemonic not found') {
+          console.error('❌ Error loading vault credentials:', error);
+        }
       }
     };
 &nbsp;
     loadVaultCredentials();
   }, [currentAccount]);
 &nbsp;
-  const openVault = async (shouldAutoCreate = false) =&gt; {
+  const openVault = useCallback(async (shouldAutoCreate = false) =&gt; {
     try {
       // Switch to vault tab immediately for better UX
       setActiveTab('vault');
@@ -285,15 +303,18 @@ export const VaultProvider = ({ children, currentAccount }) =&gt; {
     } catch (error) {
 <span class="cstat-no" title="statement not covered" >      setActiveTab('vault');</span>
     }
-  };
+  }, [vaultCredentials]);
 &nbsp;
-  const value = {
-    vaultCredentials,
-    autoCreateVaultTrigger,
-    activeTab,
-    setActiveTab,
-    openVault,
-  };
+  const value = useMemo(
+    () =&gt; ({
+      vaultCredentials,
+      autoCreateVaultTrigger,
+      activeTab,
+      setActiveTab,
+      openVault,
+    }),
+    [vaultCredentials, autoCreateVaultTrigger, activeTab, openVault]
+  );
 &nbsp;
   return &lt;VaultContext.Provider value={value}&gt;{children}&lt;/VaultContext.Provider&gt;;
 };
@@ -304,7 +325,7 @@ export const VaultProvider = ({ children, currentAccount }) =&gt; {
             <div class='footer quiet pad2 space-top1 center small'>
                 Code coverage generated by
                 <a href="https://istanbul.js.org/" target="_blank" rel="noopener noreferrer">istanbul</a>
-                at 2025-11-14T19:17:45.662Z
+                at 2025-11-14T21:36:19.653Z
             </div>
         <script src="../prettify.js"></script>
         <script>
