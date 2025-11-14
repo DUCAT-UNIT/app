@@ -44,7 +44,11 @@ export const VaultProvider = ({ children, currentAccount }) => {
           });
         });
       } catch (error) {
-        console.error('❌ Error loading vault credentials:', error);
+        // Silently handle - no mnemonic is expected for new users
+        // Only log if it's a different error
+        if (error.message !== 'Mnemonic not found') {
+          console.error('❌ Error loading vault credentials:', error);
+        }
       }
     };
 
