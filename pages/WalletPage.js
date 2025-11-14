@@ -11,15 +11,15 @@ import { useNavigation } from '@react-navigation/native';
 const SCREEN_WIDTH = Dimensions.get('window').width;
 
 // Components
-import WalletScreen from '../components/WalletScreen';
-import ReceiveScreen from '../components/ReceiveScreen';
-import TransactionHistoryScreen from '../components/TransactionHistoryScreen';
-import VaultScreen from '../components/VaultScreen';
-import SettingsScreen from '../components/SettingsScreen';
+import WalletScreen from '../screens/wallet/WalletScreen';
+import ReceiveScreen from '../screens/wallet/ReceiveScreen';
+import TransactionHistoryScreen from '../screens/wallet/TransactionHistoryScreen';
+import VaultScreen from '../screens/wallet/VaultScreen';
+import SettingsScreen from '../screens/settings/SettingsScreen';
 import MutinynetBanner from '../components/MutinynetBanner';
 import BottomNavigationBar from '../components/BottomNavigationBar';
 import ToastContainer from '../components/ToastContainer';
-import SplashScreen from '../components/SplashScreen';
+import SplashScreen from '../screens/SplashScreen';
 import Snackbar from '../components/Snackbar';
 
 // Contexts

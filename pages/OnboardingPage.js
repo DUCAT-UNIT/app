@@ -8,9 +8,9 @@ import { View, StyleSheet } from 'react-native';
 import { StatusBar } from 'expo-status-bar';
 
 // Components
-import WelcomeScreen from '../components/WelcomeScreen';
-import PinSetupScreen from '../components/PinSetupScreen';
-import LockScreen from '../components/LockScreen';
+import WelcomeScreen from '../screens/auth/WelcomeScreen';
+import PinSetupScreen from '../screens/auth/PinSetupScreen';
+import LockScreen from '../screens/auth/LockScreen';
 import MutinynetBanner from '../components/MutinynetBanner';
 import BiometricPromptModal from '../components/BiometricPromptModal';
 import ToastContainer from '../components/ToastContainer';

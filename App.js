@@ -28,7 +28,7 @@ import { UIProvider, useToastContext } from './contexts/UIContext';
 import AppNavigator from './navigation/AppNavigator';
 
 // Components
-import SplashScreen from './components/SplashScreen';
+import SplashScreen from './screens/SplashScreen';
 
 // Initialize BIP32 and ECC for bitcoinjs-lib
 BIP32Factory(ecc); // Initializes the factory

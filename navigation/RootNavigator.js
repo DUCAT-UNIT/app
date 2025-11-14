@@ -10,7 +10,7 @@ import { createStackNavigator } from '@react-navigation/stack';
 import AuthStack from './AuthStack';
 import MainTabs from './MainTabs';
 import SendNavigator from './SendNavigator';
-import PinSetupScreen from '../components/PinSetupScreen';
+import PinSetupScreen from '../screens/auth/PinSetupScreen';
 import MutinynetBanner from '../components/MutinynetBanner';
 import { COLORS } from '../utils/colors';
 import { useAuth } from '../contexts/AuthContext';

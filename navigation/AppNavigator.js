@@ -13,7 +13,7 @@ import RootNavigator from './RootNavigator';
 import AccountSwitcherModal from '../components/AccountSwitcherModal';
 import AppModals from '../components/AppModals';
 import SeedPhraseOverlay from '../components/SeedPhraseOverlay';
-import SplashScreen from '../components/SplashScreen';
+import SplashScreen from '../screens/SplashScreen';
 import AirdropSuccessModal from '../components/AirdropSuccessModal';
 
 // Contexts
