@@ -7,22 +7,27 @@ import React from 'react';
 import { useVaultWebView } from '../useVaultWebView';
 
 // Helper to render hooks
-function renderHook(hook, props) {
+function renderHook(hook, initialProps) {
+  let props = initialProps;
   const result = { current: null };
-  function TestComponent() {
-    result.current = hook(props.walletCredentials, props.vaultData, props.visible);
+
+  function TestComponent({ hookProps }) {
+    result.current = hook(hookProps.walletCredentials, hookProps.vaultData, hookProps.visible);
     return null;
   }
+
   let component;
   act(() => {
-    component = create(<TestComponent />);
+    component = create(<TestComponent hookProps={props} />);
   });
+
   return {
     result,
     unmount: () => component.unmount(),
     rerender: (newProps) => {
+      props = newProps;
       act(() => {
-        component.update(<TestComponent {...newProps} />);
+        component.update(<TestComponent hookProps={newProps} />);
       });
     },
   };
@@ -296,5 +301,123 @@ describe('useVaultWebView', () => {
     });
 
     expect(result.current.webViewLoaded).toBe(true);
+  });
+
+  it('should reload on account switch when vault data already fetched', () => {
+    jest.useFakeTimers();
+
+    const mockInjectJavaScript = jest.fn();
+    const { result, rerender } = renderHook(useVaultWebView, {
+      walletCredentials: mockCredentials,
+      vaultData: { balance: 1000 }, // Vault data already exists
+      visible: true,
+    });
+
+    // Set up webViewRef
+    result.current.webViewRef.current = {
+      injectJavaScript: mockInjectJavaScript,
+    };
+
+    const initialForceReloadKey = result.current.forceReloadKey;
+
+    // Switch to different account with different pubkey
+    const newCredentials = {
+      ...mockCredentials,
+      vaultPubkey: 'newvaultpubkey',
+    };
+
+    rerender({
+      walletCredentials: newCredentials,
+      vaultData: { balance: 1000 },
+      visible: true,
+    });
+
+    // Should have changed forceReloadKey
+    expect(result.current.forceReloadKey).not.toBe(initialForceReloadKey);
+
+    // Fast-forward setTimeout to trigger re-inject
+    act(() => {
+      jest.advanceTimersByTime(2000);
+    });
+
+    // Should have called injectJavaScript
+    expect(mockInjectJavaScript).toHaveBeenCalled();
+
+    jest.useRealTimers();
+  });
+
+  it('should wait for vault data on account switch when not fetched', () => {
+    const { result, rerender } = renderHook(useVaultWebView, {
+      walletCredentials: mockCredentials,
+      vaultData: undefined, // No vault data yet
+      visible: true,
+    });
+
+    const initialForceReloadKey = result.current.forceReloadKey;
+
+    // Switch to different account
+    const newCredentials = {
+      ...mockCredentials,
+      vaultPubkey: 'newvaultpubkey',
+    };
+
+    rerender({
+      walletCredentials: newCredentials,
+      vaultData: undefined, // Still no vault data
+      visible: true,
+    });
+
+    // Should NOT have changed forceReloadKey yet (waiting for vault data)
+    expect(result.current.forceReloadKey).toBe(initialForceReloadKey);
+  });
+
+  it('should reload when vault data fetched after account switch', () => {
+    jest.useFakeTimers();
+
+    const mockInjectJavaScript = jest.fn();
+    const { result, rerender } = renderHook(useVaultWebView, {
+      walletCredentials: mockCredentials,
+      vaultData: undefined,
+      visible: true,
+    });
+
+    // Set up webViewRef
+    result.current.webViewRef.current = {
+      injectJavaScript: mockInjectJavaScript,
+    };
+
+    // Switch account
+    const newCredentials = {
+      ...mockCredentials,
+      vaultPubkey: 'newvaultpubkey',
+    };
+
+    rerender({
+      walletCredentials: newCredentials,
+      vaultData: undefined, // Still waiting for data
+      visible: true,
+    });
+
+    const forceReloadKeyBeforeFetch = result.current.forceReloadKey;
+
+    // Now vault data arrives
+    rerender({
+      walletCredentials: newCredentials,
+      vaultData: { balance: 2000 },
+      visible: true,
+    });
+
+    // Should have changed forceReloadKey when vault data arrived
+    expect(result.current.forceReloadKey).not.toBe(forceReloadKeyBeforeFetch);
+
+    // Fast-forward setTimeout to trigger re-inject
+    act(() => {
+      jest.advanceTimersByTime(2000);
+    });
+
+    // Should have called injectJavaScript
+    expect(mockInjectJavaScript).toHaveBeenCalled();
+
+    jest.useRealTimers();
   });
 });
