@@ -35,6 +35,7 @@ const ReceiveScreen = React.memo(function ReceiveScreen({
     handleDismiss,
     handleQrBack,
     prepareQrAnimation,
+    resetAfterQr,
   } = useReceiveScreenAnimations(showReceiveSheet, showQrModal, onClose);
 
   const handleCopyAddress = (address, type) => {
@@ -51,10 +52,12 @@ const ReceiveScreen = React.memo(function ReceiveScreen({
 
   const handleQrBackPress = () => {
     handleQrBack().start(() => {
-      // Reset modal state after animation completes
+      // Reset modal state and animations after animation completes
       setShowQrModal(false);
       setSelectedAddress(null);
       setSelectedType(null);
+      // Reset all animation values to restore receive sheet functionality
+      resetAfterQr();
     });
   };
 
@@ -70,11 +73,12 @@ const ReceiveScreen = React.memo(function ReceiveScreen({
 
   return (
     <>
-      {showReceiveSheet && !showQrModal && (
+      {showReceiveSheet && (
         <TouchableOpacity
           style={styles.bottomSheetBackdrop}
           activeOpacity={1}
           onPress={handleDismiss}
+          pointerEvents={showQrModal ? 'none' : 'auto'}
         />
       )}
 

@@ -34,38 +34,24 @@ export function useReceiveScreenAnimations(showReceiveSheet, showQrModal, onClos
   };
 
   const handleQrBack = () => {
-    return Animated.sequence([
-      // First animate out
-      Animated.parallel([
-        Animated.timing(translateX, {
-          toValue: SCREEN_WIDTH,
-          duration: 250,
-          useNativeDriver: true,
-        }),
-        Animated.timing(qrOpacity, {
-          toValue: 0,
-          duration: 150,
-          useNativeDriver: true,
-        }),
-        Animated.timing(receiveOpacity, {
-          toValue: 1,
-          duration: 150,
-          useNativeDriver: true,
-        }),
-      ]),
-      // Then reset translateX to 0 for next time
+    return Animated.parallel([
       Animated.timing(translateX, {
+        toValue: SCREEN_WIDTH,
+        duration: 250,
+        useNativeDriver: true,
+      }),
+      Animated.timing(qrOpacity, {
         toValue: 0,
-        duration: 0,
+        duration: 150,
         useNativeDriver: true,
       }),
     ]);
   };
 
-  // Create pan responders once
-  if (!panResponderRef.current) {
+  // Recreate pan responder when showQrModal changes to ensure it has current state
+  useEffect(() => {
     panResponderRef.current = PanResponder.create({
-      onStartShouldSetPanResponder: () => true,
+      onStartShouldSetPanResponder: () => !showQrModal,
       onMoveShouldSetPanResponder: (_, gestureState) => {
         if (showQrModal) return false;
         const isDownwardSwipe =
@@ -92,7 +78,7 @@ export function useReceiveScreenAnimations(showReceiveSheet, showQrModal, onClos
         }
       },
     });
-  }
+  }, [showQrModal, receiveTranslateY, handleDismiss]);
 
   if (!qrModalPanResponderRef.current) {
     qrModalPanResponderRef.current = PanResponder.create({
@@ -149,6 +135,17 @@ export function useReceiveScreenAnimations(showReceiveSheet, showQrModal, onClos
     qrOpacity.setValue(1);
   };
 
+  const resetAfterQr = () => {
+    // Reset all animation values after QR modal is dismissed
+    translateX.setValue(0);
+    translateY.setValue(0);
+    qrOpacity.setValue(0);
+    receiveOpacity.setValue(1);
+    // Ensure receive sheet is in correct position
+    receiveTranslateY.setValue(0);
+    receiveSheetOpacity.setValue(1);
+  };
+
   return {
     // Animation values
     translateX,
@@ -164,5 +161,6 @@ export function useReceiveScreenAnimations(showReceiveSheet, showQrModal, onClos
     handleDismiss,
     handleQrBack,
     prepareQrAnimation,
+    resetAfterQr,
   };
 }
