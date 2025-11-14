@@ -88,51 +88,103 @@ jest.mock('@sentry/react-native', () => ({
 }));
 
 // Mock React Native core modules
-jest.mock('react-native', () => ({
-  Platform: {
-    OS: 'ios',
-    select: jest.fn((obj) => obj.ios || obj.default),
-  },
-  Keyboard: {
-    addListener: jest.fn(() => ({ remove: jest.fn() })),
-    removeListener: jest.fn(),
-  },
-  Alert: {
-    alert: jest.fn(),
-  },
-  StyleSheet: {
-    create: jest.fn((styles) => styles),
-  },
-  Dimensions: {
-    get: jest.fn(() => ({ width: 375, height: 812 })),
-  },
-  AppState: {
-    addEventListener: jest.fn(() => ({ remove: jest.fn() })),
-    currentState: 'active',
-  },
-  Animated: {
-    Value: jest.fn(() => ({
-      setValue: jest.fn(),
-      interpolate: jest.fn(),
-      _value: 0,
-    })),
-    timing: jest.fn(() => ({
-      start: jest.fn((callback) => callback && callback()),
-    })),
-    spring: jest.fn(() => ({
-      start: jest.fn((callback) => callback && callback()),
-    })),
-    View: 'Animated.View',
-  },
-  PanResponder: {
-    create: jest.fn((config) => ({
-      panHandlers: {
-        onStartShouldSetResponder: config.onStartShouldSetPanResponder || (() => false),
-        onMoveShouldSetResponder: config.onMoveShouldSetPanResponder || (() => false),
-        onResponderGrant: config.onPanResponderGrant || (() => {}),
-        onResponderMove: config.onPanResponderMove || (() => {}),
-        onResponderRelease: config.onPanResponderRelease || (() => {}),
-      },
-    })),
-  },
+jest.mock('react-native', () => {
+  const React = require('react');
+
+  return {
+    Platform: {
+      OS: 'ios',
+      select: jest.fn((obj) => obj.ios || obj.default),
+    },
+    Keyboard: {
+      addListener: jest.fn(() => ({ remove: jest.fn() })),
+      removeListener: jest.fn(),
+    },
+    Alert: {
+      alert: jest.fn(),
+    },
+    StyleSheet: {
+      create: jest.fn((styles) => styles),
+      flatten: jest.fn((styles) => styles),
+    },
+    Dimensions: {
+      get: jest.fn(() => ({ width: 375, height: 812 })),
+    },
+    AppState: {
+      addEventListener: jest.fn(() => ({ remove: jest.fn() })),
+      currentState: 'active',
+    },
+    Animated: {
+      Value: jest.fn(() => ({
+        setValue: jest.fn(),
+        interpolate: jest.fn(),
+        _value: 0,
+      })),
+      timing: jest.fn(() => ({
+        start: jest.fn((callback) => callback && callback()),
+      })),
+      spring: jest.fn(() => ({
+        start: jest.fn((callback) => callback && callback()),
+      })),
+      parallel: jest.fn((animations) => ({
+        start: jest.fn((callback) => callback && callback()),
+      })),
+      View: 'Animated.View',
+    },
+    PanResponder: {
+      create: jest.fn((config) => ({
+        panHandlers: {
+          onStartShouldSetResponder: config.onStartShouldSetPanResponder || (() => false),
+          onMoveShouldSetResponder: config.onMoveShouldSetPanResponder || (() => false),
+          onStartShouldSetPanResponder: config.onStartShouldSetPanResponder || (() => false),
+          onMoveShouldSetPanResponder: config.onMoveShouldSetPanResponder || (() => false),
+          onResponderGrant: config.onPanResponderGrant || (() => {}),
+          onResponderMove: config.onPanResponderMove || (() => {}),
+          onResponderRelease: config.onPanResponderRelease || (() => {}),
+          onPanResponderGrant: config.onPanResponderGrant || (() => {}),
+          onPanResponderMove: config.onPanResponderMove || (() => {}),
+          onPanResponderRelease: config.onPanResponderRelease || (() => {}),
+        },
+      })),
+    },
+    // Mock basic React Native components - must return JSX-like structure
+    View: 'View',
+    Text: 'Text',
+    TouchableOpacity: 'TouchableOpacity',
+    ScrollView: 'ScrollView',
+    Image: 'Image',
+    ActivityIndicator: 'ActivityIndicator',
+    Share: {
+      share: jest.fn(),
+    },
+    Linking: {
+      canOpenURL: jest.fn().mockResolvedValue(true),
+      openURL: jest.fn().mockResolvedValue(undefined),
+    },
+  };
+});
+
+// Mock react-native-svg
+jest.mock('react-native-svg', () => ({
+  __esModule: true,
+  default: 'Svg',
+  Svg: 'Svg',
+  Path: 'Path',
+  G: 'G',
+  Circle: 'Circle',
+  Rect: 'Rect',
+  Line: 'Line',
+  Polyline: 'Polyline',
+  Polygon: 'Polygon',
+  Ellipse: 'Ellipse',
+  Text: 'SvgText',
+  TSpan: 'TSpan',
+  Defs: 'Defs',
+  LinearGradient: 'LinearGradient',
+  Stop: 'Stop',
+}));
+
+// Mock expo-linear-gradient
+jest.mock('expo-linear-gradient', () => ({
+  LinearGradient: 'LinearGradient',
 }));

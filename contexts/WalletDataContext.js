@@ -4,13 +4,17 @@
  * Manages all wallet-related data fetching with unified auto-refresh logic
  */
 
-import React, { createContext, useContext, useState, useEffect, useCallback, useMemo, useRef } from 'react';
-import { fetchWalletBalances, fetchUtxos as fetchUtxosService } from '../services/balanceService';
-import { fetchAllTransactionHistory } from '../services/transactionHistoryService';
-import { fetchVaultData } from '../services/vaultService';
+import React, { createContext, useContext, useEffect, useCallback, useMemo, useRef } from 'react';
 import { useWallet } from './WalletContext';
 import { usePendingTransactions } from './PendingTransactionsContext';
 import { usePolling } from '../hooks/usePolling';
+import { useBalanceData } from '../hooks/useBalanceData';
+import { useTransactionHistoryFetch } from '../hooks/useTransactionHistoryFetch';
+import { useVaultDataFetch } from '../hooks/useVaultDataFetch';
+
+// Polling intervals (in milliseconds)
+const POLL_INTERVAL = 10000; // 10 seconds - for balance and vault data
+const HISTORY_POLL_INTERVAL = 30000; // 30 seconds - for transaction history
 
 const WalletDataContext = createContext();
 
@@ -43,193 +47,17 @@ export const WalletDataProvider = ({ children }) => {
   const { getUnconfirmedBalance } = usePendingTransactions();
 
   // ============================================================
-  // BALANCE STATE
-  // ============================================================
-  const [segwitBalance, setSegwitBalance] = useState(0);
-  const [taprootBalance, setTaprootBalance] = useState(0);
-  const [runesBalance, setRunesBalance] = useState([]);
-  const [loadingBalance, setLoadingBalance] = useState(false);
-  const [refreshing, setRefreshing] = useState(false);
-  const [balanceError, setBalanceError] = useState(null);
-
-  // Unconfirmed balance from pending transactions
-  const [unconfirmedSegwitBalance, setUnconfirmedSegwitBalance] = useState(0);
-  const [unconfirmedTaprootBalance, setUnconfirmedTaprootBalance] = useState(0);
-  const [unconfirmedRunesBalance, setUnconfirmedRunesBalance] = useState(0);
-
-  // UTXOs state
-  const [utxos, setUtxos] = useState([]);
-  const [loadingUtxos, setLoadingUtxos] = useState(false);
-
-  // ============================================================
-  // TRANSACTION HISTORY STATE
-  // ============================================================
-  const [transactionHistory, setTransactionHistory] = useState([]);
-  const [loadingTransactionHistory, setLoadingTransactionHistory] = useState(false);
-  const [historyError, setHistoryError] = useState(null);
-
-  // ============================================================
-  // VAULT DATA STATE
-  // ============================================================
-  const [vaultData, setVaultData] = useState(null);
-  const [loadingVault, setLoadingVault] = useState(false);
-  const [vaultError, setVaultError] = useState(null);
-
-  // ============================================================
-  // BALANCE FUNCTIONS
+  // USE EXTRACTED HOOKS FOR DATA MANAGEMENT
   // ============================================================
 
-  // Fetch wallet balance
-  const fetchBalance = useCallback(
-    async (segwitAddr, taprootAddr) => {
-      // If addresses are provided, use them; otherwise use wallet state
-      const segwitAddress = segwitAddr || wallet?.segwitAddress;
-      const taprootAddress = taprootAddr || wallet?.taprootAddress;
+  // Balance data hook
+  const balance = useBalanceData(wallet, getUnconfirmedBalance);
 
-      if (!segwitAddress || !taprootAddress) return;
+  // Transaction history data hook
+  const history = useTransactionHistoryFetch(wallet);
 
-      try {
-        setLoadingBalance(true);
-        setBalanceError(null); // Clear previous error
-        const balances = await fetchWalletBalances(segwitAddress, taprootAddress);
-        setSegwitBalance(balances.segwitBalance);
-        setTaprootBalance(balances.taprootBalance);
-        setRunesBalance(balances.runesBalance);
-
-        // Also fetch unconfirmed balances from pending transactions
-        const unconfirmedSegwit = getUnconfirmedBalance('segwit');
-        const unconfirmedTaproot = getUnconfirmedBalance('taproot');
-        setUnconfirmedSegwitBalance(unconfirmedSegwit.btc);
-        setUnconfirmedTaprootBalance(unconfirmedTaproot.btc);
-        setUnconfirmedRunesBalance(unconfirmedTaproot.runes);
-      } catch (error) {
-        // Set error state instead of silently failing with 0
-        setBalanceError('Failed to fetch balance. Tap to retry.');
-        // Don't reset balances to 0 - keep last known values
-      } finally {
-        setLoadingBalance(false);
-      }
-    },
-    [wallet, getUnconfirmedBalance]
-  );
-
-  // Refresh balances (pull-to-refresh)
-  const onRefresh = useCallback(async () => {
-    setRefreshing(true);
-    await fetchBalance();
-    setRefreshing(false);
-  }, [fetchBalance]);
-
-  // Fetch UTXOs for transaction creation
-  const fetchUtxos = useCallback(async (address) => {
-    try {
-      setLoadingUtxos(true);
-      const formattedUtxos = await fetchUtxosService(address);
-      setUtxos(formattedUtxos);
-      return formattedUtxos;
-    } catch (error) {
-      throw error;
-    } finally {
-      setLoadingUtxos(false);
-    }
-  }, []);
-
-  // Reset balances (called when wallet is reset)
-  const resetBalances = useCallback(() => {
-    setSegwitBalance(0);
-    setTaprootBalance(0);
-    setRunesBalance([]);
-    setUtxos([]);
-  }, []);
-
-  // ============================================================
-  // TRANSACTION HISTORY FUNCTIONS
-  // ============================================================
-
-  /**
-   * Fetch transaction history in background
-   * Fetches from both blockchain addresses and vault API
-   */
-  const fetchTransactionHistory = useCallback(async () => {
-    const segwitAddress = wallet?.segwitAddress;
-    const taprootAddress = wallet?.taprootAddress;
-    const vaultPubkey = wallet?.taprootPubkey;
-
-    if (!segwitAddress || !taprootAddress || !vaultPubkey) return;
-
-    try {
-      console.log('🔄 Fetching fresh transaction history from blockchain API...');
-      console.log('  - Segwit address:', segwitAddress);
-      console.log('  - Taproot address:', taprootAddress);
-      setLoadingTransactionHistory(true);
-      setHistoryError(null); // Clear previous error
-      const history = await fetchAllTransactionHistory(segwitAddress, taprootAddress, vaultPubkey);
-      console.log('✅ Fetched', history.length, 'transactions (including pending)');
-      setTransactionHistory(history);
-    } catch (error) {
-      console.error('❌ Failed to fetch transaction history:', error);
-      // Set error state instead of silently failing with empty array
-      setHistoryError('Failed to fetch transaction history');
-      // Don't reset history - keep last known values
-    } finally {
-      setLoadingTransactionHistory(false);
-    }
-  }, [wallet]);
-
-  /**
-   * Reset transaction history (called when wallet is reset)
-   */
-  const resetTransactionHistory = useCallback(() => {
-    setTransactionHistory([]);
-  }, []);
-
-  // ============================================================
-  // VAULT DATA FUNCTIONS
-  // ============================================================
-
-  /**
-   * Fetch vault data from validator API
-   */
-  const fetchVault = useCallback(async () => {
-    const vaultPubkey = wallet?.taprootPubkey;
-
-    if (!vaultPubkey) {
-      console.log('⚠️ fetchVault: No wallet or taprootPubkey available');
-      return;
-    }
-
-    console.log('🏦 WalletDataContext: Starting vault fetch for pubkey:', vaultPubkey);
-
-    try {
-      setLoadingVault(true);
-      setVaultError(null); // Clear previous error
-      const data = await fetchVaultData(vaultPubkey);
-      console.log('🏦 WalletDataContext: Vault data received:', data ? 'Data exists' : 'null (no vault)');
-      if (data) {
-        console.log('🏦 Wallet Card Vault Data:', {
-          vaultTag: data.vaultTag,
-          totalDebt: data.totalDebt,
-          totalCollateral: data.totalCollateral,
-          currentPrice: data.currentPrice,
-        });
-      }
-      setVaultData(data);
-    } catch (error) {
-      console.error('❌ WalletDataContext: Error fetching vault data:', error);
-      // Set error state instead of silently failing
-      setVaultError('Failed to fetch vault data');
-      // Don't reset vault data - keep last known values
-    } finally {
-      setLoadingVault(false);
-    }
-  }, [wallet]);
-
-  /**
-   * Reset vault data (called when wallet is reset)
-   */
-  const resetVaultData = useCallback(() => {
-    setVaultData(null);
-  }, []);
+  // Vault data hook
+  const vault = useVaultDataFetch(wallet);
 
   // ============================================================
   // UNIFIED AUTO-REFRESH POLLING
@@ -245,16 +73,16 @@ export const WalletDataProvider = ({ children }) => {
     if (!wallet) return;
 
     // Always fetch balance and vault together (every 10s)
-    fetchBalance();
-    fetchVault();
+    balance.fetchBalance();
+    vault.fetchVault();
 
-    // Fetch transaction history less frequently (every 30s)
+    // Fetch transaction history less frequently
     const now = Date.now();
-    if (now - lastHistoryFetchRef.current >= 30000) {
-      fetchTransactionHistory();
+    if (now - lastHistoryFetchRef.current >= HISTORY_POLL_INTERVAL) {
+      history.fetchTransactionHistory();
       lastHistoryFetchRef.current = now;
     }
-  }, [wallet, fetchBalance, fetchVault, fetchTransactionHistory]);
+  }, [wallet, balance, vault, history]);
 
   // Handle wallet changes - reset data when removed, fetch immediately when changed
   useEffect(() => {
@@ -263,28 +91,27 @@ export const WalletDataProvider = ({ children }) => {
 
     if (!wallet) {
       // Wallet removed - reset all data
-      resetBalances();
-      resetTransactionHistory();
-      resetVaultData();
+      balance.resetBalances();
+      history.resetTransactionHistory();
+      vault.resetVaultData();
       lastHistoryFetchRef.current = 0;
     } else if (prevWallet && wallet &&
                (prevWallet.segwitAddress !== wallet.segwitAddress ||
                 prevWallet.taprootAddress !== wallet.taprootAddress ||
                 prevWallet.taprootPubkey !== wallet.taprootPubkey)) {
       // Wallet changed (account switch) - immediately fetch all data
-      console.log('🔄 Account switch detected - fetching all data for new account');
-      fetchBalance();
-      fetchVault();
-      fetchTransactionHistory();
+      balance.fetchBalance();
+      vault.fetchVault();
+      history.fetchTransactionHistory();
       lastHistoryFetchRef.current = Date.now();
     }
     // Note: On initial mount (prevWallet is null), we rely on usePolling's immediate: true
-  }, [wallet, resetBalances, resetTransactionHistory, resetVaultData, fetchBalance, fetchVault, fetchTransactionHistory]);
+  }, [wallet, balance, history, vault]);
 
-  // Single unified polling mechanism (10 second interval)
+  // Single unified polling mechanism
   usePolling({
     onPoll: pollAllData,
-    interval: 10000,
+    interval: POLL_INTERVAL,
     enabled: !!wallet,
     immediate: true,
   });
@@ -296,97 +123,39 @@ export const WalletDataProvider = ({ children }) => {
   // Only recreate when actual data or functions change
   const value = useMemo(
     () => ({
-      // Balance namespace
-      balance: {
-        segwitBalance,
-        taprootBalance,
-        runesBalance,
-        unconfirmedSegwitBalance,
-        unconfirmedTaprootBalance,
-        unconfirmedRunesBalance,
-        loadingBalance,
-        refreshing,
-        balanceError,
-        utxos,
-        loadingUtxos,
-        fetchBalance,
-        onRefresh,
-        fetchUtxos,
-        resetBalances,
-      },
-      // Transaction history namespace
-      history: {
-        transactionHistory,
-        loadingTransactionHistory,
-        historyError,
-        fetchTransactionHistory,
-        resetTransactionHistory,
-      },
-      // Vault data namespace
-      vault: {
-        vaultData,
-        loadingVault,
-        vaultError,
-        fetchVault,
-        resetVaultData,
-      },
+      // Namespaced data (recommended for new code)
+      balance,
+      history,
+      vault,
       // Direct exports for backwards compatibility
-      segwitBalance,
-      taprootBalance,
-      runesBalance,
-      unconfirmedSegwitBalance,
-      unconfirmedTaprootBalance,
-      unconfirmedRunesBalance,
-      loadingBalance,
-      refreshing,
-      balanceError,
-      setBalanceError,
-      utxos,
-      loadingUtxos,
-      fetchBalance,
-      onRefresh,
-      fetchUtxos,
-      resetBalances,
-      transactionHistory,
-      loadingTransactionHistory,
-      historyError,
-      fetchTransactionHistory,
-      resetTransactionHistory,
-      vaultData,
-      loadingVault,
-      vaultError,
-      fetchVault,
-      resetVaultData,
+      segwitBalance: balance.segwitBalance,
+      taprootBalance: balance.taprootBalance,
+      runesBalance: balance.runesBalance,
+      unconfirmedSegwitBalance: balance.unconfirmedSegwitBalance,
+      unconfirmedTaprootBalance: balance.unconfirmedTaprootBalance,
+      unconfirmedRunesBalance: balance.unconfirmedRunesBalance,
+      loadingBalance: balance.loadingBalance,
+      refreshing: balance.refreshing,
+      balanceError: balance.balanceError,
+      setBalanceError: balance.setBalanceError,
+      utxos: balance.utxos,
+      loadingUtxos: balance.loadingUtxos,
+      fetchBalance: balance.fetchBalance,
+      onRefresh: balance.onRefresh,
+      fetchUtxos: balance.fetchUtxos,
+      resetBalances: balance.resetBalances,
+      transactionHistory: history.transactionHistory,
+      loadingTransactionHistory: history.loadingTransactionHistory,
+      historyError: history.historyError,
+      fetchTransactionHistory: history.fetchTransactionHistory,
+      resetTransactionHistory: history.resetTransactionHistory,
+      vaultData: vault.vaultData,
+      loadingVault: vault.loadingVault,
+      vaultError: vault.vaultError,
+      fetchVault: vault.fetchVault,
+      resetVaultData: vault.resetVaultData,
     }),
-    [
-      // All state dependencies
-      segwitBalance,
-      taprootBalance,
-      runesBalance,
-      unconfirmedSegwitBalance,
-      unconfirmedTaprootBalance,
-      unconfirmedRunesBalance,
-      loadingBalance,
-      refreshing,
-      balanceError,
-      utxos,
-      loadingUtxos,
-      transactionHistory,
-      loadingTransactionHistory,
-      historyError,
-      vaultData,
-      loadingVault,
-      vaultError,
-      // All function dependencies (already memoized with useCallback)
-      fetchBalance,
-      onRefresh,
-      fetchUtxos,
-      resetBalances,
-      fetchTransactionHistory,
-      resetTransactionHistory,
-      fetchVault,
-      resetVaultData,
-    ]
+    [balance, history, vault]
   );
 
   return <WalletDataContext.Provider value={value}>{children}</WalletDataContext.Provider>;

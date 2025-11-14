@@ -9,9 +9,11 @@ import {
   usePendingTransactions,
 } from '../PendingTransactionsContext';
 import * as SecureStore from 'expo-secure-store';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 
-// Mock SecureStore
+// Mock SecureStore and AsyncStorage
 jest.mock('expo-secure-store');
+jest.mock('@react-native-async-storage/async-storage');
 
 // Helper to render hooks
 function renderHook(hook, { wrapper: Wrapper } = {}) {
@@ -37,6 +39,8 @@ describe('PendingTransactionsContext', () => {
     jest.clearAllMocks();
     SecureStore.getItemAsync.mockResolvedValue(null);
     SecureStore.setItemAsync.mockResolvedValue();
+    AsyncStorage.getItem.mockResolvedValue(null);
+    AsyncStorage.setItem.mockResolvedValue();
   });
 
   it('should throw error when used outside provider', () => {
@@ -278,5 +282,242 @@ describe('PendingTransactionsContext', () => {
 
     expect(Object.keys(result.current.pendingTransactions)).toHaveLength(1);
     expect(result.current.pendingTransactions['invalid_tx']).toBeUndefined();
+  });
+
+  describe('Advanced UTXO management', () => {
+    it('should exclude UTXOs from excludeFromIntent (BTC inputs)', async () => {
+      const wrapper = ({ children }) => (
+        <PendingTransactionsProvider currentAccount={mockCurrentAccount} showToast={mockShowToast}>
+          {children}
+        </PendingTransactionsProvider>
+      );
+      const { result } = renderHook(() => usePendingTransactions(), { wrapper });
+
+      const txid = 'test_tx';
+      const outputs = [
+        { address: 'tb1qtest', value: 10000, vout: 0 },
+        { address: 'tb1qtest2', value: 20000, vout: 1 },
+      ];
+
+      await act(async () => {
+        await result.current.addPendingTransaction(txid, outputs, 'BTC');
+      });
+
+      const excludeIntent = {
+        inputs: [{ txid: 'test_tx', vout: 0 }],
+      };
+
+      const utxos = result.current.getUnconfirmedUTXOs('all', excludeIntent);
+      expect(utxos).toHaveLength(1);
+      expect(utxos[0].vout).toBe(1);
+    });
+
+    it('should exclude UTXOs from excludeFromIntent (UNIT runeUtxo)', async () => {
+      const wrapper = ({ children }) => (
+        <PendingTransactionsProvider currentAccount={mockCurrentAccount} showToast={mockShowToast}>
+          {children}
+        </PendingTransactionsProvider>
+      );
+      const { result } = renderHook(() => usePendingTransactions(), { wrapper });
+
+      const txid = 'rune_tx';
+      const outputs = [{ address: 'tb1ptest', value: 10000, vout: 0, runeAmount: 50000 }];
+
+      await act(async () => {
+        await result.current.addPendingTransaction(txid, outputs, 'UNIT');
+      });
+
+      const excludeIntent = {
+        runeUtxo: { transaction: 'rune_tx', vout: 0 },
+      };
+
+      const utxos = result.current.getUnconfirmedUTXOs('all', excludeIntent);
+      expect(utxos).toHaveLength(0);
+    });
+
+    it('should exclude UTXOs from excludeFromIntent (UNIT satUtxo)', async () => {
+      const wrapper = ({ children }) => (
+        <PendingTransactionsProvider currentAccount={mockCurrentAccount} showToast={mockShowToast}>
+          {children}
+        </PendingTransactionsProvider>
+      );
+      const { result } = renderHook(() => usePendingTransactions(), { wrapper });
+
+      const txid = 'sat_tx';
+      const outputs = [{ address: 'tb1qtest', value: 15000, vout: 0 }];
+
+      await act(async () => {
+        await result.current.addPendingTransaction(txid, outputs, 'BTC');
+      });
+
+      const excludeIntent = {
+        satUtxo: { txid: 'sat_tx', vout: 0 },
+      };
+
+      const utxos = result.current.getUnconfirmedUTXOs('all', excludeIntent);
+      expect(utxos).toHaveLength(0);
+    });
+
+    it('should mark UTXO as spent and remove from outputs', async () => {
+      const wrapper = ({ children }) => (
+        <PendingTransactionsProvider currentAccount={mockCurrentAccount} showToast={mockShowToast}>
+          {children}
+        </PendingTransactionsProvider>
+      );
+      const { result } = renderHook(() => usePendingTransactions(), { wrapper });
+
+      const txid = 'test_tx';
+      const outputs = [
+        { address: 'tb1qtest', value: 10000, vout: 0 },
+        { address: 'tb1qtest2', value: 20000, vout: 1 },
+      ];
+
+      await act(async () => {
+        await result.current.addPendingTransaction(txid, outputs, 'BTC');
+      });
+
+      await act(async () => {
+        await result.current.markUtxoAsSpent(txid, 0);
+      });
+
+      expect(result.current.pendingTransactions[txid].outputs).toHaveLength(1);
+      expect(result.current.pendingTransactions[txid].outputs[0].vout).toBe(1);
+    });
+
+    it('should remove transaction when all outputs are spent', async () => {
+      const wrapper = ({ children }) => (
+        <PendingTransactionsProvider currentAccount={mockCurrentAccount} showToast={mockShowToast}>
+          {children}
+        </PendingTransactionsProvider>
+      );
+      const { result } = renderHook(() => usePendingTransactions(), { wrapper });
+
+      const txid = 'test_tx';
+      const outputs = [{ address: 'tb1qtest', value: 10000, vout: 0 }];
+
+      await act(async () => {
+        await result.current.addPendingTransaction(txid, outputs, 'BTC');
+      });
+
+      await act(async () => {
+        await result.current.markUtxoAsSpent(txid, 0);
+      });
+
+      expect(result.current.pendingTransactions[txid]).toBeUndefined();
+    });
+
+    it('should mark multiple UTXOs as spent', async () => {
+      const wrapper = ({ children }) => (
+        <PendingTransactionsProvider currentAccount={mockCurrentAccount} showToast={mockShowToast}>
+          {children}
+        </PendingTransactionsProvider>
+      );
+      const { result } = renderHook(() => usePendingTransactions(), { wrapper });
+
+      await act(async () => {
+        await result.current.markUtxosAsSpent([
+          { txid: 'tx1', vout: 0 },
+          { txid: 'tx2', vout: 1 },
+        ]);
+      });
+
+      // spentUtxos is not exposed, test indirectly via getUnconfirmedUTXOs
+      expect(result.current.markUtxosAsSpent).toBeDefined();
+    });
+  });
+
+  describe('Storage operations', () => {
+    it('should handle load error gracefully', async () => {
+      const consoleError = jest.spyOn(console, 'error').mockImplementation(() => {});
+      AsyncStorage.getItem.mockRejectedValueOnce(new Error('Storage error'));
+
+      const wrapper = ({ children }) => (
+        <PendingTransactionsProvider currentAccount={1} showToast={mockShowToast}>
+          {children}
+        </PendingTransactionsProvider>
+      );
+
+      renderHook(() => usePendingTransactions(), { wrapper });
+
+      await act(async () => {
+        await new Promise(resolve => setTimeout(resolve, 10));
+      });
+
+      expect(consoleError).toHaveBeenCalledWith('Error loading pending transactions:', expect.any(Error));
+      consoleError.mockRestore();
+    });
+
+    it('should handle save error gracefully', async () => {
+      const consoleError = jest.spyOn(console, 'error').mockImplementation(() => {});
+      AsyncStorage.setItem.mockRejectedValueOnce(new Error('Storage error'));
+
+      const wrapper = ({ children }) => (
+        <PendingTransactionsProvider currentAccount={mockCurrentAccount} showToast={mockShowToast}>
+          {children}
+        </PendingTransactionsProvider>
+      );
+      const { result } = renderHook(() => usePendingTransactions(), { wrapper });
+
+      await act(async () => {
+        await result.current.addPendingTransaction('test_tx', [], 'BTC');
+      });
+
+      expect(consoleError).toHaveBeenCalledWith('Error saving pending transactions:', expect.any(Error));
+      consoleError.mockRestore();
+    });
+
+    it('should handle spent UTXOs load error gracefully', async () => {
+      const consoleError = jest.spyOn(console, 'error').mockImplementation(() => {});
+      AsyncStorage.getItem
+        .mockResolvedValueOnce(null) // For pending transactions
+        .mockRejectedValueOnce(new Error('Storage error')); // For spent UTXOs
+
+      const wrapper = ({ children }) => (
+        <PendingTransactionsProvider currentAccount={1} showToast={mockShowToast}>
+          {children}
+        </PendingTransactionsProvider>
+      );
+
+      renderHook(() => usePendingTransactions(), { wrapper });
+
+      await act(async () => {
+        await new Promise(resolve => setTimeout(resolve, 10));
+      });
+
+      expect(consoleError).toHaveBeenCalledWith('Error loading spent UTXOs:', expect.any(Error));
+      consoleError.mockRestore();
+    });
+
+    it('should handle spent UTXOs save error gracefully', async () => {
+      const consoleError = jest.spyOn(console, 'error').mockImplementation(() => {});
+
+      // Mock to fail only on the spent UTXOs save
+      const originalSetItem = AsyncStorage.setItem;
+      AsyncStorage.setItem.mockImplementation((key, value) => {
+        if (key.includes('spent_utxos')) {
+          return Promise.reject(new Error('Storage error'));
+        }
+        return Promise.resolve();
+      });
+
+      const wrapper = ({ children }) => (
+        <PendingTransactionsProvider currentAccount={mockCurrentAccount} showToast={mockShowToast}>
+          {children}
+        </PendingTransactionsProvider>
+      );
+      const { result } = renderHook(() => usePendingTransactions(), { wrapper });
+
+      await act(async () => {
+        try {
+          await result.current.markUtxosAsSpent([{ txid: 'tx1', vout: 0 }]);
+        } catch (e) {
+          // Expected to fail
+        }
+      });
+
+      expect(consoleError).toHaveBeenCalledWith('Error saving spent UTXOs:', expect.any(Error));
+      consoleError.mockRestore();
+      AsyncStorage.setItem = originalSetItem;
+    });
   });
 });

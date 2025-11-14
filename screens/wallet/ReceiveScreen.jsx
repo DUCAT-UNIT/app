@@ -1,29 +1,16 @@
-import React, { useState, useRef } from 'react';
+/**
+ * ReceiveScreen
+ * Displays Bitcoin addresses with QR codes for receiving funds
+ */
+
+import React, { useState } from 'react';
 import PropTypes from 'prop-types';
-import {
-  View,
-  Text,
-  TouchableOpacity,
-  PanResponder,
-  Share,
-  Animated,
-  Dimensions,
-  ScrollView,
-  StyleSheet,
-} from 'react-native';
+import { View, Text, TouchableOpacity, Animated, Share, StyleSheet } from 'react-native';
 import * as Clipboard from 'expo-clipboard';
-import QRCode from 'react-native-qrcode-svg';
 import { COLORS } from '../../theme';
-import Icon from '../../components/icons';
-
-const SCREEN_WIDTH = Dimensions.get('window').width;
-const SCREEN_HEIGHT = Dimensions.get('window').height;
-
-// Calculate QR code size based on screen width
-// iPhone SE has 320px width, larger phones have 375-430px
-const QR_SIZE =
-  SCREEN_WIDTH < 375 ? Math.min(SCREEN_WIDTH * 0.5, 180) : Math.min(SCREEN_WIDTH * 0.6, 220);
-const LOGO_SIZE = Math.floor(QR_SIZE * 0.21); // 21% of QR size
+import AddressRow from '../../components/receive/AddressRow';
+import QRModal from '../../components/receive/QRModal';
+import { useReceiveScreenAnimations } from '../../hooks/useReceiveScreenAnimations';
 
 const ReceiveScreen = React.memo(function ReceiveScreen({
   styles,
@@ -36,32 +23,35 @@ const ReceiveScreen = React.memo(function ReceiveScreen({
   const [showQrModal, setShowQrModal] = useState(false);
   const [selectedAddress, setSelectedAddress] = useState(null);
   const [selectedType, setSelectedType] = useState(null);
-  const _isDismissing = useRef(false);
-  const translateX = useRef(new Animated.Value(0)).current;
-  const translateY = useRef(new Animated.Value(0)).current;
-  const receiveSheetOpacity = useRef(new Animated.Value(0)).current;
-  const receiveOpacity = useRef(new Animated.Value(1)).current;
-  const qrOpacity = useRef(new Animated.Value(0)).current;
 
-  // Pan responder for swipe-down to dismiss
-  const receiveTranslateY = useRef(new Animated.Value(0)).current;
-
-  const panResponderRef = useRef(null);
-  const qrModalPanResponderRef = useRef(null);
+  const {
+    receiveSheetOpacity,
+    receiveTranslateY,
+    qrOpacity,
+    translateX,
+    translateY,
+    panResponder,
+    qrModalPanResponder,
+    handleDismiss,
+    handleQrBack,
+    prepareQrAnimation,
+  } = useReceiveScreenAnimations(showReceiveSheet, showQrModal, onClose);
 
   const handleCopyAddress = (address, type) => {
     Clipboard.setString(address);
     showToast(`${type} address copied to clipboard`);
   };
 
-  const handleQrPress = (address, type, _tag) => {
+  const handleQrPress = (address, type) => {
     setSelectedAddress(address);
     setSelectedType(type);
     setShowQrModal(true);
-    translateX.setValue(0);
-    translateY.setValue(0);
-    receiveOpacity.setValue(0);
-    qrOpacity.setValue(1);
+    prepareQrAnimation();
+  };
+
+  const handleQrBackPress = () => {
+    setShowQrModal(false);
+    handleQrBack().start();
   };
 
   const handleShare = async () => {
@@ -69,117 +59,10 @@ const ReceiveScreen = React.memo(function ReceiveScreen({
       await Share.share({
         message: selectedAddress,
       });
-    } catch (error) {}
+    } catch (error) {
+      // Silently fail
+    }
   };
-
-  const handleDismiss = () => {
-    Animated.timing(receiveTranslateY, {
-      toValue: SCREEN_HEIGHT,
-      duration: 250,
-      useNativeDriver: true,
-    }).start(() => {
-      receiveSheetOpacity.setValue(0);
-      onClose();
-    });
-  };
-
-  // Create pan responders once after functions are defined
-  if (!panResponderRef.current) {
-    panResponderRef.current = PanResponder.create({
-      onStartShouldSetPanResponder: () => true,
-      onMoveShouldSetPanResponder: (_, gestureState) => {
-        if (showQrModal) return false;
-        const isDownwardSwipe =
-          gestureState.dy > 5 && Math.abs(gestureState.dy) > Math.abs(gestureState.dx);
-        return isDownwardSwipe;
-      },
-      onPanResponderMove: (_, gestureState) => {
-        if (showQrModal) return;
-        if (gestureState.dy > 0) {
-          receiveTranslateY.setValue(gestureState.dy);
-        }
-      },
-      onPanResponderRelease: (_, gestureState) => {
-        if (showQrModal) return;
-
-        if (gestureState.dy > 100 || gestureState.vy > 0.5) {
-          handleDismiss();
-        } else {
-          Animated.spring(receiveTranslateY, {
-            toValue: 0,
-            useNativeDriver: true,
-            friction: 8,
-          }).start();
-        }
-      },
-    });
-  }
-
-  if (!qrModalPanResponderRef.current) {
-    qrModalPanResponderRef.current = PanResponder.create({
-      onStartShouldSetPanResponder: () => true,
-      onMoveShouldSetPanResponder: (_, gestureState) => {
-        const isSwipeRight =
-          gestureState.dx > 10 && Math.abs(gestureState.dx) > Math.abs(gestureState.dy);
-        return isSwipeRight;
-      },
-      onPanResponderMove: (_, gestureState) => {
-        if (gestureState.dx > 0) {
-          translateX.setValue(gestureState.dx);
-          const progress = Math.min(gestureState.dx / 100, 1);
-          receiveOpacity.setValue(progress);
-        }
-      },
-      onPanResponderRelease: (_, gestureState) => {
-        if (gestureState.dx > 100 || gestureState.vx > 0.5) {
-          setShowQrModal(false);
-
-          Animated.parallel([
-            Animated.timing(translateX, {
-              toValue: SCREEN_WIDTH,
-              duration: 250,
-              useNativeDriver: true,
-            }),
-            Animated.timing(qrOpacity, {
-              toValue: 0,
-              duration: 150,
-              useNativeDriver: true,
-            }),
-            Animated.timing(receiveOpacity, {
-              toValue: 1,
-              duration: 150,
-              useNativeDriver: true,
-            }),
-          ]).start();
-        } else {
-          Animated.parallel([
-            Animated.spring(translateX, {
-              toValue: 0,
-              useNativeDriver: true,
-              friction: 8,
-            }),
-            Animated.timing(receiveOpacity, {
-              toValue: 0,
-              duration: 150,
-              useNativeDriver: true,
-            }),
-          ]).start();
-        }
-      },
-    });
-  }
-
-  // Reset position when opening, force invisible when closed
-  const prevShowReceiveSheet = useRef(showReceiveSheet);
-  if (showReceiveSheet && !prevShowReceiveSheet.current) {
-    // Just opened - reset to visible position
-    receiveTranslateY.setValue(0);
-    receiveSheetOpacity.setValue(1);
-  } else if (!showReceiveSheet && prevShowReceiveSheet.current) {
-    // Just closed - force invisible immediately
-    receiveSheetOpacity.setValue(0);
-  }
-  prevShowReceiveSheet.current = showReceiveSheet;
 
   return (
     <>
@@ -190,6 +73,7 @@ const ReceiveScreen = React.memo(function ReceiveScreen({
           onPress={handleDismiss}
         />
       )}
+
       <Animated.View
         style={[
           styles.bottomSheet,
@@ -199,212 +83,68 @@ const ReceiveScreen = React.memo(function ReceiveScreen({
           },
         ]}
         pointerEvents={!showReceiveSheet || showQrModal ? 'none' : 'auto'}
-        {...panResponderRef.current.panHandlers}
+        {...panResponder.panHandlers}
       >
         <View style={styles.bottomSheetHandle} />
-
         <Text style={styles.bottomSheetTitle}>Receive</Text>
 
         {/* Native SegWit Address Row */}
-        <TouchableOpacity
-          style={styles.receiveAddressRow}
-          onPress={() => handleCopyAddress(segwitAddress, 'SegWit')}
-          activeOpacity={0.7}
-        >
-          <View style={styles.receiveAddressInfo}>
-            <View style={styles.receiveAddressLabelRow}>
-              <Text style={styles.receiveAddressLabel}>Native SegWit</Text>
-              <View style={[styles.receiveAddressTag, localStyles.btcTag]}>
-                <Text style={[styles.receiveAddressTagText, localStyles.btcTagText]}>BTC</Text>
-              </View>
-            </View>
-            <Text style={styles.receiveAddress} numberOfLines={1} ellipsizeMode="middle">
-              {segwitAddress}
-            </Text>
-          </View>
-          <TouchableOpacity
-            style={styles.receiveQrButton}
-            onPress={(e) => {
-              e.stopPropagation();
-              handleQrPress(segwitAddress, 'Native SegWit', 'BTC');
-            }}
-          >
-            <Icon name="qr_code" size={24} color={COLORS.PRIMARY_BLUE} />
-          </TouchableOpacity>
-        </TouchableOpacity>
+        <AddressRow
+          label="Native SegWit"
+          address={segwitAddress}
+          tag="BTC"
+          tagStyle={localStyles.btcTag}
+          onCopy={() => handleCopyAddress(segwitAddress, 'SegWit')}
+          onQrPress={() => handleQrPress(segwitAddress, 'Native SegWit')}
+          styles={styles}
+        />
 
         {/* Taproot Address Row */}
-        <TouchableOpacity
-          style={styles.receiveAddressRow}
-          onPress={() => handleCopyAddress(taprootAddress, 'Taproot')}
-          activeOpacity={0.7}
-        >
-          <View style={styles.receiveAddressInfo}>
-            <View style={styles.receiveAddressLabelRow}>
-              <Text style={styles.receiveAddressLabel}>Taproot</Text>
-              <View style={[styles.receiveAddressTag, localStyles.unitTag]}>
-                <Text style={[styles.receiveAddressTagText, localStyles.unitTagText]}>UNIT</Text>
-              </View>
-            </View>
-            <Text style={styles.receiveAddress} numberOfLines={1} ellipsizeMode="middle">
-              {taprootAddress}
-            </Text>
-          </View>
-          <TouchableOpacity
-            style={styles.receiveQrButton}
-            onPress={(e) => {
-              e.stopPropagation();
-              handleQrPress(taprootAddress, 'Taproot', 'Runes');
-            }}
-          >
-            <Icon name="qr_code" size={24} color={COLORS.PRIMARY_BLUE} />
-          </TouchableOpacity>
-        </TouchableOpacity>
+        <AddressRow
+          label="Taproot"
+          address={taprootAddress}
+          tag="UNIT"
+          tagStyle={localStyles.unitTag}
+          onCopy={() => handleCopyAddress(taprootAddress, 'Taproot')}
+          onQrPress={() => handleQrPress(taprootAddress, 'Taproot')}
+          styles={styles}
+        />
       </Animated.View>
 
       {/* QR Code Modal */}
-      {selectedAddress && (
-        <Animated.View
-          style={[
-            styles.qrModalContainer,
-            {
-              opacity: qrOpacity,
-              transform: [{ translateX }, { translateY }],
-            },
-          ]}
-          pointerEvents={showQrModal ? 'auto' : 'none'}
-          {...qrModalPanResponderRef.current.panHandlers}
-        >
-          {/* Network header bar */}
-          <View style={styles.qrModalNetworkBar}>
-            <Text style={styles.qrModalNetworkText}>Mutinynet Edition</Text>
-          </View>
-
-          <ScrollView
-            style={localStyles.scrollContainer}
-            contentContainerStyle={styles.qrModalContent}
-            showsVerticalScrollIndicator={false}
-          >
-            {/* Header with back button and title */}
-            <View style={localStyles.qrHeader}>
-              <TouchableOpacity
-                onPress={() => {
-                  // Start showing receive sheet immediately, then animate
-                  setShowQrModal(false);
-
-                  Animated.parallel([
-                    Animated.timing(translateX, {
-                      toValue: SCREEN_WIDTH,
-                      duration: 250,
-                      useNativeDriver: true,
-                    }),
-                    Animated.timing(qrOpacity, {
-                      toValue: 0,
-                      duration: 150,
-                      useNativeDriver: true,
-                    }),
-                    Animated.timing(receiveOpacity, {
-                      toValue: 1,
-                      duration: 150,
-                      useNativeDriver: true,
-                    }),
-                  ]).start();
-                }}
-                style={localStyles.backButton}
-              >
-                <Icon name="back" size={24} color={COLORS.VERY_LIGHT_GRAY} />
-              </TouchableOpacity>
-              <View style={localStyles.titleContainer}>
-                <Text style={styles.qrModalTitle}>Bitcoin address</Text>
-              </View>
-            </View>
-            <Text style={styles.qrModalSubtitle}>Only use this address to receive Bitcoin.</Text>
-
-            {/* QR Code */}
-            <View style={styles.qrCodeContainer}>
-              <QRCode
-                value={selectedAddress}
-                size={QR_SIZE}
-                backgroundColor="white"
-                color="black"
-                logo={require('../../assets/logos/btc-logo.png')}
-                logoSize={LOGO_SIZE}
-                logoBackgroundColor="white"
-                logoBorderRadius={Math.floor(LOGO_SIZE / 2)}
-              />
-            </View>
-
-            {/* Address container - tap to copy */}
-            <TouchableOpacity
-              style={styles.qrAddressContainer}
-              onPress={() => handleCopyAddress(selectedAddress, selectedType)}
-              activeOpacity={0.7}
-            >
-              <View style={localStyles.addressContentContainer}>
-                <View style={localStyles.addressLabelRow}>
-                  <Text style={styles.qrAddressLabelText}>{selectedType}</Text>
-                  <Text style={localStyles.tapToCopyText}>Tap to copy</Text>
-                </View>
-                <Text style={styles.qrAddressFullText}>{selectedAddress}</Text>
-              </View>
-            </TouchableOpacity>
-
-            {/* Share button */}
-            <TouchableOpacity style={styles.qrShareButton} onPress={handleShare}>
-              <Text style={styles.qrShareIcon}>↗</Text>
-              <Text style={styles.qrShareButtonText}>Share</Text>
-            </TouchableOpacity>
-          </ScrollView>
-        </Animated.View>
-      )}
+      <QRModal
+        visible={showQrModal}
+        address={selectedAddress}
+        addressType={selectedType}
+        onBack={handleQrBackPress}
+        onCopy={() => handleCopyAddress(selectedAddress, selectedType)}
+        onShare={handleShare}
+        qrOpacity={qrOpacity}
+        translateX={translateX}
+        translateY={translateY}
+        qrModalPanResponder={qrModalPanResponder}
+        styles={styles}
+      />
     </>
   );
 });
 
 const localStyles = StyleSheet.create({
   btcTag: {
-    backgroundColor: '#FFB800',
-  },
-  btcTagText: {
-    color: COLORS.DARK_BG,
+    container: {
+      backgroundColor: COLORS.BITCOIN_ORANGE,
+    },
+    text: {
+      color: COLORS.DARK_BG,
+    },
   },
   unitTag: {
-    backgroundColor: COLORS.PRIMARY_BLUE,
-  },
-  unitTagText: {
-    color: '#DDDDDD',
-  },
-  scrollContainer: {
-    flex: 1,
-  },
-  qrHeader: {
-    marginTop: 20,
-    flexDirection: 'row',
-    alignItems: 'center',
-    width: '100%',
-    position: 'relative',
-  },
-  backButton: {
-    position: 'absolute',
-    left: -10,
-  },
-  titleContainer: {
-    flex: 1,
-    alignItems: 'center',
-  },
-  addressContentContainer: {
-    flex: 1,
-  },
-  addressLabelRow: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    marginBottom: 8,
-  },
-  tapToCopyText: {
-    fontSize: 12,
-    color: COLORS.PRIMARY_BLUE,
-    fontFamily: 'CabinetGrotesk-Medium',
+    container: {
+      backgroundColor: COLORS.PRIMARY_BLUE,
+    },
+    text: {
+      color: COLORS.VERY_LIGHT_GRAY,
+    },
   },
 });
 

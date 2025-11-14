@@ -23,16 +23,16 @@
         <div class='clearfix'>
             
             <div class='fl pad1y space-right2'>
-                <span class="strong">100% </span>
+                <span class="strong">96.74% </span>
                 <span class="quiet">Statements</span>
-                <span class='fraction'>118/118</span>
+                <span class='fraction'>119/123</span>
             </div>
         
             
             <div class='fl pad1y space-right2'>
-                <span class="strong">100% </span>
+                <span class="strong">95.65% </span>
                 <span class="quiet">Branches</span>
-                <span class='fraction'>44/44</span>
+                <span class='fraction'>44/46</span>
             </div>
         
             
@@ -44,9 +44,9 @@
         
             
             <div class='fl pad1y space-right2'>
-                <span class="strong">100% </span>
+                <span class="strong">96.74% </span>
                 <span class="quiet">Lines</span>
-                <span class='fraction'>118/118</span>
+                <span class='fraction'>119/123</span>
             </div>
         
             
@@ -357,7 +357,8 @@
 <a name='L292'></a><a href='#L292'>292</a>
 <a name='L293'></a><a href='#L293'>293</a>
 <a name='L294'></a><a href='#L294'>294</a>
-<a name='L295'></a><a href='#L295'>295</a></td><td class="line-coverage quiet"><span class="cline-any cline-neutral">&nbsp;</span>
+<a name='L295'></a><a href='#L295'>295</a>
+<a name='L296'></a><a href='#L296'>296</a></td><td class="line-coverage quiet"><span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
@@ -514,7 +515,6 @@
 <span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-yes">11x</span>
 <span class="cline-any cline-yes">7x</span>
-<span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-yes">7x</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
@@ -522,11 +522,8 @@
 <span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-yes">5x</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
-<span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-yes">1x</span>
-<span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-yes">1x</span>
-<span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-yes">1x</span>
 <span class="cline-any cline-yes">1x</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
@@ -579,30 +576,35 @@
 <span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-yes">11x</span>
-<span class="cline-any cline-yes">7x</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-yes">7x</span>
-<span class="cline-any cline-neutral">&nbsp;</span>
-<span class="cline-any cline-neutral">&nbsp;</span>
-<span class="cline-any cline-neutral">&nbsp;</span>
-<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-yes">5x</span>
 <span class="cline-any cline-yes">5x</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
-<span class="cline-any cline-yes">1x</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
-<span class="cline-any cline-yes">1x</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
-<span class="cline-any cline-yes">1x</span>
-<span class="cline-any cline-yes">1x</span>
+<span class="cline-any cline-yes">4x</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-yes">4x</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
-<span class="cline-any cline-yes">2x</span>
+<span class="cline-any cline-yes">1x</span>
 <span class="cline-any cline-yes">1x</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-yes">1x</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-yes">2x</span>
+<span class="cline-any cline-yes">2x</span>
+<span class="cline-any cline-yes">2x</span>
 <span class="cline-any cline-yes">2x</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
@@ -808,24 +810,20 @@ export function useSettings({
     // If enabling, require authentication first
     if (newValue) {
       try {
-        // Try biometric auth first if available
         const result = await AuthService.authenticateWithBiometrics(
           'Authenticate to enable Face ID',
           'Use PIN'
         );
 &nbsp;
         if (!result.success) {
-          // Biometric failed or not available, fall back to PIN
-          // Set a flag to indicate we're enabling Face ID after PIN verification
+          // Biometric failed, fall back to PIN
           await SecureStore.setItemAsync('pendingFaceIdEnable', 'true');
-          // Set flag to return to settings after PIN entry
           await SecureStore.setItemAsync('returnToSettingsAfterAuth', 'true');
-          // Lock wallet to trigger PIN entry
           setIsAuthenticated(false);
           return;
         }
 &nbsp;
-        // Set flag to return to settings after Face ID is enabled (component might remount)
+        // Biometric auth succeeded, set flag to return to settings
         await SecureStore.setItemAsync('returnToSettingsAfterAuth', 'true');
       } catch (error) {
         if (showToast) {
@@ -873,30 +871,35 @@ export function useSettings({
 &nbsp;
     // If enabling, require authentication first
     if (newValue) {
-      try {
-        // Try biometric auth first if available
-        const result = await AuthService.authenticateWithBiometrics(
-          'Authenticate to enable notifications',
-          'Use PIN'
-        );
+      // Only try biometric if it's enabled in settings
+      if (biometricEnabled) {
+        try {
+          const result = await AuthService.authenticateWithBiometrics(
+            'Authenticate to enable notifications',
+            'Use PIN'
+          );
 &nbsp;
-        if (!result.success) {
-          // Biometric failed or not available, fall back to PIN
-          // Set a flag to indicate we're enabling notifications after PIN verification
-          await SecureStore.setItemAsync('pendingNotificationsEnable', 'true');
-          // Set flag to return to settings after PIN entry
+          <span class="missing-if-branch" title="if path not taken" >I</span>if (!result.success) {
+            // Biometric failed, fall back to PIN
+<span class="cstat-no" title="statement not covered" >            await SecureStore.setItemAsync('pendingNotificationsEnable', 'true');</span>
+<span class="cstat-no" title="statement not covered" >            await SecureStore.setItemAsync('returnToSettingsAfterAuth', 'true');</span>
+<span class="cstat-no" title="statement not covered" >            setIsAuthenticated(false);</span>
+<span class="cstat-no" title="statement not covered" >            return;</span>
+          }
+&nbsp;
+          // Biometric auth succeeded, set flag to return to settings
           await SecureStore.setItemAsync('returnToSettingsAfterAuth', 'true');
-          // Lock wallet to trigger PIN entry
-          setIsAuthenticated(false);
+        } catch (error) {
+          <span class="missing-if-branch" title="else path not taken" >E</span>if (showToast) {
+            showToast('Authentication required to enable notifications', 'error');
+          }
           return;
         }
-&nbsp;
-        // Biometric auth succeeded, set flag to return to settings after toggle (component might remount)
+      } else {
+        // Biometric disabled, go straight to PIN
+        await SecureStore.setItemAsync('pendingNotificationsEnable', 'true');
         await SecureStore.setItemAsync('returnToSettingsAfterAuth', 'true');
-      } catch (error) {
-        if (showToast) {
-          showToast('Authentication required to enable notifications', 'error');
-        }
+        setIsAuthenticated(false);
         return;
       }
     }
@@ -952,7 +955,7 @@ export function useSettings({
             <div class='footer quiet pad2 space-top1 center small'>
                 Code coverage generated by
                 <a href="https://istanbul.js.org/" target="_blank" rel="noopener noreferrer">istanbul</a>
-                at 2025-11-13T12:35:33.603Z
+                at 2025-11-14T16:49:42.066Z
             </div>
         <script src="../prettify.js"></script>
         <script>

@@ -568,4 +568,37 @@ describe('AirdropContext', () => {
     expect(SecureStore.deleteItemAsync).toHaveBeenCalledWith(lockKey);
   });
 
+  it('should skip airdrop when fresh lock exists (< 60 seconds)', async () => {
+    const mockWallet = createMockWallet('freshlock');
+    const lockKey = `airdropLock_${mockWallet.segwitAddress}_0`;
+    const freshLockTime = Date.now() - 30 * 1000; // 30 seconds ago (fresh)
+
+    useBalance.mockReturnValue({ segwitBalance: 0, taprootBalance: 0 });
+    useWallet.mockReturnValue({ wallet: mockWallet, currentAccount: 0 });
+    useAuth.mockReturnValue({ isAuthenticated: true });
+
+    SecureStore.getItemAsync.mockImplementation((key) => {
+      if (key === lockKey) {
+        return Promise.resolve(freshLockTime.toString());
+      }
+      return Promise.resolve(null);
+    });
+
+    const wrapper = ({ children }) => (
+      <AirdropProvider seedConfirmed={true}>{children}</AirdropProvider>
+    );
+
+    await act(async () => {
+      renderHook(() => useAirdrop(), { wrapper });
+    });
+
+    await act(async () => {
+      jest.advanceTimersByTime(3000);
+      await Promise.resolve();
+    });
+
+    // Should not request airdrop due to fresh lock
+    expect(AirdropService.requestAirdrop).not.toHaveBeenCalled();
+  });
+
 });

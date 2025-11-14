@@ -255,4 +255,134 @@ describe('UIContext', () => {
     // Original toast should still be there
     expect(result.current.toasts).toHaveLength(1);
   });
+
+  describe('Snackbar priority logic', () => {
+    it('should show snackbar', () => {
+      const wrapper = ({ children }) => <UIProvider>{children}</UIProvider>;
+      const { result } = renderHook(() => useUI(), { wrapper });
+
+      act(() => {
+        result.current.showSnackbar({ message: 'Test', type: 'success', action: 'send' });
+      });
+
+      expect(result.current.snackbar).toEqual({ message: 'Test', type: 'success', action: 'send' });
+    });
+
+    it('should allow state progression (pending -> submitted -> success)', () => {
+      const wrapper = ({ children }) => <UIProvider>{children}</UIProvider>;
+      const { result } = renderHook(() => useUI(), { wrapper });
+
+      act(() => {
+        result.current.showSnackbar({ message: 'Pending', type: 'pending', action: 'send', txid: 'tx1' });
+      });
+      expect(result.current.snackbar.type).toBe('pending');
+
+      act(() => {
+        result.current.showSnackbar({ message: 'Submitted', type: 'submitted', action: 'send', txid: 'tx1' });
+      });
+      expect(result.current.snackbar.type).toBe('submitted');
+
+      act(() => {
+        result.current.showSnackbar({ message: 'Success', type: 'success', action: 'send', txid: 'tx1' });
+      });
+      expect(result.current.snackbar.type).toBe('success');
+    });
+
+    it('should prevent backward state transitions', () => {
+      const consoleLog = jest.spyOn(console, 'log').mockImplementation(() => {});
+      const wrapper = ({ children }) => <UIProvider>{children}</UIProvider>;
+      const { result } = renderHook(() => useUI(), { wrapper });
+
+      act(() => {
+        result.current.showSnackbar({ message: 'Success', type: 'success', action: 'send', txid: 'tx1' });
+      });
+      expect(result.current.snackbar.type).toBe('success');
+
+      act(() => {
+        result.current.showSnackbar({ message: 'Pending', type: 'pending', action: 'send', txid: 'tx1' });
+      });
+      // Should still be success, not pending
+      expect(result.current.snackbar.type).toBe('success');
+      expect(consoleLog).toHaveBeenCalledWith(expect.stringContaining('Ignoring backward state transition'), 'success', '->', 'pending');
+
+      consoleLog.mockRestore();
+    });
+
+    it('should always show error messages', () => {
+      const wrapper = ({ children }) => <UIProvider>{children}</UIProvider>;
+      const { result } = renderHook(() => useUI(), { wrapper });
+
+      act(() => {
+        result.current.showSnackbar({ message: 'Success', type: 'success', action: 'send', txid: 'tx1' });
+      });
+
+      act(() => {
+        result.current.showSnackbar({ message: 'Error', type: 'error', action: 'send', txid: 'tx1' });
+      });
+      expect(result.current.snackbar.type).toBe('error');
+    });
+
+    it('should allow different transactions to show', () => {
+      const wrapper = ({ children }) => <UIProvider>{children}</UIProvider>;
+      const { result } = renderHook(() => useUI(), { wrapper });
+
+      act(() => {
+        result.current.showSnackbar({ message: 'TX1 Success', type: 'success', action: 'send', txid: 'tx1' });
+      });
+      expect(result.current.snackbar.txid).toBe('tx1');
+
+      act(() => {
+        result.current.showSnackbar({ message: 'TX2 Pending', type: 'pending', action: 'send', txid: 'tx2' });
+      });
+      // Different transaction, should show
+      expect(result.current.snackbar.txid).toBe('tx2');
+    });
+
+    it('should handle snackbars without txid', () => {
+      const wrapper = ({ children }) => <UIProvider>{children}</UIProvider>;
+      const { result } = renderHook(() => useUI(), { wrapper });
+
+      act(() => {
+        result.current.showSnackbar({ message: 'General message', type: 'success', action: 'general' });
+      });
+      expect(result.current.snackbar.message).toBe('General message');
+
+      act(() => {
+        result.current.showSnackbar({ message: 'Another message', type: 'pending', action: 'general' });
+      });
+      // Should not show due to backward state transition
+      expect(result.current.snackbar.message).toBe('General message');
+    });
+
+    it('should handle different action types independently', () => {
+      const wrapper = ({ children }) => <UIProvider>{children}</UIProvider>;
+      const { result } = renderHook(() => useUI(), { wrapper });
+
+      act(() => {
+        result.current.showSnackbar({ message: 'Send', type: 'success', action: 'send' });
+      });
+      expect(result.current.snackbar.action).toBe('send');
+
+      act(() => {
+        result.current.showSnackbar({ message: 'Receive', type: 'pending', action: 'receive' });
+      });
+      // Different action, should show
+      expect(result.current.snackbar.action).toBe('receive');
+    });
+
+    it('should dismiss snackbar', () => {
+      const wrapper = ({ children }) => <UIProvider>{children}</UIProvider>;
+      const { result } = renderHook(() => useUI(), { wrapper });
+
+      act(() => {
+        result.current.showSnackbar({ message: 'Test', type: 'success', action: 'send' });
+      });
+      expect(result.current.snackbar).not.toBeNull();
+
+      act(() => {
+        result.current.dismissSnackbar();
+      });
+      expect(result.current.snackbar).toBeNull();
+    });
+  });
 });

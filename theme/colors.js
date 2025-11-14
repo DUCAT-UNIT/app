@@ -40,9 +40,15 @@ export const COLORS = {
   // Warning/accent colors
   YELLOW: '#F5E4A2',
   WARNING_ORANGE: '#F5A623',
+  BITCOIN_ORANGE: '#FFB800',
 
   // Error/danger colors
   DANGER_RED: '#D04C68',
   BRIGHT_RED: '#D04C68',
   RED: '#D04C68',
+  ERROR_BG: 'rgba(208, 76, 104, 0.1)',
+
+  // Overlay colors
+  OVERLAY_START: 'rgba(20, 20, 20, 0.8)',
+  OVERLAY_END: 'rgba(20, 20, 20, 1)',
 };
