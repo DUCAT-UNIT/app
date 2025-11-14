@@ -62,13 +62,45 @@ export const UIProvider = ({ children }) => {
   // SNACKBAR (NEW)
   // ============================================================
   const [snackbar, setSnackbar] = useState(null);
+  const lastSnackbarRef = useRef(null);
 
   const showSnackbar = useCallback((snackbarParams) => {
+    console.log('🎯 UIContext showSnackbar called with:', snackbarParams);
+
+    // Define state hierarchy: pending < submitted < success
+    const stateRank = {
+      pending: 1,
+      submitted: 2,
+      success: 3,
+      error: 99, // errors always show
+    };
+
+    // If we have a previous snackbar, check if this is the same transaction
+    const last = lastSnackbarRef.current;
+    if (last && snackbarParams.action === last.action) {
+      // Same action type - check if it's the same transaction
+      const sameTx = (snackbarParams.txid && last.txid && snackbarParams.txid === last.txid) ||
+                     (!snackbarParams.txid && !last.txid);
+
+      if (sameTx || !snackbarParams.txid || !last.txid) {
+        const currentRank = stateRank[snackbarParams.type] || 0;
+        const lastRank = stateRank[last.type] || 0;
+
+        // Don't allow going backwards in state (e.g., submitted -> pending)
+        if (currentRank < lastRank && snackbarParams.type !== 'error') {
+          console.log('🎯 Ignoring backward state transition:', last.type, '->', snackbarParams.type);
+          return;
+        }
+      }
+    }
+
+    lastSnackbarRef.current = snackbarParams;
     setSnackbar(snackbarParams);
   }, []);
 
   const dismissSnackbar = useCallback(() => {
     setSnackbar(null);
+    // Don't reset lastSnackbarRef - keep tracking state even after dismissal
   }, []);
 
   // Legacy toast function (backwards compatible)

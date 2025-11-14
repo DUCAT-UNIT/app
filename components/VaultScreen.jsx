@@ -492,8 +492,11 @@ const VaultScreen = React.memo(function VaultScreen({ visible, walletCredentials
 
             // Handle snackbar messages from web app
             if (message.type === 'SHOW_SNACKBAR') {
+              console.log('📬 SHOW_SNACKBAR received:', message.payload);
+              console.log('📬 showSnackbar function available?', !!showSnackbar);
               if (showSnackbar) {
                 showSnackbar(message.payload);
+                console.log('📬 showSnackbar called');
               }
               return;
             }

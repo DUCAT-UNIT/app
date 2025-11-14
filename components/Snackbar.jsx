@@ -52,9 +52,12 @@ const computeTitle = (type, label) => {
 };
 
 export default function Snackbar({ params, onClose }) {
+  console.log('🎯 Snackbar rendering with params:', params);
   const slideAnim = React.useRef(new Animated.Value(-200)).current;
 
   useEffect(() => {
+    console.log('🎯 Snackbar mounted, starting animation');
+
     // Slide in animation
     Animated.spring(slideAnim, {
       toValue: 0,
@@ -130,9 +133,9 @@ export default function Snackbar({ params, onClose }) {
 const styles = StyleSheet.create({
   container: {
     position: 'absolute',
-    top: 0,
+    top: 60,
     left: 10,
-    right: 20,
+    right: 10,
     zIndex: 100,
     backgroundColor: COLORS.DARK_CARD_BG,
     borderRadius: 12,

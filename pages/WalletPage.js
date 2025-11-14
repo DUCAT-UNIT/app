@@ -19,7 +19,6 @@ import SettingsScreen from '../components/SettingsScreen';
 import MutinynetBanner from '../components/MutinynetBanner';
 import BottomNavigationBar from '../components/BottomNavigationBar';
 import ToastContainer from '../components/ToastContainer';
-import TransactionToast from '../components/TransactionToast';
 import SplashScreen from '../components/SplashScreen';
 import Snackbar from '../components/Snackbar';
 
@@ -63,10 +62,49 @@ export default function WalletPage() {
     setIntentStep,
   } = useSendFlow();
 
-  const { broadcastedTxid, toastDismissed, setToastDismissed } = useTransactionExecution();
+  const { broadcastedTxid } = useTransactionExecution();
 
   // Toast and Snackbar context
   const { toasts, showToast, snackbar, dismissSnackbar, showSnackbar } = useToastContext();
+
+  // Debug: Log snackbar state changes
+  React.useEffect(() => {
+    console.log('🎯 WalletPage snackbar state:', snackbar);
+  }, [snackbar]);
+
+  // Show snackbar for transaction states
+  React.useEffect(() => {
+    if (!broadcastedTxid) return;
+
+    const action = sendAssetType === 'unit' ? 'swap' : 'withdraw';
+    const clickAction = async () => {
+      const { getTxUrl, getOrdTxUrl } = require('../utils/constants');
+      const { Linking } = require('react-native');
+      const url = sendAssetType === 'unit' ? getOrdTxUrl(broadcastedTxid) : getTxUrl(broadcastedTxid);
+      const supported = await Linking.canOpenURL(url);
+      if (supported) {
+        await Linking.openURL(url);
+      }
+    };
+
+    if (intentStep === 'pending') {
+      // Step 1: Green check mark - "submitted" (transaction broadcast to network)
+      showSnackbar({
+        type: 'submitted',
+        action,
+        txid: broadcastedTxid,
+        clickAction,
+      });
+    } else if (intentStep === 'confirmed') {
+      // Step 2: Green check mark - "completed successfully!" (transaction confirmed)
+      showSnackbar({
+        type: 'success',
+        action,
+        txid: broadcastedTxid,
+        clickAction,
+      });
+    }
+  }, [intentStep, broadcastedTxid, sendAssetType, showSnackbar]);
 
   // Navigation hooks
   const {
@@ -87,23 +125,21 @@ export default function WalletPage() {
   const walletTranslateX = useRef(new Animated.Value(0)).current;
   const [isSwiping, setIsSwiping] = useState(false);
   const isAnimatingRef = useRef(false);
-  const lastActiveTabRef = useRef(activeTab);
 
-  // Keep positions in sync with activeTab - but only when clicking nav buttons, not after swipe
+  // Keep positions in sync with activeTab - runs on mount and whenever activeTab changes
   React.useEffect(() => {
-    // Only update positions if tab changed via button press (not swipe) and not currently animating
-    if (activeTab !== lastActiveTabRef.current && !isSwiping && !isAnimatingRef.current) {
-      if (activeTab === 'vault') {
-        // Vault is active - wallet should be off screen right, vault centered
-        walletTranslateX.setValue(SCREEN_WIDTH);
-        vaultTranslateX.setValue(0);
-      } else {
-        // Wallet is active - wallet centered, vault off screen left
-        walletTranslateX.setValue(0);
-        vaultTranslateX.setValue(-SCREEN_WIDTH);
-      }
+    // Don't interfere with swipe animations
+    if (isSwiping || isAnimatingRef.current) return;
+
+    if (activeTab === 'vault') {
+      // Vault is active - wallet should be off screen right, vault centered
+      walletTranslateX.setValue(SCREEN_WIDTH);
+      vaultTranslateX.setValue(0);
+    } else {
+      // Wallet is active - wallet centered, vault off screen left
+      walletTranslateX.setValue(0);
+      vaultTranslateX.setValue(-SCREEN_WIDTH);
     }
-    lastActiveTabRef.current = activeTab;
   }, [activeTab, isSwiping, walletTranslateX, vaultTranslateX]);
 
   // Pan responder for wallet screen - right swipe to reveal vault
@@ -331,25 +367,6 @@ export default function WalletPage() {
 
         {/* Toast Notification */}
         <ToastContainer toasts={toasts} />
-
-        {/* Transaction Toast */}
-        <TransactionToast
-          visible={
-            ['pending', 'confirmed'].includes(intentStep) &&
-            (intentStep === 'confirmed' || !toastDismissed)
-          }
-          status={intentStep}
-          message={
-            intentStep === 'pending'
-              ? 'Transaction pending...'
-              : intentStep === 'confirmed'
-                ? 'Transaction mined!'
-                : ''
-          }
-          txid={broadcastedTxid}
-          assetType={sendAssetType === 'unit' ? 'UNIT' : 'BTC'}
-          onClose={() => setToastDismissed(true)}
-        />
       </View>
 
       {/* Settings Screen Overlay */}
