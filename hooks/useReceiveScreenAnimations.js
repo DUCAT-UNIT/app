@@ -48,47 +48,54 @@ export function useReceiveScreenAnimations(showReceiveSheet, showQrModal, onClos
     ]);
   };
 
-  // Create pan responder initially
+  // Store showQrModal in a ref to access current value in pan responder
+  const showQrModalRef = useRef(showQrModal);
+  useEffect(() => {
+    showQrModalRef.current = showQrModal;
+  }, [showQrModal]);
+
+  // Create pan responder once with ref access to showQrModal
   if (!panResponderRef.current) {
     panResponderRef.current = PanResponder.create({
-      onStartShouldSetPanResponder: () => true,
-      onMoveShouldSetPanResponder: () => false, // Will be updated in effect
-      onPanResponderMove: () => {},
-      onPanResponderRelease: () => {},
-    });
-  }
-
-  // Update pan responder handlers when showQrModal changes
-  useEffect(() => {
-    panResponderRef.current = PanResponder.create({
-      onStartShouldSetPanResponder: () => !showQrModal,
+      onStartShouldSetPanResponder: () => false,
+      onStartShouldSetPanResponderCapture: () => false,
       onMoveShouldSetPanResponder: (_, gestureState) => {
-        if (showQrModal) return false;
-        const isDownwardSwipe =
-          gestureState.dy > 5 && Math.abs(gestureState.dy) > Math.abs(gestureState.dx);
+        // Don't respond if QR modal is showing
+        if (showQrModalRef.current) return false;
+        // Only capture downward swipes
+        const isDownwardSwipe = gestureState.dy > 2 && Math.abs(gestureState.dy) > Math.abs(gestureState.dx);
         return isDownwardSwipe;
       },
+      onMoveShouldSetPanResponderCapture: () => false,
+      onPanResponderGrant: () => {
+        // Store the starting position
+        receiveTranslateY.extractOffset();
+      },
       onPanResponderMove: (_, gestureState) => {
-        if (showQrModal) return;
+        // Follow finger movement
         if (gestureState.dy > 0) {
           receiveTranslateY.setValue(gestureState.dy);
         }
       },
       onPanResponderRelease: (_, gestureState) => {
-        if (showQrModal) return;
+        // Reset the offset
+        receiveTranslateY.flattenOffset();
 
+        // Dismiss if dragged far enough or with velocity
         if (gestureState.dy > 100 || gestureState.vy > 0.5) {
           handleDismiss();
         } else {
+          // Spring back to original position
           Animated.spring(receiveTranslateY, {
             toValue: 0,
             useNativeDriver: true,
             friction: 8,
+            tension: 100,
           }).start();
         }
       },
     });
-  }, [showQrModal, receiveTranslateY, handleDismiss]);
+  }
 
   if (!qrModalPanResponderRef.current) {
     qrModalPanResponderRef.current = PanResponder.create({
