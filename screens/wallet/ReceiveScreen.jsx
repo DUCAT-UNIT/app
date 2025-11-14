@@ -36,12 +36,27 @@ const ReceiveScreen = React.memo(function ReceiveScreen({
     handleQrBack,
     prepareQrAnimation,
     resetAfterQr,
+    setOnQrSwipeDismiss,
   } = useReceiveScreenAnimations(showReceiveSheet, showQrModal, onClose);
 
   const handleCopyAddress = (address, type) => {
     Clipboard.setString(address);
     showToast(`${type} address copied to clipboard`);
   };
+
+  const handleQrDismiss = React.useCallback(() => {
+    // Reset modal state and animations
+    setShowQrModal(false);
+    setSelectedAddress(null);
+    setSelectedType(null);
+    // Reset all animation values to restore receive sheet functionality
+    resetAfterQr();
+  }, [resetAfterQr]);
+
+  // Set up swipe dismiss callback
+  React.useEffect(() => {
+    setOnQrSwipeDismiss(() => handleQrDismiss);
+  }, [setOnQrSwipeDismiss, handleQrDismiss]);
 
   const handleQrPress = (address, type) => {
     setSelectedAddress(address);
@@ -52,12 +67,7 @@ const ReceiveScreen = React.memo(function ReceiveScreen({
 
   const handleQrBackPress = () => {
     handleQrBack().start(() => {
-      // Reset modal state and animations after animation completes
-      setShowQrModal(false);
-      setSelectedAddress(null);
-      setSelectedType(null);
-      // Reset all animation values to restore receive sheet functionality
-      resetAfterQr();
+      handleQrDismiss();
     });
   };
 

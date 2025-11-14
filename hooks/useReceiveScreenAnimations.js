@@ -97,6 +97,12 @@ export function useReceiveScreenAnimations(showReceiveSheet, showQrModal, onClos
     });
   }
 
+  // Store onQrSwipeDismiss callback
+  const onQrSwipeDismissRef = useRef(null);
+  const setOnQrSwipeDismiss = (callback) => {
+    onQrSwipeDismissRef.current = callback;
+  };
+
   if (!qrModalPanResponderRef.current) {
     qrModalPanResponderRef.current = PanResponder.create({
       onStartShouldSetPanResponder: () => true,
@@ -108,26 +114,24 @@ export function useReceiveScreenAnimations(showReceiveSheet, showQrModal, onClos
       onPanResponderMove: (_, gestureState) => {
         if (gestureState.dx > 0) {
           translateX.setValue(gestureState.dx);
-          const progress = Math.min(gestureState.dx / 100, 1);
-          receiveOpacity.setValue(progress);
         }
       },
       onPanResponderRelease: (_, gestureState) => {
         if (gestureState.dx > 100 || gestureState.vx > 0.5) {
-          handleQrBack().start();
+          // Swipe to dismiss
+          handleQrBack().start(() => {
+            // Call the dismiss callback if set
+            if (onQrSwipeDismissRef.current) {
+              onQrSwipeDismissRef.current();
+            }
+          });
         } else {
-          Animated.parallel([
-            Animated.spring(translateX, {
-              toValue: 0,
-              useNativeDriver: true,
-              friction: 8,
-            }),
-            Animated.timing(receiveOpacity, {
-              toValue: 0,
-              duration: 150,
-              useNativeDriver: true,
-            }),
-          ]).start();
+          // Spring back
+          Animated.spring(translateX, {
+            toValue: 0,
+            useNativeDriver: true,
+            friction: 8,
+          }).start();
         }
       },
     });
@@ -148,7 +152,6 @@ export function useReceiveScreenAnimations(showReceiveSheet, showQrModal, onClos
   const prepareQrAnimation = () => {
     translateX.setValue(0);
     translateY.setValue(0);
-    receiveOpacity.setValue(0);
     qrOpacity.setValue(1);
   };
 
@@ -157,7 +160,6 @@ export function useReceiveScreenAnimations(showReceiveSheet, showQrModal, onClos
     translateX.setValue(0);
     translateY.setValue(0);
     qrOpacity.setValue(0);
-    receiveOpacity.setValue(1);
     // Ensure receive sheet is in correct position
     receiveTranslateY.setValue(0);
     receiveSheetOpacity.setValue(1);
@@ -179,5 +181,6 @@ export function useReceiveScreenAnimations(showReceiveSheet, showQrModal, onClos
     handleQrBack,
     prepareQrAnimation,
     resetAfterQr,
+    setOnQrSwipeDismiss,
   };
 }
