@@ -4,6 +4,7 @@
  */
 
 import * as bitcoin from 'bitcoinjs-lib';
+import { logger } from '../utils/logger';
 
 /**
  * Parse PSBT and extract inputs, outputs, and calculate fees
@@ -31,7 +32,7 @@ export function parsePSBT(sendIntent) {
       actualFee: fee
     };
   } catch (error) {
-    console.error('Error decoding PSBT:', error);
+    logger.error('Error decoding PSBT:', error);
     return {
       psbtInputs: [],
       psbtOutputs: [],

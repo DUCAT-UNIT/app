@@ -6,6 +6,7 @@ import React, { createContext, useContext, useState, useEffect, useMemo, useCall
 
 import { deriveAddressesFromMnemonic } from '../utils/bitcoin';
 import { withMnemonic } from '../services/authService';
+import { logger } from '../utils/logger';
 
 const VaultContext = createContext();
 
@@ -26,7 +27,7 @@ export const VaultProvider = ({ children, currentAccount }) => {
   useEffect(() => {
     const loadVaultCredentials = async () => {
       try {
-        console.log('🏦 Loading vault credentials in background for account:', currentAccount);
+        logger.debug('🏦 Loading vault credentials in background for account:', currentAccount);
 
         // Use withMnemonic to ensure proper cleanup of sensitive data
         await withMnemonic(async (mnemonic) => {
@@ -47,7 +48,7 @@ export const VaultProvider = ({ children, currentAccount }) => {
         // Silently handle - no mnemonic is expected for new users
         // Only log if it's a different error
         if (error.message !== 'Mnemonic not found') {
-          console.error('❌ Error loading vault credentials:', error);
+          logger.error('❌ Error loading vault credentials:', error);
         }
       }
     };

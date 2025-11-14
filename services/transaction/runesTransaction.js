@@ -144,7 +144,7 @@ async function findRuneUtxo(taprootAddress, amountInRunes, unconfirmedUtxos, spe
   for (const utxo of unconfirmedUtxos) {
     const key = `${utxo.txid}:${utxo.vout}`;
     if (spentUtxos.has(key)) {
-      console.log('⚠️ Skipping spent rune UTXO:', key);
+      logger.debug('⚠️ Skipping spent rune UTXO:', key);
       continue;
     }
 
@@ -182,7 +182,7 @@ async function findRuneUtxo(taprootAddress, amountInRunes, unconfirmedUtxos, spe
 
         // Check if already spent
         if (spentUtxos.has(key)) {
-          console.log('⚠️ Skipping spent rune UTXO from ord API:', key);
+          logger.debug('⚠️ Skipping spent rune UTXO from ord API:', key);
           continue;
         }
 
@@ -216,7 +216,7 @@ async function findSatUtxo(segwitAddress, unconfirmedUtxos, spentUtxos) {
   for (const utxo of unconfirmedUtxos) {
     const key = `${utxo.txid}:${utxo.vout}`;
     if (spentUtxos.has(key)) {
-      console.log('⚠️ Skipping spent sat UTXO:', key);
+      logger.debug('⚠️ Skipping spent sat UTXO:', key);
       continue;
     }
 
@@ -238,7 +238,7 @@ async function findSatUtxo(segwitAddress, unconfirmedUtxos, spentUtxos) {
   for (const utxo of utxos) {
     const key = `${utxo.txid}:${utxo.vout}`;
     if (spentUtxos.has(key)) {
-      console.log('⚠️ Skipping spent sat UTXO from blockchain API:', key);
+      logger.debug('⚠️ Skipping spent sat UTXO from blockchain API:', key);
       continue;
     }
 

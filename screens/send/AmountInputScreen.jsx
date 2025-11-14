@@ -23,6 +23,7 @@ import { useWallet } from '../../contexts/WalletContext';
 import { useTransactionBuild } from '../../contexts/TransactionBuildContext';
 import { useKeyboard } from '../../hooks/useKeyboard';
 import { calculateMaxSendableBTC } from '../../services/transactionCalculationService';
+import { logger } from '../../utils/logger';
 
 export default function AmountInputScreen({ navigation }) {
   const { sendAssetType, sendAmount, setSendAmount, sendRecipient, sendAddressType } = useSendFlow();
@@ -88,7 +89,7 @@ export default function AmountInputScreen({ navigation }) {
         });
         setSendAmount(String(maxSendable));
       } catch (error) {
-        console.error('Error calculating max:', error);
+        logger.error('Error calculating max:', error);
         // Fallback to balance
         setSendAmount(String(balance || 0));
       } finally {

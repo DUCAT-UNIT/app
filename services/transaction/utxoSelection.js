@@ -31,7 +31,7 @@ export function mergeAndFilterUtxos(confirmedUtxos, unconfirmedUtxos, spentUtxos
   return Array.from(utxoMap.values()).filter(utxo => {
     const key = `${utxo.txid}:${utxo.vout}`;
     if (spentUtxos.has(key)) {
-      console.log('⚠️ Filtering out spent UTXO:', key);
+      logger.debug('⚠️ Filtering out spent UTXO:', key);
       return false;
     }
     return true;

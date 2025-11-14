@@ -15,6 +15,7 @@ import { useSendFlow } from './SendFlowContext';
 import { useTransactionBuild } from './TransactionBuildContext';
 import { usePendingTransactions } from './PendingTransactionsContext';
 import { useWallet } from './WalletContext';
+import { logger } from '../utils/logger';
 
 const TransactionExecutionContext = createContext();
 
@@ -59,13 +60,13 @@ export const TransactionExecutionProvider = ({
         return;
       }
 
-      console.log('📡 Broadcasting transaction...');
-      console.log('Intent inputs:', intent.inputs?.map(i => `${i.txid}:${i.vout}`) || 'none');
-      if (intent.runeUtxo) console.log('Rune UTXO:', `${intent.runeUtxo.transaction}:${intent.runeUtxo.vout}`);
-      if (intent.satUtxo) console.log('Sat UTXO:', `${intent.satUtxo.txid}:${intent.satUtxo.vout}`);
+      logger.debug('📡 Broadcasting transaction...');
+      logger.debug('Intent inputs:', intent.inputs?.map(i => `${i.txid}:${i.vout}`) || 'none');
+      if (intent.runeUtxo) logger.debug('Rune UTXO:', `${intent.runeUtxo.transaction}:${intent.runeUtxo.vout}`);
+      if (intent.satUtxo) logger.debug('Sat UTXO:', `${intent.satUtxo.txid}:${intent.satUtxo.vout}`);
 
       const txid = await TransactionService.broadcastTransaction(intent.signedTxHex);
-      console.log('✅ Broadcast successful, txid:', txid);
+      logger.debug('✅ Broadcast successful, txid:', txid);
 
       // Extract outputs from signed transaction for pending tracking FIRST
       // This must happen before setting intentStep to 'pending' so that the outputs
@@ -74,8 +75,8 @@ export const TransactionExecutionProvider = ({
         const tx = bitcoin.Transaction.fromHex(intent.signedTxHex);
         const outputs = [];
 
-        console.log('🔍 Extracting outputs from broadcasted tx:', txid);
-        console.log('Total outputs in tx:', tx.outs.length);
+        logger.debug('🔍 Extracting outputs from broadcasted tx:', txid);
+        logger.debug('Total outputs in tx:', tx.outs.length);
 
         // Mark ALL inputs as spent to prevent reuse
         const spentInputs = [];
@@ -85,7 +86,7 @@ export const TransactionExecutionProvider = ({
           const inputTxid = Buffer.from(input.hash).reverse().toString('hex');
           const inputVout = input.index;
 
-          console.log('Input:', inputTxid, 'vout:', inputVout);
+          logger.debug('Input:', inputTxid, 'vout:', inputVout);
 
           // Add to spent list
           spentInputs.push({ txid: inputTxid, vout: inputVout });
@@ -96,7 +97,7 @@ export const TransactionExecutionProvider = ({
               parentTxid = inputTxid; // Set first pending input as parent
             }
 
-            console.log('Removing pending output:', inputTxid, 'vout:', inputVout);
+            logger.debug('Removing pending output:', inputTxid, 'vout:', inputVout);
             // Mark this pending UTXO as spent (removes it from pending outputs)
             await markUtxoAsSpent(inputTxid, inputVout);
           }
@@ -111,7 +112,7 @@ export const TransactionExecutionProvider = ({
         let runeChangeAmount = 0;
         if (sendAssetType === 'unit' && intent.runeUtxo && intent.amount) {
           runeChangeAmount = intent.runeUtxo.runeAmount - intent.amount;
-          console.log('Rune change amount:', runeChangeAmount);
+          logger.debug('Rune change amount:', runeChangeAmount);
         }
 
         // Decode each output
@@ -120,14 +121,14 @@ export const TransactionExecutionProvider = ({
             const address = bitcoin.address.fromOutputScript(output.script, MUTINYNET_NETWORK);
             const value = Number(output.value);
 
-            console.log(`Output ${vout}: ${address} = ${value} sats`);
+            logger.debug(`Output ${vout}: ${address} = ${value} sats`);
 
             // Check if this is a change output (going back to our wallet)
             const isChange =
               address === wallet?.segwitAddress ||
               address === wallet?.taprootAddress;
 
-            console.log(`Is change? ${isChange} (segwit: ${wallet?.segwitAddress}, taproot: ${wallet?.taprootAddress})`);
+            logger.debug(`Is change? ${isChange} (segwit: ${wallet?.segwitAddress}, taproot: ${wallet?.taprootAddress})`);
 
             if (isChange) {
               const outputData = {
@@ -141,28 +142,28 @@ export const TransactionExecutionProvider = ({
                 outputData.runeAmount = runeChangeAmount;
               }
 
-              console.log('✅ Adding change output:', outputData);
+              logger.debug('✅ Adding change output:', outputData);
               outputs.push(outputData);
             }
           } catch (_error) {
-            console.log(`Output ${vout}: OP_RETURN or non-standard`);
+            logger.debug(`Output ${vout}: OP_RETURN or non-standard`);
             // Could be OP_RETURN or other non-standard output, skip
           }
         });
 
-        console.log('Total change outputs found:', outputs.length);
+        logger.debug('Total change outputs found:', outputs.length);
 
         // If we have change outputs, store them as pending with parent tracking
         if (outputs.length > 0) {
           const assetType = sendAssetType === 'unit' ? 'UNIT' : 'BTC';
-          console.log('💾 Adding pending transaction:', txid, 'with', outputs.length, 'outputs');
+          logger.debug('💾 Adding pending transaction:', txid, 'with', outputs.length, 'outputs');
           await addPendingTransaction(txid, outputs, assetType, parentTxid);
         } else {
-          console.log('⚠️ No change outputs found to save');
+          logger.debug('⚠️ No change outputs found to save');
         }
       } catch (error) {
-        console.error('❌ Error extracting change outputs:', error);
-        console.error('Error details:', error.message, error.stack);
+        logger.error('❌ Error extracting change outputs:', error);
+        logger.error('Error details:', error.message, error.stack);
         // Non-critical error, continue with broadcast
       }
 
@@ -198,8 +199,8 @@ export const TransactionExecutionProvider = ({
         }
       );
     } catch (_error) {
-      console.error('❌ Broadcast failed:', _error);
-      console.error('Error message:', _error.message || _error);
+      logger.error('❌ Broadcast failed:', _error);
+      logger.error('Error message:', _error.message || _error);
       showToast(parseErrorMessage(_error), 'error');
       setIntentStep('reviewing');
 
@@ -237,7 +238,7 @@ export const TransactionExecutionProvider = ({
       await broadcastIntent(signedIntent);
       return true;
     } catch (_error) {
-      console.error('Error signing transaction:', _error);
+      logger.error('Error signing transaction:', _error);
       showToast(parseErrorMessage(_error), 'error');
       setIntentStep('reviewing');
       return false;

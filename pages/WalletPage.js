@@ -38,6 +38,7 @@ import { useSheetNavigation } from '../hooks/useSheetNavigation';
 
 // Utils
 import { COLORS } from '../theme';
+import { logger } from '../utils/logger';
 
 export default function WalletPage() {
   const navigation = useNavigation();
@@ -69,7 +70,7 @@ export default function WalletPage() {
 
   // Debug: Log snackbar state changes
   React.useEffect(() => {
-    console.log('🎯 WalletPage snackbar state:', snackbar);
+    logger.debug('🎯 WalletPage snackbar state:', snackbar);
   }, [snackbar]);
 
   // Show snackbar for transaction states

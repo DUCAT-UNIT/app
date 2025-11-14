@@ -18,6 +18,7 @@ import Icon from '../../components/icons';
 import { validateBitcoinAddress } from '../../utils/sendHelpers';
 import { useSendFlow } from '../../contexts/SendFlowContext';
 import { useKeyboard } from '../../hooks/useKeyboard';
+import { logger } from '../../utils/logger';
 
 export default function AddressInputScreen({ navigation, route }) {
   const { sendAssetType, sendRecipient, setSendRecipient, setSendAddressType, setSendAssetType } = useSendFlow();
@@ -31,7 +32,7 @@ export default function AddressInputScreen({ navigation, route }) {
   useEffect(() => {
     // Set the asset type in context if it came from route params
     if (route.params?.assetType && route.params.assetType !== sendAssetType) {
-      console.log('AddressInputScreen: Setting asset type from route params:', route.params.assetType);
+      logger.debug('AddressInputScreen: Setting asset type from route params:', route.params.assetType);
       setSendAssetType(route.params.assetType);
     }
   }, [route.params?.assetType, sendAssetType, setSendAssetType]);

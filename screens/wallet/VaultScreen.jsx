@@ -8,6 +8,7 @@ import { combinedInjectedScript } from '../../utils/vaultWebViewScripts';
 import { useVaultLoading } from '../../hooks/useVaultLoading';
 import { useVaultWebView } from '../../hooks/useVaultWebView';
 import { useVaultMessages } from '../../hooks/useVaultMessages';
+import { logger } from '../../utils/logger';
 
 const VaultScreen = React.memo(function VaultScreen({
   visible,
@@ -97,7 +98,7 @@ const VaultScreen = React.memo(function VaultScreen({
           setWebViewLoaded(false);
         }}
         onLoadEnd={() => {
-          console.log('🏦 WebView onLoadEnd fired');
+          logger.debug('🏦 WebView onLoadEnd fired');
           setWebViewLoaded(true);
           hasLoadedOnceRef.current = true;
 
@@ -108,7 +109,7 @@ const VaultScreen = React.memo(function VaultScreen({
 
           // Set timeout for slow networks or account switching
           loadingTimeoutRef.current = setTimeout(() => {
-            console.log('⏱️ Loading timeout reached - hiding loading screen');
+            logger.debug('⏱️ Loading timeout reached - hiding loading screen');
             setIsLoading(false);
             setPreparingVault(false);
             loadingTimeoutRef.current = null;
@@ -116,7 +117,7 @@ const VaultScreen = React.memo(function VaultScreen({
 
           // Inject wallet credentials immediately after page loads
           // The injection now has built-in retry logic and confirmation
-          console.log('🏦 Page loaded, injecting credentials');
+          logger.debug('🏦 Page loaded, injecting credentials');
           injectWalletCredentials();
         }}
         injectedJavaScript={combinedInjectedScript}

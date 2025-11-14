@@ -1,5 +1,6 @@
 import { retrySilently } from '../utils/retry';
 import { API } from '../utils/constants';
+import { logger } from '../utils/logger';
 
 export const fetchVaultHistory = async (vaultPubkey) => {
   try {
@@ -91,11 +92,11 @@ export const fetchVaultHistory = async (vaultPubkey) => {
 export const fetchVaultData = async (vaultPubkey) => {
   try {
     if (!vaultPubkey) {
-      console.log('⚠️ fetchVaultData: No vaultPubkey provided');
+      logger.debug('⚠️ fetchVaultData: No vaultPubkey provided');
       return null;
     }
 
-    console.log('🏦 Fetching vault data for pubkey:', vaultPubkey);
+    logger.debug('🏦 Fetching vault data for pubkey:', vaultPubkey);
 
     // Step 1: Get vault list to retrieve vault_id
     const vaultListResponse = await retrySilently(
@@ -113,32 +114,32 @@ export const fetchVaultData = async (vaultPubkey) => {
     );
 
     const vaultListData = await vaultListResponse.json();
-    console.log('🏦 Vault list response:', vaultListData);
-    console.log('🏦 Number of vaults found:', vaultListData.vaults?.length || 0);
+    logger.debug('🏦 Vault list response:', vaultListData);
+    logger.debug('🏦 Number of vaults found:', vaultListData.vaults?.length || 0);
 
     if (!vaultListData.vaults || vaultListData.vaults.length === 0) {
-      console.log('⚠️ No vaults found for this pubkey - vault not created yet');
+      logger.debug('⚠️ No vaults found for this pubkey - vault not created yet');
       return null;
     }
 
     // If multiple vaults exist for this pubkey, always use the FIRST one
     if (vaultListData.vaults.length > 1) {
-      console.log('⚠️ MULTIPLE VAULTS FOUND for this pubkey - using FIRST vault:');
+      logger.debug('⚠️ MULTIPLE VAULTS FOUND for this pubkey - using FIRST vault:');
       vaultListData.vaults.forEach((vault, index) => {
-        console.log(`  Vault ${index + 1}:`, {
+        logger.debug(`  Vault ${index + 1}:`, {
           vault_id: vault.vault_id,
           vault_tag: vault.vault_tag,
           btc_locked: vault.btc_locked,
           unit_borrowed: vault.unit_borrowed,
         });
       });
-      console.log('📌 Selected: Using vault #1 (first in array)');
+      logger.debug('📌 Selected: Using vault #1 (first in array)');
     }
 
     // Always use first vault in the array
     const vaultId = vaultListData.vaults[0].vault_id;
     const vaultTag = vaultListData.vaults[0].vault_tag;
-    console.log('🏦 Using vault:', { vault_id: vaultId, vault_tag: vaultTag });
+    logger.debug('🏦 Using vault:', { vault_id: vaultId, vault_tag: vaultTag });
 
     // Step 2: Get vault history to retrieve transaction details
     const now = Math.floor(Date.now() / 1000);
@@ -198,7 +199,7 @@ export const fetchVaultData = async (vaultPubkey) => {
       },
     };
 
-    console.log('✅ Vault data fetched successfully (first vault only):', {
+    logger.debug('✅ Vault data fetched successfully (first vault only):', {
       vaultTag,
       totalDebt: firstVault.unit_borrowed,
       totalCollateral: firstVault.btc_locked,
@@ -206,7 +207,7 @@ export const fetchVaultData = async (vaultPubkey) => {
 
     return vaultData;
   } catch (error) {
-    console.error('❌ Error fetching vault data:', error);
+    logger.error('❌ Error fetching vault data:', error);
     return null;
   }
 };

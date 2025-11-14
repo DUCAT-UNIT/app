@@ -6,6 +6,7 @@
 
 import React, { createContext, useContext, useCallback } from 'react';
 import { usePendingTransactionsStorage } from '../hooks/usePendingTransactionsStorage';
+import { logger } from '../utils/logger';
 
 const PendingTransactionsContext = createContext();
 
@@ -244,7 +245,7 @@ export const PendingTransactionsProvider = ({ children, currentAccount, showToas
     utxos.forEach(({ txid, vout }) => {
       const key = `${txid}:${vout}`;
       updated.add(key);
-      console.log('🚫 Marking UTXO as spent:', key);
+      logger.debug('🚫 Marking UTXO as spent:', key);
     });
 
     setSpentUtxos(updated);

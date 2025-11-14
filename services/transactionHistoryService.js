@@ -7,6 +7,7 @@ import { retrySilently } from '../utils/retry';
 import { decodeRunestone } from '../runestone-encoder';
 import { fetchVaultHistory } from './vaultService';
 import { getAddressTxsUrl } from '../utils/constants';
+import { logger } from '../utils/logger';
 
 // UNIT•RUNE identifier
 const UNIT_RUNE_BLOCK = 1527352n;
@@ -221,17 +222,17 @@ export const calculateTransactionAmount = (tx, segwitAddress, taprootAddress) =>
  */
 export const fetchAllTransactionHistory = async (segwitAddress, taprootAddress, vaultPubkey) => {
   try {
-    console.log('🌐 Making fresh API calls to blockchain explorer and vault...');
+    logger.debug('🌐 Making fresh API calls to blockchain explorer and vault...');
     // Fetch transactions for both addresses and vault history
     const [segwitTxs, taprootTxs, vaultHistory] = await Promise.all([
       fetchAddressTransactions(segwitAddress),
       fetchAddressTransactions(taprootAddress),
       fetchVaultHistory(vaultPubkey),
     ]);
-    console.log('📊 API responses received:');
-    console.log('  - Segwit transactions:', segwitTxs.length);
-    console.log('  - Taproot transactions:', taprootTxs.length);
-    console.log('  - Vault transactions:', vaultHistory.length);
+    logger.debug('📊 API responses received:');
+    logger.debug('  - Segwit transactions:', segwitTxs.length);
+    logger.debug('  - Taproot transactions:', taprootTxs.length);
+    logger.debug('  - Vault transactions:', vaultHistory.length);
 
     // First, collect all vault transaction IDs
     const vaultTxIds = new Set();

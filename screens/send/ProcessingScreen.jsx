@@ -11,6 +11,7 @@ import { useSendFlow } from '../../contexts/SendFlowContext';
 import { useTransactionBuild } from '../../contexts/TransactionBuildContext';
 import { useTransactionExecution } from '../../contexts/TransactionExecutionContext';
 import { useToastContext } from '../../contexts/UIContext';
+import { logger } from '../../utils/logger';
 
 export default function ProcessingScreen({ navigation, route }) {
   const { sendAssetType, intentStep } = useSendFlow();
@@ -75,7 +76,7 @@ export default function ProcessingScreen({ navigation, route }) {
       hasStarted.current = true;
       // Small delay to allow screen to render before starting heavy operations
       setTimeout(() => {
-        console.log('Creating send intent for asset type:', sendAssetType);
+        logger.debug('Creating send intent for asset type:', sendAssetType);
         createSendIntent();
       }, 100);
     } else if (!hasStarted.current && action === 'sign_and_broadcast') {
@@ -91,7 +92,7 @@ export default function ProcessingScreen({ navigation, route }) {
             setTimeout(() => showToast('Failed to sign and broadcast transaction', 'error'), 300);
           }
         } catch (error) {
-          console.error('Signing error:', error);
+          logger.error('Signing error:', error);
           const errorMessage = error.message || error.toString() || 'Transaction failed';
           navigation.goBack();
           setTimeout(() => showToast(errorMessage, 'error'), 300);
@@ -105,15 +106,15 @@ export default function ProcessingScreen({ navigation, route }) {
 
   useEffect(() => {
     if (action === 'create_intent' && hasStarted.current && !hasNavigated.current) {
-      console.log('Intent step changed to:', intentStep, 'sendIntent exists:', !!sendIntent);
+      logger.debug('Intent step changed to:', intentStep, 'sendIntent exists:', !!sendIntent);
       if (intentStep === 'reviewing' && sendIntent) {
         // Success - navigate to review screen
-        console.log('Navigating to Review screen');
+        logger.debug('Navigating to Review screen');
         hasNavigated.current = true;
         navigation.replace('Review');
       } else if (intentStep === 'entering_amount') {
         // Error - go back to amount input
-        console.log('Error creating intent, going back to amount');
+        logger.debug('Error creating intent, going back to amount');
         hasNavigated.current = true;
         navigation.goBack();
         setTimeout(() => showToast('Failed to create transaction. Please check your balance and try again.', 'error'), 300);

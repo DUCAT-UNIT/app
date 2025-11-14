@@ -5,6 +5,7 @@
 
 import { useCallback } from 'react';
 import { signPsbt } from '../utils/wallet';
+import { logger } from '../utils/logger';
 
 export function useVaultMessages(
   webViewRef,
@@ -22,13 +23,13 @@ export function useVaultMessages(
       // Forward WebView console logs to Metro console
       if (message.type === 'CONSOLE_LOG') {
         const prefix = message.level === 'error' ? '❌' : message.level === 'warn' ? '⚠️' : '📱';
-        console.log(`${prefix} [WebView Console]`, ...message.args);
+        logger.debug(`${prefix} [WebView Console]`, ...message.args);
         return;
       }
 
       // Handle credentials received confirmation
       if (message.type === 'CREDENTIALS_RECEIVED') {
-        console.log('✅ CREDENTIALS_RECEIVED message received from vault');
+        logger.debug('✅ CREDENTIALS_RECEIVED message received from vault');
         if (handleCredentialConfirmation && message.payload?.vaultPubkey) {
           handleCredentialConfirmation(message.payload.vaultPubkey);
         }
@@ -37,13 +38,13 @@ export function useVaultMessages(
 
       // Handle vault loaded event
       if (message.type === 'VAULT_LOADED') {
-        console.log('✅ VAULT_LOADED message received - vault page is ready');
+        logger.debug('✅ VAULT_LOADED message received - vault page is ready');
 
         // Clear the loading timeout since vault is ready
         if (loadingTimeoutRef?.current) {
           clearTimeout(loadingTimeoutRef.current);
           loadingTimeoutRef.current = null;
-          console.log('🧹 Cleared loading timeout - vault responded in time');
+          logger.debug('🧹 Cleared loading timeout - vault responded in time');
         }
 
         setIsLoading(false);
@@ -51,7 +52,7 @@ export function useVaultMessages(
 
         // Final credential injection when vault is fully loaded
         setTimeout(() => {
-          console.log('🏦 Final credential injection after VAULT_LOADED');
+          logger.debug('🏦 Final credential injection after VAULT_LOADED');
           injectWalletCredentials();
         }, 500);
         return;
@@ -65,14 +66,14 @@ export function useVaultMessages(
 
       // Handle snackbar messages from web app
       if (message.type === 'SHOW_SNACKBAR') {
-        console.log('📬 SHOW_SNACKBAR received:', message.payload);
+        logger.debug('📬 SHOW_SNACKBAR received:', message.payload);
         if (showSnackbar) {
           showSnackbar(message.payload);
         }
         return;
       }
     } catch (e) {
-      console.error('❌ Error parsing WebView message:', e);
+      logger.error('❌ Error parsing WebView message:', e);
     }
   }, [webViewRef, showSnackbar, injectWalletCredentials, setIsLoading, setPreparingVault, loadingTimeoutRef, handleCredentialConfirmation]);
 

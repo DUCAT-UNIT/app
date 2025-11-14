@@ -10,6 +10,7 @@ import Icon from '../../components/icons';
 import { useBalance } from '../../contexts/WalletDataContext';
 import { usePrice } from '../../contexts/PriceContext';
 import { useSendFlow } from '../../contexts/SendFlowContext';
+import { logger } from '../../utils/logger';
 
 export default function AssetSelectorScreen({ navigation }) {
   const { segwitBalance, taprootBalance, runesBalance } = useBalance();
@@ -20,7 +21,7 @@ export default function AssetSelectorScreen({ navigation }) {
   const unitBalance = runesBalance && runesBalance.length > 0 ? parseFloat(runesBalance[0][1]) : 0;
 
   const handleSelectAsset = (assetType) => {
-    console.log('Setting asset type to:', assetType);
+    logger.debug('Setting asset type to:', assetType);
     setSendAssetType(assetType);
     navigation.navigate('AddressInput', { assetType });
   };

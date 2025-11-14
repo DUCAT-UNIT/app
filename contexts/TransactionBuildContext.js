@@ -10,6 +10,7 @@ import { parseErrorMessage } from '../utils/errorParser';
 import { ERRORS } from '../utils/messages';
 import { useSendFlow } from './SendFlowContext';
 import { usePendingTransactions } from './PendingTransactionsContext';
+import { logger } from '../utils/logger';
 
 const TransactionBuildContext = createContext();
 
@@ -34,9 +35,9 @@ export const TransactionBuildProvider = ({ children, wallet, currentAccount, sho
     try {
       // Get unconfirmed UTXOs for segwit (BTC), excluding any already used in current intent
       const unconfirmedUtxos = getUnconfirmedUTXOs('segwit', sendIntent);
-      console.log('🔍 Available unconfirmed segwit UTXOs for BTC tx:', unconfirmedUtxos.length);
+      logger.debug('🔍 Available unconfirmed segwit UTXOs for BTC tx:', unconfirmedUtxos.length);
       unconfirmedUtxos.forEach(utxo => {
-        console.log(`  - ${utxo.txid}:${utxo.vout} = ${utxo.value} sats`);
+        logger.debug(`  - ${utxo.txid}:${utxo.vout} = ${utxo.value} sats`);
       });
 
       // Get spent UTXOs to filter them out
@@ -55,7 +56,7 @@ export const TransactionBuildProvider = ({ children, wallet, currentAccount, sho
       setIntentStep('reviewing');
     } catch (error) {
       // Log the full error for debugging
-      console.error('Error creating BTC intent:', error);
+      logger.error('Error creating BTC intent:', error);
       // Show error toast first, then transition after a brief delay
       showToast(parseErrorMessage(error), 'error');
       // Small delay to ensure toast is visible before screen transition
@@ -76,13 +77,13 @@ export const TransactionBuildProvider = ({ children, wallet, currentAccount, sho
       const unconfirmedTaprootUtxos = getUnconfirmedUTXOs('taproot', sendIntent);
       const unconfirmedSegwitUtxos = getUnconfirmedUTXOs('segwit', sendIntent);
 
-      console.log('🔍 Available unconfirmed taproot UTXOs for UNIT tx:', unconfirmedTaprootUtxos.length);
+      logger.debug('🔍 Available unconfirmed taproot UTXOs for UNIT tx:', unconfirmedTaprootUtxos.length);
       unconfirmedTaprootUtxos.forEach(utxo => {
-        console.log(`  - ${utxo.txid}:${utxo.vout} = ${utxo.value} sats, runes: ${utxo.runeAmount}`);
+        logger.debug(`  - ${utxo.txid}:${utxo.vout} = ${utxo.value} sats, runes: ${utxo.runeAmount}`);
       });
-      console.log('🔍 Available unconfirmed segwit UTXOs for UNIT tx:', unconfirmedSegwitUtxos.length);
+      logger.debug('🔍 Available unconfirmed segwit UTXOs for UNIT tx:', unconfirmedSegwitUtxos.length);
       unconfirmedSegwitUtxos.forEach(utxo => {
-        console.log(`  - ${utxo.txid}:${utxo.vout} = ${utxo.value} sats`);
+        logger.debug(`  - ${utxo.txid}:${utxo.vout} = ${utxo.value} sats`);
       });
 
       // Get spent UTXOs to filter them out
@@ -103,7 +104,7 @@ export const TransactionBuildProvider = ({ children, wallet, currentAccount, sho
       setIntentStep('reviewing');
     } catch (error) {
       // Log the full error for debugging
-      console.error('Error creating UNIT intent:', error);
+      logger.error('Error creating UNIT intent:', error);
       // Show error toast first, then transition after a brief delay
       showToast(parseErrorMessage(error), 'error');
       // Small delay to ensure toast is visible before screen transition

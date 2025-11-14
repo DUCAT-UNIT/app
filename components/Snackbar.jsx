@@ -8,6 +8,7 @@ import PropTypes from 'prop-types';
 import { View, Text, StyleSheet, TouchableOpacity, Animated } from 'react-native';
 import { Feather } from '@expo/vector-icons';
 import { COLORS } from '../theme';
+import { logger } from '../utils/logger';
 
 const ACTION_LABELS = {
   deposit: 'BTC Deposit',
@@ -52,11 +53,11 @@ const computeTitle = (type, label) => {
 };
 
 export default function Snackbar({ params, onClose }) {
-  console.log('🎯 Snackbar rendering with params:', params);
+  logger.debug('🎯 Snackbar rendering with params:', params);
   const slideAnim = React.useRef(new Animated.Value(-200)).current;
 
   useEffect(() => {
-    console.log('🎯 Snackbar mounted, starting animation');
+    logger.debug('🎯 Snackbar mounted, starting animation');
 
     // Slide in animation
     Animated.spring(slideAnim, {

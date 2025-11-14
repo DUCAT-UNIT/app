@@ -5,6 +5,7 @@
  */
 
 import React, { createContext, useContext, useState, useRef, useMemo, useCallback } from 'react';
+import { logger } from '../utils/logger';
 
 const UIContext = createContext();
 
@@ -65,7 +66,7 @@ export const UIProvider = ({ children }) => {
   const lastSnackbarRef = useRef(null);
 
   const showSnackbar = useCallback((snackbarParams) => {
-    console.log('🎯 UIContext showSnackbar called with:', snackbarParams);
+    logger.debug('🎯 UIContext showSnackbar called with:', snackbarParams);
 
     // Define state hierarchy: pending < submitted < success
     const stateRank = {
@@ -88,7 +89,7 @@ export const UIProvider = ({ children }) => {
 
         // Don't allow going backwards in state (e.g., submitted -> pending)
         if (currentRank < lastRank && snackbarParams.type !== 'error') {
-          console.log('🎯 Ignoring backward state transition:', last.type, '->', snackbarParams.type);
+          logger.debug('🎯 Ignoring backward state transition:', last.type, '->', snackbarParams.type);
           return;
         }
       }
