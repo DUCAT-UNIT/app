@@ -4,7 +4,7 @@
  * Consolidates AuthContext + OnboardingFlowContext
  */
 
-import React, { createContext, useContext, useState, useRef } from 'react';
+import React, { createContext, useContext, useState, useRef, useMemo, useCallback } from 'react';
 import PropTypes from 'prop-types';
 import * as SecureStore from 'expo-secure-store';
 import { useAuth as useAuthHook } from '../hooks/useAuth';
@@ -43,8 +43,8 @@ export const AuthProvider = ({ children, onSeedConfirmed, resetWallet }) => {
     seedConfirmedRef.current = seedConfirmed;
   }, [seedConfirmed]);
 
-  // Reset wallet and all onboarding state
-  const resetWalletAndState = async () => {
+  // Reset wallet and all onboarding state - memoized to prevent recreation
+  const resetWalletAndState = useCallback(async () => {
     await SecureStore.deleteItemAsync(SECURE_KEYS.MNEMONIC);
     await SecureStore.deleteItemAsync(SECURE_KEYS.CURRENT_ACCOUNT);
     await resetOnboardingState();
@@ -52,23 +52,20 @@ export const AuthProvider = ({ children, onSeedConfirmed, resetWallet }) => {
       resetWallet();
     }
     setSeedConfirmed(false);
-  };
+  }, [resetWallet]);
 
-  // Reset inactivity timer
-  const resetInactivityTimer = () => {
+  // Reset inactivity timer - memoized to prevent recreation
+  const resetInactivityTimer = useCallback(() => {
     if (inactivityTimerRef.current) {
       clearTimeout(inactivityTimerRef.current);
     }
-  };
+  }, []);
 
   // ============================================================
-  // CONSOLIDATED VALUE
+  // CONSOLIDATED VALUE - Memoized to prevent infinite re-renders
   // ============================================================
-  const value = {
-    // Auth state and methods (from useAuth hook)
-    ...authState,
-    // Onboarding namespace
-    onboarding: {
+  const onboarding = useMemo(
+    () => ({
       seedConfirmed,
       setSeedConfirmed,
       seedConfirmedRef,
@@ -76,16 +73,27 @@ export const AuthProvider = ({ children, onSeedConfirmed, resetWallet }) => {
       resetInactivityTimer,
       inactivityTimerRef,
       amountInputRef,
-    },
-    // Direct exports for backwards compatibility
-    seedConfirmed,
-    setSeedConfirmed,
-    seedConfirmedRef,
-    resetWalletAndState,
-    resetInactivityTimer,
-    inactivityTimerRef,
-    amountInputRef,
-  };
+    }),
+    [seedConfirmed, resetWalletAndState, resetInactivityTimer]
+  );
+
+  const value = useMemo(
+    () => ({
+      // Auth state and methods (from useAuth hook)
+      ...authState,
+      // Onboarding namespace
+      onboarding,
+      // Direct exports for backwards compatibility
+      seedConfirmed,
+      setSeedConfirmed,
+      seedConfirmedRef,
+      resetWalletAndState,
+      resetInactivityTimer,
+      inactivityTimerRef,
+      amountInputRef,
+    }),
+    [authState, onboarding, seedConfirmed, resetWalletAndState, resetInactivityTimer]
+  );
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
 };

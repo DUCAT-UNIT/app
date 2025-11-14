@@ -7,7 +7,7 @@
  * - Authentication callbacks
  */
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo, useCallback } from 'react';
 import * as LocalAuthentication from 'expo-local-authentication';
 import * as SecureStore from 'expo-secure-store';
 import { SECURE_KEYS } from '../utils/constants';
@@ -40,15 +40,15 @@ export function useAuth({ onSeedConfirmed }) {
   }, []);
 
   // Load biometric preference
-  const loadBiometricPreference = async () => {
+  const loadBiometricPreference = useCallback(async () => {
     try {
       const biometricPref = await SecureStore.getItemAsync(SECURE_KEYS.BIOMETRIC_ENABLED);
       setBiometricEnabled(biometricPref === 'true');
     } catch (error) {}
-  };
+  }, []);
 
   // Authenticate user with biometrics
-  const authenticateUser = async () => {
+  const authenticateUser = useCallback(async () => {
     try {
       // Check if user has already enabled biometric auth
       if (biometricEnabled) {
@@ -82,25 +82,25 @@ export function useAuth({ onSeedConfirmed }) {
       // On error, show biometric prompt so user can enable it
       setShowBiometricPrompt(true);
     }
-  };
+  }, [biometricEnabled, changingPin]);
 
   // PIN setup completion for initial wallet creation
-  const handlePinSetupComplete = () => {
+  const handlePinSetupComplete = useCallback(() => {
     setIsAuthenticated(true);
     setSettingUpPin(false);
     if (onSeedConfirmed) {
       onSeedConfirmed(true);
     }
-  };
+  }, [onSeedConfirmed]);
 
   // PIN change completion
-  const handlePinChangeComplete = () => {
+  const handlePinChangeComplete = useCallback(() => {
     setSettingUpPin(false);
     setChangingPin(false);
-  };
+  }, []);
 
   // Lock screen authentication success
-  const handleLockScreenAuthenticated = () => {
+  const handleLockScreenAuthenticated = useCallback(() => {
     if (changingPin) {
       // User authenticated to change PIN, proceed to PIN setup
       setShowPinEntry(false); // Hide lock screen
@@ -118,15 +118,15 @@ export function useAuth({ onSeedConfirmed }) {
       // Restore FaceID button for next time
       setShowFaceIdButton(true);
     }
-  };
+  }, [changingPin]);
 
   // Lock the wallet
-  const lock = () => {
+  const lock = useCallback(() => {
     setIsAuthenticated(false);
-  };
+  }, []);
 
   // Reset auth state (for wallet deletion)
-  const resetAuth = () => {
+  const resetAuth = useCallback(() => {
     setIsAuthenticated(false);
     setBiometricEnabled(false);
     setShowFaceIdButton(true);
@@ -138,53 +138,78 @@ export function useAuth({ onSeedConfirmed }) {
     setConfirmPin('');
     setPinError('');
     setPinStep('enter');
-  };
+  }, []);
 
   // Start PIN change flow
-  const startPinChange = async () => {
+  const startPinChange = useCallback(async () => {
     setChangingPin(true);
     // Save flag to return to settings after PIN change
     await SecureStore.setItemAsync('returnToSettingsAfterPinChange', 'true');
     // Don't set settingUpPin yet - wait until after authentication
     setIsAuthenticated(false); // Lock wallet to trigger authentication
-  };
+  }, []);
 
-  return {
-    // State
-    isAuthenticated,
-    isBiometricSupported,
-    biometricEnabled,
-    showBiometricPrompt,
-    showFaceIdButton,
-    settingUpPin,
-    changingPin,
-    showPinEntry,
-    pin,
-    confirmPin,
-    pinError,
-    pinStep,
+  // Memoize return object to prevent recreation on every render
+  return useMemo(
+    () => ({
+      // State
+      isAuthenticated,
+      isBiometricSupported,
+      biometricEnabled,
+      showBiometricPrompt,
+      showFaceIdButton,
+      settingUpPin,
+      changingPin,
+      showPinEntry,
+      pin,
+      confirmPin,
+      pinError,
+      pinStep,
 
-    // Setters
-    setIsAuthenticated,
-    setBiometricEnabled,
-    setShowBiometricPrompt,
-    setShowFaceIdButton,
-    setShowPinEntry,
-    setSettingUpPin,
-    setChangingPin,
-    setPin,
-    setConfirmPin,
-    setPinError,
-    setPinStep,
+      // Setters
+      setIsAuthenticated,
+      setBiometricEnabled,
+      setShowBiometricPrompt,
+      setShowFaceIdButton,
+      setShowPinEntry,
+      setSettingUpPin,
+      setChangingPin,
+      setPin,
+      setConfirmPin,
+      setPinError,
+      setPinStep,
 
-    // Functions
-    authenticateUser,
-    handlePinSetupComplete,
-    handlePinChangeComplete,
-    handleLockScreenAuthenticated,
-    loadBiometricPreference,
-    lock,
-    resetAuth,
-    startPinChange,
-  };
+      // Functions
+      authenticateUser,
+      handlePinSetupComplete,
+      handlePinChangeComplete,
+      handleLockScreenAuthenticated,
+      loadBiometricPreference,
+      lock,
+      resetAuth,
+      startPinChange,
+    }),
+    [
+      isAuthenticated,
+      isBiometricSupported,
+      biometricEnabled,
+      showBiometricPrompt,
+      showFaceIdButton,
+      settingUpPin,
+      changingPin,
+      showPinEntry,
+      pin,
+      confirmPin,
+      pinError,
+      pinStep,
+      authenticateUser,
+      handlePinSetupComplete,
+      handlePinChangeComplete,
+      handleLockScreenAuthenticated,
+      loadBiometricPreference,
+      lock,
+      resetAuth,
+      startPinChange,
+    ]
+  );
 }
