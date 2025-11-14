@@ -13,6 +13,12 @@ export function useVaultWebView(walletCredentials, vaultData, visible) {
   const [forceReloadKey, setForceReloadKey] = useState(0);
   const [webViewLoaded, setWebViewLoaded] = useState(false);
 
+  // Credential injection state
+  const injectionAttemptRef = useRef(0);
+  const maxInjectionAttempts = 3;
+  const injectionTimeoutRef = useRef(null);
+  const credentialsConfirmedRef = useRef(false);
+
   // Build URL with wallet credentials + cache busting on account switch
   const webViewUrl = useMemo(() => {
     if (!walletCredentials) {
@@ -34,60 +40,148 @@ export function useVaultWebView(walletCredentials, vaultData, visible) {
     return `${API.PHONE}/?${params.toString()}`;
   }, [walletCredentials, forceReloadKey]);
 
-  // Inject wallet credentials into WebView
-  const injectWalletCredentials = useCallback(() => {
-    if (webViewRef.current && walletCredentials) {
-      console.log('🏦 Injecting wallet credentials into vault page');
+  // Validate credentials before injection
+  const validateCredentials = useCallback((credentials) => {
+    if (!credentials) return false;
 
-      const credentialsScript = `
-        (function() {
-          console.log('Mobile app injecting wallet credentials');
-          console.log('Vault pubkey:', '${walletCredentials.vaultPubkey}');
+    const required = ['satsAddress', 'satsPubkey', 'runesAddress', 'runesPubkey', 'vaultAddress', 'vaultPubkey'];
+    const isValid = required.every(field => {
+      const value = credentials[field];
+      return value && typeof value === 'string' && value.length > 0;
+    });
 
-          // Clear any existing credentials and localStorage
-          delete window.mobileWalletCredentials;
-          try {
-            if (window.localStorage) {
-              const keysToRemove = [];
-              for (let i = 0; i < localStorage.length; i++) {
-                const key = localStorage.key(i);
-                if (key && (key.includes('vault') || key.includes('wallet') || key.includes('credentials'))) {
-                  keysToRemove.push(key);
-                }
+    if (!isValid) {
+      console.error('❌ Invalid credentials - missing required fields');
+      return false;
+    }
+
+    // Validate address formats (basic check)
+    const addressFields = ['satsAddress', 'runesAddress', 'vaultAddress'];
+    const hasValidAddresses = addressFields.every(field => {
+      const address = credentials[field];
+      return address.startsWith('tb1') || address.startsWith('bc1'); // Bitcoin addresses
+    });
+
+    if (!hasValidAddresses) {
+      console.error('❌ Invalid address format in credentials');
+      return false;
+    }
+
+    return true;
+  }, []);
+
+  // Inject wallet credentials into WebView with retry logic
+  const injectWalletCredentials = useCallback((isRetry = false) => {
+    if (!webViewRef.current || !walletCredentials) {
+      console.log('⚠️ Cannot inject credentials - WebView or credentials not ready');
+      return;
+    }
+
+    // Validate credentials before injection
+    if (!validateCredentials(walletCredentials)) {
+      console.error('❌ Credential validation failed - aborting injection');
+      return;
+    }
+
+    if (!isRetry) {
+      injectionAttemptRef.current = 0;
+      credentialsConfirmedRef.current = false;
+    }
+
+    injectionAttemptRef.current += 1;
+    console.log(`🏦 Injecting wallet credentials (attempt ${injectionAttemptRef.current}/${maxInjectionAttempts})`);
+
+    const credentialsScript = `
+      (function() {
+        console.log('Mobile app injecting wallet credentials');
+        console.log('Vault pubkey:', '${walletCredentials.vaultPubkey}');
+
+        // Clear any existing credentials and specific localStorage keys
+        delete window.mobileWalletCredentials;
+        try {
+          if (window.localStorage) {
+            // Clear only specific known vault-related keys
+            const vaultKeys = ['ducat_vault_state', 'ducat_wallet_cache', 'ducat_credentials'];
+            vaultKeys.forEach(key => {
+              try {
+                localStorage.removeItem(key);
+              } catch (e) {
+                console.log('Could not remove key:', key);
               }
-              keysToRemove.forEach(key => localStorage.removeItem(key));
-            }
-          } catch (e) {
-            console.log('Could not clear localStorage:', e);
+            });
           }
+        } catch (e) {
+          console.log('Could not access localStorage:', e);
+        }
 
-          // Store credentials in window object
-          window.mobileWalletCredentials = {
-            satsAddress: '${walletCredentials.satsAddress}',
-            satsPubkey: '${walletCredentials.satsPubkey}',
-            runesAddress: '${walletCredentials.runesAddress}',
-            runesPubkey: '${walletCredentials.runesPubkey}',
-            vaultAddress: '${walletCredentials.vaultAddress}',
-            vaultPubkey: '${walletCredentials.vaultPubkey}',
-            network: 'mutinynet',
-            timestamp: Date.now()
-          };
+        // Store credentials in window object
+        window.mobileWalletCredentials = {
+          satsAddress: '${walletCredentials.satsAddress}',
+          satsPubkey: '${walletCredentials.satsPubkey}',
+          runesAddress: '${walletCredentials.runesAddress}',
+          runesPubkey: '${walletCredentials.runesPubkey}',
+          vaultAddress: '${walletCredentials.vaultAddress}',
+          vaultPubkey: '${walletCredentials.vaultPubkey}',
+          network: 'mutinynet',
+          timestamp: Date.now(),
+          injectionAttempt: ${injectionAttemptRef.current}
+        };
 
-          // Dispatch events to notify app
-          window.dispatchEvent(new CustomEvent('mobileWalletReady', {
-            detail: window.mobileWalletCredentials
+        // Send confirmation message back to app
+        try {
+          window.ReactNativeWebView.postMessage(JSON.stringify({
+            type: 'CREDENTIALS_RECEIVED',
+            payload: {
+              vaultPubkey: '${walletCredentials.vaultPubkey}',
+              timestamp: Date.now(),
+              attempt: ${injectionAttemptRef.current}
+            }
           }));
+        } catch (e) {
+          console.error('Failed to send CREDENTIALS_RECEIVED message:', e);
+        }
 
-          window.dispatchEvent(new CustomEvent('mobileAccountChanged', {
-            detail: window.mobileWalletCredentials
-          }));
+        // Dispatch events to notify app (for backward compatibility)
+        window.dispatchEvent(new CustomEvent('mobileWalletReady', {
+          detail: window.mobileWalletCredentials
+        }));
 
-          console.log('Mobile wallet credentials injected and events dispatched');
-        })();
-        true;
-      `;
+        window.dispatchEvent(new CustomEvent('mobileAccountChanged', {
+          detail: window.mobileWalletCredentials
+        }));
 
-      webViewRef.current.injectJavaScript(credentialsScript);
+        console.log('Mobile wallet credentials injected and events dispatched');
+      })();
+      true;
+    `;
+
+    webViewRef.current.injectJavaScript(credentialsScript);
+
+    // Set timeout to retry if no confirmation received
+    if (injectionTimeoutRef.current) {
+      clearTimeout(injectionTimeoutRef.current);
+    }
+
+    injectionTimeoutRef.current = setTimeout(() => {
+      if (!credentialsConfirmedRef.current && injectionAttemptRef.current < maxInjectionAttempts) {
+        console.log(`⚠️ No confirmation received, retrying injection (${injectionAttemptRef.current + 1}/${maxInjectionAttempts})`);
+        injectWalletCredentials(true);
+      } else if (injectionAttemptRef.current >= maxInjectionAttempts) {
+        console.error('❌ Max injection attempts reached - credentials may not be available in vault');
+      }
+    }, 3000); // Wait 3 seconds for confirmation
+
+  }, [walletCredentials, validateCredentials]);
+
+  // Handle credential confirmation from WebView
+  const handleCredentialConfirmation = useCallback((pubkey) => {
+    if (pubkey === walletCredentials?.vaultPubkey) {
+      credentialsConfirmedRef.current = true;
+      if (injectionTimeoutRef.current) {
+        clearTimeout(injectionTimeoutRef.current);
+        injectionTimeoutRef.current = null;
+      }
+      console.log('✅ Credentials confirmed by vault WebView');
     }
   }, [walletCredentials]);
 
@@ -166,5 +260,6 @@ export function useVaultWebView(walletCredentials, vaultData, visible) {
     setWebViewLoaded,
     hasLoadedOnceRef,
     injectWalletCredentials,
+    handleCredentialConfirmation,
   };
 }

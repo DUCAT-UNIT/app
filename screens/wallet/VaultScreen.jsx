@@ -38,6 +38,7 @@ const VaultScreen = React.memo(function VaultScreen({
     setWebViewLoaded,
     hasLoadedOnceRef,
     injectWalletCredentials,
+    handleCredentialConfirmation,
   } = useVaultWebView(walletCredentials, vaultData, visible);
 
   // Message handling
@@ -47,7 +48,8 @@ const VaultScreen = React.memo(function VaultScreen({
     injectWalletCredentials,
     setIsLoading,
     setPreparingVault,
-    loadingTimeoutRef
+    loadingTimeoutRef,
+    handleCredentialConfirmation
   );
 
   // Handle external link navigation - open in browser instead of WebView
@@ -112,11 +114,10 @@ const VaultScreen = React.memo(function VaultScreen({
             loadingTimeoutRef.current = null;
           }, 15000);
 
-          // Inject wallet credentials after page loads
-          setTimeout(() => {
-            console.log('🏦 Injecting credentials after page load');
-            injectWalletCredentials();
-          }, 800);
+          // Inject wallet credentials immediately after page loads
+          // The injection now has built-in retry logic and confirmation
+          console.log('🏦 Page loaded, injecting credentials');
+          injectWalletCredentials();
         }}
         injectedJavaScript={combinedInjectedScript}
         onMessage={handleMessage}

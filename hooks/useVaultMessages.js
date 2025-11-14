@@ -6,7 +6,15 @@
 import { useCallback } from 'react';
 import { signPsbt } from '../utils/wallet';
 
-export function useVaultMessages(webViewRef, showSnackbar, injectWalletCredentials, setIsLoading, setPreparingVault, loadingTimeoutRef) {
+export function useVaultMessages(
+  webViewRef,
+  showSnackbar,
+  injectWalletCredentials,
+  setIsLoading,
+  setPreparingVault,
+  loadingTimeoutRef,
+  handleCredentialConfirmation
+) {
   const handleMessage = useCallback(async (event) => {
     try {
       const message = JSON.parse(event.nativeEvent.data);
@@ -15,6 +23,15 @@ export function useVaultMessages(webViewRef, showSnackbar, injectWalletCredentia
       if (message.type === 'CONSOLE_LOG') {
         const prefix = message.level === 'error' ? '❌' : message.level === 'warn' ? '⚠️' : '📱';
         console.log(`${prefix} [WebView Console]`, ...message.args);
+        return;
+      }
+
+      // Handle credentials received confirmation
+      if (message.type === 'CREDENTIALS_RECEIVED') {
+        console.log('✅ CREDENTIALS_RECEIVED message received from vault');
+        if (handleCredentialConfirmation && message.payload?.vaultPubkey) {
+          handleCredentialConfirmation(message.payload.vaultPubkey);
+        }
         return;
       }
 
@@ -57,7 +74,7 @@ export function useVaultMessages(webViewRef, showSnackbar, injectWalletCredentia
     } catch (e) {
       console.error('❌ Error parsing WebView message:', e);
     }
-  }, [webViewRef, showSnackbar, injectWalletCredentials, setIsLoading, setPreparingVault, loadingTimeoutRef]);
+  }, [webViewRef, showSnackbar, injectWalletCredentials, setIsLoading, setPreparingVault, loadingTimeoutRef, handleCredentialConfirmation]);
 
   return { handleMessage };
 }
