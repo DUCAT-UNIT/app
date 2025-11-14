@@ -77,8 +77,14 @@ export const AirdropProvider = ({ children, seedConfirmed }) => {
       if (pendingTxId && (segwitBalance > 0 || taprootBalance > 0)) {
         setAirdropTxId(pendingTxId);
         setShowAirdropModal(true);
-        // Haptic feedback for successful airdrop
-        Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+        // Haptic feedback - confetti cannon effect!
+        // Big POP!
+        Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Heavy);
+        // Then gentle fluttering like confetti falling
+        setTimeout(() => Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light), 150);
+        setTimeout(() => Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light), 300);
+        setTimeout(() => Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light), 450);
+        setTimeout(() => Haptics.selectionAsync(), 600);
         // Clear the pending airdrop
         await SecureStore.deleteItemAsync(pendingKey);
       }
@@ -149,8 +155,14 @@ export const AirdropProvider = ({ children, seedConfirmed }) => {
             setTimeout(() => {
               setAirdropTxId(result.txId);
               setShowAirdropModal(true);
-              // Haptic feedback for successful airdrop
-              Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+              // Haptic feedback - confetti cannon effect!
+              // Big POP!
+              Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Heavy);
+              // Then gentle fluttering like confetti falling
+              setTimeout(() => Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light), 150);
+              setTimeout(() => Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light), 300);
+              setTimeout(() => Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light), 450);
+              setTimeout(() => Haptics.selectionAsync(), 600);
               // Clean up pending state
               SecureStore.deleteItemAsync(pendingKey);
             }, 500);
