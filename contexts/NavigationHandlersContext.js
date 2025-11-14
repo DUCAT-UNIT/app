@@ -7,7 +7,7 @@
  * brittle and not valuable. This should be tested via integration/E2E tests.
  */
 
-import React, { createContext, useContext, useCallback } from 'react';
+import React, { createContext, useContext, useCallback, useMemo } from 'react';
 import PropTypes from 'prop-types';
 import * as SecureStore from 'expo-secure-store';
 import { SECURE_KEYS } from '../utils/constants';
@@ -133,53 +133,95 @@ export const NavigationHandlersProvider = ({ children, walletExists }) => {
     setIsAuthenticated(true);
   }, [setSettingUpPin, setChangingPin, setIsAuthenticated]);
 
-  // Settings handlers object
-  const settingsHandlers = {
-    notificationsEnabled: notificationsEnabled || false,
-    showZeroAssets: showZeroAssets || false,
-    handleLogout,
-    handleDeleteWallet,
-    handleViewSeedPhrase: requestViewSeedPhrase,
-    handleChangePin,
-    handleFaceIdToggle,
-    handleNotificationsToggle,
-    handleShowZeroAssetsToggle,
-  };
+  // Settings handlers object - memoized to prevent recreation on every render
+  const settingsHandlers = useMemo(
+    () => ({
+      notificationsEnabled: notificationsEnabled || false,
+      showZeroAssets: showZeroAssets || false,
+      handleLogout,
+      handleDeleteWallet,
+      handleViewSeedPhrase: requestViewSeedPhrase,
+      handleChangePin,
+      handleFaceIdToggle,
+      handleNotificationsToggle,
+      handleShowZeroAssetsToggle,
+    }),
+    [
+      notificationsEnabled,
+      showZeroAssets,
+      handleLogout,
+      handleDeleteWallet,
+      requestViewSeedPhrase,
+      handleChangePin,
+      handleFaceIdToggle,
+      handleNotificationsToggle,
+      handleShowZeroAssetsToggle,
+    ]
+  );
 
-  const value = {
-    // Primary handlers
-    handlePinSetupCompleteWrapper,
-    handlePinChangeCompleteWrapper,
-    handleCancelPinChange,
-    handleLockScreenAuthenticatedWrapper: handlePostAuth,
-    resetWalletAndState,
+  const value = useMemo(
+    () => ({
+      // Primary handlers
+      handlePinSetupCompleteWrapper,
+      handlePinChangeCompleteWrapper,
+      handleCancelPinChange,
+      handleLockScreenAuthenticatedWrapper: handlePostAuth,
+      resetWalletAndState,
 
-    // Settings
-    settingsHandlers,
-    biometricEnabled,
+      // Settings
+      settingsHandlers,
+      biometricEnabled,
 
-    // Settings modals
-    showLogoutModal,
-    showDeleteModal,
-    showFaceIdModal,
-    showNotificationsModal,
-    confirmLogout,
-    cancelLogout,
-    confirmDeleteWallet,
-    cancelDeleteWallet,
-    confirmFaceIdToggle,
-    cancelFaceIdToggle,
-    confirmNotificationsToggle,
-    cancelNotificationsToggle,
+      // Settings modals
+      showLogoutModal,
+      showDeleteModal,
+      showFaceIdModal,
+      showNotificationsModal,
+      confirmLogout,
+      cancelLogout,
+      confirmDeleteWallet,
+      cancelDeleteWallet,
+      confirmFaceIdToggle,
+      cancelFaceIdToggle,
+      confirmNotificationsToggle,
+      cancelNotificationsToggle,
 
-    // Account switcher
-    showAccountPicker,
-    setShowAccountPicker,
-    newAccountIndex,
-    setNewAccountIndex,
-    switchingAccount,
-    switchAccount,
-  };
+      // Account switcher
+      showAccountPicker,
+      setShowAccountPicker,
+      newAccountIndex,
+      setNewAccountIndex,
+      switchingAccount,
+      switchAccount,
+    }),
+    [
+      handlePinSetupCompleteWrapper,
+      handlePinChangeCompleteWrapper,
+      handleCancelPinChange,
+      handlePostAuth,
+      resetWalletAndState,
+      settingsHandlers,
+      biometricEnabled,
+      showLogoutModal,
+      showDeleteModal,
+      showFaceIdModal,
+      showNotificationsModal,
+      confirmLogout,
+      cancelLogout,
+      confirmDeleteWallet,
+      cancelDeleteWallet,
+      confirmFaceIdToggle,
+      cancelFaceIdToggle,
+      confirmNotificationsToggle,
+      cancelNotificationsToggle,
+      showAccountPicker,
+      setShowAccountPicker,
+      newAccountIndex,
+      setNewAccountIndex,
+      switchingAccount,
+      switchAccount,
+    ]
+  );
 
   return (
     <NavigationHandlersContext.Provider value={value}>
