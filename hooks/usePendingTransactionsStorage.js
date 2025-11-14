@@ -62,7 +62,8 @@ export const usePendingTransactionsStorage = (currentAccount) => {
       loadPendingTransactions();
       loadSpentUtxos();
     }
-  }, [currentAccount, loadPendingTransactions, loadSpentUtxos]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [currentAccount]);
 
   return {
     pendingTransactions,
