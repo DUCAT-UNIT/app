@@ -136,7 +136,19 @@ export default function OnboardingPage({
     setIsImportedWallet(false);
   };
 
-  // Reset all onboarding UI state and wallet data
+  // Reset onboarding UI state (returns to initial welcome screen)
+  const handleCancelWalletCreation = () => {
+    // Reset all local UI state - returns to "Create or Import" screen
+    setShowingIntro(false);
+    setShowingSeeds(false);
+    setImportingWallet(false);
+    setImportSeedPhrase(Array(12).fill(''));
+    setVerificationWords({});
+    setIsImportedWallet(false);
+    // Note: We DON'T call resetWalletAndState here - that's only for full reset
+  };
+
+  // Reset all onboarding UI state and wallet data (full reset)
   const handleCancelOnboarding = async () => {
     // Reset all local UI state
     setShowingIntro(false);
@@ -245,7 +257,7 @@ export default function OnboardingPage({
           setShowingSeeds={setShowingSeeds}
           createWallet={createWallet}
           importWallet={importWallet}
-          resetWallet={handleCancelOnboarding}
+          resetWallet={handleCancelWalletCreation}
           proceedToVerification={proceedToVerification}
           verifySeeds={verifySeeds}
           keyboardHeight={keyboardHeight}
@@ -283,7 +295,7 @@ export default function OnboardingPage({
           setShowingSeeds={setShowingSeeds}
           createWallet={createWallet}
           importWallet={importWallet}
-          resetWallet={handleCancelOnboarding}
+          resetWallet={handleCancelWalletCreation}
           proceedToVerification={proceedToVerification}
           verifySeeds={verifySeeds}
           keyboardHeight={keyboardHeight}
