@@ -16,6 +16,7 @@ jest.mock('../../services/walletService');
 jest.mock('../../contexts/WalletContext', () => ({
   useWallet: () => ({
     setWalletAddresses: jest.fn(),
+    resetWallet: jest.fn(),
   }),
 }));
 

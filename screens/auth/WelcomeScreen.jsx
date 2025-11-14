@@ -49,7 +49,9 @@ export default function WelcomeScreen({
   // Functions
   createWallet,
   importWallet,
-  resetWallet,
+  resetWallet: _resetWallet, // Kept for backward compatibility but unused
+  resetCreationState,
+  resetVerificationState,
   proceedToVerification,
   verifySeeds,
 
@@ -57,6 +59,12 @@ export default function WelcomeScreen({
   keyboardHeight,
 }) {
   const scrollViewRef = React.useRef(null);
+
+  // Handle cancel for create wallet flow - return to initial welcome
+  const handleCancelCreateWallet = async () => {
+    await resetCreationState();
+    await resetVerificationState();
+  };
 
   // Auto-scroll when keyboard appears (minimal scroll distance)
   React.useEffect(() => {
@@ -243,7 +251,7 @@ export default function WelcomeScreen({
           <Text style={styles.buttonText}>Continue</Text>
         </TouchableOpacity>
 
-        <TouchableOpacity style={[styles.button, styles.secondaryButton]} onPress={resetWallet}>
+        <TouchableOpacity style={[styles.button, styles.secondaryButton]} onPress={handleCancelCreateWallet}>
           <Text style={styles.buttonText}>Cancel</Text>
         </TouchableOpacity>
       </View>
@@ -273,7 +281,7 @@ export default function WelcomeScreen({
           <Text style={styles.buttonText}>I've Written Them Down</Text>
         </TouchableOpacity>
 
-        <TouchableOpacity style={[styles.button, styles.secondaryButton]} onPress={resetWallet}>
+        <TouchableOpacity style={[styles.button, styles.secondaryButton]} onPress={handleCancelCreateWallet}>
           <Text style={styles.buttonText}>Cancel</Text>
         </TouchableOpacity>
       </View>
@@ -319,7 +327,7 @@ export default function WelcomeScreen({
           <Text style={styles.buttonText}>Verify</Text>
         </TouchableOpacity>
 
-        <TouchableOpacity style={[styles.button, styles.secondaryButton]} onPress={resetWallet}>
+        <TouchableOpacity style={[styles.button, styles.secondaryButton]} onPress={handleCancelCreateWallet}>
           <Text style={styles.buttonText}>Start Over</Text>
         </TouchableOpacity>
       </View>
@@ -371,6 +379,8 @@ WelcomeScreen.propTypes = {
   createWallet: PropTypes.func.isRequired,
   importWallet: PropTypes.func.isRequired,
   resetWallet: PropTypes.func.isRequired,
+  resetCreationState: PropTypes.func.isRequired,
+  resetVerificationState: PropTypes.func.isRequired,
   proceedToVerification: PropTypes.func.isRequired,
   verifySeeds: PropTypes.func.isRequired,
 

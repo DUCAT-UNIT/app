@@ -74,6 +74,7 @@ export default function OnboardingPage({
     setShowingSeeds,
     createWallet,
     saveWalletAfterPinSetup,
+    resetCreationState,
   } = useWalletCreation({
     currentAccount,
     setIsAuthenticated,
@@ -109,6 +110,7 @@ export default function OnboardingPage({
     setVerificationWords,
     proceedToVerification,
     verifySeeds,
+    resetVerificationState,
   } = useSeedVerification({
     tempMnemonicWords,
     setSettingUpPin,
@@ -247,6 +249,8 @@ export default function OnboardingPage({
           createWallet={createWallet}
           importWallet={importWallet}
           resetWallet={handleCancelOnboarding}
+          resetCreationState={resetCreationState}
+          resetVerificationState={resetVerificationState}
           proceedToVerification={proceedToVerification}
           verifySeeds={verifySeeds}
           keyboardHeight={keyboardHeight}
@@ -285,6 +289,8 @@ export default function OnboardingPage({
           createWallet={createWallet}
           importWallet={importWallet}
           resetWallet={handleCancelOnboarding}
+          resetCreationState={resetCreationState}
+          resetVerificationState={resetVerificationState}
           proceedToVerification={proceedToVerification}
           verifySeeds={verifySeeds}
           keyboardHeight={keyboardHeight}

@@ -22,7 +22,7 @@ export function useWalletCreation({
   showToast,
   loadWallet,
 }) {
-  const { setWalletAddresses } = useWallet();
+  const { setWalletAddresses, resetWallet } = useWallet();
   const walletExistsRef = useRef(false);
   const [stateLoaded, setStateLoaded] = useState(false);
 
@@ -166,6 +166,9 @@ export function useWalletCreation({
     setShowingSeeds(false);
     setShowingIntro(false);
     walletExistsRef.current = false;
+
+    // Clear wallet from context (this was set during createWallet)
+    resetWallet();
 
     await clearPersistedState();
   };
