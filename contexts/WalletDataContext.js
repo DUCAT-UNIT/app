@@ -82,7 +82,7 @@ export const WalletDataProvider = ({ children }) => {
       history.fetchTransactionHistory();
       lastHistoryFetchRef.current = now;
     }
-  }, [wallet, balance, vault, history]);
+  }, [wallet, balance.fetchBalance, vault.fetchVault, history.fetchTransactionHistory]);
 
   // Handle wallet changes - reset data when removed, fetch immediately when changed
   useEffect(() => {
@@ -106,7 +106,7 @@ export const WalletDataProvider = ({ children }) => {
       lastHistoryFetchRef.current = Date.now();
     }
     // Note: On initial mount (prevWallet is null), we rely on usePolling's immediate: true
-  }, [wallet, balance, history, vault]);
+  }, [wallet, balance.resetBalances, balance.fetchBalance, history.resetTransactionHistory, history.fetchTransactionHistory, vault.resetVaultData, vault.fetchVault]);
 
   // Single unified polling mechanism
   usePolling({
