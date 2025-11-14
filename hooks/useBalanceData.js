@@ -4,7 +4,7 @@
  * Extracted from WalletDataContext for better separation of concerns
  */
 
-import { useState, useCallback } from 'react';
+import { useState, useCallback, useMemo } from 'react';
 import { fetchWalletBalances, fetchUtxos as fetchUtxosService } from '../services/balanceService';
 
 export function useBalanceData(wallet, getUnconfirmedBalance) {
@@ -86,24 +86,43 @@ export function useBalanceData(wallet, getUnconfirmedBalance) {
     setUtxos([]);
   }, []);
 
-  return {
-    // State
-    segwitBalance,
-    taprootBalance,
-    runesBalance,
-    unconfirmedSegwitBalance,
-    unconfirmedTaprootBalance,
-    unconfirmedRunesBalance,
-    loadingBalance,
-    refreshing,
-    balanceError,
-    setBalanceError,
-    utxos,
-    loadingUtxos,
-    // Functions
-    fetchBalance,
-    onRefresh,
-    fetchUtxos,
-    resetBalances,
-  };
+  return useMemo(
+    () => ({
+      // State
+      segwitBalance,
+      taprootBalance,
+      runesBalance,
+      unconfirmedSegwitBalance,
+      unconfirmedTaprootBalance,
+      unconfirmedRunesBalance,
+      loadingBalance,
+      refreshing,
+      balanceError,
+      setBalanceError,
+      utxos,
+      loadingUtxos,
+      // Functions
+      fetchBalance,
+      onRefresh,
+      fetchUtxos,
+      resetBalances,
+    }),
+    [
+      segwitBalance,
+      taprootBalance,
+      runesBalance,
+      unconfirmedSegwitBalance,
+      unconfirmedTaprootBalance,
+      unconfirmedRunesBalance,
+      loadingBalance,
+      refreshing,
+      balanceError,
+      utxos,
+      loadingUtxos,
+      fetchBalance,
+      onRefresh,
+      fetchUtxos,
+      resetBalances,
+    ]
+  );
 }
