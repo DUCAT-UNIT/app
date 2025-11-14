@@ -12,7 +12,7 @@ import MainTabs from './MainTabs';
 import SendNavigator from './SendNavigator';
 import PinSetupScreen from '../screens/auth/PinSetupScreen';
 import MutinynetBanner from '../components/MutinynetBanner';
-import { COLORS } from '../utils/colors';
+import { COLORS } from '../theme';
 import { useAuth } from '../contexts/AuthContext';
 import { useBalance } from '../contexts/WalletDataContext';
 import { useNavigationHandlers } from '../contexts/NavigationHandlersContext';

@@ -13,7 +13,7 @@ import {
 } from 'react-native';
 import * as Clipboard from 'expo-clipboard';
 import QRCode from 'react-native-qrcode-svg';
-import { COLORS } from '../../utils/colors';
+import { COLORS } from '../../theme';
 import Icon from '../../components/icons';
 
 const SCREEN_WIDTH = Dimensions.get('window').width;

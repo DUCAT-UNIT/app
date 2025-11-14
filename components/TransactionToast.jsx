@@ -8,7 +8,7 @@
 import React, { useEffect, useRef } from 'react';
 import PropTypes from 'prop-types';
 import { View, Text, Animated, ActivityIndicator, TouchableOpacity, Linking, StyleSheet } from 'react-native';
-import { COLORS } from '../utils/colors';
+import { COLORS } from '../theme';
 import Icon from './icons';
 import { getTxUrl, getOrdTxUrl } from '../utils/constants';
 

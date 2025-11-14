@@ -5,7 +5,7 @@
 import React from 'react';
 import { create, act } from 'react-test-renderer';
 import { useWalletCalculations } from '../useWalletCalculations';
-import { COLORS } from '../../utils/colors';
+import { COLORS } from '../../theme';
 
 // Helper to render hooks with react-test-renderer
 function renderHook(hook, { initialProps } = {}) {

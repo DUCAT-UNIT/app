@@ -6,7 +6,7 @@
 import React from 'react';
 import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
 import WalletPage from '../pages/WalletPage';
-import { COLORS } from '../utils/colors';
+import { COLORS } from '../theme';
 
 const Tab = createBottomTabNavigator();
 

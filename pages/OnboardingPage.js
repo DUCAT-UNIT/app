@@ -26,7 +26,7 @@ import { useSeedVerification } from '../hooks/useSeedVerification';
 import { useToastContext } from '../contexts/UIContext';
 
 // Utils
-import { COLORS } from '../utils/colors';
+import { COLORS } from '../theme';
 
 export default function OnboardingPage({
   seedConfirmed,

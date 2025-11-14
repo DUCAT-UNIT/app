@@ -6,7 +6,7 @@
 import React from 'react';
 import { View, StyleSheet } from 'react-native';
 import { createStackNavigator } from '@react-navigation/stack';
-import { COLORS } from '../utils/colors';
+import { COLORS } from '../theme';
 import { useToastContext } from '../contexts/UIContext';
 import ToastContainer from '../components/ToastContainer';
 

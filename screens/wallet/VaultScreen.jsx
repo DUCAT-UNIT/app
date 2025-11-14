@@ -2,7 +2,7 @@ import React, { useMemo, useRef } from 'react';
 import PropTypes from 'prop-types';
 import { View, Text, StyleSheet, ActivityIndicator, Linking } from 'react-native';
 import { WebView } from 'react-native-webview';
-import { COLORS } from '../../utils/colors';
+import { COLORS } from '../../theme';
 import { signPsbt } from '../../utils/wallet';
 import { API } from '../../utils/constants';
 

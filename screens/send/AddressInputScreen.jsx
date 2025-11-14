@@ -13,7 +13,7 @@ import {
   StyleSheet,
 } from 'react-native';
 import * as Clipboard from 'expo-clipboard';
-import { COLORS } from '../../utils/colors';
+import { COLORS } from '../../theme';
 import Icon from '../../components/icons';
 import { validateBitcoinAddress } from '../../utils/sendHelpers';
 import { useSendFlow } from '../../contexts/SendFlowContext';

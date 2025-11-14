@@ -13,7 +13,7 @@ import * as LocalAuthentication from 'expo-local-authentication';
 import * as AuthService from '../../services/authService';
 import { SECURE_KEYS } from '../../utils/constants';
 import { ERRORS, SUCCESS } from '../../utils/messages';
-import { COLORS } from '../../utils/colors';
+import { COLORS } from '../../theme';
 import Icon from '../../components/icons';
 import styles from '../../styles';
 

@@ -8,7 +8,7 @@ import PropTypes from 'prop-types';
 import { View, Text, TextInput, TouchableOpacity, Alert, StyleSheet } from 'react-native';
 import { StatusBar } from 'expo-status-bar';
 import { ERRORS, DIALOGS } from '../utils/messages';
-import { COLORS } from '../utils/colors';
+import { COLORS } from '../theme';
 
 export default function AccountSwitcherModal({
   // State

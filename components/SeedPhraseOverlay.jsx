@@ -1,7 +1,7 @@
 import React from 'react';
 import { View, Text, TouchableOpacity, Animated, StyleSheet } from 'react-native';
 import MutinynetBanner from './MutinynetBanner';
-import { COLORS } from '../utils/colors';
+import { COLORS } from '../theme';
 
 export default function SeedPhraseOverlay({
   visible,

@@ -37,7 +37,7 @@ import { useSettingsNavigation } from '../hooks/useSettingsNavigation';
 import { useSheetNavigation } from '../hooks/useSheetNavigation';
 
 // Utils
-import { COLORS } from '../utils/colors';
+import { COLORS } from '../theme';
 
 export default function WalletPage() {
   const navigation = useNavigation();

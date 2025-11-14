@@ -6,7 +6,7 @@
 
 import React, { useEffect, useState, useRef } from 'react';
 import { Text, View, ActivityIndicator, StyleSheet } from 'react-native';
-import { COLORS } from '../../utils/colors';
+import { COLORS } from '../../theme';
 import { useSendFlow } from '../../contexts/SendFlowContext';
 import { useTransactionBuild } from '../../contexts/TransactionBuildContext';
 import { useTransactionExecution } from '../../contexts/TransactionExecutionContext';

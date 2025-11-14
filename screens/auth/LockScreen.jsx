@@ -10,7 +10,7 @@ import { Text, View, TouchableOpacity } from 'react-native';
 import { StatusBar } from 'expo-status-bar';
 import * as AuthService from '../../services/authService';
 import { ERRORS } from '../../utils/messages';
-import { COLORS } from '../../utils/colors';
+import { COLORS } from '../../theme';
 import Icon from '../../components/icons';
 import styles from '../../styles';
 

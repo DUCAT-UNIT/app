@@ -1,5 +1,5 @@
 import { useMemo } from 'react';
-import { COLORS } from '../utils/colors';
+import { COLORS } from '../theme';
 
 /**
  * Custom hook for wallet-related calculations

@@ -1,5 +1,5 @@
 import { StyleSheet, Platform, StatusBar, Dimensions } from 'react-native';
-import { COLORS } from './utils/colors';
+import { COLORS } from './theme';
 
 // Get device dimensions for responsive sizing
 const { width: SCREEN_WIDTH } = Dimensions.get('window');

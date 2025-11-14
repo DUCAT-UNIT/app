@@ -5,7 +5,7 @@
 
 import React, { useState, useMemo } from 'react';
 import { Text, View, TouchableOpacity, ScrollView, StyleSheet } from 'react-native';
-import { COLORS } from '../../utils/colors';
+import { COLORS } from '../../theme';
 import Icon from '../../components/icons';
 import { useTransactionBuild } from '../../contexts/TransactionBuildContext';
 import { usePrice } from '../../contexts/PriceContext';

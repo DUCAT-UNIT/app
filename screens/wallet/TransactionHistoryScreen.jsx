@@ -17,7 +17,7 @@ import {
   PanResponder,
   StyleSheet,
 } from 'react-native';
-import { COLORS } from '../../utils/colors';
+import { COLORS } from '../../theme';
 import Icon from '../../components/icons';
 import { calculateTransactionAmount } from '../../services/transactionHistoryService';
 import { useTransactionHistory } from '../../contexts/WalletDataContext';
