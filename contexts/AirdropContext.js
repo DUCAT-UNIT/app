@@ -3,6 +3,7 @@ import { useBalance } from './WalletDataContext';
 import { useWallet } from './WalletContext';
 import { useAuth } from './AuthContext';
 import * as SecureStore from 'expo-secure-store';
+import * as Haptics from 'expo-haptics';
 import * as AirdropService from '../services/airdropService';
 
 const AirdropContext = createContext();
@@ -76,6 +77,8 @@ export const AirdropProvider = ({ children, seedConfirmed }) => {
       if (pendingTxId && (segwitBalance > 0 || taprootBalance > 0)) {
         setAirdropTxId(pendingTxId);
         setShowAirdropModal(true);
+        // Haptic feedback for successful airdrop
+        Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
         // Clear the pending airdrop
         await SecureStore.deleteItemAsync(pendingKey);
       }
@@ -146,6 +149,8 @@ export const AirdropProvider = ({ children, seedConfirmed }) => {
             setTimeout(() => {
               setAirdropTxId(result.txId);
               setShowAirdropModal(true);
+              // Haptic feedback for successful airdrop
+              Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
               // Clean up pending state
               SecureStore.deleteItemAsync(pendingKey);
             }, 500);
