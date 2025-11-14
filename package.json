@@ -44,7 +44,7 @@
     "expo-task-manager": "~14.0.8",
     "expo-web-browser": "^15.0.9",
     "prop-types": "^15.8.1",
-    "react": "^19.2.0",
+    "react": "19.1.0",
     "react-native": "0.81.5",
     "react-native-confetti-cannon": "^1.5.2",
     "react-native-qrcode-svg": "^6.3.20",
@@ -52,7 +52,7 @@
     "react-native-screens": "~4.16.0",
     "react-native-svg": "^15.12.1",
     "react-native-webview": "^13.16.0",
-    "react-test-renderer": "^19.2.0"
+    "react-test-renderer": "19.1.0"
   },
   "private": true,
   "devDependencies": {

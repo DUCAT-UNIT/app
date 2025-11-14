@@ -4,8 +4,8 @@
  * Handles parent-child transaction relationships and invalidation
  */
 
-import React, { createContext, useContext, useState, useCallback, useEffect } from 'react';
-import AsyncStorage from '@react-native-async-storage/async-storage';
+import React, { createContext, useContext, useCallback } from 'react';
+import { usePendingTransactionsStorage } from '../hooks/usePendingTransactionsStorage';
 
 const PendingTransactionsContext = createContext();
 
@@ -18,66 +18,15 @@ export const usePendingTransactions = () => {
 };
 
 export const PendingTransactionsProvider = ({ children, currentAccount, showToast }) => {
-  // Format: { txid: { txid, outputs, parentTxid, assetType, status, timestamp } }
-  const [pendingTransactions, setPendingTransactions] = useState({});
-
-  // Track spent UTXOs (both confirmed and unconfirmed) to prevent reuse
-  // Format: Set of "txid:vout" strings
-  const [spentUtxos, setSpentUtxos] = useState(new Set());
-
-  // Load pending transactions and spent UTXOs from storage on mount
-  useEffect(() => {
-    if (currentAccount) {
-      loadPendingTransactions();
-      loadSpentUtxos();
-    }
-  }, [currentAccount]);
-
-  // Load from AsyncStorage
-  const loadPendingTransactions = async () => {
-    try {
-      const key = `pending_txs_${currentAccount}`;
-      const stored = await AsyncStorage.getItem(key);
-      if (stored) {
-        setPendingTransactions(JSON.parse(stored));
-      }
-    } catch (error) {
-      console.error('Error loading pending transactions:', error);
-    }
-  };
-
-  // Save to AsyncStorage
-  const savePendingTransactions = async (txs) => {
-    try {
-      const key = `pending_txs_${currentAccount}`;
-      await AsyncStorage.setItem(key, JSON.stringify(txs));
-    } catch (error) {
-      console.error('Error saving pending transactions:', error);
-    }
-  };
-
-  // Load spent UTXOs from AsyncStorage
-  const loadSpentUtxos = async () => {
-    try {
-      const key = `spent_utxos_${currentAccount}`;
-      const stored = await AsyncStorage.getItem(key);
-      if (stored) {
-        setSpentUtxos(new Set(JSON.parse(stored)));
-      }
-    } catch (error) {
-      console.error('Error loading spent UTXOs:', error);
-    }
-  };
-
-  // Save spent UTXOs to AsyncStorage
-  const saveSpentUtxos = async (spent) => {
-    try {
-      const key = `spent_utxos_${currentAccount}`;
-      await AsyncStorage.setItem(key, JSON.stringify(Array.from(spent)));
-    } catch (error) {
-      console.error('Error saving spent UTXOs:', error);
-    }
-  };
+  // Use storage hook for persistence
+  const {
+    pendingTransactions,
+    setPendingTransactions,
+    savePendingTransactions,
+    spentUtxos,
+    setSpentUtxos,
+    saveSpentUtxos,
+  } = usePendingTransactionsStorage(currentAccount);
 
   /**
    * Add a new pending transaction
