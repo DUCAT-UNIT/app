@@ -63,17 +63,18 @@ export const vaultLoadedDetectionScript = `
       checkCount++;
       const bodyText = document.body?.innerText || document.body?.textContent || '';
 
-      // More comprehensive checks for vault page being ready
-      const hasVaultContent =
-        bodyText.includes('Vault') ||
-        bodyText.includes('vault') ||
-        bodyText.includes('VAULT') ||
-        bodyText.includes('Collateral') ||
-        bodyText.includes('COLLATERAL') ||
-        bodyText.includes('Borrow') ||
-        bodyText.includes('BORROW') ||
-        bodyText.includes('Deposit') ||
-        bodyText.includes('DEPOSIT');
+      // Check for exact vault page content
+      const hasCreateVaultPage =
+        bodyText.includes('Create Vault') &&
+        (bodyText.includes('Deposit BTC') || bodyText.includes('Borrow UNIT'));
+
+      const hasExistingVaultPage =
+        bodyText.includes('Vault health') ||
+        bodyText.includes('BTC Deposited in Vault') ||
+        bodyText.includes('UNIT Loan Balance') ||
+        bodyText.includes('Liquidation price');
+
+      const hasVaultContent = hasCreateVaultPage || hasExistingVaultPage;
 
       // Check if main content structure is loaded
       const hasMainContent =
@@ -84,11 +85,19 @@ export const vaultLoadedDetectionScript = `
         document.querySelector('article') ||
         document.querySelector('section');
 
-      // Check for any interactive elements
+      // Check for vault-specific interactive elements
+      const hasVaultButtons =
+        bodyText.includes('Preview') ||
+        bodyText.includes('Deposit') ||
+        bodyText.includes('Withdraw') ||
+        bodyText.includes('Borrow') ||
+        bodyText.includes('Repay');
+
       const hasInteractiveElements =
         document.querySelector('button') ||
         document.querySelector('input') ||
-        document.querySelector('a[href]');
+        document.querySelector('a[href]') ||
+        hasVaultButtons;
 
       // More lenient check - if we have content structure and some meaningful content
       const isPageReady = hasMainContent && (hasVaultContent || hasInteractiveElements || bodyText.length > 100);
