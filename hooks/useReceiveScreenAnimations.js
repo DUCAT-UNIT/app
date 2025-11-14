@@ -48,7 +48,17 @@ export function useReceiveScreenAnimations(showReceiveSheet, showQrModal, onClos
     ]);
   };
 
-  // Recreate pan responder when showQrModal changes to ensure it has current state
+  // Create pan responder initially
+  if (!panResponderRef.current) {
+    panResponderRef.current = PanResponder.create({
+      onStartShouldSetPanResponder: () => true,
+      onMoveShouldSetPanResponder: () => false, // Will be updated in effect
+      onPanResponderMove: () => {},
+      onPanResponderRelease: () => {},
+    });
+  }
+
+  // Update pan responder handlers when showQrModal changes
   useEffect(() => {
     panResponderRef.current = PanResponder.create({
       onStartShouldSetPanResponder: () => !showQrModal,
