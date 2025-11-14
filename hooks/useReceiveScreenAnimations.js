@@ -68,8 +68,8 @@ export function useReceiveScreenAnimations(showReceiveSheet, showQrModal, onClos
       },
       onMoveShouldSetPanResponderCapture: () => false,
       onPanResponderGrant: () => {
-        // Store the starting position
-        receiveTranslateY.extractOffset();
+        // Reset to 0 position when starting drag
+        receiveTranslateY.setValue(0);
       },
       onPanResponderMove: (_, gestureState) => {
         // Follow finger movement
@@ -78,9 +78,6 @@ export function useReceiveScreenAnimations(showReceiveSheet, showQrModal, onClos
         }
       },
       onPanResponderRelease: (_, gestureState) => {
-        // Reset the offset
-        receiveTranslateY.flattenOffset();
-
         // Dismiss if dragged far enough or with velocity
         if (gestureState.dy > 100 || gestureState.vy > 0.5) {
           handleDismiss();
@@ -118,13 +115,10 @@ export function useReceiveScreenAnimations(showReceiveSheet, showQrModal, onClos
       },
       onPanResponderRelease: (_, gestureState) => {
         if (gestureState.dx > 100 || gestureState.vx > 0.5) {
-          // Swipe to dismiss
-          handleQrBack().start(() => {
-            // Call the dismiss callback if set
-            if (onQrSwipeDismissRef.current) {
-              onQrSwipeDismissRef.current();
-            }
-          });
+          // Swipe to dismiss - just return the animation, let the caller handle the callback
+          if (onQrSwipeDismissRef.current) {
+            onQrSwipeDismissRef.current();
+          }
         } else {
           // Spring back
           Animated.spring(translateX, {

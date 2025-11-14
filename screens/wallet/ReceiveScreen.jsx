@@ -44,19 +44,18 @@ const ReceiveScreen = React.memo(function ReceiveScreen({
     showToast(`${type} address copied to clipboard`);
   };
 
-  const handleQrDismiss = React.useCallback(() => {
-    // Reset modal state and animations
-    setShowQrModal(false);
-    setSelectedAddress(null);
-    setSelectedType(null);
-    // Reset all animation values to restore receive sheet functionality
-    resetAfterQr();
-  }, [resetAfterQr]);
-
-  // Set up swipe dismiss callback
+  // Set up swipe dismiss callback to do EXACTLY what back button does
   React.useEffect(() => {
-    setOnQrSwipeDismiss(() => handleQrDismiss);
-  }, [setOnQrSwipeDismiss, handleQrDismiss]);
+    setOnQrSwipeDismiss(() => {
+      // Do EXACTLY the same as handleQrBackPress
+      handleQrBack().start(() => {
+        setShowQrModal(false);
+        setSelectedAddress(null);
+        setSelectedType(null);
+        resetAfterQr();
+      });
+    });
+  }, [setOnQrSwipeDismiss, handleQrBack, resetAfterQr]);
 
   const handleQrPress = (address, type) => {
     setSelectedAddress(address);
@@ -67,7 +66,10 @@ const ReceiveScreen = React.memo(function ReceiveScreen({
 
   const handleQrBackPress = () => {
     handleQrBack().start(() => {
-      handleQrDismiss();
+      setShowQrModal(false);
+      setSelectedAddress(null);
+      setSelectedType(null);
+      resetAfterQr();
     });
   };
 
@@ -83,12 +85,11 @@ const ReceiveScreen = React.memo(function ReceiveScreen({
 
   return (
     <>
-      {showReceiveSheet && (
+      {showReceiveSheet && !showQrModal && (
         <TouchableOpacity
           style={styles.bottomSheetBackdrop}
           activeOpacity={1}
           onPress={handleDismiss}
-          pointerEvents={showQrModal ? 'none' : 'auto'}
         />
       )}
 
