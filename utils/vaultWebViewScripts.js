@@ -54,35 +54,66 @@ export const vaultLoadedDetectionScript = `
   (function() {
     let notified = false;
 
+    let checkCount = 0;
+    const maxChecks = 10; // Maximum 10 checks (3 seconds at 300ms intervals)
+
     function checkForVaultLoaded() {
       if (notified) return true;
 
-      const bodyText = document.body.innerText || document.body.textContent || '';
+      checkCount++;
+      const bodyText = document.body?.innerText || document.body?.textContent || '';
 
-      // Check if vault exists (has vault health)
-      const hasVaultHealth = bodyText.includes('Vault health') ||
-                             bodyText.includes('Vault Health') ||
-                             bodyText.includes('VAULT HEALTH');
+      // More comprehensive checks for vault page being ready
+      const hasVaultContent =
+        bodyText.includes('Vault') ||
+        bodyText.includes('vault') ||
+        bodyText.includes('VAULT') ||
+        bodyText.includes('Collateral') ||
+        bodyText.includes('COLLATERAL') ||
+        bodyText.includes('Borrow') ||
+        bodyText.includes('BORROW') ||
+        bodyText.includes('Deposit') ||
+        bodyText.includes('DEPOSIT');
 
-      // Check if "create vault" UI is shown (no vault exists)
-      const hasCreateVault = bodyText.includes('Create Vault') ||
-                             bodyText.includes('create vault') ||
-                             bodyText.includes('CREATE VAULT');
+      // Check if main content structure is loaded
+      const hasMainContent =
+        document.querySelector('[class*="main"]') ||
+        document.querySelector('[class*="content"]') ||
+        document.querySelector('[id*="root"]') ||
+        document.querySelector('main') ||
+        document.querySelector('article') ||
+        document.querySelector('section');
 
-      // Check if main content is loaded
-      const hasMainContent = document.querySelector('[class*="main"]') ||
-                            document.querySelector('[class*="content"]') ||
-                            document.querySelector('[id*="root"]');
+      // Check for any interactive elements
+      const hasInteractiveElements =
+        document.querySelector('button') ||
+        document.querySelector('input') ||
+        document.querySelector('a[href]');
 
-      if ((hasVaultHealth || hasCreateVault) && hasMainContent) {
-        console.log('✅ Vault page loaded:', hasVaultHealth ? 'Vault exists' : 'No vault (create UI)');
+      // More lenient check - if we have content structure and some meaningful content
+      const isPageReady = hasMainContent && (hasVaultContent || hasInteractiveElements || bodyText.length > 100);
+
+      // Fast fallback - after 3 checks (900ms), if we have basic structure, assume ready
+      const earlyFallback = checkCount >= 3 && hasMainContent && bodyText.length > 50;
+
+      if (isPageReady || earlyFallback) {
+        console.log('✅ Vault page ready (check #' + checkCount + ')');
         notified = true;
-        // Wait a moment before notifying
+        // Much shorter delay for faster response
         setTimeout(() => {
           window.ReactNativeWebView?.postMessage(JSON.stringify({ type: 'VAULT_LOADED' }));
-        }, 800);
+        }, 200);
         return true;
       }
+
+      // Stop checking after max attempts
+      if (checkCount >= maxChecks) {
+        console.log('⚠️ Max checks reached, sending VAULT_LOADED');
+        notified = true;
+        window.ReactNativeWebView?.postMessage(JSON.stringify({ type: 'VAULT_LOADED' }));
+        return true;
+      }
+
       return false;
     }
 
@@ -90,8 +121,17 @@ export const vaultLoadedDetectionScript = `
     const observer = new MutationObserver(() => {
       if (checkForVaultLoaded()) {
         observer.disconnect();
+        clearInterval(intervalCheck);
       }
     });
+
+    // Also check periodically in case mutation observer misses something
+    const intervalCheck = setInterval(() => {
+      if (checkForVaultLoaded()) {
+        clearInterval(intervalCheck);
+        observer.disconnect();
+      }
+    }, 300); // Check every 300ms
 
     // Observe DOM changes
     if (document.body) {
@@ -104,7 +144,7 @@ export const vaultLoadedDetectionScript = `
     }
 
     // Also check immediately in case content is already there
-    setTimeout(checkForVaultLoaded, 200);
+    setTimeout(checkForVaultLoaded, 100);
   })();
 `;
 
