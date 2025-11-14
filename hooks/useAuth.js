@@ -74,10 +74,13 @@ export function useAuth({ onSeedConfirmed }) {
             setIsAuthenticated(true);
           }
         }
+      } else {
+        // When biometric is not enabled, show the biometric prompt
+        setShowBiometricPrompt(true);
       }
-      // When biometric is disabled, do nothing (user should use PIN entry directly)
     } catch (error) {
-      // On error, do nothing when biometric disabled (user should use PIN entry)
+      // On error, show biometric prompt so user can enable it
+      setShowBiometricPrompt(true);
     }
   };
 

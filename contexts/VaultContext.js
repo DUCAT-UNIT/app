@@ -57,7 +57,8 @@ export const VaultProvider = ({ children, currentAccount }) => {
       setActiveTab('vault');
 
       // Trigger auto-create if requested by incrementing counter
-      if (shouldAutoCreate) {
+      // Only increment if credentials are loaded successfully
+      if (shouldAutoCreate && vaultCredentials) {
         setAutoCreateVaultTrigger((prev) => prev + 1);
       }
     } catch (error) {

@@ -58,6 +58,7 @@ describe('TransactionBuildContext', () => {
 
     usePendingTransactions.mockReturnValue({
       getUnconfirmedUTXOs: jest.fn().mockReturnValue([]),
+      getSpentUtxos: jest.fn().mockReturnValue([]),
     });
   });
 
@@ -109,7 +110,8 @@ describe('TransactionBuildContext', () => {
       '0.001',
       mockWallet.segwitAddress,
       0,
-      [] // unconfirmed UTXOs
+      [], // unconfirmed UTXOs
+      [] // spent UTXOs
     );
     expect(result.current.sendIntent).toEqual(mockIntent);
     expect(mockSetIntentStep).toHaveBeenCalledWith('reviewing');
@@ -146,7 +148,8 @@ describe('TransactionBuildContext', () => {
       mockWallet.segwitAddress,
       0,
       [], // unconfirmed taproot UTXOs
-      []  // unconfirmed segwit UTXOs
+      [], // unconfirmed segwit UTXOs
+      []  // spent UTXOs
     );
     expect(result.current.sendIntent).toEqual(mockIntent);
     expect(mockSetIntentStep).toHaveBeenCalledWith('reviewing');
@@ -299,7 +302,8 @@ describe('TransactionBuildContext', () => {
       '0.001',
       mockWallet.segwitAddress,
       0,
-      [] // unconfirmed UTXOs
+      [], // unconfirmed UTXOs
+      []  // spent UTXOs
     );
   });
 

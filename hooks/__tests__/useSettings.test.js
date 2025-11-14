@@ -515,8 +515,9 @@ describe('useSettings', () => {
     it('should enable notifications with biometric success', async () => {
       AuthService.authenticateWithBiometrics.mockResolvedValue({ success: true });
 
-      const { result } = renderHook(() => useSettings(mockProps), {
-        initialProps: mockProps,
+      const propsWithBiometric = { ...mockProps, biometricEnabled: true };
+      const { result } = renderHook(() => useSettings(propsWithBiometric), {
+        initialProps: propsWithBiometric,
       });
 
       act(() => {
@@ -556,8 +557,9 @@ describe('useSettings', () => {
     it('should handle authentication error during notifications enable', async () => {
       AuthService.authenticateWithBiometrics.mockRejectedValue(new Error('Auth error'));
 
-      const { result } = renderHook(() => useSettings(mockProps), {
-        initialProps: mockProps,
+      const propsWithBiometric = { ...mockProps, biometricEnabled: true };
+      const { result } = renderHook(() => useSettings(propsWithBiometric), {
+        initialProps: propsWithBiometric,
       });
 
       act(() => {
@@ -583,8 +585,9 @@ describe('useSettings', () => {
         return Promise.resolve();
       });
 
-      const { result } = renderHook(() => useSettings(mockProps), {
-        initialProps: mockProps,
+      const propsWithBiometric = { ...mockProps, biometricEnabled: true };
+      const { result } = renderHook(() => useSettings(propsWithBiometric), {
+        initialProps: propsWithBiometric,
       });
 
       act(() => {
@@ -965,8 +968,9 @@ describe('useSettings', () => {
     it('should handle notifications enable success without showToast', async () => {
       AuthService.authenticateWithBiometrics.mockResolvedValue({ success: true });
 
-      const { result } = renderHook(() => useSettings(mockProps), {
-        initialProps: mockProps,
+      const propsWithBiometric = { ...mockProps, biometricEnabled: true };
+      const { result } = renderHook(() => useSettings(propsWithBiometric), {
+        initialProps: propsWithBiometric,
       });
 
       act(() => {
@@ -989,8 +993,9 @@ describe('useSettings', () => {
         return Promise.resolve();
       });
 
-      const { result } = renderHook(() => useSettings(mockProps), {
-        initialProps: mockProps,
+      const propsWithBiometric = { ...mockProps, biometricEnabled: true };
+      const { result } = renderHook(() => useSettings(propsWithBiometric), {
+        initialProps: propsWithBiometric,
       });
 
       act(() => {

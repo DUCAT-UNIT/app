@@ -152,7 +152,33 @@ export function useSettings({
     setShowFaceIdModal(false);
     const newValue = pendingFaceIdValue;
 
-    // Simply toggle Face ID setting without authentication
+    // If enabling, require authentication first
+    if (newValue) {
+      try {
+        const result = await AuthService.authenticateWithBiometrics(
+          'Authenticate to enable Face ID',
+          'Use PIN'
+        );
+
+        if (!result.success) {
+          // Biometric failed, fall back to PIN
+          await SecureStore.setItemAsync('pendingFaceIdEnable', 'true');
+          await SecureStore.setItemAsync('returnToSettingsAfterAuth', 'true');
+          setIsAuthenticated(false);
+          return;
+        }
+
+        // Biometric auth succeeded, set flag to return to settings
+        await SecureStore.setItemAsync('returnToSettingsAfterAuth', 'true');
+      } catch (error) {
+        if (showToast) {
+          showToast('Authentication required to enable Face ID', 'error');
+        }
+        return;
+      }
+    }
+
+    // Authentication successful or disabling, proceed with toggle
     setBiometricEnabled(newValue);
     try {
       await SecureStore.setItemAsync('biometricEnabled', String(newValue));
