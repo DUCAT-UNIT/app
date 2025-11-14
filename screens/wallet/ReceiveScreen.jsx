@@ -50,8 +50,12 @@ const ReceiveScreen = React.memo(function ReceiveScreen({
   };
 
   const handleQrBackPress = () => {
-    setShowQrModal(false);
-    handleQrBack().start();
+    handleQrBack().start(() => {
+      // Reset modal state after animation completes
+      setShowQrModal(false);
+      setSelectedAddress(null);
+      setSelectedType(null);
+    });
   };
 
   const handleShare = async () => {
@@ -82,7 +86,7 @@ const ReceiveScreen = React.memo(function ReceiveScreen({
             transform: [{ translateY: receiveTranslateY }],
           },
         ]}
-        pointerEvents={!showReceiveSheet || showQrModal ? 'none' : 'auto'}
+        pointerEvents={showReceiveSheet && !showQrModal ? 'auto' : 'none'}
         {...panResponder.panHandlers}
       >
         <View style={styles.bottomSheetHandle} />

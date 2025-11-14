@@ -34,20 +34,29 @@ export function useReceiveScreenAnimations(showReceiveSheet, showQrModal, onClos
   };
 
   const handleQrBack = () => {
-    return Animated.parallel([
+    return Animated.sequence([
+      // First animate out
+      Animated.parallel([
+        Animated.timing(translateX, {
+          toValue: SCREEN_WIDTH,
+          duration: 250,
+          useNativeDriver: true,
+        }),
+        Animated.timing(qrOpacity, {
+          toValue: 0,
+          duration: 150,
+          useNativeDriver: true,
+        }),
+        Animated.timing(receiveOpacity, {
+          toValue: 1,
+          duration: 150,
+          useNativeDriver: true,
+        }),
+      ]),
+      // Then reset translateX to 0 for next time
       Animated.timing(translateX, {
-        toValue: SCREEN_WIDTH,
-        duration: 250,
-        useNativeDriver: true,
-      }),
-      Animated.timing(qrOpacity, {
         toValue: 0,
-        duration: 150,
-        useNativeDriver: true,
-      }),
-      Animated.timing(receiveOpacity, {
-        toValue: 1,
-        duration: 150,
+        duration: 0,
         useNativeDriver: true,
       }),
     ]);
