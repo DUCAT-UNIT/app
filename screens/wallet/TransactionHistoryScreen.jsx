@@ -17,11 +17,11 @@ import {
   PanResponder,
   StyleSheet,
 } from 'react-native';
-import { COLORS } from '../utils/colors';
+import { COLORS } from '../../utils/colors';
 import Icon from '../../components/icons';
-import { calculateTransactionAmount } from '../services/transactionHistoryService';
-import { useTransactionHistory } from '../contexts/WalletDataContext';
-import { getTxUrl, getOrdTxUrl } from '../utils/constants';
+import { calculateTransactionAmount } from '../../services/transactionHistoryService';
+import { useTransactionHistory } from '../../contexts/WalletDataContext';
+import { getTxUrl, getOrdTxUrl } from '../../utils/constants';
 
 const SCREEN_HEIGHT = Dimensions.get('window').height;
 const _SCREEN_WIDTH = Dimensions.get('window').width;

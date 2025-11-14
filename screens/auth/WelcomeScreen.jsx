@@ -22,7 +22,7 @@ import {
   StyleSheet,
 } from 'react-native';
 import Icon from '../../components/icons';
-import styles from '../styles';
+import styles from '../../styles';
 
 export default function WelcomeScreen({
   // State

@@ -10,12 +10,12 @@ import { Text, View, TouchableOpacity } from 'react-native';
 import { StatusBar } from 'expo-status-bar';
 import * as SecureStore from 'expo-secure-store';
 import * as LocalAuthentication from 'expo-local-authentication';
-import * as AuthService from '../services/authService';
-import { SECURE_KEYS } from '../utils/constants';
-import { ERRORS, SUCCESS } from '../utils/messages';
-import { COLORS } from '../utils/colors';
+import * as AuthService from '../../services/authService';
+import { SECURE_KEYS } from '../../utils/constants';
+import { ERRORS, SUCCESS } from '../../utils/messages';
+import { COLORS } from '../../utils/colors';
 import Icon from '../../components/icons';
-import styles from '../styles';
+import styles from '../../styles';
 
 export default function PinSetupScreen({
   // State

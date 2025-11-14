@@ -2,14 +2,14 @@ import React from 'react';
 import PropTypes from 'prop-types';
 import { View, Text, TouchableOpacity, ActivityIndicator, ScrollView, StyleSheet } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
-import { useWallet } from '../contexts/WalletContext';
-import { useBalance } from '../contexts/WalletDataContext';
-import { usePrice } from '../contexts/PriceContext';
-import { useVaultData } from '../contexts/WalletDataContext';
-import { useDisplayPreferences } from '../contexts/UIContext';
-import { useWalletCalculations } from '../hooks/useWalletCalculations';
-import { useFormattedBalances } from '../hooks/useFormattedBalances';
-import { COLORS } from '../utils/colors';
+import { useWallet } from '../../contexts/WalletContext';
+import { useBalance } from '../../contexts/WalletDataContext';
+import { usePrice } from '../../contexts/PriceContext';
+import { useVaultData } from '../../contexts/WalletDataContext';
+import { useDisplayPreferences } from '../../contexts/UIContext';
+import { useWalletCalculations } from '../../hooks/useWalletCalculations';
+import { useFormattedBalances } from '../../hooks/useFormattedBalances';
+import { COLORS } from '../../utils/colors';
 import Icon from '../../components/icons';
 
 const WalletScreen = React.memo(function WalletScreen({

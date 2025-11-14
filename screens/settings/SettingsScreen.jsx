@@ -15,7 +15,7 @@ import {
   StatusBar,
   ScrollView,
 } from 'react-native';
-import { COLORS } from '../utils/colors';
+import { COLORS } from '../../utils/colors';
 import Icon from '../../components/icons';
 
 // Get device dimensions for responsive sizing

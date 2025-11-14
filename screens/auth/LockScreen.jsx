@@ -8,11 +8,11 @@ import React, { useState } from 'react';
 import PropTypes from 'prop-types';
 import { Text, View, TouchableOpacity } from 'react-native';
 import { StatusBar } from 'expo-status-bar';
-import * as AuthService from '../services/authService';
-import { ERRORS } from '../utils/messages';
-import { COLORS } from '../utils/colors';
+import * as AuthService from '../../services/authService';
+import { ERRORS } from '../../utils/messages';
+import { COLORS } from '../../utils/colors';
 import Icon from '../../components/icons';
-import styles from '../styles';
+import styles from '../../styles';
 
 export default function LockScreen({ onAuthenticated, showFaceIdButton, onFaceIdPress }) {
   const [pin, setPin] = useState('');

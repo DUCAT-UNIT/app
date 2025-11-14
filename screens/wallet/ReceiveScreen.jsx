@@ -13,7 +13,7 @@ import {
 } from 'react-native';
 import * as Clipboard from 'expo-clipboard';
 import QRCode from 'react-native-qrcode-svg';
-import { COLORS } from '../utils/colors';
+import { COLORS } from '../../utils/colors';
 import Icon from '../../components/icons';
 
 const SCREEN_WIDTH = Dimensions.get('window').width;
@@ -327,7 +327,7 @@ const ReceiveScreen = React.memo(function ReceiveScreen({
                 size={QR_SIZE}
                 backgroundColor="white"
                 color="black"
-                logo={require('../assets/logos/btc-logo.png')}
+                logo={require('../../assets/logos/btc-logo.png')}
                 logoSize={LOGO_SIZE}
                 logoBackgroundColor="white"
                 logoBorderRadius={Math.floor(LOGO_SIZE / 2)}

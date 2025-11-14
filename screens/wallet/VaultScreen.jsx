@@ -2,9 +2,9 @@ import React, { useMemo, useRef } from 'react';
 import PropTypes from 'prop-types';
 import { View, Text, StyleSheet, ActivityIndicator, Linking } from 'react-native';
 import { WebView } from 'react-native-webview';
-import { COLORS } from '../utils/colors';
-import { signPsbt } from '../utils/wallet';
-import { API } from '../utils/constants';
+import { COLORS } from '../../utils/colors';
+import { signPsbt } from '../../utils/wallet';
+import { API } from '../../utils/constants';
 
 const VaultScreen = React.memo(function VaultScreen({ visible, walletCredentials, _autoCreateVaultTrigger, vaultData, showSnackbar }) {
   const webViewRef = useRef(null);
