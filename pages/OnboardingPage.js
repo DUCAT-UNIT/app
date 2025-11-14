@@ -136,6 +136,20 @@ export default function OnboardingPage({
     setIsImportedWallet(false);
   };
 
+  // Reset all onboarding UI state and wallet data
+  const handleCancelOnboarding = async () => {
+    // Reset all local UI state
+    setShowingIntro(false);
+    setShowingSeeds(false);
+    setImportingWallet(false);
+    setImportSeedPhrase(Array(12).fill(''));
+    setVerificationWords({});
+    setIsImportedWallet(false);
+
+    // Reset wallet data and AsyncStorage
+    await resetWalletAndState();
+  };
+
   // PIN Setup Screen (Step 4 of onboarding or PIN change)
   if (settingUpPin) {
     return (
@@ -231,7 +245,7 @@ export default function OnboardingPage({
           setShowingSeeds={setShowingSeeds}
           createWallet={createWallet}
           importWallet={importWallet}
-          resetWallet={resetWalletAndState}
+          resetWallet={handleCancelOnboarding}
           proceedToVerification={proceedToVerification}
           verifySeeds={verifySeeds}
           keyboardHeight={keyboardHeight}
@@ -269,7 +283,7 @@ export default function OnboardingPage({
           setShowingSeeds={setShowingSeeds}
           createWallet={createWallet}
           importWallet={importWallet}
-          resetWallet={resetWalletAndState}
+          resetWallet={handleCancelOnboarding}
           proceedToVerification={proceedToVerification}
           verifySeeds={verifySeeds}
           keyboardHeight={keyboardHeight}
