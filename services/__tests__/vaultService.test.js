@@ -235,6 +235,8 @@ describe('vaultService', () => {
           {
             vault_id: 'vault_1',
             vault_tag: 'My Vault',
+            unit_borrowed: 1000,
+            btc_locked: 5000,
           },
         ],
         total_debt: 1000,
@@ -292,6 +294,8 @@ describe('vaultService', () => {
           {
             vault_id: 'vault_1',
             vault_tag: 'My Vault',
+            unit_borrowed: 1000,
+            btc_locked: 5000,
           },
         ],
         total_debt: 1000,

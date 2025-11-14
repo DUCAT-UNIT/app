@@ -34,12 +34,14 @@ function renderHook(hook, { initialProps } = {}) {
 
 describe('useWalletCalculations', () => {
   const mockVaultData = {
+    totalDebt: 100, // 100 UNIT (already in UNIT, not cents)
+    totalCollateral: 0.5, // 0.5 BTC
+    currentPrice: 50000,
     latestTransaction: {
-      amountBorrowed: 10000, // 100 UNIT
-      vaultAmount: 50000000, // 0.5 BTC
+      amountBorrowed: 10000, // 100 UNIT in cents
+      vaultAmount: 50000000, // 0.5 BTC in sats
       oraclePrice: 50000,
     },
-    totalCollateral: 0.5,
   };
 
   describe('totalBalanceBTC', () => {
@@ -170,12 +172,14 @@ describe('useWalletCalculations', () => {
           runesBalance: [],
           btcPrice: 50000,
           vaultData: {
+            totalDebt: 0,
+            totalCollateral: 0.5,
+            currentPrice: 50000,
             latestTransaction: {
               amountBorrowed: 0,
               vaultAmount: 50000000,
               oraclePrice: 50000,
             },
-            totalCollateral: 0.5,
           },
         })
       );
@@ -234,12 +238,14 @@ describe('useWalletCalculations', () => {
           runesBalance: [],
           btcPrice: 50000,
           vaultData: {
+            totalDebt: 100, // 100 UNIT
+            totalCollateral: 0.004, // 0.004 * 50000 = $200
+            currentPrice: 50000,
             latestTransaction: {
               amountBorrowed: 10000, // $100
               vaultAmount: 50000000,
               oraclePrice: 50000,
             },
-            totalCollateral: 0.004, // 0.004 * 50000 = $200
           },
         })
       );
@@ -255,12 +261,14 @@ describe('useWalletCalculations', () => {
           runesBalance: [],
           btcPrice: 50000,
           vaultData: {
+            totalDebt: 100, // 100 UNIT
+            totalCollateral: 0.0035, // 0.0035 * 50000 = $175
+            currentPrice: 50000,
             latestTransaction: {
               amountBorrowed: 10000, // $100
               vaultAmount: 50000000,
               oraclePrice: 50000,
             },
-            totalCollateral: 0.0035, // 0.0035 * 50000 = $175
           },
         })
       );
@@ -276,12 +284,14 @@ describe('useWalletCalculations', () => {
           runesBalance: [],
           btcPrice: 50000,
           vaultData: {
+            totalDebt: 100, // 100 UNIT
+            totalCollateral: 0.003, // 0.003 * 50000 = $150
+            currentPrice: 50000,
             latestTransaction: {
               amountBorrowed: 10000, // $100
               vaultAmount: 50000000,
               oraclePrice: 50000,
             },
-            totalCollateral: 0.003, // 0.003 * 50000 = $150
           },
         })
       );
