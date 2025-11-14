@@ -14,7 +14,7 @@ import {
 import * as Clipboard from 'expo-clipboard';
 import QRCode from 'react-native-qrcode-svg';
 import { COLORS } from '../utils/colors';
-import Icon from './icons';
+import Icon from '../../components/icons';
 
 const SCREEN_WIDTH = Dimensions.get('window').width;
 const SCREEN_HEIGHT = Dimensions.get('window').height;

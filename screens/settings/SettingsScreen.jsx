@@ -16,7 +16,7 @@ import {
   ScrollView,
 } from 'react-native';
 import { COLORS } from '../utils/colors';
-import Icon from './icons';
+import Icon from '../../components/icons';
 
 // Get device dimensions for responsive sizing
 const { width: SCREEN_WIDTH } = Dimensions.get('window');

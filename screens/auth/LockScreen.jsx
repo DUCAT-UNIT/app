@@ -11,7 +11,7 @@ import { StatusBar } from 'expo-status-bar';
 import * as AuthService from '../services/authService';
 import { ERRORS } from '../utils/messages';
 import { COLORS } from '../utils/colors';
-import Icon from './icons';
+import Icon from '../../components/icons';
 import styles from '../styles';
 
 export default function LockScreen({ onAuthenticated, showFaceIdButton, onFaceIdPress }) {

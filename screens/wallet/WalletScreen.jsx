@@ -10,7 +10,7 @@ import { useDisplayPreferences } from '../contexts/UIContext';
 import { useWalletCalculations } from '../hooks/useWalletCalculations';
 import { useFormattedBalances } from '../hooks/useFormattedBalances';
 import { COLORS } from '../utils/colors';
-import Icon from './icons';
+import Icon from '../../components/icons';
 
 const WalletScreen = React.memo(function WalletScreen({
   styles,
