@@ -136,21 +136,10 @@ export default function OnboardingPage({
     setIsImportedWallet(false);
   };
 
-  // Reset onboarding UI state (returns to initial welcome screen)
-  const handleCancelWalletCreation = () => {
-    // Reset all local UI state - returns to "Create or Import" screen
-    setShowingIntro(false);
-    setShowingSeeds(false);
-    setImportingWallet(false);
-    setImportSeedPhrase(Array(12).fill(''));
-    setVerificationWords({});
-    setIsImportedWallet(false);
-    // Note: We DON'T call resetWalletAndState here - that's only for full reset
-  };
-
   // Reset all onboarding UI state and wallet data (full reset)
+  // Called when user clicks Cancel or Start Again during onboarding
   const handleCancelOnboarding = async () => {
-    // Reset all local UI state
+    // Reset all local UI state first
     setShowingIntro(false);
     setShowingSeeds(false);
     setImportingWallet(false);
@@ -158,7 +147,7 @@ export default function OnboardingPage({
     setVerificationWords({});
     setIsImportedWallet(false);
 
-    // Reset wallet data and AsyncStorage
+    // Reset wallet data and AsyncStorage - this returns to initial welcome screen
     await resetWalletAndState();
   };
 
@@ -257,7 +246,7 @@ export default function OnboardingPage({
           setShowingSeeds={setShowingSeeds}
           createWallet={createWallet}
           importWallet={importWallet}
-          resetWallet={handleCancelWalletCreation}
+          resetWallet={handleCancelOnboarding}
           proceedToVerification={proceedToVerification}
           verifySeeds={verifySeeds}
           keyboardHeight={keyboardHeight}
@@ -295,7 +284,7 @@ export default function OnboardingPage({
           setShowingSeeds={setShowingSeeds}
           createWallet={createWallet}
           importWallet={importWallet}
-          resetWallet={handleCancelWalletCreation}
+          resetWallet={handleCancelOnboarding}
           proceedToVerification={proceedToVerification}
           verifySeeds={verifySeeds}
           keyboardHeight={keyboardHeight}
