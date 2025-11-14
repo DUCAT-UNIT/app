@@ -82,15 +82,15 @@ export const AirdropProvider = ({ children, seedConfirmed }) => {
         Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Heavy);
 
         // Shower of confetti taps - random timing for chaos!
-        for (let i = 0; i < 30; i++) {
-          // Random delays between 100-800ms for scattered effect
-          const delay = 100 + Math.random() * 700;
+        for (let i = 0; i < 200; i++) {
+          // Random delays between 50-1500ms for scattered effect
+          const delay = 50 + Math.random() * 1450;
           setTimeout(() => {
             // Mix of light impacts and selection taps
-            if (Math.random() > 0.5) {
-              Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-            } else {
+            if (Math.random() > 0.3) {
               Haptics.selectionAsync();
+            } else {
+              Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
             }
           }, delay);
         }
@@ -169,15 +169,15 @@ export const AirdropProvider = ({ children, seedConfirmed }) => {
               Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Heavy);
 
               // Shower of confetti taps - random timing for chaos!
-              for (let i = 0; i < 30; i++) {
-                // Random delays between 100-800ms for scattered effect
-                const delay = 100 + Math.random() * 700;
+              for (let i = 0; i < 200; i++) {
+                // Random delays between 50-1500ms for scattered effect
+                const delay = 50 + Math.random() * 1450;
                 setTimeout(() => {
                   // Mix of light impacts and selection taps
-                  if (Math.random() > 0.5) {
-                    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-                  } else {
+                  if (Math.random() > 0.3) {
                     Haptics.selectionAsync();
+                  } else {
+                    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
                   }
                 }, delay);
               }
