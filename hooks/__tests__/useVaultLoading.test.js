@@ -46,37 +46,37 @@ describe('useVaultLoading', () => {
 
     expect(result.current.isLoading).toBe(true);
     expect(result.current.preparingVault).toBe(true);
-    expect(result.current.preparingMessage).toBe('Preparing the vault for you');
+    expect(result.current.preparingMessage).toBe('Connecting to your vault');
     expect(result.current.shouldShowLoading).toBe(true);
   });
 
   it('should rotate through preparing messages', () => {
     const { result } = renderHook(() => useVaultLoading(true));
 
-    expect(result.current.preparingMessage).toBe('Preparing the vault for you');
+    expect(result.current.preparingMessage).toBe('Connecting to your vault');
 
     act(() => {
       jest.advanceTimersByTime(2000);
     });
 
-    expect(result.current.preparingMessage).toBe('Initializing secure parameters');
+    expect(result.current.preparingMessage).toBe('Verifying your wallet credentials');
 
     act(() => {
       jest.advanceTimersByTime(2000);
     });
 
-    expect(result.current.preparingMessage).toBe('Generating vault credentials');
+    expect(result.current.preparingMessage).toBe('Loading your collateral positions');
   });
 
   it('should cycle back to first message after all messages', () => {
     const { result } = renderHook(() => useVaultLoading(true));
 
-    // Advance through all 7 messages
+    // Advance through all 8 messages (updated message count)
     act(() => {
-      jest.advanceTimersByTime(14000); // 7 messages * 2000ms
+      jest.advanceTimersByTime(16000); // 8 messages * 2000ms
     });
 
-    expect(result.current.preparingMessage).toBe('Preparing the vault for you');
+    expect(result.current.preparingMessage).toBe('Connecting to your vault');
   });
 
   it('should stop rotating messages when preparingVault is false', () => {
@@ -102,13 +102,13 @@ describe('useVaultLoading', () => {
       jest.advanceTimersByTime(6000);
     });
 
-    expect(result.current.preparingMessage).not.toBe('Preparing the vault for you');
+    expect(result.current.preparingMessage).not.toBe('Connecting to your vault');
 
     act(() => {
       result.current.setPreparingVault(false);
     });
 
-    expect(result.current.preparingMessage).toBe('Preparing the vault for you');
+    expect(result.current.preparingMessage).toBe('Connecting to your vault');
   });
 
   it('should reset state when visibility becomes false', () => {
@@ -125,7 +125,7 @@ describe('useVaultLoading', () => {
 
     // Should reset preparingVault to false
     expect(result.current.preparingVault).toBe(false);
-    expect(result.current.preparingMessage).toBe('Preparing the vault for you');
+    expect(result.current.preparingMessage).toBe('Connecting to your vault');
   });
 
   it('should update isLoading state', () => {
