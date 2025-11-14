@@ -9,7 +9,7 @@ import React, { useEffect, useRef } from 'react';
 import PropTypes from 'prop-types';
 import { View, Text, Animated, ActivityIndicator, TouchableOpacity, Linking, StyleSheet } from 'react-native';
 import { COLORS } from '../utils/colors';
-import Icon from './Icon';
+import Icon from './icons';
 import { getTxUrl, getOrdTxUrl } from '../utils/constants';
 
 export default function TransactionToast({

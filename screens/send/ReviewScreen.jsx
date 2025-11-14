@@ -6,7 +6,7 @@
 import React, { useState, useMemo } from 'react';
 import { Text, View, TouchableOpacity, ScrollView, StyleSheet } from 'react-native';
 import { COLORS } from '../../utils/colors';
-import Icon from '../../components/Icon';
+import Icon from '../../components/icons';
 import { useTransactionBuild } from '../../contexts/TransactionBuildContext';
 import { usePrice } from '../../contexts/PriceContext';
 import * as bitcoin from 'bitcoinjs-lib';

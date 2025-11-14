@@ -8,7 +8,7 @@ import PropTypes from 'prop-types';
 import { View, Text, Modal, TouchableOpacity, Animated, Dimensions, StyleSheet } from 'react-native';
 import ConfettiCannon from 'react-native-confetti-cannon';
 import { COLORS } from '../utils/colors';
-import Icon from './Icon';
+import Icon from './icons';
 
 const SCREEN_WIDTH = Dimensions.get('window').width;
 const _SCREEN_HEIGHT = Dimensions.get('window').height;

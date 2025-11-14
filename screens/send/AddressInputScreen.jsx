@@ -14,7 +14,7 @@ import {
 } from 'react-native';
 import * as Clipboard from 'expo-clipboard';
 import { COLORS } from '../../utils/colors';
-import Icon from '../../components/Icon';
+import Icon from '../../components/icons';
 import { validateBitcoinAddress } from '../../utils/sendHelpers';
 import { useSendFlow } from '../../contexts/SendFlowContext';
 import { useKeyboard } from '../../hooks/useKeyboard';

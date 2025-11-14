@@ -6,7 +6,7 @@
 import React from 'react';
 import { Text, View, TouchableOpacity, StyleSheet } from 'react-native';
 import { COLORS } from '../../utils/colors';
-import Icon from '../../components/Icon';
+import Icon from '../../components/icons';
 import { useBalance } from '../../contexts/WalletDataContext';
 import { usePrice } from '../../contexts/PriceContext';
 import { useSendFlow } from '../../contexts/SendFlowContext';

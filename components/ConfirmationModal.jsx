@@ -6,7 +6,7 @@
 import React from 'react';
 import PropTypes from 'prop-types';
 import { View, Text, TouchableOpacity } from 'react-native';
-import Icon from './Icon';
+import Icon from './icons';
 
 export default function ConfirmationModal({
   // State

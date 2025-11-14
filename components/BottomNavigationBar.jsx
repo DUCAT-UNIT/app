@@ -2,7 +2,7 @@ import React from 'react';
 import PropTypes from 'prop-types';
 import { View, TouchableOpacity, StyleSheet } from 'react-native';
 import { COLORS } from '../utils/colors';
-import Icon from './Icon';
+import Icon from './icons';
 
 export default function BottomNavigationBar({ activeTab, onVaultPress, onWalletPress }) {
   return (

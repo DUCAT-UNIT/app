@@ -21,7 +21,7 @@ import {
   Keyboard,
   StyleSheet,
 } from 'react-native';
-import Icon from './Icon';
+import Icon from './icons';
 import styles from '../styles';
 
 export default function WelcomeScreen({

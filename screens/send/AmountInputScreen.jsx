@@ -14,7 +14,7 @@ import {
   ActivityIndicator,
 } from 'react-native';
 import { COLORS } from '../../utils/colors';
-import Icon from '../../components/Icon';
+import Icon from '../../components/icons';
 import { formatNumberWithCommas } from '../../utils/sendHelpers';
 import { useSendFlow } from '../../contexts/SendFlowContext';
 import { useBalance } from '../../contexts/WalletDataContext';

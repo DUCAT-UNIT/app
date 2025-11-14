@@ -18,7 +18,7 @@ import {
   StyleSheet,
 } from 'react-native';
 import { COLORS } from '../utils/colors';
-import Icon from './Icon';
+import Icon from './icons';
 import { calculateTransactionAmount } from '../services/transactionHistoryService';
 import { useTransactionHistory } from '../contexts/WalletDataContext';
 import { getTxUrl, getOrdTxUrl } from '../utils/constants';

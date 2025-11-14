@@ -6,7 +6,7 @@
 import React from 'react';
 import { Text, View, TouchableOpacity, Linking, StyleSheet } from 'react-native';
 import { COLORS } from '../../utils/colors';
-import Icon from '../../components/Icon';
+import Icon from '../../components/icons';
 import { getTxUrl } from '../../utils/constants';
 import { useTransactionExecution } from '../../contexts/TransactionExecutionContext';
 
