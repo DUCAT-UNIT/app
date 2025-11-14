@@ -11,8 +11,52 @@ import { PIN, CRYPTO } from '../constants/security';
 // Rate limiting for PIN attempts
 const MAX_PIN_ATTEMPTS = PIN.MAX_ATTEMPTS;
 const LOCKOUT_DURATION = PIN.LOCKOUT_DURATION_MS;
-let failedPinAttempts = 0;
-let pinLockoutUntil = null;
+
+// Secure storage keys for lockout state
+const LOCKOUT_KEYS = {
+  FAILED_ATTEMPTS: 'pin_failed_attempts',
+  LOCKOUT_UNTIL: 'pin_lockout_until',
+};
+
+/**
+ * Load lockout state from secure storage
+ * @returns {Promise<{failedAttempts: number, lockoutUntil: number|null}>}
+ */
+const loadLockoutState = async () => {
+  try {
+    const failedAttempts = await SecureStore.getItemAsync(LOCKOUT_KEYS.FAILED_ATTEMPTS);
+    const lockoutUntil = await SecureStore.getItemAsync(LOCKOUT_KEYS.LOCKOUT_UNTIL);
+
+    return {
+      failedAttempts: failedAttempts ? parseInt(failedAttempts, 10) : 0,
+      lockoutUntil: lockoutUntil ? parseInt(lockoutUntil, 10) : null,
+    };
+  } catch (error) {
+    // If we can't load state, return safe defaults
+    return {
+      failedAttempts: 0,
+      lockoutUntil: null,
+    };
+  }
+};
+
+/**
+ * Save lockout state to secure storage
+ * @param {number} failedAttempts
+ * @param {number|null} lockoutUntil
+ */
+const saveLockoutState = async (failedAttempts, lockoutUntil) => {
+  try {
+    await SecureStore.setItemAsync(LOCKOUT_KEYS.FAILED_ATTEMPTS, failedAttempts.toString());
+    if (lockoutUntil) {
+      await SecureStore.setItemAsync(LOCKOUT_KEYS.LOCKOUT_UNTIL, lockoutUntil.toString());
+    } else {
+      await SecureStore.deleteItemAsync(LOCKOUT_KEYS.LOCKOUT_UNTIL);
+    }
+  } catch (error) {
+    // Fail silently - lockout state is a security feature, not critical for operation
+  }
+};
 
 /**
  * Generate a cryptographically secure random salt
@@ -86,30 +130,38 @@ export const savePin = async (pin) => {
 
 /**
  * Check if PIN attempts are currently locked out
- * @returns {{isLocked: boolean, remainingTime?: number}} Lock status
+ * @returns {Promise<{isLocked: boolean, remainingTime?: number}>} Lock status
  */
-export const checkPinLockout = () => {
-  if (pinLockoutUntil && Date.now() < pinLockoutUntil) {
-    const remainingTime = Math.ceil((pinLockoutUntil - Date.now()) / 1000 / 60); // minutes
+export const checkPinLockout = async () => {
+  const { lockoutUntil } = await loadLockoutState();
+
+  if (lockoutUntil && Date.now() < lockoutUntil) {
+    const remainingTime = Math.ceil((lockoutUntil - Date.now()) / 1000 / 60); // minutes
     return { isLocked: true, remainingTime };
   }
+
+  // If lockout has expired, clear it
+  if (lockoutUntil && Date.now() >= lockoutUntil) {
+    await saveLockoutState(0, null);
+  }
+
   return { isLocked: false };
 };
 
 /**
  * Reset PIN attempt counter (call after successful authentication)
  */
-export const resetPinAttempts = () => {
-  failedPinAttempts = 0;
-  pinLockoutUntil = null;
+export const resetPinAttempts = async () => {
+  await saveLockoutState(0, null);
 };
 
 /**
  * Get remaining PIN attempts before lockout
- * @returns {number} Remaining attempts
+ * @returns {Promise<number>} Remaining attempts
  */
-export const getRemainingPinAttempts = () => {
-  return Math.max(0, MAX_PIN_ATTEMPTS - failedPinAttempts);
+export const getRemainingPinAttempts = async () => {
+  const { failedAttempts } = await loadLockoutState();
+  return Math.max(0, MAX_PIN_ATTEMPTS - failedAttempts);
 };
 
 /**
@@ -121,7 +173,7 @@ export const getRemainingPinAttempts = () => {
 export const verifyPin = async (enteredPin) => {
   try {
     // Check if locked out
-    const lockStatus = checkPinLockout();
+    const lockStatus = await checkPinLockout();
     if (lockStatus.isLocked) {
       return {
         success: false,
@@ -129,6 +181,9 @@ export const verifyPin = async (enteredPin) => {
         remainingAttempts: 0,
       };
     }
+
+    // Load current lockout state
+    const { failedAttempts } = await loadLockoutState();
 
     // Retrieve the stored salt, hashed PIN, and version
     const storedHashedPin = await SecureStore.getItemAsync(SECURE_KEYS.PIN);
@@ -159,7 +214,7 @@ export const verifyPin = async (enteredPin) => {
 
     if (isValid) {
       // Success - reset attempts
-      resetPinAttempts();
+      await resetPinAttempts();
 
       // If using legacy hash, trigger migration on next PIN change
       if (isLegacy) {
@@ -171,12 +226,14 @@ export const verifyPin = async (enteredPin) => {
 
       return { success: true };
     } else {
-      // Failed attempt
-      failedPinAttempts++;
+      // Failed attempt - increment and save
+      const newFailedAttempts = failedAttempts + 1;
 
       // Check if we've hit the limit
-      if (failedPinAttempts >= MAX_PIN_ATTEMPTS) {
-        pinLockoutUntil = Date.now() + LOCKOUT_DURATION;
+      if (newFailedAttempts >= MAX_PIN_ATTEMPTS) {
+        const lockoutUntil = Date.now() + LOCKOUT_DURATION;
+        await saveLockoutState(newFailedAttempts, lockoutUntil);
+
         return {
           success: false,
           error: 'Too many failed attempts. Account locked for 30 minutes.',
@@ -184,10 +241,13 @@ export const verifyPin = async (enteredPin) => {
         };
       }
 
+      // Save the updated attempt count
+      await saveLockoutState(newFailedAttempts, null);
+
       return {
         success: false,
         error: 'Incorrect PIN',
-        remainingAttempts: getRemainingPinAttempts(),
+        remainingAttempts: Math.max(0, MAX_PIN_ATTEMPTS - newFailedAttempts),
       };
     }
   } catch (error) {
