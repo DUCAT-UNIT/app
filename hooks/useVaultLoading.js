@@ -9,7 +9,7 @@ export function useVaultLoading(visible) {
   const messageIndexRef = useRef(0);
   const [isLoading, setIsLoading] = useState(true);
   const [preparingVault, setPreparingVault] = useState(true);
-  const [preparingMessage, setPreparingMessage] = useState('Preparing the vault for you');
+  const [preparingMessage, setPreparingMessage] = useState('Connecting to your vault');
 
   const shouldShowLoading = isLoading || preparingVault;
 
@@ -17,18 +17,19 @@ export function useVaultLoading(visible) {
   useEffect(() => {
     if (!preparingVault) {
       messageIndexRef.current = 0;
-      setPreparingMessage('Preparing the vault for you');
+      setPreparingMessage('Connecting to your vault');
       return;
     }
 
     const messages = [
-      'Preparing the vault for you',
-      'Initializing secure parameters',
-      'Generating vault credentials',
-      'Configuring collateral settings',
-      'Establishing Bitcoin connection',
-      'Verifying network parameters',
-      'Almost there...',
+      'Connecting to your vault',
+      'Verifying your wallet credentials',
+      'Loading your collateral positions',
+      'Checking Bitcoin network status',
+      'Syncing vault balances',
+      'Fetching latest price data',
+      'Preparing vault interface',
+      'Almost ready...',
     ];
 
     // Reset to first message when starting
@@ -50,7 +51,7 @@ export function useVaultLoading(visible) {
   useEffect(() => {
     if (!visible) {
       setPreparingVault(false);
-      setPreparingMessage('Preparing the vault for you');
+      setPreparingMessage('Connecting to your vault');
       messageIndexRef.current = 0;
     }
   }, [visible]);

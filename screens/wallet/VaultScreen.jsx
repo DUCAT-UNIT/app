@@ -141,7 +141,7 @@ const VaultScreen = React.memo(function VaultScreen({
           {preparingVault ? (
             <Text style={styles.preparingText}>{preparingMessage}</Text>
           ) : (
-            <Text style={styles.preparingText}>Initialising Vault</Text>
+            <Text style={styles.preparingText}>Loading your vault</Text>
           )}
         </View>
       )}

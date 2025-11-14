@@ -73,13 +73,13 @@ export function useVaultWebView(walletCredentials, vaultData, visible) {
   // Inject wallet credentials into WebView with retry logic
   const injectWalletCredentials = useCallback((isRetry = false) => {
     if (!webViewRef.current || !walletCredentials) {
-      console.log('⚠️ Cannot inject credentials - WebView or credentials not ready');
+      console.log('⚠️ Cannot inject vault credentials - waiting for WebView and credentials to be ready');
       return;
     }
 
     // Validate credentials before injection
     if (!validateCredentials(walletCredentials)) {
-      console.error('❌ Credential validation failed - aborting injection');
+      console.error('❌ Vault credential validation failed - please check wallet configuration');
       return;
     }
 
@@ -164,10 +164,10 @@ export function useVaultWebView(walletCredentials, vaultData, visible) {
 
     injectionTimeoutRef.current = setTimeout(() => {
       if (!credentialsConfirmedRef.current && injectionAttemptRef.current < maxInjectionAttempts) {
-        console.log(`⚠️ No confirmation received, retrying injection (${injectionAttemptRef.current + 1}/${maxInjectionAttempts})`);
+        console.log(`⚠️ Vault hasn't confirmed credentials yet, retrying (attempt ${injectionAttemptRef.current + 1} of ${maxInjectionAttempts})`);
         injectWalletCredentials(true);
       } else if (injectionAttemptRef.current >= maxInjectionAttempts) {
-        console.error('❌ Max injection attempts reached - credentials may not be available in vault');
+        console.error('❌ Failed to connect vault after 3 attempts - vault may not load properly. Try refreshing the vault tab.');
       }
     }, 3000); // Wait 3 seconds for confirmation
 
@@ -188,7 +188,7 @@ export function useVaultWebView(walletCredentials, vaultData, visible) {
   // Inject wallet credentials when vault becomes visible (first time only)
   useEffect(() => {
     if (visible && !hasLoadedOnceRef.current) {
-      console.log('🏦 Vault became visible for first time - will inject wallet credentials');
+      console.log('🏦 Vault opened for the first time - preparing to connect your wallet');
       setTimeout(() => {
         injectWalletCredentials();
       }, 1000);
@@ -203,12 +203,12 @@ export function useVaultWebView(walletCredentials, vaultData, visible) {
 
     // If pubkey changed, immediately show loading
     if (loadedVaultPubkeyRef.current && loadedVaultPubkeyRef.current !== currentPubkey) {
-      console.log('🔄 Account switch detected');
+      console.log('🔄 Account switch detected - updating vault to show new account data');
 
       const vaultDataFetched = vaultData !== undefined;
 
       if (vaultDataFetched) {
-        console.log('🔄 Vault data already fetched, reloading now');
+        console.log('🔄 New account data ready, reloading vault interface now');
 
         // Force reload by changing key
         const newReloadKey = Date.now();
@@ -217,15 +217,15 @@ export function useVaultWebView(walletCredentials, vaultData, visible) {
 
         // Re-inject credentials after reload
         setTimeout(() => {
-          console.log('🔄 Re-injecting credentials after account switch');
+          console.log('🔄 Connecting vault to your new account');
           injectWalletCredentials();
         }, 2000);
       } else {
-        console.log('🔄 Waiting for vault data to be fetched...');
+        console.log('🔄 Fetching data for your new account...');
       }
     } else if (!loadedVaultPubkeyRef.current) {
       // Initial load
-      console.log('🔄 Initial vault load for pubkey:', currentPubkey);
+      console.log('🔄 Loading vault for your current account');
       loadedVaultPubkeyRef.current = currentPubkey;
     }
   }, [walletCredentials, vaultData, injectWalletCredentials]);
@@ -239,14 +239,14 @@ export function useVaultWebView(walletCredentials, vaultData, visible) {
 
     // If waiting for vault data after account switch
     if (vaultDataFetched && loadedVaultPubkeyRef.current !== currentPubkey) {
-      console.log('🔄 Vault data fetched, reloading WebView now');
+      console.log('🔄 Account data loaded, updating vault display');
 
       const newReloadKey = Date.now();
       setForceReloadKey(newReloadKey);
       loadedVaultPubkeyRef.current = currentPubkey;
 
       setTimeout(() => {
-        console.log('🔄 Re-injecting credentials after vault data fetch');
+        console.log('🔄 Syncing vault with your account credentials');
         injectWalletCredentials();
       }, 2000);
     }
