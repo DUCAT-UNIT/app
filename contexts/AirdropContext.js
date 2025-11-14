@@ -77,14 +77,23 @@ export const AirdropProvider = ({ children, seedConfirmed }) => {
       if (pendingTxId && (segwitBalance > 0 || taprootBalance > 0)) {
         setAirdropTxId(pendingTxId);
         setShowAirdropModal(true);
-        // Haptic feedback - confetti cannon effect!
-        // Big POP!
+        // Haptic feedback - confetti cannon explosion!
+        // BIG BOOM with vibration!
         Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Heavy);
-        // Then gentle fluttering like confetti falling
-        setTimeout(() => Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light), 150);
-        setTimeout(() => Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light), 300);
-        setTimeout(() => Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light), 450);
-        setTimeout(() => Haptics.selectionAsync(), 600);
+
+        // Shower of confetti taps - random timing for chaos!
+        for (let i = 0; i < 30; i++) {
+          // Random delays between 100-800ms for scattered effect
+          const delay = 100 + Math.random() * 700;
+          setTimeout(() => {
+            // Mix of light impacts and selection taps
+            if (Math.random() > 0.5) {
+              Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+            } else {
+              Haptics.selectionAsync();
+            }
+          }, delay);
+        }
         // Clear the pending airdrop
         await SecureStore.deleteItemAsync(pendingKey);
       }
@@ -155,14 +164,23 @@ export const AirdropProvider = ({ children, seedConfirmed }) => {
             setTimeout(() => {
               setAirdropTxId(result.txId);
               setShowAirdropModal(true);
-              // Haptic feedback - confetti cannon effect!
-              // Big POP!
+              // Haptic feedback - confetti cannon explosion!
+              // BIG BOOM with vibration!
               Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Heavy);
-              // Then gentle fluttering like confetti falling
-              setTimeout(() => Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light), 150);
-              setTimeout(() => Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light), 300);
-              setTimeout(() => Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light), 450);
-              setTimeout(() => Haptics.selectionAsync(), 600);
+
+              // Shower of confetti taps - random timing for chaos!
+              for (let i = 0; i < 30; i++) {
+                // Random delays between 100-800ms for scattered effect
+                const delay = 100 + Math.random() * 700;
+                setTimeout(() => {
+                  // Mix of light impacts and selection taps
+                  if (Math.random() > 0.5) {
+                    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+                  } else {
+                    Haptics.selectionAsync();
+                  }
+                }, delay);
+              }
               // Clean up pending state
               SecureStore.deleteItemAsync(pendingKey);
             }, 500);
