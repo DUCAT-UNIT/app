@@ -3,7 +3,7 @@
  * Handles biometric and PIN authentication settings
  */
 
-import { useState } from 'react';
+import { useState, useCallback, useMemo } from 'react';
 import * as SecureStore from 'expo-secure-store';
 import * as AuthService from '../services/authService';
 
@@ -11,17 +11,17 @@ export function useAuthSettings({ biometricEnabled, setBiometricEnabled, setIsAu
   const [showFaceIdModal, setShowFaceIdModal] = useState(false);
   const [pendingFaceIdValue, setPendingFaceIdValue] = useState(false);
 
-  const handleChangePin = () => {
+  const handleChangePin = useCallback(() => {
     startPinChange();
-  };
+  }, [startPinChange]);
 
-  const handleFaceIdToggle = () => {
+  const handleFaceIdToggle = useCallback(() => {
     const newValue = !biometricEnabled;
     setPendingFaceIdValue(newValue);
     setShowFaceIdModal(true);
-  };
+  }, [biometricEnabled]);
 
-  const confirmFaceIdToggle = async () => {
+  const confirmFaceIdToggle = useCallback(async () => {
     setShowFaceIdModal(false);
     const newValue = pendingFaceIdValue;
 
@@ -63,17 +63,20 @@ export function useAuthSettings({ biometricEnabled, setBiometricEnabled, setIsAu
         showToast('Failed to update Face ID setting', 'error');
       }
     }
-  };
+  }, [pendingFaceIdValue, setBiometricEnabled, setIsAuthenticated, showToast]);
 
-  const cancelFaceIdToggle = () => {
+  const cancelFaceIdToggle = useCallback(() => {
     setShowFaceIdModal(false);
-  };
+  }, []);
 
-  return {
-    handleChangePin,
-    handleFaceIdToggle,
-    showFaceIdModal,
-    confirmFaceIdToggle,
-    cancelFaceIdToggle,
-  };
+  return useMemo(
+    () => ({
+      handleChangePin,
+      handleFaceIdToggle,
+      showFaceIdModal,
+      confirmFaceIdToggle,
+      cancelFaceIdToggle,
+    }),
+    [handleChangePin, handleFaceIdToggle, showFaceIdModal, confirmFaceIdToggle, cancelFaceIdToggle]
+  );
 }

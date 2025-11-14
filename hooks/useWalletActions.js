@@ -3,7 +3,7 @@
  * Handles wallet logout and deletion
  */
 
-import { useState } from 'react';
+import { useState, useCallback, useMemo } from 'react';
 import * as SecureStore from 'expo-secure-store';
 import * as AuthService from '../services/authService';
 import { ERRORS, SUCCESS } from '../utils/messages';
@@ -12,24 +12,24 @@ export function useWalletActions({ resetAuth, resetWallet, walletExistsRef, setI
   const [showLogoutModal, setShowLogoutModal] = useState(false);
   const [showDeleteModal, setShowDeleteModal] = useState(false);
 
-  const handleLogout = () => {
+  const handleLogout = useCallback(() => {
     setShowLogoutModal(true);
-  };
+  }, []);
 
-  const confirmLogout = () => {
+  const confirmLogout = useCallback(() => {
     setShowLogoutModal(false);
     setIsAuthenticated(false);
-  };
+  }, [setIsAuthenticated]);
 
-  const cancelLogout = () => {
+  const cancelLogout = useCallback(() => {
     setShowLogoutModal(false);
-  };
+  }, []);
 
-  const handleDeleteWallet = () => {
+  const handleDeleteWallet = useCallback(() => {
     setShowDeleteModal(true);
-  };
+  }, []);
 
-  const confirmDeleteWallet = async () => {
+  const confirmDeleteWallet = useCallback(async () => {
     setShowDeleteModal(false);
 
     // Require authentication before deleting wallet
@@ -74,25 +74,38 @@ export function useWalletActions({ resetAuth, resetWallet, walletExistsRef, setI
         showToast(ERRORS.WALLET_DELETE_FAILED, 'error');
       }
     }
-  };
+  }, [resetAuth, resetWallet, walletExistsRef, setIsAuthenticated, showToast]);
 
-  const cancelDeleteWallet = () => {
+  const cancelDeleteWallet = useCallback(() => {
     setShowDeleteModal(false);
-  };
+  }, []);
 
-  const handleViewSeedPhrase = () => {
+  const handleViewSeedPhrase = useCallback(() => {
     return 'REQUEST_VIEW_SEED_PHRASE';
-  };
+  }, []);
 
-  return {
-    handleLogout,
-    handleDeleteWallet,
-    handleViewSeedPhrase,
-    showLogoutModal,
-    showDeleteModal,
-    confirmLogout,
-    cancelLogout,
-    confirmDeleteWallet,
-    cancelDeleteWallet,
-  };
+  return useMemo(
+    () => ({
+      handleLogout,
+      handleDeleteWallet,
+      handleViewSeedPhrase,
+      showLogoutModal,
+      showDeleteModal,
+      confirmLogout,
+      cancelLogout,
+      confirmDeleteWallet,
+      cancelDeleteWallet,
+    }),
+    [
+      handleLogout,
+      handleDeleteWallet,
+      handleViewSeedPhrase,
+      showLogoutModal,
+      showDeleteModal,
+      confirmLogout,
+      cancelLogout,
+      confirmDeleteWallet,
+      cancelDeleteWallet,
+    ]
+  );
 }

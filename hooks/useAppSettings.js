@@ -3,7 +3,7 @@
  * Handles app preferences like notifications and display settings
  */
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback, useMemo } from 'react';
 import * as SecureStore from 'expo-secure-store';
 import * as AuthService from '../services/authService';
 
@@ -31,19 +31,19 @@ export function useAppSettings({ biometricEnabled, setIsAuthenticated, showToast
     loadSettings();
   }, []);
 
-  const handleShowZeroAssetsToggle = async () => {
+  const handleShowZeroAssetsToggle = useCallback(async () => {
     const newValue = !showZeroAssets;
     setShowZeroAssets(newValue);
     await SecureStore.setItemAsync('showZeroAssets', newValue.toString());
-  };
+  }, [showZeroAssets]);
 
-  const handleNotificationsToggle = () => {
+  const handleNotificationsToggle = useCallback(() => {
     const newValue = !notificationsEnabled;
     setPendingNotificationsValue(newValue);
     setShowNotificationsModal(true);
-  };
+  }, [notificationsEnabled]);
 
-  const confirmNotificationsToggle = async () => {
+  const confirmNotificationsToggle = useCallback(async () => {
     setShowNotificationsModal(false);
     const newValue = pendingNotificationsValue;
 
@@ -90,19 +90,30 @@ export function useAppSettings({ biometricEnabled, setIsAuthenticated, showToast
         showToast('Failed to update notifications setting', 'error');
       }
     }
-  };
+  }, [pendingNotificationsValue, biometricEnabled, setIsAuthenticated, showToast]);
 
-  const cancelNotificationsToggle = () => {
+  const cancelNotificationsToggle = useCallback(() => {
     setShowNotificationsModal(false);
-  };
+  }, []);
 
-  return {
-    notificationsEnabled,
-    showZeroAssets,
-    handleShowZeroAssetsToggle,
-    handleNotificationsToggle,
-    showNotificationsModal,
-    confirmNotificationsToggle,
-    cancelNotificationsToggle,
-  };
+  return useMemo(
+    () => ({
+      notificationsEnabled,
+      showZeroAssets,
+      handleShowZeroAssetsToggle,
+      handleNotificationsToggle,
+      showNotificationsModal,
+      confirmNotificationsToggle,
+      cancelNotificationsToggle,
+    }),
+    [
+      notificationsEnabled,
+      showZeroAssets,
+      handleShowZeroAssetsToggle,
+      handleNotificationsToggle,
+      showNotificationsModal,
+      confirmNotificationsToggle,
+      cancelNotificationsToggle,
+    ]
+  );
 }
