@@ -2,7 +2,7 @@
  * VaultContext - Manages vault access, credentials, and navigation
  */
 
-import React, { createContext, useContext, useState, useEffect } from 'react';
+import React, { createContext, useContext, useState, useEffect, useMemo, useCallback } from 'react';
 
 import { deriveAddressesFromMnemonic } from '../utils/bitcoin';
 import { withMnemonic } from '../services/authService';
@@ -51,7 +51,7 @@ export const VaultProvider = ({ children, currentAccount }) => {
     loadVaultCredentials();
   }, [currentAccount]);
 
-  const openVault = async (shouldAutoCreate = false) => {
+  const openVault = useCallback(async (shouldAutoCreate = false) => {
     try {
       // Switch to vault tab immediately for better UX
       setActiveTab('vault');
@@ -64,15 +64,18 @@ export const VaultProvider = ({ children, currentAccount }) => {
     } catch (error) {
       setActiveTab('vault');
     }
-  };
+  }, [vaultCredentials]);
 
-  const value = {
-    vaultCredentials,
-    autoCreateVaultTrigger,
-    activeTab,
-    setActiveTab,
-    openVault,
-  };
+  const value = useMemo(
+    () => ({
+      vaultCredentials,
+      autoCreateVaultTrigger,
+      activeTab,
+      setActiveTab,
+      openVault,
+    }),
+    [vaultCredentials, autoCreateVaultTrigger, activeTab, openVault]
+  );
 
   return <VaultContext.Provider value={value}>{children}</VaultContext.Provider>;
 };

@@ -6,7 +6,7 @@
  * Should be tested via E2E tests.
  */
 
-import React, { createContext, useContext, useState, useRef } from 'react';
+import React, { createContext, useContext, useState, useRef, useMemo, useCallback } from 'react';
 import { Animated, Dimensions, PanResponder } from 'react-native';
 import * as SecureStore from 'expo-secure-store';
 import * as AuthService from '../services/authService';
@@ -73,8 +73,29 @@ export const SeedPhraseProvider = ({ children, showToast, setIsAuthenticated }) 
     });
   }
 
+  // Load and display seed phrase (called after PIN authentication)
+  const loadSeedPhrase = useCallback(async () => {
+    setRequestingSeedPhrase(false);
+    try {
+      // Use withMnemonic for secure access
+      await AuthService.withMnemonic(async (mnemonic) => {
+        if (mnemonic) {
+          // Store words in state for display (intentional - user is viewing seed)
+          setSeedPhraseWords(mnemonic.split(' '));
+          setSeedPhraseVisible(false);
+          seedPhraseTranslateX.setValue(0);
+          setViewingSeedPhrase(true);
+        } else {
+          showToast(ERRORS.SEED_PHRASE_NOT_FOUND, 'error');
+        }
+      });
+    } catch (error) {
+      showToast(parseErrorMessage(error), 'error');
+    }
+  }, [seedPhraseTranslateX, showToast]);
+
   // Request seed phrase viewing (will try Face ID first if enabled, then PIN)
-  const requestViewSeedPhrase = async () => {
+  const requestViewSeedPhrase = useCallback(async () => {
     setRequestingSeedPhrase(true);
     setReturnToSettings(true); // Mark that we should return to settings after viewing
 
@@ -104,52 +125,44 @@ export const SeedPhraseProvider = ({ children, showToast, setIsAuthenticated }) 
     if (setIsAuthenticated) {
       setIsAuthenticated(false);
     }
-  };
-
-  // Load and display seed phrase (called after PIN authentication)
-  const loadSeedPhrase = async () => {
-    setRequestingSeedPhrase(false);
-    try {
-      // Use withMnemonic for secure access
-      await AuthService.withMnemonic(async (mnemonic) => {
-        if (mnemonic) {
-          // Store words in state for display (intentional - user is viewing seed)
-          setSeedPhraseWords(mnemonic.split(' '));
-          setSeedPhraseVisible(false);
-          seedPhraseTranslateX.setValue(0);
-          setViewingSeedPhrase(true);
-        } else {
-          showToast(ERRORS.SEED_PHRASE_NOT_FOUND, 'error');
-        }
-      });
-    } catch (error) {
-      showToast(parseErrorMessage(error), 'error');
-    }
-  };
+  }, [biometricEnabled, setIsAuthenticated, loadSeedPhrase]);
 
   // Close seed phrase view
-  const closeSeedPhrase = () => {
+  const closeSeedPhrase = useCallback(() => {
     setViewingSeedPhrase(false);
     setSeedPhraseWords([]);
     setSeedPhraseVisible(false);
     // Don't reset returnToSettings here - let WalletPage handle it
-  };
+  }, []);
 
-  const value = {
-    viewingSeedPhrase,
-    seedPhraseWords,
-    seedPhraseVisible,
-    requestingSeedPhrase,
-    returnToSettings,
-    seedPhraseTranslateX,
-    seedPhrasePanResponderRef,
-    requestViewSeedPhrase,
-    loadSeedPhrase,
-    closeSeedPhrase,
-    setSeedPhraseVisible,
-    setRequestingSeedPhrase,
-    setReturnToSettings,
-  };
+  const value = useMemo(
+    () => ({
+      viewingSeedPhrase,
+      seedPhraseWords,
+      seedPhraseVisible,
+      requestingSeedPhrase,
+      returnToSettings,
+      seedPhraseTranslateX,
+      seedPhrasePanResponderRef,
+      requestViewSeedPhrase,
+      loadSeedPhrase,
+      closeSeedPhrase,
+      setSeedPhraseVisible,
+      setRequestingSeedPhrase,
+      setReturnToSettings,
+    }),
+    [
+      viewingSeedPhrase,
+      seedPhraseWords,
+      seedPhraseVisible,
+      requestingSeedPhrase,
+      returnToSettings,
+      seedPhraseTranslateX,
+      requestViewSeedPhrase,
+      loadSeedPhrase,
+      closeSeedPhrase,
+    ]
+  );
 
   return <SeedPhraseContext.Provider value={value}>{children}</SeedPhraseContext.Provider>;
 };
