@@ -73,6 +73,7 @@ describe('TransactionExecutionContext', () => {
 
   beforeEach(() => {
     jest.clearAllMocks();
+    jest.restoreAllMocks(); // Restore all spies
 
     useSendFlow.mockReturnValue({
       setIntentStep: mockSetIntentStep,
@@ -97,6 +98,8 @@ describe('TransactionExecutionContext', () => {
       addPendingTransaction: jest.fn(),
       confirmTransaction: jest.fn(),
       invalidateTransaction: jest.fn(),
+      markUtxoAsSpent: jest.fn(),
+      markUtxosAsSpent: jest.fn(),
     });
 
     TransactionSigningService.signIntent = jest.fn().mockResolvedValue(mockSignedIntent);
@@ -525,6 +528,8 @@ describe('TransactionExecutionContext', () => {
         addPendingTransaction: mockAddPendingTransaction,
         confirmTransaction: jest.fn(),
         invalidateTransaction: jest.fn(),
+        markUtxoAsSpent: jest.fn(),
+        markUtxosAsSpent: jest.fn(),
       });
 
       // Mock bitcoin.Transaction.fromHex to return a transaction with change output
@@ -604,6 +609,8 @@ describe('TransactionExecutionContext', () => {
         addPendingTransaction: mockAddPendingTransaction,
         confirmTransaction: jest.fn(),
         invalidateTransaction: jest.fn(),
+        markUtxoAsSpent: jest.fn(),
+        markUtxosAsSpent: jest.fn(),
       });
 
       // Mock transaction with rune return output
@@ -695,6 +702,8 @@ describe('TransactionExecutionContext', () => {
         addPendingTransaction: mockAddPendingTransaction,
         confirmTransaction: jest.fn(),
         invalidateTransaction: jest.fn(),
+        markUtxoAsSpent: jest.fn(),
+        markUtxosAsSpent: jest.fn(),
       });
 
       // Mock transaction that spends from pending parent
@@ -763,6 +772,8 @@ describe('TransactionExecutionContext', () => {
         addPendingTransaction: mockAddPendingTransaction,
         confirmTransaction: jest.fn(),
         invalidateTransaction: jest.fn(),
+        markUtxoAsSpent: jest.fn(),
+        markUtxosAsSpent: jest.fn(),
       });
 
       // Mock transaction with no change outputs (all to recipient)
@@ -780,8 +791,9 @@ describe('TransactionExecutionContext', () => {
 
       jest.spyOn(bitcoin.Transaction, 'fromHex').mockReturnValue(mockTx);
 
-      jest.spyOn(bitcoin.address, 'fromOutputScript')
-        .mockReturnValueOnce('bc1qrecipient'); // Not our address
+      const fromOutputScriptSpy = jest.spyOn(bitcoin.address, 'fromOutputScript');
+      fromOutputScriptSpy.mockClear();
+      fromOutputScriptSpy.mockReturnValueOnce('bc1qrecipient'); // Not our address
 
       const signedIntent = {
         ...mockSignedIntent,
@@ -825,6 +837,8 @@ describe('TransactionExecutionContext', () => {
         addPendingTransaction: mockAddPendingTransaction,
         confirmTransaction: jest.fn(),
         invalidateTransaction: jest.fn(),
+        markUtxoAsSpent: jest.fn(),
+        markUtxosAsSpent: jest.fn(),
       });
 
       // Mock transaction with OP_RETURN and change output
@@ -898,6 +912,8 @@ describe('TransactionExecutionContext', () => {
         addPendingTransaction: mockAddPendingTransaction,
         confirmTransaction: jest.fn(),
         invalidateTransaction: jest.fn(),
+        markUtxoAsSpent: jest.fn(),
+        markUtxosAsSpent: jest.fn(),
       });
 
       // Mock fromHex to throw an error
@@ -954,6 +970,8 @@ describe('TransactionExecutionContext', () => {
         addPendingTransaction: mockAddPendingTransaction,
         confirmTransaction: jest.fn(),
         invalidateTransaction: jest.fn(),
+        markUtxoAsSpent: jest.fn(),
+        markUtxosAsSpent: jest.fn(),
       });
 
       const mockTx = {
