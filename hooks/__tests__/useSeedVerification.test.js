@@ -7,6 +7,7 @@ import React from 'react';
 import { create, act } from 'react-test-renderer';
 import { useSeedVerification } from '../useSeedVerification';
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import { ERRORS } from '../../utils/messages';
 
 // Mock messages
 jest.mock('../../utils/messages', () => ({
@@ -509,6 +510,62 @@ describe('useSeedVerification', () => {
         const uniqueChoices = [...new Set(choices)];
         expect(uniqueChoices.length).toBe(4);
       });
+    });
+  });
+
+  describe('State persistence branches', () => {
+    it('should load saved state with all properties when they exist', async () => {
+      const savedState = {
+        verifyingSeeds: true,
+        verificationWords: { 0: 'word1', 1: 'word2' },
+        requiredIndices: [0, 1, 2],
+        wordChoices: { 0: ['a', 'b', 'c', 'd'] },
+      };
+
+      AsyncStorage.getItem.mockResolvedValue(JSON.stringify(savedState));
+
+      const { result } = renderHook(() => useSeedVerification(mockProps), {
+        initialProps: mockProps,
+      });
+
+      await act(async () => {
+        await new Promise(resolve => setTimeout(resolve, 10));
+      });
+
+      // Lines 38-41 branches - should load all saved properties
+      expect(result.current.verifyingSeeds).toBe(true);
+      expect(result.current.verificationWords).toEqual(savedState.verificationWords);
+      expect(result.current.requiredIndices).toEqual(savedState.requiredIndices);
+      expect(result.current.wordChoices).toEqual(savedState.wordChoices);
+    });
+
+    it('should handle verification with mismatched words', () => {
+      const { result } = renderHook(() => useSeedVerification(mockProps), {
+        initialProps: mockProps,
+      });
+
+      act(() => {
+        result.current.proceedToVerification();
+      });
+
+      // Set incorrect verification words
+      const indices = result.current.requiredIndices;
+      const wrongWords = {};
+      indices.forEach((index) => {
+        wrongWords[index] = 'wrongword'; // Intentionally wrong
+      });
+
+      act(() => {
+        result.current.setVerificationWords(wrongWords);
+      });
+
+      act(() => {
+        result.current.verifySeeds();
+      });
+
+      // Lines 142-145 branches - allCorrect should be false due to mismatch
+      expect(mockProps.showToast).toHaveBeenCalledWith(ERRORS.SEED_PHRASE_INCORRECT, 'error');
+      expect(result.current.verificationWords).toEqual({});
     });
   });
 });

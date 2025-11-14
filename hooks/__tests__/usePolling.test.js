@@ -183,4 +183,33 @@ describe('usePolling', () => {
     expect(onPoll2).toHaveBeenCalledTimes(1);
     expect(pollCount).toBe(2);
   });
+
+  it('should handle stopPolling when interval is already cleared', () => {
+    const onPoll = jest.fn();
+
+    const { result } = renderHook(() =>
+      usePolling({
+        onPoll,
+        interval: 1000,
+        immediate: false,
+      })
+    );
+
+    // Stop polling
+    act(() => {
+      result.current.stopPolling();
+    });
+
+    // Call stopPolling again when interval is already null (branch coverage)
+    act(() => {
+      result.current.stopPolling();
+    });
+
+    // Should not throw and no polls should happen
+    act(() => {
+      jest.advanceTimersByTime(2000);
+    });
+
+    expect(onPoll).not.toHaveBeenCalled();
+  });
 });

@@ -141,4 +141,26 @@ describe('useBalanceData', () => {
       })
     ).rejects.toThrow('UTXO fetch failed');
   });
+
+  it('should refresh balances using onRefresh', async () => {
+    const mockBalances = {
+      segwitBalance: 150000,
+      taprootBalance: 250000,
+      runesBalance: [['REFRESH•RUNE', 2000]],
+    };
+
+    balanceService.fetchWalletBalances.mockResolvedValue(mockBalances);
+    mockGetUnconfirmedBalance.mockReturnValue({ btc: 3000, runes: 5 });
+
+    const { result } = renderHook(() => useBalanceData(mockWallet, mockGetUnconfirmedBalance));
+
+    await act(async () => {
+      await result.current.onRefresh();
+    });
+
+    expect(result.current.segwitBalance).toBe(150000);
+    expect(result.current.taprootBalance).toBe(250000);
+    expect(result.current.runesBalance).toEqual([['REFRESH•RUNE', 2000]]);
+    expect(result.current.refreshing).toBe(false);
+  });
 });

@@ -520,4 +520,109 @@ describe('PendingTransactionsContext', () => {
       AsyncStorage.setItem = originalSetItem;
     });
   });
+
+  describe('AsyncStorage data loading branches', () => {
+    it('should load pending transactions from AsyncStorage when stored data exists', async () => {
+      const storedTransactions = [
+        { txid: 'stored1', vout: 0, confirmations: 0 },
+        { txid: 'stored2', vout: 1, confirmations: 1 },
+      ];
+
+      AsyncStorage.getItem.mockImplementation((key) => {
+        if (key === 'pending_txs_1') {
+          return Promise.resolve(JSON.stringify(storedTransactions));
+        }
+        return Promise.resolve(null);
+      });
+
+      const wrapper = ({ children }) => (
+        <PendingTransactionsProvider currentAccount={1} showToast={mockShowToast}>
+          {children}
+        </PendingTransactionsProvider>
+      );
+
+      const { result } = renderHook(() => usePendingTransactions(), { wrapper });
+
+      await act(async () => {
+        await new Promise(resolve => setTimeout(resolve, 10));
+      });
+
+      // Should load the stored transactions (line 42 branch)
+      expect(result.current.pendingTransactions).toEqual(storedTransactions);
+    });
+
+    it('should load spent UTXOs from AsyncStorage when stored data exists', async () => {
+      const storedSpentUtxos = ['tx1:0', 'tx2:1', 'tx3:0'];
+
+      AsyncStorage.getItem.mockImplementation((key) => {
+        if (key === 'spent_utxos_1') {
+          return Promise.resolve(JSON.stringify(storedSpentUtxos));
+        }
+        return Promise.resolve(null);
+      });
+
+      const wrapper = ({ children }) => (
+        <PendingTransactionsProvider currentAccount={1} showToast={mockShowToast}>
+          {children}
+        </PendingTransactionsProvider>
+      );
+
+      const { result } = renderHook(() => usePendingTransactions(), { wrapper });
+
+      await act(async () => {
+        await new Promise(resolve => setTimeout(resolve, 10));
+      });
+
+      // Should load the stored spent UTXOs (line 65 branch)
+      expect(result.current.isUtxoSpent('tx1', 0)).toBe(true);
+      expect(result.current.isUtxoSpent('tx2', 1)).toBe(true);
+      expect(result.current.isUtxoSpent('tx3', 0)).toBe(true);
+      expect(result.current.isUtxoSpent('tx4', 0)).toBe(false);
+    });
+
+    it('should use isUtxoSpent to check if UTXO is spent', async () => {
+      const wrapper = ({ children }) => (
+        <PendingTransactionsProvider currentAccount={0} showToast={mockShowToast}>
+          {children}
+        </PendingTransactionsProvider>
+      );
+
+      const { result } = renderHook(() => usePendingTransactions(), { wrapper });
+
+      await act(async () => {
+        await result.current.markUtxosAsSpent([
+          { txid: 'test1', vout: 0 },
+          { txid: 'test2', vout: 1 },
+        ]);
+      });
+
+      // Test line 312-313 branches
+      expect(result.current.isUtxoSpent('test1', 0)).toBe(true);
+      expect(result.current.isUtxoSpent('test2', 1)).toBe(true);
+      expect(result.current.isUtxoSpent('test3', 0)).toBe(false);
+    });
+
+    it('should use getSpentUtxos to retrieve all spent UTXOs', async () => {
+      const wrapper = ({ children }) => (
+        <PendingTransactionsProvider currentAccount={0} showToast={mockShowToast}>
+          {children}
+        </PendingTransactionsProvider>
+      );
+
+      const { result } = renderHook(() => usePendingTransactions(), { wrapper });
+
+      await act(async () => {
+        await result.current.markUtxosAsSpent([
+          { txid: 'utxo1', vout: 0 },
+          { txid: 'utxo2', vout: 1 },
+        ]);
+      });
+
+      // Test line 321 branch
+      const spentUtxos = result.current.getSpentUtxos();
+      expect(spentUtxos.has('utxo1:0')).toBe(true);
+      expect(spentUtxos.has('utxo2:1')).toBe(true);
+      expect(spentUtxos.size).toBe(2);
+    });
+  });
 });

@@ -601,4 +601,76 @@ describe('AirdropContext', () => {
     expect(AirdropService.requestAirdrop).not.toHaveBeenCalled();
   });
 
+  it('should skip airdrop when claimed within 24 hours', async () => {
+    const mockWallet = createMockWallet('24hourlimit');
+    const lastAirdropKey = `lastAirdropTime_${mockWallet.segwitAddress}_0`;
+    const lockKey = `airdropLock_${mockWallet.segwitAddress}_0`;
+    const recentAirdropTime = Date.now() - 12 * 60 * 60 * 1000; // 12 hours ago
+
+    useBalance.mockReturnValue({ segwitBalance: 0, taprootBalance: 0 });
+    useWallet.mockReturnValue({ wallet: mockWallet, currentAccount: 0 });
+    useAuth.mockReturnValue({ isAuthenticated: true });
+
+    SecureStore.getItemAsync.mockImplementation((key) => {
+      if (key === lastAirdropKey) {
+        return Promise.resolve(recentAirdropTime.toString());
+      }
+      if (key === lockKey) {
+        return Promise.resolve(null); // No fresh lock
+      }
+      return Promise.resolve(null);
+    });
+
+    const wrapper = ({ children }) => (
+      <AirdropProvider seedConfirmed={true}>{children}</AirdropProvider>
+    );
+
+    await act(async () => {
+      renderHook(() => useAirdrop(), { wrapper });
+    });
+
+    await act(async () => {
+      jest.advanceTimersByTime(3000);
+      await Promise.resolve();
+    });
+
+    // Should not request airdrop due to 24-hour limit
+    expect(AirdropService.requestAirdrop).not.toHaveBeenCalled();
+  });
+
+  it('should handle errors during airdrop and clean up lock', async () => {
+    const mockWallet = createMockWallet('errorcleanup');
+    const lockKey = `airdropLock_${mockWallet.segwitAddress}_0`;
+
+    useBalance.mockReturnValue({ segwitBalance: 0, taprootBalance: 0 });
+    useWallet.mockReturnValue({ wallet: mockWallet, currentAccount: 0 });
+    useAuth.mockReturnValue({ isAuthenticated: true });
+
+    SecureStore.getItemAsync.mockResolvedValue(null);
+    SecureStore.setItemAsync.mockResolvedValue(undefined);
+    SecureStore.deleteItemAsync.mockResolvedValue(undefined);
+
+    // Make requestAirdrop throw an error
+    AirdropService.requestAirdrop.mockRejectedValue(new Error('Network error'));
+
+    const wrapper = ({ children }) => (
+      <AirdropProvider seedConfirmed={true}>{children}</AirdropProvider>
+    );
+
+    await act(async () => {
+      renderHook(() => useAirdrop(), { wrapper });
+    });
+
+    await act(async () => {
+      jest.advanceTimersByTime(3000);
+      await Promise.resolve();
+    });
+
+    // Should attempt to request airdrop
+    expect(AirdropService.requestAirdrop).toHaveBeenCalled();
+
+    // Should clean up lock on error
+    expect(SecureStore.deleteItemAsync).toHaveBeenCalledWith(lockKey);
+  });
+
 });
