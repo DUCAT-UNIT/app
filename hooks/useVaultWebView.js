@@ -94,8 +94,8 @@ export function useVaultWebView(walletCredentials, vaultData, visible) {
 
     const credentialsScript = `
       (function() {
-        logger.debug('Mobile app injecting wallet credentials');
-        logger.debug('Vault pubkey:', '${walletCredentials.vaultPubkey}');
+        console.log('Mobile app injecting wallet credentials');
+        console.log('Vault pubkey:', '${walletCredentials.vaultPubkey}');
 
         // Clear any existing credentials and specific localStorage keys
         delete window.mobileWalletCredentials;
@@ -107,12 +107,12 @@ export function useVaultWebView(walletCredentials, vaultData, visible) {
               try {
                 localStorage.removeItem(key);
               } catch (e) {
-                logger.debug('Could not remove key:', key);
+                console.log('Could not remove key:', key);
               }
             });
           }
         } catch (e) {
-          logger.debug('Could not access localStorage:', e);
+          console.log('Could not access localStorage:', e);
         }
 
         // Store credentials in window object
@@ -138,8 +138,9 @@ export function useVaultWebView(walletCredentials, vaultData, visible) {
               attempt: ${injectionAttemptRef.current}
             }
           }));
+          console.log('CREDENTIALS_RECEIVED message sent');
         } catch (e) {
-          logger.error('Failed to send CREDENTIALS_RECEIVED message:', e);
+          console.error('Failed to send CREDENTIALS_RECEIVED message:', e);
         }
 
         // Dispatch events to notify app (for backward compatibility)
@@ -151,7 +152,7 @@ export function useVaultWebView(walletCredentials, vaultData, visible) {
           detail: window.mobileWalletCredentials
         }));
 
-        logger.debug('Mobile wallet credentials injected and events dispatched');
+        console.log('Mobile wallet credentials injected and events dispatched');
       })();
       true;
     `;
