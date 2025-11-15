@@ -75,12 +75,19 @@ export default function AssetDetailScreen({ route = {}, navigation }) {
                    selectedTimeframe === '1W' ? 7 :
                    selectedTimeframe === '1M' ? 30 : 365;
 
+      // Add a small delay to avoid rate limiting
+      await new Promise(resolve => setTimeout(resolve, 500));
+
       const response = await fetch(
-        `https://api.coingecko.com/api/v3/coins/bitcoin/market_chart?vs_currency=usd&days=${days}`
+        `https://api.coingecko.com/api/v3/coins/bitcoin/market_chart?vs_currency=usd&days=${days}&interval=daily`
       );
 
+      if (response.status === 429) {
+        throw new Error('Rate limit reached. Please try again in a moment.');
+      }
+
       if (!response.ok) {
-        throw new Error(`API responded with status: ${response.status}`);
+        throw new Error(`API error: ${response.status}`);
       }
 
       const data = await response.json();
@@ -104,7 +111,7 @@ export default function AssetDetailScreen({ route = {}, navigation }) {
       }
     } catch (error) {
       console.error('Error fetching price data:', error);
-      setPriceError(error.message || 'Failed to fetch price data');
+      setPriceError(error.message || 'Failed to load price data');
       setPriceData(null);
     } finally {
       setPriceLoading(false);
@@ -216,7 +223,16 @@ export default function AssetDetailScreen({ route = {}, navigation }) {
           <ActivityIndicator color={COLORS.PRIMARY_BLUE} />
         ) : priceError ? (
           <View style={styles.errorContainer}>
-            <Text style={styles.errorText}>Failed to load price data</Text>
+            <Text style={styles.errorText}>
+              {priceError.includes('Rate limit')
+                ? 'Rate limit reached'
+                : 'Failed to load price data'}
+            </Text>
+            <Text style={styles.errorSubtext}>
+              {priceError.includes('Rate limit')
+                ? 'Please wait a moment before retrying'
+                : 'Check your connection and try again'}
+            </Text>
             <TouchableOpacity
               style={styles.retryButton}
               onPress={fetchPriceData}
@@ -591,12 +607,19 @@ const styles = StyleSheet.create({
   },
   errorText: {
     color: COLORS.ERROR,
-    fontSize: 14,
-    marginBottom: 12,
+    fontSize: 15,
+    fontWeight: '600',
+    marginBottom: 6,
+  },
+  errorSubtext: {
+    color: COLORS.SECONDARY_TEXT,
+    fontSize: 13,
+    marginBottom: 16,
+    textAlign: 'center',
   },
   retryButton: {
     paddingHorizontal: 24,
-    paddingVertical: 8,
+    paddingVertical: 10,
     backgroundColor: COLORS.PRIMARY_BLUE,
     borderRadius: 20,
   },
