@@ -55,7 +55,7 @@ export const BIOMETRIC = {
 export const PASSKEY = {
   // Relying Party configuration
   RP_NAME: 'Ducat Wallet',
-  RP_ID: 'ducat.app', // Update in production
+  RP_ID: undefined, // Use bundle ID for testing; set to 'ducat.app' in production
   TIMEOUT_MS: 60000, // 60 seconds
 
   // User verification requirements

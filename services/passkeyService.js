@@ -261,12 +261,14 @@ export const createWalletWithPasskey = async ({ userName, userDisplayName }) => 
     getRandomValues(userId);
 
     // Create FIDO2 registration request
+    const rp = { name: PASSKEY.RP_NAME };
+    if (PASSKEY.RP_ID) {
+      rp.id = PASSKEY.RP_ID;
+    }
+
     const requestJson = {
       challenge: toBase64Url(challenge),
-      rp: {
-        name: PASSKEY.RP_NAME,
-        id: PASSKEY.RP_ID,
-      },
+      rp,
       user: {
         id: toBase64Url(userId),
         name: userName || `user-${Date.now()}`,
@@ -390,7 +392,6 @@ export const unlockWithPasskey = async () => {
     // Create FIDO2 authentication request
     const requestJson = {
       challenge: toBase64Url(challenge),
-      rpId: PASSKEY.RP_ID,
       userVerification: PASSKEY.USER_VERIFICATION,
       allowCredentials: [
         {
@@ -400,6 +401,11 @@ export const unlockWithPasskey = async () => {
       ],
       timeout: PASSKEY.TIMEOUT_MS,
     };
+
+    // Only add rpId if configured (for production domain)
+    if (PASSKEY.RP_ID) {
+      requestJson.rpId = PASSKEY.RP_ID;
+    }
 
     logger.debug('Authenticating with passkey...');
 
@@ -471,11 +477,15 @@ export const recoverWithPasskey = async () => {
     // Create FIDO2 authentication request (discovery mode - no allowCredentials)
     const requestJson = {
       challenge: toBase64Url(challenge),
-      rpId: PASSKEY.RP_ID,
       userVerification: PASSKEY.USER_VERIFICATION,
       // No allowCredentials - let platform show all available passkeys
       timeout: PASSKEY.TIMEOUT_MS,
     };
+
+    // Only add rpId if configured (for production domain)
+    if (PASSKEY.RP_ID) {
+      requestJson.rpId = PASSKEY.RP_ID;
+    }
 
     logger.debug('Authenticating with synced passkey...');
 
