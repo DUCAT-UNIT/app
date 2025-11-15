@@ -78,7 +78,7 @@ export default function ReceiveQRScreen({ route, navigation }) {
             color="black"
             logo={
               addressType === 'Taproot'
-                ? require('../../assets/logos/unit-logo.png')
+                ? require('../../assets/logos/unit-log.png')
                 : require('../../assets/logos/btc-logo.png')
             }
             logoSize={LOGO_SIZE}
