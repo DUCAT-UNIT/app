@@ -79,23 +79,43 @@ export const AirdropProvider = ({ children, seedConfirmed }) => {
         setAirdropTxId(pendingTxId);
         setShowAirdropModal(true);
         // Haptic feedback - confetti cannon explosion!
-        // BIG BOOM with vibration!
+        // MASSIVE BOOM with long vibration!
         Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Heavy);
-        // Add vibration pattern: [wait, vibrate, wait, vibrate...]
-        // Initial strong burst: 200ms vibration
-        Vibration.vibrate([0, 200, 50, 100, 50, 100]);
+        // Single LARGE vibration for explosion: 500ms
+        Vibration.vibrate(500);
 
-        // Shower of confetti taps matching 2.5-3 second animation
-        // 500 taps over 2500ms to match confetti fallSpeed
-        for (let i = 0; i < 500; i++) {
-          // Random delays between 0-2500ms to match confetti fall duration
-          const delay = Math.random() * 2500;
+        // Shower of confetti haptics that dwindles over 2.5 seconds
+        // Start with dense haptics that gradually become sparse
+        const totalDuration = 2500; // 2.5 seconds
+        const totalTaps = 800; // Lots of taps
+
+        for (let i = 0; i < totalTaps; i++) {
+          // Calculate progress (0 to 1) for this tap
+          const progress = i / totalTaps;
+
+          // Bias delays towards later in the animation (dwindling effect)
+          // Early taps are clustered at the beginning, later taps spread out
+          const delay = Math.pow(progress, 0.5) * totalDuration;
+
+          // Decrease intensity over time
+          // First 30% = heavy/medium impacts
+          // Middle 40% = light impacts
+          // Last 30% = only selections (lightest)
           setTimeout(() => {
-            // Mix of light impacts and selection taps
-            if (Math.random() > 0.3) {
-              Haptics.selectionAsync();
-            } else {
+            const timeProgress = delay / totalDuration;
+            if (timeProgress < 0.3) {
+              // Early: mix of heavy and medium
+              if (Math.random() > 0.5) {
+                Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+              } else {
+                Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+              }
+            } else if (timeProgress < 0.7) {
+              // Middle: mostly light
               Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+            } else {
+              // End: very light selections only
+              Haptics.selectionAsync();
             }
           }, delay);
         }
@@ -170,23 +190,43 @@ export const AirdropProvider = ({ children, seedConfirmed }) => {
               setAirdropTxId(result.txId);
               setShowAirdropModal(true);
               // Haptic feedback - confetti cannon explosion!
-              // BIG BOOM with vibration!
+              // MASSIVE BOOM with long vibration!
               Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Heavy);
-              // Add vibration pattern: [wait, vibrate, wait, vibrate...]
-              // Initial strong burst: 200ms vibration
-              Vibration.vibrate([0, 200, 50, 100, 50, 100]);
+              // Single LARGE vibration for explosion: 500ms
+              Vibration.vibrate(500);
 
-              // Shower of confetti taps matching 2.5-3 second animation
-              // 500 taps over 2500ms to match confetti fallSpeed
-              for (let i = 0; i < 500; i++) {
-                // Random delays between 0-2500ms to match confetti fall duration
-                const delay = Math.random() * 2500;
+              // Shower of confetti haptics that dwindles over 2.5 seconds
+              // Start with dense haptics that gradually become sparse
+              const totalDuration = 2500; // 2.5 seconds
+              const totalTaps = 800; // Lots of taps
+
+              for (let i = 0; i < totalTaps; i++) {
+                // Calculate progress (0 to 1) for this tap
+                const progress = i / totalTaps;
+
+                // Bias delays towards later in the animation (dwindling effect)
+                // Early taps are clustered at the beginning, later taps spread out
+                const delay = Math.pow(progress, 0.5) * totalDuration;
+
+                // Decrease intensity over time
+                // First 30% = heavy/medium impacts
+                // Middle 40% = light impacts
+                // Last 30% = only selections (lightest)
                 setTimeout(() => {
-                  // Mix of light impacts and selection taps
-                  if (Math.random() > 0.3) {
-                    Haptics.selectionAsync();
-                  } else {
+                  const timeProgress = delay / totalDuration;
+                  if (timeProgress < 0.3) {
+                    // Early: mix of heavy and medium
+                    if (Math.random() > 0.5) {
+                      Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+                    } else {
+                      Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+                    }
+                  } else if (timeProgress < 0.7) {
+                    // Middle: mostly light
                     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+                  } else {
+                    // End: very light selections only
+                    Haptics.selectionAsync();
                   }
                 }, delay);
               }
