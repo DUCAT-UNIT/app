@@ -67,13 +67,24 @@ const WalletScreen = React.memo(function WalletScreen({
 
   // Prevent multiple rapid clicks on create vault button
   const [creatingVault, setCreatingVault] = React.useState(false);
+  const vaultCreationTimeoutRef = React.useRef(null);
+
   const handleCreateVault = React.useCallback(() => {
     if (creatingVault) return;
     setCreatingVault(true);
     onCreateVaultPress();
     // Reset after timeout to allow retry if needed
-    setTimeout(() => setCreatingVault(false), VAULT_CREATION_RETRY_TIMEOUT);
+    vaultCreationTimeoutRef.current = setTimeout(() => setCreatingVault(false), VAULT_CREATION_RETRY_TIMEOUT);
   }, [creatingVault, onCreateVaultPress]);
+
+  // Cleanup timeout on unmount
+  React.useEffect(() => {
+    return () => {
+      if (vaultCreationTimeoutRef.current) {
+        clearTimeout(vaultCreationTimeoutRef.current);
+      }
+    };
+  }, []);
 
   // Handle retry when balance fetch fails
   const handleRetryBalance = React.useCallback(async () => {

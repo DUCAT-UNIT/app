@@ -8,6 +8,7 @@ import { useAuth } from './AuthContext';
 import * as SecureStore from 'expo-secure-store';
 import * as Haptics from 'expo-haptics';
 import * as AirdropService from '../services/airdropService';
+import { logger } from '../utils/logger';
 
 const AirdropContext = createContext();
 
@@ -65,9 +66,9 @@ export const AirdropProvider = ({ children, seedConfirmed }) => {
         }
       }, 3000);
     } catch (error) {
-      // Log error in development, silent in production
+      // Silent fail in production, log in development
       if (__DEV__) {
-        console.log('⚠️ Audio playback failed:', error.message);
+        logger.debug('Audio playback failed', { error: error.message });
       }
     }
   };
@@ -149,9 +150,9 @@ export const AirdropProvider = ({ children, seedConfirmed }) => {
         );
         confettiSoundRef.current = sound;
         setAudioReady(true);
-        console.log('✅ Confetti audio preloaded and ready');
+        logger.debug('Confetti audio preloaded and ready');
       } catch (error) {
-        console.log('⚠️ Could not preload confetti audio:', error.message);
+        logger.debug('Could not preload confetti audio', { error: error.message });
       }
     };
 

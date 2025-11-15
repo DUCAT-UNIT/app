@@ -7,9 +7,7 @@ import React, { useState, useEffect, useRef, useMemo, useCallback } from 'react'
 import {
   View,
   Text,
-  
   TouchableOpacity,
-  Dimensions,
   ActivityIndicator,
   StyleSheet,
   Animated,
@@ -23,14 +21,10 @@ import globalStyles from '../../styles';
 import { useBalance, useTransactionHistory } from '../../contexts/WalletDataContext';
 import { usePrice } from '../../contexts/PriceContext';
 import { useWallet } from '../../contexts/WalletContext';
-import { useToastContext } from '../../contexts/UIContext';
-import { _useNavigation } from '@react-navigation/native';
 import TransactionItem from '../../components/transaction/TransactionItem';
 import PriceChart from '../../components/charts/PriceChart';
 import { API, API_KEYS } from '../../utils/constants';
 import { calculateTransactionAmount } from '../../services/transactionHistoryService';
-
-const { width: _SCREEN_WIDTH } = Dimensions.get('window');
 
 const TAB_OPTIONS = ['ACTIVITY', 'ABOUT'];
 const CACHE_KEY_PREFIX = 'btc_price_cache_';
@@ -65,7 +59,6 @@ function AssetDetailScreen({ route = {}, navigation }) {
   const { btcPrice } = usePrice();
   const wallet = useWallet().wallet;
   const { transactionHistory, loadingTransactionHistory } = useTransactionHistory();
-  const {} = useToastContext();
 
   const [selectedTab, setSelectedTab] = useState('ACTIVITY');
   const [selectedTimeframe, setSelectedTimeframe] = useState('1M');
@@ -258,7 +251,6 @@ function AssetDetailScreen({ route = {}, navigation }) {
       }
 
       if (!response.ok) {
-        const _errorText = await response.text();
         throw new Error(`API error: ${response.status}`);
       }
 

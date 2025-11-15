@@ -106,7 +106,7 @@ export const vaultLoadedDetectionScript = `
       const earlyFallback = checkCount >= 3 && hasMainContent && bodyText.length > 50;
 
       if (isPageReady || earlyFallback) {
-        console.log('✅ Vault page ready (check #' + checkCount + ')');
+        // Vault page ready (check #' + checkCount + ')
         notified = true;
         // Much shorter delay for faster response
         setTimeout(() => {
@@ -117,7 +117,7 @@ export const vaultLoadedDetectionScript = `
 
       // Stop checking after max attempts
       if (checkCount >= maxChecks) {
-        console.log('⚠️ Max checks reached, sending VAULT_LOADED');
+        // Max checks reached, sending VAULT_LOADED
         notified = true;
         window.ReactNativeWebView?.postMessage(JSON.stringify({ type: 'VAULT_LOADED' }));
         return true;

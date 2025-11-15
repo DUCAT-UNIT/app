@@ -94,8 +94,8 @@ export function useVaultWebView(walletCredentials, vaultData, visible) {
 
     const credentialsScript = `
       (function() {
-        console.log('Mobile app injecting wallet credentials');
-        console.log('Vault pubkey:', '${walletCredentials.vaultPubkey}');
+        // Mobile app injecting wallet credentials
+        // Vault pubkey: ${walletCredentials.vaultPubkey}
 
         // Clear any existing credentials and specific localStorage keys
         delete window.mobileWalletCredentials;
@@ -107,12 +107,12 @@ export function useVaultWebView(walletCredentials, vaultData, visible) {
               try {
                 localStorage.removeItem(key);
               } catch (e) {
-                console.log('Could not remove key:', key);
+                // Could not remove key (silent fail)
               }
             });
           }
         } catch (e) {
-          console.log('Could not access localStorage:', e);
+          // Could not access localStorage (silent fail)
         }
 
         // Store credentials in window object
@@ -138,9 +138,8 @@ export function useVaultWebView(walletCredentials, vaultData, visible) {
               attempt: ${injectionAttemptRef.current}
             }
           }));
-          console.log('CREDENTIALS_RECEIVED message sent');
         } catch (e) {
-          console.error('Failed to send CREDENTIALS_RECEIVED message:', e);
+          // Failed to send CREDENTIALS_RECEIVED message (silent fail)
         }
 
         // Dispatch events to notify app (for backward compatibility)
@@ -152,7 +151,7 @@ export function useVaultWebView(walletCredentials, vaultData, visible) {
           detail: window.mobileWalletCredentials
         }));
 
-        console.log('Mobile wallet credentials injected and events dispatched');
+        // Mobile wallet credentials injected and events dispatched
       })();
       true;
     `;
@@ -253,6 +252,16 @@ export function useVaultWebView(walletCredentials, vaultData, visible) {
       }, 2000);
     }
   }, [vaultData, walletCredentials, injectWalletCredentials]);
+
+  // Cleanup timeout on unmount
+  useEffect(() => {
+    return () => {
+      if (injectionTimeoutRef.current) {
+        clearTimeout(injectionTimeoutRef.current);
+        injectionTimeoutRef.current = null;
+      }
+    };
+  }, []);
 
   return {
     webViewRef,
