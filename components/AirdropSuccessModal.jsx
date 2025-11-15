@@ -3,12 +3,13 @@
  * Shows congratulations message with confetti animation when user receives airdrop
  */
 
-import React, { useEffect, useRef } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import PropTypes from 'prop-types';
 import { View, Text, Modal, TouchableOpacity, Animated, Dimensions, StyleSheet } from 'react-native';
 import ConfettiCannon from 'react-native-confetti-cannon';
 import { COLORS } from '../theme';
 import Icon from './icons';
+import { useAirdrop } from '../contexts/AirdropContext';
 
 const SCREEN_WIDTH = Dimensions.get('window').width;
 const _SCREEN_HEIGHT = Dimensions.get('window').height;
@@ -17,13 +18,12 @@ export default function AirdropSuccessModal({ visible, onClose }) {
   const scaleAnim = useRef(new Animated.Value(0.8)).current;
   const opacityAnim = useRef(new Animated.Value(0)).current;
   const confettiRef = useRef(null);
+  const [hasTriggeredCelebration, setHasTriggeredCelebration] = useState(false);
+  const { triggerCelebration } = useAirdrop();
 
   useEffect(() => {
     if (visible) {
-      // Trigger confetti
-      if (confettiRef.current) {
-        confettiRef.current.start();
-      }
+      // Don't trigger confetti automatically - wait for button click
 
       // Animate modal in
       Animated.parallel([
@@ -42,6 +42,7 @@ export default function AirdropSuccessModal({ visible, onClose }) {
     } else {
       scaleAnim.setValue(0.8);
       opacityAnim.setValue(0);
+      setHasTriggeredCelebration(false); // Reset for next time
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [visible]);
@@ -72,7 +73,25 @@ export default function AirdropSuccessModal({ visible, onClose }) {
           </Text>
 
           {/* Close Button */}
-          <TouchableOpacity style={localStyles.closeButton} onPress={onClose} activeOpacity={0.8}>
+          <TouchableOpacity
+            style={localStyles.closeButton}
+            onPress={() => {
+              if (!hasTriggeredCelebration) {
+                // Trigger confetti animation
+                if (confettiRef.current) {
+                  confettiRef.current.start();
+                }
+                // Trigger all other celebration effects
+                triggerCelebration();
+                setHasTriggeredCelebration(true);
+                // Close modal after a delay to see the full celebration
+                setTimeout(() => {
+                  onClose();
+                }, 3500);
+              }
+            }}
+            activeOpacity={0.8}
+          >
             <Text style={localStyles.closeButtonText}>Get Started</Text>
           </TouchableOpacity>
         </Animated.View>
@@ -95,18 +114,25 @@ export default function AirdropSuccessModal({ visible, onClose }) {
 const localStyles = StyleSheet.create({
   modalOverlay: {
     flex: 1,
-    backgroundColor: 'rgba(0, 0, 0, 0.85)',
+    backgroundColor: 'rgba(0, 0, 0, 0.9)',
     justifyContent: 'center',
     alignItems: 'center',
     padding: 24,
+    zIndex: 9999,
   },
   modalContent: {
     backgroundColor: COLORS.CARD_BG,
     borderRadius: 24,
     padding: 32,
-    width: '100%',
-    maxWidth: 400,
+    width: '90%',
+    maxWidth: 350,
     alignItems: 'center',
+    elevation: 10,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.3,
+    shadowRadius: 8,
+    zIndex: 10000,
   },
   title: {
     fontSize: 22,

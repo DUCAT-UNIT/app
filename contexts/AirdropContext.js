@@ -65,6 +65,53 @@ export const AirdropProvider = ({ children, seedConfirmed }) => {
     }
   };
 
+  // Function to trigger all celebration effects
+  const triggerCelebration = () => {
+    // Play confetti sound effect
+    playConfettiSound();
+    // Haptic feedback - confetti cannon explosion!
+    // MASSIVE BOOM with long vibration!
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Heavy);
+    // Single LARGE vibration for explosion: 500ms
+    Vibration.vibrate(500);
+
+    // Shower of confetti haptics that dwindles over 2.5 seconds
+    // Start with dense haptics that gradually become sparse
+    const totalDuration = 2500; // 2.5 seconds
+    const totalTaps = 800; // Lots of taps
+
+    for (let i = 0; i < totalTaps; i++) {
+      // Calculate progress (0 to 1) for this tap
+      const progress = i / totalTaps;
+
+      // Bias delays towards later in the animation (dwindling effect)
+      // Early taps are clustered at the beginning, later taps spread out
+      const delay = Math.pow(progress, 0.5) * totalDuration;
+
+      // Decrease intensity over time
+      // First 30% = heavy/medium impacts
+      // Middle 40% = light impacts
+      // Last 30% = only selections (lightest)
+      setTimeout(() => {
+        const timeProgress = delay / totalDuration;
+        if (timeProgress < 0.3) {
+          // Early: mix of heavy and medium
+          if (Math.random() > 0.5) {
+            Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+          } else {
+            Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+          }
+        } else if (timeProgress < 0.7) {
+          // Middle: mostly light
+          Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+        } else {
+          // End: very light selections only
+          Haptics.selectionAsync();
+        }
+      }, delay);
+    }
+  };
+
   // Load audio on mount and cleanup on unmount
   useEffect(() => {
     // Configure audio for playback
@@ -127,49 +174,7 @@ export const AirdropProvider = ({ children, seedConfirmed }) => {
       if (pendingTxId && (segwitBalance > 0 || taprootBalance > 0)) {
         setAirdropTxId(pendingTxId);
         setShowAirdropModal(true);
-        // Play confetti sound effect
-        playConfettiSound();
-        // Haptic feedback - confetti cannon explosion!
-        // MASSIVE BOOM with long vibration!
-        Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Heavy);
-        // Single LARGE vibration for explosion: 500ms
-        Vibration.vibrate(500);
-
-        // Shower of confetti haptics that dwindles over 2.5 seconds
-        // Start with dense haptics that gradually become sparse
-        const totalDuration = 2500; // 2.5 seconds
-        const totalTaps = 800; // Lots of taps
-
-        for (let i = 0; i < totalTaps; i++) {
-          // Calculate progress (0 to 1) for this tap
-          const progress = i / totalTaps;
-
-          // Bias delays towards later in the animation (dwindling effect)
-          // Early taps are clustered at the beginning, later taps spread out
-          const delay = Math.pow(progress, 0.5) * totalDuration;
-
-          // Decrease intensity over time
-          // First 30% = heavy/medium impacts
-          // Middle 40% = light impacts
-          // Last 30% = only selections (lightest)
-          setTimeout(() => {
-            const timeProgress = delay / totalDuration;
-            if (timeProgress < 0.3) {
-              // Early: mix of heavy and medium
-              if (Math.random() > 0.5) {
-                Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
-              } else {
-                Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-              }
-            } else if (timeProgress < 0.7) {
-              // Middle: mostly light
-              Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-            } else {
-              // End: very light selections only
-              Haptics.selectionAsync();
-            }
-          }, delay);
-        }
+        // Don't trigger effects here - wait for user to click "Get Started"
         // Clear the pending airdrop
         await SecureStore.deleteItemAsync(pendingKey);
       }
@@ -240,49 +245,7 @@ export const AirdropProvider = ({ children, seedConfirmed }) => {
             setTimeout(() => {
               setAirdropTxId(result.txId);
               setShowAirdropModal(true);
-              // Play confetti sound effect
-              playConfettiSound();
-              // Haptic feedback - confetti cannon explosion!
-              // MASSIVE BOOM with long vibration!
-              Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Heavy);
-              // Single LARGE vibration for explosion: 500ms
-              Vibration.vibrate(500);
-
-              // Shower of confetti haptics that dwindles over 2.5 seconds
-              // Start with dense haptics that gradually become sparse
-              const totalDuration = 2500; // 2.5 seconds
-              const totalTaps = 800; // Lots of taps
-
-              for (let i = 0; i < totalTaps; i++) {
-                // Calculate progress (0 to 1) for this tap
-                const progress = i / totalTaps;
-
-                // Bias delays towards later in the animation (dwindling effect)
-                // Early taps are clustered at the beginning, later taps spread out
-                const delay = Math.pow(progress, 0.5) * totalDuration;
-
-                // Decrease intensity over time
-                // First 30% = heavy/medium impacts
-                // Middle 40% = light impacts
-                // Last 30% = only selections (lightest)
-                setTimeout(() => {
-                  const timeProgress = delay / totalDuration;
-                  if (timeProgress < 0.3) {
-                    // Early: mix of heavy and medium
-                    if (Math.random() > 0.5) {
-                      Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
-                    } else {
-                      Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-                    }
-                  } else if (timeProgress < 0.7) {
-                    // Middle: mostly light
-                    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-                  } else {
-                    // End: very light selections only
-                    Haptics.selectionAsync();
-                  }
-                }, delay);
-              }
+              // Don't trigger effects here - wait for user to click "Get Started"
               // Clean up pending state
               SecureStore.deleteItemAsync(pendingKey);
             }, 500);
@@ -325,6 +288,8 @@ export const AirdropProvider = ({ children, seedConfirmed }) => {
     showAirdropModal,
     setShowAirdropModal,
     airdropTxId,
+    // Celebration trigger
+    triggerCelebration,
   };
 
   return <AirdropContext.Provider value={value}>{children}</AirdropContext.Provider>;
