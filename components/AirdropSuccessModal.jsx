@@ -12,17 +12,29 @@ import Icon from './icons';
 import { useAirdrop } from '../contexts/AirdropContext';
 
 const SCREEN_WIDTH = Dimensions.get('window').width;
-const _SCREEN_HEIGHT = Dimensions.get('window').height;
+const SCREEN_HEIGHT = Dimensions.get('window').height;
 
 export default function AirdropSuccessModal({ visible, onClose }) {
   const scaleAnim = useRef(new Animated.Value(0.8)).current;
   const opacityAnim = useRef(new Animated.Value(0)).current;
   const confettiRef = useRef(null);
-  const { triggerCelebration } = useAirdrop();
+  const { triggerCelebration, audioReady } = useAirdrop();
+  const hasTriggered = useRef(false);
 
   useEffect(() => {
-    if (visible) {
-      // Don't trigger confetti automatically - wait for button click
+    if (visible && audioReady && !hasTriggered.current) {
+      // Trigger everything automatically when modal opens and audio is ready
+      hasTriggered.current = true;
+
+      // Small delay to ensure modal is visible
+      setTimeout(() => {
+        // Trigger confetti animation
+        if (confettiRef.current) {
+          confettiRef.current.start();
+        }
+        // Trigger all celebration effects (sound, haptics, vibration)
+        triggerCelebration();
+      }, 100);
 
       // Animate modal in
       Animated.parallel([
@@ -38,12 +50,13 @@ export default function AirdropSuccessModal({ visible, onClose }) {
           useNativeDriver: true,
         }),
       ]).start();
-    } else {
+    } else if (!visible) {
       scaleAnim.setValue(0.8);
       opacityAnim.setValue(0);
+      hasTriggered.current = false; // Reset for next time
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [visible]);
+  }, [visible, audioReady]);
 
   return (
     <Modal visible={visible} transparent={true} animationType="none" onRequestClose={onClose}>
@@ -70,35 +83,25 @@ export default function AirdropSuccessModal({ visible, onClose }) {
             An airdrop is on the way.{'\n'}You should see it reflected in your balance in 30 seconds.
           </Text>
 
-          {/* Get Started Button */}
+          {/* Get Started Button - Simply dismisses modal */}
           <TouchableOpacity
             style={localStyles.closeButton}
-            onPress={() => {
-              // Trigger confetti animation
-              if (confettiRef.current) {
-                confettiRef.current.start();
-              }
-              // Trigger all celebration effects
-              triggerCelebration();
-              // Close modal after celebration
-              setTimeout(() => {
-                onClose();
-              }, 3500);
-            }}
+            onPress={onClose}
             activeOpacity={0.8}
           >
             <Text style={localStyles.closeButtonText}>Get Started</Text>
           </TouchableOpacity>
         </Animated.View>
 
-        {/* Confetti */}
+        {/* Confetti - Origin set above the screen */}
         <ConfettiCannon
           ref={confettiRef}
-          count={150}
-          origin={{ x: SCREEN_WIDTH / 2, y: 0 }}
+          count={200}
+          origin={{ x: SCREEN_WIDTH / 2, y: -50 }}
+          explosionSpeed={350}
+          fallSpeed={2500}
           autoStart={false}
           fadeOut={true}
-          fallSpeed={2500}
           colors={[COLORS.PRIMARY_BLUE, COLORS.TEAL, COLORS.YELLOW, '#FF6B6B', '#4ECDC4']}
         />
       </View>
