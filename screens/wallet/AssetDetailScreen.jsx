@@ -62,7 +62,7 @@ const sampleData = (data, targetPoints = 60) => {
 function AssetDetailScreen({ route = {}, navigation }) {
   const { assetType = 'BTC' } = route?.params || {};
 
-  const { segwitBalance, taprootBalance } = useBalance();
+  const { segwitBalance, taprootBalance, runesBalance } = useBalance();
   const { btcPrice } = usePrice();
   const wallet = useWallet().wallet;
   const { transactionHistory, loadingTransactionHistory } = useTransactionHistory();
@@ -85,7 +85,9 @@ function AssetDetailScreen({ route = {}, navigation }) {
   const [priceLoading, setPriceLoading] = useState(!hasValidCache && assetType === 'BTC');
 
   // Get balance based on asset type
-  const balance = assetType === 'BTC' ? segwitBalance : taprootBalance;
+  // For UNIT, use runesBalance which contains the actual UNIT amount
+  const unitAmount = runesBalance && runesBalance.length > 0 ? parseFloat(runesBalance[0][1]) : 0;
+  const balance = assetType === 'BTC' ? segwitBalance : unitAmount;
   const fiatValue = assetType === 'BTC' ? balance * btcPrice : balance * 1;
 
   // Extract stable wallet addresses using refs to prevent re-renders
@@ -365,11 +367,11 @@ function AssetDetailScreen({ route = {}, navigation }) {
   );
 
   const renderAssetInfo = () => {
-    // For UNIT, show the satoshi value directly (as whole units)
+    // For UNIT, show the actual UNIT amount with commas (no decimals)
     // For BTC, show the BTC value with decimals
     const displayBalance = assetType === 'BTC'
       ? formatBalance(balance || 0)
-      : formatFiatAmount(balance * 100000000 || 0, 0); // Convert BTC to satoshis for UNIT display
+      : formatFiatAmount(balance || 0, 0); // UNIT already has the correct amount from runesBalance
 
     return (
       <View style={styles.assetInfoContainer}>
