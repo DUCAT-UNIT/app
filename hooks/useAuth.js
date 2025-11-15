@@ -11,6 +11,7 @@ import { useState, useEffect, useMemo, useCallback } from 'react';
 import * as LocalAuthentication from 'expo-local-authentication';
 import * as SecureStore from 'expo-secure-store';
 import { SECURE_KEYS } from '../utils/constants';
+import * as PasskeyService from '../services/passkeyService';
 
 export function useAuth({ onSeedConfirmed }) {
   // Authentication state
@@ -19,6 +20,11 @@ export function useAuth({ onSeedConfirmed }) {
   const [biometricEnabled, setBiometricEnabled] = useState(false);
   const [showBiometricPrompt, setShowBiometricPrompt] = useState(false);
   const [showFaceIdButton, setShowFaceIdButton] = useState(true);
+
+  // Passkey state
+  const [isPasskeySupported, setIsPasskeySupported] = useState(false);
+  const [passkeyEnabled, setPasskeyEnabled] = useState(false);
+  const [showPasskeyPrompt, setShowPasskeyPrompt] = useState(false);
 
   // PIN state
   const [settingUpPin, setSettingUpPin] = useState(false);
@@ -29,14 +35,17 @@ export function useAuth({ onSeedConfirmed }) {
   const [pinError, setPinError] = useState('');
   const [pinStep, setPinStep] = useState('enter'); // 'enter' or 'confirm'
 
-  // Check biometric support on mount
+  // Check biometric and passkey support on mount
   useEffect(() => {
-    const checkBiometricSupport = async () => {
+    const checkAuthSupport = async () => {
       const compatible = await LocalAuthentication.hasHardwareAsync();
       setIsBiometricSupported(compatible);
+
+      const passkeySupported = await PasskeyService.isPasskeySupported();
+      setIsPasskeySupported(passkeySupported);
     };
 
-    checkBiometricSupport();
+    checkAuthSupport();
   }, []);
 
   // Load biometric preference
@@ -45,6 +54,28 @@ export function useAuth({ onSeedConfirmed }) {
       const biometricPref = await SecureStore.getItemAsync(SECURE_KEYS.BIOMETRIC_ENABLED);
       setBiometricEnabled(biometricPref === 'true');
     } catch (error) {}
+  }, []);
+
+  // Load passkey preference
+  const loadPasskeyPreference = useCallback(async () => {
+    try {
+      const passkeyPref = await PasskeyService.isPasskeyEnabled();
+      setPasskeyEnabled(passkeyPref);
+    } catch (error) {}
+  }, []);
+
+  // Authenticate with passkey
+  const authenticateWithPasskey = useCallback(async () => {
+    try {
+      const { mnemonic, addresses } = await PasskeyService.unlockWithPasskey();
+      if (mnemonic && addresses) {
+        setIsAuthenticated(true);
+        return true;
+      }
+      return false;
+    } catch (error) {
+      return false;
+    }
   }, []);
 
   // Authenticate user with biometrics
@@ -158,6 +189,9 @@ export function useAuth({ onSeedConfirmed }) {
       biometricEnabled,
       showBiometricPrompt,
       showFaceIdButton,
+      isPasskeySupported,
+      passkeyEnabled,
+      showPasskeyPrompt,
       settingUpPin,
       changingPin,
       showPinEntry,
@@ -171,6 +205,8 @@ export function useAuth({ onSeedConfirmed }) {
       setBiometricEnabled,
       setShowBiometricPrompt,
       setShowFaceIdButton,
+      setPasskeyEnabled,
+      setShowPasskeyPrompt,
       setShowPinEntry,
       setSettingUpPin,
       setChangingPin,
@@ -181,10 +217,12 @@ export function useAuth({ onSeedConfirmed }) {
 
       // Functions
       authenticateUser,
+      authenticateWithPasskey,
       handlePinSetupComplete,
       handlePinChangeComplete,
       handleLockScreenAuthenticated,
       loadBiometricPreference,
+      loadPasskeyPreference,
       lock,
       resetAuth,
       startPinChange,
@@ -195,6 +233,9 @@ export function useAuth({ onSeedConfirmed }) {
       biometricEnabled,
       showBiometricPrompt,
       showFaceIdButton,
+      isPasskeySupported,
+      passkeyEnabled,
+      showPasskeyPrompt,
       settingUpPin,
       changingPin,
       showPinEntry,
@@ -203,10 +244,12 @@ export function useAuth({ onSeedConfirmed }) {
       pinError,
       pinStep,
       authenticateUser,
+      authenticateWithPasskey,
       handlePinSetupComplete,
       handlePinChangeComplete,
       handleLockScreenAuthenticated,
       loadBiometricPreference,
+      loadPasskeyPreference,
       lock,
       resetAuth,
       startPinChange,

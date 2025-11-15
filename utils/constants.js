@@ -10,6 +10,11 @@ export const SECURE_KEYS = {
   PIN_SALT: 'wallet_pin_salt_v1',
   PIN_VERSION: 'wallet_pin_version_v1', // Track PIN hashing algorithm version
   BIOMETRIC_ENABLED: 'wallet_biometric_enabled_v1',
+  // Passkey authentication keys
+  PASSKEY_ENABLED: 'passkey_enabled_v1',
+  PASSKEY_CREDENTIAL_ID: 'passkey_credential_id_v1',
+  PASSKEY_USER_HANDLE: 'passkey_user_handle_v1',
+  WALLET_CREATION_METHOD: 'wallet_creation_method_v1', // 'passkey', 'pin', or 'biometric'
 };
 
 // PIN hashing versions

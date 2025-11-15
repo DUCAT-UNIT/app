@@ -50,6 +50,32 @@ export const BIOMETRIC = {
 };
 
 /**
+ * Passkey authentication (WebAuthn)
+ */
+export const PASSKEY = {
+  // Relying Party configuration
+  RP_NAME: 'Ducat Wallet',
+  RP_ID: 'ducat.app', // Update in production
+  TIMEOUT_MS: 60000, // 60 seconds
+
+  // User verification requirements
+  USER_VERIFICATION: 'required', // Always require biometric/PIN
+  RESIDENT_KEY: 'required', // Store passkey on device
+  ATTESTATION: 'none', // Don't need attestation
+
+  // HKDF derivation parameters
+  DERIVATION_SALT: 'ducat-wallet-v1', // Version-specific salt
+  DERIVATION_INFO: 'bip39-mnemonic-seed', // Domain separation
+  ENTROPY_BITS: 128, // 128 bits = 12-word mnemonic
+  ENCRYPTION_KEY_BITS: 256, // AES-256 encryption
+
+  // Prompts
+  CREATE_PROMPT: 'Create passkey for wallet recovery',
+  AUTH_PROMPT: 'Authenticate to unlock wallet',
+  RECOVER_PROMPT: 'Authenticate to recover wallet',
+};
+
+/**
  * Secure storage keys versions
  * Increment when changing storage schema
  */
