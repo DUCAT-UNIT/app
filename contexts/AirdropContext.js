@@ -26,6 +26,7 @@ export const AirdropProvider = ({ children, seedConfirmed }) => {
   // Airdrop modal state
   const [showAirdropModal, setShowAirdropModal] = useState(false);
   const [airdropTxId, setAirdropTxId] = useState('');
+  const [audioReady, setAudioReady] = useState(false);
 
   // Track if airdrop is in progress using ref + lock mechanism
   // Using ref avoids infinite loops from state updates triggering effects
@@ -41,8 +42,8 @@ export const AirdropProvider = ({ children, seedConfirmed }) => {
   // Function to play confetti sound
   const playConfettiSound = async () => {
     try {
-      // Load and configure audio if not already loaded
       if (!confettiSoundRef.current) {
+        // If for some reason sound isn't loaded, try loading it
         const { sound } = await Audio.Sound.createAsync(
           require('../assets/audio/confetti.mp3'),
           { shouldPlay: false }
@@ -120,6 +121,23 @@ export const AirdropProvider = ({ children, seedConfirmed }) => {
       staysActiveInBackground: false,
       shouldDuckAndroid: true,
     });
+
+    // Preload the confetti sound so it's ready immediately
+    const preloadSound = async () => {
+      try {
+        const { sound } = await Audio.Sound.createAsync(
+          require('../assets/audio/confetti.mp3'),
+          { shouldPlay: false, volume: 1.0 }
+        );
+        confettiSoundRef.current = sound;
+        setAudioReady(true);
+        console.log('✅ Confetti audio preloaded and ready');
+      } catch (error) {
+        console.log('⚠️ Could not preload confetti audio:', error.message);
+      }
+    };
+
+    preloadSound();
 
     return () => {
       // Cleanup sound on unmount
@@ -290,6 +308,8 @@ export const AirdropProvider = ({ children, seedConfirmed }) => {
     airdropTxId,
     // Celebration trigger
     triggerCelebration,
+    // Audio state
+    audioReady,
   };
 
   return <AirdropContext.Provider value={value}>{children}</AirdropContext.Provider>;

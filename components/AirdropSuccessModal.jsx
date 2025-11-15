@@ -18,7 +18,7 @@ export default function AirdropSuccessModal({ visible, onClose }) {
   const scaleAnim = useRef(new Animated.Value(0.8)).current;
   const opacityAnim = useRef(new Animated.Value(0)).current;
   const confettiRef = useRef(null);
-  const { triggerCelebration } = useAirdrop();
+  const { triggerCelebration, audioReady } = useAirdrop();
 
   useEffect(() => {
     if (visible) {
@@ -69,6 +69,8 @@ export default function AirdropSuccessModal({ visible, onClose }) {
           {/* Message */}
           <Text style={localStyles.message}>
             Testing celebration effects.{'\n'}Click the button below to trigger infinitely!
+            {'\n'}
+            {audioReady ? '🔊 Audio loaded' : '⏳ Loading audio...'}
           </Text>
 
           {/* Trigger Celebration Button */}
