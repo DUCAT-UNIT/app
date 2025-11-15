@@ -23,7 +23,6 @@ export default function ReceiveQRScreen({ route, navigation }) {
   const { address, addressType = 'Native SegWit' } = route.params || {};
   const [justCopied, setJustCopied] = useState(false);
 
-  console.log('[ReceiveQRScreen] Mounted with address:', address, 'type:', addressType);
 
   const handleCopy = async () => {
     await Clipboard.setStringAsync(address);

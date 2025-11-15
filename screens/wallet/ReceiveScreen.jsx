@@ -52,12 +52,9 @@ const ReceiveScreen = React.memo(function ReceiveScreen({
   // Set up swipe dismiss callback to do EXACTLY what back button does
   React.useEffect(() => {
     setOnQrSwipeDismiss(() => {
-      console.log('[ReceiveScreen] Swipe dismiss triggered, autoOpenQR:', autoOpenQR);
       // If autoOpenQR is true, always dismiss the entire sheet
       if (autoOpenQR) {
-        console.log('[ReceiveScreen] Auto-open mode (swipe): dismissing QR and closing sheet');
         handleQrBack().start(() => {
-          console.log('[ReceiveScreen] Swipe animation complete, calling onClose');
           setShowQrModal(false);
           setSelectedAddress(null);
           setSelectedType(null);
@@ -66,7 +63,6 @@ const ReceiveScreen = React.memo(function ReceiveScreen({
         });
       } else {
         // Normal behavior: go back to address selection
-        console.log('[ReceiveScreen] Normal mode (swipe): going back to address selection');
         handleQrBack().start(() => {
           setShowQrModal(false);
           setSelectedAddress(null);
@@ -80,7 +76,6 @@ const ReceiveScreen = React.memo(function ReceiveScreen({
   // Handle auto-opening QR modal when sheet opens
   React.useEffect(() => {
     if (showReceiveSheet && autoOpenQR && preSelectedAddress && preSelectedType && !hasAutoOpenedRef.current) {
-      console.log('[ReceiveScreen] Auto-opening QR modal');
       hasAutoOpenedRef.current = true;
       // Delay to ensure animation is ready
       setTimeout(() => {
@@ -103,12 +98,9 @@ const ReceiveScreen = React.memo(function ReceiveScreen({
   };
 
   const handleQrBackPress = () => {
-    console.log('[ReceiveScreen] handleQrBackPress called, autoOpenQR:', autoOpenQR);
     // If autoOpenQR is true, always dismiss the entire sheet (whether dismissQRClosesSheet is true or false)
     if (autoOpenQR) {
-      console.log('[ReceiveScreen] Auto-open mode: dismissing QR and closing sheet');
       handleQrBack().start(() => {
-        console.log('[ReceiveScreen] Animation complete, calling onClose');
         setShowQrModal(false);
         setSelectedAddress(null);
         setSelectedType(null);
@@ -117,7 +109,6 @@ const ReceiveScreen = React.memo(function ReceiveScreen({
       });
     } else {
       // Normal behavior: go back to address selection
-      console.log('[ReceiveScreen] Normal mode: going back to address selection');
       handleQrBack().start(() => {
         setShowQrModal(false);
         setSelectedAddress(null);

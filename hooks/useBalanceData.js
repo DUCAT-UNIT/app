@@ -50,7 +50,6 @@ export function useBalanceData(wallet, getUnconfirmedBalance) {
           JSON.stringify(balances.runesBalance) !== JSON.stringify(prevBalances.runes);
 
         if (balancesChanged) {
-          console.log('[BalanceFetch] UPDATING STATE - balances changed');
           prevBalancesRef.current = {
             segwit: balances.segwitBalance,
             taproot: balances.taprootBalance,
@@ -59,8 +58,6 @@ export function useBalanceData(wallet, getUnconfirmedBalance) {
           setSegwitBalance(balances.segwitBalance);
           setTaprootBalance(balances.taprootBalance);
           setRunesBalance(balances.runesBalance);
-        } else {
-          console.log('[BalanceFetch] SKIPPING UPDATE - balances unchanged');
         }
 
         // Also fetch unconfirmed balances from pending transactions

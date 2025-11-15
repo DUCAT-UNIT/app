@@ -60,37 +60,13 @@ const sampleData = (data, targetPoints = 60) => {
 };
 
 function AssetDetailScreen({ route = {}, navigation }) {
-  const mountTime = Date.now();
   const { assetType = 'BTC' } = route?.params || {};
-  console.log('[AssetDetail] Mounted with assetType:', assetType, 'from route.params:', route?.params);
-
-  // Track actual re-renders vs re-mounts
-  const renderCount = useRef(0);
-  const isMounted = useRef(false);
-
-  useEffect(() => {
-    if (!isMounted.current) {
-      isMounted.current = true;
-      console.log('[AssetDetail] ✅ Component mounted for the first time');
-    }
-    return () => {
-      console.log('[AssetDetail] ⚠️ Component UNMOUNTING');
-      isMounted.current = false;
-    };
-  }, []);
-
-  renderCount.current += 1;
-  if (renderCount.current > 1) {
-    console.log('[AssetDetail] RE-RENDER #', renderCount.current);
-  }
 
   const { segwitBalance, taprootBalance } = useBalance();
   const { btcPrice } = usePrice();
   const wallet = useWallet().wallet;
   const { transactionHistory, loadingTransactionHistory } = useTransactionHistory();
   const { showToast } = useToastContext();
-  const nav = useNavigation();
-  console.log('[AssetDetail] Hooks loaded in', Date.now() - mountTime, 'ms');
 
   const [selectedTab, setSelectedTab] = useState('ACTIVITY');
   const [selectedTimeframe, setSelectedTimeframe] = useState('1M');
@@ -137,7 +113,6 @@ function AssetDetailScreen({ route = {}, navigation }) {
 
   // Filter and process transactions - deferred to avoid blocking navigation
   useEffect(() => {
-    const filterStart = Date.now();
     if (!transactionHistory || !segwitAddress || !taprootAddress) {
       setFilteredTransactions(filteredTxRef.current);
       return;
@@ -146,12 +121,10 @@ function AssetDetailScreen({ route = {}, navigation }) {
     // Create a hash to check if we need to recalculate
     const txHash = `${transactionHistory.length}-${assetType}`;
     if (txHash === lastTxHashRef.current && filteredTxRef.current.length > 0) {
-      console.log('[AssetDetail] Using cached filtered transactions');
       setFilteredTransactions(filteredTxRef.current);
       return;
     }
 
-    console.log('[AssetDetail] Filtering transactions for', assetType);
 
     // First filter, then process only what we need
     const filtered = transactionHistory
@@ -193,7 +166,6 @@ function AssetDetailScreen({ route = {}, navigation }) {
     lastTxHashRef.current = txHash;
     filteredTxRef.current = filtered;
     setFilteredTransactions(filtered);
-    console.log('[AssetDetail] Transaction filtering took', Date.now() - filterStart, 'ms');
   }, [transactionHistory, segwitAddress, taprootAddress, assetType]);
 
 
@@ -212,7 +184,6 @@ function AssetDetailScreen({ route = {}, navigation }) {
         const age = Date.now() - timestamp;
 
         if (age < CACHE_EXPIRY_MS) {
-          console.log('[PriceChart] Using in-memory cached data for', selectedTimeframe);
           setPriceData(prices);
           setPriceDirection(direction);
           setPriceLoading(false);
@@ -228,7 +199,6 @@ function AssetDetailScreen({ route = {}, navigation }) {
           const age = Date.now() - timestamp;
 
           if (age < CACHE_EXPIRY_MS) {
-            console.log('[PriceChart] Using AsyncStorage cached data for', selectedTimeframe);
 
             // Calculate price direction (for 1 BTC)
             const firstPrice = prices[0][1];
@@ -287,7 +257,6 @@ function AssetDetailScreen({ route = {}, navigation }) {
       if (data.prices && data.prices.length > 0) {
         // Sample data to ~60 points
         const sampledPrices = sampleData(data.prices, 60);
-        console.log('[PriceChart] Fetched fresh data for', selectedTimeframe, '- sampled to', sampledPrices.length, 'points');
 
         // Calculate price direction (for 1 BTC, using original data endpoints)
         const firstPrice = data.prices[0][1];
@@ -335,7 +304,6 @@ function AssetDetailScreen({ route = {}, navigation }) {
 
   // Fetch price data from CoinGecko - only when timeframe changes or if no cache
   useEffect(() => {
-    const effectStart = Date.now();
     if (assetType === 'BTC') {
       const cacheKey = `${CACHE_KEY_PREFIX}${selectedTimeframe}`;
       const cached = priceCache[cacheKey];
@@ -343,10 +311,8 @@ function AssetDetailScreen({ route = {}, navigation }) {
 
       // Only fetch if no in-memory cache or cache is stale
       if (!isCacheValid) {
-        console.log('[AssetDetail] No valid cache, fetching price data');
         fetchPriceData();
       } else {
-        console.log('[AssetDetail] Using existing cache, setting state');
         // Update state with cached data (only runs when timeframe changes)
         setPriceData(cached.prices);
         setPriceDirection(cached.direction);
@@ -355,14 +321,12 @@ function AssetDetailScreen({ route = {}, navigation }) {
     } else {
       setPriceLoading(false);
     }
-    console.log('[AssetDetail] Effect ran in', Date.now() - effectStart, 'ms');
   }, [assetType, selectedTimeframe, fetchPriceData]);
 
   const handleActionPress = (action) => {
     switch (action) {
       case 'send':
         const sendAssetType = assetType.toLowerCase(); // Convert BTC -> btc, UNIT -> unit
-        console.log('[AssetDetail] Navigating to send with assetType:', sendAssetType);
         navigation.navigate('SendFlow', {
           screen: 'AddressInput',
           params: { assetType: sendAssetType }
@@ -372,7 +336,6 @@ function AssetDetailScreen({ route = {}, navigation }) {
         // Navigate to ReceiveQR screen with the appropriate address
         const receiveAddress = assetType === 'BTC' ? segwitAddress : taprootAddress;
         const addressType = assetType === 'BTC' ? 'Native SegWit' : 'Taproot';
-        console.log('[AssetDetail] Navigating to ReceiveQR with address:', receiveAddress);
         navigation.navigate('ReceiveQR', {
           address: receiveAddress,
           addressType: addressType,
@@ -539,9 +502,6 @@ function AssetDetailScreen({ route = {}, navigation }) {
     []
   );
 
-  // KeyExtractor for FlatList
-  const keyExtractor = useCallback((item) => item.txid, []);
-
   const renderActivity = () => {
     if (loadingTransactionHistory) {
       return (
@@ -564,17 +524,11 @@ function AssetDetailScreen({ route = {}, navigation }) {
 
     return (
       <View style={styles.activityContainer}>
-        <FlatList
-          data={filteredTransactions}
-          renderItem={renderTransaction}
-          keyExtractor={keyExtractor}
-          showsVerticalScrollIndicator={false}
-          scrollEnabled={false}
-          initialNumToRender={10}
-          maxToRenderPerBatch={10}
-          windowSize={5}
-          removeClippedSubviews={true}
-        />
+        {filteredTransactions.map((transaction) => (
+          <View key={transaction.txid}>
+            {renderTransaction({ item: transaction })}
+          </View>
+        ))}
       </View>
     );
   };
@@ -607,22 +561,6 @@ function AssetDetailScreen({ route = {}, navigation }) {
           </View>
         </View>
       )}
-    </View>
-  );
-
-  const renderBreakdown = () => (
-    <View style={styles.aboutContainer}>
-      <View style={styles.aboutSection}>
-        <Text style={styles.aboutTitle}>Balance Breakdown</Text>
-        <View style={styles.statRow}>
-          <Text style={styles.statLabel}>Available Balance</Text>
-          <Text style={styles.statValue}>{formatBalance(balance || 0)} BTC</Text>
-        </View>
-        <View style={styles.statRow}>
-          <Text style={styles.statLabel}>USD Value</Text>
-          <Text style={styles.statValue}>${formatFiatAmount(fiatValue || 0)}</Text>
-        </View>
-      </View>
     </View>
   );
 

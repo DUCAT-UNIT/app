@@ -48,11 +48,8 @@ export function useVaultDataFetch(wallet) {
 
       // Only update state if vault data has actually changed
       if (!isVaultDataEqual(prevVaultDataRef.current, data)) {
-        console.log('[VaultFetch] UPDATING STATE - vault data changed');
         prevVaultDataRef.current = data;
         setVaultData(data);
-      } else {
-        console.log('[VaultFetch] SKIPPING UPDATE - vault data unchanged');
       }
     } catch (error) {
       setVaultError('Failed to fetch vault data');
