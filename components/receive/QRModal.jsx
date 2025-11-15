@@ -29,21 +29,32 @@ export default function QRModal({
   translateY,
   qrModalPanResponder,
   styles,
+  allowBackdropDismiss = false,
 }) {
   if (!address) return null;
 
   return (
-    <Animated.View
-      style={[
-        styles.qrModalContainer,
-        {
-          opacity: qrOpacity,
-          transform: [{ translateX }, { translateY }],
-        },
-      ]}
-      pointerEvents={visible ? 'auto' : 'none'}
-      {...qrModalPanResponder.panHandlers}
-    >
+    <>
+      {/* Backdrop for dismiss */}
+      {visible && allowBackdropDismiss && (
+        <TouchableOpacity
+          style={localStyles.qrBackdrop}
+          activeOpacity={1}
+          onPress={onBack}
+        />
+      )}
+
+      <Animated.View
+        style={[
+          styles.qrModalContainer,
+          {
+            opacity: qrOpacity,
+            transform: [{ translateX }, { translateY }],
+          },
+        ]}
+        pointerEvents={visible ? 'auto' : 'none'}
+        {...qrModalPanResponder.panHandlers}
+      >
       {/* Network header bar */}
       <View style={styles.qrModalNetworkBar}>
         <Text style={styles.qrModalNetworkText}>Mutinynet Edition</Text>
@@ -101,10 +112,20 @@ export default function QRModal({
         </TouchableOpacity>
       </ScrollView>
     </Animated.View>
+    </>
   );
 }
 
 const localStyles = StyleSheet.create({
+  qrBackdrop: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
+    bottom: 0,
+    backgroundColor: 'transparent',
+    zIndex: 998,
+  },
   scrollContainer: {
     flex: 1,
   },
@@ -151,4 +172,5 @@ QRModal.propTypes = {
   translateY: PropTypes.object.isRequired,
   qrModalPanResponder: PropTypes.object.isRequired,
   styles: PropTypes.object.isRequired,
+  allowBackdropDismiss: PropTypes.bool,
 };

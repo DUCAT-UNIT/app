@@ -19,10 +19,14 @@ const ReceiveScreen = React.memo(function ReceiveScreen({
   segwitAddress,
   taprootAddress,
   showToast,
+  autoOpenQR = false,
+  preSelectedAddress = null,
+  preSelectedType = null,
 }) {
   const [showQrModal, setShowQrModal] = useState(false);
   const [selectedAddress, setSelectedAddress] = useState(null);
   const [selectedType, setSelectedType] = useState(null);
+  const hasAutoOpenedRef = React.useRef(false);
 
   const {
     receiveSheetOpacity,
@@ -47,15 +51,44 @@ const ReceiveScreen = React.memo(function ReceiveScreen({
   // Set up swipe dismiss callback to do EXACTLY what back button does
   React.useEffect(() => {
     setOnQrSwipeDismiss(() => {
-      // Do EXACTLY the same as handleQrBackPress
-      handleQrBack().start(() => {
-        setShowQrModal(false);
-        setSelectedAddress(null);
-        setSelectedType(null);
-        resetAfterQr();
-      });
+      // If autoOpenQR is true, dismiss the entire sheet
+      if (autoOpenQR) {
+        handleQrBack().start(() => {
+          setShowQrModal(false);
+          setSelectedAddress(null);
+          setSelectedType(null);
+          resetAfterQr();
+          onClose(); // Close the entire receive sheet
+        });
+      } else {
+        // Normal behavior: go back to address selection
+        handleQrBack().start(() => {
+          setShowQrModal(false);
+          setSelectedAddress(null);
+          setSelectedType(null);
+          resetAfterQr();
+        });
+      }
     });
-  }, [setOnQrSwipeDismiss, handleQrBack, resetAfterQr]);
+  }, [setOnQrSwipeDismiss, handleQrBack, resetAfterQr, autoOpenQR, onClose]);
+
+  // Handle auto-opening QR modal when sheet opens
+  React.useEffect(() => {
+    if (showReceiveSheet && autoOpenQR && preSelectedAddress && preSelectedType && !hasAutoOpenedRef.current) {
+      console.log('[ReceiveScreen] Auto-opening QR modal');
+      hasAutoOpenedRef.current = true;
+      // Delay to ensure animation is ready
+      setTimeout(() => {
+        setShowQrModal(true);
+        setSelectedAddress(preSelectedAddress);
+        setSelectedType(preSelectedType);
+        prepareQrAnimation();
+      }, 50);
+    } else if (!showReceiveSheet) {
+      // Reset when sheet closes
+      hasAutoOpenedRef.current = false;
+    }
+  }, [showReceiveSheet, autoOpenQR, preSelectedAddress, preSelectedType, prepareQrAnimation]);
 
   const handleQrPress = (address, type) => {
     setSelectedAddress(address);
@@ -65,12 +98,26 @@ const ReceiveScreen = React.memo(function ReceiveScreen({
   };
 
   const handleQrBackPress = () => {
-    handleQrBack().start(() => {
-      setShowQrModal(false);
-      setSelectedAddress(null);
-      setSelectedType(null);
-      resetAfterQr();
-    });
+    // If autoOpenQR is true, dismiss the entire sheet instead of going back to address selection
+    if (autoOpenQR) {
+      console.log('[ReceiveScreen] Auto-open mode: dismissing QR and closing sheet');
+      handleQrBack().start(() => {
+        setShowQrModal(false);
+        setSelectedAddress(null);
+        setSelectedType(null);
+        resetAfterQr();
+        onClose(); // Close the entire receive sheet
+      });
+    } else {
+      // Normal behavior: go back to address selection
+      console.log('[ReceiveScreen] Normal mode: going back to address selection');
+      handleQrBack().start(() => {
+        setShowQrModal(false);
+        setSelectedAddress(null);
+        setSelectedType(null);
+        resetAfterQr();
+      });
+    }
   };
 
   const handleShare = async () => {
@@ -143,6 +190,7 @@ const ReceiveScreen = React.memo(function ReceiveScreen({
         translateY={translateY}
         qrModalPanResponder={qrModalPanResponder}
         styles={styles}
+        allowBackdropDismiss={autoOpenQR}
       />
     </>
   );
@@ -174,6 +222,9 @@ ReceiveScreen.propTypes = {
   segwitAddress: PropTypes.string.isRequired,
   taprootAddress: PropTypes.string.isRequired,
   showToast: PropTypes.func.isRequired,
+  autoOpenQR: PropTypes.bool,
+  preSelectedAddress: PropTypes.string,
+  preSelectedType: PropTypes.string,
 };
 
 export default ReceiveScreen;

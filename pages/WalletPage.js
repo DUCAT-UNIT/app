@@ -40,7 +40,7 @@ import { useSheetNavigation } from '../hooks/useSheetNavigation';
 import { COLORS } from '../theme';
 import { logger } from '../utils/logger';
 
-export default function WalletPage() {
+export default function WalletPage({ route }) {
   const navigation = useNavigation();
 
   // Consume contexts instead of props
@@ -120,6 +120,15 @@ export default function WalletPage() {
 
   const { showReceiveSheet, setShowReceiveSheet, showTxHistory, setShowTxHistory } =
     useSheetNavigation();
+
+  // Handle navigation param to open receive sheet
+  React.useEffect(() => {
+    if (route?.params?.openReceive) {
+      setShowReceiveSheet(true);
+      // Clear the param after opening
+      navigation.setParams({ openReceive: false });
+    }
+  }, [route?.params?.openReceive, setShowReceiveSheet, navigation]);
 
   // Vault swipe animation state
   const vaultTranslateX = useRef(new Animated.Value(-SCREEN_WIDTH)).current; // Start on left

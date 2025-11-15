@@ -5,14 +5,46 @@
  * Note: Different from useTransactionHistoryData which is for UI consumption
  */
 
-import { useState, useCallback } from 'react';
+import { useState, useCallback, useRef } from 'react';
 import { fetchAllTransactionHistory } from '../services/transactionHistoryService';
+
+/**
+ * Deep equality check for transaction arrays
+ * Uses Set-based comparison to avoid order issues
+ */
+function areTransactionsEqual(prev, next) {
+  if (!prev || !next) return false;
+  if (prev.length !== next.length) return false;
+
+  // Create a map of txid -> tx data for quick lookup
+  const prevMap = new Map();
+  prev.forEach(tx => {
+    prevMap.set(tx.txid, {
+      confirmed: tx.status?.confirmed,
+      block_height: tx.status?.block_height
+    });
+  });
+
+  // Check if all transactions in next exist in prev with same status
+  for (const tx of next) {
+    const prevTx = prevMap.get(tx.txid);
+    if (!prevTx) return false; // New transaction
+
+    if (prevTx.confirmed !== tx.status?.confirmed) return false;
+    if (prevTx.block_height !== tx.status?.block_height) return false;
+  }
+
+  return true;
+}
 
 export function useTransactionHistoryFetch(wallet) {
   // Transaction history state
   const [transactionHistory, setTransactionHistory] = useState([]);
   const [loadingTransactionHistory, setLoadingTransactionHistory] = useState(false);
   const [historyError, setHistoryError] = useState(null);
+
+  // Keep a ref to previous transaction history for comparison
+  const prevHistoryRef = useRef([]);
 
   /**
    * Fetch transaction history in background
@@ -26,10 +58,25 @@ export function useTransactionHistoryFetch(wallet) {
     if (!segwitAddress || !taprootAddress || !vaultPubkey) return;
 
     try {
-      setLoadingTransactionHistory(true);
+      // Only show loading spinner if we have no cached data
+      if (prevHistoryRef.current.length === 0) {
+        setLoadingTransactionHistory(true);
+      }
       setHistoryError(null);
       const history = await fetchAllTransactionHistory(segwitAddress, taprootAddress, vaultPubkey);
-      setTransactionHistory(history);
+
+      // Only update state if transactions have actually changed
+      const prevTxids = prevHistoryRef.current.map(t => t.txid).sort().join(',');
+      const newTxids = history.map(t => t.txid).sort().join(',');
+      const hasChanged = prevTxids !== newTxids;
+
+      if (hasChanged) {
+        console.log('[TxHistoryFetch] UPDATING STATE - transactions changed');
+        prevHistoryRef.current = history;
+        setTransactionHistory(history);
+      } else {
+        console.log('[TxHistoryFetch] SKIPPING UPDATE - transactions unchanged');
+      }
     } catch (error) {
       setHistoryError('Failed to fetch transaction history');
     } finally {

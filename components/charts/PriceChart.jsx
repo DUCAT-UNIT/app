@@ -1,25 +1,17 @@
 /**
  * PriceChart Component
- * Displays a line chart for asset price history
+ * Displays a crypto-style gradient chart for asset price history
  */
 
-import React from 'react';
-import { View, Text, StyleSheet } from 'react-native';
-import { LineChart } from 'react-native-svg-charts';
-import { Defs, LinearGradient, Stop } from 'react-native-svg';
+import React, { useMemo } from 'react';
+import { View, Text, StyleSheet, Dimensions } from 'react-native';
+import Svg, { Path, Defs, LinearGradient, Stop, G } from 'react-native-svg';
 import { COLORS } from '../../theme';
 
-export default function PriceChart({ data, isPositive }) {
-  console.log('PriceChart received:', {
-    hasData: !!data,
-    dataLength: data?.length,
-    isPositive,
-    firstItem: data?.[0],
-    lastItem: data?.[data.length - 1]
-  });
+const { width: SCREEN_WIDTH } = Dimensions.get('window');
 
+function PriceChart({ data, isPositive }) {
   if (!data || data.length === 0) {
-    console.log('PriceChart: No data, showing empty state');
     return (
       <View style={styles.emptyContainer}>
         <Text style={styles.emptyText}>No data available</Text>
@@ -27,71 +19,138 @@ export default function PriceChart({ data, isPositive }) {
     );
   }
 
-  // Extract prices from the data array
-  const prices = data.map(item => item[1]);
-  console.log('PriceChart prices:', {
-    count: prices.length,
-    min: Math.min(...prices),
-    max: Math.max(...prices),
-    first: prices[0],
-    last: prices[prices.length - 1]
-  });
+  // Memoize chart calculations to prevent re-renders
+  const chartPaths = useMemo(() => {
+    // Extract prices from the data array
+    const prices = data.map(item => item[1]);
 
-  // Calculate min and max for better Y-axis scaling
-  const minPrice = Math.min(...prices);
-  const maxPrice = Math.max(...prices);
-  const priceRange = maxPrice - minPrice;
-  const yPadding = priceRange * 0.05; // Add 5% padding for breathing room
+    // Chart dimensions
+    const chartWidth = SCREEN_WIDTH;
+    const chartHeight = 143;
+    const padding = { top: 13, right: 0, bottom: 0, left: 0 };
+
+    const drawWidth = chartWidth - padding.left - padding.right;
+    const drawHeight = chartHeight - padding.top - padding.bottom;
+
+    // Find min and max for scaling
+    const minPrice = Math.min(...prices) * 0.995;
+    const maxPrice = Math.max(...prices) * 1.005;
+    const priceRange = maxPrice - minPrice;
+
+    // Generate smooth curve path using bezier curves
+    const generatePath = () => {
+      if (prices.length === 0) return '';
+
+      let path = '';
+      const points = [];
+
+      // Calculate all points
+      prices.forEach((price, index) => {
+        const x = padding.left + (index / (prices.length - 1)) * drawWidth;
+        const y = padding.top + ((maxPrice - price) / priceRange) * drawHeight;
+        points.push({ x, y });
+      });
+
+      // Start the path
+      path = `M ${points[0].x} ${points[0].y}`;
+
+      // Create smooth bezier curves between points
+      for (let i = 1; i < points.length; i++) {
+        const prevPoint = points[i - 1];
+        const currentPoint = points[i];
+
+        // Control points for smooth curve
+        const cp1x = prevPoint.x + (currentPoint.x - prevPoint.x) * 0.5;
+        const cp1y = prevPoint.y;
+        const cp2x = prevPoint.x + (currentPoint.x - prevPoint.x) * 0.5;
+        const cp2y = currentPoint.y;
+
+        path += ` C ${cp1x} ${cp1y}, ${cp2x} ${cp2y}, ${currentPoint.x} ${currentPoint.y}`;
+      }
+
+      return path;
+    };
+
+    // Generate the filled area path
+    const generateAreaPath = () => {
+      const linePath = generatePath();
+      if (!linePath) return '';
+
+      // Start from bottom left
+      let areaPath = `M ${padding.left} ${chartHeight}`;
+
+      // Add the line path
+      areaPath += ` L ${padding.left} ${padding.top + ((maxPrice - prices[0]) / priceRange) * drawHeight}`;
+      areaPath += linePath.substring(1); // Remove the initial M command
+
+      // Close at bottom right
+      areaPath += ` L ${chartWidth - padding.right} ${chartHeight}`;
+      areaPath += ` L ${padding.left} ${chartHeight}`;
+      areaPath += ' Z';
+
+      return areaPath;
+    };
+
+    return {
+      linePath: generatePath(),
+      areaPath: generateAreaPath(),
+      chartWidth,
+      chartHeight
+    };
+  }, [data]);
 
   const strokeColor = isPositive ? COLORS.SUCCESS_GREEN : COLORS.RED;
 
-  // Gradient component for the area below the line
-  const Gradient = () => (
-    <Defs key={'gradient'}>
-      <LinearGradient id={'gradient'} x1={'0%'} y={'0%'} x2={'0%'} y2={'100%'}>
-        <Stop offset={'0%'} stopColor={strokeColor} stopOpacity={0.4} />
-        <Stop offset={'100%'} stopColor={strokeColor} stopOpacity={0} />
-      </LinearGradient>
-    </Defs>
-  );
-
-  console.log('Rendering LineChart with:', {
-    containerHeight: 220,
-    chartHeight: '100%',
-    dataPoints: prices.length,
-    strokeColor,
-    isPositive
-  });
-
   return (
     <View style={styles.container}>
-      <LineChart
-        style={{ height: 220, width: '100%' }}
-        data={prices}
-        svg={{
-          stroke: strokeColor,
-          strokeWidth: 2,
-          fill: 'url(#gradient)',
-        }}
-        contentInset={{ top: 20, bottom: 20 }}
-      >
-        <Gradient />
-      </LineChart>
+      <Svg width={chartPaths.chartWidth} height={chartPaths.chartHeight}>
+        <Defs>
+          <LinearGradient id="chartGradient" x1="0%" y1="0%" x2="0%" y2="100%">
+            <Stop offset="0%" stopColor={strokeColor} stopOpacity="0.25" />
+            <Stop offset="50%" stopColor={strokeColor} stopOpacity="0.12" />
+            <Stop offset="100%" stopColor={strokeColor} stopOpacity="0" />
+          </LinearGradient>
+        </Defs>
+
+        <G>
+          {/* Filled area with gradient */}
+          <Path
+            d={chartPaths.areaPath}
+            fill="url(#chartGradient)"
+          />
+
+          {/* Line stroke on top */}
+          <Path
+            d={chartPaths.linePath}
+            stroke={strokeColor}
+            strokeWidth={2}
+            fill="none"
+            strokeLinecap="round"
+            strokeLinejoin="round"
+          />
+        </G>
+      </Svg>
     </View>
   );
 }
 
+// Custom comparison function for React.memo
+const arePropsEqual = (prevProps, nextProps) => {
+  // Only re-render if data array reference or isPositive actually changes
+  return prevProps.data === nextProps.data && prevProps.isPositive === nextProps.isPositive;
+};
+
+// Memoize the component to prevent unnecessary re-renders
+export default React.memo(PriceChart, arePropsEqual);
+
 const styles = StyleSheet.create({
   container: {
-    height: 220,
+    height: 143,
     width: '100%',
-    marginBottom: 20,
-  },
-  chart: {
-    flex: 1,
+    marginBottom: 5,
   },
   emptyContainer: {
-    height: 220,
+    height: 143,
     justifyContent: 'center',
     alignItems: 'center',
   },

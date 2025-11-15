@@ -4,7 +4,7 @@
  * Extracted from WalletDataContext for better separation of concerns
  */
 
-import { useState, useCallback, useMemo } from 'react';
+import { useState, useCallback, useMemo, useRef } from 'react';
 import { fetchWalletBalances, fetchUtxos as fetchUtxosService } from '../services/balanceService';
 
 export function useBalanceData(wallet, getUnconfirmedBalance) {
@@ -25,6 +25,9 @@ export function useBalanceData(wallet, getUnconfirmedBalance) {
   const [utxos, setUtxos] = useState([]);
   const [loadingUtxos, setLoadingUtxos] = useState(false);
 
+  // Keep refs to previous balance values for comparison
+  const prevBalancesRef = useRef({ segwit: 0, taproot: 0, runes: [] });
+
   // Fetch wallet balance
   const fetchBalance = useCallback(
     async (segwitAddr, taprootAddr) => {
@@ -38,9 +41,27 @@ export function useBalanceData(wallet, getUnconfirmedBalance) {
         setLoadingBalance(true);
         setBalanceError(null);
         const balances = await fetchWalletBalances(segwitAddress, taprootAddress);
-        setSegwitBalance(balances.segwitBalance);
-        setTaprootBalance(balances.taprootBalance);
-        setRunesBalance(balances.runesBalance);
+
+        // Only update state if balances have actually changed
+        const prevBalances = prevBalancesRef.current;
+        const balancesChanged =
+          balances.segwitBalance !== prevBalances.segwit ||
+          balances.taprootBalance !== prevBalances.taproot ||
+          JSON.stringify(balances.runesBalance) !== JSON.stringify(prevBalances.runes);
+
+        if (balancesChanged) {
+          console.log('[BalanceFetch] UPDATING STATE - balances changed');
+          prevBalancesRef.current = {
+            segwit: balances.segwitBalance,
+            taproot: balances.taprootBalance,
+            runes: balances.runesBalance
+          };
+          setSegwitBalance(balances.segwitBalance);
+          setTaprootBalance(balances.taprootBalance);
+          setRunesBalance(balances.runesBalance);
+        } else {
+          console.log('[BalanceFetch] SKIPPING UPDATE - balances unchanged');
+        }
 
         // Also fetch unconfirmed balances from pending transactions
         const unconfirmedSegwit = getUnconfirmedBalance('segwit');

@@ -120,7 +120,7 @@ export const WalletDataProvider = ({ children }) => {
   // CONSOLIDATED VALUE (MEMOIZED)
   // ============================================================
   // Memoize the value object to prevent unnecessary re-renders of consumers
-  // Only recreate when actual data or functions change
+  // Split dependencies to only update when specific parts change
   const value = useMemo(
     () => ({
       // Namespaced data (recommended for new code)
@@ -155,7 +155,37 @@ export const WalletDataProvider = ({ children }) => {
       fetchVault: vault.fetchVault,
       resetVaultData: vault.resetVaultData,
     }),
-    [balance, history, vault]
+    [
+      // Balance dependencies
+      balance.segwitBalance,
+      balance.taprootBalance,
+      balance.runesBalance,
+      balance.unconfirmedSegwitBalance,
+      balance.unconfirmedTaprootBalance,
+      balance.unconfirmedRunesBalance,
+      balance.loadingBalance,
+      balance.refreshing,
+      balance.balanceError,
+      balance.setBalanceError,
+      balance.utxos,
+      balance.loadingUtxos,
+      balance.fetchBalance,
+      balance.onRefresh,
+      balance.fetchUtxos,
+      balance.resetBalances,
+      // History dependencies
+      history.transactionHistory,
+      history.loadingTransactionHistory,
+      history.historyError,
+      history.fetchTransactionHistory,
+      history.resetTransactionHistory,
+      // Vault dependencies
+      vault.vaultData,
+      vault.loadingVault,
+      vault.vaultError,
+      vault.fetchVault,
+      vault.resetVaultData,
+    ]
   );
 
   return <WalletDataContext.Provider value={value}>{children}</WalletDataContext.Provider>;

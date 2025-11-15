@@ -3,7 +3,7 @@
  * Displays detailed information about a specific asset (BTC or UNIT)
  */
 
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useMemo, useCallback } from 'react';
 import {
   View,
   Text,
@@ -13,69 +13,224 @@ import {
   ActivityIndicator,
   StyleSheet,
   Animated,
+  FlatList,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 import Icon from '../../components/icons';
 import { COLORS } from '../../theme';
 import { formatBalance, formatFiatAmount } from '../../utils/formatters';
-import { useBalance } from '../../contexts/WalletDataContext';
+import globalStyles from '../../styles';
+import { useBalance, useTransactionHistory } from '../../contexts/WalletDataContext';
+import { usePrice } from '../../contexts/PriceContext';
+import { useWallet } from '../../contexts/WalletContext';
+import { useToastContext } from '../../contexts/UIContext';
 import { useNavigation } from '@react-navigation/native';
-import { useTransactionHistoryData } from '../../hooks/useTransactionHistoryData';
 import TransactionItem from '../../components/transaction/TransactionItem';
 import PriceChart from '../../components/charts/PriceChart';
+import ReceiveScreen from './ReceiveScreen';
 import { API, API_KEYS } from '../../utils/constants';
+import { calculateTransactionAmount } from '../../services/transactionHistoryService';
 
 const { width: SCREEN_WIDTH } = Dimensions.get('window');
 
-const TAB_OPTIONS = ['ACTIVITY', 'ABOUT', 'BREAKDOWN'];
+const TAB_OPTIONS = ['ACTIVITY', 'ABOUT'];
+const CACHE_KEY_PREFIX = 'btc_price_cache_';
+const CACHE_EXPIRY_MS = 24 * 60 * 60 * 1000; // 24 hours
 
-export default function AssetDetailScreen({ route = {}, navigation }) {
+// In-memory cache for instant access across navigations
+const priceCache = {};
+
+// Sample data to reduce points to ~60
+const sampleData = (data, targetPoints = 60) => {
+  if (!data || data.length <= targetPoints) return data;
+
+  const step = Math.floor(data.length / targetPoints);
+  const sampled = [];
+
+  for (let i = 0; i < data.length; i += step) {
+    sampled.push(data[i]);
+  }
+
+  // Always include the last point
+  if (sampled[sampled.length - 1] !== data[data.length - 1]) {
+    sampled.push(data[data.length - 1]);
+  }
+
+  return sampled;
+};
+
+function AssetDetailScreen({ route = {}, navigation }) {
+  const mountTime = Date.now();
   const { assetType = 'BTC' } = route?.params || {};
-  const { segwitBalance, taprootBalance, btcPrice } = useBalance();
+  console.log('[AssetDetail] Mounted with assetType:', assetType, 'from route.params:', route?.params);
+  const { segwitBalance, taprootBalance } = useBalance();
+  const { btcPrice } = usePrice();
+  const { wallet } = useWallet();
+  const { transactionHistory, loadingTransactionHistory } = useTransactionHistory();
+  const { showToast } = useToastContext();
   const nav = useNavigation();
+  console.log('[AssetDetail] Hooks loaded in', Date.now() - mountTime, 'ms');
+
   const [selectedTab, setSelectedTab] = useState('ACTIVITY');
-  const [priceData, setPriceData] = useState(null);
-  const [priceLoading, setPriceLoading] = useState(true);
   const [selectedTimeframe, setSelectedTimeframe] = useState('1M');
   const [priceError, setPriceError] = useState(null);
-  const [priceDirection, setPriceDirection] = useState({ isPositive: true, percentChange: 0, dollarChange: 0 });
+  const [showReceiveSheet, setShowReceiveSheet] = useState(false);
   const scrollY = useRef(new Animated.Value(0)).current;
+
+  // Initialize with cached data if available (synchronous)
+  const initCacheKey = `${CACHE_KEY_PREFIX}1M`;
+  const initCache = priceCache[initCacheKey];
+  const [priceData, setPriceData] = useState(
+    initCache && (Date.now() - initCache.timestamp < CACHE_EXPIRY_MS) ? initCache.prices : null
+  );
+  const [priceDirection, setPriceDirection] = useState(
+    initCache && (Date.now() - initCache.timestamp < CACHE_EXPIRY_MS)
+      ? initCache.direction
+      : { isPositive: true, percentChange: 0, dollarChange: 0 }
+  );
+  const [priceLoading, setPriceLoading] = useState(false);
+
 
   // Get balance based on asset type
   const balance = assetType === 'BTC' ? segwitBalance : taprootBalance;
   const fiatValue = assetType === 'BTC' ? balance * btcPrice : 0;
 
-  // Get transaction history
-  const { transactions = [], loading: txLoading } = useTransactionHistoryData();
+  // Extract stable wallet addresses to avoid recalculating when wallet object changes
+  const segwitAddress = wallet?.segwitAddress;
+  const taprootAddress = wallet?.taprootAddress;
 
-  // Filter transactions based on asset type
-  const filteredTransactions = transactions?.filter(tx => {
-    if (assetType === 'BTC') {
-      // For BTC, show all segwit transactions
-      return tx.address?.startsWith('bc1q') || tx.address?.startsWith('tb1q');
-    } else {
-      // For UNIT, show taproot transactions
-      return tx.address?.startsWith('bc1p') || tx.address?.startsWith('tb1p');
+  // Memoize isPositive to prevent chart re-renders
+  const isPositive = useMemo(() => priceDirection.isPositive, [priceDirection.isPositive]);
+
+  // Stable ref for filtered transactions
+  const filteredTxRef = useRef([]);
+  const lastTxHashRef = useRef('');
+
+  // Filter and process transactions - memoized to avoid recalculating on every render
+  const filteredTransactions = useMemo(() => {
+    const filterStart = Date.now();
+    if (!transactionHistory || !segwitAddress || !taprootAddress) return filteredTxRef.current;
+
+    // Create a hash to check if we need to recalculate
+    const txHash = `${transactionHistory.length}-${assetType}`;
+    if (txHash === lastTxHashRef.current && filteredTxRef.current.length > 0) {
+      console.log('[AssetDetail] Using cached filtered transactions');
+      return filteredTxRef.current;
     }
-  }) || [];
 
-  // Fetch price data from CoinGecko
-  useEffect(() => {
-    if (assetType === 'BTC') {
-      fetchPriceData();
-    } else {
-      setPriceLoading(false);
-    }
-  }, [assetType, selectedTimeframe]);
+    console.log('[AssetDetail] Filtering transactions for', assetType);
 
-  const fetchPriceData = async () => {
-    setPriceLoading(true);
+    // First filter, then process only what we need
+    const filtered = transactionHistory
+      .filter(tx => {
+        // Quick filter first to reduce processing
+        if (tx.vaultTransaction) return false;
+
+        // If already has txData, use it for filtering
+        if (tx.txData) {
+          return tx.txData.assetType === assetType;
+        }
+
+        // For unprocessed transactions, we'll process them next
+        return true;
+      })
+      .map(tx => {
+        // If already processed, return as-is
+        if (tx.txData) return tx;
+
+        // Process regular transaction - create new object to avoid mutation
+        const txData = calculateTransactionAmount(tx, segwitAddress, taprootAddress);
+        const amount = typeof txData === 'object' ? txData.amount : txData;
+        const txAssetType = typeof txData === 'object' ? txData.type : 'BTC';
+        const numericAmount = typeof amount === 'bigint' ? Number(amount) : amount;
+
+        return {
+          ...tx,
+          txData: {
+            amount,
+            assetType: txAssetType,
+            numericAmount,
+            isSent: numericAmount < 0,
+            isReceived: numericAmount > 0,
+          },
+        };
+      })
+      .filter(tx => tx.txData?.assetType === assetType);
+
+    lastTxHashRef.current = txHash;
+    filteredTxRef.current = filtered;
+    console.log('[AssetDetail] Transaction filtering took', Date.now() - filterStart, 'ms');
+    return filtered;
+  }, [transactionHistory, segwitAddress, taprootAddress, assetType]);
+
+
+  const fetchPriceData = useCallback(async () => {
     setPriceError(null);
     try {
       const days = selectedTimeframe === '1D' ? 1 :
                    selectedTimeframe === '1W' ? 7 :
                    selectedTimeframe === '1M' ? 30 : 365;
 
+      const cacheKey = `${CACHE_KEY_PREFIX}${selectedTimeframe}`;
+
+      // Check in-memory cache first (instant)
+      if (priceCache[cacheKey]) {
+        const { prices, timestamp, direction } = priceCache[cacheKey];
+        const age = Date.now() - timestamp;
+
+        if (age < CACHE_EXPIRY_MS) {
+          console.log('[PriceChart] Using in-memory cached data for', selectedTimeframe);
+          setPriceData(prices);
+          setPriceDirection(direction);
+          setPriceLoading(false);
+          return;
+        }
+      }
+
+      // Check AsyncStorage cache
+      try {
+        const cachedData = await AsyncStorage.getItem(cacheKey);
+        if (cachedData) {
+          const { prices, timestamp } = JSON.parse(cachedData);
+          const age = Date.now() - timestamp;
+
+          if (age < CACHE_EXPIRY_MS) {
+            console.log('[PriceChart] Using AsyncStorage cached data for', selectedTimeframe);
+
+            // Calculate price direction (for 1 BTC)
+            const firstPrice = prices[0][1];
+            const lastPrice = prices[prices.length - 1][1];
+            const priceChange = lastPrice - firstPrice;
+            const percentChange = ((priceChange / firstPrice) * 100);
+
+            const direction = {
+              isPositive: priceChange >= 0,
+              percentChange: percentChange.toFixed(2),
+              dollarChange: Math.abs(priceChange).toLocaleString('en-US', {
+                minimumFractionDigits: 2,
+                maximumFractionDigits: 2
+              })
+            };
+
+            setPriceData(prices);
+            setPriceDirection(direction);
+
+            // Store in memory cache for next time
+            priceCache[cacheKey] = { prices, timestamp, direction };
+
+            setPriceLoading(false);
+            return;
+          }
+        }
+      } catch (cacheError) {
+        // Silently fail cache read
+      }
+
+      // Only show loading if we need to fetch from network
+      setPriceLoading(true);
+
+      // Fetch fresh data
       const response = await fetch(
         `${API.COINGECKO}/coins/bitcoin/market_chart?vs_currency=usd&days=${days}`,
         {
@@ -92,64 +247,96 @@ export default function AssetDetailScreen({ route = {}, navigation }) {
 
       if (!response.ok) {
         const errorText = await response.text();
-        console.error('CoinGecko API error:', response.status, errorText);
         throw new Error(`API error: ${response.status}`);
       }
 
       const data = await response.json();
-      console.log('CoinGecko API response:', {
-        hasPrices: !!data.prices,
-        priceCount: data.prices?.length,
-        firstPrice: data.prices?.[0],
-        lastPrice: data.prices?.[data.prices.length - 1]
-      });
 
       if (data.prices && data.prices.length > 0) {
-        setPriceData(data.prices);
+        // Sample data to ~60 points
+        const sampledPrices = sampleData(data.prices, 60);
+        console.log('[PriceChart] Fetched fresh data for', selectedTimeframe, '- sampled to', sampledPrices.length, 'points');
 
-        // Calculate price direction
+        // Calculate price direction (for 1 BTC, using original data endpoints)
         const firstPrice = data.prices[0][1];
         const lastPrice = data.prices[data.prices.length - 1][1];
         const priceChange = lastPrice - firstPrice;
-        const percentChange = ((priceChange / firstPrice) * 100).toFixed(2);
+        const percentChange = ((priceChange / firstPrice) * 100);
 
-        setPriceDirection({
+        const direction = {
           isPositive: priceChange >= 0,
-          percentChange: Math.abs(percentChange),
-          dollarChange: Math.abs(priceChange).toFixed(2)
-        });
+          percentChange: percentChange.toFixed(2),
+          dollarChange: Math.abs(priceChange).toLocaleString('en-US', {
+            minimumFractionDigits: 2,
+            maximumFractionDigits: 2
+          })
+        };
 
-        console.log('Price data loaded successfully:', {
-          dataPoints: data.prices.length,
-          isPositive: priceChange >= 0,
-          percentChange
+        setPriceData(sampledPrices);
+        setPriceDirection(direction);
+
+        const timestamp = Date.now();
+
+        // Store in memory cache immediately
+        priceCache[cacheKey] = { prices: sampledPrices, timestamp, direction };
+
+        // Cache to AsyncStorage (async, non-blocking)
+        AsyncStorage.setItem(
+          cacheKey,
+          JSON.stringify({
+            prices: sampledPrices,
+            timestamp
+          })
+        ).catch(() => {
+          // Silently fail cache write
         });
       } else {
-        console.error('Invalid data format:', data);
         throw new Error('Invalid data format from API');
       }
     } catch (error) {
-      console.error('Error fetching price data:', error);
       setPriceError(error.message || 'Failed to load price data');
       setPriceData(null);
     } finally {
       setPriceLoading(false);
     }
-  };
+  }, [selectedTimeframe]);
+
+  // Fetch price data from CoinGecko - only when timeframe changes or if no cache
+  useEffect(() => {
+    const effectStart = Date.now();
+    if (assetType === 'BTC') {
+      const cacheKey = `${CACHE_KEY_PREFIX}${selectedTimeframe}`;
+      const cached = priceCache[cacheKey];
+      // Only fetch if no in-memory cache or cache is stale
+      if (!cached || (Date.now() - cached.timestamp >= CACHE_EXPIRY_MS)) {
+        console.log('[AssetDetail] No cache, fetching price data');
+        fetchPriceData();
+      } else {
+        console.log('[AssetDetail] Using existing cache, skipping fetch');
+        // Update state with cached data if timeframe changed
+        if (priceData !== cached.prices || priceDirection !== cached.direction) {
+          setPriceData(cached.prices);
+          setPriceDirection(cached.direction);
+        }
+      }
+    } else {
+      setPriceLoading(false);
+    }
+    console.log('[AssetDetail] Effect ran in', Date.now() - effectStart, 'ms');
+  }, [assetType, selectedTimeframe, fetchPriceData, priceData, priceDirection]);
 
   const handleActionPress = (action) => {
     switch (action) {
       case 'send':
-        navigation.navigate('Send', {
-          screen: 'AssetSelector',
-          params: { preselectedAsset: assetType }
+        const sendAssetType = assetType.toLowerCase(); // Convert BTC -> btc, UNIT -> unit
+        console.log('[AssetDetail] Navigating to send with assetType:', sendAssetType);
+        navigation.navigate('SendFlow', {
+          screen: 'AddressInput',
+          params: { assetType: sendAssetType }
         });
         break;
       case 'receive':
-        navigation.navigate('Wallet', {
-          screen: 'Receive',
-          params: { assetType }
-        });
+        setShowReceiveSheet(true);
         break;
       case 'swap':
         // TODO: Implement swap functionality
@@ -171,21 +358,15 @@ export default function AssetDetailScreen({ route = {}, navigation }) {
       >
         <Icon name="back" size={24} color={COLORS.WHITE} />
       </TouchableOpacity>
-
-      <TouchableOpacity style={styles.menuButton}>
-        <Icon name="settings" size={24} color={COLORS.WHITE} />
-      </TouchableOpacity>
     </View>
   );
 
   const renderAssetInfo = () => (
     <View style={styles.assetInfoContainer}>
-      <View style={styles.assetIcon}>
-        <Icon
-          name={assetType === 'BTC' ? 'btc_logo' : 'unit_logo'}
-          size={60}
-        />
-      </View>
+      <Icon
+        name={assetType === 'BTC' ? 'btc_logo' : 'unit_logo'}
+        size={60}
+      />
 
       <Text style={styles.assetName}>
         {assetType === 'BTC' ? 'Bitcoin' : 'UNIT'}
@@ -200,11 +381,9 @@ export default function AssetDetailScreen({ route = {}, navigation }) {
       </Text>
 
       {assetType === 'BTC' && btcPrice && priceData && (
-        <View style={styles.priceChangeContainer}>
-          <Text style={[styles.priceChange, { color: priceDirection.isPositive ? COLORS.SUCCESS_GREEN : COLORS.RED }]}>
-            {priceDirection.isPositive ? '▲' : '▼'} {priceDirection.percentChange}% ({priceDirection.isPositive ? '+' : '-'}${priceDirection.dollarChange})
-          </Text>
-        </View>
+        <Text style={[styles.priceChange, { color: priceDirection.isPositive ? COLORS.SUCCESS_GREEN : COLORS.RED }]}>
+          {priceDirection.isPositive ? '▲' : '▼'} {priceDirection.percentChange}% ({priceDirection.isPositive ? '+' : '-'}${priceDirection.dollarChange})
+        </Text>
       )}
     </View>
   );
@@ -216,7 +395,7 @@ export default function AssetDetailScreen({ route = {}, navigation }) {
         onPress={() => handleActionPress('send')}
       >
         <View style={styles.actionButtonIcon}>
-          <Text style={styles.actionButtonIconText}>S</Text>
+          <Icon name="send" size={19} color={COLORS.WHITE} />
         </View>
         <Text style={styles.actionButtonLabel}>Send</Text>
       </TouchableOpacity>
@@ -226,7 +405,7 @@ export default function AssetDetailScreen({ route = {}, navigation }) {
         onPress={() => handleActionPress('receive')}
       >
         <View style={styles.actionButtonIcon}>
-          <Text style={styles.actionButtonIconText}>R</Text>
+          <Icon name="receive" size={19} color={COLORS.WHITE} />
         </View>
         <Text style={styles.actionButtonLabel}>Receive</Text>
       </TouchableOpacity>
@@ -238,9 +417,7 @@ export default function AssetDetailScreen({ route = {}, navigation }) {
 
     return (
       <View style={styles.chartContainer}>
-        {priceLoading ? (
-          <ActivityIndicator color={COLORS.PRIMARY_BLUE} />
-        ) : priceError ? (
+        {priceError ? (
           <View style={styles.errorContainer}>
             <Text style={styles.errorText}>
               {priceError.includes('Rate limit')
@@ -261,7 +438,7 @@ export default function AssetDetailScreen({ route = {}, navigation }) {
           </View>
         ) : priceData ? (
           <>
-            <PriceChart data={priceData} isPositive={priceDirection.isPositive} />
+            <PriceChart data={priceData} isPositive={isPositive} />
 
             <View style={styles.timeframeButtons}>
               {['1D', '1W', '1M', '1Y'].map((timeframe) => (
@@ -273,14 +450,18 @@ export default function AssetDetailScreen({ route = {}, navigation }) {
                   ]}
                   onPress={() => setSelectedTimeframe(timeframe)}
                 >
-                  <Text
-                    style={[
-                      styles.timeframeButtonText,
-                      selectedTimeframe === timeframe && styles.timeframeButtonTextActive,
-                    ]}
-                  >
-                    {timeframe}
-                  </Text>
+                  {priceLoading && selectedTimeframe === timeframe ? (
+                    <ActivityIndicator size="small" color={COLORS.PRIMARY_BLUE} />
+                  ) : (
+                    <Text
+                      style={[
+                        styles.timeframeButtonText,
+                        selectedTimeframe === timeframe && styles.timeframeButtonTextActive,
+                      ]}
+                    >
+                      {timeframe}
+                    </Text>
+                  )}
                 </TouchableOpacity>
               ))}
             </View>
@@ -306,26 +487,57 @@ export default function AssetDetailScreen({ route = {}, navigation }) {
     </View>
   );
 
-  const renderActivity = () => (
-    <View style={styles.activityContainer}>
-      {txLoading ? (
-        <ActivityIndicator color={COLORS.PRIMARY_BLUE} style={styles.loader} />
-      ) : filteredTransactions.length === 0 ? (
-        <View style={styles.emptyContainer}>
-          <Text style={styles.emptyIcon}>📭</Text>
-          <Text style={styles.emptyText}>No transactions yet</Text>
-        </View>
-      ) : (
-        filteredTransactions.map((tx, index) => (
-          <TransactionItem
-            key={tx.txid || index}
-            transaction={tx}
-            style={styles.transactionItem}
-          />
-        ))
-      )}
-    </View>
+  // Memoized render function for transactions
+  const renderTransaction = useCallback(
+    ({ item: tx }) => (
+      <TransactionItem
+        tx={tx}
+        styles={globalStyles}
+        onPress={() => {}}
+      />
+    ),
+    []
   );
+
+  // KeyExtractor for FlatList
+  const keyExtractor = useCallback((item) => item.txid, []);
+
+  const renderActivity = () => {
+    if (loadingTransactionHistory) {
+      return (
+        <View style={styles.activityContainer}>
+          <ActivityIndicator color={COLORS.PRIMARY_BLUE} style={styles.loader} />
+        </View>
+      );
+    }
+
+    if (filteredTransactions.length === 0) {
+      return (
+        <View style={styles.activityContainer}>
+          <View style={styles.emptyContainer}>
+            <Text style={styles.emptyIcon}>📭</Text>
+            <Text style={styles.emptyText}>No transactions yet</Text>
+          </View>
+        </View>
+      );
+    }
+
+    return (
+      <View style={styles.activityContainer}>
+        <FlatList
+          data={filteredTransactions}
+          renderItem={renderTransaction}
+          keyExtractor={keyExtractor}
+          showsVerticalScrollIndicator={false}
+          scrollEnabled={false}
+          initialNumToRender={10}
+          maxToRenderPerBatch={10}
+          windowSize={5}
+          removeClippedSubviews={true}
+        />
+      </View>
+    );
+  };
 
   const renderAbout = () => (
     <View style={styles.aboutContainer}>
@@ -375,25 +587,42 @@ export default function AssetDetailScreen({ route = {}, navigation }) {
   );
 
   return (
-    <SafeAreaView style={styles.container}>
-      {renderHeader()}
+    <>
+      <SafeAreaView style={styles.container}>
+        {renderHeader()}
 
-      <Animated.ScrollView
-        style={styles.scrollView}
-        onScroll={Animated.event(
-          [{ nativeEvent: { contentOffset: { y: scrollY } } }],
-          { useNativeDriver: false }
-        )}
-        scrollEventThrottle={16}
-      >
-        {renderAssetInfo()}
-        {renderActionButtons()}
-        {renderPriceChart()}
-        {renderTabs()}
+        <Animated.ScrollView
+          style={styles.scrollView}
+          onScroll={Animated.event(
+            [{ nativeEvent: { contentOffset: { y: scrollY } } }],
+            { useNativeDriver: false }
+          )}
+          scrollEventThrottle={16}
+        >
+          {renderAssetInfo()}
+          {renderActionButtons()}
+          {renderPriceChart()}
+          {renderTabs()}
 
-        {selectedTab === 'ACTIVITY' ? renderActivity() : selectedTab === 'ABOUT' ? renderAbout() : renderBreakdown()}
-      </Animated.ScrollView>
-    </SafeAreaView>
+          {selectedTab === 'ACTIVITY' ? renderActivity() : renderAbout()}
+        </Animated.ScrollView>
+      </SafeAreaView>
+
+      <ReceiveScreen
+        styles={globalStyles}
+        showReceiveSheet={showReceiveSheet}
+        onClose={() => {
+          console.log('[AssetDetail] ReceiveScreen onClose called');
+          setShowReceiveSheet(false);
+        }}
+        segwitAddress={segwitAddress || ''}
+        taprootAddress={taprootAddress || ''}
+        showToast={showToast}
+        autoOpenQR={true}
+        preSelectedAddress={segwitAddress || ''}
+        preSelectedType="Native SegWit"
+      />
+    </>
   );
 }
 
@@ -420,7 +649,7 @@ const styles = StyleSheet.create({
   },
   assetInfoContainer: {
     alignItems: 'center',
-    paddingVertical: 24,
+    paddingVertical: 12,
   },
   assetIcon: {
     width: 80,
@@ -429,55 +658,51 @@ const styles = StyleSheet.create({
     backgroundColor: COLORS.CARD_BG,
     justifyContent: 'center',
     alignItems: 'center',
-    marginBottom: 16,
-  },
-  assetName: {
-    fontSize: 20,
-    fontWeight: '600',
-    color: COLORS.WHITE,
-    marginBottom: 8,
-  },
-  balanceAmount: {
-    fontSize: 32,
-    fontWeight: '700',
-    color: COLORS.WHITE,
     marginBottom: 4,
   },
-  balanceFiat: {
-    fontSize: 18,
-    color: COLORS.GRAY,
+  assetName: {
+    fontSize: 16,
+    fontWeight: '400',
+    color: COLORS.SECONDARY_TEXT,
+    marginBottom: 12,
+  },
+  balanceAmount: {
+    fontSize: 31,
+    fontWeight: '700',
+    color: COLORS.WHITE,
     marginBottom: 8,
   },
-  priceChangeContainer: {
-    paddingHorizontal: 12,
-    paddingVertical: 6,
-    borderRadius: 12,
-    backgroundColor: COLORS.CARD_BG,
+  balanceFiat: {
+    fontSize: 20,
+    fontWeight: '400',
+    color: COLORS.SECONDARY_TEXT,
+    marginBottom: 12,
   },
   priceChange: {
-    fontSize: 14,
-    fontWeight: '600',
+    fontSize: 16,
+    fontWeight: '400',
+    color: COLORS.SUCCESS_GREEN,
   },
   actionButtonsContainer: {
     flexDirection: 'row',
     justifyContent: 'center',
-    paddingHorizontal: 20,
-    paddingVertical: 24,
-    gap: 24,
+    paddingHorizontal: 5,
+    paddingVertical: 12,
+    gap: 12,
   },
   actionButton: {
     alignItems: 'center',
-    minWidth: 80,
+    minWidth: 62,
   },
   actionButtonIcon: {
-    width: 64,
-    height: 64,
-    borderRadius: 20,
+    width: 50,
+    height: 50,
+    borderRadius: 8,
     backgroundColor: COLORS.CARD_BG,
     justifyContent: 'center',
     alignItems: 'center',
-    marginBottom: 10,
-    borderWidth: 1.5,
+    marginBottom: 2,
+    borderWidth: 1.2,
     borderColor: COLORS.BORDER_COLOR,
   },
   actionButtonIconText: {
@@ -492,8 +717,8 @@ const styles = StyleSheet.create({
   },
   chartContainer: {
     paddingHorizontal: 0,
-    paddingVertical: 16,
-    marginTop: 8,
+    paddingVertical: 4,
+    marginTop: 2,
   },
   chartPlaceholder: {
     height: 200,
@@ -510,20 +735,22 @@ const styles = StyleSheet.create({
   timeframeButtons: {
     flexDirection: 'row',
     justifyContent: 'center',
-    gap: 12,
-    marginTop: 16,
-    paddingHorizontal: 20,
+    gap: 3,
+    marginTop: 4,
+    paddingHorizontal: 5,
   },
   timeframeButton: {
-    paddingHorizontal: 20,
-    paddingVertical: 10,
-    borderRadius: 24,
-    backgroundColor: COLORS.VERY_DARK_GRAY,
+    paddingHorizontal: 2,
+    paddingVertical: 12,
+    borderRadius: 10,
+    backgroundColor: 'transparent',
     minWidth: 64,
+    height: 44,
     alignItems: 'center',
+    justifyContent: 'center',
   },
   timeframeButtonActive: {
-    backgroundColor: COLORS.PRIMARY_BLUE,
+    backgroundColor: COLORS.VERY_DARK_GRAY,
   },
   timeframeButtonText: {
     color: COLORS.SECONDARY_TEXT,
@@ -535,69 +762,69 @@ const styles = StyleSheet.create({
   },
   tabContainer: {
     flexDirection: 'row',
-    paddingHorizontal: 20,
-    marginTop: 32,
-    marginBottom: 20,
+    paddingHorizontal: 16,
+    marginTop: 16,
+    marginBottom: 16,
     gap: 12,
   },
   tab: {
-    paddingVertical: 10,
-    paddingHorizontal: 20,
-    borderRadius: 24,
-    backgroundColor: COLORS.VERY_DARK_GRAY,
+    paddingVertical: 12,
+    paddingHorizontal: 28,
+    borderRadius: 10,
+    backgroundColor: 'transparent',
   },
   activeTab: {
-    backgroundColor: COLORS.CARD_BG,
+    backgroundColor: COLORS.VERY_DARK_GRAY,
   },
   tabText: {
-    fontSize: 13,
-    fontWeight: '700',
+    fontSize: 14,
+    fontWeight: '600',
     color: COLORS.SECONDARY_TEXT,
   },
   activeTabText: {
     color: COLORS.WHITE,
   },
   activityContainer: {
-    paddingHorizontal: 16,
-    paddingBottom: 20,
+    paddingHorizontal: 4,
+    paddingBottom: 5,
   },
   loader: {
-    marginTop: 32,
+    marginTop: 8,
   },
   emptyContainer: {
     alignItems: 'center',
-    paddingVertical: 48,
+    paddingVertical: 12,
   },
   emptyIcon: {
     fontSize: 48,
-    marginBottom: 12,
+    marginBottom: 3,
   },
   emptyText: {
     color: COLORS.GRAY,
     fontSize: 16,
   },
   transactionItem: {
-    marginBottom: 12,
+    marginBottom: 3,
   },
   aboutContainer: {
-    paddingHorizontal: 16,
-    paddingBottom: 20,
+    paddingHorizontal: 14,
+    paddingBottom: 5,
   },
   aboutSection: {
     backgroundColor: COLORS.CARD_BG,
     borderRadius: 12,
     padding: 16,
-    marginBottom: 16,
+    marginBottom: 12,
   },
   aboutTitle: {
-    fontSize: 18,
+    fontSize: 16,
     fontWeight: '600',
     color: COLORS.WHITE,
-    marginBottom: 12,
+    marginBottom: 8,
   },
   aboutDescription: {
     fontSize: 14,
-    color: COLORS.GRAY,
+    color: COLORS.SECONDARY_TEXT,
     lineHeight: 20,
   },
   aboutStats: {
@@ -608,11 +835,11 @@ const styles = StyleSheet.create({
   statRow: {
     flexDirection: 'row',
     justifyContent: 'space-between',
-    marginBottom: 12,
+    marginBottom: 8,
   },
   statLabel: {
     fontSize: 14,
-    color: COLORS.GRAY,
+    color: COLORS.SECONDARY_TEXT,
   },
   statValue: {
     fontSize: 14,
@@ -622,25 +849,25 @@ const styles = StyleSheet.create({
   errorContainer: {
     alignItems: 'center',
     justifyContent: 'center',
-    paddingVertical: 40,
+    paddingVertical: 10,
   },
   errorText: {
     color: COLORS.ERROR,
     fontSize: 15,
     fontWeight: '600',
-    marginBottom: 6,
+    marginBottom: 1.5,
   },
   errorSubtext: {
     color: COLORS.SECONDARY_TEXT,
     fontSize: 13,
-    marginBottom: 16,
+    marginBottom: 4,
     textAlign: 'center',
   },
   retryButton: {
-    paddingHorizontal: 24,
-    paddingVertical: 10,
+    paddingHorizontal: 6,
+    paddingVertical: 2.5,
     backgroundColor: COLORS.PRIMARY_BLUE,
-    borderRadius: 20,
+    borderRadius: 10,
   },
   retryButtonText: {
     color: COLORS.WHITE,
@@ -648,3 +875,5 @@ const styles = StyleSheet.create({
     fontWeight: '600',
   },
 });
+
+export default React.memo(AssetDetailScreen);

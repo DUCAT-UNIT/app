@@ -18,17 +18,16 @@ export default function WalletStackNavigator() {
         headerShown: false,
         cardStyle: { backgroundColor: COLORS.DARK_BG },
         animationEnabled: true,
+        // Optimize transition performance
+        cardStyleInterpolator: ({ current }) => ({
+          cardStyle: {
+            opacity: current.progress,
+          },
+        }),
       }}
     >
       <Stack.Screen name="WalletHome" component={WalletPage} />
-      <Stack.Screen
-        name="AssetDetail"
-        component={AssetDetailScreen}
-        options={{
-          presentation: 'card',
-          gestureEnabled: true,
-        }}
-      />
+      <Stack.Screen name="AssetDetail" component={AssetDetailScreen} />
     </Stack.Navigator>
   );
 }
