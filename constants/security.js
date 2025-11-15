@@ -55,7 +55,7 @@ export const BIOMETRIC = {
 export const PASSKEY = {
   // Relying Party configuration
   RP_NAME: 'Ducat Wallet',
-  RP_ID: 'ducat.app', // Production domain with proper associated domains setup
+  RP_ID: 'ducatprotocol.com', // Production domain with proper associated domains setup
   TIMEOUT_MS: 60000, // 60 seconds
 
   // User verification requirements
