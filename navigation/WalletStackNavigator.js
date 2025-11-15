@@ -20,7 +20,6 @@ export default function WalletStackNavigator() {
         animationEnabled: true,
         // Performance optimizations
         detachPreviousScreen: false, // Keep previous screen mounted for instant back navigation
-        freezeOnBlur: true, // Freeze inactive screens to prevent unnecessary renders
         // Optimize transition performance
         cardStyleInterpolator: ({ current }) => ({
           cardStyle: {

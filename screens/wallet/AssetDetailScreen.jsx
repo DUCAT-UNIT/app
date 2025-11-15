@@ -99,6 +99,13 @@ function AssetDetailScreen({ route = {}, navigation }) {
   const [showReceiveSheet, setShowReceiveSheet] = useState(false);
   const scrollY = useRef(new Animated.Value(0)).current;
 
+  // Disable stack navigator gesture when modal is open to prevent swipe-back conflict
+  useEffect(() => {
+    navigation.setOptions({
+      gestureEnabled: !showReceiveSheet,
+    });
+  }, [navigation, showReceiveSheet]);
+
   // Initialize with cached data if available (synchronous)
   const initCacheKey = `${CACHE_KEY_PREFIX}1M`;
   const initCache = priceCache[initCacheKey];
@@ -647,15 +654,15 @@ function AssetDetailScreen({ route = {}, navigation }) {
         styles={globalStyles}
         showReceiveSheet={showReceiveSheet}
         onClose={() => {
-          console.log('[AssetDetail] ReceiveScreen onClose called');
+          console.log('[AssetDetail] ReceiveScreen onClose called - closing modal only, staying on AssetDetailScreen');
           setShowReceiveSheet(false);
         }}
         segwitAddress={segwitAddress || ''}
         taprootAddress={taprootAddress || ''}
         showToast={showToast}
-        autoOpenQR={true}
-        preSelectedAddress={segwitAddress || ''}
-        preSelectedType="Native SegWit"
+        autoOpenQR={assetType === 'BTC'}
+        preSelectedAddress={assetType === 'BTC' ? segwitAddress || '' : null}
+        preSelectedType={assetType === 'BTC' ? 'Native SegWit' : null}
       />
     </>
   );
