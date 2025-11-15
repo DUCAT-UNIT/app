@@ -5,7 +5,7 @@
 
 import React from 'react';
 import PropTypes from 'prop-types';
-import { View, Text, StyleSheet } from 'react-native';
+import { View, Text, StyleSheet, TouchableOpacity } from 'react-native';
 import Icon from '../icons';
 import { COLORS } from '../../theme';
 
@@ -26,9 +26,16 @@ export default function AssetCard({
   styles,
   isLast,
   customAmountStyle,
+  onPress,
 }) {
+  const CardWrapper = onPress ? TouchableOpacity : View;
+
   return (
-    <View style={[styles.assetCard, isLast && styles.assetCardLast]}>
+    <CardWrapper
+      style={[styles.assetCard, isLast && styles.assetCardLast]}
+      onPress={onPress}
+      activeOpacity={0.7}
+    >
       <View style={styles.assetRow}>
         <View style={styles.assetLeft}>
           <View style={[styles.btcIcon, assetName !== 'Bitcoin' && styles.ducatIcon]}>
@@ -80,7 +87,7 @@ export default function AssetCard({
           </Text>
         )}
       </View>
-    </View>
+    </CardWrapper>
   );
 }
 
@@ -95,4 +102,5 @@ AssetCard.propTypes = {
   styles: PropTypes.object.isRequired,
   isLast: PropTypes.bool,
   customAmountStyle: PropTypes.object,
+  onPress: PropTypes.func,
 };

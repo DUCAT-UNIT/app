@@ -39,3 +39,22 @@ export const formatSatoshis = (satoshis) => {
 export const formatBTC = (btc, decimals = 8) => {
   return btc.toFixed(decimals);
 };
+
+/**
+ * Format balance value (BTC) for display
+ */
+export const formatBalance = (balance, decimals = 8) => {
+  if (!balance && balance !== 0) return '0.00000000';
+  return balance.toFixed(decimals);
+};
+
+/**
+ * Format fiat amount (USD) for display
+ */
+export const formatFiatAmount = (amount, decimals = 2) => {
+  if (!amount && amount !== 0) return '0.00';
+  return amount.toLocaleString('en-US', {
+    minimumFractionDigits: decimals,
+    maximumFractionDigits: decimals,
+  });
+};

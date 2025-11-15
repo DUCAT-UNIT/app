@@ -26,6 +26,7 @@ const WalletScreen = React.memo(function WalletScreen({
   onSettingsPress,
   onCreateVaultPress,
   onVaultPress,
+  onAssetPress,
   _sendAddressType,
   switchingAccount,
   showZeroAssets,
@@ -134,7 +135,7 @@ const WalletScreen = React.memo(function WalletScreen({
           styles={styles}
         />
 
-        {/* Bitcoin Balance Card - Non-clickable */}
+        {/* Bitcoin Balance Card - Clickable for asset detail */}
         <AssetCard
           assetName="Bitcoin"
           assetLogo="btc_logo"
@@ -144,9 +145,10 @@ const WalletScreen = React.memo(function WalletScreen({
           btcValue={formatted.segwitBTC}
           usdValue={formatted.segwitUSD}
           styles={styles}
+          onPress={() => onAssetPress && onAssetPress('BTC')}
         />
 
-        {/* UNIT•RUNE Card - Non-clickable */}
+        {/* UNIT•RUNE Card - Clickable for asset detail */}
         <AssetCard
           assetName="UNIT•RUNE"
           assetLogo="unit_logo"
@@ -156,6 +158,7 @@ const WalletScreen = React.memo(function WalletScreen({
           btcValue={unitValueInBTC}
           usdValue={runesBalance.length > 0 ? parseFloat(runesBalance[0][1]) : 0}
           styles={styles}
+          onPress={() => onAssetPress && onAssetPress('UNIT')}
         />
 
         {/* DUCAT•RUNE Card - Non-clickable */}

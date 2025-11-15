@@ -5,7 +5,7 @@
 
 import React from 'react';
 import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
-import WalletPage from '../pages/WalletPage';
+import WalletStackNavigator from './WalletStackNavigator';
 import { COLORS } from '../theme';
 
 const Tab = createBottomTabNavigator();
@@ -20,7 +20,7 @@ export default function MainTabs() {
         tabBarInactiveTintColor: COLORS.MEDIUM_GRAY,
       }}
     >
-      <Tab.Screen name="WalletTab" component={WalletPage} />
+      <Tab.Screen name="WalletTab" component={WalletStackNavigator} />
     </Tab.Navigator>
   );
 }

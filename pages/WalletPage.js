@@ -360,6 +360,7 @@ export default function WalletPage() {
               onSettingsPress={openSettings}
               onCreateVaultPress={() => openVault(true)}
               onVaultPress={openVault}
+              onAssetPress={(assetType) => navigation.navigate('AssetDetail', { assetType })}
               sendAddressType={sendAddressType}
               switchingAccount={false}
               showZeroAssets={settingsHandlers.showZeroAssets}
