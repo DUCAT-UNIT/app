@@ -13,7 +13,6 @@ import {
   ActivityIndicator,
   StyleSheet,
   Animated,
-  FlatList,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import AsyncStorage from '@react-native-async-storage/async-storage';
@@ -632,7 +631,7 @@ function AssetDetailScreen({ route = {}, navigation }) {
         <Text style={styles.aboutDescription}>
           {assetType === 'BTC'
             ? 'Bitcoin is a decentralized digital currency that can be transferred on the peer-to-peer bitcoin network. Bitcoin transactions are verified by network nodes through cryptography and recorded in a public distributed ledger called a blockchain.'
-            : 'UNIT is a token on the Bitcoin network using the Taproot protocol. It represents a unit of account and can be used for various purposes within the Ducat ecosystem.'
+            : 'UNIT is designed to be a BTC-backed Collateralised Debt Position (CDP), programmed to be soft-pegged to the USD at 1.01 to 1.04 UNIT per USD before transaction costs, to finance responsible lending and leverage.'
           }
         </Text>
       </View>

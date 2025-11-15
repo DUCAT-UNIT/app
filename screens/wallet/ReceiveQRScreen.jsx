@@ -36,7 +36,7 @@ export default function ReceiveQRScreen({ route, navigation }) {
         message: address,
       });
     } catch (error) {
-      console.error('[ReceiveQRScreen] Error sharing address:', error);
+      // Silently fail - user cancelled share or share not available
     }
   };
 

@@ -37,13 +37,39 @@ export default function WalletStackNavigator() {
         name="AssetDetail"
         component={AssetDetailScreen}
         options={{
-          // Enable swipe to dismiss
+          // Enable swipe to dismiss with improved gesture handling
           gestureEnabled: true,
           gestureDirection: 'horizontal',
+          gestureResponseDistance: 50, // Smaller distance for easier dismiss
+          gestureVelocityImpact: 0.3, // More responsive to swipe velocity
           // Keep screen mounted for instant re-navigation
           unmountOnBlur: false,
           // Custom animation for slide from right
           animationEnabled: true,
+          transitionSpec: {
+            open: {
+              animation: 'spring',
+              config: {
+                stiffness: 1000,
+                damping: 500,
+                mass: 3,
+                overshootClamping: true,
+                restDisplacementThreshold: 0.01,
+                restSpeedThreshold: 0.01,
+              },
+            },
+            close: {
+              animation: 'spring',
+              config: {
+                stiffness: 1000,
+                damping: 500,
+                mass: 3,
+                overshootClamping: true,
+                restDisplacementThreshold: 0.01,
+                restSpeedThreshold: 0.01,
+              },
+            },
+          },
           cardStyleInterpolator: ({ current, layouts }) => {
             return {
               cardStyle: {
@@ -64,11 +90,37 @@ export default function WalletStackNavigator() {
         name="ReceiveQR"
         component={ReceiveQRScreen}
         options={{
-          // Enable swipe to dismiss
+          // Enable swipe to dismiss with improved gesture handling
           gestureEnabled: true,
           gestureDirection: 'horizontal',
+          gestureResponseDistance: 50, // Smaller distance for easier dismiss
+          gestureVelocityImpact: 0.3, // More responsive to swipe velocity
           // Custom animation for slide from right
           animationEnabled: true,
+          transitionSpec: {
+            open: {
+              animation: 'spring',
+              config: {
+                stiffness: 1000,
+                damping: 500,
+                mass: 3,
+                overshootClamping: true,
+                restDisplacementThreshold: 0.01,
+                restSpeedThreshold: 0.01,
+              },
+            },
+            close: {
+              animation: 'spring',
+              config: {
+                stiffness: 1000,
+                damping: 500,
+                mass: 3,
+                overshootClamping: true,
+                restDisplacementThreshold: 0.01,
+                restSpeedThreshold: 0.01,
+              },
+            },
+          },
           cardStyleInterpolator: ({ current, layouts }) => {
             return {
               cardStyle: {
