@@ -97,6 +97,12 @@ export default function AssetDetailScreen({ route = {}, navigation }) {
       }
 
       const data = await response.json();
+      console.log('CoinGecko API response:', {
+        hasPrices: !!data.prices,
+        priceCount: data.prices?.length,
+        firstPrice: data.prices?.[0],
+        lastPrice: data.prices?.[data.prices.length - 1]
+      });
 
       if (data.prices && data.prices.length > 0) {
         setPriceData(data.prices);
@@ -112,7 +118,14 @@ export default function AssetDetailScreen({ route = {}, navigation }) {
           percentChange: Math.abs(percentChange),
           dollarChange: Math.abs(priceChange).toFixed(2)
         });
+
+        console.log('Price data loaded successfully:', {
+          dataPoints: data.prices.length,
+          isPositive: priceChange >= 0,
+          percentChange
+        });
       } else {
+        console.error('Invalid data format:', data);
         throw new Error('Invalid data format from API');
       }
     } catch (error) {
@@ -188,7 +201,7 @@ export default function AssetDetailScreen({ route = {}, navigation }) {
 
       {assetType === 'BTC' && btcPrice && priceData && (
         <View style={styles.priceChangeContainer}>
-          <Text style={[styles.priceChange, { color: priceDirection.isPositive ? COLORS.SUCCESS : COLORS.ERROR }]}>
+          <Text style={[styles.priceChange, { color: priceDirection.isPositive ? COLORS.SUCCESS_GREEN : COLORS.RED }]}>
             {priceDirection.isPositive ? '▲' : '▼'} {priceDirection.percentChange}% ({priceDirection.isPositive ? '+' : '-'}${priceDirection.dollarChange})
           </Text>
         </View>

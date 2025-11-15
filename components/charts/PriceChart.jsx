@@ -9,7 +9,16 @@ import { LineChart } from 'react-native-svg-charts';
 import { COLORS } from '../../theme';
 
 export default function PriceChart({ data, isPositive }) {
+  console.log('PriceChart received:', {
+    hasData: !!data,
+    dataLength: data?.length,
+    isPositive,
+    firstItem: data?.[0],
+    lastItem: data?.[data.length - 1]
+  });
+
   if (!data || data.length === 0) {
+    console.log('PriceChart: No data, showing empty state');
     return (
       <View style={styles.emptyContainer}>
         <Text style={styles.emptyText}>No data available</Text>
@@ -19,6 +28,13 @@ export default function PriceChart({ data, isPositive }) {
 
   // Extract prices from the data array
   const prices = data.map(item => item[1]);
+  console.log('PriceChart prices:', {
+    count: prices.length,
+    min: Math.min(...prices),
+    max: Math.max(...prices),
+    first: prices[0],
+    last: prices[prices.length - 1]
+  });
 
   // Calculate min and max for better Y-axis scaling
   const minPrice = Math.min(...prices);
@@ -26,18 +42,26 @@ export default function PriceChart({ data, isPositive }) {
   const priceRange = maxPrice - minPrice;
   const yPadding = priceRange * 0.05; // Add 5% padding for breathing room
 
+  const strokeColor = isPositive ? COLORS.SUCCESS_GREEN : COLORS.RED;
+
+  console.log('Rendering LineChart with:', {
+    containerHeight: 220,
+    chartHeight: '100%',
+    dataPoints: prices.length,
+    strokeColor,
+    isPositive
+  });
+
   return (
     <View style={styles.container}>
       <LineChart
-        style={styles.chart}
+        style={{ height: 220, width: '100%' }}
         data={prices}
         svg={{
-          stroke: isPositive ? COLORS.SUCCESS : COLORS.ERROR,
-          strokeWidth: 2.5,
+          stroke: strokeColor,
+          strokeWidth: 3,
         }}
-        contentInset={{ top: 10, bottom: 10, left: 0, right: 0 }}
-        yMin={minPrice - yPadding}
-        yMax={maxPrice + yPadding}
+        contentInset={{ top: 20, bottom: 20 }}
       />
     </View>
   );
