@@ -37,10 +37,27 @@ export default function WalletStackNavigator() {
         name="AssetDetail"
         component={AssetDetailScreen}
         options={{
-          // Immediate navigation - no delay
-          animationEnabled: false,
+          // Enable swipe to dismiss
+          gestureEnabled: true,
+          gestureDirection: 'horizontal',
           // Keep screen mounted for instant re-navigation
           unmountOnBlur: false,
+          // Custom animation for slide from right
+          animationEnabled: true,
+          cardStyleInterpolator: ({ current, layouts }) => {
+            return {
+              cardStyle: {
+                transform: [
+                  {
+                    translateX: current.progress.interpolate({
+                      inputRange: [0, 1],
+                      outputRange: [layouts.screen.width, 0],
+                    }),
+                  },
+                ],
+              },
+            };
+          },
         }}
       />
     </Stack.Navigator>
