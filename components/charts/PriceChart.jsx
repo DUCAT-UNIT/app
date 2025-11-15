@@ -6,6 +6,7 @@
 import React from 'react';
 import { View, Text, StyleSheet } from 'react-native';
 import { LineChart } from 'react-native-svg-charts';
+import { Defs, LinearGradient, Stop } from 'react-native-svg';
 import { COLORS } from '../../theme';
 
 export default function PriceChart({ data, isPositive }) {
@@ -44,6 +45,16 @@ export default function PriceChart({ data, isPositive }) {
 
   const strokeColor = isPositive ? COLORS.SUCCESS_GREEN : COLORS.RED;
 
+  // Gradient component for the area below the line
+  const Gradient = () => (
+    <Defs key={'gradient'}>
+      <LinearGradient id={'gradient'} x1={'0%'} y={'0%'} x2={'0%'} y2={'100%'}>
+        <Stop offset={'0%'} stopColor={strokeColor} stopOpacity={0.4} />
+        <Stop offset={'100%'} stopColor={strokeColor} stopOpacity={0} />
+      </LinearGradient>
+    </Defs>
+  );
+
   console.log('Rendering LineChart with:', {
     containerHeight: 220,
     chartHeight: '100%',
@@ -59,10 +70,13 @@ export default function PriceChart({ data, isPositive }) {
         data={prices}
         svg={{
           stroke: strokeColor,
-          strokeWidth: 3,
+          strokeWidth: 2,
+          fill: 'url(#gradient)',
         }}
         contentInset={{ top: 20, bottom: 20 }}
-      />
+      >
+        <Gradient />
+      </LineChart>
     </View>
   );
 }
