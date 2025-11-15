@@ -166,11 +166,11 @@ export default function AssetDetailScreen({ route = {}, navigation }) {
       </Text>
 
       <Text style={styles.balanceAmount}>
-        {formatBalance(balance)} {assetType}
+        {formatBalance(balance || 0)} BTC
       </Text>
 
       <Text style={styles.balanceFiat}>
-        ${formatFiatAmount(fiatValue)} USD
+        ${formatFiatAmount(fiatValue || 0)} USD
       </Text>
 
       {assetType === 'BTC' && btcPrice && priceData && (
@@ -185,25 +185,25 @@ export default function AssetDetailScreen({ route = {}, navigation }) {
 
   const renderActionButtons = () => (
     <View style={styles.actionButtonsContainer}>
-      {[
-        { id: 'send', label: 'Send' },
-        { id: 'receive', label: 'Receive' },
-        { id: 'swap', label: 'Swap' },
-        { id: 'buy', label: 'Buy' },
-      ].map((action) => (
-        <TouchableOpacity
-          key={action.id}
-          style={styles.actionButton}
-          onPress={() => handleActionPress(action.id)}
-        >
-          <View style={styles.actionButtonIcon}>
-            <Text style={styles.actionButtonIconText}>
-              {action.label[0]}
-            </Text>
-          </View>
-          <Text style={styles.actionButtonLabel}>{action.label}</Text>
-        </TouchableOpacity>
-      ))}
+      <TouchableOpacity
+        style={styles.actionButton}
+        onPress={() => handleActionPress('send')}
+      >
+        <View style={styles.actionButtonIcon}>
+          <Text style={styles.actionButtonIconText}>S</Text>
+        </View>
+        <Text style={styles.actionButtonLabel}>Send</Text>
+      </TouchableOpacity>
+
+      <TouchableOpacity
+        style={styles.actionButton}
+        onPress={() => handleActionPress('receive')}
+      >
+        <View style={styles.actionButtonIcon}>
+          <Text style={styles.actionButtonIconText}>R</Text>
+        </View>
+        <Text style={styles.actionButtonLabel}>Receive</Text>
+      </TouchableOpacity>
     </View>
   );
 
@@ -409,31 +409,35 @@ const styles = StyleSheet.create({
   },
   actionButtonsContainer: {
     flexDirection: 'row',
-    justifyContent: 'space-around',
-    paddingHorizontal: 16,
-    paddingVertical: 20,
+    justifyContent: 'center',
+    paddingHorizontal: 20,
+    paddingVertical: 24,
+    gap: 24,
   },
   actionButton: {
     alignItems: 'center',
+    minWidth: 80,
   },
   actionButtonIcon: {
-    width: 56,
-    height: 56,
-    borderRadius: 16,
-    backgroundColor: COLORS.WHITE,
+    width: 64,
+    height: 64,
+    borderRadius: 20,
+    backgroundColor: COLORS.CARD_BG,
     justifyContent: 'center',
     alignItems: 'center',
-    marginBottom: 8,
+    marginBottom: 10,
+    borderWidth: 1.5,
+    borderColor: COLORS.BORDER_COLOR,
   },
   actionButtonIconText: {
-    fontSize: 24,
+    fontSize: 28,
     fontWeight: '700',
-    color: COLORS.DARK_BG,
+    color: COLORS.WHITE,
   },
   actionButtonLabel: {
-    fontSize: 12,
-    color: COLORS.GRAY,
-    fontWeight: '500',
+    fontSize: 13,
+    color: COLORS.SECONDARY_TEXT,
+    fontWeight: '600',
   },
   chartContainer: {
     paddingHorizontal: 16,
