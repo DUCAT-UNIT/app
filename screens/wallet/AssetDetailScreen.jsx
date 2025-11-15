@@ -86,7 +86,7 @@ function AssetDetailScreen({ route = {}, navigation }) {
 
   // Get balance based on asset type
   const balance = assetType === 'BTC' ? segwitBalance : taprootBalance;
-  const fiatValue = assetType === 'BTC' ? balance * btcPrice : 0;
+  const fiatValue = assetType === 'BTC' ? balance * btcPrice : balance * 1;
 
   // Extract stable wallet addresses using refs to prevent re-renders
   const segwitAddressRef = useRef(wallet?.segwitAddress);
@@ -376,7 +376,7 @@ function AssetDetailScreen({ route = {}, navigation }) {
       </Text>
 
       <Text style={styles.balanceAmount}>
-        {formatBalance(balance || 0)} BTC
+        {formatBalance(balance || 0)} {assetType}
       </Text>
 
       <Text style={styles.balanceFiat}>
@@ -453,15 +453,12 @@ function AssetDetailScreen({ route = {}, navigation }) {
     // For UNIT, use fake data
     if (assetType === 'UNIT') {
       const unitData = generateUnitPriceData(selectedTimeframe);
-      const firstPrice = unitData[0][1];
-      const lastPrice = unitData[unitData.length - 1][1];
-      const isUnitPositive = lastPrice >= firstPrice;
 
       return (
         <View style={styles.chartContainer}>
           <PriceChart
             data={unitData}
-            isPositive={isUnitPositive}
+            isPositive={true}
             minBoundary={0.5}
             maxBoundary={1.5}
           />
