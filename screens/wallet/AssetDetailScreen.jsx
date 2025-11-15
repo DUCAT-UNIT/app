@@ -415,7 +415,83 @@ function AssetDetailScreen({ route = {}, navigation }) {
     </View>
   );
 
+  // Generate fake UNIT price data that fluctuates between .995 and 1.025
+  const generateUnitPriceData = (timeframe) => {
+    const dataPoints = 60; // 60 points for smooth chart
+    const data = [];
+    const now = Date.now();
+
+    // Time intervals based on timeframe
+    const intervals = {
+      '1D': 24 * 60 * 60 * 1000 / dataPoints, // 1 day in ms divided by points
+      '1W': 7 * 24 * 60 * 60 * 1000 / dataPoints, // 1 week
+      '1M': 30 * 24 * 60 * 60 * 1000 / dataPoints, // 1 month
+      '1Y': 365 * 24 * 60 * 60 * 1000 / dataPoints, // 1 year
+    };
+
+    const interval = intervals[timeframe] || intervals['1M'];
+
+    // Generate data points with fluctuations between .995 and 1.025
+    let currentPrice = 1.0; // Start at 1.0
+    for (let i = 0; i < dataPoints; i++) {
+      const timestamp = now - (dataPoints - i - 1) * interval;
+
+      // Random walk with tendency to stay near 1.0
+      const change = (Math.random() - 0.5) * 0.01; // Random change between -0.005 and +0.005
+      currentPrice = currentPrice + change;
+
+      // Keep within bounds .995 to 1.025
+      currentPrice = Math.max(0.995, Math.min(1.025, currentPrice));
+
+      data.push([timestamp, currentPrice]);
+    }
+
+    return data;
+  };
+
   const renderPriceChart = () => {
+    // For UNIT, use fake data
+    if (assetType === 'UNIT') {
+      const unitData = generateUnitPriceData(selectedTimeframe);
+      const firstPrice = unitData[0][1];
+      const lastPrice = unitData[unitData.length - 1][1];
+      const isUnitPositive = lastPrice >= firstPrice;
+
+      return (
+        <View style={styles.chartContainer}>
+          <PriceChart
+            data={unitData}
+            isPositive={isUnitPositive}
+            minBoundary={0.5}
+            maxBoundary={1.5}
+          />
+
+          <View style={styles.timeframeButtons}>
+            {['1D', '1W', '1M', '1Y'].map((timeframe) => (
+              <TouchableOpacity
+                key={timeframe}
+                style={[
+                  styles.timeframeButton,
+                  selectedTimeframe === timeframe && styles.timeframeButtonActive,
+                ]}
+                onPress={() => setSelectedTimeframe(timeframe)}
+              >
+                <Text
+                  style={[
+                    styles.timeframeButtonText,
+                    selectedTimeframe === timeframe && styles.timeframeButtonTextActive,
+                  ]}
+                >
+                  {timeframe}
+                </Text>
+              </TouchableOpacity>
+            ))}
+          </View>
+        </View>
+      );
+    }
+
+    // For BTC, use real data
     if (assetType !== 'BTC') return null;
 
     return (

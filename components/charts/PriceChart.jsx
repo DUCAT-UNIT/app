@@ -10,7 +10,7 @@ import { COLORS } from '../../theme';
 
 const { width: SCREEN_WIDTH } = Dimensions.get('window');
 
-function PriceChart({ data, isPositive }) {
+function PriceChart({ data, isPositive, minBoundary, maxBoundary }) {
   if (!data || data.length === 0) {
     return (
       <View style={styles.emptyContainer}>
@@ -33,8 +33,15 @@ function PriceChart({ data, isPositive }) {
     const drawHeight = chartHeight - padding.top - padding.bottom;
 
     // Find min and max for scaling
-    const minPrice = Math.min(...prices) * 0.995;
-    const maxPrice = Math.max(...prices) * 1.005;
+    // If boundaries are provided, use them instead of auto-scaling
+    let minPrice, maxPrice;
+    if (minBoundary !== undefined && maxBoundary !== undefined) {
+      minPrice = minBoundary;
+      maxPrice = maxBoundary;
+    } else {
+      minPrice = Math.min(...prices) * 0.995;
+      maxPrice = Math.max(...prices) * 1.005;
+    }
     const priceRange = maxPrice - minPrice;
 
     // Generate smooth curve path using bezier curves
@@ -97,7 +104,7 @@ function PriceChart({ data, isPositive }) {
       chartWidth,
       chartHeight
     };
-  }, [data]);
+  }, [data, minBoundary, maxBoundary]);
 
   const strokeColor = isPositive ? COLORS.SUCCESS_GREEN : COLORS.RED;
 
@@ -136,8 +143,13 @@ function PriceChart({ data, isPositive }) {
 
 // Custom comparison function for React.memo
 const arePropsEqual = (prevProps, nextProps) => {
-  // Only re-render if data array reference or isPositive actually changes
-  return prevProps.data === nextProps.data && prevProps.isPositive === nextProps.isPositive;
+  // Only re-render if data array reference, isPositive, or boundaries actually change
+  return (
+    prevProps.data === nextProps.data &&
+    prevProps.isPositive === nextProps.isPositive &&
+    prevProps.minBoundary === nextProps.minBoundary &&
+    prevProps.maxBoundary === nextProps.maxBoundary
+  );
 };
 
 // Memoize the component to prevent unnecessary re-renders
