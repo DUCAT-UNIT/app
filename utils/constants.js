@@ -25,6 +25,12 @@ export const API = {
   FAUCET: 'https://faucet.ducatprotocol.com/btc/faucet',
   VAULT: 'https://validator.ducatprotocol.com/api',
   PHONE: 'https://phone.ducatprotocol.com',
+  COINGECKO: 'https://api.coingecko.com/api/v3',
+};
+
+// API Keys (for services that require authentication)
+export const API_KEYS = {
+  COINGECKO: 'CG-YqHGB9hPoziKdRfjnX42LhDh',
 };
 
 // Helper functions to build API URLs

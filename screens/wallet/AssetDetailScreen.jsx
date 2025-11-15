@@ -23,6 +23,7 @@ import { useNavigation } from '@react-navigation/native';
 import { useTransactionHistoryData } from '../../hooks/useTransactionHistoryData';
 import TransactionItem from '../../components/transaction/TransactionItem';
 import PriceChart from '../../components/charts/PriceChart';
+import { API, API_KEYS } from '../../utils/constants';
 
 const { width: SCREEN_WIDTH } = Dimensions.get('window');
 
@@ -75,11 +76,8 @@ export default function AssetDetailScreen({ route = {}, navigation }) {
                    selectedTimeframe === '1W' ? 7 :
                    selectedTimeframe === '1M' ? 30 : 365;
 
-      // Add a small delay to avoid rate limiting
-      await new Promise(resolve => setTimeout(resolve, 500));
-
       const response = await fetch(
-        `https://api.coingecko.com/api/v3/coins/bitcoin/market_chart?vs_currency=usd&days=${days}&interval=daily`
+        `${API.COINGECKO}/coins/bitcoin/market_chart?vs_currency=usd&days=${days}&interval=daily&x_cg_demo_api_key=${API_KEYS.COINGECKO}`
       );
 
       if (response.status === 429) {
