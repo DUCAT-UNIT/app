@@ -26,7 +26,7 @@ import PriceChart from '../../components/charts/PriceChart';
 
 const { width: SCREEN_WIDTH } = Dimensions.get('window');
 
-const TAB_OPTIONS = ['ACTIVITY', 'ABOUT'];
+const TAB_OPTIONS = ['ACTIVITY', 'ABOUT', 'BREAKDOWN'];
 
 export default function AssetDetailScreen({ route = {}, navigation }) {
   const { assetType = 'BTC' } = route?.params || {};
@@ -323,6 +323,22 @@ export default function AssetDetailScreen({ route = {}, navigation }) {
     </View>
   );
 
+  const renderBreakdown = () => (
+    <View style={styles.aboutContainer}>
+      <View style={styles.aboutSection}>
+        <Text style={styles.aboutTitle}>Balance Breakdown</Text>
+        <View style={styles.statRow}>
+          <Text style={styles.statLabel}>Available Balance</Text>
+          <Text style={styles.statValue}>{formatBalance(balance || 0)} BTC</Text>
+        </View>
+        <View style={styles.statRow}>
+          <Text style={styles.statLabel}>USD Value</Text>
+          <Text style={styles.statValue}>${formatFiatAmount(fiatValue || 0)}</Text>
+        </View>
+      </View>
+    </View>
+  );
+
   return (
     <SafeAreaView style={styles.container}>
       {renderHeader()}
@@ -340,7 +356,7 @@ export default function AssetDetailScreen({ route = {}, navigation }) {
         {renderPriceChart()}
         {renderTabs()}
 
-        {selectedTab === 'ACTIVITY' ? renderActivity() : renderAbout()}
+        {selectedTab === 'ACTIVITY' ? renderActivity() : selectedTab === 'ABOUT' ? renderAbout() : renderBreakdown()}
       </Animated.ScrollView>
     </SafeAreaView>
   );
@@ -440,8 +456,9 @@ const styles = StyleSheet.create({
     fontWeight: '600',
   },
   chartContainer: {
-    paddingHorizontal: 16,
-    paddingVertical: 20,
+    paddingHorizontal: 0,
+    paddingVertical: 16,
+    marginTop: 8,
   },
   chartPlaceholder: {
     height: 200,
@@ -457,45 +474,50 @@ const styles = StyleSheet.create({
   },
   timeframeButtons: {
     flexDirection: 'row',
-    justifyContent: 'space-around',
+    justifyContent: 'center',
+    gap: 12,
+    marginTop: 16,
+    paddingHorizontal: 20,
   },
   timeframeButton: {
-    paddingHorizontal: 24,
-    paddingVertical: 8,
-    borderRadius: 20,
-    backgroundColor: COLORS.CARD_BG,
+    paddingHorizontal: 20,
+    paddingVertical: 10,
+    borderRadius: 24,
+    backgroundColor: COLORS.VERY_DARK_GRAY,
+    minWidth: 64,
+    alignItems: 'center',
   },
   timeframeButtonActive: {
     backgroundColor: COLORS.PRIMARY_BLUE,
   },
   timeframeButtonText: {
-    color: COLORS.GRAY,
-    fontSize: 14,
-    fontWeight: '600',
+    color: COLORS.SECONDARY_TEXT,
+    fontSize: 13,
+    fontWeight: '700',
   },
   timeframeButtonTextActive: {
     color: COLORS.WHITE,
   },
   tabContainer: {
     flexDirection: 'row',
-    paddingHorizontal: 16,
-    marginTop: 20,
-    marginBottom: 16,
+    paddingHorizontal: 20,
+    marginTop: 32,
+    marginBottom: 20,
+    gap: 12,
   },
   tab: {
-    flex: 1,
-    paddingVertical: 12,
-    alignItems: 'center',
-    borderBottomWidth: 2,
-    borderBottomColor: 'transparent',
+    paddingVertical: 10,
+    paddingHorizontal: 20,
+    borderRadius: 24,
+    backgroundColor: COLORS.VERY_DARK_GRAY,
   },
   activeTab: {
-    borderBottomColor: COLORS.PRIMARY_BLUE,
+    backgroundColor: COLORS.CARD_BG,
   },
   tabText: {
-    fontSize: 14,
-    fontWeight: '600',
-    color: COLORS.GRAY,
+    fontSize: 13,
+    fontWeight: '700',
+    color: COLORS.SECONDARY_TEXT,
   },
   activeTabText: {
     color: COLORS.WHITE,
