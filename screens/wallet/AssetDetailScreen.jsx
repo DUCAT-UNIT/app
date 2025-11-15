@@ -77,7 +77,13 @@ export default function AssetDetailScreen({ route = {}, navigation }) {
                    selectedTimeframe === '1M' ? 30 : 365;
 
       const response = await fetch(
-        `${API.COINGECKO}/coins/bitcoin/market_chart?vs_currency=usd&days=${days}&interval=daily&x_cg_demo_api_key=${API_KEYS.COINGECKO}`
+        `${API.COINGECKO}/coins/bitcoin/market_chart?vs_currency=usd&days=${days}`,
+        {
+          headers: {
+            'accept': 'application/json',
+            'x-cg-demo-api-key': API_KEYS.COINGECKO
+          }
+        }
       );
 
       if (response.status === 429) {
@@ -85,6 +91,8 @@ export default function AssetDetailScreen({ route = {}, navigation }) {
       }
 
       if (!response.ok) {
+        const errorText = await response.text();
+        console.error('CoinGecko API error:', response.status, errorText);
         throw new Error(`API error: ${response.status}`);
       }
 
