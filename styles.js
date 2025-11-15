@@ -160,6 +160,10 @@ const styles = StyleSheet.create({
     backgroundColor: COLORS.MEDIUM_GRAY,
     marginTop: 8,
   },
+  passkeyButton: {
+    backgroundColor: COLORS.PURPLE,
+    marginTop: 8,
+  },
   walletInfo: {
     width: '100%',
     backgroundColor: COLORS.DARK_BG,

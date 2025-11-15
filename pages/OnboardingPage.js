@@ -23,6 +23,7 @@ import { useWallet } from '../contexts/WalletContext';
 import { useWalletCreation } from '../hooks/useWalletCreation';
 import { useWalletImport } from '../hooks/useWalletImport';
 import { useSeedVerification } from '../hooks/useSeedVerification';
+import { usePasskeyCreation } from '../hooks/usePasskeyCreation';
 import { useToastContext } from '../contexts/UIContext';
 
 // Utils
@@ -115,6 +116,14 @@ export default function OnboardingPage({
     setSettingUpPin,
     setShowingSeeds,
     showToast,
+  });
+
+  // Passkey creation hook
+  const { createWalletWithPasskey: createWithPasskey } = usePasskeyCreation({
+    setIsAuthenticated,
+    setSeedConfirmed,
+    showToast,
+    loadWallet,
   });
 
   // PIN setup completion wrapper - saves wallet and resets state
@@ -246,6 +255,7 @@ export default function OnboardingPage({
           setShowingIntro={setShowingIntro}
           setShowingSeeds={setShowingSeeds}
           createWallet={createWallet}
+          createWalletWithPasskey={createWithPasskey}
           importWallet={importWallet}
           resetWallet={handleCancelOnboarding}
           resetCreationState={resetCreationState}
@@ -286,6 +296,7 @@ export default function OnboardingPage({
           setShowingIntro={setShowingIntro}
           setShowingSeeds={setShowingSeeds}
           createWallet={createWallet}
+          createWalletWithPasskey={createWithPasskey}
           importWallet={importWallet}
           resetWallet={handleCancelOnboarding}
           resetCreationState={resetCreationState}

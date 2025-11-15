@@ -48,6 +48,7 @@ export default function WelcomeScreen({
 
   // Functions
   createWallet,
+  createWalletWithPasskey,
   importWallet,
   resetWallet: _resetWallet, // Kept for backward compatibility but unused
   resetCreationState,
@@ -96,6 +97,14 @@ export default function WelcomeScreen({
           <TouchableOpacity style={styles.button} onPress={createWallet}>
             <Text style={styles.buttonText}>Create a new wallet</Text>
           </TouchableOpacity>
+          {createWalletWithPasskey && (
+            <TouchableOpacity
+              style={[styles.button, styles.passkeyButton]}
+              onPress={createWalletWithPasskey}
+            >
+              <Text style={styles.buttonText}>Create with Passkey</Text>
+            </TouchableOpacity>
+          )}
           <TouchableOpacity
             style={[styles.button, styles.secondaryButton]}
             onPress={() => setImportingWallet(true)}
@@ -377,6 +386,7 @@ WelcomeScreen.propTypes = {
 
   // Functions
   createWallet: PropTypes.func.isRequired,
+  createWalletWithPasskey: PropTypes.func,
   importWallet: PropTypes.func.isRequired,
   resetWallet: PropTypes.func.isRequired,
   resetCreationState: PropTypes.func.isRequired,
