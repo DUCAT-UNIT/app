@@ -163,7 +163,16 @@ function AssetDetailScreen({ route = {}, navigation }) {
           },
         };
       })
-      .filter(tx => tx.txData?.assetType === assetType);
+      .filter(tx => {
+        // Filter by asset type
+        if (tx.txData?.assetType !== assetType) return false;
+
+        // Filter out transactions with no amount (0 or null)
+        const numericAmount = tx.txData?.numericAmount;
+        if (!numericAmount || numericAmount === 0) return false;
+
+        return true;
+      });
 
     lastTxHashRef.current = txHash;
     filteredTxRef.current = filtered;
