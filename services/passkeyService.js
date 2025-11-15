@@ -20,6 +20,21 @@ import { logger } from '../utils/logger';
 // Import crypto for AES-256-GCM
 import { subtle, getRandomValues } from 'react-native-quick-crypto';
 
+// Base64URL encoding helpers
+const toBase64Url = (buffer) => {
+  const base64 = Buffer.from(buffer).toString('base64');
+  return base64.replace(/\+/g, '-').replace(/\//g, '_').replace(/=/g, '');
+};
+
+const fromBase64Url = (base64url) => {
+  // Add padding if needed
+  let base64 = base64url.replace(/-/g, '+').replace(/_/g, '/');
+  while (base64.length % 4) {
+    base64 += '=';
+  }
+  return Buffer.from(base64, 'base64');
+};
+
 // SecureStore keys for passkey data
 const PASSKEY_KEYS = {
   ENABLED: 'passkey_enabled_v1',
@@ -247,13 +262,13 @@ export const createWalletWithPasskey = async ({ userName, userDisplayName }) => 
 
     // Create FIDO2 registration request
     const requestJson = {
-      challenge: Buffer.from(challenge).toString('base64url'),
+      challenge: toBase64Url(challenge),
       rp: {
         name: PASSKEY.RP_NAME,
         id: PASSKEY.RP_ID,
       },
       user: {
-        id: Buffer.from(userId).toString('base64url'),
+        id: toBase64Url(userId),
         name: userName || `user-${Date.now()}`,
         displayName: userDisplayName || 'Ducat User',
       },
@@ -278,9 +293,9 @@ export const createWalletWithPasskey = async ({ userName, userDisplayName }) => 
     logger.debug('Passkey credential created', { credentialId: result.id });
 
     // Extract stable identifiers from credential
-    const credentialId = new Uint8Array(Buffer.from(result.id, 'base64url'));
+    const credentialId = new Uint8Array(fromBase64Url(result.id));
     const userHandle = result.response.userHandle
-      ? new Uint8Array(Buffer.from(result.response.userHandle, 'base64url'))
+      ? new Uint8Array(fromBase64Url(result.response.userHandle))
       : userId; // Fallback to userId if userHandle not provided
 
     logger.debug('Deriving mnemonic from passkey...');
@@ -374,7 +389,7 @@ export const unlockWithPasskey = async () => {
 
     // Create FIDO2 authentication request
     const requestJson = {
-      challenge: Buffer.from(challenge).toString('base64url'),
+      challenge: toBase64Url(challenge),
       rpId: PASSKEY.RP_ID,
       userVerification: PASSKEY.USER_VERIFICATION,
       allowCredentials: [
@@ -455,7 +470,7 @@ export const recoverWithPasskey = async () => {
 
     // Create FIDO2 authentication request (discovery mode - no allowCredentials)
     const requestJson = {
-      challenge: Buffer.from(challenge).toString('base64url'),
+      challenge: toBase64Url(challenge),
       rpId: PASSKEY.RP_ID,
       userVerification: PASSKEY.USER_VERIFICATION,
       // No allowCredentials - let platform show all available passkeys
@@ -470,9 +485,9 @@ export const recoverWithPasskey = async () => {
     logger.debug('Passkey authentication successful', { credentialId: assertion.id });
 
     // Extract credential info
-    const credentialId = new Uint8Array(Buffer.from(assertion.id, 'base64url'));
+    const credentialId = new Uint8Array(fromBase64Url(assertion.id));
     const userHandle = assertion.response.userHandle
-      ? new Uint8Array(Buffer.from(assertion.response.userHandle, 'base64url'))
+      ? new Uint8Array(fromBase64Url(assertion.response.userHandle))
       : new Uint8Array(16); // Fallback if not provided
 
     // Re-derive entropy (same process as creation)
@@ -560,13 +575,13 @@ export const addPasskeyToExistingWallet = async (mnemonic, userName, userDisplay
 
     // Create FIDO2 registration request
     const requestJson = {
-      challenge: Buffer.from(challenge).toString('base64url'),
+      challenge: toBase64Url(challenge),
       rp: {
         name: PASSKEY.RP_NAME,
         id: PASSKEY.RP_ID,
       },
       user: {
-        id: Buffer.from(userId).toString('base64url'),
+        id: toBase64Url(userId),
         name: userName || `user-${Date.now()}`,
         displayName: userDisplayName || 'Ducat User',
       },
@@ -586,9 +601,9 @@ export const addPasskeyToExistingWallet = async (mnemonic, userName, userDisplay
     // Create passkey credential
     const result = await Passkey.create(requestJson);
 
-    const credentialId = new Uint8Array(Buffer.from(result.id, 'base64url'));
+    const credentialId = new Uint8Array(fromBase64Url(result.id));
     const userHandle = result.response.userHandle
-      ? new Uint8Array(Buffer.from(result.response.userHandle, 'base64url'))
+      ? new Uint8Array(fromBase64Url(result.response.userHandle))
       : userId;
 
     // Derive encryption key
