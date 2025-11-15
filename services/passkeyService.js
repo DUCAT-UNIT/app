@@ -11,26 +11,14 @@
 import * as Crypto from 'expo-crypto';
 import * as bip39 from 'bip39';
 import * as SecureStore from 'expo-secure-store';
+import { Passkey } from 'react-native-passkey';
 import { SECURE_KEYS } from '../utils/constants';
+import { PASSKEY } from '../constants/security';
 import { deriveAddressesFromMnemonic } from '../utils/bitcoin';
 import { logger } from '../utils/logger';
 
-// Passkey configuration constants
-const PASSKEY_CONFIG = {
-  RP_NAME: 'Ducat Wallet',
-  RP_ID: 'ducat.app', // Will be updated to actual domain in production
-  TIMEOUT: 60000, // 60 seconds
-  USER_VERIFICATION: 'required', // Always require biometric/PIN
-  RESIDENT_KEY: 'required', // Store passkey on device
-  ATTESTATION: 'none', // Don't need attestation for wallet use case
-};
-
-// HKDF derivation parameters (for deterministic mnemonic generation)
-const DERIVATION_CONFIG = {
-  SALT: 'ducat-wallet-v1', // Version-specific salt
-  INFO: 'bip39-mnemonic-seed', // Domain separation
-  KEY_LENGTH_BITS: 128, // 128 bits = 12-word mnemonic
-};
+// Import crypto for AES-256-GCM
+import { subtle, getRandomValues } from 'react-native-quick-crypto';
 
 // SecureStore keys for passkey data
 const PASSKEY_KEYS = {
@@ -40,23 +28,21 @@ const PASSKEY_KEYS = {
   CREATION_METHOD: 'wallet_creation_method_v1', // 'passkey' or 'pin'
   ENCRYPTED_MNEMONIC: 'passkey_encrypted_mnemonic_v1',
   ENCRYPTION_IV: 'passkey_encryption_iv_v1',
+  ENCRYPTION_TAG: 'passkey_encryption_tag_v1',
 };
 
 /**
  * Check if WebAuthn/Passkeys are supported on this device
- * Note: React Native doesn't have direct WebAuthn support yet
- * This will need to be implemented with a native module or web view
- * For now, we'll create a placeholder that can be replaced
  */
 export const isPasskeySupported = async () => {
-  // TODO: Implement actual WebAuthn support check
-  // This will require either:
-  // 1. expo-local-authentication with passkey support
-  // 2. react-native-passkey library
-  // 3. WebView-based implementation
-
-  // For now, return false - will be implemented when WebAuthn module is added
-  return false;
+  try {
+    const supported = Passkey.isSupported();
+    logger.debug('Passkey support check', { supported });
+    return supported;
+  } catch (error) {
+    logger.error('Failed to check passkey support', { error: error.message });
+    return false;
+  }
 };
 
 /**
@@ -74,14 +60,14 @@ const deriveEntropyFromPasskey = async (credentialId, userHandle) => {
 
     // Use SHA-256 HMAC for HKDF (expo-crypto provides this)
     // HKDF-Extract: PRK = HMAC(salt, IKM)
-    const salt = new TextEncoder().encode(DERIVATION_CONFIG.SALT);
+    const salt = new TextEncoder().encode(PASSKEY.DERIVATION_SALT);
     const prk = await Crypto.digestStringAsync(
       Crypto.CryptoDigestAlgorithm.SHA256,
       Buffer.from(ikm).toString('hex') + Buffer.from(salt).toString('hex')
     );
 
     // HKDF-Expand: OKM = HMAC(PRK, info || 0x01)
-    const info = new TextEncoder().encode(DERIVATION_CONFIG.INFO);
+    const info = new TextEncoder().encode(PASSKEY.DERIVATION_INFO);
     const okm = await Crypto.digestStringAsync(
       Crypto.CryptoDigestAlgorithm.SHA256,
       prk + Buffer.from(info).toString('hex') + '01'
@@ -103,7 +89,7 @@ const deriveEntropyFromPasskey = async (credentialId, userHandle) => {
  *
  * @param {Uint8Array} credentialId - WebAuthn credential ID
  * @param {Uint8Array} userHandle - User handle
- * @returns {Promise<Uint8Array>} 256-bit encryption key
+ * @returns {Promise<CryptoKey>} 256-bit AES-GCM encryption key
  */
 const deriveEncryptionKey = async (credentialId, userHandle) => {
   try {
@@ -125,7 +111,18 @@ const deriveEncryptionKey = async (credentialId, userHandle) => {
     );
 
     // Use full 256 bits for AES-256
-    return new Uint8Array(Buffer.from(okm, 'hex').slice(0, 32));
+    const keyMaterial = Buffer.from(okm, 'hex').slice(0, 32);
+
+    // Import as CryptoKey for AES-GCM
+    const cryptoKey = await subtle.importKey(
+      'raw',
+      keyMaterial,
+      { name: 'AES-GCM', length: 256 },
+      false,
+      ['encrypt', 'decrypt']
+    );
+
+    return cryptoKey;
   } catch (error) {
     logger.error('Failed to derive encryption key', { error: error.message });
     throw new Error('Failed to derive encryption key from passkey');
@@ -137,27 +134,38 @@ const deriveEncryptionKey = async (credentialId, userHandle) => {
  * Uses AES-256-GCM for authenticated encryption
  *
  * @param {string} mnemonic - BIP39 mnemonic to encrypt
- * @param {Uint8Array} encryptionKey - 256-bit encryption key
- * @returns {Promise<{encrypted: string, iv: string}>}
+ * @param {CryptoKey} encryptionKey - 256-bit encryption key
+ * @returns {Promise<{encrypted: string, iv: string, tag: string}>}
  */
 const encryptMnemonic = async (mnemonic, encryptionKey) => {
   try {
     // Generate random IV (12 bytes for GCM)
-    const iv = await Crypto.getRandomBytesAsync(12);
+    const iv = new Uint8Array(12);
+    getRandomValues(iv);
 
-    // For now, use a simple XOR encryption as placeholder
-    // TODO: Replace with proper AES-GCM when native crypto module is available
-    // This is temporary - in production should use react-native-quick-crypto or similar
+    // Convert mnemonic to bytes
     const mnemonicBytes = new TextEncoder().encode(mnemonic);
-    const encrypted = new Uint8Array(mnemonicBytes.length);
 
-    for (let i = 0; i < mnemonicBytes.length; i++) {
-      encrypted[i] = mnemonicBytes[i] ^ encryptionKey[i % encryptionKey.length];
-    }
+    // Encrypt with AES-256-GCM
+    const encrypted = await subtle.encrypt(
+      {
+        name: 'AES-GCM',
+        iv: iv,
+        tagLength: 128, // 16 bytes authentication tag
+      },
+      encryptionKey,
+      mnemonicBytes
+    );
+
+    // Extract ciphertext and tag (tag is last 16 bytes)
+    const encryptedArray = new Uint8Array(encrypted);
+    const ciphertext = encryptedArray.slice(0, -16);
+    const tag = encryptedArray.slice(-16);
 
     return {
-      encrypted: Buffer.from(encrypted).toString('base64'),
+      encrypted: Buffer.from(ciphertext).toString('base64'),
       iv: Buffer.from(iv).toString('base64'),
+      tag: Buffer.from(tag).toString('base64'),
     };
   } catch (error) {
     logger.error('Failed to encrypt mnemonic', { error: error.message });
@@ -170,21 +178,32 @@ const encryptMnemonic = async (mnemonic, encryptionKey) => {
  *
  * @param {string} encryptedBase64 - Base64 encrypted mnemonic
  * @param {string} ivBase64 - Base64 IV
- * @param {Uint8Array} encryptionKey - 256-bit encryption key
+ * @param {string} tagBase64 - Base64 authentication tag
+ * @param {CryptoKey} encryptionKey - 256-bit encryption key
  * @returns {Promise<string>} Decrypted mnemonic
  */
-const decryptMnemonic = async (encryptedBase64, ivBase64, encryptionKey) => {
+const decryptMnemonic = async (encryptedBase64, ivBase64, tagBase64, encryptionKey) => {
   try {
     // Decode from base64
-    const encrypted = new Uint8Array(Buffer.from(encryptedBase64, 'base64'));
+    const ciphertext = new Uint8Array(Buffer.from(encryptedBase64, 'base64'));
+    const iv = new Uint8Array(Buffer.from(ivBase64, 'base64'));
+    const tag = new Uint8Array(Buffer.from(tagBase64, 'base64'));
 
-    // XOR decryption (matches encryption above)
-    // TODO: Replace with proper AES-GCM decryption
-    const decrypted = new Uint8Array(encrypted.length);
+    // Combine ciphertext and tag for decryption
+    const encrypted = new Uint8Array(ciphertext.length + tag.length);
+    encrypted.set(ciphertext);
+    encrypted.set(tag, ciphertext.length);
 
-    for (let i = 0; i < encrypted.length; i++) {
-      decrypted[i] = encrypted[i] ^ encryptionKey[i % encryptionKey.length];
-    }
+    // Decrypt with AES-256-GCM
+    const decrypted = await subtle.decrypt(
+      {
+        name: 'AES-GCM',
+        iv: iv,
+        tagLength: 128,
+      },
+      encryptionKey,
+      encrypted
+    );
 
     const mnemonic = new TextDecoder().decode(decrypted);
 
@@ -213,17 +232,58 @@ export const createWalletWithPasskey = async ({ userName, userDisplayName }) => 
   try {
     logger.debug('Creating wallet with passkey', { userName });
 
-    // TODO: Implement actual WebAuthn credential creation
-    // This is a placeholder that will be replaced with real WebAuthn implementation
+    // Check if passkeys are supported
+    const supported = await isPasskeySupported();
+    if (!supported) {
+      throw new Error('Passkeys are not supported on this device');
+    }
 
-    // For now, simulate passkey creation with random bytes
-    const credentialId = await Crypto.getRandomBytesAsync(32);
-    const userHandle = await Crypto.getRandomBytesAsync(16);
+    // Generate challenge and user ID
+    const challenge = new Uint8Array(32);
+    getRandomValues(challenge);
 
-    logger.debug('Passkey credential created', {
-      credentialIdLength: credentialId.length,
-      userHandleLength: userHandle.length,
-    });
+    const userId = new Uint8Array(16);
+    getRandomValues(userId);
+
+    // Create FIDO2 registration request
+    const requestJson = {
+      challenge: Buffer.from(challenge).toString('base64url'),
+      rp: {
+        name: PASSKEY.RP_NAME,
+        id: PASSKEY.RP_ID,
+      },
+      user: {
+        id: Buffer.from(userId).toString('base64url'),
+        name: userName || `user-${Date.now()}`,
+        displayName: userDisplayName || 'Ducat User',
+      },
+      pubKeyCredParams: [
+        { alg: -7, type: 'public-key' }, // ES256
+        { alg: -257, type: 'public-key' }, // RS256
+      ],
+      timeout: PASSKEY.TIMEOUT_MS,
+      authenticatorSelection: {
+        authenticatorAttachment: 'platform',
+        userVerification: PASSKEY.USER_VERIFICATION,
+        residentKey: PASSKEY.RESIDENT_KEY,
+      },
+      attestation: PASSKEY.ATTESTATION,
+    };
+
+    logger.debug('Creating passkey credential...');
+
+    // Create passkey credential
+    const result = await Passkey.create(requestJson);
+
+    logger.debug('Passkey credential created', { credentialId: result.id });
+
+    // Extract stable identifiers from credential
+    const credentialId = new Uint8Array(Buffer.from(result.id, 'base64url'));
+    const userHandle = result.response.userHandle
+      ? new Uint8Array(Buffer.from(result.response.userHandle, 'base64url'))
+      : userId; // Fallback to userId if userHandle not provided
+
+    logger.debug('Deriving mnemonic from passkey...');
 
     // Derive entropy from passkey (deterministic)
     const entropy = await deriveEntropyFromPasskey(credentialId, userHandle);
@@ -245,7 +305,7 @@ export const createWalletWithPasskey = async ({ userName, userDisplayName }) => 
     const encryptionKey = await deriveEncryptionKey(credentialId, userHandle);
 
     // Encrypt mnemonic for local storage
-    const { encrypted, iv } = await encryptMnemonic(mnemonic, encryptionKey);
+    const { encrypted, iv, tag } = await encryptMnemonic(mnemonic, encryptionKey);
 
     // Store passkey data in SecureStore
     await SecureStore.setItemAsync(PASSKEY_KEYS.ENABLED, 'true');
@@ -260,6 +320,7 @@ export const createWalletWithPasskey = async ({ userName, userDisplayName }) => 
     );
     await SecureStore.setItemAsync(PASSKEY_KEYS.ENCRYPTED_MNEMONIC, encrypted);
     await SecureStore.setItemAsync(PASSKEY_KEYS.ENCRYPTION_IV, iv);
+    await SecureStore.setItemAsync(PASSKEY_KEYS.ENCRYPTION_TAG, tag);
 
     // Also store mnemonic in standard location (for backward compatibility)
     await SecureStore.setItemAsync(SECURE_KEYS.MNEMONIC, mnemonic);
@@ -296,17 +357,45 @@ export const unlockWithPasskey = async () => {
       throw new Error('Passkey is not enabled for this wallet');
     }
 
-    // TODO: Implement actual WebAuthn authentication
-    // This is a placeholder
-
     // Retrieve stored credential info
     const credentialIdBase64 = await SecureStore.getItemAsync(PASSKEY_KEYS.CREDENTIAL_ID);
     const userHandleBase64 = await SecureStore.getItemAsync(PASSKEY_KEYS.USER_HANDLE);
     const encryptedMnemonic = await SecureStore.getItemAsync(PASSKEY_KEYS.ENCRYPTED_MNEMONIC);
     const ivBase64 = await SecureStore.getItemAsync(PASSKEY_KEYS.ENCRYPTION_IV);
+    const tagBase64 = await SecureStore.getItemAsync(PASSKEY_KEYS.ENCRYPTION_TAG);
 
-    if (!credentialIdBase64 || !userHandleBase64 || !encryptedMnemonic) {
+    if (!credentialIdBase64 || !userHandleBase64 || !encryptedMnemonic || !ivBase64) {
       throw new Error('Passkey data not found in storage');
+    }
+
+    // Generate challenge for authentication
+    const challenge = new Uint8Array(32);
+    getRandomValues(challenge);
+
+    // Create FIDO2 authentication request
+    const requestJson = {
+      challenge: Buffer.from(challenge).toString('base64url'),
+      rpId: PASSKEY.RP_ID,
+      userVerification: PASSKEY.USER_VERIFICATION,
+      allowCredentials: [
+        {
+          id: credentialIdBase64,
+          type: 'public-key',
+        },
+      ],
+      timeout: PASSKEY.TIMEOUT_MS,
+    };
+
+    logger.debug('Authenticating with passkey...');
+
+    // Authenticate with passkey
+    const assertion = await Passkey.get(requestJson);
+
+    logger.debug('Passkey authentication successful');
+
+    // Verify the credential ID matches
+    if (assertion.id !== credentialIdBase64) {
+      throw new Error('Credential ID mismatch');
     }
 
     const credentialId = new Uint8Array(Buffer.from(credentialIdBase64, 'base64'));
@@ -316,7 +405,12 @@ export const unlockWithPasskey = async () => {
     const encryptionKey = await deriveEncryptionKey(credentialId, userHandle);
 
     // Decrypt mnemonic
-    const mnemonic = await decryptMnemonic(encryptedMnemonic, ivBase64, encryptionKey);
+    const mnemonic = await decryptMnemonic(
+      encryptedMnemonic,
+      ivBase64,
+      tagBase64 || '',
+      encryptionKey
+    );
 
     // Get current account index
     const accountIndex = parseInt(
@@ -349,13 +443,37 @@ export const recoverWithPasskey = async () => {
   try {
     logger.debug('Recovering wallet with passkey on new device');
 
-    // TODO: Implement actual WebAuthn authentication (discover mode)
-    // This will use the passkey synced via iCloud/Google
+    // Check if passkeys are supported
+    const supported = await isPasskeySupported();
+    if (!supported) {
+      throw new Error('Passkeys are not supported on this device');
+    }
 
-    // Simulate passkey authentication
-    // In real implementation, this would return the credential from WebAuthn
-    const credentialId = await Crypto.getRandomBytesAsync(32);
-    const userHandle = await Crypto.getRandomBytesAsync(16);
+    // Generate challenge
+    const challenge = new Uint8Array(32);
+    getRandomValues(challenge);
+
+    // Create FIDO2 authentication request (discovery mode - no allowCredentials)
+    const requestJson = {
+      challenge: Buffer.from(challenge).toString('base64url'),
+      rpId: PASSKEY.RP_ID,
+      userVerification: PASSKEY.USER_VERIFICATION,
+      // No allowCredentials - let platform show all available passkeys
+      timeout: PASSKEY.TIMEOUT_MS,
+    };
+
+    logger.debug('Authenticating with synced passkey...');
+
+    // Authenticate with synced passkey
+    const assertion = await Passkey.get(requestJson);
+
+    logger.debug('Passkey authentication successful', { credentialId: assertion.id });
+
+    // Extract credential info
+    const credentialId = new Uint8Array(Buffer.from(assertion.id, 'base64url'));
+    const userHandle = assertion.response.userHandle
+      ? new Uint8Array(Buffer.from(assertion.response.userHandle, 'base64url'))
+      : new Uint8Array(16); // Fallback if not provided
 
     // Re-derive entropy (same process as creation)
     const entropy = await deriveEntropyFromPasskey(credentialId, userHandle);
@@ -385,9 +503,10 @@ export const recoverWithPasskey = async () => {
 
     // Encrypt and store mnemonic locally
     const encryptionKey = await deriveEncryptionKey(credentialId, userHandle);
-    const { encrypted, iv } = await encryptMnemonic(mnemonic, encryptionKey);
+    const { encrypted, iv, tag } = await encryptMnemonic(mnemonic, encryptionKey);
     await SecureStore.setItemAsync(PASSKEY_KEYS.ENCRYPTED_MNEMONIC, encrypted);
     await SecureStore.setItemAsync(PASSKEY_KEYS.ENCRYPTION_IV, iv);
+    await SecureStore.setItemAsync(PASSKEY_KEYS.ENCRYPTION_TAG, tag);
 
     // Store in standard location
     await SecureStore.setItemAsync(SECURE_KEYS.MNEMONIC, mnemonic);
@@ -413,9 +532,11 @@ export const recoverWithPasskey = async () => {
  * Encrypts existing mnemonic with passkey for future unlocks
  *
  * @param {string} mnemonic - Existing wallet mnemonic
+ * @param {string} userName - User identifier
+ * @param {string} userDisplayName - Display name
  * @returns {Promise<{credentialId: string}>}
  */
-export const addPasskeyToExistingWallet = async (mnemonic) => {
+export const addPasskeyToExistingWallet = async (mnemonic, userName, userDisplayName) => {
   try {
     logger.debug('Adding passkey to existing wallet');
 
@@ -424,15 +545,57 @@ export const addPasskeyToExistingWallet = async (mnemonic) => {
       throw new Error('Invalid mnemonic');
     }
 
-    // TODO: Implement actual WebAuthn credential creation
-    const credentialId = await Crypto.getRandomBytesAsync(32);
-    const userHandle = await Crypto.getRandomBytesAsync(16);
+    // Check if passkeys are supported
+    const supported = await isPasskeySupported();
+    if (!supported) {
+      throw new Error('Passkeys are not supported on this device');
+    }
+
+    // Generate challenge and user ID
+    const challenge = new Uint8Array(32);
+    getRandomValues(challenge);
+
+    const userId = new Uint8Array(16);
+    getRandomValues(userId);
+
+    // Create FIDO2 registration request
+    const requestJson = {
+      challenge: Buffer.from(challenge).toString('base64url'),
+      rp: {
+        name: PASSKEY.RP_NAME,
+        id: PASSKEY.RP_ID,
+      },
+      user: {
+        id: Buffer.from(userId).toString('base64url'),
+        name: userName || `user-${Date.now()}`,
+        displayName: userDisplayName || 'Ducat User',
+      },
+      pubKeyCredParams: [
+        { alg: -7, type: 'public-key' },
+        { alg: -257, type: 'public-key' },
+      ],
+      timeout: PASSKEY.TIMEOUT_MS,
+      authenticatorSelection: {
+        authenticatorAttachment: 'platform',
+        userVerification: PASSKEY.USER_VERIFICATION,
+        residentKey: PASSKEY.RESIDENT_KEY,
+      },
+      attestation: PASSKEY.ATTESTATION,
+    };
+
+    // Create passkey credential
+    const result = await Passkey.create(requestJson);
+
+    const credentialId = new Uint8Array(Buffer.from(result.id, 'base64url'));
+    const userHandle = result.response.userHandle
+      ? new Uint8Array(Buffer.from(result.response.userHandle, 'base64url'))
+      : userId;
 
     // Derive encryption key
     const encryptionKey = await deriveEncryptionKey(credentialId, userHandle);
 
     // Encrypt existing mnemonic
-    const { encrypted, iv } = await encryptMnemonic(mnemonic, encryptionKey);
+    const { encrypted, iv, tag } = await encryptMnemonic(mnemonic, encryptionKey);
 
     // Store passkey data
     await SecureStore.setItemAsync(PASSKEY_KEYS.ENABLED, 'true');
@@ -446,6 +609,7 @@ export const addPasskeyToExistingWallet = async (mnemonic) => {
     );
     await SecureStore.setItemAsync(PASSKEY_KEYS.ENCRYPTED_MNEMONIC, encrypted);
     await SecureStore.setItemAsync(PASSKEY_KEYS.ENCRYPTION_IV, iv);
+    await SecureStore.setItemAsync(PASSKEY_KEYS.ENCRYPTION_TAG, tag);
 
     logger.debug('Passkey added to wallet successfully');
 
@@ -497,6 +661,7 @@ export const removePasskey = async () => {
     await SecureStore.deleteItemAsync(PASSKEY_KEYS.USER_HANDLE);
     await SecureStore.deleteItemAsync(PASSKEY_KEYS.ENCRYPTED_MNEMONIC);
     await SecureStore.deleteItemAsync(PASSKEY_KEYS.ENCRYPTION_IV);
+    await SecureStore.deleteItemAsync(PASSKEY_KEYS.ENCRYPTION_TAG);
 
     // Don't delete CREATION_METHOD or main mnemonic - wallet still exists
 
@@ -519,6 +684,7 @@ export const clearPasskeyData = async () => {
     await SecureStore.deleteItemAsync(PASSKEY_KEYS.USER_HANDLE);
     await SecureStore.deleteItemAsync(PASSKEY_KEYS.ENCRYPTED_MNEMONIC);
     await SecureStore.deleteItemAsync(PASSKEY_KEYS.ENCRYPTION_IV);
+    await SecureStore.deleteItemAsync(PASSKEY_KEYS.ENCRYPTION_TAG);
 
     logger.debug('All passkey data cleared');
   } catch (error) {

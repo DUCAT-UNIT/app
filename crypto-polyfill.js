@@ -1,3 +1,8 @@
+// Polyfill Buffer for React Native
+if (typeof global.Buffer === 'undefined') {
+  global.Buffer = require('buffer').Buffer;
+}
+
 // Lazy import to avoid blocking during module initialization
 let getRandomValuesImpl = null;
 
@@ -19,6 +24,9 @@ if (typeof global.crypto.getRandomValues !== 'function') {
 
 // Also polyfill on window if it exists
 if (typeof window !== 'undefined') {
+  if (typeof window.Buffer === 'undefined') {
+    window.Buffer = global.Buffer;
+  }
   if (typeof window.crypto !== 'object') {
     window.crypto = {};
   }
