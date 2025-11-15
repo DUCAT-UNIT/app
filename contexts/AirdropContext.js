@@ -1,5 +1,6 @@
 import React, { createContext, useContext, useState, useEffect, useRef } from 'react';
 import { Vibration } from 'react-native';
+import { Audio } from 'expo-av';
 import { useBalance } from './WalletDataContext';
 import { useWallet } from './WalletContext';
 import { useAuth } from './AuthContext';
@@ -33,6 +34,54 @@ export const AirdropProvider = ({ children, seedConfirmed }) => {
   // Store balance values in refs so airdrop logic always reads fresh values
   const segwitBalanceRef = useRef(segwitBalance);
   const taprootBalanceRef = useRef(taprootBalance);
+
+  // Sound effect ref
+  const confettiSoundRef = useRef(null);
+
+  // Function to play confetti sound
+  const playConfettiSound = async () => {
+    try {
+      // Load and configure audio if not already loaded
+      if (!confettiSoundRef.current) {
+        const { sound } = await Audio.Sound.createAsync(
+          require('../assets/audio/confetti.mp3'),
+          { shouldPlay: false }
+        );
+        confettiSoundRef.current = sound;
+      }
+
+      // Reset to beginning and play for 3 seconds
+      await confettiSoundRef.current.setPositionAsync(0);
+      await confettiSoundRef.current.playAsync();
+
+      // Stop after 3 seconds
+      setTimeout(async () => {
+        if (confettiSoundRef.current) {
+          await confettiSoundRef.current.stopAsync();
+        }
+      }, 3000);
+    } catch (error) {
+      // Silently fail if audio can't play
+    }
+  };
+
+  // Load audio on mount and cleanup on unmount
+  useEffect(() => {
+    // Configure audio for playback
+    Audio.setAudioModeAsync({
+      playsInSilentModeIOS: true,
+      staysActiveInBackground: false,
+      shouldDuckAndroid: true,
+    });
+
+    return () => {
+      // Cleanup sound on unmount
+      if (confettiSoundRef.current) {
+        confettiSoundRef.current.unloadAsync();
+        confettiSoundRef.current = null;
+      }
+    };
+  }, []);
 
   // Update refs whenever balances change
   useEffect(() => {
@@ -78,6 +127,8 @@ export const AirdropProvider = ({ children, seedConfirmed }) => {
       if (pendingTxId && (segwitBalance > 0 || taprootBalance > 0)) {
         setAirdropTxId(pendingTxId);
         setShowAirdropModal(true);
+        // Play confetti sound effect
+        playConfettiSound();
         // Haptic feedback - confetti cannon explosion!
         // MASSIVE BOOM with long vibration!
         Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Heavy);
@@ -189,6 +240,8 @@ export const AirdropProvider = ({ children, seedConfirmed }) => {
             setTimeout(() => {
               setAirdropTxId(result.txId);
               setShowAirdropModal(true);
+              // Play confetti sound effect
+              playConfettiSound();
               // Haptic feedback - confetti cannon explosion!
               // MASSIVE BOOM with long vibration!
               Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Heavy);
