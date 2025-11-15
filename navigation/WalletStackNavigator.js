@@ -8,6 +8,7 @@ import { createStackNavigator } from '@react-navigation/stack';
 import WalletPage from '../pages/WalletPage';
 import AssetDetailScreen from '../screens/wallet/AssetDetailScreen';
 import ReceiveQRScreen from '../screens/wallet/ReceiveQRScreen';
+import PasskeyTestScreen from '../screens/settings/PasskeyTestScreen';
 import { COLORS } from '../theme';
 
 const Stack = createStackNavigator();
@@ -135,6 +136,15 @@ export default function WalletStackNavigator() {
               },
             };
           },
+        }}
+      />
+      <Stack.Screen
+        name="PasskeyTest"
+        component={PasskeyTestScreen}
+        options={{
+          gestureEnabled: true,
+          gestureDirection: 'horizontal',
+          animationEnabled: true,
         }}
       />
     </Stack.Navigator>
