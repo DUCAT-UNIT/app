@@ -28,7 +28,6 @@ import { useToastContext } from '../../contexts/UIContext';
 import { useNavigation } from '@react-navigation/native';
 import TransactionItem from '../../components/transaction/TransactionItem';
 import PriceChart from '../../components/charts/PriceChart';
-import ReceiveScreen from './ReceiveScreen';
 import { API, API_KEYS } from '../../utils/constants';
 import { calculateTransactionAmount } from '../../services/transactionHistoryService';
 
@@ -96,15 +95,7 @@ function AssetDetailScreen({ route = {}, navigation }) {
   const [selectedTab, setSelectedTab] = useState('ACTIVITY');
   const [selectedTimeframe, setSelectedTimeframe] = useState('1M');
   const [priceError, setPriceError] = useState(null);
-  const [showReceiveSheet, setShowReceiveSheet] = useState(false);
   const scrollY = useRef(new Animated.Value(0)).current;
-
-  // Disable stack navigator gesture when modal is open to prevent swipe-back conflict
-  useEffect(() => {
-    navigation.setOptions({
-      gestureEnabled: !showReceiveSheet,
-    });
-  }, [navigation, showReceiveSheet]);
 
   // Initialize with cached data if available (synchronous)
   const initCacheKey = `${CACHE_KEY_PREFIX}1M`;
@@ -378,7 +369,14 @@ function AssetDetailScreen({ route = {}, navigation }) {
         });
         break;
       case 'receive':
-        setShowReceiveSheet(true);
+        // Navigate to ReceiveQR screen with the appropriate address
+        const receiveAddress = assetType === 'BTC' ? segwitAddress : taprootAddress;
+        const addressType = assetType === 'BTC' ? 'Native SegWit' : 'Taproot';
+        console.log('[AssetDetail] Navigating to ReceiveQR with address:', receiveAddress);
+        navigation.navigate('ReceiveQR', {
+          address: receiveAddress,
+          addressType: addressType,
+        });
         break;
       case 'swap':
         // TODO: Implement swap functionality
@@ -649,21 +647,6 @@ function AssetDetailScreen({ route = {}, navigation }) {
           {selectedTab === 'ACTIVITY' ? renderActivity() : renderAbout()}
         </Animated.ScrollView>
       </SafeAreaView>
-
-      <ReceiveScreen
-        styles={globalStyles}
-        showReceiveSheet={showReceiveSheet}
-        onClose={() => {
-          console.log('[AssetDetail] ReceiveScreen onClose called - closing modal only, staying on AssetDetailScreen');
-          setShowReceiveSheet(false);
-        }}
-        segwitAddress={segwitAddress || ''}
-        taprootAddress={taprootAddress || ''}
-        showToast={showToast}
-        autoOpenQR={assetType === 'BTC'}
-        preSelectedAddress={assetType === 'BTC' ? segwitAddress || '' : null}
-        preSelectedType={assetType === 'BTC' ? 'Native SegWit' : null}
-      />
     </>
   );
 }

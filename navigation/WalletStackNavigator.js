@@ -7,6 +7,7 @@ import React from 'react';
 import { createStackNavigator } from '@react-navigation/stack';
 import WalletPage from '../pages/WalletPage';
 import AssetDetailScreen from '../screens/wallet/AssetDetailScreen';
+import ReceiveQRScreen from '../screens/wallet/ReceiveQRScreen';
 import { COLORS } from '../theme';
 
 const Stack = createStackNavigator();
@@ -41,6 +42,31 @@ export default function WalletStackNavigator() {
           gestureDirection: 'horizontal',
           // Keep screen mounted for instant re-navigation
           unmountOnBlur: false,
+          // Custom animation for slide from right
+          animationEnabled: true,
+          cardStyleInterpolator: ({ current, layouts }) => {
+            return {
+              cardStyle: {
+                transform: [
+                  {
+                    translateX: current.progress.interpolate({
+                      inputRange: [0, 1],
+                      outputRange: [layouts.screen.width, 0],
+                    }),
+                  },
+                ],
+              },
+            };
+          },
+        }}
+      />
+      <Stack.Screen
+        name="ReceiveQR"
+        component={ReceiveQRScreen}
+        options={{
+          // Enable swipe to dismiss
+          gestureEnabled: true,
+          gestureDirection: 'horizontal',
           // Custom animation for slide from right
           animationEnabled: true,
           cardStyleInterpolator: ({ current, layouts }) => {
