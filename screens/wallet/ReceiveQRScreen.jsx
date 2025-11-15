@@ -58,10 +58,16 @@ export default function ReceiveQRScreen({ route, navigation }) {
             <Icon name="back" size={24} color={COLORS.VERY_LIGHT_GRAY} />
           </TouchableOpacity>
           <View style={styles.titleContainer}>
-            <Text style={styles.title}>Bitcoin address</Text>
+            <Text style={styles.title}>
+              {addressType === 'Taproot' ? 'UNIT address' : 'Bitcoin address'}
+            </Text>
           </View>
         </View>
-        <Text style={styles.subtitle}>Only use this address to receive Bitcoin.</Text>
+        <Text style={styles.subtitle}>
+          {addressType === 'Taproot'
+            ? 'Only use this address to receive UNIT.'
+            : 'Only use this address to receive Bitcoin.'}
+        </Text>
 
         {/* QR Code */}
         <View style={styles.qrCodeContainer}>
@@ -70,7 +76,11 @@ export default function ReceiveQRScreen({ route, navigation }) {
             size={QR_SIZE}
             backgroundColor="white"
             color="black"
-            logo={require('../../assets/logos/btc-logo.png')}
+            logo={
+              addressType === 'Taproot'
+                ? require('../../assets/logos/unit-logo.png')
+                : require('../../assets/logos/btc-logo.png')
+            }
             logoSize={LOGO_SIZE}
             logoBackgroundColor="white"
             logoBorderRadius={Math.floor(LOGO_SIZE / 2)}
@@ -85,7 +95,9 @@ export default function ReceiveQRScreen({ route, navigation }) {
         >
           <View style={styles.addressContentContainer}>
             <View style={styles.addressLabelRow}>
-              <Text style={styles.addressLabelText}>{addressType}</Text>
+              <Text style={styles.addressLabelText}>
+                {addressType === 'Taproot' ? 'UNIT' : addressType}
+              </Text>
               <Text style={styles.tapToCopyText}>
                 {justCopied ? 'Copied!' : 'Tap to copy'}
               </Text>
