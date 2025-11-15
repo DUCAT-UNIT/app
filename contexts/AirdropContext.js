@@ -1,4 +1,5 @@
 import React, { createContext, useContext, useState, useEffect, useRef } from 'react';
+import { Vibration } from 'react-native';
 import { useBalance } from './WalletDataContext';
 import { useWallet } from './WalletContext';
 import { useAuth } from './AuthContext';
@@ -80,11 +81,15 @@ export const AirdropProvider = ({ children, seedConfirmed }) => {
         // Haptic feedback - confetti cannon explosion!
         // BIG BOOM with vibration!
         Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Heavy);
+        // Add vibration pattern: [wait, vibrate, wait, vibrate...]
+        // Initial strong burst: 200ms vibration
+        Vibration.vibrate([0, 200, 50, 100, 50, 100]);
 
-        // Shower of confetti taps - random timing for chaos!
-        for (let i = 0; i < 200; i++) {
-          // Random delays between 50-1500ms for scattered effect
-          const delay = 50 + Math.random() * 1450;
+        // Shower of confetti taps matching 2.5-3 second animation
+        // 500 taps over 2500ms to match confetti fallSpeed
+        for (let i = 0; i < 500; i++) {
+          // Random delays between 0-2500ms to match confetti fall duration
+          const delay = Math.random() * 2500;
           setTimeout(() => {
             // Mix of light impacts and selection taps
             if (Math.random() > 0.3) {
@@ -167,11 +172,15 @@ export const AirdropProvider = ({ children, seedConfirmed }) => {
               // Haptic feedback - confetti cannon explosion!
               // BIG BOOM with vibration!
               Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Heavy);
+              // Add vibration pattern: [wait, vibrate, wait, vibrate...]
+              // Initial strong burst: 200ms vibration
+              Vibration.vibrate([0, 200, 50, 100, 50, 100]);
 
-              // Shower of confetti taps - random timing for chaos!
-              for (let i = 0; i < 200; i++) {
-                // Random delays between 50-1500ms for scattered effect
-                const delay = 50 + Math.random() * 1450;
+              // Shower of confetti taps matching 2.5-3 second animation
+              // 500 taps over 2500ms to match confetti fallSpeed
+              for (let i = 0; i < 500; i++) {
+                // Random delays between 0-2500ms to match confetti fall duration
+                const delay = Math.random() * 2500;
                 setTimeout(() => {
                   // Mix of light impacts and selection taps
                   if (Math.random() > 0.3) {
