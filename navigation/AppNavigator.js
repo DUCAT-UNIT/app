@@ -264,10 +264,10 @@ function AppNavigatorContent({
         styles={styles}
       />
 
-      {/* Airdrop Success Modal */}
+      {/* Airdrop Success Modal - TESTING MODE: Always visible */}
       <AirdropSuccessModal
-        visible={showAirdropModal}
-        onClose={() => setShowAirdropModal(false)}
+        visible={true}  // TESTING: Always show modal
+        onClose={() => {}}  // TESTING: Don't close modal
         txId={airdropTxId}
       />
     </>

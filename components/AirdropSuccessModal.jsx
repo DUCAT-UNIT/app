@@ -3,7 +3,7 @@
  * Shows congratulations message with confetti animation when user receives airdrop
  */
 
-import React, { useEffect, useRef, useState } from 'react';
+import React, { useEffect, useRef } from 'react';
 import PropTypes from 'prop-types';
 import { View, Text, Modal, TouchableOpacity, Animated, Dimensions, StyleSheet } from 'react-native';
 import ConfettiCannon from 'react-native-confetti-cannon';
@@ -18,7 +18,6 @@ export default function AirdropSuccessModal({ visible, onClose }) {
   const scaleAnim = useRef(new Animated.Value(0.8)).current;
   const opacityAnim = useRef(new Animated.Value(0)).current;
   const confettiRef = useRef(null);
-  const [hasTriggeredCelebration, setHasTriggeredCelebration] = useState(false);
   const { triggerCelebration } = useAirdrop();
 
   useEffect(() => {
@@ -42,7 +41,6 @@ export default function AirdropSuccessModal({ visible, onClose }) {
     } else {
       scaleAnim.setValue(0.8);
       opacityAnim.setValue(0);
-      setHasTriggeredCelebration(false); // Reset for next time
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [visible]);
@@ -65,34 +63,39 @@ export default function AirdropSuccessModal({ visible, onClose }) {
           </View>
 
           {/* Title */}
-          <Text style={localStyles.title}>Mutiny BTC Airdropped</Text>
+          <Text style={localStyles.title}>🧪 TESTING MODE 🧪</Text>
+          <Text style={[localStyles.title, { fontSize: 18, marginTop: 8 }]}>Mutiny BTC Airdropped</Text>
 
           {/* Message */}
           <Text style={localStyles.message}>
-            An airdrop is on the way.{'\n'}You should see it reflected in your balance in 30 seconds.
+            Testing celebration effects.{'\n'}Click the button below to trigger infinitely!
           </Text>
 
-          {/* Close Button */}
+          {/* Trigger Celebration Button */}
           <TouchableOpacity
             style={localStyles.closeButton}
             onPress={() => {
-              if (!hasTriggeredCelebration) {
-                // Trigger confetti animation
-                if (confettiRef.current) {
-                  confettiRef.current.start();
-                }
-                // Trigger all other celebration effects
-                triggerCelebration();
-                setHasTriggeredCelebration(true);
-                // Close modal after a delay to see the full celebration
-                setTimeout(() => {
-                  onClose();
-                }, 3500);
+              // TESTING MODE: Always allow triggering celebration
+              // Trigger confetti animation
+              if (confettiRef.current) {
+                confettiRef.current.start();
               }
+              // Trigger all other celebration effects
+              triggerCelebration();
+              // TESTING MODE: Don't close modal, allow infinite retriggers
             }}
             activeOpacity={0.8}
           >
-            <Text style={localStyles.closeButtonText}>Get Started</Text>
+            <Text style={localStyles.closeButtonText}>🎉 Trigger Celebration 🎉</Text>
+          </TouchableOpacity>
+
+          {/* Testing Mode Close Button */}
+          <TouchableOpacity
+            style={[localStyles.closeButton, { marginTop: 12, backgroundColor: COLORS.SECONDARY_TEXT }]}
+            onPress={onClose}
+            activeOpacity={0.8}
+          >
+            <Text style={localStyles.closeButtonText}>Close (Testing)</Text>
           </TouchableOpacity>
         </Animated.View>
 
