@@ -18,6 +18,9 @@ export default function WalletStackNavigator() {
         headerShown: false,
         cardStyle: { backgroundColor: COLORS.DARK_BG },
         animationEnabled: true,
+        // Performance optimizations
+        detachPreviousScreen: false, // Keep previous screen mounted for instant back navigation
+        freezeOnBlur: true, // Freeze inactive screens to prevent unnecessary renders
         // Optimize transition performance
         cardStyleInterpolator: ({ current }) => ({
           cardStyle: {
@@ -26,8 +29,20 @@ export default function WalletStackNavigator() {
         }),
       }}
     >
-      <Stack.Screen name="WalletHome" component={WalletPage} />
-      <Stack.Screen name="AssetDetail" component={AssetDetailScreen} />
+      <Stack.Screen
+        name="WalletHome"
+        component={WalletPage}
+      />
+      <Stack.Screen
+        name="AssetDetail"
+        component={AssetDetailScreen}
+        options={{
+          // Immediate navigation - no delay
+          animationEnabled: false,
+          // Keep screen mounted for instant re-navigation
+          unmountOnBlur: false,
+        }}
+      />
     </Stack.Navigator>
   );
 }

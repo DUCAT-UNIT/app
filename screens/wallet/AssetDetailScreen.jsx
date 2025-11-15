@@ -64,9 +64,30 @@ function AssetDetailScreen({ route = {}, navigation }) {
   const mountTime = Date.now();
   const { assetType = 'BTC' } = route?.params || {};
   console.log('[AssetDetail] Mounted with assetType:', assetType, 'from route.params:', route?.params);
+
+  // Track actual re-renders vs re-mounts
+  const renderCount = useRef(0);
+  const isMounted = useRef(false);
+
+  useEffect(() => {
+    if (!isMounted.current) {
+      isMounted.current = true;
+      console.log('[AssetDetail] ✅ Component mounted for the first time');
+    }
+    return () => {
+      console.log('[AssetDetail] ⚠️ Component UNMOUNTING');
+      isMounted.current = false;
+    };
+  }, []);
+
+  renderCount.current += 1;
+  if (renderCount.current > 1) {
+    console.log('[AssetDetail] RE-RENDER #', renderCount.current);
+  }
+
   const { segwitBalance, taprootBalance } = useBalance();
   const { btcPrice } = usePrice();
-  const { wallet } = useWallet();
+  const wallet = useWallet().wallet;
   const { transactionHistory, loadingTransactionHistory } = useTransactionHistory();
   const { showToast } = useToastContext();
   const nav = useNavigation();
@@ -81,24 +102,32 @@ function AssetDetailScreen({ route = {}, navigation }) {
   // Initialize with cached data if available (synchronous)
   const initCacheKey = `${CACHE_KEY_PREFIX}1M`;
   const initCache = priceCache[initCacheKey];
-  const [priceData, setPriceData] = useState(
-    initCache && (Date.now() - initCache.timestamp < CACHE_EXPIRY_MS) ? initCache.prices : null
-  );
-  const [priceDirection, setPriceDirection] = useState(
-    initCache && (Date.now() - initCache.timestamp < CACHE_EXPIRY_MS)
-      ? initCache.direction
-      : { isPositive: true, percentChange: 0, dollarChange: 0 }
-  );
-  const [priceLoading, setPriceLoading] = useState(false);
+  const hasValidCache = initCache && (Date.now() - initCache.timestamp < CACHE_EXPIRY_MS);
 
+  const [priceData, setPriceData] = useState(hasValidCache ? initCache.prices : null);
+  const [priceDirection, setPriceDirection] = useState(
+    hasValidCache ? initCache.direction : { isPositive: true, percentChange: 0, dollarChange: 0 }
+  );
+  const [priceLoading, setPriceLoading] = useState(!hasValidCache && assetType === 'BTC');
 
   // Get balance based on asset type
   const balance = assetType === 'BTC' ? segwitBalance : taprootBalance;
   const fiatValue = assetType === 'BTC' ? balance * btcPrice : 0;
 
-  // Extract stable wallet addresses to avoid recalculating when wallet object changes
-  const segwitAddress = wallet?.segwitAddress;
-  const taprootAddress = wallet?.taprootAddress;
+  // Extract stable wallet addresses using refs to prevent re-renders
+  const segwitAddressRef = useRef(wallet?.segwitAddress);
+  const taprootAddressRef = useRef(wallet?.taprootAddress);
+
+  // Only update refs if values actually changed
+  if (wallet?.segwitAddress && wallet.segwitAddress !== segwitAddressRef.current) {
+    segwitAddressRef.current = wallet.segwitAddress;
+  }
+  if (wallet?.taprootAddress && wallet.taprootAddress !== taprootAddressRef.current) {
+    taprootAddressRef.current = wallet.taprootAddress;
+  }
+
+  const segwitAddress = segwitAddressRef.current;
+  const taprootAddress = taprootAddressRef.current;
 
   // Memoize isPositive to prevent chart re-renders
   const isPositive = useMemo(() => priceDirection.isPositive, [priceDirection.isPositive]);
@@ -106,17 +135,22 @@ function AssetDetailScreen({ route = {}, navigation }) {
   // Stable ref for filtered transactions
   const filteredTxRef = useRef([]);
   const lastTxHashRef = useRef('');
+  const [filteredTransactions, setFilteredTransactions] = useState([]);
 
-  // Filter and process transactions - memoized to avoid recalculating on every render
-  const filteredTransactions = useMemo(() => {
+  // Filter and process transactions - deferred to avoid blocking navigation
+  useEffect(() => {
     const filterStart = Date.now();
-    if (!transactionHistory || !segwitAddress || !taprootAddress) return filteredTxRef.current;
+    if (!transactionHistory || !segwitAddress || !taprootAddress) {
+      setFilteredTransactions(filteredTxRef.current);
+      return;
+    }
 
     // Create a hash to check if we need to recalculate
     const txHash = `${transactionHistory.length}-${assetType}`;
     if (txHash === lastTxHashRef.current && filteredTxRef.current.length > 0) {
       console.log('[AssetDetail] Using cached filtered transactions');
-      return filteredTxRef.current;
+      setFilteredTransactions(filteredTxRef.current);
+      return;
     }
 
     console.log('[AssetDetail] Filtering transactions for', assetType);
@@ -160,8 +194,8 @@ function AssetDetailScreen({ route = {}, navigation }) {
 
     lastTxHashRef.current = txHash;
     filteredTxRef.current = filtered;
+    setFilteredTransactions(filtered);
     console.log('[AssetDetail] Transaction filtering took', Date.now() - filterStart, 'ms');
-    return filtered;
   }, [transactionHistory, segwitAddress, taprootAddress, assetType]);
 
 
@@ -307,23 +341,24 @@ function AssetDetailScreen({ route = {}, navigation }) {
     if (assetType === 'BTC') {
       const cacheKey = `${CACHE_KEY_PREFIX}${selectedTimeframe}`;
       const cached = priceCache[cacheKey];
+      const isCacheValid = cached && (Date.now() - cached.timestamp < CACHE_EXPIRY_MS);
+
       // Only fetch if no in-memory cache or cache is stale
-      if (!cached || (Date.now() - cached.timestamp >= CACHE_EXPIRY_MS)) {
-        console.log('[AssetDetail] No cache, fetching price data');
+      if (!isCacheValid) {
+        console.log('[AssetDetail] No valid cache, fetching price data');
         fetchPriceData();
       } else {
-        console.log('[AssetDetail] Using existing cache, skipping fetch');
-        // Update state with cached data if timeframe changed
-        if (priceData !== cached.prices || priceDirection !== cached.direction) {
-          setPriceData(cached.prices);
-          setPriceDirection(cached.direction);
-        }
+        console.log('[AssetDetail] Using existing cache, setting state');
+        // Update state with cached data (only runs when timeframe changes)
+        setPriceData(cached.prices);
+        setPriceDirection(cached.direction);
+        setPriceLoading(false);
       }
     } else {
       setPriceLoading(false);
     }
     console.log('[AssetDetail] Effect ran in', Date.now() - effectStart, 'ms');
-  }, [assetType, selectedTimeframe, fetchPriceData, priceData, priceDirection]);
+  }, [assetType, selectedTimeframe, fetchPriceData]);
 
   const handleActionPress = (action) => {
     switch (action) {
