@@ -364,32 +364,40 @@ function AssetDetailScreen({ route = {}, navigation }) {
     </View>
   );
 
-  const renderAssetInfo = () => (
-    <View style={styles.assetInfoContainer}>
-      <Icon
-        name={assetType === 'BTC' ? 'btc_logo' : 'unit_logo'}
-        size={60}
-      />
+  const renderAssetInfo = () => {
+    // For UNIT, show the satoshi value directly (as whole units)
+    // For BTC, show the BTC value with decimals
+    const displayBalance = assetType === 'BTC'
+      ? formatBalance(balance || 0)
+      : formatFiatAmount(balance * 100000000 || 0, 0); // Convert BTC to satoshis for UNIT display
 
-      <Text style={styles.assetName}>
-        {assetType === 'BTC' ? 'Bitcoin' : 'UNIT'}
-      </Text>
+    return (
+      <View style={styles.assetInfoContainer}>
+        <Icon
+          name={assetType === 'BTC' ? 'btc_logo' : 'unit_logo'}
+          size={60}
+        />
 
-      <Text style={styles.balanceAmount}>
-        {formatBalance(balance || 0)} {assetType}
-      </Text>
-
-      <Text style={styles.balanceFiat}>
-        ${formatFiatAmount(fiatValue || 0)} USD
-      </Text>
-
-      {assetType === 'BTC' && btcPrice && priceData && (
-        <Text style={[styles.priceChange, { color: priceDirection.isPositive ? COLORS.SUCCESS_GREEN : COLORS.RED }]}>
-          {priceDirection.isPositive ? '▲' : '▼'} {priceDirection.percentChange}% ({priceDirection.isPositive ? '+' : '-'}${priceDirection.dollarChange})
+        <Text style={styles.assetName}>
+          {assetType === 'BTC' ? 'Bitcoin' : 'UNIT'}
         </Text>
-      )}
-    </View>
-  );
+
+        <Text style={styles.balanceAmount}>
+          {displayBalance} {assetType}
+        </Text>
+
+        <Text style={styles.balanceFiat}>
+          ${formatFiatAmount(fiatValue || 0)} USD
+        </Text>
+
+        {assetType === 'BTC' && btcPrice && priceData && (
+          <Text style={[styles.priceChange, { color: priceDirection.isPositive ? COLORS.SUCCESS_GREEN : COLORS.RED }]}>
+            {priceDirection.isPositive ? '▲' : '▼'} {priceDirection.percentChange}% ({priceDirection.isPositive ? '+' : '-'}${priceDirection.dollarChange})
+          </Text>
+        )}
+      </View>
+    );
+  };
 
   const renderActionButtons = () => (
     <View style={styles.actionButtonsContainer}>
