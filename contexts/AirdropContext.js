@@ -1,4 +1,5 @@
 import React, { createContext, useContext, useState, useEffect, useRef } from 'react';
+import PropTypes from 'prop-types';
 import { Vibration } from 'react-native';
 import { Audio } from 'expo-av';
 import { useBalance } from './WalletDataContext';
@@ -38,6 +39,8 @@ export const AirdropProvider = ({ children, seedConfirmed }) => {
 
   // Sound effect ref
   const confettiSoundRef = useRef(null);
+  // Store haptic timeout IDs for cleanup
+  const hapticTimeoutsRef = useRef([]);
 
   // Function to play confetti sound
   const playConfettiSound = async () => {
@@ -62,12 +65,21 @@ export const AirdropProvider = ({ children, seedConfirmed }) => {
         }
       }, 3000);
     } catch (error) {
-      // Silently fail if audio can't play
+      // Log error in development, silent in production
+      if (__DEV__) {
+        console.log('⚠️ Audio playback failed:', error.message);
+      }
     }
   };
 
   // Function to trigger all celebration effects
   const triggerCelebration = () => {
+    // Clear any existing haptic timeouts first
+    if (hapticTimeoutsRef.current.length > 0) {
+      hapticTimeoutsRef.current.forEach(id => clearTimeout(id));
+      hapticTimeoutsRef.current = [];
+    }
+
     // Play confetti sound effect
     playConfettiSound();
     // Haptic feedback - confetti cannon explosion!
@@ -80,6 +92,7 @@ export const AirdropProvider = ({ children, seedConfirmed }) => {
     // Start with dense haptics that gradually become sparse
     const totalDuration = 2500; // 2.5 seconds
     const totalTaps = 800; // Lots of taps
+    const newTimeouts = [];
 
     for (let i = 0; i < totalTaps; i++) {
       // Calculate progress (0 to 1) for this tap
@@ -93,7 +106,7 @@ export const AirdropProvider = ({ children, seedConfirmed }) => {
       // First 30% = heavy/medium impacts
       // Middle 40% = light impacts
       // Last 30% = only selections (lightest)
-      setTimeout(() => {
+      const timeoutId = setTimeout(() => {
         const timeProgress = delay / totalDuration;
         if (timeProgress < 0.3) {
           // Early: mix of heavy and medium
@@ -110,7 +123,12 @@ export const AirdropProvider = ({ children, seedConfirmed }) => {
           Haptics.selectionAsync();
         }
       }, delay);
+
+      newTimeouts.push(timeoutId);
     }
+
+    // Store timeout IDs for cleanup
+    hapticTimeoutsRef.current = newTimeouts;
   };
 
   // Load audio on mount and cleanup on unmount
@@ -144,6 +162,11 @@ export const AirdropProvider = ({ children, seedConfirmed }) => {
       if (confettiSoundRef.current) {
         confettiSoundRef.current.unloadAsync();
         confettiSoundRef.current = null;
+      }
+      // Cleanup haptic timeouts
+      if (hapticTimeoutsRef.current.length > 0) {
+        hapticTimeoutsRef.current.forEach(id => clearTimeout(id));
+        hapticTimeoutsRef.current = [];
       }
     };
   }, []);
@@ -313,4 +336,9 @@ export const AirdropProvider = ({ children, seedConfirmed }) => {
   };
 
   return <AirdropContext.Provider value={value}>{children}</AirdropContext.Provider>;
+};
+
+AirdropProvider.propTypes = {
+  children: PropTypes.node.isRequired,
+  seedConfirmed: PropTypes.bool,
 };

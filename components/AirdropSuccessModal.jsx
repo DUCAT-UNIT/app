@@ -20,14 +20,17 @@ export default function AirdropSuccessModal({ visible, onClose }) {
   const confettiRef = useRef(null);
   const { triggerCelebration, audioReady } = useAirdrop();
   const hasTriggered = useRef(false);
+  const celebrationTimeoutRef = useRef(null);
 
   useEffect(() => {
+    let timeoutId;
+
     if (visible && audioReady && !hasTriggered.current) {
       // Trigger everything automatically when modal opens and audio is ready
       hasTriggered.current = true;
 
       // Small delay to ensure modal is visible
-      setTimeout(() => {
+      timeoutId = setTimeout(() => {
         // Trigger confetti animation
         if (confettiRef.current) {
           confettiRef.current.start();
@@ -35,6 +38,8 @@ export default function AirdropSuccessModal({ visible, onClose }) {
         // Trigger all celebration effects (sound, haptics, vibration)
         triggerCelebration();
       }, 100);
+
+      celebrationTimeoutRef.current = timeoutId;
 
       // Animate modal in
       Animated.parallel([
@@ -55,6 +60,17 @@ export default function AirdropSuccessModal({ visible, onClose }) {
       opacityAnim.setValue(0);
       hasTriggered.current = false; // Reset for next time
     }
+
+    // Cleanup timeout on unmount or when dependencies change
+    return () => {
+      if (timeoutId) {
+        clearTimeout(timeoutId);
+      }
+      if (celebrationTimeoutRef.current) {
+        clearTimeout(celebrationTimeoutRef.current);
+        celebrationTimeoutRef.current = null;
+      }
+    };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [visible, audioReady]);
 
@@ -164,4 +180,5 @@ const localStyles = StyleSheet.create({
 AirdropSuccessModal.propTypes = {
   visible: PropTypes.bool.isRequired,
   onClose: PropTypes.func.isRequired,
+  txId: PropTypes.string, // Optional - passed from AppNavigator but not currently used
 };
