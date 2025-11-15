@@ -3,11 +3,13 @@
  * Handles all send-related screens in a modal stack
  */
 
-import React from 'react';
+import React, { useEffect } from 'react';
 import { View, StyleSheet } from 'react-native';
 import { createStackNavigator } from '@react-navigation/stack';
+import { useNavigation } from '@react-navigation/native';
 import { COLORS } from '../theme';
 import { useToastContext } from '../contexts/UIContext';
+import { useTransactionBuild } from '../contexts/TransactionBuildContext';
 import ToastContainer from '../components/ToastContainer';
 
 // Screen imports
@@ -20,11 +22,33 @@ import ConfirmationScreen from '../screens/send/ConfirmationScreen';
 
 const SendStack = createStackNavigator();
 
+function SendNavigatorContent() {
+  const navigation = useNavigation();
+  const { cancelIntent } = useTransactionBuild();
+
+  // Clean up when send flow is dismissed (e.g., swipe down or back from first screen)
+  useEffect(() => {
+    const unsubscribe = navigation.addListener('beforeRemove', (e) => {
+      // Only cancel if user is actually leaving the send flow entirely
+      // (not just navigating between send screens)
+      if (e.data.action.type === 'GO_BACK' || e.data.action.type === 'POP') {
+        // Cancel any active intent and release UTXOs
+        cancelIntent();
+      }
+    });
+
+    return unsubscribe;
+  }, [navigation, cancelIntent]);
+
+  return null;
+}
+
 export default function SendNavigator() {
   const { toasts } = useToastContext();
 
   return (
     <View style={styles.container}>
+      <SendNavigatorContent />
       <SendStack.Navigator
       screenOptions={{
         headerShown: false, // Custom headers per screen

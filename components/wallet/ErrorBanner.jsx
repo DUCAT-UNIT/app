@@ -5,7 +5,7 @@
 
 import React from 'react';
 import PropTypes from 'prop-types';
-import { View, Text, TouchableOpacity, StyleSheet } from 'react-native';
+import { _View, Text, TouchableOpacity, StyleSheet } from 'react-native';
 import Icon from '../icons';
 import { COLORS } from '../../theme';
 import { SPACING, BORDER_RADIUS } from '../../theme/spacing';

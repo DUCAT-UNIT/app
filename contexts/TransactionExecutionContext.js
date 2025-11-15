@@ -103,8 +103,11 @@ export const TransactionExecutionProvider = ({
           }
         }
 
-        // Mark all inputs as spent (both confirmed and pending)
+        // NOTE: UTXOs are now locked immediately after intent creation (see TransactionBuildContext)
+        // This call is kept as a safety net and to ensure pending transaction inputs are properly tracked
+        // It's idempotent - marking an already-spent UTXO as spent again is harmless
         if (spentInputs.length > 0) {
+          logger.debug('📝 Re-confirming', spentInputs.length, 'UTXOs are spent (safety check)');
           await markUtxosAsSpent(spentInputs);
         }
 

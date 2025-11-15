@@ -281,7 +281,7 @@ describe('PendingTransactionsContext', () => {
     });
 
     expect(Object.keys(result.current.pendingTransactions)).toHaveLength(1);
-    expect(result.current.pendingTransactions['invalid_tx']).toBeUndefined();
+    expect(result.current.pendingTransactions.invalid_tx).toBeUndefined();
   });
 
   describe('Advanced UTXO management', () => {
@@ -493,7 +493,7 @@ describe('PendingTransactionsContext', () => {
 
       // Mock to fail only on the spent UTXOs save
       const originalSetItem = AsyncStorage.setItem;
-      AsyncStorage.setItem.mockImplementation((key, value) => {
+      AsyncStorage.setItem.mockImplementation((key, _value) => {
         if (key.includes('spent_utxos')) {
           return Promise.reject(new Error('Storage error'));
         }

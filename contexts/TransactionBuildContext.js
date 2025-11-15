@@ -25,7 +25,7 @@ export const useTransactionBuild = () => {
 export const TransactionBuildProvider = ({ children, wallet, currentAccount, showToast }) => {
   const { sendRecipient, sendAmount, sendAssetType, setIntentStep, setSendRecipient } =
     useSendFlow();
-  const { getUnconfirmedUTXOs, getSpentUtxos } = usePendingTransactions();
+  const { getUnconfirmedUTXOs, getSpentUtxos, unmarkUtxosAsSpent, markUtxosAsSpent } = usePendingTransactions();
 
   // The created PSBT intent
   const [sendIntent, setSendIntent] = useState(null);
@@ -52,6 +52,13 @@ export const TransactionBuildProvider = ({ children, wallet, currentAccount, sho
         spentUtxos
       );
 
+      // CRITICAL: Lock UTXOs IMMEDIATELY to prevent race conditions
+      // Mark all inputs as spent before storing intent or showing review screen
+      if (intent.inputs && intent.inputs.length > 0) {
+        logger.debug('🔒 Locking', intent.inputs.length, 'UTXOs for BTC transaction');
+        await markUtxosAsSpent(intent.inputs.map(i => ({ txid: i.txid, vout: i.vout })));
+      }
+
       setSendIntent(intent);
       setIntentStep('reviewing');
     } catch (error) {
@@ -64,7 +71,7 @@ export const TransactionBuildProvider = ({ children, wallet, currentAccount, sho
         setIntentStep('entering_amount');
       }, 100);
     }
-  }, [sendRecipient, sendAmount, wallet, currentAccount, setIntentStep, showToast, getUnconfirmedUTXOs, getSpentUtxos, sendIntent]);
+  }, [sendRecipient, sendAmount, wallet, currentAccount, setIntentStep, showToast, getUnconfirmedUTXOs, getSpentUtxos, sendIntent, markUtxosAsSpent]);
 
   // Create UNIT (Rune) transaction using TransactionService
   const createUnitIntent = useCallback(async () => {
@@ -100,6 +107,31 @@ export const TransactionBuildProvider = ({ children, wallet, currentAccount, sho
         spentUtxos
       );
 
+      // CRITICAL: Lock UTXOs IMMEDIATELY to prevent race conditions
+      // Mark all inputs as spent before storing intent or showing review screen
+      const utxosToLock = [];
+
+      // Lock the rune UTXO
+      if (intent.runeUtxo) {
+        utxosToLock.push({
+          txid: intent.runeUtxo.transaction,
+          vout: intent.runeUtxo.vout,
+        });
+      }
+
+      // Lock the sat UTXO (for fees)
+      if (intent.satUtxo) {
+        utxosToLock.push({
+          txid: intent.satUtxo.txid,
+          vout: intent.satUtxo.vout,
+        });
+      }
+
+      if (utxosToLock.length > 0) {
+        logger.debug('🔒 Locking', utxosToLock.length, 'UTXOs for UNIT transaction');
+        await markUtxosAsSpent(utxosToLock);
+      }
+
       setSendIntent(intent);
       setIntentStep('reviewing');
     } catch (error) {
@@ -112,7 +144,7 @@ export const TransactionBuildProvider = ({ children, wallet, currentAccount, sho
         setIntentStep('entering_amount');
       }, 100);
     }
-  }, [sendRecipient, sendAmount, wallet, currentAccount, setIntentStep, showToast, getUnconfirmedUTXOs, getSpentUtxos, sendIntent]);
+  }, [sendRecipient, sendAmount, wallet, currentAccount, setIntentStep, showToast, getUnconfirmedUTXOs, getSpentUtxos, sendIntent, markUtxosAsSpent]);
 
   // Main create intent function (routes to BTC or UNIT)
   const createSendIntent = useCallback(async () => {
@@ -145,6 +177,52 @@ export const TransactionBuildProvider = ({ children, wallet, currentAccount, sho
     }
   }, [sendRecipient, sendAmount, sendAssetType, setIntentStep, setSendRecipient, showToast, createBtcIntent, createUnitIntent]);
 
+  // Cancel intent and release locked UTXOs
+  const cancelIntent = useCallback(async () => {
+    if (!sendIntent) {
+      // No intent to cancel
+      return;
+    }
+
+    logger.debug('🚫 Canceling transaction intent:', sendIntent.id);
+
+    // Collect all UTXOs that need to be released
+    const utxosToRelease = [];
+
+    // BTC transaction inputs
+    if (sendIntent.inputs && Array.isArray(sendIntent.inputs)) {
+      sendIntent.inputs.forEach(input => {
+        utxosToRelease.push({ txid: input.txid, vout: input.vout });
+      });
+    }
+
+    // UNIT transaction - rune UTXO
+    if (sendIntent.runeUtxo) {
+      utxosToRelease.push({
+        txid: sendIntent.runeUtxo.transaction,
+        vout: sendIntent.runeUtxo.vout,
+      });
+    }
+
+    // UNIT transaction - sat UTXO (for fees)
+    if (sendIntent.satUtxo) {
+      utxosToRelease.push({
+        txid: sendIntent.satUtxo.txid,
+        vout: sendIntent.satUtxo.vout,
+      });
+    }
+
+    // Release all locked UTXOs
+    if (utxosToRelease.length > 0) {
+      logger.debug('✅ Releasing', utxosToRelease.length, 'UTXOs from canceled intent');
+      await unmarkUtxosAsSpent(utxosToRelease);
+    }
+
+    // Clear the intent
+    setSendIntent(null);
+    setIntentStep('idle');
+  }, [sendIntent, setSendIntent, setIntentStep, unmarkUtxosAsSpent]);
+
   // Memoize the value object to prevent unnecessary re-renders
   const value = useMemo(
     () => ({
@@ -156,8 +234,9 @@ export const TransactionBuildProvider = ({ children, wallet, currentAccount, sho
 
       // Handlers
       createSendIntent,
+      cancelIntent,
     }),
-    [sendIntent, createSendIntent]
+    [sendIntent, createSendIntent, cancelIntent]
   );
 
   return (

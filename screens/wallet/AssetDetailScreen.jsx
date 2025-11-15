@@ -7,7 +7,7 @@ import React, { useState, useEffect, useRef, useMemo, useCallback } from 'react'
 import {
   View,
   Text,
-  ScrollView,
+  
   TouchableOpacity,
   Dimensions,
   ActivityIndicator,
@@ -24,13 +24,13 @@ import { useBalance, useTransactionHistory } from '../../contexts/WalletDataCont
 import { usePrice } from '../../contexts/PriceContext';
 import { useWallet } from '../../contexts/WalletContext';
 import { useToastContext } from '../../contexts/UIContext';
-import { useNavigation } from '@react-navigation/native';
+import { _useNavigation } from '@react-navigation/native';
 import TransactionItem from '../../components/transaction/TransactionItem';
 import PriceChart from '../../components/charts/PriceChart';
 import { API, API_KEYS } from '../../utils/constants';
 import { calculateTransactionAmount } from '../../services/transactionHistoryService';
 
-const { width: SCREEN_WIDTH } = Dimensions.get('window');
+const { width: _SCREEN_WIDTH } = Dimensions.get('window');
 
 const TAB_OPTIONS = ['ACTIVITY', 'ABOUT'];
 const CACHE_KEY_PREFIX = 'btc_price_cache_';
@@ -61,11 +61,11 @@ const sampleData = (data, targetPoints = 60) => {
 function AssetDetailScreen({ route = {}, navigation }) {
   const { assetType = 'BTC' } = route?.params || {};
 
-  const { segwitBalance, taprootBalance, runesBalance } = useBalance();
+  const { segwitBalance, runesBalance } = useBalance();
   const { btcPrice } = usePrice();
   const wallet = useWallet().wallet;
   const { transactionHistory, loadingTransactionHistory } = useTransactionHistory();
-  const { showToast } = useToastContext();
+  const {} = useToastContext();
 
   const [selectedTab, setSelectedTab] = useState('ACTIVITY');
   const [selectedTimeframe, setSelectedTimeframe] = useState('1M');
@@ -258,7 +258,7 @@ function AssetDetailScreen({ route = {}, navigation }) {
       }
 
       if (!response.ok) {
-        const errorText = await response.text();
+        const _errorText = await response.text();
         throw new Error(`API error: ${response.status}`);
       }
 
@@ -695,24 +695,12 @@ const styles = StyleSheet.create({
   backButton: {
     padding: 8,
   },
-  menuButton: {
-    padding: 8,
-  },
   scrollView: {
     flex: 1,
   },
   assetInfoContainer: {
     alignItems: 'center',
     paddingVertical: 12,
-  },
-  assetIcon: {
-    width: 80,
-    height: 80,
-    borderRadius: 40,
-    backgroundColor: COLORS.CARD_BG,
-    justifyContent: 'center',
-    alignItems: 'center',
-    marginBottom: 4,
   },
   assetName: {
     fontSize: 16,
@@ -759,11 +747,6 @@ const styles = StyleSheet.create({
     borderWidth: 1.2,
     borderColor: COLORS.BORDER_COLOR,
   },
-  actionButtonIconText: {
-    fontSize: 28,
-    fontWeight: '700',
-    color: COLORS.WHITE,
-  },
   actionButtonLabel: {
     fontSize: 13,
     color: COLORS.SECONDARY_TEXT,
@@ -773,18 +756,6 @@ const styles = StyleSheet.create({
     paddingHorizontal: 0,
     paddingVertical: 4,
     marginTop: 2,
-  },
-  chartPlaceholder: {
-    height: 200,
-    backgroundColor: COLORS.CARD_BG,
-    borderRadius: 12,
-    justifyContent: 'center',
-    alignItems: 'center',
-    marginBottom: 16,
-  },
-  chartPlaceholderText: {
-    color: COLORS.GRAY,
-    fontSize: 16,
   },
   timeframeButtons: {
     flexDirection: 'row',
@@ -856,9 +827,6 @@ const styles = StyleSheet.create({
   emptyText: {
     color: COLORS.GRAY,
     fontSize: 16,
-  },
-  transactionItem: {
-    marginBottom: 3,
   },
   aboutContainer: {
     paddingHorizontal: 14,

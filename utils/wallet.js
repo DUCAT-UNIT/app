@@ -109,7 +109,7 @@ export async function signPsbt(psbtBase64, signInputs) {
 
         // Log the pubkeys for debugging
         const compressedPubkey = child.publicKey;
-        const xOnlyPubkey = compressedPubkey.slice(1, 33);
+        const _xOnlyPubkey = compressedPubkey.slice(1, 33);
 
         // For Taproot, DON'T tweak the signer - bitcoinjs-lib will handle tweaking
         // when it sees tapInternalKey in the PSBT input

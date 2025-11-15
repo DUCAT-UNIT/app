@@ -11,16 +11,14 @@ import { COLORS } from '../../theme';
 const { width: SCREEN_WIDTH } = Dimensions.get('window');
 
 function PriceChart({ data, isPositive, minBoundary, maxBoundary }) {
-  if (!data || data.length === 0) {
-    return (
-      <View style={styles.emptyContainer}>
-        <Text style={styles.emptyText}>No data available</Text>
-      </View>
-    );
-  }
-
   // Memoize chart calculations to prevent re-renders
+  // IMPORTANT: Hook must be called before any conditional returns
   const chartPaths = useMemo(() => {
+    // Return null if no data - will render empty state below
+    if (!data || data.length === 0) {
+      return null;
+    }
+
     // Extract prices from the data array
     const prices = data.map(item => item[1]);
 
@@ -107,6 +105,15 @@ function PriceChart({ data, isPositive, minBoundary, maxBoundary }) {
   }, [data, minBoundary, maxBoundary]);
 
   const strokeColor = isPositive ? COLORS.SUCCESS_GREEN : COLORS.RED;
+
+  // Render empty state if no chart data
+  if (!chartPaths) {
+    return (
+      <View style={styles.emptyContainer}>
+        <Text style={styles.emptyText}>No data available</Text>
+      </View>
+    );
+  }
 
   return (
     <View style={styles.container}>

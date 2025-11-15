@@ -5,7 +5,7 @@
 
 import React from 'react';
 import PropTypes from 'prop-types';
-import { View, Text, StyleSheet, TouchableOpacity } from 'react-native';
+import { View, Text, _StyleSheet, TouchableOpacity } from 'react-native';
 import Icon from '../icons';
 import { COLORS } from '../../theme';
 

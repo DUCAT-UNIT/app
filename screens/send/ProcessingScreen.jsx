@@ -23,7 +23,7 @@ export default function ProcessingScreen({ navigation, route }) {
 
   // Get action from route params
   const action = route.params?.action; // 'create_intent', 'sign_and_broadcast'
-  const fromScreen = route.params?.fromScreen;
+  const _fromScreen = route.params?.fromScreen;
 
   // Messages for different asset types during PSBT creation
   const btcCreatingMessages = [
@@ -68,6 +68,7 @@ export default function ProcessingScreen({ navigation, route }) {
     }, 500); // 500ms between messages
 
     return () => clearInterval(timer);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [action, sendAssetType]);
 
   // Start the action when screen mounts
@@ -99,6 +100,7 @@ export default function ProcessingScreen({ navigation, route }) {
         }
       }, 100);
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [action]);
 
   // Watch for intentStep changes after creating intent
@@ -120,6 +122,7 @@ export default function ProcessingScreen({ navigation, route }) {
         setTimeout(() => showToast('Failed to create transaction. Please check your balance and try again.', 'error'), 300);
       }
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [intentStep, sendIntent, action]);
 
   return (

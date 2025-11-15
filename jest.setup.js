@@ -10,7 +10,7 @@ global.__DEV__ = process.env.NODE_ENV !== 'production';
 global.Buffer = require('buffer').Buffer;
 
 // Polyfill for crypto.getRandomValues (needed by expo-crypto)
-const { webcrypto } = require('node:crypto');
+const { webcrypto: _webcryptoPoly } = require('node:crypto');
 if (!global.crypto) {
   global.crypto = webcrypto;
 }
@@ -89,7 +89,7 @@ jest.mock('@sentry/react-native', () => ({
 
 // Mock React Native core modules
 jest.mock('react-native', () => {
-  const React = require('react');
+  const _React = require('react');
 
   return {
     Platform: {

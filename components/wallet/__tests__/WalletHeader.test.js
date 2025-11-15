@@ -8,7 +8,7 @@ import WalletHeader from '../WalletHeader';
 
 // Mock Icon component
 jest.mock('../../icons', () => {
-  const React = require('react');
+  const _React = require('react');
   const { Text } = require('react-native');
   return {
     __esModule: true,

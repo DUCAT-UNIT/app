@@ -29,8 +29,9 @@ export const API = {
 };
 
 // API Keys (for services that require authentication)
+// Note: CoinGecko API key is optional - increases rate limits but not required
 export const API_KEYS = {
-  COINGECKO: 'CG-YqHGB9hPoziKdRfjnX42LhDh',
+  COINGECKO: process.env.EXPO_PUBLIC_COINGECKO_API_KEY,
 };
 
 // Helper functions to build API URLs

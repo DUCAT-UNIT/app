@@ -8,6 +8,7 @@ import * as ecc from '@bitcoinerlab/secp256k1';
 import { encodeRunestone } from '../../runestone-encoder';
 import { MUTINYNET_NETWORK, validateAndNormalizeAddress } from '../../utils/bitcoin';
 import { ERRORS } from '../../utils/messages';
+import logger from '../../utils/logger';
 import {
   getTxHexUrl,
   getOrdAddressUrl,

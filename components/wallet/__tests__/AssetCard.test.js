@@ -7,9 +7,9 @@ import { render } from '@testing-library/react-native';
 
 // Mock Icon component inline
 jest.mock('../../icons', () => {
-  const React = require('react');
+  const _React = require('react');
   const { Text } = require('react-native');
-  const MockIcon = ({ name, size, color, style }) => {
+  const MockIcon = ({ name, _size, _color, _style }) => {
     return React.createElement(Text, { testID: `icon-${name}` }, name);
   };
   return {

@@ -4,7 +4,7 @@
 
 import { fetchWithTimeout } from '../utils/api';
 import { retrySilently } from '../utils/retry';
-import { getAddressUrl, getAddressUtxoUrl, getOrdAddressUrl } from '../utils/constants';
+import { getAddressUrl, getAddressUtxoUrl, getOrdAddressUrl, API_KEYS } from '../utils/constants';
 
 const BALANCE_FETCH_TIMEOUT = 10000; // 10 seconds
 
@@ -104,9 +104,15 @@ export const fetchUtxos = async (address) => {
 export const fetchBtcPrice = async () => {
   try {
     return await retrySilently(async () => {
-      const response = await fetch(
-        'https://api.coingecko.com/api/v3/simple/price?ids=bitcoin&vs_currencies=usd'
-      );
+      const url = 'https://api.coingecko.com/api/v3/simple/price?ids=bitcoin&vs_currencies=usd';
+
+      // Optionally include API key if configured (increases rate limits)
+      const headers = {};
+      if (API_KEYS.COINGECKO) {
+        headers['x-cg-demo-api-key'] = API_KEYS.COINGECKO;
+      }
+
+      const response = await fetch(url, { headers });
       if (!response.ok) {
         throw new Error(`Failed to fetch BTC price: ${response.statusText}`);
       }

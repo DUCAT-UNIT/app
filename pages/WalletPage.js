@@ -4,7 +4,7 @@
  */
 
 import React, { useRef, useState } from 'react';
-import { View, Animated, StyleSheet, Dimensions, PanResponder, Easing } from 'react-native';
+import { View, Animated, StyleSheet, Dimensions, PanResponder } from 'react-native';
 import { StatusBar } from 'expo-status-bar';
 import { useNavigation } from '@react-navigation/native';
 
@@ -24,7 +24,7 @@ import Snackbar from '../components/Snackbar';
 
 // Contexts
 import { useWallet } from '../contexts/WalletContext';
-import { useBalance } from '../contexts/WalletDataContext';
+import { useBalance as _useBalance } from '../contexts/WalletDataContext';
 import { useSendFlow } from '../contexts/SendFlowContext';
 import { useTransactionExecution } from '../contexts/TransactionExecutionContext';
 import { useVault } from '../contexts/VaultContext';
@@ -51,16 +51,13 @@ export default function WalletPage({ route }) {
   const styles = require('../styles').default;
   // Wallet context
   const { wallet } = useWallet();
-  const { segwitBalance, runesBalance, btcPrice } = useBalance();
   const { vaultData } = require('../contexts/WalletDataContext').useVaultData();
 
   // Transaction contexts
   const {
     intentStep,
     sendAssetType,
-    sendAmount,
     sendAddressType,
-    setIntentStep,
   } = useSendFlow();
 
   const { broadcastedTxid } = useTransactionExecution();

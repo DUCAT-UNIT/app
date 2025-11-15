@@ -8,6 +8,7 @@ import { Text, View, TouchableOpacity, ScrollView, StyleSheet } from 'react-nati
 import { COLORS } from '../../theme';
 import Icon from '../../components/icons';
 import { useReviewScreenData } from '../../hooks/useReviewScreenData';
+import { useTransactionBuild } from '../../contexts/TransactionBuildContext';
 import TransactionSummary from '../../components/review/TransactionSummary';
 import FeeBreakdown from '../../components/review/FeeBreakdown';
 import InputOutputList from '../../components/review/InputOutputList';
@@ -28,6 +29,8 @@ export default function ReviewScreen({ navigation }) {
     actualFee,
   } = useReviewScreenData();
 
+  const { cancelIntent } = useTransactionBuild();
+
   if (!sendIntent) {
     // Should not happen, but handle gracefully
     navigation.goBack();
@@ -42,16 +45,24 @@ export default function ReviewScreen({ navigation }) {
     });
   };
 
-  const handleCancel = () => {
+  const handleCancel = async () => {
+    // Release locked UTXOs before dismissing
+    await cancelIntent();
+
     // Dismiss the send flow modal
     navigation.getParent()?.goBack();
+  };
+
+  const handleBackPress = () => {
+    // Just go back to amount screen - keep intent active
+    navigation.goBack();
   };
 
   return (
     <View style={localStyles.container}>
       {/* Header with back button */}
       <View style={localStyles.header}>
-        <TouchableOpacity onPress={() => navigation.goBack()} style={localStyles.backButton}>
+        <TouchableOpacity onPress={handleBackPress} style={localStyles.backButton}>
           <Icon name="back" size={20} color={COLORS.PRIMARY_BLUE} />
         </TouchableOpacity>
         <Text style={localStyles.headerText}>You will send</Text>

@@ -5,11 +5,11 @@
 import { create, act } from 'react-test-renderer';
 import React from 'react';
 import { useReceiveScreenAnimations } from '../useReceiveScreenAnimations';
-import { Animated } from 'react-native';
+import { Animated as _Animated } from 'react-native';
 
 // Helper to render hooks
 function renderHook(hook, props) {
-  const result = { current: null };
+  const _result = { current: null };
   function TestComponent() {
     result.current = hook(props);
     return null;
@@ -119,7 +119,7 @@ describe('useReceiveScreenAnimations', () => {
       () => useReceiveScreenAnimations(false, false, mockOnClose)
     );
 
-    const firstPanResponder = result.current.panResponder;
+    const _firstPanResponder = result.current.panResponder;
 
     unmount();
     const { result: newResult } = renderHook(

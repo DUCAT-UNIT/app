@@ -30,9 +30,9 @@
         
             
             <div class='fl pad1y space-right2'>
-                <span class="strong">66.66% </span>
+                <span class="strong">62.5% </span>
                 <span class="quiet">Branches</span>
-                <span class='fraction'>16/24</span>
+                <span class='fraction'>15/24</span>
             </div>
         
             
@@ -187,7 +187,8 @@
 <a name='L122'></a><a href='#L122'>122</a>
 <a name='L123'></a><a href='#L123'>123</a>
 <a name='L124'></a><a href='#L124'>124</a>
-<a name='L125'></a><a href='#L125'>125</a></td><td class="line-coverage quiet"><span class="cline-any cline-neutral">&nbsp;</span>
+<a name='L125'></a><a href='#L125'>125</a>
+<a name='L126'></a><a href='#L126'>126</a></td><td class="line-coverage quiet"><span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
@@ -203,16 +204,17 @@
 <span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
-<span class="cline-any cline-neutral">&nbsp;</span>
-<span class="cline-any cline-yes">8x</span>
-<span class="cline-any cline-yes">9x</span>
-<span class="cline-any cline-yes">9x</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-yes">8x</span>
-<span class="cline-any cline-yes">3x</span>
-<span class="cline-any cline-yes">3x</span>
-<span class="cline-any cline-yes">3x</span>
+<span class="cline-any cline-yes">8x</span>
+<span class="cline-any cline-yes">8x</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-yes">7x</span>
+<span class="cline-any cline-yes">2x</span>
+<span class="cline-any cline-yes">2x</span>
+<span class="cline-any cline-yes">2x</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
@@ -318,6 +320,7 @@
 &nbsp;
 import { useCallback } from 'react';
 import { signPsbt } from '../utils/wallet';
+import { logger } from '../utils/logger';
 &nbsp;
 export function useVaultMessages(
   webViewRef,
@@ -334,14 +337,14 @@ export function useVaultMessages(
 &nbsp;
       // Forward WebView console logs to Metro console
       if (message.type === 'CONSOLE_LOG') {
-        const prefix = message.level === 'error' ? '❌' : message.level === 'warn' ? '⚠️' : '📱';
-        console.log(`${prefix} [WebView Console]`, ...message.args);
+        const prefix = message.level === 'error' ? '❌' : message.level === 'warn' ? <span class="branch-0 cbranch-no" title="branch not covered" >'⚠️' </span>: '📱';
+        logger.debug(`${prefix} [WebView Console]`, ...message.args);
         return;
       }
 &nbsp;
       // Handle credentials received confirmation
       <span class="missing-if-branch" title="if path not taken" >I</span>if (message.type === 'CREDENTIALS_RECEIVED') {
-<span class="cstat-no" title="statement not covered" >        console.log('✅ CREDENTIALS_RECEIVED message received from vault');</span>
+<span class="cstat-no" title="statement not covered" >        logger.debug('✅ CREDENTIALS_RECEIVED message received from vault');</span>
 <span class="cstat-no" title="statement not covered" >        if (handleCredentialConfirmation &amp;&amp; message.payload?.vaultPubkey) {</span>
 <span class="cstat-no" title="statement not covered" >          handleCredentialConfirmation(message.payload.vaultPubkey);</span>
         }
@@ -350,13 +353,13 @@ export function useVaultMessages(
 &nbsp;
       // Handle vault loaded event
       if (message.type === 'VAULT_LOADED') {
-        console.log('✅ VAULT_LOADED message received - vault page is ready');
+        logger.debug('✅ VAULT_LOADED message received - vault page is ready');
 &nbsp;
         // Clear the loading timeout since vault is ready
         <span class="missing-if-branch" title="if path not taken" >I</span>if (loadingTimeoutRef?.current) {
 <span class="cstat-no" title="statement not covered" >          clearTimeout(loadingTimeoutRef.current);</span>
 <span class="cstat-no" title="statement not covered" >          loadingTimeoutRef.current = null;</span>
-<span class="cstat-no" title="statement not covered" >          console.log('🧹 Cleared loading timeout - vault responded in time');</span>
+<span class="cstat-no" title="statement not covered" >          logger.debug('🧹 Cleared loading timeout - vault responded in time');</span>
         }
 &nbsp;
         setIsLoading(false);
@@ -364,7 +367,7 @@ export function useVaultMessages(
 &nbsp;
         // Final credential injection when vault is fully loaded
         setTimeout(() =&gt; {
-          console.log('🏦 Final credential injection after VAULT_LOADED');
+          logger.debug('🏦 Final credential injection after VAULT_LOADED');
           injectWalletCredentials();
         }, 500);
         return;
@@ -378,14 +381,14 @@ export function useVaultMessages(
 &nbsp;
       // Handle snackbar messages from web app
       <span class="missing-if-branch" title="else path not taken" >E</span>if (message.type === 'SHOW_SNACKBAR') {
-        console.log('📬 SHOW_SNACKBAR received:', message.payload);
+        logger.debug('📬 SHOW_SNACKBAR received:', message.payload);
         if (showSnackbar) {
           showSnackbar(message.payload);
         }
         return;
       }
     } catch (e) {
-      console.error('❌ Error parsing WebView message:', e);
+      logger.error('❌ Error parsing WebView message:', e);
     }
   }, [webViewRef, showSnackbar, injectWalletCredentials, setIsLoading, setPreparingVault, loadingTimeoutRef, handleCredentialConfirmation]);
 &nbsp;
@@ -442,7 +445,7 @@ async function handlePsbtSigningRequest(message, webViewRef) {
             <div class='footer quiet pad2 space-top1 center small'>
                 Code coverage generated by
                 <a href="https://istanbul.js.org/" target="_blank" rel="noopener noreferrer">istanbul</a>
-                at 2025-11-14T21:36:19.653Z
+                at 2025-11-15T15:00:53.647Z
             </div>
         <script src="../prettify.js"></script>
         <script>

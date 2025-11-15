@@ -3,6 +3,8 @@
  * Functions for selecting and filtering UTXOs for transaction creation
  */
 
+import logger from '../../utils/logger';
+
 /**
  * Merge confirmed and unconfirmed UTXOs, removing duplicates and spent UTXOs
  * @param {Array} confirmedUtxos - Array of confirmed UTXOs

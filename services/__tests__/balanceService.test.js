@@ -22,6 +22,9 @@ jest.mock('../../utils/constants', () => ({
   getAddressUrl: jest.fn((address) => `https://api.example.com/address/${address}`),
   getAddressUtxoUrl: jest.fn((address) => `https://api.example.com/address/${address}/utxo`),
   getOrdAddressUrl: jest.fn((address) => `https://api.example.com/ord/address/${address}`),
+  API_KEYS: {
+    COINGECKO: undefined, // No API key by default in tests
+  },
 }));
 
 const { fetchWithTimeout } = require('../../utils/api');
@@ -262,7 +265,8 @@ describe('balanceService', () => {
 
       expect(result).toBe(45000.50);
       expect(global.fetch).toHaveBeenCalledWith(
-        'https://api.coingecko.com/api/v3/simple/price?ids=bitcoin&vs_currencies=usd'
+        'https://api.coingecko.com/api/v3/simple/price?ids=bitcoin&vs_currencies=usd',
+        { headers: {} }
       );
     });
 

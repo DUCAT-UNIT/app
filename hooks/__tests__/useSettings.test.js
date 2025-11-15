@@ -367,7 +367,7 @@ describe('useSettings', () => {
 
     it('should handle storage error during Face ID enable after authentication', async () => {
       AuthService.authenticateWithBiometrics.mockResolvedValue({ success: true });
-      SecureStore.setItemAsync.mockImplementation((key, value) => {
+      SecureStore.setItemAsync.mockImplementation((key, _value) => {
         if (key === 'biometricEnabled') {
           return Promise.reject(new Error('Storage error'));
         }
@@ -578,7 +578,7 @@ describe('useSettings', () => {
 
     it('should handle storage error during notifications enable', async () => {
       AuthService.authenticateWithBiometrics.mockResolvedValue({ success: true });
-      SecureStore.setItemAsync.mockImplementation((key, value) => {
+      SecureStore.setItemAsync.mockImplementation((key, _value) => {
         if (key === 'notificationsEnabled') {
           return Promise.reject(new Error('Storage error'));
         }

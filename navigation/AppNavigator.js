@@ -49,7 +49,6 @@ export default function AppNavigator() {
     wallet,
     currentAccount,
     loadWallet,
-    resetWallet,
   } = useWallet();
   const { fetchBalance } = useBalance();
   const {

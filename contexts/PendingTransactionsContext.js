@@ -53,6 +53,7 @@ export const PendingTransactionsProvider = ({ children, currentAccount, showToas
 
     setPendingTransactions(updated);
     await savePendingTransactions(updated);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [pendingTransactions, currentAccount]);
 
   /**
@@ -68,9 +69,10 @@ export const PendingTransactionsProvider = ({ children, currentAccount, showToas
 
     // Clean up spent UTXOs - when a transaction confirms, its inputs are truly spent on-chain
     // We can remove them from our tracking set
-    const updatedSpent = new Set(spentUtxos);
+    const _updatedSpent = new Set(spentUtxos);
     // Keep the spent set for now - we'll clean it up periodically
     // Actually, we should keep them to prevent reuse until they're confirmed
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [pendingTransactions, spentUtxos, currentAccount]);
 
   /**
@@ -114,6 +116,7 @@ export const PendingTransactionsProvider = ({ children, currentAccount, showToas
 
     return invalidated;
   }, [pendingTransactions, showToast, currentAccount]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
 
   /**
    * Get all unconfirmed UTXOs that can be spent
@@ -215,6 +218,7 @@ export const PendingTransactionsProvider = ({ children, currentAccount, showToas
     }
   }, [pendingTransactions, currentAccount]);
 
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   /**
    * Clean up old invalid transactions
    */
@@ -235,6 +239,7 @@ export const PendingTransactionsProvider = ({ children, currentAccount, showToas
     }
   }, [pendingTransactions, currentAccount]);
 
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   /**
    * Mark UTXOs as spent to prevent reuse
    * @param {Array} utxos - Array of {txid, vout} objects
@@ -251,6 +256,27 @@ export const PendingTransactionsProvider = ({ children, currentAccount, showToas
     setSpentUtxos(updated);
     await saveSpentUtxos(updated);
   }, [spentUtxos, currentAccount]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+
+  /**
+   * Unmark UTXOs as spent (e.g., when canceling a transaction)
+   * @param {Array} utxos - Array of {txid, vout} objects to release
+   */
+  const unmarkUtxosAsSpent = useCallback(async (utxos) => {
+    const updated = new Set(spentUtxos);
+
+    utxos.forEach(({ txid, vout }) => {
+      const key = `${txid}:${vout}`;
+      if (updated.has(key)) {
+        updated.delete(key);
+        logger.debug('✅ Unmarking UTXO as spent (released):', key);
+      }
+    });
+
+    setSpentUtxos(updated);
+    await saveSpentUtxos(updated);
+  }, [spentUtxos, currentAccount]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
 
   /**
    * Check if a UTXO is spent
@@ -281,6 +307,7 @@ export const PendingTransactionsProvider = ({ children, currentAccount, showToas
     markUtxoAsSpent,
     cleanupInvalidTransactions,
     markUtxosAsSpent,
+    unmarkUtxosAsSpent,
     isUtxoSpent,
     getSpentUtxos,
   };

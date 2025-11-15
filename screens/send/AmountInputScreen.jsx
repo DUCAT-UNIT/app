@@ -30,7 +30,7 @@ export default function AmountInputScreen({ navigation }) {
   const { segwitBalance, taprootBalance, runesBalance } = useBalance();
   const { btcPrice } = usePrice();
   const { wallet } = useWallet();
-  const { createSendIntent } = useTransactionBuild();
+  const { createSendIntent: _createSendIntent } = useTransactionBuild();
   const { keyboardHeight } = useKeyboard();
   const amountInputRef = useRef(null);
   const [isCalculatingMax, setIsCalculatingMax] = React.useState(false);

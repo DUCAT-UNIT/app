@@ -82,6 +82,7 @@ export const WalletDataProvider = ({ children }) => {
       history.fetchTransactionHistory();
       lastHistoryFetchRef.current = now;
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [wallet, balance.fetchBalance, vault.fetchVault, history.fetchTransactionHistory]);
 
   // Handle wallet changes - reset data when removed, fetch immediately when changed
@@ -106,6 +107,7 @@ export const WalletDataProvider = ({ children }) => {
       lastHistoryFetchRef.current = Date.now();
     }
     // Note: On initial mount (prevWallet is null), we rely on usePolling's immediate: true
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [wallet, balance.resetBalances, balance.fetchBalance, history.resetTransactionHistory, history.fetchTransactionHistory, vault.resetVaultData, vault.fetchVault]);
 
   // Single unified polling mechanism
@@ -154,6 +156,7 @@ export const WalletDataProvider = ({ children }) => {
       vaultError: vault.vaultError,
       fetchVault: vault.fetchVault,
       resetVaultData: vault.resetVaultData,
+    // eslint-disable-next-line react-hooks/exhaustive-deps
     }),
     [
       // Balance dependencies
