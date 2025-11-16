@@ -191,14 +191,24 @@ export default function OnboardingPage({
       setCurrentPinForPasskey(pin);
       // Load wallet into context first
       if (loadWallet) {
-        await loadWallet();
+        const result = await loadWallet();
+        console.log('[OnboardingPage] Wallet loaded:', result);
+
+        // Explicitly fetch balance for the loaded wallet
+        if (fetchBalance) {
+          console.log('[OnboardingPage] Fetching balance for imported wallet');
+          await fetchBalance();
+        }
       }
       // THEN show the modal (it will overlay the wallet page)
       setShowPasskeyMigrationPrompt(true);
     }
 
     // Always complete setup - don't block user from accessing wallet
-    console.log('[OnboardingPage] Completing setup');
+    console.log('[OnboardingPage] Completing setup, wallet context:', {
+      hasWallet: !!wallet,
+      currentAccount,
+    });
     handlePinSetupCompleteWrapper();
     setIsImportedWallet(false);
   };

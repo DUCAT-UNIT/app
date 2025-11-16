@@ -122,13 +122,9 @@ export function useWalletImport({ currentAccount, setSettingUpPin, showToast, lo
       setSettingUpPin(true);
       setIsImportedWallet(true);
 
-      // Store addresses in context and fetch balances
-      // Don't let balance fetch errors break the import flow
-      try {
-        setWalletAddresses(addresses, currentAccount);
-      } catch (balanceError) {
-        // Continue anyway - wallet is imported, balance will be fetched later
-      }
+      // Don't set wallet addresses here - we'll load the wallet properly after PIN setup
+      // This avoids double-setting the wallet context which could interfere with balance fetching
+      // The wallet will be loaded via loadWallet() in OnboardingPage after PIN is set
 
       // Store mnemonic for potential passkey migration
       setImportedMnemonic(mnemonic);
