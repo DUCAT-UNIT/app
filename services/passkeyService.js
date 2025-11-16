@@ -88,15 +88,20 @@ const generateRandomMnemonic = () => {
  * @param {string} pin - User's 6-digit PIN
  * @returns {Promise<CryptoKey>} 256-bit AES-GCM encryption key
  */
-const deriveEncryptionKey = async (credentialId, userHandle, pin) => {
+const deriveEncryptionKey = async (credentialId, userHandle, pin, pinSalt) => {
   try {
-    // Combine passkey data + PIN for Apple-proof encryption
-    // Apple has passkey but NOT the PIN
-    const pinBytes = new TextEncoder().encode(pin);
-    const ikm = new Uint8Array([...credentialId, ...userHandle, ...pinBytes]);
+    // SECURITY: Apply same 10,000 iteration hashing used for PIN verification
+    // This makes brute force ~10,000x harder (1 second → 28 hours)
+    const { hashPinForEncryption } = await import('./pinService');
+    const derivedPin = await hashPinForEncryption(pin, pinSalt);
+
+    // Combine passkey data + derived PIN for Apple-proof encryption
+    // Apple has passkey but NOT the PIN (and would need 28 hours to brute force)
+    const derivedPinBytes = new TextEncoder().encode(derivedPin);
+    const ikm = new Uint8Array([...credentialId, ...userHandle, ...derivedPinBytes]);
 
     // Different info string for encryption
-    const salt = new TextEncoder().encode('ducat-encryption-v2'); // v2 includes PIN
+    const salt = new TextEncoder().encode('ducat-encryption-v3'); // v3 uses derived PIN
     const info = new TextEncoder().encode('aes-256-gcm-key');
 
     // HKDF to derive 256-bit key
@@ -301,8 +306,18 @@ export const createWalletWithPasskey = async ({ userName, userDisplayName, pin }
       throw new Error('PIN is required for passkey wallet creation');
     }
 
-    // Derive encryption key from passkey + PIN (Apple-proof!)
-    const encryptionKey = await deriveEncryptionKey(credentialId, userHandle, pin);
+    // Save PIN for daily unlock (generates and saves salt)
+    const { savePin } = await import('./pinService');
+    await savePin(pin);
+
+    // Get the PIN salt that was just created
+    const pinSalt = await SecureStore.getItemAsync(SECURE_KEYS.PIN_SALT);
+    if (!pinSalt) {
+      throw new Error('Failed to generate PIN salt');
+    }
+
+    // Derive encryption key from passkey + PIN with 10k iterations (Apple-proof!)
+    const encryptionKey = await deriveEncryptionKey(credentialId, userHandle, pin, pinSalt);
 
     // Encrypt mnemonic for storage
     const { encrypted, iv, tag } = await encryptMnemonic(mnemonic, encryptionKey);
@@ -328,11 +343,7 @@ export const createWalletWithPasskey = async ({ userName, userDisplayName, pin }
     // Save current account (always 0 for new wallets)
     await SecureStore.setItemAsync(SECURE_KEYS.CURRENT_ACCOUNT, '0');
 
-    // Save PIN for daily unlock (import savePin from pinService)
-    const { savePin } = await import('./pinService');
-    await savePin(pin);
-
-    // Backup encrypted mnemonic to iCloud
+    // Backup encrypted mnemonic to iCloud (including PIN salt for recovery)
     let icloudBackupSucceeded = false;
     try {
       await saveToICloud({
@@ -341,6 +352,7 @@ export const createWalletWithPasskey = async ({ userName, userDisplayName, pin }
         tag,
         credentialId: Buffer.from(credentialId).toString('base64'),
         userHandle: Buffer.from(userHandle).toString('base64'),
+        pinSalt, // CRITICAL: needed for 10k iteration hashing on recovery
       });
       logger.debug('Encrypted backup saved to iCloud');
       icloudBackupSucceeded = true;
@@ -439,8 +451,14 @@ export const unlockWithPasskey = async (pin) => {
       throw new Error('PIN is required to unlock wallet');
     }
 
-    // Derive encryption key using passkey + PIN
-    const encryptionKey = await deriveEncryptionKey(credentialId, userHandle, pin);
+    // Get the PIN salt for 10k iteration hashing
+    const pinSalt = await SecureStore.getItemAsync(SECURE_KEYS.PIN_SALT);
+    if (!pinSalt) {
+      throw new Error('PIN salt not found - wallet may need to be reset');
+    }
+
+    // Derive encryption key using passkey + PIN (with 10k iterations)
+    const encryptionKey = await deriveEncryptionKey(credentialId, userHandle, pin, pinSalt);
 
     // Decrypt mnemonic
     const mnemonic = await decryptMnemonic(
@@ -530,8 +548,14 @@ export const recoverWithPasskey = async (pin) => {
       throw new Error('PIN is required to recover wallet');
     }
 
-    // Derive encryption key using passkey + PIN
-    const encryptionKey = await deriveEncryptionKey(credentialId, userHandle, pin);
+    // Use the PIN salt from the backup (critical for 10k iteration hashing)
+    const pinSalt = backup.pinSalt;
+    if (!pinSalt) {
+      throw new Error('PIN salt missing from backup - wallet may have been created with older version');
+    }
+
+    // Derive encryption key using passkey + PIN (with 10k iterations)
+    const encryptionKey = await deriveEncryptionKey(credentialId, userHandle, pin, pinSalt);
 
     // Decrypt mnemonic from iCloud backup
     logger.debug('Decrypting mnemonic from backup...');
@@ -561,6 +585,11 @@ export const recoverWithPasskey = async (pin) => {
     // Store in standard location
     await SecureStore.setItemAsync(SECURE_KEYS.MNEMONIC, mnemonic);
     await SecureStore.setItemAsync(SECURE_KEYS.CURRENT_ACCOUNT, '0');
+
+    // Store the PIN salt from backup and save the PIN hash for daily unlock
+    await SecureStore.setItemAsync(SECURE_KEYS.PIN_SALT, pinSalt);
+    const { savePinWithExistingSalt } = await import('./pinService');
+    await savePinWithExistingSalt(pin, pinSalt);
 
     logger.debug('Wallet recovered successfully from iCloud', {
       segwitAddress: addresses.segwitAddress,
@@ -647,8 +676,20 @@ export const addPasskeyToExistingWallet = async (mnemonic, userName, userDisplay
       throw new Error('PIN is required for passkey encryption');
     }
 
-    // Derive encryption key using passkey + PIN
-    const encryptionKey = await deriveEncryptionKey(credentialId, userHandle, pin);
+    // Check if PIN salt already exists, or create new one
+    let pinSalt = await SecureStore.getItemAsync(SECURE_KEYS.PIN_SALT);
+    if (!pinSalt) {
+      // No existing salt - save PIN to create one
+      const { savePin } = await import('./pinService');
+      await savePin(pin);
+      pinSalt = await SecureStore.getItemAsync(SECURE_KEYS.PIN_SALT);
+      if (!pinSalt) {
+        throw new Error('Failed to generate PIN salt');
+      }
+    }
+
+    // Derive encryption key using passkey + PIN (with 10k iterations)
+    const encryptionKey = await deriveEncryptionKey(credentialId, userHandle, pin, pinSalt);
 
     // Encrypt existing mnemonic
     const { encrypted, iv, tag } = await encryptMnemonic(mnemonic, encryptionKey);
@@ -667,6 +708,21 @@ export const addPasskeyToExistingWallet = async (mnemonic, userName, userDisplay
     await SecureStore.setItemAsync(PASSKEY_KEYS.ENCRYPTION_IV, iv);
     await SecureStore.setItemAsync(PASSKEY_KEYS.ENCRYPTION_TAG, tag);
 
+    // Backup to iCloud (including PIN salt)
+    try {
+      await saveToICloud({
+        encrypted,
+        iv,
+        tag,
+        credentialId: Buffer.from(credentialId).toString('base64'),
+        userHandle: Buffer.from(userHandle).toString('base64'),
+        pinSalt,
+      });
+      logger.debug('Passkey backup saved to iCloud');
+    } catch (icloudError) {
+      logger.warn('Failed to backup passkey to iCloud', { error: icloudError.message });
+    }
+
     logger.debug('Passkey added to wallet successfully');
 
     return {
@@ -675,6 +731,83 @@ export const addPasskeyToExistingWallet = async (mnemonic, userName, userDisplay
   } catch (error) {
     logger.error('Failed to add passkey to wallet', { error: error.message });
     throw error;
+  }
+};
+
+/**
+ * Re-encrypt passkey mnemonic with new PIN salt (called after PIN change)
+ * CRITICAL: Must be called when PIN changes, otherwise passkey unlock will fail
+ * @param {string} newPin - New PIN (already saved with new salt)
+ * @returns {Promise<void>}
+ */
+export const reencryptPasskeyMnemonicAfterPinChange = async (newPin) => {
+  try {
+    // Check if passkey is enabled
+    const enabled = await isPasskeyEnabled();
+    if (!enabled) {
+      logger.debug('Passkey not enabled, skipping re-encryption');
+      return;
+    }
+
+    logger.debug('Re-encrypting passkey mnemonic with new PIN salt');
+
+    // Get current passkey data
+    const credentialIdBase64 = await SecureStore.getItemAsync(PASSKEY_KEYS.CREDENTIAL_ID);
+    const userHandleBase64 = await SecureStore.getItemAsync(PASSKEY_KEYS.USER_HANDLE);
+
+    if (!credentialIdBase64 || !userHandleBase64) {
+      throw new Error('Passkey credentials not found');
+    }
+
+    const credentialId = new Uint8Array(Buffer.from(credentialIdBase64, 'base64'));
+    const userHandle = new Uint8Array(Buffer.from(userHandleBase64, 'base64'));
+
+    // Get the mnemonic from standard storage (not passkey-encrypted storage)
+    const mnemonic = await SecureStore.getItemAsync(SECURE_KEYS.MNEMONIC);
+    if (!mnemonic) {
+      throw new Error('Mnemonic not found');
+    }
+
+    // Get the NEW PIN salt (just created by savePin)
+    const newPinSalt = await SecureStore.getItemAsync(SECURE_KEYS.PIN_SALT);
+    if (!newPinSalt) {
+      throw new Error('New PIN salt not found');
+    }
+
+    // Derive encryption key using passkey + NEW PIN with 10k iterations
+    const encryptionKey = await deriveEncryptionKey(credentialId, userHandle, newPin, newPinSalt);
+
+    // Encrypt mnemonic with new key
+    const { encrypted, iv, tag } = await encryptMnemonic(mnemonic, encryptionKey);
+
+    // Update passkey storage with new encrypted data
+    await SecureStore.setItemAsync(PASSKEY_KEYS.ENCRYPTED_MNEMONIC, encrypted);
+    await SecureStore.setItemAsync(PASSKEY_KEYS.ENCRYPTION_IV, iv);
+    await SecureStore.setItemAsync(PASSKEY_KEYS.ENCRYPTION_TAG, tag);
+
+    // Update iCloud backup with new encrypted data and new salt
+    try {
+      await saveToICloud({
+        encrypted,
+        iv,
+        tag,
+        credentialId: credentialIdBase64,
+        userHandle: userHandleBase64,
+        pinSalt: newPinSalt,
+      });
+      logger.debug('Updated iCloud backup with re-encrypted mnemonic');
+    } catch (icloudError) {
+      logger.warn('Failed to update iCloud backup after PIN change', {
+        error: icloudError.message,
+      });
+    }
+
+    logger.debug('Passkey mnemonic re-encrypted successfully with new PIN salt');
+  } catch (error) {
+    logger.error('Failed to re-encrypt passkey mnemonic after PIN change', {
+      error: error.message,
+    });
+    throw new Error('Failed to update passkey encryption with new PIN');
   }
 };
 
