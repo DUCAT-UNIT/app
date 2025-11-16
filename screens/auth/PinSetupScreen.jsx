@@ -37,7 +37,7 @@ export default function PinSetupScreen({
 
   // Debug: Log when component renders
 
-  const handlePinDigit = (digit) => {
+  const handlePinDigit = async (digit) => {
     if (pinStep === 'enter') {
       if (pin.length < 6) {
         const newPin = pin + digit;
