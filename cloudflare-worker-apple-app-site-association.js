@@ -11,9 +11,7 @@ export default {
 
       const association = {
         "webcredentials": {
-          "apps": [
-            "Q8HU4KXHK4.com.anonymous.SimpleWallet"
-          ]
+          "apps": ["Q8HU4KXHK4.com.anonymous.SimpleWallet"]
         }
       };
 
