@@ -312,8 +312,9 @@ export const createWalletWithPasskey = async ({ userName, userDisplayName, pin }
 
     // Get the PIN salt that was just created
     const pinSalt = await SecureStore.getItemAsync(SECURE_KEYS.PIN_SALT);
-    if (!pinSalt) {
-      throw new Error('Failed to generate PIN salt');
+    // Validate salt format: 32 bytes = 64 hex characters
+    if (!pinSalt || pinSalt.length !== 64 || !/^[0-9a-f]{64}$/i.test(pinSalt)) {
+      throw new Error('Invalid or missing PIN salt - wallet creation failed');
     }
 
     // Derive encryption key from passkey + PIN with 10k iterations (Apple-proof!)
@@ -453,8 +454,9 @@ export const unlockWithPasskey = async (pin) => {
 
     // Get the PIN salt for 10k iteration hashing
     const pinSalt = await SecureStore.getItemAsync(SECURE_KEYS.PIN_SALT);
-    if (!pinSalt) {
-      throw new Error('PIN salt not found - wallet may need to be reset');
+    // Validate salt format: 32 bytes = 64 hex characters
+    if (!pinSalt || pinSalt.length !== 64 || !/^[0-9a-f]{64}$/i.test(pinSalt)) {
+      throw new Error('Invalid or corrupted PIN salt - wallet may need to be reset');
     }
 
     // Derive encryption key using passkey + PIN (with 10k iterations)
@@ -550,8 +552,9 @@ export const recoverWithPasskey = async (pin) => {
 
     // Use the PIN salt from the backup (critical for 10k iteration hashing)
     const pinSalt = backup.pinSalt;
-    if (!pinSalt) {
-      throw new Error('PIN salt missing from backup - wallet may have been created with older version');
+    // Validate salt format: 32 bytes = 64 hex characters
+    if (!pinSalt || pinSalt.length !== 64 || !/^[0-9a-f]{64}$/i.test(pinSalt)) {
+      throw new Error('Invalid or missing PIN salt in backup - cannot decrypt wallet');
     }
 
     // Derive encryption key using passkey + PIN (with 10k iterations)
@@ -683,9 +686,11 @@ export const addPasskeyToExistingWallet = async (mnemonic, userName, userDisplay
       const { savePin } = await import('./pinService');
       await savePin(pin);
       pinSalt = await SecureStore.getItemAsync(SECURE_KEYS.PIN_SALT);
-      if (!pinSalt) {
-        throw new Error('Failed to generate PIN salt');
-      }
+    }
+
+    // Validate salt format: 32 bytes = 64 hex characters
+    if (!pinSalt || pinSalt.length !== 64 || !/^[0-9a-f]{64}$/i.test(pinSalt)) {
+      throw new Error('Invalid or missing PIN salt - cannot add passkey to wallet');
     }
 
     // Derive encryption key using passkey + PIN (with 10k iterations)
@@ -770,8 +775,9 @@ export const reencryptPasskeyMnemonicAfterPinChange = async (newPin) => {
 
     // Get the NEW PIN salt (just created by savePin)
     const newPinSalt = await SecureStore.getItemAsync(SECURE_KEYS.PIN_SALT);
-    if (!newPinSalt) {
-      throw new Error('New PIN salt not found');
+    // Validate salt format: 32 bytes = 64 hex characters
+    if (!newPinSalt || newPinSalt.length !== 64 || !/^[0-9a-f]{64}$/i.test(newPinSalt)) {
+      throw new Error('Invalid new PIN salt - cannot re-encrypt passkey data');
     }
 
     // Derive encryption key using passkey + NEW PIN with 10k iterations
