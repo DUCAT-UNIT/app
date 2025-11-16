@@ -18,6 +18,7 @@ import { useBalance } from './WalletDataContext';
 import { useOnboardingFlow } from './AuthContext';
 import { useSeedPhrase } from './SeedPhraseContext';
 import { useToastContext } from './UIContext';
+import { useVault } from './VaultContext';
 import { useSettings } from '../hooks/useSettings';
 import { useAccountSwitcher } from '../hooks/useAccountSwitcher';
 import { usePostAuthHandler } from '../hooks/usePostAuthHandler';
@@ -44,6 +45,7 @@ export const NavigationHandlersProvider = ({ children, walletExists }) => {
   const { setSeedConfirmed } = useOnboardingFlow();
   const { requestingSeedPhrase, loadSeedPhrase, requestViewSeedPhrase } = useSeedPhrase();
   const { showToast } = useToastContext();
+  const { clearVaultCredentials } = useVault();
 
   // Post-authentication handler
   const { handlePostAuth } = usePostAuthHandler({
@@ -86,6 +88,7 @@ export const NavigationHandlersProvider = ({ children, walletExists }) => {
     setBiometricEnabled,
     resetAuth,
     resetWallet,
+    clearVaultCredentials,
     startPinChange,
     walletExistsRef: walletExists,
     setIsAuthenticated,

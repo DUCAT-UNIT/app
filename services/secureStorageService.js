@@ -130,6 +130,14 @@ export const getCurrentAccount = async () => {
  */
 export const deleteWalletData = async () => {
   try {
+    // Clear passkey data if it exists
+    try {
+      const { clearPasskeyData } = await import('./passkeyService');
+      await clearPasskeyData();
+    } catch (passkeyError) {
+      // Passkey service might not be available or error clearing - continue anyway
+    }
+
     await Promise.all([
       SecureStore.deleteItemAsync(SECURE_KEYS.MNEMONIC),
       SecureStore.deleteItemAsync(SECURE_KEYS.CURRENT_ACCOUNT),

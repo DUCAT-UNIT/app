@@ -104,6 +104,13 @@ export const VaultProvider = ({ children, currentAccount }) => {
     }
   }, [vaultCredentials]);
 
+  const clearVaultCredentials = useCallback(() => {
+    logger.debug('🏦 Clearing vault credentials');
+    setVaultCredentials(null);
+    setActiveTab('wallet');
+    hasRetriedRef.current = false;
+  }, []);
+
   const value = useMemo(
     () => ({
       vaultCredentials,
@@ -111,8 +118,9 @@ export const VaultProvider = ({ children, currentAccount }) => {
       activeTab,
       setActiveTab,
       openVault,
+      clearVaultCredentials,
     }),
-    [vaultCredentials, autoCreateVaultTrigger, activeTab, openVault]
+    [vaultCredentials, autoCreateVaultTrigger, activeTab, openVault, clearVaultCredentials]
   );
 
   return <VaultContext.Provider value={value}>{children}</VaultContext.Provider>;

@@ -8,7 +8,7 @@ import * as SecureStore from 'expo-secure-store';
 import * as AuthService from '../services/authService';
 import { ERRORS, SUCCESS } from '../utils/messages';
 
-export function useWalletActions({ resetAuth, resetWallet, walletExistsRef, setIsAuthenticated, showToast }) {
+export function useWalletActions({ resetAuth, resetWallet, clearVaultCredentials, walletExistsRef, setIsAuthenticated, showToast }) {
   const [showLogoutModal, setShowLogoutModal] = useState(false);
   const [showDeleteModal, setShowDeleteModal] = useState(false);
 
@@ -55,6 +55,11 @@ export function useWalletActions({ resetAuth, resetWallet, walletExistsRef, setI
     try {
       const success = await AuthService.deleteWalletData();
       if (success) {
+        // Clear vault credentials and data
+        if (clearVaultCredentials) {
+          clearVaultCredentials();
+        }
+
         resetWallet();
         if (walletExistsRef && walletExistsRef.current !== undefined) {
           walletExistsRef.current = false;
@@ -74,7 +79,7 @@ export function useWalletActions({ resetAuth, resetWallet, walletExistsRef, setI
         showToast(ERRORS.WALLET_DELETE_FAILED, 'error');
       }
     }
-  }, [resetAuth, resetWallet, walletExistsRef, setIsAuthenticated, showToast]);
+  }, [resetAuth, resetWallet, clearVaultCredentials, walletExistsRef, setIsAuthenticated, showToast]);
 
   const cancelDeleteWallet = useCallback(() => {
     setShowDeleteModal(false);
