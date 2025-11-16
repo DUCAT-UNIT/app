@@ -729,11 +729,14 @@ export const removePasskey = async () => {
 };
 
 /**
- * Clear all passkey data (for wallet deletion)
+ * Clear local passkey data (for wallet deletion on this device)
+ * NOTE: iCloud backup is intentionally NOT cleared to allow restoration on same device
+ * @param {boolean} clearICloudBackup - Optional: if true, also clears iCloud backup
  * @returns {Promise<void>}
  */
-export const clearPasskeyData = async () => {
+export const clearPasskeyData = async (clearICloudBackup = false) => {
   try {
+    // Clear local secure storage
     await SecureStore.deleteItemAsync(PASSKEY_KEYS.ENABLED);
     await SecureStore.deleteItemAsync(PASSKEY_KEYS.CREATION_METHOD);
     await SecureStore.deleteItemAsync(PASSKEY_KEYS.CREDENTIAL_ID);
@@ -742,14 +745,19 @@ export const clearPasskeyData = async () => {
     await SecureStore.deleteItemAsync(PASSKEY_KEYS.ENCRYPTION_IV);
     await SecureStore.deleteItemAsync(PASSKEY_KEYS.ENCRYPTION_TAG);
 
-    // Also clear iCloud backup
-    try {
-      await clearICloud();
-    } catch (icloudError) {
-      logger.warn('Failed to clear iCloud backup', { error: icloudError.message });
-    }
+    logger.debug('Local passkey data cleared');
 
-    logger.debug('All passkey data cleared');
+    // Only clear iCloud backup if explicitly requested
+    if (clearICloudBackup) {
+      try {
+        await clearICloud();
+        logger.debug('iCloud backup also cleared');
+      } catch (icloudError) {
+        logger.warn('Failed to clear iCloud backup', { error: icloudError.message });
+      }
+    } else {
+      logger.debug('iCloud backup preserved for restoration');
+    }
   } catch (error) {
     logger.error('Failed to clear passkey data', { error: error.message });
   }
