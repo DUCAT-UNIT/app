@@ -14,7 +14,6 @@ import LockScreen from '../screens/auth/LockScreen';
 import MutinynetBanner from '../components/MutinynetBanner';
 import BiometricPromptModal from '../components/BiometricPromptModal';
 import ToastContainer from '../components/ToastContainer';
-import PasskeyMigrationModal from '../components/PasskeyMigrationModal';
 import Icon from '../components/icons';
 
 // Contexts
@@ -68,8 +67,8 @@ export default function OnboardingPage({
   // Wallet context
   const { wallet, currentAccount, loadWallet } = useWallet();
 
-  // State to store the PIN for passkey migration
-  const [currentPinForPasskey, setCurrentPinForPasskey] = React.useState(null);
+  // Navigation handlers (includes passkey migration)
+  const { showPasskeyMigrationPrompt: showPasskeyMigrationPromptGlobal } = useNavigationHandlers();
 
   // Wallet creation hook
   const {
@@ -97,13 +96,10 @@ export default function OnboardingPage({
     isImportedWallet,
     isImporting,
     seedInputRefs,
-    showPasskeyMigrationPrompt,
     importedMnemonic,
     setImportingWallet,
     setImportSeedPhrase,
     setIsImportedWallet,
-    setShowPasskeyMigrationPrompt,
-    setImportedMnemonic,
     importWallet,
   } = useWalletImport({
     currentAccount,
@@ -186,9 +182,14 @@ export default function OnboardingPage({
     }
 
     // For imported wallets with mnemonic, show passkey migration prompt (non-blocking)
+    console.log('[OnboardingPage] Checking passkey modal conditions:', {
+      isImportedWallet,
+      hasPin: !!pin,
+      hasImportedMnemonic: !!importedMnemonic,
+    });
+
     if (isImportedWallet && pin && importedMnemonic) {
       console.log('[OnboardingPage] Imported wallet - will show passkey migration modal');
-      setCurrentPinForPasskey(pin);
       // Load wallet into context first
       if (loadWallet) {
         const result = await loadWallet();
@@ -200,8 +201,9 @@ export default function OnboardingPage({
           await fetchBalance();
         }
       }
-      // THEN show the modal (it will overlay the wallet page)
-      setShowPasskeyMigrationPrompt(true);
+      // THEN show the modal via global context (it will overlay the wallet page)
+      console.log('[OnboardingPage] Showing passkey migration modal');
+      showPasskeyMigrationPromptGlobal(importedMnemonic, pin);
     }
 
     // Always complete setup - don't block user from accessing wallet
@@ -234,14 +236,6 @@ export default function OnboardingPage({
     await resetWalletAndState();
   };
 
-  // Passkey migration modal handler - must be defined before any conditional returns
-  const handlePasskeyMigrationClose = useCallback(() => {
-    console.log('[OnboardingPage] Passkey migration modal closed');
-    setShowPasskeyMigrationPrompt(false);
-    setImportedMnemonic(null);
-    setCurrentPinForPasskey(null);
-    // Wallet is already loaded and user is already authenticated - just close modal
-  }, []);
 
   // Passkey PIN Input (for passkey wallet creation)
   if (showPinInput) {
@@ -595,28 +589,15 @@ export default function OnboardingPage({
     );
   }
 
-  console.log('[OnboardingPage] Reaching end - returning', {
+  // This should not be reached - user should be authenticated and showing wallet
+  console.log('[OnboardingPage] Reached unexpected end state:', {
     wallet: !!wallet,
     isAuthenticated,
     seedConfirmed,
-    showPasskeyMigrationPrompt,
   });
 
-  // Render the passkey migration modal globally (will overlay whatever screen is showing)
-  // This allows it to show over the wallet page without blocking navigation
-  return (
-    <>
-      {showPasskeyMigrationPrompt && (
-        <PasskeyMigrationModal
-          visible={showPasskeyMigrationPrompt}
-          onClose={handlePasskeyMigrationClose}
-          mnemonic={importedMnemonic}
-          currentPin={currentPinForPasskey}
-          showToast={showToast}
-        />
-      )}
-    </>
-  );
+  // Return null - modal is rendered in RootNavigator
+  return null;
 }
 
 const localStyles = StyleSheet.create({

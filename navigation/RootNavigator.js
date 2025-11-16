@@ -11,6 +11,7 @@ import AuthStack from './AuthStack';
 import MainTabs from './MainTabs';
 import SendNavigator from './SendNavigator';
 import PinSetupScreen from '../screens/auth/PinSetupScreen';
+import PasskeyMigrationModal from '../components/PasskeyMigrationModal';
 import MutinynetBanner from '../components/MutinynetBanner';
 import { COLORS } from '../theme';
 import { useAuth } from '../contexts/AuthContext';
@@ -31,8 +32,14 @@ export default function RootNavigator() {
   const { showToast } = useToastContext();
 
   // Get handlers from context
-  const { handlePinSetupCompleteWrapper, handlePinChangeCompleteWrapper, handleCancelPinChange } =
-    useNavigationHandlers();
+  const {
+    handlePinSetupCompleteWrapper,
+    handlePinChangeCompleteWrapper,
+    handleCancelPinChange,
+    showPasskeyMigrationModal,
+    passkeyMigrationData,
+    hidePasskeyMigrationPrompt,
+  } = useNavigationHandlers();
 
   return (
     <NavigationContainer>
@@ -74,6 +81,17 @@ export default function RootNavigator() {
             showToast={showToast}
           />
         </View>
+      )}
+
+      {/* Passkey Migration Modal - shown after wallet import */}
+      {showPasskeyMigrationModal && passkeyMigrationData && (
+        <PasskeyMigrationModal
+          visible={showPasskeyMigrationModal}
+          onClose={hidePasskeyMigrationPrompt}
+          mnemonic={passkeyMigrationData.mnemonic}
+          currentPin={passkeyMigrationData.pin}
+          showToast={showToast}
+        />
       )}
     </NavigationContainer>
   );

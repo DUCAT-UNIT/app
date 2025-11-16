@@ -7,7 +7,7 @@
  * brittle and not valuable. This should be tested via integration/E2E tests.
  */
 
-import React, { createContext, useContext, useCallback, useMemo } from 'react';
+import React, { createContext, useContext, useCallback, useMemo, useState } from 'react';
 import PropTypes from 'prop-types';
 import * as SecureStore from 'expo-secure-store';
 import { SECURE_KEYS } from '../utils/constants';
@@ -105,6 +105,10 @@ export const NavigationHandlersProvider = ({ children, walletExists }) => {
     switchAccount,
   } = useAccountSwitcher({ switchAccountContext });
 
+  // Passkey migration modal state (for showing after wallet import)
+  const [showPasskeyMigrationModal, setShowPasskeyMigrationModal] = useState(false);
+  const [passkeyMigrationData, setPasskeyMigrationData] = useState(null);
+
   // Reset wallet and state
   const resetWalletAndState = useCallback(async () => {
     await SecureStore.deleteItemAsync(SECURE_KEYS.MNEMONIC);
@@ -135,6 +139,17 @@ export const NavigationHandlersProvider = ({ children, walletExists }) => {
     await SecureStore.setItemAsync('returnToSettingsAfterPinChange', 'true');
     setIsAuthenticated(true);
   }, [setSettingUpPin, setChangingPin, setIsAuthenticated]);
+
+  // Passkey migration handlers
+  const showPasskeyMigrationPrompt = useCallback((mnemonic, pin) => {
+    setPasskeyMigrationData({ mnemonic, pin });
+    setShowPasskeyMigrationModal(true);
+  }, []);
+
+  const hidePasskeyMigrationPrompt = useCallback(() => {
+    setShowPasskeyMigrationModal(false);
+    setPasskeyMigrationData(null);
+  }, []);
 
   // Settings handlers object - memoized to prevent recreation on every render
   const settingsHandlers = useMemo(
@@ -196,6 +211,12 @@ export const NavigationHandlersProvider = ({ children, walletExists }) => {
       setNewAccountIndex,
       switchingAccount,
       switchAccount,
+
+      // Passkey migration
+      showPasskeyMigrationModal,
+      passkeyMigrationData,
+      showPasskeyMigrationPrompt,
+      hidePasskeyMigrationPrompt,
     }),
     [
       handlePinSetupCompleteWrapper,
@@ -223,6 +244,10 @@ export const NavigationHandlersProvider = ({ children, walletExists }) => {
       setNewAccountIndex,
       switchingAccount,
       switchAccount,
+      showPasskeyMigrationModal,
+      passkeyMigrationData,
+      showPasskeyMigrationPrompt,
+      hidePasskeyMigrationPrompt,
     ]
   );
 

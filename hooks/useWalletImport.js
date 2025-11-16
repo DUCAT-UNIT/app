@@ -23,7 +23,6 @@ export function useWalletImport({ currentAccount, setSettingUpPin, showToast, lo
   const [importSeedPhrase, setImportSeedPhrase] = useState(Array(12).fill(''));
   const [isImportedWallet, setIsImportedWallet] = useState(false);
   const [isImporting, setIsImporting] = useState(false); // Loading state
-  const [showPasskeyMigrationPrompt, setShowPasskeyMigrationPrompt] = useState(false);
   const [importedMnemonic, setImportedMnemonic] = useState(null); // Store mnemonic for passkey migration
   const seedInputRefs = useRef([]);
 
@@ -164,15 +163,12 @@ export function useWalletImport({ currentAccount, setSettingUpPin, showToast, lo
     isImportedWallet,
     isImporting, // Loading state
     seedInputRefs,
-    showPasskeyMigrationPrompt,
     importedMnemonic,
 
     // Setters
     setImportingWallet,
     setImportSeedPhrase,
     setIsImportedWallet,
-    setShowPasskeyMigrationPrompt,
-    setImportedMnemonic,
 
     // Functions
     importWallet,
