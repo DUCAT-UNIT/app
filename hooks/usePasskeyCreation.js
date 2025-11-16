@@ -79,11 +79,12 @@ export function usePasskeyCreation({ setIsAuthenticated, setSeedConfirmed, showT
 
       // Get device name for passkey display
       const deviceName = Device.deviceName || 'iPhone';
+      const userName = `${deviceName}-DUCAT_APP`;
       const displayName = `${deviceName} - Ducat`;
 
       // Create wallet with passkey + PIN
       const { mnemonic, addresses, icloudBackupSucceeded } = await PasskeyService.createWalletWithPasskey({
-        userName: `ducat-${Date.now()}`,
+        userName,
         userDisplayName: displayName,
         pin,
       });
