@@ -44,8 +44,11 @@ const loadLockoutState = async () => {
 
 /**
  * Save lockout state to secure storage
+ * CRITICAL: This function throws on failure (fail closed for security)
+ * If we can't save lockout state, we must deny access to prevent unlimited attempts
  * @param {number} failedAttempts
  * @param {number|null} lockoutUntil
+ * @throws {Error} If lockout state cannot be saved (security critical)
  */
 const saveLockoutState = async (failedAttempts, lockoutUntil) => {
   try {
@@ -56,7 +59,15 @@ const saveLockoutState = async (failedAttempts, lockoutUntil) => {
       await SecureStore.deleteItemAsync(LOCKOUT_KEYS.LOCKOUT_UNTIL);
     }
   } catch (error) {
-    // Fail silently - lockout state is a security feature, not critical for operation
+    // SECURITY: Fail closed - if we can't save lockout state, throw error
+    // This prevents attackers from triggering storage failures to bypass rate limiting
+    console.error('CRITICAL: Failed to save lockout state', {
+      error: error.message,
+      failedAttempts,
+      lockoutUntil,
+      recommendation: 'Check device storage space and permissions',
+    });
+    throw new Error('Unable to enforce rate limiting. Access denied for security.');
   }
 };
 
@@ -301,6 +312,15 @@ export const verifyPin = async (enteredPin) => {
       };
     }
   } catch (error) {
+    // Check if this is a lockout state save failure (fail closed scenario)
+    if (error.message && error.message.includes('Unable to enforce rate limiting')) {
+      return {
+        success: false,
+        error: error.message, // Pass through the specific error message
+      };
+    }
+
+    // Generic PIN verification failure
     return {
       success: false,
       error: 'Failed to verify PIN',
