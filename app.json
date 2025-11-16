@@ -15,13 +15,12 @@
     "ios": {
       "supportsTablet": true,
       "bundleIdentifier": "com.anonymous.SimpleWallet",
-      "buildNumber": "38",
+      "buildNumber": "39",
       "associatedDomains": [
         "webcredentials:ducatprotocol.com",
         "applinks:ducatprotocol.com"
       ],
       "usesIcloudStorage": true,
-      "iCloudContainerEnvironment": "Production",
       "infoPlist": {
         "UIBackgroundModes": [
           "remote-notification",
