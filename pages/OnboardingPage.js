@@ -201,13 +201,21 @@ export default function OnboardingPage({
 
       // Explicitly fetch balance after loading wallet using the addresses
       if (fetchBalance && walletAddresses) {
-        console.log('[OnboardingPage] Fetching balance for imported wallet');
+        console.log('[OnboardingPage] Fetching balance for imported wallet with addresses:', {
+          segwit: walletAddresses.segwitAddress,
+          taproot: walletAddresses.taprootAddress,
+        });
         try {
           await fetchBalance(walletAddresses.segwitAddress, walletAddresses.taprootAddress);
           console.log('[OnboardingPage] Balance fetched successfully');
         } catch (error) {
           console.error('[OnboardingPage] Balance fetch error:', error);
         }
+      } else {
+        console.log('[OnboardingPage] Cannot fetch balance:', {
+          hasFetchBalance: !!fetchBalance,
+          hasWalletAddresses: !!walletAddresses,
+        });
       }
 
       // Capture values for passkey modal

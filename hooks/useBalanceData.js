@@ -35,12 +35,26 @@ export function useBalanceData(wallet, getUnconfirmedBalance) {
       const segwitAddress = segwitAddr || wallet?.segwitAddress;
       const taprootAddress = taprootAddr || wallet?.taprootAddress;
 
-      if (!segwitAddress || !taprootAddress) return;
+      console.log('[useBalanceData] fetchBalance called with:', {
+        segwitAddr,
+        taprootAddr,
+        walletSegwit: wallet?.segwitAddress,
+        walletTaproot: wallet?.taprootAddress,
+        finalSegwit: segwitAddress,
+        finalTaproot: taprootAddress,
+      });
+
+      if (!segwitAddress || !taprootAddress) {
+        console.log('[useBalanceData] Missing addresses, returning early');
+        return;
+      }
 
       try {
+        console.log('[useBalanceData] Fetching balances...');
         setLoadingBalance(true);
         setBalanceError(null);
         const balances = await fetchWalletBalances(segwitAddress, taprootAddress);
+        console.log('[useBalanceData] Balances fetched:', balances);
 
         // Only update state if balances have actually changed
         const prevBalances = prevBalancesRef.current;
