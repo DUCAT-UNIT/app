@@ -4,6 +4,7 @@
  */
 
 import { useState, useRef } from 'react';
+import * as Device from 'expo-device';
 import * as PasskeyService from '../services/passkeyService';
 
 export function usePasskeyCreation({ setIsAuthenticated, setSeedConfirmed, showToast, loadWallet }) {
@@ -76,16 +77,16 @@ export function usePasskeyCreation({ setIsAuthenticated, setSeedConfirmed, showT
     try {
       setIsCreating(true);
 
+      // Get device name for passkey display
+      const deviceName = Device.deviceName || 'iPhone';
+      const displayName = `${deviceName} - Ducat`;
+
       // Create wallet with passkey + PIN
       const { mnemonic, addresses } = await PasskeyService.createWalletWithPasskey({
         userName: `ducat-${Date.now()}`,
-        userDisplayName: 'Ducat User',
+        userDisplayName: displayName,
         pin,
       });
-
-      // Store mnemonic and addresses to show to user
-      setPasskeyMnemonic(mnemonic);
-      setPasskeyAddresses(addresses);
 
       // Wallet is now created and saved
       walletExistsRef.current = true;
@@ -95,11 +96,12 @@ export function usePasskeyCreation({ setIsAuthenticated, setSeedConfirmed, showT
       setPasskeyPin('');
       setPasskeyPinConfirm('');
       setConfirmingPin(false);
+      setCreatingWithPasskey(false);
 
       // Reload wallet
       await loadWallet();
 
-      // Mark as authenticated and seed confirmed
+      // Mark as authenticated and seed confirmed (skip seed phrase display)
       setIsAuthenticated(true);
       setSeedConfirmed(true);
 
