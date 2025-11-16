@@ -55,9 +55,7 @@ export const BIOMETRIC = {
 export const PASSKEY = {
   // Relying Party configuration
   RP_NAME: 'Ducat Wallet',
-  // TODO: Enable rpId once provisioning profile has Associated Domains capability
-  // RP_ID: 'ducatprotocol.com',
-  RP_ID: null, // Disabled until provisioning profile is fixed
+  RP_ID: 'ducatprotocol.com', // Production domain with proper associated domains setup
   TIMEOUT_MS: 60000, // 60 seconds
 
   // User verification requirements

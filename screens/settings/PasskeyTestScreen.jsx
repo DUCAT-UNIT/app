@@ -62,65 +62,138 @@ export default function PasskeyTestScreen({ navigation }) {
 
   // Test: Create wallet with passkey
   const testCreateWallet = async () => {
-    setLoading(true);
-    setResult(null);
-    try {
-      const data = await PasskeyService.createWalletWithPasskey({
-        userName: 'test@ducat.app',
-        userDisplayName: 'Test User',
-      });
+    // Prompt for PIN
+    Alert.prompt(
+      'Enter PIN',
+      'Enter a 6-digit PIN to encrypt the wallet',
+      [
+        {
+          text: 'Cancel',
+          style: 'cancel',
+        },
+        {
+          text: 'Create',
+          onPress: async (pin) => {
+            if (!pin || pin.length !== 6) {
+              Alert.alert('Error', 'Please enter a 6-digit PIN');
+              return;
+            }
 
-      setResult(data);
-      Alert.alert(
-        '✅ Success!',
-        `Wallet created!\n\nMnemonic: ${data.mnemonic}\n\nSegWit: ${data.addresses.segwitAddress.slice(0, 20)}...`
-      );
-    } catch (error) {
-      Alert.alert('❌ Error', error.message);
-      console.error('Create wallet error:', error);
-    } finally {
-      setLoading(false);
-    }
+            setLoading(true);
+            setResult(null);
+            try {
+              const data = await PasskeyService.createWalletWithPasskey({
+                userName: 'test@ducat.app',
+                userDisplayName: 'Test User',
+                pin: pin,
+              });
+
+              setResult(data);
+              Alert.alert(
+                '✅ Success!',
+                `Wallet created!\n\nMnemonic: ${data.mnemonic.substring(0, 20)}...\n\nSegWit: ${data.addresses.segwitAddress.slice(0, 20)}...`
+              );
+            } catch (error) {
+              Alert.alert('❌ Error', error.message);
+              console.error('Create wallet error:', error);
+            } finally {
+              setLoading(false);
+            }
+          },
+        },
+      ],
+      'plain-text',
+      '',
+      'number-pad'
+    );
   };
 
   // Test: Unlock with passkey
   const testUnlock = async () => {
-    setLoading(true);
-    setResult(null);
-    try {
-      const data = await PasskeyService.unlockWithPasskey();
+    // Prompt for PIN
+    Alert.prompt(
+      'Enter PIN',
+      'Enter your 6-digit PIN to decrypt the wallet',
+      [
+        {
+          text: 'Cancel',
+          style: 'cancel',
+        },
+        {
+          text: 'Unlock',
+          onPress: async (pin) => {
+            if (!pin || pin.length !== 6) {
+              Alert.alert('Error', 'Please enter a 6-digit PIN');
+              return;
+            }
 
-      setResult(data);
-      Alert.alert(
-        '✅ Success!',
-        `Wallet unlocked!\n\nMnemonic: ${data.mnemonic}\n\nSegWit: ${data.addresses.segwitAddress.slice(0, 20)}...`
-      );
-    } catch (error) {
-      Alert.alert('❌ Error', error.message);
-      console.error('Unlock error:', error);
-    } finally {
-      setLoading(false);
-    }
+            setLoading(true);
+            setResult(null);
+            try {
+              const data = await PasskeyService.unlockWithPasskey(pin);
+
+              setResult(data);
+              Alert.alert(
+                '✅ Success!',
+                `Wallet unlocked!\n\nMnemonic: ${data.mnemonic.substring(0, 20)}...\n\nSegWit: ${data.addresses.segwitAddress.slice(0, 20)}...`
+              );
+            } catch (error) {
+              Alert.alert('❌ Error', error.message);
+              console.error('Unlock error:', error);
+            } finally {
+              setLoading(false);
+            }
+          },
+        },
+      ],
+      'plain-text',
+      '',
+      'number-pad'
+    );
   };
 
   // Test: Recover with passkey
   const testRecover = async () => {
-    setLoading(true);
-    setResult(null);
-    try {
-      const data = await PasskeyService.recoverWithPasskey();
+    // Prompt for PIN
+    Alert.prompt(
+      'Enter PIN',
+      'Enter your 6-digit PIN to decrypt the wallet',
+      [
+        {
+          text: 'Cancel',
+          style: 'cancel',
+        },
+        {
+          text: 'Recover',
+          onPress: async (pin) => {
+            if (!pin || pin.length !== 6) {
+              Alert.alert('Error', 'Please enter a 6-digit PIN');
+              return;
+            }
 
-      setResult(data);
-      Alert.alert(
-        '✅ Success!',
-        `Wallet recovered!\n\nMnemonic: ${data.mnemonic}\n\nSegWit: ${data.addresses.segwitAddress.slice(0, 20)}...`
-      );
-    } catch (error) {
-      Alert.alert('❌ Error', error.message);
-      console.error('Recover error:', error);
-    } finally {
-      setLoading(false);
-    }
+            setLoading(true);
+            setResult(null);
+            try {
+              const data = await PasskeyService.recoverWithPasskey(pin);
+
+              setResult(data);
+              Alert.alert(
+                '✅ Success!',
+                `Wallet recovered!\n\nMnemonic: ${data.mnemonic.substring(0, 20)}...\n\nSegWit: ${data.addresses.segwitAddress.slice(0, 20)}...`
+              );
+            } catch (error) {
+              Alert.alert('❌ Error', error.message);
+              console.error('Recover error:', error);
+            } finally {
+              setLoading(false);
+            }
+          },
+        },
+      ],
+      'plain-text',
+      '',
+      'number-pad'
+    );
   };
 
   // Test: Remove passkey
