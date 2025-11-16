@@ -15,7 +15,7 @@
     "ios": {
       "supportsTablet": true,
       "bundleIdentifier": "com.anonymous.SimpleWallet",
-      "buildNumber": "39",
+      "buildNumber": "40",
       "associatedDomains": [
         "webcredentials:ducatprotocol.com",
         "applinks:ducatprotocol.com"
@@ -51,6 +51,12 @@
         {
           "icon": "./assets/logos/icon.png",
           "color": "#ffffff"
+        }
+      ],
+      [
+        "react-native-icloudstore",
+        {
+          "iCloudContainerEnvironment": "Production"
         }
       ]
     ],
