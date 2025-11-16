@@ -5,8 +5,7 @@
 
 import * as SecureStore from 'expo-secure-store';
 import * as Crypto from 'expo-crypto';
-import crypto from 'crypto';
-import { pbkdf2 } from 'react-native-quick-crypto';
+import { pbkdf2, timingSafeEqual } from 'react-native-quick-crypto';
 import { SECURE_KEYS, PIN_HASH_VERSION } from '../utils/constants';
 import { PIN, CRYPTO } from '../constants/security';
 
@@ -267,7 +266,7 @@ export const verifyPin = async (enteredPin) => {
       // timingSafeEqual requires same length, so check length first (constant time)
       isValid = storedBuffer.length === enteredBuffer.length &&
                 storedBuffer.length > 0 &&
-                crypto.timingSafeEqual(storedBuffer, enteredBuffer);
+                timingSafeEqual(storedBuffer, enteredBuffer);
     } catch (error) {
       // If comparison fails (e.g., invalid hex), treat as invalid PIN
       isValid = false;
