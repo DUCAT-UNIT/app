@@ -24,8 +24,9 @@ import {
   clearICloud,
 } from './icloudStorage';
 
-// Import crypto for AES-256-GCM and HKDF
-import { subtle, getRandomValues, hkdf } from 'react-native-quick-crypto';
+// Import crypto for AES-256-GCM
+import { subtle, getRandomValues } from 'react-native-quick-crypto';
+import * as Crypto from 'expo-crypto';
 
 // Base64URL encoding helpers
 const toBase64Url = (buffer) => {
@@ -104,20 +105,31 @@ const deriveEncryptionKey = async (credentialId, userHandle, pin, pinSalt) => {
       derivedPinBytes,
     ]);
 
-    // Use standard RFC 5869 HKDF with SHA-256
+    // Use standard RFC 5869 HKDF with SHA-256 via Web Crypto API
     // - salt: domain-specific string for key separation
     // - info: context and application-specific information
-    const salt = Buffer.from('ducat-encryption-v3'); // v3 uses standard HKDF + derived PIN
-    const info = Buffer.from('aes-256-gcm-key');
+    const salt = new Uint8Array(Buffer.from('ducat-encryption-v3')); // v3 uses standard HKDF + derived PIN
+    const info = new Uint8Array(Buffer.from('aes-256-gcm-key'));
 
-    // Standard HKDF-SHA256 to derive 256-bit key
-    // react-native-quick-crypto uses sync version of hkdf
-    const keyMaterial = hkdf(
-      'sha256',
+    // Import IKM as CryptoKey for HKDF
+    const baseKey = await subtle.importKey(
+      'raw',
       ikm,
-      salt,
-      info,
-      32 // 32 bytes = 256 bits for AES-256
+      { name: 'HKDF' },
+      false,
+      ['deriveBits']
+    );
+
+    // Derive 256-bit key using HKDF-SHA256
+    const keyMaterial = await subtle.deriveBits(
+      {
+        name: 'HKDF',
+        hash: 'SHA-256',
+        salt: salt,
+        info: info,
+      },
+      baseKey,
+      256 // 256 bits
     );
 
     // Import as CryptoKey for AES-GCM
