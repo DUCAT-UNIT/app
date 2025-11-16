@@ -107,10 +107,11 @@ export function useWalletImport({ currentAccount, setSettingUpPin, showToast, lo
       // Store wallet in secure storage
       await WalletService.saveWalletToStorage(mnemonic, currentAccount);
 
-      // CRITICAL: Load the wallet into WalletContext so it's available app-wide
-      if (loadWallet) {
-        await loadWallet();
-      }
+      // CRITICAL: Don't load the wallet yet - wait until after PIN setup and passkey migration
+      // The wallet will be loaded in OnboardingPage after the passkey migration modal closes
+      // if (loadWallet) {
+      //   await loadWallet();
+      // }
 
       // Set PIN setup state to prevent lock screen flash
       setSettingUpPin(true);

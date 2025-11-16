@@ -224,14 +224,20 @@ export default function OnboardingPage({
   };
 
   // Passkey migration modal handler - must be defined before any conditional returns
-  const handlePasskeyMigrationClose = useCallback(() => {
+  const handlePasskeyMigrationClose = useCallback(async () => {
     setShowPasskeyMigrationPrompt(false);
     setImportedMnemonic(null);
     setCurrentPinForPasskey(null);
     setIsImportedWallet(false);
+
+    // Load the wallet into context now (was skipped during import to show this modal first)
+    if (loadWallet) {
+      await loadWallet();
+    }
+
     // Complete the setup after modal is closed
     handlePinSetupCompleteWrapper();
-  }, [handlePinSetupCompleteWrapper]);
+  }, [handlePinSetupCompleteWrapper, loadWallet]);
 
   // Passkey PIN Input (for passkey wallet creation)
   if (showPinInput) {
@@ -588,6 +594,7 @@ export default function OnboardingPage({
   // Passkey Migration Modal - shown when user imports wallet from mnemonic
   // Must be rendered at this level to overlay the PIN setup screen
   if (showPasskeyMigrationPrompt) {
+    console.log('[OnboardingPage] Rendering passkey migration modal screen');
     return (
       <View style={localStyles.container}>
         <MutinynetBanner />
