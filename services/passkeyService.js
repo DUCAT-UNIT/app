@@ -111,19 +111,14 @@ const deriveEncryptionKey = async (credentialId, userHandle, pin, pinSalt) => {
     const info = Buffer.from('aes-256-gcm-key');
 
     // Standard HKDF-SHA256 to derive 256-bit key
-    const keyMaterial = await new Promise((resolve, reject) => {
-      hkdf(
-        'sha256',
-        ikm,
-        salt,
-        info,
-        32, // 32 bytes = 256 bits for AES-256
-        (err, derivedKey) => {
-          if (err) reject(err);
-          else resolve(derivedKey);
-        }
-      );
-    });
+    // react-native-quick-crypto uses sync version of hkdf
+    const keyMaterial = hkdf(
+      'sha256',
+      ikm,
+      salt,
+      info,
+      32 // 32 bytes = 256 bits for AES-256
+    );
 
     // Import as CryptoKey for AES-GCM
     const cryptoKey = await subtle.importKey(
