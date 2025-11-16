@@ -21,12 +21,7 @@ export default function AddressRow({
   return (
     <TouchableOpacity style={styles.receiveAddressRow} onPress={onCopy} activeOpacity={0.7}>
       <View style={styles.receiveAddressInfo}>
-        <View style={styles.receiveAddressLabelRow}>
-          <Text style={styles.receiveAddressLabel}>{label}</Text>
-          <View style={[styles.receiveAddressTag, tagStyle.container]}>
-            <Text style={[styles.receiveAddressTagText, tagStyle.text]}>{tag}</Text>
-          </View>
-        </View>
+        <Text style={styles.receiveAddressLabel}>{label}</Text>
         <Text style={styles.receiveAddress} numberOfLines={1} ellipsizeMode="middle">
           {address}
         </Text>
