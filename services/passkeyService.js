@@ -26,7 +26,6 @@ import {
 
 // Import crypto for AES-256-GCM
 import { subtle, getRandomValues } from 'react-native-quick-crypto';
-import * as Crypto from 'expo-crypto';
 
 // Base64URL encoding helpers
 const toBase64Url = (buffer) => {
