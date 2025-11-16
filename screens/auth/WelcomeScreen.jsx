@@ -38,6 +38,7 @@ export default function WelcomeScreen({
   wordChoices,
   seedInputRefs,
   isImporting, // Loading state for import
+  restoringWithPasskey, // New state for passkey restore
 
   // State setters
   setImportingWallet,
@@ -45,11 +46,13 @@ export default function WelcomeScreen({
   setVerificationWords,
   setShowingIntro,
   setShowingSeeds,
+  setRestoringWithPasskey, // New setter
 
   // Functions
   createWallet,
   createWalletWithPasskey,
   importWallet,
+  restoreWithPasskey, // New function
   resetWallet: _resetWallet, // Kept for backward compatibility but unused
   resetCreationState,
   resetVerificationState,
@@ -83,7 +86,7 @@ export default function WelcomeScreen({
   }, []);
 
   // Initial welcome screen (no wallet exists)
-  if (!wallet && !importingWallet) {
+  if (!wallet && !importingWallet && !restoringWithPasskey) {
     return (
       <View style={styles.welcomeContainer}>
         <View style={styles.welcomeContent}>
@@ -94,22 +97,57 @@ export default function WelcomeScreen({
           <Text style={styles.welcomeTagline} numberOfLines={1} adjustsFontSizeToFit>
             A Decentralised Credit Platform
           </Text>
-          <TouchableOpacity style={styles.button} onPress={createWallet}>
-            <Text style={styles.buttonText}>Create a new wallet</Text>
-          </TouchableOpacity>
           {createWalletWithPasskey && (
             <TouchableOpacity
-              style={[styles.button, styles.passkeyButton]}
+              style={styles.button}
               onPress={createWalletWithPasskey}
             >
-              <Text style={styles.buttonText}>Create with Passkey</Text>
+              <Text style={styles.buttonText}>Create a new wallet</Text>
             </TouchableOpacity>
           )}
           <TouchableOpacity
             style={[styles.button, styles.secondaryButton]}
-            onPress={() => setImportingWallet(true)}
+            onPress={() => setRestoringWithPasskey(true)}
           >
             <Text style={styles.buttonText}>Restore an existing wallet</Text>
+          </TouchableOpacity>
+        </View>
+      </View>
+    );
+  }
+
+  // Restore choice screen (choose between seed phrase or passkey)
+  if (restoringWithPasskey && !importingWallet) {
+    return (
+      <View style={styles.welcomeContainer}>
+        <View style={styles.walletInfo}>
+          <Text style={styles.stepIndicator}>Restore Wallet</Text>
+          <Text style={styles.label}>Choose how to restore your wallet:</Text>
+
+          <TouchableOpacity
+            style={styles.button}
+            onPress={() => {
+              setRestoringWithPasskey(false);
+              setImportingWallet(true);
+            }}
+          >
+            <Text style={styles.buttonText}>From Seed Phrase</Text>
+          </TouchableOpacity>
+
+          {restoreWithPasskey && (
+            <TouchableOpacity
+              style={[styles.button, styles.passkeyButton]}
+              onPress={restoreWithPasskey}
+            >
+              <Text style={styles.buttonText}>From Passkey</Text>
+            </TouchableOpacity>
+          )}
+
+          <TouchableOpacity
+            style={[styles.button, styles.secondaryButton]}
+            onPress={() => setRestoringWithPasskey(false)}
+          >
+            <Text style={styles.buttonText}>Cancel</Text>
           </TouchableOpacity>
         </View>
       </View>
@@ -217,6 +255,7 @@ export default function WelcomeScreen({
                 onPress={() => {
                   setImportingWallet(false);
                   setImportSeedPhrase(Array(12).fill(''));
+                  setRestoringWithPasskey(true); // Go back to restore choice
                 }}
               >
                 <Text style={styles.buttonText}>Cancel</Text>
@@ -376,6 +415,7 @@ WelcomeScreen.propTypes = {
   wordChoices: PropTypes.object.isRequired,
   seedInputRefs: PropTypes.object.isRequired,
   isImporting: PropTypes.bool,
+  restoringWithPasskey: PropTypes.bool,
 
   // State setters
   setImportingWallet: PropTypes.func.isRequired,
@@ -383,11 +423,13 @@ WelcomeScreen.propTypes = {
   setVerificationWords: PropTypes.func.isRequired,
   setShowingIntro: PropTypes.func.isRequired,
   setShowingSeeds: PropTypes.func.isRequired,
+  setRestoringWithPasskey: PropTypes.func,
 
   // Functions
   createWallet: PropTypes.func.isRequired,
   createWalletWithPasskey: PropTypes.func,
   importWallet: PropTypes.func.isRequired,
+  restoreWithPasskey: PropTypes.func,
   resetWallet: PropTypes.func.isRequired,
   resetCreationState: PropTypes.func.isRequired,
   resetVerificationState: PropTypes.func.isRequired,
