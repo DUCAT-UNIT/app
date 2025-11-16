@@ -107,6 +107,11 @@ export function useWalletImport({ currentAccount, setSettingUpPin, showToast, lo
       // Store wallet in secure storage
       await WalletService.saveWalletToStorage(mnemonic, currentAccount);
 
+      // CRITICAL: Save the current account index so loadWallet() loads the correct account
+      const SecureStore = await import('expo-secure-store');
+      const { SECURE_KEYS } = await import('../utils/constants');
+      await SecureStore.setItemAsync(SECURE_KEYS.CURRENT_ACCOUNT, currentAccount.toString());
+
       // CRITICAL: Don't load the wallet yet - wait until after PIN setup and passkey migration
       // The wallet will be loaded in OnboardingPage after the passkey migration modal closes
       // if (loadWallet) {
