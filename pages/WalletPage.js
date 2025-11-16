@@ -433,10 +433,6 @@ export default function WalletPage({ route }) {
           onFaceIdToggle={settingsHandlers.handleFaceIdToggle}
           onNotificationsToggle={settingsHandlers.handleNotificationsToggle}
           onShowZeroAssetsToggle={settingsHandlers.handleShowZeroAssetsToggle}
-          onPasskeyTest={() => {
-            closeSettings();
-            navigation.navigate('PasskeyTest');
-          }}
           faceIdEnabled={biometricEnabled}
           notificationsEnabled={settingsHandlers.notificationsEnabled}
           showZeroAssets={settingsHandlers.showZeroAssets}

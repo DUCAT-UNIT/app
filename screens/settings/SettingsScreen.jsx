@@ -38,7 +38,6 @@ const SettingsScreen = React.memo(function SettingsScreen({
   onFaceIdToggle,
   onNotificationsToggle,
   onShowZeroAssetsToggle,
-  onPasskeyTest,
 
   // State
   faceIdEnabled,
@@ -91,15 +90,6 @@ const SettingsScreen = React.memo(function SettingsScreen({
             <SettingsOption iconName="logout" title="Lock Wallet" onPress={onLockWallet} />
           </View>
 
-          {/* Development Section */}
-          <View style={localStyles.section}>
-            <SettingsOption
-              iconName="face_id"
-              title="Passkey Test (Dev)"
-              onPress={onPasskeyTest}
-            />
-          </View>
-
           {/* Danger Zone */}
           <View style={localStyles.section}>
             <SettingsOption
@@ -149,7 +139,6 @@ SettingsScreen.propTypes = {
   onFaceIdToggle: PropTypes.func.isRequired,
   onNotificationsToggle: PropTypes.func.isRequired,
   onShowZeroAssetsToggle: PropTypes.func.isRequired,
-  onPasskeyTest: PropTypes.func,
   faceIdEnabled: PropTypes.bool.isRequired,
   notificationsEnabled: PropTypes.bool.isRequired,
   showZeroAssets: PropTypes.bool.isRequired,
