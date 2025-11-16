@@ -13,6 +13,7 @@ const ICLOUD_KEYS = {
   ENCRYPTION_TAG: 'ducat_encryption_tag_v1',
   CREDENTIAL_ID: 'ducat_credential_id_v1',
   USER_HANDLE: 'ducat_user_handle_v1',
+  PIN_SALT: 'ducat_pin_salt_v1', // CRITICAL: Salt for 10k iteration PIN hashing
 };
 
 /**
@@ -23,8 +24,9 @@ const ICLOUD_KEYS = {
  * @param {string} data.tag - Base64 authentication tag
  * @param {string} data.credentialId - Base64 credential ID
  * @param {string} data.userHandle - Base64 user handle
+ * @param {string} data.pinSalt - Hex PIN salt for 10k iteration hashing (CRITICAL for recovery)
  */
-export const saveToICloud = async ({ encrypted, iv, tag, credentialId, userHandle }) => {
+export const saveToICloud = async ({ encrypted, iv, tag, credentialId, userHandle, pinSalt }) => {
   try {
     logger.debug('Saving encrypted mnemonic to iCloud', {
       hasEncrypted: !!encrypted,
@@ -32,6 +34,7 @@ export const saveToICloud = async ({ encrypted, iv, tag, credentialId, userHandl
       hasTag: !!tag,
       hasCredentialId: !!credentialId,
       hasUserHandle: !!userHandle,
+      hasPinSalt: !!pinSalt,
     });
 
     await iCloudStorage.setItem(ICLOUD_KEYS.ENCRYPTED_MNEMONIC, encrypted);
@@ -39,6 +42,7 @@ export const saveToICloud = async ({ encrypted, iv, tag, credentialId, userHandl
     await iCloudStorage.setItem(ICLOUD_KEYS.ENCRYPTION_TAG, tag);
     await iCloudStorage.setItem(ICLOUD_KEYS.CREDENTIAL_ID, credentialId);
     await iCloudStorage.setItem(ICLOUD_KEYS.USER_HANDLE, userHandle);
+    await iCloudStorage.setItem(ICLOUD_KEYS.PIN_SALT, pinSalt);
 
     logger.debug('Successfully saved to iCloud');
   } catch (error) {
@@ -70,9 +74,15 @@ export const loadFromICloud = async () => {
     const tag = await iCloudStorage.getItem(ICLOUD_KEYS.ENCRYPTION_TAG);
     const credentialId = await iCloudStorage.getItem(ICLOUD_KEYS.CREDENTIAL_ID);
     const userHandle = await iCloudStorage.getItem(ICLOUD_KEYS.USER_HANDLE);
+    const pinSalt = await iCloudStorage.getItem(ICLOUD_KEYS.PIN_SALT);
 
-    if (!iv || !credentialId || !userHandle) {
-      logger.error('Incomplete backup data in iCloud');
+    if (!iv || !credentialId || !userHandle || !pinSalt) {
+      logger.error('Incomplete backup data in iCloud', {
+        hasIv: !!iv,
+        hasCredentialId: !!credentialId,
+        hasUserHandle: !!userHandle,
+        hasPinSalt: !!pinSalt,
+      });
       throw new Error('Backup data is corrupted');
     }
 
@@ -84,6 +94,7 @@ export const loadFromICloud = async () => {
       tag,
       credentialId,
       userHandle,
+      pinSalt,
     };
   } catch (error) {
     logger.error('Failed to load from iCloud', { error: error.message });
@@ -117,6 +128,7 @@ export const clearICloud = async () => {
     await iCloudStorage.removeItem(ICLOUD_KEYS.ENCRYPTION_TAG);
     await iCloudStorage.removeItem(ICLOUD_KEYS.CREDENTIAL_ID);
     await iCloudStorage.removeItem(ICLOUD_KEYS.USER_HANDLE);
+    await iCloudStorage.removeItem(ICLOUD_KEYS.PIN_SALT);
 
     logger.debug('iCloud backup cleared');
   } catch (error) {
