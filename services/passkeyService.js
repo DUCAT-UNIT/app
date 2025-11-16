@@ -244,14 +244,17 @@ const decryptMnemonic = async (encryptedBase64, ivBase64, tagBase64, encryptionK
  * @returns {Promise<{mnemonic: string, addresses: Object, credentialId: string}>}
  */
 export const createWalletWithPasskey = async ({ userName, userDisplayName, pin }) => {
+  let createDebugLog = '=== WALLET CREATION DEBUG LOG ===\n\n';
   try {
+    createDebugLog += `Step 1: Checking passkey support...\n`;
     logger.debug('Creating wallet with passkey', { userName });
 
     // Check if passkeys are supported
     const supported = await isPasskeySupported();
     if (!supported) {
-      throw new Error('Passkeys are not supported on this device');
+      throw new Error(createDebugLog + '❌ Passkeys not supported on this device');
     }
+    createDebugLog += `✅ Passkeys supported\n\n`;
 
     // Generate challenge and user ID
     const challenge = new Uint8Array(32);
@@ -398,7 +401,12 @@ export const createWalletWithPasskey = async ({ userName, userDisplayName, pin }
     };
   } catch (error) {
     logger.error('Failed to create wallet with passkey', { error: error.message });
-    throw error;
+    // Include full debug log in error
+    if (error.message && error.message.includes('=== WALLET CREATION DEBUG LOG ===')) {
+      throw error;
+    } else {
+      throw new Error(createDebugLog + `\n\n❌ ERROR: ${error.message}\nStack: ${error.stack || 'N/A'}`);
+    }
   }
 };
 
