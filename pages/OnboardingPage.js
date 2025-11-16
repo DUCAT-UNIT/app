@@ -189,30 +189,20 @@ export default function OnboardingPage({
       hasImportedMnemonic: !!importedMnemonic,
     });
 
-    if (isImportedWallet && pin && importedMnemonic) {
-      console.log('[OnboardingPage] Imported wallet - will show passkey migration modal');
-      // Load wallet into context first
-      if (loadWallet) {
-        const result = await loadWallet();
-        console.log('[OnboardingPage] Wallet loaded:', result);
+    // Always complete setup first - this authenticates and navigates to wallet
+    console.log('[OnboardingPage] Completing setup');
+    await handlePinSetupCompleteWrapper();
 
-        // Explicitly fetch balance for the loaded wallet
-        if (fetchBalance) {
-          console.log('[OnboardingPage] Fetching balance for imported wallet');
-          await fetchBalance();
-        }
-      }
-      // THEN show the modal via global context (it will overlay the wallet page)
-      console.log('[OnboardingPage] Showing passkey migration modal');
-      showPasskeyMigrationPromptGlobal(importedMnemonic, pin);
+    // For imported wallets, show passkey migration prompt after navigation
+    if (isImportedWallet && pin && importedMnemonic) {
+      console.log('[OnboardingPage] Imported wallet - scheduling passkey migration modal');
+      // Use setTimeout to ensure navigation completes and wallet loads before showing modal
+      setTimeout(() => {
+        console.log('[OnboardingPage] Showing passkey migration modal');
+        showPasskeyMigrationPromptGlobal(importedMnemonic, pin);
+      }, 500);
     }
 
-    // Always complete setup - don't block user from accessing wallet
-    console.log('[OnboardingPage] Completing setup, wallet context:', {
-      hasWallet: !!wallet,
-      currentAccount,
-    });
-    handlePinSetupCompleteWrapper();
     setIsImportedWallet(false);
   };
 
