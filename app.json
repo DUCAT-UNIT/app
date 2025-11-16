@@ -15,7 +15,7 @@
     "ios": {
       "supportsTablet": true,
       "bundleIdentifier": "com.anonymous.SimpleWallet",
-      "buildNumber": "29",
+      "buildNumber": "30",
       "associatedDomains": [
         "webcredentials:ducatprotocol.com"
       ],

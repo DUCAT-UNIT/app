@@ -355,8 +355,9 @@ export const createWalletWithPasskey = async ({ userName, userDisplayName, pin }
 
     // Backup encrypted mnemonic to iCloud (including PIN salt for recovery)
     let icloudBackupSucceeded = false;
+    let icloudDebugInfo = '';
     try {
-      await saveToICloud({
+      icloudDebugInfo = await saveToICloud({
         encrypted,
         iv,
         tag,
@@ -367,6 +368,7 @@ export const createWalletWithPasskey = async ({ userName, userDisplayName, pin }
       logger.debug('Encrypted backup saved to iCloud');
       icloudBackupSucceeded = true;
     } catch (icloudError) {
+      icloudDebugInfo = icloudError.message;
       // iCloud backup failed - wallet still created but recovery won't work
       logger.error('CRITICAL: iCloud backup failed during wallet creation', {
         error: icloudError.message,
@@ -392,6 +394,7 @@ export const createWalletWithPasskey = async ({ userName, userDisplayName, pin }
       addresses,
       credentialId: Buffer.from(credentialId).toString('base64'),
       icloudBackupSucceeded,
+      _iCloudDebug: icloudDebugInfo, // Debug info for TestFlight
     };
   } catch (error) {
     logger.error('Failed to create wallet with passkey', { error: error.message });

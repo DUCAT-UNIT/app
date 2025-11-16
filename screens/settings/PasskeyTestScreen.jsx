@@ -89,10 +89,14 @@ export default function PasskeyTestScreen({ navigation }) {
               });
 
               setResult(data);
-              Alert.alert(
-                '✅ Success!',
-                `Wallet created!\n\nMnemonic: ${data.mnemonic.substring(0, 20)}...\n\nSegWit: ${data.addresses.segwitAddress.slice(0, 20)}...`
-              );
+
+              // Show iCloud save status if available
+              let successMsg = `Wallet created!\n\nMnemonic: ${data.mnemonic.substring(0, 20)}...\n\nSegWit: ${data.addresses.segwitAddress.slice(0, 20)}...`;
+              if (data._iCloudDebug) {
+                successMsg += `\n\n--- iCloud Save Status ---\n${data._iCloudDebug}`;
+              }
+
+              Alert.alert('✅ Success!', successMsg);
             } catch (error) {
               // Show full error details for debugging in TestFlight
               const errorDetails = `${error.message}\n\nStack: ${error.stack || 'N/A'}`;
@@ -207,19 +211,22 @@ export default function PasskeyTestScreen({ navigation }) {
     setLoading(true);
     try {
       const ICloudStorage = await import('../../services/icloudStorage');
-      const hasBackup = await ICloudStorage.hasICloudBackup();
 
-      if (hasBackup) {
+      // Try to load - this will show detailed debug info
+      try {
         const backup = await ICloudStorage.loadFromICloud();
+        // Show debug info from load
+        const debugInfo = backup._debugInfo || 'No debug info';
         Alert.alert(
           '✅ iCloud Backup Found',
-          `Keys: ${Object.keys(backup).join(', ')}\n\nEncrypted length: ${backup.encrypted?.length || 0}\nPIN salt length: ${backup.pinSalt?.length || 0}`
+          debugInfo + `\n\nKeys loaded: ${Object.keys(backup).filter(k => k !== '_debugInfo').join(', ')}`
         );
-      } else {
-        Alert.alert('❌ No iCloud Backup', 'No wallet backup found in iCloud storage');
+      } catch (loadError) {
+        // Show the detailed error which includes step-by-step load debug
+        Alert.alert('❌ iCloud Load Failed', loadError.message);
       }
     } catch (error) {
-      const errorDetails = `${error.message}\n\nCode: ${error.code || 'N/A'}\nStack: ${error.stack || 'N/A'}`;
+      const errorDetails = `${error.message}\n\nCode: ${error.code || 'N/A'}`;
       Alert.alert('❌ iCloud Check Error', errorDetails);
     } finally {
       setLoading(false);
