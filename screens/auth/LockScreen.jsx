@@ -26,7 +26,9 @@ export default function LockScreen({ onAuthenticated, showFaceIdButton, onFaceId
     const checkPasskey = async () => {
       const enabled = await PasskeyService.isPasskeyEnabled();
       setPasskeyEnabled(enabled);
-      setShowPasskeyButton(enabled);
+      // Don't show passkey button on normal lock screen
+      // Passkey unlock is only for recovery scenarios (separate screen)
+      setShowPasskeyButton(false);
     };
     checkPasskey();
   }, []);
@@ -63,10 +65,20 @@ export default function LockScreen({ onAuthenticated, showFaceIdButton, onFaceId
   const handlePasskeyUnlock = async () => {
     try {
       setPinError('');
-      await PasskeyService.unlockWithPasskey();
+
+      // Passkey unlock is only for recovery scenarios
+      // For normal unlock, users should use PIN only
+      // This allows passkey + PIN authentication for iCloud recovery
+      if (pin.length !== 6) {
+        setPinError('Enter your 6-digit PIN for passkey recovery');
+        return;
+      }
+
+      await PasskeyService.unlockWithPasskey(pin);
       onAuthenticated();
     } catch (error) {
       setPinError(error.message || 'Passkey authentication failed');
+      setPin(''); // Clear PIN on error
     }
   };
 
