@@ -105,8 +105,15 @@ export const WalletDataProvider = ({ children }) => {
       vault.fetchVault();
       history.fetchTransactionHistory();
       lastHistoryFetchRef.current = Date.now();
+    } else if (!prevWallet && wallet) {
+      // Wallet just loaded for first time (import/creation) - immediately fetch all data
+      // This ensures data is available before WalletScreen mounts
+      balance.fetchBalance();
+      vault.fetchVault();
+      history.fetchTransactionHistory();
+      lastHistoryFetchRef.current = Date.now();
     }
-    // Note: On initial mount (prevWallet is null), we rely on usePolling's immediate: true
+    // Note: The usePolling's immediate: true will also fire, but fetchBalance is idempotent
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [wallet, balance.resetBalances, balance.fetchBalance, history.resetTransactionHistory, history.fetchTransactionHistory, vault.resetVaultData, vault.fetchVault]);
 
