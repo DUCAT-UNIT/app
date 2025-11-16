@@ -197,6 +197,17 @@ export default function OnboardingPage({
         console.log('[OnboardingPage] Wallet loaded:', result);
       }
 
+      // Explicitly fetch balance after loading wallet
+      if (fetchBalance) {
+        console.log('[OnboardingPage] Fetching balance for imported wallet');
+        try {
+          await fetchBalance();
+          console.log('[OnboardingPage] Balance fetched successfully');
+        } catch (error) {
+          console.error('[OnboardingPage] Balance fetch error:', error);
+        }
+      }
+
       // Capture values for passkey modal
       const capturedMnemonic = importedMnemonic;
       const capturedPin = pin;
