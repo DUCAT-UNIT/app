@@ -3,7 +3,7 @@
  * Contains WelcomeScreen, PinSetupScreen, and LockScreen
  */
 
-import React from 'react';
+import React, { useCallback } from 'react';
 import { View, Text, TouchableOpacity, StyleSheet } from 'react-native';
 import { StatusBar } from 'expo-status-bar';
 
@@ -177,21 +177,20 @@ export default function OnboardingPage({
         showToast('Failed to save wallet', 'error');
         return;
       }
+      // For new wallets, complete setup normally
+      handlePinSetupCompleteWrapper();
+    } else {
+      // For imported wallets, show passkey migration prompt BEFORE completing setup
+      if (pin && importedMnemonic) {
+        setCurrentPinForPasskey(pin);
+        setShowPasskeyMigrationPrompt(true);
+        // Don't call handlePinSetupCompleteWrapper yet - wait for modal to close
+      } else {
+        // No mnemonic stored, complete setup normally
+        handlePinSetupCompleteWrapper();
+        setIsImportedWallet(false);
+      }
     }
-
-    // For imported wallets, store the PIN for passkey migration
-    if (isImportedWallet && pin) {
-      setCurrentPinForPasskey(pin);
-    }
-
-    handlePinSetupCompleteWrapper();
-
-    // Show passkey migration prompt if this was an imported wallet
-    if (isImportedWallet && importedMnemonic) {
-      setShowPasskeyMigrationPrompt(true);
-    }
-
-    setIsImportedWallet(false);
   };
 
   // PIN change completion wrapper - resets state
@@ -567,24 +566,41 @@ export default function OnboardingPage({
     );
   }
 
+  // Passkey migration modal handler
+  const handlePasskeyMigrationClose = useCallback(() => {
+    setShowPasskeyMigrationPrompt(false);
+    setImportedMnemonic(null);
+    setCurrentPinForPasskey(null);
+    setIsImportedWallet(false);
+    // Complete the setup after modal is closed
+    handlePinSetupCompleteWrapper();
+  }, [handlePinSetupCompleteWrapper, setShowPasskeyMigrationPrompt, setImportedMnemonic, setIsImportedWallet]);
+
+  // Passkey Migration Modal - shown when user imports wallet from mnemonic
+  // Must be rendered at this level to overlay the PIN setup screen
+  if (showPasskeyMigrationPrompt) {
+    return (
+      <View style={localStyles.container}>
+        <MutinynetBanner />
+        <View style={[styles.walletInfo, localStyles.passkeyPinContainer]}>
+          <Text style={styles.lockTitle}>Setting up your wallet...</Text>
+        </View>
+        <PasskeyMigrationModal
+          visible={showPasskeyMigrationPrompt}
+          onClose={handlePasskeyMigrationClose}
+          mnemonic={importedMnemonic}
+          currentPin={currentPinForPasskey}
+          showToast={showToast}
+        />
+        <ToastContainer toasts={toasts} />
+        <StatusBar style="light" />
+      </View>
+    );
+  }
+
   // If we reach here, user is authenticated and has a wallet - don't render anything
   // Let the parent (App.js) render the WalletPage
-  // But still show the passkey migration modal if needed
-  return (
-    <>
-      <PasskeyMigrationModal
-        visible={showPasskeyMigrationPrompt}
-        onClose={() => {
-          setShowPasskeyMigrationPrompt(false);
-          setImportedMnemonic(null);
-          setCurrentPinForPasskey(null);
-        }}
-        mnemonic={importedMnemonic}
-        currentPin={currentPinForPasskey}
-        showToast={showToast}
-      />
-    </>
-  );
+  return null;
 }
 
 const localStyles = StyleSheet.create({
