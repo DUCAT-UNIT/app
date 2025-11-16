@@ -19,6 +19,7 @@ import Icon from '../components/icons';
 // Contexts
 import { useAuth } from '../contexts/AuthContext';
 import { useWallet } from '../contexts/WalletContext';
+import { useNavigationHandlers } from '../contexts/NavigationHandlersContext';
 
 // Hooks
 import { useWalletCreation } from '../hooks/useWalletCreation';
