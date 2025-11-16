@@ -152,25 +152,25 @@ const ReceiveScreen = React.memo(function ReceiveScreen({
         <View style={styles.bottomSheetHandle} />
         <Text style={styles.bottomSheetTitle}>Receive</Text>
 
-        {/* Native SegWit Address Row */}
+        {/* BTC Address Row */}
         <AddressRow
-          label="Native SegWit"
+          label="BTC Address"
           address={segwitAddress}
           tag="BTC"
           tagStyle={localStyles.btcTag}
-          onCopy={() => handleCopyAddress(segwitAddress, 'SegWit')}
-          onQrPress={() => handleQrPress(segwitAddress, 'Native SegWit')}
+          onCopy={() => handleCopyAddress(segwitAddress, 'BTC')}
+          onQrPress={() => handleQrPress(segwitAddress, 'BTC Address')}
           styles={styles}
         />
 
-        {/* Taproot Address Row */}
+        {/* UNIT Address Row */}
         <AddressRow
-          label="Taproot"
+          label="UNIT Address"
           address={taprootAddress}
           tag="UNIT"
           tagStyle={localStyles.unitTag}
-          onCopy={() => handleCopyAddress(taprootAddress, 'Taproot')}
-          onQrPress={() => handleQrPress(taprootAddress, 'Taproot')}
+          onCopy={() => handleCopyAddress(taprootAddress, 'UNIT')}
+          onQrPress={() => handleQrPress(taprootAddress, 'UNIT Address')}
           styles={styles}
         />
       </Animated.View>
