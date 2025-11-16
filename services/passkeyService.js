@@ -377,7 +377,8 @@ export const createWalletWithPasskey = async ({ userName, userDisplayName, pin }
         hasStorageSpace: 'Check if iCloud storage is full',
         hasNetwork: 'Check if device has internet connection',
       });
-      // Note: icloudBackupSucceeded remains false, caller will show warning
+      // Throw detailed error for TestFlight debugging
+      throw new Error(`iCloud backup failed during wallet creation.\n\nError: ${icloudError.message}\nCode: ${icloudError.code || 'N/A'}\nName: ${icloudError.name || 'N/A'}\n\nCheck:\n- iCloud is enabled in Settings\n- Signed into iCloud\n- Has storage space\n- Has network connection`);
     }
 
     logger.debug('Wallet created with passkey successfully', {
