@@ -199,28 +199,6 @@ export default function OnboardingPage({
         walletAddresses = result?.addresses;
       }
 
-      // Explicitly fetch balance after loading wallet using the addresses
-      if (fetchBalance && walletAddresses) {
-        console.log('[OnboardingPage] Fetching balance for imported wallet with addresses:', {
-          segwit: walletAddresses.segwitAddress,
-          taproot: walletAddresses.taprootAddress,
-        });
-        try {
-          await fetchBalance(walletAddresses.segwitAddress, walletAddresses.taprootAddress);
-          console.log('[OnboardingPage] Balance fetched successfully');
-
-          // Small delay to ensure state updates propagate before navigation
-          await new Promise(resolve => setTimeout(resolve, 100));
-        } catch (error) {
-          console.error('[OnboardingPage] Balance fetch error:', error);
-        }
-      } else {
-        console.log('[OnboardingPage] Cannot fetch balance:', {
-          hasFetchBalance: !!fetchBalance,
-          hasWalletAddresses: !!walletAddresses,
-        });
-      }
-
       // Capture values for passkey modal
       const capturedMnemonic = importedMnemonic;
       const capturedPin = pin;
@@ -229,17 +207,19 @@ export default function OnboardingPage({
       setIsImportedWallet(false);
 
       // Complete setup (authenticate and navigate)
+      // The wallet is already loaded in context, handlePinSetupCompleteWrapper will:
+      // 1. Set seedConfirmed = true (triggers navigation)
+      // 2. Call fetchBalance() which will now work because wallet is loaded
       console.log('[OnboardingPage] Completing setup');
-      // Note: handlePinSetupCompleteWrapper() will call fetchBalance() again without addresses
-      // This call will fail silently, but the balance was already fetched above with addresses
       await handlePinSetupCompleteWrapper();
 
       // Show passkey migration modal after a delay
+      // Longer delay to ensure wallet screen loads and polling starts
       console.log('[OnboardingPage] Scheduling passkey migration modal');
       setTimeout(() => {
         console.log('[OnboardingPage] Showing passkey migration modal');
         showPasskeyMigrationPromptGlobal(capturedMnemonic, capturedPin);
-      }, 500);
+      }, 2000);
     } else {
       // Normal wallet creation flow
       console.log('[OnboardingPage] Completing setup (normal flow)');
