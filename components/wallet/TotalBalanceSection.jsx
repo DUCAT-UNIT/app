@@ -35,7 +35,14 @@ export default function TotalBalanceSection({
                 color={COLORS.VERY_LIGHT_GRAY}
                 style={styles.balanceIcon}
               />
-              <Text style={styles.xverseBalanceAmount}>{totalBTC}</Text>
+              <Text
+                style={[
+                  styles.xverseBalanceAmount,
+                  totalBalanceUSD >= LARGE_BALANCE_THRESHOLD && largeBalanceStyle,
+                ]}
+              >
+                {totalBTC}
+              </Text>
             </View>
           ) : (
             <Text
