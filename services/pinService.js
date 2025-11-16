@@ -6,6 +6,7 @@
 import * as SecureStore from 'expo-secure-store';
 import * as Crypto from 'expo-crypto';
 import crypto from 'crypto';
+import { pbkdf2 } from 'react-native-quick-crypto';
 import { SECURE_KEYS, PIN_HASH_VERSION } from '../utils/constants';
 import { PIN, CRYPTO } from '../constants/security';
 
@@ -71,30 +72,36 @@ const generateSalt = async () => {
 };
 
 /**
- * Hash a PIN using PBKDF2-like approach with a unique salt
+ * Hash a PIN using standard PBKDF2 with HMAC-SHA512
  * Uses 10,000 iterations as a balance between security and mobile performance
  * Combined with rate limiting (10 attempts, 30min lockout) this provides strong protection
  * @param {string} pin - PIN to hash
- * @param {string} salt - Unique salt for this user
- * @returns {Promise<string>} Hashed PIN
+ * @param {string} salt - Unique salt for this user (hex string)
+ * @returns {Promise<string>} Hashed PIN (hex string)
  */
 const hashPin = async (pin, salt) => {
-  // Use configured iteration count for PBKDF2-like hashing
-  const iterations = CRYPTO.PIN_HASH_ITERATIONS;
-
-  // Initial hash with SHA512 (stronger than SHA256)
-  let derivedKey = await Crypto.digestStringAsync(Crypto.CryptoDigestAlgorithm.SHA512, pin + salt);
-
-  // Apply iterative hashing (PBKDF2-like approach)
-  // This makes brute-force attacks ~10,000x more expensive
-  for (let i = 1; i < iterations; i++) {
-    derivedKey = await Crypto.digestStringAsync(
-      Crypto.CryptoDigestAlgorithm.SHA512,
-      derivedKey + salt
+  return new Promise((resolve, reject) => {
+    // Use standard PBKDF2 with HMAC-SHA512
+    // - password: user's PIN
+    // - salt: unique 32-byte salt (hex string converted to buffer)
+    // - iterations: 10,000 (configured)
+    // - keylen: 64 bytes (512 bits) to match SHA512 output
+    // - digest: sha512
+    pbkdf2(
+      pin,
+      Buffer.from(salt, 'hex'),
+      CRYPTO.PIN_HASH_ITERATIONS,
+      64, // 64 bytes = 512 bits
+      'sha512',
+      (err, derivedKey) => {
+        if (err) {
+          reject(new Error('PIN hashing failed: ' + err.message));
+        } else {
+          resolve(derivedKey.toString('hex'));
+        }
+      }
     );
-  }
-
-  return derivedKey;
+  });
 };
 
 /**
