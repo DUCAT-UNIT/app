@@ -392,12 +392,26 @@ export const createWalletWithPasskey = async ({ userName, userDisplayName, pin }
       icloudBackup: icloudBackupSucceeded,
     });
 
+    // Immediately verify the save worked by trying to load it back
+    let verificationLog = '\n\n=== VERIFICATION (immediate read-back) ===\n';
+    try {
+      const verifyBackup = await loadFromICloud();
+      verificationLog += '✅ iCloud data verified - immediate read-back successful\n';
+      verificationLog += `Keys found: ${Object.keys(verifyBackup).filter(k => k !== '_debugInfo').join(', ')}\n`;
+      if (verifyBackup._debugInfo) {
+        verificationLog += '\n' + verifyBackup._debugInfo;
+      }
+    } catch (verifyError) {
+      verificationLog += '❌ iCloud verification failed\n';
+      verificationLog += verifyError.message;
+    }
+
     return {
       mnemonic,
       addresses,
       credentialId: Buffer.from(credentialId).toString('base64'),
       icloudBackupSucceeded,
-      _iCloudDebug: icloudDebugInfo, // Debug info for TestFlight
+      _iCloudDebug: icloudDebugInfo + verificationLog, // Debug info for TestFlight
     };
   } catch (error) {
     logger.error('Failed to create wallet with passkey', { error: error.message });
