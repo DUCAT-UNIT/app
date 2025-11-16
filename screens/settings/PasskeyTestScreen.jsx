@@ -94,7 +94,9 @@ export default function PasskeyTestScreen({ navigation }) {
                 `Wallet created!\n\nMnemonic: ${data.mnemonic.substring(0, 20)}...\n\nSegWit: ${data.addresses.segwitAddress.slice(0, 20)}...`
               );
             } catch (error) {
-              Alert.alert('❌ Error', error.message);
+              // Show full error details for debugging in TestFlight
+              const errorDetails = `${error.message}\n\nStack: ${error.stack || 'N/A'}`;
+              Alert.alert('❌ Create Error', errorDetails);
               console.error('Create wallet error:', error);
             } finally {
               setLoading(false);
@@ -138,7 +140,9 @@ export default function PasskeyTestScreen({ navigation }) {
                 `Wallet unlocked!\n\nMnemonic: ${data.mnemonic.substring(0, 20)}...\n\nSegWit: ${data.addresses.segwitAddress.slice(0, 20)}...`
               );
             } catch (error) {
-              Alert.alert('❌ Error', error.message);
+              // Show full error details for debugging in TestFlight
+              const errorDetails = `${error.message}\n\nStack: ${error.stack || 'N/A'}`;
+              Alert.alert('❌ Unlock Error', errorDetails);
               console.error('Unlock error:', error);
             } finally {
               setLoading(false);
@@ -182,7 +186,9 @@ export default function PasskeyTestScreen({ navigation }) {
                 `Wallet recovered!\n\nMnemonic: ${data.mnemonic.substring(0, 20)}...\n\nSegWit: ${data.addresses.segwitAddress.slice(0, 20)}...`
               );
             } catch (error) {
-              Alert.alert('❌ Error', error.message);
+              // Show full error details for debugging in TestFlight
+              const errorDetails = `${error.message}\n\nStack: ${error.stack || 'N/A'}`;
+              Alert.alert('❌ Recovery Error', errorDetails);
               console.error('Recover error:', error);
             } finally {
               setLoading(false);
