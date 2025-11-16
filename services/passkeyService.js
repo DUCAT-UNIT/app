@@ -746,12 +746,14 @@ export const addPasskeyToExistingWallet = async (mnemonic, userName, userDisplay
     getRandomValues(userId);
 
     // Create FIDO2 registration request
+    const rp = { name: PASSKEY.RP_NAME };
+    if (PASSKEY.RP_ID) {
+      rp.id = PASSKEY.RP_ID;
+    }
+
     const requestJson = {
       challenge: toBase64Url(challenge),
-      rp: {
-        name: PASSKEY.RP_NAME,
-        id: PASSKEY.RP_ID,
-      },
+      rp,
       user: {
         id: toBase64Url(userId),
         name: userName || `user-${Date.now()}`,

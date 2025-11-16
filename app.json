@@ -15,9 +15,10 @@
     "ios": {
       "supportsTablet": true,
       "bundleIdentifier": "com.anonymous.SimpleWallet",
-      "buildNumber": "36",
+      "buildNumber": "38",
       "associatedDomains": [
-        "webcredentials:ducatprotocol.com"
+        "webcredentials:ducatprotocol.com",
+        "applinks:ducatprotocol.com"
       ],
       "usesIcloudStorage": true,
       "iCloudContainerEnvironment": "Production",

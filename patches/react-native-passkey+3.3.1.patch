@@ -1,0 +1,13 @@
+diff --git a/node_modules/react-native-passkey/ios/Passkey.m b/node_modules/react-native-passkey/ios/Passkey.m
+index 321a4dd..48bf450 100644
+--- a/node_modules/react-native-passkey/ios/Passkey.m
++++ b/node_modules/react-native-passkey/ios/Passkey.m
+@@ -17,7 +17,7 @@ @interface RCT_EXTERN_MODULE(Passkey, NSObject)
+ 
+ + (BOOL)requiresMainQueueSetup
+ {
+-  return NO;
++  return YES;
+ }
+ 
+ @end

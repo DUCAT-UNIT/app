@@ -3,5 +3,13 @@
     "apps": [
       "Q8HU4KXHK4.com.anonymous.SimpleWallet"
     ]
+  },
+  "applinks": {
+    "details": [
+      {
+        "appID": "Q8HU4KXHK4.com.anonymous.SimpleWallet",
+        "paths": ["*"]
+      }
+    ]
   }
 }
