@@ -2,7 +2,7 @@
  * VaultContext - Manages vault access, credentials, and navigation
  */
 
-import React, { createContext, useContext, useState, useEffect, useMemo, useCallback } from 'react';
+import React, { createContext, useContext, useState, useEffect, useMemo, useCallback, useRef } from 'react';
 
 import { deriveAddressesFromMnemonic } from '../utils/bitcoin';
 import { withMnemonic } from '../services/authService';
@@ -22,8 +22,9 @@ export const VaultProvider = ({ children, currentAccount }) => {
   const [vaultCredentials, setVaultCredentials] = useState(null);
   const [autoCreateVaultTrigger, setAutoCreateVaultTrigger] = useState(0);
   const [activeTab, setActiveTab] = useState('wallet');
+  const hasRetriedRef = useRef(false);
 
-  // Load vault credentials in background whenever account changes OR vault tab is opened
+  // Load vault credentials in background whenever account changes
   useEffect(() => {
     const loadVaultCredentials = async () => {
       try {
@@ -53,18 +54,40 @@ export const VaultProvider = ({ children, currentAccount }) => {
       }
     };
 
-    // Always attempt to load credentials when account changes
     loadVaultCredentials();
+    hasRetriedRef.current = false; // Reset retry flag when account changes
+  }, [currentAccount]);
 
-    // Also retry when vault tab is opened if credentials are missing
-    // This handles the case where credentials failed to load on first mount
-    if (activeTab === 'vault' && !vaultCredentials) {
+  // Retry loading credentials when vault tab is opened if they're missing (one-time retry)
+  useEffect(() => {
+    if (activeTab === 'vault' && !vaultCredentials && !hasRetriedRef.current) {
       logger.debug('🔄 Vault tab opened but credentials missing - retrying load');
-      setTimeout(() => {
-        loadVaultCredentials();
-      }, 500);
+      hasRetriedRef.current = true;
+
+      const retryLoad = async () => {
+        try {
+          await withMnemonic(async (mnemonic) => {
+            const addresses = deriveAddressesFromMnemonic(mnemonic, currentAccount);
+            setVaultCredentials({
+              satsAddress: addresses.segwitAddress,
+              satsPubkey: addresses.segwitPubkey,
+              runesAddress: addresses.taprootAddress,
+              runesPubkey: addresses.taprootPubkey,
+              vaultAddress: addresses.taprootAddress,
+              vaultPubkey: addresses.taprootPubkey,
+            });
+          });
+        } catch (error) {
+          if (error.message !== 'Mnemonic not found') {
+            logger.error('❌ Error retrying vault credentials:', error);
+          }
+        }
+      };
+
+      const timeoutId = setTimeout(retryLoad, 500);
+      return () => clearTimeout(timeoutId);
     }
-  }, [currentAccount, activeTab, vaultCredentials]);
+  }, [activeTab, currentAccount]);
 
   const openVault = useCallback(async (shouldAutoCreate = false) => {
     try {
