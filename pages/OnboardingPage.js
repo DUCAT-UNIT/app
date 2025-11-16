@@ -227,6 +227,8 @@ export default function OnboardingPage({
 
       // Complete setup (authenticate and navigate)
       console.log('[OnboardingPage] Completing setup');
+      // Note: handlePinSetupCompleteWrapper() will call fetchBalance() again without addresses
+      // This call will fail silently, but the balance was already fetched above with addresses
       await handlePinSetupCompleteWrapper();
 
       // Show passkey migration modal after a delay
