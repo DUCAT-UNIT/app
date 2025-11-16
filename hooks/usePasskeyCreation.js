@@ -82,7 +82,7 @@ export function usePasskeyCreation({ setIsAuthenticated, setSeedConfirmed, showT
       const displayName = `${deviceName} - Ducat`;
 
       // Create wallet with passkey + PIN
-      const { mnemonic, addresses } = await PasskeyService.createWalletWithPasskey({
+      const { mnemonic, addresses, icloudBackupSucceeded } = await PasskeyService.createWalletWithPasskey({
         userName: `ducat-${Date.now()}`,
         userDisplayName: displayName,
         pin,
@@ -108,7 +108,12 @@ export function usePasskeyCreation({ setIsAuthenticated, setSeedConfirmed, showT
       setConfirmingPin(false);
       setCreatingWithPasskey(false);
 
-      showToast('Wallet created with passkey!', 'success');
+      // Show success message with iCloud backup status
+      if (icloudBackupSucceeded) {
+        showToast('Wallet created with passkey!', 'success');
+      } else {
+        showToast('Wallet created! iCloud backup failed - restoration may not work on new devices', 'warning');
+      }
     } catch (error) {
       showToast(error.message || 'Failed to create wallet with passkey', 'error');
       setCreatingWithPasskey(false);
