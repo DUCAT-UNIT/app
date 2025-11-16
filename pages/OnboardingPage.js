@@ -208,6 +208,9 @@ export default function OnboardingPage({
         try {
           await fetchBalance(walletAddresses.segwitAddress, walletAddresses.taprootAddress);
           console.log('[OnboardingPage] Balance fetched successfully');
+
+          // Small delay to ensure state updates propagate before navigation
+          await new Promise(resolve => setTimeout(resolve, 100));
         } catch (error) {
           console.error('[OnboardingPage] Balance fetch error:', error);
         }
