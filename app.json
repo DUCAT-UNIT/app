@@ -15,12 +15,21 @@
     "ios": {
       "supportsTablet": true,
       "bundleIdentifier": "com.anonymous.SimpleWallet",
-      "buildNumber": "40",
+      "buildNumber": "41",
       "associatedDomains": [
         "webcredentials:ducatprotocol.com",
         "applinks:ducatprotocol.com"
       ],
       "usesIcloudStorage": true,
+      "iCloudContainerEnvironment": "Production",
+      "entitlements": {
+        "com.apple.developer.icloud-container-identifiers": [],
+        "com.apple.developer.icloud-services": [
+          "CloudKit",
+          "CloudDocuments"
+        ],
+        "com.apple.developer.ubiquity-kvstore-identifier": "$(TeamIdentifierPrefix)$(CFBundleIdentifier)"
+      },
       "infoPlist": {
         "UIBackgroundModes": [
           "remote-notification",
@@ -51,12 +60,6 @@
         {
           "icon": "./assets/logos/icon.png",
           "color": "#ffffff"
-        }
-      ],
-      [
-        "react-native-icloudstore",
-        {
-          "iCloudContainerEnvironment": "Production"
         }
       ]
     ],
