@@ -5,6 +5,47 @@
 
 import iCloudStorage from 'react-native-icloudstore';
 import { logger } from '../utils/logger';
+import { Platform } from 'react-native';
+
+/**
+ * Check if iCloud is available and accessible
+ * @returns {Promise<{available: boolean, error?: string}>}
+ */
+export const checkICloudAvailability = async () => {
+  try {
+    // Only works on iOS
+    if (Platform.OS !== 'ios') {
+      return { available: false, error: 'iCloud is only available on iOS' };
+    }
+
+    // Try to read a test key to verify iCloud access
+    try {
+      await iCloudStorage.getItem('__icloud_test_key__');
+      return { available: true };
+    } catch (error) {
+      if (error.code === 'ICLOUD_STORAGE_NOT_AVAILABLE') {
+        return {
+          available: false,
+          error: 'iCloud is not available. Please sign into iCloud in Settings and enable iCloud Drive.',
+        };
+      }
+      if (error.message && error.message.includes('not entitled')) {
+        return {
+          available: false,
+          error: 'App is not entitled for iCloud access. This is a configuration issue.',
+        };
+      }
+      // If we can access iCloud but the key doesn't exist, that's fine
+      return { available: true };
+    }
+  } catch (error) {
+    logger.error('Failed to check iCloud availability', { error: error.message });
+    return {
+      available: false,
+      error: `Failed to check iCloud: ${error.message}`,
+    };
+  }
+};
 
 // iCloud keys
 const ICLOUD_KEYS = {
@@ -190,10 +231,19 @@ export const hasICloudBackup = async () => {
       error: error.message,
       errorCode: error.code,
       errorName: error.name,
+      errorDomain: error.domain,
       stack: error.stack
     });
+
+    // Provide more helpful error messages for common issues
+    if (error.code === 'ICLOUD_STORAGE_NOT_AVAILABLE') {
+      throw new Error(`iCloud is not available. Please ensure:\n1. You're signed into iCloud in Settings\n2. iCloud Drive is enabled\n3. This app has iCloud permission\n\nOriginal error: ${error.message}`);
+    } else if (error.message && error.message.includes('not entitled')) {
+      throw new Error(`App not entitled for iCloud. This is a configuration issue - please contact support.\n\nError: ${error.message}`);
+    }
+
     // Throw error instead of returning false so we can see what went wrong
-    throw new Error(`iCloud access failed: ${error.message} (code: ${error.code})`);
+    throw new Error(`iCloud access failed: ${error.message} (code: ${error.code || 'N/A'})`);
   }
 };
 

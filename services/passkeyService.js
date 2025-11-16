@@ -22,6 +22,7 @@ import {
   loadFromICloud,
   hasICloudBackup,
   clearICloud,
+  checkICloudAvailability,
 } from './icloudStorage';
 
 // Import crypto for AES-256-GCM
@@ -255,6 +256,14 @@ export const createWalletWithPasskey = async ({ userName, userDisplayName, pin }
       throw new Error(createDebugLog + '❌ Passkeys not supported on this device');
     }
     createDebugLog += `✅ Passkeys supported\n\n`;
+
+    // Check iCloud availability
+    createDebugLog += `Step 2: Checking iCloud availability...\n`;
+    const iCloudCheck = await checkICloudAvailability();
+    if (!iCloudCheck.available) {
+      throw new Error(createDebugLog + `❌ iCloud not available: ${iCloudCheck.error}\n\nPlease check:\n1. Settings > [Your Name] > iCloud - ensure you're signed in\n2. Settings > [Your Name] > iCloud > iCloud Drive - ensure it's enabled`);
+    }
+    createDebugLog += `✅ iCloud is available\n\n`;
 
     // Generate challenge and user ID
     const challenge = new Uint8Array(32);
@@ -553,8 +562,16 @@ export const recoverWithPasskey = async (pin) => {
     }
     debugSteps += '✅ Passkeys supported\n';
 
+    // Check iCloud availability first
+    debugSteps += '2. Checking iCloud availability...\n';
+    const iCloudCheck = await checkICloudAvailability();
+    if (!iCloudCheck.available) {
+      throw new Error(`${debugSteps}❌ iCloud not available: ${iCloudCheck.error}\n\nPlease check:\n1. Settings > [Your Name] > iCloud - ensure you're signed in\n2. Settings > [Your Name] > iCloud > iCloud Drive - ensure it's enabled\n3. This app has permission to use iCloud`);
+    }
+    debugSteps += '✅ iCloud is available\n';
+
     // Check if iCloud backup exists with detailed error
-    debugSteps += '2. Checking iCloud backup...\n';
+    debugSteps += '3. Checking iCloud backup...\n';
     let backup;
     try {
       backup = await loadFromICloud();
@@ -570,7 +587,7 @@ export const recoverWithPasskey = async (pin) => {
     logger.debug('Loading encrypted backup from iCloud...');
 
     // Generate challenge
-    debugSteps += '3. Authenticating with passkey...\n';
+    debugSteps += '4. Authenticating with passkey...\n';
     const challenge = new Uint8Array(32);
     getRandomValues(challenge);
 
@@ -603,21 +620,21 @@ export const recoverWithPasskey = async (pin) => {
     logger.debug('Passkey authentication successful');
 
     // Extract credential info from backup (more reliable than assertion)
-    debugSteps += '4. Extracting credentials from backup...\n';
+    debugSteps += '5. Extracting credentials from backup...\n';
     const credentialId = new Uint8Array(Buffer.from(backup.credentialId, 'base64'));
     const userHandle = new Uint8Array(Buffer.from(backup.userHandle, 'base64'));
     debugSteps += `  Credential ID length: ${credentialId.length}\n`;
     debugSteps += `  User handle length: ${userHandle.length}\n`;
 
     // Validate PIN
-    debugSteps += '5. Validating PIN...\n';
+    debugSteps += '6. Validating PIN...\n';
     if (!pin || pin.length !== 6) {
       throw new Error(`${debugSteps}❌ Invalid PIN (length: ${pin?.length || 0})`);
     }
     debugSteps += '✅ PIN format valid\n';
 
     // Use the PIN salt from the backup (critical for 10k iteration hashing)
-    debugSteps += '6. Checking PIN salt...\n';
+    debugSteps += '7. Checking PIN salt...\n';
     const pinSalt = backup.pinSalt;
     // Validate salt format: 32 bytes = 64 hex characters
     if (!pinSalt || pinSalt.length !== 64 || !/^[0-9a-f]{64}$/i.test(pinSalt)) {
@@ -626,7 +643,7 @@ export const recoverWithPasskey = async (pin) => {
     debugSteps += '✅ PIN salt valid\n';
 
     // Derive encryption key using passkey + PIN (with 10k iterations)
-    debugSteps += '7. Deriving encryption key...\n';
+    debugSteps += '8. Deriving encryption key...\n';
     let encryptionKey;
     try {
       encryptionKey = await deriveEncryptionKey(credentialId, userHandle, pin, pinSalt);
@@ -636,7 +653,7 @@ export const recoverWithPasskey = async (pin) => {
     }
 
     // Decrypt mnemonic from iCloud backup
-    debugSteps += '8. Decrypting mnemonic...\n';
+    debugSteps += '9. Decrypting mnemonic...\n';
     logger.debug('Decrypting mnemonic from backup...');
     let mnemonic;
     try {
