@@ -97,6 +97,15 @@ const hashPin = async (pin, salt) => {
 };
 
 /**
+ * Export PIN hashing for use in passkey encryption
+ * Same security as daily unlock (10,000 iterations)
+ * @param {string} pin - PIN to hash
+ * @param {string} salt - Unique salt
+ * @returns {Promise<string>} Hashed PIN
+ */
+export const hashPinForEncryption = hashPin;
+
+/**
  * Hash PIN using legacy SHA256 method (for migration support)
  * @param {string} pin - PIN to hash
  * @param {string} salt - Salt
@@ -120,6 +129,26 @@ export const savePin = async (pin) => {
     // Store the hashed PIN, salt, and version
     await SecureStore.setItemAsync(SECURE_KEYS.PIN, hashedPin);
     await SecureStore.setItemAsync(SECURE_KEYS.PIN_SALT, salt);
+    await SecureStore.setItemAsync(SECURE_KEYS.PIN_VERSION, PIN_HASH_VERSION.PBKDF2_10K);
+
+    return true;
+  } catch (error) {
+    return false;
+  }
+};
+
+/**
+ * Save PIN using an existing salt (for wallet recovery)
+ * @param {string} pin - 6-digit PIN
+ * @param {string} existingSalt - Existing salt (from backup)
+ * @returns {Promise<boolean>} Success status
+ */
+export const savePinWithExistingSalt = async (pin, existingSalt) => {
+  try {
+    const hashedPin = await hashPin(pin, existingSalt);
+
+    // Store the hashed PIN and version (salt already exists)
+    await SecureStore.setItemAsync(SECURE_KEYS.PIN, hashedPin);
     await SecureStore.setItemAsync(SECURE_KEYS.PIN_VERSION, PIN_HASH_VERSION.PBKDF2_10K);
 
     return true;
