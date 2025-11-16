@@ -170,6 +170,12 @@ export default function OnboardingPage({
 
   // PIN setup completion wrapper - saves wallet and resets state
   const handlePinSetupCompleteInternal = async (pin) => {
+    console.log('[OnboardingPage] handlePinSetupCompleteInternal called', {
+      isImportedWallet,
+      hasPin: !!pin,
+      hasImportedMnemonic: !!importedMnemonic,
+    });
+
     // Save wallet to storage now that PIN is set (only for new wallets, not imported)
     if (!isImportedWallet) {
       const saved = await saveWalletAfterPinSetup();
@@ -178,15 +184,18 @@ export default function OnboardingPage({
         return;
       }
       // For new wallets, complete setup normally
+      console.log('[OnboardingPage] New wallet - completing setup normally');
       handlePinSetupCompleteWrapper();
     } else {
       // For imported wallets, show passkey migration prompt BEFORE completing setup
       if (pin && importedMnemonic) {
+        console.log('[OnboardingPage] Imported wallet - showing passkey migration modal');
         setCurrentPinForPasskey(pin);
         setShowPasskeyMigrationPrompt(true);
         // Don't call handlePinSetupCompleteWrapper yet - wait for modal to close
       } else {
         // No mnemonic stored, complete setup normally
+        console.log('[OnboardingPage] Imported wallet but no mnemonic - completing setup normally');
         handlePinSetupCompleteWrapper();
         setIsImportedWallet(false);
       }
@@ -213,6 +222,16 @@ export default function OnboardingPage({
     // Reset wallet data and AsyncStorage - this returns to initial welcome screen
     await resetWalletAndState();
   };
+
+  // Passkey migration modal handler - must be defined before any conditional returns
+  const handlePasskeyMigrationClose = useCallback(() => {
+    setShowPasskeyMigrationPrompt(false);
+    setImportedMnemonic(null);
+    setCurrentPinForPasskey(null);
+    setIsImportedWallet(false);
+    // Complete the setup after modal is closed
+    handlePinSetupCompleteWrapper();
+  }, [handlePinSetupCompleteWrapper]);
 
   // Passkey PIN Input (for passkey wallet creation)
   if (showPinInput) {
@@ -565,16 +584,6 @@ export default function OnboardingPage({
       </View>
     );
   }
-
-  // Passkey migration modal handler
-  const handlePasskeyMigrationClose = useCallback(() => {
-    setShowPasskeyMigrationPrompt(false);
-    setImportedMnemonic(null);
-    setCurrentPinForPasskey(null);
-    setIsImportedWallet(false);
-    // Complete the setup after modal is closed
-    handlePinSetupCompleteWrapper();
-  }, [handlePinSetupCompleteWrapper, setShowPasskeyMigrationPrompt, setImportedMnemonic, setIsImportedWallet]);
 
   // Passkey Migration Modal - shown when user imports wallet from mnemonic
   // Must be rendered at this level to overlay the PIN setup screen
