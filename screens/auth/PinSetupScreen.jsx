@@ -80,7 +80,8 @@ export default function PinSetupScreen({
                     setShowBiometricPrompt(true);
                   } else {
                     // No biometric support, complete setup
-                    onPinSetupComplete();
+                    // Pass the PIN back to parent for potential passkey migration
+                    onPinSetupComplete(pin);
                   }
                   // Fetch balance in background
                   if (fetchBalance) {
@@ -129,9 +130,10 @@ export default function PinSetupScreen({
       });
 
       // Complete setup regardless of biometric result
-      onPinSetupComplete();
+      // Pass the PIN back to parent for potential passkey migration
+      onPinSetupComplete(pin);
     } catch (error) {
-      onPinSetupComplete();
+      onPinSetupComplete(pin);
     }
   };
 
@@ -139,7 +141,8 @@ export default function PinSetupScreen({
     setShowBiometricPrompt(false);
     // Save the preference as disabled
     await SecureStore.setItemAsync(SECURE_KEYS.BIOMETRIC_ENABLED, 'false');
-    onPinSetupComplete();
+    // Pass the PIN back to parent for potential passkey migration
+    onPinSetupComplete(pin);
   };
 
   const currentPin = pinStep === 'confirm' ? confirmPin : pin;

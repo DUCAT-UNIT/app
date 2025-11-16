@@ -23,6 +23,8 @@ export function useWalletImport({ currentAccount, setSettingUpPin, showToast, lo
   const [importSeedPhrase, setImportSeedPhrase] = useState(Array(12).fill(''));
   const [isImportedWallet, setIsImportedWallet] = useState(false);
   const [isImporting, setIsImporting] = useState(false); // Loading state
+  const [showPasskeyMigrationPrompt, setShowPasskeyMigrationPrompt] = useState(false);
+  const [importedMnemonic, setImportedMnemonic] = useState(null); // Store mnemonic for passkey migration
   const seedInputRefs = useRef([]);
 
   // Load persisted import state on mount
@@ -122,12 +124,18 @@ export function useWalletImport({ currentAccount, setSettingUpPin, showToast, lo
         // Continue anyway - wallet is imported, balance will be fetched later
       }
 
+      // Store mnemonic for potential passkey migration
+      setImportedMnemonic(mnemonic);
+
       // Clear import form
       setImportingWallet(false);
       setImportSeedPhrase(Array(12).fill(''));
 
       // Clear persisted state
       await clearPersistedState();
+
+      // Don't show passkey migration prompt yet - wait until PIN is set
+      // The parent component (OnboardingPage) will show it after PIN setup
     } catch (error) {
       showToast(ERRORS.WALLET_IMPORT_FAILED, 'error');
       // Don't clear the form on error - let user fix their seed phrase
@@ -154,11 +162,15 @@ export function useWalletImport({ currentAccount, setSettingUpPin, showToast, lo
     isImportedWallet,
     isImporting, // Loading state
     seedInputRefs,
+    showPasskeyMigrationPrompt,
+    importedMnemonic,
 
     // Setters
     setImportingWallet,
     setImportSeedPhrase,
     setIsImportedWallet,
+    setShowPasskeyMigrationPrompt,
+    setImportedMnemonic,
 
     // Functions
     importWallet,

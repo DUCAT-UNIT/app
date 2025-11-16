@@ -14,6 +14,7 @@ import LockScreen from '../screens/auth/LockScreen';
 import MutinynetBanner from '../components/MutinynetBanner';
 import BiometricPromptModal from '../components/BiometricPromptModal';
 import ToastContainer from '../components/ToastContainer';
+import PasskeyMigrationModal from '../components/PasskeyMigrationModal';
 import Icon from '../components/icons';
 
 // Contexts
@@ -67,6 +68,9 @@ export default function OnboardingPage({
   // Wallet context
   const { wallet, currentAccount, loadWallet } = useWallet();
 
+  // State to store the PIN for passkey migration
+  const [currentPinForPasskey, setCurrentPinForPasskey] = React.useState(null);
+
   // Wallet creation hook
   const {
     tempMnemonicWords,
@@ -93,9 +97,13 @@ export default function OnboardingPage({
     isImportedWallet,
     isImporting,
     seedInputRefs,
+    showPasskeyMigrationPrompt,
+    importedMnemonic,
     setImportingWallet,
     setImportSeedPhrase,
     setIsImportedWallet,
+    setShowPasskeyMigrationPrompt,
+    setImportedMnemonic,
     importWallet,
   } = useWalletImport({
     currentAccount,
@@ -161,7 +169,7 @@ export default function OnboardingPage({
   });
 
   // PIN setup completion wrapper - saves wallet and resets state
-  const handlePinSetupCompleteInternal = async () => {
+  const handlePinSetupCompleteInternal = async (pin) => {
     // Save wallet to storage now that PIN is set (only for new wallets, not imported)
     if (!isImportedWallet) {
       const saved = await saveWalletAfterPinSetup();
@@ -170,7 +178,19 @@ export default function OnboardingPage({
         return;
       }
     }
+
+    // For imported wallets, store the PIN for passkey migration
+    if (isImportedWallet && pin) {
+      setCurrentPinForPasskey(pin);
+    }
+
     handlePinSetupCompleteWrapper();
+
+    // Show passkey migration prompt if this was an imported wallet
+    if (isImportedWallet && importedMnemonic) {
+      setShowPasskeyMigrationPrompt(true);
+    }
+
     setIsImportedWallet(false);
   };
 
@@ -549,7 +569,22 @@ export default function OnboardingPage({
 
   // If we reach here, user is authenticated and has a wallet - don't render anything
   // Let the parent (App.js) render the WalletPage
-  return null;
+  // But still show the passkey migration modal if needed
+  return (
+    <>
+      <PasskeyMigrationModal
+        visible={showPasskeyMigrationPrompt}
+        onClose={() => {
+          setShowPasskeyMigrationPrompt(false);
+          setImportedMnemonic(null);
+          setCurrentPinForPasskey(null);
+        }}
+        mnemonic={importedMnemonic}
+        currentPin={currentPinForPasskey}
+        showToast={showToast}
+      />
+    </>
+  );
 }
 
 const localStyles = StyleSheet.create({
