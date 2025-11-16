@@ -57,9 +57,22 @@ export default function PinSetupScreen({
           // Check if PINs match
           if (newConfirmPin === pin) {
             // Save PIN and finish setup
-            AuthService.savePin(pin).then((success) => {
+            AuthService.savePin(pin).then(async (success) => {
               if (success) {
                 if (changingPin) {
+                  // Re-encrypt passkey mnemonic with new PIN salt (if passkey is enabled)
+                  try {
+                    const PasskeyService = await import('../../services/passkeyService');
+                    await PasskeyService.reencryptPasskeyMnemonicAfterPinChange(pin);
+                  } catch (passkeyError) {
+                    // Log error but don't fail PIN change - user can still use PIN/biometric
+                    console.error('Failed to re-encrypt passkey data:', passkeyError.message);
+                    showToast(
+                      'PIN changed but passkey may need to be re-enabled. Contact support if issues occur.',
+                      'warning'
+                    );
+                  }
+
                   // Just changing PIN, not creating wallet
                   showToast(SUCCESS.PIN_CHANGED);
                   onPinChangeComplete();
