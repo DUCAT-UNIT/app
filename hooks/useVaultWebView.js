@@ -225,11 +225,20 @@ export function useVaultWebView(walletCredentials, vaultData, visible) {
         logger.debug('🔄 Fetching data for your new account...');
       }
     } else if (!loadedVaultPubkeyRef.current) {
-      // Initial load
+      // Initial load - credentials just became available
       logger.debug('🔄 Loading vault for your current account');
       loadedVaultPubkeyRef.current = currentPubkey;
+
+      // CRITICAL FIX: Inject credentials on first load if WebView is ready
+      // This handles the case where credentials load after the vault tab is already visible
+      if (webViewLoaded && visible) {
+        logger.debug('🔄 Vault is ready - injecting credentials for first time');
+        setTimeout(() => {
+          injectWalletCredentials();
+        }, 500);
+      }
     }
-  }, [walletCredentials, vaultData, injectWalletCredentials]);
+  }, [walletCredentials, vaultData, injectWalletCredentials, webViewLoaded, visible]);
 
   // Reload when vaultData is fetched after account switch
   useEffect(() => {

@@ -23,7 +23,7 @@ export const VaultProvider = ({ children, currentAccount }) => {
   const [autoCreateVaultTrigger, setAutoCreateVaultTrigger] = useState(0);
   const [activeTab, setActiveTab] = useState('wallet');
 
-  // Load vault credentials in background whenever account changes
+  // Load vault credentials in background whenever account changes OR vault tab is opened
   useEffect(() => {
     const loadVaultCredentials = async () => {
       try {
@@ -53,8 +53,18 @@ export const VaultProvider = ({ children, currentAccount }) => {
       }
     };
 
+    // Always attempt to load credentials when account changes
     loadVaultCredentials();
-  }, [currentAccount]);
+
+    // Also retry when vault tab is opened if credentials are missing
+    // This handles the case where credentials failed to load on first mount
+    if (activeTab === 'vault' && !vaultCredentials) {
+      logger.debug('🔄 Vault tab opened but credentials missing - retrying load');
+      setTimeout(() => {
+        loadVaultCredentials();
+      }, 500);
+    }
+  }, [currentAccount, activeTab, vaultCredentials]);
 
   const openVault = useCallback(async (shouldAutoCreate = false) => {
     try {
