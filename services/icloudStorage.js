@@ -46,16 +46,7 @@ export const saveToICloud = async ({ encrypted, iv, tag, credentialId, userHandl
     await iCloudStorage.setItem(ICLOUD_KEYS.USER_HANDLE, userHandle);
     await iCloudStorage.setItem(ICLOUD_KEYS.PIN_SALT, pinSalt);
 
-    // Verify the save worked by reading back
-    const verify = await iCloudStorage.getItem(ICLOUD_KEYS.ENCRYPTED_MNEMONIC);
-    logger.debug('Successfully saved to iCloud', {
-      verified: !!verify,
-      verifiedLength: verify?.length
-    });
-
-    if (!verify) {
-      throw new Error('iCloud save verification failed - data not persisted');
-    }
+    logger.debug('Successfully saved to iCloud (data will sync asynchronously)');
   } catch (error) {
     logger.error('Failed to save to iCloud', {
       error: error.message,
