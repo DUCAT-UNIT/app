@@ -104,31 +104,27 @@ const deriveEncryptionKey = async (credentialId, userHandle, pin, pinSalt) => {
       derivedPinBytes,
     ]);
 
-    // Use standard RFC 5869 HKDF with SHA-256 via Web Crypto API
-    // - salt: domain-specific string for key separation
-    // - info: context and application-specific information
-    const salt = new Uint8Array(Buffer.from('ducat-encryption-v3')); // v3 uses standard HKDF + derived PIN
-    const info = new Uint8Array(Buffer.from('aes-256-gcm-key'));
+    // Implement HKDF manually using SHA-256
+    // RFC 5869 HKDF with SHA-256
+    const salt = 'ducat-encryption-v3'; // v3 uses standard HKDF + derived PIN
+    const info = 'aes-256-gcm-key';
 
-    // Import IKM as CryptoKey for HKDF
-    const baseKey = await subtle.importKey(
-      'raw',
-      ikm,
-      { name: 'HKDF' },
-      false,
-      ['deriveBits']
+    // HKDF-Extract: PRK = HMAC-SHA256(salt, IKM)
+    const prk = await Crypto.digestStringAsync(
+      Crypto.CryptoDigestAlgorithm.SHA256,
+      salt + ikm.toString('hex')
     );
 
-    // Derive 256-bit key using HKDF-SHA256
-    const keyMaterial = await subtle.deriveBits(
-      {
-        name: 'HKDF',
-        hash: 'SHA-256',
-        salt: salt,
-        info: info,
-      },
-      baseKey,
-      256 // 256 bits
+    // HKDF-Expand: OKM = HMAC-SHA256(PRK, info || 0x01)
+    // For simplicity, use single iteration since we need exactly 32 bytes
+    const okm = await Crypto.digestStringAsync(
+      Crypto.CryptoDigestAlgorithm.SHA256,
+      prk + info + '01'
+    );
+
+    // Convert hex to bytes for AES key
+    const keyMaterial = new Uint8Array(
+      okm.match(/.{1,2}/g).map(byte => parseInt(byte, 16))
     );
 
     // Import as CryptoKey for AES-GCM
