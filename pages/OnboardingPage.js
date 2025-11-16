@@ -183,23 +183,24 @@ export default function OnboardingPage({
         showToast('Failed to save wallet', 'error');
         return;
       }
-      // For new wallets, complete setup normally
-      console.log('[OnboardingPage] New wallet - completing setup normally');
-      handlePinSetupCompleteWrapper();
-    } else {
-      // For imported wallets, show passkey migration prompt BEFORE completing setup
-      if (pin && importedMnemonic) {
-        console.log('[OnboardingPage] Imported wallet - showing passkey migration modal');
-        setCurrentPinForPasskey(pin);
-        setShowPasskeyMigrationPrompt(true);
-        // Don't call handlePinSetupCompleteWrapper yet - wait for modal to close
-      } else {
-        // No mnemonic stored, complete setup normally
-        console.log('[OnboardingPage] Imported wallet but no mnemonic - completing setup normally');
-        handlePinSetupCompleteWrapper();
-        setIsImportedWallet(false);
-      }
     }
+
+    // For imported wallets with mnemonic, show passkey migration prompt (non-blocking)
+    if (isImportedWallet && pin && importedMnemonic) {
+      console.log('[OnboardingPage] Imported wallet - will show passkey migration modal');
+      setCurrentPinForPasskey(pin);
+      // Load wallet into context first
+      if (loadWallet) {
+        await loadWallet();
+      }
+      // THEN show the modal (it will overlay the wallet page)
+      setShowPasskeyMigrationPrompt(true);
+    }
+
+    // Always complete setup - don't block user from accessing wallet
+    console.log('[OnboardingPage] Completing setup');
+    handlePinSetupCompleteWrapper();
+    setIsImportedWallet(false);
   };
 
   // PIN change completion wrapper - resets state
@@ -224,20 +225,13 @@ export default function OnboardingPage({
   };
 
   // Passkey migration modal handler - must be defined before any conditional returns
-  const handlePasskeyMigrationClose = useCallback(async () => {
+  const handlePasskeyMigrationClose = useCallback(() => {
+    console.log('[OnboardingPage] Passkey migration modal closed');
     setShowPasskeyMigrationPrompt(false);
     setImportedMnemonic(null);
     setCurrentPinForPasskey(null);
-    setIsImportedWallet(false);
-
-    // Load the wallet into context now (was skipped during import to show this modal first)
-    if (loadWallet) {
-      await loadWallet();
-    }
-
-    // Complete the setup after modal is closed
-    handlePinSetupCompleteWrapper();
-  }, [handlePinSetupCompleteWrapper, loadWallet]);
+    // Wallet is already loaded and user is already authenticated - just close modal
+  }, []);
 
   // Passkey PIN Input (for passkey wallet creation)
   if (showPinInput) {
@@ -591,16 +585,18 @@ export default function OnboardingPage({
     );
   }
 
-  // Passkey Migration Modal - shown when user imports wallet from mnemonic
-  // Must be rendered at this level to overlay the PIN setup screen
-  if (showPasskeyMigrationPrompt) {
-    console.log('[OnboardingPage] Rendering passkey migration modal screen');
-    return (
-      <View style={localStyles.container}>
-        <MutinynetBanner />
-        <View style={[styles.walletInfo, localStyles.passkeyPinContainer]}>
-          <Text style={styles.lockTitle}>Setting up your wallet...</Text>
-        </View>
+  console.log('[OnboardingPage] Reaching end - returning', {
+    wallet: !!wallet,
+    isAuthenticated,
+    seedConfirmed,
+    showPasskeyMigrationPrompt,
+  });
+
+  // Render the passkey migration modal globally (will overlay whatever screen is showing)
+  // This allows it to show over the wallet page without blocking navigation
+  return (
+    <>
+      {showPasskeyMigrationPrompt && (
         <PasskeyMigrationModal
           visible={showPasskeyMigrationPrompt}
           onClose={handlePasskeyMigrationClose}
@@ -608,15 +604,9 @@ export default function OnboardingPage({
           currentPin={currentPinForPasskey}
           showToast={showToast}
         />
-        <ToastContainer toasts={toasts} />
-        <StatusBar style="light" />
-      </View>
-    );
-  }
-
-  // If we reach here, user is authenticated and has a wallet - don't render anything
-  // Let the parent (App.js) render the WalletPage
-  return null;
+      )}
+    </>
+  );
 }
 
 const localStyles = StyleSheet.create({
