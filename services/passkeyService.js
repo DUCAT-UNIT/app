@@ -763,5 +763,8 @@ export const clearPasskeyData = async (clearICloudBackup = false) => {
   }
 };
 
+// Re-export iCloud functions for convenience
+export { hasICloudBackup } from './icloudStorage';
+
 // Export keys for testing
 export const PASSKEY_STORAGE_KEYS = PASSKEY_KEYS;

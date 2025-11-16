@@ -24,9 +24,9 @@ export function usePasskeyRestore({ setIsAuthenticated, setSeedConfirmed, showTo
         return;
       }
 
-      // Check if passkey is enabled (wallet exists in iCloud)
-      const enabled = await PasskeyService.isPasskeyEnabled();
-      if (!enabled) {
+      // Check if iCloud backup exists (don't check local storage - that may have been cleared)
+      const hasBackup = await PasskeyService.hasICloudBackup();
+      if (!hasBackup) {
         showToast('No passkey wallet found in iCloud', 'error');
         return;
       }
