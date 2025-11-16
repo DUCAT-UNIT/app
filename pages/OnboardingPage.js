@@ -452,7 +452,8 @@ export default function OnboardingPage({
   }
 
   // Welcome/Onboarding Screen (wallet creation/import/seed verification)
-  if (!wallet || importingWallet || showingIntro || showingSeeds || verifyingSeeds || restoringWithPasskey) {
+  // Don't show if we're in passkey creation/restore PIN input
+  if ((!wallet || importingWallet || showingIntro || showingSeeds || verifyingSeeds || restoringWithPasskey) && !showPinInput && !showRestorePinInput) {
     return (
       <View style={localStyles.welcomeContainer}>
         <MutinynetBanner />
