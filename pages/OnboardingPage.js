@@ -192,16 +192,18 @@ export default function OnboardingPage({
     // For imported wallets, load wallet into context before completing setup
     if (isImportedWallet && pin && importedMnemonic) {
       console.log('[OnboardingPage] Loading imported wallet into context');
+      let walletAddresses = null;
       if (loadWallet) {
         const result = await loadWallet();
         console.log('[OnboardingPage] Wallet loaded:', result);
+        walletAddresses = result?.addresses;
       }
 
-      // Explicitly fetch balance after loading wallet
-      if (fetchBalance) {
+      // Explicitly fetch balance after loading wallet using the addresses
+      if (fetchBalance && walletAddresses) {
         console.log('[OnboardingPage] Fetching balance for imported wallet');
         try {
-          await fetchBalance();
+          await fetchBalance(walletAddresses.segwitAddress, walletAddresses.taprootAddress);
           console.log('[OnboardingPage] Balance fetched successfully');
         } catch (error) {
           console.error('[OnboardingPage] Balance fetch error:', error);
