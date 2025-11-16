@@ -63,17 +63,19 @@ export function usePasskeyRestore({ setIsAuthenticated, setSeedConfirmed, showTo
       await saveCurrentAccount(0);
       await savePin(pin);
 
-      // Hide PIN input
-      setShowRestorePinInput(false);
-      setRestorePin('');
-      setRestoringWithPasskey(false);
+      // CRITICAL: Set auth states FIRST (before loadWallet and before resetting UI state)
+      // This prevents OnboardingPage from showing WelcomeScreen during the transition
+      setIsAuthenticated(true);
+      setSeedConfirmed(true);
 
       // Reload wallet
       await loadWallet();
 
-      // Mark as authenticated and seed confirmed
-      setIsAuthenticated(true);
-      setSeedConfirmed(true);
+      // Hide PIN input and reset state AFTER wallet is loaded and auth states are set
+      // This prevents the OnboardingPage from flashing the WelcomeScreen
+      setShowRestorePinInput(false);
+      setRestorePin('');
+      setRestoringWithPasskey(false);
 
       showToast('Wallet restored from passkey!', 'success');
     } catch (error) {
