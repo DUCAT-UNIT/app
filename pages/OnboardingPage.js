@@ -189,21 +189,36 @@ export default function OnboardingPage({
       hasImportedMnemonic: !!importedMnemonic,
     });
 
-    // Always complete setup first - this authenticates and navigates to wallet
-    console.log('[OnboardingPage] Completing setup');
-    await handlePinSetupCompleteWrapper();
-
-    // For imported wallets, show passkey migration prompt after navigation
+    // For imported wallets, load wallet into context before completing setup
     if (isImportedWallet && pin && importedMnemonic) {
-      console.log('[OnboardingPage] Imported wallet - scheduling passkey migration modal');
-      // Use setTimeout to ensure navigation completes and wallet loads before showing modal
+      console.log('[OnboardingPage] Loading imported wallet into context');
+      if (loadWallet) {
+        const result = await loadWallet();
+        console.log('[OnboardingPage] Wallet loaded:', result);
+      }
+
+      // Capture values for passkey modal
+      const capturedMnemonic = importedMnemonic;
+      const capturedPin = pin;
+
+      // Clear import state
+      setIsImportedWallet(false);
+
+      // Complete setup (authenticate and navigate)
+      console.log('[OnboardingPage] Completing setup');
+      await handlePinSetupCompleteWrapper();
+
+      // Show passkey migration modal after a delay
+      console.log('[OnboardingPage] Scheduling passkey migration modal');
       setTimeout(() => {
         console.log('[OnboardingPage] Showing passkey migration modal');
-        showPasskeyMigrationPromptGlobal(importedMnemonic, pin);
+        showPasskeyMigrationPromptGlobal(capturedMnemonic, capturedPin);
       }, 500);
+    } else {
+      // Normal wallet creation flow
+      console.log('[OnboardingPage] Completing setup (normal flow)');
+      await handlePinSetupCompleteWrapper();
     }
-
-    setIsImportedWallet(false);
   };
 
   // PIN change completion wrapper - resets state
