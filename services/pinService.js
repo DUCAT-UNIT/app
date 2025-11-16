@@ -5,7 +5,19 @@
 
 import * as SecureStore from 'expo-secure-store';
 import * as Crypto from 'expo-crypto';
-import { pbkdf2Sync, timingSafeEqual } from 'react-native-quick-crypto';
+import { pbkdf2Sync } from 'react-native-quick-crypto';
+
+// Manual constant-time comparison since timingSafeEqual isn't available
+const timingSafeEqual = (a, b) => {
+  if (a.length !== b.length) {
+    return false;
+  }
+  let result = 0;
+  for (let i = 0; i < a.length; i++) {
+    result |= a[i] ^ b[i];
+  }
+  return result === 0;
+};
 import { SECURE_KEYS, PIN_HASH_VERSION } from '../utils/constants';
 import { PIN, CRYPTO } from '../constants/security';
 
