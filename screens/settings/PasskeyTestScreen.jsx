@@ -202,6 +202,30 @@ export default function PasskeyTestScreen({ navigation }) {
     );
   };
 
+  // Test: Check iCloud backup
+  const testCheckICloudBackup = async () => {
+    setLoading(true);
+    try {
+      const ICloudStorage = await import('../../services/icloudStorage');
+      const hasBackup = await ICloudStorage.hasICloudBackup();
+
+      if (hasBackup) {
+        const backup = await ICloudStorage.loadFromICloud();
+        Alert.alert(
+          '✅ iCloud Backup Found',
+          `Keys: ${Object.keys(backup).join(', ')}\n\nEncrypted length: ${backup.encrypted?.length || 0}\nPIN salt length: ${backup.pinSalt?.length || 0}`
+        );
+      } else {
+        Alert.alert('❌ No iCloud Backup', 'No wallet backup found in iCloud storage');
+      }
+    } catch (error) {
+      const errorDetails = `${error.message}\n\nCode: ${error.code || 'N/A'}\nStack: ${error.stack || 'N/A'}`;
+      Alert.alert('❌ iCloud Check Error', errorDetails);
+    } finally {
+      setLoading(false);
+    }
+  };
+
   // Test: Remove passkey
   const testRemove = async () => {
     Alert.alert(
@@ -310,6 +334,16 @@ export default function PasskeyTestScreen({ navigation }) {
           <Text style={styles.sectionDescription}>
             Recovers wallet on a new device. Uses passkey synced via iCloud/Google.
           </Text>
+
+          <TouchableOpacity
+            style={[styles.testButton]}
+            onPress={testCheckICloudBackup}
+            disabled={loading}
+          >
+            <Text style={styles.testButtonText}>
+              Check iCloud Backup
+            </Text>
+          </TouchableOpacity>
 
           <TouchableOpacity
             style={[styles.actionButton, styles.recoverButton]}
