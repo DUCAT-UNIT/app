@@ -15,7 +15,7 @@
     "ios": {
       "supportsTablet": true,
       "bundleIdentifier": "com.anonymous.SimpleWallet",
-      "buildNumber": "41",
+      "buildNumber": "42",
       "associatedDomains": [
         "webcredentials:ducatprotocol.com",
         "applinks:ducatprotocol.com"
@@ -23,10 +23,8 @@
       "usesIcloudStorage": true,
       "iCloudContainerEnvironment": "Production",
       "entitlements": {
-        "com.apple.developer.icloud-container-identifiers": [],
-        "com.apple.developer.icloud-services": [
-          "CloudKit",
-          "CloudDocuments"
+        "com.apple.developer.icloud-container-identifiers": [
+          "iCloud.com.anonymous.SimpleWallet"
         ],
         "com.apple.developer.ubiquity-kvstore-identifier": "$(TeamIdentifierPrefix)$(CFBundleIdentifier)"
       },
