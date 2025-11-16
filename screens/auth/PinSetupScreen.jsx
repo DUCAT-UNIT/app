@@ -57,26 +57,24 @@ export default function PinSetupScreen({
           // Check if PINs match
           if (newConfirmPin === pin) {
             // Save PIN and finish setup
-            AuthService.savePin(pin).then(async (success) => {
-              if (success) {
-                if (changingPin) {
-                  // Re-encrypt passkey mnemonic with new PIN salt (if passkey is enabled)
-                  try {
-                    const PasskeyService = await import('../../services/passkeyService');
-                    await PasskeyService.reencryptPasskeyMnemonicAfterPinChange(pin);
-                  } catch (passkeyError) {
-                    // Log error but don't fail PIN change - user can still use PIN/biometric
-                    console.error('Failed to re-encrypt passkey data:', passkeyError.message);
-                    showToast(
-                      'PIN changed but passkey may need to be re-enabled. Contact support if issues occur.',
-                      'warning'
-                    );
-                  }
+            if (changingPin) {
+              // Use atomic PIN change operation to prevent lockout
+              const PasskeyService = await import('../../services/passkeyService');
+              const result = await PasskeyService.atomicPinChangeWithPasskey(pin);
 
-                  // Just changing PIN, not creating wallet
-                  showToast(SUCCESS.PIN_CHANGED);
-                  onPinChangeComplete();
-                } else {
+              if (result.success) {
+                showToast(SUCCESS.PIN_CHANGED);
+                onPinChangeComplete();
+              } else {
+                setPinError(result.error || 'Failed to change PIN');
+                setPin('');
+                setConfirmPin('');
+                setPinStep('enter');
+              }
+            } else {
+              // Initial wallet creation - just save PIN normally
+              AuthService.savePin(pin).then(async (success) => {
+                if (success) {
                   // Initial wallet creation or import
                   if (isBiometricSupported) {
                     setShowBiometricPrompt(true);
@@ -88,15 +86,15 @@ export default function PinSetupScreen({
                   if (fetchBalance) {
                     fetchBalance();
                   }
+                } else {
+                  setPinError(ERRORS.PIN_SAVE_FAILED);
+                  // Reset entire PIN process
+                  setPin('');
+                  setConfirmPin('');
+                  setPinStep('enter');
                 }
-              } else {
-                setPinError(ERRORS.PIN_SAVE_FAILED);
-                // Reset entire PIN process
-                setPin('');
-                setConfirmPin('');
-                setPinStep('enter');
-              }
-            });
+              });
+            }
           } else {
             setPinError(ERRORS.PINS_DO_NOT_MATCH);
             // Reset entire PIN process so user starts fresh

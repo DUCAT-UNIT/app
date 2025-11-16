@@ -24,8 +24,8 @@ import {
   clearICloud,
 } from './icloudStorage';
 
-// Import crypto for AES-256-GCM
-import { subtle, getRandomValues } from 'react-native-quick-crypto';
+// Import crypto for AES-256-GCM and HKDF
+import { subtle, getRandomValues, hkdf } from 'react-native-quick-crypto';
 
 // Base64URL encoding helpers
 const toBase64Url = (buffer) => {
@@ -97,26 +97,33 @@ const deriveEncryptionKey = async (credentialId, userHandle, pin, pinSalt) => {
 
     // Combine passkey data + derived PIN for Apple-proof encryption
     // Apple has passkey but NOT the PIN (and would need 28 hours to brute force)
-    const derivedPinBytes = new TextEncoder().encode(derivedPin);
-    const ikm = new Uint8Array([...credentialId, ...userHandle, ...derivedPinBytes]);
+    const derivedPinBytes = Buffer.from(derivedPin, 'hex');
+    const ikm = Buffer.concat([
+      Buffer.from(credentialId),
+      Buffer.from(userHandle),
+      derivedPinBytes,
+    ]);
 
-    // Different info string for encryption
-    const salt = new TextEncoder().encode('ducat-encryption-v3'); // v3 uses derived PIN
-    const info = new TextEncoder().encode('aes-256-gcm-key');
+    // Use standard RFC 5869 HKDF with SHA-256
+    // - salt: domain-specific string for key separation
+    // - info: context and application-specific information
+    const salt = Buffer.from('ducat-encryption-v3'); // v3 uses standard HKDF + derived PIN
+    const info = Buffer.from('aes-256-gcm-key');
 
-    // HKDF to derive 256-bit key
-    const prk = await Crypto.digestStringAsync(
-      Crypto.CryptoDigestAlgorithm.SHA256,
-      Buffer.from(ikm).toString('hex') + Buffer.from(salt).toString('hex')
-    );
-
-    const okm = await Crypto.digestStringAsync(
-      Crypto.CryptoDigestAlgorithm.SHA256,
-      prk + Buffer.from(info).toString('hex') + '01'
-    );
-
-    // Use full 256 bits for AES-256
-    const keyMaterial = Buffer.from(okm, 'hex').slice(0, 32);
+    // Standard HKDF-SHA256 to derive 256-bit key
+    const keyMaterial = await new Promise((resolve, reject) => {
+      hkdf(
+        'sha256',
+        ikm,
+        salt,
+        info,
+        32, // 32 bytes = 256 bits for AES-256
+        (err, derivedKey) => {
+          if (err) reject(err);
+          else resolve(derivedKey);
+        }
+      );
+    });
 
     // Import as CryptoKey for AES-GCM
     const cryptoKey = await subtle.importKey(
@@ -358,10 +365,17 @@ export const createWalletWithPasskey = async ({ userName, userDisplayName, pin }
       logger.debug('Encrypted backup saved to iCloud');
       icloudBackupSucceeded = true;
     } catch (icloudError) {
-      // iCloud backup is optional - don't fail wallet creation if it fails
-      logger.warn('Failed to backup to iCloud, continuing anyway', {
+      // iCloud backup failed - wallet still created but recovery won't work
+      logger.error('CRITICAL: iCloud backup failed during wallet creation', {
         error: icloudError.message,
+        errorCode: icloudError.code,
+        errorName: icloudError.name,
+        stack: icloudError.stack,
+        hasICloudAccess: 'Check if user is signed into iCloud',
+        hasStorageSpace: 'Check if iCloud storage is full',
+        hasNetwork: 'Check if device has internet connection',
       });
+      // Note: icloudBackupSucceeded remains false, caller will show warning
     }
 
     logger.debug('Wallet created with passkey successfully', {
@@ -725,7 +739,14 @@ export const addPasskeyToExistingWallet = async (mnemonic, userName, userDisplay
       });
       logger.debug('Passkey backup saved to iCloud');
     } catch (icloudError) {
-      logger.warn('Failed to backup passkey to iCloud', { error: icloudError.message });
+      logger.error('CRITICAL: iCloud backup failed when adding passkey to wallet', {
+        error: icloudError.message,
+        errorCode: icloudError.code,
+        errorName: icloudError.name,
+        recommendation: 'User should check iCloud settings and retry adding passkey',
+      });
+      // Re-throw so caller knows backup failed
+      throw new Error(`Failed to backup passkey to iCloud: ${icloudError.message}. Recovery may not work on new devices.`);
     }
 
     logger.debug('Passkey added to wallet successfully');
@@ -736,6 +757,84 @@ export const addPasskeyToExistingWallet = async (mnemonic, userName, userDisplay
   } catch (error) {
     logger.error('Failed to add passkey to wallet', { error: error.message });
     throw error;
+  }
+};
+
+/**
+ * Atomically change PIN and re-encrypt passkey data with rollback capability
+ * CRITICAL: This operation must be atomic to prevent lockout scenarios
+ * If passkey re-encryption fails, the old PIN is restored
+ * @param {string} newPin - New PIN to set
+ * @returns {Promise<{success: boolean, error?: string}>}
+ */
+export const atomicPinChangeWithPasskey = async (newPin) => {
+  try {
+    // Check if passkey is enabled
+    const enabled = await isPasskeyEnabled();
+    if (!enabled) {
+      // No passkey, just change PIN normally
+      const { savePin } = await import('./pinService');
+      const success = await savePin(newPin);
+      return { success };
+    }
+
+    logger.debug('Starting atomic PIN change with passkey re-encryption');
+
+    // Step 1: Backup current state in case we need to rollback
+    const oldPinHash = await SecureStore.getItemAsync(SECURE_KEYS.PIN);
+    const oldPinSalt = await SecureStore.getItemAsync(SECURE_KEYS.PIN_SALT);
+    const oldPinVersion = await SecureStore.getItemAsync(SECURE_KEYS.PIN_VERSION);
+    const oldEncryptedMnemonic = await SecureStore.getItemAsync(PASSKEY_KEYS.ENCRYPTED_MNEMONIC);
+    const oldIv = await SecureStore.getItemAsync(PASSKEY_KEYS.ENCRYPTION_IV);
+    const oldTag = await SecureStore.getItemAsync(PASSKEY_KEYS.ENCRYPTION_TAG);
+
+    try {
+      // Step 2: Save new PIN (generates new salt)
+      const { savePin } = await import('./pinService');
+      const pinSaveSuccess = await savePin(newPin);
+      if (!pinSaveSuccess) {
+        throw new Error('Failed to save new PIN');
+      }
+
+      // Step 3: Re-encrypt passkey mnemonic with new PIN salt
+      // If this fails, we'll rollback the PIN change
+      await reencryptPasskeyMnemonicAfterPinChange(newPin);
+
+      logger.debug('Atomic PIN change completed successfully');
+      return { success: true };
+    } catch (error) {
+      // Rollback: restore old PIN and passkey data
+      logger.error('PIN change failed, rolling back to old PIN', { error: error.message });
+
+      try {
+        if (oldPinHash && oldPinSalt) {
+          await SecureStore.setItemAsync(SECURE_KEYS.PIN, oldPinHash);
+          await SecureStore.setItemAsync(SECURE_KEYS.PIN_SALT, oldPinSalt);
+          if (oldPinVersion) {
+            await SecureStore.setItemAsync(SECURE_KEYS.PIN_VERSION, oldPinVersion);
+          }
+        }
+        if (oldEncryptedMnemonic && oldIv) {
+          await SecureStore.setItemAsync(PASSKEY_KEYS.ENCRYPTED_MNEMONIC, oldEncryptedMnemonic);
+          await SecureStore.setItemAsync(PASSKEY_KEYS.ENCRYPTION_IV, oldIv);
+          if (oldTag) {
+            await SecureStore.setItemAsync(PASSKEY_KEYS.ENCRYPTION_TAG, oldTag);
+          }
+        }
+        logger.debug('Successfully rolled back to old PIN');
+      } catch (rollbackError) {
+        logger.error('CRITICAL: Rollback failed', { error: rollbackError.message });
+        return {
+          success: false,
+          error: 'PIN change failed and rollback failed. Please contact support immediately.',
+        };
+      }
+
+      return { success: false, error: 'PIN change failed. Your old PIN is still active.' };
+    }
+  } catch (error) {
+    logger.error('Atomic PIN change failed', { error: error.message });
+    return { success: false, error: error.message || 'Failed to change PIN' };
   }
 };
 
@@ -803,9 +902,15 @@ export const reencryptPasskeyMnemonicAfterPinChange = async (newPin) => {
       });
       logger.debug('Updated iCloud backup with re-encrypted mnemonic');
     } catch (icloudError) {
-      logger.warn('Failed to update iCloud backup after PIN change', {
+      logger.error('CRITICAL: iCloud backup failed after PIN change', {
         error: icloudError.message,
+        errorCode: icloudError.code,
+        errorName: icloudError.name,
+        impact: 'Old PIN salt still in iCloud - recovery may fail on new devices',
+        recommendation: 'User should retry PIN change or check iCloud settings',
       });
+      // Don't throw - local passkey is updated, just iCloud sync failed
+      // User can still unlock on this device
     }
 
     logger.debug('Passkey mnemonic re-encrypted successfully with new PIN salt');
