@@ -133,6 +133,7 @@ export default function OnboardingPage({
     setPasskeyPinConfirm,
     setShowPinInput,
     isCreating: isCreatingPasskey,
+    creatingWithPasskey,
     resetPasskeyCreation,
   } = usePasskeyCreation({
     setIsAuthenticated,
@@ -453,7 +454,15 @@ export default function OnboardingPage({
 
   // Welcome/Onboarding Screen (wallet creation/import/seed verification)
   // Don't show if we're in passkey creation/restore PIN input
-  if ((!wallet || importingWallet || showingIntro || showingSeeds || verifyingSeeds || restoringWithPasskey) && !showPinInput && !showRestorePinInput) {
+  // Don't show if wallet is fully set up (authenticated + seed confirmed) - let parent show WalletPage
+  const shouldShowWelcome =
+    (!wallet || importingWallet || showingIntro || showingSeeds || verifyingSeeds || restoringWithPasskey) &&
+    !showPinInput &&
+    !showRestorePinInput;
+
+  const isFullySetUp = wallet && isAuthenticated && seedConfirmed;
+
+  if (shouldShowWelcome && !isFullySetUp) {
     return (
       <View style={localStyles.welcomeContainer}>
         <MutinynetBanner />

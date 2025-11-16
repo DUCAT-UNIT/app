@@ -91,19 +91,22 @@ export function usePasskeyCreation({ setIsAuthenticated, setSeedConfirmed, showT
       // Wallet is now created and saved
       walletExistsRef.current = true;
 
-      // Hide PIN input and reset state
+      // CRITICAL: Load wallet FIRST so it's in context
+      // This must complete before we set auth states or reset UI states
+      await loadWallet();
+
+      // Now set auth states (wallet is loaded, so navigation will work correctly)
+      setIsAuthenticated(true);
+      setSeedConfirmed(true);
+
+      // Reset UI states in the same batch as auth states
+      // Since wallet is loaded and auth is set, OnboardingPage will return null
+      // and RootNavigator will switch to Main stack
       setShowPinInput(false);
       setPasskeyPin('');
       setPasskeyPinConfirm('');
       setConfirmingPin(false);
       setCreatingWithPasskey(false);
-
-      // Reload wallet
-      await loadWallet();
-
-      // Mark as authenticated and seed confirmed (skip seed phrase display)
-      setIsAuthenticated(true);
-      setSeedConfirmed(true);
 
       showToast('Wallet created with passkey!', 'success');
     } catch (error) {
