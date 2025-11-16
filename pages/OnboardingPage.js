@@ -4,7 +4,7 @@
  */
 
 import React from 'react';
-import { View, StyleSheet } from 'react-native';
+import { View, Text, TouchableOpacity, StyleSheet } from 'react-native';
 import { StatusBar } from 'expo-status-bar';
 
 // Components
@@ -14,6 +14,7 @@ import LockScreen from '../screens/auth/LockScreen';
 import MutinynetBanner from '../components/MutinynetBanner';
 import BiometricPromptModal from '../components/BiometricPromptModal';
 import ToastContainer from '../components/ToastContainer';
+import Icon from '../components/icons';
 
 // Contexts
 import { useAuth } from '../contexts/AuthContext';
@@ -24,10 +25,12 @@ import { useWalletCreation } from '../hooks/useWalletCreation';
 import { useWalletImport } from '../hooks/useWalletImport';
 import { useSeedVerification } from '../hooks/useSeedVerification';
 import { usePasskeyCreation } from '../hooks/usePasskeyCreation';
+import { usePasskeyRestore } from '../hooks/usePasskeyRestore';
 import { useToastContext } from '../contexts/UIContext';
 
 // Utils
 import { COLORS } from '../theme';
+import styles from '../styles';
 
 export default function OnboardingPage({
   seedConfirmed,
@@ -119,7 +122,37 @@ export default function OnboardingPage({
   });
 
   // Passkey creation hook
-  const { createWalletWithPasskey: createWithPasskey } = usePasskeyCreation({
+  const {
+    startPasskeyCreation,
+    handlePinEntry,
+    showPinInput,
+    passkeyPin,
+    confirmingPin,
+    passkeyPinConfirm,
+    setPasskeyPin,
+    setPasskeyPinConfirm,
+    setShowPinInput,
+    isCreating: isCreatingPasskey,
+    resetPasskeyCreation,
+  } = usePasskeyCreation({
+    setIsAuthenticated,
+    setSeedConfirmed,
+    showToast,
+    loadWallet,
+  });
+
+  // Passkey restore hook
+  const {
+    restoringWithPasskey,
+    showRestorePinInput,
+    restorePin,
+    isRestoring,
+    setRestoringWithPasskey,
+    setRestorePin,
+    startPasskeyRestore,
+    restoreWalletWithPasskey,
+    resetPasskeyRestore,
+  } = usePasskeyRestore({
     setIsAuthenticated,
     setSeedConfirmed,
     showToast,
@@ -160,6 +193,193 @@ export default function OnboardingPage({
     // Reset wallet data and AsyncStorage - this returns to initial welcome screen
     await resetWalletAndState();
   };
+
+  // Passkey PIN Input (for passkey wallet creation)
+  if (showPinInput) {
+    const currentPin = confirmingPin ? passkeyPinConfirm : passkeyPin;
+    const setCurrentPin = confirmingPin ? setPasskeyPinConfirm : setPasskeyPin;
+
+    const handlePasskeyPinDigit = (digit) => {
+      if (currentPin.length < 6) {
+        const newPin = currentPin + digit;
+        setCurrentPin(newPin);
+        // Auto-submit when 6 digits entered
+        if (newPin.length === 6) {
+          handlePinEntry(newPin);
+        }
+      }
+    };
+
+    const handlePasskeyPinDelete = () => {
+      setCurrentPin(currentPin.slice(0, -1));
+    };
+
+    return (
+      <View style={localStyles.container}>
+        <MutinynetBanner />
+        <View style={[styles.walletInfo, localStyles.passkeyPinContainer]}>
+          <Text style={styles.lockTitle}>
+            {confirmingPin ? 'Confirm your PIN' : 'Create a 6-digit PIN'}
+          </Text>
+          <Text style={localStyles.passkeyPinSubtitle}>
+            {confirmingPin
+              ? 'Enter your PIN again to confirm'
+              : 'This PIN will be used with your passkey to encrypt your wallet'}
+          </Text>
+
+          <View style={styles.lockPinDots}>
+            {[0, 1, 2, 3, 4, 5].map((i) => (
+              <View
+                key={i}
+                style={[
+                  styles.lockPinDot,
+                  i < currentPin.length && styles.lockPinDotFilled,
+                ]}
+              />
+            ))}
+          </View>
+
+          <View style={styles.lockKeypad}>
+            {[
+              [1, 2, 3],
+              [4, 5, 6],
+              [7, 8, 9],
+            ].map((row, rowIndex) => (
+              <View key={rowIndex} style={styles.lockKeypadRow}>
+                {row.map((num) => (
+                  <TouchableOpacity
+                    key={num}
+                    style={styles.lockKey}
+                    onPress={() => handlePasskeyPinDigit(String(num))}
+                  >
+                    <Text style={styles.lockKeyText}>{num}</Text>
+                  </TouchableOpacity>
+                ))}
+              </View>
+            ))}
+            <View style={styles.lockKeypadRow}>
+              <View style={styles.lockKey} />
+              <TouchableOpacity
+                style={styles.lockKey}
+                onPress={() => handlePasskeyPinDigit('0')}
+              >
+                <Text style={styles.lockKeyText}>0</Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                style={styles.lockKey}
+                onPress={handlePasskeyPinDelete}
+              >
+                <Icon name="delete" size={28} color={COLORS.WHITE} />
+              </TouchableOpacity>
+            </View>
+          </View>
+
+          <TouchableOpacity
+            style={[styles.button, styles.secondaryButton, localStyles.cancelButton]}
+            onPress={() => {
+              setShowPinInput(false);
+              setPasskeyPin('');
+              resetPasskeyCreation();
+            }}
+          >
+            <Text style={styles.buttonText}>Cancel</Text>
+          </TouchableOpacity>
+        </View>
+        <ToastContainer toasts={toasts} />
+        <StatusBar style="light" />
+      </View>
+    );
+  }
+
+  // Passkey Restore PIN Input (for passkey wallet restoration)
+  if (showRestorePinInput) {
+    const handleRestorePinDigit = (digit) => {
+      if (restorePin.length < 6) {
+        const newPin = restorePin + digit;
+        setRestorePin(newPin);
+        // Auto-submit when 6 digits entered
+        if (newPin.length === 6) {
+          restoreWalletWithPasskey(newPin);
+        }
+      }
+    };
+
+    const handleRestorePinDelete = () => {
+      setRestorePin(restorePin.slice(0, -1));
+    };
+
+    return (
+      <View style={localStyles.container}>
+        <MutinynetBanner />
+        <View style={[styles.walletInfo, localStyles.passkeyPinContainer]}>
+          <Text style={styles.lockTitle}>Enter your PIN</Text>
+          <Text style={localStyles.passkeyPinSubtitle}>
+            Enter the PIN you created with your passkey wallet
+          </Text>
+
+          <View style={styles.lockPinDots}>
+            {[0, 1, 2, 3, 4, 5].map((i) => (
+              <View
+                key={i}
+                style={[
+                  styles.lockPinDot,
+                  i < restorePin.length && styles.lockPinDotFilled,
+                ]}
+              />
+            ))}
+          </View>
+
+          <View style={styles.lockKeypad}>
+            {[
+              [1, 2, 3],
+              [4, 5, 6],
+              [7, 8, 9],
+            ].map((row, rowIndex) => (
+              <View key={rowIndex} style={styles.lockKeypadRow}>
+                {row.map((num) => (
+                  <TouchableOpacity
+                    key={num}
+                    style={styles.lockKey}
+                    onPress={() => handleRestorePinDigit(String(num))}
+                  >
+                    <Text style={styles.lockKeyText}>{num}</Text>
+                  </TouchableOpacity>
+                ))}
+              </View>
+            ))}
+            <View style={styles.lockKeypadRow}>
+              <View style={styles.lockKey} />
+              <TouchableOpacity
+                style={styles.lockKey}
+                onPress={() => handleRestorePinDigit('0')}
+              >
+                <Text style={styles.lockKeyText}>0</Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                style={styles.lockKey}
+                onPress={handleRestorePinDelete}
+              >
+                <Icon name="delete" size={28} color={COLORS.WHITE} />
+              </TouchableOpacity>
+            </View>
+          </View>
+
+          <TouchableOpacity
+            style={[styles.button, styles.secondaryButton, localStyles.cancelButton]}
+            onPress={() => {
+              setRestorePin('');
+              resetPasskeyRestore();
+              setRestoringWithPasskey(true); // Go back to restore choice
+            }}
+          >
+            <Text style={styles.buttonText}>Cancel</Text>
+          </TouchableOpacity>
+        </View>
+        <ToastContainer toasts={toasts} />
+        <StatusBar style="light" />
+      </View>
+    );
+  }
 
   // PIN Setup Screen (Step 4 of onboarding or PIN change)
   if (settingUpPin) {
@@ -232,7 +452,7 @@ export default function OnboardingPage({
   }
 
   // Welcome/Onboarding Screen (wallet creation/import/seed verification)
-  if (!wallet || importingWallet || showingIntro || showingSeeds || verifyingSeeds) {
+  if (!wallet || importingWallet || showingIntro || showingSeeds || verifyingSeeds || restoringWithPasskey) {
     return (
       <View style={localStyles.welcomeContainer}>
         <MutinynetBanner />
@@ -249,14 +469,17 @@ export default function OnboardingPage({
           wordChoices={wordChoices}
           seedInputRefs={seedInputRefs}
           isImporting={isImporting}
+          restoringWithPasskey={restoringWithPasskey}
           setImportingWallet={setImportingWallet}
           setImportSeedPhrase={setImportSeedPhrase}
           setVerificationWords={setVerificationWords}
           setShowingIntro={setShowingIntro}
           setShowingSeeds={setShowingSeeds}
+          setRestoringWithPasskey={setRestoringWithPasskey}
           createWallet={createWallet}
-          createWalletWithPasskey={createWithPasskey}
+          createWalletWithPasskey={startPasskeyCreation}
           importWallet={importWallet}
+          restoreWithPasskey={startPasskeyRestore}
           resetWallet={handleCancelOnboarding}
           resetCreationState={resetCreationState}
           resetVerificationState={resetVerificationState}
@@ -290,14 +513,17 @@ export default function OnboardingPage({
           wordChoices={{}}
           seedInputRefs={seedInputRefs}
           isImporting={isImporting}
+          restoringWithPasskey={false}
           setImportingWallet={setImportingWallet}
           setImportSeedPhrase={setImportSeedPhrase}
           setVerificationWords={setVerificationWords}
           setShowingIntro={setShowingIntro}
           setShowingSeeds={setShowingSeeds}
+          setRestoringWithPasskey={setRestoringWithPasskey}
           createWallet={createWallet}
-          createWalletWithPasskey={createWithPasskey}
+          createWalletWithPasskey={startPasskeyCreation}
           importWallet={importWallet}
+          restoreWithPasskey={startPasskeyRestore}
           resetWallet={handleCancelOnboarding}
           resetCreationState={resetCreationState}
           resetVerificationState={resetVerificationState}
@@ -325,5 +551,19 @@ const localStyles = StyleSheet.create({
   welcomeContainer: {
     flex: 1,
     backgroundColor: COLORS.DARK_BG,
+  },
+  passkeyPinContainer: {
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  passkeyPinSubtitle: {
+    fontSize: 14,
+    color: COLORS.LIGHT_GRAY,
+    textAlign: 'center',
+    marginBottom: 30,
+    marginHorizontal: 20,
+  },
+  cancelButton: {
+    marginTop: 20,
   },
 });

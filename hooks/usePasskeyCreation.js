@@ -11,29 +11,76 @@ export function usePasskeyCreation({ setIsAuthenticated, setSeedConfirmed, showT
   const [passkeyMnemonic, setPasskeyMnemonic] = useState(null);
   const [passkeyAddresses, setPasskeyAddresses] = useState(null);
   const [isCreating, setIsCreating] = useState(false);
+  const [showPinInput, setShowPinInput] = useState(false);
+  const [passkeyPin, setPasskeyPin] = useState('');
+  const [confirmingPin, setConfirmingPin] = useState(false);
+  const [passkeyPinConfirm, setPasskeyPinConfirm] = useState('');
   const walletExistsRef = useRef(false);
 
   /**
-   * Create wallet using passkey
+   * Start passkey wallet creation (prompts for PIN first)
    */
-  const createWalletWithPasskey = async () => {
+  const startPasskeyCreation = async () => {
     try {
-      setIsCreating(true);
-      setCreatingWithPasskey(true);
-
       // Check if passkeys are supported
       const supported = await PasskeyService.isPasskeySupported();
       if (!supported) {
         showToast('Passkeys are not supported on this device', 'error');
-        setCreatingWithPasskey(false);
-        setIsCreating(false);
         return;
       }
 
-      // Create wallet with passkey
+      // Show PIN input
+      setShowPinInput(true);
+      setCreatingWithPasskey(true);
+    } catch (error) {
+      showToast(error.message || 'Failed to start passkey creation', 'error');
+    }
+  };
+
+  /**
+   * Handle PIN entry - either moves to confirm or creates wallet
+   */
+  const handlePinEntry = async (pin) => {
+    try {
+      // Validate PIN
+      if (!pin || pin.length !== 6) {
+        showToast('Please enter a 6-digit PIN', 'error');
+        return;
+      }
+
+      // If confirming, check if PINs match
+      if (confirmingPin) {
+        if (pin !== passkeyPin) {
+          showToast('PINs do not match. Please try again.', 'error');
+          setConfirmingPin(false);
+          setPasskeyPin('');
+          setPasskeyPinConfirm('');
+          return;
+        }
+
+        // PINs match - create wallet
+        await createWalletWithPasskey(pin);
+      } else {
+        // First PIN entry - move to confirmation
+        setConfirmingPin(true);
+      }
+    } catch (error) {
+      showToast(error.message || 'Failed to process PIN', 'error');
+    }
+  };
+
+  /**
+   * Create wallet using passkey (after PIN is confirmed)
+   */
+  const createWalletWithPasskey = async (pin) => {
+    try {
+      setIsCreating(true);
+
+      // Create wallet with passkey + PIN
       const { mnemonic, addresses } = await PasskeyService.createWalletWithPasskey({
         userName: `ducat-${Date.now()}`,
         userDisplayName: 'Ducat User',
+        pin,
       });
 
       // Store mnemonic and addresses to show to user
@@ -42,6 +89,12 @@ export function usePasskeyCreation({ setIsAuthenticated, setSeedConfirmed, showT
 
       // Wallet is now created and saved
       walletExistsRef.current = true;
+
+      // Hide PIN input and reset state
+      setShowPinInput(false);
+      setPasskeyPin('');
+      setPasskeyPinConfirm('');
+      setConfirmingPin(false);
 
       // Reload wallet
       await loadWallet();
@@ -55,6 +108,9 @@ export function usePasskeyCreation({ setIsAuthenticated, setSeedConfirmed, showT
       showToast(error.message || 'Failed to create wallet with passkey', 'error');
       setCreatingWithPasskey(false);
       setIsCreating(false);
+      setConfirmingPin(false);
+      setPasskeyPin('');
+      setPasskeyPinConfirm('');
     } finally {
       setIsCreating(false);
     }
@@ -68,6 +124,10 @@ export function usePasskeyCreation({ setIsAuthenticated, setSeedConfirmed, showT
     setPasskeyMnemonic(null);
     setPasskeyAddresses(null);
     setIsCreating(false);
+    setShowPinInput(false);
+    setPasskeyPin('');
+    setConfirmingPin(false);
+    setPasskeyPinConfirm('');
   };
 
   return {
@@ -76,10 +136,20 @@ export function usePasskeyCreation({ setIsAuthenticated, setSeedConfirmed, showT
     passkeyMnemonic,
     passkeyAddresses,
     isCreating,
+    showPinInput,
+    passkeyPin,
+    confirmingPin,
+    passkeyPinConfirm,
     walletExistsRef,
 
+    // Setters
+    setPasskeyPin,
+    setPasskeyPinConfirm,
+    setShowPinInput,
+
     // Functions
-    createWalletWithPasskey,
+    startPasskeyCreation,
+    handlePinEntry,
     resetPasskeyCreation,
   };
 }
