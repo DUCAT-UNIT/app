@@ -524,10 +524,25 @@ export const recoverWithPasskey = async (pin) => {
       throw new Error('Passkeys are not supported on this device');
     }
 
-    // Check if iCloud backup exists
-    const hasBackup = await hasICloudBackup();
+    // Check if iCloud backup exists with detailed error
+    let hasBackup;
+    try {
+      hasBackup = await hasICloudBackup();
+    } catch (icloudError) {
+      throw new Error(`iCloud check failed: ${icloudError.message}`);
+    }
+
     if (!hasBackup) {
-      throw new Error('No wallet backup found in iCloud');
+      // Try to get more details about what's missing
+      const ICloudStorage = await import('./icloudStorage');
+      let debugInfo = '';
+      try {
+        const encrypted = await ICloudStorage.loadFromICloud();
+        debugInfo = encrypted ? `Found data: ${Object.keys(encrypted).join(', ')}` : 'loadFromICloud returned null';
+      } catch (loadError) {
+        debugInfo = `Load error: ${loadError.message}`;
+      }
+      throw new Error(`No wallet backup found in iCloud. Debug: ${debugInfo}`);
     }
 
     // Load encrypted backup from iCloud

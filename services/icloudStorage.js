@@ -30,11 +30,13 @@ export const saveToICloud = async ({ encrypted, iv, tag, credentialId, userHandl
   try {
     logger.debug('Saving encrypted mnemonic to iCloud', {
       hasEncrypted: !!encrypted,
+      encryptedLength: encrypted?.length,
       hasIv: !!iv,
       hasTag: !!tag,
       hasCredentialId: !!credentialId,
       hasUserHandle: !!userHandle,
       hasPinSalt: !!pinSalt,
+      pinSaltLength: pinSalt?.length,
     });
 
     await iCloudStorage.setItem(ICLOUD_KEYS.ENCRYPTED_MNEMONIC, encrypted);
@@ -44,7 +46,16 @@ export const saveToICloud = async ({ encrypted, iv, tag, credentialId, userHandl
     await iCloudStorage.setItem(ICLOUD_KEYS.USER_HANDLE, userHandle);
     await iCloudStorage.setItem(ICLOUD_KEYS.PIN_SALT, pinSalt);
 
-    logger.debug('Successfully saved to iCloud');
+    // Verify the save worked by reading back
+    const verify = await iCloudStorage.getItem(ICLOUD_KEYS.ENCRYPTED_MNEMONIC);
+    logger.debug('Successfully saved to iCloud', {
+      verified: !!verify,
+      verifiedLength: verify?.length
+    });
+
+    if (!verify) {
+      throw new Error('iCloud save verification failed - data not persisted');
+    }
   } catch (error) {
     logger.error('Failed to save to iCloud', {
       error: error.message,
@@ -108,11 +119,20 @@ export const loadFromICloud = async () => {
  */
 export const hasICloudBackup = async () => {
   try {
+    logger.debug('Checking for iCloud backup...');
     const encrypted = await iCloudStorage.getItem(ICLOUD_KEYS.ENCRYPTED_MNEMONIC);
-    return !!encrypted;
+    const hasData = !!encrypted;
+    logger.debug('iCloud backup check result:', { hasData, encryptedLength: encrypted?.length });
+    return hasData;
   } catch (error) {
-    logger.error('Failed to check iCloud backup', { error: error.message });
-    return false;
+    logger.error('Failed to check iCloud backup', {
+      error: error.message,
+      errorCode: error.code,
+      errorName: error.name,
+      stack: error.stack
+    });
+    // Throw error instead of returning false so we can see what went wrong
+    throw new Error(`iCloud access failed: ${error.message} (code: ${error.code})`);
   }
 };
 
