@@ -516,41 +516,36 @@ export const unlockWithPasskey = async (pin) => {
  * @returns {Promise<{mnemonic: string, addresses: Object}>}
  */
 export const recoverWithPasskey = async (pin) => {
+  let debugSteps = 'Starting recovery...\n';
   try {
     logger.debug('Recovering wallet with passkey on new device');
 
     // Check if passkeys are supported
+    debugSteps += '1. Checking passkey support...\n';
     const supported = await isPasskeySupported();
     if (!supported) {
-      throw new Error('Passkeys are not supported on this device');
+      throw new Error(`${debugSteps}❌ Passkeys not supported on this device`);
     }
+    debugSteps += '✅ Passkeys supported\n';
 
     // Check if iCloud backup exists with detailed error
-    let hasBackup;
+    debugSteps += '2. Checking iCloud backup...\n';
+    let backup;
     try {
-      hasBackup = await hasICloudBackup();
-    } catch (icloudError) {
-      throw new Error(`iCloud check failed: ${icloudError.message}`);
-    }
-
-    if (!hasBackup) {
-      // Try to get more details about what's missing
-      const ICloudStorage = await import('./icloudStorage');
-      let debugInfo = '';
-      try {
-        const encrypted = await ICloudStorage.loadFromICloud();
-        debugInfo = encrypted ? `Found data: ${Object.keys(encrypted).join(', ')}` : 'loadFromICloud returned null';
-      } catch (loadError) {
-        debugInfo = `Load error: ${loadError.message}`;
+      backup = await loadFromICloud();
+      if (!backup) {
+        throw new Error(`${debugSteps}❌ No data in iCloud (loadFromICloud returned null)`);
       }
-      throw new Error(`No wallet backup found in iCloud. Debug: ${debugInfo}`);
+      debugSteps += `✅ Found iCloud data with keys: ${Object.keys(backup).join(', ')}\n`;
+    } catch (icloudError) {
+      throw new Error(`${debugSteps}❌ iCloud load failed: ${icloudError.message}`);
     }
 
     // Load encrypted backup from iCloud
     logger.debug('Loading encrypted backup from iCloud...');
-    const backup = await loadFromICloud();
 
     // Generate challenge
+    debugSteps += '3. Authenticating with passkey...\n';
     const challenge = new Uint8Array(32);
     getRandomValues(challenge);
 
@@ -564,42 +559,72 @@ export const recoverWithPasskey = async (pin) => {
     // Only add rpId if configured
     if (PASSKEY.RP_ID) {
       requestJson.rpId = PASSKEY.RP_ID;
+      debugSteps += `  Using rpId: ${PASSKEY.RP_ID}\n`;
+    } else {
+      debugSteps += '  No rpId (local mode)\n';
     }
 
     logger.debug('Authenticating with synced passkey...');
 
     // Authenticate with synced passkey
-    const assertion = await Passkey.get(requestJson);
+    let assertion;
+    try {
+      assertion = await Passkey.get(requestJson);
+      debugSteps += '✅ Passkey authentication successful\n';
+    } catch (passkeyError) {
+      throw new Error(`${debugSteps}❌ Passkey auth failed: ${passkeyError.message}`);
+    }
 
     logger.debug('Passkey authentication successful');
 
     // Extract credential info from backup (more reliable than assertion)
+    debugSteps += '4. Extracting credentials from backup...\n';
     const credentialId = new Uint8Array(Buffer.from(backup.credentialId, 'base64'));
     const userHandle = new Uint8Array(Buffer.from(backup.userHandle, 'base64'));
+    debugSteps += `  Credential ID length: ${credentialId.length}\n`;
+    debugSteps += `  User handle length: ${userHandle.length}\n`;
 
     // Validate PIN
+    debugSteps += '5. Validating PIN...\n';
     if (!pin || pin.length !== 6) {
-      throw new Error('PIN is required to recover wallet');
+      throw new Error(`${debugSteps}❌ Invalid PIN (length: ${pin?.length || 0})`);
     }
+    debugSteps += '✅ PIN format valid\n';
 
     // Use the PIN salt from the backup (critical for 10k iteration hashing)
+    debugSteps += '6. Checking PIN salt...\n';
     const pinSalt = backup.pinSalt;
     // Validate salt format: 32 bytes = 64 hex characters
     if (!pinSalt || pinSalt.length !== 64 || !/^[0-9a-f]{64}$/i.test(pinSalt)) {
-      throw new Error('Invalid or missing PIN salt in backup - cannot decrypt wallet');
+      throw new Error(`${debugSteps}❌ Invalid PIN salt (length: ${pinSalt?.length || 0})`);
     }
+    debugSteps += '✅ PIN salt valid\n';
 
     // Derive encryption key using passkey + PIN (with 10k iterations)
-    const encryptionKey = await deriveEncryptionKey(credentialId, userHandle, pin, pinSalt);
+    debugSteps += '7. Deriving encryption key...\n';
+    let encryptionKey;
+    try {
+      encryptionKey = await deriveEncryptionKey(credentialId, userHandle, pin, pinSalt);
+      debugSteps += '✅ Encryption key derived\n';
+    } catch (keyError) {
+      throw new Error(`${debugSteps}❌ Key derivation failed: ${keyError.message}`);
+    }
 
     // Decrypt mnemonic from iCloud backup
+    debugSteps += '8. Decrypting mnemonic...\n';
     logger.debug('Decrypting mnemonic from backup...');
-    const mnemonic = await decryptMnemonic(
-      backup.encrypted,
-      backup.iv,
-      backup.tag || '',
-      encryptionKey
-    );
+    let mnemonic;
+    try {
+      mnemonic = await decryptMnemonic(
+        backup.encrypted,
+        backup.iv,
+        backup.tag || '',
+        encryptionKey
+      );
+      debugSteps += '✅ Mnemonic decrypted successfully\n';
+    } catch (decryptError) {
+      throw new Error(`${debugSteps}❌ Decryption failed: ${decryptError.message}\n\nThis usually means wrong PIN.`);
+    }
 
     logger.debug('Mnemonic decrypted successfully');
 
@@ -637,7 +662,12 @@ export const recoverWithPasskey = async (pin) => {
     };
   } catch (error) {
     logger.error('Failed to recover with passkey', { error: error.message });
-    throw error;
+    // Re-throw with debug steps if not already included
+    if (error.message && error.message.includes('Starting recovery')) {
+      throw error;
+    } else {
+      throw new Error(`${debugSteps}❌ Error: ${error.message}`);
+    }
   }
 };
 
