@@ -12,11 +12,27 @@ import * as WalletService from '../../services/walletService';
 // Mock wallet service
 jest.mock('../../services/walletService');
 
+// Mock expo-secure-store (needs both default export and named exports for dynamic import)
+jest.mock('expo-secure-store', () => ({
+  __esModule: true,
+  default: {
+    setItemAsync: jest.fn().mockResolvedValue(undefined),
+  },
+  setItemAsync: jest.fn().mockResolvedValue(undefined),
+}));
+
 // Mock wallet context
 jest.mock('../../contexts/WalletContext', () => ({
   useWallet: () => ({
     setWalletAddresses: jest.fn(),
   }),
+}));
+
+// Mock constants
+jest.mock('../../utils/constants', () => ({
+  SECURE_KEYS: {
+    CURRENT_ACCOUNT: 'wallet_current_account_v1',
+  },
 }));
 
 // Mock messages
@@ -226,6 +242,8 @@ describe('useWalletImport', () => {
         await result.current.importWallet();
       });
 
+      // Import should succeed
+      expect(mockProps.showToast).not.toHaveBeenCalledWith('Failed to import wallet', 'error');
       expect(WalletService.importWallet).toHaveBeenCalledWith(
         seedPhrase.join(' '),
         mockProps.currentAccount
@@ -234,7 +252,7 @@ describe('useWalletImport', () => {
         seedPhrase.join(' '),
         mockProps.currentAccount
       );
-      expect(mockProps.loadWallet).toHaveBeenCalled();
+      // loadWallet is intentionally not called during import - it's called after PIN setup
       expect(mockProps.setSettingUpPin).toHaveBeenCalledWith(true);
     });
 
@@ -389,38 +407,8 @@ describe('useWalletImport', () => {
       expect(mockProps.setSettingUpPin).toHaveBeenCalledWith(true);
     });
 
-    it('should handle balance fetch errors gracefully', async () => {
-      // Mock setWalletAddresses from context to throw an error
-      const { useWallet } = require('../../contexts/WalletContext');
-      const mockSetWalletAddresses = jest.fn(() => {
-        throw new Error('Balance fetch failed');
-      });
-
-      jest.clearAllMocks();
-      jest.mock('../../contexts/WalletContext', () => ({
-        useWallet: () => ({
-          setWalletAddresses: mockSetWalletAddresses,
-        }),
-      }));
-
-      const { result } = renderHook(() => useWalletImport(mockProps), {
-        initialProps: mockProps,
-      });
-
-      const seedPhrase = Array(12).fill('abandon');
-
-      act(() => {
-        result.current.setImportSeedPhrase(seedPhrase);
-      });
-
-      await act(async () => {
-        await result.current.importWallet();
-      });
-
-      // Should still complete import successfully despite balance error
-      expect(result.current.isImportedWallet).toBe(true);
-      expect(result.current.importingWallet).toBe(false);
-    });
+    // Test removed: Balance fetching is no longer done during import.
+    // Wallet addresses are set after PIN setup in OnboardingPage.
   });
 
   describe('Reset Import State', () => {

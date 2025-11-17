@@ -11,6 +11,8 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import * as WalletService from '../services/walletService';
 import { useWallet } from '../contexts/WalletContext';
 import { ERRORS } from '../utils/messages';
+import * as SecureStore from 'expo-secure-store';
+import { SECURE_KEYS } from '../utils/constants';
 
 const IMPORT_STATE_KEY = 'wallet_import_state';
 
@@ -107,8 +109,6 @@ export function useWalletImport({ currentAccount, setSettingUpPin, showToast, lo
       await WalletService.saveWalletToStorage(mnemonic, currentAccount);
 
       // CRITICAL: Save the current account index so loadWallet() loads the correct account
-      const SecureStore = await import('expo-secure-store');
-      const { SECURE_KEYS } = await import('../utils/constants');
       await SecureStore.setItemAsync(SECURE_KEYS.CURRENT_ACCOUNT, currentAccount.toString());
 
       // CRITICAL: Don't load the wallet yet - wait until after PIN setup and passkey migration

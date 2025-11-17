@@ -72,7 +72,6 @@ describe('useTransactionHistoryData', () => {
 
     expect(result.current.loading).toBe(false);
     expect(result.current.displayTransactions).toEqual([]);
-    expect(typeof result.current.openTxInExplorer).toBe('function');
   });
 
   it('should fetch transaction history when sheet opens', () => {

@@ -81,7 +81,6 @@ describe('AirdropContext', () => {
 
     expect(result.current.showAirdropModal).toBe(false);
     expect(result.current.airdropTxId).toBe('');
-    expect(typeof result.current.setShowAirdropModal).toBe('function');
   });
 
   it('should clean up expired locks on mount', async () => {

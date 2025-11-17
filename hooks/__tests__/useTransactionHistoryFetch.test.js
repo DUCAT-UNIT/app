@@ -46,13 +46,6 @@ describe('useTransactionHistoryFetch', () => {
     expect(result.current.historyError).toBe(null);
   });
 
-  it('should provide transaction history functions', () => {
-    const { result } = renderHook(() => useTransactionHistoryFetch(mockWallet));
-
-    expect(typeof result.current.fetchTransactionHistory).toBe('function');
-    expect(typeof result.current.resetTransactionHistory).toBe('function');
-  });
-
   it('should fetch transaction history successfully', async () => {
     const mockHistory = [
       {

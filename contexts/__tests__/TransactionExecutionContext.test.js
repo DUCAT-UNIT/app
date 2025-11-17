@@ -133,10 +133,6 @@ describe('TransactionExecutionContext', () => {
 
     expect(result.current.broadcastedTxid).toBe(null);
     expect(result.current.toastDismissed).toBe(false);
-    expect(typeof result.current.signIntent).toBe('function');
-    expect(typeof result.current.broadcastIntent).toBe('function');
-    expect(typeof result.current.setBroadcastedTxid).toBe('function');
-    expect(typeof result.current.setToastDismissed).toBe('function');
   });
 
   it('should sign intent successfully', async () => {

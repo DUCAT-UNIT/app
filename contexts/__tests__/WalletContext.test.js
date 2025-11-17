@@ -58,10 +58,6 @@ describe('WalletContext', () => {
 
     expect(result.current.wallet).toBeNull();
     expect(result.current.currentAccount).toBe(0);
-    expect(typeof result.current.loadWallet).toBe('function');
-    expect(typeof result.current.setWalletAddresses).toBe('function');
-    expect(typeof result.current.switchAccount).toBe('function');
-    expect(typeof result.current.resetWallet).toBe('function');
   });
 
   it('should load wallet from storage successfully', async () => {

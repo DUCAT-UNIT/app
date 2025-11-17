@@ -42,15 +42,6 @@ describe('useTransactionPolling', () => {
     jest.clearAllTimers();
   });
 
-  it('should initialize with polling functions', () => {
-    const { result } = renderHook(() => useTransactionPolling());
-
-    expect(result.current.startPolling).toBeDefined();
-    expect(result.current.stopPolling).toBeDefined();
-    expect(typeof result.current.startPolling).toBe('function');
-    expect(typeof result.current.stopPolling).toBe('function');
-  });
-
   it('should poll for transaction confirmation', async () => {
     const { result } = renderHook(() => useTransactionPolling());
     const onConfirmed = jest.fn();

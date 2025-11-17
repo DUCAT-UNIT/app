@@ -263,11 +263,9 @@ describe('useSettingsNavigation', () => {
         await new Promise((resolve) => setTimeout(resolve, 0));
       });
 
-      expect(() => {
-        act(() => {
-          result.current.openSettings();
-        });
-      }).not.toThrow();
+      act(() => {
+        result.current.openSettings();
+      });
 
       expect(result.current.showSettings).toBe(true);
     });
@@ -279,11 +277,9 @@ describe('useSettingsNavigation', () => {
         await new Promise((resolve) => setTimeout(resolve, 0));
       });
 
-      expect(() => {
-        act(() => {
-          result.current.closeSettings();
-        });
-      }).not.toThrow();
+      act(() => {
+        result.current.closeSettings();
+      });
 
       expect(result.current.showSettings).toBe(false);
     });

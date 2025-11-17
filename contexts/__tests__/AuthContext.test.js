@@ -99,9 +99,6 @@ describe('AuthContext', () => {
     expect(result.current.isAuthenticated).toBe(true);
     expect(result.current.isLoading).toBe(false);
     expect(result.current.user).toEqual({ id: '123' });
-    expect(typeof result.current.login).toBe('function');
-    expect(typeof result.current.logout).toBe('function');
-    expect(typeof result.current.refreshAuth).toBe('function');
   });
 
   describe('Onboarding State', () => {

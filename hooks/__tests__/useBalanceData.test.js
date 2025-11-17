@@ -53,15 +53,6 @@ describe('useBalanceData', () => {
     expect(result.current.loadingUtxos).toBe(false);
   });
 
-  it('should provide balance fetching functions', () => {
-    const { result } = renderHook(() => useBalanceData(mockWallet, mockGetUnconfirmedBalance));
-
-    expect(typeof result.current.fetchBalance).toBe('function');
-    expect(typeof result.current.onRefresh).toBe('function');
-    expect(typeof result.current.fetchUtxos).toBe('function');
-    expect(typeof result.current.resetBalances).toBe('function');
-  });
-
   it('should fetch balances successfully', async () => {
     const mockBalances = {
       segwitBalance: 100000,

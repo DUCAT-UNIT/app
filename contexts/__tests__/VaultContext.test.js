@@ -64,8 +64,6 @@ describe('VaultContext', () => {
     expect(result.current.vaultCredentials).toBe(null);
     expect(result.current.autoCreateVaultTrigger).toBe(0);
     expect(result.current.activeTab).toBe('wallet');
-    expect(typeof result.current.setActiveTab).toBe('function');
-    expect(typeof result.current.openVault).toBe('function');
   });
 
   it('should set active tab', () => {

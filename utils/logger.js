@@ -17,16 +17,16 @@ export const logger = {
   /**
    * Debug-level logs (only in development)
    * @param {string} message - Log message
-   * @param {Object} context - Additional context
+   * @param {...any} args - Additional arguments
    */
-  debug: (message, context = {}) => {
+  debug: (message, ...args) => {
     if (isDev) {
-      console.log(`[DEBUG] ${message}`, context);
+      console.log(`[DEBUG] ${message}`, ...args);
     } else {
       Sentry.addBreadcrumb({
         message,
         level: 'debug',
-        data: context,
+        data: args.length > 0 ? (typeof args[0] === 'object' ? args[0] : { args }) : {},
       });
     }
   },

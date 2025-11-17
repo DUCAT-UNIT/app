@@ -42,6 +42,8 @@ describe('authService', () => {
   let savedHash;
   let savedSalt;
   let savedVersion;
+  let failedAttempts;
+  let lockoutUntil;
 
   beforeEach(() => {
     // Clear all mocks before each test
@@ -52,12 +54,16 @@ describe('authService', () => {
     savedHash = null;
     savedSalt = null;
     savedVersion = null;
+    failedAttempts = null;
+    lockoutUntil = null;
 
     // Mock SecureStore to save and retrieve values
     SecureStore.setItemAsync.mockImplementation(async (key, value) => {
       if (key === 'wallet_pin_v1') savedHash = value;
       if (key === 'wallet_pin_salt_v1') savedSalt = value;
       if (key === 'wallet_pin_version_v1') savedVersion = value;
+      if (key === 'pin_failed_attempts') failedAttempts = value;
+      if (key === 'pin_lockout_until') lockoutUntil = value;
     });
 
     SecureStore.getItemAsync.mockImplementation(async (key) => {
@@ -67,10 +73,15 @@ describe('authService', () => {
       if (key === 'wallet_mnemonic_v1') return 'test mnemonic';
       if (key === 'wallet_current_account_v1') return '0';
       if (key === 'wallet_biometric_enabled_v1') return 'false';
+      if (key === 'pin_failed_attempts') return failedAttempts;
+      if (key === 'pin_lockout_until') return lockoutUntil;
       return null;
     });
 
-    SecureStore.deleteItemAsync.mockResolvedValue(undefined);
+    SecureStore.deleteItemAsync.mockImplementation(async (key) => {
+      if (key === 'pin_failed_attempts') failedAttempts = null;
+      if (key === 'pin_lockout_until') lockoutUntil = null;
+    });
   });
 
   describe('savePin and verifyPin', () => {
@@ -243,11 +254,11 @@ describe('authService', () => {
 
       // First failed attempt
       await verifyPin('wrong');
-      expect(getRemainingPinAttempts()).toBe(9);
+      expect(await getRemainingPinAttempts()).toBe(9);
 
       // Second failed attempt
       await verifyPin('wrong');
-      expect(getRemainingPinAttempts()).toBe(8);
+      expect(await getRemainingPinAttempts()).toBe(8);
     }, 30000);
 
     it('should lock out after max attempts', async () => {
@@ -259,7 +270,7 @@ describe('authService', () => {
         await verifyPin('wrong');
       }
 
-      const lockStatus = checkPinLockout();
+      const lockStatus = await checkPinLockout();
       expect(lockStatus.isLocked).toBe(true);
       expect(lockStatus.remainingTime).toBeGreaterThan(0);
 
@@ -276,11 +287,11 @@ describe('authService', () => {
       // Make some failed attempts
       await verifyPin('wrong');
       await verifyPin('wrong');
-      expect(getRemainingPinAttempts()).toBe(8);
+      expect(await getRemainingPinAttempts()).toBe(8);
 
       // Successful verification should reset
       await verifyPin(pin);
-      expect(getRemainingPinAttempts()).toBe(10);
+      expect(await getRemainingPinAttempts()).toBe(10);
     }, 30000);
   });
 
@@ -546,7 +557,7 @@ describe('authService', () => {
     });
 
     it('should handle verifyPin error', async () => {
-      SecureStore.getItemAsync.mockRejectedValueOnce(new Error('Storage error'));
+      SecureStore.getItemAsync.mockRejectedValue(new Error('Storage error'));
 
       const result = await verifyPin('1234');
       expect(result.success).toBe(false);
@@ -613,7 +624,7 @@ describe('authService', () => {
         await verifyPin('wrong');
       }
 
-      const lockStatus = checkPinLockout();
+      const lockStatus = await checkPinLockout();
       expect(lockStatus.isLocked).toBe(true);
       expect(lockStatus.remainingTime).toBeGreaterThan(0);
       expect(lockStatus.remainingTime).toBeLessThanOrEqual(30); // 30 minutes max

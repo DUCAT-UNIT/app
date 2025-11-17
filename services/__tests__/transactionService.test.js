@@ -928,7 +928,20 @@ describe('transactionService', () => {
           taprootChild: mockTaprootChildWithTweak,
         });
 
-        bitcoin.Psbt.fromBase64 = jest.fn(() => mockPsbt);
+        // Add __CACHE.__TX for Taproot signing
+        const mockTaprootPsbt = {
+          ...mockPsbt,
+          __CACHE: {
+            __TX: {
+              clone: jest.fn(() => ({
+                hashForWitnessV1: jest.fn(() => Buffer.alloc(32, 1)),
+              })),
+            },
+          },
+          updateInput: jest.fn(),
+        };
+
+        bitcoin.Psbt.fromBase64 = jest.fn(() => mockTaprootPsbt);
         bitcoin.crypto.taggedHash = jest.fn(() => Buffer.alloc(32, 2));
 
         const btcIntent = {
@@ -942,8 +955,7 @@ describe('transactionService', () => {
         const result = await TransactionService.signIntent(btcIntent, 0);
 
         expect(result.signedTxHex).toBe('signed_btc_tx_hex');
-        expect(mockTaprootChildWithTweak.tweak).toHaveBeenCalled();
-        expect(mockPsbt.signInput).toHaveBeenCalled();
+        expect(mockTaprootPsbt.updateInput).toHaveBeenCalled();
       });
     });
   });

@@ -196,21 +196,31 @@ export async function signPsbt(psbtBase64, signInputs) {
               });
             } else {
               // KEY-PATH spending (for regular transfers)
-
-              // SECURITY: Use bitcoinjs-lib's built-in tweak method instead of manual crypto
-              // This handles all edge cases correctly:
-              // - Key negation if y-coordinate is odd
-              // - Proper modular arithmetic
-              // - Correct padding and encoding
+              // Manual Schnorr signing for Taproot
               const xOnlyPubkey = keyPair.publicKey.slice(1, 33);
-              const tweakHash = bitcoin.crypto.taggedHash('TapTweak', xOnlyPubkey);
+              const tweakHash = Buffer.from(bitcoin.crypto.taggedHash('TapTweak', xOnlyPubkey));
 
-              // Use the BIP32 node's tweak method - this is the safe, tested way
-              const tweakedSigner = keyPair.tweak(tweakHash);
+              // Tweak the private key
+              const privKeyBigInt = BigInt('0x' + privateKey.toString('hex'));
+              const tweakBigInt = BigInt('0x' + tweakHash.toString('hex'));
+              const CURVE_ORDER = BigInt('0xfffffffffffffffffffffffffffffffebaaedce6af48a03bbfd25e8cd0364141');
 
-              // Sign the input with the properly tweaked signer
-              // This uses psbt.signInput internally which handles Schnorr signing correctly
-              psbt.signInput(inputIndex, tweakedSigner);
+              // tweakedPrivKey = (privKey + tweak) % n
+              const tweakedPrivKeyBigInt = (privKeyBigInt + tweakBigInt) % CURVE_ORDER;
+              const tweakedPrivKey = Buffer.from(tweakedPrivKeyBigInt.toString(16).padStart(64, '0'), 'hex');
+
+              // Get the sighash for this input
+              const tx = psbt.__CACHE.__TX.clone();
+              const sighash = tx.hashForWitnessV1(
+                inputIndex,
+                psbt.data.inputs.map((input) => input.witnessUtxo.script),
+                psbt.data.inputs.map((input) => input.witnessUtxo.value),
+                bitcoin.Transaction.SIGHASH_DEFAULT
+              );
+
+              // Sign with Schnorr
+              const signature = ecc.signSchnorr(sighash, tweakedPrivKey);
+              psbt.updateInput(inputIndex, { tapKeySig: Buffer.from(signature) });
             }
           } else {
             psbt.signInput(inputIndex, keyPair);

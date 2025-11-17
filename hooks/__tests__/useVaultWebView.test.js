@@ -63,9 +63,6 @@ describe('useVaultWebView', () => {
     expect(result.current.webViewUrl).toBeDefined();
     expect(result.current.forceReloadKey).toBe(0);
     expect(result.current.webViewLoaded).toBe(false);
-    expect(typeof result.current.setWebViewLoaded).toBe('function');
-    expect(typeof result.current.injectWalletCredentials).toBe('function');
-    expect(typeof result.current.handleCredentialConfirmation).toBe('function');
   });
 
   it('should build URL without credentials when not provided', () => {

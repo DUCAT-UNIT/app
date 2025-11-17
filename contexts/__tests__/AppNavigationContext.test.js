@@ -52,8 +52,6 @@ describe('AppNavigationContext', () => {
     const { result } = renderHook(() => useAppNavigation(), { wrapper });
 
     expect(result.current.activeTab).toBe('wallet');
-    expect(typeof result.current.setActiveTab).toBe('function');
-    expect(typeof result.current.resetInactivityTimer).toBe('function');
     expect(result.current.inactivityTimerRef).toBeDefined();
     expect(result.current.inactivityTimerRef.current).toBeNull();
   });

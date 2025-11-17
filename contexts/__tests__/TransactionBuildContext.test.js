@@ -85,8 +85,6 @@ describe('TransactionBuildContext', () => {
     const { result } = renderHook(() => useTransactionBuild(), { wrapper });
 
     expect(result.current.sendIntent).toBe(null);
-    expect(typeof result.current.setSendIntent).toBe('function');
-    expect(typeof result.current.createSendIntent).toBe('function');
   });
 
   it('should create BTC intent successfully', async () => {

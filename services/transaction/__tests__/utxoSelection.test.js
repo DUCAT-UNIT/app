@@ -176,11 +176,6 @@ describe('utxoSelection', () => {
   });
 
   describe('createFeeCalculator', () => {
-    it('should create a fee calculator function', () => {
-      const calculateFee = createFeeCalculator(1);
-      expect(typeof calculateFee).toBe('function');
-    });
-
     it('should calculate correct fee for 1 input and 2 outputs', () => {
       const calculateFee = createFeeCalculator(1);
       const fee = calculateFee(1, 2);

@@ -83,23 +83,12 @@ describe('UIContext', () => {
     expect(result.current.showUnitInUnit).toBe(true);
   });
 
-  it('should provide toast state and functions', () => {
+  it('should provide initial notification state', () => {
     const wrapper = ({ children }) => <UIProvider>{children}</UIProvider>;
     const { result } = renderHook(() => useNotifications(), { wrapper });
 
     expect(result.current.toasts).toEqual([]);
     expect(result.current.toastVisible).toBe(false);
-    expect(typeof result.current.showToast).toBe('function');
-    expect(typeof result.current.dismissToast).toBe('function');
-  });
-
-  it('should provide toast via useNotifications', () => {
-    const wrapper = ({ children }) => <UIProvider>{children}</UIProvider>;
-    const { result } = renderHook(() => useNotifications(), { wrapper });
-
-    expect(result.current.toasts).toEqual([]);
-    expect(result.current.toastVisible).toBe(false);
-    expect(typeof result.current.showToast).toBe('function');
   });
 
   it('should show toast with default success type', () => {
@@ -295,7 +284,12 @@ describe('UIContext', () => {
       });
       // Should still be success, not pending
       expect(result.current.snackbar.type).toBe('success');
-      expect(consoleLog).toHaveBeenCalledWith(expect.stringContaining('Ignoring backward state transition'), 'success');
+      expect(consoleLog).toHaveBeenCalledWith(
+        expect.stringContaining('Ignoring backward state transition'),
+        'success',
+        '->',
+        'pending'
+      );
 
       consoleLog.mockRestore();
     });

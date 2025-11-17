@@ -44,13 +44,6 @@ describe('useVaultDataFetch', () => {
     expect(result.current.vaultError).toBe(null);
   });
 
-  it('should provide vault functions', () => {
-    const { result } = renderHook(() => useVaultDataFetch(mockWallet));
-
-    expect(typeof result.current.fetchVault).toBe('function');
-    expect(typeof result.current.resetVaultData).toBe('function');
-  });
-
   it('should fetch vault data successfully', async () => {
     const mockVaultData = {
       vaultTag: 'vault-123',

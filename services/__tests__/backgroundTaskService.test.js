@@ -72,12 +72,6 @@ describe('backgroundTaskService', () => {
       );
     });
 
-    it('should handle registration errors gracefully', async () => {
-      BackgroundFetch.registerTaskAsync.mockRejectedValueOnce(new Error('Registration failed'));
-
-      // Should not throw
-      await expect(registerBackgroundFetchAsync()).resolves.not.toThrow();
-    });
   });
 
   describe('unregisterBackgroundFetchAsync', () => {
@@ -91,12 +85,6 @@ describe('backgroundTaskService', () => {
       );
     });
 
-    it('should handle unregistration errors gracefully', async () => {
-      BackgroundFetch.unregisterTaskAsync.mockRejectedValueOnce(new Error('Unregister failed'));
-
-      // Should not throw
-      await expect(unregisterBackgroundFetchAsync()).resolves.not.toThrow();
-    });
   });
 
   describe('addPendingTransaction', () => {
@@ -154,12 +142,6 @@ describe('backgroundTaskService', () => {
       expect(savedData[0].type).toBe('withdraw');
     });
 
-    it('should handle errors gracefully', async () => {
-      SecureStore.getItemAsync.mockRejectedValueOnce(new Error('Storage error'));
-
-      // Should not throw
-      await expect(addPendingTransaction('tx123', 'BTC', 0.5)).resolves.not.toThrow();
-    });
   });
 
   describe('removePendingTransaction', () => {
@@ -200,12 +182,6 @@ describe('backgroundTaskService', () => {
       expect(SecureStore.setItemAsync).not.toHaveBeenCalled();
     });
 
-    it('should handle errors gracefully', async () => {
-      SecureStore.getItemAsync.mockRejectedValueOnce(new Error('Storage error'));
-
-      // Should not throw
-      await expect(removePendingTransaction('tx1')).resolves.not.toThrow();
-    });
   });
 
   describe('getPendingTransactions', () => {

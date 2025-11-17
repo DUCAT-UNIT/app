@@ -62,7 +62,6 @@ describe('PriceContext', () => {
 
     expect(result.current.btcPrice).toBe(null);
     expect(result.current.loadingBtcPrice).toBe(false);
-    expect(typeof result.current.fetchBtcPrice).toBe('function');
   });
 
   it('should fetch BTC price on mount', async () => {

@@ -375,15 +375,6 @@ describe('useAppLifecycle', () => {
       expect(timerCount).toBeLessThan(2);
     });
 
-    it('should provide resetInactivityTimer function', () => {
-      const { result } = renderHook(() => useAppLifecycle(mockProps), {
-        initialProps: mockProps,
-      });
-
-      expect(result.current.resetInactivityTimer).toBeDefined();
-      expect(typeof result.current.resetInactivityTimer).toBe('function');
-    });
-
     it('should restart timer when resetInactivityTimer is called', () => {
       mockProps.isAuthenticated = true;
       mockProps.walletExists.current = true;

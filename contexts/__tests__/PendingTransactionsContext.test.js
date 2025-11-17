@@ -60,12 +60,6 @@ describe('PendingTransactionsContext', () => {
     const { result } = renderHook(() => usePendingTransactions(), { wrapper });
 
     expect(result.current.pendingTransactions).toEqual({});
-    expect(typeof result.current.addPendingTransaction).toBe('function');
-    expect(typeof result.current.confirmTransaction).toBe('function');
-    expect(typeof result.current.invalidateTransaction).toBe('function');
-    expect(typeof result.current.getUnconfirmedUTXOs).toBe('function');
-    expect(typeof result.current.getUnconfirmedBalance).toBe('function');
-    expect(typeof result.current.cleanupInvalidTransactions).toBe('function');
   });
 
   it('should add pending transaction', async () => {

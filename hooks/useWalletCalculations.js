@@ -57,8 +57,9 @@ export const useWalletCalculations = ({
     // Use totalDebt from vault list API (already in UNIT, not cents)
     const debt = vaultData.totalDebt || 0;
 
-    // Always use latest BTC price from wallet context
-    const collateralValue = (vaultData.totalCollateral || 0) * btcPrice;
+    // Use latest BTC price from wallet context, fallback to oracle price from vault data
+    const priceToUse = btcPrice || vaultData.currentPrice || 0;
+    const collateralValue = (vaultData.totalCollateral || 0) * priceToUse;
 
     if (debt === 0) {
       return 0;

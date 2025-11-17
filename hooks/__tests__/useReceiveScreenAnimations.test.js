@@ -51,16 +51,6 @@ describe('useReceiveScreenAnimations', () => {
     expect(result.current.qrModalPanResponder.panHandlers).toBeDefined();
   });
 
-  it('should provide handler functions', () => {
-    const { result } = renderHook(
-      () => useReceiveScreenAnimations(false, false, mockOnClose)
-    );
-
-    expect(typeof result.current.handleDismiss).toBe('function');
-    expect(typeof result.current.handleQrBack).toBe('function');
-    expect(typeof result.current.prepareQrAnimation).toBe('function');
-  });
-
   it('should handle dismiss animation', () => {
     const { result } = renderHook(
       () => useReceiveScreenAnimations(true, false, mockOnClose)
@@ -82,7 +72,6 @@ describe('useReceiveScreenAnimations', () => {
     const animation = result.current.handleQrBack();
 
     expect(animation).toBeDefined();
-    expect(typeof animation.start).toBe('function');
   });
 
   it('should prepare QR animation', () => {
