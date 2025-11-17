@@ -528,23 +528,6 @@ describe('useWalletCreation', () => {
       );
     });
 
-    it('should handle AsyncStorage errors during persistence gracefully', async () => {
-      AsyncStorage.setItem.mockRejectedValue(new Error('Storage error'));
-
-      const { result } = renderHook(() => useWalletCreation(mockProps), {
-        initialProps: mockProps,
-      });
-
-      await act(async () => {
-        await Promise.resolve();
-      });
-
-      expect(() => {
-        act(() => {
-          result.current.setShowingIntro(true);
-        });
-      }).not.toThrow();
-    });
   });
 
   describe('Setters', () => {

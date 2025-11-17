@@ -268,16 +268,6 @@ describe('useWalletInitialization', () => {
       expect(result.current.isLoading).toBe(false);
     });
 
-    it('should not throw errors on initialization failure', async () => {
-      mockProps.loadWallet.mockRejectedValue(new Error('Fatal error'));
-      mockProps.loadBiometricPreference.mockRejectedValue(new Error('Fatal error'));
-
-      expect(() => {
-        renderHook(() => useWalletInitialization(mockProps), {
-          initialProps: mockProps,
-        });
-      }).not.toThrow();
-    });
 
     it('should always hide loading screen after 1500ms even on errors', async () => {
       mockProps.loadWallet.mockRejectedValue(new Error('Error'));

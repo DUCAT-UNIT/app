@@ -326,11 +326,9 @@ describe('useAuth', () => {
         result.current.setSettingUpPin(true);
       });
 
-      expect(() => {
-        act(() => {
-          result.current.handlePinSetupComplete();
-        });
-      }).not.toThrow();
+      act(() => {
+        result.current.handlePinSetupComplete();
+      });
 
       expect(result.current.isAuthenticated).toBe(true);
     });

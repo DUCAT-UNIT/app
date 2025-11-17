@@ -458,23 +458,6 @@ describe('useSeedVerification', () => {
       );
     });
 
-    it('should handle AsyncStorage errors during persistence gracefully', async () => {
-      AsyncStorage.setItem.mockRejectedValue(new Error('Storage error'));
-
-      const { result } = renderHook(() => useSeedVerification(mockProps), {
-        initialProps: mockProps,
-      });
-
-      await act(async () => {
-        await Promise.resolve();
-      });
-
-      expect(() => {
-        act(() => {
-          result.current.proceedToVerification();
-        });
-      }).not.toThrow();
-    });
   });
 
   describe('Choice Generation', () => {

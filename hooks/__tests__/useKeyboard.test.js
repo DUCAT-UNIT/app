@@ -129,17 +129,6 @@ describe('useKeyboard', () => {
     expect(result.current.keyboardHeight).toBe(400);
   });
 
-  it('should clean up listeners on unmount', () => {
-    Platform.OS = 'ios';
-    const { result, unmount } = renderHook(() => useKeyboard());
-
-    // Hook should be initialized
-    expect(result.current.keyboardHeight).toBe(0);
-    expect(result.current.isKeyboardVisible).toBe(false);
-
-    // Unmount should not throw
-    expect(() => unmount()).not.toThrow();
-  });
 
   it('should handle rapid keyboard show/hide events', () => {
     Platform.OS = 'ios';

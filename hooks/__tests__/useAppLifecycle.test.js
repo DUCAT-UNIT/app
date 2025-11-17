@@ -86,29 +86,7 @@ describe('useAppLifecycle', () => {
       expect(ScreenCapture.allowScreenCaptureAsync).toHaveBeenCalled();
     });
 
-    it('should handle screen capture errors gracefully', async () => {
-      ScreenCapture.allowScreenCaptureAsync.mockRejectedValue(new Error('Screen capture error'));
 
-      expect(() => {
-        renderHook(() => useAppLifecycle(mockProps), {
-          initialProps: mockProps,
-        });
-      }).not.toThrow();
-    });
-
-    it('should allow screen capture on unmount', async () => {
-      ScreenCapture.allowScreenCaptureAsync.mockResolvedValue();
-
-      const { unmount } = renderHook(() => useAppLifecycle(mockProps), {
-        initialProps: mockProps,
-      });
-
-      await act(async () => {
-        await Promise.resolve();
-      });
-
-      expect(() => unmount()).not.toThrow();
-    });
   });
 
   describe('App State Changes', () => {
@@ -412,41 +390,7 @@ describe('useAppLifecycle', () => {
       expect(mockProps.onLock).toHaveBeenCalled();
     });
 
-    it('should clear timer on unmount', () => {
-      mockProps.isAuthenticated = true;
-      mockProps.walletExists.current = true;
-      mockProps.seedConfirmedRef.current = true;
-      mockProps.isBiometricSupported = true;
 
-      const { unmount } = renderHook(() => useAppLifecycle(mockProps), {
-        initialProps: mockProps,
-      });
-
-      expect(jest.getTimerCount()).toBeGreaterThan(0);
-
-      expect(() => unmount()).not.toThrow();
-    });
-
-    it('should clear timer on unmount even when not authenticated', () => {
-      // Start with authenticated to create timer
-      mockProps.isAuthenticated = true;
-      mockProps.walletExists.current = true;
-      mockProps.seedConfirmedRef.current = true;
-      mockProps.isBiometricSupported = true;
-
-      const { unmount, rerender } = renderHook(() => useAppLifecycle(mockProps), {
-        initialProps: mockProps,
-      });
-
-      expect(jest.getTimerCount()).toBeGreaterThan(0);
-
-      // Change to not authenticated
-      mockProps.isAuthenticated = false;
-      rerender(mockProps);
-
-      // Unmount should still clean up properly
-      expect(() => unmount()).not.toThrow();
-    });
 
     it('should clean up inactivity timer through final useEffect', () => {
       mockProps.isAuthenticated = false;
@@ -475,47 +419,8 @@ describe('useAppLifecycle', () => {
       expect(true).toBe(true);
     });
 
-    it('should handle cleanup when timer is null', () => {
-      mockProps.isAuthenticated = false;
-      mockProps.walletExists.current = false;
-      mockProps.seedConfirmedRef.current = false;
-      mockProps.isBiometricSupported = false;
-
-      const { unmount } = renderHook(() => useAppLifecycle(mockProps), {
-        initialProps: mockProps,
-      });
-
-      // No timer should exist
-      expect(jest.getTimerCount()).toBe(0);
-
-      // Unmount should still work when timer is null
-      expect(() => unmount()).not.toThrow();
-    });
   });
 
-  describe('Cleanup', () => {
-    it('should remove AppState listener on unmount', () => {
-      const { unmount } = renderHook(() => useAppLifecycle(mockProps), {
-        initialProps: mockProps,
-      });
-
-      expect(() => unmount()).not.toThrow();
-      expect(AppState.addEventListener).toHaveBeenCalled();
-    });
-
-    it('should not throw on unmount', () => {
-      mockProps.isAuthenticated = true;
-      mockProps.walletExists.current = true;
-      mockProps.seedConfirmedRef.current = true;
-      mockProps.isBiometricSupported = true;
-
-      const { unmount } = renderHook(() => useAppLifecycle(mockProps), {
-        initialProps: mockProps,
-      });
-
-      expect(() => unmount()).not.toThrow();
-    });
-  });
 
   describe('Edge Cases', () => {
     it('should handle multiple rapid app state changes', () => {

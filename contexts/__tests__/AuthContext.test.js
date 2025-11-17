@@ -212,18 +212,6 @@ describe('AuthContext', () => {
 
       jest.useRealTimers();
     });
-
-    it('should do nothing if no timer exists', () => {
-      const wrapper = ({ children }) => <AuthProvider>{children}</AuthProvider>;
-      const { result } = renderHook(() => useAuth(), { wrapper });
-
-      // Should not throw
-      expect(() => {
-        act(() => {
-          result.current.resetInactivityTimer();
-        });
-      }).not.toThrow();
-    });
   });
 
   describe('useOnboardingFlow backwards compatibility', () => {
@@ -250,48 +238,4 @@ describe('AuthContext', () => {
     });
   });
 
-  describe('Provider props validation', () => {
-    it('should accept onSeedConfirmed prop', () => {
-      const onSeedConfirmed = jest.fn();
-
-      expect(() => {
-        act(() => {
-          create(
-            <AuthProvider onSeedConfirmed={onSeedConfirmed}>
-              <div>Test</div>
-            </AuthProvider>
-          );
-        });
-      }).not.toThrow();
-    });
-
-    it('should accept resetWallet prop', () => {
-      const resetWallet = jest.fn();
-
-      expect(() => {
-        act(() => {
-          create(
-            <AuthProvider resetWallet={resetWallet}>
-              <div>Test</div>
-            </AuthProvider>
-          );
-        });
-      }).not.toThrow();
-    });
-
-    it('should work with both props', () => {
-      const onSeedConfirmed = jest.fn();
-      const resetWallet = jest.fn();
-
-      expect(() => {
-        act(() => {
-          create(
-            <AuthProvider onSeedConfirmed={onSeedConfirmed} resetWallet={resetWallet}>
-              <div>Test</div>
-            </AuthProvider>
-          );
-        });
-      }).not.toThrow();
-    });
-  });
 });

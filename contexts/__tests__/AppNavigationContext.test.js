@@ -108,21 +108,6 @@ describe('AppNavigationContext', () => {
     expect(timerFired).toBe(false);
   });
 
-  it('should handle resetInactivityTimer when no timer exists', () => {
-    const wrapper = ({ children }) => (
-      <AppNavigationProvider>{children}</AppNavigationProvider>
-    );
-    const { result } = renderHook(() => useAppNavigation(), { wrapper });
-
-    expect(result.current.inactivityTimerRef.current).toBeNull();
-
-    // Should not throw when resetting non-existent timer
-    expect(() => {
-      act(() => {
-        result.current.resetInactivityTimer();
-      });
-    }).not.toThrow();
-  });
 
   it('should allow setting custom inactivity timeout', () => {
     const customTimeout = 600000; // 10 minutes

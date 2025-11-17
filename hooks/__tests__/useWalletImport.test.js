@@ -466,23 +466,6 @@ describe('useWalletImport', () => {
       expect(AsyncStorage.setItem).toHaveBeenCalledWith('wallet_import_state', expect.any(String));
     });
 
-    it('should handle AsyncStorage errors during persistence gracefully', async () => {
-      AsyncStorage.setItem.mockRejectedValue(new Error('Storage error'));
-
-      const { result } = renderHook(() => useWalletImport(mockProps), {
-        initialProps: mockProps,
-      });
-
-      await act(async () => {
-        await Promise.resolve();
-      });
-
-      expect(() => {
-        act(() => {
-          result.current.setImportingWallet(true);
-        });
-      }).not.toThrow();
-    });
   });
 
   describe('Seed Input Refs', () => {

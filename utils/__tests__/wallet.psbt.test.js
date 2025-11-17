@@ -370,11 +370,13 @@ describe('wallet PSBT signing', () => {
         [segwitAddress]: [0],
       });
 
-      // Should be valid base64
-      expect(() => Buffer.from(signedPsbtBase64, 'base64')).not.toThrow();
+      // Should be valid base64 - parse it
+      const buffer = Buffer.from(signedPsbtBase64, 'base64');
+      expect(buffer).toBeDefined();
 
       // Should parse as valid PSBT
-      expect(() => bitcoin.Psbt.fromBase64(signedPsbtBase64)).not.toThrow();
+      const signedPsbt = bitcoin.Psbt.fromBase64(signedPsbtBase64);
+      expect(signedPsbt).toBeDefined();
     });
 
     it('should call withMnemonic for secure access', async () => {

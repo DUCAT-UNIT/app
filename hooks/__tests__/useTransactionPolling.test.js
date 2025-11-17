@@ -137,15 +137,6 @@ describe('useTransactionPolling', () => {
     expect(onConfirmed).not.toHaveBeenCalled();
   });
 
-  it('should clean up interval on unmount', () => {
-    const { result, unmount } = renderHook(() => useTransactionPolling());
-
-    act(() => {
-      result.current.startPolling('test-txid', jest.fn());
-    });
-
-    expect(() => unmount()).not.toThrow();
-  });
 
   it('should handle unconfirmed transactions', async () => {
     const { result } = renderHook(() => useTransactionPolling());

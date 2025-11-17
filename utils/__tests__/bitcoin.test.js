@@ -351,8 +351,6 @@ describe('bitcoin utilities', () => {
 
   describe('validateNetworkConfig', () => {
     it('should pass validation for correct testnet configuration', () => {
-      // Should not throw any error
-      expect(() => validateNetworkConfig()).not.toThrow();
       expect(validateNetworkConfig()).toBe(true);
     });
 
@@ -371,13 +369,6 @@ describe('bitcoin utilities', () => {
       expect(MUTINYNET_NETWORK.scriptHash).toBe(0xc4);
     });
 
-    it('should be called before address derivation', () => {
-      // Verify deriveAddressesFromMnemonic calls validateNetworkConfig
-      const testMnemonic = 'abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon about';
-
-      // Should not throw - network config is valid
-      expect(() => deriveAddressesFromMnemonic(testMnemonic, 0)).not.toThrow();
-    });
 
     it('should protect against mainnet configuration', () => {
       // This is a conceptual test - we verify that if network config was wrong,

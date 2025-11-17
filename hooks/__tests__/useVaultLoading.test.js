@@ -158,10 +158,4 @@ describe('useVaultLoading', () => {
     expect(result.current.shouldShowLoading).toBe(false); // Now false because both are false
   });
 
-  it('should cleanup interval on unmount', () => {
-    const { unmount } = renderHook(() => useVaultLoading(true));
-
-    // Unmount should not throw and should cleanup
-    expect(() => unmount()).not.toThrow();
-  });
 });

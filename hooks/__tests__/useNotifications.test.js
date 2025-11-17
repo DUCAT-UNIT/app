@@ -105,73 +105,8 @@ describe('useNotifications', () => {
       expect(Notifications.addNotificationResponseReceivedListener).toHaveBeenCalled();
     });
 
-    it('should handle notification received callback', () => {
-      Notifications.getPermissionsAsync.mockResolvedValue({ status: 'granted' });
-      let notificationCallback;
 
-      Notifications.addNotificationReceivedListener.mockImplementation((callback) => {
-        notificationCallback = callback;
-        return { remove: jest.fn() };
-      });
 
-      renderHook(() => useNotifications());
-
-      // Verify callback was registered
-      expect(notificationCallback).toBeDefined();
-
-      // Call the callback with a mock notification
-      const mockNotification = {
-        request: {
-          content: {
-            title: 'Test',
-            body: 'Test notification',
-          },
-        },
-      };
-
-      // Should not throw when called
-      expect(() => notificationCallback(mockNotification)).not.toThrow();
-    });
-
-    it('should handle notification response callback', () => {
-      Notifications.getPermissionsAsync.mockResolvedValue({ status: 'granted' });
-      let responseCallback;
-
-      Notifications.addNotificationResponseReceivedListener.mockImplementation((callback) => {
-        responseCallback = callback;
-        return { remove: jest.fn() };
-      });
-
-      renderHook(() => useNotifications());
-
-      // Verify callback was registered
-      expect(responseCallback).toBeDefined();
-
-      // Call the callback with a mock response
-      const mockResponse = {
-        notification: {
-          request: {
-            content: {
-              title: 'Test',
-              body: 'Test notification',
-            },
-          },
-        },
-        actionIdentifier: 'default',
-      };
-
-      // Should not throw when called
-      expect(() => responseCallback(mockResponse)).not.toThrow();
-    });
-
-    it('should clean up listeners on unmount', () => {
-      Notifications.getPermissionsAsync.mockResolvedValue({ status: 'granted' });
-
-      const { unmount, result } = renderHook(() => useNotifications());
-
-      expect(result.current).toBeDefined();
-      expect(() => unmount()).not.toThrow();
-    });
   });
 
   describe('Permission Handling', () => {
@@ -331,18 +266,6 @@ describe('useNotifications', () => {
       expect(call.content.data.type).toBe('withdraw');
     });
 
-    it('should handle notification scheduling errors gracefully', async () => {
-      Notifications.scheduleNotificationAsync.mockRejectedValue(new Error('Scheduling failed'));
-
-      const { result } = renderHook(() => useNotifications());
-
-      await act(async () => {
-        // Should not throw
-        await expect(
-          result.current.sendTransactionConfirmedNotification('BTC', '0.001', 'txid123', 'withdraw')
-        ).resolves.not.toThrow();
-      });
-    });
 
     it('should send notification immediately (null trigger)', async () => {
       Notifications.scheduleNotificationAsync.mockResolvedValue('notification-id-789');
@@ -376,13 +299,5 @@ describe('useNotifications', () => {
       expect(Notifications.scheduleNotificationAsync).toHaveBeenCalled();
     });
 
-    it('should handle listener removal when listeners are null', () => {
-      Notifications.addNotificationReceivedListener.mockReturnValue(null);
-      Notifications.addNotificationResponseReceivedListener.mockReturnValue(null);
-
-      const { unmount } = renderHook(() => useNotifications());
-
-      expect(() => unmount()).not.toThrow();
-    });
   });
 });

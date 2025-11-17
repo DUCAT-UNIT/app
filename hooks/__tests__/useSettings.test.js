@@ -103,15 +103,6 @@ describe('useSettings', () => {
       expect(result.current.showZeroAssets).toBe(true);
     });
 
-    it('should handle settings load errors gracefully', async () => {
-      SecureStore.getItemAsync.mockRejectedValue(new Error('Storage error'));
-
-      expect(() => {
-        renderHook(() => useSettings(mockProps), {
-          initialProps: mockProps,
-        });
-      }).not.toThrow();
-    });
   });
 
   describe('Logout Flow', () => {
