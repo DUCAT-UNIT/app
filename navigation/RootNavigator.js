@@ -15,10 +15,13 @@ import PasskeyMigrationModal from '../components/PasskeyMigrationModal';
 import MutinynetBanner from '../components/MutinynetBanner';
 import { COLORS } from '../theme';
 import { useAuth } from '../contexts/AuthContext';
+import { useWallet } from '../contexts/WalletContext';
 import { useBalance } from '../contexts/WalletDataContext';
 import { useNavigationHandlers } from '../contexts/NavigationHandlersContext';
 import { useNotifications } from "../contexts/NotificationContext";
 import { useNavigationState } from '../hooks/useNavigationState';
+import { useAppLifecycle } from '../hooks/useAppLifecycle';
+import { useOnboardingFlow } from '../contexts/AuthContext';
 
 const Stack = createStackNavigator();
 
@@ -27,9 +30,43 @@ export default function RootNavigator() {
   const { shouldShowAuth, shouldShowPinOverlay } = useNavigationState();
 
   // Get auth-specific data needed for PIN overlay
-  const { isBiometricSupported } = useAuth();
+  const {
+    isBiometricSupported,
+    isAuthenticated,
+    biometricEnabled,
+    setIsAuthenticated,
+    authenticateUser,
+  } = useAuth();
+  const { wallet } = useWallet();
+  const { seedConfirmedRef } = useOnboardingFlow();
   const { fetchBalance } = useBalance();
   const { showToast } = useNotifications();
+
+  // Create wallet exists ref for useAppLifecycle
+  const walletExists = React.useRef(false);
+  React.useEffect(() => {
+    walletExists.current = !!wallet;
+  }, [wallet]);
+
+  // Handle lock/unlock
+  const handleLock = React.useCallback(() => {
+    setIsAuthenticated(false);
+  }, [setIsAuthenticated]);
+
+  const handleAuthenticateUser = React.useCallback(async () => {
+    await authenticateUser();
+  }, [authenticateUser]);
+
+  // Set up app lifecycle (inactivity timer, app state changes)
+  useAppLifecycle({
+    isAuthenticated,
+    walletExists,
+    seedConfirmedRef,
+    isBiometricSupported,
+    biometricEnabled,
+    onLock: handleLock,
+    onAuthenticateUser: handleAuthenticateUser,
+  });
 
   // Get handlers from context
   const {

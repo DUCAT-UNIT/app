@@ -32,7 +32,6 @@ import {
   NavigationHandlersProvider,
   useNavigationHandlers,
 } from '../contexts/NavigationHandlersContext';
-import { useNotifications } from "../contexts/NotificationContext";
 
 // Hooks
 import { useWalletInitialization } from '../hooks/useWalletInitialization';

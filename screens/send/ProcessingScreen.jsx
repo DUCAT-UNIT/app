@@ -10,7 +10,7 @@ import { COLORS } from '../../theme';
 import { useSendFlow } from '../../contexts/SendFlowContext';
 import { useTransactionBuild } from '../../contexts/TransactionBuildContext';
 import { useTransactionExecution } from '../../contexts/TransactionExecutionContext';
-import { useNotifications } from "../contexts/NotificationContext";
+import { useNotifications } from "../../contexts/NotificationContext";
 import { logger } from '../../utils/logger';
 
 export default function ProcessingScreen({ navigation, route }) {

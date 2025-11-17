@@ -238,7 +238,7 @@ describe('useAppLifecycle', () => {
       expect(mockProps.onLock).not.toHaveBeenCalled();
     });
 
-    it('should not lock if biometric is not supported', () => {
+    it('should lock even if biometric is not supported', () => {
       mockProps.walletExists.current = true;
       mockProps.seedConfirmedRef.current = true;
       mockProps.isBiometricSupported = false;
@@ -257,7 +257,10 @@ describe('useAppLifecycle', () => {
         mockAppStateListeners.change('active');
       });
 
-      expect(mockProps.onLock).not.toHaveBeenCalled();
+      // Should lock even without biometric support (PIN fallback)
+      expect(mockProps.onLock).toHaveBeenCalled();
+      // But should NOT trigger biometric auth
+      expect(mockProps.onAuthenticateUser).not.toHaveBeenCalled();
     });
   });
 
@@ -339,7 +342,7 @@ describe('useAppLifecycle', () => {
       expect(timerCount).toBeLessThan(2);
     });
 
-    it('should not start timer if biometric is not supported', () => {
+    it('should start timer even if biometric is not supported', () => {
       mockProps.isAuthenticated = true;
       mockProps.walletExists.current = true;
       mockProps.seedConfirmedRef.current = true;
@@ -349,8 +352,8 @@ describe('useAppLifecycle', () => {
         initialProps: mockProps,
       });
 
-      const timerCount = jest.getTimerCount();
-      expect(timerCount).toBeLessThan(2);
+      // Timer should start regardless of biometric support (PIN fallback available)
+      expect(jest.getTimerCount()).toBeGreaterThan(0);
     });
 
     it('should restart timer when resetInactivityTimer is called', () => {
