@@ -25,8 +25,8 @@ import {
   checkICloudAvailability,
 } from './icloudStorage';
 
-// Import crypto for AES-256-GCM
-import { subtle, getRandomValues } from 'react-native-quick-crypto';
+// Import crypto for AES-256-GCM and HKDF
+import { subtle, getRandomValues, createHmac } from 'react-native-quick-crypto';
 
 // Base64URL encoding helpers
 const toBase64Url = (buffer) => {
@@ -81,12 +81,13 @@ const generateRandomMnemonic = () => {
 };
 
 /**
- * Derive encryption key from passkey + PIN
+ * Derive encryption key from passkey + PIN using RFC 5869 compliant HKDF
  * Combines passkey credentials with user's PIN for Apple-proof encryption
  *
  * @param {Uint8Array} credentialId - WebAuthn credential ID
  * @param {Uint8Array} userHandle - User handle
  * @param {string} pin - User's 6-digit PIN
+ * @param {string} pinSalt - PIN salt
  * @returns {Promise<CryptoKey>} 256-bit AES-GCM encryption key
  */
 const deriveEncryptionKey = async (credentialId, userHandle, pin, pinSalt) => {
@@ -105,28 +106,22 @@ const deriveEncryptionKey = async (credentialId, userHandle, pin, pinSalt) => {
       derivedPinBytes,
     ]);
 
-    // Implement HKDF manually using SHA-256
-    // RFC 5869 HKDF with SHA-256
-    const salt = 'ducat-encryption-v3'; // v3 uses standard HKDF + derived PIN
-    const info = 'aes-256-gcm-key';
+    // RFC 5869 compliant HKDF with SHA-256
+    const salt = Buffer.from('ducat-encryption-v4', 'utf8');
+    const info = Buffer.from('aes-256-gcm-key', 'utf8');
 
     // HKDF-Extract: PRK = HMAC-SHA256(salt, IKM)
-    const prk = await Crypto.digestStringAsync(
-      Crypto.CryptoDigestAlgorithm.SHA256,
-      salt + ikm.toString('hex')
-    );
+    // Uses proper HMAC instead of simple hash concatenation
+    const prkHmac = createHmac('sha256', salt);
+    const prk = prkHmac.update(ikm).digest();
 
     // HKDF-Expand: OKM = HMAC-SHA256(PRK, info || 0x01)
-    // For simplicity, use single iteration since we need exactly 32 bytes
-    const okm = await Crypto.digestStringAsync(
-      Crypto.CryptoDigestAlgorithm.SHA256,
-      prk + info + '01'
-    );
+    // Produces exactly 32 bytes for AES-256
+    const okmHmac = createHmac('sha256', prk);
+    const okm = okmHmac.update(Buffer.concat([info, Buffer.from([0x01])])).digest();
 
-    // Convert hex to bytes for AES key
-    const keyMaterial = new Uint8Array(
-      okm.match(/.{1,2}/g).map(byte => parseInt(byte, 16))
-    );
+    // Use OKM directly as key material (already a Buffer)
+    const keyMaterial = okm;
 
     // Import as CryptoKey for AES-GCM
     const cryptoKey = await subtle.importKey(
@@ -339,6 +334,7 @@ export const createWalletWithPasskey = async ({ userName, userDisplayName, pin }
     }
 
     // Derive encryption key from passkey + PIN with 10k iterations (Apple-proof!)
+    // Uses RFC 5869 compliant HKDF
     const encryptionKey = await deriveEncryptionKey(credentialId, userHandle, pin, pinSalt);
 
     // Encrypt mnemonic for storage
