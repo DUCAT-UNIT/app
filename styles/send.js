@@ -1,0 +1,389 @@
+import { StyleSheet, Platform, StatusBar, Dimensions } from 'react-native';
+import { COLORS } from '../theme';
+
+// Get device dimensions for responsive sizing
+const { width: SCREEN_WIDTH } = Dimensions.get('window');
+
+// Get safe area top inset - accounts for notch/status bar on different devices
+const STATUS_BAR_HEIGHT = Platform.OS === 'ios' ? 50 : StatusBar.currentHeight || 0;
+
+// Responsive horizontal padding based on screen width
+// Small devices (< 375): 16px
+// Medium devices (375-414): 20px
+// Large devices (> 414): 24px
+const HORIZONTAL_PADDING = SCREEN_WIDTH < 375 ? 16 : SCREEN_WIDTH > 414 ? 24 : 20;
+
+// Helper function to get Cabinet Grotesk font based on weight
+const _getCabinetFont = (weight) => {
+  if (weight === 'bold' || weight === '700' || weight === '800' || weight === '900') {
+    return 'CabinetGrotesk-Bold';
+  } else if (weight === '500' || weight === '600') {
+    return 'CabinetGrotesk-Medium';
+  }
+  return 'CabinetGrotesk-Regular';
+};
+
+export const sendStyles = StyleSheet.create({
+  sendButton: {
+    backgroundColor: COLORS.PRIMARY_BLUE,
+    marginRight: 16,
+  },
+  // Intent UI styles
+  intentModal: {
+    backgroundColor: COLORS.CARD_BG,
+    borderRadius: 20,
+    padding: 0,
+    width: '90%',
+    maxWidth: 420,
+    maxHeight: '80%',
+  },
+  intentContent: {
+    padding: 20,
+  },
+  intentInput: {
+    backgroundColor: COLORS.VERY_LIGHT_GRAY,
+    color: COLORS.DARK_GRAY,
+    padding: 16,
+    borderRadius: 12,
+    borderWidth: 2,
+    borderColor: COLORS.PRIMARY_BLUE,
+    fontSize: 16,
+    fontFamily: 'CabinetGrotesk-Regular',
+    marginBottom: 20,
+  },
+  reviewSection: {
+    marginBottom: 20,
+    paddingBottom: 16,
+    borderBottomWidth: 1,
+    borderBottomColor: COLORS.BORDER_COLOR,
+  },
+  reviewSectionTotal: {
+    borderBottomWidth: 2,
+    borderBottomColor: COLORS.PRIMARY_BLUE,
+    paddingTop: 12,
+  },
+  reviewLabel: {
+    fontSize: 12,
+    fontFamily: 'CabinetGrotesk-Regular',
+    color: COLORS.SECONDARY_TEXT,
+    marginBottom: 4,
+  },
+  reviewLabelTotal: {
+    fontSize: 16,
+    fontFamily: 'CabinetGrotesk-Bold',
+    color: COLORS.VERY_LIGHT_GRAY,
+    fontWeight: 'bold',
+    marginBottom: 4,
+  },
+  reviewValue: {
+    fontSize: 20,
+    fontFamily: 'CabinetGrotesk-Bold',
+    color: COLORS.VERY_LIGHT_GRAY,
+    fontWeight: '600',
+    marginBottom: 3,
+  },
+  reviewValueTotal: {
+    fontSize: 24,
+    fontFamily: 'CabinetGrotesk-Medium',
+    color: COLORS.PRIMARY_BLUE,
+    fontWeight: 'bold',
+  },
+  reviewSubtext: {
+    fontSize: 12,
+    fontFamily: 'CabinetGrotesk-Bold',
+    color: COLORS.SECONDARY_TEXT,
+  },
+  reviewAddressSmall: {
+    fontSize: 12,
+    color: COLORS.SECONDARY_TEXT,
+    fontFamily: 'monospace',
+    marginTop: 3,
+  },
+  // Amount input bottom sheet styles
+  amountInputContainer: {
+    alignItems: 'flex-start',
+    paddingTop: 20,
+    paddingHorizontal: 16,
+    paddingBottom: 0,
+    width: '100%',
+    flex: 1,
+    justifyContent: 'space-between',
+  },
+  amountInputRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginBottom: 4,
+  },
+  amountAssetSymbol: {
+    width: 36,
+    height: 36,
+    marginRight: 12,
+  },
+  amountInput: {
+    fontSize: 48,
+    fontFamily: 'CabinetGrotesk-Bold',
+    fontWeight: 'bold',
+    color: COLORS.VERY_LIGHT_GRAY,
+    minWidth: 100,
+  },
+  amountInputLabel: {
+    fontSize: 20,
+    fontFamily: 'CabinetGrotesk-Bold',
+    color: COLORS.SECONDARY_TEXT,
+    marginBottom: 40,
+  },
+  amountContinueButton: {
+    backgroundColor: COLORS.PRIMARY_BLUE,
+    paddingVertical: 16,
+    paddingHorizontal: 60,
+    borderRadius: 12,
+    width: '100%',
+  },
+  amountContinueButtonDisabled: {
+    backgroundColor: COLORS.DARK_GRAY,
+  },
+  amountContinueButtonText: {
+    color: COLORS.VERY_LIGHT_GRAY,
+    fontSize: 20,
+    fontFamily: 'CabinetGrotesk-Medium',
+    fontWeight: '600',
+    textAlign: 'center',
+  },
+  // Balance footer at bottom of send sheets
+  sendBalanceFooter: {
+    position: 'absolute',
+    bottom: 40,
+    left: 20,
+    right: 20,
+    flexDirection: 'column',
+    gap: 16,
+    paddingTop: 16,
+    borderTopWidth: 1,
+    borderTopColor: COLORS.BORDER_COLOR,
+  },
+  sendBalanceFooterRow: {
+    flexDirection: 'column',
+  },
+  sendBalanceFooterHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 4,
+  },
+  sendBalanceFooterLabel: {
+    fontSize: 16,
+    fontFamily: 'CabinetGrotesk-Medium',
+    color: COLORS.VERY_LIGHT_GRAY,
+    fontWeight: '600',
+  },
+  sendBalanceFooterAmount: {
+    fontSize: 16,
+    fontFamily: 'CabinetGrotesk-Regular',
+    color: COLORS.SECONDARY_TEXT,
+  },
+  sendBalanceFooterUsd: {
+    fontSize: 16,
+    fontFamily: 'CabinetGrotesk-Regular',
+    color: COLORS.SECONDARY_TEXT,
+  },
+  // Address input styles
+  addressInputTitle: {
+    fontSize: 20,
+    fontFamily: 'CabinetGrotesk-Medium',
+    color: COLORS.VERY_LIGHT_GRAY,
+    marginBottom: 20,
+    textAlign: 'center',
+  },
+  addressInputTitleLeft: {
+    fontSize: 16,
+    fontFamily: 'CabinetGrotesk-Regular',
+    color: COLORS.VERY_LIGHT_GRAY,
+    marginBottom: 4,
+    textAlign: 'left',
+    alignSelf: 'flex-start',
+  },
+  addressInputRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginBottom: 4,
+    gap: 12,
+    width: '100%',
+  },
+  addressInput: {
+    flex: 1,
+    backgroundColor: COLORS.DARK_BG,
+    color: COLORS.VERY_LIGHT_GRAY,
+    fontSize: 12,
+    fontFamily: 'CabinetGrotesk-Regular',
+    padding: 16,
+    borderRadius: 12,
+    borderWidth: 2,
+    borderColor: COLORS.BORDER_COLOR,
+    textAlign: 'left',
+  },
+  pasteButton: {
+    backgroundColor: COLORS.PRIMARY_BLUE,
+    paddingVertical: 16,
+    paddingHorizontal: 16,
+    borderRadius: 12,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  pasteButtonText: {
+    color: COLORS.VERY_LIGHT_GRAY,
+    fontSize: 16,
+    fontFamily: 'CabinetGrotesk-Medium',
+    fontWeight: '600',
+  },
+  addressError: {
+    color: COLORS.DANGER_RED,
+    fontSize: 12,
+    fontFamily: 'CabinetGrotesk-Medium',
+    textAlign: 'left',
+    marginBottom: 4,
+  },
+  addressContinueButton: {
+    backgroundColor: COLORS.PRIMARY_BLUE,
+    paddingVertical: 20,
+    paddingHorizontal: 24,
+    borderRadius: 12,
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginTop: 24,
+    marginBottom: 0,
+    width: '100%',
+  },
+  addressContinueButtonDisabled: {
+    backgroundColor: COLORS.DARK_GRAY,
+    opacity: 0.5,
+  },
+  // Send To Header
+  sendToHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    paddingVertical: 8,
+    marginBottom: 12,
+  },
+  sendToLeft: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+  },
+  sendToLabel: {
+    fontSize: 16,
+    fontFamily: 'CabinetGrotesk-Regular',
+    color: COLORS.SECONDARY_TEXT,
+  },
+  sendToAddress: {
+    fontSize: 16,
+    fontFamily: 'CabinetGrotesk-Medium',
+    color: COLORS.VERY_LIGHT_GRAY,
+    fontWeight: '500',
+  },
+  addressTypeTag: {
+    backgroundColor: COLORS.DARK_GRAY,
+    paddingVertical: 4,
+    paddingHorizontal: 12,
+    borderRadius: 8,
+  },
+  // Amount Balance Row
+  amountBalanceRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    width: '100%',
+    marginBottom: 12,
+  },
+  amountBalanceLabel: {
+    fontSize: 16,
+    fontFamily: 'CabinetGrotesk-Regular',
+    color: COLORS.SECONDARY_TEXT,
+  },
+  maxButton: {
+    backgroundColor: 'transparent',
+    borderWidth: 1,
+    borderColor: COLORS.PRIMARY_BLUE,
+    paddingVertical: 4,
+    paddingHorizontal: 12,
+    borderRadius: 8,
+  },
+  maxButtonText: {
+    fontSize: 12,
+    fontFamily: 'CabinetGrotesk-Medium',
+    color: COLORS.PRIMARY_BLUE,
+    fontWeight: '600',
+  },
+  // Amount Input Large
+  amountInputLarge: {
+    fontSize: 56,
+    fontFamily: 'CabinetGrotesk-Medium',
+    fontWeight: 'bold',
+    color: COLORS.VERY_LIGHT_GRAY,
+    flex: 1,
+  },
+  amountAssetSymbolRight: {
+    width: 32,
+    height: 32,
+    marginLeft: 8,
+    marginBottom: 8,
+  },
+  amountUsdValue: {
+    fontSize: 20,
+    fontFamily: 'CabinetGrotesk-Regular',
+    color: COLORS.SECONDARY_TEXT,
+    marginTop: 8,
+    marginBottom: 40,
+  },
+  // Review bottom sheet styles
+  reviewTitle: {
+    fontSize: 20,
+    fontFamily: 'CabinetGrotesk-Medium',
+    fontWeight: '600',
+    color: COLORS.VERY_LIGHT_GRAY,
+    marginBottom: 32,
+    textAlign: 'center',
+  },
+  reviewAmountLarge: {
+    fontSize: 44,
+    fontFamily: 'CabinetGrotesk-Medium',
+    fontWeight: 'bold',
+    color: COLORS.VERY_LIGHT_GRAY,
+    textAlign: 'center',
+    marginBottom: 4,
+  },
+  reviewAmountSats: {
+    fontSize: 16,
+    fontFamily: 'CabinetGrotesk-Regular',
+    color: COLORS.SECONDARY_TEXT,
+    textAlign: 'center',
+    marginBottom: 12,
+  },
+  reviewTotal: {
+    fontSize: 20,
+    fontFamily: 'CabinetGrotesk-Bold',
+    fontWeight: 'bold',
+    color: COLORS.PRIMARY_BLUE,
+    textAlign: 'center',
+    marginBottom: 32,
+  },
+  addressSection: {
+    marginTop: 20,
+    marginBottom: 20,
+  },
+  addressLabel: {
+    fontSize: 12,
+    fontFamily: 'CabinetGrotesk-Regular',
+    color: COLORS.SECONDARY_TEXT,
+    marginBottom: 8,
+  },
+  addressContainer: {
+    minHeight: 36,
+  },
+  addressText: {
+    fontSize: 12,
+    color: COLORS.VERY_LIGHT_GRAY,
+    fontFamily: 'monospace',
+    marginBottom: 4,
+  },
+});
