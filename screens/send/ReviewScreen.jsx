@@ -3,7 +3,7 @@
  * Shows recipient, amount, UTXOs, change, network, and fees
  */
 
-import React from 'react';
+import React, { useEffect } from 'react';
 import { Text, View, TouchableOpacity, ScrollView, StyleSheet } from 'react-native';
 import { COLORS } from '../../theme';
 import Icon from '../../components/icons';
@@ -31,9 +31,15 @@ export default function ReviewScreen({ navigation }) {
 
   const { cancelIntent } = useTransactionBuild();
 
+  // Handle missing sendIntent - navigate back in useEffect, not during render
+  useEffect(() => {
+    if (!sendIntent) {
+      navigation.goBack();
+    }
+  }, [sendIntent, navigation]);
+
+  // Don't render if no sendIntent
   if (!sendIntent) {
-    // Should not happen, but handle gracefully
-    navigation.goBack();
     return null;
   }
 
