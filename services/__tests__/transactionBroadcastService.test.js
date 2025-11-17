@@ -20,8 +20,10 @@ describe('transactionBroadcastService', () => {
   });
 
   describe('broadcastTransaction', () => {
-    const mockSignedTxHex = '0200000001abcdef...'; // Mock transaction hex
-    const mockTxid = '1a2b3c4d5e6f...'; // Mock transaction ID
+    // Real minimal valid Bitcoin transaction (empty tx, but valid for parsing)
+    const mockSignedTxHex = '02000000000000000000';
+    // Real txid calculated from above transaction
+    const mockTxid = '4ebd325a4b394cff8c57e8317ccf5a8d0e2bdf1b8526f8aad6c8e43d8240621a';
 
     it('should successfully broadcast a transaction', async () => {
       const mockResponse = {
@@ -133,7 +135,7 @@ describe('transactionBroadcastService', () => {
     });
 
     it('should properly pass signed transaction hex in POST body', async () => {
-      const customTxHex = '02000000012345...custom';
+      // Use valid tx hex
       const mockResponse = {
         ok: true,
         text: jest.fn().mockResolvedValue(mockTxid),
@@ -142,19 +144,19 @@ describe('transactionBroadcastService', () => {
       retrySilently.mockImplementation(async (fn) => fn());
       global.fetch.mockResolvedValue(mockResponse);
 
-      await broadcastTransaction(customTxHex);
+      await broadcastTransaction(mockSignedTxHex);
 
       expect(global.fetch).toHaveBeenCalledWith(expect.any(String), {
         method: 'POST',
-        body: customTxHex,
+        body: mockSignedTxHex,
       });
     });
 
-    it('should return exact txid from response', async () => {
-      const customTxid = 'abc123def456...custom';
+    it('should return calculated txid (not API response)', async () => {
+      // Even if API returns correct txid, we return our calculated one
       const mockResponse = {
         ok: true,
-        text: jest.fn().mockResolvedValue(customTxid),
+        text: jest.fn().mockResolvedValue(mockTxid),
       };
 
       retrySilently.mockImplementation(async (fn) => fn());
@@ -162,7 +164,8 @@ describe('transactionBroadcastService', () => {
 
       const result = await broadcastTransaction(mockSignedTxHex);
 
-      expect(result).toBe(customTxid);
+      // Should return our calculated txid for security
+      expect(result).toBe(mockTxid);
     });
 
     it('should handle response.text() errors', async () => {
@@ -231,6 +234,59 @@ describe('transactionBroadcastService', () => {
         await expect(broadcastTransaction(mockSignedTxHex)).rejects.toThrow(
           'Failed to broadcast transaction'
         );
+      });
+
+      it('should reject invalid transaction hex before broadcasting', async () => {
+        const invalidTxHex = 'invalid_hex_data';
+
+        await expect(broadcastTransaction(invalidTxHex)).rejects.toThrow('Invalid transaction hex');
+      });
+    });
+
+    describe('SECURITY: txid verification', () => {
+      it('should verify returned txid matches expected txid', async () => {
+        const mockResponse = {
+          ok: true,
+          text: jest.fn().mockResolvedValue(mockTxid),
+        };
+
+        retrySilently.mockImplementation(async (fn) => fn());
+        global.fetch.mockResolvedValue(mockResponse);
+
+        const result = await broadcastTransaction(mockSignedTxHex);
+
+        // Should return the calculated txid, not the API's
+        expect(result).toBe(mockTxid);
+      });
+
+      it('should detect txid mismatch (MITM attack)', async () => {
+        const fakeTxid = 'aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa';
+        const mockResponse = {
+          ok: true,
+          text: jest.fn().mockResolvedValue(fakeTxid),
+        };
+
+        retrySilently.mockImplementation(async (fn) => fn());
+        global.fetch.mockResolvedValue(mockResponse);
+
+        await expect(broadcastTransaction(mockSignedTxHex)).rejects.toThrow('SECURITY: Txid mismatch');
+        await expect(broadcastTransaction(mockSignedTxHex)).rejects.toThrow('MITM attack');
+      });
+
+      it('should handle txid with whitespace', async () => {
+        const txidWithWhitespace = `  ${mockTxid}  \n`;
+        const mockResponse = {
+          ok: true,
+          text: jest.fn().mockResolvedValue(txidWithWhitespace),
+        };
+
+        retrySilently.mockImplementation(async (fn) => fn());
+        global.fetch.mockResolvedValue(mockResponse);
+
+        const result = await broadcastTransaction(mockSignedTxHex);
+
+        // Should still work after trimming
+        expect(result).toBe(mockTxid);
       });
     });
   });
