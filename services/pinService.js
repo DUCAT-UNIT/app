@@ -143,8 +143,10 @@ const hashPinLegacy = async (pin, salt) => {
 
 /**
  * Save PIN to secure storage (hashed with unique salt)
+ * CRITICAL: Includes read-back verification to ensure salt is stored correctly
  * @param {string} pin - 6-digit PIN
  * @returns {Promise<boolean>} Success status
+ * @throws {Error} If salt verification fails (security critical)
  */
 export const savePin = async (pin) => {
   try {
@@ -157,17 +159,61 @@ export const savePin = async (pin) => {
     await SecureStore.setItemAsync(SECURE_KEYS.PIN_SALT, salt);
     await SecureStore.setItemAsync(SECURE_KEYS.PIN_VERSION, PIN_HASH_VERSION.PBKDF2_10K);
 
+    // CRITICAL: Read back the salt to verify it was stored correctly
+    // If salt is corrupted, the user will never be able to unlock their wallet
+    const verifiedSalt = await SecureStore.getItemAsync(SECURE_KEYS.PIN_SALT);
+    const verifiedPin = await SecureStore.getItemAsync(SECURE_KEYS.PIN);
+    const verifiedVersion = await SecureStore.getItemAsync(SECURE_KEYS.PIN_VERSION);
+
+    // Verify all critical values were stored correctly
+    if (verifiedSalt !== salt) {
+      throw new Error(
+        'CRITICAL: PIN salt verification failed. ' +
+        'Expected salt does not match stored salt. ' +
+        'This would prevent wallet access.'
+      );
+    }
+
+    if (verifiedPin !== hashedPin) {
+      throw new Error(
+        'CRITICAL: PIN hash verification failed. ' +
+        'Expected hash does not match stored hash. ' +
+        'This would prevent wallet access.'
+      );
+    }
+
+    if (verifiedVersion !== PIN_HASH_VERSION.PBKDF2_10K) {
+      throw new Error(
+        'CRITICAL: PIN version verification failed. ' +
+        'Expected version does not match stored version. ' +
+        'This would prevent wallet access.'
+      );
+    }
+
     return true;
   } catch (error) {
+    // Log detailed error for debugging
+    console.error('PIN save failed:', {
+      error: error.message,
+      recommendation: 'Check device storage space and SecureStore permissions',
+    });
+
+    // Re-throw security-critical errors
+    if (error.message.includes('CRITICAL:')) {
+      throw error;
+    }
+
     return false;
   }
 };
 
 /**
  * Save PIN using an existing salt (for wallet recovery)
+ * CRITICAL: Includes read-back verification to ensure PIN is stored correctly
  * @param {string} pin - 6-digit PIN
  * @param {string} existingSalt - Existing salt (from backup)
  * @returns {Promise<boolean>} Success status
+ * @throws {Error} If PIN verification fails (security critical)
  */
 export const savePinWithExistingSalt = async (pin, existingSalt) => {
   try {
@@ -177,8 +223,40 @@ export const savePinWithExistingSalt = async (pin, existingSalt) => {
     await SecureStore.setItemAsync(SECURE_KEYS.PIN, hashedPin);
     await SecureStore.setItemAsync(SECURE_KEYS.PIN_VERSION, PIN_HASH_VERSION.PBKDF2_10K);
 
+    // CRITICAL: Read back the PIN hash to verify it was stored correctly
+    const verifiedPin = await SecureStore.getItemAsync(SECURE_KEYS.PIN);
+    const verifiedVersion = await SecureStore.getItemAsync(SECURE_KEYS.PIN_VERSION);
+
+    // Verify all critical values were stored correctly
+    if (verifiedPin !== hashedPin) {
+      throw new Error(
+        'CRITICAL: PIN hash verification failed. ' +
+        'Expected hash does not match stored hash. ' +
+        'This would prevent wallet access.'
+      );
+    }
+
+    if (verifiedVersion !== PIN_HASH_VERSION.PBKDF2_10K) {
+      throw new Error(
+        'CRITICAL: PIN version verification failed. ' +
+        'Expected version does not match stored version. ' +
+        'This would prevent wallet access.'
+      );
+    }
+
     return true;
   } catch (error) {
+    // Log detailed error for debugging
+    console.error('PIN save with existing salt failed:', {
+      error: error.message,
+      recommendation: 'Check device storage space and SecureStore permissions',
+    });
+
+    // Re-throw security-critical errors
+    if (error.message.includes('CRITICAL:')) {
+      throw error;
+    }
+
     return false;
   }
 };

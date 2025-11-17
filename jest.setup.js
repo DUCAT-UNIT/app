@@ -188,3 +188,11 @@ jest.mock('react-native-svg', () => ({
 jest.mock('expo-linear-gradient', () => ({
   LinearGradient: 'LinearGradient',
 }));
+
+// Mock react-native-quick-crypto
+jest.mock('react-native-quick-crypto', () => {
+  const { pbkdf2Sync: nodePbkdf2Sync } = require('node:crypto');
+  return {
+    pbkdf2Sync: nodePbkdf2Sync,
+  };
+});
