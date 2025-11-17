@@ -9,3 +9,4 @@ export { AssetActionButtons } from './AssetActionButtons';
 export { AssetPriceChart } from './AssetPriceChart';
 export { AssetTabs } from './AssetTabs';
 export { AssetAbout } from './AssetAbout';
+export { AssetActivityList } from './AssetActivityList';

@@ -3,30 +3,24 @@
  * Displays detailed information about a specific asset (BTC or UNIT)
  */
 
-import React, { useState, useRef, useMemo, useCallback } from 'react';
+import React, { useState, useRef, useMemo } from 'react';
 import {
-  View,
-  Text,
-  TouchableOpacity,
-  ActivityIndicator,
   StyleSheet,
   Animated,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import Icon from '../../components/icons';
 import { COLORS } from '../../theme';
-import globalStyles from '../../styles';
 import { useBalance, useTransactionHistory } from '../../contexts/WalletDataContext';
 import { usePrice } from '../../contexts/PriceContext';
 import { useWallet } from '../../contexts/WalletContext';
-import TransactionItem from '../../components/transaction/TransactionItem';
 import {
   AssetHeader,
   AssetInfo,
   AssetActionButtons,
   AssetPriceChart,
   AssetTabs,
-  AssetAbout
+  AssetAbout,
+  AssetActivityList
 } from '../../components/assetDetail';
 import { usePriceChart } from '../../hooks/usePriceChart';
 import { useAssetTransactions } from '../../hooks/useAssetTransactions';
@@ -41,7 +35,6 @@ function AssetDetailScreen({ route = {}, navigation }) {
 
   const [selectedTab, setSelectedTab] = useState('ACTIVITY');
   const [selectedTimeframe, setSelectedTimeframe] = useState('1M');
-  const [visibleTransactions, setVisibleTransactions] = useState(20);
   const scrollY = useRef(new Animated.Value(0)).current;
 
   // Use extracted price chart hook
@@ -116,62 +109,6 @@ function AssetDetailScreen({ route = {}, navigation }) {
     />
   );
 
-  // Memoized render function for transactions
-  const renderTransaction = useCallback(
-    ({ item: tx }) => (
-      <TransactionItem
-        tx={tx}
-        styles={globalStyles}
-        onPress={() => {}}
-      />
-    ),
-    []
-  );
-
-  const renderActivity = () => {
-    if (loadingTransactionHistory) {
-      return (
-        <View style={styles.activityContainer}>
-          <ActivityIndicator color={COLORS.PRIMARY_BLUE} style={styles.loader} />
-        </View>
-      );
-    }
-
-    if (filteredTransactions.length === 0) {
-      return (
-        <View style={styles.activityContainer}>
-          <View style={styles.emptyContainer}>
-            <Text style={styles.emptyIcon}>📭</Text>
-            <Text style={styles.emptyText}>No transactions yet</Text>
-          </View>
-        </View>
-      );
-    }
-
-    const displayedTransactions = filteredTransactions.slice(0, visibleTransactions);
-    const hasMore = visibleTransactions < filteredTransactions.length;
-
-    return (
-      <View style={styles.activityContainer}>
-        {displayedTransactions.map((transaction) => (
-          <View key={transaction.txid}>
-            {renderTransaction({ item: transaction })}
-          </View>
-        ))}
-
-        {hasMore && (
-          <TouchableOpacity
-            style={styles.loadMoreButton}
-            onPress={() => setVisibleTransactions(prev => prev + 20)}
-          >
-            <Text style={styles.loadMoreText}>
-              Load More ({filteredTransactions.length - visibleTransactions} remaining)
-            </Text>
-          </TouchableOpacity>
-        )}
-      </View>
-    );
-  };
 
   return (
     <>
@@ -205,7 +142,14 @@ function AssetDetailScreen({ route = {}, navigation }) {
             onTabChange={setSelectedTab}
           />
 
-          {selectedTab === 'ACTIVITY' ? renderActivity() : <AssetAbout assetType={assetType} />}
+          {selectedTab === 'ACTIVITY' ? (
+            <AssetActivityList
+              transactions={filteredTransactions}
+              isLoading={loadingTransactionHistory}
+            />
+          ) : (
+            <AssetAbout assetType={assetType} />
+          )}
         </Animated.ScrollView>
       </SafeAreaView>
     </>
@@ -282,41 +226,6 @@ const styles = StyleSheet.create({
   actionButtonLabel: {
     fontSize: 13,
     color: COLORS.SECONDARY_TEXT,
-    fontWeight: '600',
-  },
-  activityContainer: {
-    paddingHorizontal: 4,
-    paddingBottom: 5,
-  },
-  loader: {
-    marginTop: 8,
-  },
-  emptyContainer: {
-    alignItems: 'center',
-    paddingVertical: 12,
-  },
-  emptyIcon: {
-    fontSize: 48,
-    marginBottom: 3,
-  },
-  emptyText: {
-    color: COLORS.GRAY,
-    fontSize: 16,
-  },
-  loadMoreButton: {
-    backgroundColor: COLORS.CARD_BG,
-    borderRadius: 10,
-    paddingVertical: 14,
-    paddingHorizontal: 20,
-    marginTop: 12,
-    marginBottom: 8,
-    alignItems: 'center',
-    borderWidth: 1,
-    borderColor: COLORS.BORDER_COLOR,
-  },
-  loadMoreText: {
-    color: COLORS.WHITE,
-    fontSize: 14,
     fontWeight: '600',
   },
 });
