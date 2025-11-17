@@ -56,87 +56,27 @@ export const signIntent = async (intent, currentAccount) => {
     // Load PSBT with correct network (testnet)
     const psbt = bitcoin.Psbt.fromBase64(intent.psbt, { network: MUTINYNET_NETWORK });
 
-    // Sign all inputs
+    // UNIFIED SIGNING: Both UNIT and BTC use the same safe signing logic
+    // SECURITY: Use bitcoinjs-lib's built-in tweak method instead of manual crypto
+
+    // Sign all inputs based on their type
     if (intent.assetType === 'UNIT') {
-      // Input 0: P2WPKH (fee input)
+      // UNIT transactions have mixed input types:
+      // - Input 0: P2WPKH (fee input from BTC balance)
+      // - Input 1: Taproot (rune input with UNIT balance)
+
+      // Input 0: Sign with SegWit key
       psbt.signInput(0, segwitChild);
 
-      // Input 1: Taproot (rune input) - requires manual tweaking
-
-      // Manual Taproot signing with tweaking
-      const tx = psbt.__CACHE.__TX.clone();
-      const sighashType = bitcoin.Transaction.SIGHASH_DEFAULT;
-
-      // Get witness scripts and values for both inputs
-      const prevoutScripts = [
-        psbt.data.inputs[0].witnessUtxo.script,
-        psbt.data.inputs[1].witnessUtxo.script,
-      ];
-
-      // Convert values to BigInt, handling both number and bigint types
-      const val0 = psbt.data.inputs[0].witnessUtxo.value;
-      const val1 = psbt.data.inputs[1].witnessUtxo.value;
-
-      // Helper to convert any type to BigInt
-      const toBigInt = (val) => {
-        if (typeof val === 'bigint') return val;
-        if (typeof val === 'number') return BigInt(val);
-        if (typeof val === 'string') return BigInt(val);
-        return BigInt(String(val));
-      };
-
-      const prevoutValues = [toBigInt(val0), toBigInt(val1)];
-
-      // Calculate sighash for input 1
-      const hash = tx.hashForWitnessV1(1, prevoutScripts, prevoutValues, sighashType);
-
-      // Get x-only pubkey
-      const xOnlyPubkey = Buffer.from(taprootChild.publicKey.slice(1, 33));
-
-      // Create the tweak
-      const tweakHashRaw = bitcoin.crypto.taggedHash('TapTweak', xOnlyPubkey);
-      const tweakHash = Buffer.isBuffer(tweakHashRaw) ? tweakHashRaw : Buffer.from(tweakHashRaw);
-
-      // Get the private key
-      let privateKey = taprootChild.privateKey;
-      if (!Buffer.isBuffer(privateKey)) {
-        privateKey = Buffer.from(privateKey);
-      }
-
-      // Check if we need to negate the private key
-      // If the public key has odd y-coordinate (0x03 prefix), negate the private key
-      if (taprootChild.publicKey[0] === 0x03) {
-        const privKeyNum = BigInt('0x' + privateKey.toString('hex'));
-        const CURVE_ORDER = BigInt(
-          '0xfffffffffffffffffffffffffffffffebaaedce6af48a03bbfd25e8cd0364141'
-        );
-        const negatedNum = CURVE_ORDER - privKeyNum;
-        privateKey = Buffer.from(negatedNum.toString(16).padStart(64, '0'), 'hex');
-      }
-
-      // Add the tweak
-      const privKeyNum = BigInt('0x' + privateKey.toString('hex'));
-      const tweakNum = BigInt('0x' + tweakHash.toString('hex'));
-      const CURVE_ORDER = BigInt(
-        '0xfffffffffffffffffffffffffffffffebaaedce6af48a03bbfd25e8cd0364141'
+      // Input 1: Sign with tweaked Taproot key (UNIFIED METHOD)
+      const tweakedSigner = taprootChild.tweak(
+        bitcoin.crypto.taggedHash('TapTweak', taprootChild.publicKey.slice(1, 33))
       );
-      const tweakedNum = (privKeyNum + tweakNum) % CURVE_ORDER;
-      const tweakedPrivateKey = Buffer.from(tweakedNum.toString(16).padStart(64, '0'), 'hex');
-
-      // Ensure buffers are the correct size
-      if (hash.length !== 32) {
-        throw new Error(`Hash must be 32 bytes, got ${hash.length}`);
-      }
-      if (tweakedPrivateKey.length !== 32) {
-        throw new Error(`Private key must be 32 bytes, got ${tweakedPrivateKey.length}`);
-      }
-
-      // Sign with tweaked key
-      const signature = ecc.signSchnorr(hash, tweakedPrivateKey);
-      psbt.updateInput(1, { tapKeySig: Buffer.from(signature) });
+      psbt.signInput(1, tweakedSigner);
     } else {
-      // BTC transaction - all inputs are same type
+      // BTC transactions: All inputs are the same type
       if (intent.addressType === 'taproot') {
+        // Sign all Taproot inputs with tweaked signer (UNIFIED METHOD)
         const tweakedSigner = taprootChild.tweak(
           bitcoin.crypto.taggedHash('TapTweak', taprootChild.publicKey.slice(1, 33))
         );
@@ -145,6 +85,7 @@ export const signIntent = async (intent, currentAccount) => {
           psbt.signInput(i, tweakedSigner);
         }
       } else {
+        // Sign all SegWit inputs
         for (let i = 0; i < intent.inputs.length; i++) {
           psbt.signInput(i, segwitChild);
         }
