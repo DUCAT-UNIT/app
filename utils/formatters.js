@@ -1,60 +1,18 @@
 /**
- * Formatters - Address and BTC/Satoshi conversion utilities
+ * Formatters - Legacy barrel file
+ *
+ * @deprecated This file is deprecated. Use imports from utils/formatters/ directory instead.
+ * This file re-exports everything from formatters/ modules for backwards compatibility.
+ *
+ * Gradually migrate to:
+ * - Bitcoin conversions: import from 'utils/bitcoin/conversions'
+ * - Address formatting: import from 'utils/formatters/addresses'
+ * - Amount formatting: import from 'utils/formatters/amounts'
+ * - Date formatting: import from 'utils/formatters/dates'
  */
 
-/**
- * Convert satoshis to BTC
- */
-export const satoshisToBTC = (satoshis) => {
-  return satoshis / 100000000;
-};
+// Re-export everything from formatters modules
+export * from './formatters/index';
 
-/**
- * Convert BTC to satoshis
- */
-export const btcToSatoshis = (btc) => {
-  return Math.floor(btc * 100000000);
-};
-
-/**
- * Format Bitcoin address for display (truncate middle)
- */
-export const formatAddress = (address, startChars = 8, endChars = 8) => {
-  if (!address || address.length <= startChars + endChars) {
-    return address;
-  }
-  return `${address.slice(0, startChars)}...${address.slice(-endChars)}`;
-};
-
-/**
- * Format satoshis with commas
- */
-export const formatSatoshis = (satoshis) => {
-  return satoshis.toLocaleString();
-};
-
-/**
- * Format BTC with proper decimal places
- */
-export const formatBTC = (btc, decimals = 8) => {
-  return btc.toFixed(decimals);
-};
-
-/**
- * Format balance value (BTC) for display
- */
-export const formatBalance = (balance, decimals = 8) => {
-  if (!balance && balance !== 0) return '0.00000000';
-  return balance.toFixed(decimals);
-};
-
-/**
- * Format fiat amount (USD) for display
- */
-export const formatFiatAmount = (amount, decimals = 2) => {
-  if (!amount && amount !== 0) return '0.00';
-  return amount.toLocaleString('en-US', {
-    minimumFractionDigits: decimals,
-    maximumFractionDigits: decimals,
-  });
-};
+// Explicitly export formatBalance which is defined in formatters/index.js
+export { formatBalance } from './formatters/index';

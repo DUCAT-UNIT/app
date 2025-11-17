@@ -7,6 +7,7 @@ import { View, Text, Modal, TouchableOpacity, ActivityIndicator } from 'react-na
 import * as Device from 'expo-device';
 import { COLORS } from '../theme';
 import { addPasskeyToExistingWallet, isPasskeySupported } from '../services/passkeyService';
+import { logger } from '../utils/logger';
 import styles from '../styles';
 
 export default function PasskeyMigrationModal({
@@ -40,7 +41,7 @@ export default function PasskeyMigrationModal({
       showToast('Passkey enabled! Your wallet is now backed up to iCloud.', 'success');
       onClose();
     } catch (error) {
-      console.error('Failed to enable passkey:', error);
+      logger.error('Failed to enable passkey', { error: error.message });
       showToast(error.message || 'Failed to enable passkey', 'error');
     } finally {
       setIsAdding(false);

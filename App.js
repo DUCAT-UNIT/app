@@ -38,11 +38,13 @@ bitcoin.initEccLib(ecc);
 // CRITICAL: Validate network configuration at startup
 // This must happen before any Bitcoin operations
 import { validateNetworkConfig } from './utils/bitcoin';
+import logger from './utils/logger';
+
 try {
   validateNetworkConfig();
-  console.log('✅ Network validation passed: App is correctly configured for testnet');
+  logger.info('Network validation passed: App is correctly configured for testnet');
 } catch (error) {
-  console.error('❌ CRITICAL NETWORK ERROR:', error.message);
+  logger.error('CRITICAL NETWORK ERROR', { error: error.message });
   throw error; // Fail fast - do not allow app to start with wrong network
 }
 

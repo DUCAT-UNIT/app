@@ -72,7 +72,7 @@ const saveLockoutState = async (failedAttempts, lockoutUntil) => {
   } catch (error) {
     // SECURITY: Fail closed - if we can't save lockout state, throw error
     // This prevents attackers from triggering storage failures to bypass rate limiting
-    console.error('CRITICAL: Failed to save lockout state', {
+    logger.error('CRITICAL: Failed to save lockout state', {
       error: error.message,
       failedAttempts,
       lockoutUntil,
@@ -193,7 +193,7 @@ export const savePin = async (pin) => {
     return true;
   } catch (error) {
     // Log detailed error for debugging
-    console.error('PIN save failed:', {
+    logger.error('PIN save failed:', {
       error: error.message,
       recommendation: 'Check device storage space and SecureStore permissions',
     });
@@ -247,7 +247,7 @@ export const savePinWithExistingSalt = async (pin, existingSalt) => {
     return true;
   } catch (error) {
     // Log detailed error for debugging
-    console.error('PIN save with existing salt failed:', {
+    logger.error('PIN save with existing salt failed:', {
       error: error.message,
       recommendation: 'Check device storage space and SecureStore permissions',
     });

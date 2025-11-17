@@ -1,4 +1,4 @@
-import { retrySilently } from '../utils/retry';
+import { postWithRetry, fetchPaginated } from '../utils/apiClient';
 import { API } from '../utils/constants';
 import { logger } from '../utils/logger';
 
@@ -9,18 +9,10 @@ export const fetchVaultHistory = async (vaultPubkey) => {
     }
 
     // Step 1: Get vault list to retrieve vault_id
-    const vaultListResponse = await retrySilently(
-      () =>
-        fetch(`${API.VAULT}/vault_list`, {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-          },
-          body: JSON.stringify({
-            vault_pubkey: vaultPubkey,
-          }),
-        }),
-      'Fetch vault list'
+    const vaultListResponse = await postWithRetry(
+      `${API.VAULT}/vault_list`,
+      { vault_pubkey: vaultPubkey },
+      { description: 'Fetch vault list' }
     );
 
     const vaultListData = await vaultListResponse.json();
@@ -34,54 +26,25 @@ export const fetchVaultHistory = async (vaultPubkey) => {
     // Step 2: Get all vault history with pagination
     const now = Math.floor(Date.now() / 1000);
     const eighteenMonthsAgo = now - 540 * 24 * 60 * 60; // 18 months of history
-    const allHistory = [];
-    let offset = 0;
-    const limit = 250;
-    let hasMore = true;
 
-    // Fetch up to 5000 transactions (20 pages)
-    const maxPages = 20;
-    let pageCount = 0;
-
-    while (hasMore && pageCount < maxPages) {
-      const vaultHistoryResponse = await retrySilently(
-        () =>
-          fetch(`${API.VAULT}/vault_history_tx`, {
-            method: 'POST',
-            headers: {
-              'Content-Type': 'application/json',
-            },
-            body: JSON.stringify({
-              vault_id: vaultId,
-              timestamp_start: eighteenMonthsAgo,
-              timestamp_end: now,
-              pagination: {
-                limit,
-                offset,
-              },
-            }),
-          }),
-        `Fetch vault history (page ${pageCount + 1})`
-      );
-
-      const vaultHistoryData = await vaultHistoryResponse.json();
-
-      if (!vaultHistoryData.history || vaultHistoryData.history.length === 0) {
-        hasMore = false;
-        break;
-      }
-
-      allHistory.push(...vaultHistoryData.history);
-
-      // If we got less than limit, we've reached the end
-      if (vaultHistoryData.history.length < limit) {
-        hasMore = false;
-      } else {
-        offset += limit;
-      }
-
-      pageCount++;
-    }
+    // Use unified pagination utility
+    const allHistory = await fetchPaginated(
+      async (offset, limit) => {
+        const response = await postWithRetry(
+          `${API.VAULT}/vault_history_tx`,
+          {
+            vault_id: vaultId,
+            timestamp_start: eighteenMonthsAgo,
+            timestamp_end: now,
+            pagination: { limit, offset },
+          },
+          { description: `Fetch vault history (offset ${offset})` }
+        );
+        const data = await response.json();
+        return data.history || [];
+      },
+      { limit: 250, maxPages: 20 }
+    );
 
     return allHistory;
   } catch (error) {
@@ -99,18 +62,10 @@ export const fetchVaultData = async (vaultPubkey) => {
     logger.debug('🏦 Fetching vault data for pubkey:', vaultPubkey);
 
     // Step 1: Get vault list to retrieve vault_id
-    const vaultListResponse = await retrySilently(
-      () =>
-        fetch(`${API.VAULT}/vault_list`, {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-          },
-          body: JSON.stringify({
-            vault_pubkey: vaultPubkey,
-          }),
-        }),
-      'Fetch vault data list'
+    const vaultListResponse = await postWithRetry(
+      `${API.VAULT}/vault_list`,
+      { vault_pubkey: vaultPubkey },
+      { description: 'Fetch vault data list' }
     );
 
     const vaultListData = await vaultListResponse.json();
@@ -145,24 +100,15 @@ export const fetchVaultData = async (vaultPubkey) => {
     const now = Math.floor(Date.now() / 1000);
     const thirtyDaysAgo = now - 30 * 24 * 60 * 60;
 
-    const vaultHistoryResponse = await retrySilently(
-      () =>
-        fetch(`${API.VAULT}/vault_history_tx`, {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-          },
-          body: JSON.stringify({
-            vault_id: vaultId,
-            timestamp_start: thirtyDaysAgo,
-            timestamp_end: now,
-            pagination: {
-              limit: 250,
-              offset: 0,
-            },
-          }),
-        }),
-      'Fetch vault data history'
+    const vaultHistoryResponse = await postWithRetry(
+      `${API.VAULT}/vault_history_tx`,
+      {
+        vault_id: vaultId,
+        timestamp_start: thirtyDaysAgo,
+        timestamp_end: now,
+        pagination: { limit: 250, offset: 0 },
+      },
+      { description: 'Fetch vault data history' }
     );
 
     const vaultHistoryData = await vaultHistoryResponse.json();

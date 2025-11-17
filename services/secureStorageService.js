@@ -127,18 +127,19 @@ export const getCurrentAccount = async () => {
 /**
  * Delete all wallet data from secure storage
  * IMPORTANT: This clears ALL wallet data including PIN, passkey, and lockout state
- * @param {boolean} clearICloudBackup - Whether to also clear iCloud passkey backup (default: true)
+ * NOTE: iCloud backup is preserved by default to allow wallet recovery
+ * @param {boolean} clearICloudBackup - Whether to also clear iCloud passkey backup (default: false)
  * @returns {Promise<boolean>} Success status
  */
-export const deleteWalletData = async (clearICloudBackup = true) => {
+export const deleteWalletData = async (clearICloudBackup = false) => {
   try {
-    // Clear passkey data if it exists (including iCloud backup)
+    // Clear passkey data if it exists (iCloud backup preserved by default for recovery)
     try {
       const { clearPasskeyData } = await import('./passkeyService');
       await clearPasskeyData(clearICloudBackup);
     } catch (passkeyError) {
       // Passkey service might not be available or error clearing - continue anyway
-      console.warn('Failed to clear passkey data:', passkeyError.message);
+      logger.warn('Failed to clear passkey data', { error: passkeyError.message });
     }
 
     // Clear all wallet-related secure storage keys
@@ -180,7 +181,7 @@ export const deleteWalletData = async (clearICloudBackup = true) => {
 
     return true;
   } catch (error) {
-    console.error('Error deleting wallet data:', error.message);
+    logger.error('Error deleting wallet data', { error: error.message });
     return false;
   }
 };

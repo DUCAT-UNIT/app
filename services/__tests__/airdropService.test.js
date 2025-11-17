@@ -4,9 +4,10 @@
 
 import * as AirdropService from '../airdropService';
 import { API } from '../../utils/constants';
+import * as apiClient from '../../utils/apiClient';
 
-// Mock fetch
-global.fetch = jest.fn();
+// Mock apiClient instead of fetch
+jest.mock('../../utils/apiClient');
 
 describe('airdropService', () => {
   beforeEach(() => {
@@ -20,29 +21,24 @@ describe('airdropService', () => {
       const mockTxId = 'mock_tx_id_123';
       const mockTimeout = 3600;
 
-      global.fetch.mockResolvedValue({
-        ok: true,
-        json: async () => ({
-          data: {
-            tx_id: mockTxId,
-            timeout: mockTimeout,
-          },
-        }),
+      apiClient.postJSON.mockResolvedValue({
+        data: {
+          tx_id: mockTxId,
+          timeout: mockTimeout,
+        },
       });
 
       const result = await AirdropService.requestAirdrop(testAddress);
 
-      expect(global.fetch).toHaveBeenCalledWith(API.FAUCET, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
+      expect(apiClient.postJSON).toHaveBeenCalledWith(
+        API.FAUCET,
+        {
           address: testAddress,
           captchaToken: 'XXXX.DUMMY.TOKEN.XXXX',
           network: 'mutinynet',
-        }),
-      });
+        },
+        { description: 'Request airdrop' }
+      );
 
       expect(result).toEqual({
         txId: mockTxId,
@@ -51,22 +47,17 @@ describe('airdropService', () => {
     });
 
     it('should throw error when response is not ok', async () => {
-      global.fetch.mockResolvedValue({
-        ok: false,
-        status: 429,
-      });
+      const error = new Error('HTTP 429: Too Many Requests');
+      apiClient.postJSON.mockRejectedValue(error);
 
       await expect(AirdropService.requestAirdrop(testAddress)).rejects.toThrow(
-        'Airdrop request failed: 429'
+        'HTTP 429: Too Many Requests'
       );
     });
 
     it('should throw error when response data is missing', async () => {
-      global.fetch.mockResolvedValue({
-        ok: true,
-        json: async () => ({
-          // Missing data field
-        }),
+      apiClient.postJSON.mockResolvedValue({
+        // Missing data field
       });
 
       await expect(AirdropService.requestAirdrop(testAddress)).rejects.toThrow(
@@ -75,14 +66,11 @@ describe('airdropService', () => {
     });
 
     it('should throw error when tx_id is missing', async () => {
-      global.fetch.mockResolvedValue({
-        ok: true,
-        json: async () => ({
-          data: {
-            // Missing tx_id
-            timeout: 3600,
-          },
-        }),
+      apiClient.postJSON.mockResolvedValue({
+        data: {
+          // Missing tx_id
+          timeout: 3600,
+        },
       });
 
       await expect(AirdropService.requestAirdrop(testAddress)).rejects.toThrow(
@@ -92,18 +80,14 @@ describe('airdropService', () => {
 
     it('should handle fetch network error', async () => {
       const networkError = new Error('Network error');
-      global.fetch.mockRejectedValue(networkError);
+      apiClient.postJSON.mockRejectedValue(networkError);
 
       await expect(AirdropService.requestAirdrop(testAddress)).rejects.toThrow('Network error');
     });
 
     it('should handle JSON parsing error', async () => {
-      global.fetch.mockResolvedValue({
-        ok: true,
-        json: async () => {
-          throw new Error('Invalid JSON');
-        },
-      });
+      const jsonError = new Error('Invalid JSON');
+      apiClient.postJSON.mockRejectedValue(jsonError);
 
       await expect(AirdropService.requestAirdrop(testAddress)).rejects.toThrow('Invalid JSON');
     });

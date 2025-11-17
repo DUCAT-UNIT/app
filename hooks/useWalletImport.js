@@ -6,80 +6,42 @@
  * - Handles seed input refs for focus management
  */
 
-import { useState, useRef, useEffect } from 'react';
-import AsyncStorage from '@react-native-async-storage/async-storage';
+import { useState, useRef } from 'react';
 import * as WalletService from '../services/walletService';
 import { useWallet } from '../contexts/WalletContext';
 import { ERRORS } from '../utils/messages';
 import * as SecureStore from 'expo-secure-store';
 import { SECURE_KEYS } from '../utils/constants';
+import { usePersistedObject } from './usePersistedState';
 
 const IMPORT_STATE_KEY = 'wallet_import_state';
 
 export function useWalletImport({ currentAccount, setSettingUpPin, showToast, loadWallet }) {
   const { setWalletAddresses } = useWallet();
-  const [stateLoaded, setStateLoaded] = useState(false);
 
-  // Import state
-  const [importingWallet, setImportingWallet] = useState(false);
-  const [importSeedPhrase, setImportSeedPhrase] = useState(Array(12).fill(''));
-  const [isImportedWallet, setIsImportedWallet] = useState(false);
+  // Persisted import state - automatically loads/saves
+  const [importState, updateImportState, clearPersistedState, stateLoaded] = usePersistedObject(
+    IMPORT_STATE_KEY,
+    {
+      importingWallet: false,
+      importSeedPhrase: Array(12).fill(''),
+      isImportedWallet: false,
+    },
+    { silent: true } // Silently fail on errors
+  );
+
+  // Extract state for backwards compatibility
+  const { importingWallet, importSeedPhrase, isImportedWallet } = importState;
+
+  // Helper setters for individual fields (backwards compatibility)
+  const setImportingWallet = (value) => updateImportState({ importingWallet: value });
+  const setImportSeedPhrase = (value) => updateImportState({ importSeedPhrase: value });
+  const setIsImportedWallet = (value) => updateImportState({ isImportedWallet: value });
+
+  // Non-persisted state
   const [isImporting, setIsImporting] = useState(false); // Loading state
   const [importedMnemonic, setImportedMnemonic] = useState(null); // Store mnemonic for passkey migration
   const seedInputRefs = useRef([]);
-
-  // Load persisted import state on mount
-  useEffect(() => {
-    const loadState = async () => {
-      try {
-        const savedState = await AsyncStorage.getItem(IMPORT_STATE_KEY);
-        if (savedState) {
-          const state = JSON.parse(savedState);
-
-          if (state.importingWallet !== undefined) setImportingWallet(state.importingWallet);
-          if (state.importSeedPhrase) setImportSeedPhrase(state.importSeedPhrase);
-          if (state.isImportedWallet !== undefined) setIsImportedWallet(state.isImportedWallet);
-        }
-      } catch (error) {
-        // Silently fail - state will be empty on first run
-      } finally {
-        setStateLoaded(true);
-      }
-    };
-
-    loadState();
-  }, []);
-
-  // Persist import state whenever it changes
-  useEffect(() => {
-    if (!stateLoaded) return;
-
-    const saveState = async () => {
-      try {
-        const state = {
-          importingWallet,
-          importSeedPhrase,
-          isImportedWallet,
-        };
-        await AsyncStorage.setItem(IMPORT_STATE_KEY, JSON.stringify(state));
-      } catch (error) {
-        // Silently fail
-      }
-    };
-
-    saveState();
-  }, [stateLoaded, importingWallet, importSeedPhrase, isImportedWallet]);
-
-  /**
-   * Clear persisted state
-   */
-  const clearPersistedState = async () => {
-    try {
-      await AsyncStorage.removeItem(IMPORT_STATE_KEY);
-    } catch (error) {
-      // Silently fail
-    }
-  };
 
   /**
    * Import existing wallet from seed phrase

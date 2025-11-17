@@ -3,6 +3,7 @@
  * Handles requesting testnet coins from the faucet for new users
  */
 
+import { postJSON } from '../utils/apiClient';
 import { API } from '../utils/constants';
 
 const DUMMY_CAPTCHA = 'XXXX.DUMMY.TOKEN.XXXX';
@@ -13,34 +14,22 @@ const DUMMY_CAPTCHA = 'XXXX.DUMMY.TOKEN.XXXX';
  * @returns {Promise<{txId: string}>} Transaction ID of the airdrop
  */
 export const requestAirdrop = async (segwitAddress) => {
-  try {
-    const response = await fetch(API.FAUCET, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify({
-        address: segwitAddress,
-        captchaToken: DUMMY_CAPTCHA,
-        network: 'mutinynet',
-      }),
-    });
+  const data = await postJSON(
+    API.FAUCET,
+    {
+      address: segwitAddress,
+      captchaToken: DUMMY_CAPTCHA,
+      network: 'mutinynet',
+    },
+    { description: 'Request airdrop' }
+  );
 
-    if (!response.ok) {
-      throw new Error(`Airdrop request failed: ${response.status}`);
-    }
-
-    const data = await response.json();
-
-    if (!data.data || !data.data.tx_id) {
-      throw new Error('Invalid airdrop response');
-    }
-
-    return {
-      txId: data.data.tx_id,
-      timeout: data.data.timeout,
-    };
-  } catch (error) {
-    throw error;
+  if (!data.data || !data.data.tx_id) {
+    throw new Error('Invalid airdrop response');
   }
+
+  return {
+    txId: data.data.tx_id,
+    timeout: data.data.timeout,
+  };
 };

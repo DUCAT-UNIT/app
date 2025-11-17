@@ -7,11 +7,11 @@
  * - Persists creation state across app backgrounding
  */
 
-import { useState, useRef, useEffect } from 'react';
-import AsyncStorage from '@react-native-async-storage/async-storage';
+import { useRef } from 'react';
 import * as WalletService from '../services/walletService';
 import { useWallet } from '../contexts/WalletContext';
 import { parseErrorMessage } from '../utils/errorParser';
+import { usePersistedObject } from './usePersistedState';
 
 const CREATION_STATE_KEY = 'wallet_creation_state';
 
@@ -24,68 +24,27 @@ export function useWalletCreation({
 }) {
   const { setWalletAddresses, resetWallet } = useWallet();
   const walletExistsRef = useRef(false);
-  const [stateLoaded, setStateLoaded] = useState(false);
 
-  // Creation state
-  const [tempMnemonicWords, setTempMnemonicWords] = useState([]);
-  const [tempMnemonic, setTempMnemonic] = useState('');
-  const [showingIntro, setShowingIntro] = useState(false);
-  const [showingSeeds, setShowingSeeds] = useState(false);
+  // Persisted creation state - automatically loads/saves
+  const [creationState, updateCreationState, clearPersistedState, stateLoaded] = usePersistedObject(
+    CREATION_STATE_KEY,
+    {
+      tempMnemonicWords: [],
+      tempMnemonic: '',
+      showingIntro: false,
+      showingSeeds: false,
+    },
+    { silent: true } // Silently fail on errors
+  );
 
-  // Load persisted creation state on mount
-  useEffect(() => {
-    const loadState = async () => {
-      try {
-        const savedState = await AsyncStorage.getItem(CREATION_STATE_KEY);
-        if (savedState) {
-          const state = JSON.parse(savedState);
+  // Extract state for backwards compatibility
+  const { tempMnemonicWords, tempMnemonic, showingIntro, showingSeeds } = creationState;
 
-          if (state.tempMnemonicWords) setTempMnemonicWords(state.tempMnemonicWords);
-          if (state.tempMnemonic) setTempMnemonic(state.tempMnemonic);
-          if (state.showingIntro !== undefined) setShowingIntro(state.showingIntro);
-          if (state.showingSeeds !== undefined) setShowingSeeds(state.showingSeeds);
-        }
-      } catch (error) {
-        // Silently fail - state will be empty on first run
-      } finally {
-        setStateLoaded(true);
-      }
-    };
-
-    loadState();
-  }, []);
-
-  // Persist creation state whenever it changes
-  useEffect(() => {
-    if (!stateLoaded) return;
-
-    const saveState = async () => {
-      try {
-        const state = {
-          tempMnemonicWords,
-          tempMnemonic,
-          showingIntro,
-          showingSeeds,
-        };
-        await AsyncStorage.setItem(CREATION_STATE_KEY, JSON.stringify(state));
-      } catch (error) {
-        // Silently fail
-      }
-    };
-
-    saveState();
-  }, [stateLoaded, tempMnemonicWords, tempMnemonic, showingIntro, showingSeeds]);
-
-  /**
-   * Clear persisted state
-   */
-  const clearPersistedState = async () => {
-    try {
-      await AsyncStorage.removeItem(CREATION_STATE_KEY);
-    } catch (error) {
-      // Silently fail
-    }
-  };
+  // Helper setters for individual fields (backwards compatibility)
+  const setTempMnemonicWords = (value) => updateCreationState({ tempMnemonicWords: value });
+  const setTempMnemonic = (value) => updateCreationState({ tempMnemonic: value });
+  const setShowingIntro = (value) => updateCreationState({ showingIntro: value });
+  const setShowingSeeds = (value) => updateCreationState({ showingSeeds: value });
 
   /**
    * Create a new wallet

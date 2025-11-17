@@ -2,9 +2,9 @@
  * Balance Service - Wallet balance and UTXO fetching
  */
 
-import { fetchWithTimeout } from '../utils/api';
-import { retrySilently } from '../utils/retry';
+import { getWithRetry, getJSON, fetchParallel } from '../utils/apiClient';
 import { getAddressUrl, getAddressUtxoUrl, getOrdAddressUrl, API_KEYS } from '../utils/constants';
+import { satsToBTC } from '../utils/bitcoin/conversions';
 
 const BALANCE_FETCH_TIMEOUT = 10000; // 10 seconds
 
@@ -19,54 +19,49 @@ export const fetchWalletBalances = async (segwitAddress, taprootAddress) => {
     throw new Error('Both segwit and taproot addresses are required');
   }
 
-  const results = await Promise.allSettled([
-    // Fetch SegWit balance with retry
-    retrySilently(async () => {
-      const res = await fetchWithTimeout(getAddressUrl(segwitAddress), {}, BALANCE_FETCH_TIMEOUT);
-      const data = await res.json();
-      const totalReceived = data.chain_stats?.funded_txo_sum || 0;
-      const totalSpent = data.chain_stats?.spent_txo_sum || 0;
-      return (totalReceived - totalSpent) / 100000000;
-    }, 'Fetch SegWit balance'),
-
-    // Fetch Taproot balance with retry
-    retrySilently(async () => {
-      const res = await fetchWithTimeout(getAddressUrl(taprootAddress), {}, BALANCE_FETCH_TIMEOUT);
-      const data = await res.json();
-      const totalReceived = data.chain_stats?.funded_txo_sum || 0;
-      const totalSpent = data.chain_stats?.spent_txo_sum || 0;
-      return (totalReceived - totalSpent) / 100000000;
-    }, 'Fetch Taproot balance'),
-
-    // Fetch RUNES balance with retry
-    retrySilently(async () => {
-      const res = await fetchWithTimeout(
-        getOrdAddressUrl(taprootAddress),
-        { headers: { Accept: 'application/json' } },
-        BALANCE_FETCH_TIMEOUT
-      );
-      const data = await res.json();
-      return data.runes_balances || [];
-    }, 'Fetch Runes balance'),
+  // Use unified parallel fetch utility
+  const [segwitBalance, taprootBalance, runesBalance] = await fetchParallel([
+    {
+      name: 'SegWit balance',
+      fn: async () => {
+        const data = await getJSON(getAddressUrl(segwitAddress), {
+          timeout: BALANCE_FETCH_TIMEOUT,
+          description: 'Fetch SegWit balance',
+        });
+        const totalReceived = data.chain_stats?.funded_txo_sum || 0;
+        const totalSpent = data.chain_stats?.spent_txo_sum || 0;
+        return satsToBTC(totalReceived - totalSpent);
+      },
+      defaultValue: 0,
+    },
+    {
+      name: 'Taproot balance',
+      fn: async () => {
+        const data = await getJSON(getAddressUrl(taprootAddress), {
+          timeout: BALANCE_FETCH_TIMEOUT,
+          description: 'Fetch Taproot balance',
+        });
+        const totalReceived = data.chain_stats?.funded_txo_sum || 0;
+        const totalSpent = data.chain_stats?.spent_txo_sum || 0;
+        return satsToBTC(totalReceived - totalSpent);
+      },
+      defaultValue: 0,
+    },
+    {
+      name: 'Runes balance',
+      fn: async () => {
+        const data = await getJSON(getOrdAddressUrl(taprootAddress), {
+          timeout: BALANCE_FETCH_TIMEOUT,
+          headers: { Accept: 'application/json' },
+          description: 'Fetch Runes balance',
+        });
+        return data.runes_balances || [];
+      },
+      defaultValue: [],
+    },
   ]);
 
-  // Extract results or use defaults on failure
-  const segwitBalance = results[0].status === 'fulfilled' ? results[0].value : 0;
-  const taprootBalance = results[1].status === 'fulfilled' ? results[1].value : 0;
-  const runesBalance = results[2].status === 'fulfilled' ? results[2].value : [];
-
-  // Log any failures
-  results.forEach((result, index) => {
-    if (result.status === 'rejected') {
-      const _balanceType = ['SegWit', 'Taproot', 'Runes'][index];
-    }
-  });
-
-  return {
-    segwitBalance,
-    taprootBalance,
-    runesBalance,
-  };
+  return { segwitBalance, taprootBalance, runesBalance };
 };
 
 /**
@@ -79,22 +74,17 @@ export const fetchUtxos = async (address) => {
     throw new Error('Address is required');
   }
 
-  return retrySilently(async () => {
-    const response = await fetch(getAddressUtxoUrl(address));
-    if (!response.ok) {
-      throw new Error(`Failed to fetch UTXOs: ${response.statusText}`);
-    }
+  const utxoData = await getJSON(getAddressUtxoUrl(address), {
+    description: 'Fetch UTXOs',
+  });
 
-    const utxoData = await response.json();
-
-    // Transform UTXO data into format needed for PSBT
-    return utxoData.map((utxo) => ({
-      txid: utxo.txid,
-      vout: utxo.vout,
-      value: utxo.value,
-      status: utxo.status,
-    }));
-  }, 'Fetch UTXOs');
+  // Transform UTXO data into format needed for PSBT
+  return utxoData.map((utxo) => ({
+    txid: utxo.txid,
+    vout: utxo.vout,
+    value: utxo.value,
+    status: utxo.status,
+  }));
 };
 
 /**
@@ -103,22 +93,20 @@ export const fetchUtxos = async (address) => {
  */
 export const fetchBtcPrice = async () => {
   try {
-    return await retrySilently(async () => {
-      const url = 'https://api.coingecko.com/api/v3/simple/price?ids=bitcoin&vs_currencies=usd';
+    const url = 'https://api.coingecko.com/api/v3/simple/price?ids=bitcoin&vs_currencies=usd';
 
-      // Optionally include API key if configured (increases rate limits)
-      const headers = {};
-      if (API_KEYS.COINGECKO) {
-        headers['x-cg-demo-api-key'] = API_KEYS.COINGECKO;
-      }
+    // Optionally include API key if configured (increases rate limits)
+    const headers = {};
+    if (API_KEYS.COINGECKO) {
+      headers['x-cg-demo-api-key'] = API_KEYS.COINGECKO;
+    }
 
-      const response = await fetch(url, { headers });
-      if (!response.ok) {
-        throw new Error(`Failed to fetch BTC price: ${response.statusText}`);
-      }
-      const data = await response.json();
-      return data.bitcoin.usd;
-    }, 'Fetch BTC price');
+    const data = await getJSON(url, {
+      headers,
+      description: 'Fetch BTC price',
+    });
+
+    return data.bitcoin.usd;
   } catch (error) {
     return null;
   }

@@ -7,8 +7,7 @@
  * - Persists verification state across app backgrounding
  */
 
-import { useState, useEffect } from 'react';
-import AsyncStorage from '@react-native-async-storage/async-storage';
+import { usePersistedObject } from './usePersistedState';
 import { ERRORS } from '../utils/messages';
 
 const VERIFICATION_STATE_KEY = 'seed_verification_state';
@@ -19,68 +18,27 @@ export function useSeedVerification({
   setShowingSeeds,
   showToast,
 }) {
-  const [stateLoaded, setStateLoaded] = useState(false);
+  // Persisted verification state - automatically loads/saves
+  const [verificationState, updateVerificationState, clearPersistedState, stateLoaded] =
+    usePersistedObject(
+      VERIFICATION_STATE_KEY,
+      {
+        verifyingSeeds: false,
+        verificationWords: {},
+        requiredIndices: [],
+        wordChoices: {},
+      },
+      { silent: true } // Silently fail on errors
+    );
 
-  // Verification state
-  const [verifyingSeeds, setVerifyingSeeds] = useState(false);
-  const [verificationWords, setVerificationWords] = useState({});
-  const [requiredIndices, setRequiredIndices] = useState([]);
-  const [wordChoices, setWordChoices] = useState({});
+  // Extract state for backwards compatibility
+  const { verifyingSeeds, verificationWords, requiredIndices, wordChoices } = verificationState;
 
-  // Load persisted verification state on mount
-  useEffect(() => {
-    const loadState = async () => {
-      try {
-        const savedState = await AsyncStorage.getItem(VERIFICATION_STATE_KEY);
-        if (savedState) {
-          const state = JSON.parse(savedState);
-
-          if (state.verifyingSeeds !== undefined) setVerifyingSeeds(state.verifyingSeeds);
-          if (state.verificationWords) setVerificationWords(state.verificationWords);
-          if (state.requiredIndices) setRequiredIndices(state.requiredIndices);
-          if (state.wordChoices) setWordChoices(state.wordChoices);
-        }
-      } catch (error) {
-        // Silently fail
-      } finally {
-        setStateLoaded(true);
-      }
-    };
-
-    loadState();
-  }, []);
-
-  // Persist verification state whenever it changes
-  useEffect(() => {
-    if (!stateLoaded) return;
-
-    const saveState = async () => {
-      try {
-        const state = {
-          verifyingSeeds,
-          verificationWords,
-          requiredIndices,
-          wordChoices,
-        };
-        await AsyncStorage.setItem(VERIFICATION_STATE_KEY, JSON.stringify(state));
-      } catch (error) {
-        // Silently fail
-      }
-    };
-
-    saveState();
-  }, [stateLoaded, verifyingSeeds, verificationWords, requiredIndices, wordChoices]);
-
-  /**
-   * Clear persisted state
-   */
-  const clearPersistedState = async () => {
-    try {
-      await AsyncStorage.removeItem(VERIFICATION_STATE_KEY);
-    } catch (error) {
-      // Silently fail
-    }
-  };
+  // Helper setters for individual fields (backwards compatibility)
+  const setVerifyingSeeds = (value) => updateVerificationState({ verifyingSeeds: value });
+  const setVerificationWords = (value) => updateVerificationState({ verificationWords: value });
+  const setRequiredIndices = (value) => updateVerificationState({ requiredIndices: value });
+  const setWordChoices = (value) => updateVerificationState({ wordChoices: value });
 
   /**
    * Generate multiple choice options for seed word verification
