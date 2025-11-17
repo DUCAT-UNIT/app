@@ -6,7 +6,16 @@
 
 import React, { createContext, useContext, useCallback } from 'react';
 import { usePendingTransactionsStorage } from '../hooks/usePendingTransactionsStorage';
-import { logger } from '../utils/logger';
+import {
+  buildExclusionSet,
+  getUnconfirmedUTXOsFromPending,
+  calculateUnconfirmedBalance,
+  invalidateTransactionTree,
+  removeUtxoFromPending,
+  cleanupInvalidTransactions as cleanupInvalid,
+  markUtxosAsSpent as markSpent,
+  unmarkUtxosAsSpent as unmarkSpent,
+} from '../utils/pendingTransactionsUtils';
 
 const PendingTransactionsContext = createContext();
 
@@ -79,28 +88,7 @@ export const PendingTransactionsProvider = ({ children, currentAccount, showToas
    * Invalidate a transaction and all its children
    */
   const invalidateTransaction = useCallback(async (txid, reason = 'Parent transaction failed') => {
-    const updated = { ...pendingTransactions };
-    const invalidated = [];
-
-    // Recursively find and invalidate children
-    const invalidateRecursive = (parentId) => {
-      Object.keys(updated).forEach(childTxid => {
-        if (updated[childTxid].parentTxid === parentId) {
-          invalidated.push(childTxid);
-          updated[childTxid].status = 'invalid';
-          invalidateRecursive(childTxid); // Invalidate grandchildren
-        }
-      });
-    };
-
-    // Mark the transaction itself as invalid
-    if (updated[txid]) {
-      updated[txid].status = 'invalid';
-      invalidated.push(txid);
-    }
-
-    // Invalidate all children
-    invalidateRecursive(txid);
+    const { updated, invalidated } = invalidateTransactionTree(pendingTransactions, txid);
 
     setPendingTransactions(updated);
     await savePendingTransactions(updated);
@@ -125,62 +113,8 @@ export const PendingTransactionsProvider = ({ children, currentAccount, showToas
    * @param {object} excludeFromIntent - Optional intent object whose inputs should be excluded
    */
   const getUnconfirmedUTXOs = useCallback((addressType = 'all', excludeFromIntent = null) => {
-    const utxos = [];
-
-    // Build a set of UTXOs to exclude (from the active intent)
-    const excludedKeys = new Set();
-    if (excludeFromIntent) {
-      // Exclude BTC inputs
-      if (excludeFromIntent.inputs) {
-        excludeFromIntent.inputs.forEach(input => {
-          const key = `${input.txid}:${input.vout}`;
-          excludedKeys.add(key);
-        });
-      }
-      // Exclude UNIT inputs (runeUtxo and satUtxo)
-      if (excludeFromIntent.runeUtxo) {
-        const key = `${excludeFromIntent.runeUtxo.transaction}:${excludeFromIntent.runeUtxo.vout}`;
-        excludedKeys.add(key);
-      }
-      if (excludeFromIntent.satUtxo) {
-        const key = `${excludeFromIntent.satUtxo.txid}:${excludeFromIntent.satUtxo.vout}`;
-        excludedKeys.add(key);
-      }
-    }
-
-    Object.values(pendingTransactions).forEach(tx => {
-      // Only include pending transactions (not invalid)
-      if (tx.status === 'pending') {
-        tx.outputs.forEach(output => {
-          // Check if this UTXO should be excluded
-          const key = `${tx.txid}:${output.vout}`;
-          if (excludedKeys.has(key)) {
-            return; // Skip this UTXO
-          }
-
-          // Filter by address type if specified
-          const isSegwit = output.address.startsWith('tb1q') || output.address.startsWith('bc1q');
-          const isTaproot = output.address.startsWith('tb1p') || output.address.startsWith('bc1p');
-
-          const matchesFilter =
-            addressType === 'all' ||
-            (addressType === 'segwit' && isSegwit) ||
-            (addressType === 'taproot' && isTaproot);
-
-          if (matchesFilter) {
-            utxos.push({
-              ...output,
-              txid: tx.txid,
-              status: { confirmed: false }, // Match blockchain API format
-              parentTxid: tx.parentTxid,
-              assetType: tx.assetType,
-            });
-          }
-        });
-      }
-    });
-
-    return utxos;
+    const excludedKeys = buildExclusionSet(excludeFromIntent);
+    return getUnconfirmedUTXOsFromPending(pendingTransactions, addressType, excludedKeys);
   }, [pendingTransactions]);
 
   /**
@@ -188,13 +122,7 @@ export const PendingTransactionsProvider = ({ children, currentAccount, showToas
    */
   const getUnconfirmedBalance = useCallback((addressType = 'all') => {
     const utxos = getUnconfirmedUTXOs(addressType);
-    const btcBalance = utxos.reduce((sum, utxo) => sum + (utxo.value || 0), 0);
-    const runeBalance = utxos.reduce((sum, utxo) => sum + (utxo.runeAmount || 0), 0);
-
-    return {
-      btc: btcBalance / 100000000, // Convert sats to BTC
-      runes: runeBalance / 100, // Convert to UNIT
-    };
+    return calculateUnconfirmedBalance(utxos);
   }, [getUnconfirmedUTXOs]);
 
   /**
@@ -202,57 +130,29 @@ export const PendingTransactionsProvider = ({ children, currentAccount, showToas
    * This prevents it from being selected again when creating new transactions
    */
   const markUtxoAsSpent = useCallback(async (txid, vout) => {
-    const updated = { ...pendingTransactions };
-
-    if (updated[txid] && updated[txid].outputs) {
-      // Remove the specific output from the transaction's outputs
-      updated[txid].outputs = updated[txid].outputs.filter(output => output.vout !== vout);
-
-      // If no outputs left, remove the transaction entirely
-      if (updated[txid].outputs.length === 0) {
-        delete updated[txid];
-      }
-
-      setPendingTransactions(updated);
-      await savePendingTransactions(updated);
-    }
+    const updated = removeUtxoFromPending(pendingTransactions, txid, vout);
+    setPendingTransactions(updated);
+    await savePendingTransactions(updated);
   }, [pendingTransactions, currentAccount]);
-
     // eslint-disable-next-line react-hooks/exhaustive-deps
   /**
    * Clean up old invalid transactions
    */
   const cleanupInvalidTransactions = useCallback(async () => {
-    const updated = { ...pendingTransactions };
-    let cleaned = 0;
-
-    Object.keys(updated).forEach(txid => {
-      if (updated[txid].status === 'invalid') {
-        delete updated[txid];
-        cleaned++;
-      }
-    });
+    const { updated, cleaned } = cleanupInvalid(pendingTransactions);
 
     if (cleaned > 0) {
       setPendingTransactions(updated);
       await savePendingTransactions(updated);
     }
   }, [pendingTransactions, currentAccount]);
-
     // eslint-disable-next-line react-hooks/exhaustive-deps
   /**
    * Mark UTXOs as spent to prevent reuse
    * @param {Array} utxos - Array of {txid, vout} objects
    */
   const markUtxosAsSpent = useCallback(async (utxos) => {
-    const updated = new Set(spentUtxos);
-
-    utxos.forEach(({ txid, vout }) => {
-      const key = `${txid}:${vout}`;
-      updated.add(key);
-      logger.debug('🚫 Marking UTXO as spent:', key);
-    });
-
+    const updated = markSpent(spentUtxos, utxos);
     setSpentUtxos(updated);
     await saveSpentUtxos(updated);
   }, [spentUtxos, currentAccount]);
@@ -263,16 +163,7 @@ export const PendingTransactionsProvider = ({ children, currentAccount, showToas
    * @param {Array} utxos - Array of {txid, vout} objects to release
    */
   const unmarkUtxosAsSpent = useCallback(async (utxos) => {
-    const updated = new Set(spentUtxos);
-
-    utxos.forEach(({ txid, vout }) => {
-      const key = `${txid}:${vout}`;
-      if (updated.has(key)) {
-        updated.delete(key);
-        logger.debug('✅ Unmarking UTXO as spent (released):', key);
-      }
-    });
-
+    const updated = unmarkSpent(spentUtxos, utxos);
     setSpentUtxos(updated);
     await saveSpentUtxos(updated);
   }, [spentUtxos, currentAccount]);
