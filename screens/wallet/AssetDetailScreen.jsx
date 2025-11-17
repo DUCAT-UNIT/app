@@ -11,7 +11,6 @@ import {
   ActivityIndicator,
   StyleSheet,
   Animated,
-  FlatList,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import Icon from '../../components/icons';
@@ -39,6 +38,7 @@ function AssetDetailScreen({ route = {}, navigation }) {
 
   const [selectedTab, setSelectedTab] = useState('ACTIVITY');
   const [selectedTimeframe, setSelectedTimeframe] = useState('1M');
+  const [visibleTransactions, setVisibleTransactions] = useState(20);
   const scrollY = useRef(new Animated.Value(0)).current;
 
   // Use extracted price chart hook
@@ -293,24 +293,27 @@ function AssetDetailScreen({ route = {}, navigation }) {
       );
     }
 
+    const displayedTransactions = filteredTransactions.slice(0, visibleTransactions);
+    const hasMore = visibleTransactions < filteredTransactions.length;
+
     return (
       <View style={styles.activityContainer}>
-        <FlatList
-          data={filteredTransactions}
-          renderItem={renderTransaction}
-          keyExtractor={(item) => item.txid}
-          scrollEnabled={false}
-          initialNumToRender={10}
-          maxToRenderPerBatch={10}
-          windowSize={21}
-          removeClippedSubviews={true}
-          getItemLayout={(data, index) => ({
-            length: 72,
-            offset: 72 * index,
-            index,
-          })}
-          nestedScrollEnabled={true}
-        />
+        {displayedTransactions.map((transaction) => (
+          <View key={transaction.txid}>
+            {renderTransaction({ item: transaction })}
+          </View>
+        ))}
+
+        {hasMore && (
+          <TouchableOpacity
+            style={styles.loadMoreButton}
+            onPress={() => setVisibleTransactions(prev => prev + 20)}
+          >
+            <Text style={styles.loadMoreText}>
+              Load More ({filteredTransactions.length - visibleTransactions} remaining)
+            </Text>
+          </TouchableOpacity>
+        )}
       </View>
     );
   };
@@ -583,6 +586,22 @@ const styles = StyleSheet.create({
     borderRadius: 10,
   },
   retryButtonText: {
+    color: COLORS.WHITE,
+    fontSize: 14,
+    fontWeight: '600',
+  },
+  loadMoreButton: {
+    backgroundColor: COLORS.CARD_BG,
+    borderRadius: 10,
+    paddingVertical: 14,
+    paddingHorizontal: 20,
+    marginTop: 12,
+    marginBottom: 8,
+    alignItems: 'center',
+    borderWidth: 1,
+    borderColor: COLORS.BORDER_COLOR,
+  },
+  loadMoreText: {
     color: COLORS.WHITE,
     fontSize: 14,
     fontWeight: '600',
