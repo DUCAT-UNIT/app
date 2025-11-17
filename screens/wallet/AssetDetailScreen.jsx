@@ -11,6 +11,7 @@ import {
   ActivityIndicator,
   StyleSheet,
   Animated,
+  FlatList,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import Icon from '../../components/icons';
@@ -204,7 +205,7 @@ function AssetDetailScreen({ route = {}, navigation }) {
             </Text>
             <TouchableOpacity
               style={styles.retryButton}
-              onPress={fetchPriceData}
+              onPress={() => setPriceError(null)}
             >
               <Text style={styles.retryButtonText}>Retry</Text>
             </TouchableOpacity>
@@ -294,11 +295,21 @@ function AssetDetailScreen({ route = {}, navigation }) {
 
     return (
       <View style={styles.activityContainer}>
-        {filteredTransactions.map((transaction) => (
-          <View key={transaction.txid}>
-            {renderTransaction({ item: transaction })}
-          </View>
-        ))}
+        <FlatList
+          data={filteredTransactions}
+          renderItem={renderTransaction}
+          keyExtractor={(item) => item.txid}
+          scrollEnabled={false}
+          initialNumToRender={10}
+          maxToRenderPerBatch={10}
+          windowSize={21}
+          removeClippedSubviews={true}
+          getItemLayout={(data, index) => ({
+            length: 72,
+            offset: 72 * index,
+            index,
+          })}
+        />
       </View>
     );
   };
