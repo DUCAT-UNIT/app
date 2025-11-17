@@ -3,7 +3,7 @@
  * Displays detailed information about a specific asset (BTC or UNIT)
  */
 
-import React, { useState, useEffect, useRef, useMemo, useCallback } from 'react';
+import React, { useState, useRef, useMemo, useCallback } from 'react';
 import {
   View,
   Text,
@@ -13,7 +13,6 @@ import {
   Animated,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import AsyncStorage from '@react-native-async-storage/async-storage';
 import Icon from '../../components/icons';
 import { COLORS } from '../../theme';
 import { formatBalance, formatFiatAmount } from '../../utils/formatters';
@@ -23,34 +22,11 @@ import { usePrice } from '../../contexts/PriceContext';
 import { useWallet } from '../../contexts/WalletContext';
 import TransactionItem from '../../components/transaction/TransactionItem';
 import PriceChart from '../../components/charts/PriceChart';
-import { API, API_KEYS } from '../../utils/constants';
-import { calculateTransactionAmount } from '../../services/transactionHistoryService';
+import { AssetHeader, AssetInfo, AssetActionButtons } from '../../components/assetDetail';
+import { usePriceChart } from '../../hooks/usePriceChart';
+import { useAssetTransactions } from '../../hooks/useAssetTransactions';
 
 const TAB_OPTIONS = ['ACTIVITY', 'ABOUT'];
-const CACHE_KEY_PREFIX = 'btc_price_cache_';
-const CACHE_EXPIRY_MS = 24 * 60 * 60 * 1000; // 24 hours
-
-// In-memory cache for instant access across navigations
-const priceCache = {};
-
-// Sample data to reduce points to ~60
-const sampleData = (data, targetPoints = 60) => {
-  if (!data || data.length <= targetPoints) return data;
-
-  const step = Math.floor(data.length / targetPoints);
-  const sampled = [];
-
-  for (let i = 0; i < data.length; i += step) {
-    sampled.push(data[i]);
-  }
-
-  // Always include the last point
-  if (sampled[sampled.length - 1] !== data[data.length - 1]) {
-    sampled.push(data[data.length - 1]);
-  }
-
-  return sampled;
-};
 
 function AssetDetailScreen({ route = {}, navigation }) {
   const { assetType = 'BTC' } = route?.params || {};
@@ -62,19 +38,10 @@ function AssetDetailScreen({ route = {}, navigation }) {
 
   const [selectedTab, setSelectedTab] = useState('ACTIVITY');
   const [selectedTimeframe, setSelectedTimeframe] = useState('1M');
-  const [priceError, setPriceError] = useState(null);
   const scrollY = useRef(new Animated.Value(0)).current;
 
-  // Initialize with cached data if available (synchronous)
-  const initCacheKey = `${CACHE_KEY_PREFIX}1M`;
-  const initCache = priceCache[initCacheKey];
-  const hasValidCache = initCache && (Date.now() - initCache.timestamp < CACHE_EXPIRY_MS);
-
-  const [priceData, setPriceData] = useState(hasValidCache ? initCache.prices : null);
-  const [priceDirection, setPriceDirection] = useState(
-    hasValidCache ? initCache.direction : { isPositive: true, percentChange: 0, dollarChange: 0 }
-  );
-  const [priceLoading, setPriceLoading] = useState(!hasValidCache && assetType === 'BTC');
+  // Use extracted price chart hook
+  const { priceData, priceDirection, priceLoading, priceError, setPriceError } = usePriceChart(assetType, selectedTimeframe);
 
   // Get balance based on asset type
   // For UNIT, use runesBalance which contains the actual UNIT amount
@@ -100,230 +67,8 @@ function AssetDetailScreen({ route = {}, navigation }) {
   // Memoize isPositive to prevent chart re-renders
   const isPositive = useMemo(() => priceDirection.isPositive, [priceDirection.isPositive]);
 
-  // Stable ref for filtered transactions
-  const filteredTxRef = useRef([]);
-  const lastTxHashRef = useRef('');
-  const [filteredTransactions, setFilteredTransactions] = useState([]);
-
-  // Filter and process transactions - deferred to avoid blocking navigation
-  useEffect(() => {
-    if (!transactionHistory || !segwitAddress || !taprootAddress) {
-      setFilteredTransactions(filteredTxRef.current);
-      return;
-    }
-
-    // Create a hash to check if we need to recalculate
-    const txHash = `${transactionHistory.length}-${assetType}`;
-    if (txHash === lastTxHashRef.current && filteredTxRef.current.length > 0) {
-      setFilteredTransactions(filteredTxRef.current);
-      return;
-    }
-
-
-    // First filter, then process only what we need
-    const filtered = transactionHistory
-      .filter(tx => {
-        // Quick filter first to reduce processing
-        if (tx.vaultTransaction) return false;
-
-        // If already has txData, use it for filtering
-        if (tx.txData) {
-          return tx.txData.assetType === assetType;
-        }
-
-        // For unprocessed transactions, we'll process them next
-        return true;
-      })
-      .map(tx => {
-        // If already processed, return as-is
-        if (tx.txData) return tx;
-
-        // Process regular transaction - create new object to avoid mutation
-        const txData = calculateTransactionAmount(tx, segwitAddress, taprootAddress);
-        const amount = typeof txData === 'object' ? txData.amount : txData;
-        const txAssetType = typeof txData === 'object' ? txData.type : 'BTC';
-        const numericAmount = typeof amount === 'bigint' ? Number(amount) : amount;
-
-        return {
-          ...tx,
-          txData: {
-            amount,
-            assetType: txAssetType,
-            numericAmount,
-            isSent: numericAmount < 0,
-            isReceived: numericAmount > 0,
-          },
-        };
-      })
-      .filter(tx => {
-        // Filter by asset type
-        if (tx.txData?.assetType !== assetType) return false;
-
-        // Filter out transactions with no amount (0 or null)
-        const numericAmount = tx.txData?.numericAmount;
-        if (!numericAmount || numericAmount === 0) return false;
-
-        return true;
-      });
-
-    lastTxHashRef.current = txHash;
-    filteredTxRef.current = filtered;
-    setFilteredTransactions(filtered);
-  }, [transactionHistory, segwitAddress, taprootAddress, assetType]);
-
-
-  const fetchPriceData = useCallback(async () => {
-    setPriceError(null);
-    try {
-      const days = selectedTimeframe === '1D' ? 1 :
-                   selectedTimeframe === '1W' ? 7 :
-                   selectedTimeframe === '1M' ? 30 : 365;
-
-      const cacheKey = `${CACHE_KEY_PREFIX}${selectedTimeframe}`;
-
-      // Check in-memory cache first (instant)
-      if (priceCache[cacheKey]) {
-        const { prices, timestamp, direction } = priceCache[cacheKey];
-        const age = Date.now() - timestamp;
-
-        if (age < CACHE_EXPIRY_MS) {
-          setPriceData(prices);
-          setPriceDirection(direction);
-          setPriceLoading(false);
-          return;
-        }
-      }
-
-      // Check AsyncStorage cache
-      try {
-        const cachedData = await AsyncStorage.getItem(cacheKey);
-        if (cachedData) {
-          const { prices, timestamp } = JSON.parse(cachedData);
-          const age = Date.now() - timestamp;
-
-          if (age < CACHE_EXPIRY_MS) {
-
-            // Calculate price direction (for 1 BTC)
-            const firstPrice = prices[0][1];
-            const lastPrice = prices[prices.length - 1][1];
-            const priceChange = lastPrice - firstPrice;
-            const percentChange = ((priceChange / firstPrice) * 100);
-
-            const direction = {
-              isPositive: priceChange >= 0,
-              percentChange: percentChange.toFixed(2),
-              dollarChange: Math.abs(priceChange).toLocaleString('en-US', {
-                minimumFractionDigits: 2,
-                maximumFractionDigits: 2
-              })
-            };
-
-            setPriceData(prices);
-            setPriceDirection(direction);
-
-            // Store in memory cache for next time
-            priceCache[cacheKey] = { prices, timestamp, direction };
-
-            setPriceLoading(false);
-            return;
-          }
-        }
-      } catch (cacheError) {
-        // Silently fail cache read
-      }
-
-      // Only show loading if we need to fetch from network
-      setPriceLoading(true);
-
-      // Fetch fresh data
-      const response = await fetch(
-        `${API.COINGECKO}/coins/bitcoin/market_chart?vs_currency=usd&days=${days}`,
-        {
-          headers: {
-            'accept': 'application/json',
-            'x-cg-demo-api-key': API_KEYS.COINGECKO
-          }
-        }
-      );
-
-      if (response.status === 429) {
-        throw new Error('Rate limit reached. Please try again in a moment.');
-      }
-
-      if (!response.ok) {
-        throw new Error(`API error: ${response.status}`);
-      }
-
-      const data = await response.json();
-
-      if (data.prices && data.prices.length > 0) {
-        // Sample data to ~60 points
-        const sampledPrices = sampleData(data.prices, 60);
-
-        // Calculate price direction (for 1 BTC, using original data endpoints)
-        const firstPrice = data.prices[0][1];
-        const lastPrice = data.prices[data.prices.length - 1][1];
-        const priceChange = lastPrice - firstPrice;
-        const percentChange = ((priceChange / firstPrice) * 100);
-
-        const direction = {
-          isPositive: priceChange >= 0,
-          percentChange: percentChange.toFixed(2),
-          dollarChange: Math.abs(priceChange).toLocaleString('en-US', {
-            minimumFractionDigits: 2,
-            maximumFractionDigits: 2
-          })
-        };
-
-        setPriceData(sampledPrices);
-        setPriceDirection(direction);
-
-        const timestamp = Date.now();
-
-        // Store in memory cache immediately
-        priceCache[cacheKey] = { prices: sampledPrices, timestamp, direction };
-
-        // Cache to AsyncStorage (async, non-blocking)
-        AsyncStorage.setItem(
-          cacheKey,
-          JSON.stringify({
-            prices: sampledPrices,
-            timestamp
-          })
-        ).catch(() => {
-          // Silently fail cache write
-        });
-      } else {
-        throw new Error('Invalid data format from API');
-      }
-    } catch (error) {
-      setPriceError(error.message || 'Failed to load price data');
-      setPriceData(null);
-    } finally {
-      setPriceLoading(false);
-    }
-  }, [selectedTimeframe]);
-
-  // Fetch price data from CoinGecko - only when timeframe changes or if no cache
-  useEffect(() => {
-    if (assetType === 'BTC') {
-      const cacheKey = `${CACHE_KEY_PREFIX}${selectedTimeframe}`;
-      const cached = priceCache[cacheKey];
-      const isCacheValid = cached && (Date.now() - cached.timestamp < CACHE_EXPIRY_MS);
-
-      // Only fetch if no in-memory cache or cache is stale
-      if (!isCacheValid) {
-        fetchPriceData();
-      } else {
-        // Update state with cached data (only runs when timeframe changes)
-        setPriceData(cached.prices);
-        setPriceDirection(cached.direction);
-        setPriceLoading(false);
-      }
-    } else {
-      setPriceLoading(false);
-    }
-  }, [assetType, selectedTimeframe, fetchPriceData]);
+  // Use extracted transaction filtering hook
+  const filteredTransactions = useAssetTransactions(transactionHistory, assetType, segwitAddress, taprootAddress);
 
   const handleActionPress = (action) => {
     switch (action) {
@@ -346,74 +91,25 @@ function AssetDetailScreen({ route = {}, navigation }) {
     }
   };
 
-  const renderHeader = () => (
-    <View style={styles.header}>
-      <TouchableOpacity
-        style={styles.backButton}
-        onPress={() => navigation.goBack()}
-      >
-        <Icon name="back" size={24} color={COLORS.WHITE} />
-      </TouchableOpacity>
-    </View>
+  // Component render functions now use extracted components
+  const renderHeader = () => <AssetHeader onBackPress={() => navigation.goBack()} />;
+
+  const renderAssetInfo = () => (
+    <AssetInfo
+      assetType={assetType}
+      balance={balance}
+      fiatValue={fiatValue}
+      btcPrice={btcPrice}
+      priceData={priceData}
+      priceDirection={priceDirection}
+    />
   );
 
-  const renderAssetInfo = () => {
-    // For UNIT, show the actual UNIT amount with commas (no decimals)
-    // For BTC, show the BTC value with decimals
-    const displayBalance = assetType === 'BTC'
-      ? formatBalance(balance || 0)
-      : formatFiatAmount(balance || 0, 0); // UNIT already has the correct amount from runesBalance
-
-    return (
-      <View style={styles.assetInfoContainer}>
-        <Icon
-          name={assetType === 'BTC' ? 'btc_logo' : 'unit_logo'}
-          size={60}
-        />
-
-        <Text style={styles.assetName}>
-          {assetType === 'BTC' ? 'Bitcoin' : 'UNIT'}
-        </Text>
-
-        <Text style={styles.balanceAmount}>
-          {displayBalance} {assetType}
-        </Text>
-
-        <Text style={styles.balanceFiat}>
-          ${formatFiatAmount(fiatValue || 0)} USD
-        </Text>
-
-        {assetType === 'BTC' && btcPrice && priceData && (
-          <Text style={[styles.priceChange, { color: priceDirection.isPositive ? COLORS.SUCCESS_GREEN : COLORS.RED }]}>
-            {priceDirection.isPositive ? '▲' : '▼'} {priceDirection.percentChange}% ({priceDirection.isPositive ? '+' : '-'}${priceDirection.dollarChange})
-          </Text>
-        )}
-      </View>
-    );
-  };
-
   const renderActionButtons = () => (
-    <View style={styles.actionButtonsContainer}>
-      <TouchableOpacity
-        style={styles.actionButton}
-        onPress={() => handleActionPress('send')}
-      >
-        <View style={styles.actionButtonIcon}>
-          <Icon name="send" size={19} color={COLORS.WHITE} />
-        </View>
-        <Text style={styles.actionButtonLabel}>Send</Text>
-      </TouchableOpacity>
-
-      <TouchableOpacity
-        style={styles.actionButton}
-        onPress={() => handleActionPress('receive')}
-      >
-        <View style={styles.actionButtonIcon}>
-          <Icon name="receive" size={19} color={COLORS.WHITE} />
-        </View>
-        <Text style={styles.actionButtonLabel}>Receive</Text>
-      </TouchableOpacity>
-    </View>
+    <AssetActionButtons
+      onSendPress={() => handleActionPress('send')}
+      onReceivePress={() => handleActionPress('receive')}
+    />
   );
 
   // Generate fake UNIT price data that fluctuates between .995 and 1.025
