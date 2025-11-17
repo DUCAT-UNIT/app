@@ -15,18 +15,21 @@ import {
 import { SafeAreaView } from 'react-native-safe-area-context';
 import Icon from '../../components/icons';
 import { COLORS } from '../../theme';
-import { formatBalance, formatFiatAmount } from '../../utils/formatters';
 import globalStyles from '../../styles';
 import { useBalance, useTransactionHistory } from '../../contexts/WalletDataContext';
 import { usePrice } from '../../contexts/PriceContext';
 import { useWallet } from '../../contexts/WalletContext';
 import TransactionItem from '../../components/transaction/TransactionItem';
-import PriceChart from '../../components/charts/PriceChart';
-import { AssetHeader, AssetInfo, AssetActionButtons } from '../../components/assetDetail';
+import {
+  AssetHeader,
+  AssetInfo,
+  AssetActionButtons,
+  AssetPriceChart,
+  AssetTabs,
+  AssetAbout
+} from '../../components/assetDetail';
 import { usePriceChart } from '../../hooks/usePriceChart';
 import { useAssetTransactions } from '../../hooks/useAssetTransactions';
-
-const TAB_OPTIONS = ['ACTIVITY', 'ABOUT'];
 
 function AssetDetailScreen({ route = {}, navigation }) {
   const { assetType = 'BTC' } = route?.params || {};
@@ -113,154 +116,6 @@ function AssetDetailScreen({ route = {}, navigation }) {
     />
   );
 
-  // Generate fake UNIT price data that fluctuates between .995 and 1.025
-  const generateUnitPriceData = (timeframe) => {
-    const dataPoints = 60; // 60 points for smooth chart
-    const data = [];
-    const now = Date.now();
-
-    // Time intervals based on timeframe
-    const intervals = {
-      '1D': 24 * 60 * 60 * 1000 / dataPoints, // 1 day in ms divided by points
-      '1W': 7 * 24 * 60 * 60 * 1000 / dataPoints, // 1 week
-      '1M': 30 * 24 * 60 * 60 * 1000 / dataPoints, // 1 month
-      '1Y': 365 * 24 * 60 * 60 * 1000 / dataPoints, // 1 year
-    };
-
-    const interval = intervals[timeframe] || intervals['1M'];
-
-    // Generate data points with fluctuations between .995 and 1.025
-    let currentPrice = 1.0; // Start at 1.0
-    for (let i = 0; i < dataPoints; i++) {
-      const timestamp = now - (dataPoints - i - 1) * interval;
-
-      // Random walk with tendency to stay near 1.0
-      const change = (Math.random() - 0.5) * 0.01; // Random change between -0.005 and +0.005
-      currentPrice = currentPrice + change;
-
-      // Keep within bounds .995 to 1.025
-      currentPrice = Math.max(0.995, Math.min(1.025, currentPrice));
-
-      data.push([timestamp, currentPrice]);
-    }
-
-    return data;
-  };
-
-  const renderPriceChart = () => {
-    // For UNIT, use fake data
-    if (assetType === 'UNIT') {
-      const unitData = generateUnitPriceData(selectedTimeframe);
-
-      return (
-        <View style={styles.chartContainer}>
-          <PriceChart
-            data={unitData}
-            isPositive={true}
-            minBoundary={0.5}
-            maxBoundary={1.5}
-          />
-
-          <View style={styles.timeframeButtons}>
-            {['1D', '1W', '1M', '1Y'].map((timeframe) => (
-              <TouchableOpacity
-                key={timeframe}
-                style={[
-                  styles.timeframeButton,
-                  selectedTimeframe === timeframe && styles.timeframeButtonActive,
-                ]}
-                onPress={() => setSelectedTimeframe(timeframe)}
-              >
-                <Text
-                  style={[
-                    styles.timeframeButtonText,
-                    selectedTimeframe === timeframe && styles.timeframeButtonTextActive,
-                  ]}
-                >
-                  {timeframe}
-                </Text>
-              </TouchableOpacity>
-            ))}
-          </View>
-        </View>
-      );
-    }
-
-    // For BTC, use real data
-    if (assetType !== 'BTC') return null;
-
-    return (
-      <View style={styles.chartContainer}>
-        {priceError ? (
-          <View style={styles.errorContainer}>
-            <Text style={styles.errorText}>
-              {priceError.includes('Rate limit')
-                ? 'Rate limit reached'
-                : 'Failed to load price data'}
-            </Text>
-            <Text style={styles.errorSubtext}>
-              {priceError.includes('Rate limit')
-                ? 'Please wait a moment before retrying'
-                : 'Check your connection and try again'}
-            </Text>
-            <TouchableOpacity
-              style={styles.retryButton}
-              onPress={() => setPriceError(null)}
-            >
-              <Text style={styles.retryButtonText}>Retry</Text>
-            </TouchableOpacity>
-          </View>
-        ) : priceData ? (
-          <>
-            <PriceChart data={priceData} isPositive={isPositive} />
-
-            <View style={styles.timeframeButtons}>
-              {['1D', '1W', '1M', '1Y'].map((timeframe) => (
-                <TouchableOpacity
-                  key={timeframe}
-                  style={[
-                    styles.timeframeButton,
-                    selectedTimeframe === timeframe && styles.timeframeButtonActive,
-                  ]}
-                  onPress={() => setSelectedTimeframe(timeframe)}
-                >
-                  {priceLoading && selectedTimeframe === timeframe ? (
-                    <ActivityIndicator size="small" color={COLORS.PRIMARY_BLUE} />
-                  ) : (
-                    <Text
-                      style={[
-                        styles.timeframeButtonText,
-                        selectedTimeframe === timeframe && styles.timeframeButtonTextActive,
-                      ]}
-                    >
-                      {timeframe}
-                    </Text>
-                  )}
-                </TouchableOpacity>
-              ))}
-            </View>
-          </>
-        ) : null}
-      </View>
-    );
-  };
-
-  const renderTabs = () => (
-    <View style={styles.tabContainer}>
-      {TAB_OPTIONS.map((tab) => (
-        <TouchableOpacity
-          key={tab}
-          style={[styles.tab, selectedTab === tab && styles.activeTab]}
-          onPress={() => setSelectedTab(tab)}
-        >
-          <Text style={[styles.tabText, selectedTab === tab && styles.activeTabText]}>
-            {tab}
-          </Text>
-        </TouchableOpacity>
-      ))}
-    </View>
-  );
-
   // Memoized render function for transactions
   const renderTransaction = useCallback(
     ({ item: tx }) => (
@@ -318,37 +173,6 @@ function AssetDetailScreen({ route = {}, navigation }) {
     );
   };
 
-  const renderAbout = () => (
-    <View style={styles.aboutContainer}>
-      <View style={styles.aboutSection}>
-        <Text style={styles.aboutTitle}>About {assetType === 'BTC' ? 'Bitcoin' : 'UNIT'}</Text>
-        <Text style={styles.aboutDescription}>
-          {assetType === 'BTC'
-            ? 'Bitcoin is a decentralized digital currency that can be transferred on the peer-to-peer bitcoin network. Bitcoin transactions are verified by network nodes through cryptography and recorded in a public distributed ledger called a blockchain.'
-            : 'UNIT is designed to be a BTC-backed Collateralised Debt Position (CDP), programmed to be soft-pegged to the USD at 1.01 to 1.04 UNIT per USD before transaction costs, to finance responsible lending and leverage.'
-          }
-        </Text>
-      </View>
-
-      {assetType === 'BTC' && (
-        <View style={styles.aboutStats}>
-          <View style={styles.statRow}>
-            <Text style={styles.statLabel}>Market Cap</Text>
-            <Text style={styles.statValue}>$2.1T</Text>
-          </View>
-          <View style={styles.statRow}>
-            <Text style={styles.statLabel}>24h Volume</Text>
-            <Text style={styles.statValue}>$42.5B</Text>
-          </View>
-          <View style={styles.statRow}>
-            <Text style={styles.statLabel}>Circulating Supply</Text>
-            <Text style={styles.statValue}>19.5M BTC</Text>
-          </View>
-        </View>
-      )}
-    </View>
-  );
-
   return (
     <>
       <SafeAreaView style={styles.container}>
@@ -364,10 +188,24 @@ function AssetDetailScreen({ route = {}, navigation }) {
         >
           {renderAssetInfo()}
           {renderActionButtons()}
-          {renderPriceChart()}
-          {renderTabs()}
 
-          {selectedTab === 'ACTIVITY' ? renderActivity() : renderAbout()}
+          <AssetPriceChart
+            assetType={assetType}
+            priceData={priceData}
+            priceError={priceError}
+            priceLoading={priceLoading}
+            isPositive={isPositive}
+            selectedTimeframe={selectedTimeframe}
+            onTimeframeChange={setSelectedTimeframe}
+            onRetry={() => setPriceError(null)}
+          />
+
+          <AssetTabs
+            selectedTab={selectedTab}
+            onTabChange={setSelectedTab}
+          />
+
+          {selectedTab === 'ACTIVITY' ? renderActivity() : <AssetAbout assetType={assetType} />}
         </Animated.ScrollView>
       </SafeAreaView>
     </>
@@ -446,63 +284,6 @@ const styles = StyleSheet.create({
     color: COLORS.SECONDARY_TEXT,
     fontWeight: '600',
   },
-  chartContainer: {
-    paddingHorizontal: 0,
-    paddingVertical: 4,
-    marginTop: 2,
-  },
-  timeframeButtons: {
-    flexDirection: 'row',
-    justifyContent: 'center',
-    gap: 3,
-    marginTop: 4,
-    paddingHorizontal: 5,
-  },
-  timeframeButton: {
-    paddingHorizontal: 2,
-    paddingVertical: 12,
-    borderRadius: 10,
-    backgroundColor: 'transparent',
-    minWidth: 64,
-    height: 44,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  timeframeButtonActive: {
-    backgroundColor: COLORS.VERY_DARK_GRAY,
-  },
-  timeframeButtonText: {
-    color: COLORS.SECONDARY_TEXT,
-    fontSize: 13,
-    fontWeight: '700',
-  },
-  timeframeButtonTextActive: {
-    color: COLORS.WHITE,
-  },
-  tabContainer: {
-    flexDirection: 'row',
-    paddingHorizontal: 16,
-    marginTop: 16,
-    marginBottom: 16,
-    gap: 12,
-  },
-  tab: {
-    paddingVertical: 12,
-    paddingHorizontal: 28,
-    borderRadius: 10,
-    backgroundColor: 'transparent',
-  },
-  activeTab: {
-    backgroundColor: COLORS.VERY_DARK_GRAY,
-  },
-  tabText: {
-    fontSize: 14,
-    fontWeight: '600',
-    color: COLORS.SECONDARY_TEXT,
-  },
-  activeTabText: {
-    color: COLORS.WHITE,
-  },
   activityContainer: {
     paddingHorizontal: 4,
     paddingBottom: 5,
@@ -521,74 +302,6 @@ const styles = StyleSheet.create({
   emptyText: {
     color: COLORS.GRAY,
     fontSize: 16,
-  },
-  aboutContainer: {
-    paddingHorizontal: 14,
-    paddingBottom: 5,
-  },
-  aboutSection: {
-    backgroundColor: COLORS.CARD_BG,
-    borderRadius: 12,
-    padding: 16,
-    marginBottom: 12,
-  },
-  aboutTitle: {
-    fontSize: 16,
-    fontWeight: '600',
-    color: COLORS.WHITE,
-    marginBottom: 8,
-  },
-  aboutDescription: {
-    fontSize: 14,
-    color: COLORS.SECONDARY_TEXT,
-    lineHeight: 20,
-  },
-  aboutStats: {
-    backgroundColor: COLORS.CARD_BG,
-    borderRadius: 12,
-    padding: 16,
-  },
-  statRow: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    marginBottom: 8,
-  },
-  statLabel: {
-    fontSize: 14,
-    color: COLORS.SECONDARY_TEXT,
-  },
-  statValue: {
-    fontSize: 14,
-    fontWeight: '600',
-    color: COLORS.WHITE,
-  },
-  errorContainer: {
-    alignItems: 'center',
-    justifyContent: 'center',
-    paddingVertical: 10,
-  },
-  errorText: {
-    color: COLORS.ERROR,
-    fontSize: 15,
-    fontWeight: '600',
-    marginBottom: 1.5,
-  },
-  errorSubtext: {
-    color: COLORS.SECONDARY_TEXT,
-    fontSize: 13,
-    marginBottom: 4,
-    textAlign: 'center',
-  },
-  retryButton: {
-    paddingHorizontal: 6,
-    paddingVertical: 2.5,
-    backgroundColor: COLORS.PRIMARY_BLUE,
-    borderRadius: 10,
-  },
-  retryButtonText: {
-    color: COLORS.WHITE,
-    fontSize: 14,
-    fontWeight: '600',
   },
   loadMoreButton: {
     backgroundColor: COLORS.CARD_BG,
