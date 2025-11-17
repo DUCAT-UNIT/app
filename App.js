@@ -36,7 +36,7 @@ bitcoin.initEccLib(ecc);
 
 // Initialize Sentry
 Sentry.init({
-  dsn: 'https://73c5edc0813cd1be8eba194004f1ec1a@o4510347963072512.ingest.us.sentry.io/4510347966873600',
+  dsn: process.env.EXPO_PUBLIC_SENTRY_DSN,
   environment: __DEV__ ? 'development' : 'production',
   enabled: true, // TEMPORARILY enabled in dev to test
   tracesSampleRate: 1.0, // Capture 100% of transactions for performance monitoring
