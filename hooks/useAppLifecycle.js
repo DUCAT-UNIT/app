@@ -59,15 +59,15 @@ export function useAppLifecycle({
       logger.debug(`[useAppLifecycle] walletExists: ${walletExists.current}, seedConfirmed: ${seedConfirmedRef.current}`);
       logger.debug(`[useAppLifecycle] wasInBackground: ${wasInBackground.current}`);
 
-      // Track when we go to background/inactive
-      if (nextAppState === 'background' || nextAppState === 'inactive') {
+      // Track when we go to background (NOT inactive - that's just Face ID, control center, etc.)
+      if (nextAppState === 'background') {
         wasInBackground.current = true;
-        logger.debug('[useAppLifecycle] App went to background/inactive - setting flag');
+        logger.debug('[useAppLifecycle] App went to background - setting flag');
       }
 
       // Lock when coming back to active AND we were in background
       if (nextAppState === 'active' && wasInBackground.current) {
-        logger.debug('[useAppLifecycle] Coming back to active from background/inactive');
+        logger.debug('[useAppLifecycle] Coming back to active from background');
         wasInBackground.current = false; // Reset flag
 
         // Require re-authentication if wallet exists AND seed backup is confirmed

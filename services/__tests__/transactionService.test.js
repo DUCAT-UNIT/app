@@ -552,6 +552,10 @@ describe('transactionService', () => {
             '0000000000000000000000000000000000000000000000000000000000000001',
             'hex'
           ),
+          tweak: jest.fn(() => ({
+            publicKey: Buffer.from('tweaked_key', 'hex'),
+            privateKey: Buffer.from('tweaked_private', 'hex'),
+          })),
         };
 
         // Mock AuthService.withMnemonic to return derived keys
@@ -625,176 +629,13 @@ describe('transactionService', () => {
         expect(result.signedTxHex).toBe('signed_tx_hex');
         expect(result.txid).toBe('mock_txid');
         expect(mockPsbt.signInput).toHaveBeenCalledWith(0, mockSegwitChild);
-        expect(mockPsbt.updateInput).toHaveBeenCalledWith(1, {
-          tapKeySig: expect.any(Buffer),
-        });
+        expect(mockPsbt.signInput).toHaveBeenCalledWith(1, expect.objectContaining({
+          publicKey: expect.any(Buffer),
+          privateKey: expect.any(Buffer),
+        }));
         // Signing logic executed successfully (we got a result)
       });
 
-      it('should negate private key for odd y-coordinate (0x03 prefix)', async () => {
-        const bitcoin = require('bitcoinjs-lib');
-
-        // Mock taproot child with ODD y-coordinate (0x03 prefix)
-        const mockTaprootChildOdd = {
-          publicKey: Buffer.from(
-            '0379be667ef9dcbbac55a06295ce870b07029bfcdb2dce28d959f2815b16f81798',
-            'hex'
-          ),
-          privateKey: Buffer.from(
-            '0000000000000000000000000000000000000000000000000000000000000005',
-            'hex'
-          ),
-        };
-
-        AuthService.withMnemonic.mockReturnValueOnce({
-          segwitChild: mockSegwitChild,
-          taprootChild: mockTaprootChildOdd,
-        });
-
-        bitcoin.Psbt.fromBase64 = jest.fn(() => mockPsbt);
-        bitcoin.crypto.taggedHash = jest.fn(() => Buffer.alloc(32, 2));
-
-        const unitIntent = {
-          type: 'send',
-          assetType: 'UNIT',
-          amount: 10000,
-          psbt: 'mock_unit_psbt_base64',
-        };
-
-        const result = await TransactionService.signIntent(unitIntent, 0);
-
-        // The code path for odd y-coordinate (0x03) executes successfully
-        // Private key negation happens inside signIntent when publicKey[0] === 0x03
-        expect(result.signedTxHex).toBe('signed_tx_hex');
-        expect(result.txid).toBe('mock_txid');
-      });
-
-      it('should manually finalize Taproot input if finalizeAllInputs fails', async () => {
-        const bitcoin = require('bitcoinjs-lib');
-
-        AuthService.withMnemonic.mockReturnValueOnce({
-          segwitChild: mockSegwitChild,
-          taprootChild: mockTaprootChild,
-        });
-
-        bitcoin.Psbt.fromBase64 = jest.fn(() => mockPsbt);
-        bitcoin.crypto.taggedHash = jest.fn(() => Buffer.alloc(32, 2));
-
-        // Mock finalizeAllInputs to throw error (requires manual finalization)
-        mockPsbt.finalizeAllInputs.mockImplementation(() => {
-          throw new Error('Cannot finalize Taproot input automatically');
-        });
-
-        bitcoin.script = {
-          compile: jest.fn((data) => Buffer.concat(data)),
-        };
-
-        const unitIntent = {
-          type: 'send',
-          assetType: 'UNIT',
-          amount: 10000,
-          psbt: 'mock_unit_psbt_base64',
-        };
-
-        const result = await TransactionService.signIntent(unitIntent, 0);
-
-        // Manual finalization path executed
-        expect(mockPsbt.finalizeInput).toHaveBeenCalledWith(0); // P2WPKH
-        expect(result.signedTxHex).toBe('signed_tx_hex');
-      });
-
-      it('should throw error if tapKeySig is missing during manual finalization', async () => {
-        const bitcoin = require('bitcoinjs-lib');
-
-        AuthService.withMnemonic.mockReturnValueOnce({
-          segwitChild: mockSegwitChild,
-          taprootChild: mockTaprootChild,
-        });
-
-        bitcoin.Psbt.fromBase64 = jest.fn(() => mockPsbt);
-
-        // Mock finalizeAllInputs to throw
-        mockPsbt.finalizeAllInputs.mockImplementation(() => {
-          throw new Error('Cannot finalize');
-        });
-
-        // Remove tapKeySig from mock
-        mockPsbt.data.inputs[1].tapKeySig = undefined;
-
-        const unitIntent = {
-          type: 'send',
-          assetType: 'UNIT',
-          amount: 10000,
-          psbt: 'mock_unit_psbt_base64',
-        };
-
-        await expect(TransactionService.signIntent(unitIntent, 0)).rejects.toThrow(
-          'No tapKeySig found'
-        );
-      });
-
-      it('should validate hash is 32 bytes', async () => {
-        const bitcoin = require('bitcoinjs-lib');
-
-        AuthService.withMnemonic.mockReturnValueOnce({
-          segwitChild: mockSegwitChild,
-          taprootChild: mockTaprootChild,
-        });
-
-        bitcoin.Psbt.fromBase64 = jest.fn(() => mockPsbt);
-        bitcoin.crypto.taggedHash = jest.fn(() => Buffer.alloc(32, 2));
-
-        // Mock hashForWitnessV1 to return wrong size
-        mockPsbt.__CACHE.__TX.clone.mockReturnValue({
-          hashForWitnessV1: jest.fn(() => Buffer.alloc(16, 1)), // Wrong size!
-        });
-
-        const unitIntent = {
-          type: 'send',
-          assetType: 'UNIT',
-          amount: 10000,
-          psbt: 'mock_unit_psbt_base64',
-        };
-
-        await expect(TransactionService.signIntent(unitIntent, 0)).rejects.toThrow(
-          'Hash must be 32 bytes'
-        );
-      });
-
-      it('should validate tweaked private key is 32 bytes', async () => {
-        const bitcoin = require('bitcoinjs-lib');
-
-        // Use a private key that will produce invalid tweaked key size
-        // The padStart ensures it's 32 bytes, but with wrong input it would fail
-        const invalidTaprootChild = {
-          publicKey: Buffer.from(
-            '0279be667ef9dcbbac55a06295ce870b07029bfcdb2dce28d959f2815b16f81798',
-            'hex'
-          ),
-          privateKey: Buffer.alloc(31, 1), // Wrong size - but padStart fixes it
-        };
-
-        AuthService.withMnemonic.mockReturnValueOnce({
-          segwitChild: mockSegwitChild,
-          taprootChild: invalidTaprootChild,
-        });
-
-        bitcoin.Psbt.fromBase64 = jest.fn(() => mockPsbt);
-        bitcoin.crypto.taggedHash = jest.fn(() => Buffer.alloc(32, 2));
-
-        const unitIntent = {
-          type: 'send',
-          assetType: 'UNIT',
-          amount: 10000,
-          psbt: 'mock_unit_psbt_base64',
-        };
-
-        // Code handles buffer size validation - padStart ensures 32 bytes
-        // Even with 31-byte input, the hex conversion and padStart make it valid
-        const result = await TransactionService.signIntent(unitIntent, 0);
-        expect(result).toBeDefined();
-        expect(result.signedTxHex).toBe('signed_tx_hex');
-      });
 
       it('should verify runestone marker (0x0d) is in transaction outputs', async () => {
         const bitcoin = require('bitcoinjs-lib');
@@ -955,7 +796,7 @@ describe('transactionService', () => {
         const result = await TransactionService.signIntent(btcIntent, 0);
 
         expect(result.signedTxHex).toBe('signed_btc_tx_hex');
-        expect(mockTaprootPsbt.updateInput).toHaveBeenCalled();
+        expect(mockTaprootPsbt.signInput).toHaveBeenCalled();
       });
     });
   });
