@@ -10,14 +10,14 @@ import { COLORS } from '../../theme';
 import { useSendFlow } from '../../contexts/SendFlowContext';
 import { useTransactionBuild } from '../../contexts/TransactionBuildContext';
 import { useTransactionExecution } from '../../contexts/TransactionExecutionContext';
-import { useToastContext } from '../../contexts/UIContext';
+import { useNotifications } from "../contexts/NotificationContext";
 import { logger } from '../../utils/logger';
 
 export default function ProcessingScreen({ navigation, route }) {
   const { sendAssetType, intentStep } = useSendFlow();
   const { createSendIntent, sendIntent } = useTransactionBuild();
   const { signIntent } = useTransactionExecution();
-  const { showToast } = useToastContext();
+  const { showToast } = useNotifications();
   const [loadingMessageIndex, setLoadingMessageIndex] = useState(0);
   const hasStarted = useRef(false);
 

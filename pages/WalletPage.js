@@ -30,7 +30,7 @@ import { useTransactionExecution } from '../contexts/TransactionExecutionContext
 import { useVault } from '../contexts/VaultContext';
 import { useOnboardingFlow } from '../contexts/AuthContext';
 import { useNavigationHandlers } from '../contexts/NavigationHandlersContext';
-import { useToastContext } from '../contexts/UIContext';
+import { useNotifications } from "../contexts/NotificationContext";
 
 // Hooks
 import { useSettingsNavigation } from '../hooks/useSettingsNavigation';
@@ -63,7 +63,7 @@ export default function WalletPage({ route }) {
   const { broadcastedTxid } = useTransactionExecution();
 
   // Toast and Snackbar context
-  const { toasts, showToast, snackbar, dismissSnackbar, showSnackbar } = useToastContext();
+  const { toasts, showToast, snackbar, dismissSnackbar, showSnackbar } = useNotifications();
 
   // Debug: Log snackbar state changes
   React.useEffect(() => {

@@ -9,7 +9,7 @@ import OnboardingPage from '../pages/OnboardingPage';
 import { useOnboardingFlow } from '../contexts/AuthContext';
 import { useNavigationHandlers } from '../contexts/NavigationHandlersContext';
 import { useBalance } from '../contexts/WalletDataContext';
-import { useToastContext } from '../contexts/UIContext';
+import { useNotifications } from "../contexts/NotificationContext";
 import { useKeyboard } from '../hooks/useKeyboard';
 import styles from '../styles';
 
@@ -19,7 +19,7 @@ export default function AuthStack() {
   // Consume contexts
   const { seedConfirmed, setSeedConfirmed, resetWalletAndState } = useOnboardingFlow();
   const { fetchBalance } = useBalance();
-  const { showToast } = useToastContext();
+  const { showToast } = useNotifications();
   const { keyboardHeight } = useKeyboard();
 
   // Get handlers from context

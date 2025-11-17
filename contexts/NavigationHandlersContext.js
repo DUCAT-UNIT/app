@@ -17,7 +17,7 @@ import { useWallet } from './WalletContext';
 import { useBalance } from './WalletDataContext';
 import { useOnboardingFlow } from './AuthContext';
 import { useSeedPhrase } from './SeedPhraseContext';
-import { useToastContext } from './UIContext';
+import { useNotifications } from './NotificationContext';
 import { useVault } from './VaultContext';
 import { useSettings } from '../hooks/useSettings';
 import { useAccountSwitcher } from '../hooks/useAccountSwitcher';
@@ -44,7 +44,7 @@ export const NavigationHandlersProvider = ({ children, walletExists }) => {
   const { fetchBalance } = useBalance();
   const { setSeedConfirmed } = useOnboardingFlow();
   const { requestingSeedPhrase, loadSeedPhrase, requestViewSeedPhrase } = useSeedPhrase();
-  const { showToast } = useToastContext();
+  const { showToast } = useNotifications();
   const { clearVaultCredentials } = useVault();
 
   // Post-authentication handler

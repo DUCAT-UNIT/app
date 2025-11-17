@@ -22,7 +22,8 @@ import { PendingTransactionsProvider } from './contexts/PendingTransactionsConte
 import { WalletDataProvider } from './contexts/WalletDataContext';
 import { PriceProvider } from './contexts/PriceContext';
 // AirdropProvider removed - not currently used in provider hierarchy
-import { UIProvider, useToastContext } from './contexts/UIContext';
+import { UIProvider } from './contexts/UIContext';
+import { useNotifications } from './contexts/NotificationContext';
 
 // Navigation
 import AppNavigator from './navigation/AppNavigator';
@@ -168,10 +169,10 @@ Sentry.init({
 //   Sentry.captureMessage('🧪 Test Message - Sentry integration successful', 'info');
 // }, 3000);
 
-// Inner component to access wallet and toast contexts
+// Inner component to access wallet and notification contexts
 function AppProviders({ children }) {
   const { currentAccount } = useWallet();
-  const { showToast } = useToastContext();
+  const { showToast } = useNotifications();
 
   return (
     <PendingTransactionsProvider currentAccount={currentAccount} showToast={showToast}>

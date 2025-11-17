@@ -8,7 +8,7 @@ import { View, StyleSheet } from 'react-native';
 import { createStackNavigator } from '@react-navigation/stack';
 import { useNavigation } from '@react-navigation/native';
 import { COLORS } from '../theme';
-import { useToastContext } from '../contexts/UIContext';
+import { useNotifications } from "../contexts/NotificationContext";
 import { useTransactionBuild } from '../contexts/TransactionBuildContext';
 import ToastContainer from '../components/ToastContainer';
 
@@ -44,7 +44,7 @@ function SendNavigatorContent() {
 }
 
 export default function SendNavigator() {
-  const { toasts } = useToastContext();
+  const { toasts } = useNotifications();
 
   return (
     <View style={styles.container}>

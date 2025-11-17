@@ -17,26 +17,6 @@ export const useNotifications = () => {
   return context;
 };
 
-// Backwards compatibility hook for toast
-export const useToastContext = () => {
-  const context = useNotifications();
-
-  // Return toast and snackbar functions for backwards compatibility
-  return {
-    // Toast functions (legacy)
-    showToast: context.showToast,
-    toasts: context.toasts,
-    dismissToast: context.dismissToast,
-    toastMessage: context.toastMessage,
-    toastVisible: context.toastVisible,
-    toastType: context.toastType,
-    // Snackbar function (new)
-    showSnackbar: context.showSnackbar,
-    snackbar: context.snackbar,
-    dismissSnackbar: context.dismissSnackbar,
-  };
-};
-
 let nextToastId = 0;
 
 export const NotificationProvider = ({ children }) => {

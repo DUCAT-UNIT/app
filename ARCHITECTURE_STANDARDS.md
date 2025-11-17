@@ -492,6 +492,413 @@ function UserListScreen() {
 
 ---
 
+## Security Best Practices
+
+### Secure Storage
+
+**Use for:**
+- Authentication tokens (JWT, refresh tokens)
+- Private keys and seeds
+- User credentials
+- API keys
+- Biometric data references
+
+**Never store in:**
+- ❌ AsyncStorage (not encrypted by default)
+- ❌ Plain text files
+- ❌ Redux/state (persisted unencrypted)
+- ❌ In-memory only (for tokens that need persistence)
+
+**Recommended libraries:**
+- `react-native-keychain` - iOS Keychain / Android Keystore
+- `expo-secure-store` - For Expo projects
+- `react-native-encrypted-storage` - Encrypted AsyncStorage alternative
+
+```javascript
+// services/secureStorage.js
+import * as Keychain from 'react-native-keychain';
+
+export const secureStorage = {
+  async saveToken(token) {
+    try {
+      await Keychain.setGenericPassword('auth', token, {
+        service: 'app.auth.token',
+        accessible: Keychain.ACCESSIBLE.WHEN_UNLOCKED_THIS_DEVICE_ONLY,
+      });
+    } catch (error) {
+      console.error('Failed to save token:', error);
+      throw error;
+    }
+  },
+
+  async getToken() {
+    try {
+      const credentials = await Keychain.getGenericPassword({
+        service: 'app.auth.token',
+      });
+      return credentials ? credentials.password : null;
+    } catch (error) {
+      console.error('Failed to retrieve token:', error);
+      return null;
+    }
+  },
+
+  async deleteToken() {
+    try {
+      await Keychain.resetGenericPassword({
+        service: 'app.auth.token',
+      });
+    } catch (error) {
+      console.error('Failed to delete token:', error);
+    }
+  },
+};
+
+// For wallet seeds/private keys - use even stronger protection
+export const walletStorage = {
+  async saveSeed(seed) {
+    await Keychain.setGenericPassword('wallet', seed, {
+      service: 'app.wallet.seed',
+      accessible: Keychain.ACCESSIBLE.WHEN_PASSCODE_SET_THIS_DEVICE_ONLY,
+      authenticationType: Keychain.AUTHENTICATION_TYPE.BIOMETRICS,
+    });
+  },
+
+  async getSeed() {
+    const credentials = await Keychain.getGenericPassword({
+      service: 'app.wallet.seed',
+      authenticationPrompt: {
+        title: 'Authenticate to access wallet',
+        subtitle: 'Confirm your identity',
+      },
+    });
+    return credentials ? credentials.password : null;
+  },
+};
+```
+
+### API Security
+
+**Authentication Headers:**
+```javascript
+// services/api/client.js
+import axios from 'axios';
+import { secureStorage } from '../secureStorage';
+
+const apiClient = axios.create({
+  baseURL: 'https://api.example.com',
+  timeout: 10000,
+  headers: {
+    'Content-Type': 'application/json',
+  },
+});
+
+// Add auth token to every request
+apiClient.interceptors.request.use(async (config) => {
+  const token = await secureStorage.getToken();
+  if (token) {
+    config.headers.Authorization = `Bearer ${token}`;
+  }
+  return config;
+});
+
+// Handle token refresh on 401
+apiClient.interceptors.response.use(
+  (response) => response,
+  async (error) => {
+    if (error.response?.status === 401) {
+      // Attempt token refresh
+      const newToken = await refreshAuthToken();
+      if (newToken) {
+        error.config.headers.Authorization = `Bearer ${newToken}`;
+        return apiClient.request(error.config);
+      }
+      // If refresh fails, logout user
+      await handleLogout();
+    }
+    return Promise.reject(error);
+  }
+);
+
+export { apiClient };
+```
+
+**SSL Pinning (Production apps):**
+```javascript
+// For high-security apps (banking, crypto wallets)
+// Use react-native-ssl-pinning
+
+import { fetch } from 'react-native-ssl-pinning';
+
+const secureFetch = async (url, options) => {
+  return fetch(url, {
+    ...options,
+    sslPinning: {
+      certs: ['certificate1', 'certificate2'], // Certificate files
+    },
+  });
+};
+```
+
+**API Key Protection:**
+- ✅ Never hardcode API keys in source code
+- ✅ Use environment variables (`.env` files)
+- ✅ Add `.env` to `.gitignore`
+- ✅ Use different keys for dev/staging/production
+- ✅ Consider using a backend proxy for sensitive API calls
+
+```javascript
+// .env (NOT committed to git)
+API_KEY=your_api_key_here
+API_URL=https://api.example.com
+
+// config/env.js
+import Config from 'react-native-config'; // or expo-constants
+
+export const env = {
+  apiKey: Config.API_KEY,
+  apiUrl: Config.API_URL,
+};
+
+// Usage
+import { env } from '../config/env';
+const response = await fetch(`${env.apiUrl}/data`);
+```
+
+### Input Validation & Sanitization
+
+**Always validate and sanitize user input:**
+
+```javascript
+// utils/validators.js
+export const validators = {
+  email: (email) => {
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    return emailRegex.test(email);
+  },
+
+  btcAddress: (address) => {
+    // Basic BTC address validation
+    const btcRegex = /^[13][a-km-zA-HJ-NP-Z1-9]{25,34}$/;
+    const bech32Regex = /^bc1[a-z0-9]{39,59}$/;
+    return btcRegex.test(address) || bech32Regex.test(address);
+  },
+
+  amount: (amount) => {
+    // Positive number with max 8 decimals (for BTC)
+    const amountRegex = /^\d+(\.\d{1,8})?$/;
+    return amountRegex.test(amount) && parseFloat(amount) > 0;
+  },
+
+  sanitizeString: (str) => {
+    // Remove potentially dangerous characters
+    return str.replace(/[<>\"']/g, '');
+  },
+};
+
+// Usage in components
+function SendScreen() {
+  const [address, setAddress] = useState('');
+  const [error, setError] = useState('');
+
+  const handleAddressChange = (value) => {
+    const sanitized = validators.sanitizeString(value);
+    setAddress(sanitized);
+
+    if (sanitized && !validators.btcAddress(sanitized)) {
+      setError('Invalid Bitcoin address');
+    } else {
+      setError('');
+    }
+  };
+
+  return (
+    <Input
+      value={address}
+      onChangeText={handleAddressChange}
+      error={error}
+    />
+  );
+}
+```
+
+### Common Mobile Security Vulnerabilities
+
+**1. Prevent Screenshot Leakage (Sensitive Screens):**
+```javascript
+// For screens with sensitive data (seed phrases, private keys)
+import { useEffect } from 'react';
+import { Platform } from 'react-native';
+
+function SeedPhraseScreen() {
+  useEffect(() => {
+    if (Platform.OS === 'android') {
+      // Prevent screenshots on Android
+      const { setSecureFlag } = require('react-native-screenshot-prevent');
+      setSecureFlag(true);
+      return () => setSecureFlag(false);
+    }
+    // iOS: Use react-native-privacy-snapshot for blur on app switcher
+  }, []);
+
+  return (
+    <View>
+      {/* Seed phrase display */}
+    </View>
+  );
+}
+```
+
+**2. Deep Link Validation:**
+```javascript
+// navigation/deepLinking.js
+import { Linking } from 'react-native';
+
+const ALLOWED_HOSTS = ['app.example.com', 'example.com'];
+
+export const handleDeepLink = async (url) => {
+  try {
+    const parsed = new URL(url);
+
+    // Validate host to prevent phishing
+    if (!ALLOWED_HOSTS.includes(parsed.host)) {
+      console.warn('Rejected deep link from untrusted host:', parsed.host);
+      return;
+    }
+
+    // Validate and sanitize parameters
+    const params = Object.fromEntries(parsed.searchParams);
+
+    // Route to appropriate screen
+    navigation.navigate('TargetScreen', params);
+  } catch (error) {
+    console.error('Invalid deep link:', error);
+  }
+};
+
+Linking.addEventListener('url', ({ url }) => handleDeepLink(url));
+```
+
+**3. Clipboard Security:**
+```javascript
+// For sensitive data like seeds or private keys
+import Clipboard from '@react-native-clipboard/clipboard';
+
+function CopyableSeed({ seed }) {
+  const copySeedSecurely = async () => {
+    // Copy to clipboard
+    await Clipboard.setString(seed);
+
+    // Clear clipboard after 60 seconds
+    setTimeout(async () => {
+      const current = await Clipboard.getString();
+      if (current === seed) {
+        await Clipboard.setString(''); // Clear it
+      }
+    }, 60000);
+
+    Alert.alert(
+      'Copied',
+      'Seed phrase will be cleared from clipboard in 60 seconds'
+    );
+  };
+
+  return <Button onPress={copySeedSecurely} title="Copy Seed" />;
+}
+```
+
+**4. Jailbreak/Root Detection:**
+```javascript
+// For high-security apps
+import JailMonkey from 'jail-monkey';
+
+function App() {
+  useEffect(() => {
+    if (JailMonkey.isJailBroken()) {
+      Alert.alert(
+        'Security Warning',
+        'This device appears to be jailbroken/rooted. The app may not function correctly.',
+        [
+          { text: 'Continue Anyway', style: 'destructive' },
+          { text: 'Exit', onPress: () => RNExitApp.exitApp() },
+        ]
+      );
+    }
+  }, []);
+}
+```
+
+**5. Biometric Authentication:**
+```javascript
+// hooks/useBiometrics.js
+import ReactNativeBiometrics from 'react-native-biometrics';
+
+export function useBiometrics() {
+  const authenticate = async () => {
+    const { available, biometryType } = await ReactNativeBiometrics.isSensorAvailable();
+
+    if (!available) {
+      throw new Error('Biometrics not available');
+    }
+
+    const { success } = await ReactNativeBiometrics.simplePrompt({
+      promptMessage: 'Confirm your identity',
+      cancelButtonText: 'Cancel',
+    });
+
+    return success;
+  };
+
+  return { authenticate };
+}
+
+// Usage
+function WalletScreen() {
+  const { authenticate } = useBiometrics();
+
+  const accessWallet = async () => {
+    try {
+      const authenticated = await authenticate();
+      if (authenticated) {
+        // Proceed with sensitive operation
+      }
+    } catch (error) {
+      Alert.alert('Authentication failed');
+    }
+  };
+}
+```
+
+### Security Checklist
+
+**Before Production:**
+- [ ] All sensitive data stored in Keychain/Keystore
+- [ ] No API keys hardcoded in source code
+- [ ] SSL/TLS for all API calls (HTTPS only)
+- [ ] Input validation on all user inputs
+- [ ] Authentication token refresh implemented
+- [ ] Deep link validation implemented
+- [ ] Screenshot prevention on sensitive screens
+- [ ] Clipboard auto-clear for sensitive data
+- [ ] Error messages don't leak sensitive info
+- [ ] Logging doesn't include PII or secrets
+- [ ] ProGuard/R8 enabled (Android release builds)
+- [ ] Code obfuscation enabled
+- [ ] Jailbreak detection considered (if needed)
+- [ ] Biometric authentication for critical actions
+- [ ] Session timeout implemented
+- [ ] Secure WebView configuration (if used)
+
+**Code Review Security Checks:**
+- [ ] No `console.log` with sensitive data
+- [ ] No `Alert` with error details in production
+- [ ] No hardcoded credentials or secrets
+- [ ] All external URLs validated
+- [ ] All user inputs sanitized
+- [ ] Proper error handling (no stack traces to users)
+
+---
+
 ## Performance Best Practices
 
 ### Lists

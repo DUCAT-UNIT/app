@@ -32,7 +32,7 @@ import {
   NavigationHandlersProvider,
   useNavigationHandlers,
 } from '../contexts/NavigationHandlersContext';
-import { useToastContext } from '../contexts/UIContext';
+import { useNotifications } from "../contexts/NotificationContext";
 
 // Hooks
 import { useWalletInitialization } from '../hooks/useWalletInitialization';
@@ -110,7 +110,7 @@ function ProvidersWrapper({
   walletExists,
 }) {
   const { seedConfirmed } = useOnboardingFlow();
-  const { showToast } = useToastContext();
+  const { showToast } = useNotifications();
 
   return (
     <AirdropProvider seedConfirmed={seedConfirmed}>

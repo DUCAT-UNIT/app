@@ -1,69 +1,24 @@
 /**
- * UIContext - Global UI state management (REFACTORED)
- * This is now a wrapper around DisplayPreferencesContext and NotificationContext
- * Provides backwards compatibility while using the new split contexts
+ * UIContext - Global UI state management (FULLY MIGRATED)
+ * This file now just re-exports the split contexts for convenience
  *
  * PERFORMANCE: Split into 2 separate contexts to prevent unnecessary re-renders
  * - DisplayPreferencesContext: Only re-renders when display settings change
  * - NotificationContext: Only re-renders when toasts/snackbars change
+ *
+ * MIGRATION COMPLETE: All backwards compatibility removed
+ * Components should use useDisplayPreferences() or useNotifications() directly
  */
 
-import React, { useMemo } from 'react';
-import { DisplayPreferencesProvider, useDisplayPreferences } from './DisplayPreferencesContext';
-import { NotificationProvider, useNotifications, useToastContext } from './NotificationContext';
+import React from 'react';
+import { DisplayPreferencesProvider } from './DisplayPreferencesContext';
+import { NotificationProvider } from './NotificationContext';
 
-// Re-export hooks for backwards compatibility
-export { useDisplayPreferences, useToastContext };
+// Re-export hooks for convenience
+export { useDisplayPreferences } from './DisplayPreferencesContext';
+export { useNotifications } from './NotificationContext';
 
-// Legacy useUI hook - combines both contexts for backwards compatibility
-export const useUI = () => {
-  const displayPreferences = useDisplayPreferences();
-  const notifications = useNotifications();
-
-  // Combine both contexts for backwards compatibility
-  return useMemo(
-    () => ({
-      // Display preferences namespace
-      displayPreferences: {
-        showTotalInBTC: displayPreferences.showTotalInBTC,
-        setShowTotalInBTC: displayPreferences.setShowTotalInBTC,
-        showBTCInBTC: displayPreferences.showBTCInBTC,
-        setShowBTCInBTC: displayPreferences.setShowBTCInBTC,
-        showUnitInUnit: displayPreferences.showUnitInUnit,
-        setShowUnitInUnit: displayPreferences.setShowUnitInUnit,
-      },
-      // Toast namespace
-      toast: {
-        showToast: notifications.showToast,
-        toasts: notifications.toasts,
-        dismissToast: notifications.dismissToast,
-        toastMessage: notifications.toastMessage,
-        toastVisible: notifications.toastVisible,
-        toastType: notifications.toastType,
-      },
-      // Direct exports for convenience (backwards compatibility)
-      showTotalInBTC: displayPreferences.showTotalInBTC,
-      setShowTotalInBTC: displayPreferences.setShowTotalInBTC,
-      showBTCInBTC: displayPreferences.showBTCInBTC,
-      setShowBTCInBTC: displayPreferences.setShowBTCInBTC,
-      showUnitInUnit: displayPreferences.showUnitInUnit,
-      setShowUnitInUnit: displayPreferences.setShowUnitInUnit,
-      showToast: notifications.showToast,
-      toasts: notifications.toasts,
-      dismissToast: notifications.dismissToast,
-      toastMessage: notifications.toastMessage,
-      toastVisible: notifications.toastVisible,
-      toastType: notifications.toastType,
-      // Snackbar exports
-      showSnackbar: notifications.showSnackbar,
-      snackbar: notifications.snackbar,
-      dismissSnackbar: notifications.dismissSnackbar,
-    }),
-    [displayPreferences, notifications]
-  );
-};
-
-// UIProvider now wraps both contexts
+// UIProvider wraps both contexts
 export const UIProvider = ({ children }) => {
   return (
     <DisplayPreferencesProvider>

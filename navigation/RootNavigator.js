@@ -17,7 +17,7 @@ import { COLORS } from '../theme';
 import { useAuth } from '../contexts/AuthContext';
 import { useBalance } from '../contexts/WalletDataContext';
 import { useNavigationHandlers } from '../contexts/NavigationHandlersContext';
-import { useToastContext } from '../contexts/UIContext';
+import { useNotifications } from "../contexts/NotificationContext";
 import { useNavigationState } from '../hooks/useNavigationState';
 
 const Stack = createStackNavigator();
@@ -29,7 +29,7 @@ export default function RootNavigator() {
   // Get auth-specific data needed for PIN overlay
   const { isBiometricSupported } = useAuth();
   const { fetchBalance } = useBalance();
-  const { showToast } = useToastContext();
+  const { showToast } = useNotifications();
 
   // Get handlers from context
   const {

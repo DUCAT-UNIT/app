@@ -27,7 +27,7 @@ import { useWalletImport } from '../hooks/useWalletImport';
 import { useSeedVerification } from '../hooks/useSeedVerification';
 import { usePasskeyCreation } from '../hooks/usePasskeyCreation';
 import { usePasskeyRestore } from '../hooks/usePasskeyRestore';
-import { useToastContext } from '../contexts/UIContext';
+import { useNotifications } from "../contexts/NotificationContext";
 
 // Utils
 import { COLORS } from '../theme';
@@ -47,7 +47,7 @@ export default function OnboardingPage({
   styles,
 }) {
   // Toast context
-  const { showToast, toasts } = useToastContext();
+  const { showToast, toasts } = useNotifications();
 
   // Auth context
   const {

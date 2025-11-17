@@ -5,7 +5,7 @@ import { useWallet } from '../../contexts/WalletContext';
 import { useBalance } from '../../contexts/WalletDataContext';
 import { usePrice } from '../../contexts/PriceContext';
 import { useVaultData } from '../../contexts/WalletDataContext';
-import { useDisplayPreferences } from '../../contexts/UIContext';
+import { useDisplayPreferences } from "../../contexts/DisplayPreferencesContext";
 import { useWalletCalculations } from '../../hooks/useWalletCalculations';
 import { useFormattedBalances } from '../../hooks/useFormattedBalances';
 import { COLORS } from '../../theme';

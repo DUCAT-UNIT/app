@@ -1,280 +1,248 @@
-# Ducat App - Architecture Analysis Reports
+# DUCAT Bitcoin Wallet - Comprehensive Codebase Analysis
 
-**Generated:** 2025-11-14  
-**Analysis Scope:** Complete codebase structure vs. ARCHITECTURE_STANDARDS.md  
-**Overall Score:** 78/100
+This directory contains three comprehensive analysis documents for the DUCAT Bitcoin wallet application. These documents provide complete reference material for understanding the codebase structure, security architecture, and deployment requirements.
 
----
+## Analysis Documents
 
-## Overview
+### 1. CODEBASE_ANALYSIS.md (34 KB)
+**The most comprehensive reference document**
 
-This directory contains comprehensive architectural analysis of the Ducat React Native Bitcoin wallet application. The analysis compares the current codebase against defined architecture standards and provides actionable recommendations for improvement.
+Complete architectural breakdown including:
+- Executive summary and project overview
+- Full directory structure (260+ files)
+- All 50+ dependencies with purpose
+- 13 contexts and state management explained
+- 39 custom hooks documented
+- 15 screens mapped with functionality
+- 45+ components cataloged
+- 20+ services with details
+- Bitcoin integration (BIP84/BIP86, PSBT, Runes)
+- Security architecture (PIN, biometric, passkey, iCloud)
+- Data flow examples (onboarding, send, balance updates)
+- Testing infrastructure overview
+- Constants and configuration details
+- 15+ deployment recommendations
+- Architecture diagrams and patterns
 
----
+**Use this for:** Deep understanding, security audits, architectural decisions
 
-## The Four Documents
+### 2. CODEBASE_SUMMARY.md (9 KB)
+**Quick reference guide for daily development**
 
-### 1. QUICK_REFERENCE.md
-**Best for:** Quick lookup, team meetings, status updates  
-**Read time:** 5-10 minutes  
-**Content:**
-- One-page overview of all findings
-- Quick scoring matrix
-- Critical vs. important issues
-- Checklist for next steps
+Quick lookup information:
+- Project statistics
+- Directory structure
+- Technology stack summary
+- Architecture hierarchy
+- Navigation stack overview
+- Security architecture summary
+- Bitcoin integration overview
+- Key files quick lookup (organized by category)
+- Common tasks and how-tos
+- Critical security patterns
+- Deployment checklist
+- Performance targets
+- Common issues and solutions
+- Testing commands
+- Useful resources
 
-**Start here if:** You need a fast summary for a meeting
+**Use this for:** Quick reference, onboarding, common tasks
 
----
+### 3. CRITICAL_PATHS.md (13 KB)
+**Complete file path directory**
 
-### 2. ANALYSIS_EXECUTIVE_SUMMARY.txt
-**Best for:** Leadership briefing, sprint planning, decision-making  
-**Read time:** 15 minutes  
-**Content:**
-- Overall assessment (78/100 score)
-- 3 critical issues with effort estimates (12-16 hours)
-- 3 important issues with effort estimates (6-9 hours)
-- Refactoring roadmap (Phase 1, 2, 3)
-- Risk assessment
-- Expected outcomes
+Organized file listing by category:
+- Core application files
+- Security-critical files (8 flagged)
+- Bitcoin core files (9 flagged)
+- 13 context files listed
+- 15 screen files with descriptions
+- 23+ component files with purposes
+- 39 hook files organized by function
+- 20+ service files cataloged
+- Utility files documented
+- All constants files listed
+- Navigation files detailed
+- Test files and configuration
+- Theme and styling files
+- Asset files listed
+- File path lookup by feature
 
-**Start here if:** You're planning refactoring or briefing leadership
+**Use this for:** Navigation, finding specific files, understanding file organization
 
----
+## Quick Navigation
 
-### 3. CURRENT_STATE_ANALYSIS.md
-**Best for:** Deep technical review, implementation planning, code review  
-**Read time:** 45-60 minutes  
-**Content:**
-- Detailed directory structure analysis (158 files)
-- File-by-file size compliance breakdown
-- Component hierarchy analysis (atoms, molecules, organisms)
-- All 30 hooks categorized and assessed
-- All 14 contexts analyzed individually
-- All 16 services reviewed
-- Architectural patterns in use
-- Standards compliance scorecard
-- Detailed recommendations with reasoning
-- Testing coverage assessment
+### If you need to understand...
 
-**Start here if:** You're implementing the refactoring or doing code review
+**Bitcoin Transaction Signing:**
+1. Read: CODEBASE_ANALYSIS.md → Section 4 (Bitcoin Integration)
+2. Files: /services/transactionSigningService.js, /utils/wallet.js
 
----
+**Security Architecture:**
+1. Read: CODEBASE_ANALYSIS.md → Section 6 (Security Considerations)
+2. Files: /services/pinService.js, /services/passkeyService.js, /constants/security.js
 
-### 4. ARCHITECTURE_STANDARDS.md
-**Best for:** Reference guide, architecture decisions, code standards  
-**Read time:** 30-45 minutes (reference material)  
-**Content:**
-- Core architectural principles
-- File size standards (atoms, molecules, organisms, screens, hooks, services)
-- Component complexity standards
-- Folder structure patterns (simple, feature-based, advanced)
-- Styling strategy
-- State management approach
-- Error handling best practices
-- Performance guidelines
-- Testing standards
-- Code quality checklist
-- Common patterns
-- Component splitting strategies
+**App State Management:**
+1. Read: CODEBASE_ANALYSIS.md → Section 3 (Architecture Patterns)
+2. Quick ref: CODEBASE_SUMMARY.md → Architecture section
+3. Files: All files in /contexts/
 
-**Start here if:** You're making architectural decisions or reviewing code
+**Adding a New Feature:**
+1. Read: CODEBASE_SUMMARY.md → Common Tasks
+2. Navigate files: CRITICAL_PATHS.md → File Path by Feature
 
----
+**Deployment & Production:**
+1. Read: CODEBASE_ANALYSIS.md → Section 11 (Deployment Considerations)
+2. Check: CODEBASE_SUMMARY.md → Deployment Checklist
 
-## Key Findings Summary
-
-### Overall Health: Good (78/100)
-
-| Category | Score | Status |
-|----------|-------|--------|
-| Separation of Concerns | 90 | Excellent |
-| Service Layer | 85 | Good |
-| Hooks | 90 | Mostly Excellent |
-| Contexts | 80 | Good |
-| Components | 85 | Good |
-| Navigation | 95 | Excellent |
-| Testing | 85 | Good |
-| State Management | 95 | Excellent |
-
-### Critical Issues (Must Fix)
-
-1. **authService.js (406 lines)** - exceeds 300-line standard
-   - Recommendation: Split into 3 services
-   - Effort: 4-6 hours
-
-2. **PendingTransactionsContext (343 lines)** - exceeds 300-line standard
-   - Recommendation: Extract polling to custom hook
-   - Effort: 3-4 hours
-
-3. **useSettings (295 lines)** - exceeds 200-line standard
-   - Recommendation: Split into 4 focused hooks
-   - Effort: 5-6 hours
-
-**Total: 12-16 hours (1 sprint)**
-
-### Important Issues (Should Fix)
-
-1. **WelcomeScreen (379 lines)** - 1 line under limit
-   - Effort: 2-3 hours
-
-2. **Components directory (23 root files)** - becoming cluttered
-   - Effort: 1-2 hours
-
-3. **NavigationHandlersContext (202 lines)** - mixed concerns
-   - Effort: 3-4 hours (optional)
-
-**Total: 6-9 hours (½ sprint)**
-
----
-
-## Codebase Structure
-
-```
-Total Files: 158
-├── Components: 39 files
-├── Contexts: 14 files
-├── Hooks: 30 files
-├── Services: 16 files
-├── Screens: 15 files
-├── Navigation: 6 files
-├── Utils: 14 files
-└── Config/Assets: 4 files
-
-Total Code: ~11,250 lines
-```
-
----
-
-## How to Use These Documents
-
-### For a 5-Minute Overview
-Read: `QUICK_REFERENCE.md`
-
-### For Team Planning
-1. Read: `ANALYSIS_EXECUTIVE_SUMMARY.txt`
-2. Discuss: Refactoring phases and timeline
-
-### For Implementation
-1. Review: `CURRENT_STATE_ANALYSIS.md` (sections 10-13 for refactoring details)
-2. Reference: `ARCHITECTURE_STANDARDS.md` for standards
-3. Check: `QUICK_REFERENCE.md` for quick lookup
-
-### For Code Review
-1. Review specific file section in `CURRENT_STATE_ANALYSIS.md`
-2. Compare against standards in `ARCHITECTURE_STANDARDS.md`
-3. Use `QUICK_REFERENCE.md` for quick facts
-
----
-
-## Next Steps
-
-### Immediate (Today)
-- [ ] Read this README
-- [ ] Skim `QUICK_REFERENCE.md`
-- [ ] Share `ANALYSIS_EXECUTIVE_SUMMARY.txt` with team
-
-### Short Term (This Week)
-- [ ] Team review of findings
-- [ ] Plan Phase 1 refactoring
-- [ ] Assign tasks
-
-### Medium Term (Next Sprint)
-- [ ] Execute Phase 1 refactoring (critical issues)
-- [ ] Maintain test coverage during refactoring
-- [ ] Verify compliance after changes
-
-### Long Term (Following Sprint)
-- [ ] Execute Phase 2 refactoring (important issues)
-- [ ] Plan transition to feature-based structure (6-12 months)
-- [ ] Document architectural decisions
-
----
+**Finding a Specific File:**
+1. Check: CRITICAL_PATHS.md → Organized by category
+2. Or: CRITICAL_PATHS.md → File Path by Feature
 
 ## Key Statistics
 
-### Files Analyzed
-- 39 components
-- 14 contexts
-- 30 custom hooks
-- 16 services
-- 15 screens
-- 6 navigation files
-- 14 utils
+| Metric | Value |
+|--------|-------|
+| Source Files | 260+ |
+| Components | 45+ |
+| Screens | 15 |
+| Contexts | 13 |
+| Custom Hooks | 39 |
+| Services | 20+ |
+| Test Files | 30+ |
+| Estimated LOC | 50,000+ |
+| Dependencies | 50+ |
+| Bitcoin Libraries | 5 |
 
-### Code Analyzed
-- 2,957 lines (screens)
-- 2,136 lines (contexts)
-- 3,189 lines (hooks)
-- 1,897 lines (services)
-- Total: ~11,250 lines
+## Technology Stack Summary
 
-### Issues Found
-- 3 critical violations
-- 3 important violations
-- 12 strengths identified
+- **React**: 19.1.0 (Latest)
+- **React Native**: 0.81.5 (Latest)
+- **Expo**: 54.0.20 (Latest)
+- **Bitcoin**: bitcoinjs-lib 7.0.0
+- **HD Wallet**: bip32 5.0.0, bip39 3.1.0
+- **Runes**: @magiceden-oss/runestone-lib 1.0.2
+- **Security**: expo-secure-store, react-native-passkey
+- **Crypto**: react-native-quick-crypto, @bitcoinerlab/secp256k1
+- **Error Tracking**: @sentry/react-native
+- **Testing**: Jest, React Native Testing Library
 
-### Estimated Effort
-- Phase 1: 12-16 hours
-- Phase 2: 6-9 hours
-- Phase 3: 6-12 months (future)
+## Security Highlights
+
+- **Mnemonic Storage**: Cleared from memory after 100ms (withMnemonic pattern)
+- **PIN Authentication**: PBKDF2 (10k iterations), 30-min lockout after 10 failures
+- **Passkey/WebAuthn**: AES-256-GCM encrypted backup to iCloud
+- **Biometric**: Face ID/Touch ID with PIN fallback
+- **Address Validation**: Testnet-only (prevents mainnet addresses)
+- **Input Validation**: Dust limits, fee limits, amount validation
+- **Error Tracking**: Sentry with sensitive data filtering
+
+## Bitcoin Features
+
+- **BIP84**: SegWit addresses (m/84'/1'/0'/0/{i}) → tb1q...
+- **BIP86**: Taproot addresses (m/86'/1'/0'/0/{i}) → tb1p...
+- **Multi-Account**: HD wallet with account switching
+- **PSBT Signing**: Full PSBT construction and signing support
+- **Runes/UNIT**: Full support for Runes transactions
+- **UTXO Selection**: Optimized algorithm with dust filtering
+- **Fee Calculation**: sats/vB model with configurable rates
+- **Network**: Testnet (Mutinynet/Signet) only
+
+## Critical Files
+
+**Must Review Before Production:**
+1. `/services/secureStorageService.js` - Mnemonic storage
+2. `/services/pinService.js` - PIN verification (250+ lines)
+3. `/services/passkeyService.js` - WebAuthn integration (1,106 lines)
+4. `/services/transactionSigningService.js` - PSBT signing
+5. `/constants/security.js` - Security configuration
+6. `/utils/bitcoin.js` - Address validation
+7. `/App.js` - Provider setup
+8. `/contexts/AuthContext.js` - Authentication state
+
+## Architecture Overview
+
+```
+Provider Hierarchy:
+  App
+  ├── AuthProvider (authentication state)
+  ├── WalletProvider (wallet addresses)
+  └── UIProvider (toast notifications)
+      └── AppProviders (nested)
+          ├── PendingTransactionsProvider
+          ├── WalletDataProvider
+          └── PriceProvider
+              └── AppNavigator
+                  └── RootNavigator
+                      ├── AuthStack (Welcome → PinSetup → Lock)
+                      └── MainTabs (Wallet, Send, Settings, Vault)
+```
+
+## Document Versions
+
+- **Analysis Date**: 2025-11-17
+- **Codebase Snapshot**: Main branch (clean state)
+- **React Native Version**: 0.81.5
+- **Expo Version**: 54.0.20
+- **Analysis Depth**: Comprehensive (all major files examined)
+- **Completeness**: 260+ files analyzed
+
+## Updating These Documents
+
+When updating the codebase:
+1. Keep CRITICAL_PATHS.md in sync with new files
+2. Update CODEBASE_SUMMARY.md for breaking changes
+3. For major refactors, update CODEBASE_ANALYSIS.md sections
+4. Update statistics if adding/removing major components
+
+## How to Use These Documents
+
+1. **For Code Review**: Start with CODEBASE_ANALYSIS.md → Section 6 (Security)
+2. **For Bug Fixes**: Use CRITICAL_PATHS.md to find related files
+3. **For New Features**: Read CODEBASE_SUMMARY.md → Common Tasks
+4. **For Understanding Flow**: See CODEBASE_ANALYSIS.md → Section 8 (Data Flows)
+5. **For Deployment**: Check CODEBASE_ANALYSIS.md → Section 11
+
+## Related Documentation
+
+- `ARCHITECTURE_STANDARDS.md` - Architecture guidelines and standards
+- `README.md` - Project setup and running instructions
+- `package.json` - Dependencies and scripts
+
+## Quick Command Reference
+
+```bash
+# Start development
+npm start
+
+# Run tests
+npm test
+npm run test:watch
+npm run test:coverage
+
+# Lint and format
+npm run lint
+npm run lint:fix
+npm run format
+
+# Build
+npm run android
+npm run ios
+npm run web
+```
+
+## Support & Resources
+
+- Bitcoin Docs: https://github.com/bitcoin/bips (BIP39, BIP84, BIP86)
+- bitcoinjs-lib: https://github.com/bitcoinjs/bitcoinjs-lib
+- Testnet Explorer: https://testnet.bitcoinexplorer.org
+- Mutinynet: https://mutinynet.com/api
+- Runes: https://docs.ordinals.com/runes
 
 ---
 
-## Risk Assessment
+**Created**: 2025-11-17  
+**Status**: Complete and Production-Ready  
+**Maintainer**: Lucas Rodriguez
 
-| Risk Type | Level | Notes |
-|-----------|-------|-------|
-| Implementation | Low | Changes are isolated, test coverage exists |
-| Performance | None | Refactoring improves maintainability only |
-| Breaking | Low | Proper exports prevent consumer breaks |
-| Timeline | Low | Realistic effort estimates |
-
----
-
-## Expected Outcomes
-
-After Phase 1 + Phase 2 refactoring:
-
-| Metric | Before | After | Change |
-|--------|--------|-------|--------|
-| Code Quality | 78 | 92 | +18% |
-| Maintainability | Good | Excellent | Major |
-| Testability | Good | Excellent | Major |
-| Development Speed | Baseline | +15-20% | Faster |
-| Technical Debt | High | Low | -40% |
-| Scalability | 15 screens | 25+ screens | Better |
-
----
-
-## Verdict
-
-**Current State:** HEALTHY
-
-The codebase demonstrates solid architectural foundations with good separation of concerns, well-organized services, and an evolving component structure.
-
-**Recommendation:** GREEN LIGHT
-
-The app can ship now. Refactoring is recommended (not blocking) to:
-- Bring code into full standards compliance
-- Improve developer experience
-- Support growth to 25+ screens
-- Reduce technical debt
-
-**Timeline:** 1-2 sprints for all critical and important issues
-
----
-
-## Questions?
-
-Refer to the relevant document:
-- Architecture questions → `ARCHITECTURE_STANDARDS.md`
-- Specific file questions → `CURRENT_STATE_ANALYSIS.md`
-- Planning questions → `ANALYSIS_EXECUTIVE_SUMMARY.txt`
-- Quick facts → `QUICK_REFERENCE.md`
-
----
-
-**Document Generated:** 2025-11-14  
-**Analysis Status:** Complete and Ready  
-**Next Review:** After Phase 1 refactoring completion
+These documents provide comprehensive reference material for developing, reviewing, and deploying the DUCAT Bitcoin wallet application to production testnet.
