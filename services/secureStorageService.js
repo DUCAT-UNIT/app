@@ -126,27 +126,61 @@ export const getCurrentAccount = async () => {
 
 /**
  * Delete all wallet data from secure storage
+ * IMPORTANT: This clears ALL wallet data including PIN, passkey, and lockout state
+ * @param {boolean} clearICloudBackup - Whether to also clear iCloud passkey backup (default: true)
  * @returns {Promise<boolean>} Success status
  */
-export const deleteWalletData = async () => {
+export const deleteWalletData = async (clearICloudBackup = true) => {
   try {
-    // Clear passkey data if it exists
+    // Clear passkey data if it exists (including iCloud backup)
     try {
       const { clearPasskeyData } = await import('./passkeyService');
-      await clearPasskeyData();
+      await clearPasskeyData(clearICloudBackup);
     } catch (passkeyError) {
       // Passkey service might not be available or error clearing - continue anyway
+      console.warn('Failed to clear passkey data:', passkeyError.message);
     }
 
+    // Clear all wallet-related secure storage keys
     await Promise.all([
+      // Wallet data
       SecureStore.deleteItemAsync(SECURE_KEYS.MNEMONIC),
       SecureStore.deleteItemAsync(SECURE_KEYS.CURRENT_ACCOUNT),
+
+      // PIN and authentication
       SecureStore.deleteItemAsync(SECURE_KEYS.PIN),
       SecureStore.deleteItemAsync(SECURE_KEYS.PIN_SALT),
+      SecureStore.deleteItemAsync(SECURE_KEYS.PIN_VERSION),
       SecureStore.deleteItemAsync(SECURE_KEYS.BIOMETRIC_ENABLED),
+
+      // PIN lockout state (from pinService.js LOCKOUT_KEYS)
+      SecureStore.deleteItemAsync('pin_failed_attempts'),
+      SecureStore.deleteItemAsync('pin_lockout_until'),
+
+      // Pending operations (from useWalletActions.js, usePostAuthHandler.js)
+      SecureStore.deleteItemAsync('pendingWalletDelete'),
+      SecureStore.deleteItemAsync('pendingFaceIdEnable'),
+      SecureStore.deleteItemAsync('pendingNotificationsEnable'),
+
+      // Settings navigation state (from useSettingsNavigation.js)
+      SecureStore.deleteItemAsync('returnToSettingsAfterAuth'),
+      SecureStore.deleteItemAsync('returnToSettingsAfterPinChange'),
+      SecureStore.deleteItemAsync('returnToSettingsAfterSeedPhrase'),
+
+      // User preferences (optional - you might want to keep these)
+      SecureStore.deleteItemAsync('notificationsEnabled'),
+      SecureStore.deleteItemAsync('showZeroAssets'),
+
+      // Passkey-related keys (belt and suspenders - clearPasskeyData should handle these)
+      SecureStore.deleteItemAsync(SECURE_KEYS.PASSKEY_ENABLED),
+      SecureStore.deleteItemAsync(SECURE_KEYS.PASSKEY_CREDENTIAL_ID),
+      SecureStore.deleteItemAsync(SECURE_KEYS.PASSKEY_USER_HANDLE),
+      SecureStore.deleteItemAsync(SECURE_KEYS.WALLET_CREATION_METHOD),
     ]);
+
     return true;
   } catch (error) {
+    console.error('Error deleting wallet data:', error.message);
     return false;
   }
 };
