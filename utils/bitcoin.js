@@ -23,6 +23,54 @@ export const MUTINYNET_NETWORK = {
   wif: 0xef,
 };
 
+// Expected network configuration for validation
+const EXPECTED_NETWORK_CONFIG = {
+  name: 'mutinynet',
+  bech32Prefix: 'tb',
+  pubKeyHash: 0x6f,
+  scriptHash: 0xc4,
+};
+
+/**
+ * Validate that the app is configured for testnet only
+ * CRITICAL: This prevents accidental use of mainnet and potential fund loss
+ * @throws {Error} If network configuration doesn't match expected testnet config
+ */
+export const validateNetworkConfig = () => {
+  // Verify bech32 prefix is testnet
+  if (MUTINYNET_NETWORK.bech32 !== EXPECTED_NETWORK_CONFIG.bech32Prefix) {
+    throw new Error(
+      `CRITICAL: Network misconfiguration detected! ` +
+      `Expected testnet (bech32: ${EXPECTED_NETWORK_CONFIG.bech32Prefix}), ` +
+      `but found: ${MUTINYNET_NETWORK.bech32}. ` +
+      `This app is testnet-only and cannot use mainnet.`
+    );
+  }
+
+  // Verify pubKeyHash is testnet
+  if (MUTINYNET_NETWORK.pubKeyHash !== EXPECTED_NETWORK_CONFIG.pubKeyHash) {
+    throw new Error(
+      `CRITICAL: Network misconfiguration detected! ` +
+      `Expected testnet pubKeyHash (0x${EXPECTED_NETWORK_CONFIG.pubKeyHash.toString(16)}), ` +
+      `but found: 0x${MUTINYNET_NETWORK.pubKeyHash.toString(16)}. ` +
+      `This app is testnet-only and cannot use mainnet.`
+    );
+  }
+
+  // Verify scriptHash is testnet
+  if (MUTINYNET_NETWORK.scriptHash !== EXPECTED_NETWORK_CONFIG.scriptHash) {
+    throw new Error(
+      `CRITICAL: Network misconfiguration detected! ` +
+      `Expected testnet scriptHash (0x${EXPECTED_NETWORK_CONFIG.scriptHash.toString(16)}), ` +
+      `but found: 0x${MUTINYNET_NETWORK.scriptHash.toString(16)}. ` +
+      `This app is testnet-only and cannot use mainnet.`
+    );
+  }
+
+  // All checks passed
+  return true;
+};
+
 /**
  * Derive SegWit and Taproot addresses from a BIP39 mnemonic
  * @param {string} mnemonic - BIP39 mnemonic phrase
@@ -30,6 +78,9 @@ export const MUTINYNET_NETWORK = {
  * @returns {Object} Object containing segwitAddress, taprootAddress, segwitPubkey, taprootPubkey
  */
 export const deriveAddressesFromMnemonic = (mnemonic, accountIndex = 0) => {
+  // CRITICAL: Validate network configuration before deriving addresses
+  validateNetworkConfig();
+
   // Convert mnemonic to seed
   const seed = bip39.mnemonicToSeedSync(mnemonic);
 

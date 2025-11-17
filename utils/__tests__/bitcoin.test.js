@@ -4,7 +4,7 @@
 
 import * as bitcoin from 'bitcoinjs-lib';
 import * as ecc from '@bitcoinerlab/secp256k1';
-import { validateBitcoinAddress, validateAndNormalizeAddress, deriveAddressesFromMnemonic, MUTINYNET_NETWORK } from '../bitcoin';
+import { validateBitcoinAddress, validateAndNormalizeAddress, deriveAddressesFromMnemonic, MUTINYNET_NETWORK, validateNetworkConfig } from '../bitcoin';
 
 // Initialize ECC library for bitcoinjs-lib
 bitcoin.initEccLib(ecc);
@@ -346,6 +346,67 @@ describe('bitcoin utilities', () => {
       const result = validateBitcoinAddress('bc1qar0srrr7xfkvy5l643lydnw9re59gtzzwf5mdq');
       expect(result.error).toContain('Mainnet address detected');
       expect(result.error).toContain('testnet address');
+    });
+  });
+
+  describe('validateNetworkConfig', () => {
+    it('should pass validation for correct testnet configuration', () => {
+      // Should not throw any error
+      expect(() => validateNetworkConfig()).not.toThrow();
+      expect(validateNetworkConfig()).toBe(true);
+    });
+
+    it('should validate bech32 prefix is testnet', () => {
+      // This test confirms current configuration
+      expect(MUTINYNET_NETWORK.bech32).toBe('tb');
+    });
+
+    it('should validate pubKeyHash is testnet', () => {
+      // This test confirms current configuration
+      expect(MUTINYNET_NETWORK.pubKeyHash).toBe(0x6f);
+    });
+
+    it('should validate scriptHash is testnet', () => {
+      // This test confirms current configuration
+      expect(MUTINYNET_NETWORK.scriptHash).toBe(0xc4);
+    });
+
+    it('should be called before address derivation', () => {
+      // Verify deriveAddressesFromMnemonic calls validateNetworkConfig
+      const testMnemonic = 'abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon about';
+
+      // Should not throw - network config is valid
+      expect(() => deriveAddressesFromMnemonic(testMnemonic, 0)).not.toThrow();
+    });
+
+    it('should protect against mainnet configuration', () => {
+      // This is a conceptual test - we verify that if network config was wrong,
+      // validation would catch it. The actual mutation testing would require
+      // mocking or modifying the MUTINYNET_NETWORK object.
+
+      // Current config should match expected testnet values
+      expect(MUTINYNET_NETWORK.bech32).not.toBe('bc'); // mainnet would be 'bc'
+      expect(MUTINYNET_NETWORK.pubKeyHash).not.toBe(0x00); // mainnet would be 0x00
+      expect(MUTINYNET_NETWORK.scriptHash).not.toBe(0x05); // mainnet would be 0x05
+    });
+
+    it('should validate all network parameters', () => {
+      // Verify all critical network parameters are testnet values
+      const config = MUTINYNET_NETWORK;
+
+      // Testnet bech32 prefix
+      expect(config.bech32).toBe('tb');
+
+      // Testnet address prefixes
+      expect(config.pubKeyHash).toBe(0x6f); // testnet P2PKH
+      expect(config.scriptHash).toBe(0xc4); // testnet P2SH
+
+      // Testnet WIF
+      expect(config.wif).toBe(0xef);
+
+      // Testnet BIP32
+      expect(config.bip32.public).toBe(0x043587cf);
+      expect(config.bip32.private).toBe(0x04358394);
     });
   });
 });

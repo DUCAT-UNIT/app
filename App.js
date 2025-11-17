@@ -34,6 +34,17 @@ import SplashScreen from './screens/SplashScreen';
 BIP32Factory(ecc); // Initializes the factory
 bitcoin.initEccLib(ecc);
 
+// CRITICAL: Validate network configuration at startup
+// This must happen before any Bitcoin operations
+import { validateNetworkConfig } from './utils/bitcoin';
+try {
+  validateNetworkConfig();
+  console.log('✅ Network validation passed: App is correctly configured for testnet');
+} catch (error) {
+  console.error('❌ CRITICAL NETWORK ERROR:', error.message);
+  throw error; // Fail fast - do not allow app to start with wrong network
+}
+
 // Initialize Sentry
 Sentry.init({
   dsn: process.env.EXPO_PUBLIC_SENTRY_DSN,
