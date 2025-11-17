@@ -1,10 +1,10 @@
 /**
- * Tests for UIContext
+ * Tests for UIContext (migrated to new split contexts)
  */
 
 import React from 'react';
 import { create, act } from 'react-test-renderer';
-import { UIProvider, useUI, useDisplayPreferences, useToastContext } from '../UIContext';
+import { UIProvider, useDisplayPreferences, useNotifications } from '../UIContext';
 
 // Helper to render hooks
 function renderHook(hook, { wrapper: Wrapper } = {}) {
@@ -32,17 +32,9 @@ describe('UIContext', () => {
     jest.useRealTimers();
   });
 
-  it('should throw error when useUI is used outside provider', () => {
-    const consoleError = jest.spyOn(console, 'error').mockImplementation(() => {});
-    expect(() => {
-      renderHook(() => useUI());
-    }).toThrow('useUI must be used within a UIProvider');
-    consoleError.mockRestore();
-  });
-
   it('should provide initial display preferences state', () => {
     const wrapper = ({ children }) => <UIProvider>{children}</UIProvider>;
-    const { result } = renderHook(() => useUI(), { wrapper });
+    const { result } = renderHook(() => useDisplayPreferences(), { wrapper });
 
     expect(result.current.showTotalInBTC).toBe(false);
     expect(result.current.showBTCInBTC).toBe(false);
@@ -60,7 +52,7 @@ describe('UIContext', () => {
 
   it('should update showTotalInBTC', () => {
     const wrapper = ({ children }) => <UIProvider>{children}</UIProvider>;
-    const { result } = renderHook(() => useUI(), { wrapper });
+    const { result } = renderHook(() => useDisplayPreferences(), { wrapper });
 
     act(() => {
       result.current.setShowTotalInBTC(true);
@@ -71,7 +63,7 @@ describe('UIContext', () => {
 
   it('should update showBTCInBTC', () => {
     const wrapper = ({ children }) => <UIProvider>{children}</UIProvider>;
-    const { result } = renderHook(() => useUI(), { wrapper });
+    const { result } = renderHook(() => useDisplayPreferences(), { wrapper });
 
     act(() => {
       result.current.setShowBTCInBTC(true);
@@ -82,7 +74,7 @@ describe('UIContext', () => {
 
   it('should update showUnitInUnit', () => {
     const wrapper = ({ children }) => <UIProvider>{children}</UIProvider>;
-    const { result } = renderHook(() => useUI(), { wrapper });
+    const { result } = renderHook(() => useDisplayPreferences(), { wrapper });
 
     act(() => {
       result.current.setShowUnitInUnit(true);
@@ -93,7 +85,7 @@ describe('UIContext', () => {
 
   it('should provide toast state and functions', () => {
     const wrapper = ({ children }) => <UIProvider>{children}</UIProvider>;
-    const { result } = renderHook(() => useUI(), { wrapper });
+    const { result } = renderHook(() => useNotifications(), { wrapper });
 
     expect(result.current.toasts).toEqual([]);
     expect(result.current.toastVisible).toBe(false);
@@ -101,9 +93,9 @@ describe('UIContext', () => {
     expect(typeof result.current.dismissToast).toBe('function');
   });
 
-  it('should provide toast via useToastContext', () => {
+  it('should provide toast via useNotifications', () => {
     const wrapper = ({ children }) => <UIProvider>{children}</UIProvider>;
-    const { result } = renderHook(() => useToastContext(), { wrapper });
+    const { result } = renderHook(() => useNotifications(), { wrapper });
 
     expect(result.current.toasts).toEqual([]);
     expect(result.current.toastVisible).toBe(false);
@@ -112,7 +104,7 @@ describe('UIContext', () => {
 
   it('should show toast with default success type', () => {
     const wrapper = ({ children }) => <UIProvider>{children}</UIProvider>;
-    const { result } = renderHook(() => useUI(), { wrapper });
+    const { result } = renderHook(() => useNotifications(), { wrapper });
 
     act(() => {
       result.current.showToast('Test message');
@@ -128,7 +120,7 @@ describe('UIContext', () => {
 
   it('should show toast with error type', () => {
     const wrapper = ({ children }) => <UIProvider>{children}</UIProvider>;
-    const { result } = renderHook(() => useUI(), { wrapper });
+    const { result } = renderHook(() => useNotifications(), { wrapper });
 
     act(() => {
       result.current.showToast('Error message', 'error');
@@ -140,7 +132,7 @@ describe('UIContext', () => {
 
   it('should auto-hide success toast after 2 seconds', () => {
     const wrapper = ({ children }) => <UIProvider>{children}</UIProvider>;
-    const { result } = renderHook(() => useUI(), { wrapper });
+    const { result } = renderHook(() => useNotifications(), { wrapper });
 
     act(() => {
       result.current.showToast('Test message', 'success');
@@ -158,7 +150,7 @@ describe('UIContext', () => {
 
   it('should auto-hide error toast after 3.5 seconds', () => {
     const wrapper = ({ children }) => <UIProvider>{children}</UIProvider>;
-    const { result } = renderHook(() => useUI(), { wrapper });
+    const { result } = renderHook(() => useNotifications(), { wrapper });
 
     act(() => {
       result.current.showToast('Error message', 'error');
@@ -181,7 +173,7 @@ describe('UIContext', () => {
 
   it('should replace existing toast when showing new one', () => {
     const wrapper = ({ children }) => <UIProvider>{children}</UIProvider>;
-    const { result } = renderHook(() => useUI(), { wrapper });
+    const { result } = renderHook(() => useNotifications(), { wrapper });
 
     act(() => {
       result.current.showToast('First message');
@@ -200,7 +192,7 @@ describe('UIContext', () => {
 
   it('should dismiss toast manually', () => {
     const wrapper = ({ children }) => <UIProvider>{children}</UIProvider>;
-    const { result } = renderHook(() => useUI(), { wrapper });
+    const { result } = renderHook(() => useNotifications(), { wrapper });
 
     act(() => {
       result.current.showToast('Test message');
@@ -219,7 +211,7 @@ describe('UIContext', () => {
 
   it('should clear timeout when dismissing toast manually', () => {
     const wrapper = ({ children }) => <UIProvider>{children}</UIProvider>;
-    const { result } = renderHook(() => useUI(), { wrapper });
+    const { result } = renderHook(() => useNotifications(), { wrapper });
 
     act(() => {
       result.current.showToast('Test message');
@@ -241,7 +233,7 @@ describe('UIContext', () => {
 
   it('should handle dismissing non-existent toast', () => {
     const wrapper = ({ children }) => <UIProvider>{children}</UIProvider>;
-    const { result } = renderHook(() => useUI(), { wrapper });
+    const { result } = renderHook(() => useNotifications(), { wrapper });
 
     act(() => {
       result.current.showToast('Test message');
@@ -259,7 +251,7 @@ describe('UIContext', () => {
   describe('Snackbar priority logic', () => {
     it('should show snackbar', () => {
       const wrapper = ({ children }) => <UIProvider>{children}</UIProvider>;
-      const { result } = renderHook(() => useUI(), { wrapper });
+      const { result } = renderHook(() => useNotifications(), { wrapper });
 
       act(() => {
         result.current.showSnackbar({ message: 'Test', type: 'success', action: 'send' });
@@ -270,7 +262,7 @@ describe('UIContext', () => {
 
     it('should allow state progression (pending -> submitted -> success)', () => {
       const wrapper = ({ children }) => <UIProvider>{children}</UIProvider>;
-      const { result } = renderHook(() => useUI(), { wrapper });
+      const { result } = renderHook(() => useNotifications(), { wrapper });
 
       act(() => {
         result.current.showSnackbar({ message: 'Pending', type: 'pending', action: 'send', txid: 'tx1' });
@@ -291,7 +283,7 @@ describe('UIContext', () => {
     it('should prevent backward state transitions', () => {
       const consoleLog = jest.spyOn(console, 'log').mockImplementation(() => {});
       const wrapper = ({ children }) => <UIProvider>{children}</UIProvider>;
-      const { result } = renderHook(() => useUI(), { wrapper });
+      const { result } = renderHook(() => useNotifications(), { wrapper });
 
       act(() => {
         result.current.showSnackbar({ message: 'Success', type: 'success', action: 'send', txid: 'tx1' });
@@ -303,14 +295,14 @@ describe('UIContext', () => {
       });
       // Should still be success, not pending
       expect(result.current.snackbar.type).toBe('success');
-      expect(consoleLog).toHaveBeenCalledWith(expect.stringContaining('Ignoring backward state transition'), 'success', '->', 'pending');
+      expect(consoleLog).toHaveBeenCalledWith(expect.stringContaining('Ignoring backward state transition'), 'success');
 
       consoleLog.mockRestore();
     });
 
     it('should always show error messages', () => {
       const wrapper = ({ children }) => <UIProvider>{children}</UIProvider>;
-      const { result } = renderHook(() => useUI(), { wrapper });
+      const { result } = renderHook(() => useNotifications(), { wrapper });
 
       act(() => {
         result.current.showSnackbar({ message: 'Success', type: 'success', action: 'send', txid: 'tx1' });
@@ -324,7 +316,7 @@ describe('UIContext', () => {
 
     it('should allow different transactions to show', () => {
       const wrapper = ({ children }) => <UIProvider>{children}</UIProvider>;
-      const { result } = renderHook(() => useUI(), { wrapper });
+      const { result } = renderHook(() => useNotifications(), { wrapper });
 
       act(() => {
         result.current.showSnackbar({ message: 'TX1 Success', type: 'success', action: 'send', txid: 'tx1' });
@@ -340,7 +332,7 @@ describe('UIContext', () => {
 
     it('should handle snackbars without txid', () => {
       const wrapper = ({ children }) => <UIProvider>{children}</UIProvider>;
-      const { result } = renderHook(() => useUI(), { wrapper });
+      const { result } = renderHook(() => useNotifications(), { wrapper });
 
       act(() => {
         result.current.showSnackbar({ message: 'General message', type: 'success', action: 'general' });
@@ -356,7 +348,7 @@ describe('UIContext', () => {
 
     it('should handle different action types independently', () => {
       const wrapper = ({ children }) => <UIProvider>{children}</UIProvider>;
-      const { result } = renderHook(() => useUI(), { wrapper });
+      const { result } = renderHook(() => useNotifications(), { wrapper });
 
       act(() => {
         result.current.showSnackbar({ message: 'Send', type: 'success', action: 'send' });
@@ -372,7 +364,7 @@ describe('UIContext', () => {
 
     it('should dismiss snackbar', () => {
       const wrapper = ({ children }) => <UIProvider>{children}</UIProvider>;
-      const { result } = renderHook(() => useUI(), { wrapper });
+      const { result } = renderHook(() => useNotifications(), { wrapper });
 
       act(() => {
         result.current.showSnackbar({ message: 'Test', type: 'success', action: 'send' });
