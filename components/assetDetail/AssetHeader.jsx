@@ -14,6 +14,8 @@ export function AssetHeader({ onBackPress }) {
       <TouchableOpacity
         style={styles.backButton}
         onPress={onBackPress}
+        activeOpacity={0.7}
+        hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
       >
         <Icon name="back" size={24} color={COLORS.WHITE} />
       </TouchableOpacity>

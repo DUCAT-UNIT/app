@@ -309,6 +309,7 @@ function AssetDetailScreen({ route = {}, navigation }) {
             offset: 72 * index,
             index,
           })}
+          nestedScrollEnabled={true}
         />
       </View>
     );
