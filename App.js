@@ -45,19 +45,120 @@ try {
   throw error; // Fail fast - do not allow app to start with wrong network
 }
 
-// Initialize Sentry
+// SECURITY: Sanitize sensitive data before sending to Sentry
+function sanitizeSensitiveData(str) {
+  if (typeof str !== 'string') return str;
+
+  return str
+    // Mnemonics (12 or 24 words separated by spaces)
+    .replace(/\b([a-z]+\s+){11,23}[a-z]+\b/gi, '[REDACTED_MNEMONIC]')
+    // Bitcoin private keys (WIF format, starts with K, L, or c for testnet)
+    .replace(/\b[KLc][1-9A-HJ-NP-Za-km-z]{51}\b/g, '[REDACTED_PRIVKEY]')
+    // Hex private keys (64 hex characters)
+    .replace(/\b[0-9a-fA-F]{64}\b/g, '[REDACTED_KEY]')
+    // PIN codes (6 digits)
+    .replace(/\b\d{6}\b/g, '[REDACTED_PIN]')
+    // PSBTs (base64, usually starts with cHNi)
+    .replace(/cHNi[A-Za-z0-9+/=]{100,}/g, '[REDACTED_PSBT]');
+}
+
+function sanitizeObject(obj, depth = 0) {
+  if (!obj || typeof obj !== 'object' || depth > 5) return obj;
+
+  const sanitized = Array.isArray(obj) ? [] : {};
+
+  for (const [key, value] of Object.entries(obj)) {
+    // Skip sensitive keys entirely
+    const sensitiveKeys = /mnemonic|seed|private|secret|password|pin|passkey|credential/i;
+    if (sensitiveKeys.test(key)) {
+      sanitized[key] = '[REDACTED]';
+      continue;
+    }
+
+    if (typeof value === 'string') {
+      sanitized[key] = sanitizeSensitiveData(value);
+    } else if (typeof value === 'object' && value !== null) {
+      sanitized[key] = sanitizeObject(value, depth + 1);
+    } else {
+      sanitized[key] = value;
+    }
+  }
+
+  return sanitized;
+}
+
+// Initialize Sentry with comprehensive sanitization
 Sentry.init({
   dsn: process.env.EXPO_PUBLIC_SENTRY_DSN,
   environment: __DEV__ ? 'development' : 'production',
   enabled: true, // TEMPORARILY enabled in dev to test
   tracesSampleRate: 1.0, // Capture 100% of transactions for performance monitoring
+
   beforeSend(event, _hint) {
-    // Filter out sensitive data before sending to Sentry
+    // SECURITY: Sanitize all sensitive data before sending to Sentry
+
+    // Sanitize request data
     if (event.request) {
       delete event.request.cookies;
       delete event.request.headers;
+
+      if (event.request.data) {
+        event.request.data = sanitizeObject(event.request.data);
+      }
     }
+
+    // Sanitize exception messages
+    if (event.exception?.values) {
+      event.exception.values.forEach((exception) => {
+        if (exception.value) {
+          exception.value = sanitizeSensitiveData(exception.value);
+        }
+
+        // Sanitize stack trace variables
+        if (exception.stacktrace?.frames) {
+          exception.stacktrace.frames.forEach((frame) => {
+            if (frame.vars) {
+              frame.vars = sanitizeObject(frame.vars);
+            }
+          });
+        }
+      });
+    }
+
+    // Sanitize breadcrumbs
+    if (event.breadcrumbs) {
+      event.breadcrumbs.forEach((breadcrumb) => {
+        if (breadcrumb.message) {
+          breadcrumb.message = sanitizeSensitiveData(breadcrumb.message);
+        }
+        if (breadcrumb.data) {
+          breadcrumb.data = sanitizeObject(breadcrumb.data);
+        }
+      });
+    }
+
+    // Sanitize extra context
+    if (event.extra) {
+      event.extra = sanitizeObject(event.extra);
+    }
+
+    // Sanitize contexts
+    if (event.contexts) {
+      event.contexts = sanitizeObject(event.contexts);
+    }
+
     return event;
+  },
+
+  beforeBreadcrumb(breadcrumb, _hint) {
+    // Sanitize breadcrumb before it's added
+    if (breadcrumb.message) {
+      breadcrumb.message = sanitizeSensitiveData(breadcrumb.message);
+    }
+    if (breadcrumb.data) {
+      breadcrumb.data = sanitizeObject(breadcrumb.data);
+    }
+    return breadcrumb;
   },
 });
 
