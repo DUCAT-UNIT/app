@@ -4,16 +4,20 @@
 
 import * as bip39 from 'bip39';
 import * as SecureStore from 'expo-secure-store';
-import { Passkey } from 'react-native-passkey';
 import { SECURE_KEYS } from '../../utils/constants';
-import { PASSKEY } from '../../constants/security';
 import { deriveAddressesFromMnemonic } from '../../utils/bitcoin';
 import { logger } from '../../utils/logger';
-import { saveToICloud, loadFromICloud, checkICloudAvailability } from '../icloudStorage';
-import { getRandomValues } from 'react-native-quick-crypto';
+import { checkICloudAvailability } from '../icloudStorage';
 
-import { PASSKEY_KEYS, toBase64Url, fromBase64Url, isPasskeySupported } from './core';
+import { isPasskeySupported } from './core';
 import { generateRandomMnemonic, deriveEncryptionKey, encryptMnemonic } from './encryption';
+import { createPasskeyCredential } from './credentialCreation';
+import {
+  storePasskeyData,
+  backupToICloudWithVerification,
+  storeStandardMnemonic,
+  setCurrentAccount,
+} from './passkeyStorage';
 
 /**
  * Create a new wallet with passkey
@@ -46,52 +50,8 @@ export const createWalletWithPasskey = async ({ userName, userDisplayName, pin }
     }
     createDebugLog += `✅ iCloud is available\n\n`;
 
-    // Generate challenge and user ID
-    const challenge = new Uint8Array(32);
-    getRandomValues(challenge);
-
-    const userId = new Uint8Array(16);
-    getRandomValues(userId);
-
-    // Create FIDO2 registration request
-    const rp = { name: PASSKEY.RP_NAME };
-    if (PASSKEY.RP_ID) {
-      rp.id = PASSKEY.RP_ID;
-    }
-
-    const requestJson = {
-      challenge: toBase64Url(challenge),
-      rp,
-      user: {
-        id: toBase64Url(userId),
-        name: userName || `user-${Date.now()}`,
-        displayName: userDisplayName || 'Ducat User',
-      },
-      pubKeyCredParams: [
-        { alg: -7, type: 'public-key' }, // ES256
-        { alg: -257, type: 'public-key' }, // RS256
-      ],
-      timeout: PASSKEY.TIMEOUT_MS,
-      authenticatorSelection: {
-        authenticatorAttachment: 'platform',
-        userVerification: PASSKEY.USER_VERIFICATION,
-        residentKey: PASSKEY.RESIDENT_KEY,
-      },
-      attestation: PASSKEY.ATTESTATION,
-    };
-
-    logger.debug('Creating passkey credential...');
-
     // Create passkey credential
-    const result = await Passkey.create(requestJson);
-
-    logger.debug('Passkey credential created', { credentialId: result.id });
-
-    // Extract stable identifiers from credential
-    const credentialId = new Uint8Array(fromBase64Url(result.id));
-    const userHandle = result.response.userHandle
-      ? new Uint8Array(fromBase64Url(result.response.userHandle))
-      : userId; // Fallback to userId if userHandle not provided
+    const { credentialId, userHandle } = await createPasskeyCredential(userName, userDisplayName);
 
     logger.debug('Generating random mnemonic...');
 
@@ -127,54 +87,41 @@ export const createWalletWithPasskey = async ({ userName, userDisplayName, pin }
     const { encrypted, iv, tag } = await encryptMnemonic(mnemonic, encryptionKey);
 
     // Store passkey data in SecureStore
-    await SecureStore.setItemAsync(PASSKEY_KEYS.ENABLED, 'true');
-    await SecureStore.setItemAsync(PASSKEY_KEYS.CREATION_METHOD, 'passkey');
-    await SecureStore.setItemAsync(
-      PASSKEY_KEYS.CREDENTIAL_ID,
-      Buffer.from(credentialId).toString('base64')
-    );
-    await SecureStore.setItemAsync(
-      PASSKEY_KEYS.USER_HANDLE,
-      Buffer.from(userHandle).toString('base64')
-    );
-    await SecureStore.setItemAsync(PASSKEY_KEYS.ENCRYPTED_MNEMONIC, encrypted);
-    await SecureStore.setItemAsync(PASSKEY_KEYS.ENCRYPTION_IV, iv);
-    await SecureStore.setItemAsync(PASSKEY_KEYS.ENCRYPTION_TAG, tag);
+    await storePasskeyData({
+      credentialId,
+      userHandle,
+      encrypted,
+      iv,
+      tag,
+      creationMethod: 'passkey',
+    });
 
     // Also store mnemonic in standard location (for backward compatibility)
-    await SecureStore.setItemAsync(SECURE_KEYS.MNEMONIC, mnemonic);
+    await storeStandardMnemonic(mnemonic);
 
     // Save current account (always 0 for new wallets)
-    await SecureStore.setItemAsync(SECURE_KEYS.CURRENT_ACCOUNT, '0');
+    await setCurrentAccount(0);
 
     // Backup encrypted mnemonic to iCloud (including PIN salt for recovery)
     let icloudBackupSucceeded = false;
     let icloudDebugInfo = '';
+    let verificationLog = '';
+
     try {
-      icloudDebugInfo = await saveToICloud({
+      const backup = await backupToICloudWithVerification({
         encrypted,
         iv,
         tag,
-        credentialId: Buffer.from(credentialId).toString('base64'),
-        userHandle: Buffer.from(userHandle).toString('base64'),
-        pinSalt, // CRITICAL: needed for 10k iteration hashing on recovery
+        credentialId,
+        userHandle,
+        pinSalt,
       });
-      logger.debug('Encrypted backup saved to iCloud');
+      icloudDebugInfo = backup.debugInfo;
+      verificationLog = backup.verificationLog;
       icloudBackupSucceeded = true;
     } catch (icloudError) {
       icloudDebugInfo = icloudError.message;
-      // iCloud backup failed - wallet still created but recovery won't work
-      logger.error('CRITICAL: iCloud backup failed during wallet creation', {
-        error: icloudError.message,
-        errorCode: icloudError.code,
-        errorName: icloudError.name,
-        stack: icloudError.stack,
-        hasICloudAccess: 'Check if user is signed into iCloud',
-        hasStorageSpace: 'Check if iCloud storage is full',
-        hasNetwork: 'Check if device has internet connection',
-      });
-      // Throw detailed error for TestFlight debugging
-      throw new Error(`iCloud backup failed during wallet creation.\n\nError: ${icloudError.message}\nCode: ${icloudError.code || 'N/A'}\nName: ${icloudError.name || 'N/A'}\n\nCheck:\n- iCloud is enabled in Settings\n- Signed into iCloud\n- Has storage space\n- Has network connection`);
+      throw icloudError; // Re-throw for error handling
     }
 
     logger.debug('Wallet created with passkey successfully', {
@@ -182,20 +129,6 @@ export const createWalletWithPasskey = async ({ userName, userDisplayName, pin }
       taprootAddress: addresses.taprootAddress,
       icloudBackup: icloudBackupSucceeded,
     });
-
-    // Immediately verify the save worked by trying to load it back
-    let verificationLog = '\n\n=== VERIFICATION (immediate read-back) ===\n';
-    try {
-      const verifyBackup = await loadFromICloud();
-      verificationLog += '✅ iCloud data verified - immediate read-back successful\n';
-      verificationLog += `Keys found: ${Object.keys(verifyBackup).filter(k => k !== '_debugInfo').join(', ')}\n`;
-      if (verifyBackup._debugInfo) {
-        verificationLog += '\n' + verifyBackup._debugInfo;
-      }
-    } catch (verifyError) {
-      verificationLog += '❌ iCloud verification failed\n';
-      verificationLog += verifyError.message;
-    }
 
     return {
       mnemonic,
@@ -240,47 +173,8 @@ export const addPasskeyToExistingWallet = async (mnemonic, userName, userDisplay
       throw new Error('Passkeys are not supported on this device');
     }
 
-    // Generate challenge and user ID
-    const challenge = new Uint8Array(32);
-    getRandomValues(challenge);
-
-    const userId = new Uint8Array(16);
-    getRandomValues(userId);
-
-    // Create FIDO2 registration request
-    const rp = { name: PASSKEY.RP_NAME };
-    if (PASSKEY.RP_ID) {
-      rp.id = PASSKEY.RP_ID;
-    }
-
-    const requestJson = {
-      challenge: toBase64Url(challenge),
-      rp,
-      user: {
-        id: toBase64Url(userId),
-        name: userName || `user-${Date.now()}`,
-        displayName: userDisplayName || 'Ducat User',
-      },
-      pubKeyCredParams: [
-        { alg: -7, type: 'public-key' },
-        { alg: -257, type: 'public-key' },
-      ],
-      timeout: PASSKEY.TIMEOUT_MS,
-      authenticatorSelection: {
-        authenticatorAttachment: 'platform',
-        userVerification: PASSKEY.USER_VERIFICATION,
-        residentKey: PASSKEY.RESIDENT_KEY,
-      },
-      attestation: PASSKEY.ATTESTATION,
-    };
-
     // Create passkey credential
-    const result = await Passkey.create(requestJson);
-
-    const credentialId = new Uint8Array(fromBase64Url(result.id));
-    const userHandle = result.response.userHandle
-      ? new Uint8Array(fromBase64Url(result.response.userHandle))
-      : userId;
+    const { credentialId, userHandle } = await createPasskeyCredential(userName, userDisplayName);
 
     // Validate PIN
     if (!pin || pin.length !== 6) {
@@ -307,36 +201,29 @@ export const addPasskeyToExistingWallet = async (mnemonic, userName, userDisplay
     // Encrypt existing mnemonic
     const { encrypted, iv, tag } = await encryptMnemonic(mnemonic, encryptionKey);
 
-    // Store passkey data
-    await SecureStore.setItemAsync(PASSKEY_KEYS.ENABLED, 'true');
-    await SecureStore.setItemAsync(
-      PASSKEY_KEYS.CREDENTIAL_ID,
-      Buffer.from(credentialId).toString('base64')
-    );
-    await SecureStore.setItemAsync(
-      PASSKEY_KEYS.USER_HANDLE,
-      Buffer.from(userHandle).toString('base64')
-    );
-    await SecureStore.setItemAsync(PASSKEY_KEYS.ENCRYPTED_MNEMONIC, encrypted);
-    await SecureStore.setItemAsync(PASSKEY_KEYS.ENCRYPTION_IV, iv);
-    await SecureStore.setItemAsync(PASSKEY_KEYS.ENCRYPTION_TAG, tag);
+    // Store passkey data (no creation method - wallet already exists)
+    await storePasskeyData({
+      credentialId,
+      userHandle,
+      encrypted,
+      iv,
+      tag,
+    });
 
     // Backup to iCloud (including PIN salt)
     try {
-      await saveToICloud({
+      await backupToICloudWithVerification({
         encrypted,
         iv,
         tag,
-        credentialId: Buffer.from(credentialId).toString('base64'),
-        userHandle: Buffer.from(userHandle).toString('base64'),
+        credentialId,
+        userHandle,
         pinSalt,
       });
       logger.debug('Passkey backup saved to iCloud');
     } catch (icloudError) {
       logger.error('CRITICAL: iCloud backup failed when adding passkey to wallet', {
         error: icloudError.message,
-        errorCode: icloudError.code,
-        errorName: icloudError.name,
         recommendation: 'User should check iCloud settings and retry adding passkey',
       });
       // Re-throw so caller knows backup failed

@@ -76,13 +76,25 @@ export const PendingTransactionsProvider = ({ children, currentAccount, showToas
     setPendingTransactions(updated);
     await savePendingTransactions(updated);
 
-    // Clean up spent UTXOs - when a transaction confirms, its inputs are truly spent on-chain
-    // We can remove them from our tracking set
-    const _updatedSpent = new Set(spentUtxos);
-    // Keep the spent set for now - we'll clean it up periodically
-    // Actually, we should keep them to prevent reuse until they're confirmed
+    // CRITICAL: Clear the spent UTXOs set when a transaction confirms
+    // Once a transaction confirms on-chain:
+    // 1. Its inputs are permanently spent (won't appear in blockchain queries)
+    // 2. Its outputs become confirmed UTXOs (will appear in blockchain queries)
+    // 3. We no longer need to track which UTXOs are "locked" for pending txs
+    //
+    // Clearing the set ensures that new confirmed UTXOs can be used immediately.
+    // This fixes the "No confirmed funds available" error that occurs when all
+    // UTXOs remain marked as spent even after transactions confirm.
+    //
+    // This is safe because:
+    // - Confirmed UTXOs from blockchain are by definition unspent
+    // - Pending transaction outputs are tracked separately in pendingTransactions
+    // - The blockchain is the source of truth once transactions confirm
+    const clearedSpent = new Set();
+    setSpentUtxos(clearedSpent);
+    await saveSpentUtxos(clearedSpent);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [pendingTransactions, spentUtxos, currentAccount]);
+  }, [pendingTransactions, currentAccount]);
 
   /**
    * Invalidate a transaction and all its children

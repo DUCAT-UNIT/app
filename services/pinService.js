@@ -4,123 +4,23 @@
  */
 
 import * as SecureStore from 'expo-secure-store';
-import * as Crypto from 'expo-crypto';
-import { pbkdf2Sync } from 'react-native-quick-crypto';
-
-// Manual constant-time comparison since timingSafeEqual isn't available
-const timingSafeEqual = (a, b) => {
-  if (a.length !== b.length) {
-    return false;
-  }
-  let result = 0;
-  for (let i = 0; i < a.length; i++) {
-    result |= a[i] ^ b[i];
-  }
-  return result === 0;
-};
 import { SECURE_KEYS, PIN_HASH_VERSION } from '../utils/constants';
-import { PIN, CRYPTO } from '../constants/security';
-
-// Rate limiting for PIN attempts
-const MAX_PIN_ATTEMPTS = PIN.MAX_ATTEMPTS;
-const LOCKOUT_DURATION = PIN.LOCKOUT_DURATION_MS;
-
-// Secure storage keys for lockout state
-const LOCKOUT_KEYS = {
-  FAILED_ATTEMPTS: 'pin_failed_attempts',
-  LOCKOUT_UNTIL: 'pin_lockout_until',
-};
-
-/**
- * Load lockout state from secure storage
- * @returns {Promise<{failedAttempts: number, lockoutUntil: number|null}>}
- */
-const loadLockoutState = async () => {
-  try {
-    const failedAttempts = await SecureStore.getItemAsync(LOCKOUT_KEYS.FAILED_ATTEMPTS);
-    const lockoutUntil = await SecureStore.getItemAsync(LOCKOUT_KEYS.LOCKOUT_UNTIL);
-
-    return {
-      failedAttempts: failedAttempts ? parseInt(failedAttempts, 10) : 0,
-      lockoutUntil: lockoutUntil ? parseInt(lockoutUntil, 10) : null,
-    };
-  } catch (error) {
-    // If we can't load state, return safe defaults
-    return {
-      failedAttempts: 0,
-      lockoutUntil: null,
-    };
-  }
-};
-
-/**
- * Save lockout state to secure storage
- * CRITICAL: This function throws on failure (fail closed for security)
- * If we can't save lockout state, we must deny access to prevent unlimited attempts
- * @param {number} failedAttempts
- * @param {number|null} lockoutUntil
- * @throws {Error} If lockout state cannot be saved (security critical)
- */
-const saveLockoutState = async (failedAttempts, lockoutUntil) => {
-  try {
-    await SecureStore.setItemAsync(LOCKOUT_KEYS.FAILED_ATTEMPTS, failedAttempts.toString());
-    if (lockoutUntil) {
-      await SecureStore.setItemAsync(LOCKOUT_KEYS.LOCKOUT_UNTIL, lockoutUntil.toString());
-    } else {
-      await SecureStore.deleteItemAsync(LOCKOUT_KEYS.LOCKOUT_UNTIL);
-    }
-  } catch (error) {
-    // SECURITY: Fail closed - if we can't save lockout state, throw error
-    // This prevents attackers from triggering storage failures to bypass rate limiting
-    logger.error('CRITICAL: Failed to save lockout state', {
-      error: error.message,
-      failedAttempts,
-      lockoutUntil,
-      recommendation: 'Check device storage space and permissions',
-    });
-    throw new Error('Unable to enforce rate limiting. Access denied for security.');
-  }
-};
-
-/**
- * Generate a cryptographically secure random salt
- * @returns {Promise<string>} Random salt in hex format
- */
-const generateSalt = async () => {
-  const randomBytes = await Crypto.getRandomBytesAsync(CRYPTO.SALT_LENGTH_BYTES);
-  return Array.from(randomBytes)
-    .map((byte) => byte.toString(16).padStart(2, '0'))
-    .join('');
-};
-
-/**
- * Hash a PIN using standard PBKDF2 with HMAC-SHA512
- * Uses 10,000 iterations as a balance between security and mobile performance
- * Combined with rate limiting (10 attempts, 30min lockout) this provides strong protection
- * @param {string} pin - PIN to hash
- * @param {string} salt - Unique salt for this user (hex string)
- * @returns {Promise<string>} Hashed PIN (hex string)
- */
-const hashPin = async (pin, salt) => {
-  try {
-    // Use standard PBKDF2 with HMAC-SHA512
-    // - password: user's PIN
-    // - salt: unique 32-byte salt (hex string converted to buffer)
-    // - iterations: 10,000 (configured)
-    // - keylen: 64 bytes (512 bits) to match SHA512 output
-    // - digest: sha512
-    const derivedKey = pbkdf2Sync(
-      pin,
-      Buffer.from(salt, 'hex'),
-      CRYPTO.PIN_HASH_ITERATIONS,
-      64, // 64 bytes = 512 bits
-      'sha512'
-    );
-    return derivedKey.toString('hex');
-  } catch (error) {
-    throw new Error('PIN hashing failed: ' + error.message);
-  }
-};
+import { logger } from '../utils/logger';
+import {
+  loadLockoutState,
+  saveLockoutState,
+  checkPinLockout,
+  resetPinAttempts,
+  getRemainingPinAttempts,
+  recordFailedAttempt,
+  getMaxPinAttempts,
+} from './pinLockout';
+import {
+  generateSalt,
+  hashPin,
+  hashPinLegacy,
+  verifyPinHash,
+} from './pinHashing';
 
 /**
  * Export PIN hashing for use in passkey encryption
@@ -130,16 +30,6 @@ const hashPin = async (pin, salt) => {
  * @returns {Promise<string>} Hashed PIN
  */
 export const hashPinForEncryption = hashPin;
-
-/**
- * Hash PIN using legacy SHA256 method (for migration support)
- * @param {string} pin - PIN to hash
- * @param {string} salt - Salt
- * @returns {Promise<string>} Hashed PIN
- */
-const hashPinLegacy = async (pin, salt) => {
-  return await Crypto.digestStringAsync(Crypto.CryptoDigestAlgorithm.SHA256, pin + salt);
-};
 
 /**
  * Save PIN to secure storage (hashed with unique salt)
@@ -261,41 +151,8 @@ export const savePinWithExistingSalt = async (pin, existingSalt) => {
   }
 };
 
-/**
- * Check if PIN attempts are currently locked out
- * @returns {Promise<{isLocked: boolean, remainingTime?: number}>} Lock status
- */
-export const checkPinLockout = async () => {
-  const { lockoutUntil } = await loadLockoutState();
-
-  if (lockoutUntil && Date.now() < lockoutUntil) {
-    const remainingTime = Math.ceil((lockoutUntil - Date.now()) / 1000 / 60); // minutes
-    return { isLocked: true, remainingTime };
-  }
-
-  // If lockout has expired, clear it
-  if (lockoutUntil && Date.now() >= lockoutUntil) {
-    await saveLockoutState(0, null);
-  }
-
-  return { isLocked: false };
-};
-
-/**
- * Reset PIN attempt counter (call after successful authentication)
- */
-export const resetPinAttempts = async () => {
-  await saveLockoutState(0, null);
-};
-
-/**
- * Get remaining PIN attempts before lockout
- * @returns {Promise<number>} Remaining attempts
- */
-export const getRemainingPinAttempts = async () => {
-  const { failedAttempts } = await loadLockoutState();
-  return Math.max(0, MAX_PIN_ATTEMPTS - failedAttempts);
-};
+// Re-export lockout management functions
+export { checkPinLockout, resetPinAttempts, getRemainingPinAttempts };
 
 /**
  * Verify entered PIN against stored hashed PIN with rate limiting
@@ -344,19 +201,7 @@ export const verifyPin = async (enteredPin) => {
     }
 
     // Use constant-time comparison to prevent timing attacks
-    // Convert hex strings to buffers for secure comparison
-    let isValid = false;
-    try {
-      const storedBuffer = Buffer.from(storedHashedPin, 'hex');
-      const enteredBuffer = Buffer.from(enteredHashedPin, 'hex');
-      // timingSafeEqual requires same length, so check length first (constant time)
-      isValid = storedBuffer.length === enteredBuffer.length &&
-                storedBuffer.length > 0 &&
-                timingSafeEqual(storedBuffer, enteredBuffer);
-    } catch (error) {
-      // If comparison fails (e.g., invalid hex), treat as invalid PIN
-      isValid = false;
-    }
+    const isValid = verifyPinHash(storedHashedPin, enteredHashedPin);
 
     if (isValid) {
       // Success - reset attempts
@@ -372,14 +217,10 @@ export const verifyPin = async (enteredPin) => {
 
       return { success: true };
     } else {
-      // Failed attempt - increment and save
-      const newFailedAttempts = failedAttempts + 1;
+      // Failed attempt - record it and check for lockout
+      const result = await recordFailedAttempt(failedAttempts);
 
-      // Check if we've hit the limit
-      if (newFailedAttempts >= MAX_PIN_ATTEMPTS) {
-        const lockoutUntil = Date.now() + LOCKOUT_DURATION;
-        await saveLockoutState(newFailedAttempts, lockoutUntil);
-
+      if (result.shouldLockout) {
         return {
           success: false,
           error: 'Too many failed attempts. Account locked for 30 minutes.',
@@ -387,13 +228,10 @@ export const verifyPin = async (enteredPin) => {
         };
       }
 
-      // Save the updated attempt count
-      await saveLockoutState(newFailedAttempts, null);
-
       return {
         success: false,
         error: 'Incorrect PIN',
-        remainingAttempts: Math.max(0, MAX_PIN_ATTEMPTS - newFailedAttempts),
+        remainingAttempts: Math.max(0, getMaxPinAttempts() - result.newFailedAttempts),
       };
     }
   } catch (error) {

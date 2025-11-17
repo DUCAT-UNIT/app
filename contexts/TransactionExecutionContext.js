@@ -176,6 +176,13 @@ export const TransactionExecutionProvider = ({
       setIntentStep('pending');
       setToastDismissed(false);
 
+      // CRITICAL: Clear the send intent after successful broadcast
+      // This prevents the old intent from being used as exclusion criteria
+      // when creating the next transaction. Without this, the next transaction
+      // would exclude UTXOs that were inputs to this (now broadcast) transaction,
+      // even though those UTXOs are already spent on-chain.
+      setSendIntent(null);
+
       // Add to background monitoring
       const assetType = sendAssetType === 'unit' ? 'UNIT' : 'BTC';
       await BackgroundTaskService.addPendingTransaction(txid, assetType, sendAmount, 'withdraw');
