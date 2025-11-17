@@ -186,36 +186,44 @@ export const TransactionBuildProvider = ({ children, wallet, currentAccount, sho
 
     logger.debug('🚫 Canceling transaction intent:', sendIntent.id);
 
-    // Collect all UTXOs that need to be released
-    const utxosToRelease = [];
+    // CRITICAL: Only release UTXOs if transaction was NOT broadcast
+    // If txid exists, the transaction was broadcast and UTXOs are spent on-chain
+    const wasBroadcast = !!sendIntent.txid;
 
-    // BTC transaction inputs
-    if (sendIntent.inputs && Array.isArray(sendIntent.inputs)) {
-      sendIntent.inputs.forEach(input => {
-        utxosToRelease.push({ txid: input.txid, vout: input.vout });
-      });
-    }
+    if (wasBroadcast) {
+      logger.debug('⚠️ Transaction was already broadcast - NOT releasing UTXOs (they are spent on-chain)');
+    } else {
+      // Collect all UTXOs that need to be released
+      const utxosToRelease = [];
 
-    // UNIT transaction - rune UTXO
-    if (sendIntent.runeUtxo) {
-      utxosToRelease.push({
-        txid: sendIntent.runeUtxo.transaction,
-        vout: sendIntent.runeUtxo.vout,
-      });
-    }
+      // BTC transaction inputs
+      if (sendIntent.inputs && Array.isArray(sendIntent.inputs)) {
+        sendIntent.inputs.forEach(input => {
+          utxosToRelease.push({ txid: input.txid, vout: input.vout });
+        });
+      }
 
-    // UNIT transaction - sat UTXO (for fees)
-    if (sendIntent.satUtxo) {
-      utxosToRelease.push({
-        txid: sendIntent.satUtxo.txid,
-        vout: sendIntent.satUtxo.vout,
-      });
-    }
+      // UNIT transaction - rune UTXO
+      if (sendIntent.runeUtxo) {
+        utxosToRelease.push({
+          txid: sendIntent.runeUtxo.transaction,
+          vout: sendIntent.runeUtxo.vout,
+        });
+      }
 
-    // Release all locked UTXOs
-    if (utxosToRelease.length > 0) {
-      logger.debug('✅ Releasing', utxosToRelease.length, 'UTXOs from canceled intent');
-      await unmarkUtxosAsSpent(utxosToRelease);
+      // UNIT transaction - sat UTXO (for fees)
+      if (sendIntent.satUtxo) {
+        utxosToRelease.push({
+          txid: sendIntent.satUtxo.txid,
+          vout: sendIntent.satUtxo.vout,
+        });
+      }
+
+      // Release all locked UTXOs
+      if (utxosToRelease.length > 0) {
+        logger.debug('✅ Releasing', utxosToRelease.length, 'UTXOs from canceled intent');
+        await unmarkUtxosAsSpent(utxosToRelease);
+      }
     }
 
     // Clear the intent
