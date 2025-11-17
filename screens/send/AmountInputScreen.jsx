@@ -9,9 +9,7 @@ import {
   View,
   TouchableOpacity,
   TextInput,
-  Pressable,
   StyleSheet,
-  ActivityIndicator,
 } from 'react-native';
 import { COLORS } from '../../theme';
 import Icon from '../../components/icons';
@@ -22,8 +20,8 @@ import { usePrice } from '../../contexts/PriceContext';
 import { useWallet } from '../../contexts/WalletContext';
 import { useTransactionBuild } from '../../contexts/TransactionBuildContext';
 import { useKeyboard } from '../../hooks/useKeyboard';
-import { calculateMaxSendableBTC } from '../../services/transactionCalculationService';
-import { logger } from '../../utils/logger';
+import { useAmountInput } from '../../hooks/useAmountInput';
+import { RecipientHeader, BalanceMaxButton } from '../../components/amountInput';
 
 export default function AmountInputScreen({ navigation }) {
   const { sendAssetType, sendAmount, setSendAmount, sendRecipient, sendAddressType } = useSendFlow();
@@ -33,14 +31,17 @@ export default function AmountInputScreen({ navigation }) {
   const { createSendIntent: _createSendIntent } = useTransactionBuild();
   const { keyboardHeight } = useKeyboard();
   const amountInputRef = useRef(null);
-  const [isCalculatingMax, setIsCalculatingMax] = React.useState(false);
 
-  // Calculate balance based on asset type
-  const btcBalance = (segwitBalance || 0) + (taprootBalance || 0);
-  const unitBalance =
-    runesBalance && runesBalance.length > 0 ? parseFloat(runesBalance[0][1]) : 0;
-  const balance = sendAssetType === 'btc' ? btcBalance : unitBalance;
-  const assetLabel = sendAssetType === 'btc' ? 'BTC' : 'UNIT';
+  // Use amount input hook for balance calculations and MAX functionality
+  const { balance, assetLabel, isCalculatingMax, handleMaxPress, calculateUsdValue } = useAmountInput({
+    sendAssetType,
+    segwitBalance,
+    taprootBalance,
+    runesBalance,
+    wallet,
+    sendAddressType,
+    setSendAmount,
+  });
 
   // Determine address type from recipient
   const addressType =
@@ -75,32 +76,6 @@ export default function AmountInputScreen({ navigation }) {
     }
   };
 
-  const handleMaxPress = async () => {
-    if (sendAssetType === 'btc') {
-      setIsCalculatingMax(true);
-      try {
-        const sourceAddress = sendAddressType === 'taproot'
-          ? wallet?.taprootAddress
-          : wallet?.segwitAddress;
-
-        const maxSendable = await calculateMaxSendableBTC({
-          sourceAddress,
-          btcBalance,
-        });
-        setSendAmount(String(maxSendable));
-      } catch (error) {
-        logger.error('Error calculating max:', error);
-        // Fallback to balance
-        setSendAmount(String(balance || 0));
-      } finally {
-        setIsCalculatingMax(false);
-      }
-    } else {
-      // For UNIT, just use full balance
-      setSendAmount(String(balance || 0));
-    }
-  };
-
   const handleReview = () => {
     if (!sendAmount) return;
 
@@ -113,64 +88,27 @@ export default function AmountInputScreen({ navigation }) {
     });
   };
 
-  const usdValue =
-    sendAmount && (sendAssetType === 'btc' ? btcPrice : 1)
-      ? (parseFloat(sendAmount) * (sendAssetType === 'btc' ? btcPrice : 1)).toLocaleString(
-          'en-US',
-          { minimumFractionDigits: 2, maximumFractionDigits: 2 }
-        )
-      : '0.00';
+  const usdValue = calculateUsdValue(sendAmount, btcPrice);
 
   return (
     <View style={localStyles.container}>
-      {/* Header with back button and recipient info on same line */}
-      <View style={localStyles.header}>
-        <TouchableOpacity onPress={() => navigation.goBack()} style={localStyles.backButton}>
-          <Icon name="back" size={24} color={COLORS.VERY_LIGHT_GRAY} />
-        </TouchableOpacity>
-
-        <View style={localStyles.recipientContainer}>
-          <View style={localStyles.recipientLeft}>
-            <Text style={localStyles.recipientLabel}>To:</Text>
-            <Text style={localStyles.recipientAddress}>
-              {sendRecipient.substring(0, 8)}...
-              {sendRecipient.substring(sendRecipient.length - 6)}
-            </Text>
-          </View>
-          <View style={localStyles.addressTypeTag}>
-            <Text style={localStyles.addressTypeText}>{addressType}</Text>
-          </View>
-        </View>
-      </View>
+      {/* Header with back button and recipient info */}
+      <RecipientHeader
+        onBackPress={() => navigation.goBack()}
+        recipientAddress={sendRecipient}
+        addressType={addressType}
+      />
 
       {/* Content */}
       <View style={localStyles.content}>
         {/* Balance and MAX button */}
-        <View style={localStyles.balanceRow}>
-          <Text style={localStyles.balanceLabel}>
-            {assetLabel} Balance:{' '}
-            {sendAssetType === 'btc'
-              ? (balance || 0).toLocaleString('en-US', {
-                  minimumFractionDigits: 0,
-                  maximumFractionDigits: 8,
-                })
-              : (balance || 0).toLocaleString('en-US', {
-                  minimumFractionDigits: 0,
-                  maximumFractionDigits: 0,
-                })}
-          </Text>
-          <Pressable
-            style={localStyles.maxButton}
-            onPress={handleMaxPress}
-            disabled={isCalculatingMax}
-          >
-            {isCalculatingMax ? (
-              <ActivityIndicator size="small" color={COLORS.WHITE} />
-            ) : (
-              <Text style={localStyles.maxButtonText}>MAX</Text>
-            )}
-          </Pressable>
-        </View>
+        <BalanceMaxButton
+          assetLabel={assetLabel}
+          balance={balance}
+          assetType={sendAssetType}
+          onMaxPress={handleMaxPress}
+          isCalculating={isCalculatingMax}
+        />
 
         {/* Amount input */}
         <View style={localStyles.amountInputRow}>
@@ -224,89 +162,10 @@ const localStyles = StyleSheet.create({
     flex: 1,
     backgroundColor: COLORS.DARK_BG,
   },
-  header: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    paddingTop: 60,
-    paddingHorizontal: 20,
-    paddingBottom: 20,
-  },
-  backButton: {
-    width: 40,
-    height: 40,
-    justifyContent: 'center',
-    marginRight: 12,
-  },
-  recipientContainer: {
-    flex: 1,
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    backgroundColor: COLORS.CARD_BG,
-    borderRadius: 12,
-    paddingVertical: 12,
-    paddingHorizontal: 16,
-    borderWidth: 1,
-    borderColor: COLORS.BORDER_COLOR,
-  },
-  recipientLeft: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    flex: 1,
-  },
-  recipientLabel: {
-    fontSize: 14,
-    color: COLORS.SECONDARY_TEXT,
-    marginRight: 8,
-    fontFamily: 'CabinetGrotesk-Regular',
-  },
-  recipientAddress: {
-    fontSize: 14,
-    color: COLORS.VERY_LIGHT_GRAY,
-    fontFamily: 'CabinetGrotesk-Regular',
-    flex: 1,
-  },
-  addressTypeTag: {
-    backgroundColor: COLORS.DARK_GRAY,
-    paddingHorizontal: 10,
-    paddingVertical: 4,
-    borderRadius: 6,
-  },
-  addressTypeText: {
-    fontSize: 11,
-    color: COLORS.LIGHT_GRAY,
-    fontFamily: 'CabinetGrotesk-Regular',
-  },
   content: {
     flex: 1,
     paddingHorizontal: 20,
     paddingTop: 40,
-  },
-  balanceRow: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    marginBottom: 24,
-  },
-  balanceLabel: {
-    fontSize: 14,
-    color: COLORS.SECONDARY_TEXT,
-    fontFamily: 'CabinetGrotesk-Regular',
-  },
-  maxButton: {
-    backgroundColor: COLORS.PRIMARY_BLUE,
-    paddingHorizontal: 16,
-    paddingVertical: 8,
-    borderRadius: 8,
-    minWidth: 60,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  maxButtonText: {
-    fontSize: 12,
-    fontWeight: '600',
-    color: COLORS.WHITE,
-    fontFamily: 'CabinetGrotesk-Bold',
   },
   amountInputRow: {
     flexDirection: 'row',
