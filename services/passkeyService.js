@@ -54,6 +54,10 @@ const PASSKEY_KEYS = {
   ENCRYPTION_TAG: 'passkey_encryption_tag_v1',
 };
 
+// Module-level lock to prevent concurrent PIN changes
+let pinChangeInProgress = false;
+const PIN_CHANGE_TIMEOUT_MS = 30000; // 30 seconds max
+
 /**
  * Check if WebAuthn/Passkeys are supported on this device
  */
@@ -856,6 +860,15 @@ export const addPasskeyToExistingWallet = async (mnemonic, userName, userDisplay
  * @returns {Promise<{success: boolean, error?: string}>}
  */
 export const atomicPinChangeWithPasskey = async (newPin) => {
+  // SECURITY: Prevent concurrent PIN changes that could corrupt passkey encryption
+  if (pinChangeInProgress) {
+    throw new Error('PIN change already in progress. Please wait and try again.');
+  }
+
+  pinChangeInProgress = true;
+  const changeStartTime = Date.now();
+  let timeoutId = null;
+
   try {
     // Check if passkey is enabled
     const enabled = await isPasskeyEnabled();
@@ -867,6 +880,12 @@ export const atomicPinChangeWithPasskey = async (newPin) => {
     }
 
     logger.debug('Starting atomic PIN change with passkey re-encryption');
+
+    // Timeout protection: prevent operations from hanging indefinitely
+    timeoutId = setTimeout(() => {
+      pinChangeInProgress = false;
+      throw new Error('PIN change timed out after 30 seconds - please try again');
+    }, PIN_CHANGE_TIMEOUT_MS);
 
     // Step 1: Backup current state in case we need to rollback
     const oldPinHash = await SecureStore.getItemAsync(SECURE_KEYS.PIN);
@@ -888,9 +907,19 @@ export const atomicPinChangeWithPasskey = async (newPin) => {
       // If this fails, we'll rollback the PIN change
       await reencryptPasskeyMnemonicAfterPinChange(newPin);
 
-      logger.debug('Atomic PIN change completed successfully');
+      // Clear timeout on success
+      if (timeoutId) {
+        clearTimeout(timeoutId);
+      }
+
+      const duration = Date.now() - changeStartTime;
+      logger.debug('Atomic PIN change completed successfully', { durationMs: duration });
       return { success: true };
     } catch (error) {
+      // Clear timeout on error
+      if (timeoutId) {
+        clearTimeout(timeoutId);
+      }
       // Rollback: restore old PIN and passkey data
       logger.error('PIN change failed, rolling back to old PIN', { error: error.message });
 
@@ -923,6 +952,12 @@ export const atomicPinChangeWithPasskey = async (newPin) => {
   } catch (error) {
     logger.error('Atomic PIN change failed', { error: error.message });
     return { success: false, error: error.message || 'Failed to change PIN' };
+  } finally {
+    // CRITICAL: Always release the lock, even if an error occurred
+    pinChangeInProgress = false;
+    if (timeoutId) {
+      clearTimeout(timeoutId);
+    }
   }
 };
 
