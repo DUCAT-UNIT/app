@@ -32,11 +32,12 @@ import {
   NavigationHandlersProvider,
   useNavigationHandlers,
 } from '../contexts/NavigationHandlersContext';
+import { useNotifications } from '../contexts/NotificationContext';
 
 // Hooks
 import { useWalletInitialization } from '../hooks/useWalletInitialization';
 import { useBackgroundSplash } from '../hooks/useBackgroundSplash';
-import { useNotifications } from '../hooks/useNotifications';
+import { useNotifications as useNotificationsHook } from '../hooks/useNotifications';
 import { useTransactionPolling } from '../hooks/useTransactionPolling';
 
 // Styles
@@ -58,7 +59,7 @@ export default function AppNavigator() {
 
   // Hooks
   const { showBackgroundSplash } = useBackgroundSplash();
-  const { sendTransactionConfirmedNotification } = useNotifications();
+  const { sendTransactionConfirmedNotification } = useNotificationsHook();
   const { startPolling } = useTransactionPolling();
 
   // Wallet exists ref (shared between components)
