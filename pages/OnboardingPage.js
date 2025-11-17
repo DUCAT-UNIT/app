@@ -221,6 +221,14 @@ export default function OnboardingPage({
       // setSeedConfirmed(true) will trigger navigation
       logger.debug('[OnboardingPage] Completing setup');
 
+      // IMPORTANT: Schedule passkey modal BEFORE navigation/unmounting
+      // Once handlePinSetupCompleteWrapper() is called, this component will unmount
+      logger.debug('[OnboardingPage] Scheduling passkey migration modal');
+      setTimeout(() => {
+        logger.debug('[OnboardingPage] Showing passkey migration modal');
+        showPasskeyMigrationPromptGlobal(capturedMnemonic, capturedPin);
+      }, 2000);
+
       // Call handlePinSetupCompleteWrapper which sets seedConfirmed and triggers navigation
       // Note: It will call fetchBalance() but might not have addresses from state yet
       await handlePinSetupCompleteWrapper();
@@ -237,14 +245,6 @@ export default function OnboardingPage({
 
       // Clear the imported mnemonic from persisted state (security - don't keep it longer than needed)
       setImportedMnemonic(null);
-
-      // Show passkey migration modal after a delay
-      // Longer delay to ensure wallet screen loads and polling starts
-      logger.debug('[OnboardingPage] Scheduling passkey migration modal');
-      setTimeout(() => {
-        logger.debug('[OnboardingPage] Showing passkey migration modal');
-        showPasskeyMigrationPromptGlobal(capturedMnemonic, capturedPin);
-      }, 2000);
     } else {
       // Normal wallet creation flow
       logger.debug('[OnboardingPage] Completing setup (normal flow)');
