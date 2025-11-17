@@ -272,44 +272,16 @@ export async function setMultiple(settings) {
   }
 }
 
-// Convenience methods for common settings
-
-export async function getBiometricEnabled() {
-  return getBoolean(SettingKeys.BIOMETRIC_ENABLED, false);
-}
-
-export async function setBiometricEnabled(enabled) {
-  return setBoolean(SettingKeys.BIOMETRIC_ENABLED, enabled);
-}
-
-export async function getNotificationsEnabled() {
-  return getBoolean(SettingKeys.NOTIFICATIONS_ENABLED, false);
-}
-
-export async function setNotificationsEnabled(enabled) {
-  return setBoolean(SettingKeys.NOTIFICATIONS_ENABLED, enabled);
-}
-
-export async function getShowZeroAssets() {
-  return getBoolean(SettingKeys.SHOW_ZERO_ASSETS, false);
-}
-
-export async function setShowZeroAssets(enabled) {
-  return setBoolean(SettingKeys.SHOW_ZERO_ASSETS, enabled);
-}
-
-export async function getAutoLockTimeout() {
-  return getNumber(SettingKeys.AUTO_LOCK_TIMEOUT, 300000); // 5 minutes default
-}
-
-export async function setAutoLockTimeout(timeout) {
-  return setNumber(SettingKeys.AUTO_LOCK_TIMEOUT, timeout);
-}
-
-export async function getCurrentAccount() {
-  return getString(SettingKeys.CURRENT_ACCOUNT, '0');
-}
-
-export async function setCurrentAccount(account) {
-  return setString(SettingKeys.CURRENT_ACCOUNT, account);
-}
+// Re-export convenience methods from settingsHelpers for backward compatibility
+export {
+  getBiometricEnabled,
+  setBiometricEnabled,
+  getNotificationsEnabled,
+  setNotificationsEnabled,
+  getShowZeroAssets,
+  setShowZeroAssets,
+  getAutoLockTimeout,
+  setAutoLockTimeout,
+  getCurrentAccount,
+  setCurrentAccount,
+} from './settingsHelpers';
