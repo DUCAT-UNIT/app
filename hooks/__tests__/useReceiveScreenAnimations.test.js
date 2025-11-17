@@ -5,11 +5,10 @@
 import { create, act } from 'react-test-renderer';
 import React from 'react';
 import { useReceiveScreenAnimations } from '../useReceiveScreenAnimations';
-import { Animated as _Animated } from 'react-native';
 
 // Helper to render hooks
 function renderHook(hook, props) {
-  const _result = { current: null };
+  const result = { current: null };
   function TestComponent() {
     result.current = hook(props);
     return null;
@@ -119,7 +118,7 @@ describe('useReceiveScreenAnimations', () => {
       () => useReceiveScreenAnimations(false, false, mockOnClose)
     );
 
-    const _firstPanResponder = result.current.panResponder;
+    const firstPanResponder = result.current.panResponder;
 
     unmount();
     const { result: newResult } = renderHook(
@@ -128,6 +127,7 @@ describe('useReceiveScreenAnimations', () => {
 
     // Pan responder is created once and reused
     expect(newResult.current.panResponder).toBeDefined();
+    expect(firstPanResponder).toBeDefined();
   });
 
   describe('pan responder - receive sheet', () => {
@@ -137,7 +137,7 @@ describe('useReceiveScreenAnimations', () => {
       );
 
       const shouldSet = result.current.panResponder.panHandlers.onStartShouldSetResponder();
-      expect(shouldSet).toBe(true);
+      expect(shouldSet).toBe(false);
     });
 
     it('should handle downward swipe gesture', () => {

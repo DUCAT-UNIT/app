@@ -76,7 +76,7 @@ describe('useVaultMessages', () => {
       await result.current.handleMessage(event);
     });
 
-    expect(consoleSpy).toHaveBeenCalledWith('📱 [WebView Console]', 'Test message', 'from WebView');
+    expect(consoleSpy).toHaveBeenCalledWith('[DEBUG] 📱 [WebView Console]', 'Test message', 'from WebView');
     consoleSpy.mockRestore();
   });
 
@@ -272,6 +272,7 @@ describe('useVaultMessages', () => {
     });
 
     expect(consoleErrorSpy).toHaveBeenCalledWith(
+      '[ERROR]',
       '❌ Error parsing WebView message:',
       expect.any(Error)
     );
@@ -303,7 +304,7 @@ describe('useVaultMessages', () => {
       });
     });
 
-    expect(consoleSpy).toHaveBeenCalledWith('❌ [WebView Console]', 'Error message');
+    expect(consoleSpy).toHaveBeenCalledWith('[DEBUG] ❌ [WebView Console]', 'Error message');
 
     // Test warn level
     await act(async () => {
@@ -318,7 +319,7 @@ describe('useVaultMessages', () => {
       });
     });
 
-    expect(consoleSpy).toHaveBeenCalledWith('⚠️ [WebView Console]', 'Warning message');
+    expect(consoleSpy).toHaveBeenCalledWith('[DEBUG] ⚠️ [WebView Console]', 'Warning message');
 
     consoleSpy.mockRestore();
   });

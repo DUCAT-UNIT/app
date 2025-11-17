@@ -443,7 +443,7 @@ describe('PendingTransactionsContext', () => {
         await new Promise(resolve => setTimeout(resolve, 10));
       });
 
-      expect(consoleError).toHaveBeenCalledWith('Error loading pending transactions:', expect.any(Error));
+      expect(consoleError).toHaveBeenCalledWith('[ERROR]', 'Error loading pending transactions:', expect.any(Error));
       consoleError.mockRestore();
     });
 
@@ -462,7 +462,7 @@ describe('PendingTransactionsContext', () => {
         await result.current.addPendingTransaction('test_tx', [], 'BTC');
       });
 
-      expect(consoleError).toHaveBeenCalledWith('Error saving pending transactions:', expect.any(Error));
+      expect(consoleError).toHaveBeenCalledWith('[ERROR]', 'Error saving pending transactions:', expect.any(Error));
       consoleError.mockRestore();
     });
 
@@ -484,7 +484,7 @@ describe('PendingTransactionsContext', () => {
         await new Promise(resolve => setTimeout(resolve, 10));
       });
 
-      expect(consoleError).toHaveBeenCalledWith('Error loading spent UTXOs:', expect.any(Error));
+      expect(consoleError).toHaveBeenCalledWith('[ERROR]', 'Error loading spent UTXOs:', expect.any(Error));
       consoleError.mockRestore();
     });
 
@@ -515,7 +515,7 @@ describe('PendingTransactionsContext', () => {
         }
       });
 
-      expect(consoleError).toHaveBeenCalledWith('Error saving spent UTXOs:', expect.any(Error));
+      expect(consoleError).toHaveBeenCalledWith('[ERROR]', 'Error saving spent UTXOs:', expect.any(Error));
       consoleError.mockRestore();
       AsyncStorage.setItem = originalSetItem;
     });

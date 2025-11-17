@@ -64,7 +64,7 @@ describe('runesTransaction - spent UTXO branches', () => {
       ).rejects.toThrow();
 
       // KEY ASSERTION: Verify the spent UTXO branch was hit (this is what we're testing!)
-      expect(consoleLogSpy).toHaveBeenCalledWith('⚠️ Skipping spent rune UTXO:', 'spenttx:0');
+      expect(consoleLogSpy).toHaveBeenCalledWith('[DEBUG] ⚠️ Skipping spent rune UTXO:', 'spenttx:0');
 
       consoleLogSpy.mockRestore();
     });

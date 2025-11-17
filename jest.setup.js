@@ -6,20 +6,51 @@
 // Define __DEV__ for React Native environment
 global.__DEV__ = process.env.NODE_ENV !== 'production';
 
+// Setup process.env for Expo environment variables
+process.env.EXPO_PUBLIC_COINGECKO_API_KEY = 'test-api-key';
+
 // Polyfill for Buffer
 global.Buffer = require('buffer').Buffer;
 
 // Polyfill for crypto.getRandomValues (needed by expo-crypto)
-const { webcrypto: _webcryptoPoly } = require('node:crypto');
+const { webcrypto } = require('node:crypto');
 if (!global.crypto) {
   global.crypto = webcrypto;
 }
 
-// Suppress expo winter import warnings
+// Suppress expo winter import warnings and runtime
 global.__ExpoImportMetaRegistry = {};
+global.__expo_import_meta_env__ = {};
 
-// Mock expo module to bypass winter
-jest.mock('expo', () => ({}));
+// Mock expo module to bypass winter - use a more complete mock
+jest.mock('expo', () => ({
+  // Add any expo exports needed here
+}));
+
+// Mock react-native-passkey
+jest.mock('react-native-passkey', () => ({
+  Passkey: {
+    isSupported: jest.fn().mockResolvedValue(true),
+    create: jest.fn().mockResolvedValue({
+      id: 'mock-passkey-id',
+      rawId: 'mock-raw-id',
+    }),
+    get: jest.fn().mockResolvedValue({
+      id: 'mock-passkey-id',
+      rawId: 'mock-raw-id',
+    }),
+  },
+}));
+
+// Mock react-native-icloudstore
+jest.mock('react-native-icloudstore', () => ({
+  __esModule: true,
+  default: {
+    getItem: jest.fn().mockResolvedValue(null),
+    setItem: jest.fn().mockResolvedValue(undefined),
+    removeItem: jest.fn().mockResolvedValue(undefined),
+  },
+}));
 
 // Mock expo-secure-store
 jest.mock('expo-secure-store', () => ({
@@ -77,6 +108,39 @@ jest.mock('@react-native-async-storage/async-storage', () => ({
 jest.mock('expo-clipboard', () => ({
   setStringAsync: jest.fn(),
   getStringAsync: jest.fn(),
+}));
+
+// Mock expo-av (for Audio)
+jest.mock('expo-av', () => ({
+  Audio: {
+    Sound: {
+      createAsync: jest.fn().mockResolvedValue({
+        sound: {
+          playAsync: jest.fn().mockResolvedValue(undefined),
+          unloadAsync: jest.fn().mockResolvedValue(undefined),
+        },
+        status: { isLoaded: true },
+      }),
+    },
+    setAudioModeAsync: jest.fn().mockResolvedValue(undefined),
+  },
+}));
+
+// Mock expo-haptics
+jest.mock('expo-haptics', () => ({
+  impactAsync: jest.fn().mockResolvedValue(undefined),
+  notificationAsync: jest.fn().mockResolvedValue(undefined),
+  selectionAsync: jest.fn().mockResolvedValue(undefined),
+  ImpactFeedbackStyle: {
+    Light: 'light',
+    Medium: 'medium',
+    Heavy: 'heavy',
+  },
+  NotificationFeedbackType: {
+    Success: 'success',
+    Warning: 'warning',
+    Error: 'error',
+  },
 }));
 
 // Mock Sentry
@@ -160,6 +224,10 @@ jest.mock('react-native', () => {
     Linking: {
       canOpenURL: jest.fn().mockResolvedValue(true),
       openURL: jest.fn().mockResolvedValue(undefined),
+    },
+    Vibration: {
+      vibrate: jest.fn(),
+      cancel: jest.fn(),
     },
   };
 });

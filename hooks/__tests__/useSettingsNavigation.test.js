@@ -33,7 +33,7 @@ jest.mock('../../contexts/SeedPhraseContext', () => ({
 
 // Helper to render hooks
 function renderHook(hook) {
-  const _result = { current: null };
+  const result = { current: null };
   function TestComponent() {
     result.current = hook();
     return null;

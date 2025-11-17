@@ -35,8 +35,8 @@ describe('vaultWebViewScripts', () => {
   });
 
   it('vaultLoadedDetectionScript should check for vault elements', () => {
-    expect(vaultLoadedDetectionScript).toContain('hasVaultHealth');
-    expect(vaultLoadedDetectionScript).toContain('hasCreateVault');
+    expect(vaultLoadedDetectionScript).toContain('Vault health');
+    expect(vaultLoadedDetectionScript).toContain('Create Vault');
     expect(vaultLoadedDetectionScript).toContain('hasMainContent');
     expect(vaultLoadedDetectionScript).toContain('MutationObserver');
   });

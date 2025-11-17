@@ -10,7 +10,7 @@ jest.mock('../../icons', () => {
   const _React = require('react');
   const { Text } = require('react-native');
   const MockIcon = ({ name, _size, _color, _style }) => {
-    return React.createElement(Text, { testID: `icon-${name}` }, name);
+    return _React.createElement(Text, { testID: `icon-${name}` }, name);
   };
   return {
     __esModule: true,

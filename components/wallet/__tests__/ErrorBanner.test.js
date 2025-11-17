@@ -12,7 +12,7 @@ jest.mock('../../icons', () => {
   const { Text } = require('react-native');
   return {
     __esModule: true,
-    default: ({ name }) => React.createElement(Text, { testID: `icon-${name}` }, name),
+    default: ({ name }) => _React.createElement(Text, { testID: `icon-${name}` }, name),
   };
 });
 
