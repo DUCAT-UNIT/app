@@ -1,0 +1,194 @@
+/**
+ * AuthenticationIcons - PIN and biometric authentication icons
+ */
+
+import React from 'react';
+import Svg, { Path, G } from 'react-native-svg';
+
+export const AuthenticationIcons = {
+  pin: ({ width, height, color }) => (
+    <Svg width={width} height={height} viewBox="0 0 24 24" fill="none">
+      <Path
+        stroke={color}
+        strokeLinecap="round"
+        strokeLinejoin="round"
+        d="M20.5 10.5c0 -0.2652 -0.1054 -0.51957 -0.2929 -0.70711C20.0196 9.60536 19.7652 9.5 19.5 9.5h-15c-0.26522 0 -0.51957 0.10536 -0.70711 0.29289C3.60536 9.98043 3.5 10.2348 3.5 10.5v12c0 0.2652 0.10536 0.5196 0.29289 0.7071 0.18754 0.1875 0.44189 0.2929 0.70711 0.2929h15c0.2652 0 0.5196 -0.1054 0.7071 -0.2929s0.2929 -0.4419 0.2929 -0.7071v-12Z"
+        strokeWidth="1"
+      />
+      <Path
+        stroke={color}
+        strokeLinecap="round"
+        strokeLinejoin="round"
+        d="M6.5 6c0 -1.45869 0.57946 -2.85764 1.61091 -3.88909S10.5413 0.5 12 0.5c1.4587 0 2.8576 0.57946 3.8891 1.61091C16.9205 3.14236 17.5 4.54131 17.5 6v3.5h-11V6Z"
+        strokeWidth="1"
+      />
+      <Path
+        stroke={color}
+        d="M8.5 13.5c-0.13807 0 -0.25 -0.1119 -0.25 -0.25s0.11193 -0.25 0.25 -0.25"
+        strokeWidth="1"
+      />
+      <Path
+        stroke={color}
+        d="M8.5 13.5c0.13807 0 0.25 -0.1119 0.25 -0.25S8.63807 13 8.5 13"
+        strokeWidth="1"
+      />
+      <Path
+        stroke={color}
+        d="M12 13.5c-0.1381 0 -0.25 -0.1119 -0.25 -0.25s0.1119 -0.25 0.25 -0.25"
+        strokeWidth="1"
+      />
+      <Path
+        stroke={color}
+        d="M12 13.5c0.1381 0 0.25 -0.1119 0.25 -0.25S12.1381 13 12 13"
+        strokeWidth="1"
+      />
+      <Path
+        stroke={color}
+        d="M15.5 13.5c-0.1381 0 -0.25 -0.1119 -0.25 -0.25s0.1119 -0.25 0.25 -0.25"
+        strokeWidth="1"
+      />
+      <Path
+        stroke={color}
+        d="M15.5 13.5c0.1381 0 0.25 -0.1119 0.25 -0.25s-0.1119 -0.25 -0.25 -0.25"
+        strokeWidth="1"
+      />
+      <Path
+        stroke={color}
+        d="M8.5 17c-0.13807 0 -0.25 -0.1119 -0.25 -0.25s0.11193 -0.25 0.25 -0.25"
+        strokeWidth="1"
+      />
+      <Path
+        stroke={color}
+        d="M8.5 17c0.13807 0 0.25 -0.1119 0.25 -0.25s-0.11193 -0.25 -0.25 -0.25"
+        strokeWidth="1"
+      />
+      <Path
+        stroke={color}
+        d="M8.5 20.5c-0.13807 0 -0.25 -0.1119 -0.25 -0.25s0.11193 -0.25 0.25 -0.25"
+        strokeWidth="1"
+      />
+      <Path
+        stroke={color}
+        d="M8.5 20.5c0.13807 0 0.25 -0.1119 0.25 -0.25S8.63807 20 8.5 20"
+        strokeWidth="1"
+      />
+      <G>
+        <Path
+          stroke={color}
+          d="M12 17c-0.1381 0 -0.25 -0.1119 -0.25 -0.25s0.1119 -0.25 0.25 -0.25"
+          strokeWidth="1"
+        />
+        <Path
+          stroke={color}
+          d="M12 17c0.1381 0 0.25 -0.1119 0.25 -0.25s-0.1119 -0.25 -0.25 -0.25"
+          strokeWidth="1"
+        />
+      </G>
+      <G>
+        <Path
+          stroke={color}
+          d="M12 20.5c-0.1381 0 -0.25 -0.1119 -0.25 -0.25s0.1119 -0.25 0.25 -0.25"
+          strokeWidth="1"
+        />
+        <Path
+          stroke={color}
+          d="M12 20.5c0.1381 0 0.25 -0.1119 0.25 -0.25S12.1381 20 12 20"
+          strokeWidth="1"
+        />
+      </G>
+      <G>
+        <Path
+          stroke={color}
+          d="M15.5 17c-0.1381 0 -0.25 -0.1119 -0.25 -0.25s0.1119 -0.25 0.25 -0.25"
+          strokeWidth="1"
+        />
+        <Path
+          stroke={color}
+          d="M15.5 17c0.1381 0 0.25 -0.1119 0.25 -0.25s-0.1119 -0.25 -0.25 -0.25"
+          strokeWidth="1"
+        />
+      </G>
+      <G>
+        <Path
+          stroke={color}
+          d="M15.5 20.5c-0.1381 0 -0.25 -0.1119 -0.25 -0.25s0.1119 -0.25 0.25 -0.25"
+          strokeWidth="1"
+        />
+        <Path
+          stroke={color}
+          d="M15.5 20.5c0.1381 0 0.25 -0.1119 0.25 -0.25s-0.1119 -0.25 -0.25 -0.25"
+          strokeWidth="1"
+        />
+      </G>
+    </Svg>
+  ),
+
+  face_id: ({ width, height, color }) => (
+    <Svg width={width} height={height} viewBox="0 0 24 24" fill="none">
+      <Path
+        d="M0.5 6.5v-3a3 3 0 0 1 3 -3h3"
+        fill="none"
+        stroke={color}
+        strokeLinecap="round"
+        strokeLinejoin="round"
+        strokeWidth="1"
+      />
+      <Path
+        d="M23.5 6.5v-3a3 3 0 0 0 -3 -3h-3"
+        fill="none"
+        stroke={color}
+        strokeLinecap="round"
+        strokeLinejoin="round"
+        strokeWidth="1"
+      />
+      <Path
+        d="M0.5 17.5v3a3 3 0 0 0 3 3h3"
+        fill="none"
+        stroke={color}
+        strokeLinecap="round"
+        strokeLinejoin="round"
+        strokeWidth="1"
+      />
+      <Path
+        d="M23.5 17.5v3a3 3 0 0 1 -3 3h-3"
+        fill="none"
+        stroke={color}
+        strokeLinecap="round"
+        strokeLinejoin="round"
+        strokeWidth="1"
+      />
+      <Path
+        d="M12.5 8v4.5A1.5 1.5 0 0 1 11 14h-0.5"
+        fill="none"
+        stroke={color}
+        strokeLinecap="round"
+        strokeLinejoin="round"
+        strokeWidth="1"
+      />
+      <Path
+        d="m7.5 8 0 2.5"
+        fill="none"
+        stroke={color}
+        strokeLinecap="round"
+        strokeLinejoin="round"
+        strokeWidth="1"
+      />
+      <Path
+        d="m17.5 8 0 2.5"
+        fill="none"
+        stroke={color}
+        strokeLinecap="round"
+        strokeLinejoin="round"
+        strokeWidth="1"
+      />
+      <Path
+        d="M8.233 17a5.48 5.48 0 0 0 7.534 0"
+        fill="none"
+        stroke={color}
+        strokeLinecap="round"
+        strokeLinejoin="round"
+        strokeWidth="1"
+      />
+    </Svg>
+  ),
+};
