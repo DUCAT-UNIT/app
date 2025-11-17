@@ -16,7 +16,14 @@ import { useVaultDataFetch } from '../hooks/useVaultDataFetch';
 const POLL_INTERVAL = 10000; // 10 seconds - for balance and vault data
 const HISTORY_POLL_INTERVAL = 30000; // 30 seconds - for transaction history
 
-const WalletDataContext = createContext();
+// PERFORMANCE: Split into 3 separate contexts to prevent unnecessary re-renders
+// When balance changes, only components using useBalance() will re-render
+// When history changes, only components using useTransactionHistory() will re-render
+// When vault changes, only components using useVaultData() will re-render
+const BalanceContext = createContext();
+const HistoryContext = createContext();
+const VaultContext = createContext();
+const WalletDataContext = createContext(); // Legacy - for backwards compatibility
 
 export const useWalletData = () => {
   const context = useContext(WalletDataContext);
@@ -26,20 +33,31 @@ export const useWalletData = () => {
   return context;
 };
 
-// Backwards compatibility hooks
+// OPTIMIZED: Direct context access - no re-render unless balance changes
 export const useBalance = () => {
-  const { balance } = useWalletData();
-  return balance;
+  const context = useContext(BalanceContext);
+  if (!context) {
+    throw new Error('useBalance must be used within a WalletDataProvider');
+  }
+  return context;
 };
 
+// OPTIMIZED: Direct context access - no re-render unless history changes
 export const useTransactionHistory = () => {
-  const { history } = useWalletData();
-  return history;
+  const context = useContext(HistoryContext);
+  if (!context) {
+    throw new Error('useTransactionHistory must be used within a WalletDataProvider');
+  }
+  return context;
 };
 
+// OPTIMIZED: Direct context access - no re-render unless vault changes
 export const useVaultData = () => {
-  const { vault } = useWalletData();
-  return vault;
+  const context = useContext(VaultContext);
+  if (!context) {
+    throw new Error('useVaultData must be used within a WalletDataProvider');
+  }
+  return context;
 };
 
 export const WalletDataProvider = ({ children }) => {
@@ -126,11 +144,54 @@ export const WalletDataProvider = ({ children }) => {
   });
 
   // ============================================================
-  // CONSOLIDATED VALUE (MEMOIZED)
+  // PERFORMANCE OPTIMIZATION: 3 Separate Memoized Values
   // ============================================================
-  // Memoize the value object to prevent unnecessary re-renders of consumers
-  // Split dependencies to only update when specific parts change
-  const value = useMemo(
+  // Each value is memoized independently - only changes when its own data changes
+  // This prevents cross-contamination of re-renders
+
+  // Balance context value - only updates when balance data changes
+  const balanceValue = useMemo(() => balance, [
+    balance.segwitBalance,
+    balance.taprootBalance,
+    balance.runesBalance,
+    balance.unconfirmedSegwitBalance,
+    balance.unconfirmedTaprootBalance,
+    balance.unconfirmedRunesBalance,
+    balance.loadingBalance,
+    balance.refreshing,
+    balance.balanceError,
+    balance.utxos,
+    balance.loadingUtxos,
+    // Functions are stable references from hooks, don't need them in deps
+    // but including for safety
+    balance.fetchBalance,
+    balance.onRefresh,
+    balance.fetchUtxos,
+    balance.resetBalances,
+    balance.setBalanceError,
+  ]);
+
+  // History context value - only updates when history data changes
+  const historyValue = useMemo(() => history, [
+    history.transactionHistory,
+    history.loadingTransactionHistory,
+    history.historyError,
+    history.fetchTransactionHistory,
+    history.resetTransactionHistory,
+  ]);
+
+  // Vault context value - only updates when vault data changes
+  const vaultValue = useMemo(() => vault, [
+    vault.vaultData,
+    vault.loadingVault,
+    vault.vaultError,
+    vault.fetchVault,
+    vault.resetVaultData,
+  ]);
+
+  // Legacy consolidated value (for backwards compatibility with useWalletData())
+  // This still has the old behavior - updates when ANY data changes
+  const legacyValue = useMemo(
     () => ({
       // Namespaced data (recommended for new code)
       balance,
@@ -163,40 +224,17 @@ export const WalletDataProvider = ({ children }) => {
       vaultError: vault.vaultError,
       fetchVault: vault.fetchVault,
       resetVaultData: vault.resetVaultData,
-    // eslint-disable-next-line react-hooks/exhaustive-deps
     }),
-    [
-      // Balance dependencies
-      balance.segwitBalance,
-      balance.taprootBalance,
-      balance.runesBalance,
-      balance.unconfirmedSegwitBalance,
-      balance.unconfirmedTaprootBalance,
-      balance.unconfirmedRunesBalance,
-      balance.loadingBalance,
-      balance.refreshing,
-      balance.balanceError,
-      balance.setBalanceError,
-      balance.utxos,
-      balance.loadingUtxos,
-      balance.fetchBalance,
-      balance.onRefresh,
-      balance.fetchUtxos,
-      balance.resetBalances,
-      // History dependencies
-      history.transactionHistory,
-      history.loadingTransactionHistory,
-      history.historyError,
-      history.fetchTransactionHistory,
-      history.resetTransactionHistory,
-      // Vault dependencies
-      vault.vaultData,
-      vault.loadingVault,
-      vault.vaultError,
-      vault.fetchVault,
-      vault.resetVaultData,
-    ]
+    [balance, history, vault]
   );
 
-  return <WalletDataContext.Provider value={value}>{children}</WalletDataContext.Provider>;
+  return (
+    <BalanceContext.Provider value={balanceValue}>
+      <HistoryContext.Provider value={historyValue}>
+        <VaultContext.Provider value={vaultValue}>
+          <WalletDataContext.Provider value={legacyValue}>{children}</WalletDataContext.Provider>
+        </VaultContext.Provider>
+      </HistoryContext.Provider>
+    </BalanceContext.Provider>
+  );
 };
