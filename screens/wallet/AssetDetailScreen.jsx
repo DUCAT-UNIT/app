@@ -343,15 +343,6 @@ function AssetDetailScreen({ route = {}, navigation }) {
           addressType: addressType,
         });
         break;
-      case 'swap':
-        // TODO: Implement swap functionality
-        break;
-      case 'buy':
-        // TODO: Implement buy functionality
-        break;
-      case 'convert':
-        // TODO: Implement convert functionality
-        break;
     }
   };
 

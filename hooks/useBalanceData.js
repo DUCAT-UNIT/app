@@ -6,6 +6,7 @@
 
 import { useState, useCallback, useMemo, useRef } from 'react';
 import { fetchWalletBalances, fetchUtxos as fetchUtxosService } from '../services/balanceService';
+import logger from '../utils/logger';
 
 export function useBalanceData(wallet, getUnconfirmedBalance) {
   // Balance state
@@ -35,7 +36,7 @@ export function useBalanceData(wallet, getUnconfirmedBalance) {
       const segwitAddress = segwitAddr || wallet?.segwitAddress;
       const taprootAddress = taprootAddr || wallet?.taprootAddress;
 
-      console.log('[useBalanceData] fetchBalance called with:', {
+      logger.debug('[useBalanceData] fetchBalance called', {
         segwitAddr,
         taprootAddr,
         walletSegwit: wallet?.segwitAddress,
@@ -45,16 +46,16 @@ export function useBalanceData(wallet, getUnconfirmedBalance) {
       });
 
       if (!segwitAddress || !taprootAddress) {
-        console.log('[useBalanceData] Missing addresses, returning early');
+        logger.debug('[useBalanceData] Missing addresses, returning early');
         return;
       }
 
       try {
-        console.log('[useBalanceData] Fetching balances...');
+        logger.debug('[useBalanceData] Fetching balances...');
         setLoadingBalance(true);
         setBalanceError(null);
         const balances = await fetchWalletBalances(segwitAddress, taprootAddress);
-        console.log('[useBalanceData] Balances fetched:', balances);
+        logger.debug('[useBalanceData] Balances fetched', balances);
 
         // Only update state if balances have actually changed
         const prevBalances = prevBalancesRef.current;

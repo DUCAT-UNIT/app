@@ -1,3 +1,5 @@
+import logger from '../utils/logger';
+
 /**
  * OnboardingPage - Handles wallet creation, import, and authentication flows
  * Contains WelcomeScreen, PinSetupScreen, and LockScreen
@@ -167,7 +169,7 @@ export default function OnboardingPage({
 
   // PIN setup completion wrapper - saves wallet and resets state
   const handlePinSetupCompleteInternal = async (pin) => {
-    console.log('[OnboardingPage] handlePinSetupCompleteInternal called', {
+    logger.debug('[OnboardingPage] handlePinSetupCompleteInternal called', {
       isImportedWallet,
       hasPin: !!pin,
       hasImportedMnemonic: !!importedMnemonic,
@@ -183,7 +185,7 @@ export default function OnboardingPage({
     }
 
     // For imported wallets with mnemonic, show passkey migration prompt (non-blocking)
-    console.log('[OnboardingPage] Checking passkey modal conditions:', {
+    logger.debug('[OnboardingPage] Checking passkey modal conditions:', {
       isImportedWallet,
       hasPin: !!pin,
       hasImportedMnemonic: !!importedMnemonic,
@@ -191,11 +193,11 @@ export default function OnboardingPage({
 
     // For imported wallets, load wallet into context before completing setup
     if (isImportedWallet && pin && importedMnemonic) {
-      console.log('[OnboardingPage] Loading imported wallet into context');
+      logger.debug('[OnboardingPage] Loading imported wallet into context');
       let walletAddresses = null;
       if (loadWallet) {
         const result = await loadWallet();
-        console.log('[OnboardingPage] Wallet loaded:', result);
+        logger.debug('[OnboardingPage] Wallet loaded:', result);
         walletAddresses = result?.addresses;
       }
 
@@ -210,19 +212,19 @@ export default function OnboardingPage({
       // The wallet is already loaded in context, handlePinSetupCompleteWrapper will:
       // 1. Set seedConfirmed = true (triggers navigation)
       // 2. Call fetchBalance() which will now work because wallet is loaded
-      console.log('[OnboardingPage] Completing setup');
+      logger.debug('[OnboardingPage] Completing setup');
       await handlePinSetupCompleteWrapper();
 
       // Show passkey migration modal after a delay
       // Longer delay to ensure wallet screen loads and polling starts
-      console.log('[OnboardingPage] Scheduling passkey migration modal');
+      logger.debug('[OnboardingPage] Scheduling passkey migration modal');
       setTimeout(() => {
-        console.log('[OnboardingPage] Showing passkey migration modal');
+        logger.debug('[OnboardingPage] Showing passkey migration modal');
         showPasskeyMigrationPromptGlobal(capturedMnemonic, capturedPin);
       }, 2000);
     } else {
       // Normal wallet creation flow
-      console.log('[OnboardingPage] Completing setup (normal flow)');
+      logger.debug('[OnboardingPage] Completing setup (normal flow)');
       await handlePinSetupCompleteWrapper();
     }
   };
@@ -602,7 +604,7 @@ export default function OnboardingPage({
   }
 
   // This should not be reached - user should be authenticated and showing wallet
-  console.log('[OnboardingPage] Reached unexpected end state:', {
+  logger.debug('[OnboardingPage] Reached unexpected end state:', {
     wallet: !!wallet,
     isAuthenticated,
     seedConfirmed,
