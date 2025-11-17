@@ -13,6 +13,7 @@ import { ERRORS } from '../utils/messages';
 import * as SecureStore from 'expo-secure-store';
 import { SECURE_KEYS } from '../utils/constants';
 import { usePersistedObject } from './usePersistedState';
+import { logger } from '../utils/logger';
 
 const IMPORT_STATE_KEY = 'wallet_import_state';
 
@@ -40,8 +41,17 @@ export function useWalletImport({ currentAccount, setSettingUpPin, showToast, lo
 
   // Non-persisted state
   const [isImporting, setIsImporting] = useState(false); // Loading state
-  const [importedMnemonic, setImportedMnemonic] = useState(null); // Store mnemonic for passkey migration
   const seedInputRefs = useRef([]);
+
+  // CRITICAL: Use ref for mnemonic so it survives renders but doesn't persist to storage
+  // This allows it to survive navigation to PIN screen without storing sensitive data
+  const importedMnemonicRef = useRef(null);
+  const [importedMnemonic, setImportedMnemonicState] = useState(null);
+
+  const setImportedMnemonic = (value) => {
+    importedMnemonicRef.current = value;
+    setImportedMnemonicState(value);
+  };
 
   /**
    * Import existing wallet from seed phrase
@@ -81,7 +91,6 @@ export function useWalletImport({ currentAccount, setSettingUpPin, showToast, lo
 
       // Set PIN setup state to prevent lock screen flash
       setSettingUpPin(true);
-      setIsImportedWallet(true);
 
       // Don't set wallet addresses here - we'll load the wallet properly after PIN setup
       // This avoids double-setting the wallet context which could interfere with balance fetching
@@ -90,16 +99,23 @@ export function useWalletImport({ currentAccount, setSettingUpPin, showToast, lo
       // Store mnemonic for potential passkey migration
       setImportedMnemonic(mnemonic);
 
-      // Clear import form
+      // Clear import form but KEEP isImportedWallet flag
+      // The flag is needed by OnboardingPage to know this is an imported wallet
       setImportingWallet(false);
       setImportSeedPhrase(Array(12).fill(''));
 
-      // Clear persisted state
-      await clearPersistedState();
+      // Set imported wallet flag AFTER clearing form data
+      // This flag persists so OnboardingPage knows to handle post-PIN-setup properly
+      setIsImportedWallet(true);
 
       // Don't show passkey migration prompt yet - wait until PIN is set
       // The parent component (OnboardingPage) will show it after PIN setup
     } catch (error) {
+      logger.error('Wallet import failed', {
+        error: error.message,
+        stack: error.stack,
+        errorType: error.constructor.name
+      });
       showToast(ERRORS.WALLET_IMPORT_FAILED, 'error');
       // Don't clear the form on error - let user fix their seed phrase
       // They can retry by tapping Import again
@@ -115,6 +131,7 @@ export function useWalletImport({ currentAccount, setSettingUpPin, showToast, lo
     setImportingWallet(false);
     setImportSeedPhrase(Array(12).fill(''));
     setIsImportedWallet(false);
+    setImportedMnemonic(null);
     await clearPersistedState();
   };
 

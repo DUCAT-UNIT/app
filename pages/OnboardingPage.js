@@ -103,6 +103,7 @@ export default function OnboardingPage({
     setImportingWallet,
     setImportSeedPhrase,
     setIsImportedWallet,
+    setImportedMnemonic,
     importWallet,
   } = useWalletImport({
     currentAccount,
@@ -192,28 +193,50 @@ export default function OnboardingPage({
     });
 
     // For imported wallets, load wallet into context before completing setup
-    if (isImportedWallet && pin && importedMnemonic) {
-      logger.debug('[OnboardingPage] Loading imported wallet into context');
-      let walletAddresses = null;
-      if (loadWallet) {
-        const result = await loadWallet();
-        logger.debug('[OnboardingPage] Wallet loaded:', result);
-        walletAddresses = result?.addresses;
-      }
-
-      // Capture values for passkey modal
+    // Check importedMnemonic first (more reliable than isImportedWallet flag)
+    if (importedMnemonic && pin) {
+      logger.debug('[OnboardingPage] Loading imported wallet into context', {
+        isImportedWallet,
+        hasImportedMnemonic: !!importedMnemonic,
+      });
+      // Capture values for passkey modal before clearing state
       const capturedMnemonic = importedMnemonic;
       const capturedPin = pin;
 
-      // Clear import state
+      // Clear import state (but keep mnemonic until after PIN setup for loadWallet)
       setIsImportedWallet(false);
 
+      // Load wallet into context and wait for it to complete
+      logger.debug('[OnboardingPage] Calling loadWallet...');
+      const loadResult = await loadWallet();
+      logger.debug('[OnboardingPage] Wallet loaded:', {
+        exists: loadResult?.exists,
+        hasAddresses: !!loadResult?.addresses,
+        segwitAddress: loadResult?.addresses?.segwitAddress,
+        taprootAddress: loadResult?.addresses?.taprootAddress,
+      });
+
       // Complete setup (authenticate and navigate)
-      // The wallet is already loaded in context, handlePinSetupCompleteWrapper will:
-      // 1. Set seedConfirmed = true (triggers navigation)
-      // 2. Call fetchBalance() which will now work because wallet is loaded
+      // loadWallet() has already set the wallet in context via setWallet()
+      // setSeedConfirmed(true) will trigger navigation
       logger.debug('[OnboardingPage] Completing setup');
+
+      // Call handlePinSetupCompleteWrapper which sets seedConfirmed and triggers navigation
+      // Note: It will call fetchBalance() but might not have addresses from state yet
       await handlePinSetupCompleteWrapper();
+
+      // PROPER FIX: Immediately fetch balance with the addresses we just loaded
+      // Pass addresses explicitly to avoid race condition with state updates
+      if (loadResult?.exists && loadResult?.addresses && fetchBalance) {
+        logger.debug('[OnboardingPage] Fetching balance with loaded addresses');
+        await fetchBalance(
+          loadResult.addresses.segwitAddress,
+          loadResult.addresses.taprootAddress
+        );
+      }
+
+      // Clear the imported mnemonic from persisted state (security - don't keep it longer than needed)
+      setImportedMnemonic(null);
 
       // Show passkey migration modal after a delay
       // Longer delay to ensure wallet screen loads and polling starts
