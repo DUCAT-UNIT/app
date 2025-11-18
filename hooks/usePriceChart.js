@@ -73,73 +73,67 @@ export function usePriceChart(assetType, selectedTimeframe) {
   const [priceError, setPriceError] = useState(null);
 
   const fetchPriceData = useCallback(async () => {
-    setPriceError(null);
     try {
       const days = selectedTimeframe === '1D' ? 1 :
                    selectedTimeframe === '1W' ? 7 :
                    selectedTimeframe === '1M' ? 30 : 365;
 
       const cacheKey = `${CACHE_KEY_PREFIX}${selectedTimeframe}`;
+      let hasShownCache = false;
 
-      // Check in-memory cache first (instant)
+      // STEP 1: Always check and show cache first (instant UX)
+      // Check in-memory cache first
       if (priceCache[cacheKey]) {
-        const { prices, timestamp, direction } = priceCache[cacheKey];
-        const age = Date.now() - timestamp;
-
-        if (age < CACHE_EXPIRY_MS) {
-          setPriceData(prices);
-          setPriceDirection(direction);
-          setPriceLoading(false);
-          return;
-        }
+        const { prices, direction } = priceCache[cacheKey];
+        setPriceData(prices);
+        setPriceDirection(direction);
+        setPriceLoading(false);
+        hasShownCache = true;
       }
 
-      // Check AsyncStorage cache (even if expired, use as fallback)
-      let fallbackCache = null;
-      try {
-        const cachedData = await AsyncStorage.getItem(cacheKey);
-        if (cachedData) {
-          const { prices, timestamp } = JSON.parse(cachedData);
-          const age = Date.now() - timestamp;
-
-          if (age < CACHE_EXPIRY_MS) {
+      // If no in-memory cache, check AsyncStorage
+      if (!hasShownCache) {
+        try {
+          const cachedData = await AsyncStorage.getItem(cacheKey);
+          if (cachedData) {
+            const { prices } = JSON.parse(cachedData);
             const direction = calculatePriceDirection(prices);
 
             setPriceData(prices);
             setPriceDirection(direction);
-
-            // Store in memory cache for next time
-            priceCache[cacheKey] = { prices, timestamp, direction };
-
             setPriceLoading(false);
-            return;
-          }
+            hasShownCache = true;
 
-          // Cache expired but keep as fallback if API fails
-          fallbackCache = { prices, direction: calculatePriceDirection(prices) };
+            // Store in memory cache
+            priceCache[cacheKey] = { prices, timestamp: Date.now(), direction };
+          }
+        } catch (cacheError) {
+          // Silently fail cache read
         }
-      } catch (cacheError) {
-        // Silently fail cache read
       }
 
-      // Check if we're in rate limit backoff period
+      // STEP 2: Check if we should fetch fresh data
+      // Skip fetch if in rate limit backoff period
       const timeSinceRateLimit = Date.now() - lastRateLimitTime;
       if (lastRateLimitTime > 0 && timeSinceRateLimit < RATE_LIMIT_BACKOFF_MS) {
-        // Use fallback cache if available, otherwise show error
-        if (fallbackCache) {
-          setPriceData(fallbackCache.prices);
-          setPriceDirection(fallbackCache.direction);
-          setPriceLoading(false);
-          return;
-        }
-        const remainingMinutes = Math.ceil((RATE_LIMIT_BACKOFF_MS - timeSinceRateLimit) / 60000);
-        throw new Error(`Rate limited. Please wait ${remainingMinutes} minute(s).`);
+        setPriceError(null);
+        return;
       }
 
-      // Only show loading if we need to fetch from network
-      setPriceLoading(true);
+      // Check if cache is fresh enough
+      if (priceCache[cacheKey]) {
+        const age = Date.now() - priceCache[cacheKey].timestamp;
+        if (age < CACHE_EXPIRY_MS) {
+          setPriceError(null);
+          return; // Cache is fresh, no need to fetch
+        }
+      }
 
-      // Fetch fresh data
+      // STEP 3: Fetch fresh data in background (don't show loading if we have cache)
+      if (!hasShownCache) {
+        setPriceLoading(true);
+      }
+
       const response = await fetch(
         `${API.COINGECKO}/coins/bitcoin/market_chart?vs_currency=usd&days=${days}`,
         {
@@ -152,25 +146,15 @@ export function usePriceChart(assetType, selectedTimeframe) {
 
       if (response.status === 429) {
         lastRateLimitTime = Date.now();
-        // Use fallback cache if available
-        if (fallbackCache) {
-          setPriceData(fallbackCache.prices);
-          setPriceDirection(fallbackCache.direction);
-          setPriceLoading(false);
-          return;
-        }
-        throw new Error('Rate limit reached. Using cached data.');
+        setPriceError(null); // Don't show error if we have cache
+        setPriceLoading(false);
+        return;
       }
 
       if (!response.ok) {
-        // Use fallback cache if available
-        if (fallbackCache) {
-          setPriceData(fallbackCache.prices);
-          setPriceDirection(fallbackCache.direction);
-          setPriceLoading(false);
-          return;
-        }
-        throw new Error(`API error: ${response.status}`);
+        setPriceError(null); // Don't show error if we have cache
+        setPriceLoading(false);
+        return;
       }
 
       const data = await response.json();
@@ -201,32 +185,23 @@ export function usePriceChart(assetType, selectedTimeframe) {
           // Silently fail cache write
         });
       } else {
-        throw new Error('Invalid data format from API');
+        // Invalid data but don't show error if we have cache
+        setPriceError(null);
       }
     } catch (error) {
-      setPriceError(error.message || 'Failed to load price data');
-      setPriceData(null);
+      // Only show error if we don't have any cached data
+      if (!priceData) {
+        setPriceError(error.message || 'Failed to load price data');
+      }
     } finally {
       setPriceLoading(false);
     }
-  }, [selectedTimeframe]);
+  }, [selectedTimeframe, priceData]);
 
-  // Fetch price data from CoinGecko - only when timeframe changes or if no cache
+  // Always fetch (will show cache first, then update if needed)
   useEffect(() => {
     if (assetType === 'BTC') {
-      const cacheKey = `${CACHE_KEY_PREFIX}${selectedTimeframe}`;
-      const cached = priceCache[cacheKey];
-      const isCacheValid = cached && (Date.now() - cached.timestamp < CACHE_EXPIRY_MS);
-
-      // Only fetch if no in-memory cache or cache is stale
-      if (!isCacheValid) {
-        fetchPriceData();
-      } else {
-        // Update state with cached data (only runs when timeframe changes)
-        setPriceData(cached.prices);
-        setPriceDirection(cached.direction);
-        setPriceLoading(false);
-      }
+      fetchPriceData();
     } else {
       setPriceLoading(false);
     }
