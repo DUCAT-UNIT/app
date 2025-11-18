@@ -95,7 +95,7 @@ export function useNotifications() {
     type = 'withdraw'
   ) => {
     try {
-      const _notificationId = await Notifications.scheduleNotificationAsync({
+      await Notifications.scheduleNotificationAsync({
         content: {
           title: 'Transaction Confirmed',
           body: `The ${type} transaction for ${amount} ${assetType} has been confirmed on Mutinynet.`,

@@ -24,7 +24,6 @@ import Snackbar from '../components/Snackbar';
 
 // Contexts
 import { useWallet } from '../contexts/WalletContext';
-import { useBalance as _useBalance } from '../contexts/WalletDataContext';
 import { useSendFlow } from '../contexts/SendFlowContext';
 import { useTransactionExecution } from '../contexts/TransactionExecutionContext';
 import { useVault } from '../contexts/VaultContext';

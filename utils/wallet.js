@@ -107,10 +107,6 @@ export async function signPsbt(psbtBase64, signInputs) {
         derivationPath = `m/86'/1'/0'/0/${accountIndex}`;
         const child = root.derivePath(derivationPath);
 
-        // Log the pubkeys for debugging
-        const compressedPubkey = child.publicKey;
-        const _xOnlyPubkey = compressedPubkey.slice(1, 33);
-
         // For Taproot, DON'T tweak the signer - bitcoinjs-lib will handle tweaking
         // when it sees tapInternalKey in the PSBT input
         // Just use the child node directly

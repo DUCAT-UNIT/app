@@ -23,7 +23,6 @@ export default function ProcessingScreen({ navigation, route }) {
 
   // Get action from route params
   const action = route.params?.action; // 'create_intent', 'sign_and_broadcast'
-  const _fromScreen = route.params?.fromScreen;
 
   // Messages for different asset types during PSBT creation
   const btcCreatingMessages = [

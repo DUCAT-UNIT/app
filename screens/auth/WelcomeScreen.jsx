@@ -53,7 +53,6 @@ export default function WelcomeScreen({
   createWalletWithPasskey,
   importWallet,
   restoreWithPasskey, // New function
-  resetWallet: _resetWallet, // Kept for backward compatibility but unused
   resetCreationState,
   resetVerificationState,
   proceedToVerification,

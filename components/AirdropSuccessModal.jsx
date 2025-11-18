@@ -12,7 +12,6 @@ import Icon from './icons';
 import { useAirdrop } from '../contexts/AirdropContext';
 
 const SCREEN_WIDTH = Dimensions.get('window').width;
-const _SCREEN_HEIGHT = Dimensions.get('window').height;
 
 export default function AirdropSuccessModal({ visible, onClose }) {
   const scaleAnim = useRef(new Animated.Value(0.8)).current;

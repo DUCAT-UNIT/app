@@ -129,8 +129,8 @@ export const validateBitcoinAddress = (address) => {
   }
 
   try {
-    // Try to decode the address using bitcoinjs-lib
-    const _decoded = bitcoin.address.toOutputScript(trimmedAddress, MUTINYNET_NETWORK);
+    // Try to decode the address using bitcoinjs-lib to validate it
+    bitcoin.address.toOutputScript(trimmedAddress, MUTINYNET_NETWORK);
 
     // Determine address type based on prefix
     let addressType = 'unknown';

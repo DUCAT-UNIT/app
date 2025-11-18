@@ -23,16 +23,16 @@
         <div class='clearfix'>
             
             <div class='fl pad1y space-right2'>
-                <span class="strong">71.73% </span>
+                <span class="strong">69.47% </span>
                 <span class="quiet">Statements</span>
-                <span class='fraction'>66/92</span>
+                <span class='fraction'>66/95</span>
             </div>
         
             
             <div class='fl pad1y space-right2'>
-                <span class="strong">54.05% </span>
+                <span class="strong">51.28% </span>
                 <span class="quiet">Branches</span>
-                <span class='fraction'>20/37</span>
+                <span class='fraction'>20/39</span>
             </div>
         
             
@@ -44,9 +44,9 @@
         
             
             <div class='fl pad1y space-right2'>
-                <span class="strong">72.52% </span>
+                <span class="strong">70.21% </span>
                 <span class="quiet">Lines</span>
-                <span class='fraction'>66/91</span>
+                <span class='fraction'>66/94</span>
             </div>
         
             
@@ -61,7 +61,7 @@
             </div>
         </template>
     </div>
-    <div class='status-line high'></div>
+    <div class='status-line medium'></div>
     <pre><table class="coverage">
 <tr><td class="line-count quiet"><a name='L1'></a><a href='#L1'>1</a>
 <a name='L2'></a><a href='#L2'>2</a>
@@ -308,7 +308,15 @@
 <a name='L243'></a><a href='#L243'>243</a>
 <a name='L244'></a><a href='#L244'>244</a>
 <a name='L245'></a><a href='#L245'>245</a>
-<a name='L246'></a><a href='#L246'>246</a></td><td class="line-coverage quiet"><span class="cline-any cline-neutral">&nbsp;</span>
+<a name='L246'></a><a href='#L246'>246</a>
+<a name='L247'></a><a href='#L247'>247</a>
+<a name='L248'></a><a href='#L248'>248</a>
+<a name='L249'></a><a href='#L249'>249</a>
+<a name='L250'></a><a href='#L250'>250</a>
+<a name='L251'></a><a href='#L251'>251</a>
+<a name='L252'></a><a href='#L252'>252</a>
+<a name='L253'></a><a href='#L253'>253</a>
+<a name='L254'></a><a href='#L254'>254</a></td><td class="line-coverage quiet"><span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
@@ -497,6 +505,13 @@
 <span class="cline-any cline-no">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-no">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
@@ -526,6 +541,7 @@
 <span class="cline-any cline-no">&nbsp;</span>
 <span class="cline-any cline-no">&nbsp;</span>
 <span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
@@ -741,36 +757,44 @@ export const TransactionBuildProvider = ({ children, wallet, currentAccount, sho
 &nbsp;
 <span class="cstat-no" title="statement not covered" >    logger.debug('🚫 Canceling transaction intent:', sendIntent.id);</span>
 &nbsp;
-    // Collect all UTXOs that need to be released
-    const utxosToRelease = <span class="cstat-no" title="statement not covered" >[];</span>
+    // CRITICAL: Only release UTXOs if transaction was NOT broadcast
+    // If txid exists, the transaction was broadcast and UTXOs are spent on-chain
+    const wasBroadcast = <span class="cstat-no" title="statement not covered" >!!sendIntent.txid;</span>
 &nbsp;
-    // BTC transaction inputs
-<span class="cstat-no" title="statement not covered" >    if (sendIntent.inputs &amp;&amp; Array.isArray(sendIntent.inputs)) {</span>
-<span class="cstat-no" title="statement not covered" >      sendIntent.inputs.forEach(<span class="fstat-no" title="function not covered" >in</span>put =&gt; {</span>
-<span class="cstat-no" title="statement not covered" >        utxosToRelease.push({ txid: input.txid, vout: input.vout });</span>
-      });
-    }
+<span class="cstat-no" title="statement not covered" >    if (wasBroadcast) {</span>
+<span class="cstat-no" title="statement not covered" >      logger.debug('⚠️ Transaction was already broadcast - NOT releasing UTXOs (they are spent on-chain)');</span>
+    } else {
+      // Collect all UTXOs that need to be released
+      const utxosToRelease = <span class="cstat-no" title="statement not covered" >[];</span>
 &nbsp;
-    // UNIT transaction - rune UTXO
-<span class="cstat-no" title="statement not covered" >    if (sendIntent.runeUtxo) {</span>
-<span class="cstat-no" title="statement not covered" >      utxosToRelease.push({</span>
-        txid: sendIntent.runeUtxo.transaction,
-        vout: sendIntent.runeUtxo.vout,
-      });
-    }
+      // BTC transaction inputs
+<span class="cstat-no" title="statement not covered" >      if (sendIntent.inputs &amp;&amp; Array.isArray(sendIntent.inputs)) {</span>
+<span class="cstat-no" title="statement not covered" >        sendIntent.inputs.forEach(<span class="fstat-no" title="function not covered" >in</span>put =&gt; {</span>
+<span class="cstat-no" title="statement not covered" >          utxosToRelease.push({ txid: input.txid, vout: input.vout });</span>
+        });
+      }
 &nbsp;
-    // UNIT transaction - sat UTXO (for fees)
-<span class="cstat-no" title="statement not covered" >    if (sendIntent.satUtxo) {</span>
-<span class="cstat-no" title="statement not covered" >      utxosToRelease.push({</span>
-        txid: sendIntent.satUtxo.txid,
-        vout: sendIntent.satUtxo.vout,
-      });
-    }
+      // UNIT transaction - rune UTXO
+<span class="cstat-no" title="statement not covered" >      if (sendIntent.runeUtxo) {</span>
+<span class="cstat-no" title="statement not covered" >        utxosToRelease.push({</span>
+          txid: sendIntent.runeUtxo.transaction,
+          vout: sendIntent.runeUtxo.vout,
+        });
+      }
 &nbsp;
-    // Release all locked UTXOs
-<span class="cstat-no" title="statement not covered" >    if (utxosToRelease.length &gt; 0) {</span>
-<span class="cstat-no" title="statement not covered" >      logger.debug('✅ Releasing', utxosToRelease.length, 'UTXOs from canceled intent');</span>
-<span class="cstat-no" title="statement not covered" >      await unmarkUtxosAsSpent(utxosToRelease);</span>
+      // UNIT transaction - sat UTXO (for fees)
+<span class="cstat-no" title="statement not covered" >      if (sendIntent.satUtxo) {</span>
+<span class="cstat-no" title="statement not covered" >        utxosToRelease.push({</span>
+          txid: sendIntent.satUtxo.txid,
+          vout: sendIntent.satUtxo.vout,
+        });
+      }
+&nbsp;
+      // Release all locked UTXOs
+<span class="cstat-no" title="statement not covered" >      if (utxosToRelease.length &gt; 0) {</span>
+<span class="cstat-no" title="statement not covered" >        logger.debug('✅ Releasing', utxosToRelease.length, 'UTXOs from canceled intent');</span>
+<span class="cstat-no" title="statement not covered" >        await unmarkUtxosAsSpent(utxosToRelease);</span>
+      }
     }
 &nbsp;
     // Clear the intent
@@ -805,7 +829,7 @@ export const TransactionBuildProvider = ({ children, wallet, currentAccount, sho
             <div class='footer quiet pad2 space-top1 center small'>
                 Code coverage generated by
                 <a href="https://istanbul.js.org/" target="_blank" rel="noopener noreferrer">istanbul</a>
-                at 2025-11-17T22:19:00.096Z
+                at 2025-11-18T00:06:15.394Z
             </div>
         <script src="../prettify.js"></script>
         <script>

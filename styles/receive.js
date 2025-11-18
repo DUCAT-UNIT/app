@@ -13,16 +13,6 @@ const STATUS_BAR_HEIGHT = Platform.OS === 'ios' ? 50 : StatusBar.currentHeight |
 // Large devices (> 414): 24px
 const HORIZONTAL_PADDING = SCREEN_WIDTH < 375 ? 16 : SCREEN_WIDTH > 414 ? 24 : 20;
 
-// Helper function to get Cabinet Grotesk font based on weight
-const _getCabinetFont = (weight) => {
-  if (weight === 'bold' || weight === '700' || weight === '800' || weight === '900') {
-    return 'CabinetGrotesk-Bold';
-  } else if (weight === '500' || weight === '600') {
-    return 'CabinetGrotesk-Medium';
-  }
-  return 'CabinetGrotesk-Regular';
-};
-
 export const receiveStyles = StyleSheet.create({
   receiveButton: {
     backgroundColor: COLORS.TEAL,

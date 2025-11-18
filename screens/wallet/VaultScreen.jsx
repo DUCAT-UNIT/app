@@ -13,7 +13,6 @@ import { logger } from '../../utils/logger';
 const VaultScreen = React.memo(function VaultScreen({
   visible,
   walletCredentials,
-  _autoCreateVaultTrigger,
   vaultData,
   showSnackbar
 }) {
