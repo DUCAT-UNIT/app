@@ -40,6 +40,7 @@ export default function OnboardingPage({
   setSeedConfirmed,
   showToast: _showToastProp, // Receive but don't use - we'll use our own
   fetchBalance,
+  fetchTransactionHistory,
   resetWalletAndState,
   handlePinSetupCompleteWrapper,
   handlePinChangeCompleteWrapper,
@@ -235,12 +236,20 @@ export default function OnboardingPage({
 
       // PROPER FIX: Immediately fetch balance with the addresses we just loaded
       // Pass addresses explicitly to avoid race condition with state updates
-      if (loadResult?.exists && loadResult?.addresses && fetchBalance) {
-        logger.debug('[OnboardingPage] Fetching balance with loaded addresses');
-        await fetchBalance(
-          loadResult.addresses.segwitAddress,
-          loadResult.addresses.taprootAddress
-        );
+      if (loadResult?.exists && loadResult?.addresses) {
+        if (fetchBalance) {
+          logger.debug('[OnboardingPage] Fetching balance with loaded addresses');
+          await fetchBalance(
+            loadResult.addresses.segwitAddress,
+            loadResult.addresses.taprootAddress
+          );
+        }
+
+        // Also fetch transaction history for imported wallets
+        if (fetchTransactionHistory) {
+          logger.debug('[OnboardingPage] Fetching transaction history for imported wallet');
+          await fetchTransactionHistory();
+        }
       }
 
       // Clear the imported mnemonic from persisted state (security - don't keep it longer than needed)

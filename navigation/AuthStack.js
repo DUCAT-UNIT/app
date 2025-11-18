@@ -8,7 +8,7 @@ import { createStackNavigator } from '@react-navigation/stack';
 import OnboardingPage from '../pages/OnboardingPage';
 import { useOnboardingFlow } from '../contexts/AuthContext';
 import { useNavigationHandlers } from '../contexts/NavigationHandlersContext';
-import { useBalance } from '../contexts/WalletDataContext';
+import { useBalance, useTransactionHistory } from '../contexts/WalletDataContext';
 import { useNotifications } from "../contexts/NotificationContext";
 import { useKeyboard } from '../hooks/useKeyboard';
 import styles from '../styles';
@@ -19,6 +19,7 @@ export default function AuthStack() {
   // Consume contexts
   const { seedConfirmed, setSeedConfirmed, resetWalletAndState } = useOnboardingFlow();
   const { fetchBalance } = useBalance();
+  const { fetchTransactionHistory } = useTransactionHistory();
   const { showToast } = useNotifications();
   const { keyboardHeight } = useKeyboard();
 
@@ -45,6 +46,7 @@ export default function AuthStack() {
             setSeedConfirmed={setSeedConfirmed}
             showToast={showToast}
             fetchBalance={fetchBalance}
+            fetchTransactionHistory={fetchTransactionHistory}
             resetWalletAndState={resetWalletAndState}
             handlePinSetupCompleteWrapper={handlePinSetupCompleteWrapper}
             handlePinChangeCompleteWrapper={handlePinChangeCompleteWrapper}
