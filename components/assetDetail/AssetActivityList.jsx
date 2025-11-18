@@ -35,8 +35,7 @@ export function AssetActivityList({ transactions, isLoading, onTransactionPress 
     return (
       <View style={styles.activityContainer}>
         <View style={styles.emptyContainer}>
-          <Text style={styles.emptyIcon}>📭</Text>
-          <Text style={styles.emptyText}>No transactions yet</Text>
+          <Text style={styles.emptyText}>No transaction history</Text>
         </View>
       </View>
     );
@@ -79,12 +78,8 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     paddingVertical: 12,
   },
-  emptyIcon: {
-    fontSize: 48,
-    marginBottom: 3,
-  },
   emptyText: {
-    color: COLORS.GRAY,
+    color: '#DDDDDD',
     fontSize: 16,
   },
   loadMoreButton: {
