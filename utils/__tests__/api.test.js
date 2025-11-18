@@ -2,7 +2,8 @@
  * Tests for API utilities
  */
 
-import { fetchWithTimeout, fetchWithRetry } from '../api';
+import { fetchWithTimeout } from '../api';
+import { fetchWithRetry } from '../retry';
 
 // Mock global fetch
 global.fetch = jest.fn();

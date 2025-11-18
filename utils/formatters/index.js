@@ -50,12 +50,3 @@ export const formatBalance = (balance, decimals = 8) => {
   if (!balance && balance !== 0) return '0.00000000';
   return balance.toFixed(decimals);
 };
-
-// Re-export legacy function names for backwards compatibility
-// TODO: Gradually migrate codebase to use new names
-export { truncateAddress as formatAddress } from './addresses';
-export { formatFiat as formatFiatAmount } from './amounts';
-export { formatTimestamp as formatDate } from './dates';
-export { truncateTxid as formatTxid } from './addresses';
-export { satsToBTC as satoshisToBTC } from '../bitcoin/conversions';
-export { btcToSats as btcToSatoshis } from '../bitcoin/conversions';

@@ -3,22 +3,8 @@
  * Utility functions for formatting transaction data
  */
 
-/**
- * Format a timestamp to a human-readable date string
- * @param {number} timestamp - Unix timestamp in seconds
- * @returns {string} Formatted date string
- */
-export function formatTransactionDate(timestamp) {
-  if (!timestamp) return 'Pending';
-  const date = new Date(timestamp * 1000);
-  return date.toLocaleDateString('en-US', {
-    month: 'short',
-    day: 'numeric',
-    year: 'numeric',
-    hour: '2-digit',
-    minute: '2-digit',
-  });
-}
+// Re-export date formatting from the formatters module
+export { formatTransactionDate } from './formatters/dates';
 
 /**
  * Format a transaction ID for display

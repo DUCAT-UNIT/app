@@ -7,14 +7,14 @@ import React from 'react';
 import { View, Text, StyleSheet } from 'react-native';
 import Icon from '../icons';
 import { COLORS } from '../../theme';
-import { formatBalance, formatFiatAmount } from '../../utils/formatters';
+import { formatBalance, formatFiat } from '../../utils/formatters/index';
 
 export function AssetInfo({ assetType, balance, fiatValue, btcPrice, priceData, priceDirection }) {
   // For UNIT, show the actual UNIT amount with commas (no decimals)
   // For BTC, show the BTC value with decimals
   const displayBalance = assetType === 'BTC'
     ? formatBalance(balance || 0)
-    : formatFiatAmount(balance || 0, 0);
+    : formatFiat(balance || 0, 0);
 
   return (
     <View style={styles.assetInfoContainer}>
@@ -32,7 +32,7 @@ export function AssetInfo({ assetType, balance, fiatValue, btcPrice, priceData, 
       </Text>
 
       <Text style={styles.balanceFiat}>
-        ${formatFiatAmount(fiatValue || 0)} USD
+        ${formatFiat(fiatValue || 0)} USD
       </Text>
 
       {assetType === 'BTC' && btcPrice && priceData && (
