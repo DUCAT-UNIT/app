@@ -95,7 +95,7 @@ export function useNotifications() {
     type = 'withdraw'
   ) => {
     try {
-      await Notifications.scheduleNotificationAsync({
+      const notificationId = await Notifications.scheduleNotificationAsync({
         content: {
           title: 'Transaction Confirmed',
           body: `The ${type} transaction for ${amount} ${assetType} has been confirmed on Mutinynet.`,
@@ -105,6 +105,15 @@ export function useNotifications() {
         },
         trigger: null, // null means immediate
       });
+
+      // Auto-dismiss after 15 seconds
+      setTimeout(async () => {
+        try {
+          await Notifications.dismissNotificationAsync(notificationId);
+        } catch (dismissError) {
+          // Silently fail if notification already dismissed
+        }
+      }, 15000);
     } catch (error) {}
   };
 
