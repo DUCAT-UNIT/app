@@ -7,6 +7,7 @@ import * as SecureStore from 'expo-secure-store';
 import * as LocalAuthentication from 'expo-local-authentication';
 import { SECURE_KEYS } from '../utils/constants';
 import { logger } from '../utils/logger';
+import { resetPinAttempts } from './pinLockout';
 
 // Rate limiting constants
 const BIOMETRIC_KEYS = {
@@ -53,10 +54,14 @@ export const checkBiometricLockout = async () => {
  */
 export const recordBiometricAttempt = async (success) => {
   if (success) {
-    // Clear failed attempts on success
+    // Clear biometric failed attempts on success
     await SecureStore.deleteItemAsync(BIOMETRIC_KEYS.FAILED_ATTEMPTS);
     await SecureStore.deleteItemAsync(BIOMETRIC_KEYS.LOCKOUT_UNTIL);
-    logger.debug('Biometric auth successful - attempts cleared');
+
+    // Also reset PIN attempts since user successfully authenticated
+    await resetPinAttempts();
+
+    logger.debug('Biometric auth successful - biometric and PIN attempts cleared');
     return;
   }
 
