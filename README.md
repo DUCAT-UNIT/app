@@ -2,7 +2,7 @@
 
 > A production-grade, non-custodial Bitcoin wallet with native Runes protocol support and advanced security features.
 
-[![iOS](https://img.shields.io/badge/iOS-14.0+-000000?style=flat&logo=apple)](https://apps.apple.com) [![React Native](https://img.shields.io/badge/React_Native-0.76-61DAFB?style=flat&logo=react)](https://reactnative.dev) [![License](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE) [![TestFlight](https://img.shields.io/badge/TestFlight-Available-blue)](https://testflight.apple.com)
+[![iOS](https://img.shields.io/badge/iOS-14.0+-000000?style=flat&logo=apple)](https://apps.apple.com) [![Android](https://img.shields.io/badge/Android-Compatible-3DDC84?style=flat&logo=android)](https://play.google.com) [![React Native](https://img.shields.io/badge/React_Native-0.76-61DAFB?style=flat&logo=react)](https://reactnative.dev) [![License](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE) [![TestFlight](https://img.shields.io/badge/TestFlight-Available-blue)](https://testflight.apple.com)
 
 ## Overview
 
@@ -157,6 +157,61 @@ NETWORK: networks.testnet  // bitcoinjs-lib
 ORD_API: "https://ord-mutinynet.ducatprotocol.com"
 EXPLORER: "https://mutinynet.com"
 ```
+
+## 📱 Platform Support
+
+### iOS & Android Compatibility
+
+DUCAT Wallet is built with React Native and supports both iOS and Android platforms with the following feature matrix:
+
+| Feature | iOS | Android | Notes |
+|---------|-----|---------|-------|
+| **Core Wallet** |
+| Bitcoin Transactions | ✅ | ✅ | Full BTC send/receive |
+| Runes Protocol | ✅ | ✅ | Native Runes support |
+| HD Wallet (BIP32/39/84/86) | ✅ | ✅ | Hierarchical deterministic |
+| SegWit & Taproot | ✅ | ✅ | P2WPKH and P2TR |
+| UTXO Management | ✅ | ✅ | Optimized selection |
+| **Security** |
+| Secure Storage | ✅ | ✅ | iOS Keychain / Android Keystore |
+| PIN Authentication | ✅ | ✅ | PBKDF2 hashing (10k iterations) |
+| Biometric Auth | ✅ | ✅ | Face ID/Touch ID / Fingerprint |
+| Screenshot Prevention | ✅ | ✅ | Privacy mode |
+| Auto-lock | ✅ | ✅ | Inactivity timeout |
+| **Passkey Features** |
+| Passkey Creation | ✅ | ✅ | WebAuthn/FIDO2 |
+| Passkey Authentication | ✅ | ✅ | Biometric unlock |
+| Cloud Backup | ✅ iCloud | ⚠️ Limited | iOS: iCloud sync<br>Android: Local only* |
+| Cross-device Recovery | ✅ | ⚠️ | iOS: Full support<br>Android: Same device only* |
+
+**\*Note:** Android cloud backup requires Google Drive integration (planned feature). Current Android builds support all wallet functionality but passkey recovery is limited to the same device.
+
+### Building for Android
+
+```bash
+# Build Android APK
+eas build --platform android --profile production
+
+# Run on Android emulator
+npx expo run:android
+
+# Run on physical device
+npx expo run:android --device
+```
+
+### Platform-Specific Features
+
+**iOS:**
+- iCloud encrypted backup for passkey recovery
+- Cross-device wallet restoration via iCloud Keychain
+- Associated domains for passkey support
+- TestFlight distribution
+
+**Android:**
+- Android Keystore for secure storage
+- Google Password Manager for passkey sync
+- Manual seed phrase backup (recommended)
+- APK/AAB distribution
 
 ## 🔐 Security Features
 
@@ -322,6 +377,7 @@ npm run test:watch
 
 ### Development Builds
 
+**iOS:**
 ```bash
 # iOS simulator
 npx expo run:ios
@@ -330,14 +386,46 @@ npx expo run:ios
 npx expo run:ios --device "iPhone Name"
 ```
 
+**Android:**
+```bash
+# Android emulator
+npx expo run:android
+
+# Physical device (USB debugging enabled)
+npx expo run:android --device
+```
+
 ### Production Builds
 
+**iOS - TestFlight:**
 ```bash
 # Build for TestFlight
 eas build --platform ios --profile production
 
 # Submit to TestFlight
 eas submit --platform ios --latest
+
+# Monitor build status
+eas build:list --platform ios
+```
+
+**Android - Google Play:**
+```bash
+# Build APK/AAB
+eas build --platform android --profile production
+
+# Submit to Google Play (internal testing)
+eas submit --platform android --latest
+
+# Or download APK for manual distribution
+# APK available in EAS build artifacts
+```
+
+### Multi-Platform Build
+
+```bash
+# Build both platforms simultaneously
+eas build --platform all --profile production
 ```
 
 ### EAS Configuration
@@ -348,7 +436,27 @@ eas submit --platform ios --latest
     "production": {
       "distribution": "store",
       "autoIncrement": true,
-      "credentialsSource": "remote"
+      "credentialsSource": "remote",
+      "ios": {
+        "simulator": false,
+        "buildConfiguration": "Release"
+      },
+      "android": {
+        "buildType": "apk"
+      }
+    }
+  },
+  "submit": {
+    "production": {
+      "ios": {
+        "appleId": "your-email@example.com",
+        "ascAppId": "your-app-id",
+        "appleTeamId": "your-team-id"
+      },
+      "android": {
+        "serviceAccountKeyPath": "./service-account.json",
+        "track": "internal"
+      }
     }
   }
 }
