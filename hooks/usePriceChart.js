@@ -10,9 +10,13 @@ import { API, API_KEYS } from '../utils/constants';
 
 const CACHE_KEY_PREFIX = 'btc_price_cache_';
 const CACHE_EXPIRY_MS = 24 * 60 * 60 * 1000; // 24 hours
+const RATE_LIMIT_BACKOFF_MS = 5 * 60 * 1000; // 5 minutes backoff after rate limit
 
 // In-memory cache for instant access across navigations
 const priceCache = {};
+
+// Track last rate limit to prevent hammering the API
+let lastRateLimitTime = 0;
 
 // Sample data to reduce points to ~60
 const sampleData = (data, targetPoints = 60) => {
@@ -90,7 +94,8 @@ export function usePriceChart(assetType, selectedTimeframe) {
         }
       }
 
-      // Check AsyncStorage cache
+      // Check AsyncStorage cache (even if expired, use as fallback)
+      let fallbackCache = null;
       try {
         const cachedData = await AsyncStorage.getItem(cacheKey);
         if (cachedData) {
@@ -109,9 +114,26 @@ export function usePriceChart(assetType, selectedTimeframe) {
             setPriceLoading(false);
             return;
           }
+
+          // Cache expired but keep as fallback if API fails
+          fallbackCache = { prices, direction: calculatePriceDirection(prices) };
         }
       } catch (cacheError) {
         // Silently fail cache read
+      }
+
+      // Check if we're in rate limit backoff period
+      const timeSinceRateLimit = Date.now() - lastRateLimitTime;
+      if (lastRateLimitTime > 0 && timeSinceRateLimit < RATE_LIMIT_BACKOFF_MS) {
+        // Use fallback cache if available, otherwise show error
+        if (fallbackCache) {
+          setPriceData(fallbackCache.prices);
+          setPriceDirection(fallbackCache.direction);
+          setPriceLoading(false);
+          return;
+        }
+        const remainingMinutes = Math.ceil((RATE_LIMIT_BACKOFF_MS - timeSinceRateLimit) / 60000);
+        throw new Error(`Rate limited. Please wait ${remainingMinutes} minute(s).`);
       }
 
       // Only show loading if we need to fetch from network
@@ -129,10 +151,25 @@ export function usePriceChart(assetType, selectedTimeframe) {
       );
 
       if (response.status === 429) {
-        throw new Error('Rate limit reached. Please try again in a moment.');
+        lastRateLimitTime = Date.now();
+        // Use fallback cache if available
+        if (fallbackCache) {
+          setPriceData(fallbackCache.prices);
+          setPriceDirection(fallbackCache.direction);
+          setPriceLoading(false);
+          return;
+        }
+        throw new Error('Rate limit reached. Using cached data.');
       }
 
       if (!response.ok) {
+        // Use fallback cache if available
+        if (fallbackCache) {
+          setPriceData(fallbackCache.prices);
+          setPriceDirection(fallbackCache.direction);
+          setPriceLoading(false);
+          return;
+        }
         throw new Error(`API error: ${response.status}`);
       }
 
