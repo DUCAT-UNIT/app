@@ -323,4 +323,108 @@ describe('useVaultMessages', () => {
 
     consoleSpy.mockRestore();
   });
+
+  it('should handle CREDENTIALS_RECEIVED message', async () => {
+    const mockHandleCredentialConfirmation = jest.fn();
+    const { result } = renderHook(() =>
+      useVaultMessages(
+        mockWebViewRef,
+        mockShowSnackbar,
+        mockInjectWalletCredentials,
+        mockSetIsLoading,
+        mockSetPreparingVault,
+        null, // loadingTimeoutRef
+        mockHandleCredentialConfirmation
+      )
+    );
+
+    const event = {
+      nativeEvent: {
+        data: JSON.stringify({
+          type: 'CREDENTIALS_RECEIVED',
+          payload: {
+            vaultPubkey: 'vault_pubkey_123',
+          },
+        }),
+      },
+    };
+
+    await act(async () => {
+      await result.current.handleMessage(event);
+    });
+
+    expect(mockHandleCredentialConfirmation).toHaveBeenCalledWith('vault_pubkey_123');
+  });
+
+  it('should handle CREDENTIALS_RECEIVED without handleCredentialConfirmation', async () => {
+    const { result } = renderHook(() =>
+      useVaultMessages(
+        mockWebViewRef,
+        mockShowSnackbar,
+        mockInjectWalletCredentials,
+        mockSetIsLoading,
+        mockSetPreparingVault,
+        null, // loadingTimeoutRef
+        null // no handleCredentialConfirmation
+      )
+    );
+
+    const event = {
+      nativeEvent: {
+        data: JSON.stringify({
+          type: 'CREDENTIALS_RECEIVED',
+          payload: {
+            vaultPubkey: 'vault_pubkey_123',
+          },
+        }),
+      },
+    };
+
+    // Should not throw error
+    await act(async () => {
+      await result.current.handleMessage(event);
+    });
+  });
+
+  it('should clear loadingTimeout when VAULT_LOADED received', async () => {
+    jest.useFakeTimers();
+    const mockLoadingTimeoutRef = {
+      current: setTimeout(() => {}, 5000), // Active timeout
+    };
+
+    const { result } = renderHook(() =>
+      useVaultMessages(
+        mockWebViewRef,
+        mockShowSnackbar,
+        mockInjectWalletCredentials,
+        mockSetIsLoading,
+        mockSetPreparingVault,
+        mockLoadingTimeoutRef
+      )
+    );
+
+    const event = {
+      nativeEvent: {
+        data: JSON.stringify({
+          type: 'VAULT_LOADED',
+        }),
+      },
+    };
+
+    await act(async () => {
+      await result.current.handleMessage(event);
+    });
+
+    expect(mockLoadingTimeoutRef.current).toBeNull();
+    expect(mockSetIsLoading).toHaveBeenCalledWith(false);
+    expect(mockSetPreparingVault).toHaveBeenCalledWith(false);
+
+    // Should inject credentials after delay
+    act(() => {
+      jest.advanceTimersByTime(500);
+    });
+
+    expect(mockInjectWalletCredentials).toHaveBeenCalled();
+    jest.useRealTimers();
+  });
 });

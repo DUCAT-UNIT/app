@@ -11,19 +11,29 @@ import * as balanceService from '../../services/balanceService';
 jest.mock('../../services/balanceService');
 
 // Helper to render hooks
-function renderHook(hook, props) {
+function renderHook(hook, options = {}) {
   const result = { current: null };
+  let props = options.initialProps || {};
+
   function TestComponent() {
-    result.current = hook(props);
+    result.current = typeof hook === 'function' ? hook(props) : hook;
     return null;
   }
+
   let component;
   act(() => {
     component = create(<TestComponent />);
   });
+
   return {
     result,
     unmount: () => component.unmount(),
+    rerender: (newProps) => {
+      props = newProps || props;
+      act(() => {
+        component.update(<TestComponent />);
+      });
+    },
   };
 }
 
@@ -153,5 +163,126 @@ describe('useBalanceData', () => {
     expect(result.current.taprootBalance).toBe(250000);
     expect(result.current.runesBalance).toEqual([['REFRESH•RUNE', 2000]]);
     expect(result.current.refreshing).toBe(false);
+  });
+
+  it('should skip fetch when wallet addresses are missing', async () => {
+    const walletWithoutAddresses = null;
+
+    const { result } = renderHook(() => useBalanceData(walletWithoutAddresses, mockGetUnconfirmedBalance));
+
+    await act(async () => {
+      await result.current.fetchBalance();
+    });
+
+    // Should not call the service when addresses are missing
+    expect(balanceService.fetchWalletBalances).not.toHaveBeenCalled();
+    expect(result.current.loadingBalance).toBe(false);
+  });
+
+  it('should skip state update when balances are unchanged', async () => {
+    const mockBalances = {
+      segwitBalance: 100000,
+      taprootBalance: 200000,
+      runesBalance: [['UNIT', 1000]],
+    };
+
+    balanceService.fetchWalletBalances.mockResolvedValue(mockBalances);
+    mockGetUnconfirmedBalance.mockReturnValue({ btc: 0, runes: 0 });
+
+    const { result } = renderHook(() => useBalanceData(mockWallet, mockGetUnconfirmedBalance));
+
+    // First fetch - balances should update
+    await act(async () => {
+      await result.current.fetchBalance();
+    });
+
+    expect(result.current.segwitBalance).toBe(100000);
+    expect(result.current.taprootBalance).toBe(200000);
+
+    // Clear mock to verify it's called again
+    balanceService.fetchWalletBalances.mockClear();
+    balanceService.fetchWalletBalances.mockResolvedValue(mockBalances); // Same balances
+
+    // Second fetch with same balances - should fetch but not update state
+    await act(async () => {
+      await result.current.fetchBalance();
+    });
+
+    // Should have called the service
+    expect(balanceService.fetchWalletBalances).toHaveBeenCalled();
+    // State should remain the same
+    expect(result.current.segwitBalance).toBe(100000);
+    expect(result.current.taprootBalance).toBe(200000);
+  });
+
+  it('should reset prevBalancesRef when wallet address changes', async () => {
+    const mockBalances1 = {
+      segwitBalance: 100000,
+      taprootBalance: 200000,
+      runesBalance: [['UNIT', 1000]],
+    };
+
+    const mockBalances2 = {
+      segwitBalance: 50000,
+      taprootBalance: 75000,
+      runesBalance: [['UNIT', 500]],
+    };
+
+    balanceService.fetchWalletBalances.mockResolvedValue(mockBalances1);
+    mockGetUnconfirmedBalance.mockReturnValue({ btc: 0, runes: 0 });
+
+    const { result, rerender } = renderHook(
+      ({ wallet }) => useBalanceData(wallet, mockGetUnconfirmedBalance),
+      { initialProps: { wallet: mockWallet } }
+    );
+
+    // First fetch with first wallet
+    await act(async () => {
+      await result.current.fetchBalance();
+    });
+
+    expect(result.current.segwitBalance).toBe(100000);
+
+    // Change wallet address
+    const newWallet = {
+      segwitAddress: 'bc1qnewaddress',
+      taprootAddress: 'bc1pnewaddress',
+    };
+
+    balanceService.fetchWalletBalances.mockResolvedValue(mockBalances2);
+
+    // Rerender with new wallet address
+    act(() => {
+      rerender({ wallet: newWallet });
+    });
+
+    // Fetch with new wallet - should update because prevBalancesRef was reset
+    await act(async () => {
+      await result.current.fetchBalance();
+    });
+
+    expect(result.current.segwitBalance).toBe(50000);
+    expect(result.current.taprootBalance).toBe(75000);
+  });
+
+  it('should handle undefined runesBalance in balance comparison', async () => {
+    const mockBalances = {
+      segwitBalance: 100000,
+      taprootBalance: 200000,
+      runesBalance: undefined, // undefined runesBalance
+    };
+
+    balanceService.fetchWalletBalances.mockResolvedValue(mockBalances);
+    mockGetUnconfirmedBalance.mockReturnValue({ btc: 0, runes: 0 });
+
+    const { result } = renderHook(() => useBalanceData(mockWallet, mockGetUnconfirmedBalance));
+
+    await act(async () => {
+      await result.current.fetchBalance();
+    });
+
+    // Should handle undefined runesBalance gracefully
+    expect(result.current.segwitBalance).toBe(100000);
+    expect(result.current.taprootBalance).toBe(200000);
   });
 });

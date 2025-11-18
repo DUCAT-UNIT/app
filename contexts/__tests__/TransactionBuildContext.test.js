@@ -413,4 +413,251 @@ describe('TransactionBuildContext', () => {
     expect(mockShowToast).toHaveBeenCalled();
     expect(mockShowToast.mock.calls[0][1]).toBe('error');
   });
+
+  it('should cancel BTC intent and release locked UTXOs', async () => {
+    const mockIntent = {
+      psbt: 'mock_psbt',
+      fee: 1000,
+      inputs: [
+        { txid: 'input1', vout: 0 },
+        { txid: 'input2', vout: 1 },
+      ],
+    };
+
+    const mockUnmarkUtxosAsSpent = jest.fn();
+    usePendingTransactions.mockReturnValue({
+      getUnconfirmedUTXOs: jest.fn().mockReturnValue([]),
+      getSpentUtxos: jest.fn().mockReturnValue([]),
+      unmarkUtxosAsSpent: mockUnmarkUtxosAsSpent,
+      markUtxosAsSpent: jest.fn(),
+    });
+
+    const wrapper = ({ children }) => (
+      <TransactionBuildProvider wallet={mockWallet} currentAccount={0} showToast={mockShowToast}>
+        {children}
+      </TransactionBuildProvider>
+    );
+    const { result } = renderHook(() => useTransactionBuild(), { wrapper });
+
+    // Set an intent
+    act(() => {
+      result.current.setSendIntent(mockIntent);
+    });
+
+    // Cancel the intent
+    await act(async () => {
+      await result.current.cancelIntent();
+    });
+
+    expect(mockUnmarkUtxosAsSpent).toHaveBeenCalledWith([
+      { txid: 'input1', vout: 0 },
+      { txid: 'input2', vout: 1 },
+    ]);
+    expect(result.current.sendIntent).toBeNull();
+    expect(mockSetIntentStep).toHaveBeenCalledWith('idle');
+  });
+
+  it('should cancel UNIT intent and release rune and sat UTXOs', async () => {
+    const mockIntent = {
+      psbt: 'mock_psbt_unit',
+      fee: 2000,
+      runeUtxo: {
+        transaction: 'rune_txid',
+        vout: 0,
+        runeAmount: 150,
+      },
+      satUtxo: {
+        txid: 'sat_txid',
+        vout: 1,
+        value: 15000,
+      },
+    };
+
+    const mockUnmarkUtxosAsSpent = jest.fn();
+    usePendingTransactions.mockReturnValue({
+      getUnconfirmedUTXOs: jest.fn().mockReturnValue([]),
+      getSpentUtxos: jest.fn().mockReturnValue([]),
+      unmarkUtxosAsSpent: mockUnmarkUtxosAsSpent,
+      markUtxosAsSpent: jest.fn(),
+    });
+
+    const wrapper = ({ children }) => (
+      <TransactionBuildProvider wallet={mockWallet} currentAccount={0} showToast={mockShowToast}>
+        {children}
+      </TransactionBuildProvider>
+    );
+    const { result } = renderHook(() => useTransactionBuild(), { wrapper });
+
+    // Set a UNIT intent
+    act(() => {
+      result.current.setSendIntent(mockIntent);
+    });
+
+    // Cancel the intent
+    await act(async () => {
+      await result.current.cancelIntent();
+    });
+
+    expect(mockUnmarkUtxosAsSpent).toHaveBeenCalledWith([
+      { txid: 'rune_txid', vout: 0 },
+      { txid: 'sat_txid', vout: 1 },
+    ]);
+    expect(result.current.sendIntent).toBeNull();
+    expect(mockSetIntentStep).toHaveBeenCalledWith('idle');
+  });
+
+  it('should not release UTXOs if transaction was already broadcast', async () => {
+    const mockIntent = {
+      psbt: 'mock_psbt',
+      fee: 1000,
+      txid: 'broadcast_txid', // Transaction was broadcast
+      inputs: [
+        { txid: 'input1', vout: 0 },
+      ],
+    };
+
+    const mockUnmarkUtxosAsSpent = jest.fn();
+    usePendingTransactions.mockReturnValue({
+      getUnconfirmedUTXOs: jest.fn().mockReturnValue([]),
+      getSpentUtxos: jest.fn().mockReturnValue([]),
+      unmarkUtxosAsSpent: mockUnmarkUtxosAsSpent,
+      markUtxosAsSpent: jest.fn(),
+    });
+
+    const wrapper = ({ children }) => (
+      <TransactionBuildProvider wallet={mockWallet} currentAccount={0} showToast={mockShowToast}>
+        {children}
+      </TransactionBuildProvider>
+    );
+    const { result } = renderHook(() => useTransactionBuild(), { wrapper });
+
+    // Set a broadcast intent
+    act(() => {
+      result.current.setSendIntent(mockIntent);
+    });
+
+    // Cancel the intent
+    await act(async () => {
+      await result.current.cancelIntent();
+    });
+
+    // Should NOT release UTXOs since transaction was broadcast
+    expect(mockUnmarkUtxosAsSpent).not.toHaveBeenCalled();
+    expect(result.current.sendIntent).toBeNull();
+    expect(mockSetIntentStep).toHaveBeenCalledWith('idle');
+  });
+
+  it('should handle cancelIntent when no intent exists', async () => {
+    const mockUnmarkUtxosAsSpent = jest.fn();
+    usePendingTransactions.mockReturnValue({
+      getUnconfirmedUTXOs: jest.fn().mockReturnValue([]),
+      getSpentUtxos: jest.fn().mockReturnValue([]),
+      unmarkUtxosAsSpent: mockUnmarkUtxosAsSpent,
+      markUtxosAsSpent: jest.fn(),
+    });
+
+    const wrapper = ({ children }) => (
+      <TransactionBuildProvider wallet={mockWallet} currentAccount={0} showToast={mockShowToast}>
+        {children}
+      </TransactionBuildProvider>
+    );
+    const { result } = renderHook(() => useTransactionBuild(), { wrapper });
+
+    // Cancel when no intent exists (should return early)
+    await act(async () => {
+      await result.current.cancelIntent();
+    });
+
+    expect(mockUnmarkUtxosAsSpent).not.toHaveBeenCalled();
+    expect(result.current.sendIntent).toBeNull();
+  });
+
+  it('should lock UTXOs when creating UNIT intent with runeUtxo and satUtxo', async () => {
+    const mockIntent = {
+      psbt: 'mock_psbt_unit',
+      fee: 2000,
+      runeUtxo: {
+        transaction: 'rune_txid',
+        vout: 0,
+        runeAmount: 150,
+      },
+      satUtxo: {
+        txid: 'sat_txid',
+        vout: 1,
+        value: 15000,
+      },
+    };
+    TransactionService.createUnitIntent.mockResolvedValue(mockIntent);
+
+    const mockMarkUtxosAsSpent = jest.fn();
+    useSendFlow.mockReturnValue({
+      sendRecipient: 'bc1qrecipient',
+      sendAmount: '100',
+      sendAssetType: 'unit',
+      setIntentStep: mockSetIntentStep,
+      setSendRecipient: mockSetSendRecipient,
+    });
+
+    usePendingTransactions.mockReturnValue({
+      getUnconfirmedUTXOs: jest.fn().mockReturnValue([]),
+      getSpentUtxos: jest.fn().mockReturnValue([]),
+      markUtxosAsSpent: mockMarkUtxosAsSpent,
+    });
+
+    useBalance.mockReturnValue({
+      runesBalance: [['UNIT', '1000']],
+    });
+
+    const wrapper = ({ children }) => (
+      <TransactionBuildProvider wallet={mockWallet} currentAccount={0} showToast={mockShowToast}>
+        {children}
+      </TransactionBuildProvider>
+    );
+    const { result } = renderHook(() => useTransactionBuild(), { wrapper });
+
+    await act(async () => {
+      await result.current.createSendIntent();
+    });
+
+    // Verify both rune and sat UTXOs were locked
+    expect(mockMarkUtxosAsSpent).toHaveBeenCalledWith([
+      { txid: 'rune_txid', vout: 0 },
+      { txid: 'sat_txid', vout: 1 },
+    ]);
+  });
+
+  it('should handle UNIT intent with zero runes balance', async () => {
+    useSendFlow.mockReturnValue({
+      sendRecipient: 'bc1qrecipient',
+      sendAmount: '100',
+      sendAssetType: 'unit',
+      setIntentStep: mockSetIntentStep,
+      setSendRecipient: mockSetSendRecipient,
+    });
+
+    useBalance.mockReturnValue({
+      runesBalance: [], // No runes balance
+    });
+
+    const wrapper = ({ children }) => (
+      <TransactionBuildProvider wallet={mockWallet} currentAccount={0} showToast={mockShowToast}>
+        {children}
+      </TransactionBuildProvider>
+    );
+    const { result } = renderHook(() => useTransactionBuild(), { wrapper });
+
+    await act(async () => {
+      await result.current.createSendIntent();
+    });
+
+    expect(mockShowToast).toHaveBeenCalled();
+    expect(mockShowToast.mock.calls[0][0]).toContain('UNIT');
+    expect(mockShowToast.mock.calls[0][1]).toBe('error');
+
+    act(() => {
+      jest.advanceTimersByTime(100);
+    });
+
+    expect(mockSetIntentStep).toHaveBeenCalledWith('entering_amount');
+  });
 });
