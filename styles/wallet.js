@@ -269,10 +269,11 @@ export const walletStyles = StyleSheet.create({
   },
   // Removed duplicates - using balanceWithIcon and balanceIcon at lines 909-918
   balanceDivider: {
-    height: 0,
-    backgroundColor: COLORS.CARD_BG,
-    marginHorizontal: 0,
-    marginBottom: 8,
+    height: 1,
+    backgroundColor: COLORS.BORDER_COLOR,
+    marginHorizontal: 20,
+    marginVertical: 16,
+    opacity: 0.3,
   },
   portfolioButton: {
     flexDirection: 'row',
