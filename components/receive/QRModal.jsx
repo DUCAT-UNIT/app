@@ -71,10 +71,16 @@ export default function QRModal({
             <Icon name="back" size={24} color={COLORS.VERY_LIGHT_GRAY} />
           </TouchableOpacity>
           <View style={localStyles.titleContainer}>
-            <Text style={styles.qrModalTitle}>Bitcoin address</Text>
+            <Text style={styles.qrModalTitle}>
+              {addressType === 'Taproot' ? 'UNIT address' : 'Bitcoin address'}
+            </Text>
           </View>
         </View>
-        <Text style={styles.qrModalSubtitle}>Only use this address to receive Bitcoin.</Text>
+        <Text style={styles.qrModalSubtitle}>
+          {addressType === 'Taproot'
+            ? 'Only use this address to receive UNIT.'
+            : 'Only use this address to receive Bitcoin.'}
+        </Text>
 
         {/* QR Code */}
         <View style={styles.qrCodeContainer}>
@@ -83,7 +89,11 @@ export default function QRModal({
             size={QR_SIZE}
             backgroundColor="white"
             color="black"
-            logo={require('../../assets/logos/btc-logo.png')}
+            logo={
+              addressType === 'Taproot'
+                ? require('../../assets/logos/unit-log.png')
+                : require('../../assets/logos/btc-logo.png')
+            }
             logoSize={LOGO_SIZE}
             logoBackgroundColor="white"
             logoBorderRadius={Math.floor(LOGO_SIZE / 2)}
@@ -98,7 +108,9 @@ export default function QRModal({
         >
           <View style={localStyles.addressContentContainer}>
             <View style={localStyles.addressLabelRow}>
-              <Text style={styles.qrAddressLabelText}>{addressType}</Text>
+              <Text style={styles.qrAddressLabelText}>
+                {addressType === 'Taproot' ? 'UNIT' : addressType}
+              </Text>
               <Text style={localStyles.tapToCopyText}>Tap to copy</Text>
             </View>
             <Text style={styles.qrAddressFullText}>{address}</Text>
