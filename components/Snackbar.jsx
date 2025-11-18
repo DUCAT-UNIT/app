@@ -142,14 +142,15 @@ const styles = StyleSheet.create({
     backgroundColor: COLORS.DARK_CARD_BG,
     borderRadius: 12,
     padding: 16,
+    // Enhanced shadow for floating effect
     shadowColor: '#000',
     shadowOffset: {
       width: 0,
-      height: 4,
+      height: 8,
     },
-    shadowOpacity: 0.3,
-    shadowRadius: 8,
-    elevation: 8,
+    shadowOpacity: 0.5,
+    shadowRadius: 16,
+    elevation: 12,
   },
   content: {
     flexDirection: 'row',
