@@ -23,9 +23,9 @@
         <div class='clearfix'>
             
             <div class='fl pad1y space-right2'>
-                <span class="strong">0% </span>
+                <span class="strong">100% </span>
                 <span class="quiet">Statements</span>
-                <span class='fraction'>0/10</span>
+                <span class='fraction'>10/10</span>
             </div>
         
             
@@ -37,16 +37,16 @@
         
             
             <div class='fl pad1y space-right2'>
-                <span class="strong">0% </span>
+                <span class="strong">100% </span>
                 <span class="quiet">Functions</span>
-                <span class='fraction'>0/10</span>
+                <span class='fraction'>10/10</span>
             </div>
         
             
             <div class='fl pad1y space-right2'>
-                <span class="strong">0% </span>
+                <span class="strong">100% </span>
                 <span class="quiet">Lines</span>
-                <span class='fraction'>0/10</span>
+                <span class='fraction'>10/10</span>
             </div>
         
             
@@ -61,7 +61,7 @@
             </div>
         </template>
     </div>
-    <div class='status-line low'></div>
+    <div class='status-line high'></div>
     <pre><table class="coverage">
 <tr><td class="line-count quiet"><a name='L1'></a><a href='#L1'>1</a>
 <a name='L2'></a><a href='#L2'>2</a>
@@ -123,47 +123,47 @@
 <span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
-<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-yes">1x</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
-<span class="cline-any cline-no">&nbsp;</span>
-<span class="cline-any cline-neutral">&nbsp;</span>
-<span class="cline-any cline-neutral">&nbsp;</span>
-<span class="cline-any cline-neutral">&nbsp;</span>
-<span class="cline-any cline-neutral">&nbsp;</span>
-<span class="cline-any cline-no">&nbsp;</span>
-<span class="cline-any cline-neutral">&nbsp;</span>
-<span class="cline-any cline-neutral">&nbsp;</span>
-<span class="cline-any cline-neutral">&nbsp;</span>
-<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-yes">1x</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
-<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-yes">1x</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
-<span class="cline-any cline-no">&nbsp;</span>
-<span class="cline-any cline-neutral">&nbsp;</span>
-<span class="cline-any cline-neutral">&nbsp;</span>
-<span class="cline-any cline-neutral">&nbsp;</span>
-<span class="cline-any cline-neutral">&nbsp;</span>
-<span class="cline-any cline-no">&nbsp;</span>
-<span class="cline-any cline-neutral">&nbsp;</span>
-<span class="cline-any cline-neutral">&nbsp;</span>
-<span class="cline-any cline-neutral">&nbsp;</span>
-<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-yes">1x</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
-<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-yes">1x</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
-<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-yes">1x</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-yes">1x</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-yes">1x</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-yes">2x</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-yes">1x</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span></td><td class="text"><pre class="prettyprint lang-js">/**
  * Settings Helpers
@@ -173,48 +173,48 @@
 import { SettingKeys, getBoolean, setBoolean, getString, setString, getNumber, setNumber } from './settingsService';
 &nbsp;
 // Authentication settings
-export async function <span class="fstat-no" title="function not covered" >getBiometricEnabled(</span>) {
-<span class="cstat-no" title="statement not covered" >  return getBoolean(SettingKeys.BIOMETRIC_ENABLED, false);</span>
+export async function getBiometricEnabled() {
+  return getBoolean(SettingKeys.BIOMETRIC_ENABLED, false);
 }
 &nbsp;
-export async function <span class="fstat-no" title="function not covered" >setBiometricEnabled(</span>enabled) {
-<span class="cstat-no" title="statement not covered" >  return setBoolean(SettingKeys.BIOMETRIC_ENABLED, enabled);</span>
+export async function setBiometricEnabled(enabled) {
+  return setBoolean(SettingKeys.BIOMETRIC_ENABLED, enabled);
 }
 &nbsp;
 // Notification settings
-export async function <span class="fstat-no" title="function not covered" >getNotificationsEnabled(</span>) {
-<span class="cstat-no" title="statement not covered" >  return getBoolean(SettingKeys.NOTIFICATIONS_ENABLED, false);</span>
+export async function getNotificationsEnabled() {
+  return getBoolean(SettingKeys.NOTIFICATIONS_ENABLED, false);
 }
 &nbsp;
-export async function <span class="fstat-no" title="function not covered" >setNotificationsEnabled(</span>enabled) {
-<span class="cstat-no" title="statement not covered" >  return setBoolean(SettingKeys.NOTIFICATIONS_ENABLED, enabled);</span>
+export async function setNotificationsEnabled(enabled) {
+  return setBoolean(SettingKeys.NOTIFICATIONS_ENABLED, enabled);
 }
 &nbsp;
 // Display preferences
-export async function <span class="fstat-no" title="function not covered" >getShowZeroAssets(</span>) {
-<span class="cstat-no" title="statement not covered" >  return getBoolean(SettingKeys.SHOW_ZERO_ASSETS, false);</span>
+export async function getShowZeroAssets() {
+  return getBoolean(SettingKeys.SHOW_ZERO_ASSETS, false);
 }
 &nbsp;
-export async function <span class="fstat-no" title="function not covered" >setShowZeroAssets(</span>enabled) {
-<span class="cstat-no" title="statement not covered" >  return setBoolean(SettingKeys.SHOW_ZERO_ASSETS, enabled);</span>
+export async function setShowZeroAssets(enabled) {
+  return setBoolean(SettingKeys.SHOW_ZERO_ASSETS, enabled);
 }
 &nbsp;
 // Auto-lock settings
-export async function <span class="fstat-no" title="function not covered" >getAutoLockTimeout(</span>) {
-<span class="cstat-no" title="statement not covered" >  return getNumber(SettingKeys.AUTO_LOCK_TIMEOUT, 300000); </span>// 5 minutes default
+export async function getAutoLockTimeout() {
+  return getNumber(SettingKeys.AUTO_LOCK_TIMEOUT, 300000); // 5 minutes default
 }
 &nbsp;
-export async function <span class="fstat-no" title="function not covered" >setAutoLockTimeout(</span>timeout) {
-<span class="cstat-no" title="statement not covered" >  return setNumber(SettingKeys.AUTO_LOCK_TIMEOUT, timeout);</span>
+export async function setAutoLockTimeout(timeout) {
+  return setNumber(SettingKeys.AUTO_LOCK_TIMEOUT, timeout);
 }
 &nbsp;
 // Account settings
-export async function <span class="fstat-no" title="function not covered" >getCurrentAccount(</span>) {
-<span class="cstat-no" title="statement not covered" >  return getString(SettingKeys.CURRENT_ACCOUNT, '0');</span>
+export async function getCurrentAccount() {
+  return getString(SettingKeys.CURRENT_ACCOUNT, '0');
 }
 &nbsp;
-export async function <span class="fstat-no" title="function not covered" >setCurrentAccount(</span>account) {
-<span class="cstat-no" title="statement not covered" >  return setString(SettingKeys.CURRENT_ACCOUNT, account);</span>
+export async function setCurrentAccount(account) {
+  return setString(SettingKeys.CURRENT_ACCOUNT, account);
 }
 &nbsp;</pre></td></tr></table></pre>
 
@@ -223,7 +223,7 @@ export async function <span class="fstat-no" title="function not covered" >setCu
             <div class='footer quiet pad2 space-top1 center small'>
                 Code coverage generated by
                 <a href="https://istanbul.js.org/" target="_blank" rel="noopener noreferrer">istanbul</a>
-                at 2025-11-18T00:06:15.394Z
+                at 2025-11-18T06:17:25.610Z
             </div>
         <script src="../prettify.js"></script>
         <script>

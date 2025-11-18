@@ -15,8 +15,8 @@ jest.mock('expo-secure-store', () => ({
   deleteItemAsync: jest.fn(),
 }));
 
-// Mock authService
-jest.mock('../../services/authService', () => ({
+// Mock secureStorageService
+jest.mock('../../services/secureStorageService', () => ({
   deleteWalletData: jest.fn(),
 }));
 
@@ -174,8 +174,8 @@ describe('usePostAuthHandler', () => {
 
   describe('Wallet Deletion Flow', () => {
     it('should delete wallet when pending flag is set', async () => {
-      const AuthService = require('../../services/authService');
-      AuthService.deleteWalletData.mockResolvedValue(true);
+      const SecureStorageService = require('../../services/secureStorageService');
+      SecureStorageService.deleteWalletData.mockResolvedValue(true);
 
       SecureStore.getItemAsync.mockImplementation((key) => {
         if (key === 'pendingWalletDelete') return Promise.resolve('true');
@@ -191,7 +191,7 @@ describe('usePostAuthHandler', () => {
       });
 
       expect(SecureStore.deleteItemAsync).toHaveBeenCalledWith('pendingWalletDelete');
-      expect(AuthService.deleteWalletData).toHaveBeenCalled();
+      expect(SecureStorageService.deleteWalletData).toHaveBeenCalled();
       expect(mockProps.resetWallet).toHaveBeenCalled();
       expect(mockProps.walletExists.current).toBe(false);
       expect(mockProps.resetAuth).toHaveBeenCalled();
@@ -199,8 +199,8 @@ describe('usePostAuthHandler', () => {
     });
 
     it('should handle wallet deletion failure', async () => {
-      const AuthService = require('../../services/authService');
-      AuthService.deleteWalletData.mockResolvedValue(false);
+      const SecureStorageService = require('../../services/secureStorageService');
+      SecureStorageService.deleteWalletData.mockResolvedValue(false);
 
       SecureStore.getItemAsync.mockImplementation((key) => {
         if (key === 'pendingWalletDelete') return Promise.resolve('true');
@@ -220,8 +220,8 @@ describe('usePostAuthHandler', () => {
     });
 
     it('should handle wallet deletion errors', async () => {
-      const AuthService = require('../../services/authService');
-      AuthService.deleteWalletData.mockRejectedValue(new Error('Deletion error'));
+      const SecureStorageService = require('../../services/secureStorageService');
+      SecureStorageService.deleteWalletData.mockRejectedValue(new Error('Deletion error'));
 
       SecureStore.getItemAsync.mockImplementation((key) => {
         if (key === 'pendingWalletDelete') return Promise.resolve('true');
@@ -240,8 +240,8 @@ describe('usePostAuthHandler', () => {
     });
 
     it('should handle walletExists ref being undefined', async () => {
-      const AuthService = require('../../services/authService');
-      AuthService.deleteWalletData.mockResolvedValue(true);
+      const SecureStorageService = require('../../services/secureStorageService');
+      SecureStorageService.deleteWalletData.mockResolvedValue(true);
       mockProps.walletExists = { current: undefined };
 
       SecureStore.getItemAsync.mockImplementation((key) => {

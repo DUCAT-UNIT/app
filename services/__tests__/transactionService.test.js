@@ -2,9 +2,9 @@
  * Tests for transactionService
  */
 
-import * as TransactionService from '../transactionService';
+import * as TransactionService from '../transaction';
 import * as balanceService from '../balanceService';
-import * as AuthService from '../authService';
+import * as SecureStorageService from '../secureStorageService';
 import { ERRORS } from '../../utils/messages';
 import * as bitcoinUtils from '../../utils/bitcoin';
 
@@ -503,7 +503,7 @@ describe('transactionService', () => {
         // psbt field is missing
       };
 
-      AuthService.withMnemonic.mockImplementation((callback) => {
+      SecureStorageService.withMnemonic.mockImplementation((callback) => {
         return callback('test mnemonic phrase for unit testing only');
       });
 
@@ -517,7 +517,7 @@ describe('transactionService', () => {
         psbt: 'invalid_psbt_base64',
       };
 
-      AuthService.withMnemonic.mockImplementation((callback) => {
+      SecureStorageService.withMnemonic.mockImplementation((callback) => {
         return callback('test mnemonic phrase for unit testing only');
       });
 
@@ -558,8 +558,8 @@ describe('transactionService', () => {
           })),
         };
 
-        // Mock AuthService.withMnemonic to return derived keys
-        AuthService.withMnemonic.mockImplementation((callback) => {
+        // Mock SecureStorageService.withMnemonic to return derived keys
+        SecureStorageService.withMnemonic.mockImplementation((callback) => {
           return callback('test mnemonic phrase for unit testing only');
         });
 
@@ -609,7 +609,7 @@ describe('transactionService', () => {
       it('should sign UNIT intent with Taproot tweaked keys (even y-coordinate)', async () => {
         const bitcoin = require('bitcoinjs-lib');
 
-        AuthService.withMnemonic.mockReturnValueOnce({
+        SecureStorageService.withMnemonic.mockReturnValueOnce({
           segwitChild: mockSegwitChild,
           taprootChild: mockTaprootChild,
         });
@@ -641,7 +641,7 @@ describe('transactionService', () => {
         const bitcoin = require('bitcoinjs-lib');
         const ecc = require('@bitcoinerlab/secp256k1');
 
-        AuthService.withMnemonic.mockReturnValueOnce({
+        SecureStorageService.withMnemonic.mockReturnValueOnce({
           segwitChild: mockSegwitChild,
           taprootChild: mockTaprootChild,
         });
@@ -695,7 +695,7 @@ describe('transactionService', () => {
           ),
         };
 
-        AuthService.withMnemonic.mockImplementation((callback) => {
+        SecureStorageService.withMnemonic.mockImplementation((callback) => {
           return callback('test mnemonic phrase for unit testing only');
         });
 
@@ -723,7 +723,7 @@ describe('transactionService', () => {
       it('should sign BTC SegWit transaction with multiple inputs', async () => {
         const bitcoin = require('bitcoinjs-lib');
 
-        AuthService.withMnemonic.mockReturnValueOnce({
+        SecureStorageService.withMnemonic.mockReturnValueOnce({
           segwitChild: mockSegwitChild,
           taprootChild: mockTaprootChild,
         });
@@ -764,7 +764,7 @@ describe('transactionService', () => {
           })),
         };
 
-        AuthService.withMnemonic.mockReturnValueOnce({
+        SecureStorageService.withMnemonic.mockReturnValueOnce({
           segwitChild: mockSegwitChild,
           taprootChild: mockTaprootChildWithTweak,
         });

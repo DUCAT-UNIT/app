@@ -43,7 +43,7 @@ jest.mock('../SendFlowContext');
 jest.mock('../TransactionBuildContext');
 jest.mock('../WalletContext');
 jest.mock('../PendingTransactionsContext');
-jest.mock('../../services/transactionService');
+jest.mock('../../services/transaction');
 jest.mock('../../services/transactionSigningService');
 jest.mock('../../services/transactionBroadcastService');
 jest.mock('../../services/backgroundTaskService', () => ({

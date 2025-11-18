@@ -23,30 +23,30 @@
         <div class='clearfix'>
             
             <div class='fl pad1y space-right2'>
-                <span class="strong">0% </span>
+                <span class="strong">100% </span>
                 <span class="quiet">Statements</span>
-                <span class='fraction'>0/11</span>
+                <span class='fraction'>11/11</span>
             </div>
         
             
             <div class='fl pad1y space-right2'>
-                <span class="strong">0% </span>
+                <span class="strong">83.33% </span>
                 <span class="quiet">Branches</span>
-                <span class='fraction'>0/6</span>
+                <span class='fraction'>5/6</span>
             </div>
         
             
             <div class='fl pad1y space-right2'>
-                <span class="strong">0% </span>
+                <span class="strong">100% </span>
                 <span class="quiet">Functions</span>
-                <span class='fraction'>0/4</span>
+                <span class='fraction'>4/4</span>
             </div>
         
             
             <div class='fl pad1y space-right2'>
-                <span class="strong">0% </span>
+                <span class="strong">100% </span>
                 <span class="quiet">Lines</span>
-                <span class='fraction'>0/11</span>
+                <span class='fraction'>11/11</span>
             </div>
         
             
@@ -61,7 +61,7 @@
             </div>
         </template>
     </div>
-    <div class='status-line low'></div>
+    <div class='status-line high'></div>
     <pre><table class="coverage">
 <tr><td class="line-count quiet"><a name='L1'></a><a href='#L1'>1</a>
 <a name='L2'></a><a href='#L2'>2</a>
@@ -103,29 +103,29 @@
 <span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
-<span class="cline-any cline-no">&nbsp;</span>
-<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-yes">1x</span>
+<span class="cline-any cline-yes">22x</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
-<span class="cline-any cline-no">&nbsp;</span>
-<span class="cline-any cline-no">&nbsp;</span>
-<span class="cline-any cline-neutral">&nbsp;</span>
-<span class="cline-any cline-neutral">&nbsp;</span>
-<span class="cline-any cline-no">&nbsp;</span>
-<span class="cline-any cline-no">&nbsp;</span>
-<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-yes">22x</span>
+<span class="cline-any cline-yes">10x</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
-<span class="cline-any cline-neutral">&nbsp;</span>
-<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-yes">13x</span>
+<span class="cline-any cline-yes">6x</span>
+<span class="cline-any cline-yes">7x</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
-<span class="cline-any cline-no">&nbsp;</span>
-<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-yes">7x</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
-<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-yes">10x</span>
+<span class="cline-any cline-yes">1x</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-yes">22x</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span></td><td class="text"><pre class="prettyprint lang-js">/**
  * useBackgroundSplash - Shows splash screen when app is backgrounded
@@ -135,29 +135,29 @@
 import { useState, useEffect } from 'react';
 import { AppState } from 'react-native';
 &nbsp;
-export const useBackgroundSplash = <span class="cstat-no" title="statement not covered" ><span class="fstat-no" title="function not covered" >()</span> =&gt; {</span>
-  const [showBackgroundSplash, setShowBackgroundSplash] = <span class="cstat-no" title="statement not covered" >useState(false);</span>
+export const useBackgroundSplash = () =&gt; {
+  const [showBackgroundSplash, setShowBackgroundSplash] = useState(false);
 &nbsp;
-<span class="cstat-no" title="statement not covered" >  useEffect(<span class="fstat-no" title="function not covered" >()</span> =&gt; {</span>
-    const subscription = <span class="cstat-no" title="statement not covered" >AppState.addEventListener('change', <span class="fstat-no" title="function not covered" >(n</span>extAppState) =&gt; {</span>
+  useEffect(() =&gt; {
+    const subscription = AppState.addEventListener('change', (nextAppState) =&gt; {
       // Only show splash when truly backgrounded, not during inactive state
       // (inactive happens during Face ID, notifications, control center, etc.)
-<span class="cstat-no" title="statement not covered" >      if (nextAppState === 'background') {</span>
-<span class="cstat-no" title="statement not covered" >        setShowBackgroundSplash(true);</span>
-      } else <span class="cstat-no" title="statement not covered" >if (nextAppState === 'active' || nextAppState === 'inactive') {</span>
+      if (nextAppState === 'background') {
+        setShowBackgroundSplash(true);
+      } else <span class="missing-if-branch" title="else path not taken" >E</span>if (nextAppState === 'active' || nextAppState === 'inactive') {
         // CRITICAL FIX: Clear splash on both 'active' AND 'inactive' states
         // iOS can transition: background → inactive → active
         // If we only clear on 'active', the splash can get stuck during 'inactive'
-<span class="cstat-no" title="statement not covered" >        setShowBackgroundSplash(false);</span>
+        setShowBackgroundSplash(false);
       }
     });
 &nbsp;
-<span class="cstat-no" title="statement not covered" >    return <span class="fstat-no" title="function not covered" >()</span> =&gt; {</span>
-<span class="cstat-no" title="statement not covered" >      subscription.remove();</span>
+    return () =&gt; {
+      subscription.remove();
     };
   }, []);
 &nbsp;
-<span class="cstat-no" title="statement not covered" >  return { showBackgroundSplash };</span>
+  return { showBackgroundSplash };
 };
 &nbsp;</pre></td></tr></table></pre>
 
@@ -166,7 +166,7 @@ export const useBackgroundSplash = <span class="cstat-no" title="statement not c
             <div class='footer quiet pad2 space-top1 center small'>
                 Code coverage generated by
                 <a href="https://istanbul.js.org/" target="_blank" rel="noopener noreferrer">istanbul</a>
-                at 2025-11-18T00:06:15.394Z
+                at 2025-11-18T06:17:25.610Z
             </div>
         <script src="../prettify.js"></script>
         <script>

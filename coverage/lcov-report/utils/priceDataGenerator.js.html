@@ -23,30 +23,30 @@
         <div class='clearfix'>
             
             <div class='fl pad1y space-right2'>
-                <span class="strong">0% </span>
+                <span class="strong">100% </span>
                 <span class="quiet">Statements</span>
-                <span class='fraction'>0/14</span>
+                <span class='fraction'>14/14</span>
             </div>
         
             
             <div class='fl pad1y space-right2'>
-                <span class="strong">0% </span>
+                <span class="strong">100% </span>
                 <span class="quiet">Branches</span>
-                <span class='fraction'>0/2</span>
+                <span class='fraction'>2/2</span>
             </div>
         
             
             <div class='fl pad1y space-right2'>
-                <span class="strong">0% </span>
+                <span class="strong">100% </span>
                 <span class="quiet">Functions</span>
-                <span class='fraction'>0/1</span>
+                <span class='fraction'>1/1</span>
             </div>
         
             
             <div class='fl pad1y space-right2'>
-                <span class="strong">0% </span>
+                <span class="strong">100% </span>
                 <span class="quiet">Lines</span>
-                <span class='fraction'>0/13</span>
+                <span class='fraction'>13/13</span>
             </div>
         
             
@@ -61,7 +61,7 @@
             </div>
         </template>
     </div>
-    <div class='status-line low'></div>
+    <div class='status-line high'></div>
     <pre><table class="coverage">
 <tr><td class="line-count quiet"><a name='L1'></a><a href='#L1'>1</a>
 <a name='L2'></a><a href='#L2'>2</a>
@@ -116,36 +116,36 @@
 <span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
-<span class="cline-any cline-no">&nbsp;</span>
-<span class="cline-any cline-no">&nbsp;</span>
-<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-yes">21x</span>
+<span class="cline-any cline-yes">21x</span>
+<span class="cline-any cline-yes">21x</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
-<span class="cline-any cline-no">&nbsp;</span>
-<span class="cline-any cline-neutral">&nbsp;</span>
-<span class="cline-any cline-neutral">&nbsp;</span>
-<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-yes">21x</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
-<span class="cline-any cline-no">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
-<span class="cline-any cline-no">&nbsp;</span>
-<span class="cline-any cline-no">&nbsp;</span>
-<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-yes">21x</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
-<span class="cline-any cline-no">&nbsp;</span>
-<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-yes">21x</span>
+<span class="cline-any cline-yes">21x</span>
+<span class="cline-any cline-yes">1260x</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
-<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-yes">1260x</span>
+<span class="cline-any cline-yes">1260x</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
-<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-yes">1260x</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-yes">1260x</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
-<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-yes">21x</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span></td><td class="text"><pre class="prettyprint lang-js">/**
  * Price Data Generator Utilities
@@ -157,37 +157,37 @@
  * @param {string} timeframe - '1D', '1W', '1M', '1Y'
  * @returns {Array} Array of [timestamp, price] tuples
  */
-export function <span class="fstat-no" title="function not covered" >generateUnitPriceData(</span>timeframe) {
-  const dataPoints = <span class="cstat-no" title="statement not covered" >60;</span> // 60 points for smooth chart
-  const data = <span class="cstat-no" title="statement not covered" >[];</span>
-  const now = <span class="cstat-no" title="statement not covered" >Date.now();</span>
+export function generateUnitPriceData(timeframe) {
+  const dataPoints = 60; // 60 points for smooth chart
+  const data = [];
+  const now = Date.now();
 &nbsp;
   // Time intervals based on timeframe
-  const intervals = <span class="cstat-no" title="statement not covered" >{</span>
+  const intervals = {
     '1D': 24 * 60 * 60 * 1000 / dataPoints, // 1 day in ms divided by points
     '1W': 7 * 24 * 60 * 60 * 1000 / dataPoints, // 1 week
     '1M': 30 * 24 * 60 * 60 * 1000 / dataPoints, // 1 month
     '1Y': 365 * 24 * 60 * 60 * 1000 / dataPoints, // 1 year
   };
 &nbsp;
-  const interval = <span class="cstat-no" title="statement not covered" >intervals[timeframe] || intervals['1M'];</span>
+  const interval = intervals[timeframe] || intervals['1M'];
 &nbsp;
   // Generate data points with fluctuations between .995 and 1.025
-  let currentPrice = <span class="cstat-no" title="statement not covered" >1.0;</span> // Start at 1.0
-<span class="cstat-no" title="statement not covered" >  for (let i = <span class="cstat-no" title="statement not covered" >0;</span> i &lt; dataPoints; i++) {</span>
-    const timestamp = <span class="cstat-no" title="statement not covered" >now - (dataPoints - i - 1) * interval;</span>
+  let currentPrice = 1.0; // Start at 1.0
+  for (let i = 0; i &lt; dataPoints; i++) {
+    const timestamp = now - (dataPoints - i - 1) * interval;
 &nbsp;
     // Random walk with tendency to stay near 1.0
-    const change = <span class="cstat-no" title="statement not covered" >(Math.random() - 0.5) * 0.01;</span> // Random change between -0.005 and +0.005
-<span class="cstat-no" title="statement not covered" >    currentPrice = currentPrice + change;</span>
+    const change = (Math.random() - 0.5) * 0.01; // Random change between -0.005 and +0.005
+    currentPrice = currentPrice + change;
 &nbsp;
     // Keep within bounds .995 to 1.025
-<span class="cstat-no" title="statement not covered" >    currentPrice = Math.max(0.995, Math.min(1.025, currentPrice));</span>
+    currentPrice = Math.max(0.995, Math.min(1.025, currentPrice));
 &nbsp;
-<span class="cstat-no" title="statement not covered" >    data.push([timestamp, currentPrice]);</span>
+    data.push([timestamp, currentPrice]);
   }
 &nbsp;
-<span class="cstat-no" title="statement not covered" >  return data;</span>
+  return data;
 }
 &nbsp;</pre></td></tr></table></pre>
 
@@ -196,7 +196,7 @@ export function <span class="fstat-no" title="function not covered" >generateUni
             <div class='footer quiet pad2 space-top1 center small'>
                 Code coverage generated by
                 <a href="https://istanbul.js.org/" target="_blank" rel="noopener noreferrer">istanbul</a>
-                at 2025-11-18T00:06:15.394Z
+                at 2025-11-18T06:17:25.610Z
             </div>
         <script src="../prettify.js"></script>
         <script>

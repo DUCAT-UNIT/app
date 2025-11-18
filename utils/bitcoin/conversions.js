@@ -58,12 +58,12 @@ export function btcToSats(btc) {
  */
 export function formatBTC(satoshis, decimals = 8) {
   if (satoshis === null || satoshis === undefined) {
-    return '0'.padEnd(decimals > 0 ? decimals + 2 : 1, '0');
+    return (0).toFixed(decimals);
   }
 
   if (typeof satoshis !== 'number' || isNaN(satoshis)) {
     logger.warn('formatBTC: Invalid satoshis value:', satoshis);
-    return '0'.padEnd(decimals > 0 ? decimals + 2 : 1, '0');
+    return (0).toFixed(decimals);
   }
 
   const btc = satsToBTC(satoshis);

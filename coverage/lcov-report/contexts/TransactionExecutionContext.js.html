@@ -23,16 +23,16 @@
         <div class='clearfix'>
             
             <div class='fl pad1y space-right2'>
-                <span class="strong">98.3% </span>
+                <span class="strong">95.96% </span>
                 <span class="quiet">Statements</span>
-                <span class='fraction'>116/118</span>
+                <span class='fraction'>119/124</span>
             </div>
         
             
             <div class='fl pad1y space-right2'>
-                <span class="strong">88.67% </span>
+                <span class="strong">84.74% </span>
                 <span class="quiet">Branches</span>
-                <span class='fraction'>47/53</span>
+                <span class='fraction'>50/59</span>
             </div>
         
             
@@ -44,9 +44,9 @@
         
             
             <div class='fl pad1y space-right2'>
-                <span class="strong">100% </span>
+                <span class="strong">97.52% </span>
                 <span class="quiet">Lines</span>
-                <span class='fraction'>115/115</span>
+                <span class='fraction'>118/121</span>
             </div>
         
             
@@ -344,7 +344,19 @@
 <a name='L279'></a><a href='#L279'>279</a>
 <a name='L280'></a><a href='#L280'>280</a>
 <a name='L281'></a><a href='#L281'>281</a>
-<a name='L282'></a><a href='#L282'>282</a></td><td class="line-coverage quiet"><span class="cline-any cline-neutral">&nbsp;</span>
+<a name='L282'></a><a href='#L282'>282</a>
+<a name='L283'></a><a href='#L283'>283</a>
+<a name='L284'></a><a href='#L284'>284</a>
+<a name='L285'></a><a href='#L285'>285</a>
+<a name='L286'></a><a href='#L286'>286</a>
+<a name='L287'></a><a href='#L287'>287</a>
+<a name='L288'></a><a href='#L288'>288</a>
+<a name='L289'></a><a href='#L289'>289</a>
+<a name='L290'></a><a href='#L290'>290</a>
+<a name='L291'></a><a href='#L291'>291</a>
+<a name='L292'></a><a href='#L292'>292</a>
+<a name='L293'></a><a href='#L293'>293</a>
+<a name='L294'></a><a href='#L294'>294</a></td><td class="line-coverage quiet"><span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
@@ -374,6 +386,7 @@
 <span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-yes">1x</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
@@ -535,6 +548,11 @@
 <span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-yes">13x</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-yes">13x</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-yes">2x</span>
@@ -547,11 +565,17 @@
 <span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-yes">2x</span>
 <span class="cline-any cline-yes">2x</span>
+<span class="cline-any cline-yes">2x</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-yes">1x</span>
 <span class="cline-any cline-yes">1x</span>
+<span class="cline-any cline-yes">1x</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
@@ -633,7 +657,7 @@
 &nbsp;
 import React, { createContext, useContext, useState, useEffect, useMemo, useCallback } from 'react';
 import * as bitcoin from 'bitcoinjs-lib';
-import * as TransactionService from '../services/transactionService';
+import { signIntent as signIntentService, broadcastTransaction } from '../services/transaction';
 import * as BackgroundTaskService from '../services/backgroundTaskService';
 import { parseErrorMessage } from '../utils/errorParser';
 import { ERRORS } from '../utils/messages';
@@ -662,6 +686,7 @@ export const TransactionExecutionProvider = ({
   sendTransactionConfirmedNotification,
   notificationsEnabled,
   fetchBalance,
+  fetchTransactionHistory,
 }) =&gt; {
   const { setIntentStep, sendAssetType, sendAmount } = useSendFlow();
   const { sendIntent, setSendIntent } = useTransactionBuild();
@@ -692,7 +717,7 @@ export const TransactionExecutionProvider = ({
       if (intent.runeUtxo) logger.debug('Rune UTXO:', `${intent.runeUtxo.transaction}:${intent.runeUtxo.vout}`);
       <span class="missing-if-branch" title="if path not taken" >I</span>if (intent.satUtxo) <span class="cstat-no" title="statement not covered" >logger.debug('Sat UTXO:', `${intent.satUtxo.txid}:${intent.satUtxo.vout}`);</span>
 &nbsp;
-      const txid = await TransactionService.broadcastTransaction(intent.signedTxHex);
+      const txid = await broadcastTransaction(intent.signedTxHex);
       logger.debug('✅ Broadcast successful, txid:', txid);
 &nbsp;
       // Extract outputs from signed transaction for pending tracking FIRST
@@ -814,6 +839,11 @@ export const TransactionExecutionProvider = ({
       const assetType = sendAssetType === 'unit' ? 'UNIT' : 'BTC';
       await BackgroundTaskService.addPendingTransaction(txid, assetType, sendAmount, 'withdraw');
 &nbsp;
+      // Immediately fetch transaction history to show the new tx
+      <span class="missing-if-branch" title="if path not taken" >I</span>if (fetchTransactionHistory) {
+<span class="cstat-no" title="statement not covered" >        fetchTransactionHistory();</span>
+      }
+&nbsp;
       // Start polling for confirmation
       startTransactionPolling(
         txid,
@@ -828,11 +858,17 @@ export const TransactionExecutionProvider = ({
           }
           setIntentStep('confirmed');
           fetchBalance();
+          <span class="missing-if-branch" title="if path not taken" >I</span>if (fetchTransactionHistory) {
+<span class="cstat-no" title="statement not covered" >            fetchTransactionHistory(); </span>// Update transaction list when confirmed
+          }
         },
         (_error) =&gt; {
           // Error polling, but don't block the user - just mark as confirmed after timeout
           setIntentStep('confirmed');
           fetchBalance();
+          <span class="missing-if-branch" title="if path not taken" >I</span>if (fetchTransactionHistory) {
+<span class="cstat-no" title="statement not covered" >            fetchTransactionHistory(); </span>// Update transaction list even on error
+          }
         }
       );
     } catch (_error) {
@@ -846,7 +882,7 @@ export const TransactionExecutionProvider = ({
         await invalidateTransaction(intent.txid, 'Transaction broadcast failed');
       }
     }
-  }, [sendIntent, wallet, showToast, setIntentStep, sendAssetType, sendAmount, startTransactionPolling, notificationsEnabled, sendTransactionConfirmedNotification, fetchBalance, addPendingTransaction, confirmTransaction, invalidateTransaction, pendingTransactions, markUtxoAsSpent, markUtxosAsSpent]);
+  }, [sendIntent, wallet, showToast, setIntentStep, sendAssetType, sendAmount, startTransactionPolling, notificationsEnabled, sendTransactionConfirmedNotification, fetchBalance, fetchTransactionHistory, addPendingTransaction, confirmTransaction, invalidateTransaction, pendingTransactions, markUtxoAsSpent, markUtxosAsSpent]);
 &nbsp;
   // Sign the PSBT
   const signIntent = useCallback(async () =&gt; {
@@ -859,7 +895,7 @@ export const TransactionExecutionProvider = ({
         return false;
       }
 &nbsp;
-      const { signedTxHex, txid } = await TransactionService.signIntent(sendIntent, currentAccount);
+      const { signedTxHex, txid } = await signIntentService(sendIntent, currentAccount);
 &nbsp;
       // Update intent with signed transaction
       const signedIntent = {
@@ -913,7 +949,7 @@ export const TransactionExecutionProvider = ({
             <div class='footer quiet pad2 space-top1 center small'>
                 Code coverage generated by
                 <a href="https://istanbul.js.org/" target="_blank" rel="noopener noreferrer">istanbul</a>
-                at 2025-11-18T00:06:15.394Z
+                at 2025-11-18T06:17:25.610Z
             </div>
         <script src="../prettify.js"></script>
         <script>

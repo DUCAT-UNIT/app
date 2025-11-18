@@ -32,7 +32,7 @@ function renderHook(hook, { wrapper: Wrapper } = {}) {
 // Mock dependencies
 jest.mock('../SendFlowContext');
 jest.mock('../PendingTransactionsContext');
-jest.mock('../../services/transactionService');
+jest.mock('../../services/transaction');
 
 describe('TransactionBuildContext', () => {
   const mockWallet = {

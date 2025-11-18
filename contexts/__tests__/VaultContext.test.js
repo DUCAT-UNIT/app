@@ -6,7 +6,7 @@ import React from 'react';
 import { create, act } from 'react-test-renderer';
 import { VaultProvider, useVault } from '../VaultContext';
 import * as bitcoin from '../../utils/bitcoin';
-import * as authService from '../../services/authService';
+import * as secureStorageService from '../../services/secureStorageService';
 
 // Helper to render hooks with react-test-renderer
 function renderHook(hook, { wrapper: Wrapper } = {}) {
@@ -29,7 +29,7 @@ function renderHook(hook, { wrapper: Wrapper } = {}) {
 
 // Mock dependencies
 jest.mock('../../utils/bitcoin');
-jest.mock('../../services/authService');
+jest.mock('../../services/secureStorageService');
 
 describe('VaultContext', () => {
   beforeEach(() => {
@@ -85,7 +85,7 @@ describe('VaultContext', () => {
 
   it('should open vault and set credentials', async () => {
     bitcoin.deriveAddressesFromMnemonic.mockReturnValue(mockAddresses);
-    authService.withMnemonic.mockImplementation(async (callback) => {
+    secureStorageService.withMnemonic.mockImplementation(async (callback) => {
       await callback('test mnemonic');
     });
 
@@ -115,7 +115,7 @@ describe('VaultContext', () => {
 
   it('should open vault with auto-create flag', async () => {
     bitcoin.deriveAddressesFromMnemonic.mockReturnValue(mockAddresses);
-    authService.withMnemonic.mockImplementation(async (callback) => {
+    secureStorageService.withMnemonic.mockImplementation(async (callback) => {
       await callback('test mnemonic');
     });
 
@@ -142,7 +142,7 @@ describe('VaultContext', () => {
 
   it('should use different account index', async () => {
     bitcoin.deriveAddressesFromMnemonic.mockReturnValue(mockAddresses);
-    authService.withMnemonic.mockImplementation(async (callback) => {
+    secureStorageService.withMnemonic.mockImplementation(async (callback) => {
       await callback('test mnemonic');
     });
 
@@ -161,7 +161,7 @@ describe('VaultContext', () => {
   });
 
   it('should handle errors gracefully and still switch to vault tab', async () => {
-    authService.withMnemonic.mockRejectedValue(new Error('Mnemonic error'));
+    secureStorageService.withMnemonic.mockRejectedValue(new Error('Mnemonic error'));
 
     const wrapper = ({ children }) => (
       <VaultProvider currentAccount={0}>
@@ -181,7 +181,7 @@ describe('VaultContext', () => {
   });
 
   it('should not increment autoCreateVaultTrigger on error', async () => {
-    authService.withMnemonic.mockRejectedValue(new Error('Mnemonic error'));
+    secureStorageService.withMnemonic.mockRejectedValue(new Error('Mnemonic error'));
 
     const wrapper = ({ children }) => (
       <VaultProvider currentAccount={0}>
@@ -202,7 +202,7 @@ describe('VaultContext', () => {
 
   it('should open vault without auto-create by default', async () => {
     bitcoin.deriveAddressesFromMnemonic.mockReturnValue(mockAddresses);
-    authService.withMnemonic.mockImplementation(async (callback) => {
+    secureStorageService.withMnemonic.mockImplementation(async (callback) => {
       await callback('test mnemonic');
     });
 

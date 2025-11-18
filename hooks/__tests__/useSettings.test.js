@@ -7,13 +7,15 @@ import React from 'react';
 import { create, act } from 'react-test-renderer';
 import { useSettings } from '../useSettings';
 import * as SecureStore from 'expo-secure-store';
-import * as AuthService from '../../services/authService';
+import * as BiometricService from '../../services/biometricService';
+import * as SecureStorageService from '../../services/secureStorageService';
 
 // Mock expo-secure-store
 jest.mock('expo-secure-store');
 
-// Mock authService
-jest.mock('../../services/authService');
+// Mock biometricService and secureStorageService
+jest.mock('../../services/biometricService');
+jest.mock('../../services/secureStorageService');
 
 // Mock messages
 jest.mock('../../utils/messages', () => ({
@@ -167,8 +169,8 @@ describe('useSettings', () => {
     });
 
     it('should delete wallet on confirmDeleteWallet with biometric success', async () => {
-      AuthService.authenticateWithBiometrics.mockResolvedValue({ success: true });
-      AuthService.deleteWalletData.mockResolvedValue(true);
+      BiometricService.authenticateWithBiometrics.mockResolvedValue({ success: true });
+      SecureStorageService.deleteWalletData.mockResolvedValue(true);
 
       const { result } = renderHook(() => useSettings(mockProps), {
         initialProps: mockProps,
@@ -182,14 +184,14 @@ describe('useSettings', () => {
         await result.current.confirmDeleteWallet();
       });
 
-      expect(AuthService.deleteWalletData).toHaveBeenCalled();
+      expect(SecureStorageService.deleteWalletData).toHaveBeenCalled();
       expect(mockProps.resetWallet).toHaveBeenCalled();
       expect(mockProps.resetAuth).toHaveBeenCalled();
       expect(mockProps.showToast).toHaveBeenCalledWith('Wallet deleted successfully', 'success');
     });
 
     it('should set pending flag if biometric fails', async () => {
-      AuthService.authenticateWithBiometrics.mockResolvedValue({ success: false });
+      BiometricService.authenticateWithBiometrics.mockResolvedValue({ success: false });
 
       const { result } = renderHook(() => useSettings(mockProps), {
         initialProps: mockProps,
@@ -208,8 +210,8 @@ describe('useSettings', () => {
     });
 
     it('should handle deletion errors', async () => {
-      AuthService.authenticateWithBiometrics.mockResolvedValue({ success: true });
-      AuthService.deleteWalletData.mockResolvedValue(false);
+      BiometricService.authenticateWithBiometrics.mockResolvedValue({ success: true });
+      SecureStorageService.deleteWalletData.mockResolvedValue(false);
 
       const { result } = renderHook(() => useSettings(mockProps), {
         initialProps: mockProps,
@@ -227,8 +229,8 @@ describe('useSettings', () => {
     });
 
     it('should handle exceptions during wallet deletion', async () => {
-      AuthService.authenticateWithBiometrics.mockResolvedValue({ success: true });
-      AuthService.deleteWalletData.mockRejectedValue(new Error('Deletion error'));
+      BiometricService.authenticateWithBiometrics.mockResolvedValue({ success: true });
+      SecureStorageService.deleteWalletData.mockRejectedValue(new Error('Deletion error'));
 
       const { result } = renderHook(() => useSettings(mockProps), {
         initialProps: mockProps,
@@ -336,7 +338,7 @@ describe('useSettings', () => {
     });
 
     it('should enable Face ID with biometric success', async () => {
-      AuthService.authenticateWithBiometrics.mockResolvedValue({ success: true });
+      BiometricService.authenticateWithBiometrics.mockResolvedValue({ success: true });
 
       const { result } = renderHook(() => useSettings(mockProps), {
         initialProps: mockProps,
@@ -357,7 +359,7 @@ describe('useSettings', () => {
     });
 
     it('should handle storage error during Face ID enable after authentication', async () => {
-      AuthService.authenticateWithBiometrics.mockResolvedValue({ success: true });
+      BiometricService.authenticateWithBiometrics.mockResolvedValue({ success: true });
       SecureStore.setItemAsync.mockImplementation((key, _value) => {
         if (key === 'biometricEnabled') {
           return Promise.reject(new Error('Storage error'));
@@ -384,7 +386,7 @@ describe('useSettings', () => {
     });
 
     it('should handle authentication error during Face ID enable', async () => {
-      AuthService.authenticateWithBiometrics.mockRejectedValue(new Error('Auth error'));
+      BiometricService.authenticateWithBiometrics.mockRejectedValue(new Error('Auth error'));
 
       const { result } = renderHook(() => useSettings(mockProps), {
         initialProps: mockProps,
@@ -405,7 +407,7 @@ describe('useSettings', () => {
     });
 
     it('should set pending flag if biometric fails', async () => {
-      AuthService.authenticateWithBiometrics.mockResolvedValue({ success: false });
+      BiometricService.authenticateWithBiometrics.mockResolvedValue({ success: false });
 
       const { result } = renderHook(() => useSettings(mockProps), {
         initialProps: mockProps,
@@ -504,7 +506,7 @@ describe('useSettings', () => {
     });
 
     it('should enable notifications with biometric success', async () => {
-      AuthService.authenticateWithBiometrics.mockResolvedValue({ success: true });
+      BiometricService.authenticateWithBiometrics.mockResolvedValue({ success: true });
 
       const propsWithBiometric = { ...mockProps, biometricEnabled: true };
       const { result } = renderHook(() => useSettings(propsWithBiometric), {
@@ -526,7 +528,7 @@ describe('useSettings', () => {
     });
 
     it('should set pending flag if biometric fails for notifications', async () => {
-      AuthService.authenticateWithBiometrics.mockResolvedValue({ success: false });
+      BiometricService.authenticateWithBiometrics.mockResolvedValue({ success: false });
 
       const { result } = renderHook(() => useSettings(mockProps), {
         initialProps: mockProps,
@@ -546,7 +548,7 @@ describe('useSettings', () => {
     });
 
     it('should handle authentication error during notifications enable', async () => {
-      AuthService.authenticateWithBiometrics.mockRejectedValue(new Error('Auth error'));
+      BiometricService.authenticateWithBiometrics.mockRejectedValue(new Error('Auth error'));
 
       const propsWithBiometric = { ...mockProps, biometricEnabled: true };
       const { result } = renderHook(() => useSettings(propsWithBiometric), {
@@ -568,7 +570,7 @@ describe('useSettings', () => {
     });
 
     it('should handle storage error during notifications enable', async () => {
-      AuthService.authenticateWithBiometrics.mockResolvedValue({ success: true });
+      BiometricService.authenticateWithBiometrics.mockResolvedValue({ success: true });
       SecureStore.setItemAsync.mockImplementation((key, _value) => {
         if (key === 'notificationsEnabled') {
           return Promise.reject(new Error('Storage error'));
@@ -689,7 +691,7 @@ describe('useSettings', () => {
     });
 
     it('should handle authentication errors during deletion', async () => {
-      AuthService.authenticateWithBiometrics.mockRejectedValue(new Error('Auth error'));
+      BiometricService.authenticateWithBiometrics.mockRejectedValue(new Error('Auth error'));
 
       const { result } = renderHook(() => useSettings(mockProps), {
         initialProps: mockProps,
@@ -716,7 +718,7 @@ describe('useSettings', () => {
     });
 
     it('should handle wallet deletion without showToast on auth error', async () => {
-      AuthService.authenticateWithBiometrics.mockRejectedValue(new Error('Auth error'));
+      BiometricService.authenticateWithBiometrics.mockRejectedValue(new Error('Auth error'));
 
       const { result } = renderHook(() => useSettings(mockProps), {
         initialProps: mockProps,
@@ -734,8 +736,8 @@ describe('useSettings', () => {
     });
 
     it('should handle wallet deletion success without showToast', async () => {
-      AuthService.authenticateWithBiometrics.mockResolvedValue({ success: true });
-      AuthService.deleteWalletData.mockResolvedValue(true);
+      BiometricService.authenticateWithBiometrics.mockResolvedValue({ success: true });
+      SecureStorageService.deleteWalletData.mockResolvedValue(true);
 
       const { result } = renderHook(() => useSettings(mockProps), {
         initialProps: mockProps,
@@ -753,8 +755,8 @@ describe('useSettings', () => {
     });
 
     it('should handle wallet deletion failure without showToast', async () => {
-      AuthService.authenticateWithBiometrics.mockResolvedValue({ success: true });
-      AuthService.deleteWalletData.mockResolvedValue(false);
+      BiometricService.authenticateWithBiometrics.mockResolvedValue({ success: true });
+      SecureStorageService.deleteWalletData.mockResolvedValue(false);
 
       const { result } = renderHook(() => useSettings(mockProps), {
         initialProps: mockProps,
@@ -772,8 +774,8 @@ describe('useSettings', () => {
     });
 
     it('should handle wallet deletion exception without showToast', async () => {
-      AuthService.authenticateWithBiometrics.mockResolvedValue({ success: true });
-      AuthService.deleteWalletData.mockRejectedValue(new Error('Delete error'));
+      BiometricService.authenticateWithBiometrics.mockResolvedValue({ success: true });
+      SecureStorageService.deleteWalletData.mockRejectedValue(new Error('Delete error'));
 
       const { result } = renderHook(() => useSettings(mockProps), {
         initialProps: mockProps,
@@ -828,7 +830,7 @@ describe('useSettings', () => {
     });
 
     it('should handle Face ID enable auth error without showToast', async () => {
-      AuthService.authenticateWithBiometrics.mockRejectedValue(new Error('Auth error'));
+      BiometricService.authenticateWithBiometrics.mockRejectedValue(new Error('Auth error'));
 
       const { result } = renderHook(() => useSettings(mockProps), {
         initialProps: mockProps,
@@ -846,7 +848,7 @@ describe('useSettings', () => {
     });
 
     it('should handle Face ID enable success without showToast', async () => {
-      AuthService.authenticateWithBiometrics.mockResolvedValue({ success: true });
+      BiometricService.authenticateWithBiometrics.mockResolvedValue({ success: true });
 
       const { result } = renderHook(() => useSettings(mockProps), {
         initialProps: mockProps,
@@ -864,7 +866,7 @@ describe('useSettings', () => {
     });
 
     it('should handle Face ID enable storage error without showToast', async () => {
-      AuthService.authenticateWithBiometrics.mockResolvedValue({ success: true });
+      BiometricService.authenticateWithBiometrics.mockResolvedValue({ success: true });
       SecureStore.setItemAsync.mockImplementation((key) => {
         if (key === 'biometricEnabled') {
           return Promise.reject(new Error('Storage error'));
@@ -939,7 +941,7 @@ describe('useSettings', () => {
     });
 
     it('should handle notifications enable auth error without showToast', async () => {
-      AuthService.authenticateWithBiometrics.mockRejectedValue(new Error('Auth error'));
+      BiometricService.authenticateWithBiometrics.mockRejectedValue(new Error('Auth error'));
 
       const { result } = renderHook(() => useSettings(mockProps), {
         initialProps: mockProps,
@@ -957,7 +959,7 @@ describe('useSettings', () => {
     });
 
     it('should handle notifications enable success without showToast', async () => {
-      AuthService.authenticateWithBiometrics.mockResolvedValue({ success: true });
+      BiometricService.authenticateWithBiometrics.mockResolvedValue({ success: true });
 
       const propsWithBiometric = { ...mockProps, biometricEnabled: true };
       const { result } = renderHook(() => useSettings(propsWithBiometric), {
@@ -976,7 +978,7 @@ describe('useSettings', () => {
     });
 
     it('should handle notifications enable storage error without showToast', async () => {
-      AuthService.authenticateWithBiometrics.mockResolvedValue({ success: true });
+      BiometricService.authenticateWithBiometrics.mockResolvedValue({ success: true });
       SecureStore.setItemAsync.mockImplementation((key) => {
         if (key === 'notificationsEnabled') {
           return Promise.reject(new Error('Storage error'));
@@ -1003,8 +1005,8 @@ describe('useSettings', () => {
 
   describe('walletExistsRef variations', () => {
     it('should handle wallet deletion with undefined walletExistsRef', async () => {
-      AuthService.authenticateWithBiometrics.mockResolvedValue({ success: true });
-      AuthService.deleteWalletData.mockResolvedValue(true);
+      BiometricService.authenticateWithBiometrics.mockResolvedValue({ success: true });
+      SecureStorageService.deleteWalletData.mockResolvedValue(true);
       mockProps.walletExistsRef = undefined;
 
       const { result } = renderHook(() => useSettings(mockProps), {
@@ -1023,8 +1025,8 @@ describe('useSettings', () => {
     });
 
     it('should handle wallet deletion with walletExistsRef.current undefined', async () => {
-      AuthService.authenticateWithBiometrics.mockResolvedValue({ success: true });
-      AuthService.deleteWalletData.mockResolvedValue(true);
+      BiometricService.authenticateWithBiometrics.mockResolvedValue({ success: true });
+      SecureStorageService.deleteWalletData.mockResolvedValue(true);
       mockProps.walletExistsRef = { current: undefined };
 
       const { result } = renderHook(() => useSettings(mockProps), {
