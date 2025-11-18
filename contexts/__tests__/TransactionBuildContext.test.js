@@ -7,7 +7,7 @@ import { create, act } from 'react-test-renderer';
 import { TransactionBuildProvider, useTransactionBuild } from '../TransactionBuildContext';
 import { useSendFlow } from '../SendFlowContext';
 import { usePendingTransactions } from '../PendingTransactionsContext';
-import * as TransactionService from '../../services/transactionService';
+import * as TransactionService from '../../services/transaction';
 import { ERRORS } from '../../utils/messages';
 
 // Helper to render hooks with react-test-renderer

@@ -7,7 +7,7 @@ import * as bitcoin from 'bitcoinjs-lib';
 import * as ecc from '@bitcoinerlab/secp256k1';
 import { signPsbt } from '../wallet';
 import { deriveAddressesFromMnemonic } from '../bitcoin';
-import * as authService from '../../services/authService';
+import * as secureStorageService from '../../services/secureStorageService';
 import * as SecureStore from 'expo-secure-store';
 
 bitcoin.initEccLib(ecc);
@@ -15,7 +15,7 @@ bitcoin.initEccLib(ecc);
 // This mnemonic produces a key with 0x03 prefix (odd y-coordinate) for Taproot at index 0
 const MNEMONIC_WITH_ODD_Y = 'abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon about';
 
-jest.mock('../../services/authService');
+jest.mock('../../services/secureStorageService');
 jest.mock('expo-secure-store');
 
 describe('Taproot key negation', () => {
@@ -27,7 +27,7 @@ describe('Taproot key negation', () => {
   it('should handle key negation for odd y-coordinate (0x03 prefix) - lines 134-140', async () => {
     // Try multiple account indices to find one with odd y-coordinate
     for (let accountIndex = 0; accountIndex < 50; accountIndex++) {
-      authService.withMnemonic.mockImplementation((callback) => callback(MNEMONIC_WITH_ODD_Y));
+      secureStorageService.withMnemonic.mockImplementation((callback) => callback(MNEMONIC_WITH_ODD_Y));
       SecureStore.getItemAsync.mockResolvedValue(String(accountIndex));
 
       const { taprootAddress } = deriveAddressesFromMnemonic(MNEMONIC_WITH_ODD_Y, accountIndex);
@@ -86,7 +86,7 @@ describe('Taproot key negation', () => {
   it('should handle key-path spending with odd y-coordinate', async () => {
     // Try to find an account with odd y-coordinate for key-path spending
     for (let accountIndex = 0; accountIndex < 50; accountIndex++) {
-      authService.withMnemonic.mockImplementation((callback) => callback(MNEMONIC_WITH_ODD_Y));
+      secureStorageService.withMnemonic.mockImplementation((callback) => callback(MNEMONIC_WITH_ODD_Y));
       SecureStore.getItemAsync.mockResolvedValue(String(accountIndex));
 
       const { taprootAddress } = deriveAddressesFromMnemonic(MNEMONIC_WITH_ODD_Y, accountIndex);

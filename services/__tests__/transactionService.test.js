@@ -9,7 +9,7 @@ import { ERRORS } from '../../utils/messages';
 import * as bitcoinUtils from '../../utils/bitcoin';
 
 jest.mock('../balanceService');
-jest.mock('../authService');
+jest.mock('../secureStorageService');
 jest.mock('../../utils/retry', () => ({
   retrySilently: jest.fn((fn) => fn()),
 }));

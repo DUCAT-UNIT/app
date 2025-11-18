@@ -7,7 +7,7 @@ import * as bitcoin from 'bitcoinjs-lib';
 import * as ecc from '@bitcoinerlab/secp256k1';
 import { signPsbt, signMessage } from '../wallet';
 import { deriveAddressesFromMnemonic } from '../bitcoin';
-import * as authService from '../../services/authService';
+import * as secureStorageService from '../../services/secureStorageService';
 import * as SecureStore from 'expo-secure-store';
 
 // Initialize ECC library
@@ -17,7 +17,7 @@ bitcoin.initEccLib(ecc);
 const TEST_MNEMONIC = 'abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon about';
 
 // Mock authService
-jest.mock('../../services/authService', () => ({
+jest.mock('../../services/secureStorageService', () => ({
   withMnemonic: jest.fn((callback) => callback(TEST_MNEMONIC)),
 }));
 
@@ -311,7 +311,7 @@ describe('wallet PSBT signing', () => {
     });
 
     it('should handle withMnemonic failures', async () => {
-      authService.withMnemonic.mockImplementationOnce(() => {
+      secureStorageService.withMnemonic.mockImplementationOnce(() => {
         throw new Error('Mnemonic not available');
       });
 
@@ -405,7 +405,7 @@ describe('wallet PSBT signing', () => {
         [segwitAddress]: [0],
       });
 
-      expect(authService.withMnemonic).toHaveBeenCalled();
+      expect(secureStorageService.withMnemonic).toHaveBeenCalled();
     });
 
     it('should handle mixed SegWit and Taproot inputs', async () => {

@@ -12,7 +12,7 @@ import { useSendFlow } from '../SendFlowContext';
 import { useTransactionBuild } from '../TransactionBuildContext';
 import { useWallet } from '../WalletContext';
 import { usePendingTransactions } from '../PendingTransactionsContext';
-import * as TransactionService from '../../services/transactionService';
+import * as TransactionService from '../../services/transaction';
 import * as TransactionSigningService from '../../services/transactionSigningService';
 import * as TransactionBroadcastService from '../../services/transactionBroadcastService';
 import * as BackgroundTaskService from '../../services/backgroundTaskService';

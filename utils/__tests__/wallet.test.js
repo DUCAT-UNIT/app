@@ -6,13 +6,13 @@
 import * as bitcoin from 'bitcoinjs-lib';
 import * as ecc from '@bitcoinerlab/secp256k1';
 import { signMessage } from '../wallet';
-import * as authService from '../../services/authService';
+import * as secureStorageService from '../../services/secureStorageService';
 
 // Initialize ECC library
 bitcoin.initEccLib(ecc);
 
 // Mock authService
-jest.mock('../../services/authService', () => ({
+jest.mock('../../services/secureStorageService', () => ({
   withMnemonic: jest.fn((callback) => {
     const testMnemonic = 'abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon about';
     return callback(testMnemonic);
@@ -104,7 +104,7 @@ describe('wallet utilities', () => {
       await signMessage(address, message);
 
       // Verify withMnemonic was called
-      expect(authService.withMnemonic).toHaveBeenCalled();
+      expect(secureStorageService.withMnemonic).toHaveBeenCalled();
     });
 
     it('should use correct derivation path for segwit', async () => {
@@ -128,7 +128,7 @@ describe('wallet utilities', () => {
 
   describe('signMessage error handling', () => {
     it('should handle mnemonic retrieval failure', async () => {
-      authService.withMnemonic.mockImplementationOnce(() => {
+      secureStorageService.withMnemonic.mockImplementationOnce(() => {
         throw new Error('Mnemonic not available');
       });
 

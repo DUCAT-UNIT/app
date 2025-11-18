@@ -7,14 +7,14 @@ import * as bitcoin from 'bitcoinjs-lib';
 import * as ecc from '@bitcoinerlab/secp256k1';
 import { signPsbt } from '../wallet';
 import { deriveAddressesFromMnemonic } from '../bitcoin';
-import * as authService from '../../services/authService';
+import * as secureStorageService from '../../services/secureStorageService';
 import * as SecureStore from 'expo-secure-store';
 
 bitcoin.initEccLib(ecc);
 
 const TEST_MNEMONIC = 'abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon about';
 
-jest.mock('../../services/authService', () => ({
+jest.mock('../../services/secureStorageService', () => ({
   withMnemonic: jest.fn((callback) => callback(TEST_MNEMONIC)),
 }));
 
