@@ -67,11 +67,11 @@ export default function Snackbar({ params, onClose }) {
       friction: 10,
     }).start();
 
-    // Auto-dismiss after 10 seconds for success
-    if (params.type === 'success') {
+    // Auto-dismiss after 15 seconds for success and submitted
+    if (params.type === 'success' || params.type === 'submitted') {
       const timer = setTimeout(() => {
         handleClose();
-      }, 10000);
+      }, 15000);
       return () => clearTimeout(timer);
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps

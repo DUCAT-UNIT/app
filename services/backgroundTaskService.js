@@ -33,7 +33,7 @@ TaskManager.defineTask(BACKGROUND_FETCH_TASK, async () => {
 
       if (isConfirmed) {
         // Send notification
-        await Notifications.scheduleNotificationAsync({
+        const notificationId = await Notifications.scheduleNotificationAsync({
           content: {
             title: 'Transaction Confirmed',
             body: `The ${tx.type} transaction for ${tx.amount} ${tx.assetType} has been confirmed on Mutinynet.`,
@@ -42,6 +42,15 @@ TaskManager.defineTask(BACKGROUND_FETCH_TASK, async () => {
           },
           trigger: null,
         });
+
+        // Auto-dismiss after 15 seconds
+        setTimeout(async () => {
+          try {
+            await Notifications.dismissNotificationAsync(notificationId);
+          } catch (dismissError) {
+            // Silently fail if notification already dismissed
+          }
+        }, 15000);
 
         // Remove from pending list
         const updatedTxs = pendingTxs.filter((t) => t.txid !== tx.txid);
