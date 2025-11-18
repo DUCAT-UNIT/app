@@ -5,7 +5,7 @@
 
 import { useState, useEffect, useCallback, useMemo } from 'react';
 import * as SecureStore from 'expo-secure-store';
-import * as AuthService from '../services/authService';
+import { authenticateWithBiometrics } from '../services/biometricService';
 
 export function useAppSettings({ biometricEnabled, setIsAuthenticated, showToast }) {
   const [notificationsEnabled, setNotificationsEnabled] = useState(false);
@@ -51,7 +51,7 @@ export function useAppSettings({ biometricEnabled, setIsAuthenticated, showToast
     if (newValue) {
       if (biometricEnabled) {
         try {
-          const result = await AuthService.authenticateWithBiometrics(
+          const result = await authenticateWithBiometrics(
             'Authenticate to enable notifications',
             'Use PIN'
           );

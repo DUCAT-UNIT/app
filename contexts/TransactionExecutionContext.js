@@ -6,7 +6,7 @@
 
 import React, { createContext, useContext, useState, useEffect, useMemo, useCallback } from 'react';
 import * as bitcoin from 'bitcoinjs-lib';
-import * as TransactionService from '../services/transactionService';
+import { signIntent, broadcastTransaction } from '../services/transaction';
 import * as BackgroundTaskService from '../services/backgroundTaskService';
 import { parseErrorMessage } from '../utils/errorParser';
 import { ERRORS } from '../utils/messages';
@@ -65,7 +65,7 @@ export const TransactionExecutionProvider = ({
       if (intent.runeUtxo) logger.debug('Rune UTXO:', `${intent.runeUtxo.transaction}:${intent.runeUtxo.vout}`);
       if (intent.satUtxo) logger.debug('Sat UTXO:', `${intent.satUtxo.txid}:${intent.satUtxo.vout}`);
 
-      const txid = await TransactionService.broadcastTransaction(intent.signedTxHex);
+      const txid = await broadcastTransaction(intent.signedTxHex);
       logger.debug('✅ Broadcast successful, txid:', txid);
 
       // Extract outputs from signed transaction for pending tracking FIRST
@@ -232,7 +232,7 @@ export const TransactionExecutionProvider = ({
         return false;
       }
 
-      const { signedTxHex, txid } = await TransactionService.signIntent(sendIntent, currentAccount);
+      const { signedTxHex, txid } = await signIntent(sendIntent, currentAccount);
 
       // Update intent with signed transaction
       const signedIntent = {

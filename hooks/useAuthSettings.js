@@ -5,7 +5,7 @@
 
 import { useState, useCallback, useMemo } from 'react';
 import * as SecureStore from 'expo-secure-store';
-import * as AuthService from '../services/authService';
+import { authenticateWithBiometrics } from '../services/biometricService';
 
 export function useAuthSettings({ biometricEnabled, setBiometricEnabled, setIsAuthenticated, startPinChange, showToast }) {
   const [showFaceIdModal, setShowFaceIdModal] = useState(false);
@@ -28,7 +28,7 @@ export function useAuthSettings({ biometricEnabled, setBiometricEnabled, setIsAu
     // If enabling, require authentication first
     if (newValue) {
       try {
-        const result = await AuthService.authenticateWithBiometrics(
+        const result = await authenticateWithBiometrics(
           'Authenticate to enable Face ID',
           'Use PIN'
         );

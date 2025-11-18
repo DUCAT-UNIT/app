@@ -8,7 +8,7 @@ import React, { useState, useEffect } from 'react';
 import PropTypes from 'prop-types';
 import { Text, View, TouchableOpacity } from 'react-native';
 import { StatusBar } from 'expo-status-bar';
-import * as AuthService from '../../services/authService';
+import { verifyPin } from '../../services/pinService';
 import * as PasskeyService from '../../services/passkeyService';
 import { ERRORS } from '../../utils/messages';
 import { COLORS } from '../../theme';
@@ -39,7 +39,7 @@ export default function LockScreen({ onAuthenticated, showFaceIdButton, onFaceId
       setPin(newPin);
       if (newPin.length === 6) {
         // Verify PIN with rate limiting
-        AuthService.verifyPin(newPin).then((result) => {
+        verifyPin(newPin).then((result) => {
           if (result.success) {
             setPin('');
             setPinError('');

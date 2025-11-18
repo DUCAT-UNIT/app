@@ -5,7 +5,7 @@
 import React, { createContext, useContext, useState, useEffect, useMemo, useCallback, useRef } from 'react';
 
 import { deriveAddressesFromMnemonic } from '../utils/bitcoin';
-import { withMnemonic } from '../services/authService';
+import { withMnemonic } from '../services/secureStorageService';
 import { logger } from '../utils/logger';
 
 const VaultContext = createContext();

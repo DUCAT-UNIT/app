@@ -5,7 +5,8 @@
 
 import { useState, useCallback, useMemo } from 'react';
 import * as SecureStore from 'expo-secure-store';
-import * as AuthService from '../services/authService';
+import { authenticateWithBiometrics } from '../services/biometricService';
+import { deleteWalletData } from '../services/secureStorageService';
 import { ERRORS, SUCCESS } from '../utils/messages';
 
 export function useWalletActions({ resetAuth, resetWallet, clearVaultCredentials, walletExistsRef, setIsAuthenticated, showToast }) {
@@ -34,7 +35,7 @@ export function useWalletActions({ resetAuth, resetWallet, clearVaultCredentials
 
     // Require authentication before deleting wallet
     try {
-      const result = await AuthService.authenticateWithBiometrics(
+      const result = await authenticateWithBiometrics(
         'Authenticate to delete wallet',
         'Use PIN'
       );
@@ -53,7 +54,7 @@ export function useWalletActions({ resetAuth, resetWallet, clearVaultCredentials
 
     // Authentication successful, proceed with deletion
     try {
-      const success = await AuthService.deleteWalletData();
+      const success = await deleteWalletData();
       if (success) {
         // Clear vault credentials and data
         if (clearVaultCredentials) {

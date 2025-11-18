@@ -5,7 +5,7 @@
 import * as Crypto from 'expo-crypto';
 import * as bip39 from 'bip39';
 import { deriveAddressesFromMnemonic } from '../utils/bitcoin';
-import * as AuthService from './authService';
+import { getCurrentAccount, withMnemonic, saveMnemonic, saveCurrentAccount } from './secureStorageService';
 
 /**
  * Generate a new wallet with a 12-word mnemonic
@@ -65,10 +65,10 @@ export const importWallet = async (mnemonic, accountIndex = 0) => {
  */
 export const loadWalletFromStorage = async () => {
   try {
-    const accountIndex = await AuthService.getCurrentAccount();
+    const accountIndex = await getCurrentAccount();
 
     // Use withMnemonic to ensure proper cleanup
-    const addresses = await AuthService.withMnemonic(async (mnemonic) => {
+    const addresses = await withMnemonic(async (mnemonic) => {
       if (!mnemonic) {
         return null;
       }
@@ -92,7 +92,7 @@ export const loadWalletFromStorage = async () => {
 export const switchToAccount = async (accountIndex) => {
   try {
     // Use withMnemonic to ensure proper cleanup
-    const addresses = await AuthService.withMnemonic(async (mnemonic) => {
+    const addresses = await withMnemonic(async (mnemonic) => {
       if (!mnemonic) {
         throw new Error('Failed to retrieve wallet from secure storage');
       }
@@ -102,7 +102,7 @@ export const switchToAccount = async (accountIndex) => {
     });
 
     // Save the new account index
-    await AuthService.saveCurrentAccount(accountIndex);
+    await saveCurrentAccount(accountIndex);
 
     return {
       addresses,
@@ -120,8 +120,8 @@ export const switchToAccount = async (accountIndex) => {
  */
 export const saveWalletToStorage = async (mnemonic, accountIndex = 0) => {
   try {
-    const mnemonicSaved = await AuthService.saveMnemonic(mnemonic);
-    const accountSaved = await AuthService.saveCurrentAccount(accountIndex);
+    const mnemonicSaved = await saveMnemonic(mnemonic);
+    const accountSaved = await saveCurrentAccount(accountIndex);
 
     return mnemonicSaved && accountSaved;
   } catch (error) {

@@ -9,7 +9,8 @@
 import React, { createContext, useContext, useState, useRef, useMemo, useCallback } from 'react';
 import { Animated, Dimensions, PanResponder } from 'react-native';
 import * as SecureStore from 'expo-secure-store';
-import * as AuthService from '../services/authService';
+import { withMnemonic } from '../services/secureStorageService';
+import { authenticateWithBiometrics } from '../services/biometricService';
 import { parseErrorMessage } from '../utils/errorParser';
 import { ERRORS } from '../utils/messages';
 import { useAuth } from './AuthContext';
@@ -78,7 +79,7 @@ export const SeedPhraseProvider = ({ children, showToast, setIsAuthenticated }) 
     setRequestingSeedPhrase(false);
     try {
       // Use withMnemonic for secure access
-      await AuthService.withMnemonic(async (mnemonic) => {
+      await withMnemonic(async (mnemonic) => {
         if (mnemonic) {
           // Store words in state for display (intentional - user is viewing seed)
           setSeedPhraseWords(mnemonic.split(' '));
@@ -105,7 +106,7 @@ export const SeedPhraseProvider = ({ children, showToast, setIsAuthenticated }) 
     // Only try biometric authentication if it's enabled in settings
     if (biometricEnabled) {
       try {
-        const result = await AuthService.authenticateWithBiometrics(
+        const result = await authenticateWithBiometrics(
           'Authenticate to view recovery phrase',
           'Use PIN'
         );

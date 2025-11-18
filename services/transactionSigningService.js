@@ -9,7 +9,7 @@ import BIP32Factory from 'bip32';
 import * as bip39 from 'bip39';
 import * as ecc from '@bitcoinerlab/secp256k1';
 import { MUTINYNET_NETWORK } from '../utils/bitcoin';
-import * as AuthService from './authService';
+import { withMnemonic } from './secureStorageService';
 import { ERRORS } from '../utils/messages';
 
 // Initialize BIP32 and ECC library
@@ -49,7 +49,7 @@ export const signIntent = async (intent, currentAccount) => {
 
     // SECURITY: Use withMnemonic to minimize mnemonic exposure to <100ms
     // This automatically wipes the mnemonic from memory after deriveSigningKeys returns
-    const { segwitChild, taprootChild } = await AuthService.withMnemonic((mnemonic) =>
+    const { segwitChild, taprootChild } = await withMnemonic((mnemonic) =>
       deriveSigningKeys(mnemonic, currentAccount)
     );
 

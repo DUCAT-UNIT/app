@@ -5,7 +5,7 @@
  */
 
 import React, { createContext, useContext, useState, useMemo, useCallback } from 'react';
-import * as TransactionService from '../services/transactionService';
+import { createBtcIntent, createUnitIntent } from '../services/transaction';
 import { parseErrorMessage } from '../utils/errorParser';
 import { ERRORS } from '../utils/messages';
 import { useSendFlow } from './SendFlowContext';
@@ -43,7 +43,7 @@ export const TransactionBuildProvider = ({ children, wallet, currentAccount, sho
       // Get spent UTXOs to filter them out
       const spentUtxos = getSpentUtxos();
 
-      const intent = await TransactionService.createBtcIntent(
+      const intent = await createBtcIntent(
         sendRecipient,
         sendAmount,
         wallet.segwitAddress,
@@ -96,7 +96,7 @@ export const TransactionBuildProvider = ({ children, wallet, currentAccount, sho
       // Get spent UTXOs to filter them out
       const spentUtxos = getSpentUtxos();
 
-      const intent = await TransactionService.createUnitIntent(
+      const intent = await createUnitIntent(
         sendRecipient,
         sendAmount,
         wallet.taprootAddress,

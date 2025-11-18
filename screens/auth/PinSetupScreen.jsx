@@ -10,7 +10,7 @@ import { Text, View, TouchableOpacity } from 'react-native';
 import { StatusBar } from 'expo-status-bar';
 import * as SecureStore from 'expo-secure-store';
 import * as LocalAuthentication from 'expo-local-authentication';
-import * as AuthService from '../../services/authService';
+import { savePin } from '../../services/pinService';
 import { SECURE_KEYS } from '../../utils/constants';
 import { ERRORS, SUCCESS } from '../../utils/messages';
 import { COLORS } from '../../theme';
@@ -73,7 +73,7 @@ export default function PinSetupScreen({
               }
             } else {
               // Initial wallet creation - just save PIN normally
-              AuthService.savePin(pin).then(async (success) => {
+              savePin(pin).then(async (success) => {
                 if (success) {
                   // Initial wallet creation or import
                   if (isBiometricSupported) {

@@ -10,7 +10,7 @@ import {
   switchToAccount,
   saveWalletToStorage,
 } from '../walletService';
-import * as AuthService from '../authService';
+import * as SecureStorageService from '../secureStorageService';
 
 // Mock dependencies
 jest.mock('expo-crypto', () => ({
@@ -26,7 +26,7 @@ jest.mock('../../utils/bitcoin', () => ({
   deriveAddressesFromMnemonic: jest.fn(),
 }));
 
-jest.mock('../authService');
+jest.mock('../secureStorageService');
 
 const Crypto = require('expo-crypto');
 const bip39 = require('bip39');
@@ -138,8 +138,8 @@ describe('walletService', () => {
     it('should load wallet from storage and derive addresses', async () => {
       const mockMnemonic = 'abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon about';
 
-      AuthService.getCurrentAccount.mockResolvedValueOnce(0);
-      AuthService.withMnemonic.mockImplementationOnce(async (callback) => {
+      SecureStorageService.getCurrentAccount.mockResolvedValueOnce(0);
+      SecureStorageService.withMnemonic.mockImplementationOnce(async (callback) => {
         return callback(mockMnemonic);
       });
       deriveAddressesFromMnemonic.mockReturnValueOnce(mockAddresses);
@@ -151,13 +151,13 @@ describe('walletService', () => {
         accountIndex: 0,
       });
 
-      expect(AuthService.getCurrentAccount).toHaveBeenCalled();
-      expect(AuthService.withMnemonic).toHaveBeenCalled();
+      expect(SecureStorageService.getCurrentAccount).toHaveBeenCalled();
+      expect(SecureStorageService.withMnemonic).toHaveBeenCalled();
     });
 
     it('should return null addresses if no mnemonic in storage', async () => {
-      AuthService.getCurrentAccount.mockResolvedValueOnce(0);
-      AuthService.withMnemonic.mockImplementationOnce(async (callback) => {
+      SecureStorageService.getCurrentAccount.mockResolvedValueOnce(0);
+      SecureStorageService.withMnemonic.mockImplementationOnce(async (callback) => {
         return callback(null);
       });
 
@@ -170,7 +170,7 @@ describe('walletService', () => {
     });
 
     it('should throw error if loading fails', async () => {
-      AuthService.getCurrentAccount.mockRejectedValueOnce(new Error('Storage error'));
+      SecureStorageService.getCurrentAccount.mockRejectedValueOnce(new Error('Storage error'));
 
       await expect(loadWalletFromStorage()).rejects.toThrow(
         'Failed to load wallet from storage: Storage error'
@@ -182,11 +182,11 @@ describe('walletService', () => {
     it('should switch to a different account', async () => {
       const mockMnemonic = 'abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon about';
 
-      AuthService.withMnemonic.mockImplementationOnce(async (callback) => {
+      SecureStorageService.withMnemonic.mockImplementationOnce(async (callback) => {
         return callback(mockMnemonic);
       });
       deriveAddressesFromMnemonic.mockReturnValueOnce(mockAddresses);
-      AuthService.saveCurrentAccount.mockResolvedValueOnce(true);
+      SecureStorageService.saveCurrentAccount.mockResolvedValueOnce(true);
 
       const result = await switchToAccount(2);
 
@@ -195,11 +195,11 @@ describe('walletService', () => {
       });
 
       expect(deriveAddressesFromMnemonic).toHaveBeenCalledWith(mockMnemonic, 2);
-      expect(AuthService.saveCurrentAccount).toHaveBeenCalledWith(2);
+      expect(SecureStorageService.saveCurrentAccount).toHaveBeenCalledWith(2);
     });
 
     it('should throw error if mnemonic cannot be retrieved', async () => {
-      AuthService.withMnemonic.mockImplementationOnce(async (callback) => {
+      SecureStorageService.withMnemonic.mockImplementationOnce(async (callback) => {
         return callback(null);
       });
 
@@ -211,11 +211,11 @@ describe('walletService', () => {
     it('should throw error if account save fails', async () => {
       const mockMnemonic = 'abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon about';
 
-      AuthService.withMnemonic.mockImplementationOnce(async (callback) => {
+      SecureStorageService.withMnemonic.mockImplementationOnce(async (callback) => {
         return callback(mockMnemonic);
       });
       deriveAddressesFromMnemonic.mockReturnValueOnce(mockAddresses);
-      AuthService.saveCurrentAccount.mockRejectedValueOnce(new Error('Save error'));
+      SecureStorageService.saveCurrentAccount.mockRejectedValueOnce(new Error('Save error'));
 
       await expect(switchToAccount(1)).rejects.toThrow('Failed to switch account: Save error');
     });
@@ -225,32 +225,32 @@ describe('walletService', () => {
     it('should save wallet mnemonic and account index', async () => {
       const mnemonic = 'abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon about';
 
-      AuthService.saveMnemonic.mockResolvedValueOnce(true);
-      AuthService.saveCurrentAccount.mockResolvedValueOnce(true);
+      SecureStorageService.saveMnemonic.mockResolvedValueOnce(true);
+      SecureStorageService.saveCurrentAccount.mockResolvedValueOnce(true);
 
       const result = await saveWalletToStorage(mnemonic, 0);
 
       expect(result).toBe(true);
-      expect(AuthService.saveMnemonic).toHaveBeenCalledWith(mnemonic);
-      expect(AuthService.saveCurrentAccount).toHaveBeenCalledWith(0);
+      expect(SecureStorageService.saveMnemonic).toHaveBeenCalledWith(mnemonic);
+      expect(SecureStorageService.saveCurrentAccount).toHaveBeenCalledWith(0);
     });
 
     it('should save with custom account index', async () => {
       const mnemonic = 'abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon about';
 
-      AuthService.saveMnemonic.mockResolvedValueOnce(true);
-      AuthService.saveCurrentAccount.mockResolvedValueOnce(true);
+      SecureStorageService.saveMnemonic.mockResolvedValueOnce(true);
+      SecureStorageService.saveCurrentAccount.mockResolvedValueOnce(true);
 
       await saveWalletToStorage(mnemonic, 5);
 
-      expect(AuthService.saveCurrentAccount).toHaveBeenCalledWith(5);
+      expect(SecureStorageService.saveCurrentAccount).toHaveBeenCalledWith(5);
     });
 
     it('should return false if mnemonic save fails', async () => {
       const mnemonic = 'abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon about';
 
-      AuthService.saveMnemonic.mockResolvedValueOnce(false);
-      AuthService.saveCurrentAccount.mockResolvedValueOnce(true);
+      SecureStorageService.saveMnemonic.mockResolvedValueOnce(false);
+      SecureStorageService.saveCurrentAccount.mockResolvedValueOnce(true);
 
       const result = await saveWalletToStorage(mnemonic);
 
@@ -260,8 +260,8 @@ describe('walletService', () => {
     it('should return false if account save fails', async () => {
       const mnemonic = 'abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon about';
 
-      AuthService.saveMnemonic.mockResolvedValueOnce(true);
-      AuthService.saveCurrentAccount.mockResolvedValueOnce(false);
+      SecureStorageService.saveMnemonic.mockResolvedValueOnce(true);
+      SecureStorageService.saveCurrentAccount.mockResolvedValueOnce(false);
 
       const result = await saveWalletToStorage(mnemonic);
 
@@ -271,7 +271,7 @@ describe('walletService', () => {
     it('should return false on error', async () => {
       const mnemonic = 'abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon about';
 
-      AuthService.saveMnemonic.mockRejectedValueOnce(new Error('Storage error'));
+      SecureStorageService.saveMnemonic.mockRejectedValueOnce(new Error('Storage error'));
 
       const result = await saveWalletToStorage(mnemonic);
 

@@ -10,7 +10,7 @@ import * as ecc from '@bitcoinerlab/secp256k1';
 import * as SecureStore from 'expo-secure-store';
 import { SECURE_KEYS } from './constants';
 import { MUTINYNET_NETWORK } from './bitcoin';
-import { withMnemonic } from '../services/authService';
+import { withMnemonic } from '../services/secureStorageService';
 
 // Initialize BIP32
 const bip32 = BIP32Factory(ecc);

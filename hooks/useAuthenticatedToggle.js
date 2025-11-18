@@ -5,7 +5,7 @@
  */
 
 import { useState, useCallback, useMemo } from 'react';
-import * as AuthService from '../services/authService';
+import { authenticateWithBiometrics } from '../services/biometricService';
 import * as SettingsService from '../services/settingsService';
 
 /**
@@ -69,7 +69,7 @@ export function useAuthenticatedToggle(config) {
             authPrompt ||
             `Authenticate to ${newValue ? 'enable' : 'disable'} ${settingName}`;
 
-          const result = await AuthService.authenticateWithBiometrics(prompt, 'Use PIN');
+          const result = await authenticateWithBiometrics(prompt, 'Use PIN');
 
           if (!result.success) {
             // Biometric auth failed, redirect to PIN screen

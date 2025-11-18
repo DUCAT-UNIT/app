@@ -3,16 +3,23 @@
  * Tests PIN hashing and verification using the public API
  */
 
+// Import from modular services
 import {
   savePin,
   verifyPin,
   resetPinAttempts,
   checkPinLockout,
   getRemainingPinAttempts,
+} from '../pinService';
+
+import {
   checkBiometricSupport,
   authenticateWithBiometrics,
   isBiometricEnabled,
   setBiometricEnabled,
+} from '../biometricService';
+
+import {
   saveMnemonic,
   getMnemonic,
   withMnemonic,
@@ -20,7 +27,7 @@ import {
   saveCurrentAccount,
   getCurrentAccount,
   deleteWalletData,
-} from '../authService';
+} from '../secureStorageService';
 
 // Mock expo-secure-store for testing
 jest.mock('expo-secure-store', () => ({
