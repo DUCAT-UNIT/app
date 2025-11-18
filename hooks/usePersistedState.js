@@ -49,10 +49,21 @@ export function usePersistedState(key, initialState, options = {}) {
 
         if (savedValue !== null && isMountedRef.current) {
           const deserialized = deserializer(savedValue);
-          setStateInternal(deserialized);
+          // Merge with initial state to fill in missing fields with defaults
+          // Only override default values with non-null/undefined values from persisted state
+          let mergedState = deserialized;
+          if (typeof initialState === 'object' && !Array.isArray(initialState) && typeof deserialized === 'object' && !Array.isArray(deserialized)) {
+            mergedState = { ...initialState };
+            for (const key in deserialized) {
+              if (deserialized[key] !== null && deserialized[key] !== undefined) {
+                mergedState[key] = deserialized[key];
+              }
+            }
+          }
+          setStateInternal(mergedState);
 
           if (onLoad) {
-            onLoad(deserialized);
+            onLoad(mergedState);
           }
         }
       } catch (error) {

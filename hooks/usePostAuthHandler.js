@@ -55,8 +55,8 @@ export function usePostAuthHandler({
       await SecureStore.deleteItemAsync('pendingWalletDelete');
       // Trigger wallet deletion
       try {
-        const AuthService = require('../services/authService');
-        const success = await AuthService.deleteWalletData();
+        const SecureStorageService = require('../services/secureStorageService');
+        const success = await SecureStorageService.deleteWalletData();
         if (success) {
           resetWallet();
           if (walletExists && walletExists.current !== undefined) {

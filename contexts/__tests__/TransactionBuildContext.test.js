@@ -7,6 +7,7 @@ import { create, act } from 'react-test-renderer';
 import { TransactionBuildProvider, useTransactionBuild } from '../TransactionBuildContext';
 import { useSendFlow } from '../SendFlowContext';
 import { usePendingTransactions } from '../PendingTransactionsContext';
+import { useBalance } from '../WalletDataContext';
 import * as TransactionService from '../../services/transaction';
 import { ERRORS } from '../../utils/messages';
 
@@ -33,6 +34,9 @@ function renderHook(hook, { wrapper: Wrapper } = {}) {
 jest.mock('../SendFlowContext');
 jest.mock('../PendingTransactionsContext');
 jest.mock('../../services/transaction');
+jest.mock('../WalletDataContext', () => ({
+  useBalance: jest.fn(),
+}));
 
 describe('TransactionBuildContext', () => {
   const mockWallet = {
@@ -59,6 +63,10 @@ describe('TransactionBuildContext', () => {
     usePendingTransactions.mockReturnValue({
       getUnconfirmedUTXOs: jest.fn().mockReturnValue([]),
       getSpentUtxos: jest.fn().mockReturnValue([]),
+    });
+
+    useBalance.mockReturnValue({
+      runesBalance: [],
     });
   });
 
@@ -116,16 +124,23 @@ describe('TransactionBuildContext', () => {
   });
 
   it('should create UNIT intent successfully', async () => {
+    const mockIntent = { psbt: 'mock_psbt_unit', fee: 2000 };
+    TransactionService.createUnitIntent.mockResolvedValue(mockIntent);
+
+    // Need to set up the mocks BEFORE rendering the component
+    // Override the default mock from beforeEach
     useSendFlow.mockReturnValue({
       sendRecipient: 'bc1qrecipient',
       sendAmount: '100',
-      sendAssetType: 'unit',
+      sendAssetType: 'unit',  // This is the key change
       setIntentStep: mockSetIntentStep,
       setSendRecipient: mockSetSendRecipient,
     });
 
-    const mockIntent = { psbt: 'mock_psbt_unit', fee: 2000 };
-    TransactionService.createUnitIntent.mockResolvedValue(mockIntent);
+    // Mock useBalance to return UNIT balance
+    useBalance.mockReturnValue({
+      runesBalance: [['UNIT', '1000']],  // User has 1000 UNIT
+    });
 
     const wrapper = ({ children }) => (
       <TransactionBuildProvider wallet={mockWallet} currentAccount={0} showToast={mockShowToast}>
@@ -134,6 +149,7 @@ describe('TransactionBuildContext', () => {
     );
     const { result } = renderHook(() => useTransactionBuild(), { wrapper });
 
+    // Make sure mock is still set for the call
     await act(async () => {
       await result.current.createSendIntent();
     });

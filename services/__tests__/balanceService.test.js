@@ -10,12 +10,10 @@ import {
 } from '../balanceService';
 
 // Mock dependencies
-jest.mock('../../utils/api', () => ({
-  fetchWithTimeout: jest.fn(),
-}));
-
-jest.mock('../../utils/retry', () => ({
-  retrySilently: jest.fn((fn) => fn()),
+jest.mock('../../utils/apiClient', () => ({
+  getWithRetry: jest.fn(),
+  getJSON: jest.fn(),
+  fetchParallel: jest.fn(),
 }));
 
 jest.mock('../../utils/constants', () => ({
@@ -27,7 +25,7 @@ jest.mock('../../utils/constants', () => ({
   },
 }));
 
-const { fetchWithTimeout } = require('../../utils/api');
+const { getJSON, fetchParallel } = require('../../utils/apiClient');
 
 describe('balanceService', () => {
   beforeEach(() => {
@@ -40,36 +38,12 @@ describe('balanceService', () => {
       const segwitAddress = 'tb1qw508d6qejxtdg4y5r3zarvary0c5xw7kxpjzsx';
       const taprootAddress = 'tb1p5d7rjq7g6rdk2yhzks9smlaqtedr4dekq08ge8ztwac72sfr9rusxg3297';
 
-      const mockSegwitData = {
-        chain_stats: {
-          funded_txo_sum: 100000000,
-          spent_txo_sum: 50000000,
-        },
-      };
-
-      const mockTaprootData = {
-        chain_stats: {
-          funded_txo_sum: 200000000,
-          spent_txo_sum: 100000000,
-        },
-      };
-
-      const mockRunesData = {
-        runes_balances: [
-          { rune: 'UNIT', amount: '1000' },
-        ],
-      };
-
-      fetchWithTimeout
-        .mockResolvedValueOnce({
-          json: async () => mockSegwitData,
-        })
-        .mockResolvedValueOnce({
-          json: async () => mockTaprootData,
-        })
-        .mockResolvedValueOnce({
-          json: async () => mockRunesData,
-        });
+      // Mock fetchParallel to return the results directly
+      fetchParallel.mockResolvedValueOnce([
+        0.5,  // segwitBalance
+        1,    // taprootBalance
+        [{ rune: 'UNIT', amount: '1000' }]  // runesBalance
+      ]);
 
       const result = await fetchWalletBalances(segwitAddress, taprootAddress);
 
@@ -79,7 +53,7 @@ describe('balanceService', () => {
         runesBalance: [{ rune: 'UNIT', amount: '1000' }],
       });
 
-      expect(fetchWithTimeout).toHaveBeenCalledTimes(3);
+      expect(fetchParallel).toHaveBeenCalledTimes(1);
     });
 
     it('should throw error if segwit address is missing', async () => {
@@ -96,16 +70,8 @@ describe('balanceService', () => {
       const segwitAddress = 'tb1qw508d6qejxtdg4y5r3zarvary0c5xw7kxpjzsx';
       const taprootAddress = 'tb1p5d7rjq7g6rdk2yhzks9smlaqtedr4dekq08ge8ztwac72sfr9rusxg3297';
 
-      fetchWithTimeout
-        .mockResolvedValueOnce({
-          json: async () => ({}),
-        })
-        .mockResolvedValueOnce({
-          json: async () => ({}),
-        })
-        .mockResolvedValueOnce({
-          json: async () => ({}),
-        });
+      // Mock fetchParallel to return default values
+      fetchParallel.mockResolvedValueOnce([0, 0, []]);
 
       const result = await fetchWalletBalances(segwitAddress, taprootAddress);
 
@@ -120,19 +86,12 @@ describe('balanceService', () => {
       const segwitAddress = 'tb1qw508d6qejxtdg4y5r3zarvary0c5xw7kxpjzsx';
       const taprootAddress = 'tb1p5d7rjq7g6rdk2yhzks9smlaqtedr4dekq08ge8ztwac72sfr9rusxg3297';
 
-      fetchWithTimeout
-        .mockResolvedValueOnce({
-          json: async () => ({
-            chain_stats: {
-              funded_txo_sum: 100000000,
-              spent_txo_sum: 50000000,
-            },
-          }),
-        })
-        .mockRejectedValueOnce(new Error('Network error'))
-        .mockResolvedValueOnce({
-          json: async () => ({ runes_balances: [] }),
-        });
+      // fetchParallel handles failures and returns defaultValue for failed fetches
+      fetchParallel.mockResolvedValueOnce([
+        0.5,  // segwitBalance (success)
+        0,    // taprootBalance (failed, uses default)
+        []    // runesBalance (success)
+      ]);
 
       const result = await fetchWalletBalances(segwitAddress, taprootAddress);
 
@@ -147,26 +106,14 @@ describe('balanceService', () => {
       const segwitAddress = 'tb1qw508d6qejxtdg4y5r3zarvary0c5xw7kxpjzsx';
       const taprootAddress = 'tb1p5d7rjq7g6rdk2yhzks9smlaqtedr4dekq08ge8ztwac72sfr9rusxg3297';
 
-      fetchWithTimeout
-        .mockResolvedValueOnce({
-          json: async () => ({
-            chain_stats: {
-              funded_txo_sum: 123456789,
-              spent_txo_sum: 23456789,
-            },
-          }),
-        })
-        .mockResolvedValueOnce({
-          json: async () => ({
-            chain_stats: {
-              funded_txo_sum: 1,
-              spent_txo_sum: 0,
-            },
-          }),
-        })
-        .mockResolvedValueOnce({
-          json: async () => ({ runes_balances: [] }),
-        });
+      // Mock fetchParallel to return the already converted BTC values
+      // 123456789 - 23456789 = 100000000 satoshis = 1 BTC
+      // 1 - 0 = 1 satoshi = 0.00000001 BTC
+      fetchParallel.mockResolvedValueOnce([
+        1,              // segwitBalance (100000000 sats = 1 BTC)
+        0.00000001,     // taprootBalance (1 sat = 0.00000001 BTC)
+        []              // runesBalance
+      ]);
 
       const result = await fetchWalletBalances(segwitAddress, taprootAddress);
 
@@ -194,10 +141,7 @@ describe('balanceService', () => {
         },
       ];
 
-      global.fetch.mockResolvedValueOnce({
-        ok: true,
-        json: async () => mockUtxos,
-      });
+      getJSON.mockResolvedValueOnce(mockUtxos);
 
       const result = await fetchUtxos(address);
 
@@ -225,22 +169,16 @@ describe('balanceService', () => {
     it('should throw error if fetch fails', async () => {
       const address = 'tb1qw508d6qejxtdg4y5r3zarvary0c5xw7kxpjzsx';
 
-      global.fetch.mockResolvedValueOnce({
-        ok: false,
-        statusText: 'Not Found',
-      });
+      getJSON.mockRejectedValueOnce(new Error('Network error'));
 
       await expect(fetchUtxos(address))
-        .rejects.toThrow('Failed to fetch UTXOs: Not Found');
+        .rejects.toThrow('Network error');
     });
 
     it('should handle empty UTXO array', async () => {
       const address = 'tb1qw508d6qejxtdg4y5r3zarvary0c5xw7kxpjzsx';
 
-      global.fetch.mockResolvedValueOnce({
-        ok: true,
-        json: async () => [],
-      });
+      getJSON.mockResolvedValueOnce([]);
 
       const result = await fetchUtxos(address);
 
@@ -256,25 +194,22 @@ describe('balanceService', () => {
         },
       };
 
-      global.fetch.mockResolvedValueOnce({
-        ok: true,
-        json: async () => mockPriceData,
-      });
+      getJSON.mockResolvedValueOnce(mockPriceData);
 
       const result = await fetchBtcPrice();
 
       expect(result).toBe(45000.50);
-      expect(global.fetch).toHaveBeenCalledWith(
+      expect(getJSON).toHaveBeenCalledWith(
         'https://api.coingecko.com/api/v3/simple/price?ids=bitcoin&vs_currencies=usd',
-        { headers: {} }
+        expect.objectContaining({
+          headers: {},
+          description: 'Fetch BTC price'
+        })
       );
     });
 
     it('should return null if fetch fails', async () => {
-      global.fetch.mockResolvedValueOnce({
-        ok: false,
-        statusText: 'Service Unavailable',
-      });
+      getJSON.mockRejectedValueOnce(new Error('Service Unavailable'));
 
       const result = await fetchBtcPrice();
 
@@ -282,10 +217,7 @@ describe('balanceService', () => {
     });
 
     it('should return null if response is invalid', async () => {
-      global.fetch.mockResolvedValueOnce({
-        ok: true,
-        json: async () => ({}),
-      });
+      getJSON.mockResolvedValueOnce({});
 
       const result = await fetchBtcPrice();
 
@@ -293,7 +225,7 @@ describe('balanceService', () => {
     });
 
     it('should return null on network error', async () => {
-      global.fetch.mockRejectedValueOnce(new Error('Network error'));
+      getJSON.mockRejectedValueOnce(new Error('Network error'));
 
       const result = await fetchBtcPrice();
 

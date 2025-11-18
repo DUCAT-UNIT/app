@@ -192,7 +192,7 @@ describe('WalletDataContext', () => {
       expect(mockVault.fetchVault).toHaveBeenCalled();
     });
 
-    it('should fetch transaction history every 30 seconds', () => {
+    it('should fetch transaction history on every poll', () => {
       jest.useFakeTimers();
       let pollCallback;
       usePolling.mockImplementation(({ onPoll }) => {
@@ -202,24 +202,26 @@ describe('WalletDataContext', () => {
       const wrapper = ({ children }) => <WalletDataProvider>{children}</WalletDataProvider>;
       renderHook(() => useWalletData(), { wrapper });
 
+      // Clear mock calls from initial wallet load (but keep the mock implementations)
+      mockHistory.fetchTransactionHistory.mockClear();
+
       // First poll - should fetch history
       act(() => {
         pollCallback();
       });
       expect(mockHistory.fetchTransactionHistory).toHaveBeenCalledTimes(1);
 
-      // Second poll immediately - should NOT fetch history
+      // Second poll - should fetch history again (no throttling)
       act(() => {
-        pollCallback();
-      });
-      expect(mockHistory.fetchTransactionHistory).toHaveBeenCalledTimes(1);
-
-      // Advance time by 30 seconds
-      act(() => {
-        jest.advanceTimersByTime(30000);
         pollCallback();
       });
       expect(mockHistory.fetchTransactionHistory).toHaveBeenCalledTimes(2);
+
+      // Third poll - should fetch history again
+      act(() => {
+        pollCallback();
+      });
+      expect(mockHistory.fetchTransactionHistory).toHaveBeenCalledTimes(3);
 
       jest.useRealTimers();
     });

@@ -104,6 +104,9 @@ export function useWalletImport({ currentAccount, setSettingUpPin, showToast, lo
       setImportingWallet(false);
       setImportSeedPhrase(Array(12).fill(''));
 
+      // Clear persisted state since import is complete
+      await clearPersistedState();
+
       // Set imported wallet flag AFTER clearing form data
       // This flag persists so OnboardingPage knows to handle post-PIN-setup properly
       setIsImportedWallet(true);
