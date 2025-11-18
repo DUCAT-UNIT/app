@@ -251,7 +251,7 @@ export async function getMultiple(settings) {
  */
 export async function setMultiple(settings) {
   try {
-    await Promise.all(
+    const results = await Promise.all(
       Object.entries(settings).map(([key, value]) => {
         if (typeof value === 'boolean') {
           return setBoolean(key, value);
@@ -265,7 +265,7 @@ export async function setMultiple(settings) {
         return setString(key, value);
       })
     );
-    return true;
+    return results.every(result => result === true);
   } catch (error) {
     logger.error('settingsService: Error setting multiple settings:', error);
     return false;
