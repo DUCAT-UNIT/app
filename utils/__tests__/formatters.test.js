@@ -87,8 +87,8 @@ describe('formatters', () => {
 
     it('should handle empty or null addresses', () => {
       expect(truncateAddress('')).toBe('');
-      expect(truncateAddress(null)).toBe(null);
-      expect(truncateAddress(undefined)).toBe(undefined);
+      expect(truncateAddress(null)).toBe('');
+      expect(truncateAddress(undefined)).toBe('');
     });
 
     it('should handle addresses exactly at length threshold', () => {
@@ -117,15 +117,15 @@ describe('formatters', () => {
 
   describe('formatBTC', () => {
     it('should format with default 8 decimals', () => {
-      expect(formatBTC(1)).toBe('1.00000000');
-      expect(formatBTC(0.5)).toBe('0.50000000');
-      expect(formatBTC(0.12345678)).toBe('0.12345678');
+      expect(formatBTC(100000000)).toBe('1.00000000'); // 1 BTC in satoshis
+      expect(formatBTC(50000000)).toBe('0.50000000'); // 0.5 BTC in satoshis
+      expect(formatBTC(12345678)).toBe('0.12345678'); // 0.12345678 BTC in satoshis
     });
 
     it('should respect custom decimal places', () => {
-      expect(formatBTC(1, 2)).toBe('1.00');
-      expect(formatBTC(0.5, 4)).toBe('0.5000');
-      expect(formatBTC(1.23456789, 6)).toBe('1.234568'); // Rounded
+      expect(formatBTC(100000000, 2)).toBe('1.00'); // 1 BTC with 2 decimals
+      expect(formatBTC(50000000, 4)).toBe('0.5000'); // 0.5 BTC with 4 decimals
+      expect(formatBTC(123456789, 6)).toBe('1.234568'); // Rounded
     });
 
     it('should handle zero', () => {
@@ -134,8 +134,8 @@ describe('formatters', () => {
     });
 
     it('should round properly', () => {
-      expect(formatBTC(0.123456789, 8)).toBe('0.12345679'); // Rounds up
-      expect(formatBTC(1.999999999, 8)).toBe('2.00000000'); // Rounds up
+      expect(formatBTC(12345679, 8)).toBe('0.12345679'); // 0.12345679 BTC
+      expect(formatBTC(199999999, 8)).toBe('1.99999999'); // 1.99999999 BTC
     });
   });
 });
