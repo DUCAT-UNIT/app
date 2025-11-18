@@ -6,7 +6,7 @@
 
 import React, { createContext, useContext, useState, useEffect, useMemo, useCallback } from 'react';
 import * as bitcoin from 'bitcoinjs-lib';
-import { signIntent, broadcastTransaction } from '../services/transaction';
+import { signIntent as signIntentService, broadcastTransaction } from '../services/transaction';
 import * as BackgroundTaskService from '../services/backgroundTaskService';
 import { parseErrorMessage } from '../utils/errorParser';
 import { ERRORS } from '../utils/messages';
@@ -35,6 +35,7 @@ export const TransactionExecutionProvider = ({
   sendTransactionConfirmedNotification,
   notificationsEnabled,
   fetchBalance,
+  fetchTransactionHistory,
 }) => {
   const { setIntentStep, sendAssetType, sendAmount } = useSendFlow();
   const { sendIntent, setSendIntent } = useTransactionBuild();
@@ -187,6 +188,11 @@ export const TransactionExecutionProvider = ({
       const assetType = sendAssetType === 'unit' ? 'UNIT' : 'BTC';
       await BackgroundTaskService.addPendingTransaction(txid, assetType, sendAmount, 'withdraw');
 
+      // Immediately fetch transaction history to show the new tx
+      if (fetchTransactionHistory) {
+        fetchTransactionHistory();
+      }
+
       // Start polling for confirmation
       startTransactionPolling(
         txid,
@@ -201,11 +207,17 @@ export const TransactionExecutionProvider = ({
           }
           setIntentStep('confirmed');
           fetchBalance();
+          if (fetchTransactionHistory) {
+            fetchTransactionHistory(); // Update transaction list when confirmed
+          }
         },
         (_error) => {
           // Error polling, but don't block the user - just mark as confirmed after timeout
           setIntentStep('confirmed');
           fetchBalance();
+          if (fetchTransactionHistory) {
+            fetchTransactionHistory(); // Update transaction list even on error
+          }
         }
       );
     } catch (_error) {
@@ -219,7 +231,7 @@ export const TransactionExecutionProvider = ({
         await invalidateTransaction(intent.txid, 'Transaction broadcast failed');
       }
     }
-  }, [sendIntent, wallet, showToast, setIntentStep, sendAssetType, sendAmount, startTransactionPolling, notificationsEnabled, sendTransactionConfirmedNotification, fetchBalance, addPendingTransaction, confirmTransaction, invalidateTransaction, pendingTransactions, markUtxoAsSpent, markUtxosAsSpent]);
+  }, [sendIntent, wallet, showToast, setIntentStep, sendAssetType, sendAmount, startTransactionPolling, notificationsEnabled, sendTransactionConfirmedNotification, fetchBalance, fetchTransactionHistory, addPendingTransaction, confirmTransaction, invalidateTransaction, pendingTransactions, markUtxoAsSpent, markUtxosAsSpent]);
 
   // Sign the PSBT
   const signIntent = useCallback(async () => {
@@ -232,7 +244,7 @@ export const TransactionExecutionProvider = ({
         return false;
       }
 
-      const { signedTxHex, txid } = await signIntent(sendIntent, currentAccount);
+      const { signedTxHex, txid } = await signIntentService(sendIntent, currentAccount);
 
       // Update intent with signed transaction
       const signedIntent = {

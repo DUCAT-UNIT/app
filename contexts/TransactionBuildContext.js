@@ -5,11 +5,12 @@
  */
 
 import React, { createContext, useContext, useState, useMemo, useCallback } from 'react';
-import { createBtcIntent, createUnitIntent } from '../services/transaction';
+import { createBtcIntent as createBtcIntentService, createUnitIntent as createUnitIntentService } from '../services/transaction';
 import { parseErrorMessage } from '../utils/errorParser';
 import { ERRORS } from '../utils/messages';
 import { useSendFlow } from './SendFlowContext';
 import { usePendingTransactions } from './PendingTransactionsContext';
+import { useBalance } from './WalletDataContext';
 import { logger } from '../utils/logger';
 
 const TransactionBuildContext = createContext();
@@ -26,6 +27,7 @@ export const TransactionBuildProvider = ({ children, wallet, currentAccount, sho
   const { sendRecipient, sendAmount, sendAssetType, setIntentStep, setSendRecipient } =
     useSendFlow();
   const { getUnconfirmedUTXOs, getSpentUtxos, unmarkUtxosAsSpent, markUtxosAsSpent } = usePendingTransactions();
+  const { runesBalance } = useBalance();
 
   // The created PSBT intent
   const [sendIntent, setSendIntent] = useState(null);
@@ -43,7 +45,7 @@ export const TransactionBuildProvider = ({ children, wallet, currentAccount, sho
       // Get spent UTXOs to filter them out
       const spentUtxos = getSpentUtxos();
 
-      const intent = await createBtcIntent(
+      const intent = await createBtcIntentService(
         sendRecipient,
         sendAmount,
         wallet.segwitAddress,
@@ -80,6 +82,12 @@ export const TransactionBuildProvider = ({ children, wallet, currentAccount, sho
         throw new Error('Wallet not initialized');
       }
 
+      // Check if user has any UNIT balance
+      const unitAmount = runesBalance && runesBalance.length > 0 ? parseFloat(runesBalance[0][1]) : 0;
+      if (unitAmount === 0) {
+        throw new Error(ERRORS.NO_UNIT_BALANCE);
+      }
+
       // Get unconfirmed UTXOs for taproot (UNIT) and segwit (fees), excluding any already used in current intent
       const unconfirmedTaprootUtxos = getUnconfirmedUTXOs('taproot', sendIntent);
       const unconfirmedSegwitUtxos = getUnconfirmedUTXOs('segwit', sendIntent);
@@ -96,7 +104,7 @@ export const TransactionBuildProvider = ({ children, wallet, currentAccount, sho
       // Get spent UTXOs to filter them out
       const spentUtxos = getSpentUtxos();
 
-      const intent = await createUnitIntent(
+      const intent = await createUnitIntentService(
         sendRecipient,
         sendAmount,
         wallet.taprootAddress,
@@ -144,7 +152,7 @@ export const TransactionBuildProvider = ({ children, wallet, currentAccount, sho
         setIntentStep('entering_amount');
       }, 100);
     }
-  }, [sendRecipient, sendAmount, wallet, currentAccount, setIntentStep, showToast, getUnconfirmedUTXOs, getSpentUtxos, sendIntent, markUtxosAsSpent]);
+  }, [sendRecipient, sendAmount, wallet, currentAccount, setIntentStep, showToast, getUnconfirmedUTXOs, getSpentUtxos, sendIntent, markUtxosAsSpent, runesBalance]);
 
   // Main create intent function (routes to BTC or UNIT)
   const createSendIntent = useCallback(async () => {

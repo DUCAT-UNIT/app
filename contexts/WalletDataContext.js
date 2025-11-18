@@ -14,7 +14,7 @@ import { useVaultDataFetch } from '../hooks/useVaultDataFetch';
 
 // Polling intervals (in milliseconds)
 const POLL_INTERVAL = 10000; // 10 seconds - for balance and vault data
-const HISTORY_POLL_INTERVAL = 30000; // 30 seconds - for transaction history
+const HISTORY_POLL_INTERVAL = 10000; // 10 seconds - for transaction history (same as balance for faster updates)
 
 // PERFORMANCE: Split into 3 separate contexts to prevent unnecessary re-renders
 // When balance changes, only components using useBalance() will re-render
@@ -81,8 +81,6 @@ export const WalletDataProvider = ({ children }) => {
   // UNIFIED AUTO-REFRESH POLLING
   // ============================================================
 
-  // Track last transaction history fetch time for less frequent polling
-  const lastHistoryFetchRef = useRef(0);
   // Track previous wallet to detect changes (account switches)
   const prevWalletRef = useRef(null);
 
@@ -90,16 +88,10 @@ export const WalletDataProvider = ({ children }) => {
   const pollAllData = useCallback(() => {
     if (!wallet) return;
 
-    // Always fetch balance and vault together (every 10s)
+    // Always fetch balance, vault, and transaction history together (every 10s)
     balance.fetchBalance();
     vault.fetchVault();
-
-    // Fetch transaction history less frequently
-    const now = Date.now();
-    if (now - lastHistoryFetchRef.current >= HISTORY_POLL_INTERVAL) {
-      history.fetchTransactionHistory();
-      lastHistoryFetchRef.current = now;
-    }
+    history.fetchTransactionHistory();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [wallet, balance.fetchBalance, vault.fetchVault, history.fetchTransactionHistory]);
 
@@ -113,7 +105,6 @@ export const WalletDataProvider = ({ children }) => {
       balance.resetBalances();
       history.resetTransactionHistory();
       vault.resetVaultData();
-      lastHistoryFetchRef.current = 0;
     } else if (prevWallet && wallet &&
                (prevWallet.segwitAddress !== wallet.segwitAddress ||
                 prevWallet.taprootAddress !== wallet.taprootAddress ||
@@ -122,14 +113,12 @@ export const WalletDataProvider = ({ children }) => {
       balance.fetchBalance();
       vault.fetchVault();
       history.fetchTransactionHistory();
-      lastHistoryFetchRef.current = Date.now();
     } else if (!prevWallet && wallet) {
       // Wallet just loaded for first time (import/creation) - immediately fetch all data
       // This ensures data is available before WalletScreen mounts
       balance.fetchBalance();
       vault.fetchVault();
       history.fetchTransactionHistory();
-      lastHistoryFetchRef.current = Date.now();
     }
     // Note: The usePolling's immediate: true will also fire, but fetchBalance is idempotent
     // eslint-disable-next-line react-hooks/exhaustive-deps

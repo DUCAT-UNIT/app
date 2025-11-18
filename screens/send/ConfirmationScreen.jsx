@@ -3,15 +3,24 @@
  * Features: success checkmark, explorer link, Done button
  */
 
-import React from 'react';
+import React, { useEffect } from 'react';
 import { Text, View, TouchableOpacity, Linking, StyleSheet } from 'react-native';
 import { COLORS } from '../../theme';
 import Icon from '../../components/icons';
 import { getTxUrl } from '../../utils/constants';
 import { useTransactionExecution } from '../../contexts/TransactionExecutionContext';
+import { useTransactionHistory } from '../../contexts/WalletDataContext';
 
 export default function ConfirmationScreen({ navigation }) {
   const { broadcastedTxid } = useTransactionExecution();
+  const { fetchTransactionHistory } = useTransactionHistory();
+
+  // Refresh transaction history when confirmation screen appears
+  useEffect(() => {
+    if (fetchTransactionHistory) {
+      fetchTransactionHistory();
+    }
+  }, [fetchTransactionHistory]);
 
   const handleViewExplorer = () => {
     if (broadcastedTxid) {
@@ -20,8 +29,16 @@ export default function ConfirmationScreen({ navigation }) {
   };
 
   const handleDone = () => {
+    // Refresh transaction history one more time before closing
+    if (fetchTransactionHistory) {
+      fetchTransactionHistory();
+    }
+
     // Dismiss the send flow modal
-    navigation.getParent()?.goBack();
+    // Add a small delay to allow the fetch to start
+    setTimeout(() => {
+      navigation.getParent()?.goBack();
+    }, 100);
   };
 
   return (

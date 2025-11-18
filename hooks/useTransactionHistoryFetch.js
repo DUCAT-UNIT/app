@@ -36,10 +36,17 @@ export function useTransactionHistoryFetch(wallet) {
       setHistoryError(null);
       const history = await fetchAllTransactionHistory(segwitAddress, taprootAddress, vaultPubkey);
 
-      // Only update state if transactions have actually changed
-      const prevTxids = prevHistoryRef.current.map(t => t.txid).sort().join(',');
-      const newTxids = history.map(t => t.txid).sort().join(',');
-      const hasChanged = prevTxids !== newTxids;
+      // Update state if transactions have changed
+      // Check both txids AND confirmation status to catch when pending txs confirm
+      const prevHash = prevHistoryRef.current
+        .map(t => `${t.txid}:${t.status?.confirmed || false}:${t.status?.block_height || 0}`)
+        .sort()
+        .join('|');
+      const newHash = history
+        .map(t => `${t.txid}:${t.status?.confirmed || false}:${t.status?.block_height || 0}`)
+        .sort()
+        .join('|');
+      const hasChanged = prevHash !== newHash;
 
       if (hasChanged) {
         prevHistoryRef.current = history;

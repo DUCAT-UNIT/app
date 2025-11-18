@@ -19,7 +19,8 @@ export function useAmountInput({
   const [isCalculatingMax, setIsCalculatingMax] = useState(false);
 
   // Calculate balance based on asset type
-  const btcBalance = (segwitBalance || 0) + (taprootBalance || 0);
+  // BTC is always sent from segwit address, so only show segwit balance
+  const btcBalance = segwitBalance || 0;
   const unitBalance =
     runesBalance && runesBalance.length > 0 ? parseFloat(runesBalance[0][1]) : 0;
   const balance = sendAssetType === 'btc' ? btcBalance : unitBalance;
@@ -29,19 +30,18 @@ export function useAmountInput({
     if (sendAssetType === 'btc') {
       setIsCalculatingMax(true);
       try {
-        const sourceAddress = sendAddressType === 'taproot'
-          ? wallet?.taprootAddress
-          : wallet?.segwitAddress;
+        // BTC is always sent from segwit address
+        const sourceAddress = wallet?.segwitAddress;
 
         const maxSendable = await calculateMaxSendableBTC({
           sourceAddress,
-          btcBalance,
+          btcBalance: segwitBalance, // Use only segwit balance for BTC
         });
         setSendAmount(String(maxSendable));
       } catch (error) {
         logger.error('Error calculating max:', error);
-        // Fallback to balance
-        setSendAmount(String(balance || 0));
+        // Fallback to segwit balance
+        setSendAmount(String(segwitBalance || 0));
       } finally {
         setIsCalculatingMax(false);
       }

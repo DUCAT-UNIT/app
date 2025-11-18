@@ -9,7 +9,7 @@ import TransactionItem from '../transaction/TransactionItem';
 import { COLORS } from '../../theme';
 import globalStyles from '../../styles';
 
-export function AssetActivityList({ transactions, isLoading }) {
+export function AssetActivityList({ transactions, isLoading, onTransactionPress }) {
   const [visibleTransactions, setVisibleTransactions] = useState(20);
 
   const renderTransaction = useCallback(
@@ -17,10 +17,10 @@ export function AssetActivityList({ transactions, isLoading }) {
       <TransactionItem
         tx={tx}
         styles={globalStyles}
-        onPress={() => {}}
+        onPress={() => onTransactionPress(tx)}
       />
     ),
-    []
+    [onTransactionPress]
   );
 
   if (isLoading) {

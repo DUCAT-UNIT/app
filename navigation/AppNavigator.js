@@ -3,7 +3,7 @@
  * Contains all routing logic and screen orchestration
  */
 
-import React, { useRef, useState, useEffect } from 'react';
+import React, { useRef, useState, useEffect, useCallback } from 'react';
 import * as SecureStore from 'expo-secure-store';
 
 // Navigation
@@ -19,7 +19,7 @@ import AirdropSuccessModal from '../components/AirdropSuccessModal';
 // Contexts
 import { useAuth } from '../contexts/AuthContext';
 import { useWallet } from '../contexts/WalletContext';
-import { useBalance } from '../contexts/WalletDataContext';
+import { useBalance, useTransactionHistory as useTransactionHistoryContext } from '../contexts/WalletDataContext';
 import { useAirdrop } from '../contexts/AirdropContext';
 import { SendFlowProvider } from '../contexts/SendFlowContext';
 import { TransactionBuildProvider } from '../contexts/TransactionBuildContext';
@@ -51,6 +51,15 @@ export default function AppNavigator() {
     loadWallet,
   } = useWallet();
   const { fetchBalance } = useBalance();
+  const historyContext = useTransactionHistoryContext();
+
+  // Safely extract fetchTransactionHistory with fallback
+  const fetchTransactionHistory = useCallback(() => {
+    if (historyContext?.fetchTransactionHistory) {
+      historyContext.fetchTransactionHistory();
+    }
+  }, [historyContext]);
+
   const {
     isBiometricSupported,
     setIsAuthenticated,
@@ -84,6 +93,7 @@ export default function AppNavigator() {
       startPolling={startPolling}
       sendTransactionConfirmedNotification={sendTransactionConfirmedNotification}
       fetchBalance={fetchBalance}
+      fetchTransactionHistory={fetchTransactionHistory}
       setIsAuthenticated={setIsAuthenticated}
       loadWallet={loadWallet}
       loadBiometricPreference={loadBiometricPreference}
@@ -102,6 +112,7 @@ function ProvidersWrapper({
   startPolling,
   sendTransactionConfirmedNotification,
   fetchBalance,
+  fetchTransactionHistory,
   setIsAuthenticated,
   loadWallet,
   loadBiometricPreference,
@@ -127,6 +138,7 @@ function ProvidersWrapper({
             sendTransactionConfirmedNotification={sendTransactionConfirmedNotification}
             notificationsEnabled={notificationsEnabled}
             fetchBalance={fetchBalance}
+            fetchTransactionHistory={fetchTransactionHistory}
           >
             <VaultProvider currentAccount={currentAccount}>
               <SeedPhraseProvider showToast={showToast} setIsAuthenticated={setIsAuthenticated}>

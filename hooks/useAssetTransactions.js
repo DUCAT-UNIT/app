@@ -24,8 +24,15 @@ export function useAssetTransactions(transactionHistory, assetType, segwitAddres
     }
 
     // Create a hash to check if we need to recalculate
-    const txHash = `${transactionHistory.length}-${assetType}`;
-    if (txHash === lastTxHashRef.current && filteredTxRef.current.length > 0) {
+    // Include confirmation status AND block height to detect when transactions confirm
+    const txHash = transactionHistory
+      .map(t => `${t.txid}:${t.status?.confirmed || false}:${t.status?.block_height || 0}`)
+      .join('|') + `-${assetType}`;
+
+    const hashChanged = txHash !== lastTxHashRef.current;
+
+    if (!hashChanged && filteredTxRef.current.length > 0) {
+      // Hash unchanged - no need to recalculate, use cached version
       setFilteredTransactions(filteredTxRef.current);
       return;
     }

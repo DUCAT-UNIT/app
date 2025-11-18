@@ -3,12 +3,14 @@
  * Displays detailed information about a specific asset (BTC or UNIT)
  */
 
-import React, { useState, useRef, useMemo } from 'react';
+import React, { useState, useRef, useMemo, useCallback, useEffect } from 'react';
 import {
   StyleSheet,
   Animated,
+  Linking,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
+import { useFocusEffect } from '@react-navigation/native';
 import { COLORS } from '../../theme';
 import { useBalance, useTransactionHistory } from '../../contexts/WalletDataContext';
 import { usePrice } from '../../contexts/PriceContext';
@@ -24,6 +26,7 @@ import {
 } from '../../components/assetDetail';
 import { usePriceChart } from '../../hooks/usePriceChart';
 import { useAssetTransactions } from '../../hooks/useAssetTransactions';
+import { getTxUrl, getOrdTxUrl } from '../../utils/constants';
 
 function AssetDetailScreen({ route = {}, navigation }) {
   const { assetType = 'BTC' } = route?.params || {};
@@ -31,11 +34,19 @@ function AssetDetailScreen({ route = {}, navigation }) {
   const { segwitBalance, runesBalance } = useBalance();
   const { btcPrice } = usePrice();
   const wallet = useWallet().wallet;
-  const { transactionHistory, loadingTransactionHistory } = useTransactionHistory();
+  const { transactionHistory, loadingTransactionHistory, fetchTransactionHistory } = useTransactionHistory();
 
   const [selectedTab, setSelectedTab] = useState('ACTIVITY');
   const [selectedTimeframe, setSelectedTimeframe] = useState('1M');
   const scrollY = useRef(new Animated.Value(0)).current;
+
+  // Refresh transaction history when screen comes into focus
+  // This will also trigger when returning from the SendFlow modal
+  useFocusEffect(
+    useCallback(() => {
+      fetchTransactionHistory();
+    }, [fetchTransactionHistory])
+  );
 
   // Use extracted price chart hook
   const { priceData, priceDirection, priceLoading, priceError, setPriceError } = usePriceChart(assetType, selectedTimeframe);
@@ -87,6 +98,21 @@ function AssetDetailScreen({ route = {}, navigation }) {
         break;
     }
   };
+
+  // Open transaction in blockchain explorer
+  const handleTransactionPress = useCallback(async (tx) => {
+    try {
+      // Use ord explorer for UNIT transactions, regular explorer for BTC
+      const url = assetType === 'UNIT' ? getOrdTxUrl(tx.txid) : getTxUrl(tx.txid);
+
+      const supported = await Linking.canOpenURL(url);
+      if (supported) {
+        await Linking.openURL(url);
+      }
+    } catch (error) {
+      // Silently fail
+    }
+  }, [assetType]);
 
   // Component render functions now use extracted components
   const renderHeader = () => <AssetHeader onBackPress={() => navigation.goBack()} />;
@@ -146,6 +172,7 @@ function AssetDetailScreen({ route = {}, navigation }) {
             <AssetActivityList
               transactions={filteredTransactions}
               isLoading={loadingTransactionHistory}
+              onTransactionPress={handleTransactionPress}
             />
           ) : (
             <AssetAbout assetType={assetType} />

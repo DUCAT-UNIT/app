@@ -90,6 +90,18 @@ export default function AmountInputScreen({ navigation }) {
 
   const usdValue = calculateUsdValue(sendAmount, btcPrice);
 
+  // Check if user has sufficient balance
+  const unitAmount = runesBalance && runesBalance.length > 0 ? parseFloat(runesBalance[0][1]) : 0;
+  const hasNoUnitBalance = sendAssetType === 'unit' && unitAmount === 0;
+
+  // Check if amount exceeds available balance
+  const enteredAmount = parseFloat(sendAmount) || 0;
+  const exceedsBalance = sendAmount && enteredAmount > balance;
+
+  // Determine if we should show insufficient balance warning
+  const hasInsufficientBalance = hasNoUnitBalance || exceedsBalance;
+  const isReviewDisabled = !sendAmount || hasInsufficientBalance;
+
   return (
     <View style={localStyles.container}>
       {/* Header with back button and recipient info */}
@@ -109,6 +121,18 @@ export default function AmountInputScreen({ navigation }) {
           onMaxPress={handleMaxPress}
           isCalculating={isCalculatingMax}
         />
+
+        {/* Insufficient balance warning */}
+        {hasInsufficientBalance && (
+          <View style={localStyles.warningContainer}>
+            <Icon name="warning" size={16} color={COLORS.DANGER_RED} />
+            <Text style={localStyles.warningText}>
+              {hasNoUnitBalance
+                ? 'No available UNIT balance to send'
+                : 'Insufficient balance'}
+            </Text>
+          </View>
+        )}
 
         {/* Amount input */}
         <View style={localStyles.amountInputRow}>
@@ -144,10 +168,10 @@ export default function AmountInputScreen({ navigation }) {
         <TouchableOpacity
           style={[
             localStyles.reviewButton,
-            !sendAmount && localStyles.reviewButtonDisabled,
+            isReviewDisabled && localStyles.reviewButtonDisabled,
           ]}
           onPress={handleReview}
-          disabled={!sendAmount}
+          disabled={isReviewDisabled}
           activeOpacity={0.7}
         >
           <Text style={localStyles.reviewButtonText}>Review</Text>
@@ -166,6 +190,22 @@ const localStyles = StyleSheet.create({
     flex: 1,
     paddingHorizontal: 20,
     paddingTop: 40,
+  },
+  warningContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: 'rgba(208, 76, 104, 0.1)',
+    borderRadius: 8,
+    paddingVertical: 12,
+    paddingHorizontal: 16,
+    marginBottom: 24,
+    gap: 8,
+  },
+  warningText: {
+    fontSize: 14,
+    color: COLORS.DANGER_RED,
+    fontFamily: 'CabinetGrotesk-Medium',
   },
   amountInputRow: {
     flexDirection: 'row',
