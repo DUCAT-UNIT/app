@@ -57,7 +57,7 @@ export function usePasskeyRestore({ setIsAuthenticated, setSeedConfirmed, showTo
 
       // Store mnemonic in SecureStore for daily unlock
       const { savePin } = await import('../services/pinService');
-      const { saveMnemonic, saveCurrentAccount } = await import('../services/authService');
+      const { saveMnemonic, saveCurrentAccount } = await import('../services/secureStorageService');
 
       await saveMnemonic(mnemonic);
       await saveCurrentAccount(0);
