@@ -120,6 +120,43 @@ describe('balanceService', () => {
       expect(result.segwitBalance).toBe(1);
       expect(result.taprootBalance).toBe(0.00000001);
     });
+
+    it('should fetch and calculate balances using real API responses', async () => {
+      const segwitAddress = 'tb1qw508d6qejxtdg4y5r3zarvary0c5xw7kxpjzsx';
+      const taprootAddress = 'tb1p5d7rjq7g6rdk2yhzks9smlaqtedr4dekq08ge8ztwac72sfr9rusxg3297';
+
+      // Restore fetchParallel to use real implementation
+      const realFetchParallel = jest.requireActual('../../utils/apiClient').fetchParallel;
+      fetchParallel.mockImplementationOnce(realFetchParallel);
+
+      // Mock getJSON responses
+      getJSON
+        .mockResolvedValueOnce({
+          chain_stats: {
+            funded_txo_sum: 150000000,  // 1.5 BTC received
+            spent_txo_sum: 50000000,    // 0.5 BTC spent
+          },
+        })
+        .mockResolvedValueOnce({
+          chain_stats: {
+            funded_txo_sum: 200000000,  // 2 BTC received
+            spent_txo_sum: 100000000,   // 1 BTC spent
+          },
+        })
+        .mockResolvedValueOnce({
+          runes_balances: [['UNIT', '1000']],
+        });
+
+      const result = await fetchWalletBalances(segwitAddress, taprootAddress);
+
+      expect(result).toEqual({
+        segwitBalance: 1,  // 1.5 - 0.5 = 1 BTC
+        taprootBalance: 1, // 2 - 1 = 1 BTC
+        runesBalance: [['UNIT', '1000']],
+      });
+
+      expect(getJSON).toHaveBeenCalledTimes(3);
+    });
   });
 
   describe('fetchUtxos', () => {

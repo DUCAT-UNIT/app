@@ -23,16 +23,16 @@
         <div class='clearfix'>
             
             <div class='fl pad1y space-right2'>
-                <span class="strong">97.26% </span>
+                <span class="strong">97.46% </span>
                 <span class="quiet">Statements</span>
-                <span class='fraction'>71/73</span>
+                <span class='fraction'>77/79</span>
             </div>
         
             
             <div class='fl pad1y space-right2'>
-                <span class="strong">80% </span>
+                <span class="strong">84% </span>
                 <span class="quiet">Branches</span>
-                <span class='fraction'>32/40</span>
+                <span class='fraction'>42/50</span>
             </div>
         
             
@@ -44,9 +44,9 @@
         
             
             <div class='fl pad1y space-right2'>
-                <span class="strong">98.46% </span>
+                <span class="strong">98.59% </span>
                 <span class="quiet">Lines</span>
-                <span class='fraction'>64/65</span>
+                <span class='fraction'>70/71</span>
             </div>
         
             
@@ -268,7 +268,18 @@
 <a name='L203'></a><a href='#L203'>203</a>
 <a name='L204'></a><a href='#L204'>204</a>
 <a name='L205'></a><a href='#L205'>205</a>
-<a name='L206'></a><a href='#L206'>206</a></td><td class="line-coverage quiet"><span class="cline-any cline-neutral">&nbsp;</span>
+<a name='L206'></a><a href='#L206'>206</a>
+<a name='L207'></a><a href='#L207'>207</a>
+<a name='L208'></a><a href='#L208'>208</a>
+<a name='L209'></a><a href='#L209'>209</a>
+<a name='L210'></a><a href='#L210'>210</a>
+<a name='L211'></a><a href='#L211'>211</a>
+<a name='L212'></a><a href='#L212'>212</a>
+<a name='L213'></a><a href='#L213'>213</a>
+<a name='L214'></a><a href='#L214'>214</a>
+<a name='L215'></a><a href='#L215'>215</a>
+<a name='L216'></a><a href='#L216'>216</a>
+<a name='L217'></a><a href='#L217'>217</a></td><td class="line-coverage quiet"><span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
@@ -319,6 +330,17 @@
 <span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-yes">95x</span>
 <span class="cline-any cline-yes">16x</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-yes">16x</span>
+<span class="cline-any cline-yes">16x</span>
+<span class="cline-any cline-yes">10x</span>
+<span class="cline-any cline-yes">10x</span>
+<span class="cline-any cline-yes">27x</span>
+<span class="cline-any cline-yes">24x</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-yes">16x</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-yes">16x</span>
@@ -378,11 +400,11 @@
 <span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-yes">271x</span>
-<span class="cline-any cline-yes">20x</span>
-<span class="cline-any cline-yes">20x</span>
-<span class="cline-any cline-yes">19x</span>
+<span class="cline-any cline-yes">26x</span>
+<span class="cline-any cline-yes">26x</span>
+<span class="cline-any cline-yes">25x</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
-<span class="cline-any cline-yes">19x</span>
+<span class="cline-any cline-yes">25x</span>
 <span class="cline-any cline-no">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
@@ -524,10 +546,21 @@ export function usePersistedState(key, initialState, options = {}) {
 &nbsp;
         if (savedValue !== null &amp;&amp; isMountedRef.current) {
           const deserialized = deserializer(savedValue);
-          setStateInternal(deserialized);
+          // Merge with initial state to fill in missing fields with defaults
+          // Only override default values with non-null/undefined values from persisted state
+          let mergedState = deserialized;
+          if (typeof initialState === 'object' &amp;&amp; !Array.isArray(initialState) &amp;&amp; typeof deserialized === 'object' &amp;&amp; !Array.isArray(deserialized)) {
+            mergedState = { ...initialState };
+            for (const key in deserialized) {
+              if (deserialized[key] !== null &amp;&amp; deserialized[key] !== undefined) {
+                mergedState[key] = deserialized[key];
+              }
+            }
+          }
+          setStateInternal(mergedState);
 &nbsp;
           if (onLoad) {
-            onLoad(deserialized);
+            onLoad(mergedState);
           }
         }
       } catch (error) {
@@ -685,7 +718,7 @@ export function usePersistedArray(key, initialState = <span class="branch-0 cbra
             <div class='footer quiet pad2 space-top1 center small'>
                 Code coverage generated by
                 <a href="https://istanbul.js.org/" target="_blank" rel="noopener noreferrer">istanbul</a>
-                at 2025-11-18T06:17:25.610Z
+                at 2025-11-18T20:24:47.373Z
             </div>
         <script src="../prettify.js"></script>
         <script>

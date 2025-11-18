@@ -338,6 +338,56 @@ describe('TransactionBuildContext', () => {
     expect(result.current.sendIntent).toEqual(mockIntent);
   });
 
+  it('should create BTC intent with unconfirmed UTXOs', async () => {
+    const mockUnconfirmedUtxos = [
+      { txid: 'unconfirmed1', vout: 0, value: 50000 },
+      { txid: 'unconfirmed2', vout: 1, value: 30000 },
+    ];
+
+    usePendingTransactions.mockReturnValue({
+      getUnconfirmedUTXOs: jest.fn().mockReturnValue(mockUnconfirmedUtxos),
+      getSpentUtxos: jest.fn().mockReturnValue([]),
+    });
+
+    const mockIntent = {
+      psbt: 'mock_psbt_with_unconfirmed',
+      fee: 1500,
+      inputs: [
+        { txid: 'unconfirmed1', vout: 0 },
+        { txid: 'confirmed1', vout: 0 },
+      ],
+    };
+    TransactionService.createBtcIntent.mockResolvedValue(mockIntent);
+
+    const mockMarkUtxosAsSpent = jest.fn();
+    usePendingTransactions.mockReturnValue({
+      getUnconfirmedUTXOs: jest.fn().mockReturnValue(mockUnconfirmedUtxos),
+      getSpentUtxos: jest.fn().mockReturnValue([]),
+      markUtxosAsSpent: mockMarkUtxosAsSpent,
+    });
+
+    const wrapper = ({ children }) => (
+      <TransactionBuildProvider wallet={mockWallet} currentAccount={0} showToast={mockShowToast}>
+        {children}
+      </TransactionBuildProvider>
+    );
+    const { result } = renderHook(() => useTransactionBuild(), { wrapper });
+
+    await act(async () => {
+      await result.current.createSendIntent();
+    });
+
+    expect(TransactionService.createBtcIntent).toHaveBeenCalledWith(
+      'bc1qrecipient',
+      '0.001',
+      mockWallet.segwitAddress,
+      0,
+      mockUnconfirmedUtxos,
+      []
+    );
+    expect(result.current.sendIntent).toEqual(mockIntent);
+  });
+
   it('should handle UNIT intent with missing wallet addresses', async () => {
     useSendFlow.mockReturnValue({
       sendRecipient: 'bc1qrecipient',

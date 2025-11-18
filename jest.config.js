@@ -25,6 +25,10 @@ module.exports = {
     '!utils/colors.js',              // Color constants
     '!utils/messages.js',            // Static error/success message strings
 
+    // --- Index/Re-export Files (barrel exports, no logic) ---
+    '!services/transaction/index.js',  // Re-exports transaction functions
+    '!utils/formatters/index.js',      // Re-exports formatters (formatBalance tested indirectly)
+
     // --- Platform-Specific Services (require native modules unavailable in Jest) ---
     '!services/biometricService.js',        // Requires expo-local-authentication hardware
     '!services/backgroundTaskService.js',   // Requires native background task scheduler
