@@ -6,13 +6,15 @@
 
 import React, { useState, useEffect } from 'react';
 import PropTypes from 'prop-types';
-import { Text, View, TouchableOpacity } from 'react-native';
+import { Text, View, TouchableOpacity, Animated } from 'react-native';
 import { StatusBar } from 'expo-status-bar';
+import * as Haptics from 'expo-haptics';
 import { verifyPin } from '../../services/pinService';
 import * as PasskeyService from '../../services/passkeyService';
 import { ERRORS } from '../../utils/messages';
 import { COLORS } from '../../theme';
 import Icon from '../../components/icons';
+import TouchableScale from '../../components/common/TouchableScale';
 import styles from '../../styles';
 
 export default function LockScreen({ onAuthenticated, showFaceIdButton, onFaceIdPress }) {
@@ -20,6 +22,7 @@ export default function LockScreen({ onAuthenticated, showFaceIdButton, onFaceId
   const [pinError, setPinError] = useState('');
   const [passkeyEnabled, setPasskeyEnabled] = useState(false);
   const [showPasskeyButton, setShowPasskeyButton] = useState(false);
+  const shakeAnimation = useState(new Animated.Value(0))[0];
 
   // Check if passkey is enabled on mount
   useEffect(() => {
@@ -33,6 +36,15 @@ export default function LockScreen({ onAuthenticated, showFaceIdButton, onFaceId
     checkPasskey();
   }, []);
 
+  const shakeError = () => {
+    Animated.sequence([
+      Animated.timing(shakeAnimation, { toValue: 10, duration: 50, useNativeDriver: true }),
+      Animated.timing(shakeAnimation, { toValue: -10, duration: 50, useNativeDriver: true }),
+      Animated.timing(shakeAnimation, { toValue: 10, duration: 50, useNativeDriver: true }),
+      Animated.timing(shakeAnimation, { toValue: 0, duration: 50, useNativeDriver: true }),
+    ]).start();
+  };
+
   const handlePinDigit = (digit) => {
     if (pin.length < 6) {
       const newPin = pin + digit;
@@ -41,10 +53,13 @@ export default function LockScreen({ onAuthenticated, showFaceIdButton, onFaceId
         // Verify PIN with rate limiting
         verifyPin(newPin).then((result) => {
           if (result.success) {
+            Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
             setPin('');
             setPinError('');
             onAuthenticated();
           } else {
+            Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
+            shakeError();
             const errorMsg = result.error || ERRORS.INCORRECT_PIN;
             const attemptsMsg = result.remainingAttempts
               ? ` (${result.remainingAttempts} attempts remaining)`
@@ -93,11 +108,11 @@ export default function LockScreen({ onAuthenticated, showFaceIdButton, onFaceId
       {pinError ? <Text style={styles.lockPinError}>{pinError}</Text> : null}
 
       {/* PIN Dots */}
-      <View style={styles.lockPinDots}>
+      <Animated.View style={[styles.lockPinDots, { transform: [{ translateX: shakeAnimation }] }]}>
         {[0, 1, 2, 3, 4, 5].map((i) => (
           <View key={i} style={[styles.lockPinDot, i < pin.length && styles.lockPinDotFilled]} />
         ))}
-      </View>
+      </Animated.View>
 
       {/* Keypad */}
       <View style={styles.lockKeypad}>
@@ -108,13 +123,13 @@ export default function LockScreen({ onAuthenticated, showFaceIdButton, onFaceId
         ].map((row, rowIndex) => (
           <View key={rowIndex} style={styles.lockKeypadRow}>
             {row.map((num) => (
-              <TouchableOpacity
+              <TouchableScale
                 key={num}
                 style={styles.lockKey}
                 onPress={() => handlePinDigit(String(num))}
               >
                 <Text style={styles.lockKeyText}>{num}</Text>
-              </TouchableOpacity>
+              </TouchableScale>
             ))}
           </View>
         ))}
@@ -131,12 +146,12 @@ export default function LockScreen({ onAuthenticated, showFaceIdButton, onFaceId
           ) : (
             <View style={styles.lockKey} />
           )}
-          <TouchableOpacity style={styles.lockKey} onPress={() => handlePinDigit('0')}>
+          <TouchableScale style={styles.lockKey} onPress={() => handlePinDigit('0')}>
             <Text style={styles.lockKeyText}>0</Text>
-          </TouchableOpacity>
-          <TouchableOpacity style={styles.lockKey} onPress={handlePinDelete}>
+          </TouchableScale>
+          <TouchableScale style={styles.lockKey} onPress={handlePinDelete} haptic={false}>
             <Icon name="delete" size={28} color={COLORS.WHITE} />
-          </TouchableOpacity>
+          </TouchableScale>
         </View>
       </View>
     </View>

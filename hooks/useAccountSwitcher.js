@@ -7,7 +7,7 @@ import { useState } from 'react';
 import { Alert } from 'react-native';
 import { ERRORS, DIALOGS } from '../utils/messages';
 
-export function useAccountSwitcher({ switchAccountContext }) {
+export function useAccountSwitcher({ switchAccountContext, fetchBalance }) {
   const [showAccountPicker, setShowAccountPicker] = useState(false);
   const [newAccountIndex, setNewAccountIndex] = useState('');
   const [switchingAccount, setSwitchingAccount] = useState(false);
@@ -21,6 +21,11 @@ export function useAccountSwitcher({ switchAccountContext }) {
 
       // Switch account using context
       await switchAccountContext(accountIndex);
+
+      // Explicitly fetch balance for new account
+      if (fetchBalance) {
+        await fetchBalance();
+      }
 
       setShowAccountPicker(false);
       setNewAccountIndex('');

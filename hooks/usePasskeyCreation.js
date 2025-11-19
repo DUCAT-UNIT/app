@@ -5,6 +5,7 @@
 
 import { useState, useRef } from 'react';
 import * as Device from 'expo-device';
+import * as Haptics from 'expo-haptics';
 import * as PasskeyService from '../services/passkeyService';
 
 export function usePasskeyCreation({ setIsAuthenticated, setSeedConfirmed, showToast, loadWallet }) {
@@ -59,8 +60,22 @@ export function usePasskeyCreation({ setIsAuthenticated, setSeedConfirmed, showT
           return;
         }
 
-        // PINs match - create wallet
-        await createWalletWithPasskey(pin);
+        // PINs match - give instant feedback
+        Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+        setIsCreating(true);
+
+        // Create wallet (use microtask to let UI update while keeping promise chain)
+        await Promise.resolve().then(async () => {
+          await createWalletWithPasskey(pin);
+        }).catch((error) => {
+          Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
+          setIsCreating(false);
+          showToast(error.message || 'Failed to create wallet with passkey', 'error');
+          setCreatingWithPasskey(false);
+          setConfirmingPin(false);
+          setPasskeyPin('');
+          setPasskeyPinConfirm('');
+        });
       } else {
         // First PIN entry - move to confirmation
         setConfirmingPin(true);
@@ -75,7 +90,7 @@ export function usePasskeyCreation({ setIsAuthenticated, setSeedConfirmed, showT
    */
   const createWalletWithPasskey = async (pin) => {
     try {
-      setIsCreating(true);
+      // Note: setIsCreating(true) is called in handlePinEntry for instant feedback
 
       // Get device name for passkey display
       const deviceName = Device.deviceName || 'iPhone';
@@ -83,7 +98,7 @@ export function usePasskeyCreation({ setIsAuthenticated, setSeedConfirmed, showT
       const displayName = `${deviceName} - Ducat`;
 
       // Create wallet with passkey + PIN
-      const { mnemonic, addresses, icloudBackupSucceeded } = await PasskeyService.createWalletWithPasskey({
+      const { mnemonic, addresses, icloudBackupPromise } = await PasskeyService.createWalletWithPasskey({
         userName,
         userDisplayName: displayName,
         pin,
@@ -109,19 +124,21 @@ export function usePasskeyCreation({ setIsAuthenticated, setSeedConfirmed, showT
       setConfirmingPin(false);
       setCreatingWithPasskey(false);
 
-      // Show success message with iCloud backup status
-      if (icloudBackupSucceeded) {
-        showToast('Wallet created with passkey!', 'success');
-      } else {
-        showToast('Wallet created! iCloud backup failed - restoration may not work on new devices', 'warning');
+      // Show immediate success - iCloud backup happens in background
+      showToast('Wallet created with passkey!', 'success');
+
+      // Handle iCloud backup result in background (non-blocking)
+      if (icloudBackupPromise) {
+        icloudBackupPromise.then((result) => {
+          if (!result.success) {
+            showToast('iCloud backup failed - restoration may not work on new devices', 'warning');
+          }
+        });
       }
     } catch (error) {
-      showToast(error.message || 'Failed to create wallet with passkey', 'error');
-      setCreatingWithPasskey(false);
-      setIsCreating(false);
-      setConfirmingPin(false);
-      setPasskeyPin('');
-      setPasskeyPinConfirm('');
+      // Re-throw error to be caught by handlePinEntry
+      // This keeps error handling in one place and ensures proper state cleanup
+      throw error;
     } finally {
       setIsCreating(false);
     }

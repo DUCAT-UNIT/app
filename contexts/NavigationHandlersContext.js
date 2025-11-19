@@ -103,7 +103,7 @@ export const NavigationHandlersProvider = ({ children, walletExists }) => {
     setNewAccountIndex,
     switchingAccount,
     switchAccount,
-  } = useAccountSwitcher({ switchAccountContext });
+  } = useAccountSwitcher({ switchAccountContext, fetchBalance });
 
   // Passkey migration modal state (for showing after wallet import)
   const [showPasskeyMigrationModal, setShowPasskeyMigrationModal] = useState(false);

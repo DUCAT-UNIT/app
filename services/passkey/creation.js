@@ -102,40 +102,33 @@ export const createWalletWithPasskey = async ({ userName, userDisplayName, pin }
     // Save current account (always 0 for new wallets)
     await setCurrentAccount(0);
 
-    // Backup encrypted mnemonic to iCloud (including PIN salt for recovery)
-    let icloudBackupSucceeded = false;
-    let icloudDebugInfo = '';
-    let verificationLog = '';
-
-    try {
-      const backup = await backupToICloudWithVerification({
-        encrypted,
-        iv,
-        tag,
-        credentialId,
-        userHandle,
-        pinSalt,
-      });
-      icloudDebugInfo = backup.debugInfo;
-      verificationLog = backup.verificationLog;
-      icloudBackupSucceeded = true;
-    } catch (icloudError) {
-      icloudDebugInfo = icloudError.message;
-      throw icloudError; // Re-throw for error handling
-    }
-
-    logger.debug('Wallet created with passkey successfully', {
+    logger.debug('Wallet created with passkey successfully (before iCloud backup)', {
       segwitAddress: addresses.segwitAddress,
       taprootAddress: addresses.taprootAddress,
-      icloudBackup: icloudBackupSucceeded,
+    });
+
+    // Return immediately with backup promise for async execution
+    // This allows UI to proceed while backup happens in background
+    const backupPromise = backupToICloudWithVerification({
+      encrypted,
+      iv,
+      tag,
+      credentialId,
+      userHandle,
+      pinSalt,
+    }).then((backup) => {
+      logger.debug('iCloud backup succeeded', backup);
+      return { success: true, debugInfo: backup.debugInfo + backup.verificationLog };
+    }).catch((icloudError) => {
+      logger.error('iCloud backup failed (non-blocking)', { error: icloudError.message });
+      return { success: false, error: icloudError.message };
     });
 
     return {
       mnemonic,
       addresses,
       credentialId: Buffer.from(credentialId).toString('base64'),
-      icloudBackupSucceeded,
-      _iCloudDebug: icloudDebugInfo + verificationLog, // Debug info for TestFlight
+      icloudBackupPromise: backupPromise, // Return promise for background execution
     };
   } catch (error) {
     logger.error('Failed to create wallet with passkey', { error: error.message });

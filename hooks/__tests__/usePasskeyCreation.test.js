@@ -300,10 +300,13 @@ describe('usePasskeyCreation', () => {
     });
 
     it('should show warning when iCloud backup fails', async () => {
+      // Create a promise that resolves with backup failure
+      const backupPromise = Promise.resolve({ success: false, error: 'Backup failed' });
+
       PasskeyService.createWalletWithPasskey.mockResolvedValue({
         mnemonic: 'test',
         addresses: {},
-        icloudBackupSucceeded: false,
+        icloudBackupPromise: backupPromise,
       });
 
       const { result } = renderHook(() => usePasskeyCreation(mockProps));
@@ -319,8 +322,20 @@ describe('usePasskeyCreation', () => {
         await result.current.handlePinEntry('123456');
       });
 
+      // First should show success toast
       expect(mockProps.showToast).toHaveBeenCalledWith(
-        'Wallet created! iCloud backup failed - restoration may not work on new devices',
+        'Wallet created with passkey!',
+        'success'
+      );
+
+      // Wait for background backup promise to resolve
+      await act(async () => {
+        await backupPromise;
+      });
+
+      // Then should show warning about backup failure
+      expect(mockProps.showToast).toHaveBeenCalledWith(
+        'iCloud backup failed - restoration may not work on new devices',
         'warning'
       );
     });

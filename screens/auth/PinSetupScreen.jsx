@@ -6,15 +6,17 @@
 
 import React, { useState } from 'react';
 import PropTypes from 'prop-types';
-import { Text, View, TouchableOpacity } from 'react-native';
+import { Text, View, TouchableOpacity, Animated } from 'react-native';
 import { StatusBar } from 'expo-status-bar';
 import * as SecureStore from 'expo-secure-store';
 import * as LocalAuthentication from 'expo-local-authentication';
+import * as Haptics from 'expo-haptics';
 import { savePin } from '../../services/pinService';
 import { SECURE_KEYS } from '../../utils/constants';
 import { ERRORS, SUCCESS } from '../../utils/messages';
 import { COLORS } from '../../theme';
 import Icon from '../../components/icons';
+import TouchableScale from '../../components/common/TouchableScale';
 import styles from '../../styles';
 
 export default function PinSetupScreen({
@@ -34,8 +36,17 @@ export default function PinSetupScreen({
   const [pinStep, setPinStep] = useState('enter'); // 'enter' or 'confirm'
   const [pinError, setPinError] = useState('');
   const [showBiometricPrompt, setShowBiometricPrompt] = useState(false);
+  const shakeAnimation = useState(new Animated.Value(0))[0];
 
-  // Debug: Log when component renders
+  const shakeError = () => {
+    Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
+    Animated.sequence([
+      Animated.timing(shakeAnimation, { toValue: 10, duration: 50, useNativeDriver: true }),
+      Animated.timing(shakeAnimation, { toValue: -10, duration: 50, useNativeDriver: true }),
+      Animated.timing(shakeAnimation, { toValue: 10, duration: 50, useNativeDriver: true }),
+      Animated.timing(shakeAnimation, { toValue: 0, duration: 50, useNativeDriver: true }),
+    ]).start();
+  };
 
   const handlePinDigit = async (digit) => {
     if (pinStep === 'enter') {
@@ -63,9 +74,11 @@ export default function PinSetupScreen({
               const result = await PasskeyService.atomicPinChangeWithPasskey(pin);
 
               if (result.success) {
+                Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
                 showToast(SUCCESS.PIN_CHANGED);
                 onPinChangeComplete();
               } else {
+                shakeError();
                 setPinError(result.error || 'Failed to change PIN');
                 setPin('');
                 setConfirmPin('');
@@ -88,6 +101,7 @@ export default function PinSetupScreen({
                     fetchBalance();
                   }
                 } else {
+                  shakeError();
                   setPinError(ERRORS.PIN_SAVE_FAILED);
                   // Reset entire PIN process
                   setPin('');
@@ -97,6 +111,7 @@ export default function PinSetupScreen({
               });
             }
           } else {
+            shakeError();
             setPinError(ERRORS.PINS_DO_NOT_MATCH);
             // Reset entire PIN process so user starts fresh
             setPin('');
@@ -167,14 +182,14 @@ export default function PinSetupScreen({
         {pinError ? <Text style={styles.lockPinError}>{pinError}</Text> : null}
 
         {/* PIN Dots */}
-        <View style={styles.lockPinDots}>
+        <Animated.View style={[styles.lockPinDots, { transform: [{ translateX: shakeAnimation }] }]}>
           {[0, 1, 2, 3, 4, 5].map((i) => (
             <View
               key={i}
               style={[styles.lockPinDot, i < currentPin.length && styles.lockPinDotFilled]}
             />
           ))}
-        </View>
+        </Animated.View>
 
         {/* Keypad */}
         <View style={styles.lockKeypad}>
@@ -185,13 +200,13 @@ export default function PinSetupScreen({
           ].map((row, rowIndex) => (
             <View key={rowIndex} style={styles.lockKeypadRow}>
               {row.map((num) => (
-                <TouchableOpacity
+                <TouchableScale
                   key={num}
                   style={styles.lockKey}
                   onPress={() => handlePinDigit(String(num))}
                 >
                   <Text style={styles.lockKeyText}>{num}</Text>
-                </TouchableOpacity>
+                </TouchableScale>
               ))}
             </View>
           ))}
@@ -203,12 +218,12 @@ export default function PinSetupScreen({
             ) : (
               <View style={styles.lockKey} />
             )}
-            <TouchableOpacity style={styles.lockKey} onPress={() => handlePinDigit('0')}>
+            <TouchableScale style={styles.lockKey} onPress={() => handlePinDigit('0')}>
               <Text style={styles.lockKeyText}>0</Text>
-            </TouchableOpacity>
-            <TouchableOpacity style={styles.lockKey} onPress={handlePinDelete}>
+            </TouchableScale>
+            <TouchableScale style={styles.lockKey} onPress={handlePinDelete} haptic={false}>
               <Icon name="delete" size={28} color={COLORS.WHITE} />
-            </TouchableOpacity>
+            </TouchableScale>
           </View>
         </View>
       </View>
