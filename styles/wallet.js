@@ -58,7 +58,7 @@ export const walletStyles = StyleSheet.create({
     paddingLeft: 8,
     paddingRight: 16,
     paddingVertical: 12,
-    marginBottom: SCREEN_WIDTH <= 375 ? 4 : 12,
+    marginBottom: SCREEN_WIDTH <= 375 ? 4 : 10,
     height: 80,
     justifyContent: 'center',
   },
@@ -227,7 +227,7 @@ export const walletStyles = StyleSheet.create({
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    marginBottom: 4,
+    marginBottom: 8,
     paddingHorizontal: HORIZONTAL_PADDING,
   },
   xverseHeaderLeft: {
@@ -261,7 +261,7 @@ export const walletStyles = StyleSheet.create({
     fontSize: 16,
     fontFamily: 'CabinetGrotesk-Regular',
     color: COLORS.SECONDARY_TEXT,
-    marginBottom: 4,
+    marginBottom: 6,
   },
   xverseBalanceAmount: {
     fontSize: SCREEN_WIDTH <= 375 ? 36 : 44,
@@ -274,7 +274,8 @@ export const walletStyles = StyleSheet.create({
     height: 1,
     backgroundColor: COLORS.BORDER_COLOR,
     marginHorizontal: 20,
-    marginVertical: 16,
+    marginTop: 20,
+    marginBottom: 12,
     opacity: 0.3,
   },
   portfolioButton: {
@@ -301,8 +302,8 @@ export const walletStyles = StyleSheet.create({
     flexDirection: 'row',
     justifyContent: 'space-between',
     marginTop: 0,
-    marginBottom: 8,
-    gap: 16,
+    marginBottom: 20,
+    gap: 12,
     paddingHorizontal: HORIZONTAL_PADDING,
   },
   xverseActionButton: {

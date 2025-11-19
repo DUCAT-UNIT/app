@@ -9,7 +9,7 @@ export const vaultStyles = StyleSheet.create({
     paddingLeft: 1,
     paddingRight: 16,
     paddingVertical: 12,
-    marginBottom: SCREEN_WIDTH <= 375 ? 4 : 12,
+    marginBottom: SCREEN_WIDTH <= 375 ? 4 : 10,
     flexDirection: 'row',
     height: 80,
     alignItems: 'center',
@@ -21,7 +21,7 @@ export const vaultStyles = StyleSheet.create({
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    marginBottom: 0,
+    marginBottom: 2,
   },
   vaultHeaderLeft: {
     flexDirection: 'row',
@@ -64,14 +64,14 @@ export const vaultStyles = StyleSheet.create({
   },
   vaultDetailsContainer: {
     marginLeft: 0,
-    marginTop: 4,
+    marginTop: 6,
     marginBottom: 0,
   },
   vaultDetailRow: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
-    marginBottom: 2,
+    marginBottom: 3,
   },
   vaultValueContainer: {
     flexDirection: 'row',
