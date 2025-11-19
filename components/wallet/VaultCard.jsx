@@ -11,7 +11,7 @@ import Icon from '../icons';
 import { COLORS } from '../../theme';
 
 // Constants
-const VAULT_LOGO_SIZE = 36;
+const VAULT_LOGO_SIZE = 49; // 36 * 1.35 ≈ 49
 const CURRENCY_ICON_SIZE = 10;
 const DEBT_DECIMAL_PLACES = 2;
 const COLLATERAL_DECIMAL_PLACES = 8;
