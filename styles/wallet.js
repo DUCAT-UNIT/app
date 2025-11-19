@@ -56,9 +56,10 @@ export const walletStyles = StyleSheet.create({
     backgroundColor: COLORS.CARD_BG,
     borderRadius: 12,
     paddingHorizontal: 8,
-    paddingTop: 12,
+    paddingVertical: 16,
     marginBottom: SCREEN_WIDTH <= 375 ? 4 : 12,
-    height: 64,
+    height: 96,
+    justifyContent: 'center',
   },
   assetCardLast: {
     marginBottom: 0,
@@ -97,7 +98,7 @@ export const walletStyles = StyleSheet.create({
     fontFamily: 'CabinetGrotesk-Medium',
     color: COLORS.VERY_LIGHT_GRAY,
     fontWeight: '600',
-    marginBottom: 0,
+    marginBottom: 6,
   },
   assetAmount: {
     fontSize: 16,
