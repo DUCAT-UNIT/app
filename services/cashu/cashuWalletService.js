@@ -286,6 +286,7 @@ export const completeMint = async (quoteId, amount) => {
 
 /**
  * Receive Cashu token (from QR code or paste)
+ * Validates proofs haven't been spent and swaps them to prevent double-spending
  * @param {string} tokenString - Encoded Cashu token
  * @returns {Promise<Object>} Received amount and proofs
  */
@@ -301,14 +302,62 @@ export const receiveToken = async (tokenString) => {
       throw new Error(`Token from different mint: ${mint}`);
     }
 
-    // Add to wallet
-    await addProofs(proofs);
+    // Check if we already have any of these proofs (prevent duplicate receives)
+    const existingProofs = await loadProofs();
+    const existingSecrets = new Set(existingProofs.map(p => p.secret));
+    const hasDuplicate = proofs.some(p => existingSecrets.has(p.secret));
 
-    logger.info('Token received', { amount, proofCount: proofs.length });
+    if (hasDuplicate) {
+      throw new Error('Token already received');
+    }
+
+    // Check if proofs have already been spent (NUT-07)
+    logger.info('Checking if proofs have been spent');
+    const { checkProofsSpent } = await import('./cashuMintClient.js');
+    const stateResult = await checkProofsSpent(proofs);
+
+    // Verify all proofs are unspent
+    const spentProofs = stateResult.states.filter(s => s.state !== 'UNSPENT');
+    if (spentProofs.length > 0) {
+      throw new Error(`Token contains ${spentProofs.length} already-spent proof(s)`);
+    }
+
+    // Immediately swap received proofs to prevent sender from double-spending
+    // This also provides additional validation and creates new proofs under our control
+    logger.info('Swapping received proofs to prevent double-spend');
+
+    const keyData = await getOrFetchKeys();
+    let keys, keysetId;
+    if (keyData.keysets && keyData.keysets.length > 0) {
+      keysetId = keyData.keysets[0].id;
+      keys = keyData.keysets[0].keys;
+    } else {
+      keys = keyData.keys || keyData;
+    }
+
+    // Create new blinded outputs for the same amounts
+    const amounts = splitAmount(amount);
+    const { outputs, blindingData } = await createBlindedOutputs(amounts, keysetId);
+
+    // Swap: give received proofs, get new proofs
+    const response = await swapTokensAPI(proofs, outputs);
+
+    // Unblind to create our new proofs
+    const newProofs = unblindSignatures(
+      response.signatures,
+      blindingData,
+      keys,
+      response.signatures[0]?.id || keysetId
+    );
+
+    // Add swapped proofs to wallet
+    await addProofs(newProofs);
+
+    logger.info('Token received and swapped', { amount, proofCount: newProofs.length });
 
     return {
       amount,
-      proofCount: proofs.length,
+      proofCount: newProofs.length,
     };
   } catch (error) {
     logger.error('Failed to receive token', { error: error.message });

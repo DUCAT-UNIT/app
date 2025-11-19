@@ -275,19 +275,27 @@ export const meltTokens = async (quoteId, inputs) => {
 };
 
 /**
- * Check if proof has been spent
+ * Check if proofs have been spent (NUT-07)
  * @param {Array} proofs - Proofs to check
- * @returns {Promise<Object>} Spendable status for each proof
+ * @returns {Promise<Object>} { states: [{ Y, state, witness }] }
  */
 export const checkProofsSpent = async (proofs) => {
   try {
-    const secrets = proofs.map((p) => p.secret);
+    // Import hashToCurve dynamically to avoid circular dependency
+    const { hashToCurve } = await import('./cashuCrypto.js');
+
+    // Hash secrets to Y values (curve points) as required by NUT-07
+    const Ys = await Promise.all(
+      proofs.map(async (p) => await hashToCurve(p.secret))
+    );
+
     const response = await postJSON(`${MINT_URL}/v1/checkstate`, {
-      Ys: secrets,
+      Ys,
     }, {
       timeout: 5000,
       description: 'Check proof state',
     });
+
     return response;
   } catch (error) {
     logger.error('Failed to check proof state', { error: error.message });

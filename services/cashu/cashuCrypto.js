@@ -229,7 +229,19 @@ export const createBlindedOutputs = async (amounts, keysetId = null) => {
     });
   }
 
-  return { outputs, blindingData };
+  // Sort outputs by amount (ascending) for privacy (NUT-03 recommendation)
+  // This prevents the mint from distinguishing between send amount and change
+  const combined = outputs.map((output, i) => ({
+    output,
+    blindingData: blindingData[i]
+  }));
+
+  combined.sort((a, b) => a.output.amount - b.output.amount);
+
+  return {
+    outputs: combined.map(c => c.output),
+    blindingData: combined.map(c => c.blindingData)
+  };
 };
 
 /**
