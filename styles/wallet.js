@@ -55,7 +55,8 @@ export const walletStyles = StyleSheet.create({
   assetCard: {
     backgroundColor: COLORS.CARD_BG,
     borderRadius: 12,
-    paddingHorizontal: 8,
+    paddingLeft: 8,
+    paddingRight: 16,
     paddingVertical: 12,
     marginBottom: SCREEN_WIDTH <= 375 ? 4 : 12,
     height: 80,
