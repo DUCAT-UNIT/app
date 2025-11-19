@@ -6,10 +6,10 @@ export const vaultStyles = StyleSheet.create({
   vaultCard: {
     backgroundColor: COLORS.CARD_BG,
     borderRadius: 12,
-    padding: 16,
+    padding: 12,
     marginBottom: SCREEN_WIDTH <= 375 ? 4 : 12,
     flexDirection: 'row',
-    height: 96,
+    height: 80,
     alignItems: 'center',
   },
   vaultContentWrapper: {
@@ -60,14 +60,14 @@ export const vaultStyles = StyleSheet.create({
   },
   vaultDetailsContainer: {
     marginLeft: 0,
-    marginTop: 6,
+    marginTop: 4,
     marginBottom: 0,
   },
   vaultDetailRow: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
-    marginBottom: 4,
+    marginBottom: 2,
   },
   vaultValueContainer: {
     flexDirection: 'row',
