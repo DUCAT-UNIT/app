@@ -9,7 +9,7 @@ import { logger } from '../../utils/logger';
 // Mint server configuration
 const MINT_URL = __DEV__
   ? 'http://192.168.1.5:3000'  // Local development (WiFi)
-  : 'https://mint.ducatprotocol.com'; // Production (update with your deployed URL)
+  : 'https://cashu-mint.ducatprotocol.com'; // Production
 
 const CASHU_UNIT = 'sat'; // Using sats as unit
 const RUNE_ID = '1527352:1'; // DUCAT•UNIT•RUNE (Mutinynet)
