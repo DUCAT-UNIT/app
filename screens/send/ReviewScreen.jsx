@@ -7,6 +7,7 @@ import React, { useEffect } from 'react';
 import { Text, View, TouchableOpacity, ScrollView, StyleSheet } from 'react-native';
 import { COLORS } from '../../theme';
 import Icon from '../../components/icons';
+import TouchableScale from '../../components/common/TouchableScale';
 import { useReviewScreenData } from '../../hooks/useReviewScreenData';
 import { useTransactionBuild } from '../../contexts/TransactionBuildContext';
 import TransactionSummary from '../../components/review/TransactionSummary';
@@ -119,21 +120,19 @@ export default function ReviewScreen({ navigation }) {
 
       {/* Buttons - Fixed at bottom */}
       <View style={localStyles.buttonContainer}>
-        <TouchableOpacity
+        <TouchableScale
           style={localStyles.cancelButton}
-          activeOpacity={0.7}
           onPress={handleCancel}
         >
           <Text style={localStyles.cancelButtonText}>Cancel</Text>
-        </TouchableOpacity>
+        </TouchableScale>
 
-        <TouchableOpacity
+        <TouchableScale
           style={localStyles.confirmButton}
-          activeOpacity={0.7}
           onPress={handleConfirm}
         >
           <Text style={localStyles.confirmButtonText}>Confirm and Sign</Text>
-        </TouchableOpacity>
+        </TouchableScale>
       </View>
     </View>
   );

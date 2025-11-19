@@ -13,6 +13,7 @@ import {
 } from 'react-native';
 import { COLORS } from '../../theme';
 import Icon from '../../components/icons';
+import TouchableScale from '../../components/common/TouchableScale';
 import { formatNumberWithCommas } from '../../utils/sendHelpers';
 import { useSendFlow } from '../../contexts/SendFlowContext';
 import { useBalance } from '../../contexts/WalletDataContext';
@@ -165,17 +166,16 @@ export default function AmountInputScreen({ navigation }) {
 
       {/* Review Button - Sits on top of keyboard */}
       <View style={[localStyles.buttonContainer, { bottom: keyboardHeight }]}>
-        <TouchableOpacity
+        <TouchableScale
           style={[
             localStyles.reviewButton,
             isReviewDisabled && localStyles.reviewButtonDisabled,
           ]}
           onPress={handleReview}
           disabled={isReviewDisabled}
-          activeOpacity={0.7}
         >
           <Text style={localStyles.reviewButtonText}>Review</Text>
-        </TouchableOpacity>
+        </TouchableScale>
       </View>
     </View>
   );

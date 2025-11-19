@@ -1,6 +1,7 @@
 import React from 'react';
 import PropTypes from 'prop-types';
 import { View, Text, TouchableOpacity, ActivityIndicator, ScrollView, StyleSheet } from 'react-native';
+import TouchableScale from '../../components/common/TouchableScale';
 import { useWallet } from '../../contexts/WalletContext';
 import { useBalance } from '../../contexts/WalletDataContext';
 import { usePrice } from '../../contexts/PriceContext';
@@ -190,13 +191,13 @@ const WalletScreen = React.memo(function WalletScreen({
 
       {/* Actions - Send and Receive Buttons - Fixed at Bottom */}
       <View style={styles.xverseActionsRow}>
-        <TouchableOpacity style={styles.xverseActionButton} onPress={onSendPress}>
+        <TouchableScale style={styles.xverseActionButton} onPress={onSendPress}>
           <Text style={styles.xverseActionLabel}>Send</Text>
-        </TouchableOpacity>
+        </TouchableScale>
 
-        <TouchableOpacity style={styles.xverseActionButton} onPress={onReceivePress}>
+        <TouchableScale style={styles.xverseActionButton} onPress={onReceivePress}>
           <Text style={styles.xverseActionLabel}>Receive</Text>
-        </TouchableOpacity>
+        </TouchableScale>
       </View>
     </View>
   );
