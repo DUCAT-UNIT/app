@@ -42,6 +42,7 @@ describe('usePasskeyCreation', () => {
       setSeedConfirmed: jest.fn(),
       showToast: jest.fn(),
       loadWallet: jest.fn().mockResolvedValue(undefined),
+      setWalletAddresses: jest.fn(),
     };
 
     jest.clearAllMocks();
@@ -237,7 +238,10 @@ describe('usePasskeyCreation', () => {
         userDisplayName: 'iPhone 15 - Ducat',
         pin: '123456',
       });
-      expect(mockProps.loadWallet).toHaveBeenCalled();
+      expect(mockProps.setWalletAddresses).toHaveBeenCalledWith(
+        { segwit: 'bc1q...', taproot: 'bc1p...' },
+        0
+      );
       expect(mockProps.setIsAuthenticated).toHaveBeenCalledWith(true);
       expect(mockProps.setSeedConfirmed).toHaveBeenCalledWith(true);
       expect(mockProps.showToast).toHaveBeenCalledWith('Wallet created with passkey!', 'success');

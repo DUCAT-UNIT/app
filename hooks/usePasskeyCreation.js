@@ -9,7 +9,7 @@ import * as Haptics from 'expo-haptics';
 import * as PasskeyService from '../services/passkeyService';
 import { logger } from '../utils/logger';
 
-export function usePasskeyCreation({ setIsAuthenticated, setSeedConfirmed, showToast, loadWallet }) {
+export function usePasskeyCreation({ setIsAuthenticated, setSeedConfirmed, showToast, loadWallet, setWalletAddresses }) {
   const [creatingWithPasskey, setCreatingWithPasskey] = useState(false);
   const [passkeyMnemonic, setPasskeyMnemonic] = useState(null);
   const [passkeyAddresses, setPasskeyAddresses] = useState(null);
@@ -108,8 +108,11 @@ export function usePasskeyCreation({ setIsAuthenticated, setSeedConfirmed, showT
       // Wallet is now created and saved
       walletExistsRef.current = true;
 
-      // INSTANT NAVIGATION: Set auth states immediately to navigate to wallet
-      // Wallet loading happens in background (React context updates)
+      // INSTANT NAVIGATION: Set wallet addresses immediately in React context
+      // This ensures useNavigationState sees wallet as existing (no onboarding screen)
+      setWalletAddresses(addresses, 0);
+
+      // Set auth states to navigate to wallet
       setIsAuthenticated(true);
       setSeedConfirmed(true);
 
@@ -122,13 +125,6 @@ export function usePasskeyCreation({ setIsAuthenticated, setSeedConfirmed, showT
 
       // Show immediate success - navigation happens instantly
       showToast('Wallet created with passkey!', 'success');
-
-      // Load wallet in background (non-blocking - just updates React context)
-      // This populates the wallet state but doesn't delay navigation
-      loadWallet().catch((error) => {
-        logger.error('Background wallet load failed', { error: error.message });
-        // Non-critical - wallet is already saved, just context update failed
-      });
 
       // Handle iCloud backup result in background (non-blocking)
       if (icloudBackupPromise) {

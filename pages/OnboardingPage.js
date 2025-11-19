@@ -69,7 +69,7 @@ export default function OnboardingPage({
   } = useAuth();
 
   // Wallet context
-  const { wallet, currentAccount, loadWallet } = useWallet();
+  const { wallet, currentAccount, loadWallet, setWalletAddresses } = useWallet();
 
   // Navigation handlers (includes passkey migration)
   const { showPasskeyMigrationPrompt: showPasskeyMigrationPromptGlobal } = useNavigationHandlers();
@@ -149,6 +149,7 @@ export default function OnboardingPage({
     setSeedConfirmed,
     showToast,
     loadWallet,
+    setWalletAddresses,
   });
 
   // Passkey restore hook
