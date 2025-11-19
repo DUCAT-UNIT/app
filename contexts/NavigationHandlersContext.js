@@ -71,6 +71,7 @@ export const NavigationHandlersProvider = ({ children, walletExists }) => {
     handleFaceIdToggle,
     handleNotificationsToggle,
     handleShowZeroAssetsToggle,
+    handleClearCashuCache,
     showLogoutModal,
     showDeleteModal,
     showFaceIdModal,
@@ -163,6 +164,7 @@ export const NavigationHandlersProvider = ({ children, walletExists }) => {
       handleFaceIdToggle,
       handleNotificationsToggle,
       handleShowZeroAssetsToggle,
+      handleClearCashuCache,
     }),
     [
       notificationsEnabled,
@@ -174,6 +176,7 @@ export const NavigationHandlersProvider = ({ children, walletExists }) => {
       handleFaceIdToggle,
       handleNotificationsToggle,
       handleShowZeroAssetsToggle,
+      handleClearCashuCache,
     ]
   );
 

@@ -2,6 +2,7 @@ import * as crypto from 'expo-crypto';
 import { Buffer } from 'buffer';
 import { logger } from '../../utils/logger';
 import * as ecc from '@bitcoinerlab/secp256k1';
+import { Point } from '@noble/secp256k1';
 
 /**
  * Cashu Crypto Operations
@@ -31,24 +32,57 @@ export const generateBlindingFactor = async () => {
 
 /**
  * Hash secret to curve point (Y = hash_to_curve(secret))
- * Converts a secret string to a valid secp256k1 point
+ * Implements Cashu's hash_to_curve as per NUT-00 specification
  * @param {string} secret - Secret string
  * @returns {Promise<string>} Compressed public key hex (33 bytes, starts with 02 or 03)
  */
 export const hashToCurve = async (secret) => {
-  // Hash the secret
-  const digest = await crypto.digestStringAsync(
-    crypto.CryptoDigestAlgorithm.SHA256,
-    secret
-  );
+  // Cashu domain separator: "Secp256k1_HashToCurve_Cashu_"
+  const DOMAIN_SEPARATOR = new Uint8Array([
+    83, 101, 99, 112, 50, 53, 54, 107, 49, 95, 72, 97, 115, 104, 84, 111, 67, 117, 114, 118, 101, 95,
+    67, 97, 115, 104, 117, 95,
+  ]);
 
-  // Use the hash as a private key and derive its public key
-  // This gives us a valid curve point
-  const privKey = Buffer.from(digest, 'hex');
-  const pubKey = ecc.pointFromScalar(privKey, true); // true = compressed
+  // First hash: SHA256(DOMAIN_SEPARATOR || secret)
+  const secretBytes = new TextEncoder().encode(secret);
+  const combined = new Uint8Array([...DOMAIN_SEPARATOR, ...secretBytes]);
 
-  // ecc returns Uint8Array, convert to Buffer for hex encoding
-  return Buffer.from(pubKey).toString('hex');
+  // Hash the bytes directly
+  const msgToHashBytes = await crypto.digest(crypto.CryptoDigestAlgorithm.SHA256, combined);
+  const msgToHash = new Uint8Array(msgToHashBytes);
+
+  // Try counters from 0 to 2^16 to find a valid point
+  for (let counter = 0; counter < 2 ** 16; counter++) {
+    // Create 4-byte counter (big-endian)
+    const counterBytes = new Uint8Array(4);
+    new DataView(counterBytes.buffer).setUint32(0, counter, false); // false = big-endian
+
+    // Hash: SHA256(msgToHash || counter)
+    const hashInput = new Uint8Array([...msgToHash, ...counterBytes]);
+    const hashBytes = await crypto.digest(crypto.CryptoDigestAlgorithm.SHA256, hashInput);
+    const hashHex = Buffer.from(hashBytes).toString('hex');
+
+    // Try to create a point with prefix 02 (even y-coordinate)
+    const pointHex = '02' + hashHex;
+
+    try {
+      // Use the SAME validation as the server: Point.fromHex()
+      const point = Point.fromHex(pointHex);
+
+      // Valid point found!
+      logger.info('hash_to_curve succeeded', {
+        secret: secret.substring(0, 16) + '...',
+        counter,
+        point: pointHex.substring(0, 20) + '...'
+      });
+      return pointHex;
+    } catch {
+      // Not a valid point, try next counter
+      continue;
+    }
+  }
+
+  throw new Error('Could not hash to curve');
 };
 
 /**
@@ -113,11 +147,27 @@ export const unblindSignature = (C_, r, A) => {
     // Calculate r*A
     const rA = ecc.pointMultiply(ABuffer, rBuffer, true);
 
-    // Negate r*A to get -(r*A)
-    const negRA = ecc.pointNegate(rA);
+    // To negate a point, we need to use pointAddScalar with order - scalar
+    // But @bitcoinerlab/secp256k1 doesn't have pointNegate
+    // We can work around this by using the secp256k1 curve order
+    // For point P = (x, y), -P = (x, -y mod p)
+    // The library should handle this via pointSubtract if available
+
+    // Instead of pointNegate, we'll use the fact that C_ - r*A can be computed
+    // by inverting the scalar: C_ + r*(-A) = C_ + (order - r)*A
+    // But simpler: just manually implement point negation
+    const rABytes = Buffer.from(rA);
+
+    // Negate the y-coordinate by flipping the prefix byte (02 <-> 03)
+    const negRA = Buffer.from(rABytes);
+    if (negRA[0] === 0x02) {
+      negRA[0] = 0x03;
+    } else if (negRA[0] === 0x03) {
+      negRA[0] = 0x02;
+    }
 
     // C = C_ + (-(r*A)) = C_ - r*A
-    const C = ecc.pointAdd(C_Buffer, Buffer.from(negRA), true);
+    const C = ecc.pointAdd(C_Buffer, negRA, true);
 
     return Buffer.from(C).toString('hex');
   } catch (error) {

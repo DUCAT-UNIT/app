@@ -94,6 +94,13 @@ export async function getWithRetry(url, options = {}) {
  */
 export async function postJSON(url, body, options = {}) {
   const response = await postWithRetry(url, body, options);
+
+  // Check if response was successful
+  if (!response.ok) {
+    const errorData = await response.json().catch(() => ({}));
+    throw new Error(errorData.error || errorData.message || `HTTP ${response.status}: ${response.statusText}`);
+  }
+
   return response.json();
 }
 

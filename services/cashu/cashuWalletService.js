@@ -248,6 +248,11 @@ export const completeMint = async (quoteId, amount) => {
       keys = keyData.keys || keyData;
     }
 
+    // Validate that we have a keyset ID
+    if (!keysetId) {
+      throw new Error('No keysets available from mint. Please clear Cashu cache in Settings and try again.');
+    }
+
     logger.info('Using keyset ID', { keysetId });
 
     // Split into denominations
@@ -447,6 +452,13 @@ export const completeMelt = async (quoteId, totalAmount) => {
 
     // Select proofs
     const allProofs = await loadProofs();
+
+    // Debug: Log the proofs we're about to use
+    logger.info('Proofs loaded for melt', {
+      count: allProofs.length,
+      proofIds: allProofs.map(p => ({ amount: p.amount, id: p.id, secretPreview: p.secret?.substring(0, 8) }))
+    });
+
     const selectedProofs = selectProofsForAmount(allProofs, totalAmount);
     const selectedAmount = sumProofs(selectedProofs);
 

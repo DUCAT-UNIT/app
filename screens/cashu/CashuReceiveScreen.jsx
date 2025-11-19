@@ -17,7 +17,7 @@ import {
   Dimensions,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { CommonActions } from '@react-navigation/native';
+import { CommonActions, useNavigation } from '@react-navigation/native';
 import QRCode from 'react-native-qrcode-svg';
 import * as Clipboard from 'expo-clipboard';
 import { useCashu } from '../../contexts/CashuContext';
@@ -26,14 +26,14 @@ import { useSendFlow } from '../../contexts/SendFlowContext';
 import { COLORS } from '../../theme';
 import Icon from '../../components/icons';
 import TouchableScale from '../../components/common/TouchableScale';
-import { clearAllStuckUtxos } from '../../clearSpentUtxos';
 
 const SCREEN_WIDTH = Dimensions.get('window').width;
 const HORIZONTAL_PADDING = SCREEN_WIDTH < 375 ? 16 : 20;
 const QR_SIZE = SCREEN_WIDTH < 375 ? Math.min(SCREEN_WIDTH * 0.5, 180) : Math.min(SCREEN_WIDTH * 0.6, 220);
 const LOGO_SIZE = Math.floor(QR_SIZE * 0.21);
 
-export default function CashuReceiveScreen({ navigation, route }) {
+export default function CashuReceiveScreen({ route }) {
+  const navigation = useNavigation();
   const { startMint, checkAndCompleteMint, receive, autoMint } = useCashu();
   const { wallet } = useWallet();
   const { setSendAssetType, setSendAmount, setSendRecipient, setIntentStep } = useSendFlow();
@@ -44,13 +44,6 @@ export default function CashuReceiveScreen({ navigation, route }) {
   const [isLoading, setIsLoading] = useState(false);
   const [pasteValue, setPasteValue] = useState('');
   const [justCopied, setJustCopied] = useState(false);
-
-  // TEMPORARY: Clear stuck UTXOs on mount
-  useEffect(() => {
-    clearAllStuckUtxos().then(() => {
-      console.log('✅ Cleared any stuck UTXOs from previous failed transactions');
-    });
-  }, []);
 
   // Poll for deposit confirmation
   useEffect(() => {
@@ -133,47 +126,51 @@ export default function CashuReceiveScreen({ navigation, route }) {
   };
 
   const handleAutoMint = useCallback(async () => {
+    console.log('🔵 handleAutoMint called, amount:', amount);
+
     const amountNum = parseInt(amount);
     if (!amountNum || amountNum <= 0) {
       Alert.alert('Invalid Amount', 'Please enter a valid amount');
       return;
     }
 
+    console.log('🔵 Creating mint quote for amount:', amountNum);
     setIsLoading(true);
+
     try {
       // Create mint quote and get deposit address
-      await autoMint(amountNum, ({ address, amount: mintAmount, quoteId }) => {
-        console.log('🚀 AutoMint callback triggered', { address, mintAmount, quoteId });
+      const quote = await startMint(amountNum);
+      console.log('🔵 Mint quote created:', quote);
 
-        // Pre-fill the send flow state
-        setSendAssetType('unit');
-        setSendAmount(mintAmount.toString());
-        setSendRecipient(address);
-        setIntentStep('entering_amount');
+      // Navigate to SendFlow with all parameters in route params
+      console.log('🔵 Navigating to Send flow with params...');
 
-        console.log('✅ Send flow state set', {
-          assetType: 'unit',
-          amount: mintAmount.toString(),
-          recipient: address,
-        });
-
-        // Navigate to AmountInput screen which will build the intent and go to Review
-        console.log('🚀 Attempting navigation to SendFlow -> AmountInput');
-        navigation.navigate('SendFlow', {
-          screen: 'AmountInput',
+      navigation.dispatch(
+        CommonActions.navigate({
+          name: 'SendFlow',
           params: {
-            cashuMint: true,
-            quoteId,
+            screen: 'Processing',
+            params: {
+              fromScreen: 'CashuReceive',
+              action: 'create_intent',
+              cashuMint: true,
+              quoteId: quote.quoteId,
+              // Pass send flow params directly
+              assetType: 'unit',
+              amount: amountNum.toString(),
+              recipient: quote.depositAddress,
+            },
           },
-        });
-        console.log('✅ Navigation called');
-      });
+        })
+      );
+
+      setIsLoading(false);
     } catch (error) {
       console.error('❌ Auto mint error:', error);
-    } finally {
+      Alert.alert('Error', error.message || 'Failed to create mint quote');
       setIsLoading(false);
     }
-  }, [amount, autoMint, navigation, setSendAssetType, setSendAmount, setSendRecipient, setIntentStep]);
+  }, [amount, startMint, setSendAssetType, setSendAmount, setSendRecipient, navigation]);
 
   // Choose mode
   if (mode === 'choose') {
@@ -305,12 +302,12 @@ export default function CashuReceiveScreen({ navigation, route }) {
             {isLoading ? (
               <ActivityIndicator size="small" color="white" />
             ) : (
-              <Text style={styles.buttonText}>Mint Cashu Tokens</Text>
+              <Text style={styles.buttonText}>Mint Cashu</Text>
             )}
           </TouchableScale>
 
           <Text style={styles.helpText}>
-            You'll be taken to the confirmation screen to send UNIT to the mint address. Cashu tokens will be minted automatically once the transaction confirms.
+            This will send UNIT to the mint and automatically issue Cashu tokens once the transaction confirms.
           </Text>
         </View>
       </SafeAreaView>

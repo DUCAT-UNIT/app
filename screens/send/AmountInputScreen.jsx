@@ -24,7 +24,7 @@ import { useKeyboard } from '../../hooks/useKeyboard';
 import { useAmountInput } from '../../hooks/useAmountInput';
 import { RecipientHeader, BalanceMaxButton } from '../../components/amountInput';
 
-export default function AmountInputScreen({ navigation }) {
+export default function AmountInputScreen({ navigation, route }) {
   const { sendAssetType, sendAmount, setSendAmount, sendRecipient, sendAddressType } = useSendFlow();
   const { segwitBalance, taprootBalance, runesBalance } = useBalance();
   const { btcPrice } = usePrice();
@@ -32,6 +32,10 @@ export default function AmountInputScreen({ navigation }) {
   const { createSendIntent: _createSendIntent } = useTransactionBuild();
   const { keyboardHeight } = useKeyboard();
   const amountInputRef = useRef(null);
+
+  // Check if this is a Cashu mint transaction
+  const isCashuMint = route?.params?.cashuMint === true;
+  const cashuQuoteId = route?.params?.quoteId;
 
   // Use amount input hook for balance calculations and MAX functionality
   const { balance, assetLabel, isCalculatingMax, handleMaxPress, calculateUsdValue } = useAmountInput({
@@ -83,9 +87,12 @@ export default function AmountInputScreen({ navigation }) {
     amountInputRef.current?.blur();
 
     // Navigate to processing screen - the processing screen will handle creating the intent
+    // Pass along Cashu mint params if this is a Cashu mint transaction
     navigation.navigate('Processing', {
       fromScreen: 'AmountInput',
-      action: 'create_intent'
+      action: 'create_intent',
+      cashuMint: isCashuMint,
+      quoteId: cashuQuoteId,
     });
   };
 

@@ -12,7 +12,7 @@ const MINT_URL = __DEV__
   : 'https://mint.ducatprotocol.com'; // Production (update with your deployed URL)
 
 const CASHU_UNIT = 'sat'; // Using sats as unit
-const RUNE_ID = '840000:3'; // DUCAT•UNIT•RUNE (Mutinynet)
+const RUNE_ID = '1527352:1'; // DUCAT•UNIT•RUNE (Mutinynet)
 
 /**
  * Get mint information
@@ -138,6 +138,16 @@ export const mintTokens = async (quoteId, outputs) => {
       description: 'Mint tokens',
     });
 
+    // Check if response contains an error
+    if (response.error) {
+      throw new Error(`Mint failed: ${response.error}`);
+    }
+
+    // Validate response has signatures
+    if (!response.signatures || !Array.isArray(response.signatures)) {
+      throw new Error('Invalid mint response: missing signatures');
+    }
+
     logger.info('Tokens minted', { signatureCount: response.signatures.length });
     return response;
   } catch (error) {
@@ -166,6 +176,16 @@ export const swapTokens = async (inputs, outputs) => {
       timeout: 10000,
       description: 'Swap tokens',
     });
+
+    // Check if response contains an error
+    if (response.error) {
+      throw new Error(`Swap failed: ${response.error}`);
+    }
+
+    // Validate response has signatures
+    if (!response.signatures || !Array.isArray(response.signatures)) {
+      throw new Error('Invalid swap response: missing signatures');
+    }
 
     logger.info('Tokens swapped', { signatureCount: response.signatures.length });
     return response;

@@ -14,7 +14,7 @@ import { useNotifications } from "../../contexts/NotificationContext";
 import { logger } from '../../utils/logger';
 
 export default function ProcessingScreen({ navigation, route }) {
-  const { sendAssetType, intentStep } = useSendFlow();
+  const { sendAssetType, sendAmount, sendRecipient, intentStep, setSendAssetType, setSendAmount, setSendRecipient } = useSendFlow();
   const { createSendIntent, sendIntent } = useTransactionBuild();
   const { signIntent } = useTransactionExecution();
   const { showToast } = useNotifications();
@@ -23,6 +23,27 @@ export default function ProcessingScreen({ navigation, route }) {
 
   // Get action from route params
   const action = route.params?.action; // 'create_intent', 'sign_and_broadcast'
+  const isCashuMint = route.params?.cashuMint === true;
+  const cashuQuoteId = route.params?.quoteId;
+
+  // Get Cashu mint params if provided
+  const paramAssetType = route.params?.assetType;
+  const paramAmount = route.params?.amount;
+  const paramRecipient = route.params?.recipient;
+
+  // Set send flow params from route if provided (for Cashu mint)
+  useEffect(() => {
+    if (paramAssetType && paramAmount && paramRecipient) {
+      logger.debug('🔵 ProcessingScreen: Setting send flow from route params', {
+        assetType: paramAssetType,
+        amount: paramAmount,
+        recipient: paramRecipient,
+      });
+      setSendAssetType(paramAssetType);
+      setSendAmount(paramAmount);
+      setSendRecipient(paramRecipient);
+    }
+  }, [paramAssetType, paramAmount, paramRecipient, setSendAssetType, setSendAmount, setSendRecipient]);
 
   // Messages for different asset types during PSBT creation
   const btcCreatingMessages = [
@@ -73,6 +94,12 @@ export default function ProcessingScreen({ navigation, route }) {
   // Start the action when screen mounts
   useEffect(() => {
     if (!hasStarted.current && action === 'create_intent') {
+      // For Cashu mint flow, wait for send flow state to be set from route params
+      if (isCashuMint && (!sendAssetType || !sendAmount || !sendRecipient)) {
+        // State not ready yet, wait for next render
+        return;
+      }
+
       hasStarted.current = true;
       // Small delay to allow screen to render before starting heavy operations
       setTimeout(() => {
@@ -100,7 +127,7 @@ export default function ProcessingScreen({ navigation, route }) {
       }, 100);
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [action]);
+  }, [action, sendAssetType, sendAmount, sendRecipient, isCashuMint]);
 
   // Watch for intentStep changes after creating intent
   const hasNavigated = useRef(false);

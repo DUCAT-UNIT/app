@@ -6,6 +6,7 @@
 import { useState, useEffect, useCallback, useMemo } from 'react';
 import * as SecureStore from 'expo-secure-store';
 import { authenticateWithBiometrics } from '../services/biometricService';
+import { clearWallet } from '../services/cashu/cashuWalletService';
 
 export function useAppSettings({ biometricEnabled, setIsAuthenticated, showToast }) {
   const [notificationsEnabled, setNotificationsEnabled] = useState(false);
@@ -96,12 +97,26 @@ export function useAppSettings({ biometricEnabled, setIsAuthenticated, showToast
     setShowNotificationsModal(false);
   }, []);
 
+  const handleClearCashuCache = useCallback(async () => {
+    try {
+      await clearWallet();
+      if (showToast) {
+        showToast('Cashu cache cleared successfully', 'success');
+      }
+    } catch (error) {
+      if (showToast) {
+        showToast('Failed to clear Cashu cache', 'error');
+      }
+    }
+  }, [showToast]);
+
   return useMemo(
     () => ({
       notificationsEnabled,
       showZeroAssets,
       handleShowZeroAssetsToggle,
       handleNotificationsToggle,
+      handleClearCashuCache,
       showNotificationsModal,
       confirmNotificationsToggle,
       cancelNotificationsToggle,
@@ -111,6 +126,7 @@ export function useAppSettings({ biometricEnabled, setIsAuthenticated, showToast
       showZeroAssets,
       handleShowZeroAssetsToggle,
       handleNotificationsToggle,
+      handleClearCashuCache,
       showNotificationsModal,
       confirmNotificationsToggle,
       cancelNotificationsToggle,

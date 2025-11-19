@@ -20,6 +20,7 @@ import {
 import { SafeAreaView } from 'react-native-safe-area-context';
 import QRCode from 'react-native-qrcode-svg';
 import { useCashu } from '../../contexts/CashuContext';
+import { useWallet } from '../../contexts/WalletContext';
 import { COLORS } from '../../theme';
 import Icon from '../../components/icons';
 import TouchableScale from '../../components/common/TouchableScale';
@@ -31,10 +32,11 @@ const LOGO_SIZE = Math.floor(QR_SIZE * 0.21);
 
 export default function CashuSendScreen({ navigation, route }) {
   const { balance, send, startMelt, finishMelt } = useCashu();
+  const { wallet } = useWallet();
 
   const [mode, setMode] = useState(route?.params?.mode || 'choose'); // 'choose', 'send', 'redeem'
   const [amount, setAmount] = useState('');
-  const [redeemAddress, setRedeemAddress] = useState('');
+  const [redeemAddress, setRedeemAddress] = useState(wallet?.taprootAddress || '');
   const [isLoading, setIsLoading] = useState(false);
   const [generatedToken, setGeneratedToken] = useState(null);
   const [meltQuote, setMeltQuote] = useState(null);
@@ -88,13 +90,7 @@ export default function CashuSendScreen({ navigation, route }) {
     }
 
     if (!redeemAddress.trim()) {
-      Alert.alert('Invalid Address', 'Please enter a Taproot address');
-      return;
-    }
-
-    // Validate Taproot address (starts with tb1p for testnet)
-    if (!redeemAddress.startsWith('tb1p')) {
-      Alert.alert('Invalid Address', 'Please enter a valid Taproot address (tb1p...)');
+      Alert.alert('Error', 'No taproot address found in wallet');
       return;
     }
 
@@ -104,6 +100,7 @@ export default function CashuSendScreen({ navigation, route }) {
       setMeltQuote(quote);
     } catch (error) {
       Alert.alert('Error', error.message || 'Failed to create melt quote');
+    } finally {
       setIsLoading(false);
     }
   }, [amount, balance, redeemAddress, startMelt]);
@@ -171,9 +168,9 @@ export default function CashuSendScreen({ navigation, route }) {
             onPress={() => setMode('redeem')}
           >
             <Icon name="btc_logo" size={48} color={COLORS.PRIMARY_BLUE} />
-            <Text style={styles.choiceTitle}>Redeem to Runes</Text>
+            <Text style={styles.choiceTitle}>Redeem Onchain UNIT</Text>
             <Text style={styles.choiceDesc}>
-              Convert Cashu tokens back to UNIT runes
+              Convert Cashu tokens back to onchain UNIT in your wallet
             </Text>
           </TouchableScale>
         </View>
@@ -354,7 +351,7 @@ export default function CashuSendScreen({ navigation, route }) {
           <TouchableOpacity onPress={() => setMode('choose')}>
             <Icon name="arrow_left" size={24} color={COLORS.TEXT_PRIMARY} />
           </TouchableOpacity>
-          <Text style={styles.headerTitle}>Redeem to Runes</Text>
+          <Text style={styles.headerTitle}>Redeem Onchain UNIT</Text>
           <View style={{ width: 24 }} />
         </View>
 
@@ -386,17 +383,20 @@ export default function CashuSendScreen({ navigation, route }) {
             <Text style={styles.maxButtonText}>MAX</Text>
           </TouchableOpacity>
 
-          <Text style={styles.label}>Taproot Address</Text>
-          <View style={styles.inputWrapper}>
+          <Text style={styles.label}>Destination Address (Your Wallet)</Text>
+          <View style={[styles.inputWrapper, styles.disabledInput]}>
             <TextInput
               style={styles.input}
               placeholder="tb1p..."
               value={redeemAddress}
-              onChangeText={setRedeemAddress}
+              editable={false}
               autoCapitalize="none"
               autoCorrect={false}
             />
           </View>
+          <Text style={styles.helpTextSmall}>
+            Redeeming to your wallet's taproot address
+          </Text>
 
           <TouchableScale
             style={[styles.button, (!amount || !redeemAddress) && styles.buttonDisabled]}
@@ -540,11 +540,22 @@ const styles = StyleSheet.create({
     gap: 12,
     marginBottom: 12,
   },
+  disabledInput: {
+    opacity: 0.6,
+    backgroundColor: COLORS.DARK_BG,
+  },
   input: {
     flex: 1,
     fontSize: 16,
     color: COLORS.VERY_LIGHT_GRAY,
     fontFamily: 'CabinetGrotesk-Regular',
+  },
+  helpTextSmall: {
+    fontSize: 12,
+    color: COLORS.SECONDARY_TEXT,
+    marginTop: -8,
+    marginBottom: 24,
+    marginLeft: 4,
   },
   maxButton: {
     alignSelf: 'flex-end',

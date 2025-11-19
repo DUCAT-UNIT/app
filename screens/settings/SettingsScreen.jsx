@@ -35,6 +35,7 @@ const SettingsScreen = React.memo(function SettingsScreen({
   onFaceIdToggle,
   onNotificationsToggle,
   onShowZeroAssetsToggle,
+  onClearCashuCache,
 
   // State
   faceIdEnabled,
@@ -71,6 +72,11 @@ const SettingsScreen = React.memo(function SettingsScreen({
               title="Show Zero Value Assets"
               onPress={onShowZeroAssetsToggle}
               rightText={showZeroAssets ? 'ON' : 'OFF'}
+            />
+            <SettingsOption
+              iconName="delete_wallet"
+              title="Clear Cashu Cache"
+              onPress={onClearCashuCache}
             />
             <SettingsOption
               iconName="face_id"
@@ -136,6 +142,7 @@ SettingsScreen.propTypes = {
   onFaceIdToggle: PropTypes.func.isRequired,
   onNotificationsToggle: PropTypes.func.isRequired,
   onShowZeroAssetsToggle: PropTypes.func.isRequired,
+  onClearCashuCache: PropTypes.func.isRequired,
   faceIdEnabled: PropTypes.bool.isRequired,
   notificationsEnabled: PropTypes.bool.isRequired,
   showZeroAssets: PropTypes.bool.isRequired,

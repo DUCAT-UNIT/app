@@ -432,6 +432,7 @@ export default function WalletPage({ route }) {
           onFaceIdToggle={settingsHandlers.handleFaceIdToggle}
           onNotificationsToggle={settingsHandlers.handleNotificationsToggle}
           onShowZeroAssetsToggle={settingsHandlers.handleShowZeroAssetsToggle}
+          onClearCashuCache={settingsHandlers.handleClearCashuCache}
           faceIdEnabled={biometricEnabled}
           notificationsEnabled={settingsHandlers.notificationsEnabled}
           showZeroAssets={settingsHandlers.showZeroAssets}

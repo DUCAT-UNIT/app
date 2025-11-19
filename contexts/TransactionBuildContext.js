@@ -34,6 +34,9 @@ export const TransactionBuildProvider = ({ children, wallet, currentAccount, sho
 
   // Create BTC transaction using TransactionService
   const createBtcIntent = useCallback(async () => {
+    // Track UTXOs we lock, so we can release them if creation fails
+    let lockedUtxos = [];
+
     try {
       // Get unconfirmed UTXOs for segwit (BTC), excluding any already used in current intent
       const unconfirmedUtxos = getUnconfirmedUTXOs('segwit', sendIntent);
@@ -58,7 +61,9 @@ export const TransactionBuildProvider = ({ children, wallet, currentAccount, sho
       // Mark all inputs as spent before storing intent or showing review screen
       if (intent.inputs && intent.inputs.length > 0) {
         logger.debug('🔒 Locking', intent.inputs.length, 'UTXOs for BTC transaction');
-        await markUtxosAsSpent(intent.inputs.map(i => ({ txid: i.txid, vout: i.vout })));
+        const utxosToLock = intent.inputs.map(i => ({ txid: i.txid, vout: i.vout }));
+        lockedUtxos = utxosToLock; // Track for cleanup on error
+        await markUtxosAsSpent(utxosToLock);
       }
 
       setSendIntent(intent);
@@ -66,6 +71,28 @@ export const TransactionBuildProvider = ({ children, wallet, currentAccount, sho
     } catch (error) {
       // Log the full error for debugging
       logger.error('Error creating BTC intent:', error);
+
+      // CRITICAL: Release any UTXOs we locked before the error occurred
+      if (lockedUtxos.length > 0) {
+        logger.debug('🔓 Releasing', lockedUtxos.length, 'UTXOs from failed BTC transaction');
+        await unmarkUtxosAsSpent(lockedUtxos);
+      }
+
+      // ADDITIONAL FIX: For ANY transaction creation error, check if there are orphaned spent UTXOs
+      // This handles edge cases where UTXOs were marked spent in a previous failed attempt
+      // but the transaction never actually broadcast (so they're still unspent on-chain)
+      const currentSpent = getSpentUtxos();
+      if (currentSpent.size > 0) {
+        logger.debug(`🧹 Found ${currentSpent.size} spent UTXOs after transaction creation error`);
+        logger.debug('   Clearing all spent UTXOs to prevent UTXO lockup');
+        // Clear all by creating empty set
+        await unmarkUtxosAsSpent(Array.from(currentSpent).map(key => {
+          const [txid, vout] = key.split(':');
+          return { txid, vout: parseInt(vout) };
+        }));
+        logger.debug('✅ All spent UTXOs cleared - wallet should be able to create new transactions now');
+      }
+
       // Show error toast first, then transition after a brief delay
       showToast(parseErrorMessage(error), 'error');
       // Small delay to ensure toast is visible before screen transition
@@ -73,7 +100,7 @@ export const TransactionBuildProvider = ({ children, wallet, currentAccount, sho
         setIntentStep('entering_amount');
       }, 100);
     }
-  }, [sendRecipient, sendAmount, wallet, currentAccount, setIntentStep, showToast, getUnconfirmedUTXOs, getSpentUtxos, sendIntent, markUtxosAsSpent]);
+  }, [sendRecipient, sendAmount, wallet, currentAccount, setIntentStep, showToast, getUnconfirmedUTXOs, getSpentUtxos, sendIntent, markUtxosAsSpent, unmarkUtxosAsSpent]);
 
   // Create UNIT (Rune) transaction using TransactionService
   const createUnitIntent = useCallback(async () => {
@@ -156,20 +183,20 @@ export const TransactionBuildProvider = ({ children, wallet, currentAccount, sho
         await unmarkUtxosAsSpent(lockedUtxos);
       }
 
-      // ADDITIONAL FIX: If "Insufficient funds" error, clear ALL spent UTXOs
-      // This handles the case where UTXOs were marked spent in a previous failed attempt
+      // ADDITIONAL FIX: For ANY transaction creation error, check if there are orphaned spent UTXOs
+      // This handles edge cases where UTXOs were marked spent in a previous failed attempt
       // but the transaction never actually broadcast (so they're still unspent on-chain)
-      if (error.message && error.message.includes('Insufficient funds')) {
-        logger.debug('🧹 Clearing all spent UTXOs due to insufficient funds error');
-        const currentSpent = getSpentUtxos();
-        if (currentSpent.size > 0) {
-          logger.debug(`  Found ${currentSpent.size} spent UTXOs, clearing them all`);
-          // Clear all by creating empty set
-          await unmarkUtxosAsSpent(Array.from(currentSpent).map(key => {
-            const [txid, vout] = key.split(':');
-            return { txid, vout: parseInt(vout) };
-          }));
-        }
+      // This is especially important for Cashu mint flows where users might navigate away mid-flow
+      const currentSpent = getSpentUtxos();
+      if (currentSpent.size > 0) {
+        logger.debug(`🧹 Found ${currentSpent.size} spent UTXOs after transaction creation error`);
+        logger.debug('   Clearing all spent UTXOs to prevent UTXO lockup');
+        // Clear all by creating empty set
+        await unmarkUtxosAsSpent(Array.from(currentSpent).map(key => {
+          const [txid, vout] = key.split(':');
+          return { txid, vout: parseInt(vout) };
+        }));
+        logger.debug('✅ All spent UTXOs cleared - wallet should be able to create new transactions now');
       }
 
       // Show error toast first, then transition after a brief delay
