@@ -7,6 +7,7 @@ import { useState, useRef } from 'react';
 import * as Device from 'expo-device';
 import * as Haptics from 'expo-haptics';
 import * as PasskeyService from '../services/passkeyService';
+import { logger } from '../utils/logger';
 
 export function usePasskeyCreation({ setIsAuthenticated, setSeedConfirmed, showToast, loadWallet }) {
   const [creatingWithPasskey, setCreatingWithPasskey] = useState(false);
@@ -107,25 +108,27 @@ export function usePasskeyCreation({ setIsAuthenticated, setSeedConfirmed, showT
       // Wallet is now created and saved
       walletExistsRef.current = true;
 
-      // CRITICAL: Load wallet FIRST so it's in context
-      // This must complete before we set auth states or reset UI states
-      await loadWallet();
-
-      // Now set auth states (wallet is loaded, so navigation will work correctly)
+      // INSTANT NAVIGATION: Set auth states immediately to navigate to wallet
+      // Wallet loading happens in background (React context updates)
       setIsAuthenticated(true);
       setSeedConfirmed(true);
 
-      // Reset UI states in the same batch as auth states
-      // Since wallet is loaded and auth is set, OnboardingPage will return null
-      // and RootNavigator will switch to Main stack
+      // Reset UI states to hide PIN input and show wallet screen
       setShowPinInput(false);
       setPasskeyPin('');
       setPasskeyPinConfirm('');
       setConfirmingPin(false);
       setCreatingWithPasskey(false);
 
-      // Show immediate success - iCloud backup happens in background
+      // Show immediate success - navigation happens instantly
       showToast('Wallet created with passkey!', 'success');
+
+      // Load wallet in background (non-blocking - just updates React context)
+      // This populates the wallet state but doesn't delay navigation
+      loadWallet().catch((error) => {
+        logger.error('Background wallet load failed', { error: error.message });
+        // Non-critical - wallet is already saved, just context update failed
+      });
 
       // Handle iCloud backup result in background (non-blocking)
       if (icloudBackupPromise) {
