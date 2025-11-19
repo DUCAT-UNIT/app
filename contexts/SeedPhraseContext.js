@@ -129,11 +129,13 @@ export const SeedPhraseProvider = ({ children, showToast, setIsAuthenticated }) 
   }, [biometricEnabled, setIsAuthenticated, loadSeedPhrase]);
 
   // Close seed phrase view
-  const closeSeedPhrase = useCallback(() => {
+  const closeSeedPhrase = useCallback(async () => {
     setViewingSeedPhrase(false);
     setSeedPhraseWords([]);
     setSeedPhraseVisible(false);
-    // Don't reset returnToSettings here - let WalletPage handle it
+    setRequestingSeedPhrase(false);
+    // Keep returnToSettings flag so useSettingsNavigation can re-open settings
+    // The flag will be cleared by useSettingsNavigation after re-opening settings
   }, []);
 
   const value = useMemo(
