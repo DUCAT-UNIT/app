@@ -64,6 +64,7 @@ export const NotificationProvider = ({ children }) => {
   // ============================================================
   const [snackbar, setSnackbar] = useState(null);
   const lastSnackbarRef = useRef(null);
+  const snackbarTimeoutRef = useRef(null);
 
   const showSnackbar = useCallback((snackbarParams) => {
     logger.debug('🎯 NotificationContext showSnackbar called with:', snackbarParams);
@@ -97,9 +98,29 @@ export const NotificationProvider = ({ children }) => {
 
     lastSnackbarRef.current = snackbarParams;
     setSnackbar(snackbarParams);
+
+    // Auto-dismiss success notifications after 7 seconds
+    // Clear any existing timeout first
+    if (snackbarTimeoutRef.current) {
+      clearTimeout(snackbarTimeoutRef.current);
+      snackbarTimeoutRef.current = null;
+    }
+
+    // Set new timeout for success notifications
+    if (snackbarParams.type === 'success') {
+      snackbarTimeoutRef.current = setTimeout(() => {
+        setSnackbar(null);
+        snackbarTimeoutRef.current = null;
+      }, 7000); // 7 seconds
+    }
   }, []);
 
   const dismissSnackbar = useCallback(() => {
+    // Clear auto-dismiss timeout if exists
+    if (snackbarTimeoutRef.current) {
+      clearTimeout(snackbarTimeoutRef.current);
+      snackbarTimeoutRef.current = null;
+    }
     setSnackbar(null);
     // Don't reset lastSnackbarRef - keep tracking state even after dismissal
   }, []);
