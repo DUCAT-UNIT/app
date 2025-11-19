@@ -21,6 +21,7 @@ import { WalletProvider, useWallet } from './contexts/WalletContext';
 import { PendingTransactionsProvider } from './contexts/PendingTransactionsContext';
 import { WalletDataProvider } from './contexts/WalletDataContext';
 import { PriceProvider } from './contexts/PriceContext';
+import { CashuProvider } from './contexts/CashuContext';
 // AirdropProvider removed - not currently used in provider hierarchy
 import { UIProvider } from './contexts/UIContext';
 import { useNotifications } from './contexts/NotificationContext';
@@ -179,9 +180,11 @@ function AppProviders({ children }) {
   return (
     <PendingTransactionsProvider currentAccount={currentAccount} showToast={showToast}>
       <WalletDataProvider>
-        <PriceProvider>
-          {children}
-        </PriceProvider>
+        <CashuProvider>
+          <PriceProvider>
+            {children}
+          </PriceProvider>
+        </CashuProvider>
       </WalletDataProvider>
     </PendingTransactionsProvider>
   );

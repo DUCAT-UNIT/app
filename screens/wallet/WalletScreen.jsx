@@ -6,6 +6,7 @@ import { useWallet } from '../../contexts/WalletContext';
 import { useBalance } from '../../contexts/WalletDataContext';
 import { usePrice } from '../../contexts/PriceContext';
 import { useVaultData } from '../../contexts/WalletDataContext';
+import { useCashu } from '../../contexts/CashuContext';
 import { useDisplayPreferences } from "../../contexts/DisplayPreferencesContext";
 import { useWalletCalculations } from '../../hooks/useWalletCalculations';
 import { useFormattedBalances } from '../../hooks/useFormattedBalances';
@@ -36,6 +37,7 @@ const WalletScreen = React.memo(function WalletScreen({
   const { segwitBalance, taprootBalance, runesBalance, balanceError, setBalanceError, fetchBalance } = useBalance();
   const { btcPrice, _loadingBtcPrice } = usePrice();
   const { vaultData } = useVaultData();
+  const { balance: cashuBalance } = useCashu();
   const { showTotalInBTC, setShowTotalInBTC } = useDisplayPreferences();
 
   // Calculate all wallet-related values (business logic extracted to hook)
@@ -171,6 +173,19 @@ const WalletScreen = React.memo(function WalletScreen({
           usdValue={runesBalance.length > 0 ? parseFloat(runesBalance[0][1]) : 0}
           styles={styles}
           onPress={() => onAssetPress && onAssetPress('UNIT')}
+        />
+
+        {/* Cashu E-cash Card - Clickable for asset detail */}
+        <AssetCard
+          assetName="Cashu E-cash"
+          assetLogo="unit_logo"
+          amountLabel="unit_symbol"
+          amountValue={cashuBalance.toLocaleString('en-US')}
+          displayInBTC={showTotalInBTC}
+          btcValue={(cashuBalance / 100_000_000).toFixed(8)}
+          usdValue={cashuBalance}
+          styles={styles}
+          onPress={() => onAssetPress && onAssetPress('CASHU')}
         />
 
         {/* DUCAT•RUNE Card - Non-clickable */}

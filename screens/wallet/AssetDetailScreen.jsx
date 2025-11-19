@@ -15,6 +15,7 @@ import { COLORS } from '../../theme';
 import { useBalance, useTransactionHistory } from '../../contexts/WalletDataContext';
 import { usePrice } from '../../contexts/PriceContext';
 import { useWallet } from '../../contexts/WalletContext';
+import { useCashu } from '../../contexts/CashuContext';
 import {
   AssetHeader,
   AssetInfo,
@@ -34,6 +35,7 @@ function AssetDetailScreen({ route = {}, navigation }) {
   const { segwitBalance, runesBalance } = useBalance();
   const { btcPrice } = usePrice();
   const wallet = useWallet().wallet;
+  const { balance: cashuBalance } = useCashu();
   const { transactionHistory, loadingTransactionHistory, fetchTransactionHistory } = useTransactionHistory();
 
   const [selectedTab, setSelectedTab] = useState('ACTIVITY');
@@ -54,7 +56,7 @@ function AssetDetailScreen({ route = {}, navigation }) {
   // Get balance based on asset type
   // For UNIT, use runesBalance which contains the actual UNIT amount
   const unitAmount = runesBalance && runesBalance.length > 0 ? parseFloat(runesBalance[0][1]) : 0;
-  const balance = assetType === 'BTC' ? segwitBalance : unitAmount;
+  const balance = assetType === 'BTC' ? segwitBalance : assetType === 'CASHU' ? cashuBalance : unitAmount;
   const fiatValue = assetType === 'BTC' ? balance * btcPrice : balance * 1;
 
   // Extract stable wallet addresses using refs to prevent re-renders
@@ -81,20 +83,30 @@ function AssetDetailScreen({ route = {}, navigation }) {
   const handleActionPress = (action) => {
     switch (action) {
       case 'send':
-        const sendAssetType = assetType.toLowerCase(); // Convert BTC -> btc, UNIT -> unit
-        navigation.navigate('SendFlow', {
-          screen: 'AddressInput',
-          params: { assetType: sendAssetType }
-        });
+        if (assetType === 'CASHU') {
+          // Navigate to Cashu send screen
+          navigation.navigate('CashuSend');
+        } else {
+          const sendAssetType = assetType.toLowerCase(); // Convert BTC -> btc, UNIT -> unit
+          navigation.navigate('SendFlow', {
+            screen: 'AddressInput',
+            params: { assetType: sendAssetType }
+          });
+        }
         break;
       case 'receive':
-        // Navigate to ReceiveQR screen with the appropriate address
-        const receiveAddress = assetType === 'BTC' ? segwitAddress : taprootAddress;
-        const addressType = assetType === 'BTC' ? 'Native SegWit' : 'Taproot';
-        navigation.navigate('ReceiveQR', {
-          address: receiveAddress,
-          addressType: addressType,
-        });
+        if (assetType === 'CASHU') {
+          // Navigate to Cashu receive screen
+          navigation.navigate('CashuReceive');
+        } else {
+          // Navigate to ReceiveQR screen with the appropriate address
+          const receiveAddress = assetType === 'BTC' ? segwitAddress : taprootAddress;
+          const addressType = assetType === 'BTC' ? 'Native SegWit' : 'Taproot';
+          navigation.navigate('ReceiveQR', {
+            address: receiveAddress,
+            addressType: addressType,
+          });
+        }
         break;
     }
   };

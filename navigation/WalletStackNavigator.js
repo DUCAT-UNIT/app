@@ -8,6 +8,8 @@ import { createStackNavigator } from '@react-navigation/stack';
 import WalletPage from '../pages/WalletPage';
 import AssetDetailScreen from '../screens/wallet/AssetDetailScreen';
 import ReceiveQRScreen from '../screens/wallet/ReceiveQRScreen';
+import CashuReceiveScreen from '../screens/cashu/CashuReceiveScreen';
+import CashuSendScreen from '../screens/cashu/CashuSendScreen';
 import { COLORS } from '../theme';
 
 const Stack = createStackNavigator();
@@ -135,6 +137,22 @@ export default function WalletStackNavigator() {
               },
             };
           },
+        }}
+      />
+      <Stack.Screen
+        name="CashuReceive"
+        component={CashuReceiveScreen}
+        options={{
+          gestureEnabled: true,
+          gestureDirection: 'horizontal',
+        }}
+      />
+      <Stack.Screen
+        name="CashuSend"
+        component={CashuSendScreen}
+        options={{
+          gestureEnabled: true,
+          gestureDirection: 'horizontal',
         }}
       />
     </Stack.Navigator>

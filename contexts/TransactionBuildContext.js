@@ -77,6 +77,9 @@ export const TransactionBuildProvider = ({ children, wallet, currentAccount, sho
 
   // Create UNIT (Rune) transaction using TransactionService
   const createUnitIntent = useCallback(async () => {
+    // Track UTXOs we lock, so we can release them if creation fails
+    let lockedUtxos = [];
+
     try {
       if (!wallet || !wallet.taprootAddress || !wallet.segwitAddress) {
         throw new Error('Wallet not initialized');
@@ -137,6 +140,7 @@ export const TransactionBuildProvider = ({ children, wallet, currentAccount, sho
 
       if (utxosToLock.length > 0) {
         logger.debug('🔒 Locking', utxosToLock.length, 'UTXOs for UNIT transaction');
+        lockedUtxos = utxosToLock; // Track for cleanup on error
         await markUtxosAsSpent(utxosToLock);
       }
 
@@ -145,6 +149,29 @@ export const TransactionBuildProvider = ({ children, wallet, currentAccount, sho
     } catch (error) {
       // Log the full error for debugging
       logger.error('Error creating UNIT intent:', error);
+
+      // CRITICAL: Release any UTXOs we locked before the error occurred
+      if (lockedUtxos.length > 0) {
+        logger.debug('🔓 Releasing', lockedUtxos.length, 'UTXOs from failed UNIT transaction');
+        await unmarkUtxosAsSpent(lockedUtxos);
+      }
+
+      // ADDITIONAL FIX: If "Insufficient funds" error, clear ALL spent UTXOs
+      // This handles the case where UTXOs were marked spent in a previous failed attempt
+      // but the transaction never actually broadcast (so they're still unspent on-chain)
+      if (error.message && error.message.includes('Insufficient funds')) {
+        logger.debug('🧹 Clearing all spent UTXOs due to insufficient funds error');
+        const currentSpent = getSpentUtxos();
+        if (currentSpent.size > 0) {
+          logger.debug(`  Found ${currentSpent.size} spent UTXOs, clearing them all`);
+          // Clear all by creating empty set
+          await unmarkUtxosAsSpent(Array.from(currentSpent).map(key => {
+            const [txid, vout] = key.split(':');
+            return { txid, vout: parseInt(vout) };
+          }));
+        }
+      }
+
       // Show error toast first, then transition after a brief delay
       showToast(parseErrorMessage(error), 'error');
       // Small delay to ensure toast is visible before screen transition
@@ -152,7 +179,7 @@ export const TransactionBuildProvider = ({ children, wallet, currentAccount, sho
         setIntentStep('entering_amount');
       }, 100);
     }
-  }, [sendRecipient, sendAmount, wallet, currentAccount, setIntentStep, showToast, getUnconfirmedUTXOs, getSpentUtxos, sendIntent, markUtxosAsSpent, runesBalance]);
+  }, [sendRecipient, sendAmount, wallet, currentAccount, setIntentStep, showToast, getUnconfirmedUTXOs, getSpentUtxos, sendIntent, markUtxosAsSpent, unmarkUtxosAsSpent, runesBalance]);
 
   // Main create intent function (routes to BTC or UNIT)
   const createSendIntent = useCallback(async () => {
