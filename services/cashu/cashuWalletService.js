@@ -35,10 +35,21 @@ const KEYSETS_KEY = 'cashu_keysets';
 export const loadProofs = async () => {
   try {
     const stored = await SecureStore.getItemAsync(STORAGE_KEY);
-    if (!stored) return [];
+    if (!stored) {
+      logger.info('Loaded proofs from storage', { count: 0, source: 'empty' });
+      return [];
+    }
 
     const proofs = JSON.parse(stored);
-    logger.info('Loaded proofs from storage', { count: proofs.length });
+
+    // Log stack trace to see who's calling this
+    const caller = new Error().stack?.split('\n')[2]?.trim() || 'unknown';
+
+    logger.info('Loaded proofs from storage', {
+      count: proofs.length,
+      caller: caller.substring(0, 100), // Truncate to avoid huge logs
+    });
+
     return proofs;
   } catch (error) {
     logger.error('Failed to load proofs', { error: error.message });
@@ -52,7 +63,29 @@ export const loadProofs = async () => {
  */
 export const saveProofs = async (proofs) => {
   try {
-    await SecureStore.setItemAsync(STORAGE_KEY, JSON.stringify(proofs));
+    const serialized = JSON.stringify(proofs);
+
+    // Delete first to force cache invalidation
+    await SecureStore.deleteItemAsync(STORAGE_KEY);
+
+    // Small delay to ensure delete completes
+    await new Promise(resolve => setTimeout(resolve, 50));
+
+    // Now write the new value
+    await SecureStore.setItemAsync(STORAGE_KEY, serialized);
+
+    // Verify the write succeeded
+    const verification = await SecureStore.getItemAsync(STORAGE_KEY);
+    const verified = JSON.parse(verification || '[]');
+
+    if (verified.length !== proofs.length) {
+      logger.error('SecureStore write verification failed!', {
+        expected: proofs.length,
+        actual: verified.length,
+      });
+      throw new Error('Failed to save proofs - verification failed');
+    }
+
     logger.info('Saved proofs to storage', { count: proofs.length });
   } catch (error) {
     logger.error('Failed to save proofs', { error: error.message });
