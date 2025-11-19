@@ -168,6 +168,7 @@ export default function OnboardingPage({
     setSeedConfirmed,
     showToast,
     loadWallet,
+    setWalletAddresses,
   });
 
   // PIN setup completion wrapper - saves wallet and resets state

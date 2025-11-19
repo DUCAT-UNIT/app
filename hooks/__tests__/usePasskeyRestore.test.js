@@ -51,6 +51,7 @@ describe('usePasskeyRestore', () => {
       setSeedConfirmed: jest.fn(),
       showToast: jest.fn(),
       loadWallet: jest.fn().mockResolvedValue(undefined),
+      setWalletAddresses: jest.fn(),
     };
 
     jest.clearAllMocks();
@@ -262,7 +263,7 @@ describe('usePasskeyRestore', () => {
 
       expect(mockProps.showToast).toHaveBeenCalledWith('Recovery failed', 'error');
       expect(mockProps.setIsAuthenticated).not.toHaveBeenCalled();
-      expect(mockProps.loadWallet).not.toHaveBeenCalled();
+      expect(mockProps.setWalletAddresses).not.toHaveBeenCalled();
       expect(result.current.isRestoring).toBe(false);
     });
 

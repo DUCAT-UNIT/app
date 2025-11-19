@@ -6,7 +6,7 @@
 import { useState } from 'react';
 import * as PasskeyService from '../services/passkeyService';
 
-export function usePasskeyRestore({ setIsAuthenticated, setSeedConfirmed, showToast, loadWallet }) {
+export function usePasskeyRestore({ setIsAuthenticated, setSeedConfirmed, showToast, loadWallet, setWalletAddresses }) {
   const [restoringWithPasskey, setRestoringWithPasskey] = useState(false);
   const [showRestorePinInput, setShowRestorePinInput] = useState(false);
   const [restorePin, setRestorePin] = useState('');
@@ -63,16 +63,15 @@ export function usePasskeyRestore({ setIsAuthenticated, setSeedConfirmed, showTo
       await saveCurrentAccount(0);
       await savePin(pin);
 
-      // CRITICAL: Set auth states FIRST (before loadWallet and before resetting UI state)
-      // This prevents OnboardingPage from showing WelcomeScreen during the transition
+      // INSTANT NAVIGATION: Set wallet addresses immediately in React context
+      // This ensures useNavigationState sees wallet as existing (no onboarding screen)
+      setWalletAddresses(addresses, 0);
+
+      // Set auth states to navigate to wallet
       setIsAuthenticated(true);
       setSeedConfirmed(true);
 
-      // Reload wallet
-      await loadWallet();
-
-      // Hide PIN input and reset state AFTER wallet is loaded and auth states are set
-      // This prevents the OnboardingPage from flashing the WelcomeScreen
+      // Hide PIN input and reset state immediately
       setShowRestorePinInput(false);
       setRestorePin('');
       setRestoringWithPasskey(false);
