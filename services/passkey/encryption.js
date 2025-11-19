@@ -26,16 +26,24 @@ export const generateRandomMnemonic = () => {
  *
  * @param {Uint8Array} credentialId - WebAuthn credential ID
  * @param {Uint8Array} userHandle - User handle
- * @param {string} pin - User's 6-digit PIN
+ * @param {string} pinOrHash - User's 6-digit PIN or pre-hashed PIN (if isPreHashed=true)
  * @param {string} pinSalt - PIN salt
+ * @param {boolean} isPreHashed - If true, pinOrHash is already PBKDF2-hashed (performance optimization)
  * @returns {Promise<CryptoKey>} 256-bit AES-GCM encryption key
  */
-export const deriveEncryptionKey = async (credentialId, userHandle, pin, pinSalt) => {
+export const deriveEncryptionKey = async (credentialId, userHandle, pinOrHash, pinSalt, isPreHashed = false) => {
   try {
     // SECURITY: Apply same 10,000 iteration hashing used for PIN verification
     // This makes brute force ~10,000x harder (1 second → 28 hours)
-    const { hashPinForEncryption } = await import('../pinService');
-    const derivedPin = await hashPinForEncryption(pin, pinSalt);
+    let derivedPin;
+    if (isPreHashed) {
+      // Performance optimization: Use pre-computed hash (saves ~500ms)
+      derivedPin = pinOrHash;
+    } else {
+      // Standard path: Hash the PIN
+      const { hashPinForEncryption } = await import('../pinService');
+      derivedPin = await hashPinForEncryption(pinOrHash, pinSalt);
+    }
 
     // Combine passkey data + derived PIN for Apple-proof encryption
     // Apple has passkey but NOT the PIN (and would need 28 hours to brute force)

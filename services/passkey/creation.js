@@ -68,20 +68,20 @@ export const createWalletWithPasskey = async ({ userName, userDisplayName, pin }
       throw new Error('PIN is required for passkey wallet creation');
     }
 
-    // Save PIN for daily unlock (generates and saves salt)
-    const { savePin } = await import('../pinService');
-    await savePin(pin);
+    // Save PIN for daily unlock (generates and saves salt + hash)
+    // OPTIMIZATION: Returns the hashed PIN to avoid re-hashing (10k iterations = ~500ms)
+    const { savePinWithHash } = await import('../pinService');
+    const { hashedPin, salt: pinSalt } = await savePinWithHash(pin);
 
-    // Get the PIN salt that was just created
-    const pinSalt = await SecureStore.getItemAsync(SECURE_KEYS.PIN_SALT);
     // Validate salt format: 32 bytes = 64 hex characters
     if (!pinSalt || pinSalt.length !== 64 || !/^[0-9a-f]{64}$/i.test(pinSalt)) {
       throw new Error('Invalid or missing PIN salt - wallet creation failed');
     }
 
-    // Derive encryption key from passkey + PIN with 10k iterations (Apple-proof!)
+    // Derive encryption key from passkey + hashed PIN
+    // OPTIMIZATION: Pass pre-hashed PIN to skip 10k PBKDF2 iterations (~500ms saved)
     // Uses RFC 5869 compliant HKDF
-    const encryptionKey = await deriveEncryptionKey(credentialId, userHandle, pin, pinSalt);
+    const encryptionKey = await deriveEncryptionKey(credentialId, userHandle, hashedPin, pinSalt, true);
 
     // Encrypt mnemonic for storage
     const { encrypted, iv, tag } = await encryptMnemonic(mnemonic, encryptionKey);

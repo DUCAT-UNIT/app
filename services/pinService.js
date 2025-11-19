@@ -32,6 +32,72 @@ import {
 export const hashPinForEncryption = hashPin;
 
 /**
+ * Save PIN and return the hash for passkey encryption (performance optimization)
+ * Avoids double-hashing during passkey wallet creation (saves ~500ms)
+ * @param {string} pin - 6-digit PIN
+ * @returns {Promise<{hashedPin: string, salt: string}>} Hash and salt
+ * @throws {Error} If salt verification fails (security critical)
+ */
+export const savePinWithHash = async (pin) => {
+  try {
+    // Generate a unique salt for this user
+    const salt = await generateSalt();
+    const hashedPin = await hashPin(pin, salt);
+
+    // Store the hashed PIN, salt, and version
+    await SecureStore.setItemAsync(SECURE_KEYS.PIN, hashedPin);
+    await SecureStore.setItemAsync(SECURE_KEYS.PIN_SALT, salt);
+    await SecureStore.setItemAsync(SECURE_KEYS.PIN_VERSION, PIN_HASH_VERSION.PBKDF2_10K);
+
+    // CRITICAL: Read back the salt to verify it was stored correctly
+    const verifiedSalt = await SecureStore.getItemAsync(SECURE_KEYS.PIN_SALT);
+    const verifiedPin = await SecureStore.getItemAsync(SECURE_KEYS.PIN);
+    const verifiedVersion = await SecureStore.getItemAsync(SECURE_KEYS.PIN_VERSION);
+
+    // Verify all critical values were stored correctly
+    if (verifiedSalt !== salt) {
+      throw new Error(
+        'CRITICAL: PIN salt verification failed. ' +
+        'Expected salt does not match stored salt. ' +
+        'This would prevent wallet access.'
+      );
+    }
+
+    if (verifiedPin !== hashedPin) {
+      throw new Error(
+        'CRITICAL: PIN hash verification failed. ' +
+        'Expected hash does not match stored hash. ' +
+        'This would prevent wallet access.'
+      );
+    }
+
+    if (verifiedVersion !== PIN_HASH_VERSION.PBKDF2_10K) {
+      throw new Error(
+        'CRITICAL: PIN version verification failed. ' +
+        'Expected version does not match stored version. ' +
+        'This would prevent wallet access.'
+      );
+    }
+
+    // Return hash and salt for reuse in passkey encryption
+    return { hashedPin, salt };
+  } catch (error) {
+    // Log detailed error for debugging
+    logger.error('PIN save failed:', {
+      error: error.message,
+      recommendation: 'Check device storage space and SecureStore permissions',
+    });
+
+    // Re-throw security-critical errors
+    if (error.message.includes('CRITICAL:')) {
+      throw error;
+    }
+
+    throw new Error('Failed to save PIN');
+  }
+};
+
+/**
  * Save PIN to secure storage (hashed with unique salt)
  * CRITICAL: Includes read-back verification to ensure salt is stored correctly
  * @param {string} pin - 6-digit PIN
