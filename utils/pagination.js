@@ -57,7 +57,10 @@ export async function fetchPaginated(fetchPage, options = {}) {
 
       pageCount++;
     } catch (error) {
-      logger.error(`Pagination error on page ${pageCount + 1}:`, error);
+      // Don't log AbortErrors - they're expected when navigation cancels requests
+      if (error.name !== 'AbortError') {
+        logger.error(`Pagination error on page ${pageCount + 1}:`, error);
+      }
       // Stop pagination on error
       hasMore = false;
     }
@@ -133,7 +136,10 @@ export class PaginationManager {
 
       return items;
     } catch (error) {
-      logger.error('PaginationManager: Error fetching page:', error);
+      // Don't log AbortErrors - they're expected when navigation cancels requests
+      if (error.name !== 'AbortError') {
+        logger.error('PaginationManager: Error fetching page:', error);
+      }
       this.hasMore = false;
       return [];
     } finally {
