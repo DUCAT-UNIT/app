@@ -6,7 +6,8 @@ export const vaultStyles = StyleSheet.create({
   vaultCard: {
     backgroundColor: COLORS.CARD_BG,
     borderRadius: 12,
-    padding: 12,
+    paddingHorizontal: 8,
+    paddingVertical: 12,
     marginBottom: SCREEN_WIDTH <= 375 ? 4 : 12,
     flexDirection: 'row',
     height: 80,
@@ -38,8 +39,8 @@ export const vaultStyles = StyleSheet.create({
   },
   vaultStatusIndicator: {
     position: 'absolute',
-    top: -1,
-    right: -1,
+    top: 1,
+    right: 1,
     width: 6,
     height: 6,
     borderRadius: 3,
