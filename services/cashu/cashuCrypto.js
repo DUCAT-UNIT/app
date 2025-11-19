@@ -53,9 +53,9 @@ export const hashToCurve = async (secret) => {
 
   // Try counters from 0 to 2^16 to find a valid point
   for (let counter = 0; counter < 2 ** 16; counter++) {
-    // Create 4-byte counter (big-endian)
+    // Create 4-byte counter (little-endian)
     const counterBytes = new Uint8Array(4);
-    new DataView(counterBytes.buffer).setUint32(0, counter, false); // false = big-endian
+    new DataView(counterBytes.buffer).setUint32(0, counter, true); // true = little-endian
 
     // Hash: SHA256(msgToHash || counter)
     const hashInput = new Uint8Array([...msgToHash, ...counterBytes]);
