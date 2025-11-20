@@ -4,7 +4,7 @@
  */
 
 import React, { useEffect, useState, useRef } from 'react';
-import { Text, View, TouchableOpacity, Linking, StyleSheet, Alert, ActivityIndicator } from 'react-native';
+import { Text, View, TouchableOpacity, Linking, StyleSheet, Alert, ActivityIndicator, Share } from 'react-native';
 import * as Clipboard from 'expo-clipboard';
 import { COLORS } from '../../theme';
 import Icon from '../../components/icons';
@@ -233,6 +233,26 @@ export default function ConfirmationScreen({ navigation, route }) {
     }
   };
 
+  const handleShareDeeplink = async () => {
+    if (spectreToken) {
+      try {
+        // Create deeplink URL with token parameter
+        const deeplinkUrl = `ducat://receive?token=${encodeURIComponent(spectreToken)}`;
+
+        console.log('[ConfirmationScreen] Sharing deeplink');
+
+        // Use native Share API - this creates a clickable link
+        await Share.share({
+          message: deeplinkUrl,
+          title: 'Receive UNIT Token',
+        });
+      } catch (error) {
+        console.error('[ConfirmationScreen] Failed to share deeplink:', error);
+        Alert.alert('Error', 'Failed to share deeplink. Please try again.');
+      }
+    }
+  };
+
   const handleCopyDeeplink = async () => {
     if (spectreToken) {
       try {
@@ -243,7 +263,7 @@ export default function ConfirmationScreen({ navigation, route }) {
 
         // Copy deeplink to clipboard
         await Clipboard.setStringAsync(deeplinkUrl);
-        Alert.alert('Deeplink Copied', 'Share this link with the recipient to let them receive the token');
+        Alert.alert('Copied!', 'Deeplink copied to clipboard');
       } catch (error) {
         console.error('[ConfirmationScreen] Failed to copy deeplink:', error);
         Alert.alert('Error', 'Failed to copy deeplink. Please try again.');
@@ -299,16 +319,26 @@ export default function ConfirmationScreen({ navigation, route }) {
             <Icon name="qr_code" size={48} color={COLORS.YELLOW} style={{ marginBottom: 16 }} />
             <Text style={localStyles.tokenLabel}>Spectre Token Ready</Text>
             <Text style={localStyles.tokenDescription}>
-              Copy the deeplink and share it with the recipient
+              Share the deeplink with the recipient - they can tap it to receive the token
             </Text>
-            <TouchableOpacity
-              style={localStyles.receiveButton}
-              onPress={handleCopyDeeplink}
-              activeOpacity={0.7}
-            >
-              <Icon name="paste" size={18} color={COLORS.WHITE} />
-              <Text style={localStyles.receiveButtonText}>Copy Deeplink</Text>
-            </TouchableOpacity>
+            <View style={localStyles.buttonRow}>
+              <TouchableOpacity
+                style={[localStyles.actionButton, localStyles.shareButton]}
+                onPress={handleShareDeeplink}
+                activeOpacity={0.7}
+              >
+                <Icon name="share" size={18} color={COLORS.WHITE} />
+                <Text style={localStyles.actionButtonText}>Share</Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                style={[localStyles.actionButton, localStyles.copyButton]}
+                onPress={handleCopyDeeplink}
+                activeOpacity={0.7}
+              >
+                <Icon name="paste" size={18} color={COLORS.WHITE} />
+                <Text style={localStyles.actionButtonText}>Copy</Text>
+              </TouchableOpacity>
+            </View>
           </View>
         )}
 
@@ -430,19 +460,29 @@ const localStyles = StyleSheet.create({
     lineHeight: 20,
     marginBottom: 20,
   },
-  receiveButton: {
+  buttonRow: {
+    flexDirection: 'row',
+    width: '100%',
+    gap: 12,
+  },
+  actionButton: {
+    flex: 1,
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
-    backgroundColor: COLORS.PRIMARY_BLUE,
     borderRadius: 12,
     paddingVertical: 14,
-    paddingHorizontal: 24,
+    paddingHorizontal: 20,
     gap: 8,
-    width: '100%',
   },
-  receiveButtonText: {
-    fontSize: 16,
+  shareButton: {
+    backgroundColor: COLORS.PRIMARY_BLUE,
+  },
+  copyButton: {
+    backgroundColor: COLORS.SECONDARY_TEXT,
+  },
+  actionButtonText: {
+    fontSize: 15,
     fontWeight: '600',
     color: COLORS.WHITE,
     fontFamily: 'CabinetGrotesk-Bold',
