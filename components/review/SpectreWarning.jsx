@@ -16,8 +16,7 @@ export default function SpectreWarning() {
       </View>
       <View style={styles.textContainer}>
         <Text style={styles.warningText}>
-          Spectre mode will exchange your on-chain UNIT for untraceable eUNIT.{'\n'}
-          Click <Text style={styles.fuseText}>Fuse</Text> to recoup your on-chain UNIT.
+          Spectre mode lets you operate privately. All transactions will be private and untraceable.
         </Text>
       </View>
     </View>
