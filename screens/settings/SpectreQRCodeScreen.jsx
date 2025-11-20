@@ -79,7 +79,7 @@ export default function SpectreQRCodeScreen({ navigation, route }) {
         </TouchableOpacity>
       </View>
 
-      <ScrollView style={styles.content}>
+      <ScrollView contentContainerStyle={styles.contentContainer}>
         {/* Amount */}
         <View style={styles.amountContainer}>
           <Icon name="spectre" size={32} color={COLORS.BRAND_PURPLE} />
@@ -184,10 +184,10 @@ const styles = StyleSheet.create({
     fontWeight: '600',
     color: COLORS.VERY_LIGHT_GRAY,
   },
-  content: {
-    flex: 1,
+  contentContainer: {
     alignItems: 'center',
     paddingHorizontal: 20,
+    paddingBottom: 40,
   },
   amountContainer: {
     flexDirection: 'row',
