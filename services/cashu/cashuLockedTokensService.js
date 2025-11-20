@@ -114,6 +114,9 @@ export const clearSentLockedTokens = async () => {
  * @returns {string} Deeplink URL with emoji-encoded token
  */
 export const generateSpectreDeeplink = (token, recipient, amount) => {
+  console.log('[SpectreDeeplink] Generating deeplink with token:', token.substring(0, 50) + '...');
+  console.log('[SpectreDeeplink] Token starts with:', token.substring(0, 10));
+
   // Encode the cashu token as emoji
   const emojiToken = encodeCashuToken(token);
 

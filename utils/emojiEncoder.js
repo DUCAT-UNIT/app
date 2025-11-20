@@ -1,120 +1,120 @@
 /**
  * Emoji Encoder/Decoder
- * Encodes binary data into emoji and vice versa
+ * Encodes binary data into a single emoji with variation selectors
  * Based on https://github.com/paulgb/emoji-encoder
+ *
+ * This uses Unicode variation selectors (invisible characters) to encode
+ * data into a single visible emoji character.
  */
 
-// Emoji alphabet (256 unique emojis for byte mapping)
-const EMOJI_ALPHABET = [
-  '😀', '😃', '😄', '😁', '😆', '😅', '🤣', '😂',
-  '🙂', '🙃', '😉', '😊', '😇', '🥰', '😍', '🤩',
-  '😘', '😗', '😚', '😙', '😋', '😛', '😜', '🤪',
-  '😝', '🤑', '🤗', '🤭', '🤫', '🤔', '🤐', '🤨',
-  '😐', '😑', '😶', '😏', '😒', '🙄', '😬', '🤥',
-  '😌', '😔', '😪', '🤤', '😴', '😷', '🤒', '🤕',
-  '🤢', '🤮', '🤧', '🥵', '🥶', '🥴', '😵', '🤯',
-  '🤠', '🥳', '😎', '🤓', '🧐', '😕', '😟', '🙁',
-  '☹️', '😮', '😯', '😲', '😳', '🥺', '😦', '😧',
-  '😨', '😰', '😥', '😢', '😭', '😱', '😖', '😣',
-  '😞', '😓', '😩', '😫', '🥱', '😤', '😡', '😠',
-  '🤬', '😈', '👿', '💀', '☠️', '💩', '🤡', '👹',
-  '👺', '👻', '👽', '👾', '🤖', '😺', '😸', '😹',
-  '😻', '😼', '😽', '🙀', '😿', '😾', '🙈', '🙉',
-  '🙊', '💋', '💌', '💘', '💝', '💖', '💗', '💓',
-  '💞', '💕', '💟', '❣️', '💔', '❤️', '🧡', '💛',
-  '💚', '💙', '💜', '🤎', '🖤', '🤍', '💯', '💢',
-  '💥', '💫', '💦', '💨', '🕳️', '💣', '💬', '👁️',
-  '🗨️', '🗯️', '💭', '💤', '👋', '🤚', '🖐️', '✋',
-  '🖖', '👌', '🤏', '✌️', '🤞', '🤟', '🤘', '🤙',
-  '👈', '👉', '👆', '🖕', '👇', '☝️', '👍', '👎',
-  '✊', '👊', '🤛', '🤜', '👏', '🙌', '👐', '🤲',
-  '🤝', '🙏', '✍️', '💅', '🤳', '💪', '🦾', '🦿',
-  '🦵', '🦶', '👂', '🦻', '👃', '🧠', '🦷', '🦴',
-  '👀', '👁️', '👅', '👄', '👶', '🧒', '👦', '👧',
-  '🧑', '👱', '👨', '🧔', '👩', '🧓', '👴', '👵',
-  '🙍', '🙎', '🙅', '🙆', '💁', '🙋', '🧏', '🙇',
-  '🤦', '🤷', '👮', '🕵️', '💂', '👷', '🤴', '👸',
-  '👳', '👲', '🧕', '🤵', '👰', '🤰', '🤱', '👼',
-  '🎅', '🤶', '🦸', '🦹', '🧙', '🧚', '🧛', '🧜',
-  '🧝', '🧞', '🧟', '💆', '💇', '🚶', '🧍', '🧎',
-  '🏃', '💃', '🕺', '🕴️', '👯', '🧖', '🧗', '🤺'
-];
+// The ghost emoji to use for Spectre tokens
+const SPECTRE_EMOJI = '👻';
+
+// Variation selectors block https://unicode.org/charts/nameslist/n_FE00.html
+// VS1..=VS16
+const VARIATION_SELECTOR_START = 0xfe00;
+const VARIATION_SELECTOR_END = 0xfe0f;
+
+// Variation selectors supplement https://unicode.org/charts/nameslist/n_E0100.html
+// VS17..=VS256
+const VARIATION_SELECTOR_SUPPLEMENT_START = 0xe0100;
+const VARIATION_SELECTOR_SUPPLEMENT_END = 0xe01ef;
 
 /**
- * Encode a base64 string into emoji
- * @param {string} base64String - Base64 encoded string
- * @returns {string} Emoji encoded string
+ * Convert a byte (0-255) to a variation selector character
+ * @param {number} byte - Byte value 0-255
+ * @returns {string|null} Variation selector character or null
  */
-export const encodeToEmoji = (base64String) => {
-  try {
-    // Convert base64 to binary string
-    const binaryString = atob(base64String);
+function toVariationSelector(byte) {
+  if (byte >= 0 && byte < 16) {
+    return String.fromCodePoint(VARIATION_SELECTOR_START + byte);
+  } else if (byte >= 16 && byte < 256) {
+    return String.fromCodePoint(VARIATION_SELECTOR_SUPPLEMENT_START + byte - 16);
+  } else {
+    return null;
+  }
+}
 
-    // Convert each byte to emoji
-    let emojiString = '';
-    for (let i = 0; i < binaryString.length; i++) {
-      const byte = binaryString.charCodeAt(i);
-      emojiString += EMOJI_ALPHABET[byte];
+/**
+ * Convert a variation selector codepoint back to a byte value
+ * @param {number} codePoint - Unicode codepoint
+ * @returns {number|null} Byte value 0-255 or null
+ */
+function fromVariationSelector(codePoint) {
+  if (codePoint >= VARIATION_SELECTOR_START && codePoint <= VARIATION_SELECTOR_END) {
+    return codePoint - VARIATION_SELECTOR_START;
+  } else if (codePoint >= VARIATION_SELECTOR_SUPPLEMENT_START && codePoint <= VARIATION_SELECTOR_SUPPLEMENT_END) {
+    return codePoint - VARIATION_SELECTOR_SUPPLEMENT_START + 16;
+  } else {
+    return null;
+  }
+}
+
+/**
+ * Encode text into an emoji with variation selectors
+ * @param {string} emoji - Base emoji to use (e.g., 👻)
+ * @param {string} text - Text to encode
+ * @returns {string} Emoji with invisible variation selectors
+ */
+function encode(emoji, text) {
+  // Convert the string to UTF-8 bytes
+  const bytes = new TextEncoder().encode(text);
+  let encoded = emoji;
+
+  for (const byte of bytes) {
+    const selector = toVariationSelector(byte);
+    if (selector) {
+      encoded += selector;
+    }
+  }
+
+  return encoded;
+}
+
+/**
+ * Decode text from an emoji with variation selectors
+ * @param {string} text - Emoji string with variation selectors
+ * @returns {string} Decoded text
+ */
+function decode(text) {
+  const decoded = [];
+  const chars = Array.from(text);
+
+  for (const char of chars) {
+    const codePoint = char.codePointAt(0);
+    if (codePoint === undefined) continue;
+
+    const byte = fromVariationSelector(codePoint);
+
+    if (byte === null && decoded.length > 0) {
+      break;
+    } else if (byte === null) {
+      continue;
     }
 
-    return emojiString;
-  } catch (error) {
-    console.error('[EmojiEncoder] Failed to encode:', error);
-    throw new Error('Failed to encode to emoji');
+    decoded.push(byte);
   }
-};
+
+  const decodedArray = new Uint8Array(decoded);
+  return new TextDecoder().decode(decodedArray);
+}
 
 /**
- * Decode an emoji string back to base64
- * @param {string} emojiString - Emoji encoded string
- * @returns {string} Base64 decoded string
- */
-export const decodeFromEmoji = (emojiString) => {
-  try {
-    // Create reverse mapping
-    const emojiToIndex = {};
-    EMOJI_ALPHABET.forEach((emoji, index) => {
-      emojiToIndex[emoji] = index;
-    });
-
-    // Split emoji string into individual emojis
-    // Handle multi-codepoint emojis properly
-    const emojis = Array.from(emojiString);
-
-    // Convert each emoji back to byte
-    let binaryString = '';
-    for (const emoji of emojis) {
-      const index = emojiToIndex[emoji];
-      if (index === undefined) {
-        throw new Error(`Unknown emoji: ${emoji}`);
-      }
-      binaryString += String.fromCharCode(index);
-    }
-
-    // Convert binary string back to base64
-    return btoa(binaryString);
-  } catch (error) {
-    console.error('[EmojiEncoder] Failed to decode:', error);
-    throw new Error('Failed to decode from emoji');
-  }
-};
-
-/**
- * Encode a Cashu token to emoji format
- * @param {string} token - Cashu token string (cashuA...)
- * @returns {string} Emoji encoded token
+ * Encode a Cashu token to a single ghost emoji with variation selectors
+ * @param {string} token - Cashu token string (cashu...)
+ * @returns {string} Ghost emoji (👻) with encoded token data
  */
 export const encodeCashuToken = (token) => {
   try {
-    // Extract the base64 part after "cashuA"
-    if (!token.startsWith('cashuA')) {
-      throw new Error('Invalid Cashu token format - must start with cashuA');
-    }
+    console.log('[EmojiEncoder] Encoding token:', token.substring(0, 50) + '...');
 
-    const base64Part = token.substring(6); // Remove "cashuA" prefix
-    const emojiEncoded = encodeToEmoji(base64Part);
+    // Encode the entire token (including "cashu" prefix) into the ghost emoji
+    const encoded = encode(SPECTRE_EMOJI, token);
 
-    return emojiEncoded;
+    console.log('[EmojiEncoder] Encoded to ghost emoji, length:', encoded.length);
+    console.log('[EmojiEncoder] First few chars:', encoded.substring(0, 5));
+
+    return encoded;
   } catch (error) {
     console.error('[EmojiEncoder] Failed to encode Cashu token:', error);
     throw error;
@@ -122,14 +122,19 @@ export const encodeCashuToken = (token) => {
 };
 
 /**
- * Decode an emoji token back to Cashu token format
- * @param {string} emojiToken - Emoji encoded token
- * @returns {string} Cashu token string (cashuA...)
+ * Decode a ghost emoji with variation selectors back to Cashu token
+ * @param {string} emojiToken - Ghost emoji with encoded token data
+ * @returns {string} Cashu token string (cashu...)
  */
 export const decodeCashuToken = (emojiToken) => {
   try {
-    const base64Part = decodeFromEmoji(emojiToken);
-    return `cashuA${base64Part}`;
+    console.log('[EmojiEncoder] Decoding emoji token, length:', emojiToken.length);
+
+    const decoded = decode(emojiToken);
+
+    console.log('[EmojiEncoder] Decoded token:', decoded.substring(0, 50) + '...');
+
+    return decoded;
   } catch (error) {
     console.error('[EmojiEncoder] Failed to decode Cashu token:', error);
     throw error;

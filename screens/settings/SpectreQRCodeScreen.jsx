@@ -80,13 +80,16 @@ export default function SpectreQRCodeScreen({ navigation, route }) {
 
         {/* Amount subtitle */}
         <Text style={styles.subtitle}>
-          {amount / 100} UNIT • Emoji Encoded
+          {amount / 100} UNIT
         </Text>
 
-        {/* Emoji Token Display */}
+        {/* Emoji Token Display - Ghost emoji with encoded data */}
         <View style={styles.emojiQRContainer}>
           <Text style={styles.emojiText} selectable>
             {emojiToken}
+          </Text>
+          <Text style={styles.emojiHint}>
+            Tap the ghost to copy
           </Text>
         </View>
 
@@ -99,7 +102,7 @@ export default function SpectreQRCodeScreen({ navigation, route }) {
           <View style={styles.addressContentContainer}>
             <View style={styles.addressLabelRow}>
               <Text style={styles.addressLabelText}>
-                Emoji Token
+                Ghost Token (with encoded data)
               </Text>
               <Text style={styles.tapToCopyText}>
                 {justCopied ? 'Copied!' : 'Tap to copy'}
@@ -194,11 +197,17 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   emojiText: {
-    fontSize: 28,
-    lineHeight: 42,
+    fontSize: 64,
+    lineHeight: 80,
     color: COLORS.DARK_BG,
     textAlign: 'center',
-    fontWeight: '600',
+  },
+  emojiHint: {
+    fontSize: 12,
+    color: COLORS.DARK_BG,
+    textAlign: 'center',
+    marginTop: 8,
+    opacity: 0.6,
   },
   addressContainer: {
     width: '100%',
