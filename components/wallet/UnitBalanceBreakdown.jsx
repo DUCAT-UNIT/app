@@ -6,10 +6,10 @@
 
 import React from 'react';
 import PropTypes from 'prop-types';
-import { View, Text, StyleSheet, TouchableOpacity } from 'react-native';
+import { View, Text, StyleSheet } from 'react-native';
 import { COLORS } from '../../theme';
 
-const UnitBalanceBreakdown = ({ ecashBalance, runesBalance, onInfoPress }) => {
+const UnitBalanceBreakdown = ({ ecashBalance, runesBalance }) => {
   const totalBalance = ecashBalance + runesBalance;
   const ecashPercentage = totalBalance > 0 ? (ecashBalance / totalBalance) * 100 : 50;
   const runesPercentage = totalBalance > 0 ? (runesBalance / totalBalance) * 100 : 50;
@@ -42,7 +42,7 @@ const UnitBalanceBreakdown = ({ ecashBalance, runesBalance, onInfoPress }) => {
               {ecashBalance.toLocaleString('en-US', {
                 minimumFractionDigits: 2,
                 maximumFractionDigits: 2
-              })} E-UNIT
+              })} UNIT
             </Text>
           </View>
           <Text style={styles.balanceLabel}>in wallet</Text>
@@ -61,15 +61,6 @@ const UnitBalanceBreakdown = ({ ecashBalance, runesBalance, onInfoPress }) => {
           </View>
           <Text style={styles.balanceLabel}>balance remaining</Text>
         </View>
-
-        {/* Info Icon */}
-        {onInfoPress && (
-          <TouchableOpacity onPress={onInfoPress} style={styles.infoButton}>
-            <View style={styles.infoIcon}>
-              <Text style={styles.infoIconText}>i</Text>
-            </View>
-          </TouchableOpacity>
-        )}
       </View>
     </View>
   );
@@ -78,7 +69,6 @@ const UnitBalanceBreakdown = ({ ecashBalance, runesBalance, onInfoPress }) => {
 UnitBalanceBreakdown.propTypes = {
   ecashBalance: PropTypes.number.isRequired,
   runesBalance: PropTypes.number.isRequired,
-  onInfoPress: PropTypes.func,
 };
 
 UnitBalanceBreakdown.defaultProps = {
@@ -89,23 +79,26 @@ UnitBalanceBreakdown.defaultProps = {
 const styles = StyleSheet.create({
   container: {
     paddingHorizontal: 20,
-    paddingVertical: 16,
+    paddingVertical: 12,
+    alignItems: 'center',
   },
   progressBarContainer: {
-    height: 12,
+    height: 8,
     borderRadius: 24,
     flexDirection: 'row',
     overflow: 'hidden',
     backgroundColor: COLORS.DARK_GRAY,
-    marginBottom: 16,
+    marginBottom: 12,
+    width: '100%',
+    maxWidth: 500,
   },
   progressBarEcash: {
-    backgroundColor: '#5B8FF9', // Blue for e-cash
+    backgroundColor: COLORS.PRIMARY_BLUE,
     borderTopLeftRadius: 24,
     borderBottomLeftRadius: 24,
   },
   progressBarRunes: {
-    backgroundColor: COLORS.MEDIUM_GRAY, // Gray for runes
+    backgroundColor: COLORS.MEDIUM_GRAY,
     borderTopRightRadius: 24,
     borderBottomRightRadius: 24,
   },
@@ -113,6 +106,8 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'flex-start',
+    width: '100%',
+    maxWidth: 500,
   },
   labelSection: {
     flex: 1,
@@ -120,47 +115,30 @@ const styles = StyleSheet.create({
   labelRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    marginBottom: 4,
+    marginBottom: 2,
   },
   dot: {
-    width: 10,
-    height: 10,
-    borderRadius: 5,
-    marginRight: 8,
+    width: 8,
+    height: 8,
+    borderRadius: 4,
+    marginRight: 6,
   },
   dotEcash: {
-    backgroundColor: '#5B8FF9', // Blue dot
+    backgroundColor: COLORS.PRIMARY_BLUE,
   },
   dotRunes: {
-    backgroundColor: COLORS.MEDIUM_GRAY, // Gray dot
+    backgroundColor: COLORS.MEDIUM_GRAY,
   },
   balanceValue: {
-    fontSize: 16,
+    fontSize: 14,
     fontWeight: '500',
     color: COLORS.WHITE,
   },
   balanceLabel: {
-    fontSize: 12,
+    fontSize: 11,
     fontWeight: '400',
     color: COLORS.SECONDARY_TEXT,
-    marginLeft: 18, // Align with text (10px dot + 8px margin)
-  },
-  infoButton: {
-    marginLeft: 12,
-  },
-  infoIcon: {
-    width: 24,
-    height: 24,
-    borderRadius: 12,
-    borderWidth: 1.5,
-    borderColor: COLORS.SECONDARY_TEXT,
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  infoIconText: {
-    fontSize: 14,
-    fontWeight: '600',
-    color: COLORS.SECONDARY_TEXT,
+    marginLeft: 14, // Align with text (8px dot + 6px margin)
   },
 });
 

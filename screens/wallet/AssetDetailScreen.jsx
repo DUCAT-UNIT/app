@@ -172,9 +172,6 @@ function AssetDetailScreen({ route = {}, navigation }) {
             <UnitBalanceBreakdown
               ecashBalance={cashuBalance}
               runesBalance={unitRunesAmount}
-              onInfoPress={() => {
-                // Optional: Show info modal about E-UNIT vs UNIT
-              }}
             />
           )}
 
