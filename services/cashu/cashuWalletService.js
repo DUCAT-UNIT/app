@@ -741,11 +741,14 @@ export const completeMeltWithoutCleanup = async (quoteId, totalAmount) => {
     });
 
     // Return the proofs that need to be removed later
+    // IMPORTANT: If we swapped for change, we need to remove ALL old proofs (selectedProofs)
+    // because they were already swapped. The proofsToMelt and changeProofs are the NEW proofs.
+    // But proofsToMelt was spent in the melt, so we only keep changeProofs.
     return {
       paid: result.paid,
       txid: result.payment_preimage,
       fee: result.fee_paid || 0,
-      proofsToRemove: selectedProofs,
+      proofsToRemove: didSwap ? [...selectedProofs] : proofsToMelt,
       changeProofs: changeProofs,
     };
   } catch (error) {
@@ -789,6 +792,64 @@ export const cleanupMeltProofs = async (proofsToRemove, changeProofs) => {
     }
   } catch (error) {
     logger.error('Failed to cleanup melt proofs', { error: error.message });
+    throw error;
+  }
+};
+
+/**
+ * Remove only spent proofs from wallet
+ * Checks each proof with the mint and removes only those marked as SPENT
+ */
+export const removeSpentProofs = async () => {
+  try {
+    logger.info('Starting cleanup of spent proofs');
+
+    const { checkProofsSpent } = await import('./cashuMintClient.js');
+
+    // Get all proofs from wallet
+    const allProofs = await loadProofs();
+
+    if (allProofs.length === 0) {
+      logger.info('No proofs in wallet to check');
+      return { removed: 0, kept: allProofs.length };
+    }
+
+    logger.info('Checking proof states', { totalProofs: allProofs.length });
+
+    // Check which proofs are spent
+    const stateResult = await checkProofsSpent(allProofs);
+
+    // Filter out spent proofs
+    const spentProofs = [];
+    const validProofs = [];
+
+    allProofs.forEach((proof, index) => {
+      const state = stateResult.states[index];
+      if (state.state === 'SPENT') {
+        spentProofs.push(proof);
+      } else {
+        validProofs.push(proof);
+      }
+    });
+
+    logger.info('Proof state check complete', {
+      total: allProofs.length,
+      spent: spentProofs.length,
+      valid: validProofs.length,
+    });
+
+    // Save only valid proofs back to wallet
+    if (spentProofs.length > 0) {
+      await saveProofs(validProofs);
+      logger.info('Removed spent proofs from wallet', { removed: spentProofs.length });
+    }
+
+    return {
+      removed: spentProofs.length,
+      kept: validProofs.length,
+    };
+  } catch (error) {
+    logger.error('Failed to remove spent proofs', { error: error.message });
     throw error;
   }
 };
@@ -1106,6 +1167,100 @@ const createBlindedOutputsWithSecrets = async (secrets, amounts, keysetId) => {
   };
 };
 
+/**
+ * Recover incorrectly locked change proofs
+ * This swaps P2PK locked proofs that aren't in the sent tokens history back to normal proofs
+ * @returns {Promise<Object>} { recovered: number, amount: number }
+ */
+export const recoverLockedChange = async () => {
+  try {
+    const { isP2PKSecret } = await import('./cashuP2PK.js');
+    const { getSentLockedTokens } = await import('./cashuLockedTokensService.js');
+
+    // Get all proofs in wallet
+    const allProofs = await loadProofs();
+    const existingSecrets = new Set(allProofs.map(p => p.secret));
+
+    // Get sent token history
+    const sentTokens = await getSentLockedTokens();
+
+    logger.info('Starting change recovery', {
+      walletProofs: allProofs.length,
+      sentTokens: sentTokens.length,
+    });
+
+    // Extract change proofs from sent tokens
+    let totalChangeProofs = [];
+    let totalChangeAmount = 0;
+
+    for (const tokenData of sentTokens) {
+      try {
+        const decoded = decodeToken(tokenData.token);
+
+        // Separate P2PK locked proofs (intended for recipient) from normal proofs (change)
+        const changeProofs = decoded.proofs.filter(p => !isP2PKSecret(p.secret));
+        const lockedProofs = decoded.proofs.filter(p => isP2PKSecret(p.secret));
+
+        if (changeProofs.length > 0) {
+          const changeAmount = sumProofs(changeProofs);
+          totalChangeAmount += changeAmount;
+
+          logger.info('Found change in sent token', {
+            tokenId: tokenData.id,
+            totalProofs: decoded.proofs.length,
+            changeProofs: changeProofs.length,
+            changeAmount,
+            lockedProofs: lockedProofs.length,
+            lockedAmount: sumProofs(lockedProofs),
+          });
+
+          // Only add change proofs that aren't already in wallet
+          const newChangeProofs = changeProofs.filter(p => !existingSecrets.has(p.secret));
+          totalChangeProofs.push(...newChangeProofs);
+        }
+      } catch (error) {
+        logger.warn('Failed to decode sent token', {
+          tokenId: tokenData.id,
+          error: error.message
+        });
+      }
+    }
+
+    if (totalChangeProofs.length === 0) {
+      logger.info('No change proofs found to recover');
+      return {
+        recovered: 0,
+        amount: 0,
+        message: 'No change proofs found in sent tokens',
+      };
+    }
+
+    logger.info('Recovering change proofs', {
+      changeProofs: totalChangeProofs.length,
+      changeAmount: sumProofs(totalChangeProofs),
+    });
+
+    // Add change proofs to wallet
+    await addProofs(totalChangeProofs);
+
+    const recoveredAmount = sumProofs(totalChangeProofs);
+
+    logger.info('Successfully recovered change proofs', {
+      recovered: totalChangeProofs.length,
+      amount: recoveredAmount,
+    });
+
+    return {
+      recovered: totalChangeProofs.length,
+      amount: recoveredAmount,
+      message: `Recovered ${recoveredAmount} UNIT from ${totalChangeProofs.length} change proofs!`,
+    };
+  } catch (error) {
+    logger.error('Failed to recover change proofs', { error: error.message });
+    throw error;
+  }
+};
+
 export default {
   loadProofs,
   saveProofs,
@@ -1120,4 +1275,5 @@ export default {
   requestMelt,
   completeMelt,
   clearWallet,
+  recoverLockedChange,
 };
