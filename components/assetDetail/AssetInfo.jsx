@@ -35,14 +35,6 @@ export function AssetInfo({ assetType, balance, fiatValue, btcPrice, priceData, 
         ${formatFiat(fiatValue || 0)} USD
       </Text>
 
-      {/* Show breakdown for UNIT */}
-      {assetType === 'UNIT' && (runesBalance > 0 || cashuBalance > 0) && (
-        <View style={styles.breakdownContainer}>
-          <Text style={styles.breakdownText}>
-            Runes: {formatFiat(runesBalance || 0, 0)} • E-cash: {formatFiat(cashuBalance || 0, 0)}
-          </Text>
-        </View>
-      )}
 
       {assetType === 'BTC' && btcPrice && priceData && (
         <Text style={[styles.priceChange, { color: priceDirection.isPositive ? COLORS.SUCCESS_GREEN : COLORS.RED }]}>
