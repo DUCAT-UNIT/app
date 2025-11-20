@@ -32,6 +32,7 @@ export const SendFlowProvider = ({ children }) => {
   const [sendRecipient, setSendRecipient] = useState('');
   const [sendAddressType, setSendAddressType] = useState('taproot'); // 'segwit' | 'taproot'
   const [requireConfirmedUtxos, setRequireConfirmedUtxos] = useState(false); // For Spectre/Fuse - only use confirmed UTXOs
+  const [spectreEnabled, setSpectreEnabled] = useState(false); // For Spectre mode - create address-bound Cashu tokens
 
   // Auto-manage transaction completion flow
   useEffect(() => {
@@ -59,6 +60,7 @@ export const SendFlowProvider = ({ children }) => {
     setSendRecipient('');
     setSendAddressType('taproot');
     setRequireConfirmedUtxos(false);
+    setSpectreEnabled(false);
   }, [setIntentStep]);
 
   // Memoize the value object to prevent unnecessary re-renders
@@ -71,6 +73,7 @@ export const SendFlowProvider = ({ children }) => {
       sendRecipient,
       sendAddressType,
       requireConfirmedUtxos,
+      spectreEnabled,
 
       // Setters
       setIntentStep,
@@ -79,11 +82,12 @@ export const SendFlowProvider = ({ children }) => {
       setSendRecipient,
       setSendAddressType,
       setRequireConfirmedUtxos,
+      setSpectreEnabled,
 
       // Actions
       resetSendFlow,
     }),
-    [intentStep, sendAssetType, sendAmount, sendRecipient, sendAddressType, requireConfirmedUtxos]
+    [intentStep, sendAssetType, sendAmount, sendRecipient, sendAddressType, requireConfirmedUtxos, spectreEnabled]
   );
 
   return <SendFlowContext.Provider value={value}>{children}</SendFlowContext.Provider>;

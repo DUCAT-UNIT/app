@@ -182,3 +182,34 @@ export const validateAndNormalizeAddress = (address) => {
 
   return address.trim();
 };
+
+/**
+ * Extract public key from a Taproot address
+ * For Taproot (P2TR) addresses, the address encodes the x-only pubkey (32 bytes)
+ * @param {string} address - Taproot Bitcoin address (tb1p... or bc1p...)
+ * @returns {string} Hex-encoded public key (64 characters for x-only pubkey)
+ * @throws {Error} If address is not a valid Taproot address
+ */
+export const extractPubkeyFromTaprootAddress = (address) => {
+  const trimmedAddress = address.trim();
+
+  // Validate it's a Taproot address
+  if (!trimmedAddress.startsWith('tb1p') && !trimmedAddress.startsWith('bc1p')) {
+    throw new Error('Address must be a Taproot address (tb1p... or bc1p...)');
+  }
+
+  try {
+    // Decode the bech32m address
+    const decoded = bitcoin.address.fromBech32(trimmedAddress);
+
+    // For Taproot, the data is the 32-byte x-only pubkey
+    if (decoded.version !== 1 || decoded.data.length !== 32) {
+      throw new Error('Invalid Taproot address format');
+    }
+
+    // Convert the data buffer to hex string (ensure proper conversion)
+    return Buffer.from(decoded.data).toString('hex');
+  } catch (error) {
+    throw new Error(`Failed to extract pubkey from Taproot address: ${error.message}`);
+  }
+};

@@ -28,6 +28,7 @@ export default function ProcessingScreen({ navigation, route }) {
   const isSpectre = route.params?.isSpectre === true;
   const mintQuoteId = route.params?.mintQuoteId;
   const mintAmount = route.params?.mintAmount;
+  const spectreRecipient = route.params?.spectreRecipient; // Original recipient for P2PK locking
 
   // Get Cashu mint params if provided
   const paramAssetType = route.params?.assetType;
@@ -116,11 +117,24 @@ export default function ProcessingScreen({ navigation, route }) {
         try {
           const success = await signIntent();
           if (success) {
-            navigation.replace('Confirmation', {
+            // Ensure we navigate to Confirmation screen with all required params
+            // This is critical for Spectre flow to activate quote polling
+            logger.debug('Navigation to Confirmation with params:', {
               isSpectre,
               mintQuoteId,
               mintAmount,
             });
+
+            // Use a small delay to ensure transaction state is fully updated
+            // before navigating to Confirmation screen
+            setTimeout(() => {
+              navigation.replace('Confirmation', {
+                isSpectre,
+                mintQuoteId,
+                mintAmount,
+                spectreRecipient,
+              });
+            }, 50);
           } else {
             navigation.goBack();
             setTimeout(() => showToast('Failed to sign and broadcast transaction', 'error'), 300);
@@ -146,7 +160,12 @@ export default function ProcessingScreen({ navigation, route }) {
         // Success - navigate to review screen
         logger.debug('Navigating to Review screen');
         hasNavigated.current = true;
-        navigation.replace('Review', { isSpectre });
+        navigation.replace('Review', {
+          isSpectre,
+          mintQuoteId,
+          mintAmount,
+          spectreRecipient
+        });
       } else if (intentStep === 'entering_amount') {
         // Error - go back to amount input
         logger.debug('Error creating intent, going back to amount');

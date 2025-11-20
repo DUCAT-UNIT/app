@@ -3,7 +3,7 @@
  * Features: paste button, address validation, back navigation
  */
 
-import React, { useEffect, useRef } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import {
   Text,
   View,
@@ -11,6 +11,7 @@ import {
   TextInput,
   Pressable,
   StyleSheet,
+  Switch,
 } from 'react-native';
 import * as Clipboard from 'expo-clipboard';
 import { COLORS } from '../../theme';
@@ -21,7 +22,7 @@ import { useKeyboard } from '../../hooks/useKeyboard';
 import { logger } from '../../utils/logger';
 
 export default function AddressInputScreen({ navigation, route }) {
-  const { sendAssetType, sendRecipient, setSendRecipient, setSendAddressType, setSendAssetType } = useSendFlow();
+  const { sendAssetType, sendRecipient, setSendRecipient, setSendAddressType, setSendAssetType, spectreEnabled, setSpectreEnabled } = useSendFlow();
   const { keyboardHeight } = useKeyboard();
   const addressInputRef = useRef(null);
   const [addressError, setAddressError] = React.useState('');
@@ -36,6 +37,15 @@ export default function AddressInputScreen({ navigation, route }) {
       setSendAssetType(route.params.assetType);
     }
   }, [route.params?.assetType, sendAssetType, setSendAssetType]);
+
+  // Enable Spectre mode by default for UNIT transfers (only on mount)
+  useEffect(() => {
+    if (assetType === 'unit') {
+      logger.debug('AddressInputScreen: Enabling Spectre mode by default for UNIT');
+      setSpectreEnabled(true);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [assetType]); // Only run when assetType changes, not when spectreEnabled changes
 
   // Handle prefilled address (for non-Spectre flows)
   useEffect(() => {
@@ -131,7 +141,24 @@ export default function AddressInputScreen({ navigation, route }) {
 
       {/* Content */}
       <View style={localStyles.content}>
-        <Text style={localStyles.label}>Recipient Address</Text>
+        <View style={localStyles.labelRow}>
+          <Text style={localStyles.label}>Recipient Address</Text>
+          <View style={localStyles.labelRight}>
+            {assetType === 'unit' && (
+              <Icon name="spectre" size={16} color={COLORS.YELLOW} />
+            )}
+            {assetType === 'unit' && (
+              <Switch
+                value={spectreEnabled}
+                onValueChange={setSpectreEnabled}
+                trackColor={{ false: COLORS.MID_DARK_GRAY, true: COLORS.YELLOW }}
+                thumbColor={COLORS.WHITE}
+                ios_backgroundColor={COLORS.MID_DARK_GRAY}
+                style={localStyles.switch}
+              />
+            )}
+          </View>
+        </View>
 
         <View style={localStyles.inputRow}>
           <TextInput
@@ -155,6 +182,19 @@ export default function AddressInputScreen({ navigation, route }) {
         <View style={localStyles.errorContainer}>
           {addressError ? <Text style={localStyles.errorText}>{addressError}</Text> : null}
         </View>
+
+        {/* Spectre Warning - Only show when toggle is ON */}
+        {assetType === 'unit' && spectreEnabled && (
+          <View style={localStyles.spectreWarningContainer}>
+            <View style={localStyles.spectreWarningTextContainer}>
+              <Text style={localStyles.spectreWarningTitle}>Spectral Transaction</Text>
+              <Text style={localStyles.spectreWarningText}>
+                Anonymous, instant, and private.{'\n'}
+                The recipient has to claim the funds manually.
+              </Text>
+            </View>
+          </View>
+        )}
       </View>
 
       {/* Continue Button - Sits on top of keyboard */}
@@ -205,11 +245,24 @@ const localStyles = StyleSheet.create({
     paddingHorizontal: 20,
     paddingTop: 20,
   },
+  labelRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    marginBottom: 12,
+  },
+  labelRight: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+  },
   label: {
     fontSize: 16,
     color: COLORS.SECONDARY_TEXT,
-    marginBottom: 12,
     fontFamily: 'CabinetGrotesk-Regular',
+  },
+  switch: {
+    transform: [{ scaleX: 0.8 }, { scaleY: 0.8 }],
   },
   inputRow: {
     flexDirection: 'row',
@@ -271,5 +324,31 @@ const localStyles = StyleSheet.create({
     fontWeight: '600',
     color: COLORS.WHITE,
     fontFamily: 'CabinetGrotesk-Bold',
+  },
+  spectreWarningContainer: {
+    backgroundColor: COLORS.YELLOW + '15',
+    borderRadius: 12,
+    padding: 16,
+    marginTop: 8,
+    borderWidth: 1,
+    borderColor: COLORS.YELLOW + '25',
+  },
+  spectreWarningTextContainer: {
+    alignItems: 'center',
+  },
+  spectreWarningTitle: {
+    fontSize: 16,
+    fontWeight: '600',
+    color: COLORS.VERY_LIGHT_GRAY,
+    fontFamily: 'CabinetGrotesk-Bold',
+    marginBottom: 4,
+    textAlign: 'center',
+  },
+  spectreWarningText: {
+    fontSize: 13,
+    lineHeight: 18,
+    color: COLORS.SECONDARY_TEXT,
+    fontFamily: 'CabinetGrotesk-Regular',
+    textAlign: 'center',
   },
 });

@@ -1,6 +1,8 @@
 import * as crypto from 'expo-crypto';
 import { Buffer } from 'buffer';
 import { schnorr } from '@noble/secp256k1';
+import * as ecc from '@bitcoinerlab/secp256k1';
+import { createHash } from 'react-native-quick-crypto';
 import { logger } from '../../utils/logger';
 
 /**
@@ -108,13 +110,33 @@ export const signP2PKSecret = async (secret, privateKey) => {
   try {
     // Hash the secret (message to sign)
     const messageBytes = Buffer.from(secret, 'utf-8');
-    const messageHash = await crypto.digest(
-      crypto.CryptoDigestAlgorithm.SHA256,
-      messageBytes
-    );
+    const messageHash = createHash('sha256').update(messageBytes).digest();
 
-    // Sign with Schnorr
-    const signature = await schnorr.sign(messageHash, privateKey);
+    // Convert private key to Buffer if needed
+    const privateKeyBuffer = typeof privateKey === 'string'
+      ? Buffer.from(privateKey, 'hex')
+      : privateKey;
+
+    // Debug logging
+    logger.info('About to sign with Schnorr', {
+      messageHashLength: messageHash.length,
+      privateKeyLength: privateKeyBuffer.length,
+      messageHashHex: messageHash.toString('hex').substring(0, 32) + '...',
+      privateKeyHex: privateKeyBuffer.toString('hex').substring(0, 32) + '...',
+    });
+
+    // Ensure both are proper Buffers and correct length
+    if (messageHash.length !== 32) {
+      throw new Error(`Invalid message hash length: ${messageHash.length}, expected 32`);
+    }
+    if (privateKeyBuffer.length !== 32) {
+      throw new Error(`Invalid private key length: ${privateKeyBuffer.length}, expected 32`);
+    }
+
+    // Sign with Schnorr using @bitcoinerlab/secp256k1
+    logger.info('Calling ecc.signSchnorr...');
+    const signature = ecc.signSchnorr(messageHash, privateKeyBuffer);
+    logger.info('ecc.signSchnorr completed successfully');
     const signatureHex = Buffer.from(signature).toString('hex');
 
     // Create witness structure

@@ -21,6 +21,7 @@ export default function ReviewScreen({ navigation, route }) {
   const isSpectre = route?.params?.isSpectre === true;
   const mintQuoteId = route?.params?.mintQuoteId;
   const mintAmount = route?.params?.mintAmount;
+  const spectreRecipient = route?.params?.spectreRecipient;
   const {
     sendIntent,
     btcPrice,
@@ -57,6 +58,7 @@ export default function ReviewScreen({ navigation, route }) {
       isSpectre,
       mintQuoteId,
       mintAmount,
+      spectreRecipient,
     });
   };
 

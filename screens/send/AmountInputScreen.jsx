@@ -3,13 +3,14 @@
  * Features: MAX button, USD conversion, dynamic font sizing
  */
 
-import React, { useEffect, useRef } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import {
   Text,
   View,
   TouchableOpacity,
   TextInput,
   StyleSheet,
+  Alert,
 } from 'react-native';
 import { COLORS } from '../../theme';
 import Icon from '../../components/icons';
@@ -23,9 +24,11 @@ import { useTransactionBuild } from '../../contexts/TransactionBuildContext';
 import { useKeyboard } from '../../hooks/useKeyboard';
 import { useAmountInput } from '../../hooks/useAmountInput';
 import { RecipientHeader, BalanceMaxButton } from '../../components/amountInput';
+import { requestMint } from '../../services/cashu/cashuWalletService';
 
 export default function AmountInputScreen({ navigation, route }) {
-  const { sendAssetType, sendAmount, setSendAmount, sendRecipient, sendAddressType } = useSendFlow();
+  const { sendAssetType, sendAmount, setSendAmount, sendRecipient, sendAddressType, spectreEnabled, setSendRecipient: setRecipient } = useSendFlow();
+  const [isRequestingMint, setIsRequestingMint] = useState(false);
   const { segwitBalance, taprootBalance, runesBalance } = useBalance();
   const { btcPrice } = usePrice();
   const { wallet } = useWallet();
@@ -102,19 +105,55 @@ export default function AmountInputScreen({ navigation, route }) {
     }
   };
 
-  const handleReview = () => {
-    if (!sendAmount) return;
+  const handleReview = async () => {
+    if (!sendAmount || isRequestingMint) return;
 
     amountInputRef.current?.blur();
 
-    // Navigate to processing screen - the processing screen will handle creating the intent
-    // Pass along Cashu mint params if this is a Cashu mint transaction
-    navigation.navigate('Processing', {
-      fromScreen: 'AmountInput',
-      action: 'create_intent',
-      cashuMint: isCashuMint,
-      quoteId: cashuQuoteId,
-    });
+    // If Spectre mode is enabled for UNIT transfers, request mint quote first
+    if (spectreEnabled && sendAssetType === 'unit') {
+      try {
+        setIsRequestingMint(true);
+
+        // Use display amount directly (e.g., "100" for 100 UNIT)
+        // The mint expects the display amount, not smallest units
+        // The runestone encoding will handle multiplication by 100 later
+        const displayAmount = parseFloat(sendAmount);
+
+        // Request mint quote from Cashu mint
+        const mintQuote = await requestMint(displayAmount);
+
+        // Store the original recipient address (where tokens will be locked)
+        const originalRecipient = sendRecipient;
+
+        // Temporarily update recipient to mint's deposit address
+        setRecipient(mintQuote.depositAddress);
+
+        // Navigate to processing screen with Spectre params
+        navigation.navigate('Processing', {
+          fromScreen: 'AmountInput',
+          action: 'create_intent',
+          isSpectre: true,
+          mintQuoteId: mintQuote.quoteId,
+          mintAmount: displayAmount,
+          spectreRecipient: originalRecipient, // Original address for P2PK locking
+        });
+      } catch (error) {
+        console.error('Failed to request mint quote:', error);
+        Alert.alert('Error', 'Failed to initiate Spectre transaction. Please try again.');
+      } finally {
+        setIsRequestingMint(false);
+      }
+    } else {
+      // Normal flow - Navigate to processing screen
+      // Pass along Cashu mint params if this is a Cashu mint transaction
+      navigation.navigate('Processing', {
+        fromScreen: 'AmountInput',
+        action: 'create_intent',
+        cashuMint: isCashuMint,
+        quoteId: cashuQuoteId,
+      });
+    }
   };
 
   const usdValue = calculateUsdValue(sendAmount, btcPrice);
@@ -129,7 +168,7 @@ export default function AmountInputScreen({ navigation, route }) {
 
   // Determine if we should show insufficient balance warning
   const hasInsufficientBalance = hasNoUnitBalance || exceedsBalance;
-  const isReviewDisabled = !sendAmount || hasInsufficientBalance;
+  const isReviewDisabled = !sendAmount || hasInsufficientBalance || isRequestingMint;
 
   return (
     <View style={localStyles.container}>

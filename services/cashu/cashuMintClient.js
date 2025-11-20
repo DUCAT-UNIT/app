@@ -9,7 +9,7 @@ import { logger } from '../../utils/logger';
 // Mint server configuration
 const MINT_URL = 'https://cashu-mint.ducatprotocol.com';
 
-const CASHU_UNIT = 'sat'; // Using sats as unit
+const CASHU_UNIT = 'unit'; // Using 'unit' for UNIT runes
 const RUNE_ID = '1527352:1'; // DUCAT•UNIT•RUNE (Mutinynet)
 
 /**

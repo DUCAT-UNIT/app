@@ -16,7 +16,7 @@ export default function SpectreWarning() {
       </View>
       <View style={styles.textContainer}>
         <Text style={styles.warningText}>
-          Spectre mode lets you operate privately. All transactions will be private and untraceable.
+          Spectre mode lets you operate anonymously. All transactions are private and untraceable.
         </Text>
       </View>
     </View>

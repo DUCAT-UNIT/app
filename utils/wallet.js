@@ -285,3 +285,72 @@ export async function signMessage(address, message) {
     return Buffer.from(signature).toString('hex');
   });
 }
+
+/**
+ * Get private key and x-only pubkey for a Taproot address (for P2PK Cashu tokens)
+ * @param {string} address - Taproot address (tb1p...)
+ * @returns {Promise<Object>} { privateKey: string, xOnlyPubkey: string }
+ */
+export async function getPrivateKeyForAddress(address) {
+  // Get current account index
+  const accountIndex = 0;
+
+  // Use withMnemonic to ensure proper cleanup of sensitive data
+  return await withMnemonic(async (mnemonic) => {
+    // Convert mnemonic to seed
+    const seed = bip39.mnemonicToSeedSync(mnemonic);
+    const root = bip32.fromSeed(seed, MUTINYNET_NETWORK);
+
+    // Determine derivation path based on address type
+    let derivationPath;
+    if (address.startsWith('tb1q')) {
+      derivationPath = `m/84'/1'/0'/0/${accountIndex}`;
+    } else if (address.startsWith('tb1p')) {
+      derivationPath = `m/86'/1'/0'/0/${accountIndex}`;
+    } else {
+      throw new Error(`Unsupported address type: ${address}`);
+    }
+
+    const child = root.derivePath(derivationPath);
+
+    // Debug logging
+    console.log('[getPrivateKeyForAddress] Derived child key:', {
+      hasPrivateKey: !!child.privateKey,
+      privateKeyLength: child.privateKey?.length,
+      publicKeyLength: child.publicKey?.length,
+      derivationPath,
+    });
+
+    // Ensure privateKey exists and is correct length
+    if (!child.privateKey || child.privateKey.length !== 32) {
+      throw new Error(`Invalid private key derived: length ${child.privateKey?.length || 0}, expected 32`);
+    }
+
+    // For Taproot, extract x-only pubkey and compute tweaked keys
+    const xOnlyPubkey = Buffer.from(child.publicKey.slice(1, 33));
+
+    // Compute the OUTPUT key that matches the address
+    const tweakedSigner = child.tweak(
+      bitcoin.crypto.taggedHash('TapTweak', xOnlyPubkey)
+    );
+
+    // Get the tweaked public key (OUTPUT key)
+    const tweakedPubkey = tweakedSigner.publicKey.slice(1, 33);
+    const outputKeyHex = Buffer.from(tweakedPubkey).toString('hex');
+
+    // Get the tweaked private key
+    const tweakedPrivkeyHex = Buffer.from(tweakedSigner.privateKey).toString('hex');
+
+    console.log('[getPrivateKeyForAddress] Computed tweaked keys:', {
+      internalPubkey: xOnlyPubkey.toString('hex').substring(0, 16) + '...',
+      outputPubkey: outputKeyHex.substring(0, 16) + '...',
+      tweakedPrivkeyLength: tweakedPrivkeyHex.length,
+    });
+
+    // Return tweaked private key and output public key
+    return {
+      privateKey: tweakedPrivkeyHex,
+      xOnlyPubkey: outputKeyHex  // This is the OUTPUT key that matches the address
+    };
+  });
+}

@@ -165,27 +165,49 @@ function AssetDetailScreen({ route = {}, navigation }) {
 
               while (!txFound && attempts < maxAttempts) {
                 attempts++;
+                console.log(`[Fuse] Polling attempt ${attempts}/${maxAttempts} for transaction...`);
                 await new Promise(resolve => setTimeout(resolve, 2000)); // Wait 2 seconds
 
                 // Refresh transaction history
                 await fetchTransactionHistory();
 
-                // Check if we can find a recent transaction to our taproot address
-                // The transaction should be within the last minute
-                const recentTxs = transactionHistory.filter(tx => {
-                  const txTime = tx.status?.block_time || 0;
-                  const now = Math.floor(Date.now() / 1000);
-                  return (now - txTime) < 120; // Within last 2 minutes
-                });
+                console.log(`[Fuse] Checking ${transactionHistory.length} transactions`);
 
                 // Look for a transaction that includes our taproot address in outputs
-                txFound = recentTxs.some(tx =>
-                  tx.vout?.some(output => output.scriptpubkey_address === taprootAddress)
-                );
+                // Check ALL transactions, not just recent ones, because new transactions
+                // may not have a block_time yet if they're still in mempool
+                txFound = transactionHistory.some(tx => {
+                  // Must have outputs to our taproot address
+                  const hasOurAddress = tx.vout?.some(output =>
+                    output.scriptpubkey_address === taprootAddress
+                  );
+
+                  if (!hasOurAddress) return false;
+
+                  // Accept if either:
+                  // 1. Transaction has no block_time (mempool/unconfirmed)
+                  // 2. Transaction was confirmed within last 2 minutes
+                  const txTime = tx.status?.block_time;
+                  if (!txTime) {
+                    // Unconfirmed transaction in mempool - this is what we're looking for!
+                    console.log(`[Fuse] Found unconfirmed transaction: ${tx.txid}`);
+                    return true;
+                  }
+
+                  // For confirmed transactions, check if recent
+                  const now = Math.floor(Date.now() / 1000);
+                  const isRecent = (now - txTime) < 120;
+                  if (isRecent) {
+                    console.log(`[Fuse] Found recent confirmed transaction: ${tx.txid}`);
+                  }
+                  return isRecent;
+                });
 
                 if (txFound) {
+                  console.log('[Fuse] Transaction found! Cleaning up proofs...');
                   // Transaction found! Now we can safely remove the proofs
                   await cleanupMeltProofs(meltResult.proofsToRemove, meltResult.changeProofs);
+                  console.log('[Fuse] Proofs cleaned up successfully');
                   break;
                 }
               }
@@ -194,19 +216,22 @@ function AssetDetailScreen({ route = {}, navigation }) {
                 await fetchTransactionHistory();
                 Alert.alert('Success', 'E-cash successfully fused to on-chain UNIT!');
               } else {
+                console.log('[Fuse] Transaction not found after 60s - cleaning up proofs anyway');
+                // Clean up proofs even if transaction not visible yet
+                // The melt succeeded with the mint, so proofs are already spent
+                try {
+                  await cleanupMeltProofs(meltResult.proofsToRemove, meltResult.changeProofs);
+                  console.log('[Fuse] Proofs cleaned up after timeout');
+                } catch (cleanupError) {
+                  console.error('[Fuse] Failed to cleanup proofs:', cleanupError);
+                  Alert.alert('Error', `Cleanup failed: ${cleanupError.message}`);
+                  return;
+                }
+
+                await fetchTransactionHistory();
                 Alert.alert(
                   'Pending',
-                  'Melt completed but transaction not yet visible. Your proofs are safe and will be cleaned up when the transaction appears.',
-                  [
-                    {
-                      text: 'OK',
-                      onPress: async () => {
-                        // Clean up proofs anyway after user acknowledges
-                        await cleanupMeltProofs(meltResult.proofsToRemove, meltResult.changeProofs);
-                        await fetchTransactionHistory();
-                      }
-                    }
-                  ]
+                  'Melt completed successfully. Transaction will appear on-chain shortly.'
                 );
               }
             } catch (error) {
@@ -265,6 +290,72 @@ function AssetDetailScreen({ route = {}, navigation }) {
   // Handle recovery button
   const handleRecoverMint = () => {
     navigation.navigate('RecoverMint');
+  };
+
+  // Handle redeem Cashu token
+  const handleRedeemToken = () => {
+    Alert.prompt(
+      'Redeem Cashu Token',
+      'Paste your Cashu token to redeem:',
+      [
+        {
+          text: 'Cancel',
+          style: 'cancel',
+        },
+        {
+          text: 'Redeem',
+          onPress: async (tokenString) => {
+            if (!tokenString || !tokenString.trim()) {
+              Alert.alert('Error', 'Please enter a valid token');
+              return;
+            }
+
+            try {
+              // Check if token contains P2PK-locked proofs
+              const { decodeToken } = await import('../../services/cashu/cashuCrypto');
+              const { isP2PKSecret } = await import('../../services/cashu/cashuP2PK');
+              const { proofs } = decodeToken(tokenString.trim());
+
+              const hasP2PKProofs = proofs.some(p => isP2PKSecret(p.secret));
+
+              if (hasP2PKProofs) {
+                // Token is P2PK-locked, get private key from wallet
+                const taprootAddress = taprootAddressRef.current;
+                if (!taprootAddress) {
+                  Alert.alert('Error', 'Taproot address not available');
+                  return;
+                }
+
+                // Get private key and x-only pubkey for the taproot address
+                const { getPrivateKeyForAddress } = await import('../../utils/wallet');
+                const { privateKey } = await getPrivateKeyForAddress(taprootAddress);
+
+                console.log('[AssetDetailScreen] Got private key:', {
+                  privateKeyLength: privateKey?.length,
+                  privateKeyPreview: privateKey?.substring(0, 16) + '...',
+                  privateKeyType: typeof privateKey,
+                });
+
+                // Redeem P2PK token with private key
+                const { receiveP2PKToken } = await import('../../services/cashu/cashuWalletService');
+                await receiveP2PKToken(tokenString.trim(), privateKey);
+                await fetchTransactionHistory();
+                Alert.alert('Success', 'P2PK token redeemed successfully!');
+              } else {
+                // Regular token, redeem directly
+                const { receiveToken } = await import('../../services/cashu/cashuWalletService');
+                await receiveToken(tokenString.trim());
+                await fetchTransactionHistory();
+                Alert.alert('Success', 'Token redeemed successfully!');
+              }
+            } catch (error) {
+              Alert.alert('Error', `Failed to redeem token: ${error.message}`);
+            }
+          },
+        },
+      ],
+      'plain-text'
+    );
   };
 
   // Open transaction in blockchain explorer
@@ -336,7 +427,7 @@ function AssetDetailScreen({ route = {}, navigation }) {
 
           {/* Temporary Recover Mint Button */}
           {assetType === 'UNIT' && (
-            <View style={{ paddingHorizontal: 20, paddingVertical: 12 }}>
+            <View style={{ paddingHorizontal: 20, paddingVertical: 12, gap: 12 }}>
               <TouchableOpacity
                 style={{
                   backgroundColor: COLORS.WARNING_ORANGE,
@@ -348,6 +439,20 @@ function AssetDetailScreen({ route = {}, navigation }) {
               >
                 <Text style={{ color: COLORS.WHITE, fontWeight: '600' }}>
                   Recover Failed Mint (Temporary)
+                </Text>
+              </TouchableOpacity>
+
+              <TouchableOpacity
+                style={{
+                  backgroundColor: COLORS.PRIMARY_BLUE,
+                  borderRadius: 8,
+                  padding: 12,
+                  alignItems: 'center',
+                }}
+                onPress={handleRedeemToken}
+              >
+                <Text style={{ color: COLORS.WHITE, fontWeight: '600' }}>
+                  Redeem Cashu Token
                 </Text>
               </TouchableOpacity>
             </View>

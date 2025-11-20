@@ -342,7 +342,9 @@ export const receiveToken = async (tokenString) => {
     }
 
     // Create new blinded outputs for the same amounts
-    const amounts = splitAmount(amount);
+    // Use the actual sum in smallest units, not the display amount
+    const totalSmallestUnits = proofs.reduce((sum, proof) => sum + proof.amount, 0);
+    const amounts = splitAmount(totalSmallestUnits);
     const { outputs, blindingData } = await createBlindedOutputs(amounts, keysetId);
 
     // Swap: give received proofs, get new proofs
@@ -764,11 +766,19 @@ export const sendP2PKToken = async (amount, recipientPubkey, options = {}) => {
     logger.info('Sending P2PK locked token', { amount, recipientPubkey: recipientPubkey.substring(0, 16) + '...' });
 
     const { createP2PKSecret } = await import('./cashuP2PK.js');
+    const { generateSecret } = await import('./cashuCrypto.js');
 
     // Select proofs
     const allProofs = await loadProofs();
     const selectedProofs = selectProofsForAmount(allProofs, amount);
-    const selectedAmount = sumProofs(selectedProofs);
+    // Get total in smallest units (don't use sumProofs which divides by 100)
+    const selectedAmount = selectedProofs.reduce((sum, proof) => sum + proof.amount, 0);
+
+    logger.info('Selected proofs for P2PK token', {
+      requested: amount,
+      selected: selectedAmount,
+      proofCount: selectedProofs.length,
+    });
 
     // Get keys
     const keyData = await getOrFetchKeys();
@@ -793,6 +803,7 @@ export const sendP2PKToken = async (amount, recipientPubkey, options = {}) => {
     let changeSecrets = [];
     if (selectedAmount > amount) {
       const changeAmount = selectedAmount - amount;
+      logger.info('Creating change for P2PK token', { changeAmount });
       const changeAmounts = splitAmount(changeAmount);
 
       for (const amt of changeAmounts) {
@@ -855,7 +866,11 @@ export const sendP2PKToken = async (amount, recipientPubkey, options = {}) => {
  */
 export const receiveP2PKToken = async (tokenString, privateKey) => {
   try {
-    logger.info('Receiving P2PK locked token');
+    logger.info('Receiving P2PK locked token', {
+      privateKeyLength: privateKey?.length,
+      privateKeyType: typeof privateKey,
+      privateKeyPreview: typeof privateKey === 'string' ? privateKey.substring(0, 16) + '...' : 'not a string',
+    });
 
     const { signP2PKSecret, isP2PKSecret } = await import('./cashuP2PK.js');
 
@@ -903,7 +918,9 @@ export const receiveP2PKToken = async (tokenString, privateKey) => {
     }
 
     // Swap the P2PK proofs for regular proofs (this will verify the witness)
-    const amounts = splitAmount(amount);
+    // Use the actual sum in smallest units, not the display amount
+    const totalSmallestUnits = signedProofs.reduce((sum, proof) => sum + proof.amount, 0);
+    const amounts = splitAmount(totalSmallestUnits);
     const { outputs, blindingData } = await createBlindedOutputs(amounts, keysetId);
 
     // Swap: give signed P2PK proofs, get regular proofs

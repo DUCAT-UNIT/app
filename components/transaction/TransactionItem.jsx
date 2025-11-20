@@ -126,8 +126,8 @@ function RegularTransactionItem({ tx, styles, onPress }) {
     <TouchableOpacity style={styles.historyTxRow} onPress={onPress} activeOpacity={0.7}>
       {/* Asset Logo */}
       {isSpectreTransaction ? (
-        <View style={localStyles.spectreLogo}>
-          <Icon name="spectre" size={24} color="#1A1A1A" />
+        <View style={localStyles.assetLogo}>
+          <Icon name="spectre" size={40} color="#DDDDDD" />
         </View>
       ) : (
         <View style={localStyles.assetLogo}>
@@ -210,15 +210,6 @@ const localStyles = StyleSheet.create({
     marginRight: 10,
   },
   assetLogo: {
-    marginRight: 10,
-  },
-  spectreLogo: {
-    width: 40,
-    height: 40,
-    borderRadius: 20,
-    backgroundColor: COLORS.YELLOW,
-    justifyContent: 'center',
-    alignItems: 'center',
     marginRight: 10,
   },
   txContentContainer: {
