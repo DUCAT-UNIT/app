@@ -130,6 +130,7 @@ const styles = StyleSheet.create({
   progressBarEcash: {
     borderTopRightRadius: 24,
     borderBottomRightRadius: 24,
+    overflow: 'hidden',
   },
   progressBarRunes: {
     backgroundColor: COLORS.PRIMARY_BLUE,
