@@ -22,8 +22,24 @@ import { useNotifications } from "../contexts/NotificationContext";
 import { useNavigationState } from '../hooks/useNavigationState';
 import { useAppLifecycle } from '../hooks/useAppLifecycle';
 import { useOnboardingFlow } from '../contexts/AuthContext';
+import { useCashu } from '../contexts/CashuContext';
+import { Alert, Linking } from 'react-native';
 
 const Stack = createStackNavigator();
+
+// Linking configuration for deep links
+const linking = {
+  prefixes: ['ducat://', 'https://ducatprotocol.com'],
+  config: {
+    screens: {
+      Main: {
+        screens: {
+          Wallet: 'wallet',
+        },
+      },
+    },
+  },
+};
 
 export default function RootNavigator() {
   // Determine navigation state
@@ -41,12 +57,75 @@ export default function RootNavigator() {
   const { seedConfirmedRef } = useOnboardingFlow();
   const { fetchBalance } = useBalance();
   const { showToast } = useNotifications();
+  const { receive } = useCashu();
 
   // Create wallet exists ref for useAppLifecycle
   const walletExists = React.useRef(false);
   React.useEffect(() => {
     walletExists.current = !!wallet;
   }, [wallet]);
+
+  // Handle deeplink for receiving Cashu tokens
+  React.useEffect(() => {
+    // Handle initial URL (app opened from deeplink)
+    const handleInitialURL = async () => {
+      const url = await Linking.getInitialURL();
+      if (url) {
+        handleDeepLink(url);
+      }
+    };
+
+    // Handle URL events (app already open, deeplink clicked)
+    const subscription = Linking.addEventListener('url', (event) => {
+      handleDeepLink(event.url);
+    });
+
+    handleInitialURL();
+
+    return () => {
+      subscription.remove();
+    };
+  }, [receive, isAuthenticated]);
+
+  // Extract token from URL and call receive
+  const handleDeepLink = React.useCallback(async (url) => {
+    // Only handle deeplinks when authenticated
+    if (!isAuthenticated) {
+      return;
+    }
+
+    try {
+      console.log('[Deeplink] Processing URL:', url);
+
+      // Parse URL: ducat://receive?token=cashuA...
+      // Handle both ducat:// and https:// schemes
+      const match = url.match(/^(?:ducat|https):\/\/(?:ducatprotocol\.com\/)?receive\?token=(.+)$/);
+
+      if (match && match[1]) {
+        const token = decodeURIComponent(match[1]);
+
+        console.log('[Deeplink] Receiving token from deeplink');
+
+        try {
+          const result = await receive(token);
+          Alert.alert(
+            'Token Received!',
+            `Successfully received ${result.amount} UNIT`,
+            [{ text: 'OK' }]
+          );
+        } catch (error) {
+          console.error('[Deeplink] Failed to receive token:', error);
+          Alert.alert(
+            'Error',
+            error.message || 'Failed to receive token',
+            [{ text: 'OK' }]
+          );
+        }
+      }
+    } catch (error) {
+      console.error('[Deeplink] Failed to process URL:', error);
+    }
+  }, [receive, isAuthenticated]);
 
   // Handle lock/unlock
   const handleLock = React.useCallback(() => {
@@ -89,7 +168,7 @@ export default function RootNavigator() {
         return false; // Don't capture the touch, let it propagate
       }}
     >
-      <NavigationContainer>
+      <NavigationContainer linking={linking}>
         <Stack.Navigator
           screenOptions={{
             headerShown: false,

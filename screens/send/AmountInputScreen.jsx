@@ -110,16 +110,55 @@ export default function AmountInputScreen({ navigation, route }) {
 
     amountInputRef.current?.blur();
 
-    // If Spectre mode is enabled for UNIT transfers, request mint quote first
+    // If Spectre mode is enabled for UNIT transfers, check if we have enough ecash first
     if (spectreEnabled && sendAssetType === 'unit') {
       try {
         setIsRequestingMint(true);
 
         // Use display amount directly (e.g., "100" for 100 UNIT)
-        // The mint expects the display amount, not smallest units
-        // The runestone encoding will handle multiplication by 100 later
         const displayAmount = parseFloat(sendAmount);
+        const amountInSmallestUnits = displayAmount * 100;
 
+        // Check current ecash balance
+        const { getBalance } = await import('../../services/cashu/cashuWalletService');
+        const ecashBalance = await getBalance();
+        const ecashBalanceSmallestUnits = ecashBalance * 100;
+
+        console.log('[AmountInputScreen] Spectre mode - checking balance:', {
+          requested: displayAmount,
+          ecashBalance,
+          hasEnough: ecashBalanceSmallestUnits >= amountInSmallestUnits,
+        });
+
+        // If we have enough ecash, skip minting and create P2PK token directly
+        if (ecashBalanceSmallestUnits >= amountInSmallestUnits) {
+          console.log('[AmountInputScreen] ✅ Sufficient ecash balance - skipping mint, creating P2PK token directly');
+
+          const { sendP2PKToken } = await import('../../services/cashu/cashuWalletService');
+          const { extractPubkeyFromTaprootAddress } = await import('../../utils/bitcoin');
+
+          // Extract recipient's pubkey
+          const recipientPubkey = extractPubkeyFromTaprootAddress(sendRecipient);
+
+          // Create P2PK locked token
+          const { token } = await sendP2PKToken(amountInSmallestUnits, recipientPubkey);
+
+          setIsRequestingMint(false);
+
+          // Navigate directly to confirmation with the token (no on-chain tx needed)
+          navigation.navigate('Confirmation', {
+            isSpectre: true,
+            spectreRecipient: sendRecipient,
+            spectreToken: token,
+            spectreAmount: amountInSmallestUnits,
+            skipMint: true, // Flag to indicate we skipped the mint
+          });
+
+          return;
+        }
+
+        // Not enough ecash - proceed with normal mint flow
+        console.log('[AmountInputScreen] ⚠️ Insufficient ecash balance - proceeding with mint flow');
         console.log('[AmountInputScreen] Requesting mint quote for amount:', displayAmount);
 
         // Request mint quote from Cashu mint

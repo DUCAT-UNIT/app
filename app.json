@@ -7,6 +7,7 @@
     "icon": "./assets/logos/icon.png",
     "userInterfaceStyle": "light",
     "newArchEnabled": true,
+    "scheme": "ducat",
     "splash": {
       "image": "./assets/logos/ducat-logo.png",
       "resizeMode": "contain",

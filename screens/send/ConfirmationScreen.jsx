@@ -4,7 +4,7 @@
  */
 
 import React, { useEffect, useState, useRef } from 'react';
-import { Text, View, TouchableOpacity, Linking, StyleSheet, Alert, ActivityIndicator, ScrollView } from 'react-native';
+import { Text, View, TouchableOpacity, Linking, StyleSheet, Alert, ActivityIndicator } from 'react-native';
 import * as Clipboard from 'expo-clipboard';
 import { COLORS } from '../../theme';
 import Icon from '../../components/icons';
@@ -19,8 +19,9 @@ export default function ConfirmationScreen({ navigation, route }) {
   const mintQuoteId = route?.params?.mintQuoteId;
   const mintAmount = route?.params?.mintAmount;
   const spectreRecipient = route?.params?.spectreRecipient; // Original recipient address for P2PK locking
+  const skipMint = route?.params?.skipMint === true; // If true, token was created directly from ecash
   const [isCompletingMint, setIsCompletingMint] = useState(false);
-  const [spectreToken, setSpectreToken] = useState(null); // Store the P2PK locked token
+  const [spectreToken, setSpectreToken] = useState(route?.params?.spectreToken || null); // Store the P2PK locked token
   const hasMintCompleted = useRef(false);
 
   // Log all route params on mount for debugging
@@ -60,8 +61,15 @@ export default function ConfirmationScreen({ navigation, route }) {
       isSpectre,
       mintQuoteId,
       mintAmount,
+      skipMint,
       hasMintCompleted: hasMintCompleted.current
     });
+
+    // Skip mint polling if token was created directly from ecash
+    if (skipMint) {
+      console.log('[ConfirmationScreen] Token created directly from ecash - skipping mint flow');
+      return;
+    }
 
     // Only proceed if this is a Spectre flow with all required params
     if (!isSpectre) {
@@ -225,10 +233,27 @@ export default function ConfirmationScreen({ navigation, route }) {
     }
   };
 
-  const handleCopyToken = async () => {
+  const handleOpenToken = async () => {
     if (spectreToken) {
-      await Clipboard.setStringAsync(spectreToken);
-      Alert.alert('Copied', 'Token copied to clipboard');
+      try {
+        // Create deeplink URL with token parameter
+        const deeplinkUrl = `ducat://receive?token=${encodeURIComponent(spectreToken)}`;
+
+        console.log('[ConfirmationScreen] Opening deeplink for token reception');
+
+        // Open the deeplink - this will trigger the app to receive the token
+        const supported = await Linking.canOpenURL(deeplinkUrl);
+        if (supported) {
+          await Linking.openURL(deeplinkUrl);
+        } else {
+          // Fallback: copy to clipboard if deeplink not supported
+          await Clipboard.setStringAsync(spectreToken);
+          Alert.alert('Token Copied', 'Deeplink not supported. Token copied to clipboard instead.');
+        }
+      } catch (error) {
+        console.error('[ConfirmationScreen] Failed to open deeplink:', error);
+        Alert.alert('Error', 'Failed to open token. Please try again.');
+      }
     }
   };
 
@@ -255,12 +280,14 @@ export default function ConfirmationScreen({ navigation, route }) {
         </View>
 
         <Text style={localStyles.title}>
-          {isCompletingMint ? 'Converting to eUNIT...' : 'Transaction Sent'}
+          {isCompletingMint ? 'Converting to eUNIT...' : (skipMint ? 'Token Created' : 'Transaction Sent')}
         </Text>
         <Text style={localStyles.subtitle}>
           {isCompletingMint
             ? 'Waiting for payment confirmation and minting e-cash tokens...'
-            : 'Your transaction has been successfully broadcast to the network'
+            : (skipMint
+              ? 'Your Spectre token has been created from ecash balance and is ready to send'
+              : 'Your transaction has been successfully broadcast to the network')
           }
         </Text>
 
@@ -272,29 +299,27 @@ export default function ConfirmationScreen({ navigation, route }) {
           />
         )}
 
-        {/* Spectre Token Display */}
+        {/* Spectre Token Action */}
         {spectreToken && (
           <View style={localStyles.tokenContainer}>
-            <Text style={localStyles.tokenLabel}>Cashu Token</Text>
-            <ScrollView
-              style={localStyles.tokenScrollView}
-              contentContainerStyle={localStyles.tokenScrollContent}
-            >
-              <Text style={localStyles.tokenText} selectable>{spectreToken}</Text>
-            </ScrollView>
+            <Icon name="qr_code" size={48} color={COLORS.YELLOW} style={{ marginBottom: 16 }} />
+            <Text style={localStyles.tokenLabel}>Spectre Token Ready</Text>
+            <Text style={localStyles.tokenDescription}>
+              Tap the button below to automatically receive this token into your wallet
+            </Text>
             <TouchableOpacity
-              style={localStyles.copyButton}
-              onPress={handleCopyToken}
+              style={localStyles.receiveButton}
+              onPress={handleOpenToken}
               activeOpacity={0.7}
             >
-              <Icon name="paste" size={18} color={COLORS.WHITE} />
-              <Text style={localStyles.copyButtonText}>Copy Token</Text>
+              <Icon name="arrow_down" size={18} color={COLORS.WHITE} />
+              <Text style={localStyles.receiveButtonText}>Receive Token</Text>
             </TouchableOpacity>
           </View>
         )}
 
         {/* View Explorer Button */}
-        {!spectreToken && (
+        {!spectreToken && !skipMint && (
           <TouchableOpacity
             style={localStyles.explorerButton}
             activeOpacity={0.7}
@@ -388,47 +413,42 @@ const localStyles = StyleSheet.create({
   tokenContainer: {
     width: '100%',
     backgroundColor: COLORS.YELLOW + '15',
-    borderRadius: 12,
-    padding: 16,
+    borderRadius: 16,
+    padding: 24,
     borderWidth: 1,
     borderColor: COLORS.YELLOW + '25',
     marginTop: 20,
+    alignItems: 'center',
   },
   tokenLabel: {
-    fontSize: 14,
-    fontWeight: '600',
+    fontSize: 18,
+    fontWeight: '700',
     color: COLORS.VERY_LIGHT_GRAY,
     fontFamily: 'CabinetGrotesk-Bold',
     marginBottom: 8,
+    textAlign: 'center',
   },
-  tokenScrollView: {
-    maxHeight: 150,
-    backgroundColor: COLORS.DARK_BG,
-    borderRadius: 8,
-    padding: 12,
-    marginBottom: 12,
+  tokenDescription: {
+    fontSize: 14,
+    color: COLORS.SECONDARY_TEXT,
+    fontFamily: 'CabinetGrotesk-Regular',
+    textAlign: 'center',
+    lineHeight: 20,
+    marginBottom: 20,
   },
-  tokenScrollContent: {
-    flexGrow: 1,
-  },
-  tokenText: {
-    fontSize: 12,
-    color: COLORS.VERY_LIGHT_GRAY,
-    fontFamily: 'Courier',
-    lineHeight: 18,
-  },
-  copyButton: {
+  receiveButton: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
     backgroundColor: COLORS.PRIMARY_BLUE,
-    borderRadius: 8,
-    paddingVertical: 12,
-    paddingHorizontal: 16,
+    borderRadius: 12,
+    paddingVertical: 14,
+    paddingHorizontal: 24,
     gap: 8,
+    width: '100%',
   },
-  copyButtonText: {
-    fontSize: 14,
+  receiveButtonText: {
+    fontSize: 16,
     fontWeight: '600',
     color: COLORS.WHITE,
     fontFamily: 'CabinetGrotesk-Bold',
