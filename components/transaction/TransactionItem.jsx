@@ -44,7 +44,10 @@ function VaultAmountDisplay({ vaultData, action, styles }) {
       <View style={styles.balanceWithIcon}>
         <Icon name="unit_symbol" size={12} color={color} style={styles.assetAmountIcon} />
         <Text style={[styles.assetAmount, { color }]}>
-          {(vaultData.unitAmount / 100).toLocaleString('en-US')}
+          {(vaultData.unitAmount / 100).toLocaleString('en-US', {
+            minimumFractionDigits: 2,
+            maximumFractionDigits: 2,
+          })}
         </Text>
       </View>
     );
@@ -159,7 +162,10 @@ function RegularTransactionItem({ tx, styles, onPress }) {
                     ]}
                   >
                     {assetType === 'UNIT'
-                      ? (Math.abs(numericAmount) / 100).toLocaleString('en-US')
+                      ? (Math.abs(numericAmount) / 100).toLocaleString('en-US', {
+                          minimumFractionDigits: 2,
+                          maximumFractionDigits: 2,
+                        })
                       : (Math.abs(numericAmount) / 100000000).toLocaleString('en-US', {
                           minimumFractionDigits: 8,
                           maximumFractionDigits: 8,

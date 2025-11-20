@@ -170,7 +170,10 @@ const WalletScreen = React.memo(function WalletScreen({
           amountValue={(() => {
             const runesAmount = runesBalance.length > 0 ? parseFloat(runesBalance[0][1]) : 0;
             const totalUnit = runesAmount + cashuBalance;
-            return totalUnit.toLocaleString('en-US');
+            return totalUnit.toLocaleString('en-US', {
+              minimumFractionDigits: 2,
+              maximumFractionDigits: 2,
+            });
           })()}
           displayInBTC={showTotalInBTC}
           btcValue={(() => {

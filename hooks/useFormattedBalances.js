@@ -29,11 +29,11 @@ export const useFormattedBalances = ({
         maximumFractionDigits: 2,
       });
 
-    // Format integer amounts (for runes)
-    const formatInteger = (value) =>
+    // Format UNIT amounts (runes) with at least 2 decimal places
+    const formatUnit = (value) =>
       value.toLocaleString('en-US', {
-        minimumFractionDigits: 0,
-        maximumFractionDigits: 0,
+        minimumFractionDigits: 2,
+        maximumFractionDigits: 2,
       });
 
     return {
@@ -50,7 +50,7 @@ export const useFormattedBalances = ({
       taprootUSD: formatUSD(taprootBalance * btcPrice),
 
       // Runes balance formatted
-      runes: formatInteger(runesBalance),
+      runes: formatUnit(runesBalance),
     };
   }, [totalBalanceBTC, totalBalanceUSD, segwitBalance, taprootBalance, runesBalance, btcPrice]);
 };

@@ -10,11 +10,11 @@ import { COLORS } from '../../theme';
 import { formatBalance, formatFiat } from '../../utils/formatters/index';
 
 export function AssetInfo({ assetType, balance, fiatValue, btcPrice, priceData, priceDirection, runesBalance, cashuBalance }) {
-  // For UNIT, show the actual UNIT amount with commas (no decimals)
-  // For BTC, show the BTC value with decimals
+  // For UNIT, show the actual UNIT amount with commas and 2 decimals
+  // For BTC, show the BTC value with 8 decimals
   const displayBalance = assetType === 'BTC'
     ? formatBalance(balance || 0)
-    : formatFiat(balance || 0, 0);
+    : formatFiat(balance || 0, 2);
 
   return (
     <View style={styles.assetInfoContainer}>

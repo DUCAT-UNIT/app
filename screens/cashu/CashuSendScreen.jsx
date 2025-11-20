@@ -146,7 +146,10 @@ export default function CashuSendScreen({ navigation, route }) {
           <Text style={styles.balanceLabel}>Available Balance</Text>
           <View style={styles.balanceRow}>
             <Icon name="unit_symbol" size={16} color={COLORS.PRIMARY_BLUE} />
-            <Text style={styles.balanceValue}>{balance.toLocaleString()}</Text>
+            <Text style={styles.balanceValue}>{balance.toLocaleString('en-US', {
+              minimumFractionDigits: 2,
+              maximumFractionDigits: 2,
+            })}</Text>
             <Text style={styles.balanceUnit}>sats</Text>
           </View>
         </View>
@@ -251,7 +254,10 @@ export default function CashuSendScreen({ navigation, route }) {
             <Text style={styles.balanceLabel}>Available Balance</Text>
             <View style={styles.balanceRow}>
               <Icon name="unit_symbol" size={16} color={COLORS.PRIMARY_BLUE} />
-              <Text style={styles.balanceValue}>{balance.toLocaleString()}</Text>
+              <Text style={styles.balanceValue}>{balance.toLocaleString('en-US', {
+                minimumFractionDigits: 2,
+                maximumFractionDigits: 2,
+              })}</Text>
             </View>
           </View>
 
@@ -360,7 +366,10 @@ export default function CashuSendScreen({ navigation, route }) {
             <Text style={styles.balanceLabel}>Available Balance</Text>
             <View style={styles.balanceRow}>
               <Icon name="unit_symbol" size={16} color={COLORS.PRIMARY_BLUE} />
-              <Text style={styles.balanceValue}>{balance.toLocaleString()}</Text>
+              <Text style={styles.balanceValue}>{balance.toLocaleString('en-US', {
+                minimumFractionDigits: 2,
+                maximumFractionDigits: 2,
+              })}</Text>
             </View>
           </View>
 
