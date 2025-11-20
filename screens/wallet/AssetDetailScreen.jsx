@@ -64,8 +64,7 @@ function AssetDetailScreen({ route = {}, navigation }) {
   // For UNIT, combine runesBalance + cashuBalance
   const unitRunesAmount = runesBalance && runesBalance.length > 0 ? parseFloat(runesBalance[0][1]) : 0;
   const totalUnitAmount = unitRunesAmount + cashuBalance;
-  // UNIT uses divisibility of 2, so divide by 100 for display value
-  const balance = assetType === 'BTC' ? segwitBalance : totalUnitAmount / 100;
+  const balance = assetType === 'BTC' ? segwitBalance : totalUnitAmount;
   const fiatValue = assetType === 'BTC' ? balance * btcPrice : balance * 1;
 
   // Extract stable wallet addresses using refs to prevent re-renders
@@ -277,8 +276,8 @@ function AssetDetailScreen({ route = {}, navigation }) {
           {/* Show balance breakdown for UNIT */}
           {assetType === 'UNIT' && (
             <UnitBalanceBreakdown
-              ecashBalance={cashuBalance / 100}
-              runesBalance={unitRunesAmount / 100}
+              ecashBalance={cashuBalance}
+              runesBalance={unitRunesAmount}
             />
           )}
 
