@@ -16,7 +16,6 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import * as Clipboard from 'expo-clipboard';
 import { COLORS } from '../../theme';
 import Icon from '../../components/icons';
-import { encodeCashuToken } from '../../utils/emojiEncoder';
 
 const SCREEN_WIDTH = Dimensions.get('window').width;
 const HORIZONTAL_PADDING = SCREEN_WIDTH < 375 ? 16 : 20;
@@ -25,12 +24,18 @@ export default function SpectreQRCodeScreen({ navigation, route }) {
   const { deeplink, amount } = route.params;
   const [justCopied, setJustCopied] = useState(false);
 
-  // Extract token from deeplink and encode to emoji
+  // Extract emoji token from deeplink
   const emojiToken = useMemo(() => {
     try {
-      return encodeCashuToken(deeplink);
+      // Parse the deeplink to extract the emoji token parameter
+      const url = new URL(deeplink);
+      const token = url.searchParams.get('token');
+      if (!token) {
+        throw new Error('No token parameter found in deeplink');
+      }
+      return decodeURIComponent(token);
     } catch (error) {
-      console.error('[SpectreQRCode] Failed to encode token:', error);
+      console.error('[SpectreQRCode] Failed to extract emoji token:', error);
       return null;
     }
   }, [deeplink]);

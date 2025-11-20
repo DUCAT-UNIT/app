@@ -101,33 +101,17 @@ export const decodeFromEmoji = (emojiString) => {
 
 /**
  * Encode a Cashu token to emoji format
- * @param {string} token - Cashu token string (cashuA...) or deeplink with token parameter
+ * @param {string} token - Cashu token string (cashuA...)
  * @returns {string} Emoji encoded token
  */
 export const encodeCashuToken = (token) => {
   try {
-    let cashuToken = token;
-
-    // If it's a deeplink, extract the token parameter
-    if (token.includes('://') || token.includes('?token=')) {
-      try {
-        const url = new URL(token);
-        cashuToken = url.searchParams.get('token');
-        if (!cashuToken) {
-          throw new Error('No token parameter found in deeplink');
-        }
-      } catch (urlError) {
-        // If URL parsing fails, assume it's just a plain token
-        console.log('[EmojiEncoder] Not a valid URL, treating as plain token');
-      }
-    }
-
     // Extract the base64 part after "cashuA"
-    if (!cashuToken.startsWith('cashuA')) {
+    if (!token.startsWith('cashuA')) {
       throw new Error('Invalid Cashu token format - must start with cashuA');
     }
 
-    const base64Part = cashuToken.substring(6); // Remove "cashuA" prefix
+    const base64Part = token.substring(6); // Remove "cashuA" prefix
     const emojiEncoded = encodeToEmoji(base64Part);
 
     return emojiEncoded;

@@ -5,6 +5,7 @@
 
 import * as SecureStore from 'expo-secure-store';
 import { logger } from '../../utils/logger';
+import { encodeCashuToken } from '../../utils/emojiEncoder';
 
 const SENT_TOKENS_KEY = 'sent_spectre_tokens';
 const MAX_STORED_TOKENS = 100; // Increased from 50
@@ -106,17 +107,20 @@ export const clearSentLockedTokens = async () => {
 };
 
 /**
- * Generate deeplink URL for a locked token
+ * Generate deeplink URL for a locked token with emoji-encoded token
  * @param {string} token - Encoded Cashu token
  * @param {string} recipient - Recipient taproot address
  * @param {number} amount - Amount in smallest units
- * @returns {string} Deeplink URL
+ * @returns {string} Deeplink URL with emoji-encoded token
  */
 export const generateSpectreDeeplink = (token, recipient, amount) => {
-  // Format: spectremobile://receive?token=<token>&address=<address>&amount=<amount>
-  const encodedToken = encodeURIComponent(token);
+  // Encode the cashu token as emoji
+  const emojiToken = encodeCashuToken(token);
+
+  // Format: ducat://spectre?token=😀😃😄&address=<address>&amount=<amount>
+  const encodedToken = encodeURIComponent(emojiToken);
   const encodedAddress = encodeURIComponent(recipient);
-  return `spectremobile://receive?token=${encodedToken}&address=${encodedAddress}&amount=${amount}`;
+  return `ducat://spectre?token=${encodedToken}&address=${encodedAddress}&amount=${amount}`;
 };
 
 /**

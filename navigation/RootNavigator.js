@@ -24,6 +24,7 @@ import { useAppLifecycle } from '../hooks/useAppLifecycle';
 import { useOnboardingFlow } from '../contexts/AuthContext';
 import { useCashu } from '../contexts/CashuContext';
 import { Alert, Linking } from 'react-native';
+import { decodeCashuToken } from '../utils/emojiEncoder';
 
 const Stack = createStackNavigator();
 
@@ -49,11 +50,26 @@ const linking = {
 
     // Helper to extract and store token
     const extractAndStoreToken = (url) => {
-      if (url && url.includes('receive?token=')) {
-        console.log('[Linking] 🎯 Subscribe detected receive URL:', url);
-        const match = url.match(/receive\?token=(.+)$/);
-        if (match && match[1]) {
-          const token = decodeURIComponent(match[1]);
+      if (url && (url.includes('receive?token=') || url.includes('spectre?token='))) {
+        console.log('[Linking] 🎯 Subscribe detected token URL:', url);
+
+        // Extract token parameter from URL
+        const tokenMatch = url.match(/[?&]token=([^&]+)/);
+        if (tokenMatch && tokenMatch[1]) {
+          let token = decodeURIComponent(tokenMatch[1]);
+
+          // If this is a spectre link, the token is emoji-encoded
+          if (url.includes('spectre?token=')) {
+            console.log('[Linking] 👻 Detected Spectre emoji token, decoding...');
+            try {
+              token = decodeCashuToken(token);
+              console.log('[Linking] ✅ Successfully decoded emoji token');
+            } catch (error) {
+              console.error('[Linking] ❌ Failed to decode emoji token:', error);
+              return;
+            }
+          }
+
           if (typeof global !== 'undefined') {
             global.pendingCashuToken = token;
             console.log('[Linking] 💾 Subscribe stored token in global');
