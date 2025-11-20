@@ -54,6 +54,7 @@ const WalletScreen = React.memo(function WalletScreen({
     segwitBalance,
     taprootBalance,
     runesBalance,
+    cashuBalance,
     btcPrice,
     vaultData,
   });

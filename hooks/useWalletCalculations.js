@@ -9,6 +9,7 @@ import { COLORS } from '../theme';
  * @param {number} params.segwitBalance - BTC balance in BTC (not sats)
  * @param {number} params.taprootBalance - BTC balance in taproot address
  * @param {Array} params.runesBalance - Array of runes balances
+ * @param {number} params.cashuBalance - Cashu ecash balance in UNIT
  * @param {number} params.btcPrice - Current BTC price in USD
  * @param {Object} params.vaultData - Vault data from context
  * @returns {Object} Calculated values for display
@@ -17,33 +18,36 @@ export const useWalletCalculations = ({
   segwitBalance = 0,
   _taprootBalance = 0,
   runesBalance = [],
+  cashuBalance = 0,
   btcPrice = 0,
   vaultData = null,
 }) => {
   /**
    * Calculate total balance in BTC
-   * Includes: BTC balance + UNIT value in BTC + DUCAT value in BTC
+   * Includes: BTC balance + UNIT value in BTC + Cashu ecash value in BTC + DUCAT value in BTC
    */
   const totalBalanceBTC = useMemo(() => {
     const btcValue = segwitBalance || 0;
     const unitValue =
       runesBalance.length > 0 ? parseFloat(runesBalance[0][1]) / (btcPrice || 1) : 0;
+    const cashuValue = (cashuBalance || 0) / (btcPrice || 1);
     const ducatValue = 0; // DUCAT value in BTC (currently 0)
 
-    return btcValue + unitValue + ducatValue;
-  }, [segwitBalance, runesBalance, btcPrice]);
+    return btcValue + unitValue + cashuValue + ducatValue;
+  }, [segwitBalance, runesBalance, cashuBalance, btcPrice]);
 
   /**
    * Calculate total balance in USD
-   * Includes: BTC USD value + UNIT USD value + DUCAT USD value
+   * Includes: BTC USD value + UNIT USD value + Cashu ecash USD value + DUCAT USD value
    */
   const totalBalanceUSD = useMemo(() => {
     const btcUsdValue = (segwitBalance || 0) * (btcPrice || 0);
     const unitUsdValue = runesBalance.length > 0 ? parseFloat(runesBalance[0][1]) : 0;
+    const cashuUsdValue = cashuBalance || 0;
     const ducatUsdValue = 0; // DUCAT value in USD (currently 0)
 
-    return btcUsdValue + unitUsdValue + ducatUsdValue;
-  }, [segwitBalance, runesBalance, btcPrice]);
+    return btcUsdValue + unitUsdValue + cashuUsdValue + ducatUsdValue;
+  }, [segwitBalance, runesBalance, cashuBalance, btcPrice]);
 
   /**
    * Calculate vault collateral ratio
