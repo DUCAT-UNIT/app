@@ -519,6 +519,7 @@ export const completeMelt = async (quoteId, totalAmount) => {
 
     // If we have change, swap first
     let proofsToMelt = selectedProofs;
+    let changeProofs = null;
 
     if (selectedAmount > totalAmount) {
       const changeAmount = selectedAmount - totalAmount;
@@ -552,18 +553,28 @@ export const completeMelt = async (quoteId, totalAmount) => {
       );
 
       proofsToMelt = allNewProofs.slice(0, meltAmounts.length);
-      const changeProofs = allNewProofs.slice(meltAmounts.length);
+      changeProofs = allNewProofs.slice(meltAmounts.length);
 
-      // Remove old, add change
-      await removeProofs(selectedProofs);
-      await addProofs(changeProofs);
-    } else {
-      // No change needed, just remove the proofs
-      await removeProofs(selectedProofs);
+      // DON'T remove/add proofs yet - wait for melt confirmation
     }
 
-    // Melt tokens
+    // Melt tokens - this is the critical step that broadcasts the transaction
     const result = await meltTokensAPI(quoteId, proofsToMelt);
+
+    // ONLY NOW that melt succeeded, remove the spent proofs
+    if (changeProofs) {
+      // Had change: remove old proofs, add change
+      await removeProofs(selectedProofs);
+      await addProofs(changeProofs);
+      logger.info('Melt succeeded - removed old proofs and added change', {
+        removedCount: selectedProofs.length,
+        changeCount: changeProofs.length,
+      });
+    } else {
+      // No change: just remove the proofs
+      await removeProofs(selectedProofs);
+      logger.info('Melt succeeded - removed spent proofs', { count: selectedProofs.length });
+    }
 
     const newBalance = await getBalance();
 
