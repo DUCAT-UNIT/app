@@ -25,6 +25,7 @@ import {
   AssetAbout,
   AssetActivityList
 } from '../../components/assetDetail';
+import UnitBalanceBreakdown from '../../components/wallet/UnitBalanceBreakdown';
 import { usePriceChart } from '../../hooks/usePriceChart';
 import { useAssetTransactions } from '../../hooks/useAssetTransactions';
 import { getTxUrl, getOrdTxUrl } from '../../utils/constants';
@@ -165,6 +166,18 @@ function AssetDetailScreen({ route = {}, navigation }) {
           scrollEventThrottle={16}
         >
           {renderAssetInfo()}
+
+          {/* Show balance breakdown for UNIT */}
+          {assetType === 'UNIT' && (
+            <UnitBalanceBreakdown
+              ecashBalance={cashuBalance}
+              runesBalance={unitRunesAmount}
+              onInfoPress={() => {
+                // Optional: Show info modal about E-UNIT vs UNIT
+              }}
+            />
+          )}
+
           {renderActionButtons()}
 
           <AssetPriceChart
