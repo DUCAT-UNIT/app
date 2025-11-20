@@ -162,7 +162,7 @@ function RegularTransactionItem({ tx, styles, onPress }) {
                     ]}
                   >
                     {assetType === 'UNIT'
-                      ? (Math.abs(numericAmount) / 100).toLocaleString('en-US', {
+                      ? (Math.abs(numericAmount) / 10000).toLocaleString('en-US', {
                           minimumFractionDigits: 2,
                           maximumFractionDigits: 2,
                         })
