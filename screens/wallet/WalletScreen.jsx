@@ -162,30 +162,29 @@ const WalletScreen = React.memo(function WalletScreen({
           onPress={() => onAssetPress && onAssetPress('BTC')}
         />
 
-        {/* UNIT•RUNE Card - Clickable for asset detail */}
+        {/* UNIT (Runes + Ecash) Combined Card */}
         <AssetCard
-          assetName="UNIT•RUNE"
+          assetName="UNIT"
           assetLogo="unit_logo"
           amountLabel="unit_symbol"
-          amountValue={runesBalance.length > 0 ? formatted.runes : '0'}
+          amountValue={(() => {
+            const runesAmount = runesBalance.length > 0 ? parseFloat(runesBalance[0][1]) : 0;
+            const totalUnit = runesAmount + cashuBalance;
+            return totalUnit.toLocaleString('en-US');
+          })()}
           displayInBTC={showTotalInBTC}
-          btcValue={unitValueInBTC}
-          usdValue={runesBalance.length > 0 ? parseFloat(runesBalance[0][1]) : 0}
+          btcValue={(() => {
+            const runesAmount = runesBalance.length > 0 ? parseFloat(runesBalance[0][1]) : 0;
+            const totalUnit = runesAmount + cashuBalance;
+            return (totalUnit / 100_000_000).toFixed(8);
+          })()}
+          usdValue={(() => {
+            const runesAmount = runesBalance.length > 0 ? parseFloat(runesBalance[0][1]) : 0;
+            const totalUnit = runesAmount + cashuBalance;
+            return totalUnit;
+          })()}
           styles={styles}
           onPress={() => onAssetPress && onAssetPress('UNIT')}
-        />
-
-        {/* Cashu E-cash Card - Clickable for asset detail */}
-        <AssetCard
-          assetName="Cashu E-cash"
-          assetLogo="unit_logo"
-          amountLabel="unit_symbol"
-          amountValue={cashuBalance.toLocaleString('en-US')}
-          displayInBTC={showTotalInBTC}
-          btcValue={(cashuBalance / 100_000_000).toFixed(8)}
-          usdValue={cashuBalance}
-          styles={styles}
-          onPress={() => onAssetPress && onAssetPress('CASHU')}
         />
 
         {/* DUCAT•RUNE Card - Non-clickable */}

@@ -9,7 +9,7 @@ import Icon from '../icons';
 import { COLORS } from '../../theme';
 import { formatBalance, formatFiat } from '../../utils/formatters/index';
 
-export function AssetInfo({ assetType, balance, fiatValue, btcPrice, priceData, priceDirection }) {
+export function AssetInfo({ assetType, balance, fiatValue, btcPrice, priceData, priceDirection, runesBalance, cashuBalance }) {
   // For UNIT, show the actual UNIT amount with commas (no decimals)
   // For BTC, show the BTC value with decimals
   const displayBalance = assetType === 'BTC'
@@ -34,6 +34,15 @@ export function AssetInfo({ assetType, balance, fiatValue, btcPrice, priceData, 
       <Text style={styles.balanceFiat}>
         ${formatFiat(fiatValue || 0)} USD
       </Text>
+
+      {/* Show breakdown for UNIT */}
+      {assetType === 'UNIT' && (runesBalance > 0 || cashuBalance > 0) && (
+        <View style={styles.breakdownContainer}>
+          <Text style={styles.breakdownText}>
+            Runes: {formatFiat(runesBalance || 0, 0)} • E-cash: {formatFiat(cashuBalance || 0, 0)}
+          </Text>
+        </View>
+      )}
 
       {assetType === 'BTC' && btcPrice && priceData && (
         <Text style={[styles.priceChange, { color: priceDirection.isPositive ? COLORS.SUCCESS_GREEN : COLORS.RED }]}>
@@ -70,5 +79,14 @@ const styles = StyleSheet.create({
   priceChange: {
     fontSize: 16,
     fontWeight: '400',
+  },
+  breakdownContainer: {
+    marginTop: 8,
+    paddingHorizontal: 16,
+  },
+  breakdownText: {
+    fontSize: 14,
+    fontWeight: '400',
+    color: COLORS.SECONDARY_TEXT,
   },
 });
