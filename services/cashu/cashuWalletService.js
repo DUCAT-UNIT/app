@@ -772,12 +772,20 @@ export const sendP2PKToken = async (amount, recipientPubkey, options = {}) => {
   try {
     logger.info('Sending P2PK locked token', { amount, recipientPubkey: recipientPubkey.substring(0, 16) + '...' });
 
-    const { createP2PKSecret } = await import('./cashuP2PK.js');
+    const { createP2PKSecret, isP2PKSecret } = await import('./cashuP2PK.js');
     const { generateSecret } = await import('./cashuCrypto.js');
 
-    // Select proofs
+    // Select proofs - ONLY use unlocked proofs (filter out P2PK locked proofs)
     const allProofs = await loadProofs();
-    const selectedProofs = selectProofsForAmount(allProofs, amount);
+    const unlockedProofs = allProofs.filter(p => !isP2PKSecret(p.secret));
+
+    logger.info('Proof selection for P2PK token', {
+      totalProofs: allProofs.length,
+      unlockedProofs: unlockedProofs.length,
+      lockedProofs: allProofs.length - unlockedProofs.length,
+    });
+
+    const selectedProofs = selectProofsForAmount(unlockedProofs, amount);
     // Get total in smallest units (don't use sumProofs which divides by 100)
     const selectedAmount = selectedProofs.reduce((sum, proof) => sum + proof.amount, 0);
 

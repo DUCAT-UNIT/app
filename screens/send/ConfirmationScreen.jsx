@@ -126,20 +126,14 @@ export default function ConfirmationScreen({ navigation, route }) {
             console.log('[ConfirmationScreen] Balance before P2PK token creation:', balanceBefore);
 
             // For P2PK, lock to the OUTPUT pubkey extracted from the recipient's Taproot address
+            // The Taproot address directly encodes the output pubkey (tweaked pubkey)
             const { extractPubkeyFromTaprootAddress } = await import('../../utils/bitcoin');
-            const addressOutputKey = extractPubkeyFromTaprootAddress(spectreRecipient);
+            const recipientPubkey = extractPubkeyFromTaprootAddress(spectreRecipient);
 
-            // Verify it matches our derived output key
-            const { getPrivateKeyForAddress } = await import('../../utils/wallet');
-            const { xOnlyPubkey: derivedOutputKey } = await getPrivateKeyForAddress(spectreRecipient);
-
-            console.log('[ConfirmationScreen] P2PK pubkey comparison:', {
-              fromAddress: addressOutputKey.substring(0, 16) + '...',
-              fromDerivation: derivedOutputKey.substring(0, 16) + '...',
-              match: addressOutputKey === derivedOutputKey,
+            console.log('[ConfirmationScreen] Recipient pubkey for P2PK locking:', {
+              address: spectreRecipient,
+              pubkey: recipientPubkey.substring(0, 16) + '...',
             });
-
-            const recipientPubkey = addressOutputKey;
 
             // Use quote amount directly (already in smallest units)
             console.log('[ConfirmationScreen] Creating P2PK token for amount (smallest units):', paidQuote.amount);
