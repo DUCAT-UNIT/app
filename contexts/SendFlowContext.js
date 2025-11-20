@@ -4,7 +4,7 @@
  * No dependencies on other contexts - pure UI state
  */
 
-import React, { createContext, useContext, useState, useEffect, useMemo } from 'react';
+import React, { createContext, useContext, useState, useEffect, useMemo, useCallback } from 'react';
 
 const SendFlowContext = createContext();
 
@@ -50,15 +50,16 @@ export const SendFlowProvider = ({ children }) => {
     }
   }, [intentStep]);
 
-  // Reset all send flow state
-  const resetSendFlow = () => {
+  // Reset all send flow state - memoized to prevent unnecessary re-renders
+  const resetSendFlow = useCallback(() => {
+    console.log('[SendFlowContext] resetSendFlow called');
     setIntentStep('idle');
     setSendAssetType(null);
     setSendAmount('');
     setSendRecipient('');
     setSendAddressType('taproot');
     setRequireConfirmedUtxos(false);
-  };
+  }, [setIntentStep]);
 
   // Memoize the value object to prevent unnecessary re-renders
   const value = useMemo(

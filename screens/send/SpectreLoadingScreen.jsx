@@ -133,7 +133,7 @@ export default function SpectreLoadingScreen({ navigation, route }) {
 
       cleanupAndShowError();
     }
-  }, [intentStep, sendIntent, navigation, isSpectre, resetSendFlow, getSpentUtxos, unmarkUtxosAsSpent]);
+  }, [intentStep, sendIntent, navigation, isSpectre, getSpentUtxos, unmarkUtxosAsSpent, mintQuoteId, mintAmount]);
 
   // Set a timeout to detect if intent creation is taking too long
   useEffect(() => {
@@ -178,7 +178,8 @@ export default function SpectreLoadingScreen({ navigation, route }) {
         }
       };
     }
-  }, [hasStarted.current, navigation, getSpentUtxos, unmarkUtxosAsSpent, resetSendFlow]);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   // Cleanup effect: Release UTXOs if component unmounts before transaction is created
   useEffect(() => {
@@ -198,7 +199,8 @@ export default function SpectreLoadingScreen({ navigation, route }) {
         cleanup();
       }
     };
-  }, [getSpentUtxos, unmarkUtxosAsSpent, resetSendFlow]);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   return (
     <View style={styles.container}>
