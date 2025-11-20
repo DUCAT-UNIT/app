@@ -234,11 +234,57 @@ export const verifyP2PKWitness = async (secret, witness, publicKey) => {
   }
 };
 
+/**
+ * Check if a proof is P2PK locked
+ * @param {Object} proof - Cashu proof object
+ * @returns {boolean} True if proof has P2PK secret
+ */
+export const isP2PKLocked = (proof) => {
+  return proof.secret && isP2PKSecret(proof.secret);
+};
+
+/**
+ * Sign P2PK locked proofs with witness signatures
+ * @param {Array<Object>} proofs - Array of Cashu proofs
+ * @param {string} privateKey - Private key to sign with (hex, 32 bytes)
+ * @returns {Promise<Array<Object>>} Proofs with witness signatures added
+ */
+export const signP2PKProofs = async (proofs, privateKey) => {
+  logger.info('Signing P2PK proofs', { count: proofs.length });
+
+  const signedProofs = [];
+
+  for (const proof of proofs) {
+    if (isP2PKLocked(proof)) {
+      // Sign the P2PK secret to create witness
+      const witness = await signP2PKSecret(proof.secret, privateKey);
+
+      // Add witness to proof
+      signedProofs.push({
+        ...proof,
+        witness
+      });
+
+      logger.info('Added witness to P2PK proof', {
+        amount: proof.amount,
+        hasWitness: true
+      });
+    } else {
+      // Not P2PK locked, no witness needed
+      signedProofs.push(proof);
+    }
+  }
+
+  return signedProofs;
+};
+
 export default {
   generateP2PKKeyPair,
   createP2PKSecret,
   signP2PKSecret,
   isP2PKSecret,
   getP2PKRecipient,
-  verifyP2PKWitness
+  verifyP2PKWitness,
+  isP2PKLocked,
+  signP2PKProofs
 };
