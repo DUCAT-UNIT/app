@@ -122,7 +122,6 @@ export function AssetSpectreList({ navigation }) {
 
     return (
       <TouchableOpacity
-        key={item.id}
         style={globalStyles.historyTxRow}
         onPress={() => handleViewQR(item)}
         activeOpacity={0.7}
@@ -190,7 +189,11 @@ export function AssetSpectreList({ navigation }) {
 
   return (
     <View style={localStyles.activityContainer}>
-      {tokens.map((item) => renderToken(item))}
+      {tokens.map((item) => (
+        <View key={item.id}>
+          {renderToken(item)}
+        </View>
+      ))}
     </View>
   );
 }
