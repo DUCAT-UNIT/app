@@ -359,14 +359,46 @@ export const receiveToken = async (tokenString) => {
       keys = keyData.keys || keyData;
     }
 
+    // Check if any proofs are P2PK locked
+    const { isP2PKLocked, signP2PKProofs } = await import('./cashuP2PK.js');
+    const hasP2PKProofs = proofs.some(p => isP2PKLocked(p));
+
+    let proofsToSwap = proofs;
+
+    // If P2PK locked, sign them with our private key
+    if (hasP2PKProofs) {
+      logger.info('P2PK locked proofs detected, signing with private key');
+
+      // Get our Taproot address using withMnemonic
+      const { withMnemonic, getCurrentAccount } = await import('../secureStorageService.js');
+      const { deriveAddressesFromMnemonic } = await import('../../utils/bitcoin.js');
+
+      const accountIndex = await getCurrentAccount();
+      const addresses = await withMnemonic(async (mnemonic) => {
+        return deriveAddressesFromMnemonic(mnemonic, accountIndex);
+      });
+
+      const taprootAddress = addresses.taprootAddress;
+
+      // Get private key for our Taproot address
+      const { getPrivateKeyForAddress } = await import('../../utils/wallet.js');
+      const keyData = await getPrivateKeyForAddress(taprootAddress);
+      const privateKey = keyData.privateKey;
+
+      // Sign P2PK proofs
+      proofsToSwap = await signP2PKProofs(proofs, privateKey);
+      logger.info('P2PK proofs signed successfully');
+    }
+
     // Create new blinded outputs for the same amounts
     // Use the actual sum in smallest units, not the display amount
     const totalSmallestUnits = proofs.reduce((sum, proof) => sum + proof.amount, 0);
     const amounts = splitAmount(totalSmallestUnits);
     const { outputs, blindingData } = await createBlindedOutputs(amounts, keysetId);
 
-    // Swap: give received proofs, get new proofs
-    const response = await swapTokensAPI(proofs, outputs);
+    // Swap: give received proofs (signed if P2PK), get new proofs
+    logger.info('Swapping tokens', { inputCount: proofsToSwap.length, outputCount: outputs.length });
+    const response = await swapTokensAPI(proofsToSwap, outputs);
 
     // Unblind to create our new proofs
     const newProofs = unblindSignatures(
@@ -827,10 +859,11 @@ export const sendP2PKToken = async (amount, recipientPubkey, options = {}) => {
 
     // If we have change, create normal secrets for change
     let changeSecrets = [];
+    let changeAmounts = [];
     if (selectedAmount > amount) {
       const changeAmount = selectedAmount - amount;
       logger.info('Creating change for P2PK token', { changeAmount });
-      const changeAmounts = splitAmount(changeAmount);
+      changeAmounts = splitAmount(changeAmount);
 
       for (const amt of changeAmounts) {
         const secret = await generateSecret();
@@ -838,9 +871,26 @@ export const sendP2PKToken = async (amount, recipientPubkey, options = {}) => {
       }
     }
 
+    // Track which secrets are P2PK vs normal (for identification after sorting)
+    // This is needed because createBlindedOutputsWithSecrets sorts outputs by amount for privacy
+    const secretTypeMap = new Map();
+    p2pkSecrets.forEach(secret => secretTypeMap.set(secret, 'p2pk'));
+    changeSecrets.forEach(secret => secretTypeMap.set(secret, 'change'));
+
     // Create blinded outputs using our custom secrets
+    // CRITICAL: Secrets and amounts arrays MUST match 1:1
     const allSecrets = [...p2pkSecrets, ...changeSecrets];
-    const allAmounts = [...sendAmounts, ...(selectedAmount > amount ? splitAmount(selectedAmount - amount) : [])];
+    const allAmounts = [...sendAmounts, ...changeAmounts];
+
+    logger.info('Blinded output arrays', {
+      secretsCount: allSecrets.length,
+      amountsCount: allAmounts.length,
+      sendAmounts,
+      changeAmounts,
+      p2pkSecretsCount: p2pkSecrets.length,
+      changeSecretsCount: changeSecrets.length,
+    });
+
     const { outputs, blindingData } = await createBlindedOutputsWithSecrets(allSecrets, allAmounts, keysetId);
 
     // Swap with mint
@@ -854,14 +904,44 @@ export const sendP2PKToken = async (amount, recipientPubkey, options = {}) => {
       response.signatures[0]?.id || keysetId
     );
 
-    // Split into send and change
-    const proofsToSend = allNewProofs.slice(0, sendAmounts.length);
-    const changeProofs = allNewProofs.slice(sendAmounts.length);
+    // Split into send and change using secret type instead of array slicing
+    // This works correctly even after sorting because we identify by the secret itself
+    const proofsToSend = allNewProofs.filter(proof => secretTypeMap.get(proof.secret) === 'p2pk');
+    const changeProofs = allNewProofs.filter(proof => secretTypeMap.get(proof.secret) === 'change');
+
+    // Debug logging for proof amounts and secret types
+    const sendTotal = proofsToSend.reduce((sum, p) => sum + p.amount, 0);
+    const changeTotal = changeProofs.reduce((sum, p) => sum + p.amount, 0);
+    logger.info('P2PK token split details', {
+      requestedAmount: amount,
+      selectedAmount,
+      sendProofs: proofsToSend.length,
+      sendTotal,
+      changeProofs: changeProofs.length,
+      changeTotal,
+      totalReturned: sendTotal + changeTotal,
+      difference: selectedAmount - (sendTotal + changeTotal),
+    });
+
+    // Log secret types to verify correct identification
+    logger.info('Send proof secret types', {
+      secrets: proofsToSend.map(p => p.secret.substring(0, 50)),
+      areAllP2PK: proofsToSend.every(p => p.secret.startsWith('["P2PK"'))
+    });
+    logger.info('Change proof secret types', {
+      secrets: changeProofs.map(p => p.secret.substring(0, 50)),
+      areAllNormal: changeProofs.every(p => !p.secret.startsWith('["P2PK"'))
+    });
 
     // Remove spent proofs, add change
     await removeProofs(selectedProofs);
     if (changeProofs.length > 0) {
       await addProofs(changeProofs);
+      logger.info('Change proofs added back to wallet', {
+        count: changeProofs.length,
+        total: changeTotal,
+        secrets: changeProofs.map(p => p.secret.substring(0, 20) + '...'),
+      });
     }
 
     // Encode token for sending (P2PK locked)
@@ -869,7 +949,7 @@ export const sendP2PKToken = async (amount, recipientPubkey, options = {}) => {
 
     const newBalance = await getBalance();
 
-    logger.info('P2PK token created', { amount, locked: true, newBalance });
+    logger.info('P2PK token created', { amount, locked: true, newBalance, balanceChange: newBalance - (await loadProofs().then(sumProofs) - selectedAmount) });
 
     return {
       token,
