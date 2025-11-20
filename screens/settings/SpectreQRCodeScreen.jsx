@@ -13,7 +13,6 @@ import {
   Dimensions,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import QRCode from 'react-native-qrcode-svg';
 import * as Clipboard from 'expo-clipboard';
 import { COLORS } from '../../theme';
 import Icon from '../../components/icons';
@@ -22,14 +21,8 @@ import { encodeCashuToken } from '../../utils/emojiEncoder';
 const SCREEN_WIDTH = Dimensions.get('window').width;
 const HORIZONTAL_PADDING = SCREEN_WIDTH < 375 ? 16 : 20;
 
-// Calculate QR code size based on screen width
-const QR_SIZE =
-  SCREEN_WIDTH < 375 ? Math.min(SCREEN_WIDTH * 0.5, 180) : Math.min(SCREEN_WIDTH * 0.6, 220);
-const LOGO_SIZE = Math.floor(QR_SIZE * 0.21);
-
 export default function SpectreQRCodeScreen({ navigation, route }) {
-  const { deeplink, amount, recipient, timestamp } = route.params;
-  const [showEmoji, setShowEmoji] = useState(false);
+  const { deeplink, amount } = route.params;
   const [justCopied, setJustCopied] = useState(false);
 
   // Extract token from deeplink and encode to emoji
@@ -42,10 +35,8 @@ export default function SpectreQRCodeScreen({ navigation, route }) {
     }
   }, [deeplink]);
 
-  const displayContent = showEmoji ? emojiToken : deeplink;
-
   const handleCopy = async () => {
-    await Clipboard.setStringAsync(displayContent);
+    await Clipboard.setStringAsync(emojiToken);
     setJustCopied(true);
     setTimeout(() => setJustCopied(false), 2000);
   };
@@ -53,10 +44,7 @@ export default function SpectreQRCodeScreen({ navigation, route }) {
   const handleShare = async () => {
     try {
       await Share.share({
-        message: showEmoji
-          ? `Spectre Token 👻\n\nAmount: ${amount / 100} UNIT\n\n${emojiToken}`
-          : `Spectre Token\n\nAmount: ${amount / 100} UNIT\nLink: ${deeplink}`,
-        url: showEmoji ? undefined : deeplink,
+        message: `Spectre Token 👻\n\nAmount: ${amount / 100} UNIT\n\n${emojiToken}`,
       });
     } catch (error) {
       console.error('[SpectreQRCode] Failed to share:', error);
@@ -87,51 +75,15 @@ export default function SpectreQRCodeScreen({ navigation, route }) {
 
         {/* Amount subtitle */}
         <Text style={styles.subtitle}>
-          {amount / 100} UNIT
+          {amount / 100} UNIT • Emoji Encoded
         </Text>
 
-        {/* Format Toggle */}
-        <View style={styles.toggleContainer}>
-          <TouchableOpacity
-            style={[styles.toggleButton, !showEmoji && styles.toggleButtonActive]}
-            onPress={() => setShowEmoji(false)}
-          >
-            <Text style={[styles.toggleText, !showEmoji && styles.toggleTextActive]}>QR Code</Text>
-          </TouchableOpacity>
-          <TouchableOpacity
-            style={[styles.toggleButton, showEmoji && styles.toggleButtonActive]}
-            onPress={() => setShowEmoji(true)}
-          >
-            <Text style={[styles.toggleText, showEmoji && styles.toggleTextActive]}>Emoji</Text>
-          </TouchableOpacity>
+        {/* Emoji Token Display */}
+        <View style={styles.emojiQRContainer}>
+          <Text style={styles.emojiText} selectable>
+            {emojiToken}
+          </Text>
         </View>
-
-        {showEmoji ? (
-          <>
-            {/* Emoji Token Display */}
-            <View style={styles.emojiQRContainer}>
-              <Text style={styles.emojiText} selectable>
-                {emojiToken}
-              </Text>
-            </View>
-          </>
-        ) : (
-          <>
-            {/* QR Code */}
-            <View style={styles.qrCodeContainer}>
-              <QRCode
-                value={deeplink}
-                size={QR_SIZE}
-                backgroundColor="white"
-                color="black"
-                logo={require('../../assets/icons/spectre.svg')}
-                logoSize={LOGO_SIZE}
-                logoBackgroundColor="white"
-                logoBorderRadius={Math.floor(LOGO_SIZE / 2)}
-              />
-            </View>
-          </>
-        )}
 
         {/* Content container - tap to copy */}
         <TouchableOpacity
@@ -142,14 +94,14 @@ export default function SpectreQRCodeScreen({ navigation, route }) {
           <View style={styles.addressContentContainer}>
             <View style={styles.addressLabelRow}>
               <Text style={styles.addressLabelText}>
-                {showEmoji ? 'Emoji Token' : 'Deeplink'}
+                Emoji Token
               </Text>
               <Text style={styles.tapToCopyText}>
                 {justCopied ? 'Copied!' : 'Tap to copy'}
               </Text>
             </View>
-            <Text style={styles.addressFullText} numberOfLines={showEmoji ? undefined : 2}>
-              {displayContent}
+            <Text style={styles.addressFullText}>
+              {emojiToken}
             </Text>
           </View>
         </TouchableOpacity>
@@ -226,45 +178,12 @@ const styles = StyleSheet.create({
     marginBottom: SCREEN_WIDTH <= 400 ? 16 : 24,
     textAlign: 'center',
   },
-  toggleContainer: {
-    width: '100%',
-    flexDirection: 'row',
-    backgroundColor: COLORS.CARD_BG,
-    borderRadius: 12,
-    padding: 4,
-    marginBottom: SCREEN_WIDTH < 375 ? 16 : 24,
-    gap: 4,
-  },
-  toggleButton: {
-    flex: 1,
-    paddingVertical: 10,
-    alignItems: 'center',
-    borderRadius: 10,
-  },
-  toggleButtonActive: {
-    backgroundColor: COLORS.PURPLE,
-  },
-  toggleText: {
-    fontSize: 14,
-    fontFamily: 'CabinetGrotesk-Medium',
-    fontWeight: '600',
-    color: COLORS.SECONDARY_TEXT,
-  },
-  toggleTextActive: {
-    color: COLORS.VERY_LIGHT_GRAY,
-  },
-  qrCodeContainer: {
-    backgroundColor: COLORS.WHITE,
-    padding: SCREEN_WIDTH < 375 ? 10 : 20,
-    borderRadius: 16,
-    marginBottom: SCREEN_WIDTH < 375 ? 12 : 32,
-  },
   emojiQRContainer: {
     backgroundColor: COLORS.WHITE,
-    padding: SCREEN_WIDTH < 375 ? 16 : 24,
+    padding: SCREEN_WIDTH < 375 ? 20 : 32,
     borderRadius: 16,
     marginBottom: SCREEN_WIDTH < 375 ? 12 : 32,
-    minHeight: QR_SIZE + 40,
+    minHeight: 200,
     width: '100%',
     justifyContent: 'center',
     alignItems: 'center',
