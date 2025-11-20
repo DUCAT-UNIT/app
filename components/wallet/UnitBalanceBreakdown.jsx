@@ -19,7 +19,14 @@ const UnitBalanceBreakdown = ({ ecashBalance, runesBalance }) => {
     <View style={styles.container}>
       {/* Progress Bar */}
       <View style={styles.progressBarContainer}>
-        {/* E-cash with striped pattern */}
+        {/* Onchain solid blue on left */}
+        <View
+          style={[
+            styles.progressBarRunes,
+            { width: `${runesPercentage}%` }
+          ]}
+        />
+        {/* E-cash with striped pattern on right */}
         <LinearGradient
           colors={[COLORS.PRIMARY_BLUE, COLORS.MEDIUM_GRAY, COLORS.PRIMARY_BLUE, COLORS.MEDIUM_GRAY, COLORS.PRIMARY_BLUE]}
           start={{ x: 0, y: 0 }}
@@ -30,32 +37,11 @@ const UnitBalanceBreakdown = ({ ecashBalance, runesBalance }) => {
             { width: `${ecashPercentage}%` }
           ]}
         />
-        {/* Onchain solid blue */}
-        <View
-          style={[
-            styles.progressBarRunes,
-            { width: `${runesPercentage}%` }
-          ]}
-        />
       </View>
 
       {/* Balance Labels */}
       <View style={styles.labelsContainer}>
-        {/* E-UNIT (E-cash) */}
-        <View style={styles.labelSection}>
-          <View style={styles.labelRow}>
-            <View style={[styles.dot, styles.dotEcash]} />
-            <Text style={styles.balanceValue}>
-              {ecashBalance.toLocaleString('en-US', {
-                minimumFractionDigits: 2,
-                maximumFractionDigits: 2
-              })} UNIT
-            </Text>
-          </View>
-          <Text style={styles.balanceLabel}>ecash</Text>
-        </View>
-
-        {/* UNIT (Runes) */}
+        {/* UNIT (Runes) - now on left */}
         <View style={styles.labelSection}>
           <View style={styles.labelRow}>
             <View style={[styles.dot, styles.dotRunes]} />
@@ -67,6 +53,20 @@ const UnitBalanceBreakdown = ({ ecashBalance, runesBalance }) => {
             </Text>
           </View>
           <Text style={styles.balanceLabel}>onchain</Text>
+        </View>
+
+        {/* E-UNIT (E-cash) - now on right */}
+        <View style={styles.labelSection}>
+          <View style={styles.labelRow}>
+            <View style={[styles.dot, styles.dotEcash]} />
+            <Text style={styles.balanceValue}>
+              {ecashBalance.toLocaleString('en-US', {
+                minimumFractionDigits: 2,
+                maximumFractionDigits: 2
+              })} UNIT
+            </Text>
+          </View>
+          <Text style={styles.balanceLabel}>ecash</Text>
         </View>
       </View>
     </View>
@@ -100,13 +100,13 @@ const styles = StyleSheet.create({
     maxWidth: 238,
   },
   progressBarEcash: {
-    borderTopLeftRadius: 24,
-    borderBottomLeftRadius: 24,
-  },
-  progressBarRunes: {
-    backgroundColor: COLORS.MEDIUM_GRAY,
     borderTopRightRadius: 24,
     borderBottomRightRadius: 24,
+  },
+  progressBarRunes: {
+    backgroundColor: COLORS.PRIMARY_BLUE,
+    borderTopLeftRadius: 24,
+    borderBottomLeftRadius: 24,
   },
   labelsContainer: {
     flexDirection: 'row',
@@ -130,10 +130,10 @@ const styles = StyleSheet.create({
     marginRight: 5,
   },
   dotEcash: {
-    backgroundColor: COLORS.PRIMARY_BLUE,
+    backgroundColor: COLORS.MEDIUM_GRAY,
   },
   dotRunes: {
-    backgroundColor: COLORS.MEDIUM_GRAY,
+    backgroundColor: COLORS.PRIMARY_BLUE,
   },
   balanceValue: {
     fontSize: 11,
