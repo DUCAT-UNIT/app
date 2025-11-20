@@ -97,42 +97,41 @@ export default function SpectreLoadingScreen({ navigation, route }) {
       console.log('[SpectreLoading] Error detected, showing alert...');
       // Error - show alert and go back
       hasNavigated.current = true;
-        if (errorTimeout.current) {
-          clearTimeout(errorTimeout.current);
+      if (errorTimeout.current) {
+        clearTimeout(errorTimeout.current);
+      }
+
+      // Clean up any stuck UTXOs before showing error
+      const cleanupAndShowError = async () => {
+        const currentSpent = getSpentUtxos();
+        if (currentSpent.size > 0) {
+          await unmarkUtxosAsSpent(Array.from(currentSpent).map(key => {
+            const [txid, vout] = key.split(':');
+            return { txid, vout: parseInt(vout) };
+          }));
         }
 
-        // Clean up any stuck UTXOs before showing error
-        const cleanupAndShowError = async () => {
-          const currentSpent = getSpentUtxos();
-          if (currentSpent.size > 0) {
-            await unmarkUtxosAsSpent(Array.from(currentSpent).map(key => {
-              const [txid, vout] = key.split(':');
-              return { txid, vout: parseInt(vout) };
-            }));
-          }
+        // Reset send flow to clear any stale state
+        resetSendFlow();
 
-          // Reset send flow to clear any stale state
-          resetSendFlow();
-
-          const parent = navigation.getParent();
-          Alert.alert(
-            'Unable to Convert',
-            'Failed to create transaction. Your UTXOs may be temporarily locked. Please try again in a moment.',
-            [
-              {
-                text: 'OK',
-                onPress: () => {
-                  if (parent) {
-                    parent.goBack();
-                  }
+        const parent = navigation.getParent();
+        Alert.alert(
+          'Unable to Convert',
+          'Failed to create transaction. Your UTXOs may be temporarily locked. Please try again in a moment.',
+          [
+            {
+              text: 'OK',
+              onPress: () => {
+                if (parent) {
+                  parent.goBack();
                 }
               }
-            ]
-          );
-        };
+            }
+          ]
+        );
+      };
 
-        cleanupAndShowError();
-      }
+      cleanupAndShowError();
     }
   }, [intentStep, sendIntent, navigation, isSpectre, resetSendFlow, getSpentUtxos, unmarkUtxosAsSpent]);
 
