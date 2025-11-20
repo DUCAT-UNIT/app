@@ -41,7 +41,7 @@ export default function SpectreQRCodeScreen({ navigation, route }) {
   }, [deeplink]);
 
   const handleCopy = async () => {
-    await Clipboard.setStringAsync(emojiToken);
+    await Clipboard.setStringAsync(deeplink);
     setJustCopied(true);
     setTimeout(() => setJustCopied(false), 2000);
   };
@@ -93,7 +93,7 @@ export default function SpectreQRCodeScreen({ navigation, route }) {
           </Text>
         </View>
 
-        {/* Ghost Token - tap to copy */}
+        {/* Deeplink - tap to copy */}
         <TouchableOpacity
           style={styles.addressContainer}
           onPress={handleCopy}
@@ -102,25 +102,17 @@ export default function SpectreQRCodeScreen({ navigation, route }) {
           <View style={styles.addressContentContainer}>
             <View style={styles.addressLabelRow}>
               <Text style={styles.addressLabelText}>
-                Ghost Token
+                Deeplink
               </Text>
               <Text style={styles.tapToCopyText}>
                 {justCopied ? 'Copied!' : 'Tap to copy'}
               </Text>
             </View>
-            <Text style={styles.addressFullText}>
-              {emojiToken}
+            <Text style={styles.addressFullText} numberOfLines={3}>
+              {deeplink}
             </Text>
           </View>
         </TouchableOpacity>
-
-        {/* Deeplink display */}
-        <View style={styles.deeplinkContainer}>
-          <Text style={styles.deeplinkLabel}>Deeplink</Text>
-          <Text style={styles.deeplinkText} numberOfLines={2}>
-            {deeplink}
-          </Text>
-        </View>
 
         {/* Share button */}
         <TouchableOpacity style={styles.shareButton} onPress={handleShare}>
