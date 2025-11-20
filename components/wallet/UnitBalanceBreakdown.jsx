@@ -50,7 +50,7 @@ const UnitBalanceBreakdown = ({ ecashBalance, runesBalance }) => {
               COLORS.PRIMARY_BLUE, COLORS.PRIMARY_BLUE
             ]}
             start={{ x: 0, y: 0 }}
-            end={{ x: 1, y: 0.35 }}
+            end={{ x: 1, y: 0.47 }}
             locations={[
               0.00, 0.08,
               0.08, 0.16,
