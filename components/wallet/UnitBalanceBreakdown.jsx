@@ -130,12 +130,12 @@ const styles = StyleSheet.create({
     backgroundColor: COLORS.MEDIUM_GRAY,
   },
   balanceValue: {
-    fontSize: 14,
+    fontSize: 11,
     fontWeight: '500',
     color: COLORS.WHITE,
   },
   balanceLabel: {
-    fontSize: 11,
+    fontSize: 9,
     fontWeight: '400',
     color: COLORS.SECONDARY_TEXT,
     marginLeft: 10, // Align with text (5px dot + 5px margin)
