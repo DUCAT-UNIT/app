@@ -7,7 +7,6 @@
 import React from 'react';
 import PropTypes from 'prop-types';
 import { View, Text, StyleSheet } from 'react-native';
-import Svg, { Defs, Pattern, Rect, Line } from 'react-native-svg';
 import { COLORS } from '../../theme';
 
 const UnitBalanceBreakdown = ({ ecashBalance, runesBalance }) => {
@@ -26,29 +25,13 @@ const UnitBalanceBreakdown = ({ ecashBalance, runesBalance }) => {
             { width: `${runesPercentage}%` }
           ]}
         />
-        {/* E-cash with striped pattern on right */}
+        {/* E-cash on right */}
         <View
           style={[
             styles.progressBarEcash,
             { width: `${ecashPercentage}%` }
           ]}
-        >
-          <Svg height="100%" width="100%" style={StyleSheet.absoluteFill}>
-            <Defs>
-              <Pattern
-                id="diagonalStripes"
-                patternUnits="userSpaceOnUse"
-                width="8"
-                height="8"
-                patternTransform="rotate(45)"
-              >
-                <Rect width="4" height="8" fill={COLORS.PRIMARY_BLUE} />
-                <Rect x="4" width="4" height="8" fill={COLORS.MEDIUM_GRAY} />
-              </Pattern>
-            </Defs>
-            <Rect width="100%" height="100%" fill="url(#diagonalStripes)" />
-          </Svg>
-        </View>
+        />
       </View>
 
       {/* Balance Labels */}
@@ -113,11 +96,9 @@ const styles = StyleSheet.create({
     clipPath: 'inset(0)',
   },
   progressBarEcash: {
+    backgroundColor: COLORS.MEDIUM_GRAY,
     borderTopRightRadius: 24,
     borderBottomRightRadius: 24,
-    overflow: 'hidden',
-    height: 8,
-    position: 'relative',
   },
   progressBarRunes: {
     backgroundColor: COLORS.PRIMARY_BLUE,
