@@ -145,8 +145,16 @@ export default function ConfirmationScreen({ navigation, route }) {
             console.log('[ConfirmationScreen] Proofs cleaned up:', balanceBefore - balanceAfter, 'removed');
 
             // Verify cleanup worked (compare display units)
-            if (Math.abs(balanceBefore - balanceAfter - paidQuote.amount) > 0.01) {
-              console.warn('[ConfirmationScreen] WARNING: Balance mismatch after P2PK creation');
+            const expectedDecrease = paidQuote.amount / 100; // Convert smallest units to display units
+            const actualDecrease = balanceBefore - balanceAfter;
+            if (Math.abs(actualDecrease - expectedDecrease) > 0.01) {
+              console.warn('[ConfirmationScreen] WARNING: Balance mismatch after P2PK creation', {
+                expected: expectedDecrease,
+                actual: actualDecrease,
+                difference: Math.abs(actualDecrease - expectedDecrease),
+              });
+            } else {
+              console.log('[ConfirmationScreen] ✅ Balance decreased correctly:', actualDecrease, 'UNIT');
             }
 
             // Store token persistently so user can retrieve it later if they close the screen
