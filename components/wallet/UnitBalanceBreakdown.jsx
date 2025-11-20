@@ -7,7 +7,7 @@
 import React from 'react';
 import PropTypes from 'prop-types';
 import { View, Text, StyleSheet } from 'react-native';
-import { LinearGradient } from 'expo-linear-gradient';
+import Svg, { Defs, Pattern, Rect, Line } from 'react-native-svg';
 import { COLORS } from '../../theme';
 
 const UnitBalanceBreakdown = ({ ecashBalance, runesBalance }) => {
@@ -33,41 +33,21 @@ const UnitBalanceBreakdown = ({ ecashBalance, runesBalance }) => {
             { width: `${ecashPercentage}%` }
           ]}
         >
-          <LinearGradient
-            colors={[
-              COLORS.PRIMARY_BLUE, COLORS.PRIMARY_BLUE,
-              COLORS.MEDIUM_GRAY, COLORS.MEDIUM_GRAY,
-              COLORS.PRIMARY_BLUE, COLORS.PRIMARY_BLUE,
-              COLORS.MEDIUM_GRAY, COLORS.MEDIUM_GRAY,
-              COLORS.PRIMARY_BLUE, COLORS.PRIMARY_BLUE,
-              COLORS.MEDIUM_GRAY, COLORS.MEDIUM_GRAY,
-              COLORS.PRIMARY_BLUE, COLORS.PRIMARY_BLUE,
-              COLORS.MEDIUM_GRAY, COLORS.MEDIUM_GRAY,
-              COLORS.PRIMARY_BLUE, COLORS.PRIMARY_BLUE,
-              COLORS.MEDIUM_GRAY, COLORS.MEDIUM_GRAY,
-              COLORS.PRIMARY_BLUE, COLORS.PRIMARY_BLUE,
-              COLORS.MEDIUM_GRAY, COLORS.MEDIUM_GRAY,
-              COLORS.PRIMARY_BLUE, COLORS.PRIMARY_BLUE
-            ]}
-            start={{ x: 0, y: 1 }}
-            end={{ x: 1, y: 0 }}
-            locations={[
-              0.00, 0.08,
-              0.08, 0.16,
-              0.16, 0.24,
-              0.24, 0.32,
-              0.32, 0.40,
-              0.40, 0.48,
-              0.48, 0.56,
-              0.56, 0.64,
-              0.64, 0.72,
-              0.72, 0.80,
-              0.80, 0.88,
-              0.88, 0.96,
-              0.96, 1.00
-            ]}
-            style={styles.progressBarGradient}
-          />
+          <Svg height="100%" width="100%" style={StyleSheet.absoluteFill}>
+            <Defs>
+              <Pattern
+                id="diagonalStripes"
+                patternUnits="userSpaceOnUse"
+                width="8"
+                height="8"
+                patternTransform="rotate(45)"
+              >
+                <Rect width="4" height="8" fill={COLORS.PRIMARY_BLUE} />
+                <Rect x="4" width="4" height="8" fill={COLORS.MEDIUM_GRAY} />
+              </Pattern>
+            </Defs>
+            <Rect width="100%" height="100%" fill="url(#diagonalStripes)" />
+          </Svg>
         </View>
       </View>
 
@@ -137,10 +117,7 @@ const styles = StyleSheet.create({
     borderBottomRightRadius: 24,
     overflow: 'hidden',
     height: 8,
-  },
-  progressBarGradient: {
-    flex: 1,
-    height: 8,
+    position: 'relative',
   },
   progressBarRunes: {
     backgroundColor: COLORS.PRIMARY_BLUE,
