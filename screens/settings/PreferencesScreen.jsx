@@ -1,6 +1,6 @@
 /**
- * SettingsScreen Component
- * Full-screen settings view with modern dark aesthetic
+ * PreferencesScreen Component
+ * User preferences and display options
  */
 
 import React from 'react';
@@ -10,38 +10,36 @@ import {
   View,
   TouchableOpacity,
   StyleSheet,
-  Platform,
-  Dimensions,
-  StatusBar,
   ScrollView,
 } from 'react-native';
 import { COLORS } from '../../theme';
 import Icon from '../../components/icons';
+import MutinynetBanner from '../../components/MutinynetBanner';
 
 // Get device dimensions for responsive sizing
-const { width: SCREEN_WIDTH } = Dimensions.get('window');
+const { width: SCREEN_WIDTH } = require('react-native').Dimensions.get('window');
 
 // Responsive horizontal padding
 const HORIZONTAL_PADDING = SCREEN_WIDTH < 375 ? 16 : SCREEN_WIDTH > 414 ? 24 : 20;
 
-const SettingsScreen = React.memo(function SettingsScreen({
-  // Callbacks
-  onClose,
-  onLockWallet,
-  onViewPreferences,
-  onViewSecurity,
-  onViewAdvanced,
-  onViewCashuSettings,
-  onViewAbout,
-}) {
+const PreferencesScreen = React.memo(function PreferencesScreen({ route }) {
+  const {
+    onClose,
+    onShowZeroAssetsToggle,
+    onNotificationsToggle,
+    showZeroAssets,
+    notificationsEnabled,
+  } = route.params;
+
   return (
     <View style={localStyles.container}>
+      <MutinynetBanner />
       {/* Header with back button and title on same line */}
       <View style={localStyles.header}>
         <TouchableOpacity onPress={onClose} style={localStyles.backButton}>
           <Icon name="back" size={24} color={COLORS.VERY_LIGHT_GRAY} />
         </TouchableOpacity>
-        <Text style={localStyles.title}>Settings</Text>
+        <Text style={localStyles.title}>Preferences</Text>
       </View>
 
       <ScrollView style={localStyles.scrollView} showsVerticalScrollIndicator={false}>
@@ -49,29 +47,15 @@ const SettingsScreen = React.memo(function SettingsScreen({
           <View style={localStyles.section}>
             <SettingsOption
               iconName="asset"
-              title="Preferences"
-              onPress={onViewPreferences}
+              title="Show Zero Value Assets"
+              onPress={onShowZeroAssetsToggle}
+              rightText={showZeroAssets ? 'ON' : 'OFF'}
             />
             <SettingsOption
-              iconName="face_id"
-              title="Security"
-              onPress={onViewSecurity}
-            />
-            <SettingsOption
-              iconName="switch_account"
-              title="Advanced"
-              onPress={onViewAdvanced}
-            />
-            <SettingsOption
-              iconName="asset"
-              title="Cashu"
-              onPress={onViewCashuSettings}
-            />
-            <SettingsOption iconName="logout" title="Lock Wallet" onPress={onLockWallet} />
-            <SettingsOption
-              iconName="asset"
-              title="About"
-              onPress={onViewAbout}
+              iconName="notification"
+              title="Notifications"
+              onPress={onNotificationsToggle}
+              rightText={notificationsEnabled ? 'ON' : 'OFF'}
             />
           </View>
         </View>
@@ -104,17 +88,19 @@ SettingsOption.propTypes = {
   isDanger: PropTypes.bool,
 };
 
-SettingsScreen.propTypes = {
-  onClose: PropTypes.func.isRequired,
-  onLockWallet: PropTypes.func.isRequired,
-  onViewPreferences: PropTypes.func.isRequired,
-  onViewSecurity: PropTypes.func.isRequired,
-  onViewAdvanced: PropTypes.func.isRequired,
-  onViewCashuSettings: PropTypes.func.isRequired,
-  onViewAbout: PropTypes.func.isRequired,
+PreferencesScreen.propTypes = {
+  route: PropTypes.shape({
+    params: PropTypes.shape({
+      onClose: PropTypes.func.isRequired,
+      onShowZeroAssetsToggle: PropTypes.func.isRequired,
+      onNotificationsToggle: PropTypes.func.isRequired,
+      showZeroAssets: PropTypes.bool.isRequired,
+      notificationsEnabled: PropTypes.bool.isRequired,
+    }).isRequired,
+  }).isRequired,
 };
 
-export default SettingsScreen;
+export default PreferencesScreen;
 
 const localStyles = StyleSheet.create({
   container: {
@@ -134,7 +120,6 @@ const localStyles = StyleSheet.create({
     justifyContent: 'center',
     marginRight: 8,
   },
-  // backIcon removed - not currently used
   scrollView: {
     flex: 1,
   },
@@ -150,7 +135,7 @@ const localStyles = StyleSheet.create({
     flex: 1,
   },
   section: {
-    marginBottom: 20,
+    marginBottom: 30,
   },
   option: {
     flexDirection: 'row',
@@ -167,7 +152,6 @@ const localStyles = StyleSheet.create({
     flex: 1,
     gap: 16,
   },
-  // optionIconImage removed - not currently used
   optionTitle: {
     fontSize: 16,
     color: COLORS.VERY_LIGHT_GRAY,

@@ -1,6 +1,6 @@
 /**
- * SettingsScreen Component
- * Full-screen settings view with modern dark aesthetic
+ * AboutScreen Component
+ * Shows app information, legal links, and version
  */
 
 import React from 'react';
@@ -10,38 +10,45 @@ import {
   View,
   TouchableOpacity,
   StyleSheet,
-  Platform,
-  Dimensions,
-  StatusBar,
   ScrollView,
+  Linking,
 } from 'react-native';
 import { COLORS } from '../../theme';
 import Icon from '../../components/icons';
+import MutinynetBanner from '../../components/MutinynetBanner';
 
 // Get device dimensions for responsive sizing
-const { width: SCREEN_WIDTH } = Dimensions.get('window');
+const { width: SCREEN_WIDTH } = require('react-native').Dimensions.get('window');
 
 // Responsive horizontal padding
 const HORIZONTAL_PADDING = SCREEN_WIDTH < 375 ? 16 : SCREEN_WIDTH > 414 ? 24 : 20;
 
-const SettingsScreen = React.memo(function SettingsScreen({
-  // Callbacks
-  onClose,
-  onLockWallet,
-  onViewPreferences,
-  onViewSecurity,
-  onViewAdvanced,
-  onViewCashuSettings,
-  onViewAbout,
-}) {
+// Version from app.json
+const APP_VERSION = '1.0.0';
+
+const AboutScreen = React.memo(function AboutScreen({ route }) {
+  const { onClose } = route.params;
+
+  const handleOpenLink = async (url) => {
+    try {
+      const supported = await Linking.canOpenURL(url);
+      if (supported) {
+        await Linking.openURL(url);
+      }
+    } catch (error) {
+      console.error('[AboutScreen] Failed to open URL:', error);
+    }
+  };
+
   return (
     <View style={localStyles.container}>
+      <MutinynetBanner />
       {/* Header with back button and title on same line */}
       <View style={localStyles.header}>
         <TouchableOpacity onPress={onClose} style={localStyles.backButton}>
           <Icon name="back" size={24} color={COLORS.VERY_LIGHT_GRAY} />
         </TouchableOpacity>
-        <Text style={localStyles.title}>Settings</Text>
+        <Text style={localStyles.title}>About</Text>
       </View>
 
       <ScrollView style={localStyles.scrollView} showsVerticalScrollIndicator={false}>
@@ -49,30 +56,21 @@ const SettingsScreen = React.memo(function SettingsScreen({
           <View style={localStyles.section}>
             <SettingsOption
               iconName="asset"
-              title="Preferences"
-              onPress={onViewPreferences}
-            />
-            <SettingsOption
-              iconName="face_id"
-              title="Security"
-              onPress={onViewSecurity}
-            />
-            <SettingsOption
-              iconName="switch_account"
-              title="Advanced"
-              onPress={onViewAdvanced}
+              title="Terms of Service"
+              onPress={() => handleOpenLink('https://ducatprotocol.com/terms')}
             />
             <SettingsOption
               iconName="asset"
-              title="Cashu"
-              onPress={onViewCashuSettings}
+              title="Privacy Policy"
+              onPress={() => handleOpenLink('https://ducatprotocol.com/privacy')}
             />
-            <SettingsOption iconName="logout" title="Lock Wallet" onPress={onLockWallet} />
-            <SettingsOption
-              iconName="asset"
-              title="About"
-              onPress={onViewAbout}
-            />
+            <View style={localStyles.versionOption}>
+              <View style={localStyles.optionLeft}>
+                <Icon name="asset" size={24} color="#DDDDDD" />
+                <Text style={localStyles.optionTitle}>Version</Text>
+              </View>
+              <Text style={localStyles.versionText}>{APP_VERSION}</Text>
+            </View>
           </View>
         </View>
       </ScrollView>
@@ -81,15 +79,14 @@ const SettingsScreen = React.memo(function SettingsScreen({
 });
 
 // Individual settings option component
-const SettingsOption = React.memo(function SettingsOption({ iconName, title, onPress, rightText, isDanger }) {
+const SettingsOption = React.memo(function SettingsOption({ iconName, title, onPress }) {
   return (
     <TouchableOpacity style={localStyles.option} onPress={onPress}>
       <View style={localStyles.optionLeft}>
-        <Icon name={iconName} size={24} color={isDanger ? COLORS.DANGER_RED : '#DDDDDD'} />
-        <Text style={[localStyles.optionTitle, isDanger && localStyles.dangerText]}>{title}</Text>
+        <Icon name={iconName} size={24} color="#DDDDDD" />
+        <Text style={localStyles.optionTitle}>{title}</Text>
       </View>
       <View style={localStyles.optionRight}>
-        {rightText && <Text style={localStyles.optionRightText}>{rightText}</Text>}
         <Text style={localStyles.optionArrow}>›</Text>
       </View>
     </TouchableOpacity>
@@ -100,21 +97,17 @@ SettingsOption.propTypes = {
   iconName: PropTypes.string.isRequired,
   title: PropTypes.string.isRequired,
   onPress: PropTypes.func.isRequired,
-  rightText: PropTypes.string,
-  isDanger: PropTypes.bool,
 };
 
-SettingsScreen.propTypes = {
-  onClose: PropTypes.func.isRequired,
-  onLockWallet: PropTypes.func.isRequired,
-  onViewPreferences: PropTypes.func.isRequired,
-  onViewSecurity: PropTypes.func.isRequired,
-  onViewAdvanced: PropTypes.func.isRequired,
-  onViewCashuSettings: PropTypes.func.isRequired,
-  onViewAbout: PropTypes.func.isRequired,
+AboutScreen.propTypes = {
+  route: PropTypes.shape({
+    params: PropTypes.shape({
+      onClose: PropTypes.func.isRequired,
+    }).isRequired,
+  }).isRequired,
 };
 
-export default SettingsScreen;
+export default AboutScreen;
 
 const localStyles = StyleSheet.create({
   container: {
@@ -134,7 +127,6 @@ const localStyles = StyleSheet.create({
     justifyContent: 'center',
     marginRight: 8,
   },
-  // backIcon removed - not currently used
   scrollView: {
     flex: 1,
   },
@@ -150,7 +142,7 @@ const localStyles = StyleSheet.create({
     flex: 1,
   },
   section: {
-    marginBottom: 20,
+    marginBottom: 30,
   },
   option: {
     flexDirection: 'row',
@@ -167,7 +159,6 @@ const localStyles = StyleSheet.create({
     flex: 1,
     gap: 16,
   },
-  // optionIconImage removed - not currently used
   optionTitle: {
     fontSize: 16,
     color: COLORS.VERY_LIGHT_GRAY,
@@ -179,18 +170,24 @@ const localStyles = StyleSheet.create({
     alignItems: 'center',
     gap: 8,
   },
-  optionRightText: {
-    fontSize: 14,
-    color: '#888',
-    fontFamily: 'CabinetGrotesk-Regular',
-  },
   optionArrow: {
     fontSize: 24,
     color: '#666',
     marginLeft: 4,
     fontFamily: 'CabinetGrotesk-Regular',
   },
-  dangerText: {
-    color: COLORS.DANGER_RED,
+  versionOption: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingVertical: 20,
+    paddingHorizontal: 4,
+    borderBottomWidth: 1,
+    borderBottomColor: COLORS.BORDER_COLOR,
+  },
+  versionText: {
+    fontSize: 14,
+    color: '#888',
+    fontFamily: 'CabinetGrotesk-Regular',
   },
 });

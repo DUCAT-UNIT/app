@@ -421,21 +421,72 @@ export default function WalletPage({ route }) {
         <MutinynetBanner />
         <SettingsScreen
           onClose={closeSettings}
-          onViewSeedPhrase={settingsHandlers.handleViewSeedPhrase}
-          onChangePin={settingsHandlers.handleChangePin}
-          onSwitchAccount={() => {
-            // Don't close settings - modal should overlay settings
-            setShowAccountPicker(true);
-          }}
           onLockWallet={settingsHandlers.handleLogout}
-          onDeleteWallet={settingsHandlers.handleDeleteWallet}
-          onFaceIdToggle={settingsHandlers.handleFaceIdToggle}
-          onNotificationsToggle={settingsHandlers.handleNotificationsToggle}
-          onShowZeroAssetsToggle={settingsHandlers.handleShowZeroAssetsToggle}
-          onClearCashuCache={settingsHandlers.handleClearCashuCache}
-          faceIdEnabled={biometricEnabled}
-          notificationsEnabled={settingsHandlers.notificationsEnabled}
-          showZeroAssets={settingsHandlers.showZeroAssets}
+          onViewPreferences={() => {
+            navigation.navigate('Preferences', {
+              onClose: () => navigation.goBack(),
+              onShowZeroAssetsToggle: settingsHandlers.handleShowZeroAssetsToggle,
+              onNotificationsToggle: settingsHandlers.handleNotificationsToggle,
+              showZeroAssets: settingsHandlers.showZeroAssets,
+              notificationsEnabled: settingsHandlers.notificationsEnabled,
+            });
+          }}
+          onViewSecurity={() => {
+            navigation.navigate('Security', {
+              onClose: () => navigation.goBack(),
+              onFaceIdToggle: settingsHandlers.handleFaceIdToggle,
+              onChangePin: settingsHandlers.handleChangePin,
+              onAutoLockToggle: () => {
+                // TODO: Implement auto lock toggle
+                console.log('Auto lock toggle pressed');
+              },
+              onViewSeedPhrase: settingsHandlers.handleViewSeedPhrase,
+              onDeleteWallet: settingsHandlers.handleDeleteWallet,
+              faceIdEnabled: biometricEnabled,
+              autoLockEnabled: false,
+            });
+          }}
+          onViewAdvanced={() => {
+            navigation.navigate('Advanced', {
+              onClose: () => navigation.goBack(),
+              onSwitchAccount: () => {
+                navigation.goBack();
+                setShowAccountPicker(true);
+              },
+            });
+          }}
+          onViewCashuSettings={() => {
+            navigation.navigate('CashuSettings', {
+              onClose: () => navigation.goBack(),
+              onClearCashuCache: settingsHandlers.handleClearCashuCache,
+              onRecoverLockedChange: settingsHandlers.handleRecoverLockedChange,
+              onRecoverMint: () => {
+                navigation.goBack();
+                navigation.navigate('RecoverMint');
+              },
+              onRedeemToken: () => {
+                navigation.goBack();
+                navigation.navigate('CashuReceive');
+              },
+              onRemoveSpentProofs: async () => {
+                try {
+                  const { removeSpentProofs } = await import('../services/cashu/cashuWalletService');
+                  const result = await removeSpentProofs();
+                  Alert.alert(
+                    'Spent Proofs Removed',
+                    `Removed ${result.removed} spent proofs. Kept ${result.kept} valid proofs.`
+                  );
+                } catch (error) {
+                  Alert.alert('Error', `Failed to remove spent proofs: ${error.message}`);
+                }
+              },
+            });
+          }}
+          onViewAbout={() => {
+            navigation.navigate('About', {
+              onClose: () => navigation.goBack(),
+            });
+          }}
         />
       </Animated.View>
 

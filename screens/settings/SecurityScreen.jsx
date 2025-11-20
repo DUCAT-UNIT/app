@@ -1,6 +1,6 @@
 /**
- * SettingsScreen Component
- * Full-screen settings view with modern dark aesthetic
+ * SecurityScreen Component
+ * Security and authentication settings
  */
 
 import React from 'react';
@@ -10,68 +10,67 @@ import {
   View,
   TouchableOpacity,
   StyleSheet,
-  Platform,
-  Dimensions,
-  StatusBar,
   ScrollView,
 } from 'react-native';
 import { COLORS } from '../../theme';
 import Icon from '../../components/icons';
+import MutinynetBanner from '../../components/MutinynetBanner';
 
 // Get device dimensions for responsive sizing
-const { width: SCREEN_WIDTH } = Dimensions.get('window');
+const { width: SCREEN_WIDTH } = require('react-native').Dimensions.get('window');
 
 // Responsive horizontal padding
 const HORIZONTAL_PADDING = SCREEN_WIDTH < 375 ? 16 : SCREEN_WIDTH > 414 ? 24 : 20;
 
-const SettingsScreen = React.memo(function SettingsScreen({
-  // Callbacks
-  onClose,
-  onLockWallet,
-  onViewPreferences,
-  onViewSecurity,
-  onViewAdvanced,
-  onViewCashuSettings,
-  onViewAbout,
-}) {
+const SecurityScreen = React.memo(function SecurityScreen({ route }) {
+  const {
+    onClose,
+    onFaceIdToggle,
+    onChangePin,
+    onAutoLockToggle,
+    onViewSeedPhrase,
+    onDeleteWallet,
+    faceIdEnabled,
+    autoLockEnabled,
+  } = route.params;
+
   return (
     <View style={localStyles.container}>
+      <MutinynetBanner />
       {/* Header with back button and title on same line */}
       <View style={localStyles.header}>
         <TouchableOpacity onPress={onClose} style={localStyles.backButton}>
           <Icon name="back" size={24} color={COLORS.VERY_LIGHT_GRAY} />
         </TouchableOpacity>
-        <Text style={localStyles.title}>Settings</Text>
+        <Text style={localStyles.title}>Security</Text>
       </View>
 
       <ScrollView style={localStyles.scrollView} showsVerticalScrollIndicator={false}>
         <View style={localStyles.content}>
           <View style={localStyles.section}>
             <SettingsOption
-              iconName="asset"
-              title="Preferences"
-              onPress={onViewPreferences}
-            />
-            <SettingsOption
               iconName="face_id"
-              title="Security"
-              onPress={onViewSecurity}
+              title="Biometric Authentication"
+              onPress={onFaceIdToggle}
+              rightText={faceIdEnabled ? 'ON' : 'OFF'}
+            />
+            <SettingsOption iconName="pin" title="Change PIN" onPress={onChangePin} />
+            <SettingsOption
+              iconName="logout"
+              title="Auto Lock"
+              onPress={onAutoLockToggle}
+              rightText={autoLockEnabled ? 'ON' : 'OFF'}
             />
             <SettingsOption
-              iconName="switch_account"
-              title="Advanced"
-              onPress={onViewAdvanced}
+              iconName="recovery_phrase"
+              title="Backup Wallet"
+              onPress={onViewSeedPhrase}
             />
             <SettingsOption
-              iconName="asset"
-              title="Cashu"
-              onPress={onViewCashuSettings}
-            />
-            <SettingsOption iconName="logout" title="Lock Wallet" onPress={onLockWallet} />
-            <SettingsOption
-              iconName="asset"
-              title="About"
-              onPress={onViewAbout}
+              iconName="delete_wallet"
+              title="Delete Wallet"
+              onPress={onDeleteWallet}
+              isDanger
             />
           </View>
         </View>
@@ -104,17 +103,22 @@ SettingsOption.propTypes = {
   isDanger: PropTypes.bool,
 };
 
-SettingsScreen.propTypes = {
-  onClose: PropTypes.func.isRequired,
-  onLockWallet: PropTypes.func.isRequired,
-  onViewPreferences: PropTypes.func.isRequired,
-  onViewSecurity: PropTypes.func.isRequired,
-  onViewAdvanced: PropTypes.func.isRequired,
-  onViewCashuSettings: PropTypes.func.isRequired,
-  onViewAbout: PropTypes.func.isRequired,
+SecurityScreen.propTypes = {
+  route: PropTypes.shape({
+    params: PropTypes.shape({
+      onClose: PropTypes.func.isRequired,
+      onFaceIdToggle: PropTypes.func.isRequired,
+      onChangePin: PropTypes.func.isRequired,
+      onAutoLockToggle: PropTypes.func.isRequired,
+      onViewSeedPhrase: PropTypes.func.isRequired,
+      onDeleteWallet: PropTypes.func.isRequired,
+      faceIdEnabled: PropTypes.bool.isRequired,
+      autoLockEnabled: PropTypes.bool.isRequired,
+    }).isRequired,
+  }).isRequired,
 };
 
-export default SettingsScreen;
+export default SecurityScreen;
 
 const localStyles = StyleSheet.create({
   container: {
@@ -134,7 +138,6 @@ const localStyles = StyleSheet.create({
     justifyContent: 'center',
     marginRight: 8,
   },
-  // backIcon removed - not currently used
   scrollView: {
     flex: 1,
   },
@@ -150,7 +153,7 @@ const localStyles = StyleSheet.create({
     flex: 1,
   },
   section: {
-    marginBottom: 20,
+    marginBottom: 30,
   },
   option: {
     flexDirection: 'row',
@@ -167,7 +170,6 @@ const localStyles = StyleSheet.create({
     flex: 1,
     gap: 16,
   },
-  // optionIconImage removed - not currently used
   optionTitle: {
     fontSize: 16,
     color: COLORS.VERY_LIGHT_GRAY,
