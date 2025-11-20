@@ -309,9 +309,14 @@ function AssetDetailScreen({ route = {}, navigation }) {
               // Check if token contains P2PK-locked proofs
               const { decodeToken } = await import('../../services/cashu/cashuCrypto');
               const { isP2PKSecret } = await import('../../services/cashu/cashuP2PK');
-              const { proofs } = decodeToken(tokenString.trim());
+              const decoded = decodeToken(tokenString.trim());
 
-              const hasP2PKProofs = proofs.some(p => isP2PKSecret(p.secret));
+              if (!decoded || !decoded.proofs || !Array.isArray(decoded.proofs)) {
+                Alert.alert('Error', 'Invalid token format');
+                return;
+              }
+
+              const hasP2PKProofs = decoded.proofs.some(p => isP2PKSecret(p.secret));
 
               if (hasP2PKProofs) {
                 // Token is P2PK-locked, get private key from wallet
