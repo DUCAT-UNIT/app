@@ -145,7 +145,7 @@ function AssetDetailScreen({ route = {}, navigation }) {
           onPress: async () => {
             try {
               // Import cashu functions
-              const { requestMelt, completeMelt } = await import('../../services/cashu/cashuWalletService');
+              const { requestMelt, completeMeltWithoutCleanup, cleanupMeltProofs } = await import('../../services/cashu/cashuWalletService');
 
               // Get taproot address for receiving runes
               const receiveAddress = taprootAddress;
@@ -153,13 +153,62 @@ function AssetDetailScreen({ route = {}, navigation }) {
               // Request melt quote
               const quote = await requestMelt(receiveAddress, cashuBalance);
 
-              // Complete melt in background
-              await completeMelt(quote.quoteId, quote.total);
+              // Complete melt but keep proofs until we see the tx
+              const meltResult = await completeMeltWithoutCleanup(quote.quoteId, quote.total);
 
-              // Refresh balance
-              await fetchTransactionHistory();
+              Alert.alert('Processing', 'Waiting for transaction to appear on-chain...');
 
-              Alert.alert('Success', 'E-cash successfully fused to on-chain UNIT!');
+              // Poll transaction history to check for the transaction
+              let txFound = false;
+              let attempts = 0;
+              const maxAttempts = 30; // 30 attempts * 2 seconds = 60 seconds max wait
+
+              while (!txFound && attempts < maxAttempts) {
+                attempts++;
+                await new Promise(resolve => setTimeout(resolve, 2000)); // Wait 2 seconds
+
+                // Refresh transaction history
+                await fetchTransactionHistory();
+
+                // Check if we can find a recent transaction to our taproot address
+                // The transaction should be within the last minute
+                const recentTxs = transactionHistory.filter(tx => {
+                  const txTime = tx.status?.block_time || 0;
+                  const now = Math.floor(Date.now() / 1000);
+                  return (now - txTime) < 120; // Within last 2 minutes
+                });
+
+                // Look for a transaction that includes our taproot address in outputs
+                txFound = recentTxs.some(tx =>
+                  tx.vout?.some(output => output.scriptpubkey_address === taprootAddress)
+                );
+
+                if (txFound) {
+                  // Transaction found! Now we can safely remove the proofs
+                  await cleanupMeltProofs(meltResult.proofsToRemove, meltResult.changeProofs);
+                  break;
+                }
+              }
+
+              if (txFound) {
+                await fetchTransactionHistory();
+                Alert.alert('Success', 'E-cash successfully fused to on-chain UNIT!');
+              } else {
+                Alert.alert(
+                  'Pending',
+                  'Melt completed but transaction not yet visible. Your proofs are safe and will be cleaned up when the transaction appears.',
+                  [
+                    {
+                      text: 'OK',
+                      onPress: async () => {
+                        // Clean up proofs anyway after user acknowledges
+                        await cleanupMeltProofs(meltResult.proofsToRemove, meltResult.changeProofs);
+                        await fetchTransactionHistory();
+                      }
+                    }
+                  ]
+                );
+              }
             } catch (error) {
               Alert.alert('Error', `Failed to fuse e-cash: ${error.message}`);
             }
@@ -167,7 +216,7 @@ function AssetDetailScreen({ route = {}, navigation }) {
         },
       ]
     );
-  }, [cashuBalance, taprootAddress, fetchTransactionHistory]);
+  }, [cashuBalance, taprootAddress, fetchTransactionHistory, transactionHistory]);
 
   // Handle spectre (convert all on-chain runes to e-cash)
   const handleSpectrePress = useCallback(async () => {

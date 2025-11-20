@@ -623,6 +623,125 @@ export const completeMelt = async (quoteId, totalAmount) => {
 };
 
 /**
+ * Complete melt without removing proofs - for fuse flow
+ * Returns the proofs that need to be removed so caller can wait for tx confirmation
+ * @param {string} quoteId - Melt quote ID
+ * @param {number} totalAmount - Total amount to melt
+ * @returns {Promise<Object>} Result with proofsToRemove and changeProofs
+ */
+export const completeMeltWithoutCleanup = async (quoteId, totalAmount) => {
+  let selectedProofs = null;
+  let changeProofs = null;
+  let didSwap = false;
+
+  try {
+    logger.info('Completing melt without cleanup', { quoteId, totalAmount });
+
+    // Select proofs
+    const allProofs = await loadProofs();
+    selectedProofs = selectProofsForAmount(allProofs, totalAmount);
+    const selectedAmount = sumProofs(selectedProofs);
+
+    // If we have change, swap first
+    let proofsToMelt = selectedProofs;
+
+    if (selectedAmount > totalAmount) {
+      const changeAmount = selectedAmount - totalAmount;
+      logger.info('Creating change for melt', { changeAmount });
+
+      const keyData = await getOrFetchKeys();
+      let keys, keysetId;
+      if (keyData.keysets && keyData.keysets.length > 0) {
+        keysetId = keyData.keysets[0].id;
+        keys = keyData.keysets[0].keys;
+      } else {
+        keys = keyData.keys || keyData;
+      }
+
+      const meltAmounts = splitAmount(totalAmount);
+      const changeAmounts = splitAmount(changeAmount);
+
+      const { outputs, blindingData } = await createBlindedOutputs([
+        ...meltAmounts,
+        ...changeAmounts,
+      ], keysetId);
+
+      const response = await swapTokensAPI(selectedProofs, outputs);
+      didSwap = true;
+
+      const allNewProofs = unblindSignatures(
+        response.signatures,
+        blindingData,
+        keys,
+        response.signatures[0]?.id || keysetId
+      );
+
+      proofsToMelt = allNewProofs.slice(0, meltAmounts.length);
+      changeProofs = allNewProofs.slice(meltAmounts.length);
+    }
+
+    // Melt tokens
+    const result = await meltTokensAPI(quoteId, proofsToMelt);
+
+    logger.info('Melt completed without cleanup', {
+      paid: result.paid,
+      txid: result.payment_preimage,
+    });
+
+    // Return the proofs that need to be removed later
+    return {
+      paid: result.paid,
+      txid: result.payment_preimage,
+      fee: result.fee_paid || 0,
+      proofsToRemove: selectedProofs,
+      changeProofs: changeProofs,
+    };
+  } catch (error) {
+    logger.error('Failed to complete melt without cleanup', { error: error.message, didSwap });
+
+    // CRITICAL: If we swapped for change but melt failed, we MUST save the change proofs
+    if (didSwap && changeProofs && selectedProofs) {
+      logger.warn('Melt failed after swap - saving change proofs to prevent fund loss');
+      try {
+        await removeProofs(selectedProofs);
+        await addProofs(changeProofs);
+        logger.info('Successfully saved change proofs after melt failure');
+      } catch (saveError) {
+        logger.error('CRITICAL: Failed to save change proofs after melt failure!', {
+          error: saveError.message,
+        });
+      }
+    }
+
+    throw error;
+  }
+};
+
+/**
+ * Clean up proofs after melt transaction is confirmed
+ * @param {Array} proofsToRemove - Proofs to remove
+ * @param {Array} changeProofs - Change proofs to add (can be null)
+ */
+export const cleanupMeltProofs = async (proofsToRemove, changeProofs) => {
+  try {
+    if (changeProofs) {
+      await removeProofs(proofsToRemove);
+      await addProofs(changeProofs);
+      logger.info('Cleaned up melt proofs with change', {
+        removedCount: proofsToRemove.length,
+        changeCount: changeProofs.length,
+      });
+    } else {
+      await removeProofs(proofsToRemove);
+      logger.info('Cleaned up melt proofs', { count: proofsToRemove.length });
+    }
+  } catch (error) {
+    logger.error('Failed to cleanup melt proofs', { error: error.message });
+    throw error;
+  }
+};
+
+/**
  * Clear all proofs (for testing or wallet reset)
  */
 export const clearWallet = async () => {
