@@ -146,6 +146,16 @@ export default function AmountInputScreen({ navigation, route }) {
           // Create P2PK locked token
           const { token } = await sendP2PKToken(amountInSmallestUnits, recipientPubkey);
 
+          // Save token to storage
+          try {
+            const { saveSentLockedToken } = await import('../../services/cashu/cashuLockedTokensService');
+            await saveSentLockedToken(token, sendRecipient, amountInSmallestUnits, null);
+            console.log('[AmountInputScreen] Token saved to storage');
+          } catch (storageError) {
+            console.error('[AmountInputScreen] Failed to save token:', storageError);
+            // Non-critical - continue anyway
+          }
+
           setIsRequestingMint(false);
 
           // Navigate directly to confirmation with the token (no on-chain tx needed)

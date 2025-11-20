@@ -41,15 +41,15 @@ export async function createUnitIntent(
     // Parse amount and multiply by 100 for runestone encoding
     const amountInRunes = parseRuneAmount(amount);
 
-    // Find rune UTXO with sufficient balance
-    const runeUtxo = await findRuneUtxo(
+    // Find rune UTXOs with sufficient balance (may return multiple)
+    const runeUtxos = await findRuneUtxo(
       taprootAddress,
       amountInRunes,
       unconfirmedTaprootUtxos,
       spentUtxos
     );
 
-    if (!runeUtxo) {
+    if (!runeUtxos || runeUtxos.length === 0) {
       throw new Error(ERRORS.NO_UNIT_BALANCE);
     }
 
@@ -65,16 +65,19 @@ export async function createUnitIntent(
     const recipientSats = 10000;
     const runeReturnSats = 10000;
     const dustLimit = 546;
-    const totalInput = satUtxo.value + runeUtxo.value;
+
+    // Sum up all rune UTXO values
+    const totalRuneUtxoValue = runeUtxos.reduce((sum, utxo) => sum + utxo.value, 0);
+    const totalInput = satUtxo.value + totalRuneUtxoValue;
     const change = totalInput - fee - recipientSats - runeReturnSats;
 
     if (change < 0) {
       throw new Error(ERRORS.INSUFFICIENT_FUNDS);
     }
 
-    // Build PSBT
+    // Build PSBT with multiple rune UTXOs
     const psbt = await buildRunesPsbt(
-      runeUtxo,
+      runeUtxos,
       satUtxo,
       taprootAddress,
       segwitAddress,
@@ -98,7 +101,8 @@ export async function createUnitIntent(
       addressType: 'taproot',
       sourceAddress: taprootAddress,
       feeAddress: segwitAddress,
-      runeUtxo,
+      runeUtxos, // Now an array
+      runeUtxo: runeUtxos[0], // Keep backward compatibility (first UTXO)
       satUtxo,
       totalInput,
       change,

@@ -339,15 +339,23 @@ export default function CashuReceiveScreen({ route }) {
         </View>
 
         <TouchableScale
-          style={styles.scanButton}
-          onPress={() => {
-            // Navigate to QR scanner
-            navigation.navigate('CashuQRScanner');
+          style={styles.pasteButton}
+          onPress={async () => {
+            const clipboardContent = await Clipboard.getStringAsync();
+            if (clipboardContent && clipboardContent.startsWith('cashu')) {
+              setPasteValue(clipboardContent);
+            } else {
+              Alert.alert('No Token Found', 'No Cashu token found in clipboard');
+            }
           }}
         >
           <Icon name="qr_code" size={20} color={COLORS.PRIMARY_BLUE} />
-          <Text style={styles.scanButtonText}>Scan QR Code</Text>
+          <Text style={styles.pasteButtonText}>Paste from Clipboard</Text>
         </TouchableScale>
+
+        <Text style={styles.helpText}>
+          You can also scan QR codes with your phone's camera app, then copy the token and paste it here.
+        </Text>
 
         <TouchableScale
           style={[styles.button, !pasteValue && styles.buttonDisabled]}
@@ -523,7 +531,7 @@ const styles = StyleSheet.create({
     minHeight: 100,
     textAlignVertical: 'top',
   },
-  scanButton: {
+  pasteButton: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
@@ -535,7 +543,7 @@ const styles = StyleSheet.create({
     backgroundColor: 'transparent',
     marginBottom: 16,
   },
-  scanButtonText: {
+  pasteButtonText: {
     fontSize: 16,
     fontWeight: '600',
     fontFamily: 'CabinetGrotesk-Medium',

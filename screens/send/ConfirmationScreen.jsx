@@ -168,29 +168,9 @@ export default function ConfirmationScreen({ navigation, route }) {
             }
 
             // Store token persistently so user can retrieve it later if they close the screen
-            const SecureStore = await import('expo-secure-store');
-            const SENT_TOKENS_KEY = 'sent_spectre_tokens';
-
             try {
-              // Load existing sent tokens
-              const existingTokensJson = await SecureStore.getItemAsync(SENT_TOKENS_KEY);
-              const existingTokens = existingTokensJson ? JSON.parse(existingTokensJson) : [];
-
-              // Add new token with metadata
-              const tokenRecord = {
-                token,
-                recipient: spectreRecipient,
-                amount: paidQuote.amount,
-                timestamp: Date.now(),
-                txid: broadcastedTxid,
-              };
-
-              existingTokens.push(tokenRecord);
-
-              // Keep only last 50 tokens to prevent storage bloat
-              const tokensToStore = existingTokens.slice(-50);
-
-              await SecureStore.setItemAsync(SENT_TOKENS_KEY, JSON.stringify(tokensToStore));
+              const { saveSentLockedToken } = await import('../../services/cashu/cashuLockedTokensService');
+              await saveSentLockedToken(token, spectreRecipient, paidQuote.amount, broadcastedTxid);
               console.log('[ConfirmationScreen] Token saved to persistent storage');
             } catch (storageError) {
               console.error('[ConfirmationScreen] Failed to save token to storage:', storageError);
@@ -238,12 +218,10 @@ export default function ConfirmationScreen({ navigation, route }) {
   const handleShareDeeplink = async () => {
     if (spectreToken) {
       try {
-        // Use universal link (works everywhere - WhatsApp, iMessage, QR codes, etc.)
-        const deeplinkUrl = `https://ducatprotocol.com/receive?token=${encodeURIComponent(spectreToken)}`;
+        // Use custom scheme - works immediately without AASA file
+        const deeplinkUrl = `ducat://receive?token=${encodeURIComponent(spectreToken)}`;
+        console.log('[ConfirmationScreen] Sharing custom scheme link');
 
-        console.log('[ConfirmationScreen] Sharing universal link');
-
-        // Use native Share API - this creates a clickable link
         await Share.share({
           message: deeplinkUrl,
           title: 'Receive UNIT Token',
@@ -258,12 +236,10 @@ export default function ConfirmationScreen({ navigation, route }) {
   const handleCopyDeeplink = async () => {
     if (spectreToken) {
       try {
-        // Use universal link
-        const deeplinkUrl = `https://ducatprotocol.com/receive?token=${encodeURIComponent(spectreToken)}`;
+        // Use custom scheme - works immediately without AASA file
+        const deeplinkUrl = `ducat://receive?token=${encodeURIComponent(spectreToken)}`;
+        console.log('[ConfirmationScreen] Copying custom scheme link to clipboard');
 
-        console.log('[ConfirmationScreen] Copying universal link to clipboard');
-
-        // Copy link to clipboard
         await Clipboard.setStringAsync(deeplinkUrl);
         Alert.alert('Copied!', 'Link copied to clipboard');
       } catch (error) {
@@ -401,7 +377,7 @@ export default function ConfirmationScreen({ navigation, route }) {
             {spectreToken && (
               <View style={localStyles.qrCodeContainer}>
                 <QRCode
-                  value={`https://ducatprotocol.com/receive?token=${encodeURIComponent(spectreToken)}`}
+                  value={spectreToken}
                   size={260}
                   backgroundColor="white"
                   color="black"

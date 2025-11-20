@@ -60,6 +60,12 @@
           "icon": "./assets/logos/icon.png",
           "color": "#ffffff"
         }
+      ],
+      [
+        "expo-camera",
+        {
+          "cameraPermission": "Allow DUCAT to access your camera to scan QR codes."
+        }
       ]
     ],
     "extra": {

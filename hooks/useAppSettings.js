@@ -110,6 +110,35 @@ export function useAppSettings({ biometricEnabled, setIsAuthenticated, showToast
     }
   }, [showToast]);
 
+  const handleRecoverLockedChange = useCallback(async () => {
+    console.log('[useAppSettings] handleRecoverLockedChange called');
+    try {
+      if (showToast) {
+        showToast('Recovering change from sent tokens...', 'info');
+      }
+
+      const { recoverLockedChange } = await import('../services/cashu/cashuWalletService.js');
+      console.log('[useAppSettings] Calling recoverLockedChange');
+      const result = await recoverLockedChange();
+      console.log('[useAppSettings] Recovery result:', result);
+
+      if (result.recovered > 0) {
+        if (showToast) {
+          showToast(`Recovered ${result.amount} UNIT from ${result.recovered} change proofs!`, 'success');
+        }
+      } else {
+        if (showToast) {
+          showToast(result.message, 'info');
+        }
+      }
+    } catch (error) {
+      console.error('[useAppSettings] Recovery failed:', error);
+      if (showToast) {
+        showToast(`Failed to recover change: ${error.message}`, 'error');
+      }
+    }
+  }, [showToast]);
+
   return useMemo(
     () => ({
       notificationsEnabled,
@@ -117,6 +146,7 @@ export function useAppSettings({ biometricEnabled, setIsAuthenticated, showToast
       handleShowZeroAssetsToggle,
       handleNotificationsToggle,
       handleClearCashuCache,
+      handleRecoverLockedChange,
       showNotificationsModal,
       confirmNotificationsToggle,
       cancelNotificationsToggle,
@@ -127,6 +157,7 @@ export function useAppSettings({ biometricEnabled, setIsAuthenticated, showToast
       handleShowZeroAssetsToggle,
       handleNotificationsToggle,
       handleClearCashuCache,
+      handleRecoverLockedChange,
       showNotificationsModal,
       confirmNotificationsToggle,
       cancelNotificationsToggle,

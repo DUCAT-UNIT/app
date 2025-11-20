@@ -113,7 +113,9 @@ export const TransactionBuildProvider = ({ children, wallet, currentAccount, sho
       }
 
       // Check if user has any UNIT balance
+      logger.debug('[createUnitIntent] runesBalance:', JSON.stringify(runesBalance));
       const unitAmount = runesBalance && runesBalance.length > 0 ? parseFloat(runesBalance[0][1]) : 0;
+      logger.debug('[createUnitIntent] unitAmount:', unitAmount);
       if (unitAmount === 0) {
         throw new Error(ERRORS.NO_UNIT_BALANCE);
       }
@@ -154,8 +156,16 @@ export const TransactionBuildProvider = ({ children, wallet, currentAccount, sho
       // Mark all inputs as spent before storing intent or showing review screen
       const utxosToLock = [];
 
-      // Lock the rune UTXO
-      if (intent.runeUtxo) {
+      // Lock all rune UTXOs (may be multiple)
+      if (intent.runeUtxos && Array.isArray(intent.runeUtxos)) {
+        for (const runeUtxo of intent.runeUtxos) {
+          utxosToLock.push({
+            txid: runeUtxo.transaction,
+            vout: runeUtxo.vout,
+          });
+        }
+      } else if (intent.runeUtxo) {
+        // Backward compatibility for single UTXO
         utxosToLock.push({
           txid: intent.runeUtxo.transaction,
           vout: intent.runeUtxo.vout,

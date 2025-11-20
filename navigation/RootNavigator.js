@@ -4,7 +4,7 @@
  */
 
 import React from 'react';
-import { View, StyleSheet } from 'react-native';
+import { View, StyleSheet, ActivityIndicator, Text } from 'react-native';
 import { NavigationContainer } from '@react-navigation/native';
 import { createStackNavigator } from '@react-navigation/stack';
 import AuthStack from './AuthStack';
@@ -29,15 +29,92 @@ const Stack = createStackNavigator();
 
 // Linking configuration for deep links
 const linking = {
-  prefixes: ['ducat://', 'https://ducatprotocol.com'],
+  prefixes: ['ducat://', 'https://ducatprotocol.com', 'https://www.ducatprotocol.com'],
   config: {
     screens: {
       Main: {
         screens: {
-          Wallet: 'wallet',
+          Wallet: {
+            path: 'wallet',
+          },
         },
       },
+      // Add a NotFound screen to catch unmatched paths
+      NotFound: '*',
     },
+  },
+  // Subscribe to URL changes
+  subscribe(listener) {
+    console.log('[Linking] Custom subscribe called');
+
+    // Helper to extract and store token
+    const extractAndStoreToken = (url) => {
+      if (url && url.includes('receive?token=')) {
+        console.log('[Linking] 🎯 Subscribe detected receive URL:', url);
+        const match = url.match(/receive\?token=(.+)$/);
+        if (match && match[1]) {
+          const token = decodeURIComponent(match[1]);
+          if (typeof global !== 'undefined') {
+            global.pendingCashuToken = token;
+            console.log('[Linking] 💾 Subscribe stored token in global');
+          }
+        }
+      }
+    };
+
+    // Listen for URL events
+    const onReceiveURL = ({ url }) => {
+      console.log('[Linking] Custom subscribe received URL:', url);
+      extractAndStoreToken(url);
+      listener(url);
+    };
+
+    // Handle initial URL
+    Linking.getInitialURL().then((url) => {
+      if (url) {
+        console.log('[Linking] Custom subscribe initial URL:', url);
+        extractAndStoreToken(url);
+        listener(url);
+      }
+    });
+
+    // Add event listener
+    const subscription = Linking.addEventListener('url', onReceiveURL);
+
+    return () => {
+      console.log('[Linking] Custom subscribe cleanup');
+      subscription.remove();
+    };
+  },
+  // Custom function to intercept and handle special URLs before navigation
+  async getStateFromPath(path, options) {
+    console.log('[Linking] ⚡ getStateFromPath called with path:', path);
+
+    // Check if this is a token receive URL (supports both /receive and receive paths)
+    if (path.includes('receive?token=')) {
+      console.log('[Linking] ✅ Detected receive URL!');
+
+      // Extract token from URL (handle both /receive and receive)
+      const match = path.match(/\/?receive\?token=(.+)$/);
+      if (match && match[1]) {
+        const encodedToken = match[1];
+        const token = decodeURIComponent(encodedToken);
+        console.log('[Linking] 🎯 Extracted token (first 30 chars):', token.substring(0, 30));
+
+        // Store token in a global to be processed when app is ready
+        if (typeof global !== 'undefined') {
+          global.pendingCashuToken = token;
+          console.log('[Linking] 💾 Stored token in global.pendingCashuToken');
+        }
+      }
+
+      // Return null to prevent navigation, we'll handle it in the app
+      return null;
+    }
+
+    console.log('[Linking] ⏭️  Not a receive URL, using default behavior');
+    // For other paths, use default behavior
+    return undefined;
   },
 };
 
@@ -59,75 +136,81 @@ export default function RootNavigator() {
   const { showToast } = useNotifications();
   const { receive } = useCashu();
 
+  // Token verification loading state
+  const [isVerifyingToken, setIsVerifyingToken] = React.useState(false);
+  const processingTokenRef = React.useRef(null); // Track currently processing token
+  const processedTokensRef = React.useRef(new Set()); // Track all processed tokens to prevent re-processing
+
   // Create wallet exists ref for useAppLifecycle
   const walletExists = React.useRef(false);
   React.useEffect(() => {
     walletExists.current = !!wallet;
   }, [wallet]);
 
-  // Handle deeplink for receiving Cashu tokens
+  // Check for pending token when authenticated - this runs after linking config stores token
   React.useEffect(() => {
-    // Handle initial URL (app opened from deeplink)
-    const handleInitialURL = async () => {
-      const url = await Linking.getInitialURL();
-      if (url) {
-        handleDeepLink(url);
+    console.log('[Deeplink] 🔄 Setting up pending token checker');
+
+    // Check immediately
+    const checkPendingToken = () => {
+      if (isAuthenticated && global.pendingCashuToken && !isVerifyingToken) {
+        const token = global.pendingCashuToken;
+
+        // Check if we've already processed or are processing this exact token
+        if (processingTokenRef.current === token || processedTokensRef.current.has(token)) {
+          // Clear from global to prevent spam
+          delete global.pendingCashuToken;
+          return;
+        }
+
+        console.log('[Deeplink] 💎 Processing pending token from global');
+
+        // Mark this token as being processed
+        processingTokenRef.current = token;
+        processedTokensRef.current.add(token);
+
+        // Clear the pending token immediately to prevent double-processing
+        delete global.pendingCashuToken;
+
+        // Process the token
+        (async () => {
+          try {
+            setIsVerifyingToken(true);
+            console.log('[Deeplink] 📞 Calling receive function...');
+            const result = await receive(token);
+            console.log('[Deeplink] ✅ Token received successfully!', result);
+
+            setIsVerifyingToken(false);
+            processingTokenRef.current = null; // Clear processed token
+            showToast(`Successfully received ${result.amount} UNIT`, 'success');
+          } catch (error) {
+            console.error('[Deeplink] ❌ Failed to receive token:', error);
+
+            setIsVerifyingToken(false);
+            processingTokenRef.current = null; // Clear processed token
+
+            // Check for specific error messages
+            let errorMessage = error.message || 'Failed to receive token';
+            if (errorMessage.includes('already spent') || errorMessage.includes('already been spent')) {
+              errorMessage = 'Token already claimed';
+            }
+
+            showToast(errorMessage, 'error');
+          }
+        })();
       }
     };
 
-    // Handle URL events (app already open, deeplink clicked)
-    const subscription = Linking.addEventListener('url', (event) => {
-      handleDeepLink(event.url);
-    });
+    // Check immediately
+    checkPendingToken();
 
-    handleInitialURL();
+    // Also poll every 500ms to catch tokens that arrive while app is open
+    const interval = setInterval(checkPendingToken, 500);
 
     return () => {
-      subscription.remove();
+      clearInterval(interval);
     };
-  }, [receive, isAuthenticated]);
-
-  // Extract token from URL and call receive
-  const handleDeepLink = React.useCallback(async (url) => {
-    // Only handle deeplinks when authenticated
-    if (!isAuthenticated) {
-      return;
-    }
-
-    try {
-      console.log('[Deeplink] Processing URL:', url);
-
-      // Handle both custom scheme (ducat://) and universal links (https://ducatprotocol.com/)
-      // Match patterns:
-      // - ducat://receive?token=cashuA...
-      // - https://ducatprotocol.com/receive?token=cashuA...
-      const match = url.match(/^(?:ducat:\/\/|https:\/\/ducatprotocol\.com\/)receive\?token=(.+)$/);
-
-      if (match && match[1]) {
-        const token = decodeURIComponent(match[1]);
-
-        console.log('[Deeplink] Receiving token from link');
-
-        try {
-          const result = await receive(token);
-          Alert.alert(
-            'Token Received!',
-            `Successfully received ${result.amount} UNIT`,
-            [{ text: 'OK' }]
-          );
-        } catch (error) {
-          console.error('[Deeplink] Failed to receive token:', error);
-          Alert.alert(
-            'Error',
-            error.message || 'Failed to receive token',
-            [{ text: 'OK' }]
-          );
-        }
-      }
-    } catch (error) {
-      console.error('[Deeplink] Failed to process URL:', error);
-    }
-  }, [receive, isAuthenticated]);
+  }, [isAuthenticated, receive]);
 
   // Handle lock/unlock
   const handleLock = React.useCallback(() => {
@@ -221,6 +304,16 @@ export default function RootNavigator() {
           showToast={showToast}
         />
       )}
+
+      {/* Token Verification Loading Overlay */}
+      {isVerifyingToken && (
+        <View style={localStyles.loadingOverlay}>
+          <View style={localStyles.loadingContainer}>
+            <ActivityIndicator size="large" color={COLORS.ACCENT} />
+            <Text style={localStyles.loadingText}>Verifying token deposit</Text>
+          </View>
+        </View>
+      )}
     </NavigationContainer>
     </View>
   );
@@ -235,5 +328,26 @@ const localStyles = StyleSheet.create({
     bottom: 0,
     backgroundColor: COLORS.DARK_BG,
     zIndex: 1000,
+  },
+  loadingOverlay: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
+    bottom: 0,
+    backgroundColor: 'rgba(0, 0, 0, 0.8)',
+    justifyContent: 'center',
+    alignItems: 'center',
+    zIndex: 2000,
+  },
+  loadingContainer: {
+    alignItems: 'center',
+    gap: 16,
+  },
+  loadingText: {
+    color: COLORS.TEXT_PRIMARY,
+    fontSize: 16,
+    fontWeight: '500',
+    marginTop: 16,
   },
 });

@@ -14,14 +14,17 @@ import {
 const MIN_FEE_SATS = 12000;
 
 /**
- * Find a rune UTXO with sufficient balance
+ * Find rune UTXOs with sufficient balance (supports multiple UTXOs)
  * @param {string} taprootAddress - Taproot address to search
  * @param {number} amountInRunes - Required rune amount
  * @param {Array} unconfirmedUtxos - Unconfirmed UTXOs to check first
  * @param {Set} spentUtxos - Set of spent UTXO keys
- * @returns {Promise<Object|null>} Rune UTXO or null if not found
+ * @returns {Promise<Array|null>} Array of rune UTXOs or null if not found
  */
 export async function findRuneUtxo(taprootAddress, amountInRunes, unconfirmedUtxos, spentUtxos) {
+  const selectedUtxos = [];
+  let totalRuneAmount = 0;
+
   // Check unconfirmed UTXOs first
   for (const utxo of unconfirmedUtxos) {
     const key = `${utxo.txid}:${utxo.vout}`;
@@ -30,14 +33,21 @@ export async function findRuneUtxo(taprootAddress, amountInRunes, unconfirmedUtx
       continue;
     }
 
-    if (utxo.runeAmount && utxo.runeAmount >= amountInRunes) {
-      return {
+    if (utxo.runeAmount && utxo.runeAmount > 0) {
+      selectedUtxos.push({
         transaction: utxo.txid,
         vout: utxo.vout,
         value: utxo.value,
         runeAmount: utxo.runeAmount,
         status: { confirmed: false },
-      };
+      });
+      totalRuneAmount += utxo.runeAmount;
+
+      // If we have enough, return early
+      if (totalRuneAmount >= amountInRunes) {
+        logger.debug('[findRuneUtxo] ✅ Found sufficient runes in unconfirmed UTXOs:', selectedUtxos.length);
+        return selectedUtxos;
+      }
     }
   }
 
@@ -47,7 +57,11 @@ export async function findRuneUtxo(taprootAddress, amountInRunes, unconfirmedUtx
   });
   const ordData = await ordResponse.json();
 
-  // Find a UTXO with sufficient runes
+  logger.debug('[findRuneUtxo] Looking for rune amount:', amountInRunes);
+  logger.debug('[findRuneUtxo] Already have from unconfirmed:', totalRuneAmount);
+  logger.debug('[findRuneUtxo] Found outputs from ord API:', ordData.outputs?.length || 0);
+
+  // Collect confirmed UTXOs
   for (const output of ordData.outputs || []) {
     const utxoResponse = await fetch(getOrdOutputUrl(output), {
       headers: { Accept: 'application/json' },
@@ -57,32 +71,47 @@ export async function findRuneUtxo(taprootAddress, amountInRunes, unconfirmedUtx
     // Check if this UTXO has DUCAT•UNIT•RUNE
     if (utxoData.runes && utxoData.runes['DUCAT•UNIT•RUNE']) {
       const runeAmount = parseInt(utxoData.runes['DUCAT•UNIT•RUNE'].amount, 10);
+      const vout = parseInt(output.match(/:(.*)$/)[1], 10);
+      const key = `${utxoData.transaction}:${vout}`;
 
-      if (runeAmount >= amountInRunes) {
-        const vout = parseInt(output.match(/:(.*)$/)[1], 10);
-        const key = `${utxoData.transaction}:${vout}`;
+      logger.debug('[findRuneUtxo] Found UTXO with rune amount:', runeAmount, 'total so far:', totalRuneAmount + runeAmount);
 
-        // Check if already spent
-        if (spentUtxos.has(key)) {
-          logger.debug('⚠️ Skipping spent rune UTXO from ord API:', key);
-          continue;
-        }
+      // Check if already spent
+      if (spentUtxos.has(key)) {
+        logger.debug('⚠️ Skipping spent rune UTXO from ord API:', key);
+        continue;
+      }
 
-        // Verify unspent on blockchain
-        const spendResponse = await fetch(getTxOutspendUrl(utxoData.transaction, vout));
-        const spendData = await spendResponse.json();
+      // Verify unspent on blockchain
+      const spendResponse = await fetch(getTxOutspendUrl(utxoData.transaction, vout));
+      const spendData = await spendResponse.json();
 
-        if (!spendData.spent) {
-          return {
-            transaction: utxoData.transaction,
-            vout: vout,
-            value: utxoData.value,
-            runeAmount: runeAmount,
-            status: { confirmed: true },
-          };
+      if (!spendData.spent) {
+        selectedUtxos.push({
+          transaction: utxoData.transaction,
+          vout: vout,
+          value: utxoData.value,
+          runeAmount: runeAmount,
+          status: { confirmed: true },
+        });
+        totalRuneAmount += runeAmount;
+
+        // If we have enough, return
+        if (totalRuneAmount >= amountInRunes) {
+          logger.debug('[findRuneUtxo] ✅ Found sufficient runes using', selectedUtxos.length, 'UTXOs');
+          logger.debug('[findRuneUtxo] Total rune amount:', totalRuneAmount, `(${totalRuneAmount / 100} UNIT)`);
+          return selectedUtxos;
         }
       }
     }
+  }
+
+  // Log summary if insufficient funds
+  if (selectedUtxos.length > 0) {
+    logger.error('[findRuneUtxo] ❌ Insufficient runes across all UTXOs!');
+    logger.error('[findRuneUtxo] Required:', amountInRunes, `(${amountInRunes / 100} UNIT)`);
+    logger.error('[findRuneUtxo] Total available:', totalRuneAmount, `(${totalRuneAmount / 100} UNIT)`);
+    logger.error('[findRuneUtxo] Found', selectedUtxos.length, 'UTXOs');
   }
 
   return null;

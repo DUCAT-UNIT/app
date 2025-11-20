@@ -63,16 +63,21 @@ export const signIntent = async (intent, currentAccount) => {
     if (intent.assetType === 'UNIT') {
       // UNIT transactions have mixed input types:
       // - Input 0: P2WPKH (fee input from BTC balance)
-      // - Input 1: Taproot (rune input with UNIT balance)
+      // - Input 1+: Taproot (rune inputs with UNIT balance, may be multiple)
 
       // Input 0: Sign with SegWit key
       psbt.signInput(0, segwitChild);
 
-      // Input 1: Sign with tweaked Taproot key (UNIFIED METHOD)
+      // Input 1+: Sign all taproot rune inputs with tweaked Taproot key (UNIFIED METHOD)
       const tweakedSigner = taprootChild.tweak(
         bitcoin.crypto.taggedHash('TapTweak', taprootChild.publicKey.slice(1, 33))
       );
-      psbt.signInput(1, tweakedSigner);
+
+      // Count number of rune inputs (all inputs after input 0)
+      const numRuneInputs = psbt.data.inputs.length - 1;
+      for (let i = 1; i <= numRuneInputs; i++) {
+        psbt.signInput(i, tweakedSigner);
+      }
     } else {
       // BTC transactions: All inputs are the same type
       if (intent.addressType === 'taproot') {

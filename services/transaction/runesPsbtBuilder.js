@@ -24,7 +24,7 @@ export async function fetchTransactionHex(txid) {
 
 /**
  * Build PSBT for Runes transaction
- * @param {Object} runeUtxo - Rune UTXO to spend
+ * @param {Array<Object>|Object} runeUtxos - Rune UTXO(s) to spend (array or single object)
  * @param {Object} satUtxo - Sat UTXO for fees
  * @param {string} taprootAddress - Source taproot address
  * @param {string} segwitAddress - Change address
@@ -37,7 +37,7 @@ export async function fetchTransactionHex(txid) {
  * @returns {Promise<bitcoin.Psbt>} Built PSBT
  */
 export async function buildRunesPsbt(
-  runeUtxo,
+  runeUtxos,
   satUtxo,
   taprootAddress,
   segwitAddress,
@@ -50,12 +50,12 @@ export async function buildRunesPsbt(
 ) {
   const psbt = new bitcoin.Psbt({ network: MUTINYNET_NETWORK });
 
-  // Fetch transaction hex for inputs
+  // Normalize runeUtxos to array
+  const runeUtxoArray = Array.isArray(runeUtxos) ? runeUtxos : [runeUtxos];
+
+  // Fetch transaction hex for sat input
   const satTxHex = await fetchTransactionHex(satUtxo.txid);
   const satTx = bitcoin.Transaction.fromHex(satTxHex);
-
-  const runeTxHex = await fetchTransactionHex(runeUtxo.transaction);
-  const runeTx = bitcoin.Transaction.fromHex(runeTxHex);
 
   // Decode taproot address
   const { data: taprootData } = bitcoin.address.fromBech32(taprootAddress);
@@ -71,16 +71,21 @@ export async function buildRunesPsbt(
     },
   });
 
-  // Add Input 1: Taproot (with runes)
-  psbt.addInput({
-    hash: runeUtxo.transaction,
-    index: parseInt(runeUtxo.vout, 10),
-    witnessUtxo: {
-      script: Buffer.from(runeTx.outs[runeUtxo.vout].script),
-      value: BigInt(runeUtxo.value),
-    },
-    tapInternalKey: tapInternalKey,
-  });
+  // Add all rune inputs (Input 1, 2, 3, ... N)
+  for (const runeUtxo of runeUtxoArray) {
+    const runeTxHex = await fetchTransactionHex(runeUtxo.transaction);
+    const runeTx = bitcoin.Transaction.fromHex(runeTxHex);
+
+    psbt.addInput({
+      hash: runeUtxo.transaction,
+      index: parseInt(runeUtxo.vout, 10),
+      witnessUtxo: {
+        script: Buffer.from(runeTx.outs[runeUtxo.vout].script),
+        value: BigInt(runeUtxo.value),
+      },
+      tapInternalKey: tapInternalKey,
+    });
+  }
 
   // Create runestone
   const runestoneConfig = {
