@@ -179,9 +179,16 @@ const getOrFetchKeys = async () => {
  */
 export const requestMint = async (amount) => {
   try {
-    logger.info('Requesting mint', { amount });
+    logger.info('Requesting mint', { amount, type: typeof amount });
 
     const quote = await createMintQuote(amount);
+
+    logger.info('Mint quote received from mint', {
+      quoteId: quote.quote,
+      requestedAmount: amount,
+      quoteAmount: quote.amount,
+      depositAddress: quote.request,
+    });
 
     return {
       quoteId: quote.quote,
