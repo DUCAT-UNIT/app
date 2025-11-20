@@ -104,7 +104,7 @@ const styles = StyleSheet.create({
     borderBottomLeftRadius: 24,
   },
   progressBarRunes: {
-    backgroundColor: COLORS.PRIMARY_BLUE,
+    backgroundColor: COLORS.MEDIUM_GRAY,
     borderTopRightRadius: 24,
     borderBottomRightRadius: 24,
   },
@@ -130,10 +130,10 @@ const styles = StyleSheet.create({
     marginRight: 5,
   },
   dotEcash: {
-    backgroundColor: COLORS.MEDIUM_GRAY,
+    backgroundColor: COLORS.PRIMARY_BLUE,
   },
   dotRunes: {
-    backgroundColor: COLORS.PRIMARY_BLUE,
+    backgroundColor: COLORS.MEDIUM_GRAY,
   },
   balanceValue: {
     fontSize: 11,
