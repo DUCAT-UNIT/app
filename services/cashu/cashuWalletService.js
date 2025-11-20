@@ -588,6 +588,239 @@ export const clearWallet = async () => {
   logger.info('Wallet cleared');
 };
 
+/**
+ * Send P2PK locked token (NUT-11)
+ * Lock tokens to recipient's public key - only they can spend
+ *
+ * @param {number} amount - Amount to send
+ * @param {string} recipientPubkey - Recipient's public key (hex)
+ * @param {Object} options - Optional P2PK parameters
+ * @returns {Promise<Object>} { token, amount, balance }
+ */
+export const sendP2PKToken = async (amount, recipientPubkey, options = {}) => {
+  try {
+    logger.info('Sending P2PK locked token', { amount, recipientPubkey: recipientPubkey.substring(0, 16) + '...' });
+
+    const { createP2PKSecret } = await import('./cashuP2PK.js');
+
+    // Select proofs
+    const allProofs = await loadProofs();
+    const selectedProofs = selectProofsForAmount(allProofs, amount);
+    const selectedAmount = sumProofs(selectedProofs);
+
+    // Get keys
+    const keyData = await getOrFetchKeys();
+    let keys, keysetId;
+    if (keyData.keysets && keyData.keysets.length > 0) {
+      keysetId = keyData.keysets[0].id;
+      keys = keyData.keysets[0].keys;
+    } else {
+      keys = keyData.keys || keyData;
+    }
+
+    // Create P2PK secrets for the send amount
+    const sendAmounts = splitAmount(amount);
+    const p2pkSecrets = [];
+
+    for (const amt of sendAmounts) {
+      const p2pkSecret = await createP2PKSecret(recipientPubkey, options);
+      p2pkSecrets.push(p2pkSecret);
+    }
+
+    // If we have change, create normal secrets for change
+    let changeSecrets = [];
+    if (selectedAmount > amount) {
+      const changeAmount = selectedAmount - amount;
+      const changeAmounts = splitAmount(changeAmount);
+
+      for (const amt of changeAmounts) {
+        const secret = await generateSecret();
+        changeSecrets.push(secret);
+      }
+    }
+
+    // Create blinded outputs using our custom secrets
+    const allSecrets = [...p2pkSecrets, ...changeSecrets];
+    const allAmounts = [...sendAmounts, ...(selectedAmount > amount ? splitAmount(selectedAmount - amount) : [])];
+    const { outputs, blindingData } = await createBlindedOutputsWithSecrets(allSecrets, allAmounts, keysetId);
+
+    // Swap with mint
+    const response = await swapTokensAPI(selectedProofs, outputs);
+
+    // Unblind all
+    const allNewProofs = unblindSignatures(
+      response.signatures,
+      blindingData,
+      keys,
+      response.signatures[0]?.id || keysetId
+    );
+
+    // Split into send and change
+    const proofsToSend = allNewProofs.slice(0, sendAmounts.length);
+    const changeProofs = allNewProofs.slice(sendAmounts.length);
+
+    // Remove spent proofs, add change
+    await removeProofs(selectedProofs);
+    if (changeProofs.length > 0) {
+      await addProofs(changeProofs);
+    }
+
+    // Encode token for sending (P2PK locked)
+    const token = encodeToken(proofsToSend, MINT_URL);
+
+    const newBalance = await getBalance();
+
+    logger.info('P2PK token created', { amount, locked: true, newBalance });
+
+    return {
+      token,
+      amount: sumProofs(proofsToSend),
+      balance: newBalance,
+    };
+  } catch (error) {
+    logger.error('Failed to send P2PK token', { error: error.message });
+    throw error;
+  }
+};
+
+/**
+ * Receive and spend P2PK locked token (NUT-11)
+ * Provide your private key to unlock and claim the tokens
+ *
+ * @param {string} tokenString - Encoded P2PK token
+ * @param {string} privateKey - Your private key to unlock the token (hex)
+ * @returns {Promise<Object>} { amount, proofCount }
+ */
+export const receiveP2PKToken = async (tokenString, privateKey) => {
+  try {
+    logger.info('Receiving P2PK locked token');
+
+    const { signP2PKSecret, isP2PKSecret } = await import('./cashuP2PK.js');
+
+    // Decode token
+    const { mint, proofs, amount } = decodeToken(tokenString);
+
+    // Verify mint matches
+    if (mint !== MINT_URL) {
+      throw new Error(`Token from different mint: ${mint}`);
+    }
+
+    // Check if proofs are P2PK locked
+    const p2pkProofs = proofs.filter(p => isP2PKSecret(p.secret));
+    if (p2pkProofs.length === 0) {
+      throw new Error('Token does not contain P2PK locked proofs');
+    }
+
+    logger.info('Signing P2PK proofs with private key', { proofCount: p2pkProofs.length });
+
+    // Sign each P2PK proof with our private key
+    const signedProofs = await Promise.all(
+      proofs.map(async (proof) => {
+        if (isP2PKSecret(proof.secret)) {
+          // Create witness signature
+          const witness = await signP2PKSecret(proof.secret, privateKey);
+          return {
+            ...proof,
+            witness
+          };
+        } else {
+          // Non-P2PK proof, no witness needed
+          return proof;
+        }
+      })
+    );
+
+    // Get keys
+    const keyData = await getOrFetchKeys();
+    let keys, keysetId;
+    if (keyData.keysets && keyData.keysets.length > 0) {
+      keysetId = keyData.keysets[0].id;
+      keys = keyData.keysets[0].keys;
+    } else {
+      keys = keyData.keys || keyData;
+    }
+
+    // Swap the P2PK proofs for regular proofs (this will verify the witness)
+    const amounts = splitAmount(amount);
+    const { outputs, blindingData } = await createBlindedOutputs(amounts, keysetId);
+
+    // Swap: give signed P2PK proofs, get regular proofs
+    const response = await swapTokensAPI(signedProofs, outputs);
+
+    // Unblind to create our new proofs
+    const newProofs = unblindSignatures(
+      response.signatures,
+      blindingData,
+      keys,
+      response.signatures[0]?.id || keysetId
+    );
+
+    // Add to wallet
+    await addProofs(newProofs);
+
+    logger.info('P2PK token received and unlocked', { amount, proofCount: newProofs.length });
+
+    return {
+      amount,
+      proofCount: newProofs.length,
+    };
+  } catch (error) {
+    logger.error('Failed to receive P2PK token', { error: error.message });
+    throw error;
+  }
+};
+
+/**
+ * Helper: Create blinded outputs with custom secrets (for P2PK)
+ */
+const createBlindedOutputsWithSecrets = async (secrets, amounts, keysetId) => {
+  const { createBlindedMessage } = await import('./cashuCrypto.js');
+  const outputs = [];
+  const blindingData = [];
+
+  if (secrets.length !== amounts.length) {
+    throw new Error('Secrets and amounts length mismatch');
+  }
+
+  for (let i = 0; i < secrets.length; i++) {
+    const secret = secrets[i];
+    const amount = amounts[i];
+
+    const blindedMsg = await createBlindedMessage(secret);
+
+    const output = {
+      amount,
+      B_: blindedMsg.B_,
+    };
+
+    if (keysetId) {
+      output.id = keysetId;
+    }
+
+    outputs.push(output);
+
+    blindingData.push({
+      amount,
+      secret: secret,
+      r: blindedMsg.r,
+      B_: blindedMsg.B_,
+    });
+  }
+
+  // Sort outputs by amount for privacy (NUT-03)
+  const combined = outputs.map((output, i) => ({
+    output,
+    blindingData: blindingData[i]
+  }));
+
+  combined.sort((a, b) => a.output.amount - b.output.amount);
+
+  return {
+    outputs: combined.map(c => c.output),
+    blindingData: combined.map(c => c.blindingData)
+  };
+};
+
 export default {
   loadProofs,
   saveProofs,
@@ -597,6 +830,8 @@ export default {
   completeMint,
   receiveToken,
   sendToken,
+  sendP2PKToken,
+  receiveP2PKToken,
   requestMelt,
   completeMelt,
   clearWallet,
