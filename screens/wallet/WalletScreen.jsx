@@ -179,12 +179,14 @@ const WalletScreen = React.memo(function WalletScreen({
           btcValue={(() => {
             const runesAmount = runesBalance.length > 0 ? parseFloat(runesBalance[0][1]) : 0;
             const totalUnit = runesAmount + cashuBalance;
-            return (totalUnit / 100_000_000).toFixed(8);
+            // UNIT uses divisibility of 2 (divide by 100, not 100 million like BTC)
+            return ((totalUnit / 100) / 100_000_000).toFixed(8);
           })()}
           usdValue={(() => {
             const runesAmount = runesBalance.length > 0 ? parseFloat(runesBalance[0][1]) : 0;
             const totalUnit = runesAmount + cashuBalance;
-            return totalUnit;
+            // UNIT is pegged to $1, divide by 100 to get display value
+            return totalUnit / 100;
           })()}
           styles={styles}
           onPress={() => onAssetPress && onAssetPress('UNIT')}
