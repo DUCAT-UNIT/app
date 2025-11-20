@@ -26,6 +26,7 @@ import { useSendFlow } from '../../contexts/SendFlowContext';
 import { COLORS } from '../../theme';
 import Icon from '../../components/icons';
 import TouchableScale from '../../components/common/TouchableScale';
+import { decodeCashuToken } from '../../utils/emojiEncoder';
 
 const SCREEN_WIDTH = Dimensions.get('window').width;
 const HORIZONTAL_PADDING = SCREEN_WIDTH < 375 ? 16 : 20;
@@ -99,7 +100,23 @@ export default function CashuReceiveScreen({ route }) {
 
     setIsLoading(true);
     try {
-      const result = await receive(pasteValue.trim());
+      let tokenToReceive = pasteValue.trim();
+
+      // Check if it's an emoji token (doesn't start with 'cashu')
+      if (!tokenToReceive.startsWith('cashu')) {
+        console.log('[CashuReceive] Detected emoji token, decoding...');
+        try {
+          tokenToReceive = decodeCashuToken(tokenToReceive);
+          console.log('[CashuReceive] Successfully decoded emoji token');
+        } catch (error) {
+          console.error('[CashuReceive] Failed to decode emoji token:', error);
+          Alert.alert('Invalid Token', 'Failed to decode emoji token. Please check and try again.');
+          setIsLoading(false);
+          return;
+        }
+      }
+
+      const result = await receive(tokenToReceive);
       Alert.alert(
         'Success!',
         `Received ${result.amount} sats worth of Cashu tokens`,

@@ -2,7 +2,7 @@
  * SpectreQRCodeScreen - Display QR code for a Spectre token
  */
 
-import React, { useState } from 'react';
+import React, { useState, useMemo } from 'react';
 import {
   View,
   Text,
@@ -10,25 +10,47 @@ import {
   TouchableOpacity,
   Share,
   Alert,
+  ScrollView,
 } from 'react-native';
 import QRCode from 'react-native-qrcode-svg';
 import * as Clipboard from 'expo-clipboard';
 import { COLORS } from '../../theme';
 import Icon from '../../components/icons';
+import { encodeCashuToken } from '../../utils/emojiEncoder';
 
 export default function SpectreQRCodeScreen({ navigation, route }) {
   const { deeplink, amount, recipient, timestamp } = route.params;
+  const [showEmoji, setShowEmoji] = useState(true);
+
+  // Extract token from deeplink and encode to emoji
+  const emojiToken = useMemo(() => {
+    try {
+      // Extract token from deeplink (format: ducat://spectre?token=cashuA...)
+      const url = new URL(deeplink);
+      const token = url.searchParams.get('token');
+      if (!token) return null;
+
+      return encodeCashuToken(token);
+    } catch (error) {
+      console.error('[SpectreQRCode] Failed to encode token:', error);
+      return null;
+    }
+  }, [deeplink]);
+
+  const displayContent = showEmoji ? emojiToken : deeplink;
 
   const handleCopyLink = async () => {
-    await Clipboard.setStringAsync(deeplink);
-    Alert.alert('Copied', 'Deeplink copied to clipboard');
+    await Clipboard.setStringAsync(displayContent);
+    Alert.alert('Copied', showEmoji ? 'Emoji token copied to clipboard' : 'Deeplink copied to clipboard');
   };
 
   const handleShare = async () => {
     try {
       await Share.share({
-        message: `Spectre Token\n\nAmount: ${amount / 100} UNIT\nLink: ${deeplink}`,
-        url: deeplink,
+        message: showEmoji
+          ? `Spectre Token 👻\n\nAmount: ${amount / 100} UNIT\n\n${emojiToken}`
+          : `Spectre Token\n\nAmount: ${amount / 100} UNIT\nLink: ${deeplink}`,
+        url: showEmoji ? undefined : deeplink,
       });
     } catch (error) {
       console.error('[SpectreQRCode] Failed to share:', error);
@@ -61,49 +83,85 @@ export default function SpectreQRCodeScreen({ navigation, route }) {
         </TouchableOpacity>
       </View>
 
-      <View style={styles.content}>
+      <ScrollView style={styles.content}>
         {/* Amount */}
         <View style={styles.amountContainer}>
           <Icon name="spectre" size={32} color={COLORS.BRAND_PURPLE} />
           <Text style={styles.amountText}>{amount / 100} UNIT</Text>
         </View>
 
-        {/* QR Code */}
-        <View style={styles.qrContainer}>
-          <QRCode
-            value={deeplink}
-            size={250}
-            color={COLORS.VERY_LIGHT_GRAY}
-            backgroundColor={COLORS.MID_DARK_GRAY}
-          />
+        {/* Format Toggle */}
+        <View style={styles.toggleContainer}>
+          <TouchableOpacity
+            style={[styles.toggleButton, !showEmoji && styles.toggleButtonActive]}
+            onPress={() => setShowEmoji(false)}
+          >
+            <Text style={[styles.toggleText, !showEmoji && styles.toggleTextActive]}>Link</Text>
+          </TouchableOpacity>
+          <TouchableOpacity
+            style={[styles.toggleButton, showEmoji && styles.toggleButtonActive]}
+            onPress={() => setShowEmoji(true)}
+          >
+            <Text style={[styles.toggleText, showEmoji && styles.toggleTextActive]}>Emoji</Text>
+          </TouchableOpacity>
         </View>
 
-        {/* Info */}
-        <View style={styles.infoContainer}>
-          <View style={styles.infoRow}>
-            <Text style={styles.infoLabel}>Recipient</Text>
-            <Text style={styles.infoValue}>{formatAddress(recipient)}</Text>
-          </View>
-          <View style={styles.infoRow}>
-            <Text style={styles.infoLabel}>Created</Text>
-            <Text style={styles.infoValue}>{formatDate(timestamp)}</Text>
-          </View>
-        </View>
+        {showEmoji ? (
+          <>
+            {/* Emoji Token Display */}
+            <View style={styles.emojiContainer}>
+              <ScrollView horizontal showsHorizontalScrollIndicator={false}>
+                <Text style={styles.emojiText} selectable>
+                  {emojiToken}
+                </Text>
+              </ScrollView>
+            </View>
+            <Text style={styles.emojiHint}>
+              Share these emojis to send the token! Much shorter than a link.
+            </Text>
+          </>
+        ) : (
+          <>
+            {/* QR Code */}
+            <View style={styles.qrContainer}>
+              <QRCode
+                value={deeplink}
+                size={250}
+                color={COLORS.VERY_LIGHT_GRAY}
+                backgroundColor={COLORS.MID_DARK_GRAY}
+              />
+            </View>
+
+            {/* Info */}
+            <View style={styles.infoContainer}>
+              <View style={styles.infoRow}>
+                <Text style={styles.infoLabel}>Recipient</Text>
+                <Text style={styles.infoValue}>{formatAddress(recipient)}</Text>
+              </View>
+              <View style={styles.infoRow}>
+                <Text style={styles.infoLabel}>Created</Text>
+                <Text style={styles.infoValue}>{formatDate(timestamp)}</Text>
+              </View>
+            </View>
+          </>
+        )}
 
         {/* Copy Button */}
         <TouchableOpacity style={styles.copyButton} onPress={handleCopyLink}>
           <Icon name="copy" size={20} color={COLORS.VERY_LIGHT_GRAY} />
-          <Text style={styles.copyButtonText}>Copy Deeplink</Text>
+          <Text style={styles.copyButtonText}>
+            {showEmoji ? 'Copy Emoji Token' : 'Copy Deeplink'}
+          </Text>
         </TouchableOpacity>
 
         {/* Warning */}
         <View style={styles.warningContainer}>
           <Icon name="warning" size={16} color={COLORS.BURNT_ORANGE} />
           <Text style={styles.warningText}>
-            Anyone with this QR code or link can claim the tokens
+            Anyone with this {showEmoji ? 'emoji token' : 'QR code or link'} can claim the tokens
           </Text>
         </View>
-      </View>
+      </ScrollView>
     </View>
   );
 }
@@ -192,6 +250,52 @@ const styles = StyleSheet.create({
     fontSize: 16,
     fontWeight: '600',
     color: COLORS.VERY_LIGHT_GRAY,
+  },
+  toggleContainer: {
+    flexDirection: 'row',
+    backgroundColor: COLORS.MID_DARK_GRAY,
+    borderRadius: 12,
+    padding: 4,
+    marginBottom: 20,
+    gap: 4,
+  },
+  toggleButton: {
+    flex: 1,
+    paddingVertical: 10,
+    alignItems: 'center',
+    borderRadius: 10,
+  },
+  toggleButtonActive: {
+    backgroundColor: COLORS.BRAND_PURPLE,
+  },
+  toggleText: {
+    fontSize: 16,
+    fontWeight: '600',
+    color: COLORS.MID_GRAY,
+  },
+  toggleTextActive: {
+    color: COLORS.VERY_LIGHT_GRAY,
+  },
+  emojiContainer: {
+    backgroundColor: COLORS.MID_DARK_GRAY,
+    borderRadius: 12,
+    padding: 20,
+    marginBottom: 12,
+    minHeight: 250,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  emojiText: {
+    fontSize: 32,
+    lineHeight: 48,
+    color: COLORS.VERY_LIGHT_GRAY,
+    textAlign: 'center',
+  },
+  emojiHint: {
+    fontSize: 14,
+    color: COLORS.MID_GRAY,
+    textAlign: 'center',
+    marginBottom: 20,
   },
   warningContainer: {
     flexDirection: 'row',
