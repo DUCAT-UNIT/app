@@ -4,8 +4,9 @@
  */
 
 import React, { useEffect, useState, useRef } from 'react';
-import { Text, View, TouchableOpacity, Linking, StyleSheet, Alert, ActivityIndicator, Share } from 'react-native';
+import { Text, View, TouchableOpacity, Linking, StyleSheet, Alert, ActivityIndicator, Share, Modal } from 'react-native';
 import * as Clipboard from 'expo-clipboard';
+import QRCode from 'react-native-qrcode-svg';
 import { COLORS } from '../../theme';
 import Icon from '../../components/icons';
 import { getTxUrl } from '../../utils/constants';
@@ -23,6 +24,7 @@ export default function ConfirmationScreen({ navigation, route }) {
   const [isCompletingMint, setIsCompletingMint] = useState(false);
   const [spectreToken, setSpectreToken] = useState(route?.params?.spectreToken || null); // Store the P2PK locked token
   const hasMintCompleted = useRef(false);
+  const [showQRModal, setShowQRModal] = useState(false);
 
   // Log all route params on mount for debugging
   useEffect(() => {
@@ -319,15 +321,27 @@ export default function ConfirmationScreen({ navigation, route }) {
             <Icon name="qr_code" size={48} color={COLORS.YELLOW} style={{ marginBottom: 16 }} />
             <Text style={localStyles.tokenLabel}>Spectre Token Ready</Text>
             <Text style={localStyles.tokenDescription}>
-              Share the deeplink with the recipient - they can tap it to receive the token
+              Show the QR code to the recipient or share via Messages
             </Text>
+
+            {/* QR Code Button - Primary */}
+            <TouchableOpacity
+              style={localStyles.qrButton}
+              onPress={() => setShowQRModal(true)}
+              activeOpacity={0.7}
+            >
+              <Icon name="qr_code" size={20} color={COLORS.WHITE} />
+              <Text style={localStyles.qrButtonText}>Show QR Code</Text>
+            </TouchableOpacity>
+
+            {/* Secondary Actions */}
             <View style={localStyles.buttonRow}>
               <TouchableOpacity
                 style={[localStyles.actionButton, localStyles.shareButton]}
                 onPress={handleShareDeeplink}
                 activeOpacity={0.7}
               >
-                <Icon name="share" size={18} color={COLORS.WHITE} />
+                <Icon name="share" size={16} color={COLORS.WHITE} />
                 <Text style={localStyles.actionButtonText}>Share</Text>
               </TouchableOpacity>
               <TouchableOpacity
@@ -335,7 +349,7 @@ export default function ConfirmationScreen({ navigation, route }) {
                 onPress={handleCopyDeeplink}
                 activeOpacity={0.7}
               >
-                <Icon name="paste" size={18} color={COLORS.WHITE} />
+                <Icon name="paste" size={16} color={COLORS.WHITE} />
                 <Text style={localStyles.actionButtonText}>Copy</Text>
               </TouchableOpacity>
             </View>
@@ -365,6 +379,46 @@ export default function ConfirmationScreen({ navigation, route }) {
           <Text style={localStyles.doneButtonText}>Done</Text>
         </TouchableOpacity>
       </View>
+
+      {/* QR Code Modal */}
+      <Modal
+        visible={showQRModal}
+        transparent={true}
+        animationType="fade"
+        onRequestClose={() => setShowQRModal(false)}
+      >
+        <TouchableOpacity
+          style={localStyles.qrModalBackdrop}
+          activeOpacity={1}
+          onPress={() => setShowQRModal(false)}
+        >
+          <View style={localStyles.qrModalContent}>
+            <Text style={localStyles.qrModalTitle}>Scan to Receive Token</Text>
+            <Text style={localStyles.qrModalSubtitle}>
+              Recipient should scan this QR code with their camera
+            </Text>
+
+            {spectreToken && (
+              <View style={localStyles.qrCodeContainer}>
+                <QRCode
+                  value={`ducat://receive?token=${encodeURIComponent(spectreToken)}`}
+                  size={260}
+                  backgroundColor="white"
+                  color="black"
+                />
+              </View>
+            )}
+
+            <TouchableOpacity
+              style={localStyles.qrCloseButton}
+              onPress={() => setShowQRModal(false)}
+              activeOpacity={0.7}
+            >
+              <Text style={localStyles.qrCloseButtonText}>Close</Text>
+            </TouchableOpacity>
+          </View>
+        </TouchableOpacity>
+      </Modal>
     </View>
   );
 }
@@ -458,7 +512,25 @@ const localStyles = StyleSheet.create({
     fontFamily: 'CabinetGrotesk-Regular',
     textAlign: 'center',
     lineHeight: 20,
-    marginBottom: 20,
+    marginBottom: 16,
+  },
+  qrButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: COLORS.PRIMARY_BLUE,
+    borderRadius: 12,
+    paddingVertical: 16,
+    paddingHorizontal: 24,
+    gap: 10,
+    width: '100%',
+    marginBottom: 12,
+  },
+  qrButtonText: {
+    fontSize: 16,
+    fontWeight: '600',
+    color: COLORS.WHITE,
+    fontFamily: 'CabinetGrotesk-Bold',
   },
   buttonRow: {
     flexDirection: 'row',
@@ -470,21 +542,76 @@ const localStyles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
-    borderRadius: 12,
-    paddingVertical: 14,
-    paddingHorizontal: 20,
-    gap: 8,
+    borderRadius: 10,
+    paddingVertical: 12,
+    paddingHorizontal: 16,
+    gap: 6,
   },
   shareButton: {
-    backgroundColor: COLORS.PRIMARY_BLUE,
+    backgroundColor: COLORS.CARD_BG,
+    borderWidth: 1,
+    borderColor: COLORS.PRIMARY_BLUE,
   },
   copyButton: {
-    backgroundColor: COLORS.SECONDARY_TEXT,
+    backgroundColor: COLORS.CARD_BG,
+    borderWidth: 1,
+    borderColor: COLORS.BORDER_COLOR,
   },
   actionButtonText: {
-    fontSize: 15,
+    fontSize: 14,
+    fontWeight: '600',
+    color: COLORS.VERY_LIGHT_GRAY,
+    fontFamily: 'CabinetGrotesk-Bold',
+  },
+  qrModalBackdrop: {
+    flex: 1,
+    backgroundColor: 'rgba(0, 0, 0, 0.8)',
+    justifyContent: 'center',
+    alignItems: 'center',
+    padding: 20,
+  },
+  qrModalContent: {
+    backgroundColor: COLORS.DARK_BG,
+    borderRadius: 20,
+    padding: 32,
+    alignItems: 'center',
+    maxWidth: 400,
+    width: '100%',
+  },
+  qrModalTitle: {
+    fontSize: 22,
+    fontWeight: '700',
+    color: COLORS.VERY_LIGHT_GRAY,
+    fontFamily: 'CabinetGrotesk-Bold',
+    marginBottom: 8,
+    textAlign: 'center',
+  },
+  qrModalSubtitle: {
+    fontSize: 14,
+    color: COLORS.SECONDARY_TEXT,
+    fontFamily: 'CabinetGrotesk-Regular',
+    textAlign: 'center',
+    marginBottom: 24,
+    lineHeight: 20,
+  },
+  qrCodeContainer: {
+    backgroundColor: COLORS.WHITE,
+    padding: 20,
+    borderRadius: 16,
+    marginBottom: 24,
+  },
+  qrCloseButton: {
+    backgroundColor: COLORS.PRIMARY_BLUE,
+    borderRadius: 12,
+    paddingVertical: 14,
+    paddingHorizontal: 32,
+    minWidth: 120,
+  },
+  qrCloseButtonText: {
+    fontSize: 16,
     fontWeight: '600',
     color: COLORS.WHITE,
     fontFamily: 'CabinetGrotesk-Bold',
+    textAlign: 'center',
   },
 });
