@@ -120,8 +120,16 @@ export default function AmountInputScreen({ navigation, route }) {
         // The runestone encoding will handle multiplication by 100 later
         const displayAmount = parseFloat(sendAmount);
 
+        console.log('[AmountInputScreen] Requesting mint quote for amount:', displayAmount);
+
         // Request mint quote from Cashu mint
         const mintQuote = await requestMint(displayAmount);
+
+        console.log('[AmountInputScreen] Received mint quote:', {
+          quoteId: mintQuote.quoteId,
+          amount: mintQuote.amount,
+          depositAddress: mintQuote.depositAddress,
+        });
 
         // Store the original recipient address (where tokens will be locked)
         const originalRecipient = sendRecipient;
@@ -129,13 +137,20 @@ export default function AmountInputScreen({ navigation, route }) {
         // Temporarily update recipient to mint's deposit address
         setRecipient(mintQuote.depositAddress);
 
+        console.log('[AmountInputScreen] Navigating to Processing with params:', {
+          isSpectre: true,
+          mintQuoteId: mintQuote.quoteId,
+          mintAmount: mintQuote.amount, // Use amount from quote, not displayAmount
+          spectreRecipient: originalRecipient,
+        });
+
         // Navigate to processing screen with Spectre params
         navigation.navigate('Processing', {
           fromScreen: 'AmountInput',
           action: 'create_intent',
           isSpectre: true,
           mintQuoteId: mintQuote.quoteId,
-          mintAmount: displayAmount,
+          mintAmount: mintQuote.amount, // IMPORTANT: Use quote amount (in smallest units)
           spectreRecipient: originalRecipient, // Original address for P2PK locking
         });
       } catch (error) {
