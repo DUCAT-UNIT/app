@@ -49,8 +49,8 @@ const UnitBalanceBreakdown = ({ ecashBalance, runesBalance }) => {
               COLORS.MEDIUM_GRAY, COLORS.MEDIUM_GRAY,
               COLORS.PRIMARY_BLUE, COLORS.PRIMARY_BLUE
             ]}
-            start={{ x: 0, y: 0 }}
-            end={{ x: 1, y: 0.70 }}
+            start={{ x: 0, y: 1 }}
+            end={{ x: 1, y: 0 }}
             locations={[
               0.00, 0.08,
               0.08, 0.16,
