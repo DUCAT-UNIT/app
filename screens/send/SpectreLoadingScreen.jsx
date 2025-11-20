@@ -21,10 +21,19 @@ export default function SpectreLoadingScreen({ navigation, route }) {
   const intentCreated = useRef(false);
   const stateInitialized = useRef(false);
 
+  // Reset refs when component mounts with new params
+  useEffect(() => {
+    hasStarted.current = false;
+    hasNavigated.current = false;
+    intentCreated.current = false;
+    stateInitialized.current = false;
+  }, [prefillAddress, prefillAmount, assetType]);
+
   // Set the send flow values - this happens once when the component mounts
   useEffect(() => {
-    if (!hasStarted.current && assetType && prefillAmount && prefillAddress) {
+    if (!hasStarted.current && assetType && prefillAmount !== undefined && prefillAddress) {
       hasStarted.current = true;
+      console.log('[SpectreLoading] Setting state:', { assetType, prefillAmount, prefillAddress });
 
       // Set send flow values
       setSendAssetType(assetType);
@@ -37,7 +46,17 @@ export default function SpectreLoadingScreen({ navigation, route }) {
   // Watch for state to be initialized, then create intent
   // This ensures the state has been updated before we call createSendIntent
   useEffect(() => {
-    if (hasStarted.current && !stateInitialized.current && currentAssetType && currentAmount && currentRecipient) {
+    console.log('[SpectreLoading] State check:', {
+      hasStarted: hasStarted.current,
+      stateInitialized: stateInitialized.current,
+      currentAssetType,
+      currentAmount,
+      currentRecipient
+    });
+
+    // Check that all required state values are set (allow "0" or any numeric string for amount)
+    if (hasStarted.current && !stateInitialized.current && currentAssetType && currentAmount !== '' && currentAmount !== null && currentRecipient) {
+      console.log('[SpectreLoading] Creating intent...');
       // State is now initialized, create the intent
       stateInitialized.current = true;
       createSendIntent();
