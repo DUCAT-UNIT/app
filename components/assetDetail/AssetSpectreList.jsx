@@ -189,11 +189,7 @@ export function AssetSpectreList({ navigation }) {
 
   return (
     <View style={localStyles.activityContainer}>
-      {tokens.map((item) => (
-        <View key={item.id}>
-          {renderToken(item)}
-        </View>
-      ))}
+      {tokens.map((item) => renderToken(item))}
     </View>
   );
 }
