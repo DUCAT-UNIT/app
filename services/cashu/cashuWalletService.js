@@ -502,6 +502,10 @@ export const requestMelt = async (address, amount) => {
  * @returns {Promise<Object>} Payment result with txid
  */
 export const completeMelt = async (quoteId, totalAmount) => {
+  let selectedProofs = null;
+  let changeProofs = null;
+  let didSwap = false;
+
   try {
     logger.info('Completing melt', { quoteId, totalAmount });
 
@@ -514,12 +518,11 @@ export const completeMelt = async (quoteId, totalAmount) => {
       proofIds: allProofs.map(p => ({ amount: p.amount, id: p.id, secretPreview: p.secret?.substring(0, 8) }))
     });
 
-    const selectedProofs = selectProofsForAmount(allProofs, totalAmount);
+    selectedProofs = selectProofsForAmount(allProofs, totalAmount);
     const selectedAmount = sumProofs(selectedProofs);
 
     // If we have change, swap first
     let proofsToMelt = selectedProofs;
-    let changeProofs = null;
 
     if (selectedAmount > totalAmount) {
       const changeAmount = selectedAmount - totalAmount;
@@ -543,7 +546,10 @@ export const completeMelt = async (quoteId, totalAmount) => {
         ...changeAmounts,
       ], keysetId);
 
+      // CRITICAL: After this swap, selectedProofs are spent with the mint
+      // If melt fails after this, we MUST save changeProofs to avoid fund loss
       const response = await swapTokensAPI(selectedProofs, outputs);
+      didSwap = true;
 
       const allNewProofs = unblindSignatures(
         response.signatures,
@@ -591,7 +597,27 @@ export const completeMelt = async (quoteId, totalAmount) => {
       balance: newBalance,
     };
   } catch (error) {
-    logger.error('Failed to complete melt', { error: error.message });
+    logger.error('Failed to complete melt', { error: error.message, didSwap });
+
+    // CRITICAL: If we swapped for change but melt failed, we MUST save the change proofs
+    // The old proofs are already spent with the mint after the swap
+    if (didSwap && changeProofs && selectedProofs) {
+      logger.warn('Melt failed after swap - saving change proofs to prevent fund loss');
+      try {
+        await removeProofs(selectedProofs);
+        await addProofs(changeProofs);
+        logger.info('Successfully saved change proofs after melt failure', {
+          changeCount: changeProofs.length,
+        });
+      } catch (saveError) {
+        logger.error('CRITICAL: Failed to save change proofs after melt failure!', {
+          error: saveError.message,
+          changeProofsCount: changeProofs.length,
+        });
+        // Still throw the original error, but user needs to know about this
+      }
+    }
+
     throw error;
   }
 };
