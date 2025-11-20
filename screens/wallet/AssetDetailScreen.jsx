@@ -278,8 +278,8 @@ function AssetDetailScreen({ route = {}, navigation }) {
           {/* Show balance breakdown for UNIT */}
           {assetType === 'UNIT' && (
             <UnitBalanceBreakdown
-              ecashBalance={cashuBalance / 100}
-              runesBalance={unitRunesAmount / 100}
+              ecashBalance={cashuBalance}
+              runesBalance={unitRunesAmount}
             />
           )}
 
