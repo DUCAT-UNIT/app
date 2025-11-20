@@ -118,10 +118,10 @@ const styles = StyleSheet.create({
     marginBottom: 2,
   },
   dot: {
-    width: 8,
-    height: 8,
-    borderRadius: 4,
-    marginRight: 6,
+    width: 7,
+    height: 7,
+    borderRadius: 3.5,
+    marginRight: 5,
   },
   dotEcash: {
     backgroundColor: COLORS.PRIMARY_BLUE,
@@ -138,7 +138,7 @@ const styles = StyleSheet.create({
     fontSize: 11,
     fontWeight: '400',
     color: COLORS.SECONDARY_TEXT,
-    marginLeft: 14, // Align with text (8px dot + 6px margin)
+    marginLeft: 12, // Align with text (7px dot + 5px margin)
   },
 });
 
