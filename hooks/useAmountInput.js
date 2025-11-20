@@ -12,6 +12,7 @@ export function useAmountInput({
   segwitBalance,
   taprootBalance,
   runesBalance,
+  cashuBalance,
   wallet,
   sendAddressType,
   setSendAmount
@@ -21,8 +22,10 @@ export function useAmountInput({
   // Calculate balance based on asset type
   // BTC is always sent from segwit address, so only show segwit balance
   const btcBalance = segwitBalance || 0;
-  const unitBalance =
+  // For UNIT, combine on-chain runes balance + ecash balance
+  const unitRunesBalance =
     runesBalance && runesBalance.length > 0 ? parseFloat(runesBalance[0][1]) : 0;
+  const unitBalance = unitRunesBalance + (cashuBalance || 0);
   const balance = sendAssetType === 'btc' ? btcBalance : unitBalance;
   const assetLabel = sendAssetType === 'btc' ? 'BTC' : 'UNIT';
 

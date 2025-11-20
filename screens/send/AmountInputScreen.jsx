@@ -25,11 +25,13 @@ import { useKeyboard } from '../../hooks/useKeyboard';
 import { useAmountInput } from '../../hooks/useAmountInput';
 import { RecipientHeader, BalanceMaxButton } from '../../components/amountInput';
 import { requestMint } from '../../services/cashu/cashuWalletService';
+import { useCashu } from '../../contexts/CashuContext';
 
 export default function AmountInputScreen({ navigation, route }) {
   const { sendAssetType, sendAmount, setSendAmount, sendRecipient, sendAddressType, spectreEnabled, setSendRecipient: setRecipient } = useSendFlow();
   const [isRequestingMint, setIsRequestingMint] = useState(false);
   const { segwitBalance, taprootBalance, runesBalance } = useBalance();
+  const { balance: cashuBalance } = useCashu();
   const { btcPrice } = usePrice();
   const { wallet } = useWallet();
   const { createSendIntent: _createSendIntent } = useTransactionBuild();
@@ -46,6 +48,7 @@ export default function AmountInputScreen({ navigation, route }) {
     segwitBalance,
     taprootBalance,
     runesBalance,
+    cashuBalance,
     wallet,
     sendAddressType,
     setSendAmount,
@@ -213,8 +216,8 @@ export default function AmountInputScreen({ navigation, route }) {
   const usdValue = calculateUsdValue(sendAmount, btcPrice);
 
   // Check if user has sufficient balance
-  const unitAmount = runesBalance && runesBalance.length > 0 ? parseFloat(runesBalance[0][1]) : 0;
-  const hasNoUnitBalance = sendAssetType === 'unit' && unitAmount === 0;
+  // For UNIT, check total balance (on-chain + ecash)
+  const hasNoUnitBalance = sendAssetType === 'unit' && balance === 0;
 
   // Check if amount exceeds available balance
   const enteredAmount = parseFloat(sendAmount) || 0;
