@@ -34,7 +34,7 @@ const UnitBalanceBreakdown = ({ ecashBalance, runesBalance }) => {
           <View style={styles.labelRow}>
             <View style={[styles.dot, styles.dotRunes]} />
             <Text style={styles.balanceValue}>
-              {(runesBalance / 100).toLocaleString('en-US', {
+              {runesBalance.toLocaleString('en-US', {
                 minimumFractionDigits: 2,
                 maximumFractionDigits: 2
               })} UNIT
@@ -48,7 +48,7 @@ const UnitBalanceBreakdown = ({ ecashBalance, runesBalance }) => {
           <View style={styles.labelRow}>
             <View style={[styles.dot, styles.dotEcash]} />
             <Text style={styles.balanceValue}>
-              {(ecashBalance / 100).toLocaleString('en-US', {
+              {ecashBalance.toLocaleString('en-US', {
                 minimumFractionDigits: 2,
                 maximumFractionDigits: 2
               })} eUNIT

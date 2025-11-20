@@ -10,11 +10,11 @@ import { COLORS } from '../../theme';
 import { formatBalance, formatFiat } from '../../utils/formatters/index';
 
 export function AssetInfo({ assetType, balance, fiatValue, btcPrice, priceData, priceDirection, runesBalance, cashuBalance }) {
-  // For UNIT, divide by 100 (divisibility of 2) before displaying
+  // For UNIT, show the actual UNIT amount with commas and 2 decimals
   // For BTC, show the BTC value with 8 decimals
   const displayBalance = assetType === 'BTC'
     ? formatBalance(balance || 0)
-    : formatFiat((balance || 0) / 100, 2);
+    : formatFiat(balance || 0, 2);
 
   return (
     <View style={styles.assetInfoContainer}>
@@ -34,7 +34,7 @@ export function AssetInfo({ assetType, balance, fiatValue, btcPrice, priceData, 
       </Text>
 
       <Text style={styles.balanceFiat}>
-        ${formatFiat(assetType === 'BTC' ? (fiatValue || 0) : (fiatValue || 0) / 100)} USD
+        ${formatFiat(fiatValue || 0)} USD
       </Text>
 
 
