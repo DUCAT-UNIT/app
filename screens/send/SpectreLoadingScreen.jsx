@@ -19,26 +19,24 @@ export default function SpectreLoadingScreen({ navigation, route }) {
   const hasNavigated = useRef(false);
   const errorTimeout = useRef(null);
 
-  // Set the send flow values
+  // Set the send flow values and create intent immediately
   useEffect(() => {
-    if (assetType && prefillAmount && prefillAddress) {
+    if (!hasStarted.current && assetType && prefillAmount && prefillAddress) {
+      hasStarted.current = true;
+
+      // Set send flow values synchronously
       setSendAssetType(assetType);
       setSendAmount(prefillAmount.toString());
       setSendRecipient(prefillAddress);
       setRequireConfirmedUtxos(true); // Spectre requires confirmed UTXOs only
-    }
-  }, [assetType, prefillAmount, prefillAddress, setSendAssetType, setSendAmount, setSendRecipient, setRequireConfirmedUtxos]);
 
-  // Create the intent after a brief delay
-  useEffect(() => {
-    if (!hasStarted.current && assetType && prefillAmount && prefillAddress) {
-      hasStarted.current = true;
-      // Show loading screen for at least 1.5 seconds before creating intent
+      // Create intent on next tick to allow state updates to process
+      // This prevents race conditions with UTXO locking
       setTimeout(() => {
         createSendIntent();
-      }, 1500);
+      }, 0);
     }
-  }, [assetType, prefillAmount, prefillAddress, createSendIntent]);
+  }, [assetType, prefillAmount, prefillAddress, setSendAssetType, setSendAmount, setSendRecipient, setRequireConfirmedUtxos, createSendIntent]);
 
   // Watch for intent creation to complete
   useEffect(() => {
