@@ -28,10 +28,30 @@ const UnitBalanceBreakdown = ({ ecashBalance, runesBalance }) => {
         />
         {/* E-cash with striped pattern on right */}
         <LinearGradient
-          colors={[COLORS.PRIMARY_BLUE, COLORS.PRIMARY_BLUE, COLORS.MEDIUM_GRAY, COLORS.MEDIUM_GRAY, COLORS.PRIMARY_BLUE, COLORS.PRIMARY_BLUE, COLORS.MEDIUM_GRAY, COLORS.MEDIUM_GRAY]}
+          colors={[
+            COLORS.PRIMARY_BLUE, COLORS.PRIMARY_BLUE,
+            COLORS.MEDIUM_GRAY, COLORS.MEDIUM_GRAY,
+            COLORS.PRIMARY_BLUE, COLORS.PRIMARY_BLUE,
+            COLORS.MEDIUM_GRAY, COLORS.MEDIUM_GRAY,
+            COLORS.PRIMARY_BLUE, COLORS.PRIMARY_BLUE,
+            COLORS.MEDIUM_GRAY, COLORS.MEDIUM_GRAY,
+            COLORS.PRIMARY_BLUE, COLORS.PRIMARY_BLUE,
+            COLORS.MEDIUM_GRAY, COLORS.MEDIUM_GRAY,
+            COLORS.PRIMARY_BLUE, COLORS.PRIMARY_BLUE
+          ]}
           start={{ x: 0, y: 0 }}
-          end={{ x: 1, y: 0 }}
-          locations={[0, 0.125, 0.125, 0.25, 0.25, 0.375, 0.375, 0.5]}
+          end={{ x: 1, y: 1 }}
+          locations={[
+            0, 0.05,
+            0.05, 0.15,
+            0.15, 0.20,
+            0.20, 0.30,
+            0.30, 0.35,
+            0.35, 0.45,
+            0.45, 0.50,
+            0.50, 0.60,
+            0.60, 1
+          ]}
           style={[
             styles.progressBarEcash,
             { width: `${ecashPercentage}%` }
