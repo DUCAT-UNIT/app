@@ -25,12 +25,8 @@ export default function SpectreQRCodeScreen({ navigation, route }) {
   // Extract token from deeplink and encode to emoji
   const emojiToken = useMemo(() => {
     try {
-      // Extract token from deeplink (format: ducat://spectre?token=cashuA...)
-      const url = new URL(deeplink);
-      const token = url.searchParams.get('token');
-      if (!token) return null;
-
-      return encodeCashuToken(token);
+      // Pass deeplink directly - encodeCashuToken will handle extraction
+      return encodeCashuToken(deeplink);
     } catch (error) {
       console.error('[SpectreQRCode] Failed to encode token:', error);
       return null;
@@ -110,11 +106,9 @@ export default function SpectreQRCodeScreen({ navigation, route }) {
           <>
             {/* Emoji Token Display */}
             <View style={styles.emojiContainer}>
-              <ScrollView horizontal showsHorizontalScrollIndicator={false}>
-                <Text style={styles.emojiText} selectable>
-                  {emojiToken}
-                </Text>
-              </ScrollView>
+              <Text style={styles.emojiText} selectable>
+                {emojiToken}
+              </Text>
             </View>
             <Text style={styles.emojiHint}>
               Share these emojis to send the token! Much shorter than a link.

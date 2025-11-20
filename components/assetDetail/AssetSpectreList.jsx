@@ -190,7 +190,7 @@ export function AssetSpectreList({ navigation }) {
 
   return (
     <View style={localStyles.activityContainer}>
-      {tokens.map(renderToken)}
+      {tokens.map((item) => renderToken(item))}
     </View>
   );
 }
