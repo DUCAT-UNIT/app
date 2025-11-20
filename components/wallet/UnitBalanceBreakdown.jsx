@@ -45,7 +45,7 @@ const UnitBalanceBreakdown = ({ ecashBalance, runesBalance }) => {
               })} UNIT
             </Text>
           </View>
-          <Text style={styles.balanceLabel}>in wallet</Text>
+          <Text style={styles.balanceLabel}>ecash</Text>
         </View>
 
         {/* UNIT (Runes) */}
@@ -59,7 +59,7 @@ const UnitBalanceBreakdown = ({ ecashBalance, runesBalance }) => {
               })} UNIT
             </Text>
           </View>
-          <Text style={styles.balanceLabel}>balance remaining</Text>
+          <Text style={styles.balanceLabel}>onchain</Text>
         </View>
       </View>
     </View>
