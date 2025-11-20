@@ -43,9 +43,11 @@ export function AssetSpectreList({ navigation }) {
         const result = await checkProofsSpent(decoded.proofs);
 
         // If any proof is spent, the token has been claimed
-        const isSpent = result.states.some(state => state.state === 'SPENT');
-        if (isSpent) {
-          claimed.add(tokenData.id);
+        if (result && result.states && Array.isArray(result.states)) {
+          const isSpent = result.states.some(state => state.state === 'SPENT');
+          if (isSpent) {
+            claimed.add(tokenData.id);
+          }
         }
       } catch (error) {
         console.error('[AssetSpectreList] Failed to check token:', error);
