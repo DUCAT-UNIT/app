@@ -47,7 +47,7 @@ export function TransactionOutput({ output, sendIntent, runeUtxoBalance, btcPric
             </Text>
           </View>
         )}
-        {isRuneOutput && output.type === 'rune_return' && runeUtxoBalance && (
+        {isRuneOutput && output.type === 'rune_return' && runeUtxoBalance && remainingUnit > 0 && (
           <View style={styles.unitChip}>
             <Icon name="unit_symbol" size={10} color={COLORS.PRIMARY_BLUE} />
             <Text style={styles.unitChipText}>
