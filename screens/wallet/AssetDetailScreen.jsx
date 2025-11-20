@@ -61,10 +61,10 @@ function AssetDetailScreen({ route = {}, navigation }) {
   const { priceData, priceDirection, priceLoading, priceError, setPriceError } = usePriceChart(assetType, selectedTimeframe);
 
   // Get balance based on asset type
-  // For UNIT, combine runesBalance + cashuBalance and divide by 100 for display
+  // For UNIT, combine runesBalance + cashuBalance
   const unitRunesAmount = runesBalance && runesBalance.length > 0 ? parseFloat(runesBalance[0][1]) : 0;
   const totalUnitAmount = unitRunesAmount + cashuBalance;
-  const balance = assetType === 'BTC' ? segwitBalance : totalUnitAmount / 100;
+  const balance = assetType === 'BTC' ? segwitBalance : totalUnitAmount;
   const fiatValue = assetType === 'BTC' ? balance * btcPrice : balance * 1;
 
   // Extract stable wallet addresses using refs to prevent re-renders

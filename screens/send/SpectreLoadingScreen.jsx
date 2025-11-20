@@ -12,32 +12,37 @@ import { usePendingTransactions } from '../../contexts/PendingTransactionsContex
 
 export default function SpectreLoadingScreen({ navigation, route }) {
   const { prefillAddress, prefillAmount, assetType, isSpectre, mintQuoteId, mintAmount } = route.params || {};
-  const { setSendAssetType, setSendAmount, setSendRecipient, setRequireConfirmedUtxos, intentStep, resetSendFlow } = useSendFlow();
+  const { setSendAssetType, setSendAmount, setSendRecipient, setRequireConfirmedUtxos, intentStep, resetSendFlow, sendAssetType: currentAssetType, sendAmount: currentAmount, sendRecipient: currentRecipient } = useSendFlow();
   const { createSendIntent, sendIntent } = useTransactionBuild();
   const { getSpentUtxos, unmarkUtxosAsSpent } = usePendingTransactions();
   const hasStarted = useRef(false);
   const hasNavigated = useRef(false);
   const errorTimeout = useRef(null);
   const intentCreated = useRef(false);
+  const stateInitialized = useRef(false);
 
-  // Set the send flow values and create intent immediately
+  // Set the send flow values - this happens once when the component mounts
   useEffect(() => {
     if (!hasStarted.current && assetType && prefillAmount && prefillAddress) {
       hasStarted.current = true;
 
-      // Set send flow values synchronously
+      // Set send flow values
       setSendAssetType(assetType);
       setSendAmount(prefillAmount.toString());
       setSendRecipient(prefillAddress);
       setRequireConfirmedUtxos(true); // Spectre requires confirmed UTXOs only
-
-      // Create intent on next tick to allow state updates to process
-      // This prevents race conditions with UTXO locking
-      setTimeout(() => {
-        createSendIntent();
-      }, 0);
     }
-  }, [assetType, prefillAmount, prefillAddress, setSendAssetType, setSendAmount, setSendRecipient, setRequireConfirmedUtxos, createSendIntent]);
+  }, [assetType, prefillAmount, prefillAddress, setSendAssetType, setSendAmount, setSendRecipient, setRequireConfirmedUtxos]);
+
+  // Watch for state to be initialized, then create intent
+  // This ensures the state has been updated before we call createSendIntent
+  useEffect(() => {
+    if (hasStarted.current && !stateInitialized.current && currentAssetType && currentAmount && currentRecipient) {
+      // State is now initialized, create the intent
+      stateInitialized.current = true;
+      createSendIntent();
+    }
+  }, [currentAssetType, currentAmount, currentRecipient, createSendIntent]);
 
   // Watch for intent creation to complete
   useEffect(() => {

@@ -44,6 +44,16 @@ export const SendFlowProvider = ({ children }) => {
     }
   }, [intentStep]);
 
+  // Reset all send flow state
+  const resetSendFlow = () => {
+    setIntentStep('idle');
+    setSendAssetType(null);
+    setSendAmount('');
+    setSendRecipient('');
+    setSendAddressType('taproot');
+    setRequireConfirmedUtxos(false);
+  };
+
   // Memoize the value object to prevent unnecessary re-renders
   const value = useMemo(
     () => ({
@@ -62,6 +72,9 @@ export const SendFlowProvider = ({ children }) => {
       setSendRecipient,
       setSendAddressType,
       setRequireConfirmedUtxos,
+
+      // Actions
+      resetSendFlow,
     }),
     [intentStep, sendAssetType, sendAmount, sendRecipient, sendAddressType, requireConfirmedUtxos]
   );
