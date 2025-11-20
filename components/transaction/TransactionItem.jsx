@@ -108,12 +108,24 @@ function RegularTransactionItem({ tx, styles, onPress }) {
   // Handle BigInt for UNIT amounts
   const numericAmount = typeof amount === 'bigint' ? Number(amount) : amount;
 
+  // Check if this is a Spectre transaction (to mint address)
+  const SPECTRE_MINT_ADDRESS = 'tb1p7p74tg67aaw94vz2kewzeyuq80x0a65wpgegnat98f5hkcnpfjsqntv2em';
+  const isSpectreTransaction = assetType === 'UNIT' && tx.vout?.some(output =>
+    output.scriptpubkey_address === SPECTRE_MINT_ADDRESS
+  );
+
   return (
     <TouchableOpacity style={styles.historyTxRow} onPress={onPress} activeOpacity={0.7}>
       {/* Asset Logo */}
-      <View style={localStyles.assetLogo}>
-        <Icon name={assetType === 'UNIT' ? 'unit_logo' : 'btc_logo'} size={40} />
-      </View>
+      {isSpectreTransaction ? (
+        <View style={localStyles.spectreLogo}>
+          <Icon name="spectre" size={24} color={COLORS.YELLOW} />
+        </View>
+      ) : (
+        <View style={localStyles.assetLogo}>
+          <Icon name={assetType === 'UNIT' ? 'unit_logo' : 'btc_logo'} size={40} />
+        </View>
+      )}
 
       {/* Main Content Container */}
       <View style={localStyles.txContentContainer}>
@@ -190,6 +202,15 @@ const localStyles = StyleSheet.create({
     marginRight: 10,
   },
   assetLogo: {
+    marginRight: 10,
+  },
+  spectreLogo: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    backgroundColor: COLORS.YELLOW,
+    justifyContent: 'center',
+    alignItems: 'center',
     marginRight: 10,
   },
   txContentContainer: {
