@@ -114,6 +114,14 @@ function RegularTransactionItem({ tx, styles, onPress }) {
     output.scriptpubkey_address === SPECTRE_MINT_ADDRESS
   );
 
+  // Determine action label
+  const getActionLabel = () => {
+    if (isSpectreTransaction) {
+      return isSent ? 'Activate' : 'Deactivate';
+    }
+    return isSent ? 'Sent' : 'Received';
+  };
+
   return (
     <TouchableOpacity style={styles.historyTxRow} onPress={onPress} activeOpacity={0.7}>
       {/* Asset Logo */}
@@ -133,7 +141,7 @@ function RegularTransactionItem({ tx, styles, onPress }) {
         <View style={styles.historyTxTopRow}>
           <View style={styles.historyTxColumn1}>
             <Text style={[styles.historyTxAmount, localStyles.actionText]}>
-              {isSent ? 'Sent' : 'Received'}
+              {getActionLabel()}
             </Text>
           </View>
           <View style={styles.historyTxRightGroup}>
