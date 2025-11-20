@@ -27,44 +27,48 @@ const UnitBalanceBreakdown = ({ ecashBalance, runesBalance }) => {
           ]}
         />
         {/* E-cash with striped pattern on right */}
-        <LinearGradient
-          colors={[
-            COLORS.PRIMARY_BLUE, COLORS.PRIMARY_BLUE,
-            COLORS.MEDIUM_GRAY, COLORS.MEDIUM_GRAY,
-            COLORS.PRIMARY_BLUE, COLORS.PRIMARY_BLUE,
-            COLORS.MEDIUM_GRAY, COLORS.MEDIUM_GRAY,
-            COLORS.PRIMARY_BLUE, COLORS.PRIMARY_BLUE,
-            COLORS.MEDIUM_GRAY, COLORS.MEDIUM_GRAY,
-            COLORS.PRIMARY_BLUE, COLORS.PRIMARY_BLUE,
-            COLORS.MEDIUM_GRAY, COLORS.MEDIUM_GRAY,
-            COLORS.PRIMARY_BLUE, COLORS.PRIMARY_BLUE,
-            COLORS.MEDIUM_GRAY, COLORS.MEDIUM_GRAY,
-            COLORS.PRIMARY_BLUE, COLORS.PRIMARY_BLUE,
-            COLORS.MEDIUM_GRAY, COLORS.MEDIUM_GRAY,
-            COLORS.PRIMARY_BLUE, COLORS.PRIMARY_BLUE
-          ]}
-          start={{ x: 0, y: 0 }}
-          end={{ x: 1, y: 0.35 }}
-          locations={[
-            0.00, 0.08,
-            0.08, 0.16,
-            0.16, 0.24,
-            0.24, 0.32,
-            0.32, 0.40,
-            0.40, 0.48,
-            0.48, 0.56,
-            0.56, 0.64,
-            0.64, 0.72,
-            0.72, 0.80,
-            0.80, 0.88,
-            0.88, 0.96,
-            0.96, 1.00
-          ]}
+        <View
           style={[
             styles.progressBarEcash,
             { width: `${ecashPercentage}%` }
           ]}
-        />
+        >
+          <LinearGradient
+            colors={[
+              COLORS.PRIMARY_BLUE, COLORS.PRIMARY_BLUE,
+              COLORS.MEDIUM_GRAY, COLORS.MEDIUM_GRAY,
+              COLORS.PRIMARY_BLUE, COLORS.PRIMARY_BLUE,
+              COLORS.MEDIUM_GRAY, COLORS.MEDIUM_GRAY,
+              COLORS.PRIMARY_BLUE, COLORS.PRIMARY_BLUE,
+              COLORS.MEDIUM_GRAY, COLORS.MEDIUM_GRAY,
+              COLORS.PRIMARY_BLUE, COLORS.PRIMARY_BLUE,
+              COLORS.MEDIUM_GRAY, COLORS.MEDIUM_GRAY,
+              COLORS.PRIMARY_BLUE, COLORS.PRIMARY_BLUE,
+              COLORS.MEDIUM_GRAY, COLORS.MEDIUM_GRAY,
+              COLORS.PRIMARY_BLUE, COLORS.PRIMARY_BLUE,
+              COLORS.MEDIUM_GRAY, COLORS.MEDIUM_GRAY,
+              COLORS.PRIMARY_BLUE, COLORS.PRIMARY_BLUE
+            ]}
+            start={{ x: 0, y: 0 }}
+            end={{ x: 1, y: 0.35 }}
+            locations={[
+              0.00, 0.08,
+              0.08, 0.16,
+              0.16, 0.24,
+              0.24, 0.32,
+              0.32, 0.40,
+              0.40, 0.48,
+              0.48, 0.56,
+              0.56, 0.64,
+              0.64, 0.72,
+              0.72, 0.80,
+              0.80, 0.88,
+              0.88, 0.96,
+              0.96, 1.00
+            ]}
+            style={styles.progressBarGradient}
+          />
+        </View>
       </View>
 
       {/* Balance Labels */}
@@ -126,11 +130,17 @@ const styles = StyleSheet.create({
     marginBottom: 12,
     width: '47%',
     maxWidth: 238,
+    clipPath: 'inset(0)',
   },
   progressBarEcash: {
     borderTopRightRadius: 24,
     borderBottomRightRadius: 24,
     overflow: 'hidden',
+    height: 8,
+  },
+  progressBarGradient: {
+    flex: 1,
+    height: 8,
   },
   progressBarRunes: {
     backgroundColor: COLORS.PRIMARY_BLUE,
