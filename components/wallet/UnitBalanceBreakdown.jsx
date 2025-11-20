@@ -89,8 +89,8 @@ const styles = StyleSheet.create({
     overflow: 'hidden',
     backgroundColor: COLORS.DARK_GRAY,
     marginBottom: 12,
-    width: '36%',
-    maxWidth: 180,
+    width: '43%',
+    maxWidth: 216,
   },
   progressBarEcash: {
     backgroundColor: COLORS.PRIMARY_BLUE,
@@ -106,8 +106,8 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'flex-start',
-    width: '36%',
-    maxWidth: 180,
+    width: '43%',
+    maxWidth: 216,
   },
   labelSection: {
     flex: 1,
