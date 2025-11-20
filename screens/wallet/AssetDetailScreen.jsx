@@ -195,14 +195,14 @@ function AssetDetailScreen({ route = {}, navigation }) {
       const mintQuote = await requestMint(unitRunesAmount);
 
       // Navigate directly to SpectreLoading screen
-      // Convert unitRunesAmount from smallest units to display units (divide by 100)
-      // The transaction creation will multiply by 100 again to get back to smallest units
+      // unitRunesAmount is already in display format from the API (e.g., "1714.28")
+      // parseRuneAmount will multiply by 100 to get the smallest unit for the runestone
       navigation.navigate('SendFlow', {
         screen: 'SpectreLoading',
         params: {
           assetType: 'unit',
           prefillAddress: mintQuote.depositAddress,
-          prefillAmount: unitRunesAmount / 100,
+          prefillAmount: unitRunesAmount,
           mintQuoteId: mintQuote.quoteId,
           mintAmount: unitRunesAmount,
           isSpectre: true,
