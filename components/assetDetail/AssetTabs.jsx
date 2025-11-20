@@ -1,15 +1,18 @@
 /**
  * AssetTabs Component
- * Tab selector for Activity and About sections
+ * Tab selector for Activity, Spectre, and About sections
  */
 
 import React from 'react';
 import { View, Text, TouchableOpacity, StyleSheet } from 'react-native';
+import PropTypes from 'prop-types';
 import { COLORS } from '../../theme';
 
-const TAB_OPTIONS = ['ACTIVITY', 'ABOUT'];
+export function AssetTabs({ selectedTab, onTabChange, assetType }) {
+  const TAB_OPTIONS = assetType === 'UNIT'
+    ? ['ACTIVITY', 'SPECTRE', 'ABOUT']
+    : ['ACTIVITY', 'ABOUT'];
 
-export function AssetTabs({ selectedTab, onTabChange }) {
   return (
     <View style={styles.tabContainer}>
       {TAB_OPTIONS.map((tab) => (
@@ -26,6 +29,12 @@ export function AssetTabs({ selectedTab, onTabChange }) {
     </View>
   );
 }
+
+AssetTabs.propTypes = {
+  selectedTab: PropTypes.string.isRequired,
+  onTabChange: PropTypes.func.isRequired,
+  assetType: PropTypes.string.isRequired,
+};
 
 const styles = StyleSheet.create({
   tabContainer: {

@@ -11,9 +11,63 @@ import ReceiveQRScreen from '../screens/wallet/ReceiveQRScreen';
 import CashuReceiveScreen from '../screens/cashu/CashuReceiveScreen';
 import CashuSendScreen from '../screens/cashu/CashuSendScreen';
 import RecoverMintScreen from '../screens/wallet/RecoverMintScreen';
+import SpectreHistoryScreen from '../screens/settings/SpectreHistoryScreen';
+import SpectreQRCodeScreen from '../screens/settings/SpectreQRCodeScreen';
+import CashuSettingsScreen from '../screens/settings/CashuSettingsScreen';
+import AboutScreen from '../screens/settings/AboutScreen';
+import PreferencesScreen from '../screens/settings/PreferencesScreen';
+import SecurityScreen from '../screens/settings/SecurityScreen';
+import AdvancedScreen from '../screens/settings/AdvancedScreen';
 import { COLORS } from '../theme';
 
 const Stack = createStackNavigator();
+
+// Shared animation config for settings screens
+const settingsScreenOptions = {
+  gestureEnabled: true,
+  gestureDirection: 'horizontal',
+  gestureResponseDistance: 50,
+  gestureVelocityImpact: 0.3,
+  animationEnabled: true,
+  transitionSpec: {
+    open: {
+      animation: 'spring',
+      config: {
+        stiffness: 1000,
+        damping: 500,
+        mass: 3,
+        overshootClamping: true,
+        restDisplacementThreshold: 0.01,
+        restSpeedThreshold: 0.01,
+      },
+    },
+    close: {
+      animation: 'spring',
+      config: {
+        stiffness: 1000,
+        damping: 500,
+        mass: 3,
+        overshootClamping: true,
+        restDisplacementThreshold: 0.01,
+        restSpeedThreshold: 0.01,
+      },
+    },
+  },
+  cardStyleInterpolator: ({ current, layouts }) => {
+    return {
+      cardStyle: {
+        transform: [
+          {
+            translateX: current.progress.interpolate({
+              inputRange: [0, 1],
+              outputRange: [layouts.screen.width, 0],
+            }),
+          },
+        ],
+      },
+    };
+  },
+};
 
 export default function WalletStackNavigator() {
   return (
@@ -163,6 +217,47 @@ export default function WalletStackNavigator() {
           gestureEnabled: true,
           gestureDirection: 'horizontal',
         }}
+      />
+      <Stack.Screen
+        name="SpectreHistory"
+        component={SpectreHistoryScreen}
+        options={{
+          gestureEnabled: true,
+          gestureDirection: 'horizontal',
+        }}
+      />
+      <Stack.Screen
+        name="SpectreQRCode"
+        component={SpectreQRCodeScreen}
+        options={{
+          gestureEnabled: true,
+          gestureDirection: 'horizontal',
+        }}
+      />
+      <Stack.Screen
+        name="Preferences"
+        component={PreferencesScreen}
+        options={settingsScreenOptions}
+      />
+      <Stack.Screen
+        name="Security"
+        component={SecurityScreen}
+        options={settingsScreenOptions}
+      />
+      <Stack.Screen
+        name="Advanced"
+        component={AdvancedScreen}
+        options={settingsScreenOptions}
+      />
+      <Stack.Screen
+        name="CashuSettings"
+        component={CashuSettingsScreen}
+        options={settingsScreenOptions}
+      />
+      <Stack.Screen
+        name="About"
+        component={AboutScreen}
+        options={settingsScreenOptions}
       />
     </Stack.Navigator>
   );

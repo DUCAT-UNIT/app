@@ -28,7 +28,8 @@ import {
   AssetPriceChart,
   AssetTabs,
   AssetAbout,
-  AssetActivityList
+  AssetActivityList,
+  AssetSpectreList
 } from '../../components/assetDetail';
 import UnitBalanceBreakdown from '../../components/wallet/UnitBalanceBreakdown';
 import { usePriceChart } from '../../hooks/usePriceChart';
@@ -156,6 +157,14 @@ function AssetDetailScreen({ route = {}, navigation }) {
               // Complete melt but keep proofs until we see the tx
               const meltResult = await completeMeltWithoutCleanup(quote.quoteId, quote.total);
 
+              // IMPORTANT: Clean up proofs immediately after successful melt
+              // The mint has already accepted the melt, so the proofs are spent
+              console.log('[Fuse] Melt successful, cleaning up proofs immediately');
+              console.log('[Fuse] Proofs to remove:', meltResult.proofsToRemove?.length);
+              console.log('[Fuse] Change proofs:', meltResult.changeProofs?.length || 0);
+              await cleanupMeltProofs(meltResult.proofsToRemove, meltResult.changeProofs);
+              console.log('[Fuse] Proofs cleaned up');
+
               Alert.alert('Processing', 'Waiting for transaction to appear on-chain...');
 
               // Poll transaction history to check for the transaction
@@ -204,10 +213,7 @@ function AssetDetailScreen({ route = {}, navigation }) {
                 });
 
                 if (txFound) {
-                  console.log('[Fuse] Transaction found! Cleaning up proofs...');
-                  // Transaction found! Now we can safely remove the proofs
-                  await cleanupMeltProofs(meltResult.proofsToRemove, meltResult.changeProofs);
-                  console.log('[Fuse] Proofs cleaned up successfully');
+                  console.log('[Fuse] Transaction found on-chain!');
                   break;
                 }
               }
@@ -216,18 +222,7 @@ function AssetDetailScreen({ route = {}, navigation }) {
                 await fetchTransactionHistory();
                 Alert.alert('Success', 'E-cash successfully fused to on-chain UNIT!');
               } else {
-                console.log('[Fuse] Transaction not found after 60s - cleaning up proofs anyway');
-                // Clean up proofs even if transaction not visible yet
-                // The melt succeeded with the mint, so proofs are already spent
-                try {
-                  await cleanupMeltProofs(meltResult.proofsToRemove, meltResult.changeProofs);
-                  console.log('[Fuse] Proofs cleaned up after timeout');
-                } catch (cleanupError) {
-                  console.error('[Fuse] Failed to cleanup proofs:', cleanupError);
-                  Alert.alert('Error', `Cleanup failed: ${cleanupError.message}`);
-                  return;
-                }
-
+                console.log('[Fuse] Transaction not found after 60s');
                 await fetchTransactionHistory();
                 Alert.alert(
                   'Pending',
@@ -425,39 +420,6 @@ function AssetDetailScreen({ route = {}, navigation }) {
 
           {renderActionButtons()}
 
-          {/* Temporary Recover Mint Button */}
-          {assetType === 'UNIT' && (
-            <View style={{ paddingHorizontal: 20, paddingVertical: 12, gap: 12 }}>
-              <TouchableOpacity
-                style={{
-                  backgroundColor: COLORS.WARNING_ORANGE,
-                  borderRadius: 8,
-                  padding: 12,
-                  alignItems: 'center',
-                }}
-                onPress={handleRecoverMint}
-              >
-                <Text style={{ color: COLORS.WHITE, fontWeight: '600' }}>
-                  Recover Failed Mint (Temporary)
-                </Text>
-              </TouchableOpacity>
-
-              <TouchableOpacity
-                style={{
-                  backgroundColor: COLORS.PRIMARY_BLUE,
-                  borderRadius: 8,
-                  padding: 12,
-                  alignItems: 'center',
-                }}
-                onPress={handleRedeemToken}
-              >
-                <Text style={{ color: COLORS.WHITE, fontWeight: '600' }}>
-                  Redeem Cashu Token
-                </Text>
-              </TouchableOpacity>
-            </View>
-          )}
-
           <AssetPriceChart
             assetType={assetType}
             priceData={priceData}
@@ -472,6 +434,7 @@ function AssetDetailScreen({ route = {}, navigation }) {
           <AssetTabs
             selectedTab={selectedTab}
             onTabChange={setSelectedTab}
+            assetType={assetType}
           />
 
           {selectedTab === 'ACTIVITY' ? (
@@ -480,6 +443,8 @@ function AssetDetailScreen({ route = {}, navigation }) {
               isLoading={loadingTransactionHistory}
               onTransactionPress={handleTransactionPress}
             />
+          ) : selectedTab === 'SPECTRE' ? (
+            <AssetSpectreList navigation={navigation} />
           ) : (
             <AssetAbout assetType={assetType} />
           )}
