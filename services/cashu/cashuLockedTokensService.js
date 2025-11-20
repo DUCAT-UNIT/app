@@ -122,12 +122,12 @@ export const generateSpectreDeeplink = (token, recipient, amount) => {
 
   // Format: ducat://spectre?token=👻&address=<address>&amount=<amount>
   // The 👻 emoji contains the entire token encoded in invisible variation selectors
-  const encodedToken = encodeURIComponent(emojiToken);
+  // Don't URL-encode the emoji token so it stays as visible ghost
   const encodedAddress = encodeURIComponent(recipient);
 
-  const deeplink = `ducat://spectre?token=${encodedToken}&address=${encodedAddress}&amount=${amount}`;
+  const deeplink = `ducat://spectre?token=${emojiToken}&address=${encodedAddress}&amount=${amount}`;
 
-  console.log('[SpectreDeeplink] Generated deeplink:', deeplink.substring(0, 100) + '...');
+  console.log('[SpectreDeeplink] Generated deeplink (first 100 chars):', deeplink.substring(0, 100));
   console.log('[SpectreDeeplink] Ghost emoji token length:', emojiToken.length);
 
   return deeplink;
