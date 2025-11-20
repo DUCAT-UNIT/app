@@ -97,14 +97,16 @@ export default function RootNavigator() {
     try {
       console.log('[Deeplink] Processing URL:', url);
 
-      // Parse URL: ducat://receive?token=cashuA...
-      // Handle both ducat:// and https:// schemes
-      const match = url.match(/^(?:ducat|https):\/\/(?:ducatprotocol\.com\/)?receive\?token=(.+)$/);
+      // Handle both custom scheme (ducat://) and universal links (https://ducatprotocol.com/)
+      // Match patterns:
+      // - ducat://receive?token=cashuA...
+      // - https://ducatprotocol.com/receive?token=cashuA...
+      const match = url.match(/^(?:ducat:\/\/|https:\/\/ducatprotocol\.com\/)receive\?token=(.+)$/);
 
       if (match && match[1]) {
         const token = decodeURIComponent(match[1]);
 
-        console.log('[Deeplink] Receiving token from deeplink');
+        console.log('[Deeplink] Receiving token from link');
 
         try {
           const result = await receive(token);

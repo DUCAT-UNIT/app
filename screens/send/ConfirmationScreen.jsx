@@ -238,10 +238,10 @@ export default function ConfirmationScreen({ navigation, route }) {
   const handleShareDeeplink = async () => {
     if (spectreToken) {
       try {
-        // Create deeplink URL with token parameter
-        const deeplinkUrl = `ducat://receive?token=${encodeURIComponent(spectreToken)}`;
+        // Use universal link (works everywhere - WhatsApp, iMessage, QR codes, etc.)
+        const deeplinkUrl = `https://ducatprotocol.com/receive?token=${encodeURIComponent(spectreToken)}`;
 
-        console.log('[ConfirmationScreen] Sharing deeplink');
+        console.log('[ConfirmationScreen] Sharing universal link');
 
         // Use native Share API - this creates a clickable link
         await Share.share({
@@ -249,8 +249,8 @@ export default function ConfirmationScreen({ navigation, route }) {
           title: 'Receive UNIT Token',
         });
       } catch (error) {
-        console.error('[ConfirmationScreen] Failed to share deeplink:', error);
-        Alert.alert('Error', 'Failed to share deeplink. Please try again.');
+        console.error('[ConfirmationScreen] Failed to share link:', error);
+        Alert.alert('Error', 'Failed to share link. Please try again.');
       }
     }
   };
@@ -258,17 +258,17 @@ export default function ConfirmationScreen({ navigation, route }) {
   const handleCopyDeeplink = async () => {
     if (spectreToken) {
       try {
-        // Create deeplink URL with token parameter
-        const deeplinkUrl = `ducat://receive?token=${encodeURIComponent(spectreToken)}`;
+        // Use universal link
+        const deeplinkUrl = `https://ducatprotocol.com/receive?token=${encodeURIComponent(spectreToken)}`;
 
-        console.log('[ConfirmationScreen] Copying deeplink to clipboard');
+        console.log('[ConfirmationScreen] Copying universal link to clipboard');
 
-        // Copy deeplink to clipboard
+        // Copy link to clipboard
         await Clipboard.setStringAsync(deeplinkUrl);
-        Alert.alert('Copied!', 'Deeplink copied to clipboard');
+        Alert.alert('Copied!', 'Link copied to clipboard');
       } catch (error) {
-        console.error('[ConfirmationScreen] Failed to copy deeplink:', error);
-        Alert.alert('Error', 'Failed to copy deeplink. Please try again.');
+        console.error('[ConfirmationScreen] Failed to copy link:', error);
+        Alert.alert('Error', 'Failed to copy link. Please try again.');
       }
     }
   };
@@ -401,7 +401,7 @@ export default function ConfirmationScreen({ navigation, route }) {
             {spectreToken && (
               <View style={localStyles.qrCodeContainer}>
                 <QRCode
-                  value={`ducat://receive?token=${encodeURIComponent(spectreToken)}`}
+                  value={`https://ducatprotocol.com/receive?token=${encodeURIComponent(spectreToken)}`}
                   size={260}
                   backgroundColor="white"
                   color="black"
