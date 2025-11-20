@@ -25,6 +25,9 @@ export default function ProcessingScreen({ navigation, route }) {
   const action = route.params?.action; // 'create_intent', 'sign_and_broadcast'
   const isCashuMint = route.params?.cashuMint === true;
   const cashuQuoteId = route.params?.quoteId;
+  const isSpectre = route.params?.isSpectre === true;
+  const mintQuoteId = route.params?.mintQuoteId;
+  const mintAmount = route.params?.mintAmount;
 
   // Get Cashu mint params if provided
   const paramAssetType = route.params?.assetType;
@@ -113,7 +116,11 @@ export default function ProcessingScreen({ navigation, route }) {
         try {
           const success = await signIntent();
           if (success) {
-            navigation.replace('Confirmation');
+            navigation.replace('Confirmation', {
+              isSpectre,
+              mintQuoteId,
+              mintAmount,
+            });
           } else {
             navigation.goBack();
             setTimeout(() => showToast('Failed to sign and broadcast transaction', 'error'), 300);
@@ -139,7 +146,7 @@ export default function ProcessingScreen({ navigation, route }) {
         // Success - navigate to review screen
         logger.debug('Navigating to Review screen');
         hasNavigated.current = true;
-        navigation.replace('Review');
+        navigation.replace('Review', { isSpectre });
       } else if (intentStep === 'entering_amount') {
         // Error - go back to amount input
         logger.debug('Error creating intent, going back to amount');

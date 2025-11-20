@@ -204,6 +204,11 @@ export const requestMint = async (amount) => {
 export const checkMintStatus = async (quoteId) => {
   try {
     const quote = await checkMintQuote(quoteId);
+    logger.info('Mint quote status checked', {
+      quoteId: quote.quote,
+      state: quote.state,
+      fullQuote: quote
+    });
     return {
       quoteId: quote.quote,
       state: quote.state,
@@ -256,8 +261,9 @@ export const completeMint = async (quoteId, amount) => {
     logger.info('Using keyset ID', { keysetId });
 
     // Split into denominations
+    logger.info('Amount received for splitting', { amount, type: typeof amount });
     const amounts = splitAmount(amount);
-    logger.info('Split amounts', { amounts });
+    logger.info('Split amounts', { amounts, total: amounts.reduce((a, b) => a + b, 0) });
 
     // Create blinded outputs with keyset ID
     const { outputs, blindingData } = await createBlindedOutputs(amounts, keysetId);

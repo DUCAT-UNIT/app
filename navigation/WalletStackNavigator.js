@@ -10,6 +10,7 @@ import AssetDetailScreen from '../screens/wallet/AssetDetailScreen';
 import ReceiveQRScreen from '../screens/wallet/ReceiveQRScreen';
 import CashuReceiveScreen from '../screens/cashu/CashuReceiveScreen';
 import CashuSendScreen from '../screens/cashu/CashuSendScreen';
+import RecoverMintScreen from '../screens/wallet/RecoverMintScreen';
 import { COLORS } from '../theme';
 
 const Stack = createStackNavigator();
@@ -150,6 +151,14 @@ export default function WalletStackNavigator() {
       <Stack.Screen
         name="CashuSend"
         component={CashuSendScreen}
+        options={{
+          gestureEnabled: true,
+          gestureDirection: 'horizontal',
+        }}
+      />
+      <Stack.Screen
+        name="RecoverMint"
+        component={RecoverMintScreen}
         options={{
           gestureEnabled: true,
           gestureDirection: 'horizontal',

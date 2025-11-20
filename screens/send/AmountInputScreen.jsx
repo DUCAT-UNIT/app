@@ -62,6 +62,27 @@ export default function AmountInputScreen({ navigation, route }) {
     return () => clearTimeout(timer);
   }, []);
 
+  // Handle prefilled amount and auto-advance (for non-Spectre flows)
+  useEffect(() => {
+    const { prefillAmount, autoAdvance } = route.params || {};
+
+    if (prefillAmount && !sendAmount) {
+      setSendAmount(prefillAmount.toString());
+
+      // If autoAdvance is true, automatically proceed to review
+      if (autoAdvance) {
+        // Small delay to ensure amount is set
+        setTimeout(() => {
+          amountInputRef.current?.blur();
+          navigation.navigate('Processing', {
+            fromScreen: 'AmountInput',
+            action: 'create_intent',
+          });
+        }, 500);
+      }
+    }
+  }, [route.params?.prefillAmount, route.params?.autoAdvance]);
+
   const handleAmountChange = (text) => {
     // Handle decimal comma from keyboard
     let processed = text;

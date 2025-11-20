@@ -37,6 +37,26 @@ export default function AddressInputScreen({ navigation, route }) {
     }
   }, [route.params?.assetType, sendAssetType, setSendAssetType]);
 
+  // Handle prefilled address (for non-Spectre flows)
+  useEffect(() => {
+    const { prefillAddress, prefillAmount } = route.params || {};
+
+    if (prefillAddress && !sendRecipient) {
+      handleRecipientChange(prefillAddress);
+
+      // If both address and amount are prefilled, auto-advance to AmountInput
+      if (prefillAmount) {
+        // Small delay to ensure address validation completes
+        setTimeout(() => {
+          navigation.navigate('AmountInput', {
+            prefillAmount,
+            autoAdvance: true
+          });
+        }, 100);
+      }
+    }
+  }, [route.params?.prefillAddress, route.params?.prefillAmount]);
+
   useEffect(() => {
     // Auto-focus input when screen loads
     const timer = setTimeout(() => {

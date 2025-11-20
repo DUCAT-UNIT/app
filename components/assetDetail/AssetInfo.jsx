@@ -18,10 +18,12 @@ export function AssetInfo({ assetType, balance, fiatValue, btcPrice, priceData, 
 
   return (
     <View style={styles.assetInfoContainer}>
-      <Icon
-        name={assetType === 'BTC' ? 'btc_logo' : 'unit_logo'}
-        size={60}
-      />
+      <View style={styles.iconContainer}>
+        <Icon
+          name={assetType === 'BTC' ? 'btc_logo' : 'unit_logo'}
+          size={60}
+        />
+      </View>
 
       <Text style={styles.assetName}>
         {assetType === 'BTC' ? 'Bitcoin' : 'UNIT'}
@@ -49,6 +51,9 @@ const styles = StyleSheet.create({
   assetInfoContainer: {
     alignItems: 'center',
     paddingVertical: 12,
+  },
+  iconContainer: {
+    marginBottom: 4,
   },
   assetName: {
     fontSize: 16,

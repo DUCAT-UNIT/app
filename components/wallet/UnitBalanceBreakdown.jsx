@@ -18,26 +18,19 @@ const UnitBalanceBreakdown = ({ ecashBalance, runesBalance }) => {
     <View style={styles.container}>
       {/* Progress Bar */}
       <View style={styles.progressBarContainer}>
-        {/* Onchain solid blue on left */}
+        {/* Onchain indicator (blue) */}
         <View
           style={[
-            styles.progressBarRunes,
+            styles.progressBarIndicator,
             { width: `${runesPercentage}%` }
-          ]}
-        />
-        {/* E-cash on right */}
-        <View
-          style={[
-            styles.progressBarEcash,
-            { width: `${ecashPercentage}%` }
           ]}
         />
       </View>
 
       {/* Balance Labels */}
       <View style={styles.labelsContainer}>
-        {/* UNIT (Runes) - now on left */}
-        <View style={styles.labelSection}>
+        {/* UNIT (Runes) - left aligned */}
+        <View style={styles.labelSectionLeft}>
           <View style={styles.labelRow}>
             <View style={[styles.dot, styles.dotRunes]} />
             <Text style={styles.balanceValue}>
@@ -50,15 +43,15 @@ const UnitBalanceBreakdown = ({ ecashBalance, runesBalance }) => {
           <Text style={styles.balanceLabel}>onchain</Text>
         </View>
 
-        {/* E-UNIT (E-cash) - now on right */}
-        <View style={styles.labelSection}>
+        {/* E-UNIT (E-cash) - right aligned position, left aligned text */}
+        <View style={styles.labelSectionRight}>
           <View style={styles.labelRow}>
             <View style={[styles.dot, styles.dotEcash]} />
             <Text style={styles.balanceValue}>
               {ecashBalance.toLocaleString('en-US', {
                 minimumFractionDigits: 2,
                 maximumFractionDigits: 2
-              })} UNIT
+              })} eUNIT
             </Text>
           </View>
           <Text style={styles.balanceLabel}>ecash</Text>
@@ -81,38 +74,37 @@ UnitBalanceBreakdown.defaultProps = {
 const styles = StyleSheet.create({
   container: {
     paddingHorizontal: 20,
-    paddingVertical: 12,
+    paddingTop: 0,
+    paddingBottom: 12,
     alignItems: 'center',
   },
   progressBarContainer: {
     height: 8,
     borderRadius: 8,
-    flexDirection: 'row',
     overflow: 'hidden',
-    backgroundColor: COLORS.DARK_GRAY,
-    marginBottom: 12,
-    width: '47%',
-    maxWidth: 238,
-  },
-  progressBarEcash: {
     backgroundColor: COLORS.MEDIUM_GRAY,
-    borderTopRightRadius: 8,
-    borderBottomRightRadius: 8,
+    marginBottom: 12,
+    width: '61%',
+    maxWidth: 309,
+    position: 'relative',
   },
-  progressBarRunes: {
+  progressBarIndicator: {
+    height: 8,
     backgroundColor: COLORS.PRIMARY_BLUE,
-    borderTopLeftRadius: 8,
-    borderBottomLeftRadius: 8,
+    borderRadius: 8,
   },
   labelsContainer: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'flex-start',
-    width: '47%',
-    maxWidth: 238,
+    width: '61%',
+    maxWidth: 309,
   },
-  labelSection: {
-    flex: 1,
+  labelSectionLeft: {
+    alignItems: 'flex-start',
+  },
+  labelSectionRight: {
+    alignItems: 'flex-start',
   },
   labelRow: {
     flexDirection: 'row',

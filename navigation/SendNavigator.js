@@ -19,6 +19,7 @@ import AmountInputScreen from '../screens/send/AmountInputScreen';
 import ReviewScreen from '../screens/send/ReviewScreen';
 import ProcessingScreen from '../screens/send/ProcessingScreen';
 import ConfirmationScreen from '../screens/send/ConfirmationScreen';
+import SpectreLoadingScreen from '../screens/send/SpectreLoadingScreen';
 
 const SendStack = createStackNavigator();
 
@@ -69,6 +70,13 @@ export default function SendNavigator() {
       <SendStack.Screen
         name="AmountInput"
         component={AmountInputScreen}
+      />
+      <SendStack.Screen
+        name="SpectreLoading"
+        component={SpectreLoadingScreen}
+        options={{
+          gestureEnabled: false, // Prevent back during loading
+        }}
       />
       <SendStack.Screen
         name="Review"

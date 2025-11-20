@@ -8,9 +8,21 @@ import { View, Text, TouchableOpacity, StyleSheet } from 'react-native';
 import Icon from '../icons';
 import { COLORS } from '../../theme';
 
-export function AssetActionButtons({ onSendPress, onReceivePress }) {
+export function AssetActionButtons({ onSendPress, onReceivePress, onConsolidatePress, onSpectrePress, showConsolidate }) {
   return (
     <View style={styles.actionButtonsContainer}>
+      {showConsolidate && (
+        <TouchableOpacity
+          style={styles.actionButton}
+          onPress={onSpectrePress}
+        >
+          <View style={styles.actionButtonIcon}>
+            <Icon name="spectre" size={19} color={COLORS.WHITE} />
+          </View>
+          <Text style={styles.actionButtonLabel}>Spectre</Text>
+        </TouchableOpacity>
+      )}
+
       <TouchableOpacity
         style={styles.actionButton}
         onPress={onSendPress}
@@ -30,6 +42,18 @@ export function AssetActionButtons({ onSendPress, onReceivePress }) {
         </View>
         <Text style={styles.actionButtonLabel}>Receive</Text>
       </TouchableOpacity>
+
+      {showConsolidate && (
+        <TouchableOpacity
+          style={styles.actionButton}
+          onPress={onConsolidatePress}
+        >
+          <View style={styles.actionButtonIcon}>
+            <Icon name="fuse" size={19} color={COLORS.WHITE} />
+          </View>
+          <Text style={styles.actionButtonLabel}>Fuse</Text>
+        </TouchableOpacity>
+      )}
     </View>
   );
 }

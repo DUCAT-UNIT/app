@@ -303,10 +303,12 @@ export const splitAmount = (amount) => {
 /**
  * Sum proof amounts
  * @param {Array} proofs - Array of proofs
- * @returns {number} Total amount
+ * @returns {number} Total amount in display units (divided by 100)
  */
 export const sumProofs = (proofs) => {
-  return proofs.reduce((sum, proof) => sum + proof.amount, 0);
+  const totalSmallestUnits = proofs.reduce((sum, proof) => sum + proof.amount, 0);
+  // Convert from smallest units to display units (divide by 100)
+  return totalSmallestUnits / 100;
 };
 
 /**

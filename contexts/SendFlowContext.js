@@ -25,6 +25,7 @@ export const SendFlowProvider = ({ children }) => {
   const [sendAmount, setSendAmount] = useState('');
   const [sendRecipient, setSendRecipient] = useState('');
   const [sendAddressType, setSendAddressType] = useState('taproot'); // 'segwit' | 'taproot'
+  const [requireConfirmedUtxos, setRequireConfirmedUtxos] = useState(false); // For Spectre/Fuse - only use confirmed UTXOs
 
   // Auto-manage transaction completion flow
   useEffect(() => {
@@ -52,6 +53,7 @@ export const SendFlowProvider = ({ children }) => {
       sendAmount,
       sendRecipient,
       sendAddressType,
+      requireConfirmedUtxos,
 
       // Setters
       setIntentStep,
@@ -59,8 +61,9 @@ export const SendFlowProvider = ({ children }) => {
       setSendAmount,
       setSendRecipient,
       setSendAddressType,
+      setRequireConfirmedUtxos,
     }),
-    [intentStep, sendAssetType, sendAmount, sendRecipient, sendAddressType]
+    [intentStep, sendAssetType, sendAmount, sendRecipient, sendAddressType, requireConfirmedUtxos]
   );
 
   return <SendFlowContext.Provider value={value}>{children}</SendFlowContext.Provider>;

@@ -117,12 +117,13 @@ export async function createUnitIntent(
  */
 function parseRuneAmount(amount) {
   const normalizedAmount = amount.replace(',', '.');
-  const userAmount = parseInt(normalizedAmount, 10);
+  const userAmount = parseFloat(normalizedAmount);
 
   if (isNaN(userAmount) || userAmount <= 0) {
     throw new Error(ERRORS.INVALID_AMOUNT);
   }
 
   // Multiply by 100 for runestone encoding (UNIT display amount * 100)
-  return userAmount * 100;
+  // Use Math.floor to ensure we get an integer for the runestone
+  return Math.floor(userAmount * 100);
 }

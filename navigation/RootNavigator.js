@@ -58,7 +58,7 @@ export default function RootNavigator() {
   }, [authenticateUser]);
 
   // Set up app lifecycle (inactivity timer, app state changes)
-  useAppLifecycle({
+  const { resetInactivityTimer } = useAppLifecycle({
     isAuthenticated,
     walletExists,
     seedConfirmedRef,
@@ -79,30 +79,40 @@ export default function RootNavigator() {
   } = useNavigationHandlers();
 
   return (
-    <NavigationContainer>
-      <Stack.Navigator
-        screenOptions={{
-          headerShown: false,
-          cardStyle: { backgroundColor: COLORS.DARK_BG },
-          animationEnabled: false, // Disable animation for root-level switches
-        }}
-      >
-        {shouldShowAuth ? (
-          <Stack.Screen name="Auth" component={AuthStack} />
-        ) : (
-          <>
-            <Stack.Screen name="Main" component={MainTabs} />
-            <Stack.Screen
-              name="SendFlow"
-              component={SendNavigator}
-              options={{
-                presentation: 'modal',
-                animationEnabled: true,
-              }}
-            />
-          </>
-        )}
-      </Stack.Navigator>
+    <View
+      style={{ flex: 1 }}
+      onStartShouldSetResponder={() => {
+        // Reset inactivity timer on any touch
+        if (isAuthenticated) {
+          resetInactivityTimer();
+        }
+        return false; // Don't capture the touch, let it propagate
+      }}
+    >
+      <NavigationContainer>
+        <Stack.Navigator
+          screenOptions={{
+            headerShown: false,
+            cardStyle: { backgroundColor: COLORS.DARK_BG },
+            animationEnabled: false, // Disable animation for root-level switches
+          }}
+        >
+          {shouldShowAuth ? (
+            <Stack.Screen name="Auth" component={AuthStack} />
+          ) : (
+            <>
+              <Stack.Screen name="Main" component={MainTabs} />
+              <Stack.Screen
+                name="SendFlow"
+                component={SendNavigator}
+                options={{
+                  presentation: 'modal',
+                  animationEnabled: true,
+                }}
+              />
+            </>
+          )}
+        </Stack.Navigator>
 
       {/* PIN Change Overlay - shown on top of main app */}
       {shouldShowPinOverlay && (
@@ -131,6 +141,7 @@ export default function RootNavigator() {
         />
       )}
     </NavigationContainer>
+    </View>
   );
 }
 

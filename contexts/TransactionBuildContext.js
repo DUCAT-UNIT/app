@@ -24,7 +24,7 @@ export const useTransactionBuild = () => {
 };
 
 export const TransactionBuildProvider = ({ children, wallet, currentAccount, showToast }) => {
-  const { sendRecipient, sendAmount, sendAssetType, setIntentStep, setSendRecipient } =
+  const { sendRecipient, sendAmount, sendAssetType, requireConfirmedUtxos, setIntentStep, setSendRecipient } =
     useSendFlow();
   const { getUnconfirmedUTXOs, getSpentUtxos, unmarkUtxosAsSpent, markUtxosAsSpent } = usePendingTransactions();
   const { runesBalance } = useBalance();
@@ -118,18 +118,23 @@ export const TransactionBuildProvider = ({ children, wallet, currentAccount, sho
         throw new Error(ERRORS.NO_UNIT_BALANCE);
       }
 
-      // Get unconfirmed UTXOs for taproot (UNIT) and segwit (fees), excluding any already used in current intent
-      const unconfirmedTaprootUtxos = getUnconfirmedUTXOs('taproot', sendIntent);
-      const unconfirmedSegwitUtxos = getUnconfirmedUTXOs('segwit', sendIntent);
+      // For Spectre/Fuse (requireConfirmedUtxos), use empty arrays to force selection of confirmed UTXOs only
+      // Otherwise, get unconfirmed UTXOs for taproot (UNIT) and segwit (fees)
+      const unconfirmedTaprootUtxos = requireConfirmedUtxos ? [] : getUnconfirmedUTXOs('taproot', sendIntent);
+      const unconfirmedSegwitUtxos = requireConfirmedUtxos ? [] : getUnconfirmedUTXOs('segwit', sendIntent);
 
-      logger.debug('🔍 Available unconfirmed taproot UTXOs for UNIT tx:', unconfirmedTaprootUtxos.length);
-      unconfirmedTaprootUtxos.forEach(utxo => {
-        logger.debug(`  - ${utxo.txid}:${utxo.vout} = ${utxo.value} sats, runes: ${utxo.runeAmount}`);
-      });
-      logger.debug('🔍 Available unconfirmed segwit UTXOs for UNIT tx:', unconfirmedSegwitUtxos.length);
-      unconfirmedSegwitUtxos.forEach(utxo => {
-        logger.debug(`  - ${utxo.txid}:${utxo.vout} = ${utxo.value} sats`);
-      });
+      if (requireConfirmedUtxos) {
+        logger.debug('🔒 Spectre/Fuse mode: Using ONLY confirmed UTXOs');
+      } else {
+        logger.debug('🔍 Available unconfirmed taproot UTXOs for UNIT tx:', unconfirmedTaprootUtxos.length);
+        unconfirmedTaprootUtxos.forEach(utxo => {
+          logger.debug(`  - ${utxo.txid}:${utxo.vout} = ${utxo.value} sats, runes: ${utxo.runeAmount}`);
+        });
+        logger.debug('🔍 Available unconfirmed segwit UTXOs for UNIT tx:', unconfirmedSegwitUtxos.length);
+        unconfirmedSegwitUtxos.forEach(utxo => {
+          logger.debug(`  - ${utxo.txid}:${utxo.vout} = ${utxo.value} sats`);
+        });
+      }
 
       // Get spent UTXOs to filter them out
       const spentUtxos = getSpentUtxos();
@@ -206,7 +211,7 @@ export const TransactionBuildProvider = ({ children, wallet, currentAccount, sho
         setIntentStep('entering_amount');
       }, 100);
     }
-  }, [sendRecipient, sendAmount, wallet, currentAccount, setIntentStep, showToast, getUnconfirmedUTXOs, getSpentUtxos, sendIntent, markUtxosAsSpent, unmarkUtxosAsSpent, runesBalance]);
+  }, [sendRecipient, sendAmount, wallet, currentAccount, requireConfirmedUtxos, setIntentStep, showToast, getUnconfirmedUTXOs, getSpentUtxos, sendIntent, markUtxosAsSpent, unmarkUtxosAsSpent, runesBalance]);
 
   // Main create intent function (routes to BTC or UNIT)
   const createSendIntent = useCallback(async () => {

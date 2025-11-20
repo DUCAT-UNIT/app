@@ -8,6 +8,10 @@ import {
   StyleSheet,
   Animated,
   Linking,
+  Alert,
+  View,
+  Text,
+  TouchableOpacity,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useFocusEffect } from '@react-navigation/native';
@@ -16,6 +20,7 @@ import { useBalance, useTransactionHistory } from '../../contexts/WalletDataCont
 import { usePrice } from '../../contexts/PriceContext';
 import { useWallet } from '../../contexts/WalletContext';
 import { useCashu } from '../../contexts/CashuContext';
+import { usePendingTransactions } from '../../contexts/PendingTransactionsContext';
 import {
   AssetHeader,
   AssetInfo,
@@ -38,6 +43,7 @@ function AssetDetailScreen({ route = {}, navigation }) {
   const wallet = useWallet().wallet;
   const { balance: cashuBalance } = useCashu();
   const { transactionHistory, loadingTransactionHistory, fetchTransactionHistory } = useTransactionHistory();
+  const { getSpentUtxos, unmarkUtxosAsSpent } = usePendingTransactions();
 
   const [selectedTab, setSelectedTab] = useState('ACTIVITY');
   const [selectedTimeframe, setSelectedTimeframe] = useState('1M');
@@ -110,7 +116,104 @@ function AssetDetailScreen({ route = {}, navigation }) {
           });
         }
         break;
+      case 'consolidate':
+        handleFusePress();
+        break;
+      case 'spectre':
+        handleSpectrePress();
+        break;
     }
+  };
+
+  // Handle fuse (convert all e-cash to runes)
+  const handleFusePress = useCallback(async () => {
+    if (cashuBalance === 0) {
+      Alert.alert('No E-cash', 'You don\'t have any e-cash to fuse.');
+      return;
+    }
+
+    Alert.alert(
+      'Fuse E-cash to UNIT?',
+      `Convert all ${cashuBalance.toFixed(2)} eUNIT to on-chain UNIT?`,
+      [
+        {
+          text: 'Cancel',
+          style: 'cancel',
+        },
+        {
+          text: 'Fuse',
+          onPress: async () => {
+            try {
+              // Import cashu functions
+              const { requestMelt, completeMelt } = await import('../../services/cashu/cashuWalletService');
+
+              // Get taproot address for receiving runes
+              const receiveAddress = taprootAddress;
+
+              // Request melt quote
+              const quote = await requestMelt(receiveAddress, cashuBalance);
+
+              // Complete melt in background
+              await completeMelt(quote.quoteId, quote.total);
+
+              // Refresh balance
+              await fetchTransactionHistory();
+
+              Alert.alert('Success', 'E-cash successfully fused to on-chain UNIT!');
+            } catch (error) {
+              Alert.alert('Error', `Failed to fuse e-cash: ${error.message}`);
+            }
+          },
+        },
+      ]
+    );
+  }, [cashuBalance, taprootAddress, fetchTransactionHistory]);
+
+  // Handle spectre (convert all on-chain runes to e-cash)
+  const handleSpectrePress = useCallback(async () => {
+    const unitRunesAmount = runesBalance && runesBalance.length > 0 ? parseFloat(runesBalance[0][1]) : 0;
+
+    if (unitRunesAmount === 0) {
+      Alert.alert('No On-chain UNIT', 'You don\'t have any on-chain UNIT to convert.');
+      return;
+    }
+
+    // Clear any stuck spent UTXOs before starting
+    const currentSpent = getSpentUtxos();
+    if (currentSpent.size > 0) {
+      await unmarkUtxosAsSpent(Array.from(currentSpent).map(key => {
+        const [txid, vout] = key.split(':');
+        return { txid, vout: parseInt(vout) };
+      }));
+    }
+
+    try {
+      // Import cashu functions
+      const { requestMint, checkMintStatus, completeMint } = await import('../../services/cashu/cashuWalletService');
+
+      // Step 1: Request mint quote
+      const mintQuote = await requestMint(unitRunesAmount);
+
+      // Navigate directly to SpectreLoading screen
+      navigation.navigate('SendFlow', {
+        screen: 'SpectreLoading',
+        params: {
+          assetType: 'unit',
+          prefillAddress: mintQuote.depositAddress,
+          prefillAmount: unitRunesAmount,
+          mintQuoteId: mintQuote.quoteId,
+          mintAmount: unitRunesAmount,
+          isSpectre: true,
+        }
+      });
+    } catch (error) {
+      Alert.alert('Error', `Failed to convert: ${error.message}`);
+    }
+  }, [runesBalance, navigation, fetchTransactionHistory, getSpentUtxos, unmarkUtxosAsSpent]);
+
+  // Handle recovery button
+  const handleRecoverMint = () => {
+    navigation.navigate('RecoverMint');
   };
 
   // Open transaction in blockchain explorer
@@ -148,6 +251,9 @@ function AssetDetailScreen({ route = {}, navigation }) {
     <AssetActionButtons
       onSendPress={() => handleActionPress('send')}
       onReceivePress={() => handleActionPress('receive')}
+      onConsolidatePress={() => handleActionPress('consolidate')}
+      onSpectrePress={() => handleActionPress('spectre')}
+      showConsolidate={assetType === 'UNIT'}
     />
   );
 
@@ -176,6 +282,25 @@ function AssetDetailScreen({ route = {}, navigation }) {
           )}
 
           {renderActionButtons()}
+
+          {/* Temporary Recover Mint Button */}
+          {assetType === 'UNIT' && (
+            <View style={{ paddingHorizontal: 20, paddingVertical: 12 }}>
+              <TouchableOpacity
+                style={{
+                  backgroundColor: COLORS.WARNING_ORANGE,
+                  borderRadius: 8,
+                  padding: 12,
+                  alignItems: 'center',
+                }}
+                onPress={handleRecoverMint}
+              >
+                <Text style={{ color: COLORS.WHITE, fontWeight: '600' }}>
+                  Recover Failed Mint (Temporary)
+                </Text>
+              </TouchableOpacity>
+            </View>
+          )}
 
           <AssetPriceChart
             assetType={assetType}

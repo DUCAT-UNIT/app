@@ -14,8 +14,12 @@ import TransactionSummary from '../../components/review/TransactionSummary';
 import FeeBreakdown from '../../components/review/FeeBreakdown';
 import InputOutputList from '../../components/review/InputOutputList';
 import UnconfirmedWarning from '../../components/review/UnconfirmedWarning';
+import SpectreWarning from '../../components/review/SpectreWarning';
 
-export default function ReviewScreen({ navigation }) {
+export default function ReviewScreen({ navigation, route }) {
+  const isSpectre = route?.params?.isSpectre === true;
+  const mintQuoteId = route?.params?.mintQuoteId;
+  const mintAmount = route?.params?.mintAmount;
   const {
     sendIntent,
     btcPrice,
@@ -48,7 +52,10 @@ export default function ReviewScreen({ navigation }) {
     // Navigate to processing screen to sign and broadcast
     navigation.navigate('Processing', {
       fromScreen: 'Review',
-      action: 'sign_and_broadcast'
+      action: 'sign_and_broadcast',
+      isSpectre,
+      mintQuoteId,
+      mintAmount,
     });
   };
 
@@ -60,9 +67,14 @@ export default function ReviewScreen({ navigation }) {
     navigation.getParent()?.goBack();
   };
 
-  const handleBackPress = () => {
-    // Just go back to amount screen - keep intent active
-    navigation.goBack();
+  const handleBackPress = async () => {
+    // For Spectre flow, there's no screen to go back to, so cancel instead
+    if (isSpectre) {
+      await handleCancel();
+    } else {
+      // Just go back to amount screen - keep intent active
+      navigation.goBack();
+    }
   };
 
   return (
@@ -84,6 +96,9 @@ export default function ReviewScreen({ navigation }) {
             displayAmount={displayAmount}
             usdAmount={usdAmount}
           />
+
+          {/* Spectre Warning */}
+          {isSpectre && <SpectreWarning />}
 
           {/* Unconfirmed Inputs Warning */}
           {hasUnconfirmedInputs && <UnconfirmedWarning />}
