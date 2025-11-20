@@ -49,7 +49,7 @@ export default function SpectreQRCodeScreen({ navigation, route }) {
   const handleShare = async () => {
     try {
       await Share.share({
-        message: `Spectre Token 👻\n\nAmount: ${amount / 100} UNIT\n\n${emojiToken}`,
+        message: `Spectre Token 👻\n\nAmount: ${amount / 100} UNIT\n\nTap to claim:\n${deeplink}\n\nOr copy this ghost:\n${emojiToken}`,
       });
     } catch (error) {
       console.error('[SpectreQRCode] Failed to share:', error);
@@ -93,7 +93,7 @@ export default function SpectreQRCodeScreen({ navigation, route }) {
           </Text>
         </View>
 
-        {/* Content container - tap to copy */}
+        {/* Ghost Token - tap to copy */}
         <TouchableOpacity
           style={styles.addressContainer}
           onPress={handleCopy}
@@ -102,7 +102,7 @@ export default function SpectreQRCodeScreen({ navigation, route }) {
           <View style={styles.addressContentContainer}>
             <View style={styles.addressLabelRow}>
               <Text style={styles.addressLabelText}>
-                Ghost Token (with encoded data)
+                Ghost Token
               </Text>
               <Text style={styles.tapToCopyText}>
                 {justCopied ? 'Copied!' : 'Tap to copy'}
@@ -113,6 +113,14 @@ export default function SpectreQRCodeScreen({ navigation, route }) {
             </Text>
           </View>
         </TouchableOpacity>
+
+        {/* Deeplink display */}
+        <View style={styles.deeplinkContainer}>
+          <Text style={styles.deeplinkLabel}>Deeplink</Text>
+          <Text style={styles.deeplinkText} numberOfLines={2}>
+            {deeplink}
+          </Text>
+        </View>
 
         {/* Share button */}
         <TouchableOpacity style={styles.shareButton} onPress={handleShare}>
@@ -243,6 +251,26 @@ const styles = StyleSheet.create({
     fontFamily: 'CabinetGrotesk-Regular',
     color: COLORS.VERY_LIGHT_GRAY,
     lineHeight: 20,
+  },
+  deeplinkContainer: {
+    width: '100%',
+    backgroundColor: COLORS.CARD_BG,
+    borderRadius: 12,
+    padding: SCREEN_WIDTH < 375 ? 12 : 16,
+    marginBottom: SCREEN_WIDTH < 375 ? 16 : 32,
+  },
+  deeplinkLabel: {
+    fontSize: 12,
+    fontFamily: 'CabinetGrotesk-Medium',
+    color: COLORS.SECONDARY_TEXT,
+    fontWeight: '600',
+    marginBottom: 8,
+  },
+  deeplinkText: {
+    fontSize: 13,
+    fontFamily: 'CabinetGrotesk-Regular',
+    color: COLORS.VERY_LIGHT_GRAY,
+    lineHeight: 18,
   },
   shareButton: {
     width: '100%',
