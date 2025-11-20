@@ -37,20 +37,28 @@ const UnitBalanceBreakdown = ({ ecashBalance, runesBalance }) => {
             COLORS.MEDIUM_GRAY, COLORS.MEDIUM_GRAY,
             COLORS.PRIMARY_BLUE, COLORS.PRIMARY_BLUE,
             COLORS.MEDIUM_GRAY, COLORS.MEDIUM_GRAY,
+            COLORS.PRIMARY_BLUE, COLORS.PRIMARY_BLUE,
+            COLORS.MEDIUM_GRAY, COLORS.MEDIUM_GRAY,
+            COLORS.PRIMARY_BLUE, COLORS.PRIMARY_BLUE,
+            COLORS.MEDIUM_GRAY, COLORS.MEDIUM_GRAY,
             COLORS.PRIMARY_BLUE, COLORS.PRIMARY_BLUE
           ]}
           start={{ x: 0, y: 0 }}
-          end={{ x: 1, y: 1 }}
+          end={{ x: 1, y: 0.35 }}
           locations={[
-            0, 0.05,
-            0.05, 0.15,
-            0.15, 0.20,
-            0.20, 0.30,
-            0.30, 0.35,
-            0.35, 0.45,
-            0.45, 0.50,
-            0.50, 0.60,
-            0.60, 1
+            0.00, 0.08,
+            0.08, 0.16,
+            0.16, 0.24,
+            0.24, 0.32,
+            0.32, 0.40,
+            0.40, 0.48,
+            0.48, 0.56,
+            0.56, 0.64,
+            0.64, 0.72,
+            0.72, 0.80,
+            0.80, 0.88,
+            0.88, 0.96,
+            0.96, 1.00
           ]}
           style={[
             styles.progressBarEcash,
