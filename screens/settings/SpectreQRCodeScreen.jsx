@@ -9,23 +9,32 @@ import {
   StyleSheet,
   TouchableOpacity,
   Share,
-  Alert,
   ScrollView,
+  Dimensions,
 } from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
 import QRCode from 'react-native-qrcode-svg';
 import * as Clipboard from 'expo-clipboard';
 import { COLORS } from '../../theme';
 import Icon from '../../components/icons';
 import { encodeCashuToken } from '../../utils/emojiEncoder';
 
+const SCREEN_WIDTH = Dimensions.get('window').width;
+const HORIZONTAL_PADDING = SCREEN_WIDTH < 375 ? 16 : 20;
+
+// Calculate QR code size based on screen width
+const QR_SIZE =
+  SCREEN_WIDTH < 375 ? Math.min(SCREEN_WIDTH * 0.5, 180) : Math.min(SCREEN_WIDTH * 0.6, 220);
+const LOGO_SIZE = Math.floor(QR_SIZE * 0.21);
+
 export default function SpectreQRCodeScreen({ navigation, route }) {
   const { deeplink, amount, recipient, timestamp } = route.params;
-  const [showEmoji, setShowEmoji] = useState(true);
+  const [showEmoji, setShowEmoji] = useState(false);
+  const [justCopied, setJustCopied] = useState(false);
 
   // Extract token from deeplink and encode to emoji
   const emojiToken = useMemo(() => {
     try {
-      // Pass deeplink directly - encodeCashuToken will handle extraction
       return encodeCashuToken(deeplink);
     } catch (error) {
       console.error('[SpectreQRCode] Failed to encode token:', error);
@@ -35,9 +44,10 @@ export default function SpectreQRCodeScreen({ navigation, route }) {
 
   const displayContent = showEmoji ? emojiToken : deeplink;
 
-  const handleCopyLink = async () => {
+  const handleCopy = async () => {
     await Clipboard.setStringAsync(displayContent);
-    Alert.alert('Copied', showEmoji ? 'Emoji token copied to clipboard' : 'Deeplink copied to clipboard');
+    setJustCopied(true);
+    setTimeout(() => setJustCopied(false), 2000);
   };
 
   const handleShare = async () => {
@@ -53,38 +63,32 @@ export default function SpectreQRCodeScreen({ navigation, route }) {
     }
   };
 
-  const formatDate = (ts) => {
-    const date = new Date(ts);
-    return date.toLocaleDateString() + ' ' + date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
-  };
-
-  const formatAddress = (address) => {
-    if (!address) return 'Unknown';
-    return `${address.substring(0, 16)}...${address.substring(address.length - 16)}`;
-  };
-
   return (
-    <View style={styles.container}>
-      {/* Header */}
-      <View style={styles.header}>
-        <TouchableOpacity
-          style={styles.backButton}
-          onPress={() => navigation.goBack()}
-        >
-          <Icon name="arrow_left" size={24} color={COLORS.VERY_LIGHT_GRAY} />
-        </TouchableOpacity>
-        <Text style={styles.headerTitle}>Spectre Token</Text>
-        <TouchableOpacity style={styles.shareButton} onPress={handleShare}>
-          <Icon name="share" size={24} color={COLORS.BRAND_PURPLE} />
-        </TouchableOpacity>
+    <SafeAreaView style={styles.container} edges={['top']}>
+      {/* Network header bar */}
+      <View style={styles.networkBar}>
+        <Text style={styles.networkText}>Mutinynet Edition</Text>
       </View>
 
-      <ScrollView contentContainerStyle={styles.contentContainer}>
-        {/* Amount */}
-        <View style={styles.amountContainer}>
-          <Icon name="spectre" size={32} color={COLORS.BRAND_PURPLE} />
-          <Text style={styles.amountText}>{amount / 100} UNIT</Text>
+      <ScrollView
+        style={styles.scrollContainer}
+        contentContainerStyle={styles.content}
+        showsVerticalScrollIndicator={false}
+      >
+        {/* Header with back button */}
+        <View style={styles.header}>
+          <TouchableOpacity onPress={() => navigation.goBack()} style={styles.backButton}>
+            <Icon name="back" size={24} color={COLORS.VERY_LIGHT_GRAY} />
+          </TouchableOpacity>
+          <View style={styles.titleContainer}>
+            <Text style={styles.title}>Spectre Token</Text>
+          </View>
         </View>
+
+        {/* Amount subtitle */}
+        <Text style={styles.subtitle}>
+          {amount / 100} UNIT
+        </Text>
 
         {/* Format Toggle */}
         <View style={styles.toggleContainer}>
@@ -92,7 +96,7 @@ export default function SpectreQRCodeScreen({ navigation, route }) {
             style={[styles.toggleButton, !showEmoji && styles.toggleButtonActive]}
             onPress={() => setShowEmoji(false)}
           >
-            <Text style={[styles.toggleText, !showEmoji && styles.toggleTextActive]}>Link</Text>
+            <Text style={[styles.toggleText, !showEmoji && styles.toggleTextActive]}>QR Code</Text>
           </TouchableOpacity>
           <TouchableOpacity
             style={[styles.toggleButton, showEmoji && styles.toggleButtonActive]}
@@ -105,152 +109,130 @@ export default function SpectreQRCodeScreen({ navigation, route }) {
         {showEmoji ? (
           <>
             {/* Emoji Token Display */}
-            <View style={styles.emojiContainer}>
+            <View style={styles.emojiQRContainer}>
               <Text style={styles.emojiText} selectable>
                 {emojiToken}
               </Text>
             </View>
-            <Text style={styles.emojiHint}>
-              Share these emojis to send the token! Much shorter than a link.
-            </Text>
           </>
         ) : (
           <>
             {/* QR Code */}
-            <View style={styles.qrContainer}>
+            <View style={styles.qrCodeContainer}>
               <QRCode
                 value={deeplink}
-                size={250}
-                color={COLORS.VERY_LIGHT_GRAY}
-                backgroundColor={COLORS.MID_DARK_GRAY}
+                size={QR_SIZE}
+                backgroundColor="white"
+                color="black"
+                logo={require('../../assets/icons/spectre.svg')}
+                logoSize={LOGO_SIZE}
+                logoBackgroundColor="white"
+                logoBorderRadius={Math.floor(LOGO_SIZE / 2)}
               />
-            </View>
-
-            {/* Info */}
-            <View style={styles.infoContainer}>
-              <View style={styles.infoRow}>
-                <Text style={styles.infoLabel}>Recipient</Text>
-                <Text style={styles.infoValue}>{formatAddress(recipient)}</Text>
-              </View>
-              <View style={styles.infoRow}>
-                <Text style={styles.infoLabel}>Created</Text>
-                <Text style={styles.infoValue}>{formatDate(timestamp)}</Text>
-              </View>
             </View>
           </>
         )}
 
-        {/* Copy Button */}
-        <TouchableOpacity style={styles.copyButton} onPress={handleCopyLink}>
-          <Icon name="copy" size={20} color={COLORS.VERY_LIGHT_GRAY} />
-          <Text style={styles.copyButtonText}>
-            {showEmoji ? 'Copy Emoji Token' : 'Copy Deeplink'}
-          </Text>
+        {/* Content container - tap to copy */}
+        <TouchableOpacity
+          style={styles.addressContainer}
+          onPress={handleCopy}
+          activeOpacity={0.7}
+        >
+          <View style={styles.addressContentContainer}>
+            <View style={styles.addressLabelRow}>
+              <Text style={styles.addressLabelText}>
+                {showEmoji ? 'Emoji Token' : 'Deeplink'}
+              </Text>
+              <Text style={styles.tapToCopyText}>
+                {justCopied ? 'Copied!' : 'Tap to copy'}
+              </Text>
+            </View>
+            <Text style={styles.addressFullText} numberOfLines={showEmoji ? undefined : 2}>
+              {displayContent}
+            </Text>
+          </View>
         </TouchableOpacity>
 
-        {/* Warning */}
-        <View style={styles.warningContainer}>
-          <Icon name="warning" size={16} color={COLORS.BURNT_ORANGE} />
-          <Text style={styles.warningText}>
-            Anyone with this {showEmoji ? 'emoji token' : 'QR code or link'} can claim the tokens
-          </Text>
-        </View>
+        {/* Share button */}
+        <TouchableOpacity style={styles.shareButton} onPress={handleShare}>
+          <Text style={styles.shareIcon}>↗</Text>
+          <Text style={styles.shareButtonText}>Share</Text>
+        </TouchableOpacity>
       </ScrollView>
-    </View>
+    </SafeAreaView>
   );
 }
 
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: COLORS.DARK_BACKGROUND,
+    backgroundColor: COLORS.DARK_BG,
   },
-  header: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    paddingHorizontal: 20,
-    paddingTop: 60,
-    paddingBottom: 20,
-  },
-  backButton: {
-    padding: 8,
-  },
-  shareButton: {
-    padding: 8,
-  },
-  headerTitle: {
-    fontSize: 20,
-    fontWeight: '600',
-    color: COLORS.VERY_LIGHT_GRAY,
-  },
-  contentContainer: {
-    alignItems: 'center',
-    paddingHorizontal: 20,
-    paddingBottom: 40,
-  },
-  amountContainer: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 12,
-    marginBottom: 40,
-  },
-  amountText: {
-    fontSize: 32,
-    fontWeight: '700',
-    color: COLORS.BRAND_PURPLE,
-  },
-  qrContainer: {
-    backgroundColor: COLORS.MID_DARK_GRAY,
-    padding: 30,
-    borderRadius: 20,
-    marginBottom: 40,
-  },
-  infoContainer: {
+  networkBar: {
+    backgroundColor: COLORS.CARD_BG,
+    paddingVertical: SCREEN_WIDTH < 375 ? 4 : 6,
+    paddingHorizontal: 0,
     width: '100%',
-    backgroundColor: COLORS.MID_DARK_GRAY,
-    borderRadius: 12,
-    padding: 16,
-    marginBottom: 20,
-  },
-  infoRow: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    paddingVertical: 8,
-  },
-  infoLabel: {
-    fontSize: 14,
-    color: COLORS.MID_GRAY,
-  },
-  infoValue: {
-    fontSize: 14,
-    color: COLORS.VERY_LIGHT_GRAY,
-    fontFamily: 'monospace',
-    maxWidth: '65%',
-  },
-  copyButton: {
-    width: '100%',
-    flexDirection: 'row',
-    alignItems: 'center',
+    alignSelf: 'stretch',
+    borderBottomWidth: 0.8,
+    borderBottomColor: COLORS.BORDER_COLOR,
     justifyContent: 'center',
-    backgroundColor: COLORS.MID_DARK_GRAY,
-    borderRadius: 12,
-    paddingVertical: 16,
-    gap: 10,
-    marginBottom: 20,
+    alignItems: 'center',
   },
-  copyButtonText: {
+  networkText: {
+    color: COLORS.PURPLE,
     fontSize: 16,
     fontWeight: '600',
+    letterSpacing: 0.5,
+    fontFamily: 'CabinetGrotesk-Medium',
+  },
+  scrollContainer: {
+    flex: 1,
+  },
+  content: {
+    alignItems: 'center',
+    paddingHorizontal: HORIZONTAL_PADDING,
+    paddingTop: SCREEN_WIDTH <= 400 ? 10 : 20,
+    paddingBottom: SCREEN_WIDTH <= 400 ? 24 : 32,
+    flexGrow: 1,
+  },
+  header: {
+    marginTop: 20,
+    flexDirection: 'row',
+    alignItems: 'center',
+    width: '100%',
+    position: 'relative',
+  },
+  backButton: {
+    position: 'absolute',
+    left: -10,
+  },
+  titleContainer: {
+    flex: 1,
+    alignItems: 'center',
+  },
+  title: {
+    fontSize: SCREEN_WIDTH < 375 ? 20 : 28,
+    fontFamily: 'CabinetGrotesk-Bold',
     color: COLORS.VERY_LIGHT_GRAY,
+    fontWeight: 'bold',
+    marginBottom: SCREEN_WIDTH < 375 ? 4 : 8,
+  },
+  subtitle: {
+    fontSize: SCREEN_WIDTH < 375 ? 12 : 15,
+    fontFamily: 'CabinetGrotesk-Regular',
+    color: COLORS.SECONDARY_TEXT,
+    marginBottom: SCREEN_WIDTH <= 400 ? 16 : 24,
+    textAlign: 'center',
   },
   toggleContainer: {
+    width: '100%',
     flexDirection: 'row',
-    backgroundColor: COLORS.MID_DARK_GRAY,
+    backgroundColor: COLORS.CARD_BG,
     borderRadius: 12,
     padding: 4,
-    marginBottom: 20,
+    marginBottom: SCREEN_WIDTH < 375 ? 16 : 24,
     gap: 4,
   },
   toggleButton: {
@@ -260,48 +242,94 @@ const styles = StyleSheet.create({
     borderRadius: 10,
   },
   toggleButtonActive: {
-    backgroundColor: COLORS.BRAND_PURPLE,
+    backgroundColor: COLORS.PURPLE,
   },
   toggleText: {
-    fontSize: 16,
+    fontSize: 14,
+    fontFamily: 'CabinetGrotesk-Medium',
     fontWeight: '600',
-    color: COLORS.MID_GRAY,
+    color: COLORS.SECONDARY_TEXT,
   },
   toggleTextActive: {
     color: COLORS.VERY_LIGHT_GRAY,
   },
-  emojiContainer: {
-    backgroundColor: COLORS.MID_DARK_GRAY,
-    borderRadius: 12,
-    padding: 20,
-    marginBottom: 12,
-    minHeight: 250,
+  qrCodeContainer: {
+    backgroundColor: COLORS.WHITE,
+    padding: SCREEN_WIDTH < 375 ? 10 : 20,
+    borderRadius: 16,
+    marginBottom: SCREEN_WIDTH < 375 ? 12 : 32,
+  },
+  emojiQRContainer: {
+    backgroundColor: COLORS.WHITE,
+    padding: SCREEN_WIDTH < 375 ? 16 : 24,
+    borderRadius: 16,
+    marginBottom: SCREEN_WIDTH < 375 ? 12 : 32,
+    minHeight: QR_SIZE + 40,
+    width: '100%',
     justifyContent: 'center',
     alignItems: 'center',
   },
   emojiText: {
-    fontSize: 32,
-    lineHeight: 48,
-    color: COLORS.VERY_LIGHT_GRAY,
+    fontSize: 28,
+    lineHeight: 42,
+    color: COLORS.DARK_BG,
     textAlign: 'center',
+    fontWeight: '600',
   },
-  emojiHint: {
-    fontSize: 14,
-    color: COLORS.MID_GRAY,
-    textAlign: 'center',
-    marginBottom: 20,
-  },
-  warningContainer: {
+  addressContainer: {
+    width: '100%',
+    backgroundColor: COLORS.CARD_BG,
+    borderRadius: 12,
+    padding: SCREEN_WIDTH < 375 ? 12 : 16,
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: COLORS.MID_DARK_GRAY,
-    borderRadius: 8,
-    padding: 12,
-    gap: 8,
+    marginBottom: SCREEN_WIDTH < 375 ? 16 : 32,
   },
-  warningText: {
+  addressContentContainer: {
     flex: 1,
+  },
+  addressLabelRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 8,
+  },
+  addressLabelText: {
     fontSize: 12,
-    color: COLORS.BURNT_ORANGE,
+    fontFamily: 'CabinetGrotesk-Medium',
+    color: COLORS.SECONDARY_TEXT,
+    fontWeight: '600',
+  },
+  tapToCopyText: {
+    fontSize: 12,
+    color: COLORS.PRIMARY_BLUE,
+    fontFamily: 'CabinetGrotesk-Medium',
+  },
+  addressFullText: {
+    fontSize: 14,
+    fontFamily: 'CabinetGrotesk-Regular',
+    color: COLORS.VERY_LIGHT_GRAY,
+    lineHeight: 20,
+  },
+  shareButton: {
+    width: '100%',
+    backgroundColor: 'transparent',
+    borderWidth: 1,
+    borderColor: COLORS.BORDER_COLOR,
+    paddingVertical: SCREEN_WIDTH < 375 ? 12 : 14,
+    borderRadius: 12,
+    flexDirection: 'row',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  shareIcon: {
+    fontSize: 20,
+    color: COLORS.VERY_LIGHT_GRAY,
+  },
+  shareButtonText: {
+    fontSize: 16,
+    fontFamily: 'CabinetGrotesk-Medium',
+    color: COLORS.VERY_LIGHT_GRAY,
+    fontWeight: '600',
   },
 });
