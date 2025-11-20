@@ -119,7 +119,7 @@ function RegularTransactionItem({ tx, styles, onPress }) {
       {/* Asset Logo */}
       {isSpectreTransaction ? (
         <View style={localStyles.spectreLogo}>
-          <Icon name="spectre" size={24} color={COLORS.YELLOW} />
+          <Icon name="spectre" size={24} color="#1A1A1A" />
         </View>
       ) : (
         <View style={localStyles.assetLogo}>
