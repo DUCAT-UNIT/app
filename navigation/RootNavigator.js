@@ -95,7 +95,10 @@ const linking = {
     };
 
     // Listen for URL events
-    const onReceiveURL = ({ url }) => {
+    const onReceiveURL = (event) => {
+      const url = event?.url;
+      if (!url) return;
+
       console.log('[Linking] Custom subscribe received URL:', url);
       extractAndStoreToken(url);
       listener(url);
@@ -108,6 +111,8 @@ const linking = {
         extractAndStoreToken(url);
         listener(url);
       }
+    }).catch(error => {
+      console.error('[Linking] Failed to get initial URL:', error);
     });
 
     // Add event listener
