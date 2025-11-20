@@ -319,7 +319,13 @@ export const receiveToken = async (tokenString) => {
     logger.info('Receiving token');
 
     // Decode token
-    const { mint, proofs, amount } = decodeToken(tokenString);
+    const decoded = decodeToken(tokenString);
+
+    if (!decoded || !decoded.proofs || !Array.isArray(decoded.proofs)) {
+      throw new Error('Invalid token format');
+    }
+
+    const { mint, proofs, amount } = decoded;
 
     // Verify mint matches
     if (mint !== MINT_URL) {
@@ -1042,7 +1048,13 @@ export const receiveP2PKToken = async (tokenString, privateKey) => {
     const { signP2PKSecret, isP2PKSecret } = await import('./cashuP2PK.js');
 
     // Decode token
-    const { mint, proofs, amount } = decodeToken(tokenString);
+    const decoded = decodeToken(tokenString);
+
+    if (!decoded || !decoded.proofs || !Array.isArray(decoded.proofs)) {
+      throw new Error('Invalid token format');
+    }
+
+    const { mint, proofs, amount } = decoded;
 
     // Verify mint matches
     if (mint !== MINT_URL) {
