@@ -10,15 +10,19 @@ import Icon from '../../components/icons';
 import { useBalance } from '../../contexts/WalletDataContext';
 import { usePrice } from '../../contexts/PriceContext';
 import { useSendFlow } from '../../contexts/SendFlowContext';
+import { useCashu } from '../../contexts/CashuContext';
 import { logger } from '../../utils/logger';
 
 export default function AssetSelectorScreen({ navigation }) {
   const { segwitBalance, taprootBalance, runesBalance } = useBalance();
   const { btcPrice } = usePrice();
   const { setSendAssetType } = useSendFlow();
+  const { balance: cashuBalance } = useCashu();
 
   const btcBalance = (segwitBalance || 0) + (taprootBalance || 0);
-  const unitBalance = runesBalance && runesBalance.length > 0 ? parseFloat(runesBalance[0][1]) : 0;
+  // For UNIT, combine on-chain runes + ecash balance
+  const unitRunesBalance = runesBalance && runesBalance.length > 0 ? parseFloat(runesBalance[0][1]) : 0;
+  const unitBalance = unitRunesBalance + (cashuBalance || 0);
 
   const handleSelectAsset = (assetType) => {
     logger.debug('Setting asset type to:', assetType);
@@ -86,8 +90,8 @@ export default function AssetSelectorScreen({ navigation }) {
           <View style={localStyles.assetBalance}>
             <Text style={localStyles.balanceAmount}>
               {unitBalance.toLocaleString('en-US', {
-                minimumFractionDigits: 0,
-                maximumFractionDigits: 0,
+                minimumFractionDigits: 2,
+                maximumFractionDigits: 2,
               })}
             </Text>
             <Text style={localStyles.balanceUsd}>

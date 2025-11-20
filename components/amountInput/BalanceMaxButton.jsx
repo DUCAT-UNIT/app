@@ -24,8 +24,8 @@ export function BalanceMaxButton({
               maximumFractionDigits: 8,
             })
           : (balance || 0).toLocaleString('en-US', {
-              minimumFractionDigits: 0,
-              maximumFractionDigits: 0,
+              minimumFractionDigits: 2,
+              maximumFractionDigits: 2,
             })}
       </Text>
       <Pressable

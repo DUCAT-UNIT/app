@@ -233,26 +233,20 @@ export default function ConfirmationScreen({ navigation, route }) {
     }
   };
 
-  const handleOpenToken = async () => {
+  const handleCopyDeeplink = async () => {
     if (spectreToken) {
       try {
         // Create deeplink URL with token parameter
         const deeplinkUrl = `ducat://receive?token=${encodeURIComponent(spectreToken)}`;
 
-        console.log('[ConfirmationScreen] Opening deeplink for token reception');
+        console.log('[ConfirmationScreen] Copying deeplink to clipboard');
 
-        // Open the deeplink - this will trigger the app to receive the token
-        const supported = await Linking.canOpenURL(deeplinkUrl);
-        if (supported) {
-          await Linking.openURL(deeplinkUrl);
-        } else {
-          // Fallback: copy to clipboard if deeplink not supported
-          await Clipboard.setStringAsync(spectreToken);
-          Alert.alert('Token Copied', 'Deeplink not supported. Token copied to clipboard instead.');
-        }
+        // Copy deeplink to clipboard
+        await Clipboard.setStringAsync(deeplinkUrl);
+        Alert.alert('Deeplink Copied', 'Share this link with the recipient to let them receive the token');
       } catch (error) {
-        console.error('[ConfirmationScreen] Failed to open deeplink:', error);
-        Alert.alert('Error', 'Failed to open token. Please try again.');
+        console.error('[ConfirmationScreen] Failed to copy deeplink:', error);
+        Alert.alert('Error', 'Failed to copy deeplink. Please try again.');
       }
     }
   };
@@ -305,15 +299,15 @@ export default function ConfirmationScreen({ navigation, route }) {
             <Icon name="qr_code" size={48} color={COLORS.YELLOW} style={{ marginBottom: 16 }} />
             <Text style={localStyles.tokenLabel}>Spectre Token Ready</Text>
             <Text style={localStyles.tokenDescription}>
-              Tap the button below to automatically receive this token into your wallet
+              Copy the deeplink and share it with the recipient
             </Text>
             <TouchableOpacity
               style={localStyles.receiveButton}
-              onPress={handleOpenToken}
+              onPress={handleCopyDeeplink}
               activeOpacity={0.7}
             >
-              <Icon name="arrow_down" size={18} color={COLORS.WHITE} />
-              <Text style={localStyles.receiveButtonText}>Receive Token</Text>
+              <Icon name="paste" size={18} color={COLORS.WHITE} />
+              <Text style={localStyles.receiveButtonText}>Copy Deeplink</Text>
             </TouchableOpacity>
           </View>
         )}
