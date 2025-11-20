@@ -12,12 +12,13 @@ import { usePendingTransactions } from '../../contexts/PendingTransactionsContex
 
 export default function SpectreLoadingScreen({ navigation, route }) {
   const { prefillAddress, prefillAmount, assetType, isSpectre, mintQuoteId, mintAmount } = route.params || {};
-  const { setSendAssetType, setSendAmount, setSendRecipient, setRequireConfirmedUtxos, intentStep } = useSendFlow();
+  const { setSendAssetType, setSendAmount, setSendRecipient, setRequireConfirmedUtxos, intentStep, resetSendFlow } = useSendFlow();
   const { createSendIntent, sendIntent } = useTransactionBuild();
   const { getSpentUtxos, unmarkUtxosAsSpent } = usePendingTransactions();
   const hasStarted = useRef(false);
   const hasNavigated = useRef(false);
   const errorTimeout = useRef(null);
+  const intentCreated = useRef(false);
 
   // Set the send flow values and create intent immediately
   useEffect(() => {
@@ -44,6 +45,7 @@ export default function SpectreLoadingScreen({ navigation, route }) {
       if (intentStep === 'reviewing' && sendIntent) {
         // Success - navigate to review screen
         hasNavigated.current = true;
+        intentCreated.current = true;
         if (errorTimeout.current) {
           clearTimeout(errorTimeout.current);
         }
@@ -69,6 +71,9 @@ export default function SpectreLoadingScreen({ navigation, route }) {
             }));
           }
 
+          // Reset send flow to clear any stale state
+          resetSendFlow();
+
           const parent = navigation.getParent();
           Alert.alert(
             'Unable to Convert',
@@ -89,7 +94,7 @@ export default function SpectreLoadingScreen({ navigation, route }) {
         cleanupAndShowError();
       }
     }
-  }, [intentStep, sendIntent, navigation, isSpectre]);
+  }, [intentStep, sendIntent, navigation, isSpectre, resetSendFlow, getSpentUtxos, unmarkUtxosAsSpent]);
 
   // Set a timeout to detect if intent creation is taking too long
   useEffect(() => {
@@ -106,6 +111,9 @@ export default function SpectreLoadingScreen({ navigation, route }) {
               return { txid, vout: parseInt(vout) };
             }));
           }
+
+          // Reset send flow
+          resetSendFlow();
 
           const parent = navigation.getParent();
           Alert.alert(
@@ -131,7 +139,27 @@ export default function SpectreLoadingScreen({ navigation, route }) {
         }
       };
     }
-  }, [hasStarted.current, navigation, getSpentUtxos, unmarkUtxosAsSpent]);
+  }, [hasStarted.current, navigation, getSpentUtxos, unmarkUtxosAsSpent, resetSendFlow]);
+
+  // Cleanup effect: Release UTXOs if component unmounts before transaction is created
+  useEffect(() => {
+    return () => {
+      // Only cleanup if we started but didn't successfully create an intent
+      if (hasStarted.current && !intentCreated.current) {
+        const cleanup = async () => {
+          const currentSpent = getSpentUtxos();
+          if (currentSpent.size > 0) {
+            await unmarkUtxosAsSpent(Array.from(currentSpent).map(key => {
+              const [txid, vout] = key.split(':');
+              return { txid, vout: parseInt(vout) };
+            }));
+          }
+          resetSendFlow();
+        };
+        cleanup();
+      }
+    };
+  }, [getSpentUtxos, unmarkUtxosAsSpent, resetSendFlow]);
 
   return (
     <View style={styles.container}>
