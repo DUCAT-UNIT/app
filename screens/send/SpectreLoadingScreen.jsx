@@ -65,22 +65,38 @@ export default function SpectreLoadingScreen({ navigation, route }) {
 
   // Watch for intent creation to complete
   useEffect(() => {
-    if (hasStarted.current && !hasNavigated.current) {
-      if (intentStep === 'reviewing' && sendIntent) {
-        // Success - navigate to review screen
-        hasNavigated.current = true;
-        intentCreated.current = true;
-        if (errorTimeout.current) {
-          clearTimeout(errorTimeout.current);
-        }
-        navigation.replace('Review', {
-          isSpectre,
-          mintQuoteId,
-          mintAmount,
-        });
-      } else if (intentStep === 'entering_amount') {
-        // Error - show alert and go back
-        hasNavigated.current = true;
+    console.log('[SpectreLoading] Intent watch:', {
+      hasStarted: hasStarted.current,
+      hasNavigated: hasNavigated.current,
+      stateInitialized: stateInitialized.current,
+      intentStep,
+      hasSendIntent: !!sendIntent
+    });
+
+    // Only proceed if we've started and haven't navigated yet
+    if (!hasStarted.current || hasNavigated.current) {
+      return;
+    }
+
+    // Success case: intent created and ready for review
+    if (intentStep === 'reviewing' && sendIntent) {
+      console.log('[SpectreLoading] Navigating to Review...');
+      hasNavigated.current = true;
+      intentCreated.current = true;
+      if (errorTimeout.current) {
+        clearTimeout(errorTimeout.current);
+      }
+      navigation.replace('Review', {
+        isSpectre,
+        mintQuoteId,
+        mintAmount,
+      });
+    }
+    // Error case: went back to entering_amount step (validation failed)
+    else if (stateInitialized.current && intentStep === 'entering_amount') {
+      console.log('[SpectreLoading] Error detected, showing alert...');
+      // Error - show alert and go back
+      hasNavigated.current = true;
         if (errorTimeout.current) {
           clearTimeout(errorTimeout.current);
         }
