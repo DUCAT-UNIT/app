@@ -318,8 +318,16 @@ export const sumProofs = (proofs) => {
  * @returns {Array} Selected proofs
  */
 export const selectProofsForAmount = (proofs, amount) => {
-  // Sort by amount (largest first)
-  const sorted = [...proofs].sort((a, b) => b.amount - a.amount);
+  // Strategy: Try to find an exact match first, then minimize change
+
+  // Check if we can make exact amount
+  const exactMatch = findExactMatch(proofs, amount);
+  if (exactMatch) {
+    return exactMatch;
+  }
+
+  // Otherwise, use greedy algorithm (smallest to largest to minimize change)
+  const sorted = [...proofs].sort((a, b) => a.amount - b.amount);
 
   const selected = [];
   let total = 0;
@@ -335,6 +343,24 @@ export const selectProofsForAmount = (proofs, amount) => {
   }
 
   return selected;
+};
+
+// Helper: Find exact match for amount using subset sum
+const findExactMatch = (proofs, target) => {
+  // Simple recursive subset sum - finds ANY combination that equals target
+  const find = (index, remaining, selected) => {
+    if (remaining === 0) return selected;
+    if (index >= proofs.length || remaining < 0) return null;
+
+    // Try including current proof
+    const withCurrent = find(index + 1, remaining - proofs[index].amount, [...selected, proofs[index]]);
+    if (withCurrent) return withCurrent;
+
+    // Try excluding current proof
+    return find(index + 1, remaining, selected);
+  };
+
+  return find(0, target, []);
 };
 
 /**
