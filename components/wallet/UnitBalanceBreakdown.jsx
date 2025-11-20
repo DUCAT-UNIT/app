@@ -7,6 +7,7 @@
 import React from 'react';
 import PropTypes from 'prop-types';
 import { View, Text, StyleSheet } from 'react-native';
+import { LinearGradient } from 'expo-linear-gradient';
 import { COLORS } from '../../theme';
 
 const UnitBalanceBreakdown = ({ ecashBalance, runesBalance }) => {
@@ -18,12 +19,18 @@ const UnitBalanceBreakdown = ({ ecashBalance, runesBalance }) => {
     <View style={styles.container}>
       {/* Progress Bar */}
       <View style={styles.progressBarContainer}>
-        <View
+        {/* E-cash with striped pattern */}
+        <LinearGradient
+          colors={[COLORS.PRIMARY_BLUE, COLORS.MEDIUM_GRAY, COLORS.PRIMARY_BLUE, COLORS.MEDIUM_GRAY, COLORS.PRIMARY_BLUE]}
+          start={{ x: 0, y: 0 }}
+          end={{ x: 1, y: 0 }}
+          locations={[0, 0.25, 0.5, 0.75, 1]}
           style={[
             styles.progressBarEcash,
             { width: `${ecashPercentage}%` }
           ]}
         />
+        {/* Onchain solid blue */}
         <View
           style={[
             styles.progressBarRunes,
@@ -45,7 +52,7 @@ const UnitBalanceBreakdown = ({ ecashBalance, runesBalance }) => {
               })} UNIT
             </Text>
           </View>
-          <Text style={styles.balanceLabel}>ecash</Text>
+          <Text style={styles.balanceLabel}>in wallet</Text>
         </View>
 
         {/* UNIT (Runes) */}
@@ -59,7 +66,7 @@ const UnitBalanceBreakdown = ({ ecashBalance, runesBalance }) => {
               })} UNIT
             </Text>
           </View>
-          <Text style={styles.balanceLabel}>onchain</Text>
+          <Text style={styles.balanceLabel}>balance remaining</Text>
         </View>
       </View>
     </View>
@@ -93,12 +100,11 @@ const styles = StyleSheet.create({
     maxWidth: 238,
   },
   progressBarEcash: {
-    backgroundColor: COLORS.PRIMARY_BLUE,
     borderTopLeftRadius: 24,
     borderBottomLeftRadius: 24,
   },
   progressBarRunes: {
-    backgroundColor: COLORS.MEDIUM_GRAY,
+    backgroundColor: COLORS.PRIMARY_BLUE,
     borderTopRightRadius: 24,
     borderBottomRightRadius: 24,
   },
@@ -124,10 +130,10 @@ const styles = StyleSheet.create({
     marginRight: 5,
   },
   dotEcash: {
-    backgroundColor: COLORS.PRIMARY_BLUE,
+    backgroundColor: COLORS.MEDIUM_GRAY,
   },
   dotRunes: {
-    backgroundColor: COLORS.MEDIUM_GRAY,
+    backgroundColor: COLORS.PRIMARY_BLUE,
   },
   balanceValue: {
     fontSize: 11,
