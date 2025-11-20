@@ -5,6 +5,7 @@
 
 import React, { useEffect } from 'react';
 import { Text, View, TouchableOpacity, ScrollView, StyleSheet } from 'react-native';
+import { CommonActions } from '@react-navigation/native';
 import { COLORS } from '../../theme';
 import Icon from '../../components/icons';
 import TouchableScale from '../../components/common/TouchableScale';
@@ -63,8 +64,14 @@ export default function ReviewScreen({ navigation, route }) {
     // Release locked UTXOs before dismissing
     await cancelIntent();
 
-    // Dismiss the send flow modal
-    navigation.getParent()?.goBack();
+    // Dismiss the send flow modal by navigating to Main
+    // This works regardless of the modal stack depth
+    navigation.dispatch(
+      CommonActions.reset({
+        index: 0,
+        routes: [{ name: 'Main' }],
+      })
+    );
   };
 
   const handleBackPress = async () => {
