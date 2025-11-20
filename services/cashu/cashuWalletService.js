@@ -127,7 +127,18 @@ export const removeProofs = async (proofsToRemove) => {
  */
 export const getBalance = async () => {
   const proofs = await loadProofs();
-  return sumProofs(proofs);
+
+  // Filter out P2PK locked proofs - they're not spendable balance
+  const { isP2PKSecret } = await import('./cashuP2PK.js');
+  const spendableProofs = proofs.filter(p => !isP2PKSecret(p.secret));
+
+  logger.info('Balance calculation', {
+    totalProofs: proofs.length,
+    spendableProofs: spendableProofs.length,
+    lockedProofs: proofs.length - spendableProofs.length,
+  });
+
+  return sumProofs(spendableProofs);
 };
 
 /**
