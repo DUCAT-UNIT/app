@@ -200,14 +200,17 @@ export default function RootNavigator() {
           try {
             setIsVerifyingToken(true);
             console.log('[Deeplink] 📞 Calling receive function...');
+            console.log('[Deeplink] 🔑 Token preview:', token.substring(0, 50) + '...');
+
             const result = await receive(token);
             console.log('[Deeplink] ✅ Token received successfully!', result);
 
             setIsVerifyingToken(false);
             processingTokenRef.current = null; // Clear processed token
-            showToast(`Successfully received ${result.amount} UNIT`, 'success');
+            showToast(`Successfully received ${result.amount / 100} UNIT`, 'success');
           } catch (error) {
             console.error('[Deeplink] ❌ Failed to receive token:', error);
+            console.error('[Deeplink] ❌ Error stack:', error.stack);
 
             setIsVerifyingToken(false);
             processingTokenRef.current = null; // Clear processed token
@@ -216,8 +219,11 @@ export default function RootNavigator() {
             let errorMessage = error.message || 'Failed to receive token';
             if (errorMessage.includes('already spent') || errorMessage.includes('already been spent')) {
               errorMessage = 'Token already claimed';
+            } else if (errorMessage.includes('P2PK verification failed')) {
+              errorMessage = 'Failed to verify Spectre token signature';
             }
 
+            console.log('[Deeplink] 🚨 Showing error toast:', errorMessage);
             showToast(errorMessage, 'error');
           }
         })();
