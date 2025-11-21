@@ -182,35 +182,72 @@ const linking = {
       console.log('[SPECTRE] URL first 100 chars:', url ? url.substring(0, 100) : 'null');
       console.log('[SPECTRE] ========================================');
 
-      // Process Spectre URLs: https://ducatprotocol.com/unit?t=base64...
-      if (url && url.includes('unit?') && url.includes('t=')) {
-        console.log('[SPECTRE] URL event contains Spectre token - processing NOW');
+      // Process Spectre URLs: https://ducatprotocol.com/unit?id=xyz123 OR https://ducatprotocol.com/unit?t=base64...
+      if (url && url.includes('unit?')) {
+        console.log('[SPECTRE] URL event contains Spectre URL - processing NOW');
 
-        // Extract token parameter from URL (short form: t=)
-        const tokenMatch = url.match(/[?&]t=([^&]+)/);
-        if (!tokenMatch || !tokenMatch[1]) {
-          console.error('[SPECTRE] URL event: No token parameter found in URL');
+        let token = null;
+
+        // Check if this is an ID-based link (token stored in Rebrandly)
+        const idMatch = url.match(/[?&]id=([^&]+)/);
+        if (idMatch && idMatch[1]) {
+          const tokenId = idMatch[1];
+          console.log('[SPECTRE] URL contains Rebrandly token ID:', tokenId);
+
+          try {
+            const { fetchTokenFromRebrandly } = await import('../services/urlShortener');
+            token = await fetchTokenFromRebrandly(tokenId);
+
+            if (!token) {
+              console.error('[SPECTRE] Failed to fetch token from Rebrandly');
+              return;
+            }
+
+            console.log('[SPECTRE] URL event: Fetched token from Rebrandly');
+            console.log('[SPECTRE] Token starts with:', token.substring(0, 20));
+          } catch (error) {
+            console.error('[SPECTRE] URL event: Failed to fetch token from Rebrandly:', error.message);
+            return;
+          }
+        }
+        // Check if this is a direct token link (fallback)
+        else {
+          const tokenMatch = url.match(/[?&]t=([^&]+)/);
+          if (!tokenMatch || !tokenMatch[1]) {
+            console.error('[SPECTRE] URL event: No token or ID parameter found in URL');
+            return;
+          }
+
+          let base64Token = tokenMatch[1];
+          console.log('[SPECTRE] Extracted URL-safe base64 token, length:', base64Token.length);
+
+          try {
+            // Convert URL-safe base64 back to standard base64
+            base64Token = base64Token
+              .replace(/-/g, '+')
+              .replace(/_/g, '/');
+
+            // Add padding if needed
+            while (base64Token.length % 4) {
+              base64Token += '=';
+            }
+
+            // Decode base64 to get cashu token
+            token = atob(base64Token);
+            console.log('[SPECTRE] URL event: Decoded base64 to cashu token');
+            console.log('[SPECTRE] Decoded token starts with:', token.substring(0, 20));
+          } catch (error) {
+            console.error('[SPECTRE] URL event: Failed to decode base64 token:', error.message);
+            return;
+          }
+        }
+
+        if (!token) {
+          console.error('[SPECTRE] URL event: No token extracted');
           return;
         }
 
-        let base64Token = tokenMatch[1];
-        console.log('[SPECTRE] Extracted URL-safe base64 token, length:', base64Token.length);
-
         try {
-          // Convert URL-safe base64 back to standard base64
-          base64Token = base64Token
-            .replace(/-/g, '+')
-            .replace(/_/g, '/');
-
-          // Add padding if needed
-          while (base64Token.length % 4) {
-            base64Token += '=';
-          }
-
-          // Decode base64 to get cashu token
-          const token = atob(base64Token);
-          console.log('[SPECTRE] URL event: Decoded base64 to cashu token');
-          console.log('[SPECTRE] Decoded token starts with:', token.substring(0, 20));
 
           // Hash and check for duplicates
           const tokenHash = await hashToken(token);

@@ -128,16 +128,20 @@ export const generateSpectreDeeplink = async (token, recipient, amount) => {
 
   console.log('[SpectreDeeplink] URL-safe base64 token length:', base64Token.length);
 
-  // Create minimal deeplink URL with just the token
-  // Address and amount are already encoded in the Cashu token itself
-  const fullDeeplink = `https://ducatprotocol.com/unit?t=${base64Token}`;
-  console.log('[SpectreDeeplink] Full deeplink length:', fullDeeplink.length);
-
   // Convert amount from smallest units to display units (for slashtag)
   const displayAmount = amount / 100;
 
+  // Create a minimal destination URL (just a placeholder)
+  // The actual token will be in the URL fragment (after #) which Rebrandly doesn't count toward the 2048 limit
+  const destinationUrl = `https://ducatprotocol.com/unit`;
+
+  // Create full deeplink with token in fragment
+  // Fragment is NOT sent to the server, only processed client-side
+  const fullDeeplink = `${destinationUrl}#${base64Token}`;
+  console.log('[SpectreDeeplink] Full deeplink length:', fullDeeplink.length);
+
   // Shorten URL with Rebrandly (pass address and amount for slashtag)
-  const shortUrl = await createSpectreShortUrl(fullDeeplink, recipient, displayAmount);
+  const shortUrl = await createSpectreShortUrl(fullDeeplink, recipient, displayAmount, base64Token);
   console.log('[SpectreDeeplink] Short URL:', shortUrl);
 
   return shortUrl;
