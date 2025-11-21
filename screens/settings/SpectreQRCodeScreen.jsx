@@ -27,7 +27,13 @@ export default function SpectreQRCodeScreen({ navigation, route }) {
   // Extract emoji token from deeplink
   const emojiToken = useMemo(() => {
     try {
-      // Parse the deeplink to extract the emoji token parameter
+      // New format: ducat://unit?👻 (emoji directly after ?)
+      if (deeplink.includes('unit?')) {
+        const queryStart = deeplink.indexOf('unit?') + 5;
+        return deeplink.substring(queryStart);
+      }
+
+      // Old format fallback: ducat://spectre?token=👻
       const url = new URL(deeplink);
       const token = url.searchParams.get('token');
       if (!token) {
