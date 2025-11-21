@@ -191,17 +191,26 @@ export default function RootNavigator() {
 
     // Check immediately
     const checkPendingToken = () => {
+      console.log('[Deeplink] 🔍 Check triggered - isAuth:', isAuthenticated, 'hasToken:', !!global.pendingCashuToken, 'isVerifying:', isVerifyingToken);
+
       if (isAuthenticated && global.pendingCashuToken && !isVerifyingToken) {
         const token = global.pendingCashuToken;
+        console.log('[Deeplink] 📦 Found pending token:', token.substring(0, 30) + '...');
 
         // Check if we've already processed or are processing this exact token
-        if (processingTokenRef.current === token || processedTokensRef.current.has(token)) {
+        const isCurrentlyProcessing = processingTokenRef.current === token;
+        const isAlreadyProcessed = processedTokensRef.current.has(token);
+
+        console.log('[Deeplink] 🔎 Token status - currently processing:', isCurrentlyProcessing, 'already processed:', isAlreadyProcessed);
+
+        if (isCurrentlyProcessing || isAlreadyProcessed) {
+          console.log('[Deeplink] ⏭️  Skipping token (already handled)');
           // Clear from global to prevent spam
           delete global.pendingCashuToken;
           return;
         }
 
-        console.log('[Deeplink] 💎 Processing pending token from global');
+        console.log('[Deeplink] 💎 Processing NEW pending token from global');
         console.log('[Deeplink] 🆔 Token ID for tracking:', token.substring(0, 20) + '...');
 
         // Mark this token as being processed
