@@ -172,17 +172,55 @@ const linking = {
       }
     };
 
-    // Listen for URL events - this doesn't fire reliably on iOS, but keep it for other platforms
+    // Listen for URL events - IMPORTANT: This WILL fire on iOS when coming from background!
     const onReceiveURL = async (event) => {
       const url = event?.url;
       console.log('[SPECTRE] ========================================');
       console.log('[SPECTRE] *** URL EVENT FIRED ***');
       console.log('[SPECTRE] URL:', url ? url.substring(0, 80) + '...' : 'null');
-      console.log('[SPECTRE] This should not be used on iOS - getStateFromPath handles it');
       console.log('[SPECTRE] ========================================');
 
-      // On iOS, getStateFromPath handles all URL processing
-      // This event handler is kept for compatibility with other platforms
+      // Process Spectre URLs immediately when this event fires
+      if (url && (url.includes('receive?token=') || url.includes('spectre?token='))) {
+        console.log('[SPECTRE] URL event contains Spectre token - processing NOW');
+
+        // Extract token from URL
+        const tokenMatch = url.match(/[?&]token=([^&]+)/);
+        if (tokenMatch && tokenMatch[1]) {
+          let token = decodeURIComponent(tokenMatch[1]);
+
+          // Decode emoji token if it's a Spectre link
+          if (url.includes('spectre?token=')) {
+            try {
+              token = decodeCashuToken(token);
+              console.log('[SPECTRE] URL event: Decoded emoji token');
+            } catch (error) {
+              console.error('[SPECTRE] URL event: Failed to decode:', error.message);
+              return;
+            }
+          }
+
+          // Hash and check for duplicates
+          const tokenHash = await hashToken(token);
+          const isAlreadyProcessed = global.processedCashuTokens && global.processedCashuTokens.has(tokenHash);
+
+          if (isAlreadyProcessed) {
+            console.log('[SPECTRE] URL event: Token already processed (hash:', tokenHash.substring(0, 16) + '...)');
+            return;
+          }
+
+          // Store token for processing
+          console.log('[SPECTRE] URL event: Storing NEW token, hash:', tokenHash.substring(0, 16) + '...');
+          if (typeof global !== 'undefined') {
+            global.pendingCashuToken = token;
+
+            // Trigger check immediately
+            if (typeof global.triggerPendingTokenCheck === 'function') {
+              setTimeout(() => global.triggerPendingTokenCheck(), 100);
+            }
+          }
+        }
+      }
     };
 
     // REMOVED: getInitialURL() processing - it's now handled by getStateFromPath
