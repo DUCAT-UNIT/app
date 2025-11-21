@@ -25,8 +25,38 @@ import { useOnboardingFlow } from '../contexts/AuthContext';
 import { useCashu } from '../contexts/CashuContext';
 import { Alert, Linking } from 'react-native';
 import { decodeCashuToken } from '../utils/emojiEncoder';
+import * as SecureStore from 'expo-secure-store';
 
 const Stack = createStackNavigator();
+
+// Storage key for processed tokens
+const PROCESSED_TOKENS_KEY = 'processed_cashu_tokens';
+const MAX_STORED_TOKENS = 200; // Store up to 200 processed token hashes
+
+// Helper functions for persistent token tracking
+const loadProcessedTokens = async () => {
+  try {
+    const stored = await SecureStore.getItemAsync(PROCESSED_TOKENS_KEY);
+    if (stored) {
+      const tokens = JSON.parse(stored);
+      return new Set(tokens);
+    }
+  } catch (error) {
+    console.error('[SPECTRE] Failed to load processed tokens:', error.message);
+  }
+  return new Set();
+};
+
+const saveProcessedTokens = async (tokensSet) => {
+  try {
+    // Convert Set to Array and limit size
+    const tokensArray = Array.from(tokensSet).slice(-MAX_STORED_TOKENS);
+    await SecureStore.setItemAsync(PROCESSED_TOKENS_KEY, JSON.stringify(tokensArray));
+    console.log('[SPECTRE] Saved processed tokens to storage:', tokensArray.length);
+  } catch (error) {
+    console.error('[SPECTRE] Failed to save processed tokens:', error.message);
+  }
+};
 
 // Linking configuration for deep links
 const linking = {
@@ -48,6 +78,22 @@ const linking = {
   },
   // Subscribe to URL changes
   subscribe(listener) {
+    // Initialize processed tokens set from persistent storage
+    if (typeof global !== 'undefined' && !global.processedCashuTokens) {
+      global.processedCashuTokensLoading = true;
+
+      // Load from storage asynchronously
+      loadProcessedTokens().then(tokensSet => {
+        global.processedCashuTokens = tokensSet;
+        global.processedCashuTokensLoading = false;
+        console.log('[SPECTRE] Loaded processed tokens from storage:', tokensSet.size);
+      }).catch(error => {
+        console.error('[SPECTRE] Failed to load processed tokens, starting fresh:', error.message);
+        global.processedCashuTokens = new Set();
+        global.processedCashuTokensLoading = false;
+      });
+    }
+
     // Helper to extract and store token
     const extractAndStoreToken = (url) => {
       if (url && (url.includes('receive?token=') || url.includes('spectre?token='))) {
@@ -70,8 +116,31 @@ const linking = {
           }
 
           if (typeof global !== 'undefined') {
+            // Wait for processed tokens to load from storage if still loading
+            if (global.processedCashuTokensLoading) {
+              console.log('[SPECTRE] Waiting for processed tokens to load from storage...');
+              // Retry after storage loads
+              setTimeout(() => extractAndStoreToken(url), 100);
+              return;
+            }
+
+            // Check if this token has already been processed or is currently pending
+            const isAlreadyProcessed = global.processedCashuTokens && global.processedCashuTokens.has(token);
+            const isCurrentlyPending = global.pendingCashuToken === token;
+
+            if (isAlreadyProcessed) {
+              console.log('[SPECTRE] Ignoring duplicate deeplink - token already processed');
+              return;
+            }
+
+            if (isCurrentlyPending) {
+              console.log('[SPECTRE] Ignoring duplicate deeplink - same token already pending');
+              return;
+            }
+
+            // Store new token
             global.pendingCashuToken = token;
-            console.log('[SPECTRE] Stored token, first 30 chars:', token.substring(0, 30) + '...');
+            console.log('[SPECTRE] Stored NEW token, first 30 chars:', token.substring(0, 30) + '...');
 
             // Immediately trigger check if function is available (app is open)
             if (typeof global.triggerPendingTokenCheck === 'function') {
@@ -111,31 +180,13 @@ const linking = {
   },
   // Custom function to intercept and handle special URLs before navigation
   async getStateFromPath(path, options) {
-    console.log('[Linking] ⚡ getStateFromPath called with path:', path);
-
-    // Check if this is a token receive URL (supports both /receive and receive paths)
-    if (path.includes('receive?token=')) {
-      console.log('[Linking] ✅ Detected receive URL!');
-
-      // Extract token from URL (handle both /receive and receive)
-      const match = path.match(/\/?receive\?token=(.+)$/);
-      if (match && match[1]) {
-        const encodedToken = match[1];
-        const token = decodeURIComponent(encodedToken);
-        console.log('[Linking] 🎯 Extracted token (first 30 chars):', token.substring(0, 30));
-
-        // Store token in a global to be processed when app is ready
-        if (typeof global !== 'undefined') {
-          global.pendingCashuToken = token;
-          console.log('[Linking] 💾 Stored token in global.pendingCashuToken');
-        }
-      }
-
-      // Return null to prevent navigation, we'll handle it in the app
+    // Check if this is a token receive URL (supports both /receive and /spectre)
+    // Note: Token storage is handled by subscribe() to avoid duplicate processing
+    if (path.includes('receive?token=') || path.includes('spectre?token=')) {
+      // Return null to prevent navigation, subscribe() will handle the token
       return null;
     }
 
-    console.log('[Linking] ⏭️  Not a receive URL, using default behavior');
     // For other paths, use default behavior
     return undefined;
   },
@@ -160,9 +211,7 @@ export default function RootNavigator() {
   const { receive } = useCashu();
 
   // Token verification loading state
-  const [isVerifyingToken, setIsVerifyingToken] = React.useState(false);
-  const processingTokenRef = React.useRef(null); // Track currently processing token
-  const processedTokensRef = React.useRef(new Set()); // Track all processed tokens to prevent re-processing
+  const [isVerifyingToken, setIsVerifyingToken] = React.useState(false)
 
   // Create wallet exists ref for useAppLifecycle
   const walletExists = React.useRef(false);
@@ -174,29 +223,26 @@ export default function RootNavigator() {
   const checkPendingTokenRef = React.useRef(null); // Store function ref so it can be called externally
 
   React.useEffect(() => {
-    // Check immediately
     const checkPendingToken = () => {
+      // Only process if authenticated, there's a pending token, and we're not already verifying
       if (isAuthenticated && global.pendingCashuToken && !isVerifyingToken) {
         const token = global.pendingCashuToken;
 
-        // Check if we've already processed or are processing this exact token
-        const isCurrentlyProcessing = processingTokenRef.current === token;
-        const isAlreadyProcessed = processedTokensRef.current.has(token);
-
-        if (isCurrentlyProcessing || isAlreadyProcessed) {
-          console.log('[SPECTRE] Skipping - already processed:', token.substring(0, 30) + '...');
-          delete global.pendingCashuToken;
-          return;
-        }
-
         console.log('[SPECTRE] Processing token:', token.substring(0, 30) + '...');
 
-        // Mark this token as being processed
-        processingTokenRef.current = token;
-        processedTokensRef.current.add(token);
-
-        // Clear the pending token immediately to prevent double-processing
+        // Clear immediately to prevent re-processing
         delete global.pendingCashuToken;
+
+        // Mark token as processed (whether it succeeds or fails, we don't want to retry)
+        if (global.processedCashuTokens) {
+          global.processedCashuTokens.add(token);
+          console.log('[SPECTRE] Marked token as processed. Total processed:', global.processedCashuTokens.size);
+
+          // Save to persistent storage asynchronously
+          saveProcessedTokens(global.processedCashuTokens).catch(error => {
+            console.error('[SPECTRE] Failed to persist processed tokens:', error.message);
+          });
+        }
 
         // Process the token
         (async () => {
@@ -205,7 +251,6 @@ export default function RootNavigator() {
             const result = await receive(token);
 
             setIsVerifyingToken(false);
-            processingTokenRef.current = null;
 
             // Format amount: keep 2 decimals
             const amountDisplay = (result.amount).toFixed(2);
@@ -215,7 +260,6 @@ export default function RootNavigator() {
             console.error('[SPECTRE] Failed:', error.message);
 
             setIsVerifyingToken(false);
-            processingTokenRef.current = null;
 
             // Check for specific error messages
             let errorMessage = error.message || 'Failed to receive token';
@@ -237,13 +281,13 @@ export default function RootNavigator() {
     // Check immediately
     checkPendingToken();
 
-    // Also poll every 500ms to catch tokens that arrive while app is open
+    // Poll every 500ms to catch tokens that arrive while app is open
     const interval = setInterval(checkPendingToken, 500);
 
     return () => {
       clearInterval(interval);
     };
-  }, [isAuthenticated, receive]);
+  }, [isAuthenticated, receive, isVerifyingToken]);
 
   // Expose checkPendingToken globally so linking config can trigger it
   React.useEffect(() => {
