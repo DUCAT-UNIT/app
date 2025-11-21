@@ -23,7 +23,7 @@ import { useNavigationState } from '../hooks/useNavigationState';
 import { useAppLifecycle } from '../hooks/useAppLifecycle';
 import { useOnboardingFlow } from '../contexts/AuthContext';
 import { useCashu } from '../contexts/CashuContext';
-import { Alert, Linking } from 'react-native';
+import { Alert, Linking, AppState } from 'react-native';
 import { decodeCashuToken } from '../utils/emojiEncoder';
 import * as SecureStore from 'expo-secure-store';
 import * as Crypto from 'expo-crypto';
@@ -190,13 +190,40 @@ const linking = {
       console.error('[SPECTRE] Failed to get initial URL:', error);
     });
 
-    // Add event listener
+    // Add event listener for URL changes
     const subscription = Linking.addEventListener('url', onReceiveURL);
     console.log('[SPECTRE] Linking.addEventListener registered for URL events');
 
+    // Also listen for app state changes to catch URLs when app comes from background
+    // This is needed because iOS doesn't always fire the 'url' event when returning from background
+    let lastAppState = AppState.currentState;
+    const appStateSubscription = AppState.addEventListener('change', async (nextAppState) => {
+      console.log('[SPECTRE] AppState changed from', lastAppState, 'to', nextAppState);
+
+      // When app comes to foreground, check for a new URL
+      if (lastAppState.match(/inactive|background/) && nextAppState === 'active') {
+        console.log('[SPECTRE] App became active, checking for URL...');
+        try {
+          const url = await Linking.getURL();
+          if (url) {
+            console.log('[SPECTRE] Found URL on app activation:', url.substring(0, 50) + '...');
+            await extractAndStoreToken(url);
+            listener(url);
+          } else {
+            console.log('[SPECTRE] No URL found on app activation');
+          }
+        } catch (error) {
+          console.error('[SPECTRE] Error getting URL on app activation:', error.message);
+        }
+      }
+
+      lastAppState = nextAppState;
+    });
+
     return () => {
-      console.log('[SPECTRE] Linking subscribe cleanup - removing event listener');
+      console.log('[SPECTRE] Linking subscribe cleanup - removing event listeners');
       subscription.remove();
+      appStateSubscription.remove();
     };
   },
   // Custom function to intercept and handle special URLs before navigation
