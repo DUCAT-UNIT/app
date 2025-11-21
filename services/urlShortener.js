@@ -167,9 +167,10 @@ export const fetchTokenFromRebrandly = async (tokenId) => {
 
     logger.info('Fetching token from Rebrandly', { tokenId });
 
-    // Search for links with this token ID in tags
-    // We need to use the /links endpoint with filtering
-    const searchUrl = `${REBRANDLY_API_ENDPOINT}?orderBy=createdAt&orderDir=desc&limit=100`;
+    // Try multiple search strategies
+    // Strategy 1: Search by domain and recent links
+    const domain = REBRANDLY_CUSTOM_DOMAIN || 'rebrand.ly';
+    const searchUrl = `${REBRANDLY_API_ENDPOINT}?domain.fullName=${domain}&orderBy=createdAt&orderDir=desc&limit=500`;
 
     const response = await fetch(searchUrl, {
       method: 'GET',
@@ -183,22 +184,38 @@ export const fetchTokenFromRebrandly = async (tokenId) => {
     }
 
     const links = await response.json();
+    logger.info('Rebrandly links fetched', { count: links.length });
 
-    // Find the link with our token ID in tags
-    const targetLink = links.find(link =>
-      link.tags && link.tags.includes(`id:${tokenId}`)
-    );
+    // Find the link with our token ID in destination or tags
+    const targetLink = links.find(link => {
+      // Check if destination contains this ID
+      if (link.destination && link.destination.includes(`id=${tokenId}`)) {
+        return true;
+      }
+      // Check if tags contain this ID
+      if (link.tags && link.tags.includes(`id:${tokenId}`)) {
+        return true;
+      }
+      return false;
+    });
 
     if (!targetLink) {
-      logger.warn('Token not found in Rebrandly', { tokenId });
+      logger.warn('Token not found in Rebrandly', { tokenId, linksSearched: links.length });
       return null;
     }
 
+    logger.info('Found link in Rebrandly', { tokenId, linkId: targetLink.id, hasTags: !!targetLink.tags });
+
     // Reconstruct token from tags (skip the first tag which is the ID marker)
+    if (!targetLink.tags || targetLink.tags.length === 0) {
+      logger.error('Link found but has no tags', { tokenId });
+      return null;
+    }
+
     const tokenTags = targetLink.tags.filter(tag => !tag.startsWith('id:'));
     const token = tokenTags.join('');
 
-    logger.info('Token fetched successfully from Rebrandly', { tokenId, tokenLength: token.length });
+    logger.info('Token fetched successfully from Rebrandly', { tokenId, tokenLength: token.length, tagCount: tokenTags.length });
     return token;
   } catch (error) {
     logger.error('Failed to fetch token from Rebrandly', { error: error.message, tokenId });
