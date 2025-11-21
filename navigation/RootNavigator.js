@@ -48,12 +48,10 @@ const linking = {
   },
   // Subscribe to URL changes
   subscribe(listener) {
-    console.log('[Linking] 🔗 Custom subscribe called - setting up deeplink handlers');
-
     // Helper to extract and store token
     const extractAndStoreToken = (url) => {
       if (url && (url.includes('receive?token=') || url.includes('spectre?token='))) {
-        console.log('[Linking] 🎯 Subscribe detected token URL:', url);
+        console.log('[SPECTRE] Received deeplink:', url.substring(0, 50) + '...');
 
         // Extract token parameter from URL
         const tokenMatch = url.match(/[?&]token=([^&]+)/);
@@ -62,23 +60,21 @@ const linking = {
 
           // If this is a spectre link, the token is emoji-encoded
           if (url.includes('spectre?token=')) {
-            console.log('[Linking] 👻 Detected Spectre emoji token, decoding...');
             try {
               token = decodeCashuToken(token);
-              console.log('[Linking] ✅ Successfully decoded emoji token');
+              console.log('[SPECTRE] Decoded emoji token');
             } catch (error) {
-              console.error('[Linking] ❌ Failed to decode emoji token:', error);
+              console.error('[SPECTRE] Failed to decode:', error.message);
               return;
             }
           }
 
           if (typeof global !== 'undefined') {
             global.pendingCashuToken = token;
-            console.log('[Linking] 💾 Subscribe stored token in global');
+            console.log('[SPECTRE] Stored token, first 30 chars:', token.substring(0, 30) + '...');
 
             // Immediately trigger check if function is available (app is open)
             if (typeof global.triggerPendingTokenCheck === 'function') {
-              console.log('[Linking] ⚡ Immediately triggering token check');
               setTimeout(() => global.triggerPendingTokenCheck(), 100);
             }
           }
@@ -88,30 +84,21 @@ const linking = {
 
     // Listen for URL events
     const onReceiveURL = (event) => {
-      console.log('[Linking] 🎯 onReceiveURL called with event:', event);
       const url = event?.url;
-      if (!url) {
-        console.log('[Linking] ⚠️ No URL in event, ignoring');
-        return;
-      }
+      if (!url) return;
 
-      console.log('[Linking] 📲 Custom subscribe received URL:', url);
       extractAndStoreToken(url);
       listener(url);
     };
 
     // Handle initial URL
     Linking.getInitialURL().then((url) => {
-      console.log('[Linking] 🚀 getInitialURL result:', url || 'null');
       if (url) {
-        console.log('[Linking] 📥 Custom subscribe initial URL:', url);
         extractAndStoreToken(url);
         listener(url);
-      } else {
-        console.log('[Linking] ℹ️ No initial URL (app opened normally)');
       }
     }).catch(error => {
-      console.error('[Linking] ❌ Failed to get initial URL:', error);
+      console.error('[SPECTRE] Failed to get initial URL:', error);
     });
 
     // Add event listener
@@ -187,31 +174,22 @@ export default function RootNavigator() {
   const checkPendingTokenRef = React.useRef(null); // Store function ref so it can be called externally
 
   React.useEffect(() => {
-    console.log('[Deeplink] 🔄 Setting up pending token checker');
-
     // Check immediately
     const checkPendingToken = () => {
-      console.log('[Deeplink] 🔍 Check triggered - isAuth:', isAuthenticated, 'hasToken:', !!global.pendingCashuToken, 'isVerifying:', isVerifyingToken);
-
       if (isAuthenticated && global.pendingCashuToken && !isVerifyingToken) {
         const token = global.pendingCashuToken;
-        console.log('[Deeplink] 📦 Found pending token:', token.substring(0, 30) + '...');
 
         // Check if we've already processed or are processing this exact token
         const isCurrentlyProcessing = processingTokenRef.current === token;
         const isAlreadyProcessed = processedTokensRef.current.has(token);
 
-        console.log('[Deeplink] 🔎 Token status - currently processing:', isCurrentlyProcessing, 'already processed:', isAlreadyProcessed);
-
         if (isCurrentlyProcessing || isAlreadyProcessed) {
-          console.log('[Deeplink] ⏭️  Skipping token (already handled)');
-          // Clear from global to prevent spam
+          console.log('[SPECTRE] Skipping - already processed:', token.substring(0, 30) + '...');
           delete global.pendingCashuToken;
           return;
         }
 
-        console.log('[Deeplink] 💎 Processing NEW pending token from global');
-        console.log('[Deeplink] 🆔 Token ID for tracking:', token.substring(0, 20) + '...');
+        console.log('[SPECTRE] Processing token:', token.substring(0, 30) + '...');
 
         // Mark this token as being processed
         processingTokenRef.current = token;
@@ -220,38 +198,24 @@ export default function RootNavigator() {
         // Clear the pending token immediately to prevent double-processing
         delete global.pendingCashuToken;
 
-        console.log('[Deeplink] 📝 Processed tokens count:', processedTokensRef.current.size);
-
         // Process the token
         (async () => {
           try {
             setIsVerifyingToken(true);
-            console.log('[Deeplink] 📞 Calling receive function...');
-            console.log('[Deeplink] 🔑 Token preview:', token.substring(0, 50) + '...');
-
             const result = await receive(token);
-            console.log('[Deeplink] ✅ Token received successfully!', result);
 
             setIsVerifyingToken(false);
-            processingTokenRef.current = null; // Clear currently processing token
-
-            // Keep successfully processed tokens in the set permanently
-            // This prevents re-processing the same token after minimizing app
-            console.log('[Deeplink] ✅ Token successfully processed and saved to prevent re-processing');
+            processingTokenRef.current = null;
 
             // Format amount: multiply by 100 and keep 2 decimals
             const amountDisplay = (result.amount * 100).toFixed(2);
+            console.log('[SPECTRE] Success! Received:', amountDisplay, 'UNIT');
             showToast(`Successfully received ${amountDisplay} UNIT`, 'success');
           } catch (error) {
-            console.error('[Deeplink] ❌ Failed to receive token:', error);
-            console.error('[Deeplink] ❌ Error stack:', error.stack);
+            console.error('[SPECTRE] Failed:', error.message);
 
             setIsVerifyingToken(false);
-            processingTokenRef.current = null; // Clear currently processing token
-
-            // Keep failed tokens in processed set to prevent retrying same token
-            // Don't remove them - this prevents loops when minimizing/reopening app
-            console.log('[Deeplink] ❌ Token failed and saved to prevent re-attempting');
+            processingTokenRef.current = null;
 
             // Check for specific error messages
             let errorMessage = error.message || 'Failed to receive token';
@@ -261,7 +225,6 @@ export default function RootNavigator() {
               errorMessage = 'Failed to verify Spectre token signature';
             }
 
-            console.log('[Deeplink] 🚨 Showing error toast:', errorMessage);
             showToast(errorMessage, 'error');
           }
         })();
