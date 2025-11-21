@@ -207,8 +207,8 @@ export default function RootNavigator() {
             setIsVerifyingToken(false);
             processingTokenRef.current = null;
 
-            // Format amount: multiply by 100 and keep 2 decimals
-            const amountDisplay = (result.amount * 100).toFixed(2);
+            // Format amount: keep 2 decimals
+            const amountDisplay = (result.amount).toFixed(2);
             console.log('[SPECTRE] Success! Received:', amountDisplay, 'UNIT');
             showToast(`Successfully received ${amountDisplay} UNIT`, 'success');
           } catch (error) {
