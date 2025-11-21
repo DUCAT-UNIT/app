@@ -270,9 +270,11 @@ const linking = {
     console.log('[SPECTRE] Registered AppState listener for URL handling');
 
     return () => {
-      console.log('[SPECTRE] Linking subscribe cleanup - removing event listeners');
-      subscription.remove();
+      console.log('[SPECTRE] Linking subscribe cleanup called');
+      // DO NOT remove subscription - we need it to persist across app state changes
+      // Only remove the AppState listener
       appStateSubscription.remove();
+      console.log('[SPECTRE] Removed AppState listener, but kept URL listener active');
     };
   },
   // Custom function to intercept and handle special URLs before navigation
