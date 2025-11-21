@@ -170,18 +170,24 @@ const linking = {
       }
     };
 
-    // Listen for URL events
-    const onReceiveURL = (event) => {
+    // Listen for URL events - this MUST fire for deeplinks when app is open
+    const onReceiveURL = async (event) => {
       const url = event?.url;
-      console.log('[SPECTRE] onReceiveURL fired, url:', url ? url.substring(0, 50) + '...' : 'null');
+      console.log('[SPECTRE] *** onReceiveURL EVENT FIRED ***, url:', url ? url.substring(0, 50) + '...' : 'null');
+      console.log('[SPECTRE] Event object:', event ? JSON.stringify(event).substring(0, 100) : 'null event');
       if (!url) return;
 
-      extractAndStoreToken(url);
+      // Process the URL BEFORE calling listener
+      // This ensures we extract and store the token before React Navigation tries to handle it
+      await extractAndStoreToken(url);
+
+      // Now let React Navigation process the URL
       listener(url);
     };
 
-    // Handle initial URL
+    // Handle initial URL (app was closed and opened via deeplink)
     Linking.getInitialURL().then((url) => {
+      console.log('[SPECTRE] getInitialURL returned:', url ? url.substring(0, 50) + '...' : 'null');
       if (url) {
         extractAndStoreToken(url);
         listener(url);
@@ -190,41 +196,14 @@ const linking = {
       console.error('[SPECTRE] Failed to get initial URL:', error);
     });
 
-    // Add event listener for URL changes
+    // Add event listener for URL changes (app is already open and deeplink is tapped)
+    console.log('[SPECTRE] About to register Linking.addEventListener...');
     const subscription = Linking.addEventListener('url', onReceiveURL);
-    console.log('[SPECTRE] Linking.addEventListener registered for URL events');
-
-    // Also listen for app state changes to catch URLs when app comes from background
-    // This is needed because iOS doesn't always fire the 'url' event when returning from background
-    let lastAppState = AppState.currentState;
-    console.log('[SPECTRE] Registering AppState listener, current state:', lastAppState);
-    const appStateSubscription = AppState.addEventListener('change', async (nextAppState) => {
-      console.log('[SPECTRE] AppState changed from', lastAppState, 'to', nextAppState);
-
-      // When app comes to foreground, check for a new URL
-      if (lastAppState.match(/inactive|background/) && nextAppState === 'active') {
-        console.log('[SPECTRE] App became active, checking for URL...');
-        try {
-          const url = await Linking.getInitialURL();
-          if (url) {
-            console.log('[SPECTRE] Found URL on app activation:', url.substring(0, 50) + '...');
-            await extractAndStoreToken(url);
-            listener(url);
-          } else {
-            console.log('[SPECTRE] No URL found on app activation');
-          }
-        } catch (error) {
-          console.error('[SPECTRE] Error getting URL on app activation:', error.message);
-        }
-      }
-
-      lastAppState = nextAppState;
-    });
+    console.log('[SPECTRE] Linking.addEventListener registered, subscription:', !!subscription);
 
     return () => {
       console.log('[SPECTRE] Linking subscribe cleanup - removing event listeners');
       subscription.remove();
-      appStateSubscription.remove();
     };
   },
   // Custom function to intercept and handle special URLs before navigation
