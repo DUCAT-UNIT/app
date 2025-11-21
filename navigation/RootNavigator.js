@@ -265,10 +265,45 @@ const linking = {
   },
   // Custom function to intercept and handle special URLs before navigation
   async getStateFromPath(path, options) {
+    console.log('[SPECTRE] getStateFromPath called with path:', path ? path.substring(0, 80) + '...' : 'null');
+
     // Check if this is a token receive URL (supports both /receive and /spectre)
-    // Note: Token storage is handled by subscribe() to avoid duplicate processing
-    if (path.includes('receive?token=') || path.includes('spectre?token=')) {
-      // Return null to prevent navigation, subscribe() will handle the token
+    if (path && (path.includes('receive?token=') || path.includes('spectre?token='))) {
+      console.log('[SPECTRE] getStateFromPath detected token URL, processing...');
+
+      // THIS is where we actually receive new deeplinks on iOS!
+      // The url event doesn't fire reliably, but getStateFromPath does
+      const fullUrl = `ducat://${path}`;
+
+      // Extract token parameter from URL
+      const tokenMatch = path.match(/[?&]token=([^&]+)/);
+      if (tokenMatch && tokenMatch[1]) {
+        let token = decodeURIComponent(tokenMatch[1]);
+
+        // If this is a spectre link, the token is emoji-encoded
+        if (path.includes('spectre?token=')) {
+          try {
+            token = decodeCashuToken(token);
+            console.log('[SPECTRE] getStateFromPath: Decoded emoji token');
+          } catch (error) {
+            console.error('[SPECTRE] getStateFromPath: Failed to decode:', error.message);
+            return null;
+          }
+        }
+
+        // Store in global for processing
+        if (typeof global !== 'undefined') {
+          console.log('[SPECTRE] getStateFromPath: Storing token in global.pendingCashuToken');
+          global.pendingCashuToken = token;
+
+          // Trigger check immediately if function is available
+          if (typeof global.triggerPendingTokenCheck === 'function') {
+            setTimeout(() => global.triggerPendingTokenCheck(), 100);
+          }
+        }
+      }
+
+      // Return null to prevent navigation
       return null;
     }
 
