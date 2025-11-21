@@ -65,7 +65,7 @@ export default function ConfirmationScreen({ navigation, route }) {
       const generateLink = async () => {
         try {
           const { generateSpectreDeeplink } = await import('../../services/cashu/cashuLockedTokensService');
-          const deeplink = generateSpectreDeeplink(spectreToken, spectreRecipient, spectreAmount);
+          const deeplink = await generateSpectreDeeplink(spectreToken, spectreRecipient, spectreAmount);
           setSpectreDeeplink(deeplink);
           console.log('[ConfirmationScreen] Generated Spectre deeplink:', deeplink);
         } catch (error) {
