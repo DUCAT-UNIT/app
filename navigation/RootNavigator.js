@@ -173,10 +173,21 @@ const linking = {
     // Listen for URL events - this MUST fire for deeplinks when app is open
     const onReceiveURL = async (event) => {
       const url = event?.url;
-      console.log('[SPECTRE] *** onReceiveURL EVENT FIRED ***, url:', url ? url.substring(0, 50) + '...' : 'null');
-      console.log('[SPECTRE] Event object:', event ? JSON.stringify(event).substring(0, 100) : 'null event');
+      console.log('[SPECTRE] ========================================');
+      console.log('[SPECTRE] *** URL EVENT FIRED ***');
+      console.log('[SPECTRE] URL:', url ? url.substring(0, 80) + '...' : 'null');
+      console.log('[SPECTRE] Full event:', JSON.stringify(event));
       console.log('[SPECTRE] Current AppState:', AppState.currentState);
+      console.log('[SPECTRE] initialURLProcessed:', initialURLProcessed);
+      console.log('[SPECTRE] ========================================');
+
       if (!url) return;
+
+      // Skip if this is the initial URL being re-fired
+      if (initialURLProcessed && url === (await Linking.getInitialURL())) {
+        console.log('[SPECTRE] SKIP: This is the initial URL, already processed');
+        return;
+      }
 
       // If app is backgrounded, store URL for processing when it becomes active
       // This handles the case where the url event fires but app is not yet active
@@ -195,10 +206,13 @@ const linking = {
     };
 
     // Handle initial URL (app was closed and opened via deeplink)
-    Linking.getInitialURL().then((url) => {
+    // IMPORTANT: Only call getInitialURL() ONCE - it always returns the same URL
+    let initialURLProcessed = false;
+    Linking.getInitialURL().then(async (url) => {
       console.log('[SPECTRE] getInitialURL returned:', url ? url.substring(0, 50) + '...' : 'null');
       if (url) {
-        extractAndStoreToken(url);
+        initialURLProcessed = true;
+        await extractAndStoreToken(url);
         listener(url);
       }
     }).catch(error => {
