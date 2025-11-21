@@ -938,6 +938,26 @@ export const sendP2PKToken = async (amount, recipientPubkey, options = {}) => {
       }
     }
 
+    // CRITICAL: Verify amounts match before swap
+    const totalSendAmount = sendAmounts.reduce((sum, amt) => sum + amt, 0);
+    const totalChangeAmount = changeAmounts.reduce((sum, amt) => sum + amt, 0);
+    const totalOutputAmount = totalSendAmount + totalChangeAmount;
+
+    logger.info('SWAP AMOUNT VERIFICATION', {
+      selectedAmount,
+      requestedSend: amount,
+      sendAmounts,
+      changeAmounts,
+      totalSendAmount,
+      totalChangeAmount,
+      totalOutputAmount,
+      match: selectedAmount === totalOutputAmount,
+    });
+
+    if (selectedAmount !== totalOutputAmount) {
+      throw new Error(`Amount mismatch: input=${selectedAmount}, output=${totalOutputAmount}, diff=${selectedAmount - totalOutputAmount}`);
+    }
+
     // Track which secrets are P2PK vs normal (for identification after sorting)
     // This is needed because createBlindedOutputsWithSecrets sorts outputs by amount for privacy
     const secretTypeMap = new Map();
