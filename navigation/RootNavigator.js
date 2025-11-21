@@ -110,7 +110,9 @@ const linking = {
       });
     }
 
-    // Helper to extract and store token
+    // NOTE: extractAndStoreToken is NO LONGER USED in subscribe()
+    // All token extraction is now handled in getStateFromPath()
+    // Keeping the function definition here would be dead code
     const extractAndStoreToken = async (url) => {
       if (url && (url.includes('receive?token=') || url.includes('spectre?token='))) {
         console.log('[SPECTRE] Received deeplink:', url.substring(0, 50) + '...');
@@ -170,54 +172,23 @@ const linking = {
       }
     };
 
-    // Listen for URL events - this MUST fire for deeplinks when app is open
+    // Listen for URL events - this doesn't fire reliably on iOS, but keep it for other platforms
     const onReceiveURL = async (event) => {
       const url = event?.url;
       console.log('[SPECTRE] ========================================');
       console.log('[SPECTRE] *** URL EVENT FIRED ***');
       console.log('[SPECTRE] URL:', url ? url.substring(0, 80) + '...' : 'null');
-      console.log('[SPECTRE] Full event:', JSON.stringify(event));
-      console.log('[SPECTRE] Current AppState:', AppState.currentState);
-      console.log('[SPECTRE] initialURLProcessed:', initialURLProcessed);
+      console.log('[SPECTRE] This should not be used on iOS - getStateFromPath handles it');
       console.log('[SPECTRE] ========================================');
 
-      if (!url) return;
-
-      // Skip if this is the initial URL being re-fired
-      if (initialURLProcessed && url === (await Linking.getInitialURL())) {
-        console.log('[SPECTRE] SKIP: This is the initial URL, already processed');
-        return;
-      }
-
-      // If app is backgrounded, store URL for processing when it becomes active
-      // This handles the case where the url event fires but app is not yet active
-      if (AppState.currentState !== 'active') {
-        console.log('[SPECTRE] App not active, storing URL in global for later processing');
-        global.pendingDeeplinkURL = url;
-        return;
-      }
-
-      // App is active, process immediately
-      console.log('[SPECTRE] App is active, processing URL immediately');
-      await extractAndStoreToken(url);
-
-      // Now let React Navigation process the URL
-      listener(url);
+      // On iOS, getStateFromPath handles all URL processing
+      // This event handler is kept for compatibility with other platforms
     };
 
-    // Handle initial URL (app was closed and opened via deeplink)
-    // IMPORTANT: Only call getInitialURL() ONCE - it always returns the same URL
-    let initialURLProcessed = false;
-    Linking.getInitialURL().then(async (url) => {
-      console.log('[SPECTRE] getInitialURL returned:', url ? url.substring(0, 50) + '...' : 'null');
-      if (url) {
-        initialURLProcessed = true;
-        await extractAndStoreToken(url);
-        listener(url);
-      }
-    }).catch(error => {
-      console.error('[SPECTRE] Failed to get initial URL:', error);
-    });
+    // REMOVED: getInitialURL() processing - it's now handled by getStateFromPath
+    // getInitialURL() always returns the same URL (the one that launched the app)
+    // and it was interfering with new deeplinks being processed by getStateFromPath
+    console.log('[SPECTRE] Skipping getInitialURL - all URL handling is done via getStateFromPath');
 
     // Add event listener for URL changes (app is already open and deeplink is tapped)
     console.log('[SPECTRE] About to register Linking.addEventListener...');
