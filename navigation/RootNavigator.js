@@ -40,22 +40,8 @@ const linking = {
           },
         },
       },
-      // Spectre token receive screen (handled by custom subscribe)
-      Spectre: {
-        path: 'spectre',
-        parse: {
-          token: (token) => token,
-          address: (address) => address,
-          amount: (amount) => amount,
-        },
-      },
-      // Regular token receive screen (handled by custom subscribe)
-      Receive: {
-        path: 'receive',
-        parse: {
-          token: (token) => token,
-        },
-      },
+      // These paths are handled by custom subscribe, not actual screens
+      // Just defining them so React Navigation doesn't throw errors
       // Add a NotFound screen to catch unmatched paths
       NotFound: '*',
     },

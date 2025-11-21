@@ -11,7 +11,6 @@ import {
   Share,
   ScrollView,
   Dimensions,
-  Linking,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import * as Clipboard from 'expo-clipboard';
@@ -45,17 +44,6 @@ export default function SpectreQRCodeScreen({ navigation, route }) {
     await Clipboard.setStringAsync(deeplink);
     setJustCopied(true);
     setTimeout(() => setJustCopied(false), 2000);
-  };
-
-  const handleOpenLink = async () => {
-    try {
-      const supported = await Linking.canOpenURL(deeplink);
-      if (supported) {
-        await Linking.openURL(deeplink);
-      }
-    } catch (error) {
-      console.error('[SpectreQRCode] Failed to open deeplink:', error);
-    }
   };
 
   const handleShare = async () => {
@@ -105,11 +93,10 @@ export default function SpectreQRCodeScreen({ navigation, route }) {
           </Text>
         </View>
 
-        {/* Deeplink - tap to open */}
+        {/* Deeplink - tap to copy */}
         <TouchableOpacity
           style={styles.addressContainer}
-          onPress={handleOpenLink}
-          onLongPress={handleCopy}
+          onPress={handleCopy}
           activeOpacity={0.7}
         >
           <View style={styles.addressContentContainer}>
@@ -118,7 +105,7 @@ export default function SpectreQRCodeScreen({ navigation, route }) {
                 Deeplink
               </Text>
               <Text style={styles.tapToCopyText}>
-                {justCopied ? 'Copied!' : 'Tap to open • Hold to copy'}
+                {justCopied ? 'Copied!' : 'Tap to copy'}
               </Text>
             </View>
             <Text style={styles.addressFullText} numberOfLines={3}>
