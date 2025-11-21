@@ -202,6 +202,7 @@ export default function RootNavigator() {
         }
 
         console.log('[Deeplink] 💎 Processing pending token from global');
+        console.log('[Deeplink] 🆔 Token ID for tracking:', token.substring(0, 20) + '...');
 
         // Mark this token as being processed
         processingTokenRef.current = token;
@@ -209,6 +210,8 @@ export default function RootNavigator() {
 
         // Clear the pending token immediately to prevent double-processing
         delete global.pendingCashuToken;
+
+        console.log('[Deeplink] 📝 Processed tokens count:', processedTokensRef.current.size);
 
         // Process the token
         (async () => {
@@ -221,7 +224,13 @@ export default function RootNavigator() {
             console.log('[Deeplink] ✅ Token received successfully!', result);
 
             setIsVerifyingToken(false);
-            processingTokenRef.current = null; // Clear processed token
+            processingTokenRef.current = null; // Clear currently processing token
+
+            // Remove from processed set after a delay to allow new tokens
+            setTimeout(() => {
+              processedTokensRef.current.delete(token);
+              console.log('[Deeplink] 🧹 Cleaned up processed token, ready for next');
+            }, 2000);
 
             // Format amount: divide by 100 for display, keep 2 decimals
             const amountDisplay = (result.amount / 100).toFixed(2);
@@ -231,7 +240,13 @@ export default function RootNavigator() {
             console.error('[Deeplink] ❌ Error stack:', error.stack);
 
             setIsVerifyingToken(false);
-            processingTokenRef.current = null; // Clear processed token
+            processingTokenRef.current = null; // Clear currently processing token
+
+            // Remove from processed set after error to allow retry with different token
+            setTimeout(() => {
+              processedTokensRef.current.delete(token);
+              console.log('[Deeplink] 🧹 Cleaned up failed token, ready for next');
+            }, 2000);
 
             // Check for specific error messages
             let errorMessage = error.message || 'Failed to receive token';
