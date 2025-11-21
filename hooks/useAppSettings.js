@@ -139,6 +139,20 @@ export function useAppSettings({ biometricEnabled, setIsAuthenticated, showToast
     }
   }, [showToast]);
 
+  const handleClearLockedTokens = useCallback(async () => {
+    try {
+      const { clearSentLockedTokens } = await import('../services/cashu/cashuLockedTokensService.js');
+      await clearSentLockedTokens();
+      if (showToast) {
+        showToast('Sent locked tokens history cleared', 'success');
+      }
+    } catch (error) {
+      if (showToast) {
+        showToast('Failed to clear locked tokens history', 'error');
+      }
+    }
+  }, [showToast]);
+
   return useMemo(
     () => ({
       notificationsEnabled,
@@ -147,6 +161,7 @@ export function useAppSettings({ biometricEnabled, setIsAuthenticated, showToast
       handleNotificationsToggle,
       handleClearCashuCache,
       handleRecoverLockedChange,
+      handleClearLockedTokens,
       showNotificationsModal,
       confirmNotificationsToggle,
       cancelNotificationsToggle,
@@ -158,6 +173,7 @@ export function useAppSettings({ biometricEnabled, setIsAuthenticated, showToast
       handleNotificationsToggle,
       handleClearCashuCache,
       handleRecoverLockedChange,
+      handleClearLockedTokens,
       showNotificationsModal,
       confirmNotificationsToggle,
       cancelNotificationsToggle,

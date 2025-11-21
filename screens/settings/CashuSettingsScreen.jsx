@@ -27,6 +27,7 @@ const CashuSettingsScreen = React.memo(function CashuSettingsScreen({ route }) {
     onClose,
     onClearCashuCache,
     onRecoverLockedChange,
+    onClearLockedTokens,
     onRecoverMint,
     onRedeemToken,
     onRemoveSpentProofs,
@@ -65,6 +66,12 @@ const CashuSettingsScreen = React.memo(function CashuSettingsScreen({ route }) {
               iconName="recovery_phrase"
               title="Remove Spent Proofs"
               onPress={onRemoveSpentProofs}
+            />
+            <SettingsOption
+              iconName="delete_wallet"
+              title="Clear Locked Tokens History"
+              onPress={onClearLockedTokens}
+              isDanger
             />
             <SettingsOption
               iconName="delete_wallet"
@@ -109,6 +116,7 @@ CashuSettingsScreen.propTypes = {
       onClose: PropTypes.func.isRequired,
       onClearCashuCache: PropTypes.func.isRequired,
       onRecoverLockedChange: PropTypes.func.isRequired,
+      onClearLockedTokens: PropTypes.func.isRequired,
       onRecoverMint: PropTypes.func.isRequired,
       onRedeemToken: PropTypes.func.isRequired,
       onRemoveSpentProofs: PropTypes.func.isRequired,

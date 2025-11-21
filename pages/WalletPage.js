@@ -460,6 +460,7 @@ export default function WalletPage({ route }) {
               onClose: () => navigation.goBack(),
               onClearCashuCache: settingsHandlers.handleClearCashuCache,
               onRecoverLockedChange: settingsHandlers.handleRecoverLockedChange,
+              onClearLockedTokens: settingsHandlers.handleClearLockedTokens,
               onRecoverMint: () => {
                 navigation.goBack();
                 navigation.navigate('RecoverMint');
