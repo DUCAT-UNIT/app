@@ -20,11 +20,13 @@ export default function ConfirmationScreen({ navigation, route }) {
   const mintQuoteId = route?.params?.mintQuoteId;
   const mintAmount = route?.params?.mintAmount;
   const spectreRecipient = route?.params?.spectreRecipient; // Original recipient address for P2PK locking
+  const spectreAmount = route?.params?.spectreAmount; // Amount in smallest units
   const skipMint = route?.params?.skipMint === true; // If true, token was created directly from ecash
   const [isCompletingMint, setIsCompletingMint] = useState(false);
   const [spectreToken, setSpectreToken] = useState(route?.params?.spectreToken || null); // Store the P2PK locked token
   const hasMintCompleted = useRef(false);
   const [showQRModal, setShowQRModal] = useState(false);
+  const [spectreDeeplink, setSpectreDeeplink] = useState(null);
 
   // Log all route params on mount for debugging
   useEffect(() => {
@@ -56,6 +58,23 @@ export default function ConfirmationScreen({ navigation, route }) {
   useEffect(() => {
     console.log('[ConfirmationScreen] 🎫 spectreToken state changed:', spectreToken ? `Token present (${spectreToken.length} chars)` : 'null');
   }, [spectreToken]);
+
+  // Generate Spectre deeplink when token is ready
+  useEffect(() => {
+    if (spectreToken && spectreRecipient && spectreAmount) {
+      const generateLink = async () => {
+        try {
+          const { generateSpectreDeeplink } = await import('../../services/cashu/cashuLockedTokensService');
+          const deeplink = generateSpectreDeeplink(spectreToken, spectreRecipient, spectreAmount);
+          setSpectreDeeplink(deeplink);
+          console.log('[ConfirmationScreen] Generated Spectre deeplink:', deeplink);
+        } catch (error) {
+          console.error('[ConfirmationScreen] Failed to generate deeplink:', error);
+        }
+      };
+      generateLink();
+    }
+  }, [spectreToken, spectreRecipient, spectreAmount]);
 
   // Handle Spectre mint completion
   useEffect(() => {
@@ -216,15 +235,13 @@ export default function ConfirmationScreen({ navigation, route }) {
   };
 
   const handleShareDeeplink = async () => {
-    if (spectreToken) {
+    if (spectreDeeplink) {
       try {
-        // Use custom scheme - works immediately without AASA file
-        const deeplinkUrl = `ducat://receive?token=${encodeURIComponent(spectreToken)}`;
-        console.log('[ConfirmationScreen] Sharing custom scheme link');
+        console.log('[ConfirmationScreen] Sharing Spectre deeplink:', spectreDeeplink);
 
         await Share.share({
-          message: deeplinkUrl,
-          title: 'Receive UNIT Token',
+          message: spectreDeeplink,
+          title: 'Receive UNIT',
         });
       } catch (error) {
         console.error('[ConfirmationScreen] Failed to share link:', error);
@@ -234,13 +251,11 @@ export default function ConfirmationScreen({ navigation, route }) {
   };
 
   const handleCopyDeeplink = async () => {
-    if (spectreToken) {
+    if (spectreDeeplink) {
       try {
-        // Use custom scheme - works immediately without AASA file
-        const deeplinkUrl = `ducat://receive?token=${encodeURIComponent(spectreToken)}`;
-        console.log('[ConfirmationScreen] Copying custom scheme link to clipboard');
+        console.log('[ConfirmationScreen] Copying Spectre deeplink to clipboard:', spectreDeeplink);
 
-        await Clipboard.setStringAsync(deeplinkUrl);
+        await Clipboard.setStringAsync(spectreDeeplink);
         Alert.alert('Copied!', 'Link copied to clipboard');
       } catch (error) {
         console.error('[ConfirmationScreen] Failed to copy link:', error);
@@ -374,10 +389,10 @@ export default function ConfirmationScreen({ navigation, route }) {
               Recipient should scan this QR code with their camera
             </Text>
 
-            {spectreToken && (
+            {spectreDeeplink && (
               <View style={localStyles.qrCodeContainer}>
                 <QRCode
-                  value={spectreToken}
+                  value={spectreDeeplink}
                   size={260}
                   backgroundColor="white"
                   color="black"
