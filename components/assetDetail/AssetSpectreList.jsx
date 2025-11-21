@@ -4,7 +4,7 @@
  */
 
 import React, { useState, useEffect } from 'react';
-import { View, Text, TouchableOpacity, StyleSheet, Alert, Share } from 'react-native';
+import { View, Text, TouchableOpacity, StyleSheet, Alert, Share, ActivityIndicator } from 'react-native';
 import PropTypes from 'prop-types';
 import { COLORS } from '../../theme';
 import Icon from '../icons';
@@ -21,9 +21,11 @@ import { checkProofsSpent } from '../../services/cashu/cashuMintClient';
 export function AssetSpectreList({ navigation }) {
   const [tokens, setTokens] = useState([]);
   const [claimedTokens, setClaimedTokens] = useState(new Set());
+  const [isLoading, setIsLoading] = useState(true);
 
   const loadTokens = async () => {
     try {
+      setIsLoading(true);
       const savedTokens = await getSentLockedTokens();
       setTokens(savedTokens);
 
@@ -31,6 +33,8 @@ export function AssetSpectreList({ navigation }) {
       await checkTokensClaimed(savedTokens);
     } catch (error) {
       console.error('[AssetSpectreList] Failed to load tokens:', error);
+    } finally {
+      setIsLoading(false);
     }
   };
 
@@ -179,6 +183,18 @@ export function AssetSpectreList({ navigation }) {
     );
   };
 
+  // Show loading spinner while checking token states
+  if (isLoading) {
+    return (
+      <View style={localStyles.activityContainer}>
+        <View style={localStyles.loadingContainer}>
+          <ActivityIndicator size="small" color={COLORS.PRIMARY_BLUE} />
+          <Text style={localStyles.loadingText}>Checking token status...</Text>
+        </View>
+      </View>
+    );
+  }
+
   if (tokens.length === 0) {
     return (
       <View style={localStyles.activityContainer}>
@@ -229,6 +245,15 @@ const localStyles = StyleSheet.create({
   activityContainer: {
     paddingHorizontal: 4,
     paddingBottom: 5,
+  },
+  loadingContainer: {
+    alignItems: 'center',
+    paddingVertical: 20,
+    gap: 12,
+  },
+  loadingText: {
+    color: '#DDDDDD',
+    fontSize: 14,
   },
   emptyContainer: {
     alignItems: 'center',
