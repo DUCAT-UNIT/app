@@ -26,12 +26,28 @@ import { useCashu } from '../contexts/CashuContext';
 import { Alert, Linking } from 'react-native';
 import { decodeCashuToken } from '../utils/emojiEncoder';
 import * as SecureStore from 'expo-secure-store';
+import * as Crypto from 'expo-crypto';
 
 const Stack = createStackNavigator();
 
 // Storage key for processed tokens
 const PROCESSED_TOKENS_KEY = 'processed_cashu_tokens';
-const MAX_STORED_TOKENS = 200; // Store up to 200 processed token hashes
+const MAX_STORED_TOKENS = 500; // Store up to 500 processed token hashes (hashes are small)
+
+// Helper function to hash a token for storage
+const hashToken = async (token) => {
+  try {
+    const hash = await Crypto.digestStringAsync(
+      Crypto.CryptoDigestAlgorithm.SHA256,
+      token
+    );
+    return hash;
+  } catch (error) {
+    console.error('[SPECTRE] Failed to hash token:', error.message);
+    // Fallback to storing first 64 chars if hashing fails
+    return token.substring(0, 64);
+  }
+};
 
 // Helper functions for persistent token tracking
 const loadProcessedTokens = async () => {
@@ -95,7 +111,7 @@ const linking = {
     }
 
     // Helper to extract and store token
-    const extractAndStoreToken = (url) => {
+    const extractAndStoreToken = async (url) => {
       if (url && (url.includes('receive?token=') || url.includes('spectre?token='))) {
         console.log('[SPECTRE] Received deeplink:', url.substring(0, 50) + '...');
 
@@ -124,12 +140,15 @@ const linking = {
               return;
             }
 
+            // Hash the token for duplicate checking
+            const tokenHash = await hashToken(token);
+
             // Check if this token has already been processed or is currently pending
-            const isAlreadyProcessed = global.processedCashuTokens && global.processedCashuTokens.has(token);
+            const isAlreadyProcessed = global.processedCashuTokens && global.processedCashuTokens.has(tokenHash);
             const isCurrentlyPending = global.pendingCashuToken === token;
 
             if (isAlreadyProcessed) {
-              console.log('[SPECTRE] Ignoring duplicate deeplink - token already processed');
+              console.log('[SPECTRE] Ignoring duplicate deeplink - token already processed (hash:', tokenHash.substring(0, 16) + '...)');
               return;
             }
 
@@ -140,7 +159,7 @@ const linking = {
 
             // Store new token
             global.pendingCashuToken = token;
-            console.log('[SPECTRE] Stored NEW token, first 30 chars:', token.substring(0, 30) + '...');
+            console.log('[SPECTRE] Stored NEW token, hash:', tokenHash.substring(0, 16) + '...');
 
             // Immediately trigger check if function is available (app is open)
             if (typeof global.triggerPendingTokenCheck === 'function') {
@@ -233,19 +252,21 @@ export default function RootNavigator() {
         // Clear immediately to prevent re-processing
         delete global.pendingCashuToken;
 
-        // Mark token as processed (whether it succeeds or fails, we don't want to retry)
-        if (global.processedCashuTokens) {
-          global.processedCashuTokens.add(token);
-          console.log('[SPECTRE] Marked token as processed. Total processed:', global.processedCashuTokens.size);
-
-          // Save to persistent storage asynchronously
-          saveProcessedTokens(global.processedCashuTokens).catch(error => {
-            console.error('[SPECTRE] Failed to persist processed tokens:', error.message);
-          });
-        }
-
         // Process the token
         (async () => {
+          // Hash the token and mark as processed (whether it succeeds or fails, we don't want to retry)
+          if (global.processedCashuTokens) {
+            const tokenHash = await hashToken(token);
+            global.processedCashuTokens.add(tokenHash);
+            console.log('[SPECTRE] Marked token as processed. Total processed:', global.processedCashuTokens.size);
+
+            // Save to persistent storage asynchronously
+            saveProcessedTokens(global.processedCashuTokens).catch(error => {
+              console.error('[SPECTRE] Failed to persist processed tokens:', error.message);
+            });
+          }
+
+          // Process the token with the mint
           try {
             setIsVerifyingToken(true);
             const result = await receive(token);
