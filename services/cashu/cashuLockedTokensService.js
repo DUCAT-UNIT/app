@@ -120,17 +120,21 @@ export const generateSpectreDeeplink = async (token, recipient, amount) => {
   console.log('[SpectreDeeplink] Token starts with:', token.substring(0, 10));
 
   // Base64 encode the cashu token for URL safety
-  // Use btoa for base64 encoding (available in React Native)
-  const base64Token = btoa(token);
-  console.log('[SpectreDeeplink] Base64 token length:', base64Token.length);
+  // Use URL-safe base64: replace + with -, / with _, and remove padding =
+  const base64Token = btoa(token)
+    .replace(/\+/g, '-')
+    .replace(/\//g, '_')
+    .replace(/=/g, '');
 
-  // Convert amount from smallest units to display units (divide by 100)
-  const displayAmount = amount / 100;
+  console.log('[SpectreDeeplink] URL-safe base64 token length:', base64Token.length);
 
-  // Create full deeplink URL with address, amount, and token parameters
-  // This allows for dynamic preview pages on the web
-  const fullDeeplink = `https://ducatprotocol.com/unit?address=${encodeURIComponent(recipient)}&amount=${displayAmount}&token=${base64Token}`;
+  // Create minimal deeplink URL with just the token
+  // Address and amount are already encoded in the Cashu token itself
+  const fullDeeplink = `https://ducatprotocol.com/unit?t=${base64Token}`;
   console.log('[SpectreDeeplink] Full deeplink length:', fullDeeplink.length);
+
+  // Convert amount from smallest units to display units (for slashtag)
+  const displayAmount = amount / 100;
 
   // Shorten URL with Rebrandly (pass address and amount for slashtag)
   const shortUrl = await createSpectreShortUrl(fullDeeplink, recipient, displayAmount);

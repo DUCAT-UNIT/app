@@ -182,27 +182,31 @@ const linking = {
       console.log('[SPECTRE] URL first 100 chars:', url ? url.substring(0, 100) : 'null');
       console.log('[SPECTRE] ========================================');
 
-      // Process Spectre URLs: https://ducatprotocol.com/unit?address=...&amount=...&token=base64...
-      if (url && url.includes('unit?') && url.includes('token=')) {
+      // Process Spectre URLs: https://ducatprotocol.com/unit?t=base64...
+      if (url && url.includes('unit?') && url.includes('t=')) {
         console.log('[SPECTRE] URL event contains Spectre token - processing NOW');
 
-        // Extract token parameter from URL (can be anywhere in query string)
-        const tokenMatch = url.match(/[?&]token=([^&]+)/);
+        // Extract token parameter from URL (short form: t=)
+        const tokenMatch = url.match(/[?&]t=([^&]+)/);
         if (!tokenMatch || !tokenMatch[1]) {
           console.error('[SPECTRE] URL event: No token parameter found in URL');
           return;
         }
 
-        const base64Token = tokenMatch[1];
-        console.log('[SPECTRE] Extracted base64 token, length:', base64Token.length);
-
-        // Also extract address and amount for logging
-        const addressMatch = url.match(/[?&]address=([^&]+)/);
-        const amountMatch = url.match(/[?&]amount=([^&]+)/);
-        if (addressMatch) console.log('[SPECTRE] Address:', decodeURIComponent(addressMatch[1]));
-        if (amountMatch) console.log('[SPECTRE] Amount:', amountMatch[1]);
+        let base64Token = tokenMatch[1];
+        console.log('[SPECTRE] Extracted URL-safe base64 token, length:', base64Token.length);
 
         try {
+          // Convert URL-safe base64 back to standard base64
+          base64Token = base64Token
+            .replace(/-/g, '+')
+            .replace(/_/g, '/');
+
+          // Add padding if needed
+          while (base64Token.length % 4) {
+            base64Token += '=';
+          }
+
           // Decode base64 to get cashu token
           const token = atob(base64Token);
           console.log('[SPECTRE] URL event: Decoded base64 to cashu token');
@@ -303,28 +307,32 @@ const linking = {
     console.log('[SPECTRE] Path length:', path?.length);
     console.log('[SPECTRE] Path first 100 chars:', path ? path.substring(0, 100) : 'null');
 
-    // Check if this is a Spectre token URL: https://ducatprotocol.com/unit?address=...&amount=...&token=base64...
-    if (path && path.includes('unit?') && path.includes('token=')) {
+    // Check if this is a Spectre token URL: https://ducatprotocol.com/unit?t=base64...
+    if (path && path.includes('unit?') && path.includes('t=')) {
       console.log('[SPECTRE] getStateFromPath detected token URL, processing...');
 
-      // Extract token parameter from URL (can be anywhere in query string)
-      const tokenMatch = path.match(/[?&]token=([^&]+)/);
+      // Extract token parameter from URL (short form: t=)
+      const tokenMatch = path.match(/[?&]t=([^&]+)/);
       if (!tokenMatch || !tokenMatch[1]) {
         console.error('[SPECTRE] getStateFromPath: No token parameter found in URL');
         return null;
       }
 
-      const base64Token = tokenMatch[1];
-      console.log('[SPECTRE] Extracted base64 token, length:', base64Token.length);
-
-      // Also extract address and amount for logging
-      const addressMatch = path.match(/[?&]address=([^&]+)/);
-      const amountMatch = path.match(/[?&]amount=([^&]+)/);
-      if (addressMatch) console.log('[SPECTRE] Address:', decodeURIComponent(addressMatch[1]));
-      if (amountMatch) console.log('[SPECTRE] Amount:', amountMatch[1]);
+      let base64Token = tokenMatch[1];
+      console.log('[SPECTRE] Extracted URL-safe base64 token, length:', base64Token.length);
 
       let token = null;
       try {
+        // Convert URL-safe base64 back to standard base64
+        base64Token = base64Token
+          .replace(/-/g, '+')
+          .replace(/_/g, '/');
+
+        // Add padding if needed
+        while (base64Token.length % 4) {
+          base64Token += '=';
+        }
+
         // Decode base64 to get cashu token
         token = atob(base64Token);
         console.log('[SPECTRE] getStateFromPath: Decoded base64 to cashu token');
