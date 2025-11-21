@@ -5,8 +5,6 @@
 
 import * as SecureStore from 'expo-secure-store';
 import { logger } from '../../utils/logger';
-import { encodeCashuToken } from '../../utils/emojiEncoder';
-import { createSpectreShortUrl } from '../urlShortener';
 
 const SENT_TOKENS_KEY = 'sent_spectre_tokens';
 const MAX_STORED_TOKENS = 100; // Increased from 50
@@ -109,13 +107,13 @@ export const clearSentLockedTokens = async () => {
 
 /**
  * Generate deeplink URL for a locked token with base64-encoded token
- * Returns a promise that resolves to shortened URL via Rebrandly
+ * Returns the ducat:// deeplink directly without shortening
  * @param {string} token - Encoded Cashu token
- * @param {string} recipient - Recipient taproot address
- * @param {number} amount - Amount in smallest units
- * @returns {Promise<string>} Shortened deeplink URL
+ * @param {string} recipient - Recipient taproot address (unused, kept for compatibility)
+ * @param {number} amount - Amount in smallest units (unused, kept for compatibility)
+ * @returns {string} ducat:// deeplink URL
  */
-export const generateSpectreDeeplink = async (token, recipient, amount) => {
+export const generateSpectreDeeplink = (token, recipient, amount) => {
   console.log('[SpectreDeeplink] Generating deeplink with token:', token.substring(0, 50) + '...');
   console.log('[SpectreDeeplink] Token starts with:', token.substring(0, 10));
 
@@ -128,24 +126,13 @@ export const generateSpectreDeeplink = async (token, recipient, amount) => {
 
   console.log('[SpectreDeeplink] URL-safe base64 token length:', base64Token.length);
 
-  // Convert amount from smallest units to display units (for slashtag)
-  const displayAmount = amount / 100;
-
-  // Create a minimal destination URL (just a placeholder)
-  // The actual token will be in the URL fragment (after #) which Rebrandly doesn't count toward the 2048 limit
-  const destinationUrl = `https://ducatprotocol.com/unit`;
-
-  // Create full deeplink with token in fragment
-  // Fragment is NOT sent to the server, only processed client-side
-  const fullDeeplink = `${destinationUrl}#${base64Token}`;
+  // Create ducat:// deeplink with base64 token
+  // Using custom URL scheme for direct app handling
+  const fullDeeplink = `ducat://spectre/${base64Token}`;
+  console.log('[SpectreDeeplink] Full deeplink:', fullDeeplink.substring(0, 50) + '...');
   console.log('[SpectreDeeplink] Full deeplink length:', fullDeeplink.length);
 
-  // Shorten URL with Rebrandly (pass address and amount for slashtag)
-  // Pass the ORIGINAL token (not base64) to store in Rebrandly tags
-  const shortUrl = await createSpectreShortUrl(fullDeeplink, recipient, displayAmount, token);
-  console.log('[SpectreDeeplink] Short URL:', shortUrl);
-
-  return shortUrl;
+  return fullDeeplink;
 };
 
 /**
