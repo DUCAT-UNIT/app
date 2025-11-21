@@ -141,7 +141,8 @@ export const generateSpectreDeeplink = async (token, recipient, amount) => {
   console.log('[SpectreDeeplink] Full deeplink length:', fullDeeplink.length);
 
   // Shorten URL with Rebrandly (pass address and amount for slashtag)
-  const shortUrl = await createSpectreShortUrl(fullDeeplink, recipient, displayAmount, base64Token);
+  // Pass the ORIGINAL token (not base64) to store in Rebrandly tags
+  const shortUrl = await createSpectreShortUrl(fullDeeplink, recipient, displayAmount, token);
   console.log('[SpectreDeeplink] Short URL:', shortUrl);
 
   return shortUrl;

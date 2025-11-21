@@ -113,7 +113,14 @@ export const shortenUrlWithToken = async (destinationUrl, slashtag, token) => {
         tokenChunks.push(token.substring(i, i + chunkSize));
       }
       requestBody.tags = tokenChunks;
-      logger.info('Storing token in tags', { tokenId, chunks: tokenChunks.length - 1 });
+      logger.info('Storing token in tags', {
+        tokenId,
+        chunks: tokenChunks.length - 1,
+        totalTags: tokenChunks.length,
+        tokenLength: token.length,
+        firstChunk: tokenChunks[0],
+        secondChunk: tokenChunks[1] ? tokenChunks[1].substring(0, 20) + '...' : 'none'
+      });
     }
 
     // Add slashtag
@@ -143,7 +150,13 @@ export const shortenUrlWithToken = async (destinationUrl, slashtag, token) => {
     const data = await response.json();
     const shortUrl = data.shortUrl;
 
-    logger.info('Short URL created with token metadata', { shortUrl, tokenId });
+    logger.info('Short URL created with token metadata', {
+      shortUrl,
+      tokenId,
+      responseTags: data.tags || [],
+      responseTagsLength: data.tags ? data.tags.length : 0,
+      fullResponse: JSON.stringify(data).substring(0, 500)
+    });
     return `https://${shortUrl}`;
   } catch (error) {
     logger.error('Failed to create short URL with token', { error: error.message });
