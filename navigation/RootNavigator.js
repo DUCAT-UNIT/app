@@ -203,22 +203,25 @@ const linking = {
     const handleAppStateChange = async (nextAppState) => {
       console.log('[SPECTRE] AppState change:', appState, '->', nextAppState);
 
-      // When app comes to foreground from background, check if there's a URL waiting
+      // When app comes to foreground from background, check if there's a NEW URL waiting
       if (appState.match(/inactive|background/) && nextAppState === 'active') {
-        console.log('[SPECTRE] App became active - checking for pending URL in global');
+        console.log('[SPECTRE] App became active - checking for NEW deeplink URL');
 
-        // Check if a URL was stored by the listener but not yet processed
-        // This can happen if the url event fired while the app was backgrounded
-        if (global.pendingDeeplinkURL) {
-          const url = global.pendingDeeplinkURL;
-          console.log('[SPECTRE] Found pending deeplink URL:', url.substring(0, 50) + '...');
-          delete global.pendingDeeplinkURL;
+        // CRITICAL FIX: Actively check for a new URL when app resumes
+        // getInitialURL() will return the URL that brought the app to foreground
+        try {
+          const url = await Linking.getInitialURL();
+          console.log('[SPECTRE] getInitialURL returned:', url ? url.substring(0, 80) + '...' : 'null');
 
-          // Process it
-          await extractAndStoreToken(url);
-          listener(url);
-        } else {
-          console.log('[SPECTRE] No pending deeplink URL found');
+          if (url && (url.includes('receive?token=') || url.includes('spectre?token='))) {
+            console.log('[SPECTRE] Found NEW Spectre deeplink on resume, triggering navigation');
+            // Notify React Navigation about the new URL
+            listener(url);
+          } else {
+            console.log('[SPECTRE] No Spectre deeplink found on resume');
+          }
+        } catch (error) {
+          console.error('[SPECTRE] Error checking for URL on resume:', error.message);
         }
       }
 
