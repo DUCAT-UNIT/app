@@ -124,8 +124,12 @@ export const generateSpectreDeeplink = async (token, recipient, amount) => {
   const base64Token = btoa(token);
   console.log('[SpectreDeeplink] Base64 token length:', base64Token.length);
 
-  // Create full deeplink URL with base64 token
-  const fullDeeplink = `https://ducatprotocol.com/unit?token=${base64Token}`;
+  // Convert amount from smallest units to display units (divide by 100)
+  const displayAmount = amount / 100;
+
+  // Create full deeplink URL with address, amount, and token parameters
+  // This allows for dynamic preview pages on the web
+  const fullDeeplink = `https://ducatprotocol.com/unit?address=${encodeURIComponent(recipient)}&amount=${displayAmount}&token=${base64Token}`;
   console.log('[SpectreDeeplink] Full deeplink length:', fullDeeplink.length);
 
   // Shorten URL with Rebrandly

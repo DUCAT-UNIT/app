@@ -182,12 +182,12 @@ const linking = {
       console.log('[SPECTRE] URL first 100 chars:', url ? url.substring(0, 100) : 'null');
       console.log('[SPECTRE] ========================================');
 
-      // Process Spectre URLs: https://ducatprotocol.com/unit?token=base64...
-      if (url && url.includes('unit?token=')) {
+      // Process Spectre URLs: https://ducatprotocol.com/unit?address=...&amount=...&token=base64...
+      if (url && url.includes('unit?') && url.includes('token=')) {
         console.log('[SPECTRE] URL event contains Spectre token - processing NOW');
 
-        // Extract token parameter from URL
-        const tokenMatch = url.match(/unit\?token=([^&]+)/);
+        // Extract token parameter from URL (can be anywhere in query string)
+        const tokenMatch = url.match(/[?&]token=([^&]+)/);
         if (!tokenMatch || !tokenMatch[1]) {
           console.error('[SPECTRE] URL event: No token parameter found in URL');
           return;
@@ -195,6 +195,12 @@ const linking = {
 
         const base64Token = tokenMatch[1];
         console.log('[SPECTRE] Extracted base64 token, length:', base64Token.length);
+
+        // Also extract address and amount for logging
+        const addressMatch = url.match(/[?&]address=([^&]+)/);
+        const amountMatch = url.match(/[?&]amount=([^&]+)/);
+        if (addressMatch) console.log('[SPECTRE] Address:', decodeURIComponent(addressMatch[1]));
+        if (amountMatch) console.log('[SPECTRE] Amount:', amountMatch[1]);
 
         try {
           // Decode base64 to get cashu token
@@ -289,12 +295,12 @@ const linking = {
     console.log('[SPECTRE] Path length:', path?.length);
     console.log('[SPECTRE] Path first 100 chars:', path ? path.substring(0, 100) : 'null');
 
-    // Check if this is a Spectre token URL: https://ducatprotocol.com/unit?token=base64...
-    if (path && path.includes('unit?token=')) {
+    // Check if this is a Spectre token URL: https://ducatprotocol.com/unit?address=...&amount=...&token=base64...
+    if (path && path.includes('unit?') && path.includes('token=')) {
       console.log('[SPECTRE] getStateFromPath detected token URL, processing...');
 
-      // Extract token parameter from URL
-      const tokenMatch = path.match(/unit\?token=([^&]+)/);
+      // Extract token parameter from URL (can be anywhere in query string)
+      const tokenMatch = path.match(/[?&]token=([^&]+)/);
       if (!tokenMatch || !tokenMatch[1]) {
         console.error('[SPECTRE] getStateFromPath: No token parameter found in URL');
         return null;
@@ -302,6 +308,12 @@ const linking = {
 
       const base64Token = tokenMatch[1];
       console.log('[SPECTRE] Extracted base64 token, length:', base64Token.length);
+
+      // Also extract address and amount for logging
+      const addressMatch = path.match(/[?&]address=([^&]+)/);
+      const amountMatch = path.match(/[?&]amount=([^&]+)/);
+      if (addressMatch) console.log('[SPECTRE] Address:', decodeURIComponent(addressMatch[1]));
+      if (amountMatch) console.log('[SPECTRE] Amount:', amountMatch[1]);
 
       let token = null;
       try {
