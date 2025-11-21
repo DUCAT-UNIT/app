@@ -82,8 +82,8 @@ export function AssetSpectreList({ navigation }) {
     }
   };
 
-  const handleViewQR = (tokenRecord) => {
-    const deeplink = generateSpectreDeeplink(
+  const handleViewQR = async (tokenRecord) => {
+    const deeplink = await generateSpectreDeeplink(
       tokenRecord.token,
       tokenRecord.recipient,
       tokenRecord.amount

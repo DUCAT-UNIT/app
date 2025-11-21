@@ -83,7 +83,11 @@ export const createSpectreShortUrl = async (deeplinkUrl, address, amount) => {
   // Generate 6-character random entropy (alphanumeric)
   const entropy = Math.random().toString(36).substring(2, 8);
 
-  const slashtag = `${amount}-to-${addressSuffix}-${entropy}`;
+  // Format amount for URL: replace decimal point with 'p' (e.g., 0.07 -> 0p07, 100 -> 100)
+  // Rebrandly only allows: a-z A-Z 0-9 -_/
+  const amountFormatted = amount.toString().replace('.', 'p');
+
+  const slashtag = `${amountFormatted}-to-${addressSuffix}-${entropy}`;
 
   return shortenUrl(deeplinkUrl, slashtag);
 };
