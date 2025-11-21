@@ -120,10 +120,10 @@ export const generateSpectreDeeplink = (token, recipient, amount) => {
   // Encode the cashu token as ghost emoji with variation selectors
   const emojiToken = encodeCashuToken(token);
 
-  // Simple format: ducat://unit?👻
+  // Use universal link format: https://ducatprotocol.com/unit?👻
+  // This works immediately via AASA file, no app rebuild needed
   // The 👻 emoji contains the entire token encoded in invisible variation selectors
-  // No address or amount needed - everything is in the token
-  const deeplink = `ducat://unit?${emojiToken}`;
+  const deeplink = `https://ducatprotocol.com/unit?${emojiToken}`;
 
   console.log('[SpectreDeeplink] Generated deeplink:', deeplink);
   console.log('[SpectreDeeplink] Ghost emoji token length:', emojiToken.length);
