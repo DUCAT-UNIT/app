@@ -197,6 +197,7 @@ const linking = {
     // Also listen for app state changes to catch URLs when app comes from background
     // This is needed because iOS doesn't always fire the 'url' event when returning from background
     let lastAppState = AppState.currentState;
+    console.log('[SPECTRE] Registering AppState listener, current state:', lastAppState);
     const appStateSubscription = AppState.addEventListener('change', async (nextAppState) => {
       console.log('[SPECTRE] AppState changed from', lastAppState, 'to', nextAppState);
 
