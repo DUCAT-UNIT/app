@@ -23,6 +23,12 @@ export const shortenUrl = async (longUrl, slashtag = null) => {
       return longUrl;
     }
 
+    // Check if URL is too long for Rebrandly (max 2048 characters)
+    if (longUrl.length > 2048) {
+      logger.warn('URL too long for Rebrandly, using full URL', { urlLength: longUrl.length });
+      return longUrl;
+    }
+
     logger.info('Shortening URL with Rebrandly', { urlLength: longUrl.length, slashtag });
 
     // Prepare request body
