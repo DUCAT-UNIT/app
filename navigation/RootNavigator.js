@@ -369,8 +369,8 @@ export default function RootNavigator() {
       {isVerifyingToken && (
         <View style={localStyles.loadingOverlay}>
           <View style={localStyles.loadingContainer}>
-            <ActivityIndicator size="large" color={COLORS.ACCENT} />
-            <Text style={localStyles.loadingText}>Verifying token deposit</Text>
+            <ActivityIndicator size="large" color={COLORS.PRIMARY_BLUE} />
+            <Text style={localStyles.loadingText}>Claiming Spectre transaction</Text>
           </View>
         </View>
       )}
@@ -395,7 +395,7 @@ const localStyles = StyleSheet.create({
     left: 0,
     right: 0,
     bottom: 0,
-    backgroundColor: 'rgba(0, 0, 0, 0.8)',
+    backgroundColor: 'rgba(0, 0, 0, 1.0)',
     justifyContent: 'center',
     alignItems: 'center',
     zIndex: 2000,
@@ -405,7 +405,7 @@ const localStyles = StyleSheet.create({
     gap: 16,
   },
   loadingText: {
-    color: COLORS.TEXT_PRIMARY,
+    color: '#DDDDDD',
     fontSize: 16,
     fontWeight: '500',
     marginTop: 16,
