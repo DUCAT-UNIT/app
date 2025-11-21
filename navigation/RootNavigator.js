@@ -173,6 +173,7 @@ const linking = {
     // Listen for URL events
     const onReceiveURL = (event) => {
       const url = event?.url;
+      console.log('[SPECTRE] onReceiveURL fired, url:', url ? url.substring(0, 50) + '...' : 'null');
       if (!url) return;
 
       extractAndStoreToken(url);
@@ -191,9 +192,10 @@ const linking = {
 
     // Add event listener
     const subscription = Linking.addEventListener('url', onReceiveURL);
+    console.log('[SPECTRE] Linking.addEventListener registered for URL events');
 
     return () => {
-      console.log('[Linking] Custom subscribe cleanup');
+      console.log('[SPECTRE] Linking subscribe cleanup - removing event listener');
       subscription.remove();
     };
   },
