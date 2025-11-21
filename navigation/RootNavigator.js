@@ -75,6 +75,12 @@ const linking = {
           if (typeof global !== 'undefined') {
             global.pendingCashuToken = token;
             console.log('[Linking] 💾 Subscribe stored token in global');
+
+            // Immediately trigger check if function is available (app is open)
+            if (typeof global.triggerPendingTokenCheck === 'function') {
+              console.log('[Linking] ⚡ Immediately triggering token check');
+              setTimeout(() => global.triggerPendingTokenCheck(), 100);
+            }
           }
         }
       }
@@ -178,6 +184,8 @@ export default function RootNavigator() {
   }, [wallet]);
 
   // Check for pending token when authenticated - this runs after linking config stores token
+  const checkPendingTokenRef = React.useRef(null); // Store function ref so it can be called externally
+
   React.useEffect(() => {
     console.log('[Deeplink] 🔄 Setting up pending token checker');
 
@@ -214,7 +222,10 @@ export default function RootNavigator() {
 
             setIsVerifyingToken(false);
             processingTokenRef.current = null; // Clear processed token
-            showToast(`Successfully received ${result.amount / 100} UNIT`, 'success');
+
+            // Format amount: divide by 100 for display, keep 2 decimals
+            const amountDisplay = (result.amount / 100).toFixed(2);
+            showToast(`Successfully received ${amountDisplay} UNIT`, 'success');
           } catch (error) {
             console.error('[Deeplink] ❌ Failed to receive token:', error);
             console.error('[Deeplink] ❌ Error stack:', error.stack);
@@ -237,6 +248,9 @@ export default function RootNavigator() {
       }
     };
 
+    // Store in ref so it can be called from linking subscribe
+    checkPendingTokenRef.current = checkPendingToken;
+
     // Check immediately
     checkPendingToken();
 
@@ -247,6 +261,16 @@ export default function RootNavigator() {
       clearInterval(interval);
     };
   }, [isAuthenticated, receive]);
+
+  // Expose checkPendingToken globally so linking config can trigger it
+  React.useEffect(() => {
+    if (checkPendingTokenRef.current) {
+      global.triggerPendingTokenCheck = checkPendingTokenRef.current;
+    }
+    return () => {
+      delete global.triggerPendingTokenCheck;
+    };
+  }, []);
 
   // Handle lock/unlock
   const handleLock = React.useCallback(() => {
