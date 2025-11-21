@@ -48,7 +48,7 @@ const linking = {
   },
   // Subscribe to URL changes
   subscribe(listener) {
-    console.log('[Linking] Custom subscribe called');
+    console.log('[Linking] 🔗 Custom subscribe called - setting up deeplink handlers');
 
     // Helper to extract and store token
     const extractAndStoreToken = (url) => {
@@ -82,23 +82,30 @@ const linking = {
 
     // Listen for URL events
     const onReceiveURL = (event) => {
+      console.log('[Linking] 🎯 onReceiveURL called with event:', event);
       const url = event?.url;
-      if (!url) return;
+      if (!url) {
+        console.log('[Linking] ⚠️ No URL in event, ignoring');
+        return;
+      }
 
-      console.log('[Linking] Custom subscribe received URL:', url);
+      console.log('[Linking] 📲 Custom subscribe received URL:', url);
       extractAndStoreToken(url);
       listener(url);
     };
 
     // Handle initial URL
     Linking.getInitialURL().then((url) => {
+      console.log('[Linking] 🚀 getInitialURL result:', url || 'null');
       if (url) {
-        console.log('[Linking] Custom subscribe initial URL:', url);
+        console.log('[Linking] 📥 Custom subscribe initial URL:', url);
         extractAndStoreToken(url);
         listener(url);
+      } else {
+        console.log('[Linking] ℹ️ No initial URL (app opened normally)');
       }
     }).catch(error => {
-      console.error('[Linking] Failed to get initial URL:', error);
+      console.error('[Linking] ❌ Failed to get initial URL:', error);
     });
 
     // Add event listener
