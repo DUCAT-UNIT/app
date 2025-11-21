@@ -5,6 +5,7 @@
 
 import React, { useState, useEffect } from 'react';
 import { View, Text, TouchableOpacity, StyleSheet, Alert, Share, ActivityIndicator } from 'react-native';
+import * as Clipboard from 'expo-clipboard';
 import PropTypes from 'prop-types';
 import { COLORS } from '../../theme';
 import Icon from '../icons';
@@ -17,11 +18,13 @@ import {
 } from '../../services/cashu/cashuLockedTokensService';
 import { decodeToken } from '../../services/cashu/cashuCrypto';
 import { checkProofsSpent } from '../../services/cashu/cashuMintClient';
+import { useNotifications } from '../../contexts/NotificationContext';
 
 export function AssetSpectreList({ navigation }) {
   const [tokens, setTokens] = useState([]);
   const [claimedTokens, setClaimedTokens] = useState(new Set());
   const [isLoading, setIsLoading] = useState(true);
+  const { showToast } = useNotifications();
 
   const loadTokens = async () => {
     try {
@@ -82,19 +85,15 @@ export function AssetSpectreList({ navigation }) {
     }
   };
 
-  const handleViewQR = async (tokenRecord) => {
-    const deeplink = await generateSpectreDeeplink(
-      tokenRecord.token,
-      tokenRecord.recipient,
-      tokenRecord.amount
-    );
-
-    navigation.navigate('SpectreQRCode', {
-      deeplink,
-      amount: tokenRecord.amount,
-      recipient: tokenRecord.recipient,
-      timestamp: tokenRecord.timestamp,
-    });
+  const handleCopyToken = async (tokenRecord) => {
+    try {
+      // Copy the raw Cashu token to clipboard
+      await Clipboard.setStringAsync(tokenRecord.token);
+      showToast('Cashu token copied to clipboard', 'success');
+    } catch (error) {
+      console.error('[AssetSpectreList] Failed to copy token:', error);
+      showToast('Failed to copy token to clipboard', 'error');
+    }
   };
 
   const handleDeleteToken = (tokenRecord) => {
@@ -129,7 +128,7 @@ export function AssetSpectreList({ navigation }) {
     return (
       <TouchableOpacity
         style={globalStyles.historyTxRow}
-        onPress={() => handleViewQR(item)}
+        onPress={() => handleCopyToken(item)}
         activeOpacity={0.7}
       >
         {/* Spectre Logo */}
