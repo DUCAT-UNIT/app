@@ -132,8 +132,8 @@ export const generateSpectreDeeplink = async (token, recipient, amount) => {
   const fullDeeplink = `https://ducatprotocol.com/unit?address=${encodeURIComponent(recipient)}&amount=${displayAmount}&token=${base64Token}`;
   console.log('[SpectreDeeplink] Full deeplink length:', fullDeeplink.length);
 
-  // Shorten URL with Rebrandly
-  const shortUrl = await createSpectreShortUrl(fullDeeplink);
+  // Shorten URL with Rebrandly (pass address and amount for slashtag)
+  const shortUrl = await createSpectreShortUrl(fullDeeplink, recipient, displayAmount);
   console.log('[SpectreDeeplink] Short URL:', shortUrl);
 
   return shortUrl;

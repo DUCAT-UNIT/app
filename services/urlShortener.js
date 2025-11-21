@@ -15,7 +15,7 @@ const REBRANDLY_API_ENDPOINT = 'https://api.rebrandly.com/v1/links';
  * @param {string} longUrl - The full URL to shorten
  * @returns {Promise<string>} The shortened URL
  */
-export const shortenUrl = async (longUrl) => {
+export const shortenUrl = async (longUrl, slashtag = null) => {
   try {
     // Check if API key is configured
     if (!REBRANDLY_API_KEY) {
@@ -23,12 +23,17 @@ export const shortenUrl = async (longUrl) => {
       return longUrl;
     }
 
-    logger.info('Shortening URL with Rebrandly', { urlLength: longUrl.length });
+    logger.info('Shortening URL with Rebrandly', { urlLength: longUrl.length, slashtag });
 
     // Prepare request body
     const requestBody = {
       destination: longUrl,
     };
+
+    // Add custom slashtag if provided (makes URL human-readable)
+    if (slashtag) {
+      requestBody.slashtag = slashtag;
+    }
 
     // Add custom domain if configured
     if (REBRANDLY_CUSTOM_DOMAIN) {
@@ -66,8 +71,15 @@ export const shortenUrl = async (longUrl) => {
 /**
  * Create a short URL for a Spectre deeplink
  * @param {string} deeplinkUrl - The full deeplink URL with base64 token
+ * @param {string} address - Recipient address (for slashtag)
+ * @param {number} amount - Amount in UNIT (for slashtag)
  * @returns {Promise<string>} The shortened URL
  */
-export const createSpectreShortUrl = async (deeplinkUrl) => {
-  return shortenUrl(deeplinkUrl);
+export const createSpectreShortUrl = async (deeplinkUrl, address, amount) => {
+  // Create human-readable slashtag: amount-to-address
+  // Truncate address to last 8 chars for brevity
+  const addressSuffix = address.slice(-8);
+  const slashtag = `${amount}-to-${addressSuffix}`;
+
+  return shortenUrl(deeplinkUrl, slashtag);
 };
