@@ -120,12 +120,12 @@ export default function AmountInputScreen({ navigation, route }) {
 
         // Use display amount directly (e.g., "100" for 100 UNIT)
         const displayAmount = parseFloat(sendAmount);
-        const amountInSmallestUnits = displayAmount * 100;
+        const amountInSmallestUnits = Math.round(displayAmount * 100);
 
         // Check current ecash balance
         const { getBalance } = await import('../../services/cashu/cashuWalletService');
         const ecashBalance = await getBalance();
-        const ecashBalanceSmallestUnits = ecashBalance * 100;
+        const ecashBalanceSmallestUnits = Math.round(ecashBalance * 100);
 
         console.log('[AmountInputScreen] Spectre mode - checking balance:', {
           requested: displayAmount,
