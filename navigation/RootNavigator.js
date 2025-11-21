@@ -205,7 +205,7 @@ const linking = {
       if (lastAppState.match(/inactive|background/) && nextAppState === 'active') {
         console.log('[SPECTRE] App became active, checking for URL...');
         try {
-          const url = await Linking.getURL();
+          const url = await Linking.getInitialURL();
           if (url) {
             console.log('[SPECTRE] Found URL on app activation:', url.substring(0, 50) + '...');
             await extractAndStoreToken(url);
