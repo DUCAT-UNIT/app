@@ -262,9 +262,30 @@ const linking = {
           }
         }
 
-        // Store in global for processing
+        // CRITICAL: Check if this token has already been processed
+        // Wait for storage to load if needed
+        if (typeof global !== 'undefined' && global.processedCashuTokensLoading) {
+          console.log('[SPECTRE] getStateFromPath: Waiting for processed tokens to load...');
+          // Wait up to 1 second for storage to load
+          let attempts = 0;
+          while (global.processedCashuTokensLoading && attempts < 10) {
+            await new Promise(resolve => setTimeout(resolve, 100));
+            attempts++;
+          }
+        }
+
+        // Hash and check if already processed
+        const tokenHash = await hashToken(token);
+        const isAlreadyProcessed = global.processedCashuTokens && global.processedCashuTokens.has(tokenHash);
+
+        if (isAlreadyProcessed) {
+          console.log('[SPECTRE] getStateFromPath: SKIPPING - token already processed (hash:', tokenHash.substring(0, 16) + '...)');
+          return null;
+        }
+
+        // Store in global for processing (only if NOT already processed)
         if (typeof global !== 'undefined') {
-          console.log('[SPECTRE] getStateFromPath: Storing token in global.pendingCashuToken');
+          console.log('[SPECTRE] getStateFromPath: Storing NEW token in global.pendingCashuToken, hash:', tokenHash.substring(0, 16) + '...');
           global.pendingCashuToken = token;
 
           // Trigger check immediately if function is available
