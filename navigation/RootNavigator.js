@@ -232,8 +232,8 @@ export default function RootNavigator() {
               console.log('[Deeplink] 🧹 Cleaned up processed token, ready for next');
             }, 2000);
 
-            // Format amount: divide by 100 for display, keep 2 decimals
-            const amountDisplay = (result.amount / 100).toFixed(2);
+            // Format amount: multiply by 100 and keep 2 decimals
+            const amountDisplay = (result.amount * 100).toFixed(2);
             showToast(`Successfully received ${amountDisplay} UNIT`, 'success');
           } catch (error) {
             console.error('[Deeplink] ❌ Failed to receive token:', error);
