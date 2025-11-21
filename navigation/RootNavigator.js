@@ -182,18 +182,24 @@ const linking = {
       console.log('[SPECTRE] URL first 100 chars:', url ? url.substring(0, 100) : 'null');
       console.log('[SPECTRE] ========================================');
 
-      // Process Spectre URLs: ducat://unit?👻
-      if (url && url.includes('unit?')) {
+      // Process Spectre URLs: https://ducatprotocol.com/unit?token=base64...
+      if (url && url.includes('unit?token=')) {
         console.log('[SPECTRE] URL event contains Spectre token - processing NOW');
 
-        const queryStart = url.indexOf('unit?') + 5;
-        const emojiToken = url.substring(queryStart);
-        console.log('[SPECTRE] Extracted emoji token, length:', emojiToken.length);
-        console.log('[SPECTRE] Emoji token first 10 chars:', emojiToken.substring(0, 10));
+        // Extract token parameter from URL
+        const tokenMatch = url.match(/unit\?token=([^&]+)/);
+        if (!tokenMatch || !tokenMatch[1]) {
+          console.error('[SPECTRE] URL event: No token parameter found in URL');
+          return;
+        }
+
+        const base64Token = tokenMatch[1];
+        console.log('[SPECTRE] Extracted base64 token, length:', base64Token.length);
 
         try {
-          const token = decodeCashuToken(emojiToken);
-          console.log('[SPECTRE] URL event: Decoded unit? emoji token');
+          // Decode base64 to get cashu token
+          const token = atob(base64Token);
+          console.log('[SPECTRE] URL event: Decoded base64 to cashu token');
           console.log('[SPECTRE] Decoded token starts with:', token.substring(0, 20));
 
           // Hash and check for duplicates
@@ -216,7 +222,7 @@ const linking = {
             }
           }
         } catch (error) {
-          console.error('[SPECTRE] URL event: Failed to decode unit? token:', error.message);
+          console.error('[SPECTRE] URL event: Failed to decode base64 token:', error.message);
           return;
         }
       }
@@ -283,22 +289,28 @@ const linking = {
     console.log('[SPECTRE] Path length:', path?.length);
     console.log('[SPECTRE] Path first 100 chars:', path ? path.substring(0, 100) : 'null');
 
-    // Check if this is a Spectre token URL: unit?👻
-    if (path && path.includes('unit?')) {
+    // Check if this is a Spectre token URL: https://ducatprotocol.com/unit?token=base64...
+    if (path && path.includes('unit?token=')) {
       console.log('[SPECTRE] getStateFromPath detected token URL, processing...');
 
-      const queryStart = path.indexOf('unit?') + 5;
-      const emojiToken = path.substring(queryStart);
-      console.log('[SPECTRE] Extracted emoji token, length:', emojiToken.length);
-      console.log('[SPECTRE] Emoji token first 10 chars:', emojiToken.substring(0, 10));
+      // Extract token parameter from URL
+      const tokenMatch = path.match(/unit\?token=([^&]+)/);
+      if (!tokenMatch || !tokenMatch[1]) {
+        console.error('[SPECTRE] getStateFromPath: No token parameter found in URL');
+        return null;
+      }
+
+      const base64Token = tokenMatch[1];
+      console.log('[SPECTRE] Extracted base64 token, length:', base64Token.length);
 
       let token = null;
       try {
-        token = decodeCashuToken(emojiToken);
-        console.log('[SPECTRE] getStateFromPath: Decoded unit? emoji token');
+        // Decode base64 to get cashu token
+        token = atob(base64Token);
+        console.log('[SPECTRE] getStateFromPath: Decoded base64 to cashu token');
         console.log('[SPECTRE] Decoded token starts with:', token.substring(0, 20));
       } catch (error) {
-        console.error('[SPECTRE] getStateFromPath: Failed to decode unit? token:', error.message);
+        console.error('[SPECTRE] getStateFromPath: Failed to decode base64 token:', error.message);
         return null;
       }
 

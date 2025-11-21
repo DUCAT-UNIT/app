@@ -24,27 +24,9 @@ export default function SpectreQRCodeScreen({ navigation, route }) {
   const { deeplink, amount } = route.params;
   const [justCopied, setJustCopied] = useState(false);
 
-  // Extract emoji token from deeplink
-  const emojiToken = useMemo(() => {
-    try {
-      // New format: ducat://unit?👻 (emoji directly after ?)
-      if (deeplink.includes('unit?')) {
-        const queryStart = deeplink.indexOf('unit?') + 5;
-        return deeplink.substring(queryStart);
-      }
-
-      // Old format fallback: ducat://spectre?token=👻
-      const url = new URL(deeplink);
-      const token = url.searchParams.get('token');
-      if (!token) {
-        throw new Error('No token parameter found in deeplink');
-      }
-      return decodeURIComponent(token);
-    } catch (error) {
-      console.error('[SpectreQRCode] Failed to extract emoji token:', error);
-      return null;
-    }
-  }, [deeplink]);
+  // For short URLs, just display the ghost emoji as decoration
+  // The actual token is in the base64 URL, but we show 👻 for visual appeal
+  const displayEmoji = '👻';
 
   const handleCopy = async () => {
     await Clipboard.setStringAsync(deeplink);
@@ -55,7 +37,7 @@ export default function SpectreQRCodeScreen({ navigation, route }) {
   const handleShare = async () => {
     try {
       await Share.share({
-        message: `Spectre Token 👻\n\nAmount: ${amount / 100} UNIT\n\nTap to claim:\n${deeplink}\n\nOr copy this ghost:\n${emojiToken}`,
+        message: `Spectre Token 👻\n\nAmount: ${amount / 100} UNIT\n\nTap to claim:\n${deeplink}`,
       });
     } catch (error) {
       console.error('[SpectreQRCode] Failed to share:', error);
@@ -89,13 +71,13 @@ export default function SpectreQRCodeScreen({ navigation, route }) {
           {amount / 100} UNIT
         </Text>
 
-        {/* Emoji Token Display - Ghost emoji with encoded data */}
+        {/* Emoji Token Display - Ghost emoji decoration */}
         <View style={styles.emojiQRContainer}>
           <Text style={styles.emojiText} selectable>
-            {emojiToken}
+            {displayEmoji}
           </Text>
           <Text style={styles.emojiHint}>
-            Tap the ghost to copy
+            Spectre Token
           </Text>
         </View>
 

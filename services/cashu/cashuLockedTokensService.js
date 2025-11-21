@@ -6,6 +6,7 @@
 import * as SecureStore from 'expo-secure-store';
 import { logger } from '../../utils/logger';
 import { encodeCashuToken } from '../../utils/emojiEncoder';
+import { createSpectreShortUrl } from '../urlShortener';
 
 const SENT_TOKENS_KEY = 'sent_spectre_tokens';
 const MAX_STORED_TOKENS = 100; // Increased from 50
@@ -107,28 +108,31 @@ export const clearSentLockedTokens = async () => {
 };
 
 /**
- * Generate deeplink URL for a locked token with emoji-encoded token
+ * Generate deeplink URL for a locked token with base64-encoded token
+ * Returns a promise that resolves to shortened URL via Rebrandly
  * @param {string} token - Encoded Cashu token
  * @param {string} recipient - Recipient taproot address
  * @param {number} amount - Amount in smallest units
- * @returns {string} Deeplink URL with emoji-encoded token
+ * @returns {Promise<string>} Shortened deeplink URL
  */
-export const generateSpectreDeeplink = (token, recipient, amount) => {
+export const generateSpectreDeeplink = async (token, recipient, amount) => {
   console.log('[SpectreDeeplink] Generating deeplink with token:', token.substring(0, 50) + '...');
   console.log('[SpectreDeeplink] Token starts with:', token.substring(0, 10));
 
-  // Encode the cashu token as ghost emoji with variation selectors
-  const emojiToken = encodeCashuToken(token);
+  // Base64 encode the cashu token for URL safety
+  // Use btoa for base64 encoding (available in React Native)
+  const base64Token = btoa(token);
+  console.log('[SpectreDeeplink] Base64 token length:', base64Token.length);
 
-  // Use universal link format: https://ducatprotocol.com/unit?👻
-  // This works immediately via AASA file, no app rebuild needed
-  // The 👻 emoji contains the entire token encoded in invisible variation selectors
-  const deeplink = `https://ducatprotocol.com/unit?${emojiToken}`;
+  // Create full deeplink URL with base64 token
+  const fullDeeplink = `https://ducatprotocol.com/unit?token=${base64Token}`;
+  console.log('[SpectreDeeplink] Full deeplink length:', fullDeeplink.length);
 
-  console.log('[SpectreDeeplink] Generated deeplink:', deeplink);
-  console.log('[SpectreDeeplink] Ghost emoji token length:', emojiToken.length);
+  // Shorten URL with Rebrandly
+  const shortUrl = await createSpectreShortUrl(fullDeeplink);
+  console.log('[SpectreDeeplink] Short URL:', shortUrl);
 
-  return deeplink;
+  return shortUrl;
 };
 
 /**
