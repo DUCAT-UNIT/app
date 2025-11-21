@@ -226,11 +226,9 @@ export default function RootNavigator() {
             setIsVerifyingToken(false);
             processingTokenRef.current = null; // Clear currently processing token
 
-            // Remove from processed set after a delay to allow new tokens
-            setTimeout(() => {
-              processedTokensRef.current.delete(token);
-              console.log('[Deeplink] 🧹 Cleaned up processed token, ready for next');
-            }, 2000);
+            // Keep successfully processed tokens in the set permanently
+            // This prevents re-processing the same token after minimizing app
+            console.log('[Deeplink] ✅ Token successfully processed and saved to prevent re-processing');
 
             // Format amount: multiply by 100 and keep 2 decimals
             const amountDisplay = (result.amount * 100).toFixed(2);
@@ -242,11 +240,9 @@ export default function RootNavigator() {
             setIsVerifyingToken(false);
             processingTokenRef.current = null; // Clear currently processing token
 
-            // Remove from processed set after error to allow retry with different token
-            setTimeout(() => {
-              processedTokensRef.current.delete(token);
-              console.log('[Deeplink] 🧹 Cleaned up failed token, ready for next');
-            }, 2000);
+            // Keep failed tokens in processed set to prevent retrying same token
+            // Don't remove them - this prevents loops when minimizing/reopening app
+            console.log('[Deeplink] ❌ Token failed and saved to prevent re-attempting');
 
             // Check for specific error messages
             let errorMessage = error.message || 'Failed to receive token';
