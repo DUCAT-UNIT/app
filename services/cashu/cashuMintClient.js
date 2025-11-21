@@ -79,7 +79,7 @@ export const createMintQuote = async (amount) => {
   try {
     logger.info('Creating mint quote', { amount });
 
-    const quote = await postJSON(`${MINT_URL}/v1/mint/quote/unit`, {
+    const quote = await postJSON(`${MINT_URL}/v1/mint/quote/runes`, {
       amount,
       unit: CASHU_UNIT,
       rune_id: RUNE_ID,
@@ -107,7 +107,7 @@ export const createMintQuote = async (amount) => {
  */
 export const checkMintQuote = async (quoteId) => {
   try {
-    const quote = await getJSON(`${MINT_URL}/v1/mint/quote/unit/${quoteId}`, {
+    const quote = await getJSON(`${MINT_URL}/v1/mint/quote/runes/${quoteId}`, {
       timeout: 5000,
       description: 'Check mint quote',
     });
@@ -128,7 +128,7 @@ export const mintTokens = async (quoteId, outputs) => {
   try {
     logger.info('Minting tokens', { quoteId, outputCount: outputs.length });
 
-    const response = await postJSON(`${MINT_URL}/v1/mint/unit`, {
+    const response = await postJSON(`${MINT_URL}/v1/mint/runes`, {
       quote: quoteId,
       outputs,
     }, {
@@ -203,7 +203,7 @@ export const createMeltQuote = async (address, amount) => {
   try {
     logger.info('Creating melt quote', { address, amount });
 
-    const quote = await postJSON(`${MINT_URL}/v1/melt/quote/unit`, {
+    const quote = await postJSON(`${MINT_URL}/v1/melt/quote/runes`, {
       request: address,
       amount,
       unit: CASHU_UNIT,
@@ -233,7 +233,7 @@ export const createMeltQuote = async (address, amount) => {
  */
 export const checkMeltQuote = async (quoteId) => {
   try {
-    const quote = await getJSON(`${MINT_URL}/v1/melt/quote/unit/${quoteId}`, {
+    const quote = await getJSON(`${MINT_URL}/v1/melt/quote/runes/${quoteId}`, {
       timeout: 5000,
       description: 'Check melt quote',
     });
@@ -254,7 +254,7 @@ export const meltTokens = async (quoteId, inputs) => {
   try {
     logger.info('Melting tokens', { quoteId, inputCount: inputs.length });
 
-    const response = await postJSON(`${MINT_URL}/v1/melt/unit`, {
+    const response = await postJSON(`${MINT_URL}/v1/melt/runes`, {
       quote: quoteId,
       inputs,
     }, {
