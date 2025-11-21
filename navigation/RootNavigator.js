@@ -212,13 +212,21 @@ const linking = {
           const tokenHash = await hashToken(token);
           const isAlreadyProcessed = global.processedCashuTokens && global.processedCashuTokens.has(tokenHash);
 
-          if (isAlreadyProcessed) {
-            console.log('[SPECTRE] URL event: Token already processed (hash:', tokenHash.substring(0, 16) + '...)');
+          // CRITICAL FIX: If we just resumed from background, SKIP duplicate check
+          // This allows NEW deeplinks to be processed when app comes from background
+          const skipDuplicateCheck = global.spectreJustResumed === true;
+
+          if (skipDuplicateCheck) {
+            console.log('[SPECTRE] URL event: App just resumed - BYPASSING duplicate check for this token');
+            console.log('[SPECTRE] URL event: Token hash:', tokenHash.substring(0, 16) + '...');
+          } else if (isAlreadyProcessed) {
+            console.log('[SPECTRE] URL event: SKIPPING - token already processed (hash:', tokenHash.substring(0, 16) + '...)');
             return;
           }
 
-          // Store token for processing
-          console.log('[SPECTRE] URL event: Storing NEW token, hash:', tokenHash.substring(0, 16) + '...');
+          // Store token for processing (if NOT already processed OR we just resumed)
+          console.log('[SPECTRE] URL event: Storing token, hash:', tokenHash.substring(0, 16) + '...');
+          console.log('[SPECTRE] URL event: skipDuplicateCheck:', skipDuplicateCheck, 'isAlreadyProcessed:', isAlreadyProcessed);
           if (typeof global !== 'undefined') {
             global.pendingCashuToken = token;
 
