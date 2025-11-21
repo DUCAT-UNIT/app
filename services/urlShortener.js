@@ -76,10 +76,14 @@ export const shortenUrl = async (longUrl, slashtag = null) => {
  * @returns {Promise<string>} The shortened URL
  */
 export const createSpectreShortUrl = async (deeplinkUrl, address, amount) => {
-  // Create human-readable slashtag: amount-to-address
+  // Create human-readable slashtag: amount-to-address-entropy
   // Truncate address to last 8 chars for brevity
   const addressSuffix = address.slice(-8);
-  const slashtag = `${amount}-to-${addressSuffix}`;
+
+  // Generate 6-character random entropy (alphanumeric)
+  const entropy = Math.random().toString(36).substring(2, 8);
+
+  const slashtag = `${amount}-to-${addressSuffix}-${entropy}`;
 
   return shortenUrl(deeplinkUrl, slashtag);
 };
