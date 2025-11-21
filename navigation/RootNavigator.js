@@ -175,10 +175,19 @@ const linking = {
       const url = event?.url;
       console.log('[SPECTRE] *** onReceiveURL EVENT FIRED ***, url:', url ? url.substring(0, 50) + '...' : 'null');
       console.log('[SPECTRE] Event object:', event ? JSON.stringify(event).substring(0, 100) : 'null event');
+      console.log('[SPECTRE] Current AppState:', AppState.currentState);
       if (!url) return;
 
-      // Process the URL BEFORE calling listener
-      // This ensures we extract and store the token before React Navigation tries to handle it
+      // If app is backgrounded, store URL for processing when it becomes active
+      // This handles the case where the url event fires but app is not yet active
+      if (AppState.currentState !== 'active') {
+        console.log('[SPECTRE] App not active, storing URL in global for later processing');
+        global.pendingDeeplinkURL = url;
+        return;
+      }
+
+      // App is active, process immediately
+      console.log('[SPECTRE] App is active, processing URL immediately');
       await extractAndStoreToken(url);
 
       // Now let React Navigation process the URL
@@ -201,9 +210,43 @@ const linking = {
     const subscription = Linking.addEventListener('url', onReceiveURL);
     console.log('[SPECTRE] Linking.addEventListener registered, subscription:', !!subscription);
 
+    // WORKAROUND for iOS issue where url event doesn't fire when app is in background
+    // Listen to AppState changes and check for pending URLs
+    let appState = AppState.currentState;
+    console.log('[SPECTRE] Initial AppState:', appState);
+
+    const handleAppStateChange = async (nextAppState) => {
+      console.log('[SPECTRE] AppState change:', appState, '->', nextAppState);
+
+      // When app comes to foreground from background, check if there's a URL waiting
+      if (appState.match(/inactive|background/) && nextAppState === 'active') {
+        console.log('[SPECTRE] App became active - checking for pending URL in global');
+
+        // Check if a URL was stored by the listener but not yet processed
+        // This can happen if the url event fired while the app was backgrounded
+        if (global.pendingDeeplinkURL) {
+          const url = global.pendingDeeplinkURL;
+          console.log('[SPECTRE] Found pending deeplink URL:', url.substring(0, 50) + '...');
+          delete global.pendingDeeplinkURL;
+
+          // Process it
+          await extractAndStoreToken(url);
+          listener(url);
+        } else {
+          console.log('[SPECTRE] No pending deeplink URL found');
+        }
+      }
+
+      appState = nextAppState;
+    };
+
+    const appStateSubscription = AppState.addEventListener('change', handleAppStateChange);
+    console.log('[SPECTRE] Registered AppState listener for URL handling');
+
     return () => {
       console.log('[SPECTRE] Linking subscribe cleanup - removing event listeners');
       subscription.remove();
+      appStateSubscription.remove();
     };
   },
   // Custom function to intercept and handle special URLs before navigation
