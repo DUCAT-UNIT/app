@@ -7,6 +7,7 @@ import { logger } from '../utils/logger';
 
 // Rebrandly API configuration
 const REBRANDLY_API_KEY = process.env.EXPO_PUBLIC_REBRANDLY_API_KEY || '';
+const REBRANDLY_CUSTOM_DOMAIN = process.env.EXPO_PUBLIC_REBRANDLY_DOMAIN || ''; // e.g., 'ducat.link'
 const REBRANDLY_API_ENDPOINT = 'https://api.rebrandly.com/v1/links';
 
 /**
@@ -24,17 +25,24 @@ export const shortenUrl = async (longUrl) => {
 
     logger.info('Shortening URL with Rebrandly', { urlLength: longUrl.length });
 
+    // Prepare request body
+    const requestBody = {
+      destination: longUrl,
+    };
+
+    // Add custom domain if configured
+    if (REBRANDLY_CUSTOM_DOMAIN) {
+      requestBody.domain = { fullName: REBRANDLY_CUSTOM_DOMAIN };
+      logger.info('Using custom domain', { domain: REBRANDLY_CUSTOM_DOMAIN });
+    }
+
     const response = await fetch(REBRANDLY_API_ENDPOINT, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
         'apikey': REBRANDLY_API_KEY,
       },
-      body: JSON.stringify({
-        destination: longUrl,
-        // Optional: add custom domain if configured
-        // domain: { fullName: 'yourdomain.com' },
-      }),
+      body: JSON.stringify(requestBody),
     });
 
     if (!response.ok) {
