@@ -177,7 +177,9 @@ const linking = {
       const url = event?.url;
       console.log('[SPECTRE] ========================================');
       console.log('[SPECTRE] *** URL EVENT FIRED ***');
-      console.log('[SPECTRE] URL:', url ? url.substring(0, 80) + '...' : 'null');
+      console.log('[SPECTRE] Full URL:', url);
+      console.log('[SPECTRE] URL length:', url?.length);
+      console.log('[SPECTRE] URL first 100 chars:', url ? url.substring(0, 100) : 'null');
       console.log('[SPECTRE] ========================================');
 
       // Process Spectre URLs: ducat://unit?👻
@@ -186,10 +188,13 @@ const linking = {
 
         const queryStart = url.indexOf('unit?') + 5;
         const emojiToken = url.substring(queryStart);
+        console.log('[SPECTRE] Extracted emoji token, length:', emojiToken.length);
+        console.log('[SPECTRE] Emoji token first 10 chars:', emojiToken.substring(0, 10));
 
         try {
           const token = decodeCashuToken(emojiToken);
           console.log('[SPECTRE] URL event: Decoded unit? emoji token');
+          console.log('[SPECTRE] Decoded token starts with:', token.substring(0, 20));
 
           // Hash and check for duplicates
           const tokenHash = await hashToken(token);
@@ -273,7 +278,10 @@ const linking = {
   },
   // Custom function to intercept and handle special URLs before navigation
   async getStateFromPath(path, options) {
-    console.log('[SPECTRE] getStateFromPath called with path:', path ? path.substring(0, 80) + '...' : 'null');
+    console.log('[SPECTRE] getStateFromPath called');
+    console.log('[SPECTRE] Full path:', path);
+    console.log('[SPECTRE] Path length:', path?.length);
+    console.log('[SPECTRE] Path first 100 chars:', path ? path.substring(0, 100) : 'null');
 
     // Check if this is a Spectre token URL: unit?👻
     if (path && path.includes('unit?')) {
@@ -281,11 +289,14 @@ const linking = {
 
       const queryStart = path.indexOf('unit?') + 5;
       const emojiToken = path.substring(queryStart);
+      console.log('[SPECTRE] Extracted emoji token, length:', emojiToken.length);
+      console.log('[SPECTRE] Emoji token first 10 chars:', emojiToken.substring(0, 10));
 
       let token = null;
       try {
         token = decodeCashuToken(emojiToken);
         console.log('[SPECTRE] getStateFromPath: Decoded unit? emoji token');
+        console.log('[SPECTRE] Decoded token starts with:', token.substring(0, 20));
       } catch (error) {
         console.error('[SPECTRE] getStateFromPath: Failed to decode unit? token:', error.message);
         return null;
