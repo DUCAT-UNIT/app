@@ -181,25 +181,45 @@ const linking = {
       console.log('[SPECTRE] ========================================');
 
       // Process Spectre URLs immediately when this event fires
-      if (url && (url.includes('receive?token=') || url.includes('spectre?token='))) {
+      // Supports: ducat://unit?👻 (new simple format) or ducat://spectre?token=👻 (old format)
+      if (url && (url.includes('receive?token=') || url.includes('spectre?token=') || url.includes('unit?'))) {
         console.log('[SPECTRE] URL event contains Spectre token - processing NOW');
 
-        // Extract token from URL
-        const tokenMatch = url.match(/[?&]token=([^&]+)/);
-        if (tokenMatch && tokenMatch[1]) {
-          let token = decodeURIComponent(tokenMatch[1]);
+        let token = null;
 
-          // Decode emoji token if it's a Spectre link
-          if (url.includes('spectre?token=')) {
-            try {
-              token = decodeCashuToken(token);
-              console.log('[SPECTRE] URL event: Decoded emoji token');
-            } catch (error) {
-              console.error('[SPECTRE] URL event: Failed to decode:', error.message);
-              return;
+        // New format: ducat://unit?👻
+        if (url.includes('unit?')) {
+          const queryStart = url.indexOf('unit?') + 5;
+          const emojiToken = url.substring(queryStart);
+
+          try {
+            token = decodeCashuToken(emojiToken);
+            console.log('[SPECTRE] URL event: Decoded unit? emoji token');
+          } catch (error) {
+            console.error('[SPECTRE] URL event: Failed to decode unit? token:', error.message);
+            return;
+          }
+        }
+        // Old formats: ducat://receive?token=... or ducat://spectre?token=...
+        else {
+          const tokenMatch = url.match(/[?&]token=([^&]+)/);
+          if (tokenMatch && tokenMatch[1]) {
+            token = decodeURIComponent(tokenMatch[1]);
+
+            // Decode emoji token if it's a Spectre link
+            if (url.includes('spectre?token=')) {
+              try {
+                token = decodeCashuToken(token);
+                console.log('[SPECTRE] URL event: Decoded emoji token');
+              } catch (error) {
+                console.error('[SPECTRE] URL event: Failed to decode:', error.message);
+                return;
+              }
             }
           }
+        }
 
+        if (token) {
           // Hash and check for duplicates
           const tokenHash = await hashToken(token);
           const isAlreadyProcessed = global.processedCashuTokens && global.processedCashuTokens.has(tokenHash);
@@ -281,29 +301,45 @@ const linking = {
   async getStateFromPath(path, options) {
     console.log('[SPECTRE] getStateFromPath called with path:', path ? path.substring(0, 80) + '...' : 'null');
 
-    // Check if this is a token receive URL (supports both /receive and /spectre)
-    if (path && (path.includes('receive?token=') || path.includes('spectre?token='))) {
+    // Check if this is a token receive URL (supports new ducat://unit? and old formats)
+    if (path && (path.includes('receive?token=') || path.includes('spectre?token=') || path.includes('unit?'))) {
       console.log('[SPECTRE] getStateFromPath detected token URL, processing...');
 
-      // THIS is where we actually receive new deeplinks on iOS!
-      // The url event doesn't fire reliably, but getStateFromPath does
-      const fullUrl = `ducat://${path}`;
+      let token = null;
 
-      // Extract token parameter from URL
-      const tokenMatch = path.match(/[?&]token=([^&]+)/);
-      if (tokenMatch && tokenMatch[1]) {
-        let token = decodeURIComponent(tokenMatch[1]);
+      // New format: unit?👻
+      if (path.includes('unit?')) {
+        const queryStart = path.indexOf('unit?') + 5;
+        const emojiToken = path.substring(queryStart);
 
-        // If this is a spectre link, the token is emoji-encoded
-        if (path.includes('spectre?token=')) {
-          try {
-            token = decodeCashuToken(token);
-            console.log('[SPECTRE] getStateFromPath: Decoded emoji token');
-          } catch (error) {
-            console.error('[SPECTRE] getStateFromPath: Failed to decode:', error.message);
-            return null;
+        try {
+          token = decodeCashuToken(emojiToken);
+          console.log('[SPECTRE] getStateFromPath: Decoded unit? emoji token');
+        } catch (error) {
+          console.error('[SPECTRE] getStateFromPath: Failed to decode unit? token:', error.message);
+          return null;
+        }
+      }
+      // Old formats: receive?token=... or spectre?token=...
+      else {
+        const tokenMatch = path.match(/[?&]token=([^&]+)/);
+        if (tokenMatch && tokenMatch[1]) {
+          token = decodeURIComponent(tokenMatch[1]);
+
+          // If this is a spectre link, the token is emoji-encoded
+          if (path.includes('spectre?token=')) {
+            try {
+              token = decodeCashuToken(token);
+              console.log('[SPECTRE] getStateFromPath: Decoded emoji token');
+            } catch (error) {
+              console.error('[SPECTRE] getStateFromPath: Failed to decode:', error.message);
+              return null;
+            }
           }
         }
+      }
+
+      if (token) {
 
         // CRITICAL: Check if this token has already been processed
         // Wait for storage to load if needed
