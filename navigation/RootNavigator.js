@@ -200,28 +200,28 @@ const linking = {
     let appState = AppState.currentState;
     console.log('[SPECTRE] Initial AppState:', appState);
 
+    // Track if we're coming from background - this is CRITICAL for iOS deeplink handling
+    let lastUrl = null;
+
     const handleAppStateChange = async (nextAppState) => {
       console.log('[SPECTRE] AppState change:', appState, '->', nextAppState);
 
-      // When app comes to foreground from background, check if there's a NEW URL waiting
+      // When app comes to foreground, force a fresh URL check
+      // iOS caches the path in React Navigation, so we need to bypass that cache
       if (appState.match(/inactive|background/) && nextAppState === 'active') {
-        console.log('[SPECTRE] App became active - checking for NEW deeplink URL');
+        console.log('[SPECTRE] App became active from background - forcing fresh URL check');
 
-        // CRITICAL FIX: Actively check for a new URL when app resumes
-        // getInitialURL() will return the URL that brought the app to foreground
-        try {
-          const url = await Linking.getInitialURL();
-          console.log('[SPECTRE] getInitialURL returned:', url ? url.substring(0, 80) + '...' : 'null');
+        // Set a flag that tells getStateFromPath to NOT skip processing
+        // This ensures NEW deeplinks are processed even if they look like duplicates
+        if (typeof global !== 'undefined') {
+          global.spectreJustResumed = true;
+          console.log('[SPECTRE] Set spectreJustResumed flag to force fresh processing');
 
-          if (url && (url.includes('receive?token=') || url.includes('spectre?token='))) {
-            console.log('[SPECTRE] Found NEW Spectre deeplink on resume, triggering navigation');
-            // Notify React Navigation about the new URL
-            listener(url);
-          } else {
-            console.log('[SPECTRE] No Spectre deeplink found on resume');
-          }
-        } catch (error) {
-          console.error('[SPECTRE] Error checking for URL on resume:', error.message);
+          // Clear the flag after a short delay
+          setTimeout(() => {
+            global.spectreJustResumed = false;
+            console.log('[SPECTRE] Cleared spectreJustResumed flag');
+          }, 2000);
         }
       }
 
@@ -281,14 +281,22 @@ const linking = {
         const tokenHash = await hashToken(token);
         const isAlreadyProcessed = global.processedCashuTokens && global.processedCashuTokens.has(tokenHash);
 
-        if (isAlreadyProcessed) {
+        // CRITICAL FIX: If we just resumed from background, SKIP duplicate check
+        // This allows NEW deeplinks to be processed when app comes from background
+        const skipDuplicateCheck = global.spectreJustResumed === true;
+
+        if (skipDuplicateCheck) {
+          console.log('[SPECTRE] getStateFromPath: App just resumed - BYPASSING duplicate check for this token');
+          console.log('[SPECTRE] getStateFromPath: Token hash:', tokenHash.substring(0, 16) + '...');
+        } else if (isAlreadyProcessed) {
           console.log('[SPECTRE] getStateFromPath: SKIPPING - token already processed (hash:', tokenHash.substring(0, 16) + '...)');
           return null;
         }
 
-        // Store in global for processing (only if NOT already processed)
+        // Store in global for processing (if NOT already processed OR we just resumed)
         if (typeof global !== 'undefined') {
-          console.log('[SPECTRE] getStateFromPath: Storing NEW token in global.pendingCashuToken, hash:', tokenHash.substring(0, 16) + '...');
+          console.log('[SPECTRE] getStateFromPath: Storing token in global.pendingCashuToken, hash:', tokenHash.substring(0, 16) + '...');
+          console.log('[SPECTRE] getStateFromPath: skipDuplicateCheck:', skipDuplicateCheck, 'isAlreadyProcessed:', isAlreadyProcessed);
           global.pendingCashuToken = token;
 
           // Trigger check immediately if function is available
