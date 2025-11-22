@@ -134,28 +134,28 @@ const WalletScreen = React.memo(function WalletScreen({
       <View style={localStyles.actionsRow}>
         <TouchableOpacity style={localStyles.actionButton} onPress={onVaultPress}>
           <View style={localStyles.actionButtonIcon}>
-            <Icon name="vault_logo" size={19} color={COLORS.DARK_BG} />
+            <Text style={localStyles.buttonIcon}>↓</Text>
           </View>
           <Text style={localStyles.actionButtonLabel}>Repay</Text>
         </TouchableOpacity>
 
         <TouchableOpacity style={localStyles.actionButton} onPress={onReceivePress}>
           <View style={localStyles.actionButtonIcon}>
-            <Icon name="receive" size={19} color={COLORS.DARK_BG} />
+            <Text style={localStyles.buttonIcon}>+</Text>
           </View>
           <Text style={localStyles.actionButtonLabel}>Deposit</Text>
         </TouchableOpacity>
 
         <TouchableOpacity style={localStyles.actionButton} onPress={onSendPress}>
           <View style={localStyles.actionButtonIcon}>
-            <Icon name="send" size={19} color={COLORS.DARK_BG} />
+            <Text style={localStyles.buttonIcon}>-</Text>
           </View>
           <Text style={localStyles.actionButtonLabel}>Withdraw</Text>
         </TouchableOpacity>
 
         <TouchableOpacity style={localStyles.actionButton} onPress={onVaultPress}>
           <View style={localStyles.actionButtonIcon}>
-            <Icon name="vault_logo" size={19} color={COLORS.DARK_BG} />
+            <Text style={localStyles.buttonIcon}>↑</Text>
           </View>
           <Text style={localStyles.actionButtonLabel}>Borrow</Text>
         </TouchableOpacity>
@@ -269,6 +269,11 @@ const localStyles = StyleSheet.create({
     justifyContent: 'center',
     alignItems: 'center',
     marginBottom: 2,
+  },
+  buttonIcon: {
+    fontSize: 24,
+    color: COLORS.DARK_BG,
+    fontWeight: '600',
   },
   actionButtonLabel: {
     fontSize: 13,
