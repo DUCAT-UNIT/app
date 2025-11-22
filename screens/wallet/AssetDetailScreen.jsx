@@ -109,9 +109,9 @@ function AssetDetailScreen({ route = {}, navigation }) {
   // Use extracted transaction filtering hook
   const filteredTransactions = useAssetTransactions(transactionHistory, assetType, segwitAddress, taprootAddress, advancedMode);
 
-  // For UNIT assets, show loading if we're waiting for ecash tokens to load
+  // For UNIT assets, show loading when refreshing data (even with cached data)
   const isActivityLoading = assetType === 'UNIT'
-    ? loadingTransactionHistory || (filteredTransactions.length === 0 && loadingCashu)
+    ? loadingTransactionHistory || loadingCashu
     : loadingTransactionHistory;
 
   const handleActionPress = (action) => {
