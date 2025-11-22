@@ -3,7 +3,7 @@
  * Full-screen QR code scanner supporting static and animated QR codes (NUT-16)
  */
 
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useCallback } from 'react';
 import PropTypes from 'prop-types';
 import {
   View,
@@ -48,7 +48,7 @@ export default function QRScanner({ visible, onClose, onScan }) {
     }
   }, [visible]);
 
-  const handleBarCodeScanned = ({ data }) => {
+  const handleBarCodeScanned = useCallback(({ data }) => {
     if (!data) return;
 
     // Prevent multiple scans - stop after first successful scan
@@ -210,7 +210,7 @@ export default function QRScanner({ visible, onClose, onScan }) {
       setHasScanned(true);
       onScan(data);
     }
-  };
+  }, [hasScanned, bcurDecoder, bcurReceivedParts, bcurExpectedParts, scannedChunks, totalChunks, onScan]);
 
   if (!permission) {
     return null;
