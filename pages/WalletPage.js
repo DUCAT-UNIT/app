@@ -287,15 +287,17 @@ export default function WalletPage({ route }) {
         }
 
         if (token) {
-          showToast('Claiming token...', 'info');
-          const result = await receiveCashuToken(token);
-          showToast(`Successfully claimed ${result.amount} UNIT`, 'success');
+          // Navigate to claiming screen
+          navigation.navigate('SendFlow', {
+            screen: 'SpectreClaiming',
+            params: { tokenString: token },
+          });
         } else {
           showToast('Failed to extract token from URL', 'error');
         }
       } catch (error) {
-        console.error('[WalletPage] Failed to claim token:', error);
-        showToast(`Failed to claim token: ${error.message}`, 'error');
+        console.error('[WalletPage] Failed to extract token:', error);
+        showToast(`Failed to extract token: ${error.message}`, 'error');
       }
     } else {
       // Unknown format

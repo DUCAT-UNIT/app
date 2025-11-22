@@ -18,6 +18,8 @@ import AddressInputScreen from '../screens/send/AddressInputScreen';
 import AmountInputScreen from '../screens/send/AmountInputScreen';
 import ReviewScreen from '../screens/send/ReviewScreen';
 import ProcessingScreen from '../screens/send/ProcessingScreen';
+import SpectreProcessingScreen from '../screens/send/SpectreProcessingScreen';
+import SpectreClaimingScreen from '../screens/send/SpectreClaimingScreen';
 import ConfirmationScreen from '../screens/send/ConfirmationScreen';
 import SpectreLoadingScreen from '../screens/send/SpectreLoadingScreen';
 
@@ -87,6 +89,20 @@ export default function SendNavigator() {
         component={ProcessingScreen}
         options={{
           gestureEnabled: false, // Prevent back during processing
+        }}
+      />
+      <SendStack.Screen
+        name="SpectreProcessing"
+        component={SpectreProcessingScreen}
+        options={{
+          gestureEnabled: false, // Prevent back during processing
+        }}
+      />
+      <SendStack.Screen
+        name="SpectreClaiming"
+        component={SpectreClaimingScreen}
+        options={{
+          gestureEnabled: false, // Prevent back during claiming
         }}
       />
       <SendStack.Screen
