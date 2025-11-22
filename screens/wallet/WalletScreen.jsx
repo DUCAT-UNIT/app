@@ -254,7 +254,7 @@ const localStyles = StyleSheet.create({
     flexDirection: 'row',
     justifyContent: 'flex-start',
     paddingHorizontal: 20,
-    paddingVertical: 12,
+    paddingVertical: 8,
     gap: 12,
   },
   actionButton: {
