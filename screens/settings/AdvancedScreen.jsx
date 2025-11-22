@@ -15,7 +15,6 @@ import {
 import { COLORS } from '../../theme';
 import Icon from '../../components/icons';
 import MutinynetBanner from '../../components/MutinynetBanner';
-import { useNavigationHandlers } from '../../contexts/NavigationHandlersContext';
 
 // Get device dimensions for responsive sizing
 const { width: SCREEN_WIDTH } = require('react-native').Dimensions.get('window');
@@ -28,11 +27,8 @@ const AdvancedScreen = React.memo(function AdvancedScreen({ route }) {
     onClose,
     onSwitchAccount,
     onAdvancedModeToggle,
+    advancedMode,
   } = route.params;
-
-  // Get advancedMode directly from context so it updates when toggled
-  const { settingsHandlers } = useNavigationHandlers();
-  const advancedMode = settingsHandlers?.advancedMode || false;
 
   return (
     <View style={localStyles.container}>
@@ -95,6 +91,7 @@ AdvancedScreen.propTypes = {
       onClose: PropTypes.func.isRequired,
       onSwitchAccount: PropTypes.func.isRequired,
       onAdvancedModeToggle: PropTypes.func.isRequired,
+      advancedMode: PropTypes.bool.isRequired,
     }).isRequired,
   }).isRequired,
 };
