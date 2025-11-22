@@ -24,9 +24,8 @@ export function useAssetTransactions(transactionHistory, assetType, segwitAddres
     if (assetType === 'UNIT' && !advancedMode) {
       let isMounted = true;
 
-      // Defer ecash token loading to prevent blocking screen render
-      const timeoutId = setTimeout(() => {
-        const loadEcashTokens = async () => {
+      // Load ecash tokens (no delay needed since claimed tokens are cached)
+      const loadEcashTokens = async () => {
           try {
             const tokens = await getSentLockedTokens(taprootAddress);
             if (!isMounted) return;
@@ -135,12 +134,10 @@ export function useAssetTransactions(transactionHistory, assetType, segwitAddres
           }
         }
       };
-        loadEcashTokens();
-      }, 500); // 500ms delay to let screen render first
+      loadEcashTokens();
 
       return () => {
         isMounted = false;
-        clearTimeout(timeoutId);
       };
     } else {
       console.log('[useAssetTransactions] Not loading ecash tokens - clearing');
