@@ -28,6 +28,7 @@ export default function QRScanner({ visible, onClose, onScan }) {
   const [bcurDecoder, setBcurDecoder] = useState(null);
   const [bcurProgress, setBcurProgress] = useState(0);
   const scanTimeoutRef = useRef(null);
+  const [hasScanned, setHasScanned] = useState(false);
 
   // Reset state when modal closes
   useEffect(() => {
@@ -36,6 +37,7 @@ export default function QRScanner({ visible, onClose, onScan }) {
       setTotalChunks(null);
       setBcurDecoder(null);
       setBcurProgress(0);
+      setHasScanned(false);
       if (scanTimeoutRef.current) {
         clearTimeout(scanTimeoutRef.current);
       }
@@ -44,6 +46,9 @@ export default function QRScanner({ visible, onClose, onScan }) {
 
   const handleBarCodeScanned = ({ data }) => {
     if (!data) return;
+
+    // Prevent multiple scans - stop after first successful scan
+    if (hasScanned) return;
 
     // Validate that data is readable (not binary garbage)
     const isPrintable = /^[\x20-\x7E\n\r\t]*$/.test(data.substring(0, 100));
@@ -91,6 +96,7 @@ export default function QRScanner({ visible, onClose, onScan }) {
             if (scanTimeoutRef.current) {
               clearTimeout(scanTimeoutRef.current);
             }
+            setHasScanned(true);
             scanTimeoutRef.current = setTimeout(() => {
               onScan(tokenString);
               setBcurDecoder(null);
@@ -162,6 +168,7 @@ export default function QRScanner({ visible, onClose, onScan }) {
           if (scanTimeoutRef.current) {
             clearTimeout(scanTimeoutRef.current);
           }
+          setHasScanned(true);
           scanTimeoutRef.current = setTimeout(() => {
             onScan(finalPayload);
             setScannedChunks(new Map());
@@ -173,6 +180,7 @@ export default function QRScanner({ visible, onClose, onScan }) {
       });
     } else {
       // Static QR code - scan immediately
+      setHasScanned(true);
       onScan(data);
     }
   };

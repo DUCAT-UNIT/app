@@ -151,8 +151,23 @@ export default function WalletPage({ route }) {
         params: { scannedAddress: data },
       });
     } else if (data.startsWith('cashu')) {
-      // Direct Cashu token - check proofs first
+      // Direct Cashu token - check if it's P2PK (Spectre) token
       try {
+        // Check if this is a P2PK locked token
+        const { hasP2PKProofs } = await import('../services/cashu/cashuP2PK');
+        const isP2PKToken = hasP2PKProofs(data);
+
+        if (isP2PKToken) {
+          // This is a Spectre token - navigate to claiming screen
+          console.log('[WalletPage] P2PK token detected, navigating to claiming screen');
+          navigation.navigate('SendFlow', {
+            screen: 'SpectreClaiming',
+            params: { tokenString: data },
+          });
+          return;
+        }
+
+        // Regular token - check proofs first
         showToast('Checking token...', 'info');
 
         // Decode and analyze the token
