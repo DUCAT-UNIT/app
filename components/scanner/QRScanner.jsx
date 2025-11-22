@@ -89,19 +89,22 @@ export default function QRScanner({ visible, onClose, onScan }) {
           // Feed part to existing decoder
           bcurDecoder.receivePart(data);
 
-          // Increment received parts count
-          const newReceivedParts = bcurReceivedParts + 1;
-          setBcurReceivedParts(newReceivedParts);
-
           // Get decoder's estimated percent complete
           const decoderProgress = bcurDecoder.estimatedPercentComplete();
           const isComplete = bcurDecoder.isComplete();
 
-          // Use decoder's progress if available, otherwise fall back to our calculation
-          const progress = isComplete ? 100 : Math.min(decoderProgress * 100, 95);
+          // Increment received parts count using functional update
+          setBcurReceivedParts(prev => {
+            const newCount = prev + 1;
 
-          setBcurProgress(progress);
-          console.log('[QRScanner] BC-UR part received:', newReceivedParts, '/', bcurExpectedParts || '?', 'decoder progress:', Math.round(decoderProgress * 100), '%, isComplete:', isComplete);
+            // Use decoder's progress if available, otherwise fall back to our calculation
+            const progress = isComplete ? 100 : Math.min(decoderProgress * 100, 95);
+
+            setBcurProgress(progress);
+            console.log('[QRScanner] BC-UR part received:', newCount, '/', bcurExpectedParts || '?', 'decoder progress:', Math.round(decoderProgress * 100), '%, isComplete:', isComplete);
+
+            return newCount;
+          });
 
           // Check if complete
           if (isComplete) {
@@ -210,7 +213,7 @@ export default function QRScanner({ visible, onClose, onScan }) {
       setHasScanned(true);
       onScan(data);
     }
-  }, [hasScanned, bcurDecoder, bcurReceivedParts, bcurExpectedParts, scannedChunks, totalChunks, onScan]);
+  }, [hasScanned, bcurDecoder, bcurExpectedParts, scannedChunks, totalChunks, onScan]);
 
   if (!permission) {
     return null;
