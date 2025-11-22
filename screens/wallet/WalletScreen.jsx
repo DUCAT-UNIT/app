@@ -273,7 +273,7 @@ const localStyles = StyleSheet.create({
   buttonIcon: {
     fontSize: 24,
     color: COLORS.DARK_BG,
-    fontWeight: '600',
+    fontWeight: '300',
   },
   actionButtonLabel: {
     fontSize: 13,
