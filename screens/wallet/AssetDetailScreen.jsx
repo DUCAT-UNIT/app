@@ -454,6 +454,8 @@ function AssetDetailScreen({ route = {}, navigation }) {
         >
           {renderAssetInfo()}
 
+          {renderActionButtons()}
+
           {/* Show balance breakdown for UNIT (only in advanced mode) */}
           {assetType === 'UNIT' && advancedMode && (
             <UnitBalanceBreakdown
@@ -461,8 +463,6 @@ function AssetDetailScreen({ route = {}, navigation }) {
               runesBalance={unitRunesAmount}
             />
           )}
-
-          {renderActionButtons()}
 
           <AssetPriceChart
             assetType={assetType}

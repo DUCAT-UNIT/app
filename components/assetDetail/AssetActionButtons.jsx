@@ -17,7 +17,7 @@ export function AssetActionButtons({ onSendPress, onReceivePress, onConsolidateP
           onPress={onSpectrePress}
         >
           <View style={styles.actionButtonIcon}>
-            <Icon name="spectre" size={19} color={COLORS.WHITE} />
+            <Icon name="spectre" size={19} color={COLORS.DARK_BG} />
           </View>
           <Text style={styles.actionButtonLabel}>Spectre</Text>
         </TouchableOpacity>
@@ -28,7 +28,7 @@ export function AssetActionButtons({ onSendPress, onReceivePress, onConsolidateP
         onPress={onSendPress}
       >
         <View style={styles.actionButtonIcon}>
-          <Icon name="send" size={19} color={COLORS.WHITE} />
+          <Icon name="send" size={19} color={COLORS.DARK_BG} />
         </View>
         <Text style={styles.actionButtonLabel}>Send</Text>
       </TouchableOpacity>
@@ -38,7 +38,7 @@ export function AssetActionButtons({ onSendPress, onReceivePress, onConsolidateP
         onPress={onReceivePress}
       >
         <View style={styles.actionButtonIcon}>
-          <Icon name="receive" size={19} color={COLORS.WHITE} />
+          <Icon name="receive" size={19} color={COLORS.DARK_BG} />
         </View>
         <Text style={styles.actionButtonLabel}>Receive</Text>
       </TouchableOpacity>
@@ -49,7 +49,7 @@ export function AssetActionButtons({ onSendPress, onReceivePress, onConsolidateP
           onPress={onConsolidatePress}
         >
           <View style={styles.actionButtonIcon}>
-            <Icon name="fuse" size={19} color={COLORS.WHITE} />
+            <Icon name="fuse" size={19} color={COLORS.DARK_BG} />
           </View>
           <Text style={styles.actionButtonLabel}>Fuse</Text>
         </TouchableOpacity>
@@ -74,16 +74,15 @@ const styles = StyleSheet.create({
     width: 50,
     height: 50,
     borderRadius: 8,
-    backgroundColor: COLORS.CARD_BG,
+    backgroundColor: COLORS.WHITE,
     justifyContent: 'center',
     alignItems: 'center',
     marginBottom: 2,
-    borderWidth: 1.2,
-    borderColor: COLORS.BORDER_COLOR,
+    borderWidth: 0,
   },
   actionButtonLabel: {
     fontSize: 13,
-    color: COLORS.SECONDARY_TEXT,
+    color: COLORS.WHITE,
     fontWeight: '600',
   },
 });
