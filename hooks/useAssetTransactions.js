@@ -22,15 +22,24 @@ export function useAssetTransactions(transactionHistory, assetType, segwitAddres
   useEffect(() => {
     console.log('[useAssetTransactions] Ecash fetch check:', { assetType, advancedMode });
     if (assetType === 'UNIT' && !advancedMode) {
-      const loadEcashTokens = async () => {
-        try {
-          const tokens = await getSentLockedTokens(taprootAddress);
-          console.log('[useAssetTransactions] Loaded ecash tokens:', tokens.length);
+      let isMounted = true;
+
+      // Defer ecash token loading to prevent blocking screen render
+      const timeoutId = setTimeout(() => {
+        const loadEcashTokens = async () => {
+          try {
+            const tokens = await getSentLockedTokens(taprootAddress);
+            if (!isMounted) return;
+            console.log('[useAssetTransactions] Loaded ecash tokens:', tokens.length);
 
           // Check which tokens have been claimed
           const { decodeToken } = await import('../services/cashu/cashuCrypto');
           const { checkProofsSpent } = await import('../services/cashu/cashuMintClient');
 
+          let errorCount = 0;
+          const MAX_ERRORS_TO_LOG = 3;
+
+          // Process tokens in parallel
           const tokensWithStatus = await Promise.all(
             tokens.map(async (token) => {
               try {
@@ -83,12 +92,14 @@ export function useAssetTransactions(transactionHistory, assetType, segwitAddres
                   claimed: allSpent,
                 };
               } catch (error) {
-                console.error('[useAssetTransactions] Failed to check token status:', error.message);
-                console.error('[useAssetTransactions] Error details:', {
-                  tokenId: token.id,
-                  tokenPreview: token.token?.substring(0, 50),
-                  errorStack: error.stack,
-                });
+                // Only log first few errors to avoid spam
+                if (errorCount < MAX_ERRORS_TO_LOG) {
+                  console.error('[useAssetTransactions] Failed to check token status:', error.message);
+                  errorCount++;
+                  if (errorCount === MAX_ERRORS_TO_LOG) {
+                    console.warn('[useAssetTransactions] Suppressing further errors...');
+                  }
+                }
                 return {
                   ...token,
                   claimed: false, // Default to unclaimed if check fails
@@ -97,19 +108,29 @@ export function useAssetTransactions(transactionHistory, assetType, segwitAddres
             })
           );
 
-          setEcashTokens(tokensWithStatus);
+          if (isMounted) {
+            setEcashTokens(tokensWithStatus);
+          }
         } catch (error) {
           console.error('[useAssetTransactions] Failed to load ecash tokens:', error);
-          setEcashTokens([]);
+          if (isMounted) {
+            setEcashTokens([]);
+          }
         }
       };
-      loadEcashTokens();
+        loadEcashTokens();
+      }, 500); // 500ms delay to let screen render first
+
+      return () => {
+        isMounted = false;
+        clearTimeout(timeoutId);
+      };
     } else {
       console.log('[useAssetTransactions] Not loading ecash tokens - clearing');
       // Clear ecash tokens when not UNIT or when advanced mode is on
       setEcashTokens([]);
     }
-  }, [assetType, advancedMode]);
+  }, [assetType, advancedMode, taprootAddress]);
 
   // Filter and process transactions - deferred to avoid blocking navigation
   useEffect(() => {
