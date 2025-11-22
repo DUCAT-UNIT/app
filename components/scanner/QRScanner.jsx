@@ -205,6 +205,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: 20,
     flexDirection: 'row',
     justifyContent: 'flex-end',
+    zIndex: 1000, // Ensure it appears on top
   },
   closeButton: {
     width: 44,
@@ -213,6 +214,7 @@ const styles = StyleSheet.create({
     backgroundColor: 'rgba(0, 0, 0, 0.5)',
     justifyContent: 'center',
     alignItems: 'center',
+    zIndex: 1001, // Ensure it appears on top
   },
   scanFrame: {
     flex: 1,
