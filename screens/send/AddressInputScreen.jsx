@@ -20,9 +20,12 @@ import { validateBitcoinAddress } from '../../utils/sendHelpers';
 import { useSendFlow } from '../../contexts/SendFlowContext';
 import { useKeyboard } from '../../hooks/useKeyboard';
 import { logger } from '../../utils/logger';
+import { useNavigationHandlers } from '../../contexts/NavigationHandlersContext';
 
 export default function AddressInputScreen({ navigation, route }) {
   const { sendAssetType, sendRecipient, setSendRecipient, setSendAddressType, setSendAssetType, spectreEnabled, setSpectreEnabled } = useSendFlow();
+  const { settingsHandlers } = useNavigationHandlers();
+  const advancedMode = settingsHandlers?.advancedMode || false;
   const { keyboardHeight } = useKeyboard();
   const addressInputRef = useRef(null);
   const [addressError, setAddressError] = React.useState('');
@@ -38,14 +41,17 @@ export default function AddressInputScreen({ navigation, route }) {
     }
   }, [route.params?.assetType, sendAssetType, setSendAssetType]);
 
-  // Enable Spectre mode by default for UNIT transfers (only on mount)
+  // Enable Spectre mode by default for UNIT transfers when Advanced Mode is on (only on mount)
   useEffect(() => {
-    if (assetType === 'unit') {
+    if (assetType === 'unit' && advancedMode) {
       logger.debug('AddressInputScreen: Enabling Spectre mode by default for UNIT');
       setSpectreEnabled(true);
+    } else if (assetType === 'unit' && !advancedMode) {
+      // Ensure Spectre is disabled when Advanced Mode is off
+      setSpectreEnabled(false);
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [assetType]); // Only run when assetType changes, not when spectreEnabled changes
+  }, [assetType, advancedMode]); // Run when assetType or advancedMode changes
 
   // Handle prefilled address (for non-Spectre flows)
   useEffect(() => {
@@ -144,10 +150,10 @@ export default function AddressInputScreen({ navigation, route }) {
         <View style={localStyles.labelRow}>
           <Text style={localStyles.label}>Recipient Address</Text>
           <View style={localStyles.labelRight}>
-            {assetType === 'unit' && (
+            {assetType === 'unit' && advancedMode && (
               <Icon name="spectre" size={16} color={COLORS.YELLOW} />
             )}
-            {assetType === 'unit' && (
+            {assetType === 'unit' && advancedMode && (
               <Switch
                 value={spectreEnabled}
                 onValueChange={setSpectreEnabled}
