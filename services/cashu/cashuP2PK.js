@@ -244,6 +244,29 @@ export const isP2PKLocked = (proof) => {
 };
 
 /**
+ * Check if a token string contains P2PK locked proofs
+ * @param {string} tokenString - Cashu token string (cashuA...)
+ * @returns {boolean} True if token has any P2PK locked proofs
+ */
+export const hasP2PKProofs = (tokenString) => {
+  try {
+    // Import decodeToken inline to avoid circular dependency
+    const { decodeToken } = require('./cashuCrypto');
+    const decoded = decodeToken(tokenString);
+
+    if (!decoded.proofs || !Array.isArray(decoded.proofs)) {
+      return false;
+    }
+
+    // Check if any proof is P2PK locked
+    return decoded.proofs.some(p => isP2PKSecret(p.secret));
+  } catch (error) {
+    logger.error('Failed to check for P2PK proofs', { error: error.message });
+    return false;
+  }
+};
+
+/**
  * Sign P2PK locked proofs with witness signatures
  * @param {Array<Object>} proofs - Array of Cashu proofs
  * @param {string} privateKey - Private key to sign with (hex, 32 bytes)
@@ -286,5 +309,6 @@ export default {
   getP2PKRecipient,
   verifyP2PKWitness,
   isP2PKLocked,
+  hasP2PKProofs,
   signP2PKProofs
 };
