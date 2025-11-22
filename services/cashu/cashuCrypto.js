@@ -68,13 +68,7 @@ export const hashToCurve = async (secret) => {
     try {
       // Use the SAME validation as the server: Point.fromHex()
       const point = Point.fromHex(pointHex);
-
       // Valid point found!
-      logger.info('hash_to_curve succeeded', {
-        secret: secret.substring(0, 16) + '...',
-        counter,
-        point: pointHex.substring(0, 20) + '...'
-      });
       return pointHex;
     } catch {
       // Not a valid point, try next counter
@@ -201,46 +195,42 @@ export const createProof = (amount, secret, C, id) => {
  * @returns {Promise<Array>} Array of {blindedMessage, blindingData}
  */
 export const createBlindedOutputs = async (amounts, keysetId = null) => {
-  const outputs = [];
-  const blindingData = [];
+  // Create all blinded messages in parallel
+  const blindedMessages = await Promise.all(
+    amounts.map(async (amount) => {
+      const secret = await generateSecret();
+      const blindedMsg = await createBlindedMessage(secret);
+      blindedMsg.amount = amount;
 
-  for (const amount of amounts) {
-    const secret = await generateSecret();
-    const blindedMsg = await createBlindedMessage(secret);
-    blindedMsg.amount = amount;
+      const output = {
+        amount,
+        B_: blindedMsg.B_,
+      };
 
-    const output = {
-      amount,
-      B_: blindedMsg.B_,
-    };
+      // Add keyset ID if provided
+      if (keysetId) {
+        output.id = keysetId;
+      }
 
-    // Add keyset ID if provided
-    if (keysetId) {
-      output.id = keysetId;
-    }
-
-    outputs.push(output);
-
-    blindingData.push({
-      amount,
-      secret: blindedMsg.secret,
-      r: blindedMsg.r,
-      B_: blindedMsg.B_,
-    });
-  }
+      return {
+        output,
+        blindingData: {
+          amount,
+          secret: blindedMsg.secret,
+          r: blindedMsg.r,
+          B_: blindedMsg.B_,
+        }
+      };
+    })
+  );
 
   // Sort outputs by amount (ascending) for privacy (NUT-03 recommendation)
   // This prevents the mint from distinguishing between send amount and change
-  const combined = outputs.map((output, i) => ({
-    output,
-    blindingData: blindingData[i]
-  }));
-
-  combined.sort((a, b) => a.output.amount - b.output.amount);
+  blindedMessages.sort((a, b) => a.output.amount - b.output.amount);
 
   return {
-    outputs: combined.map(c => c.output),
-    blindingData: combined.map(c => c.blindingData)
+    outputs: blindedMessages.map(m => m.output),
+    blindingData: blindedMessages.map(m => m.blindingData)
   };
 };
 
