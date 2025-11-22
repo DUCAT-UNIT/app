@@ -7,7 +7,6 @@ import * as SecureStore from 'expo-secure-store';
 import { logger } from '../../utils/logger';
 
 const SENT_TOKENS_KEY = 'sent_turbo_tokens';
-const OLD_SENT_TOKENS_KEY = 'sent_spectre_tokens'; // Legacy key for migration
 const MAX_STORED_TOKENS = 100; // Increased from 50
 
 /**
@@ -60,22 +59,9 @@ export const saveSentLockedToken = async (token, recipient, amount, txid = null,
  */
 export const getSentLockedTokens = async (taprootAddress = null) => {
   try {
-    let tokensJson = await SecureStore.getItemAsync(SENT_TOKENS_KEY);
-
-    // Migration: Check for old key if new key doesn't exist
+    const tokensJson = await SecureStore.getItemAsync(SENT_TOKENS_KEY);
     if (!tokensJson) {
-      const oldTokensJson = await SecureStore.getItemAsync(OLD_SENT_TOKENS_KEY);
-      if (oldTokensJson) {
-        logger.info('Migrating tokens from old key to new key');
-        // Copy to new key
-        await SecureStore.setItemAsync(SENT_TOKENS_KEY, oldTokensJson);
-        // Delete old key
-        await SecureStore.deleteItemAsync(OLD_SENT_TOKENS_KEY);
-        tokensJson = oldTokensJson;
-        logger.info('Migration complete');
-      } else {
-        return [];
-      }
+      return [];
     }
 
     const tokens = JSON.parse(tokensJson);
