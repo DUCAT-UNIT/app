@@ -35,6 +35,7 @@ export function useAssetTransactions(transactionHistory, assetType, segwitAddres
           // Check which tokens have been claimed
           const { decodeToken } = await import('../services/cashu/cashuCrypto');
           const { checkProofsSpent } = await import('../services/cashu/cashuMintClient');
+          const { updateTokenClaimedStatus } = await import('../services/cashu/cashuLockedTokensService');
 
           let errorCount = 0;
           const MAX_ERRORS_TO_LOG = 3;
@@ -43,6 +44,15 @@ export function useAssetTransactions(transactionHistory, assetType, segwitAddres
           const tokensWithStatus = await Promise.all(
             tokens.map(async (token) => {
               try {
+                // If token already has cached claimed status, use it
+                if (token.claimed === true) {
+                  console.log('[useAssetTransactions] Using cached claimed status for token:', token.id);
+                  return {
+                    ...token,
+                    claimed: true,
+                  };
+                }
+
                 // Debug: Log what we're trying to decode
                 console.log('[useAssetTransactions] Checking token:', {
                   id: token.id,
@@ -51,6 +61,7 @@ export function useAssetTransactions(transactionHistory, assetType, segwitAddres
                   tokenStart: token.token?.substring(0, 20),
                   isUrl: token.token?.startsWith('http'),
                   isCashu: token.token?.startsWith('cashu'),
+                  cachedClaimed: token.claimed,
                 });
 
                 // Validate that token.token exists and is a Cashu token string (not a URL)
@@ -86,6 +97,12 @@ export function useAssetTransactions(transactionHistory, assetType, segwitAddres
                 // Check if proofs are spent
                 const result = await checkProofsSpent(proofs);
                 const allSpent = result.states?.every(s => s.state === 'SPENT');
+
+                // If token is now claimed, update cache
+                if (allSpent && token.claimed !== true) {
+                  console.log('[useAssetTransactions] Token newly claimed, updating cache:', token.id);
+                  await updateTokenClaimedStatus(token.id, true);
+                }
 
                 return {
                   ...token,

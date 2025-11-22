@@ -101,6 +101,33 @@ export const deleteSentLockedToken = async (tokenId) => {
 };
 
 /**
+ * Update the claimed status of a token
+ * @param {string} tokenId - Token record ID
+ * @param {boolean} claimed - Whether the token has been claimed
+ * @returns {Promise<void>}
+ */
+export const updateTokenClaimedStatus = async (tokenId, claimed) => {
+  try {
+    logger.info('Updating token claimed status', { tokenId, claimed });
+
+    const tokens = await getSentLockedTokens();
+    const updatedTokens = tokens.map(t => {
+      if (t.id === tokenId) {
+        return { ...t, claimed, claimedAt: claimed ? Date.now() : null };
+      }
+      return t;
+    });
+
+    await SecureStore.setItemAsync(SENT_TOKENS_KEY, JSON.stringify(updatedTokens));
+
+    logger.info('Token claimed status updated', { tokenId, claimed });
+  } catch (error) {
+    logger.error('Failed to update token claimed status', { error: error.message });
+    throw error;
+  }
+};
+
+/**
  * Clear all sent locked tokens
  * @returns {Promise<void>}
  */
