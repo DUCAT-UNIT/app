@@ -120,13 +120,13 @@ export const TransactionBuildProvider = ({ children, wallet, currentAccount, sho
         throw new Error(ERRORS.NO_UNIT_BALANCE);
       }
 
-      // For Spectre/Fuse (requireConfirmedUtxos), use empty arrays to force selection of confirmed UTXOs only
+      // For Turbo/Fuse (requireConfirmedUtxos), use empty arrays to force selection of confirmed UTXOs only
       // Otherwise, get unconfirmed UTXOs for taproot (UNIT) and segwit (fees)
       const unconfirmedTaprootUtxos = requireConfirmedUtxos ? [] : getUnconfirmedUTXOs('taproot', sendIntent);
       const unconfirmedSegwitUtxos = requireConfirmedUtxos ? [] : getUnconfirmedUTXOs('segwit', sendIntent);
 
       if (requireConfirmedUtxos) {
-        logger.debug('🔒 Spectre/Fuse mode: Using ONLY confirmed UTXOs');
+        logger.debug('🔒 Turbo/Fuse mode: Using ONLY confirmed UTXOs');
       } else {
         logger.debug('🔍 Available unconfirmed taproot UTXOs for UNIT tx:', unconfirmedTaprootUtxos.length);
         unconfirmedTaprootUtxos.forEach(utxo => {

@@ -11,8 +11,8 @@ import ReceiveQRScreen from '../screens/wallet/ReceiveQRScreen';
 import CashuReceiveScreen from '../screens/cashu/CashuReceiveScreen';
 import CashuSendScreen from '../screens/cashu/CashuSendScreen';
 import RecoverMintScreen from '../screens/wallet/RecoverMintScreen';
-import SpectreHistoryScreen from '../screens/settings/SpectreHistoryScreen';
-import SpectreQRCodeScreen from '../screens/settings/SpectreQRCodeScreen';
+import TurboHistoryScreen from '../screens/settings/TurboHistoryScreen';
+import TurboQRCodeScreen from '../screens/settings/TurboQRCodeScreen';
 import CashuSettingsScreen from '../screens/settings/CashuSettingsScreen';
 import AboutScreen from '../screens/settings/AboutScreen';
 import PreferencesScreen from '../screens/settings/PreferencesScreen';
@@ -219,16 +219,16 @@ export default function WalletStackNavigator() {
         }}
       />
       <Stack.Screen
-        name="SpectreHistory"
-        component={SpectreHistoryScreen}
+        name="TurboHistory"
+        component={TurboHistoryScreen}
         options={{
           gestureEnabled: true,
           gestureDirection: 'horizontal',
         }}
       />
       <Stack.Screen
-        name="SpectreQRCode"
-        component={SpectreQRCodeScreen}
+        name="TurboQRCode"
+        component={TurboQRCodeScreen}
         options={{
           gestureEnabled: true,
           gestureDirection: 'horizontal',

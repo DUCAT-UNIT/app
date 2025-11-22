@@ -8,18 +8,18 @@ import { View, Text, TouchableOpacity, StyleSheet } from 'react-native';
 import Icon from '../icons';
 import { COLORS } from '../../theme';
 
-export function AssetActionButtons({ onSendPress, onReceivePress, onConsolidatePress, onSpectrePress, showConsolidate, advancedMode = false }) {
+export function AssetActionButtons({ onSendPress, onReceivePress, onConsolidatePress, onTurboPress, showConsolidate, advancedMode = false }) {
   return (
     <View style={styles.actionButtonsContainer}>
       {showConsolidate && advancedMode && (
         <TouchableOpacity
           style={styles.actionButton}
-          onPress={onSpectrePress}
+          onPress={onTurboPress}
         >
           <View style={styles.actionButtonIcon}>
-            <Icon name="spectre" size={19} color={COLORS.DARK_BG} />
+            <Icon name="turbo" size={19} color={COLORS.DARK_BG} />
           </View>
-          <Text style={styles.actionButtonLabel}>Spectre</Text>
+          <Text style={styles.actionButtonLabel}>Turbo</Text>
         </TouchableOpacity>
       )}
 

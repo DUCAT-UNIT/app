@@ -6,7 +6,7 @@
 import * as SecureStore from 'expo-secure-store';
 import { logger } from '../../utils/logger';
 
-const SENT_TOKENS_KEY = 'sent_spectre_tokens';
+const SENT_TOKENS_KEY = 'sent_turbo_tokens';
 const MAX_STORED_TOKENS = 100; // Increased from 50
 
 /**
@@ -150,26 +150,26 @@ export const clearSentLockedTokens = async () => {
  * @param {number} amount - Amount in smallest units (unused, kept for compatibility)
  * @returns {string} ducat:// deeplink URL
  */
-export const generateSpectreDeeplink = async (token, recipient, amount) => {
-  console.log('[SpectreDeeplink] Generating deeplink with token:', token.substring(0, 50) + '...');
-  console.log('[SpectreDeeplink] Token starts with:', token.substring(0, 10));
+export const generateTurboDeeplink = async (token, recipient, amount) => {
+  console.log('[TurboDeeplink] Generating deeplink with token:', token.substring(0, 50) + '...');
+  console.log('[TurboDeeplink] Token starts with:', token.substring(0, 10));
 
   // Try to shorten using Ducat server first
   try {
     const { shortenCashuToken } = await import('../urlShortener');
     const shortUrl = await shortenCashuToken(token);
-    console.log('[SpectreDeeplink] Shortened URL from Ducat server:', shortUrl);
+    console.log('[TurboDeeplink] Shortened URL from Ducat server:', shortUrl);
     return shortUrl;
   } catch (error) {
-    console.error('[SpectreDeeplink] Failed to shorten with Ducat server:', error);
-    console.log('[SpectreDeeplink] Falling back to ducat:// deeplink');
+    console.error('[TurboDeeplink] Failed to shorten with Ducat server:', error);
+    console.log('[TurboDeeplink] Falling back to ducat:// deeplink');
 
     // Fallback: Create ducat:// deeplink with the token directly
     // Cashu tokens are already URL-safe (alphanumeric + base64 characters)
     // No need to base64-encode again - just use the token as-is
-    const fullDeeplink = `ducat://spectre/${token}`;
-    console.log('[SpectreDeeplink] Full deeplink:', fullDeeplink.substring(0, 50) + '...');
-    console.log('[SpectreDeeplink] Full deeplink length:', fullDeeplink.length);
+    const fullDeeplink = `ducat://turbo/${token}`;
+    console.log('[TurboDeeplink] Full deeplink:', fullDeeplink.substring(0, 50) + '...');
+    console.log('[TurboDeeplink] Full deeplink length:', fullDeeplink.length);
 
     return fullDeeplink;
   }
@@ -182,6 +182,6 @@ export const generateSpectreDeeplink = async (token, recipient, amount) => {
  * @param {number} amount - Amount in smallest units
  * @returns {string} QR code data (deeplink URL)
  */
-export const generateSpectreQRData = async (token, recipient, amount) => {
-  return await generateSpectreDeeplink(token, recipient, amount);
+export const generateTurboQRData = async (token, recipient, amount) => {
+  return await generateTurboDeeplink(token, recipient, amount);
 };

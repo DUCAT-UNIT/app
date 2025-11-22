@@ -10,4 +10,4 @@ export { AssetPriceChart } from './AssetPriceChart';
 export { AssetTabs } from './AssetTabs';
 export { AssetAbout } from './AssetAbout';
 export { AssetActivityList } from './AssetActivityList';
-export { AssetSpectreList } from './AssetSpectreList';
+export { AssetTurboList } from './AssetTurboList';

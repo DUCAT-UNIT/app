@@ -16,15 +16,15 @@ import TransactionSummary from '../../components/review/TransactionSummary';
 import FeeBreakdown from '../../components/review/FeeBreakdown';
 import InputOutputList from '../../components/review/InputOutputList';
 import UnconfirmedWarning from '../../components/review/UnconfirmedWarning';
-import SpectreWarning from '../../components/review/SpectreWarning';
+import TurboWarning from '../../components/review/TurboWarning';
 
 export default function ReviewScreen({ navigation, route }) {
-  const isSpectre = route?.params?.isSpectre === true;
+  const isTurbo = route?.params?.isTurbo === true;
   const { settingsHandlers } = useNavigationHandlers();
   const advancedMode = settingsHandlers?.advancedMode || false;
   const mintQuoteId = route?.params?.mintQuoteId;
   const mintAmount = route?.params?.mintAmount;
-  const spectreRecipient = route?.params?.spectreRecipient;
+  const turboRecipient = route?.params?.turboRecipient;
   const cashuMint = route?.params?.cashuMint === true;
   const quoteId = route?.params?.quoteId;
   const {
@@ -60,10 +60,10 @@ export default function ReviewScreen({ navigation, route }) {
     navigation.navigate('Processing', {
       fromScreen: 'Review',
       action: 'sign_and_broadcast',
-      isSpectre,
+      isTurbo,
       mintQuoteId,
       mintAmount,
-      spectreRecipient,
+      turboRecipient,
       cashuMint,
       quoteId,
     });
@@ -84,8 +84,8 @@ export default function ReviewScreen({ navigation, route }) {
   };
 
   const handleBackPress = async () => {
-    // For Spectre flow, there's no screen to go back to, so cancel instead
-    if (isSpectre) {
+    // For Turbo flow, there's no screen to go back to, so cancel instead
+    if (isTurbo) {
       await handleCancel();
     } else {
       // Just go back to amount screen - keep intent active
@@ -113,8 +113,8 @@ export default function ReviewScreen({ navigation, route }) {
             usdAmount={usdAmount}
           />
 
-          {/* Spectre Warning - only show when Advanced Mode is enabled */}
-          {isSpectre && advancedMode && <SpectreWarning />}
+          {/* Turbo Warning - only show when Advanced Mode is enabled */}
+          {isTurbo && advancedMode && <TurboWarning />}
 
           {/* Unconfirmed Inputs Warning */}
           {hasUnconfirmedInputs && <UnconfirmedWarning />}

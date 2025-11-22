@@ -1,6 +1,6 @@
 /**
- * AssetSpectreList Component
- * Displays list of sent Spectre tokens in the Asset Detail screen
+ * AssetTurboList Component
+ * Displays list of sent Turbo tokens in the Asset Detail screen
  */
 
 import React, { useState, useEffect } from 'react';
@@ -14,13 +14,13 @@ import globalStyles from '../../styles';
 import {
   getSentLockedTokens,
   deleteSentLockedToken,
-  generateSpectreDeeplink,
+  generateTurboDeeplink,
 } from '../../services/cashu/cashuLockedTokensService';
 import { decodeToken } from '../../services/cashu/cashuCrypto';
 import { checkProofsSpent } from '../../services/cashu/cashuMintClient';
 import { useNotifications } from '../../contexts/NotificationContext';
 
-export function AssetSpectreList({ navigation }) {
+export function AssetTurboList({ navigation }) {
   const [tokens, setTokens] = useState([]);
   const [claimedTokens, setClaimedTokens] = useState(new Set());
   const [isLoading, setIsLoading] = useState(true);
@@ -35,7 +35,7 @@ export function AssetSpectreList({ navigation }) {
       // Check which tokens have been claimed
       await checkTokensClaimed(savedTokens);
     } catch (error) {
-      console.error('[AssetSpectreList] Failed to load tokens:', error);
+      console.error('[AssetTurboList] Failed to load tokens:', error);
     } finally {
       setIsLoading(false);
     }
@@ -57,7 +57,7 @@ export function AssetSpectreList({ navigation }) {
           }
         }
       } catch (error) {
-        console.error('[AssetSpectreList] Failed to check token:', error);
+        console.error('[AssetTurboList] Failed to check token:', error);
       }
     }
 
@@ -70,18 +70,18 @@ export function AssetSpectreList({ navigation }) {
 
   const handleShareToken = async (tokenRecord) => {
     try {
-      const deeplink = generateSpectreDeeplink(
+      const deeplink = generateTurboDeeplink(
         tokenRecord.token,
         tokenRecord.recipient,
         tokenRecord.amount
       );
 
       await Share.share({
-        message: `Spectre Token\n\nAmount: ${tokenRecord.amount / 100} UNIT\nLink: ${deeplink}`,
+        message: `Turbo Token\n\nAmount: ${tokenRecord.amount / 100} UNIT\nLink: ${deeplink}`,
         url: deeplink,
       });
     } catch (error) {
-      console.error('[AssetSpectreList] Failed to share token:', error);
+      console.error('[AssetTurboList] Failed to share token:', error);
     }
   };
 
@@ -91,7 +91,7 @@ export function AssetSpectreList({ navigation }) {
       await Clipboard.setStringAsync(tokenRecord.token);
       showToast('Cashu token copied to clipboard', 'success');
     } catch (error) {
-      console.error('[AssetSpectreList] Failed to copy token:', error);
+      console.error('[AssetTurboList] Failed to copy token:', error);
       showToast('Failed to copy token to clipboard', 'error');
     }
   };
@@ -110,7 +110,7 @@ export function AssetSpectreList({ navigation }) {
               await deleteSentLockedToken(tokenRecord.id);
               loadTokens();
             } catch (error) {
-              console.error('[AssetSpectreList] Failed to delete token:', error);
+              console.error('[AssetTurboList] Failed to delete token:', error);
               Alert.alert('Error', 'Failed to delete token');
             }
           },
@@ -131,18 +131,18 @@ export function AssetSpectreList({ navigation }) {
         onPress={() => handleCopyToken(item)}
         activeOpacity={0.7}
       >
-        {/* Spectre Logo */}
+        {/* Turbo Logo */}
         <View style={localStyles.assetLogo}>
-          <Icon name="spectre" size={40} color="#DDDDDD" />
+          <Icon name="turbo" size={40} color="#DDDDDD" />
         </View>
 
         {/* Main Content Container */}
         <View style={localStyles.txContentContainer}>
-          {/* First Row: Spectre label on left, Status + Amount on right */}
+          {/* First Row: Turbo label on left, Status + Amount on right */}
           <View style={globalStyles.historyTxTopRow}>
             <View style={globalStyles.historyTxColumn1}>
               <Text style={[globalStyles.historyTxAmount, localStyles.actionText]}>
-                Spectre
+                Turbo
               </Text>
             </View>
             <View style={globalStyles.historyTxRightGroup}>
@@ -198,7 +198,7 @@ export function AssetSpectreList({ navigation }) {
     return (
       <View style={localStyles.activityContainer}>
         <View style={localStyles.emptyContainer}>
-          <Text style={localStyles.emptyText}>No Spectre tokens sent</Text>
+          <Text style={localStyles.emptyText}>No Turbo tokens sent</Text>
         </View>
       </View>
     );
@@ -215,7 +215,7 @@ export function AssetSpectreList({ navigation }) {
   );
 }
 
-AssetSpectreList.propTypes = {
+AssetTurboList.propTypes = {
   navigation: PropTypes.object.isRequired,
 };
 

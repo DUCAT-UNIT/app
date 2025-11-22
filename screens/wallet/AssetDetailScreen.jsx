@@ -28,7 +28,7 @@ import {
   AssetTabs,
   AssetAbout,
   AssetActivityList,
-  AssetSpectreList
+  AssetTurboList
 } from '../../components/assetDetail';
 import UnitBalanceBreakdown from '../../components/wallet/UnitBalanceBreakdown';
 import { usePriceChart } from '../../hooks/usePriceChart';
@@ -145,8 +145,8 @@ function AssetDetailScreen({ route = {}, navigation }) {
       case 'consolidate':
         handleFusePress();
         break;
-      case 'spectre':
-        handleSpectrePress();
+      case 'turbo':
+        handleTurboPress();
         break;
     }
   };
@@ -263,8 +263,8 @@ function AssetDetailScreen({ route = {}, navigation }) {
     );
   }, [cashuBalance, taprootAddress, fetchTransactionHistory, transactionHistory]);
 
-  // Handle spectre (convert all on-chain runes to e-cash)
-  const handleSpectrePress = useCallback(async () => {
+  // Handle turbo (convert all on-chain runes to e-cash)
+  const handleTurboPress = useCallback(async () => {
     const unitRunesAmount = runesBalance && runesBalance.length > 0 ? parseFloat(runesBalance[0][1]) : 0;
 
     if (unitRunesAmount === 0) {
@@ -288,18 +288,18 @@ function AssetDetailScreen({ route = {}, navigation }) {
       // Step 1: Request mint quote
       const mintQuote = await requestMint(unitRunesAmount);
 
-      // Navigate directly to SpectreLoading screen
+      // Navigate directly to TurboLoading screen
       // unitRunesAmount is already in display format from the API (e.g., "1714.28")
       // parseRuneAmount will multiply by 100 to get the smallest unit for the runestone
       navigation.navigate('SendFlow', {
-        screen: 'SpectreLoading',
+        screen: 'TurboLoading',
         params: {
           assetType: 'unit',
           prefillAddress: mintQuote.depositAddress,
           prefillAmount: unitRunesAmount,
           mintQuoteId: mintQuote.quoteId,
           mintAmount: unitRunesAmount,
-          isSpectre: true,
+          isTurbo: true,
         }
       });
     } catch (error) {
@@ -432,7 +432,7 @@ function AssetDetailScreen({ route = {}, navigation }) {
       onSendPress={() => handleActionPress('send')}
       onReceivePress={() => handleActionPress('receive')}
       onConsolidatePress={() => handleActionPress('consolidate')}
-      onSpectrePress={() => handleActionPress('spectre')}
+      onTurboPress={() => handleActionPress('turbo')}
       showConsolidate={assetType === 'UNIT'}
       advancedMode={advancedMode}
     />
@@ -489,8 +489,8 @@ function AssetDetailScreen({ route = {}, navigation }) {
               onTransactionPress={handleTransactionPress}
               advancedMode={advancedMode}
             />
-          ) : selectedTab === 'SPECTRE' ? (
-            <AssetSpectreList navigation={navigation} />
+          ) : selectedTab === 'TURBO' ? (
+            <AssetTurboList navigation={navigation} />
           ) : (
             <AssetAbout assetType={assetType} />
           )}

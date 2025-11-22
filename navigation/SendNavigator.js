@@ -18,10 +18,10 @@ import AddressInputScreen from '../screens/send/AddressInputScreen';
 import AmountInputScreen from '../screens/send/AmountInputScreen';
 import ReviewScreen from '../screens/send/ReviewScreen';
 import ProcessingScreen from '../screens/send/ProcessingScreen';
-import SpectreProcessingScreen from '../screens/send/SpectreProcessingScreen';
-import SpectreClaimingScreen from '../screens/send/SpectreClaimingScreen';
+import TurboProcessingScreen from '../screens/send/TurboProcessingScreen';
+import TurboClaimingScreen from '../screens/send/TurboClaimingScreen';
 import ConfirmationScreen from '../screens/send/ConfirmationScreen';
-import SpectreLoadingScreen from '../screens/send/SpectreLoadingScreen';
+import TurboLoadingScreen from '../screens/send/TurboLoadingScreen';
 
 const SendStack = createStackNavigator();
 
@@ -74,8 +74,8 @@ export default function SendNavigator() {
         component={AmountInputScreen}
       />
       <SendStack.Screen
-        name="SpectreLoading"
-        component={SpectreLoadingScreen}
+        name="TurboLoading"
+        component={TurboLoadingScreen}
         options={{
           gestureEnabled: false, // Prevent back during loading
         }}
@@ -92,15 +92,15 @@ export default function SendNavigator() {
         }}
       />
       <SendStack.Screen
-        name="SpectreProcessing"
-        component={SpectreProcessingScreen}
+        name="TurboProcessing"
+        component={TurboProcessingScreen}
         options={{
           gestureEnabled: false, // Prevent back during processing
         }}
       />
       <SendStack.Screen
-        name="SpectreClaiming"
-        component={SpectreClaimingScreen}
+        name="TurboClaiming"
+        component={TurboClaimingScreen}
         options={{
           gestureEnabled: false, // Prevent back during claiming
         }}

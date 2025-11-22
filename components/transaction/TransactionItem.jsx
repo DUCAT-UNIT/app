@@ -171,18 +171,18 @@ function RegularTransactionItem({ tx, styles, onPress, advancedMode = false }) {
   // Handle BigInt for UNIT amounts
   const numericAmount = typeof amount === 'bigint' ? Number(amount) : amount;
 
-  // Check if this is a Spectre transaction (to mint address)
-  const SPECTRE_MINT_ADDRESS = 'tb1p7p74tg67aaw94vz2kewzeyuq80x0a65wpgegnat98f5hkcnpfjsqntv2em';
-  const isSpectreTransaction = assetType === 'UNIT' && tx.vout?.some(output =>
-    output.scriptpubkey_address === SPECTRE_MINT_ADDRESS
+  // Check if this is a Turbo transaction (to mint address)
+  const TURBO_MINT_ADDRESS = 'tb1p7p74tg67aaw94vz2kewzeyuq80x0a65wpgegnat98f5hkcnpfjsqntv2em';
+  const isTurboTransaction = assetType === 'UNIT' && tx.vout?.some(output =>
+    output.scriptpubkey_address === TURBO_MINT_ADDRESS
   );
 
-  // Only show Spectre UI if advanced mode is enabled
-  const showSpectreUI = isSpectreTransaction && advancedMode;
+  // Only show Turbo UI if advanced mode is enabled
+  const showTurboUI = isTurboTransaction && advancedMode;
 
   // Determine action label
   const getActionLabel = () => {
-    if (showSpectreUI) {
+    if (showTurboUI) {
       return isSent ? 'Activate' : 'Deactivate';
     }
     return isSent ? 'Sent' : 'Received';
@@ -191,9 +191,9 @@ function RegularTransactionItem({ tx, styles, onPress, advancedMode = false }) {
   return (
     <TouchableOpacity style={styles.historyTxRow} onPress={onPress} activeOpacity={0.7}>
       {/* Asset Logo */}
-      {showSpectreUI ? (
+      {showTurboUI ? (
         <View style={localStyles.assetLogo}>
-          <Icon name="spectre" size={40} color="#DDDDDD" />
+          <Icon name="turbo" size={40} color="#DDDDDD" />
         </View>
       ) : (
         <View style={localStyles.assetLogo}>

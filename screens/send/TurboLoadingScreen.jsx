@@ -1,5 +1,5 @@
 /**
- * SpectreLoadingScreen - Loading screen for Spectre mode
+ * TurboLoadingScreen - Loading screen for Turbo mode
  * Shows while preparing the transaction
  */
 
@@ -10,8 +10,8 @@ import { useSendFlow } from '../../contexts/SendFlowContext';
 import { useTransactionBuild } from '../../contexts/TransactionBuildContext';
 import { usePendingTransactions } from '../../contexts/PendingTransactionsContext';
 
-export default function SpectreLoadingScreen({ navigation, route }) {
-  const { prefillAddress, prefillAmount, assetType, isSpectre, mintQuoteId, mintAmount } = route.params || {};
+export default function TurboLoadingScreen({ navigation, route }) {
+  const { prefillAddress, prefillAmount, assetType, isTurbo, mintQuoteId, mintAmount } = route.params || {};
   const { setSendAssetType, setSendAmount, setSendRecipient, setRequireConfirmedUtxos, intentStep, resetSendFlow, sendAssetType: currentAssetType, sendAmount: currentAmount, sendRecipient: currentRecipient } = useSendFlow();
   const { createSendIntent, sendIntent } = useTransactionBuild();
   const { getSpentUtxos, unmarkUtxosAsSpent } = usePendingTransactions();
@@ -33,20 +33,20 @@ export default function SpectreLoadingScreen({ navigation, route }) {
   useEffect(() => {
     if (!hasStarted.current && assetType && prefillAmount !== undefined && prefillAddress) {
       hasStarted.current = true;
-      console.log('[SpectreLoading] Setting state:', { assetType, prefillAmount, prefillAddress });
+      console.log('[TurboLoading] Setting state:', { assetType, prefillAmount, prefillAddress });
 
       // Set send flow values
       setSendAssetType(assetType);
       setSendAmount(prefillAmount.toString());
       setSendRecipient(prefillAddress);
-      setRequireConfirmedUtxos(true); // Spectre requires confirmed UTXOs only
+      setRequireConfirmedUtxos(true); // Turbo requires confirmed UTXOs only
     }
   }, [assetType, prefillAmount, prefillAddress, setSendAssetType, setSendAmount, setSendRecipient, setRequireConfirmedUtxos]);
 
   // Watch for state to be initialized, then create intent
   // This ensures the state has been updated before we call createSendIntent
   useEffect(() => {
-    console.log('[SpectreLoading] State check:', {
+    console.log('[TurboLoading] State check:', {
       hasStarted: hasStarted.current,
       stateInitialized: stateInitialized.current,
       currentAssetType,
@@ -56,7 +56,7 @@ export default function SpectreLoadingScreen({ navigation, route }) {
 
     // Check that all required state values are set (allow "0" or any numeric string for amount)
     if (hasStarted.current && !stateInitialized.current && currentAssetType && currentAmount !== '' && currentAmount !== null && currentRecipient) {
-      console.log('[SpectreLoading] Creating intent...');
+      console.log('[TurboLoading] Creating intent...');
       // State is now initialized, create the intent
       stateInitialized.current = true;
       createSendIntent();
@@ -65,7 +65,7 @@ export default function SpectreLoadingScreen({ navigation, route }) {
 
   // Watch for intent creation to complete
   useEffect(() => {
-    console.log('[SpectreLoading] Intent watch:', {
+    console.log('[TurboLoading] Intent watch:', {
       hasStarted: hasStarted.current,
       hasNavigated: hasNavigated.current,
       stateInitialized: stateInitialized.current,
@@ -80,21 +80,21 @@ export default function SpectreLoadingScreen({ navigation, route }) {
 
     // Success case: intent created and ready for review
     if (intentStep === 'reviewing' && sendIntent) {
-      console.log('[SpectreLoading] Navigating to Review...');
+      console.log('[TurboLoading] Navigating to Review...');
       hasNavigated.current = true;
       intentCreated.current = true;
       if (errorTimeout.current) {
         clearTimeout(errorTimeout.current);
       }
       navigation.replace('Review', {
-        isSpectre,
+        isTurbo,
         mintQuoteId,
         mintAmount,
       });
     }
     // Error case: went back to entering_amount step (validation failed)
     else if (stateInitialized.current && intentStep === 'entering_amount') {
-      console.log('[SpectreLoading] Error detected, showing alert...');
+      console.log('[TurboLoading] Error detected, showing alert...');
       // Error - show alert and go back
       hasNavigated.current = true;
       if (errorTimeout.current) {
@@ -133,7 +133,7 @@ export default function SpectreLoadingScreen({ navigation, route }) {
 
       cleanupAndShowError();
     }
-  }, [intentStep, sendIntent, navigation, isSpectre, getSpentUtxos, unmarkUtxosAsSpent, mintQuoteId, mintAmount]);
+  }, [intentStep, sendIntent, navigation, isTurbo, getSpentUtxos, unmarkUtxosAsSpent, mintQuoteId, mintAmount]);
 
   // Set a timeout to detect if intent creation is taking too long
   useEffect(() => {

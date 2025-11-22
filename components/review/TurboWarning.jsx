@@ -1,6 +1,6 @@
 /**
- * SpectreWarning Component
- * Warning message for Spectre mode transactions
+ * TurboWarning Component
+ * Warning message for Turbo mode transactions
  */
 
 import React from 'react';
@@ -8,15 +8,15 @@ import { View, Text, StyleSheet } from 'react-native';
 import { COLORS } from '../../theme';
 import Icon from '../icons';
 
-export default function SpectreWarning() {
+export default function TurboWarning() {
   return (
     <View style={styles.warningContainer}>
       <View style={styles.iconContainer}>
-        <Icon name="spectre" size={24} color={COLORS.YELLOW} />
+        <Icon name="turbo" size={24} color={COLORS.YELLOW} />
       </View>
       <View style={styles.textContainer}>
         <Text style={styles.warningText}>
-          Spectre mode lets you operate anonymously. All transactions are private and untraceable.
+          Turbo mode lets you operate anonymously. All transactions are private and untraceable.
         </Text>
       </View>
     </View>

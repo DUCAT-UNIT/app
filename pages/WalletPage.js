@@ -151,17 +151,17 @@ export default function WalletPage({ route }) {
         params: { scannedAddress: data },
       });
     } else if (data.startsWith('cashu')) {
-      // Direct Cashu token - check if it's P2PK (Spectre) token
+      // Direct Cashu token - check if it's P2PK (Turbo) token
       try {
         // Check if this is a P2PK locked token
         const { hasP2PKProofs } = await import('../services/cashu/cashuP2PK');
         const isP2PKToken = hasP2PKProofs(data);
 
         if (isP2PKToken) {
-          // This is a Spectre token - navigate to claiming screen
+          // This is a Turbo token - navigate to claiming screen
           console.log('[WalletPage] P2PK token detected, navigating to claiming screen');
           navigation.navigate('SendFlow', {
-            screen: 'SpectreClaiming',
+            screen: 'TurboClaiming',
             params: { tokenString: data },
           });
           return;
@@ -261,15 +261,15 @@ export default function WalletPage({ route }) {
         console.error('[WalletPage] Failed to parse/claim JSON token:', error);
         showToast(`Failed to claim token: ${error.message}`, 'error');
       }
-    } else if (data.includes('ducat://spectre/') || data.includes('unit?')) {
-      // Spectre URL format - extract and claim token
+    } else if (data.includes('ducat://turbo/') || data.includes('unit?')) {
+      // Turbo URL format - extract and claim token
       try {
         let token = null;
 
-        // Check if this is the ducat://spectre/ format
-        const spectreMatch = data.match(/ducat:\/\/spectre\/([^\/?#]+)/);
-        if (spectreMatch && spectreMatch[1]) {
-          token = spectreMatch[1];
+        // Check if this is the ducat://turbo/ format
+        const turboMatch = data.match(/ducat:\/\/turbo\/([^\/?#]+)/);
+        if (turboMatch && turboMatch[1]) {
+          token = turboMatch[1];
           console.log('[WalletPage] Extracted token from ducat:// URL');
         }
         // Check if this is an ID-based link
@@ -304,7 +304,7 @@ export default function WalletPage({ route }) {
         if (token) {
           // Navigate to claiming screen
           navigation.navigate('SendFlow', {
-            screen: 'SpectreClaiming',
+            screen: 'TurboClaiming',
             params: { tokenString: token },
           });
         } else {
@@ -376,7 +376,7 @@ export default function WalletPage({ route }) {
     // Update threshold first
     await settingsHandlers.handleEcashThresholdChange(pendingThreshold);
 
-    // Navigate to mint flow (similar to Spectre mint flow)
+    // Navigate to mint flow (similar to Turbo mint flow)
     try {
       console.log('[WalletPage] Importing requestMint...');
       const { requestMint } = await import('../services/cashu/cashuWalletService');

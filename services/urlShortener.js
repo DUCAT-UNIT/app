@@ -1,6 +1,6 @@
 /**
  * URL Shortener Service using Rebrandly
- * Creates short URLs for Spectre deeplinks
+ * Creates short URLs for Turbo deeplinks
  */
 
 import { logger } from '../utils/logger';
@@ -48,7 +48,7 @@ export const shortenUrl = async (longUrl, slashtag = null) => {
     }
 
     // Add title for link management
-    requestBody.title = slashtag || 'Spectre Token';
+    requestBody.title = slashtag || 'Turbo Token';
 
     const response = await fetch(REBRANDLY_API_ENDPOINT, {
       method: 'POST',
@@ -102,7 +102,7 @@ export const shortenUrlWithToken = async (destinationUrl, slashtag, token) => {
     // Prepare request body
     const requestBody = {
       destination: `${destinationUrl}?id=${tokenId}`, // Include ID in destination
-      title: slashtag || 'Spectre Token',
+      title: slashtag || 'Turbo Token',
     };
 
     // Store the token in tags (split into chunks of 50 chars max per tag)
@@ -309,14 +309,14 @@ export const shortenCashuToken = async (cashuToken) => {
 };
 
 /**
- * Create a short URL for a Spectre deeplink
+ * Create a short URL for a Turbo deeplink
  * @param {string} deeplinkUrl - The full deeplink URL with base64 token (IGNORED - we use destination + tags instead)
  * @param {string} address - Recipient address (for slashtag)
  * @param {number} amount - Amount in UNIT (for slashtag)
  * @param {string} token - The full Cashu token to store in link tags
  * @returns {Promise<string>} The shortened URL
  */
-export const createSpectreShortUrl = async (deeplinkUrl, address, amount, token) => {
+export const createTurboShortUrl = async (deeplinkUrl, address, amount, token) => {
   // Create human-readable slashtag: amount-to-address-entropy
   // Truncate address to last 8 chars for brevity
   const addressSuffix = address.slice(-8);

@@ -7,8 +7,8 @@
  * data into a single visible emoji character.
  */
 
-// The ghost emoji to use for Spectre tokens
-const SPECTRE_EMOJI = '👻';
+// The ghost emoji to use for Turbo tokens
+const TURBO_EMOJI = '👻';
 
 // Variation selectors block https://unicode.org/charts/nameslist/n_FE00.html
 // VS1..=VS16
@@ -109,7 +109,7 @@ export const encodeCashuToken = (token) => {
     console.log('[EmojiEncoder] Encoding token:', token.substring(0, 50) + '...');
 
     // Encode the entire token (including "cashu" prefix) into the ghost emoji
-    const encoded = encode(SPECTRE_EMOJI, token);
+    const encoded = encode(TURBO_EMOJI, token);
 
     console.log('[EmojiEncoder] Encoded to ghost emoji, length:', encoded.length);
     console.log('[EmojiEncoder] First few chars:', encoded.substring(0, 5));

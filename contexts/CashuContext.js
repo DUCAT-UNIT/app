@@ -45,12 +45,32 @@ export const CashuProvider = ({ children }) => {
   // BALANCE FETCHING
   // ============================================================
 
-  const fetchBalance = useCallback(async () => {
+  const fetchBalance = useCallback(async (fullLoad = true) => {
     try {
-      const newBalance = await getBalance();
-      setBalance(newBalance);
-      setError(null);
-      return newBalance;
+      if (!fullLoad) {
+        // Fast initial load - only first 25 proofs
+        const quickBalance = await getBalance(false);
+        setBalance(quickBalance);
+        setError(null);
+
+        // Load full balance in background
+        setTimeout(async () => {
+          try {
+            const fullBalance = await getBalance(true);
+            setBalance(fullBalance);
+          } catch (err) {
+            logger.error('Failed to fetch full Cashu balance', { error: err.message });
+          }
+        }, 100);
+
+        return quickBalance;
+      } else {
+        // Full load
+        const newBalance = await getBalance(true);
+        setBalance(newBalance);
+        setError(null);
+        return newBalance;
+      }
     } catch (err) {
       logger.error('Failed to fetch Cashu balance', { error: err.message });
       setError(err.message);
@@ -87,9 +107,9 @@ export const CashuProvider = ({ children }) => {
     immediate: false,
   });
 
-  // Initial load
+  // Initial load - use fast loading (first 25 proofs only)
   useEffect(() => {
-    fetchBalance();
+    fetchBalance(false); // false = fast load, then full load in background
   }, [fetchBalance]);
 
   // ============================================================

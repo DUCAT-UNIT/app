@@ -1,6 +1,6 @@
 /**
  * AssetTabs Component
- * Tab selector for Activity, Spectre, and About sections
+ * Tab selector for Activity, Turbo, and About sections
  */
 
 import React from 'react';
@@ -10,7 +10,7 @@ import { COLORS } from '../../theme';
 
 export function AssetTabs({ selectedTab, onTabChange, assetType, advancedMode = false }) {
   const TAB_OPTIONS = (assetType === 'UNIT' && advancedMode)
-    ? ['ACTIVITY', 'SPECTRE', 'ABOUT']
+    ? ['ACTIVITY', 'TURBO', 'ABOUT']
     : ['ACTIVITY', 'ABOUT'];
 
   return (

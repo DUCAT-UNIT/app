@@ -12,7 +12,7 @@ export function useAppSettings({ biometricEnabled, setIsAuthenticated, showToast
   const [notificationsEnabled, setNotificationsEnabled] = useState(false);
   const [showZeroAssets, setShowZeroAssets] = useState(false);
   const [advancedMode, setAdvancedMode] = useState(false);
-  const [ecashThreshold, setEcashThreshold] = useState(100); // Default 100 UNIT for auto-Spectre
+  const [ecashThreshold, setEcashThreshold] = useState(100); // Default 100 UNIT for auto-Turbo
   const [showNotificationsModal, setShowNotificationsModal] = useState(false);
   const [pendingNotificationsValue, setPendingNotificationsValue] = useState(false);
 

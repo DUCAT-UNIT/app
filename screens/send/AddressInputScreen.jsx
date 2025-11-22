@@ -23,7 +23,7 @@ import { logger } from '../../utils/logger';
 import { useNavigationHandlers } from '../../contexts/NavigationHandlersContext';
 
 export default function AddressInputScreen({ navigation, route }) {
-  const { sendAssetType, sendRecipient, setSendRecipient, setSendAddressType, setSendAssetType, spectreEnabled, setSpectreEnabled } = useSendFlow();
+  const { sendAssetType, sendRecipient, setSendRecipient, setSendAddressType, setSendAssetType, turboEnabled, setTurboEnabled } = useSendFlow();
   const { settingsHandlers } = useNavigationHandlers();
   const advancedMode = settingsHandlers?.advancedMode || false;
   const { keyboardHeight } = useKeyboard();
@@ -41,18 +41,18 @@ export default function AddressInputScreen({ navigation, route }) {
     }
   }, [route.params?.assetType, sendAssetType, setSendAssetType]);
 
-  // Enable Spectre mode by default for UNIT transfers when Advanced Mode is on (only on mount)
-  // Note: When Advanced Mode is off, Spectre can still be enabled programmatically (e.g., for small transactions)
+  // Enable Turbo mode by default for UNIT transfers when Advanced Mode is on (only on mount)
+  // Note: When Advanced Mode is off, Turbo can still be enabled programmatically (e.g., for small transactions)
   useEffect(() => {
     if (assetType === 'unit' && advancedMode) {
-      logger.debug('AddressInputScreen: Enabling Spectre mode by default for UNIT');
-      setSpectreEnabled(true);
+      logger.debug('AddressInputScreen: Enabling Turbo mode by default for UNIT');
+      setTurboEnabled(true);
     }
-    // Don't force Spectre off when Advanced Mode is off - allow programmatic control
+    // Don't force Turbo off when Advanced Mode is off - allow programmatic control
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [assetType, advancedMode]); // Run when assetType or advancedMode changes
 
-  // Handle prefilled address (for non-Spectre flows)
+  // Handle prefilled address (for non-Turbo flows)
   useEffect(() => {
     const { prefillAddress, prefillAmount } = route.params || {};
 
@@ -150,12 +150,12 @@ export default function AddressInputScreen({ navigation, route }) {
           <Text style={localStyles.label}>Recipient Address</Text>
           <View style={localStyles.labelRight}>
             {assetType === 'unit' && advancedMode && (
-              <Icon name="spectre" size={16} color={COLORS.YELLOW} />
+              <Icon name="turbo" size={16} color={COLORS.YELLOW} />
             )}
             {assetType === 'unit' && advancedMode && (
               <Switch
-                value={spectreEnabled}
-                onValueChange={setSpectreEnabled}
+                value={turboEnabled}
+                onValueChange={setTurboEnabled}
                 trackColor={{ false: COLORS.MID_DARK_GRAY, true: COLORS.YELLOW }}
                 thumbColor={COLORS.WHITE}
                 ios_backgroundColor={COLORS.MID_DARK_GRAY}
@@ -188,12 +188,12 @@ export default function AddressInputScreen({ navigation, route }) {
           {addressError ? <Text style={localStyles.errorText}>{addressError}</Text> : null}
         </View>
 
-        {/* Spectre Warning - Only show when toggle is ON */}
-        {assetType === 'unit' && spectreEnabled && (
-          <View style={localStyles.spectreWarningContainer}>
-            <View style={localStyles.spectreWarningTextContainer}>
-              <Text style={localStyles.spectreWarningTitle}>Spectral Transaction</Text>
-              <Text style={localStyles.spectreWarningText}>
+        {/* Turbo Warning - Only show when toggle is ON */}
+        {assetType === 'unit' && turboEnabled && (
+          <View style={localStyles.turboWarningContainer}>
+            <View style={localStyles.turboWarningTextContainer}>
+              <Text style={localStyles.turboWarningTitle}>Turbo Transaction</Text>
+              <Text style={localStyles.turboWarningText}>
                 Anonymous, instant, and private.{'\n'}
                 The recipient has to claim the funds manually.
               </Text>
@@ -330,7 +330,7 @@ const localStyles = StyleSheet.create({
     color: COLORS.WHITE,
     fontFamily: 'CabinetGrotesk-Bold',
   },
-  spectreWarningContainer: {
+  turboWarningContainer: {
     backgroundColor: COLORS.YELLOW + '15',
     borderRadius: 12,
     padding: 16,
@@ -338,10 +338,10 @@ const localStyles = StyleSheet.create({
     borderWidth: 1,
     borderColor: COLORS.YELLOW + '25',
   },
-  spectreWarningTextContainer: {
+  turboWarningTextContainer: {
     alignItems: 'center',
   },
-  spectreWarningTitle: {
+  turboWarningTitle: {
     fontSize: 16,
     fontWeight: '600',
     color: COLORS.VERY_LIGHT_GRAY,
@@ -349,7 +349,7 @@ const localStyles = StyleSheet.create({
     marginBottom: 4,
     textAlign: 'center',
   },
-  spectreWarningText: {
+  turboWarningText: {
     fontSize: 13,
     lineHeight: 18,
     color: COLORS.SECONDARY_TEXT,

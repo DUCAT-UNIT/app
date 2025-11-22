@@ -1,5 +1,5 @@
 /**
- * SpectreClaimingScreen - Processing screen for claiming Spectre tokens
+ * TurboClaimingScreen - Processing screen for claiming Turbo tokens
  * Shows progress during: validating token, decoding proofs, claiming tokens
  */
 
@@ -9,7 +9,7 @@ import { COLORS } from '../../theme';
 import { useWallet } from '../../contexts/WalletContext';
 import { logger } from '../../utils/logger';
 
-export default function SpectreClaimingScreen({ navigation, route }) {
+export default function TurboClaimingScreen({ navigation, route }) {
   const { tokenString } = route.params;
   const { wallet } = useWallet();
   const [currentMessage, setCurrentMessage] = useState('Starting...');
@@ -40,7 +40,7 @@ export default function SpectreClaimingScreen({ navigation, route }) {
 
     const claimToken = async () => {
       try {
-        logger.info('SpectreClaimingScreen: Starting token claim', { tokenLength: tokenString.length });
+        logger.info('TurboClaimingScreen: Starting token claim', { tokenLength: tokenString.length });
 
         // Step 1: Validating token
         setCurrentStep(1);
@@ -94,11 +94,11 @@ export default function SpectreClaimingScreen({ navigation, route }) {
 
         // Show success alert after a small delay
         setTimeout(() => {
-          Alert.alert('Success', 'Spectre token claimed successfully!');
+          Alert.alert('Success', 'Turbo token claimed successfully!');
         }, 300);
 
       } catch (error) {
-        logger.error('Failed to claim Spectre token:', error);
+        logger.error('Failed to claim Turbo token:', error);
 
         // Clear timeout
         if (timeoutRef.current) {

@@ -250,7 +250,7 @@ export const WalletIcons = {
     </Svg>
   ),
 
-  spectre: ({ width, height, color = '#DDDDDD' }) => (
+  turbo: ({ width, height, color = '#DDDDDD' }) => (
     <Svg width={width} height={height} viewBox="0 0 24 24" fill="none">
       <Path
         stroke={color}

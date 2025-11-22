@@ -26,10 +26,10 @@ export default function ProcessingScreen({ navigation, route }) {
   const fromScreen = route.params?.fromScreen;
   const isCashuMint = route.params?.cashuMint === true;
   const cashuQuoteId = route.params?.quoteId;
-  const isSpectre = route.params?.isSpectre === true;
+  const isTurbo = route.params?.isTurbo === true;
   const mintQuoteId = route.params?.mintQuoteId;
   const mintAmount = route.params?.mintAmount;
-  const spectreRecipient = route.params?.spectreRecipient; // Original recipient for P2PK locking
+  const turboRecipient = route.params?.turboRecipient; // Original recipient for P2PK locking
 
   // Helper to handle navigation errors - dismiss modal if coming from Settings
   const handleNavigationError = (errorMessage) => {
@@ -131,9 +131,9 @@ export default function ProcessingScreen({ navigation, route }) {
           const success = await signIntent();
           if (success) {
             // Ensure we navigate to Confirmation screen with all required params
-            // This is critical for Spectre flow to activate quote polling
+            // This is critical for Turbo flow to activate quote polling
             logger.debug('Navigation to Confirmation with params:', {
-              isSpectre,
+              isTurbo,
               mintQuoteId,
               mintAmount,
             });
@@ -142,10 +142,10 @@ export default function ProcessingScreen({ navigation, route }) {
             // before navigating to Confirmation screen
             setTimeout(() => {
               navigation.replace('Confirmation', {
-                isSpectre,
+                isTurbo,
                 mintQuoteId,
                 mintAmount,
-                spectreRecipient,
+                turboRecipient,
                 cashuMint: isCashuMint,
                 quoteId: cashuQuoteId,
               });
@@ -174,10 +174,10 @@ export default function ProcessingScreen({ navigation, route }) {
         logger.debug('Navigating to Review screen');
         hasNavigated.current = true;
         navigation.replace('Review', {
-          isSpectre,
+          isTurbo,
           mintQuoteId,
           mintAmount,
-          spectreRecipient,
+          turboRecipient,
           cashuMint: isCashuMint,
           quoteId: cashuQuoteId,
         });

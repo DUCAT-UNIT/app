@@ -1,5 +1,5 @@
 /**
- * SpectreQRCodeScreen - Display QR code for a Spectre token
+ * TurboQRCodeScreen - Display QR code for a Turbo token
  */
 
 import React, { useState, useMemo } from 'react';
@@ -20,7 +20,7 @@ import Icon from '../../components/icons';
 const SCREEN_WIDTH = Dimensions.get('window').width;
 const HORIZONTAL_PADDING = SCREEN_WIDTH < 375 ? 16 : 20;
 
-export default function SpectreQRCodeScreen({ navigation, route }) {
+export default function TurboQRCodeScreen({ navigation, route }) {
   const { deeplink, amount } = route.params;
   const [justCopied, setJustCopied] = useState(false);
 
@@ -37,10 +37,10 @@ export default function SpectreQRCodeScreen({ navigation, route }) {
   const handleShare = async () => {
     try {
       await Share.share({
-        message: `Spectre Token 👻\n\nAmount: ${amount / 100} UNIT\n\nTap to claim:\n${deeplink}`,
+        message: `Turbo Token 👻\n\nAmount: ${amount / 100} UNIT\n\nTap to claim:\n${deeplink}`,
       });
     } catch (error) {
-      console.error('[SpectreQRCode] Failed to share:', error);
+      console.error('[TurboQRCode] Failed to share:', error);
     }
   };
 
@@ -62,7 +62,7 @@ export default function SpectreQRCodeScreen({ navigation, route }) {
             <Icon name="back" size={24} color={COLORS.VERY_LIGHT_GRAY} />
           </TouchableOpacity>
           <View style={styles.titleContainer}>
-            <Text style={styles.title}>Spectre Token</Text>
+            <Text style={styles.title}>Turbo Token</Text>
           </View>
         </View>
 
@@ -77,7 +77,7 @@ export default function SpectreQRCodeScreen({ navigation, route }) {
             {displayEmoji}
           </Text>
           <Text style={styles.emojiHint}>
-            Spectre Token
+            Turbo Token
           </Text>
         </View>
 

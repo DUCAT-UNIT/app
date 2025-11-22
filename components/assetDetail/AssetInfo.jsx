@@ -4,17 +4,40 @@
  */
 
 import React from 'react';
-import { View, Text, StyleSheet } from 'react-native';
+import { View, Text, StyleSheet, ActivityIndicator } from 'react-native';
 import Icon from '../icons';
 import { COLORS } from '../../theme';
 import { formatBalance, formatFiat } from '../../utils/formatters/index';
 
-export function AssetInfo({ assetType, balance, fiatValue, btcPrice, priceData, priceDirection, runesBalance, cashuBalance }) {
+export function AssetInfo({ assetType, balance, fiatValue, btcPrice, priceData, priceDirection, runesBalance, cashuBalance, isLoading }) {
   // For UNIT, show the actual UNIT amount with commas and 2 decimals
   // For BTC, show the BTC value with 8 decimals
   const displayBalance = assetType === 'BTC'
     ? formatBalance(balance || 0)
     : formatFiat(balance || 0, 2);
+
+  // Show loading state if balances are still loading
+  if (isLoading) {
+    return (
+      <View style={styles.assetInfoContainer}>
+        <View style={styles.iconContainer}>
+          <Icon
+            name={assetType === 'BTC' ? 'btc_logo' : 'unit_logo'}
+            size={60}
+          />
+        </View>
+
+        <Text style={styles.assetName}>
+          {assetType === 'BTC' ? 'Bitcoin' : 'UNIT'}
+        </Text>
+
+        <View style={styles.loadingContainer}>
+          <ActivityIndicator size="small" color={COLORS.PRIMARY_BLUE} />
+          <Text style={styles.loadingText}>Loading balance...</Text>
+        </View>
+      </View>
+    );
+  }
 
   return (
     <View style={styles.assetInfoContainer}>
@@ -76,6 +99,17 @@ const styles = StyleSheet.create({
   priceChange: {
     fontSize: 16,
     fontWeight: '400',
+  },
+  loadingContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+    marginTop: 20,
+  },
+  loadingText: {
+    fontSize: 16,
+    color: COLORS.SECONDARY_TEXT,
+    fontFamily: 'CabinetGrotesk-Regular',
   },
   breakdownContainer: {
     marginTop: 8,

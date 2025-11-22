@@ -1,5 +1,5 @@
 /**
- * SpectreHistoryScreen - View all sent Spectre (P2PK locked) tokens
+ * TurboHistoryScreen - View all sent Turbo (P2PK locked) tokens
  * Shows history of locked tokens with ability to regenerate deeplinks/QR codes
  */
 
@@ -17,12 +17,12 @@ import {
 import { COLORS } from '../../theme';
 import Icon from '../../components/icons';
 import TouchableScale from '../../components/common/TouchableScale';
-import { getSentLockedTokens, deleteSentLockedToken, generateSpectreDeeplink } from '../../services/cashu/cashuLockedTokensService';
+import { getSentLockedTokens, deleteSentLockedToken, generateTurboDeeplink } from '../../services/cashu/cashuLockedTokensService';
 import TokenDetailsSheet from '../../components/ecash/TokenDetailsSheet';
 import { useNotifications } from '../../contexts/NotificationContext';
 import { useWallet } from '../../contexts/WalletContext';
 
-export default function SpectreHistoryScreen({ navigation }) {
+export default function TurboHistoryScreen({ navigation }) {
   const [tokens, setTokens] = useState([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
@@ -41,8 +41,8 @@ export default function SpectreHistoryScreen({ navigation }) {
       const sentTokens = await getSentLockedTokens(wallet.taprootAddress);
       setTokens(sentTokens);
     } catch (error) {
-      console.error('[SpectreHistory] Failed to load tokens:', error);
-      Alert.alert('Error', 'Failed to load Spectre history');
+      console.error('[TurboHistory] Failed to load tokens:', error);
+      Alert.alert('Error', 'Failed to load Turbo history');
     } finally {
       setLoading(false);
       setRefreshing(false);
@@ -56,29 +56,29 @@ export default function SpectreHistoryScreen({ navigation }) {
 
   const handleShareToken = async (tokenRecord) => {
     try {
-      const deeplink = generateSpectreDeeplink(
+      const deeplink = generateTurboDeeplink(
         tokenRecord.token,
         tokenRecord.recipient,
         tokenRecord.amount
       );
 
       await Share.share({
-        message: `Spectre Token\n\nAmount: ${tokenRecord.amount / 100} UNIT\nLink: ${deeplink}`,
+        message: `Turbo Token\n\nAmount: ${tokenRecord.amount / 100} UNIT\nLink: ${deeplink}`,
         url: deeplink,
       });
     } catch (error) {
-      console.error('[SpectreHistory] Failed to share token:', error);
+      console.error('[TurboHistory] Failed to share token:', error);
     }
   };
 
   const handleViewQR = async (tokenRecord) => {
-    const deeplink = await generateSpectreDeeplink(
+    const deeplink = await generateTurboDeeplink(
       tokenRecord.token,
       tokenRecord.recipient,
       tokenRecord.amount
     );
 
-    navigation.navigate('SpectreQRCode', {
+    navigation.navigate('TurboQRCode', {
       deeplink,
       amount: tokenRecord.amount,
       recipient: tokenRecord.recipient,
@@ -100,7 +100,7 @@ export default function SpectreHistoryScreen({ navigation }) {
               await deleteSentLockedToken(tokenRecord.id);
               loadTokens();
             } catch (error) {
-              console.error('[SpectreHistory] Failed to delete token:', error);
+              console.error('[TurboHistory] Failed to delete token:', error);
               Alert.alert('Error', 'Failed to delete token');
             }
           },
@@ -114,13 +114,13 @@ export default function SpectreHistoryScreen({ navigation }) {
     let shortUrl = tokenRecord.shortUrl;
     if (!shortUrl) {
       try {
-        shortUrl = await generateSpectreDeeplink(
+        shortUrl = await generateTurboDeeplink(
           tokenRecord.token,
           tokenRecord.recipient,
           tokenRecord.amount
         );
       } catch (error) {
-        console.error('[SpectreHistory] Failed to generate deeplink:', error);
+        console.error('[TurboHistory] Failed to generate deeplink:', error);
         showToast('Failed to load token details', 'error');
         return;
       }
@@ -217,7 +217,7 @@ export default function SpectreHistoryScreen({ navigation }) {
           >
             <Icon name="arrow_left" size={24} color={COLORS.VERY_LIGHT_GRAY} />
           </TouchableOpacity>
-          <Text style={styles.headerTitle}>Spectre History</Text>
+          <Text style={styles.headerTitle}>Turbo History</Text>
           <View style={styles.placeholder} />
         </View>
         <View style={styles.centerContainer}>
@@ -236,14 +236,14 @@ export default function SpectreHistoryScreen({ navigation }) {
         >
           <Icon name="arrow_left" size={24} color={COLORS.VERY_LIGHT_GRAY} />
         </TouchableOpacity>
-        <Text style={styles.headerTitle}>Spectre History</Text>
+        <Text style={styles.headerTitle}>Turbo History</Text>
         <View style={styles.placeholder} />
       </View>
 
       {tokens.length === 0 ? (
         <View style={styles.centerContainer}>
-          <Icon name="spectre" size={64} color={COLORS.MID_GRAY} />
-          <Text style={styles.emptyText}>No Spectre tokens sent yet</Text>
+          <Icon name="turbo" size={64} color={COLORS.MID_GRAY} />
+          <Text style={styles.emptyText}>No Turbo tokens sent yet</Text>
           <Text style={styles.emptySubtext}>
             Locked tokens you send will appear here
           </Text>

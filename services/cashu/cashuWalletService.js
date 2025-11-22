@@ -122,11 +122,43 @@ export const removeProofs = async (proofsToRemove) => {
 };
 
 /**
- * Get current balance
+ * Load proofs with optional limit for faster initial loading
+ * @param {number} limit - Optional limit on number of proofs to load
+ * @returns {Promise<Array>} Array of proofs (up to limit)
+ */
+export const loadProofsPartial = async (limit = null) => {
+  try {
+    const stored = await SecureStore.getItemAsync(STORAGE_KEY);
+    if (!stored) {
+      return [];
+    }
+
+    const proofs = JSON.parse(stored);
+
+    if (limit !== null && proofs.length > limit) {
+      logger.info('Loaded partial proofs from storage', {
+        requested: limit,
+        total: proofs.length,
+        remaining: proofs.length - limit
+      });
+      return proofs.slice(0, limit);
+    }
+
+    return proofs;
+  } catch (error) {
+    logger.error('Failed to load proofs', { error: error.message });
+    return [];
+  }
+};
+
+/**
+ * Get current balance (fast initial load with first 25 proofs, then full load)
+ * @param {boolean} fullLoad - If false, only load first 25 proofs for quick estimate
  * @returns {Promise<number>} Total balance in sats
  */
-export const getBalance = async () => {
-  const proofs = await loadProofs();
+export const getBalance = async (fullLoad = true) => {
+  // For quick initial load, only load first 25 proofs
+  const proofs = fullLoad ? await loadProofs() : await loadProofsPartial(25);
 
   // Filter out P2PK locked proofs - they're not spendable balance
   const { isP2PKSecret } = await import('./cashuP2PK.js');
@@ -136,6 +168,7 @@ export const getBalance = async () => {
     totalProofs: proofs.length,
     spendableProofs: spendableProofs.length,
     lockedProofs: proofs.length - spendableProofs.length,
+    fullLoad,
   });
 
   return sumProofs(spendableProofs);
@@ -878,16 +911,25 @@ export const clearWallet = async () => {
  * @param {Object} options - Optional P2PK parameters
  * @returns {Promise<Object>} { token, amount, balance }
  */
-export const sendP2PKToken = async (amount, recipientPubkey, options = {}) => {
+export const sendP2PKToken = async (amount, recipientPubkey, options = {}, onProgress) => {
   try {
+    const totalSteps = 4; // Selecting, Creating secrets, Swapping, Saving
+    let currentStep = 0;
+
     logger.info('Sending P2PK locked token', { amount, recipientPubkey: recipientPubkey.substring(0, 16) + '...' });
 
     const { createP2PKSecret, isP2PKSecret } = await import('./cashuP2PK.js');
     const { generateSecret } = await import('./cashuCrypto.js');
 
+    // Step 1: Select proofs
+    if (onProgress) onProgress(++currentStep, totalSteps, 'Selecting proofs');
+
     // Select proofs - ONLY use unlocked proofs (filter out P2PK locked proofs)
     const allProofs = await loadProofs();
+    logger.info('Loaded all proofs for P2PK send', { count: allProofs.length });
+
     const unlockedProofs = allProofs.filter(p => !isP2PKSecret(p.secret));
+    logger.info('Filtered unlocked proofs', { unlocked: unlockedProofs.length, locked: allProofs.length - unlockedProofs.length });
 
     logger.info('Proof selection for P2PK token', {
       totalProofs: allProofs.length,
@@ -914,6 +956,9 @@ export const sendP2PKToken = async (amount, recipientPubkey, options = {}) => {
     } else {
       keys = keyData.keys || keyData;
     }
+
+    // Step 2: Create P2PK secrets
+    if (onProgress) onProgress(++currentStep, totalSteps, 'Creating P2PK secrets');
 
     // Create P2PK secrets for the send amount
     const sendAmounts = splitAmount(amount);
@@ -980,6 +1025,9 @@ export const sendP2PKToken = async (amount, recipientPubkey, options = {}) => {
 
     const { outputs, blindingData } = await createBlindedOutputsWithSecrets(allSecrets, allAmounts, keysetId);
 
+    // Step 3: Swap with mint
+    if (onProgress) onProgress(++currentStep, totalSteps, 'Swapping with mint');
+
     // Swap with mint
     const response = await swapTokensAPI(selectedProofs, outputs);
 
@@ -1020,6 +1068,9 @@ export const sendP2PKToken = async (amount, recipientPubkey, options = {}) => {
       areAllNormal: changeProofs.every(p => !p.secret.startsWith('["P2PK"'))
     });
 
+    // Step 4: Save to wallet
+    if (onProgress) onProgress(++currentStep, totalSteps, 'Saving to wallet');
+
     // Remove spent proofs, add change
     await removeProofs(selectedProofs);
     if (changeProofs.length > 0) {
@@ -1057,8 +1108,11 @@ export const sendP2PKToken = async (amount, recipientPubkey, options = {}) => {
  * @param {string} privateKey - Your private key to unlock the token (hex)
  * @returns {Promise<Object>} { amount, proofCount }
  */
-export const receiveP2PKToken = async (tokenString, privateKey) => {
+export const receiveP2PKToken = async (tokenString, privateKey, onProgress) => {
   try {
+    const totalSteps = 6; // Decoding, Signing, Getting keys, Creating outputs, Swapping, Saving
+    let currentStep = 0;
+
     logger.info('Receiving P2PK locked token', {
       privateKeyLength: privateKey?.length,
       privateKeyType: typeof privateKey,
@@ -1067,7 +1121,8 @@ export const receiveP2PKToken = async (tokenString, privateKey) => {
 
     const { signP2PKSecret, isP2PKSecret } = await import('./cashuP2PK.js');
 
-    // Decode token
+    // Step 1: Decode token
+    if (onProgress) onProgress(++currentStep, totalSteps, 'Decoding token');
     const decoded = decodeToken(tokenString);
 
     if (!decoded || !decoded.proofs || !Array.isArray(decoded.proofs)) {
@@ -1088,6 +1143,9 @@ export const receiveP2PKToken = async (tokenString, privateKey) => {
     }
 
     logger.info('Signing P2PK proofs with private key', { proofCount: p2pkProofs.length });
+
+    // Step 2: Sign proofs
+    if (onProgress) onProgress(++currentStep, totalSteps, 'Signing proofs');
 
     // Sign each P2PK proof with our private key
     const signedProofs = await Promise.all(

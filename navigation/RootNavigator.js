@@ -43,7 +43,7 @@ const hashToken = async (token) => {
     );
     return hash;
   } catch (error) {
-    console.error('[SPECTRE] Failed to hash token:', error.message);
+    console.error('[TURBO] Failed to hash token:', error.message);
     // Fallback to storing first 64 chars if hashing fails
     return token.substring(0, 64);
   }
@@ -58,7 +58,7 @@ const loadProcessedTokens = async () => {
       return new Set(tokens);
     }
   } catch (error) {
-    console.error('[SPECTRE] Failed to load processed tokens:', error.message);
+    console.error('[TURBO] Failed to load processed tokens:', error.message);
   }
   return new Set();
 };
@@ -68,9 +68,9 @@ const saveProcessedTokens = async (tokensSet) => {
     // Convert Set to Array and limit size
     const tokensArray = Array.from(tokensSet).slice(-MAX_STORED_TOKENS);
     await SecureStore.setItemAsync(PROCESSED_TOKENS_KEY, JSON.stringify(tokensArray));
-    console.log('[SPECTRE] Saved processed tokens to storage:', tokensArray.length);
+    console.log('[TURBO] Saved processed tokens to storage:', tokensArray.length);
   } catch (error) {
-    console.error('[SPECTRE] Failed to save processed tokens:', error.message);
+    console.error('[TURBO] Failed to save processed tokens:', error.message);
   }
 };
 
@@ -102,9 +102,9 @@ const linking = {
       loadProcessedTokens().then(tokensSet => {
         global.processedCashuTokens = tokensSet;
         global.processedCashuTokensLoading = false;
-        console.log('[SPECTRE] Loaded processed tokens from storage:', tokensSet.size);
+        console.log('[TURBO] Loaded processed tokens from storage:', tokensSet.size);
       }).catch(error => {
-        console.error('[SPECTRE] Failed to load processed tokens, starting fresh:', error.message);
+        console.error('[TURBO] Failed to load processed tokens, starting fresh:', error.message);
         global.processedCashuTokens = new Set();
         global.processedCashuTokensLoading = false;
       });
@@ -114,21 +114,21 @@ const linking = {
     // All token extraction is now handled in getStateFromPath()
     // Keeping the function definition here would be dead code
     const extractAndStoreToken = async (url) => {
-      if (url && (url.includes('receive?token=') || url.includes('spectre?token='))) {
-        console.log('[SPECTRE] Received deeplink:', url.substring(0, 50) + '...');
+      if (url && (url.includes('receive?token=') || url.includes('turbo?token='))) {
+        console.log('[TURBO] Received deeplink:', url.substring(0, 50) + '...');
 
         // Extract token parameter from URL
         const tokenMatch = url.match(/[?&]token=([^&]+)/);
         if (tokenMatch && tokenMatch[1]) {
           let token = decodeURIComponent(tokenMatch[1]);
 
-          // If this is a spectre link, the token is emoji-encoded
-          if (url.includes('spectre?token=')) {
+          // If this is a turbo link, the token is emoji-encoded
+          if (url.includes('turbo?token=')) {
             try {
               token = decodeCashuToken(token);
-              console.log('[SPECTRE] Decoded emoji token');
+              console.log('[TURBO] Decoded emoji token');
             } catch (error) {
-              console.error('[SPECTRE] Failed to decode:', error.message);
+              console.error('[TURBO] Failed to decode:', error.message);
               return;
             }
           }
@@ -136,7 +136,7 @@ const linking = {
           if (typeof global !== 'undefined') {
             // Wait for processed tokens to load from storage if still loading
             if (global.processedCashuTokensLoading) {
-              console.log('[SPECTRE] Waiting for processed tokens to load from storage...');
+              console.log('[TURBO] Waiting for processed tokens to load from storage...');
               // Retry after storage loads
               setTimeout(() => extractAndStoreToken(url), 100);
               return;
@@ -150,18 +150,18 @@ const linking = {
             const isCurrentlyPending = global.pendingCashuToken === token;
 
             if (isAlreadyProcessed) {
-              console.log('[SPECTRE] Ignoring duplicate deeplink - token already processed (hash:', tokenHash.substring(0, 16) + '...)');
+              console.log('[TURBO] Ignoring duplicate deeplink - token already processed (hash:', tokenHash.substring(0, 16) + '...)');
               return;
             }
 
             if (isCurrentlyPending) {
-              console.log('[SPECTRE] Ignoring duplicate deeplink - same token already pending');
+              console.log('[TURBO] Ignoring duplicate deeplink - same token already pending');
               return;
             }
 
             // Store new token
             global.pendingCashuToken = token;
-            console.log('[SPECTRE] Stored NEW token, hash:', tokenHash.substring(0, 16) + '...');
+            console.log('[TURBO] Stored NEW token, hash:', tokenHash.substring(0, 16) + '...');
 
             // Immediately trigger check if function is available (app is open)
             if (typeof global.triggerPendingTokenCheck === 'function') {
@@ -175,48 +175,48 @@ const linking = {
     // Listen for URL events - IMPORTANT: This WILL fire on iOS when coming from background!
     const onReceiveURL = async (event) => {
       const url = event?.url;
-      console.log('[SPECTRE] ========================================');
-      console.log('[SPECTRE] *** URL EVENT FIRED ***');
-      console.log('[SPECTRE] Full URL:', url);
-      console.log('[SPECTRE] URL length:', url?.length);
-      console.log('[SPECTRE] URL first 100 chars:', url ? url.substring(0, 100) : 'null');
-      console.log('[SPECTRE] ========================================');
+      console.log('[TURBO] ========================================');
+      console.log('[TURBO] *** URL EVENT FIRED ***');
+      console.log('[TURBO] Full URL:', url);
+      console.log('[TURBO] URL length:', url?.length);
+      console.log('[TURBO] URL first 100 chars:', url ? url.substring(0, 100) : 'null');
+      console.log('[TURBO] ========================================');
 
-      // Process Spectre URLs: ducat://spectre/{base64} OR https://ducatprotocol.com/unit?id=xyz123 OR https://ducatprotocol.com/unit?t=base64...
-      if (url && (url.includes('ducat://spectre/') || url.includes('unit?'))) {
-        console.log('[SPECTRE] URL event contains Spectre URL - processing NOW');
+      // Process Turbo URLs: ducat://turbo/{base64} OR https://ducatprotocol.com/unit?id=xyz123 OR https://ducatprotocol.com/unit?t=base64...
+      if (url && (url.includes('ducat://turbo/') || url.includes('unit?'))) {
+        console.log('[TURBO] URL event contains Turbo URL - processing NOW');
 
         let token = null;
 
-        // Check if this is the new ducat://spectre/ format
-        const spectreMatch = url.match(/ducat:\/\/spectre\/([^\/?#]+)/);
-        if (spectreMatch && spectreMatch[1]) {
+        // Check if this is the new ducat://turbo/ format
+        const turboMatch = url.match(/ducat:\/\/turbo\/([^\/?#]+)/);
+        if (turboMatch && turboMatch[1]) {
           // The token is already in the correct format (cashuA...)
           // No need to decode - just use it directly
-          token = spectreMatch[1];
-          console.log('[SPECTRE] Extracted Cashu token from ducat:// URL, length:', token.length);
-          console.log('[SPECTRE] Token starts with:', token.substring(0, 20));
+          token = turboMatch[1];
+          console.log('[TURBO] Extracted Cashu token from ducat:// URL, length:', token.length);
+          console.log('[TURBO] Token starts with:', token.substring(0, 20));
         }
         // Check if this is an ID-based link (token stored in Rebrandly)
         else {
           const idMatch = url.match(/[?&]id=([^&]+)/);
           if (idMatch && idMatch[1]) {
             const tokenId = idMatch[1];
-            console.log('[SPECTRE] URL contains Rebrandly token ID:', tokenId);
+            console.log('[TURBO] URL contains Rebrandly token ID:', tokenId);
 
             try {
               const { fetchTokenFromRebrandly } = await import('../services/urlShortener');
               token = await fetchTokenFromRebrandly(tokenId);
 
               if (!token) {
-                console.error('[SPECTRE] Failed to fetch token from Rebrandly');
+                console.error('[TURBO] Failed to fetch token from Rebrandly');
                 return;
               }
 
-              console.log('[SPECTRE] URL event: Fetched token from Rebrandly');
-              console.log('[SPECTRE] Token starts with:', token.substring(0, 20));
+              console.log('[TURBO] URL event: Fetched token from Rebrandly');
+              console.log('[TURBO] Token starts with:', token.substring(0, 20));
             } catch (error) {
-              console.error('[SPECTRE] URL event: Failed to fetch token from Rebrandly:', error.message);
+              console.error('[TURBO] URL event: Failed to fetch token from Rebrandly:', error.message);
               return;
             }
           }
@@ -224,12 +224,12 @@ const linking = {
           else {
             const tokenMatch = url.match(/[?&]t=([^&]+)/);
             if (!tokenMatch || !tokenMatch[1]) {
-              console.error('[SPECTRE] URL event: No token or ID parameter found in URL');
+              console.error('[TURBO] URL event: No token or ID parameter found in URL');
               return;
             }
 
             let base64Token = tokenMatch[1];
-            console.log('[SPECTRE] Extracted URL-safe base64 token, length:', base64Token.length);
+            console.log('[TURBO] Extracted URL-safe base64 token, length:', base64Token.length);
 
             try {
               // Convert URL-safe base64 back to standard base64
@@ -244,17 +244,17 @@ const linking = {
 
               // Decode base64 to get cashu token
               token = atob(base64Token);
-              console.log('[SPECTRE] URL event: Decoded base64 to cashu token');
-              console.log('[SPECTRE] Decoded token starts with:', token.substring(0, 20));
+              console.log('[TURBO] URL event: Decoded base64 to cashu token');
+              console.log('[TURBO] Decoded token starts with:', token.substring(0, 20));
             } catch (error) {
-              console.error('[SPECTRE] URL event: Failed to decode base64 token:', error.message);
+              console.error('[TURBO] URL event: Failed to decode base64 token:', error.message);
               return;
             }
           }
         }
 
         if (!token) {
-          console.error('[SPECTRE] URL event: No token extracted');
+          console.error('[TURBO] URL event: No token extracted');
           return;
         }
 
@@ -266,19 +266,19 @@ const linking = {
 
           // CRITICAL FIX: If we just resumed from background, SKIP duplicate check
           // This allows NEW deeplinks to be processed when app comes from background
-          const skipDuplicateCheck = global.spectreJustResumed === true;
+          const skipDuplicateCheck = global.turboJustResumed === true;
 
           if (skipDuplicateCheck) {
-            console.log('[SPECTRE] URL event: App just resumed - BYPASSING duplicate check for this token');
-            console.log('[SPECTRE] URL event: Token hash:', tokenHash.substring(0, 16) + '...');
+            console.log('[TURBO] URL event: App just resumed - BYPASSING duplicate check for this token');
+            console.log('[TURBO] URL event: Token hash:', tokenHash.substring(0, 16) + '...');
           } else if (isAlreadyProcessed) {
-            console.log('[SPECTRE] URL event: SKIPPING - token already processed (hash:', tokenHash.substring(0, 16) + '...)');
+            console.log('[TURBO] URL event: SKIPPING - token already processed (hash:', tokenHash.substring(0, 16) + '...)');
             return;
           }
 
           // Store token for processing (if NOT already processed OR we just resumed)
-          console.log('[SPECTRE] URL event: Storing token, hash:', tokenHash.substring(0, 16) + '...');
-          console.log('[SPECTRE] URL event: skipDuplicateCheck:', skipDuplicateCheck, 'isAlreadyProcessed:', isAlreadyProcessed);
+          console.log('[TURBO] URL event: Storing token, hash:', tokenHash.substring(0, 16) + '...');
+          console.log('[TURBO] URL event: skipDuplicateCheck:', skipDuplicateCheck, 'isAlreadyProcessed:', isAlreadyProcessed);
           if (typeof global !== 'undefined') {
             global.pendingCashuToken = token;
 
@@ -288,7 +288,7 @@ const linking = {
             }
           }
         } catch (error) {
-          console.error('[SPECTRE] URL event: Failed to decode base64 token:', error.message);
+          console.error('[TURBO] URL event: Failed to decode base64 token:', error.message);
           return;
         }
       }
@@ -297,39 +297,39 @@ const linking = {
     // REMOVED: getInitialURL() processing - it's now handled by getStateFromPath
     // getInitialURL() always returns the same URL (the one that launched the app)
     // and it was interfering with new deeplinks being processed by getStateFromPath
-    console.log('[SPECTRE] Skipping getInitialURL - all URL handling is done via getStateFromPath');
+    console.log('[TURBO] Skipping getInitialURL - all URL handling is done via getStateFromPath');
 
     // Add event listener for URL changes (app is already open and deeplink is tapped)
-    console.log('[SPECTRE] About to register Linking.addEventListener...');
+    console.log('[TURBO] About to register Linking.addEventListener...');
     const subscription = Linking.addEventListener('url', onReceiveURL);
-    console.log('[SPECTRE] Linking.addEventListener registered, subscription:', !!subscription);
+    console.log('[TURBO] Linking.addEventListener registered, subscription:', !!subscription);
 
     // WORKAROUND for iOS issue where url event doesn't fire when app is in background
     // Listen to AppState changes and check for pending URLs
     let appState = AppState.currentState;
-    console.log('[SPECTRE] Initial AppState:', appState);
+    console.log('[TURBO] Initial AppState:', appState);
 
     // Track if we're coming from background - this is CRITICAL for iOS deeplink handling
     let lastUrl = null;
 
     const handleAppStateChange = async (nextAppState) => {
-      console.log('[SPECTRE] AppState change:', appState, '->', nextAppState);
+      console.log('[TURBO] AppState change:', appState, '->', nextAppState);
 
       // When app comes to foreground, force a fresh URL check
       // iOS caches the path in React Navigation, so we need to bypass that cache
       if (appState.match(/inactive|background/) && nextAppState === 'active') {
-        console.log('[SPECTRE] App became active from background - forcing fresh URL check');
+        console.log('[TURBO] App became active from background - forcing fresh URL check');
 
         // Set a flag that tells getStateFromPath to NOT skip processing
         // This ensures NEW deeplinks are processed even if they look like duplicates
         if (typeof global !== 'undefined') {
-          global.spectreJustResumed = true;
-          console.log('[SPECTRE] Set spectreJustResumed flag to force fresh processing');
+          global.turboJustResumed = true;
+          console.log('[TURBO] Set turboJustResumed flag to force fresh processing');
 
           // Clear the flag after a short delay
           setTimeout(() => {
-            global.spectreJustResumed = false;
-            console.log('[SPECTRE] Cleared spectreJustResumed flag');
+            global.turboJustResumed = false;
+            console.log('[TURBO] Cleared turboJustResumed flag');
           }, 2000);
         }
       }
@@ -338,34 +338,34 @@ const linking = {
     };
 
     const appStateSubscription = AppState.addEventListener('change', handleAppStateChange);
-    console.log('[SPECTRE] Registered AppState listener for URL handling');
+    console.log('[TURBO] Registered AppState listener for URL handling');
 
     return () => {
-      console.log('[SPECTRE] Linking subscribe cleanup called');
+      console.log('[TURBO] Linking subscribe cleanup called');
       // DO NOT remove subscription - we need it to persist across app state changes
       // Only remove the AppState listener
       appStateSubscription.remove();
-      console.log('[SPECTRE] Removed AppState listener, but kept URL listener active');
+      console.log('[TURBO] Removed AppState listener, but kept URL listener active');
     };
   },
   // Custom function to intercept and handle special URLs before navigation
   async getStateFromPath(path, options) {
-    console.log('[SPECTRE] getStateFromPath called');
-    console.log('[SPECTRE] Full path:', path);
-    console.log('[SPECTRE] Path length:', path?.length);
-    console.log('[SPECTRE] Path first 100 chars:', path ? path.substring(0, 100) : 'null');
+    console.log('[TURBO] getStateFromPath called');
+    console.log('[TURBO] Full path:', path);
+    console.log('[TURBO] Path length:', path?.length);
+    console.log('[TURBO] Path first 100 chars:', path ? path.substring(0, 100) : 'null');
 
-    // Check if this is a Spectre token URL: ducat://spectre/{base64} OR https://ducatprotocol.com/unit?t=base64...
-    if (path && (path.includes('ducat://spectre/') || (path.includes('unit?') && path.includes('t=')))) {
-      console.log('[SPECTRE] getStateFromPath detected token URL, processing...');
+    // Check if this is a Turbo token URL: ducat://turbo/{base64} OR https://ducatprotocol.com/unit?t=base64...
+    if (path && (path.includes('ducat://turbo/') || (path.includes('unit?') && path.includes('t=')))) {
+      console.log('[TURBO] getStateFromPath detected token URL, processing...');
 
       let token = null;
 
-      // Check if this is the new ducat://spectre/ format
-      const spectreMatch = path.match(/ducat:\/\/spectre\/([^\/?#]+)/);
-      if (spectreMatch && spectreMatch[1]) {
-        let base64Token = spectreMatch[1];
-        console.log('[SPECTRE] Extracted base64 token from ducat:// URL, length:', base64Token.length);
+      // Check if this is the new ducat://turbo/ format
+      const turboMatch = path.match(/ducat:\/\/turbo\/([^\/?#]+)/);
+      if (turboMatch && turboMatch[1]) {
+        let base64Token = turboMatch[1];
+        console.log('[TURBO] Extracted base64 token from ducat:// URL, length:', base64Token.length);
 
         try {
           // Convert URL-safe base64 back to standard base64
@@ -380,10 +380,10 @@ const linking = {
 
           // Decode base64 to get cashu token
           token = atob(base64Token);
-          console.log('[SPECTRE] getStateFromPath: Decoded base64 to cashu token');
-          console.log('[SPECTRE] Decoded token starts with:', token.substring(0, 20));
+          console.log('[TURBO] getStateFromPath: Decoded base64 to cashu token');
+          console.log('[TURBO] Decoded token starts with:', token.substring(0, 20));
         } catch (error) {
-          console.error('[SPECTRE] getStateFromPath: Failed to decode base64 token:', error.message);
+          console.error('[TURBO] getStateFromPath: Failed to decode base64 token:', error.message);
           return null;
         }
       }
@@ -391,12 +391,12 @@ const linking = {
       else {
         const tokenMatch = path.match(/[?&]t=([^&]+)/);
         if (!tokenMatch || !tokenMatch[1]) {
-          console.error('[SPECTRE] getStateFromPath: No token parameter found in URL');
+          console.error('[TURBO] getStateFromPath: No token parameter found in URL');
           return null;
         }
 
         let base64Token = tokenMatch[1];
-        console.log('[SPECTRE] Extracted URL-safe base64 token, length:', base64Token.length);
+        console.log('[TURBO] Extracted URL-safe base64 token, length:', base64Token.length);
 
         try {
           // Convert URL-safe base64 back to standard base64
@@ -411,10 +411,10 @@ const linking = {
 
           // Decode base64 to get cashu token
           token = atob(base64Token);
-          console.log('[SPECTRE] getStateFromPath: Decoded base64 to cashu token');
-          console.log('[SPECTRE] Decoded token starts with:', token.substring(0, 20));
+          console.log('[TURBO] getStateFromPath: Decoded base64 to cashu token');
+          console.log('[TURBO] Decoded token starts with:', token.substring(0, 20));
         } catch (error) {
-          console.error('[SPECTRE] getStateFromPath: Failed to decode base64 token:', error.message);
+          console.error('[TURBO] getStateFromPath: Failed to decode base64 token:', error.message);
           return null;
         }
       }
@@ -424,7 +424,7 @@ const linking = {
         // CRITICAL: Check if this token has already been processed
         // Wait for storage to load if needed
         if (typeof global !== 'undefined' && global.processedCashuTokensLoading) {
-          console.log('[SPECTRE] getStateFromPath: Waiting for processed tokens to load...');
+          console.log('[TURBO] getStateFromPath: Waiting for processed tokens to load...');
           // Wait up to 1 second for storage to load
           let attempts = 0;
           while (global.processedCashuTokensLoading && attempts < 10) {
@@ -439,20 +439,20 @@ const linking = {
 
         // CRITICAL FIX: If we just resumed from background, SKIP duplicate check
         // This allows NEW deeplinks to be processed when app comes from background
-        const skipDuplicateCheck = global.spectreJustResumed === true;
+        const skipDuplicateCheck = global.turboJustResumed === true;
 
         if (skipDuplicateCheck) {
-          console.log('[SPECTRE] getStateFromPath: App just resumed - BYPASSING duplicate check for this token');
-          console.log('[SPECTRE] getStateFromPath: Token hash:', tokenHash.substring(0, 16) + '...');
+          console.log('[TURBO] getStateFromPath: App just resumed - BYPASSING duplicate check for this token');
+          console.log('[TURBO] getStateFromPath: Token hash:', tokenHash.substring(0, 16) + '...');
         } else if (isAlreadyProcessed) {
-          console.log('[SPECTRE] getStateFromPath: SKIPPING - token already processed (hash:', tokenHash.substring(0, 16) + '...)');
+          console.log('[TURBO] getStateFromPath: SKIPPING - token already processed (hash:', tokenHash.substring(0, 16) + '...)');
           return null;
         }
 
         // Store in global for processing (if NOT already processed OR we just resumed)
         if (typeof global !== 'undefined') {
-          console.log('[SPECTRE] getStateFromPath: Storing token in global.pendingCashuToken, hash:', tokenHash.substring(0, 16) + '...');
-          console.log('[SPECTRE] getStateFromPath: skipDuplicateCheck:', skipDuplicateCheck, 'isAlreadyProcessed:', isAlreadyProcessed);
+          console.log('[TURBO] getStateFromPath: Storing token in global.pendingCashuToken, hash:', tokenHash.substring(0, 16) + '...');
+          console.log('[TURBO] getStateFromPath: skipDuplicateCheck:', skipDuplicateCheck, 'isAlreadyProcessed:', isAlreadyProcessed);
           global.pendingCashuToken = token;
 
           // Trigger check immediately if function is available
@@ -507,7 +507,7 @@ export default function RootNavigator() {
       if (isAuthenticated && global.pendingCashuToken && !isVerifyingToken) {
         const token = global.pendingCashuToken;
 
-        console.log('[SPECTRE] Processing token:', token.substring(0, 30) + '...');
+        console.log('[TURBO] Processing token:', token.substring(0, 30) + '...');
 
         // Clear immediately to prevent re-processing
         delete global.pendingCashuToken;
@@ -518,11 +518,11 @@ export default function RootNavigator() {
           if (global.processedCashuTokens) {
             const tokenHash = await hashToken(token);
             global.processedCashuTokens.add(tokenHash);
-            console.log('[SPECTRE] Marked token as processed. Total processed:', global.processedCashuTokens.size);
+            console.log('[TURBO] Marked token as processed. Total processed:', global.processedCashuTokens.size);
 
             // Save to persistent storage asynchronously
             saveProcessedTokens(global.processedCashuTokens).catch(error => {
-              console.error('[SPECTRE] Failed to persist processed tokens:', error.message);
+              console.error('[TURBO] Failed to persist processed tokens:', error.message);
             });
           }
 
@@ -535,10 +535,10 @@ export default function RootNavigator() {
 
             // Format amount: keep 2 decimals
             const amountDisplay = (result.amount).toFixed(2);
-            console.log('[SPECTRE] Success! Received:', amountDisplay, 'UNIT');
+            console.log('[TURBO] Success! Received:', amountDisplay, 'UNIT');
             showToast(`Successfully received ${amountDisplay} UNIT`, 'success');
           } catch (error) {
-            console.error('[SPECTRE] Failed:', error.message);
+            console.error('[TURBO] Failed:', error.message);
 
             setIsVerifyingToken(false);
 
@@ -547,7 +547,7 @@ export default function RootNavigator() {
             if (errorMessage.includes('already spent') || errorMessage.includes('already been spent')) {
               errorMessage = 'Token already claimed';
             } else if (errorMessage.includes('P2PK verification failed')) {
-              errorMessage = 'Failed to verify Spectre token signature';
+              errorMessage = 'Failed to verify Turbo token signature';
             }
 
             showToast(errorMessage, 'error');
@@ -678,7 +678,7 @@ export default function RootNavigator() {
         <View style={localStyles.loadingOverlay}>
           <View style={localStyles.loadingContainer}>
             <ActivityIndicator size="large" color={COLORS.PRIMARY_BLUE} />
-            <Text style={localStyles.loadingText}>Claiming Spectre transaction</Text>
+            <Text style={localStyles.loadingText}>Claiming Turbo transaction</Text>
           </View>
         </View>
       )}

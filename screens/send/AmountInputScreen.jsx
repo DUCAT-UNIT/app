@@ -29,7 +29,7 @@ import { useCashu } from '../../contexts/CashuContext';
 import { useNavigationHandlers } from '../../contexts/NavigationHandlersContext';
 
 export default function AmountInputScreen({ navigation, route }) {
-  const { sendAssetType, sendAmount, setSendAmount, sendRecipient, sendAddressType, spectreEnabled, setSpectreEnabled, setSendRecipient: setRecipient } = useSendFlow();
+  const { sendAssetType, sendAmount, setSendAmount, sendRecipient, sendAddressType, turboEnabled, setTurboEnabled, setSendRecipient: setRecipient } = useSendFlow();
   const { settingsHandlers } = useNavigationHandlers();
   const ecashThreshold = settingsHandlers?.ecashThreshold || 100;
   const [isRequestingMint, setIsRequestingMint] = useState(false);
@@ -71,7 +71,7 @@ export default function AmountInputScreen({ navigation, route }) {
     return () => clearTimeout(timer);
   }, []);
 
-  // Handle prefilled amount and auto-advance (for non-Spectre flows)
+  // Handle prefilled amount and auto-advance (for non-Turbo flows)
   useEffect(() => {
     const { prefillAmount, autoAdvance } = route.params || {};
 
@@ -116,20 +116,20 @@ export default function AmountInputScreen({ navigation, route }) {
 
     amountInputRef.current?.blur();
 
-    // Auto-enable Spectre for UNIT transactions less than threshold
-    let shouldUseSpectre = spectreEnabled;
+    // Auto-enable Turbo for UNIT transactions less than threshold
+    let shouldUseTurbo = turboEnabled;
     if (sendAssetType === 'unit') {
       const displayAmount = parseFloat(sendAmount);
       // Check against ecashThreshold (Infinity means "All transfers")
-      if (displayAmount < ecashThreshold && !spectreEnabled) {
-        console.log(`[AmountInputScreen] Auto-enabling Spectre for transaction < ${ecashThreshold} UNIT`);
-        setSpectreEnabled(true);
-        shouldUseSpectre = true;
+      if (displayAmount < ecashThreshold && !turboEnabled) {
+        console.log(`[AmountInputScreen] Auto-enabling Turbo for transaction < ${ecashThreshold} UNIT`);
+        setTurboEnabled(true);
+        shouldUseTurbo = true;
       }
     }
 
-    // If Spectre mode is enabled for UNIT transfers, check if we have enough ecash first
-    if (shouldUseSpectre && sendAssetType === 'unit') {
+    // If Turbo mode is enabled for UNIT transfers, check if we have enough ecash first
+    if (shouldUseTurbo && sendAssetType === 'unit') {
       try {
         setIsRequestingMint(true);
 
@@ -142,7 +142,7 @@ export default function AmountInputScreen({ navigation, route }) {
         const ecashBalance = await getBalance();
         const ecashBalanceSmallestUnits = Math.round(ecashBalance * 100);
 
-        console.log('[AmountInputScreen] Spectre mode - checking balance:', {
+        console.log('[AmountInputScreen] Turbo mode - checking balance:', {
           requested: displayAmount,
           ecashBalance,
           hasEnough: ecashBalanceSmallestUnits >= amountInSmallestUnits,
@@ -152,42 +152,10 @@ export default function AmountInputScreen({ navigation, route }) {
         if (ecashBalanceSmallestUnits >= amountInSmallestUnits) {
           console.log('[AmountInputScreen] ✅ Sufficient ecash balance - skipping mint, creating P2PK token directly');
 
-          const { sendP2PKToken } = await import('../../services/cashu/cashuWalletService');
-          const { extractPubkeyFromTaprootAddress } = await import('../../utils/bitcoin');
-
-          // Extract recipient's pubkey
-          const recipientPubkey = extractPubkeyFromTaprootAddress(sendRecipient);
-
-          // Create P2PK locked token
-          const { token } = await sendP2PKToken(amountInSmallestUnits, recipientPubkey);
-
-          // Generate shortened URL and save token to storage
-          try {
-            const { generateSpectreDeeplink, saveSentLockedToken } = await import('../../services/cashu/cashuLockedTokensService');
-
-            // Generate short URL first
-            const shortUrl = await generateSpectreDeeplink(token, sendRecipient, amountInSmallestUnits);
-            console.log('[AmountInputScreen] Generated short URL:', shortUrl);
-
-            // Save token with short URL and taproot address
-            await saveSentLockedToken(token, sendRecipient, amountInSmallestUnits, null, shortUrl, wallet.taprootAddress);
-            console.log('[AmountInputScreen] Token saved to storage with short URL');
-          } catch (storageError) {
-            console.error('[AmountInputScreen] Failed to generate/save token:', storageError);
-            // Non-critical - continue anyway
-          }
-
           setIsRequestingMint(false);
 
-          // Navigate directly to confirmation with the token (no on-chain tx needed)
-          navigation.navigate('Confirmation', {
-            isSpectre: true,
-            spectreRecipient: sendRecipient,
-            spectreToken: token,
-            spectreAmount: amountInSmallestUnits,
-            skipMint: true, // Flag to indicate we skipped the mint
-          });
-
+          // Navigate to processing screen to create token
+          navigation.navigate('TurboProcessing');
           return;
         }
 
@@ -211,24 +179,24 @@ export default function AmountInputScreen({ navigation, route }) {
         setRecipient(mintQuote.depositAddress);
 
         console.log('[AmountInputScreen] Navigating to Processing with params:', {
-          isSpectre: true,
+          isTurbo: true,
           mintQuoteId: mintQuote.quoteId,
           mintAmount: mintQuote.amount, // Use amount from quote, not displayAmount
-          spectreRecipient: originalRecipient,
+          turboRecipient: originalRecipient,
         });
 
-        // Navigate to processing screen with Spectre params
+        // Navigate to processing screen with Turbo params
         navigation.navigate('Processing', {
           fromScreen: 'AmountInput',
           action: 'create_intent',
-          isSpectre: true,
+          isTurbo: true,
           mintQuoteId: mintQuote.quoteId,
           mintAmount: mintQuote.amount, // IMPORTANT: Use quote amount (in smallest units)
-          spectreRecipient: originalRecipient, // Original address for P2PK locking
+          turboRecipient: originalRecipient, // Original address for P2PK locking
         });
       } catch (error) {
         console.error('Failed to request mint quote:', error);
-        Alert.alert('Error', 'Failed to initiate Spectre transaction. Please try again.');
+        Alert.alert('Error', 'Failed to initiate Turbo transaction. Please try again.');
       } finally {
         setIsRequestingMint(false);
       }

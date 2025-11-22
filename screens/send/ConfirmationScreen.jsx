@@ -17,35 +17,35 @@ export default function ConfirmationScreen({ navigation, route }) {
   const { broadcastedTxid } = useTransactionExecution();
   const { fetchTransactionHistory } = useTransactionHistory();
   const { wallet } = useWallet();
-  const isSpectre = route?.params?.isSpectre === true;
+  const isTurbo = route?.params?.isTurbo === true;
   const mintQuoteId = route?.params?.mintQuoteId;
   const mintAmount = route?.params?.mintAmount;
-  const spectreRecipient = route?.params?.spectreRecipient; // Original recipient address for P2PK locking
-  const spectreAmount = route?.params?.spectreAmount; // Amount in smallest units
+  const turboRecipient = route?.params?.turboRecipient; // Original recipient address for P2PK locking
+  const turboAmount = route?.params?.turboAmount; // Amount in smallest units
   const skipMint = route?.params?.skipMint === true; // If true, token was created directly from ecash
   const [isCompletingMint, setIsCompletingMint] = useState(false);
-  const [spectreToken, setSpectreToken] = useState(route?.params?.spectreToken || null); // Store the P2PK locked token
+  const [turboToken, setTurboToken] = useState(route?.params?.turboToken || null); // Store the P2PK locked token
   const hasMintCompleted = useRef(false);
-  const [spectreDeeplink, setSpectreDeeplink] = useState(null);
+  const [turboDeeplink, setTurboDeeplink] = useState(null);
 
   // Log all route params on mount for debugging
   useEffect(() => {
     console.log('[ConfirmationScreen] Mounted with route params:', route?.params);
     console.log('[ConfirmationScreen] Extracted values:', {
-      isSpectre,
+      isTurbo,
       mintQuoteId,
       mintAmount,
-      spectreRecipient,
+      turboRecipient,
       broadcastedTxid,
       cashuMint: route?.params?.cashuMint,
       quoteId: route?.params?.quoteId,
     });
 
     // Debug: Check if we should be creating a token
-    if (isSpectre && spectreRecipient) {
+    if (isTurbo && turboRecipient) {
       console.log('[ConfirmationScreen] ✅ Should create P2PK token - all params present');
-    } else if (isSpectre && !spectreRecipient) {
-      console.log('[ConfirmationScreen] ⚠️ isSpectre=true but spectreRecipient is missing!');
+    } else if (isTurbo && !turboRecipient) {
+      console.log('[ConfirmationScreen] ⚠️ isTurbo=true but turboRecipient is missing!');
     }
   }, []);
 
@@ -56,32 +56,32 @@ export default function ConfirmationScreen({ navigation, route }) {
     }
   }, [fetchTransactionHistory]);
 
-  // Debug: Log when spectreToken changes
+  // Debug: Log when turboToken changes
   useEffect(() => {
-    console.log('[ConfirmationScreen] 🎫 spectreToken state changed:', spectreToken ? `Token present (${spectreToken.length} chars)` : 'null');
-  }, [spectreToken]);
+    console.log('[ConfirmationScreen] 🎫 turboToken state changed:', turboToken ? `Token present (${turboToken.length} chars)` : 'null');
+  }, [turboToken]);
 
-  // Generate Spectre deeplink when token is ready
+  // Generate Turbo deeplink when token is ready
   useEffect(() => {
-    if (spectreToken && spectreRecipient && spectreAmount) {
+    if (turboToken && turboRecipient && turboAmount) {
       const generateLink = async () => {
         try {
-          const { generateSpectreDeeplink } = await import('../../services/cashu/cashuLockedTokensService');
-          const deeplink = await generateSpectreDeeplink(spectreToken, spectreRecipient, spectreAmount);
-          setSpectreDeeplink(deeplink);
-          console.log('[ConfirmationScreen] Generated Spectre deeplink:', deeplink);
+          const { generateTurboDeeplink } = await import('../../services/cashu/cashuLockedTokensService');
+          const deeplink = await generateTurboDeeplink(turboToken, turboRecipient, turboAmount);
+          setTurboDeeplink(deeplink);
+          console.log('[ConfirmationScreen] Generated Turbo deeplink:', deeplink);
         } catch (error) {
           console.error('[ConfirmationScreen] Failed to generate deeplink:', error);
         }
       };
       generateLink();
     }
-  }, [spectreToken, spectreRecipient, spectreAmount]);
+  }, [turboToken, turboRecipient, turboAmount]);
 
-  // Handle Spectre mint completion
+  // Handle Turbo mint completion
   useEffect(() => {
     console.log('[ConfirmationScreen] Checking mint completion:', {
-      isSpectre,
+      isTurbo,
       mintQuoteId,
       mintAmount,
       skipMint,
@@ -94,9 +94,9 @@ export default function ConfirmationScreen({ navigation, route }) {
       return;
     }
 
-    // Only proceed if this is a Spectre flow with all required params
-    if (!isSpectre) {
-      console.log('[ConfirmationScreen] Not a Spectre transaction, skipping mint completion');
+    // Only proceed if this is a Turbo flow with all required params
+    if (!isTurbo) {
+      console.log('[ConfirmationScreen] Not a Turbo transaction, skipping mint completion');
       return;
     }
 
@@ -147,9 +147,9 @@ export default function ConfirmationScreen({ navigation, route }) {
           await completeMint(mintQuoteId, paidQuote.amount);
           console.log('[ConfirmationScreen] Mint completed successfully');
 
-          // If this is new Spectre mode (with spectreRecipient), create P2PK locked token
-          if (spectreRecipient) {
-            console.log('[ConfirmationScreen] Creating P2PK locked token for recipient:', spectreRecipient);
+          // If this is new Turbo mode (with turboRecipient), create P2PK locked token
+          if (turboRecipient) {
+            console.log('[ConfirmationScreen] Creating P2PK locked token for recipient:', turboRecipient);
 
             // Get balance before creating token
             const { getBalance } = await import('../../services/cashu/cashuWalletService');
@@ -159,10 +159,10 @@ export default function ConfirmationScreen({ navigation, route }) {
             // For P2PK, lock to the OUTPUT pubkey extracted from the recipient's Taproot address
             // The Taproot address directly encodes the output pubkey (tweaked pubkey)
             const { extractPubkeyFromTaprootAddress } = await import('../../utils/bitcoin');
-            const recipientPubkey = extractPubkeyFromTaprootAddress(spectreRecipient);
+            const recipientPubkey = extractPubkeyFromTaprootAddress(turboRecipient);
 
             console.log('[ConfirmationScreen] Recipient pubkey for P2PK locking:', {
-              address: spectreRecipient,
+              address: turboRecipient,
               pubkey: recipientPubkey.substring(0, 16) + '...',
             });
 
@@ -190,28 +190,28 @@ export default function ConfirmationScreen({ navigation, route }) {
 
             // Generate shortened URL and store token persistently
             try {
-              const { generateSpectreDeeplink } = await import('../../services/cashu/cashuLockedTokensService');
+              const { generateTurboDeeplink } = await import('../../services/cashu/cashuLockedTokensService');
               const { saveSentLockedToken } = await import('../../services/cashu/cashuLockedTokensService');
 
               // Generate short URL first
-              const shortUrl = await generateSpectreDeeplink(token, spectreRecipient, paidQuote.amount);
+              const shortUrl = await generateTurboDeeplink(token, turboRecipient, paidQuote.amount);
               console.log('[ConfirmationScreen] Generated short URL:', shortUrl);
 
               // Save token with short URL and taproot address
-              await saveSentLockedToken(token, spectreRecipient, paidQuote.amount, broadcastedTxid, shortUrl, wallet.taprootAddress);
+              await saveSentLockedToken(token, turboRecipient, paidQuote.amount, broadcastedTxid, shortUrl, wallet.taprootAddress);
               console.log('[ConfirmationScreen] Token saved to persistent storage with short URL');
 
               // Store short URL for display
-              setSpectreDeeplink(shortUrl);
+              setTurboDeeplink(shortUrl);
             } catch (storageError) {
               console.error('[ConfirmationScreen] Failed to generate/save token:', storageError);
               // Non-critical error - continue anyway
             }
 
             // Store token for display
-            console.log('[ConfirmationScreen] 🎫 Setting spectreToken state with token length:', token?.length);
-            setSpectreToken(token);
-            console.log('[ConfirmationScreen] 🎫 spectreToken state has been set');
+            console.log('[ConfirmationScreen] 🎫 Setting turboToken state with token length:', token?.length);
+            setTurboToken(token);
+            console.log('[ConfirmationScreen] 🎫 turboToken state has been set');
           }
 
           // Refresh balance
@@ -219,9 +219,9 @@ export default function ConfirmationScreen({ navigation, route }) {
 
           setIsCompletingMint(false);
 
-          // Different message based on whether this is address-bound or regular Spectre
-          if (spectreRecipient) {
-            Alert.alert('Success', 'Spectral transaction complete! Token is ready for the recipient.');
+          // Different message based on whether this is address-bound or regular Turbo
+          if (turboRecipient) {
+            Alert.alert('Success', 'Turbo transaction complete! Token is ready for the recipient.');
           } else {
             Alert.alert('Success', 'On-chain UNIT converted to eUNIT!');
           }
@@ -238,7 +238,7 @@ export default function ConfirmationScreen({ navigation, route }) {
     };
 
     completeMintProcess();
-  }, [isSpectre, mintQuoteId, mintAmount, spectreRecipient, fetchTransactionHistory]);
+  }, [isTurbo, mintQuoteId, mintAmount, turboRecipient, fetchTransactionHistory]);
 
   // Handle Cashu mint completion (for threshold conversion)
   const cashuMint = route?.params?.cashuMint === true;
@@ -323,12 +323,12 @@ export default function ConfirmationScreen({ navigation, route }) {
   };
 
   const handleShareDeeplink = async () => {
-    if (spectreDeeplink) {
+    if (turboDeeplink) {
       try {
-        console.log('[ConfirmationScreen] Sharing Spectre deeplink:', spectreDeeplink);
+        console.log('[ConfirmationScreen] Sharing Turbo deeplink:', turboDeeplink);
 
         await Share.share({
-          message: spectreDeeplink,
+          message: turboDeeplink,
           title: 'Receive UNIT',
         });
       } catch (error) {
@@ -339,11 +339,11 @@ export default function ConfirmationScreen({ navigation, route }) {
   };
 
   const handleCopyDeeplink = async () => {
-    if (spectreDeeplink) {
+    if (turboDeeplink) {
       try {
-        console.log('[ConfirmationScreen] Copying Spectre deeplink to clipboard:', spectreDeeplink);
+        console.log('[ConfirmationScreen] Copying Turbo deeplink to clipboard:', turboDeeplink);
 
-        await Clipboard.setStringAsync(spectreDeeplink);
+        await Clipboard.setStringAsync(turboDeeplink);
         Alert.alert('Copied!', 'Link copied to clipboard');
       } catch (error) {
         console.error('[ConfirmationScreen] Failed to copy link:', error);
@@ -381,7 +381,7 @@ export default function ConfirmationScreen({ navigation, route }) {
           {isCompletingMint
             ? 'Waiting for payment confirmation and minting e-cash tokens...'
             : (skipMint
-              ? 'Your Spectre token has been created from ecash balance and is ready to send'
+              ? 'Your Turbo token has been created from ecash balance and is ready to send'
               : 'Your transaction has been successfully broadcast to the network')
           }
         </Text>
@@ -394,24 +394,24 @@ export default function ConfirmationScreen({ navigation, route }) {
           />
         )}
 
-        {/* Spectre Token Action */}
-        {spectreToken && (
+        {/* Turbo Token Action */}
+        {turboToken && (
           <View style={localStyles.tokenContainer}>
             <Icon name="link" size={48} color={COLORS.YELLOW} style={{ marginBottom: 16 }} />
-            <Text style={localStyles.tokenLabel}>Spectre Token Ready</Text>
+            <Text style={localStyles.tokenLabel}>Turbo Token Ready</Text>
             <Text style={localStyles.tokenDescription}>
               Share this link with the recipient
             </Text>
 
             {/* Short URL Display */}
-            {spectreDeeplink && (
+            {turboDeeplink && (
               <TouchableOpacity
                 style={localStyles.urlContainer}
                 onPress={handleCopyDeeplink}
                 activeOpacity={0.7}
               >
                 <Text style={localStyles.urlText} numberOfLines={2}>
-                  {spectreDeeplink}
+                  {turboDeeplink}
                 </Text>
                 <Text style={localStyles.tapToCopyHint}>Tap to copy</Text>
               </TouchableOpacity>
@@ -440,7 +440,7 @@ export default function ConfirmationScreen({ navigation, route }) {
         )}
 
         {/* View Explorer Button */}
-        {!spectreToken && !skipMint && (
+        {!turboToken && !skipMint && (
           <TouchableOpacity
             style={localStyles.explorerButton}
             activeOpacity={0.7}
