@@ -40,6 +40,13 @@ export default function QRScanner({ visible, onClose, onScan }) {
   const handleBarCodeScanned = ({ data }) => {
     if (!data) return;
 
+    // Validate that data is readable (not binary garbage)
+    const isPrintable = /^[\x20-\x7E\n\r\t]*$/.test(data.substring(0, 100));
+    if (!isPrintable && !data.match(/^\d+\/\d+:/)) {
+      console.warn('[QRScanner] Detected binary/corrupted QR data, ignoring');
+      return;
+    }
+
     // Check if this is a NUT-16 animated QR code chunk: index/total:base64_chunk
     const nut16Match = data.match(/^(\d+)\/(\d+):(.+)$/);
 
