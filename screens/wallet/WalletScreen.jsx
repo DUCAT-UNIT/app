@@ -1,7 +1,6 @@
 import React from 'react';
 import PropTypes from 'prop-types';
 import { View, Text, TouchableOpacity, ActivityIndicator, ScrollView, StyleSheet } from 'react-native';
-import TouchableScale from '../../components/common/TouchableScale';
 import { useWallet } from '../../contexts/WalletContext';
 import { useBalance } from '../../contexts/WalletDataContext';
 import { usePrice } from '../../contexts/PriceContext';
@@ -130,6 +129,23 @@ const WalletScreen = React.memo(function WalletScreen({
         largeBalanceStyle={localStyles.largeBalanceAmount}
       />
 
+      {/* Actions - Send and Receive Buttons */}
+      <View style={localStyles.actionsRow}>
+        <TouchableOpacity style={localStyles.actionButton} onPress={onSendPress}>
+          <View style={localStyles.actionButtonIcon}>
+            <Text style={localStyles.actionIcon}>↑</Text>
+          </View>
+          <Text style={localStyles.actionButtonLabel}>Send</Text>
+        </TouchableOpacity>
+
+        <TouchableOpacity style={localStyles.actionButton} onPress={onReceivePress}>
+          <View style={localStyles.actionButtonIcon}>
+            <Text style={localStyles.actionIcon}>↓</Text>
+          </View>
+          <Text style={localStyles.actionButtonLabel}>Receive</Text>
+        </TouchableOpacity>
+      </View>
+
       {/* Divider */}
       <View style={styles.balanceDivider} />
 
@@ -208,17 +224,6 @@ const WalletScreen = React.memo(function WalletScreen({
           />
         )}
       </ScrollView>
-
-      {/* Actions - Send and Receive Buttons - Fixed at Bottom */}
-      <View style={styles.xverseActionsRow}>
-        <TouchableScale style={styles.xverseActionButton} onPress={onSendPress}>
-          <Text style={styles.xverseActionLabel}>Send</Text>
-        </TouchableScale>
-
-        <TouchableScale style={styles.xverseActionButton} onPress={onReceivePress}>
-          <Text style={styles.xverseActionLabel}>Receive</Text>
-        </TouchableScale>
-      </View>
     </View>
   );
 });
@@ -229,6 +234,36 @@ const localStyles = StyleSheet.create({
   },
   ducatAmount: {
     textAlign: 'left',
+  },
+  actionsRow: {
+    flexDirection: 'row',
+    justifyContent: 'center',
+    paddingHorizontal: 20,
+    paddingVertical: 16,
+    gap: 24,
+  },
+  actionButton: {
+    alignItems: 'center',
+    minWidth: 62,
+  },
+  actionButtonIcon: {
+    width: 50,
+    height: 50,
+    borderRadius: 25,
+    backgroundColor: COLORS.WHITE,
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginBottom: 6,
+  },
+  actionIcon: {
+    fontSize: 24,
+    color: COLORS.DARK_BG,
+    fontWeight: '600',
+  },
+  actionButtonLabel: {
+    fontSize: 13,
+    color: COLORS.WHITE,
+    fontWeight: '600',
   },
 });
 
