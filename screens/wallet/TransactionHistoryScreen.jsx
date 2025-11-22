@@ -26,6 +26,7 @@ export default function TransactionHistoryScreen({
   onClose,
   segwitAddress,
   taprootAddress,
+  advancedMode = false,
 }) {
   const [selectedToken, setSelectedToken] = useState(null);
   const [showTokenDetails, setShowTokenDetails] = useState(false);
@@ -136,6 +137,8 @@ export default function TransactionHistoryScreen({
           shortUrl={selectedToken.shortUrl}
           cashuToken={selectedToken.token}
           onCopy={handleCopyNotification}
+          advancedMode={advancedMode}
+          claimed={selectedToken.claimed}
         />
       )}
     </>

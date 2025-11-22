@@ -10,6 +10,7 @@ import {
   TouchableOpacity,
   StyleSheet,
   Linking,
+  Share,
 } from 'react-native';
 import * as Clipboard from 'expo-clipboard';
 import PropTypes from 'prop-types';
@@ -24,6 +25,8 @@ export default function TokenDetailsSheet({
   shortUrl,
   cashuToken,
   onCopy,
+  advancedMode = false,
+  claimed = false,
 }) {
   const handleCopyShortUrl = async () => {
     await Clipboard.setStringAsync(shortUrl);
@@ -37,6 +40,16 @@ export default function TokenDetailsSheet({
 
   const handleOpenInSafari = () => {
     Linking.openURL(shortUrl);
+  };
+
+  const handleShare = async () => {
+    try {
+      await Share.share({
+        message: shortUrl,
+      });
+    } catch (error) {
+      // Silently fail
+    }
   };
 
   // Truncate token for display
@@ -53,7 +66,9 @@ export default function TokenDetailsSheet({
           <View style={styles.headerText}>
             <Text style={styles.title}>Ecash Token</Text>
             <Text style={styles.subtitle}>
-              {recipientAddress ? `Bound to ${recipientAddress.slice(0, 5)}...` : 'Anyone can claim'}
+              {recipientAddress
+                ? `Bound to address: ${recipientAddress.slice(0, 5)}...${recipientAddress.slice(-5)}`
+                : 'Anyone can claim'}
             </Text>
           </View>
         </View>
@@ -62,46 +77,69 @@ export default function TokenDetailsSheet({
         </TouchableOpacity>
       </View>
 
-      {/* Shortened URL Card */}
+      {/* Shortened URL Card or Claimed Warning */}
       <View style={styles.section}>
         <Text style={styles.sectionLabel}>Shortened URL</Text>
-        <TouchableOpacity
-          style={styles.card}
-          onPress={handleCopyShortUrl}
-          activeOpacity={0.7}
-        >
-          <View style={styles.cardContent}>
-            <Icon name="link" size={20} color={COLORS.PRIMARY_BLUE} />
-            <Text style={styles.cardText} numberOfLines={1}>
-              {shortUrl}
-            </Text>
+        {claimed ? (
+          <View style={styles.warningCard}>
+            <Icon name="check" size={20} color={COLORS.YELLOW} />
+            <Text style={styles.warningText}>Token already claimed</Text>
           </View>
-          <TouchableOpacity
-            style={styles.actionButton}
-            onPress={handleOpenInSafari}
-            activeOpacity={0.7}
-          >
-            <Icon name="external_link" size={20} color={COLORS.PRIMARY_BLUE} />
-          </TouchableOpacity>
-        </TouchableOpacity>
+        ) : (
+          <View style={styles.card}>
+            <TouchableOpacity
+              style={styles.cardContent}
+              onPress={handleCopyShortUrl}
+              activeOpacity={0.7}
+            >
+              <Text style={styles.cardText} numberOfLines={1}>
+                {shortUrl}
+              </Text>
+            </TouchableOpacity>
+            <View style={styles.actionButtons}>
+              <TouchableOpacity
+                style={styles.actionButton}
+                onPress={handleShare}
+                activeOpacity={0.7}
+              >
+                <Icon name="share" size={20} color={COLORS.PRIMARY_BLUE} />
+              </TouchableOpacity>
+              <TouchableOpacity
+                style={styles.actionButton}
+                onPress={handleOpenInSafari}
+                activeOpacity={0.7}
+              >
+                <Icon name="external_link" size={20} color={COLORS.PRIMARY_BLUE} />
+              </TouchableOpacity>
+            </View>
+          </View>
+        )}
       </View>
 
-      {/* Base64 Token Card */}
-      <View style={styles.section}>
-        <Text style={styles.sectionLabel}>Cashu Token</Text>
-        <TouchableOpacity
-          style={styles.card}
-          onPress={handleCopyToken}
-          activeOpacity={0.7}
-        >
-          <View style={styles.cardContent}>
-            <Icon name="copy" size={20} color={COLORS.PRIMARY_BLUE} />
-            <Text style={styles.cardText} numberOfLines={2}>
-              {truncatedToken}
-            </Text>
+      {/* Base64 Token Card - Only show in advanced mode */}
+      {advancedMode && (
+        <View style={styles.section}>
+          <Text style={styles.sectionLabel}>Cashu Token</Text>
+          <View style={styles.card}>
+            <TouchableOpacity
+              style={styles.cardContent}
+              onPress={handleCopyToken}
+              activeOpacity={0.7}
+            >
+              <Text style={styles.cardText} numberOfLines={2}>
+                {truncatedToken}
+              </Text>
+            </TouchableOpacity>
+            <TouchableOpacity
+              style={styles.actionButton}
+              onPress={handleCopyToken}
+              activeOpacity={0.7}
+            >
+              <Icon name="copy" size={20} color={COLORS.PRIMARY_BLUE} />
+            </TouchableOpacity>
           </View>
-        </TouchableOpacity>
-      </View>
+        </View>
+      )}
 
       {/* Info */}
       <View style={styles.infoBox}>
@@ -121,6 +159,8 @@ TokenDetailsSheet.propTypes = {
   shortUrl: PropTypes.string.isRequired,
   cashuToken: PropTypes.string.isRequired,
   onCopy: PropTypes.func,
+  advancedMode: PropTypes.bool,
+  claimed: PropTypes.bool,
 };
 
 const styles = StyleSheet.create({
@@ -129,8 +169,9 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'space-between',
     paddingHorizontal: 20,
-    paddingTop: 20,
-    paddingBottom: 20,
+    paddingTop: 0,
+    paddingBottom: 16,
+    marginTop: -50,
     borderBottomWidth: 1,
     borderBottomColor: COLORS.BORDER_COLOR,
   },
@@ -191,9 +232,28 @@ const styles = StyleSheet.create({
     fontFamily: 'CabinetGrotesk-Regular',
     flex: 1,
   },
+  actionButtons: {
+    flexDirection: 'row',
+    gap: 8,
+  },
   actionButton: {
     padding: 8,
-    marginLeft: 8,
+  },
+  warningCard: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+    backgroundColor: 'rgba(245, 158, 11, 0.15)',
+    borderRadius: 12,
+    padding: 16,
+    borderWidth: 1,
+    borderColor: COLORS.YELLOW,
+  },
+  warningText: {
+    fontSize: 14,
+    color: COLORS.YELLOW,
+    fontFamily: 'CabinetGrotesk-Medium',
+    flex: 1,
   },
   infoBox: {
     flexDirection: 'row',

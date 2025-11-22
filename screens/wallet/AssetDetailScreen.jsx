@@ -485,6 +485,8 @@ function AssetDetailScreen({ route = {}, navigation }) {
           shortUrl={selectedToken.shortUrl}
           cashuToken={selectedToken.token}
           onCopy={handleCopyNotification}
+          advancedMode={advancedMode}
+          claimed={selectedToken.claimed}
         />
       )}
     </>

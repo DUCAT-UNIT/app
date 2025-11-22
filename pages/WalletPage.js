@@ -522,6 +522,7 @@ export default function WalletPage({ route }) {
           segwitAddress={wallet?.segwitAddress || ''}
           taprootAddress={wallet?.taprootAddress || ''}
           vaultPubkey={wallet?.taprootPubkey || ''}
+          advancedMode={settingsHandlers.advancedMode}
         />
 
         <StatusBar style="light" />

@@ -268,6 +268,8 @@ export default function SpectreHistoryScreen({ navigation }) {
           shortUrl={selectedToken.shortUrl}
           cashuToken={selectedToken.token}
           onCopy={handleCopyNotification}
+          advancedMode={true}
+          claimed={selectedToken.claimed}
         />
       )}
     </View>

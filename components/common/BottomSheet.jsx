@@ -35,14 +35,16 @@ export default function BottomSheet({
     extrapolate: 'clamp',
   });
 
-  // Reset position when sheet opens/closes
+  // Animate sheet opening/closing
   useEffect(() => {
     if (visible) {
-      // Reset to start position when opening
-      translateY.setValue(0);
-    } else {
-      // Immediately reset when closing
-      translateY.setValue(0);
+      // Start off-screen and animate in
+      translateY.setValue(500);
+      Animated.spring(translateY, {
+        toValue: 0,
+        useNativeDriver: true,
+        friction: 8,
+      }).start();
     }
   }, [visible, translateY]);
 
@@ -85,7 +87,7 @@ export default function BottomSheet({
     <Modal
       visible={visible}
       transparent
-      animationType="none"
+      animationType="fade"
       onRequestClose={onClose}
     >
       <View style={styles.container}>
@@ -150,7 +152,7 @@ const styles = StyleSheet.create({
   },
   backdrop: {
     ...StyleSheet.absoluteFillObject,
-    backgroundColor: 'rgba(0, 0, 0, 0.7)',
+    backgroundColor: '#000',
   },
   sheet: {
     backgroundColor: COLORS.DARK_BG,
