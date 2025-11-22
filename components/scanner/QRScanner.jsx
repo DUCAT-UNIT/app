@@ -47,13 +47,14 @@ export default function QRScanner({ visible, onClose, onScan }) {
 
     // Validate that data is readable (not binary garbage)
     const isPrintable = /^[\x20-\x7E\n\r\t]*$/.test(data.substring(0, 100));
-    if (!isPrintable && !data.match(/^\d+\/\d+:/) && !data.startsWith('ur:')) {
+    const dataLower = data.toLowerCase();
+    if (!isPrintable && !data.match(/^\d+\/\d+:/) && !dataLower.startsWith('ur:')) {
       console.warn('[QRScanner] Detected binary/corrupted QR data, ignoring');
       return;
     }
 
-    // Check if this is BC-UR format: ur:bytes/seqNum-seqLen/data
-    if (data.startsWith('ur:')) {
+    // Check if this is BC-UR format: ur:bytes/seqNum-seqLen/data (case-insensitive)
+    if (dataLower.startsWith('ur:')) {
       console.log('[QRScanner] BC-UR format detected');
 
       try {
