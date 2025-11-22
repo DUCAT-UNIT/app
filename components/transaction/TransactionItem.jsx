@@ -287,7 +287,7 @@ const localStyles = StyleSheet.create({
   lightningBadge: {
     position: 'absolute',
     bottom: -4,
-    right: -4,
+    right: -3,
     fontSize: 16,
     lineHeight: 16,
   },
