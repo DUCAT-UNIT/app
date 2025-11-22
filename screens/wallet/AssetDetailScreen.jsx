@@ -14,7 +14,6 @@ import {
   TouchableOpacity,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { useFocusEffect } from '@react-navigation/native';
 import { COLORS } from '../../theme';
 import { useBalance, useTransactionHistory } from '../../contexts/WalletDataContext';
 import { usePrice } from '../../contexts/PriceContext';
@@ -41,10 +40,10 @@ import { useNotifications } from '../../contexts/NotificationContext';
 function AssetDetailScreen({ route = {}, navigation }) {
   const { assetType = 'BTC', advancedMode = false } = route?.params || {};
 
-  const { segwitBalance, runesBalance } = useBalance();
+  const { segwitBalance, runesBalance, loadingBalance } = useBalance();
   const { btcPrice } = usePrice();
   const wallet = useWallet().wallet;
-  const { balance: cashuBalance } = useCashu();
+  const { balance: cashuBalance, isLoading: loadingCashu } = useCashu();
   const { transactionHistory, loadingTransactionHistory, fetchTransactionHistory } = useTransactionHistory();
   const { getSpentUtxos, unmarkUtxosAsSpent } = usePendingTransactions();
 
@@ -55,14 +54,6 @@ function AssetDetailScreen({ route = {}, navigation }) {
   const scrollY = useRef(new Animated.Value(0)).current;
   const { showToast } = useNotifications();
 
-  // Refresh transaction history when screen comes into focus
-  // This will also trigger when returning from the SendFlow modal
-  useFocusEffect(
-    useCallback(() => {
-      fetchTransactionHistory();
-    }, [fetchTransactionHistory])
-  );
-
   // Use extracted price chart hook
   const { priceData, priceDirection, priceLoading, priceError, setPriceError } = usePriceChart(assetType, selectedTimeframe);
 
@@ -72,6 +63,30 @@ function AssetDetailScreen({ route = {}, navigation }) {
   const totalUnitAmount = unitRunesAmount + cashuBalance;
   const balance = assetType === 'BTC' ? segwitBalance : totalUnitAmount;
   const fiatValue = assetType === 'BTC' ? balance * btcPrice : balance * 1;
+
+  // For UNIT, only show loading if we don't have data yet
+  // If we have cached values, show them immediately even if a refresh is in progress
+  const hasRunesData = runesBalance !== null && runesBalance !== undefined;
+  const hasCashuData = cashuBalance !== null && cashuBalance !== undefined;
+
+  const isBalanceLoading = assetType === 'UNIT'
+    ? (!hasRunesData && loadingBalance) || (!hasCashuData && loadingCashu)
+    : (!segwitBalance && loadingBalance);
+
+  // Debug logging for loading states
+  useEffect(() => {
+    if (assetType === 'UNIT') {
+      console.log('[AssetDetailScreen] Loading states:', {
+        loadingBalance,
+        loadingCashu,
+        hasRunesData,
+        hasCashuData,
+        isBalanceLoading,
+        runesBalance,
+        cashuBalance,
+      });
+    }
+  }, [assetType, loadingBalance, loadingCashu, hasRunesData, hasCashuData, isBalanceLoading, runesBalance, cashuBalance]);
 
   // Extract stable wallet addresses using refs to prevent re-renders
   const segwitAddressRef = useRef(wallet?.segwitAddress);
@@ -403,6 +418,7 @@ function AssetDetailScreen({ route = {}, navigation }) {
       priceDirection={priceDirection}
       runesBalance={unitRunesAmount}
       cashuBalance={cashuBalance}
+      isLoading={isBalanceLoading}
     />
   );
 
