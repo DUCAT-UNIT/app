@@ -17,6 +17,8 @@ export function useAssetTransactions(transactionHistory, assetType, segwitAddres
   const lastTxHashRef = useRef('');
   const [filteredTransactions, setFilteredTransactions] = useState([]);
   const [ecashTokens, setEcashTokens] = useState([]);
+  const [ecashLoading, setEcashLoading] = useState(false);
+  const [ecashInitialLoadDone, setEcashInitialLoadDone] = useState(false);
 
   // Fetch ecash tokens when assetType is UNIT and advanced mode is off
   useEffect(() => {
@@ -27,6 +29,7 @@ export function useAssetTransactions(transactionHistory, assetType, segwitAddres
       // Load ecash tokens (no delay needed since claimed tokens are cached)
       const loadEcashTokens = async () => {
           try {
+            setEcashLoading(true);
             const tokens = await getSentLockedTokens(taprootAddress);
             if (!isMounted) return;
             console.log('[useAssetTransactions] Loaded ecash tokens:', tokens.length);
@@ -126,11 +129,15 @@ export function useAssetTransactions(transactionHistory, assetType, segwitAddres
 
           if (isMounted) {
             setEcashTokens(tokensWithStatus);
+            setEcashLoading(false);
+            setEcashInitialLoadDone(true);
           }
         } catch (error) {
           console.error('[useAssetTransactions] Failed to load ecash tokens:', error);
           if (isMounted) {
             setEcashTokens([]);
+            setEcashLoading(false);
+            setEcashInitialLoadDone(true);
           }
         }
       };
@@ -143,6 +150,7 @@ export function useAssetTransactions(transactionHistory, assetType, segwitAddres
       console.log('[useAssetTransactions] Not loading ecash tokens - clearing');
       // Clear ecash tokens when not UNIT or when advanced mode is on
       setEcashTokens([]);
+      setEcashInitialLoadDone(true); // Mark as done immediately for non-UNIT
     }
   }, [assetType, advancedMode, taprootAddress]);
 
@@ -150,6 +158,13 @@ export function useAssetTransactions(transactionHistory, assetType, segwitAddres
   useEffect(() => {
     if (!transactionHistory || !segwitAddress || !taprootAddress) {
       setFilteredTransactions(filteredTxRef.current);
+      return;
+    }
+
+    // For UNIT assets, wait for ecash tokens to finish loading before displaying
+    // This ensures runes and ecash transactions appear together
+    if (assetType === 'UNIT' && !advancedMode && !ecashInitialLoadDone) {
+      console.log('[useAssetTransactions] Waiting for ecash tokens to load before displaying UNIT transactions');
       return;
     }
 
@@ -252,7 +267,7 @@ export function useAssetTransactions(transactionHistory, assetType, segwitAddres
     lastTxHashRef.current = txHash;
     filteredTxRef.current = merged;
     setFilteredTransactions(merged);
-  }, [transactionHistory, segwitAddress, taprootAddress, assetType, ecashTokens]);
+  }, [transactionHistory, segwitAddress, taprootAddress, assetType, ecashTokens, ecashInitialLoadDone, advancedMode]);
 
   return filteredTransactions;
 }
