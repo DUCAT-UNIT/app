@@ -11,6 +11,7 @@ import { clearWallet } from '../services/cashu/cashuWalletService';
 export function useAppSettings({ biometricEnabled, setIsAuthenticated, showToast }) {
   const [notificationsEnabled, setNotificationsEnabled] = useState(false);
   const [showZeroAssets, setShowZeroAssets] = useState(false);
+  const [advancedMode, setAdvancedMode] = useState(false);
   const [showNotificationsModal, setShowNotificationsModal] = useState(false);
   const [pendingNotificationsValue, setPendingNotificationsValue] = useState(false);
 
@@ -27,6 +28,11 @@ export function useAppSettings({ biometricEnabled, setIsAuthenticated, showToast
         if (savedShowZeroAssets !== null) {
           setShowZeroAssets(savedShowZeroAssets === 'true');
         }
+
+        const savedAdvancedMode = await SecureStore.getItemAsync('advancedMode');
+        if (savedAdvancedMode !== null) {
+          setAdvancedMode(savedAdvancedMode === 'true');
+        }
       } catch (error) {}
     };
     loadSettings();
@@ -37,6 +43,12 @@ export function useAppSettings({ biometricEnabled, setIsAuthenticated, showToast
     setShowZeroAssets(newValue);
     await SecureStore.setItemAsync('showZeroAssets', newValue.toString());
   }, [showZeroAssets]);
+
+  const handleAdvancedModeToggle = useCallback(async () => {
+    const newValue = !advancedMode;
+    setAdvancedMode(newValue);
+    await SecureStore.setItemAsync('advancedMode', newValue.toString());
+  }, [advancedMode]);
 
   const handleNotificationsToggle = useCallback(() => {
     const newValue = !notificationsEnabled;
@@ -157,7 +169,9 @@ export function useAppSettings({ biometricEnabled, setIsAuthenticated, showToast
     () => ({
       notificationsEnabled,
       showZeroAssets,
+      advancedMode,
       handleShowZeroAssetsToggle,
+      handleAdvancedModeToggle,
       handleNotificationsToggle,
       handleClearCashuCache,
       handleRecoverLockedChange,
@@ -169,7 +183,9 @@ export function useAppSettings({ biometricEnabled, setIsAuthenticated, showToast
     [
       notificationsEnabled,
       showZeroAssets,
+      advancedMode,
       handleShowZeroAssetsToggle,
+      handleAdvancedModeToggle,
       handleNotificationsToggle,
       handleClearCashuCache,
       handleRecoverLockedChange,

@@ -37,7 +37,7 @@ import { useAssetTransactions } from '../../hooks/useAssetTransactions';
 import { getTxUrl, getOrdTxUrl } from '../../utils/constants';
 
 function AssetDetailScreen({ route = {}, navigation }) {
-  const { assetType = 'BTC' } = route?.params || {};
+  const { assetType = 'BTC', advancedMode = false } = route?.params || {};
 
   const { segwitBalance, runesBalance } = useBalance();
   const { btcPrice } = usePrice();
@@ -396,6 +396,7 @@ function AssetDetailScreen({ route = {}, navigation }) {
       onConsolidatePress={() => handleActionPress('consolidate')}
       onSpectrePress={() => handleActionPress('spectre')}
       showConsolidate={assetType === 'UNIT'}
+      advancedMode={advancedMode}
     />
   );
 
@@ -440,6 +441,7 @@ function AssetDetailScreen({ route = {}, navigation }) {
             selectedTab={selectedTab}
             onTabChange={setSelectedTab}
             assetType={assetType}
+            advancedMode={advancedMode}
           />
 
           {selectedTab === 'ACTIVITY' ? (
@@ -447,6 +449,7 @@ function AssetDetailScreen({ route = {}, navigation }) {
               transactions={filteredTransactions}
               isLoading={loadingTransactionHistory}
               onTransactionPress={handleTransactionPress}
+              advancedMode={advancedMode}
             />
           ) : selectedTab === 'SPECTRE' ? (
             <AssetSpectreList navigation={navigation} />

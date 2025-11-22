@@ -26,6 +26,8 @@ const AdvancedScreen = React.memo(function AdvancedScreen({ route }) {
   const {
     onClose,
     onSwitchAccount,
+    onAdvancedModeToggle,
+    advancedMode,
   } = route.params;
 
   return (
@@ -43,6 +45,12 @@ const AdvancedScreen = React.memo(function AdvancedScreen({ route }) {
         <View style={localStyles.content}>
           <View style={localStyles.section}>
             <SettingsOption
+              iconName="asset"
+              title="Advanced Mode"
+              onPress={onAdvancedModeToggle}
+              rightText={advancedMode ? 'ON' : 'OFF'}
+            />
+            <SettingsOption
               iconName="switch_account"
               title="Select Account"
               onPress={onSwitchAccount}
@@ -55,7 +63,7 @@ const AdvancedScreen = React.memo(function AdvancedScreen({ route }) {
 });
 
 // Individual settings option component
-const SettingsOption = React.memo(function SettingsOption({ iconName, title, onPress }) {
+const SettingsOption = React.memo(function SettingsOption({ iconName, title, onPress, rightText }) {
   return (
     <TouchableOpacity style={localStyles.option} onPress={onPress}>
       <View style={localStyles.optionLeft}>
@@ -63,6 +71,7 @@ const SettingsOption = React.memo(function SettingsOption({ iconName, title, onP
         <Text style={localStyles.optionTitle}>{title}</Text>
       </View>
       <View style={localStyles.optionRight}>
+        {rightText && <Text style={localStyles.optionRightText}>{rightText}</Text>}
         <Text style={localStyles.optionArrow}>›</Text>
       </View>
     </TouchableOpacity>
@@ -73,6 +82,7 @@ SettingsOption.propTypes = {
   iconName: PropTypes.string.isRequired,
   title: PropTypes.string.isRequired,
   onPress: PropTypes.func.isRequired,
+  rightText: PropTypes.string,
 };
 
 AdvancedScreen.propTypes = {
@@ -80,6 +90,8 @@ AdvancedScreen.propTypes = {
     params: PropTypes.shape({
       onClose: PropTypes.func.isRequired,
       onSwitchAccount: PropTypes.func.isRequired,
+      onAdvancedModeToggle: PropTypes.func.isRequired,
+      advancedMode: PropTypes.bool.isRequired,
     }).isRequired,
   }).isRequired,
 };
@@ -146,6 +158,11 @@ const localStyles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     gap: 8,
+  },
+  optionRightText: {
+    fontSize: 14,
+    color: '#888',
+    fontFamily: 'CabinetGrotesk-Regular',
   },
   optionArrow: {
     fontSize: 24,

@@ -365,7 +365,7 @@ export default function WalletPage({ route }) {
               onSettingsPress={openSettings}
               onCreateVaultPress={() => openVault(true)}
               onVaultPress={openVault}
-              onAssetPress={(assetType) => navigation.navigate('AssetDetail', { assetType })}
+              onAssetPress={(assetType) => navigation.navigate('AssetDetail', { assetType, advancedMode: settingsHandlers.advancedMode })}
               sendAddressType={sendAddressType}
               switchingAccount={false}
               showZeroAssets={settingsHandlers.showZeroAssets}
@@ -453,6 +453,8 @@ export default function WalletPage({ route }) {
                 navigation.goBack();
                 setShowAccountPicker(true);
               },
+              onAdvancedModeToggle: settingsHandlers.handleAdvancedModeToggle,
+              advancedMode: settingsHandlers.advancedMode,
             });
           }}
           onViewCashuSettings={() => {

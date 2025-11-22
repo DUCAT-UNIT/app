@@ -10,14 +10,14 @@ import { COLORS } from '../../theme';
 import Icon from '../icons';
 import { formatTransactionDate } from '../../utils/transactionFormatters';
 
-export default function TransactionItem({ tx, styles, onPress }) {
+export default function TransactionItem({ tx, styles, onPress, advancedMode = false }) {
   // Check if this is a vault transaction
   if (tx.vaultTransaction) {
     return <VaultTransactionItem tx={tx} styles={styles} onPress={onPress} />;
   }
 
   // Regular transaction
-  return <RegularTransactionItem tx={tx} styles={styles} onPress={onPress} />;
+  return <RegularTransactionItem tx={tx} styles={styles} onPress={onPress} advancedMode={advancedMode} />;
 }
 
 // Helper component to reduce nesting
@@ -102,7 +102,7 @@ function VaultTransactionItem({ tx, styles, onPress }) {
   );
 }
 
-function RegularTransactionItem({ tx, styles, onPress }) {
+function RegularTransactionItem({ tx, styles, onPress, advancedMode = false }) {
   const { amount, assetType, isSent, isReceived } = tx.txData;
 
   // Handle BigInt for UNIT amounts
@@ -114,9 +114,12 @@ function RegularTransactionItem({ tx, styles, onPress }) {
     output.scriptpubkey_address === SPECTRE_MINT_ADDRESS
   );
 
+  // Only show Spectre UI if advanced mode is enabled
+  const showSpectreUI = isSpectreTransaction && advancedMode;
+
   // Determine action label
   const getActionLabel = () => {
-    if (isSpectreTransaction) {
+    if (showSpectreUI) {
       return isSent ? 'Activate' : 'Deactivate';
     }
     return isSent ? 'Sent' : 'Received';
@@ -125,7 +128,7 @@ function RegularTransactionItem({ tx, styles, onPress }) {
   return (
     <TouchableOpacity style={styles.historyTxRow} onPress={onPress} activeOpacity={0.7}>
       {/* Asset Logo */}
-      {isSpectreTransaction ? (
+      {showSpectreUI ? (
         <View style={localStyles.assetLogo}>
           <Icon name="spectre" size={40} color="#DDDDDD" />
         </View>

@@ -8,8 +8,8 @@ import { View, Text, TouchableOpacity, StyleSheet } from 'react-native';
 import PropTypes from 'prop-types';
 import { COLORS } from '../../theme';
 
-export function AssetTabs({ selectedTab, onTabChange, assetType }) {
-  const TAB_OPTIONS = assetType === 'UNIT'
+export function AssetTabs({ selectedTab, onTabChange, assetType, advancedMode = false }) {
+  const TAB_OPTIONS = (assetType === 'UNIT' && advancedMode)
     ? ['ACTIVITY', 'SPECTRE', 'ABOUT']
     : ['ACTIVITY', 'ABOUT'];
 
@@ -34,6 +34,7 @@ AssetTabs.propTypes = {
   selectedTab: PropTypes.string.isRequired,
   onTabChange: PropTypes.func.isRequired,
   assetType: PropTypes.string.isRequired,
+  advancedMode: PropTypes.bool,
 };
 
 const styles = StyleSheet.create({
