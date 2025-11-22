@@ -117,14 +117,6 @@ export const signP2PKSecret = async (secret, privateKey) => {
       ? Buffer.from(privateKey, 'hex')
       : privateKey;
 
-    // Debug logging
-    logger.info('About to sign with Schnorr', {
-      messageHashLength: messageHash.length,
-      privateKeyLength: privateKeyBuffer.length,
-      messageHashHex: messageHash.toString('hex').substring(0, 32) + '...',
-      privateKeyHex: privateKeyBuffer.toString('hex').substring(0, 32) + '...',
-    });
-
     // Ensure both are proper Buffers and correct length
     if (messageHash.length !== 32) {
       throw new Error(`Invalid message hash length: ${messageHash.length}, expected 32`);
@@ -134,20 +126,13 @@ export const signP2PKSecret = async (secret, privateKey) => {
     }
 
     // Sign with Schnorr using @bitcoinerlab/secp256k1
-    logger.info('Calling ecc.signSchnorr...');
     const signature = ecc.signSchnorr(messageHash, privateKeyBuffer);
-    logger.info('ecc.signSchnorr completed successfully');
     const signatureHex = Buffer.from(signature).toString('hex');
 
     // Create witness structure
     const witness = {
       signatures: [signatureHex]
     };
-
-    logger.info('Signed P2PK secret', {
-      secretPreview: secret.substring(0, 50) + '...',
-      signaturePreview: signatureHex.substring(0, 32) + '...'
-    });
 
     return JSON.stringify(witness);
   } catch (error) {
@@ -275,29 +260,26 @@ export const hasP2PKProofs = (tokenString) => {
 export const signP2PKProofs = async (proofs, privateKey) => {
   logger.info('Signing P2PK proofs', { count: proofs.length });
 
-  const signedProofs = [];
+  // Sign all proofs in parallel using Promise.all
+  const signedProofs = await Promise.all(
+    proofs.map(async (proof) => {
+      if (isP2PKLocked(proof)) {
+        // Sign the P2PK secret to create witness
+        const witness = await signP2PKSecret(proof.secret, privateKey);
 
-  for (const proof of proofs) {
-    if (isP2PKLocked(proof)) {
-      // Sign the P2PK secret to create witness
-      const witness = await signP2PKSecret(proof.secret, privateKey);
+        // Add witness to proof
+        return {
+          ...proof,
+          witness
+        };
+      } else {
+        // Not P2PK locked, no witness needed
+        return proof;
+      }
+    })
+  );
 
-      // Add witness to proof
-      signedProofs.push({
-        ...proof,
-        witness
-      });
-
-      logger.info('Added witness to P2PK proof', {
-        amount: proof.amount,
-        hasWitness: true
-      });
-    } else {
-      // Not P2PK locked, no witness needed
-      signedProofs.push(proof);
-    }
-  }
-
+  logger.info('Signed P2PK proofs complete', { count: signedProofs.length });
   return signedProofs;
 };
 
