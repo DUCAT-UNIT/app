@@ -7,6 +7,7 @@
 import React, { createContext, useContext, useEffect, useCallback, useMemo, useRef } from 'react';
 import { useWallet } from './WalletContext';
 import { usePendingTransactions } from './PendingTransactionsContext';
+import { useCashu } from './CashuContext';
 import { usePolling } from '../hooks/usePolling';
 import { useBalanceData } from '../hooks/useBalanceData';
 import { useTransactionHistoryFetch } from '../hooks/useTransactionHistoryFetch';
@@ -63,6 +64,7 @@ export const useVaultData = () => {
 export const WalletDataProvider = ({ children }) => {
   const { wallet } = useWallet();
   const { getUnconfirmedBalance } = usePendingTransactions();
+  const { isLoading: loadingCashu, balance: cashuBalance } = useCashu();
 
   // ============================================================
   // USE EXTRACTED HOOKS FOR DATA MANAGEMENT
@@ -84,14 +86,42 @@ export const WalletDataProvider = ({ children }) => {
   // Track previous wallet to detect changes (account switches)
   const prevWalletRef = useRef(null);
 
+  // Track if initial balances have loaded (both runes and cashu)
+  const initialBalancesLoadedRef = useRef(false);
+
+  // Check if both balances have loaded at least once
+  const hasRunesData = balance.runesBalance && balance.runesBalance.length >= 0;
+  const hasCashuData = cashuBalance !== null && cashuBalance !== undefined;
+  const bothBalancesLoaded = hasRunesData && hasCashuData;
+
+  // Update ref when both balances have loaded
+  if (bothBalancesLoaded && !initialBalancesLoadedRef.current) {
+    console.log('[WalletDataContext] Both balances loaded, enabling transaction history fetch', {
+      runesBalance: balance.runesBalance,
+      cashuBalance,
+    });
+    initialBalancesLoadedRef.current = true;
+  }
+
   // Unified polling callback - fetches all data on a coordinated schedule
   const pollAllData = useCallback(() => {
     if (!wallet) return;
 
-    // Always fetch balance, vault, and transaction history together (every 10s)
+    // Always fetch balance and vault
     balance.fetchBalance();
     vault.fetchVault();
-    history.fetchTransactionHistory();
+
+    // Only fetch transaction history after both balances have loaded at least once
+    if (initialBalancesLoadedRef.current) {
+      history.fetchTransactionHistory();
+    } else {
+      console.log('[WalletDataContext] Skipping transaction history - waiting for balances to load', {
+        hasRunesData,
+        hasCashuData,
+        loadingBalance: balance.loadingBalance,
+        loadingCashu,
+      });
+    }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [wallet, balance.fetchBalance, vault.fetchVault, history.fetchTransactionHistory]);
 
@@ -105,24 +135,34 @@ export const WalletDataProvider = ({ children }) => {
       balance.resetBalances();
       history.resetTransactionHistory();
       vault.resetVaultData();
+      initialBalancesLoadedRef.current = false; // Reset flag
     } else if (prevWallet && wallet &&
                (prevWallet.segwitAddress !== wallet.segwitAddress ||
                 prevWallet.taprootAddress !== wallet.taprootAddress ||
                 prevWallet.taprootPubkey !== wallet.taprootPubkey)) {
-      // Wallet changed (account switch) - immediately fetch all data
+      // Wallet changed (account switch) - reset flag and fetch balances first
+      initialBalancesLoadedRef.current = false;
       balance.fetchBalance();
       vault.fetchVault();
-      history.fetchTransactionHistory();
+      // Transaction history will be fetched by pollAllData once balances load
     } else if (!prevWallet && wallet) {
-      // Wallet just loaded for first time (import/creation) - immediately fetch all data
-      // This ensures data is available before WalletScreen mounts
+      // Wallet just loaded for first time (import/creation) - fetch balances first
+      // Transaction history will be fetched by pollAllData once balances load
       balance.fetchBalance();
       vault.fetchVault();
-      history.fetchTransactionHistory();
     }
     // Note: The usePolling's immediate: true will also fire, but fetchBalance is idempotent
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [wallet, balance.resetBalances, balance.fetchBalance, history.resetTransactionHistory, history.fetchTransactionHistory, vault.resetVaultData, vault.fetchVault]);
+
+  // Trigger initial transaction history load once both balances have loaded
+  useEffect(() => {
+    if (bothBalancesLoaded && initialBalancesLoadedRef.current) {
+      console.log('[WalletDataContext] Both balances ready - fetching transaction history');
+      history.fetchTransactionHistory();
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [bothBalancesLoaded]);
 
   // Single unified polling mechanism
   usePolling({
