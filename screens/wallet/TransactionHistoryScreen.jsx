@@ -80,7 +80,7 @@ export default function TransactionHistoryScreen({
 
   return (
     <>
-      {showHistorySheet && (
+      {showHistorySheet && !showTokenDetails && (
         <TouchableOpacity
           style={styles.bottomSheetBackdrop}
           activeOpacity={1}
@@ -96,7 +96,7 @@ export default function TransactionHistoryScreen({
             transform: [{ translateY }],
           },
         ]}
-        pointerEvents={!showHistorySheet ? 'none' : 'auto'}
+        pointerEvents={!showHistorySheet || showTokenDetails ? 'none' : 'auto'}
       >
         <View style={styles.historyHandleArea} {...panResponder.panHandlers}>
           <View style={styles.bottomSheetHandle} />

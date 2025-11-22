@@ -8,15 +8,14 @@ import {
   View,
   Text,
   TouchableOpacity,
-  Modal,
   StyleSheet,
-  Pressable,
   Linking,
 } from 'react-native';
 import * as Clipboard from 'expo-clipboard';
 import PropTypes from 'prop-types';
 import { COLORS } from '../../theme';
 import Icon from '../icons';
+import BottomSheet from '../common/BottomSheet';
 
 export default function TokenDetailsSheet({
   visible,
@@ -46,81 +45,72 @@ export default function TokenDetailsSheet({
     : cashuToken;
 
   return (
-    <Modal
-      visible={visible}
-      transparent
-      animationType="slide"
-      onRequestClose={onClose}
-    >
-      <Pressable style={styles.overlay} onPress={onClose}>
-        <Pressable style={styles.sheet} onPress={(e) => e.stopPropagation()}>
-          {/* Header */}
-          <View style={styles.header}>
-            <View style={styles.headerContent}>
-              <Icon name="unit_logo" size={24} color={COLORS.PRIMARY_BLUE} />
-              <View style={styles.headerText}>
-                <Text style={styles.title}>Ecash Token</Text>
-                <Text style={styles.subtitle}>
-                  {recipientAddress ? `Bound to ${recipientAddress.slice(0, 5)}...` : 'Anyone can claim'}
-                </Text>
-              </View>
-            </View>
-            <TouchableOpacity onPress={onClose} style={styles.closeButton}>
-              <Icon name="close" size={24} color={COLORS.WHITE} />
-            </TouchableOpacity>
-          </View>
-
-          {/* Shortened URL Card */}
-          <View style={styles.section}>
-            <Text style={styles.sectionLabel}>Shortened URL</Text>
-            <TouchableOpacity
-              style={styles.card}
-              onPress={handleCopyShortUrl}
-              activeOpacity={0.7}
-            >
-              <View style={styles.cardContent}>
-                <Icon name="link" size={20} color={COLORS.PRIMARY_BLUE} />
-                <Text style={styles.cardText} numberOfLines={1}>
-                  {shortUrl}
-                </Text>
-              </View>
-              <TouchableOpacity
-                style={styles.actionButton}
-                onPress={handleOpenInSafari}
-                activeOpacity={0.7}
-              >
-                <Icon name="external_link" size={20} color={COLORS.PRIMARY_BLUE} />
-              </TouchableOpacity>
-            </TouchableOpacity>
-          </View>
-
-          {/* Base64 Token Card */}
-          <View style={styles.section}>
-            <Text style={styles.sectionLabel}>Cashu Token</Text>
-            <TouchableOpacity
-              style={styles.card}
-              onPress={handleCopyToken}
-              activeOpacity={0.7}
-            >
-              <View style={styles.cardContent}>
-                <Icon name="copy" size={20} color={COLORS.PRIMARY_BLUE} />
-                <Text style={styles.cardText} numberOfLines={2}>
-                  {truncatedToken}
-                </Text>
-              </View>
-            </TouchableOpacity>
-          </View>
-
-          {/* Info */}
-          <View style={styles.infoBox}>
-            <Icon name="info" size={16} color={COLORS.SECONDARY_TEXT} />
-            <Text style={styles.infoText}>
-              Share this token to send ecash. The recipient can claim it by opening the link.
+    <BottomSheet visible={visible} onClose={onClose}>
+      {/* Header with custom content */}
+      <View style={styles.customHeader}>
+        <View style={styles.headerContent}>
+          <Icon name="unit_logo" size={24} color={COLORS.PRIMARY_BLUE} />
+          <View style={styles.headerText}>
+            <Text style={styles.title}>Ecash Token</Text>
+            <Text style={styles.subtitle}>
+              {recipientAddress ? `Bound to ${recipientAddress.slice(0, 5)}...` : 'Anyone can claim'}
             </Text>
           </View>
-        </Pressable>
-      </Pressable>
-    </Modal>
+        </View>
+        <TouchableOpacity onPress={onClose} style={styles.closeButton}>
+          <Icon name="close" size={24} color={COLORS.WHITE} />
+        </TouchableOpacity>
+      </View>
+
+      {/* Shortened URL Card */}
+      <View style={styles.section}>
+        <Text style={styles.sectionLabel}>Shortened URL</Text>
+        <TouchableOpacity
+          style={styles.card}
+          onPress={handleCopyShortUrl}
+          activeOpacity={0.7}
+        >
+          <View style={styles.cardContent}>
+            <Icon name="link" size={20} color={COLORS.PRIMARY_BLUE} />
+            <Text style={styles.cardText} numberOfLines={1}>
+              {shortUrl}
+            </Text>
+          </View>
+          <TouchableOpacity
+            style={styles.actionButton}
+            onPress={handleOpenInSafari}
+            activeOpacity={0.7}
+          >
+            <Icon name="external_link" size={20} color={COLORS.PRIMARY_BLUE} />
+          </TouchableOpacity>
+        </TouchableOpacity>
+      </View>
+
+      {/* Base64 Token Card */}
+      <View style={styles.section}>
+        <Text style={styles.sectionLabel}>Cashu Token</Text>
+        <TouchableOpacity
+          style={styles.card}
+          onPress={handleCopyToken}
+          activeOpacity={0.7}
+        >
+          <View style={styles.cardContent}>
+            <Icon name="copy" size={20} color={COLORS.PRIMARY_BLUE} />
+            <Text style={styles.cardText} numberOfLines={2}>
+              {truncatedToken}
+            </Text>
+          </View>
+        </TouchableOpacity>
+      </View>
+
+      {/* Info */}
+      <View style={styles.infoBox}>
+        <Icon name="info" size={16} color={COLORS.SECONDARY_TEXT} />
+        <Text style={styles.infoText}>
+          Share this token to send ecash. The recipient can claim it by opening the link.
+        </Text>
+      </View>
+    </BottomSheet>
   );
 }
 
@@ -134,23 +124,12 @@ TokenDetailsSheet.propTypes = {
 };
 
 const styles = StyleSheet.create({
-  overlay: {
-    flex: 1,
-    backgroundColor: 'rgba(0, 0, 0, 0.7)',
-    justifyContent: 'flex-end',
-  },
-  sheet: {
-    backgroundColor: COLORS.DARK_BG,
-    borderTopLeftRadius: 20,
-    borderTopRightRadius: 20,
-    paddingBottom: 40,
-    paddingTop: 20,
-  },
-  header: {
+  customHeader: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
     paddingHorizontal: 20,
+    paddingTop: 20,
     paddingBottom: 20,
     borderBottomWidth: 1,
     borderBottomColor: COLORS.BORDER_COLOR,

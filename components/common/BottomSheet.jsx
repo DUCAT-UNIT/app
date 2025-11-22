@@ -1,0 +1,190 @@
+/**
+ * BottomSheet Component
+ * Reusable bottom sheet with overlay, slide-up animation, and swipe-to-dismiss
+ */
+
+import React, { useRef, useEffect } from 'react';
+import {
+  View,
+  Modal,
+  StyleSheet,
+  Pressable,
+  TouchableOpacity,
+  TouchableWithoutFeedback,
+  Text,
+  PanResponder,
+  Animated,
+} from 'react-native';
+import PropTypes from 'prop-types';
+import { COLORS } from '../../theme';
+import Icon from '../icons';
+
+export default function BottomSheet({
+  visible,
+  onClose,
+  title,
+  children,
+  showCloseButton = true,
+}) {
+  const translateY = useRef(new Animated.Value(0)).current;
+
+  // Interpolate opacity from translateY
+  const backdropOpacity = translateY.interpolate({
+    inputRange: [0, 500],
+    outputRange: [0.7, 0],
+    extrapolate: 'clamp',
+  });
+
+  // Reset position when sheet opens/closes
+  useEffect(() => {
+    if (visible) {
+      // Reset to start position when opening
+      translateY.setValue(0);
+    } else {
+      // Immediately reset when closing
+      translateY.setValue(0);
+    }
+  }, [visible, translateY]);
+
+  // Create pan responder for swipe gestures
+  const panResponder = useRef(
+    PanResponder.create({
+      onStartShouldSetPanResponder: () => true,
+      onMoveShouldSetPanResponder: (_, gestureState) => {
+        // Only respond to downward swipes
+        return gestureState.dy > 5 && Math.abs(gestureState.dy) > Math.abs(gestureState.dx);
+      },
+      onPanResponderMove: (_, gestureState) => {
+        if (gestureState.dy > 0) {
+          translateY.setValue(gestureState.dy);
+        }
+      },
+      onPanResponderRelease: (_, gestureState) => {
+        // Dismiss if dragged far enough or with velocity
+        if (gestureState.dy > 100 || gestureState.vy > 0.5) {
+          Animated.timing(translateY, {
+            toValue: 500,
+            duration: 200,
+            useNativeDriver: true,
+          }).start(() => {
+            onClose();
+          });
+        } else {
+          // Spring back to original position
+          Animated.spring(translateY, {
+            toValue: 0,
+            useNativeDriver: true,
+            friction: 8,
+          }).start();
+        }
+      },
+    })
+  ).current;
+
+  return (
+    <Modal
+      visible={visible}
+      transparent
+      animationType="none"
+      onRequestClose={onClose}
+    >
+      <View style={styles.container}>
+        {/* Backdrop - tapping closes */}
+        <TouchableWithoutFeedback onPress={onClose}>
+          <Animated.View
+            style={[
+              styles.backdrop,
+              {
+                opacity: backdropOpacity,
+              }
+            ]}
+          />
+        </TouchableWithoutFeedback>
+
+        {/* Sheet with gesture handling */}
+        <Animated.View
+          style={[
+            styles.sheet,
+            {
+              transform: [{ translateY }],
+            },
+          ]}
+        >
+          {/* Swipe Handle */}
+          <View style={styles.handleContainer} {...panResponder.panHandlers}>
+            <View style={styles.handle} />
+          </View>
+
+          {/* Header */}
+          {(title || showCloseButton) && (
+            <View style={styles.header}>
+              {title && <Text style={styles.title}>{title}</Text>}
+              {showCloseButton && (
+                <TouchableOpacity onPress={onClose} style={styles.closeButton}>
+                  <Icon name="close" size={24} color={COLORS.WHITE} />
+                </TouchableOpacity>
+              )}
+            </View>
+          )}
+
+          {/* Content */}
+          {children}
+        </Animated.View>
+      </View>
+    </Modal>
+  );
+}
+
+BottomSheet.propTypes = {
+  visible: PropTypes.bool.isRequired,
+  onClose: PropTypes.func.isRequired,
+  title: PropTypes.string,
+  children: PropTypes.node.isRequired,
+  showCloseButton: PropTypes.bool,
+};
+
+const styles = StyleSheet.create({
+  container: {
+    flex: 1,
+    justifyContent: 'flex-end',
+  },
+  backdrop: {
+    ...StyleSheet.absoluteFillObject,
+    backgroundColor: 'rgba(0, 0, 0, 0.7)',
+  },
+  sheet: {
+    backgroundColor: COLORS.DARK_BG,
+    borderTopLeftRadius: 20,
+    borderTopRightRadius: 20,
+    paddingBottom: 40,
+  },
+  handleContainer: {
+    alignItems: 'center',
+    paddingVertical: 20,
+    paddingHorizontal: 20,
+  },
+  handle: {
+    width: 40,
+    height: 5,
+    backgroundColor: COLORS.MID_GRAY,
+    borderRadius: 3,
+  },
+  header: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingHorizontal: 20,
+    paddingTop: 16,
+    paddingBottom: 16,
+  },
+  title: {
+    fontSize: 20,
+    fontWeight: 'bold',
+    color: COLORS.WHITE,
+    fontFamily: 'CabinetGrotesk-Bold',
+    flex: 1,
+  },
+  closeButton: {
+    padding: 4,
+  },
+});
