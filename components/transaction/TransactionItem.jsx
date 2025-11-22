@@ -113,8 +113,9 @@ function EcashTransactionItem({ tx, styles, onPress }) {
 
   return (
     <TouchableOpacity style={styles.historyTxRow} onPress={onPress} activeOpacity={0.7}>
-      <View style={localStyles.assetLogo}>
+      <View style={localStyles.assetLogoContainer}>
         <Icon name="unit_logo" size={40} />
+        <Text style={localStyles.lightningBadge}>⚡</Text>
       </View>
 
       <View style={localStyles.txContentContainer}>
@@ -158,7 +159,6 @@ function EcashTransactionItem({ tx, styles, onPress }) {
         </View>
         <View style={styles.historyTxBottomRow}>
           <Text style={styles.historyTxDate}>{formatTransactionDate(tx.timestamp / 1000)}</Text>
-          <Text style={localStyles.lightningEmoji}>⚡</Text>
         </View>
       </View>
     </TouchableOpacity>
@@ -278,6 +278,19 @@ const localStyles = StyleSheet.create({
   assetLogo: {
     marginRight: 10,
   },
+  assetLogoContainer: {
+    marginRight: 10,
+    position: 'relative',
+    width: 40,
+    height: 40,
+  },
+  lightningBadge: {
+    position: 'absolute',
+    bottom: -2,
+    right: -2,
+    fontSize: 16,
+    lineHeight: 16,
+  },
   txContentContainer: {
     flex: 1,
   },
@@ -313,10 +326,6 @@ const localStyles = StyleSheet.create({
   },
   claimedChipText: {
     color: COLORS.PRIMARY_BLUE,
-  },
-  lightningEmoji: {
-    fontSize: 14,
-    marginLeft: 8,
   },
 });
 
