@@ -22,7 +22,7 @@ const { width: SCREEN_WIDTH } = require('react-native').Dimensions.get('window')
 // Responsive horizontal padding
 const HORIZONTAL_PADDING = SCREEN_WIDTH < 375 ? 16 : SCREEN_WIDTH > 414 ? 24 : 20;
 
-const PreferencesScreen = React.memo(function PreferencesScreen({ route }) {
+function PreferencesScreen({ route }) {
   const {
     onClose,
     onShowZeroAssetsToggle,
@@ -62,10 +62,10 @@ const PreferencesScreen = React.memo(function PreferencesScreen({ route }) {
       </ScrollView>
     </View>
   );
-});
+}
 
 // Individual settings option component
-const SettingsOption = React.memo(function SettingsOption({ iconName, title, onPress, rightText, isDanger }) {
+function SettingsOption({ iconName, title, onPress, rightText, isDanger }) {
   return (
     <TouchableOpacity style={localStyles.option} onPress={onPress}>
       <View style={localStyles.optionLeft}>
@@ -78,7 +78,7 @@ const SettingsOption = React.memo(function SettingsOption({ iconName, title, onP
       </View>
     </TouchableOpacity>
   );
-});
+}
 
 SettingsOption.propTypes = {
   iconName: PropTypes.string.isRequired,
