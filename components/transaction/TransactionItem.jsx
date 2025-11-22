@@ -158,6 +158,7 @@ function EcashTransactionItem({ tx, styles, onPress }) {
         </View>
         <View style={styles.historyTxBottomRow}>
           <Text style={styles.historyTxDate}>{formatTransactionDate(tx.timestamp / 1000)}</Text>
+          <Text style={localStyles.lightningEmoji}>⚡</Text>
         </View>
       </View>
     </TouchableOpacity>
@@ -312,6 +313,10 @@ const localStyles = StyleSheet.create({
   },
   claimedChipText: {
     color: COLORS.PRIMARY_BLUE,
+  },
+  lightningEmoji: {
+    fontSize: 14,
+    marginLeft: 8,
   },
 });
 
