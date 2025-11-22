@@ -179,13 +179,13 @@ function AppProviders({ children }) {
 
   return (
     <PendingTransactionsProvider currentAccount={currentAccount} showToast={showToast}>
-      <WalletDataProvider>
-        <CashuProvider>
+      <CashuProvider>
+        <WalletDataProvider>
           <PriceProvider>
             {children}
           </PriceProvider>
-        </CashuProvider>
-      </WalletDataProvider>
+        </WalletDataProvider>
+      </CashuProvider>
     </PendingTransactionsProvider>
   );
 }
