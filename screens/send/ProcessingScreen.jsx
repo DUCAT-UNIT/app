@@ -23,12 +23,25 @@ export default function ProcessingScreen({ navigation, route }) {
 
   // Get action from route params
   const action = route.params?.action; // 'create_intent', 'sign_and_broadcast'
+  const fromScreen = route.params?.fromScreen;
   const isCashuMint = route.params?.cashuMint === true;
   const cashuQuoteId = route.params?.quoteId;
   const isSpectre = route.params?.isSpectre === true;
   const mintQuoteId = route.params?.mintQuoteId;
   const mintAmount = route.params?.mintAmount;
   const spectreRecipient = route.params?.spectreRecipient; // Original recipient for P2PK locking
+
+  // Helper to handle navigation errors - dismiss modal if coming from Settings
+  const handleNavigationError = (errorMessage) => {
+    if (fromScreen === 'Settings') {
+      // Dismiss the SendFlow modal and return to Main
+      navigation.getParent()?.goBack();
+    } else {
+      // Normal flow - go back to previous screen
+      navigation.goBack();
+    }
+    setTimeout(() => showToast(errorMessage, 'error'), 300);
+  };
 
   // Get Cashu mint params if provided
   const paramAssetType = route.params?.assetType;
@@ -133,17 +146,17 @@ export default function ProcessingScreen({ navigation, route }) {
                 mintQuoteId,
                 mintAmount,
                 spectreRecipient,
+                cashuMint: isCashuMint,
+                quoteId: cashuQuoteId,
               });
             }, 50);
           } else {
-            navigation.goBack();
-            setTimeout(() => showToast('Failed to sign and broadcast transaction', 'error'), 300);
+            handleNavigationError('Failed to sign and broadcast transaction');
           }
         } catch (error) {
           logger.error('Signing error:', error);
           const errorMessage = error.message || error.toString() || 'Transaction failed';
-          navigation.goBack();
-          setTimeout(() => showToast(errorMessage, 'error'), 300);
+          handleNavigationError(errorMessage);
         }
       }, 100);
     }
@@ -164,14 +177,15 @@ export default function ProcessingScreen({ navigation, route }) {
           isSpectre,
           mintQuoteId,
           mintAmount,
-          spectreRecipient
+          spectreRecipient,
+          cashuMint: isCashuMint,
+          quoteId: cashuQuoteId,
         });
       } else if (intentStep === 'entering_amount') {
         // Error - go back to amount input
         logger.debug('Error creating intent, going back to amount');
         hasNavigated.current = true;
-        navigation.goBack();
-        setTimeout(() => showToast('Failed to create transaction. Please check your balance and try again.', 'error'), 300);
+        handleNavigationError('Failed to create transaction. Please check your balance and try again.');
       }
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps

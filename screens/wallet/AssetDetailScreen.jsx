@@ -35,6 +35,8 @@ import UnitBalanceBreakdown from '../../components/wallet/UnitBalanceBreakdown';
 import { usePriceChart } from '../../hooks/usePriceChart';
 import { useAssetTransactions } from '../../hooks/useAssetTransactions';
 import { getTxUrl, getOrdTxUrl } from '../../utils/constants';
+import TokenDetailsSheet from '../../components/ecash/TokenDetailsSheet';
+import { useNotifications } from '../../contexts/NotificationContext';
 
 function AssetDetailScreen({ route = {}, navigation }) {
   const { assetType = 'BTC', advancedMode = false } = route?.params || {};
@@ -48,7 +50,10 @@ function AssetDetailScreen({ route = {}, navigation }) {
 
   const [selectedTab, setSelectedTab] = useState('ACTIVITY');
   const [selectedTimeframe, setSelectedTimeframe] = useState('1M');
+  const [selectedToken, setSelectedToken] = useState(null);
+  const [showTokenDetails, setShowTokenDetails] = useState(false);
   const scrollY = useRef(new Animated.Value(0)).current;
+  const { showToast } = useNotifications();
 
   // Refresh transaction history when screen comes into focus
   // This will also trigger when returning from the SendFlow modal
@@ -87,7 +92,7 @@ function AssetDetailScreen({ route = {}, navigation }) {
   const isPositive = useMemo(() => priceDirection.isPositive, [priceDirection.isPositive]);
 
   // Use extracted transaction filtering hook
-  const filteredTransactions = useAssetTransactions(transactionHistory, assetType, segwitAddress, taprootAddress);
+  const filteredTransactions = useAssetTransactions(transactionHistory, assetType, segwitAddress, taprootAddress, advancedMode);
 
   const handleActionPress = (action) => {
     switch (action) {
@@ -358,8 +363,20 @@ function AssetDetailScreen({ route = {}, navigation }) {
     );
   };
 
-  // Open transaction in blockchain explorer
+  // Handle ecash token details copy notification
+  const handleCopyNotification = useCallback((message) => {
+    showToast(message, 'success');
+  }, [showToast]);
+
+  // Open transaction in blockchain explorer or show token details for ecash
   const handleTransactionPress = useCallback(async (tx) => {
+    // Handle ecash token clicks
+    if (tx.ecashToken) {
+      setSelectedToken(tx.tokenData);
+      setShowTokenDetails(true);
+      return;
+    }
+
     try {
       // Use ord explorer for UNIT transactions, regular explorer for BTC
       const url = assetType === 'UNIT' ? getOrdTxUrl(tx.txid) : getTxUrl(tx.txid);
@@ -458,6 +475,18 @@ function AssetDetailScreen({ route = {}, navigation }) {
           )}
         </Animated.ScrollView>
       </SafeAreaView>
+
+      {/* Token Details Sheet */}
+      {selectedToken && (
+        <TokenDetailsSheet
+          visible={showTokenDetails}
+          onClose={() => setShowTokenDetails(false)}
+          recipientAddress={selectedToken.recipient}
+          shortUrl={selectedToken.shortUrl}
+          cashuToken={selectedToken.token}
+          onCopy={handleCopyNotification}
+        />
+      )}
     </>
   );
 }

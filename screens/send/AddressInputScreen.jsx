@@ -42,14 +42,13 @@ export default function AddressInputScreen({ navigation, route }) {
   }, [route.params?.assetType, sendAssetType, setSendAssetType]);
 
   // Enable Spectre mode by default for UNIT transfers when Advanced Mode is on (only on mount)
+  // Note: When Advanced Mode is off, Spectre can still be enabled programmatically (e.g., for small transactions)
   useEffect(() => {
     if (assetType === 'unit' && advancedMode) {
       logger.debug('AddressInputScreen: Enabling Spectre mode by default for UNIT');
       setSpectreEnabled(true);
-    } else if (assetType === 'unit' && !advancedMode) {
-      // Ensure Spectre is disabled when Advanced Mode is off
-      setSpectreEnabled(false);
     }
+    // Don't force Spectre off when Advanced Mode is off - allow programmatic control
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [assetType, advancedMode]); // Run when assetType or advancedMode changes
 

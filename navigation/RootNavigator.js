@@ -191,28 +191,11 @@ const linking = {
         // Check if this is the new ducat://spectre/ format
         const spectreMatch = url.match(/ducat:\/\/spectre\/([^\/?#]+)/);
         if (spectreMatch && spectreMatch[1]) {
-          let base64Token = spectreMatch[1];
-          console.log('[SPECTRE] Extracted base64 token from ducat:// URL, length:', base64Token.length);
-
-          try {
-            // Convert URL-safe base64 back to standard base64
-            base64Token = base64Token
-              .replace(/-/g, '+')
-              .replace(/_/g, '/');
-
-            // Add padding if needed
-            while (base64Token.length % 4) {
-              base64Token += '=';
-            }
-
-            // Decode base64 to get cashu token
-            token = atob(base64Token);
-            console.log('[SPECTRE] URL event: Decoded base64 to cashu token');
-            console.log('[SPECTRE] Decoded token starts with:', token.substring(0, 20));
-          } catch (error) {
-            console.error('[SPECTRE] URL event: Failed to decode base64 token:', error.message);
-            return;
-          }
+          // The token is already in the correct format (cashuA...)
+          // No need to decode - just use it directly
+          token = spectreMatch[1];
+          console.log('[SPECTRE] Extracted Cashu token from ducat:// URL, length:', token.length);
+          console.log('[SPECTRE] Token starts with:', token.substring(0, 20));
         }
         // Check if this is an ID-based link (token stored in Rebrandly)
         else {

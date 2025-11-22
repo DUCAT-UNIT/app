@@ -12,6 +12,7 @@ export function useAppSettings({ biometricEnabled, setIsAuthenticated, showToast
   const [notificationsEnabled, setNotificationsEnabled] = useState(false);
   const [showZeroAssets, setShowZeroAssets] = useState(false);
   const [advancedMode, setAdvancedMode] = useState(false);
+  const [ecashThreshold, setEcashThreshold] = useState(100); // Default 100 UNIT for auto-Spectre
   const [showNotificationsModal, setShowNotificationsModal] = useState(false);
   const [pendingNotificationsValue, setPendingNotificationsValue] = useState(false);
 
@@ -33,6 +34,11 @@ export function useAppSettings({ biometricEnabled, setIsAuthenticated, showToast
         if (savedAdvancedMode !== null) {
           setAdvancedMode(savedAdvancedMode === 'true');
         }
+
+        const savedEcashThreshold = await SecureStore.getItemAsync('ecashThreshold');
+        if (savedEcashThreshold !== null) {
+          setEcashThreshold(parseInt(savedEcashThreshold, 10));
+        }
       } catch (error) {}
     };
     loadSettings();
@@ -45,9 +51,12 @@ export function useAppSettings({ biometricEnabled, setIsAuthenticated, showToast
   }, [showZeroAssets]);
 
   const handleAdvancedModeToggle = useCallback(async () => {
+    console.log('[useAppSettings] Advanced Mode toggle called, current value:', advancedMode);
     const newValue = !advancedMode;
+    console.log('[useAppSettings] Setting Advanced Mode to:', newValue);
     setAdvancedMode(newValue);
     await SecureStore.setItemAsync('advancedMode', newValue.toString());
+    console.log('[useAppSettings] Advanced Mode toggle complete');
   }, [advancedMode]);
 
   const handleNotificationsToggle = useCallback(() => {
@@ -165,17 +174,25 @@ export function useAppSettings({ biometricEnabled, setIsAuthenticated, showToast
     }
   }, [showToast]);
 
+  const handleEcashThresholdChange = useCallback(async (newThreshold) => {
+    console.log('[useAppSettings] Ecash threshold changed to:', newThreshold);
+    setEcashThreshold(newThreshold);
+    await SecureStore.setItemAsync('ecashThreshold', newThreshold.toString());
+  }, []);
+
   return useMemo(
     () => ({
       notificationsEnabled,
       showZeroAssets,
       advancedMode,
+      ecashThreshold,
       handleShowZeroAssetsToggle,
       handleAdvancedModeToggle,
       handleNotificationsToggle,
       handleClearCashuCache,
       handleRecoverLockedChange,
       handleClearLockedTokens,
+      handleEcashThresholdChange,
       showNotificationsModal,
       confirmNotificationsToggle,
       cancelNotificationsToggle,
@@ -184,12 +201,14 @@ export function useAppSettings({ biometricEnabled, setIsAuthenticated, showToast
       notificationsEnabled,
       showZeroAssets,
       advancedMode,
+      ecashThreshold,
       handleShowZeroAssetsToggle,
       handleAdvancedModeToggle,
       handleNotificationsToggle,
       handleClearCashuCache,
       handleRecoverLockedChange,
       handleClearLockedTokens,
+      handleEcashThresholdChange,
       showNotificationsModal,
       confirmNotificationsToggle,
       cancelNotificationsToggle,

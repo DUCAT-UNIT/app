@@ -3,7 +3,7 @@
  * Displays user's transaction history in a bottom sheet
  */
 
-import React, { useCallback } from 'react';
+import React, { useCallback, useState } from 'react';
 import PropTypes from 'prop-types';
 import {
   View,
@@ -17,6 +17,8 @@ import { COLORS } from '../../theme';
 import TransactionItem from '../../components/transaction/TransactionItem';
 import { useBottomSheetAnimation } from '../../hooks/useBottomSheetAnimation';
 import { useTransactionHistoryData } from '../../hooks/useTransactionHistoryData';
+import TokenDetailsSheet from '../../components/ecash/TokenDetailsSheet';
+import { useNotifications } from '../../contexts/NotificationContext';
 
 export default function TransactionHistoryScreen({
   styles,
@@ -25,6 +27,10 @@ export default function TransactionHistoryScreen({
   segwitAddress,
   taprootAddress,
 }) {
+  const [selectedToken, setSelectedToken] = useState(null);
+  const [showTokenDetails, setShowTokenDetails] = useState(false);
+  const { showToast } = useNotifications();
+
   // Animation and gesture handling
   const { opacity, translateY, panResponder, handleDismiss } = useBottomSheetAnimation(
     showHistorySheet,
@@ -38,6 +44,11 @@ export default function TransactionHistoryScreen({
     taprootAddress
   );
 
+  // Handle ecash token details copy notification
+  const handleCopyNotification = useCallback((message) => {
+    showToast(message, 'success');
+  }, [showToast]);
+
   // Render function for each transaction
   const renderTransaction = useCallback(
     ({ item: tx }) => (
@@ -49,6 +60,14 @@ export default function TransactionHistoryScreen({
             // Vault transactions don't have explorer links yet
             return;
           }
+
+          // Handle ecash token clicks
+          if (tx.ecashToken) {
+            setSelectedToken(tx.tokenData);
+            setShowTokenDetails(true);
+            return;
+          }
+
           openTxInExplorer(tx.txid, tx.txData.assetType);
         }}
       />
@@ -107,6 +126,18 @@ export default function TransactionHistoryScreen({
           />
         )}
       </Animated.View>
+
+      {/* Token Details Sheet */}
+      {selectedToken && (
+        <TokenDetailsSheet
+          visible={showTokenDetails}
+          onClose={() => setShowTokenDetails(false)}
+          recipientAddress={selectedToken.recipient}
+          shortUrl={selectedToken.shortUrl}
+          cashuToken={selectedToken.token}
+          onCopy={handleCopyNotification}
+        />
+      )}
     </>
   );
 }

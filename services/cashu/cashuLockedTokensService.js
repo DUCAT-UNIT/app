@@ -15,11 +15,13 @@ const MAX_STORED_TOKENS = 100; // Increased from 50
  * @param {string} recipient - Recipient taproot address
  * @param {number} amount - Amount in smallest units
  * @param {string} txid - Optional transaction ID
+ * @param {string} shortUrl - Optional shortened URL
+ * @param {string} taprootAddress - Sender's taproot address (for account association)
  * @returns {Promise<void>}
  */
-export const saveSentLockedToken = async (token, recipient, amount, txid = null) => {
+export const saveSentLockedToken = async (token, recipient, amount, txid = null, shortUrl = null, taprootAddress = null) => {
   try {
-    logger.info('Saving sent locked token', { recipient, amount, txid });
+    logger.info('Saving sent locked token', { recipient, amount, txid, shortUrl, taprootAddress });
 
     // Load existing tokens
     const existingTokens = await getSentLockedTokens();
@@ -31,6 +33,8 @@ export const saveSentLockedToken = async (token, recipient, amount, txid = null)
       amount,
       timestamp: Date.now(),
       txid,
+      shortUrl, // Store shortened URL if available
+      taprootAddress, // Associate with account
       id: `${recipient}_${Date.now()}`, // Unique ID
     };
 
@@ -49,10 +53,11 @@ export const saveSentLockedToken = async (token, recipient, amount, txid = null)
 };
 
 /**
- * Get all sent locked tokens
+ * Get all sent locked tokens for a specific account
+ * @param {string} taprootAddress - Optional taproot address to filter by account
  * @returns {Promise<Array>} Array of token records
  */
-export const getSentLockedTokens = async () => {
+export const getSentLockedTokens = async (taprootAddress = null) => {
   try {
     const tokensJson = await SecureStore.getItemAsync(SENT_TOKENS_KEY);
     if (!tokensJson) {
@@ -61,8 +66,13 @@ export const getSentLockedTokens = async () => {
 
     const tokens = JSON.parse(tokensJson);
 
+    // Filter by taproot address if provided
+    const filteredTokens = taprootAddress
+      ? tokens.filter(t => t.taprootAddress === taprootAddress)
+      : tokens;
+
     // Sort by timestamp descending (newest first)
-    return tokens.sort((a, b) => b.timestamp - a.timestamp);
+    return filteredTokens.sort((a, b) => b.timestamp - a.timestamp);
   } catch (error) {
     logger.error('Failed to get sent locked tokens', { error: error.message });
     return [];
@@ -113,26 +123,29 @@ export const clearSentLockedTokens = async () => {
  * @param {number} amount - Amount in smallest units (unused, kept for compatibility)
  * @returns {string} ducat:// deeplink URL
  */
-export const generateSpectreDeeplink = (token, recipient, amount) => {
+export const generateSpectreDeeplink = async (token, recipient, amount) => {
   console.log('[SpectreDeeplink] Generating deeplink with token:', token.substring(0, 50) + '...');
   console.log('[SpectreDeeplink] Token starts with:', token.substring(0, 10));
 
-  // Base64 encode the cashu token for URL safety
-  // Use URL-safe base64: replace + with -, / with _, and remove padding =
-  const base64Token = btoa(token)
-    .replace(/\+/g, '-')
-    .replace(/\//g, '_')
-    .replace(/=/g, '');
+  // Try to shorten using Ducat server first
+  try {
+    const { shortenCashuToken } = await import('../urlShortener');
+    const shortUrl = await shortenCashuToken(token);
+    console.log('[SpectreDeeplink] Shortened URL from Ducat server:', shortUrl);
+    return shortUrl;
+  } catch (error) {
+    console.error('[SpectreDeeplink] Failed to shorten with Ducat server:', error);
+    console.log('[SpectreDeeplink] Falling back to ducat:// deeplink');
 
-  console.log('[SpectreDeeplink] URL-safe base64 token length:', base64Token.length);
+    // Fallback: Create ducat:// deeplink with the token directly
+    // Cashu tokens are already URL-safe (alphanumeric + base64 characters)
+    // No need to base64-encode again - just use the token as-is
+    const fullDeeplink = `ducat://spectre/${token}`;
+    console.log('[SpectreDeeplink] Full deeplink:', fullDeeplink.substring(0, 50) + '...');
+    console.log('[SpectreDeeplink] Full deeplink length:', fullDeeplink.length);
 
-  // Create ducat:// deeplink with base64 token
-  // Using custom URL scheme for direct app handling
-  const fullDeeplink = `ducat://spectre/${base64Token}`;
-  console.log('[SpectreDeeplink] Full deeplink:', fullDeeplink.substring(0, 50) + '...');
-  console.log('[SpectreDeeplink] Full deeplink length:', fullDeeplink.length);
-
-  return fullDeeplink;
+    return fullDeeplink;
+  }
 };
 
 /**
@@ -142,6 +155,6 @@ export const generateSpectreDeeplink = (token, recipient, amount) => {
  * @param {number} amount - Amount in smallest units
  * @returns {string} QR code data (deeplink URL)
  */
-export const generateSpectreQRData = (token, recipient, amount) => {
-  return generateSpectreDeeplink(token, recipient, amount);
+export const generateSpectreQRData = async (token, recipient, amount) => {
+  return await generateSpectreDeeplink(token, recipient, amount);
 };

@@ -21,6 +21,8 @@ import BottomNavigationBar from '../components/BottomNavigationBar';
 import ToastContainer from '../components/ToastContainer';
 import SplashScreen from '../screens/SplashScreen';
 import Snackbar from '../components/Snackbar';
+import EcashThresholdSheet from '../components/settings/EcashThresholdSheet';
+import EcashConversionModal from '../components/settings/EcashConversionModal';
 
 // Contexts
 import { useWallet } from '../contexts/WalletContext';
@@ -30,6 +32,8 @@ import { useVault } from '../contexts/VaultContext';
 import { useOnboardingFlow } from '../contexts/AuthContext';
 import { useNavigationHandlers } from '../contexts/NavigationHandlersContext';
 import { useNotifications } from "../contexts/NotificationContext";
+import { useBalance } from '../contexts/WalletDataContext';
+import { useCashu } from '../contexts/CashuContext';
 
 // Hooks
 import { useSettingsNavigation } from '../hooks/useSettingsNavigation';
@@ -47,7 +51,16 @@ export default function WalletPage({ route }) {
     useVault();
   const { resetInactivityTimer } = useOnboardingFlow();
   const { settingsHandlers, biometricEnabled, setShowAccountPicker } = useNavigationHandlers();
+  const { runesBalance } = useBalance();
+  const { balance: cashuBalance } = useCashu();
   const styles = require('../styles').default;
+
+  // Ecash threshold management state
+  const [showThresholdSheet, setShowThresholdSheet] = useState(false);
+  const [showConversionModal, setShowConversionModal] = useState(false);
+  const [pendingThreshold, setPendingThreshold] = useState(null);
+  const [conversionAmount, setConversionAmount] = useState(0);
+  const [savedUnitBalance, setSavedUnitBalance] = useState(0);
   // Wallet context
   const { wallet } = useWallet();
   const { vaultData } = require('../contexts/WalletDataContext').useVaultData();
@@ -116,6 +129,117 @@ export default function WalletPage({ route }) {
 
   const { showReceiveSheet, setShowReceiveSheet, showTxHistory, setShowTxHistory } =
     useSheetNavigation();
+
+  // Ecash threshold handlers
+  const handleEcashThresholdPress = () => {
+    setShowThresholdSheet(true);
+  };
+
+  const handleThresholdSelect = async (newThreshold) => {
+    setShowThresholdSheet(false);
+
+    // If selecting same threshold or 100, just update
+    if (newThreshold === settingsHandlers.ecashThreshold || newThreshold === 100) {
+      await settingsHandlers.handleEcashThresholdChange(newThreshold);
+      return;
+    }
+
+    // Check if we need to convert more ecash
+    const currentEcashBalance = cashuBalance || 0;
+    // runesBalance is an array: [[runeId, amount], ...]
+    const currentUnitBalance = runesBalance && runesBalance.length > 0 ? parseFloat(runesBalance[0][1]) : 0;
+    const requiredAmount = newThreshold === Infinity ? 0 : newThreshold;
+
+    if (requiredAmount > currentEcashBalance && requiredAmount > 0) {
+      // Need to convert more
+      const amountNeeded = requiredAmount - currentEcashBalance;
+
+      // Check if we have enough UNIT balance
+      const actualConversionAmount = Math.min(amountNeeded, currentUnitBalance);
+
+      console.log('[WalletPage] Setting conversion modal state:', {
+        currentUnitBalance,
+        amountNeeded,
+        actualConversionAmount,
+        runesBalance,
+      });
+
+      setPendingThreshold(newThreshold);
+      setConversionAmount(actualConversionAmount);
+      setSavedUnitBalance(currentUnitBalance);
+      setShowConversionModal(true);
+    } else {
+      // No conversion needed, just update threshold
+      await settingsHandlers.handleEcashThresholdChange(newThreshold);
+    }
+  };
+
+  const handleConfirmConversion = async () => {
+    console.log('[WalletPage] handleConfirmConversion called', {
+      conversionAmount,
+      pendingThreshold,
+    });
+
+    setShowConversionModal(false);
+
+    // Update threshold first
+    await settingsHandlers.handleEcashThresholdChange(pendingThreshold);
+
+    // Navigate to mint flow (similar to Spectre mint flow)
+    try {
+      console.log('[WalletPage] Importing requestMint...');
+      const { requestMint } = await import('../services/cashu/cashuWalletService');
+
+      console.log('[WalletPage] Requesting mint quote for amount:', conversionAmount);
+      // Request mint quote for the needed amount
+      const mintQuote = await requestMint(conversionAmount);
+      console.log('[WalletPage] Received mint quote:', mintQuote);
+
+      console.log('[WalletPage] Navigating to Processing screen');
+      console.log('[WalletPage] Navigation object available:', !!navigation);
+      console.log('[WalletPage] showSettings:', showSettings);
+
+      // Close modals first
+      setShowConversionModal(false);
+      setShowThresholdSheet(false);
+
+      // Close settings panel
+      if (showSettings) {
+        console.log('[WalletPage] Closing settings before navigation');
+        closeSettings();
+      }
+
+      // Use setTimeout to ensure settings close animation completes
+      setTimeout(() => {
+        console.log('[WalletPage] Attempting navigation now...');
+        console.log('[WalletPage] conversionAmount:', conversionAmount, 'type:', typeof conversionAmount);
+        const amountStr = conversionAmount?.toString() || '0';
+        console.log('[WalletPage] amountStr:', amountStr);
+
+        try {
+          navigation.navigate('SendFlow', {
+            screen: 'Processing',
+            params: {
+              fromScreen: 'Settings',
+              action: 'create_intent',
+              cashuMint: true,
+              quoteId: mintQuote.quoteId,
+              assetType: 'unit',
+              amount: amountStr,
+              recipient: mintQuote.depositAddress,
+            },
+          });
+          console.log('[WalletPage] Navigation call completed');
+        } catch (navError) {
+          console.error('[WalletPage] Navigation error:', navError);
+          showToast('Navigation failed: ' + navError.message, 'error');
+        }
+      }, 500);
+    } catch (error) {
+      console.error('[WalletPage] Failed to initiate mint:', error);
+      showToast('Failed to start conversion: ' + error.message, 'error');
+    }
+  };
 
   // Handle navigation param to open receive sheet
   React.useEffect(() => {
@@ -454,6 +578,7 @@ export default function WalletPage({ route }) {
                 setShowAccountPicker(true);
               },
               onAdvancedModeToggle: settingsHandlers.handleAdvancedModeToggle,
+              onEcashThresholdPress: handleEcashThresholdPress,
               advancedMode: settingsHandlers.advancedMode,
             });
           }}
@@ -500,6 +625,24 @@ export default function WalletPage({ route }) {
           onClose={dismissSnackbar}
         />
       )}
+
+      {/* Ecash Threshold Selection Sheet */}
+      <EcashThresholdSheet
+        visible={showThresholdSheet}
+        onClose={() => setShowThresholdSheet(false)}
+        onSelectThreshold={handleThresholdSelect}
+        currentThreshold={settingsHandlers.ecashThreshold || 100}
+      />
+
+      {/* Ecash Conversion Confirmation Modal */}
+      <EcashConversionModal
+        visible={showConversionModal}
+        onClose={() => setShowConversionModal(false)}
+        onConfirm={handleConfirmConversion}
+        amountToConvert={conversionAmount}
+        unitBalance={savedUnitBalance}
+        newThreshold={pendingThreshold || 100}
+      />
     </>
   );
 }

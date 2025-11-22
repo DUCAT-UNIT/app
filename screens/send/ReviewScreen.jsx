@@ -11,6 +11,7 @@ import Icon from '../../components/icons';
 import TouchableScale from '../../components/common/TouchableScale';
 import { useReviewScreenData } from '../../hooks/useReviewScreenData';
 import { useTransactionBuild } from '../../contexts/TransactionBuildContext';
+import { useNavigationHandlers } from '../../contexts/NavigationHandlersContext';
 import TransactionSummary from '../../components/review/TransactionSummary';
 import FeeBreakdown from '../../components/review/FeeBreakdown';
 import InputOutputList from '../../components/review/InputOutputList';
@@ -19,9 +20,13 @@ import SpectreWarning from '../../components/review/SpectreWarning';
 
 export default function ReviewScreen({ navigation, route }) {
   const isSpectre = route?.params?.isSpectre === true;
+  const { settingsHandlers } = useNavigationHandlers();
+  const advancedMode = settingsHandlers?.advancedMode || false;
   const mintQuoteId = route?.params?.mintQuoteId;
   const mintAmount = route?.params?.mintAmount;
   const spectreRecipient = route?.params?.spectreRecipient;
+  const cashuMint = route?.params?.cashuMint === true;
+  const quoteId = route?.params?.quoteId;
   const {
     sendIntent,
     btcPrice,
@@ -59,6 +64,8 @@ export default function ReviewScreen({ navigation, route }) {
       mintQuoteId,
       mintAmount,
       spectreRecipient,
+      cashuMint,
+      quoteId,
     });
   };
 
@@ -106,8 +113,8 @@ export default function ReviewScreen({ navigation, route }) {
             usdAmount={usdAmount}
           />
 
-          {/* Spectre Warning */}
-          {isSpectre && <SpectreWarning />}
+          {/* Spectre Warning - only show when Advanced Mode is enabled */}
+          {isSpectre && advancedMode && <SpectreWarning />}
 
           {/* Unconfirmed Inputs Warning */}
           {hasUnconfirmedInputs && <UnconfirmedWarning />}

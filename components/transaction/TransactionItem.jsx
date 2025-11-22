@@ -16,6 +16,11 @@ export default function TransactionItem({ tx, styles, onPress, advancedMode = fa
     return <VaultTransactionItem tx={tx} styles={styles} onPress={onPress} />;
   }
 
+  // Check if this is an ecash transaction
+  if (tx.ecashToken) {
+    return <EcashTransactionItem tx={tx} styles={styles} onPress={onPress} />;
+  }
+
   // Regular transaction
   return <RegularTransactionItem tx={tx} styles={styles} onPress={onPress} advancedMode={advancedMode} />;
 }
@@ -96,6 +101,63 @@ function VaultTransactionItem({ tx, styles, onPress }) {
         </View>
         <View style={styles.historyTxBottomRow}>
           <Text style={styles.historyTxDate}>{formatTransactionDate(tx.status.block_time)}</Text>
+        </View>
+      </View>
+    </TouchableOpacity>
+  );
+}
+
+function EcashTransactionItem({ tx, styles, onPress }) {
+  const { amount } = tx.txData;
+  const isClaimed = tx.claimed === true;
+
+  return (
+    <TouchableOpacity style={styles.historyTxRow} onPress={onPress} activeOpacity={0.7}>
+      <View style={localStyles.assetLogo}>
+        <Icon name="unit_logo" size={40} />
+      </View>
+
+      <View style={localStyles.txContentContainer}>
+        <View style={styles.historyTxTopRow}>
+          <View style={styles.historyTxColumn1}>
+            <Text style={[styles.historyTxAmount, localStyles.actionText]}>
+              Sent
+            </Text>
+          </View>
+          <View style={styles.historyTxRightGroup}>
+            <View style={styles.historyTxColumn2}>
+              <View style={[
+                styles.vaultAmountChip,
+                isClaimed ? localStyles.claimedChip : localStyles.confirmedChip
+              ]}>
+                <Text style={[
+                  styles.vaultAmountChipText,
+                  isClaimed ? localStyles.claimedChipText : localStyles.confirmedChipText
+                ]}>
+                  {isClaimed ? 'Claimed' : 'Sent'}
+                </Text>
+              </View>
+            </View>
+            <View style={styles.historyTxColumn3}>
+              <View style={styles.balanceWithIcon}>
+                <Icon
+                  name="unit_symbol"
+                  size={12}
+                  color={COLORS.RED}
+                  style={styles.assetAmountIcon}
+                />
+                <Text style={[styles.assetAmount, { color: COLORS.RED }]}>
+                  {Math.abs(amount).toLocaleString('en-US', {
+                    minimumFractionDigits: 2,
+                    maximumFractionDigits: 2,
+                  })}
+                </Text>
+              </View>
+            </View>
+          </View>
+        </View>
+        <View style={styles.historyTxBottomRow}>
+          <Text style={styles.historyTxDate}>{formatTransactionDate(tx.timestamp / 1000)}</Text>
         </View>
       </View>
     </TouchableOpacity>
@@ -242,6 +304,15 @@ const localStyles = StyleSheet.create({
   pendingChipText: {
     color: COLORS.YELLOW,
   },
+  claimedChip: {
+    backgroundColor: 'transparent',
+    marginLeft: 0,
+    borderWidth: 1,
+    borderColor: COLORS.PRIMARY_BLUE,
+  },
+  claimedChipText: {
+    color: COLORS.PRIMARY_BLUE,
+  },
 });
 
 TransactionItem.propTypes = {
@@ -263,6 +334,12 @@ VaultTransactionItem.propTypes = {
 };
 
 RegularTransactionItem.propTypes = {
+  tx: PropTypes.object.isRequired,
+  styles: PropTypes.object.isRequired,
+  onPress: PropTypes.func.isRequired,
+};
+
+EcashTransactionItem.propTypes = {
   tx: PropTypes.object.isRequired,
   styles: PropTypes.object.isRequired,
   onPress: PropTypes.func.isRequired,

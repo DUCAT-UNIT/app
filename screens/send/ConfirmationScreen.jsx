@@ -11,10 +11,12 @@ import Icon from '../../components/icons';
 import { getTxUrl } from '../../utils/constants';
 import { useTransactionExecution } from '../../contexts/TransactionExecutionContext';
 import { useTransactionHistory } from '../../contexts/WalletDataContext';
+import { useWallet } from '../../contexts/WalletContext';
 
 export default function ConfirmationScreen({ navigation, route }) {
   const { broadcastedTxid } = useTransactionExecution();
   const { fetchTransactionHistory } = useTransactionHistory();
+  const { wallet } = useWallet();
   const isSpectre = route?.params?.isSpectre === true;
   const mintQuoteId = route?.params?.mintQuoteId;
   const mintAmount = route?.params?.mintAmount;
@@ -35,6 +37,8 @@ export default function ConfirmationScreen({ navigation, route }) {
       mintAmount,
       spectreRecipient,
       broadcastedTxid,
+      cashuMint: route?.params?.cashuMint,
+      quoteId: route?.params?.quoteId,
     });
 
     // Debug: Check if we should be creating a token
@@ -184,13 +188,23 @@ export default function ConfirmationScreen({ navigation, route }) {
               console.log('[ConfirmationScreen] ✅ Balance decreased correctly:', actualDecrease, 'UNIT');
             }
 
-            // Store token persistently so user can retrieve it later if they close the screen
+            // Generate shortened URL and store token persistently
             try {
+              const { generateSpectreDeeplink } = await import('../../services/cashu/cashuLockedTokensService');
               const { saveSentLockedToken } = await import('../../services/cashu/cashuLockedTokensService');
-              await saveSentLockedToken(token, spectreRecipient, paidQuote.amount, broadcastedTxid);
-              console.log('[ConfirmationScreen] Token saved to persistent storage');
+
+              // Generate short URL first
+              const shortUrl = await generateSpectreDeeplink(token, spectreRecipient, paidQuote.amount);
+              console.log('[ConfirmationScreen] Generated short URL:', shortUrl);
+
+              // Save token with short URL and taproot address
+              await saveSentLockedToken(token, spectreRecipient, paidQuote.amount, broadcastedTxid, shortUrl, wallet.taprootAddress);
+              console.log('[ConfirmationScreen] Token saved to persistent storage with short URL');
+
+              // Store short URL for display
+              setSpectreDeeplink(shortUrl);
             } catch (storageError) {
-              console.error('[ConfirmationScreen] Failed to save token to storage:', storageError);
+              console.error('[ConfirmationScreen] Failed to generate/save token:', storageError);
               // Non-critical error - continue anyway
             }
 
@@ -225,6 +239,82 @@ export default function ConfirmationScreen({ navigation, route }) {
 
     completeMintProcess();
   }, [isSpectre, mintQuoteId, mintAmount, spectreRecipient, fetchTransactionHistory]);
+
+  // Handle Cashu mint completion (for threshold conversion)
+  const cashuMint = route?.params?.cashuMint === true;
+  const quoteId = route?.params?.quoteId;
+  const hasCashuMintCompleted = useRef(false);
+
+  useEffect(() => {
+    console.log('[ConfirmationScreen] Checking cashu mint completion:', {
+      cashuMint,
+      quoteId,
+      hasCashuMintCompleted: hasCashuMintCompleted.current
+    });
+
+    // Only proceed if this is a Cashu mint flow with all required params
+    if (!cashuMint || !quoteId) {
+      return;
+    }
+
+    if (hasCashuMintCompleted.current) {
+      console.log('[ConfirmationScreen] Cashu mint already completed, skipping');
+      return;
+    }
+
+    hasCashuMintCompleted.current = true;
+    console.log('[ConfirmationScreen] Starting cashu mint completion process');
+
+    const completeCashuMintProcess = async () => {
+      setIsCompletingMint(true);
+      try {
+        const { completeMint } = await import('../../services/cashu/cashuWalletService');
+        const { checkMintQuote } = await import('../../services/cashu/cashuMintClient');
+        console.log('[ConfirmationScreen] Starting to poll for payment confirmation');
+
+        // Poll for payment confirmation
+        let paidQuote = null;
+        let attempts = 0;
+        const maxAttempts = 30; // 30 seconds
+
+        while (!paidQuote && attempts < maxAttempts) {
+          await new Promise(resolve => setTimeout(resolve, 1000));
+          const quote = await checkMintQuote(quoteId);
+          console.log(`[ConfirmationScreen] Cashu check ${attempts + 1}/${maxAttempts}:`, quote);
+          if (quote.state === 'PAID' || quote.state === 'ISSUED') {
+            paidQuote = quote;
+            break;
+          }
+          attempts++;
+        }
+
+        if (paidQuote) {
+          console.log('[ConfirmationScreen] Payment confirmed! Completing cashu mint with amount:', paidQuote.amount);
+          // Complete mint to get e-cash tokens - quote.amount is already in smallest units
+          await completeMint(quoteId, paidQuote.amount);
+          console.log('[ConfirmationScreen] Cashu mint completed successfully');
+
+          // Refresh transaction history and balance
+          if (fetchTransactionHistory) {
+            await fetchTransactionHistory();
+          }
+
+          setIsCompletingMint(false);
+          Alert.alert('Success', 'UNIT successfully converted to ecash!');
+        } else {
+          console.log('[ConfirmationScreen] Payment not confirmed after 30 seconds');
+          setIsCompletingMint(false);
+          Alert.alert('Pending', 'Payment sent. Ecash will be available once confirmed.');
+        }
+      } catch (error) {
+        console.error('[ConfirmationScreen] Error during cashu mint completion:', error);
+        setIsCompletingMint(false);
+        Alert.alert('Error', `Failed to complete conversion: ${error.message}`);
+      }
+    };
+
+    completeCashuMintProcess();
+  }, [cashuMint, quoteId, fetchTransactionHistory]);
 
   const handleViewExplorer = () => {
     if (broadcastedTxid) {

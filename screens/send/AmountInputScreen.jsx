@@ -26,9 +26,12 @@ import { useAmountInput } from '../../hooks/useAmountInput';
 import { RecipientHeader, BalanceMaxButton } from '../../components/amountInput';
 import { requestMint } from '../../services/cashu/cashuWalletService';
 import { useCashu } from '../../contexts/CashuContext';
+import { useNavigationHandlers } from '../../contexts/NavigationHandlersContext';
 
 export default function AmountInputScreen({ navigation, route }) {
-  const { sendAssetType, sendAmount, setSendAmount, sendRecipient, sendAddressType, spectreEnabled, setSendRecipient: setRecipient } = useSendFlow();
+  const { sendAssetType, sendAmount, setSendAmount, sendRecipient, sendAddressType, spectreEnabled, setSpectreEnabled, setSendRecipient: setRecipient } = useSendFlow();
+  const { settingsHandlers } = useNavigationHandlers();
+  const ecashThreshold = settingsHandlers?.ecashThreshold || 100;
   const [isRequestingMint, setIsRequestingMint] = useState(false);
   const { segwitBalance, taprootBalance, runesBalance } = useBalance();
   const { balance: cashuBalance } = useCashu();
@@ -113,8 +116,20 @@ export default function AmountInputScreen({ navigation, route }) {
 
     amountInputRef.current?.blur();
 
+    // Auto-enable Spectre for UNIT transactions less than threshold
+    let shouldUseSpectre = spectreEnabled;
+    if (sendAssetType === 'unit') {
+      const displayAmount = parseFloat(sendAmount);
+      // Check against ecashThreshold (Infinity means "All transfers")
+      if (displayAmount < ecashThreshold && !spectreEnabled) {
+        console.log(`[AmountInputScreen] Auto-enabling Spectre for transaction < ${ecashThreshold} UNIT`);
+        setSpectreEnabled(true);
+        shouldUseSpectre = true;
+      }
+    }
+
     // If Spectre mode is enabled for UNIT transfers, check if we have enough ecash first
-    if (spectreEnabled && sendAssetType === 'unit') {
+    if (shouldUseSpectre && sendAssetType === 'unit') {
       try {
         setIsRequestingMint(true);
 
@@ -146,13 +161,19 @@ export default function AmountInputScreen({ navigation, route }) {
           // Create P2PK locked token
           const { token } = await sendP2PKToken(amountInSmallestUnits, recipientPubkey);
 
-          // Save token to storage
+          // Generate shortened URL and save token to storage
           try {
-            const { saveSentLockedToken } = await import('../../services/cashu/cashuLockedTokensService');
-            await saveSentLockedToken(token, sendRecipient, amountInSmallestUnits, null);
-            console.log('[AmountInputScreen] Token saved to storage');
+            const { generateSpectreDeeplink, saveSentLockedToken } = await import('../../services/cashu/cashuLockedTokensService');
+
+            // Generate short URL first
+            const shortUrl = await generateSpectreDeeplink(token, sendRecipient, amountInSmallestUnits);
+            console.log('[AmountInputScreen] Generated short URL:', shortUrl);
+
+            // Save token with short URL and taproot address
+            await saveSentLockedToken(token, sendRecipient, amountInSmallestUnits, null, shortUrl, wallet.taprootAddress);
+            console.log('[AmountInputScreen] Token saved to storage with short URL');
           } catch (storageError) {
-            console.error('[AmountInputScreen] Failed to save token:', storageError);
+            console.error('[AmountInputScreen] Failed to generate/save token:', storageError);
             // Non-critical - continue anyway
           }
 

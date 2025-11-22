@@ -18,11 +18,18 @@ import { COLORS } from '../../theme';
 import Icon from '../../components/icons';
 import TouchableScale from '../../components/common/TouchableScale';
 import { getSentLockedTokens, deleteSentLockedToken, generateSpectreDeeplink } from '../../services/cashu/cashuLockedTokensService';
+import TokenDetailsSheet from '../../components/ecash/TokenDetailsSheet';
+import { useNotifications } from '../../contexts/NotificationContext';
+import { useWallet } from '../../contexts/WalletContext';
 
 export default function SpectreHistoryScreen({ navigation }) {
   const [tokens, setTokens] = useState([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
+  const [selectedToken, setSelectedToken] = useState(null);
+  const [showTokenDetails, setShowTokenDetails] = useState(false);
+  const { showToast } = useNotifications();
+  const { wallet } = useWallet();
 
   useEffect(() => {
     loadTokens();
@@ -31,7 +38,7 @@ export default function SpectreHistoryScreen({ navigation }) {
   const loadTokens = async () => {
     try {
       setLoading(true);
-      const sentTokens = await getSentLockedTokens();
+      const sentTokens = await getSentLockedTokens(wallet.taprootAddress);
       setTokens(sentTokens);
     } catch (error) {
       console.error('[SpectreHistory] Failed to load tokens:', error);
@@ -102,6 +109,34 @@ export default function SpectreHistoryScreen({ navigation }) {
     );
   };
 
+  const handleTokenPress = async (tokenRecord) => {
+    // If no stored shortUrl, generate it on the fly
+    let shortUrl = tokenRecord.shortUrl;
+    if (!shortUrl) {
+      try {
+        shortUrl = await generateSpectreDeeplink(
+          tokenRecord.token,
+          tokenRecord.recipient,
+          tokenRecord.amount
+        );
+      } catch (error) {
+        console.error('[SpectreHistory] Failed to generate deeplink:', error);
+        showToast('Failed to load token details', 'error');
+        return;
+      }
+    }
+
+    setSelectedToken({
+      ...tokenRecord,
+      shortUrl,
+    });
+    setShowTokenDetails(true);
+  };
+
+  const handleCopyNotification = (message) => {
+    showToast(message, 'success');
+  };
+
   const formatDate = (timestamp) => {
     const date = new Date(timestamp);
     return date.toLocaleDateString() + ' ' + date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
@@ -113,7 +148,11 @@ export default function SpectreHistoryScreen({ navigation }) {
   };
 
   const renderToken = ({ item }) => (
-    <View style={styles.tokenCard}>
+    <TouchableOpacity
+      style={styles.tokenCard}
+      onPress={() => handleTokenPress(item)}
+      activeOpacity={0.7}
+    >
       <View style={styles.tokenHeader}>
         <View style={styles.tokenInfo}>
           <Text style={styles.amountText}>{item.amount / 100} UNIT</Text>
@@ -121,7 +160,10 @@ export default function SpectreHistoryScreen({ navigation }) {
         </View>
         <TouchableOpacity
           style={styles.deleteButton}
-          onPress={() => handleDeleteToken(item)}
+          onPress={(e) => {
+            e.stopPropagation();
+            handleDeleteToken(item);
+          }}
         >
           <Icon name="trash" size={20} color={COLORS.DANGER_RED} />
         </TouchableOpacity>
@@ -142,7 +184,10 @@ export default function SpectreHistoryScreen({ navigation }) {
       <View style={styles.actionButtons}>
         <TouchableScale
           style={styles.actionButton}
-          onPress={() => handleViewQR(item)}
+          onPress={(e) => {
+            e.stopPropagation();
+            handleViewQR(item);
+          }}
         >
           <Icon name="qr" size={18} color={COLORS.BRAND_PURPLE} />
           <Text style={styles.actionButtonText}>QR Code</Text>
@@ -150,13 +195,16 @@ export default function SpectreHistoryScreen({ navigation }) {
 
         <TouchableScale
           style={styles.actionButton}
-          onPress={() => handleShareToken(item)}
+          onPress={(e) => {
+            e.stopPropagation();
+            handleShareToken(item);
+          }}
         >
           <Icon name="share" size={18} color={COLORS.BRAND_PURPLE} />
           <Text style={styles.actionButtonText}>Share</Text>
         </TouchableScale>
       </View>
-    </View>
+    </TouchableOpacity>
   );
 
   if (loading) {
@@ -208,6 +256,18 @@ export default function SpectreHistoryScreen({ navigation }) {
           contentContainerStyle={styles.listContent}
           onRefresh={handleRefresh}
           refreshing={refreshing}
+        />
+      )}
+
+      {/* Token Details Sheet */}
+      {selectedToken && (
+        <TokenDetailsSheet
+          visible={showTokenDetails}
+          onClose={() => setShowTokenDetails(false)}
+          recipientAddress={selectedToken.recipient}
+          shortUrl={selectedToken.shortUrl}
+          cashuToken={selectedToken.token}
+          onCopy={handleCopyNotification}
         />
       )}
     </View>

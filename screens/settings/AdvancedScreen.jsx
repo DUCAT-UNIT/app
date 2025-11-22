@@ -15,6 +15,7 @@ import {
 import { COLORS } from '../../theme';
 import Icon from '../../components/icons';
 import MutinynetBanner from '../../components/MutinynetBanner';
+import { useNavigationHandlers } from '../../contexts/NavigationHandlersContext';
 
 // Get device dimensions for responsive sizing
 const { width: SCREEN_WIDTH } = require('react-native').Dimensions.get('window');
@@ -27,8 +28,21 @@ const AdvancedScreen = React.memo(function AdvancedScreen({ route }) {
     onClose,
     onSwitchAccount,
     onAdvancedModeToggle,
-    advancedMode,
+    onEcashThresholdPress,
   } = route.params;
+
+  // Get advancedMode and ecashThreshold directly from context so they update when toggled
+  const { settingsHandlers } = useNavigationHandlers();
+  const advancedMode = settingsHandlers?.advancedMode || false;
+  const ecashThreshold = settingsHandlers?.ecashThreshold || 100;
+
+  // Format threshold display value
+  const getThresholdDisplay = () => {
+    if (ecashThreshold === Infinity) return 'All transfers';
+    return `${ecashThreshold} UNIT`;
+  };
+
+  console.log('[AdvancedScreen] Rendering with advancedMode:', advancedMode, 'ecashThreshold:', ecashThreshold);
 
   return (
     <View style={localStyles.container}>
@@ -51,6 +65,12 @@ const AdvancedScreen = React.memo(function AdvancedScreen({ route }) {
               rightText={advancedMode ? 'ON' : 'OFF'}
             />
             <SettingsOption
+              iconName="unit_logo"
+              title="Ecash Default"
+              onPress={onEcashThresholdPress}
+              rightText={getThresholdDisplay()}
+            />
+            <SettingsOption
               iconName="switch_account"
               title="Select Account"
               onPress={onSwitchAccount}
@@ -64,8 +84,15 @@ const AdvancedScreen = React.memo(function AdvancedScreen({ route }) {
 
 // Individual settings option component
 const SettingsOption = React.memo(function SettingsOption({ iconName, title, onPress, rightText }) {
+  const handlePress = () => {
+    console.log(`[AdvancedScreen] SettingsOption pressed: ${title}`);
+    if (onPress) {
+      onPress();
+    }
+  };
+
   return (
-    <TouchableOpacity style={localStyles.option} onPress={onPress}>
+    <TouchableOpacity style={localStyles.option} onPress={handlePress} activeOpacity={0.7}>
       <View style={localStyles.optionLeft}>
         <Icon name={iconName} size={24} color="#DDDDDD" />
         <Text style={localStyles.optionTitle}>{title}</Text>
@@ -91,7 +118,7 @@ AdvancedScreen.propTypes = {
       onClose: PropTypes.func.isRequired,
       onSwitchAccount: PropTypes.func.isRequired,
       onAdvancedModeToggle: PropTypes.func.isRequired,
-      advancedMode: PropTypes.bool.isRequired,
+      onEcashThresholdPress: PropTypes.func.isRequired,
     }).isRequired,
   }).isRequired,
 };

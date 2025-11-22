@@ -66,6 +66,7 @@ export const NavigationHandlersProvider = ({ children, walletExists }) => {
     notificationsEnabled,
     showZeroAssets,
     advancedMode,
+    ecashThreshold,
     handleLogout,
     handleDeleteWallet,
     handleChangePin,
@@ -76,6 +77,7 @@ export const NavigationHandlersProvider = ({ children, walletExists }) => {
     handleClearCashuCache,
     handleRecoverLockedChange,
     handleClearLockedTokens,
+    handleEcashThresholdChange,
     showLogoutModal,
     showDeleteModal,
     showFaceIdModal,
@@ -162,6 +164,7 @@ export const NavigationHandlersProvider = ({ children, walletExists }) => {
       notificationsEnabled: notificationsEnabled || false,
       showZeroAssets: showZeroAssets || false,
       advancedMode: advancedMode || false,
+      ecashThreshold: ecashThreshold || 100,
       handleLogout,
       handleDeleteWallet,
       handleViewSeedPhrase: requestViewSeedPhrase,
@@ -173,11 +176,13 @@ export const NavigationHandlersProvider = ({ children, walletExists }) => {
       handleClearCashuCache,
       handleRecoverLockedChange,
       handleClearLockedTokens,
+      handleEcashThresholdChange,
     }),
     [
       notificationsEnabled,
       showZeroAssets,
       advancedMode,
+      ecashThreshold,
       handleLogout,
       handleDeleteWallet,
       requestViewSeedPhrase,
@@ -189,6 +194,7 @@ export const NavigationHandlersProvider = ({ children, walletExists }) => {
       handleClearCashuCache,
       handleRecoverLockedChange,
       handleClearLockedTokens,
+      handleEcashThresholdChange,
     ]
   );
 
