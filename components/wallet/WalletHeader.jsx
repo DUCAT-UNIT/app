@@ -14,6 +14,7 @@ const HEADER_ICON_SIZE = 22;
 export default function WalletHeader({
   accountNumber,
   onHistoryPress,
+  onQRScanPress,
   onSettingsPress,
   styles,
 }) {
@@ -26,6 +27,9 @@ export default function WalletHeader({
         <TouchableOpacity style={styles.headerIconButton} onPress={onHistoryPress}>
           <Icon name="transaction_history" size={HEADER_ICON_SIZE} color={COLORS.VERY_LIGHT_GRAY} />
         </TouchableOpacity>
+        <TouchableOpacity style={styles.headerIconButton} onPress={onQRScanPress}>
+          <Icon name="qr_scan" size={HEADER_ICON_SIZE} color={COLORS.VERY_LIGHT_GRAY} />
+        </TouchableOpacity>
         <TouchableOpacity style={styles.headerIconButton} onPress={onSettingsPress}>
           <Icon name="settings" size={HEADER_ICON_SIZE} color={COLORS.VERY_LIGHT_GRAY} />
         </TouchableOpacity>
@@ -37,6 +41,7 @@ export default function WalletHeader({
 WalletHeader.propTypes = {
   accountNumber: PropTypes.number.isRequired,
   onHistoryPress: PropTypes.func.isRequired,
+  onQRScanPress: PropTypes.func.isRequired,
   onSettingsPress: PropTypes.func.isRequired,
   styles: PropTypes.object.isRequired,
 };

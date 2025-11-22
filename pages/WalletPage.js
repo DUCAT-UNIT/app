@@ -4,7 +4,7 @@
  */
 
 import React, { useRef, useState } from 'react';
-import { View, Animated, StyleSheet, Dimensions, PanResponder } from 'react-native';
+import { View, Animated, StyleSheet, Dimensions, PanResponder, Alert } from 'react-native';
 import { StatusBar } from 'expo-status-bar';
 import { useNavigation } from '@react-navigation/native';
 
@@ -23,6 +23,7 @@ import SplashScreen from '../screens/SplashScreen';
 import Snackbar from '../components/Snackbar';
 import EcashThresholdSheet from '../components/settings/EcashThresholdSheet';
 import EcashConversionModal from '../components/settings/EcashConversionModal';
+import QRScanner from '../components/scanner/QRScanner';
 
 // Contexts
 import { useWallet } from '../contexts/WalletContext';
@@ -52,7 +53,7 @@ export default function WalletPage({ route }) {
   const { resetInactivityTimer } = useOnboardingFlow();
   const { settingsHandlers, biometricEnabled, setShowAccountPicker } = useNavigationHandlers();
   const { runesBalance } = useBalance();
-  const { balance: cashuBalance } = useCashu();
+  const { balance: cashuBalance, receive: receiveCashuToken } = useCashu();
   const styles = require('../styles').default;
 
   // Ecash threshold management state
@@ -129,6 +130,179 @@ export default function WalletPage({ route }) {
 
   const { showReceiveSheet, setShowReceiveSheet, showTxHistory, setShowTxHistory } =
     useSheetNavigation();
+
+  // QR Scanner state
+  const [showQRScanner, setShowQRScanner] = useState(false);
+
+  // QR Scanner handlers
+  const handleQRScan = async (data) => {
+    console.log('[WalletPage] QR scanned:', data);
+    console.log('[WalletPage] Data length:', data.length);
+    console.log('[WalletPage] First 100 chars:', data.substring(0, 100));
+
+    // Close scanner
+    setShowQRScanner(false);
+
+    // Handle different types of QR code data
+    if (data.startsWith('bitcoin:') || data.startsWith('tb1') || data.startsWith('bc1')) {
+      // Bitcoin address - navigate to send flow
+      navigation.navigate('SendFlow', {
+        screen: 'AddressInput',
+        params: { scannedAddress: data },
+      });
+    } else if (data.startsWith('cashu')) {
+      // Direct Cashu token - check proofs first
+      try {
+        showToast('Checking token...', 'info');
+
+        // Decode and analyze the token
+        const { decodeToken } = await import('../services/cashu/cashuCrypto');
+        const decoded = decodeToken(data);
+        const { proofs, amount } = decoded;
+
+        // Check which proofs are spent
+        const { checkProofsSpent } = await import('../services/cashu/cashuMintClient');
+        const stateResult = await checkProofsSpent(proofs);
+
+        const spentProofs = stateResult.states.filter(s => s.state !== 'UNSPENT');
+        const unspentProofs = proofs.filter((_, idx) =>
+          stateResult.states[idx].state === 'UNSPENT'
+        );
+
+        const unspentAmount = unspentProofs.reduce((sum, p) => sum + p.amount, 0);
+
+        if (spentProofs.length > 0 && unspentProofs.length === 0) {
+          // All proofs spent
+          showToast('All proofs in this token have been spent', 'error');
+        } else if (spentProofs.length > 0) {
+          // Some proofs spent - ask user
+          Alert.alert(
+            'Partial Token',
+            `This token has ${proofs.length} proofs totaling ${amount} UNIT.\n\n` +
+            `${spentProofs.length} proofs (${amount - unspentAmount} UNIT) already spent.\n` +
+            `${unspentProofs.length} proofs (${unspentAmount} UNIT) can be claimed.\n\n` +
+            `Claim the ${unspentAmount} UNIT?`,
+            [
+              { text: 'Cancel', style: 'cancel' },
+              {
+                text: 'Claim',
+                onPress: async () => {
+                  try {
+                    showToast('Claiming unspent proofs...', 'info');
+
+                    // Create a new token with only unspent proofs
+                    const { encodeToken } = await import('../services/cashu/cashuCrypto');
+                    const filteredToken = {
+                      token: [{
+                        mint: decoded.mint,
+                        proofs: unspentProofs
+                      }]
+                    };
+                    const filteredTokenString = encodeToken(filteredToken.token[0].mint, filteredToken.token[0].proofs);
+
+                    const result = await receiveCashuToken(filteredTokenString);
+                    showToast(`Successfully claimed ${result.amount} UNIT`, 'success');
+                  } catch (error) {
+                    console.error('[WalletPage] Claim failed:', error);
+                    showToast(`Failed to claim: ${error.message}`, 'error');
+                  }
+                }
+              }
+            ]
+          );
+        } else {
+          // All proofs unspent - claim directly
+          showToast('Claiming token...', 'info');
+          const result = await receiveCashuToken(data);
+          showToast(`Successfully claimed ${result.amount} UNIT`, 'success');
+        }
+      } catch (error) {
+        console.error('[WalletPage] Token check failed:', error);
+        showToast(`Failed to process token: ${error.message}`, 'error');
+      }
+    } else if (data.startsWith('{') || data.startsWith('[')) {
+      // JSON proofs format (NUT-16 might provide raw JSON)
+      try {
+        const parsed = JSON.parse(data);
+        console.log('[WalletPage] Parsed JSON:', parsed);
+
+        // If it's already a proper token object with proofs, encode it
+        if (parsed.token && Array.isArray(parsed.token)) {
+          // This is the token wrapper format - encode it
+          const { encodeToken } = await import('../services/cashu/cashuCrypto');
+          const encoded = encodeToken(parsed);
+          console.log('[WalletPage] Encoded token:', encoded.substring(0, 50));
+
+          showToast('Claiming token...', 'info');
+          const result = await receiveCashuToken(encoded);
+          showToast(`Successfully claimed ${result.amount} UNIT`, 'success');
+        } else if (Array.isArray(parsed.proofs) || Array.isArray(parsed)) {
+          // Raw proofs array - need to wrap it
+          showToast('Invalid token format - raw proofs not supported', 'error');
+        } else {
+          showToast('Invalid JSON token format', 'error');
+        }
+      } catch (error) {
+        console.error('[WalletPage] Failed to parse/claim JSON token:', error);
+        showToast(`Failed to claim token: ${error.message}`, 'error');
+      }
+    } else if (data.includes('ducat://spectre/') || data.includes('unit?')) {
+      // Spectre URL format - extract and claim token
+      try {
+        let token = null;
+
+        // Check if this is the ducat://spectre/ format
+        const spectreMatch = data.match(/ducat:\/\/spectre\/([^\/?#]+)/);
+        if (spectreMatch && spectreMatch[1]) {
+          token = spectreMatch[1];
+          console.log('[WalletPage] Extracted token from ducat:// URL');
+        }
+        // Check if this is an ID-based link
+        else {
+          const idMatch = data.match(/[?&]id=([^&]+)/);
+          if (idMatch && idMatch[1]) {
+            showToast('Fetching token...', 'info');
+            const { fetchTokenFromRebrandly } = await import('../services/urlShortener');
+            token = await fetchTokenFromRebrandly(idMatch[1]);
+            console.log('[WalletPage] Fetched token from Rebrandly');
+          }
+          // Check if this is a direct token link
+          else {
+            const tokenMatch = data.match(/[?&]t=([^&]+)/);
+            if (tokenMatch && tokenMatch[1]) {
+              // Decode URL-safe base64
+              let base64Token = tokenMatch[1]
+                .replace(/-/g, '+')
+                .replace(/_/g, '/');
+
+              // Add padding
+              while (base64Token.length % 4) {
+                base64Token += '=';
+              }
+
+              token = atob(base64Token);
+              console.log('[WalletPage] Decoded base64 token');
+            }
+          }
+        }
+
+        if (token) {
+          showToast('Claiming token...', 'info');
+          const result = await receiveCashuToken(token);
+          showToast(`Successfully claimed ${result.amount} UNIT`, 'success');
+        } else {
+          showToast('Failed to extract token from URL', 'error');
+        }
+      } catch (error) {
+        console.error('[WalletPage] Failed to claim token:', error);
+        showToast(`Failed to claim token: ${error.message}`, 'error');
+      }
+    } else {
+      // Unknown format
+      console.log('[WalletPage] Unknown QR format:', data);
+      showToast('Unknown QR code format', 'error');
+    }
+  };
 
   // Ecash threshold handlers
   const handleEcashThresholdPress = () => {
@@ -486,6 +660,7 @@ export default function WalletPage({ route }) {
               onSendPress={() => navigation.navigate('SendFlow', { screen: 'AssetSelector' })}
               onReceivePress={() => setShowReceiveSheet(true)}
               onHistoryPress={() => setShowTxHistory(true)}
+              onQRScanPress={() => setShowQRScanner(true)}
               onSettingsPress={openSettings}
               onCreateVaultPress={() => openVault(true)}
               onVaultPress={openVault}
@@ -523,6 +698,13 @@ export default function WalletPage({ route }) {
           taprootAddress={wallet?.taprootAddress || ''}
           vaultPubkey={wallet?.taprootPubkey || ''}
           advancedMode={settingsHandlers.advancedMode}
+        />
+
+        {/* QR Scanner Modal */}
+        <QRScanner
+          visible={showQRScanner}
+          onClose={() => setShowQRScanner(false)}
+          onScan={handleQRScan}
         />
 
         <StatusBar style="light" />

@@ -25,6 +25,7 @@ const WalletScreen = React.memo(function WalletScreen({
   onSendPress,
   onReceivePress,
   onHistoryPress,
+  onQRScanPress,
   onSettingsPress,
   onCreateVaultPress,
   onVaultPress,
@@ -110,6 +111,7 @@ const WalletScreen = React.memo(function WalletScreen({
       <WalletHeader
         accountNumber={currentAccount + 1}
         onHistoryPress={onHistoryPress}
+        onQRScanPress={onQRScanPress}
         onSettingsPress={onSettingsPress}
         styles={styles}
       />
@@ -238,6 +240,7 @@ WalletScreen.propTypes = {
   onCreateVaultPress: PropTypes.func.isRequired,
   onVaultPress: PropTypes.func.isRequired,
   onHistoryPress: PropTypes.func.isRequired,
+  onQRScanPress: PropTypes.func.isRequired,
   _sendAddressType: PropTypes.oneOf(['taproot', 'segwit']),
   switchingAccount: PropTypes.bool.isRequired,
   showZeroAssets: PropTypes.bool.isRequired,
