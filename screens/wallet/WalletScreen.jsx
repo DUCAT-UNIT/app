@@ -10,6 +10,7 @@ import { useDisplayPreferences } from "../../contexts/DisplayPreferencesContext"
 import { useWalletCalculations } from '../../hooks/useWalletCalculations';
 import { useFormattedBalances } from '../../hooks/useFormattedBalances';
 import { COLORS } from '../../theme';
+import Icon from '../../components/icons';
 import TotalBalanceSection from '../../components/wallet/TotalBalanceSection';
 import VaultCard from '../../components/wallet/VaultCard';
 import AssetCard from '../../components/wallet/AssetCard';
@@ -129,20 +130,34 @@ const WalletScreen = React.memo(function WalletScreen({
         largeBalanceStyle={localStyles.largeBalanceAmount}
       />
 
-      {/* Actions - Send and Receive Buttons */}
+      {/* Actions - Vault and Wallet Buttons */}
       <View style={localStyles.actionsRow}>
-        <TouchableOpacity style={localStyles.actionButton} onPress={onSendPress}>
+        <TouchableOpacity style={localStyles.actionButton} onPress={onVaultPress}>
           <View style={localStyles.actionButtonIcon}>
-            <Text style={localStyles.actionIcon}>↑</Text>
+            <Icon name="vault_logo" size={19} color={COLORS.DARK_BG} />
           </View>
-          <Text style={localStyles.actionButtonLabel}>Send</Text>
+          <Text style={localStyles.actionButtonLabel}>Repay</Text>
         </TouchableOpacity>
 
         <TouchableOpacity style={localStyles.actionButton} onPress={onReceivePress}>
           <View style={localStyles.actionButtonIcon}>
-            <Text style={localStyles.actionIcon}>↓</Text>
+            <Icon name="receive" size={19} color={COLORS.DARK_BG} />
           </View>
-          <Text style={localStyles.actionButtonLabel}>Receive</Text>
+          <Text style={localStyles.actionButtonLabel}>Deposit</Text>
+        </TouchableOpacity>
+
+        <TouchableOpacity style={localStyles.actionButton} onPress={onSendPress}>
+          <View style={localStyles.actionButtonIcon}>
+            <Icon name="send" size={19} color={COLORS.DARK_BG} />
+          </View>
+          <Text style={localStyles.actionButtonLabel}>Withdraw</Text>
+        </TouchableOpacity>
+
+        <TouchableOpacity style={localStyles.actionButton} onPress={onVaultPress}>
+          <View style={localStyles.actionButtonIcon}>
+            <Icon name="vault_logo" size={19} color={COLORS.DARK_BG} />
+          </View>
+          <Text style={localStyles.actionButtonLabel}>Borrow</Text>
         </TouchableOpacity>
       </View>
 
@@ -238,9 +253,9 @@ const localStyles = StyleSheet.create({
   actionsRow: {
     flexDirection: 'row',
     justifyContent: 'center',
-    paddingHorizontal: 20,
-    paddingVertical: 16,
-    gap: 24,
+    paddingHorizontal: 5,
+    paddingVertical: 12,
+    gap: 12,
   },
   actionButton: {
     alignItems: 'center',
@@ -249,16 +264,11 @@ const localStyles = StyleSheet.create({
   actionButtonIcon: {
     width: 50,
     height: 50,
-    borderRadius: 25,
+    borderRadius: 8,
     backgroundColor: COLORS.WHITE,
     justifyContent: 'center',
     alignItems: 'center',
-    marginBottom: 6,
-  },
-  actionIcon: {
-    fontSize: 24,
-    color: COLORS.DARK_BG,
-    fontWeight: '600',
+    marginBottom: 2,
   },
   actionButtonLabel: {
     fontSize: 13,
