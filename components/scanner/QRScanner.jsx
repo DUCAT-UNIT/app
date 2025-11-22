@@ -14,6 +14,7 @@ import {
   Dimensions,
 } from 'react-native';
 import { CameraView, useCameraPermissions } from 'expo-camera';
+import { URDecoder } from '@ngraveio/bc-ur';
 import Icon from '../icons';
 import { COLORS } from '../../theme';
 
@@ -24,6 +25,8 @@ export default function QRScanner({ visible, onClose, onScan }) {
   const [permission, requestPermission] = useCameraPermissions();
   const [scannedChunks, setScannedChunks] = useState(new Map());
   const [totalChunks, setTotalChunks] = useState(null);
+  const [bcurDecoder, setBcurDecoder] = useState(null);
+  const [bcurProgress, setBcurProgress] = useState(0);
   const scanTimeoutRef = useRef(null);
 
   // Reset state when modal closes
@@ -31,6 +34,8 @@ export default function QRScanner({ visible, onClose, onScan }) {
     if (!visible) {
       setScannedChunks(new Map());
       setTotalChunks(null);
+      setBcurDecoder(null);
+      setBcurProgress(0);
       if (scanTimeoutRef.current) {
         clearTimeout(scanTimeoutRef.current);
       }
@@ -42,8 +47,62 @@ export default function QRScanner({ visible, onClose, onScan }) {
 
     // Validate that data is readable (not binary garbage)
     const isPrintable = /^[\x20-\x7E\n\r\t]*$/.test(data.substring(0, 100));
-    if (!isPrintable && !data.match(/^\d+\/\d+:/)) {
+    if (!isPrintable && !data.match(/^\d+\/\d+:/) && !data.startsWith('ur:')) {
       console.warn('[QRScanner] Detected binary/corrupted QR data, ignoring');
+      return;
+    }
+
+    // Check if this is BC-UR format: ur:bytes/seqNum-seqLen/data
+    if (data.startsWith('ur:')) {
+      console.log('[QRScanner] BC-UR format detected');
+
+      try {
+        // Initialize decoder on first scan
+        if (!bcurDecoder) {
+          const decoder = new URDecoder();
+          setBcurDecoder(decoder);
+          decoder.receivePart(data);
+
+          // Estimate progress (BC-UR doesn't give exact total)
+          const progress = decoder.estimatedPercentComplete();
+          setBcurProgress(progress * 100);
+          console.log('[QRScanner] BC-UR decoder initialized, progress:', progress * 100, '%');
+        } else {
+          // Feed part to existing decoder
+          bcurDecoder.receivePart(data);
+
+          const progress = bcurDecoder.estimatedPercentComplete();
+          setBcurProgress(progress * 100);
+          console.log('[QRScanner] BC-UR part received, progress:', progress * 100, '%');
+
+          // Check if complete
+          if (bcurDecoder.isComplete()) {
+            console.log('[QRScanner] BC-UR decoding complete!');
+
+            const ur = bcurDecoder.resultUR();
+            const decoded = ur.decodeCBOR();
+            const tokenString = decoded.toString('utf-8');
+
+            console.log('[QRScanner] Decoded token length:', tokenString.length);
+            console.log('[QRScanner] Token starts with:', tokenString.substring(0, 50));
+
+            // Call onScan with the decoded token
+            if (scanTimeoutRef.current) {
+              clearTimeout(scanTimeoutRef.current);
+            }
+            scanTimeoutRef.current = setTimeout(() => {
+              onScan(tokenString);
+              setBcurDecoder(null);
+              setBcurProgress(0);
+            }, 100);
+          }
+        }
+      } catch (error) {
+        console.error('[QRScanner] BC-UR decode error:', error);
+        // Reset decoder on error
+        setBcurDecoder(null);
+        setBcurProgress(0);
+      }
       return;
     }
 
@@ -141,7 +200,8 @@ export default function QRScanner({ visible, onClose, onScan }) {
     );
   }
 
-  const progress = totalChunks ? (scannedChunks.size / totalChunks) * 100 : 0;
+  const progress = totalChunks ? (scannedChunks.size / totalChunks) * 100 : bcurProgress;
+  const isScanning = totalChunks || bcurProgress > 0;
 
   return (
     <Modal visible={visible} animationType="slide">
@@ -166,17 +226,19 @@ export default function QRScanner({ visible, onClose, onScan }) {
             {/* Scanning frame */}
             <View style={styles.scanFrame}>
               {/* Progress overlay - centered over camera */}
-              {totalChunks && (
+              {isScanning && (
                 <View style={styles.progressOverlay}>
                   <Text style={styles.overlayText}>
-                    Scanning animated QR code...
+                    {bcurProgress > 0 ? 'Scanning BC-UR token...' : 'Scanning animated QR code...'}
                   </Text>
                   <View style={styles.progressContainer}>
                     <View style={styles.progressBar}>
                       <View style={[styles.progressFill, { width: `${progress}%` }]} />
                     </View>
                     <Text style={styles.progressText}>
-                      {scannedChunks.size} / {totalChunks} frames
+                      {totalChunks
+                        ? `${scannedChunks.size} / ${totalChunks} frames`
+                        : `${Math.round(bcurProgress)}% complete`}
                     </Text>
                   </View>
                 </View>
