@@ -3,7 +3,7 @@
  * Manages transaction history data, filtering, and loading state
  */
 
-import { useState, useEffect, useMemo, useCallback } from 'react';
+import { useState, useEffect, useMemo, useCallback, useRef } from 'react';
 import { Linking } from 'react-native';
 import { useTransactionHistory } from '../contexts/WalletDataContext';
 import { calculateTransactionAmount } from '../services/transactionHistoryService';
@@ -24,6 +24,7 @@ export function useTransactionHistoryData(
   const [ecashTokens, setEcashTokens] = useState([]);
   const [ecashLoading, setEcashLoading] = useState(false);
   const [ecashInitialLoadDone, setEcashInitialLoadDone] = useState(false);
+  const hasCalculatedInitialTransactions = useRef(false);
 
   // Set initial loading state immediately when sheet opens
   useEffect(() => {
@@ -146,15 +147,15 @@ export function useTransactionHistoryData(
     // Show loading if:
     // 1. Transaction history is loading and we have no cached data, OR
     // 2. Ecash is loading, OR
-    // 3. Waiting for ecash initial load to complete (prevents flash of empty state)
+    // 3. Haven't calculated transactions yet (prevents flash of empty state)
     if (transactionHistory.length === 0 && loadingTransactionHistory) {
       setLoading(true);
-    } else if (ecashLoading || (!advancedMode && !ecashInitialLoadDone)) {
+    } else if (ecashLoading || (!advancedMode && !hasCalculatedInitialTransactions.current)) {
       setLoading(true);
     } else {
       setLoading(false);
     }
-  }, [loadingTransactionHistory, transactionHistory, ecashLoading, ecashInitialLoadDone, advancedMode]);
+  }, [loadingTransactionHistory, transactionHistory, ecashLoading, advancedMode]);
 
   // Filter out self-transfers and prepare display data
   const displayTransactions = useMemo(() => {
@@ -221,11 +222,18 @@ export function useTransactionHistoryData(
     });
 
     // Merge and sort by timestamp (most recent first)
-    return [...regularTxs, ...ecashTxs].sort((a, b) => {
+    const merged = [...regularTxs, ...ecashTxs].sort((a, b) => {
       const aTime = a.timestamp || 0;
       const bTime = b.timestamp || 0;
       return bTime - aTime;
     });
+
+    // Mark that we've calculated initial transactions
+    if (!advancedMode) {
+      hasCalculatedInitialTransactions.current = true;
+    }
+
+    return merged;
   }, [transactionHistory, ecashTokens, segwitAddress, taprootAddress, ecashInitialLoadDone, advancedMode]);
 
   // Open transaction in blockchain explorer

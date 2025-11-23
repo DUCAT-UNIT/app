@@ -20,6 +20,7 @@ export function useAssetTransactions(transactionHistory, assetType, segwitAddres
   // Start with loading=true for UNIT assets so we show spinner immediately
   const [ecashLoading, setEcashLoading] = useState(assetType === 'UNIT' && !advancedMode);
   const [ecashInitialLoadDone, setEcashInitialLoadDone] = useState(assetType !== 'UNIT' || advancedMode);
+  const hasCalculatedInitialTransactions = useRef(false);
 
   // Fetch ecash tokens when assetType is UNIT and advanced mode is off
   useEffect(() => {
@@ -268,11 +269,16 @@ export function useAssetTransactions(transactionHistory, assetType, segwitAddres
     lastTxHashRef.current = txHash;
     filteredTxRef.current = merged;
     setFilteredTransactions(merged);
+
+    // Mark that we've calculated initial transactions for UNIT assets
+    if (assetType === 'UNIT' && !advancedMode) {
+      hasCalculatedInitialTransactions.current = true;
+    }
   }, [transactionHistory, segwitAddress, taprootAddress, assetType, ecashTokens, ecashInitialLoadDone, advancedMode]);
 
   return {
     transactions: filteredTransactions,
-    // Show loading if ecash is loading OR if we're waiting for initial load to complete
-    isLoading: ecashLoading || (assetType === 'UNIT' && !advancedMode && !ecashInitialLoadDone),
+    // Show loading if ecash is loading OR if we haven't calculated transactions yet for UNIT
+    isLoading: ecashLoading || (assetType === 'UNIT' && !advancedMode && !hasCalculatedInitialTransactions.current),
   };
 }
