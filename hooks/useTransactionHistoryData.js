@@ -22,12 +22,15 @@ export function useTransactionHistoryData(
 
   const [loading, setLoading] = useState(false);
   const [ecashTokens, setEcashTokens] = useState([]);
+  const [ecashLoading, setEcashLoading] = useState(false);
+  const [ecashInitialLoadDone, setEcashInitialLoadDone] = useState(false);
 
   // Fetch ecash tokens when sheet opens and advanced mode is off
   useEffect(() => {
     if (showHistorySheet && !advancedMode) {
       const loadEcashTokens = async () => {
         try {
+          setEcashLoading(true);
           const tokens = await getSentLockedTokens(taprootAddress);
 
           // Check which tokens have been claimed
@@ -101,17 +104,22 @@ export function useTransactionHistoryData(
           );
 
           setEcashTokens(tokensWithStatus);
+          setEcashLoading(false);
+          setEcashInitialLoadDone(true);
         } catch (error) {
           console.error('[useTransactionHistoryData] Failed to load ecash tokens:', error);
           setEcashTokens([]);
+          setEcashLoading(false);
+          setEcashInitialLoadDone(true);
         }
       };
       loadEcashTokens();
-    } else if (advancedMode) {
-      // Clear ecash tokens when advanced mode is on
+    } else {
+      // Clear ecash tokens when advanced mode is on or sheet is closed
       setEcashTokens([]);
+      setEcashInitialLoadDone(true); // Mark as done immediately when not loading
     }
-  }, [showHistorySheet, advancedMode]);
+  }, [showHistorySheet, advancedMode, taprootAddress]);
 
   // Manage loading state when sheet opens
   useEffect(() => {
@@ -137,6 +145,13 @@ export function useTransactionHistoryData(
 
   // Filter out self-transfers and prepare display data
   const displayTransactions = useMemo(() => {
+    // For normal mode, wait for ecash to finish loading before displaying UNIT transactions
+    // This ensures runes and ecash transactions appear together as a batch
+    if (!advancedMode && !ecashInitialLoadDone) {
+      console.log('[useTransactionHistoryData] Waiting for ecash tokens to load before displaying transactions');
+      return [];
+    }
+
     // Process regular transactions
     const regularTxs = transactionHistory
       .filter((tx) => {
@@ -198,7 +213,7 @@ export function useTransactionHistoryData(
       const bTime = b.timestamp || 0;
       return bTime - aTime;
     });
-  }, [transactionHistory, ecashTokens, segwitAddress, taprootAddress]);
+  }, [transactionHistory, ecashTokens, segwitAddress, taprootAddress, ecashInitialLoadDone, advancedMode]);
 
   // Open transaction in blockchain explorer
   const openTxInExplorer = useCallback(async (txid, assetType) => {
