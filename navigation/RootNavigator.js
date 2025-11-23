@@ -619,16 +619,20 @@ export default function RootNavigator() {
             const amountDisplay = (result.amount).toFixed(2);
             console.log('[TURBO] Success! Received:', amountDisplay, 'UNIT');
 
-            // Only mark as processed AFTER successful claim to allow retry on failure
+            // Mark as processed asynchronously (don't block the success flow)
             if (global.processedCashuTokens) {
-              const tokenHash = await hashToken(token);
-              global.processedCashuTokens.add(tokenHash);
-              console.log('[TURBO] Marked token as processed. Total processed:', global.processedCashuTokens.size);
+              (async () => {
+                try {
+                  const tokenHash = await hashToken(token);
+                  global.processedCashuTokens.add(tokenHash);
+                  console.log('[TURBO] Marked token as processed. Total processed:', global.processedCashuTokens.size);
 
-              // Save to persistent storage asynchronously
-              saveProcessedTokens(global.processedCashuTokens).catch(error => {
-                console.error('[TURBO] Failed to persist processed tokens:', error.message);
-              });
+                  // Save to persistent storage asynchronously
+                  await saveProcessedTokens(global.processedCashuTokens);
+                } catch (error) {
+                  console.error('[TURBO] Failed to mark token as processed:', error.message);
+                }
+              })();
             }
 
             // Set pending message - will show when loading clears
