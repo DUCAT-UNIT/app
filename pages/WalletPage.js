@@ -1043,7 +1043,7 @@ const localStyles = StyleSheet.create({
     right: 0,
     bottom: 0,
     backgroundColor: COLORS.DARK_BG,
-    zIndex: 1000,
+    zIndex: 10, // Lowered from 1000 to allow React Navigation modals to appear above
   },
   rightEdgeSwipeArea: {
     position: 'absolute',
