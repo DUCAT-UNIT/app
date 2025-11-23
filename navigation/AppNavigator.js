@@ -67,8 +67,7 @@ export default function AppNavigator() {
     loadBiometricPreference,
   } = useAuth();
 
-  // Hooks
-  const { showBackgroundSplash, fadingOut } = useBackgroundSplash();
+  // Hooks (removed useBackgroundSplash - now handled in SplashScreen component)
   const { sendTransactionConfirmedNotification } = useNotificationsHook();
   const { startPolling } = useTransactionPolling();
 
@@ -99,8 +98,6 @@ export default function AppNavigator() {
       loadWallet={loadWallet}
       loadBiometricPreference={loadBiometricPreference}
       isBiometricSupported={isBiometricSupported}
-      showBackgroundSplash={showBackgroundSplash}
-      fadingOut={fadingOut}
       walletExists={walletExists}
     />
   );
@@ -119,8 +116,6 @@ function ProvidersWrapper({
   loadWallet,
   loadBiometricPreference,
   isBiometricSupported,
-  showBackgroundSplash,
-  fadingOut,
   walletExists,
 }) {
   const { seedConfirmed } = useOnboardingFlow();
@@ -151,8 +146,6 @@ function ProvidersWrapper({
                     loadWallet={loadWallet}
                     loadBiometricPreference={loadBiometricPreference}
                     isBiometricSupported={isBiometricSupported}
-                    showBackgroundSplash={showBackgroundSplash}
-                    fadingOut={fadingOut}
                   />
                 </NavigationHandlersProvider>
               </SeedPhraseProvider>
@@ -169,11 +162,9 @@ function AppNavigatorContent({
   loadWallet,
   loadBiometricPreference,
   _isBiometricSupported,
-  showBackgroundSplash,
-  fadingOut,
 }) {
   // Auth contexts
-  const { setIsAuthenticated } = useAuth();
+  const { setIsAuthenticated, isAuthenticated } = useAuth();
   const { wallet } = useWallet();
 
   // Navigation handlers from context
@@ -243,7 +234,7 @@ function AppNavigatorContent({
       <RootNavigator />
 
       {/* Background splash overlay - shows on top when app is backgrounded */}
-      {showBackgroundSplash && <SplashScreen fadeOut={fadingOut} />}
+      <SplashScreen />
 
       {/* Seed Phrase Viewing Screen Overlay */}
       <SeedPhraseOverlay
