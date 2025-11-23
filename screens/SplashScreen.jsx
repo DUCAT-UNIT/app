@@ -12,14 +12,22 @@ import styles from '../styles';
 export default function SplashScreen() {
   const viewRef = useRef(null);
   const [pointerEvents, setPointerEvents] = React.useState('auto');
-  const initialAppState = useRef(AppState.currentState);
+  const hasHiddenRef = useRef(false);
 
   useEffect(() => {
     let hasBeenInactive = false;
-    let hasHiddenOnce = false;
 
-    // Don't hide initially - keep splash visible
-    // This ensures it's always there for app switcher screenshots
+    // Fallback: Always hide after 2 seconds if not hidden yet
+    const fallbackTimer = setTimeout(() => {
+      if (!hasHiddenRef.current) {
+        console.log('[SplashScreen] Fallback timer - hiding splash');
+        viewRef.current?.setNativeProps({
+          style: { opacity: 0 }
+        });
+        setPointerEvents('none');
+        hasHiddenRef.current = true;
+      }
+    }, 2000);
 
     const subscription = AppState.addEventListener('change', (nextAppState) => {
       if (nextAppState === 'background' || nextAppState === 'inactive') {
@@ -30,21 +38,22 @@ export default function SplashScreen() {
           style: { opacity: 1 }
         });
       } else if (nextAppState === 'active') {
-        // Hide splash when becoming active (after background/inactive or first time)
-        if (hasBeenInactive || !hasHiddenOnce) {
-          setTimeout(() => {
-            viewRef.current?.setNativeProps({
-              style: { opacity: 0 }
-            });
-            setPointerEvents('none');
-            hasBeenInactive = false;
-            hasHiddenOnce = true;
-          }, hasBeenInactive ? 1000 : 100); // Longer delay if coming from background
-        }
+        // Hide splash when becoming active
+        setTimeout(() => {
+          viewRef.current?.setNativeProps({
+            style: { opacity: 0 }
+          });
+          setPointerEvents('none');
+          hasHiddenRef.current = true;
+          hasBeenInactive = false;
+        }, hasBeenInactive ? 1000 : 100); // Longer delay if coming from background
       }
     });
 
-    return () => subscription.remove();
+    return () => {
+      subscription.remove();
+      clearTimeout(fallbackTimer);
+    };
   }, []);
 
   return (
