@@ -303,7 +303,7 @@ export const clearP2PKCache = async () => {
 
 /**
  * Find which account a P2PK token is locked to by scanning derivation paths
- * Optimized to check current account first, then scan others
+ * Optimized to derive all keys in a single withMnemonic call
  * @param {string} recipientPubkey - The public key the token is locked to (hex)
  * @param {number} maxAccounts - Maximum number of accounts to check (default: 50)
  * @param {function} onProgress - Optional callback to report progress (accountIndex, total)
@@ -328,45 +328,81 @@ export const findAccountForP2PKToken = async (recipientPubkey, maxAccounts = 50,
     }
   }
 
-  // Try each account index
-  for (let idx = 0; idx < accountsToCheck.length; idx++) {
-    const accountIndex = accountsToCheck[idx];
+  // Derive ALL keys in a single withMnemonic call for maximum performance
+  const result = await withMnemonic(async (mnemonic) => {
+    const startTime = Date.now();
 
-    try {
-      // Report progress if callback provided
-      if (onProgress) {
-        onProgress(accountIndex, accountsToCheck.length);
+    // Import bitcoin utilities
+    const bip32Module = await import('@scure/bip32');
+    const bip39Module = await import('bip39');
+    const bitcoinModule = await import('bitcoinjs-lib');
+    const { MUTINYNET_NETWORK } = await import('../../utils/bitcoin.js');
+
+    const bip32 = bip32Module.default;
+    const bip39 = bip39Module.default;
+    const bitcoin = bitcoinModule.default;
+
+    // Convert mnemonic to seed once
+    const seed = bip39.mnemonicToSeedSync(mnemonic);
+    const root = bip32.fromSeed(seed, MUTINYNET_NETWORK);
+
+    console.log('[findAccountForP2PKToken] Seed and root derived in', Date.now() - startTime, 'ms');
+
+    // Check each account
+    for (let idx = 0; idx < accountsToCheck.length; idx++) {
+      const accountIndex = accountsToCheck[idx];
+
+      try {
+        // Report progress if callback provided
+        if (onProgress) {
+          onProgress(accountIndex, accountsToCheck.length);
+        }
+
+        const checkStart = Date.now();
+
+        // Derive taproot address for this account index
+        // Using same derivation path as deriveAddressesFromMnemonic
+        const taprootPath = `m/86'/1'/0'/0/${accountIndex}`;
+        const taprootChild = root.derivePath(taprootPath);
+        const xOnlyPubkey = taprootChild.publicKey.slice(1, 33);
+        const xOnlyPubkeyHex = Buffer.from(xOnlyPubkey).toString('hex');
+
+        console.log(`[findAccountForP2PKToken] Checked account ${accountIndex} in ${Date.now() - checkStart}ms`);
+
+        // Compare x-only pubkeys
+        if (xOnlyPubkeyHex === recipientPubkey) {
+          console.log('[findAccountForP2PKToken] ✅ Found match at account index:', accountIndex);
+
+          // Derive the taproot address for this account
+          const taprootPayment = bitcoin.payments.p2tr({
+            internalPubkey: xOnlyPubkey,
+            network: MUTINYNET_NETWORK,
+          });
+
+          // Get private key (32 bytes)
+          const privateKey = Buffer.from(taprootChild.privateKey).toString('hex');
+
+          return {
+            accountIndex,
+            privateKey,
+            address: taprootPayment.address,
+          };
+        }
+      } catch (error) {
+        console.warn(`[findAccountForP2PKToken] Error checking account ${accountIndex}:`, error.message);
+        continue;
       }
-
-      const startTime = Date.now();
-
-      const addresses = await withMnemonic(async (mnemonic) => {
-        return deriveAddressesFromMnemonic(mnemonic, accountIndex);
-      });
-
-      // Get the public key for this account
-      const keyData = await getPrivateKeyForAddress(addresses.taprootAddress);
-
-      const elapsed = Date.now() - startTime;
-      console.log(`[findAccountForP2PKToken] Checked account ${accountIndex} in ${elapsed}ms`);
-
-      // Compare x-only pubkeys (both should be 32 bytes / 64 hex chars)
-      if (keyData.xOnlyPubkey === recipientPubkey) {
-        console.log('[findAccountForP2PKToken] ✅ Found match at account index:', accountIndex);
-        return {
-          accountIndex,
-          privateKey: keyData.privateKey,
-          address: addresses.taprootAddress,
-        };
-      }
-    } catch (error) {
-      console.warn(`[findAccountForP2PKToken] Error checking account ${accountIndex}:`, error.message);
-      continue;
     }
+
+    console.log('[findAccountForP2PKToken] Total scan time:', Date.now() - startTime, 'ms');
+    return null;
+  });
+
+  if (!result) {
+    console.log('[findAccountForP2PKToken] ❌ No matching account found in', accountsToCheck.length, 'accounts');
   }
 
-  console.log('[findAccountForP2PKToken] ❌ No matching account found in', accountsToCheck.length, 'accounts');
-  return null;
+  return result;
 };
 
 /**
