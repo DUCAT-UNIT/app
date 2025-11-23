@@ -447,9 +447,42 @@ export const receiveToken = async (tokenString) => {
 
     // Check if any proofs are P2PK locked (do this first, it's fast)
     const t3 = Date.now();
-    const { isP2PKLocked, signP2PKProofs } = await import('./cashuP2PK.js');
+    const { isP2PKLocked, signP2PKProofs, getP2PKRecipient, findAccountForP2PKToken } = await import('./cashuP2PK.js');
     const hasP2PKProofs = proofs.some(p => isP2PKLocked(p));
     logger.info('[PERF] P2PK detection took:', Date.now() - t3, 'ms');
+
+    // If P2PK locked, verify token belongs to current account
+    if (hasP2PKProofs) {
+      // Extract recipient pubkey from first P2PK proof
+      let recipientPubkey = null;
+      for (const proof of proofs) {
+        if (isP2PKLocked(proof)) {
+          recipientPubkey = getP2PKRecipient(proof.secret);
+          if (recipientPubkey) {
+            break;
+          }
+        }
+      }
+
+      if (recipientPubkey) {
+        // Find which account owns this pubkey
+        const accountMatch = await findAccountForP2PKToken(recipientPubkey, 50);
+
+        if (!accountMatch) {
+          throw new Error('This token is not locked to any of your accounts (checked 50 accounts). Make sure you are using the correct wallet.');
+        }
+
+        // Check if token belongs to current account
+        const { getCurrentAccount } = await import('../secureStorageService.js');
+        const currentAccountIndex = await getCurrentAccount();
+
+        if (accountMatch.accountIndex !== currentAccountIndex) {
+          throw new Error(`This proof belongs to account ${accountMatch.accountIndex + 1}. Please switch to that account to claim this token.`);
+        }
+
+        logger.info('P2PK token verified for current account', { accountIndex: currentAccountIndex });
+      }
+    }
 
     // Parallelize independent operations (removed spent check - swap will fail if spent)
     const t4 = Date.now();
