@@ -17,8 +17,9 @@ export function useAssetTransactions(transactionHistory, assetType, segwitAddres
   const lastTxHashRef = useRef('');
   const [filteredTransactions, setFilteredTransactions] = useState([]);
   const [ecashTokens, setEcashTokens] = useState([]);
-  const [ecashLoading, setEcashLoading] = useState(false);
-  const [ecashInitialLoadDone, setEcashInitialLoadDone] = useState(false);
+  // Start with loading=true for UNIT assets so we show spinner immediately
+  const [ecashLoading, setEcashLoading] = useState(assetType === 'UNIT' && !advancedMode);
+  const [ecashInitialLoadDone, setEcashInitialLoadDone] = useState(assetType !== 'UNIT' || advancedMode);
 
   // Fetch ecash tokens when assetType is UNIT and advanced mode is off
   useEffect(() => {

@@ -25,6 +25,14 @@ export function useTransactionHistoryData(
   const [ecashLoading, setEcashLoading] = useState(false);
   const [ecashInitialLoadDone, setEcashInitialLoadDone] = useState(false);
 
+  // Set initial loading state immediately when sheet opens
+  useEffect(() => {
+    if (showHistorySheet && !advancedMode) {
+      // About to load ecash - set loading immediately
+      setLoading(true);
+    }
+  }, [showHistorySheet, advancedMode]);
+
   // Fetch ecash tokens when sheet opens and advanced mode is off
   useEffect(() => {
     if (showHistorySheet && !advancedMode) {
