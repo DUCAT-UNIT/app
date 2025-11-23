@@ -30,10 +30,24 @@ export default function ConfirmationScreen({ navigation, route }) {
   const [isCompletingMint, setIsCompletingMint] = useState(false);
   const [turboToken, setTurboToken] = useState(route?.params?.turboToken || null); // Store the P2PK locked token
   const hasMintCompleted = useRef(false);
-  const [turboDeeplink, setTurboDeeplink] = useState(null);
+  const [turboDeeplink, setTurboDeeplink] = useState(route?.params?.turboDeeplink || null);
 
   // Processing stages for Turbo transactions
-  const [processingStage, setProcessingStage] = useState('confirmed'); // 'confirmed' → 'converting' → 'ready'
+  // If skipMint is true OR not turbo, go straight to 'ready', otherwise start at 'converting'
+  const [processingStage, setProcessingStage] = useState((skipMint || !isTurbo) ? 'ready' : 'converting');
+
+  // Update turboToken and turboDeeplink when route params change
+  // This fixes the issue where React Navigation pre-renders the screen with empty params
+  useEffect(() => {
+    if (route?.params?.turboToken && route.params.turboToken !== turboToken) {
+      console.log('[ConfirmationScreen] 🔄 Updating turboToken from route params');
+      setTurboToken(route.params.turboToken);
+    }
+    if (route?.params?.turboDeeplink && route.params.turboDeeplink !== turboDeeplink) {
+      console.log('[ConfirmationScreen] 🔄 Updating turboDeeplink from route params');
+      setTurboDeeplink(route.params.turboDeeplink);
+    }
+  }, [route?.params?.turboToken, route?.params?.turboDeeplink]);
 
   // Log all route params on mount for debugging
   useEffect(() => {
@@ -43,9 +57,14 @@ export default function ConfirmationScreen({ navigation, route }) {
       mintQuoteId,
       mintAmount,
       turboRecipient,
+      turboAmount,
+      skipMint,
+      turboToken: turboToken ? `Present (${turboToken.length} chars)` : 'null',
+      turboDeeplink: turboDeeplink || 'null',
       broadcastedTxid,
       cashuMint: route?.params?.cashuMint,
       quoteId: route?.params?.quoteId,
+      processingStage,
     });
 
     // Debug: Check if we should be creating a token
@@ -68,9 +87,18 @@ export default function ConfirmationScreen({ navigation, route }) {
     console.log('[ConfirmationScreen] 🎫 turboToken state changed:', turboToken ? `Token present (${turboToken.length} chars)` : 'null');
   }, [turboToken]);
 
-  // Generate Turbo deeplink when token is ready
+  // Debug: Log when processing stage changes
   useEffect(() => {
-    if (turboToken && turboRecipient && turboAmount) {
+    console.log('[ConfirmationScreen] 🎬 Processing stage changed:', processingStage, {
+      turboToken: turboToken ? 'present' : 'null',
+      turboDeeplink: turboDeeplink || 'null',
+      shouldShowLinks: processingStage === 'ready' && turboToken && turboDeeplink,
+    });
+  }, [processingStage, turboToken, turboDeeplink]);
+
+  // Generate Turbo deeplink when token is ready (only if not already provided)
+  useEffect(() => {
+    if (turboToken && turboRecipient && turboAmount && !turboDeeplink) {
       const generateLink = async () => {
         try {
           const { generateTurboDeeplink } = await import('../../services/cashu/cashuLockedTokensService');
@@ -83,28 +111,10 @@ export default function ConfirmationScreen({ navigation, route }) {
       };
       generateLink();
     }
-  }, [turboToken, turboRecipient, turboAmount]);
+  }, [turboToken, turboRecipient, turboAmount, turboDeeplink]);
 
-  // Stage transition: Show "Transaction confirmed" first, then start converting
-  useEffect(() => {
-    if (isTurbo && !skipMint && processingStage === 'confirmed') {
-      // Show "Transaction confirmed" for 1 second, then transition to converting
-      const timer = setTimeout(() => {
-        console.log('[ConfirmationScreen] Transitioning to converting stage');
-        setProcessingStage('converting');
-      }, 1000);
-      return () => clearTimeout(timer);
-    }
-  }, [isTurbo, skipMint, processingStage]);
-
-  // Set final stage when token is ready
-  useEffect(() => {
-    if (skipMint && turboToken) {
-      setProcessingStage('ready');
-    }
-  }, [skipMint, turboToken]);
-
-  // Handle Turbo mint completion
+  // Handle Turbo mint completion - ONLY if skipMint is false
+  // (When skipMint is true, mint was already completed in ProcessingScreen)
   useEffect(() => {
     console.log('[ConfirmationScreen] Checking mint completion:', {
       isTurbo,
@@ -115,9 +125,9 @@ export default function ConfirmationScreen({ navigation, route }) {
       hasMintCompleted: hasMintCompleted.current
     });
 
-    // Skip mint polling if token was created directly from ecash
+    // Skip mint polling if token was created in ProcessingScreen
     if (skipMint) {
-      console.log('[ConfirmationScreen] Token created directly from ecash - skipping mint flow');
+      console.log('[ConfirmationScreen] Token already created in ProcessingScreen - skipping mint flow');
       return;
     }
 
@@ -419,21 +429,28 @@ export default function ConfirmationScreen({ navigation, route }) {
     }, 100);
   };
 
+  // If we're in 'ready' state but expecting turbo data that hasn't arrived yet, show loading
+  const isWaitingForTurboData = processingStage === 'ready' && isTurbo && skipMint && (!turboToken || !turboDeeplink);
+
   return (
     <View style={localStyles.container}>
       {/* Content */}
       <View style={localStyles.content}>
         {/* Icon based on processing stage */}
-        {/* Stage 1: Transaction confirmed - Green checkmark */}
-        {processingStage === 'confirmed' && (
-          <View style={localStyles.checkmarkContainer}>
-            <View style={localStyles.checkmark}>
-              <Icon name="checkmark" size={48} color={COLORS.SUCCESS_GREEN} />
-            </View>
-          </View>
+        {/* Stage 0: Waiting for turbo data from ProcessingScreen */}
+        {isWaitingForTurboData && (
+          <>
+            <ActivityIndicator
+              size="large"
+              color={COLORS.PRIMARY_BLUE}
+              style={{ marginTop: 40, marginBottom: 40 }}
+            />
+            <Text style={localStyles.title}>Converting to TurboUNIT</Text>
+            <Text style={localStyles.subtitle}>Finalizing P2PK locked token...</Text>
+          </>
         )}
 
-        {/* Stage 2: Converting - Blue spinner */}
+        {/* Stage 1: Converting - Blue spinner */}
         {processingStage === 'converting' && (
           <ActivityIndicator
             size="large"
@@ -442,69 +459,86 @@ export default function ConfirmationScreen({ navigation, route }) {
           />
         )}
 
-        {/* Stage 3: Ready - UNIT logo with lightning */}
-        {processingStage === 'ready' && (
+        {/* Stage 2: Ready - Show turbo icon or checkmark */}
+        {!isWaitingForTurboData && processingStage === 'ready' && (
           <View style={localStyles.checkmarkContainer}>
-            <View style={localStyles.heroLogoContainer}>
-              <Icon name="unit_logo" size={80} />
-              <Text style={localStyles.heroLightningBadge}>⚡</Text>
-            </View>
+            {isTurbo && turboToken ? (
+              <View style={localStyles.heroLogoContainer}>
+                <Icon name="unit_logo" size={80} />
+                <Text style={localStyles.heroLightningBadge}>⚡</Text>
+              </View>
+            ) : (
+              <View style={localStyles.checkmark}>
+                <Icon name="checkmark" size={48} color={COLORS.SUCCESS_GREEN} />
+              </View>
+            )}
           </View>
         )}
 
         {/* Title and subtitle based on stage */}
-        <Text style={localStyles.title}>
-          {processingStage === 'confirmed' ? 'Transaction Confirmed' :
-           processingStage === 'converting' ? 'Converting to TurboUNIT' :
-           processingStage === 'ready' ? 'Turbo Token Ready' :
-           'Transaction Sent'}
-        </Text>
-        <Text style={localStyles.subtitle}>
-          {processingStage === 'confirmed' ? 'Your transaction has been confirmed on the blockchain' :
-           processingStage === 'converting' ? 'Minting e-cash tokens and creating P2PK locked token...' :
-           processingStage === 'ready' ? 'Share this link with the recipient' :
-           'Your transaction has been successfully broadcast to the network'}
-        </Text>
-
-        {/* Turbo Token Action */}
-        {turboToken && turboDeeplink && (
+        {!isWaitingForTurboData && (
           <>
-            {/* Short URL Display */}
-            <TouchableOpacity
-              style={localStyles.urlContainer}
-              onPress={handleCopyDeeplink}
-              activeOpacity={0.7}
-            >
-              <Text style={localStyles.urlText} numberOfLines={2}>
-                {turboDeeplink}
-              </Text>
-              <Text style={localStyles.tapToCopyHint}>Tap to copy</Text>
-            </TouchableOpacity>
-
-            {/* Action Buttons */}
-            <View style={localStyles.buttonRow}>
-              <TouchableOpacity
-                style={[localStyles.actionButton, localStyles.shareButton]}
-                onPress={handleShareDeeplink}
-                activeOpacity={0.7}
-              >
-                <Icon name="share" size={16} color={COLORS.PRIMARY_BLUE} />
-                <Text style={localStyles.actionButtonText}>Share</Text>
-              </TouchableOpacity>
-              <TouchableOpacity
-                style={[localStyles.actionButton, localStyles.copyButton]}
-                onPress={handleOpenInBrowser}
-                activeOpacity={0.7}
-              >
-                <Icon name="arrow_right" size={16} color={COLORS.VERY_LIGHT_GRAY} />
-                <Text style={localStyles.actionButtonText}>Open Link</Text>
-              </TouchableOpacity>
-            </View>
+            <Text style={localStyles.title}>
+              {processingStage === 'converting' ? 'Converting to TurboUNIT' :
+               processingStage === 'ready' && isTurbo && turboToken ? 'Turbo Token Ready' :
+               'Transaction Sent'}
+            </Text>
+            <Text style={localStyles.subtitle}>
+              {processingStage === 'converting' ? 'Minting e-cash tokens and creating P2PK locked token...' :
+               processingStage === 'ready' && isTurbo && turboToken ? 'Share this link with the recipient' :
+               'Your transaction has been successfully broadcast to the network'}
+            </Text>
           </>
         )}
 
-        {/* View Explorer Button */}
-        {!turboToken && !skipMint && (
+        {/* Turbo Token Action - Show when ready */}
+        {processingStage === 'ready' && isTurbo && turboToken && (
+          <>
+            {turboDeeplink ? (
+              <>
+                {/* Short URL Display */}
+                <TouchableOpacity
+                  style={localStyles.urlContainer}
+                  onPress={handleCopyDeeplink}
+                  activeOpacity={0.7}
+                >
+                  <Text style={localStyles.urlText} numberOfLines={2}>
+                    {turboDeeplink}
+                  </Text>
+                  <Text style={localStyles.tapToCopyHint}>Tap to copy</Text>
+                </TouchableOpacity>
+
+                {/* Action Buttons */}
+                <View style={localStyles.buttonRow}>
+                  <TouchableOpacity
+                    style={[localStyles.actionButton, localStyles.shareButton]}
+                    onPress={handleShareDeeplink}
+                    activeOpacity={0.7}
+                  >
+                    <Icon name="share" size={16} color={COLORS.PRIMARY_BLUE} />
+                    <Text style={localStyles.actionButtonText}>Share</Text>
+                  </TouchableOpacity>
+                  <TouchableOpacity
+                    style={[localStyles.actionButton, localStyles.copyButton]}
+                    onPress={handleOpenInBrowser}
+                    activeOpacity={0.7}
+                  >
+                    <Icon name="arrow_right" size={16} color={COLORS.VERY_LIGHT_GRAY} />
+                    <Text style={localStyles.actionButtonText}>Open Link</Text>
+                  </TouchableOpacity>
+                </View>
+              </>
+            ) : (
+              <View style={localStyles.urlContainer}>
+                <ActivityIndicator size="small" color={COLORS.PRIMARY_BLUE} />
+                <Text style={[localStyles.urlText, { marginTop: 8 }]}>Generating link...</Text>
+              </View>
+            )}
+          </>
+        )}
+
+        {/* View Explorer Button - for non-turbo transactions */}
+        {!isTurbo && !skipMint && broadcastedTxid && (
           <TouchableOpacity
             style={localStyles.explorerButton}
             activeOpacity={0.7}
@@ -513,6 +547,16 @@ export default function ConfirmationScreen({ navigation, route }) {
             <Text style={localStyles.explorerButtonText}>View on Explorer</Text>
             <Icon name="arrow_right" size={16} color={COLORS.PRIMARY_BLUE} />
           </TouchableOpacity>
+        )}
+
+        {/* Debug - show if nothing is rendering */}
+        {__DEV__ && processingStage === 'ready' && !isTurbo && !turboToken && (
+          <View style={{ padding: 20, backgroundColor: 'red', marginTop: 20 }}>
+            <Text style={{ color: 'white' }}>DEBUG: Ready state but no content to show</Text>
+            <Text style={{ color: 'white', fontSize: 12 }}>isTurbo: {String(isTurbo)}</Text>
+            <Text style={{ color: 'white', fontSize: 12 }}>turboToken: {turboToken ? 'present' : 'null'}</Text>
+            <Text style={{ color: 'white', fontSize: 12 }}>skipMint: {String(skipMint)}</Text>
+          </View>
         )}
       </View>
 
@@ -544,6 +588,14 @@ const localStyles = StyleSheet.create({
   },
   checkmarkContainer: {
     marginBottom: 32,
+  },
+  checkmark: {
+    width: 80,
+    height: 80,
+    borderRadius: 40,
+    backgroundColor: COLORS.SUCCESS_GREEN + '20',
+    alignItems: 'center',
+    justifyContent: 'center',
   },
   heroLogoContainer: {
     position: 'relative',
