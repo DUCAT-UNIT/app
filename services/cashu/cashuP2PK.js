@@ -303,20 +303,35 @@ export const clearP2PKCache = async () => {
 
 /**
  * Find which account a P2PK token is locked to by scanning derivation paths
+ * Optimized to check current account first, then scan others
  * @param {string} recipientPubkey - The public key the token is locked to (hex)
- * @param {number} maxAccounts - Maximum number of accounts to check (default: 10)
+ * @param {number} maxAccounts - Maximum number of accounts to check (default: 5)
  * @returns {Promise<{accountIndex: number, privateKey: string, address: string}|null>}
  */
-export const findAccountForP2PKToken = async (recipientPubkey, maxAccounts = 10) => {
-  const { withMnemonic } = await import('../secureStorageService.js');
+export const findAccountForP2PKToken = async (recipientPubkey, maxAccounts = 5) => {
+  const { withMnemonic, getCurrentAccount } = await import('../secureStorageService.js');
   const { deriveAddressesFromMnemonic } = await import('../../utils/bitcoin.js');
   const { getPrivateKeyForAddress } = await import('../../utils/wallet.js');
 
   console.log('[findAccountForP2PKToken] Searching for account with pubkey:', recipientPubkey.substring(0, 16) + '...');
 
+  // Get current account to check it first (most likely match)
+  const currentAccountIndex = await getCurrentAccount();
+  console.log('[findAccountForP2PKToken] Checking current account first:', currentAccountIndex);
+
+  // Build list of account indices to check, starting with current account
+  const accountsToCheck = [currentAccountIndex];
+  for (let i = 0; i < maxAccounts; i++) {
+    if (i !== currentAccountIndex) {
+      accountsToCheck.push(i);
+    }
+  }
+
   // Try each account index
-  for (let accountIndex = 0; accountIndex < maxAccounts; accountIndex++) {
+  for (const accountIndex of accountsToCheck) {
     try {
+      const startTime = Date.now();
+
       const addresses = await withMnemonic(async (mnemonic) => {
         return deriveAddressesFromMnemonic(mnemonic, accountIndex);
       });
@@ -324,9 +339,12 @@ export const findAccountForP2PKToken = async (recipientPubkey, maxAccounts = 10)
       // Get the public key for this account
       const keyData = await getPrivateKeyForAddress(addresses.taprootAddress);
 
+      const elapsed = Date.now() - startTime;
+      console.log(`[findAccountForP2PKToken] Checked account ${accountIndex} in ${elapsed}ms`);
+
       // Compare x-only pubkeys (both should be 32 bytes / 64 hex chars)
       if (keyData.xOnlyPubkey === recipientPubkey) {
-        console.log('[findAccountForP2PKToken] Found match at account index:', accountIndex);
+        console.log('[findAccountForP2PKToken] ✅ Found match at account index:', accountIndex);
         return {
           accountIndex,
           privateKey: keyData.privateKey,
@@ -339,7 +357,7 @@ export const findAccountForP2PKToken = async (recipientPubkey, maxAccounts = 10)
     }
   }
 
-  console.log('[findAccountForP2PKToken] No matching account found in', maxAccounts, 'accounts');
+  console.log('[findAccountForP2PKToken] ❌ No matching account found in', accountsToCheck.length, 'accounts');
   return null;
 };
 
