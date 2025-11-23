@@ -138,12 +138,17 @@ export default function WalletPage({ route }) {
 
   // Dismiss bottom sheets when app goes to background
   useEffect(() => {
+    let appState = AppState.currentState;
+
     const subscription = AppState.addEventListener('change', (nextAppState) => {
-      if (nextAppState === 'background' || nextAppState === 'inactive') {
+      // Detect when going from active to background/inactive
+      if (appState === 'active' && (nextAppState === 'background' || nextAppState === 'inactive')) {
+        console.log('[WalletPage] App backgrounding - dismissing bottom sheets');
         // Close any open bottom sheets
         setShowThresholdSheet(false);
         setShowConversionModal(false);
       }
+      appState = nextAppState;
     });
 
     return () => {
