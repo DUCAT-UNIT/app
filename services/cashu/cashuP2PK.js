@@ -308,33 +308,40 @@ export const clearP2PKCache = async () => {
  */
 export const getP2PKPrivateKey = async () => {
   const SecureStore = await import('expo-secure-store');
+  const { withMnemonic, getCurrentAccount } = await import('../secureStorageService.js');
+  const { deriveAddressesFromMnemonic } = await import('../../utils/bitcoin.js');
+  const { getPrivateKeyForAddress } = await import('../../utils/wallet.js');
+
+  // Get current account's address to verify cache
+  const accountIndex = await getCurrentAccount();
+  const addresses = await withMnemonic(async (mnemonic) => {
+    return deriveAddressesFromMnemonic(mnemonic, accountIndex);
+  });
+  const currentAddress = addresses.taprootAddress;
 
   // Try to get both from cache
   try {
     const cachedAddress = await SecureStore.getItemAsync(CACHE_KEY_ADDRESS);
     const cachedPrivKey = await SecureStore.getItemAsync(CACHE_KEY_PRIVKEY);
 
-    if (cachedAddress && cachedPrivKey) {
-      console.log('[getP2PKPrivateKey] Using cached address and key (instant!)');
+    // Verify cached address matches current account before using cached key
+    if (cachedAddress && cachedPrivKey && cachedAddress === currentAddress) {
+      console.log('[getP2PKPrivateKey] Using cached key (verified for current account)');
       return cachedPrivKey;
+    } else if (cachedAddress && cachedAddress !== currentAddress) {
+      console.log('[getP2PKPrivateKey] Cache invalid - address mismatch (account changed)');
+      // Clear stale cache
+      await SecureStore.deleteItemAsync(CACHE_KEY_ADDRESS);
+      await SecureStore.deleteItemAsync(CACHE_KEY_PRIVKEY);
     }
   } catch (error) {
     console.warn('[getP2PKPrivateKey] Cache read failed:', error.message);
   }
 
-  console.log('[getP2PKPrivateKey] Cache miss, deriving address and key...');
+  console.log('[getP2PKPrivateKey] Deriving private key for current account...');
 
-  // Cache miss - derive everything
-  const { withMnemonic, getCurrentAccount } = await import('../secureStorageService.js');
-  const { deriveAddressesFromMnemonic } = await import('../../utils/bitcoin.js');
-  const { getPrivateKeyForAddress } = await import('../../utils/wallet.js');
-
-  const accountIndex = await getCurrentAccount();
-  const addresses = await withMnemonic(async (mnemonic) => {
-    return deriveAddressesFromMnemonic(mnemonic, accountIndex);
-  });
-
-  const keyData = await getPrivateKeyForAddress(addresses.taprootAddress);
+  // Derive private key for current account
+  const keyData = await getPrivateKeyForAddress(currentAddress);
 
   // Cache both for next time
   try {
