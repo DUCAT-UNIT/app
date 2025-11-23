@@ -37,6 +37,9 @@ export function useTransactionHistoryData(
   // Fetch ecash tokens when sheet opens and advanced mode is off
   useEffect(() => {
     if (showHistorySheet && !advancedMode) {
+      // Reset done flag immediately to prevent showing transactions before ecash loads
+      setEcashInitialLoadDone(false);
+
       const loadEcashTokens = async () => {
         try {
           setEcashLoading(true);
@@ -45,10 +48,23 @@ export function useTransactionHistoryData(
           // Check which tokens have been claimed
           const { decodeToken } = await import('../services/cashu/cashuCrypto');
           const { checkProofsSpent } = await import('../services/cashu/cashuMintClient');
+          const { updateTokenClaimedStatus } = await import('../services/cashu/cashuLockedTokensService');
+
+          let errorCount = 0;
+          const MAX_ERRORS_TO_LOG = 3;
 
           const tokensWithStatus = await Promise.all(
             tokens.map(async (token) => {
               try {
+                // If token already has cached claimed status, use it
+                if (token.claimed === true) {
+                  console.log('[useTransactionHistoryData] Using cached claimed status for token:', token.id);
+                  return {
+                    ...token,
+                    claimed: true,
+                  };
+                }
+
                 // Debug: Log what we're trying to decode
                 console.log('[useTransactionHistoryData] Checking token:', {
                   id: token.id,
@@ -57,6 +73,7 @@ export function useTransactionHistoryData(
                   tokenStart: token.token?.substring(0, 20),
                   isUrl: token.token?.startsWith('http'),
                   isCashu: token.token?.startsWith('cashu'),
+                  cachedClaimed: token.claimed,
                 });
 
                 // Validate that token.token exists and is a Cashu token string (not a URL)
@@ -93,17 +110,25 @@ export function useTransactionHistoryData(
                 const result = await checkProofsSpent(proofs);
                 const allSpent = result.states?.every(s => s.state === 'SPENT');
 
+                // If token is now claimed, update cache
+                if (allSpent && token.claimed !== true) {
+                  console.log('[useTransactionHistoryData] Token newly claimed, updating cache:', token.id);
+                  await updateTokenClaimedStatus(token.id, true);
+                }
+
                 return {
                   ...token,
                   claimed: allSpent,
                 };
               } catch (error) {
-                console.error('[useTransactionHistoryData] Failed to check token status:', error.message);
-                console.error('[useTransactionHistoryData] Error details:', {
-                  tokenId: token.id,
-                  tokenPreview: token.token?.substring(0, 50),
-                  errorStack: error.stack,
-                });
+                // Only log first few errors to avoid spam
+                if (errorCount < MAX_ERRORS_TO_LOG) {
+                  console.error('[useTransactionHistoryData] Failed to check token status:', error.message);
+                  errorCount++;
+                  if (errorCount === MAX_ERRORS_TO_LOG) {
+                    console.warn('[useTransactionHistoryData] Suppressing further errors...');
+                  }
+                }
                 return {
                   ...token,
                   claimed: false, // Default to unclaimed if check fails
@@ -159,10 +184,11 @@ export function useTransactionHistoryData(
 
   // Filter out self-transfers and prepare display data
   const displayTransactions = useMemo(() => {
-    // For normal mode, wait for ecash to finish loading before displaying UNIT transactions
+    // For normal mode, wait for ecash to finish loading before displaying ANY transactions
     // This ensures runes and ecash transactions appear together as a batch
     if (!advancedMode && !ecashInitialLoadDone) {
       console.log('[useTransactionHistoryData] Waiting for ecash tokens to load before displaying transactions');
+      // Don't mark as calculated yet - we're still waiting
       return [];
     }
 
@@ -228,10 +254,8 @@ export function useTransactionHistoryData(
       return bTime - aTime;
     });
 
-    // Mark that we've calculated initial transactions
-    if (!advancedMode) {
-      hasCalculatedInitialTransactions.current = true;
-    }
+    // Mark that we've calculated initial transactions (only if we actually processed them)
+    hasCalculatedInitialTransactions.current = true;
 
     return merged;
   }, [transactionHistory, ecashTokens, segwitAddress, taprootAddress, ecashInitialLoadDone, advancedMode]);
