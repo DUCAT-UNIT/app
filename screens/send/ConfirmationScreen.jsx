@@ -12,11 +12,13 @@ import { getTxUrl } from '../../utils/constants';
 import { useTransactionExecution } from '../../contexts/TransactionExecutionContext';
 import { useTransactionHistory } from '../../contexts/WalletDataContext';
 import { useWallet } from '../../contexts/WalletContext';
+import { useCashu } from '../../contexts/CashuContext';
 
 export default function ConfirmationScreen({ navigation, route }) {
   const { broadcastedTxid } = useTransactionExecution();
   const { fetchTransactionHistory } = useTransactionHistory();
   const { wallet } = useWallet();
+  const { refresh: refreshCashuBalance } = useCashu();
   const isTurbo = route?.params?.isTurbo === true;
   const mintQuoteId = route?.params?.mintQuoteId;
   const mintAmount = route?.params?.mintAmount;
@@ -219,6 +221,10 @@ export default function ConfirmationScreen({ navigation, route }) {
 
           setIsCompletingMint(false);
 
+          // Refresh cashu balance to reflect the new tokens
+          await refreshCashuBalance();
+          console.log('[ConfirmationScreen] Cashu balance refreshed');
+
           // Different message based on whether this is address-bound or regular Turbo
           if (turboRecipient) {
             Alert.alert('Success', 'Turbo transaction complete! Token is ready for the recipient.');
@@ -298,6 +304,10 @@ export default function ConfirmationScreen({ navigation, route }) {
           if (fetchTransactionHistory) {
             await fetchTransactionHistory();
           }
+
+          // Refresh cashu balance to reflect the new tokens
+          await refreshCashuBalance();
+          console.log('[ConfirmationScreen] Cashu balance refreshed after threshold conversion');
 
           setIsCompletingMint(false);
           Alert.alert('Success', 'UNIT successfully converted to ecash!');
