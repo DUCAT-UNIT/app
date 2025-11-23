@@ -494,22 +494,23 @@ export default function WalletPage({ route }) {
       setShowConversionModal(false);
       setShowThresholdSheet(false);
 
-      // Close settings panel and dismiss navigation
+      // Close settings panel - ensure it's fully hidden
       if (showSettings) {
         console.log('[WalletPage] Closing settings before navigation');
         closeSettings();
-
-        // Actually dismiss the Settings navigation screen
-        setTimeout(() => {
-          const parentNav = navigation.getParent();
-          if (parentNav && parentNav.canGoBack()) {
-            console.log('[WalletPage] Dismissing Settings navigation');
-            parentNav.goBack();
-          }
-        }, 100);
       }
 
-      // Use setTimeout to ensure settings close animation completes
+      // Navigate using root navigator to ensure modal appears above everything
+      // Get parent navigators until we reach root
+      const getRootNavigator = (nav) => {
+        let currentNav = nav;
+        while (currentNav.getParent()) {
+          currentNav = currentNav.getParent();
+        }
+        return currentNav;
+      };
+
+      // Use setTimeout to ensure settings close completes
       setTimeout(() => {
         console.log('[WalletPage] Attempting navigation now...');
         console.log('[WalletPage] conversionAmount:', conversionAmount, 'type:', typeof conversionAmount);
@@ -517,7 +518,11 @@ export default function WalletPage({ route }) {
         console.log('[WalletPage] amountStr:', amountStr);
 
         try {
-          navigation.navigate('SendFlow', {
+          // Navigate from root navigator to ensure modal opens correctly
+          const rootNav = getRootNavigator(navigation);
+          console.log('[WalletPage] Using root navigator:', !!rootNav);
+
+          rootNav.navigate('SendFlow', {
             screen: 'Processing',
             params: {
               fromScreen: 'Settings',
@@ -534,7 +539,7 @@ export default function WalletPage({ route }) {
           console.error('[WalletPage] Navigation error:', navError);
           showToast('Navigation failed: ' + navError.message, 'error');
         }
-      }, 600);
+      }, 400);
     } catch (error) {
       console.error('[WalletPage] Failed to initiate mint:', error);
       showToast('Failed to start conversion: ' + error.message, 'error');
@@ -881,20 +886,21 @@ export default function WalletPage({ route }) {
         <ToastContainer toasts={toasts} />
       </View>
 
-      {/* Settings Screen Overlay */}
-      <Animated.View
-        style={[
-          localStyles.settingsOverlay,
-          {
-            opacity: settingsOpacity,
-            transform: [{ translateX: settingsTranslateX }],
-          },
-        ]}
-        pointerEvents={!showSettings ? 'none' : 'auto'}
-        {...settingsPanResponderRef.current.panHandlers}
-      >
-        <MutinynetBanner />
-        <SettingsScreen
+      {/* Settings Screen Overlay - only render when visible to prevent z-index conflicts */}
+      {(showSettings || settingsOpacity._value > 0) && (
+        <Animated.View
+          style={[
+            localStyles.settingsOverlay,
+            {
+              opacity: settingsOpacity,
+              transform: [{ translateX: settingsTranslateX }],
+            },
+          ]}
+          pointerEvents={!showSettings ? 'none' : 'auto'}
+          {...settingsPanResponderRef.current.panHandlers}
+        >
+          <MutinynetBanner />
+          <SettingsScreen
           onClose={closeSettings}
           onLockWallet={settingsHandlers.handleLogout}
           onViewPreferences={() => {
@@ -968,6 +974,7 @@ export default function WalletPage({ route }) {
           }}
         />
       </Animated.View>
+      )}
 
       {/* Ecash Threshold Selection Sheet */}
       <EcashThresholdSheet
