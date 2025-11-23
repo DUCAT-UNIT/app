@@ -273,15 +273,12 @@ const linking = {
             console.log('[TURBO] URL event: Token hash:', tokenHash.substring(0, 16) + '...');
           } else if (isAlreadyProcessed) {
             console.log('[TURBO] URL event: SKIPPING - token already processed (hash:', tokenHash.substring(0, 16) + '...)');
-            // Queue snackbar to show when component is ready
-            if (!global.pendingTurboSnackbars) {
-              global.pendingTurboSnackbars = [];
-            }
-            global.pendingTurboSnackbars.push({
+            // Replace queue with only this snackbar (don't stack multiple)
+            global.pendingTurboSnackbars = [{
               type: 'error',
               action: 'claim',
               description: 'Token already claimed',
-            });
+            }];
             return;
           }
 
@@ -609,15 +606,12 @@ export default function RootNavigator() {
               errorMessage = 'Failed to verify Turbo token signature';
             }
 
-            // Queue snackbar - will be picked up by polling interval
-            if (!global.pendingTurboSnackbars) {
-              global.pendingTurboSnackbars = [];
-            }
-            global.pendingTurboSnackbars.push({
+            // Replace queue with only this snackbar (don't stack multiple)
+            global.pendingTurboSnackbars = [{
               type: 'error',
               action: 'claim',
               description: errorMessage,
-            });
+            }];
           }
         })();
       }

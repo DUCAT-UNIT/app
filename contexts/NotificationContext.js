@@ -99,20 +99,18 @@ export const NotificationProvider = ({ children }) => {
     lastSnackbarRef.current = snackbarParams;
     setSnackbar(snackbarParams);
 
-    // Auto-dismiss success notifications after 7 seconds
+    // Auto-dismiss ALL notifications after 7 seconds
     // Clear any existing timeout first
     if (snackbarTimeoutRef.current) {
       clearTimeout(snackbarTimeoutRef.current);
       snackbarTimeoutRef.current = null;
     }
 
-    // Set new timeout for success notifications
-    if (snackbarParams.type === 'success') {
-      snackbarTimeoutRef.current = setTimeout(() => {
-        setSnackbar(null);
-        snackbarTimeoutRef.current = null;
-      }, 7000); // 7 seconds
-    }
+    // Set new timeout for all notifications
+    snackbarTimeoutRef.current = setTimeout(() => {
+      setSnackbar(null);
+      snackbarTimeoutRef.current = null;
+    }, 7000); // 7 seconds
   }, []);
 
   const dismissSnackbar = useCallback(() => {

@@ -17,7 +17,8 @@ const ACTION_LABELS = {
   repay: 'UNIT Repay',
   create: 'Vault Create',
   faucet: 'Testnet Coins',
-  swap: 'Swap UNIT',
+  swap: 'UNIT Withdraw',
+  claim: 'UNIT Claim',
   liquidation: 'Vault Liquidation',
   repossess: 'Liquidation Claim',
 };
@@ -67,13 +68,8 @@ export default function Snackbar({ params, onClose }) {
       friction: 10,
     }).start();
 
-    // Auto-dismiss after 15 seconds for success and submitted
-    if (params.type === 'success' || params.type === 'submitted') {
-      const timer = setTimeout(() => {
-        handleClose();
-      }, 15000);
-      return () => clearTimeout(timer);
-    }
+    // Note: Auto-dismiss is handled by NotificationContext (7 seconds for all types)
+    // No need for component-level timeout
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
