@@ -610,18 +610,6 @@ export default function RootNavigator() {
 
         // Process the token
         (async () => {
-          // Hash the token and mark as processed (whether it succeeds or fails, we don't want to retry)
-          if (global.processedCashuTokens) {
-            const tokenHash = await hashToken(token);
-            global.processedCashuTokens.add(tokenHash);
-            console.log('[TURBO] Marked token as processed. Total processed:', global.processedCashuTokens.size);
-
-            // Save to persistent storage asynchronously
-            saveProcessedTokens(global.processedCashuTokens).catch(error => {
-              console.error('[TURBO] Failed to persist processed tokens:', error.message);
-            });
-          }
-
           // Process the token with the mint
           try {
             setIsVerifyingToken(true);
@@ -630,6 +618,18 @@ export default function RootNavigator() {
             // Format amount: keep 2 decimals
             const amountDisplay = (result.amount).toFixed(2);
             console.log('[TURBO] Success! Received:', amountDisplay, 'UNIT');
+
+            // Only mark as processed AFTER successful claim to allow retry on failure
+            if (global.processedCashuTokens) {
+              const tokenHash = await hashToken(token);
+              global.processedCashuTokens.add(tokenHash);
+              console.log('[TURBO] Marked token as processed. Total processed:', global.processedCashuTokens.size);
+
+              // Save to persistent storage asynchronously
+              saveProcessedTokens(global.processedCashuTokens).catch(error => {
+                console.error('[TURBO] Failed to persist processed tokens:', error.message);
+              });
+            }
 
             // Set pending message - will show when loading clears
             setPendingSuccessMessage(`Successfully received ${amountDisplay} UNIT`);
