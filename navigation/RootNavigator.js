@@ -508,7 +508,32 @@ export default function RootNavigator() {
   // Make showSnackbar available globally for URL event handlers
   // Poll for queued snackbars to ensure they get shown
   const lastShownSnackbarRef = React.useRef(null);
+  const lastShownTimeRef = React.useRef(0);
   const checkQueuedSnackbarsRef = React.useRef(null);
+
+  // Wrapper to prevent duplicate snackbars within 3 seconds
+  const showSnackbarWithDedup = React.useCallback((snackbarParams) => {
+    const now = Date.now();
+    const lastShown = lastShownSnackbarRef.current;
+    const timeSinceLastShown = now - lastShownTimeRef.current;
+
+    // Check if this is identical to the last shown snackbar within 3 seconds
+    const isDuplicate = lastShown &&
+      lastShown.type === snackbarParams.type &&
+      lastShown.action === snackbarParams.action &&
+      lastShown.description === snackbarParams.description &&
+      timeSinceLastShown < 3000; // 3 seconds
+
+    if (isDuplicate) {
+      console.log('[TURBO] Blocking duplicate snackbar (shown', timeSinceLastShown, 'ms ago):', snackbarParams.description);
+      return;
+    }
+
+    console.log('[TURBO] Showing snackbar:', snackbarParams.description);
+    showSnackbar(snackbarParams);
+    lastShownSnackbarRef.current = snackbarParams;
+    lastShownTimeRef.current = now;
+  }, [showSnackbar]);
 
   React.useEffect(() => {
     const checkQueuedSnackbars = () => {
@@ -516,23 +541,8 @@ export default function RootNavigator() {
       if (global.pendingTurboSnackbars && global.pendingTurboSnackbars.length > 0) {
         // Show only the last one to avoid spamming
         const lastSnackbar = global.pendingTurboSnackbars[global.pendingTurboSnackbars.length - 1];
-
-        // Check if this is the exact same snackbar we just showed
-        const lastShown = lastShownSnackbarRef.current;
-        const isDuplicate = lastShown &&
-          lastShown.type === lastSnackbar.type &&
-          lastShown.action === lastSnackbar.action &&
-          lastShown.description === lastSnackbar.description;
-
-        if (isDuplicate) {
-          console.log('[TURBO] Skipping duplicate snackbar:', lastSnackbar.description);
-        } else {
-          console.log('[TURBO] Showing queued snackbar:', lastSnackbar.description);
-          showSnackbar(lastSnackbar);
-          lastShownSnackbarRef.current = lastSnackbar;
-        }
-
-        // Clear the queue either way
+        showSnackbarWithDedup(lastSnackbar);
+        // Clear the queue
         global.pendingTurboSnackbars = [];
       }
     };
@@ -546,26 +556,26 @@ export default function RootNavigator() {
     // Poll every 500ms to catch newly queued snackbars
     const interval = setInterval(checkQueuedSnackbars, 500);
 
-    global.showTurboSnackbar = showSnackbar;
+    global.showTurboSnackbar = showSnackbarWithDedup;
 
     return () => {
       clearInterval(interval);
       delete global.showTurboSnackbar;
     };
-  }, [showSnackbar]);
+  }, [showSnackbarWithDedup]);
 
   // Show success snackbar when loading finishes
   React.useEffect(() => {
     if (!isVerifyingToken && pendingSuccessMessage) {
       console.log('[TURBO] Loading cleared, showing success snackbar');
-      showSnackbar({
+      showSnackbarWithDedup({
         type: 'success',
         action: 'claim',
         description: pendingSuccessMessage,
       });
       setPendingSuccessMessage(null);
     }
-  }, [isVerifyingToken, pendingSuccessMessage, showSnackbar]);
+  }, [isVerifyingToken, pendingSuccessMessage, showSnackbarWithDedup]);
 
   // Check for pending token when authenticated - this runs after linking config stores token
   const checkPendingTokenRef = React.useRef(null); // Store function ref so it can be called externally
