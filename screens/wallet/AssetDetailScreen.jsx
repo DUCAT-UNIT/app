@@ -344,26 +344,45 @@ function AssetDetailScreen({ route = {}, navigation }) {
               const hasP2PKProofs = decoded.proofs.some(p => isP2PKSecret(p.secret));
 
               if (hasP2PKProofs) {
-                // Token is P2PK-locked, get private key from wallet
-                const taprootAddress = taprootAddressRef.current;
-                if (!taprootAddress) {
-                  Alert.alert('Error', 'Taproot address not available');
+                // Token is P2PK-locked, find which account it's locked to
+                console.log('[AssetDetailScreen] Token is P2PK-locked, finding correct account');
+
+                // Extract recipient pubkey from first P2PK proof
+                const { getP2PKRecipient } = await import('../../services/cashu/cashuP2PK');
+                let recipientPubkey = null;
+                for (const proof of decoded.proofs) {
+                  if (proof.secret) {
+                    const pubkey = getP2PKRecipient(proof.secret);
+                    if (pubkey) {
+                      recipientPubkey = pubkey;
+                      console.log('[AssetDetailScreen] Found P2PK recipient pubkey:', pubkey.substring(0, 16) + '...');
+                      break;
+                    }
+                  }
+                }
+
+                if (!recipientPubkey) {
+                  Alert.alert('Error', 'Could not extract recipient pubkey from P2PK token');
                   return;
                 }
 
-                // Get private key and x-only pubkey for the taproot address
-                const { getPrivateKeyForAddress } = await import('../../utils/wallet');
-                const { privateKey } = await getPrivateKeyForAddress(taprootAddress);
+                // Find which account owns this pubkey
+                const { findAccountForP2PKToken } = await import('../../services/cashu/cashuP2PK');
+                const accountMatch = await findAccountForP2PKToken(recipientPubkey);
 
-                console.log('[AssetDetailScreen] Got private key:', {
-                  privateKeyLength: privateKey?.length,
-                  privateKeyPreview: privateKey?.substring(0, 16) + '...',
-                  privateKeyType: typeof privateKey,
+                if (!accountMatch) {
+                  Alert.alert('Error', 'This token is not locked to any of your accounts. Make sure you are using the correct wallet.');
+                  return;
+                }
+
+                console.log('[AssetDetailScreen] Found matching account:', {
+                  accountIndex: accountMatch.accountIndex,
+                  address: accountMatch.address,
                 });
 
-                // Redeem P2PK token with private key
+                // Redeem P2PK token with the correct account's private key
                 const { receiveP2PKToken } = await import('../../services/cashu/cashuWalletService');
-                await receiveP2PKToken(tokenString.trim(), privateKey);
+                await receiveP2PKToken(tokenString.trim(), accountMatch.privateKey);
                 await fetchTransactionHistory();
                 Alert.alert('Success', 'P2PK token redeemed successfully!');
               } else {

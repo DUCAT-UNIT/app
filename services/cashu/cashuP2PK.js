@@ -302,6 +302,48 @@ export const clearP2PKCache = async () => {
 };
 
 /**
+ * Find which account a P2PK token is locked to by scanning derivation paths
+ * @param {string} recipientPubkey - The public key the token is locked to (hex)
+ * @param {number} maxAccounts - Maximum number of accounts to check (default: 10)
+ * @returns {Promise<{accountIndex: number, privateKey: string, address: string}|null>}
+ */
+export const findAccountForP2PKToken = async (recipientPubkey, maxAccounts = 10) => {
+  const { withMnemonic } = await import('../secureStorageService.js');
+  const { deriveAddressesFromMnemonic } = await import('../../utils/bitcoin.js');
+  const { getPrivateKeyForAddress } = await import('../../utils/wallet.js');
+
+  console.log('[findAccountForP2PKToken] Searching for account with pubkey:', recipientPubkey.substring(0, 16) + '...');
+
+  // Try each account index
+  for (let accountIndex = 0; accountIndex < maxAccounts; accountIndex++) {
+    try {
+      const addresses = await withMnemonic(async (mnemonic) => {
+        return deriveAddressesFromMnemonic(mnemonic, accountIndex);
+      });
+
+      // Get the public key for this account
+      const keyData = await getPrivateKeyForAddress(addresses.taprootAddress);
+
+      // Compare x-only pubkeys (both should be 32 bytes / 64 hex chars)
+      if (keyData.xOnlyPubkey === recipientPubkey) {
+        console.log('[findAccountForP2PKToken] Found match at account index:', accountIndex);
+        return {
+          accountIndex,
+          privateKey: keyData.privateKey,
+          address: addresses.taprootAddress,
+        };
+      }
+    } catch (error) {
+      console.warn(`[findAccountForP2PKToken] Error checking account ${accountIndex}:`, error.message);
+      continue;
+    }
+  }
+
+  console.log('[findAccountForP2PKToken] No matching account found in', maxAccounts, 'accounts');
+  return null;
+};
+
+/**
  * Get P2PK private key for current wallet (cached for performance)
  * Caches both the taproot address and derived private key
  * @returns {Promise<string>} Private key hex
@@ -366,5 +408,6 @@ export default {
   hasP2PKProofs,
   signP2PKProofs,
   getP2PKPrivateKey,
+  findAccountForP2PKToken,
   clearP2PKCache
 };

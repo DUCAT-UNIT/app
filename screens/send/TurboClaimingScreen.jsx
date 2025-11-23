@@ -46,29 +46,61 @@ export default function TurboClaimingScreen({ navigation, route }) {
         const hasP2PKProofs_result = hasP2PKProofs(tokenString);
 
         if (hasP2PKProofs_result) {
-          // Step 2: Getting private key
+          // Step 2: Finding correct account
           setCurrentStep(2);
-          setCurrentMessage('Getting private key');
+          setCurrentMessage('Finding correct account');
 
-          // Token is P2PK-locked, get private key from wallet
-          const taprootAddress = wallet?.taprootAddress;
-          if (!taprootAddress) {
-            throw new Error('Taproot address not available');
+          // Token is P2PK-locked, need to find which account it's locked to
+          logger.info('Token is P2PK-locked, extracting recipient pubkey');
+
+          // Decode token to extract recipient pubkey
+          const { decodeToken } = await import('../../services/cashu/cashuCrypto');
+          const { getP2PKRecipient } = await import('../../services/cashu/cashuP2PK');
+
+          const decoded = decodeToken(tokenString);
+          const proofs = decoded.proofs || decoded.token?.[0]?.proofs || [];
+
+          if (!proofs || proofs.length === 0) {
+            throw new Error('No proofs found in token');
           }
 
-          // Get private key and x-only pubkey for the taproot address
-          const { getPrivateKeyForAddress } = await import('../../utils/wallet');
-          const { privateKey } = await getPrivateKeyForAddress(taprootAddress);
+          // Find first P2PK proof and extract recipient pubkey
+          let recipientPubkey = null;
+          for (const proof of proofs) {
+            if (proof.secret) {
+              const pubkey = getP2PKRecipient(proof.secret);
+              if (pubkey) {
+                recipientPubkey = pubkey;
+                logger.info('Found P2PK recipient pubkey:', pubkey.substring(0, 16) + '...');
+                break;
+              }
+            }
+          }
 
-          logger.info('Got private key for claiming P2PK token');
+          if (!recipientPubkey) {
+            throw new Error('Could not extract recipient pubkey from P2PK token');
+          }
+
+          // Find which account owns this pubkey
+          const { findAccountForP2PKToken } = await import('../../services/cashu/cashuP2PK');
+          const accountMatch = await findAccountForP2PKToken(recipientPubkey);
+
+          if (!accountMatch) {
+            throw new Error('This token is not locked to any of your accounts. Make sure you are using the correct wallet.');
+          }
+
+          logger.info('Found matching account:', {
+            accountIndex: accountMatch.accountIndex,
+            address: accountMatch.address,
+          });
 
           // Step 3: Claiming token
           setCurrentStep(3);
           setCurrentMessage('Claiming token');
 
-          // Redeem P2PK token with private key
+          // Redeem P2PK token with the correct account's private key
           const { receiveP2PKToken } = await import('../../services/cashu/cashuWalletService');
-          await receiveP2PKToken(tokenString.trim(), privateKey);
+          await receiveP2PKToken(tokenString.trim(), accountMatch.privateKey);
         } else {
           // Step 2: Claiming token
           setCurrentStep(2);
