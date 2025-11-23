@@ -20,7 +20,6 @@ import MutinynetBanner from '../components/MutinynetBanner';
 import BottomNavigationBar from '../components/BottomNavigationBar';
 import ToastContainer from '../components/ToastContainer';
 import SplashScreen from '../screens/SplashScreen';
-import Snackbar from '../components/Snackbar';
 import EcashThresholdSheet from '../components/settings/EcashThresholdSheet';
 import EcashConversionModal from '../components/settings/EcashConversionModal';
 import QRScanner from '../components/scanner/QRScanner';
@@ -116,6 +115,26 @@ export default function WalletPage({ route }) {
       });
     }
   }, [intentStep, broadcastedTxid, sendAssetType, showSnackbar]);
+
+  // Handle claim result from TurboClaimingScreen
+  React.useEffect(() => {
+    if (route?.params?.claimSuccess) {
+      showSnackbar({
+        type: 'success',
+        action: 'claim',
+      });
+      // Clear the param so it doesn't trigger again
+      navigation.setParams({ claimSuccess: undefined });
+    } else if (route?.params?.claimError) {
+      showSnackbar({
+        type: 'error',
+        action: 'claim',
+        description: route.params.claimError,
+      });
+      // Clear the param so it doesn't trigger again
+      navigation.setParams({ claimError: undefined });
+    }
+  }, [route?.params?.claimSuccess, route?.params?.claimError, showSnackbar, navigation]);
 
   // Navigation hooks
   const {
@@ -246,14 +265,14 @@ export default function WalletPage({ route }) {
                     const result = await receiveCashuToken(filteredTokenString);
                     showSnackbar({
                       type: 'success',
-                      action: 'swap',
+                      action: 'claim',
                       description: `Successfully claimed ${result.amount} UNIT`,
                     });
                   } catch (error) {
                     console.error('[WalletPage] Claim failed:', error);
                     showSnackbar({
                       type: 'error',
-                      action: 'swap',
+                      action: 'claim',
                       description: `Failed to claim: ${error.message}`,
                     });
                   }
@@ -267,7 +286,7 @@ export default function WalletPage({ route }) {
           const result = await receiveCashuToken(data);
           showSnackbar({
             type: 'success',
-            action: 'swap',
+            action: 'claim',
             description: `Successfully claimed ${result.amount} UNIT`,
           });
         }
@@ -275,7 +294,7 @@ export default function WalletPage({ route }) {
         console.error('[WalletPage] Token check failed:', error);
         showSnackbar({
           type: 'error',
-          action: 'swap',
+          action: 'claim',
           description: `Failed to process token: ${error.message}`,
         });
       }
@@ -296,20 +315,20 @@ export default function WalletPage({ route }) {
           const result = await receiveCashuToken(encoded);
           showSnackbar({
             type: 'success',
-            action: 'swap',
+            action: 'claim',
             description: `Successfully claimed ${result.amount} UNIT`,
           });
         } else if (Array.isArray(parsed.proofs) || Array.isArray(parsed)) {
           // Raw proofs array - need to wrap it
           showSnackbar({
             type: 'error',
-            action: 'swap',
+            action: 'claim',
             description: 'Invalid token format - raw proofs not supported',
           });
         } else {
           showSnackbar({
             type: 'error',
-            action: 'swap',
+            action: 'claim',
             description: 'Invalid JSON token format',
           });
         }
@@ -317,7 +336,7 @@ export default function WalletPage({ route }) {
         console.error('[WalletPage] Failed to parse/claim JSON token:', error);
         showSnackbar({
           type: 'error',
-          action: 'swap',
+          action: 'claim',
           description: `Failed to claim token: ${error.message}`,
         });
       }
@@ -877,14 +896,6 @@ export default function WalletPage({ route }) {
           }}
         />
       </Animated.View>
-
-      {/* Snackbar - Rendered outside main container at the top */}
-      {snackbar && (
-        <Snackbar
-          params={snackbar}
-          onClose={dismissSnackbar}
-        />
-      )}
 
       {/* Ecash Threshold Selection Sheet */}
       <EcashThresholdSheet
