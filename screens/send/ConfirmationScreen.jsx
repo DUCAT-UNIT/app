@@ -4,7 +4,7 @@
  */
 
 import React, { useEffect, useState, useRef } from 'react';
-import { Text, View, TouchableOpacity, Linking, StyleSheet, Alert, ActivityIndicator, Share } from 'react-native';
+import { Text, View, TouchableOpacity, Linking, StyleSheet, ActivityIndicator, Share } from 'react-native';
 import * as Clipboard from 'expo-clipboard';
 import { COLORS } from '../../theme';
 import Icon from '../../components/icons';
@@ -13,12 +13,14 @@ import { useTransactionExecution } from '../../contexts/TransactionExecutionCont
 import { useTransactionHistory } from '../../contexts/WalletDataContext';
 import { useWallet } from '../../contexts/WalletContext';
 import { useCashu } from '../../contexts/CashuContext';
+import { useNotifications } from '../../contexts/NotificationContext';
 
 export default function ConfirmationScreen({ navigation, route }) {
   const { broadcastedTxid } = useTransactionExecution();
   const { fetchTransactionHistory } = useTransactionHistory();
   const { wallet } = useWallet();
   const { refresh: refreshCashuBalance } = useCashu();
+  const { showToast, showSnackbar } = useNotifications();
   const isTurbo = route?.params?.isTurbo === true;
   const mintQuoteId = route?.params?.mintQuoteId;
   const mintAmount = route?.params?.mintAmount;
@@ -96,18 +98,29 @@ export default function ConfirmationScreen({ navigation, route }) {
       return;
     }
 
+    // NEW FLOW: Mint completion now happens in ProcessingScreen
+    // ConfirmationScreen only displays the result when skipMint=true
+    if (skipMint) {
+      console.log('[ConfirmationScreen] skipMint=true, mint already completed in ProcessingScreen');
+      return;
+    }
+
     // Only proceed if this is a Turbo flow with all required params
     if (!isTurbo) {
       console.log('[ConfirmationScreen] Not a Turbo transaction, skipping mint completion');
       return;
     }
 
+    // OLD LOGIC - This should not run anymore since ProcessingScreen handles it
+    console.warn('[ConfirmationScreen] WARNING: Old mint logic should not run! ProcessingScreen should handle conversion.');
+    return;
+
     if (!mintQuoteId || !mintAmount) {
       console.error('[ConfirmationScreen] MISSING REQUIRED PARAMS:', {
         mintQuoteId: !!mintQuoteId,
         mintAmount: !!mintAmount,
       });
-      Alert.alert('Error', 'Missing quote information. Cannot complete conversion.');
+      showToast('Missing quote information. Cannot complete conversion.', 'error');
       return;
     }
 
@@ -227,19 +240,19 @@ export default function ConfirmationScreen({ navigation, route }) {
 
           // Different message based on whether this is address-bound or regular Turbo
           if (turboRecipient) {
-            Alert.alert('Success', 'Turbo transaction complete! Token is ready for the recipient.');
+            showSnackbar({ type: 'success', action: 'send' });
           } else {
-            Alert.alert('Success', 'On-chain UNIT converted to eUNIT!');
+            showSnackbar({ type: 'success', action: 'convert' });
           }
         } else {
           console.log('[ConfirmationScreen] Payment not confirmed after 30 seconds');
           setIsCompletingMint(false);
-          Alert.alert('Pending', 'Payment sent. E-cash will be available once confirmed.');
+          showToast('Payment sent. E-cash will be available once confirmed.', 'info');
         }
       } catch (error) {
         console.error('[ConfirmationScreen] Error during mint completion:', error);
         setIsCompletingMint(false);
-        Alert.alert('Error', `Failed to complete conversion: ${error.message}`);
+        showToast(`Failed to complete conversion: ${error.message}`, 'error');
       }
     };
 
@@ -310,16 +323,16 @@ export default function ConfirmationScreen({ navigation, route }) {
           console.log('[ConfirmationScreen] Cashu balance refreshed after threshold conversion');
 
           setIsCompletingMint(false);
-          Alert.alert('Success', 'UNIT successfully converted to ecash!');
+          showSnackbar({ type: 'success', action: 'convert' });
         } else {
           console.log('[ConfirmationScreen] Payment not confirmed after 30 seconds');
           setIsCompletingMint(false);
-          Alert.alert('Pending', 'Payment sent. Ecash will be available once confirmed.');
+          showToast('Payment sent. Ecash will be available once confirmed.', 'info');
         }
       } catch (error) {
         console.error('[ConfirmationScreen] Error during cashu mint completion:', error);
         setIsCompletingMint(false);
-        Alert.alert('Error', `Failed to complete conversion: ${error.message}`);
+        showToast(`Failed to complete conversion: ${error.message}`, 'error');
       }
     };
 
@@ -343,7 +356,7 @@ export default function ConfirmationScreen({ navigation, route }) {
         });
       } catch (error) {
         console.error('[ConfirmationScreen] Failed to share link:', error);
-        Alert.alert('Error', 'Failed to share link. Please try again.');
+        showToast('Failed to share link. Please try again.', 'error');
       }
     }
   };
@@ -354,10 +367,10 @@ export default function ConfirmationScreen({ navigation, route }) {
         console.log('[ConfirmationScreen] Copying Turbo deeplink to clipboard:', turboDeeplink);
 
         await Clipboard.setStringAsync(turboDeeplink);
-        Alert.alert('Copied!', 'Link copied to clipboard');
+        showToast('Link copied to clipboard', 'info');
       } catch (error) {
         console.error('[ConfirmationScreen] Failed to copy link:', error);
-        Alert.alert('Error', 'Failed to copy link. Please try again.');
+        showToast('Failed to copy link. Please try again.', 'error');
       }
     }
   };
@@ -369,7 +382,7 @@ export default function ConfirmationScreen({ navigation, route }) {
         await Linking.openURL(turboDeeplink);
       } catch (error) {
         console.error('[ConfirmationScreen] Failed to open link:', error);
-        Alert.alert('Error', 'Failed to open link. Please try again.');
+        showToast('Failed to open link. Please try again.', 'error');
       }
     }
   };
@@ -391,20 +404,35 @@ export default function ConfirmationScreen({ navigation, route }) {
     <View style={localStyles.container}>
       {/* Content */}
       <View style={localStyles.content}>
-        {/* Success icon - checkmark or UNIT logo */}
-        <View style={localStyles.checkmarkContainer}>
-          {skipMint ? (
+        {/* Success icon - Green checkmark for regular tx, UNIT logo for Turbo */}
+        {!isCompletingMint && !skipMint && (
+          <View style={localStyles.checkmarkContainer}>
+            <View style={localStyles.checkmark}>
+              <Icon name="checkmark" size={48} color={COLORS.SUCCESS_GREEN} />
+            </View>
+          </View>
+        )}
+
+        {skipMint && (
+          <View style={localStyles.checkmarkContainer}>
             <View style={localStyles.heroLogoContainer}>
               <Icon name="unit_logo" size={80} />
               <Text style={localStyles.heroLightningBadge}>⚡</Text>
             </View>
-          ) : (
-            <Icon name="done" size={100} color={COLORS.TEAL} />
-          )}
-        </View>
+          </View>
+        )}
+
+        {/* Loading spinner during conversion */}
+        {isCompletingMint && !skipMint && (
+          <ActivityIndicator
+            size="large"
+            color={COLORS.PRIMARY_BLUE}
+            style={{ marginTop: 40, marginBottom: 40 }}
+          />
+        )}
 
         <Text style={localStyles.title}>
-          {isCompletingMint ? 'Converting to eUNIT...' : (skipMint ? 'Turbo Token Ready' : 'Transaction Sent')}
+          {isCompletingMint ? 'Converting to TurboUNIT...' : (skipMint ? 'Turbo Token Ready' : 'Transaction Sent')}
         </Text>
         <Text style={localStyles.subtitle}>
           {isCompletingMint
@@ -414,14 +442,6 @@ export default function ConfirmationScreen({ navigation, route }) {
               : 'Your transaction has been successfully broadcast to the network')
           }
         </Text>
-
-        {isCompletingMint && (
-          <ActivityIndicator
-            size="large"
-            color={COLORS.PRIMARY_BLUE}
-            style={{ marginTop: 20 }}
-          />
-        )}
 
         {/* Turbo Token Action */}
         {turboToken && turboDeeplink && (
