@@ -272,6 +272,7 @@ export function useAssetTransactions(transactionHistory, assetType, segwitAddres
 
   return {
     transactions: filteredTransactions,
-    isLoading: ecashLoading,
+    // Show loading if ecash is loading OR if we're waiting for initial load to complete
+    isLoading: ecashLoading || (assetType === 'UNIT' && !advancedMode && !ecashInitialLoadDone),
   };
 }

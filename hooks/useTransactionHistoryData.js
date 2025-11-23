@@ -145,15 +145,16 @@ export function useTransactionHistoryData(
   useEffect(() => {
     // Show loading if:
     // 1. Transaction history is loading and we have no cached data, OR
-    // 2. Ecash is loading (so we show spinner while waiting for the batch)
+    // 2. Ecash is loading, OR
+    // 3. Waiting for ecash initial load to complete (prevents flash of empty state)
     if (transactionHistory.length === 0 && loadingTransactionHistory) {
       setLoading(true);
-    } else if (ecashLoading) {
+    } else if (ecashLoading || (!advancedMode && !ecashInitialLoadDone)) {
       setLoading(true);
     } else {
       setLoading(false);
     }
-  }, [loadingTransactionHistory, transactionHistory, ecashLoading]);
+  }, [loadingTransactionHistory, transactionHistory, ecashLoading, ecashInitialLoadDone, advancedMode]);
 
   // Filter out self-transfers and prepare display data
   const displayTransactions = useMemo(() => {
