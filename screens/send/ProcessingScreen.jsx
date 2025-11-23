@@ -38,6 +38,9 @@ export default function ProcessingScreen({ navigation, route }) {
   const mintAmount = route.params?.mintAmount;
   const turboRecipient = route.params?.turboRecipient; // Original recipient for P2PK locking
 
+  // Track if we've already navigated to prevent double navigation
+  const hasNavigatedToConfirmation = useRef(false);
+
   // Helper to handle navigation errors - dismiss modal if coming from Settings
   const handleNavigationError = (errorMessage) => {
     if (fromScreen === 'Settings') {
@@ -167,6 +170,12 @@ export default function ProcessingScreen({ navigation, route }) {
           hasDeeplink: !!turboDeeplink,
           tokenLength: turboToken?.length,
         });
+        if (hasNavigatedToConfirmation.current) {
+          console.log('⚠️⚠️ [NAVIGATION] Prevented duplicate navigation to Confirmation');
+          return;
+        }
+        hasNavigatedToConfirmation.current = true;
+
         console.log('🚀🚀 [NAVIGATION] completeMintInProcessing calling navigation.replace with:', {
           isTurbo,
           skipMint: true,
@@ -360,6 +369,14 @@ export default function ProcessingScreen({ navigation, route }) {
             } else {
               console.log('🎬❌ [ProcessingScreen] NOT MINT FLOW - entering regular tx branch');
               console.log('🔵 [ProcessingScreen] Regular transaction, navigating to Confirmation');
+
+              if (hasNavigatedToConfirmation.current) {
+                console.log('⚠️⚠️ [NAVIGATION] Prevented duplicate navigation to Confirmation (regular branch)');
+                return;
+              }
+              hasNavigatedToConfirmation.current = true;
+
+              console.log('🚀🚀 [NAVIGATION] Regular tx branch calling navigation.replace');
               // Regular transaction - navigate directly to confirmation
               navigation.replace('Confirmation', {
                 isTurbo: false,
