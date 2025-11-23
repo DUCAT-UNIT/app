@@ -167,6 +167,12 @@ export default function ProcessingScreen({ navigation, route }) {
           hasDeeplink: !!turboDeeplink,
           tokenLength: turboToken?.length,
         });
+        console.log('🚀🚀 [NAVIGATION] completeMintInProcessing calling navigation.replace with:', {
+          isTurbo,
+          skipMint: true,
+          hasToken: !!turboToken,
+          hasDeeplink: !!turboDeeplink,
+        });
         navigation.replace('Confirmation', {
           isTurbo,
           skipMint: true,
@@ -282,6 +288,15 @@ export default function ProcessingScreen({ navigation, route }) {
 
   // Start the action when screen mounts
   useEffect(() => {
+    console.log('🎬🎬 [ProcessingScreen] useEffect fired', {
+      hasStarted: hasStarted.current,
+      action,
+      isTurbo,
+      isCashuMint,
+      mintQuoteId,
+      cashuQuoteId,
+    });
+
     if (!hasStarted.current && action === 'create_intent') {
       // For Cashu mint flow, wait for send flow state to be set from route params
       if (isCashuMint && (!sendAssetType || !sendAmount || !sendRecipient)) {
@@ -297,14 +312,25 @@ export default function ProcessingScreen({ navigation, route }) {
       }, 100);
     } else if (!hasStarted.current && action === 'sign_and_broadcast') {
       hasStarted.current = true;
+      console.log('🎬 [ProcessingScreen] Starting sign_and_broadcast flow');
       // Small delay before signing
       setTimeout(async () => {
         try {
           // Check if this is a Turbo or Cashu mint flow BEFORE signing
-          const isMintFlow = (isTurbo || isCashuMint) && (mintQuoteId || cashuQuoteId);
+          const isMintFlow = !!((isTurbo || isCashuMint) && (mintQuoteId || cashuQuoteId));
+
+          console.log('🎬 [ProcessingScreen] About to call signIntent with:', {
+            skipAutoConfirm: isMintFlow,
+            isTurbo,
+            isCashuMint,
+            mintQuoteId,
+            cashuQuoteId,
+          });
 
           // Pass skipAutoConfirm for mint flows so polling doesn't auto-set intentStep='confirmed'
           const success = await signIntent({ skipAutoConfirm: isMintFlow });
+
+          console.log('🎬 [ProcessingScreen] signIntent returned:', success);
 
           if (success) {
             logger.debug('Broadcast successful, checking for mint flows:', {
@@ -316,6 +342,7 @@ export default function ProcessingScreen({ navigation, route }) {
 
             // Check if this is a Turbo or Cashu mint flow
             if (isMintFlow) {
+              console.log('🎬🔵 [ProcessingScreen] IS MINT FLOW - entering turbo mint branch');
               console.log('🔵 [ProcessingScreen] Setting converting state to true');
               console.log('🔵 [ProcessingScreen] isTurbo:', isTurbo, 'isCashuMint:', isCashuMint);
 
@@ -324,10 +351,14 @@ export default function ProcessingScreen({ navigation, route }) {
               setLoadingMessageIndex(2); // Move to "Converting to TurboUNIT..." message
 
               console.log('🔵 [ProcessingScreen] State updated, should show "Converting to TurboUNIT..."');
+              console.log('🎬 [ProcessingScreen] About to call completeMintInProcessing');
 
               // Complete mint process
               await completeMintInProcessing(isTurbo, mintQuoteId, cashuQuoteId, mintAmount, turboRecipient);
+
+              console.log('🎬 [ProcessingScreen] completeMintInProcessing finished');
             } else {
+              console.log('🎬❌ [ProcessingScreen] NOT MINT FLOW - entering regular tx branch');
               console.log('🔵 [ProcessingScreen] Regular transaction, navigating to Confirmation');
               // Regular transaction - navigate directly to confirmation
               navigation.replace('Confirmation', {
@@ -336,9 +367,11 @@ export default function ProcessingScreen({ navigation, route }) {
               });
             }
           } else {
+            console.log('🎬❌ [ProcessingScreen] signIntent returned false');
             handleNavigationError('Failed to sign and broadcast transaction');
           }
         } catch (error) {
+          console.log('🎬❌ [ProcessingScreen] Error in sign_and_broadcast:', error);
           logger.error('Signing error:', error);
           const errorMessage = error.message || error.toString() || 'Transaction failed';
           handleNavigationError(errorMessage);
@@ -346,7 +379,7 @@ export default function ProcessingScreen({ navigation, route }) {
       }, 100);
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [action, sendAssetType, sendAmount, sendRecipient, isCashuMint]);
+  }, [action, sendAssetType, sendAmount, sendRecipient, isCashuMint, isTurbo, mintQuoteId, cashuQuoteId]);
 
   // Watch for intentStep changes after creating intent
   const hasNavigated = useRef(false);
