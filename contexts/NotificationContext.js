@@ -66,6 +66,7 @@ export const NotificationProvider = ({ children }) => {
   const lastSnackbarRef = useRef(null);
   const snackbarTimeoutRef = useRef(null);
   const dismissCooldownRef = useRef(null);
+  const snackbarKeyRef = useRef(0);
 
   const showSnackbar = useCallback((snackbarParams) => {
     logger.debug('🎯 NotificationContext showSnackbar called with:', snackbarParams);
@@ -104,7 +105,11 @@ export const NotificationProvider = ({ children }) => {
     }
 
     lastSnackbarRef.current = snackbarParams;
-    setSnackbar(snackbarParams);
+
+    // Increment key to force new component instance
+    snackbarKeyRef.current += 1;
+
+    setSnackbar({ ...snackbarParams, key: snackbarKeyRef.current });
 
     // Auto-dismiss ALL notifications after 7 seconds
     // Clear any existing timeout first

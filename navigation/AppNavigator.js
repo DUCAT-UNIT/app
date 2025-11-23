@@ -15,6 +15,7 @@ import AppModals from '../components/AppModals';
 import SeedPhraseOverlay from '../components/SeedPhraseOverlay';
 import SplashScreen from '../screens/SplashScreen';
 import AirdropSuccessModal from '../components/AirdropSuccessModal';
+import Snackbar from '../components/Snackbar';
 
 // Contexts
 import { useAuth } from '../contexts/AuthContext';
@@ -67,7 +68,7 @@ export default function AppNavigator() {
   } = useAuth();
 
   // Hooks
-  const { showBackgroundSplash } = useBackgroundSplash();
+  const { showBackgroundSplash, fadingOut } = useBackgroundSplash();
   const { sendTransactionConfirmedNotification } = useNotificationsHook();
   const { startPolling } = useTransactionPolling();
 
@@ -99,6 +100,7 @@ export default function AppNavigator() {
       loadBiometricPreference={loadBiometricPreference}
       isBiometricSupported={isBiometricSupported}
       showBackgroundSplash={showBackgroundSplash}
+      fadingOut={fadingOut}
       walletExists={walletExists}
     />
   );
@@ -118,6 +120,7 @@ function ProvidersWrapper({
   loadBiometricPreference,
   isBiometricSupported,
   showBackgroundSplash,
+  fadingOut,
   walletExists,
 }) {
   const { seedConfirmed } = useOnboardingFlow();
@@ -149,6 +152,7 @@ function ProvidersWrapper({
                     loadBiometricPreference={loadBiometricPreference}
                     isBiometricSupported={isBiometricSupported}
                     showBackgroundSplash={showBackgroundSplash}
+                    fadingOut={fadingOut}
                   />
                 </NavigationHandlersProvider>
               </SeedPhraseProvider>
@@ -166,6 +170,7 @@ function AppNavigatorContent({
   loadBiometricPreference,
   _isBiometricSupported,
   showBackgroundSplash,
+  fadingOut,
 }) {
   // Auth contexts
   const { setIsAuthenticated } = useAuth();
@@ -215,6 +220,9 @@ function AppNavigatorContent({
   // Airdrop context
   const { showAirdropModal, setShowAirdropModal, airdropTxId } = useAirdrop();
 
+  // Notifications context
+  const { snackbar, dismissSnackbar } = useNotifications();
+
   // Wallet initialization
   const { isLoading } = useWalletInitialization({
     loadWallet,
@@ -224,15 +232,18 @@ function AppNavigatorContent({
     walletExistsRef: { current: !!wallet },
   });
 
-  // Show loading splash
-  if (isLoading || showBackgroundSplash) {
-    return <SplashScreen />;
+  // Show loading splash (initial load only)
+  if (isLoading) {
+    return <SplashScreen fadeOut={false} />;
   }
 
   // Main navigation
   return (
     <>
       <RootNavigator />
+
+      {/* Background splash overlay - shows on top when app is backgrounded */}
+      {showBackgroundSplash && <SplashScreen fadeOut={fadingOut} />}
 
       {/* Seed Phrase Viewing Screen Overlay */}
       <SeedPhraseOverlay
@@ -282,6 +293,15 @@ function AppNavigatorContent({
         onClose={() => setShowAirdropModal(false)}
         txId={airdropTxId}
       />
+
+      {/* Global Snackbar - rendered at app level for all screens */}
+      {snackbar && (
+        <Snackbar
+          key={snackbar.key || 'snackbar'}
+          params={snackbar}
+          onClose={dismissSnackbar}
+        />
+      )}
     </>
   );
 }
