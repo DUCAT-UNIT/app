@@ -121,7 +121,7 @@ function ProvidersWrapper({
   walletExists,
 }) {
   const { seedConfirmed } = useOnboardingFlow();
-  const { showToast } = useNotifications();
+  const { showToast, showSnackbar } = useNotifications();
 
   return (
     <AirdropProvider seedConfirmed={seedConfirmed}>
@@ -134,6 +134,7 @@ function ProvidersWrapper({
           <TransactionExecutionProvider
             currentAccount={currentAccount}
             showToast={showToast}
+            showSnackbar={showSnackbar}
             startTransactionPolling={startPolling}
             sendTransactionConfirmedNotification={sendTransactionConfirmedNotification}
             notificationsEnabled={notificationsEnabled}

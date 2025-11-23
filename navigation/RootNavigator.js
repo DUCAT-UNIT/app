@@ -182,14 +182,14 @@ const linking = {
       console.log('[TURBO] URL first 100 chars:', url ? url.substring(0, 100) : 'null');
       console.log('[TURBO] ========================================');
 
-      // Process Turbo URLs: ducat://turbo/{base64} OR https://ducatprotocol.com/unit?id=xyz123 OR https://ducatprotocol.com/unit?t=base64...
-      if (url && (url.includes('ducat://turbo/') || url.includes('unit?'))) {
+      // Process Turbo URLs: ducat://turbo/{base64} OR ducat://spectre/{base64} (legacy) OR https://ducatprotocol.com/unit?id=xyz123 OR https://ducatprotocol.com/unit?t=base64...
+      if (url && (url.includes('ducat://turbo/') || url.includes('ducat://spectre/') || url.includes('unit?'))) {
         console.log('[TURBO] URL event contains Turbo URL - processing NOW');
 
         let token = null;
 
-        // Check if this is the new ducat://turbo/ format
-        const turboMatch = url.match(/ducat:\/\/turbo\/([^\/?#]+)/);
+        // Check if this is the ducat://turbo/ or ducat://spectre/ (legacy) format
+        const turboMatch = url.match(/ducat:\/\/(?:turbo|spectre)\/([^\/?#]+)/);
         if (turboMatch && turboMatch[1]) {
           // The token is already in the correct format (cashuA...)
           // No need to decode - just use it directly
@@ -273,6 +273,15 @@ const linking = {
             console.log('[TURBO] URL event: Token hash:', tokenHash.substring(0, 16) + '...');
           } else if (isAlreadyProcessed) {
             console.log('[TURBO] URL event: SKIPPING - token already processed (hash:', tokenHash.substring(0, 16) + '...)');
+            // Queue snackbar to show when component is ready
+            if (!global.pendingTurboSnackbars) {
+              global.pendingTurboSnackbars = [];
+            }
+            global.pendingTurboSnackbars.push({
+              type: 'error',
+              action: 'swap',
+              description: 'Token already claimed',
+            });
             return;
           }
 
@@ -355,14 +364,14 @@ const linking = {
     console.log('[TURBO] Path length:', path?.length);
     console.log('[TURBO] Path first 100 chars:', path ? path.substring(0, 100) : 'null');
 
-    // Check if this is a Turbo token URL: ducat://turbo/{base64} OR https://ducatprotocol.com/unit?t=base64...
-    if (path && (path.includes('ducat://turbo/') || (path.includes('unit?') && path.includes('t=')))) {
+    // Check if this is a Turbo token URL: ducat://turbo/{base64} OR ducat://spectre/{base64} (legacy) OR https://ducatprotocol.com/unit?t=base64...
+    if (path && (path.includes('ducat://turbo/') || path.includes('ducat://spectre/') || (path.includes('unit?') && path.includes('t=')))) {
       console.log('[TURBO] getStateFromPath detected token URL, processing...');
 
       let token = null;
 
-      // Check if this is the new ducat://turbo/ format
-      const turboMatch = path.match(/ducat:\/\/turbo\/([^\/?#]+)/);
+      // Check if this is the ducat://turbo/ or ducat://spectre/ (legacy) format
+      const turboMatch = path.match(/ducat:\/\/(?:turbo|spectre)\/([^\/?#]+)/);
       if (turboMatch && turboMatch[1]) {
         let base64Token = turboMatch[1];
         console.log('[TURBO] Extracted base64 token from ducat:// URL, length:', base64Token.length);
@@ -486,11 +495,12 @@ export default function RootNavigator() {
   const { wallet } = useWallet();
   const { seedConfirmedRef } = useOnboardingFlow();
   const { fetchBalance } = useBalance();
-  const { showToast } = useNotifications();
+  const { showToast, showSnackbar } = useNotifications();
   const { receive } = useCashu();
 
   // Token verification loading state
-  const [isVerifyingToken, setIsVerifyingToken] = React.useState(false)
+  const [isVerifyingToken, setIsVerifyingToken] = React.useState(false);
+  const [pendingSuccessMessage, setPendingSuccessMessage] = React.useState(null);
 
   // Create wallet exists ref for useAppLifecycle
   const walletExists = React.useRef(false);
@@ -498,11 +508,47 @@ export default function RootNavigator() {
     walletExists.current = !!wallet;
   }, [wallet]);
 
+  // Make showSnackbar available globally for URL event handlers
+  React.useEffect(() => {
+    // Show any queued snackbars
+    if (global.pendingTurboSnackbars && global.pendingTurboSnackbars.length > 0) {
+      // Show only the last one to avoid spamming
+      const lastSnackbar = global.pendingTurboSnackbars[global.pendingTurboSnackbars.length - 1];
+      console.log('[TURBO] Showing queued snackbar:', lastSnackbar.description);
+      showSnackbar(lastSnackbar);
+      // Clear the queue
+      global.pendingTurboSnackbars = [];
+    }
+
+    global.showTurboSnackbar = showSnackbar;
+    return () => {
+      delete global.showTurboSnackbar;
+    };
+  }, [showSnackbar]);
+
+  // Show success snackbar when loading finishes
+  React.useEffect(() => {
+    if (!isVerifyingToken && pendingSuccessMessage) {
+      console.log('[TURBO] Loading cleared, showing success snackbar');
+      showSnackbar({
+        type: 'success',
+        action: 'swap',
+        description: pendingSuccessMessage,
+      });
+      setPendingSuccessMessage(null);
+    }
+  }, [isVerifyingToken, pendingSuccessMessage, showSnackbar]);
+
   // Check for pending token when authenticated - this runs after linking config stores token
   const checkPendingTokenRef = React.useRef(null); // Store function ref so it can be called externally
 
   React.useEffect(() => {
     const checkPendingToken = () => {
+      // Debug logging
+      if (global.pendingCashuToken) {
+        console.log('[TURBO] checkPendingToken: hasPendingToken=true, isAuthenticated=', isAuthenticated, 'isVerifyingToken=', isVerifyingToken);
+      }
+
       // Only process if authenticated, there's a pending token, and we're not already verifying
       if (isAuthenticated && global.pendingCashuToken && !isVerifyingToken) {
         const token = global.pendingCashuToken;
@@ -531,12 +577,15 @@ export default function RootNavigator() {
             setIsVerifyingToken(true);
             const result = await receive(token);
 
-            setIsVerifyingToken(false);
-
             // Format amount: keep 2 decimals
             const amountDisplay = (result.amount).toFixed(2);
             console.log('[TURBO] Success! Received:', amountDisplay, 'UNIT');
-            showToast(`Successfully received ${amountDisplay} UNIT`, 'success');
+
+            // Set pending message - will show when loading clears
+            setPendingSuccessMessage(`Successfully received ${amountDisplay} UNIT`);
+
+            // Clear loading state - this will trigger the success snackbar
+            setIsVerifyingToken(false);
           } catch (error) {
             console.error('[TURBO] Failed:', error.message);
 
@@ -550,7 +599,11 @@ export default function RootNavigator() {
               errorMessage = 'Failed to verify Turbo token signature';
             }
 
-            showToast(errorMessage, 'error');
+            showSnackbar({
+              type: 'error',
+              action: 'swap',
+              description: errorMessage,
+            });
           }
         })();
       }

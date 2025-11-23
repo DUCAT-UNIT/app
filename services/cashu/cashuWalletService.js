@@ -349,10 +349,13 @@ export const completeMint = async (quoteId, amount) => {
  */
 export const receiveToken = async (tokenString) => {
   try {
-    logger.info('Receiving token');
+    const perfStart = Date.now();
+    logger.info('[PERF] receiveToken started');
 
     // Decode token
+    const t1 = Date.now();
     const decoded = decodeToken(tokenString);
+    logger.info('[PERF] Token decode took:', Date.now() - t1, 'ms');
 
     if (!decoded || !decoded.proofs || !Array.isArray(decoded.proofs)) {
       throw new Error('Invalid token format');
@@ -366,30 +369,50 @@ export const receiveToken = async (tokenString) => {
     }
 
     // Check if we already have any of these proofs (prevent duplicate receives)
+    const t2 = Date.now();
     const existingProofs = await loadProofs();
     const existingSecrets = new Set(existingProofs.map(p => p.secret));
     const hasDuplicate = proofs.some(p => existingSecrets.has(p.secret));
+    logger.info('[PERF] Duplicate check took:', Date.now() - t2, 'ms');
 
     if (hasDuplicate) {
       throw new Error('Token already received');
     }
 
-    // Check if proofs have already been spent (NUT-07)
-    logger.info('Checking if proofs have been spent');
-    const { checkProofsSpent } = await import('./cashuMintClient.js');
-    const stateResult = await checkProofsSpent(proofs);
+    // Check if any proofs are P2PK locked (do this first, it's fast)
+    const t3 = Date.now();
+    const { isP2PKLocked, signP2PKProofs } = await import('./cashuP2PK.js');
+    const hasP2PKProofs = proofs.some(p => isP2PKLocked(p));
+    logger.info('[PERF] P2PK detection took:', Date.now() - t3, 'ms');
 
-    // Verify all proofs are unspent
-    const spentProofs = stateResult.states.filter(s => s.state !== 'UNSPENT');
-    if (spentProofs.length > 0) {
-      throw new Error(`Token contains ${spentProofs.length} already-spent proof(s)`);
-    }
+    // Parallelize independent operations (removed spent check - swap will fail if spent)
+    const t4 = Date.now();
+    const [keyData, privateKey] = await Promise.all([
+      // 1. Get mint keys (network call or cache)
+      (async () => {
+        const t4b = Date.now();
+        logger.info('Getting mint keys');
+        const result = await getOrFetchKeys();
+        logger.info('[PERF] getOrFetchKeys took:', Date.now() - t4b, 'ms');
+        return result;
+      })(),
 
-    // Immediately swap received proofs to prevent sender from double-spending
-    // This also provides additional validation and creates new proofs under our control
-    logger.info('Swapping received proofs to prevent double-spend');
+      // 2. Get private key if P2PK (only if needed)
+      hasP2PKProofs ? (async () => {
+        const t4c = Date.now();
+        logger.info('P2PK locked proofs detected, getting private key');
 
-    const keyData = await getOrFetchKeys();
+        // Get cached taproot address and private key
+        const { getP2PKPrivateKey } = await import('./cashuP2PK.js');
+        const privateKey = await getP2PKPrivateKey();
+
+        logger.info('[PERF] getP2PKPrivateKey took:', Date.now() - t4c, 'ms');
+        return privateKey;
+      })() : null
+    ]);
+    logger.info('[PERF] Parallel operations (getKeys + deriveKey) took:', Date.now() - t4, 'ms');
+
+    // Extract keys from keyData
     let keys, keysetId;
     if (keyData.keysets && keyData.keysets.length > 0) {
       keysetId = keyData.keysets[0].id;
@@ -398,58 +421,46 @@ export const receiveToken = async (tokenString) => {
       keys = keyData.keys || keyData;
     }
 
-    // Check if any proofs are P2PK locked
-    const { isP2PKLocked, signP2PKProofs } = await import('./cashuP2PK.js');
-    const hasP2PKProofs = proofs.some(p => isP2PKLocked(p));
-
     let proofsToSwap = proofs;
 
-    // If P2PK locked, sign them with our private key
-    if (hasP2PKProofs) {
-      logger.info('P2PK locked proofs detected, signing with private key');
-
-      // Get our Taproot address using withMnemonic
-      const { withMnemonic, getCurrentAccount } = await import('../secureStorageService.js');
-      const { deriveAddressesFromMnemonic } = await import('../../utils/bitcoin.js');
-
-      const accountIndex = await getCurrentAccount();
-      const addresses = await withMnemonic(async (mnemonic) => {
-        return deriveAddressesFromMnemonic(mnemonic, accountIndex);
-      });
-
-      const taprootAddress = addresses.taprootAddress;
-
-      // Get private key for our Taproot address
-      const { getPrivateKeyForAddress } = await import('../../utils/wallet.js');
-      const keyData = await getPrivateKeyForAddress(taprootAddress);
-      const privateKey = keyData.privateKey;
-
-      // Sign P2PK proofs
+    // If P2PK locked, sign them with the private key we already got
+    if (hasP2PKProofs && privateKey) {
+      const t5 = Date.now();
+      logger.info('Signing P2PK proofs');
       proofsToSwap = await signP2PKProofs(proofs, privateKey);
-      logger.info('P2PK proofs signed successfully');
+      logger.info('[PERF] P2PK signing took:', Date.now() - t5, 'ms');
     }
 
     // Create new blinded outputs for the same amounts
     // Use the actual sum in smallest units, not the display amount
+    const t6 = Date.now();
     const totalSmallestUnits = proofs.reduce((sum, proof) => sum + proof.amount, 0);
     const amounts = splitAmount(totalSmallestUnits);
     const { outputs, blindingData } = await createBlindedOutputs(amounts, keysetId);
+    logger.info('[PERF] Create blinded outputs took:', Date.now() - t6, 'ms');
 
     // Swap: give received proofs (signed if P2PK), get new proofs
+    const t7 = Date.now();
     logger.info('Swapping tokens', { inputCount: proofsToSwap.length, outputCount: outputs.length });
     const response = await swapTokensAPI(proofsToSwap, outputs);
+    logger.info('[PERF] Swap API call took:', Date.now() - t7, 'ms');
 
     // Unblind to create our new proofs
+    const t8 = Date.now();
     const newProofs = unblindSignatures(
       response.signatures,
       blindingData,
       keys,
       response.signatures[0]?.id || keysetId
     );
+    logger.info('[PERF] Unblind signatures took:', Date.now() - t8, 'ms');
 
     // Add swapped proofs to wallet
+    const t9 = Date.now();
     await addProofs(newProofs);
+    logger.info('[PERF] Save proofs took:', Date.now() - t9, 'ms');
 
+    logger.info('[PERF] TOTAL receiveToken took:', Date.now() - perfStart, 'ms');
     logger.info('Token received and swapped', { amount, proofCount: newProofs.length });
 
     return {

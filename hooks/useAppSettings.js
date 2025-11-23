@@ -8,7 +8,7 @@ import * as SecureStore from 'expo-secure-store';
 import { authenticateWithBiometrics } from '../services/biometricService';
 import { clearWallet } from '../services/cashu/cashuWalletService';
 
-export function useAppSettings({ biometricEnabled, setIsAuthenticated, showToast }) {
+export function useAppSettings({ biometricEnabled, setIsAuthenticated, showToast, showSnackbar }) {
   const [notificationsEnabled, setNotificationsEnabled] = useState(false);
   const [showZeroAssets, setShowZeroAssets] = useState(false);
   const [advancedMode, setAdvancedMode] = useState(false);
@@ -144,8 +144,12 @@ export function useAppSettings({ biometricEnabled, setIsAuthenticated, showToast
       console.log('[useAppSettings] Recovery result:', result);
 
       if (result.recovered > 0) {
-        if (showToast) {
-          showToast(`Recovered ${result.amount} UNIT from ${result.recovered} change proofs!`, 'success');
+        if (showSnackbar) {
+          showSnackbar({
+            type: 'success',
+            action: 'swap',
+            description: `Recovered ${result.amount} UNIT from ${result.recovered} change proofs`,
+          });
         }
       } else {
         if (showToast) {
@@ -154,11 +158,15 @@ export function useAppSettings({ biometricEnabled, setIsAuthenticated, showToast
       }
     } catch (error) {
       console.error('[useAppSettings] Recovery failed:', error);
-      if (showToast) {
-        showToast(`Failed to recover change: ${error.message}`, 'error');
+      if (showSnackbar) {
+        showSnackbar({
+          type: 'error',
+          action: 'swap',
+          description: `Failed to recover change: ${error.message}`,
+        });
       }
     }
-  }, [showToast]);
+  }, [showToast, showSnackbar]);
 
   const handleClearLockedTokens = useCallback(async () => {
     try {

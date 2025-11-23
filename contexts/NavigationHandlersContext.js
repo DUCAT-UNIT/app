@@ -44,7 +44,7 @@ export const NavigationHandlersProvider = ({ children, walletExists }) => {
   const { fetchBalance } = useBalance();
   const { setSeedConfirmed } = useOnboardingFlow();
   const { requestingSeedPhrase, loadSeedPhrase, requestViewSeedPhrase } = useSeedPhrase();
-  const { showToast } = useNotifications();
+  const { showToast, showSnackbar } = useNotifications();
   const { clearVaultCredentials } = useVault();
 
   // Post-authentication handler
@@ -100,6 +100,7 @@ export const NavigationHandlersProvider = ({ children, walletExists }) => {
     walletExistsRef: walletExists,
     setIsAuthenticated,
     showToast,
+    showSnackbar,
   });
 
   // Account switcher

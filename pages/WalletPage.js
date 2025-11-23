@@ -140,16 +140,14 @@ export default function WalletPage({ route }) {
     console.log('[WalletPage] Data length:', data.length);
     console.log('[WalletPage] First 100 chars:', data.substring(0, 100));
 
-    // Close scanner
-    setShowQRScanner(false);
-
     // Handle different types of QR code data
     if (data.startsWith('bitcoin:') || data.startsWith('tb1') || data.startsWith('bc1')) {
-      // Bitcoin address - navigate to send flow
+      // Bitcoin address - navigate to send flow, then close scanner after delay
       navigation.navigate('SendFlow', {
         screen: 'AddressInput',
         params: { scannedAddress: data },
       });
+      requestAnimationFrame(() => setShowQRScanner(false));
     } else if (data.startsWith('cashu')) {
       // Direct Cashu token - check if it's P2PK (Turbo) token
       try {
@@ -158,12 +156,38 @@ export default function WalletPage({ route }) {
         const isP2PKToken = hasP2PKProofs(data);
 
         if (isP2PKToken) {
-          // This is a Turbo token - navigate to claiming screen
-          console.log('[WalletPage] P2PK token detected, navigating to claiming screen');
-          navigation.navigate('SendFlow', {
-            screen: 'TurboClaiming',
-            params: { tokenString: data },
-          });
+          // This is a Turbo token - check if already processed
+          console.log('[WalletPage] P2PK token detected, checking if already processed');
+
+          // Check if already processed
+          const Crypto = await import('expo-crypto');
+          const tokenHash = await Crypto.digestStringAsync(
+            Crypto.CryptoDigestAlgorithm.SHA256,
+            data
+          );
+
+          if (global.processedCashuTokens && global.processedCashuTokens.has(tokenHash)) {
+            console.log('[WalletPage] Token already processed, showing error');
+            setShowQRScanner(false);
+            showSnackbar({
+              type: 'error',
+              action: 'swap',
+              description: 'Token already claimed',
+            });
+            return;
+          }
+
+          // Store token globally for processing
+          console.log('[WalletPage] Processing new token');
+          global.pendingCashuToken = data;
+
+          // Close scanner immediately
+          setShowQRScanner(false);
+
+          // Trigger the claim process which shows the loading overlay
+          if (typeof global.triggerPendingTokenCheck === 'function') {
+            setTimeout(() => global.triggerPendingTokenCheck(), 50);
+          }
           return;
         }
 
@@ -188,7 +212,11 @@ export default function WalletPage({ route }) {
 
         if (spentProofs.length > 0 && unspentProofs.length === 0) {
           // All proofs spent
-          showToast('All proofs in this token have been spent', 'error');
+          showSnackbar({
+            type: 'error',
+            action: 'swap',
+            description: 'All proofs in this token have been spent',
+          });
         } else if (spentProofs.length > 0) {
           // Some proofs spent - ask user
           Alert.alert(
@@ -216,10 +244,18 @@ export default function WalletPage({ route }) {
                     const filteredTokenString = encodeToken(filteredToken.token[0].mint, filteredToken.token[0].proofs);
 
                     const result = await receiveCashuToken(filteredTokenString);
-                    showToast(`Successfully claimed ${result.amount} UNIT`, 'success');
+                    showSnackbar({
+                      type: 'success',
+                      action: 'swap',
+                      description: `Successfully claimed ${result.amount} UNIT`,
+                    });
                   } catch (error) {
                     console.error('[WalletPage] Claim failed:', error);
-                    showToast(`Failed to claim: ${error.message}`, 'error');
+                    showSnackbar({
+                      type: 'error',
+                      action: 'swap',
+                      description: `Failed to claim: ${error.message}`,
+                    });
                   }
                 }
               }
@@ -229,11 +265,19 @@ export default function WalletPage({ route }) {
           // All proofs unspent - claim directly
           showToast('Claiming token...', 'info');
           const result = await receiveCashuToken(data);
-          showToast(`Successfully claimed ${result.amount} UNIT`, 'success');
+          showSnackbar({
+            type: 'success',
+            action: 'swap',
+            description: `Successfully claimed ${result.amount} UNIT`,
+          });
         }
       } catch (error) {
         console.error('[WalletPage] Token check failed:', error);
-        showToast(`Failed to process token: ${error.message}`, 'error');
+        showSnackbar({
+          type: 'error',
+          action: 'swap',
+          description: `Failed to process token: ${error.message}`,
+        });
       }
     } else if (data.startsWith('{') || data.startsWith('[')) {
       // JSON proofs format (NUT-16 might provide raw JSON)
@@ -250,16 +294,32 @@ export default function WalletPage({ route }) {
 
           showToast('Claiming token...', 'info');
           const result = await receiveCashuToken(encoded);
-          showToast(`Successfully claimed ${result.amount} UNIT`, 'success');
+          showSnackbar({
+            type: 'success',
+            action: 'swap',
+            description: `Successfully claimed ${result.amount} UNIT`,
+          });
         } else if (Array.isArray(parsed.proofs) || Array.isArray(parsed)) {
           // Raw proofs array - need to wrap it
-          showToast('Invalid token format - raw proofs not supported', 'error');
+          showSnackbar({
+            type: 'error',
+            action: 'swap',
+            description: 'Invalid token format - raw proofs not supported',
+          });
         } else {
-          showToast('Invalid JSON token format', 'error');
+          showSnackbar({
+            type: 'error',
+            action: 'swap',
+            description: 'Invalid JSON token format',
+          });
         }
       } catch (error) {
         console.error('[WalletPage] Failed to parse/claim JSON token:', error);
-        showToast(`Failed to claim token: ${error.message}`, 'error');
+        showSnackbar({
+          type: 'error',
+          action: 'swap',
+          description: `Failed to claim token: ${error.message}`,
+        });
       }
     } else if (data.includes('ducat://turbo/') || data.includes('unit?')) {
       // Turbo URL format - extract and claim token
@@ -690,11 +750,11 @@ export default function WalletPage({ route }) {
         </View>
 
         {/* Fixed Bottom Navigation */}
-        <BottomNavigationBar
+        {/* <BottomNavigationBar
           activeTab={activeTab}
           onVaultPress={openVault}
           onWalletPress={() => setActiveTab('wallet')}
-        />
+        /> */}
 
         {/* Receive Bottom Sheet */}
         <ReceiveScreen

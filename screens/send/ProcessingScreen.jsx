@@ -17,7 +17,7 @@ export default function ProcessingScreen({ navigation, route }) {
   const { sendAssetType, sendAmount, sendRecipient, intentStep, setSendAssetType, setSendAmount, setSendRecipient } = useSendFlow();
   const { createSendIntent, sendIntent } = useTransactionBuild();
   const { signIntent } = useTransactionExecution();
-  const { showToast } = useNotifications();
+  const { showSnackbar } = useNotifications();
   const [loadingMessageIndex, setLoadingMessageIndex] = useState(0);
   const hasStarted = useRef(false);
 
@@ -40,7 +40,11 @@ export default function ProcessingScreen({ navigation, route }) {
       // Normal flow - go back to previous screen
       navigation.goBack();
     }
-    setTimeout(() => showToast(errorMessage, 'error'), 300);
+    setTimeout(() => showSnackbar({
+      type: 'error',
+      action: sendAssetType === 'unit' ? 'swap' : 'withdraw',
+      description: errorMessage,
+    }), 300);
   };
 
   // Get Cashu mint params if provided

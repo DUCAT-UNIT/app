@@ -60,7 +60,7 @@ const AdvancedScreen = React.memo(function AdvancedScreen({ route }) {
           <View style={localStyles.section}>
             <SettingsOption
               iconName="asset"
-              title="Advanced Mode"
+              title="Developer Mode"
               onPress={onAdvancedModeToggle}
               rightText={advancedMode ? 'ON' : 'OFF'}
             />

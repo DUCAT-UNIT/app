@@ -25,26 +25,25 @@ export default function QRScanner({ visible, onClose, onScan }) {
   const [permission, requestPermission] = useCameraPermissions();
   const [scannedChunks, setScannedChunks] = useState(new Map());
   const [totalChunks, setTotalChunks] = useState(null);
-  const [bcurDecoder, setBcurDecoder] = useState(null);
+  const bcurDecoderRef = useRef(null);
   const [bcurProgress, setBcurProgress] = useState(0);
   const [bcurReceivedParts, setBcurReceivedParts] = useState(0);
+  const bcurReceivedPartsRef = useRef(0);
   const [bcurExpectedParts, setBcurExpectedParts] = useState(null);
-  const scanTimeoutRef = useRef(null);
   const [hasScanned, setHasScanned] = useState(false);
 
-  // Reset state when modal closes
+  // Reset state when modal opens
   useEffect(() => {
-    if (!visible) {
+    if (visible) {
+      // Reset when opening to ensure clean state
       setScannedChunks(new Map());
       setTotalChunks(null);
-      setBcurDecoder(null);
+      bcurDecoderRef.current = null;
       setBcurProgress(0);
       setBcurReceivedParts(0);
+      bcurReceivedPartsRef.current = 0;
       setBcurExpectedParts(null);
       setHasScanned(false);
-      if (scanTimeoutRef.current) {
-        clearTimeout(scanTimeoutRef.current);
-      }
     }
   }, [visible]);
 
@@ -68,9 +67,9 @@ export default function QRScanner({ visible, onClose, onScan }) {
 
       try {
         // Initialize decoder on first scan
-        if (!bcurDecoder) {
+        if (!bcurDecoderRef.current) {
           const decoder = new URDecoder();
-          setBcurDecoder(decoder);
+          bcurDecoderRef.current = decoder;
           decoder.receivePart(data);
 
           // Extract expected parts from first QR code (format: ur:bytes/seq-total/data)
@@ -82,62 +81,61 @@ export default function QRScanner({ visible, onClose, onScan }) {
           }
 
           setBcurReceivedParts(1);
+          bcurReceivedPartsRef.current = 1;
           const progress = bcurExpectedParts ? (1 / bcurExpectedParts) * 100 : 5;
           setBcurProgress(progress);
           console.log('[QRScanner] BC-UR decoder initialized, part 1 received');
         } else {
           // Feed part to existing decoder
-          bcurDecoder.receivePart(data);
+          const isNewPart = bcurDecoderRef.current.receivePart(data);
 
-          // Get decoder's estimated percent complete
-          const decoderProgress = bcurDecoder.estimatedPercentComplete();
-          const isComplete = bcurDecoder.isComplete();
+          // Only process if this was a new unique part
+          if (isNewPart) {
+            // Get decoder's estimated percent complete
+            const decoderProgress = bcurDecoderRef.current.estimatedPercentComplete();
 
-          // Increment received parts count using functional update
-          setBcurReceivedParts(prev => {
-            const newCount = prev + 1;
+            // Increment received parts count using ref to avoid stale closure
+            bcurReceivedPartsRef.current += 1;
+            const newCount = bcurReceivedPartsRef.current;
+            setBcurReceivedParts(newCount);
 
-            // Use decoder's progress if available, otherwise fall back to our calculation
-            const progress = isComplete ? 100 : Math.min(decoderProgress * 100, 95);
-
+            const progress = Math.min(decoderProgress * 100, 95);
             setBcurProgress(progress);
-            console.log('[QRScanner] BC-UR part received:', newCount, '/', bcurExpectedParts || '?', 'decoder progress:', Math.round(decoderProgress * 100), '%, isComplete:', isComplete);
+            console.log('[QRScanner] BC-UR unique part received:', newCount, '/', bcurExpectedParts || '?', 'progress:', Math.round(decoderProgress * 100), '%');
 
-            return newCount;
-          });
+            // Only try to decode when we have high confidence (95%+)
+            // This avoids wasteful decode attempts that will fail anyway
+            if (decoderProgress >= 0.95) {
+              try {
+                const ur = bcurDecoderRef.current.resultUR();
+                const decoded = ur.decodeCBOR();
+                const tokenString = decoded.toString('utf-8');
 
-          // Check if complete
-          if (isComplete) {
-            setBcurProgress(100);
-            console.log('[QRScanner] BC-UR decoding complete!');
+                setBcurProgress(100);
+                console.log('[QRScanner] BC-UR decoding complete!');
+                console.log('[QRScanner] Decoded token length:', tokenString.length);
+                console.log('[QRScanner] Token starts with:', tokenString.substring(0, 50));
 
-            const ur = bcurDecoder.resultUR();
-            const decoded = ur.decodeCBOR();
-            const tokenString = decoded.toString('utf-8');
-
-            console.log('[QRScanner] Decoded token length:', tokenString.length);
-            console.log('[QRScanner] Token starts with:', tokenString.substring(0, 50));
-
-            // Call onScan with the decoded token
-            if (scanTimeoutRef.current) {
-              clearTimeout(scanTimeoutRef.current);
+                // Call onScan immediately and let modal close
+                // State will be reset when modal opens again
+                setHasScanned(true);
+                onScan(tokenString);
+              } catch (e) {
+                // Not ready yet, keep scanning
+                if (newCount % 10 === 0) {
+                  console.log('[QRScanner] Decode attempt at', Math.round(decoderProgress * 100), '% failed:', e.message);
+                }
+              }
             }
-            setHasScanned(true);
-            scanTimeoutRef.current = setTimeout(() => {
-              onScan(tokenString);
-              setBcurDecoder(null);
-              setBcurProgress(0);
-              setBcurReceivedParts(0);
-              setBcurExpectedParts(null);
-            }, 100);
           }
         }
       } catch (error) {
         console.error('[QRScanner] BC-UR decode error:', error);
         // Reset decoder on error
-        setBcurDecoder(null);
+        bcurDecoderRef.current = null;
         setBcurProgress(0);
         setBcurReceivedParts(0);
+        bcurReceivedPartsRef.current = 0;
         setBcurExpectedParts(null);
       }
       return;
@@ -194,16 +192,9 @@ export default function QRScanner({ visible, onClose, onScan }) {
 
           console.log('[QRScanner] Final payload starts with:', finalPayload.substring(0, 100));
 
-          // Call onScan with the final payload
-          if (scanTimeoutRef.current) {
-            clearTimeout(scanTimeoutRef.current);
-          }
+          // Call onScan immediately - state will be reset when modal opens again
           setHasScanned(true);
-          scanTimeoutRef.current = setTimeout(() => {
-            onScan(finalPayload);
-            setScannedChunks(new Map());
-            setTotalChunks(null);
-          }, 100);
+          onScan(finalPayload);
         }
 
         return newChunks;
@@ -213,7 +204,7 @@ export default function QRScanner({ visible, onClose, onScan }) {
       setHasScanned(true);
       onScan(data);
     }
-  }, [hasScanned, bcurDecoder, bcurExpectedParts, scannedChunks, totalChunks, onScan]);
+  }, [hasScanned, bcurExpectedParts, scannedChunks, totalChunks, onScan]);
 
   if (!permission) {
     return null;

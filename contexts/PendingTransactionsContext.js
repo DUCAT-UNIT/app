@@ -27,7 +27,7 @@ export const usePendingTransactions = () => {
   return context;
 };
 
-export const PendingTransactionsProvider = ({ children, currentAccount, showToast }) => {
+export const PendingTransactionsProvider = ({ children, currentAccount, showSnackbar }) => {
   // Use storage hook for persistence
   const {
     pendingTransactions,
@@ -111,11 +111,20 @@ export const PendingTransactionsProvider = ({ children, currentAccount, showToas
       const message = count === 1
         ? `1 transaction has been invalidated: ${reason}`
         : `${count} transactions have been invalidated: ${reason}`;
-      showToast(message, 'error');
+
+      // Determine action based on asset type of the primary transaction
+      const transaction = pendingTransactions[txid];
+      const action = transaction?.assetType === 'UNIT' ? 'swap' : 'withdraw';
+
+      showSnackbar({
+        type: 'error',
+        action,
+        description: message,
+      });
     }
 
     return invalidated;
-  }, [pendingTransactions, showToast, currentAccount]);
+  }, [pendingTransactions, showSnackbar, currentAccount]);
     // eslint-disable-next-line react-hooks/exhaustive-deps
 
   /**

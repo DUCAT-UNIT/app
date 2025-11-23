@@ -51,9 +51,17 @@ export const WalletProvider = ({ children }) => {
   }, []);
 
   // Reset wallet (for logout/delete)
-  const resetWallet = useCallback(() => {
+  const resetWallet = useCallback(async () => {
     setWallet(null);
     setCurrentAccount(0);
+
+    // Clear P2PK cache on wallet reset
+    try {
+      const { clearP2PKCache } = await import('../services/cashu/cashuP2PK.js');
+      await clearP2PKCache();
+    } catch (error) {
+      console.warn('[WalletContext] Failed to clear P2PK cache on reset:', error.message);
+    }
   }, []);
 
   // Switch account
@@ -73,6 +81,14 @@ export const WalletProvider = ({ children }) => {
 
       // Save new account index
       await SecureStore.setItemAsync(SECURE_KEYS.CURRENT_ACCOUNT, accountIndex.toString());
+
+      // Clear P2PK cache since private key is different for new account
+      try {
+        const { clearP2PKCache } = await import('../services/cashu/cashuP2PK.js');
+        await clearP2PKCache();
+      } catch (error) {
+        console.warn('[WalletContext] Failed to clear P2PK cache:', error.message);
+      }
 
       return addresses;
     } catch (error) {

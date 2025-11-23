@@ -283,6 +283,71 @@ export const signP2PKProofs = async (proofs, privateKey) => {
   return signedProofs;
 };
 
+// Cache keys for P2PK private key (cleared when account changes)
+const CACHE_KEY_ADDRESS = 'p2pk_taproot_address_v2';
+const CACHE_KEY_PRIVKEY = 'p2pk_private_key_v2';
+
+/**
+ * Clear P2PK cache (call when switching accounts)
+ */
+export const clearP2PKCache = async () => {
+  const SecureStore = await import('expo-secure-store');
+  try {
+    await SecureStore.deleteItemAsync(CACHE_KEY_ADDRESS);
+    await SecureStore.deleteItemAsync(CACHE_KEY_PRIVKEY);
+    console.log('[clearP2PKCache] Cleared P2PK cache');
+  } catch (error) {
+    console.warn('[clearP2PKCache] Failed to clear cache:', error.message);
+  }
+};
+
+/**
+ * Get P2PK private key for current wallet (cached for performance)
+ * Caches both the taproot address and derived private key
+ * @returns {Promise<string>} Private key hex
+ */
+export const getP2PKPrivateKey = async () => {
+  const SecureStore = await import('expo-secure-store');
+
+  // Try to get both from cache
+  try {
+    const cachedAddress = await SecureStore.getItemAsync(CACHE_KEY_ADDRESS);
+    const cachedPrivKey = await SecureStore.getItemAsync(CACHE_KEY_PRIVKEY);
+
+    if (cachedAddress && cachedPrivKey) {
+      console.log('[getP2PKPrivateKey] Using cached address and key (instant!)');
+      return cachedPrivKey;
+    }
+  } catch (error) {
+    console.warn('[getP2PKPrivateKey] Cache read failed:', error.message);
+  }
+
+  console.log('[getP2PKPrivateKey] Cache miss, deriving address and key...');
+
+  // Cache miss - derive everything
+  const { withMnemonic, getCurrentAccount } = await import('../secureStorageService.js');
+  const { deriveAddressesFromMnemonic } = await import('../../utils/bitcoin.js');
+  const { getPrivateKeyForAddress } = await import('../../utils/wallet.js');
+
+  const accountIndex = await getCurrentAccount();
+  const addresses = await withMnemonic(async (mnemonic) => {
+    return deriveAddressesFromMnemonic(mnemonic, accountIndex);
+  });
+
+  const keyData = await getPrivateKeyForAddress(addresses.taprootAddress);
+
+  // Cache both for next time
+  try {
+    await SecureStore.setItemAsync(CACHE_KEY_ADDRESS, addresses.taprootAddress);
+    await SecureStore.setItemAsync(CACHE_KEY_PRIVKEY, keyData.privateKey);
+    console.log('[getP2PKPrivateKey] Cached address and key');
+  } catch (error) {
+    console.warn('[getP2PKPrivateKey] Cache write failed:', error.message);
+  }
+
+  return keyData.privateKey;
+};
+
 export default {
   generateP2PKKeyPair,
   createP2PKSecret,
@@ -292,5 +357,7 @@ export default {
   verifyP2PKWitness,
   isP2PKLocked,
   hasP2PKProofs,
-  signP2PKProofs
+  signP2PKProofs,
+  getP2PKPrivateKey,
+  clearP2PKCache
 };

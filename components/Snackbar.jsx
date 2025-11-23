@@ -44,7 +44,7 @@ const computeTitle = (type, label) => {
     case 'submitted':
       return `${label} submitted`;
     case 'success':
-      return `${label} completed successfully!`;
+      return `${label} completed successfully`;
     case 'error':
       return `${label} failed`;
     default:

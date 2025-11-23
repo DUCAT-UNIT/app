@@ -31,6 +31,7 @@ export const TransactionExecutionProvider = ({
   children,
   currentAccount,
   showToast,
+  showSnackbar,
   startTransactionPolling,
   sendTransactionConfirmedNotification,
   notificationsEnabled,
@@ -57,7 +58,11 @@ export const TransactionExecutionProvider = ({
   const broadcastIntent = useCallback(async (intent = sendIntent) => {
     try {
       if (!intent || !intent.signedTxHex) {
-        showToast(ERRORS.TRANSACTION_CANCELLED, 'error');
+        showSnackbar({
+          type: 'error',
+          action: sendAssetType === 'unit' ? 'swap' : 'withdraw',
+          description: ERRORS.TRANSACTION_CANCELLED,
+        });
         return;
       }
 
@@ -223,7 +228,11 @@ export const TransactionExecutionProvider = ({
     } catch (_error) {
       logger.error('❌ Broadcast failed:', _error);
       logger.error('Error message:', _error.message || _error);
-      showToast(parseErrorMessage(_error), 'error');
+      showSnackbar({
+        type: 'error',
+        action: sendAssetType === 'unit' ? 'swap' : 'withdraw',
+        description: parseErrorMessage(_error),
+      });
       setIntentStep('reviewing');
 
       // Invalidate the transaction if broadcast failed
@@ -231,7 +240,7 @@ export const TransactionExecutionProvider = ({
         await invalidateTransaction(intent.txid, 'Transaction broadcast failed');
       }
     }
-  }, [sendIntent, wallet, showToast, setIntentStep, sendAssetType, sendAmount, startTransactionPolling, notificationsEnabled, sendTransactionConfirmedNotification, fetchBalance, fetchTransactionHistory, addPendingTransaction, confirmTransaction, invalidateTransaction, pendingTransactions, markUtxoAsSpent, markUtxosAsSpent]);
+  }, [sendIntent, wallet, showSnackbar, setIntentStep, sendAssetType, sendAmount, startTransactionPolling, notificationsEnabled, sendTransactionConfirmedNotification, fetchBalance, fetchTransactionHistory, addPendingTransaction, confirmTransaction, invalidateTransaction, pendingTransactions, markUtxoAsSpent, markUtxosAsSpent]);
 
   // Sign the PSBT
   const signIntent = useCallback(async () => {
@@ -239,7 +248,11 @@ export const TransactionExecutionProvider = ({
       setIntentStep('signing');
 
       if (!sendIntent) {
-        showToast(ERRORS.TRANSACTION_CANCELLED, 'error');
+        showSnackbar({
+          type: 'error',
+          action: sendAssetType === 'unit' ? 'swap' : 'withdraw',
+          description: ERRORS.TRANSACTION_CANCELLED,
+        });
         setIntentStep('idle');
         return false;
       }
@@ -261,11 +274,15 @@ export const TransactionExecutionProvider = ({
       return true;
     } catch (_error) {
       logger.error('Error signing transaction:', _error);
-      showToast(parseErrorMessage(_error), 'error');
+      showSnackbar({
+        type: 'error',
+        action: sendAssetType === 'unit' ? 'swap' : 'withdraw',
+        description: parseErrorMessage(_error),
+      });
       setIntentStep('reviewing');
       return false;
     }
-  }, [sendIntent, currentAccount, setIntentStep, setSendIntent, showToast, broadcastIntent]);
+  }, [sendIntent, currentAccount, setIntentStep, setSendIntent, showSnackbar, sendAssetType, broadcastIntent]);
 
   // Memoize the value object to prevent unnecessary re-renders
   const value = useMemo(

@@ -15,6 +15,7 @@ import {
 import { COLORS } from '../../theme';
 import Icon from '../../components/icons';
 import MutinynetBanner from '../../components/MutinynetBanner';
+import { useNavigationHandlers } from '../../contexts/NavigationHandlersContext';
 
 // Get device dimensions for responsive sizing
 const { width: SCREEN_WIDTH } = require('react-native').Dimensions.get('window');
@@ -23,13 +24,16 @@ const { width: SCREEN_WIDTH } = require('react-native').Dimensions.get('window')
 const HORIZONTAL_PADDING = SCREEN_WIDTH < 375 ? 16 : SCREEN_WIDTH > 414 ? 24 : 20;
 
 function PreferencesScreen({ route }) {
+  const { onClose } = route.params;
+
+  // Get live state from context instead of stale route params
+  const { settingsHandlers } = useNavigationHandlers();
   const {
-    onClose,
-    onShowZeroAssetsToggle,
-    onNotificationsToggle,
+    handleShowZeroAssetsToggle: onShowZeroAssetsToggle,
+    handleNotificationsToggle: onNotificationsToggle,
     showZeroAssets,
     notificationsEnabled,
-  } = route.params;
+  } = settingsHandlers;
 
   return (
     <View style={localStyles.container}>

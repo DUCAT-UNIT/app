@@ -24,6 +24,10 @@ function getECPair() {
   return ECPair;
 }
 
+// SecureStore key prefix for derived keys (increment version to invalidate cache)
+const DERIVED_KEY_VERSION = 'v2_';
+const DERIVED_KEY_PREFIX = 'derived_key_' + DERIVED_KEY_VERSION;
+
 /**
  * Write a variable-length integer (varint)
  */
@@ -294,9 +298,23 @@ export async function signMessage(address, message) {
 export async function getPrivateKeyForAddress(address) {
   // Get current account index
   const accountIndex = 0;
+  const cacheKey = `${DERIVED_KEY_PREFIX}${address}_${accountIndex}`;
+
+  // Check SecureStore cache first (saves ~4.5 seconds!)
+  try {
+    const cached = await SecureStore.getItemAsync(cacheKey);
+    if (cached) {
+      console.log('[getPrivateKeyForAddress] Using cached key from SecureStore (fast!)');
+      return JSON.parse(cached);
+    }
+  } catch (error) {
+    console.warn('[getPrivateKeyForAddress] Failed to read cache, will derive:', error.message);
+  }
+
+  console.log('[getPrivateKeyForAddress] Cache miss, deriving key...');
 
   // Use withMnemonic to ensure proper cleanup of sensitive data
-  return await withMnemonic(async (mnemonic) => {
+  const result = await withMnemonic(async (mnemonic) => {
     // Convert mnemonic to seed
     const seed = bip39.mnemonicToSeedSync(mnemonic);
     const root = bip32.fromSeed(seed, MUTINYNET_NETWORK);
@@ -353,4 +371,14 @@ export async function getPrivateKeyForAddress(address) {
       xOnlyPubkey: outputKeyHex  // This is the OUTPUT key that matches the address
     };
   });
+
+  // Cache the result in SecureStore (encrypted at rest)
+  try {
+    await SecureStore.setItemAsync(cacheKey, JSON.stringify(result));
+    console.log('[getPrivateKeyForAddress] Cached key to SecureStore');
+  } catch (error) {
+    console.warn('[getPrivateKeyForAddress] Failed to cache key:', error.message);
+  }
+
+  return result;
 }
