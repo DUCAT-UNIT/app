@@ -492,7 +492,7 @@ export default function RootNavigator() {
   const { wallet } = useWallet();
   const { seedConfirmedRef } = useOnboardingFlow();
   const { fetchBalance } = useBalance();
-  const { showToast, showSnackbar } = useNotifications();
+  const { showToast, showSnackbar, dismissSnackbar } = useNotifications();
   const { receive } = useCashu();
 
   // Token verification loading state
@@ -558,11 +558,23 @@ export default function RootNavigator() {
 
     global.showTurboSnackbar = showSnackbarWithDedup;
 
+    // Wrap dismissSnackbar to clear queue
+    global.dismissTurboSnackbar = () => {
+      // Clear any queued snackbars
+      global.pendingTurboSnackbars = [];
+      // Reset tracking
+      lastShownSnackbarRef.current = null;
+      lastShownTimeRef.current = 0;
+      // Dismiss the current snackbar
+      dismissSnackbar();
+    };
+
     return () => {
       clearInterval(interval);
       delete global.showTurboSnackbar;
+      delete global.dismissTurboSnackbar;
     };
-  }, [showSnackbarWithDedup]);
+  }, [showSnackbarWithDedup, dismissSnackbar]);
 
   // Show success snackbar when loading finishes
   React.useEffect(() => {

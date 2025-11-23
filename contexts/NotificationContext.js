@@ -65,9 +65,16 @@ export const NotificationProvider = ({ children }) => {
   const [snackbar, setSnackbar] = useState(null);
   const lastSnackbarRef = useRef(null);
   const snackbarTimeoutRef = useRef(null);
+  const dismissCooldownRef = useRef(null);
 
   const showSnackbar = useCallback((snackbarParams) => {
     logger.debug('🎯 NotificationContext showSnackbar called with:', snackbarParams);
+
+    // If we just dismissed a snackbar, ignore new ones briefly
+    if (dismissCooldownRef.current) {
+      logger.debug('🎯 Ignoring snackbar during cooldown period');
+      return;
+    }
 
     // Define state hierarchy: pending < submitted < success
     const stateRank = {
@@ -120,8 +127,18 @@ export const NotificationProvider = ({ children }) => {
       snackbarTimeoutRef.current = null;
     }
     setSnackbar(null);
-    // Reset tracking when dismissed to allow same snackbar to show again
     lastSnackbarRef.current = null;
+
+    // Clear any queued turbo snackbars
+    if (typeof global !== 'undefined' && global.pendingTurboSnackbars) {
+      global.pendingTurboSnackbars = [];
+    }
+
+    // Add cooldown period - block new snackbars for 500ms
+    dismissCooldownRef.current = true;
+    setTimeout(() => {
+      dismissCooldownRef.current = null;
+    }, 500);
   }, []);
 
   // ============================================================
