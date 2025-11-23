@@ -3,8 +3,8 @@
  * Contains wallet screen, vault, settings, and transaction flows
  */
 
-import React, { useRef, useState, useEffect } from 'react';
-import { View, Animated, StyleSheet, Dimensions, PanResponder, Alert, AppState } from 'react-native';
+import React, { useRef, useState } from 'react';
+import { View, Animated, StyleSheet, Dimensions, PanResponder, Alert } from 'react-native';
 import { StatusBar } from 'expo-status-bar';
 import { useNavigation } from '@react-navigation/native';
 
@@ -135,26 +135,6 @@ export default function WalletPage({ route }) {
       navigation.setParams({ claimError: undefined });
     }
   }, [route?.params?.claimSuccess, route?.params?.claimError, showSnackbar, navigation]);
-
-  // Dismiss bottom sheets when app goes to background
-  useEffect(() => {
-    let appState = AppState.currentState;
-
-    const subscription = AppState.addEventListener('change', (nextAppState) => {
-      // Detect when going from active to background/inactive
-      if (appState === 'active' && (nextAppState === 'background' || nextAppState === 'inactive')) {
-        console.log('[WalletPage] App backgrounding - dismissing bottom sheets');
-        // Close any open bottom sheets
-        setShowThresholdSheet(false);
-        setShowConversionModal(false);
-      }
-      appState = nextAppState;
-    });
-
-    return () => {
-      subscription.remove();
-    };
-  }, []);
 
   // Navigation hooks
   const {

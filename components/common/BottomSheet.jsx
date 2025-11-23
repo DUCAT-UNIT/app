@@ -14,6 +14,7 @@ import {
   Text,
   PanResponder,
   Animated,
+  AppState,
 } from 'react-native';
 import PropTypes from 'prop-types';
 import { COLORS } from '../../theme';
@@ -47,6 +48,25 @@ export default function BottomSheet({
       }).start();
     }
   }, [visible, translateY]);
+
+  // Auto-dismiss when app goes to background
+  useEffect(() => {
+    if (!visible) return;
+
+    let appState = AppState.currentState;
+
+    const subscription = AppState.addEventListener('change', (nextAppState) => {
+      if (appState === 'active' && (nextAppState === 'background' || nextAppState === 'inactive')) {
+        console.log('[BottomSheet] App backgrounding - dismissing');
+        onClose();
+      }
+      appState = nextAppState;
+    });
+
+    return () => {
+      subscription.remove();
+    };
+  }, [visible, onClose]);
 
   // Create pan responder for swipe gestures
   const panResponder = useRef(
