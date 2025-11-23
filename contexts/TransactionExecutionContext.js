@@ -55,7 +55,8 @@ export const TransactionExecutionProvider = ({
   }, [broadcastedTxid]);
 
   // Broadcast the signed transaction
-  const broadcastIntent = useCallback(async (intent = sendIntent) => {
+  const broadcastIntent = useCallback(async (intent = sendIntent, options = {}) => {
+    const { skipAutoConfirm = false } = options; // Skip auto-setting intentStep='confirmed' for turbo mint flows
     try {
       if (!intent || !intent.signedTxHex) {
         showSnackbar({
@@ -66,7 +67,7 @@ export const TransactionExecutionProvider = ({
         return;
       }
 
-      logger.debug('📡 Broadcasting transaction...');
+      logger.debug('📡 Broadcasting transaction...', { skipAutoConfirm });
       logger.debug('Intent inputs:', intent.inputs?.map(i => `${i.txid}:${i.vout}`) || 'none');
       if (intent.runeUtxo) logger.debug('Rune UTXO:', `${intent.runeUtxo.transaction}:${intent.runeUtxo.vout}`);
       if (intent.satUtxo) logger.debug('Sat UTXO:', `${intent.satUtxo.txid}:${intent.satUtxo.vout}`);
@@ -210,7 +211,13 @@ export const TransactionExecutionProvider = ({
             // Mark pending transaction as confirmed
             confirmTransaction(txid);
           }
-          setIntentStep('confirmed');
+          // Only auto-set intentStep='confirmed' if not doing turbo mint (which handles it manually)
+          if (!skipAutoConfirm) {
+            logger.debug('Polling: Setting intentStep to confirmed');
+            setIntentStep('confirmed');
+          } else {
+            logger.debug('Polling: Skipping auto-confirm for turbo mint flow');
+          }
           fetchBalance();
           if (fetchTransactionHistory) {
             fetchTransactionHistory(); // Update transaction list when confirmed
@@ -218,7 +225,12 @@ export const TransactionExecutionProvider = ({
         },
         (_error) => {
           // Error polling, but don't block the user - just mark as confirmed after timeout
-          setIntentStep('confirmed');
+          if (!skipAutoConfirm) {
+            logger.debug('Polling error: Setting intentStep to confirmed');
+            setIntentStep('confirmed');
+          } else {
+            logger.debug('Polling error: Skipping auto-confirm for turbo mint flow');
+          }
           fetchBalance();
           if (fetchTransactionHistory) {
             fetchTransactionHistory(); // Update transaction list even on error
@@ -243,7 +255,7 @@ export const TransactionExecutionProvider = ({
   }, [sendIntent, wallet, showSnackbar, setIntentStep, sendAssetType, sendAmount, startTransactionPolling, notificationsEnabled, sendTransactionConfirmedNotification, fetchBalance, fetchTransactionHistory, addPendingTransaction, confirmTransaction, invalidateTransaction, pendingTransactions, markUtxoAsSpent, markUtxosAsSpent]);
 
   // Sign the PSBT
-  const signIntent = useCallback(async () => {
+  const signIntent = useCallback(async (options = {}) => {
     try {
       setIntentStep('signing');
 
@@ -269,8 +281,8 @@ export const TransactionExecutionProvider = ({
       setSendIntent(signedIntent);
       setIntentStep('broadcasting');
 
-      // Automatically broadcast
-      await broadcastIntent(signedIntent);
+      // Automatically broadcast (pass options through)
+      await broadcastIntent(signedIntent, options);
       return true;
     } catch (_error) {
       logger.error('Error signing transaction:', _error);

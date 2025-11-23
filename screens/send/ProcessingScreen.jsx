@@ -16,7 +16,7 @@ import { useCashu } from '../../contexts/CashuContext';
 import { logger } from '../../utils/logger';
 
 export default function ProcessingScreen({ navigation, route }) {
-  const { sendAssetType, sendAmount, sendRecipient, intentStep, setSendAssetType, setSendAmount, setSendRecipient } = useSendFlow();
+  const { sendAssetType, sendAmount, sendRecipient, intentStep, setSendAssetType, setSendAmount, setSendRecipient, setIntentStep } = useSendFlow();
   const { createSendIntent, sendIntent } = useTransactionBuild();
   const { signIntent, broadcastedTxid } = useTransactionExecution();
   const { showSnackbar, showToast } = useNotifications();
@@ -24,7 +24,9 @@ export default function ProcessingScreen({ navigation, route }) {
   const { refresh: refreshCashuBalance } = useCashu();
   const [loadingMessageIndex, setLoadingMessageIndex] = useState(0);
   const [isConvertingToTurbo, setIsConvertingToTurbo] = useState(false);
+  const [mintStep, setMintStep] = useState(''); // Track detailed mint steps
   const hasStarted = useRef(false);
+  const isCompletingMint = useRef(false); // Track if we're completing mint to prevent premature navigation
 
   // Get action from route params
   const action = route.params?.action; // 'create_intent', 'sign_and_broadcast'
@@ -54,6 +56,7 @@ export default function ProcessingScreen({ navigation, route }) {
 
   // Complete mint process in ProcessingScreen before navigating
   const completeMintInProcessing = async (isTurbo, mintQuoteId, cashuQuoteId, mintAmount, turboRecipient) => {
+    isCompletingMint.current = true; // Set flag to prevent premature navigation
     try {
       const { completeMint, sendP2PKToken } = await import('../../services/cashu/cashuWalletService');
       const { checkMintQuote } = await import('../../services/cashu/cashuMintClient');
@@ -63,7 +66,8 @@ export default function ProcessingScreen({ navigation, route }) {
       const quoteId = mintQuoteId || cashuQuoteId;
       logger.info('Starting mint completion in ProcessingScreen', { quoteId });
 
-      // Poll for payment confirmation
+      // Step 4a: Poll for payment confirmation
+      setMintStep('Waiting for payment confirmation...');
       let paidQuote = null;
       let attempts = 0;
       const maxAttempts = 30;
@@ -81,9 +85,30 @@ export default function ProcessingScreen({ navigation, route }) {
       if (paidQuote) {
         logger.info('Payment confirmed! Completing mint...');
 
-        // Complete mint to get e-cash tokens
-        const proofs = await completeMint(quoteId, paidQuote.amount);
-        logger.info('Mint completed', { proofCount: proofs.length });
+        // Step 4b: Complete mint to get e-cash tokens - RETRY ON FAILURE
+        setMintStep('Minting e-cash tokens...');
+        let proofs = null;
+        let mintAttempts = 0;
+        const maxMintAttempts = 10; // Try 10 times
+
+        while (!proofs && mintAttempts < maxMintAttempts) {
+          try {
+            mintAttempts++;
+            logger.info('Mint attempt', { attempt: mintAttempts, maxAttempts: maxMintAttempts });
+            setMintStep(`Minting e-cash tokens (attempt ${mintAttempts}/${maxMintAttempts})...`);
+            proofs = await completeMint(quoteId, paidQuote.amount);
+            logger.info('Mint completed successfully', { proofCount: proofs.length });
+          } catch (mintError) {
+            logger.error('Mint attempt failed', { attempt: mintAttempts, error: mintError.message });
+            if (mintAttempts < maxMintAttempts) {
+              // Wait 2 seconds before retrying
+              await new Promise(resolve => setTimeout(resolve, 2000));
+            } else {
+              // Final attempt failed
+              throw new Error(`Failed to mint after ${maxMintAttempts} attempts: ${mintError.message}`);
+            }
+          }
+        }
 
         let turboToken = null;
         let turboDeeplink = null;
@@ -95,46 +120,92 @@ export default function ProcessingScreen({ navigation, route }) {
             amount: paidQuote.amount,
             note: 'Token will be locked to this recipient pubkey'
           });
+
+          // Step 4c: Create P2PK locked token
+          setMintStep('Creating P2PK locked token...');
           const recipientPubkey = extractPubkeyFromTaprootAddress(turboRecipient);
           logger.info('Extracted pubkey from recipient address:', recipientPubkey.substring(0, 16) + '...');
-          const { token } = await sendP2PKToken(paidQuote.amount, recipientPubkey);
-          turboToken = token;
-          logger.info('P2PK token created successfully');
 
-          // Generate short URL
-          const shortUrl = await generateTurboDeeplink(token, turboRecipient, paidQuote.amount);
+          logger.info('🎯 About to call sendP2PKToken');
+          const result = await sendP2PKToken(paidQuote.amount, recipientPubkey);
+          logger.info('🎯 sendP2PKToken returned:', { hasToken: !!result?.token, tokenLength: result?.token?.length });
+
+          turboToken = result.token;
+          logger.info('✅ P2PK token created successfully', { tokenLength: turboToken?.length });
+
+          // Step 4d: Generate short URL
+          logger.info('🎯 About to generate deeplink');
+          setMintStep('Generating shareable link...');
+          const shortUrl = await generateTurboDeeplink(turboToken, turboRecipient, paidQuote.amount);
           turboDeeplink = shortUrl;
+          logger.info('✅ Deeplink generated:', { url: shortUrl });
 
-          // Save token to storage
-          await saveSentLockedToken(token, turboRecipient, paidQuote.amount, broadcastedTxid, shortUrl, wallet.taprootAddress);
-          logger.info('Turbo token created and saved');
+          // Step 4e: Save token to storage
+          logger.info('🎯 About to save token');
+          setMintStep('Saving token...');
+          await saveSentLockedToken(turboToken, turboRecipient, paidQuote.amount, broadcastedTxid, shortUrl, wallet.taprootAddress);
+          logger.info('✅ Turbo token saved to storage');
         }
 
         // Refresh balance
+        logger.info('🎯 About to refresh cashu balance');
         await refreshCashuBalance();
-        logger.info('Cashu balance refreshed');
+        logger.info('✅ Cashu balance refreshed');
 
         // Show success and navigate to confirmation
-        showSnackbar({ type: 'success', action: 'convert' });
+        logger.info('🎯 About to show success snackbar');
+        showSnackbar({ type: 'success', action: isTurbo ? 'send' : 'convert' });
+
+        // Set intentStep to 'confirmed' since we skipped auto-confirm in polling
+        logger.info('🎯 Setting intentStep to confirmed');
+        setIntentStep('confirmed');
 
         // Navigate to confirmation with token (skipMint mode)
+        logger.info('🎯 About to navigate to Confirmation', {
+          isTurbo,
+          hasToken: !!turboToken,
+          hasDeeplink: !!turboDeeplink,
+          tokenLength: turboToken?.length,
+        });
         navigation.replace('Confirmation', {
           isTurbo,
           skipMint: true,
           turboToken,
           turboDeeplink,
+          turboRecipient,
+          turboAmount: paidQuote.amount,
         });
+        logger.info('✅ Navigation.replace called');
       } else {
         logger.warn('Payment not confirmed after 30 seconds');
         showToast('Payment sent. E-cash will be available once confirmed.', 'info');
-        navigation.replace('Confirmation', { isTurbo: false });
+        setIntentStep('confirmed'); // Set confirmed since we skipped auto-confirm
+        navigation.replace('Confirmation', {
+          isTurbo: false,
+          skipMint: true, // Don't try to mint in ConfirmationScreen
+        });
       }
     } catch (error) {
-      logger.error('Failed to complete mint in ProcessingScreen:', error);
+      logger.error('❌ Failed to complete mint in ProcessingScreen:', {
+        message: error.message,
+        stack: error.stack,
+        error: error.toString(),
+      });
       showToast(`Failed to complete conversion: ${error.message}`, 'error');
-      navigation.replace('Confirmation', { isTurbo: false });
+      logger.info('🎯 Navigating to Confirmation after error');
+      setIntentStep('confirmed'); // Set confirmed since we skipped auto-confirm
+      navigation.replace('Confirmation', {
+        isTurbo: false,
+        skipMint: true, // Don't try to mint in ConfirmationScreen
+      });
+    } finally {
+      isCompletingMint.current = false; // Clear flag when done
     }
   };
+
+  // NOTE: We no longer need to prevent intentStep changes here because we pass
+  // skipAutoConfirm: true to signIntent for turbo flows, which prevents the polling
+  // callback from auto-setting intentStep='confirmed' while mint is in progress
 
   // Get Cashu mint params if provided
   const paramAssetType = route.params?.assetType;
@@ -178,6 +249,8 @@ export default function ProcessingScreen({ navigation, route }) {
         return 'Signing transaction...';
       } else if (loadingMessageIndex === 1) {
         return 'Broadcasting transaction...';
+      } else if ((isTurbo || isCashuMint) && mintStep) {
+        return mintStep;
       } else if (isTurbo || isCashuMint) {
         return 'Converting to TurboUNIT...';
       }
@@ -227,16 +300,22 @@ export default function ProcessingScreen({ navigation, route }) {
       // Small delay before signing
       setTimeout(async () => {
         try {
-          const success = await signIntent();
+          // Check if this is a Turbo or Cashu mint flow BEFORE signing
+          const isMintFlow = (isTurbo || isCashuMint) && (mintQuoteId || cashuQuoteId);
+
+          // Pass skipAutoConfirm for mint flows so polling doesn't auto-set intentStep='confirmed'
+          const success = await signIntent({ skipAutoConfirm: isMintFlow });
+
           if (success) {
             logger.debug('Broadcast successful, checking for mint flows:', {
               isTurbo,
               isCashuMint,
               mintQuoteId,
+              isMintFlow,
             });
 
             // Check if this is a Turbo or Cashu mint flow
-            if ((isTurbo || isCashuMint) && (mintQuoteId || cashuQuoteId)) {
+            if (isMintFlow) {
               console.log('🔵 [ProcessingScreen] Setting converting state to true');
               console.log('🔵 [ProcessingScreen] isTurbo:', isTurbo, 'isCashuMint:', isCashuMint);
 
