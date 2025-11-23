@@ -31,6 +31,7 @@ export default function ConfirmationScreen({ navigation, route }) {
   const [turboToken, setTurboToken] = useState(route?.params?.turboToken || null); // Store the P2PK locked token
   const hasMintCompleted = useRef(false);
   const [turboDeeplink, setTurboDeeplink] = useState(route?.params?.turboDeeplink || null);
+  const [mintStep, setMintStep] = useState(''); // Track detailed mint progress
 
   // Processing stages for Turbo transactions
   // If skipMint is true OR not turbo, go straight to 'ready', otherwise start at 'converting'
@@ -166,9 +167,9 @@ export default function ConfirmationScreen({ navigation, route }) {
         const { completeMint, sendP2PKToken } = await import('../../services/cashu/cashuWalletService');
         const { checkMintQuote } = await import('../../services/cashu/cashuMintClient');
         const { extractPubkeyFromTaprootAddress } = await import('../../utils/bitcoin');
-        console.log('[ConfirmationScreen] Starting to poll for payment confirmation');
 
         // Poll for payment confirmation
+        setMintStep('Waiting for payment confirmation...');
         let paidQuote = null;
         let attempts = 0;
         const maxAttempts = 30; // 30 seconds
@@ -186,12 +187,15 @@ export default function ConfirmationScreen({ navigation, route }) {
 
         if (paidQuote) {
           console.log('[ConfirmationScreen] Payment confirmed! Completing mint with amount:', paidQuote.amount);
+
           // Complete mint to get e-cash tokens - quote.amount is already in smallest units
+          setMintStep('Minting e-cash tokens...');
           await completeMint(mintQuoteId, paidQuote.amount);
           console.log('[ConfirmationScreen] Mint completed successfully');
 
           // If this is new Turbo mode (with turboRecipient), create P2PK locked token
           if (turboRecipient) {
+            setMintStep('Creating P2PK locked token...');
             console.log('[ConfirmationScreen] Creating P2PK locked token for recipient:', turboRecipient);
 
             // Get balance before creating token
@@ -237,10 +241,12 @@ export default function ConfirmationScreen({ navigation, route }) {
               const { saveSentLockedToken } = await import('../../services/cashu/cashuLockedTokensService');
 
               // Generate short URL first
+              setMintStep('Generating shareable link...');
               const shortUrl = await generateTurboDeeplink(token, turboRecipient, paidQuote.amount);
               console.log('[ConfirmationScreen] Generated short URL:', shortUrl);
 
               // Save token with short URL and taproot address
+              setMintStep('Saving token...');
               await saveSentLockedToken(token, turboRecipient, paidQuote.amount, broadcastedTxid, shortUrl, wallet.taprootAddress);
               console.log('[ConfirmationScreen] Token saved to persistent storage with short URL');
 
@@ -436,57 +442,38 @@ export default function ConfirmationScreen({ navigation, route }) {
     <View style={localStyles.container}>
       {/* Content */}
       <View style={localStyles.content}>
-        {/* Icon based on processing stage */}
-        {/* Stage 0: Waiting for turbo data from ProcessingScreen */}
-        {isWaitingForTurboData && (
+        {/* Stage 1: Converting - Show exactly like ProcessingScreen */}
+        {(processingStage === 'converting' || isWaitingForTurboData) && (
           <>
-            <ActivityIndicator
-              size="large"
-              color={COLORS.PRIMARY_BLUE}
-              style={{ marginTop: 40, marginBottom: 40 }}
-            />
-            <Text style={localStyles.title}>Converting to TurboUNIT</Text>
-            <Text style={localStyles.subtitle}>Finalizing P2PK locked token...</Text>
+            <ActivityIndicator size="large" color={COLORS.PRIMARY_BLUE} style={localStyles.spinner} />
+            <Text style={localStyles.processingTitle}>Converting to TurboUNIT</Text>
+            <Text style={localStyles.processingMessage}>
+              {mintStep || 'Preparing transaction...'}
+            </Text>
           </>
         )}
 
-        {/* Stage 1: Converting - Blue spinner */}
-        {processingStage === 'converting' && (
-          <ActivityIndicator
-            size="large"
-            color={COLORS.PRIMARY_BLUE}
-            style={{ marginTop: 40, marginBottom: 40 }}
-          />
-        )}
-
         {/* Stage 2: Ready - Show turbo icon or checkmark */}
-        {!isWaitingForTurboData && processingStage === 'ready' && (
-          <View style={localStyles.checkmarkContainer}>
-            {isTurbo && turboToken ? (
-              <View style={localStyles.heroLogoContainer}>
-                <Icon name="unit_logo" size={80} />
-                <Text style={localStyles.heroLightningBadge}>⚡</Text>
-              </View>
-            ) : (
-              <View style={localStyles.checkmark}>
-                <Icon name="checkmark" size={48} color={COLORS.SUCCESS_GREEN} />
-              </View>
-            )}
-          </View>
-        )}
-
-        {/* Title and subtitle based on stage */}
-        {!isWaitingForTurboData && (
+        {processingStage === 'ready' && !isWaitingForTurboData && (
           <>
+            <View style={localStyles.checkmarkContainer}>
+              {isTurbo && turboToken ? (
+                <View style={localStyles.heroLogoContainer}>
+                  <Icon name="unit_logo" size={80} />
+                  <Text style={localStyles.heroLightningBadge}>⚡</Text>
+                </View>
+              ) : (
+                <View style={localStyles.checkmark}>
+                  <Icon name="checkmark" size={48} color={COLORS.SUCCESS_GREEN} />
+                </View>
+              )}
+            </View>
+
             <Text style={localStyles.title}>
-              {processingStage === 'converting' ? 'Converting to TurboUNIT' :
-               processingStage === 'ready' && isTurbo && turboToken ? 'Turbo Token Ready' :
-               'Transaction Sent'}
+              {isTurbo && turboToken ? 'Turbo Token Ready' : 'Transaction Sent'}
             </Text>
             <Text style={localStyles.subtitle}>
-              {processingStage === 'converting' ? 'Minting e-cash tokens and creating P2PK locked token...' :
-               processingStage === 'ready' && isTurbo && turboToken ? 'Share this link with the recipient' :
-               'Your transaction has been successfully broadcast to the network'}
+              {isTurbo && turboToken ? 'Share this link with the recipient' : 'Your transaction has been successfully broadcast to the network'}
             </Text>
           </>
         )}
@@ -585,6 +572,23 @@ const localStyles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
     paddingHorizontal: 40,
+  },
+  spinner: {
+    marginBottom: 24,
+  },
+  processingTitle: {
+    fontSize: 24,
+    fontWeight: 'bold',
+    color: COLORS.VERY_LIGHT_GRAY,
+    fontFamily: 'CabinetGrotesk-Bold',
+    textAlign: 'center',
+    marginBottom: 12,
+  },
+  processingMessage: {
+    fontSize: 16,
+    color: COLORS.SECONDARY_TEXT,
+    fontFamily: 'CabinetGrotesk-Regular',
+    textAlign: 'center',
   },
   checkmarkContainer: {
     marginBottom: 32,
