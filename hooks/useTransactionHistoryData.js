@@ -133,15 +133,19 @@ export function useTransactionHistoryData(
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [showHistorySheet]);
 
-  // Update loading state when context loading changes
+  // Update loading state when context loading changes or ecash is loading
   useEffect(() => {
-    // Only show loading if we have no cached data
-    if (transactionHistory.length === 0) {
-      setLoading(loadingTransactionHistory);
+    // Show loading if:
+    // 1. Transaction history is loading and we have no cached data, OR
+    // 2. Ecash is loading (so we show spinner while waiting for the batch)
+    if (transactionHistory.length === 0 && loadingTransactionHistory) {
+      setLoading(true);
+    } else if (ecashLoading) {
+      setLoading(true);
     } else {
       setLoading(false);
     }
-  }, [loadingTransactionHistory, transactionHistory]);
+  }, [loadingTransactionHistory, transactionHistory, ecashLoading]);
 
   // Filter out self-transfers and prepare display data
   const displayTransactions = useMemo(() => {

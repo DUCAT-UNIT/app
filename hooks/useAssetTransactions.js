@@ -269,5 +269,8 @@ export function useAssetTransactions(transactionHistory, assetType, segwitAddres
     setFilteredTransactions(merged);
   }, [transactionHistory, segwitAddress, taprootAddress, assetType, ecashTokens, ecashInitialLoadDone, advancedMode]);
 
-  return filteredTransactions;
+  return {
+    transactions: filteredTransactions,
+    isLoading: ecashLoading,
+  };
 }

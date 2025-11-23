@@ -48,7 +48,8 @@ describe('useAssetTransactions', () => {
       useAssetTransactions(null, 'BTC', segwitAddress, taprootAddress)
     );
 
-    expect(result.current).toEqual([]);
+    expect(result.current.transactions).toEqual([]);
+    expect(result.current.isLoading).toBe(false);
   });
 
   it('should return empty array when addresses are missing', () => {
@@ -58,7 +59,8 @@ describe('useAssetTransactions', () => {
       useAssetTransactions(txHistory, 'BTC', null, null)
     );
 
-    expect(result.current).toEqual([]);
+    expect(result.current.transactions).toEqual([]);
+    expect(result.current.isLoading).toBe(false);
   });
 
   it('should filter out vault transactions', () => {
@@ -76,7 +78,7 @@ describe('useAssetTransactions', () => {
       useAssetTransactions(txHistory, 'BTC', segwitAddress, taprootAddress)
     );
 
-    expect(result.current).toHaveLength(1);
+    expect(result.current.transactions).toHaveLength(1);
     expect(result.current[0].txid).toBe('tx2');
   });
 
@@ -98,7 +100,7 @@ describe('useAssetTransactions', () => {
       useAssetTransactions(txHistory, 'BTC', segwitAddress, taprootAddress)
     );
 
-    expect(result.current).toHaveLength(1);
+    expect(result.current.transactions).toHaveLength(1);
     expect(result.current[0].txData.amount).toBe(100000);
     expect(transactionHistoryService.calculateTransactionAmount).not.toHaveBeenCalled();
   });
@@ -122,7 +124,7 @@ describe('useAssetTransactions', () => {
       segwitAddress,
       taprootAddress
     );
-    expect(result.current).toHaveLength(1);
+    expect(result.current.transactions).toHaveLength(1);
     expect(result.current[0].txData.amount).toBe(50000);
     expect(result.current[0].txData.assetType).toBe('BTC');
   });
@@ -143,7 +145,7 @@ describe('useAssetTransactions', () => {
       useAssetTransactions(txHistory, 'BTC', segwitAddress, taprootAddress)
     );
 
-    expect(result.current).toHaveLength(1);
+    expect(result.current.transactions).toHaveLength(1);
     expect(result.current[0].txid).toBe('tx1');
   });
 
@@ -163,7 +165,7 @@ describe('useAssetTransactions', () => {
       useAssetTransactions(txHistory, 'BTC', segwitAddress, taprootAddress)
     );
 
-    expect(result.current).toHaveLength(1);
+    expect(result.current.transactions).toHaveLength(1);
     expect(result.current[0].txid).toBe('tx2');
   });
 
@@ -179,7 +181,7 @@ describe('useAssetTransactions', () => {
       useAssetTransactions(txHistory, 'BTC', segwitAddress, taprootAddress)
     );
 
-    expect(result.current).toHaveLength(0);
+    expect(result.current.transactions).toHaveLength(0);
   });
 
   it('should mark transactions as sent when amount is negative', () => {
@@ -274,7 +276,7 @@ describe('useAssetTransactions', () => {
       taproot: taprootAddress,
     });
 
-    expect(result.current).toBe(firstResult);
+    expect(result.current.transactions).toBe(firstResult);
     // Should only be called once due to caching
     expect(transactionHistoryService.calculateTransactionAmount).toHaveBeenCalledTimes(1);
   });
@@ -298,7 +300,7 @@ describe('useAssetTransactions', () => {
       }
     );
 
-    expect(result.current).toHaveLength(1);
+    expect(result.current.transactions).toHaveLength(1);
 
     // Update with new transaction history
     rerender({
@@ -308,7 +310,7 @@ describe('useAssetTransactions', () => {
       taproot: taprootAddress,
     });
 
-    expect(result.current).toHaveLength(2);
+    expect(result.current.transactions).toHaveLength(2);
   });
 
   it('should recalculate when asset type changes', () => {
@@ -336,7 +338,7 @@ describe('useAssetTransactions', () => {
       }
     );
 
-    expect(result.current).toHaveLength(1);
+    expect(result.current.transactions).toHaveLength(1);
     expect(result.current[0].txid).toBe('tx1');
 
     // Change asset type
@@ -347,7 +349,7 @@ describe('useAssetTransactions', () => {
       taproot: taprootAddress,
     });
 
-    expect(result.current).toHaveLength(1);
+    expect(result.current.transactions).toHaveLength(1);
     expect(result.current[0].txid).toBe('tx2');
   });
 

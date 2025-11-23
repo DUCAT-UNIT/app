@@ -107,11 +107,11 @@ function AssetDetailScreen({ route = {}, navigation }) {
   const isPositive = useMemo(() => priceDirection.isPositive, [priceDirection.isPositive]);
 
   // Use extracted transaction filtering hook
-  const filteredTransactions = useAssetTransactions(transactionHistory, assetType, segwitAddress, taprootAddress, advancedMode);
+  const { transactions: filteredTransactions, isLoading: ecashLoading } = useAssetTransactions(transactionHistory, assetType, segwitAddress, taprootAddress, advancedMode);
 
   // For UNIT assets, show loading when refreshing data (even with cached data)
   const isActivityLoading = assetType === 'UNIT'
-    ? loadingTransactionHistory || loadingCashu
+    ? loadingTransactionHistory || loadingCashu || ecashLoading
     : loadingTransactionHistory;
 
   const handleActionPress = (action) => {
