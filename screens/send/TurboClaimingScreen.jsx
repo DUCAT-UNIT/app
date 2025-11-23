@@ -83,7 +83,14 @@ export default function TurboClaimingScreen({ navigation, route }) {
 
           // Find which account owns this pubkey
           const { findAccountForP2PKToken } = await import('../../services/cashu/cashuP2PK');
-          const accountMatch = await findAccountForP2PKToken(recipientPubkey);
+          const accountMatch = await findAccountForP2PKToken(
+            recipientPubkey,
+            50,
+            (accountIndex, total) => {
+              // Update progress message as we check each account
+              setCurrentMessage(`Checking account ${accountIndex + 1}...`);
+            }
+          );
 
           if (!accountMatch) {
             throw new Error('This token is not locked to any of your accounts (checked 50 accounts). Make sure you are using the correct wallet.');

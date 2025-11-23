@@ -306,9 +306,10 @@ export const clearP2PKCache = async () => {
  * Optimized to check current account first, then scan others
  * @param {string} recipientPubkey - The public key the token is locked to (hex)
  * @param {number} maxAccounts - Maximum number of accounts to check (default: 50)
+ * @param {function} onProgress - Optional callback to report progress (accountIndex, total)
  * @returns {Promise<{accountIndex: number, privateKey: string, address: string}|null>}
  */
-export const findAccountForP2PKToken = async (recipientPubkey, maxAccounts = 50) => {
+export const findAccountForP2PKToken = async (recipientPubkey, maxAccounts = 50, onProgress = null) => {
   const { withMnemonic, getCurrentAccount } = await import('../secureStorageService.js');
   const { deriveAddressesFromMnemonic } = await import('../../utils/bitcoin.js');
   const { getPrivateKeyForAddress } = await import('../../utils/wallet.js');
@@ -328,8 +329,15 @@ export const findAccountForP2PKToken = async (recipientPubkey, maxAccounts = 50)
   }
 
   // Try each account index
-  for (const accountIndex of accountsToCheck) {
+  for (let idx = 0; idx < accountsToCheck.length; idx++) {
+    const accountIndex = accountsToCheck[idx];
+
     try {
+      // Report progress if callback provided
+      if (onProgress) {
+        onProgress(accountIndex, accountsToCheck.length);
+      }
+
       const startTime = Date.now();
 
       const addresses = await withMnemonic(async (mnemonic) => {
