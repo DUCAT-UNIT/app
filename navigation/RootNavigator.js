@@ -509,19 +509,29 @@ export default function RootNavigator() {
   }, [wallet]);
 
   // Make showSnackbar available globally for URL event handlers
+  // Poll for queued snackbars to ensure they get shown
   React.useEffect(() => {
-    // Show any queued snackbars
-    if (global.pendingTurboSnackbars && global.pendingTurboSnackbars.length > 0) {
-      // Show only the last one to avoid spamming
-      const lastSnackbar = global.pendingTurboSnackbars[global.pendingTurboSnackbars.length - 1];
-      console.log('[TURBO] Showing queued snackbar:', lastSnackbar.description);
-      showSnackbar(lastSnackbar);
-      // Clear the queue
-      global.pendingTurboSnackbars = [];
-    }
+    const checkQueuedSnackbars = () => {
+      // Show any queued snackbars
+      if (global.pendingTurboSnackbars && global.pendingTurboSnackbars.length > 0) {
+        // Show only the last one to avoid spamming
+        const lastSnackbar = global.pendingTurboSnackbars[global.pendingTurboSnackbars.length - 1];
+        console.log('[TURBO] Showing queued snackbar:', lastSnackbar.description);
+        showSnackbar(lastSnackbar);
+        // Clear the queue
+        global.pendingTurboSnackbars = [];
+      }
+    };
+
+    // Check immediately
+    checkQueuedSnackbars();
+
+    // Poll every 500ms to catch newly queued snackbars
+    const interval = setInterval(checkQueuedSnackbars, 500);
 
     global.showTurboSnackbar = showSnackbar;
     return () => {
+      clearInterval(interval);
       delete global.showTurboSnackbar;
     };
   }, [showSnackbar]);
@@ -599,18 +609,11 @@ export default function RootNavigator() {
               errorMessage = 'Failed to verify Turbo token signature';
             }
 
-            // Queue snackbar to ensure it shows even if component isn't ready yet
+            // Queue snackbar - will be picked up by polling interval
             if (!global.pendingTurboSnackbars) {
               global.pendingTurboSnackbars = [];
             }
             global.pendingTurboSnackbars.push({
-              type: 'error',
-              action: 'claim',
-              description: errorMessage,
-            });
-
-            // Also try to show immediately in case component is ready
-            showSnackbar({
               type: 'error',
               action: 'claim',
               description: errorMessage,
