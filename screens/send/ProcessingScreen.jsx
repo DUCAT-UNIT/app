@@ -11,14 +11,19 @@ import { useSendFlow } from '../../contexts/SendFlowContext';
 import { useTransactionBuild } from '../../contexts/TransactionBuildContext';
 import { useTransactionExecution } from '../../contexts/TransactionExecutionContext';
 import { useNotifications } from "../../contexts/NotificationContext";
+import { useWallet } from '../../contexts/WalletContext';
+import { useCashu } from '../../contexts/CashuContext';
 import { logger } from '../../utils/logger';
 
 export default function ProcessingScreen({ navigation, route }) {
   const { sendAssetType, sendAmount, sendRecipient, intentStep, setSendAssetType, setSendAmount, setSendRecipient } = useSendFlow();
   const { createSendIntent, sendIntent } = useTransactionBuild();
-  const { signIntent } = useTransactionExecution();
-  const { showSnackbar } = useNotifications();
+  const { signIntent, broadcastedTxid } = useTransactionExecution();
+  const { showSnackbar, showToast } = useNotifications();
+  const { wallet } = useWallet();
+  const { refresh: refreshCashuBalance } = useCashu();
   const [loadingMessageIndex, setLoadingMessageIndex] = useState(0);
+  const [isConvertingToTurbo, setIsConvertingToTurbo] = useState(false);
   const hasStarted = useRef(false);
 
   // Get action from route params
@@ -45,6 +50,90 @@ export default function ProcessingScreen({ navigation, route }) {
       action: sendAssetType === 'unit' ? 'swap' : 'withdraw',
       description: errorMessage,
     }), 300);
+  };
+
+  // Complete mint process in ProcessingScreen before navigating
+  const completeMintInProcessing = async (isTurbo, mintQuoteId, cashuQuoteId, mintAmount, turboRecipient) => {
+    try {
+      const { completeMint, sendP2PKToken } = await import('../../services/cashu/cashuWalletService');
+      const { checkMintQuote } = await import('../../services/cashu/cashuMintClient');
+      const { extractPubkeyFromTaprootAddress } = await import('../../utils/bitcoin');
+      const { saveSentLockedToken, generateTurboDeeplink } = await import('../../services/cashu/cashuLockedTokensService');
+
+      const quoteId = mintQuoteId || cashuQuoteId;
+      logger.info('Starting mint completion in ProcessingScreen', { quoteId });
+
+      // Poll for payment confirmation
+      let paidQuote = null;
+      let attempts = 0;
+      const maxAttempts = 30;
+
+      while (!paidQuote && attempts < maxAttempts) {
+        await new Promise(resolve => setTimeout(resolve, 1000));
+        const quote = await checkMintQuote(quoteId);
+        if (quote.state === 'PAID' || quote.state === 'ISSUED') {
+          paidQuote = quote;
+          break;
+        }
+        attempts++;
+      }
+
+      if (paidQuote) {
+        logger.info('Payment confirmed! Completing mint...');
+
+        // Complete mint to get e-cash tokens
+        const proofs = await completeMint(quoteId, paidQuote.amount);
+        logger.info('Mint completed', { proofCount: proofs.length });
+
+        let turboToken = null;
+        let turboDeeplink = null;
+
+        // If Turbo with recipient, create P2PK locked token
+        if (isTurbo && turboRecipient) {
+          logger.info('🔑 Creating P2PK token:', {
+            turboRecipient,
+            amount: paidQuote.amount,
+            note: 'Token will be locked to this recipient pubkey'
+          });
+          const recipientPubkey = extractPubkeyFromTaprootAddress(turboRecipient);
+          logger.info('Extracted pubkey from recipient address:', recipientPubkey.substring(0, 16) + '...');
+          const { token } = await sendP2PKToken(paidQuote.amount, recipientPubkey);
+          turboToken = token;
+          logger.info('P2PK token created successfully');
+
+          // Generate short URL
+          const shortUrl = await generateTurboDeeplink(token, turboRecipient, paidQuote.amount);
+          turboDeeplink = shortUrl;
+
+          // Save token to storage
+          await saveSentLockedToken(token, turboRecipient, paidQuote.amount, broadcastedTxid, shortUrl, wallet.taprootAddress);
+          logger.info('Turbo token created and saved');
+        }
+
+        // Refresh balance
+        await refreshCashuBalance();
+        logger.info('Cashu balance refreshed');
+
+        // Show success and navigate to confirmation
+        showSnackbar({ type: 'success', action: 'convert' });
+
+        // Navigate to confirmation with token (skipMint mode)
+        navigation.replace('Confirmation', {
+          isTurbo,
+          skipMint: true,
+          turboToken,
+          turboDeeplink,
+        });
+      } else {
+        logger.warn('Payment not confirmed after 30 seconds');
+        showToast('Payment sent. E-cash will be available once confirmed.', 'info');
+        navigation.replace('Confirmation', { isTurbo: false });
+      }
+    } catch (error) {
+      logger.error('Failed to complete mint in ProcessingScreen:', error);
+      showToast(`Failed to complete conversion: ${error.message}`, 'error');
+      navigation.replace('Confirmation', { isTurbo: false });
+    }
   };
 
   // Get Cashu mint params if provided
@@ -87,21 +176,27 @@ export default function ProcessingScreen({ navigation, route }) {
     } else if (action === 'sign_and_broadcast') {
       if (loadingMessageIndex === 0) {
         return 'Signing transaction...';
-      } else {
+      } else if (loadingMessageIndex === 1) {
         return 'Broadcasting transaction...';
+      } else if (isTurbo || isCashuMint) {
+        return 'Converting to TurboUNIT...';
       }
+      return 'Broadcasting transaction...';
     }
     return 'Processing...';
   };
 
   // Cycle through loading messages
   useEffect(() => {
-    const maxMessages = action === 'create_intent' ? creatingMessages.length : 2;
+    // For sign_and_broadcast: 0=Signing, 1=Broadcasting, 2=Converting (if Turbo/Cashu)
+    const maxMessages = action === 'create_intent' ? creatingMessages.length : (isTurbo || isCashuMint ? 3 : 2);
     setLoadingMessageIndex(0);
 
     const timer = setInterval(() => {
       setLoadingMessageIndex((prev) => {
-        if (prev < maxMessages - 1) {
+        // Don't auto-cycle to "Converting" - that's set manually
+        const maxIndex = action === 'sign_and_broadcast' ? 1 : maxMessages - 1;
+        if (prev < maxIndex) {
           return prev + 1;
         }
         return prev; // Stay on last message
@@ -134,26 +229,33 @@ export default function ProcessingScreen({ navigation, route }) {
         try {
           const success = await signIntent();
           if (success) {
-            // Ensure we navigate to Confirmation screen with all required params
-            // This is critical for Turbo flow to activate quote polling
-            logger.debug('Navigation to Confirmation with params:', {
+            logger.debug('Broadcast successful, checking for mint flows:', {
               isTurbo,
+              isCashuMint,
               mintQuoteId,
-              mintAmount,
             });
 
-            // Use a small delay to ensure transaction state is fully updated
-            // before navigating to Confirmation screen
-            setTimeout(() => {
+            // Check if this is a Turbo or Cashu mint flow
+            if ((isTurbo || isCashuMint) && (mintQuoteId || cashuQuoteId)) {
+              console.log('🔵 [ProcessingScreen] Setting converting state to true');
+              console.log('🔵 [ProcessingScreen] isTurbo:', isTurbo, 'isCashuMint:', isCashuMint);
+
+              // Set converting state to show "Converting to TurboUNIT..." message
+              setIsConvertingToTurbo(true);
+              setLoadingMessageIndex(2); // Move to "Converting to TurboUNIT..." message
+
+              console.log('🔵 [ProcessingScreen] State updated, should show "Converting to TurboUNIT..."');
+
+              // Complete mint process
+              await completeMintInProcessing(isTurbo, mintQuoteId, cashuQuoteId, mintAmount, turboRecipient);
+            } else {
+              console.log('🔵 [ProcessingScreen] Regular transaction, navigating to Confirmation');
+              // Regular transaction - navigate directly to confirmation
               navigation.replace('Confirmation', {
-                isTurbo,
-                mintQuoteId,
-                mintAmount,
-                turboRecipient,
-                cashuMint: isCashuMint,
-                quoteId: cashuQuoteId,
+                isTurbo: false,
+                cashuMint: false,
               });
-            }, 50);
+            }
           } else {
             handleNavigationError('Failed to sign and broadcast transaction');
           }
@@ -195,14 +297,34 @@ export default function ProcessingScreen({ navigation, route }) {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [intentStep, sendIntent, action]);
 
+  // Determine title based on state
+  const getTitle = () => {
+    if (action === 'create_intent') {
+      return 'Creating Transaction';
+    } else if (isConvertingToTurbo) {
+      return 'Converting to TurboUNIT';
+    } else {
+      return 'Sending Transaction';
+    }
+  };
+
+  const title = getTitle();
+  const message = getLoadingMessage();
+
+  console.log('🎨 [ProcessingScreen] Rendering:', {
+    action,
+    isConvertingToTurbo,
+    loadingMessageIndex,
+    title,
+    message,
+  });
+
   return (
     <View style={localStyles.container}>
       <View style={localStyles.content}>
         <ActivityIndicator size="large" color={COLORS.PRIMARY_BLUE} style={localStyles.spinner} />
-        <Text style={localStyles.title}>
-          {action === 'create_intent' ? 'Creating Transaction' : 'Sending Transaction'}
-        </Text>
-        <Text style={localStyles.message}>{getLoadingMessage()}</Text>
+        <Text style={localStyles.title}>{title}</Text>
+        <Text style={localStyles.message}>{message}</Text>
       </View>
     </View>
   );

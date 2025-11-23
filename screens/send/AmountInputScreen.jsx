@@ -133,6 +133,15 @@ export default function AmountInputScreen({ navigation, route }) {
         setTurboEnabled(true);
         shouldUseTurbo = true;
       }
+
+      console.log(`[AmountInputScreen] Turbo decision:`, {
+        shouldUseTurbo,
+        turboEnabled,
+        displayAmount,
+        ecashThreshold,
+        sendRecipient,
+        sendAssetType
+      });
     }
 
     // If Turbo mode is enabled for UNIT transfers, check if we have enough ecash first
@@ -210,6 +219,12 @@ export default function AmountInputScreen({ navigation, route }) {
 
       // Store the original recipient address (where tokens will be locked)
       const originalRecipient = sendRecipient;
+
+      console.log('[AmountInputScreen] 🔑 Capturing recipient for P2PK locking:', {
+        originalRecipient,
+        mintDepositAddress: mintQuote.depositAddress,
+        note: 'P2PK tokens will be locked to originalRecipient pubkey'
+      });
 
       // Temporarily update recipient to mint's deposit address
       setRecipient(mintQuote.depositAddress);
