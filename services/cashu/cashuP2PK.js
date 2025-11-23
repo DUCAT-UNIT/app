@@ -305,10 +305,10 @@ export const clearP2PKCache = async () => {
  * Find which account a P2PK token is locked to by scanning derivation paths
  * Optimized to check current account first, then scan others
  * @param {string} recipientPubkey - The public key the token is locked to (hex)
- * @param {number} maxAccounts - Maximum number of accounts to check (default: 5)
+ * @param {number} maxAccounts - Maximum number of accounts to check (default: 50)
  * @returns {Promise<{accountIndex: number, privateKey: string, address: string}|null>}
  */
-export const findAccountForP2PKToken = async (recipientPubkey, maxAccounts = 5) => {
+export const findAccountForP2PKToken = async (recipientPubkey, maxAccounts = 50) => {
   const { withMnemonic, getCurrentAccount } = await import('../secureStorageService.js');
   const { deriveAddressesFromMnemonic } = await import('../../utils/bitcoin.js');
   const { getPrivateKeyForAddress } = await import('../../utils/wallet.js');

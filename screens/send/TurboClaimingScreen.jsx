@@ -86,13 +86,22 @@ export default function TurboClaimingScreen({ navigation, route }) {
           const accountMatch = await findAccountForP2PKToken(recipientPubkey);
 
           if (!accountMatch) {
-            throw new Error('This token is not locked to any of your accounts. Make sure you are using the correct wallet.');
+            throw new Error('This token is not locked to any of your accounts (checked 50 accounts). Make sure you are using the correct wallet.');
           }
 
           logger.info('Found matching account:', {
             accountIndex: accountMatch.accountIndex,
             address: accountMatch.address,
           });
+
+          // Check if token belongs to current account
+          const { getCurrentAccount } = await import('../../services/secureStorageService');
+          const currentAccountIndex = await getCurrentAccount();
+
+          if (accountMatch.accountIndex !== currentAccountIndex) {
+            // Token belongs to a different account - show error
+            throw new Error(`This proof belongs to account ${accountMatch.accountIndex + 1}. Please switch to that account to claim this token.`);
+          }
 
           // Step 3: Claiming token
           setCurrentStep(3);

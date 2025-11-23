@@ -371,7 +371,7 @@ function AssetDetailScreen({ route = {}, navigation }) {
                 const accountMatch = await findAccountForP2PKToken(recipientPubkey);
 
                 if (!accountMatch) {
-                  Alert.alert('Error', 'This token is not locked to any of your accounts. Make sure you are using the correct wallet.');
+                  Alert.alert('Error', 'This token is not locked to any of your accounts (checked 50 accounts). Make sure you are using the correct wallet.');
                   return;
                 }
 
@@ -379,6 +379,16 @@ function AssetDetailScreen({ route = {}, navigation }) {
                   accountIndex: accountMatch.accountIndex,
                   address: accountMatch.address,
                 });
+
+                // Check if token belongs to current account
+                const { getCurrentAccount } = await import('../../services/secureStorageService');
+                const currentAccountIndex = await getCurrentAccount();
+
+                if (accountMatch.accountIndex !== currentAccountIndex) {
+                  // Token belongs to a different account - show error
+                  Alert.alert('Wrong Account', `This proof belongs to account ${accountMatch.accountIndex + 1}. Please switch to that account to claim this token.`);
+                  return;
+                }
 
                 // Redeem P2PK token with the correct account's private key
                 const { receiveP2PKToken } = await import('../../services/cashu/cashuWalletService');
