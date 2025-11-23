@@ -507,18 +507,38 @@ export default function RootNavigator() {
 
   // Make showSnackbar available globally for URL event handlers
   // Poll for queued snackbars to ensure they get shown
+  const lastShownSnackbarRef = React.useRef(null);
+  const checkQueuedSnackbarsRef = React.useRef(null);
+
   React.useEffect(() => {
     const checkQueuedSnackbars = () => {
       // Show any queued snackbars
       if (global.pendingTurboSnackbars && global.pendingTurboSnackbars.length > 0) {
         // Show only the last one to avoid spamming
         const lastSnackbar = global.pendingTurboSnackbars[global.pendingTurboSnackbars.length - 1];
-        console.log('[TURBO] Showing queued snackbar:', lastSnackbar.description);
-        showSnackbar(lastSnackbar);
-        // Clear the queue
+
+        // Check if this is the exact same snackbar we just showed
+        const lastShown = lastShownSnackbarRef.current;
+        const isDuplicate = lastShown &&
+          lastShown.type === lastSnackbar.type &&
+          lastShown.action === lastSnackbar.action &&
+          lastShown.description === lastSnackbar.description;
+
+        if (isDuplicate) {
+          console.log('[TURBO] Skipping duplicate snackbar:', lastSnackbar.description);
+        } else {
+          console.log('[TURBO] Showing queued snackbar:', lastSnackbar.description);
+          showSnackbar(lastSnackbar);
+          lastShownSnackbarRef.current = lastSnackbar;
+        }
+
+        // Clear the queue either way
         global.pendingTurboSnackbars = [];
       }
     };
+
+    // Store in ref for external access
+    checkQueuedSnackbarsRef.current = checkQueuedSnackbars;
 
     // Check immediately
     checkQueuedSnackbars();
@@ -527,6 +547,7 @@ export default function RootNavigator() {
     const interval = setInterval(checkQueuedSnackbars, 500);
 
     global.showTurboSnackbar = showSnackbar;
+
     return () => {
       clearInterval(interval);
       delete global.showTurboSnackbar;

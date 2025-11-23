@@ -120,7 +120,8 @@ export const NotificationProvider = ({ children }) => {
       snackbarTimeoutRef.current = null;
     }
     setSnackbar(null);
-    // Don't reset lastSnackbarRef - keep tracking state even after dismissal
+    // Reset tracking when dismissed to allow same snackbar to show again
+    lastSnackbarRef.current = null;
   }, []);
 
   // ============================================================
