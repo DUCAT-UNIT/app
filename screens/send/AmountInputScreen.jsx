@@ -34,6 +34,7 @@ export default function AmountInputScreen({ navigation, route }) {
   const { sendAssetType, sendAmount, setSendAmount, sendRecipient, sendAddressType, turboEnabled, setTurboEnabled, setSendRecipient: setRecipient } = useSendFlow();
   const { settingsHandlers } = useNavigationHandlers();
   const ecashThreshold = settingsHandlers?.ecashThreshold || 100;
+  const [isRequestingMint, setIsRequestingMint] = useState(false);
   const { segwitBalance, taprootBalance, runesBalance } = useBalance();
   const { balance: cashuBalance } = useCashu();
   const { btcPrice } = usePrice();
@@ -118,7 +119,7 @@ export default function AmountInputScreen({ navigation, route }) {
   };
 
   const handleReview = async () => {
-    if (!sendAmount) return;
+    if (!sendAmount || isRequestingMint) return;
 
     amountInputRef.current?.blur();
 
@@ -205,6 +206,8 @@ export default function AmountInputScreen({ navigation, route }) {
     console.log('[AmountInputScreen] User chose Turbo with minting');
 
     try {
+      setIsRequestingMint(true);
+
       // Request mint quote from Cashu mint
       const mintQuote = await requestMint(insufficientTurboAmount);
 
@@ -226,6 +229,8 @@ export default function AmountInputScreen({ navigation, route }) {
       // Temporarily update recipient to mint's deposit address
       setRecipient(mintQuote.depositAddress);
 
+      setIsRequestingMint(false);
+
       // Navigate to processing screen with Turbo params
       navigation.navigate('Processing', {
         fromScreen: 'AmountInput',
@@ -236,6 +241,7 @@ export default function AmountInputScreen({ navigation, route }) {
         turboRecipient: originalRecipient,
       });
     } catch (error) {
+      setIsRequestingMint(false);
       console.error('[AmountInputScreen] Failed to request mint quote:', error);
       Alert.alert('Error', 'Failed to initiate Turbo transaction. Please try again.');
     }
@@ -268,7 +274,7 @@ export default function AmountInputScreen({ navigation, route }) {
 
   // Determine if we should show insufficient balance warning
   const hasInsufficientBalance = hasNoUnitBalance || exceedsBalance;
-  const isReviewDisabled = !sendAmount || hasInsufficientBalance;
+  const isReviewDisabled = !sendAmount || hasInsufficientBalance || isRequestingMint;
 
   return (
     <View style={localStyles.container}>
@@ -344,6 +350,16 @@ export default function AmountInputScreen({ navigation, route }) {
           <Text style={localStyles.reviewButtonText}>Review</Text>
         </TouchableScale>
       </View>
+
+      {/* Loading overlay while requesting mint quote */}
+      {isRequestingMint && (
+        <View style={localStyles.loadingOverlay}>
+          <View style={localStyles.loadingContent}>
+            <ActivityIndicator size="large" color={COLORS.PRIMARY_BLUE} />
+            <Text style={localStyles.loadingText}>Preparing Turbo transaction...</Text>
+          </View>
+        </View>
+      )}
 
       {/* Insufficient Turbo Balance Sheet */}
       <InsufficientTurboSheet
@@ -440,5 +456,27 @@ const localStyles = StyleSheet.create({
     fontWeight: '600',
     color: COLORS.WHITE,
     fontFamily: 'CabinetGrotesk-Bold',
+  },
+  loadingOverlay: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
+    bottom: 0,
+    backgroundColor: 'rgba(0, 0, 0, 0.7)',
+    alignItems: 'center',
+    justifyContent: 'center',
+    zIndex: 10000,
+  },
+  loadingContent: {
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  loadingText: {
+    fontSize: 16,
+    color: COLORS.VERY_LIGHT_GRAY,
+    fontFamily: 'CabinetGrotesk-Medium',
+    marginTop: 16,
+    textAlign: 'center',
   },
 });
