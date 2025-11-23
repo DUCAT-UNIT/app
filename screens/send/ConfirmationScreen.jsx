@@ -352,6 +352,18 @@ export default function ConfirmationScreen({ navigation, route }) {
     }
   };
 
+  const handleOpenInBrowser = async () => {
+    if (turboDeeplink) {
+      try {
+        console.log('[ConfirmationScreen] Opening Turbo deeplink in browser:', turboDeeplink);
+        await Linking.openURL(turboDeeplink);
+      } catch (error) {
+        console.error('[ConfirmationScreen] Failed to open link:', error);
+        Alert.alert('Error', 'Failed to open link. Please try again.');
+      }
+    }
+  };
+
   const handleDone = () => {
     // Refresh transaction history one more time before closing
     if (fetchTransactionHistory) {
@@ -369,19 +381,26 @@ export default function ConfirmationScreen({ navigation, route }) {
     <View style={localStyles.container}>
       {/* Content */}
       <View style={localStyles.content}>
-        {/* Success checkmark */}
+        {/* Success icon - checkmark or UNIT logo */}
         <View style={localStyles.checkmarkContainer}>
-          <Icon name="done" size={100} color={COLORS.TEAL} />
+          {skipMint ? (
+            <View style={localStyles.heroLogoContainer}>
+              <Icon name="unit_logo" size={80} />
+              <Text style={localStyles.heroLightningBadge}>⚡</Text>
+            </View>
+          ) : (
+            <Icon name="done" size={100} color={COLORS.TEAL} />
+          )}
         </View>
 
         <Text style={localStyles.title}>
-          {isCompletingMint ? 'Converting to eUNIT...' : (skipMint ? 'Token Created' : 'Transaction Sent')}
+          {isCompletingMint ? 'Converting to eUNIT...' : (skipMint ? 'Turbo Token Ready' : 'Transaction Sent')}
         </Text>
         <Text style={localStyles.subtitle}>
           {isCompletingMint
             ? 'Waiting for payment confirmation and minting e-cash tokens...'
             : (skipMint
-              ? 'Your Turbo token has been created from ecash balance and is ready to send'
+              ? 'Share this link with the recipient'
               : 'Your transaction has been successfully broadcast to the network')
           }
         </Text>
@@ -395,27 +414,19 @@ export default function ConfirmationScreen({ navigation, route }) {
         )}
 
         {/* Turbo Token Action */}
-        {turboToken && (
-          <View style={localStyles.tokenContainer}>
-            <Icon name="link" size={48} color={COLORS.YELLOW} style={{ marginBottom: 16 }} />
-            <Text style={localStyles.tokenLabel}>Turbo Token Ready</Text>
-            <Text style={localStyles.tokenDescription}>
-              Share this link with the recipient
-            </Text>
-
+        {turboToken && turboDeeplink && (
+          <>
             {/* Short URL Display */}
-            {turboDeeplink && (
-              <TouchableOpacity
-                style={localStyles.urlContainer}
-                onPress={handleCopyDeeplink}
-                activeOpacity={0.7}
-              >
-                <Text style={localStyles.urlText} numberOfLines={2}>
-                  {turboDeeplink}
-                </Text>
-                <Text style={localStyles.tapToCopyHint}>Tap to copy</Text>
-              </TouchableOpacity>
-            )}
+            <TouchableOpacity
+              style={localStyles.urlContainer}
+              onPress={handleCopyDeeplink}
+              activeOpacity={0.7}
+            >
+              <Text style={localStyles.urlText} numberOfLines={2}>
+                {turboDeeplink}
+              </Text>
+              <Text style={localStyles.tapToCopyHint}>Tap to copy</Text>
+            </TouchableOpacity>
 
             {/* Action Buttons */}
             <View style={localStyles.buttonRow}>
@@ -424,19 +435,19 @@ export default function ConfirmationScreen({ navigation, route }) {
                 onPress={handleShareDeeplink}
                 activeOpacity={0.7}
               >
-                <Icon name="share" size={16} color={COLORS.WHITE} />
+                <Icon name="share" size={16} color={COLORS.PRIMARY_BLUE} />
                 <Text style={localStyles.actionButtonText}>Share</Text>
               </TouchableOpacity>
               <TouchableOpacity
                 style={[localStyles.actionButton, localStyles.copyButton]}
-                onPress={handleCopyDeeplink}
+                onPress={handleOpenInBrowser}
                 activeOpacity={0.7}
               >
-                <Icon name="paste" size={16} color={COLORS.WHITE} />
-                <Text style={localStyles.actionButtonText}>Copy Link</Text>
+                <Icon name="arrow_right" size={16} color={COLORS.VERY_LIGHT_GRAY} />
+                <Text style={localStyles.actionButtonText}>Open Link</Text>
               </TouchableOpacity>
             </View>
-          </View>
+          </>
         )}
 
         {/* View Explorer Button */}
@@ -480,6 +491,17 @@ const localStyles = StyleSheet.create({
   },
   checkmarkContainer: {
     marginBottom: 32,
+  },
+  heroLogoContainer: {
+    position: 'relative',
+    width: 80,
+    height: 80,
+  },
+  heroLightningBadge: {
+    position: 'absolute',
+    bottom: -8,
+    right: -8,
+    fontSize: 32,
   },
   title: {
     fontSize: 28,
@@ -534,36 +556,54 @@ const localStyles = StyleSheet.create({
   },
   tokenContainer: {
     width: '100%',
-    backgroundColor: COLORS.YELLOW + '15',
+    backgroundColor: COLORS.DARK_CARD_BG,
     borderRadius: 16,
-    padding: 24,
+    padding: 16,
     borderWidth: 1,
-    borderColor: COLORS.YELLOW + '25',
+    borderColor: COLORS.BORDER_COLOR,
     marginTop: 20,
+  },
+  tokenHeader: {
+    flexDirection: 'row',
     alignItems: 'center',
+    marginBottom: 20,
+    gap: 12,
+  },
+  tokenLogoContainer: {
+    position: 'relative',
+    width: 40,
+    height: 40,
+  },
+  lightningBadge: {
+    position: 'absolute',
+    bottom: -4,
+    right: -4,
+    fontSize: 16,
+  },
+  tokenHeaderText: {
+    flex: 1,
   },
   tokenLabel: {
-    fontSize: 18,
+    fontSize: 16,
     fontWeight: '700',
     color: COLORS.VERY_LIGHT_GRAY,
     fontFamily: 'CabinetGrotesk-Bold',
-    marginBottom: 8,
-    textAlign: 'center',
+    marginBottom: 2,
   },
   tokenDescription: {
-    fontSize: 14,
+    fontSize: 13,
     color: COLORS.SECONDARY_TEXT,
     fontFamily: 'CabinetGrotesk-Regular',
-    textAlign: 'center',
-    lineHeight: 20,
-    marginBottom: 16,
+    lineHeight: 18,
   },
   urlContainer: {
     backgroundColor: COLORS.CARD_BG,
     borderRadius: 12,
     padding: 16,
     width: '100%',
-    marginBottom: 16,
+    marginTop: 32,
+    marginBottom: 12,
+    marginHorizontal: -20,
     borderWidth: 1,
     borderColor: COLORS.BORDER_COLOR,
   },
@@ -585,19 +625,21 @@ const localStyles = StyleSheet.create({
     flexDirection: 'row',
     width: '100%',
     gap: 12,
+    marginTop: 4,
+    marginHorizontal: -20,
   },
   actionButton: {
     flex: 1,
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
-    borderRadius: 10,
-    paddingVertical: 12,
+    borderRadius: 12,
+    paddingVertical: 14,
     paddingHorizontal: 16,
-    gap: 6,
+    gap: 8,
   },
   shareButton: {
-    backgroundColor: COLORS.CARD_BG,
+    backgroundColor: COLORS.PRIMARY_BLUE + '15',
     borderWidth: 1,
     borderColor: COLORS.PRIMARY_BLUE,
   },

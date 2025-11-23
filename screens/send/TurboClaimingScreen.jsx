@@ -4,14 +4,16 @@
  */
 
 import React, { useEffect, useState, useRef } from 'react';
-import { Text, View, ActivityIndicator, StyleSheet, Alert } from 'react-native';
+import { Text, View, ActivityIndicator, StyleSheet } from 'react-native';
 import { COLORS } from '../../theme';
 import { useWallet } from '../../contexts/WalletContext';
+import { useNotifications } from '../../hooks/useNotifications';
 import { logger } from '../../utils/logger';
 
 export default function TurboClaimingScreen({ navigation, route }) {
   const { tokenString } = route.params;
   const { wallet } = useWallet();
+  const { showSnackbar } = useNotifications();
   const [currentMessage, setCurrentMessage] = useState('Starting...');
   const [currentStep, setCurrentStep] = useState(0);
   const totalSteps = 3;
@@ -26,16 +28,9 @@ export default function TurboClaimingScreen({ navigation, route }) {
     // Set a timeout to detect if we get stuck
     timeoutRef.current = setTimeout(() => {
       logger.error('Token claiming timeout - stuck on step:', currentStep, currentMessage);
-      Alert.alert(
-        'Error',
-        `Token claiming timed out at: ${currentMessage}. Please try again.`,
-        [
-          {
-            text: 'OK',
-            onPress: () => navigation.goBack()
-          }
-        ]
-      );
+      navigation.navigate('Wallet', {
+        claimError: `Token claiming timed out at: ${currentMessage}. Please try again.`,
+      });
     }, 30000); // 30 second timeout
 
     const claimToken = async () => {
@@ -89,13 +84,10 @@ export default function TurboClaimingScreen({ navigation, route }) {
           clearTimeout(timeoutRef.current);
         }
 
-        // Navigate back and show success
-        navigation.goBack();
-
-        // Show success alert after a small delay
-        setTimeout(() => {
-          Alert.alert('Success', 'Turbo token claimed successfully!');
-        }, 300);
+        // Navigate back with success flag - snackbar will be shown by parent screen
+        navigation.navigate('Wallet', {
+          claimSuccess: true,
+        });
 
       } catch (error) {
         logger.error('Failed to claim Turbo token:', error);
@@ -105,17 +97,10 @@ export default function TurboClaimingScreen({ navigation, route }) {
           clearTimeout(timeoutRef.current);
         }
 
-        // Show error and go back
-        Alert.alert(
-          'Error',
-          `Failed to claim token: ${error.message}`,
-          [
-            {
-              text: 'OK',
-              onPress: () => navigation.goBack()
-            }
-          ]
-        );
+        // Navigate back with error - snackbar will be shown by parent screen
+        navigation.navigate('Wallet', {
+          claimError: error.message,
+        });
       }
     };
 
@@ -127,7 +112,7 @@ export default function TurboClaimingScreen({ navigation, route }) {
         clearTimeout(timeoutRef.current);
       }
     };
-  }, [navigation, tokenString, wallet?.taprootAddress, currentStep, currentMessage]);
+  }, [navigation, tokenString, wallet?.taprootAddress, currentStep, currentMessage, showSnackbar]);
 
   return (
     <View style={localStyles.container}>

@@ -19,17 +19,27 @@ import {
 import { decodeToken } from '../../services/cashu/cashuCrypto';
 import { checkProofsSpent } from '../../services/cashu/cashuMintClient';
 import { useNotifications } from '../../contexts/NotificationContext';
+import { useWallet } from '../../contexts/WalletContext';
 
 export function AssetTurboList({ navigation }) {
   const [tokens, setTokens] = useState([]);
   const [claimedTokens, setClaimedTokens] = useState(new Set());
   const [isLoading, setIsLoading] = useState(true);
   const { showToast } = useNotifications();
+  const { wallet } = useWallet();
 
   const loadTokens = async () => {
     try {
       setIsLoading(true);
-      const savedTokens = await getSentLockedTokens();
+      console.log('[AssetTurboList] Loading tokens for address:', wallet?.taprootAddress);
+      // Filter tokens by current account's taproot address
+      const savedTokens = await getSentLockedTokens(wallet?.taprootAddress);
+      console.log('[AssetTurboList] Loaded tokens:', savedTokens.length);
+      console.log('[AssetTurboList] Token details:', savedTokens.map(t => ({
+        id: t.id,
+        address: t.taprootAddress,
+        amount: t.amount
+      })));
       setTokens(savedTokens);
 
       // Check which tokens have been claimed
@@ -65,8 +75,11 @@ export function AssetTurboList({ navigation }) {
   };
 
   useEffect(() => {
-    loadTokens();
-  }, []);
+    console.log('[AssetTurboList] useEffect triggered, wallet address:', wallet?.taprootAddress);
+    if (wallet?.taprootAddress) {
+      loadTokens();
+    }
+  }, [wallet?.taprootAddress]);
 
   const handleShareToken = async (tokenRecord) => {
     try {

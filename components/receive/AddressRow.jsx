@@ -18,8 +18,14 @@ export default function AddressRow({
   onQrPress,
   styles,
 }) {
+  // Determine which logo to show based on tag
+  const logoName = tag === 'BTC' ? 'btc_logo' : 'unit_logo';
+
   return (
     <TouchableOpacity style={styles.receiveAddressRow} onPress={onCopy} activeOpacity={0.7}>
+      <View style={localStyles.logoContainer}>
+        <Icon name={logoName} size={32} />
+      </View>
       <View style={styles.receiveAddressInfo}>
         <Text style={styles.receiveAddressLabel}>{label}</Text>
         <Text style={styles.receiveAddress} numberOfLines={1} ellipsizeMode="middle">
@@ -38,6 +44,14 @@ export default function AddressRow({
     </TouchableOpacity>
   );
 }
+
+const localStyles = StyleSheet.create({
+  logoContainer: {
+    marginRight: 12,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+});
 
 AddressRow.propTypes = {
   label: PropTypes.string.isRequired,

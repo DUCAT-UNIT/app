@@ -147,7 +147,7 @@ export function useAppSettings({ biometricEnabled, setIsAuthenticated, showToast
         if (showSnackbar) {
           showSnackbar({
             type: 'success',
-            action: 'swap',
+            action: 'claim',
             description: `Recovered ${result.amount} UNIT from ${result.recovered} change proofs`,
           });
         }
@@ -161,7 +161,7 @@ export function useAppSettings({ biometricEnabled, setIsAuthenticated, showToast
       if (showSnackbar) {
         showSnackbar({
           type: 'error',
-          action: 'swap',
+          action: 'claim',
           description: `Failed to recover change: ${error.message}`,
         });
       }

@@ -59,7 +59,7 @@ export function useAppLifecycle({
       logger.debug(`[useAppLifecycle] walletExists: ${walletExists.current}, seedConfirmed: ${seedConfirmedRef.current}`);
       logger.debug(`[useAppLifecycle] wasInBackground: ${wasInBackground.current}`);
 
-      // Track when we go to background (NOT inactive - that's just Face ID, control center, etc.)
+      // Track when we go to background (NOT inactive - that triggers Face ID, control center, etc.)
       if (nextAppState === 'background') {
         wasInBackground.current = true;
         logger.debug('[useAppLifecycle] App went to background - setting flag');

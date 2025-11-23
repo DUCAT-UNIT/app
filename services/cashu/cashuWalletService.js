@@ -25,7 +25,70 @@ import {
  * High-level wallet operations for Cashu e-cash
  */
 
-const STORAGE_KEY = 'cashu_proofs';
+// Current account address for account-specific storage
+let currentAccount = null;
+
+/**
+ * Migrate proofs from global storage to account-specific storage
+ * @param {string} taprootAddress - Taproot address to migrate to
+ */
+const migrateGlobalProofs = async (taprootAddress) => {
+  try {
+    const oldKey = 'cashu_proofs';
+    const newKey = `cashu_proofs_${taprootAddress}`;
+
+    // Check if old global proofs exist
+    const oldProofs = await SecureStore.getItemAsync(oldKey);
+    if (!oldProofs) {
+      return; // No migration needed
+    }
+
+    // Check if account-specific proofs already exist
+    const existingProofs = await SecureStore.getItemAsync(newKey);
+    if (existingProofs) {
+      logger.info('Account-specific proofs already exist, skipping migration');
+      return;
+    }
+
+    // Migrate: copy old proofs to new account-specific key
+    await SecureStore.setItemAsync(newKey, oldProofs);
+    logger.info('Migrated proofs from global storage to account-specific storage', {
+      address: taprootAddress,
+      proofCount: JSON.parse(oldProofs).length
+    });
+
+    // Delete old global key
+    await SecureStore.deleteItemAsync(oldKey);
+    logger.info('Deleted old global proofs storage');
+  } catch (error) {
+    logger.error('Failed to migrate global proofs', { error: error.message });
+  }
+};
+
+/**
+ * Set the current account for account-specific storage
+ * @param {string} taprootAddress - Taproot address of the current account
+ */
+export const setCurrentAccount = async (taprootAddress) => {
+  currentAccount = taprootAddress;
+  logger.info('Set current Cashu account', { address: taprootAddress });
+
+  // Migrate old global proofs if this is the first time
+  await migrateGlobalProofs(taprootAddress);
+};
+
+/**
+ * Get account-specific storage key
+ * @returns {string} Storage key for current account
+ */
+const getStorageKey = () => {
+  if (!currentAccount) {
+    logger.warn('No current account set, using default storage key');
+    return 'cashu_proofs';
+  }
+  return `cashu_proofs_${currentAccount}`;
+};
+
 const KEYSETS_KEY = 'cashu_keysets';
 
 /**
@@ -34,6 +97,7 @@ const KEYSETS_KEY = 'cashu_keysets';
  */
 export const loadProofs = async () => {
   try {
+    const STORAGE_KEY = getStorageKey();
     const stored = await SecureStore.getItemAsync(STORAGE_KEY);
     if (!stored) {
       logger.info('Loaded proofs from storage', { count: 0, source: 'empty' });
@@ -63,6 +127,7 @@ export const loadProofs = async () => {
  */
 export const saveProofs = async (proofs) => {
   try {
+    const STORAGE_KEY = getStorageKey();
     const serialized = JSON.stringify(proofs);
 
     // Delete first to force cache invalidation
@@ -128,6 +193,7 @@ export const removeProofs = async (proofsToRemove) => {
  */
 export const loadProofsPartial = async (limit = null) => {
   try {
+    const STORAGE_KEY = getStorageKey();
     const stored = await SecureStore.getItemAsync(STORAGE_KEY);
     if (!stored) {
       return [];

@@ -11,6 +11,7 @@ import {
   TextInput,
   StyleSheet,
   Alert,
+  ActivityIndicator,
 } from 'react-native';
 import { COLORS } from '../../theme';
 import Icon from '../../components/icons';
@@ -24,6 +25,7 @@ import { useTransactionBuild } from '../../contexts/TransactionBuildContext';
 import { useKeyboard } from '../../hooks/useKeyboard';
 import { useAmountInput } from '../../hooks/useAmountInput';
 import { RecipientHeader, BalanceMaxButton } from '../../components/amountInput';
+import InsufficientTurboSheet from '../../components/send/InsufficientTurboSheet';
 import { requestMint } from '../../services/cashu/cashuWalletService';
 import { useCashu } from '../../contexts/CashuContext';
 import { useNavigationHandlers } from '../../contexts/NavigationHandlersContext';
@@ -40,6 +42,11 @@ export default function AmountInputScreen({ navigation, route }) {
   const { createSendIntent: _createSendIntent } = useTransactionBuild();
   const { keyboardHeight } = useKeyboard();
   const amountInputRef = useRef(null);
+
+  // State for insufficient turbo balance sheet
+  const [showInsufficientTurboSheet, setShowInsufficientTurboSheet] = useState(false);
+  const [insufficientTurboAmount, setInsufficientTurboAmount] = useState(0);
+  const [insufficientTurboBalance, setInsufficientTurboBalance] = useState(0);
 
   // Check if this is a Cashu mint transaction
   const isCashuMint = route?.params?.cashuMint === true;
@@ -159,41 +166,13 @@ export default function AmountInputScreen({ navigation, route }) {
           return;
         }
 
-        // Not enough ecash - proceed with normal mint flow
-        console.log('[AmountInputScreen] ⚠️ Insufficient ecash balance - proceeding with mint flow');
-        console.log('[AmountInputScreen] Requesting mint quote for amount:', displayAmount);
-
-        // Request mint quote from Cashu mint
-        const mintQuote = await requestMint(displayAmount);
-
-        console.log('[AmountInputScreen] Received mint quote:', {
-          quoteId: mintQuote.quoteId,
-          amount: mintQuote.amount,
-          depositAddress: mintQuote.depositAddress,
-        });
-
-        // Store the original recipient address (where tokens will be locked)
-        const originalRecipient = sendRecipient;
-
-        // Temporarily update recipient to mint's deposit address
-        setRecipient(mintQuote.depositAddress);
-
-        console.log('[AmountInputScreen] Navigating to Processing with params:', {
-          isTurbo: true,
-          mintQuoteId: mintQuote.quoteId,
-          mintAmount: mintQuote.amount, // Use amount from quote, not displayAmount
-          turboRecipient: originalRecipient,
-        });
-
-        // Navigate to processing screen with Turbo params
-        navigation.navigate('Processing', {
-          fromScreen: 'AmountInput',
-          action: 'create_intent',
-          isTurbo: true,
-          mintQuoteId: mintQuote.quoteId,
-          mintAmount: mintQuote.amount, // IMPORTANT: Use quote amount (in smallest units)
-          turboRecipient: originalRecipient, // Original address for P2PK locking
-        });
+        // Not enough ecash - show bottom sheet to ask user
+        console.log('[AmountInputScreen] ⚠️ Insufficient ecash balance - showing bottom sheet');
+        setIsRequestingMint(false);
+        setInsufficientTurboAmount(displayAmount);
+        setInsufficientTurboBalance(ecashBalance);
+        setShowInsufficientTurboSheet(true);
+        return;
       } catch (error) {
         console.error('Failed to request mint quote:', error);
         Alert.alert('Error', 'Failed to initiate Turbo transaction. Please try again.');
@@ -210,6 +189,62 @@ export default function AmountInputScreen({ navigation, route }) {
         quoteId: cashuQuoteId,
       });
     }
+  };
+
+  // Handler for using Turbo with minting
+  const handleUseTurbo = async () => {
+    setShowInsufficientTurboSheet(false);
+    console.log('[AmountInputScreen] User chose Turbo with minting');
+
+    try {
+      setIsRequestingMint(true);
+
+      // Request mint quote from Cashu mint
+      const mintQuote = await requestMint(insufficientTurboAmount);
+
+      console.log('[AmountInputScreen] Received mint quote:', {
+        quoteId: mintQuote.quoteId,
+        amount: mintQuote.amount,
+        depositAddress: mintQuote.depositAddress,
+      });
+
+      // Store the original recipient address (where tokens will be locked)
+      const originalRecipient = sendRecipient;
+
+      // Temporarily update recipient to mint's deposit address
+      setRecipient(mintQuote.depositAddress);
+
+      setIsRequestingMint(false);
+
+      // Navigate to processing screen with Turbo params
+      navigation.navigate('Processing', {
+        fromScreen: 'AmountInput',
+        action: 'create_intent',
+        isTurbo: true,
+        mintQuoteId: mintQuote.quoteId,
+        mintAmount: mintQuote.amount,
+        turboRecipient: originalRecipient,
+      });
+    } catch (error) {
+      setIsRequestingMint(false);
+      console.error('[AmountInputScreen] Failed to request mint quote:', error);
+      Alert.alert('Error', 'Failed to initiate Turbo transaction. Please try again.');
+    }
+  };
+
+  // Handler for sending normally (on-chain)
+  const handleSendNormally = () => {
+    setShowInsufficientTurboSheet(false);
+    console.log('[AmountInputScreen] User chose regular on-chain send');
+
+    // Disable Turbo and proceed with regular send
+    setTurboEnabled(false);
+
+    // Navigate to processing screen for normal send
+    navigation.navigate('Processing', {
+      fromScreen: 'AmountInput',
+      action: 'create_intent',
+    });
   };
 
   const usdValue = calculateUsdValue(sendAmount, btcPrice);
@@ -300,6 +335,26 @@ export default function AmountInputScreen({ navigation, route }) {
           <Text style={localStyles.reviewButtonText}>Review</Text>
         </TouchableScale>
       </View>
+
+      {/* Loading overlay while requesting mint quote */}
+      {isRequestingMint && (
+        <View style={localStyles.loadingOverlay}>
+          <View style={localStyles.loadingContent}>
+            <ActivityIndicator size="large" color={COLORS.PRIMARY_BLUE} />
+            <Text style={localStyles.loadingText}>Preparing Turbo transaction...</Text>
+          </View>
+        </View>
+      )}
+
+      {/* Insufficient Turbo Balance Sheet */}
+      <InsufficientTurboSheet
+        visible={showInsufficientTurboSheet}
+        onClose={() => setShowInsufficientTurboSheet(false)}
+        onUseTurbo={handleUseTurbo}
+        onSendNormally={handleSendNormally}
+        requiredAmount={insufficientTurboAmount}
+        currentBalance={insufficientTurboBalance}
+      />
     </View>
   );
 }
@@ -386,5 +441,27 @@ const localStyles = StyleSheet.create({
     fontWeight: '600',
     color: COLORS.WHITE,
     fontFamily: 'CabinetGrotesk-Bold',
+  },
+  loadingOverlay: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
+    bottom: 0,
+    backgroundColor: 'rgba(0, 0, 0, 0.7)',
+    alignItems: 'center',
+    justifyContent: 'center',
+    zIndex: 10000,
+  },
+  loadingContent: {
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  loadingText: {
+    fontSize: 16,
+    color: COLORS.VERY_LIGHT_GRAY,
+    fontFamily: 'CabinetGrotesk-Medium',
+    marginTop: 16,
+    textAlign: 'center',
   },
 });

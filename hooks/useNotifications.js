@@ -95,10 +95,19 @@ export function useNotifications() {
     type = 'withdraw'
   ) => {
     try {
+      // Format message based on asset type
+      let body;
+      if (assetType === 'UNIT') {
+        body = `Withdrawal of ${amount} ${assetType} confirmed.`;
+      } else {
+        // BTC or other assets
+        body = `${amount} ${assetType} ${type} transaction confirmed.`;
+      }
+
       const notificationId = await Notifications.scheduleNotificationAsync({
         content: {
           title: 'Transaction Confirmed',
-          body: `The ${type} transaction for ${amount} ${assetType} has been confirmed on Mutinynet.`,
+          body,
           data: { txid, assetType, amount, type },
           sound: true,
           priority: Notifications.AndroidNotificationPriority.HIGH,

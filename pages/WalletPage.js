@@ -132,7 +132,13 @@ export default function WalletPage({ route }) {
 
   // Handle claim result from TurboClaimingScreen
   React.useEffect(() => {
+    logger.debug('🎯 WalletPage claim effect triggered:', {
+      claimSuccess: route?.params?.claimSuccess,
+      claimError: route?.params?.claimError,
+    });
+
     if (route?.params?.claimSuccess) {
+      logger.debug('🎯 WalletPage showing success snackbar for claim');
       showSnackbar({
         type: 'success',
         action: 'claim',
@@ -140,6 +146,7 @@ export default function WalletPage({ route }) {
       // Clear the param so it doesn't trigger again
       navigation.setParams({ claimSuccess: undefined });
     } else if (route?.params?.claimError) {
+      logger.debug('🎯 WalletPage showing error snackbar for claim');
       showSnackbar({
         type: 'error',
         action: 'claim',

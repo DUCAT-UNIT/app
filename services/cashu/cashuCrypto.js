@@ -310,10 +310,13 @@ export const sumProofs = (proofs) => {
 export const selectProofsForAmount = (proofs, amount) => {
   // Strategy: Try to find an exact match first, then minimize change
 
-  // Check if we can make exact amount
-  const exactMatch = findExactMatch(proofs, amount);
-  if (exactMatch) {
-    return exactMatch;
+  // Only try exact match if we have a reasonable number of proofs
+  // Subset sum is exponential O(2^n), so limit to prevent hanging
+  if (proofs.length <= 15) {
+    const exactMatch = findExactMatch(proofs, amount);
+    if (exactMatch) {
+      return exactMatch;
+    }
   }
 
   // Otherwise, use greedy algorithm (smallest to largest to minimize change)

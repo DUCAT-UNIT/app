@@ -16,8 +16,10 @@ import {
   requestMelt,
   completeMelt,
   clearWallet,
+  setCurrentAccount,
 } from '../services/cashu/cashuWalletService';
 import { usePolling } from '../hooks/usePolling';
+import { useWallet } from './WalletContext';
 
 const CashuContext = createContext();
 
@@ -34,12 +36,25 @@ export const CashuProvider = ({ children }) => {
   // STATE
   // ============================================================
 
+  const { wallet } = useWallet();
   const [balance, setBalance] = useState(0);
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState(null);
 
   // Pending mint quotes (waiting for deposits)
   const [pendingMints, setPendingMints] = useState([]);
+
+  // Set current account when wallet changes
+  useEffect(() => {
+    const updateAccount = async () => {
+      if (wallet?.taprootAddress) {
+        await setCurrentAccount(wallet.taprootAddress);
+        // Refresh balance after switching accounts
+        fetchBalance(false);
+      }
+    };
+    updateAccount();
+  }, [wallet?.taprootAddress]);
 
   // ============================================================
   // BALANCE FETCHING

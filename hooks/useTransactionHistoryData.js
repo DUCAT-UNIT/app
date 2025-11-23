@@ -109,7 +109,10 @@ export function useTransactionHistoryData(
 
                 // Check if proofs are spent
                 const result = await checkProofsSpent(proofs);
-                const allSpent = result.states?.every(s => s.state === 'SPENT');
+                const spentCount = result.states?.filter(s => s.state === 'SPENT').length || 0;
+                const totalCount = result.states?.length || 0;
+                const allSpent = spentCount === totalCount && totalCount > 0;
+                const partiallySpent = spentCount > 0 && spentCount < totalCount;
 
                 // If token is now claimed, update cache
                 if (allSpent && token.claimed !== true) {
@@ -120,6 +123,7 @@ export function useTransactionHistoryData(
                 return {
                   ...token,
                   claimed: allSpent,
+                  partiallySpent,
                 };
               } catch (error) {
                 // Only log first few errors to avoid spam
@@ -238,6 +242,7 @@ export function useTransactionHistoryData(
         ecashToken: true, // Flag to identify as ecash transaction
         tokenData: token, // Include full token data for TokenDetailsSheet
         claimed: token.claimed, // Whether token has been claimed
+        partiallySpent: token.partiallySpent, // Whether token has been partially spent
         txData: {
           amount: -amount, // Negative because it's sent
           assetType: 'UNIT', // Set to UNIT for consistency

@@ -66,10 +66,23 @@ export const getSentLockedTokens = async (taprootAddress = null) => {
 
     const tokens = JSON.parse(tokensJson);
 
+    logger.info('Getting sent locked tokens', {
+      totalTokens: tokens.length,
+      requestedAddress: taprootAddress,
+      tokenAddresses: tokens.map(t => ({ id: t.id, address: t.taprootAddress }))
+    });
+
     // Filter by taproot address if provided
+    // Only include tokens that have a matching taprootAddress
+    // Exclude tokens without taprootAddress (legacy tokens)
     const filteredTokens = taprootAddress
-      ? tokens.filter(t => t.taprootAddress === taprootAddress)
+      ? tokens.filter(t => t.taprootAddress && t.taprootAddress === taprootAddress)
       : tokens;
+
+    logger.info('Filtered tokens', {
+      filteredCount: filteredTokens.length,
+      requestedAddress: taprootAddress
+    });
 
     // Sort by timestamp descending (newest first)
     return filteredTokens.sort((a, b) => b.timestamp - a.timestamp);

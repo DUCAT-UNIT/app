@@ -110,6 +110,22 @@ function VaultTransactionItem({ tx, styles, onPress }) {
 function EcashTransactionItem({ tx, styles, onPress }) {
   const { amount } = tx.txData;
   const isClaimed = tx.claimed === true;
+  const isPartial = tx.partiallySpent === true;
+
+  // Determine status text and chip style
+  let statusText = 'Unspent';
+  let chipStyle = localStyles.confirmedChip;
+  let chipTextStyle = localStyles.confirmedChipText;
+
+  if (isClaimed) {
+    statusText = 'Claimed';
+    chipStyle = localStyles.claimedChip;
+    chipTextStyle = localStyles.claimedChipText;
+  } else if (isPartial) {
+    statusText = 'Partial';
+    chipStyle = localStyles.partialChip;
+    chipTextStyle = localStyles.partialChipText;
+  }
 
   return (
     <TouchableOpacity style={styles.historyTxRow} onPress={onPress} activeOpacity={0.7}>
@@ -127,15 +143,9 @@ function EcashTransactionItem({ tx, styles, onPress }) {
           </View>
           <View style={styles.historyTxRightGroup}>
             <View style={styles.historyTxColumn2}>
-              <View style={[
-                styles.vaultAmountChip,
-                isClaimed ? localStyles.claimedChip : localStyles.confirmedChip
-              ]}>
-                <Text style={[
-                  styles.vaultAmountChipText,
-                  isClaimed ? localStyles.claimedChipText : localStyles.confirmedChipText
-                ]}>
-                  {isClaimed ? 'Claimed' : 'Sent'}
+              <View style={[styles.vaultAmountChip, chipStyle]}>
+                <Text style={[styles.vaultAmountChipText, chipTextStyle]}>
+                  {statusText}
                 </Text>
               </View>
             </View>
@@ -326,6 +336,13 @@ const localStyles = StyleSheet.create({
   },
   claimedChipText: {
     color: COLORS.PRIMARY_BLUE,
+  },
+  partialChip: {
+    backgroundColor: 'rgba(255, 165, 0, 0.2)',
+    marginLeft: 0,
+  },
+  partialChipText: {
+    color: COLORS.WARNING_ORANGE,
   },
 });
 
