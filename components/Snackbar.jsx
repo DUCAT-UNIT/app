@@ -17,11 +17,12 @@ const ACTION_LABELS = {
   repay: 'UNIT Repay',
   create: 'Vault Create',
   faucet: 'Testnet Coins',
-  swap: 'UNIT Withdraw',
+  swap: 'TurboUNIT Swap',
   claim: 'UNIT Claim',
   liquidation: 'Vault Liquidation',
   repossess: 'Liquidation Claim',
   conversion_turbo: 'Conversion to Turbo Unit',
+  convert: 'TurboUNIT Conversion',
 };
 
 const getSnackbarIcon = (type) => {

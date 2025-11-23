@@ -32,25 +32,26 @@ TaskManager.defineTask(BACKGROUND_FETCH_TASK, async () => {
       const isConfirmed = await checkTransactionConfirmation(tx.txid);
 
       if (isConfirmed) {
+        // Push notifications disabled - using snackbars only
         // Send notification
-        const notificationId = await Notifications.scheduleNotificationAsync({
-          content: {
-            title: 'Transaction Confirmed',
-            body: `The ${tx.type} transaction for ${tx.amount} ${tx.assetType} has been confirmed on Mutinynet.`,
-            data: { txid: tx.txid, assetType: tx.assetType, amount: tx.amount },
-            sound: true,
-          },
-          trigger: null,
-        });
+        // const notificationId = await Notifications.scheduleNotificationAsync({
+        //   content: {
+        //     title: 'Transaction Confirmed',
+        //     body: `The ${tx.type} transaction for ${tx.amount} ${tx.assetType} has been confirmed on Mutinynet.`,
+        //     data: { txid: tx.txid, assetType: tx.assetType, amount: tx.amount },
+        //     sound: true,
+        //   },
+        //   trigger: null,
+        // });
 
         // Auto-dismiss after 15 seconds
-        setTimeout(async () => {
-          try {
-            await Notifications.dismissNotificationAsync(notificationId);
-          } catch (dismissError) {
-            // Silently fail if notification already dismissed
-          }
-        }, 15000);
+        // setTimeout(async () => {
+        //   try {
+        //     await Notifications.dismissNotificationAsync(notificationId);
+        //   } catch (dismissError) {
+        //     // Silently fail if notification already dismissed
+        //   }
+        // }, 15000);
 
         // Remove from pending list
         const updatedTxs = pendingTxs.filter((t) => t.txid !== tx.txid);

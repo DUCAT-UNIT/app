@@ -69,7 +69,10 @@ export async function createUnitIntent(
     // Sum up all rune UTXO values
     const totalRuneUtxoValue = runeUtxos.reduce((sum, utxo) => sum + utxo.value, 0);
     const totalInput = satUtxo.value + totalRuneUtxoValue;
-    const change = totalInput - fee - recipientSats - runeReturnSats;
+
+    // Calculate total required (recipient + rune return + fee)
+    const totalRequired = recipientSats + runeReturnSats + fee;
+    const change = totalInput - totalRequired;
 
     if (change < 0) {
       throw new Error(ERRORS.INSUFFICIENT_FUNDS);

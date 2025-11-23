@@ -95,6 +95,7 @@ export function useNotifications() {
     type = 'withdraw'
   ) => {
     try {
+      // Push notifications disabled - using snackbars only
       // Format message based on asset type
       let body;
       if (assetType === 'UNIT') {
@@ -104,25 +105,17 @@ export function useNotifications() {
         body = `${amount} ${assetType} ${type} transaction confirmed.`;
       }
 
-      const notificationId = await Notifications.scheduleNotificationAsync({
-        content: {
-          title: 'Transaction Confirmed',
-          body,
-          data: { txid, assetType, amount, type },
-          sound: true,
-          priority: Notifications.AndroidNotificationPriority.HIGH,
-        },
-        trigger: null, // null means immediate
-      });
+      // Notification removed - snackbars are used instead
+      // const notificationId = await Notifications.scheduleNotificationAsync({...});
 
-      // Auto-dismiss after 15 seconds
-      setTimeout(async () => {
-        try {
-          await Notifications.dismissNotificationAsync(notificationId);
-        } catch (dismissError) {
-          // Silently fail if notification already dismissed
-        }
-      }, 15000);
+      // Auto-dismiss timer removed
+      // setTimeout(async () => {
+      //   try {
+      //     await Notifications.dismissNotificationAsync(notificationId);
+      //   } catch (dismissError) {
+      //     // Silently fail if notification already dismissed
+      //   }
+      // }, 15000);
     } catch (error) {}
   };
 
