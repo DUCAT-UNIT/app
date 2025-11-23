@@ -37,8 +37,9 @@ export function useTransactionHistoryData(
   // Fetch ecash tokens when sheet opens and advanced mode is off
   useEffect(() => {
     if (showHistorySheet && !advancedMode) {
-      // Reset done flag immediately to prevent showing transactions before ecash loads
+      // Reset flags immediately to prevent showing transactions before ecash loads
       setEcashInitialLoadDone(false);
+      hasCalculatedInitialTransactions.current = false;
 
       const loadEcashTokens = async () => {
         try {

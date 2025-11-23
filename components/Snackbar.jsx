@@ -21,6 +21,7 @@ const ACTION_LABELS = {
   claim: 'UNIT Claim',
   liquidation: 'Vault Liquidation',
   repossess: 'Liquidation Claim',
+  conversion_turbo: 'Conversion to Turbo Unit',
 };
 
 const getSnackbarIcon = (type) => {

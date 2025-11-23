@@ -22,6 +22,7 @@ import ToastContainer from '../components/ToastContainer';
 import SplashScreen from '../screens/SplashScreen';
 import EcashThresholdSheet from '../components/settings/EcashThresholdSheet';
 import EcashConversionModal from '../components/settings/EcashConversionModal';
+import LowEcashBalanceModal from '../components/ecash/LowEcashBalanceModal';
 import QRScanner from '../components/scanner/QRScanner';
 
 // Contexts
@@ -38,6 +39,7 @@ import { useCashu } from '../contexts/CashuContext';
 // Hooks
 import { useSettingsNavigation } from '../hooks/useSettingsNavigation';
 import { useSheetNavigation } from '../hooks/useSheetNavigation';
+import { useEcashBalanceCheck } from '../hooks/useEcashBalanceCheck';
 
 // Utils
 import { COLORS } from '../theme';
@@ -76,6 +78,18 @@ export default function WalletPage({ route }) {
 
   // Toast and Snackbar context
   const { toasts, showToast, snackbar, dismissSnackbar, showSnackbar } = useNotifications();
+
+  // Calculate current UNIT balance for ecash balance check
+  const currentUnitBalance = runesBalance && runesBalance.length > 0 ? parseFloat(runesBalance[0][1]) : 0;
+
+  // Low ecash balance check on app start
+  const {
+    showLowBalanceModal,
+    closeModal: closeLowBalanceModal,
+    amountNeeded: lowBalanceAmountNeeded,
+    currentBalance: lowBalanceCurrentBalance,
+    defaultThreshold: lowBalanceDefaultThreshold,
+  } = useEcashBalanceCheck(cashuBalance, settingsHandlers.ecashThreshold, currentUnitBalance);
 
   // Debug: Log snackbar state changes
   React.useEffect(() => {
@@ -511,6 +525,48 @@ export default function WalletPage({ route }) {
     }
   };
 
+  const handleLowBalanceTopUp = async () => {
+    console.log('[WalletPage] handleLowBalanceTopUp called', {
+      amountNeeded: lowBalanceAmountNeeded,
+    });
+
+    closeLowBalanceModal();
+
+    // Navigate to mint flow
+    try {
+      const { requestMint } = await import('../services/cashu/cashuWalletService');
+
+      // Request mint quote for the needed amount
+      const mintQuote = await requestMint(lowBalanceAmountNeeded);
+      console.log('[WalletPage] Received mint quote for top-up:', mintQuote);
+
+      const amountStr = lowBalanceAmountNeeded?.toString() || '0';
+
+      // Navigate to processing screen
+      navigation.navigate('SendFlow', {
+        screen: 'Processing',
+        params: {
+          fromScreen: 'Wallet',
+          action: 'create_intent',
+          cashuMint: true,
+          quoteId: mintQuote.quoteId,
+          assetType: 'unit',
+          amount: amountStr,
+          recipient: mintQuote.depositAddress,
+        },
+      });
+
+      // Show snackbar for conversion
+      showSnackbar({
+        type: 'pending',
+        action: 'conversion_turbo',
+      });
+    } catch (error) {
+      console.error('[WalletPage] Failed to initiate top-up:', error);
+      showToast('Failed to start top-up: ' + error.message, 'error');
+    }
+  };
+
   // Handle navigation param to open receive sheet
   React.useEffect(() => {
     if (route?.params?.openReceive) {
@@ -913,6 +969,16 @@ export default function WalletPage({ route }) {
         amountToConvert={conversionAmount}
         unitBalance={savedUnitBalance}
         newThreshold={pendingThreshold || 100}
+      />
+
+      {/* Low Ecash Balance Modal */}
+      <LowEcashBalanceModal
+        visible={showLowBalanceModal}
+        onClose={closeLowBalanceModal}
+        onConfirm={handleLowBalanceTopUp}
+        currentBalance={lowBalanceCurrentBalance}
+        defaultThreshold={lowBalanceDefaultThreshold}
+        amountNeeded={lowBalanceAmountNeeded}
       />
     </>
   );
