@@ -279,7 +279,7 @@ const linking = {
             }
             global.pendingTurboSnackbars.push({
               type: 'error',
-              action: 'swap',
+              action: 'claim',
               description: 'Token already claimed',
             });
             return;
@@ -532,7 +532,7 @@ export default function RootNavigator() {
       console.log('[TURBO] Loading cleared, showing success snackbar');
       showSnackbar({
         type: 'success',
-        action: 'swap',
+        action: 'claim',
         description: pendingSuccessMessage,
       });
       setPendingSuccessMessage(null);
@@ -599,9 +599,20 @@ export default function RootNavigator() {
               errorMessage = 'Failed to verify Turbo token signature';
             }
 
+            // Queue snackbar to ensure it shows even if component isn't ready yet
+            if (!global.pendingTurboSnackbars) {
+              global.pendingTurboSnackbars = [];
+            }
+            global.pendingTurboSnackbars.push({
+              type: 'error',
+              action: 'claim',
+              description: errorMessage,
+            });
+
+            // Also try to show immediately in case component is ready
             showSnackbar({
               type: 'error',
-              action: 'swap',
+              action: 'claim',
               description: errorMessage,
             });
           }
