@@ -32,6 +32,9 @@ export default function ConfirmationScreen({ navigation, route }) {
   const hasMintCompleted = useRef(false);
   const [turboDeeplink, setTurboDeeplink] = useState(null);
 
+  // Processing stages for Turbo transactions
+  const [processingStage, setProcessingStage] = useState('confirmed'); // 'confirmed' → 'converting' → 'ready'
+
   // Log all route params on mount for debugging
   useEffect(() => {
     console.log('[ConfirmationScreen] Mounted with route params:', route?.params);
@@ -82,6 +85,25 @@ export default function ConfirmationScreen({ navigation, route }) {
     }
   }, [turboToken, turboRecipient, turboAmount]);
 
+  // Stage transition: Show "Transaction confirmed" first, then start converting
+  useEffect(() => {
+    if (isTurbo && !skipMint && processingStage === 'confirmed') {
+      // Show "Transaction confirmed" for 1 second, then transition to converting
+      const timer = setTimeout(() => {
+        console.log('[ConfirmationScreen] Transitioning to converting stage');
+        setProcessingStage('converting');
+      }, 1000);
+      return () => clearTimeout(timer);
+    }
+  }, [isTurbo, skipMint, processingStage]);
+
+  // Set final stage when token is ready
+  useEffect(() => {
+    if (skipMint && turboToken) {
+      setProcessingStage('ready');
+    }
+  }, [skipMint, turboToken]);
+
   // Handle Turbo mint completion
   useEffect(() => {
     console.log('[ConfirmationScreen] Checking mint completion:', {
@@ -89,6 +111,7 @@ export default function ConfirmationScreen({ navigation, route }) {
       mintQuoteId,
       mintAmount,
       skipMint,
+      processingStage,
       hasMintCompleted: hasMintCompleted.current
     });
 
@@ -98,22 +121,17 @@ export default function ConfirmationScreen({ navigation, route }) {
       return;
     }
 
-    // NEW FLOW: Mint completion now happens in ProcessingScreen
-    // ConfirmationScreen only displays the result when skipMint=true
-    if (skipMint) {
-      console.log('[ConfirmationScreen] skipMint=true, mint already completed in ProcessingScreen');
-      return;
-    }
-
     // Only proceed if this is a Turbo flow with all required params
     if (!isTurbo) {
       console.log('[ConfirmationScreen] Not a Turbo transaction, skipping mint completion');
       return;
     }
 
-    // OLD LOGIC - This should not run anymore since ProcessingScreen handles it
-    console.warn('[ConfirmationScreen] WARNING: Old mint logic should not run! ProcessingScreen should handle conversion.');
-    return;
+    // Only start mint completion when we're in the 'converting' stage
+    if (processingStage !== 'converting') {
+      console.log('[ConfirmationScreen] Not in converting stage yet, waiting...');
+      return;
+    }
 
     if (!mintQuoteId || !mintAmount) {
       console.error('[ConfirmationScreen] MISSING REQUIRED PARAMS:', {
@@ -226,7 +244,8 @@ export default function ConfirmationScreen({ navigation, route }) {
             // Store token for display
             console.log('[ConfirmationScreen] 🎫 Setting turboToken state with token length:', token?.length);
             setTurboToken(token);
-            console.log('[ConfirmationScreen] 🎫 turboToken state has been set');
+            setProcessingStage('ready'); // Transition to ready stage
+            console.log('[ConfirmationScreen] 🎫 turboToken state has been set, transitioned to ready stage');
           }
 
           // Refresh balance
@@ -404,8 +423,9 @@ export default function ConfirmationScreen({ navigation, route }) {
     <View style={localStyles.container}>
       {/* Content */}
       <View style={localStyles.content}>
-        {/* Success icon - Green checkmark for regular tx, UNIT logo for Turbo */}
-        {!isCompletingMint && !skipMint && (
+        {/* Icon based on processing stage */}
+        {/* Stage 1: Transaction confirmed - Green checkmark */}
+        {processingStage === 'confirmed' && (
           <View style={localStyles.checkmarkContainer}>
             <View style={localStyles.checkmark}>
               <Icon name="checkmark" size={48} color={COLORS.SUCCESS_GREEN} />
@@ -413,7 +433,17 @@ export default function ConfirmationScreen({ navigation, route }) {
           </View>
         )}
 
-        {skipMint && (
+        {/* Stage 2: Converting - Blue spinner */}
+        {processingStage === 'converting' && (
+          <ActivityIndicator
+            size="large"
+            color={COLORS.PRIMARY_BLUE}
+            style={{ marginTop: 40, marginBottom: 40 }}
+          />
+        )}
+
+        {/* Stage 3: Ready - UNIT logo with lightning */}
+        {processingStage === 'ready' && (
           <View style={localStyles.checkmarkContainer}>
             <View style={localStyles.heroLogoContainer}>
               <Icon name="unit_logo" size={80} />
@@ -422,25 +452,18 @@ export default function ConfirmationScreen({ navigation, route }) {
           </View>
         )}
 
-        {/* Loading spinner during conversion */}
-        {isCompletingMint && !skipMint && (
-          <ActivityIndicator
-            size="large"
-            color={COLORS.PRIMARY_BLUE}
-            style={{ marginTop: 40, marginBottom: 40 }}
-          />
-        )}
-
+        {/* Title and subtitle based on stage */}
         <Text style={localStyles.title}>
-          {isCompletingMint ? 'Converting to TurboUNIT...' : (skipMint ? 'Turbo Token Ready' : 'Transaction Sent')}
+          {processingStage === 'confirmed' ? 'Transaction Confirmed' :
+           processingStage === 'converting' ? 'Converting to TurboUNIT' :
+           processingStage === 'ready' ? 'Turbo Token Ready' :
+           'Transaction Sent'}
         </Text>
         <Text style={localStyles.subtitle}>
-          {isCompletingMint
-            ? 'Waiting for payment confirmation and minting e-cash tokens...'
-            : (skipMint
-              ? 'Share this link with the recipient'
-              : 'Your transaction has been successfully broadcast to the network')
-          }
+          {processingStage === 'confirmed' ? 'Your transaction has been confirmed on the blockchain' :
+           processingStage === 'converting' ? 'Minting e-cash tokens and creating P2PK locked token...' :
+           processingStage === 'ready' ? 'Share this link with the recipient' :
+           'Your transaction has been successfully broadcast to the network'}
         </Text>
 
         {/* Turbo Token Action */}
