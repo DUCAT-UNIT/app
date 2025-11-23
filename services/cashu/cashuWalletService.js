@@ -453,11 +453,14 @@ export const receiveToken = async (tokenString) => {
 
     // If P2PK locked, verify token belongs to current account
     if (hasP2PKProofs) {
+      logger.info('⚠️ P2PK token detected, verifying account ownership');
+
       // Extract recipient pubkey from first P2PK proof
       let recipientPubkey = null;
       for (const proof of proofs) {
         if (isP2PKLocked(proof)) {
           recipientPubkey = getP2PKRecipient(proof.secret);
+          logger.info('⚠️ Extracted recipient pubkey:', recipientPubkey?.substring(0, 16) + '...');
           if (recipientPubkey) {
             break;
           }
@@ -465,22 +468,30 @@ export const receiveToken = async (tokenString) => {
       }
 
       if (recipientPubkey) {
+        // Get current account first to log it
+        const { getCurrentAccount } = await import('../secureStorageService.js');
+        const currentAccountIndex = await getCurrentAccount();
+        logger.info('⚠️ Current account index:', currentAccountIndex);
+
         // Find which account owns this pubkey
         const accountMatch = await findAccountForP2PKToken(recipientPubkey, 50);
 
         if (!accountMatch) {
+          logger.error('⚠️ No matching account found for P2PK token');
           throw new Error('This token is not locked to any of your accounts (checked 50 accounts). Make sure you are using the correct wallet.');
         }
 
-        // Check if token belongs to current account
-        const { getCurrentAccount } = await import('../secureStorageService.js');
-        const currentAccountIndex = await getCurrentAccount();
+        logger.info('⚠️ Token locked to account:', accountMatch.accountIndex);
+        logger.info('⚠️ Comparing accounts - current:', currentAccountIndex, 'token locked to:', accountMatch.accountIndex);
 
         if (accountMatch.accountIndex !== currentAccountIndex) {
+          logger.error('⚠️ ACCOUNT MISMATCH - blocking claim');
           throw new Error(`This proof belongs to account ${accountMatch.accountIndex + 1}. Please switch to that account to claim this token.`);
         }
 
-        logger.info('P2PK token verified for current account', { accountIndex: currentAccountIndex });
+        logger.info('✅ P2PK token verified for current account', { accountIndex: currentAccountIndex });
+      } else {
+        logger.warn('⚠️ Could not extract recipient pubkey from P2PK token');
       }
     }
 
