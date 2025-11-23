@@ -494,10 +494,19 @@ export default function WalletPage({ route }) {
       setShowConversionModal(false);
       setShowThresholdSheet(false);
 
-      // Close settings panel
+      // Close settings panel and dismiss navigation
       if (showSettings) {
         console.log('[WalletPage] Closing settings before navigation');
         closeSettings();
+
+        // Actually dismiss the Settings navigation screen
+        setTimeout(() => {
+          const parentNav = navigation.getParent();
+          if (parentNav && parentNav.canGoBack()) {
+            console.log('[WalletPage] Dismissing Settings navigation');
+            parentNav.goBack();
+          }
+        }, 100);
       }
 
       // Use setTimeout to ensure settings close animation completes
@@ -525,7 +534,7 @@ export default function WalletPage({ route }) {
           console.error('[WalletPage] Navigation error:', navError);
           showToast('Navigation failed: ' + navError.message, 'error');
         }
-      }, 500);
+      }, 600);
     } catch (error) {
       console.error('[WalletPage] Failed to initiate mint:', error);
       showToast('Failed to start conversion: ' + error.message, 'error');
