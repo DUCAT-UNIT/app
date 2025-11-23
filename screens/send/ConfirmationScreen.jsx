@@ -31,7 +31,6 @@ export default function ConfirmationScreen({ navigation, route }) {
   const [turboToken, setTurboToken] = useState(route?.params?.turboToken || null); // Store the P2PK locked token
   const hasMintCompleted = useRef(false);
   const [turboDeeplink, setTurboDeeplink] = useState(route?.params?.turboDeeplink || null);
-  const [mintStep, setMintStep] = useState(''); // Track detailed mint progress
 
   // Processing stages for Turbo transactions
   // If skipMint is true OR not turbo, go straight to 'ready', otherwise start at 'converting'
@@ -167,9 +166,9 @@ export default function ConfirmationScreen({ navigation, route }) {
         const { completeMint, sendP2PKToken } = await import('../../services/cashu/cashuWalletService');
         const { checkMintQuote } = await import('../../services/cashu/cashuMintClient');
         const { extractPubkeyFromTaprootAddress } = await import('../../utils/bitcoin');
+        console.log('[ConfirmationScreen] Starting to poll for payment confirmation');
 
         // Poll for payment confirmation
-        setMintStep('Waiting for payment confirmation...');
         let paidQuote = null;
         let attempts = 0;
         const maxAttempts = 30; // 30 seconds
@@ -187,15 +186,12 @@ export default function ConfirmationScreen({ navigation, route }) {
 
         if (paidQuote) {
           console.log('[ConfirmationScreen] Payment confirmed! Completing mint with amount:', paidQuote.amount);
-
           // Complete mint to get e-cash tokens - quote.amount is already in smallest units
-          setMintStep('Minting e-cash tokens...');
           await completeMint(mintQuoteId, paidQuote.amount);
           console.log('[ConfirmationScreen] Mint completed successfully');
 
           // If this is new Turbo mode (with turboRecipient), create P2PK locked token
           if (turboRecipient) {
-            setMintStep('Creating P2PK locked token...');
             console.log('[ConfirmationScreen] Creating P2PK locked token for recipient:', turboRecipient);
 
             // Get balance before creating token
@@ -241,12 +237,10 @@ export default function ConfirmationScreen({ navigation, route }) {
               const { saveSentLockedToken } = await import('../../services/cashu/cashuLockedTokensService');
 
               // Generate short URL first
-              setMintStep('Generating shareable link...');
               const shortUrl = await generateTurboDeeplink(token, turboRecipient, paidQuote.amount);
               console.log('[ConfirmationScreen] Generated short URL:', shortUrl);
 
               // Save token with short URL and taproot address
-              setMintStep('Saving token...');
               await saveSentLockedToken(token, turboRecipient, paidQuote.amount, broadcastedTxid, shortUrl, wallet.taprootAddress);
               console.log('[ConfirmationScreen] Token saved to persistent storage with short URL');
 
@@ -442,19 +436,31 @@ export default function ConfirmationScreen({ navigation, route }) {
     <View style={localStyles.container}>
       {/* Content */}
       <View style={localStyles.content}>
-        {/* Stage 1: Converting - Show exactly like ProcessingScreen */}
-        {(processingStage === 'converting' || isWaitingForTurboData) && (
+        {/* Icon based on processing stage */}
+        {/* Stage 0: Waiting for turbo data from ProcessingScreen */}
+        {isWaitingForTurboData && (
           <>
-            <ActivityIndicator size="large" color={COLORS.PRIMARY_BLUE} style={localStyles.spinner} />
+            <ActivityIndicator
+              size="large"
+              color={COLORS.PRIMARY_BLUE}
+              style={{ marginTop: 40, marginBottom: 40 }}
+            />
+            <Text style={localStyles.title}>Converting to TurboUNIT</Text>
+            <Text style={localStyles.subtitle}>Finalizing P2PK locked token...</Text>
+          </>
+        )}
+
+        {/* Stage 1: Converting - Match ProcessingScreen appearance exactly */}
+        {processingStage === 'converting' && (
+          <>
+            <ActivityIndicator size="large" color={COLORS.PRIMARY_BLUE} style={{ marginBottom: 24 }} />
             <Text style={localStyles.processingTitle}>Converting to TurboUNIT</Text>
-            <Text style={localStyles.processingMessage}>
-              {mintStep || 'Preparing transaction...'}
-            </Text>
+            <Text style={localStyles.processingMessage}>Minting e-cash tokens and creating P2PK locked token...</Text>
           </>
         )}
 
         {/* Stage 2: Ready - Show turbo icon or checkmark */}
-        {processingStage === 'ready' && !isWaitingForTurboData && (
+        {!isWaitingForTurboData && processingStage === 'ready' && (
           <>
             <View style={localStyles.checkmarkContainer}>
               {isTurbo && turboToken ? (
@@ -468,7 +474,6 @@ export default function ConfirmationScreen({ navigation, route }) {
                 </View>
               )}
             </View>
-
             <Text style={localStyles.title}>
               {isTurbo && turboToken ? 'Turbo Token Ready' : 'Transaction Sent'}
             </Text>
@@ -573,23 +578,6 @@ const localStyles = StyleSheet.create({
     justifyContent: 'center',
     paddingHorizontal: 40,
   },
-  spinner: {
-    marginBottom: 24,
-  },
-  processingTitle: {
-    fontSize: 24,
-    fontWeight: 'bold',
-    color: COLORS.VERY_LIGHT_GRAY,
-    fontFamily: 'CabinetGrotesk-Bold',
-    textAlign: 'center',
-    marginBottom: 12,
-  },
-  processingMessage: {
-    fontSize: 16,
-    color: COLORS.SECONDARY_TEXT,
-    fontFamily: 'CabinetGrotesk-Regular',
-    textAlign: 'center',
-  },
   checkmarkContainer: {
     marginBottom: 32,
   },
@@ -612,6 +600,22 @@ const localStyles = StyleSheet.create({
     right: -8,
     fontSize: 32,
   },
+  // Processing state styles - match ProcessingScreen exactly
+  processingTitle: {
+    fontSize: 24,
+    fontWeight: 'bold',
+    color: COLORS.VERY_LIGHT_GRAY,
+    fontFamily: 'CabinetGrotesk-Bold',
+    textAlign: 'center',
+    marginBottom: 12,
+  },
+  processingMessage: {
+    fontSize: 16,
+    color: COLORS.SECONDARY_TEXT,
+    fontFamily: 'CabinetGrotesk-Regular',
+    textAlign: 'center',
+  },
+  // Ready state styles
   title: {
     fontSize: 28,
     fontWeight: 'bold',
