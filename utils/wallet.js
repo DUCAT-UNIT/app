@@ -25,7 +25,7 @@ function getECPair() {
 }
 
 // SecureStore key prefix for derived keys (increment version to invalidate cache)
-const DERIVED_KEY_VERSION = 'v2_';
+const DERIVED_KEY_VERSION = 'v3_';  // v3: fixed to return internal pubkey instead of tweaked
 const DERIVED_KEY_PREFIX = 'derived_key_' + DERIVED_KEY_VERSION;
 
 /**
@@ -292,13 +292,12 @@ export async function signMessage(address, message) {
 
 /**
  * Get private key and x-only pubkey for a Taproot address (for P2PK Cashu tokens)
+ * Searches through accounts to find which one owns the address
  * @param {string} address - Taproot address (tb1p...)
- * @returns {Promise<Object>} { privateKey: string, xOnlyPubkey: string }
+ * @returns {Promise<Object>} { privateKey: string, xOnlyPubkey: string, accountIndex: number }
  */
 export async function getPrivateKeyForAddress(address) {
-  // Get current account index
-  const accountIndex = 0;
-  const cacheKey = `${DERIVED_KEY_PREFIX}${address}_${accountIndex}`;
+  const cacheKey = `${DERIVED_KEY_PREFIX}${address}`;
 
   // Check SecureStore cache first (saves ~4.5 seconds!)
   try {
@@ -311,7 +310,7 @@ export async function getPrivateKeyForAddress(address) {
     console.warn('[getPrivateKeyForAddress] Failed to read cache, will derive:', error.message);
   }
 
-  console.log('[getPrivateKeyForAddress] Cache miss, deriving key...');
+  console.log('[getPrivateKeyForAddress] Cache miss, searching for account that owns:', address);
 
   // Use withMnemonic to ensure proper cleanup of sensitive data
   const result = await withMnemonic(async (mnemonic) => {
@@ -319,57 +318,78 @@ export async function getPrivateKeyForAddress(address) {
     const seed = bip39.mnemonicToSeedSync(mnemonic);
     const root = bip32.fromSeed(seed, MUTINYNET_NETWORK);
 
-    // Determine derivation path based on address type
-    let derivationPath;
-    if (address.startsWith('tb1q')) {
-      derivationPath = `m/84'/1'/0'/0/${accountIndex}`;
-    } else if (address.startsWith('tb1p')) {
-      derivationPath = `m/86'/1'/0'/0/${accountIndex}`;
-    } else {
-      throw new Error(`Unsupported address type: ${address}`);
+    // Search through accounts to find which one owns this address
+    // Check up to 50 accounts (same as token scanning)
+    for (let accountIndex = 0; accountIndex < 50; accountIndex++) {
+      // Determine derivation path based on address type
+      let derivationPath;
+      if (address.startsWith('tb1q')) {
+        derivationPath = `m/84'/1'/0'/0/${accountIndex}`;
+      } else if (address.startsWith('tb1p')) {
+        derivationPath = `m/86'/1'/0'/0/${accountIndex}`;
+      } else {
+        throw new Error(`Unsupported address type: ${address}`);
+      }
+
+      const child = root.derivePath(derivationPath);
+
+      // For Taproot, derive the address and check if it matches
+      if (address.startsWith('tb1p')) {
+        const xOnlyPubkey = Buffer.from(child.publicKey.slice(1, 33));
+        const payment = bitcoin.payments.p2tr({
+          internalPubkey: xOnlyPubkey,
+          network: MUTINYNET_NETWORK,
+        });
+
+        if (payment.address === address) {
+          // Found the matching account!
+          const internalPubkeyHex = xOnlyPubkey.toString('hex');
+          const privateKeyHex = Buffer.from(child.privateKey).toString('hex');
+
+          console.log('[getPrivateKeyForAddress] Found matching account:', {
+            accountIndex,
+            address,
+            internalPubkey: internalPubkeyHex.substring(0, 16) + '...',
+            derivationPath,
+          });
+
+          // Return INTERNAL keys (not tweaked) for P2PK token locking
+          return {
+            privateKey: privateKeyHex,        // Internal private key (32 bytes)
+            xOnlyPubkey: internalPubkeyHex,  // Internal x-only pubkey (32 bytes)
+            accountIndex,                     // Which account owns this address
+          };
+        }
+      } else {
+        // SegWit
+        const ECPairInstance = getECPair();
+        const keyPair = ECPairInstance.fromPrivateKey(child.privateKey, { network: MUTINYNET_NETWORK });
+        const payment = bitcoin.payments.p2wpkh({
+          pubkey: keyPair.publicKey,
+          network: MUTINYNET_NETWORK,
+        });
+
+        if (payment.address === address) {
+          // Found matching SegWit account
+          const privateKeyHex = Buffer.from(child.privateKey).toString('hex');
+          const pubkeyHex = Buffer.from(keyPair.publicKey).toString('hex');
+
+          console.log('[getPrivateKeyForAddress] Found matching SegWit account:', {
+            accountIndex,
+            address,
+            derivationPath,
+          });
+
+          return {
+            privateKey: privateKeyHex,
+            xOnlyPubkey: pubkeyHex,  // For SegWit, return full pubkey
+            accountIndex,
+          };
+        }
+      }
     }
 
-    const child = root.derivePath(derivationPath);
-
-    // Debug logging
-    console.log('[getPrivateKeyForAddress] Derived child key:', {
-      hasPrivateKey: !!child.privateKey,
-      privateKeyLength: child.privateKey?.length,
-      publicKeyLength: child.publicKey?.length,
-      derivationPath,
-    });
-
-    // Ensure privateKey exists and is correct length
-    if (!child.privateKey || child.privateKey.length !== 32) {
-      throw new Error(`Invalid private key derived: length ${child.privateKey?.length || 0}, expected 32`);
-    }
-
-    // For Taproot, extract x-only pubkey and compute tweaked keys
-    const xOnlyPubkey = Buffer.from(child.publicKey.slice(1, 33));
-
-    // Compute the OUTPUT key that matches the address
-    const tweakedSigner = child.tweak(
-      bitcoin.crypto.taggedHash('TapTweak', xOnlyPubkey)
-    );
-
-    // Get the tweaked public key (OUTPUT key)
-    const tweakedPubkey = tweakedSigner.publicKey.slice(1, 33);
-    const outputKeyHex = Buffer.from(tweakedPubkey).toString('hex');
-
-    // Get the tweaked private key
-    const tweakedPrivkeyHex = Buffer.from(tweakedSigner.privateKey).toString('hex');
-
-    console.log('[getPrivateKeyForAddress] Computed tweaked keys:', {
-      internalPubkey: xOnlyPubkey.toString('hex').substring(0, 16) + '...',
-      outputPubkey: outputKeyHex.substring(0, 16) + '...',
-      tweakedPrivkeyLength: tweakedPrivkeyHex.length,
-    });
-
-    // Return tweaked private key and output public key
-    return {
-      privateKey: tweakedPrivkeyHex,
-      xOnlyPubkey: outputKeyHex  // This is the OUTPUT key that matches the address
-    };
+    throw new Error(`Address ${address} not found in first 50 accounts`);
   });
 
   // Cache the result in SecureStore (encrypted at rest)

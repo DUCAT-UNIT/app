@@ -199,15 +199,17 @@ export default function ConfirmationScreen({ navigation, route }) {
             const balanceBefore = await getBalance();
             console.log('[ConfirmationScreen] Balance before P2PK token creation:', balanceBefore);
 
-            // For P2PK, lock to the OUTPUT pubkey extracted from the recipient's Taproot address
-            // The Taproot address directly encodes the output pubkey (tweaked pubkey)
-            const { extractPubkeyFromTaprootAddress } = await import('../../utils/bitcoin');
-            const recipientPubkey = extractPubkeyFromTaprootAddress(turboRecipient);
+            // For P2PK, we need the INTERNAL x-only pubkey (not the tweaked output pubkey)
+            // P2PK signatures use the raw internal pubkey, not Taproot-tweaked pubkeys
+            // Since turboRecipient is within our own wallet, derive it properly
+            const { getPrivateKeyForAddress } = await import('../../utils/wallet');
+            const keyData = await getPrivateKeyForAddress(turboRecipient);
+            const recipientPubkey = keyData.xOnlyPubkey; // Internal x-only pubkey (32 bytes / 64 hex chars)
 
-            console.log('[ConfirmationScreen] Recipient pubkey for P2PK locking:', {
-              address: turboRecipient,
-              pubkey: recipientPubkey.substring(0, 16) + '...',
-            });
+            console.log('[ConfirmationScreen] 🔐 P2PK TOKEN CREATION:');
+            console.log('  Recipient address:', turboRecipient);
+            console.log('  FULL Internal pubkey for locking:', recipientPubkey);
+            console.log('  Pubkey length:', recipientPubkey.length);
 
             // Use quote amount directly (already in smallest units)
             console.log('[ConfirmationScreen] Creating P2PK token for amount (smallest units):', paidQuote.amount);

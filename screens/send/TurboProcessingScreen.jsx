@@ -46,11 +46,18 @@ export default function TurboProcessingScreen({ navigation, route }) {
         const amountInSmallestUnits = Math.round(parseFloat(sendAmount) * 100);
 
         const { sendP2PKToken } = await import('../../services/cashu/cashuWalletService');
-        const { extractPubkeyFromTaprootAddress } = await import('../../utils/bitcoin');
 
-        // Extract recipient's pubkey
-        const recipientPubkey = extractPubkeyFromTaprootAddress(sendRecipient);
-        logger.info('Extracted recipient pubkey:', recipientPubkey.substring(0, 16) + '...');
+        // FOR P2PK, we need the INTERNAL x-only pubkey (not the tweaked output pubkey)
+        // P2PK signatures use the raw internal pubkey, not Taproot-tweaked pubkeys
+        // Since sendRecipient is within our own wallet, derive it properly
+        const { getPrivateKeyForAddress } = await import('../../utils/wallet');
+        const keyData = await getPrivateKeyForAddress(sendRecipient);
+        const recipientPubkey = keyData.xOnlyPubkey; // Internal x-only pubkey (32 bytes / 64 hex chars)
+
+        logger.info('[TurboProcessingScreen] 🔐 P2PK TOKEN CREATION:');
+        logger.info('  Recipient address:', sendRecipient);
+        logger.info('  FULL Internal pubkey for locking:', recipientPubkey);
+        logger.info('  Pubkey length:', recipientPubkey.length);
 
         // Create P2PK locked token with progress callback
         logger.info('Calling sendP2PKToken...');

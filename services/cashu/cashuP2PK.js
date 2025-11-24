@@ -347,6 +347,7 @@ export const findAccountForP2PKToken = async (recipientPubkey, maxAccounts = 50,
     const root = bip32.fromSeed(seed, MUTINYNET_NETWORK);
 
     console.log('[findAccountForP2PKToken] Seed and root derived in', Date.now() - startTime, 'ms');
+    console.log('[findAccountForP2PKToken] Looking for pubkey:', recipientPubkey);
 
     // Check each account
     for (let idx = 0; idx < accountsToCheck.length; idx++) {
@@ -367,17 +368,26 @@ export const findAccountForP2PKToken = async (recipientPubkey, maxAccounts = 50,
         const xOnlyPubkey = taprootChild.publicKey.slice(1, 33);
         const xOnlyPubkeyHex = Buffer.from(xOnlyPubkey).toString('hex');
 
-        console.log(`[findAccountForP2PKToken] Checked account ${accountIndex} in ${Date.now() - checkStart}ms`);
+        // Derive address for logging
+        const taprootPayment = bitcoin.payments.p2tr({
+          internalPubkey: xOnlyPubkey,
+          network: MUTINYNET_NETWORK,
+        });
 
-        // Compare x-only pubkeys
+        console.log(`[findAccountForP2PKToken] Account ${accountIndex}: internal_pubkey=${xOnlyPubkeyHex.substring(0, 16)}... addr=${taprootPayment.address} (${Date.now() - checkStart}ms)`);
+
+        // Show full comparison for account 4 & 5 to debug
+        if (accountIndex === 4 || accountIndex === 5) {
+          console.log(`[findAccountForP2PKToken] 🔍 Account ${accountIndex} FULL COMPARISON:`);
+          console.log('  Derived internal pubkey:', xOnlyPubkeyHex);
+          console.log('  Looking for            :', recipientPubkey);
+          console.log('  Match?                 :', xOnlyPubkeyHex === recipientPubkey);
+          console.log('  Lengths                :', xOnlyPubkeyHex.length, 'vs', recipientPubkey.length);
+        }
+
+        // Compare internal x-only pubkeys (used for P2PK signing)
         if (xOnlyPubkeyHex === recipientPubkey) {
           console.log('[findAccountForP2PKToken] ✅ Found match at account index:', accountIndex);
-
-          // Derive the taproot address for this account
-          const taprootPayment = bitcoin.payments.p2tr({
-            internalPubkey: xOnlyPubkey,
-            network: MUTINYNET_NETWORK,
-          });
 
           // Get private key (32 bytes)
           const privateKey = Buffer.from(taprootChild.privateKey).toString('hex');

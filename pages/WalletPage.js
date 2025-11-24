@@ -64,7 +64,18 @@ export default function WalletPage({ route }) {
   const [conversionAmount, setConversionAmount] = useState(0);
   const [savedUnitBalance, setSavedUnitBalance] = useState(0);
   // Wallet context
-  const { wallet } = useWallet();
+  const walletContext = useWallet();
+  const { wallet, switchAccount } = walletContext;
+
+  // Debug: Log what we got from context
+  React.useEffect(() => {
+    logger.debug('[WalletPage] Wallet context loaded:', {
+      hasWallet: !!wallet,
+      hasSwitchAccount: !!switchAccount,
+      switchAccountType: typeof switchAccount,
+    });
+  }, [wallet, switchAccount]);
+
   const { vaultData } = require('../contexts/WalletDataContext').useVaultData();
 
   // Transaction contexts
@@ -147,15 +158,99 @@ export default function WalletPage({ route }) {
       navigation.setParams({ claimSuccess: undefined });
     } else if (route?.params?.claimError) {
       logger.debug('🎯 WalletPage showing error snackbar for claim');
-      showSnackbar({
+
+      const errorMessage = route.params.claimError;
+      const snackbarConfig = {
         type: 'error',
         action: 'claim',
-        description: route.params.claimError,
-      });
-      // Clear the param so it doesn't trigger again
-      navigation.setParams({ claimError: undefined });
+        description: errorMessage,
+      };
+
+      // Check if error is about wrong account - add switch button
+      if (errorMessage.includes('This proof belongs to account')) {
+        const accountMatch = errorMessage.match(/account (\d+)/);
+        if (accountMatch) {
+          const targetAccount = parseInt(accountMatch[1], 10);
+          const targetAccountIndex = targetAccount - 1;
+          const tokenToRetry = route.params.claimToken;
+
+          snackbarConfig.persistent = true;
+          snackbarConfig.actionLabel = `Switch & Claim`;
+          snackbarConfig.onAction = async () => {
+            try {
+              logger.info('[WalletPage] ========================================');
+              logger.info('[WalletPage] Switch & Claim button clicked!');
+              logger.info('[WalletPage] Target account:', targetAccountIndex);
+              logger.info('[WalletPage] Has token to retry:', !!tokenToRetry);
+              logger.info('[WalletPage] Token length:', tokenToRetry?.length);
+              logger.info('[WalletPage] dismissSnackbar type:', typeof dismissSnackbar);
+              logger.info('[WalletPage] ========================================');
+
+              if (!switchAccount) {
+                logger.error('[WalletPage] switchAccount is not available!');
+                showSnackbar({
+                  type: 'error',
+                  action: 'switch',
+                  description: 'Account switching not available',
+                });
+                return;
+              }
+
+              // Dismiss the error snackbar immediately
+              logger.info('[WalletPage] Calling dismissSnackbar...');
+              dismissSnackbar();
+              logger.info('[WalletPage] dismissSnackbar called');
+
+              logger.info('[WalletPage] Switching account...');
+              await switchAccount(targetAccountIndex);
+              logger.info('[WalletPage] Account switched successfully');
+
+              if (global.reloadWallet) {
+                logger.info('[WalletPage] Reloading wallet...');
+                global.reloadWallet();
+              }
+
+              // Clear the error params
+              logger.info('[WalletPage] Clearing route params...');
+              navigation.setParams({ claimError: undefined, claimToken: undefined });
+
+              // If we have a token, automatically retry claiming it
+              if (tokenToRetry) {
+                logger.info('[WalletPage] Will retry token claim after delay');
+                // Small delay to ensure wallet state is updated
+                setTimeout(() => {
+                  logger.info('[WalletPage] Navigating to TurboClaiming with token...');
+                  navigation.navigate('TurboClaiming', {
+                    tokenString: tokenToRetry,
+                  });
+                }, 100);
+              } else {
+                logger.warn('[WalletPage] No token to retry!');
+                showSnackbar({
+                  type: 'success',
+                  action: 'switch',
+                  description: `Switched to Account ${targetAccount}`,
+                });
+              }
+            } catch (err) {
+              logger.error('[WalletPage] Failed to switch account:', err);
+              showSnackbar({
+                type: 'error',
+                action: 'switch',
+                description: 'Failed to switch account',
+              });
+            }
+          };
+        }
+      }
+
+      showSnackbar(snackbarConfig);
+      // Clear the params so they don't trigger again (unless we're retrying)
+      if (!errorMessage.includes('This proof belongs to account')) {
+        navigation.setParams({ claimError: undefined, claimToken: undefined });
+      }
     }
-  }, [route?.params?.claimSuccess, route?.params?.claimError, showSnackbar, navigation]);
+  }, [route?.params?.claimSuccess, route?.params?.claimError, showSnackbar, navigation, switchAccount, dismissSnackbar]);
 
   // Navigation hooks
   const {

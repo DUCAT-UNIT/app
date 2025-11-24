@@ -85,7 +85,7 @@ export default function Snackbar({ params, onClose }) {
     });
   };
 
-  const { type = 'pending', action, title: overrideTitle, description, txid, clickAction } = params;
+  const { type = 'pending', action, title: overrideTitle, description, txid, clickAction, actionLabel, onAction } = params;
   const label = ACTION_LABELS[action] || 'Transaction';
   const title = overrideTitle || computeTitle(type, label);
   const icon = getSnackbarIcon(type);
@@ -108,9 +108,14 @@ export default function Snackbar({ params, onClose }) {
           <Text style={styles.title}>{title}</Text>
           {description && <Text style={styles.description}>{description}</Text>}
 
-          {(txid || clickAction) && (
+          {(txid || clickAction || onAction) && (
             <View style={styles.actionsContainer}>
-              {clickAction && (
+              {onAction && actionLabel && (
+                <TouchableOpacity onPress={onAction} style={styles.actionButton}>
+                  <Text style={styles.actionButtonText}>{actionLabel}</Text>
+                </TouchableOpacity>
+              )}
+              {clickAction && !onAction && (
                 <TouchableOpacity onPress={clickAction} style={styles.linkButton}>
                   <Feather name="external-link" size={16} color={COLORS.PRIMARY_BLUE} />
                   <Text style={styles.linkText}>
@@ -189,6 +194,18 @@ const styles = StyleSheet.create({
     fontSize: 14,
     fontFamily: 'CabinetGrotesk-Regular',
     color: COLORS.PRIMARY_BLUE,
+  },
+  actionButton: {
+    backgroundColor: COLORS.PRIMARY_BLUE,
+    paddingHorizontal: 16,
+    paddingVertical: 10,
+    borderRadius: 8,
+    alignSelf: 'flex-start',
+  },
+  actionButtonText: {
+    fontSize: 14,
+    fontFamily: 'CabinetGrotesk-Bold',
+    color: COLORS.WHITE,
   },
   closeButton: {
     alignItems: 'center',

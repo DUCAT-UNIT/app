@@ -162,11 +162,10 @@ const linking = {
             // Store new token
             global.pendingCashuToken = token;
             console.log('[TURBO] Stored NEW token, hash:', tokenHash.substring(0, 16) + '...');
+            console.log('[TURBO] Token stored - will be processed after authentication by polling');
 
-            // Immediately trigger check if function is available (app is open)
-            if (typeof global.triggerPendingTokenCheck === 'function') {
-              setTimeout(() => global.triggerPendingTokenCheck(), 100);
-            }
+            // Don't trigger immediately - let the polling pick it up after authentication
+            // This prevents processing before PIN/biometric is entered
           }
         }
       }
@@ -285,13 +284,11 @@ const linking = {
           // Store token for processing (if NOT already processed OR we just resumed)
           console.log('[TURBO] URL event: Storing token, hash:', tokenHash.substring(0, 16) + '...');
           console.log('[TURBO] URL event: skipDuplicateCheck:', skipDuplicateCheck, 'isAlreadyProcessed:', isAlreadyProcessed);
+          console.log('[TURBO] Token stored - will be processed after authentication by polling');
           if (typeof global !== 'undefined') {
             global.pendingCashuToken = token;
 
-            // Trigger check immediately
-            if (typeof global.triggerPendingTokenCheck === 'function') {
-              setTimeout(() => global.triggerPendingTokenCheck(), 100);
-            }
+            // Don't trigger immediately - let the polling pick it up after authentication
           }
         } catch (error) {
           console.error('[TURBO] URL event: Failed to decode base64 token:', error.message);
@@ -459,12 +456,10 @@ const linking = {
         if (typeof global !== 'undefined') {
           console.log('[TURBO] getStateFromPath: Storing token in global.pendingCashuToken, hash:', tokenHash.substring(0, 16) + '...');
           console.log('[TURBO] getStateFromPath: skipDuplicateCheck:', skipDuplicateCheck, 'isAlreadyProcessed:', isAlreadyProcessed);
+          console.log('[TURBO] Token stored - will be processed after authentication by polling');
           global.pendingCashuToken = token;
 
-          // Trigger check immediately if function is available
-          if (typeof global.triggerPendingTokenCheck === 'function') {
-            setTimeout(() => global.triggerPendingTokenCheck(), 100);
-          }
+          // Don't trigger immediately - let the polling pick it up after authentication
         }
       }
 
@@ -488,8 +483,10 @@ export default function RootNavigator() {
     biometricEnabled,
     setIsAuthenticated,
     authenticateUser,
+    showPinEntry,
+    showBiometricPrompt,
   } = useAuth();
-  const { wallet } = useWallet();
+  const { wallet, switchAccount } = useWallet();
   const { seedConfirmedRef } = useOnboardingFlow();
   const { fetchBalance } = useBalance();
   const { showToast, showSnackbar, dismissSnackbar } = useNotifications();
@@ -498,6 +495,20 @@ export default function RootNavigator() {
   // Token verification loading state
   const [isVerifyingToken, setIsVerifyingToken] = React.useState(false);
   const [pendingSuccessMessage, setPendingSuccessMessage] = React.useState(null);
+
+  // Track if we just came from background and are waiting for auth
+  const [waitingForAuth, setWaitingForAuth] = React.useState(false);
+
+  // Debug: Log authentication state changes
+  React.useEffect(() => {
+    console.log('[TURBO AUTH] State changed:', {
+      isAuthenticated,
+      showPinEntry,
+      showBiometricPrompt,
+      waitingForAuth,
+      hasPendingToken: !!global.pendingCashuToken,
+    });
+  }, [isAuthenticated, showPinEntry, showBiometricPrompt, waitingForAuth]);
 
   // Create wallet exists ref for useAppLifecycle
   const walletExists = React.useRef(false);
@@ -536,9 +547,16 @@ export default function RootNavigator() {
   }, [showSnackbar]);
 
   React.useEffect(() => {
+    // Don't show snackbars until authentication is complete
+    if (!isAuthenticated || shouldShowPinOverlay) {
+      console.log('[TURBO SNACKBAR] Not showing queued snackbars - waiting for auth');
+      return;
+    }
+
     const checkQueuedSnackbars = () => {
-      // Show any queued snackbars
+      // Show any queued snackbars (only after authentication)
       if (global.pendingTurboSnackbars && global.pendingTurboSnackbars.length > 0) {
+        console.log('[TURBO SNACKBAR] Showing queued snackbar');
         // Show only the last one to avoid spamming
         const lastSnackbar = global.pendingTurboSnackbars[global.pendingTurboSnackbars.length - 1];
         showSnackbarWithDedup(lastSnackbar);
@@ -574,7 +592,7 @@ export default function RootNavigator() {
       delete global.showTurboSnackbar;
       delete global.dismissTurboSnackbar;
     };
-  }, [showSnackbarWithDedup, dismissSnackbar]);
+  }, [isAuthenticated, shouldShowPinOverlay, showSnackbarWithDedup, dismissSnackbar]);
 
   // Show success snackbar when loading finishes
   React.useEffect(() => {
@@ -593,14 +611,25 @@ export default function RootNavigator() {
   const checkPendingTokenRef = React.useRef(null); // Store function ref so it can be called externally
 
   React.useEffect(() => {
+    // Don't set up token checking until user is fully authenticated and PIN overlay is hidden
+    // This prevents any processing during app auto-lock/authentication flow
+    if (!isAuthenticated || shouldShowPinOverlay) {
+      console.log('[TURBO] Not ready for token check:', {
+        isAuthenticated,
+        shouldShowPinOverlay,
+      });
+      return;
+    }
+
     const checkPendingToken = () => {
       // Debug logging
       if (global.pendingCashuToken) {
-        console.log('[TURBO] checkPendingToken: hasPendingToken=true, isAuthenticated=', isAuthenticated, 'isVerifyingToken=', isVerifyingToken);
+        console.log('[TURBO] checkPendingToken: hasPendingToken=true, isAuthenticated=', isAuthenticated, 'shouldShowPinOverlay=', shouldShowPinOverlay, 'isVerifyingToken=', isVerifyingToken);
       }
 
-      // Only process if authenticated, there's a pending token, and we're not already verifying
-      if (isAuthenticated && global.pendingCashuToken && !isVerifyingToken) {
+      // Only process if authenticated, PIN overlay is hidden, there's a pending token, and we're not already verifying
+      // This check is needed because the function can be called directly via global.triggerPendingTokenCheck()
+      if (isAuthenticated && !shouldShowPinOverlay && global.pendingCashuToken && !isVerifyingToken) {
         const token = global.pendingCashuToken;
 
         console.log('[TURBO] Processing token:', token.substring(0, 30) + '...');
@@ -647,18 +676,76 @@ export default function RootNavigator() {
 
             // Check for specific error messages
             let errorMessage = error.message || 'Failed to receive token';
-            if (errorMessage.includes('already spent') || errorMessage.includes('already been spent')) {
-              errorMessage = 'Token already claimed';
-            } else if (errorMessage.includes('P2PK verification failed')) {
-              errorMessage = 'Failed to verify Turbo token signature';
-            }
-
-            // Replace queue with only this snackbar (don't stack multiple)
-            global.pendingTurboSnackbars = [{
+            let snackbarConfig = {
               type: 'error',
               action: 'claim',
               description: errorMessage,
-            }];
+            };
+
+            if (errorMessage.includes('already spent') || errorMessage.includes('already been spent')) {
+              snackbarConfig.description = 'Token already claimed';
+            } else if (errorMessage.includes('P2PK verification failed')) {
+              snackbarConfig.description = 'Failed to verify Turbo token signature';
+            } else if (errorMessage.includes('This proof belongs to account')) {
+              // Extract account number from error message
+              const accountMatch = errorMessage.match(/account (\d+)/);
+              if (accountMatch) {
+                const targetAccount = parseInt(accountMatch[1], 10);
+                const targetAccountIndex = targetAccount - 1; // Convert from 1-based to 0-based
+
+                // Store the token so we can retry after account switch
+                const tokenToRetry = token;
+
+                snackbarConfig.description = errorMessage;
+                snackbarConfig.persistent = true; // Don't auto-dismiss
+                snackbarConfig.actionLabel = `Switch & Claim`;
+                snackbarConfig.onAction = async () => {
+                  try {
+                    console.log('[TURBO] ========================================');
+                    console.log('[TURBO] Switch & Claim button clicked!');
+                    console.log('[TURBO] Target account:', targetAccountIndex);
+                    console.log('[TURBO] Token to retry length:', tokenToRetry?.length);
+                    console.log('[TURBO] ========================================');
+
+                    // Dismiss the error snackbar immediately
+                    console.log('[TURBO] Dismissing snackbar...');
+                    dismissSnackbar();
+
+                    // Switch to the correct account
+                    console.log('[TURBO] Switching account...');
+                    await switchAccount(targetAccountIndex);
+                    console.log('[TURBO] Account switched successfully');
+
+                    // Reload the app state
+                    if (global.reloadWallet) {
+                      console.log('[TURBO] Reloading wallet...');
+                      global.reloadWallet();
+                    }
+
+                    // Wait for wallet to fully reload and settle after account switch
+                    console.log('[TURBO] Waiting for wallet to fully reload...');
+                    await new Promise(resolve => setTimeout(resolve, 1000));
+
+                    // Restore the token - it will be processed after wallet is ready
+                    console.log('[TURBO] Restoring token for processing...');
+                    global.pendingCashuToken = tokenToRetry;
+
+                    // The checkPendingToken polling will pick it up
+
+                  } catch (err) {
+                    console.error('[TURBO] Failed to switch account:', err);
+                    showSnackbar({
+                      type: 'error',
+                      action: 'switch',
+                      description: 'Failed to switch account',
+                    });
+                  }
+                };
+              }
+            }
+
+            // Replace queue with only this snackbar (don't stack multiple)
+            global.pendingTurboSnackbars = [snackbarConfig];
           }
         })();
       }
@@ -676,7 +763,7 @@ export default function RootNavigator() {
     return () => {
       clearInterval(interval);
     };
-  }, [isAuthenticated, receive, isVerifyingToken]);
+  }, [isAuthenticated, shouldShowPinOverlay, receive, isVerifyingToken]);
 
   // Expose checkPendingToken globally so linking config can trigger it
   React.useEffect(() => {

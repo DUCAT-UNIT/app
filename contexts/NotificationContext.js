@@ -111,18 +111,20 @@ export const NotificationProvider = ({ children }) => {
 
     setSnackbar({ ...snackbarParams, key: snackbarKeyRef.current });
 
-    // Auto-dismiss ALL notifications after 7 seconds
+    // Auto-dismiss notifications after 7 seconds (unless persistent)
     // Clear any existing timeout first
     if (snackbarTimeoutRef.current) {
       clearTimeout(snackbarTimeoutRef.current);
       snackbarTimeoutRef.current = null;
     }
 
-    // Set new timeout for all notifications
-    snackbarTimeoutRef.current = setTimeout(() => {
-      setSnackbar(null);
-      snackbarTimeoutRef.current = null;
-    }, 7000); // 7 seconds
+    // Only auto-dismiss if not persistent
+    if (!snackbarParams.persistent) {
+      snackbarTimeoutRef.current = setTimeout(() => {
+        setSnackbar(null);
+        snackbarTimeoutRef.current = null;
+      }, 7000); // 7 seconds
+    }
   }, []);
 
   const dismissSnackbar = useCallback(() => {
@@ -137,6 +139,12 @@ export const NotificationProvider = ({ children }) => {
     // Clear any queued turbo snackbars
     if (typeof global !== 'undefined' && global.pendingTurboSnackbars) {
       global.pendingTurboSnackbars = [];
+    }
+
+    // Clear any pending token so it doesn't retry when coming back to app
+    if (typeof global !== 'undefined' && global.pendingCashuToken) {
+      logger.debug('Clearing pending token on snackbar dismiss');
+      delete global.pendingCashuToken;
     }
 
     // Add cooldown period - block new snackbars for 500ms

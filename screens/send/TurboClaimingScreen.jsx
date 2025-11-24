@@ -146,8 +146,10 @@ export default function TurboClaimingScreen({ navigation, route }) {
         }
 
         // Navigate back with error - snackbar will be shown by parent screen
+        // Pass the token string so it can be retried after account switch
         navigation.navigate('Wallet', {
           claimError: error.message,
+          claimToken: tokenString,
         });
       }
     };
