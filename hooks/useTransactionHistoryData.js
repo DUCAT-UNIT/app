@@ -10,6 +10,7 @@ import { calculateTransactionAmount } from '../services/transactionHistoryServic
 import { getTxUrl, getOrdTxUrl } from '../utils/constants';
 import { useNavigationHandlers } from '../contexts/NavigationHandlersContext';
 import { getSentLockedTokens } from '../services/cashu/cashuLockedTokensService';
+import { logger } from '../utils/logger';
 
 export function useTransactionHistoryData(
   showHistorySheet,

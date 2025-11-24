@@ -1,0 +1,1205 @@
+import * as SecureStore from 'expo-secure-store';
+import { logger } from '../../utils/logger';
+import {
+  createMintQuote,
+  checkMintQuote,
+  mintTokens as mintTokensAPI,
+  swapTokens as swapTokensAPI,
+  createMeltQuote,
+  meltTokens as meltTokensAPI,
+  MINT_URL,
+} from './cashuMintClient';
+import {
+  createBlindedOutputs,
+  unblindSignatures,
+  splitAmount,
+  sumProofs,
+  selectProofsForAmount,
+  encodeToken,
+  decodeToken,
+  generateSecret,
+  createBlindedMessage,
+} from './cashuCrypto';
+import {
+  createP2PKSecret,
+  isP2PKSecret,
+  isP2PKLocked,
+  signP2PKProofs,
+  signP2PKSecret,
+  getP2PKRecipient,
+  findAccountForP2PKToken,
+  getP2PKPrivateKey,
+} from './cashuP2PK';
+import { getCurrentAccount } from '../secureStorageService';
+import { getSentLockedTokens } from './cashuLockedTokensService';
+import { getOrFetchKeys, getBalance } from './cashuBalanceService';
+import { loadProofs, saveProofs, addProofs, removeProofs } from './cashuProofManager';
+
+/**
+ * Cashu Token Operations
+ * High-level token operations for minting, melting, sending, and receiving
+ * Extracted from cashuWalletService.js for better separation of concerns
+ */
+
+/**
+ * Request mint (deposit Runes to get Cashu tokens)
+ * Step 1: Create quote and get deposit address
+ *
+ * @param {number} amount - Amount in sats
+ * @returns {Promise<Object>} Quote with deposit address
+ */
+export const requestMint = async (amount) => {
+  try {
+    logger.info('Requesting mint', { amount, type: typeof amount });
+
+    const quote = await createMintQuote(amount);
+
+    logger.info('Mint quote received from mint', {
+      quoteId: quote.quote,
+      requestedAmount: amount,
+      quoteAmount: quote.amount,
+      depositAddress: quote.request,
+    });
+
+    return {
+      quoteId: quote.quote,
+      amount: quote.amount,
+      depositAddress: quote.request, // Taproot address
+      expiry: quote.expiry,
+      state: quote.state,
+    };
+  } catch (error) {
+    logger.error('Failed to request mint', { error: error.message });
+    throw error;
+  }
+};
+
+/**
+ * Check if deposit has been paid
+ * @param {string} quoteId - Quote ID
+ * @returns {Promise<Object>} Quote status
+ */
+export const checkMintStatus = async (quoteId) => {
+  try {
+    const quote = await checkMintQuote(quoteId);
+    logger.info('Mint quote status checked', {
+      quoteId: quote.quote,
+      state: quote.state,
+      fullQuote: quote
+    });
+    return {
+      quoteId: quote.quote,
+      state: quote.state,
+      paid: quote.state === 'PAID' || quote.state === 'ISSUED',
+    };
+  } catch (error) {
+    logger.error('Failed to check mint status', { error: error.message });
+    throw error;
+  }
+};
+
+/**
+ * Mint tokens after deposit is confirmed
+ * Step 2: Create blinded outputs and get signatures from mint
+ *
+ * @param {string} quoteId - Quote ID
+ * @param {number} amount - Amount to mint
+ * @returns {Promise<Array>} New Cashu proofs
+ */
+export const completeMint = async (quoteId, amount) => {
+  try {
+    logger.info('Completing mint', { quoteId, amount });
+
+    // Get keys first to determine keyset ID
+    const keyData = await getOrFetchKeys();
+    logger.info('Fetched key data', {
+      hasKeysets: !!keyData.keysets,
+      keysetsCount: keyData.keysets?.length,
+      firstKeysetId: keyData.keysets?.[0]?.id
+    });
+
+    // Extract keyset ID and keys from the response
+    // Response format: { keysets: [{id, unit, keys}] }
+    let keysetId;
+    let keys;
+
+    if (keyData.keysets && keyData.keysets.length > 0) {
+      keysetId = keyData.keysets[0].id;
+      keys = keyData.keysets[0].keys;
+    } else {
+      // Fallback for old format (should not happen after cache fix)
+      keys = keyData.keys || keyData;
+    }
+
+    // Validate that we have a keyset ID
+    if (!keysetId) {
+      throw new Error('No keysets available from mint. Please clear Cashu cache in Settings and try again.');
+    }
+
+    logger.info('Using keyset ID', { keysetId });
+
+    // Split into denominations
+    logger.info('Amount received for splitting', { amount, type: typeof amount });
+    const amounts = splitAmount(amount);
+    logger.info('Split amounts', { amounts, total: amounts.reduce((a, b) => a + b, 0) });
+
+    // Create blinded outputs with keyset ID
+    const { outputs, blindingData } = await createBlindedOutputs(amounts, keysetId);
+
+    // Get blind signatures from mint
+    const response = await mintTokensAPI(quoteId, outputs);
+
+    // Unblind to create proofs
+    const proofs = unblindSignatures(
+      response.signatures,
+      blindingData,
+      keys,
+      response.signatures[0]?.id || keysetId
+    );
+
+    // Save to wallet
+    await addProofs(proofs);
+
+    logger.info('Mint completed', { proofCount: proofs.length });
+    return proofs;
+  } catch (error) {
+    logger.error('Failed to complete mint', { error: error.message });
+    throw error;
+  }
+};
+
+/**
+ * Receive Cashu token (from QR code or paste)
+ * Validates proofs haven't been spent and swaps them to prevent double-spending
+ * @param {string} tokenString - Encoded Cashu token
+ * @returns {Promise<Object>} Received amount and proofs
+ */
+export const receiveToken = async (tokenString) => {
+  try {
+    const perfStart = Date.now();
+    logger.info('[PERF] receiveToken started');
+
+    // Decode token
+    const t1 = Date.now();
+    const decoded = decodeToken(tokenString);
+    logger.info('[PERF] Token decode took:', Date.now() - t1, 'ms');
+
+    if (!decoded || !decoded.proofs || !Array.isArray(decoded.proofs)) {
+      throw new Error('Invalid token format');
+    }
+
+    const { mint, proofs, amount } = decoded;
+
+    // Verify mint matches
+    if (mint !== MINT_URL) {
+      throw new Error(`Token from different mint: ${mint}`);
+    }
+
+    // Check if we already have any of these proofs (prevent duplicate receives)
+    const t2 = Date.now();
+    const existingProofs = await loadProofs();
+    const existingSecrets = new Set(existingProofs.map(p => p.secret));
+    const hasDuplicate = proofs.some(p => existingSecrets.has(p.secret));
+    logger.info('[PERF] Duplicate check took:', Date.now() - t2, 'ms');
+
+    if (hasDuplicate) {
+      throw new Error('Token already received');
+    }
+
+    // Check if any proofs are P2PK locked (do this first, it's fast)
+    const t3 = Date.now();
+    const hasP2PKProofs = proofs.some(p => isP2PKLocked(p));
+    logger.info('[PERF] P2PK detection took:', Date.now() - t3, 'ms');
+
+    // If P2PK locked, verify token belongs to current account
+    if (hasP2PKProofs) {
+      logger.info('⚠️ P2PK token detected, verifying account ownership');
+
+      // Extract recipient pubkey from first P2PK proof
+      let recipientPubkey = null;
+      for (const proof of proofs) {
+        if (isP2PKLocked(proof)) {
+          recipientPubkey = getP2PKRecipient(proof.secret);
+          logger.info('⚠️ Extracted recipient pubkey:', recipientPubkey?.substring(0, 16) + '...');
+          if (recipientPubkey) {
+            break;
+          }
+        }
+      }
+
+      if (recipientPubkey) {
+        // Get current account first to log it
+        const currentAccountIndex = await getCurrentAccount();
+        logger.info('⚠️ Current account index:', currentAccountIndex);
+
+        // Find which account owns this pubkey
+        const accountMatch = await findAccountForP2PKToken(recipientPubkey, 50);
+
+        if (!accountMatch) {
+          logger.error('⚠️ No matching account found for P2PK token');
+          throw new Error('This token is not locked to any of your accounts (checked 50 accounts). Make sure you are using the correct wallet.');
+        }
+
+        logger.info('⚠️ Token locked to account:', accountMatch.accountIndex);
+        logger.info('⚠️ Comparing accounts - current:', currentAccountIndex, 'token locked to:', accountMatch.accountIndex);
+
+        if (accountMatch.accountIndex !== currentAccountIndex) {
+          logger.error('⚠️ ACCOUNT MISMATCH - blocking claim');
+          throw new Error(`This proof belongs to account ${accountMatch.accountIndex + 1}. Please switch to that account to claim this token.`);
+        }
+
+        logger.info('✅ P2PK token verified for current account', { accountIndex: currentAccountIndex });
+      } else {
+        logger.warn('⚠️ Could not extract recipient pubkey from P2PK token');
+      }
+    }
+
+    // Parallelize independent operations (removed spent check - swap will fail if spent)
+    const t4 = Date.now();
+    const [keyData, privateKey] = await Promise.all([
+      // 1. Get mint keys (network call or cache)
+      (async () => {
+        const t4b = Date.now();
+        logger.info('Getting mint keys');
+        const result = await getOrFetchKeys();
+        logger.info('[PERF] getOrFetchKeys took:', Date.now() - t4b, 'ms');
+        return result;
+      })(),
+
+      // 2. Get private key if P2PK (only if needed)
+      hasP2PKProofs ? (async () => {
+        const t4c = Date.now();
+        logger.info('P2PK locked proofs detected, getting private key');
+
+        // Get cached taproot address and private key
+        const privateKey = await getP2PKPrivateKey();
+
+        logger.info('[PERF] getP2PKPrivateKey took:', Date.now() - t4c, 'ms');
+        return privateKey;
+      })() : null
+    ]);
+    logger.info('[PERF] Parallel operations (getKeys + deriveKey) took:', Date.now() - t4, 'ms');
+
+    // Extract keys from keyData
+    let keys, keysetId;
+    if (keyData.keysets && keyData.keysets.length > 0) {
+      keysetId = keyData.keysets[0].id;
+      keys = keyData.keysets[0].keys;
+    } else {
+      keys = keyData.keys || keyData;
+    }
+
+    let proofsToSwap = proofs;
+
+    // If P2PK locked, sign them with the private key we already got
+    if (hasP2PKProofs && privateKey) {
+      const t5 = Date.now();
+      logger.info('Signing P2PK proofs');
+      proofsToSwap = await signP2PKProofs(proofs, privateKey);
+      logger.info('[PERF] P2PK signing took:', Date.now() - t5, 'ms');
+    }
+
+    // Create new blinded outputs for the same amounts
+    // Use the actual sum in smallest units, not the display amount
+    const t6 = Date.now();
+    const totalSmallestUnits = proofs.reduce((sum, proof) => sum + proof.amount, 0);
+    const amounts = splitAmount(totalSmallestUnits);
+    const { outputs, blindingData } = await createBlindedOutputs(amounts, keysetId);
+    logger.info('[PERF] Create blinded outputs took:', Date.now() - t6, 'ms');
+
+    // Swap: give received proofs (signed if P2PK), get new proofs
+    const t7 = Date.now();
+    logger.info('Swapping tokens', { inputCount: proofsToSwap.length, outputCount: outputs.length });
+    const response = await swapTokensAPI(proofsToSwap, outputs);
+    logger.info('[PERF] Swap API call took:', Date.now() - t7, 'ms');
+
+    // Unblind to create our new proofs
+    const t8 = Date.now();
+    const newProofs = unblindSignatures(
+      response.signatures,
+      blindingData,
+      keys,
+      response.signatures[0]?.id || keysetId
+    );
+    logger.info('[PERF] Unblind signatures took:', Date.now() - t8, 'ms');
+
+    // Add swapped proofs to wallet
+    const t9 = Date.now();
+    await addProofs(newProofs);
+    logger.info('[PERF] Save proofs took:', Date.now() - t9, 'ms');
+
+    logger.info('[PERF] TOTAL receiveToken took:', Date.now() - perfStart, 'ms');
+    logger.info('Token received and swapped', { amount, proofCount: newProofs.length });
+
+    return {
+      amount,
+      proofCount: newProofs.length,
+    };
+  } catch (error) {
+    logger.error('Failed to receive token', { error: error.message });
+    throw error;
+  }
+};
+
+/**
+ * Send Cashu token
+ * Creates a token that can be shared via QR code or text
+ *
+ * @param {number} amount - Amount to send
+ * @param {boolean} returnChange - Whether to create change proofs
+ * @returns {Promise<Object>} Encoded token and remaining balance
+ */
+export const sendToken = async (amount, returnChange = true) => {
+  try {
+    logger.info('Sending token', { amount, returnChange });
+
+    // Select proofs
+    const allProofs = await loadProofs();
+    const selectedProofs = selectProofsForAmount(allProofs, amount);
+    const selectedAmount = sumProofs(selectedProofs);
+
+    logger.info('Selected proofs', {
+      selected: selectedAmount,
+      needed: amount,
+      proofCount: selectedProofs.length,
+    });
+
+    let proofsToSend = selectedProofs;
+    let changeProofs = [];
+
+    // If we need to create change
+    if (returnChange && selectedAmount > amount) {
+      const changeAmount = selectedAmount - amount;
+      logger.info('Creating change', { changeAmount });
+
+      // Get keys first to determine keyset ID
+      const keyData = await getOrFetchKeys();
+      let keys, keysetId;
+      if (keyData.keysets && keyData.keysets.length > 0) {
+        keysetId = keyData.keysets[0].id;
+        keys = keyData.keysets[0].keys;
+      } else {
+        keys = keyData.keys || keyData;
+      }
+
+      // Split into send + change amounts
+      const sendAmounts = splitAmount(amount);
+      const changeAmounts = splitAmount(changeAmount);
+
+      // Create blinded outputs for both
+      const { outputs, blindingData } = await createBlindedOutputs([
+        ...sendAmounts,
+        ...changeAmounts,
+      ], keysetId);
+
+      // Swap with mint
+      const response = await swapTokensAPI(selectedProofs, outputs);
+
+      // Unblind all
+      const allNewProofs = unblindSignatures(
+        response.signatures,
+        blindingData,
+        keys,
+        response.signatures[0]?.id || keysetId
+      );
+
+      // Split into send and change
+      proofsToSend = allNewProofs.slice(0, sendAmounts.length);
+      changeProofs = allNewProofs.slice(sendAmounts.length);
+
+      logger.info('Swap completed', {
+        sendProofs: proofsToSend.length,
+        changeProofs: changeProofs.length,
+      });
+    }
+
+    // Remove spent proofs, add change
+    await removeProofs(selectedProofs);
+    if (changeProofs.length > 0) {
+      await addProofs(changeProofs);
+    }
+
+    // Encode token for sending
+    const token = encodeToken(proofsToSend, MINT_URL);
+
+    const newBalance = await getBalance();
+
+    logger.info('Token created', { amount, newBalance });
+
+    return {
+      token,
+      amount: sumProofs(proofsToSend),
+      balance: newBalance,
+    };
+  } catch (error) {
+    logger.error('Failed to send token', { error: error.message });
+    throw error;
+  }
+};
+
+/**
+ * Redeem tokens for Runes (melt)
+ * Step 1: Create melt quote
+ *
+ * @param {string} address - Taproot address to send Runes to
+ * @param {number} amount - Amount in sats
+ * @returns {Promise<Object>} Melt quote with fee
+ */
+export const requestMelt = async (address, amount) => {
+  try {
+    logger.info('Requesting melt', { address, amount });
+
+    const quote = await createMeltQuote(address, amount);
+
+    return {
+      quoteId: quote.quote,
+      amount: quote.amount,
+      fee: quote.fee_reserve,
+      total: quote.amount + quote.fee_reserve,
+    };
+  } catch (error) {
+    logger.error('Failed to request melt', { error: error.message });
+    throw error;
+  }
+};
+
+/**
+ * Complete melt (redeem tokens for Runes)
+ * Step 2: Send proofs to mint and get Runes
+ *
+ * @param {string} quoteId - Melt quote ID
+ * @param {number} totalAmount - Total amount including fee
+ * @returns {Promise<Object>} Payment result with txid
+ */
+export const completeMelt = async (quoteId, totalAmount) => {
+  let selectedProofs = null;
+  let changeProofs = null;
+  let didSwap = false;
+
+  try {
+    logger.info('Completing melt', { quoteId, totalAmount });
+
+    // Select proofs
+    const allProofs = await loadProofs();
+
+    // Debug: Log the proofs we're about to use
+    logger.info('Proofs loaded for melt', {
+      count: allProofs.length,
+      proofIds: allProofs.map(p => ({ amount: p.amount, id: p.id, secretPreview: p.secret?.substring(0, 8) }))
+    });
+
+    selectedProofs = selectProofsForAmount(allProofs, totalAmount);
+    const selectedAmount = sumProofs(selectedProofs);
+
+    // If we have change, swap first
+    let proofsToMelt = selectedProofs;
+
+    if (selectedAmount > totalAmount) {
+      const changeAmount = selectedAmount - totalAmount;
+      logger.info('Creating change for melt', { changeAmount });
+
+      // Get keys first to determine keyset ID
+      const keyData = await getOrFetchKeys();
+      let keys, keysetId;
+      if (keyData.keysets && keyData.keysets.length > 0) {
+        keysetId = keyData.keysets[0].id;
+        keys = keyData.keysets[0].keys;
+      } else {
+        keys = keyData.keys || keyData;
+      }
+
+      const meltAmounts = splitAmount(totalAmount);
+      const changeAmounts = splitAmount(changeAmount);
+
+      const { outputs, blindingData } = await createBlindedOutputs([
+        ...meltAmounts,
+        ...changeAmounts,
+      ], keysetId);
+
+      // CRITICAL: After this swap, selectedProofs are spent with the mint
+      // If melt fails after this, we MUST save changeProofs to avoid fund loss
+      const response = await swapTokensAPI(selectedProofs, outputs);
+      didSwap = true;
+
+      const allNewProofs = unblindSignatures(
+        response.signatures,
+        blindingData,
+        keys,
+        response.signatures[0]?.id || keysetId
+      );
+
+      proofsToMelt = allNewProofs.slice(0, meltAmounts.length);
+      changeProofs = allNewProofs.slice(meltAmounts.length);
+
+      // DON'T remove/add proofs yet - wait for melt confirmation
+    }
+
+    // Melt tokens - this is the critical step that broadcasts the transaction
+    const result = await meltTokensAPI(quoteId, proofsToMelt);
+
+    // ONLY NOW that melt succeeded, remove the spent proofs
+    if (changeProofs) {
+      // Had change: remove old proofs, add change
+      await removeProofs(selectedProofs);
+      await addProofs(changeProofs);
+      logger.info('Melt succeeded - removed old proofs and added change', {
+        removedCount: selectedProofs.length,
+        changeCount: changeProofs.length,
+      });
+    } else {
+      // No change: just remove the proofs
+      await removeProofs(selectedProofs);
+      logger.info('Melt succeeded - removed spent proofs', { count: selectedProofs.length });
+    }
+
+    const newBalance = await getBalance();
+
+    logger.info('Melt completed', {
+      paid: result.paid,
+      txid: result.payment_preimage,
+      newBalance,
+    });
+
+    return {
+      paid: result.paid,
+      txid: result.payment_preimage,
+      fee: result.fee_paid || 0,
+      balance: newBalance,
+    };
+  } catch (error) {
+    logger.error('Failed to complete melt', { error: error.message, didSwap });
+
+    // CRITICAL: If we swapped for change but melt failed, we MUST save the change proofs
+    // The old proofs are already spent with the mint after the swap
+    if (didSwap && changeProofs && selectedProofs) {
+      logger.warn('Melt failed after swap - saving change proofs to prevent fund loss');
+      try {
+        await removeProofs(selectedProofs);
+        await addProofs(changeProofs);
+        logger.info('Successfully saved change proofs after melt failure', {
+          changeCount: changeProofs.length,
+        });
+      } catch (saveError) {
+        logger.error('CRITICAL: Failed to save change proofs after melt failure!', {
+          error: saveError.message,
+          changeProofsCount: changeProofs.length,
+        });
+        // Still throw the original error, but user needs to know about this
+      }
+    }
+
+    throw error;
+  }
+};
+
+/**
+ * Complete melt without removing proofs - for fuse flow
+ * Returns the proofs that need to be removed so caller can wait for tx confirmation
+ * @param {string} quoteId - Melt quote ID
+ * @param {number} totalAmount - Total amount to melt
+ * @returns {Promise<Object>} Result with proofsToRemove and changeProofs
+ */
+export const completeMeltWithoutCleanup = async (quoteId, totalAmount) => {
+  let selectedProofs = null;
+  let changeProofs = null;
+  let didSwap = false;
+
+  try {
+    logger.info('Completing melt without cleanup', { quoteId, totalAmount });
+
+    // Select proofs
+    const allProofs = await loadProofs();
+    selectedProofs = selectProofsForAmount(allProofs, totalAmount);
+    const selectedAmount = sumProofs(selectedProofs);
+
+    // If we have change, swap first
+    let proofsToMelt = selectedProofs;
+
+    if (selectedAmount > totalAmount) {
+      const changeAmount = selectedAmount - totalAmount;
+      logger.info('Creating change for melt', { changeAmount });
+
+      const keyData = await getOrFetchKeys();
+      let keys, keysetId;
+      if (keyData.keysets && keyData.keysets.length > 0) {
+        keysetId = keyData.keysets[0].id;
+        keys = keyData.keysets[0].keys;
+      } else {
+        keys = keyData.keys || keyData;
+      }
+
+      const meltAmounts = splitAmount(totalAmount);
+      const changeAmounts = splitAmount(changeAmount);
+
+      const { outputs, blindingData } = await createBlindedOutputs([
+        ...meltAmounts,
+        ...changeAmounts,
+      ], keysetId);
+
+      const response = await swapTokensAPI(selectedProofs, outputs);
+      didSwap = true;
+
+      const allNewProofs = unblindSignatures(
+        response.signatures,
+        blindingData,
+        keys,
+        response.signatures[0]?.id || keysetId
+      );
+
+      proofsToMelt = allNewProofs.slice(0, meltAmounts.length);
+      changeProofs = allNewProofs.slice(meltAmounts.length);
+    }
+
+    // Melt tokens
+    const result = await meltTokensAPI(quoteId, proofsToMelt);
+
+    logger.info('Melt completed without cleanup', {
+      paid: result.paid,
+      txid: result.payment_preimage,
+    });
+
+    // Return the proofs that need to be removed later
+    // IMPORTANT: If we swapped for change, we need to remove ALL old proofs (selectedProofs)
+    // because they were already swapped. The proofsToMelt and changeProofs are the NEW proofs.
+    // But proofsToMelt was spent in the melt, so we only keep changeProofs.
+    return {
+      paid: result.paid,
+      txid: result.payment_preimage,
+      fee: result.fee_paid || 0,
+      proofsToRemove: didSwap ? [...selectedProofs] : proofsToMelt,
+      changeProofs: changeProofs,
+    };
+  } catch (error) {
+    logger.error('Failed to complete melt without cleanup', { error: error.message, didSwap });
+
+    // CRITICAL: If we swapped for change but melt failed, we MUST save the change proofs
+    if (didSwap && changeProofs && selectedProofs) {
+      logger.warn('Melt failed after swap - saving change proofs to prevent fund loss');
+      try {
+        await removeProofs(selectedProofs);
+        await addProofs(changeProofs);
+        logger.info('Successfully saved change proofs after melt failure');
+      } catch (saveError) {
+        logger.error('CRITICAL: Failed to save change proofs after melt failure!', {
+          error: saveError.message,
+        });
+      }
+    }
+
+    throw error;
+  }
+};
+
+/**
+ * Clean up proofs after melt transaction is confirmed
+ * @param {Array} proofsToRemove - Proofs to remove
+ * @param {Array} changeProofs - Change proofs to add (can be null)
+ */
+export const cleanupMeltProofs = async (proofsToRemove, changeProofs) => {
+  try {
+    if (changeProofs) {
+      await removeProofs(proofsToRemove);
+      await addProofs(changeProofs);
+      logger.info('Cleaned up melt proofs with change', {
+        removedCount: proofsToRemove.length,
+        changeCount: changeProofs.length,
+      });
+    } else {
+      await removeProofs(proofsToRemove);
+      logger.info('Cleaned up melt proofs', { count: proofsToRemove.length });
+    }
+  } catch (error) {
+    logger.error('Failed to cleanup melt proofs', { error: error.message });
+    throw error;
+  }
+};
+
+/**
+ * Send P2PK locked token (NUT-11)
+ * Lock tokens to recipient's public key - only they can spend
+ *
+ * @param {number} amount - Amount to send
+ * @param {string} recipientPubkey - Recipient's public key (hex)
+ * @param {Object} options - Optional P2PK parameters
+ * @returns {Promise<Object>} { token, amount, balance }
+ */
+export const sendP2PKToken = async (amount, recipientPubkey, options = {}, onProgress) => {
+  try {
+    const totalSteps = 4; // Selecting, Creating secrets, Swapping, Saving
+    let currentStep = 0;
+
+    logger.info('Sending P2PK locked token', { amount, recipientPubkey: recipientPubkey.substring(0, 16) + '...' });
+
+
+    // Step 1: Select proofs
+    if (onProgress) onProgress(++currentStep, totalSteps, 'Selecting proofs');
+
+    // Select proofs - ONLY use unlocked proofs (filter out P2PK locked proofs)
+    const allProofs = await loadProofs();
+    logger.info('Loaded all proofs for P2PK send', { count: allProofs.length });
+
+    const unlockedProofs = allProofs.filter(p => !isP2PKSecret(p.secret));
+    logger.info('Filtered unlocked proofs', { unlocked: unlockedProofs.length, locked: allProofs.length - unlockedProofs.length });
+
+    logger.info('Proof selection for P2PK token', {
+      totalProofs: allProofs.length,
+      unlockedProofs: unlockedProofs.length,
+      lockedProofs: allProofs.length - unlockedProofs.length,
+    });
+
+    const selectedProofs = selectProofsForAmount(unlockedProofs, amount);
+    // Get total in smallest units (don't use sumProofs which divides by 100)
+    const selectedAmount = selectedProofs.reduce((sum, proof) => sum + proof.amount, 0);
+
+    logger.info('Selected proofs for P2PK token', {
+      requested: amount,
+      selected: selectedAmount,
+      proofCount: selectedProofs.length,
+    });
+
+    // Get keys
+    const keyData = await getOrFetchKeys();
+    let keys, keysetId;
+    if (keyData.keysets && keyData.keysets.length > 0) {
+      keysetId = keyData.keysets[0].id;
+      keys = keyData.keysets[0].keys;
+    } else {
+      keys = keyData.keys || keyData;
+    }
+
+    // Step 2: Create P2PK secrets
+    if (onProgress) onProgress(++currentStep, totalSteps, 'Creating P2PK secrets');
+
+    // Create P2PK secrets for the send amount
+    const sendAmounts = splitAmount(amount);
+    const p2pkSecrets = [];
+
+    for (const amt of sendAmounts) {
+      const p2pkSecret = await createP2PKSecret(recipientPubkey, options);
+      p2pkSecrets.push(p2pkSecret);
+    }
+
+    // If we have change, create normal secrets for change
+    let changeSecrets = [];
+    let changeAmounts = [];
+    if (selectedAmount > amount) {
+      const changeAmount = selectedAmount - amount;
+      logger.info('Creating change for P2PK token', { changeAmount });
+      changeAmounts = splitAmount(changeAmount);
+
+      for (const amt of changeAmounts) {
+        const secret = await generateSecret();
+        changeSecrets.push(secret);
+      }
+    }
+
+    // CRITICAL: Verify amounts match before swap
+    const totalSendAmount = sendAmounts.reduce((sum, amt) => sum + amt, 0);
+    const totalChangeAmount = changeAmounts.reduce((sum, amt) => sum + amt, 0);
+    const totalOutputAmount = totalSendAmount + totalChangeAmount;
+
+    logger.info('SWAP AMOUNT VERIFICATION', {
+      selectedAmount,
+      requestedSend: amount,
+      sendAmounts,
+      changeAmounts,
+      totalSendAmount,
+      totalChangeAmount,
+      totalOutputAmount,
+      match: selectedAmount === totalOutputAmount,
+    });
+
+    if (selectedAmount !== totalOutputAmount) {
+      throw new Error(`Amount mismatch: input=${selectedAmount}, output=${totalOutputAmount}, diff=${selectedAmount - totalOutputAmount}`);
+    }
+
+    // Track which secrets are P2PK vs normal (for identification after sorting)
+    // This is needed because createBlindedOutputsWithSecrets sorts outputs by amount for privacy
+    const secretTypeMap = new Map();
+    p2pkSecrets.forEach(secret => secretTypeMap.set(secret, 'p2pk'));
+    changeSecrets.forEach(secret => secretTypeMap.set(secret, 'change'));
+
+    // Create blinded outputs using our custom secrets
+    // CRITICAL: Secrets and amounts arrays MUST match 1:1
+    const allSecrets = [...p2pkSecrets, ...changeSecrets];
+    const allAmounts = [...sendAmounts, ...changeAmounts];
+
+    logger.info('Blinded output arrays', {
+      secretsCount: allSecrets.length,
+      amountsCount: allAmounts.length,
+      sendAmounts,
+      changeAmounts,
+      p2pkSecretsCount: p2pkSecrets.length,
+      changeSecretsCount: changeSecrets.length,
+    });
+
+    const { outputs, blindingData } = await createBlindedOutputsWithSecrets(allSecrets, allAmounts, keysetId);
+
+    // Step 3: Swap with mint
+    if (onProgress) onProgress(++currentStep, totalSteps, 'Swapping with mint');
+
+    // Swap with mint
+    const response = await swapTokensAPI(selectedProofs, outputs);
+
+    // Unblind all
+    const allNewProofs = unblindSignatures(
+      response.signatures,
+      blindingData,
+      keys,
+      response.signatures[0]?.id || keysetId
+    );
+
+    // Split into send and change using secret type instead of array slicing
+    // This works correctly even after sorting because we identify by the secret itself
+    const proofsToSend = allNewProofs.filter(proof => secretTypeMap.get(proof.secret) === 'p2pk');
+    const changeProofs = allNewProofs.filter(proof => secretTypeMap.get(proof.secret) === 'change');
+
+    // Debug logging for proof amounts and secret types
+    const sendTotal = proofsToSend.reduce((sum, p) => sum + p.amount, 0);
+    const changeTotal = changeProofs.reduce((sum, p) => sum + p.amount, 0);
+    logger.info('P2PK token split details', {
+      requestedAmount: amount,
+      selectedAmount,
+      sendProofs: proofsToSend.length,
+      sendTotal,
+      changeProofs: changeProofs.length,
+      changeTotal,
+      totalReturned: sendTotal + changeTotal,
+      difference: selectedAmount - (sendTotal + changeTotal),
+    });
+
+    // Log secret types to verify correct identification
+    logger.info('Send proof secret types', {
+      secrets: proofsToSend.map(p => p.secret.substring(0, 50)),
+      areAllP2PK: proofsToSend.every(p => p.secret.startsWith('["P2PK"'))
+    });
+    logger.info('Change proof secret types', {
+      secrets: changeProofs.map(p => p.secret.substring(0, 50)),
+      areAllNormal: changeProofs.every(p => !p.secret.startsWith('["P2PK"'))
+    });
+
+    // Step 4: Save to wallet
+    if (onProgress) onProgress(++currentStep, totalSteps, 'Saving to wallet');
+
+    // Remove spent proofs, add change
+    await removeProofs(selectedProofs);
+    if (changeProofs.length > 0) {
+      await addProofs(changeProofs);
+      logger.info('Change proofs added back to wallet', {
+        count: changeProofs.length,
+        total: changeTotal,
+        secrets: changeProofs.map(p => p.secret.substring(0, 20) + '...'),
+      });
+    }
+
+    // Encode token for sending (P2PK locked)
+    const token = encodeToken(proofsToSend, MINT_URL);
+
+    const newBalance = await getBalance();
+
+    logger.info('P2PK token created', { amount, locked: true, newBalance, balanceChange: newBalance - (await loadProofs().then(sumProofs) - selectedAmount) });
+
+    return {
+      token,
+      amount: sumProofs(proofsToSend),
+      balance: newBalance,
+    };
+  } catch (error) {
+    logger.error('Failed to send P2PK token', { error: error.message });
+    throw error;
+  }
+};
+
+/**
+ * Receive and spend P2PK locked token (NUT-11)
+ * Provide your private key to unlock and claim the tokens
+ *
+ * @param {string} tokenString - Encoded P2PK token
+ * @param {string} privateKey - Your private key to unlock the token (hex)
+ * @returns {Promise<Object>} { amount, proofCount }
+ */
+export const receiveP2PKToken = async (tokenString, privateKey, onProgress) => {
+  try {
+    const totalSteps = 6; // Decoding, Signing, Getting keys, Creating outputs, Swapping, Saving
+    let currentStep = 0;
+
+    logger.info('Receiving P2PK locked token', {
+      privateKeyLength: privateKey?.length,
+      privateKeyType: typeof privateKey,
+      privateKeyPreview: typeof privateKey === 'string' ? privateKey.substring(0, 16) + '...' : 'not a string',
+    });
+
+
+    // Step 1: Decode token
+    if (onProgress) onProgress(++currentStep, totalSteps, 'Decoding token');
+    const decoded = decodeToken(tokenString);
+
+    if (!decoded || !decoded.proofs || !Array.isArray(decoded.proofs)) {
+      throw new Error('Invalid token format');
+    }
+
+    const { mint, proofs, amount } = decoded;
+
+    // Verify mint matches
+    if (mint !== MINT_URL) {
+      throw new Error(`Token from different mint: ${mint}`);
+    }
+
+    // Check if proofs are P2PK locked
+    const p2pkProofs = proofs.filter(p => isP2PKSecret(p.secret));
+    if (p2pkProofs.length === 0) {
+      throw new Error('Token does not contain P2PK locked proofs');
+    }
+
+    logger.info('Signing P2PK proofs with private key', { proofCount: p2pkProofs.length });
+
+    // Step 2: Sign proofs
+    if (onProgress) onProgress(++currentStep, totalSteps, 'Signing proofs');
+
+    // Sign each P2PK proof with our private key
+    const signedProofs = await Promise.all(
+      proofs.map(async (proof) => {
+        if (isP2PKSecret(proof.secret)) {
+          // Create witness signature
+          const witness = await signP2PKSecret(proof.secret, privateKey);
+          return {
+            ...proof,
+            witness
+          };
+        } else {
+          // Non-P2PK proof, no witness needed
+          return proof;
+        }
+      })
+    );
+
+    // Get keys
+    const keyData = await getOrFetchKeys();
+    let keys, keysetId;
+    if (keyData.keysets && keyData.keysets.length > 0) {
+      keysetId = keyData.keysets[0].id;
+      keys = keyData.keysets[0].keys;
+    } else {
+      keys = keyData.keys || keyData;
+    }
+
+    // Swap the P2PK proofs for regular proofs (this will verify the witness)
+    // Use the actual sum in smallest units, not the display amount
+    const totalSmallestUnits = signedProofs.reduce((sum, proof) => sum + proof.amount, 0);
+    const amounts = splitAmount(totalSmallestUnits);
+    const { outputs, blindingData } = await createBlindedOutputs(amounts, keysetId);
+
+    // Swap: give signed P2PK proofs, get regular proofs
+    const response = await swapTokensAPI(signedProofs, outputs);
+
+    // Unblind to create our new proofs
+    const newProofs = unblindSignatures(
+      response.signatures,
+      blindingData,
+      keys,
+      response.signatures[0]?.id || keysetId
+    );
+
+    // Add to wallet
+    await addProofs(newProofs);
+
+    logger.info('P2PK token received and unlocked', { amount, proofCount: newProofs.length });
+
+    return {
+      amount,
+      proofCount: newProofs.length,
+    };
+  } catch (error) {
+    logger.error('Failed to receive P2PK token', {
+      error: error.message,
+      stack: error.stack,
+      privateKeyLength: privateKey?.length,
+      privateKeyType: typeof privateKey,
+    });
+
+    // Enhanced error message with diagnostic info
+    let enhancedError = new Error(error.message);
+    enhancedError.originalError = error;
+
+    // Add diagnostic details to error message for debugging
+    if (error.message.includes('P2PK verification failed') || error.message.includes('Swap failed')) {
+      const diagnostics = [];
+
+      // Check private key validity
+      if (!privateKey) {
+        diagnostics.push('Private key is missing');
+      } else if (typeof privateKey !== 'string') {
+        diagnostics.push(`Private key type is ${typeof privateKey} (expected string)`);
+      } else if (privateKey.length !== 64) {
+        diagnostics.push(`Private key length is ${privateKey.length} chars (expected 64)`);
+      }
+
+      // Add device info for debugging
+      const Platform = require('react-native').Platform;
+      diagnostics.push(`Platform: ${Platform.OS} ${Platform.Version}`);
+
+      if (diagnostics.length > 0) {
+        enhancedError.message = `${error.message}\n\nDiagnostics:\n${diagnostics.map(d => `• ${d}`).join('\n')}`;
+      }
+    }
+
+    throw enhancedError;
+  }
+};
+
+/**
+ * Helper: Create blinded outputs with custom secrets (for P2PK)
+ */
+const createBlindedOutputsWithSecrets = async (secrets, amounts, keysetId) => {
+  const outputs = [];
+  const blindingData = [];
+
+  if (secrets.length !== amounts.length) {
+    throw new Error('Secrets and amounts length mismatch');
+  }
+
+  for (let i = 0; i < secrets.length; i++) {
+    const secret = secrets[i];
+    const amount = amounts[i];
+
+    const blindedMsg = await createBlindedMessage(secret);
+
+    const output = {
+      amount,
+      B_: blindedMsg.B_,
+    };
+
+    if (keysetId) {
+      output.id = keysetId;
+    }
+
+    outputs.push(output);
+
+    blindingData.push({
+      amount,
+      secret: secret,
+      r: blindedMsg.r,
+      B_: blindedMsg.B_,
+    });
+  }
+
+  // Sort outputs by amount for privacy (NUT-03)
+  const combined = outputs.map((output, i) => ({
+    output,
+    blindingData: blindingData[i]
+  }));
+
+  combined.sort((a, b) => a.output.amount - b.output.amount);
+
+  return {
+    outputs: combined.map(c => c.output),
+    blindingData: combined.map(c => c.blindingData)
+  };
+};
+
+/**
+ * Recover incorrectly locked change proofs
+ * This swaps P2PK locked proofs that aren't in the sent tokens history back to normal proofs
+ * @returns {Promise<Object>} { recovered: number, amount: number }
+ */
+export const recoverLockedChange = async () => {
+  try {
+
+    // Get all proofs in wallet
+    const allProofs = await loadProofs();
+    const existingSecrets = new Set(allProofs.map(p => p.secret));
+
+    // Get sent token history
+    const sentTokens = await getSentLockedTokens();
+
+    logger.info('Starting change recovery', {
+      walletProofs: allProofs.length,
+      sentTokens: sentTokens.length,
+    });
+
+    // Extract change proofs from sent tokens
+    let totalChangeProofs = [];
+    let totalChangeAmount = 0;
+
+    for (const tokenData of sentTokens) {
+      try {
+        const decoded = decodeToken(tokenData.token);
+
+        // Separate P2PK locked proofs (intended for recipient) from normal proofs (change)
+        const changeProofs = decoded.proofs.filter(p => !isP2PKSecret(p.secret));
+        const lockedProofs = decoded.proofs.filter(p => isP2PKSecret(p.secret));
+
+        if (changeProofs.length > 0) {
+          const changeAmount = sumProofs(changeProofs);
+          totalChangeAmount += changeAmount;
+
+          logger.info('Found change in sent token', {
+            tokenId: tokenData.id,
+            totalProofs: decoded.proofs.length,
+            changeProofs: changeProofs.length,
+            changeAmount,
+            lockedProofs: lockedProofs.length,
+            lockedAmount: sumProofs(lockedProofs),
+          });
+
+          // Only add change proofs that aren't already in wallet
+          const newChangeProofs = changeProofs.filter(p => !existingSecrets.has(p.secret));
+          totalChangeProofs.push(...newChangeProofs);
+        }
+      } catch (error) {
+        logger.warn('Failed to decode sent token', {
+          tokenId: tokenData.id,
+          error: error.message
+        });
+      }
+    }
+
+    if (totalChangeProofs.length === 0) {
+      logger.info('No change proofs found to recover');
+      return {
+        recovered: 0,
+        amount: 0,
+        message: 'No change proofs found in sent tokens',
+      };
+    }
+
+    logger.info('Recovering change proofs', {
+      changeProofs: totalChangeProofs.length,
+      changeAmount: sumProofs(totalChangeProofs),
+    });
+
+    // Add change proofs to wallet
+    await addProofs(totalChangeProofs);
+
+    const recoveredAmount = sumProofs(totalChangeProofs);
+
+    logger.info('Successfully recovered change proofs', {
+      recovered: totalChangeProofs.length,
+      amount: recoveredAmount,
+    });
+
+    return {
+      recovered: totalChangeProofs.length,
+      amount: recoveredAmount,
+      message: `Recovered ${recoveredAmount} UNIT from ${totalChangeProofs.length} change proofs!`,
+    };
+  } catch (error) {
+    logger.error('Failed to recover change proofs', { error: error.message });
+    throw error;
+  }
+};
+
+export default {
+  requestMint,
+  checkMintStatus,
+  completeMint,
+  receiveToken,
+  sendToken,
+  requestMelt,
+  completeMelt,
+  completeMeltWithoutCleanup,
+  cleanupMeltProofs,
+  sendP2PKToken,
+  receiveP2PKToken,
+  recoverLockedChange,
+};

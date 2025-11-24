@@ -7,6 +7,7 @@
 import { useState, useEffect, useRef } from 'react';
 import { calculateTransactionAmount } from '../services/transactionHistoryService';
 import { getSentLockedTokens } from '../services/cashu/cashuLockedTokensService';
+import { logger } from '../utils/logger';
 
 /**
  * Hook to filter and process transactions by asset type
