@@ -45,7 +45,7 @@ export const NavigationHandlersProvider = ({ children, walletExists }) => {
   const { setSeedConfirmed } = useOnboardingFlow();
   const { requestingSeedPhrase, loadSeedPhrase, requestViewSeedPhrase } = useSeedPhrase();
   const { showToast, showSnackbar } = useNotifications();
-  const { clearVaultCredentials } = useVault();
+  const { clearVaultCredentials, setActiveTab } = useVault();
 
   // Post-authentication handler
   const { handlePostAuth } = usePostAuthHandler({
@@ -111,7 +111,11 @@ export const NavigationHandlersProvider = ({ children, walletExists }) => {
     setNewAccountIndex,
     switchingAccount,
     switchAccount,
-  } = useAccountSwitcher({ switchAccountContext, fetchBalance });
+  } = useAccountSwitcher({
+    switchAccountContext,
+    fetchBalance,
+    onAccountSwitched: () => setActiveTab('wallet'),
+  });
 
   // Passkey migration modal state (for showing after wallet import)
   const [showPasskeyMigrationModal, setShowPasskeyMigrationModal] = useState(false);
