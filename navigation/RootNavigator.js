@@ -651,7 +651,8 @@ export default function RootNavigator() {
             // Save received token to transaction history
             try {
               const { saveReceivedToken } = await import('../services/cashu/cashuLockedTokensService');
-              await saveReceivedToken(token, 'Turbo Claim', result.amount, wallet?.taprootAddress);
+              // Multiply amount by 100 for display units
+              await saveReceivedToken(token, 'Turbo Claim', result.amount * 100, wallet?.taprootAddress);
               console.log('[TURBO] Saved received token to transaction history');
             } catch (err) {
               console.warn('[TURBO] Failed to save received token to history:', err.message);
@@ -737,9 +738,6 @@ export default function RootNavigator() {
                     console.log('[TURBO] Switching account...');
                     await switchAccount(targetAccountIndex);
                     console.log('[TURBO] Account switched successfully');
-
-                    // Show toast notification
-                    showToast(`Switched to Account ${targetAccount}`, 'success');
 
                     // Reload the app state
                     if (global.reloadWallet) {

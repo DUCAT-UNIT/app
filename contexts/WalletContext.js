@@ -2,6 +2,7 @@ import React, { createContext, useContext, useState, useCallback, useMemo } from
 import * as SecureStore from 'expo-secure-store';
 import * as WalletService from '../services/walletService';
 import { SECURE_KEYS } from '../utils/constants';
+import { useNotifications } from './NotificationContext';
 
 const WalletContext = createContext();
 
@@ -14,6 +15,9 @@ export const useWallet = () => {
 };
 
 export const WalletProvider = ({ children }) => {
+  // Get toast notifications
+  const { showToast } = useNotifications();
+
   // Wallet state
   const [wallet, setWallet] = useState(null); // { segwitAddress, taprootAddress, taprootPubkey }
   const [currentAccount, setCurrentAccount] = useState(0);
@@ -90,11 +94,14 @@ export const WalletProvider = ({ children }) => {
         console.warn('[WalletContext] Failed to clear P2PK cache:', error.message);
       }
 
+      // Show toast notification
+      showToast(`Switched to Account ${accountIndex + 1}`, 'success');
+
       return addresses;
     } catch (error) {
       throw error;
     }
-  }, []);
+  }, [showToast]);
 
   // Memoize the value object to prevent unnecessary re-renders
   const value = useMemo(
