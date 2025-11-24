@@ -1,0 +1,167 @@
+import { useState, useEffect, useRef, useCallback } from 'react';
+import { logger } from '../utils/logger';
+
+/**
+ * Hook to handle Turbo mint completion flow
+ * - Polls for payment confirmation
+ * - Completes mint to get e-cash tokens
+ * - Creates P2PK locked token for recipient
+ * - Generates shortened URL deeplink
+ * - Manages processing stages
+ */
+export function useTurboMintCompletion({
+  isTurbo,
+  mintQuoteId,
+  mintAmount,
+  turboRecipient,
+  skipMint,
+  fetchTransactionHistory,
+  refreshCashuBalance,
+  showSnackbar,
+  showToast,
+}) {
+  const [turboToken, setTurboToken] = useState(null);
+  const [turboDeeplink, setTurboDeeplink] = useState(null);
+  const [processingStage, setProcessingStage] = useState(
+    (skipMint || !isTurbo) ? 'ready' : 'converting'
+  );
+  const [isCompletingMint, setIsCompletingMint] = useState(false);
+  const hasMintCompleted = useRef(false);
+
+  useEffect(() => {
+    logger.debug('[useTurboMintCompletion] Checking mint completion:', {
+      isTurbo,
+      skipMint,
+      mintQuoteId,
+      hasMintCompleted: hasMintCompleted.current,
+      processingStage,
+    });
+
+    // Only proceed if this is a Turbo flow that needs mint completion
+    if (!isTurbo || skipMint || !mintQuoteId) {
+      logger.debug('[useTurboMintCompletion] Not a turbo mint flow, skipping');
+      return;
+    }
+
+    if (hasMintCompleted.current) {
+      logger.debug('[useTurboMintCompletion] Mint already completed, skipping');
+      return;
+    }
+
+    hasMintCompleted.current = true;
+    logger.debug('[useTurboMintCompletion] Starting mint completion process');
+
+    const completeMintProcess = async () => {
+      setIsCompletingMint(true);
+      try {
+        const { completeMint } = await import('../services/cashu/cashuWalletService');
+        const { checkMintQuote } = await import('../services/cashu/cashuMintClient');
+        logger.debug('[useTurboMintCompletion] Starting to poll for payment confirmation');
+
+        // Poll for payment confirmation
+        let paidQuote = null;
+        let attempts = 0;
+        const maxAttempts = 30; // 30 seconds
+
+        while (!paidQuote && attempts < maxAttempts) {
+          await new Promise(resolve => setTimeout(resolve, 1000));
+          const quote = await checkMintQuote(mintQuoteId);
+          logger.debug(`[useTurboMintCompletion] Check ${attempts + 1}/${maxAttempts}:`, quote);
+          if (quote.state === 'PAID' || quote.state === 'ISSUED') {
+            paidQuote = quote;
+            break;
+          }
+          attempts++;
+        }
+
+        if (paidQuote) {
+          logger.debug('[useTurboMintCompletion] Payment confirmed! Completing mint with amount:', paidQuote.amount);
+          // Complete mint to get e-cash tokens - quote.amount is already in smallest units
+          const proofs = await completeMint(mintQuoteId, paidQuote.amount);
+          logger.debug('[useTurboMintCompletion] Mint completed successfully, received proofs:', proofs?.length);
+
+          // If we have a turbo recipient, create a P2PK locked token
+          if (turboRecipient) {
+            try {
+              logger.debug('[useTurboMintCompletion] Creating P2PK locked token for recipient:', turboRecipient);
+              const { sendP2PKToken } = await import('../services/cashu/operations/cashuSendP2PK');
+              const { extractPubkeyFromAddress } = await import('../utils/bitcoin');
+              const { storeSentP2PKToken } = await import('../services/cashu/cashuLockedTokensService');
+              const { generateShortToken } = await import('../services/cashu/shortTokenService');
+
+              // Extract pubkey from P2TR address
+              const recipientPubkey = extractPubkeyFromAddress(turboRecipient);
+              logger.debug('[useTurboMintCompletion] Extracted recipient pubkey:', recipientPubkey);
+
+              if (!recipientPubkey) {
+                throw new Error('Failed to extract pubkey from recipient address');
+              }
+
+              // Send exactly the mint amount as P2PK locked token
+              logger.debug('[useTurboMintCompletion] 🎫 Creating P2PK token for amount:', mintAmount);
+              const token = await sendP2PKToken(mintAmount, recipientPubkey, 'Turbo transaction');
+              logger.debug('[useTurboMintCompletion] 🎫 P2PK token created:', token?.substring(0, 50));
+
+              // Generate shortened URL for the token
+              const shortUrl = await generateShortToken(token);
+              logger.debug('[useTurboMintCompletion] 🔗 Generated short URL:', shortUrl);
+              setTurboDeeplink(shortUrl);
+
+              // Store the sent P2PK token
+              await storeSentP2PKToken({
+                token,
+                recipientPubkey,
+                amount: mintAmount,
+                memo: 'Turbo transaction',
+                timestamp: Date.now(),
+              });
+              logger.debug('[useTurboMintCompletion] 🎫 P2PK token stored successfully');
+
+              // Store token for display
+              logger.debug('[useTurboMintCompletion] 🎫 Setting turboToken state with token length:', token?.length);
+              setTurboToken(token);
+              setProcessingStage('ready'); // Transition to ready stage
+              logger.debug('[useTurboMintCompletion] 🎫 turboToken state has been set, transitioned to ready stage');
+            } catch (storageError) {
+              logger.error('[useTurboMintCompletion] Failed to generate/save token:', storageError);
+              // Non-critical error - continue anyway
+            }
+          }
+
+          // Refresh balance
+          await fetchTransactionHistory();
+
+          setIsCompletingMint(false);
+
+          // Refresh cashu balance to reflect the new tokens
+          await refreshCashuBalance();
+          logger.debug('[useTurboMintCompletion] Cashu balance refreshed');
+
+          // Different message based on whether this is address-bound or regular Turbo
+          if (turboRecipient) {
+            showSnackbar({ type: 'success', action: 'send' });
+          } else {
+            showSnackbar({ type: 'success', action: 'convert' });
+          }
+        } else {
+          logger.debug('[useTurboMintCompletion] Payment not confirmed after 30 seconds');
+          setIsCompletingMint(false);
+          showToast('Payment sent. E-cash will be available once confirmed.', 'info');
+        }
+      } catch (error) {
+        logger.error('[useTurboMintCompletion] Error during mint completion:', error);
+        setIsCompletingMint(false);
+        showToast(`Failed to complete conversion: ${error.message}`, 'error');
+      }
+    };
+
+    completeMintProcess();
+  }, [isTurbo, mintQuoteId, mintAmount, turboRecipient, skipMint, fetchTransactionHistory, refreshCashuBalance, showSnackbar, showToast]);
+
+  return {
+    turboToken,
+    turboDeeplink,
+    processingStage,
+    isCompletingMint,
+  };
+}
