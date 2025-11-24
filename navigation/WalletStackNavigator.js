@@ -5,20 +5,87 @@
 
 import React from 'react';
 import { createStackNavigator } from '@react-navigation/stack';
-import WalletPage from '../pages/WalletPage';
-import AssetDetailScreen from '../screens/wallet/AssetDetailScreen';
-import ReceiveQRScreen from '../screens/wallet/ReceiveQRScreen';
-import CashuReceiveScreen from '../screens/cashu/CashuReceiveScreen';
-import CashuSendScreen from '../screens/cashu/CashuSendScreen';
-import RecoverMintScreen from '../screens/wallet/RecoverMintScreen';
-import TurboHistoryScreen from '../screens/settings/TurboHistoryScreen';
-import TurboQRCodeScreen from '../screens/settings/TurboQRCodeScreen';
-import CashuSettingsScreen from '../screens/settings/CashuSettingsScreen';
-import AboutScreen from '../screens/settings/AboutScreen';
-import PreferencesScreen from '../screens/settings/PreferencesScreen';
-import SecurityScreen from '../screens/settings/SecurityScreen';
-import AdvancedScreen from '../screens/settings/AdvancedScreen';
+import { withErrorBoundary } from '../components/withErrorBoundary';
+import WalletPageComponent from '../pages/WalletPage';
+import AssetDetailScreenComponent from '../screens/wallet/AssetDetailScreen';
+import ReceiveQRScreenComponent from '../screens/wallet/ReceiveQRScreen';
+import CashuReceiveScreenComponent from '../screens/cashu/CashuReceiveScreen';
+import CashuSendScreenComponent from '../screens/cashu/CashuSendScreen';
+import RecoverMintScreenComponent from '../screens/wallet/RecoverMintScreen';
+import TurboHistoryScreenComponent from '../screens/settings/TurboHistoryScreen';
+import TurboQRCodeScreenComponent from '../screens/settings/TurboQRCodeScreen';
+import CashuSettingsScreenComponent from '../screens/settings/CashuSettingsScreen';
+import AboutScreenComponent from '../screens/settings/AboutScreen';
+import PreferencesScreenComponent from '../screens/settings/PreferencesScreen';
+import SecurityScreenComponent from '../screens/settings/SecurityScreen';
+import AdvancedScreenComponent from '../screens/settings/AdvancedScreen';
 import { COLORS } from '../theme';
+
+// Wrap all screens with error boundaries
+const WalletPage = withErrorBoundary(WalletPageComponent, {
+  boundaryName: 'WalletScreen',
+  fallbackMessage: 'Unable to load wallet. Please try again.',
+});
+
+const AssetDetailScreen = withErrorBoundary(AssetDetailScreenComponent, {
+  boundaryName: 'AssetDetailScreen',
+  fallbackMessage: 'Unable to load asset details. Please try again.',
+});
+
+const ReceiveQRScreen = withErrorBoundary(ReceiveQRScreenComponent, {
+  boundaryName: 'ReceiveQRScreen',
+  fallbackMessage: 'Unable to show receive QR code. Please try again.',
+});
+
+const CashuReceiveScreen = withErrorBoundary(CashuReceiveScreenComponent, {
+  boundaryName: 'CashuReceiveScreen',
+  fallbackMessage: 'Unable to receive ecash. Please try again.',
+});
+
+const CashuSendScreen = withErrorBoundary(CashuSendScreenComponent, {
+  boundaryName: 'CashuSendScreen',
+  fallbackMessage: 'Unable to send ecash. Please try again.',
+});
+
+const RecoverMintScreen = withErrorBoundary(RecoverMintScreenComponent, {
+  boundaryName: 'RecoverMintScreen',
+  fallbackMessage: 'Unable to recover from mint. Please try again.',
+});
+
+const TurboHistoryScreen = withErrorBoundary(TurboHistoryScreenComponent, {
+  boundaryName: 'TurboHistoryScreen',
+  fallbackMessage: 'Unable to load transaction history. Please try again.',
+});
+
+const TurboQRCodeScreen = withErrorBoundary(TurboQRCodeScreenComponent, {
+  boundaryName: 'TurboQRCodeScreen',
+  fallbackMessage: 'Unable to show QR code. Please try again.',
+});
+
+const CashuSettingsScreen = withErrorBoundary(CashuSettingsScreenComponent, {
+  boundaryName: 'CashuSettingsScreen',
+  fallbackMessage: 'Unable to load Cashu settings. Please try again.',
+});
+
+const AboutScreen = withErrorBoundary(AboutScreenComponent, {
+  boundaryName: 'AboutScreen',
+  fallbackMessage: 'Unable to load about screen. Please try again.',
+});
+
+const PreferencesScreen = withErrorBoundary(PreferencesScreenComponent, {
+  boundaryName: 'PreferencesScreen',
+  fallbackMessage: 'Unable to load preferences. Please try again.',
+});
+
+const SecurityScreen = withErrorBoundary(SecurityScreenComponent, {
+  boundaryName: 'SecurityScreen',
+  fallbackMessage: 'Unable to load security settings. Please try again.',
+});
+
+const AdvancedScreen = withErrorBoundary(AdvancedScreenComponent, {
+  boundaryName: 'AdvancedScreen',
+  fallbackMessage: 'Unable to load advanced settings. Please try again.',
+});
 
 const Stack = createStackNavigator();
 

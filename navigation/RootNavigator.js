@@ -10,10 +10,17 @@ import { createStackNavigator } from '@react-navigation/stack';
 import AuthStack from './AuthStack';
 import MainTabs from './MainTabs';
 import SendNavigator from './SendNavigator';
-import PinSetupScreen from '../screens/auth/PinSetupScreen';
+import PinSetupScreenComponent from '../screens/auth/PinSetupScreen';
 import PasskeyMigrationModal from '../components/PasskeyMigrationModal';
 import MutinynetBanner from '../components/MutinynetBanner';
+import { withErrorBoundary } from '../components/withErrorBoundary';
 import { COLORS } from '../theme';
+
+// Wrap PIN setup screen with error boundary
+const PinSetupScreen = withErrorBoundary(PinSetupScreenComponent, {
+  boundaryName: 'PinSetupScreen',
+  fallbackMessage: 'Unable to load PIN setup. Please restart the app.',
+});
 import { useAuth } from '../contexts/AuthContext';
 import { useWallet } from '../contexts/WalletContext';
 import { useBalance } from '../contexts/WalletDataContext';

@@ -5,13 +5,20 @@
 
 import React from 'react';
 import { createStackNavigator } from '@react-navigation/stack';
-import OnboardingPage from '../pages/OnboardingPage';
+import { withErrorBoundary } from '../components/withErrorBoundary';
+import OnboardingPageComponent from '../pages/OnboardingPage';
 import { useOnboardingFlow } from '../contexts/AuthContext';
 import { useNavigationHandlers } from '../contexts/NavigationHandlersContext';
 import { useBalance, useTransactionHistory } from '../contexts/WalletDataContext';
 import { useNotifications } from "../contexts/NotificationContext";
 import { useKeyboard } from '../hooks/useKeyboard';
 import styles from '../styles';
+
+// Wrap onboarding with error boundary
+const OnboardingPage = withErrorBoundary(OnboardingPageComponent, {
+  boundaryName: 'OnboardingScreen',
+  fallbackMessage: 'Unable to load onboarding. Please restart the app.',
+});
 
 const Stack = createStackNavigator();
 

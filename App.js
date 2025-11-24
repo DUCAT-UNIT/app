@@ -31,6 +31,7 @@ import AppNavigator from './navigation/AppNavigator';
 
 // Components
 import SplashScreen from './screens/SplashScreen';
+import ErrorBoundary from './components/ErrorBoundary';
 
 // Initialize BIP32 and ECC for bitcoinjs-lib
 BIP32Factory(ecc); // Initializes the factory
@@ -204,14 +205,19 @@ export default function App() {
   }
 
   return (
-    <AuthProvider>
-      <UIProvider>
-        <WalletProvider>
-          <AppProviders>
-            <AppNavigator />
-          </AppProviders>
-        </WalletProvider>
-      </UIProvider>
-    </AuthProvider>
+    <ErrorBoundary
+      boundaryName="App"
+      fallbackMessage="A critical error occurred. Please restart the app."
+    >
+      <AuthProvider>
+        <UIProvider>
+          <WalletProvider>
+            <AppProviders>
+              <AppNavigator />
+            </AppProviders>
+          </WalletProvider>
+        </UIProvider>
+      </AuthProvider>
+    </ErrorBoundary>
   );
 }

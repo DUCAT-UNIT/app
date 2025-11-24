@@ -2,11 +2,14 @@
  * ErrorBoundary Component
  * Catches JavaScript errors anywhere in the component tree
  * Displays a fallback UI and logs errors for debugging
+ * Integrates with Sentry for production error reporting
  */
 
 import React from 'react';
 import PropTypes from 'prop-types';
 import { View, Text, TouchableOpacity, StyleSheet } from 'react-native';
+import * as Sentry from '@sentry/react-native';
+import { logger } from '../utils/logger';
 import { COLORS } from '../theme';
 
 class ErrorBoundary extends React.Component {
@@ -25,16 +28,29 @@ class ErrorBoundary extends React.Component {
   }
 
   componentDidCatch(error, errorInfo) {
-    // Log the error to console
+    // Log the error using centralized logger
+    logger.error(error, {
+      componentStack: errorInfo.componentStack,
+      boundary: this.props.boundaryName || 'ErrorBoundary',
+    });
+
+    // Send error to Sentry in production
+    Sentry.withScope((scope) => {
+      scope.setContext('errorBoundary', {
+        boundaryName: this.props.boundaryName || 'Unknown',
+        componentStack: errorInfo.componentStack,
+      });
+      if (this.props.extraContext) {
+        scope.setContext('extra', this.props.extraContext);
+      }
+      Sentry.captureException(error);
+    });
 
     // Update state with error details
     this.setState({
       error,
       errorInfo,
     });
-
-    // In production, you could send this to an error reporting service
-    // e.g., Sentry, Bugsnag, etc.
   }
 
   handleReset = () => {
@@ -91,6 +107,8 @@ ErrorBoundary.propTypes = {
   children: PropTypes.node.isRequired,
   fallbackMessage: PropTypes.string,
   onReset: PropTypes.func,
+  boundaryName: PropTypes.string, // Name for identifying boundary in logs
+  extraContext: PropTypes.object, // Additional context to send to Sentry
 };
 
 const styles = StyleSheet.create({
