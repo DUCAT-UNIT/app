@@ -667,6 +667,13 @@ export default function RootNavigator() {
             // Set pending message - will show when loading clears
             setPendingSuccessMessage(`Successfully received ${amountDisplay} UNIT`);
 
+            // Refresh balance and wallet state to show the new transaction
+            console.log('[TURBO] Refreshing balance and wallet after successful claim');
+            if (global.reloadWallet) {
+              global.reloadWallet();
+            }
+            await fetchBalance();
+
             // Clear loading state - this will trigger the success snackbar
             setIsVerifyingToken(false);
           } catch (error) {
