@@ -29,6 +29,11 @@ import * as SecureStore from 'expo-secure-store';
 
 jest.mock('../../services/walletService');
 jest.mock('expo-secure-store');
+jest.mock('../NotificationContext', () => ({
+  useNotifications: () => ({
+    showToast: jest.fn(),
+  }),
+}));
 
 describe('WalletContext', () => {
   const wrapper = ({ children }) => <WalletProvider>{children}</WalletProvider>;
