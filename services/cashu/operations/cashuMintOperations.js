@@ -93,9 +93,12 @@ export const completeMint = async (quoteId, amount) => {
       // New format with keyset array
       keysetId = keyData.keysets[0].id;
       keys = keyData.keysets[0].keys;
-    } else {
+    } else if (keyData.keys) {
       // Legacy format
-      keys = keyData.keys || keyData;
+      keys = keyData.keys;
+    } else {
+      // No keysets available
+      throw new Error('No keysets available from mint');
     }
 
     // Split amount into denominations
