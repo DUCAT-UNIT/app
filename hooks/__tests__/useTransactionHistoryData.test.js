@@ -139,11 +139,15 @@ describe('useTransactionHistoryData', () => {
       fetchTransactionHistory: mockFetchTransactionHistory,
     });
 
-    // Set up specific mock sequence (mockReturnValueOnce takes precedence over mockReturnValue)
-    transactionHistoryService.calculateTransactionAmount
-      .mockReturnValueOnce({ amount: 100000, type: 'BTC', isSelfTransfer: false }) // filter call for tx1
-      .mockReturnValueOnce({ amount: 0, type: 'BTC', isSelfTransfer: true }) // filter call for tx2
-      .mockReturnValueOnce({ amount: 100000, type: 'BTC', isSelfTransfer: false }); // map call for tx1
+    // Mock to return different values based on which tx is being processed
+    transactionHistoryService.calculateTransactionAmount.mockImplementation((tx) => {
+      if (tx.txid === 'tx1') {
+        return { amount: 100000, type: 'BTC', isSelfTransfer: false };
+      } else if (tx.txid === 'tx2') {
+        return { amount: 0, type: 'BTC', isSelfTransfer: true };
+      }
+      return { amount: 0, type: 'BTC', isSelfTransfer: true };
+    });
 
     const { result } = renderHook(
       useTransactionHistoryData,
