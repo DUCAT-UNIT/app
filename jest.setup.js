@@ -143,6 +143,19 @@ jest.mock('expo-haptics', () => ({
   },
 }));
 
+// Mock expo-notifications
+jest.mock('expo-notifications', () => ({
+  scheduleNotificationAsync: jest.fn().mockResolvedValue('notification-id'),
+  setNotificationHandler: jest.fn(),
+  requestPermissionsAsync: jest.fn().mockResolvedValue({ status: 'granted' }),
+  getPermissionsAsync: jest.fn().mockResolvedValue({ status: 'granted' }),
+  AndroidImportance: {
+    MAX: 'max',
+    HIGH: 'high',
+    DEFAULT: 'default',
+  },
+}));
+
 // Mock Sentry
 jest.mock('@sentry/react-native', () => ({
   init: jest.fn(),
