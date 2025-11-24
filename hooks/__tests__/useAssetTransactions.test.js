@@ -34,6 +34,10 @@ function renderHook(hook, { initialProps } = {}) {
 
 // Mock dependencies
 jest.mock('../../services/transactionHistoryService');
+jest.mock('../../services/cashu/cashuLockedTokensService', () => ({
+  getSentLockedTokens: jest.fn(() => Promise.resolve([])),
+  getReceivedTokens: jest.fn(() => Promise.resolve([])),
+}));
 
 describe('useAssetTransactions', () => {
   const segwitAddress = 'bc1qsegwit';
