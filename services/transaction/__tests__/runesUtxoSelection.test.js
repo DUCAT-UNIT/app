@@ -30,13 +30,13 @@ describe('runesUtxoSelection', () => {
 
       const result = await findRuneUtxo(taprootAddress, amountInRunes, unconfirmedUtxos, spentUtxos);
 
-      expect(result).toEqual({
+      expect(result).toEqual([{
         transaction: 'unconfirmed1',
         vout: 0,
         value: 5000,
         runeAmount: 150,
         status: { confirmed: false },
-      });
+      }]);
       // Should not call API if found in unconfirmed
       expect(global.fetch).not.toHaveBeenCalled();
     });
@@ -52,13 +52,13 @@ describe('runesUtxoSelection', () => {
 
       const result = await findRuneUtxo(taprootAddress, amountInRunes, unconfirmedUtxos, spentUtxos);
 
-      expect(result).toEqual({
+      expect(result).toEqual([{
         transaction: 'unconfirmed2',
         vout: 1,
         value: 6000,
         runeAmount: 120,
         status: { confirmed: false },
-      });
+      }]);
     });
 
     it('should find confirmed rune UTXO from ord API', async () => {
@@ -94,13 +94,13 @@ describe('runesUtxoSelection', () => {
 
       const result = await findRuneUtxo(taprootAddress, amountInRunes, unconfirmedUtxos, spentUtxos);
 
-      expect(result).toEqual({
+      expect(result).toEqual([{
         transaction: 'txid1',
         vout: 0,
         value: 10000,
         runeAmount: 150,
         status: { confirmed: true },
-      });
+      }]);
     });
 
     it('should skip spent confirmed rune UTXOs', async () => {
@@ -149,13 +149,13 @@ describe('runesUtxoSelection', () => {
 
       const result = await findRuneUtxo(taprootAddress, amountInRunes, unconfirmedUtxos, spentUtxos);
 
-      expect(result).toEqual({
+      expect(result).toEqual([{
         transaction: 'txid2',
         vout: 1,
         value: 12000,
         runeAmount: 200,
         status: { confirmed: true },
-      });
+      }]);
     });
 
     it('should return null if no suitable UTXO found', async () => {

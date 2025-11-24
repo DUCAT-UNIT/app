@@ -246,7 +246,7 @@ describe('UIContext', () => {
         result.current.showSnackbar({ message: 'Test', type: 'success', action: 'send' });
       });
 
-      expect(result.current.snackbar).toEqual({ message: 'Test', type: 'success', action: 'send' });
+      expect(result.current.snackbar).toEqual({ message: 'Test', type: 'success', action: 'send', key: expect.any(Number) });
     });
 
     it('should allow state progression (pending -> submitted -> success)', () => {

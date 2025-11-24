@@ -29,11 +29,11 @@ export const useFormattedBalances = ({
         maximumFractionDigits: 2,
       });
 
-    // Format UNIT amounts (runes) with at least 2 decimal places
+    // Format UNIT amounts (runes) as integers
     const formatUnit = (value) =>
       value.toLocaleString('en-US', {
-        minimumFractionDigits: 2,
-        maximumFractionDigits: 2,
+        minimumFractionDigits: 0,
+        maximumFractionDigits: 0,
       });
 
     return {

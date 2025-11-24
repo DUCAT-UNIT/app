@@ -168,6 +168,7 @@ describe('postJSON', () => {
   it('should POST and parse JSON response', async () => {
     const mockData = { result: 'success' };
     const mockResponse = {
+      ok: true,
       json: jest.fn().mockResolvedValue(mockData),
     };
     api.fetchWithTimeout.mockResolvedValue(mockResponse);
@@ -180,6 +181,7 @@ describe('postJSON', () => {
 
   it('should pass options to postWithRetry', async () => {
     api.fetchWithTimeout.mockResolvedValue({
+      ok: true,
       json: jest.fn().mockResolvedValue({}),
     });
 
