@@ -44,7 +44,10 @@ export function useTransactionHistoryData(
       const loadEcashTokens = async () => {
         try {
           setEcashLoading(true);
-          const tokens = await getSentLockedTokens(taprootAddress);
+          const { getReceivedTokens } = await import('../services/cashu/cashuLockedTokensService');
+          const sentTokens = await getSentLockedTokens(taprootAddress);
+          const receivedTokens = await getReceivedTokens(taprootAddress);
+          const tokens = [...sentTokens, ...receivedTokens];
 
           // Check which tokens have been claimed
           const { decodeToken } = await import('../services/cashu/cashuCrypto');

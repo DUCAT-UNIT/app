@@ -648,6 +648,15 @@ export default function RootNavigator() {
             const amountDisplay = (result.amount).toFixed(2);
             console.log('[TURBO] Success! Received:', amountDisplay, 'UNIT');
 
+            // Save received token to transaction history
+            try {
+              const { saveReceivedToken } = await import('../services/cashu/cashuLockedTokensService');
+              await saveReceivedToken(token, 'Turbo Claim', result.amount, wallet?.taprootAddress);
+              console.log('[TURBO] Saved received token to transaction history');
+            } catch (err) {
+              console.warn('[TURBO] Failed to save received token to history:', err.message);
+            }
+
             // Mark as processed asynchronously (don't block the success flow)
             if (global.processedCashuTokens) {
               (async () => {

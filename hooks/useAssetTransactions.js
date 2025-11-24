@@ -32,9 +32,12 @@ export function useAssetTransactions(transactionHistory, assetType, segwitAddres
       const loadEcashTokens = async () => {
           try {
             setEcashLoading(true);
-            const tokens = await getSentLockedTokens(taprootAddress);
+            const { getReceivedTokens } = await import('../services/cashu/cashuLockedTokensService');
+            const sentTokens = await getSentLockedTokens(taprootAddress);
+            const receivedTokens = await getReceivedTokens(taprootAddress);
+            const tokens = [...sentTokens, ...receivedTokens];
             if (!isMounted) return;
-            console.log('[useAssetTransactions] Loaded ecash tokens:', tokens.length);
+            console.log('[useAssetTransactions] Loaded ecash tokens:', tokens.length, '(sent:', sentTokens.length, 'received:', receivedTokens.length, ')');
 
           // Check which tokens have been claimed
           const { decodeToken } = await import('../services/cashu/cashuCrypto');
