@@ -137,7 +137,35 @@ export const signP2PKSecret = async (secret, privateKey) => {
     return JSON.stringify(witness);
   } catch (error) {
     logger.error('Failed to sign P2PK secret', { error: error.message });
-    throw new Error(`P2PK signing failed: ${error.message}`);
+
+    // Create enhanced error with diagnostics for user
+    const diagnostics = [];
+
+    // Capture what we know
+    if (secret) {
+      diagnostics.push(`Secret length: ${secret.length}`);
+    } else {
+      diagnostics.push('Secret is null/undefined');
+    }
+
+    if (privateKey) {
+      if (typeof privateKey === 'string') {
+        diagnostics.push(`Private key length: ${privateKey.length} chars`);
+        if (privateKey.length !== 64) {
+          diagnostics.push(`⚠️ Expected 64 chars, got ${privateKey.length}`);
+        }
+      } else {
+        diagnostics.push(`⚠️ Private key is ${typeof privateKey}, expected string`);
+      }
+    } else {
+      diagnostics.push('⚠️ Private key is null/undefined');
+    }
+
+    // Add original error details
+    diagnostics.push(`Error: ${error.message}`);
+
+    const enhancedMessage = `P2PK signing failed\n\n${diagnostics.join('\n')}`;
+    throw new Error(enhancedMessage);
   }
 };
 

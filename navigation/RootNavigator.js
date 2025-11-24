@@ -708,7 +708,13 @@ export default function RootNavigator() {
             if (errorMessage.includes('already spent') || errorMessage.includes('already been spent')) {
               snackbarConfig.description = 'Token already claimed';
             } else if (errorMessage.includes('P2PK verification failed')) {
-              snackbarConfig.description = 'Failed to verify Turbo token signature';
+              // Show detailed P2PK error with diagnostics
+              snackbarConfig.description = errorMessage; // Now includes diagnostics
+              snackbarConfig.duration = 8000; // Show longer for detailed errors
+            } else if (errorMessage.includes('Swap failed')) {
+              // Show detailed swap error
+              snackbarConfig.description = errorMessage;
+              snackbarConfig.duration = 8000;
             } else if (errorMessage.includes('This proof belongs to account')) {
               // Extract account number from error message
               const accountMatch = errorMessage.match(/account (\d+)/);

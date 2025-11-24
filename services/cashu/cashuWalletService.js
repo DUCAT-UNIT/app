@@ -1322,8 +1322,40 @@ export const receiveP2PKToken = async (tokenString, privateKey, onProgress) => {
       proofCount: newProofs.length,
     };
   } catch (error) {
-    logger.error('Failed to receive P2PK token', { error: error.message });
-    throw error;
+    logger.error('Failed to receive P2PK token', {
+      error: error.message,
+      stack: error.stack,
+      privateKeyLength: privateKey?.length,
+      privateKeyType: typeof privateKey,
+    });
+
+    // Enhanced error message with diagnostic info
+    let enhancedError = new Error(error.message);
+    enhancedError.originalError = error;
+
+    // Add diagnostic details to error message for debugging
+    if (error.message.includes('P2PK verification failed') || error.message.includes('Swap failed')) {
+      const diagnostics = [];
+
+      // Check private key validity
+      if (!privateKey) {
+        diagnostics.push('Private key is missing');
+      } else if (typeof privateKey !== 'string') {
+        diagnostics.push(`Private key type is ${typeof privateKey} (expected string)`);
+      } else if (privateKey.length !== 64) {
+        diagnostics.push(`Private key length is ${privateKey.length} chars (expected 64)`);
+      }
+
+      // Add device info for debugging
+      const Platform = require('react-native').Platform;
+      diagnostics.push(`Platform: ${Platform.OS} ${Platform.Version}`);
+
+      if (diagnostics.length > 0) {
+        enhancedError.message = `${error.message}\n\nDiagnostics:\n${diagnostics.map(d => `• ${d}`).join('\n')}`;
+      }
+    }
+
+    throw enhancedError;
   }
 };
 
