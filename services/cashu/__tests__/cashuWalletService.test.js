@@ -603,7 +603,7 @@ describe('cashuWalletService', () => {
       beforeEach(() => {
         SecureStore.getItemAsync.mockResolvedValue(JSON.stringify(mockProofs));
         cashuCrypto.selectProofsForAmount.mockReturnValue(mockProofs.slice(0, 2));
-        cashuCrypto.sumProofs.mockReturnValueOnce(3);
+        cashuCrypto.sumProofs.mockReturnValue(3);
         cashuCrypto.encodeToken.mockReturnValue('cashuAeyJ0...');
         cashuMintClient.getKeys.mockResolvedValue(mockKeysetData);
       });
@@ -1083,19 +1083,28 @@ describe('cashuWalletService', () => {
 
         SecureStore.getItemAsync
           .mockResolvedValueOnce(JSON.stringify(mockProofs))  // loadProofs
-          .mockResolvedValueOnce(null)  // getOrFetchKeys
+          .mockResolvedValueOnce(null)  // getOrFetchKeys cache check
           .mockResolvedValueOnce(JSON.stringify(mockProofs))  // loadProofs (removeProofs)
-          .mockResolvedValueOnce(JSON.stringify(remaining))  // verification (removeProofs) - 1 proof
+          .mockResolvedValueOnce(JSON.stringify(remaining))  // verification after removeProofs writes
           .mockResolvedValueOnce(JSON.stringify(remaining))  // loadProofs (addProofs)
-          .mockResolvedValueOnce(JSON.stringify(afterAdd))  // verification (addProofs) - 2 proofs
-          .mockResolvedValueOnce(JSON.stringify(afterAdd));  // getBalance
+          .mockResolvedValueOnce(JSON.stringify(afterAdd))  // verification after addProofs writes
+          .mockResolvedValueOnce(JSON.stringify(afterAdd));  // loadProofs (getBalance)
+
+        SecureStore.deleteItemAsync.mockResolvedValue();
+        SecureStore.setItemAsync.mockResolvedValue();
 
         cashuCrypto.selectProofsForAmount.mockReturnValueOnce(selectedProofs);
-
         cashuCrypto.splitAmount
           .mockReturnValueOnce([1, 2])  // send amounts
           .mockReturnValueOnce([4]);     // change amounts
-
+        cashuCrypto.createBlindedOutputs.mockResolvedValueOnce({
+          outputs: mockOutputs,
+          blindingData: mockBlindingData,
+        });
+        cashuMintClient.swapTokens.mockResolvedValueOnce({
+          signatures: mockSignatures,
+        });
+        cashuCrypto.unblindSignatures.mockReturnValueOnce([...sendProofs, ...changeProofs]);
         cashuCrypto.encodeToken.mockReturnValueOnce('cashuAeyJ0...');
 
         const result = await cashuWalletService.sendToken(3, true);
@@ -1294,9 +1303,12 @@ describe('cashuWalletService', () => {
 
         SecureStore.getItemAsync
           .mockResolvedValueOnce(JSON.stringify(mockProofs))  // loadProofs (removeProofs) - 4 proofs
-          .mockResolvedValueOnce(JSON.stringify(remaining))  // verification (removeProofs) - 1 proof
+          .mockResolvedValueOnce(JSON.stringify(remaining))  // verification after removeProofs writes
           .mockResolvedValueOnce(JSON.stringify(remaining))  // loadProofs (addProofs) - 1 proof
-          .mockResolvedValueOnce(JSON.stringify(afterAddChange));  // verification (addProofs) - 2 proofs
+          .mockResolvedValueOnce(JSON.stringify(afterAddChange));  // verification after addProofs writes
+
+        SecureStore.deleteItemAsync.mockResolvedValue();
+        SecureStore.setItemAsync.mockResolvedValue();
 
         await cashuWalletService.cleanupMeltProofs(proofsToRemove, changeProofs);
 
@@ -1358,12 +1370,13 @@ describe('cashuWalletService', () => {
           .mockResolvedValueOnce(JSON.stringify(mockProofs.slice(2)))  // verification (removeProofs)
           .mockResolvedValueOnce(JSON.stringify(mockProofs.slice(2)));  // getBalance
 
+        SecureStore.deleteItemAsync.mockResolvedValue();
+        SecureStore.setItemAsync.mockResolvedValue();
+
         cashuCrypto.selectProofsForAmount.mockReturnValueOnce(mockProofs.slice(0, 2));
 
-        // Override sumProofs for this test
-        cashuCrypto.sumProofs
-          .mockImplementationOnce(() => 3)  // proofsToSend
-          .mockImplementationOnce(() => 12);  // final balance
+        // Mock sumProofs to return correct values
+        cashuCrypto.sumProofs.mockReturnValue(3);  // Default for proofsToSend
 
         cashuCrypto.splitAmount.mockReturnValueOnce([1, 2]);
         cashuCrypto.createBlindedOutputs.mockResolvedValueOnce({
