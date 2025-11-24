@@ -52,7 +52,7 @@ jest.mock('../../services/backgroundTaskService', () => ({
 }));
 
 describe('TransactionExecutionContext', () => {
-  const mockShowToast = jest.fn();
+  const mockShowSnackbar = jest.fn();
   const mockSetIntentStep = jest.fn();
   const mockSetSendIntent = jest.fn();
   const mockStartTransactionPolling = jest.fn();
@@ -120,7 +120,7 @@ describe('TransactionExecutionContext', () => {
     const wrapper = ({ children }) => (
       <TransactionExecutionProvider
         currentAccount={0}
-        showToast={mockShowToast}
+        showSnackbar={mockShowSnackbar}
         startTransactionPolling={mockStartTransactionPolling}
         sendTransactionConfirmedNotification={mockSendTransactionConfirmedNotification}
         notificationsEnabled={true}
@@ -146,7 +146,7 @@ describe('TransactionExecutionContext', () => {
     const wrapper = ({ children }) => (
       <TransactionExecutionProvider
         currentAccount={0}
-        showToast={mockShowToast}
+        showSnackbar={mockShowSnackbar}
         startTransactionPolling={mockStartTransactionPolling}
         sendTransactionConfirmedNotification={mockSendTransactionConfirmedNotification}
         notificationsEnabled={true}
@@ -176,7 +176,7 @@ describe('TransactionExecutionContext', () => {
     const wrapper = ({ children }) => (
       <TransactionExecutionProvider
         currentAccount={0}
-        showToast={mockShowToast}
+        showSnackbar={mockShowSnackbar}
         startTransactionPolling={mockStartTransactionPolling}
         sendTransactionConfirmedNotification={mockSendTransactionConfirmedNotification}
         notificationsEnabled={true}
@@ -191,7 +191,12 @@ describe('TransactionExecutionContext', () => {
       await result.current.signIntent();
     });
 
-    expect(mockShowToast).toHaveBeenCalledWith(ERRORS.TRANSACTION_CANCELLED, 'error');
+    expect(mockShowSnackbar).toHaveBeenCalledWith(
+      expect.objectContaining({
+        type: 'error',
+        description: ERRORS.TRANSACTION_CANCELLED,
+      })
+    );
     expect(mockSetIntentStep).toHaveBeenCalledWith('idle');
     expect(TransactionService.signIntent).not.toHaveBeenCalled();
   });
@@ -202,7 +207,7 @@ describe('TransactionExecutionContext', () => {
     const wrapper = ({ children }) => (
       <TransactionExecutionProvider
         currentAccount={0}
-        showToast={mockShowToast}
+        showSnackbar={mockShowSnackbar}
         startTransactionPolling={mockStartTransactionPolling}
         sendTransactionConfirmedNotification={mockSendTransactionConfirmedNotification}
         notificationsEnabled={true}
@@ -217,8 +222,11 @@ describe('TransactionExecutionContext', () => {
       await result.current.signIntent();
     });
 
-    expect(mockShowToast).toHaveBeenCalled();
-    expect(mockShowToast.mock.calls[0][1]).toBe('error');
+    expect(mockShowSnackbar).toHaveBeenCalledWith(
+      expect.objectContaining({
+        type: 'error',
+      })
+    );
     expect(mockSetIntentStep).toHaveBeenCalledWith('reviewing');
   });
 
@@ -233,7 +241,7 @@ describe('TransactionExecutionContext', () => {
     const wrapper = ({ children }) => (
       <TransactionExecutionProvider
         currentAccount={0}
-        showToast={mockShowToast}
+        showSnackbar={mockShowSnackbar}
         startTransactionPolling={mockStartTransactionPolling}
         sendTransactionConfirmedNotification={mockSendTransactionConfirmedNotification}
         notificationsEnabled={true}
@@ -277,7 +285,7 @@ describe('TransactionExecutionContext', () => {
     const wrapper = ({ children }) => (
       <TransactionExecutionProvider
         currentAccount={0}
-        showToast={mockShowToast}
+        showSnackbar={mockShowSnackbar}
         startTransactionPolling={mockStartTransactionPolling}
         sendTransactionConfirmedNotification={mockSendTransactionConfirmedNotification}
         notificationsEnabled={true}
@@ -309,7 +317,7 @@ describe('TransactionExecutionContext', () => {
     const wrapper = ({ children }) => (
       <TransactionExecutionProvider
         currentAccount={0}
-        showToast={mockShowToast}
+        showSnackbar={mockShowSnackbar}
         startTransactionPolling={mockStartTransactionPolling}
         sendTransactionConfirmedNotification={mockSendTransactionConfirmedNotification}
         notificationsEnabled={true}
@@ -324,7 +332,12 @@ describe('TransactionExecutionContext', () => {
       await result.current.broadcastIntent();
     });
 
-    expect(mockShowToast).toHaveBeenCalledWith(ERRORS.TRANSACTION_CANCELLED, 'error');
+    expect(mockShowSnackbar).toHaveBeenCalledWith(
+      expect.objectContaining({
+        type: 'error',
+        description: ERRORS.TRANSACTION_CANCELLED,
+      })
+    );
     expect(TransactionService.broadcastTransaction).not.toHaveBeenCalled();
   });
 
@@ -339,7 +352,7 @@ describe('TransactionExecutionContext', () => {
     const wrapper = ({ children }) => (
       <TransactionExecutionProvider
         currentAccount={0}
-        showToast={mockShowToast}
+        showSnackbar={mockShowSnackbar}
         startTransactionPolling={mockStartTransactionPolling}
         sendTransactionConfirmedNotification={mockSendTransactionConfirmedNotification}
         notificationsEnabled={true}
@@ -354,8 +367,11 @@ describe('TransactionExecutionContext', () => {
       await result.current.broadcastIntent();
     });
 
-    expect(mockShowToast).toHaveBeenCalled();
-    expect(mockShowToast.mock.calls[0][1]).toBe('error');
+    expect(mockShowSnackbar).toHaveBeenCalledWith(
+      expect.objectContaining({
+        type: 'error',
+      })
+    );
     expect(mockSetIntentStep).toHaveBeenCalledWith('reviewing');
   });
 
@@ -375,7 +391,7 @@ describe('TransactionExecutionContext', () => {
     const wrapper = ({ children }) => (
       <TransactionExecutionProvider
         currentAccount={0}
-        showToast={mockShowToast}
+        showSnackbar={mockShowSnackbar}
         startTransactionPolling={mockStartTransactionPolling}
         sendTransactionConfirmedNotification={mockSendTransactionConfirmedNotification}
         notificationsEnabled={true}
@@ -422,7 +438,7 @@ describe('TransactionExecutionContext', () => {
     const wrapper = ({ children }) => (
       <TransactionExecutionProvider
         currentAccount={0}
-        showToast={mockShowToast}
+        showSnackbar={mockShowSnackbar}
         startTransactionPolling={mockStartTransactionPolling}
         sendTransactionConfirmedNotification={mockSendTransactionConfirmedNotification}
         notificationsEnabled={false}
@@ -461,7 +477,7 @@ describe('TransactionExecutionContext', () => {
     const wrapper = ({ children }) => (
       <TransactionExecutionProvider
         currentAccount={0}
-        showToast={mockShowToast}
+        showSnackbar={mockShowSnackbar}
         startTransactionPolling={mockStartTransactionPolling}
         sendTransactionConfirmedNotification={mockSendTransactionConfirmedNotification}
         notificationsEnabled={true}
@@ -489,7 +505,7 @@ describe('TransactionExecutionContext', () => {
     const wrapper = ({ children }) => (
       <TransactionExecutionProvider
         currentAccount={0}
-        showToast={mockShowToast}
+        showSnackbar={mockShowSnackbar}
         startTransactionPolling={mockStartTransactionPolling}
         sendTransactionConfirmedNotification={mockSendTransactionConfirmedNotification}
         notificationsEnabled={true}
@@ -567,7 +583,7 @@ describe('TransactionExecutionContext', () => {
       const wrapper = ({ children }) => (
         <TransactionExecutionProvider
           currentAccount={0}
-          showToast={mockShowToast}
+          showSnackbar={mockShowSnackbar}
           startTransactionPolling={mockStartTransactionPolling}
           sendTransactionConfirmedNotification={mockSendTransactionConfirmedNotification}
           notificationsEnabled={true}
@@ -655,7 +671,7 @@ describe('TransactionExecutionContext', () => {
       const wrapper = ({ children }) => (
         <TransactionExecutionProvider
           currentAccount={0}
-          showToast={mockShowToast}
+          showSnackbar={mockShowSnackbar}
           startTransactionPolling={mockStartTransactionPolling}
           sendTransactionConfirmedNotification={mockSendTransactionConfirmedNotification}
           notificationsEnabled={true}
@@ -736,7 +752,7 @@ describe('TransactionExecutionContext', () => {
       const wrapper = ({ children }) => (
         <TransactionExecutionProvider
           currentAccount={0}
-          showToast={mockShowToast}
+          showSnackbar={mockShowSnackbar}
           startTransactionPolling={mockStartTransactionPolling}
           sendTransactionConfirmedNotification={mockSendTransactionConfirmedNotification}
           notificationsEnabled={true}
@@ -806,7 +822,7 @@ describe('TransactionExecutionContext', () => {
       const wrapper = ({ children }) => (
         <TransactionExecutionProvider
           currentAccount={0}
-          showToast={mockShowToast}
+          showSnackbar={mockShowSnackbar}
           startTransactionPolling={mockStartTransactionPolling}
           sendTransactionConfirmedNotification={mockSendTransactionConfirmedNotification}
           notificationsEnabled={true}
@@ -876,7 +892,7 @@ describe('TransactionExecutionContext', () => {
       const wrapper = ({ children }) => (
         <TransactionExecutionProvider
           currentAccount={0}
-          showToast={mockShowToast}
+          showSnackbar={mockShowSnackbar}
           startTransactionPolling={mockStartTransactionPolling}
           sendTransactionConfirmedNotification={mockSendTransactionConfirmedNotification}
           notificationsEnabled={true}
@@ -932,7 +948,7 @@ describe('TransactionExecutionContext', () => {
       const wrapper = ({ children }) => (
         <TransactionExecutionProvider
           currentAccount={0}
-          showToast={mockShowToast}
+          showSnackbar={mockShowSnackbar}
           startTransactionPolling={mockStartTransactionPolling}
           sendTransactionConfirmedNotification={mockSendTransactionConfirmedNotification}
           notificationsEnabled={true}
@@ -1009,7 +1025,7 @@ describe('TransactionExecutionContext', () => {
       const wrapper = ({ children }) => (
         <TransactionExecutionProvider
           currentAccount={0}
-          showToast={mockShowToast}
+          showSnackbar={mockShowSnackbar}
           startTransactionPolling={mockStartTransactionPolling}
           sendTransactionConfirmedNotification={mockSendTransactionConfirmedNotification}
           notificationsEnabled={true}
