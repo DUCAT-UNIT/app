@@ -28,6 +28,7 @@ import { RecipientHeader, BalanceMaxButton } from '../../components/amountInput'
 import InsufficientTurboSheet from '../../components/send/InsufficientTurboSheet';
 import { requestMint } from '../../services/cashu/cashuWalletService';
 import { useCashu } from '../../contexts/CashuContext';
+import { logger } from '../../utils/logger';
 import { useNavigationHandlers } from '../../contexts/NavigationHandlersContext';
 
 export default function AmountInputScreen({ navigation, route }) {
@@ -293,6 +294,20 @@ export default function AmountInputScreen({ navigation, route }) {
   // Determine if we should show insufficient balance warning
   const hasInsufficientBalance = hasNoUnitBalance || exceedsBalance;
   const isReviewDisabled = !sendAmount || hasInsufficientBalance || isRequestingMint;
+
+  // Debug: Log button disabled state
+  React.useEffect(() => {
+    logger.debug('[AmountInputScreen] Review button state:', {
+      isReviewDisabled,
+      sendAmount,
+      hasInsufficientBalance,
+      hasNoUnitBalance,
+      exceedsBalance,
+      isRequestingMint,
+      balance,
+      enteredAmount,
+    });
+  }, [isReviewDisabled, sendAmount, hasInsufficientBalance, hasNoUnitBalance, exceedsBalance, isRequestingMint, balance, enteredAmount]);
 
   return (
     <View style={localStyles.container}>
