@@ -19,6 +19,7 @@ import {
 import PropTypes from 'prop-types';
 import { COLORS } from '../../theme';
 import Icon from '../icons';
+import { logger } from '../../utils/logger';
 
 export default function BottomSheet({
   visible,
