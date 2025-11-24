@@ -312,7 +312,6 @@ export const clearP2PKCache = async () => {
 export const findAccountForP2PKToken = async (recipientPubkey, maxAccounts = 50, onProgress = null) => {
   const { withMnemonic, getCurrentAccount } = await import('../secureStorageService.js');
   const { deriveAddressesFromMnemonic } = await import('../../utils/bitcoin.js');
-  const { getPrivateKeyForAddress } = await import('../../utils/wallet.js');
 
   console.log('[findAccountForP2PKToken] Searching for account with pubkey:', recipientPubkey.substring(0, 16) + '...');
 
