@@ -41,6 +41,10 @@ import { useSettingsNavigation } from '../hooks/useSettingsNavigation';
 import { useSheetNavigation } from '../hooks/useSheetNavigation';
 import { useEcashBalanceCheck } from '../hooks/useEcashBalanceCheck';
 import { useQRCodeHandler } from '../hooks/useQRCodeHandler';
+import { useClaimNotifications } from '../hooks/useClaimNotifications';
+import { useTransactionNotifications } from '../hooks/useTransactionNotifications';
+import { useEcashThresholdManager } from '../hooks/useEcashThresholdManager';
+import { useVaultSwipeGesture } from '../hooks/useVaultSwipeGesture';
 
 // Utils
 import { COLORS } from '../theme';
@@ -58,12 +62,6 @@ export default function WalletPage({ route }) {
   const { balance: cashuBalance, receive: receiveCashuToken } = useCashu();
   const styles = require('../styles').default;
 
-  // Ecash threshold management state
-  const [showThresholdSheet, setShowThresholdSheet] = useState(false);
-  const [showConversionModal, setShowConversionModal] = useState(false);
-  const [pendingThreshold, setPendingThreshold] = useState(null);
-  const [conversionAmount, setConversionAmount] = useState(0);
-  const [savedUnitBalance, setSavedUnitBalance] = useState(0);
   // Wallet context
   const walletContext = useWallet();
   const { wallet, switchAccount } = walletContext;
@@ -108,150 +106,21 @@ export default function WalletPage({ route }) {
     logger.debug('🎯 WalletPage snackbar state:', snackbar);
   }, [snackbar]);
 
-  // Show snackbar for transaction states
-  React.useEffect(() => {
-    if (!broadcastedTxid) return;
+  // Use transaction notifications hook
+  useTransactionNotifications({
+    intentStep,
+    broadcastedTxid,
+    sendAssetType,
+    showSnackbar,
+  });
 
-    const action = sendAssetType === 'unit' ? 'swap' : 'withdraw';
-    const clickAction = async () => {
-      const { getTxUrl, getOrdTxUrl } = require('../utils/constants');
-      const { Linking } = require('react-native');
-      const url = sendAssetType === 'unit' ? getOrdTxUrl(broadcastedTxid) : getTxUrl(broadcastedTxid);
-      const supported = await Linking.canOpenURL(url);
-      if (supported) {
-        await Linking.openURL(url);
-      }
-    };
-
-    if (intentStep === 'pending') {
-      // Step 1: Green check mark - "submitted" (transaction broadcast to network)
-      showSnackbar({
-        type: 'submitted',
-        action,
-        txid: broadcastedTxid,
-        clickAction,
-      });
-    } else if (intentStep === 'confirmed') {
-      // Step 2: Green check mark - "completed successfully!" (transaction confirmed)
-      showSnackbar({
-        type: 'success',
-        action,
-        txid: broadcastedTxid,
-        clickAction,
-      });
-    }
-  }, [intentStep, broadcastedTxid, sendAssetType, showSnackbar]);
-
-  // Handle claim result from TurboClaimingScreen
-  React.useEffect(() => {
-    logger.debug('🎯 WalletPage claim effect triggered:', {
-      claimSuccess: route?.params?.claimSuccess,
-      claimError: route?.params?.claimError,
-    });
-
-    if (route?.params?.claimSuccess) {
-      logger.debug('🎯 WalletPage showing success snackbar for claim');
-      showSnackbar({
-        type: 'success',
-        action: 'claim',
-      });
-      // Clear the param so it doesn't trigger again
-      navigation.setParams({ claimSuccess: undefined });
-    } else if (route?.params?.claimError) {
-      logger.debug('🎯 WalletPage showing error snackbar for claim');
-
-      const errorMessage = route.params.claimError;
-      const snackbarConfig = {
-        type: 'error',
-        action: 'claim',
-        description: errorMessage,
-      };
-
-      // Check if error is about wrong account - add switch button
-      if (errorMessage.includes('This proof belongs to account')) {
-        const accountMatch = errorMessage.match(/account (\d+)/);
-        if (accountMatch) {
-          const targetAccount = parseInt(accountMatch[1], 10);
-          const targetAccountIndex = targetAccount - 1;
-          const tokenToRetry = route.params.claimToken;
-
-          snackbarConfig.persistent = true;
-          snackbarConfig.actionLabel = `Switch & Claim`;
-          snackbarConfig.onAction = async () => {
-            try {
-              logger.info('[WalletPage] ========================================');
-              logger.info('[WalletPage] Switch & Claim button clicked!');
-              logger.info('[WalletPage] Target account:', targetAccountIndex);
-              logger.info('[WalletPage] Has token to retry:', !!tokenToRetry);
-              logger.info('[WalletPage] Token length:', tokenToRetry?.length);
-              logger.info('[WalletPage] dismissSnackbar type:', typeof dismissSnackbar);
-              logger.info('[WalletPage] ========================================');
-
-              if (!switchAccount) {
-                logger.error('[WalletPage] switchAccount is not available!');
-                showSnackbar({
-                  type: 'error',
-                  action: 'switch',
-                  description: 'Account switching not available',
-                });
-                return;
-              }
-
-              // Dismiss the error snackbar immediately
-              logger.info('[WalletPage] Calling dismissSnackbar...');
-              dismissSnackbar();
-              logger.info('[WalletPage] dismissSnackbar called');
-
-              logger.info('[WalletPage] Switching account...');
-              await switchAccount(targetAccountIndex);
-              logger.info('[WalletPage] Account switched successfully');
-
-              if (global.reloadWallet) {
-                logger.info('[WalletPage] Reloading wallet...');
-                global.reloadWallet();
-              }
-
-              // Clear the error params
-              logger.info('[WalletPage] Clearing route params...');
-              navigation.setParams({ claimError: undefined, claimToken: undefined });
-
-              // If we have a token, automatically retry claiming it
-              if (tokenToRetry) {
-                logger.info('[WalletPage] Will retry token claim after delay');
-                // Small delay to ensure wallet state is updated
-                setTimeout(() => {
-                  logger.info('[WalletPage] Navigating to TurboClaiming with token...');
-                  navigation.navigate('TurboClaiming', {
-                    tokenString: tokenToRetry,
-                  });
-                }, 100);
-              } else {
-                logger.warn('[WalletPage] No token to retry!');
-                showSnackbar({
-                  type: 'success',
-                  action: 'switch',
-                  description: `Switched to Account ${targetAccount}`,
-                });
-              }
-            } catch (err) {
-              logger.error('[WalletPage] Failed to switch account:', err);
-              showSnackbar({
-                type: 'error',
-                action: 'switch',
-                description: 'Failed to switch account',
-              });
-            }
-          };
-        }
-      }
-
-      showSnackbar(snackbarConfig);
-      // Clear the params so they don't trigger again (unless we're retrying)
-      if (!errorMessage.includes('This proof belongs to account')) {
-        navigation.setParams({ claimError: undefined, claimToken: undefined });
-      }
-    }
-  }, [route?.params?.claimSuccess, route?.params?.claimError, showSnackbar, navigation, switchAccount, dismissSnackbar]);
+  // Use claim notifications hook
+  useClaimNotifications({
+    route,
+    showSnackbar,
+    dismissSnackbar,
+    switchAccount,
+  });
 
   // Navigation hooks
   const {
@@ -278,172 +147,30 @@ export default function WalletPage({ route }) {
     setShowQRScanner,
   });
 
-  // Ecash threshold handlers
-  const handleEcashThresholdPress = () => {
-    setShowThresholdSheet(true);
-  };
-
-  const handleThresholdSelect = async (newThreshold) => {
-    setShowThresholdSheet(false);
-
-    // If selecting same threshold or 100, just update
-    if (newThreshold === settingsHandlers.ecashThreshold || newThreshold === 100) {
-      await settingsHandlers.handleEcashThresholdChange(newThreshold);
-      return;
-    }
-
-    // Check if we need to convert more ecash
-    const currentEcashBalance = cashuBalance || 0;
-    // runesBalance is an array: [[runeId, amount], ...]
-    const currentUnitBalance = runesBalance && runesBalance.length > 0 ? parseFloat(runesBalance[0][1]) : 0;
-    const requiredAmount = newThreshold === Infinity ? 0 : newThreshold;
-
-    if (requiredAmount > currentEcashBalance && requiredAmount > 0) {
-      // Need to convert more
-      const amountNeeded = requiredAmount - currentEcashBalance;
-
-      // Check if we have enough UNIT balance
-      const actualConversionAmount = Math.min(amountNeeded, currentUnitBalance);
-
-      logger.debug('[WalletPage] Setting conversion modal state:', {
-        currentUnitBalance,
-        amountNeeded,
-        actualConversionAmount,
-        runesBalance,
-      });
-
-      setPendingThreshold(newThreshold);
-      setConversionAmount(actualConversionAmount);
-      setSavedUnitBalance(currentUnitBalance);
-      setShowConversionModal(true);
-    } else {
-      // No conversion needed, just update threshold
-      await settingsHandlers.handleEcashThresholdChange(newThreshold);
-    }
-  };
-
-  const handleConfirmConversion = async () => {
-    logger.debug('[WalletPage] handleConfirmConversion called', {
-      conversionAmount,
-      pendingThreshold,
-    });
-
-    setShowConversionModal(false);
-
-    // Update threshold first
-    await settingsHandlers.handleEcashThresholdChange(pendingThreshold);
-
-    // Navigate to mint flow (similar to Turbo mint flow)
-    try {
-      logger.debug('[WalletPage] Importing requestMint...');
-      const { requestMint } = await import('../services/cashu/cashuWalletService');
-
-      logger.debug('[WalletPage] Requesting mint quote for amount:', conversionAmount);
-      // Request mint quote for the needed amount
-      const mintQuote = await requestMint(conversionAmount);
-      logger.debug('[WalletPage] Received mint quote:', mintQuote);
-
-      logger.debug('[WalletPage] Navigating to Processing screen');
-      logger.debug('[WalletPage] Navigation object available:', !!navigation);
-      logger.debug('[WalletPage] showSettings:', showSettings);
-
-      // Close modals first
-      setShowConversionModal(false);
-      setShowThresholdSheet(false);
-
-      // Close settings panel - ensure it's fully hidden
-      if (showSettings) {
-        logger.debug('[WalletPage] Closing settings before navigation');
-        closeSettings();
-      }
-
-      // Navigate using root navigator to ensure modal appears above everything
-      // Get parent navigators until we reach root
-      const getRootNavigator = (nav) => {
-        let currentNav = nav;
-        while (currentNav.getParent()) {
-          currentNav = currentNav.getParent();
-        }
-        return currentNav;
-      };
-
-      // Use setTimeout to ensure settings close completes
-      setTimeout(() => {
-        logger.debug('[WalletPage] Attempting navigation now...');
-        logger.debug('[WalletPage] conversionAmount:', conversionAmount, 'type:', typeof conversionAmount);
-        const amountStr = conversionAmount?.toString() || '0';
-        logger.debug('[WalletPage] amountStr:', amountStr);
-
-        try {
-          // Navigate from root navigator to ensure modal opens correctly
-          const rootNav = getRootNavigator(navigation);
-          logger.debug('[WalletPage] Using root navigator:', !!rootNav);
-
-          rootNav.navigate('SendFlow', {
-            screen: 'Processing',
-            params: {
-              fromScreen: 'Settings',
-              action: 'create_intent',
-              cashuMint: true,
-              quoteId: mintQuote.quoteId,
-              assetType: 'unit',
-              amount: amountStr,
-              recipient: mintQuote.depositAddress,
-            },
-          });
-          logger.debug('[WalletPage] Navigation call completed');
-        } catch (navError) {
-          logger.error('[WalletPage] Navigation error:', navError);
-          showToast('Navigation failed: ' + navError.message, 'error');
-        }
-      }, 400);
-    } catch (error) {
-      logger.error('[WalletPage] Failed to initiate mint:', error);
-      showToast('Failed to start conversion: ' + error.message, 'error');
-    }
-  };
-
-  const handleLowBalanceTopUp = async () => {
-    logger.debug('[WalletPage] handleLowBalanceTopUp called', {
-      amountNeeded: lowBalanceAmountNeeded,
-    });
-
-    closeLowBalanceModal();
-
-    // Navigate to mint flow
-    try {
-      const { requestMint } = await import('../services/cashu/cashuWalletService');
-
-      // Request mint quote for the needed amount
-      const mintQuote = await requestMint(lowBalanceAmountNeeded);
-      logger.debug('[WalletPage] Received mint quote for top-up:', mintQuote);
-
-      const amountStr = lowBalanceAmountNeeded?.toString() || '0';
-
-      // Navigate to processing screen
-      navigation.navigate('SendFlow', {
-        screen: 'Processing',
-        params: {
-          fromScreen: 'Wallet',
-          action: 'create_intent',
-          cashuMint: true,
-          quoteId: mintQuote.quoteId,
-          assetType: 'unit',
-          amount: amountStr,
-          recipient: mintQuote.depositAddress,
-        },
-      });
-
-      // Show snackbar for conversion
-      showSnackbar({
-        type: 'pending',
-        action: 'conversion_turbo',
-      });
-    } catch (error) {
-      logger.error('[WalletPage] Failed to initiate top-up:', error);
-      showToast('Failed to start top-up: ' + error.message, 'error');
-    }
-  };
+  // Use ecash threshold manager hook
+  const {
+    showThresholdSheet,
+    showConversionModal,
+    conversionAmount,
+    savedUnitBalance,
+    pendingThreshold,
+    setShowThresholdSheet,
+    setShowConversionModal,
+    handleEcashThresholdPress,
+    handleThresholdSelect,
+    handleConfirmConversion,
+    handleLowBalanceTopUp,
+  } = useEcashThresholdManager({
+    cashuBalance,
+    runesBalance,
+    settingsHandlers,
+    showToast,
+    showSnackbar,
+    showSettings,
+    closeSettings,
+    lowBalanceAmountNeeded,
+    closeLowBalanceModal,
+  });
 
   // Handle navigation param to open receive sheet
   React.useEffect(() => {
@@ -454,186 +181,18 @@ export default function WalletPage({ route }) {
     }
   }, [route?.params?.openReceive, setShowReceiveSheet, navigation]);
 
-  // Vault swipe animation state
-  const vaultTranslateX = useRef(new Animated.Value(-SCREEN_WIDTH)).current; // Start on left
-  const walletTranslateX = useRef(new Animated.Value(0)).current;
-  const [isSwiping, setIsSwiping] = useState(false);
-  const isAnimatingRef = useRef(false);
-
-  // Keep positions in sync with activeTab - runs on mount and whenever activeTab changes
-  React.useEffect(() => {
-    // Don't interfere with swipe animations
-    if (isSwiping || isAnimatingRef.current) return;
-
-    if (activeTab === 'vault') {
-      // Vault is active - wallet should be off screen right, vault centered
-      walletTranslateX.setValue(SCREEN_WIDTH);
-      vaultTranslateX.setValue(0);
-    } else {
-      // Wallet is active - wallet centered, vault off screen left
-      walletTranslateX.setValue(0);
-      vaultTranslateX.setValue(-SCREEN_WIDTH);
-    }
-  }, [activeTab, isSwiping, walletTranslateX, vaultTranslateX]);
-
-  // Pan responder for wallet screen - right swipe to reveal vault
-  const walletPanResponder = useRef(
-    PanResponder.create({
-      onMoveShouldSetPanResponder: (_, gestureState) => {
-        // Only activate for horizontal swipes on wallet screen
-        if (activeTab !== 'wallet') return false;
-        const isHorizontal = Math.abs(gestureState.dx) > Math.abs(gestureState.dy);
-        const hasMinimumMovement = Math.abs(gestureState.dx) > 20; // Increased from 10 for less sensitivity
-        return isHorizontal && hasMinimumMovement;
-      },
-      onPanResponderGrant: () => {
-        setIsSwiping(true);
-      },
-      onPanResponderMove: (_, gestureState) => {
-        // Only allow right swipe (positive dx) - wallet moves right, vault reveals from left
-        if (gestureState.dx > 0) {
-          walletTranslateX.setValue(gestureState.dx);
-          vaultTranslateX.setValue(-SCREEN_WIDTH + gestureState.dx);
-        }
-      },
-      onPanResponderRelease: (_, gestureState) => {
-        setIsSwiping(false);
-
-        // Determine if we should complete the transition based on:
-        // 1. Distance (30% threshold instead of 50%)
-        // 2. Velocity (fast swipes trigger easier)
-        const swipeDistance = gestureState.dx;
-        const swipeVelocity = gestureState.vx;
-        const distanceThreshold = SCREEN_WIDTH * 0.3;
-        const velocityThreshold = 0.5;
-
-        const shouldComplete =
-          swipeDistance > distanceThreshold || swipeVelocity > velocityThreshold;
-
-        if (shouldComplete) {
-          isAnimatingRef.current = true;
-          // Complete animation to vault - wallet moves right off screen, vault moves to center
-          Animated.parallel([
-            Animated.spring(walletTranslateX, {
-              toValue: SCREEN_WIDTH,
-              velocity: swipeVelocity,
-              tension: 65,
-              friction: 10,
-              useNativeDriver: true,
-            }),
-            Animated.spring(vaultTranslateX, {
-              toValue: 0,
-              velocity: swipeVelocity,
-              tension: 65,
-              friction: 10,
-              useNativeDriver: true,
-            }),
-          ]).start(() => {
-            openVault();
-            isAnimatingRef.current = false;
-          });
-        } else {
-          // Spring back to original position
-          Animated.parallel([
-            Animated.spring(walletTranslateX, {
-              toValue: 0,
-              velocity: -swipeVelocity,
-              tension: 65,
-              friction: 10,
-              useNativeDriver: true,
-            }),
-            Animated.spring(vaultTranslateX, {
-              toValue: -SCREEN_WIDTH,
-              velocity: -swipeVelocity,
-              tension: 65,
-              friction: 10,
-              useNativeDriver: true,
-            }),
-          ]).start();
-        }
-      },
-    })
-  ).current;
-
-  // Pan responder for vault screen - left swipe to go back to wallet
-  // Now only attached to the edge area, so simplified logic
-  const vaultPanResponder = useRef(
-    PanResponder.create({
-      onMoveShouldSetPanResponder: (_, gestureState) => {
-        // Since this is only on the edge, we can be more permissive
-        const isHorizontal = Math.abs(gestureState.dx) > Math.abs(gestureState.dy);
-        const hasMovement = Math.abs(gestureState.dx) > 10;
-        const isLeftSwipe = gestureState.dx < -10;
-        return isHorizontal && isLeftSwipe && hasMovement;
-      },
-      onPanResponderGrant: () => {
-        setIsSwiping(true);
-      },
-      onPanResponderMove: (_, gestureState) => {
-        // Only allow left swipe (negative dx) - vault moves left, wallet reveals from right
-        if (gestureState.dx < 0) {
-          vaultTranslateX.setValue(gestureState.dx);
-          walletTranslateX.setValue(SCREEN_WIDTH + gestureState.dx);
-        }
-      },
-      onPanResponderRelease: (_, gestureState) => {
-        setIsSwiping(false);
-
-        // Determine if we should complete the transition based on:
-        // 1. Distance (30% threshold instead of 50%)
-        // 2. Velocity (fast swipes trigger easier)
-        const swipeDistance = Math.abs(gestureState.dx);
-        const swipeVelocity = Math.abs(gestureState.vx);
-        const distanceThreshold = SCREEN_WIDTH * 0.3;
-        const velocityThreshold = 0.5;
-
-        const shouldComplete =
-          swipeDistance > distanceThreshold || swipeVelocity > velocityThreshold;
-
-        if (shouldComplete) {
-          isAnimatingRef.current = true;
-          // Complete animation to wallet - vault moves left off screen, wallet moves to center
-          Animated.parallel([
-            Animated.spring(vaultTranslateX, {
-              toValue: -SCREEN_WIDTH,
-              velocity: -swipeVelocity,
-              tension: 65,
-              friction: 10,
-              useNativeDriver: true,
-            }),
-            Animated.spring(walletTranslateX, {
-              toValue: 0,
-              velocity: -swipeVelocity,
-              tension: 65,
-              friction: 10,
-              useNativeDriver: true,
-            }),
-          ]).start(() => {
-            setActiveTab('wallet');
-            isAnimatingRef.current = false;
-          });
-        } else {
-          // Spring back to original position
-          Animated.parallel([
-            Animated.spring(vaultTranslateX, {
-              toValue: 0,
-              velocity: swipeVelocity,
-              tension: 65,
-              friction: 10,
-              useNativeDriver: true,
-            }),
-            Animated.spring(walletTranslateX, {
-              toValue: SCREEN_WIDTH,
-              velocity: swipeVelocity,
-              tension: 65,
-              friction: 10,
-              useNativeDriver: true,
-            }),
-          ]).start();
-        }
-      },
-    })
-  ).current;
+  // Use vault swipe gesture hook
+  const {
+    vaultTranslateX,
+    walletTranslateX,
+    isSwiping,
+    walletPanResponder,
+    vaultPanResponder,
+  } = useVaultSwipeGesture({
+    activeTab,
+    setActiveTab,
+    openVault,
+  });
 
   // Show splash screen until we've checked flags to prevent flicker
   if (!hasCheckedInitialFlags) {
