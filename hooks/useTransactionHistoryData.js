@@ -178,29 +178,20 @@ export function useTransactionHistoryData(
 
   // Update loading state when context loading changes or ecash is loading
   useEffect(() => {
-    // Show loading if:
-    // 1. Transaction history is loading and we have no cached data, OR
-    // 2. Ecash is loading, OR
-    // 3. Haven't calculated transactions yet (prevents flash of empty state)
-    if (transactionHistory.length === 0 && loadingTransactionHistory) {
-      setLoading(true);
-    } else if (ecashLoading || (!advancedMode && !hasCalculatedInitialTransactions.current)) {
+    // Show loading only if we have no data and are actively loading
+    const hasNoData = transactionHistory.length === 0 && ecashTokens.length === 0;
+    const isLoadingData = loadingTransactionHistory || ecashLoading;
+
+    if (hasNoData && isLoadingData) {
       setLoading(true);
     } else {
       setLoading(false);
+      hasCalculatedInitialTransactions.current = true;
     }
-  }, [loadingTransactionHistory, transactionHistory, ecashLoading, advancedMode]);
+  }, [loadingTransactionHistory, transactionHistory, ecashLoading, ecashTokens]);
 
   // Filter out self-transfers and prepare display data
   const displayTransactions = useMemo(() => {
-    // For normal mode, wait for ecash to finish loading before displaying ANY transactions
-    // This ensures runes and ecash transactions appear together as a batch
-    if (!advancedMode && !ecashInitialLoadDone) {
-      logger.debug('[useTransactionHistoryData] Waiting for ecash tokens to load before displaying transactions');
-      // Don't mark as calculated yet - we're still waiting
-      return [];
-    }
-
     // Process regular transactions
     const regularTxs = transactionHistory
       .filter((tx) => {
@@ -268,7 +259,7 @@ export function useTransactionHistoryData(
     hasCalculatedInitialTransactions.current = true;
 
     return merged;
-  }, [transactionHistory, ecashTokens, segwitAddress, taprootAddress, ecashInitialLoadDone, advancedMode]);
+  }, [transactionHistory, ecashTokens, segwitAddress, taprootAddress]);
 
   // Open transaction in blockchain explorer
   const openTxInExplorer = useCallback(async (txid, assetType) => {

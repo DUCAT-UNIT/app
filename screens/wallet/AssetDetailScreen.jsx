@@ -36,6 +36,7 @@ import { useAssetTransactions } from '../../hooks/useAssetTransactions';
 import { getTxUrl, getOrdTxUrl } from '../../utils/constants';
 import TokenDetailsSheet from '../../components/ecash/TokenDetailsSheet';
 import { useNotifications } from '../../contexts/NotificationContext';
+import { logger } from '../../utils/logger';
 
 function AssetDetailScreen({ route = {}, navigation }) {
   const { assetType = 'BTC', advancedMode = false } = route?.params || {};

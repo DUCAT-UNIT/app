@@ -8,6 +8,7 @@ import { AppState, View } from 'react-native';
 import { StatusBar } from 'expo-status-bar';
 import Icon from '../components/icons';
 import styles from '../styles';
+import { logger } from '../utils/logger';
 
 export default function SplashScreen() {
   const viewRef = useRef(null);

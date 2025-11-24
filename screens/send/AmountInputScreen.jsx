@@ -119,7 +119,18 @@ export default function AmountInputScreen({ navigation, route }) {
   };
 
   const handleReview = async () => {
-    if (!sendAmount || isRequestingMint) return;
+    logger.debug('[AmountInputScreen] handleReview called', {
+      sendAmount,
+      isRequestingMint,
+      sendAssetType,
+      turboEnabled,
+      sendRecipient,
+    });
+
+    if (!sendAmount || isRequestingMint) {
+      logger.warn('[AmountInputScreen] Aborting review - missing amount or already requesting mint');
+      return;
+    }
 
     amountInputRef.current?.blur();
 
@@ -171,7 +182,9 @@ export default function AmountInputScreen({ navigation, route }) {
           setIsRequestingMint(false);
 
           // Navigate to processing screen to create token
+          logger.debug('[AmountInputScreen] Navigating to TurboProcessing...');
           navigation.navigate('TurboProcessing');
+          logger.debug('[AmountInputScreen] Navigation call completed');
           return;
         }
 
@@ -191,12 +204,17 @@ export default function AmountInputScreen({ navigation, route }) {
     } else {
       // Normal flow - Navigate to processing screen
       // Pass along Cashu mint params if this is a Cashu mint transaction
+      logger.debug('[AmountInputScreen] Normal flow - Navigating to Processing...', {
+        isCashuMint,
+        cashuQuoteId,
+      });
       navigation.navigate('Processing', {
         fromScreen: 'AmountInput',
         action: 'create_intent',
         cashuMint: isCashuMint,
         quoteId: cashuQuoteId,
       });
+      logger.debug('[AmountInputScreen] Navigation call completed');
     }
   };
 
