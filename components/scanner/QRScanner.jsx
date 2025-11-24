@@ -31,10 +31,12 @@ export default function QRScanner({ visible, onClose, onScan }) {
   const bcurReceivedPartsRef = useRef(0);
   const [bcurExpectedParts, setBcurExpectedParts] = useState(null);
   const [hasScanned, setHasScanned] = useState(false);
+  const [cameraReady, setCameraReady] = useState(false);
 
   // Reset state when modal opens
   useEffect(() => {
     if (visible) {
+      console.log('[QRScanner] Modal opened');
       // Reset when opening to ensure clean state
       setScannedChunks(new Map());
       setTotalChunks(null);
@@ -44,6 +46,7 @@ export default function QRScanner({ visible, onClose, onScan }) {
       bcurReceivedPartsRef.current = 0;
       setBcurExpectedParts(null);
       setHasScanned(false);
+      setCameraReady(false);
     }
   }, [visible]);
 
@@ -207,7 +210,14 @@ export default function QRScanner({ visible, onClose, onScan }) {
   }, [hasScanned, bcurExpectedParts, scannedChunks, totalChunks, onScan]);
 
   if (!permission) {
-    return null;
+    // Loading state - show a blank modal while checking permissions
+    return (
+      <Modal visible={visible} animationType="slide">
+        <View style={styles.permissionContainer}>
+          <Text style={styles.permissionText}>Loading camera...</Text>
+        </View>
+      </Modal>
+    );
   }
 
   if (!permission.granted) {
@@ -233,13 +243,24 @@ export default function QRScanner({ visible, onClose, onScan }) {
   const progress = totalChunks ? (scannedChunks.size / totalChunks) * 100 : bcurProgress;
   const isScanning = totalChunks || bcurProgress > 0;
 
+  console.log('[QRScanner] Rendering camera - permission granted:', permission.granted, 'visible:', visible);
+
   return (
     <Modal visible={visible} animationType="slide">
       <View style={styles.container}>
+        {!cameraReady && (
+          <View style={styles.loadingOverlay}>
+            <Text style={styles.loadingText}>Initializing camera...</Text>
+          </View>
+        )}
         <CameraView
           style={styles.camera}
           facing="back"
           onBarcodeScanned={handleBarCodeScanned}
+          onCameraReady={() => {
+            console.log('[QRScanner] Camera ready');
+            setCameraReady(true);
+          }}
           barcodeScannerSettings={{
             barcodeTypes: ['qr'],
           }}
@@ -291,6 +312,22 @@ const styles = StyleSheet.create({
   container: {
     flex: 1,
     backgroundColor: '#000',
+  },
+  loadingOverlay: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
+    bottom: 0,
+    backgroundColor: COLORS.DARK_BG,
+    justifyContent: 'center',
+    alignItems: 'center',
+    zIndex: 1000,
+  },
+  loadingText: {
+    color: COLORS.WHITE,
+    fontSize: 16,
+    fontFamily: 'CabinetGrotesk-Regular',
   },
   camera: {
     flex: 1,
