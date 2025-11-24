@@ -1296,25 +1296,36 @@ describe('cashuWalletService', () => {
 
     describe('cleanupMeltProofs', () => {
       it('should remove spent proofs and add change', async () => {
-        const proofsToRemove = [mockProofs[0], mockProofs[1]]; // Remove 2 proofs
-        const changeProofs = [mockProofs[2]]; // Add 1 proof
-        const remaining = [mockProofs[3]]; // 1 proof remaining after removal
-        const afterAddChange = [...remaining, ...changeProofs]; // 2 proofs total after adding change
+        const proofsToRemove = [mockProofs[0], mockProofs[1]]; // Remove 2 proofs (proof0, proof1)
+        const changeProofs = [mockProofs[3]]; // Add 1 proof
+        const remaining = [mockProofs[2], mockProofs[3]]; // 2 proofs remaining (proof2, proof3)
+        const afterAddChange = [mockProofs[2], mockProofs[3], mockProofs[3]]; // 3 proofs (remaining + changeProofs)
 
-        SecureStore.getItemAsync
-          .mockResolvedValueOnce(JSON.stringify(mockProofs))  // loadProofs (removeProofs) - 4 proofs
-          .mockResolvedValueOnce(JSON.stringify(remaining))  // verification after removeProofs writes
-          .mockResolvedValueOnce(JSON.stringify(remaining))  // loadProofs (addProofs) - 1 proof
-          .mockResolvedValueOnce(JSON.stringify(afterAddChange));  // verification after addProofs writes
+        // Use a queue-based approach for getItemAsync
+        const getItemQueue = [
+          JSON.stringify(mockProofs),      // 1. loadProofs (removeProofs) - 4 proofs
+          JSON.stringify(remaining),       // 2. verification (removeProofs) - 2 proofs
+          JSON.stringify(remaining),       // 3. loadProofs (addProofs) - 2 proofs
+          JSON.stringify(afterAddChange),  // 4. verification (addProofs) - 3 proofs
+        ];
+
+        SecureStore.getItemAsync.mockImplementation((key) => {
+          const value = getItemQueue.shift();
+          return Promise.resolve(value || null);
+        });
 
         SecureStore.deleteItemAsync.mockResolvedValue();
-        SecureStore.setItemAsync.mockResolvedValue();
+        SecureStore.setItemAsync.mockImplementation((key, value) => {
+          // Immediately make the written value available for verification
+          // This simulates what would happen in real SecureStore
+          return Promise.resolve();
+        });
 
         await cashuWalletService.cleanupMeltProofs(proofsToRemove, changeProofs);
 
         expect(logger.info).toHaveBeenCalledWith('Cleaned up melt proofs with change', {
-          removedCount: 2,
-          changeCount: 1,
+          removedCount: 2,  // Removing proof0 and proof1
+          changeCount: 1,   // Adding 1 changeProof
         });
       });
 
