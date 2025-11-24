@@ -19,6 +19,13 @@ jest.mock('../../hooks/usePolling');
 jest.mock('../../hooks/useBalanceData');
 jest.mock('../../hooks/useTransactionHistoryFetch');
 jest.mock('../../hooks/useVaultDataFetch');
+jest.mock('../CashuContext', () => ({
+  useCashu: () => ({
+    balance: 0,
+    isLoading: false,
+    fetchBalance: jest.fn(),
+  }),
+}));
 
 describe('WalletDataContext', () => {
   const mockWallet = {
@@ -30,7 +37,7 @@ describe('WalletDataContext', () => {
   const mockBalance = {
     segwitBalance: 100000,
     taprootBalance: 50000,
-    runesBalance: { UNCOMMON_GOODS: 10 },
+    runesBalance: [],
     unconfirmedSegwitBalance: 0,
     unconfirmedTaprootBalance: 0,
     unconfirmedRunesBalance: {},
@@ -260,7 +267,7 @@ describe('WalletDataContext', () => {
       expect(mockVault.resetVaultData).toHaveBeenCalled();
     });
 
-    it('should fetch all data when wallet account changes', () => {
+    it('should fetch balance and vault when wallet account changes', () => {
       const wrapper = ({ children }) => <WalletDataProvider>{children}</WalletDataProvider>;
       const { rerender } = renderHook(() => useWalletData(), { wrapper });
 
@@ -280,7 +287,8 @@ describe('WalletDataContext', () => {
 
       expect(mockBalance.fetchBalance).toHaveBeenCalled();
       expect(mockVault.fetchVault).toHaveBeenCalled();
-      expect(mockHistory.fetchTransactionHistory).toHaveBeenCalled();
+      // Transaction history is not fetched immediately - it will be fetched by pollAllData once balances load
+      expect(mockHistory.fetchTransactionHistory).not.toHaveBeenCalled();
     });
 
     it('should not fetch when wallet object changes but addresses are same', () => {
