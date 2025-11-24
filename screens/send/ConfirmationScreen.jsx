@@ -201,10 +201,8 @@ export default function ConfirmationScreen({ navigation, route }) {
 
             // For P2PK, we need the INTERNAL x-only pubkey (not the tweaked output pubkey)
             // P2PK signatures use the raw internal pubkey, not Taproot-tweaked pubkeys
-            // Since turboRecipient is within our own wallet, derive it properly
-            const { getPrivateKeyForAddress } = await import('../../utils/wallet');
-            const keyData = await getPrivateKeyForAddress(turboRecipient);
-            const recipientPubkey = keyData.xOnlyPubkey; // Internal x-only pubkey (32 bytes / 64 hex chars)
+            // Extract the pubkey directly from the taproot address (works for any address, not just own wallet)
+            const recipientPubkey = extractPubkeyFromTaprootAddress(turboRecipient); // Internal x-only pubkey (32 bytes / 64 hex chars)
 
             console.log('[ConfirmationScreen] 🔐 P2PK TOKEN CREATION:');
             console.log('  Recipient address:', turboRecipient);
