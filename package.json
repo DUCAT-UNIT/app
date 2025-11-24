@@ -14,7 +14,13 @@
     "test": "jest",
     "test:watch": "jest --watch",
     "test:coverage": "jest --coverage",
-    "postinstall": "patch-package"
+    "postinstall": "patch-package",
+    "refactor:stats": "node scripts/update-refactor-progress.js stats",
+    "refactor:start": "node scripts/update-refactor-progress.js start",
+    "refactor:complete": "node scripts/update-refactor-progress.js complete",
+    "refactor:block": "node scripts/update-refactor-progress.js block",
+    "refactor:unblock": "node scripts/update-refactor-progress.js unblock",
+    "refactor:note": "node scripts/update-refactor-progress.js note"
   },
   "dependencies": {
     "@bitcoinerlab/secp256k1": "^1.2.0",
