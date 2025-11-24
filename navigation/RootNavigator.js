@@ -669,11 +669,16 @@ export default function RootNavigator() {
 
             // Refresh balance and wallet state to show the new transaction
             console.log('[TURBO] Refreshing balance and wallet after successful claim');
-            if (global.reloadWallet) {
-              global.reloadWallet();
-            }
             await fetchBalance();
             await refreshCashu();
+
+            // Wait a bit for balances to update, then trigger full UI refresh
+            setTimeout(() => {
+              console.log('[TURBO] Triggering full wallet UI refresh');
+              if (global.reloadWallet) {
+                global.reloadWallet();
+              }
+            }, 1000);
 
             // Clear loading state - this will trigger the success snackbar
             setIsVerifyingToken(false);
