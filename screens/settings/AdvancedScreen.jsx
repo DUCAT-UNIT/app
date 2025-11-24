@@ -67,7 +67,7 @@ const AdvancedScreen = React.memo(function AdvancedScreen({ route }) {
 
               Alert.alert(
                 'Cache Cleared',
-                `Successfully cleared:\n• ${result.secureStoreCleared} secure items\n• ${result.asyncStorageCleared} storage items\n\n${result.errors.length > 0 ? `Errors: ${result.errors.join(', ')}` : 'No errors.'}`,
+                `Successfully cleared:\n• ${result.secureStoreCleared} secure items\n• ${result.cashuProofsCleared} cashu proof caches\n• ${result.derivedKeysCleared} derived key caches\n• ${result.asyncStorageCleared} storage items\n\n${result.errors.length > 0 ? `Errors: ${result.errors.join(', ')}` : 'No errors.'}`,
                 [{ text: 'OK' }]
               );
             } catch (error) {

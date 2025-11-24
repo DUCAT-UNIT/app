@@ -23,12 +23,17 @@ const PROTECTED_KEYS = [
 
 // Known SecureStore keys that can be safely cleared
 const CLEARABLE_SECURE_STORE_KEYS = [
-  // P2PK cache
+  // P2PK cache (all versions)
   'p2pk_taproot_address_v3',
   'p2pk_private_key_v3',
+  'p2pk_taproot_address_v2',
+  'p2pk_private_key_v2',
+  'p2pk_taproot_address',
+  'p2pk_private_key',
 
   // Cashu keysets
   'cashu_keysets',
+  'cashu_proofs', // Old global key
 
   // Turbo tokens
   'sent_turbo_tokens',
@@ -36,20 +41,30 @@ const CLEARABLE_SECURE_STORE_KEYS = [
 
   // Transaction cache
   'pending_transactions',
+
+  // Settings cache
+  'app_settings',
+  'display_preferences',
+
+  // Current account (will be re-derived on next load)
+  'current_account',
 ];
 
 /**
  * Clear all app cache except for protected keys (mnemonic, PIN, etc.)
+ * AGGRESSIVE MODE: Clears everything that could be corrupted
  * @returns {Promise<Object>} Summary of what was cleared
  */
 export const clearAppCache = async () => {
   const summary = {
     secureStoreCleared: 0,
     asyncStorageCleared: 0,
+    cashuProofsCleared: 0,
+    derivedKeysCleared: 0,
     errors: [],
   };
 
-  logger.info('[CacheService] Starting cache clear...');
+  logger.info('[CacheService] Starting AGGRESSIVE cache clear...');
 
   try {
     // 1. Clear known SecureStore keys
@@ -66,7 +81,47 @@ export const clearAppCache = async () => {
       }
     }
 
-    // 2. Clear AsyncStorage (except protected keys)
+    // 2. AGGRESSIVE: Clear all possible cashu_proofs_* keys for accounts 0-50
+    logger.info('[CacheService] Aggressively clearing cashu proofs for all accounts...');
+    for (let i = 0; i < 50; i++) {
+      // Try multiple address patterns that might exist
+      const possibleKeys = [
+        `cashu_proofs_account_${i}`,
+        `cashu_proofs_${i}`,
+      ];
+
+      for (const key of possibleKeys) {
+        try {
+          await SecureStore.deleteItemAsync(key);
+          summary.cashuProofsCleared++;
+        } catch (error) {
+          // Ignore - key doesn't exist
+        }
+      }
+    }
+
+    // 3. AGGRESSIVE: Clear all possible derived_key_* cache for multiple versions
+    logger.info('[CacheService] Aggressively clearing derived key cache...');
+    const keyVersions = ['v1_', 'v2_', 'v3_', 'v4_', ''];
+    for (const version of keyVersions) {
+      for (let i = 0; i < 50; i++) {
+        const possibleKeys = [
+          `derived_key_${version}account_${i}`,
+          `derived_key_${version}${i}`,
+        ];
+
+        for (const key of possibleKeys) {
+          try {
+            await SecureStore.deleteItemAsync(key);
+            summary.derivedKeysCleared++;
+          } catch (error) {
+            // Ignore - key doesn't exist
+          }
+        }
+      }
+    }
+
+    // 4. Clear AsyncStorage (except protected keys)
     try {
       const allAsyncKeys = await AsyncStorage.getAllKeys();
       const keysToRemove = allAsyncKeys.filter(key => !PROTECTED_KEYS.includes(key));
@@ -81,7 +136,7 @@ export const clearAppCache = async () => {
       summary.errors.push(`AsyncStorage: ${error.message}`);
     }
 
-    logger.info('[CacheService] Cache clear complete', summary);
+    logger.info('[CacheService] AGGRESSIVE cache clear complete', summary);
     return summary;
   } catch (error) {
     logger.error('[CacheService] Cache clear failed:', error);
