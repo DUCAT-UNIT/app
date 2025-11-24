@@ -14,6 +14,7 @@ import { useTransactionHistory } from '../../contexts/WalletDataContext';
 import { useWallet } from '../../contexts/WalletContext';
 import { useCashu } from '../../contexts/CashuContext';
 import { useNotifications } from '../../contexts/NotificationContext';
+import { logger } from '../../utils/logger';
 
 export default function ConfirmationScreen({ navigation, route }) {
   const { broadcastedTxid } = useTransactionExecution();
@@ -40,19 +41,19 @@ export default function ConfirmationScreen({ navigation, route }) {
   // This fixes the issue where React Navigation pre-renders the screen with empty params
   useEffect(() => {
     if (route?.params?.turboToken && route.params.turboToken !== turboToken) {
-      console.log('[ConfirmationScreen] 🔄 Updating turboToken from route params');
+      logger.debug('[ConfirmationScreen] 🔄 Updating turboToken from route params');
       setTurboToken(route.params.turboToken);
     }
     if (route?.params?.turboDeeplink && route.params.turboDeeplink !== turboDeeplink) {
-      console.log('[ConfirmationScreen] 🔄 Updating turboDeeplink from route params');
+      logger.debug('[ConfirmationScreen] 🔄 Updating turboDeeplink from route params');
       setTurboDeeplink(route.params.turboDeeplink);
     }
   }, [route?.params?.turboToken, route?.params?.turboDeeplink]);
 
   // Log all route params on mount for debugging
   useEffect(() => {
-    console.log('[ConfirmationScreen] Mounted with route params:', route?.params);
-    console.log('[ConfirmationScreen] Extracted values:', {
+    logger.debug('[ConfirmationScreen] Mounted with route params:', route?.params);
+    logger.debug('[ConfirmationScreen] Extracted values:', {
       isTurbo,
       mintQuoteId,
       mintAmount,
@@ -69,9 +70,9 @@ export default function ConfirmationScreen({ navigation, route }) {
 
     // Debug: Check if we should be creating a token
     if (isTurbo && turboRecipient) {
-      console.log('[ConfirmationScreen] ✅ Should create P2PK token - all params present');
+      logger.debug('[ConfirmationScreen] ✅ Should create P2PK token - all params present');
     } else if (isTurbo && !turboRecipient) {
-      console.log('[ConfirmationScreen] ⚠️ isTurbo=true but turboRecipient is missing!');
+      logger.debug('[ConfirmationScreen] ⚠️ isTurbo=true but turboRecipient is missing!');
     }
   }, []);
 
@@ -84,12 +85,12 @@ export default function ConfirmationScreen({ navigation, route }) {
 
   // Debug: Log when turboToken changes
   useEffect(() => {
-    console.log('[ConfirmationScreen] 🎫 turboToken state changed:', turboToken ? `Token present (${turboToken.length} chars)` : 'null');
+    logger.debug('[ConfirmationScreen] 🎫 turboToken state changed:', turboToken ? `Token present (${turboToken.length} chars)` : 'null');
   }, [turboToken]);
 
   // Debug: Log when processing stage changes
   useEffect(() => {
-    console.log('[ConfirmationScreen] 🎬 Processing stage changed:', processingStage, {
+    logger.debug('[ConfirmationScreen] 🎬 Processing stage changed:', processingStage, {
       turboToken: turboToken ? 'present' : 'null',
       turboDeeplink: turboDeeplink || 'null',
       shouldShowLinks: processingStage === 'ready' && turboToken && turboDeeplink,
@@ -104,9 +105,9 @@ export default function ConfirmationScreen({ navigation, route }) {
           const { generateTurboDeeplink } = await import('../../services/cashu/cashuLockedTokensService');
           const deeplink = await generateTurboDeeplink(turboToken, turboRecipient, turboAmount);
           setTurboDeeplink(deeplink);
-          console.log('[ConfirmationScreen] Generated Turbo deeplink:', deeplink);
+          logger.debug('[ConfirmationScreen] Generated Turbo deeplink:', deeplink);
         } catch (error) {
-          console.error('[ConfirmationScreen] Failed to generate deeplink:', error);
+          logger.error('[ConfirmationScreen] Failed to generate deeplink:', error);
         }
       };
       generateLink();
@@ -116,7 +117,7 @@ export default function ConfirmationScreen({ navigation, route }) {
   // Handle Turbo mint completion - ONLY if skipMint is false
   // (When skipMint is true, mint was already completed in ProcessingScreen)
   useEffect(() => {
-    console.log('[ConfirmationScreen] Checking mint completion:', {
+    logger.debug('[ConfirmationScreen] Checking mint completion:', {
       isTurbo,
       mintQuoteId,
       mintAmount,
@@ -127,24 +128,24 @@ export default function ConfirmationScreen({ navigation, route }) {
 
     // Skip mint polling if token was created in ProcessingScreen
     if (skipMint) {
-      console.log('[ConfirmationScreen] Token already created in ProcessingScreen - skipping mint flow');
+      logger.debug('[ConfirmationScreen] Token already created in ProcessingScreen - skipping mint flow');
       return;
     }
 
     // Only proceed if this is a Turbo flow with all required params
     if (!isTurbo) {
-      console.log('[ConfirmationScreen] Not a Turbo transaction, skipping mint completion');
+      logger.debug('[ConfirmationScreen] Not a Turbo transaction, skipping mint completion');
       return;
     }
 
     // Only start mint completion when we're in the 'converting' stage
     if (processingStage !== 'converting') {
-      console.log('[ConfirmationScreen] Not in converting stage yet, waiting...');
+      logger.debug('[ConfirmationScreen] Not in converting stage yet, waiting...');
       return;
     }
 
     if (!mintQuoteId || !mintAmount) {
-      console.error('[ConfirmationScreen] MISSING REQUIRED PARAMS:', {
+      logger.error('[ConfirmationScreen] MISSING REQUIRED PARAMS:', {
         mintQuoteId: !!mintQuoteId,
         mintAmount: !!mintAmount,
       });
@@ -153,12 +154,12 @@ export default function ConfirmationScreen({ navigation, route }) {
     }
 
     if (hasMintCompleted.current) {
-      console.log('[ConfirmationScreen] Mint already completed, skipping');
+      logger.debug('[ConfirmationScreen] Mint already completed, skipping');
       return;
     }
 
     hasMintCompleted.current = true;
-    console.log('[ConfirmationScreen] Starting mint completion process');
+    logger.debug('[ConfirmationScreen] Starting mint completion process');
 
     const completeMintProcess = async () => {
       setIsCompletingMint(true);
@@ -166,7 +167,7 @@ export default function ConfirmationScreen({ navigation, route }) {
         const { completeMint, sendP2PKToken } = await import('../../services/cashu/cashuWalletService');
         const { checkMintQuote } = await import('../../services/cashu/cashuMintClient');
         const { extractPubkeyFromTaprootAddress } = await import('../../utils/bitcoin');
-        console.log('[ConfirmationScreen] Starting to poll for payment confirmation');
+        logger.debug('[ConfirmationScreen] Starting to poll for payment confirmation');
 
         // Poll for payment confirmation
         let paidQuote = null;
@@ -176,7 +177,7 @@ export default function ConfirmationScreen({ navigation, route }) {
         while (!paidQuote && attempts < maxAttempts) {
           await new Promise(resolve => setTimeout(resolve, 1000));
           const quote = await checkMintQuote(mintQuoteId);
-          console.log(`[ConfirmationScreen] Check ${attempts + 1}/${maxAttempts}:`, quote);
+          logger.debug(`[ConfirmationScreen] Check ${attempts + 1}/${maxAttempts}:`, quote);
           if (quote.state === 'PAID' || quote.state === 'ISSUED') {
             paidQuote = quote;
             break;
@@ -185,50 +186,50 @@ export default function ConfirmationScreen({ navigation, route }) {
         }
 
         if (paidQuote) {
-          console.log('[ConfirmationScreen] Payment confirmed! Completing mint with amount:', paidQuote.amount);
+          logger.debug('[ConfirmationScreen] Payment confirmed! Completing mint with amount:', paidQuote.amount);
           // Complete mint to get e-cash tokens - quote.amount is already in smallest units
           await completeMint(mintQuoteId, paidQuote.amount);
-          console.log('[ConfirmationScreen] Mint completed successfully');
+          logger.debug('[ConfirmationScreen] Mint completed successfully');
 
           // If this is new Turbo mode (with turboRecipient), create P2PK locked token
           if (turboRecipient) {
-            console.log('[ConfirmationScreen] Creating P2PK locked token for recipient:', turboRecipient);
+            logger.debug('[ConfirmationScreen] Creating P2PK locked token for recipient:', turboRecipient);
 
             // Get balance before creating token
             const { getBalance } = await import('../../services/cashu/cashuWalletService');
             const balanceBefore = await getBalance();
-            console.log('[ConfirmationScreen] Balance before P2PK token creation:', balanceBefore);
+            logger.debug('[ConfirmationScreen] Balance before P2PK token creation:', balanceBefore);
 
             // For P2PK, we need the tweaked output pubkey (extracted from the Taproot address)
             // This is the pubkey that's actually encoded in the tb1p... address
             // Extract the pubkey directly from the taproot address (works for any address, not just own wallet)
             const recipientPubkey = extractPubkeyFromTaprootAddress(turboRecipient); // Tweaked x-only pubkey (32 bytes / 64 hex chars)
 
-            console.log('[ConfirmationScreen] 🔐 P2PK TOKEN CREATION:');
-            console.log('  Recipient address:', turboRecipient);
-            console.log('  FULL Tweaked pubkey for locking:', recipientPubkey);
-            console.log('  Pubkey length:', recipientPubkey.length);
+            logger.debug('[ConfirmationScreen] 🔐 P2PK TOKEN CREATION:');
+            logger.debug('  Recipient address:', turboRecipient);
+            logger.debug('  FULL Tweaked pubkey for locking:', recipientPubkey);
+            logger.debug('  Pubkey length:', recipientPubkey.length);
 
             // Use quote amount directly (already in smallest units)
-            console.log('[ConfirmationScreen] Creating P2PK token for amount (smallest units):', paidQuote.amount);
+            logger.debug('[ConfirmationScreen] Creating P2PK token for amount (smallest units):', paidQuote.amount);
 
             // Create P2PK locked token - this should remove the unlocked proofs
             const { token, balance: balanceAfter } = await sendP2PKToken(paidQuote.amount, recipientPubkey);
-            console.log('[ConfirmationScreen] P2PK token created successfully');
-            console.log('[ConfirmationScreen] Balance after P2PK token creation:', balanceAfter);
-            console.log('[ConfirmationScreen] Proofs cleaned up:', balanceBefore - balanceAfter, 'removed');
+            logger.debug('[ConfirmationScreen] P2PK token created successfully');
+            logger.debug('[ConfirmationScreen] Balance after P2PK token creation:', balanceAfter);
+            logger.debug('[ConfirmationScreen] Proofs cleaned up:', balanceBefore - balanceAfter, 'removed');
 
             // Verify cleanup worked (compare display units)
             const expectedDecrease = paidQuote.amount / 100; // Convert smallest units to display units
             const actualDecrease = balanceBefore - balanceAfter;
             if (Math.abs(actualDecrease - expectedDecrease) > 0.01) {
-              console.warn('[ConfirmationScreen] WARNING: Balance mismatch after P2PK creation', {
+              logger.warn('[ConfirmationScreen] WARNING: Balance mismatch after P2PK creation', {
                 expected: expectedDecrease,
                 actual: actualDecrease,
                 difference: Math.abs(actualDecrease - expectedDecrease),
               });
             } else {
-              console.log('[ConfirmationScreen] ✅ Balance decreased correctly:', actualDecrease, 'UNIT');
+              logger.debug('[ConfirmationScreen] ✅ Balance decreased correctly:', actualDecrease, 'UNIT');
             }
 
             // Generate shortened URL and store token persistently
@@ -238,24 +239,24 @@ export default function ConfirmationScreen({ navigation, route }) {
 
               // Generate short URL first
               const shortUrl = await generateTurboDeeplink(token, turboRecipient, paidQuote.amount);
-              console.log('[ConfirmationScreen] Generated short URL:', shortUrl);
+              logger.debug('[ConfirmationScreen] Generated short URL:', shortUrl);
 
               // Save token with short URL and taproot address
               await saveSentLockedToken(token, turboRecipient, paidQuote.amount, broadcastedTxid, shortUrl, wallet.taprootAddress);
-              console.log('[ConfirmationScreen] Token saved to persistent storage with short URL');
+              logger.debug('[ConfirmationScreen] Token saved to persistent storage with short URL');
 
               // Store short URL for display
               setTurboDeeplink(shortUrl);
             } catch (storageError) {
-              console.error('[ConfirmationScreen] Failed to generate/save token:', storageError);
+              logger.error('[ConfirmationScreen] Failed to generate/save token:', storageError);
               // Non-critical error - continue anyway
             }
 
             // Store token for display
-            console.log('[ConfirmationScreen] 🎫 Setting turboToken state with token length:', token?.length);
+            logger.debug('[ConfirmationScreen] 🎫 Setting turboToken state with token length:', token?.length);
             setTurboToken(token);
             setProcessingStage('ready'); // Transition to ready stage
-            console.log('[ConfirmationScreen] 🎫 turboToken state has been set, transitioned to ready stage');
+            logger.debug('[ConfirmationScreen] 🎫 turboToken state has been set, transitioned to ready stage');
           }
 
           // Refresh balance
@@ -265,7 +266,7 @@ export default function ConfirmationScreen({ navigation, route }) {
 
           // Refresh cashu balance to reflect the new tokens
           await refreshCashuBalance();
-          console.log('[ConfirmationScreen] Cashu balance refreshed');
+          logger.debug('[ConfirmationScreen] Cashu balance refreshed');
 
           // Different message based on whether this is address-bound or regular Turbo
           if (turboRecipient) {
@@ -274,12 +275,12 @@ export default function ConfirmationScreen({ navigation, route }) {
             showSnackbar({ type: 'success', action: 'convert' });
           }
         } else {
-          console.log('[ConfirmationScreen] Payment not confirmed after 30 seconds');
+          logger.debug('[ConfirmationScreen] Payment not confirmed after 30 seconds');
           setIsCompletingMint(false);
           showToast('Payment sent. E-cash will be available once confirmed.', 'info');
         }
       } catch (error) {
-        console.error('[ConfirmationScreen] Error during mint completion:', error);
+        logger.error('[ConfirmationScreen] Error during mint completion:', error);
         setIsCompletingMint(false);
         showToast(`Failed to complete conversion: ${error.message}`, 'error');
       }
@@ -294,7 +295,7 @@ export default function ConfirmationScreen({ navigation, route }) {
   const hasCashuMintCompleted = useRef(false);
 
   useEffect(() => {
-    console.log('[ConfirmationScreen] Checking cashu mint completion:', {
+    logger.debug('[ConfirmationScreen] Checking cashu mint completion:', {
       cashuMint,
       quoteId,
       hasCashuMintCompleted: hasCashuMintCompleted.current
@@ -306,19 +307,19 @@ export default function ConfirmationScreen({ navigation, route }) {
     }
 
     if (hasCashuMintCompleted.current) {
-      console.log('[ConfirmationScreen] Cashu mint already completed, skipping');
+      logger.debug('[ConfirmationScreen] Cashu mint already completed, skipping');
       return;
     }
 
     hasCashuMintCompleted.current = true;
-    console.log('[ConfirmationScreen] Starting cashu mint completion process');
+    logger.debug('[ConfirmationScreen] Starting cashu mint completion process');
 
     const completeCashuMintProcess = async () => {
       setIsCompletingMint(true);
       try {
         const { completeMint } = await import('../../services/cashu/cashuWalletService');
         const { checkMintQuote } = await import('../../services/cashu/cashuMintClient');
-        console.log('[ConfirmationScreen] Starting to poll for payment confirmation');
+        logger.debug('[ConfirmationScreen] Starting to poll for payment confirmation');
 
         // Poll for payment confirmation
         let paidQuote = null;
@@ -328,7 +329,7 @@ export default function ConfirmationScreen({ navigation, route }) {
         while (!paidQuote && attempts < maxAttempts) {
           await new Promise(resolve => setTimeout(resolve, 1000));
           const quote = await checkMintQuote(quoteId);
-          console.log(`[ConfirmationScreen] Cashu check ${attempts + 1}/${maxAttempts}:`, quote);
+          logger.debug(`[ConfirmationScreen] Cashu check ${attempts + 1}/${maxAttempts}:`, quote);
           if (quote.state === 'PAID' || quote.state === 'ISSUED') {
             paidQuote = quote;
             break;
@@ -337,10 +338,10 @@ export default function ConfirmationScreen({ navigation, route }) {
         }
 
         if (paidQuote) {
-          console.log('[ConfirmationScreen] Payment confirmed! Completing cashu mint with amount:', paidQuote.amount);
+          logger.debug('[ConfirmationScreen] Payment confirmed! Completing cashu mint with amount:', paidQuote.amount);
           // Complete mint to get e-cash tokens - quote.amount is already in smallest units
           await completeMint(quoteId, paidQuote.amount);
-          console.log('[ConfirmationScreen] Cashu mint completed successfully');
+          logger.debug('[ConfirmationScreen] Cashu mint completed successfully');
 
           // Refresh transaction history and balance
           if (fetchTransactionHistory) {
@@ -349,17 +350,17 @@ export default function ConfirmationScreen({ navigation, route }) {
 
           // Refresh cashu balance to reflect the new tokens
           await refreshCashuBalance();
-          console.log('[ConfirmationScreen] Cashu balance refreshed after threshold conversion');
+          logger.debug('[ConfirmationScreen] Cashu balance refreshed after threshold conversion');
 
           setIsCompletingMint(false);
           showSnackbar({ type: 'success', action: 'convert' });
         } else {
-          console.log('[ConfirmationScreen] Payment not confirmed after 30 seconds');
+          logger.debug('[ConfirmationScreen] Payment not confirmed after 30 seconds');
           setIsCompletingMint(false);
           showToast('Payment sent. Ecash will be available once confirmed.', 'info');
         }
       } catch (error) {
-        console.error('[ConfirmationScreen] Error during cashu mint completion:', error);
+        logger.error('[ConfirmationScreen] Error during cashu mint completion:', error);
         setIsCompletingMint(false);
         showToast(`Failed to complete conversion: ${error.message}`, 'error');
       }
@@ -377,14 +378,14 @@ export default function ConfirmationScreen({ navigation, route }) {
   const handleShareDeeplink = async () => {
     if (turboDeeplink) {
       try {
-        console.log('[ConfirmationScreen] Sharing Turbo deeplink:', turboDeeplink);
+        logger.debug('[ConfirmationScreen] Sharing Turbo deeplink:', turboDeeplink);
 
         await Share.share({
           message: turboDeeplink,
           title: 'Receive UNIT',
         });
       } catch (error) {
-        console.error('[ConfirmationScreen] Failed to share link:', error);
+        logger.error('[ConfirmationScreen] Failed to share link:', error);
         showToast('Failed to share link. Please try again.', 'error');
       }
     }
@@ -393,12 +394,12 @@ export default function ConfirmationScreen({ navigation, route }) {
   const handleCopyDeeplink = async () => {
     if (turboDeeplink) {
       try {
-        console.log('[ConfirmationScreen] Copying Turbo deeplink to clipboard:', turboDeeplink);
+        logger.debug('[ConfirmationScreen] Copying Turbo deeplink to clipboard:', turboDeeplink);
 
         await Clipboard.setStringAsync(turboDeeplink);
         showToast('Link copied to clipboard', 'info');
       } catch (error) {
-        console.error('[ConfirmationScreen] Failed to copy link:', error);
+        logger.error('[ConfirmationScreen] Failed to copy link:', error);
         showToast('Failed to copy link. Please try again.', 'error');
       }
     }
@@ -407,10 +408,10 @@ export default function ConfirmationScreen({ navigation, route }) {
   const handleOpenInBrowser = async () => {
     if (turboDeeplink) {
       try {
-        console.log('[ConfirmationScreen] Opening Turbo deeplink in browser:', turboDeeplink);
+        logger.debug('[ConfirmationScreen] Opening Turbo deeplink in browser:', turboDeeplink);
         await Linking.openURL(turboDeeplink);
       } catch (error) {
-        console.error('[ConfirmationScreen] Failed to open link:', error);
+        logger.error('[ConfirmationScreen] Failed to open link:', error);
         showToast('Failed to open link. Please try again.', 'error');
       }
     }

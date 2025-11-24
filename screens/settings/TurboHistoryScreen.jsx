@@ -41,7 +41,7 @@ export default function TurboHistoryScreen({ navigation }) {
       const sentTokens = await getSentLockedTokens(wallet.taprootAddress);
       setTokens(sentTokens);
     } catch (error) {
-      console.error('[TurboHistory] Failed to load tokens:', error);
+      logger.error('[TurboHistory] Failed to load tokens:', error);
       Alert.alert('Error', 'Failed to load Turbo history');
     } finally {
       setLoading(false);
@@ -67,7 +67,7 @@ export default function TurboHistoryScreen({ navigation }) {
         url: deeplink,
       });
     } catch (error) {
-      console.error('[TurboHistory] Failed to share token:', error);
+      logger.error('[TurboHistory] Failed to share token:', error);
     }
   };
 
@@ -100,7 +100,7 @@ export default function TurboHistoryScreen({ navigation }) {
               await deleteSentLockedToken(tokenRecord.id);
               loadTokens();
             } catch (error) {
-              console.error('[TurboHistory] Failed to delete token:', error);
+              logger.error('[TurboHistory] Failed to delete token:', error);
               Alert.alert('Error', 'Failed to delete token');
             }
           },
@@ -120,7 +120,7 @@ export default function TurboHistoryScreen({ navigation }) {
           tokenRecord.amount
         );
       } catch (error) {
-        console.error('[TurboHistory] Failed to generate deeplink:', error);
+        logger.error('[TurboHistory] Failed to generate deeplink:', error);
         showToast('Failed to load token details', 'error');
         return;
       }

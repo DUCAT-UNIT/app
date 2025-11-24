@@ -76,7 +76,7 @@ function AssetDetailScreen({ route = {}, navigation }) {
   // Debug logging for loading states
   useEffect(() => {
     if (assetType === 'UNIT') {
-      console.log('[AssetDetailScreen] Loading states:', {
+      logger.debug('[AssetDetailScreen] Loading states:', {
         loadingBalance,
         loadingCashu,
         hasRunesData,
@@ -184,11 +184,11 @@ function AssetDetailScreen({ route = {}, navigation }) {
 
               // IMPORTANT: Clean up proofs immediately after successful melt
               // The mint has already accepted the melt, so the proofs are spent
-              console.log('[Fuse] Melt successful, cleaning up proofs immediately');
-              console.log('[Fuse] Proofs to remove:', meltResult.proofsToRemove?.length);
-              console.log('[Fuse] Change proofs:', meltResult.changeProofs?.length || 0);
+              logger.debug('[Fuse] Melt successful, cleaning up proofs immediately');
+              logger.debug('[Fuse] Proofs to remove:', meltResult.proofsToRemove?.length);
+              logger.debug('[Fuse] Change proofs:', meltResult.changeProofs?.length || 0);
               await cleanupMeltProofs(meltResult.proofsToRemove, meltResult.changeProofs);
-              console.log('[Fuse] Proofs cleaned up');
+              logger.debug('[Fuse] Proofs cleaned up');
 
               Alert.alert('Processing', 'Waiting for transaction to appear on-chain...');
 
@@ -199,13 +199,13 @@ function AssetDetailScreen({ route = {}, navigation }) {
 
               while (!txFound && attempts < maxAttempts) {
                 attempts++;
-                console.log(`[Fuse] Polling attempt ${attempts}/${maxAttempts} for transaction...`);
+                logger.debug(`[Fuse] Polling attempt ${attempts}/${maxAttempts} for transaction...`);
                 await new Promise(resolve => setTimeout(resolve, 2000)); // Wait 2 seconds
 
                 // Refresh transaction history
                 await fetchTransactionHistory();
 
-                console.log(`[Fuse] Checking ${transactionHistory.length} transactions`);
+                logger.debug(`[Fuse] Checking ${transactionHistory.length} transactions`);
 
                 // Look for a transaction that includes our taproot address in outputs
                 // Check ALL transactions, not just recent ones, because new transactions
@@ -224,7 +224,7 @@ function AssetDetailScreen({ route = {}, navigation }) {
                   const txTime = tx.status?.block_time;
                   if (!txTime) {
                     // Unconfirmed transaction in mempool - this is what we're looking for!
-                    console.log(`[Fuse] Found unconfirmed transaction: ${tx.txid}`);
+                    logger.debug(`[Fuse] Found unconfirmed transaction: ${tx.txid}`);
                     return true;
                   }
 
@@ -232,13 +232,13 @@ function AssetDetailScreen({ route = {}, navigation }) {
                   const now = Math.floor(Date.now() / 1000);
                   const isRecent = (now - txTime) < 120;
                   if (isRecent) {
-                    console.log(`[Fuse] Found recent confirmed transaction: ${tx.txid}`);
+                    logger.debug(`[Fuse] Found recent confirmed transaction: ${tx.txid}`);
                   }
                   return isRecent;
                 });
 
                 if (txFound) {
-                  console.log('[Fuse] Transaction found on-chain!');
+                  logger.debug('[Fuse] Transaction found on-chain!');
                   break;
                 }
               }
@@ -247,7 +247,7 @@ function AssetDetailScreen({ route = {}, navigation }) {
                 await fetchTransactionHistory();
                 Alert.alert('Success', 'E-cash successfully fused to on-chain UNIT!');
               } else {
-                console.log('[Fuse] Transaction not found after 60s');
+                logger.debug('[Fuse] Transaction not found after 60s');
                 await fetchTransactionHistory();
                 Alert.alert(
                   'Pending',
@@ -345,7 +345,7 @@ function AssetDetailScreen({ route = {}, navigation }) {
 
               if (hasP2PKProofs) {
                 // Token is P2PK-locked, find which account it's locked to
-                console.log('[AssetDetailScreen] Token is P2PK-locked, finding correct account');
+                logger.debug('[AssetDetailScreen] Token is P2PK-locked, finding correct account');
 
                 // Extract recipient pubkey from first P2PK proof
                 const { getP2PKRecipient } = await import('../../services/cashu/cashuP2PK');
@@ -355,7 +355,7 @@ function AssetDetailScreen({ route = {}, navigation }) {
                     const pubkey = getP2PKRecipient(proof.secret);
                     if (pubkey) {
                       recipientPubkey = pubkey;
-                      console.log('[AssetDetailScreen] Found P2PK recipient pubkey:', pubkey.substring(0, 16) + '...');
+                      logger.debug('[AssetDetailScreen] Found P2PK recipient pubkey:', pubkey.substring(0, 16) + '...');
                       break;
                     }
                   }
@@ -375,7 +375,7 @@ function AssetDetailScreen({ route = {}, navigation }) {
                   return;
                 }
 
-                console.log('[AssetDetailScreen] Found matching account:', {
+                logger.debug('[AssetDetailScreen] Found matching account:', {
                   accountIndex: accountMatch.accountIndex,
                   address: accountMatch.address,
                 });

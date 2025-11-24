@@ -12,6 +12,7 @@ import { usePolling } from '../hooks/usePolling';
 import { useBalanceData } from '../hooks/useBalanceData';
 import { useTransactionHistoryFetch } from '../hooks/useTransactionHistoryFetch';
 import { useVaultDataFetch } from '../hooks/useVaultDataFetch';
+import { logger } from '../utils/logger';
 
 // Polling intervals (in milliseconds)
 const POLL_INTERVAL = 10000; // 10 seconds - for balance and vault data
@@ -96,7 +97,7 @@ export const WalletDataProvider = ({ children }) => {
 
   // Update ref when both balances have loaded
   if (bothBalancesLoaded && !initialBalancesLoadedRef.current) {
-    console.log('[WalletDataContext] Both balances loaded, enabling transaction history fetch', {
+    logger.debug('[WalletDataContext] Both balances loaded, enabling transaction history fetch', {
       runesBalance: balance.runesBalance,
       cashuBalance,
     });
@@ -115,7 +116,7 @@ export const WalletDataProvider = ({ children }) => {
     if (initialBalancesLoadedRef.current) {
       history.fetchTransactionHistory();
     } else {
-      console.log('[WalletDataContext] Skipping transaction history - waiting for balances to load', {
+      logger.debug('[WalletDataContext] Skipping transaction history - waiting for balances to load', {
         hasRunesData,
         hasCashuData,
         loadingBalance: balance.loadingBalance,
@@ -158,7 +159,7 @@ export const WalletDataProvider = ({ children }) => {
   // Trigger initial transaction history load once both balances have loaded
   useEffect(() => {
     if (bothBalancesLoaded && initialBalancesLoadedRef.current) {
-      console.log('[WalletDataContext] Both balances ready - fetching transaction history');
+      logger.debug('[WalletDataContext] Both balances ready - fetching transaction history');
       history.fetchTransactionHistory();
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps

@@ -27,20 +27,20 @@ export function useEcashBalanceCheck(cashuBalance, ecashThreshold, unitBalance) 
         if (lastCheck) {
           const timeSinceLastCheck = Date.now() - parseInt(lastCheck, 10);
           if (timeSinceLastCheck < CHECK_COOLDOWN) {
-            console.log('[useEcashBalanceCheck] Skipping check - cooldown period');
+            logger.debug('[useEcashBalanceCheck] Skipping check - cooldown period');
             hasChecked.current = true;
             return;
           }
         }
       } catch (error) {
-        console.error('[useEcashBalanceCheck] Error checking last check time:', error);
+        logger.error('[useEcashBalanceCheck] Error checking last check time:', error);
       }
 
       // Check if balance is 25% or less of default threshold
       const threshold = ecashThreshold || 100;
       const lowBalanceThreshold = threshold * 0.25;
 
-      console.log('[useEcashBalanceCheck] Checking balance:', {
+      logger.debug('[useEcashBalanceCheck] Checking balance:', {
         cashuBalance,
         threshold,
         lowBalanceThreshold,
@@ -59,10 +59,10 @@ export function useEcashBalanceCheck(cashuBalance, ecashThreshold, unitBalance) 
           try {
             await AsyncStorage.setItem(LAST_CHECK_KEY, Date.now().toString());
           } catch (error) {
-            console.error('[useEcashBalanceCheck] Error saving check time:', error);
+            logger.error('[useEcashBalanceCheck] Error saving check time:', error);
           }
         } else {
-          console.log('[useEcashBalanceCheck] Insufficient UNIT balance for conversion');
+          logger.debug('[useEcashBalanceCheck] Insufficient UNIT balance for conversion');
         }
       }
 

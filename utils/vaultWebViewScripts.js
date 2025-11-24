@@ -3,6 +3,8 @@
  * Scripts injected into the vault WebView for console logging and vault detection
  */
 
+import { logger } from './logger';
+
 /**
  * Script to intercept console logs and forward to React Native
  */

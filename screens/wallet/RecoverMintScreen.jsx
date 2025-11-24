@@ -26,7 +26,7 @@ export default function RecoverMintScreen({ navigation }) {
       // Check status and get the actual quote
       const { checkMintQuote } = await import('../../services/cashu/cashuMintClient');
       const quote = await checkMintQuote(quoteId);
-      console.log('Quote:', quote);
+      logger.debug('Quote:', quote);
 
       if (quote.state === 'PAID' || quote.state === 'ISSUED') {
         Alert.alert('Status', 'Quote is PAID! Completing mint...');
@@ -53,7 +53,7 @@ export default function RecoverMintScreen({ navigation }) {
     } catch (error) {
       setIsProcessing(false);
       Alert.alert('Error', `Failed to recover mint: ${error.message}`);
-      console.error('Recovery error:', error);
+      logger.error('Recovery error:', error);
     }
   };
 

@@ -1,5 +1,7 @@
 # Test files
 test-*.js
+**/__tests__/
+**/__mocks__/
 
 # Build output
 node_modules/
@@ -9,3 +11,8 @@ build/
 
 # Generated files
 *.generated.js
+
+# Script files (not production code)
+complete-mint-manual.js
+scripts/
+cloudflare-worker-*.js

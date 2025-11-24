@@ -11,6 +11,7 @@ import * as SecureStore from 'expo-secure-store';
 import { SECURE_KEYS } from './constants';
 import { MUTINYNET_NETWORK } from './bitcoin';
 import { withMnemonic } from '../services/secureStorageService';
+import { logger } from './logger';
 
 // Initialize BIP32
 const bip32 = BIP32Factory(ecc);
@@ -303,14 +304,14 @@ export async function getPrivateKeyForAddress(address) {
   try {
     const cached = await SecureStore.getItemAsync(cacheKey);
     if (cached) {
-      console.log('[getPrivateKeyForAddress] Using cached key from SecureStore (fast!)');
+      logger.debug('[getPrivateKeyForAddress] Using cached key from SecureStore (fast!)');
       return JSON.parse(cached);
     }
   } catch (error) {
-    console.warn('[getPrivateKeyForAddress] Failed to read cache, will derive:', error.message);
+    logger.warn('[getPrivateKeyForAddress] Failed to read cache, will derive:', error.message);
   }
 
-  console.log('[getPrivateKeyForAddress] Cache miss, searching for account that owns:', address);
+  logger.debug('[getPrivateKeyForAddress] Cache miss, searching for account that owns:', address);
 
   // Use withMnemonic to ensure proper cleanup of sensitive data
   const result = await withMnemonic(async (mnemonic) => {
@@ -358,7 +359,7 @@ export async function getPrivateKeyForAddress(address) {
           const tweakedPrivkey = ecc.privateAdd(internalPrivkey, tweak);
           const tweakedPrivkeyHex = Buffer.from(tweakedPrivkey).toString('hex');
 
-          console.log('[getPrivateKeyForAddress] Found matching account:', {
+          logger.debug('[getPrivateKeyForAddress] Found matching account:', {
             accountIndex,
             address,
             outputPubkey: outputPubkeyHex.substring(0, 16) + '...',
@@ -386,7 +387,7 @@ export async function getPrivateKeyForAddress(address) {
           const privateKeyHex = Buffer.from(child.privateKey).toString('hex');
           const pubkeyHex = Buffer.from(keyPair.publicKey).toString('hex');
 
-          console.log('[getPrivateKeyForAddress] Found matching SegWit account:', {
+          logger.debug('[getPrivateKeyForAddress] Found matching SegWit account:', {
             accountIndex,
             address,
             derivationPath,
@@ -407,9 +408,9 @@ export async function getPrivateKeyForAddress(address) {
   // Cache the result in SecureStore (encrypted at rest)
   try {
     await SecureStore.setItemAsync(cacheKey, JSON.stringify(result));
-    console.log('[getPrivateKeyForAddress] Cached key to SecureStore');
+    logger.debug('[getPrivateKeyForAddress] Cached key to SecureStore');
   } catch (error) {
-    console.warn('[getPrivateKeyForAddress] Failed to cache key:', error.message);
+    logger.warn('[getPrivateKeyForAddress] Failed to cache key:', error.message);
   }
 
   return result;

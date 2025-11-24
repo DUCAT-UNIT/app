@@ -63,7 +63,7 @@ const AdvancedScreen = React.memo(function AdvancedScreen({ route }) {
             setIsClearing(true);
             try {
               const result = await clearAppCache();
-              console.log('[AdvancedScreen] Cache cleared:', result);
+              logger.debug('[AdvancedScreen] Cache cleared:', result);
 
               Alert.alert(
                 'Cache Cleared',
@@ -71,7 +71,7 @@ const AdvancedScreen = React.memo(function AdvancedScreen({ route }) {
                 [{ text: 'OK' }]
               );
             } catch (error) {
-              console.error('[AdvancedScreen] Failed to clear cache:', error);
+              logger.error('[AdvancedScreen] Failed to clear cache:', error);
               Alert.alert(
                 'Error',
                 `Failed to clear cache: ${error.message}`,
@@ -86,7 +86,7 @@ const AdvancedScreen = React.memo(function AdvancedScreen({ route }) {
     );
   };
 
-  console.log('[AdvancedScreen] Rendering with advancedMode:', advancedMode, 'ecashThreshold:', ecashThreshold);
+  logger.debug('[AdvancedScreen] Rendering with advancedMode:', advancedMode, 'ecashThreshold:', ecashThreshold);
 
   return (
     <View style={localStyles.container}>
@@ -152,7 +152,7 @@ const AdvancedScreen = React.memo(function AdvancedScreen({ route }) {
 // Individual settings option component
 const SettingsOption = React.memo(function SettingsOption({ iconName, title, onPress, rightText }) {
   const handlePress = () => {
-    console.log(`[AdvancedScreen] SettingsOption pressed: ${title}`);
+    logger.debug(`[AdvancedScreen] SettingsOption pressed: ${title}`);
     if (onPress) {
       onPress();
     }

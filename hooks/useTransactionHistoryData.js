@@ -62,7 +62,7 @@ export function useTransactionHistoryData(
               try {
                 // If token already has cached claimed status, use it
                 if (token.claimed === true) {
-                  console.log('[useTransactionHistoryData] Using cached claimed status for token:', token.id);
+                  logger.debug('[useTransactionHistoryData] Using cached claimed status for token:', token.id);
                   return {
                     ...token,
                     claimed: true,
@@ -70,7 +70,7 @@ export function useTransactionHistoryData(
                 }
 
                 // Debug: Log what we're trying to decode
-                console.log('[useTransactionHistoryData] Checking token:', {
+                logger.debug('[useTransactionHistoryData] Checking token:', {
                   id: token.id,
                   hasToken: !!token.token,
                   tokenType: typeof token.token,
@@ -82,7 +82,7 @@ export function useTransactionHistoryData(
 
                 // Validate that token.token exists and is a Cashu token string (not a URL)
                 if (!token.token || typeof token.token !== 'string') {
-                  console.warn('[useTransactionHistoryData] Missing or invalid token:', token.id);
+                  logger.warn('[useTransactionHistoryData] Missing or invalid token:', token.id);
                   return {
                     ...token,
                     claimed: false,
@@ -91,7 +91,7 @@ export function useTransactionHistoryData(
 
                 // Skip if it's a URL instead of a token
                 if (token.token.startsWith('http') || token.token.startsWith('ducat://')) {
-                  console.warn('[useTransactionHistoryData] Token contains URL instead of Cashu token:', token.token.substring(0, 50));
+                  logger.warn('[useTransactionHistoryData] Token contains URL instead of Cashu token:', token.token.substring(0, 50));
                   return {
                     ...token,
                     claimed: false,
@@ -100,7 +100,7 @@ export function useTransactionHistoryData(
 
                 // Validate Cashu token format
                 if (!token.token.startsWith('cashu')) {
-                  console.warn('[useTransactionHistoryData] Invalid Cashu token format:', token.token.substring(0, 50));
+                  logger.warn('[useTransactionHistoryData] Invalid Cashu token format:', token.token.substring(0, 50));
                   return {
                     ...token,
                     claimed: false,
@@ -119,7 +119,7 @@ export function useTransactionHistoryData(
 
                 // If token is now claimed, update cache
                 if (allSpent && token.claimed !== true) {
-                  console.log('[useTransactionHistoryData] Token newly claimed, updating cache:', token.id);
+                  logger.debug('[useTransactionHistoryData] Token newly claimed, updating cache:', token.id);
                   await updateTokenClaimedStatus(token.id, true);
                 }
 
@@ -131,10 +131,10 @@ export function useTransactionHistoryData(
               } catch (error) {
                 // Only log first few errors to avoid spam
                 if (errorCount < MAX_ERRORS_TO_LOG) {
-                  console.error('[useTransactionHistoryData] Failed to check token status:', error.message);
+                  logger.error('[useTransactionHistoryData] Failed to check token status:', error.message);
                   errorCount++;
                   if (errorCount === MAX_ERRORS_TO_LOG) {
-                    console.warn('[useTransactionHistoryData] Suppressing further errors...');
+                    logger.warn('[useTransactionHistoryData] Suppressing further errors...');
                   }
                 }
                 return {
@@ -149,7 +149,7 @@ export function useTransactionHistoryData(
           setEcashLoading(false);
           setEcashInitialLoadDone(true);
         } catch (error) {
-          console.error('[useTransactionHistoryData] Failed to load ecash tokens:', error);
+          logger.error('[useTransactionHistoryData] Failed to load ecash tokens:', error);
           setEcashTokens([]);
           setEcashLoading(false);
           setEcashInitialLoadDone(true);
@@ -195,7 +195,7 @@ export function useTransactionHistoryData(
     // For normal mode, wait for ecash to finish loading before displaying ANY transactions
     // This ensures runes and ecash transactions appear together as a batch
     if (!advancedMode && !ecashInitialLoadDone) {
-      console.log('[useTransactionHistoryData] Waiting for ecash tokens to load before displaying transactions');
+      logger.debug('[useTransactionHistoryData] Waiting for ecash tokens to load before displaying transactions');
       // Don't mark as calculated yet - we're still waiting
       return [];
     }

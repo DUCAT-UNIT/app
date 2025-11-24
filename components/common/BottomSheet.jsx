@@ -57,7 +57,7 @@ export default function BottomSheet({
 
     const subscription = AppState.addEventListener('change', (nextAppState) => {
       if (appState === 'active' && (nextAppState === 'background' || nextAppState === 'inactive')) {
-        console.log('[BottomSheet] App backgrounding - dismissing');
+        logger.debug('[BottomSheet] App backgrounding - dismissing');
         onClose();
       }
       appState = nextAppState;

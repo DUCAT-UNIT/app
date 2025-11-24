@@ -40,7 +40,7 @@ export default function TurboQRCodeScreen({ navigation, route }) {
         message: `Turbo Token 👻\n\nAmount: ${amount / 100} UNIT\n\nTap to claim:\n${deeplink}`,
       });
     } catch (error) {
-      console.error('[TurboQRCode] Failed to share:', error);
+      logger.error('[TurboQRCode] Failed to share:', error);
     }
   };
 

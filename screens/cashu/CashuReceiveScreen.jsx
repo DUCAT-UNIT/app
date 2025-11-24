@@ -67,7 +67,7 @@ export default function CashuReceiveScreen({ route }) {
           );
         }
       } catch (error) {
-        console.error('Error checking mint:', error);
+        logger.error('Error checking mint:', error);
       }
     }, 3000); // Check every 3 seconds
 
@@ -104,12 +104,12 @@ export default function CashuReceiveScreen({ route }) {
 
       // Check if it's an emoji token (doesn't start with 'cashu')
       if (!tokenToReceive.startsWith('cashu')) {
-        console.log('[CashuReceive] Detected emoji token, decoding...');
+        logger.debug('[CashuReceive] Detected emoji token, decoding...');
         try {
           tokenToReceive = decodeCashuToken(tokenToReceive);
-          console.log('[CashuReceive] Successfully decoded emoji token');
+          logger.debug('[CashuReceive] Successfully decoded emoji token');
         } catch (error) {
-          console.error('[CashuReceive] Failed to decode emoji token:', error);
+          logger.error('[CashuReceive] Failed to decode emoji token:', error);
           Alert.alert('Invalid Token', 'Failed to decode emoji token. Please check and try again.');
           setIsLoading(false);
           return;
@@ -143,7 +143,7 @@ export default function CashuReceiveScreen({ route }) {
   };
 
   const handleAutoMint = useCallback(async () => {
-    console.log('🔵 handleAutoMint called, amount:', amount);
+    logger.debug('🔵 handleAutoMint called, amount:', amount);
 
     const amountNum = parseInt(amount);
     if (!amountNum || amountNum <= 0) {
@@ -151,16 +151,16 @@ export default function CashuReceiveScreen({ route }) {
       return;
     }
 
-    console.log('🔵 Creating mint quote for amount:', amountNum);
+    logger.debug('🔵 Creating mint quote for amount:', amountNum);
     setIsLoading(true);
 
     try {
       // Create mint quote and get deposit address
       const quote = await startMint(amountNum);
-      console.log('🔵 Mint quote created:', quote);
+      logger.debug('🔵 Mint quote created:', quote);
 
       // Navigate to SendFlow with all parameters in route params
-      console.log('🔵 Navigating to Send flow with params...');
+      logger.debug('🔵 Navigating to Send flow with params...');
 
       navigation.dispatch(
         CommonActions.navigate({
@@ -183,7 +183,7 @@ export default function CashuReceiveScreen({ route }) {
 
       setIsLoading(false);
     } catch (error) {
-      console.error('❌ Auto mint error:', error);
+      logger.error('❌ Auto mint error:', error);
       Alert.alert('Error', error.message || 'Failed to create mint quote');
       setIsLoading(false);
     }

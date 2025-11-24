@@ -36,7 +36,7 @@ const AboutScreen = React.memo(function AboutScreen({ route }) {
         await Linking.openURL(url);
       }
     } catch (error) {
-      console.error('[AboutScreen] Failed to open URL:', error);
+      logger.error('[AboutScreen] Failed to open URL:', error);
     }
   };
 

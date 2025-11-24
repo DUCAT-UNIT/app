@@ -7,6 +7,8 @@
  * data into a single visible emoji character.
  */
 
+import { logger } from './logger';
+
 // The ghost emoji to use for Turbo tokens
 const TURBO_EMOJI = '👻';
 
@@ -106,17 +108,17 @@ function decode(text) {
  */
 export const encodeCashuToken = (token) => {
   try {
-    console.log('[EmojiEncoder] Encoding token:', token.substring(0, 50) + '...');
+    logger.debug('[EmojiEncoder] Encoding token:', token.substring(0, 50) + '...');
 
     // Encode the entire token (including "cashu" prefix) into the ghost emoji
     const encoded = encode(TURBO_EMOJI, token);
 
-    console.log('[EmojiEncoder] Encoded to ghost emoji, length:', encoded.length);
-    console.log('[EmojiEncoder] First few chars:', encoded.substring(0, 5));
+    logger.debug('[EmojiEncoder] Encoded to ghost emoji, length:', encoded.length);
+    logger.debug('[EmojiEncoder] First few chars:', encoded.substring(0, 5));
 
     return encoded;
   } catch (error) {
-    console.error('[EmojiEncoder] Failed to encode Cashu token:', error);
+    logger.error('[EmojiEncoder] Failed to encode Cashu token:', error);
     throw error;
   }
 };
@@ -128,15 +130,15 @@ export const encodeCashuToken = (token) => {
  */
 export const decodeCashuToken = (emojiToken) => {
   try {
-    console.log('[EmojiEncoder] Decoding emoji token, length:', emojiToken.length);
+    logger.debug('[EmojiEncoder] Decoding emoji token, length:', emojiToken.length);
 
     const decoded = decode(emojiToken);
 
-    console.log('[EmojiEncoder] Decoded token:', decoded.substring(0, 50) + '...');
+    logger.debug('[EmojiEncoder] Decoded token:', decoded.substring(0, 50) + '...');
 
     return decoded;
   } catch (error) {
-    console.error('[EmojiEncoder] Failed to decode Cashu token:', error);
+    logger.error('[EmojiEncoder] Failed to decode Cashu token:', error);
     throw error;
   }
 };

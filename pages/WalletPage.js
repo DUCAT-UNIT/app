@@ -271,9 +271,9 @@ export default function WalletPage({ route }) {
 
   // QR Scanner handlers
   const handleQRScan = async (data) => {
-    console.log('[WalletPage] QR scanned:', data);
-    console.log('[WalletPage] Data length:', data.length);
-    console.log('[WalletPage] First 100 chars:', data.substring(0, 100));
+    logger.debug('[WalletPage] QR scanned:', data);
+    logger.debug('[WalletPage] Data length:', data.length);
+    logger.debug('[WalletPage] First 100 chars:', data.substring(0, 100));
 
     // Handle different types of QR code data
     if (data.startsWith('bitcoin:') || data.startsWith('tb1') || data.startsWith('bc1')) {
@@ -292,7 +292,7 @@ export default function WalletPage({ route }) {
 
         if (isP2PKToken) {
           // This is a Turbo token - check if already processed
-          console.log('[WalletPage] P2PK token detected, checking if already processed');
+          logger.debug('[WalletPage] P2PK token detected, checking if already processed');
 
           // Check if already processed
           const Crypto = await import('expo-crypto');
@@ -302,7 +302,7 @@ export default function WalletPage({ route }) {
           );
 
           if (global.processedCashuTokens && global.processedCashuTokens.has(tokenHash)) {
-            console.log('[WalletPage] Token already processed, showing error');
+            logger.debug('[WalletPage] Token already processed, showing error');
             setShowQRScanner(false);
             showSnackbar({
               type: 'error',
@@ -313,7 +313,7 @@ export default function WalletPage({ route }) {
           }
 
           // Store token globally for processing
-          console.log('[WalletPage] Processing new token');
+          logger.debug('[WalletPage] Processing new token');
           global.pendingCashuToken = data;
 
           // Close scanner immediately
@@ -385,7 +385,7 @@ export default function WalletPage({ route }) {
                       description: `Successfully claimed ${result.amount} UNIT`,
                     });
                   } catch (error) {
-                    console.error('[WalletPage] Claim failed:', error);
+                    logger.error('[WalletPage] Claim failed:', error);
                     showSnackbar({
                       type: 'error',
                       action: 'claim',
@@ -407,7 +407,7 @@ export default function WalletPage({ route }) {
           });
         }
       } catch (error) {
-        console.error('[WalletPage] Token check failed:', error);
+        logger.error('[WalletPage] Token check failed:', error);
         showSnackbar({
           type: 'error',
           action: 'claim',
@@ -418,14 +418,14 @@ export default function WalletPage({ route }) {
       // JSON proofs format (NUT-16 might provide raw JSON)
       try {
         const parsed = JSON.parse(data);
-        console.log('[WalletPage] Parsed JSON:', parsed);
+        logger.debug('[WalletPage] Parsed JSON:', parsed);
 
         // If it's already a proper token object with proofs, encode it
         if (parsed.token && Array.isArray(parsed.token)) {
           // This is the token wrapper format - encode it
           const { encodeToken } = await import('../services/cashu/cashuCrypto');
           const encoded = encodeToken(parsed);
-          console.log('[WalletPage] Encoded token:', encoded.substring(0, 50));
+          logger.debug('[WalletPage] Encoded token:', encoded.substring(0, 50));
 
           showToast('Claiming token...', 'info');
           const result = await receiveCashuToken(encoded);
@@ -449,7 +449,7 @@ export default function WalletPage({ route }) {
           });
         }
       } catch (error) {
-        console.error('[WalletPage] Failed to parse/claim JSON token:', error);
+        logger.error('[WalletPage] Failed to parse/claim JSON token:', error);
         showSnackbar({
           type: 'error',
           action: 'claim',
@@ -465,7 +465,7 @@ export default function WalletPage({ route }) {
         const turboMatch = data.match(/ducat:\/\/turbo\/([^\/?#]+)/);
         if (turboMatch && turboMatch[1]) {
           token = turboMatch[1];
-          console.log('[WalletPage] Extracted token from ducat:// URL');
+          logger.debug('[WalletPage] Extracted token from ducat:// URL');
         }
         // Check if this is an ID-based link
         else {
@@ -474,7 +474,7 @@ export default function WalletPage({ route }) {
             showToast('Fetching token...', 'info');
             const { fetchTokenFromRebrandly } = await import('../services/urlShortener');
             token = await fetchTokenFromRebrandly(idMatch[1]);
-            console.log('[WalletPage] Fetched token from Rebrandly');
+            logger.debug('[WalletPage] Fetched token from Rebrandly');
           }
           // Check if this is a direct token link
           else {
@@ -491,7 +491,7 @@ export default function WalletPage({ route }) {
               }
 
               token = atob(base64Token);
-              console.log('[WalletPage] Decoded base64 token');
+              logger.debug('[WalletPage] Decoded base64 token');
             }
           }
         }
@@ -506,12 +506,12 @@ export default function WalletPage({ route }) {
           showToast('Failed to extract token from URL', 'error');
         }
       } catch (error) {
-        console.error('[WalletPage] Failed to extract token:', error);
+        logger.error('[WalletPage] Failed to extract token:', error);
         showToast(`Failed to extract token: ${error.message}`, 'error');
       }
     } else {
       // Unknown format
-      console.log('[WalletPage] Unknown QR format:', data);
+      logger.debug('[WalletPage] Unknown QR format:', data);
       showToast('Unknown QR code format', 'error');
     }
   };
@@ -543,7 +543,7 @@ export default function WalletPage({ route }) {
       // Check if we have enough UNIT balance
       const actualConversionAmount = Math.min(amountNeeded, currentUnitBalance);
 
-      console.log('[WalletPage] Setting conversion modal state:', {
+      logger.debug('[WalletPage] Setting conversion modal state:', {
         currentUnitBalance,
         amountNeeded,
         actualConversionAmount,
@@ -561,7 +561,7 @@ export default function WalletPage({ route }) {
   };
 
   const handleConfirmConversion = async () => {
-    console.log('[WalletPage] handleConfirmConversion called', {
+    logger.debug('[WalletPage] handleConfirmConversion called', {
       conversionAmount,
       pendingThreshold,
     });
@@ -573,17 +573,17 @@ export default function WalletPage({ route }) {
 
     // Navigate to mint flow (similar to Turbo mint flow)
     try {
-      console.log('[WalletPage] Importing requestMint...');
+      logger.debug('[WalletPage] Importing requestMint...');
       const { requestMint } = await import('../services/cashu/cashuWalletService');
 
-      console.log('[WalletPage] Requesting mint quote for amount:', conversionAmount);
+      logger.debug('[WalletPage] Requesting mint quote for amount:', conversionAmount);
       // Request mint quote for the needed amount
       const mintQuote = await requestMint(conversionAmount);
-      console.log('[WalletPage] Received mint quote:', mintQuote);
+      logger.debug('[WalletPage] Received mint quote:', mintQuote);
 
-      console.log('[WalletPage] Navigating to Processing screen');
-      console.log('[WalletPage] Navigation object available:', !!navigation);
-      console.log('[WalletPage] showSettings:', showSettings);
+      logger.debug('[WalletPage] Navigating to Processing screen');
+      logger.debug('[WalletPage] Navigation object available:', !!navigation);
+      logger.debug('[WalletPage] showSettings:', showSettings);
 
       // Close modals first
       setShowConversionModal(false);
@@ -591,7 +591,7 @@ export default function WalletPage({ route }) {
 
       // Close settings panel - ensure it's fully hidden
       if (showSettings) {
-        console.log('[WalletPage] Closing settings before navigation');
+        logger.debug('[WalletPage] Closing settings before navigation');
         closeSettings();
       }
 
@@ -607,15 +607,15 @@ export default function WalletPage({ route }) {
 
       // Use setTimeout to ensure settings close completes
       setTimeout(() => {
-        console.log('[WalletPage] Attempting navigation now...');
-        console.log('[WalletPage] conversionAmount:', conversionAmount, 'type:', typeof conversionAmount);
+        logger.debug('[WalletPage] Attempting navigation now...');
+        logger.debug('[WalletPage] conversionAmount:', conversionAmount, 'type:', typeof conversionAmount);
         const amountStr = conversionAmount?.toString() || '0';
-        console.log('[WalletPage] amountStr:', amountStr);
+        logger.debug('[WalletPage] amountStr:', amountStr);
 
         try {
           // Navigate from root navigator to ensure modal opens correctly
           const rootNav = getRootNavigator(navigation);
-          console.log('[WalletPage] Using root navigator:', !!rootNav);
+          logger.debug('[WalletPage] Using root navigator:', !!rootNav);
 
           rootNav.navigate('SendFlow', {
             screen: 'Processing',
@@ -629,20 +629,20 @@ export default function WalletPage({ route }) {
               recipient: mintQuote.depositAddress,
             },
           });
-          console.log('[WalletPage] Navigation call completed');
+          logger.debug('[WalletPage] Navigation call completed');
         } catch (navError) {
-          console.error('[WalletPage] Navigation error:', navError);
+          logger.error('[WalletPage] Navigation error:', navError);
           showToast('Navigation failed: ' + navError.message, 'error');
         }
       }, 400);
     } catch (error) {
-      console.error('[WalletPage] Failed to initiate mint:', error);
+      logger.error('[WalletPage] Failed to initiate mint:', error);
       showToast('Failed to start conversion: ' + error.message, 'error');
     }
   };
 
   const handleLowBalanceTopUp = async () => {
-    console.log('[WalletPage] handleLowBalanceTopUp called', {
+    logger.debug('[WalletPage] handleLowBalanceTopUp called', {
       amountNeeded: lowBalanceAmountNeeded,
     });
 
@@ -654,7 +654,7 @@ export default function WalletPage({ route }) {
 
       // Request mint quote for the needed amount
       const mintQuote = await requestMint(lowBalanceAmountNeeded);
-      console.log('[WalletPage] Received mint quote for top-up:', mintQuote);
+      logger.debug('[WalletPage] Received mint quote for top-up:', mintQuote);
 
       const amountStr = lowBalanceAmountNeeded?.toString() || '0';
 
@@ -678,7 +678,7 @@ export default function WalletPage({ route }) {
         action: 'conversion_turbo',
       });
     } catch (error) {
-      console.error('[WalletPage] Failed to initiate top-up:', error);
+      logger.error('[WalletPage] Failed to initiate top-up:', error);
       showToast('Failed to start top-up: ' + error.message, 'error');
     }
   };
@@ -1014,7 +1014,7 @@ export default function WalletPage({ route }) {
               onChangePin: settingsHandlers.handleChangePin,
               onAutoLockToggle: () => {
                 // TODO: Implement auto lock toggle
-                console.log('Auto lock toggle pressed');
+                logger.debug('Auto lock toggle pressed');
               },
               onViewSeedPhrase: settingsHandlers.handleViewSeedPhrase,
               onDeleteWallet: settingsHandlers.handleDeleteWallet,

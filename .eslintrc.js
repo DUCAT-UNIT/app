@@ -13,8 +13,8 @@ module.exports = {
   },
   plugins: ['react', 'react-native'],
   rules: {
-    // Security: Prevent console logs in production
-    'no-console': ['warn', { allow: ['warn', 'error'] }],
+    // Security: Prevent console logs in production (strict enforcement after console.log removal)
+    'no-console': ['error', { allow: ['warn', 'error'] }],
 
     // Code quality
     'no-unused-vars': ['warn', { argsIgnorePattern: '^_', varsIgnorePattern: '^_' }],

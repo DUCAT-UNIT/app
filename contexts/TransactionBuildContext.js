@@ -186,10 +186,10 @@ export const TransactionBuildProvider = ({ children, wallet, currentAccount, sho
         await markUtxosAsSpent(utxosToLock);
       }
 
-      console.log('[TransactionBuild] Setting UNIT intent and step to reviewing');
+      logger.debug('[TransactionBuild] Setting UNIT intent and step to reviewing');
       setSendIntent(intent);
       setIntentStep('reviewing');
-      console.log('[TransactionBuild] UNIT Intent set, step should be reviewing');
+      logger.debug('[TransactionBuild] UNIT Intent set, step should be reviewing');
     } catch (error) {
       // Log the full error for debugging
       logger.error('Error creating UNIT intent:', error);

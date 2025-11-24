@@ -31,11 +31,11 @@ export function AssetTurboList({ navigation }) {
   const loadTokens = async () => {
     try {
       setIsLoading(true);
-      console.log('[AssetTurboList] Loading tokens for address:', wallet?.taprootAddress);
+      logger.debug('[AssetTurboList] Loading tokens for address:', wallet?.taprootAddress);
       // Filter tokens by current account's taproot address
       const savedTokens = await getSentLockedTokens(wallet?.taprootAddress);
-      console.log('[AssetTurboList] Loaded tokens:', savedTokens.length);
-      console.log('[AssetTurboList] Token details:', savedTokens.map(t => ({
+      logger.debug('[AssetTurboList] Loaded tokens:', savedTokens.length);
+      logger.debug('[AssetTurboList] Token details:', savedTokens.map(t => ({
         id: t.id,
         address: t.taprootAddress,
         amount: t.amount
@@ -45,7 +45,7 @@ export function AssetTurboList({ navigation }) {
       // Check which tokens have been claimed
       await checkTokensClaimed(savedTokens);
     } catch (error) {
-      console.error('[AssetTurboList] Failed to load tokens:', error);
+      logger.error('[AssetTurboList] Failed to load tokens:', error);
     } finally {
       setIsLoading(false);
     }
@@ -67,7 +67,7 @@ export function AssetTurboList({ navigation }) {
           }
         }
       } catch (error) {
-        console.error('[AssetTurboList] Failed to check token:', error);
+        logger.error('[AssetTurboList] Failed to check token:', error);
       }
     }
 
@@ -75,7 +75,7 @@ export function AssetTurboList({ navigation }) {
   };
 
   useEffect(() => {
-    console.log('[AssetTurboList] useEffect triggered, wallet address:', wallet?.taprootAddress);
+    logger.debug('[AssetTurboList] useEffect triggered, wallet address:', wallet?.taprootAddress);
     if (wallet?.taprootAddress) {
       loadTokens();
     }
@@ -94,7 +94,7 @@ export function AssetTurboList({ navigation }) {
         url: deeplink,
       });
     } catch (error) {
-      console.error('[AssetTurboList] Failed to share token:', error);
+      logger.error('[AssetTurboList] Failed to share token:', error);
     }
   };
 
@@ -104,7 +104,7 @@ export function AssetTurboList({ navigation }) {
       await Clipboard.setStringAsync(tokenRecord.token);
       showToast('Cashu token copied to clipboard', 'success');
     } catch (error) {
-      console.error('[AssetTurboList] Failed to copy token:', error);
+      logger.error('[AssetTurboList] Failed to copy token:', error);
       showToast('Failed to copy token to clipboard', 'error');
     }
   };
@@ -123,7 +123,7 @@ export function AssetTurboList({ navigation }) {
               await deleteSentLockedToken(tokenRecord.id);
               loadTokens();
             } catch (error) {
-              console.error('[AssetTurboList] Failed to delete token:', error);
+              logger.error('[AssetTurboList] Failed to delete token:', error);
               Alert.alert('Error', 'Failed to delete token');
             }
           },

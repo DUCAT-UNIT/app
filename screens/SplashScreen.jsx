@@ -20,7 +20,7 @@ export default function SplashScreen() {
     // Fallback: Always hide after 2 seconds if not hidden yet
     const fallbackTimer = setTimeout(() => {
       if (!hasHiddenRef.current) {
-        console.log('[SplashScreen] Fallback timer - hiding splash');
+        logger.debug('[SplashScreen] Fallback timer - hiding splash');
         viewRef.current?.setNativeProps({
           style: { opacity: 0 }
         });

@@ -24,7 +24,7 @@ export function useAssetTransactions(transactionHistory, assetType, segwitAddres
 
   // Fetch ecash tokens when assetType is UNIT and advanced mode is off
   useEffect(() => {
-    console.log('[useAssetTransactions] Ecash fetch check:', { assetType, advancedMode });
+    logger.debug('[useAssetTransactions] Ecash fetch check:', { assetType, advancedMode });
     if (assetType === 'UNIT' && !advancedMode) {
       let isMounted = true;
 
@@ -37,7 +37,7 @@ export function useAssetTransactions(transactionHistory, assetType, segwitAddres
             const receivedTokens = await getReceivedTokens(taprootAddress);
             const tokens = [...sentTokens, ...receivedTokens];
             if (!isMounted) return;
-            console.log('[useAssetTransactions] Loaded ecash tokens:', tokens.length, '(sent:', sentTokens.length, 'received:', receivedTokens.length, ')');
+            logger.debug('[useAssetTransactions] Loaded ecash tokens:', tokens.length, '(sent:', sentTokens.length, 'received:', receivedTokens.length, ')');
 
           // Check which tokens have been claimed
           const { decodeToken } = await import('../services/cashu/cashuCrypto');
@@ -53,7 +53,7 @@ export function useAssetTransactions(transactionHistory, assetType, segwitAddres
               try {
                 // If token already has cached claimed status, use it
                 if (token.claimed === true) {
-                  console.log('[useAssetTransactions] Using cached claimed status for token:', token.id);
+                  logger.debug('[useAssetTransactions] Using cached claimed status for token:', token.id);
                   return {
                     ...token,
                     claimed: true,
@@ -61,7 +61,7 @@ export function useAssetTransactions(transactionHistory, assetType, segwitAddres
                 }
 
                 // Debug: Log what we're trying to decode
-                console.log('[useAssetTransactions] Checking token:', {
+                logger.debug('[useAssetTransactions] Checking token:', {
                   id: token.id,
                   hasToken: !!token.token,
                   tokenType: typeof token.token,
@@ -73,7 +73,7 @@ export function useAssetTransactions(transactionHistory, assetType, segwitAddres
 
                 // Validate that token.token exists and is a Cashu token string (not a URL)
                 if (!token.token || typeof token.token !== 'string') {
-                  console.warn('[useAssetTransactions] Missing or invalid token:', token.id);
+                  logger.warn('[useAssetTransactions] Missing or invalid token:', token.id);
                   return {
                     ...token,
                     claimed: false,
@@ -82,7 +82,7 @@ export function useAssetTransactions(transactionHistory, assetType, segwitAddres
 
                 // Skip if it's a URL instead of a token
                 if (token.token.startsWith('http') || token.token.startsWith('ducat://')) {
-                  console.warn('[useAssetTransactions] Token contains URL instead of Cashu token:', token.token.substring(0, 50));
+                  logger.warn('[useAssetTransactions] Token contains URL instead of Cashu token:', token.token.substring(0, 50));
                   return {
                     ...token,
                     claimed: false,
@@ -91,7 +91,7 @@ export function useAssetTransactions(transactionHistory, assetType, segwitAddres
 
                 // Validate Cashu token format
                 if (!token.token.startsWith('cashu')) {
-                  console.warn('[useAssetTransactions] Invalid Cashu token format:', token.token.substring(0, 50));
+                  logger.warn('[useAssetTransactions] Invalid Cashu token format:', token.token.substring(0, 50));
                   return {
                     ...token,
                     claimed: false,
@@ -107,7 +107,7 @@ export function useAssetTransactions(transactionHistory, assetType, segwitAddres
 
                 // If token is now claimed, update cache
                 if (allSpent && token.claimed !== true) {
-                  console.log('[useAssetTransactions] Token newly claimed, updating cache:', token.id);
+                  logger.debug('[useAssetTransactions] Token newly claimed, updating cache:', token.id);
                   await updateTokenClaimedStatus(token.id, true);
                 }
 
@@ -118,10 +118,10 @@ export function useAssetTransactions(transactionHistory, assetType, segwitAddres
               } catch (error) {
                 // Only log first few errors to avoid spam
                 if (errorCount < MAX_ERRORS_TO_LOG) {
-                  console.error('[useAssetTransactions] Failed to check token status:', error.message);
+                  logger.error('[useAssetTransactions] Failed to check token status:', error.message);
                   errorCount++;
                   if (errorCount === MAX_ERRORS_TO_LOG) {
-                    console.warn('[useAssetTransactions] Suppressing further errors...');
+                    logger.warn('[useAssetTransactions] Suppressing further errors...');
                   }
                 }
                 return {
@@ -138,7 +138,7 @@ export function useAssetTransactions(transactionHistory, assetType, segwitAddres
             setEcashInitialLoadDone(true);
           }
         } catch (error) {
-          console.error('[useAssetTransactions] Failed to load ecash tokens:', error);
+          logger.error('[useAssetTransactions] Failed to load ecash tokens:', error);
           if (isMounted) {
             setEcashTokens([]);
             setEcashLoading(false);
@@ -152,7 +152,7 @@ export function useAssetTransactions(transactionHistory, assetType, segwitAddres
         isMounted = false;
       };
     } else {
-      console.log('[useAssetTransactions] Not loading ecash tokens - clearing');
+      logger.debug('[useAssetTransactions] Not loading ecash tokens - clearing');
       // Clear ecash tokens when not UNIT or when advanced mode is on
       setEcashTokens([]);
       setEcashInitialLoadDone(true); // Mark as done immediately for non-UNIT
@@ -169,7 +169,7 @@ export function useAssetTransactions(transactionHistory, assetType, segwitAddres
     // For UNIT assets, wait for ecash tokens to finish loading before displaying
     // This ensures runes and ecash transactions appear together
     if (assetType === 'UNIT' && !advancedMode && !ecashInitialLoadDone) {
-      console.log('[useAssetTransactions] Waiting for ecash tokens to load before displaying UNIT transactions');
+      logger.debug('[useAssetTransactions] Waiting for ecash tokens to load before displaying UNIT transactions');
       return;
     }
 
@@ -237,7 +237,7 @@ export function useAssetTransactions(transactionHistory, assetType, segwitAddres
     // Merge ecash tokens if applicable
     const ecashTxs = ecashTokens.map((token) => {
       const amount = token.amount / 100; // Convert from smallest units to display units
-      console.log('[useAssetTransactions] Creating ecash tx:', { tokenId: token.id, amount, claimed: token.claimed });
+      logger.debug('[useAssetTransactions] Creating ecash tx:', { tokenId: token.id, amount, claimed: token.claimed });
       return {
         txid: token.id,
         timestamp: token.timestamp,
@@ -254,7 +254,7 @@ export function useAssetTransactions(transactionHistory, assetType, segwitAddres
       };
     });
 
-    console.log('[useAssetTransactions] Merging transactions:', {
+    logger.debug('[useAssetTransactions] Merging transactions:', {
       assetType,
       advancedMode,
       regularTxCount: filtered.length,

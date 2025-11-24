@@ -129,12 +129,12 @@ export default function AmountInputScreen({ navigation, route }) {
       const displayAmount = parseFloat(sendAmount);
       // Check against ecashThreshold (Infinity means "All transfers")
       if (displayAmount < ecashThreshold && !turboEnabled) {
-        console.log(`[AmountInputScreen] Auto-enabling Turbo for transaction < ${ecashThreshold} UNIT`);
+        logger.debug(`[AmountInputScreen] Auto-enabling Turbo for transaction < ${ecashThreshold} UNIT`);
         setTurboEnabled(true);
         shouldUseTurbo = true;
       }
 
-      console.log(`[AmountInputScreen] Turbo decision:`, {
+      logger.debug(`[AmountInputScreen] Turbo decision:`, {
         shouldUseTurbo,
         turboEnabled,
         displayAmount,
@@ -158,7 +158,7 @@ export default function AmountInputScreen({ navigation, route }) {
         const ecashBalance = await getBalance();
         const ecashBalanceSmallestUnits = Math.round(ecashBalance * 100);
 
-        console.log('[AmountInputScreen] Turbo mode - checking balance:', {
+        logger.debug('[AmountInputScreen] Turbo mode - checking balance:', {
           requested: displayAmount,
           ecashBalance,
           hasEnough: ecashBalanceSmallestUnits >= amountInSmallestUnits,
@@ -166,7 +166,7 @@ export default function AmountInputScreen({ navigation, route }) {
 
         // If we have enough ecash, skip minting and create P2PK token directly
         if (ecashBalanceSmallestUnits >= amountInSmallestUnits) {
-          console.log('[AmountInputScreen] ✅ Sufficient ecash balance - skipping mint, creating P2PK token directly');
+          logger.debug('[AmountInputScreen] ✅ Sufficient ecash balance - skipping mint, creating P2PK token directly');
 
           setIsRequestingMint(false);
 
@@ -176,14 +176,14 @@ export default function AmountInputScreen({ navigation, route }) {
         }
 
         // Not enough ecash - show bottom sheet to ask user
-        console.log('[AmountInputScreen] ⚠️ Insufficient ecash balance - showing bottom sheet');
+        logger.debug('[AmountInputScreen] ⚠️ Insufficient ecash balance - showing bottom sheet');
         setIsRequestingMint(false);
         setInsufficientTurboAmount(displayAmount);
         setInsufficientTurboBalance(ecashBalance);
         setShowInsufficientTurboSheet(true);
         return;
       } catch (error) {
-        console.error('Failed to request mint quote:', error);
+        logger.error('Failed to request mint quote:', error);
         Alert.alert('Error', 'Failed to initiate Turbo transaction. Please try again.');
       } finally {
         setIsRequestingMint(false);
@@ -203,7 +203,7 @@ export default function AmountInputScreen({ navigation, route }) {
   // Handler for using Turbo with minting
   const handleUseTurbo = async () => {
     setShowInsufficientTurboSheet(false);
-    console.log('[AmountInputScreen] User chose Turbo with minting');
+    logger.debug('[AmountInputScreen] User chose Turbo with minting');
 
     try {
       setIsRequestingMint(true);
@@ -211,7 +211,7 @@ export default function AmountInputScreen({ navigation, route }) {
       // Request mint quote from Cashu mint
       const mintQuote = await requestMint(insufficientTurboAmount);
 
-      console.log('[AmountInputScreen] Received mint quote:', {
+      logger.debug('[AmountInputScreen] Received mint quote:', {
         quoteId: mintQuote.quoteId,
         amount: mintQuote.amount,
         depositAddress: mintQuote.depositAddress,
@@ -220,7 +220,7 @@ export default function AmountInputScreen({ navigation, route }) {
       // Store the original recipient address (where tokens will be locked)
       const originalRecipient = sendRecipient;
 
-      console.log('[AmountInputScreen] 🔑 Capturing recipient for P2PK locking:', {
+      logger.debug('[AmountInputScreen] 🔑 Capturing recipient for P2PK locking:', {
         originalRecipient,
         mintDepositAddress: mintQuote.depositAddress,
         note: 'P2PK tokens will be locked to originalRecipient pubkey'
@@ -242,7 +242,7 @@ export default function AmountInputScreen({ navigation, route }) {
       });
     } catch (error) {
       setIsRequestingMint(false);
-      console.error('[AmountInputScreen] Failed to request mint quote:', error);
+      logger.error('[AmountInputScreen] Failed to request mint quote:', error);
       Alert.alert('Error', 'Failed to initiate Turbo transaction. Please try again.');
     }
   };
@@ -250,7 +250,7 @@ export default function AmountInputScreen({ navigation, route }) {
   // Handler for sending normally (on-chain)
   const handleSendNormally = () => {
     setShowInsufficientTurboSheet(false);
-    console.log('[AmountInputScreen] User chose regular on-chain send');
+    logger.debug('[AmountInputScreen] User chose regular on-chain send');
 
     // Disable Turbo and proceed with regular send
     setTurboEnabled(false);

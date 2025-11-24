@@ -73,7 +73,7 @@ export default function CashuSendScreen({ navigation, route }) {
         title: 'Cashu Token',
       });
     } catch (error) {
-      console.error('Error sharing:', error);
+      logger.error('Error sharing:', error);
     }
   }, [generatedToken]);
 

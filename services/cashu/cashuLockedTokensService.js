@@ -165,25 +165,25 @@ export const clearSentLockedTokens = async () => {
  * @returns {string} ducat:// deeplink URL
  */
 export const generateTurboDeeplink = async (token, recipient, amount) => {
-  console.log('[TurboDeeplink] Generating deeplink with token:', token.substring(0, 50) + '...');
-  console.log('[TurboDeeplink] Token starts with:', token.substring(0, 10));
+  logger.debug('[TurboDeeplink] Generating deeplink with token:', token.substring(0, 50) + '...');
+  logger.debug('[TurboDeeplink] Token starts with:', token.substring(0, 10));
 
   // Try to shorten using Ducat server first
   try {
     const { shortenCashuToken } = await import('../urlShortener');
     const shortUrl = await shortenCashuToken(token);
-    console.log('[TurboDeeplink] Shortened URL from Ducat server:', shortUrl);
+    logger.debug('[TurboDeeplink] Shortened URL from Ducat server:', shortUrl);
     return shortUrl;
   } catch (error) {
-    console.error('[TurboDeeplink] Failed to shorten with Ducat server:', error);
-    console.log('[TurboDeeplink] Falling back to ducat:// deeplink');
+    logger.error('[TurboDeeplink] Failed to shorten with Ducat server:', error);
+    logger.debug('[TurboDeeplink] Falling back to ducat:// deeplink');
 
     // Fallback: Create ducat:// deeplink with the token directly
     // Cashu tokens are already URL-safe (alphanumeric + base64 characters)
     // No need to base64-encode again - just use the token as-is
     const fullDeeplink = `ducat://turbo/${token}`;
-    console.log('[TurboDeeplink] Full deeplink:', fullDeeplink.substring(0, 50) + '...');
-    console.log('[TurboDeeplink] Full deeplink length:', fullDeeplink.length);
+    logger.debug('[TurboDeeplink] Full deeplink:', fullDeeplink.substring(0, 50) + '...');
+    logger.debug('[TurboDeeplink] Full deeplink length:', fullDeeplink.length);
 
     return fullDeeplink;
   }

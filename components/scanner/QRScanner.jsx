@@ -17,6 +17,7 @@ import { CameraView, useCameraPermissions } from 'expo-camera';
 import { URDecoder } from '@ngraveio/bc-ur';
 import Icon from '../icons';
 import { COLORS } from '../../theme';
+import { logger } from '../../utils/logger';
 
 const SCREEN_WIDTH = Dimensions.get('window').width;
 const SCREEN_HEIGHT = Dimensions.get('window').height;
@@ -58,13 +59,13 @@ export default function QRScanner({ visible, onClose, onScan }) {
     const isPrintable = /^[\x20-\x7E\n\r\t]*$/.test(data.substring(0, 100));
     const dataLower = data.toLowerCase();
     if (!isPrintable && !data.match(/^\d+\/\d+:/) && !dataLower.startsWith('ur:')) {
-      console.warn('[QRScanner] Detected binary/corrupted QR data, ignoring');
+      logger.warn('[QRScanner] Detected binary/corrupted QR data, ignoring');
       return;
     }
 
     // Check if this is BC-UR format: ur:bytes/seqNum-seqLen/data (case-insensitive)
     if (dataLower.startsWith('ur:')) {
-      console.log('[QRScanner] BC-UR format detected');
+      logger.debug('[QRScanner] BC-UR format detected');
 
       try {
         // Initialize decoder on first scan
@@ -78,13 +79,13 @@ export default function QRScanner({ visible, onClose, onScan }) {
           if (urMatch) {
             const expectedTotal = parseInt(urMatch[2], 10);
             setBcurExpectedParts(expectedTotal);
-            console.log('[QRScanner] BC-UR expected parts:', expectedTotal);
+            logger.debug('[QRScanner] BC-UR expected parts:', expectedTotal);
           }
 
           setBcurReceivedParts(1);
           const progress = bcurExpectedParts ? (1 / bcurExpectedParts) * 100 : 5;
           setBcurProgress(progress);
-          console.log('[QRScanner] BC-UR decoder initialized, part 1 received');
+          logger.debug('[QRScanner] BC-UR decoder initialized, part 1 received');
         } else {
           // Feed part to existing decoder
           bcurDecoder.receivePart(data);
@@ -101,7 +102,7 @@ export default function QRScanner({ visible, onClose, onScan }) {
             const progress = isComplete ? 100 : Math.min(decoderProgress * 100, 95);
 
             setBcurProgress(progress);
-            console.log('[QRScanner] BC-UR part received:', newCount, '/', bcurExpectedParts || '?', 'decoder progress:', Math.round(decoderProgress * 100), '%, isComplete:', isComplete);
+            logger.debug('[QRScanner] BC-UR part received:', newCount, '/', bcurExpectedParts || '?', 'decoder progress:', Math.round(decoderProgress * 100), '%, isComplete:', isComplete);
 
             return newCount;
           });
@@ -109,14 +110,14 @@ export default function QRScanner({ visible, onClose, onScan }) {
           // Check if complete
           if (isComplete) {
             setBcurProgress(100);
-            console.log('[QRScanner] BC-UR decoding complete!');
+            logger.debug('[QRScanner] BC-UR decoding complete!');
 
             const ur = bcurDecoder.resultUR();
             const decoded = ur.decodeCBOR();
             const tokenString = decoded.toString('utf-8');
 
-            console.log('[QRScanner] Decoded token length:', tokenString.length);
-            console.log('[QRScanner] Token starts with:', tokenString.substring(0, 50));
+            logger.debug('[QRScanner] Decoded token length:', tokenString.length);
+            logger.debug('[QRScanner] Token starts with:', tokenString.substring(0, 50));
 
             // Call onScan with the decoded token
             if (scanTimeoutRef.current) {
@@ -133,7 +134,7 @@ export default function QRScanner({ visible, onClose, onScan }) {
           }
         }
       } catch (error) {
-        console.error('[QRScanner] BC-UR decode error:', error);
+        logger.error('[QRScanner] BC-UR decode error:', error);
         // Reset decoder on error
         setBcurDecoder(null);
         setBcurProgress(0);
@@ -152,14 +153,14 @@ export default function QRScanner({ visible, onClose, onScan }) {
       const chunkNum = parseInt(currentChunk, 10);
       const totalNum = parseInt(total, 10);
 
-      console.log('[QRScanner] Chunk scanned:', { chunkNum, totalNum, payloadLength: payload.length });
+      logger.debug('[QRScanner] Chunk scanned:', { chunkNum, totalNum, payloadLength: payload.length });
 
       setTotalChunks(totalNum);
       setScannedChunks(prev => {
         const newChunks = new Map(prev);
         newChunks.set(chunkNum, payload);
 
-        console.log('[QRScanner] Chunks collected:', newChunks.size, '/', totalNum);
+        logger.debug('[QRScanner] Chunks collected:', newChunks.size, '/', totalNum);
 
         // Check if we have all chunks
         if (newChunks.size === totalNum) {
@@ -169,8 +170,8 @@ export default function QRScanner({ visible, onClose, onScan }) {
             fullPayload += newChunks.get(i) || '';
           }
 
-          console.log('[QRScanner] All chunks collected, reassembled length:', fullPayload.length);
-          console.log('[QRScanner] Reassembled payload starts with:', fullPayload.substring(0, 100));
+          logger.debug('[QRScanner] All chunks collected, reassembled length:', fullPayload.length);
+          logger.debug('[QRScanner] Reassembled payload starts with:', fullPayload.substring(0, 100));
 
           // Try to decode as base64 first, if that fails, use as-is
           let finalPayload = fullPayload;
@@ -178,21 +179,21 @@ export default function QRScanner({ visible, onClose, onScan }) {
             // Check if it looks like base64
             if (/^[A-Za-z0-9+/=]+$/.test(fullPayload)) {
               finalPayload = atob(fullPayload);
-              console.log('[QRScanner] Decoded from base64, length:', finalPayload.length);
+              logger.debug('[QRScanner] Decoded from base64, length:', finalPayload.length);
             } else {
-              console.log('[QRScanner] Not base64, using as-is');
+              logger.debug('[QRScanner] Not base64, using as-is');
             }
           } catch (error) {
-            console.log('[QRScanner] Base64 decode failed, using raw payload:', error.message);
+            logger.debug('[QRScanner] Base64 decode failed, using raw payload:', error.message);
           }
 
           // Remove duplicate 'cashu' prefix if present (e.g., 'cashucashuA' -> 'cashuA')
           if (finalPayload.startsWith('cashucashu')) {
             finalPayload = finalPayload.substring(5); // Remove first 'cashu'
-            console.log('[QRScanner] Removed duplicate prefix, now starts with:', finalPayload.substring(0, 50));
+            logger.debug('[QRScanner] Removed duplicate prefix, now starts with:', finalPayload.substring(0, 50));
           }
 
-          console.log('[QRScanner] Final payload starts with:', finalPayload.substring(0, 100));
+          logger.debug('[QRScanner] Final payload starts with:', finalPayload.substring(0, 100));
 
           // Call onScan with the final payload
           if (scanTimeoutRef.current) {

@@ -33,7 +33,7 @@ function renderHook(hook, { wrapper: Wrapper } = {}) {
 
 describe('PendingTransactionsContext', () => {
   const mockCurrentAccount = 0;
-  const mockShowToast = jest.fn();
+  const mockShowSnackbar = jest.fn();
 
   beforeEach(() => {
     jest.clearAllMocks();
@@ -53,7 +53,7 @@ describe('PendingTransactionsContext', () => {
 
   it('should provide initial empty state', () => {
     const wrapper = ({ children }) => (
-      <PendingTransactionsProvider currentAccount={mockCurrentAccount} showToast={mockShowToast}>
+      <PendingTransactionsProvider currentAccount={mockCurrentAccount} showSnackbar={mockShowSnackbar}>
         {children}
       </PendingTransactionsProvider>
     );
@@ -64,7 +64,7 @@ describe('PendingTransactionsContext', () => {
 
   it('should add pending transaction', async () => {
     const wrapper = ({ children }) => (
-      <PendingTransactionsProvider currentAccount={mockCurrentAccount} showToast={mockShowToast}>
+      <PendingTransactionsProvider currentAccount={mockCurrentAccount} showSnackbar={mockShowSnackbar}>
         {children}
       </PendingTransactionsProvider>
     );
@@ -85,7 +85,7 @@ describe('PendingTransactionsContext', () => {
 
   it('should add pending transaction with parent txid', async () => {
     const wrapper = ({ children }) => (
-      <PendingTransactionsProvider currentAccount={mockCurrentAccount} showToast={mockShowToast}>
+      <PendingTransactionsProvider currentAccount={mockCurrentAccount} showSnackbar={mockShowSnackbar}>
         {children}
       </PendingTransactionsProvider>
     );
@@ -104,7 +104,7 @@ describe('PendingTransactionsContext', () => {
 
   it('should confirm transaction', async () => {
     const wrapper = ({ children }) => (
-      <PendingTransactionsProvider currentAccount={mockCurrentAccount} showToast={mockShowToast}>
+      <PendingTransactionsProvider currentAccount={mockCurrentAccount} showSnackbar={mockShowSnackbar}>
         {children}
       </PendingTransactionsProvider>
     );
@@ -124,7 +124,7 @@ describe('PendingTransactionsContext', () => {
 
   it('should invalidate transaction', async () => {
     const wrapper = ({ children }) => (
-      <PendingTransactionsProvider currentAccount={mockCurrentAccount} showToast={mockShowToast}>
+      <PendingTransactionsProvider currentAccount={mockCurrentAccount} showSnackbar={mockShowSnackbar}>
         {children}
       </PendingTransactionsProvider>
     );
@@ -144,7 +144,7 @@ describe('PendingTransactionsContext', () => {
 
   it('should invalidate child transactions', async () => {
     const wrapper = ({ children }) => (
-      <PendingTransactionsProvider currentAccount={mockCurrentAccount} showToast={mockShowToast}>
+      <PendingTransactionsProvider currentAccount={mockCurrentAccount} showSnackbar={mockShowSnackbar}>
         {children}
       </PendingTransactionsProvider>
     );
@@ -178,7 +178,7 @@ describe('PendingTransactionsContext', () => {
 
   it('should get unconfirmed UTXOs', async () => {
     const wrapper = ({ children }) => (
-      <PendingTransactionsProvider currentAccount={mockCurrentAccount} showToast={mockShowToast}>
+      <PendingTransactionsProvider currentAccount={mockCurrentAccount} showSnackbar={mockShowSnackbar}>
         {children}
       </PendingTransactionsProvider>
     );
@@ -202,7 +202,7 @@ describe('PendingTransactionsContext', () => {
 
   it('should filter unconfirmed UTXOs by address type', async () => {
     const wrapper = ({ children }) => (
-      <PendingTransactionsProvider currentAccount={mockCurrentAccount} showToast={mockShowToast}>
+      <PendingTransactionsProvider currentAccount={mockCurrentAccount} showSnackbar={mockShowSnackbar}>
         {children}
       </PendingTransactionsProvider>
     );
@@ -228,7 +228,7 @@ describe('PendingTransactionsContext', () => {
 
   it('should get unconfirmed balance', async () => {
     const wrapper = ({ children }) => (
-      <PendingTransactionsProvider currentAccount={mockCurrentAccount} showToast={mockShowToast}>
+      <PendingTransactionsProvider currentAccount={mockCurrentAccount} showSnackbar={mockShowSnackbar}>
         {children}
       </PendingTransactionsProvider>
     );
@@ -250,7 +250,7 @@ describe('PendingTransactionsContext', () => {
 
   it('should cleanup invalid transactions', async () => {
     const wrapper = ({ children }) => (
-      <PendingTransactionsProvider currentAccount={mockCurrentAccount} showToast={mockShowToast}>
+      <PendingTransactionsProvider currentAccount={mockCurrentAccount} showSnackbar={mockShowSnackbar}>
         {children}
       </PendingTransactionsProvider>
     );
@@ -281,7 +281,7 @@ describe('PendingTransactionsContext', () => {
   describe('Advanced UTXO management', () => {
     it('should exclude UTXOs from excludeFromIntent (BTC inputs)', async () => {
       const wrapper = ({ children }) => (
-        <PendingTransactionsProvider currentAccount={mockCurrentAccount} showToast={mockShowToast}>
+        <PendingTransactionsProvider currentAccount={mockCurrentAccount} showSnackbar={mockShowSnackbar}>
           {children}
         </PendingTransactionsProvider>
       );
@@ -308,7 +308,7 @@ describe('PendingTransactionsContext', () => {
 
     it('should exclude UTXOs from excludeFromIntent (UNIT runeUtxo)', async () => {
       const wrapper = ({ children }) => (
-        <PendingTransactionsProvider currentAccount={mockCurrentAccount} showToast={mockShowToast}>
+        <PendingTransactionsProvider currentAccount={mockCurrentAccount} showSnackbar={mockShowSnackbar}>
           {children}
         </PendingTransactionsProvider>
       );
@@ -331,7 +331,7 @@ describe('PendingTransactionsContext', () => {
 
     it('should exclude UTXOs from excludeFromIntent (UNIT satUtxo)', async () => {
       const wrapper = ({ children }) => (
-        <PendingTransactionsProvider currentAccount={mockCurrentAccount} showToast={mockShowToast}>
+        <PendingTransactionsProvider currentAccount={mockCurrentAccount} showSnackbar={mockShowSnackbar}>
           {children}
         </PendingTransactionsProvider>
       );
@@ -354,7 +354,7 @@ describe('PendingTransactionsContext', () => {
 
     it('should mark UTXO as spent and remove from outputs', async () => {
       const wrapper = ({ children }) => (
-        <PendingTransactionsProvider currentAccount={mockCurrentAccount} showToast={mockShowToast}>
+        <PendingTransactionsProvider currentAccount={mockCurrentAccount} showSnackbar={mockShowSnackbar}>
           {children}
         </PendingTransactionsProvider>
       );
@@ -380,7 +380,7 @@ describe('PendingTransactionsContext', () => {
 
     it('should remove transaction when all outputs are spent', async () => {
       const wrapper = ({ children }) => (
-        <PendingTransactionsProvider currentAccount={mockCurrentAccount} showToast={mockShowToast}>
+        <PendingTransactionsProvider currentAccount={mockCurrentAccount} showSnackbar={mockShowSnackbar}>
           {children}
         </PendingTransactionsProvider>
       );
@@ -402,7 +402,7 @@ describe('PendingTransactionsContext', () => {
 
     it('should mark multiple UTXOs as spent', async () => {
       const wrapper = ({ children }) => (
-        <PendingTransactionsProvider currentAccount={mockCurrentAccount} showToast={mockShowToast}>
+        <PendingTransactionsProvider currentAccount={mockCurrentAccount} showSnackbar={mockShowSnackbar}>
           {children}
         </PendingTransactionsProvider>
       );
@@ -426,7 +426,7 @@ describe('PendingTransactionsContext', () => {
       AsyncStorage.getItem.mockRejectedValueOnce(new Error('Storage error'));
 
       const wrapper = ({ children }) => (
-        <PendingTransactionsProvider currentAccount={1} showToast={mockShowToast}>
+        <PendingTransactionsProvider currentAccount={1} showSnackbar={mockShowSnackbar}>
           {children}
         </PendingTransactionsProvider>
       );
@@ -446,7 +446,7 @@ describe('PendingTransactionsContext', () => {
       AsyncStorage.setItem.mockRejectedValueOnce(new Error('Storage error'));
 
       const wrapper = ({ children }) => (
-        <PendingTransactionsProvider currentAccount={mockCurrentAccount} showToast={mockShowToast}>
+        <PendingTransactionsProvider currentAccount={mockCurrentAccount} showSnackbar={mockShowSnackbar}>
           {children}
         </PendingTransactionsProvider>
       );
@@ -467,7 +467,7 @@ describe('PendingTransactionsContext', () => {
         .mockRejectedValueOnce(new Error('Storage error')); // For spent UTXOs
 
       const wrapper = ({ children }) => (
-        <PendingTransactionsProvider currentAccount={1} showToast={mockShowToast}>
+        <PendingTransactionsProvider currentAccount={1} showSnackbar={mockShowSnackbar}>
           {children}
         </PendingTransactionsProvider>
       );
@@ -495,7 +495,7 @@ describe('PendingTransactionsContext', () => {
       });
 
       const wrapper = ({ children }) => (
-        <PendingTransactionsProvider currentAccount={mockCurrentAccount} showToast={mockShowToast}>
+        <PendingTransactionsProvider currentAccount={mockCurrentAccount} showSnackbar={mockShowSnackbar}>
           {children}
         </PendingTransactionsProvider>
       );
@@ -530,7 +530,7 @@ describe('PendingTransactionsContext', () => {
       });
 
       const wrapper = ({ children }) => (
-        <PendingTransactionsProvider currentAccount={1} showToast={mockShowToast}>
+        <PendingTransactionsProvider currentAccount={1} showSnackbar={mockShowSnackbar}>
           {children}
         </PendingTransactionsProvider>
       );
@@ -556,7 +556,7 @@ describe('PendingTransactionsContext', () => {
       });
 
       const wrapper = ({ children }) => (
-        <PendingTransactionsProvider currentAccount={1} showToast={mockShowToast}>
+        <PendingTransactionsProvider currentAccount={1} showSnackbar={mockShowSnackbar}>
           {children}
         </PendingTransactionsProvider>
       );
@@ -576,7 +576,7 @@ describe('PendingTransactionsContext', () => {
 
     it('should use isUtxoSpent to check if UTXO is spent', async () => {
       const wrapper = ({ children }) => (
-        <PendingTransactionsProvider currentAccount={0} showToast={mockShowToast}>
+        <PendingTransactionsProvider currentAccount={0} showSnackbar={mockShowSnackbar}>
           {children}
         </PendingTransactionsProvider>
       );
@@ -598,7 +598,7 @@ describe('PendingTransactionsContext', () => {
 
     it('should use getSpentUtxos to retrieve all spent UTXOs', async () => {
       const wrapper = ({ children }) => (
-        <PendingTransactionsProvider currentAccount={0} showToast={mockShowToast}>
+        <PendingTransactionsProvider currentAccount={0} showSnackbar={mockShowSnackbar}>
           {children}
         </PendingTransactionsProvider>
       );

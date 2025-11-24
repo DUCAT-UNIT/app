@@ -3,6 +3,7 @@ import * as SecureStore from 'expo-secure-store';
 import * as WalletService from '../services/walletService';
 import { SECURE_KEYS } from '../utils/constants';
 import { useNotifications } from './NotificationContext';
+import { logger } from '../utils/logger';
 
 const WalletContext = createContext();
 
@@ -64,7 +65,7 @@ export const WalletProvider = ({ children }) => {
       const { clearP2PKCache } = await import('../services/cashu/cashuP2PK.js');
       await clearP2PKCache();
     } catch (error) {
-      console.warn('[WalletContext] Failed to clear P2PK cache on reset:', error.message);
+      logger.warn('[WalletContext] Failed to clear P2PK cache on reset:', error.message);
     }
   }, []);
 
@@ -91,7 +92,7 @@ export const WalletProvider = ({ children }) => {
         const { clearP2PKCache } = await import('../services/cashu/cashuP2PK.js');
         await clearP2PKCache();
       } catch (error) {
-        console.warn('[WalletContext] Failed to clear P2PK cache:', error.message);
+        logger.warn('[WalletContext] Failed to clear P2PK cache:', error.message);
       }
 
       // Show toast notification

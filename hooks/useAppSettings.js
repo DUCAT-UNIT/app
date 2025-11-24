@@ -51,12 +51,12 @@ export function useAppSettings({ biometricEnabled, setIsAuthenticated, showToast
   }, [showZeroAssets]);
 
   const handleAdvancedModeToggle = useCallback(async () => {
-    console.log('[useAppSettings] Advanced Mode toggle called, current value:', advancedMode);
+    logger.debug('[useAppSettings] Advanced Mode toggle called, current value:', advancedMode);
     const newValue = !advancedMode;
-    console.log('[useAppSettings] Setting Advanced Mode to:', newValue);
+    logger.debug('[useAppSettings] Setting Advanced Mode to:', newValue);
     setAdvancedMode(newValue);
     await SecureStore.setItemAsync('advancedMode', newValue.toString());
-    console.log('[useAppSettings] Advanced Mode toggle complete');
+    logger.debug('[useAppSettings] Advanced Mode toggle complete');
   }, [advancedMode]);
 
   const handleNotificationsToggle = useCallback(() => {
@@ -132,16 +132,16 @@ export function useAppSettings({ biometricEnabled, setIsAuthenticated, showToast
   }, [showToast]);
 
   const handleRecoverLockedChange = useCallback(async () => {
-    console.log('[useAppSettings] handleRecoverLockedChange called');
+    logger.debug('[useAppSettings] handleRecoverLockedChange called');
     try {
       if (showToast) {
         showToast('Recovering change from sent tokens...', 'info');
       }
 
       const { recoverLockedChange } = await import('../services/cashu/cashuWalletService.js');
-      console.log('[useAppSettings] Calling recoverLockedChange');
+      logger.debug('[useAppSettings] Calling recoverLockedChange');
       const result = await recoverLockedChange();
-      console.log('[useAppSettings] Recovery result:', result);
+      logger.debug('[useAppSettings] Recovery result:', result);
 
       if (result.recovered > 0) {
         if (showSnackbar) {
@@ -157,7 +157,7 @@ export function useAppSettings({ biometricEnabled, setIsAuthenticated, showToast
         }
       }
     } catch (error) {
-      console.error('[useAppSettings] Recovery failed:', error);
+      logger.error('[useAppSettings] Recovery failed:', error);
       if (showSnackbar) {
         showSnackbar({
           type: 'error',
@@ -183,7 +183,7 @@ export function useAppSettings({ biometricEnabled, setIsAuthenticated, showToast
   }, [showToast]);
 
   const handleEcashThresholdChange = useCallback(async (newThreshold) => {
-    console.log('[useAppSettings] Ecash threshold changed to:', newThreshold);
+    logger.debug('[useAppSettings] Ecash threshold changed to:', newThreshold);
     setEcashThreshold(newThreshold);
     await SecureStore.setItemAsync('ecashThreshold', newThreshold.toString());
   }, []);

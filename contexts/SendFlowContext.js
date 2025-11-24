@@ -5,6 +5,7 @@
  */
 
 import React, { createContext, useContext, useState, useEffect, useMemo, useCallback } from 'react';
+import { logger } from '../utils/logger';
 
 const SendFlowContext = createContext();
 
@@ -22,7 +23,7 @@ export const SendFlowProvider = ({ children }) => {
 
   // Wrapped setter with logging
   const setIntentStep = (newStep) => {
-    console.log('[SendFlowContext] setIntentStep called:', { from: intentStep, to: newStep, stack: new Error().stack.split('\n')[2] });
+    logger.debug('[SendFlowContext] setIntentStep called:', { from: intentStep, to: newStep, stack: new Error().stack.split('\n')[2] });
     _setIntentStep(newStep);
   };
 
@@ -53,7 +54,7 @@ export const SendFlowProvider = ({ children }) => {
 
   // Reset all send flow state - memoized to prevent unnecessary re-renders
   const resetSendFlow = useCallback(() => {
-    console.log('[SendFlowContext] resetSendFlow called');
+    logger.debug('[SendFlowContext] resetSendFlow called');
     setIntentStep('idle');
     setSendAssetType(null);
     setSendAmount('');

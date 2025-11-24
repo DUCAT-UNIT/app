@@ -117,7 +117,7 @@ export default function ProcessingScreen({ navigation, route }) {
 
   // Start the action when screen mounts
   useEffect(() => {
-    console.log('🎬🎬 [ProcessingScreen] useEffect fired', {
+    logger.debug('🎬🎬 [ProcessingScreen] useEffect fired', {
       hasStarted: hasStarted.current,
       action,
       isTurbo,
@@ -141,7 +141,7 @@ export default function ProcessingScreen({ navigation, route }) {
       }, 100);
     } else if (!hasStarted.current && action === 'sign_and_broadcast') {
       hasStarted.current = true;
-      console.log('🎬 [ProcessingScreen] Starting sign_and_broadcast flow');
+      logger.debug('🎬 [ProcessingScreen] Starting sign_and_broadcast flow');
       // Small delay before signing
       setTimeout(async () => {
         try {

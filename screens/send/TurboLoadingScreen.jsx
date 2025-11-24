@@ -33,7 +33,7 @@ export default function TurboLoadingScreen({ navigation, route }) {
   useEffect(() => {
     if (!hasStarted.current && assetType && prefillAmount !== undefined && prefillAddress) {
       hasStarted.current = true;
-      console.log('[TurboLoading] Setting state:', { assetType, prefillAmount, prefillAddress });
+      logger.debug('[TurboLoading] Setting state:', { assetType, prefillAmount, prefillAddress });
 
       // Set send flow values
       setSendAssetType(assetType);
@@ -46,7 +46,7 @@ export default function TurboLoadingScreen({ navigation, route }) {
   // Watch for state to be initialized, then create intent
   // This ensures the state has been updated before we call createSendIntent
   useEffect(() => {
-    console.log('[TurboLoading] State check:', {
+    logger.debug('[TurboLoading] State check:', {
       hasStarted: hasStarted.current,
       stateInitialized: stateInitialized.current,
       currentAssetType,
@@ -56,7 +56,7 @@ export default function TurboLoadingScreen({ navigation, route }) {
 
     // Check that all required state values are set (allow "0" or any numeric string for amount)
     if (hasStarted.current && !stateInitialized.current && currentAssetType && currentAmount !== '' && currentAmount !== null && currentRecipient) {
-      console.log('[TurboLoading] Creating intent...');
+      logger.debug('[TurboLoading] Creating intent...');
       // State is now initialized, create the intent
       stateInitialized.current = true;
       createSendIntent();
@@ -65,7 +65,7 @@ export default function TurboLoadingScreen({ navigation, route }) {
 
   // Watch for intent creation to complete
   useEffect(() => {
-    console.log('[TurboLoading] Intent watch:', {
+    logger.debug('[TurboLoading] Intent watch:', {
       hasStarted: hasStarted.current,
       hasNavigated: hasNavigated.current,
       stateInitialized: stateInitialized.current,
@@ -80,7 +80,7 @@ export default function TurboLoadingScreen({ navigation, route }) {
 
     // Success case: intent created and ready for review
     if (intentStep === 'reviewing' && sendIntent) {
-      console.log('[TurboLoading] Navigating to Review...');
+      logger.debug('[TurboLoading] Navigating to Review...');
       hasNavigated.current = true;
       intentCreated.current = true;
       if (errorTimeout.current) {
@@ -94,7 +94,7 @@ export default function TurboLoadingScreen({ navigation, route }) {
     }
     // Error case: went back to entering_amount step (validation failed)
     else if (stateInitialized.current && intentStep === 'entering_amount') {
-      console.log('[TurboLoading] Error detected, showing alert...');
+      logger.debug('[TurboLoading] Error detected, showing alert...');
       // Error - show alert and go back
       hasNavigated.current = true;
       if (errorTimeout.current) {
