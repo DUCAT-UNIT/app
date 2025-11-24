@@ -25,28 +25,26 @@ export default function QRScanner({ visible, onClose, onScan }) {
   const [permission, requestPermission] = useCameraPermissions();
   const [scannedChunks, setScannedChunks] = useState(new Map());
   const [totalChunks, setTotalChunks] = useState(null);
-  const bcurDecoderRef = useRef(null);
+  const [bcurDecoder, setBcurDecoder] = useState(null);
   const [bcurProgress, setBcurProgress] = useState(0);
   const [bcurReceivedParts, setBcurReceivedParts] = useState(0);
-  const bcurReceivedPartsRef = useRef(0);
   const [bcurExpectedParts, setBcurExpectedParts] = useState(null);
+  const scanTimeoutRef = useRef(null);
   const [hasScanned, setHasScanned] = useState(false);
-  const [cameraReady, setCameraReady] = useState(false);
 
-  // Reset state when modal opens
+  // Reset state when modal closes
   useEffect(() => {
-    if (visible) {
-      console.log('[QRScanner] Modal opened');
-      // Reset when opening to ensure clean state
+    if (!visible) {
       setScannedChunks(new Map());
       setTotalChunks(null);
-      bcurDecoderRef.current = null;
+      setBcurDecoder(null);
       setBcurProgress(0);
       setBcurReceivedParts(0);
-      bcurReceivedPartsRef.current = 0;
       setBcurExpectedParts(null);
       setHasScanned(false);
-      setCameraReady(false);
+      if (scanTimeoutRef.current) {
+        clearTimeout(scanTimeoutRef.current);
+      }
     }
   }, [visible]);
 
@@ -70,9 +68,9 @@ export default function QRScanner({ visible, onClose, onScan }) {
 
       try {
         // Initialize decoder on first scan
-        if (!bcurDecoderRef.current) {
+        if (!bcurDecoder) {
           const decoder = new URDecoder();
-          bcurDecoderRef.current = decoder;
+          setBcurDecoder(decoder);
           decoder.receivePart(data);
 
           // Extract expected parts from first QR code (format: ur:bytes/seq-total/data)
@@ -84,61 +82,62 @@ export default function QRScanner({ visible, onClose, onScan }) {
           }
 
           setBcurReceivedParts(1);
-          bcurReceivedPartsRef.current = 1;
           const progress = bcurExpectedParts ? (1 / bcurExpectedParts) * 100 : 5;
           setBcurProgress(progress);
           console.log('[QRScanner] BC-UR decoder initialized, part 1 received');
         } else {
           // Feed part to existing decoder
-          const isNewPart = bcurDecoderRef.current.receivePart(data);
+          bcurDecoder.receivePart(data);
 
-          // Only process if this was a new unique part
-          if (isNewPart) {
-            // Get decoder's estimated percent complete
-            const decoderProgress = bcurDecoderRef.current.estimatedPercentComplete();
+          // Get decoder's estimated percent complete
+          const decoderProgress = bcurDecoder.estimatedPercentComplete();
+          const isComplete = bcurDecoder.isComplete();
 
-            // Increment received parts count using ref to avoid stale closure
-            bcurReceivedPartsRef.current += 1;
-            const newCount = bcurReceivedPartsRef.current;
-            setBcurReceivedParts(newCount);
+          // Increment received parts count using functional update
+          setBcurReceivedParts(prev => {
+            const newCount = prev + 1;
 
-            const progress = Math.min(decoderProgress * 100, 95);
+            // Use decoder's progress if available, otherwise fall back to our calculation
+            const progress = isComplete ? 100 : Math.min(decoderProgress * 100, 95);
+
             setBcurProgress(progress);
-            console.log('[QRScanner] BC-UR unique part received:', newCount, '/', bcurExpectedParts || '?', 'progress:', Math.round(decoderProgress * 100), '%');
+            console.log('[QRScanner] BC-UR part received:', newCount, '/', bcurExpectedParts || '?', 'decoder progress:', Math.round(decoderProgress * 100), '%, isComplete:', isComplete);
 
-            // Only try to decode when we have high confidence (95%+)
-            // This avoids wasteful decode attempts that will fail anyway
-            if (decoderProgress >= 0.95) {
-              try {
-                const ur = bcurDecoderRef.current.resultUR();
-                const decoded = ur.decodeCBOR();
-                const tokenString = decoded.toString('utf-8');
+            return newCount;
+          });
 
-                setBcurProgress(100);
-                console.log('[QRScanner] BC-UR decoding complete!');
-                console.log('[QRScanner] Decoded token length:', tokenString.length);
-                console.log('[QRScanner] Token starts with:', tokenString.substring(0, 50));
+          // Check if complete
+          if (isComplete) {
+            setBcurProgress(100);
+            console.log('[QRScanner] BC-UR decoding complete!');
 
-                // Call onScan immediately and let modal close
-                // State will be reset when modal opens again
-                setHasScanned(true);
-                onScan(tokenString);
-              } catch (e) {
-                // Not ready yet, keep scanning
-                if (newCount % 10 === 0) {
-                  console.log('[QRScanner] Decode attempt at', Math.round(decoderProgress * 100), '% failed:', e.message);
-                }
-              }
+            const ur = bcurDecoder.resultUR();
+            const decoded = ur.decodeCBOR();
+            const tokenString = decoded.toString('utf-8');
+
+            console.log('[QRScanner] Decoded token length:', tokenString.length);
+            console.log('[QRScanner] Token starts with:', tokenString.substring(0, 50));
+
+            // Call onScan with the decoded token
+            if (scanTimeoutRef.current) {
+              clearTimeout(scanTimeoutRef.current);
             }
+            setHasScanned(true);
+            scanTimeoutRef.current = setTimeout(() => {
+              onScan(tokenString);
+              setBcurDecoder(null);
+              setBcurProgress(0);
+              setBcurReceivedParts(0);
+              setBcurExpectedParts(null);
+            }, 100);
           }
         }
       } catch (error) {
         console.error('[QRScanner] BC-UR decode error:', error);
         // Reset decoder on error
-        bcurDecoderRef.current = null;
+        setBcurDecoder(null);
         setBcurProgress(0);
         setBcurReceivedParts(0);
-        bcurReceivedPartsRef.current = 0;
         setBcurExpectedParts(null);
       }
       return;
@@ -195,9 +194,16 @@ export default function QRScanner({ visible, onClose, onScan }) {
 
           console.log('[QRScanner] Final payload starts with:', finalPayload.substring(0, 100));
 
-          // Call onScan immediately - state will be reset when modal opens again
+          // Call onScan with the final payload
+          if (scanTimeoutRef.current) {
+            clearTimeout(scanTimeoutRef.current);
+          }
           setHasScanned(true);
-          onScan(finalPayload);
+          scanTimeoutRef.current = setTimeout(() => {
+            onScan(finalPayload);
+            setScannedChunks(new Map());
+            setTotalChunks(null);
+          }, 100);
         }
 
         return newChunks;
@@ -207,17 +213,10 @@ export default function QRScanner({ visible, onClose, onScan }) {
       setHasScanned(true);
       onScan(data);
     }
-  }, [hasScanned, bcurExpectedParts, scannedChunks, totalChunks, onScan]);
+  }, [hasScanned, bcurDecoder, bcurExpectedParts, scannedChunks, totalChunks, onScan]);
 
   if (!permission) {
-    // Loading state - show a blank modal while checking permissions
-    return (
-      <Modal visible={visible} animationType="slide">
-        <View style={styles.permissionContainer}>
-          <Text style={styles.permissionText}>Loading camera...</Text>
-        </View>
-      </Modal>
-    );
+    return null;
   }
 
   if (!permission.granted) {
@@ -243,8 +242,6 @@ export default function QRScanner({ visible, onClose, onScan }) {
   const progress = totalChunks ? (scannedChunks.size / totalChunks) * 100 : bcurProgress;
   const isScanning = totalChunks || bcurProgress > 0;
 
-  console.log('[QRScanner] Rendering camera - permission granted:', permission.granted, 'visible:', visible);
-
   return (
     <Modal visible={visible} animationType="slide">
       <View style={styles.container}>
@@ -252,52 +249,42 @@ export default function QRScanner({ visible, onClose, onScan }) {
           style={styles.camera}
           facing="back"
           onBarcodeScanned={handleBarCodeScanned}
-          onCameraReady={() => {
-            console.log('[QRScanner] Camera ready');
-            setCameraReady(true);
-          }}
           barcodeScannerSettings={{
             barcodeTypes: ['qr'],
           }}
-        />
-
-        {/* Overlay - outside CameraView to avoid children warning */}
-        <View style={styles.overlay} pointerEvents="box-none">
-          {!cameraReady && (
-            <View style={styles.loadingOverlay}>
-              <Text style={styles.loadingText}>Initializing camera...</Text>
+        >
+          {/* Overlay */}
+          <View style={styles.overlay}>
+            {/* Top bar with close button */}
+            <View style={styles.topBar}>
+              <TouchableOpacity style={styles.closeButton} onPress={onClose}>
+                <Icon name="close" size={28} color={COLORS.WHITE} />
+              </TouchableOpacity>
             </View>
-          )}
 
-          {/* Top bar with close button */}
-          <View style={styles.topBar}>
-            <TouchableOpacity style={styles.closeButton} onPress={onClose}>
-              <Icon name="close" size={28} color={COLORS.WHITE} />
-            </TouchableOpacity>
-          </View>
-
-          {/* Scanning frame */}
-          <View style={styles.scanFrame}>
-            {/* Progress overlay - centered over camera */}
-            {isScanning && (
-              <View style={styles.progressOverlay}>
-                <Text style={styles.overlayText}>
-                  {bcurProgress > 0 ? 'Scanning BC-UR token...' : 'Scanning animated QR code...'}
-                </Text>
-                <View style={styles.progressContainer}>
-                  <View style={styles.progressBar}>
-                    <View style={[styles.progressFill, { width: `${progress}%` }]} />
-                  </View>
-                  <Text style={styles.progressText}>
-                    {totalChunks
-                      ? `${scannedChunks.size} / ${totalChunks} frames`
-                      : `${Math.round(bcurProgress)}% complete`}
+            {/* Scanning frame */}
+            <View style={styles.scanFrame}>
+              {/* Progress overlay - centered over camera */}
+              {isScanning && (
+                <View style={styles.progressOverlay}>
+                  <Text style={styles.overlayText}>
+                    {bcurProgress > 0 ? 'Scanning BC-UR token...' : 'Scanning animated QR code...'}
                   </Text>
+                  <View style={styles.progressContainer}>
+                    <View style={styles.progressBar}>
+                      <View style={[styles.progressFill, { width: `${progress}%` }]} />
+                    </View>
+                    <Text style={styles.progressText}>
+                      {totalChunks
+                        ? `${scannedChunks.size} / ${totalChunks} frames`
+                        : `${Math.round(bcurProgress)}% complete`}
+                    </Text>
+                  </View>
                 </View>
-              </View>
-            )}
+              )}
+            </View>
           </View>
-        </View>
+        </CameraView>
       </View>
     </Modal>
   );
@@ -314,31 +301,12 @@ const styles = StyleSheet.create({
     flex: 1,
     backgroundColor: '#000',
   },
-  loadingOverlay: {
-    position: 'absolute',
-    top: 0,
-    left: 0,
-    right: 0,
-    bottom: 0,
-    backgroundColor: COLORS.DARK_BG,
-    justifyContent: 'center',
-    alignItems: 'center',
-    zIndex: 1000,
-  },
-  loadingText: {
-    color: COLORS.WHITE,
-    fontSize: 16,
-    fontFamily: 'CabinetGrotesk-Regular',
-  },
   camera: {
     flex: 1,
   },
   overlay: {
-    position: 'absolute',
-    top: 0,
-    left: 0,
-    right: 0,
-    bottom: 0,
+    flex: 1,
+    backgroundColor: 'rgba(0, 0, 0, 0.5)',
   },
   topBar: {
     paddingTop: 50,
