@@ -738,6 +738,9 @@ export default function RootNavigator() {
                     await switchAccount(targetAccountIndex);
                     console.log('[TURBO] Account switched successfully');
 
+                    // Show toast notification
+                    showToast(`Switched to Account ${targetAccount}`, 'success');
+
                     // Reload the app state
                     if (global.reloadWallet) {
                       console.log('[TURBO] Reloading wallet...');
