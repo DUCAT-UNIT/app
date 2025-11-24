@@ -284,8 +284,8 @@ export const signP2PKProofs = async (proofs, privateKey) => {
 };
 
 // Cache keys for P2PK private key (cleared when account changes)
-const CACHE_KEY_ADDRESS = 'p2pk_taproot_address_v2';
-const CACHE_KEY_PRIVKEY = 'p2pk_private_key_v2';
+const CACHE_KEY_ADDRESS = 'p2pk_taproot_address_v3';  // v3: now uses tweaked pubkeys
+const CACHE_KEY_PRIVKEY = 'p2pk_private_key_v3';       // v3: now uses tweaked privkeys
 
 /**
  * Clear P2PK cache (call when switching accounts)
@@ -366,35 +366,41 @@ export const findAccountForP2PKToken = async (recipientPubkey, maxAccounts = 50,
         const taprootPath = `m/86'/1'/0'/0/${accountIndex}`;
         const taprootChild = root.derivePath(taprootPath);
         const xOnlyPubkey = taprootChild.publicKey.slice(1, 33);
-        const xOnlyPubkeyHex = Buffer.from(xOnlyPubkey).toString('hex');
 
-        // Derive address for logging
+        // Derive address and get tweaked output pubkey
         const taprootPayment = bitcoin.payments.p2tr({
           internalPubkey: xOnlyPubkey,
           network: MUTINYNET_NETWORK,
         });
 
-        console.log(`[findAccountForP2PKToken] Account ${accountIndex}: internal_pubkey=${xOnlyPubkeyHex.substring(0, 16)}... addr=${taprootPayment.address} (${Date.now() - checkStart}ms)`);
+        // Extract tweaked output pubkey from payment (what's in the address)
+        const outputPubkey = taprootPayment.pubkey ? taprootPayment.pubkey.slice(1, 33) : Buffer.alloc(0);
+        const outputPubkeyHex = Buffer.from(outputPubkey).toString('hex');
+
+        console.log(`[findAccountForP2PKToken] Account ${accountIndex}: output_pubkey=${outputPubkeyHex.substring(0, 16)}... addr=${taprootPayment.address} (${Date.now() - checkStart}ms)`);
 
         // Show full comparison for account 4 & 5 to debug
         if (accountIndex === 4 || accountIndex === 5) {
           console.log(`[findAccountForP2PKToken] 🔍 Account ${accountIndex} FULL COMPARISON:`);
-          console.log('  Derived internal pubkey:', xOnlyPubkeyHex);
-          console.log('  Looking for            :', recipientPubkey);
-          console.log('  Match?                 :', xOnlyPubkeyHex === recipientPubkey);
-          console.log('  Lengths                :', xOnlyPubkeyHex.length, 'vs', recipientPubkey.length);
+          console.log('  Derived output pubkey:', outputPubkeyHex);
+          console.log('  Looking for          :', recipientPubkey);
+          console.log('  Match?               :', outputPubkeyHex === recipientPubkey);
+          console.log('  Lengths              :', outputPubkeyHex.length, 'vs', recipientPubkey.length);
         }
 
-        // Compare internal x-only pubkeys (used for P2PK signing)
-        if (xOnlyPubkeyHex === recipientPubkey) {
+        // Compare tweaked output pubkeys (from Taproot addresses)
+        if (outputPubkeyHex === recipientPubkey) {
           console.log('[findAccountForP2PKToken] ✅ Found match at account index:', accountIndex);
 
-          // Get private key (32 bytes)
-          const privateKey = Buffer.from(taprootChild.privateKey).toString('hex');
+          // Compute tweaked private key
+          const tweak = bitcoin.crypto.taggedHash('TapTweak', xOnlyPubkey);
+          const internalPrivkey = taprootChild.privateKey;
+          const tweakedPrivkey = ecc.privateAdd(internalPrivkey, tweak);
+          const tweakedPrivkeyHex = Buffer.from(tweakedPrivkey).toString('hex');
 
           return {
             accountIndex,
-            privateKey,
+            privateKey: tweakedPrivkeyHex,
             address: taprootPayment.address,
           };
         }

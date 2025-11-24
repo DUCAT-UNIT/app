@@ -25,7 +25,7 @@ function getECPair() {
 }
 
 // SecureStore key prefix for derived keys (increment version to invalidate cache)
-const DERIVED_KEY_VERSION = 'v3_';  // v3: fixed to return internal pubkey instead of tweaked
+const DERIVED_KEY_VERSION = 'v4_';  // v4: now returns tweaked pubkey for P2PK compatibility
 const DERIVED_KEY_PREFIX = 'derived_key_' + DERIVED_KEY_VERSION;
 
 /**
@@ -343,21 +343,33 @@ export async function getPrivateKeyForAddress(address) {
 
         if (payment.address === address) {
           // Found the matching account!
-          const internalPubkeyHex = xOnlyPubkey.toString('hex');
-          const privateKeyHex = Buffer.from(child.privateKey).toString('hex');
+          // Get the tweaked output pubkey from the payment (what's in the address)
+          const outputPubkey = payment.pubkey ? payment.pubkey.slice(1, 33) : Buffer.alloc(0);
+          const outputPubkeyHex = outputPubkey.toString('hex');
+
+          // Compute tweaked private key (for Taproot key path spending)
+          // tweak = H(internalPubkey) for key-path-only spending
+          const tweak = bitcoin.crypto.taggedHash('TapTweak', xOnlyPubkey);
+          const internalPrivkey = Buffer.from(child.privateKey);
+
+          // tweaked_privkey = internal_privkey + tweak (mod n)
+          const ECPairInstance = getECPair();
+          const ecc = ECPairInstance.ecc;
+          const tweakedPrivkey = ecc.privateAdd(internalPrivkey, tweak);
+          const tweakedPrivkeyHex = Buffer.from(tweakedPrivkey).toString('hex');
 
           console.log('[getPrivateKeyForAddress] Found matching account:', {
             accountIndex,
             address,
-            internalPubkey: internalPubkeyHex.substring(0, 16) + '...',
+            outputPubkey: outputPubkeyHex.substring(0, 16) + '...',
             derivationPath,
           });
 
-          // Return INTERNAL keys (not tweaked) for P2PK token locking
+          // Return TWEAKED keys (for Taproot key path spending / P2PK)
           return {
-            privateKey: privateKeyHex,        // Internal private key (32 bytes)
-            xOnlyPubkey: internalPubkeyHex,  // Internal x-only pubkey (32 bytes)
-            accountIndex,                     // Which account owns this address
+            privateKey: tweakedPrivkeyHex,    // Tweaked private key (32 bytes)
+            xOnlyPubkey: outputPubkeyHex,     // Tweaked output pubkey (32 bytes)
+            accountIndex,                      // Which account owns this address
           };
         }
       } else {

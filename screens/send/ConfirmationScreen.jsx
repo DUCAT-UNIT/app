@@ -199,14 +199,14 @@ export default function ConfirmationScreen({ navigation, route }) {
             const balanceBefore = await getBalance();
             console.log('[ConfirmationScreen] Balance before P2PK token creation:', balanceBefore);
 
-            // For P2PK, we need the INTERNAL x-only pubkey (not the tweaked output pubkey)
-            // P2PK signatures use the raw internal pubkey, not Taproot-tweaked pubkeys
+            // For P2PK, we need the tweaked output pubkey (extracted from the Taproot address)
+            // This is the pubkey that's actually encoded in the tb1p... address
             // Extract the pubkey directly from the taproot address (works for any address, not just own wallet)
-            const recipientPubkey = extractPubkeyFromTaprootAddress(turboRecipient); // Internal x-only pubkey (32 bytes / 64 hex chars)
+            const recipientPubkey = extractPubkeyFromTaprootAddress(turboRecipient); // Tweaked x-only pubkey (32 bytes / 64 hex chars)
 
             console.log('[ConfirmationScreen] 🔐 P2PK TOKEN CREATION:');
             console.log('  Recipient address:', turboRecipient);
-            console.log('  FULL Internal pubkey for locking:', recipientPubkey);
+            console.log('  FULL Tweaked pubkey for locking:', recipientPubkey);
             console.log('  Pubkey length:', recipientPubkey.length);
 
             // Use quote amount directly (already in smallest units)
