@@ -236,7 +236,7 @@ describe('backgroundTaskService', () => {
       expect(result).toBe(BackgroundFetch.BackgroundFetchResult.NoData);
     });
 
-    it('should check transaction confirmation and send notification', async () => {
+    it('should check transaction confirmation (notifications disabled)', async () => {
       const pendingTxs = [
         {
           txid: 'tx123',
@@ -256,15 +256,8 @@ describe('backgroundTaskService', () => {
       const result = await backgroundTaskCallback();
 
       expect(global.fetch).toHaveBeenCalled();
-      expect(Notifications.scheduleNotificationAsync).toHaveBeenCalledWith({
-        content: {
-          title: 'Transaction Confirmed',
-          body: 'The withdraw transaction for 0.5 BTC has been confirmed on Mutinynet.',
-          data: { txid: 'tx123', assetType: 'BTC', amount: 0.5 },
-          sound: true,
-        },
-        trigger: null,
-      });
+      // Notifications are disabled - using snackbars only
+      expect(Notifications.scheduleNotificationAsync).not.toHaveBeenCalled();
       expect(SecureStore.setItemAsync).toHaveBeenCalledWith('pending_transactions', '[]');
       expect(result).toBe(BackgroundFetch.BackgroundFetchResult.NewData);
     });
@@ -325,16 +318,8 @@ describe('backgroundTaskService', () => {
 
       const result = await backgroundTaskCallback();
 
-      expect(Notifications.scheduleNotificationAsync).toHaveBeenCalledTimes(1);
-      expect(Notifications.scheduleNotificationAsync).toHaveBeenCalledWith({
-        content: {
-          title: 'Transaction Confirmed',
-          body: 'The withdraw transaction for 0.5 BTC has been confirmed on Mutinynet.',
-          data: { txid: 'tx1', assetType: 'BTC', amount: 0.5 },
-          sound: true,
-        },
-        trigger: null,
-      });
+      // Notifications are disabled - using snackbars only
+      expect(Notifications.scheduleNotificationAsync).not.toHaveBeenCalled();
 
       // Should only remove tx1, keep tx2
       const savedData = JSON.parse(SecureStore.setItemAsync.mock.calls[0][1]);
