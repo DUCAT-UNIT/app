@@ -333,14 +333,14 @@ export const findAccountForP2PKToken = async (recipientPubkey, maxAccounts = 50,
     const startTime = Date.now();
 
     // Import bitcoin utilities
-    const bip32Module = await import('@scure/bip32');
-    const bip39Module = await import('bip39');
-    const bitcoinModule = await import('bitcoinjs-lib');
+    const { BIP32Factory } = await import('bip32');
+    const bip39 = await import('bip39');
+    const bitcoin = await import('bitcoinjs-lib');
+    const ecc = await import('@bitcoinerlab/secp256k1');
     const { MUTINYNET_NETWORK } = await import('../../utils/bitcoin.js');
 
-    const bip32 = bip32Module.default;
-    const bip39 = bip39Module.default;
-    const bitcoin = bitcoinModule.default;
+    // Initialize BIP32
+    const bip32 = BIP32Factory(ecc);
 
     // Convert mnemonic to seed once
     const seed = bip39.mnemonicToSeedSync(mnemonic);
