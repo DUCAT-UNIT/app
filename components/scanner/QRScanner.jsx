@@ -248,11 +248,6 @@ export default function QRScanner({ visible, onClose, onScan }) {
   return (
     <Modal visible={visible} animationType="slide">
       <View style={styles.container}>
-        {!cameraReady && (
-          <View style={styles.loadingOverlay}>
-            <Text style={styles.loadingText}>Initializing camera...</Text>
-          </View>
-        )}
         <CameraView
           style={styles.camera}
           facing="back"
@@ -264,39 +259,45 @@ export default function QRScanner({ visible, onClose, onScan }) {
           barcodeScannerSettings={{
             barcodeTypes: ['qr'],
           }}
-        >
-          {/* Overlay */}
-          <View style={styles.overlay}>
-            {/* Top bar with close button */}
-            <View style={styles.topBar}>
-              <TouchableOpacity style={styles.closeButton} onPress={onClose}>
-                <Icon name="close" size={28} color={COLORS.WHITE} />
-              </TouchableOpacity>
-            </View>
+        />
 
-            {/* Scanning frame */}
-            <View style={styles.scanFrame}>
-              {/* Progress overlay - centered over camera */}
-              {isScanning && (
-                <View style={styles.progressOverlay}>
-                  <Text style={styles.overlayText}>
-                    {bcurProgress > 0 ? 'Scanning BC-UR token...' : 'Scanning animated QR code...'}
-                  </Text>
-                  <View style={styles.progressContainer}>
-                    <View style={styles.progressBar}>
-                      <View style={[styles.progressFill, { width: `${progress}%` }]} />
-                    </View>
-                    <Text style={styles.progressText}>
-                      {totalChunks
-                        ? `${scannedChunks.size} / ${totalChunks} frames`
-                        : `${Math.round(bcurProgress)}% complete`}
-                    </Text>
-                  </View>
-                </View>
-              )}
+        {/* Overlay - outside CameraView to avoid children warning */}
+        <View style={styles.overlay} pointerEvents="box-none">
+          {!cameraReady && (
+            <View style={styles.loadingOverlay}>
+              <Text style={styles.loadingText}>Initializing camera...</Text>
             </View>
+          )}
+
+          {/* Top bar with close button */}
+          <View style={styles.topBar}>
+            <TouchableOpacity style={styles.closeButton} onPress={onClose}>
+              <Icon name="close" size={28} color={COLORS.WHITE} />
+            </TouchableOpacity>
           </View>
-        </CameraView>
+
+          {/* Scanning frame */}
+          <View style={styles.scanFrame}>
+            {/* Progress overlay - centered over camera */}
+            {isScanning && (
+              <View style={styles.progressOverlay}>
+                <Text style={styles.overlayText}>
+                  {bcurProgress > 0 ? 'Scanning BC-UR token...' : 'Scanning animated QR code...'}
+                </Text>
+                <View style={styles.progressContainer}>
+                  <View style={styles.progressBar}>
+                    <View style={[styles.progressFill, { width: `${progress}%` }]} />
+                  </View>
+                  <Text style={styles.progressText}>
+                    {totalChunks
+                      ? `${scannedChunks.size} / ${totalChunks} frames`
+                      : `${Math.round(bcurProgress)}% complete`}
+                  </Text>
+                </View>
+              </View>
+            )}
+          </View>
+        </View>
       </View>
     </Modal>
   );
@@ -333,7 +334,11 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   overlay: {
-    flex: 1,
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
+    bottom: 0,
     backgroundColor: 'rgba(0, 0, 0, 0.5)',
   },
   topBar: {
