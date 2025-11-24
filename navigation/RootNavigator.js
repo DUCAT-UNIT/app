@@ -490,7 +490,7 @@ export default function RootNavigator() {
   const { seedConfirmedRef } = useOnboardingFlow();
   const { fetchBalance } = useBalance();
   const { showToast, showSnackbar, dismissSnackbar } = useNotifications();
-  const { receive } = useCashu();
+  const { receive, refresh: refreshCashu } = useCashu();
 
   // Token verification loading state
   const [isVerifyingToken, setIsVerifyingToken] = React.useState(false);
@@ -673,6 +673,7 @@ export default function RootNavigator() {
               global.reloadWallet();
             }
             await fetchBalance();
+            await refreshCashu();
 
             // Clear loading state - this will trigger the success snackbar
             setIsVerifyingToken(false);
