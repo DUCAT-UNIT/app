@@ -205,13 +205,13 @@ export default function App() {
 
   return (
     <AuthProvider>
-      <WalletProvider>
-        <UIProvider>
+      <UIProvider>
+        <WalletProvider>
           <AppProviders>
             <AppNavigator />
           </AppProviders>
-        </UIProvider>
-      </WalletProvider>
+        </WalletProvider>
+      </UIProvider>
     </AuthProvider>
   );
 }
