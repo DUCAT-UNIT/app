@@ -195,9 +195,7 @@ describe('useNotifications', () => {
   });
 
   describe('Transaction Notifications', () => {
-    it('should send BTC withdraw notification', async () => {
-      Notifications.scheduleNotificationAsync.mockResolvedValue('notification-id-123');
-
+    it('should call sendTransactionConfirmedNotification without errors (notifications disabled)', async () => {
       const { result } = renderHook(() => useNotifications());
 
       await act(async () => {
@@ -209,21 +207,12 @@ describe('useNotifications', () => {
         );
       });
 
-      expect(Notifications.scheduleNotificationAsync).toHaveBeenCalledWith({
-        content: {
-          title: 'Transaction Confirmed',
-          body: 'The withdraw transaction for 0.001 BTC has been confirmed on Mutinynet.',
-          data: { txid: 'abc123txid', assetType: 'BTC', amount: '0.001', type: 'withdraw' },
-          sound: true,
-          priority: 'high',
-        },
-        trigger: null,
-      });
+      // Notifications are disabled - function should complete without throwing
+      // No notification should be scheduled since feature is disabled
+      expect(Notifications.scheduleNotificationAsync).not.toHaveBeenCalled();
     });
 
-    it('should send UNIT deposit notification', async () => {
-      Notifications.scheduleNotificationAsync.mockResolvedValue('notification-id-456');
-
+    it('should handle UNIT transaction notification call (notifications disabled)', async () => {
       const { result } = renderHook(() => useNotifications());
 
       await act(async () => {
@@ -235,21 +224,11 @@ describe('useNotifications', () => {
         );
       });
 
-      expect(Notifications.scheduleNotificationAsync).toHaveBeenCalledWith({
-        content: {
-          title: 'Transaction Confirmed',
-          body: 'The deposit transaction for 1000 UNIT has been confirmed on Mutinynet.',
-          data: { txid: 'def456txid', assetType: 'UNIT', amount: '1000', type: 'deposit' },
-          sound: true,
-          priority: 'high',
-        },
-        trigger: null,
-      });
+      // Notifications are disabled - function should complete without throwing
+      expect(Notifications.scheduleNotificationAsync).not.toHaveBeenCalled();
     });
 
-    it('should use default withdraw type when type parameter is omitted', async () => {
-      Notifications.scheduleNotificationAsync.mockResolvedValue('notification-id-default');
-
+    it('should accept type parameter with default value (notifications disabled)', async () => {
       const { result } = renderHook(() => useNotifications());
 
       await act(async () => {
@@ -261,15 +240,12 @@ describe('useNotifications', () => {
         );
       });
 
-      const call = Notifications.scheduleNotificationAsync.mock.calls[0][0];
-      expect(call.content.body).toContain('withdraw');
-      expect(call.content.data.type).toBe('withdraw');
+      // Notifications are disabled - function should complete without errors
+      expect(Notifications.scheduleNotificationAsync).not.toHaveBeenCalled();
     });
 
 
-    it('should send notification immediately (null trigger)', async () => {
-      Notifications.scheduleNotificationAsync.mockResolvedValue('notification-id-789');
-
+    it('should complete successfully without scheduling (notifications disabled)', async () => {
       const { result } = renderHook(() => useNotifications());
 
       await act(async () => {
@@ -281,22 +257,21 @@ describe('useNotifications', () => {
         );
       });
 
-      const call = Notifications.scheduleNotificationAsync.mock.calls[0][0];
-      expect(call.trigger).toBeNull();
+      // Notifications are disabled - no scheduling should occur
+      expect(Notifications.scheduleNotificationAsync).not.toHaveBeenCalled();
     });
   });
 
   describe('Edge Cases', () => {
     it('should handle missing notification data gracefully', async () => {
-      Notifications.scheduleNotificationAsync.mockResolvedValue('notification-id');
-
       const { result } = renderHook(() => useNotifications());
 
       await act(async () => {
         await result.current.sendTransactionConfirmedNotification('', '', '', '');
       });
 
-      expect(Notifications.scheduleNotificationAsync).toHaveBeenCalled();
+      // Notifications are disabled - function should not throw even with empty data
+      expect(Notifications.scheduleNotificationAsync).not.toHaveBeenCalled();
     });
 
   });

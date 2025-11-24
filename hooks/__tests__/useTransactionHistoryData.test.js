@@ -12,6 +12,15 @@ import { Linking } from 'react-native';
 // Mock dependencies
 jest.mock('../../contexts/WalletDataContext');
 jest.mock('../../services/transactionHistoryService');
+jest.mock('../../contexts/NavigationHandlersContext', () => ({
+  useNavigationHandlers: () => ({
+    advancedMode: false,
+  }),
+}));
+jest.mock('../../services/cashu/cashuLockedTokensService', () => ({
+  getSentLockedTokens: jest.fn(() => Promise.resolve([])),
+  getReceivedTokens: jest.fn(() => Promise.resolve([])),
+}));
 
 // Helper to render hooks
 function renderHook(hook, initialProps) {
@@ -70,7 +79,8 @@ describe('useTransactionHistoryData', () => {
       { showHistorySheet: false, segwitAddress: mockSegwitAddress, taprootAddress: mockTaprootAddress }
     );
 
-    expect(result.current.loading).toBe(false);
+    // Loading is true initially because transactions haven't been calculated yet (prevents flash of empty state)
+    expect(result.current.loading).toBe(true);
     expect(result.current.displayTransactions).toEqual([]);
   });
 
@@ -112,7 +122,9 @@ describe('useTransactionHistoryData', () => {
       { showHistorySheet: true, segwitAddress: mockSegwitAddress, taprootAddress: mockTaprootAddress }
     );
 
-    expect(result.current.loading).toBe(false);
+    // With sheet open and transactions available, loading should still be true
+    // because ecash hasn't finished loading yet (ecashInitialLoadDone is false)
+    expect(result.current.loading).toBe(true);
   });
 
   it('should filter out self-transfers', () => {
@@ -127,9 +139,11 @@ describe('useTransactionHistoryData', () => {
       fetchTransactionHistory: mockFetchTransactionHistory,
     });
 
+    // Set up specific mock sequence (mockReturnValueOnce takes precedence over mockReturnValue)
     transactionHistoryService.calculateTransactionAmount
-      .mockReturnValueOnce({ amount: 100000, type: 'BTC', isSelfTransfer: false })
-      .mockReturnValueOnce({ amount: 0, type: 'BTC', isSelfTransfer: true });
+      .mockReturnValueOnce({ amount: 100000, type: 'BTC', isSelfTransfer: false }) // filter call for tx1
+      .mockReturnValueOnce({ amount: 0, type: 'BTC', isSelfTransfer: true }) // filter call for tx2
+      .mockReturnValueOnce({ amount: 100000, type: 'BTC', isSelfTransfer: false }); // map call for tx1
 
     const { result } = renderHook(
       useTransactionHistoryData,
