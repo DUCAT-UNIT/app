@@ -179,13 +179,22 @@ jest.mock('react-native', () => {
       currentState: 'active',
     },
     Animated: {
-      Value: jest.fn(() => ({
-        setValue: jest.fn(),
-        interpolate: jest.fn(),
-        _value: 0,
-      })),
-      timing: jest.fn(() => ({
-        start: jest.fn((callback) => callback && callback()),
+      Value: jest.fn((initialValue) => {
+        const animatedValue = {
+          _value: initialValue || 0,
+          setValue: jest.fn(function(value) { this._value = value; }),
+          interpolate: jest.fn(),
+        };
+        return animatedValue;
+      }),
+      timing: jest.fn((animatedValue, config) => ({
+        start: jest.fn((callback) => {
+          // Update the value immediately in tests
+          if (animatedValue && config && config.toValue !== undefined) {
+            animatedValue._value = config.toValue;
+          }
+          callback && callback();
+        }),
       })),
       spring: jest.fn(() => ({
         start: jest.fn((callback) => callback && callback()),
@@ -228,6 +237,23 @@ jest.mock('react-native', () => {
     Vibration: {
       vibrate: jest.fn(),
       cancel: jest.fn(),
+    },
+    LayoutAnimation: {
+      configureNext: jest.fn(),
+      create: jest.fn((duration, type, property) => ({})),
+      Types: {
+        linear: 'linear',
+        easeInEaseOut: 'easeInEaseOut',
+        easeIn: 'easeIn',
+        easeOut: 'easeOut',
+        spring: 'spring',
+      },
+      Properties: {
+        opacity: 'opacity',
+        scaleX: 'scaleX',
+        scaleY: 'scaleY',
+        scaleXY: 'scaleXY',
+      },
     },
   };
 });

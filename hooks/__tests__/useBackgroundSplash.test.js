@@ -54,7 +54,7 @@ describe('useBackgroundSplash', () => {
   it('should initialize with splash hidden', () => {
     const { result } = renderHook(() => useBackgroundSplash());
 
-    expect(result.current.showBackgroundSplash).toBe(false);
+    expect(result.current.opacityRef._value).toBe(0);
   });
 
   it('should set up AppState listener on mount', () => {
@@ -66,13 +66,13 @@ describe('useBackgroundSplash', () => {
   it('should show splash when app goes to background', () => {
     const { result } = renderHook(() => useBackgroundSplash());
 
-    expect(result.current.showBackgroundSplash).toBe(false);
+    expect(result.current.opacityRef._value).toBe(0);
 
     act(() => {
       mockEventListener('background');
     });
 
-    expect(result.current.showBackgroundSplash).toBe(true);
+    expect(result.current.opacityRef._value).toBe(1);
   });
 
   it('should hide splash when app becomes active', () => {
@@ -82,29 +82,27 @@ describe('useBackgroundSplash', () => {
     act(() => {
       mockEventListener('background');
     });
-    expect(result.current.showBackgroundSplash).toBe(true);
+    expect(result.current.opacityRef._value).toBe(1);
 
-    // Then, go to active
+    // Then, go to active - animation starts to 0
     act(() => {
       mockEventListener('active');
     });
-    expect(result.current.showBackgroundSplash).toBe(false);
+    // Note: Animated.timing is mocked to call callback immediately, so value should be 0
+    expect(result.current.opacityRef._value).toBe(0);
   });
 
-  it('should hide splash when app becomes inactive', () => {
+  it('should show splash when app becomes inactive', () => {
     const { result } = renderHook(() => useBackgroundSplash());
 
-    // First, show splash
-    act(() => {
-      mockEventListener('background');
-    });
-    expect(result.current.showBackgroundSplash).toBe(true);
+    // First, ensure starting hidden
+    expect(result.current.opacityRef._value).toBe(0);
 
-    // Then, go to inactive (e.g., during Face ID)
+    // Go to inactive (e.g., during Face ID) - should show splash
     act(() => {
       mockEventListener('inactive');
     });
-    expect(result.current.showBackgroundSplash).toBe(false);
+    expect(result.current.opacityRef._value).toBe(1);
   });
 
   it('should handle background -> inactive -> active transition correctly', () => {
@@ -114,22 +112,22 @@ describe('useBackgroundSplash', () => {
     act(() => {
       mockEventListener('background');
     });
-    expect(result.current.showBackgroundSplash).toBe(true);
+    expect(result.current.opacityRef._value).toBe(1);
 
-    // Transition to inactive (iOS common pattern)
+    // Transition to inactive - splash should stay shown
     act(() => {
       mockEventListener('inactive');
     });
-    expect(result.current.showBackgroundSplash).toBe(false);
+    expect(result.current.opacityRef._value).toBe(1);
 
-    // Finally to active
+    // Finally to active - should hide
     act(() => {
       mockEventListener('active');
     });
-    expect(result.current.showBackgroundSplash).toBe(false);
+    expect(result.current.opacityRef._value).toBe(0);
   });
 
-  it('should not show splash for inactive state without background first', () => {
+  it('should show splash for inactive state', () => {
     const { result } = renderHook(() => useBackgroundSplash());
 
     // App goes inactive (e.g., Face ID prompt, notification, control center)
@@ -137,8 +135,8 @@ describe('useBackgroundSplash', () => {
       mockEventListener('inactive');
     });
 
-    // Should NOT show splash for inactive state
-    expect(result.current.showBackgroundSplash).toBe(false);
+    // SHOULD show splash for inactive state to protect sensitive info
+    expect(result.current.opacityRef._value).toBe(1);
   });
 
   it('should handle multiple background/active cycles', () => {
@@ -148,23 +146,23 @@ describe('useBackgroundSplash', () => {
     act(() => {
       mockEventListener('background');
     });
-    expect(result.current.showBackgroundSplash).toBe(true);
+    expect(result.current.opacityRef._value).toBe(1);
 
     act(() => {
       mockEventListener('active');
     });
-    expect(result.current.showBackgroundSplash).toBe(false);
+    expect(result.current.opacityRef._value).toBe(0);
 
     // Cycle 2: background -> active
     act(() => {
       mockEventListener('background');
     });
-    expect(result.current.showBackgroundSplash).toBe(true);
+    expect(result.current.opacityRef._value).toBe(1);
 
     act(() => {
       mockEventListener('active');
     });
-    expect(result.current.showBackgroundSplash).toBe(false);
+    expect(result.current.opacityRef._value).toBe(0);
   });
 
   it('should remove listener on unmount', () => {
