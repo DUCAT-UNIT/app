@@ -354,8 +354,7 @@ export async function getPrivateKeyForAddress(address) {
           const internalPrivkey = Buffer.from(child.privateKey);
 
           // tweaked_privkey = internal_privkey + tweak (mod n)
-          const ECPairInstance = getECPair();
-          const ecc = ECPairInstance.ecc;
+          // Use top-level ecc import for privateAdd
           const tweakedPrivkey = ecc.privateAdd(internalPrivkey, tweak);
           const tweakedPrivkeyHex = Buffer.from(tweakedPrivkey).toString('hex');
 
