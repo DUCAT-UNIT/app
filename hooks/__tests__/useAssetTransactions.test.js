@@ -83,7 +83,7 @@ describe('useAssetTransactions', () => {
     );
 
     expect(result.current.transactions).toHaveLength(1);
-    expect(result.current[0].txid).toBe('tx2');
+    expect(result.current.transactions[0].txid).toBe('tx2');
   });
 
   it('should use existing txData if available', () => {
@@ -105,7 +105,7 @@ describe('useAssetTransactions', () => {
     );
 
     expect(result.current.transactions).toHaveLength(1);
-    expect(result.current[0].txData.amount).toBe(100000);
+    expect(result.current.transactions[0].txData.amount).toBe(100000);
     expect(transactionHistoryService.calculateTransactionAmount).not.toHaveBeenCalled();
   });
 
@@ -129,8 +129,8 @@ describe('useAssetTransactions', () => {
       taprootAddress
     );
     expect(result.current.transactions).toHaveLength(1);
-    expect(result.current[0].txData.amount).toBe(50000);
-    expect(result.current[0].txData.assetType).toBe('BTC');
+    expect(result.current.transactions[0].txData.amount).toBe(50000);
+    expect(result.current.transactions[0].txData.assetType).toBe('BTC');
   });
 
   it('should filter by asset type', () => {
@@ -150,7 +150,7 @@ describe('useAssetTransactions', () => {
     );
 
     expect(result.current.transactions).toHaveLength(1);
-    expect(result.current[0].txid).toBe('tx1');
+    expect(result.current.transactions[0].txid).toBe('tx1');
   });
 
   it('should filter out transactions with zero amount', () => {
@@ -170,7 +170,7 @@ describe('useAssetTransactions', () => {
     );
 
     expect(result.current.transactions).toHaveLength(1);
-    expect(result.current[0].txid).toBe('tx2');
+    expect(result.current.transactions[0].txid).toBe('tx2');
   });
 
   it('should filter out transactions with null amount', () => {
@@ -200,8 +200,8 @@ describe('useAssetTransactions', () => {
       useAssetTransactions(txHistory, 'BTC', segwitAddress, taprootAddress)
     );
 
-    expect(result.current[0].txData.isSent).toBe(true);
-    expect(result.current[0].txData.isReceived).toBe(false);
+    expect(result.current.transactions[0].txData.isSent).toBe(true);
+    expect(result.current.transactions[0].txData.isReceived).toBe(false);
   });
 
   it('should mark transactions as received when amount is positive', () => {
@@ -216,8 +216,8 @@ describe('useAssetTransactions', () => {
       useAssetTransactions(txHistory, 'BTC', segwitAddress, taprootAddress)
     );
 
-    expect(result.current[0].txData.isSent).toBe(false);
-    expect(result.current[0].txData.isReceived).toBe(true);
+    expect(result.current.transactions[0].txData.isSent).toBe(false);
+    expect(result.current.transactions[0].txData.isReceived).toBe(true);
   });
 
   it('should handle bigint amounts', () => {
@@ -232,8 +232,8 @@ describe('useAssetTransactions', () => {
       useAssetTransactions(txHistory, 'BTC', segwitAddress, taprootAddress)
     );
 
-    expect(result.current[0].txData.numericAmount).toBe(100000);
-    expect(typeof result.current[0].txData.numericAmount).toBe('number');
+    expect(result.current.transactions[0].txData.numericAmount).toBe(100000);
+    expect(typeof result.current.transactions[0].txData.numericAmount).toBe('number');
   });
 
   it('should handle legacy format (amount as number)', () => {
@@ -245,8 +245,8 @@ describe('useAssetTransactions', () => {
       useAssetTransactions(txHistory, 'BTC', segwitAddress, taprootAddress)
     );
 
-    expect(result.current[0].txData.amount).toBe(100000);
-    expect(result.current[0].txData.assetType).toBe('BTC');
+    expect(result.current.transactions[0].txData.amount).toBe(100000);
+    expect(result.current.transactions[0].txData.assetType).toBe('BTC');
   });
 
   it('should cache results when inputs are unchanged', () => {
@@ -270,7 +270,7 @@ describe('useAssetTransactions', () => {
       }
     );
 
-    const firstResult = result.current;
+    const firstResult = result.current.transactions;
 
     // Rerender with same props
     rerender({
@@ -343,7 +343,7 @@ describe('useAssetTransactions', () => {
     );
 
     expect(result.current.transactions).toHaveLength(1);
-    expect(result.current[0].txid).toBe('tx1');
+    expect(result.current.transactions[0].txid).toBe('tx1');
 
     // Change asset type
     rerender({
@@ -354,7 +354,7 @@ describe('useAssetTransactions', () => {
     });
 
     expect(result.current.transactions).toHaveLength(1);
-    expect(result.current[0].txid).toBe('tx2');
+    expect(result.current.transactions[0].txid).toBe('tx2');
   });
 
   it('should preserve transaction properties', () => {
@@ -376,7 +376,7 @@ describe('useAssetTransactions', () => {
       useAssetTransactions(txHistory, 'BTC', segwitAddress, taprootAddress)
     );
 
-    expect(result.current[0]).toMatchObject({
+    expect(result.current.transactions[0]).toMatchObject({
       txid: 'tx1',
       status: { confirmed: true },
       fee: 1000,
