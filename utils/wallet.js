@@ -344,7 +344,8 @@ export async function getPrivateKeyForAddress(address) {
         if (payment.address === address) {
           // Found the matching account!
           // Get the tweaked output pubkey from the payment (what's in the address)
-          const outputPubkey = payment.pubkey ? payment.pubkey.slice(1, 33) : Buffer.alloc(0);
+          // For P2TR, pubkey is already 32-byte x-only pubkey (not 33-byte compressed with prefix)
+          const outputPubkey = payment.pubkey ? payment.pubkey : Buffer.alloc(0);
           const outputPubkeyHex = outputPubkey.toString('hex');
 
           // Compute tweaked private key (for Taproot key path spending)

@@ -373,7 +373,8 @@ export const findAccountForP2PKToken = async (recipientPubkey, maxAccounts = 50,
         });
 
         // Extract tweaked output pubkey from payment (what's in the address)
-        const outputPubkey = taprootPayment.pubkey ? taprootPayment.pubkey.slice(1, 33) : Buffer.alloc(0);
+        // For P2TR, pubkey is already 32-byte x-only pubkey (not 33-byte compressed with prefix)
+        const outputPubkey = taprootPayment.pubkey ? taprootPayment.pubkey : Buffer.alloc(0);
         const outputPubkeyHex = Buffer.from(outputPubkey).toString('hex');
 
         console.log(`[findAccountForP2PKToken] Account ${accountIndex}: output_pubkey=${outputPubkeyHex.substring(0, 16)}... addr=${taprootPayment.address} (${Date.now() - checkStart}ms)`);
