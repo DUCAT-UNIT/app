@@ -267,13 +267,15 @@ describe('WalletDataContext', () => {
       expect(mockVault.resetVaultData).toHaveBeenCalled();
     });
 
-    it('should fetch balance and vault when wallet account changes', () => {
+    it('should fetch balance and vault when wallet is first loaded', () => {
+      useWallet.mockReturnValue({ wallet: null });
+
       const wrapper = ({ children }) => <WalletDataProvider>{children}</WalletDataProvider>;
       const { rerender } = renderHook(() => useWalletData(), { wrapper });
 
       jest.clearAllMocks();
 
-      // Change to different wallet
+      // Wallet loaded for first time (import/creation)
       const newWallet = {
         segwitAddress: 'bc1qnew',
         taprootAddress: 'bc1pnew',
@@ -285,9 +287,33 @@ describe('WalletDataContext', () => {
         rerender();
       });
 
+      // Should fetch balances on initial wallet load
       expect(mockBalance.fetchBalance).toHaveBeenCalled();
       expect(mockVault.fetchVault).toHaveBeenCalled();
-      // Transaction history is not fetched immediately - it will be fetched by pollAllData once balances load
+    });
+
+    it('should not fetch when wallet account changes (handled by useAccountSwitcher)', () => {
+      const wrapper = ({ children }) => <WalletDataProvider>{children}</WalletDataProvider>;
+      const { rerender } = renderHook(() => useWalletData(), { wrapper });
+
+      jest.clearAllMocks();
+
+      // Change to different wallet account
+      const newWallet = {
+        segwitAddress: 'bc1qnew',
+        taprootAddress: 'bc1pnew',
+        taprootPubkey: 'newpubkey',
+      };
+      useWallet.mockReturnValue({ wallet: newWallet });
+
+      act(() => {
+        rerender();
+      });
+
+      // Account switches are handled by useAccountSwitcher in NavigationHandlersContext
+      // WalletDataContext should not trigger fetches on account changes
+      expect(mockBalance.fetchBalance).not.toHaveBeenCalled();
+      expect(mockVault.fetchVault).not.toHaveBeenCalled();
       expect(mockHistory.fetchTransactionHistory).not.toHaveBeenCalled();
     });
 
