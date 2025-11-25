@@ -85,12 +85,12 @@ export function useTurboMintCompletion({
             try {
               logger.debug('[useTurboMintCompletion] Creating P2PK locked token for recipient:', turboRecipient);
               const { sendP2PKToken } = await import('../services/cashu/operations/cashuSendP2PK');
-              const { extractPubkeyFromAddress } = await import('../utils/bitcoin');
+              const { extractPubkeyFromTaprootAddress } = await import('../utils/bitcoin');
               const { storeSentP2PKToken } = await import('../services/cashu/cashuLockedTokensService');
               const { shortenCashuToken } = await import('../services/urlShortener');
 
               // Extract pubkey from P2TR address
-              const recipientPubkey = extractPubkeyFromAddress(turboRecipient);
+              const recipientPubkey = extractPubkeyFromTaprootAddress(turboRecipient);
               logger.debug('[useTurboMintCompletion] Extracted recipient pubkey:', recipientPubkey);
 
               if (!recipientPubkey) {
@@ -124,8 +124,12 @@ export function useTurboMintCompletion({
               logger.debug('[useTurboMintCompletion] 🎫 turboToken state has been set, transitioned to ready stage');
             } catch (storageError) {
               logger.error('[useTurboMintCompletion] Failed to generate/save token:', storageError);
-              // Non-critical error - continue anyway
+              // Non-critical error - still transition to ready stage so user isn't stuck
+              setProcessingStage('ready');
             }
+          } else {
+            // No turbo recipient - just transition to ready
+            setProcessingStage('ready');
           }
 
           // Refresh balance
