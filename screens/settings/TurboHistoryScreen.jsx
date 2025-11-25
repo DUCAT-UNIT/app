@@ -119,7 +119,7 @@ export default function TurboHistoryScreen({ navigation }) {
     loadTokens();
   };
 
-  const handleShareToken = async (tokenRecord) => {
+  const handleShareToken = useCallback(async (tokenRecord) => {
     try {
       const deeplink = generateTurboDeeplink(
         tokenRecord.token,
@@ -134,9 +134,9 @@ export default function TurboHistoryScreen({ navigation }) {
     } catch (error) {
       logger.error('[TurboHistory] Failed to share token:', error);
     }
-  };
+  }, []);
 
-  const handleViewQR = async (tokenRecord) => {
+  const handleViewQR = useCallback(async (tokenRecord) => {
     const deeplink = await generateTurboDeeplink(
       tokenRecord.token,
       tokenRecord.recipient,
@@ -149,9 +149,9 @@ export default function TurboHistoryScreen({ navigation }) {
       recipient: tokenRecord.recipient,
       timestamp: tokenRecord.timestamp,
     });
-  };
+  }, [navigation]);
 
-  const handleDeleteToken = (tokenRecord) => {
+  const handleDeleteToken = useCallback((tokenRecord) => {
     Alert.alert(
       'Delete Token',
       'Are you sure you want to remove this token from history? The recipient can still claim it if they have the link.',
@@ -172,9 +172,9 @@ export default function TurboHistoryScreen({ navigation }) {
         },
       ]
     );
-  };
+  }, [loadTokens]);
 
-  const handleTokenPress = async (tokenRecord) => {
+  const handleTokenPress = useCallback(async (tokenRecord) => {
     let shortUrl = tokenRecord.shortUrl;
     if (!shortUrl) {
       try {
@@ -192,7 +192,7 @@ export default function TurboHistoryScreen({ navigation }) {
 
     setSelectedToken({ ...tokenRecord, shortUrl });
     setShowTokenDetails(true);
-  };
+  }, [showToast]);
 
   const formatDate = (timestamp) => {
     const date = new Date(timestamp);
