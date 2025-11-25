@@ -227,15 +227,6 @@ export default function ConfirmationScreen({ navigation, route }) {
           </TouchableOpacity>
         )}
 
-        {/* Debug - show if nothing is rendering */}
-        {__DEV__ && processingStage === 'ready' && !isTurbo && !turboToken && (
-          <View style={{ padding: 20, backgroundColor: 'red', marginTop: 20 }}>
-            <Text style={{ color: 'white' }}>DEBUG: Ready state but no content to show</Text>
-            <Text style={{ color: 'white', fontSize: 12 }}>isTurbo: {String(isTurbo)}</Text>
-            <Text style={{ color: 'white', fontSize: 12 }}>turboToken: {turboToken ? 'present' : 'null'}</Text>
-            <Text style={{ color: 'white', fontSize: 12 }}>skipMint: {String(skipMint)}</Text>
-          </View>
-        )}
       </View>
 
       {/* Done Button - Fixed at bottom */}
