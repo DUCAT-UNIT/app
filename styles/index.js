@@ -1,37 +1,100 @@
-// Import all feature-based style modules
-import { commonStyles } from './common';
-import { splashStyles } from './splash';
-import { authStyles } from './auth';
-import { walletStyles } from './wallet';
-import { sendStyles } from './send';
-import { receiveStyles } from './receive';
-import { vaultStyles } from './vault';
-import { settingsStyles } from './settings';
-import { historyStyles } from './history';
+/**
+ * Ducat Design System
+ * Industry-standard style architecture
+ *
+ * USAGE:
+ *
+ * 1. Default import (backwards compatible):
+ *    import styles from '../styles';
+ *    <View style={styles.lockScreen} />
+ *
+ * 2. Utilities (atomic styles, like Tailwind):
+ *    import { u } from '../styles';
+ *    <View style={[u.flex1, u.bgPrimary, u.p4]} />
+ *
+ * 3. Components (pre-built patterns):
+ *    import { c } from '../styles';
+ *    <TouchableOpacity style={c.button.primary} />
+ *
+ * 4. Theme tokens:
+ *    import { colors, spacing, fonts } from '../styles';
+ *    backgroundColor: colors.brand.primary
+ *
+ * 5. Feature-specific named exports:
+ *    import { commonStyles, authStyles, walletStyles } from '../styles';
+ */
 
-// Export individual style modules for new code
-export { commonStyles } from './common';
-export { splashStyles } from './splash';
-export { authStyles } from './auth';
-export { walletStyles } from './wallet';
-export { sendStyles } from './send';
-export { receiveStyles } from './receive';
-export { vaultStyles } from './vault';
-export { settingsStyles } from './settings';
-export { historyStyles } from './history';
+// =============================================================================
+// THEME TOKENS
+// =============================================================================
 
-// Export combined styles object for backwards compatibility
-// This allows existing code to continue using: import styles from './styles'
+export {
+  layout,
+  colors,
+  COLORS,
+  spacing,
+  radii,
+  fonts,
+  fontSizes,
+  fontWeights,
+  lineHeights,
+  shadows,
+  zIndex,
+  animation,
+  sizes,
+} from './theme';
+
+// =============================================================================
+// ATOMIC UTILITIES
+// =============================================================================
+
+export { u, default as utilities } from './utilities';
+
+// =============================================================================
+// COMPONENT PATTERNS
+// =============================================================================
+
+export {
+  c,
+  button,
+  card,
+  input,
+  modal,
+  sheet,
+  keypad,
+  icon,
+  avatar,
+  toast,
+} from './components';
+
+// =============================================================================
+// BACKWARDS COMPATIBLE DEFAULT EXPORT
+// =============================================================================
+
+import {
+  common,
+  auth,
+  wallet,
+  send,
+  receive,
+  vault,
+  settings,
+  history,
+  splash,
+} from './screens';
+
+// Combine all styles into a single object for backwards compatibility
+// This allows: import styles from '../styles'; style={styles.button}
 const styles = {
-  ...commonStyles,
-  ...splashStyles,
-  ...authStyles,
-  ...walletStyles,
-  ...sendStyles,
-  ...receiveStyles,
-  ...vaultStyles,
-  ...settingsStyles,
-  ...historyStyles,
+  ...common,
+  ...auth,
+  ...wallet,
+  ...send,
+  ...receive,
+  ...vault,
+  ...settings,
+  ...history,
+  ...splash,
 };
 
 export default styles;
