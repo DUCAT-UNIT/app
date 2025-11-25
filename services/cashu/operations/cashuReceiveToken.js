@@ -29,23 +29,49 @@ import { loadProofs, addProofs } from '../cashuProofManager';
  * @returns {Promise<Object>} Received amount and proofs
  */
 export const receiveToken = async (tokenString) => {
+  const txn = logger.startTransaction('receive_token');
+
+  logger.cashu('receive_token_start', {
+    step: 'RECEIVE',
+    tokenLength: tokenString?.length,
+    tokenPrefix: tokenString?.substring(0, 20) + '...',
+  });
+
   try {
     const perfStart = Date.now();
-    logger.info('[PERF] receiveToken started');
 
     // Decode token
     const t1 = Date.now();
     const decoded = decodeToken(tokenString);
-    logger.info('[PERF] Token decode took:', Date.now() - t1, 'ms');
+    const decodeTime = Date.now() - t1;
+
+    logger.cashu('token_decoded', {
+      step: 'RECEIVE',
+      decodeTimeMs: decodeTime,
+      hasProofs: !!decoded?.proofs,
+    });
 
     if (!decoded || !decoded.proofs || !Array.isArray(decoded.proofs)) {
+      logger.cashu('token_invalid', { step: 'RECEIVE', error: 'Invalid token format' });
       throw new Error('Invalid token format');
     }
 
     const { mint, proofs, amount } = decoded;
 
+    logger.cashu('token_details', {
+      step: 'RECEIVE',
+      mint: mint?.substring(0, 30) + '...',
+      proofCount: proofs.length,
+      totalAmount: amount,
+    });
+
     // Verify mint matches
     if (mint !== MINT_URL) {
+      logger.cashu('mint_mismatch', {
+        step: 'RECEIVE',
+        expected: MINT_URL?.substring(0, 30),
+        actual: mint?.substring(0, 30),
+      });
       throw new Error(`Token from different mint: ${mint}`);
     }
 
@@ -54,16 +80,31 @@ export const receiveToken = async (tokenString) => {
     const existingProofs = await loadProofs();
     const existingSecrets = new Set(existingProofs.map(p => p.secret));
     const hasDuplicate = proofs.some(p => existingSecrets.has(p.secret));
-    logger.info('[PERF] Duplicate check took:', Date.now() - t2, 'ms');
+    const duplicateCheckTime = Date.now() - t2;
+
+    logger.cashu('duplicate_check', {
+      step: 'RECEIVE',
+      duplicateCheckTimeMs: duplicateCheckTime,
+      existingProofCount: existingProofs.length,
+      hasDuplicate,
+    });
 
     if (hasDuplicate) {
+      logger.cashu('duplicate_rejected', { step: 'RECEIVE', error: 'Token already received' });
       throw new Error('Token already received');
     }
 
     // Check if any proofs are P2PK locked (do this first, it's fast)
     const t3 = Date.now();
     const hasP2PKProofs = proofs.some(p => isP2PKLocked(p));
-    logger.info('[PERF] P2PK detection took:', Date.now() - t3, 'ms');
+    const p2pkDetectionTime = Date.now() - t3;
+
+    logger.cashu('p2pk_detection', {
+      step: 'RECEIVE',
+      hasP2PKProofs,
+      p2pkDetectionTimeMs: p2pkDetectionTime,
+      message: hasP2PKProofs ? 'Token contains P2PK locked proofs' : 'Regular token (no P2PK)',
+    });
 
     // If P2PK locked, verify token belongs to current account
     if (hasP2PKProofs) {
@@ -180,17 +221,32 @@ export const receiveToken = async (tokenString) => {
     // Add swapped proofs to wallet
     const t9 = Date.now();
     await addProofs(newProofs);
-    logger.info('[PERF] Save proofs took:', Date.now() - t9, 'ms');
+    const saveTime = Date.now() - t9;
 
-    logger.info('[PERF] TOTAL receiveToken took:', Date.now() - perfStart, 'ms');
-    logger.info('Token received and swapped', { amount, proofCount: newProofs.length });
+    const totalTime = Date.now() - perfStart;
+
+    logger.cashu('receive_token_complete', {
+      step: 'RECEIVE',
+      amount,
+      proofCount: newProofs.length,
+      totalTimeMs: totalTime,
+      saveTimeMs: saveTime,
+      wasP2PK: hasP2PKProofs,
+      message: 'Token successfully received and added to wallet',
+    });
+
+    txn.finish('ok');
 
     return {
       amount,
       proofCount: newProofs.length,
     };
   } catch (error) {
-    logger.error('Failed to receive token', { error: error.message });
+    logger.cashu('receive_token_error', {
+      step: 'RECEIVE',
+      error: error.message,
+    });
+    txn.finish('error');
     throw error;
   }
 };

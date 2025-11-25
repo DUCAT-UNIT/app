@@ -53,6 +53,12 @@ const extractTokenFromParam = (url) => {
 const processUrlAndStoreToken = async (url) => {
   if (!url) return;
 
+  logger.cashu('p2pk_url_received', {
+    step: 'ENTRY_POINT',
+    urlLength: url?.length,
+    urlPreview: url?.substring(0, 50) + '...',
+  });
+
   let token = null;
 
   // Check for ducat://turbo/ format
@@ -64,30 +70,46 @@ const processUrlAndStoreToken = async (url) => {
   }
 
   if (!token) {
-    logger.debug('[TURBO] No token found in URL');
+    logger.cashu('p2pk_url_no_token', { step: 'ENTRY_POINT', reason: 'No token found in URL' });
     return;
   }
+
+  logger.cashu('p2pk_token_extracted', {
+    step: 'ENTRY_POINT',
+    tokenLength: token?.length,
+    tokenPrefix: token?.substring(0, 20) + '...',
+    isCashuToken: token?.startsWith('cashu'),
+  });
 
   // Check for duplicates
   if (typeof global !== 'undefined') {
     // Wait for processed tokens to load from storage if still loading
     if (global.processedCashuTokensLoading) {
-      logger.debug('[TURBO] Waiting for processed tokens to load...');
+      logger.cashu('p2pk_waiting_storage', { step: 'ENTRY_POINT', reason: 'Waiting for processed tokens to load' });
       let attempts = 0;
       while (global.processedCashuTokensLoading && attempts < 10) {
         await new Promise(resolve => setTimeout(resolve, 100));
         attempts++;
       }
+      logger.cashu('p2pk_storage_ready', { step: 'ENTRY_POINT', attempts });
     }
 
     const tokenHash = await hashToken(token);
     const isAlreadyProcessed = global.processedCashuTokens && global.processedCashuTokens.has(tokenHash);
     const skipDuplicateCheck = global.turboJustResumed === true;
 
+    logger.cashu('p2pk_duplicate_check', {
+      step: 'ENTRY_POINT',
+      tokenHashPrefix: tokenHash?.substring(0, 16),
+      isAlreadyProcessed,
+      skipDuplicateCheck,
+      processedTokensCount: global.processedCashuTokens?.size || 0,
+    });
+
     if (skipDuplicateCheck) {
-      logger.debug('[TURBO] App just resumed - bypassing duplicate check');
+      logger.cashu('p2pk_bypass_duplicate', { step: 'ENTRY_POINT', reason: 'App just resumed' });
     } else if (isAlreadyProcessed) {
-      logger.debug('[TURBO] Token already processed, skipping');
+      logger.cashu('p2pk_duplicate_rejected', { step: 'ENTRY_POINT', reason: 'Token already processed' });
       global.pendingTurboSnackbars = [{
         type: 'error',
         action: 'claim',
@@ -96,7 +118,11 @@ const processUrlAndStoreToken = async (url) => {
       return;
     }
 
-    logger.debug('[TURBO] Storing token for processing');
+    logger.cashu('p2pk_token_queued', {
+      step: 'ENTRY_POINT',
+      tokenLength: token?.length,
+      message: 'Token stored in global.pendingCashuToken for processing',
+    });
     global.pendingCashuToken = token;
   }
 };

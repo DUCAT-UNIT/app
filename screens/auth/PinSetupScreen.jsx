@@ -167,6 +167,17 @@ export default function PinSetupScreen({
       <View style={styles.lockScreen}>
         <StatusBar style="light" />
 
+        {/* Cancel button (top right) */}
+        {onCancel && (
+          <TouchableOpacity
+            style={styles.lockCancelButton}
+            onPress={onCancel}
+            hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+          >
+            <Text style={styles.lockCancelButtonText}>Cancel</Text>
+          </TouchableOpacity>
+        )}
+
         {/* Title */}
         <Text style={styles.lockTitle}>
           {changingPin
@@ -211,13 +222,7 @@ export default function PinSetupScreen({
             </View>
           ))}
           <View style={styles.lockKeypadRow}>
-            {changingPin && onCancel ? (
-              <TouchableOpacity style={styles.lockKey} onPress={onCancel}>
-                <Text style={styles.lockKeyCancelText}>Cancel</Text>
-              </TouchableOpacity>
-            ) : (
-              <View style={styles.lockKey} />
-            )}
+            <View style={styles.lockKey} />
             <TouchableScale style={styles.lockKey} onPress={() => handlePinDigit('0')}>
               <Text style={styles.lockKeyText}>0</Text>
             </TouchableScale>

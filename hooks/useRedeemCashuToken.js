@@ -18,9 +18,20 @@ export function useRedeemCashuToken({ fetchTransactionHistory }) {
           text: 'Redeem',
           onPress: async (tokenString) => {
             if (!tokenString || !tokenString.trim()) {
+              logger.cashu('manual_redeem_empty', {
+                step: 'MANUAL_REDEEM',
+                error: 'Empty token string provided',
+              });
               Alert.alert('Error', 'Please enter a valid token');
               return;
             }
+
+            logger.cashu('manual_redeem_start', {
+              step: 'MANUAL_REDEEM',
+              tokenLength: tokenString?.length,
+              tokenPrefix: tokenString?.substring(0, 20) + '...',
+              message: 'User initiated manual token redemption',
+            });
 
             try {
               const { decodeToken } = await import('../services/cashu/crypto');
@@ -28,11 +39,24 @@ export function useRedeemCashuToken({ fetchTransactionHistory }) {
               const decoded = decodeToken(tokenString.trim());
 
               if (!decoded || !decoded.proofs || !Array.isArray(decoded.proofs)) {
+                logger.cashu('manual_redeem_invalid_format', {
+                  step: 'MANUAL_REDEEM',
+                  hasDecoded: !!decoded,
+                  hasProofs: !!decoded?.proofs,
+                  error: 'Invalid token format',
+                });
                 Alert.alert('Error', 'Invalid token format');
                 return;
               }
 
               const hasP2PKProofs = decoded.proofs.some(p => isP2PKSecret(p.secret));
+
+              logger.cashu('manual_redeem_p2pk_detection', {
+                step: 'MANUAL_REDEEM',
+                hasP2PK: hasP2PKProofs,
+                proofCount: decoded.proofs.length,
+                message: hasP2PKProofs ? 'Token contains P2PK locked proofs' : 'Regular token (no P2PK)',
+              });
 
               if (hasP2PKProofs) {
                 await redeemP2PKToken(tokenString.trim(), decoded, fetchTransactionHistory);
@@ -40,6 +64,10 @@ export function useRedeemCashuToken({ fetchTransactionHistory }) {
                 await redeemRegularToken(tokenString.trim(), fetchTransactionHistory);
               }
             } catch (error) {
+              logger.cashu('manual_redeem_error', {
+                step: 'MANUAL_REDEEM',
+                error: error.message,
+              });
               Alert.alert('Error', `Failed to redeem token: ${error.message}`);
             }
           },
@@ -53,7 +81,11 @@ export function useRedeemCashuToken({ fetchTransactionHistory }) {
 }
 
 async function redeemP2PKToken(tokenString, decoded, fetchTransactionHistory) {
-  logger.debug('[RedeemToken] Token is P2PK-locked, finding correct account');
+  logger.cashu('manual_p2pk_redeem_start', {
+    step: 'MANUAL_REDEEM',
+    proofCount: decoded.proofs?.length,
+    message: 'Starting P2PK token redemption (manual)',
+  });
 
   const { getP2PKRecipient, findAccountForP2PKToken } = await import('../services/cashu/p2pk');
 
@@ -64,46 +96,110 @@ async function redeemP2PKToken(tokenString, decoded, fetchTransactionHistory) {
       const pubkey = getP2PKRecipient(proof.secret);
       if (pubkey) {
         recipientPubkey = pubkey;
-        logger.debug('[RedeemToken] Found P2PK recipient pubkey');
+        logger.cashu('manual_p2pk_pubkey_found', {
+          step: 'MANUAL_REDEEM',
+          pubkeyLength: pubkey?.length,
+          pubkeyPreview: pubkey?.substring(0, 16) + '...',
+        });
         break;
       }
     }
   }
 
   if (!recipientPubkey) {
+    logger.cashu('manual_p2pk_pubkey_missing', {
+      step: 'MANUAL_REDEEM',
+      proofCount: decoded.proofs?.length,
+      error: 'Could not extract recipient pubkey',
+    });
     Alert.alert('Error', 'Could not extract recipient pubkey from P2PK token');
     return;
   }
 
   // Find matching account
+  logger.cashu('manual_p2pk_account_search_start', {
+    step: 'MANUAL_REDEEM',
+    targetPubkey: recipientPubkey?.substring(0, 16) + '...',
+    message: 'Searching for account that owns this P2PK token',
+  });
+
   const accountMatch = await findAccountForP2PKToken(recipientPubkey);
 
   if (!accountMatch) {
+    logger.cashu('manual_p2pk_account_not_found', {
+      step: 'MANUAL_REDEEM',
+      targetPubkey: recipientPubkey?.substring(0, 16) + '...',
+      error: 'Token does not belong to any scanned account',
+    });
     Alert.alert('Error', 'This token is not locked to any of your accounts (checked 50 accounts). Make sure you are using the correct wallet.');
     return;
   }
 
-  logger.debug('[RedeemToken] Found matching account:', { accountIndex: accountMatch.accountIndex });
+  logger.cashu('manual_p2pk_account_found', {
+    step: 'MANUAL_REDEEM',
+    accountIndex: accountMatch.accountIndex,
+    address: accountMatch.address?.substring(0, 20) + '...',
+    message: 'Found matching account for P2PK token',
+  });
 
   // Check if token belongs to current account
   const { getCurrentAccount } = await import('../services/secureStorageService');
   const currentAccountIndex = await getCurrentAccount();
 
+  logger.cashu('manual_p2pk_account_comparison', {
+    step: 'MANUAL_REDEEM',
+    currentAccountIndex,
+    tokenAccountIndex: accountMatch.accountIndex,
+    isMatch: accountMatch.accountIndex === currentAccountIndex,
+  });
+
   if (accountMatch.accountIndex !== currentAccountIndex) {
+    logger.cashu('manual_p2pk_account_mismatch', {
+      step: 'MANUAL_REDEEM',
+      currentAccount: currentAccountIndex,
+      tokenAccount: accountMatch.accountIndex,
+      error: 'Token belongs to different account',
+    });
     Alert.alert('Wrong Account', `This proof belongs to account ${accountMatch.accountIndex + 1}. Please switch to that account to claim this token.`);
     return;
   }
 
   // Redeem with correct private key
+  logger.cashu('manual_p2pk_redeem_execute', {
+    step: 'MANUAL_REDEEM',
+    accountIndex: accountMatch.accountIndex,
+    hasPrivateKey: !!accountMatch.privateKey,
+    message: 'Executing P2PK token redemption',
+  });
+
   const { receiveP2PKToken } = await import('../services/cashu/cashuWalletService');
   await receiveP2PKToken(tokenString, accountMatch.privateKey);
   await fetchTransactionHistory();
+
+  logger.cashu('manual_p2pk_redeem_success', {
+    step: 'MANUAL_REDEEM',
+    accountIndex: accountMatch.accountIndex,
+    message: 'P2PK token redeemed successfully',
+  });
+
   Alert.alert('Success', 'P2PK token redeemed successfully!');
 }
 
 async function redeemRegularToken(tokenString, fetchTransactionHistory) {
+  logger.cashu('manual_regular_redeem_start', {
+    step: 'MANUAL_REDEEM',
+    tokenLength: tokenString?.length,
+    message: 'Starting regular token redemption (manual)',
+  });
+
   const { receiveToken } = await import('../services/cashu/cashuWalletService');
   await receiveToken(tokenString);
   await fetchTransactionHistory();
+
+  logger.cashu('manual_regular_redeem_success', {
+    step: 'MANUAL_REDEEM',
+    message: 'Regular token redeemed successfully',
+  });
+
   Alert.alert('Success', 'Token redeemed successfully!');
 }

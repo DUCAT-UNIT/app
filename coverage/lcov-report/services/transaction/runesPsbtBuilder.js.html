@@ -25,14 +25,14 @@
             <div class='fl pad1y space-right2'>
                 <span class="strong">100% </span>
                 <span class="quiet">Statements</span>
-                <span class='fraction'>21/21</span>
+                <span class='fraction'>23/23</span>
             </div>
         
             
             <div class='fl pad1y space-right2'>
                 <span class="strong">50% </span>
                 <span class="quiet">Branches</span>
-                <span class='fraction'>1/2</span>
+                <span class='fraction'>2/4</span>
             </div>
         
             
@@ -46,7 +46,7 @@
             <div class='fl pad1y space-right2'>
                 <span class="strong">100% </span>
                 <span class="quiet">Lines</span>
-                <span class='fraction'>21/21</span>
+                <span class='fraction'>23/23</span>
             </div>
         
             
@@ -190,7 +190,12 @@
 <a name='L125'></a><a href='#L125'>125</a>
 <a name='L126'></a><a href='#L126'>126</a>
 <a name='L127'></a><a href='#L127'>127</a>
-<a name='L128'></a><a href='#L128'>128</a></td><td class="line-coverage quiet"><span class="cline-any cline-neutral">&nbsp;</span>
+<a name='L128'></a><a href='#L128'>128</a>
+<a name='L129'></a><a href='#L129'>129</a>
+<a name='L130'></a><a href='#L130'>130</a>
+<a name='L131'></a><a href='#L131'>131</a>
+<a name='L132'></a><a href='#L132'>132</a>
+<a name='L133'></a><a href='#L133'>133</a></td><td class="line-coverage quiet"><span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
@@ -244,10 +249,6 @@
 <span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-yes">1x</span>
-<span class="cline-any cline-yes">1x</span>
-<span class="cline-any cline-neutral">&nbsp;</span>
-<span class="cline-any cline-yes">1x</span>
-<span class="cline-any cline-yes">1x</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-yes">1x</span>
@@ -255,6 +256,10 @@
 <span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-yes">1x</span>
+<span class="cline-any cline-yes">1x</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-yes">1x</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
@@ -265,6 +270,11 @@
 <span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-yes">1x</span>
+<span class="cline-any cline-yes">1x</span>
+<span class="cline-any cline-yes">1x</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-yes">1x</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
@@ -343,7 +353,7 @@ export async function fetchTransactionHex(txid) {
 &nbsp;
 /**
  * Build PSBT for Runes transaction
- * @param {Object} runeUtxo - Rune UTXO to spend
+ * @param {Array&lt;Object&gt;|Object} runeUtxos - Rune UTXO(s) to spend (array or single object)
  * @param {Object} satUtxo - Sat UTXO for fees
  * @param {string} taprootAddress - Source taproot address
  * @param {string} segwitAddress - Change address
@@ -356,7 +366,7 @@ export async function fetchTransactionHex(txid) {
  * @returns {Promise&lt;bitcoin.Psbt&gt;} Built PSBT
  */
 export async function buildRunesPsbt(
-  runeUtxo,
+  runeUtxos,
   satUtxo,
   taprootAddress,
   segwitAddress,
@@ -369,12 +379,12 @@ export async function buildRunesPsbt(
 ) {
   const psbt = new bitcoin.Psbt({ network: MUTINYNET_NETWORK });
 &nbsp;
-  // Fetch transaction hex for inputs
+  // Normalize runeUtxos to array
+  const runeUtxoArray = Array.isArray(runeUtxos) ? runeUtxos : <span class="branch-1 cbranch-no" title="branch not covered" >[runeUtxos];</span>
+&nbsp;
+  // Fetch transaction hex for sat input
   const satTxHex = await fetchTransactionHex(satUtxo.txid);
   const satTx = bitcoin.Transaction.fromHex(satTxHex);
-&nbsp;
-  const runeTxHex = await fetchTransactionHex(runeUtxo.transaction);
-  const runeTx = bitcoin.Transaction.fromHex(runeTxHex);
 &nbsp;
   // Decode taproot address
   const { data: taprootData } = bitcoin.address.fromBech32(taprootAddress);
@@ -390,16 +400,21 @@ export async function buildRunesPsbt(
     },
   });
 &nbsp;
-  // Add Input 1: Taproot (with runes)
-  psbt.addInput({
-    hash: runeUtxo.transaction,
-    index: parseInt(runeUtxo.vout, 10),
-    witnessUtxo: {
-      script: Buffer.from(runeTx.outs[runeUtxo.vout].script),
-      value: BigInt(runeUtxo.value),
-    },
-    tapInternalKey: tapInternalKey,
-  });
+  // Add all rune inputs (Input 1, 2, 3, ... N)
+  for (const runeUtxo of runeUtxoArray) {
+    const runeTxHex = await fetchTransactionHex(runeUtxo.transaction);
+    const runeTx = bitcoin.Transaction.fromHex(runeTxHex);
+&nbsp;
+    psbt.addInput({
+      hash: runeUtxo.transaction,
+      index: parseInt(runeUtxo.vout, 10),
+      witnessUtxo: {
+        script: Buffer.from(runeTx.outs[runeUtxo.vout].script),
+        value: BigInt(runeUtxo.value),
+      },
+      tapInternalKey: tapInternalKey,
+    });
+  }
 &nbsp;
   // Create runestone
   const runestoneConfig = {
@@ -451,7 +466,7 @@ export async function buildRunesPsbt(
             <div class='footer quiet pad2 space-top1 center small'>
                 Code coverage generated by
                 <a href="https://istanbul.js.org/" target="_blank" rel="noopener noreferrer">istanbul</a>
-                at 2025-11-18T20:24:47.373Z
+                at 2025-11-25T14:17:18.706Z
             </div>
         <script src="../../prettify.js"></script>
         <script>

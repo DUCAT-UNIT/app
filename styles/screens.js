@@ -818,6 +818,19 @@ export const auth = StyleSheet.create({
     color: colors.text.primary,
     fontWeight: fontWeights.light,
   },
+  lockCancelButton: {
+    position: 'absolute',
+    top: 16,
+    right: 20,
+    padding: 12,
+    zIndex: 10,
+  },
+  lockCancelButtonText: {
+    fontFamily: fonts.medium,
+    fontSize: fontSizes.md,
+    fontWeight: fontWeights.semibold,
+    color: colors.text.primary,
+  },
   lockIconArea: {
     flex: 1,
     alignItems: 'center',

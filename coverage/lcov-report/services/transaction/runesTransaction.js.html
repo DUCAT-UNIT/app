@@ -25,28 +25,28 @@
             <div class='fl pad1y space-right2'>
                 <span class="strong">100% </span>
                 <span class="quiet">Statements</span>
-                <span class='fraction'>27/27</span>
+                <span class='fraction'>30/30</span>
             </div>
         
             
             <div class='fl pad1y space-right2'>
                 <span class="strong">100% </span>
                 <span class="quiet">Branches</span>
-                <span class='fraction'>17/17</span>
+                <span class='fraction'>19/19</span>
             </div>
         
             
             <div class='fl pad1y space-right2'>
                 <span class="strong">100% </span>
                 <span class="quiet">Functions</span>
-                <span class='fraction'>2/2</span>
+                <span class='fraction'>3/3</span>
             </div>
         
             
             <div class='fl pad1y space-right2'>
                 <span class="strong">100% </span>
                 <span class="quiet">Lines</span>
-                <span class='fraction'>27/27</span>
+                <span class='fraction'>29/29</span>
             </div>
         
             
@@ -191,7 +191,15 @@
 <a name='L126'></a><a href='#L126'>126</a>
 <a name='L127'></a><a href='#L127'>127</a>
 <a name='L128'></a><a href='#L128'>128</a>
-<a name='L129'></a><a href='#L129'>129</a></td><td class="line-coverage quiet"><span class="cline-any cline-neutral">&nbsp;</span>
+<a name='L129'></a><a href='#L129'>129</a>
+<a name='L130'></a><a href='#L130'>130</a>
+<a name='L131'></a><a href='#L131'>131</a>
+<a name='L132'></a><a href='#L132'>132</a>
+<a name='L133'></a><a href='#L133'>133</a>
+<a name='L134'></a><a href='#L134'>134</a>
+<a name='L135'></a><a href='#L135'>135</a>
+<a name='L136'></a><a href='#L136'>136</a>
+<a name='L137'></a><a href='#L137'>137</a></td><td class="line-coverage quiet"><span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
@@ -258,6 +266,12 @@
 <span class="cline-any cline-yes">2x</span>
 <span class="cline-any cline-yes">2x</span>
 <span class="cline-any cline-yes">2x</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-yes">2x</span>
+<span class="cline-any cline-yes">2x</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-yes">2x</span>
 <span class="cline-any cline-yes">2x</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
@@ -281,6 +295,7 @@
 <span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-yes">1x</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
@@ -314,6 +329,7 @@
 <span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-yes">9x</span>
 <span class="cline-any cline-yes">3x</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
@@ -362,15 +378,15 @@ export async function createUnitIntent(
     // Parse amount and multiply by 100 for runestone encoding
     const amountInRunes = parseRuneAmount(amount);
 &nbsp;
-    // Find rune UTXO with sufficient balance
-    const runeUtxo = await findRuneUtxo(
+    // Find rune UTXOs with sufficient balance (may return multiple)
+    const runeUtxos = await findRuneUtxo(
       taprootAddress,
       amountInRunes,
       unconfirmedTaprootUtxos,
       spentUtxos
     );
 &nbsp;
-    if (!runeUtxo) {
+    if (!runeUtxos || runeUtxos.length === 0) {
       throw new Error(ERRORS.NO_UNIT_BALANCE);
     }
 &nbsp;
@@ -386,16 +402,22 @@ export async function createUnitIntent(
     const recipientSats = 10000;
     const runeReturnSats = 10000;
     const dustLimit = 546;
-    const totalInput = satUtxo.value + runeUtxo.value;
-    const change = totalInput - fee - recipientSats - runeReturnSats;
+&nbsp;
+    // Sum up all rune UTXO values
+    const totalRuneUtxoValue = runeUtxos.reduce((sum, utxo) =&gt; sum + utxo.value, 0);
+    const totalInput = satUtxo.value + totalRuneUtxoValue;
+&nbsp;
+    // Calculate total required (recipient + rune return + fee)
+    const totalRequired = recipientSats + runeReturnSats + fee;
+    const change = totalInput - totalRequired;
 &nbsp;
     if (change &lt; 0) {
       throw new Error(ERRORS.INSUFFICIENT_FUNDS);
     }
 &nbsp;
-    // Build PSBT
+    // Build PSBT with multiple rune UTXOs
     const psbt = await buildRunesPsbt(
-      runeUtxo,
+      runeUtxos,
       satUtxo,
       taprootAddress,
       segwitAddress,
@@ -419,7 +441,8 @@ export async function createUnitIntent(
       addressType: 'taproot',
       sourceAddress: taprootAddress,
       feeAddress: segwitAddress,
-      runeUtxo,
+      runeUtxos, // Now an array
+      runeUtxo: runeUtxos[0], // Keep backward compatibility (first UTXO)
       satUtxo,
       totalInput,
       change,
@@ -438,14 +461,15 @@ export async function createUnitIntent(
  */
 function parseRuneAmount(amount) {
   const normalizedAmount = amount.replace(',', '.');
-  const userAmount = parseInt(normalizedAmount, 10);
+  const userAmount = parseFloat(normalizedAmount);
 &nbsp;
   if (isNaN(userAmount) || userAmount &lt;= 0) {
     throw new Error(ERRORS.INVALID_AMOUNT);
   }
 &nbsp;
   // Multiply by 100 for runestone encoding (UNIT display amount * 100)
-  return userAmount * 100;
+  // Use Math.floor to ensure we get an integer for the runestone
+  return Math.floor(userAmount * 100);
 }
 &nbsp;</pre></td></tr></table></pre>
 
@@ -454,7 +478,7 @@ function parseRuneAmount(amount) {
             <div class='footer quiet pad2 space-top1 center small'>
                 Code coverage generated by
                 <a href="https://istanbul.js.org/" target="_blank" rel="noopener noreferrer">istanbul</a>
-                at 2025-11-18T20:24:47.373Z
+                at 2025-11-25T14:17:18.706Z
             </div>
         <script src="../../prettify.js"></script>
         <script>

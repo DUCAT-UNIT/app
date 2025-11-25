@@ -25,7 +25,7 @@
             <div class='fl pad1y space-right2'>
                 <span class="strong">100% </span>
                 <span class="quiet">Statements</span>
-                <span class='fraction'>17/17</span>
+                <span class='fraction'>27/27</span>
             </div>
         
             
@@ -46,7 +46,7 @@
             <div class='fl pad1y space-right2'>
                 <span class="strong">100% </span>
                 <span class="quiet">Lines</span>
-                <span class='fraction'>17/17</span>
+                <span class='fraction'>27/27</span>
             </div>
         
             
@@ -125,7 +125,28 @@
 <a name='L60'></a><a href='#L60'>60</a>
 <a name='L61'></a><a href='#L61'>61</a>
 <a name='L62'></a><a href='#L62'>62</a>
-<a name='L63'></a><a href='#L63'>63</a></td><td class="line-coverage quiet"><span class="cline-any cline-neutral">&nbsp;</span>
+<a name='L63'></a><a href='#L63'>63</a>
+<a name='L64'></a><a href='#L64'>64</a>
+<a name='L65'></a><a href='#L65'>65</a>
+<a name='L66'></a><a href='#L66'>66</a>
+<a name='L67'></a><a href='#L67'>67</a>
+<a name='L68'></a><a href='#L68'>68</a>
+<a name='L69'></a><a href='#L69'>69</a>
+<a name='L70'></a><a href='#L70'>70</a>
+<a name='L71'></a><a href='#L71'>71</a>
+<a name='L72'></a><a href='#L72'>72</a>
+<a name='L73'></a><a href='#L73'>73</a>
+<a name='L74'></a><a href='#L74'>74</a>
+<a name='L75'></a><a href='#L75'>75</a>
+<a name='L76'></a><a href='#L76'>76</a>
+<a name='L77'></a><a href='#L77'>77</a>
+<a name='L78'></a><a href='#L78'>78</a>
+<a name='L79'></a><a href='#L79'>79</a>
+<a name='L80'></a><a href='#L80'>80</a>
+<a name='L81'></a><a href='#L81'>81</a>
+<a name='L82'></a><a href='#L82'>82</a>
+<a name='L83'></a><a href='#L83'>83</a></td><td class="line-coverage quiet"><span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
@@ -143,12 +164,18 @@
 <span class="cline-any cline-yes">4x</span>
 <span class="cline-any cline-yes">19x</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-yes">19x</span>
+<span class="cline-any cline-yes">19x</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-yes">19x</span>
 <span class="cline-any cline-yes">19x</span>
 <span class="cline-any cline-yes">18x</span>
+<span class="cline-any cline-yes">18x</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-yes">1x</span>
 <span class="cline-any cline-yes">1x</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
@@ -167,6 +194,10 @@
 <span class="cline-any cline-yes">4x</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-yes">4x</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-yes">12x</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
@@ -178,12 +209,21 @@
 <span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-yes">2x</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-yes">9x</span>
+<span class="cline-any cline-yes">9x</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-yes">9x</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-yes">10x</span>
+<span class="cline-any cline-yes">10x</span>
 <span class="cline-any cline-yes">10x</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
@@ -195,6 +235,7 @@
 import * as bitcoin from 'bitcoinjs-lib';
 import { retrySilently } from '../utils/retry';
 import { getBroadcastUrl } from '../utils/constants';
+import logger from '../utils/logger';
 &nbsp;
 /**
  * Broadcast a signed transaction to the Bitcoin network
@@ -203,14 +244,20 @@ import { getBroadcastUrl } from '../utils/constants';
  * @returns {Promise&lt;string&gt;} Transaction ID (txid)
  */
 export const broadcastTransaction = async (signedTxHex) =&gt; {
+  const txn = logger.startTransaction('broadcast_transaction');
+&nbsp;
   try {
+    logger.transaction('broadcast_started', { txHexLength: signedTxHex?.length });
+&nbsp;
     // SECURITY: Calculate expected txid from signed transaction
     // This prevents MITM attacks that could return a fake txid
     let expectedTxid;
     try {
       const tx = bitcoin.Transaction.fromHex(signedTxHex);
       expectedTxid = tx.getId();
+      logger.transaction('txid_calculated', { txid: expectedTxid.substring(0, 8) + '...' });
     } catch (txError) {
+      logger.error('Invalid transaction hex', { error: txError.message });
       throw new Error(`Invalid transaction hex: ${txError.message}`);
     }
 &nbsp;
@@ -226,6 +273,10 @@ export const broadcastTransaction = async (signedTxHex) =&gt; {
 &nbsp;
     if (!response.ok) {
       const errorText = await response.text();
+      logger.transaction('broadcast_failed', {
+        status: response.status,
+        error: errorText?.substring(0, 100)
+      });
       throw new Error(errorText || 'Failed to broadcast transaction');
     }
 &nbsp;
@@ -236,6 +287,10 @@ export const broadcastTransaction = async (signedTxHex) =&gt; {
     const trimmedTxid = returnedTxid.trim();
 &nbsp;
     if (trimmedTxid !== expectedTxid) {
+      logger.error('SECURITY: Txid mismatch detected', {
+        expected: expectedTxid.substring(0, 8),
+        returned: trimmedTxid.substring(0, 8)
+      });
       throw new Error(
         `SECURITY: Txid mismatch detected! ` +
         `Expected ${expectedTxid} but API returned ${trimmedTxid}. ` +
@@ -243,9 +298,14 @@ export const broadcastTransaction = async (signedTxHex) =&gt; {
       );
     }
 &nbsp;
+    logger.transaction('broadcast_success', { txid: expectedTxid.substring(0, 8) + '...' });
+    txn.finish('ok');
+&nbsp;
     // Return our calculated txid (not the API's) for extra safety
     return expectedTxid;
   } catch (error) {
+    logger.transaction('broadcast_error', { error: error.message });
+    txn.finish('error');
     throw error;
   }
 };
@@ -256,7 +316,7 @@ export const broadcastTransaction = async (signedTxHex) =&gt; {
             <div class='footer quiet pad2 space-top1 center small'>
                 Code coverage generated by
                 <a href="https://istanbul.js.org/" target="_blank" rel="noopener noreferrer">istanbul</a>
-                at 2025-11-18T20:24:47.373Z
+                at 2025-11-25T14:17:18.706Z
             </div>
         <script src="../prettify.js"></script>
         <script>

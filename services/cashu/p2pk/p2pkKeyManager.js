@@ -39,11 +39,20 @@ export const clearP2PKCache = async () => {
  * @returns {Promise<{accountIndex: number, privateKey: string, address: string}|null>}
  */
 export const findAccountForP2PKToken = async (recipientPubkey, maxAccounts = 50, onProgress = null) => {
-  logger.debug('[findAccountForP2PKToken] Searching for account with pubkey:', recipientPubkey.substring(0, 16) + '...');
+  logger.cashu('p2pk_account_search_start', {
+    step: 'ACCOUNT_MATCH',
+    targetPubkey: recipientPubkey?.substring(0, 16) + '...',
+    targetPubkeyLength: recipientPubkey?.length,
+    maxAccounts,
+  });
 
   // Get current account to check it first (most likely match)
   const currentAccountIndex = await getCurrentAccount();
-  logger.debug('[findAccountForP2PKToken] Checking current account first:', currentAccountIndex);
+  logger.cashu('p2pk_current_account', {
+    step: 'ACCOUNT_MATCH',
+    currentAccountIndex,
+    message: 'Will check current account first',
+  });
 
   // Build list of account indices to check, starting with current account
   const accountsToCheck = [currentAccountIndex];
@@ -109,13 +118,28 @@ export const findAccountForP2PKToken = async (recipientPubkey, maxAccounts = 50,
 
         // Compare tweaked output pubkeys (from Taproot addresses)
         if (outputPubkeyHex === recipientPubkey) {
-          logger.debug('[findAccountForP2PKToken] ✅ Found match at account index:', accountIndex);
+          logger.cashu('p2pk_account_match_found', {
+            step: 'ACCOUNT_MATCH',
+            accountIndex,
+            address: taprootPayment.address,
+            derivedPubkey: outputPubkeyHex?.substring(0, 16) + '...',
+            targetPubkey: recipientPubkey?.substring(0, 16) + '...',
+            scanTimeMs: Date.now() - startTime,
+            accountsChecked: idx + 1,
+          });
 
           // Compute tweaked private key
           const tweak = bitcoin.crypto.taggedHash('TapTweak', xOnlyPubkey);
           const internalPrivkey = taprootChild.privateKey;
           const tweakedPrivkey = ecc.privateAdd(internalPrivkey, tweak);
           const tweakedPrivkeyHex = Buffer.from(tweakedPrivkey).toString('hex');
+
+          logger.cashu('p2pk_private_key_derived', {
+            step: 'ACCOUNT_MATCH',
+            accountIndex,
+            privateKeyLength: tweakedPrivkeyHex?.length,
+            message: 'Tweaked private key derived successfully',
+          });
 
           return {
             accountIndex,
@@ -124,17 +148,31 @@ export const findAccountForP2PKToken = async (recipientPubkey, maxAccounts = 50,
           };
         }
       } catch (error) {
-        logger.warn(`[findAccountForP2PKToken] Error checking account ${accountIndex}:`, error.message);
+        logger.cashu('p2pk_account_check_error', {
+          step: 'ACCOUNT_MATCH',
+          accountIndex,
+          error: error.message,
+        });
         continue;
       }
     }
 
-    logger.debug('[findAccountForP2PKToken] Total scan time:', Date.now() - startTime, 'ms');
+    logger.cashu('p2pk_account_search_complete', {
+      step: 'ACCOUNT_MATCH',
+      found: false,
+      accountsChecked: accountsToCheck.length,
+      scanTimeMs: Date.now() - startTime,
+    });
     return null;
   });
 
   if (!result) {
-    logger.debug('[findAccountForP2PKToken] ❌ No matching account found in', accountsToCheck.length, 'accounts');
+    logger.cashu('p2pk_no_matching_account', {
+      step: 'ACCOUNT_MATCH',
+      accountsChecked: accountsToCheck.length,
+      targetPubkey: recipientPubkey?.substring(0, 16) + '...',
+      message: 'Token does not belong to any scanned account',
+    });
   }
 
   return result;

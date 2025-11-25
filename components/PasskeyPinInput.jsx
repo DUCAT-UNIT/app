@@ -39,63 +39,68 @@ export default function PasskeyPinInput({
   return (
     <View style={localStyles.container}>
       <MutinynetBanner />
-      <View style={[styles.walletInfo, localStyles.passkeyPinContainer]}>
-        <Text style={styles.lockTitle}>{title}</Text>
-        <Text style={localStyles.passkeyPinSubtitle}>{subtitle}</Text>
 
-        <View style={styles.lockPinDots}>
-          {[0, 1, 2, 3, 4, 5].map((i) => (
-            <View
-              key={i}
-              style={[
-                styles.lockPinDot,
-                i < pin.length && styles.lockPinDotFilled,
-              ]}
-            />
-          ))}
-        </View>
+      {/* Cancel button - top right */}
+      <TouchableOpacity
+        style={localStyles.cancelButton}
+        onPress={onCancel}
+        hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+      >
+        <Text style={localStyles.cancelButtonText}>Cancel</Text>
+      </TouchableOpacity>
 
-        <View style={styles.lockKeypad}>
-          {[
-            [1, 2, 3],
-            [4, 5, 6],
-            [7, 8, 9],
-          ].map((row, rowIndex) => (
-            <View key={rowIndex} style={styles.lockKeypadRow}>
-              {row.map((num) => (
-                <TouchableOpacity
-                  key={num}
-                  style={styles.lockKey}
-                  onPress={() => handleDigit(String(num))}
-                >
-                  <Text style={styles.lockKeyText}>{num}</Text>
-                </TouchableOpacity>
-              ))}
+      <View style={localStyles.contentWrapper}>
+        <View style={localStyles.passkeyPinContainer}>
+          <Text style={styles.lockTitle}>{title}</Text>
+          <Text style={localStyles.passkeyPinSubtitle}>{subtitle}</Text>
+
+          <View style={styles.lockPinDots}>
+            {[0, 1, 2, 3, 4, 5].map((i) => (
+              <View
+                key={i}
+                style={[
+                  styles.lockPinDot,
+                  i < pin.length && styles.lockPinDotFilled,
+                ]}
+              />
+            ))}
+          </View>
+
+          <View style={styles.lockKeypad}>
+            {[
+              [1, 2, 3],
+              [4, 5, 6],
+              [7, 8, 9],
+            ].map((row, rowIndex) => (
+              <View key={rowIndex} style={styles.lockKeypadRow}>
+                {row.map((num) => (
+                  <TouchableOpacity
+                    key={num}
+                    style={styles.lockKey}
+                    onPress={() => handleDigit(String(num))}
+                  >
+                    <Text style={styles.lockKeyText}>{num}</Text>
+                  </TouchableOpacity>
+                ))}
+              </View>
+            ))}
+            <View style={styles.lockKeypadRow}>
+              <View style={styles.lockKey} />
+              <TouchableOpacity
+                style={styles.lockKey}
+                onPress={() => handleDigit('0')}
+              >
+                <Text style={styles.lockKeyText}>0</Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                style={styles.lockKey}
+                onPress={handleDelete}
+              >
+                <Icon name="delete" size={28} color={COLORS.WHITE} />
+              </TouchableOpacity>
             </View>
-          ))}
-          <View style={styles.lockKeypadRow}>
-            <View style={styles.lockKey} />
-            <TouchableOpacity
-              style={styles.lockKey}
-              onPress={() => handleDigit('0')}
-            >
-              <Text style={styles.lockKeyText}>0</Text>
-            </TouchableOpacity>
-            <TouchableOpacity
-              style={styles.lockKey}
-              onPress={handleDelete}
-            >
-              <Icon name="delete" size={28} color={COLORS.WHITE} />
-            </TouchableOpacity>
           </View>
         </View>
-
-        <TouchableOpacity
-          style={[styles.button, styles.secondaryButton, localStyles.cancelButton]}
-          onPress={onCancel}
-        >
-          <Text style={styles.buttonText}>Cancel</Text>
-        </TouchableOpacity>
       </View>
       <ToastContainer toasts={toasts} />
       <StatusBar style="light" />
@@ -109,9 +114,25 @@ const localStyles = StyleSheet.create({
     backgroundColor: COLORS.DARK_BG,
     paddingHorizontal: 0,
   },
-  passkeyPinContainer: {
+  cancelButton: {
+    position: 'absolute',
+    top: 100,
+    left: 20,
+    padding: 12,
+    zIndex: 10,
+  },
+  cancelButtonText: {
+    fontSize: 16,
+    fontWeight: '600',
+    color: COLORS.WHITE,
+  },
+  contentWrapper: {
+    flex: 1,
     justifyContent: 'center',
+  },
+  passkeyPinContainer: {
     alignItems: 'center',
+    paddingHorizontal: 20,
   },
   passkeyPinSubtitle: {
     fontSize: 14,
@@ -119,8 +140,5 @@ const localStyles = StyleSheet.create({
     textAlign: 'center',
     marginBottom: 30,
     marginHorizontal: 20,
-  },
-  cancelButton: {
-    marginTop: 20,
   },
 });

@@ -270,7 +270,6 @@ describe('UIContext', () => {
     });
 
     it('should prevent backward state transitions', () => {
-      const consoleLog = jest.spyOn(console, 'log').mockImplementation(() => {});
       const wrapper = ({ children }) => <UIProvider>{children}</UIProvider>;
       const { result } = renderHook(() => useNotifications(), { wrapper });
 
@@ -282,16 +281,8 @@ describe('UIContext', () => {
       act(() => {
         result.current.showSnackbar({ message: 'Pending', type: 'pending', action: 'send', txid: 'tx1' });
       });
-      // Should still be success, not pending
+      // Should still be success, not pending (backward transitions are prevented)
       expect(result.current.snackbar.type).toBe('success');
-      expect(consoleLog).toHaveBeenCalledWith(
-        expect.stringContaining('Ignoring backward state transition'),
-        'success',
-        '->',
-        'pending'
-      );
-
-      consoleLog.mockRestore();
     });
 
     it('should always show error messages', () => {

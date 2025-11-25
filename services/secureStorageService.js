@@ -5,6 +5,7 @@
 
 import * as SecureStore from 'expo-secure-store';
 import { SECURE_KEYS } from '../utils/constants';
+import { logger } from '../utils/logger';
 
 /**
  * Securely clear a string from memory (best effort)

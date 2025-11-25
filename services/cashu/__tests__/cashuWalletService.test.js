@@ -20,9 +20,25 @@ import * as cashuLockedTokensService from '../cashuLockedTokensService';
 jest.mock('expo-secure-store');
 jest.mock('../../../utils/logger', () => ({
   logger: {
+    debug: jest.fn(),
     info: jest.fn(),
     warn: jest.fn(),
     error: jest.fn(),
+    transaction: jest.fn(),
+    security: jest.fn(),
+    screen: jest.fn(),
+    action: jest.fn(),
+    wallet: jest.fn(),
+    cashu: jest.fn(),
+    api: jest.fn(),
+    auth: jest.fn(),
+    perf: jest.fn(),
+    turbo: jest.fn(),
+    vault: jest.fn(),
+    onboarding: jest.fn(),
+    startTransaction: jest.fn().mockReturnValue({ finish: jest.fn() }),
+    setContext: jest.fn(),
+    setTag: jest.fn(),
   },
 }));
 jest.mock('../cashuMintClient');

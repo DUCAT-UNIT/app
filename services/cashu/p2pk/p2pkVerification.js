@@ -15,8 +15,20 @@ import { logger } from '../../../utils/logger';
 export const isP2PKSecret = (secret) => {
   try {
     const parsed = JSON.parse(secret);
-    return Array.isArray(parsed) && parsed[0] === 'P2PK';
+    const isP2PK = Array.isArray(parsed) && parsed[0] === 'P2PK';
+    logger.cashu('p2pk_secret_check', {
+      step: 'DETECTION',
+      isP2PK,
+      secretLength: secret?.length,
+      secretPreview: secret?.substring(0, 30) + '...',
+    });
+    return isP2PK;
   } catch {
+    logger.cashu('p2pk_secret_check', {
+      step: 'DETECTION',
+      isP2PK: false,
+      reason: 'Failed to parse secret as JSON',
+    });
     return false;
   }
 };
@@ -30,10 +42,27 @@ export const getP2PKRecipient = (secret) => {
   try {
     const parsed = JSON.parse(secret);
     if (!Array.isArray(parsed) || parsed[0] !== 'P2PK') {
+      logger.cashu('p2pk_recipient_extract', {
+        step: 'DETECTION',
+        success: false,
+        reason: 'Not a P2PK secret format',
+      });
       return null;
     }
-    return parsed[1].data;
-  } catch {
+    const pubkey = parsed[1].data;
+    logger.cashu('p2pk_recipient_extract', {
+      step: 'DETECTION',
+      success: true,
+      pubkeyLength: pubkey?.length,
+      pubkeyPreview: pubkey?.substring(0, 16) + '...',
+    });
+    return pubkey;
+  } catch (error) {
+    logger.cashu('p2pk_recipient_extract', {
+      step: 'DETECTION',
+      success: false,
+      error: error.message,
+    });
     return null;
   }
 };
@@ -100,19 +129,52 @@ export const isP2PKLocked = (proof) => {
  * @returns {boolean} True if token has any P2PK locked proofs
  */
 export const hasP2PKProofs = (tokenString) => {
+  logger.cashu('p2pk_token_scan_start', {
+    step: 'DETECTION',
+    tokenLength: tokenString?.length,
+    tokenPrefix: tokenString?.substring(0, 20) + '...',
+  });
+
   try {
     // Import decodeToken inline to avoid circular dependency
     const { decodeToken } = require('../crypto');
     const decoded = decodeToken(tokenString);
 
     if (!decoded.proofs || !Array.isArray(decoded.proofs)) {
+      logger.cashu('p2pk_token_scan_result', {
+        step: 'DETECTION',
+        hasP2PK: false,
+        reason: 'No proofs array in token',
+      });
       return false;
     }
 
-    // Check if any proof is P2PK locked
-    return decoded.proofs.some(p => isP2PKSecret(p.secret));
+    const proofCount = decoded.proofs.length;
+    const p2pkProofCount = decoded.proofs.filter(p => {
+      try {
+        const parsed = JSON.parse(p.secret);
+        return Array.isArray(parsed) && parsed[0] === 'P2PK';
+      } catch {
+        return false;
+      }
+    }).length;
+
+    const hasP2PK = p2pkProofCount > 0;
+
+    logger.cashu('p2pk_token_scan_result', {
+      step: 'DETECTION',
+      hasP2PK,
+      totalProofs: proofCount,
+      p2pkProofs: p2pkProofCount,
+      regularProofs: proofCount - p2pkProofCount,
+    });
+
+    return hasP2PK;
   } catch (error) {
-    logger.error('Failed to check for P2PK proofs', { error: error.message });
+    logger.cashu('p2pk_token_scan_error', {
+      step: 'DETECTION',
+      error: error.message,
+    });
     return false;
   }
 };
