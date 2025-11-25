@@ -3,7 +3,7 @@
  * Handles Cashu balance fetching with fast initial load and background full load
  */
 
-import { useState, useCallback, useEffect } from 'react';
+import { useState, useCallback, useEffect, useRef } from 'react';
 import { logger } from '../utils/logger';
 import { getBalance, setCurrentAccount } from '../services/cashu/cashuWalletService';
 import { usePolling } from './usePolling';
@@ -11,6 +11,12 @@ import { usePolling } from './usePolling';
 export function useCashuBalance({ wallet }) {
   const [balance, setBalance] = useState(0);
   const [error, setError] = useState(null);
+  const balanceRef = useRef(0);  // Track balance for error fallback without causing dependency loops
+
+  // Keep ref in sync with state (for error fallback return value)
+  useEffect(() => {
+    balanceRef.current = balance;
+  }, [balance]);
 
   // Update cashu account when wallet changes (lightweight - just updates the account key)
   // NOTE: Balance reset and fetch is handled by useAccountSwitcher for snappier account switching
@@ -49,9 +55,9 @@ export function useCashuBalance({ wallet }) {
     } catch (err) {
       logger.error('Failed to fetch Cashu balance', { error: err.message });
       setError(err.message);
-      return balance;
+      return balanceRef.current;  // Use ref instead of state to avoid dependency loop
     }
-  }, [balance]);
+  }, []);  // Empty deps - uses ref for fallback value, avoiding the balance dependency
 
   // Auto-refresh balance every 10 seconds
   usePolling({

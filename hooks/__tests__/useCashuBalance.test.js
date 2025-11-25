@@ -46,6 +46,8 @@ describe('useCashuBalance', () => {
   beforeEach(() => {
     jest.clearAllMocks();
     jest.useFakeTimers();
+    // Use mockReset to clear both call history AND implementation queue
+    getBalance.mockReset();
     getBalance.mockResolvedValue(100);
     setCurrentAccount.mockResolvedValue();
     usePolling.mockImplementation(() => {});
@@ -122,8 +124,8 @@ describe('useCashuBalance', () => {
       await Promise.resolve();
     });
 
-    // Clear calls from initial fetch
-    getBalance.mockClear();
+    // Reset mocks to clear both call history and implementation queue
+    getBalance.mockReset();
     getBalance.mockResolvedValueOnce(50).mockResolvedValueOnce(100);
 
     let returnedBalance;
@@ -183,8 +185,8 @@ describe('useCashuBalance', () => {
     getBalance.mockResolvedValueOnce(25).mockRejectedValueOnce(new Error('Background error'));
     const { result } = renderHook(() => useCashuBalance({ wallet: null }));
 
-    // Clear initial fetch calls
-    getBalance.mockClear();
+    // Reset mocks to clear both call history and implementation queue
+    getBalance.mockReset();
     getBalance.mockResolvedValueOnce(25).mockRejectedValueOnce(new Error('Background error'));
 
     await act(async () => {
