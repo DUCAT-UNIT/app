@@ -3,15 +3,11 @@
  * Displays detailed information about a specific asset (BTC or UNIT)
  */
 
-import React, { useState, useRef, useMemo, useCallback, useEffect } from 'react';
+import React, { useState, useRef, useMemo, useCallback } from 'react';
 import {
   StyleSheet,
   Animated,
   Linking,
-  Alert,
-  View,
-  Text,
-  TouchableOpacity,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { COLORS } from '../../theme';
@@ -33,10 +29,12 @@ import {
 import UnitBalanceBreakdown from '../../components/wallet/UnitBalanceBreakdown';
 import { usePriceChart } from '../../hooks/usePriceChart';
 import { useAssetTransactions } from '../../hooks/useAssetTransactions';
+import { useFuseEcash } from '../../hooks/useFuseEcash';
+import { useTurboConvert } from '../../hooks/useTurboConvert';
+import { useRedeemCashuToken } from '../../hooks/useRedeemCashuToken';
 import { getTxUrl, getOrdTxUrl } from '../../utils/constants';
 import TokenDetailsSheet from '../../components/ecash/TokenDetailsSheet';
 import { useNotifications } from '../../contexts/NotificationContext';
-import { logger } from '../../utils/logger';
 
 function AssetDetailScreen({ route = {}, navigation }) {
   const { assetType = 'BTC', advancedMode = false } = route?.params || {};
@@ -55,45 +53,26 @@ function AssetDetailScreen({ route = {}, navigation }) {
   const scrollY = useRef(new Animated.Value(0)).current;
   const { showToast } = useNotifications();
 
-  // Use extracted price chart hook
+  // Price chart hook
   const { priceData, priceDirection, priceLoading, priceError, setPriceError } = usePriceChart(assetType, selectedTimeframe);
 
-  // Get balance based on asset type
-  // For UNIT, combine runesBalance + cashuBalance
+  // Calculate balances
   const unitRunesAmount = runesBalance && runesBalance.length > 0 ? parseFloat(runesBalance[0][1]) : 0;
   const totalUnitAmount = unitRunesAmount + cashuBalance;
   const balance = assetType === 'BTC' ? segwitBalance : totalUnitAmount;
   const fiatValue = assetType === 'BTC' ? balance * btcPrice : balance * 1;
 
-  // For UNIT, only show loading if we don't have data yet
-  // If we have cached values, show them immediately even if a refresh is in progress
+  // Loading states
   const hasRunesData = runesBalance !== null && runesBalance !== undefined;
   const hasCashuData = cashuBalance !== null && cashuBalance !== undefined;
-
   const isBalanceLoading = assetType === 'UNIT'
     ? (!hasRunesData && loadingBalance) || (!hasCashuData && loadingCashu)
     : (!segwitBalance && loadingBalance);
 
-  // Debug logging for loading states
-  useEffect(() => {
-    if (assetType === 'UNIT') {
-      logger.debug('[AssetDetailScreen] Loading states:', {
-        loadingBalance,
-        loadingCashu,
-        hasRunesData,
-        hasCashuData,
-        isBalanceLoading,
-        runesBalance,
-        cashuBalance,
-      });
-    }
-  }, [assetType, loadingBalance, loadingCashu, hasRunesData, hasCashuData, isBalanceLoading, runesBalance, cashuBalance]);
-
-  // Extract stable wallet addresses using refs to prevent re-renders
+  // Extract stable wallet addresses using refs
   const segwitAddressRef = useRef(wallet?.segwitAddress);
   const taprootAddressRef = useRef(wallet?.taprootAddress);
 
-  // Only update refs if values actually changed
   if (wallet?.segwitAddress && wallet.segwitAddress !== segwitAddressRef.current) {
     segwitAddressRef.current = wallet.segwitAddress;
   }
@@ -104,42 +83,54 @@ function AssetDetailScreen({ route = {}, navigation }) {
   const segwitAddress = segwitAddressRef.current;
   const taprootAddress = taprootAddressRef.current;
 
-  // Memoize isPositive to prevent chart re-renders
   const isPositive = useMemo(() => priceDirection.isPositive, [priceDirection.isPositive]);
 
-  // Use extracted transaction filtering hook
-  const { transactions: filteredTransactions, isLoading: ecashLoading } = useAssetTransactions(transactionHistory, assetType, segwitAddress, taprootAddress, advancedMode);
+  // Transaction filtering hook
+  const { transactions: filteredTransactions, isLoading: ecashLoading } = useAssetTransactions(
+    transactionHistory, assetType, segwitAddress, taprootAddress, advancedMode
+  );
 
-  // For UNIT assets, show loading when refreshing data (even with cached data)
   const isActivityLoading = assetType === 'UNIT'
     ? loadingTransactionHistory || loadingCashu || ecashLoading
     : loadingTransactionHistory;
 
-  const handleActionPress = (action) => {
+  // Extracted operation hooks
+  const { handleFusePress } = useFuseEcash({
+    cashuBalance,
+    taprootAddress,
+    transactionHistory,
+    fetchTransactionHistory,
+  });
+
+  const { handleTurboPress } = useTurboConvert({
+    runesBalance,
+    navigation,
+    getSpentUtxos,
+    unmarkUtxosAsSpent,
+  });
+
+  useRedeemCashuToken({ fetchTransactionHistory });
+
+  // Action handlers
+  const handleActionPress = useCallback((action) => {
     switch (action) {
       case 'send':
         if (assetType === 'CASHU') {
-          // Navigate to Cashu send screen
           navigation.navigate('CashuSend');
         } else {
-          const sendAssetType = assetType.toLowerCase(); // Convert BTC -> btc, UNIT -> unit
           navigation.navigate('SendFlow', {
             screen: 'AddressInput',
-            params: { assetType: sendAssetType }
+            params: { assetType: assetType.toLowerCase() }
           });
         }
         break;
       case 'receive':
         if (assetType === 'CASHU') {
-          // Navigate to Cashu receive screen
           navigation.navigate('CashuReceive');
         } else {
-          // Navigate to ReceiveQR screen with the appropriate address
-          const receiveAddress = assetType === 'BTC' ? segwitAddress : taprootAddress;
-          const addressType = assetType === 'BTC' ? 'Native SegWit' : 'Taproot';
           navigation.navigate('ReceiveQR', {
-            address: receiveAddress,
-            addressType: addressType,
+            address: assetType === 'BTC' ? segwitAddress : taprootAddress,
+            addressType: assetType === 'BTC' ? 'Native SegWit' : 'Taproot',
           });
         }
         break;
@@ -150,277 +141,13 @@ function AssetDetailScreen({ route = {}, navigation }) {
         handleTurboPress();
         break;
     }
-  };
+  }, [assetType, navigation, segwitAddress, taprootAddress, handleFusePress, handleTurboPress]);
 
-  // Handle fuse (convert all e-cash to runes)
-  const handleFusePress = useCallback(async () => {
-    if (cashuBalance === 0) {
-      Alert.alert('No E-cash', 'You don\'t have any e-cash to fuse.');
-      return;
-    }
-
-    Alert.alert(
-      'Fuse E-cash to UNIT?',
-      `Convert all ${cashuBalance.toFixed(2)} eUNIT to on-chain UNIT?`,
-      [
-        {
-          text: 'Cancel',
-          style: 'cancel',
-        },
-        {
-          text: 'Fuse',
-          onPress: async () => {
-            try {
-              // Import cashu functions
-              const { requestMelt, completeMeltWithoutCleanup, cleanupMeltProofs } = await import('../../services/cashu/cashuWalletService');
-
-              // Get taproot address for receiving runes
-              const receiveAddress = taprootAddress;
-
-              // Request melt quote
-              const quote = await requestMelt(receiveAddress, cashuBalance);
-
-              // Complete melt but keep proofs until we see the tx
-              const meltResult = await completeMeltWithoutCleanup(quote.quoteId, quote.total);
-
-              // IMPORTANT: Clean up proofs immediately after successful melt
-              // The mint has already accepted the melt, so the proofs are spent
-              logger.debug('[Fuse] Melt successful, cleaning up proofs immediately');
-              logger.debug('[Fuse] Proofs to remove:', meltResult.proofsToRemove?.length);
-              logger.debug('[Fuse] Change proofs:', meltResult.changeProofs?.length || 0);
-              await cleanupMeltProofs(meltResult.proofsToRemove, meltResult.changeProofs);
-              logger.debug('[Fuse] Proofs cleaned up');
-
-              Alert.alert('Processing', 'Waiting for transaction to appear on-chain...');
-
-              // Poll transaction history to check for the transaction
-              let txFound = false;
-              let attempts = 0;
-              const maxAttempts = 30; // 30 attempts * 2 seconds = 60 seconds max wait
-
-              while (!txFound && attempts < maxAttempts) {
-                attempts++;
-                logger.debug(`[Fuse] Polling attempt ${attempts}/${maxAttempts} for transaction...`);
-                await new Promise(resolve => setTimeout(resolve, 2000)); // Wait 2 seconds
-
-                // Refresh transaction history
-                await fetchTransactionHistory();
-
-                logger.debug(`[Fuse] Checking ${transactionHistory.length} transactions`);
-
-                // Look for a transaction that includes our taproot address in outputs
-                // Check ALL transactions, not just recent ones, because new transactions
-                // may not have a block_time yet if they're still in mempool
-                txFound = transactionHistory.some(tx => {
-                  // Must have outputs to our taproot address
-                  const hasOurAddress = tx.vout?.some(output =>
-                    output.scriptpubkey_address === taprootAddress
-                  );
-
-                  if (!hasOurAddress) return false;
-
-                  // Accept if either:
-                  // 1. Transaction has no block_time (mempool/unconfirmed)
-                  // 2. Transaction was confirmed within last 2 minutes
-                  const txTime = tx.status?.block_time;
-                  if (!txTime) {
-                    // Unconfirmed transaction in mempool - this is what we're looking for!
-                    logger.debug(`[Fuse] Found unconfirmed transaction: ${tx.txid}`);
-                    return true;
-                  }
-
-                  // For confirmed transactions, check if recent
-                  const now = Math.floor(Date.now() / 1000);
-                  const isRecent = (now - txTime) < 120;
-                  if (isRecent) {
-                    logger.debug(`[Fuse] Found recent confirmed transaction: ${tx.txid}`);
-                  }
-                  return isRecent;
-                });
-
-                if (txFound) {
-                  logger.debug('[Fuse] Transaction found on-chain!');
-                  break;
-                }
-              }
-
-              if (txFound) {
-                await fetchTransactionHistory();
-                Alert.alert('Success', 'E-cash successfully fused to on-chain UNIT!');
-              } else {
-                logger.debug('[Fuse] Transaction not found after 60s');
-                await fetchTransactionHistory();
-                Alert.alert(
-                  'Pending',
-                  'Melt completed successfully. Transaction will appear on-chain shortly.'
-                );
-              }
-            } catch (error) {
-              Alert.alert('Error', `Failed to fuse e-cash: ${error.message}`);
-            }
-          },
-        },
-      ]
-    );
-  }, [cashuBalance, taprootAddress, fetchTransactionHistory, transactionHistory]);
-
-  // Handle turbo (convert all on-chain runes to e-cash)
-  const handleTurboPress = useCallback(async () => {
-    const unitRunesAmount = runesBalance && runesBalance.length > 0 ? parseFloat(runesBalance[0][1]) : 0;
-
-    if (unitRunesAmount === 0) {
-      Alert.alert('No On-chain UNIT', 'You don\'t have any on-chain UNIT to convert.');
-      return;
-    }
-
-    // Clear any stuck spent UTXOs before starting
-    const currentSpent = getSpentUtxos();
-    if (currentSpent.size > 0) {
-      await unmarkUtxosAsSpent(Array.from(currentSpent).map(key => {
-        const [txid, vout] = key.split(':');
-        return { txid, vout: parseInt(vout) };
-      }));
-    }
-
-    try {
-      // Import cashu functions
-      const { requestMint, checkMintStatus, completeMint } = await import('../../services/cashu/cashuWalletService');
-
-      // Step 1: Request mint quote
-      const mintQuote = await requestMint(unitRunesAmount);
-
-      // Navigate directly to TurboLoading screen
-      // unitRunesAmount is already in display format from the API (e.g., "1714.28")
-      // parseRuneAmount will multiply by 100 to get the smallest unit for the runestone
-      navigation.navigate('SendFlow', {
-        screen: 'TurboLoading',
-        params: {
-          assetType: 'unit',
-          prefillAddress: mintQuote.depositAddress,
-          prefillAmount: unitRunesAmount,
-          mintQuoteId: mintQuote.quoteId,
-          mintAmount: unitRunesAmount,
-          isTurbo: true,
-        }
-      });
-    } catch (error) {
-      Alert.alert('Error', `Failed to convert: ${error.message}`);
-    }
-  }, [runesBalance, navigation, fetchTransactionHistory, getSpentUtxos, unmarkUtxosAsSpent]);
-
-  // Handle recovery button
-  const handleRecoverMint = () => {
-    navigation.navigate('RecoverMint');
-  };
-
-  // Handle redeem Cashu token
-  const handleRedeemToken = () => {
-    Alert.prompt(
-      'Redeem Cashu Token',
-      'Paste your Cashu token to redeem:',
-      [
-        {
-          text: 'Cancel',
-          style: 'cancel',
-        },
-        {
-          text: 'Redeem',
-          onPress: async (tokenString) => {
-            if (!tokenString || !tokenString.trim()) {
-              Alert.alert('Error', 'Please enter a valid token');
-              return;
-            }
-
-            try {
-              // Check if token contains P2PK-locked proofs
-              const { decodeToken } = await import('../../services/cashu/cashuCrypto');
-              const { isP2PKSecret } = await import('../../services/cashu/cashuP2PK');
-              const decoded = decodeToken(tokenString.trim());
-
-              if (!decoded || !decoded.proofs || !Array.isArray(decoded.proofs)) {
-                Alert.alert('Error', 'Invalid token format');
-                return;
-              }
-
-              const hasP2PKProofs = decoded.proofs.some(p => isP2PKSecret(p.secret));
-
-              if (hasP2PKProofs) {
-                // Token is P2PK-locked, find which account it's locked to
-                logger.debug('[AssetDetailScreen] Token is P2PK-locked, finding correct account');
-
-                // Extract recipient pubkey from first P2PK proof
-                const { getP2PKRecipient } = await import('../../services/cashu/cashuP2PK');
-                let recipientPubkey = null;
-                for (const proof of decoded.proofs) {
-                  if (proof.secret) {
-                    const pubkey = getP2PKRecipient(proof.secret);
-                    if (pubkey) {
-                      recipientPubkey = pubkey;
-                      logger.debug('[AssetDetailScreen] Found P2PK recipient pubkey:', pubkey.substring(0, 16) + '...');
-                      break;
-                    }
-                  }
-                }
-
-                if (!recipientPubkey) {
-                  Alert.alert('Error', 'Could not extract recipient pubkey from P2PK token');
-                  return;
-                }
-
-                // Find which account owns this pubkey
-                const { findAccountForP2PKToken } = await import('../../services/cashu/cashuP2PK');
-                const accountMatch = await findAccountForP2PKToken(recipientPubkey);
-
-                if (!accountMatch) {
-                  Alert.alert('Error', 'This token is not locked to any of your accounts (checked 50 accounts). Make sure you are using the correct wallet.');
-                  return;
-                }
-
-                logger.debug('[AssetDetailScreen] Found matching account:', {
-                  accountIndex: accountMatch.accountIndex,
-                  address: accountMatch.address,
-                });
-
-                // Check if token belongs to current account
-                const { getCurrentAccount } = await import('../../services/secureStorageService');
-                const currentAccountIndex = await getCurrentAccount();
-
-                if (accountMatch.accountIndex !== currentAccountIndex) {
-                  // Token belongs to a different account - show error
-                  Alert.alert('Wrong Account', `This proof belongs to account ${accountMatch.accountIndex + 1}. Please switch to that account to claim this token.`);
-                  return;
-                }
-
-                // Redeem P2PK token with the correct account's private key
-                const { receiveP2PKToken } = await import('../../services/cashu/cashuWalletService');
-                await receiveP2PKToken(tokenString.trim(), accountMatch.privateKey);
-                await fetchTransactionHistory();
-                Alert.alert('Success', 'P2PK token redeemed successfully!');
-              } else {
-                // Regular token, redeem directly
-                const { receiveToken } = await import('../../services/cashu/cashuWalletService');
-                await receiveToken(tokenString.trim());
-                await fetchTransactionHistory();
-                Alert.alert('Success', 'Token redeemed successfully!');
-              }
-            } catch (error) {
-              Alert.alert('Error', `Failed to redeem token: ${error.message}`);
-            }
-          },
-        },
-      ],
-      'plain-text'
-    );
-  };
-
-  // Handle ecash token details copy notification
   const handleCopyNotification = useCallback((message) => {
     showToast(message, 'success');
   }, [showToast]);
 
-  // Open transaction in blockchain explorer or show token details for ecash
   const handleTransactionPress = useCallback(async (tx) => {
-    // Handle ecash token clicks
     if (tx.ecashToken) {
       setSelectedToken(tx.tokenData);
       setShowTokenDetails(true);
@@ -428,9 +155,7 @@ function AssetDetailScreen({ route = {}, navigation }) {
     }
 
     try {
-      // Use ord explorer for UNIT transactions, regular explorer for BTC
       const url = assetType === 'UNIT' ? getOrdTxUrl(tx.txid) : getTxUrl(tx.txid);
-
       const supported = await Linking.canOpenURL(url);
       if (supported) {
         await Linking.openURL(url);
@@ -440,39 +165,10 @@ function AssetDetailScreen({ route = {}, navigation }) {
     }
   }, [assetType]);
 
-  // Component render functions now use extracted components
-  const renderHeader = () => <AssetHeader onBackPress={() => navigation.goBack()} />;
-
-  const renderAssetInfo = () => (
-    <AssetInfo
-      assetType={assetType}
-      balance={balance}
-      fiatValue={fiatValue}
-      btcPrice={btcPrice}
-      priceData={priceData}
-      priceDirection={priceDirection}
-      runesBalance={unitRunesAmount}
-      cashuBalance={cashuBalance}
-      isLoading={isBalanceLoading}
-    />
-  );
-
-  const renderActionButtons = () => (
-    <AssetActionButtons
-      onSendPress={() => handleActionPress('send')}
-      onReceivePress={() => handleActionPress('receive')}
-      onConsolidatePress={() => handleActionPress('consolidate')}
-      onTurboPress={() => handleActionPress('turbo')}
-      showConsolidate={assetType === 'UNIT'}
-      advancedMode={advancedMode}
-    />
-  );
-
-
   return (
     <>
       <SafeAreaView style={styles.container}>
-        {renderHeader()}
+        <AssetHeader onBackPress={() => navigation.goBack()} />
 
         <Animated.ScrollView
           style={styles.scrollView}
@@ -482,9 +178,18 @@ function AssetDetailScreen({ route = {}, navigation }) {
           )}
           scrollEventThrottle={16}
         >
-          {renderAssetInfo()}
+          <AssetInfo
+            assetType={assetType}
+            balance={balance}
+            fiatValue={fiatValue}
+            btcPrice={btcPrice}
+            priceData={priceData}
+            priceDirection={priceDirection}
+            runesBalance={unitRunesAmount}
+            cashuBalance={cashuBalance}
+            isLoading={isBalanceLoading}
+          />
 
-          {/* Show balance breakdown for UNIT */}
           {assetType === 'UNIT' && (
             <UnitBalanceBreakdown
               ecashBalance={cashuBalance}
@@ -492,7 +197,14 @@ function AssetDetailScreen({ route = {}, navigation }) {
             />
           )}
 
-          {renderActionButtons()}
+          <AssetActionButtons
+            onSendPress={() => handleActionPress('send')}
+            onReceivePress={() => handleActionPress('receive')}
+            onConsolidatePress={() => handleActionPress('consolidate')}
+            onTurboPress={() => handleActionPress('turbo')}
+            showConsolidate={assetType === 'UNIT'}
+            advancedMode={advancedMode}
+          />
 
           <AssetPriceChart
             assetType={assetType}
@@ -527,7 +239,6 @@ function AssetDetailScreen({ route = {}, navigation }) {
         </Animated.ScrollView>
       </SafeAreaView>
 
-      {/* Token Details Sheet */}
       {selectedToken && (
         <TokenDetailsSheet
           visible={showTokenDetails}
@@ -549,72 +260,8 @@ const styles = StyleSheet.create({
     flex: 1,
     backgroundColor: COLORS.DARK_BG,
   },
-  header: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    paddingHorizontal: 16,
-    paddingVertical: 12,
-  },
-  backButton: {
-    padding: 8,
-  },
   scrollView: {
     flex: 1,
-  },
-  assetInfoContainer: {
-    alignItems: 'center',
-    paddingVertical: 12,
-  },
-  assetName: {
-    fontSize: 16,
-    fontWeight: '400',
-    color: COLORS.SECONDARY_TEXT,
-    marginBottom: 12,
-  },
-  balanceAmount: {
-    fontSize: 31,
-    fontWeight: '700',
-    color: COLORS.WHITE,
-    marginBottom: 8,
-  },
-  balanceFiat: {
-    fontSize: 20,
-    fontWeight: '400',
-    color: COLORS.SECONDARY_TEXT,
-    marginBottom: 12,
-  },
-  priceChange: {
-    fontSize: 16,
-    fontWeight: '400',
-    color: COLORS.SUCCESS_GREEN,
-  },
-  actionButtonsContainer: {
-    flexDirection: 'row',
-    justifyContent: 'center',
-    paddingHorizontal: 5,
-    paddingVertical: 12,
-    gap: 12,
-  },
-  actionButton: {
-    alignItems: 'center',
-    minWidth: 62,
-  },
-  actionButtonIcon: {
-    width: 50,
-    height: 50,
-    borderRadius: 8,
-    backgroundColor: COLORS.CARD_BG,
-    justifyContent: 'center',
-    alignItems: 'center',
-    marginBottom: 2,
-    borderWidth: 1.2,
-    borderColor: COLORS.BORDER_COLOR,
-  },
-  actionButtonLabel: {
-    fontSize: 13,
-    color: COLORS.SECONDARY_TEXT,
-    fontWeight: '600',
   },
 });
 

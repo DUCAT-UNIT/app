@@ -21,11 +21,11 @@ export const SendFlowProvider = ({ children }) => {
   // State machine: idle → selecting_asset → entering_address → entering_amount → creating → reviewing → signing → broadcasting → pending → confirmed
   const [intentStep, _setIntentStep] = useState('idle');
 
-  // Wrapped setter with logging
-  const setIntentStep = (newStep) => {
-    logger.debug('[SendFlowContext] setIntentStep called:', { from: intentStep, to: newStep, stack: new Error().stack.split('\n')[2] });
+  // Wrapped setter with logging - use useCallback for stable reference
+  const setIntentStep = useCallback((newStep) => {
+    logger.debug('[SendFlowContext] setIntentStep called:', { to: newStep });
     _setIntentStep(newStep);
-  };
+  }, []);
 
   // Form inputs
   const [sendAssetType, setSendAssetType] = useState(null); // 'btc' | 'unit'
@@ -50,7 +50,7 @@ export const SendFlowProvider = ({ children }) => {
 
       return () => clearTimeout(timer);
     }
-  }, [intentStep]);
+  }, [intentStep, setIntentStep]);
 
   // Reset all send flow state - memoized to prevent unnecessary re-renders
   const resetSendFlow = useCallback(() => {
@@ -88,7 +88,7 @@ export const SendFlowProvider = ({ children }) => {
       // Actions
       resetSendFlow,
     }),
-    [intentStep, sendAssetType, sendAmount, sendRecipient, sendAddressType, requireConfirmedUtxos, turboEnabled]
+    [intentStep, sendAssetType, sendAmount, sendRecipient, sendAddressType, requireConfirmedUtxos, turboEnabled, setIntentStep, resetSendFlow]
   );
 
   return <SendFlowContext.Provider value={value}>{children}</SendFlowContext.Provider>;

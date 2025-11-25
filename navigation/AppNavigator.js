@@ -37,7 +37,6 @@ import { useNotifications } from '../contexts/NotificationContext';
 
 // Hooks
 import { useWalletInitialization } from '../hooks/useWalletInitialization';
-import { useBackgroundSplash } from '../hooks/useBackgroundSplash';
 import { useNotifications as useNotificationsHook } from '../hooks/useNotifications';
 import { useTransactionPolling } from '../hooks/useTransactionPolling';
 
@@ -131,7 +130,6 @@ function ProvidersWrapper({
         >
           <TransactionExecutionProvider
             currentAccount={currentAccount}
-            showToast={showToast}
             showSnackbar={showSnackbar}
             startTransactionPolling={startPolling}
             sendTransactionConfirmedNotification={sendTransactionConfirmedNotification}
@@ -164,7 +162,7 @@ function AppNavigatorContent({
   _isBiometricSupported,
 }) {
   // Auth contexts
-  const { setIsAuthenticated, isAuthenticated } = useAuth();
+  const { setIsAuthenticated } = useAuth();
   const { wallet } = useWallet();
 
   // Navigation handlers from context

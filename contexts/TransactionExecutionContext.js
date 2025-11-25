@@ -30,7 +30,6 @@ export const useTransactionExecution = () => {
 export const TransactionExecutionProvider = ({
   children,
   currentAccount,
-  showToast,
   showSnackbar,
   startTransactionPolling,
   sendTransactionConfirmedNotification,
@@ -252,7 +251,7 @@ export const TransactionExecutionProvider = ({
         await invalidateTransaction(intent.txid, 'Transaction broadcast failed');
       }
     }
-  }, [sendIntent, wallet, showSnackbar, setIntentStep, sendAssetType, sendAmount, startTransactionPolling, notificationsEnabled, sendTransactionConfirmedNotification, fetchBalance, fetchTransactionHistory, addPendingTransaction, confirmTransaction, invalidateTransaction, pendingTransactions, markUtxoAsSpent, markUtxosAsSpent]);
+  }, [sendIntent, setSendIntent, wallet, showSnackbar, setIntentStep, sendAssetType, sendAmount, startTransactionPolling, notificationsEnabled, sendTransactionConfirmedNotification, fetchBalance, fetchTransactionHistory, addPendingTransaction, confirmTransaction, invalidateTransaction, pendingTransactions, markUtxoAsSpent, markUtxosAsSpent]);
 
   // Sign the PSBT
   const signIntent = useCallback(async (options = {}) => {

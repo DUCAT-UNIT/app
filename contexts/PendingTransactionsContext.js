@@ -4,7 +4,7 @@
  * Handles parent-child transaction relationships and invalidation
  */
 
-import React, { createContext, useContext, useCallback } from 'react';
+import React, { createContext, useContext, useCallback, useMemo } from 'react';
 import { usePendingTransactionsStorage } from '../hooks/usePendingTransactionsStorage';
 import {
   buildExclusionSet,
@@ -62,8 +62,7 @@ export const PendingTransactionsProvider = ({ children, currentAccount, showSnac
 
     setPendingTransactions(updated);
     await savePendingTransactions(updated);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [pendingTransactions, currentAccount]);
+  }, [pendingTransactions, setPendingTransactions, savePendingTransactions]);
 
   /**
    * Mark transaction as confirmed and remove from pending
@@ -93,8 +92,7 @@ export const PendingTransactionsProvider = ({ children, currentAccount, showSnac
     const clearedSpent = new Set();
     setSpentUtxos(clearedSpent);
     await saveSpentUtxos(clearedSpent);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [pendingTransactions, currentAccount]);
+  }, [pendingTransactions, setPendingTransactions, savePendingTransactions, setSpentUtxos, saveSpentUtxos]);
 
   /**
    * Invalidate a transaction and all its children
@@ -124,8 +122,7 @@ export const PendingTransactionsProvider = ({ children, currentAccount, showSnac
     }
 
     return invalidated;
-  }, [pendingTransactions, showSnackbar, currentAccount]);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [pendingTransactions, setPendingTransactions, savePendingTransactions, showSnackbar]);
 
   /**
    * Get all unconfirmed UTXOs that can be spent
@@ -154,8 +151,8 @@ export const PendingTransactionsProvider = ({ children, currentAccount, showSnac
     const updated = removeUtxoFromPending(pendingTransactions, txid, vout);
     setPendingTransactions(updated);
     await savePendingTransactions(updated);
-  }, [pendingTransactions, currentAccount]);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [pendingTransactions, setPendingTransactions, savePendingTransactions]);
+
   /**
    * Clean up old invalid transactions
    */
@@ -166,8 +163,8 @@ export const PendingTransactionsProvider = ({ children, currentAccount, showSnac
       setPendingTransactions(updated);
       await savePendingTransactions(updated);
     }
-  }, [pendingTransactions, currentAccount]);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [pendingTransactions, setPendingTransactions, savePendingTransactions]);
+
   /**
    * Mark UTXOs as spent to prevent reuse
    * @param {Array} utxos - Array of {txid, vout} objects
@@ -176,8 +173,7 @@ export const PendingTransactionsProvider = ({ children, currentAccount, showSnac
     const updated = markSpent(spentUtxos, utxos);
     setSpentUtxos(updated);
     await saveSpentUtxos(updated);
-  }, [spentUtxos, currentAccount]);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [spentUtxos, setSpentUtxos, saveSpentUtxos]);
 
   /**
    * Unmark UTXOs as spent (e.g., when canceling a transaction)
@@ -187,8 +183,7 @@ export const PendingTransactionsProvider = ({ children, currentAccount, showSnac
     const updated = unmarkSpent(spentUtxos, utxos);
     setSpentUtxos(updated);
     await saveSpentUtxos(updated);
-  }, [spentUtxos, currentAccount]);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [spentUtxos, setSpentUtxos, saveSpentUtxos]);
 
   /**
    * Check if a UTXO is spent
@@ -209,7 +204,7 @@ export const PendingTransactionsProvider = ({ children, currentAccount, showSnac
     return spentUtxos;
   }, [spentUtxos]);
 
-  const value = {
+  const value = useMemo(() => ({
     pendingTransactions,
     addPendingTransaction,
     confirmTransaction,
@@ -222,7 +217,20 @@ export const PendingTransactionsProvider = ({ children, currentAccount, showSnac
     unmarkUtxosAsSpent,
     isUtxoSpent,
     getSpentUtxos,
-  };
+  }), [
+    pendingTransactions,
+    addPendingTransaction,
+    confirmTransaction,
+    invalidateTransaction,
+    getUnconfirmedUTXOs,
+    getUnconfirmedBalance,
+    markUtxoAsSpent,
+    cleanupInvalidTransactions,
+    markUtxosAsSpent,
+    unmarkUtxosAsSpent,
+    isUtxoSpent,
+    getSpentUtxos,
+  ]);
 
   return (
     <PendingTransactionsContext.Provider value={value}>

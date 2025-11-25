@@ -70,7 +70,7 @@ export default function PinSetupScreen({
             // Save PIN and finish setup
             if (changingPin) {
               // Use atomic PIN change operation to prevent lockout
-              const PasskeyService = await import('../../services/passkeyService');
+              const PasskeyService = await import('../../services/passkey');
               const result = await PasskeyService.atomicPinChangeWithPasskey(pin);
 
               if (result.success) {

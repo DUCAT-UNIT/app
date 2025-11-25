@@ -10,7 +10,6 @@ import { useDisplayPreferences } from "../../contexts/DisplayPreferencesContext"
 import { useWalletCalculations } from '../../hooks/useWalletCalculations';
 import { useFormattedBalances } from '../../hooks/useFormattedBalances';
 import { COLORS } from '../../theme';
-import Icon from '../../components/icons';
 import TotalBalanceSection from '../../components/wallet/TotalBalanceSection';
 import VaultCard from '../../components/wallet/VaultCard';
 import AssetCard from '../../components/wallet/AssetCard';
@@ -50,7 +49,6 @@ const WalletScreen = React.memo(function WalletScreen({
     vaultDebt,
     vaultCollateral,
     hasVault,
-    unitValueInBTC,
   } = useWalletCalculations({
     segwitBalance,
     taprootBalance,
@@ -59,6 +57,20 @@ const WalletScreen = React.memo(function WalletScreen({
     btcPrice,
     vaultData,
   });
+
+  // Calculate UNIT totals (Runes + Ecash)
+  const unitTotals = React.useMemo(() => {
+    const runesAmount = runesBalance && runesBalance.length > 0 ? parseFloat(runesBalance[0][1]) : 0;
+    const totalUnit = runesAmount + cashuBalance;
+    return {
+      formatted: totalUnit.toLocaleString('en-US', {
+        minimumFractionDigits: 2,
+        maximumFractionDigits: 2,
+      }),
+      btcValue: (totalUnit / 100_000_000).toFixed(8),
+      usdValue: totalUnit,
+    };
+  }, [runesBalance, cashuBalance]);
 
   // Memoize formatted balances to avoid repeated toLocaleString() calls
   const formatted = useFormattedBalances({
@@ -201,25 +213,10 @@ const WalletScreen = React.memo(function WalletScreen({
           assetName="UNIT"
           assetLogo="unit_logo"
           amountLabel="unit_symbol"
-          amountValue={(() => {
-            const runesAmount = runesBalance.length > 0 ? parseFloat(runesBalance[0][1]) : 0;
-            const totalUnit = runesAmount + cashuBalance;
-            return totalUnit.toLocaleString('en-US', {
-              minimumFractionDigits: 2,
-              maximumFractionDigits: 2,
-            });
-          })()}
+          amountValue={unitTotals.formatted}
           displayInBTC={showTotalInBTC}
-          btcValue={(() => {
-            const runesAmount = runesBalance.length > 0 ? parseFloat(runesBalance[0][1]) : 0;
-            const totalUnit = runesAmount + cashuBalance;
-            return (totalUnit / 100_000_000).toFixed(8);
-          })()}
-          usdValue={(() => {
-            const runesAmount = runesBalance.length > 0 ? parseFloat(runesBalance[0][1]) : 0;
-            const totalUnit = runesAmount + cashuBalance;
-            return totalUnit;
-          })()}
+          btcValue={unitTotals.btcValue}
+          usdValue={unitTotals.usdValue}
           styles={styles}
           onPress={() => onAssetPress && onAssetPress('UNIT')}
         />

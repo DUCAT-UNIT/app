@@ -16,7 +16,6 @@ import { logger } from '../utils/logger';
 
 // Polling intervals (in milliseconds)
 const POLL_INTERVAL = 10000; // 10 seconds - for balance and vault data
-const HISTORY_POLL_INTERVAL = 10000; // 10 seconds - for transaction history (same as balance for faster updates)
 
 // PERFORMANCE: Split into 3 separate contexts to prevent unnecessary re-renders
 // When balance changes, only components using useBalance() will re-render
@@ -180,44 +179,13 @@ export const WalletDataProvider = ({ children }) => {
   // This prevents cross-contamination of re-renders
 
   // Balance context value - only updates when balance data changes
-  const balanceValue = useMemo(() => balance, [
-    balance.segwitBalance,
-    balance.taprootBalance,
-    balance.runesBalance,
-    balance.unconfirmedSegwitBalance,
-    balance.unconfirmedTaprootBalance,
-    balance.unconfirmedRunesBalance,
-    balance.loadingBalance,
-    balance.refreshing,
-    balance.balanceError,
-    balance.utxos,
-    balance.loadingUtxos,
-    // Functions are stable references from hooks, don't need them in deps
-    // but including for safety
-    balance.fetchBalance,
-    balance.onRefresh,
-    balance.fetchUtxos,
-    balance.resetBalances,
-    balance.setBalanceError,
-  ]);
+  const balanceValue = useMemo(() => balance, [balance]);
 
   // History context value - only updates when history data changes
-  const historyValue = useMemo(() => history, [
-    history.transactionHistory,
-    history.loadingTransactionHistory,
-    history.historyError,
-    history.fetchTransactionHistory,
-    history.resetTransactionHistory,
-  ]);
+  const historyValue = useMemo(() => history, [history]);
 
   // Vault context value - only updates when vault data changes
-  const vaultValue = useMemo(() => vault, [
-    vault.vaultData,
-    vault.loadingVault,
-    vault.vaultError,
-    vault.fetchVault,
-    vault.resetVaultData,
-  ]);
+  const vaultValue = useMemo(() => vault, [vault]);
 
   // Legacy consolidated value (for backwards compatibility with useWalletData())
   // This still has the old behavior - updates when ANY data changes

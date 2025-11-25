@@ -501,6 +501,187 @@ describe('TransactionExecutionContext', () => {
     expect(mockFetchBalance).toHaveBeenCalled();
   });
 
+  it('should call fetchTransactionHistory when provided', async () => {
+    const mockFetchTransactionHistory = jest.fn();
+
+    useTransactionBuild.mockReturnValue({
+      sendIntent: mockSignedIntent,
+      setSendIntent: mockSetSendIntent,
+    });
+
+    TransactionService.broadcastTransaction.mockResolvedValue('mock_txid');
+
+    let confirmCallback;
+    mockStartTransactionPolling.mockImplementation((txid, onConfirm) => {
+      confirmCallback = onConfirm;
+    });
+
+    const wrapper = ({ children }) => (
+      <TransactionExecutionProvider
+        currentAccount={0}
+        showSnackbar={mockShowSnackbar}
+        startTransactionPolling={mockStartTransactionPolling}
+        sendTransactionConfirmedNotification={mockSendTransactionConfirmedNotification}
+        notificationsEnabled={true}
+        fetchBalance={mockFetchBalance}
+        fetchTransactionHistory={mockFetchTransactionHistory}
+      >
+        {children}
+      </TransactionExecutionProvider>
+    );
+    const { result } = renderHook(() => useTransactionExecution(), { wrapper });
+
+    await act(async () => {
+      await result.current.broadcastIntent();
+    });
+
+    // Should call after broadcast
+    expect(mockFetchTransactionHistory).toHaveBeenCalled();
+    mockFetchTransactionHistory.mockClear();
+
+    // Simulate confirmation
+    act(() => {
+      confirmCallback(true);
+    });
+
+    // Should call again after confirmation
+    expect(mockFetchTransactionHistory).toHaveBeenCalled();
+  });
+
+  it('should call fetchTransactionHistory on polling error', async () => {
+    const mockFetchTransactionHistory = jest.fn();
+
+    useTransactionBuild.mockReturnValue({
+      sendIntent: mockSignedIntent,
+      setSendIntent: mockSetSendIntent,
+    });
+
+    TransactionService.broadcastTransaction.mockResolvedValue('mock_txid');
+
+    let errorCallback;
+    mockStartTransactionPolling.mockImplementation((txid, onConfirm, onError) => {
+      errorCallback = onError;
+    });
+
+    const wrapper = ({ children }) => (
+      <TransactionExecutionProvider
+        currentAccount={0}
+        showSnackbar={mockShowSnackbar}
+        startTransactionPolling={mockStartTransactionPolling}
+        sendTransactionConfirmedNotification={mockSendTransactionConfirmedNotification}
+        notificationsEnabled={true}
+        fetchBalance={mockFetchBalance}
+        fetchTransactionHistory={mockFetchTransactionHistory}
+      >
+        {children}
+      </TransactionExecutionProvider>
+    );
+    const { result } = renderHook(() => useTransactionExecution(), { wrapper });
+
+    await act(async () => {
+      await result.current.broadcastIntent();
+    });
+
+    mockFetchTransactionHistory.mockClear();
+
+    // Simulate error
+    act(() => {
+      errorCallback(new Error('Polling timeout'));
+    });
+
+    expect(mockFetchTransactionHistory).toHaveBeenCalled();
+  });
+
+  it('should skip auto-confirm when skipAutoConfirm is true (turbo mint flow)', async () => {
+    useTransactionBuild.mockReturnValue({
+      sendIntent: mockSignedIntent,
+      setSendIntent: mockSetSendIntent,
+    });
+
+    TransactionService.broadcastTransaction.mockResolvedValue('mock_txid');
+
+    let confirmCallback;
+    mockStartTransactionPolling.mockImplementation((txid, onConfirm) => {
+      confirmCallback = onConfirm;
+    });
+
+    const wrapper = ({ children }) => (
+      <TransactionExecutionProvider
+        currentAccount={0}
+        showSnackbar={mockShowSnackbar}
+        startTransactionPolling={mockStartTransactionPolling}
+        sendTransactionConfirmedNotification={mockSendTransactionConfirmedNotification}
+        notificationsEnabled={true}
+        fetchBalance={mockFetchBalance}
+      >
+        {children}
+      </TransactionExecutionProvider>
+    );
+    const { result } = renderHook(() => useTransactionExecution(), { wrapper });
+
+    // Call broadcastIntent with skipAutoConfirm option
+    await act(async () => {
+      await result.current.broadcastIntent(mockSignedIntent, { skipAutoConfirm: true });
+    });
+
+    // Clear the setIntentStep calls from broadcasting
+    mockSetIntentStep.mockClear();
+
+    // Simulate confirmation
+    act(() => {
+      confirmCallback(true);
+    });
+
+    // Should NOT call setIntentStep('confirmed') when skipAutoConfirm=true
+    expect(mockSetIntentStep).not.toHaveBeenCalledWith('confirmed');
+    // But should still fetch balance
+    expect(mockFetchBalance).toHaveBeenCalled();
+  });
+
+  it('should skip auto-confirm on polling error when skipAutoConfirm is true', async () => {
+    useTransactionBuild.mockReturnValue({
+      sendIntent: mockSignedIntent,
+      setSendIntent: mockSetSendIntent,
+    });
+
+    TransactionService.broadcastTransaction.mockResolvedValue('mock_txid');
+
+    let errorCallback;
+    mockStartTransactionPolling.mockImplementation((txid, onConfirm, onError) => {
+      errorCallback = onError;
+    });
+
+    const wrapper = ({ children }) => (
+      <TransactionExecutionProvider
+        currentAccount={0}
+        showSnackbar={mockShowSnackbar}
+        startTransactionPolling={mockStartTransactionPolling}
+        sendTransactionConfirmedNotification={mockSendTransactionConfirmedNotification}
+        notificationsEnabled={true}
+        fetchBalance={mockFetchBalance}
+      >
+        {children}
+      </TransactionExecutionProvider>
+    );
+    const { result } = renderHook(() => useTransactionExecution(), { wrapper });
+
+    // Call broadcastIntent with skipAutoConfirm option
+    await act(async () => {
+      await result.current.broadcastIntent(mockSignedIntent, { skipAutoConfirm: true });
+    });
+
+    mockSetIntentStep.mockClear();
+
+    // Simulate error
+    act(() => {
+      errorCallback(new Error('Polling timeout'));
+    });
+
+    // Should NOT call setIntentStep('confirmed') when skipAutoConfirm=true
+    expect(mockSetIntentStep).not.toHaveBeenCalledWith('confirmed');
+    expect(mockFetchBalance).toHaveBeenCalled();
+  });
+
   it('should reset toastDismissed when broadcastedTxid changes', () => {
     const wrapper = ({ children }) => (
       <TransactionExecutionProvider

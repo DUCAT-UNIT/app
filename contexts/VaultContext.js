@@ -87,7 +87,7 @@ export const VaultProvider = ({ children, currentAccount }) => {
       const timeoutId = setTimeout(retryLoad, 500);
       return () => clearTimeout(timeoutId);
     }
-  }, [activeTab, currentAccount]);
+  }, [activeTab, currentAccount, vaultCredentials]);
 
   const openVault = useCallback(async (shouldAutoCreate = false) => {
     try {

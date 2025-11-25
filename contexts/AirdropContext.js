@@ -1,4 +1,4 @@
-import React, { createContext, useContext, useState, useEffect, useRef } from 'react';
+import React, { createContext, useContext, useState, useEffect, useRef, useMemo, useCallback } from 'react';
 import PropTypes from 'prop-types';
 import { useBalance } from './WalletDataContext';
 import { useWallet } from './WalletContext';
@@ -61,7 +61,7 @@ export const AirdropProvider = ({ children, seedConfirmed }) => {
   const hapticTimeoutsRef = useRef([]);
 
   // Function to trigger all celebration effects
-  const triggerCelebration = () => {
+  const triggerCelebration = useCallback(() => {
     // Clear any existing haptic timeouts first
     clearHapticTimeouts(hapticTimeoutsRef.current);
     hapticTimeoutsRef.current = [];
@@ -72,7 +72,7 @@ export const AirdropProvider = ({ children, seedConfirmed }) => {
     // Trigger haptic feedback and store timeout IDs
     const newTimeouts = triggerConfettiHaptics();
     hapticTimeoutsRef.current = newTimeouts;
-  };
+  }, []);
 
   // Load audio on mount and cleanup on unmount
   useEffect(() => {
@@ -227,7 +227,7 @@ export const AirdropProvider = ({ children, seedConfirmed }) => {
     };
   }, [wallet, currentAccount, isAuthenticated, seedConfirmed]);
 
-  const value = {
+  const value = useMemo(() => ({
     // Airdrop modal state
     showAirdropModal,
     setShowAirdropModal,
@@ -236,7 +236,7 @@ export const AirdropProvider = ({ children, seedConfirmed }) => {
     triggerCelebration,
     // Audio state
     audioReady,
-  };
+  }), [showAirdropModal, airdropTxId, triggerCelebration, audioReady]);
 
   return <AirdropContext.Provider value={value}>{children}</AirdropContext.Provider>;
 };

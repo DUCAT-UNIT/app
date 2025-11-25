@@ -7,7 +7,6 @@ import React, { useEffect, useState } from 'react';
 import { Text, View, TouchableOpacity, ActivityIndicator } from 'react-native';
 import { COLORS } from '../../theme';
 import Icon from '../../components/icons';
-import { useTransactionExecution } from '../../contexts/TransactionExecutionContext';
 import { useTransactionHistory } from '../../contexts/WalletDataContext';
 import { useWallet } from '../../contexts/WalletContext';
 import { useCashu } from '../../contexts/CashuContext';
@@ -20,9 +19,8 @@ import { useConfirmationHandlers } from '../../hooks/useConfirmationHandlers';
 import { styles } from './ConfirmationScreen.styles';
 
 export default function ConfirmationScreen({ navigation, route }) {
-  const { broadcastedTxid } = useTransactionExecution();
   const { fetchTransactionHistory } = useTransactionHistory();
-  const { wallet } = useWallet();
+  useWallet();
   const { refresh: refreshCashuBalance } = useCashu();
   const { showToast, showSnackbar } = useNotifications();
 
@@ -35,6 +33,7 @@ export default function ConfirmationScreen({ navigation, route }) {
     skipMint,
     cashuMint,
     quoteId,
+    broadcastedTxid,
   } = useConfirmationParams(route);
 
   const turboAmount = route?.params?.turboAmount; // Amount in smallest units
@@ -48,7 +47,6 @@ export default function ConfirmationScreen({ navigation, route }) {
     turboToken: generatedTurboToken,
     turboDeeplink: generatedTurboDeeplink,
     processingStage,
-    isCompletingMint: turboMintCompleting,
   } = useTurboMintCompletion({
     isTurbo,
     mintQuoteId,
@@ -62,7 +60,7 @@ export default function ConfirmationScreen({ navigation, route }) {
   });
 
   // Handle Cashu mint completion (for threshold conversion)
-  const { isCompletingMint: cashuMintCompleting } = useCashuMintCompletion({
+  useCashuMintCompletion({
     cashuMint,
     quoteId,
     fetchTransactionHistory,
@@ -70,9 +68,6 @@ export default function ConfirmationScreen({ navigation, route }) {
     showSnackbar,
     showToast,
   });
-
-  // Combine completion states
-  const isCompletingMint = turboMintCompleting || cashuMintCompleting;
 
   // Use generated token/deeplink if available, otherwise use local state
   const turboToken = generatedTurboToken || localTurboToken;

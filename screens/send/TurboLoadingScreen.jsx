@@ -9,6 +9,8 @@ import { COLORS } from '../../theme';
 import { useSendFlow } from '../../contexts/SendFlowContext';
 import { useTransactionBuild } from '../../contexts/TransactionBuildContext';
 import { usePendingTransactions } from '../../contexts/PendingTransactionsContext';
+import { logger } from '../../utils/logger';
+import { releaseOrphanedUtxos } from '../../utils/pendingTransactionsUtils';
 
 export default function TurboLoadingScreen({ navigation, route }) {
   const { prefillAddress, prefillAmount, assetType, isTurbo, mintQuoteId, mintAmount } = route.params || {};
@@ -103,13 +105,7 @@ export default function TurboLoadingScreen({ navigation, route }) {
 
       // Clean up any stuck UTXOs before showing error
       const cleanupAndShowError = async () => {
-        const currentSpent = getSpentUtxos();
-        if (currentSpent.size > 0) {
-          await unmarkUtxosAsSpent(Array.from(currentSpent).map(key => {
-            const [txid, vout] = key.split(':');
-            return { txid, vout: parseInt(vout) };
-          }));
-        }
+        await releaseOrphanedUtxos(getSpentUtxos, unmarkUtxosAsSpent);
 
         // Reset send flow to clear any stale state
         resetSendFlow();
@@ -133,7 +129,7 @@ export default function TurboLoadingScreen({ navigation, route }) {
 
       cleanupAndShowError();
     }
-  }, [intentStep, sendIntent, navigation, isTurbo, getSpentUtxos, unmarkUtxosAsSpent, mintQuoteId, mintAmount]);
+  }, [intentStep, sendIntent, navigation, isTurbo, getSpentUtxos, unmarkUtxosAsSpent, mintQuoteId, mintAmount, resetSendFlow]);
 
   // Set a timeout to detect if intent creation is taking too long
   useEffect(() => {
@@ -143,13 +139,7 @@ export default function TurboLoadingScreen({ navigation, route }) {
           hasNavigated.current = true;
 
           // Clean up any stuck UTXOs
-          const currentSpent = getSpentUtxos();
-          if (currentSpent.size > 0) {
-            await unmarkUtxosAsSpent(Array.from(currentSpent).map(key => {
-              const [txid, vout] = key.split(':');
-              return { txid, vout: parseInt(vout) };
-            }));
-          }
+          await releaseOrphanedUtxos(getSpentUtxos, unmarkUtxosAsSpent);
 
           // Reset send flow
           resetSendFlow();
@@ -187,13 +177,7 @@ export default function TurboLoadingScreen({ navigation, route }) {
       // Only cleanup if we started but didn't successfully create an intent
       if (hasStarted.current && !intentCreated.current) {
         const cleanup = async () => {
-          const currentSpent = getSpentUtxos();
-          if (currentSpent.size > 0) {
-            await unmarkUtxosAsSpent(Array.from(currentSpent).map(key => {
-              const [txid, vout] = key.split(':');
-              return { txid, vout: parseInt(vout) };
-            }));
-          }
+          await releaseOrphanedUtxos(getSpentUtxos, unmarkUtxosAsSpent);
           resetSendFlow();
         };
         cleanup();

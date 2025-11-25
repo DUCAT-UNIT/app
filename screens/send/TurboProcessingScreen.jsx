@@ -10,7 +10,7 @@ import { useSendFlow } from '../../contexts/SendFlowContext';
 import { useWallet } from '../../contexts/WalletContext';
 import { logger } from '../../utils/logger';
 
-export default function TurboProcessingScreen({ navigation, route }) {
+export default function TurboProcessingScreen({ navigation }) {
   const { sendAmount, sendRecipient } = useSendFlow();
   const { wallet } = useWallet();
   const [currentMessage, setCurrentMessage] = useState('Starting...');

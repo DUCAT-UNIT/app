@@ -10,9 +10,7 @@ import {
   View,
   TouchableOpacity,
   StyleSheet,
-  Platform,
   Dimensions,
-  StatusBar,
   ScrollView,
 } from 'react-native';
 import { COLORS } from '../../theme';

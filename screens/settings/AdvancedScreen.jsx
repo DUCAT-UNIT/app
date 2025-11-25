@@ -9,7 +9,6 @@ import {
   Text,
   View,
   TouchableOpacity,
-  StyleSheet,
   ScrollView,
   Alert,
   ActivityIndicator,
@@ -19,12 +18,8 @@ import Icon from '../../components/icons';
 import MutinynetBanner from '../../components/MutinynetBanner';
 import { useNavigationHandlers } from '../../contexts/NavigationHandlersContext';
 import { clearAppCache } from '../../services/cacheService';
-
-// Get device dimensions for responsive sizing
-const { width: SCREEN_WIDTH } = require('react-native').Dimensions.get('window');
-
-// Responsive horizontal padding
-const HORIZONTAL_PADDING = SCREEN_WIDTH < 375 ? 16 : SCREEN_WIDTH > 414 ? 24 : 20;
+import { logger } from '../../utils/logger';
+import { styles } from './AdvancedScreen.styles';
 
 const AdvancedScreen = React.memo(function AdvancedScreen({ route }) {
   const {
@@ -89,19 +84,19 @@ const AdvancedScreen = React.memo(function AdvancedScreen({ route }) {
   logger.debug('[AdvancedScreen] Rendering with advancedMode:', advancedMode, 'ecashThreshold:', ecashThreshold);
 
   return (
-    <View style={localStyles.container}>
+    <View style={styles.container}>
       <MutinynetBanner />
       {/* Header with back button and title on same line */}
-      <View style={localStyles.header}>
-        <TouchableOpacity onPress={onClose} style={localStyles.backButton}>
+      <View style={styles.header}>
+        <TouchableOpacity onPress={onClose} style={styles.backButton}>
           <Icon name="back" size={24} color={COLORS.VERY_LIGHT_GRAY} />
         </TouchableOpacity>
-        <Text style={localStyles.title}>Advanced</Text>
+        <Text style={styles.title}>Advanced</Text>
       </View>
 
-      <ScrollView style={localStyles.scrollView} showsVerticalScrollIndicator={false}>
-        <View style={localStyles.content}>
-          <View style={localStyles.section}>
+      <ScrollView style={styles.scrollView} showsVerticalScrollIndicator={false}>
+        <View style={styles.content}>
+          <View style={styles.section}>
             <SettingsOption
               iconName="asset"
               title="Developer Mode"
@@ -121,25 +116,25 @@ const AdvancedScreen = React.memo(function AdvancedScreen({ route }) {
             />
           </View>
 
-          <View style={localStyles.section}>
-            <Text style={localStyles.sectionTitle}>Troubleshooting</Text>
+          <View style={styles.section}>
+            <Text style={styles.sectionTitle}>Troubleshooting</Text>
             <TouchableOpacity
-              style={localStyles.clearCacheButton}
+              style={styles.clearCacheButton}
               onPress={handleClearCache}
               disabled={isClearing}
               activeOpacity={0.7}
             >
-              <View style={localStyles.clearCacheContent}>
+              <View style={styles.clearCacheContent}>
                 <Icon name="delete" size={24} color="#FF6B6B" />
-                <View style={localStyles.clearCacheTextContainer}>
-                  <Text style={localStyles.clearCacheTitle}>Clear App Cache</Text>
-                  <Text style={localStyles.clearCacheSubtitle}>
+                <View style={styles.clearCacheTextContainer}>
+                  <Text style={styles.clearCacheTitle}>Clear App Cache</Text>
+                  <Text style={styles.clearCacheSubtitle}>
                     Fixes issues with P2PK tokens and other problems
                   </Text>
                 </View>
               </View>
               {isClearing && (
-                <ActivityIndicator size="small" color="#FF6B6B" style={localStyles.spinner} />
+                <ActivityIndicator size="small" color="#FF6B6B" style={styles.spinner} />
               )}
             </TouchableOpacity>
           </View>
@@ -159,14 +154,14 @@ const SettingsOption = React.memo(function SettingsOption({ iconName, title, onP
   };
 
   return (
-    <TouchableOpacity style={localStyles.option} onPress={handlePress} activeOpacity={0.7}>
-      <View style={localStyles.optionLeft}>
+    <TouchableOpacity style={styles.option} onPress={handlePress} activeOpacity={0.7}>
+      <View style={styles.optionLeft}>
         <Icon name={iconName} size={24} color="#DDDDDD" />
-        <Text style={localStyles.optionTitle}>{title}</Text>
+        <Text style={styles.optionTitle}>{title}</Text>
       </View>
-      <View style={localStyles.optionRight}>
-        {rightText && <Text style={localStyles.optionRightText}>{rightText}</Text>}
-        <Text style={localStyles.optionArrow}>›</Text>
+      <View style={styles.optionRight}>
+        {rightText && <Text style={styles.optionRightText}>{rightText}</Text>}
+        <Text style={styles.optionArrow}>›</Text>
       </View>
     </TouchableOpacity>
   );
@@ -191,116 +186,3 @@ AdvancedScreen.propTypes = {
 };
 
 export default AdvancedScreen;
-
-const localStyles = StyleSheet.create({
-  container: {
-    flex: 1,
-    backgroundColor: COLORS.DARK_BG,
-  },
-  header: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    paddingTop: 0,
-    paddingHorizontal: HORIZONTAL_PADDING,
-    paddingBottom: 20,
-  },
-  backButton: {
-    width: 40,
-    height: 40,
-    justifyContent: 'center',
-    marginRight: 8,
-  },
-  scrollView: {
-    flex: 1,
-  },
-  content: {
-    paddingHorizontal: HORIZONTAL_PADDING,
-    paddingBottom: 40,
-  },
-  title: {
-    fontSize: 32,
-    fontWeight: 'bold',
-    color: COLORS.VERY_LIGHT_GRAY,
-    fontFamily: 'CabinetGrotesk-Bold',
-    flex: 1,
-  },
-  section: {
-    marginBottom: 30,
-  },
-  sectionTitle: {
-    fontSize: 14,
-    color: '#888',
-    fontFamily: 'CabinetGrotesk-Regular',
-    marginBottom: 16,
-    textTransform: 'uppercase',
-    letterSpacing: 1,
-  },
-  clearCacheButton: {
-    backgroundColor: '#1A1A1A',
-    borderRadius: 12,
-    padding: 20,
-    borderWidth: 1,
-    borderColor: 'rgba(255, 107, 107, 0.2)',
-  },
-  clearCacheContent: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 16,
-  },
-  clearCacheTextContainer: {
-    flex: 1,
-  },
-  clearCacheTitle: {
-    fontSize: 16,
-    color: '#FF6B6B',
-    fontWeight: '500',
-    fontFamily: 'CabinetGrotesk-Medium',
-    marginBottom: 4,
-  },
-  clearCacheSubtitle: {
-    fontSize: 13,
-    color: '#888',
-    fontFamily: 'CabinetGrotesk-Regular',
-    lineHeight: 18,
-  },
-  spinner: {
-    marginLeft: 12,
-  },
-  option: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    paddingVertical: 20,
-    paddingHorizontal: 4,
-    borderBottomWidth: 1,
-    borderBottomColor: COLORS.BORDER_COLOR,
-  },
-  optionLeft: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    flex: 1,
-    gap: 16,
-  },
-  optionTitle: {
-    fontSize: 16,
-    color: COLORS.VERY_LIGHT_GRAY,
-    fontWeight: '400',
-    fontFamily: 'CabinetGrotesk-Regular',
-  },
-  optionRight: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 8,
-  },
-  optionRightText: {
-    fontSize: 14,
-    color: '#888',
-    fontFamily: 'CabinetGrotesk-Regular',
-  },
-  optionArrow: {
-    fontSize: 24,
-    color: '#666',
-    marginLeft: 4,
-    fontFamily: 'CabinetGrotesk-Regular',
-  },
-});

@@ -1,4 +1,4 @@
-import React, { createContext, useContext, useState, useEffect, useCallback } from 'react';
+import React, { createContext, useContext, useState, useEffect, useCallback, useMemo } from 'react';
 import { fetchBtcPrice as fetchBtcPriceService } from '../services/balanceService';
 
 const PriceContext = createContext();
@@ -40,14 +40,14 @@ export const PriceProvider = ({ children }) => {
     return () => clearInterval(interval);
   }, [fetchBtcPrice]);
 
-  const value = {
+  const value = useMemo(() => ({
     // State
     btcPrice,
     loadingBtcPrice,
 
     // Functions
     fetchBtcPrice,
-  };
+  }), [btcPrice, loadingBtcPrice, fetchBtcPrice]);
 
   return <PriceContext.Provider value={value}>{children}</PriceContext.Provider>;
 };

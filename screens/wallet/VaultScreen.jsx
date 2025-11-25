@@ -21,7 +21,6 @@ const VaultScreen = React.memo(function VaultScreen({
 
   // Loading state management
   const {
-    isLoading,
     setIsLoading,
     preparingVault,
     setPreparingVault,
@@ -34,7 +33,6 @@ const VaultScreen = React.memo(function VaultScreen({
     webViewRef,
     webViewUrl,
     forceReloadKey,
-    webViewLoaded,
     setWebViewLoaded,
     hasLoadedOnceRef,
     injectWalletCredentials,

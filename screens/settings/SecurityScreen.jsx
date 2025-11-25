@@ -30,12 +30,14 @@ const SecurityScreen = React.memo(function SecurityScreen({ route }) {
   const { settingsHandlers, biometricEnabled } = useNavigationHandlers();
   const {
     handleFaceIdToggle: onFaceIdToggle,
-    handlePinChange: onChangePin,
-    handleAutoLockToggle: onAutoLockToggle,
+    handleChangePin: onChangePin,
     handleViewSeedPhrase: onViewSeedPhrase,
     handleDeleteWallet: onDeleteWallet,
-    autoLockEnabled,
   } = settingsHandlers;
+
+  // Auto-lock not yet implemented - placeholder
+  const autoLockEnabled = false;
+  const onAutoLockToggle = () => {};
 
   const faceIdEnabled = biometricEnabled;
 

@@ -3,11 +3,10 @@
  * Shows history of locked tokens with ability to regenerate deeplinks/QR codes
  */
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import {
   View,
   Text,
-  StyleSheet,
   FlatList,
   TouchableOpacity,
   Alert,
@@ -18,9 +17,75 @@ import { COLORS } from '../../theme';
 import Icon from '../../components/icons';
 import TouchableScale from '../../components/common/TouchableScale';
 import { getSentLockedTokens, deleteSentLockedToken, generateTurboDeeplink } from '../../services/cashu/cashuLockedTokensService';
+import { truncateAddress } from '../../utils/formatters/addresses';
+import { logger } from '../../utils/logger';
 import TokenDetailsSheet from '../../components/ecash/TokenDetailsSheet';
 import { useNotifications } from '../../contexts/NotificationContext';
 import { useWallet } from '../../contexts/WalletContext';
+import styles from './TurboHistoryScreen.styles';
+
+// Token card component
+function TokenCard({ item, onPress, onDelete, onViewQR, onShare, formatDate, formatAddress }) {
+  return (
+    <TouchableOpacity
+      style={styles.tokenCard}
+      onPress={() => onPress(item)}
+      activeOpacity={0.7}
+    >
+      <View style={styles.tokenHeader}>
+        <View style={styles.tokenInfo}>
+          <Text style={styles.amountText}>{item.amount / 100} UNIT</Text>
+          <Text style={styles.dateText}>{formatDate(item.timestamp)}</Text>
+        </View>
+        <TouchableOpacity
+          style={styles.deleteButton}
+          onPress={(e) => {
+            e.stopPropagation();
+            onDelete(item);
+          }}
+        >
+          <Icon name="trash" size={20} color={COLORS.DANGER_RED} />
+        </TouchableOpacity>
+      </View>
+
+      <View style={styles.recipientRow}>
+        <Icon name="wallet" size={16} color={COLORS.MID_GRAY} />
+        <Text style={styles.recipientText}>{formatAddress(item.recipient)}</Text>
+      </View>
+
+      {item.txid && (
+        <View style={styles.txidRow}>
+          <Icon name="btc_symbol" size={14} color={COLORS.MID_GRAY} />
+          <Text style={styles.txidText}>{formatAddress(item.txid)}</Text>
+        </View>
+      )}
+
+      <View style={styles.actionButtons}>
+        <TouchableScale
+          style={styles.actionButton}
+          onPress={(e) => {
+            e.stopPropagation();
+            onViewQR(item);
+          }}
+        >
+          <Icon name="qr" size={18} color={COLORS.BRAND_PURPLE} />
+          <Text style={styles.actionButtonText}>QR Code</Text>
+        </TouchableScale>
+
+        <TouchableScale
+          style={styles.actionButton}
+          onPress={(e) => {
+            e.stopPropagation();
+            onShare(item);
+          }}
+        >
+          <Icon name="share" size={18} color={COLORS.BRAND_PURPLE} />
+          <Text style={styles.actionButtonText}>Share</Text>
+        </TouchableScale>
+      </View>
+    </TouchableOpacity>
+  );
+}
 
 export default function TurboHistoryScreen({ navigation }) {
   const [tokens, setTokens] = useState([]);
@@ -31,14 +96,10 @@ export default function TurboHistoryScreen({ navigation }) {
   const { showToast } = useNotifications();
   const { wallet } = useWallet();
 
-  useEffect(() => {
-    loadTokens();
-  }, []);
-
-  const loadTokens = async () => {
+  const loadTokens = useCallback(async () => {
     try {
       setLoading(true);
-      const sentTokens = await getSentLockedTokens(wallet.taprootAddress);
+      const sentTokens = await getSentLockedTokens(wallet?.taprootAddress);
       setTokens(sentTokens);
     } catch (error) {
       logger.error('[TurboHistory] Failed to load tokens:', error);
@@ -47,7 +108,11 @@ export default function TurboHistoryScreen({ navigation }) {
       setLoading(false);
       setRefreshing(false);
     }
-  };
+  }, [wallet?.taprootAddress]);
+
+  useEffect(() => {
+    loadTokens();
+  }, [loadTokens]);
 
   const handleRefresh = () => {
     setRefreshing(true);
@@ -110,7 +175,6 @@ export default function TurboHistoryScreen({ navigation }) {
   };
 
   const handleTokenPress = async (tokenRecord) => {
-    // If no stored shortUrl, generate it on the fly
     let shortUrl = tokenRecord.shortUrl;
     if (!shortUrl) {
       try {
@@ -126,15 +190,8 @@ export default function TurboHistoryScreen({ navigation }) {
       }
     }
 
-    setSelectedToken({
-      ...tokenRecord,
-      shortUrl,
-    });
+    setSelectedToken({ ...tokenRecord, shortUrl });
     setShowTokenDetails(true);
-  };
-
-  const handleCopyNotification = (message) => {
-    showToast(message, 'success');
   };
 
   const formatDate = (timestamp) => {
@@ -144,77 +201,28 @@ export default function TurboHistoryScreen({ navigation }) {
 
   const formatAddress = (address) => {
     if (!address) return 'Unknown';
-    return `${address.substring(0, 12)}...${address.substring(address.length - 8)}`;
+    return truncateAddress(address, 12, 8);
   };
 
-  const renderToken = ({ item }) => (
-    <TouchableOpacity
-      style={styles.tokenCard}
-      onPress={() => handleTokenPress(item)}
-      activeOpacity={0.7}
-    >
-      <View style={styles.tokenHeader}>
-        <View style={styles.tokenInfo}>
-          <Text style={styles.amountText}>{item.amount / 100} UNIT</Text>
-          <Text style={styles.dateText}>{formatDate(item.timestamp)}</Text>
-        </View>
-        <TouchableOpacity
-          style={styles.deleteButton}
-          onPress={(e) => {
-            e.stopPropagation();
-            handleDeleteToken(item);
-          }}
-        >
-          <Icon name="trash" size={20} color={COLORS.DANGER_RED} />
-        </TouchableOpacity>
-      </View>
+  const renderToken = useCallback(({ item }) => (
+    <TokenCard
+      item={item}
+      onPress={handleTokenPress}
+      onDelete={handleDeleteToken}
+      onViewQR={handleViewQR}
+      onShare={handleShareToken}
+      formatDate={formatDate}
+      formatAddress={formatAddress}
+    />
+  ), [handleTokenPress, handleDeleteToken, handleViewQR, handleShareToken]);
 
-      <View style={styles.recipientRow}>
-        <Icon name="wallet" size={16} color={COLORS.MID_GRAY} />
-        <Text style={styles.recipientText}>{formatAddress(item.recipient)}</Text>
-      </View>
-
-      {item.txid && (
-        <View style={styles.txidRow}>
-          <Icon name="btc_symbol" size={14} color={COLORS.MID_GRAY} />
-          <Text style={styles.txidText}>{formatAddress(item.txid)}</Text>
-        </View>
-      )}
-
-      <View style={styles.actionButtons}>
-        <TouchableScale
-          style={styles.actionButton}
-          onPress={(e) => {
-            e.stopPropagation();
-            handleViewQR(item);
-          }}
-        >
-          <Icon name="qr" size={18} color={COLORS.BRAND_PURPLE} />
-          <Text style={styles.actionButtonText}>QR Code</Text>
-        </TouchableScale>
-
-        <TouchableScale
-          style={styles.actionButton}
-          onPress={(e) => {
-            e.stopPropagation();
-            handleShareToken(item);
-          }}
-        >
-          <Icon name="share" size={18} color={COLORS.BRAND_PURPLE} />
-          <Text style={styles.actionButtonText}>Share</Text>
-        </TouchableScale>
-      </View>
-    </TouchableOpacity>
-  );
+  const keyExtractor = useCallback((item) => item.id, []);
 
   if (loading) {
     return (
       <View style={styles.container}>
         <View style={styles.header}>
-          <TouchableOpacity
-            style={styles.backButton}
-            onPress={() => navigation.goBack()}
-          >
+          <TouchableOpacity style={styles.backButton} onPress={() => navigation.goBack()}>
             <Icon name="arrow_left" size={24} color={COLORS.VERY_LIGHT_GRAY} />
           </TouchableOpacity>
           <Text style={styles.headerTitle}>Turbo History</Text>
@@ -230,10 +238,7 @@ export default function TurboHistoryScreen({ navigation }) {
   return (
     <View style={styles.container}>
       <View style={styles.header}>
-        <TouchableOpacity
-          style={styles.backButton}
-          onPress={() => navigation.goBack()}
-        >
+        <TouchableOpacity style={styles.backButton} onPress={() => navigation.goBack()}>
           <Icon name="arrow_left" size={24} color={COLORS.VERY_LIGHT_GRAY} />
         </TouchableOpacity>
         <Text style={styles.headerTitle}>Turbo History</Text>
@@ -244,22 +249,23 @@ export default function TurboHistoryScreen({ navigation }) {
         <View style={styles.centerContainer}>
           <Icon name="turbo" size={64} color={COLORS.MID_GRAY} />
           <Text style={styles.emptyText}>No Turbo tokens sent yet</Text>
-          <Text style={styles.emptySubtext}>
-            Locked tokens you send will appear here
-          </Text>
+          <Text style={styles.emptySubtext}>Locked tokens you send will appear here</Text>
         </View>
       ) : (
         <FlatList
           data={tokens}
           renderItem={renderToken}
-          keyExtractor={(item) => item.id}
+          keyExtractor={keyExtractor}
           contentContainerStyle={styles.listContent}
           onRefresh={handleRefresh}
           refreshing={refreshing}
+          initialNumToRender={10}
+          maxToRenderPerBatch={10}
+          windowSize={5}
+          removeClippedSubviews={true}
         />
       )}
 
-      {/* Token Details Sheet */}
       {selectedToken && (
         <TokenDetailsSheet
           visible={showTokenDetails}
@@ -267,7 +273,7 @@ export default function TurboHistoryScreen({ navigation }) {
           recipientAddress={selectedToken.recipient}
           shortUrl={selectedToken.shortUrl}
           cashuToken={selectedToken.token}
-          onCopy={handleCopyNotification}
+          onCopy={(msg) => showToast(msg, 'success')}
           advancedMode={true}
           claimed={selectedToken.claimed}
         />
@@ -275,121 +281,3 @@ export default function TurboHistoryScreen({ navigation }) {
     </View>
   );
 }
-
-const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-    backgroundColor: COLORS.DARK_BACKGROUND,
-  },
-  header: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    paddingHorizontal: 20,
-    paddingTop: 60,
-    paddingBottom: 20,
-  },
-  backButton: {
-    padding: 8,
-  },
-  headerTitle: {
-    fontSize: 20,
-    fontWeight: '600',
-    color: COLORS.VERY_LIGHT_GRAY,
-  },
-  placeholder: {
-    width: 40,
-  },
-  centerContainer: {
-    flex: 1,
-    justifyContent: 'center',
-    alignItems: 'center',
-    paddingHorizontal: 40,
-  },
-  emptyText: {
-    fontSize: 18,
-    fontWeight: '600',
-    color: COLORS.VERY_LIGHT_GRAY,
-    marginTop: 20,
-  },
-  emptySubtext: {
-    fontSize: 14,
-    color: COLORS.MID_GRAY,
-    marginTop: 8,
-    textAlign: 'center',
-  },
-  listContent: {
-    paddingHorizontal: 20,
-    paddingBottom: 20,
-  },
-  tokenCard: {
-    backgroundColor: COLORS.MID_DARK_GRAY,
-    borderRadius: 12,
-    padding: 16,
-    marginBottom: 12,
-  },
-  tokenHeader: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'flex-start',
-    marginBottom: 12,
-  },
-  tokenInfo: {
-    flex: 1,
-  },
-  amountText: {
-    fontSize: 20,
-    fontWeight: '700',
-    color: COLORS.BRAND_PURPLE,
-    marginBottom: 4,
-  },
-  dateText: {
-    fontSize: 12,
-    color: COLORS.MID_GRAY,
-  },
-  deleteButton: {
-    padding: 4,
-  },
-  recipientRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    marginBottom: 8,
-  },
-  recipientText: {
-    fontSize: 13,
-    color: COLORS.LIGHT_GRAY,
-    marginLeft: 8,
-    fontFamily: 'monospace',
-  },
-  txidRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    marginBottom: 12,
-  },
-  txidText: {
-    fontSize: 12,
-    color: COLORS.MID_GRAY,
-    marginLeft: 8,
-    fontFamily: 'monospace',
-  },
-  actionButtons: {
-    flexDirection: 'row',
-    gap: 12,
-    marginTop: 8,
-  },
-  actionButton: {
-    flex: 1,
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    backgroundColor: COLORS.DARK_BACKGROUND,
-    borderRadius: 8,
-    paddingVertical: 10,
-    gap: 6,
-  },
-  actionButtonText: {
-    fontSize: 14,
-    fontWeight: '600',
-    color: COLORS.BRAND_PURPLE,
-  },
-});

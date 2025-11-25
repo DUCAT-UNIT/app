@@ -4,7 +4,7 @@
  */
 
 import React, { useState } from 'react';
-import { View, Text, TextInput, TouchableOpacity, StyleSheet, Alert, ActivityIndicator } from 'react-native';
+import { Text, TextInput, TouchableOpacity, StyleSheet, Alert, ActivityIndicator } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { COLORS } from '../../theme';
 
@@ -21,7 +21,7 @@ export default function RecoverMintScreen({ navigation }) {
 
     setIsProcessing(true);
     try {
-      const { checkMintStatus, completeMint } = await import('../../services/cashu/cashuWalletService');
+      const { completeMint } = await import('../../services/cashu/cashuWalletService');
 
       // Check status and get the actual quote
       const { checkMintQuote } = await import('../../services/cashu/cashuMintClient');

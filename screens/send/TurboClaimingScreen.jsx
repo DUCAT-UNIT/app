@@ -7,13 +7,11 @@ import React, { useEffect, useState, useRef } from 'react';
 import { Text, View, ActivityIndicator, StyleSheet } from 'react-native';
 import { COLORS } from '../../theme';
 import { useWallet } from '../../contexts/WalletContext';
-import { useNotifications } from '../../hooks/useNotifications';
 import { logger } from '../../utils/logger';
 
 export default function TurboClaimingScreen({ navigation, route }) {
   const { tokenString } = route.params;
   const { wallet } = useWallet();
-  const { showSnackbar } = useNotifications();
   const [currentMessage, setCurrentMessage] = useState('Starting...');
   const [currentStep, setCurrentStep] = useState(0);
   const totalSteps = 3;
@@ -42,7 +40,7 @@ export default function TurboClaimingScreen({ navigation, route }) {
         setCurrentMessage('Validating token');
 
         // Check if token has P2PK-locked proofs
-        const { hasP2PKProofs } = await import('../../services/cashu/cashuP2PK');
+        const { hasP2PKProofs } = await import('../../services/cashu/p2pk');
         const hasP2PKProofs_result = hasP2PKProofs(tokenString);
 
         if (hasP2PKProofs_result) {
@@ -54,8 +52,8 @@ export default function TurboClaimingScreen({ navigation, route }) {
           logger.info('Token is P2PK-locked, extracting recipient pubkey');
 
           // Decode token to extract recipient pubkey
-          const { decodeToken } = await import('../../services/cashu/cashuCrypto');
-          const { getP2PKRecipient } = await import('../../services/cashu/cashuP2PK');
+          const { decodeToken } = await import('../../services/cashu/crypto');
+          const { getP2PKRecipient } = await import('../../services/cashu/p2pk');
 
           const decoded = decodeToken(tokenString);
           const proofs = decoded.proofs || decoded.token?.[0]?.proofs || [];
@@ -82,11 +80,11 @@ export default function TurboClaimingScreen({ navigation, route }) {
           }
 
           // Find which account owns this pubkey
-          const { findAccountForP2PKToken } = await import('../../services/cashu/cashuP2PK');
+          const { findAccountForP2PKToken } = await import('../../services/cashu/p2pk');
           const accountMatch = await findAccountForP2PKToken(
             recipientPubkey,
             50,
-            (accountIndex, total) => {
+            (accountIndex) => {
               // Update progress message as we check each account
               setCurrentMessage(`Checking account ${accountIndex + 1}...`);
             }
@@ -162,7 +160,7 @@ export default function TurboClaimingScreen({ navigation, route }) {
         clearTimeout(timeoutRef.current);
       }
     };
-  }, [navigation, tokenString, wallet?.taprootAddress, currentStep, currentMessage, showSnackbar]);
+  }, [navigation, tokenString, wallet?.taprootAddress, currentStep, currentMessage]);
 
   return (
     <View style={localStyles.container}>

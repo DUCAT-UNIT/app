@@ -16,483 +16,40 @@ import MutinynetBanner from '../components/MutinynetBanner';
 import { withErrorBoundary } from '../components/withErrorBoundary';
 import { COLORS } from '../theme';
 
+import { useAuth } from '../contexts/AuthContext';
+import { useWallet } from '../contexts/WalletContext';
+import { useBalance } from '../contexts/WalletDataContext';
+import { useNavigationHandlers } from '../contexts/NavigationHandlersContext';
+import { useNotifications } from '../contexts/NotificationContext';
+import { useNavigationState } from '../hooks/useNavigationState';
+import { useAppLifecycle } from '../hooks/useAppLifecycle';
+import { useOnboardingFlow } from '../contexts/AuthContext';
+import { useCashu } from '../contexts/CashuContext';
+
+import { createLinkingConfig } from '../services/turbo/turboLinkingConfig';
+import { useTurboTokenProcessor } from '../hooks/useTurboTokenProcessor';
+import { useTurboSnackbarQueue } from '../hooks/useTurboSnackbarQueue';
+
+const Stack = createStackNavigator();
+
 // Wrap PIN setup screen with error boundary
 const PinSetupScreen = withErrorBoundary(PinSetupScreenComponent, {
   boundaryName: 'PinSetupScreen',
   fallbackMessage: 'Unable to load PIN setup. Please restart the app.',
 });
-import { useAuth } from '../contexts/AuthContext';
-import { useWallet } from '../contexts/WalletContext';
-import { useBalance } from '../contexts/WalletDataContext';
-import { useNavigationHandlers } from '../contexts/NavigationHandlersContext';
-import { useNotifications } from "../contexts/NotificationContext";
-import { useNavigationState } from '../hooks/useNavigationState';
-import { useAppLifecycle } from '../hooks/useAppLifecycle';
-import { useOnboardingFlow } from '../contexts/AuthContext';
-import { useCashu } from '../contexts/CashuContext';
-import { Alert, Linking, AppState } from 'react-native';
-import { decodeCashuToken } from '../utils/emojiEncoder';
-import * as SecureStore from 'expo-secure-store';
-import * as Crypto from 'expo-crypto';
-import { logger } from '../utils/logger';
 
-const Stack = createStackNavigator();
-
-// Storage key for processed tokens
-const PROCESSED_TOKENS_KEY = 'processed_cashu_tokens';
-const MAX_STORED_TOKENS = 500; // Store up to 500 processed token hashes (hashes are small)
-
-// Helper function to hash a token for storage
-const hashToken = async (token) => {
-  try {
-    const hash = await Crypto.digestStringAsync(
-      Crypto.CryptoDigestAlgorithm.SHA256,
-      token
-    );
-    return hash;
-  } catch (error) {
-    logger.error('[TURBO] Failed to hash token:', { message: error.message });
-    // Fallback to storing first 64 chars if hashing fails
-    return token.substring(0, 64);
-  }
-};
-
-// Helper functions for persistent token tracking
-const loadProcessedTokens = async () => {
-  try {
-    const stored = await SecureStore.getItemAsync(PROCESSED_TOKENS_KEY);
-    if (stored) {
-      const tokens = JSON.parse(stored);
-      return new Set(tokens);
-    }
-  } catch (error) {
-    logger.error('[TURBO] Failed to load processed tokens:', { message: error.message });
-  }
-  return new Set();
-};
-
-const saveProcessedTokens = async (tokensSet) => {
-  try {
-    // Convert Set to Array and limit size
-    const tokensArray = Array.from(tokensSet).slice(-MAX_STORED_TOKENS);
-    await SecureStore.setItemAsync(PROCESSED_TOKENS_KEY, JSON.stringify(tokensArray));
-    logger.debug('[TURBO] Saved processed tokens to storage:', tokensArray.length);
-  } catch (error) {
-    logger.error('[TURBO] Failed to save processed tokens:', { message: error.message });
-  }
-};
-
-// Linking configuration for deep links
-const linking = {
-  prefixes: ['ducat://', 'https://ducatprotocol.com', 'https://www.ducatprotocol.com'],
-  config: {
-    screens: {
-      Main: {
-        screens: {
-          Wallet: {
-            path: 'wallet',
-          },
-        },
-      },
-      // These paths are handled by custom subscribe, not actual screens
-      // Just defining them so React Navigation doesn't throw errors
-      // Add a NotFound screen to catch unmatched paths
-      NotFound: '*',
-    },
-  },
-  // Subscribe to URL changes
-  subscribe(listener) {
-    // Initialize processed tokens set from persistent storage
-    if (typeof global !== 'undefined' && !global.processedCashuTokens) {
-      global.processedCashuTokensLoading = true;
-
-      // Load from storage asynchronously
-      loadProcessedTokens().then(tokensSet => {
-        global.processedCashuTokens = tokensSet;
-        global.processedCashuTokensLoading = false;
-        logger.debug('[TURBO] Loaded processed tokens from storage:', tokensSet.size);
-      }).catch(error => {
-        logger.error('[TURBO] Failed to load processed tokens, starting fresh:', { message: error.message });
-        global.processedCashuTokens = new Set();
-        global.processedCashuTokensLoading = false;
-      });
-    }
-
-    // NOTE: extractAndStoreToken is NO LONGER USED in subscribe()
-    // All token extraction is now handled in getStateFromPath()
-    // Keeping the function definition here would be dead code
-    const extractAndStoreToken = async (url) => {
-      if (url && (url.includes('receive?token=') || url.includes('turbo?token='))) {
-        logger.debug('[TURBO] Received deeplink:', url.substring(0, 50) + '...');
-
-        // Extract token parameter from URL
-        const tokenMatch = url.match(/[?&]token=([^&]+)/);
-        if (tokenMatch && tokenMatch[1]) {
-          let token = decodeURIComponent(tokenMatch[1]);
-
-          // If this is a turbo link, the token is emoji-encoded
-          if (url.includes('turbo?token=')) {
-            try {
-              token = decodeCashuToken(token);
-              logger.debug('[TURBO] Decoded emoji token');
-            } catch (error) {
-              logger.error('[TURBO] Failed to decode:', { message: error.message });
-              return;
-            }
-          }
-
-          if (typeof global !== 'undefined') {
-            // Wait for processed tokens to load from storage if still loading
-            if (global.processedCashuTokensLoading) {
-              logger.debug('[TURBO] Waiting for processed tokens to load from storage...');
-              // Retry after storage loads
-              setTimeout(() => extractAndStoreToken(url), 100);
-              return;
-            }
-
-            // Hash the token for duplicate checking
-            const tokenHash = await hashToken(token);
-
-            // Check if this token has already been processed or is currently pending
-            const isAlreadyProcessed = global.processedCashuTokens && global.processedCashuTokens.has(tokenHash);
-            const isCurrentlyPending = global.pendingCashuToken === token;
-
-            if (isAlreadyProcessed) {
-              logger.debug('[TURBO] Ignoring duplicate deeplink - token already processed (hash:', tokenHash.substring(0, 16) + '...)');
-              return;
-            }
-
-            if (isCurrentlyPending) {
-              logger.debug('[TURBO] Ignoring duplicate deeplink - same token already pending');
-              return;
-            }
-
-            // Store new token
-            global.pendingCashuToken = token;
-            logger.debug('[TURBO] Stored NEW token, hash:', tokenHash.substring(0, 16) + '...');
-            logger.debug('[TURBO] Token stored - will be processed after authentication by polling');
-
-            // Don't trigger immediately - let the polling pick it up after authentication
-            // This prevents processing before PIN/biometric is entered
-          }
-        }
-      }
-    };
-
-    // Listen for URL events - IMPORTANT: This WILL fire on iOS when coming from background!
-    const onReceiveURL = async (event) => {
-      const url = event?.url;
-      logger.debug('[TURBO] ========================================');
-      logger.debug('[TURBO] *** URL EVENT FIRED ***');
-      logger.debug('[TURBO] Full URL:', url);
-      logger.debug('[TURBO] URL length:', url?.length);
-      logger.debug('[TURBO] URL first 100 chars:', url ? url.substring(0, 100) : 'null');
-      logger.debug('[TURBO] ========================================');
-
-      // Process Turbo URLs: ducat://turbo/{base64} OR ducat://spectre/{base64} (legacy) OR https://ducatprotocol.com/unit?id=xyz123 OR https://ducatprotocol.com/unit?t=base64...
-      if (url && (url.includes('ducat://turbo/') || url.includes('ducat://spectre/') || url.includes('unit?'))) {
-        logger.debug('[TURBO] URL event contains Turbo URL - processing NOW');
-
-        let token = null;
-
-        // Check if this is the ducat://turbo/ or ducat://spectre/ (legacy) format
-        const turboMatch = url.match(/ducat:\/\/(?:turbo|spectre)\/([^\/?#]+)/);
-        if (turboMatch && turboMatch[1]) {
-          // The token is already in the correct format (cashuA...)
-          // No need to decode - just use it directly
-          token = turboMatch[1];
-          logger.debug('[TURBO] Extracted Cashu token from ducat:// URL, length:', token.length);
-          logger.debug('[TURBO] Token starts with:', token.substring(0, 20));
-        }
-        // Check if this is an ID-based link (token stored in Rebrandly)
-        else {
-          const idMatch = url.match(/[?&]id=([^&]+)/);
-          if (idMatch && idMatch[1]) {
-            const tokenId = idMatch[1];
-            logger.debug('[TURBO] URL contains Rebrandly token ID:', tokenId);
-
-            try {
-              const { fetchTokenFromRebrandly } = await import('../services/urlShortener');
-              token = await fetchTokenFromRebrandly(tokenId);
-
-              if (!token) {
-                logger.error('[TURBO] Failed to fetch token from Rebrandly');
-                return;
-              }
-
-              logger.debug('[TURBO] URL event: Fetched token from Rebrandly');
-              logger.debug('[TURBO] Token starts with:', token.substring(0, 20));
-            } catch (error) {
-              logger.error('[TURBO] URL event: Failed to fetch token from Rebrandly:', { message: error.message });
-              return;
-            }
-          }
-          // Check if this is a direct token link (fallback)
-          else {
-            const tokenMatch = url.match(/[?&]t=([^&]+)/);
-            if (!tokenMatch || !tokenMatch[1]) {
-              logger.error('[TURBO] URL event: No token or ID parameter found in URL');
-              return;
-            }
-
-            let base64Token = tokenMatch[1];
-            logger.debug('[TURBO] Extracted URL-safe base64 token, length:', base64Token.length);
-
-            try {
-              // Convert URL-safe base64 back to standard base64
-              base64Token = base64Token
-                .replace(/-/g, '+')
-                .replace(/_/g, '/');
-
-              // Add padding if needed
-              while (base64Token.length % 4) {
-                base64Token += '=';
-              }
-
-              // Decode base64 to get cashu token
-              token = atob(base64Token);
-              logger.debug('[TURBO] URL event: Decoded base64 to cashu token');
-              logger.debug('[TURBO] Decoded token starts with:', token.substring(0, 20));
-            } catch (error) {
-              logger.error('[TURBO] URL event: Failed to decode base64 token:', { message: error.message });
-              return;
-            }
-          }
-        }
-
-        if (!token) {
-          logger.error('[TURBO] URL event: No token extracted');
-          return;
-        }
-
-        try {
-
-          // Hash and check for duplicates
-          const tokenHash = await hashToken(token);
-          const isAlreadyProcessed = global.processedCashuTokens && global.processedCashuTokens.has(tokenHash);
-
-          // CRITICAL FIX: If we just resumed from background, SKIP duplicate check
-          // This allows NEW deeplinks to be processed when app comes from background
-          const skipDuplicateCheck = global.turboJustResumed === true;
-
-          if (skipDuplicateCheck) {
-            logger.debug('[TURBO] URL event: App just resumed - BYPASSING duplicate check for this token');
-            logger.debug('[TURBO] URL event: Token hash:', tokenHash.substring(0, 16) + '...');
-          } else if (isAlreadyProcessed) {
-            logger.debug('[TURBO] URL event: SKIPPING - token already processed (hash:', tokenHash.substring(0, 16) + '...)');
-            // Replace queue with only this snackbar (don't stack multiple)
-            global.pendingTurboSnackbars = [{
-              type: 'error',
-              action: 'claim',
-              description: 'Token already claimed',
-            }];
-            return;
-          }
-
-          // Store token for processing (if NOT already processed OR we just resumed)
-          logger.debug('[TURBO] URL event: Storing token, hash:', tokenHash.substring(0, 16) + '...');
-          logger.debug('[TURBO] URL event: skipDuplicateCheck:', skipDuplicateCheck, 'isAlreadyProcessed:', isAlreadyProcessed);
-          logger.debug('[TURBO] Token stored - will be processed after authentication by polling');
-          if (typeof global !== 'undefined') {
-            global.pendingCashuToken = token;
-
-            // Don't trigger immediately - let the polling pick it up after authentication
-          }
-        } catch (error) {
-          logger.error('[TURBO] URL event: Failed to decode base64 token:', { message: error.message });
-          return;
-        }
-      }
-    };
-
-    // REMOVED: getInitialURL() processing - it's now handled by getStateFromPath
-    // getInitialURL() always returns the same URL (the one that launched the app)
-    // and it was interfering with new deeplinks being processed by getStateFromPath
-    logger.debug('[TURBO] Skipping getInitialURL - all URL handling is done via getStateFromPath');
-
-    // Add event listener for URL changes (app is already open and deeplink is tapped)
-    logger.debug('[TURBO] About to register Linking.addEventListener...');
-    const subscription = Linking.addEventListener('url', onReceiveURL);
-    logger.debug('[TURBO] Linking.addEventListener registered, subscription:', !!subscription);
-
-    // WORKAROUND for iOS issue where url event doesn't fire when app is in background
-    // Listen to AppState changes and check for pending URLs
-    let appState = AppState.currentState;
-    logger.debug('[TURBO] Initial AppState:', appState);
-
-    // Track if we're coming from background - this is CRITICAL for iOS deeplink handling
-    let lastUrl = null;
-
-    const handleAppStateChange = async (nextAppState) => {
-      logger.debug('[TURBO] AppState change:', appState, '->', nextAppState);
-
-      // When app comes to foreground, force a fresh URL check
-      // iOS caches the path in React Navigation, so we need to bypass that cache
-      if (appState.match(/inactive|background/) && nextAppState === 'active') {
-        logger.debug('[TURBO] App became active from background - forcing fresh URL check');
-
-        // Set a flag that tells getStateFromPath to NOT skip processing
-        // This ensures NEW deeplinks are processed even if they look like duplicates
-        if (typeof global !== 'undefined') {
-          global.turboJustResumed = true;
-          logger.debug('[TURBO] Set turboJustResumed flag to force fresh processing');
-
-          // Clear the flag after a short delay
-          setTimeout(() => {
-            global.turboJustResumed = false;
-            logger.debug('[TURBO] Cleared turboJustResumed flag');
-          }, 2000);
-        }
-      }
-
-      appState = nextAppState;
-    };
-
-    const appStateSubscription = AppState.addEventListener('change', handleAppStateChange);
-    logger.debug('[TURBO] Registered AppState listener for URL handling');
-
-    return () => {
-      logger.debug('[TURBO] Linking subscribe cleanup called');
-      // DO NOT remove subscription - we need it to persist across app state changes
-      // Only remove the AppState listener
-      appStateSubscription.remove();
-      logger.debug('[TURBO] Removed AppState listener, but kept URL listener active');
-    };
-  },
-  // Custom function to intercept and handle special URLs before navigation
-  async getStateFromPath(path, options) {
-    logger.debug('[TURBO] getStateFromPath called');
-    logger.debug('[TURBO] Full path:', path);
-    logger.debug('[TURBO] Path length:', path?.length);
-    logger.debug('[TURBO] Path first 100 chars:', path ? path.substring(0, 100) : 'null');
-
-    // Check if this is a Turbo token URL: ducat://turbo/{base64} OR ducat://spectre/{base64} (legacy) OR https://ducatprotocol.com/unit?t=base64...
-    if (path && (path.includes('ducat://turbo/') || path.includes('ducat://spectre/') || (path.includes('unit?') && path.includes('t=')))) {
-      logger.debug('[TURBO] getStateFromPath detected token URL, processing...');
-
-      let token = null;
-
-      // Check if this is the ducat://turbo/ or ducat://spectre/ (legacy) format
-      const turboMatch = path.match(/ducat:\/\/(?:turbo|spectre)\/([^\/?#]+)/);
-      if (turboMatch && turboMatch[1]) {
-        let base64Token = turboMatch[1];
-        logger.debug('[TURBO] Extracted base64 token from ducat:// URL, length:', base64Token.length);
-
-        try {
-          // Convert URL-safe base64 back to standard base64
-          base64Token = base64Token
-            .replace(/-/g, '+')
-            .replace(/_/g, '/');
-
-          // Add padding if needed
-          while (base64Token.length % 4) {
-            base64Token += '=';
-          }
-
-          // Decode base64 to get cashu token
-          token = atob(base64Token);
-          logger.debug('[TURBO] getStateFromPath: Decoded base64 to cashu token');
-          logger.debug('[TURBO] Decoded token starts with:', token.substring(0, 20));
-        } catch (error) {
-          logger.error('[TURBO] getStateFromPath: Failed to decode base64 token:', { message: error.message });
-          return null;
-        }
-      }
-      // Fallback to old format: https://ducatprotocol.com/unit?t=base64...
-      else {
-        const tokenMatch = path.match(/[?&]t=([^&]+)/);
-        if (!tokenMatch || !tokenMatch[1]) {
-          logger.error('[TURBO] getStateFromPath: No token parameter found in URL');
-          return null;
-        }
-
-        let base64Token = tokenMatch[1];
-        logger.debug('[TURBO] Extracted URL-safe base64 token, length:', base64Token.length);
-
-        try {
-          // Convert URL-safe base64 back to standard base64
-          base64Token = base64Token
-            .replace(/-/g, '+')
-            .replace(/_/g, '/');
-
-          // Add padding if needed
-          while (base64Token.length % 4) {
-            base64Token += '=';
-          }
-
-          // Decode base64 to get cashu token
-          token = atob(base64Token);
-          logger.debug('[TURBO] getStateFromPath: Decoded base64 to cashu token');
-          logger.debug('[TURBO] Decoded token starts with:', token.substring(0, 20));
-        } catch (error) {
-          logger.error('[TURBO] getStateFromPath: Failed to decode base64 token:', { message: error.message });
-          return null;
-        }
-      }
-
-      if (token) {
-
-        // CRITICAL: Check if this token has already been processed
-        // Wait for storage to load if needed
-        if (typeof global !== 'undefined' && global.processedCashuTokensLoading) {
-          logger.debug('[TURBO] getStateFromPath: Waiting for processed tokens to load...');
-          // Wait up to 1 second for storage to load
-          let attempts = 0;
-          while (global.processedCashuTokensLoading && attempts < 10) {
-            await new Promise(resolve => setTimeout(resolve, 100));
-            attempts++;
-          }
-        }
-
-        // Hash and check if already processed
-        const tokenHash = await hashToken(token);
-        const isAlreadyProcessed = global.processedCashuTokens && global.processedCashuTokens.has(tokenHash);
-
-        // CRITICAL FIX: If we just resumed from background, SKIP duplicate check
-        // This allows NEW deeplinks to be processed when app comes from background
-        const skipDuplicateCheck = global.turboJustResumed === true;
-
-        if (skipDuplicateCheck) {
-          logger.debug('[TURBO] getStateFromPath: App just resumed - BYPASSING duplicate check for this token');
-          logger.debug('[TURBO] getStateFromPath: Token hash:', tokenHash.substring(0, 16) + '...');
-        } else if (isAlreadyProcessed) {
-          logger.debug('[TURBO] getStateFromPath: SKIPPING - token already processed (hash:', tokenHash.substring(0, 16) + '...)');
-          return null;
-        }
-
-        // Store in global for processing (if NOT already processed OR we just resumed)
-        if (typeof global !== 'undefined') {
-          logger.debug('[TURBO] getStateFromPath: Storing token in global.pendingCashuToken, hash:', tokenHash.substring(0, 16) + '...');
-          logger.debug('[TURBO] getStateFromPath: skipDuplicateCheck:', skipDuplicateCheck, 'isAlreadyProcessed:', isAlreadyProcessed);
-          logger.debug('[TURBO] Token stored - will be processed after authentication by polling');
-          global.pendingCashuToken = token;
-
-          // Don't trigger immediately - let the polling pick it up after authentication
-        }
-      }
-
-      // Return null to prevent navigation
-      return null;
-    }
-
-    // For other paths, use default behavior
-    return undefined;
-  },
-};
+// Create linking config once
+const linking = createLinkingConfig();
 
 export default function RootNavigator() {
-  // Determine navigation state
   const { shouldShowAuth, shouldShowPinOverlay } = useNavigationState();
 
-  // Get auth-specific data needed for PIN overlay
   const {
     isBiometricSupported,
     isAuthenticated,
     biometricEnabled,
     setIsAuthenticated,
     authenticateUser,
-    showPinEntry,
-    showBiometricPrompt,
   } = useAuth();
   const { wallet, switchAccount } = useWallet();
   const { seedConfirmedRef } = useOnboardingFlow();
@@ -500,317 +57,32 @@ export default function RootNavigator() {
   const { showToast, showSnackbar, dismissSnackbar } = useNotifications();
   const { receive, refresh: refreshCashu } = useCashu();
 
-  // Token verification loading state
-  const [isVerifyingToken, setIsVerifyingToken] = React.useState(false);
-  const [pendingSuccessMessage, setPendingSuccessMessage] = React.useState(null);
+  // Turbo token processing
+  const { isVerifyingToken } = useTurboTokenProcessor({
+    isAuthenticated,
+    shouldShowPinOverlay,
+    receive,
+    fetchBalance,
+    refreshCashu,
+    wallet,
+    showSnackbar,
+    dismissSnackbar,
+    switchAccount,
+  });
 
-  // Track if we just came from background and are waiting for auth
-  const [waitingForAuth, setWaitingForAuth] = React.useState(false);
+  // Turbo snackbar queue
+  useTurboSnackbarQueue({
+    isAuthenticated,
+    shouldShowPinOverlay,
+    showSnackbar,
+    dismissSnackbar,
+  });
 
-  // Debug: Log authentication state changes
-  React.useEffect(() => {
-    logger.debug('[TURBO AUTH] State changed:', {
-      isAuthenticated,
-      showPinEntry,
-      showBiometricPrompt,
-      waitingForAuth,
-      hasPendingToken: !!global.pendingCashuToken,
-    });
-  }, [isAuthenticated, showPinEntry, showBiometricPrompt, waitingForAuth]);
-
-  // Create wallet exists ref for useAppLifecycle
+  // Wallet exists ref for useAppLifecycle
   const walletExists = React.useRef(false);
   React.useEffect(() => {
     walletExists.current = !!wallet;
   }, [wallet]);
-
-  // Make showSnackbar available globally for URL event handlers
-  // Poll for queued snackbars to ensure they get shown
-  const lastShownSnackbarRef = React.useRef(null);
-  const lastShownTimeRef = React.useRef(0);
-  const checkQueuedSnackbarsRef = React.useRef(null);
-
-  // Wrapper to prevent duplicate snackbars within 3 seconds
-  const showSnackbarWithDedup = React.useCallback((snackbarParams) => {
-    const now = Date.now();
-    const lastShown = lastShownSnackbarRef.current;
-    const timeSinceLastShown = now - lastShownTimeRef.current;
-
-    // Check if this is identical to the last shown snackbar within 3 seconds
-    const isDuplicate = lastShown &&
-      lastShown.type === snackbarParams.type &&
-      lastShown.action === snackbarParams.action &&
-      lastShown.description === snackbarParams.description &&
-      timeSinceLastShown < 3000; // 3 seconds
-
-    if (isDuplicate) {
-      logger.debug('[TURBO] Blocking duplicate snackbar (shown', timeSinceLastShown, 'ms ago):', snackbarParams.description);
-      return;
-    }
-
-    logger.debug('[TURBO] Showing snackbar:', snackbarParams.description);
-    showSnackbar(snackbarParams);
-    lastShownSnackbarRef.current = snackbarParams;
-    lastShownTimeRef.current = now;
-  }, [showSnackbar]);
-
-  React.useEffect(() => {
-    // Don't show snackbars until authentication is complete
-    if (!isAuthenticated || shouldShowPinOverlay) {
-      logger.debug('[TURBO SNACKBAR] Not showing queued snackbars - waiting for auth');
-      return;
-    }
-
-    const checkQueuedSnackbars = () => {
-      // Show any queued snackbars (only after authentication)
-      if (global.pendingTurboSnackbars && global.pendingTurboSnackbars.length > 0) {
-        logger.debug('[TURBO SNACKBAR] Showing queued snackbar');
-        // Show only the last one to avoid spamming
-        const lastSnackbar = global.pendingTurboSnackbars[global.pendingTurboSnackbars.length - 1];
-        showSnackbarWithDedup(lastSnackbar);
-        // Clear the queue
-        global.pendingTurboSnackbars = [];
-      }
-    };
-
-    // Store in ref for external access
-    checkQueuedSnackbarsRef.current = checkQueuedSnackbars;
-
-    // Check immediately
-    checkQueuedSnackbars();
-
-    // Poll every 500ms to catch newly queued snackbars
-    const interval = setInterval(checkQueuedSnackbars, 500);
-
-    global.showTurboSnackbar = showSnackbarWithDedup;
-
-    // Wrap dismissSnackbar to clear queue
-    global.dismissTurboSnackbar = () => {
-      // Clear any queued snackbars
-      global.pendingTurboSnackbars = [];
-      // Reset tracking
-      lastShownSnackbarRef.current = null;
-      lastShownTimeRef.current = 0;
-      // Dismiss the current snackbar
-      dismissSnackbar();
-    };
-
-    return () => {
-      clearInterval(interval);
-      delete global.showTurboSnackbar;
-      delete global.dismissTurboSnackbar;
-    };
-  }, [isAuthenticated, shouldShowPinOverlay, showSnackbarWithDedup, dismissSnackbar]);
-
-  // Show success snackbar when loading finishes
-  React.useEffect(() => {
-    if (!isVerifyingToken && pendingSuccessMessage) {
-      logger.debug('[TURBO] Loading cleared, showing success snackbar');
-      showSnackbarWithDedup({
-        type: 'success',
-        action: 'claim',
-        description: pendingSuccessMessage,
-      });
-      setPendingSuccessMessage(null);
-    }
-  }, [isVerifyingToken, pendingSuccessMessage, showSnackbarWithDedup]);
-
-  // Check for pending token when authenticated - this runs after linking config stores token
-  const checkPendingTokenRef = React.useRef(null); // Store function ref so it can be called externally
-
-  React.useEffect(() => {
-    // Don't set up token checking until user is fully authenticated and PIN overlay is hidden
-    // This prevents any processing during app auto-lock/authentication flow
-    if (!isAuthenticated || shouldShowPinOverlay) {
-      logger.debug('[TURBO] Not ready for token check:', {
-        isAuthenticated,
-        shouldShowPinOverlay,
-      });
-      return;
-    }
-
-    const checkPendingToken = () => {
-      // Debug logging
-      if (global.pendingCashuToken) {
-        logger.debug('[TURBO] checkPendingToken: hasPendingToken=true, isAuthenticated=', isAuthenticated, 'shouldShowPinOverlay=', shouldShowPinOverlay, 'isVerifyingToken=', isVerifyingToken);
-      }
-
-      // Only process if authenticated, PIN overlay is hidden, there's a pending token, and we're not already verifying
-      // This check is needed because the function can be called directly via global.triggerPendingTokenCheck()
-      if (isAuthenticated && !shouldShowPinOverlay && global.pendingCashuToken && !isVerifyingToken) {
-        const token = global.pendingCashuToken;
-
-        logger.debug('[TURBO] Processing token:', token.substring(0, 30) + '...');
-
-        // Clear immediately to prevent re-processing
-        delete global.pendingCashuToken;
-
-        // Process the token
-        (async () => {
-          // Process the token with the mint
-          try {
-            setIsVerifyingToken(true);
-            const result = await receive(token);
-
-            // Format amount: keep 2 decimals
-            const amountDisplay = (result.amount).toFixed(2);
-            logger.debug('[TURBO] Success! Received:', amountDisplay, 'UNIT');
-
-            // Save received token to transaction history
-            try {
-              const { saveReceivedToken } = await import('../services/cashu/cashuLockedTokensService');
-              // Multiply amount by 100 for display units
-              await saveReceivedToken(token, 'Turbo Claim', result.amount * 100, wallet?.taprootAddress);
-              logger.debug('[TURBO] Saved received token to transaction history');
-            } catch (err) {
-              logger.warn('[TURBO] Failed to save received token to history:', { message: err.message });
-            }
-
-            // Mark as processed asynchronously (don't block the success flow)
-            if (global.processedCashuTokens) {
-              (async () => {
-                try {
-                  const tokenHash = await hashToken(token);
-                  global.processedCashuTokens.add(tokenHash);
-                  logger.debug('[TURBO] Marked token as processed. Total processed:', global.processedCashuTokens.size);
-
-                  // Save to persistent storage asynchronously
-                  await saveProcessedTokens(global.processedCashuTokens);
-                } catch (error) {
-                  logger.error('[TURBO] Failed to mark token as processed:', { message: error.message });
-                }
-              })();
-            }
-
-            // Set pending message - will show when loading clears
-            setPendingSuccessMessage(`Successfully received ${amountDisplay} UNIT`);
-
-            // Refresh balance and wallet state to show the new transaction
-            logger.debug('[TURBO] Refreshing balance and wallet after successful claim');
-            await fetchBalance();
-            await refreshCashu();
-
-            // Wait a bit for balances to update, then trigger full UI refresh
-            setTimeout(() => {
-              logger.debug('[TURBO] Triggering full wallet UI refresh');
-              if (global.reloadWallet) {
-                global.reloadWallet();
-              }
-            }, 1000);
-
-            // Clear loading state - this will trigger the success snackbar
-            setIsVerifyingToken(false);
-          } catch (error) {
-            logger.error('[TURBO] Failed:', { message: error.message });
-
-            setIsVerifyingToken(false);
-
-            // Check for specific error messages
-            let errorMessage = error.message || 'Failed to receive token';
-            let snackbarConfig = {
-              type: 'error',
-              action: 'claim',
-              description: errorMessage,
-            };
-
-            if (errorMessage.includes('already spent') || errorMessage.includes('already been spent')) {
-              snackbarConfig.description = 'Token already claimed';
-            } else if (errorMessage.includes('P2PK verification failed')) {
-              // Show detailed P2PK error with diagnostics
-              snackbarConfig.description = errorMessage; // Now includes diagnostics
-              snackbarConfig.duration = 8000; // Show longer for detailed errors
-            } else if (errorMessage.includes('Swap failed')) {
-              // Show detailed swap error
-              snackbarConfig.description = errorMessage;
-              snackbarConfig.duration = 8000;
-            } else if (errorMessage.includes('This proof belongs to account')) {
-              // Extract account number from error message
-              const accountMatch = errorMessage.match(/account (\d+)/);
-              if (accountMatch) {
-                const targetAccount = parseInt(accountMatch[1], 10);
-                const targetAccountIndex = targetAccount - 1; // Convert from 1-based to 0-based
-
-                // Store the token so we can retry after account switch
-                const tokenToRetry = token;
-
-                snackbarConfig.description = errorMessage;
-                snackbarConfig.persistent = true; // Don't auto-dismiss
-                snackbarConfig.actionLabel = `Switch & Claim`;
-                snackbarConfig.onAction = async () => {
-                  try {
-                    logger.debug('[TURBO] ========================================');
-                    logger.debug('[TURBO] Switch & Claim button clicked!');
-                    logger.debug('[TURBO] Target account:', targetAccountIndex);
-                    logger.debug('[TURBO] Token to retry length:', tokenToRetry?.length);
-                    logger.debug('[TURBO] ========================================');
-
-                    // Dismiss the error snackbar immediately
-                    logger.debug('[TURBO] Dismissing snackbar...');
-                    dismissSnackbar();
-
-                    // Switch to the correct account
-                    logger.debug('[TURBO] Switching account...');
-                    await switchAccount(targetAccountIndex);
-                    logger.debug('[TURBO] Account switched successfully');
-
-                    // Reload the app state
-                    if (global.reloadWallet) {
-                      logger.debug('[TURBO] Reloading wallet...');
-                      global.reloadWallet();
-                    }
-
-                    // Wait for wallet to fully reload and settle after account switch
-                    logger.debug('[TURBO] Waiting for wallet to fully reload...');
-                    await new Promise(resolve => setTimeout(resolve, 1000));
-
-                    // Restore the token - it will be processed after wallet is ready
-                    logger.debug('[TURBO] Restoring token for processing...');
-                    global.pendingCashuToken = tokenToRetry;
-
-                    // The checkPendingToken polling will pick it up
-
-                  } catch (err) {
-                    logger.error('[TURBO] Failed to switch account:', err);
-                    showSnackbar({
-                      type: 'error',
-                      action: 'switch',
-                      description: 'Failed to switch account',
-                    });
-                  }
-                };
-              }
-            }
-
-            // Replace queue with only this snackbar (don't stack multiple)
-            global.pendingTurboSnackbars = [snackbarConfig];
-          }
-        })();
-      }
-    };
-
-    // Store in ref so it can be called from linking subscribe
-    checkPendingTokenRef.current = checkPendingToken;
-
-    // Check immediately
-    checkPendingToken();
-
-    // Poll every 500ms to catch tokens that arrive while app is open
-    const interval = setInterval(checkPendingToken, 500);
-
-    return () => {
-      clearInterval(interval);
-    };
-  }, [isAuthenticated, shouldShowPinOverlay, receive, isVerifyingToken]);
-
-  // Expose checkPendingToken globally so linking config can trigger it
-  React.useEffect(() => {
-    if (checkPendingTokenRef.current) {
-      global.triggerPendingTokenCheck = checkPendingTokenRef.current;
-    }
-    return () => {
-      delete global.triggerPendingTokenCheck;
-    };
-  }, []);
 
   // Handle lock/unlock
   const handleLock = React.useCallback(() => {
@@ -844,13 +116,12 @@ export default function RootNavigator() {
 
   return (
     <View
-      style={{ flex: 1 }}
+      style={styles.container}
       onStartShouldSetResponder={() => {
-        // Reset inactivity timer on any touch
         if (isAuthenticated) {
           resetInactivityTimer();
         }
-        return false; // Don't capture the touch, let it propagate
+        return false;
       }}
     >
       <NavigationContainer linking={linking}>
@@ -858,7 +129,7 @@ export default function RootNavigator() {
           screenOptions={{
             headerShown: false,
             cardStyle: { backgroundColor: COLORS.DARK_BG },
-            animationEnabled: false, // Disable animation for root-level switches
+            animationEnabled: false,
           }}
         >
           {shouldShowAuth ? (
@@ -878,48 +149,51 @@ export default function RootNavigator() {
           )}
         </Stack.Navigator>
 
-      {/* PIN Change Overlay - shown on top of main app */}
-      {shouldShowPinOverlay && (
-        <View style={localStyles.pinOverlay}>
-          <MutinynetBanner />
-          <PinSetupScreen
-            changingPin={true}
-            isBiometricSupported={isBiometricSupported}
-            onPinSetupComplete={handlePinSetupCompleteWrapper}
-            onPinChangeComplete={handlePinChangeCompleteWrapper}
-            onCancel={handleCancelPinChange}
-            fetchBalance={fetchBalance}
+        {/* PIN Change Overlay */}
+        {shouldShowPinOverlay && (
+          <View style={styles.pinOverlay}>
+            <MutinynetBanner />
+            <PinSetupScreen
+              changingPin={true}
+              isBiometricSupported={isBiometricSupported}
+              onPinSetupComplete={handlePinSetupCompleteWrapper}
+              onPinChangeComplete={handlePinChangeCompleteWrapper}
+              onCancel={handleCancelPinChange}
+              fetchBalance={fetchBalance}
+              showToast={showToast}
+            />
+          </View>
+        )}
+
+        {/* Passkey Migration Modal */}
+        {showPasskeyMigrationModal && passkeyMigrationData && (
+          <PasskeyMigrationModal
+            visible={showPasskeyMigrationModal}
+            onClose={hidePasskeyMigrationPrompt}
+            mnemonic={passkeyMigrationData.mnemonic}
+            currentPin={passkeyMigrationData.pin}
             showToast={showToast}
           />
-        </View>
-      )}
+        )}
 
-      {/* Passkey Migration Modal - shown after wallet import */}
-      {showPasskeyMigrationModal && passkeyMigrationData && (
-        <PasskeyMigrationModal
-          visible={showPasskeyMigrationModal}
-          onClose={hidePasskeyMigrationPrompt}
-          mnemonic={passkeyMigrationData.mnemonic}
-          currentPin={passkeyMigrationData.pin}
-          showToast={showToast}
-        />
-      )}
-
-      {/* Token Verification Loading Overlay */}
-      {isVerifyingToken && (
-        <View style={localStyles.loadingOverlay}>
-          <View style={localStyles.loadingContainer}>
-            <ActivityIndicator size="large" color={COLORS.PRIMARY_BLUE} />
-            <Text style={localStyles.loadingText}>Claiming Turbo transaction</Text>
+        {/* Token Verification Loading Overlay */}
+        {isVerifyingToken && (
+          <View style={styles.loadingOverlay}>
+            <View style={styles.loadingContainer}>
+              <ActivityIndicator size="large" color={COLORS.PRIMARY_BLUE} />
+              <Text style={styles.loadingText}>Claiming Turbo transaction</Text>
+            </View>
           </View>
-        </View>
-      )}
-    </NavigationContainer>
+        )}
+      </NavigationContainer>
     </View>
   );
 }
 
-const localStyles = StyleSheet.create({
+const styles = StyleSheet.create({
+  container: {
+    flex: 1,
+  },
   pinOverlay: {
     position: 'absolute',
     top: 0,

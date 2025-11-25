@@ -11,14 +11,12 @@ import { useSendFlow } from '../../contexts/SendFlowContext';
 import { useTransactionBuild } from '../../contexts/TransactionBuildContext';
 import { useTransactionExecution } from '../../contexts/TransactionExecutionContext';
 import { useNotifications } from "../../contexts/NotificationContext";
-import { useWallet } from '../../contexts/WalletContext';
-import { useCashu } from '../../contexts/CashuContext';
 import { logger } from '../../utils/logger';
 
 export default function ProcessingScreen({ navigation, route }) {
-  const { sendAssetType, sendAmount, sendRecipient, intentStep, setSendAssetType, setSendAmount, setSendRecipient, setIntentStep } = useSendFlow();
+  const { sendAssetType, sendAmount, sendRecipient, intentStep, setSendAssetType, setSendAmount, setSendRecipient, _setIntentStep } = useSendFlow();
   const { createSendIntent, sendIntent } = useTransactionBuild();
-  const { signIntent, broadcastedTxid } = useTransactionExecution();
+  const { signIntent } = useTransactionExecution();
   const { showSnackbar } = useNotifications();
   const [loadingMessageIndex, setLoadingMessageIndex] = useState(0);
   const hasStarted = useRef(false);

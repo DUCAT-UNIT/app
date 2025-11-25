@@ -142,6 +142,57 @@ describe('PendingTransactionsContext', () => {
     expect(result.current.pendingTransactions[txid].status).toBe('invalid');
   });
 
+  it('should show snackbar when invalidating transaction and use swap action for UNIT', async () => {
+    const wrapper = ({ children }) => (
+      <PendingTransactionsProvider currentAccount={mockCurrentAccount} showSnackbar={mockShowSnackbar}>
+        {children}
+      </PendingTransactionsProvider>
+    );
+    const { result } = renderHook(() => usePendingTransactions(), { wrapper });
+
+    const txid = 'test_unit_txid';
+    await act(async () => {
+      await result.current.addPendingTransaction(txid, [], 'UNIT');
+    });
+
+    await act(async () => {
+      await result.current.invalidateTransaction(txid, 'Transaction failed');
+    });
+
+    expect(mockShowSnackbar).toHaveBeenCalledWith(
+      expect.objectContaining({
+        type: 'error',
+        action: 'swap',
+        description: expect.stringContaining('invalidated'),
+      })
+    );
+  });
+
+  it('should use withdraw action when invalidating BTC transaction', async () => {
+    const wrapper = ({ children }) => (
+      <PendingTransactionsProvider currentAccount={mockCurrentAccount} showSnackbar={mockShowSnackbar}>
+        {children}
+      </PendingTransactionsProvider>
+    );
+    const { result } = renderHook(() => usePendingTransactions(), { wrapper });
+
+    const txid = 'test_btc_txid';
+    await act(async () => {
+      await result.current.addPendingTransaction(txid, [], 'BTC');
+    });
+
+    await act(async () => {
+      await result.current.invalidateTransaction(txid, 'Transaction failed');
+    });
+
+    expect(mockShowSnackbar).toHaveBeenCalledWith(
+      expect.objectContaining({
+        type: 'error',
+        action: 'withdraw',
+      })
+    );
+  });
+
   it('should invalidate child transactions', async () => {
     const wrapper = ({ children }) => (
       <PendingTransactionsProvider currentAccount={mockCurrentAccount} showSnackbar={mockShowSnackbar}>
@@ -417,6 +468,37 @@ describe('PendingTransactionsContext', () => {
 
       // spentUtxos is not exposed, test indirectly via getUnconfirmedUTXOs
       expect(result.current.markUtxosAsSpent).toBeDefined();
+    });
+
+    it('should unmark UTXOs as spent', async () => {
+      const wrapper = ({ children }) => (
+        <PendingTransactionsProvider currentAccount={mockCurrentAccount} showSnackbar={mockShowSnackbar}>
+          {children}
+        </PendingTransactionsProvider>
+      );
+      const { result } = renderHook(() => usePendingTransactions(), { wrapper });
+
+      // First mark some UTXOs as spent
+      await act(async () => {
+        await result.current.markUtxosAsSpent([
+          { txid: 'tx1', vout: 0 },
+          { txid: 'tx2', vout: 1 },
+        ]);
+      });
+
+      expect(result.current.isUtxoSpent('tx1', 0)).toBe(true);
+      expect(result.current.isUtxoSpent('tx2', 1)).toBe(true);
+
+      // Then unmark them
+      await act(async () => {
+        await result.current.unmarkUtxosAsSpent([
+          { txid: 'tx1', vout: 0 },
+        ]);
+      });
+
+      // tx1:0 should no longer be spent, tx2:1 should still be spent
+      expect(result.current.isUtxoSpent('tx1', 0)).toBe(false);
+      expect(result.current.isUtxoSpent('tx2', 1)).toBe(true);
     });
   });
 

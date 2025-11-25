@@ -22,7 +22,7 @@ const ReceiveScreen = React.memo(function ReceiveScreen({
   autoOpenQR = false,
   preSelectedAddress = null,
   preSelectedType = null,
-  dismissQRClosesSheet = true, // If false, dismissing QR just closes the QR, not the entire sheet
+  dismissQRClosesSheet: _dismissQRClosesSheet = true, // If false, dismissing QR just closes the QR, not the entire sheet
 }) {
   const [showQrModal, setShowQrModal] = useState(false);
   const [selectedAddress, setSelectedAddress] = useState(null);

@@ -176,7 +176,7 @@ Sentry.init({
 // Inner component to access wallet and notification contexts
 function AppProviders({ children }) {
   const { currentAccount } = useWallet();
-  const { showToast, showSnackbar } = useNotifications();
+  const { showSnackbar } = useNotifications();
 
   return (
     <PendingTransactionsProvider currentAccount={currentAccount} showSnackbar={showSnackbar}>

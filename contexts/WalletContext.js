@@ -62,7 +62,7 @@ export const WalletProvider = ({ children }) => {
 
     // Clear P2PK cache on wallet reset
     try {
-      const { clearP2PKCache } = await import('../services/cashu/cashuP2PK.js');
+      const { clearP2PKCache } = await import('../services/cashu/p2pk');
       await clearP2PKCache();
     } catch (error) {
       logger.warn('[WalletContext] Failed to clear P2PK cache on reset:', error.message);
@@ -89,7 +89,7 @@ export const WalletProvider = ({ children }) => {
 
       // Clear P2PK cache since private key is different for new account
       try {
-        const { clearP2PKCache } = await import('../services/cashu/cashuP2PK.js');
+        const { clearP2PKCache } = await import('../services/cashu/p2pk');
         await clearP2PKCache();
       } catch (error) {
         logger.warn('[WalletContext] Failed to clear P2PK cache:', error.message);

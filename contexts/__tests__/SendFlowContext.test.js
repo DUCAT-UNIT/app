@@ -6,6 +6,13 @@ import React from 'react';
 import { create, act } from 'react-test-renderer';
 import { SendFlowProvider, useSendFlow } from '../SendFlowContext';
 
+// Mock logger
+jest.mock('../../utils/logger', () => ({
+  logger: {
+    debug: jest.fn(),
+  },
+}));
+
 // Helper to render hooks with react-test-renderer
 function renderHook(hook, { wrapper: Wrapper } = {}) {
   const result = { current: null };
@@ -219,5 +226,44 @@ describe('SendFlowContext', () => {
     });
 
     // No assertion needed - we're just testing that unmount cleanup works
+  });
+
+  it('should reset all send flow state', () => {
+    const wrapper = ({ children }) => <SendFlowProvider>{children}</SendFlowProvider>;
+    const { result } = renderHook(() => useSendFlow(), { wrapper });
+
+    // Set up transaction data
+    act(() => {
+      result.current.setIntentStep('reviewing');
+      result.current.setSendAssetType('btc');
+      result.current.setSendAmount('0.001');
+      result.current.setSendRecipient('bc1qrecipient');
+      result.current.setSendAddressType('segwit');
+      result.current.setRequireConfirmedUtxos(true);
+      result.current.setTurboEnabled(true);
+    });
+
+    // Verify state was set
+    expect(result.current.intentStep).toBe('reviewing');
+    expect(result.current.sendAssetType).toBe('btc');
+    expect(result.current.sendAmount).toBe('0.001');
+    expect(result.current.sendRecipient).toBe('bc1qrecipient');
+    expect(result.current.sendAddressType).toBe('segwit');
+    expect(result.current.requireConfirmedUtxos).toBe(true);
+    expect(result.current.turboEnabled).toBe(true);
+
+    // Reset all state
+    act(() => {
+      result.current.resetSendFlow();
+    });
+
+    // All state should be reset to initial values
+    expect(result.current.intentStep).toBe('idle');
+    expect(result.current.sendAssetType).toBe(null);
+    expect(result.current.sendAmount).toBe('');
+    expect(result.current.sendRecipient).toBe('');
+    expect(result.current.sendAddressType).toBe('taproot');
+    expect(result.current.requireConfirmedUtxos).toBe(false);
+    expect(result.current.turboEnabled).toBe(false);
   });
 });

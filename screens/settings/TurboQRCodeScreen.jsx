@@ -2,7 +2,7 @@
  * TurboQRCodeScreen - Display QR code for a Turbo token
  */
 
-import React, { useState, useMemo } from 'react';
+import React, { useState } from 'react';
 import {
   View,
   Text,
@@ -231,26 +231,6 @@ const styles = StyleSheet.create({
     fontFamily: 'CabinetGrotesk-Regular',
     color: COLORS.VERY_LIGHT_GRAY,
     lineHeight: 20,
-  },
-  deeplinkContainer: {
-    width: '100%',
-    backgroundColor: COLORS.CARD_BG,
-    borderRadius: 12,
-    padding: SCREEN_WIDTH < 375 ? 12 : 16,
-    marginBottom: SCREEN_WIDTH < 375 ? 16 : 32,
-  },
-  deeplinkLabel: {
-    fontSize: 12,
-    fontFamily: 'CabinetGrotesk-Medium',
-    color: COLORS.SECONDARY_TEXT,
-    fontWeight: '600',
-    marginBottom: 8,
-  },
-  deeplinkText: {
-    fontSize: 13,
-    fontFamily: 'CabinetGrotesk-Regular',
-    color: COLORS.VERY_LIGHT_GRAY,
-    lineHeight: 18,
   },
   shareButton: {
     width: '100%',
