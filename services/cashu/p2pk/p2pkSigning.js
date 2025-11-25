@@ -15,12 +15,26 @@ import { isP2PKLocked } from './p2pkVerification';
  * @returns {Promise<string>} P2PK witness (serialized JSON)
  */
 export const signP2PKSecret = async (secret, privateKey) => {
+  // Parse secret to extract P2PK details for debugging
+  let secretParsed = null;
+  let expectedPubkey = null;
+  try {
+    secretParsed = JSON.parse(secret);
+    if (Array.isArray(secretParsed) && secretParsed[0] === 'P2PK') {
+      expectedPubkey = secretParsed[1]?.data;
+    }
+  } catch (e) {
+    // Ignore parse errors
+  }
+
   logger.cashu('p2pk_sign_start', {
     step: 'SIGNING',
     secretLength: secret?.length,
     secretPreview: secret?.substring(0, 40) + '...',
     privateKeyLength: privateKey?.length,
     privateKeyType: typeof privateKey,
+    expectedPubkey: expectedPubkey ? expectedPubkey : 'UNKNOWN',
+    expectedPubkeyLength: expectedPubkey?.length,
   });
 
   try {
@@ -31,13 +45,36 @@ export const signP2PKSecret = async (secret, privateKey) => {
     logger.cashu('p2pk_message_hashed', {
       step: 'SIGNING',
       messageHashLength: messageHash.length,
-      messageHashHex: Buffer.from(messageHash).toString('hex').substring(0, 16) + '...',
+      messageHashHex: Buffer.from(messageHash).toString('hex'),
     });
 
     // Convert private key to Buffer if needed
     const privateKeyBuffer = typeof privateKey === 'string'
       ? Buffer.from(privateKey, 'hex')
       : privateKey;
+
+    // Derive public key from private key for debugging comparison
+    let derivedPubkey = null;
+    try {
+      const pubkeyFull = ecc.pointFromScalar(privateKeyBuffer);
+      if (pubkeyFull) {
+        // Get x-only pubkey (32 bytes) for Schnorr - remove the 02/03 prefix
+        derivedPubkey = Buffer.from(pubkeyFull).slice(1).toString('hex');
+      }
+    } catch (e) {
+      logger.cashu('p2pk_pubkey_derivation_failed', {
+        step: 'SIGNING',
+        error: e.message,
+      });
+    }
+
+    logger.cashu('p2pk_key_comparison', {
+      step: 'SIGNING',
+      expectedPubkey: expectedPubkey || 'NOT_FOUND_IN_SECRET',
+      derivedPubkey: derivedPubkey || 'DERIVATION_FAILED',
+      pubkeysMatch: expectedPubkey && derivedPubkey ? expectedPubkey === derivedPubkey : 'CANNOT_COMPARE',
+      privateKeyFirst8: typeof privateKey === 'string' ? privateKey.substring(0, 8) + '...' : 'BUFFER',
+    });
 
     // Ensure both are proper Buffers and correct length
     if (messageHash.length !== 32) {
@@ -66,7 +103,9 @@ export const signP2PKSecret = async (secret, privateKey) => {
     logger.cashu('p2pk_signature_created', {
       step: 'SIGNING',
       signatureLength: signatureHex.length,
-      signaturePreview: signatureHex.substring(0, 32) + '...',
+      signatureFull: signatureHex,
+      expectedPubkey: expectedPubkey || 'UNKNOWN',
+      derivedPubkey: derivedPubkey || 'UNKNOWN',
     });
 
     // Create witness structure

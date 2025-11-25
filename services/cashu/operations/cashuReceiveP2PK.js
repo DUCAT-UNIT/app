@@ -159,6 +159,37 @@ export const receiveP2PKToken = async (tokenString, privateKey, onProgress) => {
       inputProofs: signedProofs.length,
       outputCount: outputs.length,
     });
+
+    // Log detailed proof info for debugging signature issues
+    signedProofs.forEach((proof, idx) => {
+      let secretParsed = null;
+      let lockedToPubkey = null;
+      try {
+        secretParsed = JSON.parse(proof.secret);
+        if (Array.isArray(secretParsed) && secretParsed[0] === 'P2PK') {
+          lockedToPubkey = secretParsed[1]?.data;
+        }
+      } catch (e) { /* ignore */ }
+
+      let witnessSignature = null;
+      try {
+        if (proof.witness) {
+          const witnessParsed = JSON.parse(proof.witness);
+          witnessSignature = witnessParsed.signatures?.[0];
+        }
+      } catch (e) { /* ignore */ }
+
+      logger.cashu('p2pk_swap_proof_detail', {
+        step: 'RECEIVE',
+        proofIndex: idx,
+        amount: proof.amount,
+        lockedToPubkey: lockedToPubkey || 'NOT_P2PK',
+        hasWitness: !!proof.witness,
+        witnessSignature: witnessSignature || 'NO_SIGNATURE',
+        secretFull: proof.secret,
+      });
+    });
+
     const response = await swapTokensAPI(signedProofs, outputs);
 
     logger.cashu('p2pk_swap_response', {
@@ -201,10 +232,28 @@ export const receiveP2PKToken = async (tokenString, privateKey, onProgress) => {
       proofCount: newProofs.length,
     };
   } catch (error) {
+    // Derive pubkey from private key for error logging
+    let derivedPubkeyForError = null;
+    try {
+      const ecc = require('@bitcoinerlab/secp256k1');
+      const { Buffer } = require('buffer');
+      if (privateKey && typeof privateKey === 'string' && privateKey.length === 64) {
+        const privateKeyBuffer = Buffer.from(privateKey, 'hex');
+        const pubkeyFull = ecc.pointFromScalar(privateKeyBuffer);
+        if (pubkeyFull) {
+          derivedPubkeyForError = Buffer.from(pubkeyFull).slice(1).toString('hex');
+        }
+      }
+    } catch (e) { /* ignore derivation errors */ }
+
     logger.cashu('p2pk_receive_error', {
       step: 'RECEIVE',
       error: error.message,
       stack: error.stack?.substring(0, 200),
+      derivedPubkey: derivedPubkeyForError || 'COULD_NOT_DERIVE',
+      privateKeyLength: privateKey?.length,
+      privateKeyType: typeof privateKey,
+      hint: 'If signature mismatch, compare derivedPubkey with lockedToPubkey in p2pk_swap_proof_detail logs',
     });
     txn.finish('error');
     logger.error('Failed to receive P2PK token', {
@@ -212,6 +261,7 @@ export const receiveP2PKToken = async (tokenString, privateKey, onProgress) => {
       stack: error.stack,
       privateKeyLength: privateKey?.length,
       privateKeyType: typeof privateKey,
+      derivedPubkey: derivedPubkeyForError,
     });
 
     // Enhanced error message with diagnostic info
