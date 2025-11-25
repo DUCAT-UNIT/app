@@ -34,6 +34,9 @@ jest.mock('../../services/sentryService', () => ({
   },
 }));
 
+// Store original __DEV__ value
+const originalDev = global.__DEV__;
+
 describe('logger', () => {
   let logger;
   let sentryService;
@@ -44,7 +47,10 @@ describe('logger', () => {
   beforeEach(() => {
     jest.clearAllMocks();
 
-    // Import after mocks are set up
+    // Reset to dev mode by default
+    global.__DEV__ = true;
+
+    // Import logger (module reuse - __DEV__ is checked at runtime for most methods)
     logger = require('../logger').logger;
     sentryService = require('../../services/sentryService').default;
 
@@ -58,6 +64,7 @@ describe('logger', () => {
     consoleLogSpy.mockRestore();
     consoleWarnSpy.mockRestore();
     consoleErrorSpy.mockRestore();
+    global.__DEV__ = originalDev;
   });
 
   describe('debug', () => {
@@ -385,6 +392,40 @@ describe('logger', () => {
       expect(sentryService.setTag).toHaveBeenCalledWith(
         'environment',
         'test'
+      );
+    });
+  });
+
+  describe('edge cases', () => {
+    it('should handle debug with non-object args', () => {
+      logger.debug('Test', 'string', 123, true);
+
+      expect(Sentry.addBreadcrumb).toHaveBeenCalledWith(
+        expect.objectContaining({
+          data: { args: ['string', 123, true] },
+        })
+      );
+    });
+
+    it('should handle transaction finish with error status', () => {
+      const transaction = logger.startTransaction('test_op');
+      transaction.finish('error');
+
+      expect(Sentry.addBreadcrumb).toHaveBeenCalledWith(
+        expect.objectContaining({
+          level: 'warning',
+        })
+      );
+    });
+
+    it('should handle api call without duration', () => {
+      logger.api('/test', 'GET', 200);
+
+      expect(sentryService.trackApiCall).toHaveBeenCalledWith(
+        '/test',
+        'GET',
+        200,
+        null
       );
     });
   });
