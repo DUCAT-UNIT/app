@@ -140,8 +140,16 @@ export const WalletDataProvider = ({ children }) => {
                (prevWallet.segwitAddress !== wallet.segwitAddress ||
                 prevWallet.taprootAddress !== wallet.taprootAddress ||
                 prevWallet.taprootPubkey !== wallet.taprootPubkey)) {
-      // Wallet changed (account switch) - reset flag and fetch balances first
+      // Wallet changed (account switch) - reset ALL data immediately, then fetch fresh
+      logger.info('[WalletDataContext] Account switch detected - resetting all data');
       initialBalancesLoadedRef.current = false;
+
+      // Reset all data to show loading states (prevents showing stale data)
+      balance.resetBalances();
+      history.resetTransactionHistory();
+      vault.resetVaultData();
+
+      // Now fetch fresh data for new account
       balance.fetchBalance();
       vault.fetchVault();
       // Transaction history will be fetched by pollAllData once balances load

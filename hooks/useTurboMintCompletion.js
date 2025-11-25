@@ -87,7 +87,7 @@ export function useTurboMintCompletion({
               const { sendP2PKToken } = await import('../services/cashu/operations/cashuSendP2PK');
               const { extractPubkeyFromAddress } = await import('../utils/bitcoin');
               const { storeSentP2PKToken } = await import('../services/cashu/cashuLockedTokensService');
-              const { generateShortToken } = await import('../services/cashu/shortTokenService');
+              const { shortenCashuToken } = await import('../services/urlShortener');
 
               // Extract pubkey from P2TR address
               const recipientPubkey = extractPubkeyFromAddress(turboRecipient);
@@ -103,7 +103,7 @@ export function useTurboMintCompletion({
               logger.debug('[useTurboMintCompletion] 🎫 P2PK token created:', token?.substring(0, 50));
 
               // Generate shortened URL for the token
-              const shortUrl = await generateShortToken(token);
+              const shortUrl = await shortenCashuToken(token);
               logger.debug('[useTurboMintCompletion] 🔗 Generated short URL:', shortUrl);
               setTurboDeeplink(shortUrl);
 

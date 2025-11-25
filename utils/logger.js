@@ -12,6 +12,32 @@ import sentryService from '../services/sentryService';
 // Determine if we're in development mode
 const isDev = __DEV__;
 
+// ============================================================================
+// REAL-TIME SENTRY STREAMING
+// Set to true to stream all logs to Sentry in real-time (uses quota!)
+// ============================================================================
+const STREAM_TO_SENTRY = true;
+
+/**
+ * Stream a log message to Sentry in real-time
+ * This sends it as a captureMessage so it appears in Sentry immediately
+ */
+const streamToSentry = (category, message, data = {}, level = 'info') => {
+  if (!STREAM_TO_SENTRY) return;
+
+  Sentry.captureMessage(`[${category}] ${message}`, {
+    level,
+    tags: {
+      log_category: category,
+      stream: 'realtime',
+    },
+    extra: {
+      ...data,
+      timestamp: new Date().toISOString(),
+    },
+  });
+};
+
 /**
  * Logger service - abstracts logging to allow easy switching between console and Sentry
  */
@@ -24,13 +50,14 @@ export const logger = {
   debug: (message, ...args) => {
     if (isDev) {
       console.log(`[DEBUG] ${message}`, ...args);
-    } else {
-      Sentry.addBreadcrumb({
-        message,
-        level: 'debug',
-        data: args.length > 0 ? (typeof args[0] === 'object' ? args[0] : { args }) : {},
-      });
     }
+    const data = args.length > 0 ? (typeof args[0] === 'object' ? args[0] : { args }) : {};
+    Sentry.addBreadcrumb({
+      message,
+      level: 'debug',
+      data,
+    });
+    streamToSentry('DEBUG', message, data, 'debug');
   },
 
   /**
@@ -42,12 +69,12 @@ export const logger = {
     if (isDev) {
       console.log(`[INFO] ${message}`, context);
     }
-    // Always send to Sentry for comprehensive tracking
     Sentry.addBreadcrumb({
       message,
       level: 'info',
       data: context,
     });
+    streamToSentry('INFO', message, context, 'info');
   },
 
   /**
@@ -175,6 +202,7 @@ export const logger = {
       console.log(`[CASHU] ${operation}`, data);
     }
     sentryService.trackCashuOperation(operation, data);
+    streamToSentry('CASHU', operation, data, 'info');
   },
 
   /**
@@ -201,6 +229,7 @@ export const logger = {
       console.log(`[AUTH] ${event}`, data);
     }
     sentryService.trackAuth(event, data);
+    streamToSentry('AUTH', event, data, 'info');
   },
 
   /**

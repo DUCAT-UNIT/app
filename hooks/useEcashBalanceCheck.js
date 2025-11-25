@@ -5,6 +5,7 @@
 
 import { useState, useEffect, useRef } from 'react';
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import { logger } from '../utils/logger';
 
 const LAST_CHECK_KEY = '@ecash_balance_last_check';
 const CHECK_COOLDOWN = 24 * 60 * 60 * 1000; // 24 hours

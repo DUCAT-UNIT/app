@@ -16,6 +16,11 @@ export function useCashuBalance({ wallet }) {
   useEffect(() => {
     const updateAccount = async () => {
       if (wallet?.taprootAddress) {
+        // Reset balance immediately to show loading state (prevents showing stale data)
+        setBalance(0);
+        setError(null);
+
+        logger.info('[useCashuBalance] Account changed - resetting and fetching fresh balance');
         await setCurrentAccount(wallet.taprootAddress);
         // Refresh balance after switching accounts
         fetchBalance(false);

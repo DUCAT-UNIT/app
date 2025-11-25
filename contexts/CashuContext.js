@@ -5,7 +5,7 @@
  * - CashuOperationsContext: operations (stable references)
  */
 
-import React, { createContext, useContext, useState, useCallback, useMemo } from 'react';
+import React, { createContext, useContext, useState, useCallback, useMemo, useEffect, useRef } from 'react';
 import { logger } from '../utils/logger';
 import { clearWallet } from '../services/cashu/cashuWalletService';
 import { useWallet } from './WalletContext';
@@ -58,6 +58,7 @@ export const useCashu = () => {
 export const CashuProvider = ({ children }) => {
   const { wallet } = useWallet();
   const [isLoading, setIsLoading] = useState(false);
+  const prevWalletRef = useRef(null);
 
   // Balance management
   const {
@@ -89,6 +90,20 @@ export const CashuProvider = ({ children }) => {
     receive,
     send,
   } = useCashuSendReceive({ setIsLoading, setError, setBalance, fetchBalance });
+
+  // Reset pending mints on account switch
+  useEffect(() => {
+    const prevWallet = prevWalletRef.current;
+    prevWalletRef.current = wallet;
+
+    // Detect account switch (wallet address changed)
+    if (prevWallet && wallet &&
+        prevWallet.taprootAddress !== wallet.taprootAddress) {
+      logger.info('[CashuContext] Account switch detected - clearing pending mints');
+      setPendingMints([]);
+      setError(null);
+    }
+  }, [wallet, setPendingMints, setError]);
 
   /**
    * Clear all Cashu proofs (for testing/reset)

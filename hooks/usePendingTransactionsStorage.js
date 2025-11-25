@@ -59,7 +59,12 @@ export const usePendingTransactionsStorage = (currentAccount) => {
 
   // Load from storage on mount/account change
   useEffect(() => {
-    if (currentAccount) {
+    if (currentAccount !== undefined && currentAccount !== null) {
+      // Reset state immediately to prevent showing stale data from previous account
+      setPendingTransactions({});
+      setSpentUtxos(new Set());
+
+      logger.info('[usePendingTransactionsStorage] Account changed - reloading data for account', currentAccount);
       loadPendingTransactions();
       loadSpentUtxos();
     }
