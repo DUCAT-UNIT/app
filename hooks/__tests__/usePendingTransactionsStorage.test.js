@@ -41,6 +41,7 @@ jest.mock('@react-native-async-storage/async-storage', () => ({
 
 jest.mock('../../utils/logger', () => ({
   logger: {
+    info: jest.fn(),
     error: jest.fn(),
   },
 }));
