@@ -156,7 +156,7 @@ export default function ConfirmationScreen({ navigation, route }) {
                 </View>
               ) : (
                 <View style={styles.checkmark}>
-                  <Icon name="checkmark" size={48} color={COLORS.SUCCESS_GREEN} />
+                  <Icon name="check" size={48} color={COLORS.SUCCESS_GREEN} />
                 </View>
               )}
             </View>
