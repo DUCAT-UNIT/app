@@ -41,6 +41,7 @@ bitcoin.initEccLib(ecc);
 // This must happen before any Bitcoin operations
 import { validateNetworkConfig } from './utils/bitcoin';
 import logger from './utils/logger';
+import { initializeSentrySession } from './services/sentryService';
 
 try {
   validateNetworkConfig();
@@ -49,6 +50,13 @@ try {
   logger.error('CRITICAL NETWORK ERROR', { error: error.message });
   throw error; // Fail fast - do not allow app to start with wrong network
 }
+
+// Initialize Sentry session with device ID for tracking
+initializeSentrySession().then((deviceId) => {
+  if (deviceId) {
+    logger.info('Sentry session initialized', { deviceId: deviceId.substring(0, 8) + '...' });
+  }
+});
 
 // SECURITY: Sanitize sensitive data before sending to Sentry
 function sanitizeSensitiveData(str) {

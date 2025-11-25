@@ -31,23 +31,33 @@ export async function postWithRetry(url, body, options = {}) {
     retryOptions = {},
   } = options;
 
-  return retrySilently(
-    () =>
-      fetchWithTimeout(
-        url,
-        {
-          method: 'POST',
-          headers: {
-            ...DEFAULT_HEADERS,
-            ...headers,
+  const startTime = Date.now();
+  try {
+    const response = await retrySilently(
+      () =>
+        fetchWithTimeout(
+          url,
+          {
+            method: 'POST',
+            headers: {
+              ...DEFAULT_HEADERS,
+              ...headers,
+            },
+            body: JSON.stringify(body),
           },
-          body: JSON.stringify(body),
-        },
-        timeout
-      ),
-    description,
-    retryOptions
-  );
+          timeout
+        ),
+      description,
+      retryOptions
+    );
+    const duration = Date.now() - startTime;
+    logger.api(url, 'POST', response.status, duration);
+    return response;
+  } catch (error) {
+    const duration = Date.now() - startTime;
+    logger.api(url, 'POST', 0, duration);
+    throw error;
+  }
 }
 
 /**
@@ -68,21 +78,31 @@ export async function getWithRetry(url, options = {}) {
     retryOptions = {},
   } = options;
 
-  return retrySilently(
-    () =>
-      fetchWithTimeout(
-        url,
-        {
-          method: 'GET',
-          headers: {
-            ...headers,
+  const startTime = Date.now();
+  try {
+    const response = await retrySilently(
+      () =>
+        fetchWithTimeout(
+          url,
+          {
+            method: 'GET',
+            headers: {
+              ...headers,
+            },
           },
-        },
-        timeout
-      ),
-    description,
-    retryOptions
-  );
+          timeout
+        ),
+      description,
+      retryOptions
+    );
+    const duration = Date.now() - startTime;
+    logger.api(url, 'GET', response.status, duration);
+    return response;
+  } catch (error) {
+    const duration = Date.now() - startTime;
+    logger.api(url, 'GET', 0, duration);
+    throw error;
+  }
 }
 
 /**

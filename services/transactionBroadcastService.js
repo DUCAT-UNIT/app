@@ -6,6 +6,7 @@
 import * as bitcoin from 'bitcoinjs-lib';
 import { retrySilently } from '../utils/retry';
 import { getBroadcastUrl } from '../utils/constants';
+import logger from '../utils/logger';
 
 /**
  * Broadcast a signed transaction to the Bitcoin network
@@ -14,14 +15,20 @@ import { getBroadcastUrl } from '../utils/constants';
  * @returns {Promise<string>} Transaction ID (txid)
  */
 export const broadcastTransaction = async (signedTxHex) => {
+  const txn = logger.startTransaction('broadcast_transaction');
+
   try {
+    logger.transaction('broadcast_started', { txHexLength: signedTxHex?.length });
+
     // SECURITY: Calculate expected txid from signed transaction
     // This prevents MITM attacks that could return a fake txid
     let expectedTxid;
     try {
       const tx = bitcoin.Transaction.fromHex(signedTxHex);
       expectedTxid = tx.getId();
+      logger.transaction('txid_calculated', { txid: expectedTxid.substring(0, 8) + '...' });
     } catch (txError) {
+      logger.error('Invalid transaction hex', { error: txError.message });
       throw new Error(`Invalid transaction hex: ${txError.message}`);
     }
 
@@ -37,6 +44,10 @@ export const broadcastTransaction = async (signedTxHex) => {
 
     if (!response.ok) {
       const errorText = await response.text();
+      logger.transaction('broadcast_failed', {
+        status: response.status,
+        error: errorText?.substring(0, 100)
+      });
       throw new Error(errorText || 'Failed to broadcast transaction');
     }
 
@@ -47,6 +58,10 @@ export const broadcastTransaction = async (signedTxHex) => {
     const trimmedTxid = returnedTxid.trim();
 
     if (trimmedTxid !== expectedTxid) {
+      logger.error('SECURITY: Txid mismatch detected', {
+        expected: expectedTxid.substring(0, 8),
+        returned: trimmedTxid.substring(0, 8)
+      });
       throw new Error(
         `SECURITY: Txid mismatch detected! ` +
         `Expected ${expectedTxid} but API returned ${trimmedTxid}. ` +
@@ -54,9 +69,14 @@ export const broadcastTransaction = async (signedTxHex) => {
       );
     }
 
+    logger.transaction('broadcast_success', { txid: expectedTxid.substring(0, 8) + '...' });
+    txn.finish('ok');
+
     // Return our calculated txid (not the API's) for extra safety
     return expectedTxid;
   } catch (error) {
+    logger.transaction('broadcast_error', { error: error.message });
+    txn.finish('error');
     throw error;
   }
 };

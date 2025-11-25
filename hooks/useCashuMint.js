@@ -24,7 +24,7 @@ export function useCashuMint({ fetchBalance, setIsLoading, setError }) {
     setError(null);
 
     try {
-      logger.info('Starting mint', { amount });
+      logger.cashu('mint_started', { amount });
       const quote = await requestMint(amount);
 
       setPendingMints((prev) => [
@@ -32,7 +32,7 @@ export function useCashuMint({ fetchBalance, setIsLoading, setError }) {
         { ...quote, createdAt: Date.now() },
       ]);
 
-      logger.info('Mint started', { quoteId: quote.quoteId });
+      logger.cashu('mint_quote_received', { quoteId: quote.quoteId?.substring(0, 8) });
       return quote;
     } catch (err) {
       logger.error('Failed to start mint', { error: err.message });
@@ -48,11 +48,11 @@ export function useCashuMint({ fetchBalance, setIsLoading, setError }) {
    */
   const checkAndCompleteMint = useCallback(async (quoteId) => {
     try {
-      logger.info('Checking mint status', { quoteId });
+      logger.cashu('mint_check_status', { quoteId: quoteId?.substring(0, 8) });
       const status = await checkMintStatus(quoteId);
 
       if (status.paid) {
-        logger.info('Mint paid, completing...', { quoteId });
+        logger.cashu('mint_paid_completing', { quoteId: quoteId?.substring(0, 8) });
 
         const quote = pendingMints.find((q) => q.quoteId === quoteId);
         if (!quote) {
@@ -63,7 +63,7 @@ export function useCashuMint({ fetchBalance, setIsLoading, setError }) {
         setPendingMints((prev) => prev.filter((q) => q.quoteId !== quoteId));
         await fetchBalance();
 
-        logger.info('Mint completed', { quoteId, proofCount: proofs.length });
+        logger.cashu('mint_completed', { quoteId: quoteId?.substring(0, 8), proofCount: proofs.length });
 
         return {
           completed: true,

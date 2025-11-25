@@ -29,6 +29,7 @@ import { useCashu } from '../contexts/CashuContext';
 import { createLinkingConfig } from '../services/turbo/turboLinkingConfig';
 import { useTurboTokenProcessor } from '../hooks/useTurboTokenProcessor';
 import { useTurboSnackbarQueue } from '../hooks/useTurboSnackbarQueue';
+import logger from '../utils/logger';
 
 const Stack = createStackNavigator();
 
@@ -40,6 +41,20 @@ const PinSetupScreen = withErrorBoundary(PinSetupScreenComponent, {
 
 // Create linking config once
 const linking = createLinkingConfig();
+
+// Track navigation state changes
+const navigationRef = React.createRef();
+let currentRouteName = '';
+
+function onNavigationStateChange() {
+  const previousRouteName = currentRouteName;
+  const currentRoute = navigationRef.current?.getCurrentRoute();
+  currentRouteName = currentRoute?.name || '';
+
+  if (previousRouteName !== currentRouteName && currentRouteName) {
+    logger.screen(currentRouteName, currentRoute?.params || {});
+  }
+}
 
 export default function RootNavigator() {
   const { shouldShowAuth, shouldShowPinOverlay } = useNavigationState();
@@ -124,7 +139,7 @@ export default function RootNavigator() {
         return false;
       }}
     >
-      <NavigationContainer linking={linking}>
+      <NavigationContainer linking={linking} ref={navigationRef} onStateChange={onNavigationStateChange}>
         <Stack.Navigator
           screenOptions={{
             headerShown: false,

@@ -16,6 +16,7 @@ import { COLORS } from '../../theme';
 import Icon from '../../components/icons';
 import TouchableScale from '../../components/common/TouchableScale';
 import styles from '../../styles';
+import logger from '../../utils/logger';
 
 // Memoized keypad button component
 const KeypadButton = memo(function KeypadButton({ digit, onPress }) {
@@ -61,11 +62,16 @@ export default function LockScreen({ onAuthenticated, showFaceIdButton, onFaceId
           // Verify PIN with rate limiting
           verifyPin(newPin).then((result) => {
             if (result.success) {
+              logger.auth('pin_verified_success');
               Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
               setPin('');
               setPinError('');
               onAuthenticated();
             } else {
+              logger.auth('pin_verified_failed', {
+                remainingAttempts: result.remainingAttempts,
+                isLocked: result.isLocked || false,
+              });
               Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
               shakeError();
               const errorMsg = result.error || ERRORS.INCORRECT_PIN;
