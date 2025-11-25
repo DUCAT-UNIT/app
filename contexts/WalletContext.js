@@ -77,6 +77,7 @@ export const WalletProvider = ({ children }) => {
         throw new Error('No wallet found');
       }
 
+      // Update state immediately (this is what triggers UI update)
       setWallet({
         segwitAddress: addresses.segwitAddress,
         taprootAddress: addresses.taprootAddress,
@@ -84,19 +85,17 @@ export const WalletProvider = ({ children }) => {
       });
       setCurrentAccount(accountIndex);
 
-      // Save new account index
-      await SecureStore.setItemAsync(SECURE_KEYS.CURRENT_ACCOUNT, accountIndex.toString());
-
-      // Clear P2PK cache since private key is different for new account
-      try {
-        const { clearP2PKCache } = await import('../services/cashu/p2pk');
-        await clearP2PKCache();
-      } catch (error) {
-        logger.warn('[WalletContext] Failed to clear P2PK cache:', error.message);
-      }
-
-      // Show toast notification
+      // Show toast notification immediately
       showToast(`Switched to Account ${accountIndex + 1}`, 'success');
+
+      // Save account index in background (fire and forget - non-critical)
+      SecureStore.setItemAsync(SECURE_KEYS.CURRENT_ACCOUNT, accountIndex.toString())
+        .catch(err => logger.warn('[WalletContext] Failed to save account index:', err.message));
+
+      // Clear P2PK cache in background (fire and forget - non-critical)
+      import('../services/cashu/p2pk')
+        .then(({ clearP2PKCache }) => clearP2PKCache())
+        .catch(err => logger.warn('[WalletContext] Failed to clear P2PK cache:', err.message));
 
       return addresses;
     } catch (error) {

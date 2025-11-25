@@ -57,7 +57,7 @@ export default function WalletPage({ route }) {
   const { settingsHandlers, biometricEnabled, setShowAccountPicker } = useNavigationHandlers();
   const { runesBalance } = useBalance();
   const { balance: cashuBalance, receive: receiveCashuToken } = useCashu();
-  const { wallet, switchAccount } = useWallet();
+  const { wallet, switchAccount, currentAccount } = useWallet();
   const { vaultData } = useVaultData();
   const { intentStep, sendAssetType, sendAddressType } = useSendFlow();
   const { broadcastedTxid } = useTransactionExecution();
@@ -131,6 +131,7 @@ export default function WalletPage({ route }) {
             pointerEvents={activeTab === 'vault' || isSwiping ? 'auto' : 'none'}
           >
             <VaultScreen
+              key={`vault-${currentAccount}`}
               visible={activeTab === 'vault'}
               walletCredentials={vaultCredentials}
               autoCreateVaultTrigger={autoCreateVaultTrigger}
@@ -149,6 +150,7 @@ export default function WalletPage({ route }) {
             {...walletPanResponder.panHandlers}
           >
             <WalletScreen
+              key={`wallet-${currentAccount}`}
               styles={styles}
               onSendPress={() => navigation.navigate('SendFlow', { screen: 'AssetSelector' })}
               onReceivePress={() => setShowReceiveSheet(true)}
@@ -166,9 +168,9 @@ export default function WalletPage({ route }) {
         </View>
 
         {/* Bottom Sheets */}
-        <ReceiveScreen styles={styles} showReceiveSheet={showReceiveSheet} onClose={() => setShowReceiveSheet(false)}
+        <ReceiveScreen key={`receive-${currentAccount}`} styles={styles} showReceiveSheet={showReceiveSheet} onClose={() => setShowReceiveSheet(false)}
           segwitAddress={wallet?.segwitAddress || ''} taprootAddress={wallet?.taprootAddress || ''} showToast={showToast} />
-        <TransactionHistoryScreen styles={styles} showHistorySheet={showTxHistory} onClose={() => setShowTxHistory(false)}
+        <TransactionHistoryScreen key={`history-${currentAccount}`} styles={styles} showHistorySheet={showTxHistory} onClose={() => setShowTxHistory(false)}
           segwitAddress={wallet?.segwitAddress || ''} taprootAddress={wallet?.taprootAddress || ''}
           vaultPubkey={wallet?.taprootPubkey || ''} advancedMode={settingsHandlers.advancedMode} />
         <QRScanner visible={showQRScanner} onClose={() => setShowQRScanner(false)} onScan={handleQRScan} />

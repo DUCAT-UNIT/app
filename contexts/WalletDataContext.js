@@ -125,7 +125,9 @@ export const WalletDataProvider = ({ children }) => {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [wallet, balance.fetchBalance, vault.fetchVault, history.fetchTransactionHistory]);
 
-  // Handle wallet changes - reset data when removed, fetch immediately when changed
+  // Handle wallet changes - reset data when removed, fetch on first load
+  // NOTE: Account switches are handled by useAccountSwitcher in NavigationHandlersContext
+  // which coordinates reset + fetch synchronously for snappier switching
   useEffect(() => {
     const prevWallet = prevWalletRef.current;
     prevWalletRef.current = wallet;
@@ -135,33 +137,16 @@ export const WalletDataProvider = ({ children }) => {
       balance.resetBalances();
       history.resetTransactionHistory();
       vault.resetVaultData();
-      initialBalancesLoadedRef.current = false; // Reset flag
-    } else if (prevWallet && wallet &&
-               (prevWallet.segwitAddress !== wallet.segwitAddress ||
-                prevWallet.taprootAddress !== wallet.taprootAddress ||
-                prevWallet.taprootPubkey !== wallet.taprootPubkey)) {
-      // Wallet changed (account switch) - reset ALL data immediately, then fetch fresh
-      logger.info('[WalletDataContext] Account switch detected - resetting all data');
       initialBalancesLoadedRef.current = false;
-
-      // Reset all data to show loading states (prevents showing stale data)
-      balance.resetBalances();
-      history.resetTransactionHistory();
-      vault.resetVaultData();
-
-      // Now fetch fresh data for new account
-      balance.fetchBalance();
-      vault.fetchVault();
-      // Transaction history will be fetched by pollAllData once balances load
     } else if (!prevWallet && wallet) {
       // Wallet just loaded for first time (import/creation) - fetch balances first
       // Transaction history will be fetched by pollAllData once balances load
       balance.fetchBalance();
       vault.fetchVault();
     }
-    // Note: The usePolling's immediate: true will also fire, but fetchBalance is idempotent
+    // Account switches are handled by useAccountSwitcher - no action needed here
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [wallet, balance.resetBalances, balance.fetchBalance, history.resetTransactionHistory, history.fetchTransactionHistory, vault.resetVaultData, vault.fetchVault]);
+  }, [wallet, balance.resetBalances, balance.fetchBalance, history.resetTransactionHistory, vault.resetVaultData, vault.fetchVault]);
 
   // Trigger initial transaction history load once both balances have loaded
   useEffect(() => {

@@ -14,11 +14,12 @@ import { SECURE_KEYS } from '../utils/constants';
 import { resetOnboardingState } from '../utils/onboardingHelpers';
 import { useAuth } from './AuthContext';
 import { useWallet } from './WalletContext';
-import { useBalance } from './WalletDataContext';
+import { useBalance, useTransactionHistory, useVaultData } from './WalletDataContext';
 import { useOnboardingFlow } from './AuthContext';
 import { useSeedPhrase } from './SeedPhraseContext';
 import { useNotifications } from './NotificationContext';
 import { useVault } from './VaultContext';
+import { useCashuOperations } from './CashuContext';
 import { useSettings } from '../hooks/useSettings';
 import { useAccountSwitcher } from '../hooks/useAccountSwitcher';
 import { usePostAuthHandler } from '../hooks/usePostAuthHandler';
@@ -41,7 +42,10 @@ export const NavigationHandlersProvider = ({ children, walletExists }) => {
   } = useAuth();
 
   const { resetWallet, switchAccount: switchAccountContext } = useWallet();
-  const { fetchBalance } = useBalance();
+  const { fetchBalance, resetBalances } = useBalance();
+  const { fetchTransactionHistory, resetTransactionHistory } = useTransactionHistory();
+  const { fetchVault, resetVaultData } = useVaultData();
+  const { resetAndRefresh: resetAndRefreshCashu } = useCashuOperations();
   const { setSeedConfirmed } = useOnboardingFlow();
   const { requestingSeedPhrase, loadSeedPhrase, requestViewSeedPhrase } = useSeedPhrase();
   const { showToast, showSnackbar } = useNotifications();
@@ -103,7 +107,7 @@ export const NavigationHandlersProvider = ({ children, walletExists }) => {
     showSnackbar,
   });
 
-  // Account switcher
+  // Account switcher - coordinates all data reset/fetch during account switch
   const {
     showAccountPicker,
     setShowAccountPicker,
@@ -113,7 +117,18 @@ export const NavigationHandlersProvider = ({ children, walletExists }) => {
     switchAccount,
   } = useAccountSwitcher({
     switchAccountContext,
+    // Balance functions
+    resetBalances,
     fetchBalance,
+    // Transaction history functions
+    resetTransactionHistory,
+    fetchTransactionHistory,
+    // Vault functions
+    resetVaultData,
+    fetchVault,
+    // Cashu functions (resetAndRefresh clears pending mints and fetches fresh balance)
+    resetAndRefreshCashu,
+    // Callback
     onAccountSwitched: () => setActiveTab('wallet'),
   });
 

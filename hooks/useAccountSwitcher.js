@@ -1,13 +1,29 @@
 /**
  * useAccountSwitcher Hook
- * Manages account switching functionality
+ * Manages account switching functionality with coordinated data refresh
  */
 
 import { useState } from 'react';
 import { Alert } from 'react-native';
 import { ERRORS, DIALOGS } from '../utils/messages';
+import { logger } from '../utils/logger';
 
-export function useAccountSwitcher({ switchAccountContext, fetchBalance, onAccountSwitched }) {
+export function useAccountSwitcher({
+  switchAccountContext,
+  // Balance functions
+  resetBalances,
+  fetchBalance,
+  // Transaction history functions
+  resetTransactionHistory,
+  fetchTransactionHistory,
+  // Vault functions
+  resetVaultData,
+  fetchVault,
+  // Cashu functions (resetAndRefresh clears pending mints and fetches balance)
+  resetAndRefreshCashu,
+  // Callback
+  onAccountSwitched,
+}) {
   const [showAccountPicker, setShowAccountPicker] = useState(false);
   const [newAccountIndex, setNewAccountIndex] = useState('');
   const [switchingAccount, setSwitchingAccount] = useState(false);
@@ -18,25 +34,43 @@ export function useAccountSwitcher({ switchAccountContext, fetchBalance, onAccou
 
     try {
       setSwitchingAccount(true);
+      logger.info('[useAccountSwitcher] Starting account switch', { accountIndex });
 
-      // Switch account using context
+      // STEP 1: Reset ALL data immediately (synchronous - shows loading state instantly)
+      logger.debug('[useAccountSwitcher] Resetting all data...');
+      if (resetBalances) resetBalances();
+      if (resetTransactionHistory) resetTransactionHistory();
+      if (resetVaultData) resetVaultData();
+
+      // STEP 2: Force React to render the loading state before continuing
+      // This breaks React's automatic batching so users see loading state immediately
+      await new Promise(resolve => setTimeout(resolve, 0));
+
+      // STEP 3: Switch account context (updates wallet addresses)
+      logger.debug('[useAccountSwitcher] Switching account context...');
       await switchAccountContext(accountIndex);
 
-      // Explicitly fetch balance for new account
-      if (fetchBalance) {
-        await fetchBalance();
-      }
-
+      // STEP 4: Close modal and trigger callback immediately (don't wait for data)
       setShowAccountPicker(false);
       setNewAccountIndex('');
+      setSwitchingAccount(false);
 
-      // Call callback if provided
       if (onAccountSwitched) {
         onAccountSwitched(accountIndex);
       }
+
+      // STEP 5: Fetch fresh data in background (fire and forget)
+      // Data will populate as it loads - UI already shows loading state
+      logger.debug('[useAccountSwitcher] Fetching fresh data in background...');
+      if (fetchBalance) fetchBalance();
+      if (fetchVault) fetchVault();
+      if (fetchTransactionHistory) fetchTransactionHistory();
+      if (resetAndRefreshCashu) resetAndRefreshCashu();
+
+      logger.info('[useAccountSwitcher] Account switch complete');
     } catch (error) {
+      logger.error('[useAccountSwitcher] Account switch failed', { error: error.message });
       Alert.alert(DIALOGS.ERROR_TITLE, ERRORS.ACCOUNT_SWITCH_FAILED);
-    } finally {
       setSwitchingAccount(false);
     }
   };

@@ -91,19 +91,10 @@ export const CashuProvider = ({ children }) => {
     send,
   } = useCashuSendReceive({ setIsLoading, setError, setBalance, fetchBalance });
 
-  // Reset pending mints on account switch
+  // Track wallet for reference (account switch reset is handled by useAccountSwitcher)
   useEffect(() => {
-    const prevWallet = prevWalletRef.current;
     prevWalletRef.current = wallet;
-
-    // Detect account switch (wallet address changed)
-    if (prevWallet && wallet &&
-        prevWallet.taprootAddress !== wallet.taprootAddress) {
-      logger.info('[CashuContext] Account switch detected - clearing pending mints');
-      setPendingMints([]);
-      setError(null);
-    }
-  }, [wallet, setPendingMints, setError]);
+  }, [wallet]);
 
   /**
    * Clear all Cashu proofs (for testing/reset)
@@ -128,6 +119,19 @@ export const CashuProvider = ({ children }) => {
     await fetchBalance();
   }, [fetchBalance]);
 
+  /**
+   * Reset and refresh for account switching
+   * Called by useAccountSwitcher to ensure clean state
+   */
+  const resetAndRefresh = useCallback(async () => {
+    // Reset state immediately (synchronous) for snappy UI
+    setBalance(0);
+    setPendingMints([]);
+    setError(null);
+    // Then fetch fresh balance
+    await fetchBalance();
+  }, [setBalance, setPendingMints, setError, fetchBalance]);
+
   // Memoize balance context value (changes frequently)
   const balanceValue = useMemo(() => ({
     balance,
@@ -151,6 +155,7 @@ export const CashuProvider = ({ children }) => {
     finishMelt,
     // Wallet management
     refresh,
+    resetAndRefresh,
     reset,
   }), [
     startMint,
@@ -162,6 +167,7 @@ export const CashuProvider = ({ children }) => {
     startMelt,
     finishMelt,
     refresh,
+    resetAndRefresh,
     reset,
   ]);
 

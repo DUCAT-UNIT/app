@@ -39,6 +39,11 @@ describe('useAccountSwitcher', () => {
   beforeEach(() => {
     mockSwitchAccountContext = jest.fn().mockResolvedValue(undefined);
     jest.clearAllMocks();
+    jest.useFakeTimers();
+  });
+
+  afterEach(() => {
+    jest.useRealTimers();
   });
 
   it('should initialize with default state', () => {
@@ -57,7 +62,9 @@ describe('useAccountSwitcher', () => {
     );
 
     await act(async () => {
-      await result.current.switchAccount(2); // Switch to Account 2
+      const switchPromise = result.current.switchAccount(2); // Switch to Account 2
+      jest.advanceTimersByTime(0); // Advance past the setTimeout(0)
+      await switchPromise;
     });
 
     // Should call context with correct index (Account 2 = index 1)
@@ -73,12 +80,16 @@ describe('useAccountSwitcher', () => {
     );
 
     await act(async () => {
-      await result.current.switchAccount(1); // Account 1 = index 0
+      const switchPromise = result.current.switchAccount(1); // Account 1 = index 0
+      jest.advanceTimersByTime(0);
+      await switchPromise;
     });
     expect(mockSwitchAccountContext).toHaveBeenCalledWith(0);
 
     await act(async () => {
-      await result.current.switchAccount(5); // Account 5 = index 4
+      const switchPromise = result.current.switchAccount(5); // Account 5 = index 4
+      jest.advanceTimersByTime(0);
+      await switchPromise;
     });
     expect(mockSwitchAccountContext).toHaveBeenCalledWith(4);
   });
@@ -98,10 +109,18 @@ describe('useAccountSwitcher', () => {
       result.current.switchAccount(2);
     });
 
-    // Should be switching
+    // Should be switching initially
     expect(result.current.switchingAccount).toBe(true);
 
-    // Resolve the promise
+    // Advance past the setTimeout(0) that forces React render
+    await act(async () => {
+      jest.advanceTimersByTime(0);
+    });
+
+    // Still switching while waiting for switchAccountContext
+    expect(result.current.switchingAccount).toBe(true);
+
+    // Resolve the switchAccountContext promise
     await act(async () => {
       resolveSwitch();
     });
@@ -119,7 +138,9 @@ describe('useAccountSwitcher', () => {
     );
 
     await act(async () => {
-      await result.current.switchAccount(2);
+      const switchPromise = result.current.switchAccount(2);
+      jest.advanceTimersByTime(0);
+      await switchPromise;
     });
 
     expect(Alert.alert).toHaveBeenCalledWith(
@@ -181,7 +202,9 @@ describe('useAccountSwitcher', () => {
 
     // Switch account
     await act(async () => {
-      await result.current.switchAccount(5);
+      const switchPromise = result.current.switchAccount(5);
+      jest.advanceTimersByTime(0);
+      await switchPromise;
     });
 
     // Modal state should be reset
@@ -204,7 +227,9 @@ describe('useAccountSwitcher', () => {
 
     // Switch account (will fail)
     await act(async () => {
-      await result.current.switchAccount(5);
+      const switchPromise = result.current.switchAccount(5);
+      jest.advanceTimersByTime(0);
+      await switchPromise;
     });
 
     // Modal state remains (user might want to retry)
@@ -219,15 +244,21 @@ describe('useAccountSwitcher', () => {
 
     // Switch to multiple accounts rapidly
     await act(async () => {
-      await result.current.switchAccount(2);
+      const switchPromise = result.current.switchAccount(2);
+      jest.advanceTimersByTime(0);
+      await switchPromise;
     });
 
     await act(async () => {
-      await result.current.switchAccount(3);
+      const switchPromise = result.current.switchAccount(3);
+      jest.advanceTimersByTime(0);
+      await switchPromise;
     });
 
     await act(async () => {
-      await result.current.switchAccount(1);
+      const switchPromise = result.current.switchAccount(1);
+      jest.advanceTimersByTime(0);
+      await switchPromise;
     });
 
     // Should have called with correct indices
