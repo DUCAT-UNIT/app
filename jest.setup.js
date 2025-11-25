@@ -113,6 +113,22 @@ jest.mock('expo-local-authentication', () => ({
   isEnrolledAsync: jest.fn(),
 }));
 
+// Mock expo-device
+jest.mock('expo-device', () => ({
+  brand: 'Apple',
+  modelName: 'iPhone 15',
+  deviceType: 1, // Phone
+  isDevice: true,
+}));
+
+// Mock expo-application
+jest.mock('expo-application', () => ({
+  nativeApplicationVersion: '1.0.0',
+  nativeBuildVersion: '1',
+  applicationId: 'com.ducat.wallet',
+  applicationName: 'Ducat',
+}));
+
 // Mock expo-crypto with real crypto implementation for testing
 jest.mock('expo-crypto', () => {
   const { webcrypto: nodeWebcrypto, createHash } = require('node:crypto');
@@ -209,6 +225,75 @@ jest.mock('@sentry/react-native', () => ({
   captureException: jest.fn(),
   captureMessage: jest.fn(),
   addBreadcrumb: jest.fn(),
+  setUser: jest.fn(),
+  setContext: jest.fn(),
+  setTag: jest.fn(),
+}));
+
+// Mock logger - use factory function with shared object for both exports
+jest.mock('./utils/logger', () => {
+  const loggerMock = {
+    debug: jest.fn(),
+    info: jest.fn(),
+    warn: jest.fn(),
+    error: jest.fn(),
+    transaction: jest.fn(),
+    security: jest.fn(),
+    screen: jest.fn(),
+    action: jest.fn(),
+    wallet: jest.fn(),
+    cashu: jest.fn(),
+    api: jest.fn(),
+    auth: jest.fn(),
+    perf: jest.fn(),
+    turbo: jest.fn(),
+    vault: jest.fn(),
+    onboarding: jest.fn(),
+    startTransaction: jest.fn().mockReturnValue({ finish: jest.fn() }),
+    setContext: jest.fn(),
+    setTag: jest.fn(),
+  };
+  return {
+    __esModule: true,
+    logger: loggerMock,
+    default: loggerMock,
+  };
+});
+
+// Mock sentryService
+jest.mock('./services/sentryService', () => ({
+  initializeSentrySession: jest.fn().mockResolvedValue('test-device-id'),
+  getDeviceId: jest.fn().mockResolvedValue('test-device-id'),
+  trackScreen: jest.fn(),
+  trackAction: jest.fn(),
+  trackTransactionFlow: jest.fn(),
+  trackWalletOperation: jest.fn(),
+  trackCashuOperation: jest.fn(),
+  trackAuth: jest.fn(),
+  trackApiCall: jest.fn(),
+  trackError: jest.fn(),
+  trackPerformance: jest.fn(),
+  setSessionContext: jest.fn(),
+  setTag: jest.fn(),
+  getSessionDuration: jest.fn().mockReturnValue(0),
+  endSession: jest.fn(),
+  default: {
+    initializeSentrySession: jest.fn().mockResolvedValue('test-device-id'),
+    getDeviceId: jest.fn().mockResolvedValue('test-device-id'),
+    trackScreen: jest.fn(),
+    trackAction: jest.fn(),
+    trackTransactionFlow: jest.fn(),
+    trackWalletOperation: jest.fn(),
+    trackCashuOperation: jest.fn(),
+    trackAuth: jest.fn(),
+    trackApiCall: jest.fn(),
+    trackError: jest.fn(),
+    trackPerformance: jest.fn(),
+    setSessionContext: jest.fn(),
+    setTag: jest.fn(),
+    getSessionDuration: jest.fn().mockReturnValue(0),
+    endSession: jest.fn(),
+  },
 }));
 
 // Mock React Native core modules

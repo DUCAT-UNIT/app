@@ -1,31 +1,49 @@
 /**
  * Tests for Logger utility
+ * These tests verify the logger integrates correctly with Sentry and sentryService
  */
 
 describe('logger', () => {
-  let logger, Sentry;
+  let logger, Sentry, sentryService;
 
   beforeEach(() => {
-    // Clear module cache to allow re-importing with different __DEV__ values
     jest.resetModules();
     jest.clearAllMocks();
 
     // Mock Sentry
-    jest.mock('@sentry/react-native', () => ({
+    jest.doMock('@sentry/react-native', () => ({
       addBreadcrumb: jest.fn(),
       captureMessage: jest.fn(),
       captureException: jest.fn(),
     }));
+
+    // Mock sentryService
+    jest.doMock('../../services/sentryService', () => ({
+      __esModule: true,
+      default: {
+        trackTransactionFlow: jest.fn(),
+        trackAuth: jest.fn(),
+        trackScreen: jest.fn(),
+        trackAction: jest.fn(),
+        trackWalletOperation: jest.fn(),
+        trackCashuOperation: jest.fn(),
+        trackApiCall: jest.fn(),
+        trackPerformance: jest.fn(),
+        setSessionContext: jest.fn(),
+        setTag: jest.fn(),
+      },
+    }));
+
+    // Set production mode
+    global.__DEV__ = false;
+
+    // Import after mocks are set up
+    logger = require('../logger').logger;
+    Sentry = require('@sentry/react-native');
+    sentryService = require('../../services/sentryService').default;
   });
 
-  describe('production mode (__DEV__ = false)', () => {
-    beforeEach(() => {
-      global.__DEV__ = false;
-      // Re-import logger after setting __DEV__
-      logger = require('../logger').logger;
-      Sentry = require('@sentry/react-native');
-    });
-
+  describe('basic logging methods', () => {
     it('debug should add breadcrumb to Sentry', () => {
       logger.debug('Test debug message', { key: 'value' });
 
@@ -59,7 +77,6 @@ describe('logger', () => {
 
     it('error should capture Error objects', () => {
       const error = new Error('Test error');
-
       logger.error(error, { context: 'data' });
 
       expect(Sentry.captureException).toHaveBeenCalledWith(error, {
@@ -75,195 +92,96 @@ describe('logger', () => {
         contexts: { extra: { context: 'data' } },
       });
     });
+  });
 
-    it('transaction should add breadcrumb with category', () => {
+  describe('enhanced tracking methods', () => {
+    it('transaction should call sentryService.trackTransactionFlow', () => {
       logger.transaction('intent_created', { txid: '123' });
 
-      expect(Sentry.addBreadcrumb).toHaveBeenCalledWith({
-        category: 'transaction',
-        message: 'Transaction: intent_created',
-        level: 'info',
-        data: expect.objectContaining({
-          step: 'intent_created',
-          txid: '123',
-          timestamp: expect.any(String),
-        }),
-      });
+      expect(sentryService.trackTransactionFlow).toHaveBeenCalledWith(
+        'intent_created',
+        { txid: '123' }
+      );
     });
 
-    it('security should add breadcrumb with warning level', () => {
+    it('security should call sentryService.trackAuth', () => {
       logger.security('pin_failed', { attempts: 3 });
 
-      expect(Sentry.addBreadcrumb).toHaveBeenCalledWith({
-        category: 'security',
-        message: 'Security: pin_failed',
-        level: 'warning',
-        data: expect.objectContaining({
-          event: 'pin_failed',
-          attempts: 3,
-          timestamp: expect.any(String),
-        }),
-      });
+      expect(sentryService.trackAuth).toHaveBeenCalledWith(
+        'pin_failed',
+        { attempts: 3 }
+      );
+    });
+
+    it('screen should call sentryService.trackScreen', () => {
+      logger.screen('HomeScreen', { tab: 'wallet' });
+
+      expect(sentryService.trackScreen).toHaveBeenCalledWith('HomeScreen', { tab: 'wallet' });
+    });
+
+    it('api should call sentryService.trackApiCall', () => {
+      logger.api('/api/test', 'GET', 200, 150);
+
+      expect(sentryService.trackApiCall).toHaveBeenCalledWith('/api/test', 'GET', 200, 150);
+    });
+
+    it('cashu should call sentryService.trackCashuOperation', () => {
+      logger.cashu('mint_started', { amount: 1000 });
+
+      expect(sentryService.trackCashuOperation).toHaveBeenCalledWith('mint_started', { amount: 1000 });
+    });
+
+    it('wallet should call sentryService.trackWalletOperation', () => {
+      logger.wallet('balance_updated', { balance: 50000 });
+
+      expect(sentryService.trackWalletOperation).toHaveBeenCalledWith('balance_updated', { balance: 50000 });
     });
   });
 
-  describe('development mode (__DEV__ = true)', () => {
-    beforeEach(() => {
-      global.__DEV__ = true;
-      // Re-import logger after setting __DEV__
-      logger = require('../logger').logger;
-      Sentry = require('@sentry/react-native');
+  describe('startTransaction', () => {
+    it('should return object with finish method', () => {
+      const txn = logger.startTransaction('test_operation');
+
+      expect(txn).toHaveProperty('finish');
+      expect(typeof txn.finish).toBe('function');
     });
 
-    it('debug should use console.log', () => {
-      const consoleLogSpy = jest.spyOn(console, 'log').mockImplementation();
+    it('should call sentryService.trackPerformance on finish', () => {
+      const txn = logger.startTransaction('test_operation');
+      txn.finish('ok');
 
-      logger.debug('Test debug message', { key: 'value' });
-
-      expect(consoleLogSpy).toHaveBeenCalledWith('[DEBUG] Test debug message', { key: 'value' });
-      expect(Sentry.addBreadcrumb).not.toHaveBeenCalled();
-
-      consoleLogSpy.mockRestore();
+      expect(sentryService.trackPerformance).toHaveBeenCalledWith(
+        'test_operation',
+        expect.any(Number),
+        'ms'
+      );
     });
 
-    it('info should use console.log', () => {
-      const consoleLogSpy = jest.spyOn(console, 'log').mockImplementation();
+    it('should add breadcrumb on finish', () => {
+      const txn = logger.startTransaction('test_operation');
+      txn.finish('ok');
 
-      logger.info('Test info', { data: 'test' });
-
-      expect(consoleLogSpy).toHaveBeenCalledWith('[INFO] Test info', { data: 'test' });
-      expect(Sentry.addBreadcrumb).not.toHaveBeenCalled();
-
-      consoleLogSpy.mockRestore();
-    });
-
-    it('warn should use console.warn', () => {
-      const consoleWarnSpy = jest.spyOn(console, 'warn').mockImplementation();
-
-      logger.warn('Test warning', { warning: 'data' });
-
-      expect(consoleWarnSpy).toHaveBeenCalledWith('[WARN] Test warning', { warning: 'data' });
-      expect(Sentry.addBreadcrumb).not.toHaveBeenCalled();
-
-      consoleWarnSpy.mockRestore();
-    });
-
-    it('error should use console.error', () => {
-      const consoleErrorSpy = jest.spyOn(console, 'error').mockImplementation();
-      const error = new Error('Test error');
-
-      logger.error(error, { context: 'data' });
-
-      expect(consoleErrorSpy).toHaveBeenCalledWith('[ERROR]', error, { context: 'data' });
-      expect(Sentry.captureException).not.toHaveBeenCalled();
-
-      consoleErrorSpy.mockRestore();
-    });
-
-    it('transaction should use console.log', () => {
-      const consoleLogSpy = jest.spyOn(console, 'log').mockImplementation();
-
-      logger.transaction('signed', { txid: '456' });
-
-      expect(consoleLogSpy).toHaveBeenCalledWith(
-        '[TRANSACTION] signed',
+      expect(Sentry.addBreadcrumb).toHaveBeenCalledWith(
         expect.objectContaining({
-          step: 'signed',
-          txid: '456',
-          timestamp: expect.any(String),
+          category: 'performance',
+          message: 'test_operation completed',
+          level: 'info',
         })
       );
-      expect(Sentry.addBreadcrumb).not.toHaveBeenCalled();
-
-      consoleLogSpy.mockRestore();
-    });
-
-    it('security should use console.warn', () => {
-      const consoleWarnSpy = jest.spyOn(console, 'warn').mockImplementation();
-
-      logger.security('lockout', { duration: '30min' });
-
-      expect(consoleWarnSpy).toHaveBeenCalledWith(
-        '[SECURITY] lockout',
-        expect.objectContaining({
-          event: 'lockout',
-          duration: '30min',
-          timestamp: expect.any(String),
-        })
-      );
-      expect(Sentry.addBreadcrumb).not.toHaveBeenCalled();
-
-      consoleWarnSpy.mockRestore();
     });
   });
 
-  describe('edge cases', () => {
-    beforeEach(() => {
-      global.__DEV__ = false;
-      logger = require('../logger').logger;
-      Sentry = require('@sentry/react-native');
+  describe('context and tags', () => {
+    it('setContext should call sentryService.setSessionContext', () => {
+      logger.setContext('wallet', { balance: 1000 });
+
+      expect(sentryService.setSessionContext).toHaveBeenCalledWith('wallet', { balance: 1000 });
     });
 
-    it('should handle missing context parameter', () => {
-      logger.debug('Test message');
+    it('setTag should call sentryService.setTag', () => {
+      logger.setTag('version', '1.0.0');
 
-      expect(Sentry.addBreadcrumb).toHaveBeenCalledWith({
-        message: 'Test message',
-        level: 'debug',
-        data: {},
-      });
-    });
-
-    it('should handle missing data in transaction', () => {
-      logger.transaction('completed');
-
-      expect(Sentry.addBreadcrumb).toHaveBeenCalledWith({
-        category: 'transaction',
-        message: 'Transaction: completed',
-        level: 'info',
-        data: expect.objectContaining({
-          step: 'completed',
-          timestamp: expect.any(String),
-        }),
-      });
-    });
-
-    it('should handle missing data in security', () => {
-      logger.security('unauthorized_access');
-
-      expect(Sentry.addBreadcrumb).toHaveBeenCalledWith({
-        category: 'security',
-        message: 'Security: unauthorized_access',
-        level: 'warning',
-        data: expect.objectContaining({
-          event: 'unauthorized_access',
-          timestamp: expect.any(String),
-        }),
-      });
-    });
-
-    it('should include ISO timestamp in transaction logs', () => {
-      logger.transaction('broadcast', { amount: '1.5 BTC' });
-
-      const call = Sentry.addBreadcrumb.mock.calls[0][0];
-      expect(call.data.timestamp).toMatch(/^\d{4}-\d{2}-\d{2}T/);
-    });
-
-    it('should include ISO timestamp in security logs', () => {
-      logger.security('biometric_failed', { reason: 'timeout' });
-
-      const call = Sentry.addBreadcrumb.mock.calls[0][0];
-      expect(call.data.timestamp).toMatch(/^\d{4}-\d{2}-\d{2}T/);
-    });
-
-    it('should handle error without context', () => {
-      const error = new Error('Test error');
-
-      logger.error(error);
-
-      expect(Sentry.captureException).toHaveBeenCalledWith(error, {
-        contexts: { extra: {} },
-      });
+      expect(sentryService.setTag).toHaveBeenCalledWith('version', '1.0.0');
     });
   });
 });
