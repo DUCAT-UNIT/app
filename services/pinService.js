@@ -8,7 +8,6 @@ import { SECURE_KEYS, PIN_HASH_VERSION } from '../utils/constants';
 import { logger } from '../utils/logger';
 import {
   loadLockoutState,
-  saveLockoutState,
   checkPinLockout,
   resetPinAttempts,
   getRemainingPinAttempts,
@@ -18,7 +17,6 @@ import {
 import {
   generateSalt,
   hashPin,
-  hashPinLegacy,
   verifyPinHash,
 } from './pinHashing';
 
@@ -222,9 +220,8 @@ export { checkPinLockout, resetPinAttempts, getRemainingPinAttempts };
 
 /**
  * Verify entered PIN against stored hashed PIN with rate limiting
- * Supports migration from legacy SHA256 to new PBKDF2-like hashing
  * @param {string} enteredPin - PIN to verify
- * @returns {Promise<{success: boolean, error?: string, remainingAttempts?: number, needsMigration?: boolean}>}
+ * @returns {Promise<{success: boolean, error?: string, remainingAttempts?: number}>}
  */
 export const verifyPin = async (enteredPin) => {
   try {
@@ -241,30 +238,20 @@ export const verifyPin = async (enteredPin) => {
     // Load current lockout state
     const { failedAttempts } = await loadLockoutState();
 
-    // Retrieve the stored salt, hashed PIN, and version
+    // Retrieve the stored salt and hashed PIN
     const storedHashedPin = await SecureStore.getItemAsync(SECURE_KEYS.PIN);
     const storedSalt = await SecureStore.getItemAsync(SECURE_KEYS.PIN_SALT);
-    const pinVersion = await SecureStore.getItemAsync(SECURE_KEYS.PIN_VERSION);
 
     // If salt doesn't exist, this is a corrupted state
     if (!storedSalt) {
       return {
         success: false,
-        error: 'PIN needs to be reset for security upgrade',
+        error: 'PIN needs to be reset',
       };
     }
 
-    // Determine which hashing method to use
-    const isLegacy = !pinVersion || pinVersion === PIN_HASH_VERSION.SHA256_LEGACY;
-    let enteredHashedPin;
-
-    if (isLegacy) {
-      // Use legacy SHA256 for verification
-      enteredHashedPin = await hashPinLegacy(enteredPin, storedSalt);
-    } else {
-      // Use new PBKDF2-like hashing
-      enteredHashedPin = await hashPin(enteredPin, storedSalt);
-    }
+    // Hash entered PIN with PBKDF2
+    const enteredHashedPin = await hashPin(enteredPin, storedSalt);
 
     // Use constant-time comparison to prevent timing attacks
     const isValid = verifyPinHash(storedHashedPin, enteredHashedPin);
@@ -272,15 +259,6 @@ export const verifyPin = async (enteredPin) => {
     if (isValid) {
       // Success - reset attempts
       await resetPinAttempts();
-
-      // If using legacy hash, trigger migration on next PIN change
-      if (isLegacy) {
-        return {
-          success: true,
-          needsMigration: true, // Signal that PIN should be migrated
-        };
-      }
-
       return { success: true };
     } else {
       // Failed attempt - record it and check for lockout

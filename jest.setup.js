@@ -6,6 +6,53 @@
 // Define __DEV__ for React Native environment
 global.__DEV__ = process.env.NODE_ENV !== 'production';
 
+// Configure React act() environment for testing
+globalThis.IS_REACT_ACT_ENVIRONMENT = true;
+
+// Suppress noisy test output that doesn't indicate real problems
+// Helper to check if message should be suppressed
+const shouldSuppressMessage = (message) => {
+  if (typeof message !== 'string') return false;
+
+  // React test warnings (deprecation and act)
+  if (message.includes('react-test-renderer is deprecated')) return true;
+  if (message.includes('not wrapped in act(...)')) return true;
+  if (message.includes('inside a test was not wrapped in act')) return true;
+  if (message.includes('current testing environment is not configured to support act')) return true;
+  if (message.includes('act(async () => ...) without await')) return true;
+
+  // Application logger output during tests - expected in error handling tests
+  if (message.startsWith('[ERROR]')) return true;
+  if (message.startsWith('[WARN]')) return true;
+  if (message.startsWith('[INFO]')) return true;
+  if (message.startsWith('[DEBUG]')) return true;
+
+  return false;
+};
+
+const originalConsoleError = console.error;
+console.error = (...args) => {
+  if (!shouldSuppressMessage(args[0])) {
+    originalConsoleError.apply(console, args);
+  }
+};
+
+const originalConsoleWarn = console.warn;
+console.warn = (...args) => {
+  if (!shouldSuppressMessage(args[0])) {
+    originalConsoleWarn.apply(console, args);
+  }
+};
+
+// eslint-disable-next-line no-console
+const originalConsoleLog = console.log;
+// eslint-disable-next-line no-console
+console.log = (...args) => {
+  if (!shouldSuppressMessage(args[0])) {
+    originalConsoleLog.apply(console, args);
+  }
+};
+
 // Setup process.env for Expo environment variables
 process.env.EXPO_PUBLIC_COINGECKO_API_KEY = 'test-api-key';
 
@@ -68,11 +115,11 @@ jest.mock('expo-local-authentication', () => ({
 
 // Mock expo-crypto with real crypto implementation for testing
 jest.mock('expo-crypto', () => {
-  const { webcrypto, createHash } = require('node:crypto');
+  const { webcrypto: nodeWebcrypto, createHash } = require('node:crypto');
   return {
     getRandomBytesAsync: async (size) => {
       const buffer = new Uint8Array(size);
-      webcrypto.getRandomValues(buffer);
+      nodeWebcrypto.getRandomValues(buffer);
       return buffer;
     },
     digestStringAsync: async (algorithm, data) => {
@@ -212,7 +259,7 @@ jest.mock('react-native', () => {
       spring: jest.fn(() => ({
         start: jest.fn((callback) => callback && callback()),
       })),
-      parallel: jest.fn((animations) => ({
+      parallel: jest.fn((_animations) => ({
         start: jest.fn((callback) => callback && callback()),
       })),
       View: 'Animated.View',
@@ -253,7 +300,7 @@ jest.mock('react-native', () => {
     },
     LayoutAnimation: {
       configureNext: jest.fn(),
-      create: jest.fn((duration, type, property) => ({})),
+      create: jest.fn((_duration, _type, _property) => ({})),
       Types: {
         linear: 'linear',
         easeInEaseOut: 'easeInEaseOut',

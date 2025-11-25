@@ -2,8 +2,8 @@
  * Tests for transaction formatters
  */
 
+import { formatTransactionDate } from '../formatters/dates';
 import {
-  formatTransactionDate,
   formatTxid,
   formatTransactionAmount,
 } from '../transactionFormatters';

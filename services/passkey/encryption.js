@@ -3,8 +3,6 @@
  */
 
 import * as bip39 from 'bip39';
-import * as SecureStore from 'expo-secure-store';
-import { SECURE_KEYS } from '../../utils/constants';
 import { logger } from '../../utils/logger';
 import { subtle, getRandomValues, createHmac } from 'react-native-quick-crypto';
 

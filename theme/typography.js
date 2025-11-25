@@ -4,22 +4,16 @@
  */
 
 /**
- * Font families
- * Add custom fonts here when available
+ * Font families - CabinetGrotesk
  */
 export const FONTS = {
-  regular: 'System',
-  medium: 'System',
-  bold: 'System',
-  // Add custom fonts later, e.g.:
-  // regular: 'Inter-Regular',
-  // medium: 'Inter-Medium',
-  // bold: 'Inter-Bold',
+  regular: 'CabinetGrotesk-Regular',
+  medium: 'CabinetGrotesk-Medium',
+  bold: 'CabinetGrotesk-Bold',
 };
 
 /**
  * Font weights
- * Use these for consistent font weight throughout the app
  */
 export const FONT_WEIGHTS = {
   light: '300',
@@ -30,93 +24,81 @@ export const FONT_WEIGHTS = {
 };
 
 /**
- * Typography variants
- * Pre-configured text styles for common use cases
+ * Typography variants - pre-configured text styles
  */
 export const TYPOGRAPHY = {
   // Headings
   h1: {
     fontSize: 32,
+    fontFamily: FONTS.bold,
     fontWeight: FONT_WEIGHTS.bold,
-    lineHeight: 40,
   },
   h2: {
     fontSize: 28,
+    fontFamily: FONTS.bold,
     fontWeight: FONT_WEIGHTS.bold,
-    lineHeight: 36,
   },
   h3: {
     fontSize: 24,
-    fontWeight: FONT_WEIGHTS.semiBold,
-    lineHeight: 32,
+    fontFamily: FONTS.bold,
+    fontWeight: FONT_WEIGHTS.bold,
   },
   h4: {
     fontSize: 20,
+    fontFamily: FONTS.medium,
     fontWeight: FONT_WEIGHTS.semiBold,
-    lineHeight: 28,
   },
   h5: {
     fontSize: 18,
-    fontWeight: FONT_WEIGHTS.medium,
-    lineHeight: 24,
+    fontFamily: FONTS.medium,
+    fontWeight: FONT_WEIGHTS.semiBold,
   },
   h6: {
     fontSize: 16,
-    fontWeight: FONT_WEIGHTS.medium,
-    lineHeight: 22,
+    fontFamily: FONTS.medium,
+    fontWeight: FONT_WEIGHTS.semiBold,
   },
 
   // Body text
   body: {
     fontSize: 16,
-    fontWeight: FONT_WEIGHTS.regular,
-    lineHeight: 24,
+    fontFamily: FONTS.regular,
   },
-  bodyLarge: {
-    fontSize: 18,
-    fontWeight: FONT_WEIGHTS.regular,
-    lineHeight: 28,
+  bodyMedium: {
+    fontSize: 16,
+    fontFamily: FONTS.medium,
+    fontWeight: FONT_WEIGHTS.semiBold,
   },
   bodySmall: {
     fontSize: 14,
-    fontWeight: FONT_WEIGHTS.regular,
-    lineHeight: 20,
+    fontFamily: FONTS.regular,
   },
 
   // Caption/label text
   caption: {
     fontSize: 12,
-    fontWeight: FONT_WEIGHTS.regular,
-    lineHeight: 16,
+    fontFamily: FONTS.regular,
   },
   captionBold: {
     fontSize: 12,
-    fontWeight: FONT_WEIGHTS.semiBold,
-    lineHeight: 16,
+    fontFamily: FONTS.bold,
+    fontWeight: FONT_WEIGHTS.bold,
   },
   label: {
-    fontSize: 14,
-    fontWeight: FONT_WEIGHTS.medium,
-    lineHeight: 20,
+    fontSize: 12,
+    fontFamily: FONTS.bold,
+    fontWeight: FONT_WEIGHTS.bold,
   },
 
   // Button text
   button: {
     fontSize: 16,
-    fontWeight: FONT_WEIGHTS.semiBold,
-    lineHeight: 24,
+    fontFamily: FONTS.bold,
+    fontWeight: FONT_WEIGHTS.bold,
   },
-  buttonSmall: {
-    fontSize: 14,
+  buttonMedium: {
+    fontSize: 16,
+    fontFamily: FONTS.medium,
     fontWeight: FONT_WEIGHTS.semiBold,
-    lineHeight: 20,
-  },
-
-  // Special use cases
-  code: {
-    fontSize: 14,
-    fontWeight: FONT_WEIGHTS.regular,
-    lineHeight: 20,
-    fontFamily: 'Courier', // Monospace font
   },
 };

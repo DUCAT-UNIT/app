@@ -3,9 +3,6 @@
  * Utility functions for formatting transaction data
  */
 
-// Re-export date formatting from the formatters module
-export { formatTransactionDate } from './formatters/dates';
-
 /**
  * Format a transaction ID for display
  * @param {string} txid - Transaction ID

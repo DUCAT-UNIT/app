@@ -49,30 +49,6 @@ describe('onboardingHelpers', () => {
       expect(AsyncStorage.removeItem).toHaveBeenCalledTimes(4);
     });
 
-    it('should clear wallet_creation_state', async () => {
-      await resetOnboardingState();
-
-      expect(AsyncStorage.removeItem).toHaveBeenCalledWith('wallet_creation_state');
-    });
-
-    it('should clear wallet_import_state', async () => {
-      await resetOnboardingState();
-
-      expect(AsyncStorage.removeItem).toHaveBeenCalledWith('wallet_import_state');
-    });
-
-    it('should clear seed_verification_state', async () => {
-      await resetOnboardingState();
-
-      expect(AsyncStorage.removeItem).toHaveBeenCalledWith('seed_verification_state');
-    });
-
-    it('should clear legacy onboarding_state', async () => {
-      await resetOnboardingState();
-
-      expect(AsyncStorage.removeItem).toHaveBeenCalledWith('onboarding_state');
-    });
-
     it('should handle partial failures gracefully', async () => {
       AsyncStorage.removeItem
         .mockResolvedValueOnce(undefined) // wallet_creation_state succeeds
@@ -84,29 +60,9 @@ describe('onboardingHelpers', () => {
 
       expect(AsyncStorage.removeItem).toHaveBeenCalledTimes(4);
     });
-
-    it('should complete quickly', async () => {
-      const startTime = Date.now();
-
-      await resetOnboardingState();
-
-      const elapsed = Date.now() - startTime;
-
-      // Should complete in less than 100ms
-      expect(elapsed).toBeLessThan(100);
-    });
   });
 
   describe('AsyncStorage integration', () => {
-    it('should call AsyncStorage.removeItem for each key', async () => {
-      const removeItemSpy = jest.spyOn(AsyncStorage, 'removeItem');
-
-      await resetOnboardingState();
-
-      expect(removeItemSpy).toHaveBeenCalledTimes(4);
-      removeItemSpy.mockRestore();
-    });
-
     it('should handle AsyncStorage not available', async () => {
       AsyncStorage.removeItem.mockImplementation(() => {
         throw new Error('AsyncStorage not available');

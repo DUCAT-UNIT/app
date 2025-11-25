@@ -1,6 +1,6 @@
 /**
  * PIN Hashing Utilities
- * Handles secure PIN hashing with PBKDF2 and legacy SHA256 support
+ * Handles secure PIN hashing with PBKDF2
  */
 
 import * as Crypto from 'expo-crypto';
@@ -63,16 +63,6 @@ export const hashPin = async (pin, salt) => {
   } catch (error) {
     throw new Error('PIN hashing failed: ' + error.message);
   }
-};
-
-/**
- * Hash PIN using legacy SHA256 method (for migration support)
- * @param {string} pin - PIN to hash
- * @param {string} salt - Salt
- * @returns {Promise<string>} Hashed PIN
- */
-export const hashPinLegacy = async (pin, salt) => {
-  return await Crypto.digestStringAsync(Crypto.CryptoDigestAlgorithm.SHA256, pin + salt);
 };
 
 /**

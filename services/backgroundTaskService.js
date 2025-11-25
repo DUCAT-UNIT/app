@@ -5,7 +5,8 @@
 
 import * as BackgroundFetch from 'expo-background-fetch';
 import * as TaskManager from 'expo-task-manager';
-import * as Notifications from 'expo-notifications';
+// Note: Notifications import kept for future use
+// import * as Notifications from 'expo-notifications';
 import * as SecureStore from 'expo-secure-store';
 import { getTxApiUrl } from '../utils/constants';
 

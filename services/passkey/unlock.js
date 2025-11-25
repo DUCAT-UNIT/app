@@ -67,12 +67,12 @@ export const unlockWithPasskey = async (pin) => {
     logger.debug('Authenticating with passkey...');
 
     // Authenticate with passkey
-    const assertion = await Passkey.get(requestJson);
+    const authResult = await Passkey.get(requestJson);
 
     logger.debug('Passkey authentication successful');
 
     // Verify the credential ID matches
-    if (assertion.id !== credentialIdBase64) {
+    if (authResult.id !== credentialIdBase64) {
       throw new Error('Credential ID mismatch');
     }
 
@@ -190,9 +190,8 @@ export const recoverWithPasskey = async (pin) => {
     logger.debug('Authenticating with synced passkey...');
 
     // Authenticate with synced passkey
-    let assertion;
     try {
-      assertion = await Passkey.get(requestJson);
+      await Passkey.get(requestJson);
       debugSteps += '✅ Passkey authentication successful\n';
     } catch (passkeyError) {
       throw new Error(`${debugSteps}❌ Passkey auth failed: ${passkeyError.message}`);

@@ -2,7 +2,7 @@
  * Balance Service - Wallet balance and UTXO fetching
  */
 
-import { getWithRetry, getJSON, fetchParallel } from '../utils/apiClient';
+import { getJSON, fetchParallel } from '../utils/apiClient';
 import { getAddressUrl, getAddressUtxoUrl, getOrdAddressUrl, API_KEYS } from '../utils/constants';
 import { satsToBTC } from '../utils/bitcoin/conversions';
 

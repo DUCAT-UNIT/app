@@ -6,7 +6,6 @@ import {
   timingSafeEqual,
   generateSalt,
   hashPin,
-  hashPinLegacy,
   verifyPinHash,
 } from '../pinHashing';
 import * as Crypto from 'expo-crypto';
@@ -141,32 +140,6 @@ describe('hashPin', () => {
 
     await hashPin('999999', 'salt456');
     expect(pbkdf2Sync).toHaveBeenCalledWith('999999', expect.any(Buffer), 10000, 64, 'sha512');
-  });
-});
-
-describe('hashPinLegacy', () => {
-  beforeEach(() => {
-    jest.clearAllMocks();
-  });
-
-  it('should hash PIN using SHA256', async () => {
-    Crypto.digestStringAsync.mockResolvedValue('legacyhash123456');
-
-    const pin = '123456';
-    const salt = 'mysalt';
-
-    const hash = await hashPinLegacy(pin, salt);
-
-    expect(Crypto.digestStringAsync).toHaveBeenCalledWith('SHA256', '123456mysalt');
-    expect(hash).toBe('legacyhash123456');
-  });
-
-  it('should concatenate PIN and salt', async () => {
-    Crypto.digestStringAsync.mockResolvedValue('hash');
-
-    await hashPinLegacy('1234', 'abcd');
-
-    expect(Crypto.digestStringAsync).toHaveBeenCalledWith('SHA256', '1234abcd');
   });
 });
 

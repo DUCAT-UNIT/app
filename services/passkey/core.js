@@ -36,7 +36,7 @@ export const isPasskeySupported = async () => {
 // Base64URL encoding helpers
 export const toBase64Url = (buffer) => {
   const base64 = Buffer.from(buffer).toString('base64');
-  return base64.replace(/\+/g, '-').replace(/\//g, '_').replace(/=/g, '');
+  return base64.replace(/\+/g, '-').replace(/\//g, '_').replace(/[=]/g, '');
 };
 
 export const fromBase64Url = (base64url) => {

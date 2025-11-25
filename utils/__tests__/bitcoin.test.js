@@ -400,4 +400,56 @@ describe('bitcoin utilities', () => {
       expect(config.bip32.private).toBe(0x04358394);
     });
   });
+
+  describe('extractPubkeyFromTaprootAddress', () => {
+    // Import the function
+    const { extractPubkeyFromTaprootAddress } = require('../bitcoin');
+
+    it('should extract pubkey from valid testnet taproot address', () => {
+      // Generate a real taproot address from the test mnemonic
+      const testMnemonic = 'abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon about';
+      const { taprootAddress } = deriveAddressesFromMnemonic(testMnemonic, 0);
+
+      const extractedPubkey = extractPubkeyFromTaprootAddress(taprootAddress);
+
+      // The extracted pubkey should be 64 hex characters (32 bytes x-only pubkey)
+      expect(extractedPubkey).toMatch(/^[0-9a-f]{64}$/);
+      // Note: This is the TWEAKED pubkey from the address, not the untweaked pubkey from derivation
+    });
+
+    it('should throw error for non-taproot address', () => {
+      expect(() => {
+        extractPubkeyFromTaprootAddress('tb1qw508d6qejxtdg4y5r3zarvary0c5xw7kxpjzsx');
+      }).toThrow('Address must be a Taproot address (tb1p... or bc1p...)');
+    });
+
+    it('should throw error for legacy address', () => {
+      expect(() => {
+        extractPubkeyFromTaprootAddress('2MzQwSSnBHWHqSAqtTVQ6v47XtaisrJa1Vc');
+      }).toThrow('Address must be a Taproot address (tb1p... or bc1p...)');
+    });
+
+    it('should handle address with whitespace', () => {
+      const testMnemonic = 'abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon about';
+      const { taprootAddress } = deriveAddressesFromMnemonic(testMnemonic, 0);
+
+      const extractedPubkey = extractPubkeyFromTaprootAddress('  ' + taprootAddress + '  ');
+      // Should extract valid 32-byte x-only pubkey even with whitespace
+      expect(extractedPubkey).toMatch(/^[0-9a-f]{64}$/);
+    });
+
+    it('should throw error for invalid taproot address format', () => {
+      expect(() => {
+        extractPubkeyFromTaprootAddress('tb1pINVALID');
+      }).toThrow('Failed to extract pubkey from Taproot address');
+    });
+
+    it('should throw error for mainnet taproot address check', () => {
+      // Note: bc1p addresses would pass the prefix check but may fail validation
+      // This tests the prefix validation
+      expect(() => {
+        extractPubkeyFromTaprootAddress('tb1qtest');
+      }).toThrow('Address must be a Taproot address (tb1p... or bc1p...)');
+    });
+  });
 });

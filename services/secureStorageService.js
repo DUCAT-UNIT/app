@@ -135,7 +135,7 @@ export const deleteWalletData = async (clearICloudBackup = false) => {
   try {
     // Clear passkey data if it exists (iCloud backup preserved by default for recovery)
     try {
-      const { clearPasskeyData } = await import('./passkeyService');
+      const { clearPasskeyData } = await import('./passkey');
       await clearPasskeyData(clearICloudBackup);
     } catch (passkeyError) {
       // Passkey service might not be available or error clearing - continue anyway

@@ -225,3 +225,31 @@ export function unmarkUtxosAsSpent(spentUtxos, utxos) {
 
   return updated;
 }
+
+/**
+ * Convert spent UTXO keys (format: "txid:vout") to UTXO objects
+ * @param {Set|Array} spentUtxoKeys - Set or Array of spent UTXO keys
+ * @returns {Array} Array of {txid, vout} objects
+ */
+export function convertSpentKeysToUtxos(spentUtxoKeys) {
+  const keys = spentUtxoKeys instanceof Set ? Array.from(spentUtxoKeys) : spentUtxoKeys;
+  return keys.map(key => {
+    const [txid, vout] = key.split(':');
+    return { txid, vout: parseInt(vout, 10) };
+  });
+}
+
+/**
+ * Release orphaned/spent UTXOs - utility to clean up after failed transactions
+ * @param {Function} getSpentUtxos - Function that returns the Set of spent UTXO keys
+ * @param {Function} unmarkFn - Function to unmark UTXOs as spent
+ * @returns {Promise<void>}
+ */
+export async function releaseOrphanedUtxos(getSpentUtxos, unmarkFn) {
+  const currentSpent = getSpentUtxos();
+  if (currentSpent.size > 0) {
+    const utxosToRelease = convertSpentKeysToUtxos(currentSpent);
+    await unmarkFn(utxosToRelease);
+    logger.debug('Released orphaned UTXOs:', utxosToRelease.length);
+  }
+}

@@ -17,10 +17,9 @@ export const SECURE_KEYS = {
   WALLET_CREATION_METHOD: 'wallet_creation_method_v1', // 'passkey', 'pin', or 'biometric'
 };
 
-// PIN hashing versions
+// PIN hashing version
 export const PIN_HASH_VERSION = {
-  SHA256_LEGACY: '1', // Old SHA256 hashing
-  PBKDF2_10K: '2', // New PBKDF2-like with 10K iterations
+  PBKDF2_10K: '2', // PBKDF2-like with 10K iterations
 };
 
 // API endpoints

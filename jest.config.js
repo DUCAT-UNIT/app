@@ -26,8 +26,10 @@ module.exports = {
     '!utils/messages.js',            // Static error/success message strings
 
     // --- Index/Re-export Files (barrel exports, no logic) ---
-    '!services/transaction/index.js',  // Re-exports transaction functions
-    '!utils/formatters/index.js',      // Re-exports formatters (formatBalance tested indirectly)
+    '!**/index.js',                    // All index files are re-exports
+    '!services/cashu/cashuTokenOperations.js', // Re-exports cashu operations
+    '!services/cashu/cashuMintClient.js',      // Re-exports from mintClient/
+    '!utils/wallet.js',                // Re-exports wallet utilities
 
     // --- Platform-Specific Services (require native modules unavailable in Jest) ---
     '!services/biometricService.js',        // Requires expo-local-authentication hardware
@@ -35,7 +37,6 @@ module.exports = {
     '!services/icloudStorage.js',           // Requires iOS iCloud native integration
     '!services/pinService.js',              // Requires SecureStore native crypto
     '!services/secureStorageService.js',    // Requires Expo SecureStore native module
-    '!services/passkeyService.js',          // Requires WebAuthn/native credential manager
     '!services/passkey/**/*.js',            // All passkey files require WebAuthn API
 
     // --- Native-Dependent Hooks (require React Native/Expo APIs) ---
@@ -51,6 +52,17 @@ module.exports = {
     '!hooks/useReceiveScreenAnimations.js', // Requires react-native-reanimated
     '!hooks/useBottomSheetAnimation.js',    // Requires react-native-reanimated
     '!hooks/usePriceChart.js',              // Requires gesture/animation libraries
+
+    // --- Dynamic Import Hooks (Jest cannot mock dynamic imports without experimental VM) ---
+    '!hooks/useRedeemCashuToken.js',        // Uses dynamic import() for cashu services
+    '!hooks/useTurboMintCompletion.js',     // Uses dynamic import() for cashu/turbo services
+    '!hooks/useCashuMintCompletion.js',     // Uses dynamic import() for cashu services
+    '!hooks/useFuseEcash.js',               // Uses dynamic import() for cashu services
+    '!hooks/useQRCodeHandler.js',           // Uses dynamic import() for cashu services
+    '!hooks/useEcashThresholdManager.js',   // Uses dynamic import() for cashu services
+    '!hooks/useAssetTransactions.js',       // Uses dynamic import() for cashu services
+    '!hooks/useTransactionHistoryData.js',  // Uses dynamic import() for cashu services
+    '!hooks/useAppSettings.js',             // Uses dynamic import() for cashu services
 
     // --- Visual/Animation Utils (require native rendering) ---
     '!utils/airdropCelebration.js',      // Requires react-native-confetti-cannon

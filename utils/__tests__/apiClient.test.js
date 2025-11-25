@@ -193,6 +193,54 @@ describe('postJSON', () => {
       5000
     );
   });
+
+  it('should throw error with error message when response is not ok', async () => {
+    const mockResponse = {
+      ok: false,
+      status: 400,
+      statusText: 'Bad Request',
+      json: jest.fn().mockResolvedValue({ error: 'Invalid input' }),
+    };
+    api.fetchWithTimeout.mockResolvedValue(mockResponse);
+
+    await expect(postJSON('https://api.test', { data: 'test' })).rejects.toThrow('Invalid input');
+  });
+
+  it('should throw error with message field when error field not present', async () => {
+    const mockResponse = {
+      ok: false,
+      status: 500,
+      statusText: 'Internal Server Error',
+      json: jest.fn().mockResolvedValue({ message: 'Server crashed' }),
+    };
+    api.fetchWithTimeout.mockResolvedValue(mockResponse);
+
+    await expect(postJSON('https://api.test', { data: 'test' })).rejects.toThrow('Server crashed');
+  });
+
+  it('should throw error with status text when no error message in response', async () => {
+    const mockResponse = {
+      ok: false,
+      status: 404,
+      statusText: 'Not Found',
+      json: jest.fn().mockResolvedValue({}),
+    };
+    api.fetchWithTimeout.mockResolvedValue(mockResponse);
+
+    await expect(postJSON('https://api.test', { data: 'test' })).rejects.toThrow('HTTP 404: Not Found');
+  });
+
+  it('should handle json parse error gracefully when response is not ok', async () => {
+    const mockResponse = {
+      ok: false,
+      status: 500,
+      statusText: 'Internal Server Error',
+      json: jest.fn().mockRejectedValue(new Error('Invalid JSON')),
+    };
+    api.fetchWithTimeout.mockResolvedValue(mockResponse);
+
+    await expect(postJSON('https://api.test', { data: 'test' })).rejects.toThrow('HTTP 500: Internal Server Error');
+  });
 });
 
 describe('getJSON', () => {
