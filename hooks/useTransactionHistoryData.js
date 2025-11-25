@@ -24,7 +24,7 @@ export function useTransactionHistoryData(
   const [loading, setLoading] = useState(false);
   const [ecashTokens, setEcashTokens] = useState([]);
   const [ecashLoading, setEcashLoading] = useState(false);
-  const [ecashInitialLoadDone, setEcashInitialLoadDone] = useState(false);
+  const [, setEcashInitialLoadDone] = useState(false);
   const hasCalculatedInitialTransactions = useRef(false);
 
   // Set initial loading state immediately when sheet opens
@@ -51,7 +51,7 @@ export function useTransactionHistoryData(
           const tokens = [...sentTokens, ...receivedTokens];
 
           // Check which tokens have been claimed
-          const { decodeToken } = await import('../services/cashu/cashuCrypto');
+          const { decodeToken } = await import('../services/cashu/crypto');
           const { checkProofsSpent } = await import('../services/cashu/cashuMintClient');
           const { updateTokenClaimedStatus } = await import('../services/cashu/cashuLockedTokensService');
 

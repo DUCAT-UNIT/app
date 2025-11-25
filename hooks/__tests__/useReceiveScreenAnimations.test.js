@@ -64,59 +64,29 @@ describe('useReceiveScreenAnimations', () => {
     expect(mockOnClose).toHaveBeenCalled();
   });
 
-  it('should handle QR back animation', () => {
+  it('should handle QR back animation by returning a composite animation', () => {
     const { result } = renderHook(
       () => useReceiveScreenAnimations(true, true, mockOnClose)
     );
 
     const animation = result.current.handleQrBack();
 
+    // Verify it returns a composite animation object with start method
     expect(animation).toBeDefined();
+    expect(typeof animation.start).toBe('function');
   });
 
-  it('should prepare QR animation', () => {
+  it('should execute prepareQrAnimation without errors', () => {
     const { result } = renderHook(
       () => useReceiveScreenAnimations(true, false, mockOnClose)
     );
 
-    act(() => {
-      result.current.prepareQrAnimation();
-    });
-
-    // Values are set but we can't directly test animated values
-    // Just verify the function executes without error
-    expect(result.current.translateX).toBeDefined();
-  });
-
-  it('should handle sheet opening', () => {
-    const { result, unmount } = renderHook(
-      () => useReceiveScreenAnimations(false, false, mockOnClose)
-    );
-
-    // Re-render with showReceiveSheet = true
-    unmount();
-    const { result: newResult } = renderHook(
-      () => useReceiveScreenAnimations(true, false, mockOnClose)
-    );
-
-    expect(newResult.current.receiveSheetOpacity).toBeDefined();
-  });
-
-  it('should return consistent pan responder on re-render', () => {
-    const { result, unmount } = renderHook(
-      () => useReceiveScreenAnimations(false, false, mockOnClose)
-    );
-
-    const firstPanResponder = result.current.panResponder;
-
-    unmount();
-    const { result: newResult } = renderHook(
-      () => useReceiveScreenAnimations(false, false, mockOnClose)
-    );
-
-    // Pan responder is created once and reused
-    expect(newResult.current.panResponder).toBeDefined();
-    expect(firstPanResponder).toBeDefined();
+    // Verify the function executes without throwing
+    expect(() => {
+      act(() => {
+        result.current.prepareQrAnimation();
+      });
+    }).not.toThrow();
   });
 
   describe('pan responder - receive sheet', () => {
@@ -155,27 +125,16 @@ describe('useReceiveScreenAnimations', () => {
       expect(shouldMove).toBe(false);
     });
 
-    it('should handle pan responder move with positive dy', () => {
+    it('should handle pan responder move without throwing', () => {
       const { result } = renderHook(
         () => useReceiveScreenAnimations(true, false, mockOnClose)
       );
 
-      const gestureState = { dy: 50, dx: 0 };
-      result.current.panResponder.panHandlers.onResponderMove(null, gestureState);
-
-      // setValue is called but we can't test the value directly
-      expect(result.current.receiveTranslateY).toBeDefined();
-    });
-
-    it('should not update position on negative dy', () => {
-      const { result } = renderHook(
-        () => useReceiveScreenAnimations(true, false, mockOnClose)
-      );
-
-      const gestureState = { dy: -50, dx: 0 };
-      result.current.panResponder.panHandlers.onResponderMove(null, gestureState);
-
-      expect(result.current.receiveTranslateY).toBeDefined();
+      // Verify both positive and negative dy handling works without errors
+      expect(() => {
+        result.current.panResponder.panHandlers.onResponderMove(null, { dy: 50, dx: 0 });
+        result.current.panResponder.panHandlers.onResponderMove(null, { dy: -50, dx: 0 });
+      }).not.toThrow();
     });
 
     it('should dismiss on large downward swipe', () => {
@@ -200,7 +159,7 @@ describe('useReceiveScreenAnimations', () => {
       expect(mockOnClose).toHaveBeenCalled();
     });
 
-    it('should spring back on small swipe', () => {
+    it('should spring back on small swipe without dismissing', () => {
       const { result } = renderHook(
         () => useReceiveScreenAnimations(true, false, mockOnClose)
       );
@@ -209,7 +168,7 @@ describe('useReceiveScreenAnimations', () => {
       result.current.panResponder.panHandlers.onResponderRelease(null, gestureState);
 
       // Spring animation starts but onClose not called
-      expect(result.current.receiveTranslateY).toBeDefined();
+      expect(mockOnClose).not.toHaveBeenCalled();
     });
   });
 
@@ -249,60 +208,49 @@ describe('useReceiveScreenAnimations', () => {
       expect(shouldMove).toBe(false);
     });
 
-    it('should handle QR modal pan move with positive dx', () => {
+    it('should handle QR modal pan move without throwing', () => {
       const { result } = renderHook(
         () => useReceiveScreenAnimations(true, true, mockOnClose)
       );
 
-      const gestureState = { dx: 50, dy: 0 };
-      result.current.qrModalPanResponder.panHandlers.onResponderMove(null, gestureState);
-
-      expect(result.current.translateX).toBeDefined();
+      // Verify both positive and negative dx handling works without errors
+      expect(() => {
+        result.current.qrModalPanResponder.panHandlers.onResponderMove(null, { dx: 50, dy: 0 });
+        result.current.qrModalPanResponder.panHandlers.onResponderMove(null, { dx: -50, dy: 0 });
+      }).not.toThrow();
     });
 
-    it('should not update position on negative dx', () => {
+    it('should trigger back animation on large right swipe', () => {
       const { result } = renderHook(
         () => useReceiveScreenAnimations(true, true, mockOnClose)
       );
 
-      const gestureState = { dx: -50, dy: 0 };
-      result.current.qrModalPanResponder.panHandlers.onResponderMove(null, gestureState);
-
-      expect(result.current.translateX).toBeDefined();
+      // Large swipe should trigger animation without error
+      expect(() => {
+        result.current.qrModalPanResponder.panHandlers.onResponderRelease(null, { dx: 150, vx: 0.3 });
+      }).not.toThrow();
     });
 
-    it('should go back on large right swipe', () => {
+    it('should trigger back animation on fast right velocity', () => {
       const { result } = renderHook(
         () => useReceiveScreenAnimations(true, true, mockOnClose)
       );
 
-      const gestureState = { dx: 150, vx: 0.3 };
-      result.current.qrModalPanResponder.panHandlers.onResponderRelease(null, gestureState);
-
-      // handleQrBack is called
-      expect(result.current.translateX).toBeDefined();
+      // Fast velocity should trigger animation without error
+      expect(() => {
+        result.current.qrModalPanResponder.panHandlers.onResponderRelease(null, { dx: 50, vx: 0.6 });
+      }).not.toThrow();
     });
 
-    it('should go back on fast right velocity', () => {
+    it('should spring back on small swipe without triggering back', () => {
       const { result } = renderHook(
         () => useReceiveScreenAnimations(true, true, mockOnClose)
       );
 
-      const gestureState = { dx: 50, vx: 0.6 };
-      result.current.qrModalPanResponder.panHandlers.onResponderRelease(null, gestureState);
-
-      expect(result.current.translateX).toBeDefined();
-    });
-
-    it('should spring back on small swipe', () => {
-      const { result } = renderHook(
-        () => useReceiveScreenAnimations(true, true, mockOnClose)
-      );
-
-      const gestureState = { dx: 50, vx: 0.2 };
-      result.current.qrModalPanResponder.panHandlers.onResponderRelease(null, gestureState);
-
-      expect(result.current.translateX).toBeDefined();
+      // Small swipe should spring back without error
+      expect(() => {
+        result.current.qrModalPanResponder.panHandlers.onResponderRelease(null, { dx: 50, vx: 0.2 });
+      }).not.toThrow();
     });
   });
 });

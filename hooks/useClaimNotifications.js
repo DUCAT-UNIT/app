@@ -131,5 +131,5 @@ export function useClaimNotifications({
         navigation.setParams({ claimError: undefined, claimToken: undefined });
       }
     }
-  }, [route?.params?.claimSuccess, route?.params?.claimError, showSnackbar, navigation, switchAccount, dismissSnackbar]);
+  }, [route?.params?.claimSuccess, route?.params?.claimError, route?.params?.claimToken, showSnackbar, navigation, switchAccount, dismissSnackbar]);
 }

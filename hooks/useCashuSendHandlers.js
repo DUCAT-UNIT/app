@@ -22,7 +22,7 @@ export function useCashuSendHandlers({
   setIsLoading,
 }) {
   const handleSendToken = useCallback(async () => {
-    const amountNum = parseInt(amount);
+    const amountNum = parseInt(amount, 10);
     if (!amountNum || amountNum <= 0) {
       Alert.alert('Invalid Amount', 'Please enter a valid amount');
       return;
@@ -58,7 +58,7 @@ export function useCashuSendHandlers({
   }, []);
 
   const handleStartRedeem = useCallback(async () => {
-    const amountNum = parseInt(amount);
+    const amountNum = parseInt(amount, 10);
     if (!amountNum || amountNum <= 0) {
       Alert.alert('Invalid Amount', 'Please enter a valid amount');
       return;

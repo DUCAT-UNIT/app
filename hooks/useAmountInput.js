@@ -10,11 +10,9 @@ import { logger } from '../utils/logger';
 export function useAmountInput({
   sendAssetType,
   segwitBalance,
-  taprootBalance,
   runesBalance,
   cashuBalance,
   wallet,
-  sendAddressType,
   setSendAmount
 }) {
   const [isCalculatingMax, setIsCalculatingMax] = useState(false);

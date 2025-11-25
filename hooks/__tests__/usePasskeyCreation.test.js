@@ -4,7 +4,7 @@
 
 import React from 'react';
 import { create, act } from 'react-test-renderer';
-import * as PasskeyService from '../../services/passkeyService';
+import * as PasskeyService from '../../services/passkey';
 import { usePasskeyCreation } from '../usePasskeyCreation';
 
 // Helper to render hooks with react-test-renderer
@@ -31,7 +31,7 @@ function renderHook(hook) {
 jest.mock('expo-device', () => ({
   deviceName: 'iPhone 15',
 }));
-jest.mock('../../services/passkeyService');
+jest.mock('../../services/passkey');
 
 describe('usePasskeyCreation', () => {
   let mockProps;

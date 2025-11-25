@@ -19,7 +19,7 @@ export function useSeedVerification({
   showToast,
 }) {
   // Persisted verification state - automatically loads/saves
-  const [verificationState, updateVerificationState, clearPersistedState, stateLoaded] =
+  const [verificationState, updateVerificationState, clearPersistedState] =
     usePersistedObject(
       VERIFICATION_STATE_KEY,
       {

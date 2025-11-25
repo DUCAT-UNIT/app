@@ -8,7 +8,6 @@
 
 import { useState, useRef } from 'react';
 import * as WalletService from '../services/walletService';
-import { useWallet } from '../contexts/WalletContext';
 import { ERRORS } from '../utils/messages';
 import * as SecureStore from 'expo-secure-store';
 import { SECURE_KEYS } from '../utils/constants';
@@ -17,11 +16,10 @@ import { logger } from '../utils/logger';
 
 const IMPORT_STATE_KEY = 'wallet_import_state';
 
-export function useWalletImport({ currentAccount, setSettingUpPin, showToast, loadWallet }) {
-  const { setWalletAddresses } = useWallet();
+export function useWalletImport({ currentAccount, setSettingUpPin, showToast }) {
 
   // Persisted import state - automatically loads/saves
-  const [importState, updateImportState, clearPersistedState, stateLoaded] = usePersistedObject(
+  const [importState, updateImportState, clearPersistedState] = usePersistedObject(
     IMPORT_STATE_KEY,
     {
       importingWallet: false,
@@ -75,7 +73,7 @@ export function useWalletImport({ currentAccount, setSettingUpPin, showToast, lo
 
       // Import wallet using WalletService (validates and derives addresses)
       // This is CPU-intensive (BIP32 key derivation) - may take 1-2 seconds
-      const { addresses } = await WalletService.importWallet(mnemonic, currentAccount);
+      await WalletService.importWallet(mnemonic, currentAccount);
 
       // Store wallet in secure storage
       await WalletService.saveWalletToStorage(mnemonic, currentAccount);

@@ -89,11 +89,11 @@ describe('useFormattedBalances', () => {
     expect(result.current.runes).toBe('0');
   });
 
-  it('should memoize formatted values', () => {
-    let renderCount = 0;
+  it('should return stable references when inputs are the same', () => {
+    let results = [];
     function TestComponent({ balances }) {
-      renderCount++;
-      useFormattedBalances(balances);
+      const formatted = useFormattedBalances(balances);
+      results.push(formatted);
       return null;
     }
 
@@ -104,14 +104,13 @@ describe('useFormattedBalances', () => {
       component = create(<TestComponent balances={balances} />);
     });
 
-    const initialRenderCount = renderCount;
-
-    // Re-render with same values
+    // Re-render with same object reference
     act(() => {
       component.update(<TestComponent balances={balances} />);
     });
 
-    // Memoization should prevent recalculation
-    expect(renderCount).toBeGreaterThan(initialRenderCount);
+    // Both renders should produce the same formatted string values
+    expect(results[0].totalBTC).toBe(results[1].totalBTC);
+    expect(results[0].totalBTC).toBe('1.50000000');
   });
 });

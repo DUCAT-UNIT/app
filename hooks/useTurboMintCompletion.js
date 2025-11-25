@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef, useCallback } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { logger } from '../utils/logger';
 
 /**
@@ -156,7 +156,7 @@ export function useTurboMintCompletion({
     };
 
     completeMintProcess();
-  }, [isTurbo, mintQuoteId, mintAmount, turboRecipient, skipMint, fetchTransactionHistory, refreshCashuBalance, showSnackbar, showToast]);
+  }, [isTurbo, mintQuoteId, mintAmount, turboRecipient, skipMint, fetchTransactionHistory, refreshCashuBalance, showSnackbar, showToast, processingStage]);
 
   return {
     turboToken,

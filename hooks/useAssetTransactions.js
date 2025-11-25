@@ -41,7 +41,7 @@ export function useAssetTransactions(transactionHistory, assetType, segwitAddres
             logger.debug('[useAssetTransactions] Loaded ecash tokens:', tokens.length, '(sent:', sentTokens.length, 'received:', receivedTokens.length, ')');
 
           // Check which tokens have been claimed
-          const { decodeToken } = await import('../services/cashu/cashuCrypto');
+          const { decodeToken } = await import('../services/cashu/crypto');
           const { checkProofsSpent } = await import('../services/cashu/cashuMintClient');
           const { updateTokenClaimedStatus } = await import('../services/cashu/cashuLockedTokensService');
 

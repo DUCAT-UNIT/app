@@ -1,0 +1,97 @@
+/**
+ * useFuseEcash Hook
+ * Handles converting e-cash to on-chain UNIT (Fuse operation)
+ */
+
+import { useCallback } from 'react';
+import { Alert } from 'react-native';
+import { logger } from '../utils/logger';
+
+export function useFuseEcash({
+  cashuBalance,
+  taprootAddress,
+  transactionHistory,
+  fetchTransactionHistory,
+}) {
+  const handleFusePress = useCallback(async () => {
+    if (cashuBalance === 0) {
+      Alert.alert('No E-cash', 'You don\'t have any e-cash to fuse.');
+      return;
+    }
+
+    Alert.alert(
+      'Fuse E-cash to UNIT?',
+      `Convert all ${cashuBalance.toFixed(2)} eUNIT to on-chain UNIT?`,
+      [
+        { text: 'Cancel', style: 'cancel' },
+        {
+          text: 'Fuse',
+          onPress: async () => {
+            try {
+              const { requestMelt, completeMeltWithoutCleanup, cleanupMeltProofs } =
+                await import('../services/cashu/cashuWalletService');
+
+              // Request melt quote
+              const quote = await requestMelt(taprootAddress, cashuBalance);
+
+              // Complete melt but keep proofs until we see the tx
+              const meltResult = await completeMeltWithoutCleanup(quote.quoteId, quote.total);
+
+              // Clean up proofs immediately after successful melt
+              logger.debug('[Fuse] Melt successful, cleaning up proofs');
+              await cleanupMeltProofs(meltResult.proofsToRemove, meltResult.changeProofs);
+
+              Alert.alert('Processing', 'Waiting for transaction to appear on-chain...');
+
+              // Poll for transaction
+              let txFound = false;
+              let attempts = 0;
+              const maxAttempts = 30;
+
+              while (!txFound && attempts < maxAttempts) {
+                attempts++;
+                logger.debug(`[Fuse] Polling attempt ${attempts}/${maxAttempts}`);
+                await new Promise(resolve => setTimeout(resolve, 2000));
+
+                await fetchTransactionHistory();
+
+                txFound = transactionHistory.some(tx => {
+                  const hasOurAddress = tx.vout?.some(output =>
+                    output.scriptpubkey_address === taprootAddress
+                  );
+                  if (!hasOurAddress) return false;
+
+                  const txTime = tx.status?.block_time;
+                  if (!txTime) {
+                    logger.debug(`[Fuse] Found unconfirmed transaction: ${tx.txid}`);
+                    return true;
+                  }
+
+                  const now = Math.floor(Date.now() / 1000);
+                  return (now - txTime) < 120;
+                });
+
+                if (txFound) break;
+              }
+
+              await fetchTransactionHistory();
+
+              if (txFound) {
+                Alert.alert('Success', 'E-cash successfully fused to on-chain UNIT!');
+              } else {
+                Alert.alert(
+                  'Pending',
+                  'Melt completed successfully. Transaction will appear on-chain shortly.'
+                );
+              }
+            } catch (error) {
+              Alert.alert('Error', `Failed to fuse e-cash: ${error.message}`);
+            }
+          },
+        },
+      ]
+    );
+  }, [cashuBalance, taprootAddress, fetchTransactionHistory, transactionHistory]);
+
+  return { handleFusePress };
+}

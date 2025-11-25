@@ -238,7 +238,7 @@ export function useVaultWebView(walletCredentials, vaultData, visible) {
         }, 500);
       }
     }
-  }, [walletCredentials, vaultData, injectWalletCredentials]);
+  }, [walletCredentials, vaultData, injectWalletCredentials, visible, webViewLoaded]);
 
   // Reload when vaultData is fetched after account switch
   useEffect(() => {

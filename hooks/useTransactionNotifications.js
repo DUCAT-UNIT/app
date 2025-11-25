@@ -4,7 +4,6 @@
  */
 
 import { useEffect } from 'react';
-import { logger } from '../utils/logger';
 
 /**
  * Hook for showing transaction state notifications

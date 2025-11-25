@@ -44,7 +44,7 @@ export function useQRCodeHandler({
     if (data.startsWith('cashu')) {
       try {
         // Check if this is a P2PK locked token (Turbo)
-        const { hasP2PKProofs } = await import('../services/cashu/cashuP2PK');
+        const { hasP2PKProofs } = await import('../services/cashu/p2pk');
         const isP2PKToken = hasP2PKProofs(data);
 
         if (isP2PKToken) {
@@ -87,7 +87,7 @@ export function useQRCodeHandler({
         showToast('Checking token...', 'info');
 
         // Decode and analyze the token
-        const { decodeToken } = await import('../services/cashu/cashuCrypto');
+        const { decodeToken } = await import('../services/cashu/crypto');
         const decoded = decodeToken(data);
         const { proofs, amount } = decoded;
 
@@ -126,7 +126,7 @@ export function useQRCodeHandler({
                     showToast('Claiming unspent proofs...', 'info');
 
                     // Create a new token with only unspent proofs
-                    const { encodeToken } = await import('../services/cashu/cashuCrypto');
+                    const { encodeToken } = await import('../services/cashu/crypto');
                     const filteredToken = {
                       token: [{
                         mint: decoded.mint,
@@ -182,7 +182,7 @@ export function useQRCodeHandler({
 
         // If it's already a proper token object with proofs, encode it
         if (parsed.token && Array.isArray(parsed.token)) {
-          const { encodeToken } = await import('../services/cashu/cashuCrypto');
+          const { encodeToken } = await import('../services/cashu/crypto');
           const encoded = encodeToken(parsed);
           logger.debug('[useQRCodeHandler] Encoded token:', encoded.substring(0, 50));
 
@@ -224,37 +224,27 @@ export function useQRCodeHandler({
         let token = null;
 
         // Check if this is the ducat://turbo/ format
-        const turboMatch = data.match(/ducat:\/\/turbo\/([^\/?#]+)/);
+        const turboMatch = data.match(/ducat:\/\/turbo\/([^/?#]+)/);
         if (turboMatch && turboMatch[1]) {
           token = turboMatch[1];
           logger.debug('[useQRCodeHandler] Extracted token from ducat:// URL');
         }
-        // Check if this is an ID-based link
+        // Check if this is a direct token link with base64 encoded token
         else {
-          const idMatch = data.match(/[?&]id=([^&]+)/);
-          if (idMatch && idMatch[1]) {
-            showToast('Fetching token...', 'info');
-            const { fetchTokenFromRebrandly } = await import('../services/urlShortener');
-            token = await fetchTokenFromRebrandly(idMatch[1]);
-            logger.debug('[useQRCodeHandler] Fetched token from Rebrandly');
-          }
-          // Check if this is a direct token link
-          else {
-            const tokenMatch = data.match(/[?&]t=([^&]+)/);
-            if (tokenMatch && tokenMatch[1]) {
-              // Decode URL-safe base64
-              let base64Token = tokenMatch[1]
-                .replace(/-/g, '+')
-                .replace(/_/g, '/');
+          const tokenMatch = data.match(/[?&]t=([^&]+)/);
+          if (tokenMatch && tokenMatch[1]) {
+            // Decode URL-safe base64
+            let base64Token = tokenMatch[1]
+              .replace(/-/g, '+')
+              .replace(/_/g, '/');
 
-              // Add padding
-              while (base64Token.length % 4) {
-                base64Token += '=';
-              }
-
-              token = atob(base64Token);
-              logger.debug('[useQRCodeHandler] Decoded base64 token');
+            // Add padding
+            while (base64Token.length % 4) {
+              base64Token += '=';
             }
+
+            token = atob(base64Token);
+            logger.debug('[useQRCodeHandler] Decoded base64 token');
           }
         }
 

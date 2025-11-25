@@ -54,9 +54,9 @@ export function usePersistedState(key, initialState, options = {}) {
           let mergedState = deserialized;
           if (typeof initialState === 'object' && !Array.isArray(initialState) && typeof deserialized === 'object' && !Array.isArray(deserialized)) {
             mergedState = { ...initialState };
-            for (const key in deserialized) {
-              if (deserialized[key] !== null && deserialized[key] !== undefined) {
-                mergedState[key] = deserialized[key];
+            for (const propKey in deserialized) {
+              if (deserialized[propKey] !== null && deserialized[propKey] !== undefined) {
+                mergedState[propKey] = deserialized[propKey];
               }
             }
           }
@@ -87,7 +87,8 @@ export function usePersistedState(key, initialState, options = {}) {
     return () => {
       isMountedRef.current = false;
     };
-  }, [key]); // Only run on mount and key change
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [key]); // Only run on mount and key change - intentionally omitting deserializer, initialState, onError, onLoad, silent
 
   // Save state whenever it changes (after initial load)
   useEffect(() => {
@@ -113,7 +114,8 @@ export function usePersistedState(key, initialState, options = {}) {
     };
 
     saveState();
-  }, [state, isLoaded, key]); // Save when state changes
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [state, isLoaded, key]); // Save when state changes - intentionally omitting onError, onSave, serializer, silent
 
   /**
    * Clear persisted state from AsyncStorage and reset to initial

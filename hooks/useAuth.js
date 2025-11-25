@@ -11,7 +11,7 @@ import { useState, useEffect, useMemo, useCallback } from 'react';
 import * as LocalAuthentication from 'expo-local-authentication';
 import * as SecureStore from 'expo-secure-store';
 import { SECURE_KEYS } from '../utils/constants';
-import * as PasskeyService from '../services/passkeyService';
+import * as PasskeyService from '../services/passkey';
 
 export function useAuth({ onSeedConfirmed }) {
   // Authentication state

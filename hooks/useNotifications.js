@@ -30,12 +30,12 @@ export function useNotifications() {
 
     // Listen for notifications received while app is foregrounded
     notificationListener.current = Notifications.addNotificationReceivedListener(
-      (_notification) => {}
+      () => {}
     );
 
     // Listen for user interactions with notifications
     responseListener.current = Notifications.addNotificationResponseReceivedListener(
-      (_response) => {}
+      () => {}
     );
 
     return () => {
@@ -89,22 +89,14 @@ export function useNotifications() {
    * @param {string} type - 'deposit' or 'withdraw'
    */
   const sendTransactionConfirmedNotification = async (
-    assetType,
-    amount,
-    txid,
-    type = 'withdraw'
+    _assetType,
+    _amount,
+    _txid,
+    _type = 'withdraw'
   ) => {
     try {
       // Push notifications disabled - using snackbars only
       // Format message based on asset type
-      let body;
-      if (assetType === 'UNIT') {
-        body = `Withdrawal of ${amount} ${assetType} confirmed.`;
-      } else {
-        // BTC or other assets
-        body = `${amount} ${assetType} ${type} transaction confirmed.`;
-      }
-
       // Notification removed - snackbars are used instead
       // const notificationId = await Notifications.scheduleNotificationAsync({...});
 

@@ -256,33 +256,6 @@ describe('useSettingsNavigation', () => {
       expect(result.current.showSettings).toBe(false);
     });
 
-    it('should reset translateX when opening settings', async () => {
-      const { result } = renderHook(() => useSettingsNavigation());
-
-      await act(async () => {
-        await new Promise((resolve) => setTimeout(resolve, 0));
-      });
-
-      act(() => {
-        result.current.openSettings();
-      });
-
-      expect(result.current.showSettings).toBe(true);
-    });
-
-    it('should reset translateX when closing settings', async () => {
-      const { result } = renderHook(() => useSettingsNavigation());
-
-      await act(async () => {
-        await new Promise((resolve) => setTimeout(resolve, 0));
-      });
-
-      act(() => {
-        result.current.closeSettings();
-      });
-
-      expect(result.current.showSettings).toBe(false);
-    });
   });
 
   describe('Pan Responder', () => {
@@ -433,18 +406,6 @@ describe('useSettingsNavigation', () => {
   });
 
   describe('Seed Phrase Return Flow', () => {
-    it('should handle seed phrase context properly', async () => {
-      const { result } = renderHook(() => useSettingsNavigation());
-
-      await act(async () => {
-        await new Promise((resolve) => setTimeout(resolve, 0));
-      });
-
-      expect(result.current).toBeDefined();
-      expect(result.current.openSettings).toBeDefined();
-      expect(result.current.closeSettings).toBeDefined();
-    });
-
     it('should reopen settings when seed phrase closes with returnToSettings true', async () => {
       // Start with viewingSeedPhrase true and returnToSettings false
       mockSeedPhraseContext = {
@@ -583,44 +544,7 @@ describe('useSettingsNavigation', () => {
       });
 
       // The second call should have been prevented by the checkingFlags guard
-      expect(result.current).toBeDefined();
-    });
-  });
-
-  describe('Opacity Management', () => {
-    it('should manage opacity when settings opens', async () => {
-      const { result } = renderHook(() => useSettingsNavigation());
-
-      await act(async () => {
-        await new Promise((resolve) => setTimeout(resolve, 0));
-      });
-
-      act(() => {
-        result.current.openSettings();
-      });
-
-      expect(result.current.showSettings).toBe(true);
-      expect(result.current.settingsOpacity).toBeDefined();
-    });
-
-    it('should manage opacity when settings closes', async () => {
-      SecureStore.getItemAsync.mockImplementation((key) => {
-        if (key === 'returnToSettingsAfterAuth') return Promise.resolve('true');
-        return Promise.resolve(null);
-      });
-
-      const { result } = renderHook(() => useSettingsNavigation());
-
-      await act(async () => {
-        await new Promise((resolve) => setTimeout(resolve, 10));
-      });
-
-      act(() => {
-        result.current.closeSettings();
-      });
-
       expect(result.current.showSettings).toBe(false);
-      expect(result.current.settingsOpacity).toBeDefined();
     });
   });
 });

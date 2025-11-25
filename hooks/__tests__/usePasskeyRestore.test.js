@@ -4,7 +4,7 @@
 
 import React from 'react';
 import { create, act } from 'react-test-renderer';
-import * as PasskeyService from '../../services/passkeyService';
+import * as PasskeyService from '../../services/passkey';
 import { usePasskeyRestore } from '../usePasskeyRestore';
 import { savePin } from '../../services/pinService';
 import { saveMnemonic, saveCurrentAccount } from '../../services/secureStorageService';
@@ -30,7 +30,7 @@ function renderHook(hook) {
 }
 
 // Mock PasskeyService
-jest.mock('../../services/passkeyService');
+jest.mock('../../services/passkey');
 
 // Mock pinService and secureStorageService
 jest.mock('../../services/pinService', () => ({

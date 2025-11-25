@@ -86,17 +86,16 @@ describe('useBottomSheetAnimation', () => {
     expect(mockOnClose).not.toHaveBeenCalled();
   });
 
-  it('should reset values when isVisible changes to false', () => {
-    const { result, rerender } = renderHook(
+  it('should handle visibility change to false without errors', () => {
+    const { rerender } = renderHook(
       ({ isVisible, onClose }) => useBottomSheetAnimation(isVisible, onClose),
       { initialProps: { isVisible: true, onClose: mockOnClose } }
     );
 
-    rerender({ isVisible: false, onClose: mockOnClose });
-
-    // Values are reset
-    expect(result.current.opacity).toBeDefined();
-    expect(result.current.translateY).toBeDefined();
+    // Verify visibility change handles cleanup without throwing
+    expect(() => {
+      rerender({ isVisible: false, onClose: mockOnClose });
+    }).not.toThrow();
   });
 
   describe('pan responder - gesture handling', () => {
@@ -171,34 +170,17 @@ describe('useBottomSheetAnimation', () => {
       expect(shouldMove).toBe(false);
     });
 
-    it('should update position on downward move', () => {
+    it('should handle move gestures without throwing', () => {
       const { result } = renderHook(
         ({ isVisible, onClose }) => useBottomSheetAnimation(isVisible, onClose),
         { initialProps: { isVisible: true, onClose: mockOnClose } }
       );
 
-      const gestureState = { dy: 50, dx: 0 };
-      result.current.panResponder.panHandlers.onResponderMove(
-        null,
-        gestureState
-      );
-
-      expect(result.current.translateY).toBeDefined();
-    });
-
-    it('should not update position on upward move', () => {
-      const { result } = renderHook(
-        ({ isVisible, onClose }) => useBottomSheetAnimation(isVisible, onClose),
-        { initialProps: { isVisible: true, onClose: mockOnClose } }
-      );
-
-      const gestureState = { dy: -50, dx: 0 };
-      result.current.panResponder.panHandlers.onResponderMove(
-        null,
-        gestureState
-      );
-
-      expect(result.current.translateY).toBeDefined();
+      // Verify both downward and upward moves work without errors
+      expect(() => {
+        result.current.panResponder.panHandlers.onResponderMove(null, { dy: 50, dx: 0 });
+        result.current.panResponder.panHandlers.onResponderMove(null, { dy: -50, dx: 0 });
+      }).not.toThrow();
     });
 
     it('should dismiss on large downward swipe', () => {

@@ -4,9 +4,9 @@
  */
 
 import { useState } from 'react';
-import * as PasskeyService from '../services/passkeyService';
+import * as PasskeyService from '../services/passkey';
 
-export function usePasskeyRestore({ setIsAuthenticated, setSeedConfirmed, showToast, loadWallet, setWalletAddresses }) {
+export function usePasskeyRestore({ setIsAuthenticated, setSeedConfirmed, showToast, setWalletAddresses }) {
   const [restoringWithPasskey, setRestoringWithPasskey] = useState(false);
   const [showRestorePinInput, setShowRestorePinInput] = useState(false);
   const [restorePin, setRestorePin] = useState('');

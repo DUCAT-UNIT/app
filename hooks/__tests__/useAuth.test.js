@@ -8,6 +8,7 @@ import { create, act } from 'react-test-renderer';
 import { useAuth } from '../useAuth';
 import * as LocalAuthentication from 'expo-local-authentication';
 import * as SecureStore from 'expo-secure-store';
+import * as PasskeyService from '../../services/passkey';
 
 // Mock expo-local-authentication
 jest.mock('expo-local-authentication', () => ({
@@ -23,6 +24,13 @@ jest.mock('../../utils/constants', () => ({
   SECURE_KEYS: {
     BIOMETRIC_ENABLED: 'biometricEnabled',
   },
+}));
+
+// Mock passkeyService
+jest.mock('../../services/passkey', () => ({
+  isPasskeyEnabled: jest.fn(),
+  unlockWithPasskey: jest.fn(),
+  isPasskeySupported: jest.fn(),
 }));
 
 // Helper to render hooks with props
@@ -56,6 +64,9 @@ describe('useAuth', () => {
     LocalAuthentication.authenticateAsync.mockResolvedValue({ success: true });
     SecureStore.getItemAsync.mockResolvedValue(null);
     SecureStore.setItemAsync.mockResolvedValue();
+    PasskeyService.isPasskeyEnabled.mockResolvedValue(false);
+    PasskeyService.unlockWithPasskey.mockResolvedValue({ mnemonic: null, addresses: null });
+    PasskeyService.isPasskeySupported.mockResolvedValue(false);
 
     mockProps = {
       onSeedConfirmed: jest.fn(),
@@ -552,6 +563,145 @@ describe('useAuth', () => {
         await result.current.authenticateUser();
       });
 
+      expect(result.current.isAuthenticated).toBe(false);
+    });
+  });
+
+  describe('Passkey Authentication', () => {
+    it('should load passkey preference and set state', async () => {
+      PasskeyService.isPasskeyEnabled.mockResolvedValue(true);
+
+      const { result } = renderHook(() => useAuth(mockProps), {
+        initialProps: mockProps,
+      });
+
+      await act(async () => {
+        await result.current.loadPasskeyPreference();
+      });
+
+      expect(PasskeyService.isPasskeyEnabled).toHaveBeenCalled();
+      expect(result.current.passkeyEnabled).toBe(true);
+    });
+
+    it('should handle loadPasskeyPreference when passkey is disabled', async () => {
+      PasskeyService.isPasskeyEnabled.mockResolvedValue(false);
+
+      const { result } = renderHook(() => useAuth(mockProps), {
+        initialProps: mockProps,
+      });
+
+      await act(async () => {
+        await result.current.loadPasskeyPreference();
+      });
+
+      expect(result.current.passkeyEnabled).toBe(false);
+    });
+
+    it('should handle loadPasskeyPreference errors gracefully', async () => {
+      PasskeyService.isPasskeyEnabled.mockRejectedValue(new Error('Passkey check failed'));
+
+      const { result } = renderHook(() => useAuth(mockProps), {
+        initialProps: mockProps,
+      });
+
+      await act(async () => {
+        await result.current.loadPasskeyPreference();
+      });
+
+      // Should not throw, state should remain false
+      expect(result.current.passkeyEnabled).toBe(false);
+    });
+
+    it('should authenticate with passkey successfully', async () => {
+      PasskeyService.unlockWithPasskey.mockResolvedValue({
+        mnemonic: 'test mnemonic phrase',
+        addresses: { btc: 'tb1qtest' },
+      });
+
+      const { result } = renderHook(() => useAuth(mockProps), {
+        initialProps: mockProps,
+      });
+
+      let authResult;
+      await act(async () => {
+        authResult = await result.current.authenticateWithPasskey();
+      });
+
+      expect(PasskeyService.unlockWithPasskey).toHaveBeenCalled();
+      expect(authResult).toBe(true);
+      expect(result.current.isAuthenticated).toBe(true);
+    });
+
+    it('should return false when passkey auth returns no data', async () => {
+      PasskeyService.unlockWithPasskey.mockResolvedValue({
+        mnemonic: null,
+        addresses: null,
+      });
+
+      const { result } = renderHook(() => useAuth(mockProps), {
+        initialProps: mockProps,
+      });
+
+      let authResult;
+      await act(async () => {
+        authResult = await result.current.authenticateWithPasskey();
+      });
+
+      expect(authResult).toBe(false);
+      expect(result.current.isAuthenticated).toBe(false);
+    });
+
+    it('should return false when passkey auth throws error', async () => {
+      PasskeyService.unlockWithPasskey.mockRejectedValue(new Error('Passkey auth failed'));
+
+      const { result } = renderHook(() => useAuth(mockProps), {
+        initialProps: mockProps,
+      });
+
+      let authResult;
+      await act(async () => {
+        authResult = await result.current.authenticateWithPasskey();
+      });
+
+      expect(authResult).toBe(false);
+      expect(result.current.isAuthenticated).toBe(false);
+    });
+
+    it('should return false when only mnemonic is present', async () => {
+      PasskeyService.unlockWithPasskey.mockResolvedValue({
+        mnemonic: 'test mnemonic',
+        addresses: null,
+      });
+
+      const { result } = renderHook(() => useAuth(mockProps), {
+        initialProps: mockProps,
+      });
+
+      let authResult;
+      await act(async () => {
+        authResult = await result.current.authenticateWithPasskey();
+      });
+
+      expect(authResult).toBe(false);
+      expect(result.current.isAuthenticated).toBe(false);
+    });
+
+    it('should return false when only addresses is present', async () => {
+      PasskeyService.unlockWithPasskey.mockResolvedValue({
+        mnemonic: null,
+        addresses: { btc: 'tb1qtest' },
+      });
+
+      const { result } = renderHook(() => useAuth(mockProps), {
+        initialProps: mockProps,
+      });
+
+      let authResult;
+      await act(async () => {
+        authResult = await result.current.authenticateWithPasskey();
+      });
+
+      expect(authResult).toBe(false);
       expect(result.current.isAuthenticated).toBe(false);
     });
   });

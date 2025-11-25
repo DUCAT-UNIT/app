@@ -296,4 +296,42 @@ describe('useTransactionPolling', () => {
     // Should not throw
     expect(result.current).toBeDefined();
   });
+
+  it('should clear interval on unmount while polling is active', async () => {
+    const { result, unmount } = renderHook(() => useTransactionPolling());
+    const onConfirmed = jest.fn();
+
+    global.fetch.mockResolvedValue({
+      ok: true,
+      json: async () => ({ status: { confirmed: false } }),
+    });
+
+    act(() => {
+      result.current.startPolling('test-txid', onConfirmed);
+    });
+
+    // Unmount while polling is still active
+    act(() => {
+      unmount();
+    });
+
+    // Advance timers - polling should not continue after unmount
+    await act(async () => {
+      jest.advanceTimersByTime(10000);
+    });
+
+    // Callback should not have been called since we unmounted
+    expect(onConfirmed).not.toHaveBeenCalled();
+  });
+
+  it('should handle unmount when no polling was started', () => {
+    const { unmount } = renderHook(() => useTransactionPolling());
+
+    // Unmount without starting any poll
+    act(() => {
+      unmount();
+    });
+
+    // Should not throw - cleanup handles null pollIntervalRef gracefully
+  });
 });

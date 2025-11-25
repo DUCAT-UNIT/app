@@ -6,10 +6,9 @@
 import { useState, useRef } from 'react';
 import * as Device from 'expo-device';
 import * as Haptics from 'expo-haptics';
-import * as PasskeyService from '../services/passkeyService';
-import { logger } from '../utils/logger';
+import * as PasskeyService from '../services/passkey';
 
-export function usePasskeyCreation({ setIsAuthenticated, setSeedConfirmed, showToast, loadWallet, setWalletAddresses }) {
+export function usePasskeyCreation({ setIsAuthenticated, setSeedConfirmed, showToast, setWalletAddresses }) {
   const [creatingWithPasskey, setCreatingWithPasskey] = useState(false);
   const [passkeyMnemonic, setPasskeyMnemonic] = useState(null);
   const [passkeyAddresses, setPasskeyAddresses] = useState(null);
@@ -99,7 +98,7 @@ export function usePasskeyCreation({ setIsAuthenticated, setSeedConfirmed, showT
       const displayName = `${deviceName} - Ducat`;
 
       // Create wallet with passkey + PIN
-      const { mnemonic, addresses, icloudBackupPromise } = await PasskeyService.createWalletWithPasskey({
+      const { addresses, icloudBackupPromise } = await PasskeyService.createWalletWithPasskey({
         userName,
         userDisplayName: displayName,
         pin,

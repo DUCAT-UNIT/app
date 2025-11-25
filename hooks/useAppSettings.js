@@ -7,6 +7,7 @@ import { useState, useEffect, useCallback, useMemo } from 'react';
 import * as SecureStore from 'expo-secure-store';
 import { authenticateWithBiometrics } from '../services/biometricService';
 import { clearWallet } from '../services/cashu/cashuWalletService';
+import logger from '../utils/logger';
 
 export function useAppSettings({ biometricEnabled, setIsAuthenticated, showToast, showSnackbar }) {
   const [notificationsEnabled, setNotificationsEnabled] = useState(false);

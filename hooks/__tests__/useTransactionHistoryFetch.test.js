@@ -124,4 +124,98 @@ describe('useTransactionHistoryFetch', () => {
 
     expect(result.current.transactionHistory).toEqual([]);
   });
+
+  it('should not update state when history has not changed', async () => {
+    const mockHistory = [
+      {
+        txid: 'tx1',
+        status: { confirmed: true, block_height: 100 },
+        value: 100000,
+      },
+    ];
+
+    transactionHistoryService.fetchAllTransactionHistory.mockResolvedValue(mockHistory);
+
+    const { result } = renderHook(() => useTransactionHistoryFetch(mockWallet));
+
+    // First fetch - should update state
+    await act(async () => {
+      await result.current.fetchTransactionHistory();
+    });
+
+    expect(result.current.transactionHistory).toEqual(mockHistory);
+
+    // Second fetch with same data - should not trigger re-render
+    await act(async () => {
+      await result.current.fetchTransactionHistory();
+    });
+
+    // State should still be the same
+    expect(result.current.transactionHistory).toEqual(mockHistory);
+  });
+
+  it('should update state when confirmation status changes', async () => {
+    const pendingHistory = [
+      {
+        txid: 'tx1',
+        status: { confirmed: false, block_height: 0 },
+        value: 100000,
+      },
+    ];
+
+    const confirmedHistory = [
+      {
+        txid: 'tx1',
+        status: { confirmed: true, block_height: 100 },
+        value: 100000,
+      },
+    ];
+
+    transactionHistoryService.fetchAllTransactionHistory.mockResolvedValue(pendingHistory);
+
+    const { result } = renderHook(() => useTransactionHistoryFetch(mockWallet));
+
+    // First fetch - pending transaction
+    await act(async () => {
+      await result.current.fetchTransactionHistory();
+    });
+
+    expect(result.current.transactionHistory[0].status.confirmed).toBe(false);
+
+    // Second fetch - transaction now confirmed
+    transactionHistoryService.fetchAllTransactionHistory.mockResolvedValue(confirmedHistory);
+
+    await act(async () => {
+      await result.current.fetchTransactionHistory();
+    });
+
+    expect(result.current.transactionHistory[0].status.confirmed).toBe(true);
+  });
+
+  it('should clear error on successful fetch after error', async () => {
+    // First fetch fails
+    transactionHistoryService.fetchAllTransactionHistory.mockRejectedValueOnce(
+      new Error('API error')
+    );
+
+    const { result } = renderHook(() => useTransactionHistoryFetch(mockWallet));
+
+    await act(async () => {
+      await result.current.fetchTransactionHistory();
+    });
+
+    expect(result.current.historyError).toBe('Failed to fetch transaction history');
+
+    // Second fetch succeeds
+    transactionHistoryService.fetchAllTransactionHistory.mockResolvedValue([
+      { txid: 'tx1', status: { confirmed: true, block_height: 100 } },
+    ]);
+
+    await act(async () => {
+      await result.current.fetchTransactionHistory();
+    });
+
+    expect(result.current.historyError).toBe(null);
+    expect(result.current.transactionHistory.length).toBe(1);
+  });
 });

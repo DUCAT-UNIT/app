@@ -26,7 +26,7 @@ export function useWalletCreation({
   const walletExistsRef = useRef(false);
 
   // Persisted creation state - automatically loads/saves
-  const [creationState, updateCreationState, clearPersistedState, stateLoaded] = usePersistedObject(
+  const [creationState, updateCreationState, clearPersistedState] = usePersistedObject(
     CREATION_STATE_KEY,
     {
       tempMnemonicWords: [],

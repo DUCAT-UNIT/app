@@ -21,12 +21,7 @@ jest.mock('expo-secure-store', () => ({
   setItemAsync: jest.fn().mockResolvedValue(undefined),
 }));
 
-// Mock wallet context
-jest.mock('../../contexts/WalletContext', () => ({
-  useWallet: () => ({
-    setWalletAddresses: jest.fn(),
-  }),
-}));
+// Mock wallet context (no longer needed but kept for consistency)
 
 // Mock constants
 jest.mock('../../utils/constants', () => ({
@@ -84,7 +79,6 @@ describe('useWalletImport', () => {
       currentAccount: 0,
       setSettingUpPin: jest.fn(),
       showToast: jest.fn(),
-      loadWallet: jest.fn(),
     };
   });
 
