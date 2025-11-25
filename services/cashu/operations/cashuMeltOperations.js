@@ -15,7 +15,7 @@ import {
   splitAmount,
   sumProofs,
   selectProofsForAmount,
-} from '../cashuCrypto';
+} from '../crypto';
 import { getOrFetchKeys, getBalance } from '../cashuBalanceService';
 import { loadProofs, removeProofs, addProofs } from '../cashuProofManager';
 

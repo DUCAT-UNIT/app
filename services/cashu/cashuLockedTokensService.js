@@ -164,7 +164,7 @@ export const clearSentLockedTokens = async () => {
  * @param {number} amount - Amount in smallest units (unused, kept for compatibility)
  * @returns {string} ducat:// deeplink URL
  */
-export const generateTurboDeeplink = async (token, recipient, amount) => {
+export const generateTurboDeeplink = async (token, _recipient, _amount) => {
   logger.debug('[TurboDeeplink] Generating deeplink with token:', token.substring(0, 50) + '...');
   logger.debug('[TurboDeeplink] Token starts with:', token.substring(0, 10));
 

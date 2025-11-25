@@ -10,9 +10,9 @@
 import * as SecureStore from 'expo-secure-store';
 import { logger } from '../../../utils/logger';
 import * as cashuMintClient from '../cashuMintClient';
-import * as cashuCrypto from '../cashuCrypto';
+import * as cashuCrypto from '../crypto';
 import * as cashuWalletService from '../cashuWalletService';
-import * as cashuP2PK from '../cashuP2PK';
+import * as cashuP2PK from '../p2pk';
 import * as secureStorageService from '../../secureStorageService';
 import * as cashuLockedTokensService from '../cashuLockedTokensService';
 
@@ -26,13 +26,13 @@ jest.mock('../../../utils/logger', () => ({
   },
 }));
 jest.mock('../cashuMintClient');
-jest.mock('../cashuCrypto');
-jest.mock('../cashuP2PK');
+jest.mock('../crypto');
+jest.mock('../p2pk');
 jest.mock('../../secureStorageService');
 jest.mock('../cashuLockedTokensService');
 
 // Mock cashuCrypto functions that use dynamic imports
-jest.mock('../cashuCrypto', () => ({
+jest.mock('../crypto', () => ({
   generateSecret: jest.fn(async () => 'random_secret_' + Math.random()),
   createBlindedMessage: jest.fn(async (secret) => ({
     B_: 'blinded_' + secret,

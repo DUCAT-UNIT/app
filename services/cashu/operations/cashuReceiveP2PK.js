@@ -10,11 +10,11 @@ import {
   unblindSignatures,
   splitAmount,
   decodeToken,
-} from '../cashuCrypto';
+} from '../crypto';
 import {
   isP2PKSecret,
   signP2PKSecret,
-} from '../cashuP2PK';
+} from '../p2pk';
 import { getOrFetchKeys } from '../cashuBalanceService';
 import { addProofs } from '../cashuProofManager';
 
@@ -126,7 +126,7 @@ export const receiveP2PKToken = async (tokenString, privateKey, onProgress) => {
     });
 
     // Enhanced error message with diagnostic info
-    let enhancedError = new Error(error.message);
+    const enhancedError = new Error(error.message);
     enhancedError.originalError = error;
 
     // Add diagnostic details to error message for debugging

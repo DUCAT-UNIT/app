@@ -4,8 +4,8 @@
  */
 
 import { logger } from '../../../utils/logger';
-import { decodeToken, sumProofs } from '../cashuCrypto';
-import { isP2PKSecret } from '../cashuP2PK';
+import { decodeToken, sumProofs } from '../crypto';
+import { isP2PKSecret } from '../p2pk';
 import { getSentLockedTokens } from '../cashuLockedTokensService';
 import { loadProofs, addProofs } from '../cashuProofManager';
 
@@ -30,8 +30,7 @@ export const recoverLockedChange = async () => {
     });
 
     // Extract change proofs from sent tokens
-    let totalChangeProofs = [];
-    let totalChangeAmount = 0;
+    const totalChangeProofs = [];
 
     for (const tokenData of sentTokens) {
       try {
@@ -43,7 +42,6 @@ export const recoverLockedChange = async () => {
 
         if (changeProofs.length > 0) {
           const changeAmount = sumProofs(changeProofs);
-          totalChangeAmount += changeAmount;
 
           logger.info('Found change in sent token', {
             tokenId: tokenData.id,

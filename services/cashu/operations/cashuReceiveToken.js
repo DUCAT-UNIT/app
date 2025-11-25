@@ -9,16 +9,15 @@ import {
   createBlindedOutputs,
   unblindSignatures,
   splitAmount,
-  sumProofs,
   decodeToken,
-} from '../cashuCrypto';
+} from '../crypto';
 import {
   isP2PKLocked,
   getP2PKRecipient,
   findAccountForP2PKToken,
   getP2PKPrivateKey,
   signP2PKProofs,
-} from '../cashuP2PK';
+} from '../p2pk';
 import { getCurrentAccount } from '../../secureStorageService';
 import { getOrFetchKeys } from '../cashuBalanceService';
 import { loadProofs, addProofs } from '../cashuProofManager';
@@ -127,10 +126,10 @@ export const receiveToken = async (tokenString) => {
         logger.info('P2PK locked proofs detected, getting private key');
 
         // Get cached taproot address and private key
-        const privateKey = await getP2PKPrivateKey();
+        const p2pkKey = await getP2PKPrivateKey();
 
         logger.info('[PERF] getP2PKPrivateKey took:', Date.now() - t4c, 'ms');
-        return privateKey;
+        return p2pkKey;
       })() : null
     ]);
     logger.info('[PERF] Parallel operations (getKeys + deriveKey) took:', Date.now() - t4, 'ms');

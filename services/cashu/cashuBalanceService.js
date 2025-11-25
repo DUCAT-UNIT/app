@@ -1,8 +1,8 @@
 import * as SecureStore from 'expo-secure-store';
 import { logger } from '../../utils/logger';
 import { getKeys } from './cashuMintClient';
-import { sumProofs } from './cashuCrypto';
-import { isP2PKSecret } from './cashuP2PK';
+import { sumProofs } from './crypto';
+import { isP2PKSecret } from './p2pk';
 import { loadProofs, loadProofsPartial } from './cashuProofManager';
 
 /**

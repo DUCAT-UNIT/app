@@ -9,7 +9,7 @@ import {
   checkMintQuote,
   mintTokens as mintTokensAPI,
 } from '../cashuMintClient';
-import { createBlindedOutputs, unblindSignatures, splitAmount } from '../cashuCrypto';
+import { createBlindedOutputs, unblindSignatures, splitAmount } from '../crypto';
 import { getOrFetchKeys } from '../cashuBalanceService';
 import { addProofs } from '../cashuProofManager';
 

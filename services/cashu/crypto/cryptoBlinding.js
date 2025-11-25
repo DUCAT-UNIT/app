@@ -1,34 +1,13 @@
+/**
+ * Crypto Blinding - DHKE blinding operations for Cashu (NUT-00)
+ */
+
 import * as crypto from 'expo-crypto';
 import { Buffer } from 'buffer';
-import { logger } from '../../utils/logger';
 import * as ecc from '@bitcoinerlab/secp256k1';
 import { Point } from '@noble/secp256k1';
-
-/**
- * Cashu Crypto Operations
- * Implements DHKE (Diffie-Hellman Key Exchange) for blind signatures
- * Based on Cashu NUT-00 specification
- *
- * Uses proper secp256k1 cryptography via @bitcoinerlab/secp256k1
- */
-
-/**
- * Generate random secret (32 bytes hex)
- * @returns {Promise<string>} Random hex string
- */
-export const generateSecret = async () => {
-  const bytes = await crypto.getRandomBytesAsync(32);
-  return Buffer.from(bytes).toString('hex');
-};
-
-/**
- * Generate blinding factor (random scalar/private key)
- * @returns {Promise<string>} Random hex string (valid private key)
- */
-export const generateBlindingFactor = async () => {
-  const bytes = await crypto.getRandomBytesAsync(32);
-  return Buffer.from(bytes).toString('hex');
-};
+import { logger } from '../../../utils/logger';
+import { generateSecret, generateBlindingFactor } from './cryptoSecrets';
 
 /**
  * Hash secret to curve point (Y = hash_to_curve(secret))
@@ -67,7 +46,7 @@ export const hashToCurve = async (secret) => {
 
     try {
       // Use the SAME validation as the server: Point.fromHex()
-      const point = Point.fromHex(pointHex);
+      Point.fromHex(pointHex);
       // Valid point found!
       return pointHex;
     } catch {
@@ -172,23 +151,6 @@ export const unblindSignature = (C_, r, A) => {
 };
 
 /**
- * Create proof from blinded signature
- * @param {number} amount - Amount of this proof
- * @param {string} secret - Secret used for blinding
- * @param {string} C - Unblinded signature
- * @param {string} id - Keyset ID
- * @returns {Object} Cashu proof
- */
-export const createProof = (amount, secret, C, id) => {
-  return {
-    amount,
-    secret,
-    C,
-    id,
-  };
-};
-
-/**
  * Create blinded outputs for amounts (for minting or swapping)
  * @param {Array<number>} amounts - Amounts to create outputs for
  * @param {string} keysetId - Optional keyset ID to use (if not provided, outputs won't have id)
@@ -243,6 +205,7 @@ export const createBlindedOutputs = async (amounts, keysetId = null) => {
  * @returns {Array} Array of Cashu proofs
  */
 export const unblindSignatures = (signatures, blindingData, keys, keysetId) => {
+  const { createProof } = require('./cryptoProofs');
   const proofs = [];
 
   for (let i = 0; i < signatures.length; i++) {
@@ -265,151 +228,4 @@ export const unblindSignatures = (signatures, blindingData, keys, keysetId) => {
   }
 
   return proofs;
-};
-
-/**
- * Split amount into powers of 2 (for efficient change)
- * Example: 100 -> [64, 32, 4]
- * @param {number} amount - Amount to split
- * @returns {Array<number>} Array of amounts (powers of 2)
- */
-export const splitAmount = (amount) => {
-  const amounts = [];
-  let remaining = amount;
-
-  // Standard denominations from high to low
-  const denominations = [16384, 8192, 4096, 2048, 1024, 512, 256, 128, 64, 32, 16, 8, 4, 2, 1];
-
-  for (const denom of denominations) {
-    while (remaining >= denom) {
-      amounts.push(denom);
-      remaining -= denom;
-    }
-  }
-
-  return amounts;
-};
-
-/**
- * Sum proof amounts
- * @param {Array} proofs - Array of proofs
- * @returns {number} Total amount in display units (divided by 100)
- */
-export const sumProofs = (proofs) => {
-  const totalSmallestUnits = proofs.reduce((sum, proof) => sum + proof.amount, 0);
-  // Convert from smallest units to display units (divide by 100)
-  return totalSmallestUnits / 100;
-};
-
-/**
- * Select proofs for amount
- * @param {Array} proofs - Available proofs
- * @param {number} amount - Target amount
- * @returns {Array} Selected proofs
- */
-export const selectProofsForAmount = (proofs, amount) => {
-  // Strategy: Try to find an exact match first, then minimize change
-
-  // Only try exact match if we have a reasonable number of proofs
-  // Subset sum is exponential O(2^n), so limit to prevent hanging
-  if (proofs.length <= 15) {
-    const exactMatch = findExactMatch(proofs, amount);
-    if (exactMatch) {
-      return exactMatch;
-    }
-  }
-
-  // Otherwise, use greedy algorithm (smallest to largest to minimize change)
-  const sorted = [...proofs].sort((a, b) => a.amount - b.amount);
-
-  const selected = [];
-  let total = 0;
-
-  for (const proof of sorted) {
-    if (total >= amount) break;
-    selected.push(proof);
-    total += proof.amount;
-  }
-
-  if (total < amount) {
-    throw new Error(`Insufficient funds: have ${total}, need ${amount}`);
-  }
-
-  return selected;
-};
-
-// Helper: Find exact match for amount using subset sum
-const findExactMatch = (proofs, target) => {
-  // Simple recursive subset sum - finds ANY combination that equals target
-  const find = (index, remaining, selected) => {
-    if (remaining === 0) return selected;
-    if (index >= proofs.length || remaining < 0) return null;
-
-    // Try including current proof
-    const withCurrent = find(index + 1, remaining - proofs[index].amount, [...selected, proofs[index]]);
-    if (withCurrent) return withCurrent;
-
-    // Try excluding current proof
-    return find(index + 1, remaining, selected);
-  };
-
-  return find(0, target, []);
-};
-
-/**
- * Encode token (for sending)
- * @param {Array} proofs - Proofs to encode
- * @param {string} mint - Mint URL
- * @returns {string} Encoded token (with version letter 'A')
- */
-export const encodeToken = (proofs, mint) => {
-  const token = {
-    token: [
-      {
-        mint,
-        proofs,
-      },
-    ],
-  };
-
-  // Cashu token format: cashu<version><base64>
-  // Version 'A' is the current version as per NUT-00
-  return 'cashuA' + Buffer.from(JSON.stringify(token)).toString('base64');
-};
-
-/**
- * Decode token (for receiving)
- * @param {string} tokenString - Encoded token
- * @returns {Object} { mint, proofs, amount }
- */
-export const decodeToken = (tokenString) => {
-  // Remove 'cashu' prefix and version letter (if present)
-  // Version letters are UPPERCASE (A-Z), not lowercase
-  // Old format: cashueyJ... (no version letter, 'e' is start of base64)
-  // New format: cashuAeyJ... (version letter 'A')
-  const base64 = tokenString.replace(/^cashu[A-Z]?/, '');
-  const json = Buffer.from(base64, 'base64').toString('utf-8');
-  const token = JSON.parse(json);
-
-  const mint = token.token[0].mint;
-  const proofs = token.token[0].proofs;
-  const amount = sumProofs(proofs);
-
-  return { mint, proofs, amount };
-};
-
-export default {
-  generateSecret,
-  generateBlindingFactor,
-  hashToCurve,
-  createBlindedMessage,
-  unblindSignature,
-  createProof,
-  createBlindedOutputs,
-  unblindSignatures,
-  splitAmount,
-  sumProofs,
-  selectProofsForAmount,
-  encodeToken,
-  decodeToken,
 };

@@ -13,11 +13,11 @@ import {
   selectProofsForAmount,
   encodeToken,
   generateSecret,
-} from '../cashuCrypto';
+} from '../crypto';
 import {
   createP2PKSecret,
   isP2PKSecret,
-} from '../cashuP2PK';
+} from '../p2pk';
 import { getOrFetchKeys, getBalance } from '../cashuBalanceService';
 import { loadProofs, removeProofs, addProofs } from '../cashuProofManager';
 
@@ -131,20 +131,20 @@ export const sendP2PKToken = async (amount, recipientPubkey, options = {}, onPro
     const sendAmounts = splitAmount(amount);
     const p2pkSecrets = [];
 
-    for (const amt of sendAmounts) {
+    for (const _amt of sendAmounts) {
       const p2pkSecret = await createP2PKSecret(recipientPubkey, options);
       p2pkSecrets.push(p2pkSecret);
     }
 
     // If we have change, create normal secrets for change
-    let changeSecrets = [];
+    const changeSecrets = [];
     let changeAmounts = [];
     if (selectedAmount > amount) {
       const changeAmount = selectedAmount - amount;
       logger.info('Creating change for P2PK token', { changeAmount });
       changeAmounts = splitAmount(changeAmount);
 
-      for (const amt of changeAmounts) {
+      for (const _amt of changeAmounts) {
         const secret = await generateSecret();
         changeSecrets.push(secret);
       }

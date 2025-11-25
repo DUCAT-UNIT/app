@@ -12,7 +12,7 @@ import {
   sumProofs,
   selectProofsForAmount,
   encodeToken,
-} from '../cashuCrypto';
+} from '../crypto';
 import { getOrFetchKeys, getBalance } from '../cashuBalanceService';
 import { loadProofs, removeProofs, addProofs } from '../cashuProofManager';
 
