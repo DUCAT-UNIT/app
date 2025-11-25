@@ -6,13 +6,15 @@ import React from 'react';
 import { View, Text, StyleSheet } from 'react-native';
 import { COLORS } from '../../theme';
 import Icon from '../icons';
+import { truncateAddress } from '../../utils/formatters/addresses';
+import { formatBTC, satsToBTC } from '../../utils/bitcoin/conversions';
 
 export function TransactionInput({ input, btcPrice }) {
   return (
     <View style={styles.txItem}>
       <View style={styles.txItemHeader}>
         <Text style={styles.txAddress} selectable numberOfLines={1}>
-          {input.address.substring(0, 5)}...{input.address.substring(input.address.length - 5)}
+          {truncateAddress(input.address, 5, 5)}
         </Text>
         {input.type === 'rune' && input.runeAmount && (
           <View style={styles.unitChip}>
@@ -28,10 +30,10 @@ export function TransactionInput({ input, btcPrice }) {
       </View>
       <View style={styles.txValueRow}>
         <Text style={styles.txValue}>
-          {(input.value / 100000000).toFixed(8)} BTC
+          {formatBTC(input.value)} BTC
         </Text>
         <Text style={styles.txUsd}>
-          ${((input.value / 100000000) * (btcPrice || 0)).toLocaleString('en-US', {
+          ${(satsToBTC(input.value) * (btcPrice || 0)).toLocaleString('en-US', {
             minimumFractionDigits: 2,
             maximumFractionDigits: 2,
           })}

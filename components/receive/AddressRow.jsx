@@ -13,7 +13,6 @@ export default function AddressRow({
   label,
   address,
   tag,
-  tagStyle,
   onCopy,
   onQrPress,
   styles,
@@ -57,10 +56,6 @@ AddressRow.propTypes = {
   label: PropTypes.string.isRequired,
   address: PropTypes.string.isRequired,
   tag: PropTypes.string.isRequired,
-  tagStyle: PropTypes.shape({
-    container: PropTypes.object,
-    text: PropTypes.object,
-  }).isRequired,
   onCopy: PropTypes.func.isRequired,
   onQrPress: PropTypes.func.isRequired,
   styles: PropTypes.object.isRequired,

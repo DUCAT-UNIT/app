@@ -3,55 +3,89 @@
  * Displays list of sent Turbo tokens in the Asset Detail screen
  */
 
-import React, { useState, useEffect } from 'react';
-import { View, Text, TouchableOpacity, StyleSheet, Alert, Share, ActivityIndicator } from 'react-native';
+import React, { useState, useEffect, useCallback, memo } from 'react';
+import { View, Text, TouchableOpacity, StyleSheet, ActivityIndicator } from 'react-native';
 import * as Clipboard from 'expo-clipboard';
-import PropTypes from 'prop-types';
+
 import { COLORS } from '../../theme';
 import Icon from '../icons';
-import { formatTransactionDate } from '../../utils/transactionFormatters';
+import { formatTransactionDate } from '../../utils/formatters/dates';
 import globalStyles from '../../styles';
 import {
   getSentLockedTokens,
-  deleteSentLockedToken,
-  generateTurboDeeplink,
 } from '../../services/cashu/cashuLockedTokensService';
-import { decodeToken } from '../../services/cashu/cashuCrypto';
+import { decodeToken } from '../../services/cashu/crypto';
 import { checkProofsSpent } from '../../services/cashu/cashuMintClient';
 import { useNotifications } from '../../contexts/NotificationContext';
 import { useWallet } from '../../contexts/WalletContext';
+import { logger } from '../../utils/logger';
 
-export function AssetTurboList({ navigation }) {
+// Memoized token item component to prevent unnecessary re-renders
+const TurboTokenItem = memo(function TurboTokenItem({ item, isClaimed, onCopy }) {
+  const statusChipStyle = isClaimed ? localStyles.claimedChip : localStyles.activeChip;
+  const statusTextStyle = isClaimed ? localStyles.claimedChipText : localStyles.activeChipText;
+  const amountColor = isClaimed ? '#DDDDDD' : COLORS.GREEN;
+
+  return (
+    <TouchableOpacity
+      style={globalStyles.historyTxRow}
+      onPress={() => onCopy(item)}
+      activeOpacity={0.7}
+    >
+      <View style={localStyles.assetLogo}>
+        <Icon name="turbo" size={40} color="#DDDDDD" />
+      </View>
+      <View style={localStyles.txContentContainer}>
+        <View style={globalStyles.historyTxTopRow}>
+          <View style={globalStyles.historyTxColumn1}>
+            <Text style={[globalStyles.historyTxAmount, localStyles.actionText]}>
+              Turbo
+            </Text>
+          </View>
+          <View style={globalStyles.historyTxRightGroup}>
+            <View style={globalStyles.historyTxColumn2}>
+              <View style={[globalStyles.vaultAmountChip, statusChipStyle]}>
+                <Text style={[globalStyles.vaultAmountChipText, statusTextStyle]}>
+                  {isClaimed ? 'Claimed' : 'Active'}
+                </Text>
+              </View>
+            </View>
+            <View style={globalStyles.historyTxColumn3}>
+              <View style={globalStyles.balanceWithIcon}>
+                <Icon
+                  name="unit_symbol"
+                  size={12}
+                  color={amountColor}
+                  style={globalStyles.assetAmountIcon}
+                />
+                <Text style={[globalStyles.assetAmount, { color: amountColor }]}>
+                  {(item.amount / 100).toLocaleString('en-US', {
+                    minimumFractionDigits: 2,
+                    maximumFractionDigits: 2,
+                  })}
+                </Text>
+              </View>
+            </View>
+          </View>
+        </View>
+        <View style={globalStyles.historyTxBottomRow}>
+          <Text style={globalStyles.historyTxDate}>
+            {formatTransactionDate(Math.floor(item.timestamp / 1000))}
+          </Text>
+        </View>
+      </View>
+    </TouchableOpacity>
+  );
+}, (prev, next) => prev.item.id === next.item.id && prev.isClaimed === next.isClaimed);
+
+export function AssetTurboList() {
   const [tokens, setTokens] = useState([]);
   const [claimedTokens, setClaimedTokens] = useState(new Set());
   const [isLoading, setIsLoading] = useState(true);
   const { showToast } = useNotifications();
   const { wallet } = useWallet();
 
-  const loadTokens = async () => {
-    try {
-      setIsLoading(true);
-      logger.debug('[AssetTurboList] Loading tokens for address:', wallet?.taprootAddress);
-      // Filter tokens by current account's taproot address
-      const savedTokens = await getSentLockedTokens(wallet?.taprootAddress);
-      logger.debug('[AssetTurboList] Loaded tokens:', savedTokens.length);
-      logger.debug('[AssetTurboList] Token details:', savedTokens.map(t => ({
-        id: t.id,
-        address: t.taprootAddress,
-        amount: t.amount
-      })));
-      setTokens(savedTokens);
-
-      // Check which tokens have been claimed
-      await checkTokensClaimed(savedTokens);
-    } catch (error) {
-      logger.error('[AssetTurboList] Failed to load tokens:', error);
-    } finally {
-      setIsLoading(false);
-    }
-  };
-
-  const checkTokensClaimed = async (tokensList) => {
+  const checkTokensClaimed = useCallback(async (tokensList) => {
     const claimed = new Set();
 
     for (const tokenData of tokensList) {
@@ -59,7 +93,6 @@ export function AssetTurboList({ navigation }) {
         const decoded = decodeToken(tokenData.token);
         const result = await checkProofsSpent(decoded.proofs);
 
-        // If any proof is spent, the token has been claimed
         if (result && result.states && Array.isArray(result.states)) {
           const isSpent = result.states.some(state => state.state === 'SPENT');
           if (isSpent) {
@@ -72,128 +105,39 @@ export function AssetTurboList({ navigation }) {
     }
 
     setClaimedTokens(claimed);
-  };
+  }, []);
+
+  const loadTokens = useCallback(async () => {
+    try {
+      setIsLoading(true);
+      logger.debug('[AssetTurboList] Loading tokens for address:', wallet?.taprootAddress);
+      const savedTokens = await getSentLockedTokens(wallet?.taprootAddress);
+      logger.debug('[AssetTurboList] Loaded tokens:', savedTokens.length);
+      setTokens(savedTokens);
+      await checkTokensClaimed(savedTokens);
+    } catch (error) {
+      logger.error('[AssetTurboList] Failed to load tokens:', error);
+    } finally {
+      setIsLoading(false);
+    }
+  }, [wallet?.taprootAddress, checkTokensClaimed]);
 
   useEffect(() => {
     logger.debug('[AssetTurboList] useEffect triggered, wallet address:', wallet?.taprootAddress);
     if (wallet?.taprootAddress) {
       loadTokens();
     }
-  }, [wallet?.taprootAddress]);
+  }, [wallet?.taprootAddress, loadTokens]);
 
-  const handleShareToken = async (tokenRecord) => {
+  const handleCopyToken = useCallback(async (tokenRecord) => {
     try {
-      const deeplink = generateTurboDeeplink(
-        tokenRecord.token,
-        tokenRecord.recipient,
-        tokenRecord.amount
-      );
-
-      await Share.share({
-        message: `Turbo Token\n\nAmount: ${tokenRecord.amount / 100} UNIT\nLink: ${deeplink}`,
-        url: deeplink,
-      });
-    } catch (error) {
-      logger.error('[AssetTurboList] Failed to share token:', error);
-    }
-  };
-
-  const handleCopyToken = async (tokenRecord) => {
-    try {
-      // Copy the raw Cashu token to clipboard
       await Clipboard.setStringAsync(tokenRecord.token);
       showToast('Cashu token copied to clipboard', 'success');
     } catch (error) {
       logger.error('[AssetTurboList] Failed to copy token:', error);
       showToast('Failed to copy token to clipboard', 'error');
     }
-  };
-
-  const handleDeleteToken = (tokenRecord) => {
-    Alert.alert(
-      'Delete Token',
-      'Are you sure you want to remove this token from history? The recipient can still claim it if they have the link.',
-      [
-        { text: 'Cancel', style: 'cancel' },
-        {
-          text: 'Delete',
-          style: 'destructive',
-          onPress: async () => {
-            try {
-              await deleteSentLockedToken(tokenRecord.id);
-              loadTokens();
-            } catch (error) {
-              logger.error('[AssetTurboList] Failed to delete token:', error);
-              Alert.alert('Error', 'Failed to delete token');
-            }
-          },
-        },
-      ]
-    );
-  };
-
-  const renderToken = (item) => {
-    const isClaimed = claimedTokens.has(item.id);
-    const statusChipStyle = isClaimed ? localStyles.claimedChip : localStyles.activeChip;
-    const statusTextStyle = isClaimed ? localStyles.claimedChipText : localStyles.activeChipText;
-    const amountColor = isClaimed ? '#DDDDDD' : COLORS.GREEN;
-
-    return (
-      <TouchableOpacity
-        style={globalStyles.historyTxRow}
-        onPress={() => handleCopyToken(item)}
-        activeOpacity={0.7}
-      >
-        {/* Turbo Logo */}
-        <View style={localStyles.assetLogo}>
-          <Icon name="turbo" size={40} color="#DDDDDD" />
-        </View>
-
-        {/* Main Content Container */}
-        <View style={localStyles.txContentContainer}>
-          {/* First Row: Turbo label on left, Status + Amount on right */}
-          <View style={globalStyles.historyTxTopRow}>
-            <View style={globalStyles.historyTxColumn1}>
-              <Text style={[globalStyles.historyTxAmount, localStyles.actionText]}>
-                Turbo
-              </Text>
-            </View>
-            <View style={globalStyles.historyTxRightGroup}>
-              <View style={globalStyles.historyTxColumn2}>
-                <View style={[globalStyles.vaultAmountChip, statusChipStyle]}>
-                  <Text style={[globalStyles.vaultAmountChipText, statusTextStyle]}>
-                    {isClaimed ? 'Claimed' : 'Active'}
-                  </Text>
-                </View>
-              </View>
-              <View style={globalStyles.historyTxColumn3}>
-                <View style={globalStyles.balanceWithIcon}>
-                  <Icon
-                    name="unit_symbol"
-                    size={12}
-                    color={amountColor}
-                    style={globalStyles.assetAmountIcon}
-                  />
-                  <Text style={[globalStyles.assetAmount, { color: amountColor }]}>
-                    {(item.amount / 100).toLocaleString('en-US', {
-                      minimumFractionDigits: 2,
-                      maximumFractionDigits: 2,
-                    })}
-                  </Text>
-                </View>
-              </View>
-            </View>
-          </View>
-          {/* Second Row: Date */}
-          <View style={globalStyles.historyTxBottomRow}>
-            <Text style={globalStyles.historyTxDate}>
-              {formatTransactionDate(Math.floor(item.timestamp / 1000))}
-            </Text>
-          </View>
-        </View>
-      </TouchableOpacity>
-    );
-  };
+  }, [showToast]);
 
   // Show loading spinner while checking token states
   if (isLoading) {
@@ -220,17 +164,18 @@ export function AssetTurboList({ navigation }) {
   return (
     <View style={localStyles.activityContainer}>
       {tokens.map((item) => (
-        <View key={item.id}>
-          {renderToken(item)}
-        </View>
+        <TurboTokenItem
+          key={item.id}
+          item={item}
+          isClaimed={claimedTokens.has(item.id)}
+          onCopy={handleCopyToken}
+        />
       ))}
     </View>
   );
 }
 
-AssetTurboList.propTypes = {
-  navigation: PropTypes.object.isRequired,
-};
+AssetTurboList.propTypes = {};
 
 const localStyles = StyleSheet.create({
   assetLogo: {

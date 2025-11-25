@@ -8,7 +8,6 @@ import {
   View,
   Modal,
   StyleSheet,
-  Pressable,
   TouchableOpacity,
   TouchableWithoutFeedback,
   Text,

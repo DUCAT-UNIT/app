@@ -11,6 +11,7 @@ import { View, Text, Animated, ActivityIndicator, TouchableOpacity, Linking, Sty
 import { COLORS } from '../theme';
 import Icon from './icons';
 import { getTxUrl, getOrdTxUrl } from '../utils/constants';
+import { truncateAddress } from '../utils/formatters/addresses';
 
 export default function TransactionToast({
   visible,
@@ -53,8 +54,7 @@ export default function TransactionToast({
         }),
       ]).start();
     }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [visible]);
+  }, [visible, slideAnim, opacity]);
 
   if (!visible) return null;
 
@@ -158,7 +158,7 @@ export default function TransactionToast({
 
           {txid && (status === 'confirmed' || status === 'pending') && (
             <Text style={[localStyles.txidText, { color: config.textColor }]} numberOfLines={1}>
-              {txid.substring(0, 8)}...{txid.substring(txid.length - 8)}
+              {truncateAddress(txid, 8, 8)}
             </Text>
           )}
         </View>

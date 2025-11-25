@@ -24,13 +24,15 @@ describe('ErrorBanner', () => {
   });
 
   it('should render null when errorMessage is null', () => {
-    const { container } = render(<ErrorBanner errorMessage={null} onRetry={mockOnRetry} />);
-    expect(container).toBeTruthy();
+    const { queryByText } = render(<ErrorBanner errorMessage={null} onRetry={mockOnRetry} />);
+    // Should not render any error message or warning icon
+    expect(queryByText('warning')).toBeNull();
   });
 
   it('should render null when errorMessage is undefined', () => {
-    const { container } = render(<ErrorBanner errorMessage={undefined} onRetry={mockOnRetry} />);
-    expect(container).toBeTruthy();
+    const { queryByText } = render(<ErrorBanner errorMessage={undefined} onRetry={mockOnRetry} />);
+    // Should not render any error message or warning icon
+    expect(queryByText('warning')).toBeNull();
   });
 
   it('should render error banner when errorMessage is provided', () => {
@@ -53,14 +55,6 @@ describe('ErrorBanner', () => {
 
     fireEvent.press(getByText('Test error'));
     expect(mockOnRetry).toHaveBeenCalledTimes(1);
-  });
-
-  it('should have correct activeOpacity', () => {
-    const { getByText } = render(
-      <ErrorBanner errorMessage="Test error" onRetry={mockOnRetry} />
-    );
-    // Just verify it renders - activeOpacity is a prop detail
-    expect(getByText('Test error')).toBeTruthy();
   });
 
   it('should render warning icon', () => {

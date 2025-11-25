@@ -70,8 +70,7 @@ export default function AirdropSuccessModal({ visible, onClose }) {
         celebrationTimeoutRef.current = null;
       }
     };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [visible, audioReady]);
+  }, [visible, audioReady, triggerCelebration, scaleAnim, opacityAnim]);
 
   return (
     <Modal visible={visible} transparent={true} animationType="none" onRequestClose={onClose}>

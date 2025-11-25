@@ -6,7 +6,7 @@ import React, { useState } from 'react';
 import { View, Text, Modal, TouchableOpacity, ActivityIndicator } from 'react-native';
 import * as Device from 'expo-device';
 import { COLORS } from '../theme';
-import { addPasskeyToExistingWallet, isPasskeySupported } from '../services/passkeyService';
+import { addPasskeyToExistingWallet, isPasskeySupported } from '../services/passkey';
 import { logger } from '../utils/logger';
 import styles from '../styles';
 

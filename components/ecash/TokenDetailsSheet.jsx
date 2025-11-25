@@ -17,6 +17,7 @@ import PropTypes from 'prop-types';
 import { COLORS } from '../../theme';
 import Icon from '../icons';
 import BottomSheet from '../common/BottomSheet';
+import { truncateAddress } from '../../utils/formatters/addresses';
 
 export default function TokenDetailsSheet({
   visible,
@@ -67,7 +68,7 @@ export default function TokenDetailsSheet({
             <Text style={styles.title}>Ecash Token</Text>
             <Text style={styles.subtitle}>
               {recipientAddress
-                ? `Bound to address: ${recipientAddress.slice(0, 5)}...${recipientAddress.slice(-5)}`
+                ? `Bound to address: ${truncateAddress(recipientAddress, 5, 5)}`
                 : 'Anyone can claim'}
             </Text>
           </View>

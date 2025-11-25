@@ -11,7 +11,6 @@ import { COLORS } from '../../theme';
 
 const UnitBalanceBreakdown = ({ ecashBalance, runesBalance }) => {
   const totalBalance = ecashBalance + runesBalance;
-  const ecashPercentage = totalBalance > 0 ? (ecashBalance / totalBalance) * 100 : 50;
   const runesPercentage = totalBalance > 0 ? (runesBalance / totalBalance) * 100 : 50;
 
   return (

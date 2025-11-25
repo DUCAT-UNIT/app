@@ -3,13 +3,46 @@
  * Displays price chart with timeframe selector for BTC and UNIT assets
  */
 
-import React from 'react';
+import React, { memo, useCallback, useMemo } from 'react';
 import { View, Text, TouchableOpacity, StyleSheet, ActivityIndicator } from 'react-native';
 import PriceChart from '../charts/PriceChart';
 import { COLORS } from '../../theme';
 import { generateUnitPriceData } from '../../utils/priceDataGenerator';
 
-export function AssetPriceChart({
+// Memoized timeframe button to prevent re-renders
+const TimeframeButton = memo(function TimeframeButton({
+  timeframe,
+  isActive,
+  isLoading,
+  onPress,
+}) {
+  return (
+    <TouchableOpacity
+      style={[
+        styles.timeframeButton,
+        isActive && styles.timeframeButtonActive,
+      ]}
+      onPress={onPress}
+    >
+      {isLoading && isActive ? (
+        <ActivityIndicator size="small" color={COLORS.PRIMARY_BLUE} />
+      ) : (
+        <Text
+          style={[
+            styles.timeframeButtonText,
+            isActive && styles.timeframeButtonTextActive,
+          ]}
+        >
+          {timeframe}
+        </Text>
+      )}
+    </TouchableOpacity>
+  );
+});
+
+const TIMEFRAMES = ['1D', '1W', '1M', '1Y'];
+
+export const AssetPriceChart = memo(function AssetPriceChart({
   assetType,
   priceData,
   priceError,
@@ -19,10 +52,36 @@ export function AssetPriceChart({
   onTimeframeChange,
   onRetry,
 }) {
-  // For UNIT, use fake data
-  if (assetType === 'UNIT') {
-    const unitData = generateUnitPriceData(selectedTimeframe);
+  // Create stable callbacks for each timeframe
+  const handleTimeframePress = useCallback((timeframe) => {
+    onTimeframeChange(timeframe);
+  }, [onTimeframeChange]);
 
+  // Memoize UNIT price data
+  const unitData = useMemo(() => {
+    if (assetType === 'UNIT') {
+      return generateUnitPriceData(selectedTimeframe);
+    }
+    return null;
+  }, [assetType, selectedTimeframe]);
+
+  // Render timeframe buttons (shared between UNIT and BTC)
+  const renderTimeframeButtons = useCallback((showLoading = false) => (
+    <View style={styles.timeframeButtons}>
+      {TIMEFRAMES.map((timeframe) => (
+        <TimeframeButton
+          key={timeframe}
+          timeframe={timeframe}
+          isActive={selectedTimeframe === timeframe}
+          isLoading={showLoading && priceLoading}
+          onPress={() => handleTimeframePress(timeframe)}
+        />
+      ))}
+    </View>
+  ), [selectedTimeframe, priceLoading, handleTimeframePress]);
+
+  // For UNIT, use generated data
+  if (assetType === 'UNIT') {
     return (
       <View style={styles.chartContainer}>
         <PriceChart
@@ -31,28 +90,7 @@ export function AssetPriceChart({
           minBoundary={0.5}
           maxBoundary={1.5}
         />
-
-        <View style={styles.timeframeButtons}>
-          {['1D', '1W', '1M', '1Y'].map((timeframe) => (
-            <TouchableOpacity
-              key={timeframe}
-              style={[
-                styles.timeframeButton,
-                selectedTimeframe === timeframe && styles.timeframeButtonActive,
-              ]}
-              onPress={() => onTimeframeChange(timeframe)}
-            >
-              <Text
-                style={[
-                  styles.timeframeButtonText,
-                  selectedTimeframe === timeframe && styles.timeframeButtonTextActive,
-                ]}
-              >
-                {timeframe}
-              </Text>
-            </TouchableOpacity>
-          ))}
-        </View>
+        {renderTimeframeButtons(false)}
       </View>
     );
   }
@@ -84,37 +122,12 @@ export function AssetPriceChart({
       ) : priceData ? (
         <>
           <PriceChart data={priceData} isPositive={isPositive} />
-
-          <View style={styles.timeframeButtons}>
-            {['1D', '1W', '1M', '1Y'].map((timeframe) => (
-              <TouchableOpacity
-                key={timeframe}
-                style={[
-                  styles.timeframeButton,
-                  selectedTimeframe === timeframe && styles.timeframeButtonActive,
-                ]}
-                onPress={() => onTimeframeChange(timeframe)}
-              >
-                {priceLoading && selectedTimeframe === timeframe ? (
-                  <ActivityIndicator size="small" color={COLORS.PRIMARY_BLUE} />
-                ) : (
-                  <Text
-                    style={[
-                      styles.timeframeButtonText,
-                      selectedTimeframe === timeframe && styles.timeframeButtonTextActive,
-                    ]}
-                  >
-                    {timeframe}
-                  </Text>
-                )}
-              </TouchableOpacity>
-            ))}
-          </View>
+          {renderTimeframeButtons(true)}
         </>
       ) : null}
     </View>
   );
-}
+});
 
 const styles = StyleSheet.create({
   chartContainer: {

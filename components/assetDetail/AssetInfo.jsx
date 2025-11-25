@@ -9,7 +9,7 @@ import Icon from '../icons';
 import { COLORS } from '../../theme';
 import { formatBalance, formatFiat } from '../../utils/formatters/index';
 
-export function AssetInfo({ assetType, balance, fiatValue, btcPrice, priceData, priceDirection, runesBalance, cashuBalance, isLoading }) {
+export function AssetInfo({ assetType, balance, fiatValue, btcPrice, priceData, priceDirection, isLoading }) {
   // For UNIT, show the actual UNIT amount with commas and 2 decimals
   // For BTC, show the BTC value with 8 decimals
   const displayBalance = assetType === 'BTC'
@@ -110,14 +110,5 @@ const styles = StyleSheet.create({
     fontSize: 16,
     color: COLORS.SECONDARY_TEXT,
     fontFamily: 'CabinetGrotesk-Regular',
-  },
-  breakdownContainer: {
-    marginTop: 8,
-    paddingHorizontal: 16,
-  },
-  breakdownText: {
-    fontSize: 14,
-    fontWeight: '400',
-    color: COLORS.SECONDARY_TEXT,
   },
 });

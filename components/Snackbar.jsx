@@ -72,8 +72,7 @@ export default function Snackbar({ params, onClose }) {
 
     // Note: Auto-dismiss is handled by NotificationContext (7 seconds for all types)
     // No need for component-level timeout
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+  }, [slideAnim]);
 
   const handleClose = () => {
     Animated.timing(slideAnim, {

@@ -5,6 +5,7 @@
 import React from 'react';
 import { View, Text, StyleSheet } from 'react-native';
 import { COLORS } from '../../theme';
+import { truncateAddress } from '../../utils/formatters/addresses';
 
 export function RunestoneInfo({ unitAmount, recipient, sourceAddress }) {
   return (
@@ -18,13 +19,13 @@ export function RunestoneInfo({ unitAmount, recipient, sourceAddress }) {
           Send {(unitAmount / 100).toLocaleString('en-US', {
             minimumFractionDigits: 2,
             maximumFractionDigits: 2
-          })} UNIT to {recipient.substring(0, 5)}...{recipient.substring(recipient.length - 5)}
+          })} UNIT to {truncateAddress(recipient, 5, 5)}
         </Text>
       </View>
       <View style={styles.runestoneDetail}>
         <Text style={styles.runestoneDetailLabel}>Pointer</Text>
         <Text style={styles.runestoneDetailValue}>
-          Send the rest to {sourceAddress.substring(0, 5)}...{sourceAddress.substring(sourceAddress.length - 5)}
+          Send the rest to {truncateAddress(sourceAddress, 5, 5)}
         </Text>
       </View>
     </View>

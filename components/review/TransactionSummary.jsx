@@ -7,6 +7,7 @@ import React from 'react';
 import { View, Text, StyleSheet } from 'react-native';
 import { COLORS } from '../../theme';
 import Icon from '../icons';
+import { truncateAddress } from '../../utils/formatters/addresses';
 
 export default function TransactionSummary({
   recipient,
@@ -20,7 +21,7 @@ export default function TransactionSummary({
       <View style={styles.toRow}>
         <Text style={styles.labelText}>To:</Text>
         <Text style={styles.addressText} selectable>
-          {recipient.substring(0, 5)}...{recipient.substring(recipient.length - 5)}
+          {truncateAddress(recipient, 5, 5)}
         </Text>
       </View>
 

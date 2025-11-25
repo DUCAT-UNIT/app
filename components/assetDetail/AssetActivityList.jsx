@@ -3,27 +3,38 @@
  * Displays transaction list with loading, empty states, and pagination
  */
 
-import React, { useState, useCallback } from 'react';
+import React, { useState, useCallback, memo, useMemo } from 'react';
 import { View, Text, TouchableOpacity, ActivityIndicator, StyleSheet } from 'react-native';
 import TransactionItem from '../transaction/TransactionItem';
 import { COLORS } from '../../theme';
 import globalStyles from '../../styles';
 
-export function AssetActivityList({ transactions, isLoading, onTransactionPress, advancedMode = false }) {
+export const AssetActivityList = memo(function AssetActivityList({
+  transactions,
+  isLoading,
+  onTransactionPress,
+  advancedMode = false
+}) {
   const [visibleTransactions, setVisibleTransactions] = useState(20);
 
-  const renderTransaction = useCallback(
-    ({ item: tx }) => (
-      <TransactionItem
-        tx={tx}
-        styles={globalStyles}
-        onPress={() => onTransactionPress(tx)}
-        advancedMode={advancedMode}
-      />
-    ),
-    [onTransactionPress, advancedMode]
+  // Memoize the transaction press handler factory
+  const createPressHandler = useCallback(
+    (tx) => () => onTransactionPress(tx),
+    [onTransactionPress]
   );
 
+  // Memoize displayed transactions slice (must be before early returns)
+  const displayedTransactions = useMemo(
+    () => transactions.slice(0, visibleTransactions),
+    [transactions, visibleTransactions]
+  );
+
+  // Memoize load more handler (must be before early returns)
+  const handleLoadMore = useCallback(() => {
+    setVisibleTransactions(prev => prev + 20);
+  }, []);
+
+  // Early returns for loading/empty states (after all hooks)
   if (isLoading) {
     return (
       <View style={styles.activityContainer}>
@@ -42,21 +53,24 @@ export function AssetActivityList({ transactions, isLoading, onTransactionPress,
     );
   }
 
-  const displayedTransactions = transactions.slice(0, visibleTransactions);
   const hasMore = visibleTransactions < transactions.length;
 
   return (
     <View style={styles.activityContainer}>
       {displayedTransactions.map((transaction) => (
-        <View key={transaction.txid}>
-          {renderTransaction({ item: transaction })}
-        </View>
+        <TransactionItem
+          key={transaction.txid}
+          tx={transaction}
+          styles={globalStyles}
+          onPress={createPressHandler(transaction)}
+          advancedMode={advancedMode}
+        />
       ))}
 
       {hasMore && (
         <TouchableOpacity
           style={styles.loadMoreButton}
-          onPress={() => setVisibleTransactions(prev => prev + 20)}
+          onPress={handleLoadMore}
         >
           <Text style={styles.loadMoreText}>
             Load More ({transactions.length - visibleTransactions} remaining)
@@ -65,7 +79,7 @@ export function AssetActivityList({ transactions, isLoading, onTransactionPress,
       )}
     </View>
   );
-}
+});
 
 const styles = StyleSheet.create({
   activityContainer: {

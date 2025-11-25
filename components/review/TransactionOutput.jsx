@@ -7,6 +7,8 @@ import { View, Text, StyleSheet } from 'react-native';
 import { COLORS } from '../../theme';
 import Icon from '../icons';
 import { RunestoneInfo } from './RunestoneInfo';
+import { truncateAddress } from '../../utils/formatters/addresses';
+import { formatBTC, satsToBTC } from '../../utils/bitcoin/conversions';
 
 export function TransactionOutput({ output, sendIntent, runeUtxoBalance, btcPrice }) {
   const unitAmount = sendIntent.assetType === 'UNIT' ? parseFloat(sendIntent.amount) : 0;
@@ -30,9 +32,7 @@ export function TransactionOutput({ output, sendIntent, runeUtxoBalance, btcPric
     <View style={styles.txItem}>
       <View style={styles.txItemHeader}>
         <Text style={styles.txAddress} selectable numberOfLines={1}>
-          {output.address.length > 20
-            ? `${output.address.substring(0, 5)}...${output.address.substring(output.address.length - 5)}`
-            : output.address}
+          {truncateAddress(output.address, 5, 5)}
         </Text>
 
         {/* Show UNIT chip for rune outputs */}
@@ -78,10 +78,10 @@ export function TransactionOutput({ output, sendIntent, runeUtxoBalance, btcPric
       ) : (
         <View style={styles.txValueRow}>
           <Text style={styles.txValue}>
-            {(output.value / 100000000).toFixed(8)} BTC
+            {formatBTC(output.value)} BTC
           </Text>
           <Text style={styles.txUsd}>
-            ${((output.value / 100000000) * (btcPrice || 0)).toLocaleString('en-US', {
+            ${(satsToBTC(output.value) * (btcPrice || 0)).toLocaleString('en-US', {
               minimumFractionDigits: 2,
               maximumFractionDigits: 2
             })}

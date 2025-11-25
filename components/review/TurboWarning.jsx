@@ -45,8 +45,4 @@ const styles = StyleSheet.create({
     lineHeight: 20,
     color: COLORS.VERY_LIGHT_GRAY,
   },
-  fuseText: {
-    fontWeight: '600',
-    color: COLORS.PRIMARY_BLUE,
-  },
 });

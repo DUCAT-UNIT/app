@@ -59,7 +59,7 @@ describe('TotalBalanceSection', () => {
     expect(mockProps.onToggle).toHaveBeenCalledTimes(1);
   });
 
-  it('should apply largeBalanceStyle for balances >= 10M', () => {
+  it('should render large balances >= 10M', () => {
     const largeBalanceProps = {
       ...mockProps,
       totalBalanceUSD: 10000000,
@@ -71,7 +71,7 @@ describe('TotalBalanceSection', () => {
     expect(getByText('10,000,000.00', { exact: false })).toBeTruthy();
   });
 
-  it('should not apply largeBalanceStyle for balances < 10M', () => {
+  it('should render balances < 10M', () => {
     const smallBalanceProps = {
       ...mockProps,
       totalBalanceUSD: 9999999,
