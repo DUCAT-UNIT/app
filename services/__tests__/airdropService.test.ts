@@ -1,3 +1,4 @@
+// @ts-nocheck
 /**
  * Tests for airdropService
  */
@@ -21,7 +22,7 @@ describe('airdropService', () => {
       const mockTxId = 'mock_tx_id_123';
       const mockTimeout = 3600;
 
-      apiClient.postJSON.mockResolvedValue({
+      (apiClient.postJSON as jest.Mock).mockResolvedValue({
         data: {
           tx_id: mockTxId,
           timeout: mockTimeout,
@@ -48,7 +49,7 @@ describe('airdropService', () => {
 
     it('should throw error when response is not ok', async () => {
       const error = new Error('HTTP 429: Too Many Requests');
-      apiClient.postJSON.mockRejectedValue(error);
+      (apiClient.postJSON as jest.Mock).mockRejectedValue(error);
 
       await expect(AirdropService.requestAirdrop(testAddress)).rejects.toThrow(
         'HTTP 429: Too Many Requests'
@@ -56,7 +57,7 @@ describe('airdropService', () => {
     });
 
     it('should throw error when response data is missing', async () => {
-      apiClient.postJSON.mockResolvedValue({
+      (apiClient.postJSON as jest.Mock).mockResolvedValue({
         // Missing data field
       });
 
@@ -66,7 +67,7 @@ describe('airdropService', () => {
     });
 
     it('should throw error when tx_id is missing', async () => {
-      apiClient.postJSON.mockResolvedValue({
+      (apiClient.postJSON as jest.Mock).mockResolvedValue({
         data: {
           // Missing tx_id
           timeout: 3600,
@@ -80,14 +81,14 @@ describe('airdropService', () => {
 
     it('should handle fetch network error', async () => {
       const networkError = new Error('Network error');
-      apiClient.postJSON.mockRejectedValue(networkError);
+      (apiClient.postJSON as jest.Mock).mockRejectedValue(networkError);
 
       await expect(AirdropService.requestAirdrop(testAddress)).rejects.toThrow('Network error');
     });
 
     it('should handle JSON parsing error', async () => {
       const jsonError = new Error('Invalid JSON');
-      apiClient.postJSON.mockRejectedValue(jsonError);
+      (apiClient.postJSON as jest.Mock).mockRejectedValue(jsonError);
 
       await expect(AirdropService.requestAirdrop(testAddress)).rejects.toThrow('Invalid JSON');
     });

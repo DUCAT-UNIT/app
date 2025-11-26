@@ -5,23 +5,15 @@
 export * from './wallet';
 export * from './transaction';
 export * from './cashu';
+export * from './components';
+export * from './notification';
+export * from './assets';
 
 /**
- * Navigation Types
+ * Re-export asset types for backwards compatibility
+ * Prefer importing from './assets' directly
  */
-export type RootStackParamList = {
-  Home: undefined;
-  Send: undefined;
-  Receive: undefined;
-  Settings: undefined;
-  TransactionDetails: { txid: string };
-  VaultScreen: undefined;
-  TurboScreen: undefined;
-  TurboHistoryScreen: undefined;
-  AccountsScreen: undefined;
-  CreateAccountScreen: undefined;
-  // Add more as needed during migration
-};
+export type { AssetTypeParam, AddressTypeParam } from './assets';
 
 /**
  * Context Types
@@ -49,14 +41,14 @@ export interface CashuContextType extends CashuWalletState {
 /**
  * Service Types
  */
-export interface ApiResponse<T = any> {
+export interface ApiResponse<T = unknown> {
   success: boolean;
   data?: T;
   error?: string;
 }
 
 export interface LogContext {
-  [key: string]: any;
+  [key: string]: unknown;
 }
 
 export type LogLevel = 'debug' | 'info' | 'warn' | 'error';
@@ -67,3 +59,16 @@ export type LogLevel = 'debug' | 'info' | 'warn' | 'error';
 export type Nullable<T> = T | null;
 export type Optional<T> = T | undefined;
 export type AsyncFunction<T = void> = () => Promise<T>;
+export type AsyncFunctionWithArgs<T = void, A extends unknown[] = unknown[]> = (...args: A) => Promise<T>;
+
+/**
+ * Generic record type with proper typing
+ */
+export type TypedRecord<K extends string | number | symbol, V> = Record<K, V>;
+
+/**
+ * Type guard helper
+ */
+export type NonNullableFields<T> = {
+  [P in keyof T]: NonNullable<T[P]>;
+};

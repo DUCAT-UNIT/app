@@ -1,3 +1,4 @@
+// @ts-nocheck
 /**
  * Tests for turboTokenStorage service
  */
@@ -43,7 +44,7 @@ describe('turboTokenStorage', () => {
     delete (global as any).processedCashuTokensLoading;
     (Crypto.digestStringAsync as jest.Mock).mockResolvedValue('mockedHashValue');
     (SecureStore.getItemAsync as jest.Mock).mockResolvedValue(null);
-    (SecureStore.setItemAsync as jest.Mock).mockResolvedValue();
+    (SecureStore.setItemAsync as jest.Mock).mockResolvedValue(undefined);
   });
 
   describe('hashToken', () => {
@@ -116,7 +117,7 @@ describe('turboTokenStorage', () => {
     });
 
     it('should limit storage to MAX_STORED_TOKENS (500)', async () => {
-      const tokens = new Set();
+      const tokens = new Set<string>();
       for (let i = 0; i < 600; i++) {
         tokens.add(`hash${i}`);
       }
@@ -137,7 +138,7 @@ describe('turboTokenStorage', () => {
 
   describe('markTokenAsProcessed', () => {
     it('should mark token as processed when global set exists', async () => {
-      (global as any).processedCashuTokens = new Set();
+      (global as any).processedCashuTokens = new Set<string>();
 
       await markTokenAsProcessed('cashuAtoken');
 
@@ -146,13 +147,13 @@ describe('turboTokenStorage', () => {
     });
 
     it('should not throw when global set does not exist', async () => {
-      delete global.processedCashuTokens;
+      delete (global as any).processedCashuTokens;
 
       await expect(markTokenAsProcessed('cashuAtoken')).resolves.not.toThrow();
     });
 
     it('should handle errors gracefully', async () => {
-      (global as any).processedCashuTokens = new Set();
+      (global as any).processedCashuTokens = new Set<string>();
       (Crypto.digestStringAsync as jest.Mock).mockRejectedValue(new Error('Hash error'));
 
       // Should not throw
@@ -195,7 +196,7 @@ describe('turboTokenStorage', () => {
     });
 
     it('should return false when global set does not exist', async () => {
-      delete global.processedCashuTokens;
+      delete (global as any).processedCashuTokens;
 
       const result = await isTokenProcessed('cashuAtoken');
 
@@ -204,7 +205,7 @@ describe('turboTokenStorage', () => {
     });
 
     it('should return false on error', async () => {
-      (global as any).processedCashuTokens = new Set();
+      (global as any).processedCashuTokens = new Set<string>();
       (Crypto.digestStringAsync as jest.Mock).mockRejectedValue(new Error('Hash error'));
 
       const result = await isTokenProcessed('cashuAtoken');

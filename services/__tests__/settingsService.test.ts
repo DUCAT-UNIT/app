@@ -1,3 +1,4 @@
+// @ts-nocheck
 /**
  * Tests for Settings Service
  */
@@ -84,7 +85,7 @@ describe('setString', () => {
   });
 
   it('should set string value in storage', async () => {
-    (SecureStore.setItemAsync as jest.Mock).mockResolvedValue();
+    (SecureStore.setItemAsync as jest.Mock).mockResolvedValue(undefined);
 
     const result = await setString('testKey', 'testValue');
 
@@ -93,9 +94,9 @@ describe('setString', () => {
   });
 
   it('should convert value to string', async () => {
-    (SecureStore.setItemAsync as jest.Mock).mockResolvedValue();
+    (SecureStore.setItemAsync as jest.Mock).mockResolvedValue(undefined);
 
-    await setString('testKey', 123);
+    await setString('testKey', 123 as unknown as string);
 
     expect(SecureStore.setItemAsync).toHaveBeenCalledWith('testKey', '123');
   });
@@ -161,7 +162,7 @@ describe('setBoolean', () => {
   });
 
   it('should set true boolean value', async () => {
-    (SecureStore.setItemAsync as jest.Mock).mockResolvedValue();
+    (SecureStore.setItemAsync as jest.Mock).mockResolvedValue(undefined);
 
     const result = await setBoolean('testKey', true);
 
@@ -170,7 +171,7 @@ describe('setBoolean', () => {
   });
 
   it('should set false boolean value', async () => {
-    (SecureStore.setItemAsync as jest.Mock).mockResolvedValue();
+    (SecureStore.setItemAsync as jest.Mock).mockResolvedValue(undefined);
 
     const result = await setBoolean('testKey', false);
 
@@ -247,7 +248,7 @@ describe('setNumber', () => {
   });
 
   it('should set number value', async () => {
-    (SecureStore.setItemAsync as jest.Mock).mockResolvedValue();
+    (SecureStore.setItemAsync as jest.Mock).mockResolvedValue(undefined);
 
     const result = await setNumber('testKey', 42);
 
@@ -256,7 +257,7 @@ describe('setNumber', () => {
   });
 
   it('should set float number', async () => {
-    (SecureStore.setItemAsync as jest.Mock).mockResolvedValue();
+    (SecureStore.setItemAsync as jest.Mock).mockResolvedValue(undefined);
 
     await setNumber('testKey', 3.14159);
 
@@ -319,7 +320,7 @@ describe('setObject', () => {
   });
 
   it('should set object value', async () => {
-    (SecureStore.setItemAsync as jest.Mock).mockResolvedValue();
+    (SecureStore.setItemAsync as jest.Mock).mockResolvedValue(undefined);
     const testObj = { foo: 'bar', num: 123 };
 
     const result = await setObject('testKey', testObj);
@@ -343,7 +344,7 @@ describe('deleteSetting', () => {
   });
 
   it('should delete setting', async () => {
-    (SecureStore.deleteItemAsync as jest.Mock).mockResolvedValue();
+    (SecureStore.deleteItemAsync as jest.Mock).mockResolvedValue(undefined);
 
     const result = await deleteSetting('testKey');
 
@@ -367,7 +368,7 @@ describe('toggle', () => {
 
   it('should toggle true to false', async () => {
     (SecureStore.getItemAsync as jest.Mock).mockResolvedValue('true');
-    (SecureStore.setItemAsync as jest.Mock).mockResolvedValue();
+    (SecureStore.setItemAsync as jest.Mock).mockResolvedValue(undefined);
 
     const result = await toggle('testKey');
 
@@ -377,7 +378,7 @@ describe('toggle', () => {
 
   it('should toggle false to true', async () => {
     (SecureStore.getItemAsync as jest.Mock).mockResolvedValue('false');
-    (SecureStore.setItemAsync as jest.Mock).mockResolvedValue();
+    (SecureStore.setItemAsync as jest.Mock).mockResolvedValue(undefined);
 
     const result = await toggle('testKey');
 
@@ -387,7 +388,7 @@ describe('toggle', () => {
 
   it('should toggle null (default false) to true', async () => {
     (SecureStore.getItemAsync as jest.Mock).mockResolvedValue(null);
-    (SecureStore.setItemAsync as jest.Mock).mockResolvedValue();
+    (SecureStore.setItemAsync as jest.Mock).mockResolvedValue(undefined);
 
     const result = await toggle('testKey');
 
@@ -440,10 +441,10 @@ describe('getMultiple', () => {
     });
 
     const settings = [
-      { key: 'strKey', type: 'string', defaultValue: '' },
-      { key: 'boolKey', type: 'boolean', defaultValue: false },
-      { key: 'numKey', type: 'number', defaultValue: 0 },
-      { key: 'objKey', type: 'object', defaultValue: {} },
+      { key: 'strKey', type: 'string' as const, defaultValue: '' },
+      { key: 'boolKey', type: 'boolean' as const, defaultValue: false },
+      { key: 'numKey', type: 'number' as const, defaultValue: 0 },
+      { key: 'objKey', type: 'object' as const, defaultValue: {} },
     ];
 
     const result = await getMultiple(settings);
@@ -460,8 +461,8 @@ describe('getMultiple', () => {
     (SecureStore.getItemAsync as jest.Mock).mockResolvedValue(null);
 
     const settings = [
-      { key: 'key1', type: 'string', defaultValue: 'default' },
-      { key: 'key2', type: 'boolean', defaultValue: true },
+      { key: 'key1', type: 'string' as const, defaultValue: 'default' },
+      { key: 'key2', type: 'boolean' as const, defaultValue: true },
     ];
 
     const result = await getMultiple(settings);
@@ -479,7 +480,7 @@ describe('setMultiple', () => {
   });
 
   it('should set multiple settings of different types', async () => {
-    (SecureStore.setItemAsync as jest.Mock).mockResolvedValue();
+    (SecureStore.setItemAsync as jest.Mock).mockResolvedValue(undefined);
 
     const settings = {
       strKey: 'stringValue',

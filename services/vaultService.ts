@@ -14,10 +14,10 @@ export interface VaultHistoryTransaction {
 
 export interface VaultData {
   vaultId?: string;
-  vaultTag: string;
-  totalDebt: number;
-  totalCollateral: number;
-  currentPrice: number;
+  vaultTag?: string;
+  totalDebt?: number;
+  totalCollateral?: number;
+  currentPrice?: number;
   latestTransaction?: {
     amountBorrowed: number;
     vaultAmount: number;

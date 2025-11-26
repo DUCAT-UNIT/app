@@ -7,6 +7,28 @@ import * as SecureStore from 'expo-secure-store';
 import * as Crypto from 'expo-crypto';
 import { logger } from '../../utils/logger';
 
+/**
+ * Snackbar display params for turbo notifications
+ */
+interface TurboSnackbarParams {
+  message: string;
+  type: string;
+}
+
+/**
+ * Global state extensions for turbo token tracking
+ */
+interface TurboGlobalState {
+  processedCashuTokens?: Set<string>;
+  processedCashuTokensLoading?: boolean;
+  pendingCashuToken?: string;
+  pendingTurboSnackbars?: TurboSnackbarParams[];
+  turboJustResumed?: boolean;
+}
+
+// Type-safe global accessor
+const turboGlobal = global as typeof globalThis & TurboGlobalState;
+
 // Storage key for processed tokens
 const PROCESSED_TOKENS_KEY = 'processed_cashu_tokens';
 const MAX_STORED_TOKENS = 500; // Store up to 500 processed token hashes
@@ -64,10 +86,10 @@ export const saveProcessedTokens = async (tokensSet: Set<string>): Promise<void>
 export const markTokenAsProcessed = async (token: string): Promise<void> => {
   try {
     const tokenHash = await hashToken(token);
-    if ((global as any).processedCashuTokens) {
-      (global as any).processedCashuTokens.add(tokenHash);
-      logger.debug('[TURBO] Marked token as processed. Total:', { count: (global as any).processedCashuTokens.size });
-      await saveProcessedTokens((global as any).processedCashuTokens);
+    if (turboGlobal.processedCashuTokens) {
+      turboGlobal.processedCashuTokens.add(tokenHash);
+      logger.debug('[TURBO] Marked token as processed. Total:', { count: turboGlobal.processedCashuTokens.size });
+      await saveProcessedTokens(turboGlobal.processedCashuTokens);
     }
   } catch (error) {
     logger.error('[TURBO] Failed to mark token as processed:', { message: (error as Error).message });
@@ -80,7 +102,7 @@ export const markTokenAsProcessed = async (token: string): Promise<void> => {
 export const isTokenProcessed = async (token: string): Promise<boolean> => {
   try {
     const tokenHash = await hashToken(token);
-    return (global as any).processedCashuTokens && (global as any).processedCashuTokens.has(tokenHash);
+    return turboGlobal.processedCashuTokens?.has(tokenHash) ?? false;
   } catch (error) {
     logger.error('[TURBO] Failed to check token status:', { message: (error as Error).message });
     return false;
@@ -91,18 +113,22 @@ export const isTokenProcessed = async (token: string): Promise<boolean> => {
  * Initialize token storage on app start
  */
 export const initializeTokenStorage = async (): Promise<void> => {
-  if (typeof global !== 'undefined' && !(global as any).processedCashuTokens) {
-    (global as any).processedCashuTokensLoading = true;
+  if (typeof global !== 'undefined' && !turboGlobal.processedCashuTokens) {
+    turboGlobal.processedCashuTokensLoading = true;
 
     try {
       const tokensSet = await loadProcessedTokens();
-      (global as any).processedCashuTokens = tokensSet;
-      (global as any).processedCashuTokensLoading = false;
+      turboGlobal.processedCashuTokens = tokensSet;
+      turboGlobal.processedCashuTokensLoading = false;
       logger.debug('[TURBO] Loaded processed tokens from storage:', { count: tokensSet.size });
     } catch (error) {
       logger.error('[TURBO] Failed to load processed tokens, starting fresh:', { message: (error as Error).message });
-      (global as any).processedCashuTokens = new Set();
-      (global as any).processedCashuTokensLoading = false;
+      turboGlobal.processedCashuTokens = new Set();
+      turboGlobal.processedCashuTokensLoading = false;
     }
   }
 };
+
+// Export turboGlobal and types for use in other turbo modules
+export { turboGlobal };
+export type { TurboGlobalState, TurboSnackbarParams };

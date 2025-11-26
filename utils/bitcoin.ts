@@ -77,6 +77,7 @@ export interface DerivedAddresses {
   taprootAddress: string;
   segwitPubkey: string;
   taprootPubkey: string;
+  [key: string]: unknown;
 }
 
 /**

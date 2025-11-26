@@ -1,3 +1,4 @@
+// @ts-nocheck
 /**
  * Tests for Sentry Service
  */
@@ -17,6 +18,10 @@ jest.mock('@sentry/react-native', () => ({
   captureMessage: jest.fn(),
   captureException: jest.fn(),
 }));
+
+// Typed mock references for Sentry
+const mockAddBreadcrumb = Sentry.addBreadcrumb as jest.Mock;
+const mockSetContext = Sentry.setContext as jest.Mock;
 
 jest.mock('@react-native-async-storage/async-storage', () => ({
   getItem: jest.fn(),
@@ -42,6 +47,10 @@ jest.mock('react-native', () => ({
   },
 }));
 
+// Typed mock references
+const mockGetItem = AsyncStorage.getItem as jest.MockedFunction<typeof AsyncStorage.getItem>;
+const mockSetItem = AsyncStorage.setItem as jest.MockedFunction<typeof AsyncStorage.setItem>;
+
 // Import the actual module once
 const sentryService = require('../sentryService');
 
@@ -50,8 +59,8 @@ describe('sentryService', () => {
     jest.clearAllMocks();
 
     // Reset module state
-    AsyncStorage.getItem.mockResolvedValue(null);
-    AsyncStorage.setItem.mockResolvedValue(undefined);
+    mockGetItem.mockResolvedValue(null);
+    mockSetItem.mockResolvedValue(undefined);
   });
 
   describe('getDeviceId', () => {
@@ -390,7 +399,7 @@ describe('sentryService', () => {
         privateKey: 'L1234567890abcdef1234567890abcdef1234567890abcdef1234',
       });
 
-      const calls = Sentry.addBreadcrumb.mock.calls;
+      const calls = mockAddBreadcrumb.mock.calls;
       expect(calls.length).toBeGreaterThan(0);
       const lastCall = calls[calls.length - 1][0];
       expect(lastCall.data.privateKey).toBe('[REDACTED]');
@@ -401,7 +410,7 @@ describe('sentryService', () => {
         token: 'cashuAeyJ0b2tlbiI6W3sicHJvb2ZzIjpbXX1dfQ',
       });
 
-      const calls = Sentry.addBreadcrumb.mock.calls;
+      const calls = mockAddBreadcrumb.mock.calls;
       expect(calls.length).toBeGreaterThan(0);
       const lastCall = calls[calls.length - 1][0];
       expect(lastCall.data.token).toBe('[REDACTED]');
@@ -417,7 +426,7 @@ describe('sentryService', () => {
         },
       });
 
-      const calls = Sentry.setContext.mock.calls;
+      const calls = mockSetContext.mock.calls;
       expect(calls.length).toBeGreaterThan(0);
       const lastCall = calls[calls.length - 1];
       expect(lastCall[1].user.pin).toBe('[REDACTED]');

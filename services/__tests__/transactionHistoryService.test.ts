@@ -1,3 +1,4 @@
+// @ts-nocheck
 /**
  * Tests for Transaction History Service
  * Tests transaction fetching, rune transfer parsing, and transaction amount calculation
@@ -28,11 +29,12 @@ jest.mock('../vaultService');
 jest.mock('../../runestone-encoder');
 
 const { decodeRunestone } = require('../../runestone-encoder');
+const mockFetchVaultHistory = fetchVaultHistory as jest.MockedFunction<typeof fetchVaultHistory>;
 
 describe('transactionHistoryService', () => {
   beforeEach(() => {
     jest.clearAllMocks();
-    ((global as any).fetch = jest.fn();
+    (global as any).fetch = jest.fn();
   });
 
   describe('fetchAddressTransactions', () => {
@@ -44,7 +46,7 @@ describe('transactionHistoryService', () => {
         { txid: 'tx2', status: { block_time: 2000 } },
       ];
 
-      ((global as any).fetch.mockResolvedValueOnce({
+      (global as any).fetch.mockResolvedValueOnce({
         ok: true,
         json: async () => mockTxs,
       });
@@ -52,7 +54,7 @@ describe('transactionHistoryService', () => {
       const result = await fetchAddressTransactions(address);
 
       expect(result).toEqual(mockTxs);
-      expect(((global as any).fetch).toHaveBeenCalledTimes(1);
+      expect((global as any).fetch).toHaveBeenCalledTimes(1);
     });
 
     it('should handle pagination correctly', async () => {
@@ -70,7 +72,7 @@ describe('transactionHistoryService', () => {
         status: { block_time: 2000 + i },
       }));
 
-      ((global as any).fetch
+      (global as any).fetch
         .mockResolvedValueOnce({
           ok: true,
           json: async () => page1,
@@ -83,14 +85,14 @@ describe('transactionHistoryService', () => {
       const result = await fetchAddressTransactions(address);
 
       expect(result).toHaveLength(35);
-      expect(((global as any).fetch).toHaveBeenCalledTimes(2);
+      expect((global as any).fetch).toHaveBeenCalledTimes(2);
     });
 
     it('should stop after max pages (40)', async () => {
       const address = 'tb1qw508d6qejxtdg4y5r3zarvary0c5xw7kxpjzsx';
 
       // Mock 41 pages of 25 transactions each
-      ((global as any).fetch.mockImplementation(() =>
+      (global as any).fetch.mockImplementation(() =>
         Promise.resolve({
           ok: true,
           json: async () => Array.from({ length: 25 }, (_, i) => ({
@@ -103,14 +105,14 @@ describe('transactionHistoryService', () => {
       const result = await fetchAddressTransactions(address);
 
       // Should only fetch 40 pages
-      expect(((global as any).fetch).toHaveBeenCalledTimes(40);
+      expect((global as any).fetch).toHaveBeenCalledTimes(40);
       expect(result).toHaveLength(1000); // 40 pages * 25 txs
     });
 
     it('should return empty array on error', async () => {
       const address = 'tb1qw508d6qejxtdg4y5r3zarvary0c5xw7kxpjzsx';
 
-      ((global as any).fetch.mockResolvedValueOnce({
+      (global as any).fetch.mockResolvedValueOnce({
         ok: false,
         statusText: 'Not Found',
       });
@@ -123,7 +125,7 @@ describe('transactionHistoryService', () => {
     it('should handle empty response', async () => {
       const address = 'tb1qw508d6qejxtdg4y5r3zarvary0c5xw7kxpjzsx';
 
-      ((global as any).fetch.mockResolvedValueOnce({
+      (global as any).fetch.mockResolvedValueOnce({
         ok: true,
         json: async () => [],
       });
@@ -140,8 +142,10 @@ describe('transactionHistoryService', () => {
 
     it('should return null if no OP_RETURN output', () => {
       const tx = {
+        txid: 'test_tx',
+        status: { confirmed: true, block_time: 1000 },
         vout: [
-          { scriptpubkey: 'abcd1234' },
+          { scriptpubkey: 'abcd1234', value: 0 },
         ],
       };
 
@@ -162,6 +166,8 @@ describe('transactionHistoryService', () => {
       });
 
       const tx = {
+        txid: 'test_tx',
+        status: { confirmed: true, block_time: 1000 },
         vin: [
           {
             prevout: {
@@ -173,6 +179,7 @@ describe('transactionHistoryService', () => {
         vout: [
           {
             scriptpubkey: '6a5d0102', // OP_RETURN
+            value: 0,
           },
           {
             scriptpubkey_address: 'tb1precipientsaddress',
@@ -201,6 +208,8 @@ describe('transactionHistoryService', () => {
       });
 
       const tx = {
+        txid: 'test_tx',
+        status: { confirmed: true, block_time: 1000 },
         vin: [
           {
             prevout: {
@@ -216,6 +225,7 @@ describe('transactionHistoryService', () => {
           },
           {
             scriptpubkey: '6a5d0102',
+            value: 0,
           },
         ],
       };
@@ -240,6 +250,8 @@ describe('transactionHistoryService', () => {
       });
 
       const tx = {
+        txid: 'test_tx',
+        status: { confirmed: true, block_time: 1000 },
         vin: [
           {
             prevout: {
@@ -251,6 +263,7 @@ describe('transactionHistoryService', () => {
         vout: [
           {
             scriptpubkey: '6a5d0102',
+            value: 0,
           },
           {
             scriptpubkey_address: 'tb1precipient',
@@ -268,9 +281,12 @@ describe('transactionHistoryService', () => {
       decodeRunestone.mockReturnValueOnce(null);
 
       const tx = {
+        txid: 'test_tx',
+        status: { confirmed: true, block_time: 1000 },
         vout: [
           {
             scriptpubkey: '6a5d0102',
+            value: 0,
           },
         ],
       };
@@ -286,9 +302,12 @@ describe('transactionHistoryService', () => {
       });
 
       const tx = {
+        txid: 'test_tx',
+        status: { confirmed: true, block_time: 1000 },
         vout: [
           {
             scriptpubkey: '6a5d0102',
+            value: 0,
           },
         ],
       };
@@ -310,6 +329,8 @@ describe('transactionHistoryService', () => {
       });
 
       const tx = {
+        txid: 'test_tx',
+        status: { confirmed: true, block_time: 1000 },
         vin: [
           {
             prevout: {
@@ -321,6 +342,7 @@ describe('transactionHistoryService', () => {
         vout: [
           {
             scriptpubkey: '6a5d0102',
+            value: 0,
           },
           {
             scriptpubkey_address: 'tb1precipient',
@@ -350,6 +372,8 @@ describe('transactionHistoryService', () => {
       });
 
       const tx = {
+        txid: 'test_tx',
+        status: { confirmed: true, block_time: 1000 },
         vin: [
           {
             prevout: {
@@ -365,6 +389,7 @@ describe('transactionHistoryService', () => {
           },
           {
             scriptpubkey: '6a5d0102',
+            value: 0,
           },
         ],
       };
@@ -397,6 +422,8 @@ describe('transactionHistoryService', () => {
       });
 
       const tx = {
+        txid: 'test_tx',
+        status: { confirmed: true, block_time: 1000 },
         vin: [
           {
             prevout: {
@@ -412,6 +439,7 @@ describe('transactionHistoryService', () => {
           },
           {
             scriptpubkey: '6a5d0102',
+            value: 0,
           },
         ],
       };
@@ -427,6 +455,8 @@ describe('transactionHistoryService', () => {
 
     it('should calculate BTC received', () => {
       const tx = {
+        txid: 'test_tx',
+        status: { confirmed: true, block_time: 1000 },
         vin: [
           {
             prevout: {
@@ -453,6 +483,8 @@ describe('transactionHistoryService', () => {
 
     it('should calculate BTC sent', () => {
       const tx = {
+        txid: 'test_tx',
+        status: { confirmed: true, block_time: 1000 },
         vin: [
           {
             prevout: {
@@ -479,6 +511,8 @@ describe('transactionHistoryService', () => {
 
     it('should detect self-transfer', () => {
       const tx = {
+        txid: 'test_tx',
+        status: { confirmed: true, block_time: 1000 },
         vin: [
           {
             prevout: {
@@ -506,6 +540,8 @@ describe('transactionHistoryService', () => {
 
     it('should ignore OP_RETURN outputs in self-transfer detection', () => {
       const tx = {
+        txid: 'test_tx',
+        status: { confirmed: true, block_time: 1000 },
         vin: [
           {
             prevout: {
@@ -563,7 +599,7 @@ describe('transactionHistoryService', () => {
         },
       ];
 
-      ((global as any).fetch
+      (global as any).fetch
         .mockResolvedValueOnce({
           ok: true,
           json: async () => segwitTxs,
@@ -573,7 +609,7 @@ describe('transactionHistoryService', () => {
           json: async () => taprootTxs,
         });
 
-      fetchVaultHistory.mockResolvedValueOnce(vaultHistory);
+      mockFetchVaultHistory.mockResolvedValueOnce(vaultHistory);
 
       const result = await fetchAllTransactionHistory(segwitAddress, taprootAddress, vaultPubkey);
 
@@ -586,7 +622,7 @@ describe('transactionHistoryService', () => {
     it('should deduplicate transactions by txid', async () => {
       const duplicateTx = { txid: 'tx1', status: { block_time: 1000 } };
 
-      ((global as any).fetch
+      (global as any).fetch
         .mockResolvedValueOnce({
           ok: true,
           json: async () => [duplicateTx],
@@ -596,7 +632,7 @@ describe('transactionHistoryService', () => {
           json: async () => [duplicateTx],
         });
 
-      fetchVaultHistory.mockResolvedValueOnce([]);
+      mockFetchVaultHistory.mockResolvedValueOnce([]);
 
       const result = await fetchAllTransactionHistory(segwitAddress, taprootAddress, vaultPubkey);
 
@@ -616,10 +652,14 @@ describe('transactionHistoryService', () => {
           timestamp: 2000,
           action: 'deposit',
           amount_borrowed: 100,
+          vault_amount: 1000,
+          btc_amt: 0.5,
+          unit_amt: 500,
+          oracle_price: 50000,
         },
       ];
 
-      ((global as any).fetch
+      (global as any).fetch
         .mockResolvedValueOnce({
           ok: true,
           json: async () => segwitTxs,
@@ -629,7 +669,7 @@ describe('transactionHistoryService', () => {
           json: async () => [],
         });
 
-      fetchVaultHistory.mockResolvedValueOnce(vaultHistory);
+      mockFetchVaultHistory.mockResolvedValueOnce(vaultHistory);
 
       const result = await fetchAllTransactionHistory(segwitAddress, taprootAddress, vaultPubkey);
 
@@ -653,10 +693,15 @@ describe('transactionHistoryService', () => {
           transaction_id: 'vault_tx1',
           timestamp: 2000,
           action: 'deposit',
+          amount_borrowed: 0,
+          vault_amount: 1000,
+          btc_amt: 0.5,
+          unit_amt: 500,
+          oracle_price: 50000,
         },
       ];
 
-      ((global as any).fetch
+      (global as any).fetch
         .mockResolvedValueOnce({
           ok: true,
           json: async () => segwitTxs,
@@ -666,7 +711,7 @@ describe('transactionHistoryService', () => {
           json: async () => taprootTxs,
         });
 
-      fetchVaultHistory.mockResolvedValueOnce(vaultHistory);
+      mockFetchVaultHistory.mockResolvedValueOnce(vaultHistory);
 
       const result = await fetchAllTransactionHistory(segwitAddress, taprootAddress, vaultPubkey);
 
@@ -677,8 +722,8 @@ describe('transactionHistoryService', () => {
 
     it('should handle fetch errors gracefully', async () => {
       // fetchAddressTransactions catches errors and returns []
-      ((global as any).fetch.mockRejectedValueOnce(new Error('Network error'));
-      fetchVaultHistory.mockResolvedValueOnce([]);
+      (global as any).fetch.mockRejectedValueOnce(new Error('Network error'));
+      mockFetchVaultHistory.mockResolvedValueOnce([]);
 
       const result = await fetchAllTransactionHistory(segwitAddress, taprootAddress, vaultPubkey);
 

@@ -13,6 +13,7 @@ export interface RuneBalance {
   amount: string;
   divisibility: number;
   symbol?: string;
+  [key: string]: unknown;
 }
 
 export interface WalletBalances {

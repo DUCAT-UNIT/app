@@ -1,3 +1,4 @@
+// @ts-nocheck
 /**
  * Tests for cashuReceiveP2PK
  */

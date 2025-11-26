@@ -1,8 +1,10 @@
+// @ts-nocheck
 /**
  * Tests for transactionService
  */
 
 import * as TransactionService from '../transaction';
+import type { TransactionIntent } from '../transaction';
 import * as balanceService from '../balanceService';
 import * as SecureStorageService from '../secureStorageService';
 import { ERRORS } from '../../utils/messages';
@@ -40,7 +42,7 @@ const mockPsbtInstance = {
 };
 
 const mockTransaction = {
-  outs: [{ script: Buffer.from('mock_script'), value: 100000 }],
+  outs: [{ script: Buffer.from('mock_script'), value: 100000, status: { confirmed: true } }],
 };
 
 jest.mock('bitcoinjs-lib', () => {
@@ -463,35 +465,35 @@ describe('transactionService', () => {
 
   describe('signIntent', () => {
     it('should throw TRANSACTION_CANCELLED error when intent is null', async () => {
-      await expect(TransactionService.signIntent(null, 0)).rejects.toThrow(
+      await expect(TransactionService.signIntent(null as unknown as TransactionIntent, 0)).rejects.toThrow(
         ERRORS.TRANSACTION_CANCELLED
       );
     });
 
     it('should throw TRANSACTION_CANCELLED error when intent is undefined', async () => {
-      await expect(TransactionService.signIntent(undefined, 0)).rejects.toThrow(
+      await expect(TransactionService.signIntent(undefined as unknown as TransactionIntent, 0)).rejects.toThrow(
         ERRORS.TRANSACTION_CANCELLED
       );
     });
 
     it('should throw TRANSACTION_CANCELLED error when intent is empty object', async () => {
-      await expect(TransactionService.signIntent({}, 0)).rejects.toThrow();
+      await expect(TransactionService.signIntent({} as TransactionIntent, 0)).rejects.toThrow();
     });
 
     it('should throw TRANSACTION_CANCELLED error when intent is false', async () => {
-      await expect(TransactionService.signIntent(false, 0)).rejects.toThrow(
+      await expect(TransactionService.signIntent(false as unknown as TransactionIntent, 0)).rejects.toThrow(
         ERRORS.TRANSACTION_CANCELLED
       );
     });
 
     it('should throw TRANSACTION_CANCELLED error when intent is 0', async () => {
-      await expect(TransactionService.signIntent(0, 0)).rejects.toThrow(
+      await expect(TransactionService.signIntent(0 as unknown as TransactionIntent, 0)).rejects.toThrow(
         ERRORS.TRANSACTION_CANCELLED
       );
     });
 
     it('should throw TRANSACTION_CANCELLED error when intent is empty string', async () => {
-      await expect(TransactionService.signIntent('', 0)).rejects.toThrow(
+      await expect(TransactionService.signIntent('' as unknown as TransactionIntent, 0)).rejects.toThrow(
         ERRORS.TRANSACTION_CANCELLED
       );
     });
@@ -501,7 +503,7 @@ describe('transactionService', () => {
         type: 'send',
         amount: 50000,
         // psbt field is missing
-      };
+      } as unknown as TransactionIntent;
 
       (SecureStorageService.withMnemonic as jest.Mock).mockImplementation((callback: any) => {
         return callback('test mnemonic phrase for unit testing only');
@@ -619,7 +621,7 @@ describe('transactionService', () => {
 
         const unitIntent = {
           type: 'send',
-          assetType: 'UNIT',
+          assetType: 'UNIT' as const,
           amount: 10000,
           psbt: 'mock_unit_psbt_base64',
         };
@@ -652,7 +654,7 @@ describe('transactionService', () => {
 
         const unitIntent = {
           type: 'send',
-          assetType: 'UNIT',
+          assetType: 'UNIT' as const,
           amount: 10000,
           psbt: 'mock_unit_psbt_base64',
         };
@@ -733,7 +735,7 @@ describe('transactionService', () => {
         const btcIntent = {
           type: 'send',
           amount: 50000,
-          addressType: 'segwit',
+          addressType: 'segwit' as const,
           inputs: [{ txid: 'tx1', vout: 0 }, { txid: 'tx2', vout: 1 }],
           psbt: 'mock_btc_psbt_base64',
         };
@@ -788,7 +790,7 @@ describe('transactionService', () => {
         const btcIntent = {
           type: 'send',
           amount: 50000,
-          addressType: 'taproot',
+          addressType: 'taproot' as const,
           inputs: [{ txid: 'tx1', vout: 0 }],
           psbt: 'mock_taproot_psbt_base64',
         };

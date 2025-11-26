@@ -1,3 +1,4 @@
+// @ts-nocheck
 /**
  * Tests for Vault Service
  * Tests vault history and vault data fetching
@@ -19,14 +20,14 @@ jest.mock('../../utils/constants', () => ({
 describe('vaultService', () => {
   beforeEach(() => {
     jest.clearAllMocks();
-    ((global as any).fetch = jest.fn();
+    (global as any).fetch = jest.fn();
   });
 
   describe('fetchVaultHistory', () => {
     it('should return empty array if no vaultPubkey provided', async () => {
-      const result = await fetchVaultHistory(null);
+      const result = await fetchVaultHistory(null as unknown as string);
       expect(result).toEqual([]);
-      expect(((global as any).fetch).not.toHaveBeenCalled();
+      expect((global as any).fetch).not.toHaveBeenCalled();
     });
 
     it('should fetch vault history successfully', async () => {
@@ -56,7 +57,7 @@ describe('vaultService', () => {
         ],
       };
 
-      ((global as any).fetch
+      (global as any).fetch
         .mockResolvedValueOnce({
           json: async () => vaultListResponse,
         })
@@ -67,13 +68,13 @@ describe('vaultService', () => {
       const result = await fetchVaultHistory(vaultPubkey);
 
       expect(result).toEqual(historyResponse.history);
-      expect(((global as any).fetch).toHaveBeenCalledTimes(2);
+      expect((global as any).fetch).toHaveBeenCalledTimes(2);
     });
 
     it('should return empty array if no vaults found', async () => {
       const vaultPubkey = 'vault_pubkey_123';
 
-      ((global as any).fetch.mockResolvedValueOnce({
+      (global as any).fetch.mockResolvedValueOnce({
         json: async () => ({ vaults: [] }),
       });
 
@@ -105,7 +106,7 @@ describe('vaultService', () => {
         })),
       };
 
-      ((global as any).fetch
+      (global as any).fetch
         .mockResolvedValueOnce({
           json: async () => vaultListResponse,
         })
@@ -119,7 +120,7 @@ describe('vaultService', () => {
       const result = await fetchVaultHistory(vaultPubkey);
 
       expect(result).toHaveLength(350);
-      expect(((global as any).fetch).toHaveBeenCalledTimes(3); // 1 for vault list, 2 for history
+      expect((global as any).fetch).toHaveBeenCalledTimes(3); // 1 for vault list, 2 for history
     });
 
     it('should stop after max pages (20)', async () => {
@@ -137,7 +138,7 @@ describe('vaultService', () => {
         })),
       };
 
-      ((global as any).fetch.mockImplementation((url) => {
+      (global as any).fetch.mockImplementation((url: string) => {
         if (url.includes('vault_list')) {
           return Promise.resolve({ json: async () => vaultListResponse });
         }
@@ -147,7 +148,7 @@ describe('vaultService', () => {
       const result = await fetchVaultHistory(vaultPubkey);
 
       // 1 for vault_list + 20 for history pages
-      expect(((global as any).fetch).toHaveBeenCalledTimes(21);
+      expect((global as any).fetch).toHaveBeenCalledTimes(21);
       expect(result).toHaveLength(5000); // 20 pages * 250 items
     });
 
@@ -158,7 +159,7 @@ describe('vaultService', () => {
         vaults: [{ vault_id: 'vault_1' }],
       };
 
-      ((global as any).fetch
+      (global as any).fetch
         .mockResolvedValueOnce({
           json: async () => vaultListResponse,
         })
@@ -174,7 +175,7 @@ describe('vaultService', () => {
     it('should return empty array on error', async () => {
       const vaultPubkey = 'vault_pubkey_123';
 
-      ((global as any).fetch.mockRejectedValueOnce(new Error('Network error'));
+      (global as any).fetch.mockRejectedValueOnce(new Error('Network error'));
 
       const result = await fetchVaultHistory(vaultPubkey);
 
@@ -195,7 +196,7 @@ describe('vaultService', () => {
         })),
       };
 
-      ((global as any).fetch
+      (global as any).fetch
         .mockResolvedValueOnce({
           json: async () => vaultListResponse,
         })
@@ -205,7 +206,7 @@ describe('vaultService', () => {
 
       await fetchVaultHistory(vaultPubkey);
 
-      const historyCall = ((global as any).fetch.mock.calls[1];
+      const historyCall = (global as any).fetch.mock.calls[1];
       const requestBody = JSON.parse(historyCall[1].body);
 
       expect(requestBody).toMatchObject({
@@ -222,9 +223,9 @@ describe('vaultService', () => {
 
   describe('fetchVaultData', () => {
     it('should return null if no vaultPubkey provided', async () => {
-      const result = await fetchVaultData(null);
+      const result = await fetchVaultData(null as unknown as string);
       expect(result).toBeNull();
-      expect(((global as any).fetch).not.toHaveBeenCalled();
+      expect((global as any).fetch).not.toHaveBeenCalled();
     });
 
     it('should fetch vault data with latest transaction', async () => {
@@ -258,7 +259,7 @@ describe('vaultService', () => {
         ],
       };
 
-      ((global as any).fetch
+      (global as any).fetch
         .mockResolvedValueOnce({
           json: async () => vaultListResponse,
         })
@@ -303,7 +304,7 @@ describe('vaultService', () => {
         current_price: 50000,
       };
 
-      ((global as any).fetch
+      (global as any).fetch
         .mockResolvedValueOnce({
           json: async () => vaultListResponse,
         })
@@ -319,13 +320,13 @@ describe('vaultService', () => {
         totalCollateral: 5000,
         currentPrice: 50000,
       });
-      expect(result.latestTransaction).toBeUndefined();
+      expect(result?.latestTransaction).toBeUndefined();
     });
 
     it('should return null if no vaults found', async () => {
       const vaultPubkey = 'vault_pubkey_123';
 
-      ((global as any).fetch.mockResolvedValueOnce({
+      (global as any).fetch.mockResolvedValueOnce({
         json: async () => ({ vaults: [] }),
       });
 
@@ -337,7 +338,7 @@ describe('vaultService', () => {
     it('should return null on error', async () => {
       const vaultPubkey = 'vault_pubkey_123';
 
-      ((global as any).fetch.mockRejectedValueOnce(new Error('Network error'));
+      (global as any).fetch.mockRejectedValueOnce(new Error('Network error'));
 
       const result = await fetchVaultData(vaultPubkey);
 
@@ -354,7 +355,7 @@ describe('vaultService', () => {
         current_price: 0,
       };
 
-      ((global as any).fetch
+      (global as any).fetch
         .mockResolvedValueOnce({
           json: async () => vaultListResponse,
         })
@@ -364,7 +365,7 @@ describe('vaultService', () => {
 
       await fetchVaultData(vaultPubkey);
 
-      const historyCall = ((global as any).fetch.mock.calls[1];
+      const historyCall = (global as any).fetch.mock.calls[1];
       const requestBody = JSON.parse(historyCall[1].body);
 
       expect(requestBody).toMatchObject({

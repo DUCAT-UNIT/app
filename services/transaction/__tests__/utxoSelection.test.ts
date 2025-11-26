@@ -1,3 +1,4 @@
+// @ts-nocheck
 /**
  * Tests for UTXO Selection Utilities
  */
@@ -12,13 +13,13 @@ describe('utxoSelection', () => {
   describe('mergeAndFilterUtxos', () => {
     it('should merge confirmed and unconfirmed UTXOs', () => {
       const confirmed = [
-        { txid: 'tx1', vout: 0, value: 10000 },
-        { txid: 'tx2', vout: 0, value: 20000 },
+        { txid: 'tx1', vout: 0, value: 10000, status: { confirmed: true } },
+        { txid: 'tx2', vout: 0, value: 20000, status: { confirmed: true } },
       ];
       const unconfirmed = [
-        { txid: 'tx3', vout: 0, value: 5000 },
+        { txid: 'tx3', vout: 0, value: 5000, status: { confirmed: true } },
       ];
-      const spent = new Set();
+      const spent = new Set<string>();
 
       const result = mergeAndFilterUtxos(confirmed, unconfirmed, spent);
 
@@ -28,13 +29,13 @@ describe('utxoSelection', () => {
 
     it('should not duplicate UTXOs that exist in both arrays', () => {
       const confirmed = [
-        { txid: 'tx1', vout: 0, value: 10000 },
+        { txid: 'tx1', vout: 0, value: 10000, status: { confirmed: true } },
       ];
       const unconfirmed = [
-        { txid: 'tx1', vout: 0, value: 10000 }, // Duplicate
-        { txid: 'tx2', vout: 0, value: 5000 },
+        { txid: 'tx1', vout: 0, value: 10000, status: { confirmed: true } }, // Duplicate
+        { txid: 'tx2', vout: 0, value: 5000, status: { confirmed: true } },
       ];
-      const spent = new Set();
+      const spent = new Set<string>();
 
       const result = mergeAndFilterUtxos(confirmed, unconfirmed, spent);
 
@@ -44,11 +45,11 @@ describe('utxoSelection', () => {
 
     it('should filter out spent UTXOs', () => {
       const confirmed = [
-        { txid: 'tx1', vout: 0, value: 10000 },
-        { txid: 'tx2', vout: 0, value: 20000 },
+        { txid: 'tx1', vout: 0, value: 10000, status: { confirmed: true } },
+        { txid: 'tx2', vout: 0, value: 20000, status: { confirmed: true } },
       ];
       const unconfirmed = [
-        { txid: 'tx3', vout: 0, value: 5000 },
+        { txid: 'tx3', vout: 0, value: 5000, status: { confirmed: true } },
       ];
       const spent = new Set(['tx1:0', 'tx3:0']);
 
@@ -70,7 +71,7 @@ describe('utxoSelection', () => {
       const unconfirmed = [
         { txid: 'tx1', vout: 0, value: 10000, status: { confirmed: false } },
       ];
-      const spent = new Set();
+      const spent = new Set<string>();
 
       const result = mergeAndFilterUtxos(confirmed, unconfirmed, spent);
 

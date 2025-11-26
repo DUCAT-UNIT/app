@@ -123,7 +123,7 @@ export const receiveP2PKToken = async (
     logger.cashu('p2pk_proofs_signed', {
       step: 'RECEIVE',
       substep: 2,
-      signedCount: signedProofs.filter(p => (p as any).witness).length,
+      signedCount: signedProofs.filter(p => p.witness).length,
       message: 'All P2PK proofs signed with witness',
     });
 
@@ -172,20 +172,20 @@ export const receiveP2PKToken = async (
 
     // Log detailed proof info for debugging signature issues
     signedProofs.forEach((proof, idx) => {
-      let secretParsed: any = null;
+      let secretParsed: unknown = null;
       let lockedToPubkey: string | null = null;
       try {
         secretParsed = JSON.parse(proof.secret);
         if (Array.isArray(secretParsed) && secretParsed[0] === 'P2PK') {
-          lockedToPubkey = secretParsed[1]?.data;
+          lockedToPubkey = (secretParsed[1] as { data?: string })?.data ?? null;
         }
       } catch (e) { /* ignore */ }
 
       let witnessSignature: string | null = null;
       try {
-        if ((proof as any).witness) {
-          const witnessParsed = JSON.parse((proof as any).witness);
-          witnessSignature = witnessParsed.signatures?.[0];
+        if (proof.witness) {
+          const witnessParsed = JSON.parse(proof.witness) as { signatures?: string[] };
+          witnessSignature = witnessParsed.signatures?.[0] ?? null;
         }
       } catch (e) { /* ignore */ }
 
@@ -194,7 +194,7 @@ export const receiveP2PKToken = async (
         proofIndex: idx,
         amount: proof.amount,
         lockedToPubkey: lockedToPubkey || 'NOT_P2PK',
-        hasWitness: !!(proof as any).witness,
+        hasWitness: !!proof.witness,
         witnessSignature: witnessSignature || 'NO_SIGNATURE',
         secretFull: proof.secret,
       });
@@ -275,8 +275,7 @@ export const receiveP2PKToken = async (
     });
 
     // Enhanced error message with diagnostic info
-    const enhancedError = new Error((error as Error).message);
-    (enhancedError as any).originalError = error;
+    let errorMessage = (error as Error).message;
 
     // Add diagnostic details to error message for debugging
     if ((error as Error).message.includes('P2PK verification failed') || (error as Error).message.includes('Swap failed')) {
@@ -296,10 +295,12 @@ export const receiveP2PKToken = async (
       diagnostics.push(`Platform: ${Platform.OS} ${Platform.Version}`);
 
       if (diagnostics.length > 0) {
-        (enhancedError as any).message = `${(error as Error).message}\n\nDiagnostics:\n${diagnostics.map(d => `• ${d}`).join('\n')}`;
+        errorMessage = `${errorMessage}\n\nDiagnostics:\n${diagnostics.map(d => `• ${d}`).join('\n')}`;
       }
     }
 
+    const enhancedError = new Error(errorMessage);
+    enhancedError.cause = error;
     throw enhancedError;
   }
 };

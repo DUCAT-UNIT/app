@@ -1,0 +1,138 @@
+/**
+ * Navigation Type Definitions
+ * Defines the navigation structure and param lists for the entire app
+ */
+
+import type { StackScreenProps } from '@react-navigation/stack';
+import type { BottomTabScreenProps } from '@react-navigation/bottom-tabs';
+import type { CompositeScreenProps, NavigatorScreenParams } from '@react-navigation/native';
+
+// Re-export types from types/assets.d.ts
+export type { AssetTypeParam, AddressTypeParam } from '../types/assets';
+
+/**
+ * Root Stack Navigator (top level)
+ * Switches between Auth flow and Main app
+ */
+export type RootNavigatorParamList = {
+  Auth: undefined;
+  Main: undefined;
+  SendFlow: undefined;
+};
+
+/**
+ * Auth Stack Navigator (onboarding/authentication)
+ * All screens before user is authenticated
+ */
+export type AuthStackParamList = {
+  Onboarding: undefined;
+  Welcome: undefined;
+  PinSetup: { isChangingPin?: boolean };
+  LockScreen: undefined;
+};
+
+/**
+ * Main Tab Navigator (authenticated app)
+ * Bottom tab navigation
+ */
+export type MainTabParamList = {
+  WalletTab: NavigatorScreenParams<WalletStackParamList>;
+};
+
+/**
+ * Wallet Stack Navigator (nested in WalletTab)
+ * Stack navigation within the wallet section
+ */
+export type WalletStackParamList = {
+  WalletHome: undefined;
+  AssetDetail: { assetId: string; assetType: string };
+  ReceiveQR: { addressType: 'segwit' | 'taproot' };
+  CashuReceive: { token?: string };
+  CashuSend: { amount?: number };
+  RecoverMint: undefined;
+  TurboHistory: undefined;
+  TurboQRCode: undefined;
+  Preferences: undefined;
+  Security: undefined;
+  Advanced: undefined;
+  CashuSettings: undefined;
+  About: undefined;
+};
+
+/**
+ * Send Flow Navigator
+ * Modal stack for send transaction flow
+ */
+export type SendStackParamList = {
+  AssetSelector: undefined;
+  AddressInput: { assetType?: string };
+  AmountInput: { assetType?: string; address?: string };
+  TurboLoading: undefined;
+  Review: { assetType?: string; address?: string; amount?: number };
+  Processing: undefined;
+  TurboProcessing: undefined;
+  TurboClaiming: { tokenAmount?: number };
+  Confirmation: { txid?: string; amount?: number };
+};
+
+/**
+ * Screen Props Types
+ * Type helpers for screen component props
+ */
+
+// Root Navigator screen props
+export type RootNavigatorScreenProps<T extends keyof RootNavigatorParamList> =
+  StackScreenProps<RootNavigatorParamList, T>;
+
+// Auth Stack screen props
+export type AuthStackScreenProps<T extends keyof AuthStackParamList> =
+  StackScreenProps<AuthStackParamList, T>;
+
+// Main Tab screen props
+export type MainTabScreenProps<T extends keyof MainTabParamList> =
+  BottomTabScreenProps<MainTabParamList, T>;
+
+// Wallet Stack screen props (composite with tab navigator)
+export type WalletStackScreenProps<T extends keyof WalletStackParamList> =
+  CompositeScreenProps<
+    StackScreenProps<WalletStackParamList, T>,
+    CompositeScreenProps<
+      BottomTabScreenProps<MainTabParamList>,
+      StackScreenProps<RootNavigatorParamList>
+    >
+  >;
+
+// Send Stack screen props
+export type SendStackScreenProps<T extends keyof SendStackParamList> =
+  CompositeScreenProps<
+    StackScreenProps<SendStackParamList, T>,
+    StackScreenProps<RootNavigatorParamList>
+  >;
+
+/**
+ * Extended navigation interface for hooks
+ * Provides a simplified navigation interface for use in hooks
+ */
+export interface ExtendedNavigation {
+  navigate: (screen: string, params?: Record<string, unknown>) => void;
+  goBack: () => void;
+  getParent?: () => ExtendedNavigation | undefined;
+}
+
+/**
+ * Minimal navigation interface (navigate only)
+ * For hooks that only need basic navigation
+ */
+export interface MinimalNavigation {
+  navigate: (screen: string, params?: Record<string, unknown>) => void;
+}
+
+/**
+ * Navigation type declarations for useNavigation hook
+ * This enables typed navigation throughout the app
+ */
+declare global {
+  namespace ReactNavigation {
+    interface RootParamList extends RootNavigatorParamList {}
+  }
+}

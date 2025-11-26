@@ -5,7 +5,7 @@
 
 import { Linking, AppState, NativeEventSubscription, AppStateStatus } from 'react-native';
 import { logger } from '../../utils/logger';
-import { hashToken, initializeTokenStorage } from './turboTokenStorage';
+import { hashToken, initializeTokenStorage, turboGlobal } from './turboTokenStorage';
 
 interface URLEvent {
   url: string;
@@ -88,10 +88,10 @@ const processUrlAndStoreToken = async (url: string): Promise<void> => {
   // Check for duplicates
   if (typeof global !== 'undefined') {
     // Wait for processed tokens to load from storage if still loading
-    if ((global as any).processedCashuTokensLoading) {
+    if (turboGlobal.processedCashuTokensLoading) {
       logger.cashu('p2pk_waiting_storage', { step: 'ENTRY_POINT', reason: 'Waiting for processed tokens to load' });
       let attempts = 0;
-      while ((global as any).processedCashuTokensLoading && attempts < 10) {
+      while (turboGlobal.processedCashuTokensLoading && attempts < 10) {
         await new Promise(resolve => setTimeout(resolve, 100));
         attempts++;
       }
@@ -99,25 +99,24 @@ const processUrlAndStoreToken = async (url: string): Promise<void> => {
     }
 
     const tokenHash = await hashToken(token);
-    const isAlreadyProcessed = (global as any).processedCashuTokens && (global as any).processedCashuTokens.has(tokenHash);
-    const skipDuplicateCheck = (global as any).turboJustResumed === true;
+    const isAlreadyProcessed = turboGlobal.processedCashuTokens?.has(tokenHash) ?? false;
+    const skipDuplicateCheck = turboGlobal.turboJustResumed === true;
 
     logger.cashu('p2pk_duplicate_check', {
       step: 'ENTRY_POINT',
       tokenHashPrefix: tokenHash?.substring(0, 16),
       isAlreadyProcessed,
       skipDuplicateCheck,
-      processedTokensCount: (global as any).processedCashuTokens?.size || 0,
+      processedTokensCount: turboGlobal.processedCashuTokens?.size ?? 0,
     });
 
     if (skipDuplicateCheck) {
       logger.cashu('p2pk_bypass_duplicate', { step: 'ENTRY_POINT', reason: 'App just resumed' });
     } else if (isAlreadyProcessed) {
       logger.cashu('p2pk_duplicate_rejected', { step: 'ENTRY_POINT', reason: 'Token already processed' });
-      (global as any).pendingTurboSnackbars = [{
+      turboGlobal.pendingTurboSnackbars = [{
         type: 'error',
-        action: 'claim',
-        description: 'Token already claimed',
+        message: 'Token already claimed',
       }];
       return;
     }
@@ -127,7 +126,7 @@ const processUrlAndStoreToken = async (url: string): Promise<void> => {
       tokenLength: token?.length,
       message: 'Token stored in global.pendingCashuToken for processing',
     });
-    (global as any).pendingCashuToken = token;
+    turboGlobal.pendingCashuToken = token;
   }
 };
 
@@ -157,10 +156,10 @@ const createAppStateHandler = () => {
       logger.debug('[TURBO] App became active - setting resume flag');
 
       if (typeof global !== 'undefined') {
-        (global as any).turboJustResumed = true;
+        turboGlobal.turboJustResumed = true;
 
         setTimeout(() => {
-          (global as any).turboJustResumed = false;
+          turboGlobal.turboJustResumed = false;
           logger.debug('[TURBO] Cleared resume flag');
         }, 2000);
       }
@@ -194,15 +193,16 @@ export const createLinkingConfig = () => ({
 
     // Listen for URL events
     logger.debug('[TURBO] Registering URL listener');
-    Linking.addEventListener('url', onReceiveURL as any);
+    const urlSubscription = Linking.addEventListener('url', onReceiveURL);
 
     // Handle app state changes
     const handleAppStateChange = createAppStateHandler();
-    const appStateSubscription: NativeEventSubscription = AppState.addEventListener('change', handleAppStateChange as any);
+    const appStateSubscription: NativeEventSubscription = AppState.addEventListener('change', handleAppStateChange);
 
     return () => {
+      urlSubscription.remove();
       appStateSubscription.remove();
-      logger.debug('[TURBO] Removed AppState listener');
+      logger.debug('[TURBO] Removed URL and AppState listeners');
     };
   },
 

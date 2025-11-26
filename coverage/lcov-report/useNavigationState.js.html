@@ -23,30 +23,30 @@
         <div class='clearfix'>
             
             <div class='fl pad1y space-right2'>
-                <span class="strong">0% </span>
+                <span class="strong">100% </span>
                 <span class="quiet">Statements</span>
-                <span class='fraction'>0/18</span>
+                <span class='fraction'>18/18</span>
             </div>
         
             
             <div class='fl pad1y space-right2'>
-                <span class="strong">0% </span>
+                <span class="strong">100% </span>
                 <span class="quiet">Branches</span>
-                <span class='fraction'>0/19</span>
+                <span class='fraction'>19/19</span>
             </div>
         
             
             <div class='fl pad1y space-right2'>
-                <span class="strong">0% </span>
+                <span class="strong">100% </span>
                 <span class="quiet">Functions</span>
-                <span class='fraction'>0/3</span>
+                <span class='fraction'>3/3</span>
             </div>
         
             
             <div class='fl pad1y space-right2'>
-                <span class="strong">0% </span>
+                <span class="strong">100% </span>
                 <span class="quiet">Lines</span>
-                <span class='fraction'>0/18</span>
+                <span class='fraction'>18/18</span>
             </div>
         
             
@@ -61,7 +61,7 @@
             </div>
         </template>
     </div>
-    <div class='status-line low'></div>
+    <div class='status-line high'></div>
     <pre><table class="coverage">
 <tr><td class="line-count quiet"><a name='L1'></a><a href='#L1'>1</a>
 <a name='L2'></a><a href='#L2'>2</a>
@@ -137,46 +137,46 @@
 <span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
-<span class="cline-any cline-no">&nbsp;</span>
-<span class="cline-any cline-no">&nbsp;</span>
-<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-yes">16x</span>
+<span class="cline-any cline-yes">16x</span>
+<span class="cline-any cline-yes">16x</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
-<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-yes">16x</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
-<span class="cline-any cline-no">&nbsp;</span>
-<span class="cline-any cline-no">&nbsp;</span>
-<span class="cline-any cline-neutral">&nbsp;</span>
-<span class="cline-any cline-neutral">&nbsp;</span>
-<span class="cline-any cline-neutral">&nbsp;</span>
-<span class="cline-any cline-no">&nbsp;</span>
-<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-yes">15x</span>
+<span class="cline-any cline-yes">3x</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
-<span class="cline-any cline-no">&nbsp;</span>
-<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-yes">12x</span>
+<span class="cline-any cline-yes">1x</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
-<span class="cline-any cline-no">&nbsp;</span>
-<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-yes">11x</span>
+<span class="cline-any cline-yes">2x</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
-<span class="cline-any cline-no">&nbsp;</span>
-<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-yes">9x</span>
+<span class="cline-any cline-yes">2x</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
-<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-yes">7x</span>
+<span class="cline-any cline-yes">1x</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
-<span class="cline-any cline-no">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
-<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-yes">6x</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
-<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-yes">16x</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-yes">14x</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-yes">16x</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
@@ -189,53 +189,53 @@
 import { useMemo } from 'react';
 import { useAuth } from '../contexts/AuthContext';
 import { useWallet } from '../contexts/WalletContext';
-import { useOnboardingFlow } from '../contexts/OnboardingFlowContext';
+import { useOnboardingFlow } from '../contexts/AuthContext';
 &nbsp;
 /**
  * Hook to determine navigation state
  * @returns {{shouldShowAuth: boolean, shouldShowPinOverlay: boolean}}
  */
-export function <span class="fstat-no" title="function not covered" >useNavigationState(</span>) {
-  const { isAuthenticated, changingPin, settingUpPin, showPinEntry } = <span class="cstat-no" title="statement not covered" >useAuth();</span>
-  const { wallet } = <span class="cstat-no" title="statement not covered" >useWallet();</span>
-  const { seedConfirmed } = <span class="cstat-no" title="statement not covered" >useOnboardingFlow();</span>
+export function useNavigationState() {
+  const { isAuthenticated, changingPin, settingUpPin, showPinEntry } = useAuth();
+  const { wallet } = useWallet();
+  const { seedConfirmed } = useOnboardingFlow();
 &nbsp;
-  const shouldShowAuth = <span class="cstat-no" title="statement not covered" >useMemo(<span class="fstat-no" title="function not covered" >()</span> =&gt; {</span>
+  const shouldShowAuth = useMemo(() =&gt; {
     // No wallet created yet - show onboarding
-<span class="cstat-no" title="statement not covered" >    if (!wallet) {</span>
-<span class="cstat-no" title="statement not covered" >      return true;</span>
+    if (!wallet) {
+      return true;
     }
 &nbsp;
     // Wallet exists but seed not confirmed - show seed confirmation
-<span class="cstat-no" title="statement not covered" >    if (wallet &amp;&amp; !seedConfirmed) {</span>
-<span class="cstat-no" title="statement not covered" >      return true;</span>
+    if (wallet &amp;&amp; !seedConfirmed) {
+      return true;
     }
 &nbsp;
     // Setting up PIN for the first time (not changing existing PIN)
-<span class="cstat-no" title="statement not covered" >    if (settingUpPin &amp;&amp; !changingPin) {</span>
-<span class="cstat-no" title="statement not covered" >      return true;</span>
+    if (settingUpPin &amp;&amp; !changingPin) {
+      return true;
     }
 &nbsp;
     // Need to show PIN entry screen
-<span class="cstat-no" title="statement not covered" >    if (showPinEntry) {</span>
-<span class="cstat-no" title="statement not covered" >      return true;</span>
+    if (showPinEntry) {
+      return true;
     }
 &nbsp;
     // User is not authenticated but has wallet and confirmed seed
-<span class="cstat-no" title="statement not covered" >    if (!isAuthenticated &amp;&amp; wallet &amp;&amp; seedConfirmed) {</span>
-<span class="cstat-no" title="statement not covered" >      return true;</span>
+    if (!isAuthenticated &amp;&amp; wallet &amp;&amp; seedConfirmed) {
+      return true;
     }
 &nbsp;
     // All conditions passed - show main app
-<span class="cstat-no" title="statement not covered" >    return false;</span>
+    return false;
   }, [wallet, seedConfirmed, settingUpPin, changingPin, showPinEntry, isAuthenticated]);
 &nbsp;
-  const shouldShowPinOverlay = <span class="cstat-no" title="statement not covered" >useMemo(<span class="fstat-no" title="function not covered" >()</span> =&gt; {</span>
+  const shouldShowPinOverlay = useMemo(() =&gt; {
     // Show PIN overlay when changing PIN (not first-time setup)
-<span class="cstat-no" title="statement not covered" >    return settingUpPin &amp;&amp; changingPin;</span>
+    return settingUpPin &amp;&amp; changingPin;
   }, [settingUpPin, changingPin]);
 &nbsp;
-<span class="cstat-no" title="statement not covered" >  return {</span>
+  return {
     shouldShowAuth,
     shouldShowPinOverlay,
   };
@@ -247,7 +247,7 @@ export function <span class="fstat-no" title="function not covered" >useNavigati
             <div class='footer quiet pad2 space-top1 center small'>
                 Code coverage generated by
                 <a href="https://istanbul.js.org/" target="_blank" rel="noopener noreferrer">istanbul</a>
-                at 2025-11-12T12:41:21.860Z
+                at 2025-11-26T06:00:30.129Z
             </div>
         <script src="prettify.js"></script>
         <script>

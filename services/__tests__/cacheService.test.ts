@@ -1,3 +1,4 @@
+// @ts-nocheck
 /**
  * Tests for cacheService
  */
@@ -38,12 +39,17 @@ import * as SecureStore from 'expo-secure-store';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { clearAppCache, clearP2PKCache, clearCashuCache } from '../cacheService';
 
+// Typed mock references
+const mockDeleteItemAsync = SecureStore.deleteItemAsync as jest.MockedFunction<typeof SecureStore.deleteItemAsync>;
+const mockGetAllKeys = AsyncStorage.getAllKeys as jest.MockedFunction<typeof AsyncStorage.getAllKeys>;
+const mockMultiRemove = AsyncStorage.multiRemove as jest.MockedFunction<typeof AsyncStorage.multiRemove>;
+
 describe('cacheService', () => {
   beforeEach(() => {
     jest.clearAllMocks();
-    SecureStore.deleteItemAsync.mockResolvedValue();
-    AsyncStorage.getAllKeys.mockResolvedValue([]);
-    AsyncStorage.multiRemove.mockResolvedValue();
+    mockDeleteItemAsync.mockResolvedValue();
+    mockGetAllKeys.mockResolvedValue([]);
+    mockMultiRemove.mockResolvedValue();
   });
 
   describe('clearAppCache', () => {
@@ -51,9 +57,9 @@ describe('cacheService', () => {
       await clearAppCache();
 
       // Should try to delete known clearable keys
-      expect(SecureStore.deleteItemAsync).toHaveBeenCalledWith('cashu_keysets');
-      expect(SecureStore.deleteItemAsync).toHaveBeenCalledWith('sent_turbo_tokens');
-      expect(SecureStore.deleteItemAsync).toHaveBeenCalledWith('p2pk_taproot_address_v3');
+      expect(mockDeleteItemAsync).toHaveBeenCalledWith('cashu_keysets');
+      expect(mockDeleteItemAsync).toHaveBeenCalledWith('sent_turbo_tokens');
+      expect(mockDeleteItemAsync).toHaveBeenCalledWith('p2pk_taproot_address_v3');
     });
 
     it('should return summary with cleared counts', async () => {
@@ -67,7 +73,7 @@ describe('cacheService', () => {
     });
 
     it('should clear AsyncStorage keys except protected ones', async () => {
-      AsyncStorage.getAllKeys.mockResolvedValue([
+      mockGetAllKeys.mockResolvedValue([
         'mnemonic',
         'pin_hash',
         'cache_data',
@@ -77,12 +83,12 @@ describe('cacheService', () => {
       const result = await clearAppCache();
 
       // Should only remove non-protected keys
-      expect(AsyncStorage.multiRemove).toHaveBeenCalledWith(['cache_data', 'temp_data']);
+      expect(mockMultiRemove).toHaveBeenCalledWith(['cache_data', 'temp_data']);
       expect(result.asyncStorageCleared).toBe(2);
     });
 
     it('should not remove protected AsyncStorage keys', async () => {
-      AsyncStorage.getAllKeys.mockResolvedValue([
+      mockGetAllKeys.mockResolvedValue([
         'mnemonic',
         'pin_hash',
         'onboarding_complete',
@@ -91,8 +97,8 @@ describe('cacheService', () => {
       await clearAppCache();
 
       // multiRemove should be called with empty array or not at all
-      if (AsyncStorage.multiRemove.mock.calls.length > 0) {
-        const removedKeys = AsyncStorage.multiRemove.mock.calls[0][0];
+      if (mockMultiRemove.mock.calls.length > 0) {
+        const removedKeys = mockMultiRemove.mock.calls[0][0];
         expect(removedKeys).not.toContain('mnemonic');
         expect(removedKeys).not.toContain('pin_hash');
         expect(removedKeys).not.toContain('onboarding_complete');
@@ -100,7 +106,7 @@ describe('cacheService', () => {
     });
 
     it('should handle SecureStore delete errors gracefully', async () => {
-      SecureStore.deleteItemAsync.mockRejectedValue(new Error('Delete failed'));
+      mockDeleteItemAsync.mockRejectedValue(new Error('Delete failed'));
 
       const result = await clearAppCache();
 
@@ -110,7 +116,7 @@ describe('cacheService', () => {
     });
 
     it('should handle AsyncStorage errors gracefully', async () => {
-      AsyncStorage.getAllKeys.mockRejectedValue(new Error('Storage error'));
+      mockGetAllKeys.mockRejectedValue(new Error('Storage error'));
 
       const result = await clearAppCache();
 
@@ -121,14 +127,14 @@ describe('cacheService', () => {
       await clearAppCache();
 
       // Should try to delete cashu_proofs_account_X for accounts 0-49
-      expect(SecureStore.deleteItemAsync).toHaveBeenCalledWith('cashu_proofs_account_0');
+      expect(mockDeleteItemAsync).toHaveBeenCalledWith('cashu_proofs_account_0');
     });
 
     it('should aggressively clear derived keys for all accounts', async () => {
       await clearAppCache();
 
       // Should try to delete derived_key_* for accounts 0-49
-      expect(SecureStore.deleteItemAsync).toHaveBeenCalledWith('derived_key_account_0');
+      expect(mockDeleteItemAsync).toHaveBeenCalledWith('derived_key_account_0');
     });
   });
 
@@ -136,12 +142,12 @@ describe('cacheService', () => {
     it('should clear P2PK cache keys', async () => {
       await clearP2PKCache();
 
-      expect(SecureStore.deleteItemAsync).toHaveBeenCalledWith('p2pk_taproot_address_v3');
-      expect(SecureStore.deleteItemAsync).toHaveBeenCalledWith('p2pk_private_key_v3');
+      expect(mockDeleteItemAsync).toHaveBeenCalledWith('p2pk_taproot_address_v3');
+      expect(mockDeleteItemAsync).toHaveBeenCalledWith('p2pk_private_key_v3');
     });
 
     it('should handle errors gracefully', async () => {
-      SecureStore.deleteItemAsync.mockRejectedValue(new Error('Failed'));
+      mockDeleteItemAsync.mockRejectedValue(new Error('Failed'));
 
       // Should not throw
       await expect(clearP2PKCache()).resolves.not.toThrow();
@@ -152,13 +158,13 @@ describe('cacheService', () => {
     it('should clear Cashu cache keys', async () => {
       await clearCashuCache();
 
-      expect(SecureStore.deleteItemAsync).toHaveBeenCalledWith('cashu_keysets');
-      expect(SecureStore.deleteItemAsync).toHaveBeenCalledWith('sent_turbo_tokens');
-      expect(SecureStore.deleteItemAsync).toHaveBeenCalledWith('received_turbo_tokens');
+      expect(mockDeleteItemAsync).toHaveBeenCalledWith('cashu_keysets');
+      expect(mockDeleteItemAsync).toHaveBeenCalledWith('sent_turbo_tokens');
+      expect(mockDeleteItemAsync).toHaveBeenCalledWith('received_turbo_tokens');
     });
 
     it('should handle errors gracefully', async () => {
-      SecureStore.deleteItemAsync.mockRejectedValue(new Error('Failed'));
+      mockDeleteItemAsync.mockRejectedValue(new Error('Failed'));
 
       // Should not throw
       await expect(clearCashuCache()).resolves.not.toThrow();

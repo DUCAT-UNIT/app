@@ -4,6 +4,7 @@
  */
 
 import { Passkey } from 'react-native-passkey';
+import type { PasskeyCreateRequest } from 'react-native-passkey';
 // eslint-disable-next-line @typescript-eslint/no-var-requires
 const { getRandomValues } = require('react-native-quick-crypto');
 import { PASSKEY } from '../../constants/security';
@@ -31,11 +32,8 @@ export const buildRegistrationRequest = (
   userId: Uint8Array,
   userName: string,
   userDisplayName: string
-): any => {
-  const rp: any = { name: PASSKEY.RP_NAME };
-  if (PASSKEY.RP_ID) {
-    rp.id = PASSKEY.RP_ID;
-  }
+): PasskeyCreateRequest => {
+  const rp: PasskeyCreateRequest['rp'] = { id: PASSKEY.RP_ID || '', name: PASSKEY.RP_NAME };
 
   return {
     challenge: toBase64Url(challenge),
@@ -81,8 +79,10 @@ export const createPasskeyCredential = async (
 
   // Extract stable identifiers from credential
   const credentialId = new Uint8Array(fromBase64Url(result.id));
-  const userHandle = (result.response as any).userHandle
-    ? new Uint8Array(fromBase64Url((result.response as any).userHandle))
+  // userHandle may be returned by some platform implementations but isn't in the standard type
+  const responseWithUserHandle = result.response as typeof result.response & { userHandle?: string };
+  const userHandle = responseWithUserHandle.userHandle
+    ? new Uint8Array(fromBase64Url(responseWithUserHandle.userHandle))
     : userId; // Fallback to userId if userHandle not provided
 
   return { credentialId, userHandle, userId };

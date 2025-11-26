@@ -133,7 +133,7 @@ export const authenticateWithBiometrics = async (
 
     return {
       success: result.success,
-      error: result.success ? undefined : (result as any).error,
+      error: result.success ? undefined : result.error,
     };
   } catch (error) {
     const err = error as Error;

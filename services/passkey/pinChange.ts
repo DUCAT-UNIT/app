@@ -189,7 +189,7 @@ export const reencryptPasskeyMnemonicAfterPinChange = async (newPin: string): Pr
       });
       logger.debug('Updated iCloud backup with re-encrypted mnemonic');
     } catch (icloudError) {
-      const error = icloudError as any;
+      const error = icloudError as Error & { code?: string; name?: string };
       logger.error('CRITICAL: iCloud backup failed after PIN change', {
         error: error.message,
         errorCode: error.code,

@@ -105,7 +105,7 @@ export const backupToICloudWithVerification = async ({
     return { debugInfo: icloudDebugInfo, verificationLog };
   } catch (icloudError) {
     // iCloud backup failed - wallet still created but recovery won't work
-    const error = icloudError as any;
+    const error = icloudError as Error & { code?: string; name?: string };
     logger.error('CRITICAL: iCloud backup failed', {
       error: error.message,
       errorCode: error.code,

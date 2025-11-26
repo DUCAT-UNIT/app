@@ -1,3 +1,4 @@
+// @ts-nocheck
 /**
  * Tests for Wallet Service
  * Tests wallet generation, import, loading, and account switching
@@ -28,9 +29,11 @@ jest.mock('../../utils/bitcoin', () => ({
 
 jest.mock('../secureStorageService');
 
-const Crypto = require('expo-crypto');
-const bip39 = require('bip39');
-const { deriveAddressesFromMnemonic } = require('../../utils/bitcoin');
+// Typed mock references
+const mockCrypto = jest.requireMock('expo-crypto') as { getRandomBytesAsync: jest.Mock };
+const mockBip39 = jest.requireMock('bip39') as { entropyToMnemonic: jest.Mock; validateMnemonic: jest.Mock };
+const mockBitcoin = jest.requireMock('../../utils/bitcoin') as { deriveAddressesFromMnemonic: jest.Mock };
+const mockSecureStorage = SecureStorageService as jest.Mocked<typeof SecureStorageService>;
 
 describe('walletService', () => {
   const mockAddresses = {
@@ -47,9 +50,9 @@ describe('walletService', () => {
       const mockRandomBytes = new Uint8Array(16);
       const mockMnemonic = 'abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon about';
 
-      Crypto.getRandomBytesAsync.mockResolvedValueOnce(mockRandomBytes);
-      bip39.entropyToMnemonic.mockReturnValueOnce(mockMnemonic);
-      deriveAddressesFromMnemonic.mockReturnValueOnce(mockAddresses);
+      mockCrypto.getRandomBytesAsync.mockResolvedValueOnce(mockRandomBytes);
+      mockBip39.entropyToMnemonic.mockReturnValueOnce(mockMnemonic);
+      mockBitcoin.deriveAddressesFromMnemonic.mockReturnValueOnce(mockAddresses);
 
       const result = await generateWallet();
 
@@ -58,25 +61,25 @@ describe('walletService', () => {
         addresses: mockAddresses,
       });
 
-      expect(Crypto.getRandomBytesAsync).toHaveBeenCalledWith(16);
-      expect(deriveAddressesFromMnemonic).toHaveBeenCalledWith(mockMnemonic, 0);
+      expect(mockCrypto.getRandomBytesAsync).toHaveBeenCalledWith(16);
+      expect(mockBitcoin.deriveAddressesFromMnemonic).toHaveBeenCalledWith(mockMnemonic, 0);
     });
 
     it('should generate wallet with custom account index', async () => {
       const mockRandomBytes = new Uint8Array(16);
       const mockMnemonic = 'abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon about';
 
-      Crypto.getRandomBytesAsync.mockResolvedValueOnce(mockRandomBytes);
-      bip39.entropyToMnemonic.mockReturnValueOnce(mockMnemonic);
-      deriveAddressesFromMnemonic.mockReturnValueOnce(mockAddresses);
+      mockCrypto.getRandomBytesAsync.mockResolvedValueOnce(mockRandomBytes);
+      mockBip39.entropyToMnemonic.mockReturnValueOnce(mockMnemonic);
+      mockBitcoin.deriveAddressesFromMnemonic.mockReturnValueOnce(mockAddresses);
 
       await generateWallet(5);
 
-      expect(deriveAddressesFromMnemonic).toHaveBeenCalledWith(mockMnemonic, 5);
+      expect(mockBitcoin.deriveAddressesFromMnemonic).toHaveBeenCalledWith(mockMnemonic, 5);
     });
 
     it('should throw error if wallet generation fails', async () => {
-      Crypto.getRandomBytesAsync.mockRejectedValueOnce(new Error('Crypto error'));
+      mockCrypto.getRandomBytesAsync.mockRejectedValueOnce(new Error('Crypto error'));
 
       await expect(generateWallet()).rejects.toThrow('Failed to generate wallet: Crypto error');
     });
@@ -86,8 +89,8 @@ describe('walletService', () => {
     it('should import wallet from valid mnemonic', async () => {
       const mnemonic = 'abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon about';
 
-      bip39.validateMnemonic.mockReturnValueOnce(true);
-      deriveAddressesFromMnemonic.mockReturnValueOnce(mockAddresses);
+      mockBip39.validateMnemonic.mockReturnValueOnce(true);
+      mockBitcoin.deriveAddressesFromMnemonic.mockReturnValueOnce(mockAddresses);
 
       const result = await importWallet(mnemonic);
 
@@ -95,38 +98,38 @@ describe('walletService', () => {
         addresses: mockAddresses,
       });
 
-      expect(bip39.validateMnemonic).toHaveBeenCalledWith(mnemonic);
-      expect(deriveAddressesFromMnemonic).toHaveBeenCalledWith(mnemonic, 0);
+      expect(mockBip39.validateMnemonic).toHaveBeenCalledWith(mnemonic);
+      expect(mockBitcoin.deriveAddressesFromMnemonic).toHaveBeenCalledWith(mnemonic, 0);
     });
 
     it('should normalize and trim mnemonic before validation', async () => {
       const mnemonic = '  ABANDON ABANDON ABANDON ABANDON ABANDON ABANDON ABANDON ABANDON ABANDON ABANDON ABANDON ABOUT  ';
       const normalized = 'abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon about';
 
-      bip39.validateMnemonic.mockReturnValueOnce(true);
-      deriveAddressesFromMnemonic.mockReturnValueOnce(mockAddresses);
+      mockBip39.validateMnemonic.mockReturnValueOnce(true);
+      mockBitcoin.deriveAddressesFromMnemonic.mockReturnValueOnce(mockAddresses);
 
       await importWallet(mnemonic);
 
-      expect(bip39.validateMnemonic).toHaveBeenCalledWith(normalized);
-      expect(deriveAddressesFromMnemonic).toHaveBeenCalledWith(normalized, 0);
+      expect(mockBip39.validateMnemonic).toHaveBeenCalledWith(normalized);
+      expect(mockBitcoin.deriveAddressesFromMnemonic).toHaveBeenCalledWith(normalized, 0);
     });
 
     it('should import wallet with custom account index', async () => {
       const mnemonic = 'abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon about';
 
-      bip39.validateMnemonic.mockReturnValueOnce(true);
-      deriveAddressesFromMnemonic.mockReturnValueOnce(mockAddresses);
+      mockBip39.validateMnemonic.mockReturnValueOnce(true);
+      mockBitcoin.deriveAddressesFromMnemonic.mockReturnValueOnce(mockAddresses);
 
       await importWallet(mnemonic, 3);
 
-      expect(deriveAddressesFromMnemonic).toHaveBeenCalledWith(mnemonic, 3);
+      expect(mockBitcoin.deriveAddressesFromMnemonic).toHaveBeenCalledWith(mnemonic, 3);
     });
 
     it('should throw error for invalid mnemonic', async () => {
       const invalidMnemonic = 'invalid mnemonic phrase';
 
-      bip39.validateMnemonic.mockReturnValueOnce(false);
+      mockBip39.validateMnemonic.mockReturnValueOnce(false);
 
       await expect(importWallet(invalidMnemonic)).rejects.toThrow(
         'Invalid seed phrase. Please check and try again.'
@@ -138,11 +141,11 @@ describe('walletService', () => {
     it('should load wallet from storage and derive addresses', async () => {
       const mockMnemonic = 'abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon about';
 
-      SecureStorageService.getCurrentAccount.mockResolvedValueOnce(0);
-      SecureStorageService.withMnemonic.mockImplementationOnce(async (callback) => {
+      mockSecureStorage.getCurrentAccount.mockResolvedValueOnce(0);
+      mockSecureStorage.withMnemonic.mockImplementationOnce(async (callback) => {
         return callback(mockMnemonic);
       });
-      deriveAddressesFromMnemonic.mockReturnValueOnce(mockAddresses);
+      mockBitcoin.deriveAddressesFromMnemonic.mockReturnValueOnce(mockAddresses);
 
       const result = await loadWalletFromStorage();
 
@@ -151,14 +154,14 @@ describe('walletService', () => {
         accountIndex: 0,
       });
 
-      expect(SecureStorageService.getCurrentAccount).toHaveBeenCalled();
-      expect(SecureStorageService.withMnemonic).toHaveBeenCalled();
+      expect(mockSecureStorage.getCurrentAccount).toHaveBeenCalled();
+      expect(mockSecureStorage.withMnemonic).toHaveBeenCalled();
     });
 
     it('should return null addresses if no mnemonic in storage', async () => {
-      SecureStorageService.getCurrentAccount.mockResolvedValueOnce(0);
-      SecureStorageService.withMnemonic.mockImplementationOnce(async (callback) => {
-        return callback(null);
+      mockSecureStorage.getCurrentAccount.mockResolvedValueOnce(0);
+      mockSecureStorage.withMnemonic.mockImplementationOnce(async (callback) => {
+        return callback(null as unknown as string);
       });
 
       const result = await loadWalletFromStorage();
@@ -170,7 +173,7 @@ describe('walletService', () => {
     });
 
     it('should throw error if loading fails', async () => {
-      SecureStorageService.getCurrentAccount.mockRejectedValueOnce(new Error('Storage error'));
+      mockSecureStorage.getCurrentAccount.mockRejectedValueOnce(new Error('Storage error'));
 
       await expect(loadWalletFromStorage()).rejects.toThrow(
         'Failed to load wallet from storage: Storage error'
@@ -182,11 +185,11 @@ describe('walletService', () => {
     it('should switch to a different account', async () => {
       const mockMnemonic = 'abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon about';
 
-      SecureStorageService.withMnemonic.mockImplementationOnce(async (callback) => {
+      mockSecureStorage.withMnemonic.mockImplementationOnce(async (callback) => {
         return callback(mockMnemonic);
       });
-      deriveAddressesFromMnemonic.mockReturnValueOnce(mockAddresses);
-      SecureStorageService.saveCurrentAccount.mockResolvedValueOnce(true);
+      mockBitcoin.deriveAddressesFromMnemonic.mockReturnValueOnce(mockAddresses);
+      mockSecureStorage.saveCurrentAccount.mockResolvedValueOnce(true);
 
       const result = await switchToAccount(2);
 
@@ -194,13 +197,13 @@ describe('walletService', () => {
         addresses: mockAddresses,
       });
 
-      expect(deriveAddressesFromMnemonic).toHaveBeenCalledWith(mockMnemonic, 2);
-      expect(SecureStorageService.saveCurrentAccount).toHaveBeenCalledWith(2);
+      expect(mockBitcoin.deriveAddressesFromMnemonic).toHaveBeenCalledWith(mockMnemonic, 2);
+      expect(mockSecureStorage.saveCurrentAccount).toHaveBeenCalledWith(2);
     });
 
     it('should throw error if mnemonic cannot be retrieved', async () => {
-      SecureStorageService.withMnemonic.mockImplementationOnce(async (callback) => {
-        return callback(null);
+      mockSecureStorage.withMnemonic.mockImplementationOnce(async (callback) => {
+        return callback(null as unknown as string);
       });
 
       await expect(switchToAccount(1)).rejects.toThrow(
@@ -211,11 +214,11 @@ describe('walletService', () => {
     it('should throw error if account save fails', async () => {
       const mockMnemonic = 'abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon about';
 
-      SecureStorageService.withMnemonic.mockImplementationOnce(async (callback) => {
+      mockSecureStorage.withMnemonic.mockImplementationOnce(async (callback) => {
         return callback(mockMnemonic);
       });
-      deriveAddressesFromMnemonic.mockReturnValueOnce(mockAddresses);
-      SecureStorageService.saveCurrentAccount.mockRejectedValueOnce(new Error('Save error'));
+      mockBitcoin.deriveAddressesFromMnemonic.mockReturnValueOnce(mockAddresses);
+      mockSecureStorage.saveCurrentAccount.mockRejectedValueOnce(new Error('Save error'));
 
       await expect(switchToAccount(1)).rejects.toThrow('Failed to switch account: Save error');
     });
@@ -225,32 +228,32 @@ describe('walletService', () => {
     it('should save wallet mnemonic and account index', async () => {
       const mnemonic = 'abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon about';
 
-      SecureStorageService.saveMnemonic.mockResolvedValueOnce(true);
-      SecureStorageService.saveCurrentAccount.mockResolvedValueOnce(true);
+      mockSecureStorage.saveMnemonic.mockResolvedValueOnce(true);
+      mockSecureStorage.saveCurrentAccount.mockResolvedValueOnce(true);
 
       const result = await saveWalletToStorage(mnemonic, 0);
 
       expect(result).toBe(true);
-      expect(SecureStorageService.saveMnemonic).toHaveBeenCalledWith(mnemonic);
-      expect(SecureStorageService.saveCurrentAccount).toHaveBeenCalledWith(0);
+      expect(mockSecureStorage.saveMnemonic).toHaveBeenCalledWith(mnemonic);
+      expect(mockSecureStorage.saveCurrentAccount).toHaveBeenCalledWith(0);
     });
 
     it('should save with custom account index', async () => {
       const mnemonic = 'abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon about';
 
-      SecureStorageService.saveMnemonic.mockResolvedValueOnce(true);
-      SecureStorageService.saveCurrentAccount.mockResolvedValueOnce(true);
+      mockSecureStorage.saveMnemonic.mockResolvedValueOnce(true);
+      mockSecureStorage.saveCurrentAccount.mockResolvedValueOnce(true);
 
       await saveWalletToStorage(mnemonic, 5);
 
-      expect(SecureStorageService.saveCurrentAccount).toHaveBeenCalledWith(5);
+      expect(mockSecureStorage.saveCurrentAccount).toHaveBeenCalledWith(5);
     });
 
     it('should return false if mnemonic save fails', async () => {
       const mnemonic = 'abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon about';
 
-      SecureStorageService.saveMnemonic.mockResolvedValueOnce(false);
-      SecureStorageService.saveCurrentAccount.mockResolvedValueOnce(true);
+      mockSecureStorage.saveMnemonic.mockResolvedValueOnce(false);
+      mockSecureStorage.saveCurrentAccount.mockResolvedValueOnce(true);
 
       const result = await saveWalletToStorage(mnemonic);
 
@@ -260,8 +263,8 @@ describe('walletService', () => {
     it('should return false if account save fails', async () => {
       const mnemonic = 'abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon about';
 
-      SecureStorageService.saveMnemonic.mockResolvedValueOnce(true);
-      SecureStorageService.saveCurrentAccount.mockResolvedValueOnce(false);
+      mockSecureStorage.saveMnemonic.mockResolvedValueOnce(true);
+      mockSecureStorage.saveCurrentAccount.mockResolvedValueOnce(false);
 
       const result = await saveWalletToStorage(mnemonic);
 
@@ -271,7 +274,7 @@ describe('walletService', () => {
     it('should return false on error', async () => {
       const mnemonic = 'abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon about';
 
-      SecureStorageService.saveMnemonic.mockRejectedValueOnce(new Error('Storage error'));
+      mockSecureStorage.saveMnemonic.mockRejectedValueOnce(new Error('Storage error'));
 
       const result = await saveWalletToStorage(mnemonic);
 

@@ -1,11 +1,11 @@
 module.exports = {
   setupFiles: ['<rootDir>/jest.setup.js'],
-  testMatch: ['**/__tests__/**/*.test.js', '**/?(*.)+(spec|test).js'],
+  testMatch: ['**/__tests__/**/*.test.{js,ts,tsx}', '**/?(*.)+(spec|test).{js,ts,tsx}'],
   collectCoverageFrom: [
-    'services/**/*.js',
-    'utils/**/*.js',
-    'contexts/**/*.js',
-    'hooks/**/*.js',
+    'services/**/*.{js,ts,tsx}',
+    'utils/**/*.{js,ts,tsx}',
+    'contexts/**/*.{js,ts,tsx}',
+    'hooks/**/*.{js,ts,tsx}',
     '!**/node_modules/**',
     '!**/__tests__/**',
     '!**/coverage/**',

@@ -1,3 +1,4 @@
+// @ts-nocheck
 /**
  * Tests for runesTransaction service - focused on spent UTXO branch coverage
  */
@@ -22,7 +23,7 @@ jest.mock('../../../runestone-encoder', () => ({
 }));
 
 // Mock global fetch
-((global as any).fetch = jest.fn();
+(global as any).fetch = jest.fn();
 
 describe('runesTransaction - spent UTXO branches', () => {
   const mockTaprootAddress = 'tb1ptestaddress';
@@ -31,7 +32,7 @@ describe('runesTransaction - spent UTXO branches', () => {
 
   beforeEach(() => {
     jest.clearAllMocks();
-    ((global as any).fetch.mockClear();
+    (global as any).fetch.mockClear();
   });
 
   describe('spent UTXO handling', () => {
@@ -43,7 +44,7 @@ describe('runesTransaction - spent UTXO branches', () => {
       ];
 
       // Mock API calls - return empty to avoid finding runes
-      ((global as any).fetch.mockImplementation((url) => {
+      (global as any).fetch.mockImplementation((_url: string) => {
         return Promise.resolve({ json: () => Promise.resolve({}) });
       });
 

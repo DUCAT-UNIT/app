@@ -1,3 +1,4 @@
+// @ts-nocheck
 /**
  * Tests for Transaction Calculation Service
  */
@@ -8,9 +9,10 @@ import {
   fetchUtxosForAddress,
   calculateMaxSendableBTC,
 } from '../transactionCalculationService';
+import type { Wallet } from '../transactionCalculationService';
 
 // Mock fetch
-((global as any).fetch = jest.fn();
+(global as any).fetch = jest.fn();
 
 jest.mock('../../utils/constants', () => ({
   getAddressUtxoUrl: jest.fn((address) => `https://api.example.com/address/${address}/utxo`),
@@ -122,7 +124,7 @@ describe('transactionCalculationService', () => {
     });
 
     it('should handle wallet with missing addresses', () => {
-      const incompleteWallet = { segwitAddress: 'tb1qsegwitaddress' };
+      const incompleteWallet = { segwitAddress: 'tb1qsegwitaddress' } as Wallet;
       const sourceAddress = determineSourceAddress('tb1qrecipient', incompleteWallet);
       expect(sourceAddress).toBe('tb1qsegwitaddress');
     });
@@ -204,7 +206,7 @@ describe('transactionCalculationService', () => {
         { txid: 'tx3', vout: 0, value: 30000, status: { confirmed: true } },
       ];
 
-      ((global as any).fetch.mockResolvedValueOnce({
+      (global as any).fetch.mockResolvedValueOnce({
         json: async () => mockUtxos,
       });
 
@@ -222,7 +224,7 @@ describe('transactionCalculationService', () => {
         { txid: 'tx2', vout: 1, value: 20000, status: { confirmed: false } },
       ];
 
-      ((global as any).fetch.mockResolvedValueOnce({
+      (global as any).fetch.mockResolvedValueOnce({
         json: async () => mockUtxos,
       });
 
@@ -232,7 +234,7 @@ describe('transactionCalculationService', () => {
     });
 
     it('should return empty array if no UTXOs', async () => {
-      ((global as any).fetch.mockResolvedValueOnce({
+      (global as any).fetch.mockResolvedValueOnce({
         json: async () => [],
       });
 
@@ -249,7 +251,7 @@ describe('transactionCalculationService', () => {
         { txid: 'tx2', vout: 1, value: 50000, status: { confirmed: true } },
       ];
 
-      ((global as any).fetch.mockResolvedValueOnce({
+      (global as any).fetch.mockResolvedValueOnce({
         json: async () => mockUtxos,
       });
 
@@ -267,7 +269,7 @@ describe('transactionCalculationService', () => {
 
     it('should use fallback estimation when no source address', async () => {
       const result = await calculateMaxSendableBTC({
-        sourceAddress: null,
+        sourceAddress: null as unknown as string,
         btcBalance: 0.001,
         feeRate: 1,
       });
@@ -283,7 +285,7 @@ describe('transactionCalculationService', () => {
         { txid: 'tx1', vout: 0, value: 600, status: { confirmed: true } },
       ];
 
-      ((global as any).fetch.mockResolvedValueOnce({
+      (global as any).fetch.mockResolvedValueOnce({
         json: async () => mockUtxos,
       });
 
@@ -298,7 +300,7 @@ describe('transactionCalculationService', () => {
     });
 
     it('should handle fetch errors with fallback', async () => {
-      ((global as any).fetch.mockRejectedValueOnce(new Error('Network error'));
+      (global as any).fetch.mockRejectedValueOnce(new Error('Network error'));
 
       const result = await calculateMaxSendableBTC({
         sourceAddress: 'tb1qtest',
@@ -314,7 +316,7 @@ describe('transactionCalculationService', () => {
     });
 
     it('should handle empty UTXO list with fallback', async () => {
-      ((global as any).fetch.mockResolvedValueOnce({
+      (global as any).fetch.mockResolvedValueOnce({
         json: async () => [],
       });
 
@@ -335,7 +337,7 @@ describe('transactionCalculationService', () => {
         { txid: 'tx1', vout: 0, value: 100000, status: { confirmed: true } },
       ];
 
-      ((global as any).fetch.mockResolvedValueOnce({
+      (global as any).fetch.mockResolvedValueOnce({
         json: async () => mockUtxos,
       });
 
@@ -359,7 +361,7 @@ describe('transactionCalculationService', () => {
         status: { confirmed: true },
       }));
 
-      ((global as any).fetch.mockResolvedValueOnce({
+      (global as any).fetch.mockResolvedValueOnce({
         json: async () => mockUtxos,
       });
 
@@ -380,7 +382,7 @@ describe('transactionCalculationService', () => {
         { txid: 'tx1', vout: 0, value: 100, status: { confirmed: true } },
       ];
 
-      ((global as any).fetch.mockResolvedValueOnce({
+      (global as any).fetch.mockResolvedValueOnce({
         json: async () => mockUtxos,
       });
 

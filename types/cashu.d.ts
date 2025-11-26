@@ -2,11 +2,61 @@
  * Cashu Type Definitions
  */
 
+/**
+ * Proof structure for Cashu tokens
+ * Also aliased as Proof for backwards compatibility
+ */
 export interface CashuProof {
   amount: number;
   secret: string;
   C: string;
   id: string;
+}
+
+/**
+ * Alias for CashuProof - used in various hooks
+ */
+export type Proof = CashuProof;
+
+/**
+ * Proof state string literal values
+ */
+export type ProofStateValue = 'UNSPENT' | 'SPENT' | 'PENDING';
+
+/**
+ * Proof state response from mint API
+ */
+export interface ProofState {
+  Y: string;
+  state: string;
+  witness?: string;
+}
+
+/**
+ * Proof with state information
+ */
+export interface ProofWithState extends CashuProof {
+  state: ProofStateValue;
+}
+
+/**
+ * Decoded token structure
+ */
+export interface DecodedToken {
+  proofs: CashuProof[];
+  amount: number;
+  mint: string;
+}
+
+/**
+ * Ecash token for transaction history
+ */
+export interface EcashToken {
+  amount: number;
+  mint: string;
+  token: string;
+  timestamp?: number;
+  proofs?: CashuProof[];
 }
 
 export interface CashuToken {

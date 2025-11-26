@@ -7,6 +7,7 @@ export interface CashuProof {
   secret: string;
   C: string;
   id: string;
+  witness?: string;
 }
 
 /**

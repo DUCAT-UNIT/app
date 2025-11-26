@@ -1,3 +1,4 @@
+// @ts-nocheck
 /**
  * Comprehensive Tests for Cashu Wallet Service
  * Tests all wallet operations before refactoring

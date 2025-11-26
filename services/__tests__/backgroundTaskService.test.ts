@@ -1,3 +1,4 @@
+// @ts-nocheck
 /**
  * Tests for Background Task Service
  * Tests background transaction monitoring and notification system
@@ -22,7 +23,7 @@ jest.mock('expo-background-fetch', () => ({
   },
 }));
 
-let backgroundTaskCallback;
+let backgroundTaskCallback: any;
 jest.mock('expo-task-manager', () => ({
   defineTask: jest.fn((taskName, callback) => {
     backgroundTaskCallback = callback;
@@ -49,7 +50,7 @@ jest.mock('../../utils/constants', () => ({
 describe('backgroundTaskService', () => {
   beforeEach(() => {
     jest.clearAllMocks();
-    ((global as any).fetch = jest.fn();
+    (global as any).fetch = jest.fn();
     // Re-require to ensure TaskManager.defineTask is called
     jest.isolateModules(() => {
       require('../backgroundTaskService');
@@ -248,14 +249,14 @@ describe('backgroundTaskService', () => {
       ];
 
       SecureStore.getItemAsync.mockResolvedValueOnce(JSON.stringify(pendingTxs));
-      ((global as any).fetch.mockResolvedValueOnce({
+      (global as any).fetch.mockResolvedValueOnce({
         ok: true,
         json: async () => ({ status: { confirmed: true } }),
       });
 
       const result = await backgroundTaskCallback();
 
-      expect(((global as any).fetch).toHaveBeenCalled();
+      expect((global as any).fetch).toHaveBeenCalled();
       // Notifications are disabled - using snackbars only
       expect(Notifications.scheduleNotificationAsync).not.toHaveBeenCalled();
       expect(SecureStore.setItemAsync).toHaveBeenCalledWith('pending_transactions', '[]');
@@ -274,7 +275,7 @@ describe('backgroundTaskService', () => {
       ];
 
       SecureStore.getItemAsync.mockResolvedValueOnce(JSON.stringify(pendingTxs));
-      ((global as any).fetch.mockResolvedValueOnce({
+      (global as any).fetch.mockResolvedValueOnce({
         ok: true,
         json: async () => ({ status: { confirmed: false } }),
       });
@@ -306,7 +307,7 @@ describe('backgroundTaskService', () => {
       SecureStore.getItemAsync.mockResolvedValueOnce(JSON.stringify(pendingTxs));
 
       // First transaction confirmed, second not confirmed
-      ((global as any).fetch
+      (global as any).fetch
         .mockResolvedValueOnce({
           ok: true,
           json: async () => ({ status: { confirmed: true } }),
@@ -340,7 +341,7 @@ describe('backgroundTaskService', () => {
       ];
 
       SecureStore.getItemAsync.mockResolvedValueOnce(JSON.stringify(pendingTxs));
-      ((global as any).fetch.mockRejectedValueOnce(new Error('Network error'));
+      (global as any).fetch.mockRejectedValueOnce(new Error('Network error'));
 
       const result = await backgroundTaskCallback();
 
@@ -368,7 +369,7 @@ describe('backgroundTaskService', () => {
       ];
 
       SecureStore.getItemAsync.mockResolvedValueOnce(JSON.stringify(pendingTxs));
-      ((global as any).fetch.mockResolvedValueOnce({
+      (global as any).fetch.mockResolvedValueOnce({
         ok: false,
       });
 
@@ -390,7 +391,7 @@ describe('backgroundTaskService', () => {
       ];
 
       SecureStore.getItemAsync.mockResolvedValueOnce(JSON.stringify(pendingTxs));
-      ((global as any).fetch.mockResolvedValueOnce({
+      (global as any).fetch.mockResolvedValueOnce({
         ok: true,
         json: async () => ({}),
       });

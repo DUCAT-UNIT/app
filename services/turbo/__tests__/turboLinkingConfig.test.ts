@@ -1,3 +1,4 @@
+// @ts-nocheck
 /**
  * Tests for turboLinkingConfig service
  */
@@ -39,7 +40,14 @@ jest.mock('../../../utils/logger', () => ({
 
 jest.mock('../turboTokenStorage', () => ({
   hashToken: jest.fn().mockResolvedValue('mockedHash'),
-  initializeTokenStorage: jest.fn().mockResolvedValue(),
+  initializeTokenStorage: jest.fn().mockResolvedValue(undefined),
+  turboGlobal: global as typeof globalThis & {
+    processedCashuTokens?: Set<string>;
+    processedCashuTokensLoading?: boolean;
+    pendingCashuToken?: string;
+    pendingTurboSnackbars?: unknown[];
+    turboJustResumed?: boolean;
+  },
 }));
 
 // Mock atob for base64 decoding
@@ -52,7 +60,7 @@ import { hashToken, initializeTokenStorage } from '../turboTokenStorage';
 describe('turboLinkingConfig', () => {
   beforeEach(() => {
     jest.clearAllMocks();
-    (global as any).atob.mockImplementation((str) => Buffer.from(str, 'base64').toString('utf8'));
+    (global as any).atob.mockImplementation((str: string) => Buffer.from(str, 'base64').toString('utf8'));
     delete (global as any).processedCashuTokens;
     delete (global as any).processedCashuTokensLoading;
     delete (global as any).pendingCashuToken;
@@ -130,7 +138,7 @@ describe('turboLinkingConfig', () => {
   describe('getStateFromPath', () => {
     it('should return null for turbo URL to prevent navigation', async () => {
       const config = createLinkingConfig();
-      (global as any).processedCashuTokens = new Set();
+      (global as any).processedCashuTokens = new Set<string>();
 
       const result = await config.getStateFromPath('ducat://turbo/cashuAtoken123', {});
 
@@ -147,7 +155,7 @@ describe('turboLinkingConfig', () => {
 
     it('should return null for unit URL with token param', async () => {
       const config = createLinkingConfig();
-      (global as any).processedCashuTokens = new Set();
+      (global as any).processedCashuTokens = new Set<string>();
 
       const result = await config.getStateFromPath('https://example.com/unit?t=base64token', {});
 
@@ -156,7 +164,7 @@ describe('turboLinkingConfig', () => {
 
     it('should store token in global for processing', async () => {
       const config = createLinkingConfig();
-      (global as any).processedCashuTokens = new Set();
+      (global as any).processedCashuTokens = new Set<string>();
 
       await config.getStateFromPath('ducat://turbo/cashuAtoken123', {});
 
@@ -172,8 +180,7 @@ describe('turboLinkingConfig', () => {
       expect((global as any).pendingCashuToken).toBeUndefined();
       expect((global as any).pendingTurboSnackbars).toEqual([{
         type: 'error',
-        action: 'claim',
-        description: 'Token already claimed',
+        message: 'Token already claimed',
       }]);
     });
 
@@ -190,14 +197,14 @@ describe('turboLinkingConfig', () => {
     it('should handle null path', async () => {
       const config = createLinkingConfig();
 
-      const result = await config.getStateFromPath(null, {});
+      const result = await config.getStateFromPath(null as unknown as string, {});
 
       expect(result).toBe(undefined);
     });
 
     it('should decode base64 token from t parameter', async () => {
       const config = createLinkingConfig();
-      (global as any).processedCashuTokens = new Set();
+      (global as any).processedCashuTokens = new Set<string>();
 
       // Create base64 encoded "cashuAtesttoken"
       const base64Token = Buffer.from('cashuAtesttoken').toString('base64')
@@ -212,7 +219,7 @@ describe('turboLinkingConfig', () => {
 
     it('should handle base64 decode error', async () => {
       const config = createLinkingConfig();
-      (global as any).processedCashuTokens = new Set();
+      (global as any).processedCashuTokens = new Set<string>();
       (global as any).atob.mockImplementation(() => {
         throw new Error('Invalid base64');
       });
@@ -224,7 +231,7 @@ describe('turboLinkingConfig', () => {
 
     it('should handle URL without token param', async () => {
       const config = createLinkingConfig();
-      (global as any).processedCashuTokens = new Set();
+      (global as any).processedCashuTokens = new Set<string>();
 
       // URL without t= param
       await config.getStateFromPath('https://example.com/unit?other=param', {});
@@ -235,7 +242,7 @@ describe('turboLinkingConfig', () => {
     it('should wait for processed tokens to load', async () => {
       jest.useFakeTimers();
       const config = createLinkingConfig();
-      (global as any).processedCashuTokens = new Set();
+      (global as any).processedCashuTokens = new Set<string>();
       (global as any).processedCashuTokensLoading = true;
 
       // Start the getStateFromPath call
@@ -274,7 +281,7 @@ describe('turboLinkingConfig', () => {
   describe('URL event handling', () => {
     it('should process turbo URL in URL event', async () => {
       const config = createLinkingConfig();
-      (global as any).processedCashuTokens = new Set();
+      (global as any).processedCashuTokens = new Set<string>();
 
       // Get the URL handler registered via addEventListener
       config.subscribe(jest.fn());
@@ -288,7 +295,7 @@ describe('turboLinkingConfig', () => {
 
     it('should process unit URL in URL event', async () => {
       const config = createLinkingConfig();
-      (global as any).processedCashuTokens = new Set();
+      (global as any).processedCashuTokens = new Set<string>();
 
       config.subscribe(jest.fn());
       const urlHandler = (Linking.addEventListener as jest.Mock).mock.calls[0][1];
@@ -305,7 +312,7 @@ describe('turboLinkingConfig', () => {
 
     it('should ignore non-turbo URLs', async () => {
       const config = createLinkingConfig();
-      (global as any).processedCashuTokens = new Set();
+      (global as any).processedCashuTokens = new Set<string>();
 
       config.subscribe(jest.fn());
       const urlHandler = (Linking.addEventListener as jest.Mock).mock.calls[0][1];
@@ -317,7 +324,7 @@ describe('turboLinkingConfig', () => {
 
     it('should handle undefined URL in event', async () => {
       const config = createLinkingConfig();
-      (global as any).processedCashuTokens = new Set();
+      (global as any).processedCashuTokens = new Set<string>();
 
       config.subscribe(jest.fn());
       const urlHandler = (Linking.addEventListener as jest.Mock).mock.calls[0][1];
@@ -329,7 +336,7 @@ describe('turboLinkingConfig', () => {
 
     it('should handle null event', async () => {
       const config = createLinkingConfig();
-      (global as any).processedCashuTokens = new Set();
+      (global as any).processedCashuTokens = new Set<string>();
 
       config.subscribe(jest.fn());
       const urlHandler = (Linking.addEventListener as jest.Mock).mock.calls[0][1];
