@@ -178,7 +178,7 @@ describe('WalletContext', () => {
     expect(switchResult).toEqual(newAddresses);
     expect(result.current.wallet).toEqual(newAddresses);
     expect(result.current.currentAccount).toBe(1);
-    expect(SecureStore.setItemAsync).toHaveBeenCalledWith('wallet_current_account_v1', '1');
+    // Note: SecureStore.setItemAsync is now called in WalletService.switchToAccount, not in WalletContext
   });
 
   it('should throw error when switching to account with no addresses', async () => {

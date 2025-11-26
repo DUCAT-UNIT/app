@@ -13,6 +13,35 @@ module.exports = {
     },
   },
   plugins: ['react', 'react-native'],
+  overrides: [
+    {
+      files: ['**/*.ts', '**/*.tsx'],
+      parser: '@typescript-eslint/parser',
+      parserOptions: {
+        ecmaVersion: 2021,
+        sourceType: 'module',
+        project: './tsconfig.json',
+        ecmaFeatures: {
+          jsx: true,
+        },
+      },
+      plugins: ['@typescript-eslint'],
+      extends: [
+        '@react-native',
+        'plugin:@typescript-eslint/recommended',
+        'prettier',
+      ],
+      rules: {
+        '@typescript-eslint/no-unused-vars': ['warn', { argsIgnorePattern: '^_', varsIgnorePattern: '^_' }],
+        '@typescript-eslint/no-explicit-any': 'warn',
+        '@typescript-eslint/explicit-function-return-type': 'off',
+        '@typescript-eslint/explicit-module-boundary-types': 'off',
+        '@typescript-eslint/no-shadow': 'warn',
+        'no-shadow': 'off', // Turn off base rule as it conflicts with TS version
+        'no-undef': 'off', // TypeScript handles this
+      },
+    },
+  ],
   rules: {
     // Security: Prevent console logs in production (strict enforcement after console.log removal)
     'no-console': ['error', { allow: ['warn', 'error'] }],

@@ -48,7 +48,9 @@ export function useAccountSwitcher({
 
       // STEP 3: Switch account context (updates wallet addresses)
       logger.debug('[useAccountSwitcher] Switching account context...');
-      await switchAccountContext(accountIndex);
+      const newAddresses = await switchAccountContext(accountIndex);
+      const newTaprootAddress = newAddresses?.taprootAddress;
+      logger.debug('[useAccountSwitcher] New taproot address:', newTaprootAddress?.substring(0, 20) + '...');
 
       // STEP 4: Close modal and trigger callback immediately (don't wait for data)
       setShowAccountPicker(false);
@@ -65,7 +67,8 @@ export function useAccountSwitcher({
       if (fetchBalance) fetchBalance();
       if (fetchVault) fetchVault();
       if (fetchTransactionHistory) fetchTransactionHistory();
-      if (resetAndRefreshCashu) resetAndRefreshCashu();
+      // CRITICAL: Pass the new taproot address to ensure cashu reads from correct storage
+      if (resetAndRefreshCashu) resetAndRefreshCashu(newTaprootAddress);
 
       logger.info('[useAccountSwitcher] Account switch complete');
     } catch (error) {

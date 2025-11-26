@@ -20,7 +20,7 @@ import { styles } from './ConfirmationScreen.styles';
 
 export default function ConfirmationScreen({ navigation, route }) {
   const { fetchTransactionHistory } = useTransactionHistory();
-  useWallet();
+  const { wallet } = useWallet();
   const { refresh: refreshCashuBalance } = useCashu();
   const { showToast, showSnackbar } = useNotifications();
 
@@ -53,6 +53,7 @@ export default function ConfirmationScreen({ navigation, route }) {
     mintAmount,
     turboRecipient,
     skipMint,
+    senderTaprootAddress: wallet?.taprootAddress,
     fetchTransactionHistory,
     refreshCashuBalance,
     showSnackbar,

@@ -1,0 +1,184 @@
+/**
+ * Tests for cashuRecoverLockedChange
+ */
+
+jest.mock('../../../../utils/logger', () => ({
+  logger: {
+    info: jest.fn(),
+    warn: jest.fn(),
+    error: jest.fn(),
+  },
+}));
+
+jest.mock('../../crypto', () => ({
+  decodeToken: jest.fn(),
+  sumProofs: jest.fn(),
+}));
+
+jest.mock('../../p2pk', () => ({
+  isP2PKSecret: jest.fn(),
+}));
+
+jest.mock('../../cashuLockedTokensService', () => ({
+  getSentLockedTokens: jest.fn(),
+}));
+
+jest.mock('../../cashuProofManager', () => ({
+  loadProofs: jest.fn(),
+  addProofs: jest.fn(),
+}));
+
+import { recoverLockedChange } from '../cashuRecoverLockedChange';
+import { decodeToken, sumProofs } from '../../crypto';
+import { isP2PKSecret } from '../../p2pk';
+import { getSentLockedTokens } from '../../cashuLockedTokensService';
+import { loadProofs, addProofs } from '../../cashuProofManager';
+
+describe('cashuRecoverLockedChange', () => {
+  beforeEach(() => {
+    jest.clearAllMocks();
+  });
+
+  describe('recoverLockedChange', () => {
+    it('should recover change proofs successfully', async () => {
+      (loadProofs as jest.Mock).mockResolvedValue([
+        { secret: 'existing1' },
+      ]);
+      (getSentLockedTokens as jest.Mock).mockResolvedValue([
+        { id: 'token1', token: 'cashuAtoken1...' },
+      ]);
+      (decodeToken as jest.Mock).mockReturnValue({
+        proofs: [
+          { amount: 64, secret: '[\"P2PK\",{\"data\":\"pubkey\"}]' },
+          { amount: 32, secret: 'change_secret', C: 'C', id: 'id' },
+        ],
+      });
+      (isP2PKSecret as jest.Mock).mockImplementation((secret: string) => secret.startsWith('[\"P2PK\"'));
+      (sumProofs as jest.Mock).mockReturnValue(32);
+
+      const result = await recoverLockedChange();
+
+      expect(result.recovered).toBe(1);
+      expect(result.amount).toBe(32);
+      expect(addProofs).toHaveBeenCalledWith([
+        { amount: 32, secret: 'change_secret', C: 'C', id: 'id' },
+      ]);
+    });
+
+    it('should return zero when no change proofs found', async () => {
+      (loadProofs as jest.Mock).mockResolvedValue([]);
+      (getSentLockedTokens as jest.Mock).mockResolvedValue([
+        { id: 'token1', token: 'cashuAtoken1...' },
+      ]);
+      (decodeToken as jest.Mock).mockReturnValue({
+        proofs: [
+          { amount: 64, secret: '[\"P2PK\",{\"data\":\"pubkey\"}]' },
+        ],
+      });
+      (isP2PKSecret as jest.Mock).mockReturnValue(true);
+
+      const result = await recoverLockedChange();
+
+      expect(result.recovered).toBe(0);
+      expect(result.amount).toBe(0);
+      expect(addProofs).not.toHaveBeenCalled();
+    });
+
+    it('should skip change proofs already in wallet', async () => {
+      (loadProofs as jest.Mock).mockResolvedValue([
+        { secret: 'change_secret' }, // Already have this
+      ]);
+      (getSentLockedTokens as jest.Mock).mockResolvedValue([
+        { id: 'token1', token: 'cashuAtoken1...' },
+      ]);
+      (decodeToken as jest.Mock).mockReturnValue({
+        proofs: [
+          { amount: 64, secret: '[\"P2PK\",{\"data\":\"pubkey\"}]' },
+          { amount: 32, secret: 'change_secret', C: 'C', id: 'id' },
+        ],
+      });
+      (isP2PKSecret as jest.Mock).mockImplementation((secret: string) => secret.startsWith('[\"P2PK\"'));
+
+      const result = await recoverLockedChange();
+
+      expect(result.recovered).toBe(0);
+      expect(result.amount).toBe(0);
+    });
+
+    it('should handle decode errors for individual tokens (line 62)', async () => {
+      const { logger } = require('../../../../utils/logger');
+
+      (loadProofs as jest.Mock).mockResolvedValue([]);
+      (getSentLockedTokens as jest.Mock).mockResolvedValue([
+        { id: 'token1', token: 'invalid_token' },
+        { id: 'token2', token: 'cashuAtoken2...' },
+      ]);
+      (decodeToken as jest.Mock)
+        .mockImplementationOnce((() => { throw new Error('Invalid token'); }) as any)
+        .mockReturnValueOnce({
+          proofs: [
+            { amount: 64, secret: '[\"P2PK\",{\"data\":\"pubkey\"}]' },
+            { amount: 32, secret: 'change_secret', C: 'C', id: 'id' },
+          ],
+        });
+      (isP2PKSecret as jest.Mock).mockImplementation((secret: string) => secret.startsWith('[\"P2PK\"'));
+      (sumProofs as jest.Mock).mockReturnValue(32);
+
+      const result = await recoverLockedChange();
+
+      // Should warn about first token but continue with second
+      expect(logger.warn).toHaveBeenCalledWith(
+        'Failed to decode sent token',
+        expect.objectContaining({ tokenId: 'token1' })
+      );
+      expect(result.recovered).toBe(1);
+    });
+
+    it('should throw error on fatal failure (lines 99-100)', async () => {
+      (loadProofs as jest.Mock).mockRejectedValue(new Error('Storage error'));
+
+      await expect(recoverLockedChange()).rejects.toThrow('Storage error');
+    });
+
+    it('should handle empty sent tokens list', async () => {
+      (loadProofs as jest.Mock).mockResolvedValue([]);
+      (getSentLockedTokens as jest.Mock).mockResolvedValue([]);
+
+      const result = await recoverLockedChange();
+
+      expect(result.recovered).toBe(0);
+      expect(result.message).toBe('No change proofs found in sent tokens');
+    });
+
+    it('should handle multiple tokens with change', async () => {
+      (loadProofs as jest.Mock).mockResolvedValue([]);
+      (getSentLockedTokens as jest.Mock).mockResolvedValue([
+        { id: 'token1', token: 'cashuAtoken1...' },
+        { id: 'token2', token: 'cashuAtoken2...' },
+      ]);
+      (decodeToken as jest.Mock)
+        .mockReturnValueOnce({
+          proofs: [
+            { amount: 64, secret: '[\"P2PK\",{\"data\":\"pubkey\"}]' },
+            { amount: 32, secret: 'change1', C: 'C', id: 'id' },
+          ],
+        })
+        .mockReturnValueOnce({
+          proofs: [
+            { amount: 128, secret: '[\"P2PK\",{\"data\":\"pubkey2\"}]' },
+            { amount: 16, secret: 'change2', C: 'C', id: 'id' },
+          ],
+        });
+      (isP2PKSecret as jest.Mock).mockImplementation((secret: string) => secret.startsWith('[\"P2PK\"'));
+      (sumProofs as jest.Mock).mockReturnValue(48);
+
+      const result = await recoverLockedChange();
+
+      expect(result.recovered).toBe(2);
+      expect(addProofs).toHaveBeenCalledWith([
+        { amount: 32, secret: 'change1', C: 'C', id: 'id' },
+        { amount: 16, secret: 'change2', C: 'C', id: 'id' },
+      ]);
+    });
+  });
+});

@@ -323,6 +323,98 @@ Runestone Format:
 - Prevents accidental loss of inscriptions
 - Consolidation for dust management
 
+## ⚡ TurboUNIT: Address-Bound E-Cash
+
+DUCAT implements a novel bridge between on-chain Bitcoin addresses and off-chain Cashu e-cash using the unique properties of Taproot addresses. This enables instant, fee-less transfers that are cryptographically bound to a recipient's Bitcoin address.
+
+### The Taproot-P2PK Bridge
+
+**The Key Insight**: Taproot (P2TR) addresses directly encode an x-only public key (32 bytes) in their bech32m encoding—the exact same format used by Cashu's NUT-11 P2PK (Pay-to-Public-Key) specification. This creates a natural cryptographic bridge between on-chain addresses and off-chain e-cash.
+
+**How It Works**:
+
+```
+Taproot Address: tb1p7wqu4fh5g3w3rmxq6vyc5aqc05ru3ywrdyx0...
+                        └─────────────────────────────────┘
+                              32-byte x-only public key
+                                        │
+                                        ▼
+                        ┌───────────────────────────────┐
+                        │   Cashu P2PK Locked Token     │
+                        │   (NUT-11 Specification)      │
+                        │   Locked to same pubkey       │
+                        └───────────────────────────────┘
+```
+
+**Address Decoding**:
+
+```javascript
+// Extract x-only pubkey from Taproot address
+const extractPubkeyFromTaprootAddress = (address) => {
+  const decoded = bitcoin.address.fromBech32(address);
+  // decoded.data IS the 32-byte x-only pubkey
+  return Buffer.from(decoded.data).toString('hex');
+};
+
+// Result: 64-character hex pubkey ready for P2PK locking
+// "f1c0e54d7a22e88f66c0d3098a7418f41f1c4707..."
+```
+
+### Why Taproot Is Perfect For This
+
+1. **Direct Pubkey Encoding**: Unlike SegWit (P2WPKH) which encodes a *hash* of the pubkey, Taproot encodes the actual public key. No additional key exchange needed.
+
+2. **Preferred for Digital Assets**: Taproot addresses (`tb1p...`) are already the standard for Runes and Ordinals. Users managing these assets already have Taproot addresses—making TurboUNIT a natural extension.
+
+3. **Same Private Key**: The recipient claims their e-cash using the same private key that controls their Taproot Bitcoin address. No new keys to manage.
+
+4. **Schnorr Signatures**: Both Taproot and Cashu P2PK use Schnorr signatures over the secp256k1 curve, ensuring cryptographic compatibility.
+
+### The TurboUNIT Flow
+
+```
+Sender                                          Recipient
+  │                                                  │
+  │  1. Enter recipient's Taproot address           │
+  │     tb1p7wqu4fh5g3w3rmxq6vyc5aqc05ru3ywrdyx0... │
+  │                                                  │
+  │  2. Extract x-only pubkey from address          │
+  │     f1c0e54d7a22e88f66c0d3098a7418f41f1c4707... │
+  │                                                  │
+  │  3. Mint e-cash from Bitcoin                    │
+  │     BTC → Cashu Mint → E-cash proofs            │
+  │                                                  │
+  │  4. Create P2PK locked token                    │
+  │     cashuB... (locked to recipient pubkey)      │
+  │                                                  │
+  │  5. Share via link/QR                           │
+  │     ──────────────────────────────────────────► │
+  │                                                  │
+  │                     6. Recipient claims token   │
+  │                        Signs with Taproot key   │
+  │                        E-cash added to balance  │
+  │                                                  │
+```
+
+### Security Properties
+
+- **Address-Bound**: Only the owner of the Taproot private key can spend the e-cash
+- **Non-Custodial**: The mint cannot spend P2PK locked tokens—they require recipient's signature
+- **Recoverable**: If unclaimed, sender can reclaim using locktime conditions (NUT-11)
+- **Instant**: No on-chain confirmation needed—recipient can spend immediately
+- **Private**: E-cash transfers don't appear on the blockchain
+
+### Implementation
+
+```javascript
+// In useTurboMintCompletion.js
+const recipientPubkey = extractPubkeyFromTaprootAddress(turboRecipient);
+const result = await sendP2PKToken(mintAmount, recipientPubkey, {});
+// Token is now cryptographically bound to recipient's Bitcoin address
+```
+
+This elegant design leverages Taproot's architecture to create seamless interoperability between Bitcoin's on-chain security model and Cashu's off-chain privacy and speed—without requiring users to manage separate key pairs or understand the underlying cryptography
+
 ## 📱 User Flows
 
 ### Wallet Creation
@@ -563,7 +655,8 @@ import { crypto } from 'react-native-quick-crypto';
 
 - **Bitcoin Development**: [LearnMeABitcoin.com](https://learnmeabitcoin.com)
 - **Runes Protocol**: [Runestone Spec](https://docs.ordinals.com/runes.html)
-- **BIP Standards**: [BIP39](https://github.com/bitcoin/bips/blob/master/bip-0039.mediawiki), [BIP32](https://github.com/bitcoin/bips/blob/master/bip-0032.mediawiki), [BIP84](https://github.com/bitcoin/bips/blob/master/bip-0084.mediawiki), [BIP86](https://github.com/bitcoin/bips/blob/master/bip-0086.mediawiki)
+- **BIP Standards**: [BIP39](https://github.com/bitcoin/bips/blob/master/bip-0039.mediawiki), [BIP32](https://github.com/bitcoin/bips/blob/master/bip-0032.mediawiki), [BIP84](https://github.com/bitcoin/bips/blob/master/bip-0084.mediawiki), [BIP86](https://github.com/bitcoin/bips/blob/master/bip-0086.mediawiki) (Taproot)
+- **Cashu Protocol**: [Cashu Specs](https://github.com/cashubtc/nuts) - [NUT-11 P2PK](https://github.com/cashubtc/nuts/blob/main/11.md) (Pay-to-Public-Key locked tokens)
 - **WebAuthn**: [W3C Specification](https://www.w3.org/TR/webauthn/)
 - **Expo Docs**: [Expo.dev](https://docs.expo.dev)
 

@@ -1,0 +1,56 @@
+/**
+ * Formatters - Barrel export
+ * Consolidates all formatting utilities
+ */
+
+// Address formatters
+export {
+  truncateAddress,
+  truncateTxid,
+  looksLikeBitcoinAddress,
+  getAddressType,
+  type AddressType,
+} from './addresses';
+
+// Amount formatters
+export {
+  formatFiat,
+  formatSatoshis,
+  formatAbbreviated,
+  formatPercentage,
+  parseFormattedAmount,
+} from './amounts';
+
+// Date formatters
+export {
+  formatTimestamp,
+  formatTransactionDate,
+  formatRelativeTime,
+  formatDateRange,
+  isToday,
+  type FormatTimestampOptions,
+} from './dates';
+
+// Bitcoin conversions (from utils/bitcoin/conversions)
+export {
+  satsToBTC,
+  btcToSats,
+  formatBTC,
+  formatBTCSmart,
+  formatBTCAuto,
+  parseBTCInput,
+  SATS_PER_BTC,
+  type ParseBTCResult,
+  type FormatBTCAutoResult,
+} from '../bitcoin/conversions';
+
+/**
+ * Format balance value (BTC) for display
+ * @param balance - Balance in BTC
+ * @param decimals - Decimal places (default: 8)
+ * @returns Formatted balance
+ */
+export const formatBalance = (balance: number | null | undefined, decimals = 8): string => {
+  if (!balance && balance !== 0) return '0.00000000';
+  return balance.toFixed(decimals);
+};

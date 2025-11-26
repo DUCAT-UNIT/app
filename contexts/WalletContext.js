@@ -1,9 +1,8 @@
 import React, { createContext, useContext, useState, useCallback, useMemo } from 'react';
-import * as SecureStore from 'expo-secure-store';
 import * as WalletService from '../services/walletService';
-import { SECURE_KEYS } from '../utils/constants';
 import { useNotifications } from './NotificationContext';
 import { logger } from '../utils/logger';
+import { clearP2PKCache } from '../services/cashu/p2pk';
 
 const WalletContext = createContext();
 
@@ -62,7 +61,6 @@ export const WalletProvider = ({ children }) => {
 
     // Clear P2PK cache on wallet reset
     try {
-      const { clearP2PKCache } = await import('../services/cashu/p2pk');
       await clearP2PKCache();
     } catch (error) {
       logger.warn('[WalletContext] Failed to clear P2PK cache on reset:', error.message);
@@ -88,13 +86,9 @@ export const WalletProvider = ({ children }) => {
       // Show toast notification immediately
       showToast(`Switched to Account ${accountIndex + 1}`, 'success');
 
-      // Save account index in background (fire and forget - non-critical)
-      SecureStore.setItemAsync(SECURE_KEYS.CURRENT_ACCOUNT, accountIndex.toString())
-        .catch(err => logger.warn('[WalletContext] Failed to save account index:', err.message));
-
       // Clear P2PK cache in background (fire and forget - non-critical)
-      import('../services/cashu/p2pk')
-        .then(({ clearP2PKCache }) => clearP2PKCache())
+      // Note: Account index is already saved in WalletService.switchToAccount
+      clearP2PKCache()
         .catch(err => logger.warn('[WalletContext] Failed to clear P2PK cache:', err.message));
 
       return addresses;

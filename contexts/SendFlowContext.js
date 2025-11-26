@@ -38,10 +38,12 @@ export const SendFlowProvider = ({ children }) => {
   // Auto-manage transaction completion flow
   useEffect(() => {
     if (intentStep === 'confirmed') {
-      // Clear transaction fields so they don't persist
+      // Clear ALL transaction fields so they don't persist to next transaction
       setSendRecipient('');
       setSendAmount('');
       setSendAssetType(null);
+      setTurboEnabled(false);
+      setRequireConfirmedUtxos(false);
 
       // Auto-reset to idle after 10 seconds when confirmed
       const timer = setTimeout(() => {

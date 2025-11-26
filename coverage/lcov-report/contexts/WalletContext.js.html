@@ -23,9 +23,9 @@
         <div class='clearfix'>
             
             <div class='fl pad1y space-right2'>
-                <span class="strong">95.74% </span>
+                <span class="strong">95.34% </span>
                 <span class="quiet">Statements</span>
-                <span class='fraction'>45/47</span>
+                <span class='fraction'>41/43</span>
             </div>
         
             
@@ -37,16 +37,16 @@
         
             
             <div class='fl pad1y space-right2'>
-                <span class="strong">100% </span>
+                <span class="strong">87.5% </span>
                 <span class="quiet">Functions</span>
-                <span class='fraction'>7/7</span>
+                <span class='fraction'>7/8</span>
             </div>
         
             
             <div class='fl pad1y space-right2'>
-                <span class="strong">95.74% </span>
+                <span class="strong">95.34% </span>
                 <span class="quiet">Lines</span>
-                <span class='fraction'>45/47</span>
+                <span class='fraction'>41/43</span>
             </div>
         
             
@@ -180,15 +180,7 @@
 <a name='L115'></a><a href='#L115'>115</a>
 <a name='L116'></a><a href='#L116'>116</a>
 <a name='L117'></a><a href='#L117'>117</a>
-<a name='L118'></a><a href='#L118'>118</a>
-<a name='L119'></a><a href='#L119'>119</a>
-<a name='L120'></a><a href='#L120'>120</a>
-<a name='L121'></a><a href='#L121'>121</a>
-<a name='L122'></a><a href='#L122'>122</a>
-<a name='L123'></a><a href='#L123'>123</a>
-<a name='L124'></a><a href='#L124'>124</a>
-<a name='L125'></a><a href='#L125'>125</a></td><td class="line-coverage quiet"><span class="cline-any cline-neutral">&nbsp;</span>
-<span class="cline-any cline-neutral">&nbsp;</span>
+<a name='L118'></a><a href='#L118'>118</a></td><td class="line-coverage quiet"><span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
@@ -252,9 +244,8 @@
 <span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-yes">1x</span>
 <span class="cline-any cline-yes">1x</span>
-<span class="cline-any cline-no">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
-<span class="cline-any cline-yes">1x</span>
+<span class="cline-any cline-no">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
@@ -266,26 +257,21 @@
 <span class="cline-any cline-yes">1x</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
-<span class="cline-any cline-yes">1x</span>
-<span class="cline-any cline-neutral">&nbsp;</span>
-<span class="cline-any cline-neutral">&nbsp;</span>
-<span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-yes">1x</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-yes">1x</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-yes">1x</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-yes">1x</span>
 <span class="cline-any cline-no">&nbsp;</span>
-<span class="cline-any cline-neutral">&nbsp;</span>
-<span class="cline-any cline-yes">1x</span>
-<span class="cline-any cline-neutral">&nbsp;</span>
-<span class="cline-any cline-neutral">&nbsp;</span>
-<span class="cline-any cline-neutral">&nbsp;</span>
-<span class="cline-any cline-yes">1x</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-yes">1x</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
@@ -312,11 +298,10 @@
 <span class="cline-any cline-yes">18x</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span></td><td class="text"><pre class="prettyprint lang-js">import React, { createContext, useContext, useState, useCallback, useMemo } from 'react';
-import * as SecureStore from 'expo-secure-store';
 import * as WalletService from '../services/walletService';
-import { SECURE_KEYS } from '../utils/constants';
 import { useNotifications } from './NotificationContext';
 import { logger } from '../utils/logger';
+import { clearP2PKCache } from '../services/cashu/p2pk';
 &nbsp;
 const WalletContext = createContext();
 &nbsp;
@@ -375,10 +360,9 @@ export const WalletProvider = ({ children }) =&gt; {
 &nbsp;
     // Clear P2PK cache on wallet reset
     try {
-      const { clearP2PKCache } = await import('../services/cashu/p2pk');
-<span class="cstat-no" title="statement not covered" >      await clearP2PKCache();</span>
+      await clearP2PKCache();
     } catch (error) {
-      logger.warn('[WalletContext] Failed to clear P2PK cache on reset:', error.message);
+<span class="cstat-no" title="statement not covered" >      logger.warn('[WalletContext] Failed to clear P2PK cache on reset:', error.message);</span>
     }
   }, []);
 &nbsp;
@@ -390,6 +374,7 @@ export const WalletProvider = ({ children }) =&gt; {
         throw new Error('No wallet found');
       }
 &nbsp;
+      // Update state immediately (this is what triggers UI update)
       setWallet({
         segwitAddress: addresses.segwitAddress,
         taprootAddress: addresses.taprootAddress,
@@ -397,19 +382,13 @@ export const WalletProvider = ({ children }) =&gt; {
       });
       setCurrentAccount(accountIndex);
 &nbsp;
-      // Save new account index
-      await SecureStore.setItemAsync(SECURE_KEYS.CURRENT_ACCOUNT, accountIndex.toString());
-&nbsp;
-      // Clear P2PK cache since private key is different for new account
-      try {
-        const { clearP2PKCache } = await import('../services/cashu/p2pk');
-<span class="cstat-no" title="statement not covered" >        await clearP2PKCache();</span>
-      } catch (error) {
-        logger.warn('[WalletContext] Failed to clear P2PK cache:', error.message);
-      }
-&nbsp;
-      // Show toast notification
+      // Show toast notification immediately
       showToast(`Switched to Account ${accountIndex + 1}`, 'success');
+&nbsp;
+      // Clear P2PK cache in background (fire and forget - non-critical)
+      // Note: Account index is already saved in WalletService.switchToAccount
+      clearP2PKCache()
+        .catch(<span class="fstat-no" title="function not covered" >er</span>r =&gt; <span class="cstat-no" title="statement not covered" >logger.warn('[WalletContext] Failed to clear P2PK cache:', err.message))</span>;
 &nbsp;
       return addresses;
     } catch (error) {
@@ -442,7 +421,7 @@ export const WalletProvider = ({ children }) =&gt; {
             <div class='footer quiet pad2 space-top1 center small'>
                 Code coverage generated by
                 <a href="https://istanbul.js.org/" target="_blank" rel="noopener noreferrer">istanbul</a>
-                at 2025-11-25T15:03:39.465Z
+                at 2025-11-25T19:49:43.790Z
             </div>
         <script src="../prettify.js"></script>
         <script>

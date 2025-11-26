@@ -39,21 +39,14 @@ jest.mock('../../services/biometricService', () => ({
   authenticateWithBiometrics: jest.fn(),
 }));
 
-// Mock cashuWalletService (both with and without .js extension for dynamic imports)
+// Mock cashuWalletService
 jest.mock('../../services/cashu/cashuWalletService', () => ({
   clearWallet: jest.fn(),
   recoverLockedChange: jest.fn(),
 }));
-jest.mock('../../services/cashu/cashuWalletService.js', () => ({
-  clearWallet: jest.fn(),
-  recoverLockedChange: jest.fn(),
-}));
 
-// Mock cashuLockedTokensService (both with and without .js extension for dynamic imports)
+// Mock cashuLockedTokensService
 jest.mock('../../services/cashu/cashuLockedTokensService', () => ({
-  clearSentLockedTokens: jest.fn(),
-}));
-jest.mock('../../services/cashu/cashuLockedTokensService.js', () => ({
   clearSentLockedTokens: jest.fn(),
 }));
 

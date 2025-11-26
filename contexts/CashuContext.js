@@ -7,7 +7,7 @@
 
 import React, { createContext, useContext, useState, useCallback, useMemo, useEffect, useRef } from 'react';
 import { logger } from '../utils/logger';
-import { clearWallet } from '../services/cashu/cashuWalletService';
+import { clearWallet, setCurrentAccount } from '../services/cashu/cashuWalletService';
 import { useWallet } from './WalletContext';
 import { useCashuBalance } from '../hooks/useCashuBalance';
 import { useCashuMint } from '../hooks/useCashuMint';
@@ -122,13 +122,22 @@ export const CashuProvider = ({ children }) => {
   /**
    * Reset and refresh for account switching
    * Called by useAccountSwitcher to ensure clean state
+   * @param {string} newTaprootAddress - Optional new address to switch to (ensures correct account before fetch)
    */
-  const resetAndRefresh = useCallback(async () => {
+  const resetAndRefresh = useCallback(async (newTaprootAddress) => {
     // Reset state immediately (synchronous) for snappy UI
     setBalance(0);
     setPendingMints([]);
     setError(null);
-    // Then fetch fresh balance
+
+    // CRITICAL: Set the current account BEFORE fetching balance
+    // This ensures we read from the correct storage key
+    if (newTaprootAddress) {
+      setCurrentAccount(newTaprootAddress);
+      logger.debug('[CashuContext] resetAndRefresh: Set current account to', newTaprootAddress.substring(0, 20) + '...');
+    }
+
+    // Then fetch fresh balance from the correct account
     await fetchBalance();
   }, [setBalance, setPendingMints, setError, fetchBalance]);
 

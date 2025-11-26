@@ -15,6 +15,7 @@ export function useTurboMintCompletion({
   mintAmount,
   turboRecipient,
   skipMint,
+  senderTaprootAddress,
   fetchTransactionHistory,
   refreshCashuBalance,
   showSnackbar,
@@ -86,7 +87,7 @@ export function useTurboMintCompletion({
               logger.debug('[useTurboMintCompletion] Creating P2PK locked token for recipient:', turboRecipient);
               const { sendP2PKToken } = await import('../services/cashu/operations/cashuSendP2PK');
               const { extractPubkeyFromTaprootAddress } = await import('../utils/bitcoin');
-              const { storeSentP2PKToken } = await import('../services/cashu/cashuLockedTokensService');
+              const { saveSentLockedToken } = await import('../services/cashu/cashuLockedTokensService');
               const { shortenCashuToken } = await import('../services/urlShortener');
 
               // Extract pubkey from P2TR address
@@ -99,8 +100,13 @@ export function useTurboMintCompletion({
 
               // Send exactly the mint amount as P2PK locked token
               logger.debug('[useTurboMintCompletion] 🎫 Creating P2PK token for amount:', mintAmount);
-              const token = await sendP2PKToken(mintAmount, recipientPubkey, 'Turbo transaction');
-              logger.debug('[useTurboMintCompletion] 🎫 P2PK token created:', token?.substring(0, 50));
+              const result = await sendP2PKToken(mintAmount, recipientPubkey, {});
+              logger.debug('[useTurboMintCompletion] 🎫 sendP2PKToken result:', { hasToken: !!result?.token, resultType: typeof result });
+              const token = result?.token;
+              if (!token) {
+                throw new Error('sendP2PKToken returned no token');
+              }
+              logger.debug('[useTurboMintCompletion] 🎫 P2PK token created:', token.substring(0, 50));
 
               // Generate shortened URL for the token
               const shortUrl = await shortenCashuToken(token);
@@ -108,13 +114,8 @@ export function useTurboMintCompletion({
               setTurboDeeplink(shortUrl);
 
               // Store the sent P2PK token
-              await storeSentP2PKToken({
-                token,
-                recipientPubkey,
-                amount: mintAmount,
-                memo: 'Turbo transaction',
-                timestamp: Date.now(),
-              });
+              // saveSentLockedToken(token, recipient, amount, txid, shortUrl, taprootAddress)
+              await saveSentLockedToken(token, turboRecipient, mintAmount, null, shortUrl, senderTaprootAddress);
               logger.debug('[useTurboMintCompletion] 🎫 P2PK token stored successfully');
 
               // Store token for display
@@ -160,7 +161,7 @@ export function useTurboMintCompletion({
     };
 
     completeMintProcess();
-  }, [isTurbo, mintQuoteId, mintAmount, turboRecipient, skipMint, fetchTransactionHistory, refreshCashuBalance, showSnackbar, showToast, processingStage]);
+  }, [isTurbo, mintQuoteId, mintAmount, turboRecipient, skipMint, senderTaprootAddress, fetchTransactionHistory, refreshCashuBalance, showSnackbar, showToast, processingStage]);
 
   return {
     turboToken,

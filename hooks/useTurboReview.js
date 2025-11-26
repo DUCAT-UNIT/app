@@ -15,6 +15,7 @@ export function useTurboReview({
   turboEnabled,
   setTurboEnabled,
   setSendRecipient,
+  setSendAmount,
   ecashThreshold,
   navigation,
   isCashuMint,
@@ -105,8 +106,18 @@ export function useTurboReview({
       logger.debug('[useTurboReview] Mint quote received:', {
         quoteId: mintQuote.quoteId,
         depositAddress: mintQuote.depositAddress,
+        quoteAmount: mintQuote.amount,
       });
 
+      // CRITICAL: Update sendAmount to match the quote amount exactly
+      // mintQuote.amount is in smallest units, convert to display units
+      const quoteDisplayAmount = (mintQuote.amount / 100).toString();
+      logger.debug('[useTurboReview] Updating sendAmount to match quote:', {
+        originalSendAmount: sendAmount,
+        quoteAmount: mintQuote.amount,
+        newSendAmount: quoteDisplayAmount,
+      });
+      setSendAmount(quoteDisplayAmount);
       setSendRecipient(mintQuote.depositAddress);
       setIsRequestingMint(false);
 
@@ -123,7 +134,7 @@ export function useTurboReview({
       logger.error('[useTurboReview] Failed to request mint quote:', error);
       Alert.alert('Error', 'Failed to initiate Turbo transaction. Please try again.');
     }
-  }, [insufficientTurboAmount, sendRecipient, setSendRecipient, navigation]);
+  }, [insufficientTurboAmount, sendAmount, sendRecipient, setSendAmount, setSendRecipient, navigation]);
 
   const handleSendNormally = useCallback(() => {
     setShowInsufficientTurboSheet(false);

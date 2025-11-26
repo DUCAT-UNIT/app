@@ -83,6 +83,7 @@ describe('useTurboReview', () => {
       turboEnabled: false,
       setTurboEnabled: jest.fn(),
       setSendRecipient: jest.fn(),
+      setSendAmount: jest.fn(),
       ecashThreshold: 1000,
       navigation: mockNavigation,
       isCashuMint: false,

@@ -80,6 +80,7 @@ export default function AmountInputScreen({ navigation, route }) {
     turboEnabled,
     setTurboEnabled,
     setSendRecipient,
+    setSendAmount,
     ecashThreshold,
     navigation,
     isCashuMint,
