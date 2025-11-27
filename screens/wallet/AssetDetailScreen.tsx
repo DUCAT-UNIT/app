@@ -268,6 +268,7 @@ function AssetDetailScreen({ route = {}, navigation }: AssetDetailScreenProps): 
             selectedTimeframe={selectedTimeframe}
             onTimeframeChange={setSelectedTimeframe}
             onRetry={() => setPriceError(null)}
+            currentPrice={btcPrice}
           />
 
           <AssetTabs

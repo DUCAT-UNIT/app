@@ -1,11 +1,12 @@
 /**
  * PriceChart Component
  * Displays a crypto-style gradient chart for asset price history
+ * Supports interactive scrubbing to show price at any point
  */
 
-import React, { useMemo } from 'react';
-import { View, Text, StyleSheet, Dimensions } from 'react-native';
-import Svg, { Path, Defs, LinearGradient, Stop, G } from 'react-native-svg';
+import React, { useMemo, useState, useCallback } from 'react';
+import { View, Text, StyleSheet, Dimensions, PanResponder, GestureResponderEvent } from 'react-native';
+import Svg, { Path, Defs, LinearGradient, Stop, G, Line, Circle } from 'react-native-svg';
 import { COLORS } from '../../theme';
 
 const { width: SCREEN_WIDTH } = Dimensions.get('window');
@@ -15,9 +16,14 @@ interface PriceChartProps {
   isPositive: boolean;
   minBoundary?: number;
   maxBoundary?: number;
+  onScrub?: (price: number | null, timestamp: number | null) => void;
 }
 
-function PriceChart({ data, isPositive, minBoundary, maxBoundary }: PriceChartProps) {
+function PriceChart({ data, isPositive, minBoundary, maxBoundary, onScrub }: PriceChartProps) {
+  // State for scrubber position
+  const [scrubX, setScrubX] = useState<number | null>(null);
+  const [scrubY, setScrubY] = useState<number | null>(null);
+
   // Memoize chart calculations to prevent re-renders
   // IMPORTANT: Hook must be called before any conditional returns
   const chartPaths = useMemo(() => {
@@ -107,9 +113,78 @@ function PriceChart({ data, isPositive, minBoundary, maxBoundary }: PriceChartPr
       linePath: generatePath(),
       areaPath: generateAreaPath(),
       chartWidth,
-      chartHeight
+      chartHeight,
+      prices,
+      padding,
+      drawWidth,
+      drawHeight,
+      minPrice,
+      maxPrice,
+      priceRange
     };
   }, [data, minBoundary, maxBoundary]);
+
+  // Calculate price and Y position from X position
+  const getPriceAtX = useCallback((x: number) => {
+    if (!chartPaths || !data || data.length === 0) return { price: null, y: null, timestamp: null };
+
+    const { padding, drawWidth, prices, minPrice, maxPrice, priceRange, drawHeight } = chartPaths;
+
+    // Clamp x to chart bounds
+    const clampedX = Math.max(padding.left, Math.min(x, padding.left + drawWidth));
+
+    // Calculate which data point we're closest to
+    const ratio = (clampedX - padding.left) / drawWidth;
+    const index = Math.round(ratio * (prices.length - 1));
+    const clampedIndex = Math.max(0, Math.min(index, prices.length - 1));
+
+    const price = prices[clampedIndex];
+    const timestamp = data[clampedIndex][0];
+
+    // Calculate Y position for the dot
+    const y = padding.top + ((maxPrice - price) / priceRange) * drawHeight;
+
+    return { price, y, timestamp };
+  }, [chartPaths, data]);
+
+  // Handle touch/pan events
+  const handleScrubStart = useCallback((x: number) => {
+    const { price, y, timestamp } = getPriceAtX(x);
+    setScrubX(x);
+    setScrubY(y);
+    if (onScrub) onScrub(price, timestamp);
+  }, [getPriceAtX, onScrub]);
+
+  const handleScrubMove = useCallback((x: number) => {
+    const { price, y, timestamp } = getPriceAtX(x);
+    setScrubX(x);
+    setScrubY(y);
+    if (onScrub) onScrub(price, timestamp);
+  }, [getPriceAtX, onScrub]);
+
+  const handleScrubEnd = useCallback(() => {
+    setScrubX(null);
+    setScrubY(null);
+    if (onScrub) onScrub(null, null);
+  }, [onScrub]);
+
+  // Create pan responder for gesture handling
+  const panResponder = useMemo(() => PanResponder.create({
+    onStartShouldSetPanResponder: () => true,
+    onMoveShouldSetPanResponder: () => true,
+    onPanResponderGrant: (evt: GestureResponderEvent) => {
+      handleScrubStart(evt.nativeEvent.locationX);
+    },
+    onPanResponderMove: (evt: GestureResponderEvent) => {
+      handleScrubMove(evt.nativeEvent.locationX);
+    },
+    onPanResponderRelease: () => {
+      handleScrubEnd();
+    },
+    onPanResponderTerminate: () => {
+      handleScrubEnd();
+    },
+  }), [handleScrubStart, handleScrubMove, handleScrubEnd]);
 
   const strokeColor = isPositive ? COLORS.SUCCESS_GREEN : COLORS.RED;
 
@@ -123,7 +198,7 @@ function PriceChart({ data, isPositive, minBoundary, maxBoundary }: PriceChartPr
   }
 
   return (
-    <View style={styles.container}>
+    <View style={styles.container} {...panResponder.panHandlers}>
       <Svg width={chartPaths.chartWidth} height={chartPaths.chartHeight}>
         <Defs>
           <LinearGradient id="chartGradient" x1="0%" y1="0%" x2="0%" y2="100%">
@@ -149,6 +224,35 @@ function PriceChart({ data, isPositive, minBoundary, maxBoundary }: PriceChartPr
             strokeLinecap="round"
             strokeLinejoin="round"
           />
+
+          {/* Scrubber line and dot */}
+          {scrubX !== null && scrubY !== null && (
+            <>
+              {/* Vertical line */}
+              <Line
+                x1={scrubX}
+                y1={chartPaths.padding.top}
+                x2={scrubX}
+                y2={chartPaths.chartHeight}
+                stroke={strokeColor}
+                strokeWidth={1}
+                strokeDasharray="4,4"
+              />
+              {/* Dot on the line */}
+              <Circle
+                cx={scrubX}
+                cy={scrubY}
+                r={6}
+                fill={strokeColor}
+              />
+              <Circle
+                cx={scrubX}
+                cy={scrubY}
+                r={3}
+                fill={COLORS.WHITE}
+              />
+            </>
+          )}
         </G>
       </Svg>
     </View>
@@ -157,12 +261,13 @@ function PriceChart({ data, isPositive, minBoundary, maxBoundary }: PriceChartPr
 
 // Custom comparison function for React.memo
 const arePropsEqual = (prevProps: PriceChartProps, nextProps: PriceChartProps) => {
-  // Only re-render if data array reference, isPositive, or boundaries actually change
+  // Only re-render if data array reference, isPositive, boundaries, or onScrub actually change
   return (
     prevProps.data === nextProps.data &&
     prevProps.isPositive === nextProps.isPositive &&
     prevProps.minBoundary === nextProps.minBoundary &&
-    prevProps.maxBoundary === nextProps.maxBoundary
+    prevProps.maxBoundary === nextProps.maxBoundary &&
+    prevProps.onScrub === nextProps.onScrub
   );
 };
 
