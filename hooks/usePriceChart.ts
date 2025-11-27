@@ -4,7 +4,7 @@
  * Extracted from AssetDetailScreen for better separation of concerns
  */
 
-import { useState, useCallback, useEffect, Dispatch, SetStateAction } from 'react';
+import { useState, useEffect, Dispatch, SetStateAction } from 'react';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { API, API_KEYS } from '../utils/constants';
 
@@ -89,20 +89,23 @@ const calculatePriceDirection = (prices: PricePoint[]): PriceDirection => {
  * Hook to manage BTC price chart data
  */
 export function usePriceChart(assetType: string, selectedTimeframe: Timeframe): UsePriceChartReturn {
-  // Initialize with cached data if available (synchronous)
-  const initCacheKey = `${CACHE_KEY_PREFIX}${selectedTimeframe}`;
-  const initCache = priceCache[initCacheKey];
-  const hasValidCache = initCache && (Date.now() - initCache.timestamp < CACHE_EXPIRY_MS);
-
-  const [priceData, setPriceData] = useState<PricePoint[] | null>(hasValidCache ? initCache.prices : null);
+  const [priceData, setPriceData] = useState<PricePoint[] | null>(null);
   const [priceDirection, setPriceDirection] = useState<PriceDirection>(
-    hasValidCache ? initCache.direction : { isPositive: true, percentChange: '0', dollarChange: '0' }
+    { isPositive: true, percentChange: '0', dollarChange: '0' }
   );
-  const [priceLoading, setPriceLoading] = useState(!hasValidCache && assetType === 'BTC');
+  const [priceLoading, setPriceLoading] = useState(assetType === 'BTC');
   const [priceError, setPriceError] = useState<string | null>(null);
 
-  const fetchPriceData = useCallback(async () => {
-    try {
+  // Fetch data when timeframe changes
+  useEffect(() => {
+    if (assetType !== 'BTC') {
+      setPriceLoading(false);
+      return;
+    }
+
+    let cancelled = false;
+
+    const fetchPriceData = async () => {
       const days = selectedTimeframe === '1D' ? 1 :
                    selectedTimeframe === '1W' ? 7 :
                    selectedTimeframe === '1M' ? 30 : 365;
@@ -114,10 +117,12 @@ export function usePriceChart(assetType: string, selectedTimeframe: Timeframe): 
       // Check in-memory cache first
       if (priceCache[cacheKey]) {
         const { prices, direction, timestamp } = priceCache[cacheKey];
-        setPriceData(prices);
-        setPriceDirection(direction);
-        setPriceLoading(false);
-        setPriceError(null);
+        if (!cancelled) {
+          setPriceData(prices);
+          setPriceDirection(direction);
+          setPriceLoading(false);
+          setPriceError(null);
+        }
         hasShownCache = true;
 
         // If cache is fresh, we're done - no need to fetch
@@ -131,7 +136,7 @@ export function usePriceChart(assetType: string, selectedTimeframe: Timeframe): 
       if (!hasShownCache) {
         try {
           const cachedData = await AsyncStorage.getItem(cacheKey);
-          if (cachedData) {
+          if (cachedData && !cancelled) {
             const { prices, timestamp } = JSON.parse(cachedData);
             const direction = calculatePriceDirection(prices);
 
@@ -159,90 +164,94 @@ export function usePriceChart(assetType: string, selectedTimeframe: Timeframe): 
       // Skip fetch if in rate limit backoff period
       const timeSinceRateLimit = Date.now() - lastRateLimitTime;
       if (lastRateLimitTime > 0 && timeSinceRateLimit < RATE_LIMIT_BACKOFF_MS) {
-        setPriceError(null);
+        if (!cancelled) setPriceError(null);
         return;
       }
 
       // STEP 3: Fetch fresh data in background (don't show loading if we have cache)
-      if (!hasShownCache) {
+      if (!hasShownCache && !cancelled) {
         setPriceLoading(true);
       }
 
-      const response = await fetch(
-        `${API.COINGECKO}/coins/bitcoin/market_chart?vs_currency=usd&days=${days}`,
-        {
-          headers: {
-            'accept': 'application/json',
-            'x-cg-demo-api-key': API_KEYS.COINGECKO
+      try {
+        const response = await fetch(
+          `${API.COINGECKO}/coins/bitcoin/market_chart?vs_currency=usd&days=${days}`,
+          {
+            headers: {
+              'accept': 'application/json',
+              'x-cg-demo-api-key': API_KEYS.COINGECKO
+            }
           }
-        }
-      );
+        );
 
-      if (response.status === 429) {
-        lastRateLimitTime = Date.now();
-        setPriceError(null); // Don't show error if we have cache
-        setPriceLoading(false);
-        return;
-      }
+        if (cancelled) return;
 
-      if (!response.ok) {
-        setPriceError(null); // Don't show error if we have cache
-        setPriceLoading(false);
-        return;
-      }
-
-      const data = await response.json();
-
-      if (data.prices && data.prices.length > 0) {
-        // Sample data to ~60 points
-        const sampledPrices = sampleData(data.prices, 60);
-
-        // Calculate price direction (using original data endpoints)
-        const direction = calculatePriceDirection(data.prices);
-
-        setPriceData(sampledPrices);
-        setPriceDirection(direction);
-
-        const timestamp = Date.now();
-
-        // Store in memory cache immediately (only if we have valid data)
-        if (sampledPrices) {
-          priceCache[cacheKey] = { prices: sampledPrices, timestamp, direction };
+        if (response.status === 429) {
+          lastRateLimitTime = Date.now();
+          setPriceError(null);
+          setPriceLoading(false);
+          return;
         }
 
-        // Cache to AsyncStorage (async, non-blocking)
-        AsyncStorage.setItem(
-          cacheKey,
-          JSON.stringify({
-            prices: sampledPrices,
-            timestamp
-          })
-        ).catch(() => {
-          // Silently fail cache write
-        });
-      } else {
-        // Invalid data but don't show error if we have cache
-        setPriceError(null);
-      }
-    } catch (error: unknown) {
-      // Only show error if we don't have any cached data for this timeframe
-      const cacheKey = `${CACHE_KEY_PREFIX}${selectedTimeframe}`;
-      if (!priceCache[cacheKey]) {
-        setPriceError((error instanceof Error ? error.message : String(error)) || 'Failed to load price data');
-      }
-    } finally {
-      setPriceLoading(false);
-    }
-  }, [selectedTimeframe]);
+        if (!response.ok) {
+          setPriceError(null);
+          setPriceLoading(false);
+          return;
+        }
 
-  // Always fetch (will show cache first, then update if needed)
-  useEffect(() => {
-    if (assetType === 'BTC') {
-      fetchPriceData();
-    } else {
-      setPriceLoading(false);
-    }
-  }, [assetType, selectedTimeframe, fetchPriceData]);
+        const data = await response.json();
+
+        if (cancelled) return;
+
+        if (data.prices && data.prices.length > 0) {
+          // Sample data to ~60 points
+          const sampledPrices = sampleData(data.prices, 60);
+
+          // Calculate price direction (using original data endpoints)
+          const direction = calculatePriceDirection(data.prices);
+
+          setPriceData(sampledPrices);
+          setPriceDirection(direction);
+
+          const timestamp = Date.now();
+
+          // Store in memory cache immediately (only if we have valid data)
+          if (sampledPrices) {
+            priceCache[cacheKey] = { prices: sampledPrices, timestamp, direction };
+          }
+
+          // Cache to AsyncStorage (async, non-blocking)
+          AsyncStorage.setItem(
+            cacheKey,
+            JSON.stringify({
+              prices: sampledPrices,
+              timestamp
+            })
+          ).catch(() => {
+            // Silently fail cache write
+          });
+        } else {
+          setPriceError(null);
+        }
+      } catch (error: unknown) {
+        if (cancelled) return;
+        // Only show error if we don't have any cached data for this timeframe
+        if (!priceCache[cacheKey]) {
+          setPriceError((error instanceof Error ? error.message : String(error)) || 'Failed to load price data');
+        }
+      } finally {
+        if (!cancelled) {
+          setPriceLoading(false);
+        }
+      }
+    };
+
+    fetchPriceData();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [assetType, selectedTimeframe]);
 
   return {
     priceData,
