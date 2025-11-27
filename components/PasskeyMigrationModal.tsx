@@ -48,9 +48,10 @@ export default function PasskeyMigrationModal({
 
       showToast('Passkey enabled! Your wallet is now backed up to iCloud.', 'success');
       onClose();
-    } catch (error: any) {
-      logger.error(error, { component: 'PasskeyMigrationModal', action: 'handleEnablePasskey' });
-      showToast(error?.message || 'Failed to enable passkey', 'error');
+    } catch (error: unknown) {
+      const err = error instanceof Error ? error : new Error(String(error));
+      logger.error(err, { component: 'PasskeyMigrationModal', action: 'handleEnablePasskey' });
+      showToast(err.message || 'Failed to enable passkey', 'error');
     } finally {
       setIsAdding(false);
     }

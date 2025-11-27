@@ -1,9 +1,7 @@
 // @ts-nocheck
 /**
  * Tests for useFuseEcash hook
- *
- * Note: This hook uses dynamic imports which are difficult to mock in Jest.
- * These tests focus on the basic state management and the initial alert flow.
+ * Covers fuse flow, polling, and error handling
  */
 
 import React from 'react';
@@ -25,6 +23,17 @@ jest.mock('react-native', () => ({
   Alert: {
     alert: jest.fn(),
   },
+}));
+
+// Mock service functions
+const mockRequestMelt = jest.fn();
+const mockCompleteMeltWithoutCleanup = jest.fn();
+const mockCleanupMeltProofs = jest.fn();
+
+jest.mock('../../services/cashu/cashuWalletService', () => ({
+  requestMelt: (...args) => mockRequestMelt(...args),
+  completeMeltWithoutCleanup: (...args) => mockCompleteMeltWithoutCleanup(...args),
+  cleanupMeltProofs: (...args) => mockCleanupMeltProofs(...args),
 }));
 
 // Helper to render hooks with props
@@ -50,28 +59,43 @@ function renderHookWithProps(props) {
   };
 }
 
+// Advance timers properly for async code
+async function flushPromisesAndTimers() {
+  // Flush microtask queue then advance timers
+  await Promise.resolve();
+  jest.advanceTimersByTime(0);
+}
+
 describe('useFuseEcash', () => {
   let mockProps;
 
   beforeEach(() => {
     jest.clearAllMocks();
+
     mockProps = {
       cashuBalance: 100.50,
       taprootAddress: 'tb1ptest12345',
       transactionHistory: [],
       fetchTransactionHistory: jest.fn().mockResolvedValue(),
     };
+
+    // Default mocks
+    mockRequestMelt.mockResolvedValue({ quoteId: 'quote123', total: 100 });
+    mockCompleteMeltWithoutCleanup.mockResolvedValue({
+      proofsToRemove: [],
+      changeProofs: [],
+    });
+    mockCleanupMeltProofs.mockResolvedValue(undefined);
   });
 
   it('should return handleFusePress function', () => {
     const { result } = renderHookWithProps(mockProps);
-
     expect(typeof result.current.handleFusePress).toBe('function');
   });
 
   it('should show alert when cashuBalance is 0', async () => {
-    mockProps.cashuBalance = 0;
-    const { result } = renderHookWithProps(mockProps);
+    const props = { ...mockProps, cashuBalance: 0 };
+    const { result } = renderHookWithProps(props);
 
     await act(async () => {
       await result.current.handleFusePress();
@@ -98,8 +122,8 @@ describe('useFuseEcash', () => {
   });
 
   it('should format balance with two decimal places', async () => {
-    mockProps.cashuBalance = 50.123456;
-    const { result } = renderHookWithProps(mockProps);
+    const props = { ...mockProps, cashuBalance: 50.123456 };
+    const { result } = renderHookWithProps(props);
 
     await act(async () => {
       await result.current.handleFusePress();
@@ -108,59 +132,6 @@ describe('useFuseEcash', () => {
     expect(Alert.alert).toHaveBeenCalledWith(
       'Fuse E-cash to UNIT?',
       'Convert all 50.12 eUNIT to on-chain UNIT?',
-      expect.any(Array)
-    );
-  });
-
-  it('should update when props change', () => {
-    const { result, rerender } = renderHookWithProps(mockProps);
-    const firstCallback = result.current.handleFusePress;
-
-    rerender({ ...mockProps, cashuBalance: 200 });
-
-    // Callback should be recreated due to dependency change
-    expect(result.current.handleFusePress).not.toBe(firstCallback);
-  });
-
-  it('should depend on cashuBalance', () => {
-    const { result, rerender } = renderHookWithProps(mockProps);
-    const firstCallback = result.current.handleFusePress;
-
-    // Same props - callback should be same
-    rerender(mockProps);
-    expect(result.current.handleFusePress).toBe(firstCallback);
-
-    // Different balance - callback should change
-    rerender({ ...mockProps, cashuBalance: 999 });
-    expect(result.current.handleFusePress).not.toBe(firstCallback);
-  });
-
-  it('should show alert with integer balance', async () => {
-    mockProps.cashuBalance = 100;
-    const { result } = renderHookWithProps(mockProps);
-
-    await act(async () => {
-      await result.current.handleFusePress();
-    });
-
-    expect(Alert.alert).toHaveBeenCalledWith(
-      'Fuse E-cash to UNIT?',
-      'Convert all 100.00 eUNIT to on-chain UNIT?',
-      expect.any(Array)
-    );
-  });
-
-  it('should show alert with small balance', async () => {
-    mockProps.cashuBalance = 0.01;
-    const { result } = renderHookWithProps(mockProps);
-
-    await act(async () => {
-      await result.current.handleFusePress();
-    });
-
-    expect(Alert.alert).toHaveBeenCalledWith(
-      'Fuse E-cash to UNIT?',
-      'Convert all 0.01 eUNIT to on-chain UNIT?',
       expect.any(Array)
     );
   });
@@ -187,5 +158,360 @@ describe('useFuseEcash', () => {
     expect(buttons[0].style).toBe('cancel');
     expect(buttons[1].text).toBe('Fuse');
     expect(typeof buttons[1].onPress).toBe('function');
+  });
+
+  describe('Fuse flow - error handling', () => {
+    it('should handle error during fuse', async () => {
+      mockRequestMelt.mockRejectedValue(new Error('Melt failed'));
+
+      const { result } = renderHookWithProps(mockProps);
+
+      await act(async () => {
+        await result.current.handleFusePress();
+      });
+
+      const fuseButton = Alert.alert.mock.calls[0][2][1];
+
+      await act(async () => {
+        await fuseButton.onPress();
+      });
+
+      expect(Alert.alert).toHaveBeenCalledWith('Error', 'Failed to fuse e-cash: Melt failed');
+    });
+
+    it('should handle non-Error exception during fuse', async () => {
+      mockRequestMelt.mockRejectedValue('String error');
+
+      const { result } = renderHookWithProps(mockProps);
+
+      await act(async () => {
+        await result.current.handleFusePress();
+      });
+
+      const fuseButton = Alert.alert.mock.calls[0][2][1];
+
+      await act(async () => {
+        await fuseButton.onPress();
+      });
+
+      expect(Alert.alert).toHaveBeenCalledWith('Error', 'Failed to fuse e-cash: String error');
+    });
+  });
+
+  describe('Fuse flow - with polling', () => {
+    beforeEach(() => {
+      jest.useFakeTimers({ legacyFakeTimers: true });
+    });
+
+    afterEach(() => {
+      jest.useRealTimers();
+    });
+
+    it('should request melt and complete melt on fuse button press', async () => {
+      const { result } = renderHookWithProps(mockProps);
+
+      await act(async () => {
+        await result.current.handleFusePress();
+      });
+
+      const fuseButton = Alert.alert.mock.calls[0][2][1];
+
+      // Start the fuse operation
+      let fusePromise;
+      await act(async () => {
+        fusePromise = fuseButton.onPress();
+      });
+
+      // Advance through all the polling timeouts
+      for (let i = 0; i < 35; i++) {
+        await act(async () => {
+          jest.advanceTimersByTime(2000);
+          await Promise.resolve();
+        });
+      }
+
+      await act(async () => {
+        await fusePromise;
+      });
+
+      expect(mockRequestMelt).toHaveBeenCalledWith('tb1ptest12345', 100.50);
+      expect(mockCompleteMeltWithoutCleanup).toHaveBeenCalledWith('quote123', 100);
+      expect(mockCleanupMeltProofs).toHaveBeenCalled();
+    });
+
+    it('should show processing alert after melt', async () => {
+      const { result } = renderHookWithProps(mockProps);
+
+      await act(async () => {
+        await result.current.handleFusePress();
+      });
+
+      const fuseButton = Alert.alert.mock.calls[0][2][1];
+
+      let fusePromise;
+      await act(async () => {
+        fusePromise = fuseButton.onPress();
+      });
+
+      for (let i = 0; i < 35; i++) {
+        await act(async () => {
+          jest.advanceTimersByTime(2000);
+          await Promise.resolve();
+        });
+      }
+
+      await act(async () => {
+        await fusePromise;
+      });
+
+      expect(Alert.alert).toHaveBeenCalledWith('Processing', 'Waiting for transaction to appear on-chain...');
+    });
+
+    it('should poll for transaction and show success when found with recent block_time', async () => {
+      const props = {
+        ...mockProps,
+        transactionHistory: [{
+          txid: 'tx123',
+          vout: [{ scriptpubkey_address: 'tb1ptest12345' }],
+          status: { block_time: Math.floor(Date.now() / 1000) - 60 },
+        }],
+      };
+      const { result } = renderHookWithProps(props);
+
+      await act(async () => {
+        await result.current.handleFusePress();
+      });
+
+      const fuseButton = Alert.alert.mock.calls[0][2][1];
+
+      let fusePromise;
+      await act(async () => {
+        fusePromise = fuseButton.onPress();
+      });
+
+      for (let i = 0; i < 5; i++) {
+        await act(async () => {
+          jest.advanceTimersByTime(2000);
+          await Promise.resolve();
+        });
+      }
+
+      await act(async () => {
+        await fusePromise;
+      });
+
+      expect(Alert.alert).toHaveBeenCalledWith('Success', 'E-cash successfully fused to on-chain UNIT!');
+    });
+
+    it('should find unconfirmed transaction (no block_time)', async () => {
+      const props = {
+        ...mockProps,
+        transactionHistory: [{
+          txid: 'tx123',
+          vout: [{ scriptpubkey_address: 'tb1ptest12345' }],
+          status: {},
+        }],
+      };
+      const { result } = renderHookWithProps(props);
+
+      await act(async () => {
+        await result.current.handleFusePress();
+      });
+
+      const fuseButton = Alert.alert.mock.calls[0][2][1];
+
+      let fusePromise;
+      await act(async () => {
+        fusePromise = fuseButton.onPress();
+      });
+
+      for (let i = 0; i < 5; i++) {
+        await act(async () => {
+          jest.advanceTimersByTime(2000);
+          await Promise.resolve();
+        });
+      }
+
+      await act(async () => {
+        await fusePromise;
+      });
+
+      expect(Alert.alert).toHaveBeenCalledWith('Success', 'E-cash successfully fused to on-chain UNIT!');
+    });
+
+    it('should show pending alert when transaction not found after polling', async () => {
+      const { result } = renderHookWithProps(mockProps);
+
+      await act(async () => {
+        await result.current.handleFusePress();
+      });
+
+      const fuseButton = Alert.alert.mock.calls[0][2][1];
+
+      let fusePromise;
+      await act(async () => {
+        fusePromise = fuseButton.onPress();
+      });
+
+      for (let i = 0; i < 35; i++) {
+        await act(async () => {
+          jest.advanceTimersByTime(2000);
+          await Promise.resolve();
+        });
+      }
+
+      await act(async () => {
+        await fusePromise;
+      });
+
+      expect(Alert.alert).toHaveBeenCalledWith(
+        'Pending',
+        'Melt completed successfully. Transaction will appear on-chain shortly.'
+      );
+    });
+
+    it('should skip old transactions (block_time > 120 seconds ago)', async () => {
+      const props = {
+        ...mockProps,
+        transactionHistory: [{
+          txid: 'tx123',
+          vout: [{ scriptpubkey_address: 'tb1ptest12345' }],
+          status: { block_time: Math.floor(Date.now() / 1000) - 300 },
+        }],
+      };
+      const { result } = renderHookWithProps(props);
+
+      await act(async () => {
+        await result.current.handleFusePress();
+      });
+
+      const fuseButton = Alert.alert.mock.calls[0][2][1];
+
+      let fusePromise;
+      await act(async () => {
+        fusePromise = fuseButton.onPress();
+      });
+
+      for (let i = 0; i < 35; i++) {
+        await act(async () => {
+          jest.advanceTimersByTime(2000);
+          await Promise.resolve();
+        });
+      }
+
+      await act(async () => {
+        await fusePromise;
+      });
+
+      expect(Alert.alert).toHaveBeenCalledWith(
+        'Pending',
+        'Melt completed successfully. Transaction will appear on-chain shortly.'
+      );
+    });
+
+    it('should skip transactions without matching address', async () => {
+      const props = {
+        ...mockProps,
+        transactionHistory: [{
+          txid: 'tx123',
+          vout: [{ scriptpubkey_address: 'tb1pother456' }],
+          status: { block_time: Math.floor(Date.now() / 1000) },
+        }],
+      };
+      const { result } = renderHookWithProps(props);
+
+      await act(async () => {
+        await result.current.handleFusePress();
+      });
+
+      const fuseButton = Alert.alert.mock.calls[0][2][1];
+
+      let fusePromise;
+      await act(async () => {
+        fusePromise = fuseButton.onPress();
+      });
+
+      for (let i = 0; i < 35; i++) {
+        await act(async () => {
+          jest.advanceTimersByTime(2000);
+          await Promise.resolve();
+        });
+      }
+
+      await act(async () => {
+        await fusePromise;
+      });
+
+      expect(Alert.alert).toHaveBeenCalledWith(
+        'Pending',
+        'Melt completed successfully. Transaction will appear on-chain shortly.'
+      );
+    });
+
+    it('should handle transaction without vout', async () => {
+      const props = {
+        ...mockProps,
+        transactionHistory: [{
+          txid: 'tx123',
+          status: { block_time: Math.floor(Date.now() / 1000) },
+        }],
+      };
+      const { result } = renderHookWithProps(props);
+
+      await act(async () => {
+        await result.current.handleFusePress();
+      });
+
+      const fuseButton = Alert.alert.mock.calls[0][2][1];
+
+      let fusePromise;
+      await act(async () => {
+        fusePromise = fuseButton.onPress();
+      });
+
+      for (let i = 0; i < 35; i++) {
+        await act(async () => {
+          jest.advanceTimersByTime(2000);
+          await Promise.resolve();
+        });
+      }
+
+      await act(async () => {
+        await fusePromise;
+      });
+
+      expect(Alert.alert).toHaveBeenCalledWith(
+        'Pending',
+        'Melt completed successfully. Transaction will appear on-chain shortly.'
+      );
+    });
+
+    it('should call fetchTransactionHistory during polling', async () => {
+      const { result } = renderHookWithProps(mockProps);
+
+      await act(async () => {
+        await result.current.handleFusePress();
+      });
+
+      const fuseButton = Alert.alert.mock.calls[0][2][1];
+
+      let fusePromise;
+      await act(async () => {
+        fusePromise = fuseButton.onPress();
+      });
+
+      for (let i = 0; i < 35; i++) {
+        await act(async () => {
+          jest.advanceTimersByTime(2000);
+          await Promise.resolve();
+        });
+      }
+
+      await act(async () => {
+        await fusePromise;
+      });
+
+      expect(mockProps.fetchTransactionHistory).toHaveBeenCalled();
+    });
   });
 });

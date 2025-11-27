@@ -6,6 +6,7 @@
 import React from 'react';
 import { create, act } from 'react-test-renderer';
 import { UIProvider, useDisplayPreferences, useNotifications } from '../UIContext';
+import { resetDisplayPreferencesStore, resetNotificationStore } from '../../stores';
 
 // Helper to render hooks
 function renderHook(hook, { wrapper: Wrapper } = {}) {
@@ -27,6 +28,9 @@ describe('UIContext', () => {
   beforeEach(() => {
     jest.clearAllMocks();
     jest.useFakeTimers();
+    // Reset Zustand store state between tests
+    resetDisplayPreferencesStore();
+    resetNotificationStore();
   });
 
   afterEach(() => {

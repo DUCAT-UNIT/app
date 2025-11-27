@@ -315,6 +315,7 @@ describe('vaultService', () => {
       const result = await fetchVaultData(vaultPubkey);
 
       expect(result).toEqual({
+        vaultId: 'vault_1',
         vaultTag: 'My Vault',
         totalDebt: 1000,
         totalCollateral: 5000,
@@ -380,6 +381,173 @@ describe('vaultService', () => {
       const thirtyDaysInSeconds = 30 * 24 * 60 * 60;
       const timeDiff = requestBody.timestamp_end - requestBody.timestamp_start;
       expect(timeDiff).toBeCloseTo(thirtyDaysInSeconds, -2); // Allow some variance
+    });
+
+    it('should handle multiple vaults and use the first one', async () => {
+      const vaultPubkey = 'vault_pubkey_123';
+
+      const vaultListResponse = {
+        vaults: [
+          {
+            vault_id: 'vault_1',
+            vault_tag: 'First Vault',
+            unit_borrowed: 1000,
+            btc_locked: 5000,
+          },
+          {
+            vault_id: 'vault_2',
+            vault_tag: 'Second Vault',
+            unit_borrowed: 2000,
+            btc_locked: 10000,
+          },
+          {
+            vault_id: 'vault_3',
+            vault_tag: 'Third Vault',
+            unit_borrowed: 3000,
+            btc_locked: 15000,
+          },
+        ],
+        current_price: 50000,
+      };
+
+      (global as any).fetch
+        .mockResolvedValueOnce({
+          json: async () => vaultListResponse,
+        })
+        .mockResolvedValueOnce({
+          json: async () => ({ history: [] }),
+        });
+
+      const result = await fetchVaultData(vaultPubkey);
+
+      // Should use first vault's data, not totals
+      expect(result).toEqual({
+        vaultId: 'vault_1',
+        vaultTag: 'First Vault',
+        totalDebt: 1000,
+        totalCollateral: 5000,
+        currentPrice: 50000,
+      });
+
+      // Should query history for first vault ID
+      const historyCall = (global as any).fetch.mock.calls[1];
+      const requestBody = JSON.parse(historyCall[1].body);
+      expect(requestBody.vault_id).toBe('vault_1');
+    });
+
+    it('should log debug messages for multiple vaults', async () => {
+      const vaultPubkey = 'vault_pubkey_123';
+
+      const mockLogger = {
+        debug: jest.fn(),
+        error: jest.fn(),
+      };
+      jest.spyOn(console, 'log').mockImplementation();
+
+      const vaultListResponse = {
+        vaults: [
+          { vault_id: 'vault_1', vault_tag: 'Vault 1', unit_borrowed: 100, btc_locked: 500 },
+          { vault_id: 'vault_2', vault_tag: 'Vault 2', unit_borrowed: 200, btc_locked: 1000 },
+        ],
+        current_price: 50000,
+      };
+
+      (global as any).fetch
+        .mockResolvedValueOnce({
+          json: async () => vaultListResponse,
+        })
+        .mockResolvedValueOnce({
+          json: async () => ({ history: [] }),
+        });
+
+      await fetchVaultData(vaultPubkey);
+
+      // Should have used first vault
+      expect((global as any).fetch.mock.calls[1][1].body).toContain('vault_1');
+    });
+
+    it('should handle single vault without logging multiple vaults warning', async () => {
+      const vaultPubkey = 'vault_pubkey_123';
+
+      const vaultListResponse = {
+        vaults: [
+          {
+            vault_id: 'vault_1',
+            vault_tag: 'Only Vault',
+            unit_borrowed: 1000,
+            btc_locked: 5000,
+          },
+        ],
+        current_price: 50000,
+      };
+
+      (global as any).fetch
+        .mockResolvedValueOnce({
+          json: async () => vaultListResponse,
+        })
+        .mockResolvedValueOnce({
+          json: async () => ({ history: [] }),
+        });
+
+      const result = await fetchVaultData(vaultPubkey);
+
+      expect(result).toEqual({
+        vaultId: 'vault_1',
+        vaultTag: 'Only Vault',
+        totalDebt: 1000,
+        totalCollateral: 5000,
+        currentPrice: 50000,
+      });
+    });
+
+    it('should use first vault data in latestTransaction', async () => {
+      const vaultPubkey = 'vault_pubkey_123';
+
+      const vaultListResponse = {
+        vaults: [
+          {
+            vault_id: 'vault_1',
+            vault_tag: 'First Vault',
+            unit_borrowed: 1000,
+            btc_locked: 5000,
+          },
+          {
+            vault_id: 'vault_2',
+            vault_tag: 'Second Vault',
+            unit_borrowed: 2000,
+            btc_locked: 10000,
+          },
+        ],
+        current_price: 50000,
+      };
+
+      const historyResponse = {
+        history: [
+          {
+            amount_borrowed: 100,
+            vault_amount: 1000,
+            btc_amt: 0.5,
+            unit_amt: 500,
+            oracle_price: 50000,
+            timestamp: 1000,
+            action: 'deposit',
+          },
+        ],
+      };
+
+      (global as any).fetch
+        .mockResolvedValueOnce({
+          json: async () => vaultListResponse,
+        })
+        .mockResolvedValueOnce({
+          json: async () => historyResponse,
+        });
+
+      const result = await fetchVaultData(vaultPubkey);
+
+      // Should use first vault's data, not sum of all vaults
+      expect(result?.totalDebt).toBe(1000);
+      expect(result?.totalCollateral).toBe(5000);
     });
   });
 });

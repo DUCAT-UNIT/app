@@ -1,44 +1,137 @@
-import React, { useEffect, useRef } from 'react';
-import { Animated, Text, StyleSheet, View } from 'react-native';
-import { COLORS } from '../theme';
+/**
+ * Snackbar Component
+ * Top-aligned notification banner matching frontend-app snackbar styling
+ */
 
-interface SnackbarProps {
-  visible: boolean;
-  message: string;
-  duration?: number;
+import React, { useEffect } from 'react';
+import { View, Text, StyleSheet, TouchableOpacity, Animated } from 'react-native';
+import { Feather } from '@expo/vector-icons';
+import { COLORS } from '../theme';
+import { logger } from '../utils/logger';
+import type { SnackbarParams, SnackbarType } from '../types/notification';
+
+const ACTION_LABELS: Record<string, string> = {
+  deposit: 'BTC Deposit',
+  withdraw: 'BTC Withdraw',
+  borrow: 'UNIT Borrow',
+  repay: 'UNIT Repay',
+  create: 'Vault Create',
+  faucet: 'Testnet Coins',
+  swap: 'TurboUNIT Swap',
+  claim: 'UNIT Claim',
+  liquidation: 'Vault Liquidation',
+  repossess: 'Liquidation Claim',
+  conversion_turbo: 'Conversion to Turbo Unit',
+  convert: 'TurboUNIT Conversion',
+};
+
+interface IconInfo {
+  name: keyof typeof Feather.glyphMap;
+  color: string;
 }
 
-export default function Snackbar({ visible, message, duration = 3000 }: SnackbarProps) {
-  const translateY = useRef(new Animated.Value(100)).current;
-  const hasAnimated = useRef(false);
+const getSnackbarIcon = (type: SnackbarType): IconInfo => {
+  switch (type) {
+    case 'success':
+    case 'submitted':
+      return { name: 'check-circle', color: COLORS.SUCCESS_GREEN };
+    case 'error':
+      return { name: 'alert-circle', color: COLORS.DANGER_RED };
+    case 'pending':
+    default:
+      return { name: 'loader', color: COLORS.PRIMARY_BLUE };
+  }
+};
+
+const computeTitle = (type: SnackbarType, label: string): string => {
+  switch (type) {
+    case 'pending':
+      return `${label} in progress...`;
+    case 'submitted':
+      return `${label} submitted`;
+    case 'success':
+      return `${label} completed successfully`;
+    case 'error':
+      return `${label} failed`;
+    default:
+      return label;
+  }
+};
+
+interface SnackbarProps {
+  params: SnackbarParams;
+  onClose: () => void;
+}
+
+export default function Snackbar({ params, onClose }: SnackbarProps) {
+  logger.debug('🎯 Snackbar rendering with params:', params);
+  const slideAnim = React.useRef(new Animated.Value(-200)).current;
 
   useEffect(() => {
-    if (visible) {
-      hasAnimated.current = false;
-      Animated.sequence([
-        Animated.timing(translateY, {
-          toValue: 0,
-          duration: 300,
-          useNativeDriver: true,
-        }),
-        Animated.delay(duration),
-        Animated.timing(translateY, {
-          toValue: 100,
-          duration: 300,
-          useNativeDriver: true,
-        }),
-      ]).start(() => {
-        hasAnimated.current = true;
-      });
-    }
-  }, [visible, duration, translateY]);
+    logger.debug('🎯 Snackbar mounted, starting animation');
 
-  if (!visible && hasAnimated.current) return null;
+    // Slide in animation
+    Animated.spring(slideAnim, {
+      toValue: 0,
+      useNativeDriver: true,
+      tension: 65,
+      friction: 10,
+    }).start();
+
+    // Note: Auto-dismiss is handled by NotificationContext (7 seconds for all types)
+    // No need for component-level timeout
+  }, [slideAnim]);
+
+  const handleClose = () => {
+    Animated.timing(slideAnim, {
+      toValue: -200,
+      duration: 300,
+      useNativeDriver: true,
+    }).start(() => {
+      onClose();
+    });
+  };
+
+  const { type = 'pending', action, message: overrideTitle, description, txid, onPress } = params;
+  const label = action ? (ACTION_LABELS[action] || 'Transaction') : 'Transaction';
+  const title = overrideTitle || computeTitle(type, label);
+  const icon = getSnackbarIcon(type);
 
   return (
-    <Animated.View style={[styles.container, { transform: [{ translateY }] }]}>
-      <View style={styles.snackbar}>
-        <Text style={styles.message}>{message}</Text>
+    <Animated.View
+      style={[
+        styles.container,
+        {
+          transform: [{ translateY: slideAnim }],
+        },
+      ]}
+    >
+      <View style={styles.content}>
+        <View style={styles.iconContainer}>
+          <Feather name={icon.name} size={24} color={icon.color} />
+        </View>
+
+        <View style={styles.textContainer}>
+          <Text style={styles.title}>{title}</Text>
+          {description && <Text style={styles.description}>{description}</Text>}
+
+          {(txid || onPress) && (
+            <View style={styles.actionsContainer}>
+              {onPress && (
+                <TouchableOpacity onPress={onPress} style={styles.linkButton}>
+                  <Feather name="external-link" size={16} color={COLORS.PRIMARY_BLUE} />
+                  <Text style={styles.linkText}>
+                    View {type === 'pending' ? 'Progress' : 'Details'}
+                  </Text>
+                </TouchableOpacity>
+              )}
+            </View>
+          )}
+        </View>
+
+        <TouchableOpacity onPress={handleClose} style={styles.closeButton} hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}>
+          <Feather name="x" size={24} color={COLORS.LIGHT_GRAY} />
+        </TouchableOpacity>
       </View>
     </Animated.View>
   );
@@ -47,24 +140,66 @@ export default function Snackbar({ visible, message, duration = 3000 }: Snackbar
 const styles = StyleSheet.create({
   container: {
     position: 'absolute',
-    bottom: 20,
-    left: 20,
-    right: 20,
-    zIndex: 1000,
-  },
-  snackbar: {
-    backgroundColor: COLORS.DARK_GRAY,
-    borderRadius: 8,
+    top: 60,
+    left: 10,
+    right: 10,
+    zIndex: 100,
+    backgroundColor: COLORS.DARK_CARD_BG,
+    borderRadius: 12,
     padding: 16,
+    // Enhanced shadow for floating effect
     shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.25,
-    shadowRadius: 4,
-    elevation: 5,
+    shadowOffset: {
+      width: 0,
+      height: 8,
+    },
+    shadowOpacity: 0.5,
+    shadowRadius: 16,
+    elevation: 12,
   },
-  message: {
+  content: {
+    flexDirection: 'row',
+    gap: 12,
+  },
+  iconContainer: {
+    alignItems: 'center',
+    justifyContent: 'flex-start',
+    paddingTop: 2,
+  },
+  textContainer: {
+    flex: 1,
+    gap: 8,
+  },
+  title: {
+    fontSize: 18,
+    fontFamily: 'CabinetGrotesk-Bold',
     color: COLORS.WHITE,
+    lineHeight: 24,
+  },
+  description: {
     fontSize: 14,
-    fontWeight: '500',
+    fontFamily: 'CabinetGrotesk-Regular',
+    color: COLORS.LIGHT_GRAY,
+    lineHeight: 20,
+  },
+  actionsContainer: {
+    flexDirection: 'column',
+    gap: 8,
+    marginTop: 4,
+  },
+  linkButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+  },
+  linkText: {
+    fontSize: 14,
+    fontFamily: 'CabinetGrotesk-Regular',
+    color: COLORS.PRIMARY_BLUE,
+  },
+  closeButton: {
+    alignItems: 'center',
+    justifyContent: 'flex-start',
+    paddingTop: 2,
   },
 });

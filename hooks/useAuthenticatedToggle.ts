@@ -99,7 +99,7 @@ export function useAuthenticatedToggle(config: AuthenticatedToggleConfig): Authe
             SettingsService.SettingKeys.RETURN_TO_SETTINGS_AFTER_AUTH,
             true
           );
-        } catch (error) {
+        } catch (error: unknown) {
           if (showToast) {
             showToast(
               `Authentication required to ${newValue ? 'enable' : 'disable'} ${settingName}`,
@@ -132,7 +132,7 @@ export function useAuthenticatedToggle(config: AuthenticatedToggleConfig): Authe
       if (showToast) {
         showToast(`${settingName} ${newValue ? 'enabled' : 'disabled'}`, 'success');
       }
-    } catch (error) {
+    } catch (error: unknown) {
       if (showToast) {
         showToast(`Failed to update ${settingName}`, 'error');
       }

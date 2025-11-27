@@ -1,11 +1,7 @@
 // @ts-nocheck
 /**
  * Tests for useQRCodeHandler hook
- *
- * Note: This hook uses dynamic imports (await import(...)) which are difficult
- * to mock in Jest without --experimental-vm-modules. Tests cover the entry points
- * and non-dynamic-import code paths. Lines involving dynamic imports have limited
- * coverage due to this Jest limitation.
+ * Covers QR code scanning for Bitcoin addresses, Cashu tokens, JSON tokens, and Turbo URLs
  */
 
 import React from 'react';
@@ -35,6 +31,31 @@ jest.mock('@react-navigation/native', () => ({
   useNavigation: () => ({
     navigate: mockNavigate,
   }),
+}));
+
+const mockDigestStringAsync = jest.fn();
+jest.mock('expo-crypto', () => ({
+  digestStringAsync: (...args) => mockDigestStringAsync(...args),
+  CryptoDigestAlgorithm: {
+    SHA256: 'SHA-256',
+  },
+}));
+
+const mockHasP2PKProofs = jest.fn();
+jest.mock('../../services/cashu/p2pk', () => ({
+  hasP2PKProofs: (...args) => mockHasP2PKProofs(...args),
+}));
+
+const mockDecodeToken = jest.fn();
+const mockEncodeToken = jest.fn();
+jest.mock('../../services/cashu/crypto', () => ({
+  decodeToken: (...args) => mockDecodeToken(...args),
+  encodeToken: (...args) => mockEncodeToken(...args),
+}));
+
+const mockCheckProofsSpent = jest.fn();
+jest.mock('../../services/cashu/cashuMintClient', () => ({
+  checkProofsSpent: (...args) => mockCheckProofsSpent(...args),
 }));
 
 // Mock atob for base64 decoding
@@ -76,12 +97,30 @@ describe('useQRCodeHandler', () => {
       return 1;
     });
 
+    // Clear global state
+    global.processedCashuTokens = undefined;
+    global.pendingCashuToken = undefined;
+    global.triggerPendingTokenCheck = undefined;
+
     mockProps = {
       receiveCashuToken: jest.fn().mockResolvedValue({ amount: 100 }),
       showToast: jest.fn(),
       showSnackbar: jest.fn(),
       setShowQRScanner: jest.fn(),
     };
+
+    // Default mocks
+    mockHasP2PKProofs.mockReturnValue(false);
+    mockDigestStringAsync.mockResolvedValue('mockhash123');
+    mockDecodeToken.mockReturnValue({
+      proofs: [{ id: 'proof1', amount: 100, secret: 'secret', C: 'C' }],
+      amount: 100,
+      mint: 'https://mint.example.com',
+    });
+    mockEncodeToken.mockReturnValue('cashuAencodedtoken');
+    mockCheckProofsSpent.mockResolvedValue({
+      states: [{ state: 'UNSPENT' }],
+    });
   });
 
   afterEach(() => {
@@ -158,107 +197,416 @@ describe('useQRCodeHandler', () => {
     });
   });
 
-  describe('Cashu tokens', () => {
-    // Note: Cashu token processing uses dynamic imports which can't be mocked
-    // without --experimental-vm-modules. Tests verify entry into the code path.
+  describe('Cashu tokens - P2PK (Turbo)', () => {
+    beforeEach(() => {
+      mockHasP2PKProofs.mockReturnValue(true);
+    });
 
-    it('should identify cashu token format', async () => {
+    it('should handle P2PK token and set pending token globally', async () => {
       const { result } = renderHookWithProps(mockProps);
 
       await act(async () => {
-        try {
-          await result.current('cashuAtesttoken');
-        } catch {
-          // Dynamic import may fail in test environment
-        }
+        await result.current('cashuAtestP2PKtoken');
       });
 
-      // Should not trigger Bitcoin address handling
-      expect(mockNavigate).not.toHaveBeenCalledWith('SendFlow', {
-        screen: 'AddressInput',
-        params: expect.any(Object),
+      expect(global.pendingCashuToken).toBe('cashuAtestP2PKtoken');
+      expect(mockProps.setShowQRScanner).toHaveBeenCalledWith(false);
+    });
+
+    it('should trigger pending token check if function is available', async () => {
+      jest.useFakeTimers({ legacyFakeTimers: true });
+      const mockTriggerCheck = jest.fn();
+      global.triggerPendingTokenCheck = mockTriggerCheck;
+
+      const { result } = renderHookWithProps(mockProps);
+
+      await act(async () => {
+        await result.current('cashuAtestP2PKtoken');
+      });
+
+      await act(async () => {
+        jest.advanceTimersByTime(100);
+      });
+
+      expect(mockTriggerCheck).toHaveBeenCalled();
+      jest.useRealTimers();
+    });
+
+    it('should show error snackbar for already processed token', async () => {
+      global.processedCashuTokens = new Set(['mockhash123']);
+
+      const { result } = renderHookWithProps(mockProps);
+
+      await act(async () => {
+        await result.current('cashuAtestP2PKtoken');
+      });
+
+      expect(mockProps.showSnackbar).toHaveBeenCalledWith({
+        type: 'error',
+        action: 'swap',
+        description: 'Token already claimed',
+      });
+      expect(mockProps.setShowQRScanner).toHaveBeenCalledWith(false);
+    });
+
+    it('should process new P2PK token when not already processed', async () => {
+      global.processedCashuTokens = new Set(['differenthash']);
+
+      const { result } = renderHookWithProps(mockProps);
+
+      await act(async () => {
+        await result.current('cashuAtestP2PKtoken');
+      });
+
+      expect(global.pendingCashuToken).toBe('cashuAtestP2PKtoken');
+    });
+  });
+
+  describe('Cashu tokens - Regular', () => {
+    beforeEach(() => {
+      mockHasP2PKProofs.mockReturnValue(false);
+    });
+
+    it('should claim token when all proofs are unspent', async () => {
+      const { result } = renderHookWithProps(mockProps);
+
+      await act(async () => {
+        await result.current('cashuAtesttoken');
+      });
+
+      expect(mockProps.showToast).toHaveBeenCalledWith('Checking token...', 'info');
+      expect(mockProps.showToast).toHaveBeenCalledWith('Claiming token...', 'info');
+      expect(mockProps.receiveCashuToken).toHaveBeenCalledWith('cashuAtesttoken');
+      expect(mockProps.showSnackbar).toHaveBeenCalledWith({
+        type: 'success',
+        action: 'claim',
+        description: 'Successfully claimed 100 UNIT',
       });
     });
 
-    it('should not show unknown format for cashu tokens', async () => {
+    it('should show error when all proofs are spent', async () => {
+      mockCheckProofsSpent.mockResolvedValue({
+        states: [{ state: 'SPENT' }],
+      });
+
       const { result } = renderHookWithProps(mockProps);
 
       await act(async () => {
-        try {
-          await result.current('cashuBtesttoken');
-        } catch {
-          // Dynamic import may fail
-        }
+        await result.current('cashuAtesttoken');
       });
 
-      // Should enter cashu handling path, not unknown format
-      // The showToast for unknown format should not be called first
-      const unknownFormatCalls = mockProps.showToast.mock.calls.filter(
-        call => call[0] === 'Unknown QR code format'
+      expect(mockProps.showSnackbar).toHaveBeenCalledWith({
+        type: 'error',
+        action: 'swap',
+        description: 'All proofs in this token have been spent',
+      });
+    });
+
+    it('should show partial token alert when some proofs are spent', async () => {
+      mockDecodeToken.mockReturnValue({
+        proofs: [
+          { id: 'proof1', amount: 50, secret: 'secret1', C: 'C1' },
+          { id: 'proof2', amount: 50, secret: 'secret2', C: 'C2' },
+        ],
+        amount: 100,
+        mint: 'https://mint.example.com',
+      });
+      mockCheckProofsSpent.mockResolvedValue({
+        states: [{ state: 'SPENT' }, { state: 'UNSPENT' }],
+      });
+
+      const { result } = renderHookWithProps(mockProps);
+
+      await act(async () => {
+        await result.current('cashuAtesttoken');
+      });
+
+      expect(Alert.alert).toHaveBeenCalledWith(
+        'Partial Token',
+        expect.stringContaining('This token has 2 proofs'),
+        expect.arrayContaining([
+          expect.objectContaining({ text: 'Cancel', style: 'cancel' }),
+          expect.objectContaining({ text: 'Claim' }),
+        ])
       );
-      expect(unknownFormatCalls.length).toBe(0);
+    });
+
+    it('should claim unspent proofs when user confirms partial claim', async () => {
+      mockDecodeToken.mockReturnValue({
+        proofs: [
+          { id: 'proof1', amount: 50, secret: 'secret1', C: 'C1' },
+          { id: 'proof2', amount: 50, secret: 'secret2', C: 'C2' },
+        ],
+        amount: 100,
+        mint: 'https://mint.example.com',
+      });
+      mockCheckProofsSpent.mockResolvedValue({
+        states: [{ state: 'SPENT' }, { state: 'UNSPENT' }],
+      });
+      mockEncodeToken.mockReturnValue('cashuAfiltered');
+
+      const { result } = renderHookWithProps(mockProps);
+
+      await act(async () => {
+        await result.current('cashuAtesttoken');
+      });
+
+      // Get the Claim button callback
+      const alertCall = Alert.alert.mock.calls[0];
+      const claimButton = alertCall[2][1];
+
+      await act(async () => {
+        await claimButton.onPress();
+      });
+
+      expect(mockProps.showToast).toHaveBeenCalledWith('Claiming unspent proofs...', 'info');
+      expect(mockEncodeToken).toHaveBeenCalled();
+      expect(mockProps.receiveCashuToken).toHaveBeenCalledWith('cashuAfiltered');
+      expect(mockProps.showSnackbar).toHaveBeenCalledWith({
+        type: 'success',
+        action: 'claim',
+        description: 'Successfully claimed 100 UNIT',
+      });
+    });
+
+    it('should handle error during partial claim', async () => {
+      mockDecodeToken.mockReturnValue({
+        proofs: [
+          { id: 'proof1', amount: 50, secret: 'secret1', C: 'C1' },
+          { id: 'proof2', amount: 50, secret: 'secret2', C: 'C2' },
+        ],
+        amount: 100,
+        mint: 'https://mint.example.com',
+      });
+      mockCheckProofsSpent.mockResolvedValue({
+        states: [{ state: 'SPENT' }, { state: 'UNSPENT' }],
+      });
+      mockProps.receiveCashuToken.mockRejectedValue(new Error('Claim failed'));
+
+      const { result } = renderHookWithProps(mockProps);
+
+      await act(async () => {
+        await result.current('cashuAtesttoken');
+      });
+
+      const alertCall = Alert.alert.mock.calls[0];
+      const claimButton = alertCall[2][1];
+
+      await act(async () => {
+        await claimButton.onPress();
+      });
+
+      expect(mockProps.showSnackbar).toHaveBeenCalledWith({
+        type: 'error',
+        action: 'claim',
+        description: 'Failed to claim: Claim failed',
+      });
+    });
+
+    it('should handle non-Error exception during partial claim', async () => {
+      mockDecodeToken.mockReturnValue({
+        proofs: [
+          { id: 'proof1', amount: 50, secret: 'secret1', C: 'C1' },
+          { id: 'proof2', amount: 50, secret: 'secret2', C: 'C2' },
+        ],
+        amount: 100,
+        mint: 'https://mint.example.com',
+      });
+      mockCheckProofsSpent.mockResolvedValue({
+        states: [{ state: 'SPENT' }, { state: 'UNSPENT' }],
+      });
+      mockProps.receiveCashuToken.mockRejectedValue('String error');
+
+      const { result } = renderHookWithProps(mockProps);
+
+      await act(async () => {
+        await result.current('cashuAtesttoken');
+      });
+
+      const alertCall = Alert.alert.mock.calls[0];
+      const claimButton = alertCall[2][1];
+
+      await act(async () => {
+        await claimButton.onPress();
+      });
+
+      expect(mockProps.showSnackbar).toHaveBeenCalledWith({
+        type: 'error',
+        action: 'claim',
+        description: 'Failed to claim: String error',
+      });
+    });
+
+    it('should handle error during token check', async () => {
+      mockDecodeToken.mockImplementation(() => {
+        throw new Error('Decode failed');
+      });
+
+      const { result } = renderHookWithProps(mockProps);
+
+      await act(async () => {
+        await result.current('cashuAtesttoken');
+      });
+
+      expect(mockProps.showSnackbar).toHaveBeenCalledWith({
+        type: 'error',
+        action: 'claim',
+        description: 'Failed to process token: Decode failed',
+      });
+    });
+
+    it('should handle non-Error exception during token check', async () => {
+      mockDecodeToken.mockImplementation(() => {
+        throw 'String decode error';
+      });
+
+      const { result } = renderHookWithProps(mockProps);
+
+      await act(async () => {
+        await result.current('cashuAtesttoken');
+      });
+
+      expect(mockProps.showSnackbar).toHaveBeenCalledWith({
+        type: 'error',
+        action: 'claim',
+        description: 'Failed to process token: String decode error',
+      });
     });
   });
 
   describe('JSON token formats', () => {
-    // Note: JSON token processing uses dynamic imports for encoding
-
-    it('should identify JSON object format starting with {', async () => {
+    it('should handle JSON object with token array', async () => {
       const { result } = renderHookWithProps(mockProps);
 
-      await act(async () => {
-        try {
-          await result.current('{"token":[]}');
-        } catch {
-          // Dynamic import may fail
-        }
+      const jsonToken = JSON.stringify({
+        token: [{
+          mint: 'https://mint.example.com',
+          proofs: [{ id: 'proof1', amount: 100, secret: 'secret', C: 'C' }],
+        }],
       });
 
-      // Should not show unknown format error immediately
-      const unknownCalls = mockProps.showToast.mock.calls.filter(
-        call => call[0] === 'Unknown QR code format'
-      );
-      expect(unknownCalls.length).toBe(0);
+      await act(async () => {
+        await result.current(jsonToken);
+      });
+
+      expect(mockEncodeToken).toHaveBeenCalled();
+      expect(mockProps.showToast).toHaveBeenCalledWith('Claiming token...', 'info');
+      expect(mockProps.receiveCashuToken).toHaveBeenCalledWith('cashuAencodedtoken');
+      expect(mockProps.showSnackbar).toHaveBeenCalledWith({
+        type: 'success',
+        action: 'claim',
+        description: 'Successfully claimed 100 UNIT',
+      });
     });
 
-    it('should identify JSON array format starting with [', async () => {
+    it('should show error for raw proofs array', async () => {
+      const { result } = renderHookWithProps(mockProps);
+
+      const rawProofs = JSON.stringify({
+        proofs: [{ id: 'proof1', amount: 100 }],
+      });
+
+      await act(async () => {
+        await result.current(rawProofs);
+      });
+
+      expect(mockProps.showSnackbar).toHaveBeenCalledWith({
+        type: 'error',
+        action: 'claim',
+        description: 'Invalid token format - raw proofs not supported',
+      });
+    });
+
+    it('should show error for array without token property', async () => {
       const { result } = renderHookWithProps(mockProps);
 
       await act(async () => {
-        try {
-          await result.current('[{"amount":100}]');
-        } catch {
-          // Dynamic import may fail
-        }
+        await result.current('[{"id":"proof1","amount":100}]');
       });
 
-      // Should enter JSON handling path
-      const unknownCalls = mockProps.showToast.mock.calls.filter(
-        call => call[0] === 'Unknown QR code format'
-      );
-      expect(unknownCalls.length).toBe(0);
+      expect(mockProps.showSnackbar).toHaveBeenCalledWith({
+        type: 'error',
+        action: 'claim',
+        description: 'Invalid token format - raw proofs not supported',
+      });
+    });
+
+    it('should show error for invalid JSON token format', async () => {
+      const { result } = renderHookWithProps(mockProps);
+
+      await act(async () => {
+        await result.current('{"other":"data"}');
+      });
+
+      expect(mockProps.showSnackbar).toHaveBeenCalledWith({
+        type: 'error',
+        action: 'claim',
+        description: 'Invalid JSON token format',
+      });
+    });
+
+    it('should handle JSON parse error', async () => {
+      const { result } = renderHookWithProps(mockProps);
+
+      await act(async () => {
+        await result.current('{invalid json}');
+      });
+
+      expect(mockProps.showSnackbar).toHaveBeenCalledWith({
+        type: 'error',
+        action: 'claim',
+        description: expect.stringContaining('Failed to claim token:'),
+      });
+    });
+
+    it('should handle error during JSON token claim', async () => {
+      mockProps.receiveCashuToken.mockRejectedValue(new Error('Claim failed'));
+
+      const { result } = renderHookWithProps(mockProps);
+
+      const jsonToken = JSON.stringify({
+        token: [{
+          mint: 'https://mint.example.com',
+          proofs: [{ id: 'proof1', amount: 100, secret: 'secret', C: 'C' }],
+        }],
+      });
+
+      await act(async () => {
+        await result.current(jsonToken);
+      });
+
+      expect(mockProps.showSnackbar).toHaveBeenCalledWith({
+        type: 'error',
+        action: 'claim',
+        description: 'Failed to claim token: Claim failed',
+      });
+    });
+
+    it('should handle non-Error exception during JSON token claim', async () => {
+      mockProps.receiveCashuToken.mockRejectedValue('String claim error');
+
+      const { result } = renderHookWithProps(mockProps);
+
+      const jsonToken = JSON.stringify({
+        token: [{
+          mint: 'https://mint.example.com',
+          proofs: [{ id: 'proof1', amount: 100, secret: 'secret', C: 'C' }],
+        }],
+      });
+
+      await act(async () => {
+        await result.current(jsonToken);
+      });
+
+      expect(mockProps.showSnackbar).toHaveBeenCalledWith({
+        type: 'error',
+        action: 'claim',
+        description: 'Failed to claim token: String claim error',
+      });
     });
   });
 
   describe('Turbo URL formats', () => {
-    it('should identify ducat://turbo/ URL format', async () => {
-      const { result } = renderHookWithProps(mockProps);
-
-      await act(async () => {
-        try {
-          await result.current('ducat://turbo/cashuAtokenhere');
-        } catch {
-          // May throw due to navigation
-        }
-      });
-
-      // Should navigate to TurboClaiming screen
-      expect(mockNavigate).toHaveBeenCalledWith('SendFlow', {
-        screen: 'TurboClaiming',
-        params: { tokenString: 'cashuAtokenhere' },
-      });
-    });
-
     it('should extract token from ducat://turbo/ URL', async () => {
       const { result } = renderHookWithProps(mockProps);
 
@@ -272,26 +620,7 @@ describe('useQRCodeHandler', () => {
       });
     });
 
-    it('should identify URL with unit? parameter', async () => {
-      const { result } = renderHookWithProps(mockProps);
-
-      await act(async () => {
-        try {
-          await result.current('https://example.com/unit?id=abc123');
-        } catch {
-          // Dynamic import may fail
-        }
-      });
-
-      // Should not show unknown format error
-      const unknownCalls = mockProps.showToast.mock.calls.filter(
-        call => call[0] === 'Unknown QR code format'
-      );
-      expect(unknownCalls.length).toBe(0);
-    });
-
     it('should handle URL with t parameter (base64 token)', async () => {
-      // Encode a simple string to URL-safe base64
       const base64Token = Buffer.from('testtoken').toString('base64')
         .replace(/\+/g, '-')
         .replace(/\//g, '_')
@@ -303,7 +632,6 @@ describe('useQRCodeHandler', () => {
         await result.current(`https://ducatprotocol.com/unit?t=${base64Token}`);
       });
 
-      // Should navigate with decoded token
       expect(mockNavigate).toHaveBeenCalledWith('SendFlow', {
         screen: 'TurboClaiming',
         params: { tokenString: 'testtoken' },
@@ -311,8 +639,8 @@ describe('useQRCodeHandler', () => {
     });
 
     it('should add padding to base64 tokens as needed', async () => {
-      // Create a token that needs padding (length not divisible by 4)
-      const token = 'abc'; // Will be YWJj in base64 (4 chars, no padding needed)
+      // Create token that needs 1 padding character
+      const token = 'ab';
       const base64Token = Buffer.from(token).toString('base64')
         .replace(/\+/g, '-')
         .replace(/\//g, '_')
@@ -326,19 +654,59 @@ describe('useQRCodeHandler', () => {
 
       expect(mockNavigate).toHaveBeenCalledWith('SendFlow', {
         screen: 'TurboClaiming',
-        params: { tokenString: 'abc' },
+        params: { tokenString: 'ab' },
       });
     });
 
     it('should show error when no token found in URL', async () => {
       const { result } = renderHookWithProps(mockProps);
 
-      // URL matches pattern but has no extractable token
       await act(async () => {
         await result.current('https://ducatprotocol.com/unit?other=param');
       });
 
       expect(mockProps.showToast).toHaveBeenCalledWith('Failed to extract token from URL', 'error');
+    });
+
+    it('should handle error during token extraction', async () => {
+      // Mock atob to throw
+      const originalAtob = global.atob;
+      global.atob = jest.fn(() => {
+        throw new Error('Invalid base64');
+      });
+
+      const { result } = renderHookWithProps(mockProps);
+
+      await act(async () => {
+        await result.current('https://ducatprotocol.com/unit?t=invalid!!!');
+      });
+
+      expect(mockProps.showToast).toHaveBeenCalledWith(
+        'Failed to extract token: Invalid base64',
+        'error'
+      );
+
+      global.atob = originalAtob;
+    });
+
+    it('should handle non-Error exception during extraction', async () => {
+      const originalAtob = global.atob;
+      global.atob = jest.fn(() => {
+        throw 'String error';
+      });
+
+      const { result } = renderHookWithProps(mockProps);
+
+      await act(async () => {
+        await result.current('https://ducatprotocol.com/unit?t=invalid');
+      });
+
+      expect(mockProps.showToast).toHaveBeenCalledWith(
+        'Failed to extract token: String error',
+        'error'
+      );
+
+      global.atob = originalAtob;
     });
   });
 
@@ -371,34 +739,6 @@ describe('useQRCodeHandler', () => {
       });
 
       expect(mockProps.showToast).toHaveBeenCalledWith('Unknown QR code format', 'error');
-    });
-  });
-
-  describe('Dependency tracking', () => {
-    it('should have navigation dependency', () => {
-      const { result } = renderHookWithProps(mockProps);
-      // Hook uses navigation.navigate
-      expect(typeof result.current).toBe('function');
-    });
-
-    it('should have receiveCashuToken dependency', () => {
-      const { result } = renderHookWithProps(mockProps);
-      expect(typeof result.current).toBe('function');
-    });
-
-    it('should have showToast dependency', () => {
-      const { result } = renderHookWithProps(mockProps);
-      expect(typeof result.current).toBe('function');
-    });
-
-    it('should have showSnackbar dependency', () => {
-      const { result } = renderHookWithProps(mockProps);
-      expect(typeof result.current).toBe('function');
-    });
-
-    it('should have setShowQRScanner dependency', () => {
-      const { result } = renderHookWithProps(mockProps);
-      expect(typeof result.current).toBe('function');
     });
   });
 });

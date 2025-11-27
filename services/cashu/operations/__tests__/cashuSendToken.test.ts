@@ -122,26 +122,12 @@ describe('cashuSendToken', () => {
       expect(unblindSignatures).toHaveBeenCalled();
     });
 
-    it('should handle raw keys object format', async () => {
+    it('should throw error when no keys available', async () => {
       (sumProofs as jest.Mock).mockReturnValue(96);
-      // Raw keys object - no wrapper
-      (getOrFetchKeys as jest.Mock).mockResolvedValue({ 1: 'key1', 2: 'key2' });
-      (splitAmount as jest.Mock).mockReturnValue([64]);
-      (createBlindedOutputs as jest.Mock).mockResolvedValue({
-        outputs: [{ amount: 64 }, { amount: 32 }],
-        blindingData: [{}, {}],
-      });
-      (swapTokens as jest.Mock).mockResolvedValue({
-        signatures: [{}, {}],
-      });
-      (unblindSignatures as jest.Mock).mockReturnValue([
-        { amount: 64, secret: 'new1', C: 'C', id: 'id' },
-        { amount: 32, secret: 'new2', C: 'C', id: 'id' },
-      ]);
+      // Empty object - no keys, no keysets
+      (getOrFetchKeys as jest.Mock).mockResolvedValue({});
 
-      const result = await sendToken(64, true);
-
-      expect(result.token).toBe('cashuAtoken...');
+      await expect(sendToken(64, true)).rejects.toThrow('No keys available from mint');
     });
 
     it('should not create change when returnChange is false', async () => {

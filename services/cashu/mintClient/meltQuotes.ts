@@ -13,13 +13,14 @@ export interface MeltQuote {
   fee_reserve: number;
   state: string;
   paid?: boolean;
-  [key: string]: any;
+  expiry?: number;
 }
 
 export interface MeltResponse {
   paid: boolean;
   payment_preimage: string;
-  [key: string]: any;
+  fee_paid?: number;
+  change?: Array<{ C_: string; id?: string; amount?: number }>;
 }
 
 /**
@@ -49,7 +50,7 @@ export const createMeltQuote = async (address: string, amount: number): Promise<
     });
 
     return quote;
-  } catch (error) {
+  } catch (error: unknown) {
     logger.error('Failed to create melt quote', { error: (error as Error).message });
     throw error;
   }
@@ -67,7 +68,7 @@ export const checkMeltQuote = async (quoteId: string): Promise<MeltQuote> => {
       description: 'Check melt quote',
     });
     return quote;
-  } catch (error) {
+  } catch (error: unknown) {
     logger.error('Failed to check melt quote', { error: (error as Error).message, quoteId });
     throw error;
   }
@@ -97,7 +98,7 @@ export const meltTokens = async (quoteId: string, inputs: CashuProof[]): Promise
     });
 
     return response;
-  } catch (error) {
+  } catch (error: unknown) {
     logger.error('Failed to melt tokens', { error: (error as Error).message, quoteId });
     throw error;
   }

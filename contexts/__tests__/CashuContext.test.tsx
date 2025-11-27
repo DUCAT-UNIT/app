@@ -18,6 +18,7 @@ jest.mock('../../utils/logger', () => ({
 
 jest.mock('../../services/cashu/cashuWalletService', () => ({
   clearWallet: jest.fn(),
+  setCurrentAccount: jest.fn(),
 }));
 
 jest.mock('../WalletContext', () => ({
@@ -76,13 +77,21 @@ describe('CashuContext', () => {
   });
 
   describe('useCashu', () => {
-    it('should require being within a CashuProvider', () => {
-      // This tests that useCashu throws when context is undefined
-      // We verify the implementation by checking the source code behavior
-      // Direct testing causes React errors that are hard to suppress in test-renderer
+    it('should throw error when used outside provider', () => {
+      const consoleError = jest.spyOn(console, 'error').mockImplementation(() => {});
 
-      // Verify the useCashu hook is exported
-      expect(typeof useCashu).toBe('function');
+      function TestComponent() {
+        useCashu();
+        return null;
+      }
+
+      expect(() => {
+        act(() => {
+          create(<TestComponent />);
+        });
+      }).toThrow('useCashuBalanceState must be used within a CashuProvider');
+
+      consoleError.mockRestore();
     });
   });
 
@@ -368,6 +377,64 @@ describe('CashuContext', () => {
         await contextValue.refresh();
       });
 
+      expect(mockFetchBalance).toHaveBeenCalled();
+    });
+  });
+
+  describe('resetAndRefresh function', () => {
+    it('should reset state and fetch balance', async () => {
+      mockFetchBalance.mockResolvedValue();
+      let contextValue = null;
+
+      function Consumer() {
+        contextValue = useCashu();
+        return null;
+      }
+
+      act(() => {
+        create(
+          <CashuProvider>
+            <Consumer />
+          </CashuProvider>
+        );
+      });
+
+      await act(async () => {
+        await contextValue.resetAndRefresh();
+      });
+
+      expect(mockSetBalance).toHaveBeenCalledWith(0);
+      expect(mockSetPendingMints).toHaveBeenCalledWith([]);
+      expect(mockSetError).toHaveBeenCalledWith(null);
+      expect(mockFetchBalance).toHaveBeenCalled();
+    });
+
+    it('should reset state and fetch balance with taproot address', async () => {
+      mockFetchBalance.mockResolvedValue();
+      let contextValue = null;
+
+      function Consumer() {
+        contextValue = useCashu();
+        return null;
+      }
+
+      act(() => {
+        create(
+          <CashuProvider>
+            <Consumer />
+          </CashuProvider>
+        );
+      });
+
+      const testAddress = 'bc1ptest123';
+
+      await act(async () => {
+        await contextValue.resetAndRefresh(testAddress);
+      });
+
+      expect(mockSetBalance).toHaveBeenCalledWith(0);
+      expect(mockSetPendingMints).toHaveBeenCalledWith([]);
+      expect(mockSetError).toHaveBeenCalledWith(null);
       expect(mockFetchBalance).toHaveBeenCalled();
     });
   });

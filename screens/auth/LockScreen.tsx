@@ -126,7 +126,7 @@ export default function LockScreen({ onAuthenticated, showFaceIdButton, onFaceId
 
       await PasskeyService.unlockWithPasskey(pin);
       onAuthenticated();
-    } catch (error) {
+    } catch (error: unknown) {
       const errorMessage = error instanceof Error ? error.message : 'Passkey authentication failed';
       setPinError(errorMessage);
       setPin('');

@@ -66,7 +66,7 @@ export function usePasskeyCreation({
       // Show PIN input
       setShowPinInput(true);
       setCreatingWithPasskey(true);
-    } catch (error) {
+    } catch (error: unknown) {
       showToast((error instanceof Error ? error.message : String(error)) || 'Failed to start passkey creation', 'error');
     }
   };
@@ -112,7 +112,7 @@ export function usePasskeyCreation({
         // First PIN entry - move to confirmation
         setConfirmingPin(true);
       }
-    } catch (error) {
+    } catch (error: unknown) {
       showToast((error instanceof Error ? error.message : String(error)) || 'Failed to process PIN', 'error');
     }
   };
@@ -165,7 +165,7 @@ export function usePasskeyCreation({
           }
         });
       }
-    } catch (error) {
+    } catch (error: unknown) {
       // Re-throw error to be caught by handlePinEntry
       // This keeps error handling in one place and ensures proper state cleanup
       throw error;

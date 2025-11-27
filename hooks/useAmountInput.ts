@@ -6,6 +6,7 @@
 import { useState } from 'react';
 import { calculateMaxSendableBTC } from '../services/transactionCalculationService';
 import { logger } from '../utils/logger';
+import { getRunesAmount } from '../utils/runesHelper';
 import type { WalletAddresses } from '../contexts/WalletContext';
 import type { RuneBalance } from '../services/balanceService';
 
@@ -42,8 +43,7 @@ export function useAmountInput({
   // BTC is always sent from segwit address, so only show segwit balance
   const btcBalance = segwitBalance || 0;
   // For UNIT, combine on-chain runes balance + ecash balance
-  const unitRunesBalance =
-    runesBalance && runesBalance.length > 0 ? parseFloat(runesBalance[0].amount) : 0;
+  const unitRunesBalance = getRunesAmount(runesBalance);
   const unitBalance = unitRunesBalance + (cashuBalance || 0);
   const balance = sendAssetType === 'btc' ? btcBalance : unitBalance;
   const assetLabel = sendAssetType === 'btc' ? 'BTC' : 'UNIT';
@@ -60,7 +60,7 @@ export function useAmountInput({
           btcBalance: segwitBalance, // Use only segwit balance for BTC
         });
         setSendAmount(String(maxSendable));
-      } catch (error) {
+      } catch (error: unknown) {
         logger.error('Error calculating max:', { error });
         // Fallback to segwit balance
         setSendAmount(String(segwitBalance || 0));

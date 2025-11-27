@@ -839,6 +839,7 @@ describe('TransactionExecutionContext', () => {
       const signedIntent = {
         ...mockSignedIntent,
         signedTxHex: 'mock_signed_hex',
+        assetType: 'UNIT',
         runeUtxo: { runeAmount: 500 }, // Total runes available
         amount: 100, // Sending 100 runes
       };

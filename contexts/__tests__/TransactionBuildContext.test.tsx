@@ -419,6 +419,7 @@ describe('TransactionBuildContext', () => {
     const mockIntent = {
       psbt: 'mock_psbt',
       fee: 1000,
+      assetType: 'BTC',
       inputs: [
         { txid: 'input1', vout: 0 },
         { txid: 'input2', vout: 1 },
@@ -462,6 +463,7 @@ describe('TransactionBuildContext', () => {
     const mockIntent = {
       psbt: 'mock_psbt_unit',
       fee: 2000,
+      assetType: 'UNIT',
       runeUtxo: {
         transaction: 'rune_txid',
         vout: 0,

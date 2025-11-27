@@ -49,7 +49,7 @@ export const useWalletInitialization = ({
           walletExistsRef.current = false;
           setIsAuthenticated(true);
         }
-      } catch (error) {
+      } catch (error: unknown) {
         // Silently handle errors, allow user to proceed
       } finally {
         // Hide loading screen after a brief delay to show the logo

@@ -38,6 +38,16 @@ jest.mock('../AuthContext');
 jest.mock('expo-secure-store');
 jest.mock('../../services/airdropService');
 
+// Mock audio celebration utilities
+jest.mock('../../utils/airdropCelebration', () => ({
+  configureAudioMode: jest.fn().mockResolvedValue(undefined),
+  preloadConfettiSound: jest.fn().mockResolvedValue({ sound: 'mock-sound' }),
+  playConfettiSound: jest.fn(),
+  unloadSound: jest.fn(),
+  triggerConfettiHaptics: jest.fn().mockReturnValue([]),
+  clearHapticTimeouts: jest.fn(),
+}));
+
 describe('AirdropContext', () => {
   // Helper to create unique mock wallet for each test
   const createMockWallet = (testName) => ({
@@ -670,6 +680,93 @@ describe('AirdropContext', () => {
     expect(AirdropService.requestAirdrop).toHaveBeenCalled();
 
     // Should clean up lock on error
+    expect(SecureStore.deleteItemAsync).toHaveBeenCalledWith(lockKey);
+  });
+
+  it('should trigger celebration with haptic feedback and sound', async () => {
+    const mockWallet = createMockWallet('celebration');
+
+    useBalance.mockReturnValue({ segwitBalance: 0.001, taprootBalance: 0 });
+    useWallet.mockReturnValue({ wallet: mockWallet, currentAccount: 0 });
+    useAuth.mockReturnValue({ isAuthenticated: true });
+
+    const wrapper = ({ children }) => (
+      <AirdropProvider seedConfirmed={true}>{children}</AirdropProvider>
+    );
+
+    let result;
+    await act(async () => {
+      const hook = renderHook(() => useAirdrop(), { wrapper });
+      result = hook.result;
+      await Promise.resolve();
+    });
+
+    // Trigger celebration
+    act(() => {
+      result.current.triggerCelebration();
+    });
+
+    // Test passes if no errors - haptics and sound are mocked
+    expect(result.current.triggerCelebration).toBeDefined();
+  });
+
+  it('should set audio ready state when sound loads successfully', async () => {
+    const mockWallet = createMockWallet('audioready');
+
+    useBalance.mockReturnValue({ segwitBalance: 0, taprootBalance: 0 });
+    useWallet.mockReturnValue({ wallet: mockWallet, currentAccount: 0 });
+    useAuth.mockReturnValue({ isAuthenticated: true });
+
+    const wrapper = ({ children }) => (
+      <AirdropProvider seedConfirmed={true}>{children}</AirdropProvider>
+    );
+
+    let result;
+    await act(async () => {
+      const hook = renderHook(() => useAirdrop(), { wrapper });
+      result = hook.result;
+      // Wait for promises to resolve
+      await Promise.resolve();
+      await Promise.resolve();
+    });
+
+    // Audio should be ready after mount (sound loading is mocked)
+    expect(result.current.audioReady).toBe(true);
+  });
+
+  it('should handle outer error during lock acquisition', async () => {
+    const mockWallet = createMockWallet('outererror');
+    const lockKey = `airdropLock_${mockWallet.segwitAddress}_0`;
+    const lastAirdropKey = `lastAirdropTime_${mockWallet.segwitAddress}_0`;
+
+    useBalance.mockReturnValue({ segwitBalance: 0, taprootBalance: 0 });
+    useWallet.mockReturnValue({ wallet: mockWallet, currentAccount: 0 });
+    useAuth.mockReturnValue({ isAuthenticated: true });
+
+    // Make getItemAsync return different values, then throw
+    let callCount = 0;
+    SecureStore.getItemAsync.mockImplementation((key) => {
+      callCount++;
+      // First calls during mount for cleanup
+      if (callCount <= 2) return Promise.resolve(null);
+      // Then throw error during airdrop check
+      return Promise.reject(new Error('Storage error'));
+    });
+
+    const wrapper = ({ children }) => (
+      <AirdropProvider seedConfirmed={true}>{children}</AirdropProvider>
+    );
+
+    await act(async () => {
+      renderHook(() => useAirdrop(), { wrapper });
+    });
+
+    await act(async () => {
+      jest.advanceTimersByTime(3000);
+      await Promise.resolve();
+    });
+
+    // Should handle error gracefully and clean up lock
     expect(SecureStore.deleteItemAsync).toHaveBeenCalledWith(lockKey);
   });
 

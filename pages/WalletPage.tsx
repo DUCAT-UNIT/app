@@ -43,6 +43,7 @@ import { useTransactionNotifications } from '../hooks/useTransactionNotification
 import { useEcashThresholdManager } from '../hooks/useEcashThresholdManager';
 import { useVaultSwipeGesture } from '../hooks/useVaultSwipeGesture';
 import { useSettingsScreenCallbacks } from '../hooks/useSettingsScreenCallbacks';
+import { getRunesAmount } from '../utils/runesHelper';
 
 // Styles
 import localStyles from './WalletPage.styles';
@@ -69,7 +70,7 @@ export default function WalletPage({ route }: WalletPageProps) {
   // Context consumption
   const { activeTab, setActiveTab, vaultCredentials, autoCreateVaultTrigger, openVault } = useVault();
   const { resetInactivityTimer } = useOnboardingFlow();
-  const { settingsHandlers, biometricEnabled, setShowAccountPicker } = useNavigationHandlers();
+  const { settingsHandlers, biometricEnabled, setShowAccountPicker, switchingAccount } = useNavigationHandlers();
   const { runesBalance } = useBalance();
   const { balance: cashuBalance, receive: receiveCashuToken } = useCashu();
   const { wallet, switchAccount, currentAccount } = useWallet();
@@ -79,7 +80,7 @@ export default function WalletPage({ route }: WalletPageProps) {
   const { toasts, showToast, dismissSnackbar, showSnackbar } = useNotifications();
 
   // Calculate current UNIT balance for ecash balance check
-  const currentUnitBalance = runesBalance?.length > 0 ? parseFloat(runesBalance[0].amount) : 0;
+  const currentUnitBalance = getRunesAmount(runesBalance);
 
   // Low ecash balance check
   const {
@@ -133,6 +134,16 @@ export default function WalletPage({ route }: WalletPageProps) {
     }
   }, [route?.params?.openReceive, setShowReceiveSheet, navigation]);
 
+  // Close settings when account changes (after account switch)
+  const prevAccountRef = React.useRef(currentAccount);
+  useEffect(() => {
+    if (prevAccountRef.current !== currentAccount) {
+      // Account changed - close settings immediately
+      closeSettings();
+      prevAccountRef.current = currentAccount;
+    }
+  }, [currentAccount, closeSettings]);
+
   // Vault swipe gesture
   const { vaultTranslateX, walletTranslateX, isSwiping, walletPanResponder, vaultPanResponder } =
     useVaultSwipeGesture({ activeTab, setActiveTab, openVault });
@@ -179,7 +190,7 @@ export default function WalletPage({ route }: WalletPageProps) {
               onVaultPress={openVault}
               onAssetPress={(assetType) => (navigation as { navigate: (screen: string, params?: object) => void }).navigate('AssetDetail', { assetType, advancedMode: settingsHandlers.advancedMode })}
               _sendAddressType={sendAddressType ?? undefined}
-              switchingAccount={false}
+              switchingAccount={switchingAccount}
               showZeroAssets={settingsHandlers.showZeroAssets}
             />
           </Animated.View>

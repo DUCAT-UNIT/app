@@ -60,7 +60,7 @@ export function useAuthSettings({ biometricEnabled, setBiometricEnabled, setIsAu
 
         // Biometric auth succeeded, set flag to return to settings
         await SecureStore.setItemAsync('returnToSettingsAfterAuth', 'true');
-      } catch (error) {
+      } catch (error: unknown) {
         if (showToast) {
           showToast('Authentication required to enable Face ID', 'error');
         }
@@ -75,7 +75,7 @@ export function useAuthSettings({ biometricEnabled, setBiometricEnabled, setIsAu
       if (showToast) {
         showToast(`Face ID ${newValue ? 'enabled' : 'disabled'}`, 'success');
       }
-    } catch (error) {
+    } catch (error: unknown) {
       if (showToast) {
         showToast('Failed to update Face ID setting', 'error');
       }

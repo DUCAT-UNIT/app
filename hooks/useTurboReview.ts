@@ -103,7 +103,7 @@ export function useTurboReview({
         setInsufficientTurboBalance(ecashBalance);
         setShowInsufficientTurboSheet(true);
         return;
-      } catch (error) {
+      } catch (error: unknown) {
         logger.error('Failed to check ecash balance:', { error: error instanceof Error ? error.message : String(error) });
         Alert.alert('Error', 'Failed to initiate Turbo transaction. Please try again.');
       } finally {
@@ -138,6 +138,9 @@ export function useTurboReview({
 
       // CRITICAL: Update sendAmount to match the quote amount exactly
       // mintQuote.amount is in smallest units, convert to display units
+      if (mintQuote.amount === undefined) {
+        throw new Error('Mint quote amount is undefined');
+      }
       const quoteDisplayAmount = (mintQuote.amount / 100).toString();
       logger.debug('[useTurboReview] Updating sendAmount to match quote:', {
         originalSendAmount: sendAmount,
@@ -156,7 +159,7 @@ export function useTurboReview({
         mintAmount: mintQuote.amount,
         turboRecipient: originalRecipient,
       });
-    } catch (error) {
+    } catch (error: unknown) {
       setIsRequestingMint(false);
       logger.error('[useTurboReview] Failed to request mint quote:', { error: error instanceof Error ? error.message : String(error) });
       Alert.alert('Error', 'Failed to initiate Turbo transaction. Please try again.');

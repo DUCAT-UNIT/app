@@ -59,7 +59,7 @@ export async function retryWithBackoff<T>(
   for (let attempt = 0; attempt <= maxRetries; attempt++) {
     try {
       return await fn();
-    } catch (error) {
+    } catch (error: unknown) {
       lastError = error;
 
       // If it's the last attempt or not a retryable error, throw immediately
@@ -104,26 +104,13 @@ export async function fetchWithRetry(
 
 /**
  * Wraps an async operation with silent retry logic
- * Logs retries to console but doesn't notify user
  * @param fn - Async function to retry
- * @param operationName - Name of operation for logging
  * @param retryOptions - Retry options
  * @returns Result of the function
  */
 export async function retrySilently<T>(
   fn: () => Promise<T>,
-  _operationName = 'Operation',
   retryOptions: RetryOptions = {}
 ): Promise<T> {
-  const originalShouldRetry = retryOptions.shouldRetry || isNetworkError;
-
-  return retryWithBackoff(fn, {
-    ...retryOptions,
-    shouldRetry: (error) => {
-      const shouldRetry = originalShouldRetry(error);
-      if (shouldRetry) {
-      }
-      return shouldRetry;
-    },
-  });
+  return retryWithBackoff(fn, retryOptions);
 }

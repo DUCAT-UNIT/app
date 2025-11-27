@@ -7,6 +7,7 @@ import { View, Text, TouchableOpacity, ViewStyle, TextStyle } from 'react-native
 import Icon from '../icons';
 import { COLORS } from '../../theme';
 import { formatTransactionDate } from '../../utils/formatters/dates';
+import { formatUnitAmount } from '../../utils/formatters/amounts';
 import localStyles from './TransactionItem.styles';
 
 interface EcashTransactionStyles {
@@ -31,6 +32,7 @@ export interface EcashTransaction {
   ecashToken: true;
   claimed?: boolean;
   partiallySpent?: boolean;
+  isAutoclaim?: boolean;
   timestamp: number;
   status: {
     confirmed: boolean;
@@ -40,6 +42,9 @@ export interface EcashTransaction {
   };
   txData: {
     amount: number;
+    isSent?: boolean;
+    isReceived?: boolean;
+    isAutoclaim?: boolean;
   };
 }
 
@@ -50,9 +55,21 @@ export interface EcashTransactionItemProps {
 }
 
 export default function EcashTransactionItem({ tx, styles, onPress }: EcashTransactionItemProps) {
-  const { amount } = tx.txData;
+  const { amount, isSent, isReceived, isAutoclaim } = tx.txData;
   const isClaimed = tx.claimed === true;
   const isPartial = tx.partiallySpent === true;
+
+  // Determine action text based on send/receive/autoclaim status
+  const getActionText = () => {
+    if (isAutoclaim || tx.isAutoclaim) return 'Self Claim';
+    if (isSent) return 'Send';
+    if (isReceived) return 'Received';
+    return 'Send';
+  };
+  const actionText = getActionText();
+
+  // Determine amount color - red for sent, green for received/self claim
+  const amountColor = (isSent && !isAutoclaim && !tx.isAutoclaim) ? COLORS.RED : COLORS.GREEN;
 
   // Determine status - use explicit type annotation to allow union
   const getStatusConfig = () => {
@@ -88,7 +105,7 @@ export default function EcashTransactionItem({ tx, styles, onPress }: EcashTrans
       <View style={localStyles.txContentContainer}>
         <View style={styles.historyTxTopRow}>
           <View style={styles.historyTxColumn1}>
-            <Text style={[styles.historyTxAmount, localStyles.actionText]}>Sent</Text>
+            <Text style={[styles.historyTxAmount, localStyles.actionText]}>{actionText}</Text>
           </View>
           <View style={styles.historyTxRightGroup}>
             <View style={styles.historyTxColumn2}>
@@ -98,9 +115,9 @@ export default function EcashTransactionItem({ tx, styles, onPress }: EcashTrans
             </View>
             <View style={styles.historyTxColumn3}>
               <View style={styles.balanceWithIcon}>
-                <Icon name="unit_symbol" size={12} color={COLORS.RED} style={styles.assetAmountIcon} />
-                <Text style={[styles.assetAmount, { color: COLORS.RED }]}>
-                  {Math.abs(amount).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                <Icon name="unit_symbol" size={12} color={amountColor} style={styles.assetAmountIcon} />
+                <Text style={[styles.assetAmount, { color: amountColor }]}>
+                  {formatUnitAmount(Math.abs(amount))}
                 </Text>
               </View>
             </View>

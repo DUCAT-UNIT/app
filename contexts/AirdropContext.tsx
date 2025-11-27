@@ -98,7 +98,7 @@ export const AirdropProvider: React.FC<AirdropProviderProps> = ({ children, seed
         const sound = await preloadConfettiSound();
         confettiSoundRef.current = sound;
         setAudioReady(true);
-      } catch (error) {
+      } catch (error: unknown) {
         // Error already logged in preloadConfettiSound
       }
     };
@@ -206,7 +206,7 @@ export const AirdropProvider: React.FC<AirdropProviderProps> = ({ children, seed
               // Clean up pending state
               clearPendingAirdrop(pendingKey);
             }, 500);
-          } catch (error) {
+          } catch (error: unknown) {
             // Keep the lastAirdropTime to prevent immediate retries
           } finally {
             // Release lock and clear ref
@@ -214,7 +214,7 @@ export const AirdropProvider: React.FC<AirdropProviderProps> = ({ children, seed
             await releaseLock(lockKey);
           }
         }
-      } catch (error) {
+      } catch (error: unknown) {
         // Ensure we clean up on any error
         airdropInProgress.current = false;
         await releaseLock(lockKey);

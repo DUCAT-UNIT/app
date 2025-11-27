@@ -61,7 +61,7 @@ export const recoverLockedChange = async (): Promise<RecoverLockedChangeResult> 
           const newChangeProofs = changeProofs.filter(p => !existingSecrets.has(p.secret));
           totalChangeProofs.push(...newChangeProofs);
         }
-      } catch (error) {
+      } catch (error: unknown) {
         logger.warn('Failed to decode sent token', {
           tokenId: tokenData.id,
           error: (error as Error).message
@@ -98,7 +98,7 @@ export const recoverLockedChange = async (): Promise<RecoverLockedChangeResult> 
       amount: recoveredAmount,
       message: `Recovered ${recoveredAmount} UNIT from ${totalChangeProofs.length} change proofs!`,
     };
-  } catch (error) {
+  } catch (error: unknown) {
     logger.error('Failed to recover change proofs', { error: (error as Error).message });
     throw error;
   }

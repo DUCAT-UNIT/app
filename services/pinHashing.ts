@@ -61,7 +61,7 @@ export const hashPin = async (pin: string, salt: string): Promise<string> => {
       'sha512'
     );
     return derivedKey.toString('hex');
-  } catch (error) {
+  } catch (error: unknown) {
     throw new Error('PIN hashing failed: ' + (error as Error).message);
   }
 };
@@ -81,7 +81,7 @@ export const verifyPinHash = (storedHash: string, enteredHash: string): boolean 
     return storedBuffer.length === enteredBuffer.length &&
            storedBuffer.length > 0 &&
            timingSafeEqual(storedBuffer, enteredBuffer);
-  } catch (error) {
+  } catch (error: unknown) {
     // If comparison fails (e.g., invalid hex), treat as invalid PIN
     return false;
   }

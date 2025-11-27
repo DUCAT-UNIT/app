@@ -46,7 +46,7 @@ import { initializeSentrySession } from './services/sentryService';
 try {
   validateNetworkConfig();
   logger.info('Network validation passed: App is correctly configured for testnet');
-} catch (error) {
+} catch (error: unknown) {
   logger.error('CRITICAL NETWORK ERROR', { error: error instanceof Error ? error.message : String(error) });
   throw error; // Fail fast - do not allow app to start with wrong network
 }
@@ -79,23 +79,22 @@ function sanitizeObject<T>(obj: T, depth = 0): T {
   if (!obj || typeof obj !== 'object' || depth > 5) return obj;
 
   const isArray = Array.isArray(obj);
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const sanitized: any = isArray ? [] : {};
+  const sanitized: Record<string, unknown> | unknown[] = isArray ? [] : {};
 
-  for (const [key, value] of Object.entries(obj)) {
+  for (const [key, value] of Object.entries(obj as object)) {
     // Skip sensitive keys entirely
     const sensitiveKeys = /mnemonic|seed|private|secret|password|pin|passkey|credential/i;
     if (sensitiveKeys.test(key)) {
-      sanitized[key] = '[REDACTED]';
+      (sanitized as Record<string, unknown>)[key] = '[REDACTED]';
       continue;
     }
 
     if (typeof value === 'string') {
-      sanitized[key] = sanitizeSensitiveData(value);
+      (sanitized as Record<string, unknown>)[key] = sanitizeSensitiveData(value);
     } else if (typeof value === 'object' && value !== null) {
-      sanitized[key] = sanitizeObject(value, depth + 1);
+      (sanitized as Record<string, unknown>)[key] = sanitizeObject(value, depth + 1);
     } else {
-      sanitized[key] = value;
+      (sanitized as Record<string, unknown>)[key] = value;
     }
   }
 

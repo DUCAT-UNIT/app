@@ -27,9 +27,11 @@ function renderHook(hook, { wrapper: Wrapper } = {}) {
 }
 import * as WalletService from '../../services/walletService';
 import * as SecureStore from 'expo-secure-store';
+import * as p2pk from '../../services/cashu/p2pk';
 
 jest.mock('../../services/walletService');
 jest.mock('expo-secure-store');
+jest.mock('../../services/cashu/p2pk');
 jest.mock('../NotificationContext', () => ({
   useNotifications: () => ({
     showToast: jest.fn(),
@@ -47,6 +49,8 @@ describe('WalletContext', () => {
 
   beforeEach(() => {
     jest.clearAllMocks();
+    // Mock clearP2PKCache to return resolved promise by default
+    (p2pk.clearP2PKCache as jest.Mock).mockResolvedValue(undefined);
   });
 
   it('should throw error when used outside provider', () => {
@@ -221,5 +225,48 @@ describe('WalletContext', () => {
     });
 
     expect(result.current.currentAccount).toBe(3);
+  });
+
+  it('should handle P2PK cache clear error in resetWallet', async () => {
+    // Mock clearP2PKCache to throw error
+    (p2pk.clearP2PKCache as jest.Mock).mockRejectedValueOnce(new Error('Cache clear failed'));
+
+    const { result } = renderHook(() => useWallet(), { wrapper });
+
+    // Should not throw even if clearP2PKCache fails
+    await act(async () => {
+      await result.current.resetWallet();
+    });
+
+    expect(result.current.wallet).toBeNull();
+    expect(p2pk.clearP2PKCache).toHaveBeenCalled();
+  });
+
+  it('should handle P2PK cache clear error in switchAccount', async () => {
+    const newAddresses = {
+      segwitAddress: 'tb1qnewtest',
+      taprootAddress: 'tb1pnewtest',
+      taprootPubkey: 'newpubkey123',
+    };
+
+    WalletService.switchToAccount.mockResolvedValueOnce({
+      addresses: newAddresses,
+    });
+
+    // Mock clearP2PKCache to throw error after switch
+    (p2pk.clearP2PKCache as jest.Mock).mockRejectedValueOnce(new Error('Cache clear failed'));
+
+    const { result } = renderHook(() => useWallet(), { wrapper });
+
+    // Should not throw even if clearP2PKCache fails
+    let switchResult;
+    await act(async () => {
+      switchResult = await result.current.switchAccount(1);
+      // Wait for the fire-and-forget clearP2PKCache call
+      await new Promise(resolve => setTimeout(resolve, 10));
+    });
+
+    expect(switchResult).toEqual(newAddresses);
+    expect(result.current.wallet).toEqual(newAddresses);
   });
 });

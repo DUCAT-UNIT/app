@@ -6,11 +6,13 @@ console.log('[MOCK] Loading Icon mock from __mocks__/icons.js');
 
 const React = require('react');
 
+import type { StyleProp, ViewStyle } from 'react-native';
+
 interface IconProps {
   name: string;
   size?: number;
   color?: string;
-  style?: any;
+  style?: StyleProp<ViewStyle>;
 }
 
 const Icon = React.memo(({ name, size, color, style }: IconProps) => {

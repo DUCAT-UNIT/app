@@ -8,6 +8,7 @@ import { Text, TextInput, TouchableOpacity, StyleSheet, Alert, ActivityIndicator
 import { NavigationProp } from '@react-navigation/native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { COLORS } from '../../theme';
+import { formatUnitAmount } from '../../utils/formatters/amounts';
 import { logger } from '../../utils/logger';
 
 /**
@@ -37,7 +38,7 @@ export default function RecoverMintScreen({ navigation }: RecoverMintScreenProps
       const quote = await checkMintQuote(quoteId);
       logger.debug('Quote:', quote);
 
-      if (quote.state === 'PAID' || quote.state === 'ISSUED') {
+      if ((quote.state === 'PAID' || quote.state === 'ISSUED') && quote.amount !== undefined) {
         Alert.alert('Status', 'Quote is PAID! Completing mint...');
 
         // Complete mint with the amount from the quote (already in smallest units)
@@ -46,7 +47,7 @@ export default function RecoverMintScreen({ navigation }: RecoverMintScreenProps
         setIsProcessing(false);
         Alert.alert(
           'Success!',
-          `Mint completed successfully!\nReceived ${proofs.length} proofs\nTotal: ${proofs.reduce((sum, p) => sum + p.amount, 0) / 100} UNIT`,
+          `Mint completed successfully!\nReceived ${proofs.length} proofs\nTotal: ${formatUnitAmount(proofs.reduce((sum, p) => sum + p.amount, 0))} UNIT`,
           [
             {
               text: 'OK',

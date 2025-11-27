@@ -9,61 +9,31 @@ import { useWallet } from './WalletContext';
 import { usePendingTransactions } from './PendingTransactionsContext';
 import { useCashu } from './CashuContext';
 import { usePolling } from '../hooks/usePolling';
-import { useBalanceData } from '../hooks/useBalanceData';
-import { useTransactionHistoryFetch } from '../hooks/useTransactionHistoryFetch';
-import { useVaultDataFetch } from '../hooks/useVaultDataFetch';
+import { useBalanceData, UseBalanceDataReturn } from '../hooks/useBalanceData';
+import { useTransactionHistoryFetch, UseTransactionHistoryFetchReturn } from '../hooks/useTransactionHistoryFetch';
+import { useVaultDataFetch, UseVaultDataFetchReturn } from '../hooks/useVaultDataFetch';
 import { logger } from '../utils/logger';
 
 // Polling intervals (in milliseconds)
 const POLL_INTERVAL = 10000; // 10 seconds - for balance and vault data
 
-// Import RuneBalance from balanceService for type consistency
-import type { RuneBalance } from '../services/balanceService';
+// Import types from services
+import type { RuneBalance, UTXO } from '../services/balanceService';
+import type { Transaction } from '../services/transactionHistoryService';
+import type { VaultData } from '../services/vaultService';
 
-// Types for balance data
-export interface BalanceDataValue {
-  segwitBalance: number;
-  taprootBalance: number;
-  runesBalance: RuneBalance[];
-  unconfirmedSegwitBalance: number;
-  unconfirmedTaprootBalance: number;
-  unconfirmedRunesBalance: number;
-  loadingBalance: boolean;
-  refreshing: boolean;
-  balanceError: string | null;
-  setBalanceError: React.Dispatch<React.SetStateAction<string | null>>;
-  utxos: unknown[];
-  loadingUtxos: boolean;
-  fetchBalance: () => Promise<void>;
-  onRefresh: () => Promise<void>;
-  fetchUtxos: () => Promise<void>;
-  resetBalances: () => void;
-}
-
-// Types for history data
-export interface TransactionHistoryValue {
-  transactionHistory: unknown[];
-  loadingTransactionHistory: boolean;
-  historyError: string | null;
-  fetchTransactionHistory: () => Promise<void>;
-  resetTransactionHistory: () => void;
-}
-
-// Types for vault data
-export interface VaultDataValue {
-  vaultData: unknown;
-  loadingVault: boolean;
-  vaultError: string | null;
-  fetchVault: () => Promise<void>;
-  resetVaultData: () => void;
-}
+// Use hook return types directly for consistency
+export type BalanceDataValue = UseBalanceDataReturn;
+export type TransactionHistoryValue = UseTransactionHistoryFetchReturn;
+export type VaultDataValue = UseVaultDataFetchReturn;
 
 // Legacy combined type for backwards compatibility
+// Note: This combines all properties from the individual contexts
 export interface WalletDataContextValue {
   balance: BalanceDataValue;
   history: TransactionHistoryValue;
   vault: VaultDataValue;
-  // Direct exports for backwards compatibility
+  // Direct exports for backwards compatibility - matching hook return types
   segwitBalance: number;
   taprootBalance: number;
   runesBalance: RuneBalance[];
@@ -74,18 +44,18 @@ export interface WalletDataContextValue {
   refreshing: boolean;
   balanceError: string | null;
   setBalanceError: React.Dispatch<React.SetStateAction<string | null>>;
-  utxos: unknown[];
+  utxos: UTXO[];
   loadingUtxos: boolean;
-  fetchBalance: () => Promise<void>;
+  fetchBalance: (segwitAddr?: string, taprootAddr?: string) => Promise<void>;
   onRefresh: () => Promise<void>;
-  fetchUtxos: () => Promise<void>;
+  fetchUtxos: (address: string) => Promise<UTXO[]>;
   resetBalances: () => void;
-  transactionHistory: unknown[];
+  transactionHistory: Transaction[];
   loadingTransactionHistory: boolean;
   historyError: string | null;
   fetchTransactionHistory: () => Promise<void>;
   resetTransactionHistory: () => void;
-  vaultData: unknown;
+  vaultData: VaultData | null;
   loadingVault: boolean;
   vaultError: string | null;
   fetchVault: () => Promise<void>;
@@ -150,13 +120,13 @@ export const WalletDataProvider: React.FC<WalletDataProviderProps> = ({ children
   // ============================================================
 
   // Balance data hook
-  const balance = useBalanceData(wallet, getUnconfirmedBalance) as unknown as BalanceDataValue;
+  const balance = useBalanceData(wallet, getUnconfirmedBalance);
 
   // Transaction history data hook
-  const history = useTransactionHistoryFetch(wallet) as unknown as TransactionHistoryValue;
+  const history = useTransactionHistoryFetch(wallet);
 
   // Vault data hook
-  const vault = useVaultDataFetch(wallet) as unknown as VaultDataValue;
+  const vault = useVaultDataFetch(wallet);
 
   // ============================================================
   // UNIFIED AUTO-REFRESH POLLING

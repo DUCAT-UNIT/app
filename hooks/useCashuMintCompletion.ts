@@ -1,5 +1,7 @@
 import { useState, useEffect, useRef } from 'react';
 import { logger } from '../utils/logger';
+import { completeMint } from '../services/cashu/cashuWalletService';
+import { checkMintQuote } from '../services/cashu/cashuMintClient';
 import type { SnackbarParams, ToastType } from '../contexts/NotificationContext';
 
 interface UseCashuMintCompletionParams {
@@ -55,8 +57,6 @@ export function useCashuMintCompletion({
     const completeCashuMintProcess = async () => {
       setIsCompletingMint(true);
       try {
-        const { completeMint } = await import('../services/cashu/cashuWalletService');
-        const { checkMintQuote } = await import('../services/cashu/cashuMintClient');
         logger.debug('[useCashuMintCompletion] Starting to poll for payment confirmation');
 
         // Poll for payment confirmation
@@ -75,7 +75,7 @@ export function useCashuMintCompletion({
           attempts++;
         }
 
-        if (paidQuote) {
+        if (paidQuote && paidQuote.amount !== undefined) {
           logger.debug('[useCashuMintCompletion] Payment confirmed! Completing cashu mint with amount:', paidQuote.amount);
           // Complete mint to get e-cash tokens - quote.amount is already in smallest units
           await completeMint(quoteId, paidQuote.amount);
@@ -97,7 +97,7 @@ export function useCashuMintCompletion({
           setIsCompletingMint(false);
           showToast('Payment sent. Ecash will be available once confirmed.', 'info');
         }
-      } catch (error) {
+      } catch (error: unknown) {
         const errorMessage = error instanceof Error ? error.message : String(error);
         logger.error('[useCashuMintCompletion] Error during cashu mint completion:', { error: errorMessage });
         setIsCompletingMint(false);

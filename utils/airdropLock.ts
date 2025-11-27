@@ -55,7 +55,7 @@ export async function isLockActive(lockKey: string): Promise<boolean> {
 
     // Lock is active if less than timeout period old
     return now - lockTime < LOCK_TIMEOUT;
-  } catch (error) {
+  } catch (error: unknown) {
     return false;
   }
 }
@@ -78,7 +78,7 @@ export async function acquireLock(lockKey: string): Promise<void> {
 export async function releaseLock(lockKey: string): Promise<void> {
   try {
     await SecureStore.deleteItemAsync(lockKey);
-  } catch (error) {
+  } catch (error: unknown) {
     // Ignore errors during cleanup
   }
 }
@@ -100,7 +100,7 @@ export async function cleanupExpiredLock(lockKey: string): Promise<void> {
         await SecureStore.deleteItemAsync(lockKey);
       }
     }
-  } catch (error) {
+  } catch (error: unknown) {
     // Ignore errors during cleanup
   }
 }
@@ -121,7 +121,7 @@ export async function isCooldownExpired(airdropKey: string): Promise<boolean> {
     const timeSinceLastAirdrop = now - parseInt(lastAirdropTime, 10);
 
     return timeSinceLastAirdrop >= AIRDROP_COOLDOWN;
-  } catch (error) {
+  } catch (error: unknown) {
     return true; // On error, allow airdrop attempt
   }
 }
@@ -154,7 +154,7 @@ export async function storePendingAirdrop(pendingKey: string, txId: string): Pro
 export async function getPendingAirdrop(pendingKey: string): Promise<string | null> {
   try {
     return await SecureStore.getItemAsync(pendingKey);
-  } catch (error) {
+  } catch (error: unknown) {
     return null;
   }
 }
@@ -167,7 +167,7 @@ export async function getPendingAirdrop(pendingKey: string): Promise<string | nu
 export async function clearPendingAirdrop(pendingKey: string): Promise<void> {
   try {
     await SecureStore.deleteItemAsync(pendingKey);
-  } catch (error) {
+  } catch (error: unknown) {
     // Ignore errors
   }
 }

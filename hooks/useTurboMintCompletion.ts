@@ -1,5 +1,11 @@
 import { useState, useEffect, useRef } from 'react';
 import { logger } from '../utils/logger';
+import { completeMint } from '../services/cashu/cashuWalletService';
+import { checkMintQuote } from '../services/cashu/cashuMintClient';
+import { sendP2PKToken } from '../services/cashu/operations/cashuSendP2PK';
+import { extractPubkeyFromTaprootAddress } from '../utils/bitcoin';
+import { saveSentLockedToken } from '../services/cashu/cashuLockedTokensService';
+import { shortenCashuToken } from '../services/urlShortener';
 import type { SnackbarParams } from '../contexts/NotificationContext';
 
 type ProcessingStage = 'converting' | 'ready';
@@ -78,8 +84,6 @@ export function useTurboMintCompletion({
     const completeMintProcess = async () => {
       setIsCompletingMint(true);
       try {
-        const { completeMint } = await import('../services/cashu/cashuWalletService');
-        const { checkMintQuote } = await import('../services/cashu/cashuMintClient');
         logger.debug('[useTurboMintCompletion] Starting to poll for payment confirmation');
 
         // Poll for payment confirmation
@@ -98,7 +102,7 @@ export function useTurboMintCompletion({
           attempts++;
         }
 
-        if (paidQuote) {
+        if (paidQuote && paidQuote.amount !== undefined) {
           logger.debug('[useTurboMintCompletion] Payment confirmed! Completing mint with amount:', paidQuote.amount);
           // Complete mint to get e-cash tokens - quote.amount is already in smallest units
           const proofs = await completeMint(mintQuoteId, paidQuote.amount);
@@ -108,10 +112,6 @@ export function useTurboMintCompletion({
           if (turboRecipient) {
             try {
               logger.debug('[useTurboMintCompletion] Creating P2PK locked token for recipient:', turboRecipient);
-              const { sendP2PKToken } = await import('../services/cashu/operations/cashuSendP2PK');
-              const { extractPubkeyFromTaprootAddress } = await import('../utils/bitcoin');
-              const { saveSentLockedToken } = await import('../services/cashu/cashuLockedTokensService');
-              const { shortenCashuToken } = await import('../services/urlShortener');
 
               // Extract pubkey from P2TR address
               const recipientPubkey = extractPubkeyFromTaprootAddress(turboRecipient);
@@ -122,30 +122,30 @@ export function useTurboMintCompletion({
               }
 
               // Send exactly the mint amount as P2PK locked token
-              logger.debug('[useTurboMintCompletion] 🎫 Creating P2PK token for amount:', mintAmount);
+              logger.debug('[useTurboMintCompletion] Creating P2PK token for amount:', mintAmount);
               const result = await sendP2PKToken(mintAmount, recipientPubkey, {});
-              logger.debug('[useTurboMintCompletion] 🎫 sendP2PKToken result:', { hasToken: !!result?.token, resultType: typeof result });
+              logger.debug('[useTurboMintCompletion] sendP2PKToken result:', { hasToken: !!result?.token, resultType: typeof result });
               const token = result?.token;
               if (!token) {
                 throw new Error('sendP2PKToken returned no token');
               }
-              logger.debug('[useTurboMintCompletion] 🎫 P2PK token created:', token.substring(0, 50));
+              logger.debug('[useTurboMintCompletion] P2PK token created:', token.substring(0, 50));
 
               // Generate shortened URL for the token
               const shortUrl = await shortenCashuToken(token);
-              logger.debug('[useTurboMintCompletion] 🔗 Generated short URL:', shortUrl);
+              logger.debug('[useTurboMintCompletion] Generated short URL:', shortUrl);
               setTurboDeeplink(shortUrl);
 
               // Store the sent P2PK token
               // saveSentLockedToken(token, recipient, amount, txid, shortUrl, taprootAddress)
               await saveSentLockedToken(token, turboRecipient, mintAmount, null, shortUrl, senderTaprootAddress);
-              logger.debug('[useTurboMintCompletion] 🎫 P2PK token stored successfully');
+              logger.debug('[useTurboMintCompletion] P2PK token stored successfully');
 
               // Store token for display
-              logger.debug('[useTurboMintCompletion] 🎫 Setting turboToken state with token length:', token?.length);
+              logger.debug('[useTurboMintCompletion] Setting turboToken state with token length:', token?.length);
               setTurboToken(token);
               setProcessingStage('ready'); // Transition to ready stage
-              logger.debug('[useTurboMintCompletion] 🎫 turboToken state has been set, transitioned to ready stage');
+              logger.debug('[useTurboMintCompletion] turboToken state has been set, transitioned to ready stage');
             } catch (storageError) {
               logger.error('[useTurboMintCompletion] Failed to generate/save token:', { error: storageError instanceof Error ? storageError.message : String(storageError) });
               // Non-critical error - still transition to ready stage so user isn't stuck
@@ -176,7 +176,7 @@ export function useTurboMintCompletion({
           setIsCompletingMint(false);
           showToast('Payment sent. E-cash will be available once confirmed.', 'info');
         }
-      } catch (error) {
+      } catch (error: unknown) {
         logger.error('[useTurboMintCompletion] Error during mint completion:', { error: error instanceof Error ? error.message : String(error) });
         setIsCompletingMint(false);
         showToast(`Failed to complete conversion: ${error instanceof Error ? error.message : String(error)}`, 'error');

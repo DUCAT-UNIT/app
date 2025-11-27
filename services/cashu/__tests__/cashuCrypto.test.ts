@@ -147,7 +147,7 @@ describe('cashuCrypto', () => {
   });
 
   describe('sumProofs', () => {
-    it('should sum proof amounts and divide by 100', () => {
+    it('should sum proof amounts as integers (smallest units)', () => {
       const proofs = [
         { amount: 100, secret: 's1', C: 'C1', id: 'id1' },
         { amount: 200, secret: 's2', C: 'C2', id: 'id2' },
@@ -156,8 +156,8 @@ describe('cashuCrypto', () => {
 
       const sum = sumProofs(proofs);
 
-      // (100 + 200 + 50) / 100 = 3.5
-      expect(sum).toBe(3.5);
+      // 100 + 200 + 50 = 350 (smallest units, no division)
+      expect(sum).toBe(350);
     });
 
     it('should handle empty array', () => {
@@ -169,7 +169,7 @@ describe('cashuCrypto', () => {
     it('should handle single proof', () => {
       const sum = sumProofs([{ amount: 500, secret: 's1', C: 'C1', id: 'id1' }]);
 
-      expect(sum).toBe(5);
+      expect(sum).toBe(500);
     });
   });
 
@@ -277,7 +277,7 @@ describe('cashuCrypto', () => {
 
       expect(decoded.mint).toBe(mint);
       expect(decoded.proofs).toEqual(proofs);
-      expect(decoded.amount).toBe(1); // 100 / 100
+      expect(decoded.amount).toBe(100); // amount in smallest units (integer)
     });
 
     it('should handle token without version letter', () => {
@@ -317,7 +317,7 @@ describe('cashuCrypto', () => {
 
       expect(decoded.mint).toBe(mint);
       expect(decoded.proofs).toEqual(proofs);
-      expect(decoded.amount).toBe(1); // (64 + 32 + 4) / 100
+      expect(decoded.amount).toBe(100); // 64 + 32 + 4 = 100 (smallest units)
     });
   });
 
@@ -452,7 +452,7 @@ describe('cashuCrypto', () => {
       expect(ecc.pointAdd).toHaveBeenCalled();
     });
 
-    it('should return C_ on error (fallback)', () => {
+    it('should throw error on unblinding failure', () => {
       (ecc.pointMultiply as jest.Mock).mockImplementationOnce(() => {
         throw new Error('Point multiply failed');
       });
@@ -461,10 +461,8 @@ describe('cashuCrypto', () => {
       const r = 'bb'.repeat(32);
       const A = '02' + 'cc'.repeat(32);
 
-      const result = unblindSignature(C_, r, A);
-
-      // Should return C_ as-is on error
-      expect(result).toBe(C_);
+      // Should throw error instead of silently returning C_
+      expect(() => unblindSignature(C_, r, A)).toThrow('Unblinding failed: Point multiply failed');
     });
   });
 

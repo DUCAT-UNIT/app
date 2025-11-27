@@ -80,7 +80,7 @@ export const clearAppCache = async (): Promise<CacheClearSummary> => {
         await SecureStore.deleteItemAsync(key);
         summary.secureStoreCleared++;
         logger.info(`[CacheService] Cleared SecureStore key: ${key}`);
-      } catch (error) {
+      } catch (error: unknown) {
         // Key might not exist, that's okay
         if (!(error as Error).message.includes('not found')) {
           logger.warn(`[CacheService] Failed to clear ${key}:`, { error: (error as Error).message });
@@ -101,7 +101,7 @@ export const clearAppCache = async (): Promise<CacheClearSummary> => {
         try {
           await SecureStore.deleteItemAsync(key);
           summary.cashuProofsCleared++;
-        } catch (error) {
+        } catch (error: unknown) {
           // Ignore - key doesn't exist
         }
       }
@@ -121,7 +121,7 @@ export const clearAppCache = async (): Promise<CacheClearSummary> => {
           try {
             await SecureStore.deleteItemAsync(key);
             summary.derivedKeysCleared++;
-          } catch (error) {
+          } catch (error: unknown) {
             // Ignore - key doesn't exist
           }
         }
@@ -138,14 +138,14 @@ export const clearAppCache = async (): Promise<CacheClearSummary> => {
         summary.asyncStorageCleared = keysToRemove.length;
         logger.info(`[CacheService] Cleared ${keysToRemove.length} AsyncStorage keys`);
       }
-    } catch (error) {
+    } catch (error: unknown) {
       logger.error('[CacheService] Failed to clear AsyncStorage:', { error });
       summary.errors.push(`AsyncStorage: ${(error as Error).message}`);
     }
 
     logger.info('[CacheService] AGGRESSIVE cache clear complete');
     return summary;
-  } catch (error) {
+  } catch (error: unknown) {
     logger.error('[CacheService] Cache clear failed:', { error });
     summary.errors.push((error as Error).message);
     return summary;
@@ -163,7 +163,7 @@ export const clearP2PKCache = async (): Promise<void> => {
     await SecureStore.deleteItemAsync('p2pk_private_key_v3');
 
     logger.info('[CacheService] P2PK cache cleared');
-  } catch (error) {
+  } catch (error: unknown) {
     logger.warn('[CacheService] Failed to clear P2PK cache:', { error: (error as Error).message });
   }
 };
@@ -180,7 +180,7 @@ export const clearCashuCache = async (): Promise<void> => {
     await SecureStore.deleteItemAsync('received_turbo_tokens');
 
     logger.info('[CacheService] Cashu cache cleared');
-  } catch (error) {
+  } catch (error: unknown) {
     logger.warn('[CacheService] Failed to clear Cashu cache:', { error: (error as Error).message });
   }
 };

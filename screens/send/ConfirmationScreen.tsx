@@ -119,7 +119,7 @@ export default function ConfirmationScreen({ navigation, route }: ConfirmationSc
           const deeplink = await generateTurboDeeplink(turboToken, turboRecipient, turboAmount);
           setLocalTurboDeeplink(deeplink);
           logger.debug('[ConfirmationScreen] Generated Turbo deeplink:', deeplink);
-        } catch (error) {
+        } catch (error: unknown) {
           logger.error('[ConfirmationScreen] Failed to generate deeplink:', { error: error instanceof Error ? error.message : String(error) });
         }
       };

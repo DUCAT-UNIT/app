@@ -7,6 +7,7 @@ import { View, Text, TouchableOpacity, ViewStyle, TextStyle } from 'react-native
 import Icon from '../icons';
 import { COLORS } from '../../theme';
 import { formatTransactionDate } from '../../utils/formatters/dates';
+import { formatUnitAmount } from '../../utils/formatters/amounts';
 import localStyles from './TransactionItem.styles';
 import type { DisplayAssetType } from '../../types/assets';
 
@@ -60,17 +61,38 @@ export default function RegularTransactionItem({ tx, styles, onPress, advancedMo
   const { amount, assetType, isSent, isReceived } = tx.txData;
   const numericAmount = typeof amount === 'bigint' ? Number(amount) : amount;
 
-  // Check for Turbo transaction
-  const isTurboTransaction = assetType === 'UNIT' && tx.vout?.some((output: TransactionOutput) =>
+  // Check for Turbo/eCash Swap transaction (sending UNIT to mint)
+  const isEcashSwapTransaction = assetType === 'UNIT' && isSent && tx.vout?.some((output: TransactionOutput) =>
     output.scriptpubkey_address === TURBO_MINT_ADDRESS
   );
-  const showTurboUI = isTurboTransaction && advancedMode;
+  const showTurboUI = isEcashSwapTransaction && advancedMode;
 
   const getActionLabel = () => {
-    if (showTurboUI) return isSent ? 'Activate' : 'Deactivate';
+    if (showTurboUI) return 'Activate';
+    if (isEcashSwapTransaction) return 'eCash Swap';
+    // Check for self claim (same user sends and receives)
+    if (isSent && isReceived) return 'Self Claim';
     return isSent ? 'Sent' : 'Received';
   };
 
+  // Determine status text and style
+  const getStatusConfig = () => {
+    if (isEcashSwapTransaction && !advancedMode) {
+      // Show "eCash Swap" as the status for non-advanced mode
+      return {
+        statusText: tx.status.confirmed ? 'Confirmed' : 'Pending',
+        chipStyle: tx.status.confirmed ? localStyles.confirmedChip : localStyles.pendingChip,
+        chipTextStyle: tx.status.confirmed ? localStyles.confirmedChipText : localStyles.pendingChipText,
+      };
+    }
+    return {
+      statusText: tx.status.confirmed ? 'Confirmed' : 'Pending',
+      chipStyle: tx.status.confirmed ? localStyles.confirmedChip : localStyles.pendingChip,
+      chipTextStyle: tx.status.confirmed ? localStyles.confirmedChipText : localStyles.pendingChipText,
+    };
+  };
+
+  const { statusText, chipStyle, chipTextStyle } = getStatusConfig();
   const amountColor = isReceived ? COLORS.GREEN : COLORS.RED;
 
   return (
@@ -86,9 +108,9 @@ export default function RegularTransactionItem({ tx, styles, onPress, advancedMo
           </View>
           <View style={styles.historyTxRightGroup}>
             <View style={styles.historyTxColumn2}>
-              <View style={[styles.vaultAmountChip, tx.status.confirmed ? localStyles.confirmedChip : localStyles.pendingChip]}>
-                <Text style={[styles.vaultAmountChipText, tx.status.confirmed ? localStyles.confirmedChipText : localStyles.pendingChipText]}>
-                  {tx.status.confirmed ? 'Confirmed' : 'Pending'}
+              <View style={[styles.vaultAmountChip, chipStyle]}>
+                <Text style={[styles.vaultAmountChipText, chipTextStyle]}>
+                  {statusText}
                 </Text>
               </View>
             </View>
@@ -99,7 +121,7 @@ export default function RegularTransactionItem({ tx, styles, onPress, advancedMo
                     size={12} color={amountColor} style={styles.assetAmountIcon} />
                   <Text style={[styles.assetAmount, { color: amountColor }]}>
                     {assetType === 'UNIT'
-                      ? (Math.abs(numericAmount) / 100).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })
+                      ? formatUnitAmount(Math.abs(numericAmount))
                       : (Math.abs(numericAmount) / 100000000).toLocaleString('en-US', { minimumFractionDigits: 8, maximumFractionDigits: 8 })}
                   </Text>
                 </View>

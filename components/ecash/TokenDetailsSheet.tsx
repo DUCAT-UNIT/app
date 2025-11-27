@@ -27,6 +27,7 @@ interface TokenDetailsSheetProps {
   onCopy?: (message: string) => void;
   advancedMode?: boolean;
   claimed?: boolean;
+  isSelfClaim?: boolean;
 }
 
 export default function TokenDetailsSheet({
@@ -38,6 +39,7 @@ export default function TokenDetailsSheet({
   onCopy,
   advancedMode = false,
   claimed = false,
+  isSelfClaim = false,
 }: TokenDetailsSheetProps) {
   const handleCopyShortUrl = async () => {
     await Clipboard.setStringAsync(shortUrl);
@@ -58,7 +60,7 @@ export default function TokenDetailsSheet({
       await Share.share({
         message: shortUrl,
       });
-    } catch (error) {
+    } catch (error: unknown) {
       // Silently fail
     }
   };
@@ -88,10 +90,15 @@ export default function TokenDetailsSheet({
         </TouchableOpacity>
       </View>
 
-      {/* Shortened URL Card or Claimed Warning */}
+      {/* Shortened URL Card or Claimed/Self-Claim Warning */}
       <View style={styles.section}>
         <Text style={styles.sectionLabel}>Shortened URL</Text>
-        {claimed ? (
+        {isSelfClaim ? (
+          <View style={styles.selfClaimCard}>
+            <Icon name="check" size={20} color={COLORS.GREEN} />
+            <Text style={styles.selfClaimText}>Self Claim</Text>
+          </View>
+        ) : claimed ? (
           <View style={styles.warningCard}>
             <Icon name="check" size={20} color={COLORS.YELLOW} />
             <Text style={styles.warningText}>Token already claimed</Text>
@@ -253,6 +260,22 @@ const styles = StyleSheet.create({
   warningText: {
     fontSize: 14,
     color: COLORS.YELLOW,
+    fontFamily: 'CabinetGrotesk-Medium',
+    flex: 1,
+  },
+  selfClaimCard: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+    backgroundColor: 'rgba(89, 170, 138, 0.15)',
+    borderRadius: 12,
+    padding: 16,
+    borderWidth: 1,
+    borderColor: COLORS.GREEN,
+  },
+  selfClaimText: {
+    fontSize: 14,
+    color: COLORS.GREEN,
     fontFamily: 'CabinetGrotesk-Medium',
     flex: 1,
   },

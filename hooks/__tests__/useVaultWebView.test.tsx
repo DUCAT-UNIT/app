@@ -62,7 +62,6 @@ describe('useVaultWebView', () => {
 
     expect(result.current.webViewRef).toBeDefined();
     expect(result.current.webViewUrl).toBeDefined();
-    expect(result.current.forceReloadKey).toBe(0);
     expect(result.current.webViewLoaded).toBe(false);
   });
 
@@ -97,6 +96,7 @@ describe('useVaultWebView', () => {
     const mockWebViewRef = {
       current: {
         injectJavaScript: jest.fn(),
+        reload: jest.fn(),
       },
     };
 
@@ -137,6 +137,7 @@ describe('useVaultWebView', () => {
     // Set up mock webViewRef
     result.current.webViewRef.current = {
       injectJavaScript: mockInjectJavaScript,
+      reload: jest.fn(),
     };
 
     act(() => {
@@ -176,6 +177,7 @@ describe('useVaultWebView', () => {
 
     result.current.webViewRef.current = {
       injectJavaScript: mockInjectJavaScript,
+      reload: jest.fn(),
     };
 
     act(() => {
@@ -185,16 +187,15 @@ describe('useVaultWebView', () => {
     expect(mockInjectJavaScript).not.toHaveBeenCalled();
   });
 
-  it('should initialize with forceReloadKey at 0', () => {
+  it('should initialize with webViewLoaded at false', () => {
     const { result } = renderHook(useVaultWebView, {
       walletCredentials: mockCredentials,
       vaultData: { balance: 1000 },
       visible: true,
     });
 
-    // Initial forceReloadKey should be 0
-    expect(result.current.forceReloadKey).toBe(0);
-    expect(typeof result.current.forceReloadKey).toBe('number');
+    // Initial webViewLoaded should be false
+    expect(result.current.webViewLoaded).toBe(false);
   });
 
   it('should handle undefined vault data', () => {
@@ -219,23 +220,21 @@ describe('useVaultWebView', () => {
     // Verify all exports are present
     expect(result.current.webViewRef).toBeDefined();
     expect(result.current.webViewUrl).toBeDefined();
-    expect(result.current.forceReloadKey).toBeDefined();
     expect(result.current.webViewLoaded).toBeDefined();
     expect(result.current.setWebViewLoaded).toBeDefined();
     expect(result.current.hasLoadedOnceRef).toBeDefined();
     expect(result.current.injectWalletCredentials).toBeDefined();
   });
 
-  it('should not include timestamp in URL when forceReloadKey is 0', () => {
+  it('should not include timestamp in URL', () => {
     const { result } = renderHook(useVaultWebView, {
       walletCredentials: mockCredentials,
       vaultData: { balance: 1000 },
       visible: true,
     });
 
-    // Initially forceReloadKey is 0, so no timestamp
+    // No timestamp in URL (caching enabled)
     expect(result.current.webViewUrl).not.toContain('_t=');
-    expect(result.current.forceReloadKey).toBe(0);
   });
 
   it('should handle initial load correctly', () => {
@@ -247,17 +246,21 @@ describe('useVaultWebView', () => {
 
     // Initial load should set the pubkey reference
     expect(result.current.hasLoadedOnceRef).toBeDefined();
-    expect(result.current.forceReloadKey).toBe(0);
+    expect(result.current.webViewLoaded).toBe(false);
   });
 
   it('should not reload on same vaultPubkey', () => {
+    const mockReload = jest.fn();
     const { result, rerender } = renderHook(useVaultWebView, {
       walletCredentials: mockCredentials,
       vaultData: { balance: 1000 },
       visible: true,
     });
 
-    const initialForceReloadKey = result.current.forceReloadKey;
+    result.current.webViewRef.current = {
+      injectJavaScript: jest.fn(),
+      reload: mockReload,
+    };
 
     // Re-render with same credentials
     rerender({
@@ -266,8 +269,8 @@ describe('useVaultWebView', () => {
       visible: true,
     });
 
-    // ForceReloadKey should not change
-    expect(result.current.forceReloadKey).toBe(initialForceReloadKey);
+    // Reload should not be called for same credentials
+    expect(mockReload).not.toHaveBeenCalled();
   });
 
   it('should handle missing vaultPubkey gracefully', () => {
@@ -306,6 +309,7 @@ describe('useVaultWebView', () => {
     jest.useFakeTimers();
 
     const mockInjectJavaScript = jest.fn();
+    const mockReload = jest.fn();
     const { result, rerender } = renderHook(useVaultWebView, {
       walletCredentials: mockCredentials,
       vaultData: { balance: 1000 }, // Vault data already exists
@@ -315,9 +319,8 @@ describe('useVaultWebView', () => {
     // Set up webViewRef
     result.current.webViewRef.current = {
       injectJavaScript: mockInjectJavaScript,
+      reload: mockReload,
     };
-
-    const initialForceReloadKey = result.current.forceReloadKey;
 
     // Switch to different account with different pubkey
     const newCredentials = {
@@ -331,12 +334,12 @@ describe('useVaultWebView', () => {
       visible: true,
     });
 
-    // Should have changed forceReloadKey
-    expect(result.current.forceReloadKey).not.toBe(initialForceReloadKey);
+    // Should have called reload on account switch
+    expect(mockReload).toHaveBeenCalled();
 
     // Fast-forward setTimeout to trigger re-inject
     act(() => {
-      jest.advanceTimersByTime(2000);
+      jest.advanceTimersByTime(1000);
     });
 
     // Should have called injectJavaScript
@@ -346,13 +349,17 @@ describe('useVaultWebView', () => {
   });
 
   it('should wait for vault data on account switch when not fetched', () => {
+    const mockReload = jest.fn();
     const { result, rerender } = renderHook(useVaultWebView, {
       walletCredentials: mockCredentials,
       vaultData: undefined, // No vault data yet
       visible: true,
     });
 
-    const initialForceReloadKey = result.current.forceReloadKey;
+    result.current.webViewRef.current = {
+      injectJavaScript: jest.fn(),
+      reload: mockReload,
+    };
 
     // Switch to different account
     const newCredentials = {
@@ -366,14 +373,15 @@ describe('useVaultWebView', () => {
       visible: true,
     });
 
-    // Should NOT have changed forceReloadKey yet (waiting for vault data)
-    expect(result.current.forceReloadKey).toBe(initialForceReloadKey);
+    // Should NOT have called reload yet (waiting for vault data)
+    expect(mockReload).not.toHaveBeenCalled();
   });
 
   it('should reload when vault data fetched after account switch', () => {
     jest.useFakeTimers();
 
     const mockInjectJavaScript = jest.fn();
+    const mockReload = jest.fn();
     const { result, rerender } = renderHook(useVaultWebView, {
       walletCredentials: mockCredentials,
       vaultData: undefined,
@@ -383,6 +391,7 @@ describe('useVaultWebView', () => {
     // Set up webViewRef
     result.current.webViewRef.current = {
       injectJavaScript: mockInjectJavaScript,
+      reload: mockReload,
     };
 
     // Switch account
@@ -397,7 +406,8 @@ describe('useVaultWebView', () => {
       visible: true,
     });
 
-    const forceReloadKeyBeforeFetch = result.current.forceReloadKey;
+    // Should not have called reload yet (no vault data)
+    expect(mockReload).not.toHaveBeenCalled();
 
     // Now vault data arrives
     rerender({
@@ -406,12 +416,12 @@ describe('useVaultWebView', () => {
       visible: true,
     });
 
-    // Should have changed forceReloadKey when vault data arrived
-    expect(result.current.forceReloadKey).not.toBe(forceReloadKeyBeforeFetch);
+    // Should have called reload when vault data arrived
+    expect(mockReload).toHaveBeenCalled();
 
     // Fast-forward setTimeout to trigger re-inject
     act(() => {
-      jest.advanceTimersByTime(2000);
+      jest.advanceTimersByTime(1000);
     });
 
     // Should have called injectJavaScript
@@ -440,6 +450,7 @@ describe('useVaultWebView', () => {
 
       result.current.webViewRef.current = {
         injectJavaScript: mockInjectJavaScript,
+        reload: jest.fn(),
       };
 
       act(() => {
@@ -469,6 +480,7 @@ describe('useVaultWebView', () => {
 
       result.current.webViewRef.current = {
         injectJavaScript: mockInjectJavaScript,
+        reload: jest.fn(),
       };
 
       act(() => {
@@ -493,6 +505,7 @@ describe('useVaultWebView', () => {
 
       result.current.webViewRef.current = {
         injectJavaScript: mockInjectJavaScript,
+        reload: jest.fn(),
       };
 
       act(() => {
@@ -525,6 +538,7 @@ describe('useVaultWebView', () => {
 
       result.current.webViewRef.current = {
         injectJavaScript: mockInjectJavaScript,
+        reload: jest.fn(),
       };
 
       act(() => {
@@ -567,6 +581,7 @@ describe('useVaultWebView', () => {
 
       result.current.webViewRef.current = {
         injectJavaScript: mockInjectJavaScript,
+        reload: jest.fn(),
       };
 
       act(() => {
@@ -604,6 +619,7 @@ describe('useVaultWebView', () => {
 
       result.current.webViewRef.current = {
         injectJavaScript: mockInjectJavaScript,
+        reload: jest.fn(),
       };
 
       act(() => {
@@ -640,6 +656,7 @@ describe('useVaultWebView', () => {
 
       result.current.webViewRef.current = {
         injectJavaScript: mockInjectJavaScript,
+        reload: jest.fn(),
       };
 
       act(() => {
@@ -680,6 +697,7 @@ describe('useVaultWebView', () => {
       // Set webViewRef
       result.current.webViewRef.current = {
         injectJavaScript: mockInjectJavaScript,
+        reload: jest.fn(),
       };
 
       // Mark as loaded
@@ -714,6 +732,7 @@ describe('useVaultWebView', () => {
 
       result.current.webViewRef.current = {
         injectJavaScript: mockInjectJavaScript,
+        reload: jest.fn(),
       };
 
       // webViewLoaded is still false
@@ -732,6 +751,7 @@ describe('useVaultWebView', () => {
     it('should trigger reload and reinject after vault data fetched following account switch', () => {
       jest.useFakeTimers();
       const mockInjectJavaScript = jest.fn();
+      const mockReload = jest.fn();
 
       const { result, rerender } = renderHook(useVaultWebView, {
         walletCredentials: mockCredentials,
@@ -741,9 +761,8 @@ describe('useVaultWebView', () => {
 
       result.current.webViewRef.current = {
         injectJavaScript: mockInjectJavaScript,
+        reload: mockReload,
       };
-
-      const initialForceReloadKey = result.current.forceReloadKey;
 
       // Switch account but vault data not yet fetched
       const newCredentials = {
@@ -757,8 +776,8 @@ describe('useVaultWebView', () => {
         visible: true,
       });
 
-      // Should not have changed reload key yet
-      expect(result.current.forceReloadKey).toBe(initialForceReloadKey);
+      // Should not have called reload yet (waiting for vault data)
+      expect(mockReload).not.toHaveBeenCalled();
 
       // Now vault data arrives
       rerender({
@@ -767,12 +786,12 @@ describe('useVaultWebView', () => {
         visible: true,
       });
 
-      // Should have changed reload key
-      expect(result.current.forceReloadKey).not.toBe(initialForceReloadKey);
+      // Should have called reload when data arrived
+      expect(mockReload).toHaveBeenCalled();
 
       // Fast-forward to trigger re-injection
       act(() => {
-        jest.advanceTimersByTime(2000);
+        jest.advanceTimersByTime(1000);
       });
 
       // Should have injected credentials

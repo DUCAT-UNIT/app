@@ -14,6 +14,7 @@ import {
 } from 'react-native';
 import { COLORS } from '../../theme';
 import Icon from '../icons';
+import { formatUnitAmount } from '../../utils/formatters/amounts';
 
 interface LowEcashBalanceModalProps {
   visible: boolean;
@@ -54,15 +55,15 @@ export default function LowEcashBalanceModal({
           <View style={styles.balanceInfo}>
             <View style={styles.balanceRow}>
               <Text style={styles.balanceLabel}>Current Balance:</Text>
-              <Text style={styles.balanceValue}>{currentBalance.toFixed(2)} UNIT</Text>
+              <Text style={styles.balanceValue}>{formatUnitAmount(currentBalance)} UNIT</Text>
             </View>
             <View style={styles.balanceRow}>
               <Text style={styles.balanceLabel}>Default Amount:</Text>
-              <Text style={styles.balanceValue}>{defaultThreshold.toFixed(2)} UNIT</Text>
+              <Text style={styles.balanceValue}>{formatUnitAmount(defaultThreshold)} UNIT</Text>
             </View>
             <View style={styles.balanceRow}>
               <Text style={styles.balanceLabel}>Amount Needed:</Text>
-              <Text style={[styles.balanceValue, styles.highlight]}>{amountNeeded.toFixed(2)} UNIT</Text>
+              <Text style={[styles.balanceValue, styles.highlight]}>{formatUnitAmount(amountNeeded)} UNIT</Text>
             </View>
           </View>
 

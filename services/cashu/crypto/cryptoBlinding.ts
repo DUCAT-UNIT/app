@@ -132,7 +132,7 @@ export const createBlindedMessage = async (
       secret,
       r,
     };
-  } catch (error) {
+  } catch (error: unknown) {
     logger.error('Failed to create blinded message', { error: (error as Error).message });
     throw new Error(`Blinding failed: ${(error as Error).message}`);
   }
@@ -189,10 +189,9 @@ export const unblindSignature = (C_: string, r: string, A: string): string => {
     }
 
     return Buffer.from(C).toString('hex');
-  } catch (error) {
+  } catch (error: unknown) {
     logger.error('Failed to unblind signature', { error: (error as Error).message });
-    // If unblinding fails, return C_ as-is (simplified fallback)
-    return C_;
+    throw new Error(`Unblinding failed: ${(error as Error).message}`);
   }
 };
 

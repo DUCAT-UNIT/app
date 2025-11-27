@@ -6,7 +6,11 @@
 import { useCallback } from 'react';
 import { Alert } from 'react-native';
 import { useNavigation, NavigationProp, ParamListBase } from '@react-navigation/native';
+import * as Crypto from 'expo-crypto';
 import { logger } from '../utils/logger';
+import { hasP2PKProofs } from '../services/cashu/p2pk';
+import { decodeToken, encodeToken } from '../services/cashu/crypto';
+import { checkProofsSpent } from '../services/cashu/cashuMintClient';
 import type { ToastType, SnackbarParams } from '../contexts/NotificationContext';
 
 interface ReceiveTokenResult {
@@ -86,7 +90,6 @@ export function useQRCodeHandler({
     if (data.startsWith('cashu')) {
       try {
         // Check if this is a P2PK locked token (Turbo)
-        const { hasP2PKProofs } = await import('../services/cashu/p2pk') as { hasP2PKProofs: (token: string) => boolean };
         const isP2PKToken = hasP2PKProofs(data);
 
         if (isP2PKToken) {
@@ -94,7 +97,6 @@ export function useQRCodeHandler({
           logger.debug('[useQRCodeHandler] P2PK token detected, checking if already processed');
 
           // Check if already processed
-          const Crypto = await import('expo-crypto');
           const tokenHash = await Crypto.digestStringAsync(
             Crypto.CryptoDigestAlgorithm.SHA256,
             data
@@ -130,13 +132,11 @@ export function useQRCodeHandler({
         showToast('Checking token...', 'info');
 
         // Decode and analyze the token
-        const { decodeToken } = await import('../services/cashu/crypto') as { decodeToken: (token: string) => DecodedToken };
-        const decoded = decodeToken(data);
+        const decoded = decodeToken(data) as DecodedToken;
         const { proofs, amount } = decoded;
 
         // Check which proofs are spent
-        const { checkProofsSpent } = await import('../services/cashu/cashuMintClient') as { checkProofsSpent: (proofs: Proof[]) => Promise<CheckProofsResult> };
-        const stateResult = await checkProofsSpent(proofs);
+        const stateResult = await checkProofsSpent(proofs) as CheckProofsResult;
 
         const spentProofs = stateResult.states.filter(s => s.state !== 'UNSPENT');
         const unspentProofs = proofs.filter((_, idx) =>
@@ -169,7 +169,6 @@ export function useQRCodeHandler({
                     showToast('Claiming unspent proofs...', 'info');
 
                     // Create a new token with only unspent proofs
-                    const { encodeToken } = await import('../services/cashu/crypto') as { encodeToken: (proofs: Proof[], mint: string) => string };
                     const filteredToken: { token: TokenEntry[] } = {
                       token: [{
                         mint: decoded.mint,
@@ -184,7 +183,7 @@ export function useQRCodeHandler({
                       action: 'claim',
                       description: `Successfully claimed ${result.amount} UNIT`,
                     });
-                  } catch (error) {
+                  } catch (error: unknown) {
                     logger.error('[useQRCodeHandler] Claim failed:', { error: error instanceof Error ? error.message : String(error) });
                     showSnackbar({
                       type: 'error',
@@ -206,7 +205,7 @@ export function useQRCodeHandler({
             description: `Successfully claimed ${result.amount} UNIT`,
           });
         }
-      } catch (error) {
+      } catch (error: unknown) {
         logger.error('[useQRCodeHandler] Token check failed:', { error: error instanceof Error ? error.message : String(error) });
         showSnackbar({
           type: 'error',
@@ -225,7 +224,6 @@ export function useQRCodeHandler({
 
         // If it's already a proper token object with proofs, encode it
         if (parsed.token && Array.isArray(parsed.token)) {
-          const { encodeToken } = await import('../services/cashu/crypto') as { encodeToken: (proofs: Proof[], mint: string) => string };
           const firstEntry = parsed.token[0];
           const encoded = encodeToken(firstEntry.proofs, firstEntry.mint);
           logger.debug('[useQRCodeHandler] Encoded token:', { tokenStart: encoded.substring(0, 50) });
@@ -251,7 +249,7 @@ export function useQRCodeHandler({
             description: 'Invalid JSON token format',
           });
         }
-      } catch (error) {
+      } catch (error: unknown) {
         logger.error('[useQRCodeHandler] Failed to parse/claim JSON token:', { error: error instanceof Error ? error.message : String(error) });
         showSnackbar({
           type: 'error',
@@ -301,7 +299,7 @@ export function useQRCodeHandler({
         } else {
           showToast('Failed to extract token from URL', 'error');
         }
-      } catch (error) {
+      } catch (error: unknown) {
         logger.error('[useQRCodeHandler] Failed to extract token:', { error: error instanceof Error ? error.message : String(error) });
         showToast(`Failed to extract token: ${error instanceof Error ? error.message : String(error)}`, 'error');
       }

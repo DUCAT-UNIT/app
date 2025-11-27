@@ -135,9 +135,11 @@ export const receiveP2PKToken = async (
     if (keyData.keysets && keyData.keysets.length > 0) {
       keysetId = keyData.keysets[0].id;
       keys = keyData.keysets[0].keys;
-    } else {
-      keys = keyData.keys || keyData;
+    } else if (keyData.keys) {
+      keys = keyData.keys;
       keysetId = '';
+    } else {
+      throw new Error('No keys available from mint');
     }
 
     logger.cashu('p2pk_keys_fetched', {
@@ -179,7 +181,7 @@ export const receiveP2PKToken = async (
         if (Array.isArray(secretParsed) && secretParsed[0] === 'P2PK') {
           lockedToPubkey = (secretParsed[1] as { data?: string })?.data ?? null;
         }
-      } catch (e) { /* ignore */ }
+      } catch (e: unknown) { /* ignore */ }
 
       let witnessSignature: string | null = null;
       try {
@@ -187,7 +189,7 @@ export const receiveP2PKToken = async (
           const witnessParsed = JSON.parse(proof.witness) as { signatures?: string[] };
           witnessSignature = witnessParsed.signatures?.[0] ?? null;
         }
-      } catch (e) { /* ignore */ }
+      } catch (e: unknown) { /* ignore */ }
 
       logger.cashu('p2pk_swap_proof_detail', {
         step: 'RECEIVE',
@@ -241,7 +243,7 @@ export const receiveP2PKToken = async (
       amount,
       proofCount: newProofs.length,
     };
-  } catch (error) {
+  } catch (error: unknown) {
     // Derive pubkey from private key for error logging
     let derivedPubkeyForError: string | null = null;
     try {
@@ -254,7 +256,7 @@ export const receiveP2PKToken = async (
           derivedPubkeyForError = Buffer.from(pubkeyFull).slice(1).toString('hex');
         }
       }
-    } catch (e) { /* ignore derivation errors */ }
+    } catch (e: unknown) { /* ignore derivation errors */ }
 
     logger.cashu('p2pk_receive_error', {
       step: 'RECEIVE',

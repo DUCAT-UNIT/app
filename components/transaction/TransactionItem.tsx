@@ -104,10 +104,12 @@ function TransactionItem({ tx, styles, onPress, advancedMode = false }: Transact
 }
 
 export default memo(TransactionItem, (prev: TransactionItemProps, next: TransactionItemProps) => {
+  // Note: onPress is intentionally excluded from comparison.
+  // The callback identity may change due to parent re-renders,
+  // but we only need to re-render when the actual transaction data changes.
   return (
     prev.tx.txid === next.tx.txid &&
     prev.tx.status?.confirmed === next.tx.status?.confirmed &&
-    prev.advancedMode === next.advancedMode &&
-    prev.onPress === next.onPress
+    prev.advancedMode === next.advancedMode
   );
 });

@@ -69,7 +69,7 @@ export function useCashuMint({ fetchBalance, setIsLoading, setError }: UseCashuM
 
       logger.cashu('mint_quote_received', { quoteId: quote.quoteId?.substring(0, 8) });
       return quote;
-    } catch (err) {
+    } catch (err: unknown) {
       const errorMessage = err instanceof Error ? err.message : String(err);
       logger.error('Failed to start mint', { error: errorMessage });
       setError(errorMessage);
@@ -94,6 +94,9 @@ export function useCashuMint({ fetchBalance, setIsLoading, setError }: UseCashuM
         if (!quote) {
           throw new Error('Quote not found');
         }
+        if (quote.amount === undefined) {
+          throw new Error('Quote amount is undefined');
+        }
 
         const proofs = await completeMint(quoteId, quote.amount);
         setPendingMints((prev) => prev.filter((q) => q.quoteId !== quoteId));
@@ -112,7 +115,7 @@ export function useCashuMint({ fetchBalance, setIsLoading, setError }: UseCashuM
         completed: false,
         state: status.state,
       };
-    } catch (err) {
+    } catch (err: unknown) {
       const errorMessage = err instanceof Error ? err.message : String(err);
       logger.error('Failed to check/complete mint', { error: errorMessage, quoteId });
       throw err;
@@ -147,7 +150,7 @@ export function useCashuMint({ fetchBalance, setIsLoading, setError }: UseCashuM
         depositAddress: quote.depositAddress,
       });
 
-      if (onSuccess) {
+      if (onSuccess && quote.amount !== undefined) {
         onSuccess({
           address: quote.depositAddress,
           amount: quote.amount,
@@ -156,7 +159,7 @@ export function useCashuMint({ fetchBalance, setIsLoading, setError }: UseCashuM
       }
 
       return quote;
-    } catch (err) {
+    } catch (err: unknown) {
       const errorMessage = err instanceof Error ? err.message : String(err);
       logger.error('Failed to auto-mint', { error: errorMessage });
       setError(errorMessage);
@@ -176,7 +179,7 @@ export function useCashuMint({ fetchBalance, setIsLoading, setError }: UseCashuM
           if (result.completed) {
             logger.info('Auto-completed mint', { quoteId: mint.quoteId, amount: result.amount });
           }
-        } catch (error) {
+        } catch (error: unknown) {
           const errorMessage = error instanceof Error ? error.message : String(error);
           logger.debug('Error auto-completing mint', { quoteId: mint.quoteId, error: errorMessage });
         }

@@ -3,7 +3,7 @@
  * Features: BTC and UNIT cards with balances
  */
 
-import React from 'react';
+import React, { useMemo, useCallback } from 'react';
 import { Text, View, TouchableOpacity, StyleSheet } from 'react-native';
 import { NavigationProp } from '@react-navigation/native';
 import { COLORS } from '../../theme';
@@ -13,6 +13,7 @@ import { usePrice } from '../../contexts/PriceContext';
 import { useSendFlow, AssetType } from '../../contexts/SendFlowContext';
 import { useCashu } from '../../contexts/CashuContext';
 import { logger } from '../../utils/logger';
+import { getRunesAmount } from '../../utils/runesHelper';
 
 /**
  * Props for AssetSelectorScreen
@@ -27,16 +28,23 @@ export default function AssetSelectorScreen({ navigation }: AssetSelectorScreenP
   const { setSendAssetType } = useSendFlow();
   const { balance: cashuBalance } = useCashu();
 
-  const btcBalance = (segwitBalance || 0) + (taprootBalance || 0);
-  // For UNIT, combine on-chain runes + ecash balance
-  const unitRunesBalance = runesBalance && runesBalance.length > 0 ? parseFloat(runesBalance[0].amount) : 0;
-  const unitBalance = unitRunesBalance + (cashuBalance || 0);
+  // Memoize balance calculations to prevent recalculation on every render
+  const btcBalance = useMemo(
+    () => (segwitBalance || 0) + (taprootBalance || 0),
+    [segwitBalance, taprootBalance]
+  );
 
-  const handleSelectAsset = (assetType: AssetType): void => {
+  // For UNIT, combine on-chain runes + ecash balance
+  const unitBalance = useMemo(() => {
+    const unitRunesBalance = getRunesAmount(runesBalance);
+    return unitRunesBalance + (cashuBalance || 0);
+  }, [runesBalance, cashuBalance]);
+
+  const handleSelectAsset = useCallback((assetType: AssetType): void => {
     logger.debug('Setting asset type to:', { assetType });
     setSendAssetType(assetType);
     navigation.navigate('AddressInput', { assetType });
-  };
+  }, [setSendAssetType, navigation]);
 
   return (
     <View style={localStyles.container} testID="asset-selector-screen">

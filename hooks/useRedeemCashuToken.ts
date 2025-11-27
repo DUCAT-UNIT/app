@@ -6,6 +6,10 @@
 import { useCallback } from 'react';
 import { Alert } from 'react-native';
 import { logger } from '../utils/logger';
+import { decodeToken } from '../services/cashu/crypto';
+import { isP2PKSecret, getP2PKRecipient, findAccountForP2PKToken } from '../services/cashu/p2pk';
+import { getCurrentAccount } from '../services/secureStorageService';
+import { receiveP2PKToken, receiveToken } from '../services/cashu/cashuWalletService';
 
 interface UseRedeemCashuTokenParams {
   fetchTransactionHistory: () => Promise<void> | void;
@@ -59,9 +63,7 @@ export function useRedeemCashuToken({ fetchTransactionHistory }: UseRedeemCashuT
             });
 
             try {
-              const { decodeToken } = await import('../services/cashu/crypto');
-              const { isP2PKSecret } = await import('../services/cashu/p2pk');
-              const decoded = decodeToken(tokenString.trim());
+              const decoded = decodeToken(tokenString.trim()) as DecodedToken | null;
 
               if (!decoded || !decoded.proofs || !Array.isArray(decoded.proofs)) {
                 logger.cashu('manual_redeem_invalid_format', {
@@ -88,7 +90,7 @@ export function useRedeemCashuToken({ fetchTransactionHistory }: UseRedeemCashuT
               } else {
                 await redeemRegularToken(tokenString.trim(), fetchTransactionHistory);
               }
-            } catch (error) {
+            } catch (error: unknown) {
               logger.cashu('manual_redeem_error', {
                 step: 'MANUAL_REDEEM',
                 error: error instanceof Error ? error.message : String(error),
@@ -115,8 +117,6 @@ async function redeemP2PKToken(
     proofCount: decoded.proofs?.length,
     message: 'Starting P2PK token redemption (manual)',
   });
-
-  const { getP2PKRecipient, findAccountForP2PKToken } = await import('../services/cashu/p2pk');
 
   // Extract recipient pubkey
   let recipientPubkey: string | null = null;
@@ -172,7 +172,6 @@ async function redeemP2PKToken(
   });
 
   // Check if token belongs to current account
-  const { getCurrentAccount } = await import('../services/secureStorageService');
   const currentAccountIndex = await getCurrentAccount();
 
   logger.cashu('manual_p2pk_account_comparison', {
@@ -201,7 +200,6 @@ async function redeemP2PKToken(
     message: 'Executing P2PK token redemption',
   });
 
-  const { receiveP2PKToken } = await import('../services/cashu/cashuWalletService');
   await receiveP2PKToken(tokenString, accountMatch.privateKey);
   await fetchTransactionHistory();
 
@@ -224,7 +222,6 @@ async function redeemRegularToken(
     message: 'Starting regular token redemption (manual)',
   });
 
-  const { receiveToken } = await import('../services/cashu/cashuWalletService');
   await receiveToken(tokenString);
   await fetchTransactionHistory();
 

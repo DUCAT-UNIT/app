@@ -27,6 +27,7 @@ import {
   removeProofs as _removeProofs,
   loadProofsPartial as _loadProofsPartial,
   removeSpentProofs as _removeSpentProofs,
+  subscribeToProofChanges as _subscribeToProofChanges,
 } from './cashuProofManager';
 
 export const setCurrentAccount = _setCurrentAccount;
@@ -37,6 +38,7 @@ export const addProofs = _addProofs;
 export const removeProofs = _removeProofs;
 export const loadProofsPartial = _loadProofsPartial;
 export const removeSpentProofs = _removeSpentProofs;
+export const subscribeToProofChanges = _subscribeToProofChanges;
 
 // Import and re-export from cashuBalanceService
 import {

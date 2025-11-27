@@ -171,7 +171,7 @@ export default function PinSetupScreen({
       // Complete setup regardless of biometric result
       // Pass the PIN back to parent for potential passkey migration
       onPinSetupComplete(pin);
-    } catch (error) {
+    } catch (error: unknown) {
       onPinSetupComplete(pin);
     }
   };

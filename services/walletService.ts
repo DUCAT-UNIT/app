@@ -46,7 +46,7 @@ export const generateWallet = async (accountIndex = 0): Promise<GenerateWalletRe
       mnemonic,
       addresses,
     };
-  } catch (error) {
+  } catch (error: unknown) {
     throw new Error('Failed to generate wallet: ' + (error as Error).message);
   }
 };
@@ -58,24 +58,20 @@ export const generateWallet = async (accountIndex = 0): Promise<GenerateWalletRe
  * @returns Promise with addresses
  */
 export const importWallet = async (mnemonic: string, accountIndex = 0): Promise<ImportWalletResult> => {
-  try {
-    // Trim and normalize the mnemonic
-    const normalizedMnemonic = mnemonic.trim().toLowerCase();
+  // Trim and normalize the mnemonic
+  const normalizedMnemonic = mnemonic.trim().toLowerCase();
 
-    // Validate the mnemonic
-    if (!bip39.validateMnemonic(normalizedMnemonic)) {
-      throw new Error('Invalid seed phrase. Please check and try again.');
-    }
-
-    // Derive addresses from mnemonic
-    const addresses = deriveAddressesFromMnemonic(normalizedMnemonic, accountIndex);
-
-    return {
-      addresses,
-    };
-  } catch (error) {
-    throw error;
+  // Validate the mnemonic
+  if (!bip39.validateMnemonic(normalizedMnemonic)) {
+    throw new Error('Invalid seed phrase. Please check and try again.');
   }
+
+  // Derive addresses from mnemonic
+  const addresses = deriveAddressesFromMnemonic(normalizedMnemonic, accountIndex);
+
+  return {
+    addresses,
+  };
 };
 
 /**
@@ -98,7 +94,7 @@ export const loadWalletFromStorage = async (): Promise<LoadWalletResult> => {
       addresses,
       accountIndex,
     };
-  } catch (error) {
+  } catch (error: unknown) {
     throw new Error('Failed to load wallet from storage: ' + (error as Error).message);
   }
 };
@@ -126,7 +122,7 @@ export const switchToAccount = async (accountIndex: number): Promise<SwitchAccou
     return {
       addresses,
     };
-  } catch (error) {
+  } catch (error: unknown) {
     throw new Error('Failed to switch account: ' + (error as Error).message);
   }
 };
@@ -143,7 +139,7 @@ export const saveWalletToStorage = async (mnemonic: string, accountIndex = 0): P
     const accountSaved = await saveCurrentAccount(accountIndex);
 
     return mnemonicSaved && accountSaved;
-  } catch (error) {
+  } catch (error: unknown) {
     return false;
   }
 };

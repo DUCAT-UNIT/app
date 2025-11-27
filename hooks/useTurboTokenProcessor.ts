@@ -106,7 +106,7 @@ export function useTurboTokenProcessor({
         const { saveReceivedToken } = await import('../services/cashu/cashuLockedTokensService');
         await saveReceivedToken(token, 'Turbo Claim', result.amount * 100, wallet?.taprootAddress || '');
         logger.debug('[TURBO] Saved to transaction history');
-      } catch (err) {
+      } catch (err: unknown) {
         logger.warn('[TURBO] Failed to save to history:', { message: err instanceof Error ? err.message : String(err) });
       }
 
@@ -129,7 +129,7 @@ export function useTurboTokenProcessor({
       }, 1000);
 
       setIsVerifyingToken(false);
-    } catch (error) {
+    } catch (error: unknown) {
       const errMsg = error instanceof Error ? error.message : String(error);
       logger.error('[TURBO] Failed:', { message: errMsg });
       setIsVerifyingToken(false);
@@ -171,7 +171,7 @@ export function useTurboTokenProcessor({
 
               await new Promise(resolve => setTimeout(resolve, 1000));
               global.pendingCashuToken = tokenToRetry;
-            } catch (err) {
+            } catch (err: unknown) {
               logger.error('[TURBO] Failed to switch account:', { error: err instanceof Error ? err.message : String(err) });
               showSnackbar({
                 type: 'error',

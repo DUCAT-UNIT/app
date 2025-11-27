@@ -99,7 +99,7 @@ export const calculateMaxSendableBTC = async ({
     }
 
     return actualMaxSendable / 100000000; // Convert to BTC
-  } catch (error) {
+  } catch (error: unknown) {
     // Fallback on error: use balance-based estimation
     const estimatedFee = 250; // Conservative estimate in sats
     const btcBalanceInSats = Math.round(btcBalance * 100000000);

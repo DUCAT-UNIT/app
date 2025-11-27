@@ -52,7 +52,7 @@ export function useConfirmationHandlers({
           message: turboDeeplink,
           title: 'Receive UNIT',
         });
-      } catch (error) {
+      } catch (error: unknown) {
         logger.error('[useConfirmationHandlers] Failed to share link:', { error: error instanceof Error ? error.message : String(error) });
         showToast('Failed to share link. Please try again.', 'error');
       }
@@ -65,7 +65,7 @@ export function useConfirmationHandlers({
         logger.debug('[useConfirmationHandlers] Copying Turbo deeplink to clipboard:', turboDeeplink);
         await Clipboard.setStringAsync(turboDeeplink);
         showToast('Link copied to clipboard', 'info');
-      } catch (error) {
+      } catch (error: unknown) {
         logger.error('[useConfirmationHandlers] Failed to copy link:', { error: error instanceof Error ? error.message : String(error) });
         showToast('Failed to copy link. Please try again.', 'error');
       }
@@ -77,7 +77,7 @@ export function useConfirmationHandlers({
       try {
         logger.debug('[useConfirmationHandlers] Opening Turbo deeplink in browser:', turboDeeplink);
         await Linking.openURL(turboDeeplink);
-      } catch (error) {
+      } catch (error: unknown) {
         logger.error('[useConfirmationHandlers] Failed to open link:', { error: error instanceof Error ? error.message : String(error) });
         showToast('Failed to open link. Please try again.', 'error');
       }

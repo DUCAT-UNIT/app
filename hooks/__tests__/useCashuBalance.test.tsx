@@ -20,6 +20,7 @@ jest.mock('../../utils/logger', () => ({
 jest.mock('../../services/cashu/cashuWalletService', () => ({
   getBalance: jest.fn(),
   setCurrentAccount: jest.fn(),
+  subscribeToProofChanges: jest.fn(() => jest.fn()), // Returns unsubscribe function
 }));
 
 jest.mock('../usePolling', () => ({

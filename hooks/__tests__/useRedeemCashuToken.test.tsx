@@ -1,9 +1,7 @@
 // @ts-nocheck
 /**
  * Tests for useRedeemCashuToken hook
- *
- * Note: This hook uses dynamic imports which are difficult to mock in Jest.
- * These tests focus on the basic state management and prompt display.
+ * Covers token redemption flow including regular and P2PK tokens
  */
 
 import React from 'react';
@@ -43,6 +41,34 @@ jest.mock('react-native', () => ({
   },
 }));
 
+// Mock dynamic imports
+const mockDecodeToken = jest.fn();
+const mockIsP2PKSecret = jest.fn();
+const mockGetP2PKRecipient = jest.fn();
+const mockFindAccountForP2PKToken = jest.fn();
+const mockGetCurrentAccount = jest.fn();
+const mockReceiveP2PKToken = jest.fn();
+const mockReceiveToken = jest.fn();
+
+jest.mock('../../services/cashu/crypto', () => ({
+  decodeToken: (...args) => mockDecodeToken(...args),
+}));
+
+jest.mock('../../services/cashu/p2pk', () => ({
+  isP2PKSecret: (...args) => mockIsP2PKSecret(...args),
+  getP2PKRecipient: (...args) => mockGetP2PKRecipient(...args),
+  findAccountForP2PKToken: (...args) => mockFindAccountForP2PKToken(...args),
+}));
+
+jest.mock('../../services/secureStorageService', () => ({
+  getCurrentAccount: (...args) => mockGetCurrentAccount(...args),
+}));
+
+jest.mock('../../services/cashu/cashuWalletService', () => ({
+  receiveP2PKToken: (...args) => mockReceiveP2PKToken(...args),
+  receiveToken: (...args) => mockReceiveToken(...args),
+}));
+
 // Helper to render hooks with props
 function renderHookWithProps(props) {
   const result = { current: null };
@@ -74,6 +100,21 @@ describe('useRedeemCashuToken', () => {
     mockProps = {
       fetchTransactionHistory: jest.fn().mockResolvedValue(),
     };
+
+    // Default mock implementations
+    mockDecodeToken.mockReturnValue({
+      mint: 'https://mint.example.com',
+      proofs: [
+        { secret: 'secret1', amount: 100, C: 'C1', id: 'id1' },
+      ],
+      amount: 100,
+    });
+    mockIsP2PKSecret.mockReturnValue(false);
+    mockGetP2PKRecipient.mockReturnValue(null);
+    mockFindAccountForP2PKToken.mockResolvedValue(null);
+    mockGetCurrentAccount.mockResolvedValue(0);
+    mockReceiveP2PKToken.mockResolvedValue(undefined);
+    mockReceiveToken.mockResolvedValue(undefined);
   });
 
   it('should return handleRedeemToken function', () => {
@@ -230,5 +271,386 @@ describe('useRedeemCashuToken', () => {
     });
 
     expect(Alert.prompt.mock.calls[0][1]).toBe('Paste your Cashu token to redeem:');
+  });
+
+  describe('Token redemption flow', () => {
+    it('should redeem valid regular token successfully', async () => {
+      const { result } = renderHookWithProps(mockProps);
+
+      act(() => {
+        result.current.handleRedeemToken();
+      });
+
+      const redeemButton = Alert.prompt.mock.calls[0][2][1];
+
+      await act(async () => {
+        await redeemButton.onPress('cashuAvalidtoken');
+      });
+
+      expect(mockDecodeToken).toHaveBeenCalledWith('cashuAvalidtoken');
+      expect(mockReceiveToken).toHaveBeenCalledWith('cashuAvalidtoken');
+      expect(mockProps.fetchTransactionHistory).toHaveBeenCalled();
+      expect(Alert.alert).toHaveBeenCalledWith('Success', 'Token redeemed successfully!');
+    });
+
+    it('should trim whitespace from token before processing', async () => {
+      const { result } = renderHookWithProps(mockProps);
+
+      act(() => {
+        result.current.handleRedeemToken();
+      });
+
+      const redeemButton = Alert.prompt.mock.calls[0][2][1];
+
+      await act(async () => {
+        await redeemButton.onPress('  cashuAvalidtoken  ');
+      });
+
+      expect(mockDecodeToken).toHaveBeenCalledWith('cashuAvalidtoken');
+    });
+
+    it('should handle invalid token format - null decoded', async () => {
+      mockDecodeToken.mockReturnValue(null);
+      const { result } = renderHookWithProps(mockProps);
+
+      act(() => {
+        result.current.handleRedeemToken();
+      });
+
+      const redeemButton = Alert.prompt.mock.calls[0][2][1];
+
+      await act(async () => {
+        await redeemButton.onPress('invalidtoken');
+      });
+
+      expect(Alert.alert).toHaveBeenCalledWith('Error', 'Invalid token format');
+    });
+
+    it('should handle invalid token format - missing proofs', async () => {
+      mockDecodeToken.mockReturnValue({ mint: 'https://mint.example.com' });
+      const { result } = renderHookWithProps(mockProps);
+
+      act(() => {
+        result.current.handleRedeemToken();
+      });
+
+      const redeemButton = Alert.prompt.mock.calls[0][2][1];
+
+      await act(async () => {
+        await redeemButton.onPress('invalidtoken');
+      });
+
+      expect(Alert.alert).toHaveBeenCalledWith('Error', 'Invalid token format');
+    });
+
+    it('should handle invalid token format - proofs not array', async () => {
+      mockDecodeToken.mockReturnValue({ mint: 'https://mint.example.com', proofs: 'notarray' });
+      const { result } = renderHookWithProps(mockProps);
+
+      act(() => {
+        result.current.handleRedeemToken();
+      });
+
+      const redeemButton = Alert.prompt.mock.calls[0][2][1];
+
+      await act(async () => {
+        await redeemButton.onPress('invalidtoken');
+      });
+
+      expect(Alert.alert).toHaveBeenCalledWith('Error', 'Invalid token format');
+    });
+
+    it('should handle decode token error', async () => {
+      mockDecodeToken.mockImplementation(() => {
+        throw new Error('Decode failed');
+      });
+      const { result } = renderHookWithProps(mockProps);
+
+      act(() => {
+        result.current.handleRedeemToken();
+      });
+
+      const redeemButton = Alert.prompt.mock.calls[0][2][1];
+
+      await act(async () => {
+        await redeemButton.onPress('invalidtoken');
+      });
+
+      expect(Alert.alert).toHaveBeenCalledWith('Error', 'Failed to redeem token: Decode failed');
+    });
+
+    it('should handle non-Error exception during decoding', async () => {
+      mockDecodeToken.mockImplementation(() => {
+        throw 'String error';
+      });
+      const { result } = renderHookWithProps(mockProps);
+
+      act(() => {
+        result.current.handleRedeemToken();
+      });
+
+      const redeemButton = Alert.prompt.mock.calls[0][2][1];
+
+      await act(async () => {
+        await redeemButton.onPress('invalidtoken');
+      });
+
+      expect(Alert.alert).toHaveBeenCalledWith('Error', 'Failed to redeem token: String error');
+    });
+  });
+
+  describe('P2PK token redemption', () => {
+    beforeEach(() => {
+      mockDecodeToken.mockReturnValue({
+        mint: 'https://mint.example.com',
+        proofs: [
+          { secret: 'P2PK:pubkey123', amount: 100, C: 'C1', id: 'id1' },
+        ],
+        amount: 100,
+      });
+      mockIsP2PKSecret.mockReturnValue(true);
+      mockGetP2PKRecipient.mockReturnValue('02pubkey123456789abcdef');
+    });
+
+    it('should detect P2PK token', async () => {
+      const { result } = renderHookWithProps(mockProps);
+
+      act(() => {
+        result.current.handleRedeemToken();
+      });
+
+      const redeemButton = Alert.prompt.mock.calls[0][2][1];
+
+      await act(async () => {
+        await redeemButton.onPress('cashuAp2pktoken');
+      });
+
+      expect(mockIsP2PKSecret).toHaveBeenCalled();
+    });
+
+    it('should redeem P2PK token when account matches', async () => {
+      mockFindAccountForP2PKToken.mockResolvedValue({
+        accountIndex: 0,
+        address: 'bc1ptest123456789',
+        privateKey: 'privatekey123',
+      });
+      mockGetCurrentAccount.mockResolvedValue(0);
+
+      const { result } = renderHookWithProps(mockProps);
+
+      act(() => {
+        result.current.handleRedeemToken();
+      });
+
+      const redeemButton = Alert.prompt.mock.calls[0][2][1];
+
+      await act(async () => {
+        await redeemButton.onPress('cashuAp2pktoken');
+      });
+
+      expect(mockReceiveP2PKToken).toHaveBeenCalledWith('cashuAp2pktoken', 'privatekey123');
+      expect(mockProps.fetchTransactionHistory).toHaveBeenCalled();
+      expect(Alert.alert).toHaveBeenCalledWith('Success', 'P2PK token redeemed successfully!');
+    });
+
+    it('should show error when P2PK pubkey cannot be extracted', async () => {
+      mockGetP2PKRecipient.mockReturnValue(null);
+
+      const { result } = renderHookWithProps(mockProps);
+
+      act(() => {
+        result.current.handleRedeemToken();
+      });
+
+      const redeemButton = Alert.prompt.mock.calls[0][2][1];
+
+      await act(async () => {
+        await redeemButton.onPress('cashuAp2pktoken');
+      });
+
+      expect(Alert.alert).toHaveBeenCalledWith('Error', 'Could not extract recipient pubkey from P2PK token');
+    });
+
+    it('should show error when no matching account found for P2PK token', async () => {
+      mockFindAccountForP2PKToken.mockResolvedValue(null);
+
+      const { result } = renderHookWithProps(mockProps);
+
+      act(() => {
+        result.current.handleRedeemToken();
+      });
+
+      const redeemButton = Alert.prompt.mock.calls[0][2][1];
+
+      await act(async () => {
+        await redeemButton.onPress('cashuAp2pktoken');
+      });
+
+      expect(Alert.alert).toHaveBeenCalledWith(
+        'Error',
+        'This token is not locked to any of your accounts (checked 50 accounts). Make sure you are using the correct wallet.'
+      );
+    });
+
+    it('should show wrong account message when P2PK token belongs to different account', async () => {
+      mockFindAccountForP2PKToken.mockResolvedValue({
+        accountIndex: 2,
+        address: 'bc1ptest123456789',
+        privateKey: 'privatekey123',
+      });
+      mockGetCurrentAccount.mockResolvedValue(0);
+
+      const { result } = renderHookWithProps(mockProps);
+
+      act(() => {
+        result.current.handleRedeemToken();
+      });
+
+      const redeemButton = Alert.prompt.mock.calls[0][2][1];
+
+      await act(async () => {
+        await redeemButton.onPress('cashuAp2pktoken');
+      });
+
+      expect(Alert.alert).toHaveBeenCalledWith(
+        'Wrong Account',
+        'This proof belongs to account 3. Please switch to that account to claim this token.'
+      );
+    });
+
+    it('should iterate through proofs to find pubkey', async () => {
+      mockDecodeToken.mockReturnValue({
+        mint: 'https://mint.example.com',
+        proofs: [
+          { secret: 'regular_secret', amount: 50, C: 'C1', id: 'id1' },
+          { secret: 'P2PK:pubkey123', amount: 50, C: 'C2', id: 'id2' },
+        ],
+        amount: 100,
+      });
+      mockIsP2PKSecret.mockImplementation((secret) => secret.startsWith('P2PK:'));
+      mockGetP2PKRecipient.mockImplementation((secret) => {
+        if (secret.startsWith('P2PK:')) return '02pubkey123';
+        return null;
+      });
+      mockFindAccountForP2PKToken.mockResolvedValue({
+        accountIndex: 0,
+        address: 'bc1ptest',
+        privateKey: 'pk123',
+      });
+
+      const { result } = renderHookWithProps(mockProps);
+
+      act(() => {
+        result.current.handleRedeemToken();
+      });
+
+      const redeemButton = Alert.prompt.mock.calls[0][2][1];
+
+      await act(async () => {
+        await redeemButton.onPress('cashuAp2pktoken');
+      });
+
+      expect(mockGetP2PKRecipient).toHaveBeenCalledWith('regular_secret');
+      expect(mockGetP2PKRecipient).toHaveBeenCalledWith('P2PK:pubkey123');
+    });
+
+    it('should handle proof without secret property', async () => {
+      mockDecodeToken.mockReturnValue({
+        mint: 'https://mint.example.com',
+        proofs: [
+          { amount: 50, C: 'C1', id: 'id1' }, // no secret
+          { secret: 'P2PK:pubkey123', amount: 50, C: 'C2', id: 'id2' },
+        ],
+        amount: 100,
+      });
+      mockIsP2PKSecret.mockReturnValue(true);
+      mockGetP2PKRecipient.mockImplementation((secret) => {
+        if (secret && secret.startsWith('P2PK:')) return '02pubkey123';
+        return null;
+      });
+      mockFindAccountForP2PKToken.mockResolvedValue({
+        accountIndex: 0,
+        address: 'bc1ptest',
+        privateKey: 'pk123',
+      });
+
+      const { result } = renderHookWithProps(mockProps);
+
+      act(() => {
+        result.current.handleRedeemToken();
+      });
+
+      const redeemButton = Alert.prompt.mock.calls[0][2][1];
+
+      await act(async () => {
+        await redeemButton.onPress('cashuAp2pktoken');
+      });
+
+      // Should still find the pubkey from the second proof
+      expect(mockReceiveP2PKToken).toHaveBeenCalled();
+    });
+  });
+
+  describe('Error handling', () => {
+    it('should handle receiveToken error', async () => {
+      mockReceiveToken.mockRejectedValue(new Error('Network error'));
+
+      const { result } = renderHookWithProps(mockProps);
+
+      act(() => {
+        result.current.handleRedeemToken();
+      });
+
+      const redeemButton = Alert.prompt.mock.calls[0][2][1];
+
+      await act(async () => {
+        await redeemButton.onPress('cashuAvalidtoken');
+      });
+
+      expect(Alert.alert).toHaveBeenCalledWith('Error', 'Failed to redeem token: Network error');
+    });
+
+    it('should handle receiveP2PKToken error', async () => {
+      mockIsP2PKSecret.mockReturnValue(true);
+      mockGetP2PKRecipient.mockReturnValue('02pubkey123');
+      mockFindAccountForP2PKToken.mockResolvedValue({
+        accountIndex: 0,
+        address: 'bc1ptest',
+        privateKey: 'pk123',
+      });
+      mockReceiveP2PKToken.mockRejectedValue(new Error('P2PK error'));
+
+      const { result } = renderHookWithProps(mockProps);
+
+      act(() => {
+        result.current.handleRedeemToken();
+      });
+
+      const redeemButton = Alert.prompt.mock.calls[0][2][1];
+
+      await act(async () => {
+        await redeemButton.onPress('cashuAp2pktoken');
+      });
+
+      expect(Alert.alert).toHaveBeenCalledWith('Error', 'Failed to redeem token: P2PK error');
+    });
+
+    it('should handle non-Error exception during redemption', async () => {
+      mockReceiveToken.mockRejectedValue('String rejection');
+
+      const { result } = renderHookWithProps(mockProps);
+
+      act(() => {
+        result.current.handleRedeemToken();
+      });
+
+      const redeemButton = Alert.prompt.mock.calls[0][2][1];
+
+      await act(async () => {
+        await redeemButton.onPress('cashuAvalidtoken');
+      });
+
+      expect(Alert.alert).toHaveBeenCalledWith('Error', 'Failed to redeem token: String rejection');
+    });
   });
 });

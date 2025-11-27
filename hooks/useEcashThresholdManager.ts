@@ -6,6 +6,8 @@
 import { useState, useCallback, Dispatch, SetStateAction } from 'react';
 import { useNavigation } from '@react-navigation/native';
 import { logger } from '../utils/logger';
+import { getRunesAmount } from '../utils/runesHelper';
+import { requestMint } from '../services/cashu/cashuWalletService';
 import type { ToastType, SnackbarParams } from '../types/notification';
 import type { RuneBalance } from '../services/balanceService';
 import type { ExtendedNavigation } from '../navigation/types';
@@ -76,8 +78,8 @@ export function useEcashThresholdManager({
 
     // Check if we need to convert more ecash
     const currentEcashBalance = cashuBalance || 0;
-    // runesBalance is an array: [{ rune, amount }, ...]
-    const currentUnitBalance = runesBalance && runesBalance.length > 0 ? parseFloat(runesBalance[0].amount) : 0;
+    // runesBalance can be array of arrays or array of objects
+    const currentUnitBalance = getRunesAmount(runesBalance);
     const requiredAmount = newThreshold === Infinity ? 0 : newThreshold;
 
     if (requiredAmount > currentEcashBalance && requiredAmount > 0) {
@@ -119,9 +121,6 @@ export function useEcashThresholdManager({
 
     // Navigate to mint flow (similar to Turbo mint flow)
     try {
-      logger.debug('[useEcashThresholdManager] Importing requestMint...');
-      const { requestMint } = await import('../services/cashu/cashuWalletService');
-
       logger.debug('[useEcashThresholdManager] Requesting mint quote for amount:', conversionAmount);
       // Request mint quote for the needed amount
       const mintQuote = await requestMint(conversionAmount);
@@ -183,7 +182,7 @@ export function useEcashThresholdManager({
           showToast('Navigation failed: ' + (navError instanceof Error ? navError.message : String(navError)), 'error');
         }
       }, 400);
-    } catch (error) {
+    } catch (error: unknown) {
       logger.error('[useEcashThresholdManager] Failed to initiate mint:', { error: error instanceof Error ? error.message : String(error) });
       showToast('Failed to start conversion: ' + (error instanceof Error ? error.message : String(error)), 'error');
     }
@@ -198,8 +197,6 @@ export function useEcashThresholdManager({
 
     // Navigate to mint flow
     try {
-      const { requestMint } = await import('../services/cashu/cashuWalletService');
-
       // Request mint quote for the needed amount
       const mintQuote = await requestMint(lowBalanceAmountNeeded);
       logger.debug('[useEcashThresholdManager] Received mint quote for top-up:', mintQuote);
@@ -225,7 +222,7 @@ export function useEcashThresholdManager({
         type: 'pending',
         action: 'conversion_turbo',
       });
-    } catch (error) {
+    } catch (error: unknown) {
       logger.error('[useEcashThresholdManager] Failed to initiate top-up:', { error: error instanceof Error ? error.message : String(error) });
       showToast('Failed to start top-up: ' + (error instanceof Error ? error.message : String(error)), 'error');
     }

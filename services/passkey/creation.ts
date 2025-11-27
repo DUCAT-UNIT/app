@@ -8,6 +8,7 @@ import { SECURE_KEYS } from '../../utils/constants';
 import { deriveAddressesFromMnemonic } from '../../utils/bitcoin';
 import { logger } from '../../utils/logger';
 import { checkICloudAvailability } from '../icloudStorage';
+import { savePinWithHash, savePin } from '../pinService';
 
 import { isPasskeySupported } from './core';
 import { generateRandomMnemonic, deriveEncryptionKey, encryptMnemonic } from './encryption';
@@ -81,7 +82,6 @@ export const createWalletWithPasskey = async ({
 
     // Save PIN for daily unlock (generates and saves salt + hash)
     // OPTIMIZATION: Returns the hashed PIN to avoid re-hashing (10k iterations = ~500ms)
-    const { savePinWithHash } = await import('../pinService');
     const { hashedPin, salt: pinSalt } = await savePinWithHash(pin);
 
     // Validate salt format: 32 bytes = 64 hex characters
@@ -141,7 +141,7 @@ export const createWalletWithPasskey = async ({
       credentialId: Buffer.from(credentialId).toString('base64'),
       icloudBackupPromise: backupPromise, // Return promise for background execution
     };
-  } catch (error) {
+  } catch (error: unknown) {
     logger.error('Failed to create wallet with passkey', { error: (error as Error).message });
     // Include full debug log in error
     const errorMessage = (error as Error).message;
@@ -189,7 +189,6 @@ export const addPasskeyToExistingWallet = async (
     let pinSalt = await SecureStore.getItemAsync(SECURE_KEYS.PIN_SALT);
     if (!pinSalt) {
       // No existing salt - save PIN to create one
-      const { savePin } = await import('../pinService');
       await savePin(pin);
       pinSalt = await SecureStore.getItemAsync(SECURE_KEYS.PIN_SALT);
     }
@@ -239,7 +238,7 @@ export const addPasskeyToExistingWallet = async (
     return {
       credentialId: Buffer.from(credentialId).toString('base64'),
     };
-  } catch (error) {
+  } catch (error: unknown) {
     logger.error('Failed to add passkey to wallet', { error: (error as Error).message });
     throw error;
   }

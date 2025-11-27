@@ -88,7 +88,7 @@ export function useVaultMessages(
         }
         return;
       }
-    } catch (e) {
+    } catch (e: unknown) {
       logger.error('❌ Error parsing WebView message:', { error: e instanceof Error ? e.message : String(e) });
     }
   }, [webViewRef, showSnackbar, injectWalletCredentials, setIsLoading, setPreparingVault, loadingTimeoutRef, handleCredentialConfirmation]);
@@ -129,7 +129,7 @@ async function handlePsbtSigningRequest(message: SignPsbtMessage, webViewRef: We
       })();
       true;
     `);
-  } catch (error) {
+  } catch (error: unknown) {
     // Send error response back to WebView
     const responseData = {
       type: 'SIGN_PSBT_RESPONSE',

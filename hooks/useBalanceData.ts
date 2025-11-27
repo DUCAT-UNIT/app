@@ -6,13 +6,27 @@
 
 import { useState, useCallback, useMemo, useRef, useEffect, Dispatch, SetStateAction } from 'react';
 import { fetchWalletBalances, fetchUtxos as fetchUtxosService, RuneBalance, UTXO } from '../services/balanceService';
-import logger from '../utils/logger';
 import type { WalletAddresses } from '../contexts/WalletContext';
 import type { UnconfirmedBalance } from '../utils/pendingTransactionsUtils';
 
 export type { UnconfirmedBalance };
 
-interface UseBalanceDataReturn {
+/**
+ * Shallow equality check for RuneBalance arrays
+ * Avoids JSON.stringify overhead on every comparison
+ */
+function areRunesBalancesEqual(a: RuneBalance[] | undefined, b: RuneBalance[]): boolean {
+  // Handle undefined/empty cases
+  if (!a && b.length === 0) return true;
+  if (!a || !b) return false;
+  if (a.length !== b.length) return false;
+  for (let i = 0; i < a.length; i++) {
+    if (a[i].runeid !== b[i].runeid || a[i].amount !== b[i].amount) return false;
+  }
+  return true;
+}
+
+export interface UseBalanceDataReturn {
   segwitBalance: number;
   taprootBalance: number;
   runesBalance: RuneBalance[];
@@ -60,10 +74,6 @@ export function useBalanceData(
   useEffect(() => {
     const currentAddress = wallet?.segwitAddress;
     if (currentAddress !== prevWalletAddressRef.current) {
-      logger.debug('[useBalanceData] Wallet address changed, resetting prevBalancesRef', {
-        prev: prevWalletAddressRef.current,
-        current: currentAddress,
-      });
       prevBalancesRef.current = { segwit: 0, taproot: 0, runes: [] };
       prevWalletAddressRef.current = currentAddress ?? null;
     }
@@ -76,48 +86,24 @@ export function useBalanceData(
       const segwitAddress = segwitAddr || wallet?.segwitAddress;
       const taprootAddress = taprootAddr || wallet?.taprootAddress;
 
-      logger.debug('[useBalanceData] fetchBalance called', {
-        segwitAddr,
-        taprootAddr,
-        walletSegwit: wallet?.segwitAddress,
-        walletTaproot: wallet?.taprootAddress,
-        finalSegwit: segwitAddress,
-        finalTaproot: taprootAddress,
-      });
-
       if (!segwitAddress || !taprootAddress) {
-        logger.debug('[useBalanceData] Missing addresses, returning early');
         return;
       }
 
       try {
-        logger.debug('[useBalanceData] Fetching balances...');
         setLoadingBalance(true);
         setBalanceError(null);
         const balances = await fetchWalletBalances(segwitAddress, taprootAddress);
-        logger.debug('[useBalanceData] Balances fetched', balances);
 
         // Only update state if balances have actually changed
         const prevBalances = prevBalancesRef.current;
+        const runesChanged = !areRunesBalancesEqual(balances.runesBalance, prevBalances.runes);
         const balancesChanged =
           balances.segwitBalance !== prevBalances.segwit ||
           balances.taprootBalance !== prevBalances.taproot ||
-          JSON.stringify(balances.runesBalance) !== JSON.stringify(prevBalances.runes);
-
-        logger.debug('[useBalanceData] Balance change check', {
-          prevSegwit: prevBalances.segwit,
-          newSegwit: balances.segwitBalance,
-          prevTaproot: prevBalances.taproot,
-          newTaproot: balances.taprootBalance,
-          changed: balancesChanged,
-        });
+          runesChanged;
 
         if (balancesChanged) {
-          logger.debug('[useBalanceData] Setting new balances in state', {
-            segwit: balances.segwitBalance,
-            taproot: balances.taprootBalance,
-            runesCount: balances.runesBalance?.length || 0,
-          });
           prevBalancesRef.current = {
             segwit: balances.segwitBalance,
             taproot: balances.taprootBalance,
@@ -126,8 +112,6 @@ export function useBalanceData(
           setSegwitBalance(balances.segwitBalance);
           setTaprootBalance(balances.taprootBalance);
           setRunesBalance(balances.runesBalance);
-        } else {
-          logger.debug('[useBalanceData] Balances unchanged, skipping state update');
         }
 
         // Also fetch unconfirmed balances from pending transactions
@@ -136,7 +120,7 @@ export function useBalanceData(
         setUnconfirmedSegwitBalance(unconfirmedSegwit.btc);
         setUnconfirmedTaprootBalance(unconfirmedTaproot.btc);
         setUnconfirmedRunesBalance(unconfirmedTaproot.runes);
-      } catch (error) {
+      } catch (error: unknown) {
         setBalanceError('Failed to fetch balance. Tap to retry.');
       } finally {
         setLoadingBalance(false);
@@ -159,7 +143,7 @@ export function useBalanceData(
       const formattedUtxos = await fetchUtxosService(address);
       setUtxos(formattedUtxos);
       return formattedUtxos;
-    } catch (error) {
+    } catch (error: unknown) {
       throw error;
     } finally {
       setLoadingUtxos(false);

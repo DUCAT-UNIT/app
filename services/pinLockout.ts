@@ -46,7 +46,7 @@ export const loadLockoutState = async (): Promise<LockoutState> => {
       failedAttempts: failedAttempts ? parseInt(failedAttempts, 10) : 0,
       lockoutUntil: lockoutUntil ? parseInt(lockoutUntil, 10) : null,
     };
-  } catch (error) {
+  } catch (error: unknown) {
     // If we can't load state, return safe defaults
     return {
       failedAttempts: 0,
@@ -74,7 +74,7 @@ export const saveLockoutState = async (
     } else {
       await SecureStore.deleteItemAsync(LOCKOUT_KEYS.LOCKOUT_UNTIL);
     }
-  } catch (error) {
+  } catch (error: unknown) {
     // SECURITY: Fail closed - if we can't save lockout state, throw error
     // This prevents attackers from triggering storage failures to bypass rate limiting
     logger.error('CRITICAL: Failed to save lockout state', {

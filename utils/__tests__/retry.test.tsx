@@ -1,16 +1,17 @@
-// @ts-nocheck
 /**
  * Tests for Retry utility
  */
 
-import { retryWithBackoff, fetchWithRetry, retrySilently } from '../retry';
+import { retryWithBackoff, fetchWithRetry, retrySilently, RetryOptions } from '../retry';
 
 // Mock global fetch
-global.fetch = jest.fn();
+const mockFetch = jest.fn() as jest.MockedFunction<typeof fetch>;
+global.fetch = mockFetch;
 
 describe('retry utilities', () => {
   beforeEach(() => {
     jest.clearAllMocks();
+    mockFetch.mockReset();
   });
 
   describe('retryWithBackoff', () => {
@@ -59,7 +60,7 @@ describe('retry utilities', () => {
         .mockRejectedValueOnce(new Error('Custom error'))
         .mockResolvedValueOnce('success');
 
-      const customShouldRetry = (error) => error.message === 'Custom error';
+      const customShouldRetry = (error: unknown) => (error as Error).message === 'Custom error';
 
       const result = await retryWithBackoff(mockFn, {
         shouldRetry: customShouldRetry,
@@ -170,52 +171,52 @@ describe('retry utilities', () => {
 
   describe('fetchWithRetry', () => {
     it('should retry fetch requests', async () => {
-      const mockResponse = { ok: true, json: async () => ({ data: 'test' }) };
+      const mockResponse = { ok: true, json: async () => ({ data: 'test' }) } as Response;
 
-      global.fetch
+      mockFetch
         .mockRejectedValueOnce(new Error('fetch failed'))
         .mockResolvedValueOnce(mockResponse);
 
       const result = await fetchWithRetry('https://api.example.com/test');
 
       expect(result).toBe(mockResponse);
-      expect(global.fetch).toHaveBeenCalledTimes(2);
+      expect(mockFetch).toHaveBeenCalledTimes(2);
     });
 
     it('should use default retry options for fetch', async () => {
-      const mockResponse = { ok: true };
-      global.fetch.mockResolvedValueOnce(mockResponse);
+      const mockResponse = { ok: true } as Response;
+      mockFetch.mockResolvedValueOnce(mockResponse);
 
       await fetchWithRetry('https://api.example.com/test');
 
-      expect(global.fetch).toHaveBeenCalledWith('https://api.example.com/test', {});
+      expect(mockFetch).toHaveBeenCalledWith('https://api.example.com/test', {});
     });
 
     it('should pass custom retry options', async () => {
-      global.fetch
+      mockFetch
         .mockRejectedValueOnce(new Error('ETIMEDOUT'))
         .mockRejectedValueOnce(new Error('ETIMEDOUT'))
         .mockRejectedValueOnce(new Error('ETIMEDOUT'))
         .mockRejectedValueOnce(new Error('ETIMEDOUT'))
-        .mockResolvedValueOnce({ ok: true });
+        .mockResolvedValueOnce({ ok: true } as Response);
 
       await fetchWithRetry('https://api.example.com/test', {}, {
         maxRetries: 4,
       });
 
-      expect(global.fetch).toHaveBeenCalledTimes(5);
+      expect(mockFetch).toHaveBeenCalledTimes(5);
     }, 10000); // 10 second timeout
 
     it('should pass fetch options', async () => {
-      const mockResponse = { ok: true };
-      global.fetch.mockResolvedValueOnce(mockResponse);
+      const mockResponse = { ok: true } as Response;
+      mockFetch.mockResolvedValueOnce(mockResponse);
 
       await fetchWithRetry('https://api.example.com/test', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
       });
 
-      expect(global.fetch).toHaveBeenCalledWith(
+      expect(mockFetch).toHaveBeenCalledWith(
         'https://api.example.com/test',
         expect.objectContaining({
           method: 'POST',
@@ -232,13 +233,13 @@ describe('retry utilities', () => {
         .mockRejectedValueOnce(new Error('network request failed'))
         .mockResolvedValueOnce('success');
 
-      const result = await retrySilently(mockFn, 'Test Operation');
+      const result = await retrySilently(mockFn);
 
       expect(result).toBe('success');
       expect(mockFn).toHaveBeenCalledTimes(2);
     });
 
-    it('should use default operation name', async () => {
+    it('should work with no options', async () => {
       const mockFn = jest.fn().mockResolvedValue('success');
 
       const result = await retrySilently(mockFn);
@@ -254,7 +255,7 @@ describe('retry utilities', () => {
         .mockRejectedValueOnce(new Error('ECONNREFUSED'))
         .mockResolvedValueOnce('success');
 
-      await retrySilently(mockFn, 'Test', {
+      await retrySilently(mockFn, {
         maxRetries: 2,
       });
 
@@ -267,10 +268,10 @@ describe('retry utilities', () => {
         .mockRejectedValueOnce(new Error('Custom retryable error'))
         .mockResolvedValueOnce('success');
 
-      const customShouldRetry = (error) =>
-        error.message.includes('retryable');
+      const customShouldRetry = (error: unknown) =>
+        (error as Error).message.includes('retryable');
 
-      await retrySilently(mockFn, 'Test', {
+      await retrySilently(mockFn, {
         shouldRetry: customShouldRetry,
       });
 
@@ -281,7 +282,7 @@ describe('retry utilities', () => {
       const mockFn = jest.fn().mockRejectedValue(new Error('Invalid data'));
 
       await expect(
-        retrySilently(mockFn, 'Test')
+        retrySilently(mockFn)
       ).rejects.toThrow('Invalid data');
 
       expect(mockFn).toHaveBeenCalledTimes(1);
@@ -291,7 +292,7 @@ describe('retry utilities', () => {
       const mockFn = jest.fn().mockRejectedValue(new Error('timeout'));
 
       await expect(
-        retrySilently(mockFn, 'Test', { maxRetries: 1 })
+        retrySilently(mockFn, { maxRetries: 1 })
       ).rejects.toThrow('timeout');
 
       expect(mockFn).toHaveBeenCalledTimes(2);

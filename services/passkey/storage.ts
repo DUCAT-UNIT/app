@@ -15,7 +15,7 @@ export const isPasskeyEnabled = async (): Promise<boolean> => {
   try {
     const enabled = await SecureStore.getItemAsync(PASSKEY_KEYS.ENABLED);
     return enabled === 'true';
-  } catch (error) {
+  } catch (error: unknown) {
     return false;
   }
 };
@@ -27,7 +27,7 @@ export const getWalletCreationMethod = async (): Promise<'passkey' | 'pin' | nul
   try {
     const method = await SecureStore.getItemAsync(PASSKEY_KEYS.CREATION_METHOD);
     return (method as 'passkey' | 'pin') || null;
-  } catch (error) {
+  } catch (error: unknown) {
     return null;
   }
 };
@@ -49,7 +49,7 @@ export const removePasskey = async (): Promise<void> => {
     // Don't delete CREATION_METHOD or main mnemonic - wallet still exists
 
     logger.debug('Passkey removed successfully');
-  } catch (error) {
+  } catch (error: unknown) {
     logger.error('Failed to remove passkey', { error: (error as Error).message });
     throw error;
   }
@@ -84,7 +84,7 @@ export const clearPasskeyData = async (clearICloudBackup = false): Promise<void>
     } else {
       logger.debug('iCloud backup preserved for restoration');
     }
-  } catch (error) {
+  } catch (error: unknown) {
     logger.error('Failed to clear passkey data', { error: (error as Error).message });
   }
 };

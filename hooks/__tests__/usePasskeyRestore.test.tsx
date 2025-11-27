@@ -350,4 +350,185 @@ describe('usePasskeyRestore', () => {
       expect(result.current.restorePin).toBe('123456');
     });
   });
+
+  describe('restoreWalletWithPasskey - Success Path', () => {
+    it('should successfully restore wallet with passkey and valid PIN', async () => {
+      const mockMnemonic = 'test mnemonic phrase with twelve words for wallet recovery success';
+      const mockAddresses = {
+        segwitAddress: 'bc1qtest',
+        taprootAddress: 'bc1ptest',
+      };
+
+      PasskeyService.recoverWithPasskey.mockResolvedValue({
+        mnemonic: mockMnemonic,
+        addresses: mockAddresses,
+      });
+
+      const { result } = renderHook(() => usePasskeyRestore(mockProps));
+
+      await act(async () => {
+        await result.current.restoreWalletWithPasskey('123456');
+      });
+
+      // Should call recovery service
+      expect(PasskeyService.recoverWithPasskey).toHaveBeenCalledWith('123456');
+
+      // Should save mnemonic
+      expect(saveMnemonic).toHaveBeenCalledWith(mockMnemonic);
+
+      // Should save account
+      expect(saveCurrentAccount).toHaveBeenCalledWith(0);
+
+      // Should save PIN
+      expect(savePin).toHaveBeenCalledWith('123456');
+
+      // Should set wallet addresses
+      expect(mockProps.setWalletAddresses).toHaveBeenCalledWith(mockAddresses, 0);
+
+      // Should authenticate
+      expect(mockProps.setIsAuthenticated).toHaveBeenCalledWith(true);
+      expect(mockProps.setSeedConfirmed).toHaveBeenCalledWith(true);
+
+      // Should show success toast
+      expect(mockProps.showToast).toHaveBeenCalledWith('Wallet restored from passkey!', 'success');
+
+      // Should reset state
+      expect(result.current.showRestorePinInput).toBe(false);
+      expect(result.current.restorePin).toBe('');
+      expect(result.current.restoringWithPasskey).toBe(false);
+      expect(result.current.isRestoring).toBe(false);
+    });
+
+    it('should set isRestoring to false after successful restoration', async () => {
+      const mockMnemonic = 'test mnemonic phrase';
+      const mockAddresses = {
+        segwitAddress: 'bc1qtest',
+        taprootAddress: 'bc1ptest',
+      };
+
+      PasskeyService.recoverWithPasskey.mockResolvedValue({
+        mnemonic: mockMnemonic,
+        addresses: mockAddresses,
+      });
+
+      const { result } = renderHook(() => usePasskeyRestore(mockProps));
+
+      await act(async () => {
+        await result.current.restoreWalletWithPasskey('123456');
+      });
+
+      expect(result.current.isRestoring).toBe(false);
+    });
+
+    it('should handle restoration with different PIN formats', async () => {
+      const mockMnemonic = 'test mnemonic phrase';
+      const mockAddresses = {
+        segwitAddress: 'bc1qtest',
+        taprootAddress: 'bc1ptest',
+      };
+
+      PasskeyService.recoverWithPasskey.mockResolvedValue({
+        mnemonic: mockMnemonic,
+        addresses: mockAddresses,
+      });
+
+      const { result } = renderHook(() => usePasskeyRestore(mockProps));
+
+      // Try with numeric string
+      await act(async () => {
+        await result.current.restoreWalletWithPasskey('000000');
+      });
+
+      expect(savePin).toHaveBeenCalledWith('000000');
+    });
+  });
+
+  describe('restoreWalletWithPasskey - State Management', () => {
+    it('should hide PIN input immediately after successful restore', async () => {
+      const mockMnemonic = 'test mnemonic phrase';
+      const mockAddresses = {
+        segwitAddress: 'bc1qtest',
+        taprootAddress: 'bc1ptest',
+      };
+
+      PasskeyService.recoverWithPasskey.mockResolvedValue({
+        mnemonic: mockMnemonic,
+        addresses: mockAddresses,
+      });
+
+      const { result } = renderHook(() => usePasskeyRestore(mockProps));
+
+      // Show PIN input first
+      await act(async () => {
+        await result.current.startPasskeyRestore();
+      });
+
+      expect(result.current.showRestorePinInput).toBe(true);
+
+      // Restore wallet
+      await act(async () => {
+        await result.current.restoreWalletWithPasskey('123456');
+      });
+
+      expect(result.current.showRestorePinInput).toBe(false);
+    });
+
+    it('should clear restore PIN after successful restore', async () => {
+      const mockMnemonic = 'test mnemonic phrase';
+      const mockAddresses = {
+        segwitAddress: 'bc1qtest',
+        taprootAddress: 'bc1ptest',
+      };
+
+      PasskeyService.recoverWithPasskey.mockResolvedValue({
+        mnemonic: mockMnemonic,
+        addresses: mockAddresses,
+      });
+
+      const { result } = renderHook(() => usePasskeyRestore(mockProps));
+
+      // Set PIN
+      act(() => {
+        result.current.setRestorePin('123456');
+      });
+
+      expect(result.current.restorePin).toBe('123456');
+
+      // Restore wallet
+      await act(async () => {
+        await result.current.restoreWalletWithPasskey('123456');
+      });
+
+      expect(result.current.restorePin).toBe('');
+    });
+
+    it('should set restoringWithPasskey to false after successful restore', async () => {
+      const mockMnemonic = 'test mnemonic phrase';
+      const mockAddresses = {
+        segwitAddress: 'bc1qtest',
+        taprootAddress: 'bc1ptest',
+      };
+
+      PasskeyService.recoverWithPasskey.mockResolvedValue({
+        mnemonic: mockMnemonic,
+        addresses: mockAddresses,
+      });
+
+      const { result } = renderHook(() => usePasskeyRestore(mockProps));
+
+      // Set restoringWithPasskey
+      act(() => {
+        result.current.setRestoringWithPasskey(true);
+      });
+
+      expect(result.current.restoringWithPasskey).toBe(true);
+
+      // Restore wallet
+      await act(async () => {
+        await result.current.restoreWalletWithPasskey('123456');
+      });
+
+      expect(result.current.restoringWithPasskey).toBe(false);
+    });
+  });
 });

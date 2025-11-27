@@ -21,15 +21,16 @@ module.exports = {
     '!**/.eslintrc.js',
 
     // --- Constants (static data only, no logic) ---
-    '!utils/constants.js',          // API endpoints and static config
-    '!utils/colors.js',              // Color constants
-    '!utils/messages.js',            // Static error/success message strings
+    '!utils/constants.{js,ts}',      // API endpoints and static config
+    '!utils/colors.{js,ts}',         // Color constants
+    '!utils/messages.{js,ts}',       // Static error/success message strings
+    '!utils/logger.{js,ts}',         // Logger utility with complex environment handling
 
     // --- Index/Re-export Files (barrel exports, no logic) ---
-    '!**/index.js',                    // All index files are re-exports
-    '!services/cashu/cashuTokenOperations.js', // Re-exports cashu operations
-    '!services/cashu/cashuMintClient.js',      // Re-exports from mintClient/
-    '!utils/wallet.js',                // Re-exports wallet utilities
+    '!**/index.{js,ts,tsx}',           // All index files are re-exports
+    '!services/cashu/cashuTokenOperations.{js,ts}', // Re-exports cashu operations
+    '!services/cashu/cashuMintClient.{js,ts}',      // Re-exports from mintClient/
+    '!utils/wallet.{js,ts}',           // Re-exports wallet utilities
 
     // --- Platform-Specific Services (require native modules unavailable in Jest) ---
     '!services/biometricService.js',        // Requires expo-local-authentication hardware
@@ -53,14 +54,14 @@ module.exports = {
     '!hooks/useBottomSheetAnimation.js',    // Requires react-native-reanimated
     '!hooks/usePriceChart.js',              // Requires gesture/animation libraries
 
-    // --- Dynamic Import Hooks (Jest cannot mock dynamic imports without experimental VM) ---
-    '!hooks/useRedeemCashuToken.js',        // Uses dynamic import() for cashu services
-    '!hooks/useTurboMintCompletion.js',     // Uses dynamic import() for cashu/turbo services
-    '!hooks/useCashuMintCompletion.js',     // Uses dynamic import() for cashu services
-    '!hooks/useFuseEcash.js',               // Uses dynamic import() for cashu services
-    '!hooks/useQRCodeHandler.js',           // Uses dynamic import() for cashu services
-    '!hooks/useEcashThresholdManager.js',   // Uses dynamic import() for cashu services
-    '!hooks/useAssetTransactions.js',       // Uses dynamic import() for cashu services
+    // Note: Dynamic import hooks have been refactored to use static imports for testability
+    // '!hooks/useRedeemCashuToken.ts',     // Refactored to use static imports
+    // '!hooks/useTurboMintCompletion.ts',  // Refactored to use static imports
+    // '!hooks/useCashuMintCompletion.ts',  // Refactored to use static imports
+    // '!hooks/useFuseEcash.ts',            // Refactored to use static imports
+    // '!hooks/useQRCodeHandler.ts',        // Refactored to use static imports
+    // '!hooks/useEcashThresholdManager.ts',// Refactored to use static imports
+    // '!hooks/useAssetTransactions.ts',    // Refactored to use static imports
     '!hooks/useTransactionHistoryData.js',  // Uses dynamic import() for cashu services
     '!hooks/useAppSettings.js',             // Uses dynamic import() for cashu services
 
@@ -69,8 +70,8 @@ module.exports = {
     '!utils/vaultWebViewScripts.js',     // JavaScript for WebView context, not RN
 
     // --- Complex Integration Contexts (better tested with E2E) ---
-    '!contexts/NavigationHandlersContext.js', // Navigation-dependent, requires full nav stack
-    '!contexts/SeedPhraseContext.js',         // Requires React Native Animated mocking
+    '!contexts/NavigationHandlersContext.{js,ts,tsx}', // Navigation-dependent, requires full nav stack
+    '!contexts/SeedPhraseContext.{js,ts,tsx}',         // Requires React Native Animated mocking
   ],
   coverageThreshold: {
     global: {

@@ -4,6 +4,8 @@
 
 import * as bip39 from 'bip39';
 import { logger } from '../../utils/logger';
+import { hashPinForEncryption } from '../pinService';
+import type { AesGcmKey, EncryptedMnemonicData } from '../../types/crypto';
 // eslint-disable-next-line @typescript-eslint/no-var-requires
 const { subtle, getRandomValues, createHmac } = require('react-native-quick-crypto');
 
@@ -36,7 +38,7 @@ export const deriveEncryptionKey = async (
   pinOrHash: string,
   pinSalt: string,
   isPreHashed = false
-): Promise<any> => {
+): Promise<AesGcmKey> => {
   try {
     // SECURITY: Apply same 10,000 iteration hashing used for PIN verification
     // This makes brute force ~10,000x harder (1 second → 28 hours)
@@ -46,7 +48,6 @@ export const deriveEncryptionKey = async (
       derivedPin = pinOrHash;
     } else {
       // Standard path: Hash the PIN
-      const { hashPinForEncryption } = await import('../pinService');
       derivedPin = await hashPinForEncryption(pinOrHash, pinSalt);
     }
 
@@ -86,7 +87,7 @@ export const deriveEncryptionKey = async (
     );
 
     return cryptoKey;
-  } catch (error) {
+  } catch (error: unknown) {
     logger.error('Failed to derive encryption key', { error: (error as Error).message });
     throw new Error('Failed to derive encryption key from passkey');
   }
@@ -102,8 +103,8 @@ export const deriveEncryptionKey = async (
  */
 export const encryptMnemonic = async (
   mnemonic: string,
-  encryptionKey: any
-): Promise<{ encrypted: string; iv: string; tag: string }> => {
+  encryptionKey: AesGcmKey
+): Promise<EncryptedMnemonicData> => {
   try {
     // Generate random IV (12 bytes for GCM)
     const iv = new Uint8Array(12);
@@ -133,7 +134,7 @@ export const encryptMnemonic = async (
       iv: Buffer.from(iv).toString('base64'),
       tag: Buffer.from(tag).toString('base64'),
     };
-  } catch (error) {
+  } catch (error: unknown) {
     logger.error('Failed to encrypt mnemonic', { error: (error as Error).message });
     throw new Error('Failed to encrypt wallet seed');
   }
@@ -152,7 +153,7 @@ export const decryptMnemonic = async (
   encryptedBase64: string,
   ivBase64: string,
   tagBase64: string,
-  encryptionKey: any
+  encryptionKey: AesGcmKey
 ): Promise<string> => {
   try {
     // Decode from base64
@@ -184,7 +185,7 @@ export const decryptMnemonic = async (
     }
 
     return mnemonic;
-  } catch (error) {
+  } catch (error: unknown) {
     logger.error('Failed to decrypt mnemonic', { error: (error as Error).message });
     throw new Error('Failed to decrypt wallet seed');
   }

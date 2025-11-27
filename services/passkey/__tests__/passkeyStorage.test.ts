@@ -1,0 +1,269 @@
+// @ts-nocheck
+/**
+ * Tests for Passkey Data Storage Utilities
+ */
+
+import * as SecureStore from 'expo-secure-store';
+import { SECURE_KEYS } from '../../../utils/constants';
+import { logger } from '../../../utils/logger';
+import { saveToICloud, loadFromICloud } from '../../icloudStorage';
+
+// Mock expo-secure-store
+jest.mock('expo-secure-store', () => ({
+  setItemAsync: jest.fn(),
+  getItemAsync: jest.fn(),
+  deleteItemAsync: jest.fn(),
+}));
+
+// Mock icloudStorage
+jest.mock('../../icloudStorage', () => ({
+  saveToICloud: jest.fn(),
+  loadFromICloud: jest.fn(),
+}));
+
+// Mock logger
+jest.mock('../../../utils/logger', () => ({
+  logger: {
+    debug: jest.fn(),
+    error: jest.fn(),
+    warn: jest.fn(),
+  },
+}));
+
+// Import after mocks
+import { PASSKEY_KEYS } from '../core';
+import {
+  storePasskeyData,
+  backupToICloudWithVerification,
+  storeStandardMnemonic,
+  setCurrentAccount,
+} from '../passkeyStorage';
+
+describe('Passkey Storage', () => {
+  beforeEach(() => {
+    jest.clearAllMocks();
+  });
+
+  describe('storePasskeyData', () => {
+    const mockCredentialId = new Uint8Array([1, 2, 3, 4, 5]);
+    const mockUserHandle = new Uint8Array([6, 7, 8, 9, 10]);
+    const mockEncrypted = 'encryptedMnemonicBase64';
+    const mockIv = 'ivBase64';
+    const mockTag = 'tagBase64';
+
+    it('should store all passkey data in SecureStore', async () => {
+      await storePasskeyData({
+        credentialId: mockCredentialId,
+        userHandle: mockUserHandle,
+        encrypted: mockEncrypted,
+        iv: mockIv,
+        tag: mockTag,
+      });
+
+      expect(SecureStore.setItemAsync).toHaveBeenCalledWith(
+        PASSKEY_KEYS.ENABLED,
+        'true'
+      );
+      expect(SecureStore.setItemAsync).toHaveBeenCalledWith(
+        PASSKEY_KEYS.CREDENTIAL_ID,
+        Buffer.from(mockCredentialId).toString('base64')
+      );
+      expect(SecureStore.setItemAsync).toHaveBeenCalledWith(
+        PASSKEY_KEYS.USER_HANDLE,
+        Buffer.from(mockUserHandle).toString('base64')
+      );
+      expect(SecureStore.setItemAsync).toHaveBeenCalledWith(
+        PASSKEY_KEYS.ENCRYPTED_MNEMONIC,
+        mockEncrypted
+      );
+      expect(SecureStore.setItemAsync).toHaveBeenCalledWith(
+        PASSKEY_KEYS.ENCRYPTION_IV,
+        mockIv
+      );
+      expect(SecureStore.setItemAsync).toHaveBeenCalledWith(
+        PASSKEY_KEYS.ENCRYPTION_TAG,
+        mockTag
+      );
+    });
+
+    it('should store creation method when provided', async () => {
+      await storePasskeyData({
+        credentialId: mockCredentialId,
+        userHandle: mockUserHandle,
+        encrypted: mockEncrypted,
+        iv: mockIv,
+        tag: mockTag,
+        creationMethod: 'passkey',
+      });
+
+      expect(SecureStore.setItemAsync).toHaveBeenCalledWith(
+        PASSKEY_KEYS.CREATION_METHOD,
+        'passkey'
+      );
+    });
+
+    it('should not store creation method when not provided', async () => {
+      await storePasskeyData({
+        credentialId: mockCredentialId,
+        userHandle: mockUserHandle,
+        encrypted: mockEncrypted,
+        iv: mockIv,
+        tag: mockTag,
+      });
+
+      // Check that setItemAsync was not called with CREATION_METHOD
+      const calls = (SecureStore.setItemAsync as jest.Mock).mock.calls;
+      const creationMethodCall = calls.find(
+        (call) => call[0] === PASSKEY_KEYS.CREATION_METHOD
+      );
+      expect(creationMethodCall).toBeUndefined();
+    });
+  });
+
+  describe('backupToICloudWithVerification', () => {
+    const mockBackupData = {
+      encrypted: 'encryptedData',
+      iv: 'ivData',
+      tag: 'tagData',
+      credentialId: new Uint8Array([1, 2, 3]),
+      userHandle: new Uint8Array([4, 5, 6]),
+      pinSalt: 'a'.repeat(64),
+    };
+
+    it('should save to iCloud and verify', async () => {
+      const mockDebugInfo = 'Save successful';
+      (saveToICloud as jest.Mock).mockResolvedValue(mockDebugInfo);
+      (loadFromICloud as jest.Mock).mockResolvedValue({
+        encrypted: mockBackupData.encrypted,
+        iv: mockBackupData.iv,
+        tag: mockBackupData.tag,
+      });
+
+      const result = await backupToICloudWithVerification(mockBackupData);
+
+      expect(result.debugInfo).toBe(mockDebugInfo);
+      expect(result.verificationLog).toContain('VERIFICATION');
+      expect(result.verificationLog).toContain('iCloud data verified');
+    });
+
+    it('should call saveToICloud with correct data', async () => {
+      (saveToICloud as jest.Mock).mockResolvedValue('');
+      (loadFromICloud as jest.Mock).mockResolvedValue({});
+
+      await backupToICloudWithVerification(mockBackupData);
+
+      expect(saveToICloud).toHaveBeenCalledWith({
+        encrypted: mockBackupData.encrypted,
+        iv: mockBackupData.iv,
+        tag: mockBackupData.tag,
+        credentialId: Buffer.from(mockBackupData.credentialId).toString('base64'),
+        userHandle: Buffer.from(mockBackupData.userHandle).toString('base64'),
+        pinSalt: mockBackupData.pinSalt,
+      });
+    });
+
+    it('should log debug message on success', async () => {
+      (saveToICloud as jest.Mock).mockResolvedValue('');
+      (loadFromICloud as jest.Mock).mockResolvedValue({});
+
+      await backupToICloudWithVerification(mockBackupData);
+
+      expect(logger.debug).toHaveBeenCalledWith('Encrypted backup saved to iCloud');
+    });
+
+    it('should include debug info from verification read-back', async () => {
+      (saveToICloud as jest.Mock).mockResolvedValue('');
+      (loadFromICloud as jest.Mock).mockResolvedValue({
+        encrypted: 'test',
+        _debugInfo: 'Additional debug info',
+      });
+
+      const result = await backupToICloudWithVerification(mockBackupData);
+
+      expect(result.verificationLog).toContain('Additional debug info');
+    });
+
+    it('should handle verification failure gracefully', async () => {
+      (saveToICloud as jest.Mock).mockResolvedValue('');
+      (loadFromICloud as jest.Mock).mockRejectedValue(new Error('Read-back failed'));
+
+      const result = await backupToICloudWithVerification(mockBackupData);
+
+      expect(result.verificationLog).toContain('iCloud verification failed');
+      expect(result.verificationLog).toContain('Read-back failed');
+    });
+
+    it('should throw detailed error when saveToICloud fails', async () => {
+      const error = new Error('iCloud not available');
+      (error as any).code = 'ERR_ICLOUD_NOT_AVAILABLE';
+      (error as any).name = 'iCloudError';
+      (saveToICloud as jest.Mock).mockRejectedValue(error);
+
+      await expect(backupToICloudWithVerification(mockBackupData)).rejects.toThrow(
+        'iCloud backup failed'
+      );
+
+      expect(logger.error).toHaveBeenCalledWith(
+        'CRITICAL: iCloud backup failed',
+        expect.objectContaining({
+          error: 'iCloud not available',
+          errorCode: 'ERR_ICLOUD_NOT_AVAILABLE',
+          errorName: 'iCloudError',
+        })
+      );
+    });
+
+    it('should include troubleshooting info in error message', async () => {
+      (saveToICloud as jest.Mock).mockRejectedValue(new Error('Network error'));
+
+      await expect(backupToICloudWithVerification(mockBackupData)).rejects.toThrow(
+        /Check:/
+      );
+      await expect(backupToICloudWithVerification(mockBackupData)).rejects.toThrow(
+        /iCloud is enabled/
+      );
+    });
+  });
+
+  describe('storeStandardMnemonic', () => {
+    it('should store mnemonic in SECURE_KEYS.MNEMONIC', async () => {
+      const mnemonic = 'test mnemonic phrase';
+
+      await storeStandardMnemonic(mnemonic);
+
+      expect(SecureStore.setItemAsync).toHaveBeenCalledWith(
+        SECURE_KEYS.MNEMONIC,
+        mnemonic
+      );
+    });
+  });
+
+  describe('setCurrentAccount', () => {
+    it('should store account index as string', async () => {
+      await setCurrentAccount(5);
+
+      expect(SecureStore.setItemAsync).toHaveBeenCalledWith(
+        SECURE_KEYS.CURRENT_ACCOUNT,
+        '5'
+      );
+    });
+
+    it('should default to account 0', async () => {
+      await setCurrentAccount();
+
+      expect(SecureStore.setItemAsync).toHaveBeenCalledWith(
+        SECURE_KEYS.CURRENT_ACCOUNT,
+        '0'
+      );
+    });
+
+    it('should handle account index 0 explicitly', async () => {
+      await setCurrentAccount(0);
+
+      expect(SecureStore.setItemAsync).toHaveBeenCalledWith(
+        SECURE_KEYS.CURRENT_ACCOUNT,
+        '0'
+      );
+    });
+  });
+});

@@ -86,7 +86,7 @@ export function useNotifications(): UseNotificationsReturn {
       }
 
       return true;
-    } catch (error) {
+    } catch (error: unknown) {
       return false;
     }
   };
@@ -114,7 +114,7 @@ export function useNotifications(): UseNotificationsReturn {
       //     // Silently fail if notification already dismissed
       //   }
       // }, 15000);
-    } catch (error) {}
+    } catch (error: unknown) {}
   };
 
   return {

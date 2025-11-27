@@ -20,7 +20,7 @@ export const consoleLogScript = `
           level: 'log',
           args: args.map(arg => typeof arg === 'object' ? JSON.stringify(arg) : String(arg))
         }));
-      } catch (e) {}
+      } catch (e: unknown) {}
     };
 
     console.warn = function(...args) {
@@ -31,7 +31,7 @@ export const consoleLogScript = `
           level: 'warn',
           args: args.map(arg => typeof arg === 'object' ? JSON.stringify(arg) : String(arg))
         }));
-      } catch (e) {}
+      } catch (e: unknown) {}
     };
 
     console.error = function(...args) {
@@ -42,7 +42,7 @@ export const consoleLogScript = `
           level: 'error',
           args: args.map(arg => typeof arg === 'object' ? JSON.stringify(arg) : String(arg))
         }));
-      } catch (e) {}
+      } catch (e: unknown) {}
     };
   })();
 `;

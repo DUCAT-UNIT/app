@@ -1,0 +1,95 @@
+/**
+ * Zustand Stores Index
+ *
+ * Central export point for all Zustand stores.
+ * These stores replace React Context providers for better performance.
+ *
+ * Benefits of Zustand over Context:
+ * - No provider nesting required
+ * - Selective re-renders (only components using changed state re-render)
+ * - Simpler API (just import and use)
+ * - Better TypeScript support
+ * - Built-in devtools support
+ */
+
+// Display Preferences
+export {
+  useDisplayPreferencesStore,
+  useShowTotalInBTC,
+  useShowBTCInBTC,
+  useShowUnitInUnit,
+  resetDisplayPreferencesStore,
+} from './displayPreferencesStore';
+
+// Price
+export {
+  usePriceStore,
+  useBtcPrice,
+  useLoadingBtcPrice,
+  resetPriceStore,
+} from './priceStore';
+
+// Send Flow
+export {
+  useSendFlowStore,
+  useIntentStep,
+  useSendAssetType,
+  useSendAmount,
+  useSendRecipient,
+  useTurboEnabled,
+  resetSendFlowStore,
+  type IntentStep,
+  type AssetType,
+  type AddressType,
+} from './sendFlowStore';
+
+// Notifications
+export {
+  useNotificationStore,
+  useToasts,
+  useSnackbar,
+  useToastMessage,
+  useToastVisible,
+  useToastType,
+  resetNotificationStore,
+} from './notificationStore';
+
+// Vault
+export {
+  useVaultStore,
+  useActiveTab,
+  useVaultCredentials,
+  useAutoCreateVaultTrigger,
+  resetVaultStore,
+  type VaultCredentials,
+  type ActiveTab,
+} from './vaultStore';
+
+// Pending Transactions
+export {
+  usePendingTransactionsStore,
+  usePendingTxs,
+  useSpentUtxos,
+  resetPendingTransactionsStore,
+  type PendingTransaction,
+  type PendingTransactionOutput,
+} from './pendingTransactionsStore';
+
+/**
+ * Reset all stores to initial state (useful for testing)
+ */
+export const resetAllStores = async () => {
+  const { resetDisplayPreferencesStore } = await import('./displayPreferencesStore');
+  const { resetPriceStore } = await import('./priceStore');
+  const { resetSendFlowStore } = await import('./sendFlowStore');
+  const { resetNotificationStore } = await import('./notificationStore');
+  const { resetVaultStore } = await import('./vaultStore');
+  const { resetPendingTransactionsStore } = await import('./pendingTransactionsStore');
+
+  resetDisplayPreferencesStore();
+  resetPriceStore();
+  resetSendFlowStore();
+  resetNotificationStore();
+  resetVaultStore();
+  resetPendingTransactionsStore();
+};

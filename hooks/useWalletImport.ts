@@ -140,7 +140,7 @@ export function useWalletImport({ currentAccount, setSettingUpPin, showToast }: 
 
       // Don't show passkey migration prompt yet - wait until PIN is set
       // The parent component (OnboardingPage) will show it after PIN setup
-    } catch (error) {
+    } catch (error: unknown) {
       logger.error('Wallet import failed', {
         error: error instanceof Error ? error.message : String(error),
         stack: error instanceof Error ? error.stack : undefined,

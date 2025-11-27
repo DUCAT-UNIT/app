@@ -26,9 +26,13 @@ export interface DerivedKeyData {
  * Get private key and x-only pubkey for an address (for P2PK Cashu tokens)
  * Searches through accounts to find which one owns the address
  * @param address - Address (tb1p... or tb1q...)
+ * @param knownAccountIndex - Optional: if we already know which account owns this address
  * @returns { privateKey: string, xOnlyPubkey: string, accountIndex: number }
  */
-export async function getPrivateKeyForAddress(address: string): Promise<DerivedKeyData> {
+export async function getPrivateKeyForAddress(
+  address: string,
+  knownAccountIndex?: number
+): Promise<DerivedKeyData> {
   const cacheKey = `${DERIVED_KEY_PREFIX}${address}`;
 
   // Check cache first
@@ -38,7 +42,7 @@ export async function getPrivateKeyForAddress(address: string): Promise<DerivedK
       logger.debug('[getPrivateKeyForAddress] Using cached key');
       return JSON.parse(cached) as DerivedKeyData;
     }
-  } catch (error) {
+  } catch (error: unknown) {
     logger.warn('[getPrivateKeyForAddress] Failed to read cache:', { error: (error as Error).message });
   }
 
@@ -48,8 +52,32 @@ export async function getPrivateKeyForAddress(address: string): Promise<DerivedK
     const seed = bip39.mnemonicToSeedSync(mnemonic);
     const root = bip32.fromSeed(seed, MUTINYNET_NETWORK);
 
-    // Search up to 50 accounts
-    for (let accountIndex = 0; accountIndex < 50; accountIndex++) {
+    // If we know the account index, try it directly first
+    if (knownAccountIndex !== undefined) {
+      logger.info(`[getPrivateKeyForAddress] Trying known account index: ${knownAccountIndex}`);
+      const derivationPath = getDerivationPath(address, knownAccountIndex);
+      const child = root.derivePath(derivationPath);
+
+      if (address.startsWith('tb1p')) {
+        const taprootResult = findTaprootAccount(child, address, knownAccountIndex, derivationPath);
+        if (taprootResult) return taprootResult;
+      } else {
+        const segwitResult = findSegwitAccount(child, address, knownAccountIndex, derivationPath);
+        if (segwitResult) return segwitResult;
+      }
+      logger.warn(`[getPrivateKeyForAddress] Known account ${knownAccountIndex} didn't match, falling back to search`);
+    }
+
+    // Dynamic scan range: at least 100 accounts, or more if we know of a higher account
+    const maxAccounts = Math.max(100, (knownAccountIndex || 0) + 10);
+    logger.info(`[getPrivateKeyForAddress] Searching up to ${maxAccounts} accounts`);
+
+    for (let accountIndex = 0; accountIndex < maxAccounts; accountIndex++) {
+      // Skip the known account index if we already tried it
+      if (knownAccountIndex !== undefined && accountIndex === knownAccountIndex) {
+        continue;
+      }
+
       const derivationPath = getDerivationPath(address, accountIndex);
       const child = root.derivePath(derivationPath);
 
@@ -62,14 +90,14 @@ export async function getPrivateKeyForAddress(address: string): Promise<DerivedK
       }
     }
 
-    throw new Error(`Address ${address} not found in first 50 accounts`);
+    throw new Error(`Address ${address} not found in first ${maxAccounts} accounts`);
   });
 
   // Cache the result
   try {
     await SecureStore.setItemAsync(cacheKey, JSON.stringify(result));
     logger.debug('[getPrivateKeyForAddress] Cached key');
-  } catch (error) {
+  } catch (error: unknown) {
     logger.warn('[getPrivateKeyForAddress] Failed to cache:', { error: (error as Error).message });
   }
 

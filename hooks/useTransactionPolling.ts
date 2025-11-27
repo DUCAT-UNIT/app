@@ -42,7 +42,7 @@ export function useTransactionPolling(): UseTransactionPollingReturn {
         }
 
         return false;
-      } catch (error) {
+      } catch (error: unknown) {
         if (onError) {
           onError(error instanceof Error ? error : new Error(String(error)));
         }

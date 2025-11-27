@@ -29,7 +29,7 @@ export const usePendingTransactionsStorage = (currentAccount: number): UsePendin
       if (stored) {
         setPendingTransactions(JSON.parse(stored));
       }
-    } catch (error) {
+    } catch (error: unknown) {
       logger.error('Error loading pending transactions:', { error: error instanceof Error ? error.message : String(error) });
     }
   }, [currentAccount]);
@@ -39,7 +39,7 @@ export const usePendingTransactionsStorage = (currentAccount: number): UsePendin
     try {
       const key = `pending_txs_${currentAccount}`;
       await AsyncStorage.setItem(key, JSON.stringify(txs));
-    } catch (error) {
+    } catch (error: unknown) {
       logger.error('Error saving pending transactions:', { error: error instanceof Error ? error.message : String(error) });
     }
   }, [currentAccount]);
@@ -52,7 +52,7 @@ export const usePendingTransactionsStorage = (currentAccount: number): UsePendin
       if (stored) {
         setSpentUtxos(new Set(JSON.parse(stored)));
       }
-    } catch (error) {
+    } catch (error: unknown) {
       logger.error('Error loading spent UTXOs:', { error: error instanceof Error ? error.message : String(error) });
     }
   }, [currentAccount]);
@@ -62,7 +62,7 @@ export const usePendingTransactionsStorage = (currentAccount: number): UsePendin
     try {
       const key = `spent_utxos_${currentAccount}`;
       await AsyncStorage.setItem(key, JSON.stringify(Array.from(spent)));
-    } catch (error) {
+    } catch (error: unknown) {
       logger.error('Error saving spent UTXOs:', { error: error instanceof Error ? error.message : String(error) });
     }
   }, [currentAccount]);

@@ -1,10 +1,16 @@
 /**
- * DisplayPreferencesContext - User display preferences
- * Manages how balances and amounts are displayed (BTC vs USD)
- * Separated from UIContext for better performance and organization
+ * DisplayPreferencesContext - MIGRATED TO ZUSTAND
+ *
+ * This file now provides backward compatibility by wrapping the Zustand store.
+ * New code should import directly from stores/displayPreferencesStore.ts
+ *
+ * MIGRATION STATUS: Complete
+ * - Provider is now a no-op (children pass-through)
+ * - Hook returns Zustand store values with compatible interface
  */
 
-import React, { createContext, useContext, useState, useMemo, ReactNode } from 'react';
+import React, { ReactNode } from 'react';
+import { useDisplayPreferencesStore } from '../stores/displayPreferencesStore';
 
 interface DisplayPreferencesContextValue {
   showTotalInBTC: boolean;
@@ -15,42 +21,68 @@ interface DisplayPreferencesContextValue {
   setShowUnitInUnit: React.Dispatch<React.SetStateAction<boolean>>;
 }
 
-const DisplayPreferencesContext = createContext<DisplayPreferencesContextValue | undefined>(undefined);
-
+/**
+ * Hook that provides backward-compatible interface to Zustand store
+ * Uses selective subscriptions for optimal performance
+ */
 export const useDisplayPreferences = (): DisplayPreferencesContextValue => {
-  const context = useContext(DisplayPreferencesContext);
-  if (!context) {
-    throw new Error('useDisplayPreferences must be used within a DisplayPreferencesProvider');
-  }
-  return context;
+  // Subscribe to individual state slices for optimal re-renders
+  const showTotalInBTC = useDisplayPreferencesStore((state) => state.showTotalInBTC);
+  const showBTCInBTC = useDisplayPreferencesStore((state) => state.showBTCInBTC);
+  const showUnitInUnit = useDisplayPreferencesStore((state) => state.showUnitInUnit);
+  const setShowTotalInBTCStore = useDisplayPreferencesStore((state) => state.setShowTotalInBTC);
+  const setShowBTCInBTCStore = useDisplayPreferencesStore((state) => state.setShowBTCInBTC);
+  const setShowUnitInUnitStore = useDisplayPreferencesStore((state) => state.setShowUnitInUnit);
+
+  // Wrap setters to match React.Dispatch<SetStateAction<boolean>> signature
+  const setShowTotalInBTC = React.useCallback((value: boolean | ((prev: boolean) => boolean)) => {
+    if (typeof value === 'function') {
+      // Need to get current value from store for updater function
+      const currentValue = useDisplayPreferencesStore.getState().showTotalInBTC;
+      setShowTotalInBTCStore(value(currentValue));
+    } else {
+      setShowTotalInBTCStore(value);
+    }
+  }, [setShowTotalInBTCStore]);
+
+  const setShowBTCInBTC = React.useCallback((value: boolean | ((prev: boolean) => boolean)) => {
+    if (typeof value === 'function') {
+      const currentValue = useDisplayPreferencesStore.getState().showBTCInBTC;
+      setShowBTCInBTCStore(value(currentValue));
+    } else {
+      setShowBTCInBTCStore(value);
+    }
+  }, [setShowBTCInBTCStore]);
+
+  const setShowUnitInUnit = React.useCallback((value: boolean | ((prev: boolean) => boolean)) => {
+    if (typeof value === 'function') {
+      const currentValue = useDisplayPreferencesStore.getState().showUnitInUnit;
+      setShowUnitInUnitStore(value(currentValue));
+    } else {
+      setShowUnitInUnitStore(value);
+    }
+  }, [setShowUnitInUnitStore]);
+
+  // Memoize return object to prevent unnecessary re-renders in consumers
+  return React.useMemo(() => ({
+    showTotalInBTC,
+    setShowTotalInBTC,
+    showBTCInBTC,
+    setShowBTCInBTC,
+    showUnitInUnit,
+    setShowUnitInUnit,
+  }), [showTotalInBTC, setShowTotalInBTC, showBTCInBTC, setShowBTCInBTC, showUnitInUnit, setShowUnitInUnit]);
 };
 
 interface DisplayPreferencesProviderProps {
   children: ReactNode;
 }
 
+/**
+ * Provider is now a pass-through - Zustand doesn't need providers!
+ * Kept for backward compatibility with existing component tree
+ */
 export const DisplayPreferencesProvider: React.FC<DisplayPreferencesProviderProps> = ({ children }) => {
-  // Display preferences state
-  const [showTotalInBTC, setShowTotalInBTC] = useState(false);
-  const [showBTCInBTC, setShowBTCInBTC] = useState(false);
-  const [showUnitInUnit, setShowUnitInUnit] = useState(false);
-
-  // Memoize value to prevent unnecessary re-renders
-  const value = useMemo(
-    () => ({
-      showTotalInBTC,
-      setShowTotalInBTC,
-      showBTCInBTC,
-      setShowBTCInBTC,
-      showUnitInUnit,
-      setShowUnitInUnit,
-    }),
-    [showTotalInBTC, showBTCInBTC, showUnitInUnit]
-  );
-
-  return (
-    <DisplayPreferencesContext.Provider value={value}>
-      {children}
-    </DisplayPreferencesContext.Provider>
-  );
+  // No provider needed - Zustand store is globally accessible
+  return <>{children}</>;
 };

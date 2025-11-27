@@ -7,6 +7,7 @@ import { logger } from '../../../utils/logger';
 import { MINT_URL } from './mintConfig';
 import { CashuProof } from '../p2pk';
 import { BlindedOutput, MintResponse } from './mintQuotes';
+import { hashToCurve } from '../crypto';
 
 export interface ProofState {
   Y: string;
@@ -51,7 +52,7 @@ export const swapTokens = async (inputs: CashuProof[], outputs: BlindedOutput[])
 
     logger.info('Tokens swapped', { signatureCount: response.signatures.length });
     return response;
-  } catch (error) {
+  } catch (error: unknown) {
     logger.error('Failed to swap tokens', { error: (error as Error).message });
     throw error;
   }
@@ -64,9 +65,6 @@ export const swapTokens = async (inputs: CashuProof[], outputs: BlindedOutput[])
  */
 export const checkProofsSpent = async (proofs: CashuProof[]): Promise<CheckStateResponse> => {
   try {
-    // Import hashToCurve dynamically to avoid circular dependency
-    const { hashToCurve } = await import('../crypto');
-
     // Hash secrets to Y values (curve points) as required by NUT-07
     const Ys = await Promise.all(
       proofs.map(async (p) => await hashToCurve(p.secret))
@@ -80,7 +78,7 @@ export const checkProofsSpent = async (proofs: CashuProof[]): Promise<CheckState
     });
 
     return response;
-  } catch (error) {
+  } catch (error: unknown) {
     logger.error('Failed to check proof state', { error: (error as Error).message });
     throw error;
   }

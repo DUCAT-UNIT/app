@@ -102,7 +102,7 @@ export const checkBiometricSupport = async (): Promise<boolean> => {
     const hasHardware = await LocalAuthentication.hasHardwareAsync();
     const isEnrolled = await LocalAuthentication.isEnrolledAsync();
     return hasHardware && isEnrolled;
-  } catch (error) {
+  } catch (error: unknown) {
     return false;
   }
 };
@@ -135,7 +135,7 @@ export const authenticateWithBiometrics = async (
       success: result.success,
       error: result.success ? undefined : result.error,
     };
-  } catch (error) {
+  } catch (error: unknown) {
     const err = error as Error;
     // If error is from lockout or rate limiting, propagate it
     if (err.message?.includes('Too many failed') || err.message?.includes('locked out')) {
@@ -162,7 +162,7 @@ export const isBiometricEnabled = async (): Promise<boolean> => {
   try {
     const enabled = await SecureStore.getItemAsync(SECURE_KEYS.BIOMETRIC_ENABLED);
     return enabled === 'true';
-  } catch (error) {
+  } catch (error: unknown) {
     return false;
   }
 };
@@ -176,7 +176,7 @@ export const setBiometricEnabled = async (enabled: boolean): Promise<boolean> =>
   try {
     await SecureStore.setItemAsync(SECURE_KEYS.BIOMETRIC_ENABLED, enabled ? 'true' : 'false');
     return true;
-  } catch (error) {
+  } catch (error: unknown) {
     return false;
   }
 };

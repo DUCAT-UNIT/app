@@ -22,6 +22,7 @@ bitcoin.initEccLib(ecc);
 export interface BtcTransactionIntent {
   id: string;
   type: 'send';
+  assetType: 'BTC';
   amount: number;
   amountBTC: string;
   recipient: string;
@@ -116,6 +117,7 @@ export async function createBtcIntent(
     return {
       id: Date.now().toString(),
       type: 'send',
+      assetType: 'BTC',
       amount: amountInSats,
       amountBTC: amount,
       recipient: validatedRecipient,
@@ -129,7 +131,7 @@ export async function createBtcIntent(
       psbt: psbt.toBase64(),
       timestamp: Date.now(),
     };
-  } catch (error) {
+  } catch (error: unknown) {
     throw error;
   }
 }
@@ -141,6 +143,9 @@ async function fetchInputTransactions(selectedUtxos: UTXO[]): Promise<UtxoWithTx
   return Promise.all(
     selectedUtxos.map(async (utxo) => {
       const txResponse = await fetch(getTxHexUrl(utxo.txid));
+      if (!txResponse.ok) {
+        throw new Error(`Failed to fetch transaction ${utxo.txid}: HTTP ${txResponse.status}`);
+      }
       const txHex = await txResponse.text();
       return {
         ...utxo,

@@ -157,7 +157,7 @@ export const fetchBtcPrice = async (): Promise<number | null> => {
     });
 
     return data.bitcoin.usd;
-  } catch (error) {
+  } catch (error: unknown) {
     return null;
   }
 };

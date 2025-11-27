@@ -105,10 +105,7 @@ export const fetchAddressTransactions = async (address: string): Promise<Transac
     while (hasMore && pageCount < maxPages) {
       const url = getAddressTxsUrl(address, lastSeenTxid);
 
-      const response = await retrySilently(
-        () => fetch(url),
-        `Fetch transactions for ${address.substring(0, 8)}... (page ${pageCount + 1})`
-      );
+      const response = await retrySilently(() => fetch(url));
 
       if (!response.ok) {
         throw new Error('Failed to fetch transactions');
@@ -135,7 +132,7 @@ export const fetchAddressTransactions = async (address: string): Promise<Transac
     }
 
     return allTxs;
-  } catch (error) {
+  } catch (error: unknown) {
     return [];
   }
 };
@@ -159,12 +156,12 @@ export const parseRuneTransfer = (
       return output.scriptpubkey?.startsWith('6a5d'); // OP_RETURN + OP_13
     });
 
-    if (!opReturnOutput) {
+    if (!opReturnOutput || !opReturnOutput.scriptpubkey) {
       return null;
     }
 
     // Decode the runestone
-    const runestone = decodeRunestone(opReturnOutput.scriptpubkey!) as Runestone;
+    const runestone = decodeRunestone(opReturnOutput.scriptpubkey) as Runestone;
     if (!runestone || !runestone.edicts || runestone.edicts.length === 0) {
       return null;
     }
@@ -224,7 +221,7 @@ export const parseRuneTransfer = (
     }
 
     return null;
-  } catch (error) {
+  } catch (error: unknown) {
     return null;
   }
 };
@@ -364,7 +361,7 @@ export const fetchAllTransactionHistory = async (
     );
 
     return allTxs;
-  } catch (error) {
+  } catch (error: unknown) {
     throw error;
   }
 };

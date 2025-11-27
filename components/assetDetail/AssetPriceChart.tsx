@@ -70,10 +70,18 @@ export const AssetPriceChart = memo(function AssetPriceChart({
   onTimeframeChange,
   onRetry,
 }: AssetPriceChartProps) {
-  // Create stable callbacks for each timeframe
-  const handleTimeframePress = useCallback((timeframe: PriceTimeframe) => {
-    onTimeframeChange(timeframe);
-  }, [onTimeframeChange]);
+  // Create stable callbacks for each timeframe to prevent re-renders
+  const handlePress1D = useCallback(() => onTimeframeChange('1D'), [onTimeframeChange]);
+  const handlePress1W = useCallback(() => onTimeframeChange('1W'), [onTimeframeChange]);
+  const handlePress1M = useCallback(() => onTimeframeChange('1M'), [onTimeframeChange]);
+  const handlePress1Y = useCallback(() => onTimeframeChange('1Y'), [onTimeframeChange]);
+
+  const timeframeHandlers = useMemo(() => ({
+    '1D': handlePress1D,
+    '1W': handlePress1W,
+    '1M': handlePress1M,
+    '1Y': handlePress1Y,
+  }), [handlePress1D, handlePress1W, handlePress1M, handlePress1Y]);
 
   // Memoize UNIT price data
   const unitData = useMemo(() => {
@@ -83,20 +91,34 @@ export const AssetPriceChart = memo(function AssetPriceChart({
     return null;
   }, [assetType, selectedTimeframe]);
 
-  // Render timeframe buttons (shared between UNIT and BTC)
-  const renderTimeframeButtons = useCallback((showLoading = false) => (
+  // Memoize timeframe buttons to prevent re-renders
+  const timeframeButtonsNoLoading = useMemo(() => (
     <View style={styles.timeframeButtons}>
       {TIMEFRAMES.map((timeframe) => (
         <TimeframeButton
           key={timeframe}
           timeframe={timeframe}
           isActive={selectedTimeframe === timeframe}
-          isLoading={showLoading && priceLoading}
-          onPress={() => handleTimeframePress(timeframe as PriceTimeframe)}
+          isLoading={false}
+          onPress={timeframeHandlers[timeframe as PriceTimeframe]}
         />
       ))}
     </View>
-  ), [selectedTimeframe, priceLoading, handleTimeframePress]);
+  ), [selectedTimeframe, timeframeHandlers]);
+
+  const timeframeButtonsWithLoading = useMemo(() => (
+    <View style={styles.timeframeButtons}>
+      {TIMEFRAMES.map((timeframe) => (
+        <TimeframeButton
+          key={timeframe}
+          timeframe={timeframe}
+          isActive={selectedTimeframe === timeframe}
+          isLoading={priceLoading}
+          onPress={timeframeHandlers[timeframe as PriceTimeframe]}
+        />
+      ))}
+    </View>
+  ), [selectedTimeframe, priceLoading, timeframeHandlers]);
 
   // For UNIT, use generated data
   if (assetType === 'UNIT') {
@@ -108,7 +130,7 @@ export const AssetPriceChart = memo(function AssetPriceChart({
           minBoundary={0.5}
           maxBoundary={1.5}
         />
-        {renderTimeframeButtons(false)}
+        {timeframeButtonsNoLoading}
       </View>
     );
   }
@@ -140,7 +162,7 @@ export const AssetPriceChart = memo(function AssetPriceChart({
       ) : priceData ? (
         <>
           <PriceChart data={priceData} isPositive={isPositive} minBoundary={undefined} maxBoundary={undefined} />
-          {renderTimeframeButtons(true)}
+          {timeframeButtonsWithLoading}
         </>
       ) : null}
     </View>

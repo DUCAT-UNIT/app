@@ -7,6 +7,7 @@ import React from 'react';
 import { create, act } from 'react-test-renderer';
 import { PriceProvider, usePrice } from '../PriceContext';
 import * as balanceService from '../../services/balanceService';
+import { resetPriceStore } from '../../stores';
 
 // Helper to render hooks with react-test-renderer
 function renderHook(hook, { wrapper: Wrapper } = {}) {
@@ -35,20 +36,20 @@ describe('PriceContext', () => {
     jest.clearAllMocks();
     jest.clearAllTimers();
     jest.useFakeTimers();
+    // Reset Zustand store state between tests
+    resetPriceStore();
   });
 
   afterEach(() => {
     jest.useRealTimers();
   });
 
-  it('should throw error when used outside provider', () => {
-    const consoleError = jest.spyOn(console, 'error').mockImplementation(() => {});
+  it('should work without provider (Zustand stores are globally accessible)', () => {
+    // Zustand stores don't require providers - they're globally accessible
+    const { result } = renderHook(() => usePrice());
 
-    expect(() => {
-      renderHook(() => usePrice());
-    }).toThrow('usePrice must be used within a PriceProvider');
-
-    consoleError.mockRestore();
+    expect(result.current.btcPrice).toBe(null);
+    expect(result.current.fetchBtcPrice).toBeDefined();
   });
 
   it('should provide initial state', async () => {

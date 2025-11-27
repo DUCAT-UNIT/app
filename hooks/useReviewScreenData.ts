@@ -4,7 +4,7 @@
  */
 
 import { useState, useEffect, useMemo, Dispatch, SetStateAction } from 'react';
-import { parsePSBT, buildFallbackOutputs, hasUnconfirmedInputs as checkUnconfirmedInputs, PSBTInput, PSBTOutput, SendIntent as PSBTSendIntent } from '../services/psbtService';
+import { parsePSBT, buildFallbackOutputs, hasUnconfirmedInputs as checkUnconfirmedInputs, PSBTInput, PSBTOutput } from '../services/psbtService';
 import { useTransactionBuild } from '../contexts/TransactionBuildContext';
 import type { SendIntent } from '../contexts/TransactionBuildContext';
 import { usePrice } from '../contexts/PriceContext';
@@ -38,56 +38,54 @@ export function useReviewScreenData(): UseReviewScreenDataReturn {
 
   // Check if any inputs are unconfirmed
   const hasUnconfirmedInputs = useMemo(() => {
-    return checkUnconfirmedInputs(sendIntent as PSBTSendIntent | null);
+    return checkUnconfirmedInputs(sendIntent);
   }, [sendIntent]);
 
   // Calculate display values
   const displayAmount = useMemo(() => {
     if (!sendIntent) return '';
 
-    const amount = typeof sendIntent.amount === 'number'
-      ? sendIntent.amount.toString()
-      : (sendIntent.amount || '0');
-    const amountBTC = sendIntent.amountBTC || '0';
-
-    return sendIntent.assetType === 'UNIT'
-      ? `${(parseFloat(amount) / 100).toLocaleString('en-US', {
-          minimumFractionDigits: 2,
-          maximumFractionDigits: 2
-        })} UNIT`
-      : `${amountBTC} BTC`;
+    if (sendIntent.assetType === 'UNIT') {
+      const amount = sendIntent.amount.toString();
+      return `${(parseFloat(amount) / 100).toLocaleString('en-US', {
+        minimumFractionDigits: 2,
+        maximumFractionDigits: 2
+      })} UNIT`;
+    } else {
+      // BTC transaction
+      return `${sendIntent.amountBTC} BTC`;
+    }
   }, [sendIntent]);
 
   const usdAmount = useMemo(() => {
     if (!sendIntent) return '0.00';
 
-    const amount = typeof sendIntent.amount === 'number'
-      ? sendIntent.amount.toString()
-      : (sendIntent.amount || '0');
-    const amountBTC = sendIntent.amountBTC || '0';
-
-    return sendIntent.assetType === 'UNIT'
-      ? (parseFloat(amount) / 100).toLocaleString('en-US', {
-          minimumFractionDigits: 2,
-          maximumFractionDigits: 2,
-        })
-      : (parseFloat(amountBTC) * (btcPrice || 0)).toLocaleString('en-US', {
-          minimumFractionDigits: 2,
-          maximumFractionDigits: 2,
-        });
+    if (sendIntent.assetType === 'UNIT') {
+      const amount = sendIntent.amount.toString();
+      return (parseFloat(amount) / 100).toLocaleString('en-US', {
+        minimumFractionDigits: 2,
+        maximumFractionDigits: 2,
+      });
+    } else {
+      // BTC transaction
+      return (parseFloat(sendIntent.amountBTC) * (btcPrice || 0)).toLocaleString('en-US', {
+        minimumFractionDigits: 2,
+        maximumFractionDigits: 2,
+      });
+    }
   }, [sendIntent, btcPrice]);
 
   // Parse PSBT to get inputs, outputs, and fee
   const { psbtInputs, psbtOutputs, actualFee } = useMemo(() => {
     if (!sendIntent?.psbt) return { psbtInputs: [], psbtOutputs: [], actualFee: 0 };
-    return parsePSBT(sendIntent as unknown as PSBTSendIntent);
+    return parsePSBT(sendIntent);
   }, [sendIntent]);
 
   // Use PSBT outputs if available, otherwise fall back to manual construction
   const outputs = useMemo(() => {
     if (psbtOutputs.length > 0) return psbtOutputs;
     if (!sendIntent?.psbt) return [];
-    return buildFallbackOutputs(sendIntent as unknown as PSBTSendIntent);
+    return buildFallbackOutputs(sendIntent);
   }, [psbtOutputs, sendIntent]);
 
   return {

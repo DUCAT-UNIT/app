@@ -31,7 +31,7 @@ export async function preloadConfettiSound(): Promise<Audio.Sound> {
     );
     logger.debug('Confetti audio preloaded and ready');
     return sound;
-  } catch (error) {
+  } catch (error: unknown) {
     logger.debug('Could not preload confetti audio', { error: (error as Error).message });
     throw error;
   }
@@ -63,7 +63,7 @@ export async function playConfettiSound(soundRef: Audio.Sound | null): Promise<v
         await sound.stopAsync();
       }
     }, 3000);
-  } catch (error) {
+  } catch (error: unknown) {
     // Silent fail in production, log in development
     if (__DEV__) {
       logger.debug('Audio playback failed', { error: (error as Error).message });

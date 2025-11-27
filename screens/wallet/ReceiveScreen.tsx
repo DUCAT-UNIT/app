@@ -169,7 +169,7 @@ const ReceiveScreen = React.memo(function ReceiveScreen({
       await Share.share({
         message: selectedAddress || '',
       });
-    } catch (error) {
+    } catch (error: unknown) {
       // Silently fail
     }
   };

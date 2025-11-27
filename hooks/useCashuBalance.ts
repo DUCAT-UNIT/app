@@ -5,7 +5,7 @@
 
 import { useState, useCallback, useEffect, useRef, Dispatch, SetStateAction } from 'react';
 import { logger } from '../utils/logger';
-import { getBalance, setCurrentAccount } from '../services/cashu/cashuWalletService';
+import { getBalance, setCurrentAccount, subscribeToProofChanges } from '../services/cashu/cashuWalletService';
 import { usePolling } from './usePolling';
 import type { WalletAddresses } from '../contexts/WalletContext';
 
@@ -52,7 +52,7 @@ export function useCashuBalance({ wallet }: UseCashuBalanceParams): UseCashuBala
           try {
             const fullBalance = await getBalance(true);
             setBalance(fullBalance);
-          } catch (err) {
+          } catch (err: unknown) {
             logger.error('Failed to fetch full Cashu balance', { error: err instanceof Error ? err.message : String(err) });
           }
         }, 100);
@@ -65,7 +65,7 @@ export function useCashuBalance({ wallet }: UseCashuBalanceParams): UseCashuBala
         setError(null);
         return newBalance;
       }
-    } catch (err) {
+    } catch (err: unknown) {
       const errorMessage = err instanceof Error ? err.message : String(err);
       logger.error('Failed to fetch Cashu balance', { error: errorMessage });
       setError(errorMessage);
@@ -80,6 +80,16 @@ export function useCashuBalance({ wallet }: UseCashuBalanceParams): UseCashuBala
     enabled: true,
     immediate: false,
   });
+
+  // Subscribe to proof changes to trigger immediate balance refresh
+  useEffect(() => {
+    const unsubscribe = subscribeToProofChanges(() => {
+      logger.debug('[useCashuBalance] Proof change detected, refreshing balance');
+      fetchBalance(true);
+    });
+
+    return unsubscribe;
+  }, [fetchBalance]);
 
   // Initial load - use fast loading
   useEffect(() => {

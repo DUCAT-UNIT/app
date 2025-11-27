@@ -31,8 +31,11 @@ export const useFormattedBalances = ({
   segwitBalance = 0,
   taprootBalance = 0,
   runesBalance = 0,
-  btcPrice = 0,
+  btcPrice: btcPriceParam = 0,
 }: UseFormattedBalancesParams): FormattedBalances => {
+  // Ensure btcPrice is never null (default params don't handle null, only undefined)
+  const btcPrice = btcPriceParam ?? 0;
+
   return useMemo(() => {
     // Format BTC amounts with 8 decimal places
     const formatBTC = (value: number): string =>

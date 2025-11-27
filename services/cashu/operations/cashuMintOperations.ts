@@ -17,7 +17,7 @@ import { CashuProof } from '../crypto';
 
 export interface MintQuoteResult {
   quoteId: string;
-  amount: number;
+  amount?: number;
   depositAddress: string;
   expiry?: number;
   state: string;
@@ -46,7 +46,7 @@ export const requestMint = async (amount: number): Promise<MintQuoteResult> => {
       expiry: quote.expiry,
       state: quote.state,
     };
-  } catch (error) {
+  } catch (error: unknown) {
     logger.error('Failed to request mint', { error: (error as Error).message });
     throw error;
   }
@@ -77,7 +77,7 @@ export const checkMintStatus = async (quoteId: string): Promise<MintStatusResult
       state: quote.state,
       paid: quote.state === 'PAID' || quote.state === 'ISSUED',
     };
-  } catch (error) {
+  } catch (error: unknown) {
     logger.error('Failed to check mint status', { error: (error as Error).message });
     throw error;
   }
@@ -146,7 +146,7 @@ export const completeMint = async (quoteId: string, amount: number): Promise<Cas
     logger.info('Mint completed', { proofCount: proofs.length });
 
     return proofs;
-  } catch (error) {
+  } catch (error: unknown) {
     logger.error('Failed to complete mint', { error: (error as Error).message });
     throw error;
   }

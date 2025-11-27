@@ -9,21 +9,20 @@ import { MINT_URL } from './mintConfig';
 export interface MintInfo {
   name: string;
   version: string;
-  [key: string]: any;
 }
 
 export interface Keysets {
   keysets: string[];
-  [key: string]: any;
 }
 
 export interface MintKeys {
   keysets: Array<{
     id: string;
     unit: string;
-    keys: Record<number, string>;
+    keys: Record<string, string>;
   }>;
-  [key: string]: any;
+  /** Legacy format - keys at root level */
+  keys?: Record<string, string>;
 }
 
 /**
@@ -39,7 +38,7 @@ export const getMintInfo = async (): Promise<MintInfo> => {
     });
     logger.info('Mint info fetched', { name: info.name, version: info.version });
     return info;
-  } catch (error) {
+  } catch (error: unknown) {
     logger.error('Failed to fetch mint info', { error: (error as Error).message });
     throw error;
   }
@@ -56,7 +55,7 @@ export const getKeysets = async (): Promise<Keysets> => {
       description: 'Get mint keysets',
     });
     return keysets;
-  } catch (error) {
+  } catch (error: unknown) {
     logger.error('Failed to fetch keysets', { error: (error as Error).message });
     throw error;
   }
@@ -78,7 +77,7 @@ export const getKeys = async (keysetId: string | null = null): Promise<MintKeys>
       description: 'Get mint keys',
     });
     return keys;
-  } catch (error) {
+  } catch (error: unknown) {
     logger.error('Failed to fetch keys', { error: (error as Error).message });
     throw error;
   }

@@ -144,7 +144,7 @@ export function useClaimNotifications({
                   action: 'switch',
                 });
               }
-            } catch (err) {
+            } catch (err: unknown) {
               logger.error('[useClaimNotifications] Failed to switch account:', { error: err instanceof Error ? err.message : String(err) });
               showSnackbar({
                 message: 'Failed to switch account',

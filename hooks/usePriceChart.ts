@@ -41,6 +41,12 @@ const priceCache: Record<string, CacheEntry> = {};
 // Track last rate limit to prevent hammering the API
 let lastRateLimitTime = 0;
 
+// Reset function for testing
+export const _resetPriceCache = (): void => {
+  Object.keys(priceCache).forEach(key => delete priceCache[key]);
+  lastRateLimitTime = 0;
+};
+
 // Sample data to reduce points to ~60
 const sampleData = (data: PricePoint[] | null, targetPoints = 60): PricePoint[] | null => {
   if (!data || data.length <= targetPoints) return data;
@@ -213,7 +219,7 @@ export function usePriceChart(assetType: string, selectedTimeframe: Timeframe): 
         // Invalid data but don't show error if we have cache
         setPriceError(null);
       }
-    } catch (error) {
+    } catch (error: unknown) {
       // Only show error if we don't have any cached data
       if (!priceData) {
         setPriceError((error instanceof Error ? error.message : String(error)) || 'Failed to load price data');

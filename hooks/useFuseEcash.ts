@@ -6,6 +6,7 @@
 import { useCallback } from 'react';
 import { Alert } from 'react-native';
 import { logger } from '../utils/logger';
+import { requestMelt, completeMeltWithoutCleanup, cleanupMeltProofs } from '../services/cashu/cashuWalletService';
 
 interface TransactionOutput {
   scriptpubkey_address?: string;
@@ -53,9 +54,6 @@ export function useFuseEcash({
           text: 'Fuse',
           onPress: async () => {
             try {
-              const { requestMelt, completeMeltWithoutCleanup, cleanupMeltProofs } =
-                await import('../services/cashu/cashuWalletService');
-
               // Request melt quote
               const quote = await requestMelt(taprootAddress, cashuBalance);
 
@@ -110,7 +108,7 @@ export function useFuseEcash({
                   'Melt completed successfully. Transaction will appear on-chain shortly.'
                 );
               }
-            } catch (error) {
+            } catch (error: unknown) {
               Alert.alert('Error', `Failed to fuse e-cash: ${error instanceof Error ? error.message : String(error)}`);
             }
           },

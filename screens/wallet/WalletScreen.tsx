@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useCallback } from 'react';
 import { View, Text, TouchableOpacity, ActivityIndicator, ScrollView, StyleSheet, ViewStyle, TextStyle } from 'react-native';
 import { useWallet } from '../../contexts/WalletContext';
 import { useBalance } from '../../contexts/WalletDataContext';
@@ -14,6 +14,7 @@ import VaultCard, { VaultCardStyles } from '../../components/wallet/VaultCard';
 import AssetCard, { AssetCardStyles } from '../../components/wallet/AssetCard';
 import WalletHeader, { WalletHeaderStyles } from '../../components/wallet/WalletHeader';
 import ErrorBanner from '../../components/wallet/ErrorBanner';
+import { getRunesAmount } from '../../utils/runesHelper';
 
 // Constants
 const VAULT_CREATION_RETRY_TIMEOUT = 2000;
@@ -89,8 +90,8 @@ const WalletScreen = React.memo(function WalletScreen({
 
   // Calculate UNIT totals (Runes + Ecash)
   const unitTotals = React.useMemo(() => {
-    const runesAmount = runesBalance && runesBalance.length > 0 ? parseFloat(runesBalance[0].amount) : 0;
-    const totalUnit = runesAmount + cashuBalance;
+    const runesAmount = getRunesAmount(runesBalance);
+    const totalUnit = runesAmount + (cashuBalance || 0);
     return {
       formatted: totalUnit.toLocaleString('en-US', {
         minimumFractionDigits: 2,
@@ -107,7 +108,7 @@ const WalletScreen = React.memo(function WalletScreen({
     totalBalanceUSD,
     segwitBalance,
     taprootBalance,
-    runesBalance: runesBalance && runesBalance.length > 0 ? parseFloat(runesBalance[0].amount) : 0,
+    runesBalance: getRunesAmount(runesBalance),
     btcPrice,
   });
 
@@ -137,6 +138,15 @@ const WalletScreen = React.memo(function WalletScreen({
     setBalanceError(null);
     await fetchBalance();
   }, [setBalanceError, fetchBalance]);
+
+  // Memoized asset press handlers to prevent AssetCard re-renders
+  const handleBTCPress = useCallback(() => {
+    onAssetPress?.('BTC');
+  }, [onAssetPress]);
+
+  const handleUNITPress = useCallback(() => {
+    onAssetPress?.('UNIT');
+  }, [onAssetPress]);
 
   return (
     <View style={styles.walletContainer} testID="wallet-screen">
@@ -234,7 +244,7 @@ const WalletScreen = React.memo(function WalletScreen({
           btcValue={formatted.segwitBTC}
           usdValue={formatted.segwitUSD}
           styles={styles}
-          onPress={() => onAssetPress && onAssetPress('BTC')}
+          onPress={handleBTCPress}
         />
 
         {/* UNIT (Runes + Ecash) Combined Card */}
@@ -247,7 +257,7 @@ const WalletScreen = React.memo(function WalletScreen({
           btcValue={unitTotals.btcValue}
           usdValue={unitTotals.usdValue}
           styles={styles}
-          onPress={() => onAssetPress && onAssetPress('UNIT')}
+          onPress={handleUNITPress}
         />
 
         {/* DUCAT•RUNE Card - Non-clickable */}

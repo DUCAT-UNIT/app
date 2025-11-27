@@ -1,5 +1,6 @@
 import { useMemo } from 'react';
 import { COLORS } from '../theme';
+import { getRunesAmount } from '../utils/runesHelper';
 import type { RuneBalance } from '../services/balanceService';
 import type { VaultData } from '../services/vaultService';
 
@@ -28,22 +29,24 @@ interface UseWalletCalculationsReturn {
  * Custom hook for wallet-related calculations
  * Extracts business logic from WalletScreen component
  */
+
 export const useWalletCalculations = ({
   segwitBalance = 0,
   taprootBalance: _taprootBalance = 0,
   runesBalance = [],
   cashuBalance = 0,
-  btcPrice = 0,
+  btcPrice: btcPriceParam = 0,
   vaultData = null,
 }: UseWalletCalculationsParams): UseWalletCalculationsReturn => {
+  // Ensure btcPrice is never null (default params don't handle null, only undefined)
+  const btcPrice = btcPriceParam ?? 0;
   /**
    * Calculate total balance in BTC
    * Includes: BTC balance + UNIT value in BTC + Cashu ecash value in BTC + DUCAT value in BTC
    */
   const totalBalanceBTC = useMemo(() => {
     const btcValue = segwitBalance || 0;
-    const unitValue =
-      runesBalance.length > 0 ? parseFloat(runesBalance[0].amount) / (btcPrice || 1) : 0;
+    const unitValue = getRunesAmount(runesBalance) / (btcPrice || 1);
     const cashuValue = (cashuBalance || 0) / (btcPrice || 1);
     const ducatValue = 0; // DUCAT value in BTC (currently 0)
 
@@ -56,7 +59,7 @@ export const useWalletCalculations = ({
    */
   const totalBalanceUSD = useMemo(() => {
     const btcUsdValue = (segwitBalance || 0) * (btcPrice || 0);
-    const unitUsdValue = runesBalance.length > 0 ? parseFloat(runesBalance[0].amount) : 0;
+    const unitUsdValue = getRunesAmount(runesBalance);
     const cashuUsdValue = cashuBalance || 0;
     const ducatUsdValue = 0; // DUCAT value in USD (currently 0)
 
@@ -130,7 +133,7 @@ export const useWalletCalculations = ({
       return 0;
     }
 
-    return parseFloat(runesBalance[0].amount) / btcPrice;
+    return getRunesAmount(runesBalance) / btcPrice;
   }, [runesBalance, btcPrice]);
 
   /**

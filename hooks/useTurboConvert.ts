@@ -6,6 +6,7 @@
 import { useCallback } from 'react';
 import { Alert } from 'react-native';
 import { releaseOrphanedUtxos } from '../utils/pendingTransactionsUtils';
+import { getRunesAmount } from '../utils/runesHelper';
 import type { RuneBalance } from '../services/balanceService';
 import type { MinimalNavigation } from '../navigation/types';
 import type { UtxoRef } from '../types/assets';
@@ -28,9 +29,7 @@ export function useTurboConvert({
   unmarkUtxosAsSpent,
 }: UseTurboConvertParams): UseTurboConvertReturn {
   const handleTurboPress = useCallback(async () => {
-    const unitRunesAmount = runesBalance && runesBalance.length > 0
-      ? parseFloat(runesBalance[0].amount)
-      : 0;
+    const unitRunesAmount = getRunesAmount(runesBalance);
 
     if (unitRunesAmount === 0) {
       Alert.alert('No On-chain UNIT', 'You don\'t have any on-chain UNIT to convert.');
@@ -58,7 +57,7 @@ export function useTurboConvert({
           isTurbo: true,
         }
       });
-    } catch (error) {
+    } catch (error: unknown) {
       Alert.alert('Error', `Failed to convert: ${error instanceof Error ? error.message : String(error)}`);
     }
   }, [runesBalance, navigation, getSpentUtxos, unmarkUtxosAsSpent]);

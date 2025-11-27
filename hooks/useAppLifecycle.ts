@@ -46,15 +46,20 @@ export function useAppLifecycle({
     const manageScreenCapture = async () => {
       try {
         await ScreenCapture.allowScreenCaptureAsync();
-      } catch (_error) {}
+      } catch (error: unknown) {
+        // Non-critical: screen capture permissions may not be available on all devices
+        logger.debug('[useAppLifecycle] Screen capture setup skipped', {
+          error: error instanceof Error ? error.message : String(error),
+        });
+      }
     };
 
     manageScreenCapture();
 
     // Cleanup: ensure screen capture is allowed when component unmounts
     return () => {
-      ScreenCapture.allowScreenCaptureAsync().catch((_error) => {
-        // Ignore cleanup errors
+      ScreenCapture.allowScreenCaptureAsync().catch(() => {
+        // Cleanup errors are expected and non-critical
       });
     };
   }, []);

@@ -59,7 +59,7 @@ export const WalletProvider: React.FC<WalletProviderProps> = ({ children }) => {
       }
 
       return { exists: false };
-    } catch (error) {
+    } catch (error: unknown) {
       return { exists: false };
     }
   }, []);
@@ -82,7 +82,7 @@ export const WalletProvider: React.FC<WalletProviderProps> = ({ children }) => {
     // Clear P2PK cache on wallet reset
     try {
       await clearP2PKCache();
-    } catch (error) {
+    } catch (error: unknown) {
       if (error instanceof Error) {
         logger.warn('[WalletContext] Failed to clear P2PK cache on reset:', { error: error.message });
       }

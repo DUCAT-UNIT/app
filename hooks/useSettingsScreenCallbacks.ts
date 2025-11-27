@@ -110,7 +110,7 @@ export function useSettingsScreenCallbacks({
             'Spent Proofs Removed',
             `Removed ${result.removed} spent proofs. Kept ${result.kept} valid proofs.`
           );
-        } catch (error) {
+        } catch (error: unknown) {
           Alert.alert('Error', `Failed to remove spent proofs: ${error instanceof Error ? error.message : String(error)}`);
         }
       },

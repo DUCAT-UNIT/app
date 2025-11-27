@@ -72,7 +72,7 @@ export function useCashuReceive({
             [{ text: 'OK', onPress: () => navigation.goBack() }]
           );
         }
-      } catch (error) {
+      } catch (error: unknown) {
         logger.error('Error checking mint:', { error: error instanceof Error ? error.message : String(error) });
       }
     }, 3000);
@@ -91,7 +91,7 @@ export function useCashuReceive({
     try {
       const quote = await startMint(amountNum);
       setMintQuote(quote);
-    } catch (error) {
+    } catch (error: unknown) {
       const errorMessage = error instanceof Error ? error.message : String(error);
       Alert.alert('Error', errorMessage || 'Failed to create mint quote');
     } finally {
@@ -114,7 +114,7 @@ export function useCashuReceive({
         `Received ${result.amount} sats worth of Cashu tokens`,
         [{ text: 'OK', onPress: () => navigation.goBack() }]
       );
-    } catch (error) {
+    } catch (error: unknown) {
       const errorMessage = error instanceof Error ? error.message : String(error);
       Alert.alert('Error', errorMessage || 'Failed to receive token');
     } finally {
@@ -150,7 +150,7 @@ export function useCashuReceive({
           },
         })
       );
-    } catch (error) {
+    } catch (error: unknown) {
       const errorMessage = error instanceof Error ? error.message : String(error);
       Alert.alert('Error', errorMessage || 'Failed to create mint quote');
     } finally {

@@ -112,7 +112,7 @@ export const SeedPhraseProvider: React.FC<SeedPhraseProviderProps> = ({ children
           showToast(ERRORS.SEED_PHRASE_NOT_FOUND, 'error');
         }
       });
-    } catch (error) {
+    } catch (error: unknown) {
       showToast(parseErrorMessage(error), 'error');
     }
   }, [seedPhraseTranslateX, showToast]);
@@ -138,7 +138,7 @@ export const SeedPhraseProvider: React.FC<SeedPhraseProviderProps> = ({ children
           await loadSeedPhrase();
           return;
         }
-      } catch (error) {
+      } catch (error: unknown) {
         // Biometric failed, will fall back to PIN below
       }
     }

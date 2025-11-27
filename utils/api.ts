@@ -24,7 +24,7 @@ export const fetchWithTimeout = async (
     });
     clearTimeout(id);
     return response;
-  } catch (error) {
+  } catch (error: unknown) {
     clearTimeout(id);
     throw error;
   }

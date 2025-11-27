@@ -102,6 +102,38 @@ describe('WalletDataContext', () => {
     });
   });
 
+  describe('Hook error handling', () => {
+    it('useBalance should throw error when used outside provider', () => {
+      const consoleError = jest.spyOn(console, 'error').mockImplementation(() => {});
+
+      expect(() => {
+        renderHook(() => useBalance());
+      }).toThrow('useBalance must be used within a WalletDataProvider');
+
+      consoleError.mockRestore();
+    });
+
+    it('useTransactionHistory should throw error when used outside provider', () => {
+      const consoleError = jest.spyOn(console, 'error').mockImplementation(() => {});
+
+      expect(() => {
+        renderHook(() => useTransactionHistory());
+      }).toThrow('useTransactionHistory must be used within a WalletDataProvider');
+
+      consoleError.mockRestore();
+    });
+
+    it('useVaultData should throw error when used outside provider', () => {
+      const consoleError = jest.spyOn(console, 'error').mockImplementation(() => {});
+
+      expect(() => {
+        renderHook(() => useVaultData());
+      }).toThrow('useVaultData must be used within a WalletDataProvider');
+
+      consoleError.mockRestore();
+    });
+  });
+
   describe('Backwards compatibility hooks', () => {
     it('should provide useBalance hook', () => {
       const wrapper = ({ children }) => <WalletDataProvider>{children}</WalletDataProvider>;

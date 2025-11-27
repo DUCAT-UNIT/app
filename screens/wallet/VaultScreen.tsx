@@ -60,7 +60,6 @@ const VaultScreen = React.memo(function VaultScreen({
   const {
     webViewRef,
     webViewUrl,
-    forceReloadKey,
     setWebViewLoaded,
     hasLoadedOnceRef,
     injectWalletCredentials,
@@ -104,7 +103,6 @@ const VaultScreen = React.memo(function VaultScreen({
   return (
     <View style={styles.container}>
       <WebView
-        key={`vault-webview-${forceReloadKey}`}
         ref={webViewRef}
         source={{ uri: webViewUrl }}
         style={[styles.webview, shouldShowLoading && styles.webviewHidden]}
@@ -114,8 +112,8 @@ const VaultScreen = React.memo(function VaultScreen({
         domStorageEnabled={true}
         webviewDebuggingEnabled={true}
         incognito={false}
-        cacheEnabled={false}
-        cacheMode="LOAD_NO_CACHE"
+        cacheEnabled={true}
+        cacheMode="LOAD_DEFAULT"
         onShouldStartLoadWithRequest={handleShouldStartLoad}
         onLoadStart={() => {
           setIsLoading(true);
@@ -133,12 +131,13 @@ const VaultScreen = React.memo(function VaultScreen({
           }
 
           // Set timeout for slow networks or account switching
+          // Reduced from 15s to 3s since we now use caching
           loadingTimeoutRef.current = setTimeout(() => {
             logger.debug('⏱️ Loading timeout reached - hiding loading screen');
             setIsLoading(false);
             setPreparingVault(false);
             loadingTimeoutRef.current = null;
-          }, 15000);
+          }, 3000);
 
           // Inject wallet credentials immediately after page loads
           // The injection now has built-in retry logic and confirmation

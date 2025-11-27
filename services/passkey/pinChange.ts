@@ -6,6 +6,7 @@ import * as SecureStore from 'expo-secure-store';
 import { SECURE_KEYS } from '../../utils/constants';
 import { logger } from '../../utils/logger';
 import { saveToICloud } from '../icloudStorage';
+import { savePin } from '../pinService';
 
 import { PASSKEY_KEYS } from './core';
 import { deriveEncryptionKey, encryptMnemonic } from './encryption';
@@ -14,6 +15,11 @@ import { isPasskeyEnabled } from './storage';
 // Module-level lock to prevent concurrent PIN changes
 let pinChangeInProgress = false;
 const PIN_CHANGE_TIMEOUT_MS = 30000; // 30 seconds max
+
+// Reset function for testing only
+export const _resetPinChangeState = (): void => {
+  pinChangeInProgress = false;
+};
 
 interface PinChangeResult {
   success: boolean;
@@ -40,7 +46,6 @@ export const atomicPinChangeWithPasskey = async (newPin: string): Promise<PinCha
     const enabled = await isPasskeyEnabled();
     if (!enabled) {
       // No passkey, just change PIN normally
-      const { savePin } = await import('../pinService');
       const success = await savePin(newPin);
       return { success };
     }
@@ -63,7 +68,6 @@ export const atomicPinChangeWithPasskey = async (newPin: string): Promise<PinCha
 
     try {
       // Step 2: Save new PIN (generates new salt)
-      const { savePin } = await import('../pinService');
       const pinSaveSuccess = await savePin(newPin);
       if (!pinSaveSuccess) {
         throw new Error('Failed to save new PIN');
@@ -81,7 +85,7 @@ export const atomicPinChangeWithPasskey = async (newPin: string): Promise<PinCha
       const duration = Date.now() - changeStartTime;
       logger.debug('Atomic PIN change completed successfully', { durationMs: duration });
       return { success: true };
-    } catch (error) {
+    } catch (error: unknown) {
       // Clear timeout on error
       if (timeoutId) {
         clearTimeout(timeoutId);
@@ -115,7 +119,7 @@ export const atomicPinChangeWithPasskey = async (newPin: string): Promise<PinCha
 
       return { success: false, error: 'PIN change failed. Your old PIN is still active.' };
     }
-  } catch (error) {
+  } catch (error: unknown) {
     logger.error('Atomic PIN change failed', { error: (error as Error).message });
     return { success: false, error: (error as Error).message || 'Failed to change PIN' };
   } finally {
@@ -202,7 +206,7 @@ export const reencryptPasskeyMnemonicAfterPinChange = async (newPin: string): Pr
     }
 
     logger.debug('Passkey mnemonic re-encrypted successfully with new PIN salt');
-  } catch (error) {
+  } catch (error: unknown) {
     logger.error('Failed to re-encrypt passkey mnemonic after PIN change', {
       error: (error as Error).message,
     });

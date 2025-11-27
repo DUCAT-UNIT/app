@@ -18,7 +18,7 @@ export const resetOnboardingState = async (): Promise<void> => {
       AsyncStorage.removeItem('seed_verification_state'),
       AsyncStorage.removeItem('onboarding_state'), // Legacy key from old useOnboarding
     ]);
-  } catch (error) {
+  } catch (error: unknown) {
     // Silently fail
   }
 };

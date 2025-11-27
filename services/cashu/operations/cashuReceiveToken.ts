@@ -119,7 +119,9 @@ export const receiveToken = async (tokenString: string): Promise<ReceiveTokenRes
       for (const proof of proofs) {
         if (isP2PKLocked(proof)) {
           recipientPubkey = getP2PKRecipient(proof.secret);
-          logger.info('⚠️ Extracted recipient pubkey', { pubkey: recipientPubkey?.substring(0, 16) + '...' });
+          logger.info('[P2PK TOKEN] 🔐 Extracted recipient pubkey from token');
+          logger.info(`[P2PK TOKEN] Full pubkey: ${recipientPubkey}`);
+          logger.info(`[P2PK TOKEN] Pubkey length: ${recipientPubkey?.length}`);
           if (recipientPubkey) {
             break;
           }
@@ -129,18 +131,19 @@ export const receiveToken = async (tokenString: string): Promise<ReceiveTokenRes
       if (recipientPubkey) {
         // Get current account first to log it
         const currentAccountIndex = await getCurrentAccount();
-        logger.info('⚠️ Current account index', { accountIndex: currentAccountIndex });
+        logger.info(`[P2PK TOKEN] 📍 Current account index: ${currentAccountIndex}`);
 
         // Find which account owns this pubkey
-        const accountMatch = await findAccountForP2PKToken(recipientPubkey, 50);
+        // Use dynamic scan range based on current account
+        const accountMatch = await findAccountForP2PKToken(recipientPubkey);
 
         if (!accountMatch) {
-          logger.error('⚠️ No matching account found for P2PK token');
-          throw new Error('This token is not locked to any of your accounts (checked 50 accounts). Make sure you are using the correct wallet.');
+          logger.error('[P2PK TOKEN] ❌ No matching account found for P2PK token');
+          throw new Error('This token is not locked to any of your accounts. Make sure you are using the correct wallet.');
         }
 
-        logger.info('⚠️ Token locked to account', { accountIndex: accountMatch.accountIndex });
-        logger.info('⚠️ Comparing accounts', { current: currentAccountIndex, lockedTo: accountMatch.accountIndex });
+        logger.info(`[P2PK TOKEN] ✅ Token locked to account: ${accountMatch.accountIndex}`);
+        logger.info(`[P2PK TOKEN] 🔄 Comparing: current=${currentAccountIndex}, lockedTo=${accountMatch.accountIndex}`);
 
         if (accountMatch.accountIndex !== currentAccountIndex) {
           logger.error('⚠️ ACCOUNT MISMATCH - blocking claim');
@@ -185,9 +188,11 @@ export const receiveToken = async (tokenString: string): Promise<ReceiveTokenRes
     if (keyData.keysets && keyData.keysets.length > 0) {
       keysetId = keyData.keysets[0].id;
       keys = keyData.keysets[0].keys;
-    } else {
-      keys = keyData.keys || keyData;
+    } else if (keyData.keys) {
+      keys = keyData.keys;
       keysetId = '';
+    } else {
+      throw new Error('No keys available from mint');
     }
 
     let proofsToSwap = proofs;
@@ -247,7 +252,7 @@ export const receiveToken = async (tokenString: string): Promise<ReceiveTokenRes
       amount,
       proofCount: newProofs.length,
     };
-  } catch (error) {
+  } catch (error: unknown) {
     logger.cashu('receive_token_error', {
       step: 'RECEIVE',
       error: (error as Error).message,

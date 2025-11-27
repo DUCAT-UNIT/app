@@ -108,6 +108,7 @@ describe('transactionService', () => {
       ]);
 
       ((global as any).fetch as jest.Mock).mockResolvedValue({
+        ok: true,
         text: async () =>
           '0200000000010100000000000000000000000000000000000000000000000000000000000000000000000000ffffffff0100e1f50500000000160014000000000000000000000000000000000000000000000000',
       });
@@ -129,6 +130,7 @@ describe('transactionService', () => {
 
       (balanceService.fetchUtxos as jest.Mock).mockResolvedValue(mockUtxos);
       ((global as any).fetch as jest.Mock).mockResolvedValue({
+        ok: true,
         text: async () =>
           '0200000000010100000000000000000000000000000000000000000000000000000000000000000000000000ffffffff0100e1f50500000000160014000000000000000000000000000000000000000000000000',
       });
@@ -161,6 +163,7 @@ describe('transactionService', () => {
       ]);
 
       ((global as any).fetch as jest.Mock).mockResolvedValue({
+        ok: true,
         text: async () =>
           '0200000000010100000000000000000000000000000000000000000000000000000000000000000000000000ffffffff0100e1f50500000000160014000000000000000000000000000000000000000000000000',
       });
@@ -187,6 +190,7 @@ describe('transactionService', () => {
       ]);
 
       ((global as any).fetch as jest.Mock).mockResolvedValue({
+        ok: true,
         text: async () =>
           '0200000000010100000000000000000000000000000000000000000000000000000000000000000000000000ffffffff0100e1f50500000000160014000000000000000000000000000000000000000000000000',
       });
@@ -208,6 +212,7 @@ describe('transactionService', () => {
       ]);
 
       ((global as any).fetch as jest.Mock).mockResolvedValue({
+        ok: true,
         text: async () => '020000000001010000000000',
       });
 
@@ -227,6 +232,7 @@ describe('transactionService', () => {
       ]);
 
       ((global as any).fetch as jest.Mock).mockResolvedValue({
+        ok: true,
         text: async () =>
           '0200000000010100000000000000000000000000000000000000000000000000000000000000000000000000ffffffff0100e1f50500000000160014000000000000000000000000000000000000000000000000',
       });

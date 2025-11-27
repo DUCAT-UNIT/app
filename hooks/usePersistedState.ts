@@ -73,7 +73,7 @@ export function usePersistedState<T>(
             onLoad(mergedState);
           }
         }
-      } catch (error) {
+      } catch (error: unknown) {
         if (!silent) {
           logger.error(`usePersistedState: Error loading state for key "${key}":`, { error: error instanceof Error ? error.message : String(error) });
         }
@@ -109,7 +109,7 @@ export function usePersistedState<T>(
         if (onSave) {
           onSave(state);
         }
-      } catch (error) {
+      } catch (error: unknown) {
         if (!silent) {
           logger.error(`usePersistedState: Error saving state for key "${key}":`, { error: error instanceof Error ? error.message : String(error) });
         }
@@ -135,7 +135,7 @@ export function usePersistedState<T>(
       if (onSave) {
         onSave(initialState);
       }
-    } catch (error) {
+    } catch (error: unknown) {
       if (!silent) {
         logger.error(`usePersistedState: Error clearing state for key "${key}":`, { error: error instanceof Error ? error.message : String(error) });
       }

@@ -1,11 +1,12 @@
 // @ts-nocheck
 /**
- * Tests for VaultContext
+ * Tests for VaultContext and vaultStore
  */
 
 import React from 'react';
 import { create, act } from 'react-test-renderer';
 import { VaultProvider, useVault } from '../VaultContext';
+import { useVaultStore, resetVaultStore } from '../../stores/vaultStore';
 import * as bitcoin from '../../utils/bitcoin';
 import * as secureStorageService from '../../services/secureStorageService';
 
@@ -41,6 +42,7 @@ jest.mock('../../utils/logger', () => ({
 describe('VaultContext', () => {
   beforeEach(() => {
     jest.clearAllMocks();
+    resetVaultStore();
   });
 
   const mockAddresses = {
@@ -49,16 +51,6 @@ describe('VaultContext', () => {
     taprootAddress: 'bc1ptaproot',
     taprootPubkey: 'taproot_pubkey',
   };
-
-  it('should throw error when used outside provider', () => {
-    const consoleError = jest.spyOn(console, 'error').mockImplementation(() => {});
-
-    expect(() => {
-      renderHook(() => useVault());
-    }).toThrow('useVault must be used within a VaultProvider');
-
-    consoleError.mockRestore();
-  });
 
   it('should provide initial state', () => {
     const wrapper = ({ children }) => (
@@ -103,11 +95,11 @@ describe('VaultContext', () => {
     );
     const { result } = renderHook(() => useVault(), { wrapper });
 
+    // Wait for credentials to load from the useEffect in VaultProvider
     await act(async () => {
-      await result.current.openVault();
+      await Promise.resolve();
     });
 
-    expect(result.current.activeTab).toBe('vault');
     expect(bitcoin.deriveAddressesFromMnemonic).toHaveBeenCalledWith('test mnemonic', 0);
     expect(result.current.vaultCredentials).toEqual({
       satsAddress: mockAddresses.segwitAddress,
@@ -117,6 +109,13 @@ describe('VaultContext', () => {
       vaultAddress: mockAddresses.taprootAddress,
       vaultPubkey: mockAddresses.taprootPubkey,
     });
+
+    // Now open vault
+    act(() => {
+      result.current.openVault();
+    });
+
+    expect(result.current.activeTab).toBe('vault');
     expect(result.current.autoCreateVaultTrigger).toBe(0);
   });
 
@@ -133,15 +132,20 @@ describe('VaultContext', () => {
     );
     const { result } = renderHook(() => useVault(), { wrapper });
 
+    // Wait for credentials to load
     await act(async () => {
-      await result.current.openVault(true);
+      await Promise.resolve();
+    });
+
+    act(() => {
+      result.current.openVault(true);
     });
 
     expect(result.current.autoCreateVaultTrigger).toBe(1);
 
     // Call again to increment
-    await act(async () => {
-      await result.current.openVault(true);
+    act(() => {
+      result.current.openVault(true);
     });
 
     expect(result.current.autoCreateVaultTrigger).toBe(2);
@@ -158,16 +162,16 @@ describe('VaultContext', () => {
         {children}
       </VaultProvider>
     );
-    const { result } = renderHook(() => useVault(), { wrapper });
+    renderHook(() => useVault(), { wrapper });
 
     await act(async () => {
-      await result.current.openVault();
+      await Promise.resolve();
     });
 
     expect(bitcoin.deriveAddressesFromMnemonic).toHaveBeenCalledWith('test mnemonic', 5);
   });
 
-  it('should handle errors gracefully and still switch to vault tab', async () => {
+  it('should handle errors gracefully', async () => {
     secureStorageService.withMnemonic.mockRejectedValue(new Error('Mnemonic error'));
 
     const wrapper = ({ children }) => (
@@ -178,16 +182,14 @@ describe('VaultContext', () => {
     const { result } = renderHook(() => useVault(), { wrapper });
 
     await act(async () => {
-      await result.current.openVault();
+      await Promise.resolve();
     });
 
-    // Should still switch to vault tab even on error
-    expect(result.current.activeTab).toBe('vault');
     // Credentials should remain null on error
     expect(result.current.vaultCredentials).toBe(null);
   });
 
-  it('should not increment autoCreateVaultTrigger on error', async () => {
+  it('should not increment autoCreateVaultTrigger when credentials are null', async () => {
     secureStorageService.withMnemonic.mockRejectedValue(new Error('Mnemonic error'));
 
     const wrapper = ({ children }) => (
@@ -197,13 +199,17 @@ describe('VaultContext', () => {
     );
     const { result } = renderHook(() => useVault(), { wrapper });
 
-    expect(result.current.autoCreateVaultTrigger).toBe(0);
-
     await act(async () => {
-      await result.current.openVault(true);
+      await Promise.resolve();
     });
 
-    // Should not increment on error
+    expect(result.current.autoCreateVaultTrigger).toBe(0);
+
+    act(() => {
+      result.current.openVault(true);
+    });
+
+    // Should not increment when credentials are null
     expect(result.current.autoCreateVaultTrigger).toBe(0);
   });
 
@@ -221,7 +227,11 @@ describe('VaultContext', () => {
     const { result } = renderHook(() => useVault(), { wrapper });
 
     await act(async () => {
-      await result.current.openVault(false);
+      await Promise.resolve();
+    });
+
+    act(() => {
+      result.current.openVault(false);
     });
 
     expect(result.current.autoCreateVaultTrigger).toBe(0);
@@ -240,12 +250,17 @@ describe('VaultContext', () => {
     );
     const { result } = renderHook(() => useVault(), { wrapper });
 
-    // First, open vault to set credentials
+    // Wait for credentials to load
     await act(async () => {
-      await result.current.openVault();
+      await Promise.resolve();
     });
 
     expect(result.current.vaultCredentials).not.toBe(null);
+
+    // Open vault first
+    act(() => {
+      result.current.openVault();
+    });
     expect(result.current.activeTab).toBe('vault');
 
     // Now clear credentials
@@ -352,7 +367,7 @@ describe('VaultContext', () => {
       await Promise.resolve();
     });
 
-    // Should not have retried again
+    // Should not have retried again (hasRetried flag prevents it)
     expect(secureStorageService.withMnemonic).not.toHaveBeenCalled();
 
     jest.useRealTimers();
@@ -394,5 +409,45 @@ describe('VaultContext', () => {
     expect(logger.error).toHaveBeenCalled();
 
     jest.useRealTimers();
+  });
+});
+
+describe('vaultStore direct usage', () => {
+  beforeEach(() => {
+    jest.clearAllMocks();
+    resetVaultStore();
+  });
+
+  const mockAddresses = {
+    segwitAddress: 'bc1qsegwit',
+    segwitPubkey: 'segwit_pubkey',
+    taprootAddress: 'bc1ptaproot',
+    taprootPubkey: 'taproot_pubkey',
+  };
+
+  it('should work without provider using Zustand store directly', async () => {
+    bitcoin.deriveAddressesFromMnemonic.mockReturnValue(mockAddresses);
+    secureStorageService.withMnemonic.mockImplementation(async (callback) => {
+      await callback('test mnemonic');
+    });
+
+    // Get initial state
+    expect(useVaultStore.getState().activeTab).toBe('wallet');
+    expect(useVaultStore.getState().vaultCredentials).toBe(null);
+
+    // Load credentials directly
+    await act(async () => {
+      await useVaultStore.getState().loadCredentials(0);
+    });
+
+    expect(useVaultStore.getState().vaultCredentials).not.toBe(null);
+
+    // Open vault
+    act(() => {
+      useVaultStore.getState().openVault(true);
+    });
+
+    expect(useVaultStore.getState().activeTab).toBe('vault');
+    expect(useVaultStore.getState().autoCreateVaultTrigger).toBe(1);
   });
 });

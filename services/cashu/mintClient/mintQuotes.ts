@@ -11,7 +11,8 @@ export interface MintQuote {
   request: string;
   paid: boolean;
   state: string;
-  [key: string]: any;
+  expiry?: number;
+  amount?: number;
 }
 
 export interface BlindedOutput {
@@ -27,7 +28,6 @@ export interface MintResponse {
     amount?: number;
   }>;
   error?: string;
-  [key: string]: any;
 }
 
 /**
@@ -54,7 +54,7 @@ export const createMintQuote = async (amount: number): Promise<MintQuote> => {
     });
 
     return quote;
-  } catch (error) {
+  } catch (error: unknown) {
     logger.error('Failed to create mint quote', { error: (error as Error).message });
     throw error;
   }
@@ -72,7 +72,7 @@ export const checkMintQuote = async (quoteId: string): Promise<MintQuote> => {
       description: 'Check mint quote',
     });
     return quote;
-  } catch (error) {
+  } catch (error: unknown) {
     logger.error('Failed to check mint quote', { error: (error as Error).message, quoteId });
     throw error;
   }
@@ -108,7 +108,7 @@ export const mintTokens = async (quoteId: string, outputs: BlindedOutput[]): Pro
 
     logger.info('Tokens minted', { signatureCount: response.signatures.length });
     return response;
-  } catch (error) {
+  } catch (error: unknown) {
     logger.error('Failed to mint tokens', { error: (error as Error).message, quoteId });
     throw error;
   }

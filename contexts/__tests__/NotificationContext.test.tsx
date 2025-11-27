@@ -6,6 +6,7 @@
 import React from 'react';
 import { create, act } from 'react-test-renderer';
 import { NotificationProvider, useNotifications } from '../NotificationContext';
+import { resetNotificationStore } from '../../stores';
 
 // Mock logger
 jest.mock('../../utils/logger', () => ({
@@ -37,6 +38,8 @@ describe('NotificationContext', () => {
   beforeEach(() => {
     jest.clearAllMocks();
     jest.useFakeTimers();
+    // Reset Zustand store state between tests
+    resetNotificationStore();
     // Clear global state
     if (typeof global !== 'undefined') {
       delete global.pendingTurboSnackbars;
@@ -49,21 +52,12 @@ describe('NotificationContext', () => {
   });
 
   describe('useNotifications', () => {
-    it('should throw error when used outside provider', () => {
-      const consoleError = jest.spyOn(console, 'error').mockImplementation(() => {});
+    it('should work without provider (Zustand stores are globally accessible)', () => {
+      // Zustand stores don't require providers - they're globally accessible
+      const { result } = renderHook(() => useNotifications());
 
-      function TestComponent() {
-        useNotifications();
-        return null;
-      }
-
-      expect(() => {
-        act(() => {
-          create(<TestComponent />);
-        });
-      }).toThrow('useNotifications must be used within a NotificationProvider');
-
-      consoleError.mockRestore();
+      expect(result.current.toasts).toHaveLength(0);
+      expect(result.current.showToast).toBeDefined();
     });
   });
 

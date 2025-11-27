@@ -31,7 +31,7 @@ export const clearP2PKCache = async (): Promise<void> => {
     await SecureStore.deleteItemAsync(CACHE_KEY_ADDRESS);
     await SecureStore.deleteItemAsync(CACHE_KEY_PRIVKEY);
     logger.debug('[clearP2PKCache] Cleared P2PK cache');
-  } catch (error) {
+  } catch (error: unknown) {
     logger.warn('[clearP2PKCache] Failed to clear cache', { error: (error as Error).message });
   }
 };
@@ -64,12 +64,25 @@ export const findAccountForP2PKToken = async (
   });
 
   // Build list of account indices to check, starting with current account
-  const accountsToCheck = [currentAccountIndex];
-  for (let i = 0; i < maxAccounts; i++) {
+  // Scan range: max(maxAccounts, currentAccountIndex + 1) to ensure we check all accounts
+  // up to and including the current account
+  const scanRange = Math.max(maxAccounts, currentAccountIndex + 1);
+  const accountsToCheck: number[] = [currentAccountIndex];
+  for (let i = 0; i < scanRange; i++) {
     if (i !== currentAccountIndex) {
       accountsToCheck.push(i);
     }
   }
+
+  logger.cashu('p2pk_accounts_to_check', {
+    step: 'ACCOUNT_MATCH',
+    currentAccountIndex,
+    scanRange,
+    totalAccountsToCheck: accountsToCheck.length,
+    message: currentAccountIndex >= maxAccounts
+      ? `Current account ${currentAccountIndex} extends scan range to ${scanRange}`
+      : `Using default scan range of ${maxAccounts}`,
+  });
 
   // Derive ALL keys in a single withMnemonic call for maximum performance
   const result = await withMnemonic<AccountMatch | null>(async (mnemonic) => {
@@ -82,8 +95,9 @@ export const findAccountForP2PKToken = async (
     const seed = bip39.mnemonicToSeedSync(mnemonic);
     const root = bip32.fromSeed(seed, MUTINYNET_NETWORK);
 
+    logger.info(`[P2PK SCAN] 🔍 Starting scan for pubkey: ${recipientPubkey}`);
+    logger.info(`[P2PK SCAN] 📊 Pubkey length: ${recipientPubkey?.length}, Accounts to scan: ${accountsToCheck.length}`);
     logger.debug('[findAccountForP2PKToken] Seed and root derived in', Date.now() - startTime, 'ms');
-    logger.debug('[findAccountForP2PKToken] Looking for pubkey:', recipientPubkey);
 
     // Check each account
     for (let idx = 0; idx < accountsToCheck.length; idx++) {
@@ -114,15 +128,21 @@ export const findAccountForP2PKToken = async (
         const outputPubkey = taprootPayment.pubkey ? taprootPayment.pubkey : Buffer.alloc(0);
         const outputPubkeyHex = Buffer.from(outputPubkey).toString('hex');
 
-        logger.debug(`[findAccountForP2PKToken] Account ${accountIndex}: output_pubkey=${outputPubkeyHex.substring(0, 16)}... addr=${taprootPayment.address} (${Date.now() - checkStart}ms)`);
+        // Log every 10th account or specific accounts for debugging
+        const isCurrentAccount = accountIndex === currentAccountIndex;
+        const isHighAccount = accountIndex >= 80;
+        const shouldLogDetailed = isCurrentAccount || isHighAccount || accountIndex % 20 === 0;
 
-        // Show full comparison for account 4 & 5 to debug
-        if (accountIndex === 4 || accountIndex === 5) {
-          logger.debug(`[findAccountForP2PKToken] 🔍 Account ${accountIndex} FULL COMPARISON:`);
-          logger.debug('  Derived output pubkey:', outputPubkeyHex);
-          logger.debug('  Looking for          :', recipientPubkey);
-          logger.debug('  Match?               :', outputPubkeyHex === recipientPubkey);
-          logger.debug('  Lengths              :', outputPubkeyHex.length, 'vs', recipientPubkey.length);
+        if (shouldLogDetailed) {
+          logger.info(`[P2PK SCAN] Account ${accountIndex}${isCurrentAccount ? ' (CURRENT)' : ''}:`);
+          logger.info(`  Path: ${taprootPath}`);
+          logger.info(`  Address: ${taprootPayment.address}`);
+          logger.info(`  Derived pubkey:  ${outputPubkeyHex}`);
+          logger.info(`  Target pubkey:   ${recipientPubkey}`);
+          logger.info(`  Match: ${outputPubkeyHex === recipientPubkey ? '✅ YES!' : '❌ No'}`);
+          if (outputPubkeyHex.length !== recipientPubkey.length) {
+            logger.warn(`  ⚠️ LENGTH MISMATCH: derived=${outputPubkeyHex.length} vs target=${recipientPubkey.length}`);
+          }
         }
 
         // Compare tweaked output pubkeys (from Taproot addresses)
@@ -162,7 +182,7 @@ export const findAccountForP2PKToken = async (
             address: taprootPayment.address || '',
           };
         }
-      } catch (error) {
+      } catch (error: unknown) {
         logger.cashu('p2pk_account_check_error', {
           step: 'ACCOUNT_MATCH',
           accountIndex,
@@ -172,6 +192,9 @@ export const findAccountForP2PKToken = async (
       }
     }
 
+    logger.warn(`[P2PK SCAN] ❌ NO MATCH FOUND after scanning ${accountsToCheck.length} accounts`);
+    logger.warn(`[P2PK SCAN] Target pubkey was: ${recipientPubkey}`);
+    logger.warn(`[P2PK SCAN] Scan took ${Date.now() - startTime}ms`);
     logger.cashu('p2pk_account_search_complete', {
       step: 'ACCOUNT_MATCH',
       found: false,
@@ -182,12 +205,19 @@ export const findAccountForP2PKToken = async (
   });
 
   if (!result) {
+    logger.warn('[P2PK SCAN] ⚠️ Token does not belong to any scanned account');
+    logger.warn(`[P2PK SCAN] Scanned accounts 0-${scanRange - 1} (total: ${accountsToCheck.length})`);
+    logger.warn(`[P2PK SCAN] Current account was: ${currentAccountIndex}`);
     logger.cashu('p2pk_no_matching_account', {
       step: 'ACCOUNT_MATCH',
       accountsChecked: accountsToCheck.length,
-      targetPubkey: recipientPubkey?.substring(0, 16) + '...',
+      scanRange,
+      currentAccountIndex,
+      targetPubkey: recipientPubkey,
       message: 'Token does not belong to any scanned account',
     });
+  } else {
+    logger.info(`[P2PK SCAN] ✅ MATCH FOUND! Account ${result.accountIndex}, Address: ${result.address}`);
   }
 
   return result;
@@ -221,21 +251,21 @@ export const getP2PKPrivateKey = async (): Promise<string> => {
       await SecureStore.deleteItemAsync(CACHE_KEY_ADDRESS);
       await SecureStore.deleteItemAsync(CACHE_KEY_PRIVKEY);
     }
-  } catch (error) {
+  } catch (error: unknown) {
     logger.warn('[getP2PKPrivateKey] Cache read failed', { error: (error as Error).message });
   }
 
-  logger.debug('[getP2PKPrivateKey] Deriving private key for current account...');
+  logger.debug(`[getP2PKPrivateKey] Deriving private key for account ${accountIndex}...`);
 
-  // Derive private key for current account
-  const keyData = await getPrivateKeyForAddress(currentAddress);
+  // Derive private key for current account - pass the account index to avoid searching
+  const keyData = await getPrivateKeyForAddress(currentAddress, accountIndex);
 
   // Cache both for next time
   try {
     await SecureStore.setItemAsync(CACHE_KEY_ADDRESS, addresses.taprootAddress);
     await SecureStore.setItemAsync(CACHE_KEY_PRIVKEY, keyData.privateKey);
     logger.debug('[getP2PKPrivateKey] Cached address and key');
-  } catch (error) {
+  } catch (error: unknown) {
     logger.warn('[getP2PKPrivateKey] Cache write failed', { error: (error as Error).message });
   }
 

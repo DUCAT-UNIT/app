@@ -62,7 +62,7 @@ export const getP2PKRecipient = (secret: string): string | null => {
       pubkeyPreview: pubkey?.substring(0, 16) + '...',
     });
     return pubkey;
-  } catch (error) {
+  } catch (error: unknown) {
     logger.cashu('p2pk_recipient_extract', {
       step: 'DETECTION',
       success: false,
@@ -114,7 +114,7 @@ export const verifyP2PKWitness = async (
     // Verify (returns boolean or string depending on library version)
     const verifyResult = schnorr.verify(signatureBytes, messageHash, pubkeyBytes);
     return Boolean(verifyResult);
-  } catch (error) {
+  } catch (error: unknown) {
     logger.error('P2PK witness verification failed', { error: (error as Error).message });
     return false;
   }
@@ -153,9 +153,9 @@ export const hasP2PKProofs = (tokenString: string): boolean => {
     }
 
     const proofCount = decoded.proofs.length;
-    const p2pkProofCount = decoded.proofs.filter((p: any) => {
+    const p2pkProofCount = decoded.proofs.filter((p: CashuProof) => {
       try {
-        const parsed = JSON.parse(p.secret);
+        const parsed = JSON.parse(p.secret) as unknown;
         return Array.isArray(parsed) && parsed[0] === 'P2PK';
       } catch {
         return false;
@@ -173,7 +173,7 @@ export const hasP2PKProofs = (tokenString: string): boolean => {
     });
 
     return hasP2PK;
-  } catch (error) {
+  } catch (error: unknown) {
     logger.cashu('p2pk_token_scan_error', {
       step: 'DETECTION',
       error: (error as Error).message,

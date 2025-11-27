@@ -12,6 +12,34 @@ import { CashuProof } from './crypto';
 // Current account address for account-specific storage
 let currentAccount: string | null = null;
 
+// Simple event emitter for proof changes (balance updates)
+type ProofChangeListener = () => void;
+const proofChangeListeners: Set<ProofChangeListener> = new Set();
+
+/**
+ * Subscribe to proof changes (when proofs are added/removed)
+ * Returns unsubscribe function
+ */
+export const subscribeToProofChanges = (listener: ProofChangeListener): (() => void) => {
+  proofChangeListeners.add(listener);
+  return () => {
+    proofChangeListeners.delete(listener);
+  };
+};
+
+/**
+ * Notify all listeners that proofs have changed
+ */
+const notifyProofChange = (): void => {
+  proofChangeListeners.forEach(listener => {
+    try {
+      listener();
+    } catch (error) {
+      logger.error('Error in proof change listener', { error: (error as Error).message });
+    }
+  });
+};
+
 /**
  * Migrate proofs from global storage to account-specific storage
  */
@@ -43,7 +71,7 @@ const migrateGlobalProofs = async (taprootAddress: string): Promise<void> => {
     // Delete old global key
     await SecureStore.deleteItemAsync(oldKey);
     logger.info('Deleted old global proofs storage');
-  } catch (error) {
+  } catch (error: unknown) {
     logger.error('Failed to migrate global proofs', { error: (error as Error).message });
   }
 };
@@ -93,7 +121,7 @@ export const loadProofs = async (): Promise<CashuProof[]> => {
     });
 
     return proofs;
-  } catch (error) {
+  } catch (error: unknown) {
     logger.error('Failed to load proofs', { error: (error as Error).message });
     return [];
   }
@@ -129,7 +157,7 @@ export const saveProofs = async (proofs: CashuProof[]): Promise<void> => {
     }
 
     logger.info('Saved proofs to storage', { count: proofs.length });
-  } catch (error) {
+  } catch (error: unknown) {
     logger.error('Failed to save proofs', { error: (error as Error).message });
     throw error;
   }
@@ -143,6 +171,9 @@ export const addProofs = async (newProofs: CashuProof[]): Promise<void> => {
   const combined = [...existing, ...newProofs];
   await saveProofs(combined);
   logger.info('Added proofs', { added: newProofs.length, total: combined.length });
+
+  // Notify listeners that proofs have changed (triggers balance refresh)
+  notifyProofChange();
 };
 
 /**
@@ -159,6 +190,9 @@ export const removeProofs = async (proofsToRemove: CashuProof[]): Promise<void> 
     removed: proofsToRemove.length,
     remaining: remaining.length,
   });
+
+  // Notify listeners that proofs have changed (triggers balance refresh)
+  notifyProofChange();
 };
 
 /**
@@ -184,7 +218,7 @@ export const loadProofsPartial = async (limit: number | null = null): Promise<Ca
     }
 
     return proofs;
-  } catch (error) {
+  } catch (error: unknown) {
     logger.error('Failed to load proofs', { error: (error as Error).message });
     return [];
   }
@@ -245,7 +279,7 @@ export const removeSpentProofs = async (): Promise<RemoveSpentProofsResult> => {
       removed: spentProofs.length,
       kept: validProofs.length,
     };
-  } catch (error) {
+  } catch (error: unknown) {
     logger.error('Failed to remove spent proofs', { error: (error as Error).message });
     throw error;
   }

@@ -43,7 +43,7 @@ export const hashToken = async (token: string): Promise<string> => {
       token
     );
     return hash;
-  } catch (error) {
+  } catch (error: unknown) {
     logger.error('[TURBO] Failed to hash token:', { message: (error as Error).message });
     // Fallback to storing first 64 chars if hashing fails
     return token.substring(0, 64);
@@ -60,7 +60,7 @@ export const loadProcessedTokens = async (): Promise<Set<string>> => {
       const tokens = JSON.parse(stored) as string[];
       return new Set(tokens);
     }
-  } catch (error) {
+  } catch (error: unknown) {
     logger.error('[TURBO] Failed to load processed tokens:', { message: (error as Error).message });
   }
   return new Set();
@@ -75,7 +75,7 @@ export const saveProcessedTokens = async (tokensSet: Set<string>): Promise<void>
     const tokensArray = Array.from(tokensSet).slice(-MAX_STORED_TOKENS);
     await SecureStore.setItemAsync(PROCESSED_TOKENS_KEY, JSON.stringify(tokensArray));
     logger.debug('[TURBO] Saved processed tokens to storage:', { count: tokensArray.length });
-  } catch (error) {
+  } catch (error: unknown) {
     logger.error('[TURBO] Failed to save processed tokens:', { message: (error as Error).message });
   }
 };
@@ -91,7 +91,7 @@ export const markTokenAsProcessed = async (token: string): Promise<void> => {
       logger.debug('[TURBO] Marked token as processed. Total:', { count: turboGlobal.processedCashuTokens.size });
       await saveProcessedTokens(turboGlobal.processedCashuTokens);
     }
-  } catch (error) {
+  } catch (error: unknown) {
     logger.error('[TURBO] Failed to mark token as processed:', { message: (error as Error).message });
   }
 };
@@ -103,7 +103,7 @@ export const isTokenProcessed = async (token: string): Promise<boolean> => {
   try {
     const tokenHash = await hashToken(token);
     return turboGlobal.processedCashuTokens?.has(tokenHash) ?? false;
-  } catch (error) {
+  } catch (error: unknown) {
     logger.error('[TURBO] Failed to check token status:', { message: (error as Error).message });
     return false;
   }
@@ -121,7 +121,7 @@ export const initializeTokenStorage = async (): Promise<void> => {
       turboGlobal.processedCashuTokens = tokensSet;
       turboGlobal.processedCashuTokensLoading = false;
       logger.debug('[TURBO] Loaded processed tokens from storage:', { count: tokensSet.size });
-    } catch (error) {
+    } catch (error: unknown) {
       logger.error('[TURBO] Failed to load processed tokens, starting fresh:', { message: (error as Error).message });
       turboGlobal.processedCashuTokens = new Set();
       turboGlobal.processedCashuTokensLoading = false;

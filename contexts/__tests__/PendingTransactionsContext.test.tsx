@@ -1,6 +1,6 @@
 // @ts-nocheck
 /**
- * Tests for PendingTransactionsContext
+ * Tests for PendingTransactionsContext and pendingTransactionsStore
  */
 
 import React from 'react';
@@ -9,11 +9,13 @@ import {
   PendingTransactionsProvider,
   usePendingTransactions,
 } from '../PendingTransactionsContext';
-import * as SecureStore from 'expo-secure-store';
+import {
+  usePendingTransactionsStore,
+  resetPendingTransactionsStore,
+} from '../../stores/pendingTransactionsStore';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 
-// Mock SecureStore and AsyncStorage
-jest.mock('expo-secure-store');
+// Mock AsyncStorage
 jest.mock('@react-native-async-storage/async-storage');
 
 // Helper to render hooks
@@ -38,27 +40,32 @@ describe('PendingTransactionsContext', () => {
 
   beforeEach(() => {
     jest.clearAllMocks();
-    SecureStore.getItemAsync.mockResolvedValue(null);
-    SecureStore.setItemAsync.mockResolvedValue();
+    resetPendingTransactionsStore();
     AsyncStorage.getItem.mockResolvedValue(null);
     AsyncStorage.setItem.mockResolvedValue();
   });
 
-  it('should throw error when used outside provider', () => {
-    const consoleError = jest.spyOn(console, 'error').mockImplementation(() => {});
-    expect(() => {
-      renderHook(() => usePendingTransactions());
-    }).toThrow('usePendingTransactions must be used within a PendingTransactionsProvider');
-    consoleError.mockRestore();
+  it('should throw error when used outside provider (no showSnackbar)', async () => {
+    // When used without provider, _showSnackbar is null
+    // This only throws when invalidateTransaction is called
+    const { result } = renderHook(() => usePendingTransactions());
+
+    await expect(
+      result.current.invalidateTransaction('test_txid', 'Test reason')
+    ).rejects.toThrow('usePendingTransactions must be used within a PendingTransactionsProvider');
   });
 
-  it('should provide initial empty state', () => {
+  it('should provide initial empty state', async () => {
     const wrapper = ({ children }) => (
       <PendingTransactionsProvider currentAccount={mockCurrentAccount} showSnackbar={mockShowSnackbar}>
         {children}
       </PendingTransactionsProvider>
     );
     const { result } = renderHook(() => usePendingTransactions(), { wrapper });
+
+    await act(async () => {
+      await new Promise(resolve => setTimeout(resolve, 10));
+    });
 
     expect(result.current.pendingTransactions).toEqual({});
   });
@@ -467,8 +474,8 @@ describe('PendingTransactionsContext', () => {
         ]);
       });
 
-      // spentUtxos is not exposed, test indirectly via getUnconfirmedUTXOs
-      expect(result.current.markUtxosAsSpent).toBeDefined();
+      expect(result.current.isUtxoSpent('tx1', 0)).toBe(true);
+      expect(result.current.isUtxoSpent('tx2', 1)).toBe(true);
     });
 
     it('should unmark UTXOs as spent', async () => {
@@ -520,7 +527,6 @@ describe('PendingTransactionsContext', () => {
         await new Promise(resolve => setTimeout(resolve, 10));
       });
 
-      // Console.error is called (jest.setup.js suppresses [ERROR] prefix messages)
       expect(consoleError).toHaveBeenCalled();
       consoleError.mockRestore();
     });
@@ -540,7 +546,6 @@ describe('PendingTransactionsContext', () => {
         await result.current.addPendingTransaction('test_tx', [], 'BTC');
       });
 
-      // Console.error is called (jest.setup.js suppresses [ERROR] prefix messages)
       expect(consoleError).toHaveBeenCalled();
       consoleError.mockRestore();
     });
@@ -563,7 +568,6 @@ describe('PendingTransactionsContext', () => {
         await new Promise(resolve => setTimeout(resolve, 10));
       });
 
-      // Console.error is called (jest.setup.js suppresses [ERROR] prefix messages)
       expect(consoleError).toHaveBeenCalled();
       consoleError.mockRestore();
     });
@@ -571,9 +575,8 @@ describe('PendingTransactionsContext', () => {
     it('should handle spent UTXOs save error gracefully', async () => {
       const consoleError = jest.spyOn(console, 'error').mockImplementation(() => {});
 
-      // Mock to fail only on the spent UTXOs save
       const originalSetItem = AsyncStorage.setItem;
-      AsyncStorage.setItem.mockImplementation((key, _value) => {
+      AsyncStorage.setItem.mockImplementation((key) => {
         if (key.includes('spent_utxos')) {
           return Promise.reject(new Error('Storage error'));
         }
@@ -595,7 +598,6 @@ describe('PendingTransactionsContext', () => {
         }
       });
 
-      // Console.error is called (jest.setup.js suppresses [ERROR] prefix messages)
       expect(consoleError).toHaveBeenCalled();
       consoleError.mockRestore();
       AsyncStorage.setItem = originalSetItem;
@@ -604,10 +606,10 @@ describe('PendingTransactionsContext', () => {
 
   describe('AsyncStorage data loading branches', () => {
     it('should load pending transactions from AsyncStorage when stored data exists', async () => {
-      const storedTransactions = [
-        { txid: 'stored1', vout: 0, confirmations: 0 },
-        { txid: 'stored2', vout: 1, confirmations: 1 },
-      ];
+      const storedTransactions = {
+        stored1: { txid: 'stored1', outputs: [], status: 'pending', assetType: 'BTC', parentTxid: null, timestamp: Date.now() },
+        stored2: { txid: 'stored2', outputs: [], status: 'pending', assetType: 'BTC', parentTxid: null, timestamp: Date.now() },
+      };
 
       AsyncStorage.getItem.mockImplementation((key) => {
         if (key === 'pending_txs_1') {
@@ -628,8 +630,8 @@ describe('PendingTransactionsContext', () => {
         await new Promise(resolve => setTimeout(resolve, 10));
       });
 
-      // Should load the stored transactions (line 42 branch)
-      expect(result.current.pendingTransactions).toEqual(storedTransactions);
+      expect(result.current.pendingTransactions.stored1).toBeDefined();
+      expect(result.current.pendingTransactions.stored2).toBeDefined();
     });
 
     it('should load spent UTXOs from AsyncStorage when stored data exists', async () => {
@@ -654,7 +656,6 @@ describe('PendingTransactionsContext', () => {
         await new Promise(resolve => setTimeout(resolve, 10));
       });
 
-      // Should load the stored spent UTXOs (line 65 branch)
       expect(result.current.isUtxoSpent('tx1', 0)).toBe(true);
       expect(result.current.isUtxoSpent('tx2', 1)).toBe(true);
       expect(result.current.isUtxoSpent('tx3', 0)).toBe(true);
@@ -677,7 +678,6 @@ describe('PendingTransactionsContext', () => {
         ]);
       });
 
-      // Test line 312-313 branches
       expect(result.current.isUtxoSpent('test1', 0)).toBe(true);
       expect(result.current.isUtxoSpent('test2', 1)).toBe(true);
       expect(result.current.isUtxoSpent('test3', 0)).toBe(false);
@@ -699,11 +699,42 @@ describe('PendingTransactionsContext', () => {
         ]);
       });
 
-      // Test line 321 branch
       const spentUtxos = result.current.getSpentUtxos();
       expect(spentUtxos.has('utxo1:0')).toBe(true);
       expect(spentUtxos.has('utxo2:1')).toBe(true);
       expect(spentUtxos.size).toBe(2);
     });
+  });
+});
+
+describe('pendingTransactionsStore direct usage', () => {
+  beforeEach(() => {
+    jest.clearAllMocks();
+    resetPendingTransactionsStore();
+    AsyncStorage.getItem.mockResolvedValue(null);
+    AsyncStorage.setItem.mockResolvedValue();
+  });
+
+  it('should work without provider using Zustand store directly', async () => {
+    // Get initial state
+    expect(usePendingTransactionsStore.getState().pendingTransactions).toEqual({});
+
+    // Add a transaction
+    await act(async () => {
+      await usePendingTransactionsStore.getState().addPendingTransaction(
+        'direct_tx',
+        [{ address: 'tb1qtest', value: 10000, vout: 0 }],
+        'BTC'
+      );
+    });
+
+    expect(usePendingTransactionsStore.getState().pendingTransactions.direct_tx).toBeDefined();
+
+    // Confirm transaction
+    await act(async () => {
+      await usePendingTransactionsStore.getState().confirmTransaction('direct_tx');
+    });
+
+    expect(usePendingTransactionsStore.getState().pendingTransactions.direct_tx).toBeUndefined();
   });
 });

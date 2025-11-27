@@ -40,7 +40,6 @@ describe('transactionBroadcastService', () => {
       expect(result).toBe(mockTxid);
       expect(retrySilently).toHaveBeenCalledWith(
         expect.any(Function),
-        'Broadcast transaction',
         { maxRetries: 2 }
       );
       expect((global as any).fetch).toHaveBeenCalledWith('https://mempool.space/api/tx', {
@@ -63,7 +62,6 @@ describe('transactionBroadcastService', () => {
 
       expect(retrySilently).toHaveBeenCalledWith(
         expect.any(Function),
-        'Broadcast transaction',
         { maxRetries: 2 }
       );
     });
@@ -203,7 +201,6 @@ describe('transactionBroadcastService', () => {
         // Verify retrySilently was called with correct parameters
         expect(retrySilently).toHaveBeenCalledWith(
           expect.any(Function),
-          'Broadcast transaction',
           { maxRetries: 2 }
         );
       });

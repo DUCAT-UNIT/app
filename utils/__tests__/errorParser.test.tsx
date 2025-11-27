@@ -3,7 +3,7 @@
  * Tests for Error Parser utility
  */
 
-import { parseErrorMessage } from '../errorParser';
+import { parseErrorMessage, getErrorMessage } from '../errorParser';
 import { ERRORS } from '../messages';
 
 describe('errorParser', () => {
@@ -164,6 +164,60 @@ describe('errorParser', () => {
     it('should handle empty strings', () => {
       const result = parseErrorMessage('');
       expect(result).toBe(ERRORS.UNKNOWN_ERROR);
+    });
+  });
+
+  describe('getErrorMessage', () => {
+    it('should extract message from Error objects', () => {
+      const error = new Error('Test error message');
+      expect(getErrorMessage(error)).toBe('Test error message');
+    });
+
+    it('should return string errors as-is', () => {
+      expect(getErrorMessage('Raw error string')).toBe('Raw error string');
+    });
+
+    it('should handle null values', () => {
+      expect(getErrorMessage(null)).toBe('null');
+    });
+
+    it('should handle undefined values', () => {
+      expect(getErrorMessage(undefined)).toBe('undefined');
+    });
+
+    it('should convert numbers to strings', () => {
+      expect(getErrorMessage(123)).toBe('123');
+      expect(getErrorMessage(0)).toBe('0');
+      expect(getErrorMessage(-1)).toBe('-1');
+    });
+
+    it('should convert objects to strings', () => {
+      expect(getErrorMessage({ foo: 'bar' })).toBe('[object Object]');
+    });
+
+    it('should convert arrays to strings', () => {
+      expect(getErrorMessage(['a', 'b'])).toBe('a,b');
+    });
+
+    it('should convert booleans to strings', () => {
+      expect(getErrorMessage(true)).toBe('true');
+      expect(getErrorMessage(false)).toBe('false');
+    });
+
+    it('should handle custom error classes', () => {
+      class CustomError extends Error {
+        constructor(message: string) {
+          super(message);
+          this.name = 'CustomError';
+        }
+      }
+      const error = new CustomError('Custom error message');
+      expect(getErrorMessage(error)).toBe('Custom error message');
+    });
+
+    it('should handle errors with empty messages', () => {
+      const error = new Error('');
+      expect(getErrorMessage(error)).toBe('');
     });
   });
 });

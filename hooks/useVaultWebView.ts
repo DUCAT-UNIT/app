@@ -24,7 +24,6 @@ export type { VaultData } from '../services/vaultService';
 interface UseVaultWebViewReturn {
   webViewRef: MutableRefObject<WebView | null>;
   webViewUrl: string;
-  forceReloadKey: number;
   webViewLoaded: boolean;
   setWebViewLoaded: Dispatch<SetStateAction<boolean>>;
   hasLoadedOnceRef: MutableRefObject<boolean>;
@@ -40,7 +39,6 @@ export function useVaultWebView(
   const webViewRef = useRef<WebView | null>(null);
   const hasLoadedOnceRef = useRef(false);
   const loadedVaultPubkeyRef = useRef('');
-  const [forceReloadKey, setForceReloadKey] = useState(0);
   const [webViewLoaded, setWebViewLoaded] = useState(false);
 
   // Credential injection state
@@ -48,8 +46,9 @@ export function useVaultWebView(
   const maxInjectionAttempts = 3;
   const injectionTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const credentialsConfirmedRef = useRef(false);
+  const hasEverConfirmedRef = useRef(false); // Track if credentials were ever confirmed in this session
 
-  // Build URL with wallet credentials + cache busting on account switch
+  // Build URL with wallet credentials (no cache busting - we use caching now)
   const webViewUrl = useMemo(() => {
     if (!walletCredentials) {
       return API.PHONE;
@@ -63,12 +62,10 @@ export function useVaultWebView(
       vaultAddress: walletCredentials.vaultAddress,
       vaultPubkey: walletCredentials.vaultPubkey,
       network: 'mutinynet',
-      // Only add timestamp when forceReloadKey changes (account switch)
-      ...(forceReloadKey > 0 && { _t: String(forceReloadKey) }),
     });
 
     return `${API.PHONE}/?${params.toString()}`;
-  }, [walletCredentials, forceReloadKey]);
+  }, [walletCredentials]);
 
   // Validate credentials before injection
   const validateCredentials = useCallback((credentials: WalletCredentials | null): boolean => {
@@ -135,12 +132,12 @@ export function useVaultWebView(
             vaultKeys.forEach(key => {
               try {
                 localStorage.removeItem(key);
-              } catch (e) {
+              } catch (e: unknown) {
                 // Could not remove key (silent fail)
               }
             });
           }
-        } catch (e) {
+        } catch (e: unknown) {
           // Could not access localStorage (silent fail)
         }
 
@@ -167,7 +164,7 @@ export function useVaultWebView(
               attempt: ${injectionAttemptRef.current}
             }
           }));
-        } catch (e) {
+        } catch (e: unknown) {
           // Failed to send CREDENTIALS_RECEIVED message (silent fail)
         }
 
@@ -196,10 +193,9 @@ export function useVaultWebView(
       if (!credentialsConfirmedRef.current && injectionAttemptRef.current < maxInjectionAttempts) {
         logger.debug(`⚠️ Vault hasn't confirmed credentials yet, retrying (attempt ${injectionAttemptRef.current + 1} of ${maxInjectionAttempts})`);
         injectWalletCredentials(true);
-      } else if (injectionAttemptRef.current >= maxInjectionAttempts) {
-        logger.error('❌ Failed to connect vault after 3 attempts - vault may not load properly. Try refreshing the vault tab.');
       }
-    }, 3000); // Wait 3 seconds for confirmation
+      // Don't log error - vault may work fine even without explicit confirmation
+    }, 10000); // Wait 10 seconds for confirmation
 
   }, [walletCredentials, validateCredentials]);
 
@@ -207,6 +203,7 @@ export function useVaultWebView(
   const handleCredentialConfirmation = useCallback((pubkey: string) => {
     if (pubkey === walletCredentials?.vaultPubkey) {
       credentialsConfirmedRef.current = true;
+      hasEverConfirmedRef.current = true; // Mark that credentials were successfully confirmed at least once
       if (injectionTimeoutRef.current) {
         clearTimeout(injectionTimeoutRef.current);
         injectionTimeoutRef.current = null;
@@ -240,16 +237,17 @@ export function useVaultWebView(
       if (vaultDataFetched) {
         logger.debug('🔄 New account data ready, reloading vault interface now');
 
-        // Force reload by changing key
-        const newReloadKey = Date.now();
-        setForceReloadKey(newReloadKey);
+        // Use in-place reload instead of key change to avoid unmount/remount
         loadedVaultPubkeyRef.current = currentPubkey;
+        if (webViewRef.current) {
+          webViewRef.current.reload();
+        }
 
         // Re-inject credentials after reload
         setTimeout(() => {
           logger.debug('🔄 Connecting vault to your new account');
           injectWalletCredentials();
-        }, 2000);
+        }, 1000);
       } else {
         logger.debug('🔄 Fetching data for your new account...');
       }
@@ -280,14 +278,16 @@ export function useVaultWebView(
     if (vaultDataFetched && loadedVaultPubkeyRef.current !== currentPubkey) {
       logger.debug('🔄 Account data loaded, updating vault display');
 
-      const newReloadKey = Date.now();
-      setForceReloadKey(newReloadKey);
+      // Use in-place reload instead of key change to avoid unmount/remount
       loadedVaultPubkeyRef.current = currentPubkey;
+      if (webViewRef.current) {
+        webViewRef.current.reload();
+      }
 
       setTimeout(() => {
         logger.debug('🔄 Syncing vault with your account credentials');
         injectWalletCredentials();
-      }, 2000);
+      }, 1000);
     }
   }, [vaultData, walletCredentials, injectWalletCredentials]);
 
@@ -304,7 +304,6 @@ export function useVaultWebView(
   return {
     webViewRef,
     webViewUrl,
-    forceReloadKey,
     webViewLoaded,
     setWebViewLoaded,
     hasLoadedOnceRef,

@@ -65,9 +65,6 @@ export type CashuContextValue = CashuBalanceValue & CashuOperationsValue;
 const CashuBalanceContext = createContext<CashuBalanceValue | undefined>(undefined);
 const CashuOperationsContext = createContext<CashuOperationsValue | undefined>(undefined);
 
-// Legacy context for backwards compatibility
-const CashuContext = createContext<CashuContextValue | undefined>(undefined);
-
 /**
  * Hook for balance-related state (frequently updated)
  */
@@ -91,15 +88,13 @@ export const useCashuOperations = (): CashuOperationsValue => {
 };
 
 /**
- * Legacy hook - returns all context values
+ * Combined hook - returns all context values
  * Use useCashuBalanceState or useCashuOperations for better performance
  */
 export const useCashu = (): CashuContextValue => {
-  const context = useContext(CashuContext);
-  if (!context) {
-    throw new Error('useCashu must be used within a CashuProvider');
-  }
-  return context;
+  const balance = useCashuBalanceState();
+  const operations = useCashuOperations();
+  return { ...balance, ...operations };
 };
 
 interface CashuProviderProps {
@@ -157,7 +152,7 @@ export const CashuProvider: React.FC<CashuProviderProps> = ({ children }) => {
       setPendingMints([]);
       setError(null);
       logger.info('Cashu wallet reset');
-    } catch (err) {
+    } catch (err: unknown) {
       if (err instanceof Error) {
         logger.error('Failed to reset wallet', { error: err.message });
       }
@@ -203,47 +198,26 @@ export const CashuProvider: React.FC<CashuProviderProps> = ({ children }) => {
 
   // Memoize operations context value (stable references)
   const operationsValue = useMemo((): CashuOperationsValue => ({
-    // Mint operations
     startMint,
     checkAndCompleteMint,
     removePendingMint,
     autoMint,
-    // Receive/Send
     receive,
     send,
-    // Melt operations
     startMelt,
     finishMelt,
-    // Wallet management
     refresh,
     resetAndRefresh,
     reset,
   }), [
-    startMint,
-    checkAndCompleteMint,
-    removePendingMint,
-    autoMint,
-    receive,
-    send,
-    startMelt,
-    finishMelt,
-    refresh,
-    resetAndRefresh,
-    reset,
+    startMint, checkAndCompleteMint, removePendingMint, autoMint,
+    receive, send, startMelt, finishMelt, refresh, resetAndRefresh, reset,
   ]);
-
-  // Legacy combined value for backwards compatibility
-  const legacyValue = useMemo((): CashuContextValue => ({
-    ...balanceValue,
-    ...operationsValue,
-  }), [balanceValue, operationsValue]);
 
   return (
     <CashuBalanceContext.Provider value={balanceValue}>
       <CashuOperationsContext.Provider value={operationsValue}>
-        <CashuContext.Provider value={legacyValue}>
-          {children}
-        </CashuContext.Provider>
+        {children}
       </CashuOperationsContext.Provider>
     </CashuBalanceContext.Provider>
   );

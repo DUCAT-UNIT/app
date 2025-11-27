@@ -44,7 +44,8 @@ export const saveMnemonic = async (mnemonic: string): Promise<boolean> => {
   try {
     await SecureStore.setItemAsync(SECURE_KEYS.MNEMONIC, mnemonic);
     return true;
-  } catch (error) {
+  } catch (error: unknown) {
+    logger.error('Failed to save mnemonic', { error: error instanceof Error ? error.message : String(error) });
     return false;
   }
 };
@@ -57,7 +58,8 @@ export const saveMnemonic = async (mnemonic: string): Promise<boolean> => {
 export const getMnemonic = async (): Promise<string | null> => {
   try {
     return await SecureStore.getItemAsync(SECURE_KEYS.MNEMONIC);
-  } catch (error) {
+  } catch (error: unknown) {
+    logger.error('Failed to get mnemonic', { error: error instanceof Error ? error.message : String(error) });
     return null;
   }
 };
@@ -93,7 +95,8 @@ export const deleteMnemonic = async (): Promise<boolean> => {
   try {
     await SecureStore.deleteItemAsync(SECURE_KEYS.MNEMONIC);
     return true;
-  } catch (error) {
+  } catch (error: unknown) {
+    logger.error('Failed to delete mnemonic', { error: error instanceof Error ? error.message : String(error) });
     return false;
   }
 };
@@ -107,7 +110,8 @@ export const saveCurrentAccount = async (accountIndex: number): Promise<boolean>
   try {
     await SecureStore.setItemAsync(SECURE_KEYS.CURRENT_ACCOUNT, accountIndex.toString());
     return true;
-  } catch (error) {
+  } catch (error: unknown) {
+    logger.error('Failed to save current account', { error: error instanceof Error ? error.message : String(error) });
     return false;
   }
 };
@@ -120,7 +124,8 @@ export const getCurrentAccount = async (): Promise<number> => {
   try {
     const account = await SecureStore.getItemAsync(SECURE_KEYS.CURRENT_ACCOUNT);
     return account ? parseInt(account, 10) : 0;
-  } catch (error) {
+  } catch (error: unknown) {
+    logger.error('Failed to get current account', { error: error instanceof Error ? error.message : String(error) });
     return 0;
   }
 };
@@ -181,7 +186,7 @@ export const deleteWalletData = async (clearICloudBackup = false): Promise<boole
     ]);
 
     return true;
-  } catch (error) {
+  } catch (error: unknown) {
     logger.error(error as Error, { context: 'deleteWalletData' });
     return false;
   }

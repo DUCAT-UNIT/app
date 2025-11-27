@@ -143,9 +143,11 @@ export const sendP2PKToken = async (
     if (keyData.keysets && keyData.keysets.length > 0) {
       keysetId = keyData.keysets[0].id;
       keys = keyData.keysets[0].keys;
-    } else {
-      keys = keyData.keys || keyData;
+    } else if (keyData.keys) {
+      keys = keyData.keys;
       keysetId = '';
+    } else {
+      throw new Error('No keys available from mint');
     }
 
     // Step 2: Create P2PK secrets
@@ -285,7 +287,7 @@ export const sendP2PKToken = async (
       amount: sumProofs(proofsToSend),
       balance: newBalance,
     };
-  } catch (error) {
+  } catch (error: unknown) {
     logger.error('Failed to send P2PK token', { error: (error as Error).message });
     throw error;
   }

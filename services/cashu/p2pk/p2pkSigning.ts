@@ -15,16 +15,20 @@ import { isP2PKLocked, CashuProof } from './p2pkVerification';
  * @param privateKey - Private key to sign with (hex)
  * @returns P2PK witness (serialized JSON)
  */
+/** P2PK secret structure: ["P2PK", { data: pubkey, ... }] */
+type P2PKSecretParsed = ['P2PK', { data?: string; [key: string]: unknown }];
+
 export const signP2PKSecret = async (secret: string, privateKey: string): Promise<string> => {
   // Parse secret to extract P2PK details for debugging
-  let secretParsed: any = null;
+  let secretParsed: P2PKSecretParsed | null = null;
   let expectedPubkey: string | null = null;
   try {
-    secretParsed = JSON.parse(secret);
-    if (Array.isArray(secretParsed) && secretParsed[0] === 'P2PK') {
-      expectedPubkey = secretParsed[1]?.data;
+    const parsed = JSON.parse(secret) as unknown;
+    if (Array.isArray(parsed) && parsed[0] === 'P2PK') {
+      secretParsed = parsed as P2PKSecretParsed;
+      expectedPubkey = secretParsed[1]?.data ?? null;
     }
-  } catch (e) {
+  } catch (_e: unknown) {
     // Ignore parse errors
   }
 
@@ -62,7 +66,7 @@ export const signP2PKSecret = async (secret: string, privateKey: string): Promis
         // Get x-only pubkey (32 bytes) for Schnorr - remove the 02/03 prefix
         derivedPubkey = Buffer.from(pubkeyFull).slice(1).toString('hex');
       }
-    } catch (e) {
+    } catch (e: unknown) {
       logger.cashu('p2pk_pubkey_derivation_failed', {
         step: 'SIGNING',
         error: (e as Error).message,
@@ -121,7 +125,7 @@ export const signP2PKSecret = async (secret: string, privateKey: string): Promis
     });
 
     return JSON.stringify(witness);
-  } catch (error) {
+  } catch (error: unknown) {
     logger.error('Failed to sign P2PK secret', { error: (error as Error).message });
 
     // Create enhanced error with diagnostics for user

@@ -85,7 +85,7 @@ export function usePostAuthHandler({
         } else {
           showToast('Failed to delete wallet', 'error');
         }
-      } catch (error) {
+      } catch (error: unknown) {
         showToast('Failed to delete wallet', 'error');
       }
       return;

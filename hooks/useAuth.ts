@@ -103,7 +103,9 @@ export function useAuth({ onSeedConfirmed }: UseAuthParams): UseAuthReturn {
     try {
       const biometricPref = await SecureStore.getItemAsync(SECURE_KEYS.BIOMETRIC_ENABLED);
       setBiometricEnabled(biometricPref === 'true');
-    } catch (error) {}
+    } catch (_error: unknown) {
+      // Silently fail - use default value
+    }
   }, []);
 
   // Load passkey preference
@@ -111,7 +113,9 @@ export function useAuth({ onSeedConfirmed }: UseAuthParams): UseAuthReturn {
     try {
       const passkeyPref = await PasskeyService.isPasskeyEnabled();
       setPasskeyEnabled(passkeyPref);
-    } catch (error) {}
+    } catch (_error: unknown) {
+      // Silently fail - use default value
+    }
   }, []);
 
   // Authenticate with passkey
@@ -123,7 +127,7 @@ export function useAuth({ onSeedConfirmed }: UseAuthParams): UseAuthReturn {
         return true;
       }
       return false;
-    } catch (error) {
+    } catch (_error: unknown) {
       return false;
     }
   }, []);
@@ -159,7 +163,7 @@ export function useAuth({ onSeedConfirmed }: UseAuthParams): UseAuthReturn {
         // When biometric is not enabled, show the biometric prompt
         setShowBiometricPrompt(true);
       }
-    } catch (error) {
+    } catch (_error: unknown) {
       // On error, show biometric prompt so user can enable it
       setShowBiometricPrompt(true);
     }
@@ -230,79 +234,68 @@ export function useAuth({ onSeedConfirmed }: UseAuthParams): UseAuthReturn {
     setIsAuthenticated(false); // Lock wallet to trigger authentication
   }, []);
 
-  // Memoize return object to prevent recreation on every render
-  return useMemo(
-    () => ({
-      // State
-      isAuthenticated,
-      isBiometricSupported,
-      biometricEnabled,
-      showBiometricPrompt,
-      showFaceIdButton,
-      isPasskeySupported,
-      passkeyEnabled,
-      showPasskeyPrompt,
-      settingUpPin,
-      changingPin,
-      showPinEntry,
-      pin,
-      confirmPin,
-      pinError,
-      pinStep,
+  // Memoize state values
+  const state = useMemo(() => ({
+    isAuthenticated,
+    isBiometricSupported,
+    biometricEnabled,
+    showBiometricPrompt,
+    showFaceIdButton,
+    isPasskeySupported,
+    passkeyEnabled,
+    showPasskeyPrompt,
+    settingUpPin,
+    changingPin,
+    showPinEntry,
+    pin,
+    confirmPin,
+    pinError,
+    pinStep,
+  }), [
+    isAuthenticated, isBiometricSupported, biometricEnabled, showBiometricPrompt,
+    showFaceIdButton, isPasskeySupported, passkeyEnabled, showPasskeyPrompt,
+    settingUpPin, changingPin, showPinEntry, pin, confirmPin, pinError, pinStep,
+  ]);
 
-      // Setters
-      setIsAuthenticated,
-      setBiometricEnabled,
-      setShowBiometricPrompt,
-      setShowFaceIdButton,
-      setPasskeyEnabled,
-      setShowPasskeyPrompt,
-      setShowPinEntry,
-      setSettingUpPin,
-      setChangingPin,
-      setPin,
-      setConfirmPin,
-      setPinError,
-      setPinStep,
+  // Setters are stable references from useState, no memoization needed
+  const setters = {
+    setIsAuthenticated,
+    setBiometricEnabled,
+    setShowBiometricPrompt,
+    setShowFaceIdButton,
+    setPasskeyEnabled,
+    setShowPasskeyPrompt,
+    setShowPinEntry,
+    setSettingUpPin,
+    setChangingPin,
+    setPin,
+    setConfirmPin,
+    setPinError,
+    setPinStep,
+  };
 
-      // Functions
-      authenticateUser,
-      authenticateWithPasskey,
-      handlePinSetupComplete,
-      handlePinChangeComplete,
-      handleLockScreenAuthenticated,
-      loadBiometricPreference,
-      loadPasskeyPreference,
-      lock,
-      resetAuth,
-      startPinChange,
-    }),
-    [
-      isAuthenticated,
-      isBiometricSupported,
-      biometricEnabled,
-      showBiometricPrompt,
-      showFaceIdButton,
-      isPasskeySupported,
-      passkeyEnabled,
-      showPasskeyPrompt,
-      settingUpPin,
-      changingPin,
-      showPinEntry,
-      pin,
-      confirmPin,
-      pinError,
-      pinStep,
-      authenticateUser,
-      authenticateWithPasskey,
-      handlePinSetupComplete,
-      handlePinChangeComplete,
-      handleLockScreenAuthenticated,
-      loadBiometricPreference,
-      loadPasskeyPreference,
-      lock,
-      resetAuth,
-      startPinChange,
-    ]
-  );
+  // Memoize functions
+  const functions = useMemo(() => ({
+    authenticateUser,
+    authenticateWithPasskey,
+    handlePinSetupComplete,
+    handlePinChangeComplete,
+    handleLockScreenAuthenticated,
+    loadBiometricPreference,
+    loadPasskeyPreference,
+    lock,
+    resetAuth,
+    startPinChange,
+  }), [
+    authenticateUser, authenticateWithPasskey, handlePinSetupComplete,
+    handlePinChangeComplete, handleLockScreenAuthenticated, loadBiometricPreference,
+    loadPasskeyPreference, lock, resetAuth, startPinChange,
+  ]);
+
+  // Combine into final return object
+  return useMemo(() => ({
+    ...state,
+    ...setters,
+    ...functions,
+  }), [state, functions]);
 }

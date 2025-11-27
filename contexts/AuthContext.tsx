@@ -6,52 +6,10 @@
 
 import React, { createContext, useContext, useState, useRef, useMemo, useCallback, ReactNode, MutableRefObject } from 'react';
 import * as SecureStore from 'expo-secure-store';
-import { useAuth as useAuthHook } from '../hooks/useAuth';
+import { useAuth as useAuthHook, UseAuthReturn } from '../hooks/useAuth';
 import { SECURE_KEYS } from '../utils/constants';
 import { resetOnboardingState } from '../utils/onboardingHelpers';
 import { TextInput } from 'react-native';
-
-// Type for the auth hook return value
-interface AuthHookReturn {
-  isAuthenticated: boolean;
-  setIsAuthenticated: React.Dispatch<React.SetStateAction<boolean>>;
-  isBiometricSupported: boolean;
-  biometricEnabled: boolean;
-  setBiometricEnabled: React.Dispatch<React.SetStateAction<boolean>>;
-  showBiometricPrompt: boolean;
-  setShowBiometricPrompt: React.Dispatch<React.SetStateAction<boolean>>;
-  showFaceIdButton: boolean;
-  setShowFaceIdButton: React.Dispatch<React.SetStateAction<boolean>>;
-  isPasskeySupported: boolean;
-  passkeyEnabled: boolean;
-  setPasskeyEnabled: React.Dispatch<React.SetStateAction<boolean>>;
-  showPasskeyPrompt: boolean;
-  setShowPasskeyPrompt: React.Dispatch<React.SetStateAction<boolean>>;
-  settingUpPin: boolean;
-  setSettingUpPin: React.Dispatch<React.SetStateAction<boolean>>;
-  changingPin: boolean;
-  setChangingPin: React.Dispatch<React.SetStateAction<boolean>>;
-  showPinEntry: boolean;
-  setShowPinEntry: React.Dispatch<React.SetStateAction<boolean>>;
-  pin: string;
-  setPin: React.Dispatch<React.SetStateAction<string>>;
-  confirmPin: string;
-  setConfirmPin: React.Dispatch<React.SetStateAction<string>>;
-  pinError: string;
-  setPinError: React.Dispatch<React.SetStateAction<string>>;
-  pinStep: 'enter' | 'confirm';
-  setPinStep: React.Dispatch<React.SetStateAction<'enter' | 'confirm'>>;
-  loadBiometricPreference: () => Promise<void>;
-  loadPasskeyPreference: () => Promise<void>;
-  authenticateWithPasskey: () => Promise<boolean>;
-  authenticateUser: () => Promise<void>;
-  handlePinSubmit: (enteredPin: string, showToast: (msg: string, type?: string) => void) => Promise<boolean>;
-  startPinChange: () => void;
-  cancelPinSetup: () => void;
-  handlePinSetupComplete: () => void;
-  handlePinChangeComplete: () => void;
-  resetAuth: () => void;
-}
 
 export interface OnboardingState {
   seedConfirmed: boolean;
@@ -63,7 +21,7 @@ export interface OnboardingState {
   amountInputRef: MutableRefObject<TextInput | null>;
 }
 
-export interface AuthContextValue extends AuthHookReturn {
+export interface AuthContextValue extends UseAuthReturn {
   onboarding: OnboardingState;
   seedConfirmed: boolean;
   setSeedConfirmed: React.Dispatch<React.SetStateAction<boolean>>;
@@ -97,7 +55,7 @@ interface AuthProviderProps {
 }
 
 export const AuthProvider: React.FC<AuthProviderProps> = ({ children, onSeedConfirmed, resetWallet }) => {
-  const authState = useAuthHook({ onSeedConfirmed }) as unknown as AuthHookReturn;
+  const authState: UseAuthReturn = useAuthHook({ onSeedConfirmed });
 
   // ============================================================
   // ONBOARDING FLOW STATE

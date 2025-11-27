@@ -45,7 +45,7 @@ const extractTokenFromParam = (url: string): string | null => {
 
     // Decode base64 to get cashu token
     return atob(base64Token);
-  } catch (error) {
+  } catch (error: unknown) {
     logger.error('[TURBO] Failed to decode base64 token:', { message: (error as Error).message });
     return null;
   }

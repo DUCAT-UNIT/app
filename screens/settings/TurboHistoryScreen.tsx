@@ -19,6 +19,7 @@ import Icon from '../../components/icons';
 import TouchableScale from '../../components/common/TouchableScale';
 import { getSentLockedTokens, deleteSentLockedToken, generateTurboDeeplink, TokenRecord } from '../../services/cashu/cashuLockedTokensService';
 import { truncateAddress } from '../../utils/formatters/addresses';
+import { formatUnitAmount } from '../../utils/formatters/amounts';
 import { logger } from '../../utils/logger';
 import TokenDetailsSheet from '../../components/ecash/TokenDetailsSheet';
 import { useNotifications } from '../../contexts/NotificationContext';
@@ -30,6 +31,7 @@ import styles from './TurboHistoryScreen.styles';
  */
 type TokenRecordWithShortUrl = TokenRecord & {
   shortUrl?: string;
+  isSelfClaim?: boolean;
 };
 
 /**
@@ -64,7 +66,7 @@ function TokenCard({ item, onPress, onDelete, onViewQR, onShare, formatDate, for
     >
       <View style={styles.tokenHeader}>
         <View style={styles.tokenInfo}>
-          <Text style={styles.amountText}>{item.amount / 100} UNIT</Text>
+          <Text style={styles.amountText}>{formatUnitAmount(item.amount)} UNIT</Text>
           <Text style={styles.dateText}>{formatDate(item.timestamp)}</Text>
         </View>
         <TouchableOpacity
@@ -125,7 +127,7 @@ export default function TurboHistoryScreen({ navigation }: TurboHistoryScreenPro
       setLoading(true);
       const sentTokens = await getSentLockedTokens(wallet?.taprootAddress);
       setTokens(sentTokens);
-    } catch (error) {
+    } catch (error: unknown) {
       logger.error('[TurboHistory] Failed to load tokens:', { error: error instanceof Error ? error.message : String(error) });
       Alert.alert('Error', 'Failed to load Turbo history');
     } finally {
@@ -152,10 +154,10 @@ export default function TurboHistoryScreen({ navigation }: TurboHistoryScreenPro
       );
 
       await Share.share({
-        message: `Turbo Token\n\nAmount: ${tokenRecord.amount / 100} UNIT\nLink: ${deeplink}`,
+        message: `Turbo Token\n\nAmount: ${formatUnitAmount(tokenRecord.amount)} UNIT\nLink: ${deeplink}`,
         url: deeplink,
       });
-    } catch (error) {
+    } catch (error: unknown) {
       logger.error('[TurboHistory] Failed to share token:', { error: error instanceof Error ? error.message : String(error) });
     }
   }, []);
@@ -188,7 +190,7 @@ export default function TurboHistoryScreen({ navigation }: TurboHistoryScreenPro
             try {
               await deleteSentLockedToken(tokenRecord.id);
               loadTokens();
-            } catch (error) {
+            } catch (error: unknown) {
               logger.error('[TurboHistory] Failed to delete token:', { error: error instanceof Error ? error.message : String(error) });
               Alert.alert('Error', 'Failed to delete token');
             }
@@ -207,16 +209,20 @@ export default function TurboHistoryScreen({ navigation }: TurboHistoryScreenPro
           tokenRecord.recipient,
           tokenRecord.amount
         );
-      } catch (error) {
+      } catch (error: unknown) {
         logger.error('[TurboHistory] Failed to generate deeplink:', { error: error instanceof Error ? error.message : String(error) });
         showToast('Failed to load token details', 'error');
         return;
       }
     }
 
-    setSelectedToken({ ...tokenRecord, shortUrl });
+    // Check if this is a self-claim (token sent to self and claimed)
+    const isSelfClaim = tokenRecord.claimed &&
+      tokenRecord.taprootAddress === wallet?.taprootAddress;
+
+    setSelectedToken({ ...tokenRecord, shortUrl, isSelfClaim });
     setShowTokenDetails(true);
-  }, [showToast]);
+  }, [showToast, wallet?.taprootAddress]);
 
   const formatDate = (timestamp: number): string => {
     const date = new Date(timestamp);
@@ -302,6 +308,7 @@ export default function TurboHistoryScreen({ navigation }: TurboHistoryScreenPro
           onCopy={(msg) => showToast(msg, 'success')}
           advancedMode={true}
           claimed={selectedToken.claimed}
+          isSelfClaim={selectedToken.isSelfClaim}
         />
       )}
     </View>

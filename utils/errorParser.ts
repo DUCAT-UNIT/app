@@ -6,6 +6,20 @@ interface ErrorPattern {
 }
 
 /**
+ * Extract raw error message from any error type for logging
+ * Unlike parseErrorMessage, this returns the original message without transformations
+ * @param error - The error object, string, or unknown value
+ * @returns The raw error message string
+ */
+export function getErrorMessage(error: unknown): string {
+  if (error instanceof Error) return error.message;
+  if (typeof error === 'string') return error;
+  if (error === null) return 'null';
+  if (error === undefined) return 'undefined';
+  return String(error);
+}
+
+/**
  * Parse and simplify error messages for user display
  * @param error - The error object or message
  * @returns A user-friendly error message

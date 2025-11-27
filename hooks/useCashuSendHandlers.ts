@@ -61,7 +61,7 @@ export function useCashuSendHandlers({
     try {
       const result = await send(amountNum);
       setGeneratedToken(result.token);
-    } catch (error) {
+    } catch (error: unknown) {
       const errorMessage = error instanceof Error ? error.message : String(error);
       Alert.alert('Error', errorMessage || 'Failed to create token');
     } finally {
@@ -77,7 +77,7 @@ export function useCashuSendHandlers({
         message: token,
         title: 'Cashu Token',
       });
-    } catch (error) {
+    } catch (error: unknown) {
       logger.error('[useCashuSendHandlers] Error sharing:', { error: error instanceof Error ? error.message : String(error) });
     }
   }, []);
@@ -103,7 +103,7 @@ export function useCashuSendHandlers({
     try {
       const quote = await startMelt(redeemAddress.trim(), amountNum);
       setMeltQuote(quote);
-    } catch (error) {
+    } catch (error: unknown) {
       const errorMessage = error instanceof Error ? error.message : String(error);
       Alert.alert('Error', errorMessage || 'Failed to create melt quote');
     } finally {
@@ -128,7 +128,7 @@ export function useCashuSendHandlers({
           },
         ]
       );
-    } catch (error) {
+    } catch (error: unknown) {
       const errorMessage = error instanceof Error ? error.message : String(error);
       Alert.alert('Error', errorMessage || 'Failed to redeem tokens');
       setMeltQuote(null);

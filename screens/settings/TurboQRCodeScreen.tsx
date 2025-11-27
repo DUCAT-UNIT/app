@@ -17,6 +17,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import * as Clipboard from 'expo-clipboard';
 import { COLORS } from '../../theme';
 import Icon from '../../components/icons';
+import { formatUnitAmount } from '../../utils/formatters/amounts';
 import { logger } from '../../utils/logger';
 
 const SCREEN_WIDTH = Dimensions.get('window').width;
@@ -57,9 +58,9 @@ export default function TurboQRCodeScreen({ navigation, route }: TurboQRCodeScre
   const handleShare = async () => {
     try {
       await Share.share({
-        message: `Turbo Token 👻\n\nAmount: ${amount / 100} UNIT\n\nTap to claim:\n${deeplink}`,
+        message: `Turbo Token 👻\n\nAmount: ${formatUnitAmount(amount)} UNIT\n\nTap to claim:\n${deeplink}`,
       });
-    } catch (error) {
+    } catch (error: unknown) {
       logger.error('[TurboQRCode] Failed to share:', { error: error instanceof Error ? error.message : String(error) });
     }
   };
@@ -88,7 +89,7 @@ export default function TurboQRCodeScreen({ navigation, route }: TurboQRCodeScre
 
         {/* Amount subtitle */}
         <Text style={styles.subtitle} testID="turbo-qr-amount">
-          {amount / 100} UNIT
+          {formatUnitAmount(amount)} UNIT
         </Text>
 
         {/* Emoji Token Display - Ghost emoji decoration */}

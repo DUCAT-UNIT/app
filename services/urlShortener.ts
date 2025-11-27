@@ -44,7 +44,7 @@ export const shortenCashuToken = async (cashuToken: string): Promise<string> => 
     const shortUrl = result.data.shortUrl;
     logger.info('Token shortened successfully', { shortUrl, shortCode: result.data.shortCode });
     return shortUrl;
-  } catch (error) {
+  } catch (error: unknown) {
     logger.error('Failed to shorten token with Ducat server', { error: (error as Error).message });
     throw error; // Re-throw to let caller handle fallback
   }

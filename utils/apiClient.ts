@@ -61,13 +61,12 @@ export async function postWithRetry(
           },
           timeout
         ),
-      description,
       retryOptions
     );
     const duration = Date.now() - startTime;
     logger.api(url, 'POST', response.status, duration);
     return response;
-  } catch (error) {
+  } catch (error: unknown) {
     const duration = Date.now() - startTime;
     logger.api(url, 'POST', 0, duration);
     throw error;
@@ -102,13 +101,12 @@ export async function getWithRetry(url: string, options: GetOptions = {}): Promi
           },
           timeout
         ),
-      description,
       retryOptions
     );
     const duration = Date.now() - startTime;
     logger.api(url, 'GET', response.status, duration);
     return response;
-  } catch (error) {
+  } catch (error: unknown) {
     const duration = Date.now() - startTime;
     logger.api(url, 'GET', 0, duration);
     throw error;
@@ -142,6 +140,18 @@ export async function postJSON<T = unknown>(url: string, body: unknown, options:
  */
 export async function getJSON<T = unknown>(url: string, options: GetOptions = {}): Promise<T> {
   const response = await getWithRetry(url, options);
+
+  // Check if response is OK before parsing
+  if (!response.ok) {
+    throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+  }
+
+  // Check content-type to ensure it's JSON before parsing
+  const contentType = response.headers.get('content-type');
+  if (contentType && !contentType.includes('application/json')) {
+    throw new Error(`Expected JSON response but got ${contentType}`);
+  }
+
   return response.json() as Promise<T>;
 }
 
@@ -194,7 +204,7 @@ export async function fetchPaginated<T = unknown>(
       }
 
       pageCount++;
-    } catch (error) {
+    } catch (error: unknown) {
       logger.error(error as Error, { page: pageCount + 1 });
       // Stop pagination on error
       hasMore = false;
@@ -219,7 +229,17 @@ export interface ParallelOperation<T> {
 export async function fetchParallel<T = unknown>(operations: ParallelOperation<T>[]): Promise<T[]> {
   const promises = operations.map(({ fn, name }) =>
     fn().catch((error) => {
-      logger.error(error as Error, { operation: name });
+      // Only log as debug for network errors (these are expected to happen sometimes)
+      const errorMessage = error instanceof Error ? error.message : String(error);
+      const isNetworkError = errorMessage.includes('HTTP 5') ||
+                             errorMessage.includes('timeout') ||
+                             errorMessage.includes('network') ||
+                             errorMessage.includes('Expected JSON');
+      if (isNetworkError) {
+        logger.debug(`⚠️ ${name} failed (using default): ${errorMessage}`);
+      } else {
+        logger.error(error as Error, { operation: name });
+      }
       return { error: true, name } as T & { error: boolean; name: string };
     })
   );

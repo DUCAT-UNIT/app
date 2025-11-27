@@ -167,6 +167,7 @@ export function useSettingsNavigation(): UseSettingsNavigationReturn {
 
   const closeSettings = (): void => {
     settingsTranslateX.setValue(0);
+    settingsOpacity.setValue(0);
     setShowSettings(false);
   };
 

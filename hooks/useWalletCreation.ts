@@ -100,7 +100,7 @@ export function useWalletCreation({
       // Temporarily store mnemonic for later saving after PIN setup
       setTempMnemonic(mnemonic);
       setTempMnemonicWords(mnemonic.split(' '));
-    } catch (error) {
+    } catch (error: unknown) {
       showToast(parseErrorMessage(error), 'error');
     }
   };
@@ -136,7 +136,7 @@ export function useWalletCreation({
       await clearPersistedState();
 
       return true;
-    } catch (error) {
+    } catch (error: unknown) {
       return false;
     }
   };

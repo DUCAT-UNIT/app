@@ -78,7 +78,7 @@ TaskManager.defineTask(BACKGROUND_FETCH_TASK, async () => {
     return hasUpdates
       ? BackgroundFetch.BackgroundFetchResult.NewData
       : BackgroundFetch.BackgroundFetchResult.NoData;
-  } catch (error) {
+  } catch (error: unknown) {
     return BackgroundFetch.BackgroundFetchResult.Failed;
   }
 });
@@ -93,7 +93,7 @@ async function checkTransactionConfirmation(txid: string): Promise<boolean> {
 
     const tx = await response.json() as TransactionStatusResponse;
     return tx.status && tx.status.confirmed;
-  } catch (error) {
+  } catch (error: unknown) {
     return false;
   }
 }
@@ -108,7 +108,7 @@ export async function registerBackgroundFetchAsync(): Promise<void> {
       stopOnTerminate: false, // Continue after app is closed
       startOnBoot: true, // Start on device reboot
     });
-  } catch (error) {
+  } catch (error: unknown) {
     // Silently fail
   }
 }
@@ -119,7 +119,7 @@ export async function registerBackgroundFetchAsync(): Promise<void> {
 export async function unregisterBackgroundFetchAsync(): Promise<void> {
   try {
     await BackgroundFetch.unregisterTaskAsync(BACKGROUND_FETCH_TASK);
-  } catch (error) {
+  } catch (error: unknown) {
     // Silently fail
   }
 }
@@ -147,7 +147,7 @@ export async function addPendingTransaction(
     });
 
     await SecureStore.setItemAsync(PENDING_TX_KEY, JSON.stringify(pendingTxs));
-  } catch (error) {
+  } catch (error: unknown) {
     // Silently fail
   }
 }
@@ -164,7 +164,7 @@ export async function removePendingTransaction(txid: string): Promise<void> {
     const updatedTxs = pendingTxs.filter((tx) => tx.txid !== txid);
 
     await SecureStore.setItemAsync(PENDING_TX_KEY, JSON.stringify(updatedTxs));
-  } catch (error) {
+  } catch (error: unknown) {
     // Silently fail
   }
 }
@@ -176,7 +176,7 @@ export async function getPendingTransactions(): Promise<PendingTransaction[]> {
   try {
     const pendingTxsJson = await SecureStore.getItemAsync(PENDING_TX_KEY);
     return pendingTxsJson ? JSON.parse(pendingTxsJson) : [];
-  } catch (error) {
+  } catch (error: unknown) {
     return [];
   }
 }

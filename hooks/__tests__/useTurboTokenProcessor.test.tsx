@@ -377,4 +377,79 @@ describe('useTurboTokenProcessor', () => {
       expect(global.triggerPendingTokenCheck).toBeDefined();
     });
   });
+
+  describe('saveReceivedToken error handling', () => {
+    it('should continue processing even if saveReceivedToken fails', async () => {
+      // Mock the dynamic import to throw
+      jest.doMock('../../services/cashu/cashuLockedTokensService', () => ({
+        saveReceivedToken: jest.fn().mockRejectedValue(new Error('Save failed')),
+      }));
+
+      global.pendingCashuToken = 'cashuAtoken123';
+
+      renderHookWithProps(mockProps);
+
+      // Wait for token to be processed
+      await act(async () => {
+        await Promise.resolve();
+        jest.advanceTimersByTime(100);
+        await Promise.resolve();
+      });
+
+      // Should still complete successfully (save error is caught)
+      expect(mockProps.receive).toHaveBeenCalledWith('cashuAtoken123');
+      expect(mockProps.fetchBalance).toHaveBeenCalled();
+    });
+  });
+
+  describe('account switch retry logic', () => {
+    it('should set up onAction callback for account switch error', async () => {
+      mockProps.receive.mockRejectedValue(new Error('This proof belongs to account 3'));
+      global.pendingCashuToken = 'cashuAtoken123';
+
+      renderHookWithProps(mockProps);
+
+      await act(async () => {
+        await Promise.resolve();
+        jest.advanceTimersByTime(100);
+        await Promise.resolve();
+      });
+
+      // The error message should contain account info
+      expect(global.pendingTurboSnackbars[0].message).toContain('This proof belongs to account 3');
+    });
+
+    it('should handle switch account failure gracefully', async () => {
+      mockProps.switchAccount.mockRejectedValue(new Error('Switch failed'));
+      mockProps.receive.mockRejectedValue(new Error('This proof belongs to account 2'));
+      global.pendingCashuToken = 'cashuAtoken123';
+
+      renderHookWithProps(mockProps);
+
+      await act(async () => {
+        await Promise.resolve();
+        jest.advanceTimersByTime(100);
+        await Promise.resolve();
+      });
+
+      // Should have set up the snackbar queue
+      expect(global.pendingTurboSnackbars).toBeDefined();
+    });
+
+    it('should parse account number from error message', async () => {
+      mockProps.receive.mockRejectedValue(new Error('This proof belongs to account 5'));
+      global.pendingCashuToken = 'cashuAtoken123';
+
+      renderHookWithProps(mockProps);
+
+      await act(async () => {
+        await Promise.resolve();
+        jest.advanceTimersByTime(100);
+        await Promise.resolve();
+      });
+
+      // Should contain the account info
+      expect(global.pendingTurboSnackbars[0].message).toContain('account 5');
+    });
+  });
 });

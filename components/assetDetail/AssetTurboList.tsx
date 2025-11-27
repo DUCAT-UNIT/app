@@ -10,6 +10,7 @@ import * as Clipboard from 'expo-clipboard';
 import { COLORS } from '../../theme';
 import Icon from '../icons';
 import { formatTransactionDate } from '../../utils/formatters/dates';
+import { formatUnitAmount } from '../../utils/formatters/amounts';
 import globalStyles from '../../styles';
 import {
   getSentLockedTokens,
@@ -25,19 +26,45 @@ interface TokenRecord {
   token: string;
   amount: number;
   timestamp: number;
+  taprootAddress?: string | null;
 }
 
 interface TurboTokenItemProps {
   item: TokenRecord;
   isClaimed: boolean;
+  isSelfClaim: boolean;
   onCopy: (tokenRecord: TokenRecord) => Promise<void>;
 }
 
 // Memoized token item component to prevent unnecessary re-renders
-const TurboTokenItem = memo(function TurboTokenItem({ item, isClaimed, onCopy }: TurboTokenItemProps) {
-  const statusChipStyle = isClaimed ? localStyles.claimedChip : localStyles.activeChip;
-  const statusTextStyle = isClaimed ? localStyles.claimedChipText : localStyles.activeChipText;
-  const amountColor = isClaimed ? '#DDDDDD' : COLORS.GREEN;
+const TurboTokenItem = memo(function TurboTokenItem({ item, isClaimed, isSelfClaim, onCopy }: TurboTokenItemProps) {
+  // Determine status and styling based on claim state
+  const getStatusConfig = () => {
+    if (isSelfClaim) {
+      return {
+        chipStyle: localStyles.selfClaimChip,
+        textStyle: localStyles.selfClaimChipText,
+        statusText: 'Self Claim',
+        amountColor: COLORS.GREEN,
+      };
+    }
+    if (isClaimed) {
+      return {
+        chipStyle: localStyles.claimedChip,
+        textStyle: localStyles.claimedChipText,
+        statusText: 'Claimed',
+        amountColor: '#DDDDDD',
+      };
+    }
+    return {
+      chipStyle: localStyles.activeChip,
+      textStyle: localStyles.activeChipText,
+      statusText: 'Active',
+      amountColor: COLORS.GREEN,
+    };
+  };
+
+  const { chipStyle, textStyle, statusText, amountColor } = getStatusConfig();
 
   return (
     <TouchableOpacity
@@ -57,9 +84,9 @@ const TurboTokenItem = memo(function TurboTokenItem({ item, isClaimed, onCopy }:
           </View>
           <View style={globalStyles.historyTxRightGroup}>
             <View style={globalStyles.historyTxColumn2}>
-              <View style={[globalStyles.vaultAmountChip, statusChipStyle]}>
-                <Text style={[globalStyles.vaultAmountChipText, statusTextStyle]}>
-                  {isClaimed ? 'Claimed' : 'Active'}
+              <View style={[globalStyles.vaultAmountChip, chipStyle]}>
+                <Text style={[globalStyles.vaultAmountChipText, textStyle]}>
+                  {statusText}
                 </Text>
               </View>
             </View>
@@ -72,10 +99,7 @@ const TurboTokenItem = memo(function TurboTokenItem({ item, isClaimed, onCopy }:
                   style={globalStyles.assetAmountIcon}
                 />
                 <Text style={[globalStyles.assetAmount, { color: amountColor }]}>
-                  {(item.amount / 100).toLocaleString('en-US', {
-                    minimumFractionDigits: 2,
-                    maximumFractionDigits: 2,
-                  })}
+                  {formatUnitAmount(item.amount)}
                 </Text>
               </View>
             </View>
@@ -89,37 +113,54 @@ const TurboTokenItem = memo(function TurboTokenItem({ item, isClaimed, onCopy }:
       </View>
     </TouchableOpacity>
   );
-}, (prev, next) => prev.item.id === next.item.id && prev.isClaimed === next.isClaimed);
+}, (prev, next) => prev.item.id === next.item.id && prev.isClaimed === next.isClaimed && prev.isSelfClaim === next.isSelfClaim);
 
 export function AssetTurboList() {
   const [tokens, setTokens] = useState<TokenRecord[]>([]);
   const [claimedTokens, setClaimedTokens] = useState(new Set<string>());
+  const [selfClaimTokens, setSelfClaimTokens] = useState(new Set<string>());
   const [isLoading, setIsLoading] = useState(true);
   const { showToast } = useNotifications();
   const { wallet } = useWallet();
 
-  const checkTokensClaimed = useCallback(async (tokensList: TokenRecord[]) => {
+  const checkTokensClaimed = useCallback(async (tokensList: TokenRecord[], currentTaprootAddress?: string) => {
     const claimed = new Set<string>();
+    const selfClaim = new Set<string>();
 
-    for (const tokenData of tokensList) {
-      try {
-        const decoded = decodeToken(tokenData.token);
-        const result = await checkProofsSpent(decoded.proofs);
+    // Check all tokens in parallel for much faster loading
+    const results = await Promise.all(
+      tokensList.map(async (tokenData) => {
+        try {
+          const decoded = decodeToken(tokenData.token);
+          const result = await checkProofsSpent(decoded.proofs);
 
-        if (result && result.states && Array.isArray(result.states)) {
-          const isSpent = (result.states as Array<{ state: string }>).some(
-            (state) => state.state === 'SPENT'
-          );
-          if (isSpent) {
-            claimed.add(tokenData.id);
+          if (result && result.states && Array.isArray(result.states)) {
+            const isSpent = (result.states as Array<{ state: string }>).some(
+              (state) => state.state === 'SPENT'
+            );
+            return { id: tokenData.id, isSpent, taprootAddress: tokenData.taprootAddress };
           }
+          return { id: tokenData.id, isSpent: false, taprootAddress: tokenData.taprootAddress };
+        } catch (error: unknown) {
+          logger.error(error, { component: 'AssetTurboList', action: 'checkTokensClaimed' });
+          return { id: tokenData.id, isSpent: false, taprootAddress: tokenData.taprootAddress };
         }
-      } catch (error) {
-        logger.error(error, { component: 'AssetTurboList', action: 'checkTokensClaimed' });
+      })
+    );
+
+    // Process results
+    for (const { id, isSpent, taprootAddress } of results) {
+      if (isSpent) {
+        claimed.add(id);
+        // Check if this is a self-claim (token sent from current account and claimed)
+        if (taprootAddress && currentTaprootAddress && taprootAddress === currentTaprootAddress) {
+          selfClaim.add(id);
+        }
       }
     }
 
     setClaimedTokens(claimed);
+    setSelfClaimTokens(selfClaim);
   }, []);
 
   const loadTokens = useCallback(async () => {
@@ -129,8 +170,8 @@ export function AssetTurboList() {
       const savedTokens = await getSentLockedTokens(wallet?.taprootAddress);
       logger.debug('AssetTurboList', 'Loaded tokens', { count: savedTokens.length });
       setTokens(savedTokens as TokenRecord[]);
-      await checkTokensClaimed(savedTokens as TokenRecord[]);
-    } catch (error) {
+      await checkTokensClaimed(savedTokens as TokenRecord[], wallet?.taprootAddress ?? undefined);
+    } catch (error: unknown) {
       logger.error(error, { component: 'AssetTurboList', action: 'loadTokens' });
     } finally {
       setIsLoading(false);
@@ -148,7 +189,7 @@ export function AssetTurboList() {
     try {
       await Clipboard.setStringAsync(tokenRecord.token);
       showToast('Cashu token copied to clipboard', 'success');
-    } catch (error) {
+    } catch (error: unknown) {
       logger.error(error, { component: 'AssetTurboList', action: 'handleCopyToken' });
       showToast('Failed to copy token to clipboard', 'error');
     }
@@ -183,6 +224,7 @@ export function AssetTurboList() {
           key={item.id}
           item={item}
           isClaimed={claimedTokens.has(item.id)}
+          isSelfClaim={selfClaimTokens.has(item.id)}
           onCopy={handleCopyToken}
         />
       ))}
@@ -215,6 +257,13 @@ const localStyles = StyleSheet.create({
   },
   claimedChipText: {
     color: COLORS.PRIMARY_BLUE,
+  },
+  selfClaimChip: {
+    backgroundColor: 'rgba(89, 170, 138, 0.2)',
+    marginLeft: 0,
+  },
+  selfClaimChipText: {
+    color: COLORS.GREEN,
   },
   activityContainer: {
     paddingHorizontal: 4,

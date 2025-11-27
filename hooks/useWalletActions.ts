@@ -67,7 +67,7 @@ export function useWalletActions({ resetAuth, resetWallet, clearVaultCredentials
         setIsAuthenticated(false);
         return;
       }
-    } catch (error) {
+    } catch (error: unknown) {
       if (showToast) {
         showToast('Authentication required to delete wallet', 'error');
       }
@@ -97,7 +97,7 @@ export function useWalletActions({ resetAuth, resetWallet, clearVaultCredentials
           showToast(ERRORS.WALLET_DELETE_FAILED, 'error');
         }
       }
-    } catch (error) {
+    } catch (error: unknown) {
       if (showToast) {
         showToast(ERRORS.WALLET_DELETE_FAILED, 'error');
       }

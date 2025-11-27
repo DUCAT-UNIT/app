@@ -51,25 +51,14 @@ export function useAccountSwitcher({
 
     try {
       setSwitchingAccount(true);
-      logger.info('[useAccountSwitcher] Starting account switch', { accountIndex });
 
-      // STEP 1: Reset ALL data immediately (synchronous - shows loading state instantly)
-      logger.debug('[useAccountSwitcher] Resetting all data...');
-      if (resetBalances) resetBalances();
-      if (resetTransactionHistory) resetTransactionHistory();
-      if (resetVaultData) resetVaultData();
-
-      // STEP 2: Force React to render the loading state before continuing
-      // This breaks React's automatic batching so users see loading state immediately
-      await new Promise(resolve => setTimeout(resolve, 0));
-
-      // STEP 3: Switch account context (updates wallet addresses)
-      logger.debug('[useAccountSwitcher] Switching account context...');
+      // STEP 1: Switch account context FIRST (updates wallet addresses)
+      // This is the only blocking operation - must complete before dismissing modal
       const newAddresses = await switchAccountContext(accountIndex);
       const newTaprootAddress = newAddresses?.taprootAddress;
-      logger.debug('[useAccountSwitcher] New taproot address:', newTaprootAddress?.substring(0, 20) + '...');
 
-      // STEP 4: Close modal and trigger callback immediately (don't wait for data)
+      // STEP 2: Dismiss modal immediately - don't wait for data fetches
+      // User sees wallet screen with loading indicators instead of blocked modal
       setShowAccountPicker(false);
       setNewAccountIndex('');
       setSwitchingAccount(false);
@@ -78,17 +67,38 @@ export function useAccountSwitcher({
         onAccountSwitched(accountIndex);
       }
 
-      // STEP 5: Fetch fresh data in background (fire and forget)
-      // Data will populate as it loads - UI already shows loading state
-      logger.debug('[useAccountSwitcher] Fetching fresh data in background...');
-      if (fetchBalance) fetchBalance();
-      if (fetchVault) fetchVault();
-      if (fetchTransactionHistory) fetchTransactionHistory();
-      // CRITICAL: Pass the new taproot address to ensure cashu reads from correct storage
-      if (resetAndRefreshCashu) resetAndRefreshCashu(newTaprootAddress);
+      // STEP 3: Reset data AFTER modal closes (prevents UI flash during modal)
+      // These resets are fast and synchronous
+      if (resetBalances) resetBalances();
+      if (resetTransactionHistory) resetTransactionHistory();
+      if (resetVaultData) resetVaultData();
 
-      logger.info('[useAccountSwitcher] Account switch complete');
-    } catch (error) {
+      // STEP 4: Fetch ALL data in background (fire-and-forget)
+      // Each component will show its own loading state
+      if (fetchBalance) {
+        Promise.resolve(fetchBalance()).catch((err: unknown) => {
+          logger.warn('[useAccountSwitcher] fetchBalance failed', { error: err instanceof Error ? err.message : String(err) });
+        });
+      }
+
+      if (fetchVault) {
+        Promise.resolve(fetchVault()).catch((err: unknown) => {
+          logger.warn('[useAccountSwitcher] fetchVault failed', { error: err instanceof Error ? err.message : String(err) });
+        });
+      }
+
+      if (resetAndRefreshCashu) {
+        Promise.resolve(resetAndRefreshCashu(newTaprootAddress)).catch((err: unknown) => {
+          logger.warn('[useAccountSwitcher] resetAndRefreshCashu failed', { error: err instanceof Error ? err.message : String(err) });
+        });
+      }
+
+      if (fetchTransactionHistory) {
+        Promise.resolve(fetchTransactionHistory()).catch((err: unknown) => {
+          logger.warn('[useAccountSwitcher] fetchTransactionHistory failed', { error: err instanceof Error ? err.message : String(err) });
+        });
+      }
+    } catch (error: unknown) {
       logger.error('[useAccountSwitcher] Account switch failed', { error: error instanceof Error ? error.message : String(error) });
       Alert.alert(DIALOGS.ERROR_TITLE, ERRORS.ACCOUNT_SWITCH_FAILED);
       setSwitchingAccount(false);

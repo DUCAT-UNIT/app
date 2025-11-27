@@ -107,9 +107,13 @@ export const TransactionExecutionProvider: React.FC<TransactionExecutionProvider
       }
 
       logger.debug('📡 Broadcasting transaction...', { skipAutoConfirm });
-      logger.debug('Intent inputs:', intent.inputs?.map(i => `${i.txid}:${i.vout}`) || 'none');
-      if (intent.runeUtxo) logger.debug('Rune UTXO:', `${intent.runeUtxo.transaction}:${intent.runeUtxo.vout}`);
-      if (intent.satUtxo) logger.debug('Sat UTXO:', `${intent.satUtxo.txid}:${intent.satUtxo.vout}`);
+      // Log inputs based on asset type
+      if (intent.assetType === 'BTC') {
+        logger.debug('Intent inputs:', intent.inputs.map(i => `${i.txid}:${i.vout}`));
+      } else if (intent.assetType === 'UNIT') {
+        if (intent.runeUtxo) logger.debug('Rune UTXO:', `${intent.runeUtxo.transaction}:${intent.runeUtxo.vout}`);
+        if (intent.satUtxo) logger.debug('Sat UTXO:', `${intent.satUtxo.txid}:${intent.satUtxo.vout}`);
+      }
 
       const txid = await broadcastTransaction(intent.signedTxHex);
       logger.debug('✅ Broadcast successful, txid:', txid);
@@ -159,7 +163,7 @@ export const TransactionExecutionProvider: React.FC<TransactionExecutionProvider
 
         // For UNIT transactions, calculate rune change amount
         let runeChangeAmount = 0;
-        if (sendAssetType === 'unit' && intent.runeUtxo?.runeAmount && intent.amount) {
+        if (sendAssetType === 'unit' && intent.assetType === 'UNIT' && intent.runeUtxo?.runeAmount && intent.amount) {
           const intentAmount = typeof intent.amount === 'string' ? parseFloat(intent.amount) : intent.amount;
           runeChangeAmount = intent.runeUtxo.runeAmount - intentAmount;
           logger.debug('Rune change amount:', runeChangeAmount);
@@ -211,7 +215,7 @@ export const TransactionExecutionProvider: React.FC<TransactionExecutionProvider
         } else {
           logger.debug('⚠️ No change outputs found to save');
         }
-      } catch (error) {
+      } catch (error: unknown) {
         logger.error('❌ Error extracting change outputs:', { error: error instanceof Error ? error.message : String(error) });
         // Non-critical error, continue with broadcast
       }

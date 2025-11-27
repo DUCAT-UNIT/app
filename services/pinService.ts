@@ -20,11 +20,49 @@ import {
   verifyPinHash,
 } from './pinHashing';
 
-export interface PinVerificationResult {
-  success: boolean;
-  error?: string;
-  remainingAttempts?: number;
-}
+/**
+ * Discriminated union for PIN verification results
+ *
+ * Uses TypeScript's discriminated union pattern with `success` as the discriminant.
+ * This enables exhaustive type checking and automatic type narrowing in conditionals.
+ *
+ * @example
+ * // Basic usage with type narrowing
+ * const result = await verifyPin('123456');
+ * if (result.success) {
+ *   // TypeScript knows this is { success: true }
+ *   // No error or remainingAttempts properties exist here
+ *   navigateToWallet();
+ * } else {
+ *   // TypeScript knows this is { success: false; error: string; remainingAttempts: number }
+ *   showError(result.error);
+ *   updateAttemptsUI(result.remainingAttempts);
+ * }
+ *
+ * @example
+ * // Exhaustive handling with switch
+ * function handleResult(result: PinVerificationResult) {
+ *   switch (result.success) {
+ *     case true:
+ *       return 'Authenticated!';
+ *     case false:
+ *       return `Failed: ${result.error} (${result.remainingAttempts} attempts left)`;
+ *     // TypeScript error if a case is missing
+ *   }
+ * }
+ *
+ * @example
+ * // Creating results
+ * const successResult: PinVerificationResult = { success: true };
+ * const failResult: PinVerificationResult = {
+ *   success: false,
+ *   error: 'Incorrect PIN',
+ *   remainingAttempts: 4
+ * };
+ */
+export type PinVerificationResult =
+  | { success: true }
+  | { success: false; error: string; remainingAttempts: number };
 
 export interface SavePinResult {
   hashedPin: string;
@@ -90,15 +128,16 @@ export const savePinWithHash = async (pin: string): Promise<SavePinResult> => {
 
     // Return hash and salt for reuse in passkey encryption
     return { hashedPin, salt };
-  } catch (error) {
+  } catch (error: unknown) {
+    const err = error instanceof Error ? error : new Error(String(error));
     // Log detailed error for debugging
     logger.error('PIN save failed:', {
-      error: (error as Error).message,
+      error: err.message,
       recommendation: 'Check device storage space and SecureStore permissions',
     });
 
     // Re-throw security-critical errors
-    if ((error as Error).message.includes('CRITICAL:')) {
+    if (err.message.includes('CRITICAL:')) {
       throw error;
     }
 
@@ -156,15 +195,16 @@ export const savePin = async (pin: string): Promise<boolean> => {
     }
 
     return true;
-  } catch (error) {
+  } catch (error: unknown) {
+    const err = error instanceof Error ? error : new Error(String(error));
     // Log detailed error for debugging
     logger.error('PIN save failed:', {
-      error: (error as Error).message,
+      error: err.message,
       recommendation: 'Check device storage space and SecureStore permissions',
     });
 
     // Re-throw security-critical errors
-    if ((error as Error).message.includes('CRITICAL:')) {
+    if (err.message.includes('CRITICAL:')) {
       throw error;
     }
 
@@ -210,15 +250,16 @@ export const savePinWithExistingSalt = async (pin: string, existingSalt: string)
     }
 
     return true;
-  } catch (error) {
+  } catch (error: unknown) {
+    const err = error instanceof Error ? error : new Error(String(error));
     // Log detailed error for debugging
     logger.error('PIN save with existing salt failed:', {
-      error: (error as Error).message,
+      error: err.message,
       recommendation: 'Check device storage space and SecureStore permissions',
     });
 
     // Re-throw security-critical errors
-    if ((error as Error).message.includes('CRITICAL:')) {
+    if (err.message.includes('CRITICAL:')) {
       throw error;
     }
 
@@ -258,6 +299,7 @@ export const verifyPin = async (enteredPin: string): Promise<PinVerificationResu
       return {
         success: false,
         error: 'PIN needs to be reset',
+        remainingAttempts: 0,
       };
     }
 
@@ -289,13 +331,14 @@ export const verifyPin = async (enteredPin: string): Promise<PinVerificationResu
         remainingAttempts: Math.max(0, getMaxPinAttempts() - result.newFailedAttempts),
       };
     }
-  } catch (error) {
-    const err = error as Error;
+  } catch (error: unknown) {
+    const err = error instanceof Error ? error : new Error(String(error));
     // Check if this is a lockout state save failure (fail closed scenario)
     if (err.message && err.message.includes('Unable to enforce rate limiting')) {
       return {
         success: false,
         error: err.message, // Pass through the specific error message
+        remainingAttempts: 0,
       };
     }
 
@@ -303,6 +346,7 @@ export const verifyPin = async (enteredPin: string): Promise<PinVerificationResu
     return {
       success: false,
       error: 'Failed to verify PIN',
+      remainingAttempts: 0,
     };
   }
 };

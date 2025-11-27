@@ -10,28 +10,59 @@ const SENT_TOKENS_KEY = 'sent_turbo_tokens';
 const RECEIVED_TOKENS_KEY = 'received_turbo_tokens';
 const MAX_STORED_TOKENS = 100; // Increased from 50
 
-export interface TokenRecord {
+// Simple event emitter for token changes
+type TokenChangeListener = () => void;
+const tokenChangeListeners: Set<TokenChangeListener> = new Set();
+
+/**
+ * Subscribe to token changes (sent or received)
+ * Returns unsubscribe function
+ */
+export const subscribeToTokenChanges = (listener: TokenChangeListener): (() => void) => {
+  tokenChangeListeners.add(listener);
+  return () => {
+    tokenChangeListeners.delete(listener);
+  };
+};
+
+/**
+ * Notify all listeners that tokens have changed
+ */
+const notifyTokenChange = (): void => {
+  tokenChangeListeners.forEach(listener => {
+    try {
+      listener();
+    } catch (error) {
+      logger.error('Error in token change listener', { error: (error as Error).message });
+    }
+  });
+};
+
+/** Base interface for token records (both sent and received) */
+export interface BaseTokenRecord {
   token: string;
-  recipient: string;
   amount: number;
   timestamp: number;
-  txid: string | null;
-  shortUrl: string | null;
   taprootAddress: string | null;
   id: string;
   claimed?: boolean;
+  partiallySpent?: boolean;
+}
+
+export interface TokenRecord extends BaseTokenRecord {
+  recipient: string;
+  txid: string | null;
+  shortUrl: string | null;
   claimedAt?: number | null;
 }
 
-export interface ReceivedTokenRecord {
-  token: string;
+export interface ReceivedTokenRecord extends BaseTokenRecord {
   sender: string;
-  amount: number;
-  timestamp: number;
-  taprootAddress: string | null;
-  id: string;
   type: string;
 }
+
+/** Union type for any ecash token (sent or received) */
+export type EcashTokenRecord = TokenRecord | ReceivedTokenRecord;
 
 /**
  * Save a sent locked token with metadata
@@ -70,7 +101,10 @@ export const saveSentLockedToken = async (
     await SecureStore.setItemAsync(SENT_TOKENS_KEY, JSON.stringify(tokensToStore));
 
     logger.info('Sent locked token saved', { totalStored: tokensToStore.length });
-  } catch (error) {
+
+    // Notify listeners that tokens have changed
+    notifyTokenChange();
+  } catch (error: unknown) {
     logger.error('Failed to save sent locked token', { error: (error as Error).message });
     throw error;
   }
@@ -108,7 +142,7 @@ export const getSentLockedTokens = async (taprootAddress: string | null = null):
 
     // Sort by timestamp descending (newest first)
     return filteredTokens.sort((a, b) => b.timestamp - a.timestamp);
-  } catch (error) {
+  } catch (error: unknown) {
     logger.error('Failed to get sent locked tokens', { error: (error as Error).message });
     return [];
   }
@@ -127,7 +161,7 @@ export const deleteSentLockedToken = async (tokenId: string): Promise<void> => {
     await SecureStore.setItemAsync(SENT_TOKENS_KEY, JSON.stringify(filteredTokens));
 
     logger.info('Sent locked token deleted', { remaining: filteredTokens.length });
-  } catch (error) {
+  } catch (error: unknown) {
     logger.error('Failed to delete sent locked token', { error: (error as Error).message });
     throw error;
   }
@@ -151,7 +185,7 @@ export const updateTokenClaimedStatus = async (tokenId: string, claimed: boolean
     await SecureStore.setItemAsync(SENT_TOKENS_KEY, JSON.stringify(updatedTokens));
 
     logger.info('Token claimed status updated', { tokenId, claimed });
-  } catch (error) {
+  } catch (error: unknown) {
     logger.error('Failed to update token claimed status', { error: (error as Error).message });
     throw error;
   }
@@ -165,7 +199,7 @@ export const clearSentLockedTokens = async (): Promise<void> => {
     logger.info('Clearing all sent locked tokens');
     await SecureStore.deleteItemAsync(SENT_TOKENS_KEY);
     logger.info('All sent locked tokens cleared');
-  } catch (error) {
+  } catch (error: unknown) {
     logger.error('Failed to clear sent locked tokens', { error: (error as Error).message });
     throw error;
   }
@@ -185,7 +219,7 @@ export const generateTurboDeeplink = async (token: string, _recipient: string, _
     const shortUrl = await shortenCashuToken(token);
     logger.debug('[TurboDeeplink] Shortened URL from Ducat server:', shortUrl);
     return shortUrl;
-  } catch (error) {
+  } catch (error: unknown) {
     logger.error('[TurboDeeplink] Failed to shorten with Ducat server', { error });
     logger.debug('[TurboDeeplink] Falling back to ducat:// deeplink');
 
@@ -241,7 +275,10 @@ export const saveReceivedToken = async (
     await SecureStore.setItemAsync(RECEIVED_TOKENS_KEY, JSON.stringify(tokensToStore));
 
     logger.info('Received token saved', { totalStored: tokensToStore.length });
-  } catch (error) {
+
+    // Notify listeners that tokens have changed
+    notifyTokenChange();
+  } catch (error: unknown) {
     logger.error('Failed to save received token', { error: (error as Error).message });
     throw error;
   }
@@ -265,7 +302,7 @@ export const getReceivedTokens = async (taprootAddress: string | null = null): P
     }
 
     return tokens;
-  } catch (error) {
+  } catch (error: unknown) {
     logger.error('Failed to get received tokens', { error: (error as Error).message });
     return [];
   }

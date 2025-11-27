@@ -38,7 +38,6 @@ export const broadcastTransaction = async (signedTxHex: string): Promise<string>
           method: 'POST',
           body: signedTxHex,
         }),
-      'Broadcast transaction',
       { maxRetries: 2 } // Fewer retries for broadcasts
     );
 
@@ -74,7 +73,7 @@ export const broadcastTransaction = async (signedTxHex: string): Promise<string>
 
     // Return our calculated txid (not the API's) for extra safety
     return expectedTxid;
-  } catch (error) {
+  } catch (error: unknown) {
     logger.transaction('broadcast_error', { error: (error as Error).message });
     txn.finish('error');
     throw error;

@@ -57,9 +57,11 @@ export const sendToken = async (amount: number, returnChange = true): Promise<Se
       if (keyData.keysets && keyData.keysets.length > 0) {
         keysetId = keyData.keysets[0].id;
         keys = keyData.keysets[0].keys;
-      } else {
-        keys = keyData.keys || keyData;
+      } else if (keyData.keys) {
+        keys = keyData.keys;
         keysetId = '';
+      } else {
+        throw new Error('No keys available from mint');
       }
 
       // Split into send + change amounts
@@ -111,7 +113,7 @@ export const sendToken = async (amount: number, returnChange = true): Promise<Se
       amount: sumProofs(proofsToSend),
       balance: newBalance,
     };
-  } catch (error) {
+  } catch (error: unknown) {
     logger.error('Failed to send token', { error: (error as Error).message });
     throw error;
   }

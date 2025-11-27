@@ -45,7 +45,7 @@ export function useEcashBalanceCheck(
             return;
           }
         }
-      } catch (error) {
+      } catch (error: unknown) {
         logger.error('[useEcashBalanceCheck] Error checking last check time:', { error: error instanceof Error ? error.message : String(error) });
       }
 
@@ -71,7 +71,7 @@ export function useEcashBalanceCheck(
           // Record that we've shown the prompt
           try {
             await AsyncStorage.setItem(LAST_CHECK_KEY, Date.now().toString());
-          } catch (error) {
+          } catch (error: unknown) {
             logger.error('[useEcashBalanceCheck] Error saving check time:', { error: error instanceof Error ? error.message : String(error) });
           }
         } else {

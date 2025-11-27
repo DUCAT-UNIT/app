@@ -428,10 +428,13 @@ jest.mock('expo-linear-gradient', () => ({
   LinearGradient: 'LinearGradient',
 }));
 
-// Mock react-native-quick-crypto
+// Mock react-native-quick-crypto with full crypto implementation
 jest.mock('react-native-quick-crypto', () => {
-  const { pbkdf2Sync: nodePbkdf2Sync } = require('node:crypto');
+  const { pbkdf2Sync: nodePbkdf2Sync, createHmac: nodeCreateHmac, webcrypto: nodeWebcrypto } = require('node:crypto');
   return {
     pbkdf2Sync: nodePbkdf2Sync,
+    createHmac: nodeCreateHmac,
+    getRandomValues: (arr) => nodeWebcrypto.getRandomValues(arr),
+    subtle: nodeWebcrypto.subtle,
   };
 });

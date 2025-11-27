@@ -167,7 +167,7 @@ export const validateBitcoinAddress = (address: string | null | undefined): Addr
       valid: true,
       type: addressType,
     };
-  } catch (error) {
+  } catch (error: unknown) {
     // Check if it might be a mainnet address
     if (address.startsWith('bc1') || address.startsWith('1') || address.startsWith('3')) {
       return {
@@ -226,7 +226,7 @@ export const extractPubkeyFromTaprootAddress = (address: string): string => {
 
     // Convert the data buffer to hex string (ensure proper conversion)
     return Buffer.from(decoded.data).toString('hex');
-  } catch (error) {
+  } catch (error: unknown) {
     throw new Error(`Failed to extract pubkey from Taproot address: ${(error as Error).message}`);
   }
 };

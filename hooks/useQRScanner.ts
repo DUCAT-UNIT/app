@@ -121,7 +121,7 @@ export function useQRScanner({ visible, onScan }: UseQRScannerParams): UseQRScan
           }, 100);
         }
       }
-    } catch (error) {
+    } catch (error: unknown) {
       logger.error('[QRScanner] BC-UR decode error:', { error: error instanceof Error ? error.message : String(error) });
       setBcurDecoder(null);
       setBcurProgress(0);

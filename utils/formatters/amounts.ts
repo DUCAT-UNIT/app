@@ -100,6 +100,53 @@ export function formatPercentage(value: number | null | undefined, decimals = 2,
 }
 
 /**
+ * Format UNIT amount for display
+ * UNIT is stored as integers (smallest units, 100x multiplier)
+ * This function converts to display format with 2 decimal places
+ * @param smallestUnits - Amount in smallest units (integer)
+ * @param decimals - Number of decimal places (default: 2)
+ * @returns Formatted UNIT amount (e.g., 10000 -> "100.00")
+ */
+export function formatUnitAmount(smallestUnits: number | bigint | null | undefined, decimals = 2): string {
+  if (smallestUnits === null || smallestUnits === undefined) {
+    return '0.00';
+  }
+
+  const numValue = typeof smallestUnits === 'bigint' ? Number(smallestUnits) : smallestUnits;
+
+  if (typeof numValue !== 'number' || isNaN(numValue)) {
+    return '0.00';
+  }
+
+  const displayAmount = numValue / 100;
+  return displayAmount.toLocaleString('en-US', {
+    minimumFractionDigits: decimals,
+    maximumFractionDigits: decimals,
+  });
+}
+
+/**
+ * Parse a display UNIT amount to smallest units (integer)
+ * Converts user input (e.g., "100.50") to storage format (10050)
+ * @param displayAmount - Display amount string or number
+ * @returns Amount in smallest units (integer)
+ */
+export function parseUnitToSmallestUnits(displayAmount: string | number | null | undefined): number {
+  if (displayAmount === null || displayAmount === undefined) {
+    return 0;
+  }
+
+  const numValue = typeof displayAmount === 'string' ? parseFloat(displayAmount) : displayAmount;
+
+  if (isNaN(numValue)) {
+    return 0;
+  }
+
+  // Multiply by 100 and round to avoid floating point issues
+  return Math.round(numValue * 100);
+}
+
+/**
  * Parse a formatted amount string to number
  * Removes commas and handles decimal separators
  * @param formattedAmount - Formatted amount string

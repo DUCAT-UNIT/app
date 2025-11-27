@@ -1,10 +1,7 @@
 // @ts-nocheck
 /**
  * Tests for useEcashThresholdManager hook
- *
- * Note: The handleConfirmConversion and handleLowBalanceTopUp functions use dynamic imports
- * which are difficult to mock in Jest. Tests for those functions are limited to
- * what can be tested without the dynamic imports being executed.
+ * Covers threshold selection, conversion flow, and low balance top-up
  */
 
 import React from 'react';
@@ -30,6 +27,12 @@ jest.mock('@react-navigation/native', () => ({
     navigate: mockNavigate,
     getParent: mockGetParent,
   }),
+}));
+
+const mockRequestMint = jest.fn();
+
+jest.mock('../../services/cashu/cashuWalletService', () => ({
+  requestMint: (...args) => mockRequestMint(...args),
 }));
 
 // Helper to render hooks with props
@@ -60,6 +63,7 @@ describe('useEcashThresholdManager', () => {
 
   beforeEach(() => {
     jest.clearAllMocks();
+    jest.useFakeTimers({ legacyFakeTimers: true });
     // Setup root navigator chain (returns null to stop iteration)
     mockGetParentReturn = null;
     mockProps = {
@@ -76,6 +80,14 @@ describe('useEcashThresholdManager', () => {
       lowBalanceAmountNeeded: 50,
       closeLowBalanceModal: jest.fn(),
     };
+    mockRequestMint.mockResolvedValue({
+      quoteId: 'quote123',
+      depositAddress: 'tb1pdeposit123',
+    });
+  });
+
+  afterEach(() => {
+    jest.useRealTimers();
   });
 
   it('should return initial state', () => {
@@ -237,6 +249,266 @@ describe('useEcashThresholdManager', () => {
       });
 
       expect(result.current.showThresholdSheet).toBe(false);
+    });
+  });
+
+  describe('handleConfirmConversion', () => {
+    it('should request mint and navigate on success', async () => {
+      const { result } = renderHookWithProps({
+        ...mockProps,
+        cashuBalance: 50,
+      });
+
+      // First trigger conversion modal
+      await act(async () => {
+        await result.current.handleThresholdSelect(200);
+      });
+
+      expect(result.current.showConversionModal).toBe(true);
+
+      // Now confirm conversion
+      await act(async () => {
+        await result.current.handleConfirmConversion();
+      });
+
+      expect(mockRequestMint).toHaveBeenCalledWith(150);
+      expect(result.current.showConversionModal).toBe(false);
+      expect(mockProps.settingsHandlers.handleEcashThresholdChange).toHaveBeenCalledWith(200);
+
+      // Advance timer for setTimeout navigation
+      await act(async () => {
+        jest.advanceTimersByTime(500);
+      });
+
+      expect(mockNavigate).toHaveBeenCalledWith('SendFlow', {
+        screen: 'Processing',
+        params: expect.objectContaining({
+          fromScreen: 'Settings',
+          action: 'create_intent',
+          cashuMint: true,
+          quoteId: 'quote123',
+        }),
+      });
+    });
+
+    it('should close settings if open', async () => {
+      const { result } = renderHookWithProps({
+        ...mockProps,
+        cashuBalance: 50,
+        showSettings: true,
+      });
+
+      await act(async () => {
+        await result.current.handleThresholdSelect(200);
+      });
+
+      await act(async () => {
+        await result.current.handleConfirmConversion();
+      });
+
+      expect(mockProps.closeSettings).toHaveBeenCalled();
+    });
+
+    it('should not close settings if not open', async () => {
+      const { result } = renderHookWithProps({
+        ...mockProps,
+        cashuBalance: 50,
+        showSettings: false,
+      });
+
+      await act(async () => {
+        await result.current.handleThresholdSelect(200);
+      });
+
+      await act(async () => {
+        await result.current.handleConfirmConversion();
+      });
+
+      expect(mockProps.closeSettings).not.toHaveBeenCalled();
+    });
+
+    it('should handle mint error', async () => {
+      mockRequestMint.mockRejectedValue(new Error('Mint failed'));
+
+      const { result } = renderHookWithProps({
+        ...mockProps,
+        cashuBalance: 50,
+      });
+
+      await act(async () => {
+        await result.current.handleThresholdSelect(200);
+      });
+
+      await act(async () => {
+        await result.current.handleConfirmConversion();
+      });
+
+      expect(mockProps.showToast).toHaveBeenCalledWith(
+        'Failed to start conversion: Mint failed',
+        'error'
+      );
+    });
+
+    it('should handle non-Error mint exception', async () => {
+      mockRequestMint.mockRejectedValue('String error');
+
+      const { result } = renderHookWithProps({
+        ...mockProps,
+        cashuBalance: 50,
+      });
+
+      await act(async () => {
+        await result.current.handleThresholdSelect(200);
+      });
+
+      await act(async () => {
+        await result.current.handleConfirmConversion();
+      });
+
+      expect(mockProps.showToast).toHaveBeenCalledWith(
+        'Failed to start conversion: String error',
+        'error'
+      );
+    });
+
+    it('should handle navigation error', async () => {
+      mockNavigate.mockImplementation(() => {
+        throw new Error('Navigation failed');
+      });
+
+      const { result } = renderHookWithProps({
+        ...mockProps,
+        cashuBalance: 50,
+      });
+
+      await act(async () => {
+        await result.current.handleThresholdSelect(200);
+      });
+
+      await act(async () => {
+        await result.current.handleConfirmConversion();
+      });
+
+      await act(async () => {
+        jest.advanceTimersByTime(500);
+      });
+
+      expect(mockProps.showToast).toHaveBeenCalledWith(
+        expect.stringContaining('Navigation failed'),
+        'error'
+      );
+    });
+
+    it('should not update threshold if pendingThreshold is null', async () => {
+      const { result } = renderHookWithProps(mockProps);
+
+      // Call confirm directly without setting pending threshold
+      await act(async () => {
+        await result.current.handleConfirmConversion();
+      });
+
+      expect(mockProps.settingsHandlers.handleEcashThresholdChange).not.toHaveBeenCalled();
+    });
+
+    it('should use root navigator via getParent chain', async () => {
+      // Set up a mock parent chain
+      const mockParentNavigate = jest.fn();
+      const mockGrandparent = {
+        navigate: mockParentNavigate,
+        getParent: jest.fn(() => null), // End of chain
+      };
+      const mockParent = {
+        navigate: jest.fn(),
+        getParent: jest.fn(() => mockGrandparent),
+      };
+      mockGetParent.mockReturnValue(mockParent);
+
+      const { result } = renderHookWithProps({
+        ...mockProps,
+        cashuBalance: 50,
+      });
+
+      await act(async () => {
+        await result.current.handleThresholdSelect(200);
+      });
+
+      await act(async () => {
+        await result.current.handleConfirmConversion();
+      });
+
+      await act(async () => {
+        jest.advanceTimersByTime(500);
+      });
+
+      // Should navigate from the root (grandparent)
+      expect(mockParentNavigate).toHaveBeenCalled();
+    });
+  });
+
+  describe('handleLowBalanceTopUp', () => {
+    beforeEach(() => {
+      // Reset navigate mock to not throw
+      mockNavigate.mockReset();
+    });
+
+    it('should request mint and navigate', async () => {
+      const showSnackbarMock = jest.fn();
+      const props = {
+        ...mockProps,
+        showSnackbar: showSnackbarMock,
+      };
+      const { result } = renderHookWithProps(props);
+
+      await act(async () => {
+        await result.current.handleLowBalanceTopUp();
+      });
+
+      expect(props.closeLowBalanceModal).toHaveBeenCalled();
+      expect(mockRequestMint).toHaveBeenCalledWith(50);
+      expect(mockNavigate).toHaveBeenCalledWith('SendFlow', {
+        screen: 'Processing',
+        params: expect.objectContaining({
+          fromScreen: 'Wallet',
+          action: 'create_intent',
+          cashuMint: true,
+          quoteId: 'quote123',
+          amount: '50',
+        }),
+      });
+      expect(showSnackbarMock).toHaveBeenCalledWith({
+        type: 'pending',
+        action: 'conversion_turbo',
+      });
+    });
+
+    it('should handle mint error', async () => {
+      mockRequestMint.mockRejectedValue(new Error('Top-up failed'));
+
+      const { result } = renderHookWithProps(mockProps);
+
+      await act(async () => {
+        await result.current.handleLowBalanceTopUp();
+      });
+
+      expect(mockProps.showToast).toHaveBeenCalledWith(
+        'Failed to start top-up: Top-up failed',
+        'error'
+      );
+    });
+
+    it('should handle non-Error mint exception', async () => {
+      mockRequestMint.mockRejectedValue('String top-up error');
+
+      const { result } = renderHookWithProps(mockProps);
+
+      await act(async () => {
+        await result.current.handleLowBalanceTopUp();
+      });
+
+      expect(mockProps.showToast).toHaveBeenCalledWith(
+        'Failed to start top-up: String top-up error',
+        'error'
+      );
     });
   });
 

@@ -139,7 +139,7 @@ export async function createUnitIntent(
       psbt: psbt.toBase64(),
       timestamp: Date.now(),
     };
-  } catch (error) {
+  } catch (error: unknown) {
     throw error;
   }
 }

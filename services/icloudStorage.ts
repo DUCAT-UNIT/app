@@ -45,7 +45,7 @@ export const checkICloudAvailability = async (): Promise<ICloudAvailabilityResul
     try {
       await iCloudStorage.getItem('__icloud_test_key__');
       return { available: true };
-    } catch (error) {
+    } catch (error: unknown) {
       const iCloudError = error as ICloudError;
       if (iCloudError.code === 'ICLOUD_STORAGE_NOT_AVAILABLE') {
         return {
@@ -62,7 +62,7 @@ export const checkICloudAvailability = async (): Promise<ICloudAvailabilityResul
       // If we can access iCloud but the key doesn't exist, that's fine
       return { available: true };
     }
-  } catch (error) {
+  } catch (error: unknown) {
     logger.error('Failed to check iCloud availability', { error: (error as Error).message });
     return {
       available: false,
@@ -160,7 +160,7 @@ export const saveToICloud = async ({
 
     // Return debug info for display
     return saveSteps;
-  } catch (error) {
+  } catch (error: unknown) {
     const err = error as ICloudError;
     saveSteps += `\n❌ SAVE FAILED\n`;
     saveSteps += `Error: ${err.message}\n`;
@@ -239,7 +239,7 @@ export const loadFromICloud = async (): Promise<LoadedBackupData> => {
       pinSalt,
       _debugInfo: loadSteps, // Include debug info in return
     };
-  } catch (error) {
+  } catch (error: unknown) {
     logger.error('Failed to load from iCloud', { error: (error as Error).message });
     if (error instanceof Error && error.message.includes('iCloud Load Debug')) {
       throw error; // Already has debug info
@@ -261,7 +261,7 @@ export const hasICloudBackup = async (): Promise<boolean> => {
     const hasData = !!encrypted;
     logger.debug('iCloud backup check result:', { hasData, encryptedLength: encrypted?.length });
     return hasData;
-  } catch (error) {
+  } catch (error: unknown) {
     const err = error as ICloudError;
     logger.error('Failed to check iCloud backup', {
       error: err.message,
@@ -298,7 +298,7 @@ export const clearICloud = async (): Promise<void> => {
     await iCloudStorage.removeItem(ICLOUD_KEYS.PIN_SALT);
 
     logger.debug('iCloud backup cleared');
-  } catch (error) {
+  } catch (error: unknown) {
     logger.error('Failed to clear iCloud backup', { error: (error as Error).message });
     throw error;
   }

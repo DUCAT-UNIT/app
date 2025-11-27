@@ -52,7 +52,7 @@ export const getOrFetchKeys = async (): Promise<MintKeys> => {
     );
 
     return keysetData;
-  } catch (error) {
+  } catch (error: unknown) {
     logger.error('Failed to get keys', { error: (error as Error).message });
     throw error;
   }

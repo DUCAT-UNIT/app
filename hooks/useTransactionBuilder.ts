@@ -15,6 +15,7 @@ import type { WalletAddresses } from '../contexts/WalletContext';
 import type { TransactionIntent, AddressType, UnconfirmedUTXO as PendingUnconfirmedUTXO } from '../utils/pendingTransactionsUtils';
 import type { UTXO } from '../services/transaction/utxoSelection';
 import type { UtxoRef } from '../types/assets';
+import type { BtcTransactionIntent, UnitTransactionIntent } from '../services/transaction';
 
 /**
  * Convert PendingUnconfirmedUTXO to UTXO format for BTC transaction services
@@ -49,19 +50,11 @@ export interface RuneBalanceItem {
   [key: string]: unknown;
 }
 
-export interface SendIntent {
-  inputs?: Array<{ txid: string; vout: number }>;
-  runeUtxos?: Array<{ transaction: string; vout: number; runeAmount?: number }>;
-  runeUtxo?: { transaction: string; vout: number; runeAmount?: number };
-  satUtxo?: { txid: string; vout: number };
+/** Union type for transaction intents - either BTC or UNIT, with optional broadcast txid */
+export type SendIntent = (BtcTransactionIntent | UnitTransactionIntent) & {
   txid?: string;
-  assetType?: 'BTC' | 'UNIT';
-  amount?: string | number;
-  amountBTC?: string;
   signedTxHex?: string;
-  psbt?: string;
-  [key: string]: unknown;
-}
+};
 
 export interface UseTransactionBuilderParams {
   wallet: WalletAddresses | null;
@@ -133,9 +126,9 @@ export function useTransactionBuilder({
         await markUtxosAsSpent(lockedUtxos);
       }
 
-      setSendIntent(intent as unknown as SendIntent);
+      setSendIntent(intent);
       setIntentStep('reviewing');
-    } catch (error) {
+    } catch (error: unknown) {
       logger.error('Error creating BTC intent:', { error: error instanceof Error ? error.message : String(error) });
 
       if (lockedUtxos.length > 0) {
@@ -157,7 +150,9 @@ export function useTransactionBuilder({
         throw new Error('Wallet not initialized');
       }
 
-      const unitAmount = runesBalance && runesBalance.length > 0 ? runesBalance[0].amount : 0;
+      const unitAmount = runesBalance && runesBalance.length > 0
+        ? (Array.isArray(runesBalance[0]) ? runesBalance[0][1] : runesBalance[0].amount)
+        : 0;
       if (unitAmount === 0) {
         throw new Error(ERRORS.NO_UNIT_BALANCE);
       }
@@ -196,9 +191,9 @@ export function useTransactionBuilder({
         await markUtxosAsSpent(utxosToLock);
       }
 
-      setSendIntent(intent as unknown as SendIntent);
+      setSendIntent(intent);
       setIntentStep('reviewing');
-    } catch (error) {
+    } catch (error: unknown) {
       logger.error('Error creating UNIT intent:', { error: error instanceof Error ? error.message : String(error) });
 
       if (lockedUtxos.length > 0) {
@@ -244,14 +239,18 @@ export function useTransactionBuilder({
     if (!sendIntent.txid) {
       const utxosToRelease: UtxoRef[] = [];
 
-      sendIntent.inputs?.forEach(i => utxosToRelease.push({ txid: i.txid, vout: i.vout }));
-
-      if (sendIntent.runeUtxo) {
-        utxosToRelease.push({ txid: sendIntent.runeUtxo.transaction, vout: sendIntent.runeUtxo.vout });
-      }
-
-      if (sendIntent.satUtxo) {
-        utxosToRelease.push({ txid: sendIntent.satUtxo.txid, vout: sendIntent.satUtxo.vout });
+      // Handle based on asset type
+      if (sendIntent.assetType === 'BTC') {
+        // BTC transactions have inputs array
+        sendIntent.inputs.forEach((i: UTXO) => utxosToRelease.push({ txid: i.txid, vout: i.vout }));
+      } else if (sendIntent.assetType === 'UNIT') {
+        // UNIT transactions have runeUtxo and satUtxo
+        if (sendIntent.runeUtxo) {
+          utxosToRelease.push({ txid: sendIntent.runeUtxo.transaction, vout: sendIntent.runeUtxo.vout });
+        }
+        if (sendIntent.satUtxo) {
+          utxosToRelease.push({ txid: sendIntent.satUtxo.txid, vout: sendIntent.satUtxo.vout });
+        }
       }
 
       if (utxosToRelease.length > 0) {

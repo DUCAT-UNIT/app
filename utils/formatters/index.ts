@@ -18,6 +18,8 @@ export {
   formatSatoshis,
   formatAbbreviated,
   formatPercentage,
+  formatUnitAmount,
+  parseUnitToSmallestUnits,
   parseFormattedAmount,
 } from './amounts';
 

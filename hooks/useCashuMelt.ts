@@ -32,7 +32,7 @@ export function useCashuMelt({ setIsLoading, setError, setBalance }: UseCashuMel
       const quote = await requestMelt(address, amount);
       logger.info('Melt quote created', { quoteId: quote.quoteId, total: quote.total });
       return quote;
-    } catch (err) {
+    } catch (err: unknown) {
       const errorMessage = err instanceof Error ? err.message : String(err);
       logger.error('Failed to start melt', { error: errorMessage });
       setError(errorMessage);
@@ -55,7 +55,7 @@ export function useCashuMelt({ setIsLoading, setError, setBalance }: UseCashuMel
       setBalance(result.balance);
       logger.info('Melt completed', { txid: result.txid });
       return result;
-    } catch (err) {
+    } catch (err: unknown) {
       const errorMessage = err instanceof Error ? err.message : String(err);
       logger.error('Failed to complete melt', { error: errorMessage });
       setError(errorMessage);

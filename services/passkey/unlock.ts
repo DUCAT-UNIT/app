@@ -4,13 +4,17 @@
 
 import * as SecureStore from 'expo-secure-store';
 import { Passkey } from 'react-native-passkey';
+import type { PasskeyGetRequest } from 'react-native-passkey';
 import { SECURE_KEYS } from '../../utils/constants';
 import { PASSKEY } from '../../constants/security';
 import { deriveAddressesFromMnemonic } from '../../utils/bitcoin';
 import { logger } from '../../utils/logger';
 import { loadFromICloud, checkICloudAvailability } from '../icloudStorage';
+import type { AesGcmKey, PasskeyBackupData } from '../../types/crypto';
 // eslint-disable-next-line @typescript-eslint/no-var-requires
 const { getRandomValues } = require('react-native-quick-crypto');
+
+import { savePinWithExistingSalt } from '../pinService';
 
 import { PASSKEY_KEYS, toBase64Url, isPasskeySupported } from './core';
 import { deriveEncryptionKey, decryptMnemonic } from './encryption';
@@ -50,7 +54,7 @@ export const unlockWithPasskey = async (pin: string): Promise<UnlockResult> => {
     getRandomValues(challenge);
 
     // Create FIDO2 authentication request
-    const requestJson: any = {
+    const requestJson: PasskeyGetRequest = {
       challenge: toBase64Url(challenge),
       userVerification: PASSKEY.USER_VERIFICATION,
       allowCredentials: [
@@ -60,12 +64,8 @@ export const unlockWithPasskey = async (pin: string): Promise<UnlockResult> => {
         },
       ],
       timeout: PASSKEY.TIMEOUT_MS,
+      rpId: PASSKEY.RP_ID,
     };
-
-    // Only add rpId if configured (for production domain)
-    if (PASSKEY.RP_ID) {
-      requestJson.rpId = PASSKEY.RP_ID;
-    }
 
     logger.debug('Authenticating with passkey...');
 
@@ -120,7 +120,7 @@ export const unlockWithPasskey = async (pin: string): Promise<UnlockResult> => {
       mnemonic,
       addresses,
     };
-  } catch (error) {
+  } catch (error: unknown) {
     logger.error('Failed to unlock with passkey', { error: (error as Error).message });
     throw error;
   }
@@ -153,14 +153,15 @@ export const recoverWithPasskey = async (pin: string): Promise<UnlockResult> => 
 
     // Check if iCloud backup exists with detailed error
     debugSteps += '3. Checking iCloud backup...\n';
-    let backup: any;
+    let backup: PasskeyBackupData;
     try {
-      backup = await loadFromICloud();
-      if (!backup) {
+      const loadedBackup = await loadFromICloud();
+      if (!loadedBackup) {
         throw new Error(`${debugSteps}❌ No data in iCloud (loadFromICloud returned null)`);
       }
+      backup = loadedBackup as PasskeyBackupData;
       debugSteps += `✅ Found iCloud data with keys: ${Object.keys(backup).join(', ')}\n`;
-    } catch (icloudError) {
+    } catch (icloudError: unknown) {
       throw new Error(`${debugSteps}❌ iCloud load failed: ${(icloudError as Error).message}`);
     }
 
@@ -173,15 +174,15 @@ export const recoverWithPasskey = async (pin: string): Promise<UnlockResult> => 
     getRandomValues(challenge);
 
     // Create FIDO2 authentication request (discovery mode)
-    const requestJson: any = {
+    const requestJson: PasskeyGetRequest = {
       challenge: toBase64Url(challenge),
       userVerification: PASSKEY.USER_VERIFICATION,
       timeout: PASSKEY.TIMEOUT_MS,
+      rpId: PASSKEY.RP_ID,
     };
 
-    // Only add rpId if configured
+    // Log rpId status
     if (PASSKEY.RP_ID) {
-      requestJson.rpId = PASSKEY.RP_ID;
       debugSteps += `  Using rpId: ${PASSKEY.RP_ID}\n`;
     } else {
       debugSteps += '  No rpId (local mode)\n';
@@ -224,11 +225,11 @@ export const recoverWithPasskey = async (pin: string): Promise<UnlockResult> => 
 
     // Derive encryption key using passkey + PIN (with 10k iterations)
     debugSteps += '8. Deriving encryption key...\n';
-    let encryptionKey: any;
+    let encryptionKey: AesGcmKey;
     try {
       encryptionKey = await deriveEncryptionKey(credentialId, userHandle, pin, pinSalt);
       debugSteps += '✅ Encryption key derived\n';
-    } catch (keyError) {
+    } catch (keyError: unknown) {
       throw new Error(`${debugSteps}❌ Key derivation failed: ${(keyError as Error).message}`);
     }
 
@@ -270,7 +271,6 @@ export const recoverWithPasskey = async (pin: string): Promise<UnlockResult> => 
 
     // Store the PIN salt from backup and save the PIN hash for daily unlock
     await SecureStore.setItemAsync(SECURE_KEYS.PIN_SALT, pinSalt);
-    const { savePinWithExistingSalt } = await import('../pinService');
     await savePinWithExistingSalt(pin, pinSalt);
 
     logger.debug('Wallet recovered successfully from iCloud', {
@@ -282,7 +282,7 @@ export const recoverWithPasskey = async (pin: string): Promise<UnlockResult> => 
       mnemonic,
       addresses,
     };
-  } catch (error) {
+  } catch (error: unknown) {
     logger.error('Failed to recover with passkey', { error: (error as Error).message });
     // Re-throw with debug steps if not already included
     const errorMessage = (error as Error).message;

@@ -44,7 +44,7 @@ export const requestMelt = async (address: string, amount: number): Promise<Melt
       fee: quote.fee_reserve,
       total: quote.amount + quote.fee_reserve,
     };
-  } catch (error) {
+  } catch (error: unknown) {
     logger.error('Failed to request melt', { error: (error as Error).message });
     throw error;
   }
@@ -95,9 +95,11 @@ export const completeMelt = async (quoteId: string, totalAmount: number): Promis
       if (keyData.keysets && keyData.keysets.length > 0) {
         keysetId = keyData.keysets[0].id;
         keys = keyData.keysets[0].keys;
-      } else {
-        keys = keyData.keys || keyData;
+      } else if (keyData.keys) {
+        keys = keyData.keys;
         keysetId = '';
+      } else {
+        throw new Error('No keys available from mint');
       }
 
       const meltAmounts = splitAmount(totalAmount);
@@ -158,7 +160,7 @@ export const completeMelt = async (quoteId: string, totalAmount: number): Promis
       fee: result.fee_paid || 0,
       balance: newBalance,
     };
-  } catch (error) {
+  } catch (error: unknown) {
     logger.error('Failed to complete melt', { error: (error as Error).message, didSwap });
 
     // CRITICAL: If we swapped for change but melt failed, we MUST save the change proofs
@@ -222,9 +224,11 @@ export const completeMeltWithoutCleanup = async (quoteId: string, totalAmount: n
       if (keyData.keysets && keyData.keysets.length > 0) {
         keysetId = keyData.keysets[0].id;
         keys = keyData.keysets[0].keys;
-      } else {
-        keys = keyData.keys || keyData;
+      } else if (keyData.keys) {
+        keys = keyData.keys;
         keysetId = '';
+      } else {
+        throw new Error('No keys available from mint');
       }
 
       const meltAmounts = splitAmount(totalAmount);
@@ -268,7 +272,7 @@ export const completeMeltWithoutCleanup = async (quoteId: string, totalAmount: n
       proofsToRemove: didSwap ? [...selectedProofs] : proofsToMelt,
       changeProofs: changeProofs,
     };
-  } catch (error) {
+  } catch (error: unknown) {
     logger.error('Failed to complete melt without cleanup', { error: (error as Error).message, didSwap });
 
     // CRITICAL: If we swapped for change but melt failed, we MUST save the change proofs
@@ -305,7 +309,7 @@ export const cleanupMeltProofs = async (proofsToRemove: CashuProof[], changeProo
       await removeProofs(proofsToRemove);
       logger.info('Cleaned up melt proofs', { count: proofsToRemove.length });
     }
-  } catch (error) {
+  } catch (error: unknown) {
     logger.error('Failed to cleanup melt proofs', { error: (error as Error).message });
     throw error;
   }

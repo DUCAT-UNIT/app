@@ -9,7 +9,7 @@ import { useState, useCallback, useRef } from 'react';
 import { fetchAllTransactionHistory, Transaction } from '../services/transactionHistoryService';
 import type { WalletAddresses } from '../contexts/WalletContext';
 
-interface UseTransactionHistoryFetchReturn {
+export interface UseTransactionHistoryFetchReturn {
   transactionHistory: Transaction[];
   loadingTransactionHistory: boolean;
   historyError: string | null;
@@ -23,8 +23,8 @@ export function useTransactionHistoryFetch(wallet: WalletAddresses | null): UseT
   const [loadingTransactionHistory, setLoadingTransactionHistory] = useState(false);
   const [historyError, setHistoryError] = useState<string | null>(null);
 
-  // Keep a ref to previous transaction history for comparison
-  const prevHistoryRef = useRef<Transaction[]>([]);
+  // Keep a ref to previous transaction hash for comparison
+  const prevHashRef = useRef<string>('');
 
   /**
    * Fetch transaction history in background
@@ -39,29 +39,24 @@ export function useTransactionHistoryFetch(wallet: WalletAddresses | null): UseT
 
     try {
       // Only show loading spinner if we have no cached data
-      if (prevHistoryRef.current.length === 0) {
+      if (transactionHistory.length === 0) {
         setLoadingTransactionHistory(true);
       }
       setHistoryError(null);
       const history = await fetchAllTransactionHistory(segwitAddress, taprootAddress, vaultPubkey);
 
       // Update state if transactions have changed
-      // Check both txids AND confirmation status to catch when pending txs confirm
-      const prevHash = prevHistoryRef.current
-        .map(t => `${t.txid}:${t.status?.confirmed || false}:${t.status?.block_height || 0}`)
-        .sort()
-        .join('|');
+      // Compute hash once (no sort - order matters for display)
+      // Include txid, confirmation status, and block height to detect when pending txs confirm
       const newHash = history
         .map(t => `${t.txid}:${t.status?.confirmed || false}:${t.status?.block_height || 0}`)
-        .sort()
         .join('|');
-      const hasChanged = prevHash !== newHash;
 
-      if (hasChanged) {
-        prevHistoryRef.current = history;
+      if (newHash !== prevHashRef.current) {
+        prevHashRef.current = newHash;
         setTransactionHistory(history);
       }
-    } catch (error) {
+    } catch (error: unknown) {
       setHistoryError('Failed to fetch transaction history');
     } finally {
       setLoadingTransactionHistory(false);

@@ -5,6 +5,8 @@
 
 import { useState, Dispatch, SetStateAction } from 'react';
 import * as PasskeyService from '../services/passkey';
+import { savePin } from '../services/pinService';
+import { saveMnemonic, saveCurrentAccount } from '../services/secureStorageService';
 import type { WalletAddresses } from '../contexts/WalletContext';
 import type { ToastType } from '../types/notification';
 
@@ -59,7 +61,7 @@ export function usePasskeyRestore({
 
       // Show PIN input
       setShowRestorePinInput(true);
-    } catch (error) {
+    } catch (error: unknown) {
       showToast((error instanceof Error ? error.message : String(error)) || 'Failed to start passkey restore', 'error');
     }
   };
@@ -82,9 +84,6 @@ export function usePasskeyRestore({
       const { mnemonic, addresses } = await PasskeyService.recoverWithPasskey(pin);
 
       // Store mnemonic in SecureStore for daily unlock
-      const { savePin } = await import('../services/pinService');
-      const { saveMnemonic, saveCurrentAccount } = await import('../services/secureStorageService');
-
       await saveMnemonic(mnemonic);
       await saveCurrentAccount(0);
       await savePin(pin);
@@ -103,7 +102,7 @@ export function usePasskeyRestore({
       setRestoringWithPasskey(false);
 
       showToast('Wallet restored from passkey!', 'success');
-    } catch (error) {
+    } catch (error: unknown) {
       showToast((error instanceof Error ? error.message : String(error)) || 'Failed to restore wallet with passkey', 'error');
       setIsRestoring(false);
     } finally {

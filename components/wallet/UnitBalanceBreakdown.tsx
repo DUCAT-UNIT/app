@@ -7,6 +7,7 @@
 import React from 'react';
 import { View, Text, StyleSheet } from 'react-native';
 import { COLORS } from '../../theme';
+import { formatUnitAmount } from '../../utils/formatters/amounts';
 
 interface UnitBalanceBreakdownProps {
   ecashBalance: number;
@@ -37,10 +38,7 @@ const UnitBalanceBreakdown = ({ ecashBalance, runesBalance }: UnitBalanceBreakdo
           <View style={styles.labelRow}>
             <View style={[styles.dot, styles.dotRunes]} />
             <Text style={styles.balanceValue}>
-              {runesBalance.toLocaleString('en-US', {
-                minimumFractionDigits: 2,
-                maximumFractionDigits: 2
-              })} UNIT
+              {formatUnitAmount(runesBalance)} UNIT
             </Text>
           </View>
           <Text style={styles.balanceLabel}>onchain</Text>
@@ -51,10 +49,7 @@ const UnitBalanceBreakdown = ({ ecashBalance, runesBalance }: UnitBalanceBreakdo
           <View style={styles.labelRow}>
             <View style={[styles.dot, styles.dotEcash]} />
             <Text style={styles.balanceValue}>
-              {ecashBalance.toLocaleString('en-US', {
-                minimumFractionDigits: 2,
-                maximumFractionDigits: 2
-              })} eUNIT
+              {formatUnitAmount(ecashBalance)} eUNIT
             </Text>
           </View>
           <Text style={styles.balanceLabel}>ecash</Text>

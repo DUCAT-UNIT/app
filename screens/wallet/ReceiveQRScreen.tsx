@@ -52,7 +52,7 @@ export default function ReceiveQRScreen({ route, navigation }: ReceiveQRScreenPr
       await Share.share({
         message: address,
       });
-    } catch (error) {
+    } catch (error: unknown) {
       // Silently fail - user cancelled share or share not available
     }
   };

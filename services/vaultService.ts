@@ -90,7 +90,7 @@ export const fetchVaultHistory = async (vaultPubkey: string): Promise<VaultHisto
     );
 
     return allHistory;
-  } catch (error) {
+  } catch (error: unknown) {
     return [];
   }
 };
@@ -160,6 +160,7 @@ export const fetchVaultData = async (vaultPubkey: string): Promise<VaultData | n
       // Use data from first vault only (not totals across all vaults)
       const firstVault = vaultListData.vaults[0];
       return {
+        vaultId,
         vaultTag,
         totalDebt: firstVault.unit_borrowed,
         totalCollateral: firstVault.btc_locked,
@@ -195,7 +196,7 @@ export const fetchVaultData = async (vaultPubkey: string): Promise<VaultData | n
     });
 
     return vaultData;
-  } catch (error) {
+  } catch (error: unknown) {
     logger.error('❌ Error fetching vault data:', { error });
     return null;
   }

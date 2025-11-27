@@ -65,7 +65,7 @@ export function useAppSettings({ biometricEnabled, setIsAuthenticated, showToast
         if (savedEcashThreshold !== null) {
           setEcashThreshold(parseInt(savedEcashThreshold, 10));
         }
-      } catch (error) {}
+      } catch (error: unknown) {}
     };
     loadSettings();
   }, []);
@@ -112,7 +112,7 @@ export function useAppSettings({ biometricEnabled, setIsAuthenticated, showToast
           }
 
           await SecureStore.setItemAsync('returnToSettingsAfterAuth', 'true');
-        } catch (error) {
+        } catch (error: unknown) {
           if (showToast) {
             showToast('Authentication required to enable notifications', 'error');
           }
@@ -133,7 +133,7 @@ export function useAppSettings({ biometricEnabled, setIsAuthenticated, showToast
       if (showToast) {
         showToast(`Notifications ${newValue ? 'enabled' : 'disabled'}`, 'success');
       }
-    } catch (error) {
+    } catch (error: unknown) {
       if (showToast) {
         showToast('Failed to update notifications setting', 'error');
       }
@@ -150,7 +150,7 @@ export function useAppSettings({ biometricEnabled, setIsAuthenticated, showToast
       if (showToast) {
         showToast('Cashu cache cleared successfully', 'success');
       }
-    } catch (error) {
+    } catch (error: unknown) {
       if (showToast) {
         showToast('Failed to clear Cashu cache', 'error');
       }
@@ -182,7 +182,7 @@ export function useAppSettings({ biometricEnabled, setIsAuthenticated, showToast
           showToast(result.message, 'info');
         }
       }
-    } catch (error) {
+    } catch (error: unknown) {
       const errorMessage = error instanceof Error ? error.message : String(error);
       logger.error('[useAppSettings] Recovery failed:', { error: errorMessage });
       if (showSnackbar) {
@@ -202,7 +202,7 @@ export function useAppSettings({ biometricEnabled, setIsAuthenticated, showToast
       if (showToast) {
         showToast('Sent locked tokens history cleared', 'success');
       }
-    } catch (error) {
+    } catch (error: unknown) {
       if (showToast) {
         showToast('Failed to clear locked tokens history', 'error');
       }

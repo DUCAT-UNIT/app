@@ -6,6 +6,7 @@
 import React from 'react';
 import { create, act } from 'react-test-renderer';
 import { SendFlowProvider, useSendFlow } from '../SendFlowContext';
+import { resetSendFlowStore } from '../../stores';
 
 // Mock logger
 jest.mock('../../utils/logger', () => ({
@@ -37,20 +38,20 @@ describe('SendFlowContext', () => {
   beforeEach(() => {
     jest.clearAllTimers();
     jest.useFakeTimers();
+    // Reset Zustand store state between tests
+    resetSendFlowStore();
   });
 
   afterEach(() => {
     jest.useRealTimers();
   });
 
-  it('should throw error when used outside provider', () => {
-    const consoleError = jest.spyOn(console, 'error').mockImplementation(() => {});
+  it('should work without provider (Zustand stores are globally accessible)', () => {
+    // Zustand stores don't require providers - they're globally accessible
+    const { result } = renderHook(() => useSendFlow());
 
-    expect(() => {
-      renderHook(() => useSendFlow());
-    }).toThrow('useSendFlow must be used within a SendFlowProvider');
-
-    consoleError.mockRestore();
+    expect(result.current.intentStep).toBe('idle');
+    expect(result.current.setIntentStep).toBeDefined();
   });
 
   it('should provide initial state', () => {

@@ -46,7 +46,7 @@ export interface AssetCardProps {
   testID?: string;
 }
 
-export default function AssetCard({
+const AssetCard = React.memo(function AssetCard({
   assetName,
   assetLogo,
   amountLabel,
@@ -120,4 +120,6 @@ export default function AssetCard({
       </View>
     </CardWrapper>
   );
-}
+});
+
+export default AssetCard;

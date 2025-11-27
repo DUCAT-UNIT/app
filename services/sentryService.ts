@@ -45,7 +45,7 @@ export async function getDeviceId(): Promise<string> {
     deviceId = await generateDeviceId();
     await AsyncStorage.setItem(DEVICE_ID_KEY, deviceId);
     return deviceId;
-  } catch (error) {
+  } catch (error: unknown) {
     // Fallback to generated ID without persistence
     deviceId = await generateDeviceId();
     return deviceId;
@@ -106,7 +106,7 @@ export async function initializeSentrySession(): Promise<string | null> {
     });
 
     return id;
-  } catch (error) {
+  } catch (error: unknown) {
     Sentry.captureException(error);
     return null;
   }
@@ -344,10 +344,10 @@ const SENSITIVE_VALUES = {
   cashuToken: /cashuA[A-Za-z0-9_-]+/g,
 };
 
-function sanitizeParams(params: any): any {
+function sanitizeParams(params: Record<string, unknown>): Record<string, unknown> {
   if (!params || typeof params !== 'object') return params;
 
-  const sanitized: Record<string, any> = {};
+  const sanitized: Record<string, unknown> = {};
   for (const [key, value] of Object.entries(params)) {
     if (SENSITIVE_KEYS.test(key)) {
       sanitized[key] = '[REDACTED]';
@@ -358,7 +358,7 @@ function sanitizeParams(params: any): any {
       }
       sanitized[key] = sanitizedValue;
     } else if (typeof value === 'object' && value !== null) {
-      sanitized[key] = sanitizeParams(value);
+      sanitized[key] = sanitizeParams(value as Record<string, unknown>);
     } else {
       sanitized[key] = value;
     }

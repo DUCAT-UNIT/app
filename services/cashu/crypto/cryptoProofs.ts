@@ -53,12 +53,11 @@ export const splitAmount = (amount: number): number[] => {
 /**
  * Sum proof amounts
  * @param proofs - Array of proofs
- * @returns Total amount in display units (divided by 100)
+ * @returns Total amount in smallest units (integer)
  */
 export const sumProofs = (proofs: CashuProof[]): number => {
-  const totalSmallestUnits = proofs.reduce((sum, proof) => sum + proof.amount, 0);
-  // Convert from smallest units to display units (divide by 100)
-  return totalSmallestUnits / 100;
+  // Return sum in smallest units (integer) - conversion to display happens in UI
+  return proofs.reduce((sum, proof) => sum + proof.amount, 0);
 };
 
 /**

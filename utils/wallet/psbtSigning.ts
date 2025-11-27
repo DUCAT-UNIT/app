@@ -4,6 +4,7 @@
 
 import { Buffer } from 'buffer';
 import * as bitcoin from 'bitcoinjs-lib';
+import type { PsbtInput } from 'bip174';
 import { BIP32Interface } from 'bip32';
 import { ECPairInterface } from 'ecpair';
 import * as bip39 from 'bip39';
@@ -36,7 +37,7 @@ export async function signPsbt(
     if (storedAccount) {
       accountIndex = parseInt(storedAccount, 10);
     }
-  } catch (error) {
+  } catch (error: unknown) {
     // Ignore SecureStore errors, use default account 0
   }
 
@@ -68,7 +69,7 @@ export async function signPsbt(
           } else {
             signSegwitInput(psbt, inputIndex, keyPair as ECPairInterface);
           }
-        } catch (error) {
+        } catch (error: unknown) {
           throw error;
         }
       }
@@ -103,7 +104,7 @@ function signScriptPathInput(
   psbt: bitcoin.Psbt,
   inputIndex: number,
   keyPair: BIP32Interface,
-  input: any
+  input: PsbtInput
 ): void {
   const tapLeafScript = input.tapLeafScript![0];
   const leafVersion = tapLeafScript.leafVersion;
@@ -161,7 +162,7 @@ function signKeyPathInput(
       bitcoin.crypto.taggedHash('TapTweak', xOnlyPubkey)
     );
     psbt.signInput(inputIndex, tweakedSigner);
-  } catch (error) {
+  } catch (error: unknown) {
     // Fall back to manual signing
     // @ts-expect-error - Accessing internal cache for low-level signing
     const tx = psbt.__CACHE.__TX.clone();
@@ -193,7 +194,7 @@ function signSegwitInput(
 
   try {
     psbt.finalizeInput(inputIndex);
-  } catch (error) {
+  } catch (error: unknown) {
     // Ignore finalization errors
   }
 }

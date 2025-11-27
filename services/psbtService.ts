@@ -5,6 +5,7 @@
 
 import * as bitcoin from 'bitcoinjs-lib';
 import { logger } from '../utils/logger';
+import type { BtcTransactionIntent, UnitTransactionIntent } from './transaction';
 
 export interface PSBTInput {
   address: string;
@@ -26,41 +27,8 @@ export interface ParsedPSBT {
   actualFee: number;
 }
 
-interface RuneUtxo {
-  value: number;
-  runeAmount: number;
-  status?: {
-    confirmed: boolean;
-  };
-}
-
-interface SatUtxo {
-  value: number;
-  status?: {
-    confirmed: boolean;
-  };
-}
-
-interface TransactionInput {
-  value: number;
-  status?: {
-    confirmed: boolean;
-  };
-}
-
-export interface SendIntent {
-  psbt: string;
-  assetType?: 'UNIT' | 'BTC';
-  sourceAddress?: string;
-  feeAddress?: string;
-  recipient?: string;
-  amount?: number;
-  amountBTC?: string;
-  change?: number;
-  runeUtxo?: RuneUtxo;
-  satUtxo?: SatUtxo;
-  inputs?: TransactionInput[];
-}
+/** SendIntent is the union of BTC and UNIT transaction intents */
+export type SendIntent = BtcTransactionIntent | UnitTransactionIntent;
 
 /**
  * Parse PSBT and extract inputs, outputs, and calculate fees
@@ -87,7 +55,7 @@ export function parsePSBT(sendIntent: SendIntent): ParsedPSBT {
       psbtOutputs: outputs,
       actualFee: fee
     };
-  } catch (error) {
+  } catch (error: unknown) {
     logger.error(error as Error, { context: 'Error decoding PSBT' });
     return {
       psbtInputs: [],
@@ -159,7 +127,7 @@ function parseOutputs(psbt: bitcoin.Psbt, sendIntent: SendIntent): PSBTOutput[] 
         output.script,
         bitcoin.networks.testnet
       );
-    } catch (e) {
+    } catch (e: unknown) {
       // Failed to decode address - keep as 'Unknown'
     }
 
@@ -218,19 +186,25 @@ function determineOutputType(
 export function buildFallbackOutputs(sendIntent: SendIntent): PSBTOutput[] {
   const outputs: PSBTOutput[] = [];
 
-  // Add recipient output
-  outputs.push({
-    address: sendIntent.recipient!,
-    value: sendIntent.assetType === 'UNIT'
-      ? sendIntent.amount!
-      : Math.floor(parseFloat(sendIntent.amountBTC!) * 100000000),
-    type: 'recipient'
-  });
+  // Add recipient output - use type narrowing for proper amount calculation
+  if (sendIntent.assetType === 'UNIT') {
+    outputs.push({
+      address: sendIntent.recipient,
+      value: sendIntent.amount,
+      type: 'recipient'
+    });
+  } else {
+    outputs.push({
+      address: sendIntent.recipient,
+      value: Math.floor(parseFloat(sendIntent.amountBTC) * 100000000),
+      type: 'recipient'
+    });
+  }
 
   // Add change output if present
   if (sendIntent.change && sendIntent.change > 0) {
     outputs.push({
-      address: sendIntent.sourceAddress!,
+      address: sendIntent.sourceAddress,
       value: sendIntent.change,
       type: 'change'
     });

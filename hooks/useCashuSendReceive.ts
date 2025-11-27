@@ -38,7 +38,7 @@ export function useCashuSendReceive({ setIsLoading, setError, setBalance, fetchB
       await fetchBalance();
       logger.info('Token received', { amount: result.amount });
       return result;
-    } catch (err) {
+    } catch (err: unknown) {
       const errorMessage = err instanceof Error ? err.message : String(err);
       logger.error('Failed to receive token', { error: errorMessage });
       setError(errorMessage);
@@ -61,7 +61,7 @@ export function useCashuSendReceive({ setIsLoading, setError, setBalance, fetchB
       setBalance(result.balance);
       logger.info('Token sent', { amount: result.amount });
       return result;
-    } catch (err) {
+    } catch (err: unknown) {
       const errorMessage = err instanceof Error ? err.message : String(err);
       logger.error('Failed to send token', { error: errorMessage });
       setError(errorMessage);

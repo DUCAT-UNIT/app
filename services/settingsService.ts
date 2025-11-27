@@ -33,10 +33,33 @@ export const SettingKeys = {
   DEBUG_MODE: 'debugMode',
 } as const;
 
-export interface SettingItem {
+/**
+ * Type mapping for setting types to their TypeScript equivalents
+ * @example
+ * // Maps 'string' -> string, 'boolean' -> boolean, etc.
+ * type MyType = SettingTypeMap['boolean']; // boolean
+ */
+export interface SettingTypeMap {
+  string: string;
+  boolean: boolean;
+  number: number;
+  object: Record<string, unknown>;
+}
+
+/**
+ * Setting item configuration with generic type inference
+ * @template T - The setting type ('string' | 'boolean' | 'number' | 'object')
+ * @example
+ * const setting: SettingItem<'boolean'> = {
+ *   key: 'darkMode',
+ *   type: 'boolean',
+ *   defaultValue: false // TypeScript enforces this is boolean
+ * };
+ */
+export interface SettingItem<T extends keyof SettingTypeMap = keyof SettingTypeMap> {
   key: string;
-  type: 'string' | 'boolean' | 'number' | 'object';
-  defaultValue: any;
+  type: T;
+  defaultValue: SettingTypeMap[T];
 }
 
 /**
@@ -49,8 +72,8 @@ export async function getString(key: string, defaultValue = ''): Promise<string>
   try {
     const value = await SecureStore.getItemAsync(key);
     return value !== null ? value : defaultValue;
-  } catch (error) {
-    logger.error(`settingsService: Error getting string "${key}":`, { error });
+  } catch (error: unknown) {
+    logger.error(`settingsService: Error getting string "${key}":`, { error: error instanceof Error ? error.message : String(error) });
     return defaultValue;
   }
 }
@@ -65,8 +88,8 @@ export async function setString(key: string, value: string): Promise<boolean> {
   try {
     await SecureStore.setItemAsync(key, String(value));
     return true;
-  } catch (error) {
-    logger.error(`settingsService: Error setting string "${key}":`, { error });
+  } catch (error: unknown) {
+    logger.error(`settingsService: Error setting string "${key}":`, { error: error instanceof Error ? error.message : String(error) });
     return false;
   }
 }
@@ -84,8 +107,8 @@ export async function getBoolean(key: string, defaultValue = false): Promise<boo
       return defaultValue;
     }
     return value === 'true';
-  } catch (error) {
-    logger.error(`settingsService: Error getting boolean "${key}":`, { error });
+  } catch (error: unknown) {
+    logger.error(`settingsService: Error getting boolean "${key}":`, { error: error instanceof Error ? error.message : String(error) });
     return defaultValue;
   }
 }
@@ -100,8 +123,8 @@ export async function setBoolean(key: string, value: boolean): Promise<boolean> 
   try {
     await SecureStore.setItemAsync(key, value ? 'true' : 'false');
     return true;
-  } catch (error) {
-    logger.error(`settingsService: Error setting boolean "${key}":`, { error });
+  } catch (error: unknown) {
+    logger.error(`settingsService: Error setting boolean "${key}":`, { error: error instanceof Error ? error.message : String(error) });
     return false;
   }
 }
@@ -120,8 +143,8 @@ export async function getNumber(key: string, defaultValue = 0): Promise<number> 
     }
     const parsed = parseFloat(value);
     return isNaN(parsed) ? defaultValue : parsed;
-  } catch (error) {
-    logger.error(`settingsService: Error getting number "${key}":`, { error });
+  } catch (error: unknown) {
+    logger.error(`settingsService: Error getting number "${key}":`, { error: error instanceof Error ? error.message : String(error) });
     return defaultValue;
   }
 }
@@ -136,43 +159,57 @@ export async function setNumber(key: string, value: number): Promise<boolean> {
   try {
     await SecureStore.setItemAsync(key, String(value));
     return true;
-  } catch (error) {
-    logger.error(`settingsService: Error setting number "${key}":`, { error });
+  } catch (error: unknown) {
+    logger.error(`settingsService: Error setting number "${key}":`, { error: error instanceof Error ? error.message : String(error) });
     return false;
   }
 }
 
 /**
- * Get a JSON object setting
+ * Get a JSON object setting with type-safe generic
+ * @template T - The expected object type
  * @param key - Setting key
  * @param defaultValue - Default value if not set
  * @returns Setting value
+ * @example
+ * interface UserPrefs { theme: string; fontSize: number; }
+ * const prefs = await getObject<UserPrefs>('userPrefs', { theme: 'dark', fontSize: 14 });
  */
-export async function getObject<T = any>(key: string, defaultValue: T = {} as T): Promise<T> {
+export async function getObject<T extends Record<string, unknown>>(
+  key: string,
+  defaultValue: T
+): Promise<T> {
   try {
     const value = await SecureStore.getItemAsync(key);
     if (value === null) {
       return defaultValue;
     }
     return JSON.parse(value) as T;
-  } catch (error) {
-    logger.error(`settingsService: Error getting object "${key}":`, { error });
+  } catch (error: unknown) {
+    logger.error(`settingsService: Error getting object "${key}":`, { error: error instanceof Error ? error.message : String(error) });
     return defaultValue;
   }
 }
 
 /**
- * Set a JSON object setting
+ * Set a JSON object setting with type-safe generic
+ * @template T - The object type being stored
  * @param key - Setting key
  * @param value - Value to store
  * @returns True if successful
+ * @example
+ * interface UserPrefs { theme: string; fontSize: number; }
+ * await setObject<UserPrefs>('userPrefs', { theme: 'dark', fontSize: 14 });
  */
-export async function setObject(key: string, value: any): Promise<boolean> {
+export async function setObject<T extends Record<string, unknown>>(
+  key: string,
+  value: T
+): Promise<boolean> {
   try {
     await SecureStore.setItemAsync(key, JSON.stringify(value));
     return true;
-  } catch (error) {
-    logger.error(`settingsService: Error setting object "${key}":`, { error });
+  } catch (error: unknown) {
+    logger.error(`settingsService: Error setting object "${key}":`, { error: error instanceof Error ? error.message : String(error) });
     return false;
   }
 }
@@ -186,8 +223,8 @@ export async function deleteSetting(key: string): Promise<boolean> {
   try {
     await SecureStore.deleteItemAsync(key);
     return true;
-  } catch (error) {
-    logger.error(`settingsService: Error deleting "${key}":`, { error });
+  } catch (error: unknown) {
+    logger.error(`settingsService: Error deleting "${key}":`, { error: error instanceof Error ? error.message : String(error) });
     return false;
   }
 }
@@ -213,35 +250,55 @@ export async function exists(key: string): Promise<boolean> {
   try {
     const value = await SecureStore.getItemAsync(key);
     return value !== null;
-  } catch (error) {
-    logger.error(`settingsService: Error checking existence of "${key}":`, { error });
+  } catch (error: unknown) {
+    logger.error(`settingsService: Error checking existence of "${key}":`, { error: error instanceof Error ? error.message : String(error) });
     return false;
   }
 }
 
 /**
- * Get multiple settings at once
- * @param settings - Array of setting configurations
- * @returns Object with keys mapped to values
+ * Result type for getMultiple - maps setting keys to their inferred types
+ * @template T - Array of SettingItem configurations
  */
-export async function getMultiple(settings: SettingItem[]): Promise<Record<string, any>> {
-  const results: Record<string, any> = {};
+export type GetMultipleResult<T extends readonly SettingItem[]> = {
+  [K in T[number]['key']]: T[number] extends { key: K; type: infer Type }
+    ? Type extends keyof SettingTypeMap
+      ? SettingTypeMap[Type]
+      : unknown
+    : unknown;
+};
+
+/**
+ * Get multiple settings at once with type inference
+ * @param settings - Array of setting configurations
+ * @returns Object with keys mapped to their typed values
+ * @example
+ * const settings = await getMultiple([
+ *   { key: 'darkMode', type: 'boolean', defaultValue: false },
+ *   { key: 'fontSize', type: 'number', defaultValue: 14 }
+ * ]);
+ * // settings.darkMode is boolean, settings.fontSize is number
+ */
+export async function getMultiple<T extends SettingItem[]>(
+  settings: T
+): Promise<Record<string, SettingTypeMap[keyof SettingTypeMap]>> {
+  const results: Record<string, SettingTypeMap[keyof SettingTypeMap]> = {};
 
   await Promise.all(
     settings.map(async ({ key, type, defaultValue }) => {
       switch (type) {
         case 'boolean':
-          results[key] = await getBoolean(key, defaultValue);
+          results[key] = await getBoolean(key, defaultValue as boolean);
           break;
         case 'number':
-          results[key] = await getNumber(key, defaultValue);
+          results[key] = await getNumber(key, defaultValue as number);
           break;
         case 'object':
-          results[key] = await getObject(key, defaultValue);
+          results[key] = await getObject(key, defaultValue as Record<string, unknown>);
           break;
         case 'string':
         default:
-          results[key] = await getString(key, defaultValue);
+          results[key] = await getString(key, defaultValue as string);
           break;
       }
     })
@@ -251,11 +308,22 @@ export async function getMultiple(settings: SettingItem[]): Promise<Record<strin
 }
 
 /**
- * Set multiple settings at once
+ * Allowed value types for setMultiple
+ */
+export type SettingValue = string | boolean | number | Record<string, unknown>;
+
+/**
+ * Set multiple settings at once with type-safe values
  * @param settings - Object with key-value pairs to set
  * @returns True if all successful
+ * @example
+ * await setMultiple({
+ *   darkMode: true,
+ *   fontSize: 16,
+ *   theme: 'dark'
+ * });
  */
-export async function setMultiple(settings: Record<string, any>): Promise<boolean> {
+export async function setMultiple(settings: Record<string, SettingValue>): Promise<boolean> {
   try {
     const results = await Promise.all(
       Object.entries(settings).map(([key, value]) => {
@@ -272,8 +340,8 @@ export async function setMultiple(settings: Record<string, any>): Promise<boolea
       })
     );
     return results.every(result => result === true);
-  } catch (error) {
-    logger.error('settingsService: Error setting multiple settings:', { error });
+  } catch (error: unknown) {
+    logger.error('settingsService: Error setting multiple settings:', { error: error instanceof Error ? error.message : String(error) });
     return false;
   }
 }

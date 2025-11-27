@@ -268,4 +268,302 @@ describe('useAccountSwitcher', () => {
     expect(mockSwitchAccountContext).toHaveBeenNthCalledWith(2, 2);
     expect(mockSwitchAccountContext).toHaveBeenNthCalledWith(3, 0);
   });
+
+  describe('fire-and-forget callbacks', () => {
+    it('should call fetchBalance in background', async () => {
+      const mockFetchBalance = jest.fn().mockResolvedValue(undefined);
+
+      const { result } = renderHook(() =>
+        useAccountSwitcher({
+          switchAccountContext: mockSwitchAccountContext,
+          fetchBalance: mockFetchBalance,
+        })
+      );
+
+      await act(async () => {
+        const switchPromise = result.current.switchAccount(2);
+        jest.advanceTimersByTime(0);
+        await switchPromise;
+      });
+
+      // Allow async fire-and-forget to execute
+      await act(async () => {
+        await Promise.resolve();
+      });
+
+      expect(mockFetchBalance).toHaveBeenCalled();
+    });
+
+    it('should call fetchVault in background', async () => {
+      const mockFetchVault = jest.fn().mockResolvedValue(undefined);
+
+      const { result } = renderHook(() =>
+        useAccountSwitcher({
+          switchAccountContext: mockSwitchAccountContext,
+          fetchVault: mockFetchVault,
+        })
+      );
+
+      await act(async () => {
+        const switchPromise = result.current.switchAccount(2);
+        jest.advanceTimersByTime(0);
+        await switchPromise;
+      });
+
+      await act(async () => {
+        await Promise.resolve();
+      });
+
+      expect(mockFetchVault).toHaveBeenCalled();
+    });
+
+    it('should call fetchTransactionHistory in background', async () => {
+      const mockFetchTransactionHistory = jest.fn().mockResolvedValue(undefined);
+
+      const { result } = renderHook(() =>
+        useAccountSwitcher({
+          switchAccountContext: mockSwitchAccountContext,
+          fetchTransactionHistory: mockFetchTransactionHistory,
+        })
+      );
+
+      await act(async () => {
+        const switchPromise = result.current.switchAccount(2);
+        jest.advanceTimersByTime(0);
+        await switchPromise;
+      });
+
+      await act(async () => {
+        await Promise.resolve();
+      });
+
+      expect(mockFetchTransactionHistory).toHaveBeenCalled();
+    });
+
+    it('should call resetAndRefreshCashu with new taproot address', async () => {
+      const mockResetAndRefreshCashu = jest.fn().mockResolvedValue(undefined);
+      const newTaprootAddress = 'bc1pnewtaproot';
+
+      mockSwitchAccountContext.mockResolvedValue({
+        taprootAddress: newTaprootAddress,
+        segwitAddress: 'bc1qnewsegwit',
+      });
+
+      const { result } = renderHook(() =>
+        useAccountSwitcher({
+          switchAccountContext: mockSwitchAccountContext,
+          resetAndRefreshCashu: mockResetAndRefreshCashu,
+        })
+      );
+
+      await act(async () => {
+        const switchPromise = result.current.switchAccount(2);
+        jest.advanceTimersByTime(0);
+        await switchPromise;
+      });
+
+      await act(async () => {
+        await Promise.resolve();
+      });
+
+      expect(mockResetAndRefreshCashu).toHaveBeenCalledWith(newTaprootAddress);
+    });
+
+    it('should handle sync fire-and-forget callbacks', async () => {
+      const mockSyncCallback = jest.fn(); // Synchronous
+
+      const { result } = renderHook(() =>
+        useAccountSwitcher({
+          switchAccountContext: mockSwitchAccountContext,
+          fetchBalance: mockSyncCallback,
+        })
+      );
+
+      await act(async () => {
+        const switchPromise = result.current.switchAccount(2);
+        jest.advanceTimersByTime(0);
+        await switchPromise;
+      });
+
+      await act(async () => {
+        await Promise.resolve();
+      });
+
+      expect(mockSyncCallback).toHaveBeenCalled();
+    });
+
+    it('should catch errors in async fire-and-forget callbacks', async () => {
+      const mockFetchBalance = jest.fn().mockRejectedValue(new Error('Fetch failed'));
+
+      const { result } = renderHook(() =>
+        useAccountSwitcher({
+          switchAccountContext: mockSwitchAccountContext,
+          fetchBalance: mockFetchBalance,
+        })
+      );
+
+      // Should not throw
+      await act(async () => {
+        const switchPromise = result.current.switchAccount(2);
+        jest.advanceTimersByTime(0);
+        await switchPromise;
+      });
+
+      await act(async () => {
+        await Promise.resolve();
+        await Promise.resolve();
+      });
+
+      expect(result.current.switchingAccount).toBe(false);
+    });
+
+    it('should catch synchronous errors in fire-and-forget callbacks', async () => {
+      const mockFetchBalance = jest.fn().mockImplementation(() => {
+        throw new Error('Sync error');
+      });
+
+      const { result } = renderHook(() =>
+        useAccountSwitcher({
+          switchAccountContext: mockSwitchAccountContext,
+          fetchBalance: mockFetchBalance,
+        })
+      );
+
+      // Should not throw
+      await act(async () => {
+        const switchPromise = result.current.switchAccount(2);
+        jest.advanceTimersByTime(0);
+        await switchPromise;
+      });
+
+      expect(result.current.switchingAccount).toBe(false);
+    });
+
+    it('should call onAccountSwitched callback', async () => {
+      const mockOnAccountSwitched = jest.fn();
+
+      const { result } = renderHook(() =>
+        useAccountSwitcher({
+          switchAccountContext: mockSwitchAccountContext,
+          onAccountSwitched: mockOnAccountSwitched,
+        })
+      );
+
+      await act(async () => {
+        const switchPromise = result.current.switchAccount(3); // Account 3 = index 2
+        jest.advanceTimersByTime(0);
+        await switchPromise;
+      });
+
+      expect(mockOnAccountSwitched).toHaveBeenCalledWith(2);
+    });
+  });
+
+  describe('reset callbacks', () => {
+    it('should call resetBalances before switching', async () => {
+      const mockResetBalances = jest.fn();
+
+      const { result } = renderHook(() =>
+        useAccountSwitcher({
+          switchAccountContext: mockSwitchAccountContext,
+          resetBalances: mockResetBalances,
+        })
+      );
+
+      await act(async () => {
+        const switchPromise = result.current.switchAccount(2);
+        jest.advanceTimersByTime(0);
+        await switchPromise;
+      });
+
+      expect(mockResetBalances).toHaveBeenCalled();
+    });
+
+    it('should call resetTransactionHistory before switching', async () => {
+      const mockResetTransactionHistory = jest.fn();
+
+      const { result } = renderHook(() =>
+        useAccountSwitcher({
+          switchAccountContext: mockSwitchAccountContext,
+          resetTransactionHistory: mockResetTransactionHistory,
+        })
+      );
+
+      await act(async () => {
+        const switchPromise = result.current.switchAccount(2);
+        jest.advanceTimersByTime(0);
+        await switchPromise;
+      });
+
+      expect(mockResetTransactionHistory).toHaveBeenCalled();
+    });
+
+    it('should call resetVaultData before switching', async () => {
+      const mockResetVaultData = jest.fn();
+
+      const { result } = renderHook(() =>
+        useAccountSwitcher({
+          switchAccountContext: mockSwitchAccountContext,
+          resetVaultData: mockResetVaultData,
+        })
+      );
+
+      await act(async () => {
+        const switchPromise = result.current.switchAccount(2);
+        jest.advanceTimersByTime(0);
+        await switchPromise;
+      });
+
+      expect(mockResetVaultData).toHaveBeenCalled();
+    });
+  });
+
+  describe('error handling in fire-and-forget', () => {
+    it('should handle non-Error exceptions in async callbacks', async () => {
+      const mockFetchBalance = jest.fn().mockRejectedValue('String error');
+
+      const { result } = renderHook(() =>
+        useAccountSwitcher({
+          switchAccountContext: mockSwitchAccountContext,
+          fetchBalance: mockFetchBalance,
+        })
+      );
+
+      // Should not throw
+      await act(async () => {
+        const switchPromise = result.current.switchAccount(2);
+        jest.advanceTimersByTime(0);
+        await switchPromise;
+      });
+
+      await act(async () => {
+        await Promise.resolve();
+        await Promise.resolve();
+      });
+
+      expect(result.current.switchingAccount).toBe(false);
+    });
+
+    it('should handle non-Error exceptions in sync callbacks', async () => {
+      const mockFetchBalance = jest.fn().mockImplementation(() => {
+        throw 'String sync error';
+      });
+
+      const { result } = renderHook(() =>
+        useAccountSwitcher({
+          switchAccountContext: mockSwitchAccountContext,
+          fetchBalance: mockFetchBalance,
+        })
+      );
+
+      // Should not throw
+      await act(async () => {
+        const switchPromise = result.current.switchAccount(2);
+        jest.advanceTimersByTime(0);
+        await switchPromise;
+      });
+
+      expect(result.current.switchingAccount).toBe(false);
+    });
+  });
 });

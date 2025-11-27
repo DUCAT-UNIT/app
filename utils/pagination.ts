@@ -64,7 +64,7 @@ export async function fetchPaginated<T = unknown>(
       }
 
       pageCount++;
-    } catch (error) {
+    } catch (error: unknown) {
       // Don't log AbortErrors - they're expected when navigation cancels requests
       if ((error as Error).name !== 'AbortError') {
         logger.error(error as Error, { page: pageCount + 1 });
@@ -167,7 +167,7 @@ export class PaginationManager<T = unknown> {
       }
 
       return items;
-    } catch (error) {
+    } catch (error: unknown) {
       // Don't log AbortErrors - they're expected when navigation cancels requests
       if ((error as Error).name !== 'AbortError') {
         logger.error(error as Error, { context: 'PaginationManager' });

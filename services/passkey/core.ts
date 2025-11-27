@@ -27,7 +27,7 @@ export const isPasskeySupported = async (): Promise<boolean> => {
     const supported = Passkey.isSupported();
     logger.debug('Passkey support check', { supported });
     return supported;
-  } catch (error) {
+  } catch (error: unknown) {
     logger.error('Failed to check passkey support', { error: (error as Error).message });
     return false;
   }

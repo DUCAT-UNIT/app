@@ -9,7 +9,7 @@ import { fetchVaultData, VaultData } from '../services/vaultService';
 import logger from '../utils/logger';
 import type { WalletAddresses } from '../contexts/WalletContext';
 
-interface UseVaultDataFetchReturn {
+export interface UseVaultDataFetchReturn {
   vaultData: VaultData | null;
   loadingVault: boolean;
   vaultError: string | null;
@@ -46,10 +46,6 @@ export function useVaultDataFetch(wallet: WalletAddresses | null): UseVaultDataF
   useEffect(() => {
     const currentPubkey = wallet?.taprootPubkey;
     if (currentPubkey !== prevWalletPubkeyRef.current) {
-      logger.debug('[useVaultDataFetch] Wallet pubkey changed, resetting prevVaultDataRef', {
-        prev: prevWalletPubkeyRef.current,
-        current: currentPubkey,
-      });
       prevVaultDataRef.current = null;
       prevWalletPubkeyRef.current = currentPubkey;
     }
@@ -62,33 +58,20 @@ export function useVaultDataFetch(wallet: WalletAddresses | null): UseVaultDataF
     const vaultPubkey = wallet?.taprootPubkey;
 
     if (!vaultPubkey) {
-      logger.debug('[useVaultDataFetch] No vault pubkey, skipping fetch');
       return;
     }
 
     try {
       setLoadingVault(true);
       setVaultError(null);
-      logger.debug('[useVaultDataFetch] Fetching vault data...');
       const data = await fetchVaultData(vaultPubkey);
-      logger.debug('[useVaultDataFetch] Vault data fetched', data);
 
       // Only update state if vault data has actually changed
-      const dataChanged = !isVaultDataEqual(prevVaultDataRef.current, data);
-      logger.debug('[useVaultDataFetch] Vault data change check', {
-        prevData: prevVaultDataRef.current,
-        newData: data,
-        changed: dataChanged,
-      });
-
-      if (dataChanged) {
-        logger.debug('[useVaultDataFetch] Setting new vault data in state');
+      if (!isVaultDataEqual(prevVaultDataRef.current, data)) {
         prevVaultDataRef.current = data;
         setVaultData(data);
-      } else {
-        logger.debug('[useVaultDataFetch] Vault data unchanged, skipping state update');
       }
-    } catch (error) {
+    } catch (error: unknown) {
       logger.error('[useVaultDataFetch] Failed to fetch vault data', { error: error instanceof Error ? error.message : String(error) });
       setVaultError('Failed to fetch vault data');
     } finally {
