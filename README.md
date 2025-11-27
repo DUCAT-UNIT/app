@@ -1,48 +1,121 @@
 # DUCAT Wallet
 
-> A production-grade, non-custodial Bitcoin wallet with native Runes protocol support and advanced security features.
+> The Bitcoin wallet where on-chain meets off-chain. Hold BTC and UNIT in one place. Send UNIT instantly for free.
 
 [![iOS](https://img.shields.io/badge/iOS-14.0+-000000?style=flat&logo=apple)](https://apps.apple.com) [![Android](https://img.shields.io/badge/Android-Compatible-3DDC84?style=flat&logo=android)](https://play.google.com) [![React Native](https://img.shields.io/badge/React_Native-0.76-61DAFB?style=flat&logo=react)](https://reactnative.dev) [![License](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE) [![TestFlight](https://img.shields.io/badge/TestFlight-Available-blue)](https://testflight.apple.com)
 
-## Overview
+## What is UNIT?
 
-DUCAT Wallet is a secure, feature-rich Bitcoin wallet designed for managing both Bitcoin and Runes protocol tokens. Built with modern React Native architecture, it implements industry-standard security practices while providing a seamless user experience for managing digital assets.
+**UNIT** is a Bitcoin Runes token (specifically `DUCAT•UNIT•RUNE`) that exists in two forms:
 
-### ✨ Key Features
+| Form | Where it lives | Speed | Fees |
+|------|----------------|-------|------|
+| **On-chain UNIT** | Bitcoin blockchain (Taproot address) | ~10 min confirmation | Network fees |
+| **E-cash UNIT** | Cashu mint (off-chain) | Instant | Free |
 
-- **🔐 Enterprise-Grade Security**
-  - BIP39 mnemonic with secure device storage
-  - WebAuthn/Passkey support with iCloud backup
-  - Biometric authentication (Face ID/Touch ID)
-  - PIN protection with PBKDF2 hashing (10,000 iterations)
-  - Rate limiting and auto-lockout protection
-  - Screenshot prevention in sensitive screens
+Both forms represent the same asset. You can convert between them freely inside the wallet.
 
-- **💰 Dual Asset Support**
-  - Native Bitcoin (BTC) transactions
-  - Full Runes protocol implementation
-  - Multi-UTXO selection optimization
-  - Ordinal-aware transaction construction
+## Why does this exist?
 
-- **🏗️ Advanced Bitcoin Features**
-  - Hierarchical Deterministic (HD) wallets
-  - SegWit (P2WPKH) and Taproot (P2TR) support
-  - BIP32/BIP44/BIP84/BIP86 compliance
-  - Custom PSBT construction
-  - Transaction batching and fee optimization
+Bitcoin is secure but slow and expensive for small payments. E-cash is instant and free but requires trust in the mint. UNIT bridges these worlds:
 
-- **🔄 Seamless Recovery**
-  - Passkey-encrypted cloud backup
-  - Cross-device wallet restoration
-  - Secure PIN-based recovery
-  - iCloud Keychain synchronization
+- **Store value on-chain** with Bitcoin's security guarantees
+- **Spend instantly off-chain** when you need speed
+- **Convert back anytime** — your keys, your choice
 
-- **💎 Modern UX**
-  - Clean, intuitive interface
-  - Real-time balance updates
-  - Transaction history with pagination
-  - QR code scanning for addresses
-  - Haptic feedback
+Think of it like moving money between a savings account (on-chain) and a checking account (e-cash). Same money, different trade-offs.
+
+## Core Features
+
+### Turbo — Convert On-chain UNIT to E-cash
+
+When you want instant, fee-less transfers:
+
+1. Tap **Turbo** on your UNIT balance
+2. Send your on-chain UNIT to the Cashu mint
+3. Receive e-cash proofs (cryptographic IOUs from the mint)
+4. Your e-cash UNIT appears in your balance instantly
+
+### Fuse — Convert E-cash back to On-chain
+
+When you want Bitcoin's security:
+
+1. Tap **Fuse** on your UNIT balance
+2. Send your e-cash proofs to the mint
+3. Receive on-chain UNIT to your Taproot address
+4. Confirmed on the Bitcoin blockchain
+
+### TurboUNIT Transfers — Send to any Taproot address
+
+The magic: you can send e-cash UNIT to anyone's **Taproot Bitcoin address** — no app install needed for the recipient.
+
+How it works:
+- Taproot addresses contain a public key (the `tb1p...` part)
+- E-cash tokens are locked to that public key using Cashu's P2PK (Pay-to-Public-Key)
+- Only the owner of that Bitcoin address can claim the e-cash
+
+Send flow:
+1. Enter recipient's Taproot address
+2. E-cash is minted and locked to their public key
+3. Share the claim link (QR code or URL)
+4. Recipient claims with their Taproot private key
+
+### Vault — Borrow UNIT against BTC collateral
+
+Lock your BTC, mint fresh UNIT:
+
+1. Deposit BTC as collateral
+2. Borrow UNIT at a collateralization ratio
+3. Use UNIT for payments
+4. Repay UNIT + interest to unlock BTC
+
+This creates new UNIT supply, backed by real Bitcoin.
+
+## The Full Picture
+
+```
+┌─────────────────────────────────────────────────────────────┐
+│                     DUCAT WALLET                            │
+├─────────────────────────────────────────────────────────────┤
+│                                                             │
+│  ┌──────────────┐              ┌──────────────┐            │
+│  │     BTC      │              │     UNIT     │            │
+│  │  (SegWit)    │              │  (Taproot)   │            │
+│  │              │              │              │            │
+│  │  Send/Receive│              │ On-chain     │            │
+│  │  Standard BTC│     ┌────────│ Runes Token  │            │
+│  └──────────────┘     │        └──────────────┘            │
+│                       │               │                     │
+│                       ▼               │ Turbo               │
+│               ┌──────────────┐        │                     │
+│               │    VAULT     │        ▼                     │
+│               │              │  ┌──────────────┐            │
+│               │ BTC → UNIT   │  │  E-cash UNIT │            │
+│               │ (Collateral) │  │              │            │
+│               │              │  │  Instant     │            │
+│               │ UNIT → BTC   │  │  Free        │            │
+│               │ (Repay)      │  │  Off-chain   │◄── Fuse    │
+│               └──────────────┘  └──────────────┘            │
+│                                        │                     │
+│                                        ▼                     │
+│                              ┌──────────────────┐           │
+│                              │  TurboUNIT Send  │           │
+│                              │                  │           │
+│                              │  Send to Taproot │           │
+│                              │  address via     │           │
+│                              │  P2PK e-cash     │           │
+│                              └──────────────────┘           │
+│                                                             │
+└─────────────────────────────────────────────────────────────┘
+```
+
+## Security
+
+- **Non-custodial**: You hold your keys (12-word seed phrase)
+- **Passkey backup**: Encrypted cloud backup via WebAuthn/iCloud
+- **Biometric auth**: Face ID / Touch ID for transactions
+- **PIN protection**: PBKDF2-hashed 6-digit PIN
+- **Screenshot blocking**: Sensitive screens protected
 
 ## Architecture
 
@@ -323,15 +396,13 @@ Runestone Format:
 - Prevents accidental loss of inscriptions
 - Consolidation for dust management
 
-## ⚡ TurboUNIT: Address-Bound E-Cash
+## Technical Deep Dive: TurboUNIT
 
-DUCAT implements a novel bridge between on-chain Bitcoin addresses and off-chain Cashu e-cash using the unique properties of Taproot addresses. This enables instant, fee-less transfers that are cryptographically bound to a recipient's Bitcoin address.
+> See [TurboUNIT Transfers](#turbunit-transfers--send-to-any-taproot-address) above for the user-facing explanation.
 
-### The Taproot-P2PK Bridge
+### Why Taproot + Cashu P2PK Works
 
-**The Key Insight**: Taproot (P2TR) addresses directly encode an x-only public key (32 bytes) in their bech32m encoding—the exact same format used by Cashu's NUT-11 P2PK (Pay-to-Public-Key) specification. This creates a natural cryptographic bridge between on-chain addresses and off-chain e-cash.
-
-**How It Works**:
+**The Key Insight**: Taproot addresses directly encode an x-only public key (32 bytes) — the exact format used by Cashu's NUT-11 P2PK specification. This creates a natural cryptographic bridge.
 
 ```
 Taproot Address: tb1p7wqu4fh5g3w3rmxq6vyc5aqc05ru3ywrdyx0...
@@ -346,54 +417,22 @@ Taproot Address: tb1p7wqu4fh5g3w3rmxq6vyc5aqc05ru3ywrdyx0...
                         └───────────────────────────────┘
 ```
 
-**Address Decoding**:
+**Why Taproot (not SegWit)?**
+- SegWit encodes a *hash* of the pubkey — you'd need a key exchange
+- Taproot encodes the *actual* pubkey — ready to use directly
+- Taproot is already standard for Runes/Ordinals — users have these addresses
+
+**Implementation**:
 
 ```javascript
-// Extract x-only pubkey from Taproot address
+// Extract pubkey from Taproot address
 const extractPubkeyFromTaprootAddress = (address) => {
   const decoded = bitcoin.address.fromBech32(address);
-  // decoded.data IS the 32-byte x-only pubkey
   return Buffer.from(decoded.data).toString('hex');
 };
 
-// Result: 64-character hex pubkey ready for P2PK locking
-// "f1c0e54d7a22e88f66c0d3098a7418f41f1c4707..."
-```
-
-### Why Taproot Is Perfect For This
-
-1. **Direct Pubkey Encoding**: Unlike SegWit (P2WPKH) which encodes a *hash* of the pubkey, Taproot encodes the actual public key. No additional key exchange needed.
-
-2. **Preferred for Digital Assets**: Taproot addresses (`tb1p...`) are already the standard for Runes and Ordinals. Users managing these assets already have Taproot addresses—making TurboUNIT a natural extension.
-
-3. **Same Private Key**: The recipient claims their e-cash using the same private key that controls their Taproot Bitcoin address. No new keys to manage.
-
-4. **Schnorr Signatures**: Both Taproot and Cashu P2PK use Schnorr signatures over the secp256k1 curve, ensuring cryptographic compatibility.
-
-### The TurboUNIT Flow
-
-```
-Sender                                          Recipient
-  │                                                  │
-  │  1. Enter recipient's Taproot address           │
-  │     tb1p7wqu4fh5g3w3rmxq6vyc5aqc05ru3ywrdyx0... │
-  │                                                  │
-  │  2. Extract x-only pubkey from address          │
-  │     f1c0e54d7a22e88f66c0d3098a7418f41f1c4707... │
-  │                                                  │
-  │  3. Mint e-cash from Bitcoin                    │
-  │     BTC → Cashu Mint → E-cash proofs            │
-  │                                                  │
-  │  4. Create P2PK locked token                    │
-  │     cashuB... (locked to recipient pubkey)      │
-  │                                                  │
-  │  5. Share via link/QR                           │
-  │     ──────────────────────────────────────────► │
-  │                                                  │
-  │                     6. Recipient claims token   │
-  │                        Signs with Taproot key   │
-  │                        E-cash added to balance  │
-  │                                                  │
+// Lock e-cash to that pubkey
+const result = await sendP2PKToken(amount, recipientPubkey);
 ```
 
 ### Security Properties
