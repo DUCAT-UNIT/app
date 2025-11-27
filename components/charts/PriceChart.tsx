@@ -235,8 +235,7 @@ function PriceChart({ data, isPositive, minBoundary, maxBoundary, onScrub }: Pri
                 x2={scrubX}
                 y2={chartPaths.chartHeight}
                 stroke={strokeColor}
-                strokeWidth={1}
-                strokeDasharray="4,4"
+                strokeWidth={0.5}
               />
               {/* Dot on the line */}
               <Circle
