@@ -1,15 +1,19 @@
 /**
  * Snackbar Component
- * Top-aligned notification banner matching frontend-app snackbar styling
+ * Unified notification system with icons for different states
+ * Adapted from frontend-app toast design
  */
 
-import React, { useEffect } from 'react';
-import { View, Text, StyleSheet, TouchableOpacity, Animated } from 'react-native';
-import { Feather } from '@expo/vector-icons';
+import React, { useEffect, useCallback } from 'react';
+import { View, Text, StyleSheet, TouchableOpacity, Animated, Linking } from 'react-native';
+import Svg, { Path, Circle } from 'react-native-svg';
 import { COLORS } from '../theme';
 import { logger } from '../utils/logger';
 import type { SnackbarParams, SnackbarType } from '../types/notification';
 
+/**
+ * Action labels for transaction types
+ */
 const ACTION_LABELS: Record<string, string> = {
   deposit: 'BTC Deposit',
   withdraw: 'BTC Withdraw',
@@ -25,27 +29,106 @@ const ACTION_LABELS: Record<string, string> = {
   convert: 'TurboUNIT Conversion',
 };
 
-interface IconInfo {
-  name: keyof typeof Feather.glyphMap;
-  color: string;
-}
-
-const getSnackbarIcon = (type: SnackbarType): IconInfo => {
-  switch (type) {
-    case 'success':
-    case 'submitted':
-      return { name: 'check-circle', color: COLORS.SUCCESS_GREEN };
-    case 'error':
-      return { name: 'alert-circle', color: COLORS.DANGER_RED };
-    case 'pending':
-    default:
-      return { name: 'loader', color: COLORS.PRIMARY_BLUE };
-  }
+/**
+ * SVG Icons for each snackbar type
+ */
+const Icons = {
+  Success: () => (
+    <Svg width={18} height={18} viewBox="0 0 18 18" fill="none">
+      <Circle cx={9} cy={9} r={9} fill={COLORS.SUCCESS_GREEN} />
+      <Path
+        d="M5.5 9L8 11.5L12.5 6.5"
+        stroke={COLORS.WHITE}
+        strokeWidth={2}
+        strokeLinecap="round"
+        strokeLinejoin="round"
+      />
+    </Svg>
+  ),
+  Error: () => (
+    <Svg width={18} height={18} viewBox="0 0 18 18" fill="none">
+      <Circle cx={9} cy={9} r={9} fill={COLORS.DANGER_RED} />
+      <Path
+        d="M9 5V10"
+        stroke={COLORS.WHITE}
+        strokeWidth={2}
+        strokeLinecap="round"
+      />
+      <Circle cx={9} cy={13} r={1} fill={COLORS.WHITE} />
+    </Svg>
+  ),
+  Warning: () => (
+    <Svg width={18} height={18} viewBox="0 0 18 18" fill="none">
+      <Path
+        d="M9 1L17 16H1L9 1Z"
+        fill={COLORS.YELLOW}
+      />
+      <Path
+        d="M9 6V10"
+        stroke={COLORS.TEXT_BLACK}
+        strokeWidth={1.5}
+        strokeLinecap="round"
+      />
+      <Circle cx={9} cy={13} r={1} fill={COLORS.TEXT_BLACK} />
+    </Svg>
+  ),
+  Info: () => (
+    <Svg width={18} height={18} viewBox="0 0 18 18" fill="none">
+      <Circle cx={9} cy={9} r={9} fill={COLORS.PRIMARY_BLUE} />
+      <Circle cx={9} cy={5} r={1} fill={COLORS.WHITE} />
+      <Path
+        d="M9 8V13"
+        stroke={COLORS.WHITE}
+        strokeWidth={2}
+        strokeLinecap="round"
+      />
+    </Svg>
+  ),
+  Progress: () => (
+    <Svg width={18} height={18} viewBox="0 0 18 18" fill="none">
+      <Circle
+        cx={9}
+        cy={9}
+        r={7}
+        stroke={COLORS.PRIMARY_BLUE}
+        strokeWidth={2}
+        strokeDasharray="11 33"
+        strokeLinecap="round"
+      />
+    </Svg>
+  ),
+  Close: () => (
+    <Svg width={14} height={14} viewBox="0 0 14 14" fill="none">
+      <Path
+        d="M1 1L13 13M13 1L1 13"
+        stroke={COLORS.LIGHT_GRAY}
+        strokeWidth={2}
+        strokeLinecap="round"
+      />
+    </Svg>
+  ),
 };
 
+/**
+ * Map snackbar types to their icons
+ */
+const TYPE_TO_ICON: Record<SnackbarType, keyof typeof Icons> = {
+  success: 'Success',
+  submitted: 'Success',
+  error: 'Error',
+  warning: 'Warning',
+  info: 'Info',
+  progress: 'Progress',
+  pending: 'Progress',
+};
+
+/**
+ * Compute title based on type and action
+ */
 const computeTitle = (type: SnackbarType, label: string): string => {
   switch (type) {
     case 'pending':
+    case 'progress':
       return `${label} in progress...`;
     case 'submitted':
       return `${label} submitted`;
@@ -53,6 +136,10 @@ const computeTitle = (type: SnackbarType, label: string): string => {
       return `${label} completed successfully`;
     case 'error':
       return `${label} failed`;
+    case 'warning':
+      return `${label} warning`;
+    case 'info':
+      return label;
     default:
       return label;
   }
@@ -65,7 +152,27 @@ interface SnackbarProps {
 
 export default function Snackbar({ params, onClose }: SnackbarProps) {
   logger.debug('🎯 Snackbar rendering with params:', params);
+
   const slideAnim = React.useRef(new Animated.Value(-200)).current;
+  const spinAnim = React.useRef(new Animated.Value(0)).current;
+
+  const {
+    type = 'info',
+    action,
+    title: titleOverride,
+    message: messageOverride,
+    description,
+    txid,
+    onPress,
+    actionButtons,
+    actionLinks,
+    duration = 5000,
+  } = params;
+
+  const isSpinning = type === 'progress' || type === 'pending';
+  const label = action ? (ACTION_LABELS[action] || 'Transaction') : 'Notification';
+  const title = titleOverride || messageOverride || computeTitle(type, label);
+  const IconComponent = Icons[TYPE_TO_ICON[type]];
 
   useEffect(() => {
     logger.debug('🎯 Snackbar mounted, starting animation');
@@ -78,11 +185,19 @@ export default function Snackbar({ params, onClose }: SnackbarProps) {
       friction: 10,
     }).start();
 
-    // Note: Auto-dismiss is handled by NotificationContext (7 seconds for all types)
-    // No need for component-level timeout
-  }, [slideAnim]);
+    // Spin animation for progress type
+    if (isSpinning) {
+      Animated.loop(
+        Animated.timing(spinAnim, {
+          toValue: 1,
+          duration: 1000,
+          useNativeDriver: true,
+        })
+      ).start();
+    }
+  }, [slideAnim, spinAnim, isSpinning]);
 
-  const handleClose = () => {
+  const handleClose = useCallback(() => {
     Animated.timing(slideAnim, {
       toValue: -200,
       duration: 300,
@@ -90,12 +205,30 @@ export default function Snackbar({ params, onClose }: SnackbarProps) {
     }).start(() => {
       onClose();
     });
-  };
+  }, [slideAnim, onClose]);
 
-  const { type = 'pending', action, message: overrideTitle, description, txid, onPress } = params;
-  const label = action ? (ACTION_LABELS[action] || 'Transaction') : 'Transaction';
-  const title = overrideTitle || computeTitle(type, label);
-  const icon = getSnackbarIcon(type);
+  const handleLinkPress = useCallback((url?: string, linkOnPress?: () => void) => {
+    if (linkOnPress) {
+      linkOnPress();
+    } else if (url) {
+      Linking.openURL(url).catch((err) => {
+        logger.error('Failed to open URL:', err);
+      });
+    }
+  }, []);
+
+  const spinStyle = isSpinning
+    ? {
+        transform: [
+          {
+            rotate: spinAnim.interpolate({
+              inputRange: [0, 1],
+              outputRange: ['0deg', '360deg'],
+            }),
+          },
+        ],
+      }
+    : {};
 
   return (
     <Animated.View
@@ -107,31 +240,87 @@ export default function Snackbar({ params, onClose }: SnackbarProps) {
       ]}
     >
       <View style={styles.content}>
-        <View style={styles.iconContainer}>
-          <Feather name={icon.name} size={24} color={icon.color} />
-        </View>
+        {/* Icon */}
+        <Animated.View style={[styles.iconContainer, spinStyle]}>
+          <IconComponent />
+        </Animated.View>
 
+        {/* Text Content */}
         <View style={styles.textContainer}>
-          <Text style={styles.title}>{title}</Text>
-          {description && <Text style={styles.description}>{description}</Text>}
+          <View style={styles.headerRow}>
+            <Text style={styles.title} numberOfLines={2}>
+              {title}
+            </Text>
+            <TouchableOpacity
+              onPress={handleClose}
+              style={styles.closeButton}
+              hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+              accessibilityLabel="Close notification"
+              accessibilityRole="button"
+            >
+              <Icons.Close />
+            </TouchableOpacity>
+          </View>
 
-          {(txid || onPress) && (
+          {description && (
+            <Text style={styles.description} numberOfLines={3}>
+              {description}
+            </Text>
+          )}
+
+          {/* Action Buttons */}
+          {actionButtons && actionButtons.length > 0 && (
             <View style={styles.actionsContainer}>
-              {onPress && (
-                <TouchableOpacity onPress={onPress} style={styles.linkButton}>
-                  <Feather name="external-link" size={16} color={COLORS.PRIMARY_BLUE} />
-                  <Text style={styles.linkText}>
-                    View {type === 'pending' ? 'Progress' : 'Details'}
+              {actionButtons.map((button, index) => (
+                <TouchableOpacity
+                  key={`${button.label}-${index}`}
+                  style={[
+                    styles.actionButton,
+                    button.variant === 'primary'
+                      ? styles.primaryButton
+                      : styles.secondaryButton,
+                  ]}
+                  onPress={button.onPress}
+                >
+                  <Text
+                    style={[
+                      styles.actionButtonText,
+                      button.variant === 'primary'
+                        ? styles.primaryButtonText
+                        : styles.secondaryButtonText,
+                    ]}
+                  >
+                    {button.label}
                   </Text>
                 </TouchableOpacity>
-              )}
+              ))}
             </View>
           )}
-        </View>
 
-        <TouchableOpacity onPress={handleClose} style={styles.closeButton} hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}>
-          <Feather name="x" size={24} color={COLORS.LIGHT_GRAY} />
-        </TouchableOpacity>
+          {/* Action Links */}
+          {actionLinks && actionLinks.length > 0 && (
+            <View style={styles.linksContainer}>
+              {actionLinks.map((link, index) => (
+                <TouchableOpacity
+                  key={`${link.label}-${index}`}
+                  style={styles.linkButton}
+                  onPress={() => handleLinkPress(link.url, link.onPress)}
+                >
+                  <Text style={styles.linkText}>{link.label}</Text>
+                </TouchableOpacity>
+              ))}
+            </View>
+          )}
+
+          {/* Legacy onPress support */}
+          {onPress && !actionLinks && !actionButtons && (
+            <TouchableOpacity onPress={onPress} style={styles.linkButton}>
+              <Text style={styles.linkText}>
+                View {type === 'pending' || type === 'progress' ? 'Progress' : 'Details'}
+              </Text>
+            </TouchableOpacity>
+          )}
+        </View>
       </View>
     </Animated.View>
   );
@@ -146,8 +335,7 @@ const styles = StyleSheet.create({
     zIndex: 100,
     backgroundColor: COLORS.DARK_CARD_BG,
     borderRadius: 12,
-    padding: 16,
-    // Enhanced shadow for floating effect
+    padding: 12,
     shadowColor: '#000',
     shadowOffset: {
       width: 0,
@@ -164,42 +352,76 @@ const styles = StyleSheet.create({
   iconContainer: {
     alignItems: 'center',
     justifyContent: 'flex-start',
-    paddingTop: 2,
+    paddingTop: 3,
   },
   textContainer: {
     flex: 1,
-    gap: 8,
+    gap: 6,
+  },
+  headerRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'flex-start',
+    gap: 12,
   },
   title: {
-    fontSize: 18,
+    flex: 1,
+    fontSize: 16,
     fontFamily: 'CabinetGrotesk-Bold',
-    color: COLORS.WHITE,
-    lineHeight: 24,
+    color: COLORS.TEXT_PRIMARY,
+    lineHeight: 22,
   },
   description: {
     fontSize: 14,
     fontFamily: 'CabinetGrotesk-Regular',
-    color: COLORS.LIGHT_GRAY,
+    color: COLORS.TEXT_SECONDARY,
     lineHeight: 20,
   },
+  closeButton: {
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingTop: 3,
+  },
   actionsContainer: {
+    flexDirection: 'row',
+    gap: 12,
+    marginTop: 8,
+  },
+  actionButton: {
+    paddingVertical: 8,
+    paddingHorizontal: 16,
+    borderRadius: 8,
+  },
+  primaryButton: {
+    backgroundColor: COLORS.PRIMARY_BLUE,
+  },
+  secondaryButton: {
+    backgroundColor: COLORS.BG_TERTIARY,
+  },
+  actionButtonText: {
+    fontSize: 14,
+    fontFamily: 'CabinetGrotesk-Medium',
+  },
+  primaryButtonText: {
+    color: COLORS.WHITE,
+  },
+  secondaryButtonText: {
+    color: COLORS.TEXT_PRIMARY,
+  },
+  linksContainer: {
     flexDirection: 'column',
-    gap: 8,
+    gap: 6,
     marginTop: 4,
   },
   linkButton: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: 8,
+    marginTop: 4,
   },
   linkText: {
     fontSize: 14,
     fontFamily: 'CabinetGrotesk-Regular',
     color: COLORS.PRIMARY_BLUE,
-  },
-  closeButton: {
-    alignItems: 'center',
-    justifyContent: 'flex-start',
-    paddingTop: 2,
   },
 });

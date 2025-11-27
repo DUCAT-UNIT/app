@@ -25,7 +25,7 @@
             <div class='fl pad1y space-right2'>
                 <span class="strong">100% </span>
                 <span class="quiet">Statements</span>
-                <span class='fraction'>11/11</span>
+                <span class='fraction'>5/5</span>
             </div>
         
             
@@ -39,14 +39,14 @@
             <div class='fl pad1y space-right2'>
                 <span class="strong">100% </span>
                 <span class="quiet">Functions</span>
-                <span class='fraction'>5/5</span>
+                <span class='fraction'>2/2</span>
             </div>
         
             
             <div class='fl pad1y space-right2'>
                 <span class="strong">100% </span>
                 <span class="quiet">Lines</span>
-                <span class='fraction'>11/11</span>
+                <span class='fraction'>5/5</span>
             </div>
         
             
@@ -123,27 +123,8 @@
 <a name='L58'></a><a href='#L58'>58</a>
 <a name='L59'></a><a href='#L59'>59</a>
 <a name='L60'></a><a href='#L60'>60</a>
-<a name='L61'></a><a href='#L61'>61</a>
-<a name='L62'></a><a href='#L62'>62</a>
-<a name='L63'></a><a href='#L63'>63</a>
-<a name='L64'></a><a href='#L64'>64</a>
-<a name='L65'></a><a href='#L65'>65</a>
-<a name='L66'></a><a href='#L66'>66</a>
-<a name='L67'></a><a href='#L67'>67</a>
-<a name='L68'></a><a href='#L68'>68</a>
-<a name='L69'></a><a href='#L69'>69</a>
-<a name='L70'></a><a href='#L70'>70</a>
-<a name='L71'></a><a href='#L71'>71</a>
-<a name='L72'></a><a href='#L72'>72</a>
-<a name='L73'></a><a href='#L73'>73</a>
-<a name='L74'></a><a href='#L74'>74</a>
-<a name='L75'></a><a href='#L75'>75</a>
-<a name='L76'></a><a href='#L76'>76</a>
-<a name='L77'></a><a href='#L77'>77</a>
-<a name='L78'></a><a href='#L78'>78</a>
-<a name='L79'></a><a href='#L79'>79</a>
-<a name='L80'></a><a href='#L80'>80</a>
-<a name='L81'></a><a href='#L81'>81</a></td><td class="line-coverage quiet"><span class="cline-any cline-neutral">&nbsp;</span>
+<a name='L61'></a><a href='#L61'>61</a></td><td class="line-coverage quiet"><span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
@@ -182,27 +163,6 @@
 <span class="cline-any cline-yes">7x</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-yes">7x</span>
-<span class="cline-any cline-neutral">&nbsp;</span>
-<span class="cline-any cline-yes">6x</span>
-<span class="cline-any cline-yes">18x</span>
-<span class="cline-any cline-neutral">&nbsp;</span>
-<span class="cline-any cline-neutral">&nbsp;</span>
-<span class="cline-any cline-neutral">&nbsp;</span>
-<span class="cline-any cline-neutral">&nbsp;</span>
-<span class="cline-any cline-neutral">&nbsp;</span>
-<span class="cline-any cline-yes">6x</span>
-<span class="cline-any cline-yes">18x</span>
-<span class="cline-any cline-neutral">&nbsp;</span>
-<span class="cline-any cline-neutral">&nbsp;</span>
-<span class="cline-any cline-neutral">&nbsp;</span>
-<span class="cline-any cline-neutral">&nbsp;</span>
-<span class="cline-any cline-neutral">&nbsp;</span>
-<span class="cline-any cline-yes">6x</span>
-<span class="cline-any cline-yes">6x</span>
-<span class="cline-any cline-neutral">&nbsp;</span>
-<span class="cline-any cline-neutral">&nbsp;</span>
-<span class="cline-any cline-neutral">&nbsp;</span>
-<span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-yes">6x</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-yes">6x</span>
@@ -226,10 +186,11 @@
 <span class="cline-any cline-neutral">&nbsp;</span></td><td class="text"><pre class="prettyprint lang-js">/**
  * useFormattedBalances
  * Memoizes expensive number formatting operations
- * Prevents repeated toLocaleString() calls on every render
+ * Uses centralized formatters from utils/formatters
  */
 &nbsp;
 import { useMemo } from 'react';
+import { formatBalance, formatFiat } from '../utils/formatters';
 &nbsp;
 interface UseFormattedBalancesParams {
   totalBalanceBTC?: number;
@@ -262,44 +223,23 @@ export const useFormattedBalances = ({
   const btcPrice = btcPriceParam ?? <span class="branch-1 cbranch-no" title="branch not covered" >0;</span>
 &nbsp;
   return useMemo(() =&gt; {
-    // Format BTC amounts with 8 decimal places
-    const formatBTC = (value: number): string =&gt;
-      value.toLocaleString('en-US', {
-        minimumFractionDigits: 8,
-        maximumFractionDigits: 8,
-      });
-&nbsp;
-    // Format USD amounts with 2 decimal places
-    const formatUSD = (value: number): string =&gt;
-      value.toLocaleString('en-US', {
-        minimumFractionDigits: 2,
-        maximumFractionDigits: 2,
-      });
-&nbsp;
-    // Format UNIT amounts (runes) as integers
-    const formatUnit = (value: number): string =&gt;
-      value.toLocaleString('en-US', {
-        minimumFractionDigits: 0,
-        maximumFractionDigits: 0,
-      });
-&nbsp;
     const price = btcPrice ?? <span class="branch-1 cbranch-no" title="branch not covered" >0;</span>
 &nbsp;
     return {
       // Total balance formatted
-      totalBTC: formatBTC(totalBalanceBTC),
-      totalUSD: formatUSD(totalBalanceUSD),
+      totalBTC: formatBalance(totalBalanceBTC),
+      totalUSD: formatFiat(totalBalanceUSD),
 &nbsp;
       // Segwit balance formatted
-      segwitBTC: formatBTC(segwitBalance),
-      segwitUSD: formatUSD(segwitBalance * price),
+      segwitBTC: formatBalance(segwitBalance),
+      segwitUSD: formatFiat(segwitBalance * price),
 &nbsp;
       // Taproot balance formatted
-      taprootBTC: formatBTC(taprootBalance),
-      taprootUSD: formatUSD(taprootBalance * price),
+      taprootBTC: formatBalance(taprootBalance),
+      taprootUSD: formatFiat(taprootBalance * price),
 &nbsp;
-      // Runes balance formatted
-      runes: formatUnit(runesBalance),
+      // Runes balance formatted (as integer with commas)
+      runes: formatFiat(runesBalance, 0),
     };
   }, [totalBalanceBTC, totalBalanceUSD, segwitBalance, taprootBalance, runesBalance, btcPrice]);
 };
@@ -310,7 +250,7 @@ export const useFormattedBalances = ({
             <div class='footer quiet pad2 space-top1 center small'>
                 Code coverage generated by
                 <a href="https://istanbul.js.org/" target="_blank" rel="noopener noreferrer">istanbul</a>
-                at 2025-11-27T08:28:08.171Z
+                at 2025-11-27T18:27:28.044Z
             </div>
         <script src="../prettify.js"></script>
         <script>

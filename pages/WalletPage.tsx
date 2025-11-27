@@ -1,6 +1,6 @@
 /**
  * WalletPage - Main wallet interface after authentication
- * Contains wallet screen, vault, settings, and transaction flows
+ * Contains wallet screen, settings, and transaction flows
  */
 
 import React, { useState, useEffect } from 'react';
@@ -12,10 +12,8 @@ import { useNavigation } from '@react-navigation/native';
 import WalletScreen from '../screens/wallet/WalletScreen';
 import ReceiveScreen from '../screens/wallet/ReceiveScreen';
 import TransactionHistoryScreen from '../screens/wallet/TransactionHistoryScreen';
-import VaultScreen from '../screens/wallet/VaultScreen';
 import SettingsScreen from '../screens/settings/SettingsScreen';
 import MutinynetBanner from '../components/MutinynetBanner';
-import ToastContainer from '../components/ToastContainer';
 import SplashScreen from '../screens/SplashScreen';
 import EcashThresholdSheet from '../components/settings/EcashThresholdSheet';
 import EcashConversionModal from '../components/settings/EcashConversionModal';
@@ -26,11 +24,10 @@ import QRScanner from '../components/scanner/QRScanner';
 import { useWallet } from '../contexts/WalletContext';
 import { useSendFlow } from '../contexts/SendFlowContext';
 import { useTransactionExecution } from '../contexts/TransactionExecutionContext';
-import { useVault } from '../contexts/VaultContext';
 import { useOnboardingFlow } from '../contexts/AuthContext';
 import { useNavigationHandlers } from '../contexts/NavigationHandlersContext';
 import { useNotifications } from "../contexts/NotificationContext";
-import { useBalance, useVaultData } from '../contexts/WalletDataContext';
+import { useBalance } from '../contexts/WalletDataContext';
 import { useCashu } from '../contexts/CashuContext';
 
 // Hooks
@@ -41,7 +38,6 @@ import { useQRCodeHandler } from '../hooks/useQRCodeHandler';
 import { useClaimNotifications } from '../hooks/useClaimNotifications';
 import { useTransactionNotifications } from '../hooks/useTransactionNotifications';
 import { useEcashThresholdManager } from '../hooks/useEcashThresholdManager';
-import { useVaultSwipeGesture } from '../hooks/useVaultSwipeGesture';
 import { useSettingsScreenCallbacks } from '../hooks/useSettingsScreenCallbacks';
 import { getRunesAmount } from '../utils/runesHelper';
 
@@ -68,16 +64,14 @@ export default function WalletPage({ route }: WalletPageProps) {
   const styles = require('../styles').default;
 
   // Context consumption
-  const { activeTab, setActiveTab, vaultCredentials, autoCreateVaultTrigger, openVault } = useVault();
   const { resetInactivityTimer } = useOnboardingFlow();
   const { settingsHandlers, biometricEnabled, setShowAccountPicker, switchingAccount } = useNavigationHandlers();
   const { runesBalance } = useBalance();
   const { balance: cashuBalance, receive: receiveCashuToken } = useCashu();
   const { wallet, switchAccount, currentAccount } = useWallet();
-  const { vaultData } = useVaultData();
   const { intentStep, sendAssetType, sendAddressType } = useSendFlow();
   const { broadcastedTxid } = useTransactionExecution();
-  const { toasts, showToast, dismissSnackbar, showSnackbar } = useNotifications();
+  const { showToast, dismissSnackbar, showSnackbar } = useNotifications();
 
   // Calculate current UNIT balance for ecash balance check
   const currentUnitBalance = getRunesAmount(runesBalance);
@@ -103,7 +97,7 @@ export default function WalletPage({ route }: WalletPageProps) {
 
   // QR Scanner
   const [showQRScanner, setShowQRScanner] = useState(false);
-  const handleQRScan = useQRCodeHandler({ receiveCashuToken, showToast, showSnackbar, setShowQRScanner });
+  const handleQRScan = useQRCodeHandler({ receiveCashuToken, showSnackbar, setShowQRScanner });
 
   // Ecash threshold manager
   const {
@@ -111,7 +105,7 @@ export default function WalletPage({ route }: WalletPageProps) {
     setShowThresholdSheet, setShowConversionModal, handleEcashThresholdPress,
     handleThresholdSelect, handleConfirmConversion, handleLowBalanceTopUp,
   } = useEcashThresholdManager({
-    cashuBalance, runesBalance, settingsHandlers, showToast, showSnackbar,
+    cashuBalance, runesBalance, settingsHandlers,
     showSettings, closeSettings, lowBalanceAmountNeeded, closeLowBalanceModal,
   });
 
@@ -144,9 +138,10 @@ export default function WalletPage({ route }: WalletPageProps) {
     }
   }, [currentAccount, closeSettings]);
 
-  // Vault swipe gesture
-  const { vaultTranslateX, walletTranslateX, isSwiping, walletPanResponder, vaultPanResponder } =
-    useVaultSwipeGesture({ activeTab, setActiveTab, openVault });
+  // Navigate to vault detail screen
+  const handleVaultPress = () => {
+    (navigation as { navigate: (screen: string) => void }).navigate('VaultDetail');
+  };
 
   if (!hasCheckedInitialFlags) return <SplashScreen />;
 
@@ -155,29 +150,8 @@ export default function WalletPage({ route }: WalletPageProps) {
       <View style={localStyles.container} onTouchStart={resetInactivityTimer}>
         <MutinynetBanner />
         <View style={localStyles.contentArea}>
-          {/* Vault Screen */}
-          <Animated.View
-            style={[localStyles.vaultContainer, { transform: [{ translateX: vaultTranslateX }] }]}
-            pointerEvents={activeTab === 'vault' || isSwiping ? 'auto' : 'none'}
-          >
-            <VaultScreen
-              key={`vault-${currentAccount}`}
-              visible={activeTab === 'vault'}
-              walletCredentials={vaultCredentials as Parameters<typeof VaultScreen>[0]['walletCredentials']}
-              vaultData={vaultData as Parameters<typeof VaultScreen>[0]['vaultData']}
-              showSnackbar={(params) => showSnackbar(params as Parameters<typeof showSnackbar>[0])}
-            />
-            {activeTab === 'vault' && (
-              <View style={localStyles.rightEdgeSwipeArea} {...vaultPanResponder.panHandlers} />
-            )}
-          </Animated.View>
-
           {/* Wallet Screen */}
-          <Animated.View
-            style={[localStyles.screenContainer, { transform: [{ translateX: walletTranslateX }] }]}
-            pointerEvents={activeTab === 'wallet' && !isSwiping ? 'auto' : 'none'}
-            {...walletPanResponder.panHandlers}
-          >
+          <View style={localStyles.screenContainer}>
             <WalletScreen
               key={`wallet-${currentAccount}`}
               styles={styles}
@@ -186,14 +160,14 @@ export default function WalletPage({ route }: WalletPageProps) {
               onHistoryPress={() => setShowTxHistory(true)}
               onQRScanPress={() => setShowQRScanner(true)}
               onSettingsPress={openSettings}
-              onCreateVaultPress={() => openVault(true)}
-              onVaultPress={openVault}
+              onCreateVaultPress={handleVaultPress}
+              onVaultPress={handleVaultPress}
               onAssetPress={(assetType) => (navigation as { navigate: (screen: string, params?: object) => void }).navigate('AssetDetail', { assetType, advancedMode: settingsHandlers.advancedMode })}
               _sendAddressType={sendAddressType ?? undefined}
               switchingAccount={switchingAccount}
               showZeroAssets={settingsHandlers.showZeroAssets}
             />
-          </Animated.View>
+          </View>
         </View>
 
         {/* Bottom Sheets */}
@@ -204,7 +178,7 @@ export default function WalletPage({ route }: WalletPageProps) {
           vaultPubkey={wallet?.taprootPubkey || ''} advancedMode={settingsHandlers.advancedMode} />
         <QRScanner visible={showQRScanner} onClose={() => setShowQRScanner(false)} onScan={handleQRScan} />
         <StatusBar style="light" />
-        <ToastContainer toasts={toasts} />
+        {/* Snackbar is rendered at app level in AppNavigatorContent */}
       </View>
 
       {/* Settings Overlay */}

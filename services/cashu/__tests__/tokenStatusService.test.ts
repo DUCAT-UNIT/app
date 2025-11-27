@@ -42,6 +42,9 @@ describe('tokenStatusService', () => {
     amount: 100,
     timestamp: Date.now(),
     recipient: 'bc1p...',
+    txid: null,
+    shortUrl: null,
+    taprootAddress: 'bc1ptaproot',
   };
 
   const mockProofs = [

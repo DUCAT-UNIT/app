@@ -6,6 +6,7 @@
 import React from 'react';
 import { View, Text, Pressable, StyleSheet, ActivityIndicator } from 'react-native';
 import { COLORS } from '../../theme';
+import { formatBalance, formatFiat } from '../../utils/formatters';
 
 interface BalanceMaxButtonProps {
   assetLabel: string;
@@ -28,14 +29,8 @@ export function BalanceMaxButton({
       <Text style={styles.balanceLabel}>
         {assetLabel} Balance:{' '}
         {assetType === 'btc'
-          ? (balance || 0).toLocaleString('en-US', {
-              minimumFractionDigits: 0,
-              maximumFractionDigits: 8,
-            })
-          : (balance || 0).toLocaleString('en-US', {
-              minimumFractionDigits: 2,
-              maximumFractionDigits: 2,
-            })}
+          ? formatBalance(balance || 0, 8)
+          : formatFiat(balance || 0)}
       </Text>
       <Pressable
         style={styles.maxButton}

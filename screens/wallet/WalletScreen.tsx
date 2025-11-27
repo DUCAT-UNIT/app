@@ -15,6 +15,7 @@ import AssetCard, { AssetCardStyles } from '../../components/wallet/AssetCard';
 import WalletHeader, { WalletHeaderStyles } from '../../components/wallet/WalletHeader';
 import ErrorBanner from '../../components/wallet/ErrorBanner';
 import { getRunesAmount } from '../../utils/runesHelper';
+import { formatFiat, formatBalance } from '../../utils/formatters';
 
 // Constants
 const VAULT_CREATION_RETRY_TIMEOUT = 2000;
@@ -96,11 +97,8 @@ const WalletScreen = React.memo(function WalletScreen({
     const cashuDisplayAmount = (cashuBalance || 0) / 100;
     const totalUnit = runesAmount + cashuDisplayAmount;
     return {
-      formatted: totalUnit.toLocaleString('en-US', {
-        minimumFractionDigits: 2,
-        maximumFractionDigits: 2,
-      }),
-      btcValue: (totalUnit / 100_000_000).toFixed(8),
+      formatted: formatFiat(totalUnit),
+      btcValue: formatBalance(totalUnit / 100_000_000),
       usdValue: totalUnit,
     };
   }, [runesBalance, cashuBalance]);

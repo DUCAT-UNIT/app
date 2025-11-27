@@ -37,8 +37,8 @@ describe('formatters/index', () => {
     });
 
     it('should handle large numbers', () => {
-      expect(formatBalance(21000000)).toBe('21000000.00000000');
-      expect(formatBalance(999999.99999999)).toBe('999999.99999999');
+      expect(formatBalance(21000000)).toBe('21,000,000.00000000');
+      expect(formatBalance(999999.99999999)).toBe('999,999.99999999');
     });
 
     it('should handle negative numbers', () => {

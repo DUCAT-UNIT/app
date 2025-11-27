@@ -8,6 +8,7 @@ import React from 'react';
 import { create, act } from 'react-test-renderer';
 import { Alert } from 'react-native';
 import { useQRCodeHandler } from '../useQRCodeHandler';
+import { notify } from '../../utils/notify';
 
 // Mock dependencies
 jest.mock('../../utils/logger', () => ({
@@ -104,7 +105,6 @@ describe('useQRCodeHandler', () => {
 
     mockProps = {
       receiveCashuToken: jest.fn().mockResolvedValue({ amount: 100 }),
-      showToast: jest.fn(),
       showSnackbar: jest.fn(),
       setShowQRScanner: jest.fn(),
     };
@@ -274,8 +274,8 @@ describe('useQRCodeHandler', () => {
         await result.current('cashuAtesttoken');
       });
 
-      expect(mockProps.showToast).toHaveBeenCalledWith('Checking token...', 'info');
-      expect(mockProps.showToast).toHaveBeenCalledWith('Claiming token...', 'info');
+      expect(notify.token.checking).toHaveBeenCalled();
+      expect(notify.token.claiming).toHaveBeenCalled();
       expect(mockProps.receiveCashuToken).toHaveBeenCalledWith('cashuAtesttoken');
       expect(mockProps.showSnackbar).toHaveBeenCalledWith({
         type: 'success',
@@ -359,7 +359,7 @@ describe('useQRCodeHandler', () => {
         await claimButton.onPress();
       });
 
-      expect(mockProps.showToast).toHaveBeenCalledWith('Claiming unspent proofs...', 'info');
+      expect(notify.token.claimingUnspent).toHaveBeenCalled();
       expect(mockEncodeToken).toHaveBeenCalled();
       expect(mockProps.receiveCashuToken).toHaveBeenCalledWith('cashuAfiltered');
       expect(mockProps.showSnackbar).toHaveBeenCalledWith({
@@ -490,7 +490,7 @@ describe('useQRCodeHandler', () => {
       });
 
       expect(mockEncodeToken).toHaveBeenCalled();
-      expect(mockProps.showToast).toHaveBeenCalledWith('Claiming token...', 'info');
+      expect(notify.token.claiming).toHaveBeenCalled();
       expect(mockProps.receiveCashuToken).toHaveBeenCalledWith('cashuAencodedtoken');
       expect(mockProps.showSnackbar).toHaveBeenCalledWith({
         type: 'success',
@@ -665,7 +665,7 @@ describe('useQRCodeHandler', () => {
         await result.current('https://ducatprotocol.com/unit?other=param');
       });
 
-      expect(mockProps.showToast).toHaveBeenCalledWith('Failed to extract token from URL', 'error');
+      expect(notify.token.extractFailed).toHaveBeenCalled();
     });
 
     it('should handle error during token extraction', async () => {
@@ -681,10 +681,7 @@ describe('useQRCodeHandler', () => {
         await result.current('https://ducatprotocol.com/unit?t=invalid!!!');
       });
 
-      expect(mockProps.showToast).toHaveBeenCalledWith(
-        'Failed to extract token: Invalid base64',
-        'error'
-      );
+      expect(notify.token.extractError).toHaveBeenCalled();
 
       global.atob = originalAtob;
     });
@@ -701,10 +698,7 @@ describe('useQRCodeHandler', () => {
         await result.current('https://ducatprotocol.com/unit?t=invalid');
       });
 
-      expect(mockProps.showToast).toHaveBeenCalledWith(
-        'Failed to extract token: String error',
-        'error'
-      );
+      expect(notify.token.extractError).toHaveBeenCalled();
 
       global.atob = originalAtob;
     });
@@ -718,7 +712,7 @@ describe('useQRCodeHandler', () => {
         await result.current('random-unknown-data');
       });
 
-      expect(mockProps.showToast).toHaveBeenCalledWith('Unknown QR code format', 'error');
+      expect(notify.token.unknownFormat).toHaveBeenCalled();
     });
 
     it('should show error for empty string', async () => {
@@ -728,7 +722,7 @@ describe('useQRCodeHandler', () => {
         await result.current('');
       });
 
-      expect(mockProps.showToast).toHaveBeenCalledWith('Unknown QR code format', 'error');
+      expect(notify.token.unknownFormat).toHaveBeenCalled();
     });
 
     it('should show error for http URL without turbo indicators', async () => {
@@ -738,7 +732,7 @@ describe('useQRCodeHandler', () => {
         await result.current('https://example.com/some-page');
       });
 
-      expect(mockProps.showToast).toHaveBeenCalledWith('Unknown QR code format', 'error');
+      expect(notify.token.unknownFormat).toHaveBeenCalled();
     });
   });
 });

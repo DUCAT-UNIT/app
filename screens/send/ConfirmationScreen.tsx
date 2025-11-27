@@ -11,7 +11,6 @@ import Icon from '../../components/icons';
 import { useTransactionHistory } from '../../contexts/WalletDataContext';
 import { useWallet } from '../../contexts/WalletContext';
 import { useCashu } from '../../contexts/CashuContext';
-import { useNotifications } from '../../contexts/NotificationContext';
 import { logger } from '../../utils/logger';
 import { useConfirmationParams } from '../../hooks/useConfirmationParams';
 import { useTurboMintCompletion } from '../../hooks/useTurboMintCompletion';
@@ -48,7 +47,6 @@ export default function ConfirmationScreen({ navigation, route }: ConfirmationSc
   const { fetchTransactionHistory } = useTransactionHistory();
   const { wallet } = useWallet();
   const { refresh: refreshCashuBalance } = useCashu();
-  const { showToast, showSnackbar } = useNotifications();
 
   // Extract and validate route params
   const {
@@ -82,8 +80,6 @@ export default function ConfirmationScreen({ navigation, route }: ConfirmationSc
     senderTaprootAddress: wallet?.taprootAddress,
     fetchTransactionHistory,
     refreshCashuBalance,
-    showSnackbar,
-    showToast: (message: string, type: string) => showToast(message, type as 'success' | 'error' | 'info'),
   });
 
   // Handle Cashu mint completion (for threshold conversion)
@@ -92,8 +88,6 @@ export default function ConfirmationScreen({ navigation, route }: ConfirmationSc
     quoteId,
     fetchTransactionHistory,
     refreshCashuBalance,
-    showSnackbar,
-    showToast,
   });
 
   // Use generated token/deeplink if available, otherwise use local state
@@ -139,7 +133,6 @@ export default function ConfirmationScreen({ navigation, route }: ConfirmationSc
     turboDeeplink: turboDeeplink ?? undefined,
     fetchTransactionHistory,
     navigation,
-    showToast,
   });
 
   // If we're in 'ready' state but expecting turbo data that hasn't arrived yet, show loading

@@ -260,6 +260,100 @@ jest.mock('./utils/logger', () => {
   };
 });
 
+// Mock notify - provides notification helper functions
+jest.mock('./utils/notify', () => ({
+  notify: {
+    success: jest.fn(),
+    error: jest.fn(),
+    info: jest.fn(),
+    warning: jest.fn(),
+    snackbar: jest.fn(),
+    dismiss: jest.fn(),
+    operationFailed: jest.fn(),
+    auth: {
+      required: jest.fn(),
+      requiredForNotifications: jest.fn(),
+      requiredForDeleteWallet: jest.fn(),
+      requiredForFaceId: jest.fn(),
+    },
+    settings: {
+      enabled: jest.fn(),
+      disabled: jest.fn(),
+      failed: jest.fn(),
+      faceIdEnabled: jest.fn(),
+      faceIdDisabled: jest.fn(),
+      faceIdFailed: jest.fn(),
+      notificationsEnabled: jest.fn(),
+      notificationsDisabled: jest.fn(),
+      notificationsFailed: jest.fn(),
+    },
+    wallet: {
+      saveFailed: jest.fn(),
+      deleted: jest.fn(),
+      deleteFailed: jest.fn(),
+    },
+    passkey: {
+      notSupported: jest.fn(),
+      created: jest.fn(),
+      restored: jest.fn(),
+      noWallet: jest.fn(),
+      restoreFailed: jest.fn(),
+      walletCreationFailed: jest.fn(),
+      walletRestoreFailed: jest.fn(),
+      icloudFailed: jest.fn(),
+      creationFailed: jest.fn(),
+      pinProcessFailed: jest.fn(),
+    },
+    pin: {
+      invalid: jest.fn(),
+      mismatch: jest.fn(),
+      changed: jest.fn(),
+    },
+    seed: {
+      incomplete: jest.fn(),
+      incorrect: jest.fn(),
+    },
+    token: {
+      checking: jest.fn(),
+      claiming: jest.fn(),
+      claimingUnspent: jest.fn(),
+      extractFailed: jest.fn(),
+      extractError: jest.fn(),
+      unknownFormat: jest.fn(),
+    },
+    cashu: {
+      cacheCleared: jest.fn(),
+      cacheClearFailed: jest.fn(),
+      navigationFailed: jest.fn(),
+      conversionStartFailed: jest.fn(),
+      conversionComplete: jest.fn(),
+      conversionFailed: jest.fn(),
+      paymentSentAwaiting: jest.fn(),
+      topupStartFailed: jest.fn(),
+      lockedTokensCleared: jest.fn(),
+      lockedTokensClearFailed: jest.fn(),
+      recoveringChange: jest.fn(),
+    },
+    clipboard: {
+      linkCopied: jest.fn(),
+    },
+    link: {
+      shareFailed: jest.fn(),
+      copyFailed: jest.fn(),
+      openFailed: jest.fn(),
+    },
+    transaction: {
+      pending: jest.fn(),
+      success: jest.fn(),
+    },
+    build: {
+      error: jest.fn(),
+      missingRecipientAmount: jest.fn(),
+      assetRequired: jest.fn(),
+    },
+  },
+}));
+
 // Mock sentryService
 jest.mock('./services/sentryService', () => ({
   initializeSentrySession: jest.fn().mockResolvedValue('test-device-id'),

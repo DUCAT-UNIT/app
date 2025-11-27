@@ -9,6 +9,7 @@ import { create, act } from 'react-test-renderer';
 import { useWalletCreation } from '../useWalletCreation';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import * as WalletService from '../../services/walletService';
+import { notify } from '../../utils/notify';
 
 // Mock wallet service
 jest.mock('../../services/walletService');
@@ -76,7 +77,6 @@ describe('useWalletCreation', () => {
       currentAccount: 0,
       setIsAuthenticated: jest.fn(),
       setSeedConfirmed: jest.fn(),
-      showToast: jest.fn(),
       loadWallet: jest.fn(),
     };
   });
@@ -284,7 +284,7 @@ describe('useWalletCreation', () => {
         await result.current.createWallet();
       });
 
-      expect(mockProps.showToast).toHaveBeenCalledWith('Generation failed', 'error');
+      expect(notify.operationFailed).toHaveBeenCalled();
     });
 
     it('should not save wallet to storage immediately', async () => {

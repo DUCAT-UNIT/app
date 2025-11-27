@@ -1,10 +1,11 @@
 /**
  * useFormattedBalances
  * Memoizes expensive number formatting operations
- * Prevents repeated toLocaleString() calls on every render
+ * Uses centralized formatters from utils/formatters
  */
 
 import { useMemo } from 'react';
+import { formatBalance, formatFiat } from '../utils/formatters';
 
 interface UseFormattedBalancesParams {
   totalBalanceBTC?: number;
@@ -37,44 +38,23 @@ export const useFormattedBalances = ({
   const btcPrice = btcPriceParam ?? 0;
 
   return useMemo(() => {
-    // Format BTC amounts with 8 decimal places
-    const formatBTC = (value: number): string =>
-      value.toLocaleString('en-US', {
-        minimumFractionDigits: 8,
-        maximumFractionDigits: 8,
-      });
-
-    // Format USD amounts with 2 decimal places
-    const formatUSD = (value: number): string =>
-      value.toLocaleString('en-US', {
-        minimumFractionDigits: 2,
-        maximumFractionDigits: 2,
-      });
-
-    // Format UNIT amounts (runes) as integers
-    const formatUnit = (value: number): string =>
-      value.toLocaleString('en-US', {
-        minimumFractionDigits: 0,
-        maximumFractionDigits: 0,
-      });
-
     const price = btcPrice ?? 0;
 
     return {
       // Total balance formatted
-      totalBTC: formatBTC(totalBalanceBTC),
-      totalUSD: formatUSD(totalBalanceUSD),
+      totalBTC: formatBalance(totalBalanceBTC),
+      totalUSD: formatFiat(totalBalanceUSD),
 
       // Segwit balance formatted
-      segwitBTC: formatBTC(segwitBalance),
-      segwitUSD: formatUSD(segwitBalance * price),
+      segwitBTC: formatBalance(segwitBalance),
+      segwitUSD: formatFiat(segwitBalance * price),
 
       // Taproot balance formatted
-      taprootBTC: formatBTC(taprootBalance),
-      taprootUSD: formatUSD(taprootBalance * price),
+      taprootBTC: formatBalance(taprootBalance),
+      taprootUSD: formatFiat(taprootBalance * price),
 
-      // Runes balance formatted
-      runes: formatUnit(runesBalance),
+      // Runes balance formatted (as integer with commas)
+      runes: formatFiat(runesBalance, 0),
     };
   }, [totalBalanceBTC, totalBalanceUSD, segwitBalance, taprootBalance, runesBalance, btcPrice]);
 };

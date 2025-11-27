@@ -46,24 +46,9 @@ export {
 // Notifications
 export {
   useNotificationStore,
-  useToasts,
   useSnackbar,
-  useToastMessage,
-  useToastVisible,
-  useToastType,
   resetNotificationStore,
 } from './notificationStore';
-
-// Vault
-export {
-  useVaultStore,
-  useActiveTab,
-  useVaultCredentials,
-  useAutoCreateVaultTrigger,
-  resetVaultStore,
-  type VaultCredentials,
-  type ActiveTab,
-} from './vaultStore';
 
 // Pending Transactions
 export {
@@ -83,13 +68,11 @@ export const resetAllStores = async () => {
   const { resetPriceStore } = await import('./priceStore');
   const { resetSendFlowStore } = await import('./sendFlowStore');
   const { resetNotificationStore } = await import('./notificationStore');
-  const { resetVaultStore } = await import('./vaultStore');
   const { resetPendingTransactionsStore } = await import('./pendingTransactionsStore');
 
   resetDisplayPreferencesStore();
   resetPriceStore();
   resetSendFlowStore();
   resetNotificationStore();
-  resetVaultStore();
   resetPendingTransactionsStore();
 };

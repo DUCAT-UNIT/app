@@ -8,12 +8,11 @@ import * as PasskeyService from '../services/passkey';
 import { savePin } from '../services/pinService';
 import { saveMnemonic, saveCurrentAccount } from '../services/secureStorageService';
 import type { WalletAddresses } from '../contexts/WalletContext';
-import type { ToastType } from '../types/notification';
+import { notify } from '../utils/notify';
 
 interface UsePasskeyRestoreParams {
   setIsAuthenticated: (value: boolean) => void;
   setSeedConfirmed: (value: boolean) => void;
-  showToast: (message: string, type?: ToastType) => void;
   setWalletAddresses: (addresses: WalletAddresses, accountIndex: number) => void;
 }
 
@@ -32,7 +31,6 @@ interface UsePasskeyRestoreReturn {
 export function usePasskeyRestore({
   setIsAuthenticated,
   setSeedConfirmed,
-  showToast,
   setWalletAddresses
 }: UsePasskeyRestoreParams): UsePasskeyRestoreReturn {
   const [restoringWithPasskey, setRestoringWithPasskey] = useState(false);
@@ -48,21 +46,21 @@ export function usePasskeyRestore({
       // Check if passkeys are supported
       const supported = await PasskeyService.isPasskeySupported();
       if (!supported) {
-        showToast('Passkeys are not supported on this device', 'error');
+        notify.passkey.notSupported();
         return;
       }
 
       // Check if iCloud backup exists (don't check local storage - that may have been cleared)
       const hasBackup = await PasskeyService.hasICloudBackup();
       if (!hasBackup) {
-        showToast('No passkey wallet found in iCloud', 'error');
+        notify.passkey.noWallet();
         return;
       }
 
       // Show PIN input
       setShowRestorePinInput(true);
     } catch (error: unknown) {
-      showToast((error instanceof Error ? error.message : String(error)) || 'Failed to start passkey restore', 'error');
+      notify.passkey.restoreFailed(error instanceof Error ? error.message : undefined);
     }
   };
 
@@ -75,7 +73,7 @@ export function usePasskeyRestore({
 
       // Validate PIN
       if (!pin || pin.length !== 6) {
-        showToast('Please enter a 6-digit PIN', 'error');
+        notify.pin.invalid();
         setIsRestoring(false);
         return;
       }
@@ -101,9 +99,9 @@ export function usePasskeyRestore({
       setRestorePin('');
       setRestoringWithPasskey(false);
 
-      showToast('Wallet restored from passkey!', 'success');
+      notify.passkey.restored();
     } catch (error: unknown) {
-      showToast((error instanceof Error ? error.message : String(error)) || 'Failed to restore wallet with passkey', 'error');
+      notify.passkey.walletRestoreFailed(error instanceof Error ? error.message : undefined);
       setIsRestoring(false);
     } finally {
       setIsRestoring(false);

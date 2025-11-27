@@ -268,4 +268,96 @@ describe('SendFlowContext', () => {
     expect(result.current.requireConfirmedUtxos).toBe(false);
     expect(result.current.turboEnabled).toBe(false);
   });
+
+  describe('Setters with function updaters', () => {
+    it('should support function updater for setSendAssetType', () => {
+      const wrapper = ({ children }) => <SendFlowProvider>{children}</SendFlowProvider>;
+      const { result } = renderHook(() => useSendFlow(), { wrapper });
+
+      // Set initial value
+      act(() => {
+        result.current.setSendAssetType('btc');
+      });
+      expect(result.current.sendAssetType).toBe('btc');
+
+      // Use function updater
+      act(() => {
+        result.current.setSendAssetType((prev) => prev === 'btc' ? 'unit' : 'btc');
+      });
+      expect(result.current.sendAssetType).toBe('unit');
+    });
+
+    it('should support function updater for setSendAmount', () => {
+      const wrapper = ({ children }) => <SendFlowProvider>{children}</SendFlowProvider>;
+      const { result } = renderHook(() => useSendFlow(), { wrapper });
+
+      // Set initial value
+      act(() => {
+        result.current.setSendAmount('100');
+      });
+      expect(result.current.sendAmount).toBe('100');
+
+      // Use function updater
+      act(() => {
+        result.current.setSendAmount((prev) => prev + '0');
+      });
+      expect(result.current.sendAmount).toBe('1000');
+    });
+
+    it('should support function updater for setSendRecipient', () => {
+      const wrapper = ({ children }) => <SendFlowProvider>{children}</SendFlowProvider>;
+      const { result } = renderHook(() => useSendFlow(), { wrapper });
+
+      // Set initial value
+      act(() => {
+        result.current.setSendRecipient('bc1q');
+      });
+      expect(result.current.sendRecipient).toBe('bc1q');
+
+      // Use function updater
+      act(() => {
+        result.current.setSendRecipient((prev) => prev + 'test');
+      });
+      expect(result.current.sendRecipient).toBe('bc1qtest');
+    });
+
+    it('should support function updater for setSendAddressType', () => {
+      const wrapper = ({ children }) => <SendFlowProvider>{children}</SendFlowProvider>;
+      const { result } = renderHook(() => useSendFlow(), { wrapper });
+
+      expect(result.current.sendAddressType).toBe('taproot');
+
+      // Use function updater
+      act(() => {
+        result.current.setSendAddressType((prev) => prev === 'taproot' ? 'segwit' : 'taproot');
+      });
+      expect(result.current.sendAddressType).toBe('segwit');
+    });
+
+    it('should support function updater for setRequireConfirmedUtxos', () => {
+      const wrapper = ({ children }) => <SendFlowProvider>{children}</SendFlowProvider>;
+      const { result } = renderHook(() => useSendFlow(), { wrapper });
+
+      expect(result.current.requireConfirmedUtxos).toBe(false);
+
+      // Use function updater
+      act(() => {
+        result.current.setRequireConfirmedUtxos((prev) => !prev);
+      });
+      expect(result.current.requireConfirmedUtxos).toBe(true);
+    });
+
+    it('should support function updater for setTurboEnabled', () => {
+      const wrapper = ({ children }) => <SendFlowProvider>{children}</SendFlowProvider>;
+      const { result } = renderHook(() => useSendFlow(), { wrapper });
+
+      expect(result.current.turboEnabled).toBe(false);
+
+      // Use function updater
+      act(() => {
+        result.current.setTurboEnabled((prev) => !prev);
+      });
+      expect(result.current.turboEnabled).toBe(true);
+    });
+  });
 });

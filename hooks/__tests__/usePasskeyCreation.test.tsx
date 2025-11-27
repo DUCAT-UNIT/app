@@ -7,6 +7,7 @@ import React from 'react';
 import { create, act } from 'react-test-renderer';
 import * as PasskeyService from '../../services/passkey';
 import { usePasskeyCreation } from '../usePasskeyCreation';
+import { notify } from '../../utils/notify';
 
 // Helper to render hooks with react-test-renderer
 function renderHook(hook) {
@@ -41,7 +42,6 @@ describe('usePasskeyCreation', () => {
     mockProps = {
       setIsAuthenticated: jest.fn(),
       setSeedConfirmed: jest.fn(),
-      showToast: jest.fn(),
       loadWallet: jest.fn().mockResolvedValue(undefined),
       setWalletAddresses: jest.fn(),
     };
@@ -122,10 +122,7 @@ describe('usePasskeyCreation', () => {
         await result.current.startPasskeyCreation();
       });
 
-      expect(mockProps.showToast).toHaveBeenCalledWith(
-        'Passkeys are not supported on this device',
-        'error'
-      );
+      expect(notify.passkey.notSupported).toHaveBeenCalled();
       expect(result.current.showPinInput).toBe(false);
       expect(result.current.creatingWithPasskey).toBe(false);
     });
@@ -140,7 +137,7 @@ describe('usePasskeyCreation', () => {
         await result.current.startPasskeyCreation();
       });
 
-      expect(mockProps.showToast).toHaveBeenCalledWith('Passkey check failed', 'error');
+      expect(notify.passkey.creationFailed).toHaveBeenCalled();
       expect(result.current.showPinInput).toBe(false);
     });
 
@@ -153,7 +150,7 @@ describe('usePasskeyCreation', () => {
         await result.current.startPasskeyCreation();
       });
 
-      expect(mockProps.showToast).toHaveBeenCalledWith('Failed to start passkey creation', 'error');
+      expect(notify.passkey.creationFailed).toHaveBeenCalled();
     });
   });
 
@@ -176,7 +173,7 @@ describe('usePasskeyCreation', () => {
         await result.current.handlePinEntry(null);
       });
 
-      expect(mockProps.showToast).toHaveBeenCalledWith('Please enter a 6-digit PIN', 'error');
+      expect(notify.pin.invalid).toHaveBeenCalled();
       expect(result.current.confirmingPin).toBe(false);
     });
 
@@ -187,7 +184,7 @@ describe('usePasskeyCreation', () => {
         await result.current.handlePinEntry('');
       });
 
-      expect(mockProps.showToast).toHaveBeenCalledWith('Please enter a 6-digit PIN', 'error');
+      expect(notify.pin.invalid).toHaveBeenCalled();
       expect(result.current.confirmingPin).toBe(false);
     });
 
@@ -198,7 +195,7 @@ describe('usePasskeyCreation', () => {
         await result.current.handlePinEntry('12345');
       });
 
-      expect(mockProps.showToast).toHaveBeenCalledWith('Please enter a 6-digit PIN', 'error');
+      expect(notify.pin.invalid).toHaveBeenCalled();
       expect(result.current.confirmingPin).toBe(false);
     });
 
@@ -209,7 +206,7 @@ describe('usePasskeyCreation', () => {
         await result.current.handlePinEntry('1234567');
       });
 
-      expect(mockProps.showToast).toHaveBeenCalledWith('Please enter a 6-digit PIN', 'error');
+      expect(notify.pin.invalid).toHaveBeenCalled();
       expect(result.current.confirmingPin).toBe(false);
     });
   });
@@ -245,7 +242,7 @@ describe('usePasskeyCreation', () => {
       );
       expect(mockProps.setIsAuthenticated).toHaveBeenCalledWith(true);
       expect(mockProps.setSeedConfirmed).toHaveBeenCalledWith(true);
-      expect(mockProps.showToast).toHaveBeenCalledWith('Wallet created with passkey!', 'success');
+      expect(notify.passkey.created).toHaveBeenCalled();
       expect(result.current.showPinInput).toBe(false);
       expect(result.current.creatingWithPasskey).toBe(false);
       expect(result.current.walletExistsRef.current).toBe(true);
@@ -269,10 +266,7 @@ describe('usePasskeyCreation', () => {
         await result.current.handlePinEntry('654321');
       });
 
-      expect(mockProps.showToast).toHaveBeenCalledWith(
-        'PINs do not match. Please try again.',
-        'error'
-      );
+      expect(notify.pin.mismatch).toHaveBeenCalled();
       expect(result.current.confirmingPin).toBe(false);
       expect(result.current.passkeyPin).toBe('');
       expect(result.current.passkeyPinConfirm).toBe('');
@@ -301,7 +295,7 @@ describe('usePasskeyCreation', () => {
         await result.current.handlePinEntry('123456');
       });
 
-      expect(mockProps.showToast).toHaveBeenCalledWith('Wallet created with passkey!', 'success');
+      expect(notify.passkey.created).toHaveBeenCalled();
     });
 
     it('should show warning when iCloud backup fails', async () => {
@@ -328,10 +322,7 @@ describe('usePasskeyCreation', () => {
       });
 
       // First should show success toast
-      expect(mockProps.showToast).toHaveBeenCalledWith(
-        'Wallet created with passkey!',
-        'success'
-      );
+      expect(notify.passkey.created).toHaveBeenCalled();
 
       // Wait for background backup promise to resolve
       await act(async () => {
@@ -339,10 +330,7 @@ describe('usePasskeyCreation', () => {
       });
 
       // Then should show warning about backup failure
-      expect(mockProps.showToast).toHaveBeenCalledWith(
-        'iCloud backup failed - restoration may not work on new devices',
-        'warning'
-      );
+      expect(notify.passkey.icloudFailed).toHaveBeenCalled();
     });
 
     it('should set isCreating to true during creation', async () => {
@@ -396,7 +384,7 @@ describe('usePasskeyCreation', () => {
         await result.current.handlePinEntry('123456');
       });
 
-      expect(mockProps.showToast).toHaveBeenCalledWith('Creation failed', 'error');
+      expect(notify.passkey.walletCreationFailed).toHaveBeenCalled();
       expect(mockProps.setIsAuthenticated).not.toHaveBeenCalled();
       expect(result.current.creatingWithPasskey).toBe(false);
       expect(result.current.isCreating).toBe(false);
@@ -421,10 +409,7 @@ describe('usePasskeyCreation', () => {
         await result.current.handlePinEntry('123456');
       });
 
-      expect(mockProps.showToast).toHaveBeenCalledWith(
-        'Failed to create wallet with passkey',
-        'error'
-      );
+      expect(notify.passkey.walletCreationFailed).toHaveBeenCalled();
     });
   });
 

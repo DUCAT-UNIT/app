@@ -2,15 +2,13 @@ import { useState, useEffect, useRef } from 'react';
 import { logger } from '../utils/logger';
 import { completeMint } from '../services/cashu/cashuWalletService';
 import { checkMintQuote } from '../services/cashu/cashuMintClient';
-import type { SnackbarParams, ToastType } from '../contexts/NotificationContext';
+import { notify } from '../utils/notify';
 
 interface UseCashuMintCompletionParams {
   cashuMint: boolean | undefined;
   quoteId: string | undefined;
   fetchTransactionHistory?: () => Promise<void>;
   refreshCashuBalance: () => Promise<void>;
-  showSnackbar: (params: SnackbarParams) => void;
-  showToast: (message: string, type: ToastType) => void;
 }
 
 interface UseCashuMintCompletionReturn {
@@ -28,8 +26,6 @@ export function useCashuMintCompletion({
   quoteId,
   fetchTransactionHistory,
   refreshCashuBalance,
-  showSnackbar,
-  showToast,
 }: UseCashuMintCompletionParams): UseCashuMintCompletionReturn {
   const [isCompletingMint, setIsCompletingMint] = useState(false);
   const hasCashuMintCompleted = useRef(false);
@@ -91,22 +87,22 @@ export function useCashuMintCompletion({
           logger.debug('[useCashuMintCompletion] Cashu balance refreshed after threshold conversion');
 
           setIsCompletingMint(false);
-          showSnackbar({ message: 'Conversion complete', type: 'success', action: 'convert' });
+          notify.cashu.conversionComplete();
         } else {
           logger.debug('[useCashuMintCompletion] Payment not confirmed after 30 seconds');
           setIsCompletingMint(false);
-          showToast('Payment sent. Ecash will be available once confirmed.', 'info');
+          notify.cashu.paymentSentAwaiting();
         }
       } catch (error: unknown) {
         const errorMessage = error instanceof Error ? error.message : String(error);
         logger.error('[useCashuMintCompletion] Error during cashu mint completion:', { error: errorMessage });
         setIsCompletingMint(false);
-        showToast(`Failed to complete conversion: ${errorMessage}`, 'error');
+        notify.cashu.conversionFailed(errorMessage);
       }
     };
 
     completeCashuMintProcess();
-  }, [cashuMint, quoteId, fetchTransactionHistory, refreshCashuBalance, showSnackbar, showToast]);
+  }, [cashuMint, quoteId, fetchTransactionHistory, refreshCashuBalance]);
 
   return {
     isCompletingMint,

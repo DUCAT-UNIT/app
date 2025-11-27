@@ -1,32 +1,43 @@
 /**
  * NotificationContext - MIGRATED TO ZUSTAND
  *
- * This file now provides backward compatibility by wrapping the Zustand store.
+ * This file provides backward compatibility by wrapping the Zustand store.
  * New code should import directly from stores/notificationStore.ts
  *
  * MIGRATION STATUS: Complete
  * - Provider is now a no-op (children pass-through)
  * - Hook returns Zustand store values with compatible interface
+ * - showToast is now mapped to showSnackbar (unified notification system)
  */
 
-import React, { ReactNode } from 'react';
+import React, { ReactNode, useCallback } from 'react';
 import { useNotificationStore } from '../stores/notificationStore';
-import type { ToastType, Toast, SnackbarParams } from '../types/notification';
+import type { SnackbarParams, SnackbarType } from '../types/notification';
 
 // Re-export types for backwards compatibility
-export type { ToastType, Toast, SnackbarType, SnackbarParams } from '../types/notification';
+export type { SnackbarType, SnackbarParams, Toast } from '../types/notification';
+
+/**
+ * @deprecated Use SnackbarType instead
+ */
+export type ToastType = SnackbarType;
 
 interface NotificationContextValue {
-  // Toast
-  showToast: (message: string, type?: ToastType) => void;
-  toasts: Toast[];
-  dismissToast: (id: number) => void;
-  toastMessage: string;
-  toastVisible: boolean;
-  toastType: ToastType;
-  // Snackbar
+  /**
+   * @deprecated Use showSnackbar instead. This now maps to showSnackbar internally.
+   */
+  showToast: (message: string, type?: SnackbarType) => void;
+  /**
+   * Show a snackbar notification
+   */
   showSnackbar: (params: SnackbarParams) => void;
+  /**
+   * Current snackbar params (null if none showing)
+   */
   snackbar: SnackbarParams | null;
+  /**
+   * Dismiss the current snackbar
+   */
   dismissSnackbar: () => void;
 }
 
@@ -36,27 +47,21 @@ interface NotificationContextValue {
  */
 export const useNotifications = (): NotificationContextValue => {
   // Subscribe to individual state slices for optimal re-renders
-  const toasts = useNotificationStore((state) => state.toasts);
   const snackbar = useNotificationStore((state) => state.snackbar);
-  const showToast = useNotificationStore((state) => state.showToast);
-  const dismissToast = useNotificationStore((state) => state.dismissToast);
   const showSnackbar = useNotificationStore((state) => state.showSnackbar);
   const dismissSnackbar = useNotificationStore((state) => state.dismissSnackbar);
+  const showMessage = useNotificationStore((state) => state.showMessage);
 
-  // Computed values for backwards compatibility
-  const toastMessage = toasts[0]?.message || '';
-  const toastVisible = toasts.length > 0;
-  const toastType: ToastType = toasts[0]?.type || 'success';
+  /**
+   * Backwards-compatible showToast that maps to showSnackbar
+   * @deprecated Use showSnackbar instead
+   */
+  const showToast = useCallback((message: string, type: SnackbarType = 'success') => {
+    showMessage(message, type);
+  }, [showMessage]);
 
   return {
-    // Toast
     showToast,
-    toasts,
-    dismissToast,
-    toastMessage,
-    toastVisible,
-    toastType,
-    // Snackbar
     showSnackbar,
     snackbar,
     dismissSnackbar,

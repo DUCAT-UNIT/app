@@ -7,6 +7,7 @@
 import React from 'react';
 import { create, act } from 'react-test-renderer';
 import { useTurboMintCompletion } from '../useTurboMintCompletion';
+import { notify } from '../../utils/notify';
 
 // Mock dependencies
 jest.mock('../../utils/logger', () => ({
@@ -97,8 +98,6 @@ describe('useTurboMintCompletion', () => {
       senderTaprootAddress: 'tb1psender123',
       fetchTransactionHistory: jest.fn().mockResolvedValue(),
       refreshCashuBalance: jest.fn().mockResolvedValue(),
-      showSnackbar: jest.fn(),
-      showToast: jest.fn(),
     };
 
     // Default mocks
@@ -310,7 +309,7 @@ describe('useTurboMintCompletion', () => {
       expect(mockSaveSentLockedToken).toHaveBeenCalled();
     });
 
-    it('should show send snackbar when turboRecipient is provided', async () => {
+    it('should show send notification when turboRecipient is provided', async () => {
       mockCheckMintQuote.mockResolvedValue({ state: 'PAID', amount: 100 });
 
       const { result } = renderHookWithProps({
@@ -331,10 +330,10 @@ describe('useTurboMintCompletion', () => {
         await Promise.resolve();
       });
 
-      expect(mockProps.showSnackbar).toHaveBeenCalledWith({ type: 'success', action: 'send' });
+      expect(notify.transaction.success).toHaveBeenCalledWith('send');
     });
 
-    it('should show convert snackbar when no turboRecipient', async () => {
+    it('should show convert notification when no turboRecipient', async () => {
       mockCheckMintQuote.mockResolvedValue({ state: 'PAID', amount: 100 });
 
       const { result } = renderHookWithProps({
@@ -354,7 +353,7 @@ describe('useTurboMintCompletion', () => {
         await Promise.resolve();
       });
 
-      expect(mockProps.showSnackbar).toHaveBeenCalledWith({ type: 'success', action: 'convert' });
+      expect(notify.transaction.success).toHaveBeenCalledWith('convert');
     });
 
     it('should show toast when payment not confirmed after timeout', async () => {
@@ -379,10 +378,7 @@ describe('useTurboMintCompletion', () => {
         });
       }
 
-      expect(mockProps.showToast).toHaveBeenCalledWith(
-        'Payment sent. E-cash will be available once confirmed.',
-        'info'
-      );
+      expect(notify.cashu.paymentSentAwaiting).toHaveBeenCalled();
     });
 
     it('should handle error during mint completion', async () => {
@@ -403,10 +399,7 @@ describe('useTurboMintCompletion', () => {
         await Promise.resolve();
       });
 
-      expect(mockProps.showToast).toHaveBeenCalledWith(
-        'Failed to complete conversion: Network error',
-        'error'
-      );
+      expect(notify.cashu.conversionFailed).toHaveBeenCalled();
     });
 
     it('should handle error when pubkey extraction fails', async () => {
@@ -536,10 +529,7 @@ describe('useTurboMintCompletion', () => {
         await Promise.resolve();
       });
 
-      expect(mockProps.showToast).toHaveBeenCalledWith(
-        'Failed to complete conversion: String error',
-        'error'
-      );
+      expect(notify.cashu.conversionFailed).toHaveBeenCalled();
     });
 
     it('should handle non-Error exception in storage error path', async () => {

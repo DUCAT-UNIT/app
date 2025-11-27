@@ -6,6 +6,7 @@
 import React from 'react';
 import { create, act } from 'react-test-renderer';
 import { useOnboardingHandlers } from '../useOnboardingHandlers';
+import { notify } from '../../utils/notify';
 
 // Mock dependencies
 jest.mock('../../utils/logger', () => ({
@@ -67,7 +68,6 @@ describe('useOnboardingHandlers', () => {
       fetchBalance: jest.fn().mockResolvedValue(),
       fetchTransactionHistory: jest.fn().mockResolvedValue(),
       showPasskeyMigrationPromptGlobal: jest.fn(),
-      showToast: jest.fn(),
       isImportedWallet: false,
       importedMnemonic: null,
     };
@@ -108,7 +108,7 @@ describe('useOnboardingHandlers', () => {
         await result.current.handlePinSetupComplete('1234');
       });
 
-      expect(mockProps.showToast).toHaveBeenCalledWith('Failed to save wallet', 'error');
+      expect(notify.wallet.saveFailed).toHaveBeenCalled();
       expect(mockProps.handlePinSetupCompleteWrapper).not.toHaveBeenCalled();
     });
 

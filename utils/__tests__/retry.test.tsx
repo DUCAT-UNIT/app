@@ -114,12 +114,12 @@ describe('retry utilities', () => {
         .mockRejectedValueOnce(new Error('fetch failed'))
         .mockResolvedValueOnce('success');
 
-      const delays = [];
+      const delays: number[] = [];
       const originalSetTimeout = global.setTimeout;
-      global.setTimeout = jest.fn((fn, delay) => {
+      global.setTimeout = jest.fn((fn: () => void, delay: number) => {
         delays.push(delay);
         return originalSetTimeout(fn, delay);
-      });
+      }) as unknown as typeof setTimeout;
 
       await retryWithBackoff(mockFn, {
         initialDelay: 1000,

@@ -51,32 +51,41 @@ export function btcToSats(btc: number | string | null | undefined): number {
 }
 
 /**
- * Format satoshis as BTC with specified decimal places
+ * Format satoshis as BTC with specified decimal places and thousand separators
  * @param satoshis - Amount in satoshis
  * @param decimals - Number of decimal places (default: 8)
- * @returns Formatted BTC amount
+ * @returns Formatted BTC amount with commas (e.g., "1,234.56789012")
  */
 export function formatBTC(satoshis: number | null | undefined, decimals = 8): string {
   if (satoshis === null || satoshis === undefined) {
-    return (0).toFixed(decimals);
+    return (0).toLocaleString('en-US', {
+      minimumFractionDigits: decimals,
+      maximumFractionDigits: decimals,
+    });
   }
 
   if (typeof satoshis !== 'number' || isNaN(satoshis)) {
     logger.warn('formatBTC: Invalid satoshis value', { satoshis });
-    return (0).toFixed(decimals);
+    return (0).toLocaleString('en-US', {
+      minimumFractionDigits: decimals,
+      maximumFractionDigits: decimals,
+    });
   }
 
   const btc = satsToBTC(satoshis);
-  return btc.toFixed(decimals);
+  return btc.toLocaleString('en-US', {
+    minimumFractionDigits: decimals,
+    maximumFractionDigits: decimals,
+  });
 }
 
 /**
- * Format satoshis as BTC with smart decimal trimming
- * Removes trailing zeros but keeps at least 2 decimals
+ * Format satoshis as BTC with smart decimal trimming and thousand separators
+ * Removes trailing zeros but keeps at least minDecimals
  * @param satoshis - Amount in satoshis
  * @param minDecimals - Minimum decimal places (default: 2)
  * @param maxDecimals - Maximum decimal places (default: 8)
- * @returns Formatted BTC amount
+ * @returns Formatted BTC amount with commas (e.g., "1,234.56")
  */
 export function formatBTCSmart(satoshis: number | null | undefined, minDecimals = 2, maxDecimals = 8): string {
   if (satoshis === null || satoshis === undefined) {
@@ -89,19 +98,23 @@ export function formatBTCSmart(satoshis: number | null | undefined, minDecimals 
   }
 
   const btc = satsToBTC(satoshis);
-  let formatted = btc.toFixed(maxDecimals);
+
+  // First determine how many significant decimals we need
+  const fullPrecision = btc.toFixed(maxDecimals);
+  const parts = fullPrecision.split('.');
+  let decimals = parts[1] || '';
 
   // Remove trailing zeros down to minDecimals
-  const parts = formatted.split('.');
-  if (parts[1]) {
-    let decimals = parts[1];
-    while (decimals.length > minDecimals && decimals[decimals.length - 1] === '0') {
-      decimals = decimals.slice(0, -1);
-    }
-    formatted = decimals.length > 0 ? `${parts[0]}.${decimals}` : parts[0];
+  while (decimals.length > minDecimals && decimals[decimals.length - 1] === '0') {
+    decimals = decimals.slice(0, -1);
   }
 
-  return formatted;
+  const actualDecimals = Math.max(minDecimals, decimals.length);
+
+  return btc.toLocaleString('en-US', {
+    minimumFractionDigits: actualDecimals,
+    maximumFractionDigits: actualDecimals,
+  });
 }
 
 export interface ParseBTCResult {

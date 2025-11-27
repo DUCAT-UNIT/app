@@ -266,6 +266,70 @@ describe('getJSON', () => {
       8000
     );
   });
+
+  it('should throw error when response is not ok', async () => {
+    const mockResponse = {
+      ok: false,
+      status: 404,
+      statusText: 'Not Found',
+      headers: { get: jest.fn().mockReturnValue('application/json') },
+    };
+    api.fetchWithTimeout.mockResolvedValue(mockResponse);
+
+    await expect(getJSON('https://api.test')).rejects.toThrow('HTTP 404: Not Found');
+  });
+
+  it('should throw error when content-type is not JSON', async () => {
+    const mockResponse = {
+      ok: true,
+      headers: { get: jest.fn().mockReturnValue('text/html') },
+      json: jest.fn().mockResolvedValue({}),
+    };
+    api.fetchWithTimeout.mockResolvedValue(mockResponse);
+
+    await expect(getJSON('https://api.test')).rejects.toThrow('Expected JSON response but got text/html');
+  });
+
+  it('should handle null content-type header gracefully', async () => {
+    const mockData = { result: 'success' };
+    const mockResponse = {
+      ok: true,
+      headers: { get: jest.fn().mockReturnValue(null) },
+      json: jest.fn().mockResolvedValue(mockData),
+    };
+    api.fetchWithTimeout.mockResolvedValue(mockResponse);
+
+    const result = await getJSON('https://api.test');
+    expect(result).toEqual(mockData);
+  });
+});
+
+describe('getWithRetry error handling', () => {
+  beforeEach(() => {
+    jest.clearAllMocks();
+    retry.retrySilently.mockImplementation((fn) => fn());
+  });
+
+  it('should log API call and rethrow error on failure', async () => {
+    const error = new Error('Network failed');
+    api.fetchWithTimeout.mockRejectedValue(error);
+
+    await expect(getWithRetry('https://api.test')).rejects.toThrow('Network failed');
+  });
+});
+
+describe('postWithRetry error handling', () => {
+  beforeEach(() => {
+    jest.clearAllMocks();
+    retry.retrySilently.mockImplementation((fn) => fn());
+  });
+
+  it('should log API call and rethrow error on failure', async () => {
+    const error = new Error('Network failed');
+    api.fetchWithTimeout.mockRejectedValue(error);
+
+    await expect(postWithRetry('https://api.test', { data: 'test' })).rejects.toThrow('Network failed');
+  });
 });
 
 describe('fetchPaginated', () => {
@@ -419,5 +483,45 @@ describe('fetchParallel', () => {
 
     expect(results[0]).toBe('slow');
     expect(results[1]).toBe('fast');
+  });
+
+  it('should log debug for network errors', async () => {
+    const operations = [
+      { fn: jest.fn().mockRejectedValue(new Error('HTTP 500 error')), defaultValue: 'default', name: 'op1' },
+    ];
+
+    const results = await fetchParallel(operations);
+
+    expect(results).toEqual(['default']);
+  });
+
+  it('should log debug for timeout errors', async () => {
+    const operations = [
+      { fn: jest.fn().mockRejectedValue(new Error('Request timeout')), defaultValue: 'default', name: 'op1' },
+    ];
+
+    const results = await fetchParallel(operations);
+
+    expect(results).toEqual(['default']);
+  });
+
+  it('should log debug for Expected JSON errors', async () => {
+    const operations = [
+      { fn: jest.fn().mockRejectedValue(new Error('Expected JSON response')), defaultValue: 'default', name: 'op1' },
+    ];
+
+    const results = await fetchParallel(operations);
+
+    expect(results).toEqual(['default']);
+  });
+
+  it('should log error for non-network errors', async () => {
+    const operations = [
+      { fn: jest.fn().mockRejectedValue(new Error('Unknown error')), defaultValue: 'default', name: 'op1' },
+    ];
+
+    const results = await fetchParallel(operations);
+
+    expect(results).toEqual(['default']);
   });
 });

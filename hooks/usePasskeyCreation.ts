@@ -8,12 +8,11 @@ import * as Device from 'expo-device';
 import * as Haptics from 'expo-haptics';
 import * as PasskeyService from '../services/passkey';
 import type { WalletAddresses } from '../contexts/WalletContext';
-import type { ToastType } from '../types/notification';
+import { notify } from '../utils/notify';
 
 interface UsePasskeyCreationParams {
   setIsAuthenticated: (value: boolean) => void;
   setSeedConfirmed: (value: boolean) => void;
-  showToast: (message: string, type?: ToastType) => void;
   setWalletAddresses: (addresses: WalletAddresses, accountIndex: number) => void;
 }
 
@@ -38,7 +37,6 @@ interface UsePasskeyCreationReturn {
 export function usePasskeyCreation({
   setIsAuthenticated,
   setSeedConfirmed,
-  showToast,
   setWalletAddresses
 }: UsePasskeyCreationParams): UsePasskeyCreationReturn {
   const [creatingWithPasskey, setCreatingWithPasskey] = useState(false);
@@ -59,7 +57,7 @@ export function usePasskeyCreation({
       // Check if passkeys are supported
       const supported = await PasskeyService.isPasskeySupported();
       if (!supported) {
-        showToast('Passkeys are not supported on this device', 'error');
+        notify.passkey.notSupported();
         return;
       }
 
@@ -67,7 +65,7 @@ export function usePasskeyCreation({
       setShowPinInput(true);
       setCreatingWithPasskey(true);
     } catch (error: unknown) {
-      showToast((error instanceof Error ? error.message : String(error)) || 'Failed to start passkey creation', 'error');
+      notify.passkey.creationFailed(error instanceof Error ? error.message : undefined);
     }
   };
 
@@ -78,14 +76,14 @@ export function usePasskeyCreation({
     try {
       // Validate PIN
       if (!pin || pin.length !== 6) {
-        showToast('Please enter a 6-digit PIN', 'error');
+        notify.pin.invalid();
         return;
       }
 
       // If confirming, check if PINs match
       if (confirmingPin) {
         if (pin !== passkeyPin) {
-          showToast('PINs do not match. Please try again.', 'error');
+          notify.pin.mismatch();
           setConfirmingPin(false);
           setPasskeyPin('');
           setPasskeyPinConfirm('');
@@ -102,7 +100,7 @@ export function usePasskeyCreation({
         }).catch((error) => {
           Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
           setIsCreating(false);
-          showToast((error instanceof Error ? error.message : String(error)) || 'Failed to create wallet with passkey', 'error');
+          notify.passkey.walletCreationFailed(error instanceof Error ? error.message : undefined);
           setCreatingWithPasskey(false);
           setConfirmingPin(false);
           setPasskeyPin('');
@@ -113,7 +111,7 @@ export function usePasskeyCreation({
         setConfirmingPin(true);
       }
     } catch (error: unknown) {
-      showToast((error instanceof Error ? error.message : String(error)) || 'Failed to process PIN', 'error');
+      notify.passkey.pinProcessFailed(error instanceof Error ? error.message : undefined);
     }
   };
 
@@ -155,13 +153,13 @@ export function usePasskeyCreation({
       setCreatingWithPasskey(false);
 
       // Show immediate success - navigation happens instantly
-      showToast('Wallet created with passkey!', 'success');
+      notify.passkey.created();
 
       // Handle iCloud backup result in background (non-blocking)
       if (icloudBackupPromise) {
         icloudBackupPromise.then((result) => {
           if (!result.success) {
-            showToast('iCloud backup failed - restoration may not work on new devices', 'warning');
+            notify.passkey.icloudFailed();
           }
         });
       }

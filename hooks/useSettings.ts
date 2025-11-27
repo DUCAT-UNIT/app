@@ -12,8 +12,6 @@ import { useMemo, MutableRefObject } from 'react';
 import { useAuthSettings } from './useAuthSettings';
 import { useWalletActions } from './useWalletActions';
 import { useAppSettings } from './useAppSettings';
-import type { SnackbarParams } from '../contexts/NotificationContext';
-import type { ToastType } from '../types/notification';
 
 interface UseSettingsParams {
   biometricEnabled: boolean;
@@ -24,8 +22,6 @@ interface UseSettingsParams {
   resetWallet: () => void;
   clearVaultCredentials?: () => void;
   walletExistsRef?: MutableRefObject<boolean>;
-  showToast?: (message: string, type: ToastType) => void;
-  showSnackbar?: (params: SnackbarParams) => void;
 }
 
 export function useSettings(props: UseSettingsParams) {

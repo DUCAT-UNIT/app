@@ -9,6 +9,7 @@ import Icon from '../icons';
 import { RunestoneInfo } from './RunestoneInfo';
 import { truncateAddress } from '../../utils/formatters/addresses';
 import { formatBTC, satsToBTC } from '../../utils/bitcoin/conversions';
+import { formatUnitAmount, formatFiat } from '../../utils/formatters/amounts';
 
 export type OutputType = 'recipient' | 'change' | 'rune_return' | 'op_return';
 export type AssetType = 'BTC' | 'UNIT' | 'RUNE';
@@ -63,10 +64,7 @@ export function TransactionOutput({ output, sendIntent, runeUtxoBalance, btcPric
           <View style={styles.unitChip}>
             <Icon name="unit_symbol" size={10} color={COLORS.PRIMARY_BLUE} />
             <Text style={styles.unitChipText}>
-              {(unitAmount / 100).toLocaleString('en-US', {
-                minimumFractionDigits: 2,
-                maximumFractionDigits: 2
-              })}
+              {formatUnitAmount(unitAmount)}
             </Text>
           </View>
         )}
@@ -74,10 +72,7 @@ export function TransactionOutput({ output, sendIntent, runeUtxoBalance, btcPric
           <View style={styles.unitChip}>
             <Icon name="unit_symbol" size={10} color={COLORS.PRIMARY_BLUE} />
             <Text style={styles.unitChipText}>
-              {remainingUnit.toLocaleString('en-US', {
-                minimumFractionDigits: 2,
-                maximumFractionDigits: 2
-              })}
+              {formatFiat(remainingUnit)}
             </Text>
           </View>
         )}
@@ -104,10 +99,7 @@ export function TransactionOutput({ output, sendIntent, runeUtxoBalance, btcPric
             {formatBTC(output.value)} BTC
           </Text>
           <Text style={styles.txUsd}>
-            ${(satsToBTC(output.value) * (btcPrice || 0)).toLocaleString('en-US', {
-              minimumFractionDigits: 2,
-              maximumFractionDigits: 2
-            })}
+            ${formatFiat(satsToBTC(output.value) * (btcPrice || 0))}
           </Text>
         </View>
       )}

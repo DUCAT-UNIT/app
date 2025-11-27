@@ -8,6 +8,7 @@ import { createStackNavigator, StackNavigationOptions, StackCardStyleInterpolato
 import { withErrorBoundary } from '../components/withErrorBoundary';
 import WalletPageComponent from '../pages/WalletPage';
 import AssetDetailScreenComponent from '../screens/wallet/AssetDetailScreen';
+import VaultDetailScreenComponent from '../screens/wallet/VaultDetailScreen';
 import ReceiveQRScreenComponent from '../screens/wallet/ReceiveQRScreen';
 import CashuReceiveScreenComponent from '../screens/cashu/CashuReceiveScreen';
 import CashuSendScreenComponent from '../screens/cashu/CashuSendScreen';
@@ -36,6 +37,11 @@ const WalletPage: AnyComponent = withErrorBoundary(WalletPageComponent, {
 const AssetDetailScreen: AnyComponent = withErrorBoundary(AssetDetailScreenComponent, {
   boundaryName: 'AssetDetailScreen',
   fallbackMessage: 'Unable to load asset details. Please try again.',
+});
+
+const VaultDetailScreen: AnyComponent = withErrorBoundary(VaultDetailScreenComponent, {
+  boundaryName: 'VaultDetailScreen',
+  fallbackMessage: 'Unable to load vault details. Please try again.',
 });
 
 const ReceiveQRScreen: AnyComponent = withErrorBoundary(ReceiveQRScreenComponent, {
@@ -199,6 +205,11 @@ export default function WalletStackNavigator(): React.JSX.Element {
       <Stack.Screen
         name="AssetDetail"
         component={AssetDetailScreen}
+        options={detailScreenOptions}
+      />
+      <Stack.Screen
+        name="VaultDetail"
+        component={VaultDetailScreen}
         options={detailScreenOptions}
       />
       <Stack.Screen

@@ -7,7 +7,7 @@
 import { useState, useCallback, useMemo } from 'react';
 import { authenticateWithBiometrics } from '../services/biometricService';
 import * as SettingsService from '../services/settingsService';
-import type { ToastType } from '../types/notification';
+import { notify } from '../utils/notify';
 
 interface AuthenticatedToggleConfig {
   settingKey: string;
@@ -16,7 +16,6 @@ interface AuthenticatedToggleConfig {
   onValueChange?: (newValue: boolean) => void;
   biometricEnabled: boolean;
   setIsAuthenticated: (value: boolean) => void;
-  showToast?: (message: string, type: ToastType) => void;
   pendingEnableKey?: string;
   authPrompt?: string;
   requireAuthToDisable?: boolean;
@@ -32,7 +31,6 @@ interface AuthenticatedToggleReturn {
 interface AuthContext {
   biometricEnabled: boolean;
   setIsAuthenticated: (value: boolean) => void;
-  showToast?: (message: string, type: ToastType) => void;
 }
 
 export function useAuthenticatedToggle(config: AuthenticatedToggleConfig): AuthenticatedToggleReturn {
@@ -43,7 +41,6 @@ export function useAuthenticatedToggle(config: AuthenticatedToggleConfig): Authe
     onValueChange,
     biometricEnabled,
     setIsAuthenticated,
-    showToast,
     pendingEnableKey,
     authPrompt,
     requireAuthToDisable = false,
@@ -99,13 +96,8 @@ export function useAuthenticatedToggle(config: AuthenticatedToggleConfig): Authe
             SettingsService.SettingKeys.RETURN_TO_SETTINGS_AFTER_AUTH,
             true
           );
-        } catch (error: unknown) {
-          if (showToast) {
-            showToast(
-              `Authentication required to ${newValue ? 'enable' : 'disable'} ${settingName}`,
-              'error'
-            );
-          }
+        } catch {
+          notify.auth.required(`${newValue ? 'enable' : 'disable'} ${settingName}`);
           return;
         }
       } else {
@@ -129,19 +121,18 @@ export function useAuthenticatedToggle(config: AuthenticatedToggleConfig): Authe
         onValueChange(newValue);
       }
 
-      if (showToast) {
-        showToast(`${settingName} ${newValue ? 'enabled' : 'disabled'}`, 'success');
+      if (newValue) {
+        notify.settings.enabled(settingName);
+      } else {
+        notify.settings.disabled(settingName);
       }
-    } catch (error: unknown) {
-      if (showToast) {
-        showToast(`Failed to update ${settingName}`, 'error');
-      }
+    } catch {
+      notify.settings.failed(settingName);
     }
   }, [
     pendingValue,
     biometricEnabled,
     setIsAuthenticated,
-    showToast,
     settingKey,
     settingName,
     onValueChange,

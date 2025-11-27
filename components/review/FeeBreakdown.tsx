@@ -5,6 +5,7 @@
 import React from 'react';
 import { View, Text, StyleSheet } from 'react-native';
 import { COLORS } from '../../theme';
+import { formatFiat } from '../../utils/formatters';
 
 interface FeeBreakdownProps {
   actualFee: number;
@@ -21,7 +22,7 @@ export default function FeeBreakdown({ actualFee }: FeeBreakdownProps) {
         </View>
         <View style={styles.detailRowLast}>
           <Text style={styles.detailLabel}>Total fees:</Text>
-          <Text style={styles.detailValue}>{actualFee.toLocaleString()} sats</Text>
+          <Text style={styles.detailValue}>{formatFiat(actualFee, 0)} sats</Text>
         </View>
       </View>
     </>

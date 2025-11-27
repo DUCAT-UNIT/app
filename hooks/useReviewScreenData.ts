@@ -8,6 +8,7 @@ import { parsePSBT, buildFallbackOutputs, hasUnconfirmedInputs as checkUnconfirm
 import { useTransactionBuild } from '../contexts/TransactionBuildContext';
 import type { SendIntent } from '../contexts/TransactionBuildContext';
 import { usePrice } from '../contexts/PriceContext';
+import { formatUnitAmount, formatFiat } from '../utils/formatters';
 
 interface UseReviewScreenDataReturn {
   sendIntent: SendIntent | null;
@@ -46,11 +47,8 @@ export function useReviewScreenData(): UseReviewScreenDataReturn {
     if (!sendIntent) return '';
 
     if (sendIntent.assetType === 'UNIT') {
-      const amount = sendIntent.amount.toString();
-      return `${(parseFloat(amount) / 100).toLocaleString('en-US', {
-        minimumFractionDigits: 2,
-        maximumFractionDigits: 2
-      })} UNIT`;
+      const amount = parseFloat(sendIntent.amount.toString());
+      return `${formatUnitAmount(amount)} UNIT`;
     } else {
       // BTC transaction
       return `${sendIntent.amountBTC} BTC`;
@@ -61,17 +59,11 @@ export function useReviewScreenData(): UseReviewScreenDataReturn {
     if (!sendIntent) return '0.00';
 
     if (sendIntent.assetType === 'UNIT') {
-      const amount = sendIntent.amount.toString();
-      return (parseFloat(amount) / 100).toLocaleString('en-US', {
-        minimumFractionDigits: 2,
-        maximumFractionDigits: 2,
-      });
+      const amount = parseFloat(sendIntent.amount.toString());
+      return formatUnitAmount(amount);
     } else {
       // BTC transaction
-      return (parseFloat(sendIntent.amountBTC) * (btcPrice || 0)).toLocaleString('en-US', {
-        minimumFractionDigits: 2,
-        maximumFractionDigits: 2,
-      });
+      return formatFiat(parseFloat(sendIntent.amountBTC) * (btcPrice || 0));
     }
   }, [sendIntent, btcPrice]);
 

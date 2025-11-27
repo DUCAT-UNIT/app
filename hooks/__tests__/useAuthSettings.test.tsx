@@ -8,6 +8,7 @@ import { create, act } from 'react-test-renderer';
 import * as SecureStore from 'expo-secure-store';
 import * as biometricService from '../../services/biometricService';
 import { useAuthSettings } from '../useAuthSettings';
+import { notify } from '../../utils/notify';
 
 // Helper to render hooks with react-test-renderer
 function renderHook(hook) {
@@ -49,7 +50,6 @@ describe('useAuthSettings', () => {
       setBiometricEnabled: jest.fn(),
       setIsAuthenticated: jest.fn(),
       startPinChange: jest.fn(),
-      showToast: jest.fn(),
     };
     jest.clearAllMocks();
     SecureStore.setItemAsync.mockResolvedValue(null);
@@ -127,7 +127,7 @@ describe('useAuthSettings', () => {
       expect(SecureStore.setItemAsync).toHaveBeenCalledWith('returnToSettingsAfterAuth', 'true');
       expect(SecureStore.setItemAsync).toHaveBeenCalledWith('biometricEnabled', 'true');
       expect(mockProps.setBiometricEnabled).toHaveBeenCalledWith(true);
-      expect(mockProps.showToast).toHaveBeenCalledWith('Face ID enabled', 'success');
+      expect(notify.settings.faceIdEnabled).toHaveBeenCalled();
       expect(result.current.showFaceIdModal).toBe(false);
     });
 
@@ -164,10 +164,7 @@ describe('useAuthSettings', () => {
         await result.current.confirmFaceIdToggle();
       });
 
-      expect(mockProps.showToast).toHaveBeenCalledWith(
-        'Authentication required to enable Face ID',
-        'error'
-      );
+      expect(notify.auth.requiredForFaceId).toHaveBeenCalled();
       expect(mockProps.setBiometricEnabled).not.toHaveBeenCalled();
     });
 
@@ -191,11 +188,11 @@ describe('useAuthSettings', () => {
         await result.current.confirmFaceIdToggle();
       });
 
-      expect(mockProps.showToast).toHaveBeenCalledWith('Failed to update Face ID setting', 'error');
+      expect(notify.settings.faceIdFailed).toHaveBeenCalled();
     });
 
-    it('should not show toast if showToast is not provided', async () => {
-      const propsWithoutToast = { ...mockProps, showToast: undefined };
+    it('should not crash if notify is not available', async () => {
+      const propsWithoutToast = { ...mockProps };
       biometricService.authenticateWithBiometrics.mockResolvedValue({ success: true });
 
       const { result } = renderHook(() => useAuthSettings(propsWithoutToast));
@@ -235,7 +232,7 @@ describe('useAuthSettings', () => {
       expect(biometricService.authenticateWithBiometrics).not.toHaveBeenCalled();
       expect(mockProps.setBiometricEnabled).toHaveBeenCalledWith(false);
       expect(SecureStore.setItemAsync).toHaveBeenCalledWith('biometricEnabled', 'false');
-      expect(mockProps.showToast).toHaveBeenCalledWith('Face ID disabled', 'success');
+      expect(notify.settings.faceIdDisabled).toHaveBeenCalled();
     });
 
     it('should handle SecureStore errors when disabling', async () => {
@@ -251,7 +248,7 @@ describe('useAuthSettings', () => {
         await result.current.confirmFaceIdToggle();
       });
 
-      expect(mockProps.showToast).toHaveBeenCalledWith('Failed to update Face ID setting', 'error');
+      expect(notify.settings.faceIdFailed).toHaveBeenCalled();
     });
   });
 

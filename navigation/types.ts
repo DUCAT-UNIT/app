@@ -46,6 +46,7 @@ export type MainTabParamList = {
 export type WalletStackParamList = {
   WalletHome: undefined;
   AssetDetail: { assetId: string; assetType: string };
+  VaultDetail: undefined;
   ReceiveQR: { addressType: 'segwit' | 'taproot' };
   CashuReceive: { token?: string };
   CashuSend: { amount?: number };

@@ -7,6 +7,7 @@ import React from 'react';
 import { View, Text, TouchableOpacity, ViewStyle, TextStyle } from 'react-native';
 import Icon from '../icons';
 import { COLORS } from '../../theme';
+import { formatBalance, formatFiat } from '../../utils/formatters';
 
 // Constants
 const CURRENCY_ICON_SIZE = 10;
@@ -99,10 +100,7 @@ const AssetCard = React.memo(function AssetCard({
             />
             <Text style={styles.assetValue}>
               {typeof btcValue === 'number'
-                ? btcValue.toLocaleString('en-US', {
-                    minimumFractionDigits: BTC_DECIMAL_PLACES,
-                    maximumFractionDigits: BTC_DECIMAL_PLACES,
-                  })
+                ? formatBalance(btcValue, BTC_DECIMAL_PLACES)
                 : btcValue}
             </Text>
           </View>
@@ -110,10 +108,7 @@ const AssetCard = React.memo(function AssetCard({
           <Text style={styles.assetValue}>
             ${' '}
             {typeof usdValue === 'number'
-              ? usdValue.toLocaleString('en-US', {
-                  minimumFractionDigits: USD_DECIMAL_PLACES,
-                  maximumFractionDigits: USD_DECIMAL_PLACES,
-                })
+              ? formatFiat(usdValue, USD_DECIMAL_PLACES)
               : usdValue}
           </Text>
         )}

@@ -17,11 +17,11 @@ import { useBalance, useTransactionHistory, useVaultData } from './WalletDataCon
 import { useOnboardingFlow } from './AuthContext';
 import { useSeedPhrase } from './SeedPhraseContext';
 import { useNotifications } from './NotificationContext';
-import { useVault } from './VaultContext';
 import { useCashuOperations } from './CashuContext';
 import { useSettings } from '../hooks/useSettings';
 import { useAccountSwitcher } from '../hooks/useAccountSwitcher';
 import { usePostAuthHandler } from '../hooks/usePostAuthHandler';
+import { notify } from '../utils/notify';
 
 interface SettingsHandlers {
   notificationsEnabled: boolean;
@@ -108,8 +108,7 @@ export const NavigationHandlersProvider: React.FC<NavigationHandlersProviderProp
   const { resetAndRefresh: resetAndRefreshCashu } = useCashuOperations();
   const { setSeedConfirmed } = useOnboardingFlow();
   const { requestingSeedPhrase, loadSeedPhrase, requestViewSeedPhrase } = useSeedPhrase();
-  const { showToast, showSnackbar } = useNotifications();
-  const { clearVaultCredentials, setActiveTab } = useVault();
+  const { showSnackbar } = useNotifications();
 
   // Post-authentication handler
   const { handlePostAuth } = usePostAuthHandler({
@@ -117,7 +116,6 @@ export const NavigationHandlersProvider: React.FC<NavigationHandlersProviderProp
     setSettingUpPin,
     setIsAuthenticated,
     setBiometricEnabled,
-    showToast,
     resetWallet,
     resetAuth,
     walletExists: walletExists,
@@ -159,12 +157,9 @@ export const NavigationHandlersProvider: React.FC<NavigationHandlersProviderProp
     setBiometricEnabled,
     resetAuth,
     resetWallet,
-    clearVaultCredentials,
     startPinChange,
     walletExistsRef: walletExists,
     setIsAuthenticated,
-    showToast,
-    showSnackbar,
   });
 
   // Account switcher - coordinates all data reset/fetch during account switch
@@ -188,8 +183,6 @@ export const NavigationHandlersProvider: React.FC<NavigationHandlersProviderProp
     fetchVault,
     // Cashu functions (resetAndRefresh clears pending mints and fetches fresh balance)
     resetAndRefreshCashu,
-    // Callback
-    onAccountSwitched: () => setActiveTab('wallet'),
   });
 
   // Passkey migration modal state (for showing after wallet import)

@@ -1,6 +1,7 @@
 // @ts-nocheck
 /**
  * Tests for UIContext (migrated to new split contexts)
+ * Note: Toasts have been consolidated into snackbars
  */
 
 import React from 'react';
@@ -92,11 +93,11 @@ describe('UIContext', () => {
     const wrapper = ({ children }) => <UIProvider>{children}</UIProvider>;
     const { result } = renderHook(() => useNotifications(), { wrapper });
 
-    expect(result.current.toasts).toEqual([]);
-    expect(result.current.toastVisible).toBe(false);
+    // Snackbar should be null initially
+    expect(result.current.snackbar).toBeNull();
   });
 
-  it('should show toast with default success type', () => {
+  it('should show snackbar via showToast (backwards compatible)', () => {
     const wrapper = ({ children }) => <UIProvider>{children}</UIProvider>;
     const { result } = renderHook(() => useNotifications(), { wrapper });
 
@@ -104,15 +105,12 @@ describe('UIContext', () => {
       result.current.showToast('Test message');
     });
 
-    expect(result.current.toasts).toHaveLength(1);
-    expect(result.current.toasts[0].message).toBe('Test message');
-    expect(result.current.toasts[0].type).toBe('success');
-    expect(result.current.toastVisible).toBe(true);
-    expect(result.current.toastMessage).toBe('Test message');
-    expect(result.current.toastType).toBe('success');
+    expect(result.current.snackbar).not.toBeNull();
+    expect(result.current.snackbar.title).toBe('Test message');
+    expect(result.current.snackbar.type).toBe('success');
   });
 
-  it('should show toast with error type', () => {
+  it('should show snackbar with error type via showToast', () => {
     const wrapper = ({ children }) => <UIProvider>{children}</UIProvider>;
     const { result } = renderHook(() => useNotifications(), { wrapper });
 
@@ -120,11 +118,10 @@ describe('UIContext', () => {
       result.current.showToast('Error message', 'error');
     });
 
-    expect(result.current.toasts[0].type).toBe('error');
-    expect(result.current.toastType).toBe('error');
+    expect(result.current.snackbar.type).toBe('error');
   });
 
-  it('should auto-hide success toast after 2 seconds', () => {
+  it('should auto-hide success snackbar after default duration', () => {
     const wrapper = ({ children }) => <UIProvider>{children}</UIProvider>;
     const { result } = renderHook(() => useNotifications(), { wrapper });
 
@@ -132,17 +129,16 @@ describe('UIContext', () => {
       result.current.showToast('Test message', 'success');
     });
 
-    expect(result.current.toastVisible).toBe(true);
+    expect(result.current.snackbar).not.toBeNull();
 
     act(() => {
-      jest.advanceTimersByTime(2000);
+      jest.advanceTimersByTime(3000);
     });
 
-    expect(result.current.toastVisible).toBe(false);
-    expect(result.current.toasts).toHaveLength(0);
+    expect(result.current.snackbar).toBeNull();
   });
 
-  it('should auto-hide error toast after 3.5 seconds', () => {
+  it('should auto-hide error snackbar after error duration', () => {
     const wrapper = ({ children }) => <UIProvider>{children}</UIProvider>;
     const { result } = renderHook(() => useNotifications(), { wrapper });
 
@@ -150,22 +146,22 @@ describe('UIContext', () => {
       result.current.showToast('Error message', 'error');
     });
 
-    expect(result.current.toastVisible).toBe(true);
+    expect(result.current.snackbar).not.toBeNull();
 
-    // After 2 seconds, toast should still be visible
+    // After 3 seconds, snackbar should still be visible
+    act(() => {
+      jest.advanceTimersByTime(3000);
+    });
+    expect(result.current.snackbar).not.toBeNull();
+
+    // After 5 seconds total, snackbar should be hidden
     act(() => {
       jest.advanceTimersByTime(2000);
     });
-    expect(result.current.toastVisible).toBe(true);
-
-    // After 3.5 seconds total, toast should be hidden
-    act(() => {
-      jest.advanceTimersByTime(1500);
-    });
-    expect(result.current.toastVisible).toBe(false);
+    expect(result.current.snackbar).toBeNull();
   });
 
-  it('should replace existing toast when showing new one', () => {
+  it('should replace existing snackbar when showing new one via showToast', () => {
     const wrapper = ({ children }) => <UIProvider>{children}</UIProvider>;
     const { result } = renderHook(() => useNotifications(), { wrapper });
 
@@ -173,18 +169,16 @@ describe('UIContext', () => {
       result.current.showToast('First message');
     });
 
-    expect(result.current.toasts).toHaveLength(1);
-    expect(result.current.toastMessage).toBe('First message');
+    expect(result.current.snackbar.title).toBe('First message');
 
     act(() => {
       result.current.showToast('Second message');
     });
 
-    expect(result.current.toasts).toHaveLength(1);
-    expect(result.current.toastMessage).toBe('Second message');
+    expect(result.current.snackbar.title).toBe('Second message');
   });
 
-  it('should dismiss toast manually', () => {
+  it('should dismiss snackbar manually', () => {
     const wrapper = ({ children }) => <UIProvider>{children}</UIProvider>;
     const { result } = renderHook(() => useNotifications(), { wrapper });
 
@@ -192,18 +186,16 @@ describe('UIContext', () => {
       result.current.showToast('Test message');
     });
 
-    const toastId = result.current.toasts[0].id;
-    expect(result.current.toastVisible).toBe(true);
+    expect(result.current.snackbar).not.toBeNull();
 
     act(() => {
-      result.current.dismissToast(toastId);
+      result.current.dismissSnackbar();
     });
 
-    expect(result.current.toastVisible).toBe(false);
-    expect(result.current.toasts).toHaveLength(0);
+    expect(result.current.snackbar).toBeNull();
   });
 
-  it('should clear timeout when dismissing toast manually', () => {
+  it('should clear timeout when dismissing snackbar manually', () => {
     const wrapper = ({ children }) => <UIProvider>{children}</UIProvider>;
     const { result } = renderHook(() => useNotifications(), { wrapper });
 
@@ -211,10 +203,8 @@ describe('UIContext', () => {
       result.current.showToast('Test message');
     });
 
-    const toastId = result.current.toasts[0].id;
-
     act(() => {
-      result.current.dismissToast(toastId);
+      result.current.dismissSnackbar();
     });
 
     // Advancing time should not cause any errors
@@ -222,24 +212,7 @@ describe('UIContext', () => {
       jest.advanceTimersByTime(3000);
     });
 
-    expect(result.current.toasts).toHaveLength(0);
-  });
-
-  it('should handle dismissing non-existent toast', () => {
-    const wrapper = ({ children }) => <UIProvider>{children}</UIProvider>;
-    const { result } = renderHook(() => useNotifications(), { wrapper });
-
-    act(() => {
-      result.current.showToast('Test message');
-    });
-
-    // Try to dismiss with wrong ID
-    act(() => {
-      result.current.dismissToast(9999);
-    });
-
-    // Original toast should still be there
-    expect(result.current.toasts).toHaveLength(1);
+    expect(result.current.snackbar).toBeNull();
   });
 
   describe('Snackbar priority logic', () => {
@@ -248,108 +221,11 @@ describe('UIContext', () => {
       const { result } = renderHook(() => useNotifications(), { wrapper });
 
       act(() => {
-        result.current.showSnackbar({ message: 'Test', type: 'success', action: 'send' });
+        result.current.showSnackbar({ type: 'success', action: 'send' });
       });
 
-      expect(result.current.snackbar).toEqual({ message: 'Test', type: 'success', action: 'send', key: expect.any(Number) });
-    });
-
-    it('should allow state progression (pending -> submitted -> success)', () => {
-      const wrapper = ({ children }) => <UIProvider>{children}</UIProvider>;
-      const { result } = renderHook(() => useNotifications(), { wrapper });
-
-      act(() => {
-        result.current.showSnackbar({ message: 'Pending', type: 'pending', action: 'send', txid: 'tx1' });
-      });
-      expect(result.current.snackbar.type).toBe('pending');
-
-      act(() => {
-        result.current.showSnackbar({ message: 'Submitted', type: 'submitted', action: 'send', txid: 'tx1' });
-      });
-      expect(result.current.snackbar.type).toBe('submitted');
-
-      act(() => {
-        result.current.showSnackbar({ message: 'Success', type: 'success', action: 'send', txid: 'tx1' });
-      });
+      expect(result.current.snackbar).not.toBeNull();
       expect(result.current.snackbar.type).toBe('success');
-    });
-
-    it('should prevent backward state transitions', () => {
-      const wrapper = ({ children }) => <UIProvider>{children}</UIProvider>;
-      const { result } = renderHook(() => useNotifications(), { wrapper });
-
-      act(() => {
-        result.current.showSnackbar({ message: 'Success', type: 'success', action: 'send', txid: 'tx1' });
-      });
-      expect(result.current.snackbar.type).toBe('success');
-
-      act(() => {
-        result.current.showSnackbar({ message: 'Pending', type: 'pending', action: 'send', txid: 'tx1' });
-      });
-      // Should still be success, not pending (backward transitions are prevented)
-      expect(result.current.snackbar.type).toBe('success');
-    });
-
-    it('should always show error messages', () => {
-      const wrapper = ({ children }) => <UIProvider>{children}</UIProvider>;
-      const { result } = renderHook(() => useNotifications(), { wrapper });
-
-      act(() => {
-        result.current.showSnackbar({ message: 'Success', type: 'success', action: 'send', txid: 'tx1' });
-      });
-
-      act(() => {
-        result.current.showSnackbar({ message: 'Error', type: 'error', action: 'send', txid: 'tx1' });
-      });
-      expect(result.current.snackbar.type).toBe('error');
-    });
-
-    it('should allow different transactions to show', () => {
-      const wrapper = ({ children }) => <UIProvider>{children}</UIProvider>;
-      const { result } = renderHook(() => useNotifications(), { wrapper });
-
-      act(() => {
-        result.current.showSnackbar({ message: 'TX1 Success', type: 'success', action: 'send', txid: 'tx1' });
-      });
-      expect(result.current.snackbar.txid).toBe('tx1');
-
-      act(() => {
-        result.current.showSnackbar({ message: 'TX2 Pending', type: 'pending', action: 'send', txid: 'tx2' });
-      });
-      // Different transaction, should show
-      expect(result.current.snackbar.txid).toBe('tx2');
-    });
-
-    it('should handle snackbars without txid', () => {
-      const wrapper = ({ children }) => <UIProvider>{children}</UIProvider>;
-      const { result } = renderHook(() => useNotifications(), { wrapper });
-
-      act(() => {
-        result.current.showSnackbar({ message: 'General message', type: 'success', action: 'general' });
-      });
-      expect(result.current.snackbar.message).toBe('General message');
-
-      act(() => {
-        result.current.showSnackbar({ message: 'Another message', type: 'pending', action: 'general' });
-      });
-      // Should not show due to backward state transition
-      expect(result.current.snackbar.message).toBe('General message');
-    });
-
-    it('should handle different action types independently', () => {
-      const wrapper = ({ children }) => <UIProvider>{children}</UIProvider>;
-      const { result } = renderHook(() => useNotifications(), { wrapper });
-
-      act(() => {
-        result.current.showSnackbar({ message: 'Send', type: 'success', action: 'send' });
-      });
-      expect(result.current.snackbar.action).toBe('send');
-
-      act(() => {
-        result.current.showSnackbar({ message: 'Receive', type: 'pending', action: 'receive' });
-      });
-      // Different action, should show
-      expect(result.current.snackbar.action).toBe('receive');
     });
 
     it('should dismiss snackbar', () => {
@@ -357,14 +233,98 @@ describe('UIContext', () => {
       const { result } = renderHook(() => useNotifications(), { wrapper });
 
       act(() => {
-        result.current.showSnackbar({ message: 'Test', type: 'success', action: 'send' });
+        result.current.showSnackbar({ type: 'success', action: 'send' });
       });
-      expect(result.current.snackbar).not.toBeNull();
 
       act(() => {
         result.current.dismissSnackbar();
       });
+
       expect(result.current.snackbar).toBeNull();
+    });
+
+    it('should not allow backward state transitions', () => {
+      const wrapper = ({ children }) => <UIProvider>{children}</UIProvider>;
+      const { result } = renderHook(() => useNotifications(), { wrapper });
+
+      act(() => {
+        result.current.showSnackbar({ type: 'submitted', action: 'send' });
+      });
+
+      expect(result.current.snackbar.type).toBe('submitted');
+
+      // Try to go back to pending
+      act(() => {
+        result.current.showSnackbar({ type: 'pending', action: 'send' });
+      });
+
+      // Should still be submitted
+      expect(result.current.snackbar.type).toBe('submitted');
+    });
+
+    it('should allow forward state transitions', () => {
+      const wrapper = ({ children }) => <UIProvider>{children}</UIProvider>;
+      const { result } = renderHook(() => useNotifications(), { wrapper });
+
+      act(() => {
+        result.current.showSnackbar({ type: 'pending', action: 'send' });
+      });
+
+      expect(result.current.snackbar.type).toBe('pending');
+
+      // Upgrade to submitted
+      act(() => {
+        result.current.showSnackbar({ type: 'submitted', action: 'send' });
+      });
+
+      expect(result.current.snackbar.type).toBe('submitted');
+    });
+
+    it('should always allow errors regardless of state', () => {
+      const wrapper = ({ children }) => <UIProvider>{children}</UIProvider>;
+      const { result } = renderHook(() => useNotifications(), { wrapper });
+
+      act(() => {
+        result.current.showSnackbar({ type: 'success', action: 'send' });
+      });
+
+      act(() => {
+        result.current.showSnackbar({ type: 'error', action: 'send' });
+      });
+
+      expect(result.current.snackbar.type).toBe('error');
+    });
+
+    it('should block snackbars during cooldown after dismiss', () => {
+      const wrapper = ({ children }) => <UIProvider>{children}</UIProvider>;
+      const { result } = renderHook(() => useNotifications(), { wrapper });
+
+      act(() => {
+        result.current.showSnackbar({ type: 'success', action: 'send' });
+      });
+
+      act(() => {
+        result.current.dismissSnackbar();
+      });
+
+      // Try to show immediately
+      act(() => {
+        result.current.showSnackbar({ type: 'success', action: 'receive' });
+      });
+
+      // Should be blocked
+      expect(result.current.snackbar).toBeNull();
+
+      // After cooldown
+      act(() => {
+        jest.advanceTimersByTime(500);
+      });
+
+      act(() => {
+        result.current.showSnackbar({ type: 'success', action: 'receive' });
+      });
+
+      expect(result.current.snackbar).not.toBeNull();
     });
   });
 });

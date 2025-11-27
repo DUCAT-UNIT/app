@@ -1,13 +1,12 @@
 import { useCallback, MutableRefObject } from 'react';
 import * as SecureStore from 'expo-secure-store';
-import type { ToastType } from '../types/notification';
+import { notify } from '../utils/notify';
 
 interface UsePostAuthHandlerParams {
   changingPin: boolean;
   setSettingUpPin: (value: boolean) => void;
   setIsAuthenticated: (value: boolean) => void;
   setBiometricEnabled: (value: boolean) => void;
-  showToast: (message: string, type: ToastType) => void;
   resetWallet: () => void;
   resetAuth: () => void;
   walletExists: MutableRefObject<boolean> | undefined;
@@ -28,7 +27,6 @@ export function usePostAuthHandler({
   setSettingUpPin,
   setIsAuthenticated,
   setBiometricEnabled,
-  showToast,
   resetWallet,
   resetAuth,
   walletExists,
@@ -54,7 +52,7 @@ export function usePostAuthHandler({
       await SecureStore.deleteItemAsync('pendingFaceIdEnable');
       setBiometricEnabled(true);
       await SecureStore.setItemAsync('biometricEnabled', 'true');
-      showToast('Face ID enabled', 'success');
+      notify.settings.faceIdEnabled();
       return;
     }
 
@@ -63,7 +61,7 @@ export function usePostAuthHandler({
     if (pendingNotifications === 'true') {
       await SecureStore.deleteItemAsync('pendingNotificationsEnable');
       await SecureStore.setItemAsync('notificationsEnabled', 'true');
-      showToast('Notifications enabled', 'success');
+      notify.settings.notificationsEnabled();
       return;
     }
 
@@ -81,12 +79,12 @@ export function usePostAuthHandler({
             walletExists.current = false;
           }
           resetAuth();
-          showToast('Wallet deleted successfully', 'success');
+          notify.wallet.deleted();
         } else {
-          showToast('Failed to delete wallet', 'error');
+          notify.wallet.deleteFailed();
         }
-      } catch (error: unknown) {
-        showToast('Failed to delete wallet', 'error');
+      } catch {
+        notify.wallet.deleteFailed();
       }
       return;
     }
@@ -100,7 +98,6 @@ export function usePostAuthHandler({
     setSettingUpPin,
     setIsAuthenticated,
     setBiometricEnabled,
-    showToast,
     resetWallet,
     resetAuth,
     walletExists,

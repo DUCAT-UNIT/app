@@ -7,11 +7,9 @@ import React from 'react';
 import { View, Text, TouchableOpacity, StyleSheet } from 'react-native';
 import { StatusBar } from 'expo-status-bar';
 import MutinynetBanner from './MutinynetBanner';
-import ToastContainer from './ToastContainer';
 import Icon from './icons';
 import { COLORS } from '../theme';
 import styles from '../styles';
-import type { Toast } from '../contexts/NotificationContext';
 
 interface PasskeyPinInputProps {
   title: string;
@@ -20,7 +18,6 @@ interface PasskeyPinInputProps {
   setPin: (pin: string) => void;
   onPinComplete: (pin: string) => void;
   onCancel: () => void;
-  toasts: Toast[];
 }
 
 export default function PasskeyPinInput({
@@ -30,7 +27,6 @@ export default function PasskeyPinInput({
   setPin,
   onPinComplete,
   onCancel,
-  toasts,
 }: PasskeyPinInputProps) {
   const handleDigit = (digit: string) => {
     if (pin.length < 6) {
@@ -113,7 +109,7 @@ export default function PasskeyPinInput({
           </View>
         </View>
       </View>
-      <ToastContainer toasts={toasts} />
+      {/* Snackbar is rendered at app level in AppNavigatorContent */}
       <StatusBar style="light" />
     </View>
   );

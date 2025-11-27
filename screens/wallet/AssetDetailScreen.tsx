@@ -16,6 +16,8 @@ import { usePrice } from '../../contexts/PriceContext';
 import { useWallet } from '../../contexts/WalletContext';
 import { useCashu } from '../../contexts/CashuContext';
 import { usePendingTransactions } from '../../contexts/PendingTransactionsContext';
+import { useVaultDataFetch } from '../../hooks/useVaultDataFetch';
+import { useWalletCalculations } from '../../hooks/useWalletCalculations';
 import {
   AssetHeader,
   AssetInfo,
@@ -81,10 +83,25 @@ function AssetDetailScreen({ route = {}, navigation }: AssetDetailScreenProps): 
 
   const { segwitBalance, runesBalance, loadingBalance } = useBalance();
   const { btcPrice } = usePrice();
-  const wallet = useWallet().wallet;
+  const { wallet } = useWallet();
   const { balance: cashuBalance, isLoading: loadingCashu } = useCashu();
   const { transactionHistory, loadingTransactionHistory, fetchTransactionHistory } = useTransactionHistory();
   const { getSpentUtxos, unmarkUtxosAsSpent } = usePendingTransactions();
+
+  // Vault data fetching (only for UNIT asset type)
+  const { vaultData, loadingVault } = useVaultDataFetch(assetType === 'UNIT' ? wallet : null);
+
+  // Calculate vault health metrics
+  const {
+    vaultHealthPercentage,
+    vaultHealthColor,
+    vaultDebt,
+    vaultCollateral,
+    hasVault,
+  } = useWalletCalculations({
+    btcPrice,
+    vaultData,
+  });
 
   const [selectedTab, setSelectedTab] = useState<'ACTIVITY' | 'ABOUT' | 'TURBO'>('ACTIVITY');
   const [selectedTimeframe, setSelectedTimeframe] = useState<'1D' | '1W' | '1M' | '1Y'>('1M');
@@ -241,6 +258,16 @@ function AssetDetailScreen({ route = {}, navigation }: AssetDetailScreenProps): 
             runesBalance={unitRunesAmount}
             cashuBalance={cashuBalance}
             isLoading={isBalanceLoading}
+            vaultHealth={assetType === 'UNIT' ? {
+              healthPercentage: vaultHealthPercentage,
+              healthColor: vaultHealthColor,
+              totalDebt: vaultDebt,
+              totalCollateral: vaultCollateral,
+              currentPrice: btcPrice || 0,
+              hasVault,
+              isLoading: loadingVault,
+              priceChange24h: priceDirection.isPositive ? parseFloat(priceDirection.percentChange) : -parseFloat(priceDirection.percentChange),
+            } : undefined}
           />
 
           {assetType === 'UNIT' && (

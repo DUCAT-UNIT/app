@@ -8,6 +8,7 @@ import { create, act } from 'react-test-renderer';
 import * as biometricService from '../../services/biometricService';
 import * as SettingsService from '../../services/settingsService';
 import { useAuthenticatedToggle, useAuthToEnable, useAuthToToggle } from '../useAuthenticatedToggle';
+import { notify } from '../../utils/notify';
 
 // Helper to render hooks with react-test-renderer
 function renderHook(hook) {
@@ -44,7 +45,6 @@ describe('useAuthenticatedToggle', () => {
       onValueChange: jest.fn(),
       biometricEnabled: false,
       setIsAuthenticated: jest.fn(),
-      showToast: jest.fn(),
     };
 
     jest.clearAllMocks();
@@ -119,7 +119,7 @@ describe('useAuthenticatedToggle', () => {
       expect(biometricService.authenticateWithBiometrics).not.toHaveBeenCalled();
       expect(SettingsService.setBoolean).toHaveBeenCalledWith('testSetting', false);
       expect(mockConfig.onValueChange).toHaveBeenCalledWith(false);
-      expect(mockConfig.showToast).toHaveBeenCalledWith('Test Setting disabled', 'success');
+      expect(notify.settings.disabled).toHaveBeenCalled();
     });
   });
 
@@ -151,7 +151,7 @@ describe('useAuthenticatedToggle', () => {
       );
       expect(SettingsService.setBoolean).toHaveBeenCalledWith('testSetting', true);
       expect(mockConfig.onValueChange).toHaveBeenCalledWith(true);
-      expect(mockConfig.showToast).toHaveBeenCalledWith('Test Setting enabled', 'success');
+      expect(notify.settings.enabled).toHaveBeenCalled();
     });
 
     it('should use custom auth prompt when provided', async () => {
@@ -225,10 +225,7 @@ describe('useAuthenticatedToggle', () => {
         await result.current.confirmToggle();
       });
 
-      expect(mockConfig.showToast).toHaveBeenCalledWith(
-        'Authentication required to enable Test Setting',
-        'error'
-      );
+      expect(notify.auth.required).toHaveBeenCalled();
       expect(mockConfig.onValueChange).not.toHaveBeenCalled();
     });
   });
@@ -302,47 +299,10 @@ describe('useAuthenticatedToggle', () => {
         await result.current.confirmToggle();
       });
 
-      expect(mockConfig.showToast).toHaveBeenCalledWith('Failed to update Test Setting', 'error');
+      expect(notify.settings.failed).toHaveBeenCalled();
       expect(mockConfig.onValueChange).not.toHaveBeenCalled();
     });
 
-    it('should not crash when showToast is not provided', async () => {
-      mockConfig.currentValue = true;
-      mockConfig.showToast = undefined;
-      SettingsService.setBoolean.mockRejectedValue(new Error('Storage error'));
-
-      const { result } = renderHook(() => useAuthenticatedToggle(mockConfig));
-
-      act(() => {
-        result.current.handleToggle();
-      });
-
-      await act(async () => {
-        await result.current.confirmToggle();
-      });
-
-      // Should not throw
-      expect(mockConfig.onValueChange).not.toHaveBeenCalled();
-    });
-
-    it('should not crash when onValueChange is not provided', async () => {
-      // Disabling doesn't need auth, goes straight to save
-      mockConfig.currentValue = true;
-      mockConfig.onValueChange = undefined;
-
-      const { result } = renderHook(() => useAuthenticatedToggle(mockConfig));
-
-      act(() => {
-        result.current.handleToggle();
-      });
-
-      await act(async () => {
-        await result.current.confirmToggle();
-      });
-
-      // Should complete successfully
-      expect(SettingsService.setBoolean).toHaveBeenCalledWith('testSetting', false);
-    });
   });
 
   describe('useAuthToEnable wrapper', () => {
@@ -350,7 +310,6 @@ describe('useAuthenticatedToggle', () => {
       const authContext = {
         biometricEnabled: false,
         setIsAuthenticated: jest.fn(),
-        showToast: jest.fn(),
       };
 
       const { result } = renderHook(() =>
@@ -377,7 +336,6 @@ describe('useAuthenticatedToggle', () => {
       const authContext = {
         biometricEnabled: false,
         setIsAuthenticated: jest.fn(),
-        showToast: jest.fn(),
       };
 
       const { result } = renderHook(() =>

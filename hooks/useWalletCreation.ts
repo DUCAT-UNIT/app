@@ -12,7 +12,7 @@ import * as WalletService from '../services/walletService';
 import { useWallet } from '../contexts/WalletContext';
 import { parseErrorMessage } from '../utils/errorParser';
 import { usePersistedObject } from './usePersistedState';
-import type { ToastType } from '../types/notification';
+import { notify } from '../utils/notify';
 
 const CREATION_STATE_KEY = 'wallet_creation_state';
 
@@ -20,7 +20,6 @@ interface UseWalletCreationParams {
   currentAccount: number;
   setIsAuthenticated: (value: boolean) => void;
   setSeedConfirmed: (value: boolean) => void;
-  showToast: (message: string, type?: ToastType) => void;
   loadWallet: (() => Promise<unknown>) | undefined;
 }
 
@@ -47,7 +46,6 @@ export function useWalletCreation({
   currentAccount,
   setIsAuthenticated,
   setSeedConfirmed,
-  showToast,
   loadWallet,
 }: UseWalletCreationParams): UseWalletCreationReturn {
   const { setWalletAddresses, resetWallet } = useWallet();
@@ -101,7 +99,7 @@ export function useWalletCreation({
       setTempMnemonic(mnemonic);
       setTempMnemonicWords(mnemonic.split(' '));
     } catch (error: unknown) {
-      showToast(parseErrorMessage(error), 'error');
+      notify.operationFailed('create wallet', parseErrorMessage(error));
     }
   };
 

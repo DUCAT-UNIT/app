@@ -9,13 +9,12 @@ import {
   Text,
   TouchableOpacity,
   Animated,
-  ActivityIndicator,
   FlatList,
   ViewStyle,
   TextStyle,
 } from 'react-native';
-import { COLORS } from '../../theme';
 import TransactionItem, { TransactionItemStyles, Transaction as TransactionItemType } from '../../components/transaction/TransactionItem';
+import { TransactionHistorySkeleton } from '../../components/transaction/TransactionHistorySkeleton';
 import { useBottomSheetAnimation } from '../../hooks/useBottomSheetAnimation';
 import { useTransactionHistoryData, DisplayTransaction } from '../../hooks/useTransactionHistoryData';
 import TokenDetailsSheet from '../../components/ecash/TokenDetailsSheet';
@@ -173,10 +172,7 @@ export default function TransactionHistoryScreen({
         </View>
 
         {loading ? (
-          <View style={styles.historyLoadingContainer}>
-            <ActivityIndicator size="large" color={COLORS.PRIMARY_BLUE} />
-            <Text style={styles.historyLoadingText}>Loading transactions...</Text>
-          </View>
+          <TransactionHistorySkeleton />
         ) : displayTransactions.length === 0 ? (
           <View style={styles.historyEmptyContainer}>
             <Text style={styles.historyEmptyText}>No transactions yet</Text>

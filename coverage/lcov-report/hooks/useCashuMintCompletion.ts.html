@@ -23,16 +23,16 @@
         <div class='clearfix'>
             
             <div class='fl pad1y space-right2'>
-                <span class="strong">100% </span>
+                <span class="strong">95.65% </span>
                 <span class="quiet">Statements</span>
-                <span class='fraction'>46/46</span>
+                <span class='fraction'>44/46</span>
             </div>
         
             
             <div class='fl pad1y space-right2'>
-                <span class="strong">100% </span>
+                <span class="strong">95% </span>
                 <span class="quiet">Branches</span>
-                <span class='fraction'>20/20</span>
+                <span class='fraction'>19/20</span>
             </div>
         
             
@@ -44,9 +44,9 @@
         
             
             <div class='fl pad1y space-right2'>
-                <span class="strong">100% </span>
+                <span class="strong">95.55% </span>
                 <span class="quiet">Lines</span>
-                <span class='fraction'>45/45</span>
+                <span class='fraction'>43/45</span>
             </div>
         
             
@@ -173,15 +173,7 @@
 <a name='L108'></a><a href='#L108'>108</a>
 <a name='L109'></a><a href='#L109'>109</a>
 <a name='L110'></a><a href='#L110'>110</a>
-<a name='L111'></a><a href='#L111'>111</a>
-<a name='L112'></a><a href='#L112'>112</a>
-<a name='L113'></a><a href='#L113'>113</a>
-<a name='L114'></a><a href='#L114'>114</a>
-<a name='L115'></a><a href='#L115'>115</a></td><td class="line-coverage quiet"><span class="cline-any cline-neutral">&nbsp;</span>
-<span class="cline-any cline-neutral">&nbsp;</span>
-<span class="cline-any cline-neutral">&nbsp;</span>
-<span class="cline-any cline-neutral">&nbsp;</span>
-<span class="cline-any cline-neutral">&nbsp;</span>
+<a name='L111'></a><a href='#L111'>111</a></td><td class="line-coverage quiet"><span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
@@ -214,20 +206,20 @@
 <span class="cline-any cline-yes">40x</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-yes">40x</span>
-<span class="cline-any cline-yes">17x</span>
+<span class="cline-any cline-yes">16x</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
-<span class="cline-any cline-yes">17x</span>
+<span class="cline-any cline-yes">16x</span>
 <span class="cline-any cline-yes">5x</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
-<span class="cline-any cline-yes">12x</span>
-<span class="cline-any cline-yes">1x</span>
-<span class="cline-any cline-yes">1x</span>
+<span class="cline-any cline-yes">11x</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-yes">11x</span>
@@ -295,15 +287,13 @@
 import { logger } from '../utils/logger';
 import { completeMint } from '../services/cashu/cashuWalletService';
 import { checkMintQuote } from '../services/cashu/cashuMintClient';
-import type { SnackbarParams, ToastType } from '../contexts/NotificationContext';
+import { notify } from '../utils/notify';
 &nbsp;
 interface UseCashuMintCompletionParams {
   cashuMint: boolean | undefined;
   quoteId: string | undefined;
   fetchTransactionHistory?: () =&gt; Promise&lt;void&gt;;
   refreshCashuBalance: () =&gt; Promise&lt;void&gt;;
-  showSnackbar: (params: SnackbarParams) =&gt; void;
-  showToast: (message: string, type: ToastType) =&gt; void;
 }
 &nbsp;
 interface UseCashuMintCompletionReturn {
@@ -321,8 +311,6 @@ export function useCashuMintCompletion({
   quoteId,
   fetchTransactionHistory,
   refreshCashuBalance,
-  showSnackbar,
-  showToast,
 }: UseCashuMintCompletionParams): UseCashuMintCompletionReturn {
   const [isCompletingMint, setIsCompletingMint] = useState(false);
   const hasCashuMintCompleted = useRef(false);
@@ -339,9 +327,9 @@ export function useCashuMintCompletion({
       return;
     }
 &nbsp;
-    if (hasCashuMintCompleted.current) {
-      logger.debug('[useCashuMintCompletion] Cashu mint already completed, skipping');
-      return;
+    <span class="missing-if-branch" title="if path not taken" >I</span>if (hasCashuMintCompleted.current) {
+<span class="cstat-no" title="statement not covered" >      logger.debug('[useCashuMintCompletion] Cashu mint already completed, skipping');</span>
+<span class="cstat-no" title="statement not covered" >      return;</span>
     }
 &nbsp;
     hasCashuMintCompleted.current = true;
@@ -384,22 +372,22 @@ export function useCashuMintCompletion({
           logger.debug('[useCashuMintCompletion] Cashu balance refreshed after threshold conversion');
 &nbsp;
           setIsCompletingMint(false);
-          showSnackbar({ message: 'Conversion complete', type: 'success', action: 'convert' });
+          notify.cashu.conversionComplete();
         } else {
           logger.debug('[useCashuMintCompletion] Payment not confirmed after 30 seconds');
           setIsCompletingMint(false);
-          showToast('Payment sent. Ecash will be available once confirmed.', 'info');
+          notify.cashu.paymentSentAwaiting();
         }
       } catch (error: unknown) {
         const errorMessage = error instanceof Error ? error.message : String(error);
         logger.error('[useCashuMintCompletion] Error during cashu mint completion:', { error: errorMessage });
         setIsCompletingMint(false);
-        showToast(`Failed to complete conversion: ${errorMessage}`, 'error');
+        notify.cashu.conversionFailed(errorMessage);
       }
     };
 &nbsp;
     completeCashuMintProcess();
-  }, [cashuMint, quoteId, fetchTransactionHistory, refreshCashuBalance, showSnackbar, showToast]);
+  }, [cashuMint, quoteId, fetchTransactionHistory, refreshCashuBalance]);
 &nbsp;
   return {
     isCompletingMint,
@@ -412,7 +400,7 @@ export function useCashuMintCompletion({
             <div class='footer quiet pad2 space-top1 center small'>
                 Code coverage generated by
                 <a href="https://istanbul.js.org/" target="_blank" rel="noopener noreferrer">istanbul</a>
-                at 2025-11-27T08:28:08.171Z
+                at 2025-11-27T18:27:28.044Z
             </div>
         <script src="../prettify.js"></script>
         <script>

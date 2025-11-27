@@ -8,6 +8,7 @@ import { View, Text, TouchableOpacity, ViewStyle, TextStyle } from 'react-native
 import { LinearGradient } from 'expo-linear-gradient';
 import Icon from '../icons';
 import { COLORS } from '../../theme';
+import { formatBalance, formatFiat } from '../../utils/formatters';
 
 // Constants
 const VAULT_LOGO_SIZE = 49; // 36 * 1.35 ≈ 49
@@ -95,10 +96,7 @@ export default function VaultCard({
                 style={styles.assetAmountIcon}
               />
               <Text style={styles.assetAmount}>
-                {vaultDebt.toLocaleString('en-US', {
-                  minimumFractionDigits: DEBT_DECIMAL_PLACES,
-                  maximumFractionDigits: DEBT_DECIMAL_PLACES,
-                })}
+                {formatFiat(vaultDebt, DEBT_DECIMAL_PLACES)}
               </Text>
             </View>
           </View>
@@ -112,10 +110,7 @@ export default function VaultCard({
                 style={styles.assetAmountIcon}
               />
               <Text style={styles.assetAmount}>
-                {vaultCollateral.toLocaleString('en-US', {
-                  minimumFractionDigits: COLLATERAL_DECIMAL_PLACES,
-                  maximumFractionDigits: COLLATERAL_DECIMAL_PLACES,
-                })}
+                {formatBalance(vaultCollateral, COLLATERAL_DECIMAL_PLACES)}
               </Text>
             </View>
           </View>

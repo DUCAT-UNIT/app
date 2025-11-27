@@ -8,6 +8,7 @@ import { COLORS } from '../../theme';
 import Icon from '../icons';
 import { truncateAddress } from '../../utils/formatters/addresses';
 import { formatBTC, satsToBTC } from '../../utils/bitcoin/conversions';
+import { formatUnitAmount, formatFiat } from '../../utils/formatters/amounts';
 import type { PSBTInput } from '../../services/psbtService';
 
 // Re-export for backwards compatibility
@@ -29,10 +30,7 @@ export function TransactionInput({ input, btcPrice }: TransactionInputProps) {
           <View style={styles.unitChip}>
             <Icon name="unit_symbol" size={10} color={COLORS.PRIMARY_BLUE} />
             <Text style={styles.unitChipText}>
-              {(input.runeAmount / 100).toLocaleString('en-US', {
-                minimumFractionDigits: 2,
-                maximumFractionDigits: 2
-              })}
+              {formatUnitAmount(input.runeAmount)}
             </Text>
           </View>
         )}
@@ -42,10 +40,7 @@ export function TransactionInput({ input, btcPrice }: TransactionInputProps) {
           {formatBTC(input.value)} BTC
         </Text>
         <Text style={styles.txUsd}>
-          ${(satsToBTC(input.value) * (btcPrice || 0)).toLocaleString('en-US', {
-            minimumFractionDigits: 2,
-            maximumFractionDigits: 2,
-          })}
+          ${formatFiat(satsToBTC(input.value) * (btcPrice || 0))}
         </Text>
       </View>
     </View>

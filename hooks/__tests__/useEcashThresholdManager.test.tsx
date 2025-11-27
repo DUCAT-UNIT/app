@@ -7,6 +7,7 @@
 import React from 'react';
 import { create, act } from 'react-test-renderer';
 import { useEcashThresholdManager } from '../useEcashThresholdManager';
+import { notify } from '../../utils/notify';
 
 // Mock dependencies
 jest.mock('../../utils/logger', () => ({
@@ -73,7 +74,6 @@ describe('useEcashThresholdManager', () => {
         ecashThreshold: 100,
         handleEcashThresholdChange: jest.fn(),
       },
-      showToast: jest.fn(),
       showSnackbar: jest.fn(),
       showSettings: false,
       closeSettings: jest.fn(),
@@ -343,10 +343,7 @@ describe('useEcashThresholdManager', () => {
         await result.current.handleConfirmConversion();
       });
 
-      expect(mockProps.showToast).toHaveBeenCalledWith(
-        'Failed to start conversion: Mint failed',
-        'error'
-      );
+      expect(notify.cashu.conversionStartFailed).toHaveBeenCalled();
     });
 
     it('should handle non-Error mint exception', async () => {
@@ -365,10 +362,7 @@ describe('useEcashThresholdManager', () => {
         await result.current.handleConfirmConversion();
       });
 
-      expect(mockProps.showToast).toHaveBeenCalledWith(
-        'Failed to start conversion: String error',
-        'error'
-      );
+      expect(notify.cashu.conversionStartFailed).toHaveBeenCalled();
     });
 
     it('should handle navigation error', async () => {
@@ -393,10 +387,7 @@ describe('useEcashThresholdManager', () => {
         jest.advanceTimersByTime(500);
       });
 
-      expect(mockProps.showToast).toHaveBeenCalledWith(
-        expect.stringContaining('Navigation failed'),
-        'error'
-      );
+      expect(notify.cashu.navigationFailed).toHaveBeenCalled();
     });
 
     it('should not update threshold if pendingThreshold is null', async () => {
@@ -452,18 +443,13 @@ describe('useEcashThresholdManager', () => {
     });
 
     it('should request mint and navigate', async () => {
-      const showSnackbarMock = jest.fn();
-      const props = {
-        ...mockProps,
-        showSnackbar: showSnackbarMock,
-      };
-      const { result } = renderHookWithProps(props);
+      const { result } = renderHookWithProps(mockProps);
 
       await act(async () => {
         await result.current.handleLowBalanceTopUp();
       });
 
-      expect(props.closeLowBalanceModal).toHaveBeenCalled();
+      expect(mockProps.closeLowBalanceModal).toHaveBeenCalled();
       expect(mockRequestMint).toHaveBeenCalledWith(50);
       expect(mockNavigate).toHaveBeenCalledWith('SendFlow', {
         screen: 'Processing',
@@ -475,10 +461,7 @@ describe('useEcashThresholdManager', () => {
           amount: '50',
         }),
       });
-      expect(showSnackbarMock).toHaveBeenCalledWith({
-        type: 'pending',
-        action: 'conversion_turbo',
-      });
+      expect(notify.transaction.pending).toHaveBeenCalled();
     });
 
     it('should handle mint error', async () => {
@@ -490,10 +473,7 @@ describe('useEcashThresholdManager', () => {
         await result.current.handleLowBalanceTopUp();
       });
 
-      expect(mockProps.showToast).toHaveBeenCalledWith(
-        'Failed to start top-up: Top-up failed',
-        'error'
-      );
+      expect(notify.cashu.topupStartFailed).toHaveBeenCalled();
     });
 
     it('should handle non-Error mint exception', async () => {
@@ -505,10 +485,7 @@ describe('useEcashThresholdManager', () => {
         await result.current.handleLowBalanceTopUp();
       });
 
-      expect(mockProps.showToast).toHaveBeenCalledWith(
-        'Failed to start top-up: String top-up error',
-        'error'
-      );
+      expect(notify.cashu.topupStartFailed).toHaveBeenCalled();
     });
   });
 

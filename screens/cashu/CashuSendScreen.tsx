@@ -24,6 +24,7 @@ import Icon from '../../components/icons';
 import TouchableScale from '../../components/common/TouchableScale';
 import { useCashuSendHandlers } from '../../hooks/useCashuSendHandlers';
 import { styles } from './CashuSendScreen.styles';
+import { formatFiat } from '../../utils/formatters';
 import type { MeltQuoteResult } from '../../services/cashu/operations/cashuMeltOperations';
 
 /**
@@ -93,7 +94,7 @@ function BalanceCard({ balance, testID }: BalanceCardProps): React.JSX.Element {
       <View style={styles.balanceRow}>
         <Icon name="unit_symbol" size={16} color={COLORS.PRIMARY_BLUE} />
         <Text style={styles.balanceValue}>
-          {balance.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+          {formatFiat(balance)}
         </Text>
         <Text style={styles.balanceUnit}>sats</Text>
       </View>

@@ -8,8 +8,7 @@
  */
 
 import { usePersistedObject } from './usePersistedState';
-import { ERRORS } from '../utils/messages';
-import type { ToastType } from '../types/notification';
+import { notify } from '../utils/notify';
 
 const VERIFICATION_STATE_KEY = 'seed_verification_state';
 
@@ -28,7 +27,6 @@ interface UseSeedVerificationParams {
   tempMnemonicWords: string[];
   setSettingUpPin: (value: boolean) => void;
   setShowingSeeds: (value: boolean) => void;
-  showToast: (message: string, type?: ToastType) => void;
 }
 
 interface UseSeedVerificationReturn {
@@ -46,7 +44,6 @@ export function useSeedVerification({
   tempMnemonicWords,
   setSettingUpPin,
   setShowingSeeds,
-  showToast,
 }: UseSeedVerificationParams): UseSeedVerificationReturn {
   // Persisted verification state - automatically loads/saves
   const [verificationState, updateVerificationState, clearPersistedState] =
@@ -120,7 +117,7 @@ export function useSeedVerification({
   const verifySeeds = (): void => {
     // Check if all words have been selected
     if (Object.keys(verificationWords).length !== requiredIndices.length) {
-      showToast(ERRORS.SEED_PHRASE_INCOMPLETE, 'error');
+      notify.seed.incomplete();
       return;
     }
 
@@ -143,7 +140,7 @@ export function useSeedVerification({
       // Clear persisted state
       clearPersistedState();
     } else {
-      showToast(ERRORS.SEED_PHRASE_INCORRECT, 'error');
+      notify.seed.incorrect();
       setVerificationWords({});
     }
   };

@@ -8,13 +8,11 @@ import * as SecureStore from 'expo-secure-store';
 import { authenticateWithBiometrics } from '../services/biometricService';
 import { clearWallet } from '../services/cashu/cashuWalletService';
 import logger from '../utils/logger';
-import type { SnackbarParams, ToastType } from '../contexts/NotificationContext';
+import { notify } from '../utils/notify';
 
 interface UseAppSettingsParams {
   biometricEnabled: boolean;
   setIsAuthenticated: (value: boolean) => void;
-  showToast?: (message: string, type: ToastType) => void;
-  showSnackbar?: (params: SnackbarParams) => void;
 }
 
 interface UseAppSettingsReturn {
@@ -34,7 +32,7 @@ interface UseAppSettingsReturn {
   cancelNotificationsToggle: () => void;
 }
 
-export function useAppSettings({ biometricEnabled, setIsAuthenticated, showToast, showSnackbar }: UseAppSettingsParams): UseAppSettingsReturn {
+export function useAppSettings({ biometricEnabled, setIsAuthenticated }: UseAppSettingsParams): UseAppSettingsReturn {
   const [notificationsEnabled, setNotificationsEnabled] = useState(false);
   const [showZeroAssets, setShowZeroAssets] = useState(false);
   const [advancedMode, setAdvancedMode] = useState(false);
@@ -112,10 +110,8 @@ export function useAppSettings({ biometricEnabled, setIsAuthenticated, showToast
           }
 
           await SecureStore.setItemAsync('returnToSettingsAfterAuth', 'true');
-        } catch (error: unknown) {
-          if (showToast) {
-            showToast('Authentication required to enable notifications', 'error');
-          }
+        } catch {
+          notify.auth.requiredForNotifications();
           return;
         }
       } else {
@@ -130,15 +126,15 @@ export function useAppSettings({ biometricEnabled, setIsAuthenticated, showToast
     setNotificationsEnabled(newValue);
     try {
       await SecureStore.setItemAsync('notificationsEnabled', String(newValue));
-      if (showToast) {
-        showToast(`Notifications ${newValue ? 'enabled' : 'disabled'}`, 'success');
+      if (newValue) {
+        notify.settings.notificationsEnabled();
+      } else {
+        notify.settings.notificationsDisabled();
       }
-    } catch (error: unknown) {
-      if (showToast) {
-        showToast('Failed to update notifications setting', 'error');
-      }
+    } catch {
+      notify.settings.notificationsFailed();
     }
-  }, [pendingNotificationsValue, biometricEnabled, setIsAuthenticated, showToast]);
+  }, [pendingNotificationsValue, biometricEnabled, setIsAuthenticated]);
 
   const cancelNotificationsToggle = useCallback(() => {
     setShowNotificationsModal(false);
@@ -147,22 +143,16 @@ export function useAppSettings({ biometricEnabled, setIsAuthenticated, showToast
   const handleClearCashuCache = useCallback(async () => {
     try {
       await clearWallet();
-      if (showToast) {
-        showToast('Cashu cache cleared successfully', 'success');
-      }
-    } catch (error: unknown) {
-      if (showToast) {
-        showToast('Failed to clear Cashu cache', 'error');
-      }
+      notify.cashu.cacheCleared();
+    } catch {
+      notify.cashu.cacheClearFailed();
     }
-  }, [showToast]);
+  }, []);
 
   const handleRecoverLockedChange = useCallback(async (): Promise<void> => {
     logger.debug('[useAppSettings] handleRecoverLockedChange called');
     try {
-      if (showToast) {
-        showToast('Recovering change from sent tokens...', 'info');
-      }
+      notify.cashu.recoveringChange();
 
       const { recoverLockedChange } = await import('../services/cashu/cashuWalletService.js');
       logger.debug('[useAppSettings] Calling recoverLockedChange');
@@ -170,44 +160,34 @@ export function useAppSettings({ biometricEnabled, setIsAuthenticated, showToast
       logger.debug('[useAppSettings] Recovery result:', result);
 
       if (result.recovered > 0) {
-        if (showSnackbar) {
-          showSnackbar({
-            message: `Recovered ${result.amount} UNIT from ${result.recovered} change proofs`,
-            type: 'success',
-            action: 'claim',
-          });
-        }
+        notify.snackbar({
+          title: `Recovered ${result.amount} UNIT from ${result.recovered} change proofs`,
+          type: 'success',
+          action: 'claim',
+        });
       } else {
-        if (showToast) {
-          showToast(result.message, 'info');
-        }
+        notify.info(result.message);
       }
     } catch (error: unknown) {
       const errorMessage = error instanceof Error ? error.message : String(error);
       logger.error('[useAppSettings] Recovery failed:', { error: errorMessage });
-      if (showSnackbar) {
-        showSnackbar({
-          message: `Failed to recover change: ${errorMessage}`,
-          type: 'error',
-          action: 'claim',
-        });
-      }
+      notify.snackbar({
+        title: `Failed to recover change: ${errorMessage}`,
+        type: 'error',
+        action: 'claim',
+      });
     }
-  }, [showToast, showSnackbar]);
+  }, []);
 
   const handleClearLockedTokens = useCallback(async (): Promise<void> => {
     try {
       const { clearSentLockedTokens } = await import('../services/cashu/cashuLockedTokensService.js');
       await clearSentLockedTokens();
-      if (showToast) {
-        showToast('Sent locked tokens history cleared', 'success');
-      }
-    } catch (error: unknown) {
-      if (showToast) {
-        showToast('Failed to clear locked tokens history', 'error');
-      }
+      notify.cashu.lockedTokensCleared();
+    } catch {
+      notify.cashu.lockedTokensClearFailed();
     }
-  }, [showToast]);
+  }, []);
 
   const handleEcashThresholdChange = useCallback(async (newThreshold: number): Promise<void> => {
     logger.debug('[useAppSettings] Ecash threshold changed to:', newThreshold);

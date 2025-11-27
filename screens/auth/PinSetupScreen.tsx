@@ -12,11 +12,12 @@ import * as LocalAuthentication from 'expo-local-authentication';
 import * as Haptics from 'expo-haptics';
 import { savePin } from '../../services/pinService';
 import { SECURE_KEYS } from '../../utils/constants';
-import { ERRORS, SUCCESS } from '../../utils/messages';
+import { ERRORS } from '../../utils/messages';
 import { COLORS } from '../../theme';
 import Icon from '../../components/icons';
 import TouchableScale from '../../components/common/TouchableScale';
 import styles from '../../styles';
+import { notify } from '../../utils/notify';
 
 /**
  * Type for the PIN setup step
@@ -39,8 +40,6 @@ interface PinSetupScreenProps {
   onCancel?: () => void;
   /** Callback to fetch wallet balance after PIN setup */
   fetchBalance: () => void;
-  /** Callback to display toast messages to the user */
-  showToast: (message: string) => void;
 }
 
 export default function PinSetupScreen({
@@ -53,7 +52,6 @@ export default function PinSetupScreen({
   onPinChangeComplete,
   onCancel,
   fetchBalance,
-  showToast,
 }: PinSetupScreenProps): React.JSX.Element {
   const [pin, setPin] = useState('');
   const [confirmPin, setConfirmPin] = useState('');
@@ -99,7 +97,7 @@ export default function PinSetupScreen({
 
               if (result.success) {
                 Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-                showToast(SUCCESS.PIN_CHANGED);
+                notify.pin.changed();
                 onPinChangeComplete();
               } else {
                 shakeError();

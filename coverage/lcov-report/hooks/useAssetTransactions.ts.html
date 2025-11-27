@@ -23,16 +23,16 @@
         <div class='clearfix'>
             
             <div class='fl pad1y space-right2'>
-                <span class="strong">89.07% </span>
+                <span class="strong">89.25% </span>
                 <span class="quiet">Statements</span>
-                <span class='fraction'>106/119</span>
+                <span class='fraction'>108/121</span>
             </div>
         
             
             <div class='fl pad1y space-right2'>
-                <span class="strong">85.71% </span>
+                <span class="strong">83.83% </span>
                 <span class="quiet">Branches</span>
-                <span class='fraction'>90/105</span>
+                <span class='fraction'>83/99</span>
             </div>
         
             
@@ -44,9 +44,9 @@
         
             
             <div class='fl pad1y space-right2'>
-                <span class="strong">90.99% </span>
+                <span class="strong">91.15% </span>
                 <span class="quiet">Lines</span>
-                <span class='fraction'>101/111</span>
+                <span class='fraction'>103/113</span>
             </div>
         
             
@@ -377,7 +377,13 @@
 <a name='L312'></a><a href='#L312'>312</a>
 <a name='L313'></a><a href='#L313'>313</a>
 <a name='L314'></a><a href='#L314'>314</a>
-<a name='L315'></a><a href='#L315'>315</a></td><td class="line-coverage quiet"><span class="cline-any cline-neutral">&nbsp;</span>
+<a name='L315'></a><a href='#L315'>315</a>
+<a name='L316'></a><a href='#L316'>316</a>
+<a name='L317'></a><a href='#L317'>317</a>
+<a name='L318'></a><a href='#L318'>318</a>
+<a name='L319'></a><a href='#L319'>319</a>
+<a name='L320'></a><a href='#L320'>320</a>
+<a name='L321'></a><a href='#L321'>321</a></td><td class="line-coverage quiet"><span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
@@ -444,7 +450,9 @@
 <span class="cline-any cline-yes">139x</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-yes">139x</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-yes">139x</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-yes">139x</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-yes">139x</span>
@@ -475,10 +483,14 @@
 <span class="cline-any cline-yes">47x</span>
 <span class="cline-any cline-yes">22x</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-yes">22x</span>
 <span class="cline-any cline-yes">22x</span>
 <span class="cline-any cline-yes">22x</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-yes">22x</span>
+<span class="cline-any cline-yes">22x</span>
 <span class="cline-any cline-yes">22x</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
@@ -678,15 +690,15 @@
 <span class="cline-any cline-yes">47x</span>
 <span class="cline-any cline-yes">47x</span>
 <span class="cline-any cline-yes">47x</span>
-<span class="cline-any cline-neutral">&nbsp;</span>
-<span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-yes">47x</span>
-<span class="cline-any cline-yes">19x</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-yes">139x</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-yes">139x</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
@@ -756,10 +768,12 @@ export function useAssetTransactions(
   const lastTxHashRef = useRef('');
   const [filteredTransactions, setFilteredTransactions] = useState&lt;ProcessedTransaction[]&gt;([]);
   const [ecashTokens, setEcashTokens] = useState&lt;EcashToken[]&gt;([]);
-  // Start with loading=true for UNIT assets so we show spinner immediately
-  const [ecashLoading, setEcashLoading] = useState(assetType === 'UNIT' &amp;&amp; !advancedMode);
-  const [ecashInitialLoadDone, setEcashInitialLoadDone] = useState(assetType !== 'UNIT' || advancedMode);
-  const hasCalculatedInitialTransactions = useRef(false);
+  // Track if ecash tokens have loaded
+  const [ecashReady, setEcashReady] = useState(assetType !== 'UNIT' || advancedMode);
+  // Track if we've done initial load (prevents spinner on background refetches)
+  const hasLoadedRef = useRef(false);
+  // Track if transactions have been processed at least once
+  const transactionsProcessedRef = useRef(false);
   // Counter to trigger ecash token refetch when tokens change
   const [ecashRefetchTrigger, setEcashRefetchTrigger] = useState(0);
   // Cache for parsed transaction data - keyed by txid, persists across renders
@@ -789,10 +803,14 @@ export function useAssetTransactions(
     if (assetType === 'UNIT' &amp;&amp; !advancedMode) {
       let isMounted = true;
 &nbsp;
+      // Only reset ecashReady on initial load, not background refetches
+      const isInitialLoad = !hasLoadedRef.current;
+      <span class="missing-if-branch" title="else path not taken" >E</span>if (isInitialLoad) {
+        setEcashReady(false);
+      }
+&nbsp;
       const loadEcashTokens = async () =&gt; {
         try {
-          setEcashLoading(true);
-          // Use centralized token status service with caching
           const tokensWithStatus = await loadTokensWithStatus(
             taprootAddress,
             getSentLockedTokens,
@@ -801,15 +819,15 @@ export function useAssetTransactions(
 &nbsp;
           <span class="missing-if-branch" title="else path not taken" >E</span>if (isMounted) {
             setEcashTokens(tokensWithStatus);
-            setEcashLoading(false);
-            setEcashInitialLoadDone(true);
+            setEcashReady(true);
+            hasLoadedRef.current = true;
           }
         } catch (error: unknown) {
           logger.error('[useAssetTransactions] Failed to load ecash tokens:', { error: error instanceof Error ? error.message : String(error) });
           <span class="missing-if-branch" title="else path not taken" >E</span>if (isMounted) {
             setEcashTokens([]);
-            setEcashLoading(false);
-            setEcashInitialLoadDone(true);
+            setEcashReady(true);
+            hasLoadedRef.current = true;
           }
         }
       };
@@ -819,9 +837,9 @@ export function useAssetTransactions(
         isMounted = false;
       };
     } else {
-      // Clear ecash tokens when not UNIT or when advanced mode is on
+      // Not UNIT or advanced mode - ecash is ready immediately
       setEcashTokens([]);
-      setEcashInitialLoadDone(true);
+      setEcashReady(true);
     }
   }, [assetType, advancedMode, taprootAddress, ecashRefetchTrigger]);
 &nbsp;
@@ -846,7 +864,7 @@ export function useAssetTransactions(
 &nbsp;
     // For UNIT assets, wait for ecash tokens to finish loading before displaying
     // This ensures runes and ecash transactions appear together
-    if (assetType === 'UNIT' &amp;&amp; !advancedMode &amp;&amp; !ecashInitialLoadDone) {
+    if (assetType === 'UNIT' &amp;&amp; !advancedMode &amp;&amp; !ecashReady) {
       logger.debug('[useAssetTransactions] Waiting for ecash tokens to load before displaying UNIT transactions');
       return;
     }
@@ -992,17 +1010,17 @@ export function useAssetTransactions(
     lastTxHashRef.current = txHash;
     filteredTxRef.current = merged;
     setFilteredTransactions(merged);
+    transactionsProcessedRef.current = true;
+  }, [transactionHistory, segwitAddress, taprootAddress, assetType, ecashTokens, ecashReady, advancedMode, currentPubkeyHex]);
 &nbsp;
-    // Mark that we've calculated initial transactions for UNIT assets
-    if (assetType === 'UNIT' &amp;&amp; !advancedMode) {
-      hasCalculatedInitialTransactions.current = true;
-    }
-  }, [transactionHistory, segwitAddress, taprootAddress, assetType, ecashTokens, ecashInitialLoadDone, advancedMode, currentPubkeyHex]);
+  // Loading is true until:
+  // 1. Ecash is ready (for UNIT) or immediately (for BTC)
+  // 2. AND transactions have been processed at least once
+  const isLoading = !ecashReady || !transactionsProcessedRef.current;
 &nbsp;
   return {
     transactions: filteredTransactions,
-    // Show loading if ecash is loading OR if we haven't calculated transactions yet for UNIT
-    isLoading: ecashLoading || (assetType === 'UNIT' &amp;&amp; !advancedMode &amp;&amp; !hasCalculatedInitialTransactions.current),
+    isLoading,
   };
 }
 &nbsp;</pre></td></tr></table></pre>
@@ -1012,7 +1030,7 @@ export function useAssetTransactions(
             <div class='footer quiet pad2 space-top1 center small'>
                 Code coverage generated by
                 <a href="https://istanbul.js.org/" target="_blank" rel="noopener noreferrer">istanbul</a>
-                at 2025-11-27T08:28:08.171Z
+                at 2025-11-27T18:27:28.044Z
             </div>
         <script src="../prettify.js"></script>
         <script>

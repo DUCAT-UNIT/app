@@ -30,9 +30,9 @@
         
             
             <div class='fl pad1y space-right2'>
-                <span class="strong">71.42% </span>
+                <span class="strong">72.72% </span>
                 <span class="quiet">Branches</span>
-                <span class='fraction'>20/28</span>
+                <span class='fraction'>16/22</span>
             </div>
         
             
@@ -274,11 +274,7 @@
 <a name='L209'></a><a href='#L209'>209</a>
 <a name='L210'></a><a href='#L210'>210</a>
 <a name='L211'></a><a href='#L211'>211</a>
-<a name='L212'></a><a href='#L212'>212</a>
-<a name='L213'></a><a href='#L213'>213</a>
-<a name='L214'></a><a href='#L214'>214</a></td><td class="line-coverage quiet"><span class="cline-any cline-neutral">&nbsp;</span>
-<span class="cline-any cline-neutral">&nbsp;</span>
-<span class="cline-any cline-neutral">&nbsp;</span>
+<a name='L212'></a><a href='#L212'>212</a></td><td class="line-coverage quiet"><span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
@@ -499,12 +495,11 @@ import * as Device from 'expo-device';
 import * as Haptics from 'expo-haptics';
 import * as PasskeyService from '../services/passkey';
 import type { WalletAddresses } from '../contexts/WalletContext';
-import type { ToastType } from '../types/notification';
+import { notify } from '../utils/notify';
 &nbsp;
 interface UsePasskeyCreationParams {
   setIsAuthenticated: (value: boolean) =&gt; void;
   setSeedConfirmed: (value: boolean) =&gt; void;
-  showToast: (message: string, type?: ToastType) =&gt; void;
   setWalletAddresses: (addresses: WalletAddresses, accountIndex: number) =&gt; void;
 }
 &nbsp;
@@ -529,7 +524,6 @@ interface UsePasskeyCreationReturn {
 export function usePasskeyCreation({
   setIsAuthenticated,
   setSeedConfirmed,
-  showToast,
   setWalletAddresses
 }: UsePasskeyCreationParams): UsePasskeyCreationReturn {
   const [creatingWithPasskey, setCreatingWithPasskey] = useState(false);
@@ -550,7 +544,7 @@ export function usePasskeyCreation({
       // Check if passkeys are supported
       const supported = await PasskeyService.isPasskeySupported();
       if (!supported) {
-        showToast('Passkeys are not supported on this device', 'error');
+        notify.passkey.notSupported();
         return;
       }
 &nbsp;
@@ -558,7 +552,7 @@ export function usePasskeyCreation({
       setShowPinInput(true);
       setCreatingWithPasskey(true);
     } catch (error: unknown) {
-      showToast((error instanceof Error ? error.message : <span class="branch-1 cbranch-no" title="branch not covered" >String(error))</span> || 'Failed to start passkey creation', 'error');
+      notify.passkey.creationFailed(error instanceof Error ? error.message : <span class="branch-1 cbranch-no" title="branch not covered" >undefined)</span>;
     }
   };
 &nbsp;
@@ -569,14 +563,14 @@ export function usePasskeyCreation({
     try {
       // Validate PIN
       if (!pin || pin.length !== 6) {
-        showToast('Please enter a 6-digit PIN', 'error');
+        notify.pin.invalid();
         return;
       }
 &nbsp;
       // If confirming, check if PINs match
       if (confirmingPin) {
         if (pin !== passkeyPin) {
-          showToast('PINs do not match. Please try again.', 'error');
+          notify.pin.mismatch();
           setConfirmingPin(false);
           setPasskeyPin('');
           setPasskeyPinConfirm('');
@@ -593,7 +587,7 @@ export function usePasskeyCreation({
         }).catch((error) =&gt; {
           Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
           setIsCreating(false);
-          showToast((error instanceof Error ? error.message : <span class="branch-1 cbranch-no" title="branch not covered" >String(error))</span> || 'Failed to create wallet with passkey', 'error');
+          notify.passkey.walletCreationFailed(error instanceof Error ? error.message : <span class="branch-1 cbranch-no" title="branch not covered" >undefined)</span>;
           setCreatingWithPasskey(false);
           setConfirmingPin(false);
           setPasskeyPin('');
@@ -604,7 +598,7 @@ export function usePasskeyCreation({
         setConfirmingPin(true);
       }
     } catch (error: unknown) {
-<span class="cstat-no" title="statement not covered" >      showToast((error instanceof Error ? error.message : String(error)) || 'Failed to process PIN', 'error');</span>
+<span class="cstat-no" title="statement not covered" >      notify.passkey.pinProcessFailed(error instanceof Error ? error.message : undefined);</span>
     }
   };
 &nbsp;
@@ -646,13 +640,13 @@ export function usePasskeyCreation({
       setCreatingWithPasskey(false);
 &nbsp;
       // Show immediate success - navigation happens instantly
-      showToast('Wallet created with passkey!', 'success');
+      notify.passkey.created();
 &nbsp;
       // Handle iCloud backup result in background (non-blocking)
       if (icloudBackupPromise) {
         icloudBackupPromise.then((result) =&gt; {
           <span class="missing-if-branch" title="else path not taken" >E</span>if (!result.success) {
-            showToast('iCloud backup failed - restoration may not work on new devices', 'warning');
+            notify.passkey.icloudFailed();
           }
         });
       }
@@ -709,7 +703,7 @@ export function usePasskeyCreation({
             <div class='footer quiet pad2 space-top1 center small'>
                 Code coverage generated by
                 <a href="https://istanbul.js.org/" target="_blank" rel="noopener noreferrer">istanbul</a>
-                at 2025-11-27T08:28:08.171Z
+                at 2025-11-27T18:27:28.044Z
             </div>
         <script src="../prettify.js"></script>
         <script>

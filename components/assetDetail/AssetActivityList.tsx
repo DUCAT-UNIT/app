@@ -4,10 +4,11 @@
  */
 
 import React, { useState, useCallback, memo, useMemo } from 'react';
-import { View, Text, TouchableOpacity, ActivityIndicator, StyleSheet } from 'react-native';
+import { View, Text, TouchableOpacity, StyleSheet } from 'react-native';
 import TransactionItem, { Transaction } from '../transaction/TransactionItem';
 import { COLORS } from '../../theme';
 import globalStyles from '../../styles';
+import { AssetActivityListSkeleton } from './AssetSkeleton';
 import type { ProcessedTransaction } from '../../hooks/useAssetTransactions';
 
 // Accept either the strict Transaction type or the more flexible ProcessedTransaction
@@ -51,11 +52,7 @@ export const AssetActivityList = memo(function AssetActivityList({
 
   // Early returns for loading/empty states (after all hooks)
   if (isLoading) {
-    return (
-      <View style={styles.activityContainer}>
-        <ActivityIndicator color={COLORS.PRIMARY_BLUE} style={styles.loader} />
-      </View>
-    );
+    return <AssetActivityListSkeleton />;
   }
 
   if (transactions.length === 0) {
@@ -100,9 +97,7 @@ const styles = StyleSheet.create({
   activityContainer: {
     paddingHorizontal: 4,
     paddingBottom: 5,
-  },
-  loader: {
-    marginTop: 8,
+    minHeight: 200, // Fixed height to prevent layout jumping
   },
   emptyContainer: {
     alignItems: 'center',

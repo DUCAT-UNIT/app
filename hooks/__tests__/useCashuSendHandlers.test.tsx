@@ -161,6 +161,18 @@ describe('useCashuSendHandlers', () => {
       expect(Alert.alert).toHaveBeenCalledWith('Error', 'Send failed');
       expect(mockProps.setIsLoading).toHaveBeenLastCalledWith(false);
     });
+
+    it('should handle send non-Error rejection', async () => {
+      mockProps.send.mockRejectedValue('String error');
+
+      const { result } = renderHookWithProps(mockProps);
+
+      await act(async () => {
+        await result.current.handleSendToken();
+      });
+
+      expect(Alert.alert).toHaveBeenCalledWith('Error', 'String error');
+    });
   });
 
   describe('handleShareToken', () => {
@@ -197,6 +209,20 @@ describe('useCashuSendHandlers', () => {
       });
 
       // Should not throw
+    });
+
+    it('should handle share non-Error rejection gracefully', async () => {
+      const { logger } = require('../../utils/logger');
+      Share.share.mockRejectedValue('String error');
+
+      const { result } = renderHookWithProps(mockProps);
+
+      await act(async () => {
+        await result.current.handleShareToken('cashuA...');
+      });
+
+      // Should log error with string conversion
+      expect(logger.error).toHaveBeenCalledWith('[useCashuSendHandlers] Error sharing:', { error: 'String error' });
     });
   });
 
@@ -280,6 +306,18 @@ describe('useCashuSendHandlers', () => {
       expect(Alert.alert).toHaveBeenCalledWith('Error', 'Melt failed');
       expect(mockProps.setIsLoading).toHaveBeenLastCalledWith(false);
     });
+
+    it('should handle start melt non-Error rejection', async () => {
+      mockProps.startMelt.mockRejectedValue('String error');
+
+      const { result } = renderHookWithProps(mockProps);
+
+      await act(async () => {
+        await result.current.handleStartRedeem();
+      });
+
+      expect(Alert.alert).toHaveBeenCalledWith('Error', 'String error');
+    });
   });
 
   describe('handleConfirmRedeem', () => {
@@ -354,6 +392,22 @@ describe('useCashuSendHandlers', () => {
       expect(Alert.alert).toHaveBeenCalledWith('Error', 'Finish failed');
       expect(mockProps.setMeltQuote).toHaveBeenCalledWith(null);
       expect(mockProps.setIsLoading).toHaveBeenLastCalledWith(false);
+    });
+
+    it('should handle finish melt non-Error rejection', async () => {
+      mockProps.finishMelt.mockRejectedValue('String error');
+      const meltQuote = { quoteId: 'quote123', total: 100, amount: 100 };
+
+      const { result } = renderHookWithProps({
+        ...mockProps,
+        meltQuote,
+      });
+
+      await act(async () => {
+        await result.current.handleConfirmRedeem();
+      });
+
+      expect(Alert.alert).toHaveBeenCalledWith('Error', 'String error');
     });
   });
 });

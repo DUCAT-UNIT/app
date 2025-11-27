@@ -11,9 +11,9 @@ import { Animated, Dimensions, PanResponder, GestureResponderHandlers } from 're
 import * as SecureStore from 'expo-secure-store';
 import { withMnemonic } from '../services/secureStorageService';
 import { authenticateWithBiometrics } from '../services/biometricService';
-import { parseErrorMessage } from '../utils/errorParser';
 import { ERRORS } from '../utils/messages';
 import { useAuth } from './AuthContext';
+import { notify } from '../utils/notify';
 
 interface SeedPhraseContextValue {
   viewingSeedPhrase: boolean;
@@ -43,11 +43,10 @@ export const useSeedPhrase = (): SeedPhraseContextValue => {
 
 interface SeedPhraseProviderProps {
   children: ReactNode;
-  showToast: (message: string, type?: string) => void;
   setIsAuthenticated?: (value: boolean) => void;
 }
 
-export const SeedPhraseProvider: React.FC<SeedPhraseProviderProps> = ({ children, showToast, setIsAuthenticated }) => {
+export const SeedPhraseProvider: React.FC<SeedPhraseProviderProps> = ({ children, setIsAuthenticated }) => {
   const { biometricEnabled } = useAuth();
   const [viewingSeedPhrase, setViewingSeedPhrase] = useState(false);
   const [seedPhraseWords, setSeedPhraseWords] = useState<string[]>([]);
@@ -109,13 +108,13 @@ export const SeedPhraseProvider: React.FC<SeedPhraseProviderProps> = ({ children
           seedPhraseTranslateX.setValue(0);
           setViewingSeedPhrase(true);
         } else {
-          showToast(ERRORS.SEED_PHRASE_NOT_FOUND, 'error');
+          notify.error(ERRORS.SEED_PHRASE_NOT_FOUND);
         }
       });
     } catch (error: unknown) {
-      showToast(parseErrorMessage(error), 'error');
+      notify.error(error instanceof Error ? error.message : String(error));
     }
-  }, [seedPhraseTranslateX, showToast]);
+  }, [seedPhraseTranslateX]);
 
   // Request seed phrase viewing (will try Face ID first if enabled, then PIN)
   const requestViewSeedPhrase = useCallback(async () => {

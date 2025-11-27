@@ -5,7 +5,7 @@
 
 import { logger } from '../utils/logger';
 import type { WalletAddresses } from '../contexts/WalletContext';
-import type { ToastType } from '../types/notification';
+import { notify } from '../utils/notify';
 type VerificationWords = Record<number, string>;
 
 interface LoadWalletResult {
@@ -29,7 +29,6 @@ interface UseOnboardingHandlersParams {
   fetchBalance?: (...args: unknown[]) => Promise<unknown>;
   fetchTransactionHistory?: () => Promise<void>;
   showPasskeyMigrationPromptGlobal: (mnemonic: string, pin: string) => void;
-  showToast: (message: string, type?: ToastType) => void;
   isImportedWallet: boolean;
   importedMnemonic: string | null;
 }
@@ -56,7 +55,6 @@ export function useOnboardingHandlers({
   fetchBalance,
   fetchTransactionHistory,
   showPasskeyMigrationPromptGlobal,
-  showToast,
   isImportedWallet,
   importedMnemonic,
 }: UseOnboardingHandlersParams): UseOnboardingHandlersReturn {
@@ -72,7 +70,7 @@ export function useOnboardingHandlers({
     if (!isImportedWallet) {
       const saved = await saveWalletAfterPinSetup();
       if (!saved) {
-        showToast('Failed to save wallet', 'error');
+        notify.wallet.saveFailed();
         return;
       }
     }

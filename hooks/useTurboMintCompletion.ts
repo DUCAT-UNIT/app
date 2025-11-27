@@ -6,7 +6,7 @@ import { sendP2PKToken } from '../services/cashu/operations/cashuSendP2PK';
 import { extractPubkeyFromTaprootAddress } from '../utils/bitcoin';
 import { saveSentLockedToken } from '../services/cashu/cashuLockedTokensService';
 import { shortenCashuToken } from '../services/urlShortener';
-import type { SnackbarParams } from '../contexts/NotificationContext';
+import { notify } from '../utils/notify';
 
 type ProcessingStage = 'converting' | 'ready';
 
@@ -19,8 +19,6 @@ interface UseTurboMintCompletionParams {
   senderTaprootAddress: string | undefined;
   fetchTransactionHistory: () => Promise<void>;
   refreshCashuBalance: () => Promise<void>;
-  showSnackbar: (params: SnackbarParams) => void;
-  showToast: (message: string, type: string) => void;
 }
 
 interface UseTurboMintCompletionReturn {
@@ -47,8 +45,6 @@ export function useTurboMintCompletion({
   senderTaprootAddress,
   fetchTransactionHistory,
   refreshCashuBalance,
-  showSnackbar,
-  showToast,
 }: UseTurboMintCompletionParams): UseTurboMintCompletionReturn {
   const [turboToken, setTurboToken] = useState<string | null>(null);
   const [turboDeeplink, setTurboDeeplink] = useState<string | null>(null);
@@ -167,24 +163,24 @@ export function useTurboMintCompletion({
 
           // Different message based on whether this is address-bound or regular Turbo
           if (turboRecipient) {
-            showSnackbar({ type: 'success', action: 'send' });
+            notify.transaction.success('send');
           } else {
-            showSnackbar({ type: 'success', action: 'convert' });
+            notify.transaction.success('convert');
           }
         } else {
           logger.debug('[useTurboMintCompletion] Payment not confirmed after 30 seconds');
           setIsCompletingMint(false);
-          showToast('Payment sent. E-cash will be available once confirmed.', 'info');
+          notify.cashu.paymentSentAwaiting();
         }
       } catch (error: unknown) {
         logger.error('[useTurboMintCompletion] Error during mint completion:', { error: error instanceof Error ? error.message : String(error) });
         setIsCompletingMint(false);
-        showToast(`Failed to complete conversion: ${error instanceof Error ? error.message : String(error)}`, 'error');
+        notify.cashu.conversionFailed(error instanceof Error ? error.message : String(error));
       }
     };
 
     completeMintProcess();
-  }, [isTurbo, mintQuoteId, mintAmount, turboRecipient, skipMint, senderTaprootAddress, fetchTransactionHistory, refreshCashuBalance, showSnackbar, showToast, processingStage]);
+  }, [isTurbo, mintQuoteId, mintAmount, turboRecipient, skipMint, senderTaprootAddress, fetchTransactionHistory, refreshCashuBalance, processingStage]);
 
   return {
     turboToken,

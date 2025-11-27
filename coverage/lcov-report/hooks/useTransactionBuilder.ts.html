@@ -332,8 +332,8 @@
 <a name='L267'></a><a href='#L267'>267</a>
 <a name='L268'></a><a href='#L268'>268</a>
 <a name='L269'></a><a href='#L269'>269</a>
-<a name='L270'></a><a href='#L270'>270</a>
-<a name='L271'></a><a href='#L271'>271</a></td><td class="line-coverage quiet"><span class="cline-any cline-neutral">&nbsp;</span>
+<a name='L270'></a><a href='#L270'>270</a></td><td class="line-coverage quiet"><span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
@@ -369,8 +369,6 @@
 <span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-no">&nbsp;</span>
-<span class="cline-any cline-neutral">&nbsp;</span>
-<span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
@@ -614,6 +612,7 @@ import { parseErrorMessage } from '../utils/errorParser';
 import { ERRORS } from '../utils/messages';
 import { logger } from '../utils/logger';
 import { releaseOrphanedUtxos } from '../utils/pendingTransactionsUtils';
+import { notify } from '../utils/notify';
 &nbsp;
 import type { AssetType, IntentStep } from '../contexts/SendFlowContext';
 import type { WalletAddresses } from '../contexts/WalletContext';
@@ -672,7 +671,6 @@ export interface UseTransactionBuilderParams {
   sendIntent: SendIntent | null;
   setSendIntent: React.Dispatch&lt;React.SetStateAction&lt;SendIntent | null&gt;&gt;;
   setIntentStep: (step: IntentStep) =&gt; void;
-  showToast: (message: string, type?: string) =&gt; void;
   getUnconfirmedUTXOs: (addressType?: AddressType, excludeFromIntent?: TransactionIntent | null) =&gt; PendingUnconfirmedUTXO[];
   getSpentUtxos: () =&gt; Set&lt;string&gt;;
   markUtxosAsSpent: (utxos: UtxoRef[]) =&gt; Promise&lt;void&gt;;
@@ -696,7 +694,6 @@ export function useTransactionBuilder({
   sendIntent,
   setSendIntent,
   setIntentStep,
-  showToast,
   getUnconfirmedUTXOs,
   getSpentUtxos,
   markUtxosAsSpent,
@@ -741,10 +738,10 @@ export function useTransactionBuilder({
       }
       await releaseOrphanedUtxos(getSpentUtxos, unmarkUtxosAsSpent);
 &nbsp;
-      showToast(parseErrorMessage(error), 'error');
+      notify.build.error(parseErrorMessage(error));
       setTimeout(() =&gt; setIntentStep('entering_amount'), 100);
     }
-  }, [sendRecipient, sendAmount, wallet, currentAccount, sendIntent, setSendIntent, setIntentStep, showToast, getUnconfirmedUTXOs, getSpentUtxos, markUtxosAsSpent, unmarkUtxosAsSpent]);
+  }, [sendRecipient, sendAmount, wallet, currentAccount, sendIntent, setSendIntent, setIntentStep, getUnconfirmedUTXOs, getSpentUtxos, markUtxosAsSpent, unmarkUtxosAsSpent]);
 &nbsp;
   // Create UNIT transaction
   const createUnitIntent = useCallback(async () =&gt; {
@@ -806,10 +803,10 @@ export function useTransactionBuilder({
       }
       await releaseOrphanedUtxos(getSpentUtxos, unmarkUtxosAsSpent);
 &nbsp;
-      showToast(parseErrorMessage(error), 'error');
+      notify.build.error(parseErrorMessage(error));
       setTimeout(() =&gt; setIntentStep('entering_amount'), 100);
     }
-  }, [sendRecipient, sendAmount, wallet, currentAccount, requireConfirmedUtxos, runesBalance, sendIntent, setSendIntent, setIntentStep, showToast, getUnconfirmedUTXOs, getSpentUtxos, markUtxosAsSpent, unmarkUtxosAsSpent]);
+  }, [sendRecipient, sendAmount, wallet, currentAccount, requireConfirmedUtxos, runesBalance, sendIntent, setSendIntent, setIntentStep, getUnconfirmedUTXOs, getSpentUtxos, markUtxosAsSpent, unmarkUtxosAsSpent]);
 &nbsp;
   // Main create intent function
   const createSendIntent = useCallback(async () =&gt; {
@@ -817,7 +814,7 @@ export function useTransactionBuilder({
     setIntentStep('creating');
 &nbsp;
     if (!trimmedRecipient || !sendAmount) {
-      showToast(ERRORS.MISSING_RECIPIENT_AMOUNT, 'error');
+      notify.build.missingRecipientAmount();
       setTimeout(() =&gt; setIntentStep('entering_amount'), 100);
       return;
     }
@@ -829,10 +826,10 @@ export function useTransactionBuilder({
     } else if (sendAssetType === 'unit') {
       await createUnitIntent();
     } else {
-      showToast(ERRORS.ASSET_SELECTION_REQUIRED, 'error');
+      notify.build.assetRequired();
       setTimeout(() =&gt; setIntentStep('selecting_asset'), 100);
     }
-  }, [sendRecipient, sendAmount, sendAssetType, setIntentStep, setSendRecipient, showToast, createBtcIntent, createUnitIntent]);
+  }, [sendRecipient, sendAmount, sendAssetType, setIntentStep, setSendRecipient, createBtcIntent, createUnitIntent]);
 &nbsp;
   // Cancel intent and release UTXOs
   const cancelIntent = useCallback(async () =&gt; {
@@ -880,7 +877,7 @@ export function useTransactionBuilder({
             <div class='footer quiet pad2 space-top1 center small'>
                 Code coverage generated by
                 <a href="https://istanbul.js.org/" target="_blank" rel="noopener noreferrer">istanbul</a>
-                at 2025-11-27T08:28:08.171Z
+                at 2025-11-27T18:27:28.044Z
             </div>
         <script src="../prettify.js"></script>
         <script>

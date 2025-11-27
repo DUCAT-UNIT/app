@@ -10,6 +10,7 @@ import { useSettings } from '../useSettings';
 import * as SecureStore from 'expo-secure-store';
 import * as BiometricService from '../../services/biometricService';
 import * as SecureStorageService from '../../services/secureStorageService';
+import { notify } from '../../utils/notify';
 
 // Mock expo-secure-store
 jest.mock('expo-secure-store');
@@ -67,7 +68,6 @@ describe('useSettings', () => {
       startPinChange: jest.fn(),
       walletExistsRef: { current: true },
       setIsAuthenticated: jest.fn(),
-      showToast: jest.fn(),
     };
   });
 
@@ -188,7 +188,7 @@ describe('useSettings', () => {
       expect(SecureStorageService.deleteWalletData).toHaveBeenCalled();
       expect(mockProps.resetWallet).toHaveBeenCalled();
       expect(mockProps.resetAuth).toHaveBeenCalled();
-      expect(mockProps.showToast).toHaveBeenCalledWith('Wallet deleted successfully', 'success');
+      expect(notify.wallet.deleted).toHaveBeenCalled();
     });
 
     it('should set pending flag if biometric fails', async () => {
@@ -226,7 +226,7 @@ describe('useSettings', () => {
         await result.current.confirmDeleteWallet();
       });
 
-      expect(mockProps.showToast).toHaveBeenCalledWith('Failed to delete wallet', 'error');
+      expect(notify.wallet.deleteFailed).toHaveBeenCalled();
     });
 
     it('should handle exceptions during wallet deletion', async () => {
@@ -245,7 +245,7 @@ describe('useSettings', () => {
         await result.current.confirmDeleteWallet();
       });
 
-      expect(mockProps.showToast).toHaveBeenCalledWith('Failed to delete wallet', 'error');
+      expect(notify.wallet.deleteFailed).toHaveBeenCalled();
     });
 
     it('should cancel deletion on cancelDeleteWallet', () => {
@@ -323,7 +323,7 @@ describe('useSettings', () => {
 
       expect(mockProps.setBiometricEnabled).toHaveBeenCalledWith(false);
       expect(SecureStore.setItemAsync).toHaveBeenCalledWith('biometricEnabled', 'false');
-      expect(mockProps.showToast).toHaveBeenCalledWith('Face ID disabled', 'success');
+      expect(notify.settings.faceIdDisabled).toHaveBeenCalled();
     });
 
     it('should show modal when enabling Face ID', () => {
@@ -356,7 +356,7 @@ describe('useSettings', () => {
       expect(mockProps.setBiometricEnabled).toHaveBeenCalledWith(true);
       expect(SecureStore.setItemAsync).toHaveBeenCalledWith('biometricEnabled', 'true');
       expect(SecureStore.setItemAsync).toHaveBeenCalledWith('returnToSettingsAfterAuth', 'true');
-      expect(mockProps.showToast).toHaveBeenCalledWith('Face ID enabled', 'success');
+      expect(notify.settings.faceIdEnabled).toHaveBeenCalled();
     });
 
     it('should handle storage error during Face ID enable after authentication', async () => {
@@ -380,10 +380,7 @@ describe('useSettings', () => {
         await result.current.confirmFaceIdToggle();
       });
 
-      expect(mockProps.showToast).toHaveBeenCalledWith(
-        'Failed to update Face ID setting',
-        'error'
-      );
+      expect(notify.settings.faceIdFailed).toHaveBeenCalled();
     });
 
     it('should handle authentication error during Face ID enable', async () => {
@@ -401,10 +398,7 @@ describe('useSettings', () => {
         await result.current.confirmFaceIdToggle();
       });
 
-      expect(mockProps.showToast).toHaveBeenCalledWith(
-        'Authentication required to enable Face ID',
-        'error'
-      );
+      expect(notify.auth.requiredForFaceId).toHaveBeenCalled();
     });
 
     it('should set pending flag if biometric fails', async () => {
@@ -491,7 +485,7 @@ describe('useSettings', () => {
 
       expect(result.current.notificationsEnabled).toBe(false);
       expect(SecureStore.setItemAsync).toHaveBeenCalledWith('notificationsEnabled', 'false');
-      expect(mockProps.showToast).toHaveBeenCalledWith('Notifications disabled', 'success');
+      expect(notify.settings.notificationsDisabled).toHaveBeenCalled();
     });
 
     it('should show modal when enabling notifications', async () => {
@@ -525,7 +519,7 @@ describe('useSettings', () => {
       expect(result.current.notificationsEnabled).toBe(true);
       expect(SecureStore.setItemAsync).toHaveBeenCalledWith('notificationsEnabled', 'true');
       expect(SecureStore.setItemAsync).toHaveBeenCalledWith('returnToSettingsAfterAuth', 'true');
-      expect(mockProps.showToast).toHaveBeenCalledWith('Notifications enabled', 'success');
+      expect(notify.settings.notificationsEnabled).toHaveBeenCalled();
     });
 
     it('should set pending flag if biometric fails for notifications', async () => {
@@ -564,10 +558,7 @@ describe('useSettings', () => {
         await result.current.confirmNotificationsToggle();
       });
 
-      expect(mockProps.showToast).toHaveBeenCalledWith(
-        'Authentication required to enable notifications',
-        'error'
-      );
+      expect(notify.auth.requiredForNotifications).toHaveBeenCalled();
     });
 
     it('should handle storage error during notifications enable', async () => {
@@ -592,10 +583,7 @@ describe('useSettings', () => {
         await result.current.confirmNotificationsToggle();
       });
 
-      expect(mockProps.showToast).toHaveBeenCalledWith(
-        'Failed to update notifications setting',
-        'error'
-      );
+      expect(notify.settings.notificationsFailed).toHaveBeenCalled();
     });
 
     it('should handle storage error during notifications disable', async () => {
@@ -621,10 +609,7 @@ describe('useSettings', () => {
         await result.current.confirmNotificationsToggle();
       });
 
-      expect(mockProps.showToast).toHaveBeenCalledWith(
-        'Failed to update notifications setting',
-        'error'
-      );
+      expect(notify.settings.notificationsFailed).toHaveBeenCalled();
     });
 
     it('should cancel notifications toggle', async () => {
@@ -685,10 +670,7 @@ describe('useSettings', () => {
         await result.current.confirmFaceIdToggle();
       });
 
-      expect(mockProps.showToast).toHaveBeenCalledWith(
-        'Failed to update Face ID setting',
-        'error'
-      );
+      expect(notify.settings.faceIdFailed).toHaveBeenCalled();
     });
 
     it('should handle authentication errors during deletion', async () => {
@@ -706,19 +688,12 @@ describe('useSettings', () => {
         await result.current.confirmDeleteWallet();
       });
 
-      expect(mockProps.showToast).toHaveBeenCalledWith(
-        'Authentication required to delete wallet',
-        'error'
-      );
+      expect(notify.auth.requiredForDeleteWallet).toHaveBeenCalled();
     });
   });
 
-  describe('Without showToast', () => {
-    beforeEach(() => {
-      mockProps.showToast = undefined;
-    });
-
-    it('should handle wallet deletion without showToast on auth error', async () => {
+  describe('Without notify (graceful degradation)', () => {
+    it('should handle wallet deletion gracefully on auth error', async () => {
       BiometricService.authenticateWithBiometrics.mockRejectedValue(new Error('Auth error'));
 
       const { result } = renderHook(() => useSettings(mockProps), {
@@ -733,10 +708,11 @@ describe('useSettings', () => {
         await result.current.confirmDeleteWallet();
       });
 
-      expect(mockProps.showToast).toBeUndefined();
+      // Should complete without errors
+      expect(mockProps.resetWallet).not.toHaveBeenCalled();
     });
 
-    it('should handle wallet deletion success without showToast', async () => {
+    it('should handle wallet deletion success gracefully', async () => {
       BiometricService.authenticateWithBiometrics.mockResolvedValue({ success: true });
       SecureStorageService.deleteWalletData.mockResolvedValue(true);
 
@@ -755,7 +731,7 @@ describe('useSettings', () => {
       expect(mockProps.resetWallet).toHaveBeenCalled();
     });
 
-    it('should handle wallet deletion failure without showToast', async () => {
+    it('should handle wallet deletion failure gracefully', async () => {
       BiometricService.authenticateWithBiometrics.mockResolvedValue({ success: true });
       SecureStorageService.deleteWalletData.mockResolvedValue(false);
 
@@ -774,7 +750,7 @@ describe('useSettings', () => {
       expect(mockProps.resetWallet).not.toHaveBeenCalled();
     });
 
-    it('should handle wallet deletion exception without showToast', async () => {
+    it('should handle wallet deletion exception gracefully', async () => {
       BiometricService.authenticateWithBiometrics.mockResolvedValue({ success: true });
       SecureStorageService.deleteWalletData.mockRejectedValue(new Error('Delete error'));
 
@@ -793,7 +769,7 @@ describe('useSettings', () => {
       expect(mockProps.resetWallet).not.toHaveBeenCalled();
     });
 
-    it('should handle Face ID disable without showToast on success', async () => {
+    it('should handle Face ID disable gracefully on success', async () => {
       mockProps.biometricEnabled = true;
 
       const { result } = renderHook(() => useSettings(mockProps), {
@@ -811,7 +787,7 @@ describe('useSettings', () => {
       expect(mockProps.setBiometricEnabled).toHaveBeenCalledWith(false);
     });
 
-    it('should handle Face ID disable without showToast on error', async () => {
+    it('should handle Face ID disable gracefully on error', async () => {
       mockProps.biometricEnabled = true;
       SecureStore.setItemAsync.mockRejectedValue(new Error('Storage error'));
 
@@ -830,7 +806,7 @@ describe('useSettings', () => {
       expect(mockProps.setBiometricEnabled).toHaveBeenCalledWith(false);
     });
 
-    it('should handle Face ID enable auth error without showToast', async () => {
+    it('should handle Face ID enable auth error gracefully', async () => {
       BiometricService.authenticateWithBiometrics.mockRejectedValue(new Error('Auth error'));
 
       const { result } = renderHook(() => useSettings(mockProps), {
@@ -848,7 +824,7 @@ describe('useSettings', () => {
       expect(result.current.showFaceIdModal).toBe(false);
     });
 
-    it('should handle Face ID enable success without showToast', async () => {
+    it('should handle Face ID enable success gracefully', async () => {
       BiometricService.authenticateWithBiometrics.mockResolvedValue({ success: true });
 
       const { result } = renderHook(() => useSettings(mockProps), {
@@ -866,7 +842,7 @@ describe('useSettings', () => {
       expect(mockProps.setBiometricEnabled).toHaveBeenCalledWith(true);
     });
 
-    it('should handle Face ID enable storage error without showToast', async () => {
+    it('should handle Face ID enable storage error gracefully', async () => {
       BiometricService.authenticateWithBiometrics.mockResolvedValue({ success: true });
       SecureStore.setItemAsync.mockImplementation((key) => {
         if (key === 'biometricEnabled') {
@@ -890,7 +866,7 @@ describe('useSettings', () => {
       expect(mockProps.setBiometricEnabled).toHaveBeenCalledWith(true);
     });
 
-    it('should handle notifications disable success without showToast', async () => {
+    it('should handle notifications disable success gracefully', async () => {
       SecureStore.getItemAsync.mockImplementation((key) => {
         if (key === 'notificationsEnabled') return Promise.resolve('true');
         return Promise.resolve(null);
@@ -915,7 +891,7 @@ describe('useSettings', () => {
       expect(result.current.notificationsEnabled).toBe(false);
     });
 
-    it('should handle notifications disable error without showToast', async () => {
+    it('should handle notifications disable error gracefully', async () => {
       SecureStore.getItemAsync.mockImplementation((key) => {
         if (key === 'notificationsEnabled') return Promise.resolve('true');
         return Promise.resolve(null);
@@ -941,7 +917,7 @@ describe('useSettings', () => {
       expect(result.current.notificationsEnabled).toBe(false);
     });
 
-    it('should handle notifications enable auth error without showToast', async () => {
+    it('should handle notifications enable auth error gracefully', async () => {
       BiometricService.authenticateWithBiometrics.mockRejectedValue(new Error('Auth error'));
 
       const { result } = renderHook(() => useSettings(mockProps), {
@@ -959,7 +935,7 @@ describe('useSettings', () => {
       expect(result.current.showNotificationsModal).toBe(false);
     });
 
-    it('should handle notifications enable success without showToast', async () => {
+    it('should handle notifications enable success gracefully', async () => {
       BiometricService.authenticateWithBiometrics.mockResolvedValue({ success: true });
 
       const propsWithBiometric = { ...mockProps, biometricEnabled: true };
@@ -978,7 +954,7 @@ describe('useSettings', () => {
       expect(result.current.notificationsEnabled).toBe(true);
     });
 
-    it('should handle notifications enable storage error without showToast', async () => {
+    it('should handle notifications enable storage error gracefully', async () => {
       BiometricService.authenticateWithBiometrics.mockResolvedValue({ success: true });
       SecureStore.setItemAsync.mockImplementation((key) => {
         if (key === 'notificationsEnabled') {

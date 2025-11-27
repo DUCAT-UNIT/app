@@ -11,7 +11,8 @@ import { logger } from '../utils/logger';
 import { hasP2PKProofs } from '../services/cashu/p2pk';
 import { decodeToken, encodeToken } from '../services/cashu/crypto';
 import { checkProofsSpent } from '../services/cashu/cashuMintClient';
-import type { ToastType, SnackbarParams } from '../contexts/NotificationContext';
+import { notify } from '../utils/notify';
+import type { SnackbarParams } from '../contexts/NotificationContext';
 
 interface ReceiveTokenResult {
   amount: number;
@@ -19,7 +20,6 @@ interface ReceiveTokenResult {
 
 interface UseQRCodeHandlerParams {
   receiveCashuToken: (token: string) => Promise<ReceiveTokenResult>;
-  showToast: (message: string, type?: ToastType) => void;
   showSnackbar: (params: SnackbarParams) => void;
   setShowQRScanner: (value: boolean) => void;
 }
@@ -65,7 +65,6 @@ declare global {
  */
 export function useQRCodeHandler({
   receiveCashuToken,
-  showToast,
   showSnackbar,
   setShowQRScanner,
 }: UseQRCodeHandlerParams): (data: string) => Promise<void> {
@@ -129,7 +128,7 @@ export function useQRCodeHandler({
         }
 
         // Regular token - check proofs first
-        showToast('Checking token...', 'info');
+        notify.token.checking();
 
         // Decode and analyze the token
         const decoded = decodeToken(data) as DecodedToken;
@@ -166,7 +165,7 @@ export function useQRCodeHandler({
                 text: 'Claim',
                 onPress: async () => {
                   try {
-                    showToast('Claiming unspent proofs...', 'info');
+                    notify.token.claimingUnspent();
 
                     // Create a new token with only unspent proofs
                     const filteredToken: { token: TokenEntry[] } = {
@@ -197,7 +196,7 @@ export function useQRCodeHandler({
           );
         } else {
           // All proofs unspent - claim directly
-          showToast('Claiming token...', 'info');
+          notify.token.claiming();
           const result = await receiveCashuToken(data);
           showSnackbar({
             type: 'success',
@@ -228,7 +227,7 @@ export function useQRCodeHandler({
           const encoded = encodeToken(firstEntry.proofs, firstEntry.mint);
           logger.debug('[useQRCodeHandler] Encoded token:', { tokenStart: encoded.substring(0, 50) });
 
-          showToast('Claiming token...', 'info');
+          notify.token.claiming();
           const result = await receiveCashuToken(encoded);
           showSnackbar({
             type: 'success',
@@ -297,19 +296,19 @@ export function useQRCodeHandler({
             params: { tokenString: token },
           });
         } else {
-          showToast('Failed to extract token from URL', 'error');
+          notify.token.extractFailed();
         }
       } catch (error: unknown) {
         logger.error('[useQRCodeHandler] Failed to extract token:', { error: error instanceof Error ? error.message : String(error) });
-        showToast(`Failed to extract token: ${error instanceof Error ? error.message : String(error)}`, 'error');
+        notify.token.extractError(error instanceof Error ? error.message : String(error));
       }
       return;
     }
 
     // Unknown format
     logger.debug('[useQRCodeHandler] Unknown QR format:', { data });
-    showToast('Unknown QR code format', 'error');
-  }, [navigation, receiveCashuToken, showToast, showSnackbar, setShowQRScanner]);
+    notify.token.unknownFormat();
+  }, [navigation, receiveCashuToken, showSnackbar, setShowQRScanner]);
 
   return handleQRScan;
 }

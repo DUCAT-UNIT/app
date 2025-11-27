@@ -10,6 +10,7 @@ import * as biometricService from '../../services/biometricService';
 import * as secureStorageService from '../../services/secureStorageService';
 import { useWalletActions } from '../useWalletActions';
 import { ERRORS, SUCCESS } from '../../utils/messages';
+import { notify } from '../../utils/notify';
 
 // Helper to render hooks with react-test-renderer
 function renderHook(hook) {
@@ -46,7 +47,6 @@ describe('useWalletActions', () => {
       clearVaultCredentials: jest.fn(),
       walletExistsRef: { current: true },
       setIsAuthenticated: jest.fn(),
-      showToast: jest.fn(),
     };
 
     jest.clearAllMocks();
@@ -186,7 +186,7 @@ describe('useWalletActions', () => {
       expect(mockProps.resetWallet).toHaveBeenCalled();
       expect(mockProps.walletExistsRef.current).toBe(false);
       expect(mockProps.resetAuth).toHaveBeenCalled();
-      expect(mockProps.showToast).toHaveBeenCalledWith(SUCCESS.WALLET_DELETED, 'success');
+      expect(notify.wallet.deleted).toHaveBeenCalled();
     });
 
     it('should handle deletion when clearVaultCredentials is not provided', async () => {
@@ -252,24 +252,6 @@ describe('useWalletActions', () => {
       expect(secureStorageService.deleteWalletData).toHaveBeenCalled();
     });
 
-    it('should not show toast when showToast is not provided', async () => {
-      const propsWithoutToast = { ...mockProps, showToast: undefined };
-      biometricService.authenticateWithBiometrics.mockResolvedValue({ success: true });
-      secureStorageService.deleteWalletData.mockResolvedValue(true);
-
-      const { result } = renderHook(() => useWalletActions(propsWithoutToast));
-
-      act(() => {
-        result.current.handleDeleteWallet();
-      });
-
-      await act(async () => {
-        await result.current.confirmDeleteWallet();
-      });
-
-      expect(secureStorageService.deleteWalletData).toHaveBeenCalled();
-      expect(propsWithoutToast.resetWallet).toHaveBeenCalled();
-    });
   });
 
   describe('Delete Wallet Flow - Authentication Failure', () => {
@@ -304,28 +286,7 @@ describe('useWalletActions', () => {
         await result.current.confirmDeleteWallet();
       });
 
-      expect(mockProps.showToast).toHaveBeenCalledWith(
-        'Authentication required to delete wallet',
-        'error'
-      );
-      expect(secureStorageService.deleteWalletData).not.toHaveBeenCalled();
-    });
-
-    it('should not crash when showToast is not provided on auth error', async () => {
-      const propsWithoutToast = { ...mockProps, showToast: undefined };
-      biometricService.authenticateWithBiometrics.mockRejectedValue(new Error('Auth error'));
-
-      const { result } = renderHook(() => useWalletActions(propsWithoutToast));
-
-      act(() => {
-        result.current.handleDeleteWallet();
-      });
-
-      await act(async () => {
-        await result.current.confirmDeleteWallet();
-      });
-
-      // Should not throw
+      expect(notify.auth.requiredForDeleteWallet).toHaveBeenCalled();
       expect(secureStorageService.deleteWalletData).not.toHaveBeenCalled();
     });
   });
@@ -345,7 +306,7 @@ describe('useWalletActions', () => {
         await result.current.confirmDeleteWallet();
       });
 
-      expect(mockProps.showToast).toHaveBeenCalledWith(ERRORS.WALLET_DELETE_FAILED, 'error');
+      expect(notify.wallet.deleteFailed).toHaveBeenCalled();
       expect(mockProps.resetWallet).not.toHaveBeenCalled();
       expect(mockProps.resetAuth).not.toHaveBeenCalled();
     });
@@ -364,29 +325,11 @@ describe('useWalletActions', () => {
         await result.current.confirmDeleteWallet();
       });
 
-      expect(mockProps.showToast).toHaveBeenCalledWith(ERRORS.WALLET_DELETE_FAILED, 'error');
+      expect(notify.wallet.deleteFailed).toHaveBeenCalled();
       expect(mockProps.resetWallet).not.toHaveBeenCalled();
       expect(mockProps.resetAuth).not.toHaveBeenCalled();
     });
 
-    it('should not crash when showToast is not provided on deletion error', async () => {
-      const propsWithoutToast = { ...mockProps, showToast: undefined };
-      biometricService.authenticateWithBiometrics.mockResolvedValue({ success: true });
-      secureStorageService.deleteWalletData.mockResolvedValue(false);
-
-      const { result } = renderHook(() => useWalletActions(propsWithoutToast));
-
-      act(() => {
-        result.current.handleDeleteWallet();
-      });
-
-      await act(async () => {
-        await result.current.confirmDeleteWallet();
-      });
-
-      // Should not throw
-      expect(propsWithoutToast.resetWallet).not.toHaveBeenCalled();
-    });
   });
 
   describe('View Seed Phrase', () => {

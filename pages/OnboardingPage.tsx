@@ -13,14 +13,12 @@ import PinSetupScreen from '../screens/auth/PinSetupScreen';
 import LockScreen from '../screens/auth/LockScreen';
 import MutinynetBanner from '../components/MutinynetBanner';
 import BiometricPromptModal from '../components/BiometricPromptModal';
-import ToastContainer from '../components/ToastContainer';
 import PasskeyPinInput from '../components/PasskeyPinInput';
 
 // Contexts
 import { useAuth } from '../contexts/AuthContext';
 import { useWallet } from '../contexts/WalletContext';
 import { useNavigationHandlers } from '../contexts/NavigationHandlersContext';
-import { useNotifications } from '../contexts/NotificationContext';
 
 // Hooks
 import { useWalletCreation } from '../hooks/useWalletCreation';
@@ -55,8 +53,6 @@ export default function OnboardingPage({
   resetWalletAndState, handlePinSetupCompleteWrapper, handlePinChangeCompleteWrapper,
   handleCancelPinChange, handleLockScreenAuthenticatedWrapper, keyboardHeight, styles,
 }: OnboardingPageProps) {
-  const { showToast, toasts } = useNotifications();
-
   const {
     isAuthenticated, isBiometricSupported, showBiometricPrompt, showFaceIdButton,
     settingUpPin, changingPin, showPinEntry, setIsAuthenticated, setSettingUpPin,
@@ -70,32 +66,32 @@ export default function OnboardingPage({
   const {
     tempMnemonicWords, showingIntro, showingSeeds, setShowingIntro, setShowingSeeds,
     createWallet, saveWalletAfterPinSetup, resetCreationState,
-  } = useWalletCreation({ currentAccount, setIsAuthenticated, setSeedConfirmed, showToast, loadWallet });
+  } = useWalletCreation({ currentAccount, setIsAuthenticated, setSeedConfirmed, loadWallet });
 
   // Wallet import hook
   const {
     importingWallet, importSeedPhrase, isImportedWallet, isImporting, seedInputRefs,
     importedMnemonic, setImportingWallet, setImportSeedPhrase, setIsImportedWallet,
     setImportedMnemonic, importWallet,
-  } = useWalletImport({ currentAccount, setSettingUpPin, showToast });
+  } = useWalletImport({ currentAccount, setSettingUpPin });
 
   // Seed verification hook
   const {
     verifyingSeeds, verificationWords, requiredIndices, wordChoices, setVerificationWords,
     proceedToVerification, verifySeeds, resetVerificationState,
-  } = useSeedVerification({ tempMnemonicWords, setSettingUpPin, setShowingSeeds, showToast });
+  } = useSeedVerification({ tempMnemonicWords, setSettingUpPin, setShowingSeeds });
 
   // Passkey creation hook
   const {
     startPasskeyCreation, handlePinEntry, showPinInput, passkeyPin, confirmingPin,
     passkeyPinConfirm, setPasskeyPin, setPasskeyPinConfirm, setShowPinInput, resetPasskeyCreation,
-  } = usePasskeyCreation({ setIsAuthenticated, setSeedConfirmed, showToast, setWalletAddresses });
+  } = usePasskeyCreation({ setIsAuthenticated, setSeedConfirmed, setWalletAddresses });
 
   // Passkey restore hook
   const {
     restoringWithPasskey, showRestorePinInput, restorePin, setRestoringWithPasskey,
     setRestorePin, startPasskeyRestore, restoreWalletWithPasskey, resetPasskeyRestore,
-  } = usePasskeyRestore({ setIsAuthenticated, setSeedConfirmed, showToast, setWalletAddresses });
+  } = usePasskeyRestore({ setIsAuthenticated, setSeedConfirmed, setWalletAddresses });
 
   // Onboarding handlers
   const { handlePinSetupComplete, handlePinChangeComplete, handleCancelOnboarding } = useOnboardingHandlers({
@@ -104,7 +100,7 @@ export default function OnboardingPage({
     handlePinSetupCompleteWrapper: handlePinSetupCompleteWrapper as (...args: unknown[]) => Promise<void>,
     handlePinChangeCompleteWrapper: handlePinChangeCompleteWrapper as (...args: unknown[]) => Promise<void>,
     resetWalletAndState,
-    fetchBalance, fetchTransactionHistory, showPasskeyMigrationPromptGlobal, showToast,
+    fetchBalance, fetchTransactionHistory, showPasskeyMigrationPromptGlobal,
     isImportedWallet, importedMnemonic,
   });
 
@@ -129,7 +125,6 @@ export default function OnboardingPage({
         subtitle={confirmingPin ? 'Enter your PIN again to confirm' : 'This PIN will be used with your passkey to encrypt your wallet'}
         pin={currentPin} setPin={setCurrentPin} onPinComplete={handlePinEntry}
         onCancel={() => { setShowPinInput(false); setPasskeyPin(''); resetPasskeyCreation(); }}
-        toasts={toasts}
       />
     );
   }
@@ -141,7 +136,6 @@ export default function OnboardingPage({
         title="Enter your PIN" subtitle="Enter the PIN you created with your passkey wallet"
         pin={restorePin} setPin={setRestorePin} onPinComplete={restoreWalletWithPasskey}
         onCancel={() => { setRestorePin(''); resetPasskeyRestore(); setRestoringWithPasskey(true); }}
-        toasts={toasts}
       />
     );
   }
@@ -153,8 +147,7 @@ export default function OnboardingPage({
         <MutinynetBanner />
         <PinSetupScreen changingPin={changingPin} isBiometricSupported={isBiometricSupported}
           onPinSetupComplete={handlePinSetupComplete} onPinChangeComplete={handlePinChangeComplete}
-          onCancel={handleCancelPinChange} fetchBalance={fetchBalance} showToast={showToast} />
-        <ToastContainer toasts={toasts} />
+          onCancel={handleCancelPinChange} fetchBalance={fetchBalance} />
         <StatusBar style="light" />
       </View>
     );
@@ -166,7 +159,6 @@ export default function OnboardingPage({
       <View style={localStyles.container}>
         <MutinynetBanner />
         <LockScreen onAuthenticated={handleLockScreenAuthenticatedWrapper} />
-        <ToastContainer toasts={toasts} />
         <StatusBar style="light" />
       </View>
     );
@@ -183,7 +175,6 @@ export default function OnboardingPage({
           onClose={() => setShowBiometricPrompt(false)}
           onBiometricEnabled={(enabled, authSuccess) => { setBiometricEnabled(enabled); if (authSuccess) setIsAuthenticated(true); }}
           onBiometricDisabled={() => setBiometricEnabled(false)} styles={styles as Parameters<typeof BiometricPromptModal>[0]['styles']} />
-        <ToastContainer toasts={toasts} />
         <StatusBar style="light" />
       </View>
     );
@@ -199,7 +190,6 @@ export default function OnboardingPage({
       <View style={localStyles.welcomeContainer}>
         <MutinynetBanner />
         <WelcomeScreen {...welcomeProps} />
-        <ToastContainer toasts={toasts} />
         <StatusBar style="light" />
       </View>
     );
@@ -213,7 +203,6 @@ export default function OnboardingPage({
         <WelcomeScreen {...welcomeProps} importingWallet={false} showingIntro={true} showingSeeds={false}
           verifyingSeeds={false} tempMnemonicWords={[]} verificationWords={{}} requiredIndices={[]}
           wordChoices={{}} restoringWithPasskey={false} />
-        <ToastContainer toasts={toasts} />
         <StatusBar style="light" />
       </View>
     );

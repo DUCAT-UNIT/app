@@ -10,7 +10,6 @@ import { useOnboardingFlow } from '../contexts/AuthContext';
 import { SendFlowProvider } from '../contexts/SendFlowContext';
 import { TransactionBuildProvider } from '../contexts/TransactionBuildContext';
 import { TransactionExecutionProvider } from '../contexts/TransactionExecutionContext';
-import { VaultProvider } from '../contexts/VaultContext';
 import { SeedPhraseProvider } from '../contexts/SeedPhraseContext';
 import { AirdropProvider } from '../contexts/AirdropContext';
 import { NavigationHandlersProvider } from '../contexts/NavigationHandlersContext';
@@ -69,7 +68,7 @@ export default function AppProvidersWrapper({
   walletExists,
 }: AppProvidersWrapperProps): React.JSX.Element {
   const { seedConfirmed } = useOnboardingFlow();
-  const { showToast, showSnackbar } = useNotifications();
+  const { showSnackbar } = useNotifications();
 
   return (
     <AirdropProvider seedConfirmed={seedConfirmed}>
@@ -77,7 +76,6 @@ export default function AppProvidersWrapper({
         <TransactionBuildProvider
           wallet={wallet}
           currentAccount={currentAccount}
-          showToast={showToast as (message: string, type?: string) => void}
         >
           <TransactionExecutionProvider
             currentAccount={currentAccount}
@@ -88,16 +86,14 @@ export default function AppProvidersWrapper({
             fetchBalance={fetchBalance}
             fetchTransactionHistory={fetchTransactionHistory as (() => Promise<void>) | undefined}
           >
-            <VaultProvider currentAccount={currentAccount}>
-              <SeedPhraseProvider showToast={showToast as (message: string, type?: string) => void} setIsAuthenticated={setIsAuthenticated}>
-                <NavigationHandlersProvider walletExists={walletExists}>
-                  <AppNavigatorContent
-                    loadWallet={loadWallet}
-                    loadBiometricPreference={loadBiometricPreference}
-                  />
-                </NavigationHandlersProvider>
-              </SeedPhraseProvider>
-            </VaultProvider>
+            <SeedPhraseProvider setIsAuthenticated={setIsAuthenticated}>
+              <NavigationHandlersProvider walletExists={walletExists}>
+                <AppNavigatorContent
+                  loadWallet={loadWallet}
+                  loadBiometricPreference={loadBiometricPreference}
+                />
+              </NavigationHandlersProvider>
+            </SeedPhraseProvider>
           </TransactionExecutionProvider>
         </TransactionBuildProvider>
       </SendFlowProvider>

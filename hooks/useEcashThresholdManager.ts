@@ -8,7 +8,7 @@ import { useNavigation } from '@react-navigation/native';
 import { logger } from '../utils/logger';
 import { getRunesAmount } from '../utils/runesHelper';
 import { requestMint } from '../services/cashu/cashuWalletService';
-import type { ToastType, SnackbarParams } from '../types/notification';
+import { notify } from '../utils/notify';
 import type { RuneBalance } from '../services/balanceService';
 import type { ExtendedNavigation } from '../navigation/types';
 
@@ -21,8 +21,6 @@ interface UseEcashThresholdManagerParams {
   cashuBalance: number | null;
   runesBalance: RuneBalance[] | null;
   settingsHandlers: SettingsHandlers;
-  showToast: (message: string, type?: ToastType) => void;
-  showSnackbar: (params: SnackbarParams) => void;
   showSettings: boolean;
   closeSettings: () => void;
   lowBalanceAmountNeeded: number;
@@ -47,8 +45,6 @@ export function useEcashThresholdManager({
   cashuBalance,
   runesBalance,
   settingsHandlers,
-  showToast,
-  showSnackbar,
   showSettings,
   closeSettings,
   lowBalanceAmountNeeded,
@@ -179,14 +175,14 @@ export function useEcashThresholdManager({
           logger.debug('[useEcashThresholdManager] Navigation call completed');
         } catch (navError) {
           logger.error('[useEcashThresholdManager] Navigation error:', { error: navError instanceof Error ? navError.message : String(navError) });
-          showToast('Navigation failed: ' + (navError instanceof Error ? navError.message : String(navError)), 'error');
+          notify.cashu.navigationFailed(navError instanceof Error ? navError.message : String(navError));
         }
       }, 400);
     } catch (error: unknown) {
       logger.error('[useEcashThresholdManager] Failed to initiate mint:', { error: error instanceof Error ? error.message : String(error) });
-      showToast('Failed to start conversion: ' + (error instanceof Error ? error.message : String(error)), 'error');
+      notify.cashu.conversionStartFailed(error instanceof Error ? error.message : String(error));
     }
-  }, [conversionAmount, pendingThreshold, settingsHandlers, showSettings, closeSettings, navigation, showToast]);
+  }, [conversionAmount, pendingThreshold, settingsHandlers, showSettings, closeSettings, navigation]);
 
   const handleLowBalanceTopUp = useCallback(async () => {
     logger.debug('[useEcashThresholdManager] handleLowBalanceTopUp called', {
@@ -218,15 +214,12 @@ export function useEcashThresholdManager({
       });
 
       // Show snackbar for conversion
-      showSnackbar({
-        type: 'pending',
-        action: 'conversion_turbo',
-      });
+      notify.transaction.pending('conversion_turbo');
     } catch (error: unknown) {
       logger.error('[useEcashThresholdManager] Failed to initiate top-up:', { error: error instanceof Error ? error.message : String(error) });
-      showToast('Failed to start top-up: ' + (error instanceof Error ? error.message : String(error)), 'error');
+      notify.cashu.topupStartFailed(error instanceof Error ? error.message : String(error));
     }
-  }, [lowBalanceAmountNeeded, closeLowBalanceModal, navigation, showSnackbar, showToast]);
+  }, [lowBalanceAmountNeeded, closeLowBalanceModal, navigation]);
 
   return {
     // State

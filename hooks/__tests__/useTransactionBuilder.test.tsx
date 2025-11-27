@@ -6,6 +6,7 @@
 import React from 'react';
 import { create, act } from 'react-test-renderer';
 import { useTransactionBuilder } from '../useTransactionBuilder';
+import { notify } from '../../utils/notify';
 
 // Mock dependencies
 jest.mock('../../services/transaction', () => ({
@@ -76,7 +77,6 @@ describe('useTransactionBuilder', () => {
       sendIntent: null,
       setSendIntent: jest.fn(),
       setIntentStep: jest.fn(),
-      showToast: jest.fn(),
       getUnconfirmedUTXOs: jest.fn().mockReturnValue([]),
       getSpentUtxos: jest.fn().mockReturnValue(new Set()),
       markUtxosAsSpent: jest.fn().mockResolvedValue(),
@@ -119,7 +119,7 @@ describe('useTransactionBuilder', () => {
         await result.current.createSendIntent();
       });
 
-      expect(mockProps.showToast).toHaveBeenCalledWith('Missing recipient or amount', 'error');
+      expect(notify.build.missingRecipientAmount).toHaveBeenCalled();
 
       await act(async () => {
         jest.advanceTimersByTime(100);
@@ -137,7 +137,7 @@ describe('useTransactionBuilder', () => {
         await result.current.createSendIntent();
       });
 
-      expect(mockProps.showToast).toHaveBeenCalledWith('Missing recipient or amount', 'error');
+      expect(notify.build.missingRecipientAmount).toHaveBeenCalled();
     });
 
     it('should trim recipient address before processing', async () => {
@@ -161,7 +161,7 @@ describe('useTransactionBuilder', () => {
         await result.current.createSendIntent();
       });
 
-      expect(mockProps.showToast).toHaveBeenCalledWith('Please select an asset', 'error');
+      expect(notify.build.assetRequired).toHaveBeenCalled();
 
       await act(async () => {
         jest.advanceTimersByTime(100);
@@ -212,7 +212,7 @@ describe('useTransactionBuilder', () => {
         await result.current.createSendIntent();
       });
 
-      expect(mockProps.showToast).toHaveBeenCalledWith('Wallet not initialized', 'error');
+      expect(notify.build.error).toHaveBeenCalled();
     });
 
     it('should throw error when segwitAddress is missing', async () => {
@@ -224,7 +224,7 @@ describe('useTransactionBuilder', () => {
         await result.current.createSendIntent();
       });
 
-      expect(mockProps.showToast).toHaveBeenCalledWith('Wallet not initialized', 'error');
+      expect(notify.build.error).toHaveBeenCalled();
     });
 
     it('should unlock UTXOs and release orphaned on error', async () => {
@@ -237,7 +237,7 @@ describe('useTransactionBuilder', () => {
       });
 
       expect(releaseOrphanedUtxos).toHaveBeenCalled();
-      expect(mockProps.showToast).toHaveBeenCalledWith('Insufficient funds', 'error');
+      expect(notify.build.error).toHaveBeenCalled();
     });
 
     it('should unlock locked UTXOs on error after marking', async () => {
@@ -325,7 +325,7 @@ describe('useTransactionBuilder', () => {
         await result.current.createSendIntent();
       });
 
-      expect(mockProps.showToast).toHaveBeenCalledWith('Wallet not initialized', 'error');
+      expect(notify.build.error).toHaveBeenCalled();
     });
 
     it('should throw error when taprootAddress is missing', async () => {
@@ -337,7 +337,7 @@ describe('useTransactionBuilder', () => {
         await result.current.createSendIntent();
       });
 
-      expect(mockProps.showToast).toHaveBeenCalledWith('Wallet not initialized', 'error');
+      expect(notify.build.error).toHaveBeenCalled();
     });
 
     it('should throw error when UNIT balance is zero', async () => {
@@ -349,7 +349,7 @@ describe('useTransactionBuilder', () => {
         await result.current.createSendIntent();
       });
 
-      expect(mockProps.showToast).toHaveBeenCalledWith('No UNIT balance available', 'error');
+      expect(notify.build.error).toHaveBeenCalled();
     });
 
     it('should throw error when runesBalance is empty', async () => {
@@ -361,7 +361,7 @@ describe('useTransactionBuilder', () => {
         await result.current.createSendIntent();
       });
 
-      expect(mockProps.showToast).toHaveBeenCalledWith('No UNIT balance available', 'error');
+      expect(notify.build.error).toHaveBeenCalled();
     });
 
     it('should throw error when runesBalance is null', async () => {
@@ -373,7 +373,7 @@ describe('useTransactionBuilder', () => {
         await result.current.createSendIntent();
       });
 
-      expect(mockProps.showToast).toHaveBeenCalledWith('No UNIT balance available', 'error');
+      expect(notify.build.error).toHaveBeenCalled();
     });
 
     it('should use empty arrays for unconfirmed UTXOs when requireConfirmedUtxos is true', async () => {
@@ -451,7 +451,7 @@ describe('useTransactionBuilder', () => {
       });
 
       expect(releaseOrphanedUtxos).toHaveBeenCalled();
-      expect(mockProps.showToast).toHaveBeenCalledWith('UTXO selection failed', 'error');
+      expect(notify.build.error).toHaveBeenCalled();
     });
   });
 

@@ -8,6 +8,7 @@ import Icon from '../icons';
 import { COLORS } from '../../theme';
 import { formatTransactionDate } from '../../utils/formatters/dates';
 import { formatUnitAmount } from '../../utils/formatters/amounts';
+import { formatBalance } from '../../utils/formatters';
 import localStyles from './TransactionItem.styles';
 import type { DisplayAssetType } from '../../types/assets';
 
@@ -122,7 +123,7 @@ export default function RegularTransactionItem({ tx, styles, onPress, advancedMo
                   <Text style={[styles.assetAmount, { color: amountColor }]}>
                     {assetType === 'UNIT'
                       ? formatUnitAmount(Math.abs(numericAmount))
-                      : (Math.abs(numericAmount) / 100000000).toLocaleString('en-US', { minimumFractionDigits: 8, maximumFractionDigits: 8 })}
+                      : formatBalance(Math.abs(numericAmount) / 100000000)}
                   </Text>
                 </View>
               )}

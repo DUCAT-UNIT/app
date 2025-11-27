@@ -39,12 +39,14 @@ jest.mock('../WalletDataContext', () => ({
   useBalance: jest.fn(),
 }));
 
+// Get notify mock from jest.setup.js
+import { notify as mockNotify } from '../../utils/notify';
+
 describe('TransactionBuildContext', () => {
   const mockWallet = {
     segwitAddress: 'bc1qsegwit',
     taprootAddress: 'bc1ptaproot',
   };
-  const mockShowToast = jest.fn();
   const mockSetIntentStep = jest.fn();
   const mockSetSendRecipient = jest.fn();
 
@@ -52,6 +54,11 @@ describe('TransactionBuildContext', () => {
     jest.clearAllMocks();
     jest.clearAllTimers();
     jest.useFakeTimers();
+
+    // Reset notify mocks
+    mockNotify.build.error.mockClear();
+    mockNotify.build.missingRecipientAmount.mockClear();
+    mockNotify.build.assetRequired.mockClear();
 
     useSendFlow.mockReturnValue({
       sendRecipient: 'bc1qrecipient',
@@ -87,7 +94,7 @@ describe('TransactionBuildContext', () => {
 
   it('should provide initial state', () => {
     const wrapper = ({ children }) => (
-      <TransactionBuildProvider wallet={mockWallet} currentAccount={0} showToast={mockShowToast}>
+      <TransactionBuildProvider wallet={mockWallet} currentAccount={0} >
         {children}
       </TransactionBuildProvider>
     );
@@ -101,7 +108,7 @@ describe('TransactionBuildContext', () => {
     TransactionService.createBtcIntent.mockResolvedValue(mockIntent);
 
     const wrapper = ({ children }) => (
-      <TransactionBuildProvider wallet={mockWallet} currentAccount={0} showToast={mockShowToast}>
+      <TransactionBuildProvider wallet={mockWallet} currentAccount={0} >
         {children}
       </TransactionBuildProvider>
     );
@@ -144,7 +151,7 @@ describe('TransactionBuildContext', () => {
     });
 
     const wrapper = ({ children }) => (
-      <TransactionBuildProvider wallet={mockWallet} currentAccount={0} showToast={mockShowToast}>
+      <TransactionBuildProvider wallet={mockWallet} currentAccount={0} >
         {children}
       </TransactionBuildProvider>
     );
@@ -174,7 +181,7 @@ describe('TransactionBuildContext', () => {
     TransactionService.createBtcIntent.mockRejectedValue(new Error('Insufficient funds'));
 
     const wrapper = ({ children }) => (
-      <TransactionBuildProvider wallet={mockWallet} currentAccount={0} showToast={mockShowToast}>
+      <TransactionBuildProvider wallet={mockWallet} currentAccount={0} >
         {children}
       </TransactionBuildProvider>
     );
@@ -184,8 +191,7 @@ describe('TransactionBuildContext', () => {
       await result.current.createSendIntent();
     });
 
-    expect(mockShowToast).toHaveBeenCalled();
-    expect(mockShowToast.mock.calls[0][1]).toBe('error');
+    expect(mockNotify.build.error).toHaveBeenCalled();
 
     // Advance timer to trigger state reset
     act(() => {
@@ -207,7 +213,7 @@ describe('TransactionBuildContext', () => {
     TransactionService.createUnitIntent.mockRejectedValue(new Error('Invalid recipient'));
 
     const wrapper = ({ children }) => (
-      <TransactionBuildProvider wallet={mockWallet} currentAccount={0} showToast={mockShowToast}>
+      <TransactionBuildProvider wallet={mockWallet} currentAccount={0} >
         {children}
       </TransactionBuildProvider>
     );
@@ -217,8 +223,7 @@ describe('TransactionBuildContext', () => {
       await result.current.createSendIntent();
     });
 
-    expect(mockShowToast).toHaveBeenCalled();
-    expect(mockShowToast.mock.calls[0][1]).toBe('error');
+    expect(mockNotify.build.error).toHaveBeenCalled();
 
     act(() => {
       jest.advanceTimersByTime(100);
@@ -237,7 +242,7 @@ describe('TransactionBuildContext', () => {
     });
 
     const wrapper = ({ children }) => (
-      <TransactionBuildProvider wallet={mockWallet} currentAccount={0} showToast={mockShowToast}>
+      <TransactionBuildProvider wallet={mockWallet} currentAccount={0} >
         {children}
       </TransactionBuildProvider>
     );
@@ -247,7 +252,7 @@ describe('TransactionBuildContext', () => {
       await result.current.createSendIntent();
     });
 
-    expect(mockShowToast).toHaveBeenCalledWith(ERRORS.MISSING_RECIPIENT_AMOUNT, 'error');
+    expect(mockNotify.build.missingRecipientAmount).toHaveBeenCalled();
     expect(TransactionService.createBtcIntent).not.toHaveBeenCalled();
 
     act(() => {
@@ -267,7 +272,7 @@ describe('TransactionBuildContext', () => {
     });
 
     const wrapper = ({ children }) => (
-      <TransactionBuildProvider wallet={mockWallet} currentAccount={0} showToast={mockShowToast}>
+      <TransactionBuildProvider wallet={mockWallet} currentAccount={0} >
         {children}
       </TransactionBuildProvider>
     );
@@ -277,7 +282,7 @@ describe('TransactionBuildContext', () => {
       await result.current.createSendIntent();
     });
 
-    expect(mockShowToast).toHaveBeenCalledWith(ERRORS.ASSET_SELECTION_REQUIRED, 'error');
+    expect(mockNotify.build.assetRequired).toHaveBeenCalled();
 
     act(() => {
       jest.advanceTimersByTime(100);
@@ -299,7 +304,7 @@ describe('TransactionBuildContext', () => {
     TransactionService.createBtcIntent.mockResolvedValue(mockIntent);
 
     const wrapper = ({ children }) => (
-      <TransactionBuildProvider wallet={mockWallet} currentAccount={0} showToast={mockShowToast}>
+      <TransactionBuildProvider wallet={mockWallet} currentAccount={0} >
         {children}
       </TransactionBuildProvider>
     );
@@ -324,7 +329,7 @@ describe('TransactionBuildContext', () => {
 
   it('should manually set sendIntent', () => {
     const wrapper = ({ children }) => (
-      <TransactionBuildProvider wallet={mockWallet} currentAccount={0} showToast={mockShowToast}>
+      <TransactionBuildProvider wallet={mockWallet} currentAccount={0} >
         {children}
       </TransactionBuildProvider>
     );
@@ -368,7 +373,7 @@ describe('TransactionBuildContext', () => {
     });
 
     const wrapper = ({ children }) => (
-      <TransactionBuildProvider wallet={mockWallet} currentAccount={0} showToast={mockShowToast}>
+      <TransactionBuildProvider wallet={mockWallet} currentAccount={0} >
         {children}
       </TransactionBuildProvider>
     );
@@ -401,7 +406,7 @@ describe('TransactionBuildContext', () => {
     const incompleteWallet = { segwitAddress: 'bc1qsegwit' }; // Missing taproot
 
     const wrapper = ({ children }) => (
-      <TransactionBuildProvider wallet={incompleteWallet} currentAccount={0} showToast={mockShowToast}>
+      <TransactionBuildProvider wallet={incompleteWallet} currentAccount={0} >
         {children}
       </TransactionBuildProvider>
     );
@@ -411,8 +416,7 @@ describe('TransactionBuildContext', () => {
       await result.current.createSendIntent();
     });
 
-    expect(mockShowToast).toHaveBeenCalled();
-    expect(mockShowToast.mock.calls[0][1]).toBe('error');
+    expect(mockNotify.build.error).toHaveBeenCalled();
   });
 
   it('should cancel BTC intent and release locked UTXOs', async () => {
@@ -435,7 +439,7 @@ describe('TransactionBuildContext', () => {
     });
 
     const wrapper = ({ children }) => (
-      <TransactionBuildProvider wallet={mockWallet} currentAccount={0} showToast={mockShowToast}>
+      <TransactionBuildProvider wallet={mockWallet} currentAccount={0} >
         {children}
       </TransactionBuildProvider>
     );
@@ -485,7 +489,7 @@ describe('TransactionBuildContext', () => {
     });
 
     const wrapper = ({ children }) => (
-      <TransactionBuildProvider wallet={mockWallet} currentAccount={0} showToast={mockShowToast}>
+      <TransactionBuildProvider wallet={mockWallet} currentAccount={0} >
         {children}
       </TransactionBuildProvider>
     );
@@ -528,7 +532,7 @@ describe('TransactionBuildContext', () => {
     });
 
     const wrapper = ({ children }) => (
-      <TransactionBuildProvider wallet={mockWallet} currentAccount={0} showToast={mockShowToast}>
+      <TransactionBuildProvider wallet={mockWallet} currentAccount={0} >
         {children}
       </TransactionBuildProvider>
     );
@@ -560,7 +564,7 @@ describe('TransactionBuildContext', () => {
     });
 
     const wrapper = ({ children }) => (
-      <TransactionBuildProvider wallet={mockWallet} currentAccount={0} showToast={mockShowToast}>
+      <TransactionBuildProvider wallet={mockWallet} currentAccount={0} >
         {children}
       </TransactionBuildProvider>
     );
@@ -612,7 +616,7 @@ describe('TransactionBuildContext', () => {
     });
 
     const wrapper = ({ children }) => (
-      <TransactionBuildProvider wallet={mockWallet} currentAccount={0} showToast={mockShowToast}>
+      <TransactionBuildProvider wallet={mockWallet} currentAccount={0} >
         {children}
       </TransactionBuildProvider>
     );
@@ -643,7 +647,7 @@ describe('TransactionBuildContext', () => {
     });
 
     const wrapper = ({ children }) => (
-      <TransactionBuildProvider wallet={mockWallet} currentAccount={0} showToast={mockShowToast}>
+      <TransactionBuildProvider wallet={mockWallet} currentAccount={0} >
         {children}
       </TransactionBuildProvider>
     );
@@ -653,9 +657,7 @@ describe('TransactionBuildContext', () => {
       await result.current.createSendIntent();
     });
 
-    expect(mockShowToast).toHaveBeenCalled();
-    expect(mockShowToast.mock.calls[0][0]).toContain('UNIT');
-    expect(mockShowToast.mock.calls[0][1]).toBe('error');
+    expect(mockNotify.build.error).toHaveBeenCalled();
 
     act(() => {
       jest.advanceTimersByTime(100);

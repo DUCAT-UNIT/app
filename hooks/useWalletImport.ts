@@ -14,14 +14,13 @@ import * as SecureStore from 'expo-secure-store';
 import { SECURE_KEYS } from '../utils/constants';
 import { usePersistedObject } from './usePersistedState';
 import { logger } from '../utils/logger';
-import type { ToastType } from '../types/notification';
+import { notify } from '../utils/notify';
 
 const IMPORT_STATE_KEY = 'wallet_import_state';
 
 interface UseWalletImportParams {
   currentAccount: number;
   setSettingUpPin: (value: boolean) => void;
-  showToast: (message: string, type?: ToastType) => void;
 }
 
 interface UseWalletImportReturn {
@@ -45,7 +44,7 @@ interface ImportState extends Record<string, unknown> {
   isImportedWallet: boolean;
 }
 
-export function useWalletImport({ currentAccount, setSettingUpPin, showToast }: UseWalletImportParams): UseWalletImportReturn {
+export function useWalletImport({ currentAccount, setSettingUpPin }: UseWalletImportParams): UseWalletImportReturn {
 
   // Persisted import state - automatically loads/saves
   const [importState, updateImportState, clearPersistedState] = usePersistedObject<ImportState>(
@@ -146,7 +145,7 @@ export function useWalletImport({ currentAccount, setSettingUpPin, showToast }: 
         stack: error instanceof Error ? error.stack : undefined,
         errorType: error instanceof Error ? error.constructor.name : 'Unknown'
       });
-      showToast(ERRORS.WALLET_IMPORT_FAILED, 'error');
+      notify.error(ERRORS.WALLET_IMPORT_FAILED);
       // Don't clear the form on error - let user fix their seed phrase
       // They can retry by tapping Import again
     } finally {

@@ -153,6 +153,21 @@ describe('useCashuReceive', () => {
 
       expect(Alert.alert).toHaveBeenCalledWith('Error', 'Mint failed');
     });
+
+    it('should handle startMint non-Error rejection', async () => {
+      mockProps.startMint.mockRejectedValue('String error');
+      const { result } = renderHookWithProps(mockProps);
+
+      act(() => {
+        result.current.setAmount('100');
+      });
+
+      await act(async () => {
+        await result.current.handleStartMint();
+      });
+
+      expect(Alert.alert).toHaveBeenCalledWith('Error', 'String error');
+    });
   });
 
   describe('handleReceiveToken', () => {
@@ -193,6 +208,21 @@ describe('useCashuReceive', () => {
       });
 
       expect(Alert.alert).toHaveBeenCalledWith('Error', 'Receive failed');
+    });
+
+    it('should handle receive non-Error rejection', async () => {
+      mockProps.receive.mockRejectedValue('String error');
+      const { result } = renderHookWithProps(mockProps);
+
+      act(() => {
+        result.current.setPasteValue('cashuAtoken123');
+      });
+
+      await act(async () => {
+        await result.current.handleReceiveToken();
+      });
+
+      expect(Alert.alert).toHaveBeenCalledWith('Error', 'String error');
     });
   });
 
@@ -286,6 +316,21 @@ describe('useCashuReceive', () => {
       });
 
       expect(Alert.alert).toHaveBeenCalledWith('Error', 'Mint quote failed');
+    });
+
+    it('should show alert on startMint non-Error rejection', async () => {
+      mockProps.startMint.mockRejectedValue('String error');
+      const { result } = renderHookWithProps(mockProps);
+
+      act(() => {
+        result.current.setAmount('100');
+      });
+
+      await act(async () => {
+        await result.current.handleAutoMint();
+      });
+
+      expect(Alert.alert).toHaveBeenCalledWith('Error', 'String error');
     });
   });
 
@@ -418,6 +463,35 @@ describe('useCashuReceive', () => {
 
       // Should log error but not crash
       expect(logger.error).toHaveBeenCalled();
+    });
+
+    it('should handle polling non-Error rejection gracefully', async () => {
+      const { logger } = require('../../utils/logger');
+      mockProps.checkAndCompleteMint.mockRejectedValue('String error');
+
+      const { result } = renderHookWithProps(mockProps);
+
+      // Set mode to mint and create a quote
+      act(() => {
+        result.current.setAmount('100');
+      });
+
+      await act(async () => {
+        await result.current.handleStartMint();
+      });
+
+      // Set mode to mint
+      act(() => {
+        result.current.setMode('mint');
+      });
+
+      // Advance timer to trigger interval
+      await act(async () => {
+        jest.advanceTimersByTime(3000);
+      });
+
+      // Should log error with string conversion
+      expect(logger.error).toHaveBeenCalledWith('Error checking mint:', { error: 'String error' });
     });
 
     it('should cleanup interval on unmount', async () => {

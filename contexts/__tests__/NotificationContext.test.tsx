@@ -1,6 +1,7 @@
 // @ts-nocheck
 /**
  * Tests for NotificationContext
+ * Note: Toasts have been consolidated into snackbars
  */
 
 import React from 'react';
@@ -56,33 +57,31 @@ describe('NotificationContext', () => {
       // Zustand stores don't require providers - they're globally accessible
       const { result } = renderHook(() => useNotifications());
 
-      expect(result.current.toasts).toHaveLength(0);
       expect(result.current.showToast).toBeDefined();
+      expect(result.current.showSnackbar).toBeDefined();
+      expect(result.current.snackbar).toBeNull();
     });
   });
 
-  describe('Toast functionality', () => {
-    it('should show toast with message and type', () => {
+  describe('showToast (backwards compatible - maps to snackbar)', () => {
+    it('should show snackbar with message when using showToast', () => {
       const wrapper = ({ children }) => (
         <NotificationProvider>{children}</NotificationProvider>
       );
       const { result } = renderHook(() => useNotifications(), { wrapper });
 
-      expect(result.current.toasts).toHaveLength(0);
+      expect(result.current.snackbar).toBeNull();
 
       act(() => {
         result.current.showToast('Test message', 'success');
       });
 
-      expect(result.current.toasts).toHaveLength(1);
-      expect(result.current.toasts[0].message).toBe('Test message');
-      expect(result.current.toasts[0].type).toBe('success');
-      expect(result.current.toastMessage).toBe('Test message');
-      expect(result.current.toastVisible).toBe(true);
-      expect(result.current.toastType).toBe('success');
+      expect(result.current.snackbar).toBeDefined();
+      expect(result.current.snackbar.title).toBe('Test message');
+      expect(result.current.snackbar.type).toBe('success');
     });
 
-    it('should auto-dismiss success toast after 2000ms', () => {
+    it('should auto-dismiss success snackbar after default duration', () => {
       const wrapper = ({ children }) => (
         <NotificationProvider>{children}</NotificationProvider>
       );
@@ -92,16 +91,16 @@ describe('NotificationContext', () => {
         result.current.showToast('Test message', 'success');
       });
 
-      expect(result.current.toasts).toHaveLength(1);
+      expect(result.current.snackbar).not.toBeNull();
 
       act(() => {
-        jest.advanceTimersByTime(2000);
+        jest.advanceTimersByTime(3000);
       });
 
-      expect(result.current.toasts).toHaveLength(0);
+      expect(result.current.snackbar).toBeNull();
     });
 
-    it('should auto-dismiss error toast after 3500ms', () => {
+    it('should auto-dismiss error snackbar after error duration', () => {
       const wrapper = ({ children }) => (
         <NotificationProvider>{children}</NotificationProvider>
       );
@@ -111,43 +110,24 @@ describe('NotificationContext', () => {
         result.current.showToast('Error message', 'error');
       });
 
-      expect(result.current.toasts).toHaveLength(1);
+      expect(result.current.snackbar).not.toBeNull();
+
+      act(() => {
+        jest.advanceTimersByTime(3000);
+      });
+
+      // Still visible after 3000ms
+      expect(result.current.snackbar).not.toBeNull();
 
       act(() => {
         jest.advanceTimersByTime(2000);
       });
 
-      // Still visible after 2000ms
-      expect(result.current.toasts).toHaveLength(1);
-
-      act(() => {
-        jest.advanceTimersByTime(1500);
-      });
-
-      // Gone after 3500ms
-      expect(result.current.toasts).toHaveLength(0);
+      // Gone after 5000ms (error duration)
+      expect(result.current.snackbar).toBeNull();
     });
 
-    it('should dismiss toast manually', () => {
-      const wrapper = ({ children }) => (
-        <NotificationProvider>{children}</NotificationProvider>
-      );
-      const { result } = renderHook(() => useNotifications(), { wrapper });
-
-      act(() => {
-        result.current.showToast('Test message', 'success');
-      });
-
-      const toastId = result.current.toasts[0].id;
-
-      act(() => {
-        result.current.dismissToast(toastId);
-      });
-
-      expect(result.current.toasts).toHaveLength(0);
-    });
-
-    it('should replace existing toast with new one', () => {
+    it('should replace existing snackbar with new one when using showToast', () => {
       const wrapper = ({ children }) => (
         <NotificationProvider>{children}</NotificationProvider>
       );
@@ -161,9 +141,9 @@ describe('NotificationContext', () => {
         result.current.showToast('Second message', 'error');
       });
 
-      expect(result.current.toasts).toHaveLength(1);
-      expect(result.current.toasts[0].message).toBe('Second message');
-      expect(result.current.toasts[0].type).toBe('error');
+      expect(result.current.snackbar).not.toBeNull();
+      expect(result.current.snackbar.title).toBe('Second message');
+      expect(result.current.snackbar.type).toBe('error');
     });
   });
 
@@ -185,7 +165,7 @@ describe('NotificationContext', () => {
       expect(result.current.snackbar.action).toBe('send');
     });
 
-    it('should auto-dismiss snackbar after 7000ms', () => {
+    it('should auto-dismiss snackbar after default success duration', () => {
       const wrapper = ({ children }) => (
         <NotificationProvider>{children}</NotificationProvider>
       );
@@ -198,7 +178,7 @@ describe('NotificationContext', () => {
       expect(result.current.snackbar).not.toBeNull();
 
       act(() => {
-        jest.advanceTimersByTime(7000);
+        jest.advanceTimersByTime(3000);
       });
 
       expect(result.current.snackbar).toBeNull();
@@ -215,7 +195,7 @@ describe('NotificationContext', () => {
       });
 
       act(() => {
-        jest.advanceTimersByTime(10000);
+        jest.advanceTimersByTime(60000);
       });
 
       expect(result.current.snackbar).not.toBeNull();
@@ -355,27 +335,67 @@ describe('NotificationContext', () => {
       expect(global.pendingTurboSnackbars).toEqual([]);
       expect(global.pendingCashuToken).toBeUndefined();
     });
-  });
 
-  describe('Backwards compatibility', () => {
-    it('should provide computed toast values', () => {
+    it('should support new snackbar types: warning, info, progress', () => {
       const wrapper = ({ children }) => (
         <NotificationProvider>{children}</NotificationProvider>
       );
       const { result } = renderHook(() => useNotifications(), { wrapper });
 
-      // Initially empty
-      expect(result.current.toastMessage).toBe('');
-      expect(result.current.toastVisible).toBe(false);
-      expect(result.current.toastType).toBe('success');
+      // Test warning
+      act(() => {
+        result.current.showSnackbar({ type: 'warning', title: 'Warning message' });
+      });
+      expect(result.current.snackbar.type).toBe('warning');
 
       act(() => {
-        result.current.showToast('Test', 'error');
+        result.current.dismissSnackbar();
+        jest.advanceTimersByTime(500); // Wait for cooldown
       });
 
-      expect(result.current.toastMessage).toBe('Test');
-      expect(result.current.toastVisible).toBe(true);
-      expect(result.current.toastType).toBe('error');
+      // Test info
+      act(() => {
+        result.current.showSnackbar({ type: 'info', title: 'Info message' });
+      });
+      expect(result.current.snackbar.type).toBe('info');
+
+      act(() => {
+        result.current.dismissSnackbar();
+        jest.advanceTimersByTime(500); // Wait for cooldown
+      });
+
+      // Test progress
+      act(() => {
+        result.current.showSnackbar({ type: 'progress', title: 'Loading...' });
+      });
+      expect(result.current.snackbar.type).toBe('progress');
+    });
+
+    it('should support custom duration', () => {
+      const wrapper = ({ children }) => (
+        <NotificationProvider>{children}</NotificationProvider>
+      );
+      const { result } = renderHook(() => useNotifications(), { wrapper });
+
+      act(() => {
+        result.current.showSnackbar({ type: 'info', title: 'Custom duration', duration: 1000 });
+      });
+
+      expect(result.current.snackbar).not.toBeNull();
+
+      act(() => {
+        jest.advanceTimersByTime(900);
+      });
+
+      // Still visible before custom duration
+      expect(result.current.snackbar).not.toBeNull();
+
+      act(() => {
+        jest.advanceTimersByTime(200);
+      });
+
+      // Gone after custom duration
+      expect(result.current.snackbar).toBeNull();
     });
   });
 });

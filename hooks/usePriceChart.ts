@@ -7,6 +7,7 @@
 import { useState, useEffect, Dispatch, SetStateAction } from 'react';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { API, API_KEYS } from '../utils/constants';
+import { formatFiat } from '../utils/formatters';
 
 const CACHE_KEY_PREFIX = 'btc_price_cache_';
 const CACHE_EXPIRY_MS = 24 * 60 * 60 * 1000; // 24 hours
@@ -78,10 +79,7 @@ const calculatePriceDirection = (prices: PricePoint[]): PriceDirection => {
   return {
     isPositive: priceChange >= 0,
     percentChange: percentChange.toFixed(2),
-    dollarChange: Math.abs(priceChange).toLocaleString('en-US', {
-      minimumFractionDigits: 2,
-      maximumFractionDigits: 2
-    })
+    dollarChange: formatFiat(Math.abs(priceChange))
   };
 };
 

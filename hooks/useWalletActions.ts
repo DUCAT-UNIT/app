@@ -7,8 +7,7 @@ import { useState, useCallback, useMemo, MutableRefObject } from 'react';
 import * as SecureStore from 'expo-secure-store';
 import { authenticateWithBiometrics } from '../services/biometricService';
 import { deleteWalletData } from '../services/secureStorageService';
-import { ERRORS, SUCCESS } from '../utils/messages';
-import type { ToastType } from '../types/notification';
+import { notify } from '../utils/notify';
 
 interface UseWalletActionsParams {
   resetAuth: () => void;
@@ -16,7 +15,6 @@ interface UseWalletActionsParams {
   clearVaultCredentials?: () => void;
   walletExistsRef?: MutableRefObject<boolean>;
   setIsAuthenticated: (value: boolean) => void;
-  showToast?: (message: string, type: ToastType) => void;
 }
 
 interface UseWalletActionsReturn {
@@ -31,7 +29,7 @@ interface UseWalletActionsReturn {
   cancelDeleteWallet: () => void;
 }
 
-export function useWalletActions({ resetAuth, resetWallet, clearVaultCredentials, walletExistsRef, setIsAuthenticated, showToast }: UseWalletActionsParams): UseWalletActionsReturn {
+export function useWalletActions({ resetAuth, resetWallet, clearVaultCredentials, walletExistsRef, setIsAuthenticated }: UseWalletActionsParams): UseWalletActionsReturn {
   const [showLogoutModal, setShowLogoutModal] = useState(false);
   const [showDeleteModal, setShowDeleteModal] = useState(false);
 
@@ -67,10 +65,8 @@ export function useWalletActions({ resetAuth, resetWallet, clearVaultCredentials
         setIsAuthenticated(false);
         return;
       }
-    } catch (error: unknown) {
-      if (showToast) {
-        showToast('Authentication required to delete wallet', 'error');
-      }
+    } catch {
+      notify.auth.requiredForDeleteWallet();
       return;
     }
 
@@ -89,20 +85,14 @@ export function useWalletActions({ resetAuth, resetWallet, clearVaultCredentials
         }
         resetAuth();
 
-        if (showToast) {
-          showToast(SUCCESS.WALLET_DELETED, 'success');
-        }
+        notify.wallet.deleted();
       } else {
-        if (showToast) {
-          showToast(ERRORS.WALLET_DELETE_FAILED, 'error');
-        }
+        notify.wallet.deleteFailed();
       }
-    } catch (error: unknown) {
-      if (showToast) {
-        showToast(ERRORS.WALLET_DELETE_FAILED, 'error');
-      }
+    } catch {
+      notify.wallet.deleteFailed();
     }
-  }, [resetAuth, resetWallet, clearVaultCredentials, walletExistsRef, setIsAuthenticated, showToast]);
+  }, [resetAuth, resetWallet, clearVaultCredentials, walletExistsRef, setIsAuthenticated]);
 
   const cancelDeleteWallet = useCallback((): void => {
     setShowDeleteModal(false);

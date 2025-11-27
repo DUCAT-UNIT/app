@@ -7,6 +7,8 @@ import { View, Text, TouchableOpacity, ViewStyle, TextStyle } from 'react-native
 import Icon from '../icons';
 import { COLORS } from '../../theme';
 import { formatTransactionDate } from '../../utils/formatters/dates';
+import { formatUnitAmount } from '../../utils/formatters/amounts';
+import { formatBalance } from '../../utils/formatters';
 import localStyles from './TransactionItem.styles';
 import type { VaultAction, VaultTransactionData } from '../../types/assets';
 
@@ -42,9 +44,7 @@ function VaultAmountDisplay({ vaultData, action, styles }: VaultAmountDisplayPro
       <View style={styles.balanceWithIcon}>
         <Icon name="btc_symbol" size={12} color={color} style={styles.assetAmountIcon} />
         <Text style={[styles.assetAmount, { color }]}>
-          {(vaultData.btcAmount / 100000000).toLocaleString('en-US', {
-            minimumFractionDigits: 8, maximumFractionDigits: 8,
-          })}
+          {formatBalance(vaultData.btcAmount / 100000000)}
         </Text>
       </View>
     );
@@ -55,9 +55,7 @@ function VaultAmountDisplay({ vaultData, action, styles }: VaultAmountDisplayPro
       <View style={styles.balanceWithIcon}>
         <Icon name="unit_symbol" size={12} color={color} style={styles.assetAmountIcon} />
         <Text style={[styles.assetAmount, { color }]}>
-          {(vaultData.unitAmount / 100).toLocaleString('en-US', {
-            minimumFractionDigits: 2, maximumFractionDigits: 2,
-          })}
+          {formatUnitAmount(vaultData.unitAmount)}
         </Text>
       </View>
     );

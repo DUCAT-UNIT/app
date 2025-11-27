@@ -23,30 +23,30 @@
         <div class='clearfix'>
             
             <div class='fl pad1y space-right2'>
-                <span class="strong">72.91% </span>
+                <span class="strong">83.33% </span>
                 <span class="quiet">Statements</span>
-                <span class='fraction'>35/48</span>
+                <span class='fraction'>40/48</span>
             </div>
         
             
             <div class='fl pad1y space-right2'>
-                <span class="strong">74.32% </span>
+                <span class="strong">85.13% </span>
                 <span class="quiet">Branches</span>
-                <span class='fraction'>55/74</span>
+                <span class='fraction'>63/74</span>
             </div>
         
             
             <div class='fl pad1y space-right2'>
-                <span class="strong">71.42% </span>
+                <span class="strong">85.71% </span>
                 <span class="quiet">Functions</span>
-                <span class='fraction'>5/7</span>
+                <span class='fraction'>6/7</span>
             </div>
         
             
             <div class='fl pad1y space-right2'>
-                <span class="strong">72.91% </span>
+                <span class="strong">83.33% </span>
                 <span class="quiet">Lines</span>
-                <span class='fraction'>35/48</span>
+                <span class='fraction'>40/48</span>
             </div>
         
             
@@ -245,17 +245,17 @@
 <span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
-<span class="cline-any cline-yes">13x</span>
+<span class="cline-any cline-yes">85x</span>
 <span class="cline-any cline-yes">2x</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
-<span class="cline-any cline-yes">11x</span>
+<span class="cline-any cline-yes">83x</span>
 <span class="cline-any cline-yes">2x</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
-<span class="cline-any cline-yes">9x</span>
-<span class="cline-any cline-yes">7x</span>
+<span class="cline-any cline-yes">81x</span>
+<span class="cline-any cline-yes">79x</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
@@ -342,18 +342,18 @@
 <span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
-<span class="cline-any cline-no">&nbsp;</span>
-<span class="cline-any cline-no">&nbsp;</span>
-<span class="cline-any cline-neutral">&nbsp;</span>
-<span class="cline-any cline-neutral">&nbsp;</span>
-<span class="cline-any cline-no">&nbsp;</span>
-<span class="cline-any cline-neutral">&nbsp;</span>
-<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-yes">9x</span>
 <span class="cline-any cline-no">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-yes">9x</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-yes">9x</span>
 <span class="cline-any cline-no">&nbsp;</span>
-<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-yes">9x</span>
+<span class="cline-any cline-yes">9x</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
@@ -510,19 +510,19 @@ export function formatPercentage(value: number | null | undefined, decimals = 2,
  * @param decimals - Number of decimal places (default: 2)
  * @returns Formatted UNIT amount (e.g., 10000 -&gt; "100.00")
  */
-export function <span class="fstat-no" title="function not covered" >formatUnitAmount(</span>smallestUnits: number | bigint | null | undefined, decimals = <span class="branch-0 cbranch-no" title="branch not covered" >2)</span>: string {
-<span class="cstat-no" title="statement not covered" >  if (smallestUnits === null || smallestUnits === undefined) {</span>
+export function formatUnitAmount(smallestUnits: number | bigint | null | undefined, decimals = 2): string {
+  <span class="missing-if-branch" title="if path not taken" >I</span>if (smallestUnits === null || smallestUnits === undefined) {
 <span class="cstat-no" title="statement not covered" >    return '0.00';</span>
   }
 &nbsp;
-  const numValue = <span class="cstat-no" title="statement not covered" >typeof smallestUnits === 'bigint' ? Number(smallestUnits) : smallestUnits;</span>
+  const numValue = typeof smallestUnits === 'bigint' ? <span class="branch-0 cbranch-no" title="branch not covered" >Number(smallestUnits) </span>: smallestUnits;
 &nbsp;
-<span class="cstat-no" title="statement not covered" >  if (typeof numValue !== 'number' || isNaN(numValue)) {</span>
+  <span class="missing-if-branch" title="if path not taken" >I</span>if (typeof numValue !== 'number' || isNaN(numValue)) {
 <span class="cstat-no" title="statement not covered" >    return '0.00';</span>
   }
 &nbsp;
-  const displayAmount = <span class="cstat-no" title="statement not covered" >numValue / 100;</span>
-<span class="cstat-no" title="statement not covered" >  return displayAmount.toLocaleString('en-US', {</span>
+  const displayAmount = numValue / 100;
+  return displayAmount.toLocaleString('en-US', {
     minimumFractionDigits: decimals,
     maximumFractionDigits: decimals,
   });
@@ -577,7 +577,7 @@ export function parseFormattedAmount(formattedAmount: string | null | undefined)
             <div class='footer quiet pad2 space-top1 center small'>
                 Code coverage generated by
                 <a href="https://istanbul.js.org/" target="_blank" rel="noopener noreferrer">istanbul</a>
-                at 2025-11-27T08:28:08.171Z
+                at 2025-11-27T18:27:28.044Z
             </div>
         <script src="../../prettify.js"></script>
         <script>

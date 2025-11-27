@@ -60,7 +60,7 @@ describe('transactionFormatters', () => {
       const amount = 10000; // 100 UNIT (stored with 100x multiplier)
       const result = formatTransactionAmount(amount, 'UNIT');
 
-      expect(result).toBe('100');
+      expect(result).toBe('100.00');
     });
 
     it('should format fractional UNIT amount', () => {
@@ -86,7 +86,7 @@ describe('transactionFormatters', () => {
 
     it('should handle zero amount', () => {
       expect(formatTransactionAmount(0, 'BTC')).toBe('0.00000000');
-      expect(formatTransactionAmount(0, 'UNIT')).toBe('0');
+      expect(formatTransactionAmount(0, 'UNIT')).toBe('0.00');
     });
   });
 });

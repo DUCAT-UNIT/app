@@ -3,6 +3,8 @@
  * Utility functions for formatting transaction data
  */
 
+import { formatUnitAmount, formatBalance } from './formatters';
+
 /**
  * Format a transaction ID for display
  * @param txid - Transaction ID
@@ -22,11 +24,9 @@ export function formatTxid(txid: string | null | undefined): string {
 export function formatTransactionAmount(value: number | bigint, type: string): string {
   if (type === 'UNIT') {
     // UNIT is stored with 100x multiplier, so divide by 100 for display
-    const unitAmount = Number(value) / 100;
-    return unitAmount.toLocaleString('en-US');
+    return formatUnitAmount(Number(value));
   } else {
     // BTC in satoshis
-    const btc = Number(value) / 100000000;
-    return btc.toFixed(8);
+    return formatBalance(Number(value) / 100000000);
   }
 }

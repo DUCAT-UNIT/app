@@ -47,12 +47,20 @@ export {
 } from '../bitcoin/conversions';
 
 /**
- * Format balance value (BTC) for display
+ * Format balance value (BTC) for display with thousand separators
  * @param balance - Balance in BTC
  * @param decimals - Decimal places (default: 8)
- * @returns Formatted balance
+ * @returns Formatted balance with commas (e.g., "1,234.56789012")
  */
 export const formatBalance = (balance: number | null | undefined, decimals = 8): string => {
-  if (!balance && balance !== 0) return '0.00000000';
-  return balance.toFixed(decimals);
+  if (!balance && balance !== 0) {
+    return (0).toLocaleString('en-US', {
+      minimumFractionDigits: decimals,
+      maximumFractionDigits: decimals,
+    });
+  }
+  return balance.toLocaleString('en-US', {
+    minimumFractionDigits: decimals,
+    maximumFractionDigits: decimals,
+  });
 };

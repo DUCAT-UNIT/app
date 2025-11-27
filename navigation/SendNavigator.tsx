@@ -8,9 +8,7 @@ import { View, StyleSheet } from 'react-native';
 import { createStackNavigator } from '@react-navigation/stack';
 import { useNavigation, EventArg } from '@react-navigation/native';
 import { COLORS } from '../theme';
-import { useNotifications } from '../contexts/NotificationContext';
 import { useTransactionBuild } from '../contexts/TransactionBuildContext';
-import ToastContainer from '../components/ToastContainer';
 import { withErrorBoundary } from '../components/withErrorBoundary';
 
 // Screen imports
@@ -108,8 +106,6 @@ function SendNavigatorContent(): null {
 }
 
 export default function SendNavigator(): React.JSX.Element {
-  const { toasts } = useNotifications();
-
   return (
     <View style={styles.container}>
       <SendNavigatorContent />
@@ -174,7 +170,7 @@ export default function SendNavigator(): React.JSX.Element {
           }}
         />
       </SendStack.Navigator>
-      <ToastContainer toasts={toasts} />
+      {/* Snackbar is rendered at app level in AppNavigatorContent */}
     </View>
   );
 }

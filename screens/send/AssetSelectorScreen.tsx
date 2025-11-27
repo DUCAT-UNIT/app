@@ -14,6 +14,7 @@ import { useSendFlow, AssetType } from '../../contexts/SendFlowContext';
 import { useCashu } from '../../contexts/CashuContext';
 import { logger } from '../../utils/logger';
 import { getRunesAmount } from '../../utils/runesHelper';
+import { formatBalance, formatFiat } from '../../utils/formatters';
 
 /**
  * Props for AssetSelectorScreen
@@ -76,16 +77,10 @@ export default function AssetSelectorScreen({ navigation }: AssetSelectorScreenP
           </View>
           <View style={localStyles.assetBalance}>
             <Text style={localStyles.balanceAmount}>
-              {btcBalance.toLocaleString('en-US', {
-                minimumFractionDigits: 0,
-                maximumFractionDigits: 8,
-              })}
+              {formatBalance(btcBalance, 8)}
             </Text>
             <Text style={localStyles.balanceUsd}>
-              ${(btcBalance * (btcPrice || 0)).toLocaleString('en-US', {
-                minimumFractionDigits: 2,
-                maximumFractionDigits: 2,
-              })}
+              ${formatFiat(btcBalance * (btcPrice || 0))}
             </Text>
           </View>
           <Icon name="arrow_right" size={20} color={COLORS.SECONDARY_TEXT} />
@@ -107,16 +102,10 @@ export default function AssetSelectorScreen({ navigation }: AssetSelectorScreenP
           </View>
           <View style={localStyles.assetBalance}>
             <Text style={localStyles.balanceAmount}>
-              {unitBalance.toLocaleString('en-US', {
-                minimumFractionDigits: 2,
-                maximumFractionDigits: 2,
-              })}
+              {formatFiat(unitBalance)}
             </Text>
             <Text style={localStyles.balanceUsd}>
-              ${unitBalance.toLocaleString('en-US', {
-                minimumFractionDigits: 2,
-                maximumFractionDigits: 2,
-              })}
+              ${formatFiat(unitBalance)}
             </Text>
           </View>
           <Icon name="arrow_right" size={20} color={COLORS.SECONDARY_TEXT} />

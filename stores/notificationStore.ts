@@ -1,43 +1,54 @@
 /**
  * Notification Store (Zustand)
- * Manages toast and snackbar notifications
+ * Unified snackbar notification system
  *
- * MIGRATION: Replaces NotificationContext
- * Benefits: No provider needed, simpler timeout management, selective re-renders
+ * Note: Toasts have been consolidated into snackbars
  */
 
 import { create } from 'zustand';
 import { logger } from '../utils/logger';
 import { turboGlobal } from '../services/turbo/turboTokenStorage';
-import type { ToastType, Toast, SnackbarParams } from '../types/notification';
+import type { SnackbarParams, SnackbarType } from '../types/notification';
 
 // Re-export types
-export type { ToastType, Toast, SnackbarType, SnackbarParams } from '../types/notification';
+export type { SnackbarType, SnackbarParams } from '../types/notification';
+
+// Default durations by type
+const DEFAULT_DURATIONS: Record<SnackbarType, number> = {
+  success: 3000,
+  error: 5000,
+  warning: 5000,
+  info: 3000,
+  progress: 30000, // Longer for progress states
+  pending: 30000,
+  submitted: 5000,
+};
 
 interface NotificationState {
-  toasts: Toast[];
   snackbar: SnackbarParams | null;
 }
 
 interface NotificationActions {
-  showToast: (message: string, type?: ToastType) => void;
-  dismissToast: (id: number) => void;
+  /**
+   * Show a snackbar notification
+   */
   showSnackbar: (params: SnackbarParams) => void;
-  dismissSnackbar: () => void;
-}
 
-// Computed getters
-interface NotificationComputed {
-  toastMessage: string;
-  toastVisible: boolean;
-  toastType: ToastType;
+  /**
+   * Dismiss the current snackbar
+   */
+  dismissSnackbar: () => void;
+
+  /**
+   * Convenience method for simple informational snackbars
+   * Replaces the old showToast API
+   */
+  showMessage: (title: string, type?: SnackbarType, duration?: number) => void;
 }
 
 type NotificationStore = NotificationState & NotificationActions;
 
 // External refs for timeout management (not part of store state)
-let nextToastId = 0;
-const toastTimeouts: Record<number, NodeJS.Timeout> = {};
 let snackbarTimeout: NodeJS.Timeout | null = null;
 let lastSnackbar: SnackbarParams | null = null;
 let dismissCooldown = false;
@@ -45,43 +56,7 @@ let snackbarKey = 0;
 
 export const useNotificationStore = create<NotificationStore>((set, get) => ({
   // State
-  toasts: [],
   snackbar: null,
-
-  // Toast Actions
-  showToast: (message: string, type: ToastType = 'success') => {
-    // Clear all existing timeouts
-    Object.keys(toastTimeouts).forEach((key) => {
-      clearTimeout(toastTimeouts[Number(key)]);
-      delete toastTimeouts[Number(key)];
-    });
-
-    const id = nextToastId++;
-    const duration = type === 'error' ? 3500 : 2000;
-
-    // Replace all toasts with just this new one
-    const newToast: Toast = { id, message, type };
-    set({ toasts: [newToast] });
-
-    // Auto-hide after duration
-    toastTimeouts[id] = setTimeout(() => {
-      set({ toasts: [] });
-      delete toastTimeouts[id];
-    }, duration);
-  },
-
-  dismissToast: (id: number) => {
-    // Clear timeout
-    if (toastTimeouts[id]) {
-      clearTimeout(toastTimeouts[id]);
-      delete toastTimeouts[id];
-    }
-
-    // Remove toast
-    set((state) => ({
-      toasts: state.toasts.filter((toast) => toast.id !== id),
-    }));
-  },
 
   // Snackbar Actions
   showSnackbar: (snackbarParams: SnackbarParams) => {
@@ -96,8 +71,11 @@ export const useNotificationStore = create<NotificationStore>((set, get) => ({
     // Define state hierarchy: pending < submitted < success
     const stateRank: Record<string, number> = {
       pending: 1,
+      progress: 1,
       submitted: 2,
       success: 3,
+      info: 3,
+      warning: 3,
       error: 99, // errors always show
     };
 
@@ -125,7 +103,10 @@ export const useNotificationStore = create<NotificationStore>((set, get) => ({
     // Increment key to force new component instance
     snackbarKey += 1;
 
-    set({ snackbar: { ...snackbarParams, key: snackbarKey } });
+    // Get duration - use provided, or default based on type
+    const duration = snackbarParams.duration ?? DEFAULT_DURATIONS[snackbarParams.type] ?? 5000;
+
+    set({ snackbar: { ...snackbarParams, key: snackbarKey, duration } });
 
     // Clear any existing timeout first
     if (snackbarTimeout) {
@@ -138,7 +119,7 @@ export const useNotificationStore = create<NotificationStore>((set, get) => ({
       snackbarTimeout = setTimeout(() => {
         set({ snackbar: null });
         snackbarTimeout = null;
-      }, 7000); // 7 seconds
+      }, duration);
     }
   },
 
@@ -169,28 +150,30 @@ export const useNotificationStore = create<NotificationStore>((set, get) => ({
       dismissCooldown = false;
     }, 500);
   },
+
+  /**
+   * Convenience method for simple message snackbars
+   * This replaces the old showToast API with a snackbar-based approach
+   */
+  showMessage: (title: string, type: SnackbarType = 'info', duration?: number) => {
+    get().showSnackbar({
+      title,
+      type,
+      duration: duration ?? DEFAULT_DURATIONS[type],
+    });
+  },
 }));
 
 /**
  * Selector hooks for granular subscriptions
  */
-export const useToasts = () => useNotificationStore((state) => state.toasts);
 export const useSnackbar = () => useNotificationStore((state) => state.snackbar);
-
-// Computed selectors
-export const useToastMessage = () => useNotificationStore((state) => state.toasts[0]?.message || '');
-export const useToastVisible = () => useNotificationStore((state) => state.toasts.length > 0);
-export const useToastType = () => useNotificationStore((state) => state.toasts[0]?.type || 'success');
 
 /**
  * Reset store to initial state (useful for testing)
  */
 export const resetNotificationStore = () => {
-  // Clear all timeouts
-  Object.keys(toastTimeouts).forEach((key) => {
-    clearTimeout(toastTimeouts[Number(key)]);
-    delete toastTimeouts[Number(key)];
-  });
+  // Clear timeouts
   if (snackbarTimeout) {
     clearTimeout(snackbarTimeout);
     snackbarTimeout = null;
@@ -198,5 +181,13 @@ export const resetNotificationStore = () => {
   lastSnackbar = null;
   dismissCooldown = false;
 
-  useNotificationStore.setState({ toasts: [], snackbar: null });
+  useNotificationStore.setState({ snackbar: null });
+};
+
+/**
+ * @deprecated Use showSnackbar or showMessage instead
+ * This is kept for backwards compatibility during migration
+ */
+export const showToast = (message: string, type: SnackbarType = 'success') => {
+  useNotificationStore.getState().showMessage(message, type);
 };

@@ -228,10 +228,10 @@ function PriceChart({ data, isPositive, minBoundary, maxBoundary, onScrub }: Pri
           {/* Scrubber line and dot */}
           {scrubX !== null && scrubY !== null && (
             <>
-              {/* Vertical line */}
+              {/* Vertical line - starts from bottom of ball (scrubY + 6) to chart bottom */}
               <Line
                 x1={scrubX}
-                y1={chartPaths.padding.top}
+                y1={scrubY + 6}
                 x2={scrubX}
                 y2={chartPaths.chartHeight}
                 stroke={strokeColor}

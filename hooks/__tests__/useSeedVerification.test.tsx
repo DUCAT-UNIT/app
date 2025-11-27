@@ -9,6 +9,7 @@ import { create, act } from 'react-test-renderer';
 import { useSeedVerification } from '../useSeedVerification';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { ERRORS } from '../../utils/messages';
+import { notify } from '../../utils/notify';
 
 // Mock messages
 jest.mock('../../utils/messages', () => ({
@@ -67,7 +68,6 @@ describe('useSeedVerification', () => {
       tempMnemonicWords: mockMnemonic,
       setSettingUpPin: jest.fn(),
       setShowingSeeds: jest.fn(),
-      showToast: jest.fn(),
     };
   });
 
@@ -236,10 +236,7 @@ describe('useSeedVerification', () => {
         result.current.verifySeeds();
       });
 
-      expect(mockProps.showToast).toHaveBeenCalledWith(
-        'Please select all verification words',
-        'error'
-      );
+      expect(notify.seed.incomplete).toHaveBeenCalled();
     });
 
     it('should proceed to PIN setup if all words are correct', () => {
@@ -292,7 +289,7 @@ describe('useSeedVerification', () => {
         result.current.verifySeeds();
       });
 
-      expect(mockProps.showToast).toHaveBeenCalledWith('Incorrect seed phrase', 'error');
+      expect(notify.seed.incorrect).toHaveBeenCalled();
       expect(mockProps.setSettingUpPin).not.toHaveBeenCalled();
     });
 
@@ -548,7 +545,7 @@ describe('useSeedVerification', () => {
       });
 
       // Lines 142-145 branches - allCorrect should be false due to mismatch
-      expect(mockProps.showToast).toHaveBeenCalledWith(ERRORS.SEED_PHRASE_INCORRECT, 'error');
+      expect(notify.seed.incorrect).toHaveBeenCalled();
       expect(result.current.verificationWords).toEqual({});
     });
   });

@@ -9,6 +9,7 @@ import { create, act } from 'react-test-renderer';
 import { useWalletImport } from '../useWalletImport';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import * as WalletService from '../../services/walletService';
+import { notify } from '../../utils/notify';
 
 // Mock wallet service
 jest.mock('../../services/walletService');
@@ -79,7 +80,6 @@ describe('useWalletImport', () => {
     mockProps = {
       currentAccount: 0,
       setSettingUpPin: jest.fn(),
-      showToast: jest.fn(),
     };
   });
 
@@ -238,7 +238,7 @@ describe('useWalletImport', () => {
       });
 
       // Import should succeed
-      expect(mockProps.showToast).not.toHaveBeenCalledWith('Failed to import wallet', 'error');
+      expect(notify.error).not.toHaveBeenCalled();
       expect(WalletService.importWallet).toHaveBeenCalledWith(
         seedPhrase.join(' '),
         mockProps.currentAccount
@@ -358,7 +358,7 @@ describe('useWalletImport', () => {
         await result.current.importWallet();
       });
 
-      expect(mockProps.showToast).toHaveBeenCalledWith('Failed to import wallet', 'error');
+      expect(notify.error).toHaveBeenCalled();
       expect(mockProps.setSettingUpPin).not.toHaveBeenCalled();
     });
 

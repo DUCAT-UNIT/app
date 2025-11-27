@@ -7,6 +7,7 @@ import { useState } from 'react';
 import { calculateMaxSendableBTC } from '../services/transactionCalculationService';
 import { logger } from '../utils/logger';
 import { getRunesAmount } from '../utils/runesHelper';
+import { formatFiat } from '../utils/formatters';
 import type { WalletAddresses } from '../contexts/WalletContext';
 import type { RuneBalance } from '../services/balanceService';
 
@@ -75,12 +76,11 @@ export function useAmountInput({
 
   const calculateUsdValue = (amount: string, btcPrice: number | null): string => {
     const price = btcPrice ?? 0;
-    return amount && (sendAssetType === 'btc' ? price : 1)
-      ? (parseFloat(amount) * (sendAssetType === 'btc' ? price : 1)).toLocaleString(
-          'en-US',
-          { minimumFractionDigits: 2, maximumFractionDigits: 2 }
-        )
-      : '0.00';
+    if (!amount || !(sendAssetType === 'btc' ? price : 1)) {
+      return '0.00';
+    }
+    const numericValue = parseFloat(amount) * (sendAssetType === 'btc' ? price : 1);
+    return formatFiat(numericValue);
   };
 
   return {

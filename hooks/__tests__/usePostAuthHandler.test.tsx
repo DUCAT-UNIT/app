@@ -8,6 +8,7 @@ import React from 'react';
 import { create, act } from 'react-test-renderer';
 import { usePostAuthHandler } from '../usePostAuthHandler';
 import * as SecureStore from 'expo-secure-store';
+import { notify } from '../../utils/notify';
 
 // Mock expo-secure-store
 jest.mock('expo-secure-store', () => ({
@@ -53,7 +54,6 @@ describe('usePostAuthHandler', () => {
       setSettingUpPin: jest.fn(),
       setIsAuthenticated: jest.fn(),
       setBiometricEnabled: jest.fn(),
-      showToast: jest.fn(),
       resetWallet: jest.fn(),
       resetAuth: jest.fn(),
       walletExists: { current: true },
@@ -115,7 +115,7 @@ describe('usePostAuthHandler', () => {
       expect(SecureStore.deleteItemAsync).toHaveBeenCalledWith('pendingFaceIdEnable');
       expect(mockProps.setBiometricEnabled).toHaveBeenCalledWith(true);
       expect(SecureStore.setItemAsync).toHaveBeenCalledWith('biometricEnabled', 'true');
-      expect(mockProps.showToast).toHaveBeenCalledWith('Face ID enabled', 'success');
+      expect(notify.settings.faceIdEnabled).toHaveBeenCalled();
     });
 
     it('should not enable Face ID when pending flag is not set', async () => {
@@ -150,7 +150,7 @@ describe('usePostAuthHandler', () => {
 
       expect(SecureStore.deleteItemAsync).toHaveBeenCalledWith('pendingNotificationsEnable');
       expect(SecureStore.setItemAsync).toHaveBeenCalledWith('notificationsEnabled', 'true');
-      expect(mockProps.showToast).toHaveBeenCalledWith('Notifications enabled', 'success');
+      expect(notify.settings.notificationsEnabled).toHaveBeenCalled();
     });
 
     it('should prioritize Face ID over notifications', async () => {
@@ -168,8 +168,8 @@ describe('usePostAuthHandler', () => {
         await result.current.handlePostAuth();
       });
 
-      expect(mockProps.showToast).toHaveBeenCalledWith('Face ID enabled', 'success');
-      expect(mockProps.showToast).not.toHaveBeenCalledWith('Notifications enabled', 'success');
+      expect(notify.settings.faceIdEnabled).toHaveBeenCalled();
+      expect(notify.settings.notificationsEnabled).not.toHaveBeenCalled();
     });
   });
 
@@ -196,7 +196,7 @@ describe('usePostAuthHandler', () => {
       expect(mockProps.resetWallet).toHaveBeenCalled();
       expect(mockProps.walletExists.current).toBe(false);
       expect(mockProps.resetAuth).toHaveBeenCalled();
-      expect(mockProps.showToast).toHaveBeenCalledWith('Wallet deleted successfully', 'success');
+      expect(notify.wallet.deleted).toHaveBeenCalled();
     });
 
     it('should handle wallet deletion failure', async () => {
@@ -216,7 +216,7 @@ describe('usePostAuthHandler', () => {
         await result.current.handlePostAuth();
       });
 
-      expect(mockProps.showToast).toHaveBeenCalledWith('Failed to delete wallet', 'error');
+      expect(notify.wallet.deleteFailed).toHaveBeenCalled();
       expect(mockProps.resetWallet).not.toHaveBeenCalled();
     });
 
@@ -237,7 +237,7 @@ describe('usePostAuthHandler', () => {
         await result.current.handlePostAuth();
       });
 
-      expect(mockProps.showToast).toHaveBeenCalledWith('Failed to delete wallet', 'error');
+      expect(notify.wallet.deleteFailed).toHaveBeenCalled();
     });
 
     it('should handle walletExists ref being undefined', async () => {
@@ -259,7 +259,7 @@ describe('usePostAuthHandler', () => {
       });
 
       expect(mockProps.resetWallet).toHaveBeenCalled();
-      expect(mockProps.showToast).toHaveBeenCalledWith('Wallet deleted successfully', 'success');
+      expect(notify.wallet.deleted).toHaveBeenCalled();
     });
   });
 
@@ -371,7 +371,7 @@ describe('usePostAuthHandler', () => {
       });
 
       expect(mockProps.setIsAuthenticated).toHaveBeenCalledWith(true);
-      expect(mockProps.showToast).not.toHaveBeenCalled();
+      expect(notify.settings.faceIdEnabled).not.toHaveBeenCalled();
     });
 
     it('should handle SecureStore errors gracefully', async () => {

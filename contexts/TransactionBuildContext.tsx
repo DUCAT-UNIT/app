@@ -37,14 +37,12 @@ interface TransactionBuildProviderProps {
   children: ReactNode;
   wallet: WalletAddresses | null;
   currentAccount: number;
-  showToast: (message: string, type?: string) => void;
 }
 
 export const TransactionBuildProvider: React.FC<TransactionBuildProviderProps> = ({
   children,
   wallet,
   currentAccount,
-  showToast
 }) => {
   const {
     sendRecipient,
@@ -79,7 +77,6 @@ export const TransactionBuildProvider: React.FC<TransactionBuildProviderProps> =
     sendIntent,
     setSendIntent,
     setIntentStep,
-    showToast,
     getUnconfirmedUTXOs: (addressType, excludeFromIntent) =>
       getUnconfirmedUTXOs(addressType, excludeFromIntent as TransactionIntent | null),
     getSpentUtxos,

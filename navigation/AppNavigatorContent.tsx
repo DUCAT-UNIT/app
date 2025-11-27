@@ -20,7 +20,6 @@ import Snackbar from '../components/Snackbar';
 import { useAuth, useOnboardingFlow } from '../contexts/AuthContext';
 import { useWallet } from '../contexts/WalletContext';
 import { useAirdrop } from '../contexts/AirdropContext';
-import { useVault } from '../contexts/VaultContext';
 import { useSeedPhrase } from '../contexts/SeedPhraseContext';
 import { useNavigationHandlers } from '../contexts/NavigationHandlersContext';
 import { useNotifications } from '../contexts/NotificationContext';
@@ -75,9 +74,6 @@ export default function AppNavigatorContent({
 
   // Onboarding context
   const { setSeedConfirmed } = useOnboardingFlow();
-
-  // Vault context - activeTab not used in this component
-  useVault();
 
   // Seed phrase context
   const {

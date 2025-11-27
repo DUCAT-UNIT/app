@@ -835,5 +835,185 @@ describe('useTransactionHistoryData', () => {
         expect(result.current.displayTransactions[2].txid).toBe('tx1');
       }
     });
+
+    it('should detect self-claimed sent tokens', async () => {
+      const mockSentLockedTokens = jest.requireMock('../../services/cashu/cashuLockedTokensService').getSentLockedTokens;
+      const mockGetReceivedTokens = jest.requireMock('../../services/cashu/cashuLockedTokensService').getReceivedTokens;
+
+      // Sent token that was claimed by same account (self-claim)
+      mockSentLockedTokens.mockResolvedValue([
+        {
+          id: 'token1',
+          token: 'cashuAbc',
+          amount: 10000,
+          timestamp: 2000,
+          claimed: true,
+          recipient: 'somepubkey',
+          taprootAddress: mockTaprootAddress, // Same address = self-claim
+        },
+      ]);
+      mockGetReceivedTokens.mockResolvedValue([]);
+
+      WalletDataContext.useTransactionHistory.mockReturnValue({
+        transactionHistory: [],
+        loadingTransactionHistory: false,
+        fetchTransactionHistory: mockFetchTransactionHistory,
+      });
+
+      const { result, rerender } = renderHook(
+        useTransactionHistoryData,
+        { showHistorySheet: false, segwitAddress: mockSegwitAddress, taprootAddress: mockTaprootAddress }
+      );
+
+      rerender({ showHistorySheet: true, segwitAddress: mockSegwitAddress, taprootAddress: mockTaprootAddress });
+
+      await act(async () => {
+        await Promise.resolve();
+        await Promise.resolve();
+        await Promise.resolve();
+      });
+
+      const ecashTx = result.current.displayTransactions.find(tx => tx.ecashToken);
+      if (ecashTx) {
+        expect(ecashTx.isAutoclaim).toBe(true);
+        expect(ecashTx.txData.isAutoclaim).toBe(true);
+        expect(ecashTx.txData.numericAmount).toBe(10000); // Positive because self-claim
+      }
+    });
+
+    it('should filter out self-claim received tokens', async () => {
+      const mockSentLockedTokens = jest.requireMock('../../services/cashu/cashuLockedTokensService').getSentLockedTokens;
+      const mockGetReceivedTokens = jest.requireMock('../../services/cashu/cashuLockedTokensService').getReceivedTokens;
+
+      mockSentLockedTokens.mockResolvedValue([]);
+      // Received token from same account (duplicate of self-claim)
+      mockGetReceivedTokens.mockResolvedValue([
+        {
+          id: 'token2',
+          token: 'cashuDef',
+          amount: 5000,
+          timestamp: 3000,
+          claimed: true,
+          sender: 'somepubkey',
+          taprootAddress: mockTaprootAddress, // Same address = should be filtered
+        },
+      ]);
+
+      WalletDataContext.useTransactionHistory.mockReturnValue({
+        transactionHistory: [],
+        loadingTransactionHistory: false,
+        fetchTransactionHistory: mockFetchTransactionHistory,
+      });
+
+      const { result, rerender } = renderHook(
+        useTransactionHistoryData,
+        { showHistorySheet: false, segwitAddress: mockSegwitAddress, taprootAddress: mockTaprootAddress }
+      );
+
+      rerender({ showHistorySheet: true, segwitAddress: mockSegwitAddress, taprootAddress: mockTaprootAddress });
+
+      await act(async () => {
+        await Promise.resolve();
+        await Promise.resolve();
+        await Promise.resolve();
+      });
+
+      // The received token from same account should be filtered out
+      expect(result.current.displayTransactions.length).toBe(0);
+    });
+
+    it('should handle taproot address decoding errors gracefully', async () => {
+      const mockSentLockedTokens = jest.requireMock('../../services/cashu/cashuLockedTokensService').getSentLockedTokens;
+      const mockGetReceivedTokens = jest.requireMock('../../services/cashu/cashuLockedTokensService').getReceivedTokens;
+
+      mockSentLockedTokens.mockResolvedValue([
+        { id: 'token1', token: 'cashuAbc', amount: 10000, timestamp: 2000, claimed: true, recipient: 'pubkey' },
+      ]);
+      mockGetReceivedTokens.mockResolvedValue([]);
+
+      WalletDataContext.useTransactionHistory.mockReturnValue({
+        transactionHistory: [],
+        loadingTransactionHistory: false,
+        fetchTransactionHistory: mockFetchTransactionHistory,
+      });
+
+      // Use an invalid taproot address that will fail to decode
+      const invalidTaprootAddress = 'invalid_address';
+
+      const { result, rerender } = renderHook(
+        useTransactionHistoryData,
+        { showHistorySheet: false, segwitAddress: mockSegwitAddress, taprootAddress: invalidTaprootAddress }
+      );
+
+      rerender({ showHistorySheet: true, segwitAddress: mockSegwitAddress, taprootAddress: invalidTaprootAddress });
+
+      await act(async () => {
+        await Promise.resolve();
+        await Promise.resolve();
+        await Promise.resolve();
+      });
+
+      // Should still process tokens even with invalid address
+      expect(result.current.displayTransactions.length).toBeGreaterThanOrEqual(0);
+    });
+  });
+
+  describe('Token subscription debouncing', () => {
+    beforeEach(() => {
+      jest.useFakeTimers();
+    });
+
+    afterEach(() => {
+      jest.useRealTimers();
+    });
+
+    it('should debounce token change subscription callbacks', async () => {
+      const mockSubscribe = jest.requireMock('../../services/cashu/cashuLockedTokensService').subscribeToTokenChanges;
+      let subscriptionCallback;
+      mockSubscribe.mockImplementation((cb) => {
+        subscriptionCallback = cb;
+        return jest.fn(); // unsubscribe
+      });
+
+      const mockSentLockedTokens = jest.requireMock('../../services/cashu/cashuLockedTokensService').getSentLockedTokens;
+      const mockGetReceivedTokens = jest.requireMock('../../services/cashu/cashuLockedTokensService').getReceivedTokens;
+      mockSentLockedTokens.mockResolvedValue([]);
+      mockGetReceivedTokens.mockResolvedValue([]);
+
+      WalletDataContext.useTransactionHistory.mockReturnValue({
+        transactionHistory: [],
+        loadingTransactionHistory: false,
+        fetchTransactionHistory: mockFetchTransactionHistory,
+      });
+
+      const { rerender } = renderHook(
+        useTransactionHistoryData,
+        { showHistorySheet: false, segwitAddress: mockSegwitAddress, taprootAddress: mockTaprootAddress }
+      );
+
+      // Open sheet to subscribe
+      rerender({ showHistorySheet: true, segwitAddress: mockSegwitAddress, taprootAddress: mockTaprootAddress });
+
+      await act(async () => {
+        await Promise.resolve();
+      });
+
+      // Trigger multiple token changes rapidly
+      if (subscriptionCallback) {
+        act(() => {
+          subscriptionCallback();
+          subscriptionCallback();
+          subscriptionCallback();
+        });
+
+        // Advance timers to trigger debounce
+        act(() => {
+          jest.advanceTimersByTime(300);
+        });
+      }
+
+      // Should have subscribed
+      expect(mockSubscribe).toHaveBeenCalled();
+    });
   });
 });

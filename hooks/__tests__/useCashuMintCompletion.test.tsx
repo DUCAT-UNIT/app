@@ -7,6 +7,7 @@
 import React from 'react';
 import { create, act } from 'react-test-renderer';
 import { useCashuMintCompletion } from '../useCashuMintCompletion';
+import { notify } from '../../utils/notify';
 
 // Mock dependencies
 jest.mock('../../utils/logger', () => ({
@@ -65,8 +66,6 @@ describe('useCashuMintCompletion', () => {
       quoteId: undefined,
       fetchTransactionHistory: jest.fn().mockResolvedValue(),
       refreshCashuBalance: jest.fn().mockResolvedValue(),
-      showSnackbar: jest.fn(),
-      showToast: jest.fn(),
     };
 
     // Default mocks
@@ -187,11 +186,7 @@ describe('useCashuMintCompletion', () => {
         await Promise.resolve();
       });
 
-      expect(mockProps.showSnackbar).toHaveBeenCalledWith({
-        message: 'Conversion complete',
-        type: 'success',
-        action: 'convert',
-      });
+      expect(notify.cashu.conversionComplete).toHaveBeenCalled();
     });
 
     it('should refresh transaction history if provided', async () => {
@@ -284,10 +279,7 @@ describe('useCashuMintCompletion', () => {
         });
       }
 
-      expect(mockProps.showToast).toHaveBeenCalledWith(
-        'Payment sent. Ecash will be available once confirmed.',
-        'info'
-      );
+      expect(notify.cashu.paymentSentAwaiting).toHaveBeenCalled();
     });
 
     it('should handle error during mint completion', async () => {
@@ -308,10 +300,7 @@ describe('useCashuMintCompletion', () => {
         await Promise.resolve();
       });
 
-      expect(mockProps.showToast).toHaveBeenCalledWith(
-        'Failed to complete conversion: Network error',
-        'error'
-      );
+      expect(notify.cashu.conversionFailed).toHaveBeenCalled();
     });
 
     it('should handle non-Error exception during completion', async () => {
@@ -332,10 +321,7 @@ describe('useCashuMintCompletion', () => {
         await Promise.resolve();
       });
 
-      expect(mockProps.showToast).toHaveBeenCalledWith(
-        'Failed to complete conversion: String error',
-        'error'
-      );
+      expect(notify.cashu.conversionFailed).toHaveBeenCalled();
     });
 
     it('should not restart completion if already completed', async () => {

@@ -6,6 +6,7 @@
 import React from 'react';
 import { create, act } from 'react-test-renderer';
 import { useConfirmationHandlers } from '../useConfirmationHandlers';
+import { notify } from '../../utils/notify';
 
 // Mock dependencies
 jest.mock('react-native', () => ({
@@ -55,7 +56,6 @@ function renderHook(hook) {
 describe('useConfirmationHandlers', () => {
   let fetchTransactionHistory;
   let navigation;
-  let showToast;
 
   beforeEach(() => {
     jest.clearAllMocks();
@@ -66,7 +66,6 @@ describe('useConfirmationHandlers', () => {
         goBack: jest.fn(),
       })),
     };
-    showToast = jest.fn();
   });
 
   afterEach(() => {
@@ -80,7 +79,6 @@ describe('useConfirmationHandlers', () => {
         turboDeeplink: 'https://ducat.app/...',
         fetchTransactionHistory,
         navigation,
-        showToast,
       })
     );
 
@@ -99,7 +97,6 @@ describe('useConfirmationHandlers', () => {
           turboDeeplink: null,
           fetchTransactionHistory,
           navigation,
-          showToast,
         })
       );
 
@@ -118,7 +115,6 @@ describe('useConfirmationHandlers', () => {
           turboDeeplink: null,
           fetchTransactionHistory,
           navigation,
-          showToast,
         })
       );
 
@@ -138,7 +134,6 @@ describe('useConfirmationHandlers', () => {
           turboDeeplink: 'https://ducat.app/turbo/token123',
           fetchTransactionHistory,
           navigation,
-          showToast,
         })
       );
 
@@ -159,7 +154,6 @@ describe('useConfirmationHandlers', () => {
           turboDeeplink: null,
           fetchTransactionHistory,
           navigation,
-          showToast,
         })
       );
 
@@ -179,7 +173,6 @@ describe('useConfirmationHandlers', () => {
           turboDeeplink: 'https://ducat.app/...',
           fetchTransactionHistory,
           navigation,
-          showToast,
         })
       );
 
@@ -187,10 +180,7 @@ describe('useConfirmationHandlers', () => {
         await result.current.handleShareDeeplink();
       });
 
-      expect(showToast).toHaveBeenCalledWith(
-        'Failed to share link. Please try again.',
-        'error'
-      );
+      expect(notify.link.shareFailed).toHaveBeenCalled();
     });
   });
 
@@ -202,7 +192,6 @@ describe('useConfirmationHandlers', () => {
           turboDeeplink: 'https://ducat.app/turbo/token123',
           fetchTransactionHistory,
           navigation,
-          showToast,
         })
       );
 
@@ -213,7 +202,7 @@ describe('useConfirmationHandlers', () => {
       expect(Clipboard.setStringAsync).toHaveBeenCalledWith(
         'https://ducat.app/turbo/token123'
       );
-      expect(showToast).toHaveBeenCalledWith('Link copied to clipboard', 'info');
+      expect(notify.clipboard.linkCopied).toHaveBeenCalled();
     });
 
     it('should not copy when deeplink is null', async () => {
@@ -223,7 +212,6 @@ describe('useConfirmationHandlers', () => {
           turboDeeplink: null,
           fetchTransactionHistory,
           navigation,
-          showToast,
         })
       );
 
@@ -243,7 +231,6 @@ describe('useConfirmationHandlers', () => {
           turboDeeplink: 'https://ducat.app/...',
           fetchTransactionHistory,
           navigation,
-          showToast,
         })
       );
 
@@ -251,10 +238,7 @@ describe('useConfirmationHandlers', () => {
         await result.current.handleCopyDeeplink();
       });
 
-      expect(showToast).toHaveBeenCalledWith(
-        'Failed to copy link. Please try again.',
-        'error'
-      );
+      expect(notify.link.copyFailed).toHaveBeenCalled();
     });
   });
 
@@ -266,7 +250,6 @@ describe('useConfirmationHandlers', () => {
           turboDeeplink: 'https://ducat.app/turbo/token123',
           fetchTransactionHistory,
           navigation,
-          showToast,
         })
       );
 
@@ -286,7 +269,6 @@ describe('useConfirmationHandlers', () => {
           turboDeeplink: null,
           fetchTransactionHistory,
           navigation,
-          showToast,
         })
       );
 
@@ -306,7 +288,6 @@ describe('useConfirmationHandlers', () => {
           turboDeeplink: 'https://ducat.app/...',
           fetchTransactionHistory,
           navigation,
-          showToast,
         })
       );
 
@@ -314,10 +295,7 @@ describe('useConfirmationHandlers', () => {
         await result.current.handleOpenInBrowser();
       });
 
-      expect(showToast).toHaveBeenCalledWith(
-        'Failed to open link. Please try again.',
-        'error'
-      );
+      expect(notify.link.openFailed).toHaveBeenCalled();
     });
   });
 
@@ -336,7 +314,6 @@ describe('useConfirmationHandlers', () => {
           turboDeeplink: null,
           fetchTransactionHistory,
           navigation: mockNavigation,
-          showToast,
         })
       );
 
@@ -369,7 +346,6 @@ describe('useConfirmationHandlers', () => {
           turboDeeplink: null,
           fetchTransactionHistory: null,
           navigation: mockNavigation,
-          showToast,
         })
       );
 

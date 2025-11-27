@@ -9,6 +9,7 @@ import * as PasskeyService from '../../services/passkey';
 import { usePasskeyRestore } from '../usePasskeyRestore';
 import { savePin } from '../../services/pinService';
 import { saveMnemonic, saveCurrentAccount } from '../../services/secureStorageService';
+import { notify } from '../../utils/notify';
 
 // Helper to render hooks with react-test-renderer
 function renderHook(hook) {
@@ -50,7 +51,6 @@ describe('usePasskeyRestore', () => {
     mockProps = {
       setIsAuthenticated: jest.fn(),
       setSeedConfirmed: jest.fn(),
-      showToast: jest.fn(),
       loadWallet: jest.fn().mockResolvedValue(undefined),
       setWalletAddresses: jest.fn(),
     };
@@ -123,10 +123,7 @@ describe('usePasskeyRestore', () => {
         await result.current.startPasskeyRestore();
       });
 
-      expect(mockProps.showToast).toHaveBeenCalledWith(
-        'Passkeys are not supported on this device',
-        'error'
-      );
+      expect(notify.passkey.notSupported).toHaveBeenCalled();
       expect(result.current.showRestorePinInput).toBe(false);
     });
 
@@ -140,10 +137,7 @@ describe('usePasskeyRestore', () => {
         await result.current.startPasskeyRestore();
       });
 
-      expect(mockProps.showToast).toHaveBeenCalledWith(
-        'No passkey wallet found in iCloud',
-        'error'
-      );
+      expect(notify.passkey.noWallet).toHaveBeenCalled();
       expect(result.current.showRestorePinInput).toBe(false);
     });
 
@@ -157,7 +151,7 @@ describe('usePasskeyRestore', () => {
         await result.current.startPasskeyRestore();
       });
 
-      expect(mockProps.showToast).toHaveBeenCalledWith('Passkey check failed', 'error');
+      expect(notify.passkey.restoreFailed).toHaveBeenCalled();
       expect(result.current.showRestorePinInput).toBe(false);
     });
 
@@ -170,7 +164,7 @@ describe('usePasskeyRestore', () => {
         await result.current.startPasskeyRestore();
       });
 
-      expect(mockProps.showToast).toHaveBeenCalledWith('Failed to start passkey restore', 'error');
+      expect(notify.passkey.restoreFailed).toHaveBeenCalled();
     });
   });
 
@@ -212,7 +206,7 @@ describe('usePasskeyRestore', () => {
         await result.current.restoreWalletWithPasskey(null);
       });
 
-      expect(mockProps.showToast).toHaveBeenCalledWith('Please enter a 6-digit PIN', 'error');
+      expect(notify.pin.invalid).toHaveBeenCalled();
       expect(PasskeyService.recoverWithPasskey).not.toHaveBeenCalled();
       expect(result.current.isRestoring).toBe(false);
     });
@@ -224,7 +218,7 @@ describe('usePasskeyRestore', () => {
         await result.current.restoreWalletWithPasskey('');
       });
 
-      expect(mockProps.showToast).toHaveBeenCalledWith('Please enter a 6-digit PIN', 'error');
+      expect(notify.pin.invalid).toHaveBeenCalled();
       expect(PasskeyService.recoverWithPasskey).not.toHaveBeenCalled();
     });
 
@@ -235,7 +229,7 @@ describe('usePasskeyRestore', () => {
         await result.current.restoreWalletWithPasskey('12345');
       });
 
-      expect(mockProps.showToast).toHaveBeenCalledWith('Please enter a 6-digit PIN', 'error');
+      expect(notify.pin.invalid).toHaveBeenCalled();
       expect(PasskeyService.recoverWithPasskey).not.toHaveBeenCalled();
     });
 
@@ -246,7 +240,7 @@ describe('usePasskeyRestore', () => {
         await result.current.restoreWalletWithPasskey('1234567');
       });
 
-      expect(mockProps.showToast).toHaveBeenCalledWith('Please enter a 6-digit PIN', 'error');
+      expect(notify.pin.invalid).toHaveBeenCalled();
       expect(PasskeyService.recoverWithPasskey).not.toHaveBeenCalled();
     });
   });
@@ -262,7 +256,7 @@ describe('usePasskeyRestore', () => {
         await result.current.restoreWalletWithPasskey('123456');
       });
 
-      expect(mockProps.showToast).toHaveBeenCalledWith('Recovery failed', 'error');
+      expect(notify.passkey.walletRestoreFailed).toHaveBeenCalled();
       expect(mockProps.setIsAuthenticated).not.toHaveBeenCalled();
       expect(mockProps.setWalletAddresses).not.toHaveBeenCalled();
       expect(result.current.isRestoring).toBe(false);
@@ -277,10 +271,7 @@ describe('usePasskeyRestore', () => {
         await result.current.restoreWalletWithPasskey('123456');
       });
 
-      expect(mockProps.showToast).toHaveBeenCalledWith(
-        'Failed to restore wallet with passkey',
-        'error'
-      );
+      expect(notify.passkey.walletRestoreFailed).toHaveBeenCalled();
     });
 
     it('should reset isRestoring on error', async () => {
@@ -390,7 +381,7 @@ describe('usePasskeyRestore', () => {
       expect(mockProps.setSeedConfirmed).toHaveBeenCalledWith(true);
 
       // Should show success toast
-      expect(mockProps.showToast).toHaveBeenCalledWith('Wallet restored from passkey!', 'success');
+      expect(notify.passkey.restored).toHaveBeenCalled();
 
       // Should reset state
       expect(result.current.showRestorePinInput).toBe(false);

@@ -6,14 +6,13 @@
 import { useState, useCallback, useMemo } from 'react';
 import * as SecureStore from 'expo-secure-store';
 import { authenticateWithBiometrics } from '../services/biometricService';
-import type { ToastType } from '../types/notification';
+import { notify } from '../utils/notify';
 
 interface UseAuthSettingsParams {
   biometricEnabled: boolean;
   setBiometricEnabled: (value: boolean) => void;
   setIsAuthenticated: (value: boolean) => void;
   startPinChange: () => void;
-  showToast?: (message: string, type: ToastType) => void;
 }
 
 interface UseAuthSettingsReturn {
@@ -24,7 +23,7 @@ interface UseAuthSettingsReturn {
   cancelFaceIdToggle: () => void;
 }
 
-export function useAuthSettings({ biometricEnabled, setBiometricEnabled, setIsAuthenticated, startPinChange, showToast }: UseAuthSettingsParams): UseAuthSettingsReturn {
+export function useAuthSettings({ biometricEnabled, setBiometricEnabled, setIsAuthenticated, startPinChange }: UseAuthSettingsParams): UseAuthSettingsReturn {
   const [showFaceIdModal, setShowFaceIdModal] = useState(false);
   const [pendingFaceIdValue, setPendingFaceIdValue] = useState(false);
 
@@ -60,10 +59,8 @@ export function useAuthSettings({ biometricEnabled, setBiometricEnabled, setIsAu
 
         // Biometric auth succeeded, set flag to return to settings
         await SecureStore.setItemAsync('returnToSettingsAfterAuth', 'true');
-      } catch (error: unknown) {
-        if (showToast) {
-          showToast('Authentication required to enable Face ID', 'error');
-        }
+      } catch {
+        notify.auth.requiredForFaceId();
         return;
       }
     }
@@ -72,15 +69,15 @@ export function useAuthSettings({ biometricEnabled, setBiometricEnabled, setIsAu
     setBiometricEnabled(newValue);
     try {
       await SecureStore.setItemAsync('biometricEnabled', String(newValue));
-      if (showToast) {
-        showToast(`Face ID ${newValue ? 'enabled' : 'disabled'}`, 'success');
+      if (newValue) {
+        notify.settings.faceIdEnabled();
+      } else {
+        notify.settings.faceIdDisabled();
       }
-    } catch (error: unknown) {
-      if (showToast) {
-        showToast('Failed to update Face ID setting', 'error');
-      }
+    } catch {
+      notify.settings.faceIdFailed();
     }
-  }, [pendingFaceIdValue, setBiometricEnabled, setIsAuthenticated, showToast]);
+  }, [pendingFaceIdValue, setBiometricEnabled, setIsAuthenticated]);
 
   const cancelFaceIdToggle = useCallback((): void => {
     setShowFaceIdModal(false);

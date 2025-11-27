@@ -8,6 +8,8 @@ import { View, Text, TouchableOpacity, StyleSheet, ActivityIndicator } from 'rea
 import PriceChart from '../charts/PriceChart';
 import { COLORS } from '../../theme';
 import { generateUnitPriceData, PriceTimeframe, PriceDataPoint } from '../../utils/priceDataGenerator';
+import { formatFiat } from '../../utils/formatters';
+import { AssetChartSkeleton } from './AssetSkeleton';
 
 interface TimeframeButtonProps {
   timeframe: string;
@@ -63,15 +65,15 @@ interface AssetPriceChartProps {
 
 // Price chip component - displays current price with chart-matching color
 const PriceChip = memo(function PriceChip({ price, assetType, isPositive }: { price: number; assetType: 'BTC' | 'UNIT'; isPositive: boolean }) {
-  const formattedPrice = assetType === 'BTC'
-    ? `$${price.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
-    : `$${price.toFixed(2)}`;
+  const formattedPrice = `$${formatFiat(price)}`;
 
   const chipColor = isPositive ? COLORS.SUCCESS_GREEN : COLORS.RED;
+  // 10% opacity background
+  const chipBgColor = isPositive ? 'rgba(89, 170, 138, 0.1)' : 'rgba(208, 76, 104, 0.1)';
 
   return (
-    <View style={[styles.priceChip, { backgroundColor: chipColor }]}>
-      <Text style={styles.priceChipText}>{formattedPrice}</Text>
+    <View style={[styles.priceChip, { backgroundColor: chipBgColor, borderColor: chipColor }]}>
+      <Text style={[styles.priceChipText, { color: chipColor }]}>{formattedPrice}</Text>
     </View>
   );
 });
@@ -172,6 +174,11 @@ export const AssetPriceChart = memo(function AssetPriceChart({
   // For BTC, use real data
   if (assetType !== 'BTC') return null;
 
+  // Show skeleton while loading and no error
+  if (!priceData && !priceError && priceLoading) {
+    return <AssetChartSkeleton />;
+  }
+
   return (
     <View style={styles.chartContainer}>
       {priceError ? (
@@ -226,13 +233,13 @@ const styles = StyleSheet.create({
   priceChip: {
     position: 'absolute',
     top: 8,
-    right: 12,
+    right: 16,
     paddingHorizontal: 10,
     paddingVertical: 4,
     borderRadius: 12,
+    borderWidth: 1,
   },
   priceChipText: {
-    color: COLORS.WHITE,
     fontSize: 12,
     fontWeight: '700',
   },

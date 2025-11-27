@@ -6,6 +6,7 @@ import React from 'react';
 import { View, Text, StyleSheet } from 'react-native';
 import { COLORS } from '../../theme';
 import { truncateAddress } from '../../utils/formatters/addresses';
+import { formatUnitAmount } from '../../utils/formatters/amounts';
 
 interface RunestoneInfoProps {
   unitAmount: number;
@@ -22,10 +23,7 @@ export function RunestoneInfo({ unitAmount, recipient, sourceAddress }: Runeston
       <View style={styles.runestoneDetail}>
         <Text style={styles.runestoneDetailLabel}>Edict</Text>
         <Text style={styles.runestoneDetailValue}>
-          Send {(unitAmount / 100).toLocaleString('en-US', {
-            minimumFractionDigits: 2,
-            maximumFractionDigits: 2
-          })} UNIT to {truncateAddress(recipient, 5, 5)}
+          Send {formatUnitAmount(unitAmount)} UNIT to {truncateAddress(recipient, 5, 5)}
         </Text>
       </View>
       <View style={styles.runestoneDetail}>
