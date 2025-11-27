@@ -4,16 +4,13 @@
  * Extracted from AssetDetailScreen for better separation of concerns
  */
 
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect, useRef, useMemo } from 'react';
+import * as bitcoin from 'bitcoinjs-lib';
 import { calculateTransactionAmount, Transaction } from '../services/transactionHistoryService';
-import { getSentLockedTokens } from '../services/cashu/cashuLockedTokensService';
+import { getSentLockedTokens, getReceivedTokens, EcashTokenRecord, subscribeToTokenChanges } from '../services/cashu/cashuLockedTokensService';
+import { loadTokensWithStatus, TokenWithStatus } from '../services/cashu/tokenStatusService';
 import { logger } from '../utils/logger';
 import type { DisplayAssetType } from '../types/assets';
-import type { Proof, ProofState } from '../types/cashu';
-
-interface CheckProofsResult {
-  states?: ProofState[];
-}
 
 interface TxData {
   amount: number | bigint;
@@ -21,6 +18,7 @@ interface TxData {
   numericAmount: number;
   isSent: boolean;
   isReceived: boolean;
+  isAutoclaim?: boolean;
 }
 
 // Use a more flexible type for processed transactions
@@ -36,19 +34,14 @@ export interface ProcessedTransaction {
   ecashToken?: boolean;
   tokenData?: EcashToken;
   claimed?: boolean;
+  isAutoclaim?: boolean;
   timestamp?: number;
   vaultTransaction?: boolean;
   [key: string]: unknown;
 }
 
-interface EcashToken {
-  id: string;
-  token?: string;
-  amount: number;
-  timestamp: number;
-  claimed?: boolean;
-  [key: string]: unknown;
-}
+/** Type alias for EcashToken - uses TokenWithStatus from the service */
+type EcashToken = TokenWithStatus;
 
 interface UseAssetTransactionsReturn {
   transactions: ProcessedTransaction[];
@@ -70,133 +63,66 @@ export function useAssetTransactions(
   const lastTxHashRef = useRef('');
   const [filteredTransactions, setFilteredTransactions] = useState<ProcessedTransaction[]>([]);
   const [ecashTokens, setEcashTokens] = useState<EcashToken[]>([]);
-  // Start with loading=true for UNIT assets so we show spinner immediately
-  const [ecashLoading, setEcashLoading] = useState(assetType === 'UNIT' && !advancedMode);
-  const [ecashInitialLoadDone, setEcashInitialLoadDone] = useState(assetType !== 'UNIT' || advancedMode);
-  const hasCalculatedInitialTransactions = useRef(false);
+  // Track if ecash tokens have loaded
+  const [ecashReady, setEcashReady] = useState(assetType !== 'UNIT' || advancedMode);
+  // Track if we've done initial load (prevents spinner on background refetches)
+  const hasLoadedRef = useRef(false);
+  // Track if transactions have been processed at least once
+  const transactionsProcessedRef = useRef(false);
+  // Counter to trigger ecash token refetch when tokens change
+  const [ecashRefetchTrigger, setEcashRefetchTrigger] = useState(0);
+  // Cache for parsed transaction data - keyed by txid, persists across renders
+  const txDataCacheRef = useRef<Map<string, TxData>>(new Map());
+
+  // Subscribe to token changes to trigger refetch (debounced to prevent rapid updates)
+  useEffect(() => {
+    if (assetType !== 'UNIT' || advancedMode) return;
+
+    let debounceTimer: ReturnType<typeof setTimeout> | null = null;
+    const unsubscribe = subscribeToTokenChanges(() => {
+      if (debounceTimer) clearTimeout(debounceTimer);
+      debounceTimer = setTimeout(() => {
+        logger.debug('[useAssetTransactions] Token change detected, triggering refetch');
+        setEcashRefetchTrigger(prev => prev + 1);
+      }, 300);
+    });
+
+    return () => {
+      if (debounceTimer) clearTimeout(debounceTimer);
+      unsubscribe();
+    };
+  }, [assetType, advancedMode]);
 
   // Fetch ecash tokens when assetType is UNIT and advanced mode is off
   useEffect(() => {
-    logger.debug('[useAssetTransactions] Ecash fetch check:', { assetType, advancedMode });
     if (assetType === 'UNIT' && !advancedMode) {
       let isMounted = true;
 
-      // Load ecash tokens (no delay needed since claimed tokens are cached)
+      // Only reset ecashReady on initial load, not background refetches
+      const isInitialLoad = !hasLoadedRef.current;
+      if (isInitialLoad) {
+        setEcashReady(false);
+      }
+
       const loadEcashTokens = async () => {
-          try {
-            setEcashLoading(true);
-            const { getReceivedTokens } = await import('../services/cashu/cashuLockedTokensService');
-            const sentTokens = await getSentLockedTokens(taprootAddress) as unknown as EcashToken[];
-            const receivedTokens = await getReceivedTokens(taprootAddress) as unknown as EcashToken[];
-            const tokens: EcashToken[] = [...sentTokens, ...receivedTokens];
-            if (!isMounted) return;
-            logger.debug('[useAssetTransactions] Loaded ecash tokens:', { total: tokens.length, sent: sentTokens.length, received: receivedTokens.length });
-
-          // Check which tokens have been claimed
-          const { decodeToken } = await import('../services/cashu/crypto') as { decodeToken: (token: string) => { proofs: Proof[] } };
-          const { checkProofsSpent } = await import('../services/cashu/cashuMintClient') as { checkProofsSpent: (proofs: Proof[]) => Promise<CheckProofsResult> };
-          const { updateTokenClaimedStatus } = await import('../services/cashu/cashuLockedTokensService') as { updateTokenClaimedStatus: (id: string, claimed: boolean) => Promise<void> };
-
-          let errorCount = 0;
-          const MAX_ERRORS_TO_LOG = 3;
-
-          // Process tokens in parallel
-          const tokensWithStatus = await Promise.all(
-            tokens.map(async (token) => {
-              try {
-                // If token already has cached claimed status, use it
-                if (token.claimed === true) {
-                  logger.debug('[useAssetTransactions] Using cached claimed status for token:', { tokenId: token.id });
-                  return {
-                    ...token,
-                    claimed: true,
-                  };
-                }
-
-                // Debug: Log what we're trying to decode
-                logger.debug('[useAssetTransactions] Checking token:', {
-                  id: token.id,
-                  hasToken: !!token.token,
-                  tokenType: typeof token.token,
-                  tokenStart: token.token?.substring(0, 20),
-                  isUrl: token.token?.startsWith('http'),
-                  isCashu: token.token?.startsWith('cashu'),
-                  cachedClaimed: token.claimed,
-                });
-
-                // Validate that token.token exists and is a Cashu token string (not a URL)
-                if (!token.token || typeof token.token !== 'string') {
-                  logger.warn('[useAssetTransactions] Missing or invalid token:', { tokenId: token.id });
-                  return {
-                    ...token,
-                    claimed: false,
-                  };
-                }
-
-                // Skip if it's a URL instead of a token
-                if (token.token.startsWith('http') || token.token.startsWith('ducat://')) {
-                  logger.warn('[useAssetTransactions] Token contains URL instead of Cashu token:', { tokenStart: token.token.substring(0, 50) });
-                  return {
-                    ...token,
-                    claimed: false,
-                  };
-                }
-
-                // Validate Cashu token format
-                if (!token.token.startsWith('cashu')) {
-                  logger.warn('[useAssetTransactions] Invalid Cashu token format:', { tokenStart: token.token.substring(0, 50) });
-                  return {
-                    ...token,
-                    claimed: false,
-                  };
-                }
-
-                // Decode token to get proofs
-                const { proofs } = decodeToken(token.token);
-
-                // Check if proofs are spent
-                const result = await checkProofsSpent(proofs);
-                const allSpent = result.states?.every(s => s.state === 'SPENT');
-
-                // If token is now claimed, update cache
-                if (allSpent && !token.claimed) {
-                  logger.debug('[useAssetTransactions] Token newly claimed, updating cache:', { tokenId: token.id });
-                  await updateTokenClaimedStatus(token.id, true);
-                }
-
-                return {
-                  ...token,
-                  claimed: allSpent,
-                };
-              } catch (error) {
-                // Only log first few errors to avoid spam
-                if (errorCount < MAX_ERRORS_TO_LOG) {
-                  const errorMessage = error instanceof Error ? error.message : String(error);
-                  logger.error('[useAssetTransactions] Failed to check token status:', { error: errorMessage });
-                  errorCount++;
-                  if (errorCount === MAX_ERRORS_TO_LOG) {
-                    logger.warn('[useAssetTransactions] Suppressing further errors...');
-                  }
-                }
-                return {
-                  ...token,
-                  claimed: false, // Default to unclaimed if check fails
-                };
-              }
-            })
+        try {
+          const tokensWithStatus = await loadTokensWithStatus(
+            taprootAddress,
+            getSentLockedTokens,
+            getReceivedTokens
           );
 
           if (isMounted) {
             setEcashTokens(tokensWithStatus);
-            setEcashLoading(false);
-            setEcashInitialLoadDone(true);
+            setEcashReady(true);
+            hasLoadedRef.current = true;
           }
-        } catch (error) {
+        } catch (error: unknown) {
           logger.error('[useAssetTransactions] Failed to load ecash tokens:', { error: error instanceof Error ? error.message : String(error) });
           if (isMounted) {
             setEcashTokens([]);
-            setEcashLoading(false);
-            setEcashInitialLoadDone(true);
+            setEcashReady(true);
+            hasLoadedRef.current = true;
           }
         }
       };
@@ -206,12 +132,23 @@ export function useAssetTransactions(
         isMounted = false;
       };
     } else {
-      logger.debug('[useAssetTransactions] Not loading ecash tokens - clearing');
-      // Clear ecash tokens when not UNIT or when advanced mode is on
+      // Not UNIT or advanced mode - ecash is ready immediately
       setEcashTokens([]);
-      setEcashInitialLoadDone(true); // Mark as done immediately for non-UNIT
+      setEcashReady(true);
     }
-  }, [assetType, advancedMode, taprootAddress]);
+  }, [assetType, advancedMode, taprootAddress, ecashRefetchTrigger]);
+
+  // Cache taproot pubkey decoding - only changes when address changes
+  const currentPubkeyHex = useMemo(() => {
+    if (!taprootAddress) return null;
+    try {
+      const decoded = bitcoin.address.fromBech32(taprootAddress);
+      return Buffer.from(decoded.data).toString('hex');
+    } catch (e) {
+      logger.warn('[useAssetTransactions] Failed to decode taproot address for self-claim detection');
+      return null;
+    }
+  }, [taprootAddress]);
 
   // Filter and process transactions - deferred to avoid blocking navigation
   useEffect(() => {
@@ -222,7 +159,7 @@ export function useAssetTransactions(
 
     // For UNIT assets, wait for ecash tokens to finish loading before displaying
     // This ensures runes and ecash transactions appear together
-    if (assetType === 'UNIT' && !advancedMode && !ecashInitialLoadDone) {
+    if (assetType === 'UNIT' && !advancedMode && !ecashReady) {
       logger.debug('[useAssetTransactions] Waiting for ecash tokens to load before displaying UNIT transactions');
       return;
     }
@@ -242,73 +179,113 @@ export function useAssetTransactions(
       return;
     }
 
-    // First filter, then process only what we need
-    const filtered: ProcessedTransaction[] = transactionHistory
-      .filter(tx => {
-        // Quick filter first to reduce processing
-        if (tx.vaultTransaction) return false;
+    // Process transactions in a single pass with caching
+    // Uses cache to avoid recalculating when only confirmation status changes
+    const filtered: ProcessedTransaction[] = [];
+    const cache = txDataCacheRef.current;
 
-        // If already has txData, use it for filtering
-        const txWithData = tx as ProcessedTransaction;
-        if (txWithData.txData) {
-          return txWithData.txData.assetType === assetType;
-        }
+    for (const tx of transactionHistory) {
+      // Skip vault transactions
+      if (tx.vaultTransaction) continue;
 
-        // For unprocessed transactions, we'll process them next
-        return true;
-      })
-      .map(tx => {
-        // If already processed, return as-is
-        const txWithData = tx as ProcessedTransaction;
-        if (txWithData.txData) return txWithData;
+      // Check for existing txData on the transaction object first (from upstream processing)
+      const txWithData = tx as ProcessedTransaction;
+      let processedTxData: TxData | undefined;
 
-        // Process regular transaction - create new object to avoid mutation
-        const txData = calculateTransactionAmount(tx, segwitAddress, taprootAddress);
-        const amount = typeof txData === 'object' ? txData.amount : txData;
-        const txAssetType = typeof txData === 'object' ? txData.type : 'BTC';
-        const numericAmount = typeof amount === 'bigint' ? Number(amount) : amount;
+      if (txWithData.txData) {
+        // Use existing txData without recalculating
+        processedTxData = txWithData.txData;
+      } else {
+        // Check cache - txid is immutable so amount won't change
+        processedTxData = cache.get(tx.txid);
 
-        return {
-          ...tx,
-          txData: {
+        if (!processedTxData) {
+          // Calculate and cache transaction data
+          const txData = calculateTransactionAmount(tx, segwitAddress, taprootAddress);
+          const amount = typeof txData === 'object' ? txData.amount : txData;
+          const txAssetType = typeof txData === 'object' ? txData.type : 'BTC';
+          const numericAmount = typeof amount === 'bigint' ? Number(amount) : amount;
+
+          processedTxData = {
             amount,
             assetType: txAssetType,
             numericAmount,
             isSent: numericAmount < 0,
             isReceived: numericAmount > 0,
+          };
+
+          cache.set(tx.txid, processedTxData);
+        }
+      }
+
+      // Filter by asset type
+      if (processedTxData.assetType !== assetType) continue;
+
+      // Filter out transactions with no amount (0 or null)
+      if (!processedTxData.numericAmount || processedTxData.numericAmount === 0) continue;
+
+      filtered.push({
+        ...tx,
+        txData: processedTxData,
+      } as ProcessedTransaction);
+    }
+
+    // First pass: identify self-claimed sent tokens (using cached currentPubkeyHex)
+    const selfClaimedSentTokenIds = new Set<string>();
+    ecashTokens.forEach((token) => {
+      const isSentToken = 'recipient' in token;
+      if (isSentToken && token.claimed) {
+        const sentToken = token as { recipient: string; taprootAddress: string | null };
+        const isSelfClaim =
+          (sentToken.taprootAddress && taprootAddress && sentToken.taprootAddress === taprootAddress) ||
+          (currentPubkeyHex && sentToken.recipient === currentPubkeyHex);
+        if (isSelfClaim) {
+          selfClaimedSentTokenIds.add(token.id);
+        }
+      }
+    });
+
+    // Merge ecash tokens, filtering out received tokens that are self-claims
+    const ecashTxs: ProcessedTransaction[] = ecashTokens
+      .filter((token) => {
+        const isReceivedToken = 'sender' in token;
+        // Filter out received tokens if they match the same account (self-claim duplicate)
+        if (isReceivedToken) {
+          const receivedToken = token as { sender: string; taprootAddress: string | null };
+          if (receivedToken.taprootAddress && taprootAddress && receivedToken.taprootAddress === taprootAddress) {
+            logger.debug('[useAssetTransactions] Filtering out self-claim received token:', { tokenId: token.id });
+            return false;
+          }
+        }
+        return true;
+      })
+      .map((token) => {
+        // Keep amount as integer (smallest units) - conversion to display happens in UI
+        const amount = token.amount;
+        const isSentToken = 'recipient' in token;
+        const isAutoclaim = selfClaimedSentTokenIds.has(token.id);
+
+        logger.debug('[useAssetTransactions] Creating ecash tx:', { tokenId: token.id, amount, claimed: token.claimed, isAutoclaim, isSentToken });
+
+        return {
+          txid: token.id,
+          timestamp: token.timestamp,
+          ecashToken: true, // Flag to identify as ecash transaction
+          tokenData: token, // Include full token data for TokenDetailsSheet
+          claimed: token.claimed, // Whether token has been claimed
+          isAutoclaim, // Flag for self-claimed tokens
+          txData: {
+            // For self-claim, show positive amount (got funds back)
+            // Amount stays as integer (smallest units)
+            amount: isAutoclaim ? amount : (isSentToken ? -amount : amount),
+            assetType: 'UNIT', // Set to UNIT so it appears in UNIT activity
+            numericAmount: isAutoclaim ? amount : (isSentToken ? -amount : amount),
+            isSent: isSentToken && !isAutoclaim,
+            isReceived: !isSentToken || isAutoclaim,
+            isAutoclaim,
           },
         } as ProcessedTransaction;
-      })
-      .filter(tx => {
-        // Filter by asset type
-        if (tx.txData?.assetType !== assetType) return false;
-
-        // Filter out transactions with no amount (0 or null)
-        const numericAmount = tx.txData?.numericAmount;
-        if (!numericAmount || numericAmount === 0) return false;
-
-        return true;
       });
-
-    // Merge ecash tokens if applicable
-    const ecashTxs: ProcessedTransaction[] = ecashTokens.map((token) => {
-      const amount = token.amount / 100; // Convert from smallest units to display units
-      logger.debug('[useAssetTransactions] Creating ecash tx:', { tokenId: token.id, amount, claimed: token.claimed });
-      return {
-        txid: token.id,
-        timestamp: token.timestamp,
-        ecashToken: true, // Flag to identify as ecash transaction
-        tokenData: token, // Include full token data for TokenDetailsSheet
-        claimed: token.claimed, // Whether token has been claimed
-        txData: {
-          amount: -amount, // Negative because it's sent
-          assetType: 'UNIT', // Set to UNIT so it appears in UNIT activity
-          numericAmount: -amount,
-          isSent: true,
-          isReceived: false,
-        },
-      } as ProcessedTransaction;
-    });
 
     logger.debug('[useAssetTransactions] Merging transactions:', {
       assetType,
@@ -328,16 +305,16 @@ export function useAssetTransactions(
     lastTxHashRef.current = txHash;
     filteredTxRef.current = merged;
     setFilteredTransactions(merged);
+    transactionsProcessedRef.current = true;
+  }, [transactionHistory, segwitAddress, taprootAddress, assetType, ecashTokens, ecashReady, advancedMode, currentPubkeyHex]);
 
-    // Mark that we've calculated initial transactions for UNIT assets
-    if (assetType === 'UNIT' && !advancedMode) {
-      hasCalculatedInitialTransactions.current = true;
-    }
-  }, [transactionHistory, segwitAddress, taprootAddress, assetType, ecashTokens, ecashInitialLoadDone, advancedMode]);
+  // Loading is true until:
+  // 1. Ecash is ready (for UNIT) or immediately (for BTC)
+  // 2. AND transactions have been processed at least once
+  const isLoading = !ecashReady || !transactionsProcessedRef.current;
 
   return {
     transactions: filteredTransactions,
-    // Show loading if ecash is loading OR if we haven't calculated transactions yet for UNIT
-    isLoading: ecashLoading || (assetType === 'UNIT' && !advancedMode && !hasCalculatedInitialTransactions.current),
+    isLoading,
   };
 }

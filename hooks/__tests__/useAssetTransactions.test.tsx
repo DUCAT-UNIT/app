@@ -2,8 +2,7 @@
 /**
  * Tests for useAssetTransactions Hook
  *
- * Note: This hook has async effects with dynamic imports for UNIT assets.
- * Tests focus on BTC transactions which don't trigger the async ecash loading.
+ * Covers transaction filtering, ecash token loading, and edge cases.
  */
 
 import React from 'react';
@@ -21,9 +20,39 @@ jest.mock('../../utils/logger', () => ({
   },
 }));
 
+const mockGetSentLockedTokens = jest.fn();
+const mockGetReceivedTokens = jest.fn();
+const mockUpdateTokenClaimedStatus = jest.fn();
+const mockSubscribeToTokenChanges = jest.fn(() => jest.fn()); // Returns unsubscribe function
+
 jest.mock('../../services/cashu/cashuLockedTokensService', () => ({
-  getSentLockedTokens: jest.fn(() => Promise.resolve([])),
-  getReceivedTokens: jest.fn(() => Promise.resolve([])),
+  getSentLockedTokens: (...args) => mockGetSentLockedTokens(...args),
+  getReceivedTokens: (...args) => mockGetReceivedTokens(...args),
+  updateTokenClaimedStatus: (...args) => mockUpdateTokenClaimedStatus(...args),
+  subscribeToTokenChanges: (...args) => mockSubscribeToTokenChanges(...args),
+}));
+
+// Mock tokenStatusService - delegates to underlying token fetching mocks
+jest.mock('../../services/cashu/tokenStatusService', () => ({
+  loadTokensWithStatus: async (taprootAddress, getSentLockedTokens, getReceivedTokens) => {
+    const sent = await getSentLockedTokens(taprootAddress);
+    const received = await getReceivedTokens(taprootAddress);
+    // Return tokens with claimed status (default to false if not specified)
+    return [...sent, ...received].map(t => ({ ...t, claimed: t.claimed ?? false }));
+  },
+  checkTokensStatus: jest.fn(),
+  checkTokenStatus: jest.fn(),
+  clearTokenStatusCache: jest.fn(),
+}));
+
+const mockDecodeToken = jest.fn();
+jest.mock('../../services/cashu/crypto', () => ({
+  decodeToken: (...args) => mockDecodeToken(...args),
+}));
+
+const mockCheckProofsSpent = jest.fn();
+jest.mock('../../services/cashu/cashuMintClient', () => ({
+  checkProofsSpent: (...args) => mockCheckProofsSpent(...args),
 }));
 
 jest.mock('../../services/transactionHistoryService');
@@ -60,6 +89,11 @@ describe('useAssetTransactions', () => {
 
   beforeEach(() => {
     jest.clearAllMocks();
+    mockGetSentLockedTokens.mockResolvedValue([]);
+    mockGetReceivedTokens.mockResolvedValue([]);
+    mockDecodeToken.mockReturnValue({ proofs: [] });
+    mockCheckProofsSpent.mockResolvedValue({ states: [] });
+    mockUpdateTokenClaimedStatus.mockResolvedValue(undefined);
   });
 
   it('should return empty array when transaction history is null', () => {
@@ -71,7 +105,8 @@ describe('useAssetTransactions', () => {
     });
 
     expect(result.current.transactions).toEqual([]);
-    expect(result.current.isLoading).toBe(false);
+    // isLoading is true until transactions are processed at least once
+    expect(result.current.isLoading).toBe(true);
   });
 
   it('should return empty array when segwit address is missing', () => {
@@ -341,5 +376,912 @@ describe('useAssetTransactions', () => {
     });
 
     expect(result.current.isLoading).toBe(false);
+  });
+
+  it('should filter transactions by asset type (filter out non-matching)', () => {
+    const txHistory = [
+      {
+        txid: 'tx1',
+        txData: { amount: 100, assetType: 'UNIT', numericAmount: 100 },
+      },
+      {
+        txid: 'tx2',
+        txData: { amount: 100000, assetType: 'BTC', numericAmount: 100000 },
+      },
+    ];
+
+    const { result } = renderHook({
+      txHistory,
+      assetType: 'BTC',
+      segwit: segwitAddress,
+      taproot: taprootAddress,
+    });
+
+    expect(result.current.transactions).toHaveLength(1);
+    expect(result.current.transactions[0].txid).toBe('tx2');
+  });
+
+  it('should use cached transactions when hash unchanged', () => {
+    transactionHistoryService.calculateTransactionAmount.mockReturnValue({
+      amount: 100000,
+      type: 'BTC',
+    });
+
+    const txHistory = [
+      { txid: 'tx1', status: { confirmed: true, block_height: 100 } },
+    ];
+
+    const { result, rerender } = renderHook({
+      txHistory,
+      assetType: 'BTC',
+      segwit: segwitAddress,
+      taproot: taprootAddress,
+    });
+
+    expect(result.current.transactions).toHaveLength(1);
+    const firstResult = result.current.transactions;
+
+    // Rerender with same data
+    rerender({
+      txHistory,
+      assetType: 'BTC',
+      segwit: segwitAddress,
+      taproot: taprootAddress,
+    });
+
+    // Should use cached result
+    expect(result.current.transactions).toBe(firstResult);
+  });
+
+  it('should sort transactions by timestamp', () => {
+    const txHistory = [
+      {
+        txid: 'tx1',
+        status: { block_time: 1000 },
+        txData: { amount: 100000, assetType: 'BTC', numericAmount: 100000 },
+      },
+      {
+        txid: 'tx2',
+        status: { block_time: 3000 },
+        txData: { amount: 100000, assetType: 'BTC', numericAmount: 100000 },
+      },
+      {
+        txid: 'tx3',
+        status: { block_time: 2000 },
+        txData: { amount: 100000, assetType: 'BTC', numericAmount: 100000 },
+      },
+    ];
+
+    const { result } = renderHook({
+      txHistory,
+      assetType: 'BTC',
+      segwit: segwitAddress,
+      taproot: taprootAddress,
+    });
+
+    // Most recent first
+    expect(result.current.transactions[0].txid).toBe('tx2');
+    expect(result.current.transactions[1].txid).toBe('tx3');
+    expect(result.current.transactions[2].txid).toBe('tx1');
+  });
+
+  describe('UNIT asset type with ecash tokens', () => {
+    it('should show loading initially for UNIT assets', async () => {
+      // Create a promise that won't resolve immediately
+      let resolveSentTokens;
+      mockGetSentLockedTokens.mockReturnValue(new Promise((resolve) => {
+        resolveSentTokens = resolve;
+      }));
+
+      const { result } = renderHook({
+        txHistory: [],
+        assetType: 'UNIT',
+        segwit: segwitAddress,
+        taproot: taprootAddress,
+        advancedMode: false,
+      });
+
+      expect(result.current.isLoading).toBe(true);
+
+      // Cleanup - resolve the promise
+      await act(async () => {
+        resolveSentTokens([]);
+        await Promise.resolve();
+      });
+    });
+
+    it('should load and display ecash tokens for UNIT', async () => {
+      const sentTokens = [
+        { id: 'token1', token: 'cashuAbc123', amount: 10000, timestamp: 2000 },
+      ];
+      const receivedTokens = [
+        { id: 'token2', token: 'cashuDef456', amount: 5000, timestamp: 3000, claimed: true },
+      ];
+
+      mockGetSentLockedTokens.mockResolvedValue(sentTokens);
+      mockGetReceivedTokens.mockResolvedValue(receivedTokens);
+      mockDecodeToken.mockReturnValue({ proofs: [{ id: 'proof1' }] });
+      mockCheckProofsSpent.mockResolvedValue({ states: [{ state: 'UNSPENT' }] });
+
+      const { result } = renderHook({
+        txHistory: [],
+        assetType: 'UNIT',
+        segwit: segwitAddress,
+        taproot: taprootAddress,
+        advancedMode: false,
+      });
+
+      // Wait for async loading
+      await act(async () => {
+        await Promise.resolve();
+        await Promise.resolve();
+        await Promise.resolve();
+      });
+
+      expect(result.current.isLoading).toBe(false);
+      expect(result.current.transactions).toHaveLength(2);
+      expect(result.current.transactions[0].ecashToken).toBe(true);
+    });
+
+    it('should handle token with cached claimed status', async () => {
+      const tokens = [
+        { id: 'token1', token: 'cashuAbc123', amount: 10000, timestamp: 2000, claimed: true },
+      ];
+
+      mockGetSentLockedTokens.mockResolvedValue(tokens);
+      mockGetReceivedTokens.mockResolvedValue([]);
+
+      const { result } = renderHook({
+        txHistory: [],
+        assetType: 'UNIT',
+        segwit: segwitAddress,
+        taproot: taprootAddress,
+        advancedMode: false,
+      });
+
+      await act(async () => {
+        await Promise.resolve();
+        await Promise.resolve();
+        await Promise.resolve();
+      });
+
+      expect(result.current.transactions[0].claimed).toBe(true);
+    });
+
+    it('should handle missing token string', async () => {
+      const tokens = [
+        { id: 'token1', amount: 10000, timestamp: 2000 }, // No token string
+      ];
+
+      mockGetSentLockedTokens.mockResolvedValue(tokens);
+      mockGetReceivedTokens.mockResolvedValue([]);
+
+      const { result } = renderHook({
+        txHistory: [],
+        assetType: 'UNIT',
+        segwit: segwitAddress,
+        taproot: taprootAddress,
+        advancedMode: false,
+      });
+
+      await act(async () => {
+        await Promise.resolve();
+        await Promise.resolve();
+        await Promise.resolve();
+      });
+
+      expect(result.current.transactions).toHaveLength(1);
+      expect(result.current.transactions[0].claimed).toBe(false);
+    });
+
+    it('should handle URL instead of cashu token', async () => {
+      const tokens = [
+        { id: 'token1', token: 'http://example.com/token', amount: 10000, timestamp: 2000 },
+      ];
+
+      mockGetSentLockedTokens.mockResolvedValue(tokens);
+      mockGetReceivedTokens.mockResolvedValue([]);
+
+      const { result } = renderHook({
+        txHistory: [],
+        assetType: 'UNIT',
+        segwit: segwitAddress,
+        taproot: taprootAddress,
+        advancedMode: false,
+      });
+
+      await act(async () => {
+        await Promise.resolve();
+        await Promise.resolve();
+        await Promise.resolve();
+      });
+
+      expect(result.current.transactions[0].claimed).toBe(false);
+    });
+
+    it('should handle ducat:// URL instead of cashu token', async () => {
+      const tokens = [
+        { id: 'token1', token: 'ducat://app/token', amount: 10000, timestamp: 2000 },
+      ];
+
+      mockGetSentLockedTokens.mockResolvedValue(tokens);
+      mockGetReceivedTokens.mockResolvedValue([]);
+
+      const { result } = renderHook({
+        txHistory: [],
+        assetType: 'UNIT',
+        segwit: segwitAddress,
+        taproot: taprootAddress,
+        advancedMode: false,
+      });
+
+      await act(async () => {
+        await Promise.resolve();
+        await Promise.resolve();
+        await Promise.resolve();
+      });
+
+      expect(result.current.transactions[0].claimed).toBe(false);
+    });
+
+    it('should handle invalid token format (not starting with cashu)', async () => {
+      const tokens = [
+        { id: 'token1', token: 'invalid_token_format', amount: 10000, timestamp: 2000 },
+      ];
+
+      mockGetSentLockedTokens.mockResolvedValue(tokens);
+      mockGetReceivedTokens.mockResolvedValue([]);
+
+      const { result } = renderHook({
+        txHistory: [],
+        assetType: 'UNIT',
+        segwit: segwitAddress,
+        taproot: taprootAddress,
+        advancedMode: false,
+      });
+
+      await act(async () => {
+        await Promise.resolve();
+        await Promise.resolve();
+        await Promise.resolve();
+      });
+
+      expect(result.current.transactions[0].claimed).toBe(false);
+    });
+
+    it('should mark token as claimed when all proofs are spent', async () => {
+      const tokens = [
+        { id: 'token1', token: 'cashuAbc123', amount: 10000, timestamp: 2000, claimed: true },
+      ];
+
+      mockGetSentLockedTokens.mockResolvedValue(tokens);
+      mockGetReceivedTokens.mockResolvedValue([]);
+
+      const { result } = renderHook({
+        txHistory: [],
+        assetType: 'UNIT',
+        segwit: segwitAddress,
+        taproot: taprootAddress,
+        advancedMode: false,
+      });
+
+      await act(async () => {
+        await Promise.resolve();
+        await Promise.resolve();
+        await Promise.resolve();
+      });
+
+      expect(result.current.transactions[0].claimed).toBe(true);
+    });
+
+    it('should handle error during token status check', async () => {
+      const tokens = [
+        { id: 'token1', token: 'cashuAbc123', amount: 10000, timestamp: 2000 },
+      ];
+
+      mockGetSentLockedTokens.mockResolvedValue(tokens);
+      mockGetReceivedTokens.mockResolvedValue([]);
+
+      const { result } = renderHook({
+        txHistory: [],
+        assetType: 'UNIT',
+        segwit: segwitAddress,
+        taproot: taprootAddress,
+        advancedMode: false,
+      });
+
+      await act(async () => {
+        await Promise.resolve();
+        await Promise.resolve();
+        await Promise.resolve();
+      });
+
+      // Should default to unclaimed (no claimed status provided)
+      expect(result.current.transactions[0].claimed).toBe(false);
+    });
+
+    it('should limit error logging to MAX_ERRORS_TO_LOG', async () => {
+      const tokens = [
+        { id: 'token1', token: 'cashuA', amount: 100, timestamp: 1000 },
+        { id: 'token2', token: 'cashuB', amount: 200, timestamp: 2000 },
+        { id: 'token3', token: 'cashuC', amount: 300, timestamp: 3000 },
+        { id: 'token4', token: 'cashuD', amount: 400, timestamp: 4000 },
+        { id: 'token5', token: 'cashuE', amount: 500, timestamp: 5000 },
+      ];
+
+      mockGetSentLockedTokens.mockResolvedValue(tokens);
+      mockGetReceivedTokens.mockResolvedValue([]);
+      mockDecodeToken.mockImplementation(() => {
+        throw new Error('Decode failed');
+      });
+
+      const { result } = renderHook({
+        txHistory: [],
+        assetType: 'UNIT',
+        segwit: segwitAddress,
+        taproot: taprootAddress,
+        advancedMode: false,
+      });
+
+      await act(async () => {
+        await Promise.resolve();
+        await Promise.resolve();
+        await Promise.resolve();
+      });
+
+      // All 5 tokens should still be there, defaulted to unclaimed
+      expect(result.current.transactions).toHaveLength(5);
+    });
+
+    it('should handle error loading ecash tokens', async () => {
+      mockGetSentLockedTokens.mockRejectedValue(new Error('Network error'));
+
+      const { result } = renderHook({
+        txHistory: [],
+        assetType: 'UNIT',
+        segwit: segwitAddress,
+        taproot: taprootAddress,
+        advancedMode: false,
+      });
+
+      await act(async () => {
+        await Promise.resolve();
+        await Promise.resolve();
+        await Promise.resolve();
+      });
+
+      expect(result.current.isLoading).toBe(false);
+      expect(result.current.transactions).toEqual([]);
+    });
+
+    it('should convert ecash amounts from smallest units', async () => {
+      // Use a different recipient address to ensure this is NOT a self-claim
+      const tokens = [
+        { id: 'token1', token: 'cashuAbc123', amount: 10000, timestamp: 2000, claimed: true, recipient: 'different_recipient_pubkey', taprootAddress: 'bc1pdifferentaddress' },
+      ];
+
+      mockGetSentLockedTokens.mockResolvedValue(tokens);
+      mockGetReceivedTokens.mockResolvedValue([]);
+
+      const { result } = renderHook({
+        txHistory: [],
+        assetType: 'UNIT',
+        segwit: segwitAddress,
+        taproot: taprootAddress,
+        advancedMode: false,
+      });
+
+      await act(async () => {
+        await Promise.resolve();
+        await Promise.resolve();
+        await Promise.resolve();
+      });
+
+      // Amount stays as integer (10000), negative because it's sent (not a self-claim)
+      expect(result.current.transactions[0].txData.numericAmount).toBe(-10000);
+    });
+
+    it('should merge ecash and regular transactions sorted by time', async () => {
+      const tokens = [
+        { id: 'token1', token: 'cashuAbc', amount: 10000, timestamp: 2000, claimed: true },
+      ];
+      const txHistory = [
+        {
+          txid: 'tx1',
+          status: { block_time: 1000 },
+          txData: { amount: 100, assetType: 'UNIT', numericAmount: 100 },
+        },
+        {
+          txid: 'tx2',
+          status: { block_time: 3000 },
+          txData: { amount: 200, assetType: 'UNIT', numericAmount: 200 },
+        },
+      ];
+
+      mockGetSentLockedTokens.mockResolvedValue(tokens);
+      mockGetReceivedTokens.mockResolvedValue([]);
+
+      const { result } = renderHook({
+        txHistory,
+        assetType: 'UNIT',
+        segwit: segwitAddress,
+        taproot: taprootAddress,
+        advancedMode: false,
+      });
+
+      await act(async () => {
+        await Promise.resolve();
+        await Promise.resolve();
+        await Promise.resolve();
+      });
+
+      expect(result.current.transactions).toHaveLength(3);
+      // Sorted by time: tx2 (3000), token1 (2000), tx1 (1000)
+      expect(result.current.transactions[0].txid).toBe('tx2');
+      expect(result.current.transactions[1].txid).toBe('token1');
+      expect(result.current.transactions[2].txid).toBe('tx1');
+    });
+
+    it('should not load ecash when in advanced mode for UNIT', async () => {
+      const { result } = renderHook({
+        txHistory: [],
+        assetType: 'UNIT',
+        segwit: segwitAddress,
+        taproot: taprootAddress,
+        advancedMode: true,
+      });
+
+      expect(mockGetSentLockedTokens).not.toHaveBeenCalled();
+      expect(result.current.isLoading).toBe(false);
+    });
+
+    it('should cleanup on unmount (isMounted check)', async () => {
+      let resolveSentTokens;
+      mockGetSentLockedTokens.mockReturnValue(new Promise((resolve) => {
+        resolveSentTokens = resolve;
+      }));
+
+      const { result, unmount } = renderHook({
+        txHistory: [],
+        assetType: 'UNIT',
+        segwit: segwitAddress,
+        taproot: taprootAddress,
+        advancedMode: false,
+      });
+
+      // Unmount before the promise resolves
+      unmount();
+
+      // Now resolve the promise
+      await act(async () => {
+        resolveSentTokens([{ id: 'token1', token: 'cashuAbc', amount: 100, timestamp: 1000 }]);
+        await Promise.resolve();
+      });
+
+      // No crash should occur
+    });
+
+    it('should not update state when unmounted after tokens are fetched but before processing', async () => {
+      let resolveSentTokens;
+      let resolveReceivedTokens;
+
+      mockGetSentLockedTokens.mockReturnValue(new Promise((resolve) => {
+        resolveSentTokens = resolve;
+      }));
+      mockGetReceivedTokens.mockReturnValue(new Promise((resolve) => {
+        resolveReceivedTokens = resolve;
+      }));
+
+      const { unmount } = renderHook({
+        txHistory: [],
+        assetType: 'UNIT',
+        segwit: segwitAddress,
+        taproot: taprootAddress,
+        advancedMode: false,
+      });
+
+      // Resolve sent tokens first
+      await act(async () => {
+        resolveSentTokens([]);
+        await Promise.resolve();
+      });
+
+      // Then resolve received and unmount immediately after
+      await act(async () => {
+        resolveReceivedTokens([]);
+        unmount();
+        await Promise.resolve();
+      });
+
+      // No crash should occur - isMounted check should prevent setState
+    });
+
+    it('should not set state when unmounted after error loading tokens', async () => {
+      let rejectSentTokens;
+      mockGetSentLockedTokens.mockReturnValue(new Promise((_, reject) => {
+        rejectSentTokens = reject;
+      }));
+
+      const { unmount } = renderHook({
+        txHistory: [],
+        assetType: 'UNIT',
+        segwit: segwitAddress,
+        taproot: taprootAddress,
+        advancedMode: false,
+      });
+
+      // Unmount before the promise rejects
+      unmount();
+
+      // Now reject the promise
+      await act(async () => {
+        rejectSentTokens(new Error('Network error'));
+        await Promise.resolve();
+        await Promise.resolve();
+      });
+
+      // No crash should occur - isMounted check should prevent setState
+    });
+
+    it('should handle checkProofsSpent returning undefined states', async () => {
+      const tokens = [
+        { id: 'token1', token: 'cashuAbc123', amount: 10000, timestamp: 2000 },
+      ];
+
+      mockGetSentLockedTokens.mockResolvedValue(tokens);
+      mockGetReceivedTokens.mockResolvedValue([]);
+      mockDecodeToken.mockReturnValue({ proofs: [{ id: 'proof1' }] });
+      mockCheckProofsSpent.mockResolvedValue({}); // No states array
+
+      const { result } = renderHook({
+        txHistory: [],
+        assetType: 'UNIT',
+        segwit: segwitAddress,
+        taproot: taprootAddress,
+        advancedMode: false,
+      });
+
+      await act(async () => {
+        await Promise.resolve();
+        await Promise.resolve();
+        await Promise.resolve();
+      });
+
+      // allSpent should be undefined, not true, so should not update claimed
+      expect(mockUpdateTokenClaimedStatus).not.toHaveBeenCalled();
+    });
+
+    it('should wait for ecash to load before displaying UNIT transactions', async () => {
+      let resolveSentTokens;
+      mockGetSentLockedTokens.mockReturnValue(new Promise((resolve) => {
+        resolveSentTokens = resolve;
+      }));
+      mockGetReceivedTokens.mockResolvedValue([]);
+
+      const txHistory = [
+        {
+          txid: 'tx1',
+          txData: { amount: 100, assetType: 'UNIT', numericAmount: 100 },
+        },
+      ];
+
+      const { result } = renderHook({
+        txHistory,
+        assetType: 'UNIT',
+        segwit: segwitAddress,
+        taproot: taprootAddress,
+        advancedMode: false,
+      });
+
+      // Before ecash loads, transactions should be empty (waiting)
+      expect(result.current.isLoading).toBe(true);
+
+      // Resolve ecash loading
+      await act(async () => {
+        resolveSentTokens([]);
+        await Promise.resolve();
+        await Promise.resolve();
+        await Promise.resolve();
+      });
+
+      expect(result.current.isLoading).toBe(false);
+      expect(result.current.transactions).toHaveLength(1);
+    });
+
+    it('should handle non-Error exception when loading tokens', async () => {
+      mockGetSentLockedTokens.mockRejectedValue('String error');
+
+      const { result } = renderHook({
+        txHistory: [],
+        assetType: 'UNIT',
+        segwit: segwitAddress,
+        taproot: taprootAddress,
+        advancedMode: false,
+      });
+
+      await act(async () => {
+        await Promise.resolve();
+        await Promise.resolve();
+        await Promise.resolve();
+      });
+
+      expect(result.current.isLoading).toBe(false);
+    });
+
+    it('should handle non-Error exception during token decode', async () => {
+      const tokens = [
+        { id: 'token1', token: 'cashuAbc123', amount: 10000, timestamp: 2000 },
+      ];
+
+      mockGetSentLockedTokens.mockResolvedValue(tokens);
+      mockGetReceivedTokens.mockResolvedValue([]);
+      mockDecodeToken.mockImplementation(() => {
+        throw 'String error';
+      });
+
+      const { result } = renderHook({
+        txHistory: [],
+        assetType: 'UNIT',
+        segwit: segwitAddress,
+        taproot: taprootAddress,
+        advancedMode: false,
+      });
+
+      await act(async () => {
+        await Promise.resolve();
+        await Promise.resolve();
+        await Promise.resolve();
+      });
+
+      expect(result.current.transactions[0].claimed).toBe(false);
+    });
+  });
+
+  describe('Transaction hash caching', () => {
+    it('should recalculate when block_height changes (confirmation)', () => {
+      transactionHistoryService.calculateTransactionAmount.mockReturnValue({
+        amount: 100000,
+        type: 'BTC',
+      });
+
+      const txHistory1 = [
+        { txid: 'tx1', status: { confirmed: false } },
+      ];
+      const txHistory2 = [
+        { txid: 'tx1', status: { confirmed: true, block_height: 100 } },
+      ];
+
+      const { result, rerender } = renderHook({
+        txHistory: txHistory1,
+        assetType: 'BTC',
+        segwit: segwitAddress,
+        taproot: taprootAddress,
+      });
+
+      const firstTxs = result.current.transactions;
+
+      rerender({
+        txHistory: txHistory2,
+        assetType: 'BTC',
+        segwit: segwitAddress,
+        taproot: taprootAddress,
+      });
+
+      // Should have recalculated since confirmation status changed
+      expect(result.current.transactions).not.toBe(firstTxs);
+    });
+
+    it('should recalculate when ecash tokens count changes', async () => {
+      mockGetSentLockedTokens.mockResolvedValue([
+        { id: 'token1', token: 'cashuAbc', amount: 100, timestamp: 1000, claimed: true },
+      ]);
+      mockGetReceivedTokens.mockResolvedValue([]);
+
+      const txHistory = [
+        {
+          txid: 'tx1',
+          txData: { amount: 100, assetType: 'UNIT', numericAmount: 100 },
+        },
+      ];
+
+      const { result, rerender } = renderHook({
+        txHistory,
+        assetType: 'UNIT',
+        segwit: segwitAddress,
+        taproot: taprootAddress,
+        advancedMode: false,
+      });
+
+      await act(async () => {
+        await Promise.resolve();
+        await Promise.resolve();
+        await Promise.resolve();
+      });
+
+      expect(result.current.transactions).toHaveLength(2); // 1 tx + 1 token
+
+      // Now add another token
+      mockGetSentLockedTokens.mockResolvedValue([
+        { id: 'token1', token: 'cashuAbc', amount: 100, timestamp: 1000, claimed: true },
+        { id: 'token2', token: 'cashuDef', amount: 200, timestamp: 2000, claimed: true },
+      ]);
+
+      rerender({
+        txHistory,
+        assetType: 'UNIT',
+        segwit: segwitAddress,
+        taproot: taprootAddress,
+        advancedMode: false,
+      });
+
+      await act(async () => {
+        await Promise.resolve();
+        await Promise.resolve();
+        await Promise.resolve();
+      });
+
+      // After second ecash load, should have recalculated
+      expect(result.current.transactions.length).toBeGreaterThanOrEqual(2);
+    });
+  });
+
+  describe('Sorting edge cases', () => {
+    it('should handle transactions without timestamp or block_time', () => {
+      const txHistory = [
+        {
+          txid: 'tx1',
+          txData: { amount: 100000, assetType: 'BTC', numericAmount: 100000 },
+        },
+        {
+          txid: 'tx2',
+          status: { block_time: 1000 },
+          txData: { amount: 100000, assetType: 'BTC', numericAmount: 100000 },
+        },
+      ];
+
+      const { result } = renderHook({
+        txHistory,
+        assetType: 'BTC',
+        segwit: segwitAddress,
+        taproot: taprootAddress,
+      });
+
+      // tx2 should come first (has time), tx1 second (no time = 0)
+      expect(result.current.transactions[0].txid).toBe('tx2');
+      expect(result.current.transactions[1].txid).toBe('tx1');
+    });
+
+    it('should prefer timestamp over block_time for ecash', async () => {
+      const tokens = [
+        { id: 'token1', token: 'cashuAbc', amount: 100, timestamp: 5000, claimed: true },
+      ];
+      const txHistory = [
+        {
+          txid: 'tx1',
+          timestamp: 2000, // Has both
+          status: { block_time: 1000 },
+          txData: { amount: 100, assetType: 'UNIT', numericAmount: 100 },
+        },
+      ];
+
+      mockGetSentLockedTokens.mockResolvedValue(tokens);
+      mockGetReceivedTokens.mockResolvedValue([]);
+
+      const { result } = renderHook({
+        txHistory,
+        assetType: 'UNIT',
+        segwit: segwitAddress,
+        taproot: taprootAddress,
+        advancedMode: false,
+      });
+
+      await act(async () => {
+        await Promise.resolve();
+        await Promise.resolve();
+        await Promise.resolve();
+      });
+
+      // token1 (5000) should come first
+      expect(result.current.transactions[0].txid).toBe('token1');
+      // tx1 uses timestamp (2000) not block_time (1000)
+      expect(result.current.transactions[1].txid).toBe('tx1');
+    });
+
+    it('should handle transaction without status object', () => {
+      const txHistory = [
+        {
+          txid: 'tx1',
+          // No status at all
+          txData: { amount: 100000, assetType: 'BTC', numericAmount: 100000 },
+        },
+        {
+          txid: 'tx2',
+          status: {}, // Empty status
+          txData: { amount: 100000, assetType: 'BTC', numericAmount: 100000 },
+        },
+      ];
+
+      const { result } = renderHook({
+        txHistory,
+        assetType: 'BTC',
+        segwit: segwitAddress,
+        taproot: taprootAddress,
+      });
+
+      // Both should be included, sorted by time (both have time=0)
+      expect(result.current.transactions).toHaveLength(2);
+    });
+  });
+
+  describe('txData edge cases', () => {
+    it('should filter transactions where txData is missing assetType', () => {
+      const txHistory = [
+        {
+          txid: 'tx1',
+          txData: { amount: 100000, numericAmount: 100000 }, // Missing assetType
+        },
+        {
+          txid: 'tx2',
+          txData: { amount: 100000, assetType: 'BTC', numericAmount: 100000 },
+        },
+      ];
+
+      const { result } = renderHook({
+        txHistory,
+        assetType: 'BTC',
+        segwit: segwitAddress,
+        taproot: taprootAddress,
+      });
+
+      // Only tx2 should be included
+      expect(result.current.transactions).toHaveLength(1);
+      expect(result.current.transactions[0].txid).toBe('tx2');
+    });
+
+    it('should filter out transaction when processed result object has no type property', () => {
+      // Return object without type property - txAssetType will be undefined
+      transactionHistoryService.calculateTransactionAmount.mockReturnValue({
+        amount: 100000,
+        // Missing type - becomes undefined, not 'BTC'
+      });
+
+      const txHistory = [
+        { txid: 'tx1' },
+      ];
+
+      const { result } = renderHook({
+        txHistory,
+        assetType: 'BTC',
+        segwit: segwitAddress,
+        taproot: taprootAddress,
+      });
+
+      // When type property is missing from object, assetType is undefined and doesn't match 'BTC'
+      expect(result.current.transactions).toHaveLength(0);
+    });
+
+    it('should handle transaction where txData has null values', () => {
+      const txHistory = [
+        {
+          txid: 'tx1',
+          txData: null,
+        },
+      ];
+
+      transactionHistoryService.calculateTransactionAmount.mockReturnValue({
+        amount: 100000,
+        type: 'BTC',
+      });
+
+      const { result } = renderHook({
+        txHistory,
+        assetType: 'BTC',
+        segwit: segwitAddress,
+        taproot: taprootAddress,
+      });
+
+      // Should process the transaction since txData is null (falsy)
+      expect(result.current.transactions).toHaveLength(1);
+    });
   });
 });

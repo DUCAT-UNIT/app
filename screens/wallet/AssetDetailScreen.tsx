@@ -35,6 +35,7 @@ import { useRedeemCashuToken } from '../../hooks/useRedeemCashuToken';
 import { getTxUrl, getOrdTxUrl } from '../../utils/constants';
 import TokenDetailsSheet from '../../components/ecash/TokenDetailsSheet';
 import { useNotifications } from '../../contexts/NotificationContext';
+import { getRunesAmount } from '../../utils/runesHelper';
 
 /**
  * Props for AssetDetailScreen component
@@ -71,6 +72,8 @@ interface TokenData {
   token: string;
   /** Whether the token has been claimed */
   claimed: boolean;
+  /** Whether this is a self-claim */
+  isSelfClaim?: boolean;
 }
 
 function AssetDetailScreen({ route = {}, navigation }: AssetDetailScreenProps): React.JSX.Element {
@@ -90,21 +93,35 @@ function AssetDetailScreen({ route = {}, navigation }: AssetDetailScreenProps): 
   const scrollY = useRef(new Animated.Value(0)).current;
   const { showToast } = useNotifications();
 
+  // Track if balance has ever loaded (prevents spinner on background updates)
+  const balanceLoadedRef = useRef(false);
+
   // Price chart hook
   const { priceData, priceDirection, priceLoading, priceError, setPriceError } = usePriceChart(assetType, selectedTimeframe);
 
   // Calculate balances
-  const unitRunesAmount = runesBalance && runesBalance.length > 0 ? parseFloat(runesBalance[0].amount) : 0;
+  const unitRunesAmount = getRunesAmount(runesBalance);
   const totalUnitAmount = unitRunesAmount + cashuBalance;
   const balance = assetType === 'BTC' ? segwitBalance : totalUnitAmount;
   const fiatValue = assetType === 'BTC' ? balance * (btcPrice ?? 0) : balance * 1;
 
-  // Loading states
+  // Loading states - only show loading on initial load, not background updates
   const hasRunesData = runesBalance !== null && runesBalance !== undefined;
   const hasCashuData = cashuBalance !== null && cashuBalance !== undefined;
-  const isBalanceLoading = assetType === 'UNIT'
-    ? (!hasRunesData && loadingBalance) || (!hasCashuData && loadingCashu)
-    : (!segwitBalance && loadingBalance);
+  const hasUnitData = hasRunesData || hasCashuData;
+  const hasBtcData = segwitBalance !== null && segwitBalance !== undefined;
+
+  // Mark as loaded once we have data
+  if ((assetType === 'UNIT' && hasUnitData) || (assetType === 'BTC' && hasBtcData)) {
+    balanceLoadedRef.current = true;
+  }
+
+  // Only show loading if we haven't loaded yet
+  const isBalanceLoading = !balanceLoadedRef.current && (
+    assetType === 'UNIT'
+      ? loadingBalance || loadingCashu
+      : loadingBalance
+  );
 
   // Extract stable wallet addresses using refs
   const segwitAddressRef = useRef(wallet?.segwitAddress);
@@ -131,9 +148,8 @@ function AssetDetailScreen({ route = {}, navigation }: AssetDetailScreenProps): 
     advancedMode
   );
 
-  const isActivityLoading = assetType === 'UNIT'
-    ? loadingTransactionHistory || loadingCashu || ecashLoading
-    : loadingTransactionHistory;
+  // For activity list loading - useAssetTransactions handles all the logic
+  const isActivityLoading = ecashLoading;
 
   // Extracted operation hooks
   const { handleFusePress } = useFuseEcash({
@@ -180,9 +196,9 @@ function AssetDetailScreen({ route = {}, navigation }: AssetDetailScreenProps): 
     showToast(message, 'success');
   }, [showToast]);
 
-  const handleTransactionPress = useCallback(async (tx: { ecashToken?: boolean; tokenData?: { recipient: string; shortUrl: string; token: string; claimed: boolean }; txid: string }) => {
+  const handleTransactionPress = useCallback(async (tx: { ecashToken?: boolean; isAutoclaim?: boolean; tokenData?: { recipient: string; shortUrl: string; token: string; claimed: boolean }; txid: string }) => {
     if (tx.ecashToken) {
-      setSelectedToken(tx.tokenData || null);
+      setSelectedToken(tx.tokenData ? { ...tx.tokenData, isSelfClaim: tx.isAutoclaim } : null);
       setShowTokenDetails(true);
       return;
     }
@@ -283,6 +299,7 @@ function AssetDetailScreen({ route = {}, navigation }: AssetDetailScreenProps): 
           onCopy={handleCopyNotification}
           advancedMode={advancedMode}
           claimed={selectedToken.claimed}
+          isSelfClaim={selectedToken.isSelfClaim}
         />
       )}
     </>

@@ -20,6 +20,12 @@ import { useBottomSheetAnimation } from '../../hooks/useBottomSheetAnimation';
 import { useTransactionHistoryData, DisplayTransaction } from '../../hooks/useTransactionHistoryData';
 import TokenDetailsSheet from '../../components/ecash/TokenDetailsSheet';
 import { useNotifications } from '../../contexts/NotificationContext';
+import type { TokenRecord, EcashTokenRecord } from '../../services/cashu/cashuLockedTokensService';
+
+/** Type guard to check if token is a sent token (TokenRecord) */
+function isSentToken(token: EcashTokenRecord): token is TokenRecord {
+  return 'recipient' in token;
+}
 
 /**
  * Token data for ecash tokens
@@ -29,6 +35,7 @@ interface TokenData {
   shortUrl: string;
   token: string;
   claimed: boolean;
+  isSelfClaim: boolean;
 }
 
 /**
@@ -107,12 +114,25 @@ export default function TransactionHistoryScreen({
 
           // Handle ecash token clicks
           if (tx.ecashToken && tx.tokenData) {
-            setSelectedToken({
-              recipient: tx.tokenData.recipient ?? '',
-              shortUrl: tx.tokenData.shortUrl ?? '',
-              token: tx.tokenData.token ?? '',
-              claimed: tx.tokenData.claimed ?? false,
-            });
+            // Check if it's a sent token (has recipient) or received token (has sender)
+            if (isSentToken(tx.tokenData)) {
+              setSelectedToken({
+                recipient: tx.tokenData.recipient,
+                shortUrl: tx.tokenData.shortUrl ?? '',
+                token: tx.tokenData.token,
+                claimed: tx.tokenData.claimed ?? false,
+                isSelfClaim: tx.isAutoclaim ?? false,
+              });
+            } else {
+              // Received token - no recipient/shortUrl
+              setSelectedToken({
+                recipient: '',
+                shortUrl: '',
+                token: tx.tokenData.token,
+                claimed: tx.tokenData.claimed ?? false,
+                isSelfClaim: false,
+              });
+            }
             setShowTokenDetails(true);
             return;
           }
@@ -187,6 +207,7 @@ export default function TransactionHistoryScreen({
           onCopy={handleCopyNotification}
           advancedMode={advancedMode}
           claimed={selectedToken.claimed}
+          isSelfClaim={selectedToken.isSelfClaim}
         />
       )}
     </>
