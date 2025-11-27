@@ -23,16 +23,16 @@
         <div class='clearfix'>
             
             <div class='fl pad1y space-right2'>
-                <span class="strong">100% </span>
+                <span class="strong">98.57% </span>
                 <span class="quiet">Statements</span>
-                <span class='fraction'>68/68</span>
+                <span class='fraction'>69/70</span>
             </div>
         
             
             <div class='fl pad1y space-right2'>
-                <span class="strong">61.11% </span>
+                <span class="strong">63.63% </span>
                 <span class="quiet">Branches</span>
-                <span class='fraction'>11/18</span>
+                <span class='fraction'>14/22</span>
             </div>
         
             
@@ -44,9 +44,9 @@
         
             
             <div class='fl pad1y space-right2'>
-                <span class="strong">100% </span>
+                <span class="strong">98.41% </span>
                 <span class="quiet">Lines</span>
-                <span class='fraction'>61/61</span>
+                <span class='fraction'>62/63</span>
             </div>
         
             
@@ -261,7 +261,10 @@
 <a name='L196'></a><a href='#L196'>196</a>
 <a name='L197'></a><a href='#L197'>197</a>
 <a name='L198'></a><a href='#L198'>198</a>
-<a name='L199'></a><a href='#L199'>199</a></td><td class="line-coverage quiet"><span class="cline-any cline-neutral">&nbsp;</span>
+<a name='L199'></a><a href='#L199'>199</a>
+<a name='L200'></a><a href='#L200'>200</a>
+<a name='L201'></a><a href='#L201'>201</a>
+<a name='L202'></a><a href='#L202'>202</a></td><td class="line-coverage quiet"><span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
@@ -356,6 +359,9 @@
 <span class="cline-any cline-yes">3x</span>
 <span class="cline-any cline-yes">3x</span>
 <span class="cline-any cline-yes">1x</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-yes">2x</span>
+<span class="cline-any cline-no">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-yes">2x</span>
@@ -530,7 +536,7 @@ export function useCashuMint({ fetchBalance, setIsLoading, setError }: UseCashuM
 &nbsp;
       logger.cashu('mint_quote_received', { quoteId: quote.quoteId?.substring(0, 8) });
       return quote;
-    } catch (err) {
+    } catch (err: unknown) {
       const errorMessage = err instanceof Error ? err.message : <span class="branch-1 cbranch-no" title="branch not covered" >String(err);</span>
       logger.error('Failed to start mint', { error: errorMessage });
       setError(errorMessage);
@@ -555,6 +561,9 @@ export function useCashuMint({ fetchBalance, setIsLoading, setError }: UseCashuM
         if (!quote) {
           throw new Error('Quote not found');
         }
+        <span class="missing-if-branch" title="if path not taken" >I</span>if (quote.amount === undefined) {
+<span class="cstat-no" title="statement not covered" >          throw new Error('Quote amount is undefined');</span>
+        }
 &nbsp;
         const proofs = await completeMint(quoteId, quote.amount);
         setPendingMints((prev) =&gt; prev.filter((q) =&gt; q.quoteId !== quoteId));
@@ -573,7 +582,7 @@ export function useCashuMint({ fetchBalance, setIsLoading, setError }: UseCashuM
         completed: false,
         state: status.state,
       };
-    } catch (err) {
+    } catch (err: unknown) {
       const errorMessage = err instanceof Error ? err.message : <span class="branch-1 cbranch-no" title="branch not covered" >String(err);</span>
       logger.error('Failed to check/complete mint', { error: errorMessage, quoteId });
       throw err;
@@ -608,7 +617,7 @@ export function useCashuMint({ fetchBalance, setIsLoading, setError }: UseCashuM
         depositAddress: quote.depositAddress,
       });
 &nbsp;
-      <span class="missing-if-branch" title="else path not taken" >E</span>if (onSuccess) {
+      <span class="missing-if-branch" title="else path not taken" >E</span>if (onSuccess &amp;&amp; quote.amount !== undefined) {
         onSuccess({
           address: quote.depositAddress,
           amount: quote.amount,
@@ -617,7 +626,7 @@ export function useCashuMint({ fetchBalance, setIsLoading, setError }: UseCashuM
       }
 &nbsp;
       return quote;
-    } catch (err) {
+    } catch (err: unknown) {
       const errorMessage = err instanceof Error ? err.message : <span class="branch-1 cbranch-no" title="branch not covered" >String(err);</span>
       logger.error('Failed to auto-mint', { error: errorMessage });
       setError(errorMessage);
@@ -637,7 +646,7 @@ export function useCashuMint({ fetchBalance, setIsLoading, setError }: UseCashuM
           <span class="missing-if-branch" title="else path not taken" >E</span>if (result.completed) {
             logger.info('Auto-completed mint', { quoteId: mint.quoteId, amount: result.amount });
           }
-        } catch (error) {
+        } catch (error: unknown) {
           const errorMessage = error instanceof Error ? error.message : <span class="branch-1 cbranch-no" title="branch not covered" >String(error);</span>
           logger.debug('Error auto-completing mint', { quoteId: mint.quoteId, error: errorMessage });
         }
@@ -664,7 +673,7 @@ export function useCashuMint({ fetchBalance, setIsLoading, setError }: UseCashuM
             <div class='footer quiet pad2 space-top1 center small'>
                 Code coverage generated by
                 <a href="https://istanbul.js.org/" target="_blank" rel="noopener noreferrer">istanbul</a>
-                at 2025-11-26T13:31:21.108Z
+                at 2025-11-27T08:28:08.171Z
             </div>
         <script src="../prettify.js"></script>
         <script>

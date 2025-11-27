@@ -23,16 +23,16 @@
         <div class='clearfix'>
             
             <div class='fl pad1y space-right2'>
-                <span class="strong">98.46% </span>
+                <span class="strong">97.72% </span>
                 <span class="quiet">Statements</span>
-                <span class='fraction'>128/130</span>
+                <span class='fraction'>129/132</span>
             </div>
         
             
             <div class='fl pad1y space-right2'>
-                <span class="strong">82.92% </span>
+                <span class="strong">81.17% </span>
                 <span class="quiet">Branches</span>
-                <span class='fraction'>68/82</span>
+                <span class='fraction'>69/85</span>
             </div>
         
             
@@ -44,9 +44,9 @@
         
             
             <div class='fl pad1y space-right2'>
-                <span class="strong">100% </span>
+                <span class="strong">99.22% </span>
                 <span class="quiet">Lines</span>
-                <span class='fraction'>127/127</span>
+                <span class='fraction'>128/129</span>
             </div>
         
             
@@ -423,7 +423,11 @@
 <a name='L358'></a><a href='#L358'>358</a>
 <a name='L359'></a><a href='#L359'>359</a>
 <a name='L360'></a><a href='#L360'>360</a>
-<a name='L361'></a><a href='#L361'>361</a></td><td class="line-coverage quiet"><span class="cline-any cline-neutral">&nbsp;</span>
+<a name='L361'></a><a href='#L361'>361</a>
+<a name='L362'></a><a href='#L362'>362</a>
+<a name='L363'></a><a href='#L363'>363</a>
+<a name='L364'></a><a href='#L364'>364</a>
+<a name='L365'></a><a href='#L365'>365</a></td><td class="line-coverage quiet"><span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
@@ -532,9 +536,13 @@
 <span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-yes">18x</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-yes">18x</span>
+<span class="cline-any cline-no">&nbsp;</span>
 <span class="cline-any cline-yes">18x</span>
-<span class="cline-any cline-yes">18x</span>
+<span class="cline-any cline-yes">1x</span>
+<span class="cline-any cline-yes">1x</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-yes">18x</span>
 <span class="cline-any cline-yes">17x</span>
@@ -585,9 +593,9 @@
 <span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-yes">6x</span>
 <span class="cline-any cline-yes">6x</span>
-<span class="cline-any cline-yes">2x</span>
-<span class="cline-any cline-yes">2x</span>
-<span class="cline-any cline-yes">2x</span>
+<span class="cline-any cline-yes">1x</span>
+<span class="cline-any cline-yes">1x</span>
+<span class="cline-any cline-yes">1x</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
@@ -892,9 +900,13 @@ export const TransactionExecutionProvider: React.FC&lt;TransactionExecutionProvi
       }
 &nbsp;
       logger.debug('📡 Broadcasting transaction...', { skipAutoConfirm });
-      logger.debug('Intent inputs:', intent.inputs?.map(<span class="fstat-no" title="function not covered" >i </span>=&gt; <span class="cstat-no" title="statement not covered" >`${i.txid}:${i.vout}`)</span> || 'none');
-      if (intent.runeUtxo) logger.debug('Rune UTXO:', `${intent.runeUtxo.transaction}:${intent.runeUtxo.vout}`);
-      <span class="missing-if-branch" title="if path not taken" >I</span>if (intent.satUtxo) <span class="cstat-no" title="statement not covered" >logger.debug('Sat UTXO:', `${intent.satUtxo.txid}:${intent.satUtxo.vout}`);</span>
+      // Log inputs based on asset type
+      <span class="missing-if-branch" title="if path not taken" >I</span>if (intent.assetType === 'BTC') {
+<span class="cstat-no" title="statement not covered" >        logger.debug('Intent inputs:', intent.inputs.map(<span class="fstat-no" title="function not covered" >i </span>=&gt; <span class="cstat-no" title="statement not covered" >`${i.txid}:${i.vout}`)</span>);</span>
+      } else if (intent.assetType === 'UNIT') {
+        <span class="missing-if-branch" title="else path not taken" >E</span>if (intent.runeUtxo) logger.debug('Rune UTXO:', `${intent.runeUtxo.transaction}:${intent.runeUtxo.vout}`);
+        <span class="missing-if-branch" title="if path not taken" >I</span>if (intent.satUtxo) <span class="cstat-no" title="statement not covered" >logger.debug('Sat UTXO:', `${intent.satUtxo.txid}:${intent.satUtxo.vout}`);</span>
+      }
 &nbsp;
       const txid = await broadcastTransaction(intent.signedTxHex);
       logger.debug('✅ Broadcast successful, txid:', txid);
@@ -944,7 +956,7 @@ export const TransactionExecutionProvider: React.FC&lt;TransactionExecutionProvi
 &nbsp;
         // For UNIT transactions, calculate rune change amount
         let runeChangeAmount = 0;
-        if (sendAssetType === 'unit' &amp;&amp; intent.runeUtxo?.runeAmount &amp;&amp; intent.amount) {
+        if (sendAssetType === 'unit' &amp;&amp; intent.assetType === 'UNIT' &amp;&amp; intent.runeUtxo?.runeAmount &amp;&amp; intent.amount) {
           const intentAmount = typeof intent.amount === 'string' ? <span class="branch-0 cbranch-no" title="branch not covered" >parseFloat(intent.amount) </span>: intent.amount;
           runeChangeAmount = intent.runeUtxo.runeAmount - intentAmount;
           logger.debug('Rune change amount:', runeChangeAmount);
@@ -996,7 +1008,7 @@ export const TransactionExecutionProvider: React.FC&lt;TransactionExecutionProvi
         } else {
           logger.debug('⚠️ No change outputs found to save');
         }
-      } catch (error) {
+      } catch (error: unknown) {
         logger.error('❌ Error extracting change outputs:', { error: error instanceof Error ? error.message : <span class="branch-1 cbranch-no" title="branch not covered" >String(error) </span>});
         // Non-critical error, continue with broadcast
       }
@@ -1150,7 +1162,7 @@ export const TransactionExecutionProvider: React.FC&lt;TransactionExecutionProvi
             <div class='footer quiet pad2 space-top1 center small'>
                 Code coverage generated by
                 <a href="https://istanbul.js.org/" target="_blank" rel="noopener noreferrer">istanbul</a>
-                at 2025-11-26T13:31:21.108Z
+                at 2025-11-27T08:28:08.171Z
             </div>
         <script src="../prettify.js"></script>
         <script>

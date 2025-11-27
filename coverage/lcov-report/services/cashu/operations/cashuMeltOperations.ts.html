@@ -23,9 +23,9 @@
         <div class='clearfix'>
             
             <div class='fl pad1y space-right2'>
-                <span class="strong">100% </span>
+                <span class="strong">98.14% </span>
                 <span class="quiet">Statements</span>
-                <span class='fraction'>104/104</span>
+                <span class='fraction'>106/108</span>
             </div>
         
             
@@ -44,9 +44,9 @@
         
             
             <div class='fl pad1y space-right2'>
-                <span class="strong">100% </span>
+                <span class="strong">98.14% </span>
                 <span class="quiet">Lines</span>
-                <span class='fraction'>104/104</span>
+                <span class='fraction'>106/108</span>
             </div>
         
             
@@ -375,7 +375,11 @@
 <a name='L310'></a><a href='#L310'>310</a>
 <a name='L311'></a><a href='#L311'>311</a>
 <a name='L312'></a><a href='#L312'>312</a>
-<a name='L313'></a><a href='#L313'>313</a></td><td class="line-coverage quiet"><span class="cline-any cline-neutral">&nbsp;</span>
+<a name='L313'></a><a href='#L313'>313</a>
+<a name='L314'></a><a href='#L314'>314</a>
+<a name='L315'></a><a href='#L315'>315</a>
+<a name='L316'></a><a href='#L316'>316</a>
+<a name='L317'></a><a href='#L317'>317</a></td><td class="line-coverage quiet"><span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
@@ -472,9 +476,11 @@
 <span class="cline-any cline-yes">6x</span>
 <span class="cline-any cline-yes">5x</span>
 <span class="cline-any cline-yes">5x</span>
+<span class="cline-any cline-yes">1x</span>
+<span class="cline-any cline-yes">1x</span>
+<span class="cline-any cline-yes">1x</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
-<span class="cline-any cline-yes">1x</span>
-<span class="cline-any cline-yes">1x</span>
+<span class="cline-any cline-no">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-yes">6x</span>
@@ -599,9 +605,11 @@
 <span class="cline-any cline-yes">4x</span>
 <span class="cline-any cline-yes">3x</span>
 <span class="cline-any cline-yes">3x</span>
+<span class="cline-any cline-yes">1x</span>
+<span class="cline-any cline-yes">1x</span>
+<span class="cline-any cline-yes">1x</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
-<span class="cline-any cline-yes">1x</span>
-<span class="cline-any cline-yes">1x</span>
+<span class="cline-any cline-no">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-yes">4x</span>
@@ -733,7 +741,7 @@ export const requestMelt = async (address: string, amount: number): Promise&lt;M
       fee: quote.fee_reserve,
       total: quote.amount + quote.fee_reserve,
     };
-  } catch (error) {
+  } catch (error: unknown) {
     logger.error('Failed to request melt', { error: (error as Error).message });
     throw error;
   }
@@ -784,9 +792,11 @@ export const completeMelt = async (quoteId: string, totalAmount: number): Promis
       if (keyData.keysets &amp;&amp; keyData.keysets.length &gt; 0) {
         keysetId = keyData.keysets[0].id;
         keys = keyData.keysets[0].keys;
-      } else {
-        keys = keyData.keys || <span class="branch-1 cbranch-no" title="branch not covered" >keyData;</span>
+      } else if (keyData.keys) {
+        keys = keyData.keys;
         keysetId = '';
+      } else <span class="missing-if-branch" title="else path not taken" >E</span>{
+<span class="cstat-no" title="statement not covered" >        throw new Error('No keys available from mint');</span>
       }
 &nbsp;
       const meltAmounts = splitAmount(totalAmount);
@@ -847,7 +857,7 @@ export const completeMelt = async (quoteId: string, totalAmount: number): Promis
       fee: result.fee_paid || 0,
       balance: newBalance,
     };
-  } catch (error) {
+  } catch (error: unknown) {
     logger.error('Failed to complete melt', { error: (error as Error).message, didSwap });
 &nbsp;
     // CRITICAL: If we swapped for change but melt failed, we MUST save the change proofs
@@ -911,9 +921,11 @@ export const completeMeltWithoutCleanup = async (quoteId: string, totalAmount: n
       if (keyData.keysets &amp;&amp; keyData.keysets.length &gt; 0) {
         keysetId = keyData.keysets[0].id;
         keys = keyData.keysets[0].keys;
-      } else {
-        keys = keyData.keys || <span class="branch-1 cbranch-no" title="branch not covered" >keyData;</span>
+      } else if (keyData.keys) {
+        keys = keyData.keys;
         keysetId = '';
+      } else <span class="missing-if-branch" title="else path not taken" >E</span>{
+<span class="cstat-no" title="statement not covered" >        throw new Error('No keys available from mint');</span>
       }
 &nbsp;
       const meltAmounts = splitAmount(totalAmount);
@@ -957,7 +969,7 @@ export const completeMeltWithoutCleanup = async (quoteId: string, totalAmount: n
       proofsToRemove: didSwap ? [...selectedProofs] : proofsToMelt,
       changeProofs: changeProofs,
     };
-  } catch (error) {
+  } catch (error: unknown) {
     logger.error('Failed to complete melt without cleanup', { error: (error as Error).message, didSwap });
 &nbsp;
     // CRITICAL: If we swapped for change but melt failed, we MUST save the change proofs
@@ -994,7 +1006,7 @@ export const cleanupMeltProofs = async (proofsToRemove: CashuProof[], changeProo
       await removeProofs(proofsToRemove);
       logger.info('Cleaned up melt proofs', { count: proofsToRemove.length });
     }
-  } catch (error) {
+  } catch (error: unknown) {
     logger.error('Failed to cleanup melt proofs', { error: (error as Error).message });
     throw error;
   }
@@ -1006,7 +1018,7 @@ export const cleanupMeltProofs = async (proofsToRemove: CashuProof[], changeProo
             <div class='footer quiet pad2 space-top1 center small'>
                 Code coverage generated by
                 <a href="https://istanbul.js.org/" target="_blank" rel="noopener noreferrer">istanbul</a>
-                at 2025-11-26T13:31:21.108Z
+                at 2025-11-27T08:28:08.171Z
             </div>
         <script src="../../../prettify.js"></script>
         <script>

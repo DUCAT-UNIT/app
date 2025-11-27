@@ -25,28 +25,28 @@
             <div class='fl pad1y space-right2'>
                 <span class="strong">100% </span>
                 <span class="quiet">Statements</span>
-                <span class='fraction'>28/28</span>
+                <span class='fraction'>25/25</span>
             </div>
         
             
             <div class='fl pad1y space-right2'>
-                <span class="strong">100% </span>
+                <span class="strong">92.3% </span>
                 <span class="quiet">Branches</span>
-                <span class='fraction'>17/17</span>
+                <span class='fraction'>12/13</span>
             </div>
         
             
             <div class='fl pad1y space-right2'>
                 <span class="strong">100% </span>
                 <span class="quiet">Functions</span>
-                <span class='fraction'>5/5</span>
+                <span class='fraction'>4/4</span>
             </div>
         
             
             <div class='fl pad1y space-right2'>
                 <span class="strong">100% </span>
                 <span class="quiet">Lines</span>
-                <span class='fraction'>27/27</span>
+                <span class='fraction'>24/24</span>
             </div>
         
             
@@ -145,12 +145,7 @@
 <a name='L80'></a><a href='#L80'>80</a>
 <a name='L81'></a><a href='#L81'>81</a>
 <a name='L82'></a><a href='#L82'>82</a>
-<a name='L83'></a><a href='#L83'>83</a>
-<a name='L84'></a><a href='#L84'>84</a>
-<a name='L85'></a><a href='#L85'>85</a>
-<a name='L86'></a><a href='#L86'>86</a>
-<a name='L87'></a><a href='#L87'>87</a>
-<a name='L88'></a><a href='#L88'>88</a></td><td class="line-coverage quiet"><span class="cline-any cline-neutral">&nbsp;</span>
+<a name='L83'></a><a href='#L83'>83</a></td><td class="line-coverage quiet"><span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
@@ -192,22 +187,17 @@
 <span class="cline-any cline-yes">8x</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-yes">8x</span>
-<span class="cline-any cline-yes">6x</span>
+<span class="cline-any cline-yes">8x</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-yes">8x</span>
 <span class="cline-any cline-yes">8x</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
-<span class="cline-any cline-neutral">&nbsp;</span>
-<span class="cline-any cline-yes">6x</span>
-<span class="cline-any cline-yes">2x</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-yes">6x</span>
 <span class="cline-any cline-yes">7x</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
-<span class="cline-any cline-neutral">&nbsp;</span>
-<span class="cline-any cline-yes">6x</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-yes">6x</span>
 <span class="cline-any cline-yes">5x</span>
@@ -248,7 +238,7 @@ import { useState, useCallback, useRef } from 'react';
 import { fetchAllTransactionHistory, Transaction } from '../services/transactionHistoryService';
 import type { WalletAddresses } from '../contexts/WalletContext';
 &nbsp;
-interface UseTransactionHistoryFetchReturn {
+export interface UseTransactionHistoryFetchReturn {
   transactionHistory: Transaction[];
   loadingTransactionHistory: boolean;
   historyError: string | null;
@@ -262,8 +252,8 @@ export function useTransactionHistoryFetch(wallet: WalletAddresses | null): UseT
   const [loadingTransactionHistory, setLoadingTransactionHistory] = useState(false);
   const [historyError, setHistoryError] = useState&lt;string | null&gt;(null);
 &nbsp;
-  // Keep a ref to previous transaction history for comparison
-  const prevHistoryRef = useRef&lt;Transaction[]&gt;([]);
+  // Keep a ref to previous transaction hash for comparison
+  const prevHashRef = useRef&lt;string&gt;('');
 &nbsp;
   /**
    * Fetch transaction history in background
@@ -278,29 +268,24 @@ export function useTransactionHistoryFetch(wallet: WalletAddresses | null): UseT
 &nbsp;
     try {
       // Only show loading spinner if we have no cached data
-      if (prevHistoryRef.current.length === 0) {
+      <span class="missing-if-branch" title="else path not taken" >E</span>if (transactionHistory.length === 0) {
         setLoadingTransactionHistory(true);
       }
       setHistoryError(null);
       const history = await fetchAllTransactionHistory(segwitAddress, taprootAddress, vaultPubkey);
 &nbsp;
       // Update state if transactions have changed
-      // Check both txids AND confirmation status to catch when pending txs confirm
-      const prevHash = prevHistoryRef.current
-        .map(t =&gt; `${t.txid}:${t.status?.confirmed || false}:${t.status?.block_height || 0}`)
-        .sort()
-        .join('|');
+      // Compute hash once (no sort - order matters for display)
+      // Include txid, confirmation status, and block height to detect when pending txs confirm
       const newHash = history
         .map(t =&gt; `${t.txid}:${t.status?.confirmed || false}:${t.status?.block_height || 0}`)
-        .sort()
         .join('|');
-      const hasChanged = prevHash !== newHash;
 &nbsp;
-      if (hasChanged) {
-        prevHistoryRef.current = history;
+      if (newHash !== prevHashRef.current) {
+        prevHashRef.current = newHash;
         setTransactionHistory(history);
       }
-    } catch (error) {
+    } catch (error: unknown) {
       setHistoryError('Failed to fetch transaction history');
     } finally {
       setLoadingTransactionHistory(false);
@@ -331,7 +316,7 @@ export function useTransactionHistoryFetch(wallet: WalletAddresses | null): UseT
             <div class='footer quiet pad2 space-top1 center small'>
                 Code coverage generated by
                 <a href="https://istanbul.js.org/" target="_blank" rel="noopener noreferrer">istanbul</a>
-                at 2025-11-26T13:31:21.108Z
+                at 2025-11-27T08:28:08.171Z
             </div>
         <script src="../prettify.js"></script>
         <script>

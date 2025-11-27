@@ -226,16 +226,16 @@
 <span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
-<span class="cline-any cline-yes">8x</span>
+<span class="cline-any cline-yes">11x</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
-<span class="cline-any cline-yes">8x</span>
-<span class="cline-any cline-yes">8x</span>
+<span class="cline-any cline-yes">11x</span>
+<span class="cline-any cline-yes">11x</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
-<span class="cline-any cline-yes">8x</span>
+<span class="cline-any cline-yes">11x</span>
 <span class="cline-any cline-yes">11x</span>
 <span class="cline-any cline-yes">11x</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
@@ -252,7 +252,7 @@
 <span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
-<span class="cline-any cline-yes">8x</span>
+<span class="cline-any cline-yes">11x</span>
 <span class="cline-any cline-yes">7x</span>
 <span class="cline-any cline-yes">7x</span>
 <span class="cline-any cline-yes">5x</span>
@@ -268,7 +268,7 @@
 <span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
-<span class="cline-any cline-yes">8x</span>
+<span class="cline-any cline-yes">11x</span>
 <span class="cline-any cline-yes">5x</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-yes">5x</span>
@@ -282,7 +282,7 @@
 <span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
-<span class="cline-any cline-yes">8x</span>
+<span class="cline-any cline-yes">11x</span>
 <span class="cline-any cline-yes">4x</span>
 <span class="cline-any cline-yes">4x</span>
 <span class="cline-any cline-yes">4x</span>
@@ -298,7 +298,7 @@
 <span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
-<span class="cline-any cline-yes">8x</span>
+<span class="cline-any cline-yes">11x</span>
 <span class="cline-any cline-yes">5x</span>
 <span class="cline-any cline-yes">5x</span>
 <span class="cline-any cline-yes">5x</span>
@@ -311,7 +311,7 @@
 <span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
-<span class="cline-any cline-yes">8x</span>
+<span class="cline-any cline-yes">11x</span>
 <span class="cline-any cline-yes">5x</span>
 <span class="cline-any cline-yes">4x</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
@@ -376,7 +376,7 @@ export const hashToken = async (token: string): Promise&lt;string&gt; =&gt; {
       token
     );
     return hash;
-  } catch (error) {
+  } catch (error: unknown) {
     logger.error('[TURBO] Failed to hash token:', { message: (error as Error).message });
     // Fallback to storing first 64 chars if hashing fails
     return token.substring(0, 64);
@@ -393,7 +393,7 @@ export const loadProcessedTokens = async (): Promise&lt;Set&lt;string&gt;&gt; =&
       const tokens = JSON.parse(stored) as string[];
       return new Set(tokens);
     }
-  } catch (error) {
+  } catch (error: unknown) {
     logger.error('[TURBO] Failed to load processed tokens:', { message: (error as Error).message });
   }
   return new Set();
@@ -408,7 +408,7 @@ export const saveProcessedTokens = async (tokensSet: Set&lt;string&gt;): Promise
     const tokensArray = Array.from(tokensSet).slice(-MAX_STORED_TOKENS);
     await SecureStore.setItemAsync(PROCESSED_TOKENS_KEY, JSON.stringify(tokensArray));
     logger.debug('[TURBO] Saved processed tokens to storage:', { count: tokensArray.length });
-  } catch (error) {
+  } catch (error: unknown) {
     logger.error('[TURBO] Failed to save processed tokens:', { message: (error as Error).message });
   }
 };
@@ -424,7 +424,7 @@ export const markTokenAsProcessed = async (token: string): Promise&lt;void&gt; =
       logger.debug('[TURBO] Marked token as processed. Total:', { count: turboGlobal.processedCashuTokens.size });
       await saveProcessedTokens(turboGlobal.processedCashuTokens);
     }
-  } catch (error) {
+  } catch (error: unknown) {
     logger.error('[TURBO] Failed to mark token as processed:', { message: (error as Error).message });
   }
 };
@@ -436,7 +436,7 @@ export const isTokenProcessed = async (token: string): Promise&lt;boolean&gt; =&
   try {
     const tokenHash = await hashToken(token);
     return turboGlobal.processedCashuTokens?.has(tokenHash) ?? false;
-  } catch (error) {
+  } catch (error: unknown) {
     logger.error('[TURBO] Failed to check token status:', { message: (error as Error).message });
     return false;
   }
@@ -454,7 +454,7 @@ export const initializeTokenStorage = async (): Promise&lt;void&gt; =&gt; {
       turboGlobal.processedCashuTokens = tokensSet;
       turboGlobal.processedCashuTokensLoading = false;
       logger.debug('[TURBO] Loaded processed tokens from storage:', { count: tokensSet.size });
-    } catch (error) {
+    } catch (error: unknown) {
       logger.error('[TURBO] Failed to load processed tokens, starting fresh:', { message: (error as Error).message });
       turboGlobal.processedCashuTokens = new Set();
       turboGlobal.processedCashuTokensLoading = false;
@@ -472,7 +472,7 @@ export type { TurboGlobalState, TurboSnackbarParams };
             <div class='footer quiet pad2 space-top1 center small'>
                 Code coverage generated by
                 <a href="https://istanbul.js.org/" target="_blank" rel="noopener noreferrer">istanbul</a>
-                at 2025-11-26T13:31:21.108Z
+                at 2025-11-27T08:28:08.171Z
             </div>
         <script src="../../prettify.js"></script>
         <script>

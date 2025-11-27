@@ -158,7 +158,7 @@ export default function RootNavigator(): React.JSX.Element {
           {shouldShowAuth ? (
             <Stack.Screen name="Auth" component={AuthStack} />
           ) : (
-            <>
+            <React.Fragment>
               <Stack.Screen name="Main" component={MainTabs} />
               <Stack.Screen
                 name="SendFlow"
@@ -167,7 +167,7 @@ export default function RootNavigator(): React.JSX.Element {
                   presentation: 'modal',
                 }}
               />
-            </>
+            </React.Fragment>
           )}
         </Stack.Navigator>
 

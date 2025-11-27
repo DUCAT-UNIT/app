@@ -15,7 +15,9 @@ interface UnitBalanceBreakdownProps {
 }
 
 const UnitBalanceBreakdown = ({ ecashBalance, runesBalance }: UnitBalanceBreakdownProps) => {
-  const totalBalance = ecashBalance + runesBalance;
+  // Ecash is in smallest units (needs /100), runes from ord is already in display units
+  const ecashDisplayAmount = ecashBalance / 100;
+  const totalBalance = ecashDisplayAmount + runesBalance;
   const runesPercentage = totalBalance > 0 ? (runesBalance / totalBalance) * 100 : 50;
 
   return (
@@ -38,7 +40,7 @@ const UnitBalanceBreakdown = ({ ecashBalance, runesBalance }: UnitBalanceBreakdo
           <View style={styles.labelRow}>
             <View style={[styles.dot, styles.dotRunes]} />
             <Text style={styles.balanceValue}>
-              {formatUnitAmount(runesBalance)} UNIT
+              {runesBalance.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} UNIT
             </Text>
           </View>
           <Text style={styles.balanceLabel}>onchain</Text>

@@ -23,9 +23,9 @@
         <div class='clearfix'>
             
             <div class='fl pad1y space-right2'>
-                <span class="strong">100% </span>
+                <span class="strong">99.06% </span>
                 <span class="quiet">Statements</span>
-                <span class='fraction'>103/103</span>
+                <span class='fraction'>106/107</span>
             </div>
         
             
@@ -44,9 +44,9 @@
         
             
             <div class='fl pad1y space-right2'>
-                <span class="strong">100% </span>
+                <span class="strong">99.02% </span>
                 <span class="quiet">Lines</span>
-                <span class='fraction'>99/99</span>
+                <span class='fraction'>102/103</span>
             </div>
         
             
@@ -321,7 +321,12 @@
 <a name='L256'></a><a href='#L256'>256</a>
 <a name='L257'></a><a href='#L257'>257</a>
 <a name='L258'></a><a href='#L258'>258</a>
-<a name='L259'></a><a href='#L259'>259</a></td><td class="line-coverage quiet"><span class="cline-any cline-neutral">&nbsp;</span>
+<a name='L259'></a><a href='#L259'>259</a>
+<a name='L260'></a><a href='#L260'>260</a>
+<a name='L261'></a><a href='#L261'>261</a>
+<a name='L262'></a><a href='#L262'>262</a>
+<a name='L263'></a><a href='#L263'>263</a>
+<a name='L264'></a><a href='#L264'>264</a></td><td class="line-coverage quiet"><span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
@@ -444,6 +449,8 @@
 <span class="cline-any cline-yes">6x</span>
 <span class="cline-any cline-yes">6x</span>
 <span class="cline-any cline-yes">6x</span>
+<span class="cline-any cline-yes">6x</span>
+<span class="cline-any cline-yes">6x</span>
 <span class="cline-any cline-yes">5x</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
@@ -453,6 +460,7 @@
 <span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-yes">5x</span>
 <span class="cline-any cline-yes">5x</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-yes">5x</span>
@@ -508,9 +516,11 @@
 <span class="cline-any cline-yes">6x</span>
 <span class="cline-any cline-yes">5x</span>
 <span class="cline-any cline-yes">5x</span>
+<span class="cline-any cline-yes">1x</span>
+<span class="cline-any cline-yes">1x</span>
+<span class="cline-any cline-yes">1x</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
-<span class="cline-any cline-yes">1x</span>
-<span class="cline-any cline-yes">1x</span>
+<span class="cline-any cline-no">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-yes">6x</span>
@@ -700,7 +710,9 @@ export const receiveToken = async (tokenString: string): Promise&lt;ReceiveToken
       for (const proof of proofs) {
         <span class="missing-if-branch" title="else path not taken" >E</span>if (isP2PKLocked(proof)) {
           recipientPubkey = getP2PKRecipient(proof.secret);
-          logger.info('⚠️ Extracted recipient pubkey', { pubkey: recipientPubkey?.substring(0, 16) + '...' });
+          logger.info('[P2PK TOKEN] 🔐 Extracted recipient pubkey from token');
+          logger.info(`[P2PK TOKEN] Full pubkey: ${recipientPubkey}`);
+          logger.info(`[P2PK TOKEN] Pubkey length: ${recipientPubkey?.length}`);
           if (recipientPubkey) {
             break;
           }
@@ -710,18 +722,19 @@ export const receiveToken = async (tokenString: string): Promise&lt;ReceiveToken
       if (recipientPubkey) {
         // Get current account first to log it
         const currentAccountIndex = await getCurrentAccount();
-        logger.info('⚠️ Current account index', { accountIndex: currentAccountIndex });
+        logger.info(`[P2PK TOKEN] 📍 Current account index: ${currentAccountIndex}`);
 &nbsp;
         // Find which account owns this pubkey
-        const accountMatch = await findAccountForP2PKToken(recipientPubkey, 50);
+        // Use dynamic scan range based on current account
+        const accountMatch = await findAccountForP2PKToken(recipientPubkey);
 &nbsp;
         if (!accountMatch) {
-          logger.error('⚠️ No matching account found for P2PK token');
-          throw new Error('This token is not locked to any of your accounts (checked 50 accounts). Make sure you are using the correct wallet.');
+          logger.error('[P2PK TOKEN] ❌ No matching account found for P2PK token');
+          throw new Error('This token is not locked to any of your accounts. Make sure you are using the correct wallet.');
         }
 &nbsp;
-        logger.info('⚠️ Token locked to account', { accountIndex: accountMatch.accountIndex });
-        logger.info('⚠️ Comparing accounts', { current: currentAccountIndex, lockedTo: accountMatch.accountIndex });
+        logger.info(`[P2PK TOKEN] ✅ Token locked to account: ${accountMatch.accountIndex}`);
+        logger.info(`[P2PK TOKEN] 🔄 Comparing: current=${currentAccountIndex}, lockedTo=${accountMatch.accountIndex}`);
 &nbsp;
         if (accountMatch.accountIndex !== currentAccountIndex) {
           logger.error('⚠️ ACCOUNT MISMATCH - blocking claim');
@@ -766,9 +779,11 @@ export const receiveToken = async (tokenString: string): Promise&lt;ReceiveToken
     if (keyData.keysets &amp;&amp; keyData.keysets.length &gt; 0) {
       keysetId = keyData.keysets[0].id;
       keys = keyData.keysets[0].keys;
-    } else {
-      keys = keyData.keys || <span class="branch-1 cbranch-no" title="branch not covered" >keyData;</span>
+    } else if (keyData.keys) {
+      keys = keyData.keys;
       keysetId = '';
+    } else <span class="missing-if-branch" title="else path not taken" >E</span>{
+<span class="cstat-no" title="statement not covered" >      throw new Error('No keys available from mint');</span>
     }
 &nbsp;
     let proofsToSwap = proofs;
@@ -828,7 +843,7 @@ export const receiveToken = async (tokenString: string): Promise&lt;ReceiveToken
       amount,
       proofCount: newProofs.length,
     };
-  } catch (error) {
+  } catch (error: unknown) {
     logger.cashu('receive_token_error', {
       step: 'RECEIVE',
       error: (error as Error).message,
@@ -844,7 +859,7 @@ export const receiveToken = async (tokenString: string): Promise&lt;ReceiveToken
             <div class='footer quiet pad2 space-top1 center small'>
                 Code coverage generated by
                 <a href="https://istanbul.js.org/" target="_blank" rel="noopener noreferrer">istanbul</a>
-                at 2025-11-26T13:31:21.108Z
+                at 2025-11-27T08:28:08.171Z
             </div>
         <script src="../../../prettify.js"></script>
         <script>

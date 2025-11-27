@@ -89,9 +89,12 @@ const WalletScreen = React.memo(function WalletScreen({
   });
 
   // Calculate UNIT totals (Runes + Ecash)
+  // Runes from ord comes in display units (already divided)
+  // Ecash is stored in smallest units (needs /100 for display)
   const unitTotals = React.useMemo(() => {
     const runesAmount = getRunesAmount(runesBalance);
-    const totalUnit = runesAmount + (cashuBalance || 0);
+    const cashuDisplayAmount = (cashuBalance || 0) / 100;
+    const totalUnit = runesAmount + cashuDisplayAmount;
     return {
       formatted: totalUnit.toLocaleString('en-US', {
         minimumFractionDigits: 2,

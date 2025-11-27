@@ -43,27 +43,31 @@ export const useWalletCalculations = ({
   /**
    * Calculate total balance in BTC
    * Includes: BTC balance + UNIT value in BTC + Cashu ecash value in BTC + DUCAT value in BTC
+   * Note: Runes from ord comes in display units, ecash is in smallest units (needs /100)
    */
   const totalBalanceBTC = useMemo(() => {
     const btcValue = segwitBalance || 0;
-    const unitValue = getRunesAmount(runesBalance) / (btcPrice || 1);
-    const cashuValue = (cashuBalance || 0) / (btcPrice || 1);
+    const runesDisplayValue = getRunesAmount(runesBalance);
+    const cashuDisplayValue = (cashuBalance || 0) / 100;
+    const unitValue = (runesDisplayValue + cashuDisplayValue) / (btcPrice || 1);
     const ducatValue = 0; // DUCAT value in BTC (currently 0)
 
-    return btcValue + unitValue + cashuValue + ducatValue;
+    return btcValue + unitValue + ducatValue;
   }, [segwitBalance, runesBalance, cashuBalance, btcPrice]);
 
   /**
    * Calculate total balance in USD
    * Includes: BTC USD value + UNIT USD value + Cashu ecash USD value + DUCAT USD value
+   * Note: Runes from ord comes in display units, ecash is in smallest units (needs /100)
    */
   const totalBalanceUSD = useMemo(() => {
     const btcUsdValue = (segwitBalance || 0) * (btcPrice || 0);
-    const unitUsdValue = getRunesAmount(runesBalance);
-    const cashuUsdValue = cashuBalance || 0;
+    const runesDisplayValue = getRunesAmount(runesBalance);
+    const cashuDisplayValue = (cashuBalance || 0) / 100;
+    const unitUsdValue = runesDisplayValue + cashuDisplayValue;
     const ducatUsdValue = 0; // DUCAT value in USD (currently 0)
 
-    return btcUsdValue + unitUsdValue + cashuUsdValue + ducatUsdValue;
+    return btcUsdValue + unitUsdValue + ducatUsdValue;
   }, [segwitBalance, runesBalance, cashuBalance, btcPrice]);
 
   /**

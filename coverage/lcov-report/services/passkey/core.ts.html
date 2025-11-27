@@ -23,9 +23,9 @@
         <div class='clearfix'>
             
             <div class='fl pad1y space-right2'>
-                <span class="strong">29.41% </span>
+                <span class="strong">100% </span>
                 <span class="quiet">Statements</span>
-                <span class='fraction'>5/17</span>
+                <span class='fraction'>17/17</span>
             </div>
         
             
@@ -37,16 +37,16 @@
         
             
             <div class='fl pad1y space-right2'>
-                <span class="strong">0% </span>
+                <span class="strong">100% </span>
                 <span class="quiet">Functions</span>
-                <span class='fraction'>0/3</span>
+                <span class='fraction'>3/3</span>
             </div>
         
             
             <div class='fl pad1y space-right2'>
-                <span class="strong">29.41% </span>
+                <span class="strong">100% </span>
                 <span class="quiet">Lines</span>
-                <span class='fraction'>5/17</span>
+                <span class='fraction'>17/17</span>
             </div>
         
             
@@ -61,7 +61,7 @@
             </div>
         </template>
     </div>
-    <div class='status-line low'></div>
+    <div class='status-line high'></div>
     <pre><table class="coverage">
 <tr><td class="line-count quiet"><a name='L1'></a><a href='#L1'>1</a>
 <a name='L2'></a><a href='#L2'>2</a>
@@ -120,7 +120,7 @@
 <span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
-<span class="cline-any cline-yes">5x</span>
+<span class="cline-any cline-yes">8x</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
@@ -131,35 +131,35 @@
 <span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
-<span class="cline-any cline-yes">5x</span>
+<span class="cline-any cline-yes">8x</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
-<span class="cline-any cline-yes">5x</span>
-<span class="cline-any cline-no">&nbsp;</span>
-<span class="cline-any cline-no">&nbsp;</span>
-<span class="cline-any cline-no">&nbsp;</span>
-<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-yes">8x</span>
+<span class="cline-any cline-yes">3x</span>
+<span class="cline-any cline-yes">3x</span>
+<span class="cline-any cline-yes">2x</span>
+<span class="cline-any cline-yes">2x</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
-<span class="cline-any cline-no">&nbsp;</span>
-<span class="cline-any cline-no">&nbsp;</span>
-<span class="cline-any cline-neutral">&nbsp;</span>
-<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-yes">1x</span>
+<span class="cline-any cline-yes">1x</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
-<span class="cline-any cline-yes">5x</span>
-<span class="cline-any cline-no">&nbsp;</span>
-<span class="cline-any cline-no">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
-<span class="cline-any cline-yes">5x</span>
+<span class="cline-any cline-yes">8x</span>
+<span class="cline-any cline-yes">49x</span>
+<span class="cline-any cline-yes">49x</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
-<span class="cline-any cline-no">&nbsp;</span>
-<span class="cline-any cline-no">&nbsp;</span>
-<span class="cline-any cline-no">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
-<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-yes">8x</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-yes">15x</span>
+<span class="cline-any cline-yes">15x</span>
+<span class="cline-any cline-yes">21x</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-yes">15x</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span></td><td class="text"><pre class="prettyprint lang-js">/**
  * Passkey Core - Basic support checks and constants
@@ -185,30 +185,30 @@ export const PASSKEY_STORAGE_KEYS = PASSKEY_KEYS;
 /**
  * Check if WebAuthn/Passkeys are supported on this device
  */
-export const isPasskeySupported = <span class="fstat-no" title="function not covered" >as</span>ync (): Promise&lt;boolean&gt; =&gt; {
-<span class="cstat-no" title="statement not covered" >  try {</span>
-    const supported = <span class="cstat-no" title="statement not covered" >Passkey.isSupported();</span>
-<span class="cstat-no" title="statement not covered" >    logger.debug('Passkey support check', { supported });</span>
-<span class="cstat-no" title="statement not covered" >    return supported;</span>
-  } catch (error) {
-<span class="cstat-no" title="statement not covered" >    logger.error('Failed to check passkey support', { error: (error as Error).message });</span>
-<span class="cstat-no" title="statement not covered" >    return false;</span>
+export const isPasskeySupported = async (): Promise&lt;boolean&gt; =&gt; {
+  try {
+    const supported = Passkey.isSupported();
+    logger.debug('Passkey support check', { supported });
+    return supported;
+  } catch (error: unknown) {
+    logger.error('Failed to check passkey support', { error: (error as Error).message });
+    return false;
   }
 };
 &nbsp;
 // Base64URL encoding helpers
-export const toBase64Url = <span class="fstat-no" title="function not covered" >(b</span>uffer: Uint8Array): string =&gt; {
-  const base64 = <span class="cstat-no" title="statement not covered" >Buffer.from(buffer).toString('base64');</span>
-<span class="cstat-no" title="statement not covered" >  return base64.replace(/\+/g, '-').replace(/\//g, '_').replace(/[=]/g, '');</span>
+export const toBase64Url = (buffer: Uint8Array): string =&gt; {
+  const base64 = Buffer.from(buffer).toString('base64');
+  return base64.replace(/\+/g, '-').replace(/\//g, '_').replace(/[=]/g, '');
 };
 &nbsp;
-export const fromBase64Url = <span class="fstat-no" title="function not covered" >(b</span>ase64url: string): Buffer =&gt; {
+export const fromBase64Url = (base64url: string): Buffer =&gt; {
   // Add padding if needed
-  let base64 = <span class="cstat-no" title="statement not covered" >base64url.replace(/-/g, '+').replace(/_/g, '/');</span>
-<span class="cstat-no" title="statement not covered" >  while (base64.length % 4) {</span>
-<span class="cstat-no" title="statement not covered" >    base64 += '=';</span>
+  let base64 = base64url.replace(/-/g, '+').replace(/_/g, '/');
+  while (base64.length % 4) {
+    base64 += '=';
   }
-<span class="cstat-no" title="statement not covered" >  return Buffer.from(base64, 'base64');</span>
+  return Buffer.from(base64, 'base64');
 };
 &nbsp;</pre></td></tr></table></pre>
 
@@ -217,7 +217,7 @@ export const fromBase64Url = <span class="fstat-no" title="function not covered"
             <div class='footer quiet pad2 space-top1 center small'>
                 Code coverage generated by
                 <a href="https://istanbul.js.org/" target="_blank" rel="noopener noreferrer">istanbul</a>
-                at 2025-11-26T13:31:21.108Z
+                at 2025-11-27T08:28:08.171Z
             </div>
         <script src="../../prettify.js"></script>
         <script>

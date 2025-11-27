@@ -102,11 +102,12 @@ export default function AirdropSuccessModal({ visible, onClose }: AirdropSuccess
             An airdrop is on the way.{'\n'}You should see it reflected in your balance in 30 seconds.
           </Text>
 
-          {/* Get Started Button - Simply dismisses modal */}
+          {/* Get Started Button - Instantly dismisses modal */}
           <TouchableOpacity
             style={localStyles.closeButton}
             onPress={onClose}
-            activeOpacity={0.8}
+            activeOpacity={0.7}
+            delayPressIn={0}
           >
             <Text style={localStyles.closeButtonText}>Get Started</Text>
           </TouchableOpacity>

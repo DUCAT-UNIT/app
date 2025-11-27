@@ -25,14 +25,14 @@
             <div class='fl pad1y space-right2'>
                 <span class="strong">100% </span>
                 <span class="quiet">Statements</span>
-                <span class='fraction'>32/32</span>
+                <span class='fraction'>34/34</span>
             </div>
         
             
             <div class='fl pad1y space-right2'>
-                <span class="strong">70.58% </span>
+                <span class="strong">90.9% </span>
                 <span class="quiet">Branches</span>
-                <span class='fraction'>24/34</span>
+                <span class='fraction'>20/22</span>
             </div>
         
             
@@ -46,7 +46,7 @@
             <div class='fl pad1y space-right2'>
                 <span class="strong">100% </span>
                 <span class="quiet">Lines</span>
-                <span class='fraction'>27/27</span>
+                <span class='fraction'>29/29</span>
             </div>
         
             
@@ -167,9 +167,7 @@
 <a name='L102'></a><a href='#L102'>102</a>
 <a name='L103'></a><a href='#L103'>103</a>
 <a name='L104'></a><a href='#L104'>104</a>
-<a name='L105'></a><a href='#L105'>105</a>
-<a name='L106'></a><a href='#L106'>106</a>
-<a name='L107'></a><a href='#L107'>107</a></td><td class="line-coverage quiet"><span class="cline-any cline-neutral">&nbsp;</span>
+<a name='L105'></a><a href='#L105'>105</a></td><td class="line-coverage quiet"><span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
@@ -217,15 +215,14 @@
 <span class="cline-any cline-yes">14x</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-yes">13x</span>
-<span class="cline-any cline-neutral">&nbsp;</span>
-<span class="cline-any cline-neutral">&nbsp;</span>
-<span class="cline-any cline-yes">13x</span>
-<span class="cline-any cline-neutral">&nbsp;</span>
-<span class="cline-any cline-yes">13x</span>
+<span class="cline-any cline-yes">3x</span>
+<span class="cline-any cline-yes">3x</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-yes">10x</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
@@ -233,15 +230,14 @@
 <span class="cline-any cline-yes">15x</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-yes">14x</span>
-<span class="cline-any cline-neutral">&nbsp;</span>
-<span class="cline-any cline-neutral">&nbsp;</span>
-<span class="cline-any cline-yes">14x</span>
-<span class="cline-any cline-neutral">&nbsp;</span>
-<span class="cline-any cline-yes">14x</span>
+<span class="cline-any cline-yes">3x</span>
+<span class="cline-any cline-yes">3x</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-yes">11x</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
@@ -281,7 +277,7 @@
  */
 &nbsp;
 import { useState, useEffect, useMemo, Dispatch, SetStateAction } from 'react';
-import { parsePSBT, buildFallbackOutputs, hasUnconfirmedInputs as checkUnconfirmedInputs, PSBTInput, PSBTOutput, SendIntent as PSBTSendIntent } from '../services/psbtService';
+import { parsePSBT, buildFallbackOutputs, hasUnconfirmedInputs as checkUnconfirmedInputs, PSBTInput, PSBTOutput } from '../services/psbtService';
 import { useTransactionBuild } from '../contexts/TransactionBuildContext';
 import type { SendIntent } from '../contexts/TransactionBuildContext';
 import { usePrice } from '../contexts/PriceContext';
@@ -315,56 +311,54 @@ export function useReviewScreenData(): UseReviewScreenDataReturn {
 &nbsp;
   // Check if any inputs are unconfirmed
   const hasUnconfirmedInputs = useMemo(() =&gt; {
-    return checkUnconfirmedInputs(sendIntent as PSBTSendIntent | null);
+    return checkUnconfirmedInputs(sendIntent);
   }, [sendIntent]);
 &nbsp;
   // Calculate display values
   const displayAmount = useMemo(() =&gt; {
     if (!sendIntent) return '';
 &nbsp;
-    const amount = typeof sendIntent.amount === 'number'
-      ? sendIntent.amount.toString()
-      : (<span class="branch-1 cbranch-no" title="branch not covered" >sendIntent.amount || '0')</span>;
-    const amountBTC = sendIntent.amountBTC || <span class="branch-1 cbranch-no" title="branch not covered" >'0';</span>
-&nbsp;
-    return sendIntent.assetType === 'UNIT'
-      ? `${(parseFloat(amount) / 100).toLocaleString('en-US', {
-          minimumFractionDigits: 2,
-          maximumFractionDigits: 2
-        })} UNIT`
-      : `${amountBTC} BTC`;
+    if (sendIntent.assetType === 'UNIT') {
+      const amount = sendIntent.amount.toString();
+      return `${(parseFloat(amount) / 100).toLocaleString('en-US', {
+        minimumFractionDigits: 2,
+        maximumFractionDigits: 2
+      })} UNIT`;
+    } else {
+      // BTC transaction
+      return `${sendIntent.amountBTC} BTC`;
+    }
   }, [sendIntent]);
 &nbsp;
   const usdAmount = useMemo(() =&gt; {
     if (!sendIntent) return '0.00';
 &nbsp;
-    const amount = typeof sendIntent.amount === 'number'
-      ? sendIntent.amount.toString()
-      : (<span class="branch-1 cbranch-no" title="branch not covered" >sendIntent.amount || '0')</span>;
-    const amountBTC = sendIntent.amountBTC || <span class="branch-1 cbranch-no" title="branch not covered" >'0';</span>
-&nbsp;
-    return sendIntent.assetType === 'UNIT'
-      ? (parseFloat(amount) / 100).toLocaleString('en-US', {
-          minimumFractionDigits: 2,
-          maximumFractionDigits: 2,
-        })
-      : (parseFloat(amountBTC) * (btcPrice || <span class="branch-1 cbranch-no" title="branch not covered" >0)</span>).toLocaleString('en-US', {
-          minimumFractionDigits: 2,
-          maximumFractionDigits: 2,
-        });
+    if (sendIntent.assetType === 'UNIT') {
+      const amount = sendIntent.amount.toString();
+      return (parseFloat(amount) / 100).toLocaleString('en-US', {
+        minimumFractionDigits: 2,
+        maximumFractionDigits: 2,
+      });
+    } else {
+      // BTC transaction
+      return (parseFloat(sendIntent.amountBTC) * (btcPrice || <span class="branch-1 cbranch-no" title="branch not covered" >0)</span>).toLocaleString('en-US', {
+        minimumFractionDigits: 2,
+        maximumFractionDigits: 2,
+      });
+    }
   }, [sendIntent, btcPrice]);
 &nbsp;
   // Parse PSBT to get inputs, outputs, and fee
   const { psbtInputs, psbtOutputs, actualFee } = useMemo(() =&gt; {
     if (!sendIntent?.psbt) return { psbtInputs: [], psbtOutputs: [], actualFee: 0 };
-    return parsePSBT(sendIntent as unknown as PSBTSendIntent);
+    return parsePSBT(sendIntent);
   }, [sendIntent]);
 &nbsp;
   // Use PSBT outputs if available, otherwise fall back to manual construction
   const outputs = useMemo(() =&gt; {
     if (psbtOutputs.length &gt; 0) return psbtOutputs;
     if (!sendIntent?.psbt) return [];
-    return buildFallbackOutputs(sendIntent as unknown as PSBTSendIntent);
+    return buildFallbackOutputs(sendIntent);
   }, [psbtOutputs, sendIntent]);
 &nbsp;
   return {
@@ -388,7 +382,7 @@ export function useReviewScreenData(): UseReviewScreenDataReturn {
             <div class='footer quiet pad2 space-top1 center small'>
                 Code coverage generated by
                 <a href="https://istanbul.js.org/" target="_blank" rel="noopener noreferrer">istanbul</a>
-                at 2025-11-26T13:31:21.108Z
+                at 2025-11-27T08:28:08.171Z
             </div>
         <script src="../prettify.js"></script>
         <script>

@@ -25,14 +25,14 @@
             <div class='fl pad1y space-right2'>
                 <span class="strong">100% </span>
                 <span class="quiet">Statements</span>
-                <span class='fraction'>49/49</span>
+                <span class='fraction'>50/50</span>
             </div>
         
             
             <div class='fl pad1y space-right2'>
-                <span class="strong">93.1% </span>
+                <span class="strong">91.07% </span>
                 <span class="quiet">Branches</span>
-                <span class='fraction'>54/58</span>
+                <span class='fraction'>51/56</span>
             </div>
         
             
@@ -46,7 +46,7 @@
             <div class='fl pad1y space-right2'>
                 <span class="strong">100% </span>
                 <span class="quiet">Lines</span>
-                <span class='fraction'>49/49</span>
+                <span class='fraction'>50/50</span>
             </div>
         
             
@@ -251,7 +251,12 @@
 <a name='L186'></a><a href='#L186'>186</a>
 <a name='L187'></a><a href='#L187'>187</a>
 <a name='L188'></a><a href='#L188'>188</a>
-<a name='L189'></a><a href='#L189'>189</a></td><td class="line-coverage quiet"><span class="cline-any cline-neutral">&nbsp;</span>
+<a name='L189'></a><a href='#L189'>189</a>
+<a name='L190'></a><a href='#L190'>190</a>
+<a name='L191'></a><a href='#L191'>191</a>
+<a name='L192'></a><a href='#L192'>192</a></td><td class="line-coverage quiet"><span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
@@ -290,12 +295,13 @@
 <span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-yes">31x</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-yes">31x</span>
 <span class="cline-any cline-yes">31x</span>
-<span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-yes">31x</span>
 <span class="cline-any cline-yes">31x</span>
 <span class="cline-any cline-yes">31x</span>
@@ -441,6 +447,7 @@
 <span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span></td><td class="text"><pre class="prettyprint lang-js">import { useMemo } from 'react';
 import { COLORS } from '../theme';
+import { getRunesAmount } from '../utils/runesHelper';
 import type { RuneBalance } from '../services/balanceService';
 import type { VaultData } from '../services/vaultService';
 &nbsp;
@@ -469,22 +476,24 @@ interface UseWalletCalculationsReturn {
  * Custom hook for wallet-related calculations
  * Extracts business logic from WalletScreen component
  */
+&nbsp;
 export const useWalletCalculations = ({
   segwitBalance = <span class="branch-0 cbranch-no" title="branch not covered" >0,</span>
   taprootBalance: _taprootBalance = 0,
   runesBalance = <span class="branch-0 cbranch-no" title="branch not covered" >[],</span>
   cashuBalance = 0,
-  btcPrice = <span class="branch-0 cbranch-no" title="branch not covered" >0,</span>
+  btcPrice: btcPriceParam = <span class="branch-0 cbranch-no" title="branch not covered" >0,</span>
   vaultData = null,
 }: UseWalletCalculationsParams): UseWalletCalculationsReturn =&gt; {
+  // Ensure btcPrice is never null (default params don't handle null, only undefined)
+  const btcPrice = btcPriceParam ?? <span class="branch-1 cbranch-no" title="branch not covered" >0;</span>
   /**
    * Calculate total balance in BTC
    * Includes: BTC balance + UNIT value in BTC + Cashu ecash value in BTC + DUCAT value in BTC
    */
   const totalBalanceBTC = useMemo(() =&gt; {
     const btcValue = segwitBalance || 0;
-    const unitValue =
-      runesBalance.length &gt; 0 ? parseFloat(runesBalance[0].amount) / (btcPrice || 1) : 0;
+    const unitValue = getRunesAmount(runesBalance) / (btcPrice || 1);
     const cashuValue = (cashuBalance || 0) / (btcPrice || 1);
     const ducatValue = 0; // DUCAT value in BTC (currently 0)
 &nbsp;
@@ -497,7 +506,7 @@ export const useWalletCalculations = ({
    */
   const totalBalanceUSD = useMemo(() =&gt; {
     const btcUsdValue = (segwitBalance || 0) * (btcPrice || 0);
-    const unitUsdValue = runesBalance.length &gt; 0 ? parseFloat(runesBalance[0].amount) : 0;
+    const unitUsdValue = getRunesAmount(runesBalance);
     const cashuUsdValue = cashuBalance || 0;
     const ducatUsdValue = 0; // DUCAT value in USD (currently 0)
 &nbsp;
@@ -571,7 +580,7 @@ export const useWalletCalculations = ({
       return 0;
     }
 &nbsp;
-    return parseFloat(runesBalance[0].amount) / btcPrice;
+    return getRunesAmount(runesBalance) / btcPrice;
   }, [runesBalance, btcPrice]);
 &nbsp;
   /**
@@ -634,7 +643,7 @@ export const useWalletCalculations = ({
             <div class='footer quiet pad2 space-top1 center small'>
                 Code coverage generated by
                 <a href="https://istanbul.js.org/" target="_blank" rel="noopener noreferrer">istanbul</a>
-                at 2025-11-26T13:31:21.108Z
+                at 2025-11-27T08:28:08.171Z
             </div>
         <script src="../prettify.js"></script>
         <script>

@@ -23,9 +23,9 @@
         <div class='clearfix'>
             
             <div class='fl pad1y space-right2'>
-                <span class="strong">100% </span>
+                <span class="strong">94.59% </span>
                 <span class="quiet">Statements</span>
-                <span class='fraction'>32/32</span>
+                <span class='fraction'>35/37</span>
             </div>
         
             
@@ -37,16 +37,16 @@
         
             
             <div class='fl pad1y space-right2'>
-                <span class="strong">100% </span>
+                <span class="strong">87.5% </span>
                 <span class="quiet">Functions</span>
-                <span class='fraction'>6/6</span>
+                <span class='fraction'>7/8</span>
             </div>
         
             
             <div class='fl pad1y space-right2'>
-                <span class="strong">100% </span>
+                <span class="strong">94.59% </span>
                 <span class="quiet">Lines</span>
-                <span class='fraction'>32/32</span>
+                <span class='fraction'>35/37</span>
             </div>
         
             
@@ -159,7 +159,17 @@
 <a name='L94'></a><a href='#L94'>94</a>
 <a name='L95'></a><a href='#L95'>95</a>
 <a name='L96'></a><a href='#L96'>96</a>
-<a name='L97'></a><a href='#L97'>97</a></td><td class="line-coverage quiet"><span class="cline-any cline-neutral">&nbsp;</span>
+<a name='L97'></a><a href='#L97'>97</a>
+<a name='L98'></a><a href='#L98'>98</a>
+<a name='L99'></a><a href='#L99'>99</a>
+<a name='L100'></a><a href='#L100'>100</a>
+<a name='L101'></a><a href='#L101'>101</a>
+<a name='L102'></a><a href='#L102'>102</a>
+<a name='L103'></a><a href='#L103'>103</a>
+<a name='L104'></a><a href='#L104'>104</a>
+<a name='L105'></a><a href='#L105'>105</a>
+<a name='L106'></a><a href='#L106'>106</a>
+<a name='L107'></a><a href='#L107'>107</a></td><td class="line-coverage quiet"><span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
@@ -245,6 +255,16 @@
 <span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-yes">26x</span>
 <span class="cline-any cline-yes">11x</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-yes">11x</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-yes">26x</span>
+<span class="cline-any cline-yes">11x</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-yes">26x</span>
@@ -262,7 +282,7 @@
 &nbsp;
 import { useState, useCallback, useEffect, useRef, Dispatch, SetStateAction } from 'react';
 import { logger } from '../utils/logger';
-import { getBalance, setCurrentAccount } from '../services/cashu/cashuWalletService';
+import { getBalance, setCurrentAccount, subscribeToProofChanges } from '../services/cashu/cashuWalletService';
 import { usePolling } from './usePolling';
 import type { WalletAddresses } from '../contexts/WalletContext';
 &nbsp;
@@ -309,7 +329,7 @@ export function useCashuBalance({ wallet }: UseCashuBalanceParams): UseCashuBala
           try {
             const fullBalance = await getBalance(true);
             setBalance(fullBalance);
-          } catch (err) {
+          } catch (err: unknown) {
             logger.error('Failed to fetch full Cashu balance', { error: err instanceof Error ? err.message : <span class="branch-1 cbranch-no" title="branch not covered" >String(err) </span>});
           }
         }, 100);
@@ -322,7 +342,7 @@ export function useCashuBalance({ wallet }: UseCashuBalanceParams): UseCashuBala
         setError(null);
         return newBalance;
       }
-    } catch (err) {
+    } catch (err: unknown) {
       const errorMessage = err instanceof Error ? err.message : <span class="branch-1 cbranch-no" title="branch not covered" >String(err);</span>
       logger.error('Failed to fetch Cashu balance', { error: errorMessage });
       setError(errorMessage);
@@ -337,6 +357,16 @@ export function useCashuBalance({ wallet }: UseCashuBalanceParams): UseCashuBala
     enabled: true,
     immediate: false,
   });
+&nbsp;
+  // Subscribe to proof changes to trigger immediate balance refresh
+  useEffect(() =&gt; {
+    const unsubscribe = subscribeToProofChanges(<span class="fstat-no" title="function not covered" >()</span> =&gt; {
+<span class="cstat-no" title="statement not covered" >      logger.debug('[useCashuBalance] Proof change detected, refreshing balance');</span>
+<span class="cstat-no" title="statement not covered" >      fetchBalance(true);</span>
+    });
+&nbsp;
+    return unsubscribe;
+  }, [fetchBalance]);
 &nbsp;
   // Initial load - use fast loading
   useEffect(() =&gt; {
@@ -358,7 +388,7 @@ export function useCashuBalance({ wallet }: UseCashuBalanceParams): UseCashuBala
             <div class='footer quiet pad2 space-top1 center small'>
                 Code coverage generated by
                 <a href="https://istanbul.js.org/" target="_blank" rel="noopener noreferrer">istanbul</a>
-                at 2025-11-26T13:31:21.108Z
+                at 2025-11-27T08:28:08.171Z
             </div>
         <script src="../prettify.js"></script>
         <script>

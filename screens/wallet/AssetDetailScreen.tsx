@@ -100,8 +100,11 @@ function AssetDetailScreen({ route = {}, navigation }: AssetDetailScreenProps): 
   const { priceData, priceDirection, priceLoading, priceError, setPriceError } = usePriceChart(assetType, selectedTimeframe);
 
   // Calculate balances
+  // Runes from ord comes in display units (already divided)
+  // Ecash is stored in smallest units (needs /100 for display)
   const unitRunesAmount = getRunesAmount(runesBalance);
-  const totalUnitAmount = unitRunesAmount + cashuBalance;
+  const cashuDisplayAmount = (cashuBalance || 0) / 100;
+  const totalUnitAmount = unitRunesAmount + cashuDisplayAmount;
   const balance = assetType === 'BTC' ? segwitBalance : totalUnitAmount;
   const fiatValue = assetType === 'BTC' ? balance * (btcPrice ?? 0) : balance * 1;
 
