@@ -819,7 +819,7 @@ describe('cashuP2PK', () => {
       const result = await getP2PKPrivateKey();
 
       expect(result).toBe('derived_private_key_hex');
-      expect(getPrivateKeyForAddress).toHaveBeenCalledWith('tb1ptest123');
+      expect(getPrivateKeyForAddress).toHaveBeenCalledWith('tb1ptest123', 0);
       expect(SecureStore.setItemAsync).toHaveBeenCalledWith('p2pk_taproot_address_v3', 'tb1ptest123');
       expect(SecureStore.setItemAsync).toHaveBeenCalledWith('p2pk_private_key_v3', 'derived_private_key_hex');
     });

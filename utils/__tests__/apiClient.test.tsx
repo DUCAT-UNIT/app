@@ -89,22 +89,7 @@ describe('postWithRetry', () => {
 
     expect(retry.retrySilently).toHaveBeenCalledWith(
       expect.any(Function),
-      'POST request',
       { maxRetries: 5 }
-    );
-  });
-
-  it('should use custom description', async () => {
-    api.fetchWithTimeout.mockResolvedValue({});
-
-    await postWithRetry('https://api.test', {}, {
-      description: 'Custom operation',
-    });
-
-    expect(retry.retrySilently).toHaveBeenCalledWith(
-      expect.any(Function),
-      'Custom operation',
-      {}
     );
   });
 });
@@ -254,6 +239,8 @@ describe('getJSON', () => {
   it('should GET and parse JSON response', async () => {
     const mockData = { items: [1, 2, 3] };
     const mockResponse = {
+      ok: true,
+      headers: { get: jest.fn().mockReturnValue('application/json') },
       json: jest.fn().mockResolvedValue(mockData),
     };
     api.fetchWithTimeout.mockResolvedValue(mockResponse);
@@ -266,6 +253,8 @@ describe('getJSON', () => {
 
   it('should pass options to getWithRetry', async () => {
     api.fetchWithTimeout.mockResolvedValue({
+      ok: true,
+      headers: { get: jest.fn().mockReturnValue('application/json') },
       json: jest.fn().mockResolvedValue({}),
     });
 

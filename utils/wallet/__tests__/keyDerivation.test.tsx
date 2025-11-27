@@ -136,7 +136,7 @@ describe('keyDerivation', () => {
       });
 
       await expect(getPrivateKeyForAddress('tb1pnotfound')).rejects.toThrow(
-        'Address tb1pnotfound not found in first 50 accounts'
+        'Address tb1pnotfound not found in first 100 accounts'
       );
     });
 
@@ -283,7 +283,7 @@ describe('keyDerivation', () => {
       });
 
       await expect(getPrivateKeyForAddress('tb1qnotfound')).rejects.toThrow(
-        'Address tb1qnotfound not found in first 50 accounts'
+        'Address tb1qnotfound not found in first 100 accounts'
       );
     });
 
