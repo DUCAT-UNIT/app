@@ -113,11 +113,18 @@ export function usePriceChart(assetType: string, selectedTimeframe: Timeframe): 
       // STEP 1: Always check and show cache first (instant UX)
       // Check in-memory cache first
       if (priceCache[cacheKey]) {
-        const { prices, direction } = priceCache[cacheKey];
+        const { prices, direction, timestamp } = priceCache[cacheKey];
         setPriceData(prices);
         setPriceDirection(direction);
         setPriceLoading(false);
+        setPriceError(null);
         hasShownCache = true;
+
+        // If cache is fresh, we're done - no need to fetch
+        const age = Date.now() - timestamp;
+        if (age < CACHE_EXPIRY_MS) {
+          return;
+        }
       }
 
       // If no in-memory cache, check AsyncStorage
@@ -125,16 +132,23 @@ export function usePriceChart(assetType: string, selectedTimeframe: Timeframe): 
         try {
           const cachedData = await AsyncStorage.getItem(cacheKey);
           if (cachedData) {
-            const { prices } = JSON.parse(cachedData);
+            const { prices, timestamp } = JSON.parse(cachedData);
             const direction = calculatePriceDirection(prices);
 
             setPriceData(prices);
             setPriceDirection(direction);
             setPriceLoading(false);
+            setPriceError(null);
             hasShownCache = true;
 
             // Store in memory cache
-            priceCache[cacheKey] = { prices, timestamp: Date.now(), direction };
+            priceCache[cacheKey] = { prices, timestamp: timestamp || Date.now(), direction };
+
+            // If cache is fresh, we're done
+            const age = Date.now() - (timestamp || 0);
+            if (age < CACHE_EXPIRY_MS) {
+              return;
+            }
           }
         } catch (cacheError) {
           // Silently fail cache read
@@ -147,15 +161,6 @@ export function usePriceChart(assetType: string, selectedTimeframe: Timeframe): 
       if (lastRateLimitTime > 0 && timeSinceRateLimit < RATE_LIMIT_BACKOFF_MS) {
         setPriceError(null);
         return;
-      }
-
-      // Check if cache is fresh enough
-      if (priceCache[cacheKey]) {
-        const age = Date.now() - priceCache[cacheKey].timestamp;
-        if (age < CACHE_EXPIRY_MS) {
-          setPriceError(null);
-          return; // Cache is fresh, no need to fetch
-        }
       }
 
       // STEP 3: Fetch fresh data in background (don't show loading if we have cache)
@@ -220,14 +225,15 @@ export function usePriceChart(assetType: string, selectedTimeframe: Timeframe): 
         setPriceError(null);
       }
     } catch (error: unknown) {
-      // Only show error if we don't have any cached data
-      if (!priceData) {
+      // Only show error if we don't have any cached data for this timeframe
+      const cacheKey = `${CACHE_KEY_PREFIX}${selectedTimeframe}`;
+      if (!priceCache[cacheKey]) {
         setPriceError((error instanceof Error ? error.message : String(error)) || 'Failed to load price data');
       }
     } finally {
       setPriceLoading(false);
     }
-  }, [selectedTimeframe, priceData]);
+  }, [selectedTimeframe]);
 
   // Always fetch (will show cache first, then update if needed)
   useEffect(() => {
