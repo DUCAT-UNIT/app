@@ -6,117 +6,97 @@ import { COLORS } from '../../../theme';
 import { wallet, vault } from '../../../styles/screens';
 import Icon from '../../../components/icons';
 
-// Real components
 import VaultCard from '../../../components/wallet/VaultCard';
 
-// ============================================================================
-// DEVICE SIZE CONFIG
-// ============================================================================
-const DEVICE_SIZES = {
-  XS: { width: 320, label: 'XS', subtitle: 'iPhone 5', iconSize: 28, fontSize: 11, labelFontSize: 9, amountIcon: 9, padding: 10, gap: 6 },
-  S: { width: 375, label: 'S', subtitle: 'iPhone SE/8', iconSize: 32, fontSize: 13, labelFontSize: 10, amountIcon: 10, padding: 12, gap: 8 },
-  M: { width: 390, label: 'M', subtitle: 'iPhone 12/13/14', iconSize: 34, fontSize: 14, labelFontSize: 11, amountIcon: 11, padding: 14, gap: 10 },
-  L: { width: 393, label: 'L', subtitle: 'iPhone 14 Pro', iconSize: 36, fontSize: 14, labelFontSize: 11, amountIcon: 11, padding: 14, gap: 10 },
-  XL: { width: 430, label: 'XL', subtitle: 'iPhone 16 Pro Max', iconSize: 40, fontSize: 15, labelFontSize: 12, amountIcon: 12, padding: 16, gap: 12 },
-};
+const DEVICE_CONFIGS = [
+  { width: 320, size: 'XS', label: 'iPhone 5', scale: 0.75 },
+  { width: 375, size: 'S', label: 'iPhone SE/8', scale: 0.85 },
+  { width: 390, size: 'M', label: 'iPhone 12/13/14', scale: 0.95 },
+  { width: 393, size: 'L', label: 'iPhone 14 Pro', scale: 1.0 },
+  { width: 430, size: 'XL', label: 'iPhone 16 Pro Max', scale: 1.1 },
+];
 
-type DeviceSize = keyof typeof DEVICE_SIZES;
-type DeviceConfig = typeof DEVICE_SIZES[DeviceSize];
-
-// Generate scaled styles for each device size
-const getScaledStyles = (config: DeviceConfig) => ({
+const getScaledStyles = (scale: number) => ({
   vaultCard: {
     ...vault.vaultCard,
-    padding: config.padding,
+    padding: 4,
+    height: 'auto',
+    marginBottom: 0,
   },
   vaultIconContainer: {
     ...vault.vaultIconContainer,
-    width: config.iconSize + 8,
-    height: config.iconSize + 8,
+    width: 40 * scale,
+    height: 40 * scale,
   },
-  vaultStatusIndicator: vault.vaultStatusIndicator,
+  vaultStatusIndicator: {
+    ...vault.vaultStatusIndicator,
+    position: 'absolute',
+    top: 1 * scale * 4,
+    right: 1 * scale * 4,
+  },
   vaultContentWrapper: {
     ...vault.vaultContentWrapper,
-    gap: config.gap,
+    gap: 4,
+    marginRight: 8,
   },
   vaultHeader: vault.vaultHeader,
-  vaultHeaderLeft: {
-    ...vault.vaultHeaderLeft,
-    gap: config.gap,
-  },
+  vaultHeaderLeft: vault.vaultHeaderLeft,
   assetInfo: wallet.assetInfo,
   vaultAssetName: {
     ...vault.vaultAssetName,
-    fontSize: config.fontSize,
+    fontSize: 14 * scale,
   },
   assetValue: {
     ...wallet.assetValue,
-    fontSize: config.fontSize - 2,
+    fontSize: 13 * scale,
   },
   vaultDetailsContainer: {
     ...vault.vaultDetailsContainer,
-    gap: config.gap,
+    gap: 4,
   },
   vaultDetailRow: vault.vaultDetailRow,
   vaultLabel: {
     ...vault.vaultLabel,
-    fontSize: config.labelFontSize,
+    fontSize: 11 * scale,
   },
   vaultValueContainer: vault.vaultValueContainer,
   assetAmountIcon: {
     ...wallet.assetAmountIcon,
-    width: config.amountIcon,
-    height: config.amountIcon,
+    width: 10 * scale,
+    height: 10 * scale,
   },
   assetAmount: {
     ...wallet.assetAmount,
-    fontSize: config.fontSize - 1,
+    fontSize: 12 * scale,
   },
   vaultOverlay: vault.vaultOverlay,
-  createVaultButton: {
-    ...vault.createVaultButton,
-    paddingVertical: config.padding - 2,
-    paddingHorizontal: config.padding + 4,
-  },
+  createVaultButton: vault.createVaultButton,
   createVaultButtonText: {
     ...vault.createVaultButtonText,
-    fontSize: config.fontSize - 1,
+    fontSize: 13 * scale,
   },
 });
 
-// Health state config
-const HEALTH_STATES = {
-  healthy: { color: COLORS.SUCCESS_GREEN, percentage: '245', hasVault: true, liquidated: false },
-  warning: { color: COLORS.YELLOW, percentage: '175', hasVault: true, liquidated: false },
-  danger: { color: COLORS.DANGER_RED, percentage: '140', hasVault: true, liquidated: false },
-  liquidated: { color: COLORS.DANGER_RED, percentage: '105', hasVault: true, liquidated: true },
-  noVault: { color: COLORS.SECONDARY_TEXT, percentage: '0', hasVault: false, liquidated: false },
-};
-
-type HealthState = keyof typeof HEALTH_STATES;
-
 // ============================================================================
-// DEVICE SIZE OVERVIEW STORY
+// DEVICE SIZE OVERVIEW
 // ============================================================================
 const DeviceSizeOverviewStory = () => (
-  <ScrollView contentContainerStyle={localStyles.overviewScrollContent}>
-    {Object.entries(DEVICE_SIZES).map(([key, config]) => (
-      <View key={key} style={localStyles.deviceSection}>
-        <View style={localStyles.deviceHeader}>
-          <Text style={localStyles.deviceLabel}>{config.label}</Text>
-          <Text style={localStyles.deviceWidth}>{config.subtitle} ({config.width}px)</Text>
-        </View>
-        <View style={{ width: config.width }}>
+  <ScrollView contentContainerStyle={styles.scrollContent}>
+    {DEVICE_CONFIGS.map(({ width, size, label, scale }) => (
+      <View key={width} style={styles.deviceSection}>
+        <Text style={styles.sizeLabel}>{size}</Text>
+        <Text style={styles.deviceLabel}>{label} ({width}px)</Text>
+        <View style={{ width }}>
           <VaultCard
             hasVault={true}
             vaultHealthColor={COLORS.SUCCESS_GREEN}
             vaultHealthPercentage="245"
-            vaultDebt={1250.50}
+            vaultDebt={1250.5}
             vaultCollateral={0.05}
             onVaultPress={() => {}}
             onCreateVault={() => {}}
             creatingVault={false}
-            styles={getScaledStyles(config)}
+            styles={getScaledStyles(scale)}
           />
         </View>
       </View>
@@ -125,59 +105,76 @@ const DeviceSizeOverviewStory = () => (
 );
 
 // ============================================================================
-// BASIC CONFIGURABLE STORY
+// VAULT HEALTH CARD
 // ============================================================================
-interface BasicStoryProps {
+type HealthState = 'healthy' | 'medium' | 'risky' | 'liquidated' | 'noVault';
+type ScreenSize = 'XS' | 'S' | 'M' | 'L' | 'XL';
+
+const HEALTH_STATES: Record<HealthState, { color: string; percentage: string; hasVault: boolean }> = {
+  healthy: { color: COLORS.SUCCESS_GREEN, percentage: '245', hasVault: true },
+  medium: { color: COLORS.YELLOW, percentage: '175', hasVault: true },
+  risky: { color: COLORS.DANGER_RED, percentage: '140', hasVault: true },
+  liquidated: { color: COLORS.DANGER_RED, percentage: '105', hasVault: true },
+  noVault: { color: COLORS.SECONDARY_TEXT, percentage: '0', hasVault: false },
+};
+
+const SCREEN_SCALES: Record<ScreenSize, number> = {
+  XS: 0.75,
+  S: 0.85,
+  M: 0.95,
+  L: 1.0,
+  XL: 1.1,
+};
+
+interface VaultHealthCardProps {
   healthState: HealthState;
-  vaultDebt: number;
-  vaultCollateral: number;
-  deviceSize: DeviceSize;
+  screenSize: ScreenSize;
+  debtAmount: number;
+  collateralAmount: number;
 }
 
-const BasicStory = ({ healthState, vaultDebt, vaultCollateral, deviceSize }: BasicStoryProps) => {
-  const config = DEVICE_SIZES[deviceSize];
+const VaultHealthCardStory = ({ healthState, screenSize, debtAmount, collateralAmount }: VaultHealthCardProps) => {
   const health = HEALTH_STATES[healthState];
-  const scaledStyles = getScaledStyles(config);
+  const scale = SCREEN_SCALES[screenSize];
+  const deviceWidth = DEVICE_CONFIGS.find(d => d.size === screenSize)?.width || 393;
+  const isLiquidated = healthState === 'liquidated';
 
   return (
-    <View style={localStyles.centeredContainer}>
-      <Text style={localStyles.sizeIndicator}>{config.label} {config.width}px</Text>
-      <View style={{ width: config.width }}>
-        <View style={health.liquidated ? localStyles.liquidationWrapper : undefined}>
-          <VaultCard
-            hasVault={health.hasVault}
-            vaultHealthColor={health.color}
-            vaultHealthPercentage={health.percentage}
-            vaultDebt={vaultDebt}
-            vaultCollateral={vaultCollateral}
-            onVaultPress={() => {}}
-            onCreateVault={() => {}}
-            creatingVault={false}
-            styles={scaledStyles}
-          />
-          {health.liquidated && (
-            <LinearGradient
-              colors={[COLORS.OVERLAY_START, COLORS.OVERLAY_END]}
-              style={localStyles.liquidationOverlay}
-              start={{ x: 0.5, y: 0 }}
-              end={{ x: 0.5, y: 1 }}
-            >
-              <View style={localStyles.liquidationContent}>
-                <View style={localStyles.liquidationIconContainer}>
-                  <Icon name="warning" size={14} color={COLORS.DANGER_RED} />
-                </View>
-                <Text style={localStyles.liquidationText}>Vault in Liquidation</Text>
+    <View style={styles.container}>
+      <View style={{ width: deviceWidth, position: 'relative' }}>
+        <VaultCard
+          hasVault={health.hasVault}
+          vaultHealthColor={health.color}
+          vaultHealthPercentage={health.percentage}
+          vaultDebt={debtAmount}
+          vaultCollateral={collateralAmount}
+          onVaultPress={() => {}}
+          onCreateVault={() => {}}
+          creatingVault={false}
+          styles={getScaledStyles(scale)}
+        />
+        {isLiquidated && (
+          <LinearGradient
+            colors={[COLORS.OVERLAY_START, COLORS.OVERLAY_END]}
+            style={styles.liquidationOverlay}
+            start={{ x: 0.5, y: 0 }}
+            end={{ x: 0.5, y: 1 }}
+          >
+            <View style={styles.liquidationContent}>
+              <View style={styles.liquidationIconContainer}>
+                <Icon name="warning" size={14} color={COLORS.DANGER_RED} />
               </View>
-            </LinearGradient>
-          )}
-        </View>
+              <Text style={styles.liquidationText}>Vault in Liquidation</Text>
+            </View>
+          </LinearGradient>
+        )}
       </View>
     </View>
   );
 };
 
 // ============================================================================
-// STORYBOOK META
+// META
 // ============================================================================
 const meta: Meta = {
   title: 'Components/VaultCard',
@@ -188,37 +185,34 @@ type Story = StoryObj;
 
 export const DeviceSizeOverview: Story = {
   render: () => <DeviceSizeOverviewStory />,
-  parameters: {
-    controls: { disable: true },
-  },
 };
 
-export const Basic: Story = {
-  render: (args: BasicStoryProps) => <BasicStory {...args} />,
+export const VaultHealthCard: Story = {
+  render: (args: VaultHealthCardProps) => <VaultHealthCardStory {...args} />,
   args: {
     healthState: 'healthy',
-    vaultDebt: 1250.50,
-    vaultCollateral: 0.05,
-    deviceSize: 'M',
+    screenSize: 'L',
+    debtAmount: 1250.5,
+    collateralAmount: 0.05,
   },
   argTypes: {
     healthState: {
       control: { type: 'select' },
-      options: ['healthy', 'warning', 'danger', 'liquidated', 'noVault'],
+      options: ['healthy', 'medium', 'risky', 'liquidated', 'noVault'],
       description: 'Vault health state',
     },
-    vaultDebt: {
-      control: { type: 'number' },
-      description: 'Vault debt in UNIT',
-    },
-    vaultCollateral: {
-      control: { type: 'number', step: 0.001 },
-      description: 'Vault collateral in BTC',
-    },
-    deviceSize: {
+    screenSize: {
       control: { type: 'select' },
       options: ['XS', 'S', 'M', 'L', 'XL'],
-      description: 'Device size preset',
+      description: 'Screen size',
+    },
+    debtAmount: {
+      control: { type: 'number' },
+      description: 'Debt in UNIT',
+    },
+    collateralAmount: {
+      control: { type: 'number', step: 0.001 },
+      description: 'Collateral in BTC',
     },
   },
 };
@@ -226,63 +220,40 @@ export const Basic: Story = {
 // ============================================================================
 // STYLES
 // ============================================================================
-const localStyles = StyleSheet.create({
-  centeredContainer: {
+const styles = StyleSheet.create({
+  container: {
     flex: 1,
-    position: 'relative',
     backgroundColor: COLORS.DARK_BG,
     padding: 20,
     alignItems: 'center',
     justifyContent: 'center',
   },
-  sizeIndicator: {
-    position: 'absolute',
-    top: 16,
-    right: 16,
-    fontSize: 12,
-    color: COLORS.SECONDARY_TEXT,
-    fontWeight: '600',
-  },
-  overviewScrollContent: {
+  scrollContent: {
     backgroundColor: COLORS.DARK_BG,
     padding: 20,
-    paddingTop: 40,
-    flexGrow: 1,
-    gap: 28,
+    gap: 24,
     alignItems: 'center',
-    justifyContent: 'center',
   },
   deviceSection: {
     gap: 8,
     alignItems: 'center',
   },
-  deviceHeader: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    gap: 10,
+  sizeLabel: {
+    fontSize: 14,
+    fontWeight: '700',
+    color: COLORS.WHITE,
   },
   deviceLabel: {
-    fontSize: 13,
-    color: COLORS.WHITE,
-    fontWeight: '700',
-  },
-  deviceWidth: {
     fontSize: 12,
     color: COLORS.SECONDARY_TEXT,
-    fontWeight: '500',
-  },
-  // Liquidation styles
-  liquidationWrapper: {
-    position: 'relative',
   },
   liquidationOverlay: {
     position: 'absolute',
     top: 0,
     left: 0,
     right: 0,
-    height: 80,
-    borderRadius: 12,
+    bottom: 0,
+    borderRadius: vault.vaultCard.borderRadius,
     alignItems: 'center',
     justifyContent: 'center',
   },
