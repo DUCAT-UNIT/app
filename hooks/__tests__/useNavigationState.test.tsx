@@ -116,7 +116,7 @@ describe('useNavigationState', () => {
       expect(result.current.shouldShowAuth).toBe(true);
     });
 
-    it('should return true when not authenticated with wallet and confirmed seed', () => {
+    it('should return false when not authenticated with wallet and confirmed seed (shows lock overlay instead)', () => {
       AuthContext.useAuth.mockReturnValue({
         isAuthenticated: false,
         changingPin: false,
@@ -128,7 +128,10 @@ describe('useNavigationState', () => {
 
       const { result } = renderHook(() => useNavigationState());
 
-      expect(result.current.shouldShowAuth).toBe(true);
+      // When user has wallet + seed confirmed but not authenticated,
+      // we show lock overlay (not auth) to keep MainTabs mounted
+      expect(result.current.shouldShowAuth).toBe(false);
+      expect(result.current.shouldShowLockOverlay).toBe(true);
     });
 
     it('should return false when fully authenticated and onboarded', () => {

@@ -5,8 +5,6 @@
 
 import * as BackgroundFetch from 'expo-background-fetch';
 import * as TaskManager from 'expo-task-manager';
-// Note: Notifications import kept for future use
-// import * as Notifications from 'expo-notifications';
 import * as SecureStore from 'expo-secure-store';
 import { getTxApiUrl } from '../utils/constants';
 
@@ -47,27 +45,6 @@ TaskManager.defineTask(BACKGROUND_FETCH_TASK, async () => {
       const isConfirmed = await checkTransactionConfirmation(tx.txid);
 
       if (isConfirmed) {
-        // Push notifications disabled - using snackbars only
-        // Send notification
-        // const notificationId = await Notifications.scheduleNotificationAsync({
-        //   content: {
-        //     title: 'Transaction Confirmed',
-        //     body: `The ${tx.type} transaction for ${tx.amount} ${tx.assetType} has been confirmed on Mutinynet.`,
-        //     data: { txid: tx.txid, assetType: tx.assetType, amount: tx.amount },
-        //     sound: true,
-        //   },
-        //   trigger: null,
-        // });
-
-        // Auto-dismiss after 15 seconds
-        // setTimeout(async () => {
-        //   try {
-        //     await Notifications.dismissNotificationAsync(notificationId);
-        //   } catch (dismissError) {
-        //     // Silently fail if notification already dismissed
-        //   }
-        // }, 15000);
-
         // Remove from pending list
         const updatedTxs = pendingTxs.filter((t) => t.txid !== tx.txid);
         await SecureStore.setItemAsync(PENDING_TX_KEY, JSON.stringify(updatedTxs));

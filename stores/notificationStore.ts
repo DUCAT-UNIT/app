@@ -184,10 +184,3 @@ export const resetNotificationStore = () => {
   useNotificationStore.setState({ snackbar: null });
 };
 
-/**
- * @deprecated Use showSnackbar or showMessage instead
- * This is kept for backwards compatibility during migration
- */
-export const showToast = (message: string, type: SnackbarType = 'success') => {
-  useNotificationStore.getState().showMessage(message, type);
-};

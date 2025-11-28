@@ -3,9 +3,10 @@ import { View, Text, StyleSheet, TouchableOpacity, ScrollView } from 'react-nati
 import Svg, { Path, Defs, LinearGradient, Stop, Line, Circle, G } from 'react-native-svg';
 import type { Meta, StoryObj } from '@storybook/react';
 import { COLORS } from '../../../theme';
+import Icon from '../../../components/icons';
+import { formatUnitAmount, formatBalance } from '../../../utils/formatters';
 
 // Real components
-import { VaultActivityList } from '../../../components/vaultDetail/VaultActivityList';
 import type { VaultHistoryTransaction } from '../../../services/vaultService';
 
 // ============================================================================
@@ -13,14 +14,143 @@ import type { VaultHistoryTransaction } from '../../../services/vaultService';
 // chartWidth = device width - 32px padding (16px each side)
 // ============================================================================
 const DEVICE_SIZES = {
-  XS: { width: 320, chartWidth: 288, label: 'XS', subtitle: 'iPhone 5' },
-  S: { width: 375, chartWidth: 343, label: 'S', subtitle: 'iPhone SE/8' },
-  M: { width: 390, chartWidth: 358, label: 'M', subtitle: 'iPhone 12/13/14' },
-  L: { width: 393, chartWidth: 361, label: 'L', subtitle: 'iPhone 14 Pro' },
-  XL: { width: 430, chartWidth: 398, label: 'XL', subtitle: 'iPhone 16 Pro Max' },
+  XS: { width: 320, chartWidth: 288, label: 'XS', subtitle: 'iPhone 5', iconSize: 28, fontSize: 11, dateFontSize: 10, padding: 12, minWidth: 70, chipFontSize: 9, chipPaddingH: 5, chipPaddingV: 2, chipMinWidth: 60, amountFontSize: 11, amountIconSize: 9 },
+  S: { width: 375, chartWidth: 343, label: 'S', subtitle: 'iPhone SE/8', iconSize: 32, fontSize: 12, dateFontSize: 11, padding: 14, minWidth: 80, chipFontSize: 11, chipPaddingH: 6, chipPaddingV: 3, chipMinWidth: 70, amountFontSize: 12, amountIconSize: 10 },
+  M: { width: 390, chartWidth: 358, label: 'M', subtitle: 'iPhone 12/13/14', iconSize: 36, fontSize: 14, dateFontSize: 12, padding: 16, minWidth: 85, chipFontSize: 12, chipPaddingH: 8, chipPaddingV: 4, chipMinWidth: 80, amountFontSize: 14, amountIconSize: 12 },
+  L: { width: 393, chartWidth: 361, label: 'L', subtitle: 'iPhone 14 Pro', iconSize: 38, fontSize: 14, dateFontSize: 12, padding: 16, minWidth: 88, chipFontSize: 13, chipPaddingH: 8, chipPaddingV: 4, chipMinWidth: 82, amountFontSize: 14, amountIconSize: 12 },
+  XL: { width: 430, chartWidth: 398, label: 'XL', subtitle: 'iPhone 16 Pro Max', iconSize: 40, fontSize: 15, dateFontSize: 12, padding: 18, minWidth: 95, chipFontSize: 14, chipPaddingH: 10, chipPaddingV: 5, chipMinWidth: 90, amountFontSize: 15, amountIconSize: 13 },
 };
 
 type DeviceSize = keyof typeof DEVICE_SIZES;
+type DeviceConfig = typeof DEVICE_SIZES[DeviceSize];
+
+// ============================================================================
+// SCALED VAULT TRANSACTION ITEM (matching AssetTransactions.stories.tsx)
+// ============================================================================
+const formatVaultAction = (action: string): string => {
+  const actionMap: Record<string, string> = {
+    'open': 'Open Vault',
+    'borrow': 'Borrow',
+    'repay': 'Repay',
+    'deposit': 'Deposit',
+    'withdraw': 'Withdraw',
+    'liquidate': 'Liquidation',
+  };
+  return actionMap[action.toLowerCase()] || action;
+};
+
+const formatVaultDate = (timestamp: number): string => {
+  const date = new Date(timestamp * 1000);
+  return date.toLocaleDateString('en-US', {
+    month: 'short',
+    day: 'numeric',
+    year: 'numeric',
+  });
+};
+
+interface ScaledVaultTransactionItemProps {
+  transaction: VaultHistoryTransaction;
+  config: DeviceConfig;
+  isHighlighted?: boolean;
+}
+
+const ScaledVaultTransactionItem = ({ transaction, config, isHighlighted }: ScaledVaultTransactionItemProps) => {
+  const actionLower = transaction.action.toLowerCase();
+
+  const getUnitColor = () => {
+    if (actionLower === 'borrow' || actionLower === 'open') return COLORS.GREEN;
+    return COLORS.RED;
+  };
+
+  const getBtcColor = () => {
+    if (actionLower === 'deposit') return COLORS.GREEN;
+    return COLORS.RED;
+  };
+
+  const unitColor = getUnitColor();
+  const btcColor = getBtcColor();
+
+  return (
+    <View
+      style={[
+        {
+          flexDirection: 'row',
+          alignItems: 'center',
+          paddingVertical: config.padding,
+          borderBottomWidth: 1,
+          borderBottomColor: COLORS.VERY_DARK_GRAY,
+          paddingHorizontal: 8,
+          borderRadius: 8,
+          marginHorizontal: -8,
+        },
+        isHighlighted && {
+          borderWidth: 1.5,
+          borderColor: '#1858E4',
+          borderBottomColor: '#1858E4',
+          marginVertical: 4,
+        },
+      ]}
+    >
+      {/* Vault Icon - scaled */}
+      <View style={{ marginRight: config.padding * 0.6 }}>
+        <Icon name="vault_logo" size={config.iconSize} color="#DDDDDD" />
+      </View>
+
+      {/* Content */}
+      <View style={{ flex: 1 }}>
+        {/* Top Row: Action | Confirmed | Amounts */}
+        <View style={{ flexDirection: 'row', alignItems: 'center', marginBottom: 4 }}>
+          {/* Column 1: Action label */}
+          <View style={{ flex: 1 }}>
+            <Text style={{ fontSize: config.fontSize, fontWeight: '600', color: '#DDDDDD' }}>
+              {formatVaultAction(transaction.action)}
+            </Text>
+          </View>
+          {/* Right group: Confirmed chip + Amounts */}
+          <View style={{ flexDirection: 'row', alignItems: 'center', flex: 3, justifyContent: 'space-between' }}>
+            {/* Column 2: Confirmed chip */}
+            <View style={{
+              backgroundColor: 'rgba(89, 170, 138, 0.2)',
+              paddingHorizontal: config.chipPaddingH,
+              paddingVertical: config.chipPaddingV,
+              borderRadius: 4,
+              minWidth: config.chipMinWidth,
+              alignItems: 'center',
+            }}>
+              <Text style={{ color: COLORS.GREEN, fontSize: config.chipFontSize, fontWeight: '600' }}>
+                Confirmed
+              </Text>
+            </View>
+            {/* Column 3: Amounts */}
+            <View style={{ alignItems: 'flex-end', minWidth: config.minWidth }}>
+              {transaction.unit_amt !== 0 && (
+                <View style={{ flexDirection: 'row', alignItems: 'center' }}>
+                  <Icon name="unit_symbol" size={config.amountIconSize} color={unitColor} style={{ marginRight: 2 }} />
+                  <Text style={{ fontSize: config.amountFontSize, fontWeight: '600', color: unitColor }}>
+                    {formatUnitAmount(Math.abs(transaction.unit_amt))}
+                  </Text>
+                </View>
+              )}
+              {transaction.btc_amt !== 0 && (
+                <View style={{ flexDirection: 'row', alignItems: 'center' }}>
+                  <Icon name="btc_symbol" size={config.amountIconSize} color={btcColor} style={{ marginRight: 2 }} />
+                  <Text style={{ fontSize: config.amountFontSize, fontWeight: '600', color: btcColor }}>
+                    {formatBalance(Math.abs(transaction.btc_amt) / 100_000_000)}
+                  </Text>
+                </View>
+              )}
+            </View>
+          </View>
+        </View>
+
+        {/* Bottom Row: Date */}
+        <Text style={{ fontSize: config.dateFontSize, color: COLORS.SECONDARY_TEXT }}>
+          {formatVaultDate(transaction.timestamp)}
+        </Text>
+      </View>
+    </View>
+  );
+};
 
 // ============================================================================
 // CHART DIMENSIONS
@@ -668,16 +798,10 @@ const formatAction = (action: string): string => {
   return actionMap[action.toLowerCase()] || action;
 };
 
-// Format BTC amount
+// Format BTC amount (local version for VaultTransactionCard)
 const formatBtcAmount = (satoshis: number): string => {
   const btc = Math.abs(satoshis) / 100_000_000;
   return btc.toFixed(8);
-};
-
-// Format UNIT amount
-const formatUnitAmount = (cents: number): string => {
-  const units = Math.abs(cents) / 100;
-  return units.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 };
 
 // Extended VaultHealthChart with interactive scrubbing (matching real component behavior)
@@ -1635,7 +1759,7 @@ const VaultHealthStory = ({ deviceSize, eventCount, showFilter }: VaultHealthSto
       {showFilter && (
         <>
           {/* Tabs row with filter date chip */}
-          <View style={[styles.tabsContainer, { width: config.chartWidth }]}>
+          <View style={[styles.tabsContainer, { width: config.width }]}>
             <View style={styles.tabsRow}>
               <TouchableOpacity style={styles.tabActive}>
                 <Text style={styles.tabTextActive}>Activity</Text>
@@ -1654,14 +1778,27 @@ const VaultHealthStory = ({ deviceSize, eventCount, showFilter }: VaultHealthSto
             )}
           </View>
 
-          {/* Transaction list - using real VaultActivityList component */}
-          <View style={[styles.txList, { width: config.chartWidth }]}>
-            <VaultActivityList
-              transactions={visibleTransactions}
-              isLoading={false}
-              highlightedEventDate={filterDate}
-              onTransactionPress={() => {}}
-            />
+          {/* Transaction list - using scaled vault transaction items */}
+          <View style={[styles.txList, { width: config.width, paddingHorizontal: 16 }]}>
+            {visibleTransactions.map((tx, index) => {
+              // Check if transaction matches filter date (same day)
+              const isHighlighted = filterDate ? (() => {
+                const txMs = tx.timestamp * 1000;
+                const filterDay = new Date(filterDate);
+                const startOfDay = new Date(filterDay.getFullYear(), filterDay.getMonth(), filterDay.getDate()).getTime();
+                const endOfDay = startOfDay + 24 * 60 * 60 * 1000 - 1;
+                return txMs >= startOfDay && txMs <= endOfDay;
+              })() : false;
+
+              return (
+                <ScaledVaultTransactionItem
+                  key={`${tx.timestamp}-${index}`}
+                  transaction={tx}
+                  config={config}
+                  isHighlighted={isHighlighted}
+                />
+              );
+            })}
           </View>
         </>
       )}
@@ -1921,9 +2058,7 @@ const styles = StyleSheet.create({
   },
   // Transaction list
   txList: {
-    width: DEFAULT_CHART_WIDTH,
     marginTop: 8,
-    paddingHorizontal: 4,
   },
   // Tabs container (matching VaultTabs)
   tabsContainer: {

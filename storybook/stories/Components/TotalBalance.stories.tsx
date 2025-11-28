@@ -64,6 +64,7 @@ const DeviceSizeOverviewStory = () => {
 // ============================================================================
 interface BasicStoryProps {
   balanceUSD: number;
+  deviceSize: DeviceSize;
 }
 
 const formatUSD = (value: number): string => {
@@ -76,22 +77,25 @@ const formatBTC = (usdValue: number): string => {
   return btcValue.toFixed(8);
 };
 
-const BasicStory = ({ balanceUSD }: BasicStoryProps) => {
+const BasicStory = ({ balanceUSD, deviceSize }: BasicStoryProps) => {
   const [showBTC, setShowBTC] = useState(false);
   const isLargeBalance = balanceUSD >= 10000000;
+  const deviceWidth = DEVICE_SIZES[deviceSize]?.width || 393;
 
   return (
     <View style={localStyles.centeredContainer}>
       <Text style={localStyles.hint}>Tap the balance to toggle between BTC and USD</Text>
-      <TotalBalanceSection
-        showTotalInBTC={showBTC}
-        onToggle={() => setShowBTC(!showBTC)}
-        totalBTC={formatBTC(balanceUSD)}
-        totalUSD={formatUSD(balanceUSD)}
-        totalBalanceUSD={balanceUSD}
-        styles={totalBalanceStyles}
-        largeBalanceStyle={isLargeBalance ? wallet.totalBalanceAmountSmall : undefined}
-      />
+      <View style={[localStyles.deviceFrame, { width: deviceWidth }]}>
+        <TotalBalanceSection
+          showTotalInBTC={showBTC}
+          onToggle={() => setShowBTC(!showBTC)}
+          totalBTC={formatBTC(balanceUSD)}
+          totalUSD={formatUSD(balanceUSD)}
+          totalBalanceUSD={balanceUSD}
+          styles={totalBalanceStyles}
+          largeBalanceStyle={isLargeBalance ? wallet.totalBalanceAmountSmall : undefined}
+        />
+      </View>
     </View>
   );
 };
@@ -117,11 +121,17 @@ export const Basic: Story = {
   render: (args: BasicStoryProps) => <BasicStory {...args} />,
   args: {
     balanceUSD: 12500000,
+    deviceSize: 'L',
   },
   argTypes: {
     balanceUSD: {
       control: { type: 'number' },
       description: 'Balance amount in USD',
+    },
+    deviceSize: {
+      control: { type: 'select' },
+      options: ['XS', 'S', 'M', 'L', 'XL'],
+      description: 'Device size',
     },
   },
 };

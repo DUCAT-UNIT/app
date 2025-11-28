@@ -4,7 +4,7 @@
  * with a visual progress bar
  */
 
-import React from 'react';
+import React, { memo, useMemo } from 'react';
 import { View, Text, StyleSheet } from 'react-native';
 import { COLORS } from '../../theme';
 import { formatUnitAmount, formatFiat } from '../../utils/formatters/amounts';
@@ -14,11 +14,21 @@ interface UnitBalanceBreakdownProps {
   runesBalance: number;
 }
 
-const UnitBalanceBreakdown = ({ ecashBalance, runesBalance }: UnitBalanceBreakdownProps) => {
-  // Ecash is in smallest units (needs /100), runes from ord is already in display units
-  const ecashDisplayAmount = ecashBalance / 100;
-  const totalBalance = ecashDisplayAmount + runesBalance;
-  const runesPercentage = totalBalance > 0 ? (runesBalance / totalBalance) * 100 : 50;
+const UnitBalanceBreakdown = memo(function UnitBalanceBreakdown({ ecashBalance, runesBalance }: UnitBalanceBreakdownProps) {
+  // Memoize all calculations
+  const { ecashDisplayAmount, runesPercentage, formattedRunes, formattedEcash } = useMemo(() => {
+    // Ecash is in smallest units (needs /100), runes from ord is already in display units
+    const ecashDisplay = ecashBalance / 100;
+    const totalBalance = ecashDisplay + runesBalance;
+    const percentage = totalBalance > 0 ? (runesBalance / totalBalance) * 100 : 50;
+
+    return {
+      ecashDisplayAmount: ecashDisplay,
+      runesPercentage: percentage,
+      formattedRunes: formatFiat(runesBalance),
+      formattedEcash: formatUnitAmount(ecashBalance),
+    };
+  }, [ecashBalance, runesBalance]);
 
   return (
     <View style={styles.container}>
@@ -40,7 +50,7 @@ const UnitBalanceBreakdown = ({ ecashBalance, runesBalance }: UnitBalanceBreakdo
           <View style={styles.labelRow}>
             <View style={[styles.dot, styles.dotRunes]} />
             <Text style={styles.balanceValue}>
-              {formatFiat(runesBalance)} UNIT
+              {formattedRunes} UNIT
             </Text>
           </View>
           <Text style={styles.balanceLabel}>onchain</Text>
@@ -51,7 +61,7 @@ const UnitBalanceBreakdown = ({ ecashBalance, runesBalance }: UnitBalanceBreakdo
           <View style={styles.labelRow}>
             <View style={[styles.dot, styles.dotEcash]} />
             <Text style={styles.balanceValue}>
-              {formatUnitAmount(ecashBalance)} eUNIT
+              {formattedEcash} eUNIT
             </Text>
           </View>
           <Text style={styles.balanceLabel}>ecash</Text>
@@ -59,7 +69,7 @@ const UnitBalanceBreakdown = ({ ecashBalance, runesBalance }: UnitBalanceBreakdo
       </View>
     </View>
   );
-};
+});
 
 const styles = StyleSheet.create({
   container: {

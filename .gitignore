@@ -42,3 +42,5 @@ yarn-error.*
 /android
 
 .claude
+*storybook.log
+storybook-static

@@ -15,12 +15,7 @@ import { useNotificationStore } from '../stores/notificationStore';
 import type { SnackbarParams, SnackbarType } from '../types/notification';
 
 // Re-export types for backwards compatibility
-export type { SnackbarType, SnackbarParams, Toast } from '../types/notification';
-
-/**
- * @deprecated Use SnackbarType instead
- */
-export type ToastType = SnackbarType;
+export type { SnackbarType, SnackbarParams } from '../types/notification';
 
 interface NotificationContextValue {
   /**

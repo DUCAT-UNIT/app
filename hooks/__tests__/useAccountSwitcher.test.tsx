@@ -36,9 +36,15 @@ jest.mock('react-native/Libraries/Alert/Alert', () => ({
 
 describe('useAccountSwitcher', () => {
   let mockSwitchAccountContext;
+  const mockAddresses = {
+    segwitAddress: 'tb1qnewsegwit',
+    taprootAddress: 'tb1pnewtaproot',
+    segwitPubkey: 'pubkey1',
+    taprootPubkey: 'pubkey2',
+  };
 
   beforeEach(() => {
-    mockSwitchAccountContext = jest.fn().mockResolvedValue(undefined);
+    mockSwitchAccountContext = jest.fn().mockResolvedValue(mockAddresses);
     jest.clearAllMocks();
     jest.useFakeTimers();
   });
@@ -95,14 +101,21 @@ describe('useAccountSwitcher', () => {
     expect(mockSwitchAccountContext).toHaveBeenCalledWith(4);
   });
 
-  it('should set switchingAccount to true during operation', async () => {
+  it('should set switchingAccount to true during operation until balance loads', async () => {
     let resolveSwitch;
+    let resolveBalance;
     mockSwitchAccountContext = jest.fn(
-      () => new Promise((resolve) => (resolveSwitch = resolve))
+      () => new Promise((resolve) => (resolveSwitch = () => resolve(mockAddresses)))
+    );
+    const mockFetchBalance = jest.fn(
+      () => new Promise((resolve) => (resolveBalance = resolve))
     );
 
     const { result } = renderHook(() =>
-      useAccountSwitcher({ switchAccountContext: mockSwitchAccountContext })
+      useAccountSwitcher({
+        switchAccountContext: mockSwitchAccountContext,
+        fetchBalance: mockFetchBalance,
+      })
     );
 
     // Start switching
@@ -121,12 +134,20 @@ describe('useAccountSwitcher', () => {
     // Still switching while waiting for switchAccountContext
     expect(result.current.switchingAccount).toBe(true);
 
-    // Resolve the switchAccountContext promise
+    // Resolve the switchAccountContext promise (returns addresses)
     await act(async () => {
       resolveSwitch();
     });
 
-    // Should no longer be switching
+    // Still switching - waiting for balance to load
+    expect(result.current.switchingAccount).toBe(true);
+
+    // Resolve the fetchBalance promise
+    await act(async () => {
+      resolveBalance();
+    });
+
+    // Now should no longer be switching
     expect(result.current.switchingAccount).toBe(false);
   });
 
@@ -269,8 +290,8 @@ describe('useAccountSwitcher', () => {
     expect(mockSwitchAccountContext).toHaveBeenNthCalledWith(3, 0);
   });
 
-  describe('fire-and-forget callbacks', () => {
-    it('should call fetchBalance in background', async () => {
+  describe('data fetching callbacks', () => {
+    it('should await fetchBalance with new addresses before hiding loading overlay', async () => {
       const mockFetchBalance = jest.fn().mockResolvedValue(undefined);
 
       const { result } = renderHook(() =>
@@ -286,12 +307,13 @@ describe('useAccountSwitcher', () => {
         await switchPromise;
       });
 
-      // Allow async fire-and-forget to execute
-      await act(async () => {
-        await Promise.resolve();
-      });
-
-      expect(mockFetchBalance).toHaveBeenCalled();
+      // Should be called with NEW addresses from switchAccountContext
+      expect(mockFetchBalance).toHaveBeenCalledWith(
+        mockAddresses.segwitAddress,
+        mockAddresses.taprootAddress
+      );
+      // switchingAccount should be false AFTER fetchBalance completes
+      expect(result.current.switchingAccount).toBe(false);
     });
 
     it('should call fetchVault in background', async () => {
@@ -369,7 +391,7 @@ describe('useAccountSwitcher', () => {
       expect(mockResetAndRefreshCashu).toHaveBeenCalledWith(newTaprootAddress);
     });
 
-    it('should handle sync fire-and-forget callbacks', async () => {
+    it('should handle sync fetchBalance callbacks', async () => {
       const mockSyncCallback = jest.fn(); // Synchronous
 
       const { result } = renderHook(() =>
@@ -385,11 +407,10 @@ describe('useAccountSwitcher', () => {
         await switchPromise;
       });
 
-      await act(async () => {
-        await Promise.resolve();
-      });
-
-      expect(mockSyncCallback).toHaveBeenCalled();
+      expect(mockSyncCallback).toHaveBeenCalledWith(
+        mockAddresses.segwitAddress,
+        mockAddresses.taprootAddress
+      );
     });
 
     it('should catch errors in async fire-and-forget callbacks', async () => {

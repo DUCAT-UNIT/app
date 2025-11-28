@@ -33,26 +33,26 @@ module.exports = {
     '!utils/wallet.{js,ts}',           // Re-exports wallet utilities
 
     // --- Platform-Specific Services (require native modules unavailable in Jest) ---
-    '!services/biometricService.js',        // Requires expo-local-authentication hardware
-    '!services/backgroundTaskService.js',   // Requires native background task scheduler
-    '!services/icloudStorage.js',           // Requires iOS iCloud native integration
-    '!services/pinService.js',              // Requires SecureStore native crypto
-    '!services/secureStorageService.js',    // Requires Expo SecureStore native module
-    '!services/passkey/**/*.js',            // All passkey files require WebAuthn API
+    '!services/biometricService.{js,ts}',        // Requires expo-local-authentication hardware
+    '!services/backgroundTaskService.{js,ts}',   // Requires native background task scheduler
+    '!services/icloudStorage.{js,ts}',           // Requires iOS iCloud native integration
+    '!services/pinService.{js,ts}',              // Requires SecureStore native crypto
+    '!services/secureStorageService.{js,ts}',    // Requires Expo SecureStore native module
+    '!services/passkey/**/*.{js,ts}',            // All passkey files require WebAuthn API
 
     // --- Native-Dependent Hooks (require React Native/Expo APIs) ---
-    '!hooks/useAppLifecycle.js',           // Requires React Native AppState API
-    '!hooks/useBackgroundSplash.js',       // Requires expo-splash-screen native module
-    '!hooks/useKeyboard.js',               // Requires React Native Keyboard API
-    '!hooks/useNotifications.js',          // Requires Expo push notifications
-    '!hooks/usePasskeyCreation.js',        // Requires WebAuthn credential creation
-    '!hooks/usePasskeyRestore.js',         // Requires WebAuthn authentication
-    '!hooks/useVaultWebView.js',           // Requires react-native-webview
+    '!hooks/useAppLifecycle.{js,ts}',           // Requires React Native AppState API
+    '!hooks/useBackgroundSplash.{js,ts}',       // Requires expo-splash-screen native module
+    '!hooks/useKeyboard.{js,ts}',               // Requires React Native Keyboard API
+    '!hooks/useNotifications.{js,ts}',          // Requires Expo push notifications
+    '!hooks/usePasskeyCreation.{js,ts}',        // Requires WebAuthn credential creation
+    '!hooks/usePasskeyRestore.{js,ts}',         // Requires WebAuthn authentication
+    '!hooks/useVaultWebView.{js,ts}',           // Requires react-native-webview
 
     // --- Animation/Visual Hooks (require native animation libraries) ---
-    '!hooks/useReceiveScreenAnimations.js', // Requires react-native-reanimated
-    '!hooks/useBottomSheetAnimation.js',    // Requires react-native-reanimated
-    '!hooks/usePriceChart.js',              // Requires gesture/animation libraries
+    '!hooks/useReceiveScreenAnimations.{js,ts}', // Requires react-native-reanimated
+    '!hooks/useBottomSheetAnimation.{js,ts}',    // Requires react-native-reanimated
+    '!hooks/usePriceChart.{js,ts}',              // Requires gesture/animation libraries
 
     // Note: Dynamic import hooks have been refactored to use static imports for testability
     // '!hooks/useRedeemCashuToken.ts',     // Refactored to use static imports
@@ -62,12 +62,11 @@ module.exports = {
     // '!hooks/useQRCodeHandler.ts',        // Refactored to use static imports
     // '!hooks/useEcashThresholdManager.ts',// Refactored to use static imports
     // '!hooks/useAssetTransactions.ts',    // Refactored to use static imports
-    '!hooks/useTransactionHistoryData.js',  // Uses dynamic import() for cashu services
-    '!hooks/useAppSettings.js',             // Uses dynamic import() for cashu services
+    '!hooks/useTransactionHistoryData.{js,ts}',  // Uses dynamic import() for cashu services
+    '!hooks/useAppSettings.{js,ts}',             // Uses dynamic import() for cashu services
 
     // --- Visual/Animation Utils (require native rendering) ---
-    '!utils/airdropCelebration.js',      // Requires react-native-confetti-cannon
-    '!utils/vaultWebViewScripts.js',     // JavaScript for WebView context, not RN
+    '!utils/airdropCelebration.{js,ts}',      // Requires react-native-confetti-cannon
 
     // --- Complex Integration Contexts (better tested with E2E) ---
     '!contexts/NavigationHandlersContext.{js,ts,tsx}', // Navigation-dependent, requires full nav stack

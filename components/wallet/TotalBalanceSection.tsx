@@ -3,7 +3,7 @@
  * Displays total wallet balance with toggle between BTC and USD
  */
 
-import React from 'react';
+import React, { memo, useMemo } from 'react';
 import { View, Text, TouchableOpacity, ViewStyle, TextStyle } from 'react-native';
 import Icon from '../icons';
 import { COLORS } from '../../theme';
@@ -32,7 +32,7 @@ export interface TotalBalanceSectionProps {
   testID?: string;
 }
 
-export default function TotalBalanceSection({
+export default memo(function TotalBalanceSection({
   showTotalInBTC,
   onToggle,
   totalBTC,
@@ -41,6 +41,12 @@ export default function TotalBalanceSection({
   styles,
   largeBalanceStyle,
 }: TotalBalanceSectionProps) {
+  // Memoize the large balance style check
+  const isLargeBalance = useMemo(
+    () => totalBalanceUSD >= LARGE_BALANCE_THRESHOLD,
+    [totalBalanceUSD]
+  );
+
   return (
     <View style={styles.xverseBalanceSection}>
       <View style={styles.xverseBalanceLeft}>
@@ -57,7 +63,7 @@ export default function TotalBalanceSection({
               <Text
                 style={[
                   styles.xverseBalanceAmount,
-                  totalBalanceUSD >= LARGE_BALANCE_THRESHOLD && largeBalanceStyle,
+                  isLargeBalance && largeBalanceStyle,
                 ]}
               >
                 {totalBTC}
@@ -67,7 +73,7 @@ export default function TotalBalanceSection({
             <Text
               style={[
                 styles.xverseBalanceAmount,
-                totalBalanceUSD >= LARGE_BALANCE_THRESHOLD && largeBalanceStyle,
+                isLargeBalance && largeBalanceStyle,
               ]}
             >
               ${totalUSD}
@@ -77,4 +83,4 @@ export default function TotalBalanceSection({
       </View>
     </View>
   );
-}
+});

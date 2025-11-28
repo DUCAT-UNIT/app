@@ -78,12 +78,12 @@ const VaultHealthStory = ({
   return (
     <View style={localStyles.centeredContainer}>
       <Text style={localStyles.sizeIndicator}>{config.label} {config.width}px</Text>
-      <ScrollView
-        style={{ maxHeight: 600 }}
-        contentContainerStyle={{ alignItems: 'center' }}
-        showsVerticalScrollIndicator={false}
-      >
-        <View style={[localStyles.deviceFrame, { width: config.width, transform: [{ scale: config.scale }] }]}>
+      <View style={[localStyles.deviceFrame, { width: config.width }]}>
+        <ScrollView
+          style={{ maxHeight: 600 }}
+          contentContainerStyle={{ width: config.width }}
+          showsVerticalScrollIndicator={false}
+        >
           <VaultHealthGauge
             totalDebt={totalDebt}
             totalCollateral={totalCollateral}
@@ -106,8 +106,8 @@ const VaultHealthStory = ({
               />
             </View>
           )}
-        </View>
-      </ScrollView>
+        </ScrollView>
+      </View>
     </View>
   );
 };
@@ -413,13 +413,13 @@ const localStyles = StyleSheet.create({
   },
   transactionsSection: {
     marginTop: 16,
-    paddingHorizontal: 16,
   },
   sectionTitle: {
     fontSize: 16,
     fontWeight: '700',
     color: COLORS.WHITE,
     marginBottom: 12,
+    marginHorizontal: 16,
   },
   overviewScrollContent: {
     backgroundColor: COLORS.DARK_BG,

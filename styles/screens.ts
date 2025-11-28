@@ -216,11 +216,10 @@ export const common = StyleSheet.create({
     left: 0,
     right: 0,
     bottom: 0,
-    backgroundColor: colors.special.overlay,
+    backgroundColor: colors.bg.primary,
     alignItems: 'center',
     justifyContent: 'center',
     zIndex: 2000,
-    borderRadius: radii.lg,
   },
   switchingText: {
     fontFamily: fonts.medium,
@@ -1215,7 +1214,7 @@ export const wallet = StyleSheet.create({
     borderRadius: 20,
     alignItems: 'center',
     justifyContent: 'center',
-    marginRight: spacing.lg,
+    marginRight: spacing.xs, // 4px
     overflow: 'hidden',
   },
   ducatIcon: {

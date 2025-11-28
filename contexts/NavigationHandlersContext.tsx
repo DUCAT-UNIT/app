@@ -183,6 +183,8 @@ export const NavigationHandlersProvider: React.FC<NavigationHandlersProviderProp
     fetchVault,
     // Cashu functions (resetAndRefresh clears pending mints and fetches fresh balance)
     resetAndRefreshCashu,
+    // Toast notification (shown after data loads)
+    showToast: showSnackbar,
   });
 
   // Passkey migration modal state (for showing after wallet import)

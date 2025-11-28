@@ -158,7 +158,7 @@ describe('useWalletInitialization', () => {
   });
 
   describe('Loading State', () => {
-    it('should set isLoading to false after 1500ms', async () => {
+    it('should set isLoading to false immediately after initialization completes', async () => {
       mockProps.loadWallet.mockResolvedValue({ exists: false });
       mockProps.loadBiometricPreference.mockResolvedValue();
 
@@ -166,21 +166,18 @@ describe('useWalletInitialization', () => {
         initialProps: mockProps,
       });
 
-      await act(async () => {
-        await Promise.resolve();
-      });
-
+      // Initially loading
       expect(result.current.isLoading).toBe(true);
 
+      // After async operations complete, loading should be false
       await act(async () => {
-        jest.advanceTimersByTime(1500);
         await Promise.resolve();
       });
 
       expect(result.current.isLoading).toBe(false);
     });
 
-    it('should show logo for 1500ms before hiding loading screen', async () => {
+    it('should set isLoading to false immediately when wallet exists', async () => {
       mockProps.loadWallet.mockResolvedValue({ exists: true });
       mockProps.loadBiometricPreference.mockResolvedValue();
 
@@ -192,15 +189,7 @@ describe('useWalletInitialization', () => {
         await Promise.resolve();
       });
 
-      // Still loading after initialization completes
-      expect(result.current.isLoading).toBe(true);
-
-      // Not loading after 1500ms
-      await act(async () => {
-        jest.advanceTimersByTime(1500);
-        await Promise.resolve();
-      });
-
+      // No artificial delay - loading is false immediately after init
       expect(result.current.isLoading).toBe(false);
     });
 
@@ -216,13 +205,7 @@ describe('useWalletInitialization', () => {
         await Promise.resolve(); // loadWallet completes immediately
       });
 
-      expect(result.current.isLoading).toBe(true);
-
-      await act(async () => {
-        jest.advanceTimersByTime(1500);
-        await Promise.resolve();
-      });
-
+      // No artificial delay - immediately done
       expect(result.current.isLoading).toBe(false);
     });
   });
@@ -240,12 +223,7 @@ describe('useWalletInitialization', () => {
         await Promise.resolve();
       });
 
-      // Should still set isLoading after delay
-      await act(async () => {
-        jest.advanceTimersByTime(1500);
-        await Promise.resolve();
-      });
-
+      // Should set isLoading to false immediately even on error
       expect(result.current.isLoading).toBe(false);
     });
 
@@ -261,16 +239,11 @@ describe('useWalletInitialization', () => {
         await Promise.resolve();
       });
 
-      await act(async () => {
-        jest.advanceTimersByTime(1500);
-        await Promise.resolve();
-      });
-
+      // Should set isLoading to false immediately even on error
       expect(result.current.isLoading).toBe(false);
     });
 
-
-    it('should always hide loading screen after 1500ms even on errors', async () => {
+    it('should always hide loading screen immediately even on errors', async () => {
       mockProps.loadWallet.mockRejectedValue(new Error('Error'));
       mockProps.loadBiometricPreference.mockRejectedValue(new Error('Error'));
 
@@ -282,13 +255,7 @@ describe('useWalletInitialization', () => {
         await Promise.resolve();
       });
 
-      expect(result.current.isLoading).toBe(true);
-
-      await act(async () => {
-        jest.advanceTimersByTime(1500);
-        await Promise.resolve();
-      });
-
+      // No artificial delay - loading is false immediately after errors
       expect(result.current.isLoading).toBe(false);
     });
   });

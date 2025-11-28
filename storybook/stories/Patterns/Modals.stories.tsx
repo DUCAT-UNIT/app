@@ -2,175 +2,121 @@ import React, { useState } from 'react';
 import { View, Text, StyleSheet, TouchableOpacity, ScrollView } from 'react-native';
 import type { Meta, StoryObj } from '@storybook/react';
 import { COLORS, BORDER_RADIUS } from '../../../theme';
-
-// Real components
-import ConfirmationModal from '../../../components/ConfirmationModal';
+import Icon from '../../../components/icons';
 
 // ============================================================================
 // DEVICE SIZE CONFIG
 // ============================================================================
-const DEVICE_SIZES = {
-  XS: { width: 320, height: 568, label: 'XS', subtitle: 'iPhone 5' },
-  S: { width: 375, height: 667, label: 'S', subtitle: 'iPhone SE/8' },
-  M: { width: 390, height: 844, label: 'M', subtitle: 'iPhone 12/13/14' },
-  L: { width: 393, height: 852, label: 'L', subtitle: 'iPhone 14 Pro' },
-  XL: { width: 430, height: 932, label: 'XL', subtitle: 'iPhone 16 Pro Max' },
-};
+const DEVICE_CONFIGS = [
+  { width: 320, height: 568, size: 'XS', label: 'iPhone 5', scale: 0.8 },
+  { width: 375, height: 667, size: 'S', label: 'iPhone SE/8', scale: 0.9 },
+  { width: 390, height: 844, size: 'M', label: 'iPhone 12/13/14', scale: 0.95 },
+  { width: 393, height: 852, size: 'L', label: 'iPhone 14 Pro', scale: 1.0 },
+  { width: 430, height: 932, size: 'XL', label: 'iPhone 16 Pro Max', scale: 1.0 },
+];
 
-type DeviceSize = keyof typeof DEVICE_SIZES;
-type DeviceConfig = typeof DEVICE_SIZES[DeviceSize];
+type DeviceSize = 'XS' | 'S' | 'M' | 'L' | 'XL';
+type DialogType = 'destructive' | 'confirmation' | 'informational';
 
-// ============================================================================
-// SCALED MODAL STYLES - More aggressive scaling for small devices
-// ============================================================================
-const getScaledModalStyles = (config: DeviceConfig) => {
-  const isXS = config.width <= 320;
-  const isSmall = config.width < 375;
-
-  return {
-    modalOverlay: {
-      position: 'absolute' as const,
-      top: 0,
-      left: 0,
-      right: 0,
-      bottom: 0,
-      backgroundColor: 'rgba(0, 0, 0, 0.7)',
-      justifyContent: 'center' as const,
-      alignItems: 'center' as const,
-      padding: isXS ? 12 : isSmall ? 16 : 20,
-    },
-    confirmationModal: {
-      backgroundColor: COLORS.CARD_BG,
-      borderRadius: isXS ? BORDER_RADIUS.md : BORDER_RADIUS.lg,
-      padding: isXS ? 14 : isSmall ? 18 : 24,
-      width: '100%' as const,
-      maxWidth: config.width - (isXS ? 24 : isSmall ? 32 : 40),
-    },
-    confirmationModalIconContainer: {
-      alignItems: 'center' as const,
-      marginBottom: isXS ? 8 : isSmall ? 10 : 16,
-    },
-    confirmationModalTitle: {
-      fontSize: isXS ? 15 : isSmall ? 17 : 20,
-      fontWeight: '700' as const,
-      color: COLORS.WHITE,
-      textAlign: 'center' as const,
-      marginBottom: isXS ? 6 : isSmall ? 8 : 12,
-    },
-    confirmationModalText: {
-      fontSize: isXS ? 11 : isSmall ? 12 : 14,
-      color: COLORS.SECONDARY_TEXT,
-      textAlign: 'center' as const,
-      lineHeight: isXS ? 15 : isSmall ? 17 : 20,
-      marginBottom: isXS ? 14 : isSmall ? 18 : 24,
-    },
-    confirmationModalButtons: {
-      flexDirection: 'row' as const,
-      gap: isXS ? 6 : isSmall ? 8 : 12,
-    },
-    confirmationModalButton: {
-      flex: 1,
-      paddingVertical: isXS ? 9 : isSmall ? 11 : 14,
-      borderRadius: isXS ? 6 : BORDER_RADIUS.md,
-      alignItems: 'center' as const,
-    },
-    confirmationModalButtonCancel: {
-      backgroundColor: COLORS.VERY_DARK_GRAY,
-    },
-    confirmationModalButtonTextCancel: {
-      fontSize: isXS ? 12 : isSmall ? 13 : 15,
-      fontWeight: '600' as const,
-      color: COLORS.WHITE,
-    },
-    confirmationModalButtonDestructive: {
-      backgroundColor: COLORS.DANGER_RED,
-    },
-    confirmationModalButtonPrimary: {
-      backgroundColor: COLORS.PRIMARY_BLUE,
-    },
-    confirmationModalButtonText: {
-      fontSize: isXS ? 12 : isSmall ? 13 : 15,
-      fontWeight: '600' as const,
-      color: COLORS.WHITE,
-    },
-  };
+const TYPE_CONFIG = {
+  destructive: {
+    icon: 'warning',
+    color: COLORS.DANGER_RED,
+    buttonColor: COLORS.DANGER_RED,
+  },
+  confirmation: {
+    icon: 'done',
+    color: COLORS.SUCCESS_GREEN,
+    buttonColor: COLORS.PRIMARY_BLUE,
+  },
+  informational: {
+    icon: 'notification',
+    color: COLORS.PRIMARY_BLUE,
+    buttonColor: COLORS.PRIMARY_BLUE,
+  },
 };
 
 // ============================================================================
-// STORY PROPS INTERFACE
+// DIALOG COMPONENT
 // ============================================================================
-interface ModalStoryProps {
-  deviceSize: DeviceSize;
-  iconName?: string;
+interface DialogProps {
+  type: DialogType;
+  title: string;
+  message: string;
+  primaryLabel: string;
+  secondaryLabel?: string;
+  scale?: number;
 }
 
-// ============================================================================
-// DESTRUCTIVE MODAL STORY
-// ============================================================================
-const DestructiveStory = ({ deviceSize, iconName }: ModalStoryProps) => {
-  const config = DEVICE_SIZES[deviceSize];
-  const [visible, setVisible] = useState(true);
-  const scaledStyles = getScaledModalStyles(config);
+const Dialog = ({ type, title, message, primaryLabel, secondaryLabel, scale = 1 }: DialogProps) => {
+  const config = TYPE_CONFIG[type];
+
+  const iconSize = 32 * scale;
+  const iconCircleSize = 64 * scale;
+  const titleSize = 20 * scale;
+  const messageSize = 14 * scale;
+  const buttonTextSize = 16 * scale;
+  const padding = 24 * scale;
+  const buttonPadding = 14 * scale;
 
   return (
-    <View style={localStyles.centeredContainer}>
-      <Text style={localStyles.sizeIndicator}>{config.label} {config.width}px</Text>
-      <View style={[localStyles.deviceFrame, { width: config.width, height: config.height * 0.5 }]}>
-        <View style={localStyles.deviceContent}>
-          <TouchableOpacity style={localStyles.triggerButton} onPress={() => setVisible(true)}>
-            <Text style={localStyles.triggerButtonText}>Show Modal</Text>
+    <View style={[styles.dialogOverlay, { padding: padding }]}>
+      <View style={[styles.dialogContent, { padding: padding, borderRadius: 20 * scale }]}>
+        <View style={[
+          styles.iconCircle,
+          {
+            backgroundColor: config.color + '20',
+            width: iconCircleSize,
+            height: iconCircleSize,
+            borderRadius: iconCircleSize / 2,
+            marginBottom: 16 * scale,
+          }
+        ]}>
+          <Icon name={config.icon} size={iconSize} color={config.color} />
+        </View>
+        <Text style={[styles.dialogTitle, { fontSize: titleSize, marginBottom: 8 * scale }]}>{title}</Text>
+        <Text style={[styles.dialogMessage, { fontSize: messageSize, lineHeight: messageSize * 1.4, marginBottom: 24 * scale }]}>{message}</Text>
+        <View style={[styles.dialogButtons, { gap: 12 * scale }]}>
+          {secondaryLabel && (
+            <TouchableOpacity style={[styles.secondaryButton, { paddingVertical: buttonPadding, borderRadius: 12 * scale }]}>
+              <Text style={[styles.secondaryButtonText, { fontSize: buttonTextSize }]}>{secondaryLabel}</Text>
+            </TouchableOpacity>
+          )}
+          <TouchableOpacity style={[styles.primaryButton, { backgroundColor: config.buttonColor, paddingVertical: buttonPadding, borderRadius: 12 * scale }]}>
+            <Text style={[styles.primaryButtonText, { fontSize: buttonTextSize }]}>{primaryLabel}</Text>
           </TouchableOpacity>
         </View>
-        {visible && (
-          <ConfirmationModal
-            visible={visible}
-            title="Delete Wallet"
-            message="This action cannot be undone. All data will be permanently deleted. Make sure you have backed up your seed phrase."
-            confirmText="Delete"
-            cancelText="Cancel"
-            confirmStyle="destructive"
-            iconName={iconName}
-            onConfirm={() => setVisible(false)}
-            onCancel={() => setVisible(false)}
-            styles={scaledStyles}
-          />
-        )}
       </View>
     </View>
   );
 };
 
 // ============================================================================
-// PRIMARY MODAL STORY
+// CONFIGURABLE DIALOG STORY
 // ============================================================================
-const PrimaryStory = ({ deviceSize, iconName }: ModalStoryProps) => {
-  const config = DEVICE_SIZES[deviceSize];
-  const [visible, setVisible] = useState(true);
-  const scaledStyles = getScaledModalStyles(config);
+interface ConfigurableProps {
+  type: DialogType;
+  deviceSize: DeviceSize;
+  title: string;
+  message: string;
+  primaryLabel: string;
+  secondaryLabel?: string;
+}
+
+const ConfigurableStory = ({ type, deviceSize, title, message, primaryLabel, secondaryLabel }: ConfigurableProps) => {
+  const config = DEVICE_CONFIGS.find(d => d.size === deviceSize) || DEVICE_CONFIGS[3];
 
   return (
-    <View style={localStyles.centeredContainer}>
-      <Text style={localStyles.sizeIndicator}>{config.label} {config.width}px</Text>
-      <View style={[localStyles.deviceFrame, { width: config.width, height: config.height * 0.5 }]}>
-        <View style={localStyles.deviceContent}>
-          <TouchableOpacity style={localStyles.triggerButton} onPress={() => setVisible(true)}>
-            <Text style={localStyles.triggerButtonText}>Show Modal</Text>
-          </TouchableOpacity>
-        </View>
-        {visible && (
-          <ConfirmationModal
-            visible={visible}
-            title="Confirm Action"
-            message="Are you sure you want to proceed with this action?"
-            confirmText="Confirm"
-            cancelText="Cancel"
-            confirmStyle="primary"
-            iconName={iconName}
-            onConfirm={() => setVisible(false)}
-            onCancel={() => setVisible(false)}
-            styles={scaledStyles}
-          />
-        )}
+    <View style={styles.container}>
+      <View style={{ width: config.width }}>
+        <Dialog
+          type={type}
+          title={title}
+          message={message}
+          primaryLabel={primaryLabel}
+          secondaryLabel={secondaryLabel}
+          scale={config.scale}
+        />
       </View>
     </View>
   );
@@ -179,49 +125,80 @@ const PrimaryStory = ({ deviceSize, iconName }: ModalStoryProps) => {
 // ============================================================================
 // DEVICE SIZE OVERVIEW STORY
 // ============================================================================
-interface OverviewStoryProps {
-  modalType: 'primary' | 'destructive';
-  iconName?: string;
+interface OverviewProps {
+  type: DialogType;
 }
 
-const DeviceSizeOverviewStory = ({ modalType, iconName }: OverviewStoryProps) => {
-  const isPrimary = modalType === 'primary';
-  const title = isPrimary ? 'Confirm Action' : 'Delete Wallet';
-  const message = isPrimary
-    ? 'Are you sure you want to proceed with this action?'
-    : 'This action cannot be undone. All data will be permanently deleted. Make sure you have backed up your seed phrase.';
-  const confirmText = isPrimary ? 'Confirm' : 'Delete';
+const DeviceSizeOverviewStory = ({ type }: OverviewProps) => (
+  <ScrollView contentContainerStyle={styles.scrollContent}>
+    {DEVICE_CONFIGS.map(({ width, size, label, scale }) => (
+      <View key={width} style={styles.deviceSection}>
+        <Text style={styles.sizeLabel}>{size}</Text>
+        <Text style={styles.deviceLabel}>{label} ({width}px)</Text>
+        <View style={{ width }}>
+          <Dialog
+            type={type}
+            title={type === 'destructive' ? 'Delete Wallet?' : type === 'confirmation' ? 'Confirm Action' : 'Network Info'}
+            message={type === 'destructive'
+              ? 'This action cannot be undone. Make sure you have backed up your recovery phrase.'
+              : type === 'confirmation'
+              ? 'Are you sure you want to proceed with this action?'
+              : 'Bitcoin network is experiencing high traffic. Transactions may take longer.'}
+            primaryLabel={type === 'destructive' ? 'Delete' : type === 'confirmation' ? 'Confirm' : 'Got it'}
+            secondaryLabel="Cancel"
+            scale={scale}
+          />
+        </View>
+      </View>
+    ))}
+  </ScrollView>
+);
 
-  return (
-    <ScrollView contentContainerStyle={localStyles.overviewContainer}>
-      {Object.entries(DEVICE_SIZES).map(([key, config]) => {
-        const scaledStyles = getScaledModalStyles(config);
-        return (
-          <View key={key} style={localStyles.deviceSection}>
-            <View style={localStyles.deviceHeader}>
-              <Text style={localStyles.deviceLabel}>{config.label}</Text>
-              <Text style={localStyles.deviceSubtitle}>{config.subtitle} ({config.width}px)</Text>
-            </View>
-            <View style={[localStyles.deviceFrame, { width: config.width, height: config.height * 0.45 }]}>
-              <ConfirmationModal
-                visible={true}
-                title={title}
-                message={message}
-                confirmText={confirmText}
-                cancelText="Cancel"
-                confirmStyle={modalType}
-                iconName={iconName}
-                onConfirm={() => {}}
-                onCancel={() => {}}
-                styles={scaledStyles}
-              />
-            </View>
-          </View>
-        );
-      })}
-    </ScrollView>
-  );
-};
+// ============================================================================
+// ALL TYPES STORY
+// ============================================================================
+const AllTypesStory = () => (
+  <ScrollView contentContainerStyle={styles.scrollContent}>
+    <View style={styles.typeSection}>
+      <View style={styles.typeHeader}>
+        <View style={[styles.typeDot, { backgroundColor: COLORS.DANGER_RED }]} />
+        <Text style={styles.typeLabel}>Destructive</Text>
+      </View>
+      <Dialog
+        type="destructive"
+        title="Delete Wallet?"
+        message="This action cannot be undone. Make sure you have backed up your recovery phrase."
+        primaryLabel="Delete"
+        secondaryLabel="Cancel"
+      />
+    </View>
+    <View style={styles.typeSection}>
+      <View style={styles.typeHeader}>
+        <View style={[styles.typeDot, { backgroundColor: COLORS.SUCCESS_GREEN }]} />
+        <Text style={styles.typeLabel}>Confirmation</Text>
+      </View>
+      <Dialog
+        type="confirmation"
+        title="Backup Complete"
+        message="Your recovery phrase has been saved securely. Keep it in a safe place."
+        primaryLabel="Done"
+      />
+    </View>
+    <View style={styles.typeSection}>
+      <View style={styles.typeHeader}>
+        <View style={[styles.typeDot, { backgroundColor: COLORS.PRIMARY_BLUE }]} />
+        <Text style={styles.typeLabel}>Informational</Text>
+      </View>
+      <Dialog
+        type="informational"
+        title="Update Available"
+        message="A new version of Ducat is available with important security improvements."
+        primaryLabel="Update Now"
+        secondaryLabel="Later"
+      />
+    </View>
+  </ScrollView>
+);
 
 // ============================================================================
 // STORYBOOK META
@@ -233,53 +210,48 @@ const meta: Meta = {
 export default meta;
 type Story = StoryObj;
 
-const sharedArgTypes = {
-  deviceSize: {
-    control: { type: 'select' },
-    options: ['XS', 'S', 'M', 'L', 'XL'],
-    description: 'Device size preset',
+export const Modal: Story = {
+  render: (args: ConfigurableProps) => <ConfigurableStory {...args} />,
+  args: {
+    type: 'destructive',
+    deviceSize: 'L',
+    title: 'Delete Wallet?',
+    message: 'This action cannot be undone. Make sure you have backed up your recovery phrase.',
+    primaryLabel: 'Delete',
+    secondaryLabel: 'Cancel',
   },
-  iconName: {
-    control: { type: 'select' },
-    options: [undefined, 'warning', 'delete', 'info', 'checkmark', 'lock'],
-    description: 'Optional icon to display',
+  argTypes: {
+    type: {
+      control: { type: 'select' },
+      options: ['destructive', 'confirmation', 'informational'],
+      description: 'Dialog type',
+    },
+    deviceSize: {
+      control: { type: 'select' },
+      options: ['XS', 'S', 'M', 'L', 'XL'],
+      description: 'Device size',
+    },
+    title: { control: 'text' },
+    message: { control: 'text' },
+    primaryLabel: { control: 'text' },
+    secondaryLabel: { control: 'text' },
   },
 };
 
-export const Destructive: Story = {
-  render: (args: ModalStoryProps) => <DestructiveStory {...args} />,
-  args: {
-    deviceSize: 'M',
-    iconName: undefined,
-  },
-  argTypes: sharedArgTypes,
-};
-
-export const Primary: Story = {
-  render: (args: ModalStoryProps) => <PrimaryStory {...args} />,
-  args: {
-    deviceSize: 'M',
-    iconName: undefined,
-  },
-  argTypes: sharedArgTypes,
+export const AllTypes: Story = {
+  render: () => <AllTypesStory />,
 };
 
 export const DeviceSizeOverview: Story = {
-  render: (args: OverviewStoryProps) => <DeviceSizeOverviewStory {...args} />,
+  render: (args: OverviewProps) => <DeviceSizeOverviewStory {...args} />,
   args: {
-    modalType: 'primary',
-    iconName: undefined,
+    type: 'destructive',
   },
   argTypes: {
-    modalType: {
+    type: {
       control: { type: 'select' },
-      options: ['primary', 'destructive'],
-      description: 'Modal style type',
-    },
-    iconName: {
-      control: { type: 'select' },
-      options: [undefined, 'warning', 'delete', 'info', 'checkmark', 'lock'],
-      description: 'Optional icon to display',
+      options: ['destructive', 'confirmation', 'informational'],
+      description: 'Dialog type',
     },
   },
 };
@@ -287,75 +259,96 @@ export const DeviceSizeOverview: Story = {
 // ============================================================================
 // STYLES
 // ============================================================================
-const localStyles = StyleSheet.create({
-  centeredContainer: {
+const styles = StyleSheet.create({
+  container: {
     flex: 1,
-    position: 'relative',
     backgroundColor: COLORS.DARK_BG,
     padding: 20,
     alignItems: 'center',
     justifyContent: 'center',
   },
-  sizeIndicator: {
-    position: 'absolute',
-    top: 16,
-    right: 16,
-    fontSize: 12,
-    color: COLORS.SECONDARY_TEXT,
-    fontWeight: '600',
-    zIndex: 10,
-  },
-  deviceFrame: {
-    backgroundColor: COLORS.DARK_BG,
-    borderRadius: 12,
-    borderWidth: 1,
-    borderColor: COLORS.VERY_DARK_GRAY,
-    overflow: 'hidden',
-    position: 'relative',
-  },
-  deviceContent: {
-    flex: 1,
-    padding: 20,
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  triggerButton: {
-    backgroundColor: COLORS.PRIMARY_BLUE,
-    paddingVertical: 12,
-    paddingHorizontal: 20,
-    borderRadius: 8,
-  },
-  triggerButtonText: {
-    color: COLORS.WHITE,
-    fontSize: 14,
-    fontWeight: '600',
-  },
-  // Device Size Overview styles
-  overviewContainer: {
-    flexGrow: 1,
+  scrollContent: {
     backgroundColor: COLORS.DARK_BG,
     padding: 20,
-    paddingTop: 40,
-    alignItems: 'center',
     gap: 32,
+    alignItems: 'center',
   },
   deviceSection: {
+    gap: 8,
     alignItems: 'center',
-    gap: 12,
   },
-  deviceHeader: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 10,
-  },
-  deviceLabel: {
+  sizeLabel: {
     fontSize: 14,
     fontWeight: '700',
     color: COLORS.WHITE,
   },
-  deviceSubtitle: {
+  deviceLabel: {
     fontSize: 12,
     color: COLORS.SECONDARY_TEXT,
-    fontWeight: '500',
+  },
+  typeSection: {
+    gap: 12,
+    width: '100%',
+    maxWidth: 360,
+  },
+  typeHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+  },
+  typeDot: {
+    width: 10,
+    height: 10,
+    borderRadius: 5,
+  },
+  typeLabel: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: COLORS.WHITE,
+  },
+  // Dialog
+  dialogOverlay: {
+    backgroundColor: 'rgba(0, 0, 0, 0.7)',
+    borderRadius: 16,
+    alignItems: 'center',
+  },
+  dialogContent: {
+    backgroundColor: COLORS.CARD_BG,
+    width: '100%',
+    alignItems: 'center',
+  },
+  iconCircle: {
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  dialogTitle: {
+    fontWeight: '700',
+    color: COLORS.WHITE,
+    textAlign: 'center',
+  },
+  dialogMessage: {
+    color: COLORS.SECONDARY_TEXT,
+    textAlign: 'center',
+  },
+  dialogButtons: {
+    flexDirection: 'row',
+    width: '100%',
+  },
+  primaryButton: {
+    flex: 1,
+    alignItems: 'center',
+  },
+  primaryButtonText: {
+    fontWeight: '600',
+    color: COLORS.WHITE,
+  },
+  secondaryButton: {
+    flex: 1,
+    alignItems: 'center',
+    backgroundColor: COLORS.BORDER_COLOR,
+  },
+  secondaryButtonText: {
+    fontWeight: '600',
+    color: COLORS.WHITE,
   },
 });

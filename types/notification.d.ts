@@ -60,17 +60,3 @@ export interface SnackbarParams {
   key?: number;
 }
 
-/**
- * @deprecated Toast has been consolidated into Snackbar
- * Use SnackbarType and SnackbarParams instead
- */
-export type ToastType = SnackbarType;
-
-/**
- * @deprecated Toast has been consolidated into Snackbar
- */
-export interface Toast {
-  id: number;
-  message: string;
-  type: ToastType;
-}

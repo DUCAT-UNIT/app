@@ -3,8 +3,8 @@
  * Displays error message with retry functionality
  */
 
-import React from 'react';
-import { Text, TouchableOpacity, StyleSheet } from 'react-native';
+import React, { memo } from 'react';
+import { View, Text, TouchableOpacity, StyleSheet } from 'react-native';
 import Icon from '../icons';
 import { COLORS } from '../../theme';
 import { SPACING, BORDER_RADIUS } from '../../theme/spacing';
@@ -12,7 +12,7 @@ import { SPACING, BORDER_RADIUS } from '../../theme/spacing';
 // Constants
 const ERROR_ICON_SIZE = 18;
 const ERROR_BORDER_WIDTH = 3;
-const ERROR_ICON_MARGIN = 10;
+const ERROR_ICON_MARGIN = 20;
 const ERROR_TEXT_SIZE = 13;
 
 interface ErrorBannerProps {
@@ -20,16 +20,18 @@ interface ErrorBannerProps {
   onRetry: () => void;
 }
 
-export default function ErrorBanner({ errorMessage, onRetry }: ErrorBannerProps) {
+export default memo(function ErrorBanner({ errorMessage, onRetry }: ErrorBannerProps) {
   if (!errorMessage) return null;
 
   return (
     <TouchableOpacity style={styles.errorBanner} onPress={onRetry} activeOpacity={0.8}>
-      <Icon name="warning" size={ERROR_ICON_SIZE} color={COLORS.DANGER_RED} style={styles.errorIcon} />
+      <View style={styles.errorIconContainer}>
+        <Icon name="warning" size={ERROR_ICON_SIZE} color={COLORS.DANGER_RED} />
+      </View>
       <Text style={styles.errorText}>{errorMessage}</Text>
     </TouchableOpacity>
   );
-}
+});
 
 const styles = StyleSheet.create({
   errorBanner: {
@@ -45,7 +47,7 @@ const styles = StyleSheet.create({
     marginBottom: SPACING.xs,
     borderRadius: BORDER_RADIUS.md,
   },
-  errorIcon: {
+  errorIconContainer: {
     marginRight: ERROR_ICON_MARGIN,
   },
   errorText: {

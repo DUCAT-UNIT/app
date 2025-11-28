@@ -1,331 +1,290 @@
-import React, { useState } from 'react';
-import { View, Text, StyleSheet, ScrollView, TouchableOpacity } from 'react-native';
+import React from 'react';
+import { View, Text, StyleSheet, ScrollView } from 'react-native';
 import type { Meta, StoryObj } from '@storybook/react';
-import { COLORS, BORDER_RADIUS } from '../../../theme';
+import { COLORS } from '../../../theme';
 import Icon from '../../../components/icons';
-import Snackbar from '../../../components/Snackbar';
-import styles from '../../../styles';
 
-// PIN Input Component (renders the PIN UI without MutinynetBanner)
-const PinInput = ({
-  title,
-  subtitle,
-  initialPin = '',
-}: {
+// ============================================================================
+// DEVICE SIZE CONFIG
+// ============================================================================
+const DEVICE_CONFIGS = [
+  { width: 320, height: 568, size: 'XS', label: 'iPhone 5', scale: 0.75 },
+  { width: 375, height: 667, size: 'S', label: 'iPhone SE/8', scale: 0.85 },
+  { width: 390, height: 844, size: 'M', label: 'iPhone 12/13/14', scale: 0.95 },
+  { width: 393, height: 852, size: 'L', label: 'iPhone 14 Pro', scale: 1.0 },
+  { width: 430, height: 932, size: 'XL', label: 'iPhone 16 Pro Max', scale: 1.05 },
+];
+
+type DeviceSize = 'XS' | 'S' | 'M' | 'L' | 'XL';
+type AuthContext = 'create' | 'confirm' | 'unlock';
+type ErrorState = 'none' | 'wrong_pin' | 'mismatch' | 'locked';
+
+const CONTEXT_CONFIG = {
+  create: {
+    title: 'Create a 6-digit PIN',
+    subtitle: 'This PIN will be used with your passkey to encrypt your wallet',
+  },
+  confirm: {
+    title: 'Confirm your PIN',
+    subtitle: 'Enter your PIN again to confirm',
+  },
+  unlock: {
+    title: 'Enter your PIN',
+    subtitle: 'Enter the PIN you created with your passkey wallet',
+  },
+};
+
+const ERROR_CONFIG = {
+  none: { message: '', color: COLORS.WHITE },
+  wrong_pin: { message: 'Wrong PIN. Try again.', color: COLORS.DANGER_RED },
+  mismatch: { message: 'PINs don\'t match. Try again.', color: COLORS.DANGER_RED },
+  locked: { message: 'Too many attempts. Try again in 5:00', color: COLORS.DANGER_RED },
+};
+
+// ============================================================================
+// SCALED PIN INPUT COMPONENT
+// ============================================================================
+interface ScaledPinInputProps {
   title: string;
   subtitle: string;
-  initialPin?: string;
-}) => {
-  const [pin, setPin] = useState(initialPin);
+  filledDots: number;
+  scale: number;
+  hasError?: boolean;
+  isLocked?: boolean;
+}
 
-  const handleDigit = (digit: string) => {
-    if (pin.length < 6) {
-      const newPin = pin + digit;
-      setPin(newPin);
-      if (newPin.length === 6) {
-        setTimeout(() => setPin(''), 500);
-      }
-    }
-  };
+const ScaledPinInput = ({ title, subtitle, filledDots, scale, hasError = false, isLocked = false }: ScaledPinInputProps) => {
+  const titleSize = 24 * scale;
+  const subtitleSize = 14 * scale;
+  const keySize = 32 * scale;
+  const dotSize = 14 * scale;
+  const keyPadding = 20 * scale;
+  const keyGap = 28 * scale;
+  const dotGap = 10 * scale;
 
-  const handleDelete = () => {
-    setPin(pin.slice(0, -1));
-  };
+  const dotColor = hasError ? COLORS.DANGER_RED : COLORS.WHITE;
+  const emptyDotColor = COLORS.VERY_DARK_GRAY;
 
   return (
-    <View style={localStyles.container}>
-      <TouchableOpacity style={localStyles.cancelButton}>
-        <Text style={localStyles.cancelButtonText}>Cancel</Text>
-      </TouchableOpacity>
+    <View style={scaledStyles.container}>
+      {/* Cancel */}
+      <Text style={[scaledStyles.cancelText, { fontSize: 16 * scale }]}>Cancel</Text>
 
-      <View style={localStyles.contentWrapper}>
-        <View style={localStyles.pinContainer}>
-          <Text style={styles.lockTitle}>{title}</Text>
-          <Text style={localStyles.subtitle}>{subtitle}</Text>
+      {/* Title */}
+      <Text style={[scaledStyles.title, { fontSize: titleSize, marginBottom: 8 * scale }]}>{title}</Text>
+      <Text style={[scaledStyles.subtitle, { fontSize: subtitleSize, marginBottom: 24 * scale, color: hasError ? COLORS.DANGER_RED : COLORS.LIGHT_GRAY }]}>{subtitle}</Text>
 
-          <View style={styles.lockPinDots}>
-            {[0, 1, 2, 3, 4, 5].map((i) => (
+      {/* Dots */}
+      <View style={[scaledStyles.dotsRow, { gap: dotGap, marginBottom: 32 * scale }]}>
+        {[0, 1, 2, 3, 4, 5].map((i) => (
+          <View
+            key={i}
+            style={[
+              scaledStyles.dot,
+              { width: dotSize, height: dotSize, borderRadius: dotSize / 2 },
+              i < (isLocked ? 0 : filledDots)
+                ? { backgroundColor: dotColor }
+                : { backgroundColor: emptyDotColor },
+            ]}
+          />
+        ))}
+      </View>
+
+      {/* Keypad */}
+      <View style={[scaledStyles.keypad, { gap: 16 * scale }]}>
+        {[[1, 2, 3], [4, 5, 6], [7, 8, 9], ['', 0, 'del']].map((row, rowIndex) => (
+          <View key={rowIndex} style={[scaledStyles.keypadRow, { gap: keyGap }]}>
+            {row.map((key, keyIndex) => (
               <View
-                key={i}
+                key={keyIndex}
                 style={[
-                  styles.lockPinDot,
-                  i < pin.length && styles.lockPinDotFilled,
+                  scaledStyles.key,
+                  { width: keyPadding * 3, height: keyPadding * 3 },
                 ]}
-              />
-            ))}
-          </View>
-
-          <View style={styles.lockKeypad}>
-            {[
-              [1, 2, 3],
-              [4, 5, 6],
-              [7, 8, 9],
-            ].map((row, rowIndex) => (
-              <View key={rowIndex} style={styles.lockKeypadRow}>
-                {row.map((num) => (
-                  <TouchableOpacity
-                    key={num}
-                    style={styles.lockKey}
-                    onPress={() => handleDigit(String(num))}
-                  >
-                    <Text style={styles.lockKeyText}>{num}</Text>
-                  </TouchableOpacity>
-                ))}
+              >
+                {key === 'del' ? (
+                  <Icon name="delete" size={24 * scale} color={COLORS.WHITE} />
+                ) : key !== '' ? (
+                  <Text style={[scaledStyles.keyText, { fontSize: keySize }]}>{key}</Text>
+                ) : null}
               </View>
             ))}
-            <View style={styles.lockKeypadRow}>
-              <View style={styles.lockKey} />
-              <TouchableOpacity
-                style={styles.lockKey}
-                onPress={() => handleDigit('0')}
-              >
-                <Text style={styles.lockKeyText}>0</Text>
-              </TouchableOpacity>
-              <TouchableOpacity style={styles.lockKey} onPress={handleDelete}>
-                <Icon name="delete" size={28} color={COLORS.WHITE} />
-              </TouchableOpacity>
-            </View>
           </View>
-        </View>
+        ))}
       </View>
     </View>
   );
 };
 
-// PIN Input with Snackbar error overlay
-const PinInputWithError = ({
-  title,
-  subtitle,
-  errorMessage,
-  initialPin = '',
-}: {
-  title: string;
-  subtitle: string;
-  errorMessage: string;
-  initialPin?: string;
-}) => {
-  const [pin, setPin] = useState(initialPin);
+const scaledStyles = StyleSheet.create({
+  container: {
+    flex: 1,
+    backgroundColor: COLORS.DARK_BG,
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingHorizontal: 20,
+  },
+  cancelText: {
+    position: 'absolute',
+    top: 60,
+    left: 20,
+    color: COLORS.WHITE,
+    fontWeight: '600',
+  },
+  title: {
+    color: COLORS.WHITE,
+    fontWeight: '700',
+    textAlign: 'center',
+  },
+  subtitle: {
+    textAlign: 'center',
+    paddingHorizontal: 20,
+  },
+  dotsRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
+  dot: {
+    backgroundColor: COLORS.WHITE,
+  },
+  keypad: {
+    alignItems: 'center',
+  },
+  keypadRow: {
+    flexDirection: 'row',
+  },
+  key: {
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  keyText: {
+    color: COLORS.WHITE,
+    fontWeight: '400',
+  },
+});
 
-  const handleDigit = (digit: string) => {
-    if (pin.length < 6) {
-      setPin(pin + digit);
-    }
-  };
+// ============================================================================
+// CONFIGURABLE STORY
+// ============================================================================
+interface ConfigurableProps {
+  context: AuthContext;
+  deviceSize: DeviceSize;
+  filledDots: number;
+  errorState: ErrorState;
+}
 
-  const handleDelete = () => {
-    setPin(pin.slice(0, -1));
-  };
+const ConfigurableStory = ({ context, deviceSize, filledDots, errorState }: ConfigurableProps) => {
+  const config = DEVICE_CONFIGS.find(d => d.size === deviceSize) || DEVICE_CONFIGS[3];
+  const contextConfig = CONTEXT_CONFIG[context];
+  const errorConfig = ERROR_CONFIG[errorState];
+  const hasError = errorState !== 'none';
+  const isLocked = errorState === 'locked';
 
   return (
-    <View style={localStyles.container}>
-      {/* Snackbar positioned at top like in real app */}
-      <View style={localStyles.snackbarContainer}>
-        <Snackbar
-          params={{
-            type: 'error',
-            message: errorMessage,
-          }}
-          onClose={() => {}}
+    <View style={styles.container}>
+      <View style={[styles.deviceFrame, { width: config.width, height: config.height * 0.85 }]}>
+        <ScaledPinInput
+          title={contextConfig.title}
+          subtitle={hasError ? errorConfig.message : contextConfig.subtitle}
+          filledDots={filledDots}
+          scale={config.scale}
+          hasError={hasError}
+          isLocked={isLocked}
         />
       </View>
-
-      <TouchableOpacity style={localStyles.cancelButton}>
-        <Text style={localStyles.cancelButtonText}>Cancel</Text>
-      </TouchableOpacity>
-
-      <View style={localStyles.contentWrapper}>
-        <View style={localStyles.pinContainer}>
-          <Text style={styles.lockTitle}>{title}</Text>
-          <Text style={localStyles.subtitle}>{subtitle}</Text>
-
-          <View style={styles.lockPinDots}>
-            {[0, 1, 2, 3, 4, 5].map((i) => (
-              <View
-                key={i}
-                style={[
-                  styles.lockPinDot,
-                  i < pin.length && styles.lockPinDotFilled,
-                ]}
-              />
-            ))}
-          </View>
-
-          <View style={styles.lockKeypad}>
-            {[
-              [1, 2, 3],
-              [4, 5, 6],
-              [7, 8, 9],
-            ].map((row, rowIndex) => (
-              <View key={rowIndex} style={styles.lockKeypadRow}>
-                {row.map((num) => (
-                  <TouchableOpacity
-                    key={num}
-                    style={styles.lockKey}
-                    onPress={() => handleDigit(String(num))}
-                  >
-                    <Text style={styles.lockKeyText}>{num}</Text>
-                  </TouchableOpacity>
-                ))}
-              </View>
-            ))}
-            <View style={styles.lockKeypadRow}>
-              <View style={styles.lockKey} />
-              <TouchableOpacity
-                style={styles.lockKey}
-                onPress={() => handleDigit('0')}
-              >
-                <Text style={styles.lockKeyText}>0</Text>
-              </TouchableOpacity>
-              <TouchableOpacity style={styles.lockKey} onPress={handleDelete}>
-                <Icon name="delete" size={28} color={COLORS.WHITE} />
-              </TouchableOpacity>
-            </View>
-          </View>
-        </View>
-      </View>
     </View>
   );
 };
 
 // ============================================================================
-// DEFAULT STORY - Basic PIN Input
+// ERROR STATES STORY
 // ============================================================================
-const DefaultStory = () => (
-  <PinInput title="Enter PIN" subtitle="Enter your 6-digit PIN" />
-);
-
-// ============================================================================
-// CREATE PASSKEY STORY
-// ============================================================================
-const CreatePasskeyStory = () => (
-  <PinInput
-    title="Create a 6-digit PIN"
-    subtitle="This PIN will be used with your passkey to encrypt your wallet"
-  />
-);
-
-// ============================================================================
-// CONFIRM PIN STORY
-// ============================================================================
-const ConfirmPinStory = () => (
-  <PinInput
-    title="Confirm your PIN"
-    subtitle="Enter your PIN again to confirm"
-    initialPin="123"
-  />
-);
-
-// ============================================================================
-// UNLOCK WALLET STORY (Restore with Passkey)
-// ============================================================================
-const UnlockWalletStory = () => (
-  <PinInput
-    title="Enter your PIN"
-    subtitle="Enter the PIN you created with your passkey wallet"
-  />
-);
-
-// ============================================================================
-// PIN MISMATCH ERROR STORY
-// ============================================================================
-const PinMismatchStory = () => (
-  <PinInputWithError
-    title="Confirm your PIN"
-    subtitle="Enter your PIN again to confirm"
-    errorMessage="PINs do not match. Please try again."
-    initialPin="123456"
-  />
-);
-
-// ============================================================================
-// INVALID PIN ERROR STORY
-// ============================================================================
-const InvalidPinStory = () => (
-  <PinInputWithError
-    title="Enter your PIN"
-    subtitle="Enter the PIN you created with your passkey wallet"
-    errorMessage="Please enter a 6-digit PIN"
-    initialPin="12345"
-  />
-);
-
-// ============================================================================
-// OVERVIEW STORY
-// ============================================================================
-const OverviewStory = () => (
-  <ScrollView style={localStyles.scrollView} contentContainerStyle={localStyles.overviewContainer}>
-    <Text style={localStyles.title}>PIN Authentication</Text>
-    <Text style={localStyles.description}>
-      PIN input component used for passkey creation, confirmation, and wallet unlock.
-      Uses styles from styles/screens.ts (lockTitle, lockPinDots, lockPinDot, lockKeypad, etc).
-    </Text>
-
-    <Text style={localStyles.sectionLabel}>USAGE CONTEXTS</Text>
-    <View style={localStyles.contextList}>
-      <View style={localStyles.contextItem}>
-        <View style={[localStyles.contextDot, { backgroundColor: COLORS.PRIMARY_BLUE }]} />
-        <View style={localStyles.contextInfo}>
-          <Text style={localStyles.contextTitle}>Create Passkey</Text>
-          <Text style={localStyles.contextDesc}>Initial PIN setup during onboarding</Text>
-        </View>
+const ErrorStatesStory = () => (
+  <ScrollView contentContainerStyle={styles.scrollContent}>
+    {/* Wrong PIN */}
+    <View style={styles.errorSection}>
+      <View style={styles.errorHeader}>
+        <View style={[styles.errorIndicator, { backgroundColor: COLORS.DANGER_RED }]} />
+        <Text style={styles.errorLabel}>Wrong PIN</Text>
       </View>
-      <View style={localStyles.contextItem}>
-        <View style={[localStyles.contextDot, { backgroundColor: COLORS.TEAL }]} />
-        <View style={localStyles.contextInfo}>
-          <Text style={localStyles.contextTitle}>Confirm PIN</Text>
-          <Text style={localStyles.contextDesc}>Re-enter PIN to verify</Text>
+      <View style={[styles.errorCard, { width: 320 }]}>
+        <Text style={styles.errorTitle}>Enter your PIN</Text>
+        <Text style={styles.errorMessage}>Wrong PIN. Try again.</Text>
+        <View style={styles.errorDotsRow}>
+          {[0, 1, 2, 3, 4, 5].map((i) => (
+            <View key={i} style={[styles.errorDot, styles.errorDotFilled]} />
+          ))}
         </View>
+        <Text style={styles.attemptsText}>2 attempts remaining</Text>
       </View>
-      <View style={localStyles.contextItem}>
-        <View style={[localStyles.contextDot, { backgroundColor: COLORS.SUCCESS_GREEN }]} />
-        <View style={localStyles.contextInfo}>
-          <Text style={localStyles.contextTitle}>Unlock Wallet</Text>
-          <Text style={localStyles.contextDesc}>Enter PIN to restore wallet</Text>
+    </View>
+
+    {/* PIN Mismatch */}
+    <View style={styles.errorSection}>
+      <View style={styles.errorHeader}>
+        <View style={[styles.errorIndicator, { backgroundColor: COLORS.WARNING_YELLOW }]} />
+        <Text style={styles.errorLabel}>PIN Mismatch</Text>
+      </View>
+      <View style={[styles.errorCard, { width: 320 }]}>
+        <Text style={styles.errorTitle}>Confirm your PIN</Text>
+        <Text style={styles.errorMessage}>PINs don't match. Try again.</Text>
+        <View style={styles.errorDotsRow}>
+          {[0, 1, 2, 3, 4, 5].map((i) => (
+            <View key={i} style={[styles.errorDot, styles.errorDotFilled]} />
+          ))}
         </View>
       </View>
     </View>
 
-    <Text style={localStyles.sectionLabel}>ERROR HANDLING</Text>
-    <Text style={localStyles.contextDesc}>
-      Errors are displayed via the Snackbar component at the top of the screen.
-      The PIN input itself has no error styling - dots are only filled or empty.
-    </Text>
-    <View style={localStyles.errorList}>
-      <View style={localStyles.errorItem}>
-        <View style={[localStyles.errorDot, { backgroundColor: COLORS.DANGER_RED }]} />
-        <View style={localStyles.errorInfo}>
-          <Text style={localStyles.errorType}>PIN Mismatch</Text>
-          <Text style={localStyles.errorMsg}>"PINs do not match. Please try again."</Text>
+    {/* Locked Out */}
+    <View style={styles.errorSection}>
+      <View style={styles.errorHeader}>
+        <View style={[styles.errorIndicator, { backgroundColor: COLORS.DANGER_RED }]} />
+        <Text style={styles.errorLabel}>Locked Out</Text>
+      </View>
+      <View style={[styles.errorCard, { width: 320 }]}>
+        <Icon name="lock" size={48} color={COLORS.DANGER_RED} style={styles.lockIcon} />
+        <Text style={styles.errorTitle}>Too many attempts</Text>
+        <Text style={styles.lockedMessage}>Try again in 5:00</Text>
+        <View style={styles.errorDotsRow}>
+          {[0, 1, 2, 3, 4, 5].map((i) => (
+            <View key={i} style={styles.errorDot} />
+          ))}
         </View>
       </View>
-      <View style={localStyles.errorItem}>
-        <View style={[localStyles.errorDot, { backgroundColor: COLORS.DANGER_RED }]} />
-        <View style={localStyles.errorInfo}>
-          <Text style={localStyles.errorType}>Invalid PIN</Text>
-          <Text style={localStyles.errorMsg}>"Please enter a 6-digit PIN"</Text>
-        </View>
-      </View>
-    </View>
-
-    <Text style={localStyles.sectionLabel}>COMPONENT</Text>
-    <View style={localStyles.codeBlock}>
-      <Text style={localStyles.code}>
-{`// PasskeyPinInput from components/PasskeyPinInput.tsx
-
-import PasskeyPinInput from '../components/PasskeyPinInput';
-
-<PasskeyPinInput
-  title="Create a 6-digit PIN"
-  subtitle="This PIN will be used with your passkey"
-  pin={pin}
-  setPin={setPin}
-  onPinComplete={(pin) => handleSubmit(pin)}
-  onCancel={() => navigation.goBack()}
-/>`}
-      </Text>
     </View>
   </ScrollView>
 );
+
+// ============================================================================
+// DEVICE SIZE OVERVIEW STORY
+// ============================================================================
+interface OverviewProps {
+  context: AuthContext;
+}
+
+const DeviceSizeOverviewStory = ({ context }: OverviewProps) => {
+  const contextConfig = CONTEXT_CONFIG[context];
+
+  return (
+    <ScrollView contentContainerStyle={styles.scrollContent}>
+      {DEVICE_CONFIGS.map(({ width, height, size, label, scale }) => (
+        <View key={width} style={styles.deviceSection}>
+          <Text style={styles.sizeLabel}>{size}</Text>
+          <Text style={styles.deviceLabel}>{label} ({width}px)</Text>
+          <View style={[styles.deviceFrame, { width, height: height * 0.75 }]}>
+            <ScaledPinInput
+              title={contextConfig.title}
+              subtitle={contextConfig.subtitle}
+              filledDots={3}
+              scale={scale}
+            />
+          </View>
+        </View>
+      ))}
+    </ScrollView>
+  );
+};
 
 // ============================================================================
 // STORYBOOK META
@@ -337,182 +296,161 @@ const meta: Meta = {
 export default meta;
 type Story = StoryObj;
 
-export const Default: Story = {
-  render: () => <DefaultStory />,
+export const PinInput: Story = {
+  render: (args: ConfigurableProps) => <ConfigurableStory {...args} />,
+  args: {
+    context: 'unlock',
+    deviceSize: 'L',
+    filledDots: 0,
+    errorState: 'none',
+  },
+  argTypes: {
+    context: {
+      control: { type: 'select' },
+      options: ['create', 'confirm', 'unlock'],
+      description: 'Authentication context',
+    },
+    deviceSize: {
+      control: { type: 'select' },
+      options: ['XS', 'S', 'M', 'L', 'XL'],
+      description: 'Device size',
+    },
+    filledDots: {
+      control: { type: 'range', min: 0, max: 6, step: 1 },
+      description: 'Number of filled PIN dots',
+    },
+    errorState: {
+      control: { type: 'select' },
+      options: ['none', 'wrong_pin', 'mismatch', 'locked'],
+      description: 'Error state',
+    },
+  },
 };
 
-export const CreatePasskey: Story = {
-  render: () => <CreatePasskeyStory />,
+export const ErrorStates: Story = {
+  render: () => <ErrorStatesStory />,
 };
 
-export const ConfirmPin: Story = {
-  render: () => <ConfirmPinStory />,
-};
-
-export const UnlockWallet: Story = {
-  render: () => <UnlockWalletStory />,
-};
-
-export const PinMismatchError: Story = {
-  render: () => <PinMismatchStory />,
-};
-
-export const InvalidPinError: Story = {
-  render: () => <InvalidPinStory />,
-};
-
-export const Overview: Story = {
-  render: () => <OverviewStory />,
+export const DeviceSizeOverview: Story = {
+  render: (args: OverviewProps) => <DeviceSizeOverviewStory {...args} />,
+  args: {
+    context: 'create',
+  },
+  argTypes: {
+    context: {
+      control: { type: 'select' },
+      options: ['create', 'confirm', 'unlock'],
+      description: 'Authentication context',
+    },
+  },
 };
 
 // ============================================================================
 // STYLES
 // ============================================================================
-const localStyles = StyleSheet.create({
+const styles = StyleSheet.create({
   container: {
     flex: 1,
     backgroundColor: COLORS.DARK_BG,
-  },
-  snackbarContainer: {
-    position: 'absolute',
-    top: 0,
-    left: 0,
-    right: 0,
-    zIndex: 100,
-  },
-  cancelButton: {
-    position: 'absolute',
-    top: 60,
-    left: 20,
-    padding: 12,
-    zIndex: 10,
-  },
-  cancelButtonText: {
-    fontSize: 16,
-    fontWeight: '600',
-    color: COLORS.WHITE,
-  },
-  contentWrapper: {
-    flex: 1,
+    padding: 20,
+    alignItems: 'center',
     justifyContent: 'center',
   },
-  pinContainer: {
-    alignItems: 'center',
-    paddingHorizontal: 20,
-  },
-  subtitle: {
-    fontSize: 14,
-    color: COLORS.LIGHT_GRAY,
-    textAlign: 'center',
-    marginBottom: 30,
-    marginHorizontal: 20,
-  },
-  scrollView: {
-    flex: 1,
+  scrollContent: {
     backgroundColor: COLORS.DARK_BG,
+    padding: 20,
+    gap: 32,
+    alignItems: 'center',
   },
-  overviewContainer: {
+  deviceSection: {
+    gap: 8,
+    alignItems: 'center',
+  },
+  sizeLabel: {
+    fontSize: 14,
+    fontWeight: '700',
+    color: COLORS.WHITE,
+  },
+  deviceLabel: {
+    fontSize: 12,
+    color: COLORS.SECONDARY_TEXT,
+  },
+  deviceFrame: {
+    backgroundColor: COLORS.DARK_BG,
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: COLORS.VERY_DARK_GRAY,
+    overflow: 'hidden',
+  },
+  // Error states
+  errorOverlay: {
+    position: 'absolute',
+    left: 0,
+    right: 0,
+    alignItems: 'center',
+  },
+  errorSection: {
+    gap: 12,
+    alignItems: 'center',
+  },
+  errorHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+  },
+  errorIndicator: {
+    width: 10,
+    height: 10,
+    borderRadius: 5,
+  },
+  errorLabel: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: COLORS.WHITE,
+  },
+  errorCard: {
+    backgroundColor: COLORS.CARD_BG,
+    borderRadius: 16,
     padding: 24,
-    paddingBottom: 48,
+    alignItems: 'center',
   },
-  title: {
-    fontSize: 28,
-    fontWeight: 'bold',
-    color: COLORS.VERY_LIGHT_GRAY,
+  errorTitle: {
+    fontSize: 20,
+    fontWeight: '700',
+    color: COLORS.WHITE,
     marginBottom: 8,
   },
-  description: {
-    fontSize: 15,
-    color: COLORS.SECONDARY_TEXT,
-    lineHeight: 22,
+  errorMessage: {
+    fontSize: 14,
+    color: COLORS.DANGER_RED,
     marginBottom: 24,
+    textAlign: 'center',
   },
-  sectionLabel: {
-    fontSize: 11,
-    fontWeight: '600',
-    color: COLORS.SECONDARY_TEXT,
-    letterSpacing: 1,
-    marginBottom: 12,
-    marginTop: 24,
-  },
-
-  // Context list
-  contextList: {
-    gap: 12,
-  },
-  contextItem: {
+  errorDotsRow: {
     flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: COLORS.CARD_BG,
-    padding: 16,
-    borderRadius: 12,
     gap: 12,
-  },
-  contextDot: {
-    width: 10,
-    height: 10,
-    borderRadius: 5,
-  },
-  contextInfo: {
-    flex: 1,
-  },
-  contextTitle: {
-    fontSize: 15,
-    fontWeight: '600',
-    color: COLORS.WHITE,
-    marginBottom: 2,
-  },
-  contextDesc: {
-    fontSize: 13,
-    color: COLORS.SECONDARY_TEXT,
-    lineHeight: 20,
-  },
-
-  // Error list
-  errorList: {
-    gap: 12,
-    marginTop: 12,
-  },
-  errorItem: {
-    flexDirection: 'row',
-    alignItems: 'flex-start',
-    backgroundColor: COLORS.CARD_BG,
-    padding: 16,
-    borderRadius: 12,
-    gap: 12,
+    marginBottom: 16,
   },
   errorDot: {
-    width: 10,
-    height: 10,
-    borderRadius: 5,
-    marginTop: 4,
+    width: 16,
+    height: 16,
+    borderRadius: 8,
+    backgroundColor: COLORS.VERY_DARK_GRAY,
   },
-  errorInfo: {
-    flex: 1,
+  errorDotFilled: {
+    backgroundColor: COLORS.DANGER_RED,
   },
-  errorType: {
-    fontSize: 14,
-    fontWeight: '600',
-    color: COLORS.WHITE,
-    marginBottom: 4,
-  },
-  errorMsg: {
-    fontSize: 13,
+  attemptsText: {
+    fontSize: 12,
     color: COLORS.SECONDARY_TEXT,
-    fontStyle: 'italic',
   },
-
-  // Code block
-  codeBlock: {
-    backgroundColor: COLORS.CARD_BG,
-    padding: 12,
-    borderRadius: BORDER_RADIUS.md,
-    borderWidth: 1,
-    borderColor: COLORS.BORDER_COLOR,
+  lockIcon: {
+    marginBottom: 16,
   },
-  code: {
-    fontFamily: 'monospace',
-    fontSize: 11,
-    color: COLORS.LIGHT_GRAY,
+  lockedMessage: {
+    fontSize: 16,
+    fontWeight: '600',
+    color: COLORS.DANGER_RED,
+    marginBottom: 24,
   },
 });

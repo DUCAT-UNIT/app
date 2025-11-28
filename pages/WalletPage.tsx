@@ -4,8 +4,9 @@
  */
 
 import React, { useState, useEffect } from 'react';
-import { View, Animated } from 'react-native';
+import { View, Animated, Text, ActivityIndicator, StyleSheet } from 'react-native';
 import { StatusBar } from 'expo-status-bar';
+import { COLORS } from '../theme';
 import { useNavigation } from '@react-navigation/native';
 
 // Components
@@ -19,6 +20,7 @@ import EcashThresholdSheet from '../components/settings/EcashThresholdSheet';
 import EcashConversionModal from '../components/settings/EcashConversionModal';
 import LowEcashBalanceModal from '../components/ecash/LowEcashBalanceModal';
 import QRScanner from '../components/scanner/QRScanner';
+import WithdrawAssetSheet from '../components/withdraw/WithdrawAssetSheet';
 
 // Contexts
 import { useWallet } from '../contexts/WalletContext';
@@ -28,6 +30,7 @@ import { useOnboardingFlow } from '../contexts/AuthContext';
 import { useNavigationHandlers } from '../contexts/NavigationHandlersContext';
 import { useNotifications } from "../contexts/NotificationContext";
 import { useBalance } from '../contexts/WalletDataContext';
+import { usePrice } from '../contexts/PriceContext';
 import { useCashu } from '../contexts/CashuContext';
 
 // Hooks
@@ -66,7 +69,8 @@ export default function WalletPage({ route }: WalletPageProps) {
   // Context consumption
   const { resetInactivityTimer } = useOnboardingFlow();
   const { settingsHandlers, biometricEnabled, setShowAccountPicker, switchingAccount } = useNavigationHandlers();
-  const { runesBalance } = useBalance();
+  const { runesBalance, segwitBalance, taprootBalance } = useBalance();
+  const { btcPrice } = usePrice();
   const { balance: cashuBalance, receive: receiveCashuToken } = useCashu();
   const { wallet, switchAccount, currentAccount } = useWallet();
   const { intentStep, sendAssetType, sendAddressType } = useSendFlow();
@@ -94,6 +98,9 @@ export default function WalletPage({ route }: WalletPageProps) {
   } = useSettingsNavigation();
 
   const { showReceiveSheet, setShowReceiveSheet, showTxHistory, setShowTxHistory } = useSheetNavigation();
+
+  // Withdraw asset sheet
+  const [showWithdrawSheet, setShowWithdrawSheet] = useState(false);
 
   // QR Scanner
   const [showQRScanner, setShowQRScanner] = useState(false);
@@ -155,7 +162,7 @@ export default function WalletPage({ route }: WalletPageProps) {
             <WalletScreen
               key={`wallet-${currentAccount}`}
               styles={styles}
-              onSendPress={() => (navigation as { navigate: (screen: string, params?: object) => void }).navigate('SendFlow', { screen: 'AssetSelector' })}
+              onSendPress={() => setShowWithdrawSheet(true)}
               onReceivePress={() => setShowReceiveSheet(true)}
               onHistoryPress={() => setShowTxHistory(true)}
               onQRScanPress={() => setShowQRScanner(true)}
@@ -164,7 +171,6 @@ export default function WalletPage({ route }: WalletPageProps) {
               onVaultPress={handleVaultPress}
               onAssetPress={(assetType) => (navigation as { navigate: (screen: string, params?: object) => void }).navigate('AssetDetail', { assetType, advancedMode: settingsHandlers.advancedMode })}
               _sendAddressType={sendAddressType ?? undefined}
-              switchingAccount={switchingAccount}
               showZeroAssets={settingsHandlers.showZeroAssets}
             />
           </View>
@@ -177,6 +183,19 @@ export default function WalletPage({ route }: WalletPageProps) {
           segwitAddress={wallet?.segwitAddress || ''} taprootAddress={wallet?.taprootAddress || ''}
           vaultPubkey={wallet?.taprootPubkey || ''} advancedMode={settingsHandlers.advancedMode} />
         <QRScanner visible={showQRScanner} onClose={() => setShowQRScanner(false)} onScan={handleQRScan} />
+        <WithdrawAssetSheet
+          visible={showWithdrawSheet}
+          onClose={() => setShowWithdrawSheet(false)}
+          onAssetSelect={(assetType) => {
+            (navigation as { navigate: (screen: string, params?: object) => void }).navigate('SendFlow', {
+              screen: 'AddressInput',
+              params: { assetType }
+            });
+          }}
+          btcBalance={(segwitBalance || 0) + (taprootBalance || 0)}
+          unitBalance={currentUnitBalance + (cashuBalance || 0)}
+          btcPrice={btcPrice}
+        />
         <StatusBar style="light" />
         {/* Snackbar is rendered at app level in AppNavigatorContent */}
       </View>
@@ -204,6 +223,35 @@ export default function WalletPage({ route }: WalletPageProps) {
       <LowEcashBalanceModal visible={showLowBalanceModal} onClose={closeLowBalanceModal}
         onConfirm={handleLowBalanceTopUp} currentBalance={lowBalanceCurrentBalance}
         defaultThreshold={lowBalanceDefaultThreshold} amountNeeded={lowBalanceAmountNeeded} />
+
+      {/* Full-screen loading overlay while switching accounts */}
+      {switchingAccount && (
+        <View style={switchingStyles.overlay}>
+          <ActivityIndicator size="large" color={COLORS.PRIMARY_BLUE} />
+          <Text style={switchingStyles.text}>Switching account...</Text>
+        </View>
+      )}
     </>
   );
 }
+
+const switchingStyles = StyleSheet.create({
+  overlay: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
+    bottom: 0,
+    backgroundColor: COLORS.DARK_BG,
+    alignItems: 'center',
+    justifyContent: 'center',
+    zIndex: 9999,
+  },
+  text: {
+    fontSize: 16,
+    fontWeight: '600',
+    color: COLORS.VERY_LIGHT_GRAY,
+    marginTop: 12,
+    fontFamily: 'CabinetGrotesk-Medium',
+  },
+});

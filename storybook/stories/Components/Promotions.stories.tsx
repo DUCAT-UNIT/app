@@ -1,252 +1,179 @@
 import React from 'react';
-import { View, Text, TouchableOpacity, StyleSheet } from 'react-native';
+import { View, Text, TouchableOpacity, StyleSheet, ScrollView } from 'react-native';
 import type { Meta, StoryObj } from '@storybook/react';
 import { COLORS } from '../../../theme';
 import Icon from '../../../components/icons';
 
 // ============================================================================
+// DEVICE SIZE CONFIG
+// ============================================================================
+const DEVICE_CONFIGS = [
+  { width: 320, size: 'XS', label: 'iPhone 5', scale: 0.8 },
+  { width: 375, size: 'S', label: 'iPhone SE/8', scale: 0.9 },
+  { width: 390, size: 'M', label: 'iPhone 12/13/14', scale: 0.95 },
+  { width: 393, size: 'L', label: 'iPhone 14 Pro', scale: 1.0 },
+  { width: 430, size: 'XL', label: 'iPhone 16 Pro Max', scale: 1.0 },
+];
+
+type DeviceSize = 'XS' | 'S' | 'M' | 'L' | 'XL';
+
+// ============================================================================
 // AIRDROP SUCCESS MODAL
 // ============================================================================
-const AirdropSuccessModal = () => (
-  <View style={styles.modalOverlay}>
-    <View style={styles.modalContent}>
-      <View style={styles.iconContainer}>
-        <Icon name="party" size={55} color="#DDDDDD" />
+interface AirdropModalProps {
+  scale?: number;
+}
+
+const AirdropModal = ({ scale = 1 }: AirdropModalProps) => {
+  const iconSize = 55 * scale;
+  const titleSize = 22 * scale;
+  const messageSize = 16 * scale;
+  const buttonTextSize = 16 * scale;
+  const padding = 32 * scale;
+  const buttonPadding = 16 * scale;
+
+  return (
+    <View style={[styles.modalOverlay, { padding: 24 * scale }]}>
+      <View style={[styles.modalContent, { padding, borderRadius: 24 * scale }]}>
+        <View style={[styles.iconContainer, { paddingBottom: 24 * scale }]}>
+          <Icon name="party" size={iconSize} color="#DDDDDD" />
+        </View>
+        <Text style={[styles.modalTitle, { fontSize: titleSize, marginBottom: 12 * scale }]}>
+          Mutiny BTC Airdropped
+        </Text>
+        <Text style={[styles.modalMessage, { fontSize: messageSize, lineHeight: messageSize * 1.5, marginBottom: 24 * scale }]}>
+          An airdrop is on the way.{'\n'}You should see it reflected in your balance in 30 seconds.
+        </Text>
+        <TouchableOpacity style={[styles.modalButton, { paddingVertical: buttonPadding, borderRadius: 12 * scale }]}>
+          <Text style={[styles.modalButtonText, { fontSize: buttonTextSize }]}>Get Started</Text>
+        </TouchableOpacity>
       </View>
-      <Text style={styles.modalTitle}>Mutiny BTC Airdropped</Text>
-      <Text style={styles.modalMessage}>
-        An airdrop is on the way.{'\n'}You should see it reflected in your balance in 30 seconds.
-      </Text>
-      <TouchableOpacity style={styles.modalButton}>
-        <Text style={styles.modalButtonText}>Get Started</Text>
-      </TouchableOpacity>
     </View>
-  </View>
-);
+  );
+};
 
 // ============================================================================
-// MAIN COMPONENT
+// CONFIGURABLE STORY
 // ============================================================================
-const PromotionsStory = () => (
-  <View style={styles.container}>
-    <Text style={styles.title}>Promotions</Text>
-    <Text style={styles.description}>
-      Promotional modals and celebratory screens for special events.
-    </Text>
+interface ConfigurableProps {
+  deviceSize: DeviceSize;
+}
 
-    <Text style={styles.sectionLabel}>AIRDROP SUCCESS</Text>
-    <Text style={styles.sectionDesc}>
-      Displayed when user receives a Mutinynet BTC airdrop. Includes confetti animation and celebration effects.
-    </Text>
-    <AirdropSuccessModal />
+const ConfigurableStory = ({ deviceSize }: ConfigurableProps) => {
+  const config = DEVICE_CONFIGS.find(d => d.size === deviceSize) || DEVICE_CONFIGS[3];
 
-    <Text style={styles.sectionLabel}>EFFECTS</Text>
-    <View style={styles.effectsList}>
-      <View style={styles.effectItem}>
-        <View style={[styles.effectIcon, { backgroundColor: COLORS.PRIMARY_BLUE + '20' }]}>
-          <Icon name="party" size={20} color={COLORS.PRIMARY_BLUE} />
-        </View>
-        <View style={styles.effectContent}>
-          <Text style={styles.effectTitle}>Confetti Animation</Text>
-          <Text style={styles.effectDesc}>200 particles falling from top</Text>
-        </View>
-      </View>
-      <View style={styles.effectItem}>
-        <View style={[styles.effectIcon, { backgroundColor: COLORS.TEAL + '20' }]}>
-          <Icon name="notification" size={20} color={COLORS.TEAL} />
-        </View>
-        <View style={styles.effectContent}>
-          <Text style={styles.effectTitle}>Sound Effect</Text>
-          <Text style={styles.effectDesc}>Celebration audio plays</Text>
-        </View>
-      </View>
-      <View style={styles.effectItem}>
-        <View style={[styles.effectIcon, { backgroundColor: COLORS.YELLOW + '20' }]}>
-          <Icon name="wallet" size={20} color={COLORS.WARNING_ORANGE} />
-        </View>
-        <View style={styles.effectContent}>
-          <Text style={styles.effectTitle}>Haptic Feedback</Text>
-          <Text style={styles.effectDesc}>Device vibration pattern</Text>
-        </View>
+  return (
+    <View style={styles.container}>
+      <View style={{ width: config.width }}>
+        <AirdropModal scale={config.scale} />
       </View>
     </View>
+  );
+};
 
-    <Text style={styles.sectionLabel}>ANIMATION</Text>
-    <View style={styles.animationInfo}>
-      <View style={styles.animationRow}>
-        <Text style={styles.animationLabel}>Entry</Text>
-        <Text style={styles.animationValue}>Scale + Fade (spring)</Text>
-      </View>
-      <View style={styles.animationRow}>
-        <Text style={styles.animationLabel}>Duration</Text>
-        <Text style={styles.animationValue}>300ms</Text>
-      </View>
-      <View style={styles.animationRow}>
-        <Text style={styles.animationLabel}>Confetti Colors</Text>
-        <View style={styles.colorDots}>
-          {[COLORS.PRIMARY_BLUE, COLORS.TEAL, COLORS.YELLOW, '#FF6B6B', '#4ECDC4'].map((color, i) => (
-            <View key={i} style={[styles.colorDot, { backgroundColor: color }]} />
-          ))}
+// ============================================================================
+// DEVICE SIZE OVERVIEW STORY
+// ============================================================================
+const DeviceSizeOverviewStory = () => (
+  <ScrollView contentContainerStyle={styles.scrollContent}>
+    {DEVICE_CONFIGS.map(({ width, size, label, scale }) => (
+      <View key={width} style={styles.deviceSection}>
+        <Text style={styles.sizeLabel}>{size}</Text>
+        <Text style={styles.deviceLabel}>{label} ({width}px)</Text>
+        <View style={{ width }}>
+          <AirdropModal scale={scale} />
         </View>
       </View>
-    </View>
-  </View>
+    ))}
+  </ScrollView>
 );
 
 // ============================================================================
 // STORYBOOK META
 // ============================================================================
-const meta: Meta<typeof PromotionsStory> = {
-  title: 'Patterns/Promotions',
-  component: PromotionsStory,
+const meta: Meta = {
+  title: 'Components/Promotions',
 };
 
 export default meta;
-type Story = StoryObj<typeof PromotionsStory>;
+type Story = StoryObj;
 
-export const AirdropSuccess: Story = {};
+export const AirdropSuccess: Story = {
+  render: (args: ConfigurableProps) => <ConfigurableStory {...args} />,
+  args: {
+    deviceSize: 'L',
+  },
+  argTypes: {
+    deviceSize: {
+      control: { type: 'select' },
+      options: ['XS', 'S', 'M', 'L', 'XL'],
+      description: 'Device size',
+    },
+  },
+};
+
+export const DeviceSizeOverview: Story = {
+  render: () => <DeviceSizeOverviewStory />,
+};
 
 // ============================================================================
-// STYLES - Matches AirdropSuccessModal
+// STYLES
 // ============================================================================
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    padding: 24,
+    backgroundColor: COLORS.DARK_BG,
+    padding: 20,
+    alignItems: 'center',
+    justifyContent: 'center',
   },
-  title: {
-    fontSize: 28,
-    fontWeight: 'bold',
-    color: COLORS.VERY_LIGHT_GRAY,
-    marginBottom: 8,
+  scrollContent: {
+    backgroundColor: COLORS.DARK_BG,
+    padding: 20,
+    gap: 32,
+    alignItems: 'center',
   },
-  description: {
-    fontSize: 15,
+  deviceSection: {
+    gap: 8,
+    alignItems: 'center',
+  },
+  sizeLabel: {
+    fontSize: 14,
+    fontWeight: '700',
+    color: COLORS.WHITE,
+  },
+  deviceLabel: {
+    fontSize: 12,
     color: COLORS.SECONDARY_TEXT,
-    lineHeight: 22,
-    marginBottom: 40,
   },
-  sectionLabel: {
-    fontSize: 11,
-    fontWeight: '600',
-    color: COLORS.SECONDARY_TEXT,
-    letterSpacing: 1,
-    marginBottom: 8,
-    marginTop: 24,
-  },
-  sectionDesc: {
-    fontSize: 13,
-    color: COLORS.SECONDARY_TEXT,
-    marginBottom: 16,
-    lineHeight: 20,
-  },
-
   // Modal
   modalOverlay: {
     backgroundColor: 'rgba(0, 0, 0, 0.9)',
     borderRadius: 16,
-    padding: 24,
     alignItems: 'center',
   },
   modalContent: {
     backgroundColor: COLORS.CARD_BG,
-    borderRadius: 24,
-    padding: 32,
     width: '100%',
-    maxWidth: 350,
     alignItems: 'center',
   },
-  iconContainer: {
-    paddingBottom: 24,
-  },
+  iconContainer: {},
   modalTitle: {
-    fontSize: 22,
     fontWeight: '700',
-    color: COLORS.VERY_LIGHT_GRAY,
-    marginBottom: 12,
+    color: COLORS.WHITE,
     textAlign: 'center',
   },
   modalMessage: {
-    fontSize: 16,
     color: COLORS.SECONDARY_TEXT,
     textAlign: 'center',
-    lineHeight: 24,
-    marginBottom: 24,
   },
   modalButton: {
     backgroundColor: COLORS.PRIMARY_BLUE,
-    borderRadius: 12,
-    paddingVertical: 16,
-    paddingHorizontal: 32,
     width: '100%',
     alignItems: 'center',
   },
   modalButtonText: {
-    fontSize: 16,
     fontWeight: '600',
     color: COLORS.WHITE,
-  },
-
-  // Effects
-  effectsList: {
-    gap: 12,
-  },
-  effectItem: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: COLORS.CARD_BG,
-    padding: 16,
-    borderRadius: 12,
-    gap: 12,
-  },
-  effectIcon: {
-    width: 40,
-    height: 40,
-    borderRadius: 20,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  effectContent: {
-    flex: 1,
-  },
-  effectTitle: {
-    fontSize: 15,
-    fontWeight: '600',
-    color: COLORS.WHITE,
-  },
-  effectDesc: {
-    fontSize: 13,
-    color: COLORS.SECONDARY_TEXT,
-    marginTop: 2,
-  },
-
-  // Animation info
-  animationInfo: {
-    backgroundColor: COLORS.CARD_BG,
-    borderRadius: 12,
-    padding: 16,
-    gap: 12,
-  },
-  animationRow: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-  },
-  animationLabel: {
-    fontSize: 14,
-    color: COLORS.SECONDARY_TEXT,
-  },
-  animationValue: {
-    fontSize: 14,
-    color: COLORS.WHITE,
-  },
-  colorDots: {
-    flexDirection: 'row',
-    gap: 6,
-  },
-  colorDot: {
-    width: 16,
-    height: 16,
-    borderRadius: 8,
   },
 });

@@ -2,7 +2,7 @@
  * RegularTransactionItem Component
  */
 
-import React from 'react';
+import React, { memo, useMemo } from 'react';
 import { View, Text, TouchableOpacity, ViewStyle, TextStyle } from 'react-native';
 import Icon from '../icons';
 import { COLORS } from '../../theme';
@@ -34,6 +34,7 @@ interface RegularTransactionStyles {
   balanceWithIcon: ViewStyle;
   assetAmountIcon: ViewStyle;
   assetAmount: TextStyle;
+  logoSize?: number;
 }
 
 interface RegularTransaction {
@@ -58,60 +59,68 @@ interface RegularTransactionItemProps {
   advancedMode?: boolean;
 }
 
-export default function RegularTransactionItem({ tx, styles, onPress, advancedMode = false }: RegularTransactionItemProps) {
+export default memo(function RegularTransactionItem({ tx, styles, onPress, advancedMode = false }: RegularTransactionItemProps) {
   const { amount, assetType, isSent, isReceived } = tx.txData;
   const numericAmount = typeof amount === 'bigint' ? Number(amount) : amount;
 
-  // Check for Turbo/eCash Swap transaction (sending UNIT to mint)
-  const isEcashSwapTransaction = assetType === 'UNIT' && isSent && tx.vout?.some((output: TransactionOutput) =>
-    output.scriptpubkey_address === TURBO_MINT_ADDRESS
-  );
-  const showTurboUI = isEcashSwapTransaction && advancedMode;
+  // Memoize expensive calculations
+  const { isEcashSwapTransaction, showTurboUI, actionLabel, statusConfig, formattedAmount, formattedDate } = useMemo(() => {
+    // Check for Turbo/eCash Swap transaction (sending UNIT to mint)
+    const isEcashSwap = assetType === 'UNIT' && isSent && tx.vout?.some((output: TransactionOutput) =>
+      output.scriptpubkey_address === TURBO_MINT_ADDRESS
+    );
+    const showTurbo = isEcashSwap && advancedMode;
 
-  const getActionLabel = () => {
-    if (showTurboUI) return 'Activate';
-    if (isEcashSwapTransaction) return 'eCash Swap';
-    // Check for self claim (same user sends and receives)
-    if (isSent && isReceived) return 'Self Claim';
-    return isSent ? 'Sent' : 'Received';
-  };
+    // Determine action label
+    let label: string;
+    if (showTurbo) label = 'Activate';
+    else if (isEcashSwap) label = 'eCash Swap';
+    else if (isSent && isReceived) label = 'Self Claim';
+    else label = isSent ? 'Sent' : 'Received';
 
-  // Determine status text and style
-  const getStatusConfig = () => {
-    if (isEcashSwapTransaction && !advancedMode) {
-      // Show "eCash Swap" as the status for non-advanced mode
-      return {
-        statusText: tx.status.confirmed ? 'Confirmed' : 'Pending',
-        chipStyle: tx.status.confirmed ? localStyles.confirmedChip : localStyles.pendingChip,
-        chipTextStyle: tx.status.confirmed ? localStyles.confirmedChipText : localStyles.pendingChipText,
-      };
-    }
-    return {
+    // Determine status config
+    const status = {
       statusText: tx.status.confirmed ? 'Confirmed' : 'Pending',
       chipStyle: tx.status.confirmed ? localStyles.confirmedChip : localStyles.pendingChip,
       chipTextStyle: tx.status.confirmed ? localStyles.confirmedChipText : localStyles.pendingChipText,
     };
-  };
 
-  const { statusText, chipStyle, chipTextStyle } = getStatusConfig();
+    // Format amount once
+    const formatted = assetType === 'UNIT'
+      ? formatUnitAmount(Math.abs(numericAmount))
+      : formatBalance(Math.abs(numericAmount) / 100000000);
+
+    // Format date once
+    const date = formatTransactionDate(tx.status.block_time);
+
+    return {
+      isEcashSwapTransaction: isEcashSwap,
+      showTurboUI: showTurbo,
+      actionLabel: label,
+      statusConfig: status,
+      formattedAmount: formatted,
+      formattedDate: date,
+    };
+  }, [assetType, isSent, isReceived, tx.vout, tx.status.confirmed, tx.status.block_time, advancedMode, numericAmount]);
+
   const amountColor = isReceived ? COLORS.GREEN : COLORS.RED;
 
   return (
     <TouchableOpacity style={styles.historyTxRow} onPress={onPress} activeOpacity={0.7}>
       <View style={localStyles.assetLogo}>
         <Icon name={showTurboUI ? 'turbo' : (assetType === 'UNIT' ? 'unit_logo' : 'btc_logo')}
-          size={40} color={showTurboUI ? '#DDDDDD' : undefined} />
+          size={styles.logoSize ?? 40} color={showTurboUI ? '#DDDDDD' : undefined} />
       </View>
       <View style={localStyles.txContentContainer}>
         <View style={styles.historyTxTopRow}>
           <View style={styles.historyTxColumn1}>
-            <Text style={[styles.historyTxAmount, localStyles.actionText]}>{getActionLabel()}</Text>
+            <Text style={[styles.historyTxAmount, localStyles.actionText]}>{actionLabel}</Text>
           </View>
           <View style={styles.historyTxRightGroup}>
             <View style={styles.historyTxColumn2}>
-              <View style={[styles.vaultAmountChip, chipStyle]}>
-                <Text style={[styles.vaultAmountChipText, chipTextStyle]}>
-                  {statusText}
+              <View style={[styles.vaultAmountChip, statusConfig.chipStyle]}>
+                <Text style={[styles.vaultAmountChipText, statusConfig.chipTextStyle]}>
+                  {statusConfig.statusText}
                 </Text>
               </View>
             </View>
@@ -121,9 +130,7 @@ export default function RegularTransactionItem({ tx, styles, onPress, advancedMo
                   <Icon name={assetType === 'UNIT' ? 'unit_symbol' : 'btc_symbol'}
                     size={12} color={amountColor} style={styles.assetAmountIcon} />
                   <Text style={[styles.assetAmount, { color: amountColor }]}>
-                    {assetType === 'UNIT'
-                      ? formatUnitAmount(Math.abs(numericAmount))
-                      : formatBalance(Math.abs(numericAmount) / 100000000)}
+                    {formattedAmount}
                   </Text>
                 </View>
               )}
@@ -131,9 +138,9 @@ export default function RegularTransactionItem({ tx, styles, onPress, advancedMo
           </View>
         </View>
         <View style={styles.historyTxBottomRow}>
-          <Text style={styles.historyTxDate}>{formatTransactionDate(tx.status.block_time)}</Text>
+          <Text style={styles.historyTxDate}>{formattedDate}</Text>
         </View>
       </View>
     </TouchableOpacity>
   );
-}
+});

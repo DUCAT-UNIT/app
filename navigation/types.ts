@@ -5,10 +5,26 @@
 
 import type { StackScreenProps } from '@react-navigation/stack';
 import type { BottomTabScreenProps } from '@react-navigation/bottom-tabs';
-import type { CompositeScreenProps, NavigatorScreenParams } from '@react-navigation/native';
+import type { CompositeScreenProps, NavigatorScreenParams, ParamListBase } from '@react-navigation/native';
 
 // Re-export types from types/assets.d.ts
 export type { AssetTypeParam, AddressTypeParam } from '../types/assets';
+
+/**
+ * Send Flow Navigator
+ * Modal stack for send transaction flow
+ */
+export type SendStackParamList = {
+  AssetSelector: undefined;
+  AddressInput: { assetType?: string };
+  AmountInput: { assetType?: string; address?: string };
+  TurboLoading: undefined;
+  Review: { assetType?: string; address?: string; amount?: number };
+  Processing: undefined;
+  TurboProcessing: undefined;
+  TurboClaiming: { tokenAmount?: number };
+  Confirmation: { txid?: string; amount?: number };
+};
 
 /**
  * Root Stack Navigator (top level)
@@ -17,7 +33,7 @@ export type { AssetTypeParam, AddressTypeParam } from '../types/assets';
 export type RootNavigatorParamList = {
   Auth: undefined;
   Main: undefined;
-  SendFlow: undefined;
+  SendFlow: NavigatorScreenParams<SendStackParamList> | undefined;
 };
 
 /**
@@ -29,14 +45,6 @@ export type AuthStackParamList = {
   Welcome: undefined;
   PinSetup: { isChangingPin?: boolean };
   LockScreen: undefined;
-};
-
-/**
- * Main Tab Navigator (authenticated app)
- * Bottom tab navigation
- */
-export type MainTabParamList = {
-  WalletTab: NavigatorScreenParams<WalletStackParamList>;
 };
 
 /**
@@ -58,19 +66,11 @@ export type WalletStackParamList = {
 };
 
 /**
- * Send Flow Navigator
- * Modal stack for send transaction flow
+ * Main Tab Navigator (authenticated app)
+ * Bottom tab navigation
  */
-export type SendStackParamList = {
-  AssetSelector: undefined;
-  AddressInput: { assetType?: string };
-  AmountInput: { assetType?: string; address?: string };
-  TurboLoading: undefined;
-  Review: { assetType?: string; address?: string; amount?: number };
-  Processing: undefined;
-  TurboProcessing: undefined;
-  TurboClaiming: { tokenAmount?: number };
-  Confirmation: { txid?: string; amount?: number };
+export type MainTabParamList = {
+  WalletTab: NavigatorScreenParams<WalletStackParamList>;
 };
 
 /**

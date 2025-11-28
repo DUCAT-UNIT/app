@@ -201,6 +201,106 @@ export const deleteCachedAddresses = async (): Promise<boolean> => {
 };
 
 /**
+ * Multi-account cache format
+ * Stores addresses for multiple accounts to enable fast account switching
+ */
+interface MultiAccountCache {
+  [accountIndex: string]: {
+    segwitAddress: string;
+    taprootAddress: string;
+    segwitPubkey: string;
+    taprootPubkey: string;
+  };
+}
+
+// In-memory cache for even faster lookups (avoids async storage read)
+let memoryCache: MultiAccountCache | null = null;
+
+/**
+ * Get addresses from multi-account cache
+ * Uses in-memory cache first, then falls back to secure storage
+ * @param accountIndex - Account index to lookup
+ * @returns Cached addresses or null if not found
+ */
+export const getMultiAccountCache = async (
+  accountIndex: number
+): Promise<{ segwitAddress: string; taprootAddress: string; segwitPubkey: string; taprootPubkey: string } | null> => {
+  try {
+    // Check in-memory cache first (instant)
+    if (memoryCache && memoryCache[accountIndex.toString()]) {
+      return memoryCache[accountIndex.toString()];
+    }
+
+    // Fall back to secure storage
+    const cached = await SecureStore.getItemAsync(SECURE_KEYS.MULTI_ACCOUNT_CACHE);
+    if (!cached) return null;
+
+    const parsed: MultiAccountCache = JSON.parse(cached);
+    // Populate memory cache
+    memoryCache = parsed;
+
+    return parsed[accountIndex.toString()] || null;
+  } catch (error: unknown) {
+    logger.error('Failed to get multi-account cache', { error: error instanceof Error ? error.message : String(error) });
+    return null;
+  }
+};
+
+/**
+ * Save addresses to multi-account cache
+ * Updates both in-memory and secure storage
+ * @param accountIndex - Account index
+ * @param addresses - Derived addresses
+ * @returns Success status
+ */
+export const saveToMultiAccountCache = async (
+  accountIndex: number,
+  addresses: { segwitAddress: string; taprootAddress: string; segwitPubkey: string; taprootPubkey: string }
+): Promise<boolean> => {
+  try {
+    // Load existing cache or create new
+    let cache: MultiAccountCache = {};
+
+    if (memoryCache) {
+      cache = { ...memoryCache };
+    } else {
+      const existing = await SecureStore.getItemAsync(SECURE_KEYS.MULTI_ACCOUNT_CACHE);
+      if (existing) {
+        cache = JSON.parse(existing);
+      }
+    }
+
+    // Add/update entry
+    cache[accountIndex.toString()] = addresses;
+
+    // Update memory cache
+    memoryCache = cache;
+
+    // Persist to secure storage
+    await SecureStore.setItemAsync(SECURE_KEYS.MULTI_ACCOUNT_CACHE, JSON.stringify(cache));
+    return true;
+  } catch (error: unknown) {
+    logger.error('Failed to save to multi-account cache', { error: error instanceof Error ? error.message : String(error) });
+    return false;
+  }
+};
+
+/**
+ * Clear the multi-account cache (both memory and storage)
+ * @returns Success status
+ */
+export const clearMultiAccountCache = async (): Promise<boolean> => {
+  try {
+    memoryCache = null;
+    await SecureStore.deleteItemAsync(SECURE_KEYS.MULTI_ACCOUNT_CACHE);
+    return true;
+  } catch (error: unknown) {
+    logger.error('Failed to clear multi-account cache', { error: error instanceof Error ? error.message : String(error) });
+    return false;
+  }
+};
+
+/**
  * Delete all wallet data from secure storage
  * IMPORTANT: This clears ALL wallet data including PIN, passkey, and lockout state
  * NOTE: iCloud backup is preserved by default to allow wallet recovery
@@ -224,6 +324,7 @@ export const deleteWalletData = async (clearICloudBackup = false): Promise<boole
       SecureStore.deleteItemAsync(SECURE_KEYS.MNEMONIC),
       SecureStore.deleteItemAsync(SECURE_KEYS.CURRENT_ACCOUNT),
       SecureStore.deleteItemAsync(SECURE_KEYS.CACHED_ADDRESSES),
+      SecureStore.deleteItemAsync(SECURE_KEYS.MULTI_ACCOUNT_CACHE),
 
       // PIN and authentication
       SecureStore.deleteItemAsync(SECURE_KEYS.PIN),

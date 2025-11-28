@@ -1,6 +1,6 @@
 module.exports = {
   root: true,
-  extends: ['@react-native', 'prettier'],
+  extends: ['@react-native', 'prettier', 'plugin:storybook/recommended'],
   parser: '@babel/eslint-parser',
   ignorePatterns: ['coverage/**', 'node_modules/**'],
   parserOptions: {

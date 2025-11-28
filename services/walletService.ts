@@ -6,7 +6,7 @@ import { Buffer } from 'buffer';
 import * as Crypto from 'expo-crypto';
 import * as bip39 from 'bip39';
 import { deriveAddressesFromMnemonic, type DerivedAddresses } from '../utils/bitcoin';
-import { getCurrentAccount, withMnemonic, saveMnemonic, saveCurrentAccount, getCachedAddresses, saveCachedAddresses } from './secureStorageService';
+import { getCurrentAccount, withMnemonic, saveMnemonic, saveCurrentAccount, getCachedAddresses, saveCachedAddresses, getMultiAccountCache, saveToMultiAccountCache } from './secureStorageService';
 
 export interface GenerateWalletResult {
   mnemonic: string;
@@ -83,13 +83,18 @@ export const loadWalletFromStorage = async (): Promise<LoadWalletResult> => {
   try {
     const accountIndex = await getCurrentAccount();
 
-    // Try to load from cache first (fast path - ~5ms)
+    // Try multi-account cache first (instant if in memory)
+    const multiCached = await getMultiAccountCache(accountIndex);
+    if (multiCached) {
+      return { addresses: multiCached, accountIndex };
+    }
+
+    // Try single-account cache (fast path - ~5ms)
     const cachedAddresses = await getCachedAddresses(accountIndex);
     if (cachedAddresses) {
-      return {
-        addresses: cachedAddresses,
-        accountIndex,
-      };
+      // Populate multi-account cache for future fast switching
+      void saveToMultiAccountCache(accountIndex, cachedAddresses);
+      return { addresses: cachedAddresses, accountIndex };
     }
 
     // Cache miss - derive addresses (slow path - ~200ms)
@@ -100,15 +105,15 @@ export const loadWalletFromStorage = async (): Promise<LoadWalletResult> => {
       return deriveAddressesFromMnemonic(mnemonic, accountIndex);
     });
 
-    // Cache the derived addresses for next startup
+    // Cache the derived addresses for next startup and fast switching
     if (addresses) {
-      void saveCachedAddresses(accountIndex, addresses);
+      void Promise.all([
+        saveCachedAddresses(accountIndex, addresses),
+        saveToMultiAccountCache(accountIndex, addresses),
+      ]);
     }
 
-    return {
-      addresses,
-      accountIndex,
-    };
+    return { addresses, accountIndex };
   } catch (error: unknown) {
     throw new Error('Failed to load wallet from storage: ' + (error as Error).message);
   }
@@ -116,30 +121,36 @@ export const loadWalletFromStorage = async (): Promise<LoadWalletResult> => {
 
 /**
  * Switch to a different account in the HD wallet
+ * Uses cache-first approach for fast switching (~5ms vs ~200ms derivation)
  * @param accountIndex - New account index
  * @returns Promise with addresses
  */
 export const switchToAccount = async (accountIndex: number): Promise<SwitchAccountResult> => {
   try {
-    // Use withMnemonic to ensure proper cleanup
+    // Try multi-account cache first (fast path - instant if in memory, ~5ms from storage)
+    const cachedAddresses = await getMultiAccountCache(accountIndex);
+    if (cachedAddresses) {
+      // Update current account index (fire and forget)
+      void saveCurrentAccount(accountIndex);
+      return { addresses: cachedAddresses };
+    }
+
+    // Cache miss - derive addresses (slow path - ~200ms)
     const addresses = await withMnemonic(async (mnemonic: string) => {
       if (!mnemonic) {
         throw new Error('Failed to retrieve wallet from secure storage');
       }
-
-      // Derive new addresses for the selected account
       return deriveAddressesFromMnemonic(mnemonic, accountIndex);
     });
 
-    // Save the new account index and cache the addresses
+    // Save the new account index and cache the addresses for future fast switching
     await Promise.all([
       saveCurrentAccount(accountIndex),
       saveCachedAddresses(accountIndex, addresses),
+      saveToMultiAccountCache(accountIndex, addresses),
     ]);
 
-    return {
-      addresses,
-    };
+    return { addresses };
   } catch (error: unknown) {
     throw new Error('Failed to switch account: ' + (error as Error).message);
   }

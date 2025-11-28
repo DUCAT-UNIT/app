@@ -1,5 +1,5 @@
 import React, { useCallback } from 'react';
-import { View, Text, TouchableOpacity, ActivityIndicator, ScrollView, StyleSheet, ViewStyle, TextStyle } from 'react-native';
+import { View, Text, TouchableOpacity, ScrollView, StyleSheet, ViewStyle, TextStyle } from 'react-native';
 import { useWallet } from '../../contexts/WalletContext';
 import { useBalance } from '../../contexts/WalletDataContext';
 import { usePrice } from '../../contexts/PriceContext';
@@ -46,7 +46,6 @@ interface WalletScreenProps {
   onVaultPress: () => void;
   onAssetPress?: (asset: string) => void;
   _sendAddressType?: 'taproot' | 'segwit';
-  switchingAccount: boolean;
   showZeroAssets: boolean;
 }
 
@@ -61,7 +60,6 @@ const WalletScreen = React.memo(function WalletScreen({
   onVaultPress,
   onAssetPress,
   _sendAddressType,
-  switchingAccount,
   showZeroAssets,
 }: WalletScreenProps): React.ReactElement {
   const { wallet: _wallet, currentAccount } = useWallet();
@@ -151,14 +149,6 @@ const WalletScreen = React.memo(function WalletScreen({
 
   return (
     <View style={styles.walletContainer} testID="wallet-screen">
-      {/* Loading overlay while switching accounts */}
-      {switchingAccount && (
-        <View style={styles.switchingOverlay}>
-          <ActivityIndicator size="large" color={COLORS.PRIMARY_BLUE} />
-          <Text style={styles.switchingText}>Switching account...</Text>
-        </View>
-      )}
-
       {/* Header with Account Number and Settings Icon */}
       <WalletHeader
         accountNumber={currentAccount + 1}

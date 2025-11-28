@@ -104,8 +104,7 @@ export const WalletProvider: React.FC<WalletProviderProps> = ({ children }) => {
     });
     setCurrentAccount(accountIndex);
 
-    // Show toast notification immediately
-    showToast(`Switched to Account ${accountIndex + 1}`, 'success');
+    // Note: Toast notification moved to useAccountSwitcher (shown after data loads)
 
     // Clear P2PK cache in background (fire and forget - non-critical)
     // Note: Account index is already saved in WalletService.switchToAccount
@@ -117,7 +116,7 @@ export const WalletProvider: React.FC<WalletProviderProps> = ({ children }) => {
       });
 
     return addresses;
-  }, [showToast]);
+  }, []);
 
   // Memoize the value object to prevent unnecessary re-renders
   const value = useMemo(

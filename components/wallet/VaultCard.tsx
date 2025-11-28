@@ -3,7 +3,7 @@
  * Displays vault status and health information
  */
 
-import React from 'react';
+import React, { memo, useMemo } from 'react';
 import { View, Text, TouchableOpacity, ViewStyle, TextStyle } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import Icon from '../icons';
@@ -52,7 +52,7 @@ export interface VaultCardProps {
   testID?: string;
 }
 
-export default function VaultCard({
+export default memo(function VaultCard({
   hasVault,
   vaultHealthColor,
   vaultHealthPercentage,
@@ -63,6 +63,17 @@ export default function VaultCard({
   creatingVault,
   styles,
 }: VaultCardProps) {
+  // Memoize formatted values to avoid recalculation on every render
+  const formattedDebt = useMemo(
+    () => formatFiat(vaultDebt, DEBT_DECIMAL_PLACES),
+    [vaultDebt]
+  );
+
+  const formattedCollateral = useMemo(
+    () => formatBalance(vaultCollateral, COLLATERAL_DECIMAL_PLACES),
+    [vaultCollateral]
+  );
+
   return (
     <TouchableOpacity
       style={styles.vaultCard}
@@ -96,7 +107,7 @@ export default function VaultCard({
                 style={styles.assetAmountIcon}
               />
               <Text style={styles.assetAmount}>
-                {formatFiat(vaultDebt, DEBT_DECIMAL_PLACES)}
+                {formattedDebt}
               </Text>
             </View>
           </View>
@@ -110,7 +121,7 @@ export default function VaultCard({
                 style={styles.assetAmountIcon}
               />
               <Text style={styles.assetAmount}>
-                {formatBalance(vaultCollateral, COLLATERAL_DECIMAL_PLACES)}
+                {formattedCollateral}
               </Text>
             </View>
           </View>
@@ -137,4 +148,4 @@ export default function VaultCard({
       )}
     </TouchableOpacity>
   );
-}
+});

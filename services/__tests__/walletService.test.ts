@@ -138,10 +138,44 @@ describe('walletService', () => {
   });
 
   describe('loadWalletFromStorage', () => {
-    it('should load wallet from storage and derive addresses', async () => {
+    it('should load wallet from multi-account cache when available', async () => {
+      mockSecureStorage.getCurrentAccount.mockResolvedValueOnce(0);
+      mockSecureStorage.getMultiAccountCache.mockResolvedValueOnce(mockAddresses);
+
+      const result = await loadWalletFromStorage();
+
+      expect(result).toEqual({
+        addresses: mockAddresses,
+        accountIndex: 0,
+      });
+
+      expect(mockSecureStorage.getCurrentAccount).toHaveBeenCalled();
+      expect(mockSecureStorage.getMultiAccountCache).toHaveBeenCalledWith(0);
+      expect(mockSecureStorage.withMnemonic).not.toHaveBeenCalled();
+    });
+
+    it('should load wallet from single-account cache when multi-account cache misses', async () => {
+      mockSecureStorage.getCurrentAccount.mockResolvedValueOnce(0);
+      mockSecureStorage.getMultiAccountCache.mockResolvedValueOnce(null);
+      mockSecureStorage.getCachedAddresses.mockResolvedValueOnce(mockAddresses);
+      mockSecureStorage.saveToMultiAccountCache.mockResolvedValueOnce(true);
+
+      const result = await loadWalletFromStorage();
+
+      expect(result).toEqual({
+        addresses: mockAddresses,
+        accountIndex: 0,
+      });
+
+      expect(mockSecureStorage.getCachedAddresses).toHaveBeenCalledWith(0);
+    });
+
+    it('should derive addresses when all caches miss', async () => {
       const mockMnemonic = 'abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon about';
 
       mockSecureStorage.getCurrentAccount.mockResolvedValueOnce(0);
+      mockSecureStorage.getMultiAccountCache.mockResolvedValueOnce(null);
+      mockSecureStorage.getCachedAddresses.mockResolvedValueOnce(null);
       mockSecureStorage.withMnemonic.mockImplementationOnce(async (callback) => {
         return callback(mockMnemonic);
       });
@@ -154,12 +188,13 @@ describe('walletService', () => {
         accountIndex: 0,
       });
 
-      expect(mockSecureStorage.getCurrentAccount).toHaveBeenCalled();
       expect(mockSecureStorage.withMnemonic).toHaveBeenCalled();
     });
 
     it('should return null addresses if no mnemonic in storage', async () => {
       mockSecureStorage.getCurrentAccount.mockResolvedValueOnce(0);
+      mockSecureStorage.getMultiAccountCache.mockResolvedValueOnce(null);
+      mockSecureStorage.getCachedAddresses.mockResolvedValueOnce(null);
       mockSecureStorage.withMnemonic.mockImplementationOnce(async (callback) => {
         return callback(null as unknown as string);
       });
@@ -182,14 +217,33 @@ describe('walletService', () => {
   });
 
   describe('switchToAccount', () => {
-    it('should switch to a different account', async () => {
+    it('should switch using cache when addresses are cached (fast path)', async () => {
+      mockSecureStorage.getMultiAccountCache.mockResolvedValueOnce(mockAddresses);
+      mockSecureStorage.saveCurrentAccount.mockResolvedValueOnce(true);
+
+      const result = await switchToAccount(2);
+
+      expect(result).toEqual({
+        addresses: mockAddresses,
+      });
+
+      expect(mockSecureStorage.getMultiAccountCache).toHaveBeenCalledWith(2);
+      expect(mockSecureStorage.saveCurrentAccount).toHaveBeenCalledWith(2);
+      // Should NOT derive addresses when cache hit
+      expect(mockSecureStorage.withMnemonic).not.toHaveBeenCalled();
+    });
+
+    it('should derive addresses when cache misses (slow path)', async () => {
       const mockMnemonic = 'abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon about';
 
+      mockSecureStorage.getMultiAccountCache.mockResolvedValueOnce(null);
       mockSecureStorage.withMnemonic.mockImplementationOnce(async (callback) => {
         return callback(mockMnemonic);
       });
       mockBitcoin.deriveAddressesFromMnemonic.mockReturnValueOnce(mockAddresses);
       mockSecureStorage.saveCurrentAccount.mockResolvedValueOnce(true);
+      mockSecureStorage.saveCachedAddresses.mockResolvedValueOnce(true);
+      mockSecureStorage.saveToMultiAccountCache.mockResolvedValueOnce(true);
 
       const result = await switchToAccount(2);
 
@@ -199,9 +253,11 @@ describe('walletService', () => {
 
       expect(mockBitcoin.deriveAddressesFromMnemonic).toHaveBeenCalledWith(mockMnemonic, 2);
       expect(mockSecureStorage.saveCurrentAccount).toHaveBeenCalledWith(2);
+      expect(mockSecureStorage.saveToMultiAccountCache).toHaveBeenCalledWith(2, mockAddresses);
     });
 
-    it('should throw error if mnemonic cannot be retrieved', async () => {
+    it('should throw error if mnemonic cannot be retrieved on cache miss', async () => {
+      mockSecureStorage.getMultiAccountCache.mockResolvedValueOnce(null);
       mockSecureStorage.withMnemonic.mockImplementationOnce(async (callback) => {
         return callback(null as unknown as string);
       });
@@ -211,9 +267,10 @@ describe('walletService', () => {
       );
     });
 
-    it('should throw error if account save fails', async () => {
+    it('should throw error if account save fails after derivation', async () => {
       const mockMnemonic = 'abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon about';
 
+      mockSecureStorage.getMultiAccountCache.mockResolvedValueOnce(null);
       mockSecureStorage.withMnemonic.mockImplementationOnce(async (callback) => {
         return callback(mockMnemonic);
       });

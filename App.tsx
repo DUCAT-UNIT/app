@@ -8,6 +8,7 @@ import './crypto-polyfill';
 import { Buffer } from 'buffer';
 global.Buffer = Buffer;
 
+
 import React from 'react';
 import { useFonts } from 'expo-font';
 import BIP32Factory from 'bip32';

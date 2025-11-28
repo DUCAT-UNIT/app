@@ -12,13 +12,14 @@ import type { WalletAddresses } from '../contexts/WalletContext';
 interface UseAccountSwitcherParams {
   switchAccountContext: (accountIndex: number) => Promise<WalletAddresses>;
   resetBalances?: () => void;
-  fetchBalance?: () => void | Promise<void>;
+  fetchBalance?: (segwitAddr?: string, taprootAddr?: string) => void | Promise<void>;
   resetTransactionHistory?: () => void;
   fetchTransactionHistory?: () => void | Promise<void>;
   resetVaultData?: () => void;
   fetchVault?: () => void | Promise<void>;
   resetAndRefreshCashu?: (newTaprootAddress?: string) => void | Promise<void>;
   onAccountSwitched?: (accountIndex: number) => void;
+  showToast?: (message: string, type: 'success' | 'error') => void;
 }
 
 interface UseAccountSwitcherReturn {
@@ -40,6 +41,7 @@ export function useAccountSwitcher({
   fetchVault,
   resetAndRefreshCashu,
   onAccountSwitched,
+  showToast,
 }: UseAccountSwitcherParams): UseAccountSwitcherReturn {
   const [showAccountPicker, setShowAccountPicker] = useState(false);
   const [newAccountIndex, setNewAccountIndex] = useState('');
@@ -53,40 +55,57 @@ export function useAccountSwitcher({
       setSwitchingAccount(true);
 
       // STEP 1: Switch account context FIRST (updates wallet addresses)
-      // This is the only blocking operation - must complete before dismissing modal
+      // This is fast now with multi-account cache (~5ms vs ~200ms)
       const newAddresses = await switchAccountContext(accountIndex);
+      const newSegwitAddress = newAddresses?.segwitAddress;
       const newTaprootAddress = newAddresses?.taprootAddress;
 
-      // STEP 2: Dismiss modal immediately - don't wait for data fetches
-      // User sees wallet screen with loading indicators instead of blocked modal
+      // STEP 2: Dismiss modal but keep loading overlay visible
       setShowAccountPicker(false);
       setNewAccountIndex('');
-      setSwitchingAccount(false);
 
       if (onAccountSwitched) {
         onAccountSwitched(accountIndex);
       }
 
-      // STEP 3: Reset data AFTER modal closes (prevents UI flash during modal)
-      // These resets are fast and synchronous
+      // STEP 3: Reset data (prevents stale data flash)
       if (resetBalances) resetBalances();
       if (resetTransactionHistory) resetTransactionHistory();
       if (resetVaultData) resetVaultData();
 
-      // STEP 4: Fetch ALL data in background (fire-and-forget)
-      // Each component will show its own loading state
-      if (fetchBalance) {
-        Promise.resolve(fetchBalance()).catch((err: unknown) => {
-          logger.warn('[useAccountSwitcher] fetchBalance failed', { error: err instanceof Error ? err.message : String(err) });
-        });
+      // STEP 4: Fetch balance and vault data in parallel, wait for both
+      // Pass addresses explicitly to avoid stale closure issue
+      // Keep switchingAccount=true until critical data is loaded
+      const fetchPromises: Promise<void>[] = [];
+
+      if (fetchBalance && newSegwitAddress && newTaprootAddress) {
+        fetchPromises.push(
+          Promise.resolve(fetchBalance(newSegwitAddress, newTaprootAddress)).catch((err: unknown) => {
+            logger.warn('[useAccountSwitcher] fetchBalance failed', { error: err instanceof Error ? err.message : String(err) });
+          })
+        );
       }
 
       if (fetchVault) {
-        Promise.resolve(fetchVault()).catch((err: unknown) => {
-          logger.warn('[useAccountSwitcher] fetchVault failed', { error: err instanceof Error ? err.message : String(err) });
-        });
+        fetchPromises.push(
+          Promise.resolve(fetchVault()).catch((err: unknown) => {
+            logger.warn('[useAccountSwitcher] fetchVault failed', { error: err instanceof Error ? err.message : String(err) });
+          })
+        );
       }
 
+      // Wait for both balance and vault to load
+      await Promise.all(fetchPromises);
+
+      // STEP 5: Now hide the loading overlay - critical data is loaded
+      setSwitchingAccount(false);
+
+      // STEP 6: Show success toast after data is loaded and overlay is hidden
+      if (showToast) {
+        showToast(`Switched to Account ${accountIndex + 1}`, 'success');
+      }
+
+      // STEP 7: Fetch remaining data in background (non-blocking)
       if (resetAndRefreshCashu) {
         Promise.resolve(resetAndRefreshCashu(newTaprootAddress)).catch((err: unknown) => {
           logger.warn('[useAccountSwitcher] resetAndRefreshCashu failed', { error: err instanceof Error ? err.message : String(err) });

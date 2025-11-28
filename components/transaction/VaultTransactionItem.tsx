@@ -36,8 +36,30 @@ interface VaultAmountDisplayProps {
 }
 
 function VaultAmountDisplay({ vaultData, action, styles }: VaultAmountDisplayProps) {
-  const isPositiveAction = action === 'Deposit' || action === 'Repay';
+  const isPositiveAction = action === 'Deposit' || action === 'Repay' || action === 'Open';
   const color = isPositiveAction ? COLORS.GREEN : COLORS.RED;
+
+  const hasBoth = vaultData.btcAmount > 0 && vaultData.unitAmount > 0;
+
+  // Show both amounts for Repossess (liquidation shows collateral taken + debt cleared)
+  if (hasBoth) {
+    return (
+      <View style={{ alignItems: 'flex-end', gap: 2 }}>
+        <View style={styles.balanceWithIcon}>
+          <Icon name="btc_symbol" size={12} color={COLORS.RED} style={styles.assetAmountIcon} />
+          <Text style={[styles.assetAmount, { color: COLORS.RED }]}>
+            {formatBalance(vaultData.btcAmount / 100000000)}
+          </Text>
+        </View>
+        <View style={styles.balanceWithIcon}>
+          <Icon name="unit_symbol" size={12} color={COLORS.GREEN} style={styles.assetAmountIcon} />
+          <Text style={[styles.assetAmount, { color: COLORS.GREEN }]}>
+            {formatUnitAmount(vaultData.unitAmount)}
+          </Text>
+        </View>
+      </View>
+    );
+  }
 
   if (vaultData.btcAmount > 0) {
     return (
@@ -86,7 +108,7 @@ export interface VaultTransactionItemProps {
 export default function VaultTransactionItem({ tx, styles, onPress }: VaultTransactionItemProps) {
   const vaultData = tx.vaultData;
   const action: VaultAction = vaultData.action;
-  const actionLabel: Record<VaultAction, string> = { Borrow: 'Borrow', Repay: 'Repay', Deposit: 'Deposit', Withdraw: 'Withdraw' };
+  const actionLabel: Record<VaultAction, string> = { Borrow: 'Borrow', Repay: 'Repay', Deposit: 'Deposit', Withdraw: 'Withdraw', Open: 'Open', Repossess: 'Repossess' };
   const label = actionLabel[action] || action;
 
   return (

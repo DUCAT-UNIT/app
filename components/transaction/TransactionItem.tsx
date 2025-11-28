@@ -26,6 +26,7 @@ export interface TransactionItemStyles {
   balanceWithIcon: ViewStyle;
   assetAmountIcon: ViewStyle;
   assetAmount: TextStyle;
+  logoSize?: number;
 }
 
 interface TransactionData {

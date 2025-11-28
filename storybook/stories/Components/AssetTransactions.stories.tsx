@@ -4,10 +4,14 @@ import type { Meta, StoryObj } from '@storybook/react';
 import { COLORS } from '../../../theme';
 import globalStyles from '../../../styles';
 import { history, vault, wallet } from '../../../styles/screens';
+import Icon from '../../../components/icons';
+import { formatUnitAmount, formatBalance } from '../../../utils/formatters';
 
 // Real components
 import TransactionItem from '../../../components/transaction/TransactionItem';
 import { AssetActivityList } from '../../../components/assetDetail/AssetActivityList';
+import { VaultActivityList } from '../../../components/vaultDetail/VaultActivityList';
+import type { VaultHistoryTransaction } from '../../../services/vaultService';
 
 // ============================================================================
 // DEVICE SIZE CONFIG (same as AssetCards)
@@ -120,6 +124,34 @@ const sampleTransactions = [
 ];
 
 // ============================================================================
+// MOCK VAULT TRANSACTION HELPERS
+// ============================================================================
+const createVaultHistoryTransaction = (
+  action: 'open' | 'borrow' | 'repay' | 'deposit' | 'withdraw' | 'liquidate',
+  btcAmt: number,
+  unitAmt: number,
+  hoursAgo: number
+): VaultHistoryTransaction => ({
+  action,
+  vault_amount: 15000000,
+  amount_borrowed: 500000,
+  btc_amt: btcAmt,
+  unit_amt: unitAmt,
+  oracle_price: 95000,
+  timestamp: Math.floor(Date.now() / 1000) - hoursAgo * 3600,
+});
+
+// Sample vault transactions
+const sampleVaultTransactions: VaultHistoryTransaction[] = [
+  createVaultHistoryTransaction('open', 50000000, 300000, 1),
+  createVaultHistoryTransaction('deposit', 25000000, 0, 3),
+  createVaultHistoryTransaction('borrow', 0, 1500000, 6),
+  createVaultHistoryTransaction('repay', 0, 500000, 12),
+  createVaultHistoryTransaction('withdraw', 10000000, 0, 24),
+  createVaultHistoryTransaction('liquidate', 75000000, 35000000, 72),
+];
+
+// ============================================================================
 // CONFIGURABLE SINGLE TRANSACTION STORY
 // ============================================================================
 interface TransactionStoryProps {
@@ -150,19 +182,23 @@ const TransactionStory = ({ amount, assetType, action, status, deviceSize }: Tra
 };
 
 // ============================================================================
-// ALL TRANSACTIONS LIST STORY
+// ALL TRANSACTIONS LIST STORY (includes vault transactions)
 // ============================================================================
 interface AllTransactionsStoryProps {
   deviceSize: DeviceSize;
+  includeVault: boolean;
 }
 
-const AllTransactionsStory = ({ deviceSize }: AllTransactionsStoryProps) => {
+const AllTransactionsStory = ({ deviceSize, includeVault }: AllTransactionsStoryProps) => {
   const config = DEVICE_SIZES[deviceSize];
   const scaledStyles = getScaledStyles(config);
+
   return (
     <View style={localStyles.centeredContainer}>
       <Text style={localStyles.sizeIndicator}>{config.label} {config.width}px</Text>
       <View style={{ width: config.width }}>
+        {/* Regular transactions */}
+        <Text style={localStyles.sectionTitle}>Asset Transactions</Text>
         {sampleTransactions.map((tx) => (
           <TransactionItem
             key={tx.txid}
@@ -171,6 +207,18 @@ const AllTransactionsStory = ({ deviceSize }: AllTransactionsStoryProps) => {
             onPress={() => {}}
           />
         ))}
+
+        {/* Vault transactions */}
+        {includeVault && (
+          <View style={{ width: '100%' }}>
+            <Text style={[localStyles.sectionTitle, { marginTop: 24 }]}>Vault Transactions</Text>
+            <VaultActivityList
+              transactions={sampleVaultTransactions}
+              isLoading={false}
+              onTransactionPress={() => {}}
+            />
+          </View>
+        )}
       </View>
     </View>
   );
@@ -297,15 +345,20 @@ export const Transaction_: Story = {
 };
 
 export const AllTransactions: Story = {
-  render: (args) => <AllTransactionsStory deviceSize={args.deviceSize || 'M'} />,
+  render: (args) => <AllTransactionsStory deviceSize={args.deviceSize || 'M'} includeVault={args.includeVault ?? true} />,
   args: {
     deviceSize: 'M',
+    includeVault: true,
   },
   argTypes: {
     deviceSize: {
       control: 'select',
       options: ['XS', 'S', 'M', 'L', 'XL'],
       description: 'Device size preset',
+    },
+    includeVault: {
+      control: 'boolean',
+      description: 'Include vault transactions',
     },
     amount: { table: { disable: true } },
     assetType: { table: { disable: true } },
@@ -358,6 +411,191 @@ export const DeviceSizeOverview: Story = {
 };
 
 // ============================================================================
+// SCALED VAULT TRANSACTION ITEM (for Storybook only)
+// ============================================================================
+
+const formatVaultAction = (action: string): string => {
+  const actionMap: Record<string, string> = {
+    'open': 'Open Vault',
+    'borrow': 'Borrow',
+    'repay': 'Repay',
+    'deposit': 'Deposit',
+    'withdraw': 'Withdraw',
+    'liquidate': 'Liquidation',
+  };
+  return actionMap[action.toLowerCase()] || action;
+};
+
+const formatVaultDate = (timestamp: number): string => {
+  const date = new Date(timestamp * 1000);
+  return date.toLocaleDateString('en-US', {
+    month: 'short',
+    day: 'numeric',
+    year: 'numeric',
+  });
+};
+
+interface ScaledVaultTransactionItemProps {
+  transaction: VaultHistoryTransaction;
+  config: DeviceConfig;
+}
+
+const ScaledVaultTransactionItem = ({ transaction, config }: ScaledVaultTransactionItemProps) => {
+  const actionLower = transaction.action.toLowerCase();
+
+  const getUnitColor = () => {
+    if (actionLower === 'borrow' || actionLower === 'open') return COLORS.GREEN;
+    return COLORS.RED;
+  };
+
+  const getBtcColor = () => {
+    if (actionLower === 'deposit') return COLORS.GREEN;
+    return COLORS.RED;
+  };
+
+  const unitColor = getUnitColor();
+  const btcColor = getBtcColor();
+
+  return (
+    <View
+      style={{
+        flexDirection: 'row',
+        alignItems: 'center',
+        paddingVertical: config.padding,
+        borderBottomWidth: 1,
+        borderBottomColor: COLORS.VERY_DARK_GRAY,
+        paddingHorizontal: 8,
+      }}
+    >
+      {/* Vault Icon - scaled */}
+      <View style={{ marginRight: config.padding * 0.6 }}>
+        <Icon name="vault_logo" size={config.iconSize} color="#DDDDDD" />
+      </View>
+
+      {/* Content */}
+      <View style={{ flex: 1 }}>
+        {/* Top Row: Action | Confirmed | Amounts */}
+        <View style={{ flexDirection: 'row', alignItems: 'center', marginBottom: 4 }}>
+          {/* Column 1: Action label */}
+          <View style={{ flex: 1 }}>
+            <Text style={{ fontSize: config.fontSize, fontWeight: '600', color: '#DDDDDD' }}>
+              {formatVaultAction(transaction.action)}
+            </Text>
+          </View>
+          {/* Right group: Confirmed chip + Amounts */}
+          <View style={{ flexDirection: 'row', alignItems: 'center', flex: 3, justifyContent: 'space-between' }}>
+            {/* Column 2: Confirmed chip */}
+            <View style={{
+              backgroundColor: 'rgba(89, 170, 138, 0.2)',
+              paddingHorizontal: config.chipPaddingH,
+              paddingVertical: config.chipPaddingV,
+              borderRadius: 4,
+              minWidth: config.chipMinWidth,
+              alignItems: 'center',
+            }}>
+              <Text style={{ color: COLORS.GREEN, fontSize: config.chipFontSize, fontWeight: '600' }}>
+                Confirmed
+              </Text>
+            </View>
+            {/* Column 3: Amounts */}
+            <View style={{ alignItems: 'flex-end', minWidth: config.minWidth }}>
+              {transaction.unit_amt !== 0 && (
+                <View style={{ flexDirection: 'row', alignItems: 'center' }}>
+                  <Icon name="unit_symbol" size={config.amountIconSize} color={unitColor} style={{ marginRight: 2 }} />
+                  <Text style={{ fontSize: config.amountFontSize, fontWeight: '600', color: unitColor }}>
+                    {formatUnitAmount(Math.abs(transaction.unit_amt))}
+                  </Text>
+                </View>
+              )}
+              {transaction.btc_amt !== 0 && (
+                <View style={{ flexDirection: 'row', alignItems: 'center' }}>
+                  <Icon name="btc_symbol" size={config.amountIconSize} color={btcColor} style={{ marginRight: 2 }} />
+                  <Text style={{ fontSize: config.amountFontSize, fontWeight: '600', color: btcColor }}>
+                    {formatBalance(Math.abs(transaction.btc_amt) / 100_000_000)}
+                  </Text>
+                </View>
+              )}
+            </View>
+          </View>
+        </View>
+
+        {/* Bottom Row: Date */}
+        <Text style={{ fontSize: config.dateFontSize, color: COLORS.SECONDARY_TEXT }}>
+          {formatVaultDate(transaction.timestamp)}
+        </Text>
+      </View>
+    </View>
+  );
+};
+
+// ============================================================================
+// SINGLE VAULT TRANSACTION STORY
+// ============================================================================
+type VaultActionType = 'open' | 'borrow' | 'repay' | 'deposit' | 'withdraw' | 'liquidate';
+
+interface VaultTransactionStoryProps {
+  vaultAction: VaultActionType;
+  btcAmount: number;
+  unitAmount: number;
+  deviceSize: DeviceSize;
+}
+
+const VaultTransactionStory = ({ vaultAction, btcAmount, unitAmount, deviceSize }: VaultTransactionStoryProps) => {
+  const config = DEVICE_SIZES[deviceSize];
+  const tx = createVaultHistoryTransaction(vaultAction, btcAmount, unitAmount, 1);
+
+  return (
+    <View style={localStyles.centeredContainer}>
+      <Text style={localStyles.sizeIndicator}>{config.label} {config.width}px</Text>
+      <View style={{ width: config.width, paddingHorizontal: 16 }}>
+        <ScaledVaultTransactionItem transaction={tx} config={config} />
+      </View>
+    </View>
+  );
+};
+
+export const VaultTransaction: Story = {
+  render: (args) => (
+    <VaultTransactionStory
+      vaultAction={(args as any).vaultAction || 'deposit'}
+      btcAmount={(args as any).btcAmount ?? 25000000}
+      unitAmount={(args as any).unitAmount ?? 0}
+      deviceSize={args.deviceSize || 'M'}
+    />
+  ),
+  args: {
+    vaultAction: 'deposit',
+    btcAmount: 25000000,
+    unitAmount: 0,
+    deviceSize: 'M',
+  } as any,
+  argTypes: {
+    vaultAction: {
+      control: 'select',
+      options: ['open', 'deposit', 'withdraw', 'borrow', 'repay', 'liquidate'],
+      description: 'Vault action type',
+    },
+    btcAmount: {
+      control: 'number',
+      description: 'BTC amount in satoshis',
+    },
+    unitAmount: {
+      control: 'number',
+      description: 'UNIT amount in micros',
+    },
+    deviceSize: {
+      control: 'select',
+      options: ['XS', 'S', 'M', 'L', 'XL'],
+      description: 'Device size preset',
+    },
+    amount: { table: { disable: true } },
+    assetType: { table: { disable: true } },
+    action: { table: { disable: true } },
+    status: { table: { disable: true } },
+  },
+};
+
+// ============================================================================
 // STYLES
 // ============================================================================
 const localStyles = StyleSheet.create({
@@ -405,5 +643,13 @@ const localStyles = StyleSheet.create({
     fontSize: 12,
     color: COLORS.SECONDARY_TEXT,
     fontWeight: '500',
+  },
+  sectionTitle: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: COLORS.SECONDARY_TEXT,
+    marginBottom: 12,
+    textTransform: 'uppercase',
+    letterSpacing: 0.5,
   },
 });

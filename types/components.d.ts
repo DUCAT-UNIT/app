@@ -5,8 +5,8 @@
 
 import { ViewStyle, TextStyle, ImageStyle, StyleProp } from 'react-native';
 
-// Re-export canonical types for backwards compatibility
-export type { ToastType, Toast, SnackbarType, SnackbarParams } from './notification';
+// Re-export canonical types
+export type { SnackbarType, SnackbarParams } from './notification';
 export type { DisplayAssetType, VaultAction, VaultTransactionData } from './assets';
 
 /**

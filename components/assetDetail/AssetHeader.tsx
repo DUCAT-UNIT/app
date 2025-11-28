@@ -3,7 +3,7 @@
  * Navigation header for AssetDetailScreen
  */
 
-import React from 'react';
+import React, { memo } from 'react';
 import { View, TouchableOpacity, StyleSheet } from 'react-native';
 import Icon from '../icons';
 import { COLORS } from '../../theme';
@@ -12,7 +12,7 @@ interface AssetHeaderProps {
   onBackPress: () => void;
 }
 
-export function AssetHeader({ onBackPress }: AssetHeaderProps) {
+export const AssetHeader = memo(function AssetHeader({ onBackPress }: AssetHeaderProps) {
   return (
     <View style={styles.header}>
       <TouchableOpacity
@@ -25,7 +25,7 @@ export function AssetHeader({ onBackPress }: AssetHeaderProps) {
       </TouchableOpacity>
     </View>
   );
-}
+});
 
 const styles = StyleSheet.create({
   header: {
