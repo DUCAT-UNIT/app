@@ -20,6 +20,7 @@ interface VaultInfoProps {
   transactions?: VaultHistoryTransaction[];
   onHighlightEvent?: (eventDate: number | null) => void;
   onLockFilter?: (eventDate: number | null) => void;
+  onScrollEnable?: (enabled: boolean) => void;
   highlightedEventDate?: number | null;
 }
 
@@ -33,6 +34,7 @@ export const VaultInfo = memo(function VaultInfo({
   transactions = [],
   onHighlightEvent,
   onLockFilter,
+  onScrollEnable,
   highlightedEventDate,
 }: VaultInfoProps) {
   if (isLoading) {
@@ -54,6 +56,7 @@ export const VaultInfo = memo(function VaultInfo({
         transactions={transactions}
         onHighlightEvent={onHighlightEvent}
         onLockFilter={onLockFilter}
+        onScrollEnable={onScrollEnable}
         highlightedEventDate={highlightedEventDate}
       />
     </View>

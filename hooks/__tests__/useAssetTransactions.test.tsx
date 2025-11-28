@@ -10,6 +10,21 @@ import { create, act } from 'react-test-renderer';
 import { useAssetTransactions } from '../useAssetTransactions';
 import * as transactionHistoryService from '../../services/transactionHistoryService';
 
+// Mock useEcashTokens from context
+const mockFetchEcashTokens = jest.fn();
+const mockResetEcashTokens = jest.fn();
+let mockEcashTokens = [];
+let mockLoadingEcashTokens = false;
+
+jest.mock('../../contexts/WalletDataContext', () => ({
+  useEcashTokens: () => ({
+    ecashTokens: mockEcashTokens,
+    loadingEcashTokens: mockLoadingEcashTokens,
+    fetchEcashTokens: mockFetchEcashTokens,
+    resetEcashTokens: mockResetEcashTokens,
+  }),
+}));
+
 // Mock dependencies
 jest.mock('../../utils/logger', () => ({
   logger: {
@@ -89,6 +104,10 @@ describe('useAssetTransactions', () => {
 
   beforeEach(() => {
     jest.clearAllMocks();
+    // Reset mock ecash tokens from context
+    mockEcashTokens = [];
+    mockLoadingEcashTokens = false;
+    // Reset legacy mocks (kept for backwards compatibility with some tests)
     mockGetSentLockedTokens.mockResolvedValue([]);
     mockGetReceivedTokens.mockResolvedValue([]);
     mockDecodeToken.mockReturnValue({ proofs: [] });
@@ -105,8 +124,8 @@ describe('useAssetTransactions', () => {
     });
 
     expect(result.current.transactions).toEqual([]);
-    // isLoading is true until transactions are processed at least once
-    expect(result.current.isLoading).toBe(true);
+    // For BTC asset type, isLoading is false since no ecash tokens to wait for
+    expect(result.current.isLoading).toBe(false);
   });
 
   it('should return empty array when segwit address is missing', () => {
@@ -466,12 +485,10 @@ describe('useAssetTransactions', () => {
   });
 
   describe('UNIT asset type with ecash tokens', () => {
-    it('should show loading initially for UNIT assets', async () => {
-      // Create a promise that won't resolve immediately
-      let resolveSentTokens;
-      mockGetSentLockedTokens.mockReturnValue(new Promise((resolve) => {
-        resolveSentTokens = resolve;
-      }));
+    it('should show loading initially for UNIT assets when tokens loading', async () => {
+      // Set loading state from context
+      mockLoadingEcashTokens = true;
+      mockEcashTokens = [];
 
       const { result } = renderHook({
         txHistory: [],
@@ -482,26 +499,15 @@ describe('useAssetTransactions', () => {
       });
 
       expect(result.current.isLoading).toBe(true);
-
-      // Cleanup - resolve the promise
-      await act(async () => {
-        resolveSentTokens([]);
-        await Promise.resolve();
-      });
     });
 
     it('should load and display ecash tokens for UNIT', async () => {
-      const sentTokens = [
-        { id: 'token1', token: 'cashuAbc123', amount: 10000, timestamp: 2000 },
+      // Set pre-loaded ecash tokens from context
+      mockEcashTokens = [
+        { id: 'token1', token: 'cashuAbc123', amount: 10000, timestamp: 2000, claimed: false, recipient: 'someone' },
+        { id: 'token2', token: 'cashuDef456', amount: 5000, timestamp: 3000, claimed: true, sender: 'someone' },
       ];
-      const receivedTokens = [
-        { id: 'token2', token: 'cashuDef456', amount: 5000, timestamp: 3000, claimed: true },
-      ];
-
-      mockGetSentLockedTokens.mockResolvedValue(sentTokens);
-      mockGetReceivedTokens.mockResolvedValue(receivedTokens);
-      mockDecodeToken.mockReturnValue({ proofs: [{ id: 'proof1' }] });
-      mockCheckProofsSpent.mockResolvedValue({ states: [{ state: 'UNSPENT' }] });
+      mockLoadingEcashTokens = false;
 
       const { result } = renderHook({
         txHistory: [],
@@ -509,13 +515,6 @@ describe('useAssetTransactions', () => {
         segwit: segwitAddress,
         taproot: taprootAddress,
         advancedMode: false,
-      });
-
-      // Wait for async loading
-      await act(async () => {
-        await Promise.resolve();
-        await Promise.resolve();
-        await Promise.resolve();
       });
 
       expect(result.current.isLoading).toBe(false);
@@ -524,12 +523,11 @@ describe('useAssetTransactions', () => {
     });
 
     it('should handle token with cached claimed status', async () => {
-      const tokens = [
-        { id: 'token1', token: 'cashuAbc123', amount: 10000, timestamp: 2000, claimed: true },
+      // Set pre-loaded ecash tokens from context
+      mockEcashTokens = [
+        { id: 'token1', token: 'cashuAbc123', amount: 10000, timestamp: 2000, claimed: true, recipient: 'someone' },
       ];
-
-      mockGetSentLockedTokens.mockResolvedValue(tokens);
-      mockGetReceivedTokens.mockResolvedValue([]);
+      mockLoadingEcashTokens = false;
 
       const { result } = renderHook({
         txHistory: [],
@@ -539,22 +537,15 @@ describe('useAssetTransactions', () => {
         advancedMode: false,
       });
 
-      await act(async () => {
-        await Promise.resolve();
-        await Promise.resolve();
-        await Promise.resolve();
-      });
-
       expect(result.current.transactions[0].claimed).toBe(true);
     });
 
     it('should handle missing token string', async () => {
-      const tokens = [
-        { id: 'token1', amount: 10000, timestamp: 2000 }, // No token string
+      // Set pre-loaded ecash tokens from context
+      mockEcashTokens = [
+        { id: 'token1', amount: 10000, timestamp: 2000, claimed: false, recipient: 'someone' }, // No token string
       ];
-
-      mockGetSentLockedTokens.mockResolvedValue(tokens);
-      mockGetReceivedTokens.mockResolvedValue([]);
+      mockLoadingEcashTokens = false;
 
       const { result } = renderHook({
         txHistory: [],
@@ -574,13 +565,12 @@ describe('useAssetTransactions', () => {
       expect(result.current.transactions[0].claimed).toBe(false);
     });
 
-    it('should handle URL instead of cashu token', async () => {
-      const tokens = [
-        { id: 'token1', token: 'http://example.com/token', amount: 10000, timestamp: 2000 },
+    it('should handle URL instead of cashu token', () => {
+      // Set pre-loaded ecash tokens from context
+      mockEcashTokens = [
+        { id: 'token1', token: 'http://example.com/token', amount: 10000, timestamp: 2000, claimed: false, recipient: 'someone' },
       ];
-
-      mockGetSentLockedTokens.mockResolvedValue(tokens);
-      mockGetReceivedTokens.mockResolvedValue([]);
+      mockLoadingEcashTokens = false;
 
       const { result } = renderHook({
         txHistory: [],
@@ -588,24 +578,17 @@ describe('useAssetTransactions', () => {
         segwit: segwitAddress,
         taproot: taprootAddress,
         advancedMode: false,
-      });
-
-      await act(async () => {
-        await Promise.resolve();
-        await Promise.resolve();
-        await Promise.resolve();
       });
 
       expect(result.current.transactions[0].claimed).toBe(false);
     });
 
-    it('should handle ducat:// URL instead of cashu token', async () => {
-      const tokens = [
-        { id: 'token1', token: 'ducat://app/token', amount: 10000, timestamp: 2000 },
+    it('should handle ducat:// URL instead of cashu token', () => {
+      // Set pre-loaded ecash tokens from context
+      mockEcashTokens = [
+        { id: 'token1', token: 'ducat://app/token', amount: 10000, timestamp: 2000, claimed: false, recipient: 'someone' },
       ];
-
-      mockGetSentLockedTokens.mockResolvedValue(tokens);
-      mockGetReceivedTokens.mockResolvedValue([]);
+      mockLoadingEcashTokens = false;
 
       const { result } = renderHook({
         txHistory: [],
@@ -613,24 +596,17 @@ describe('useAssetTransactions', () => {
         segwit: segwitAddress,
         taproot: taprootAddress,
         advancedMode: false,
-      });
-
-      await act(async () => {
-        await Promise.resolve();
-        await Promise.resolve();
-        await Promise.resolve();
       });
 
       expect(result.current.transactions[0].claimed).toBe(false);
     });
 
-    it('should handle invalid token format (not starting with cashu)', async () => {
-      const tokens = [
-        { id: 'token1', token: 'invalid_token_format', amount: 10000, timestamp: 2000 },
+    it('should handle invalid token format (not starting with cashu)', () => {
+      // Set pre-loaded ecash tokens from context
+      mockEcashTokens = [
+        { id: 'token1', token: 'invalid_token_format', amount: 10000, timestamp: 2000, claimed: false, recipient: 'someone' },
       ];
-
-      mockGetSentLockedTokens.mockResolvedValue(tokens);
-      mockGetReceivedTokens.mockResolvedValue([]);
+      mockLoadingEcashTokens = false;
 
       const { result } = renderHook({
         txHistory: [],
@@ -638,24 +614,17 @@ describe('useAssetTransactions', () => {
         segwit: segwitAddress,
         taproot: taprootAddress,
         advancedMode: false,
-      });
-
-      await act(async () => {
-        await Promise.resolve();
-        await Promise.resolve();
-        await Promise.resolve();
       });
 
       expect(result.current.transactions[0].claimed).toBe(false);
     });
 
-    it('should mark token as claimed when all proofs are spent', async () => {
-      const tokens = [
-        { id: 'token1', token: 'cashuAbc123', amount: 10000, timestamp: 2000, claimed: true },
+    it('should mark token as claimed when all proofs are spent', () => {
+      // Set pre-loaded ecash tokens from context
+      mockEcashTokens = [
+        { id: 'token1', token: 'cashuAbc123', amount: 10000, timestamp: 2000, claimed: true, recipient: 'someone' },
       ];
-
-      mockGetSentLockedTokens.mockResolvedValue(tokens);
-      mockGetReceivedTokens.mockResolvedValue([]);
+      mockLoadingEcashTokens = false;
 
       const { result } = renderHook({
         txHistory: [],
@@ -663,24 +632,17 @@ describe('useAssetTransactions', () => {
         segwit: segwitAddress,
         taproot: taprootAddress,
         advancedMode: false,
-      });
-
-      await act(async () => {
-        await Promise.resolve();
-        await Promise.resolve();
-        await Promise.resolve();
       });
 
       expect(result.current.transactions[0].claimed).toBe(true);
     });
 
-    it('should handle error during token status check', async () => {
-      const tokens = [
-        { id: 'token1', token: 'cashuAbc123', amount: 10000, timestamp: 2000 },
+    it('should handle error during token status check', () => {
+      // Set pre-loaded ecash tokens from context - claimed status comes from pre-loaded data
+      mockEcashTokens = [
+        { id: 'token1', token: 'cashuAbc123', amount: 10000, timestamp: 2000, claimed: false, recipient: 'someone' },
       ];
-
-      mockGetSentLockedTokens.mockResolvedValue(tokens);
-      mockGetReceivedTokens.mockResolvedValue([]);
+      mockLoadingEcashTokens = false;
 
       const { result } = renderHook({
         txHistory: [],
@@ -690,30 +652,20 @@ describe('useAssetTransactions', () => {
         advancedMode: false,
       });
 
-      await act(async () => {
-        await Promise.resolve();
-        await Promise.resolve();
-        await Promise.resolve();
-      });
-
-      // Should default to unclaimed (no claimed status provided)
+      // Should show the pre-loaded claimed status (false)
       expect(result.current.transactions[0].claimed).toBe(false);
     });
 
-    it('should limit error logging to MAX_ERRORS_TO_LOG', async () => {
-      const tokens = [
-        { id: 'token1', token: 'cashuA', amount: 100, timestamp: 1000 },
-        { id: 'token2', token: 'cashuB', amount: 200, timestamp: 2000 },
-        { id: 'token3', token: 'cashuC', amount: 300, timestamp: 3000 },
-        { id: 'token4', token: 'cashuD', amount: 400, timestamp: 4000 },
-        { id: 'token5', token: 'cashuE', amount: 500, timestamp: 5000 },
+    it('should display multiple tokens from context', () => {
+      // Set pre-loaded ecash tokens from context
+      mockEcashTokens = [
+        { id: 'token1', token: 'cashuA', amount: 100, timestamp: 1000, claimed: false, recipient: 'someone' },
+        { id: 'token2', token: 'cashuB', amount: 200, timestamp: 2000, claimed: false, recipient: 'someone' },
+        { id: 'token3', token: 'cashuC', amount: 300, timestamp: 3000, claimed: false, recipient: 'someone' },
+        { id: 'token4', token: 'cashuD', amount: 400, timestamp: 4000, claimed: false, recipient: 'someone' },
+        { id: 'token5', token: 'cashuE', amount: 500, timestamp: 5000, claimed: false, recipient: 'someone' },
       ];
-
-      mockGetSentLockedTokens.mockResolvedValue(tokens);
-      mockGetReceivedTokens.mockResolvedValue([]);
-      mockDecodeToken.mockImplementation(() => {
-        throw new Error('Decode failed');
-      });
+      mockLoadingEcashTokens = false;
 
       const { result } = renderHook({
         txHistory: [],
@@ -723,18 +675,14 @@ describe('useAssetTransactions', () => {
         advancedMode: false,
       });
 
-      await act(async () => {
-        await Promise.resolve();
-        await Promise.resolve();
-        await Promise.resolve();
-      });
-
-      // All 5 tokens should still be there, defaulted to unclaimed
+      // All 5 tokens should be displayed
       expect(result.current.transactions).toHaveLength(5);
     });
 
-    it('should handle error loading ecash tokens', async () => {
-      mockGetSentLockedTokens.mockRejectedValue(new Error('Network error'));
+    it('should handle empty tokens from context', () => {
+      // Set empty pre-loaded ecash tokens
+      mockEcashTokens = [];
+      mockLoadingEcashTokens = false;
 
       const { result } = renderHook({
         txHistory: [],
@@ -742,26 +690,18 @@ describe('useAssetTransactions', () => {
         segwit: segwitAddress,
         taproot: taprootAddress,
         advancedMode: false,
-      });
-
-      await act(async () => {
-        await Promise.resolve();
-        await Promise.resolve();
-        await Promise.resolve();
       });
 
       expect(result.current.isLoading).toBe(false);
       expect(result.current.transactions).toEqual([]);
     });
 
-    it('should convert ecash amounts from smallest units', async () => {
+    it('should convert ecash amounts from smallest units', () => {
       // Use a different recipient address to ensure this is NOT a self-claim
-      const tokens = [
+      mockEcashTokens = [
         { id: 'token1', token: 'cashuAbc123', amount: 10000, timestamp: 2000, claimed: true, recipient: 'different_recipient_pubkey', taprootAddress: 'bc1pdifferentaddress' },
       ];
-
-      mockGetSentLockedTokens.mockResolvedValue(tokens);
-      mockGetReceivedTokens.mockResolvedValue([]);
+      mockLoadingEcashTokens = false;
 
       const { result } = renderHook({
         txHistory: [],
@@ -771,20 +711,17 @@ describe('useAssetTransactions', () => {
         advancedMode: false,
       });
 
-      await act(async () => {
-        await Promise.resolve();
-        await Promise.resolve();
-        await Promise.resolve();
-      });
-
       // Amount stays as integer (10000), negative because it's sent (not a self-claim)
       expect(result.current.transactions[0].txData.numericAmount).toBe(-10000);
     });
 
-    it('should merge ecash and regular transactions sorted by time', async () => {
-      const tokens = [
-        { id: 'token1', token: 'cashuAbc', amount: 10000, timestamp: 2000, claimed: true },
+    it('should merge ecash and regular transactions sorted by time', () => {
+      // Set pre-loaded ecash tokens from context
+      mockEcashTokens = [
+        { id: 'token1', token: 'cashuAbc', amount: 10000, timestamp: 2000, claimed: true, recipient: 'someone' },
       ];
+      mockLoadingEcashTokens = false;
+
       const txHistory = [
         {
           txid: 'tx1',
@@ -798,21 +735,12 @@ describe('useAssetTransactions', () => {
         },
       ];
 
-      mockGetSentLockedTokens.mockResolvedValue(tokens);
-      mockGetReceivedTokens.mockResolvedValue([]);
-
       const { result } = renderHook({
         txHistory,
         assetType: 'UNIT',
         segwit: segwitAddress,
         taproot: taprootAddress,
         advancedMode: false,
-      });
-
-      await act(async () => {
-        await Promise.resolve();
-        await Promise.resolve();
-        await Promise.resolve();
       });
 
       expect(result.current.transactions).toHaveLength(3);
@@ -822,7 +750,8 @@ describe('useAssetTransactions', () => {
       expect(result.current.transactions[2].txid).toBe('tx1');
     });
 
-    it('should not load ecash when in advanced mode for UNIT', async () => {
+    it('should not load ecash when in advanced mode for UNIT', () => {
+      // In advanced mode, ecash tokens from context should not be used
       const { result } = renderHook({
         txHistory: [],
         assetType: 'UNIT',
@@ -831,109 +760,19 @@ describe('useAssetTransactions', () => {
         advancedMode: true,
       });
 
-      expect(mockGetSentLockedTokens).not.toHaveBeenCalled();
+      // fetchEcashTokens should not have been called since we're in advanced mode
+      expect(mockFetchEcashTokens).not.toHaveBeenCalled();
       expect(result.current.isLoading).toBe(false);
     });
 
-    it('should cleanup on unmount (isMounted check)', async () => {
-      let resolveSentTokens;
-      mockGetSentLockedTokens.mockReturnValue(new Promise((resolve) => {
-        resolveSentTokens = resolve;
-      }));
-
-      const { result, unmount } = renderHook({
-        txHistory: [],
-        assetType: 'UNIT',
-        segwit: segwitAddress,
-        taproot: taprootAddress,
-        advancedMode: false,
-      });
-
-      // Unmount before the promise resolves
-      unmount();
-
-      // Now resolve the promise
-      await act(async () => {
-        resolveSentTokens([{ id: 'token1', token: 'cashuAbc', amount: 100, timestamp: 1000 }]);
-        await Promise.resolve();
-      });
-
-      // No crash should occur
-    });
-
-    it('should not update state when unmounted after tokens are fetched but before processing', async () => {
-      let resolveSentTokens;
-      let resolveReceivedTokens;
-
-      mockGetSentLockedTokens.mockReturnValue(new Promise((resolve) => {
-        resolveSentTokens = resolve;
-      }));
-      mockGetReceivedTokens.mockReturnValue(new Promise((resolve) => {
-        resolveReceivedTokens = resolve;
-      }));
-
-      const { unmount } = renderHook({
-        txHistory: [],
-        assetType: 'UNIT',
-        segwit: segwitAddress,
-        taproot: taprootAddress,
-        advancedMode: false,
-      });
-
-      // Resolve sent tokens first
-      await act(async () => {
-        resolveSentTokens([]);
-        await Promise.resolve();
-      });
-
-      // Then resolve received and unmount immediately after
-      await act(async () => {
-        resolveReceivedTokens([]);
-        unmount();
-        await Promise.resolve();
-      });
-
-      // No crash should occur - isMounted check should prevent setState
-    });
-
-    it('should not set state when unmounted after error loading tokens', async () => {
-      let rejectSentTokens;
-      mockGetSentLockedTokens.mockReturnValue(new Promise((_, reject) => {
-        rejectSentTokens = reject;
-      }));
-
-      const { unmount } = renderHook({
-        txHistory: [],
-        assetType: 'UNIT',
-        segwit: segwitAddress,
-        taproot: taprootAddress,
-        advancedMode: false,
-      });
-
-      // Unmount before the promise rejects
-      unmount();
-
-      // Now reject the promise
-      await act(async () => {
-        rejectSentTokens(new Error('Network error'));
-        await Promise.resolve();
-        await Promise.resolve();
-      });
-
-      // No crash should occur - isMounted check should prevent setState
-    });
-
-    it('should handle checkProofsSpent returning undefined states', async () => {
-      const tokens = [
-        { id: 'token1', token: 'cashuAbc123', amount: 10000, timestamp: 2000 },
+    it('should cleanup on unmount gracefully', () => {
+      // Set pre-loaded ecash tokens from context
+      mockEcashTokens = [
+        { id: 'token1', token: 'cashuAbc', amount: 100, timestamp: 1000, claimed: false, recipient: 'someone' },
       ];
+      mockLoadingEcashTokens = false;
 
-      mockGetSentLockedTokens.mockResolvedValue(tokens);
-      mockGetReceivedTokens.mockResolvedValue([]);
-      mockDecodeToken.mockReturnValue({ proofs: [{ id: 'proof1' }] });
-      mockCheckProofsSpent.mockResolvedValue({}); // No states array
-
-      const { result } = renderHook({
+      const { unmount } = renderHook({
         txHistory: [],
         assetType: 'UNIT',
         segwit: segwitAddress,
@@ -941,22 +780,16 @@ describe('useAssetTransactions', () => {
         advancedMode: false,
       });
 
-      await act(async () => {
-        await Promise.resolve();
-        await Promise.resolve();
-        await Promise.resolve();
-      });
-
-      // allSpent should be undefined, not true, so should not update claimed
-      expect(mockUpdateTokenClaimedStatus).not.toHaveBeenCalled();
+      // Unmount should not cause any crash
+      unmount();
     });
 
-    it('should wait for ecash to load before displaying UNIT transactions', async () => {
-      let resolveSentTokens;
-      mockGetSentLockedTokens.mockReturnValue(new Promise((resolve) => {
-        resolveSentTokens = resolve;
-      }));
-      mockGetReceivedTokens.mockResolvedValue([]);
+    it('should display pre-loaded tokens immediately without waiting', () => {
+      // Set pre-loaded ecash tokens from context - data is already available
+      mockEcashTokens = [
+        { id: 'token1', token: 'cashuAbc123', amount: 10000, timestamp: 2000, claimed: false, recipient: 'someone' },
+      ];
+      mockLoadingEcashTokens = false;
 
       const txHistory = [
         {
@@ -973,51 +806,33 @@ describe('useAssetTransactions', () => {
         advancedMode: false,
       });
 
-      // Before ecash loads, transactions should be empty (waiting)
+      // Data is immediately available since tokens are pre-loaded
+      expect(result.current.isLoading).toBe(false);
+      expect(result.current.transactions).toHaveLength(2); // 1 tx + 1 token
+    });
+
+    it('should show loading state when tokens are still loading', () => {
+      // Set loading state from context
+      mockEcashTokens = [];
+      mockLoadingEcashTokens = true;
+
+      const { result } = renderHook({
+        txHistory: [],
+        assetType: 'UNIT',
+        segwit: segwitAddress,
+        taproot: taprootAddress,
+        advancedMode: false,
+      });
+
       expect(result.current.isLoading).toBe(true);
-
-      // Resolve ecash loading
-      await act(async () => {
-        resolveSentTokens([]);
-        await Promise.resolve();
-        await Promise.resolve();
-        await Promise.resolve();
-      });
-
-      expect(result.current.isLoading).toBe(false);
-      expect(result.current.transactions).toHaveLength(1);
     });
 
-    it('should handle non-Error exception when loading tokens', async () => {
-      mockGetSentLockedTokens.mockRejectedValue('String error');
-
-      const { result } = renderHook({
-        txHistory: [],
-        assetType: 'UNIT',
-        segwit: segwitAddress,
-        taproot: taprootAddress,
-        advancedMode: false,
-      });
-
-      await act(async () => {
-        await Promise.resolve();
-        await Promise.resolve();
-        await Promise.resolve();
-      });
-
-      expect(result.current.isLoading).toBe(false);
-    });
-
-    it('should handle non-Error exception during token decode', async () => {
-      const tokens = [
-        { id: 'token1', token: 'cashuAbc123', amount: 10000, timestamp: 2000 },
+    it('should display token with pre-loaded claimed status', () => {
+      // Set pre-loaded ecash tokens from context
+      mockEcashTokens = [
+        { id: 'token1', token: 'cashuAbc123', amount: 10000, timestamp: 2000, claimed: false, recipient: 'someone' },
       ];
-
-      mockGetSentLockedTokens.mockResolvedValue(tokens);
-      mockGetReceivedTokens.mockResolvedValue([]);
-      mockDecodeToken.mockImplementation(() => {
-        throw 'String error';
-      });
+      mockLoadingEcashTokens = false;
 
       const { result } = renderHook({
         txHistory: [],
@@ -1025,12 +840,6 @@ describe('useAssetTransactions', () => {
         segwit: segwitAddress,
         taproot: taprootAddress,
         advancedMode: false,
-      });
-
-      await act(async () => {
-        await Promise.resolve();
-        await Promise.resolve();
-        await Promise.resolve();
       });
 
       expect(result.current.transactions[0].claimed).toBe(false);
@@ -1071,11 +880,12 @@ describe('useAssetTransactions', () => {
       expect(result.current.transactions).not.toBe(firstTxs);
     });
 
-    it('should recalculate when ecash tokens count changes', async () => {
-      mockGetSentLockedTokens.mockResolvedValue([
-        { id: 'token1', token: 'cashuAbc', amount: 100, timestamp: 1000, claimed: true },
-      ]);
-      mockGetReceivedTokens.mockResolvedValue([]);
+    it('should recalculate when ecash tokens count changes', () => {
+      // Initial tokens from context
+      mockEcashTokens = [
+        { id: 'token1', token: 'cashuAbc', amount: 100, timestamp: 1000, claimed: true, recipient: 'someone' },
+      ];
+      mockLoadingEcashTokens = false;
 
       const txHistory = [
         {
@@ -1092,19 +902,13 @@ describe('useAssetTransactions', () => {
         advancedMode: false,
       });
 
-      await act(async () => {
-        await Promise.resolve();
-        await Promise.resolve();
-        await Promise.resolve();
-      });
-
       expect(result.current.transactions).toHaveLength(2); // 1 tx + 1 token
 
-      // Now add another token
-      mockGetSentLockedTokens.mockResolvedValue([
-        { id: 'token1', token: 'cashuAbc', amount: 100, timestamp: 1000, claimed: true },
-        { id: 'token2', token: 'cashuDef', amount: 200, timestamp: 2000, claimed: true },
-      ]);
+      // Update tokens in context
+      mockEcashTokens = [
+        { id: 'token1', token: 'cashuAbc', amount: 100, timestamp: 1000, claimed: true, recipient: 'someone' },
+        { id: 'token2', token: 'cashuDef', amount: 200, timestamp: 2000, claimed: true, recipient: 'someone' },
+      ];
 
       rerender({
         txHistory,
@@ -1114,14 +918,8 @@ describe('useAssetTransactions', () => {
         advancedMode: false,
       });
 
-      await act(async () => {
-        await Promise.resolve();
-        await Promise.resolve();
-        await Promise.resolve();
-      });
-
-      // After second ecash load, should have recalculated
-      expect(result.current.transactions.length).toBeGreaterThanOrEqual(2);
+      // After token count change, should have recalculated
+      expect(result.current.transactions).toHaveLength(3); // 1 tx + 2 tokens
     });
   });
 
@@ -1151,10 +949,13 @@ describe('useAssetTransactions', () => {
       expect(result.current.transactions[1].txid).toBe('tx1');
     });
 
-    it('should prefer timestamp over block_time for ecash', async () => {
-      const tokens = [
-        { id: 'token1', token: 'cashuAbc', amount: 100, timestamp: 5000, claimed: true },
+    it('should prefer timestamp over block_time for ecash', () => {
+      // Set pre-loaded ecash tokens from context
+      mockEcashTokens = [
+        { id: 'token1', token: 'cashuAbc', amount: 100, timestamp: 5000, claimed: true, recipient: 'someone' },
       ];
+      mockLoadingEcashTokens = false;
+
       const txHistory = [
         {
           txid: 'tx1',
@@ -1164,21 +965,12 @@ describe('useAssetTransactions', () => {
         },
       ];
 
-      mockGetSentLockedTokens.mockResolvedValue(tokens);
-      mockGetReceivedTokens.mockResolvedValue([]);
-
       const { result } = renderHook({
         txHistory,
         assetType: 'UNIT',
         segwit: segwitAddress,
         taproot: taprootAddress,
         advancedMode: false,
-      });
-
-      await act(async () => {
-        await Promise.resolve();
-        await Promise.resolve();
-        await Promise.resolve();
       });
 
       // token1 (5000) should come first

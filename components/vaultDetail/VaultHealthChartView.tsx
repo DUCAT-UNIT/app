@@ -222,6 +222,7 @@ interface VaultHealthChartViewProps {
   transactions: VaultHistoryTransaction[];
   onHighlightEvent?: (eventDate: number | null) => void;
   onLockFilter?: (eventDate: number | null) => void;
+  onScrollEnable?: (enabled: boolean) => void;
   highlightedEventDate?: number | null;
   totalDebt?: number;
   totalCollateral?: number;
@@ -232,6 +233,7 @@ export const VaultHealthChartView = memo(function VaultHealthChartView({
   transactions,
   onHighlightEvent,
   onLockFilter,
+  onScrollEnable,
   highlightedEventDate,
   totalDebt = 0,
   totalCollateral = 0,
@@ -631,6 +633,9 @@ export const VaultHealthChartView = memo(function VaultHealthChartView({
     onStartShouldSetPanResponder: () => true,
     onMoveShouldSetPanResponder: () => true,
     onPanResponderGrant: (evt: GestureResponderEvent) => {
+      // Disable parent scroll while scrubbing
+      onScrollEnable?.(false);
+
       // DON'T clear the lock/filter on grant - only clear when locking to a new ref line
       // The visual lock state is cleared for scrubbing, but filter stays until new lock
       setLockedRefLineIndex(null);
@@ -660,6 +665,9 @@ export const VaultHealthChartView = memo(function VaultHealthChartView({
       }
     },
     onPanResponderRelease: () => {
+      // Re-enable parent scroll
+      onScrollEnable?.(true);
+
       // If we were on a reference line, lock it at the exact center of the reference line
       if (hoveredRefLineIndex !== null && referenceLines[hoveredRefLineIndex]) {
         const refLine = referenceLines[hoveredRefLineIndex];
@@ -676,6 +684,9 @@ export const VaultHealthChartView = memo(function VaultHealthChartView({
       setHoveredRefLineIndex(null);
     },
     onPanResponderTerminate: () => {
+      // Re-enable parent scroll
+      onScrollEnable?.(true);
+
       // If we were on a reference line, lock it at the exact center
       if (hoveredRefLineIndex !== null && referenceLines[hoveredRefLineIndex]) {
         const refLine = referenceLines[hoveredRefLineIndex];
@@ -689,7 +700,7 @@ export const VaultHealthChartView = memo(function VaultHealthChartView({
       setScrubData({ health: null, x: null });
       setHoveredRefLineIndex(null);
     },
-  }), [getHealthAtX, findNearbyRefLine, referenceLines, onHighlightEvent, onLockFilter, hoveredRefLineIndex, lockedRefLineIndex, xScale]);
+  }), [getHealthAtX, findNearbyRefLine, referenceLines, onHighlightEvent, onLockFilter, onScrollEnable, hoveredRefLineIndex, lockedRefLineIndex, xScale]);
 
   // Is there a locked or active reference line?
   const activeRefLineIndex = hoveredRefLineIndex ?? lockedRefLineIndex;

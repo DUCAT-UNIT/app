@@ -171,6 +171,16 @@ export const VaultActivityList = memo(function VaultActivityList({
 }: VaultActivityListProps) {
   const [displayCount, setDisplayCount] = useState(INITIAL_LOAD_COUNT);
 
+  // Pre-compute a map of transaction timestamps to indices for O(1) lookup
+  // This fixes the O(n²) issue of calling findIndex inside renderItem
+  const transactionIndexMap = useMemo(() => {
+    const map = new Map<number, number>();
+    transactions.forEach((tx, idx) => {
+      map.set(tx.timestamp, idx);
+    });
+    return map;
+  }, [transactions]);
+
   // When filter is active, only show the matching transaction(s)
   const filteredTransactions = useMemo(() => {
     if (highlightedEventDate) {
@@ -193,8 +203,8 @@ export const VaultActivityList = memo(function VaultActivityList({
   }, [hasMore]);
 
   const renderItem = useCallback(({ item, index }: { item: VaultHistoryTransaction; index: number }) => {
-    // Find previous transaction (transactions are sorted newest first, so previous is at index + 1)
-    const originalIndex = transactions.findIndex(tx => tx.timestamp === item.timestamp);
+    // Find previous transaction using pre-computed map (O(1) instead of O(n))
+    const originalIndex = transactionIndexMap.get(item.timestamp) ?? index;
     const previousTransaction = originalIndex < transactions.length - 1 ? transactions[originalIndex + 1] : null;
 
     return (
@@ -204,7 +214,7 @@ export const VaultActivityList = memo(function VaultActivityList({
         onPress={onTransactionPress ? () => onTransactionPress(item, previousTransaction) : undefined}
       />
     );
-  }, [highlightedEventDate, onTransactionPress, transactions]);
+  }, [highlightedEventDate, onTransactionPress, transactions, transactionIndexMap]);
 
   const keyExtractor = useCallback((item: VaultHistoryTransaction, index: number) =>
     `${item.timestamp}-${index}`, []);

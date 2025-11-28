@@ -18,8 +18,10 @@ import { TransactionHistorySkeleton } from '../../components/transaction/Transac
 import { useBottomSheetAnimation } from '../../hooks/useBottomSheetAnimation';
 import { useTransactionHistoryData, DisplayTransaction } from '../../hooks/useTransactionHistoryData';
 import TokenDetailsSheet from '../../components/ecash/TokenDetailsSheet';
+import VaultTransactionDetailsSheet from '../../components/vaultDetail/VaultTransactionDetailsSheet';
 import { useNotifications } from '../../contexts/NotificationContext';
 import type { TokenRecord, EcashTokenRecord } from '../../services/cashu/cashuLockedTokensService';
+import type { VaultHistoryTransaction } from '../../services/vaultService';
 
 /** Type guard to check if token is a sent token (TokenRecord) */
 function isSentToken(token: EcashTokenRecord): token is TokenRecord {
@@ -79,6 +81,9 @@ export default function TransactionHistoryScreen({
 }: TransactionHistoryScreenProps): React.JSX.Element {
   const [selectedToken, setSelectedToken] = useState<TokenData | null>(null);
   const [showTokenDetails, setShowTokenDetails] = useState(false);
+  const [selectedVaultTx, setSelectedVaultTx] = useState<VaultHistoryTransaction | null>(null);
+  const [previousVaultTx, setPreviousVaultTx] = useState<VaultHistoryTransaction | null>(null);
+  const [showVaultDetails, setShowVaultDetails] = useState(false);
   const { showToast } = useNotifications();
 
   // Animation and gesture handling
@@ -99,6 +104,29 @@ export default function TransactionHistoryScreen({
     showToast(message, 'success');
   }, [showToast]);
 
+  // Helper to convert transaction vaultData to VaultHistoryTransaction format
+  const convertToVaultHistoryTx = useCallback((tx: DisplayTransaction): VaultHistoryTransaction | null => {
+    if (!tx.vaultTransaction || !tx.vaultData) return null;
+    return {
+      amount_borrowed: tx.vaultData.amountBorrowed ?? 0,
+      vault_amount: tx.vaultData.vaultAmount ?? 0,
+      btc_amt: tx.vaultData.btcAmount ?? 0,
+      unit_amt: tx.vaultData.unitAmount ?? 0,
+      oracle_price: tx.vaultData.oraclePrice ?? 0,
+      timestamp: tx.timestamp ?? 0,
+      action: tx.vaultData.action,
+    };
+  }, []);
+
+  // Find previous vault transaction in list (for before/after comparison)
+  const findPreviousVaultTx = useCallback((currentTx: DisplayTransaction): VaultHistoryTransaction | null => {
+    const vaultTxs = displayTransactions.filter(t => t.vaultTransaction);
+    const currentIndex = vaultTxs.findIndex(t => t.timestamp === currentTx.timestamp);
+    if (currentIndex < 0 || currentIndex >= vaultTxs.length - 1) return null;
+    // Transactions are sorted newest first, so previous is at index + 1
+    return convertToVaultHistoryTx(vaultTxs[currentIndex + 1]);
+  }, [displayTransactions, convertToVaultHistoryTx]);
+
   // Render function for each transaction
   const renderTransaction = useCallback(
     ({ item: tx }: { item: DisplayTransaction }) => (
@@ -106,8 +134,14 @@ export default function TransactionHistoryScreen({
         tx={tx as unknown as TransactionItemType}
         styles={styles}
         onPress={() => {
-          if (tx.vaultTransaction) {
-            // Vault transactions don't have explorer links yet
+          if (tx.vaultTransaction && tx.vaultData) {
+            // Show vault transaction details sheet
+            const vaultTx = convertToVaultHistoryTx(tx);
+            if (vaultTx) {
+              setSelectedVaultTx(vaultTx);
+              setPreviousVaultTx(findPreviousVaultTx(tx));
+              setShowVaultDetails(true);
+            }
             return;
           }
 
@@ -140,15 +174,28 @@ export default function TransactionHistoryScreen({
         }}
       />
     ),
-    [styles, openTxInExplorer]
+    [styles, openTxInExplorer, convertToVaultHistoryTx, findPreviousVaultTx]
   );
 
   // KeyExtractor for FlatList
   const keyExtractor = useCallback((item: DisplayTransaction) => item.txid, []);
 
+  // Estimated height for each transaction item (used for getItemLayout optimization)
+  const TRANSACTION_ITEM_HEIGHT = 80;
+
+  // getItemLayout for better scroll performance (avoids measuring each item)
+  const getItemLayout = useCallback(
+    (_data: ArrayLike<DisplayTransaction> | null | undefined, index: number) => ({
+      length: TRANSACTION_ITEM_HEIGHT,
+      offset: TRANSACTION_ITEM_HEIGHT * index,
+      index,
+    }),
+    []
+  );
+
   return (
     <>
-      {showHistorySheet && !showTokenDetails && (
+      {showHistorySheet && !showTokenDetails && !showVaultDetails && (
         <TouchableOpacity
           style={styles.bottomSheetBackdrop}
           activeOpacity={1}
@@ -164,7 +211,7 @@ export default function TransactionHistoryScreen({
             transform: [{ translateY }],
           },
         ]}
-        pointerEvents={!showHistorySheet || showTokenDetails ? 'none' : 'auto'}
+        pointerEvents={!showHistorySheet || showTokenDetails || showVaultDetails ? 'none' : 'auto'}
       >
         <View style={styles.historyHandleArea} {...panResponder.panHandlers}>
           <View style={styles.bottomSheetHandle} />
@@ -182,6 +229,7 @@ export default function TransactionHistoryScreen({
             data={displayTransactions}
             renderItem={renderTransaction}
             keyExtractor={keyExtractor}
+            getItemLayout={getItemLayout}
             style={styles.historyScrollView}
             showsVerticalScrollIndicator={false}
             initialNumToRender={20}
@@ -206,6 +254,14 @@ export default function TransactionHistoryScreen({
           isSelfClaim={selectedToken.isSelfClaim}
         />
       )}
+
+      {/* Vault Transaction Details Sheet */}
+      <VaultTransactionDetailsSheet
+        visible={showVaultDetails}
+        onClose={() => setShowVaultDetails(false)}
+        transaction={selectedVaultTx}
+        previousTransaction={previousVaultTx}
+      />
     </>
   );
 }

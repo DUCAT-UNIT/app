@@ -29,6 +29,9 @@ export const VaultGaugeSkeleton = React.memo(function VaultGaugeSkeleton() {
               </View>
             </View>
 
+            {/* Separator */}
+            <View style={styles.statSeparator} />
+
             {/* Debt stat */}
             <View style={styles.statContainer}>
               <SkeletonLoader width={60} height={11} borderRadius={4} />
@@ -36,6 +39,9 @@ export const VaultGaugeSkeleton = React.memo(function VaultGaugeSkeleton() {
                 <SkeletonLoader width={70} height={14} borderRadius={4} style={styles.statValueMargin} />
               </View>
             </View>
+
+            {/* Separator */}
+            <View style={styles.statSeparator} />
 
             {/* Liquidation stat */}
             <View style={styles.statContainer}>
@@ -191,7 +197,7 @@ export const VaultActivityListSkeleton = React.memo(function VaultActivityListSk
 });
 
 const styles = StyleSheet.create({
-  // Main container matching VaultHealthGauge
+  // Main container matching VaultHealthGauge exactly
   container: {
     width: '100%',
     paddingHorizontal: 16,
@@ -201,45 +207,49 @@ const styles = StyleSheet.create({
     backgroundColor: COLORS.VERY_DARK_GRAY,
     borderRadius: 12,
     overflow: 'hidden',
-    minHeight: 200, // Fixed minimum height to prevent jumping
   },
   mainRow: {
     flexDirection: 'row',
-    minHeight: 150, // Fixed height for gauge section
+    alignItems: 'center', // Match VaultHealthGauge
   },
   leftColumn: {
     flex: 2,
-    justifyContent: 'space-evenly',
-    paddingVertical: 16,
     paddingLeft: 16,
+    marginVertical: 8,
+    alignSelf: 'stretch', // Match VaultHealthGauge
   },
   statContainer: {
+    flex: 1,
     alignItems: 'flex-start',
+    justifyContent: 'center', // Match VaultHealthGauge
+  },
+  statSeparator: {
+    height: 1,
+    backgroundColor: COLORS.DARK_GRAY,
     marginVertical: 4,
+    marginLeft: -16, // Match VaultHealthGauge
   },
   statValueRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    marginTop: 4,
   },
   statValueMargin: {
-    marginTop: 4,
+    marginTop: 2,
   },
   verticalDivider: {
     width: 1,
     backgroundColor: COLORS.DARK_GRAY,
-    marginVertical: 16,
+    alignSelf: 'stretch', // Match VaultHealthGauge
   },
   gaugeContainer: {
     flex: 3,
-    justifyContent: 'center',
-    alignItems: 'center',
+    aspectRatio: 1.5, // Match VaultHealthGauge exactly
     paddingRight: 4,
-    paddingTop: 8,
+    justifyContent: 'center',
   },
   gaugePlaceholder: {
     width: '100%',
-    height: 120,
+    height: '100%',
     justifyContent: 'center',
     alignItems: 'center',
   },
@@ -281,7 +291,7 @@ const styles = StyleSheet.create({
   actionsRow: {
     flexDirection: 'row',
     justifyContent: 'center',
-    paddingVertical: 16,
+    paddingVertical: 13, // Match VaultHealthGauge exactly
     gap: 12,
   },
   actionButton: {
@@ -289,7 +299,7 @@ const styles = StyleSheet.create({
     minWidth: 62,
   },
   actionLabelMargin: {
-    marginTop: 6,
+    marginTop: 2, // Match VaultHealthGauge marginBottom: 2
   },
 
   // Chart skeleton styles

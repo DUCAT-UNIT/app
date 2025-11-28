@@ -1,17 +1,17 @@
 /**
  * useTransactionHistoryData Hook
  * Manages transaction history data, filtering, and loading state
+ * Uses pre-loaded ecash tokens from WalletDataContext for instant display
  */
 
 import { useState, useEffect, useMemo, useCallback, useRef } from 'react';
 import { Linking } from 'react-native';
 import * as bitcoin from 'bitcoinjs-lib';
-import { useTransactionHistory } from '../contexts/WalletDataContext';
+import { useTransactionHistory, useEcashTokens } from '../contexts/WalletDataContext';
 import { calculateTransactionAmount, Transaction } from '../services/transactionHistoryService';
 import { getTxUrl, getOrdTxUrl } from '../utils/constants';
 import { useNavigationHandlers } from '../contexts/NavigationHandlersContext';
-import { getSentLockedTokens, getReceivedTokens, subscribeToTokenChanges } from '../services/cashu/cashuLockedTokensService';
-import { loadTokensWithStatus, TokenWithStatus } from '../services/cashu/tokenStatusService';
+import { TokenWithStatus } from '../services/cashu/tokenStatusService';
 import { logger } from '../utils/logger';
 
 /** Type alias for EcashToken - uses TokenWithStatus from the service */
@@ -57,83 +57,32 @@ export function useTransactionHistoryData(
   const { settingsHandlers } = useNavigationHandlers();
   const advancedMode = settingsHandlers.advancedMode;
 
-  const [ecashTokens, setEcashTokens] = useState<EcashToken[]>([]);
-  // Loading state - true until first successful load when sheet opens
-  const [loading, setLoading] = useState(false);
-  // Track if we've done initial load for this sheet session
-  const hasLoadedRef = useRef(false);
-  // Counter to trigger ecash token refetch when tokens change
-  const [ecashRefetchTrigger, setEcashRefetchTrigger] = useState(0);
+  // Use pre-loaded ecash tokens from context (no more on-demand fetching)
+  const { ecashTokens: preloadedEcashTokens, loadingEcashTokens, fetchEcashTokens } = useEcashTokens();
+
+  // Filter tokens by advanced mode
+  const ecashTokens = advancedMode ? [] : preloadedEcashTokens;
+
   // Cache for parsed transaction data - keyed by txid, persists across renders
   // This prevents recalculating amounts when just confirmation status changes
   const txDataCacheRef = useRef<Map<string, TxData>>(new Map());
 
-  // Subscribe to token changes to trigger refetch (debounced to prevent rapid updates)
+  // Refresh data when sheet opens (background refresh, data is already available)
   useEffect(() => {
-    if (!showHistorySheet || advancedMode) return;
+    if (!showHistorySheet) return;
 
-    let debounceTimer: ReturnType<typeof setTimeout> | null = null;
-    const unsubscribe = subscribeToTokenChanges(() => {
-      if (debounceTimer) clearTimeout(debounceTimer);
-      debounceTimer = setTimeout(() => {
-        logger.debug('[useTransactionHistoryData] Token change detected, triggering refetch');
-        setEcashRefetchTrigger(prev => prev + 1);
-      }, 300);
-    });
-
-    return () => {
-      if (debounceTimer) clearTimeout(debounceTimer);
-      unsubscribe();
-    };
-  }, [showHistorySheet, advancedMode]);
-
-  // Fetch both transaction history and ecash tokens in parallel when sheet opens
-  useEffect(() => {
-    if (!showHistorySheet) {
-      // Reset when sheet closes so next open shows spinner
-      setEcashTokens([]);
-      setLoading(false);
-      hasLoadedRef.current = false;
-      return;
+    // Trigger background refresh to ensure data is fresh
+    fetchTransactionHistory();
+    if (!advancedMode) {
+      fetchEcashTokens();
     }
-
-    // Only show loading spinner on initial load, not background refetches
-    const isInitialLoad = !hasLoadedRef.current;
-    if (isInitialLoad) {
-      setLoading(true);
-    }
-
-    // Start fetches
-    const loadData = async () => {
-      try {
-        // Fire off transaction history fetch (doesn't return data directly, updates context)
-        const txHistoryPromise = fetchTransactionHistory();
-
-        // Fire off ecash tokens fetch if not in advanced mode
-        let ecashPromise: Promise<EcashToken[]> = Promise.resolve([]);
-        if (!advancedMode) {
-          ecashPromise = loadTokensWithStatus(
-            taprootAddress,
-            getSentLockedTokens,
-            getReceivedTokens
-          );
-        }
-
-        // Wait for both to complete
-        const [, tokensWithStatus] = await Promise.all([txHistoryPromise, ecashPromise]);
-        setEcashTokens(tokensWithStatus);
-      } catch (error: unknown) {
-        logger.error('[useTransactionHistoryData] Failed to load data:', { error: error instanceof Error ? error.message : String(error) });
-        setEcashTokens([]);
-      } finally {
-        setLoading(false);
-        hasLoadedRef.current = true;
-      }
-    };
-
-    loadData();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [showHistorySheet, advancedMode, taprootAddress, ecashRefetchTrigger]);
+  }, [showHistorySheet]);
+
+  // Loading is only true when both transaction history AND ecash tokens are loading
+  // and we have no data to show yet
+  const loading = (loadingTransactionHistory && transactionHistory.length === 0) ||
+    (!advancedMode && loadingEcashTokens && ecashTokens.length === 0);
 
   // Cache taproot pubkey decoding - only changes when address changes
   const currentPubkeyHex = useMemo(() => {

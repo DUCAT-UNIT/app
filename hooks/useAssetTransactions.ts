@@ -1,14 +1,15 @@
 /**
  * useAssetTransactions Hook
  * Filters and processes transactions for a specific asset type
- * Extracted from AssetDetailScreen for better separation of concerns
+ * Uses pre-loaded ecash tokens from WalletDataContext for instant display
  */
 
-import { useState, useEffect, useRef, useMemo } from 'react';
+import { useEffect, useRef, useMemo } from 'react';
 import * as bitcoin from 'bitcoinjs-lib';
 import { calculateTransactionAmount, Transaction } from '../services/transactionHistoryService';
-import { getSentLockedTokens, getReceivedTokens, EcashTokenRecord, subscribeToTokenChanges } from '../services/cashu/cashuLockedTokensService';
-import { loadTokensWithStatus, TokenWithStatus } from '../services/cashu/tokenStatusService';
+import { EcashTokenRecord } from '../services/cashu/cashuLockedTokensService';
+import { TokenWithStatus } from '../services/cashu/tokenStatusService';
+import { useEcashTokens } from '../contexts/WalletDataContext';
 import { logger } from '../utils/logger';
 import type { DisplayAssetType } from '../types/assets';
 
@@ -50,6 +51,7 @@ interface UseAssetTransactionsReturn {
 
 /**
  * Hook to filter and process transactions by asset type
+ * Uses pre-loaded ecash tokens from WalletDataContext
  */
 export function useAssetTransactions(
   transactionHistory: Transaction[] | null,
@@ -61,82 +63,27 @@ export function useAssetTransactions(
   // Stable ref for filtered transactions
   const filteredTxRef = useRef<ProcessedTransaction[]>([]);
   const lastTxHashRef = useRef('');
-  const [filteredTransactions, setFilteredTransactions] = useState<ProcessedTransaction[]>([]);
-  const [ecashTokens, setEcashTokens] = useState<EcashToken[]>([]);
-  // Track if ecash tokens have loaded
-  const [ecashReady, setEcashReady] = useState(assetType !== 'UNIT' || advancedMode);
-  // Track if we've done initial load (prevents spinner on background refetches)
-  const hasLoadedRef = useRef(false);
   // Track if transactions have been processed at least once
   const transactionsProcessedRef = useRef(false);
-  // Counter to trigger ecash token refetch when tokens change
-  const [ecashRefetchTrigger, setEcashRefetchTrigger] = useState(0);
   // Cache for parsed transaction data - keyed by txid, persists across renders
   const txDataCacheRef = useRef<Map<string, TxData>>(new Map());
 
-  // Subscribe to token changes to trigger refetch (debounced to prevent rapid updates)
-  useEffect(() => {
-    if (assetType !== 'UNIT' || advancedMode) return;
+  // Use pre-loaded ecash tokens from context (no more on-demand fetching)
+  const { ecashTokens: preloadedEcashTokens, loadingEcashTokens, fetchEcashTokens } = useEcashTokens();
 
-    let debounceTimer: ReturnType<typeof setTimeout> | null = null;
-    const unsubscribe = subscribeToTokenChanges(() => {
-      if (debounceTimer) clearTimeout(debounceTimer);
-      debounceTimer = setTimeout(() => {
-        logger.debug('[useAssetTransactions] Token change detected, triggering refetch');
-        setEcashRefetchTrigger(prev => prev + 1);
-      }, 300);
-    });
+  // Filter tokens: only use for UNIT and non-advanced mode
+  const ecashTokens = (assetType === 'UNIT' && !advancedMode) ? preloadedEcashTokens : [];
 
-    return () => {
-      if (debounceTimer) clearTimeout(debounceTimer);
-      unsubscribe();
-    };
-  }, [assetType, advancedMode]);
+  // Ecash is ready if: not UNIT, or advanced mode, or tokens have loaded
+  const ecashReady = assetType !== 'UNIT' || advancedMode || !loadingEcashTokens || preloadedEcashTokens.length > 0;
 
-  // Fetch ecash tokens when assetType is UNIT and advanced mode is off
+  // Trigger background refresh when component mounts (data is already available)
   useEffect(() => {
     if (assetType === 'UNIT' && !advancedMode) {
-      let isMounted = true;
-
-      // Only reset ecashReady on initial load, not background refetches
-      const isInitialLoad = !hasLoadedRef.current;
-      if (isInitialLoad) {
-        setEcashReady(false);
-      }
-
-      const loadEcashTokens = async () => {
-        try {
-          const tokensWithStatus = await loadTokensWithStatus(
-            taprootAddress,
-            getSentLockedTokens,
-            getReceivedTokens
-          );
-
-          if (isMounted) {
-            setEcashTokens(tokensWithStatus);
-            setEcashReady(true);
-            hasLoadedRef.current = true;
-          }
-        } catch (error: unknown) {
-          logger.error('[useAssetTransactions] Failed to load ecash tokens:', { error: error instanceof Error ? error.message : String(error) });
-          if (isMounted) {
-            setEcashTokens([]);
-            setEcashReady(true);
-            hasLoadedRef.current = true;
-          }
-        }
-      };
-      loadEcashTokens();
-
-      return () => {
-        isMounted = false;
-      };
-    } else {
-      // Not UNIT or advanced mode - ecash is ready immediately
-      setEcashTokens([]);
-      setEcashReady(true);
+      fetchEcashTokens();
     }
-  }, [assetType, advancedMode, taprootAddress, ecashRefetchTrigger]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [assetType, advancedMode]);
 
   // Cache taproot pubkey decoding - only changes when address changes
   const currentPubkeyHex = useMemo(() => {
@@ -150,23 +97,13 @@ export function useAssetTransactions(
     }
   }, [taprootAddress]);
 
-  // Filter and process transactions - deferred to avoid blocking navigation
-  useEffect(() => {
+  // Filter and process transactions using useMemo for instant updates
+  const filteredTransactions = useMemo(() => {
     if (!transactionHistory || !segwitAddress || !taprootAddress) {
-      setFilteredTransactions(filteredTxRef.current);
-      return;
-    }
-
-    // For UNIT assets, wait for ecash tokens to finish loading before displaying
-    // This ensures runes and ecash transactions appear together
-    if (assetType === 'UNIT' && !advancedMode && !ecashReady) {
-      logger.debug('[useAssetTransactions] Waiting for ecash tokens to load before displaying UNIT transactions');
-      return;
+      return filteredTxRef.current;
     }
 
     // Create a hash to check if we need to recalculate
-    // Include confirmation status AND block height to detect when transactions confirm
-    // Also include ecashTokens count to trigger re-merge when tokens load
     const txHash = transactionHistory
       .map(t => `${t.txid}:${t.status?.confirmed || false}:${t.status?.block_height || 0}`)
       .join('|') + `-${assetType}-ecash:${ecashTokens.length}`;
@@ -174,33 +111,25 @@ export function useAssetTransactions(
     const hashChanged = txHash !== lastTxHashRef.current;
 
     if (!hashChanged && filteredTxRef.current.length > 0) {
-      // Hash unchanged - no need to recalculate, use cached version
-      setFilteredTransactions(filteredTxRef.current);
-      return;
+      return filteredTxRef.current;
     }
 
     // Process transactions in a single pass with caching
-    // Uses cache to avoid recalculating when only confirmation status changes
     const filtered: ProcessedTransaction[] = [];
     const cache = txDataCacheRef.current;
 
     for (const tx of transactionHistory) {
-      // Skip vault transactions
       if (tx.vaultTransaction) continue;
 
-      // Check for existing txData on the transaction object first (from upstream processing)
       const txWithData = tx as ProcessedTransaction;
       let processedTxData: TxData | undefined;
 
       if (txWithData.txData) {
-        // Use existing txData without recalculating
         processedTxData = txWithData.txData;
       } else {
-        // Check cache - txid is immutable so amount won't change
         processedTxData = cache.get(tx.txid);
 
         if (!processedTxData) {
-          // Calculate and cache transaction data
           const txData = calculateTransactionAmount(tx, segwitAddress, taprootAddress);
           const amount = typeof txData === 'object' ? txData.amount : txData;
           const txAssetType = typeof txData === 'object' ? txData.type : 'BTC';
@@ -218,10 +147,7 @@ export function useAssetTransactions(
         }
       }
 
-      // Filter by asset type
       if (processedTxData.assetType !== assetType) continue;
-
-      // Filter out transactions with no amount (0 or null)
       if (!processedTxData.numericAmount || processedTxData.numericAmount === 0) continue;
 
       filtered.push({
@@ -230,7 +156,7 @@ export function useAssetTransactions(
       } as ProcessedTransaction);
     }
 
-    // First pass: identify self-claimed sent tokens (using cached currentPubkeyHex)
+    // First pass: identify self-claimed sent tokens
     const selfClaimedSentTokenIds = new Set<string>();
     ecashTokens.forEach((token) => {
       const isSentToken = 'recipient' in token;
@@ -249,36 +175,29 @@ export function useAssetTransactions(
     const ecashTxs: ProcessedTransaction[] = ecashTokens
       .filter((token) => {
         const isReceivedToken = 'sender' in token;
-        // Filter out received tokens if they match the same account (self-claim duplicate)
         if (isReceivedToken) {
           const receivedToken = token as { sender: string; taprootAddress: string | null };
           if (receivedToken.taprootAddress && taprootAddress && receivedToken.taprootAddress === taprootAddress) {
-            logger.debug('[useAssetTransactions] Filtering out self-claim received token:', { tokenId: token.id });
             return false;
           }
         }
         return true;
       })
       .map((token) => {
-        // Keep amount as integer (smallest units) - conversion to display happens in UI
         const amount = token.amount;
         const isSentToken = 'recipient' in token;
         const isAutoclaim = selfClaimedSentTokenIds.has(token.id);
 
-        logger.debug('[useAssetTransactions] Creating ecash tx:', { tokenId: token.id, amount, claimed: token.claimed, isAutoclaim, isSentToken });
-
         return {
           txid: token.id,
           timestamp: token.timestamp,
-          ecashToken: true, // Flag to identify as ecash transaction
-          tokenData: token, // Include full token data for TokenDetailsSheet
-          claimed: token.claimed, // Whether token has been claimed
-          isAutoclaim, // Flag for self-claimed tokens
+          ecashToken: true,
+          tokenData: token,
+          claimed: token.claimed,
+          isAutoclaim,
           txData: {
-            // For self-claim, show positive amount (got funds back)
-            // Amount stays as integer (smallest units)
             amount: isAutoclaim ? amount : (isSentToken ? -amount : amount),
-            assetType: 'UNIT', // Set to UNIT so it appears in UNIT activity
+            assetType: 'UNIT',
             numericAmount: isAutoclaim ? amount : (isSentToken ? -amount : amount),
             isSent: isSentToken && !isAutoclaim,
             isReceived: !isSentToken || isAutoclaim,
@@ -286,14 +205,6 @@ export function useAssetTransactions(
           },
         } as ProcessedTransaction;
       });
-
-    logger.debug('[useAssetTransactions] Merging transactions:', {
-      assetType,
-      advancedMode,
-      regularTxCount: filtered.length,
-      ecashTxCount: ecashTxs.length,
-      totalEcashTokens: ecashTokens.length
-    });
 
     // Merge and sort by timestamp (most recent first)
     const merged: ProcessedTransaction[] = [...filtered, ...ecashTxs].sort((a, b) => {
@@ -304,14 +215,13 @@ export function useAssetTransactions(
 
     lastTxHashRef.current = txHash;
     filteredTxRef.current = merged;
-    setFilteredTransactions(merged);
     transactionsProcessedRef.current = true;
-  }, [transactionHistory, segwitAddress, taprootAddress, assetType, ecashTokens, ecashReady, advancedMode, currentPubkeyHex]);
 
-  // Loading is true until:
-  // 1. Ecash is ready (for UNIT) or immediately (for BTC)
-  // 2. AND transactions have been processed at least once
-  const isLoading = !ecashReady || !transactionsProcessedRef.current;
+    return merged;
+  }, [transactionHistory, segwitAddress, taprootAddress, assetType, ecashTokens, currentPubkeyHex]);
+
+  // Loading is true only when we have no data yet
+  const isLoading = !ecashReady || (transactionHistory !== null && filteredTransactions.length === 0 && !transactionsProcessedRef.current);
 
   return {
     transactions: filteredTransactions,

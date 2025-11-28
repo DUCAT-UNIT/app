@@ -6,6 +6,7 @@
 export const SECURE_KEYS = {
   MNEMONIC: 'wallet_mnemonic_v1',
   CURRENT_ACCOUNT: 'wallet_current_account_v1',
+  CACHED_ADDRESSES: 'wallet_cached_addresses_v1', // Cached derived addresses for fast startup
   PIN: 'wallet_pin_v1',
   PIN_SALT: 'wallet_pin_salt_v1',
   PIN_VERSION: 'wallet_pin_version_v1', // Track PIN hashing algorithm version

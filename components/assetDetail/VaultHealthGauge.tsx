@@ -11,7 +11,7 @@ import { COLORS } from '../../theme';
 import Icon from '../icons';
 import { VaultHealthChartView } from '../vaultDetail/VaultHealthChartView';
 import type { VaultHistoryTransaction } from '../../services/vaultService';
-import { formatBalance, formatUnitAmount, formatFiat } from '../../utils/formatters';
+import { formatBalance, formatFiat } from '../../utils/formatters';
 
 // Constants
 const LIQUIDATION_RATE = 1.5;
@@ -133,6 +133,7 @@ export interface VaultHealthGaugeProps {
   transactions?: VaultHistoryTransaction[];
   onHighlightEvent?: (eventDate: number | null) => void;
   onLockFilter?: (eventDate: number | null) => void;
+  onScrollEnable?: (enabled: boolean) => void;
   highlightedEventDate?: number | null;
 }
 
@@ -148,28 +149,54 @@ export const VaultHealthGauge = memo(function VaultHealthGauge({
   transactions = [],
   onHighlightEvent,
   onLockFilter,
+  onScrollEnable,
   highlightedEventDate,
 }: VaultHealthGaugeProps): React.JSX.Element {
-  // Calculate liquidation price
-  const liquidationPrice = totalDebt > 0 && totalCollateral > 0
-    ? (totalDebt * LIQUIDATION_RATE) / totalCollateral
-    : 0;
+  // Memoize liquidation price calculation
+  const liquidationPrice = useMemo(() =>
+    totalDebt > 0 && totalCollateral > 0
+      ? (totalDebt * LIQUIDATION_RATE) / totalCollateral
+      : 0,
+    [totalDebt, totalCollateral]
+  );
 
-  // Calculate health metrics
-  const healthValue = healthPercentage;
-  const isLiquidated = healthValue < 135 && healthValue > 0;
-  const activePath = getActivePath(healthValue);
-  const currentTitle = getCurrentTitle(activePath, isLiquidated);
+  // Memoize all health metrics calculations together
+  const healthMetrics = useMemo(() => {
+    const healthValue = healthPercentage;
+    const isLiquidated = healthValue < 135 && healthValue > 0;
+    const activePath = getActivePath(healthValue);
+    const currentTitle = getCurrentTitle(activePath, isLiquidated);
+    const isHealthFinite = Number.isFinite(Number.parseFloat(healthValue.toFixed(2)));
+    const displayHealthValue = healthValue > 500 ? '500+' : healthValue.toFixed(0);
 
-  // Calculate marker position
-  const centerX = SVG_SIZE / 2;
-  const centerY = SVG_SIZE / 2;
-  const mappedValue = mapValueToRange(healthValue);
-  const radius = calculateDynamicRadius(mappedValue);
-  const angle = isLiquidated ? 156 : (mappedValue / 100) * 260 - 220;
-  const markerX = centerX + radius * Math.cos((angle * Math.PI) / 180) + (isLiquidated ? -4 : 0);
-  const markerY = centerY + radius * Math.sin((angle * Math.PI) / 180);
+    return {
+      healthValue,
+      isLiquidated,
+      activePath,
+      currentTitle,
+      isHealthFinite,
+      displayHealthValue,
+    };
+  }, [healthPercentage]);
 
+  const { healthValue, isLiquidated, activePath, currentTitle, isHealthFinite, displayHealthValue } = healthMetrics;
+
+  // Memoize marker position calculations
+  const markerPosition = useMemo(() => {
+    const centerX = SVG_SIZE / 2;
+    const centerY = SVG_SIZE / 2;
+    const mappedValue = mapValueToRange(healthValue);
+    const radius = calculateDynamicRadius(mappedValue);
+    const angle = isLiquidated ? 156 : (mappedValue / 100) * 260 - 220;
+    const markerX = centerX + radius * Math.cos((angle * Math.PI) / 180) + (isLiquidated ? -4 : 0);
+    const markerY = centerY + radius * Math.sin((angle * Math.PI) / 180);
+
+    return { markerX, markerY };
+  }, [healthValue, isLiquidated]);
+
+  const { markerX, markerY } = markerPosition;
+
+  // Memoize title color
   const titleColor = useMemo(() => {
     if (activePath && pathSettings[activePath]) {
       return pathSettings[activePath].color;
@@ -177,8 +204,11 @@ export const VaultHealthGauge = memo(function VaultHealthGauge({
     return '#ddd';
   }, [activePath]);
 
-  const isHealthFinite = Number.isFinite(Number.parseFloat(healthValue.toFixed(2)));
-  const displayHealthValue = healthValue > 500 ? '500+' : healthValue.toFixed(0);
+  // Memoize marker color
+  const markerColor = useMemo(() =>
+    getMarkerColor(activePath, isLiquidated),
+    [activePath, isLiquidated]
+  );
 
   return (
     <View style={styles.container}>
@@ -208,7 +238,7 @@ export const VaultHealthGauge = memo(function VaultHealthGauge({
               <View style={styles.statValueRow}>
                 <Icon name="unit_symbol" size={14} color={COLORS.WHITE} style={styles.statIcon} />
                 <Text style={styles.statValue}>
-                  {formatUnitAmount(totalDebt)}
+                  {formatFiat(totalDebt)}
                 </Text>
               </View>
             </View>
@@ -258,7 +288,7 @@ export const VaultHealthGauge = memo(function VaultHealthGauge({
               cy={Number.isNaN(markerY) ? 13 : markerY}
               r={10.9}
               fill="#111015"
-              stroke={getMarkerColor(activePath, isLiquidated)}
+              stroke={markerColor}
               strokeWidth={10.2}
             />
           )}
@@ -343,8 +373,8 @@ export const VaultHealthGauge = memo(function VaultHealthGauge({
 
         {/* UNIT Capacity Section */}
         {(() => {
-          // Convert totalDebt from cents to UNIT
-          const mintedUnit = totalDebt / 100;
+          // totalDebt is already in display units (UNIT), no conversion needed
+          const mintedUnit = totalDebt;
           // Calculate max mintable UNIT at 150% collateral ratio
           const maxMintableUnit = totalCollateral > 0 && currentPrice > 0
             ? (totalCollateral * currentPrice) / 1.5
@@ -420,6 +450,7 @@ export const VaultHealthGauge = memo(function VaultHealthGauge({
         transactions={transactions}
         onHighlightEvent={onHighlightEvent}
         onLockFilter={onLockFilter}
+        onScrollEnable={onScrollEnable}
         highlightedEventDate={highlightedEventDate}
         totalDebt={totalDebt}
         totalCollateral={totalCollateral}

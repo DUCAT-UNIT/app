@@ -177,7 +177,7 @@ export default function VaultTransactionDetailsSheet({
   const isPositiveAction = actionLower === 'deposit' || actionLower === 'repay';
 
   return (
-    <BottomSheet visible={visible} onClose={onClose}>
+    <BottomSheet visible={visible} onClose={onClose} showCloseButton={false}>
       {/* Header */}
       <View style={styles.header}>
         <View style={styles.headerContent}>
@@ -251,7 +251,7 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between',
     paddingHorizontal: 20,
     paddingBottom: 16,
-    marginTop: -50,
+    marginTop: -10,
     borderBottomWidth: 1,
     borderBottomColor: COLORS.BORDER_COLOR,
   },

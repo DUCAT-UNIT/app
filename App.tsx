@@ -51,12 +51,14 @@ try {
   throw error; // Fail fast - do not allow app to start with wrong network
 }
 
-// Initialize Sentry session with device ID for tracking
-initializeSentrySession().then((deviceId) => {
-  if (deviceId) {
-    logger.info('Sentry session initialized', { deviceId: deviceId.substring(0, 8) + '...' });
-  }
-});
+// Initialize Sentry session with device ID for tracking (deferred to not block startup)
+setTimeout(() => {
+  initializeSentrySession().then((deviceId) => {
+    if (deviceId) {
+      logger.info('Sentry session initialized', { deviceId: deviceId.substring(0, 8) + '...' });
+    }
+  });
+}, 100);
 
 // SECURITY: Sanitize sensitive data before sending to Sentry
 function sanitizeSensitiveData(str: unknown): unknown {

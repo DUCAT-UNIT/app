@@ -1,16 +1,17 @@
 /**
  * VaultDetailScreen Component
  * Displays detailed information about the user's vault
+ * Uses pre-loaded vault data from WalletDataContext for instant display
  */
 
-import React, { useState, useEffect, useCallback, useMemo } from 'react';
+import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { StyleSheet, ScrollView, RefreshControl } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { COLORS } from '../../theme';
 import { usePrice } from '../../contexts/PriceContext';
 import { useWallet } from '../../contexts/WalletContext';
+import { useVaultData } from '../../contexts/WalletDataContext';
 import { useWalletCalculations } from '../../hooks/useWalletCalculations';
-import { useVaultDataFetch } from '../../hooks/useVaultDataFetch';
 import { fetchVaultHistory } from '../../services/vaultService';
 import type { VaultHistoryTransaction } from '../../services/vaultService';
 import {
@@ -39,13 +40,25 @@ function VaultDetailScreen({ navigation }: VaultDetailScreenProps): React.JSX.El
   const [highlightedEventDate, setHighlightedEventDate] = useState<number | null>(null);
   // Activity list filter (only set on release/lock)
   const [filterEventDate, setFilterEventDate] = useState<number | null>(null);
+  // Scroll control - disable when scrubbing chart
+  const [scrollEnabled, setScrollEnabled] = useState(true);
   // Transaction details sheet
   const [selectedTransaction, setSelectedTransaction] = useState<VaultHistoryTransaction | null>(null);
   const [previousTransaction, setPreviousTransaction] = useState<VaultHistoryTransaction | null>(null);
   const [showTransactionDetails, setShowTransactionDetails] = useState(false);
+  // Track if vault data has ever loaded (prevents skeleton on background refresh)
+  const vaultLoadedRef = useRef(false);
 
-  // Fetch vault data
-  const { vaultData, loadingVault, fetchVault } = useVaultDataFetch(wallet);
+  // Use pre-loaded vault data from context (instant display, no waiting)
+  const { vaultData, loadingVault, fetchVault } = useVaultData();
+
+  // Mark as loaded once we have data
+  if (vaultData !== null) {
+    vaultLoadedRef.current = true;
+  }
+
+  // Only show loading skeleton if we haven't loaded data yet
+  const showVaultLoading = loadingVault && !vaultLoadedRef.current;
 
   // Calculate vault health metrics
   const {
@@ -113,6 +126,10 @@ function VaultDetailScreen({ navigation }: VaultDetailScreenProps): React.JSX.El
     setShowTransactionDetails(false);
   }, []);
 
+  const handleScrollEnable = useCallback((enabled: boolean) => {
+    setScrollEnabled(enabled);
+  }, []);
+
   return (
     <SafeAreaView style={styles.container}>
       <VaultHeader onBackPress={handleBackPress} />
@@ -120,6 +137,7 @@ function VaultDetailScreen({ navigation }: VaultDetailScreenProps): React.JSX.El
       <ScrollView
         style={styles.scrollView}
         contentContainerStyle={styles.scrollContent}
+        scrollEnabled={scrollEnabled}
         refreshControl={
           <RefreshControl
             refreshing={refreshing}
@@ -134,10 +152,11 @@ function VaultDetailScreen({ navigation }: VaultDetailScreenProps): React.JSX.El
           currentPrice={btcPrice || 0}
           healthPercentage={vaultHealthPercentage}
           healthColor={vaultHealthColor}
-          isLoading={loadingVault}
+          isLoading={showVaultLoading}
           transactions={transactions}
           onHighlightEvent={setHighlightedEventDate}
           onLockFilter={setFilterEventDate}
+          onScrollEnable={handleScrollEnable}
           highlightedEventDate={highlightedEventDate}
         />
 

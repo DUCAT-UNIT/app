@@ -33,11 +33,11 @@ export const useWalletInitialization = ({
   useEffect(() => {
     const initializeWallet = async () => {
       try {
-        // Load biometric preference from storage
-        await loadBiometricPreference();
-
-        // Load wallet using context (handles addresses and balances)
-        const result = await loadWallet();
+        // Load biometric preference and wallet in parallel for speed
+        const [, result] = await Promise.all([
+          loadBiometricPreference(),
+          loadWallet(),
+        ]);
 
         if (result.exists) {
           // Wallet exists - set up auth flow
@@ -52,8 +52,8 @@ export const useWalletInitialization = ({
       } catch (error: unknown) {
         // Silently handle errors, allow user to proceed
       } finally {
-        // Hide loading screen after a brief delay to show the logo
-        setTimeout(() => setIsLoading(false), 1500);
+        // Immediately show the app - no artificial delay
+        setIsLoading(false);
       }
     };
 

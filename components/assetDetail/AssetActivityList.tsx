@@ -4,7 +4,7 @@
  */
 
 import React, { useState, useCallback, memo, useMemo } from 'react';
-import { View, Text, TouchableOpacity, StyleSheet } from 'react-native';
+import { View, Text, TouchableOpacity, StyleSheet, FlatList } from 'react-native';
 import TransactionItem, { Transaction } from '../transaction/TransactionItem';
 import { COLORS } from '../../theme';
 import globalStyles from '../../styles';
@@ -25,6 +25,9 @@ export interface AssetActivityListProps {
 // Re-export Transaction type for consumers
 export type { Transaction, ActivityTransaction };
 
+// Estimated height for each transaction item (used for getItemLayout optimization)
+const TRANSACTION_ITEM_HEIGHT = 72;
+
 export const AssetActivityList = memo(function AssetActivityList({
   transactions,
   isLoading,
@@ -32,12 +35,6 @@ export const AssetActivityList = memo(function AssetActivityList({
   advancedMode = false
 }: AssetActivityListProps) {
   const [visibleTransactions, setVisibleTransactions] = useState(20);
-
-  // Memoize the transaction press handler factory
-  const createPressHandler = useCallback(
-    (tx: ActivityTransaction) => () => onTransactionPress(tx),
-    [onTransactionPress]
-  );
 
   // Memoize displayed transactions slice (must be before early returns)
   const displayedTransactions = useMemo(
@@ -49,6 +46,49 @@ export const AssetActivityList = memo(function AssetActivityList({
   const handleLoadMore = useCallback(() => {
     setVisibleTransactions(prev => prev + 20);
   }, []);
+
+  // Memoized renderItem for FlatList - avoids recreation on each render
+  const renderItem = useCallback(
+    ({ item }: { item: ActivityTransaction }) => (
+      <TransactionItem
+        tx={item as Transaction}
+        styles={globalStyles}
+        onPress={() => onTransactionPress(item)}
+        advancedMode={advancedMode}
+      />
+    ),
+    [onTransactionPress, advancedMode]
+  );
+
+  // Memoized keyExtractor for FlatList
+  const keyExtractor = useCallback((item: ActivityTransaction) => item.txid, []);
+
+  // getItemLayout for better scroll performance (avoids measuring each item)
+  const getItemLayout = useCallback(
+    (_data: ArrayLike<ActivityTransaction> | null | undefined, index: number) => ({
+      length: TRANSACTION_ITEM_HEIGHT,
+      offset: TRANSACTION_ITEM_HEIGHT * index,
+      index,
+    }),
+    []
+  );
+
+  const hasMore = visibleTransactions < transactions.length;
+
+  // Memoized footer component
+  const ListFooterComponent = useMemo(() => {
+    if (!hasMore) return null;
+    return (
+      <TouchableOpacity
+        style={styles.loadMoreButton}
+        onPress={handleLoadMore}
+      >
+        <Text style={styles.loadMoreText}>
+          Load More ({transactions.length - visibleTransactions} remaining)
+        </Text>
+      </TouchableOpacity>
+    );
+  }, [hasMore, handleLoadMore, transactions.length, visibleTransactions]);
 
   // Early returns for loading/empty states (after all hooks)
   if (isLoading) {
@@ -65,30 +105,20 @@ export const AssetActivityList = memo(function AssetActivityList({
     );
   }
 
-  const hasMore = visibleTransactions < transactions.length;
-
   return (
     <View style={styles.activityContainer}>
-      {displayedTransactions.map((transaction) => (
-        <TransactionItem
-          key={transaction.txid}
-          tx={transaction as Transaction}
-          styles={globalStyles}
-          onPress={createPressHandler(transaction)}
-          advancedMode={advancedMode}
-        />
-      ))}
-
-      {hasMore && (
-        <TouchableOpacity
-          style={styles.loadMoreButton}
-          onPress={handleLoadMore}
-        >
-          <Text style={styles.loadMoreText}>
-            Load More ({transactions.length - visibleTransactions} remaining)
-          </Text>
-        </TouchableOpacity>
-      )}
+      <FlatList
+        data={displayedTransactions}
+        renderItem={renderItem}
+        keyExtractor={keyExtractor}
+        getItemLayout={getItemLayout}
+        scrollEnabled={false}
+        initialNumToRender={15}
+        maxToRenderPerBatch={15}
+        windowSize={10}
+        removeClippedSubviews={true}
+        ListFooterComponent={ListFooterComponent}
+      />
     </View>
   );
 });

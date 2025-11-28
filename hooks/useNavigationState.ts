@@ -11,6 +11,7 @@ import { useOnboardingFlow } from '../contexts/AuthContext';
 interface UseNavigationStateReturn {
   shouldShowAuth: boolean;
   shouldShowPinOverlay: boolean;
+  shouldShowLockOverlay: boolean;
 }
 
 /**
@@ -20,6 +21,12 @@ export function useNavigationState(): UseNavigationStateReturn {
   const { isAuthenticated, changingPin, settingUpPin, showPinEntry } = useAuth();
   const { wallet } = useWallet();
   const { seedConfirmed } = useOnboardingFlow();
+
+  // Show lock overlay when: has wallet, seed confirmed, but not authenticated
+  // This keeps MainTabs mounted so data stays in memory for instant unlock
+  const shouldShowLockOverlay = useMemo(() => {
+    return !isAuthenticated && !!wallet && seedConfirmed && !settingUpPin && !showPinEntry;
+  }, [isAuthenticated, wallet, seedConfirmed, settingUpPin, showPinEntry]);
 
   const shouldShowAuth = useMemo(() => {
     // No wallet created yet - show onboarding
@@ -42,14 +49,13 @@ export function useNavigationState(): UseNavigationStateReturn {
       return true;
     }
 
-    // User is not authenticated but has wallet and confirmed seed
-    if (!isAuthenticated && wallet && seedConfirmed) {
-      return true;
-    }
+    // NOTE: Removed the isAuthenticated check here!
+    // When !isAuthenticated && wallet && seedConfirmed, we now show lock overlay instead
+    // This keeps MainTabs mounted so data stays in memory
 
     // All conditions passed - show main app
     return false;
-  }, [wallet, seedConfirmed, settingUpPin, changingPin, showPinEntry, isAuthenticated]);
+  }, [wallet, seedConfirmed, settingUpPin, changingPin, showPinEntry]);
 
   const shouldShowPinOverlay = useMemo(() => {
     // Show PIN overlay when changing PIN (not first-time setup)
@@ -59,5 +65,6 @@ export function useNavigationState(): UseNavigationStateReturn {
   return {
     shouldShowAuth,
     shouldShowPinOverlay,
+    shouldShowLockOverlay,
   };
 }

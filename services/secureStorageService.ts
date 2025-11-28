@@ -131,6 +131,76 @@ export const getCurrentAccount = async (): Promise<number> => {
 };
 
 /**
+ * Cache format for derived addresses
+ */
+interface CachedAddresses {
+  accountIndex: number;
+  addresses: {
+    segwitAddress: string;
+    taprootAddress: string;
+    segwitPubkey: string;
+    taprootPubkey: string;
+  };
+}
+
+/**
+ * Save cached addresses to secure storage
+ * @param accountIndex - Account index these addresses were derived for
+ * @param addresses - Derived addresses
+ * @returns Success status
+ */
+export const saveCachedAddresses = async (
+  accountIndex: number,
+  addresses: { segwitAddress: string; taprootAddress: string; segwitPubkey: string; taprootPubkey: string }
+): Promise<boolean> => {
+  try {
+    const cached: CachedAddresses = { accountIndex, addresses };
+    await SecureStore.setItemAsync(SECURE_KEYS.CACHED_ADDRESSES, JSON.stringify(cached));
+    return true;
+  } catch (error: unknown) {
+    logger.error('Failed to save cached addresses', { error: error instanceof Error ? error.message : String(error) });
+    return false;
+  }
+};
+
+/**
+ * Retrieve cached addresses from secure storage
+ * @param accountIndex - Expected account index (returns null if mismatch)
+ * @returns Cached addresses or null if not found/mismatch
+ */
+export const getCachedAddresses = async (
+  accountIndex: number
+): Promise<{ segwitAddress: string; taprootAddress: string; segwitPubkey: string; taprootPubkey: string } | null> => {
+  try {
+    const cached = await SecureStore.getItemAsync(SECURE_KEYS.CACHED_ADDRESSES);
+    if (!cached) return null;
+
+    const parsed: CachedAddresses = JSON.parse(cached);
+    // Return null if account index doesn't match (need to re-derive)
+    if (parsed.accountIndex !== accountIndex) return null;
+
+    return parsed.addresses;
+  } catch (error: unknown) {
+    logger.error('Failed to get cached addresses', { error: error instanceof Error ? error.message : String(error) });
+    return null;
+  }
+};
+
+/**
+ * Delete cached addresses from secure storage
+ * @returns Success status
+ */
+export const deleteCachedAddresses = async (): Promise<boolean> => {
+  try {
+    await SecureStore.deleteItemAsync(SECURE_KEYS.CACHED_ADDRESSES);
+    return true;
+  } catch (error: unknown) {
+    logger.error('Failed to delete cached addresses', { error: error instanceof Error ? error.message : String(error) });
+    return false;
+  }
+};
+
+/**
  * Delete all wallet data from secure storage
  * IMPORTANT: This clears ALL wallet data including PIN, passkey, and lockout state
  * NOTE: iCloud backup is preserved by default to allow wallet recovery
@@ -153,6 +223,7 @@ export const deleteWalletData = async (clearICloudBackup = false): Promise<boole
       // Wallet data
       SecureStore.deleteItemAsync(SECURE_KEYS.MNEMONIC),
       SecureStore.deleteItemAsync(SECURE_KEYS.CURRENT_ACCOUNT),
+      SecureStore.deleteItemAsync(SECURE_KEYS.CACHED_ADDRESSES),
 
       // PIN and authentication
       SecureStore.deleteItemAsync(SECURE_KEYS.PIN),

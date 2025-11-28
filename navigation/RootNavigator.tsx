@@ -11,6 +11,7 @@ import AuthStack from './AuthStack';
 import MainTabs from './MainTabs';
 import SendNavigator from './SendNavigator';
 import PinSetupScreenComponent from '../screens/auth/PinSetupScreen';
+import LockScreen from '../screens/auth/LockScreen';
 import PasskeyMigrationModal from '../components/PasskeyMigrationModal';
 import MutinynetBanner from '../components/MutinynetBanner';
 import { withErrorBoundary } from '../components/withErrorBoundary';
@@ -64,7 +65,7 @@ function onNavigationStateChange(): void {
 }
 
 export default function RootNavigator(): React.JSX.Element {
-  const { shouldShowAuth, shouldShowPinOverlay } = useNavigationState();
+  const { shouldShowAuth, shouldShowPinOverlay, shouldShowLockOverlay } = useNavigationState();
 
   const {
     isBiometricSupported,
@@ -115,6 +116,11 @@ export default function RootNavigator(): React.JSX.Element {
   const handleAuthenticateUser = useCallback(async () => {
     await authenticateUser();
   }, [authenticateUser]);
+
+  // Handle successful authentication from lock overlay
+  const handleLockScreenAuthenticated = useCallback(() => {
+    setIsAuthenticated(true);
+  }, [setIsAuthenticated]);
 
   // Set up app lifecycle (inactivity timer, app state changes)
   const { resetInactivityTimer } = useAppLifecycle({
@@ -187,6 +193,18 @@ export default function RootNavigator(): React.JSX.Element {
           </View>
         )}
 
+        {/* Lock Screen Overlay - keeps MainTabs mounted for instant unlock */}
+        {shouldShowLockOverlay && (
+          <View style={styles.lockOverlay}>
+            <MutinynetBanner />
+            <LockScreen
+              onAuthenticated={handleLockScreenAuthenticated}
+              showFaceIdButton={biometricEnabled && isBiometricSupported}
+              onFaceIdPress={handleAuthenticateUser}
+            />
+          </View>
+        )}
+
         {/* Passkey Migration Modal */}
         {showPasskeyMigrationModal && passkeyMigrationData && (
           <PasskeyMigrationModal
@@ -224,6 +242,15 @@ const styles = StyleSheet.create({
     bottom: 0,
     backgroundColor: COLORS.DARK_BG,
     zIndex: 1000,
+  },
+  lockOverlay: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
+    bottom: 0,
+    backgroundColor: COLORS.DARK_BG,
+    zIndex: 900,
   },
   loadingOverlay: {
     position: 'absolute',

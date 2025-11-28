@@ -49,10 +49,7 @@ export type WalletStackParamList = {
   VaultDetail: undefined;
   ReceiveQR: { addressType: 'segwit' | 'taproot' };
   CashuReceive: { token?: string };
-  CashuSend: { amount?: number };
   RecoverMint: undefined;
-  TurboHistory: undefined;
-  TurboQRCode: undefined;
   Preferences: undefined;
   Security: undefined;
   Advanced: undefined;

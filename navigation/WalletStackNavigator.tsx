@@ -11,10 +11,7 @@ import AssetDetailScreenComponent from '../screens/wallet/AssetDetailScreen';
 import VaultDetailScreenComponent from '../screens/wallet/VaultDetailScreen';
 import ReceiveQRScreenComponent from '../screens/wallet/ReceiveQRScreen';
 import CashuReceiveScreenComponent from '../screens/cashu/CashuReceiveScreen';
-import CashuSendScreenComponent from '../screens/cashu/CashuSendScreen';
 import RecoverMintScreenComponent from '../screens/wallet/RecoverMintScreen';
-import TurboHistoryScreenComponent from '../screens/settings/TurboHistoryScreen';
-import TurboQRCodeScreenComponent from '../screens/settings/TurboQRCodeScreen';
 import CashuSettingsScreenComponent from '../screens/settings/CashuSettingsScreen';
 import AboutScreenComponent from '../screens/settings/AboutScreen';
 import PreferencesScreenComponent from '../screens/settings/PreferencesScreen';
@@ -54,24 +51,9 @@ const CashuReceiveScreen: AnyComponent = withErrorBoundary(CashuReceiveScreenCom
   fallbackMessage: 'Unable to receive ecash. Please try again.',
 });
 
-const CashuSendScreen: AnyComponent = withErrorBoundary(CashuSendScreenComponent, {
-  boundaryName: 'CashuSendScreen',
-  fallbackMessage: 'Unable to send ecash. Please try again.',
-});
-
 const RecoverMintScreen: AnyComponent = withErrorBoundary(RecoverMintScreenComponent, {
   boundaryName: 'RecoverMintScreen',
   fallbackMessage: 'Unable to recover from mint. Please try again.',
-});
-
-const TurboHistoryScreen: AnyComponent = withErrorBoundary(TurboHistoryScreenComponent, {
-  boundaryName: 'TurboHistoryScreen',
-  fallbackMessage: 'Unable to load transaction history. Please try again.',
-});
-
-const TurboQRCodeScreen: AnyComponent = withErrorBoundary(TurboQRCodeScreenComponent, {
-  boundaryName: 'TurboQRCodeScreen',
-  fallbackMessage: 'Unable to show QR code. Please try again.',
 });
 
 const CashuSettingsScreen: AnyComponent = withErrorBoundary(CashuSettingsScreenComponent, {
@@ -226,32 +208,8 @@ export default function WalletStackNavigator(): React.JSX.Element {
         }}
       />
       <Stack.Screen
-        name="CashuSend"
-        component={CashuSendScreen}
-        options={{
-          gestureEnabled: true,
-          gestureDirection: 'horizontal',
-        }}
-      />
-      <Stack.Screen
         name="RecoverMint"
         component={RecoverMintScreen}
-        options={{
-          gestureEnabled: true,
-          gestureDirection: 'horizontal',
-        }}
-      />
-      <Stack.Screen
-        name="TurboHistory"
-        component={TurboHistoryScreen}
-        options={{
-          gestureEnabled: true,
-          gestureDirection: 'horizontal',
-        }}
-      />
-      <Stack.Screen
-        name="TurboQRCode"
-        component={TurboQRCodeScreen}
         options={{
           gestureEnabled: true,
           gestureDirection: 'horizontal',

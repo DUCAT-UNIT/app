@@ -67,6 +67,7 @@ function renderHook(hook, initialProps) {
 
 describe('useTransactionHistoryData', () => {
   const mockFetchTransactionHistory = jest.fn();
+  const mockFetchEcashTokens = jest.fn();
   const mockSegwitAddress = 'bc1qtest';
   const mockTaprootAddress = 'bc1ptest';
 
@@ -77,6 +78,14 @@ describe('useTransactionHistoryData', () => {
       transactionHistory: [],
       loadingTransactionHistory: false,
       fetchTransactionHistory: mockFetchTransactionHistory,
+    });
+
+    // Mock useEcashTokens - pre-loaded ecash tokens from context
+    WalletDataContext.useEcashTokens.mockReturnValue({
+      ecashTokens: [],
+      loadingEcashTokens: false,
+      fetchEcashTokens: mockFetchEcashTokens,
+      resetEcashTokens: jest.fn(),
     });
 
     transactionHistoryService.calculateTransactionAmount.mockReturnValue({
@@ -432,38 +441,23 @@ describe('useTransactionHistoryData', () => {
       jest.clearAllMocks();
     });
 
-    it('should load ecash tokens when sheet opens and not in advanced mode', async () => {
-      const mockSentLockedTokens = jest.requireMock('../../services/cashu/cashuLockedTokensService').getSentLockedTokens;
-      const mockGetReceivedTokens = jest.requireMock('../../services/cashu/cashuLockedTokensService').getReceivedTokens;
-
-      mockSentLockedTokens.mockResolvedValue([
-        { id: 'token1', token: 'cashuAbc123', amount: 10000, timestamp: 2000 },
-      ]);
-      mockGetReceivedTokens.mockResolvedValue([
-        { id: 'token2', token: 'cashuDef456', amount: 5000, timestamp: 3000, claimed: true },
-      ]);
-
-      const mockDecodeToken = jest.fn().mockReturnValue({ proofs: [{ id: 'proof1' }] });
-      const mockCheckProofsSpent = jest.fn().mockResolvedValue({ states: [{ state: 'UNSPENT' }] });
-      const mockUpdateTokenClaimedStatus = jest.fn().mockResolvedValue(undefined);
-
-      jest.doMock('../../services/cashu/crypto', () => ({
-        decodeToken: mockDecodeToken,
-      }));
-      jest.doMock('../../services/cashu/cashuMintClient', () => ({
-        checkProofsSpent: mockCheckProofsSpent,
-      }));
-      jest.doMock('../../services/cashu/cashuLockedTokensService', () => ({
-        getSentLockedTokens: mockSentLockedTokens,
-        getReceivedTokens: mockGetReceivedTokens,
-        updateTokenClaimedStatus: mockUpdateTokenClaimedStatus,
-        subscribeToTokenChanges: jest.fn(() => jest.fn()),
-      }));
-
+    it('should use pre-loaded ecash tokens from context when sheet opens', async () => {
+      // Now ecash tokens are pre-loaded from context, not fetched on demand
       WalletDataContext.useTransactionHistory.mockReturnValue({
         transactionHistory: [],
         loadingTransactionHistory: false,
         fetchTransactionHistory: mockFetchTransactionHistory,
+      });
+
+      // Mock pre-loaded ecash tokens from context
+      WalletDataContext.useEcashTokens.mockReturnValue({
+        ecashTokens: [
+          { id: 'token1', token: 'cashuAbc123', amount: 10000, timestamp: 2000, claimed: false },
+          { id: 'token2', token: 'cashuDef456', amount: 5000, timestamp: 3000, claimed: true, sender: 'someone' },
+        ],
+        loadingEcashTokens: false,
+        fetchEcashTokens: mockFetchEcashTokens,
+        resetEcashTokens: jest.fn(),
       });
 
       const { result, rerender } = renderHook(
@@ -471,16 +465,17 @@ describe('useTransactionHistoryData', () => {
         { showHistorySheet: false, segwitAddress: mockSegwitAddress, taprootAddress: mockTaprootAddress }
       );
 
-      // Open sheet to trigger ecash loading
+      // Open sheet to trigger background refresh
       rerender({ showHistorySheet: true, segwitAddress: mockSegwitAddress, taprootAddress: mockTaprootAddress });
 
       await act(async () => {
         await Promise.resolve();
-        await Promise.resolve();
-        await Promise.resolve();
       });
 
-      expect(mockSentLockedTokens).toHaveBeenCalledWith(mockTaprootAddress);
+      // Should call fetchEcashTokens for background refresh when sheet opens
+      expect(mockFetchEcashTokens).toHaveBeenCalled();
+      // Should include pre-loaded ecash tokens in display
+      expect(result.current.displayTransactions.length).toBeGreaterThan(0);
     });
 
     it('should handle token with cached claimed status', async () => {
@@ -967,18 +962,9 @@ describe('useTransactionHistoryData', () => {
       jest.useRealTimers();
     });
 
-    it('should debounce token change subscription callbacks', async () => {
-      const mockSubscribe = jest.requireMock('../../services/cashu/cashuLockedTokensService').subscribeToTokenChanges;
-      let subscriptionCallback;
-      mockSubscribe.mockImplementation((cb) => {
-        subscriptionCallback = cb;
-        return jest.fn(); // unsubscribe
-      });
-
-      const mockSentLockedTokens = jest.requireMock('../../services/cashu/cashuLockedTokensService').getSentLockedTokens;
-      const mockGetReceivedTokens = jest.requireMock('../../services/cashu/cashuLockedTokensService').getReceivedTokens;
-      mockSentLockedTokens.mockResolvedValue([]);
-      mockGetReceivedTokens.mockResolvedValue([]);
+    it('should trigger background refresh when sheet opens', async () => {
+      // Token subscription is now handled in WalletDataContext, not in this hook
+      // This hook uses pre-loaded tokens from context and triggers background refresh
 
       WalletDataContext.useTransactionHistory.mockReturnValue({
         transactionHistory: [],
@@ -986,34 +972,29 @@ describe('useTransactionHistoryData', () => {
         fetchTransactionHistory: mockFetchTransactionHistory,
       });
 
+      WalletDataContext.useEcashTokens.mockReturnValue({
+        ecashTokens: [],
+        loadingEcashTokens: false,
+        fetchEcashTokens: mockFetchEcashTokens,
+        resetEcashTokens: jest.fn(),
+      });
+
       const { rerender } = renderHook(
         useTransactionHistoryData,
         { showHistorySheet: false, segwitAddress: mockSegwitAddress, taprootAddress: mockTaprootAddress }
       );
 
-      // Open sheet to subscribe
+      // Open sheet to trigger background refresh
       rerender({ showHistorySheet: true, segwitAddress: mockSegwitAddress, taprootAddress: mockTaprootAddress });
 
       await act(async () => {
         await Promise.resolve();
       });
 
-      // Trigger multiple token changes rapidly
-      if (subscriptionCallback) {
-        act(() => {
-          subscriptionCallback();
-          subscriptionCallback();
-          subscriptionCallback();
-        });
-
-        // Advance timers to trigger debounce
-        act(() => {
-          jest.advanceTimersByTime(300);
-        });
-      }
-
-      // Should have subscribed
-      expect(mockSubscribe).toHaveBeenCalled();
+      // Should call fetchEcashTokens for background refresh
+      expect(mockFetchEcashTokens).toHaveBeenCalled();
+      // Should also fetch transaction history
+      expect(mockFetchTransactionHistory).toHaveBeenCalled();
     });
   });
 });
