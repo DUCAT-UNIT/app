@@ -1,7 +1,7 @@
 /**
  * VaultHealthGauge Component
  * Displays a semicircular gauge showing vault health status
- * Ported from frontend web implementation
+ * Matches storybook design with centered gauge and stats below
  */
 
 import React, { useMemo, memo } from 'react';
@@ -9,8 +9,6 @@ import { View, Text, StyleSheet, TouchableOpacity } from 'react-native';
 import Svg, { Path, Circle, Text as SvgText, TSpan } from 'react-native-svg';
 import { COLORS } from '../../theme';
 import Icon from '../icons';
-import { VaultHealthChartView } from '../vaultDetail/VaultHealthChartView';
-import type { VaultHistoryTransaction } from '../../services/vaultService';
 import { formatBalance, formatFiat } from '../../utils/formatters';
 
 // Constants
@@ -130,11 +128,7 @@ export interface VaultHealthGaugeProps {
   onRepayPress?: () => void;
   onDepositPress?: () => void;
   onWithdrawPress?: () => void;
-  transactions?: VaultHistoryTransaction[];
-  onHighlightEvent?: (eventDate: number | null) => void;
-  onLockFilter?: (eventDate: number | null) => void;
-  onScrollEnable?: (enabled: boolean) => void;
-  highlightedEventDate?: number | null;
+  onChartPress?: () => void;
 }
 
 export const VaultHealthGauge = memo(function VaultHealthGauge({
@@ -146,11 +140,7 @@ export const VaultHealthGauge = memo(function VaultHealthGauge({
   onRepayPress,
   onDepositPress,
   onWithdrawPress,
-  transactions = [],
-  onHighlightEvent,
-  onLockFilter,
-  onScrollEnable,
-  highlightedEventDate,
+  onChartPress,
 }: VaultHealthGaugeProps): React.JSX.Element {
   // Memoize liquidation price calculation
   const liquidationPrice = useMemo(() =>
@@ -212,59 +202,20 @@ export const VaultHealthGauge = memo(function VaultHealthGauge({
 
   return (
     <View style={styles.container}>
-      {/* Card Container */}
-      <View style={styles.card}>
-        {/* Main row: Left column (liquidation) | Right area (gauge) */}
-        <View style={styles.mainRow}>
-          {/* Left Column - Collateral, Debt, Liquidation */}
-          <View style={styles.leftColumn}>
-            {/* Row 1: Collateral */}
-            <View style={styles.statContainer}>
-              <Text style={styles.statLabel}>Collateral</Text>
-              <View style={styles.statValueRow}>
-                <Icon name="btc_symbol" size={14} color={COLORS.WHITE} style={styles.statIcon} />
-                <Text style={styles.statValue}>
-                  {formatBalance(totalCollateral)}
-                </Text>
-              </View>
-            </View>
+      {/* Gauge Container with Chart Button */}
+      <View style={styles.gaugeContainer}>
+        {/* Chart button - top right */}
+        {onChartPress && (
+          <TouchableOpacity style={styles.chartButton} onPress={onChartPress} activeOpacity={0.7}>
+            <Icon name="chart" size={20} color={COLORS.WHITE} />
+          </TouchableOpacity>
+        )}
 
-            {/* Separator 1 */}
-            <View style={styles.statSeparator} />
-
-            {/* Row 2: Total Debt */}
-            <View style={styles.statContainer}>
-              <Text style={styles.statLabel}>Total Debt</Text>
-              <View style={styles.statValueRow}>
-                <Icon name="unit_symbol" size={14} color={COLORS.WHITE} style={styles.statIcon} />
-                <Text style={styles.statValue}>
-                  {formatFiat(totalDebt)}
-                </Text>
-              </View>
-            </View>
-
-            {/* Separator 2 */}
-            <View style={styles.statSeparator} />
-
-            {/* Row 3: Liquidation Price */}
-            <View style={styles.statContainer}>
-              <Text style={styles.statLabel}>Liquidation</Text>
-              <Text style={styles.statValue}>
-                ${formatFiat(liquidationPrice, 2)}
-              </Text>
-            </View>
-          </View>
-
-          {/* Vertical Divider */}
-          <View style={styles.verticalDivider} />
-
-          {/* Gauge - takes up remaining space */}
-          <View style={styles.gaugeContainer}>
-            <Svg
-              width="100%"
-              height="100%"
-              viewBox={`-10 -10 ${SVG_SIZE + 20} ${(SVG_SIZE + 20) * 0.8}`}
-            >
+        <Svg
+          width="100%"
+          height="100%"
+          viewBox={`-10 -10 ${SVG_SIZE + 20} ${(SVG_SIZE + 20) * 0.75}`}
+        >
           {/* Red path (135% - 160%) */}
           <Path
             d="M21.7939 218.748C18.2888 220.422 14.0739 218.943 12.5684 215.362C4.08736 195.191 0.173205 173.361 1.14536 151.442C2.11751 129.524 7.94899 108.126 18.1826 88.7844C19.9991 85.3511 24.3284 84.2514 27.6716 86.229V86.229C31.0147 88.2066 32.1039 92.5122 30.3045 95.9545C21.2365 113.302 16.0676 132.453 15.1977 152.065C14.3279 171.677 17.7809 191.212 25.2775 209.294C26.7651 212.882 25.299 217.074 21.7939 218.748V218.748Z"
@@ -364,58 +315,45 @@ export const VaultHealthGauge = memo(function VaultHealthGauge({
           >
             <TSpan>300%</TSpan>
           </SvgText>
-          </Svg>
+        </Svg>
+      </View>
+
+      {/* Stats Row - Debt | Collateral */}
+      <View style={styles.statsRow}>
+        <View style={styles.statItem}>
+          <Text style={styles.statLabel}>Debt</Text>
+          <View style={styles.statValueRow}>
+            <Icon name="unit_symbol" size={16} color={COLORS.WHITE} />
+            <Text style={styles.statValue}>{formatFiat(totalDebt)}</Text>
           </View>
         </View>
+        <View style={styles.statDivider} />
+        <View style={styles.statItem}>
+          <Text style={styles.statLabel}>Collateral</Text>
+          <View style={styles.statValueRow}>
+            <Icon name="btc_symbol" size={16} color={COLORS.WHITE} />
+            <Text style={styles.statValue}>{formatBalance(totalCollateral)}</Text>
+          </View>
+        </View>
+      </View>
 
-        {/* Horizontal Divider */}
-        <View style={styles.horizontalDivider} />
-
-        {/* UNIT Capacity Section */}
-        {(() => {
-          // totalDebt is already in display units (UNIT), no conversion needed
-          const mintedUnit = totalDebt;
-          // Calculate max mintable UNIT at 150% collateral ratio
-          const maxMintableUnit = totalCollateral > 0 && currentPrice > 0
-            ? (totalCollateral * currentPrice) / 1.5
-            : 0;
-          const availableToMint = Math.max(0, maxMintableUnit - mintedUnit);
-          const mintedPercentage = maxMintableUnit > 0
-            ? Math.min((mintedUnit / maxMintableUnit) * 100, 100)
-            : 0;
-
-          if (maxMintableUnit === 0) return null;
-
-          return (
-            <View style={styles.capacitySection}>
-              <View style={styles.capacityLabelsRow}>
-                <View style={styles.capacityLabelGroup}>
-                  <Text style={styles.capacityLabel}>Minted</Text>
-                  <View style={styles.capacityValueRow}>
-                    <Icon name="unit_symbol" size={12} color={COLORS.PRIMARY_BLUE} style={styles.capacityIcon} />
-                    <Text style={[styles.capacityValue, { color: COLORS.PRIMARY_BLUE }]}>{formatFiat(mintedUnit)}</Text>
-                  </View>
-                </View>
-                <View style={[styles.capacityLabelGroup, styles.capacityRightAlign]}>
-                  <Text style={styles.capacityLabel}>Available</Text>
-                  <View style={styles.capacityValueRow}>
-                    <Icon name="unit_symbol" size={12} color={COLORS.SECONDARY_TEXT} style={styles.capacityIcon} />
-                    <Text style={[styles.capacityValue, { color: COLORS.SECONDARY_TEXT }]}>{formatFiat(availableToMint)}</Text>
-                  </View>
-                </View>
-              </View>
-              <View style={styles.capacityBarContainer}>
-                <View style={styles.capacityBarBackground}>
-                  <View style={[styles.capacityBarFill, { width: `${mintedPercentage}%` }]} />
-                </View>
-              </View>
-            </View>
-          );
-        })()}
+      {/* Liquidation Price */}
+      <View style={styles.liquidationRow}>
+        <Text style={styles.liquidationLabel}>Liquidation Price</Text>
+        <Text style={[styles.liquidationValue, { color: titleColor }]}>
+          ${formatFiat(liquidationPrice, 0)}
+        </Text>
       </View>
 
       {/* Action Buttons */}
       <View style={styles.actionsRow}>
+        <TouchableOpacity style={styles.actionButton} onPress={onDepositPress}>
+          <View style={styles.actionButtonIcon}>
+            <Text style={styles.buttonIcon}>+</Text>
+          </View>
+          <Text style={styles.actionButtonLabel}>Deposit</Text>
+        </TouchableOpacity>
+
         <TouchableOpacity style={styles.actionButton} onPress={onBorrowPress}>
           <View style={styles.actionButtonIcon}>
             <Text style={styles.buttonIcon}>↑</Text>
@@ -430,32 +368,13 @@ export const VaultHealthGauge = memo(function VaultHealthGauge({
           <Text style={styles.actionButtonLabel}>Repay</Text>
         </TouchableOpacity>
 
-        <TouchableOpacity style={styles.actionButton} onPress={onDepositPress}>
-          <View style={styles.actionButtonIcon}>
-            <Text style={styles.buttonIcon}>+</Text>
-          </View>
-          <Text style={styles.actionButtonLabel}>Deposit</Text>
-        </TouchableOpacity>
-
         <TouchableOpacity style={styles.actionButton} onPress={onWithdrawPress}>
           <View style={styles.actionButtonIcon}>
-            <Text style={styles.buttonIcon}>-</Text>
+            <Text style={styles.buttonIcon}>−</Text>
           </View>
           <Text style={styles.actionButtonLabel}>Withdraw</Text>
         </TouchableOpacity>
       </View>
-
-      {/* Health Chart Section */}
-      <VaultHealthChartView
-        transactions={transactions}
-        onHighlightEvent={onHighlightEvent}
-        onLockFilter={onLockFilter}
-        onScrollEnable={onScrollEnable}
-        highlightedEventDate={highlightedEventDate}
-        totalDebt={totalDebt}
-        totalCollateral={totalCollateral}
-        currentPrice={currentPrice}
-      />
     </View>
   );
 });
@@ -463,131 +382,87 @@ export const VaultHealthGauge = memo(function VaultHealthGauge({
 const styles = StyleSheet.create({
   container: {
     width: '100%',
-    paddingHorizontal: 16,
-    paddingVertical: 16,
+    alignItems: 'center',
+    paddingHorizontal: 24,
+    paddingTop: 8,
   },
-  card: {
+  gaugeContainer: {
+    width: '100%',
+    aspectRatio: 1.5,
+    marginBottom: 16,
+    position: 'relative',
+  },
+  chartButton: {
+    position: 'absolute',
+    top: 8,
+    right: 8,
+    width: 36,
+    height: 36,
+    borderRadius: 18,
     backgroundColor: COLORS.VERY_DARK_GRAY,
-    borderRadius: 12,
-    overflow: 'hidden',
+    justifyContent: 'center',
+    alignItems: 'center',
+    zIndex: 10,
   },
-  mainRow: {
+  statsRow: {
     flexDirection: 'row',
     alignItems: 'center',
-  },
-  leftColumn: {
-    flex: 2,
-    paddingLeft: 16,
-    marginVertical: 8,
-    alignSelf: 'stretch',
-  },
-  statContainer: {
-    flex: 1,
-    alignItems: 'flex-start',
     justifyContent: 'center',
+    marginBottom: 16,
   },
-  statSeparator: {
-    height: 1,
-    backgroundColor: COLORS.DARK_GRAY,
-    marginVertical: 4,
-    marginLeft: -16,
+  statItem: {
+    alignItems: 'center',
+    paddingHorizontal: 32,
   },
   statLabel: {
-    fontSize: 11,
+    fontSize: 14,
     color: COLORS.SECONDARY_TEXT,
-    marginBottom: 2,
+    marginBottom: 4,
   },
   statValueRow: {
     flexDirection: 'row',
     alignItems: 'center',
-  },
-  statIcon: {
-    marginRight: 4,
+    gap: 4,
   },
   statValue: {
-    fontSize: 14,
+    fontSize: 20,
     fontWeight: '600',
     color: COLORS.WHITE,
   },
-  verticalDivider: {
+  statDivider: {
     width: 1,
-    backgroundColor: COLORS.DARK_GRAY,
-    alignSelf: 'stretch',
-  },
-  gaugeContainer: {
-    flex: 3,
-    aspectRatio: 1.5,
-    paddingRight: 4,
-    justifyContent: 'center',
-  },
-  horizontalDivider: {
-    height: 1,
+    height: 40,
     backgroundColor: COLORS.DARK_GRAY,
   },
-  capacitySection: {
-    paddingHorizontal: 16,
-    paddingVertical: 12,
-  },
-  capacityLabelsRow: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    marginBottom: 8,
-  },
-  capacityLabelGroup: {
-    alignItems: 'flex-start',
-  },
-  capacityRightAlign: {
-    alignItems: 'flex-end',
-  },
-  capacityLabel: {
-    fontSize: 11,
-    color: COLORS.SECONDARY_TEXT,
-    marginBottom: 2,
-  },
-  capacityValueRow: {
-    flexDirection: 'row',
+  liquidationRow: {
     alignItems: 'center',
+    marginBottom: 24,
   },
-  capacityIcon: {
-    marginRight: 4,
-  },
-  capacityValue: {
+  liquidationLabel: {
     fontSize: 14,
+    color: COLORS.SECONDARY_TEXT,
+    marginBottom: 4,
+  },
+  liquidationValue: {
+    fontSize: 20,
     fontWeight: '600',
-  },
-  capacityBarContainer: {
-    height: 8,
-    borderRadius: 4,
-    overflow: 'hidden',
-  },
-  capacityBarBackground: {
-    flex: 1,
-    backgroundColor: COLORS.DARK_GRAY,
-    borderRadius: 4,
-  },
-  capacityBarFill: {
-    height: '100%',
-    backgroundColor: COLORS.PRIMARY_BLUE,
-    borderRadius: 4,
   },
   actionsRow: {
     flexDirection: 'row',
     justifyContent: 'center',
-    paddingVertical: 13,
     gap: 12,
   },
   actionButton: {
     alignItems: 'center',
-    minWidth: 62,
   },
   actionButtonIcon: {
     width: 50,
     height: 50,
     borderRadius: 8,
-    backgroundColor: '#DDDDDD',
+    backgroundColor: COLORS.WHITE,
     justifyContent: 'center',
     alignItems: 'center',
-    marginBottom: 2,
+    marginBottom: 4,
   },
   buttonIcon: {
     fontSize: 24,
@@ -595,7 +470,7 @@ const styles = StyleSheet.create({
     fontWeight: '200',
   },
   actionButtonLabel: {
-    fontSize: 13,
+    fontSize: 12,
     color: COLORS.WHITE,
     fontWeight: '600',
   },

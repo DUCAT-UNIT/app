@@ -4,16 +4,18 @@
  * Shows vault health ratio over time with event markers
  */
 
-import React, { useMemo, useState, useCallback, useEffect, memo } from 'react';
-import { View, Text, StyleSheet, Dimensions, TouchableOpacity, PanResponder, GestureResponderEvent } from 'react-native';
+import React, { useMemo, useState, useCallback, useEffect, memo, useRef } from 'react';
+import { View, Text, StyleSheet, Dimensions, TouchableOpacity, PanResponder, GestureResponderEvent, Animated, ScrollView } from 'react-native';
 import Svg, { Path, Line, Circle, Defs, LinearGradient, Stop, G } from 'react-native-svg';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { COLORS } from '../../theme';
 import { API, API_KEYS } from '../../utils/constants';
 import { VaultChartSkeleton } from './VaultSkeleton';
+import Icon from '../icons';
 import type { VaultHistoryTransaction } from '../../services/vaultService';
 
 const { width: SCREEN_WIDTH } = Dimensions.get('window');
+const DRAWER_WIDTH = 280;
 
 type PriceTimeframe = '1D' | '1W' | '1M' | '1Y';
 const TIMEFRAMES: PriceTimeframe[] = ['1D', '1W', '1M', '1Y'];
@@ -247,11 +249,16 @@ export const VaultHealthChartView = memo(function VaultHealthChartView({
   const [lockedRefLineIndex, setLockedRefLineIndex] = useState<number | null>(null);
   const [lockedScrubData, setLockedScrubData] = useState<{ health: number | null; x: number | null }>({ health: null, x: null });
 
+  // Drawer animation and side tracking
+  const drawerAnim = useRef(new Animated.Value(DRAWER_WIDTH)).current;
+  const [drawerSide, setDrawerSide] = useState<'left' | 'right' | null>(null);
+
   // Clear locked state when parent clears the highlight (e.g., from VaultTabs clear button)
   useEffect(() => {
     if (highlightedEventDate === null && lockedRefLineIndex !== null) {
       setLockedRefLineIndex(null);
       setLockedScrubData({ health: null, x: null });
+      // Drawer will close via the lockedRefLineIndex useEffect
     }
   }, [highlightedEventDate, lockedRefLineIndex]);
 
@@ -731,6 +738,84 @@ export const VaultHealthChartView = memo(function VaultHealthChartView({
     return 'rgba(89, 170, 138, 0.1)';
   }, [displayHealth]);
 
+  // Animate drawer when lock state changes
+  useEffect(() => {
+    if (lockedRefLineIndex !== null && referenceLines[lockedRefLineIndex]) {
+      // Determine side based on event position
+      const evtX = xScale(referenceLines[lockedRefLineIndex].date);
+      const isLeft = evtX > chartWidth / 2;
+      const hiddenValue = isLeft ? -DRAWER_WIDTH : DRAWER_WIDTH;
+
+      // Set position and side synchronously, then animate
+      drawerAnim.setValue(hiddenValue);
+      setDrawerSide(isLeft ? 'left' : 'right');
+
+      Animated.spring(drawerAnim, {
+        toValue: 0,
+        useNativeDriver: true,
+        tension: 65,
+        friction: 11,
+      }).start();
+    } else if (drawerSide !== null) {
+      // Closing: animate to hidden position based on current side
+      const hiddenValue = drawerSide === 'left' ? -DRAWER_WIDTH : DRAWER_WIDTH;
+      Animated.spring(drawerAnim, {
+        toValue: hiddenValue,
+        useNativeDriver: true,
+        tension: 65,
+        friction: 11,
+      }).start(() => setDrawerSide(null));
+    }
+  }, [lockedRefLineIndex]);
+
+  // Find transactions for locked event
+  const lockedEventTransactions = useMemo(() => {
+    if (lockedRefLineIndex === null || !referenceLines[lockedRefLineIndex]) return [];
+
+    const refLine = referenceLines[lockedRefLineIndex];
+    const { unitLength } = INTERVAL_CONFIG[selectedTimeframe];
+
+    // Bucket end is refLine.date (in ms), convert to seconds
+    const bucketEnd = refLine.date / 1000;
+    const bucketStart = bucketEnd - unitLength + 1;
+
+    // Find transactions within this bucket
+    return transactions.filter(tx =>
+      tx.timestamp >= bucketStart && tx.timestamp <= bucketEnd
+    );
+  }, [lockedRefLineIndex, referenceLines, transactions, selectedTimeframe]);
+
+  // Format helpers for drawer
+  const formatAction = (action: string) => {
+    return action.charAt(0).toUpperCase() + action.slice(1);
+  };
+
+  const formatDate = (timestamp: number) => {
+    const date = new Date(timestamp * 1000);
+    return date.toLocaleDateString('en-US', {
+      month: 'short',
+      day: 'numeric',
+      hour: '2-digit',
+      minute: '2-digit',
+    });
+  };
+
+  const formatBtc = (sats: number) => {
+    return (sats / 100_000_000).toFixed(8);
+  };
+
+  const formatUnit = (cents: number) => {
+    return (cents / 100).toFixed(2);
+  };
+
+  // Close drawer handler
+  const closeDrawer = useCallback(() => {
+    setLockedRefLineIndex(null);
+    setLockedScrubData({ health: null, x: null });
+    onHighlightEvent?.(null);
+    onLockFilter?.(null);
+  }, [onHighlightEvent, onLockFilter]);
+
   // Loading state - show skeleton
   if (loading) {
     return <VaultChartSkeleton />;
@@ -917,6 +1002,84 @@ export const VaultHealthChartView = memo(function VaultHealthChartView({
           </TouchableOpacity>
         ))}
       </View>
+
+      {/* Transaction Drawer - slides in from opposite side of event */}
+      {drawerSide !== null && (
+        <Animated.View
+          style={[
+            styles.drawer,
+            drawerSide === 'left' ? styles.drawerLeft : styles.drawerRight,
+            { transform: [{ translateX: drawerAnim }] },
+          ]}
+        >
+          {/* Drawer Header with Health Chip */}
+          <View style={styles.drawerHeader}>
+            <View style={styles.drawerHeaderLeft}>
+              <Text style={styles.drawerTitle}>Event Details</Text>
+              {activeRefLine && (() => {
+                // Dynamic chip color based on health change
+                const newVal = activeRefLine.newValue;
+                const chipColor = newVal <= 160 ? '#d04c68' : newVal <= 200 ? '#fde37b' : '#59aa8a';
+                const chipBg = newVal <= 160 ? 'rgba(208, 76, 104, 0.15)' : newVal <= 200 ? 'rgba(253, 227, 123, 0.15)' : 'rgba(89, 170, 138, 0.15)';
+                return (
+                  <View style={[styles.drawerHealthChip, { backgroundColor: chipBg, borderColor: chipColor }]}>
+                    <Text style={[styles.drawerHealthChipText, { color: chipColor }]}>
+                      {activeRefLine.prevValue.toFixed(0)}% → {activeRefLine.newValue.toFixed(0)}%
+                    </Text>
+                  </View>
+                );
+              })()}
+            </View>
+            <TouchableOpacity onPress={closeDrawer} style={styles.drawerCloseBtn}>
+              <Icon name="close" size={20} color={COLORS.WHITE} />
+            </TouchableOpacity>
+          </View>
+
+          {/* Transactions List */}
+          <ScrollView style={styles.drawerTransactions} showsVerticalScrollIndicator={false}>
+            {lockedEventTransactions.length === 0 ? (
+              <Text style={styles.drawerEmptyText}>No transactions found</Text>
+            ) : (
+              lockedEventTransactions.map((tx, i) => {
+                // Determine if this action affects collateral or debt
+                const isCollateralAction = tx.action === 'deposit' || tx.action === 'withdraw' || tx.action === 'open';
+                const isPositive = tx.action === 'deposit' || tx.action === 'borrow' || tx.action === 'open';
+                const amountColor = isPositive ? COLORS.SUCCESS_GREEN : COLORS.RED;
+
+                return (
+                  <View key={i} style={styles.drawerTxItem}>
+                    {/* Icon */}
+                    <View style={styles.drawerTxIcon}>
+                      <Icon name="vault_logo" size={36} color={COLORS.WHITE} />
+                    </View>
+
+                    {/* Content */}
+                    <View style={styles.drawerTxContent}>
+                      <View style={styles.drawerTxTopRow}>
+                        <Text style={styles.drawerTxAction}>{formatAction(tx.action)}</Text>
+                        <View style={styles.drawerTxAmountRow}>
+                          <Icon
+                            name={isCollateralAction ? 'btc_symbol' : 'unit_symbol'}
+                            size={12}
+                            color={amountColor}
+                          />
+                          <Text style={[styles.drawerTxAmount, { color: amountColor }]}>
+                            {isCollateralAction
+                              ? formatBtc(tx.vault_amount)
+                              : formatUnit(tx.amount_borrowed)
+                            }
+                          </Text>
+                        </View>
+                      </View>
+                      <Text style={styles.drawerTxDate}>{formatDate(tx.timestamp)}</Text>
+                    </View>
+                  </View>
+                );
+              })
+            )}
+          </ScrollView>
+        </Animated.View>
+      )}
     </View>
   );
 });
@@ -928,6 +1091,7 @@ const styles = StyleSheet.create({
     minHeight: 200, // Fixed height to prevent layout jumping
     marginHorizontal: -16, // Extend chart to full width
     paddingHorizontal: 0,
+    overflow: 'hidden', // Hide drawer when off-screen
   },
   chartWrapper: {
     position: 'relative',
@@ -980,6 +1144,119 @@ const styles = StyleSheet.create({
   },
   timeframeTextActive: {
     color: '#fff',
+  },
+  // Drawer styles
+  drawer: {
+    position: 'absolute',
+    top: 0,
+    bottom: 0,
+    width: DRAWER_WIDTH,
+    backgroundColor: COLORS.VERY_DARK_GRAY,
+    paddingTop: 16,
+    paddingHorizontal: 16,
+    shadowColor: '#000',
+    shadowOpacity: 0.25,
+    shadowRadius: 10,
+    elevation: 5,
+  },
+  drawerRight: {
+    right: 0,
+    borderLeftWidth: 1,
+    borderLeftColor: COLORS.DARK_GRAY,
+    shadowOffset: { width: -2, height: 0 },
+  },
+  drawerLeft: {
+    left: 0,
+    borderRightWidth: 1,
+    borderRightColor: COLORS.DARK_GRAY,
+    shadowOffset: { width: 2, height: 0 },
+  },
+  drawerHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'flex-start',
+    marginBottom: 16,
+    paddingBottom: 8,
+    borderBottomWidth: 1,
+    borderBottomColor: COLORS.DARK_GRAY,
+  },
+  drawerHeaderLeft: {
+    flex: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+  },
+  drawerTitle: {
+    fontSize: 16,
+    fontWeight: '600',
+    color: COLORS.WHITE,
+  },
+  drawerHealthChip: {
+    paddingHorizontal: 10,
+    paddingVertical: 4,
+    borderRadius: 12,
+    borderWidth: 1,
+  },
+  drawerHealthChipText: {
+    fontSize: 11,
+    fontWeight: '600',
+  },
+  drawerCloseBtn: {
+    width: 32,
+    height: 32,
+    borderRadius: 16,
+    backgroundColor: COLORS.DARK_GRAY,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  drawerTransactions: {
+    flex: 1,
+  },
+  drawerEmptyText: {
+    fontSize: 14,
+    color: COLORS.SECONDARY_TEXT,
+    textAlign: 'center',
+    marginTop: 32,
+  },
+  drawerTxItem: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingVertical: 8,
+    paddingHorizontal: 8,
+    marginBottom: 8,
+    borderRadius: 12,
+    borderWidth: 1.5,
+    borderColor: COLORS.PRIMARY_BLUE,
+  },
+  drawerTxIcon: {
+    marginRight: 8,
+  },
+  drawerTxContent: {
+    flex: 1,
+  },
+  drawerTxTopRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 4,
+  },
+  drawerTxAction: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: COLORS.WHITE,
+  },
+  drawerTxAmountRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+  },
+  drawerTxAmount: {
+    fontSize: 14,
+    fontWeight: '600',
+  },
+  drawerTxDate: {
+    fontSize: 12,
+    color: COLORS.SECONDARY_TEXT,
   },
 });
 
