@@ -534,17 +534,18 @@ export const FullscreenVaultChart = memo(function FullscreenVaultChart({
     onPanResponderMove: (evt) => {
       const x = evt.nativeEvent.locationX;
 
-      // Update animated position immediately (no render needed)
+      // Update animated position immediately (no render needed) - this is 60fps smooth
       updateAnimatedScrub(x);
 
-      // Throttle state updates for health chip to ~20fps
+      // Throttle state updates for health chip text to ~10fps (100ms)
+      // Visual scrubber is already smooth via native animation, this is just for text
       const now = Date.now();
-      if (now - lastUpdateRef.current < 50) {
+      if (now - lastUpdateRef.current < 100) {
+        // Queue a single update if none pending
         if (!pendingUpdateRef.current) {
           pendingUpdateRef.current = requestAnimationFrame(() => {
             if (isPanningRef.current) {
               setScrubData({ ...scrubDataRef.current });
-              setHoveredRefLineIndex(hoveredRefLineRef.current);
             }
             pendingUpdateRef.current = null;
           });
@@ -553,7 +554,6 @@ export const FullscreenVaultChart = memo(function FullscreenVaultChart({
       }
       lastUpdateRef.current = now;
       setScrubData({ ...scrubDataRef.current });
-      setHoveredRefLineIndex(hoveredRefLineRef.current);
     },
     onPanResponderRelease: () => {
       isPanningRef.current = false;
@@ -787,45 +787,44 @@ export const FullscreenVaultChart = memo(function FullscreenVaultChart({
               </Svg>
 
               {/* Native Animated Scrubber Overlay - for ultra-smooth 60fps scrubbing */}
+              {/* Scrubber Line - positioned via translateX/translateY for native performance */}
               <Animated.View
                 pointerEvents="none"
                 style={[
-                  styles.animatedScrubberContainer,
+                  styles.animatedScrubberLine,
+                  {
+                    height: chartHeight,
+                    opacity: scrubOpacity,
+                    transform: [
+                      { translateX: scrubXAnim },
+                      { translateY: scrubYAnim },
+                    ],
+                    backgroundColor: scrubColorAnim.interpolate({
+                      inputRange: [0, 0.5, 1],
+                      outputRange: ['#d04c68', '#fde37b', '#59aa8a'],
+                    }),
+                  },
+                ]}
+              />
+              {/* Scrubber Dot - separate element with transforms */}
+              <Animated.View
+                pointerEvents="none"
+                style={[
+                  styles.animatedScrubberDotOuter,
                   {
                     opacity: scrubOpacity,
-                    transform: [{ translateX: scrubXAnim }],
+                    transform: [
+                      { translateX: Animated.subtract(scrubXAnim, 6) },
+                      { translateY: Animated.subtract(scrubYAnim, 6) },
+                    ],
+                    backgroundColor: scrubColorAnim.interpolate({
+                      inputRange: [0, 0.5, 1],
+                      outputRange: ['#d04c68', '#fde37b', '#59aa8a'],
+                    }),
                   },
                 ]}
               >
-                {/* Scrubber Line */}
-                <Animated.View
-                  style={[
-                    styles.animatedScrubberLine,
-                    {
-                      top: scrubYAnim,
-                      height: Animated.subtract(chartHeight, scrubYAnim),
-                      backgroundColor: scrubColorAnim.interpolate({
-                        inputRange: [0, 0.5, 1],
-                        outputRange: ['#d04c68', '#fde37b', '#59aa8a'],
-                      }),
-                    },
-                  ]}
-                />
-                {/* Scrubber Dot */}
-                <Animated.View
-                  style={[
-                    styles.animatedScrubberDotOuter,
-                    {
-                      top: Animated.subtract(scrubYAnim, 6),
-                      backgroundColor: scrubColorAnim.interpolate({
-                        inputRange: [0, 0.5, 1],
-                        outputRange: ['#d04c68', '#fde37b', '#59aa8a'],
-                      }),
-                    },
-                  ]}
-                >
-                  <View style={styles.animatedScrubberDotInner} />
-                </Animated.View>
+                <View style={styles.animatedScrubberDotInner} />
               </Animated.View>
             </View>
           )}
@@ -997,21 +996,17 @@ const styles = StyleSheet.create({
     position: 'relative',
   },
   // Native animated scrubber styles for ultra-smooth 60fps performance
-  animatedScrubberContainer: {
-    position: 'absolute',
-    top: 0,
-    left: -0.5, // Center the 1px line on the X coordinate
-    width: 1,
-    height: '100%',
-  },
   animatedScrubberLine: {
     position: 'absolute',
+    top: 0,
     left: 0,
     width: 1,
+    // height set dynamically
   },
   animatedScrubberDotOuter: {
     position: 'absolute',
-    left: -5.5, // Center the 12px dot on the 1px line: (12 - 1) / 2 = 5.5
+    top: 0,
+    left: 0,
     width: 12,
     height: 12,
     borderRadius: 6,
