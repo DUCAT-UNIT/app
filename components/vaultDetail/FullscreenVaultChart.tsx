@@ -655,8 +655,23 @@ export const FullscreenVaultChart = memo(function FullscreenVaultChart({
     });
   };
 
-  const formatBtc = (sats: number) => (sats / 100_000_000).toFixed(8);
-  const formatUnit = (cents: number) => (cents / 100).toFixed(2);
+  // Format BTC - trim trailing zeros, max 8 decimals
+  const formatBtc = (sats: number) => {
+    const btc = sats / 100_000_000;
+    // Show up to 8 decimals but trim trailing zeros
+    const formatted = btc.toFixed(8).replace(/\.?0+$/, '');
+    // Ensure at least some decimals for small values
+    return formatted.includes('.') ? formatted : `${formatted}.0`;
+  };
+
+  // Format USD - with commas and 2 decimal places
+  const formatUnit = (cents: number) => {
+    const dollars = cents / 100;
+    return dollars.toLocaleString('en-US', {
+      minimumFractionDigits: 2,
+      maximumFractionDigits: 2,
+    });
+  };
 
   // Close drawer
   const closeDrawer = useCallback(() => {
