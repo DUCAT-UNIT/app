@@ -61,6 +61,12 @@ interface AssetPriceChartProps {
   onTimeframeChange: (timeframe: PriceTimeframe) => void;
   onRetry: () => void;
   currentPrice?: number | null;
+  /** Custom width for the chart (defaults to screen width) */
+  width?: number;
+  /** Custom height for the chart (defaults to 143) */
+  height?: number;
+  /** Scale factor for timeframe buttons (defaults to 1) */
+  scale?: number;
 }
 
 // Price chip component - displays current price with chart-matching color
@@ -88,6 +94,9 @@ export const AssetPriceChart = memo(function AssetPriceChart({
   onTimeframeChange,
   onRetry,
   currentPrice,
+  width,
+  height,
+  scale = 1,
 }: AssetPriceChartProps) {
   // State for scrubbed price (when user is dragging on chart)
   const [scrubbedPrice, setScrubbedPrice] = useState<number | null>(null);
@@ -120,7 +129,10 @@ export const AssetPriceChart = memo(function AssetPriceChart({
 
   // Memoize timeframe buttons to prevent re-renders
   const timeframeButtonsNoLoading = useMemo(() => (
-    <View style={styles.timeframeButtons}>
+    <View style={[
+      styles.timeframeButtons,
+      { transform: [{ scale }], transformOrigin: 'top center', height: 44 * scale },
+    ]}>
       {TIMEFRAMES.map((timeframe) => (
         <TimeframeButton
           key={timeframe}
@@ -131,10 +143,13 @@ export const AssetPriceChart = memo(function AssetPriceChart({
         />
       ))}
     </View>
-  ), [selectedTimeframe, timeframeHandlers]);
+  ), [selectedTimeframe, timeframeHandlers, scale]);
 
   const timeframeButtonsWithLoading = useMemo(() => (
-    <View style={styles.timeframeButtons}>
+    <View style={[
+      styles.timeframeButtons,
+      { transform: [{ scale }], transformOrigin: 'top center', height: 44 * scale },
+    ]}>
       {TIMEFRAMES.map((timeframe) => (
         <TimeframeButton
           key={timeframe}
@@ -145,7 +160,7 @@ export const AssetPriceChart = memo(function AssetPriceChart({
         />
       ))}
     </View>
-  ), [selectedTimeframe, priceLoading, timeframeHandlers]);
+  ), [selectedTimeframe, priceLoading, timeframeHandlers, scale]);
 
   // For UNIT, use generated data
   if (assetType === 'UNIT') {
@@ -163,6 +178,8 @@ export const AssetPriceChart = memo(function AssetPriceChart({
             minBoundary={0.5}
             maxBoundary={1.5}
             onScrub={handleScrub}
+            width={width}
+            height={height}
           />
           <PriceChip price={unitDisplayPrice} assetType="UNIT" isPositive={true} />
         </View>
@@ -209,7 +226,7 @@ export const AssetPriceChart = memo(function AssetPriceChart({
           return (
             <>
               <View style={styles.chartWrapper}>
-                <PriceChart data={priceData} isPositive={isPositive} minBoundary={undefined} maxBoundary={undefined} onScrub={handleScrub} />
+                <PriceChart data={priceData} isPositive={isPositive} minBoundary={undefined} maxBoundary={undefined} onScrub={handleScrub} width={width} height={height} />
                 {displayPrice && <PriceChip price={displayPrice} assetType="BTC" isPositive={isPositive} />}
               </View>
               {timeframeButtonsWithLoading}
@@ -233,7 +250,7 @@ const styles = StyleSheet.create({
   priceChip: {
     position: 'absolute',
     top: 8,
-    right: 16,
+    right: 0,
     paddingHorizontal: 10,
     paddingVertical: 4,
     borderRadius: 12,

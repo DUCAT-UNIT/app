@@ -147,4 +147,25 @@ export const NavIcons = {
       />
     </Svg>
   ),
+
+  chart: ({ width, height, color }: { width?: number; height?: number; color?: string }) => (
+    <Svg width={width} height={height} viewBox="0 0 24 24" fill="none">
+      <Path
+        d="M3 20L7 14L11 16L15 10L21 4"
+        fill="none"
+        stroke={color}
+        strokeLinecap="round"
+        strokeLinejoin="round"
+        strokeWidth="1.5"
+      />
+      <Path
+        d="M17 4H21V8"
+        fill="none"
+        stroke={color}
+        strokeLinecap="round"
+        strokeLinejoin="round"
+        strokeWidth="1.5"
+      />
+    </Svg>
+  ),
 };

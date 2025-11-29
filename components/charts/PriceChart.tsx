@@ -17,9 +17,11 @@ interface PriceChartProps {
   minBoundary?: number;
   maxBoundary?: number;
   onScrub?: (price: number | null, timestamp: number | null) => void;
+  width?: number;
+  height?: number;
 }
 
-function PriceChart({ data, isPositive, minBoundary, maxBoundary, onScrub }: PriceChartProps) {
+function PriceChart({ data, isPositive, minBoundary, maxBoundary, onScrub, width, height }: PriceChartProps) {
   // State for scrubber position
   const [scrubX, setScrubX] = useState<number | null>(null);
   const [scrubY, setScrubY] = useState<number | null>(null);
@@ -35,10 +37,11 @@ function PriceChart({ data, isPositive, minBoundary, maxBoundary, onScrub }: Pri
     // Extract prices from the data array
     const prices = data.map(item => item[1]);
 
-    // Chart dimensions
-    const chartWidth = SCREEN_WIDTH;
-    const chartHeight = 143;
-    const padding = { top: 13, right: 0, bottom: 0, left: 0 };
+    // Chart dimensions - use props or defaults
+    const chartWidth = width ?? SCREEN_WIDTH;
+    const chartHeight = height ?? 143;
+    // top padding: chip is ~28px (8px top + 4px padding + 12px font + 4px padding) + 2px gap
+    const padding = { top: 30, right: 0, bottom: 0, left: 0 };
 
     const drawWidth = chartWidth - padding.left - padding.right;
     const drawHeight = chartHeight - padding.top - padding.bottom;
@@ -50,8 +53,9 @@ function PriceChart({ data, isPositive, minBoundary, maxBoundary, onScrub }: Pri
       minPrice = minBoundary;
       maxPrice = maxBoundary;
     } else {
-      minPrice = Math.min(...prices) * 0.995;
-      maxPrice = Math.max(...prices) * 1.005;
+      // Use exact min/max to fill the full chart height
+      minPrice = Math.min(...prices);
+      maxPrice = Math.max(...prices);
     }
     const priceRange = maxPrice - minPrice;
 
@@ -122,7 +126,7 @@ function PriceChart({ data, isPositive, minBoundary, maxBoundary, onScrub }: Pri
       maxPrice,
       priceRange
     };
-  }, [data, minBoundary, maxBoundary]);
+  }, [data, minBoundary, maxBoundary, width, height]);
 
   // Calculate price and Y position from X position
   const getPriceAtX = useCallback((x: number) => {
@@ -198,7 +202,7 @@ function PriceChart({ data, isPositive, minBoundary, maxBoundary, onScrub }: Pri
   }
 
   return (
-    <View style={styles.container} {...panResponder.panHandlers}>
+    <View style={[styles.container, { height: chartPaths.chartHeight, width: chartPaths.chartWidth }]} {...panResponder.panHandlers}>
       <Svg width={chartPaths.chartWidth} height={chartPaths.chartHeight}>
         <Defs>
           <LinearGradient id="chartGradient" x1="0%" y1="0%" x2="0%" y2="100%">
@@ -260,13 +264,15 @@ function PriceChart({ data, isPositive, minBoundary, maxBoundary, onScrub }: Pri
 
 // Custom comparison function for React.memo
 const arePropsEqual = (prevProps: PriceChartProps, nextProps: PriceChartProps) => {
-  // Only re-render if data array reference, isPositive, boundaries, or onScrub actually change
+  // Only re-render if data array reference, isPositive, boundaries, dimensions, or onScrub actually change
   return (
     prevProps.data === nextProps.data &&
     prevProps.isPositive === nextProps.isPositive &&
     prevProps.minBoundary === nextProps.minBoundary &&
     prevProps.maxBoundary === nextProps.maxBoundary &&
-    prevProps.onScrub === nextProps.onScrub
+    prevProps.onScrub === nextProps.onScrub &&
+    prevProps.width === nextProps.width &&
+    prevProps.height === nextProps.height
   );
 };
 
