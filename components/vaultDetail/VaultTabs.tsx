@@ -33,21 +33,23 @@ export const VaultTabs = memo(function VaultTabs({
     <View style={styles.container}>
       <View style={styles.tabsRow}>
         <TouchableOpacity
-          style={[styles.tab, selectedTab === 'ACTIVITY' && styles.tabActive]}
+          style={styles.tab}
           onPress={() => onTabChange('ACTIVITY')}
         >
           <Text style={[styles.tabText, selectedTab === 'ACTIVITY' && styles.tabTextActive]}>
             Activity
           </Text>
+          {selectedTab === 'ACTIVITY' && <View style={styles.tabUnderline} />}
         </TouchableOpacity>
 
         <TouchableOpacity
-          style={[styles.tab, selectedTab === 'ABOUT' && styles.tabActive]}
+          style={styles.tab}
           onPress={() => onTabChange('ABOUT')}
         >
           <Text style={[styles.tabText, selectedTab === 'ABOUT' && styles.tabTextActive]}>
             About
           </Text>
+          {selectedTab === 'ABOUT' && <View style={styles.tabUnderline} />}
         </TouchableOpacity>
       </View>
 
@@ -64,30 +66,35 @@ export const VaultTabs = memo(function VaultTabs({
 const styles = StyleSheet.create({
   container: {
     flexDirection: 'row',
-    justifyContent: 'space-between',
+    justifyContent: 'flex-start',
     alignItems: 'center',
-    paddingHorizontal: 20,
+    paddingHorizontal: 24,
     marginBottom: 16,
   },
   tabsRow: {
     flexDirection: 'row',
+    gap: 24,
   },
   tab: {
     paddingVertical: 12,
-    paddingHorizontal: 20,
-    borderRadius: 8,
-    marginRight: 8,
-  },
-  tabActive: {
-    backgroundColor: COLORS.VERY_DARK_GRAY,
+    paddingBottom: 16,
+    alignItems: 'center',
   },
   tabText: {
-    fontSize: 14,
+    fontSize: 16,
     fontWeight: '600',
     color: COLORS.SECONDARY_TEXT,
   },
   tabTextActive: {
     color: COLORS.WHITE,
+  },
+  tabUnderline: {
+    position: 'absolute',
+    bottom: 0,
+    left: -8,
+    right: -8,
+    height: 2,
+    backgroundColor: COLORS.PRIMARY_BLUE,
   },
   filterChip: {
     flexDirection: 'row',
@@ -98,6 +105,7 @@ const styles = StyleSheet.create({
     paddingVertical: 8,
     borderRadius: 12,
     gap: 8,
+    marginLeft: 'auto',
   },
   filterDateText: {
     color: '#1858E4',

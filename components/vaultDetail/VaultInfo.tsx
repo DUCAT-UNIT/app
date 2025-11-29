@@ -7,7 +7,6 @@ import React, { memo } from 'react';
 import { View, StyleSheet } from 'react-native';
 import { VaultHealthGauge } from '../assetDetail/VaultHealthGauge';
 import { VaultInfoSkeleton } from './VaultSkeleton';
-import type { VaultHistoryTransaction } from '../../services/vaultService';
 
 interface VaultInfoProps {
   totalDebt: number;
@@ -17,11 +16,7 @@ interface VaultInfoProps {
   healthColor: string;
   isLoading?: boolean;
   priceChange24h?: number;
-  transactions?: VaultHistoryTransaction[];
-  onHighlightEvent?: (eventDate: number | null) => void;
-  onLockFilter?: (eventDate: number | null) => void;
-  onScrollEnable?: (enabled: boolean) => void;
-  highlightedEventDate?: number | null;
+  onChartPress?: () => void;
 }
 
 export const VaultInfo = memo(function VaultInfo({
@@ -31,11 +26,7 @@ export const VaultInfo = memo(function VaultInfo({
   healthPercentage,
   isLoading = false,
   priceChange24h = 0,
-  transactions = [],
-  onHighlightEvent,
-  onLockFilter,
-  onScrollEnable,
-  highlightedEventDate,
+  onChartPress,
 }: VaultInfoProps) {
   if (isLoading) {
     return (
@@ -53,11 +44,7 @@ export const VaultInfo = memo(function VaultInfo({
         currentPrice={currentPrice}
         healthPercentage={healthPercentage}
         priceChange24h={priceChange24h}
-        transactions={transactions}
-        onHighlightEvent={onHighlightEvent}
-        onLockFilter={onLockFilter}
-        onScrollEnable={onScrollEnable}
-        highlightedEventDate={highlightedEventDate}
+        onChartPress={onChartPress}
       />
     </View>
   );
@@ -66,6 +53,5 @@ export const VaultInfo = memo(function VaultInfo({
 const styles = StyleSheet.create({
   container: {
     paddingVertical: 8,
-    minHeight: 480, // Fixed height to prevent layout jumping
   },
 });

@@ -22,6 +22,7 @@ import {
   VaultAbout,
 } from '../../components/vaultDetail';
 import VaultTransactionDetailsSheet from '../../components/vaultDetail/VaultTransactionDetailsSheet';
+import { FullscreenVaultChart } from '../../components/vaultDetail/FullscreenVaultChart';
 
 interface VaultDetailScreenProps {
   navigation: {
@@ -36,18 +37,14 @@ function VaultDetailScreen({ navigation }: VaultDetailScreenProps): React.JSX.El
   const [transactions, setTransactions] = useState<VaultHistoryTransaction[]>([]);
   const [loadingTransactions, setLoadingTransactions] = useState(false);
   const [refreshing, setRefreshing] = useState(false);
-  // Chart highlighting (real-time during scrub)
-  const [highlightedEventDate, setHighlightedEventDate] = useState<number | null>(null);
-  // Activity list filter (only set on release/lock)
-  const [filterEventDate, setFilterEventDate] = useState<number | null>(null);
-  // Scroll control - disable when scrubbing chart
-  const [scrollEnabled, setScrollEnabled] = useState(true);
   // Transaction details sheet
   const [selectedTransaction, setSelectedTransaction] = useState<VaultHistoryTransaction | null>(null);
   const [previousTransaction, setPreviousTransaction] = useState<VaultHistoryTransaction | null>(null);
   const [showTransactionDetails, setShowTransactionDetails] = useState(false);
   // Track if vault data has ever loaded (prevents skeleton on background refresh)
   const vaultLoadedRef = useRef(false);
+  // Fullscreen chart modal
+  const [chartVisible, setChartVisible] = useState(false);
 
   // Use pre-loaded vault data from context (instant display, no waiting)
   const { vaultData, loadingVault, fetchVault } = useVaultData();
@@ -108,11 +105,6 @@ function VaultDetailScreen({ navigation }: VaultDetailScreenProps): React.JSX.El
     navigation.goBack();
   }, [navigation]);
 
-  const handleClearFilter = useCallback(() => {
-    setFilterEventDate(null);
-    setHighlightedEventDate(null);
-  }, []);
-
   const handleTransactionPress = useCallback((
     transaction: VaultHistoryTransaction,
     prevTransaction: VaultHistoryTransaction | null
@@ -126,8 +118,12 @@ function VaultDetailScreen({ navigation }: VaultDetailScreenProps): React.JSX.El
     setShowTransactionDetails(false);
   }, []);
 
-  const handleScrollEnable = useCallback((enabled: boolean) => {
-    setScrollEnabled(enabled);
+  const handleChartPress = useCallback(() => {
+    setChartVisible(true);
+  }, []);
+
+  const handleCloseChart = useCallback(() => {
+    setChartVisible(false);
   }, []);
 
   return (
@@ -137,7 +133,6 @@ function VaultDetailScreen({ navigation }: VaultDetailScreenProps): React.JSX.El
       <ScrollView
         style={styles.scrollView}
         contentContainerStyle={styles.scrollContent}
-        scrollEnabled={scrollEnabled}
         refreshControl={
           <RefreshControl
             refreshing={refreshing}
@@ -153,25 +148,18 @@ function VaultDetailScreen({ navigation }: VaultDetailScreenProps): React.JSX.El
           healthPercentage={vaultHealthPercentage}
           healthColor={vaultHealthColor}
           isLoading={showVaultLoading}
-          transactions={transactions}
-          onHighlightEvent={setHighlightedEventDate}
-          onLockFilter={setFilterEventDate}
-          onScrollEnable={handleScrollEnable}
-          highlightedEventDate={highlightedEventDate}
+          onChartPress={handleChartPress}
         />
 
         <VaultTabs
           selectedTab={selectedTab}
           onTabChange={setSelectedTab}
-          filterDate={filterEventDate}
-          onClearFilter={handleClearFilter}
         />
 
         {selectedTab === 'ACTIVITY' ? (
           <VaultActivityList
             transactions={transactions}
             isLoading={loadingTransactions}
-            highlightedEventDate={filterEventDate}
             onTransactionPress={handleTransactionPress}
           />
         ) : (
@@ -184,6 +172,12 @@ function VaultDetailScreen({ navigation }: VaultDetailScreenProps): React.JSX.El
         onClose={handleCloseTransactionDetails}
         transaction={selectedTransaction}
         previousTransaction={previousTransaction}
+      />
+
+      <FullscreenVaultChart
+        visible={chartVisible}
+        onClose={handleCloseChart}
+        transactions={transactions}
       />
     </SafeAreaView>
   );
