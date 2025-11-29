@@ -25,7 +25,11 @@ const config: StorybookConfig = {
     config.resolve.alias = {
       ...config.resolve.alias,
       'react-native': 'react-native-web',
+      // Mock native code that react-native-web doesn't support
+      'react-native/Libraries/Utilities/codegenNativeComponent': mockPath('codegen-native-component'),
       // Mock RN-only packages
+      'react-native-safe-area-context': mockPath('safe-area-context'),
+      'react-native-icloudstore': mockPath('icloudstore'),
       '@sentry/react-native': mockPath('sentry'),
       'react-native-svg': mockPath('svg'),
       'react-native-reanimated': mockPath('reanimated'),
@@ -65,6 +69,8 @@ const config: StorybookConfig = {
       'react-native-svg',
       'react-native-reanimated',
       'react-native-gesture-handler',
+      'react-native-safe-area-context',
+      'react-native-icloudstore',
       '@gorhom/bottom-sheet',
       // Exclude expo packages
       'expo',
