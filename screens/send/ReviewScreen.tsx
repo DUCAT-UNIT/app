@@ -17,6 +17,7 @@ import FeeBreakdown from '../../components/review/FeeBreakdown';
 import { InputOutputList } from '../../components/review/InputOutputList';
 import UnconfirmedWarning from '../../components/review/UnconfirmedWarning';
 import TurboWarning from '../../components/review/TurboWarning';
+import { useResponsive } from '../../hooks/useResponsive';
 
 /**
  * Route parameters for ReviewScreen
@@ -39,6 +40,7 @@ interface ReviewScreenProps {
 }
 
 export default function ReviewScreen({ navigation, route }: ReviewScreenProps): React.JSX.Element | null {
+  const { s, sf } = useResponsive();
   const isTurbo = route?.params?.isTurbo === true;
   const { settingsHandlers } = useNavigationHandlers();
   const advancedMode = settingsHandlers?.advancedMode || false;
@@ -116,15 +118,26 @@ export default function ReviewScreen({ navigation, route }: ReviewScreenProps): 
   return (
     <View style={localStyles.container} testID="review-screen">
       {/* Header with back button */}
-      <View style={localStyles.header}>
-        <TouchableOpacity onPress={handleBackPress} style={localStyles.backButton} testID="review-back-btn">
-          <Icon name="back" size={20} color={COLORS.PRIMARY_BLUE} />
+      <View style={[localStyles.header, {
+        paddingTop: s(60),
+        paddingHorizontal: s(20),
+        paddingBottom: s(20)
+      }]}>
+        <TouchableOpacity
+          onPress={handleBackPress}
+          style={[localStyles.backButton, {
+            padding: s(8),
+            marginRight: s(12)
+          }]}
+          testID="review-back-btn"
+        >
+          <Icon name="back" size={s(20)} color={COLORS.PRIMARY_BLUE} />
         </TouchableOpacity>
-        <Text style={localStyles.headerText}>You will send</Text>
+        <Text style={[localStyles.headerText, { fontSize: sf(18) }]}>You will send</Text>
       </View>
 
       <ScrollView style={localStyles.scrollView} showsVerticalScrollIndicator={false}>
-        <View style={localStyles.content}>
+        <View style={[localStyles.content, { paddingHorizontal: s(20) }]}>
           {/* Transaction Summary */}
           <TransactionSummary
             recipient={(sendIntent.recipient as string) || ''}
@@ -144,14 +157,18 @@ export default function ReviewScreen({ navigation, route }: ReviewScreenProps): 
 
           {/* Details Section - Collapsible */}
           <TouchableOpacity
-            style={localStyles.detailsHeaderCard}
+            style={[localStyles.detailsHeaderCard, {
+              borderRadius: s(12),
+              padding: s(16),
+              marginBottom: s(12)
+            }]}
             onPress={() => setIsDetailsExpanded(!isDetailsExpanded)}
             activeOpacity={0.7}
           >
-            <Text style={localStyles.detailsHeaderText}>Transaction Details</Text>
+            <Text style={[localStyles.detailsHeaderText, { fontSize: sf(16) }]}>Transaction Details</Text>
             <Icon
               name={isDetailsExpanded ? 'chevron_up' : 'chevron_down'}
-              size={20}
+              size={s(20)}
               color={COLORS.PRIMARY_BLUE}
             />
           </TouchableOpacity>
@@ -174,21 +191,32 @@ export default function ReviewScreen({ navigation, route }: ReviewScreenProps): 
       </ScrollView>
 
       {/* Buttons - Fixed at bottom */}
-      <View style={localStyles.buttonContainer}>
+      <View style={[localStyles.buttonContainer, {
+        gap: s(12),
+        paddingHorizontal: s(20),
+        paddingTop: s(8),
+        paddingBottom: s(20)
+      }]}>
         <TouchableScale
-          style={localStyles.cancelButton}
+          style={[localStyles.cancelButton, {
+            paddingVertical: s(14),
+            borderRadius: s(10)
+          }]}
           onPress={handleCancel}
           testID="review-cancel-btn"
         >
-          <Text style={localStyles.cancelButtonText}>Cancel</Text>
+          <Text style={[localStyles.cancelButtonText, { fontSize: sf(15) }]}>Cancel</Text>
         </TouchableScale>
 
         <TouchableScale
-          style={localStyles.confirmButton}
+          style={[localStyles.confirmButton, {
+            paddingVertical: s(14),
+            borderRadius: s(10)
+          }]}
           onPress={handleConfirm}
           testID="review-confirm-btn"
         >
-          <Text style={localStyles.confirmButtonText}>Confirm and Sign</Text>
+          <Text style={[localStyles.confirmButtonText, { fontSize: sf(15) }]}>Confirm and Sign</Text>
         </TouchableScale>
       </View>
     </View>
@@ -203,16 +231,11 @@ const localStyles = StyleSheet.create({
   header: {
     flexDirection: 'row',
     alignItems: 'center',
-    paddingTop: 60,
-    paddingHorizontal: 20,
-    paddingBottom: 20,
   },
   backButton: {
-    padding: 8,
-    marginRight: 12,
+    // Dynamic padding and margin applied inline
   },
   headerText: {
-    fontSize: 18,
     fontWeight: '500',
     color: COLORS.VERY_LIGHT_GRAY,
   },
@@ -220,7 +243,6 @@ const localStyles = StyleSheet.create({
     flex: 1,
   },
   content: {
-    paddingHorizontal: 20,
     paddingTop: 0,
   },
   detailsHeaderCard: {
@@ -228,47 +250,33 @@ const localStyles = StyleSheet.create({
     justifyContent: 'space-between',
     alignItems: 'center',
     backgroundColor: COLORS.CARD_BG,
-    borderRadius: 12,
-    padding: 16,
-    marginBottom: 12,
     borderWidth: 1,
     borderColor: COLORS.PRIMARY_BLUE + '30',
   },
   detailsHeaderText: {
-    fontSize: 16,
     fontWeight: '500',
     color: COLORS.PRIMARY_BLUE,
   },
   buttonContainer: {
     flexDirection: 'row',
-    gap: 12,
-    paddingHorizontal: 20,
-    paddingTop: 8,
-    paddingBottom: 20,
   },
   cancelButton: {
     flex: 1,
-    paddingVertical: 14,
-    borderRadius: 10,
     borderWidth: 1.5,
     borderColor: COLORS.BORDER_COLOR,
     backgroundColor: 'transparent',
     alignItems: 'center',
   },
   cancelButtonText: {
-    fontSize: 15,
     fontWeight: '500',
     color: COLORS.VERY_LIGHT_GRAY,
   },
   confirmButton: {
     flex: 1,
-    paddingVertical: 14,
-    borderRadius: 10,
     backgroundColor: COLORS.PRIMARY_BLUE,
     alignItems: 'center',
   },
   confirmButtonText: {
-    fontSize: 15,
     fontWeight: '500',
     color: COLORS.VERY_LIGHT_GRAY,
   },

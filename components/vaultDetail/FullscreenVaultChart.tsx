@@ -907,7 +907,7 @@ export const FullscreenVaultChart = memo(function FullscreenVaultChart({
                     return (
                       <View key={i} style={styles.drawerTxItem}>
                         <View style={styles.drawerTxIcon}>
-                          <Icon name="vault_logo" size={36} color={COLORS.WHITE} />
+                          <Icon name="vault_logo" size={28} color={COLORS.WHITE} />
                         </View>
                         <View style={styles.drawerTxContent}>
                           <View style={styles.drawerTxTopRow}>

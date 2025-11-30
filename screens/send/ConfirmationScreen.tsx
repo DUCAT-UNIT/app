@@ -4,7 +4,7 @@
  */
 
 import React, { useEffect, useState } from 'react';
-import { Text, View, TouchableOpacity, ActivityIndicator } from 'react-native';
+import { Text, View, TouchableOpacity, ActivityIndicator, StyleSheet } from 'react-native';
 import { NavigationProp, RouteProp } from '@react-navigation/native';
 import { COLORS } from '../../theme';
 import Icon from '../../components/icons';
@@ -16,7 +16,7 @@ import { useConfirmationParams } from '../../hooks/useConfirmationParams';
 import { useTurboMintCompletion } from '../../hooks/useTurboMintCompletion';
 import { useCashuMintCompletion } from '../../hooks/useCashuMintCompletion';
 import { useConfirmationHandlers } from '../../hooks/useConfirmationHandlers';
-import { styles } from './ConfirmationScreen.styles';
+import { useResponsive } from '../../hooks/useResponsive';
 
 /**
  * Route parameters for ConfirmationScreen
@@ -47,6 +47,7 @@ export default function ConfirmationScreen({ navigation, route }: ConfirmationSc
   const { fetchTransactionHistory } = useTransactionHistory();
   const { wallet } = useWallet();
   const { refresh: refreshCashuBalance } = useCashu();
+  const { s, sf } = useResponsive();
 
   // Extract and validate route params
   const {
@@ -138,6 +139,151 @@ export default function ConfirmationScreen({ navigation, route }: ConfirmationSc
   // If we're in 'ready' state but expecting turbo data that hasn't arrived yet, show loading
   const isWaitingForTurboData = processingStage === 'ready' && isTurbo && skipMint && (!turboToken || !turboDeeplink);
 
+  // Create responsive styles
+  const styles = StyleSheet.create({
+    container: {
+      flex: 1,
+      backgroundColor: COLORS.DARK_BG,
+    },
+    content: {
+      flex: 1,
+      alignItems: 'center',
+      justifyContent: 'center',
+      paddingHorizontal: s(40),
+    },
+    checkmarkContainer: {
+      marginBottom: s(24),
+    },
+    checkmark: {
+      width: s(80),
+      height: s(80),
+      borderRadius: s(40),
+      backgroundColor: COLORS.SUCCESS_GREEN + '20',
+      alignItems: 'center',
+      justifyContent: 'center',
+      borderWidth: s(2),
+      borderColor: COLORS.SUCCESS_GREEN,
+    },
+    heroLogoContainer: {
+      position: 'relative',
+      alignItems: 'center',
+      justifyContent: 'center',
+    },
+    heroLightningBadge: {
+      position: 'absolute',
+      bottom: s(-8),
+      right: s(-8),
+      fontSize: sf(32),
+    },
+    processingTitle: {
+      fontSize: sf(18),
+      fontWeight: '600',
+      color: COLORS.VERY_LIGHT_GRAY,
+      textAlign: 'center',
+      marginBottom: s(8),
+    },
+    processingMessage: {
+      fontSize: sf(14),
+      color: COLORS.SECONDARY_TEXT,
+      textAlign: 'center',
+      lineHeight: sf(20, 16),
+    },
+    title: {
+      fontSize: sf(24),
+      fontWeight: '600',
+      color: COLORS.WHITE,
+      textAlign: 'center',
+      marginBottom: s(12),
+    },
+    subtitle: {
+      fontSize: sf(14),
+      color: COLORS.SECONDARY_TEXT,
+      textAlign: 'center',
+      lineHeight: sf(20, 16),
+    },
+    explorerButton: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: s(8),
+      backgroundColor: COLORS.CARD_BG,
+      paddingVertical: s(12),
+      paddingHorizontal: s(16),
+      borderRadius: s(10),
+      borderWidth: 1,
+      borderColor: COLORS.PRIMARY_BLUE + '30',
+      marginTop: s(24),
+    },
+    explorerButtonText: {
+      fontSize: sf(14),
+      fontWeight: '500',
+      color: COLORS.PRIMARY_BLUE,
+    },
+    urlContainer: {
+      backgroundColor: COLORS.CARD_BG,
+      borderRadius: s(12),
+      padding: s(16),
+      borderWidth: 1,
+      borderColor: COLORS.BORDER_COLOR,
+      width: '100%',
+      gap: s(8),
+    },
+    urlText: {
+      fontSize: sf(13),
+      color: COLORS.VERY_LIGHT_GRAY,
+      fontFamily: 'monospace',
+      textAlign: 'center',
+    },
+    tapToCopyHint: {
+      fontSize: sf(11, 9),
+      color: COLORS.SECONDARY_TEXT,
+      textAlign: 'center',
+    },
+    buttonRow: {
+      flexDirection: 'row',
+      gap: s(12),
+      marginTop: s(16),
+      width: '100%',
+    },
+    actionButton: {
+      flex: 1,
+      flexDirection: 'row',
+      alignItems: 'center',
+      justifyContent: 'center',
+      paddingVertical: s(10),
+      paddingHorizontal: s(16),
+      borderRadius: s(10),
+      gap: s(6),
+    },
+    shareButton: {
+      backgroundColor: COLORS.CARD_BG,
+      borderWidth: 1,
+      borderColor: COLORS.PRIMARY_BLUE + '30',
+    },
+    copyButton: {
+      backgroundColor: COLORS.PRIMARY_BLUE,
+    },
+    actionButtonText: {
+      fontSize: sf(14),
+      fontWeight: '500',
+      color: COLORS.VERY_LIGHT_GRAY,
+    },
+    buttonContainer: {
+      paddingHorizontal: s(20),
+      paddingBottom: s(20),
+    },
+    doneButton: {
+      backgroundColor: COLORS.PRIMARY_BLUE,
+      paddingVertical: s(14),
+      borderRadius: s(10),
+      alignItems: 'center',
+    },
+    doneButtonText: {
+      fontSize: sf(15),
+      fontWeight: '600',
+      color: COLORS.WHITE,
+    },
+  });
+
   return (
     <View style={styles.container} testID="confirmation-screen">
       {/* Content */}
@@ -149,7 +295,7 @@ export default function ConfirmationScreen({ navigation, route }: ConfirmationSc
             <ActivityIndicator
               size="large"
               color={COLORS.PRIMARY_BLUE}
-              style={{ marginTop: 40, marginBottom: 40 }}
+              style={{ marginTop: s(40), marginBottom: s(40) }}
             />
             <Text style={styles.title}>Converting to TurboUNIT</Text>
             <Text style={styles.subtitle}>Finalizing P2PK locked token...</Text>
@@ -159,7 +305,7 @@ export default function ConfirmationScreen({ navigation, route }: ConfirmationSc
         {/* Stage 1: Converting - Match ProcessingScreen appearance exactly */}
         {processingStage === 'converting' && (
           <>
-            <ActivityIndicator size="large" color={COLORS.PRIMARY_BLUE} style={{ marginBottom: 24 }} />
+            <ActivityIndicator size="large" color={COLORS.PRIMARY_BLUE} style={{ marginBottom: s(24) }} />
             <Text style={styles.processingTitle}>Converting to TurboUNIT</Text>
             <Text style={styles.processingMessage}>Minting e-cash tokens and creating P2PK locked token...</Text>
           </>
@@ -171,12 +317,12 @@ export default function ConfirmationScreen({ navigation, route }: ConfirmationSc
             <View style={styles.checkmarkContainer}>
               {isTurbo && turboToken ? (
                 <View style={styles.heroLogoContainer}>
-                  <Icon name="unit_logo" size={80} />
+                  <Icon name="unit_logo" size={s(80)} />
                   <Text style={styles.heroLightningBadge}>⚡</Text>
                 </View>
               ) : (
                 <View style={styles.checkmark}>
-                  <Icon name="check" size={48} color={COLORS.SUCCESS_GREEN} />
+                  <Icon name="check" size={s(48)} color={COLORS.SUCCESS_GREEN} />
                 </View>
               )}
             </View>
@@ -213,7 +359,7 @@ export default function ConfirmationScreen({ navigation, route }: ConfirmationSc
                     onPress={handleShareDeeplink}
                     activeOpacity={0.7}
                   >
-                    <Icon name="share" size={16} color={COLORS.PRIMARY_BLUE} />
+                    <Icon name="share" size={s(16)} color={COLORS.PRIMARY_BLUE} />
                     <Text style={styles.actionButtonText}>Share</Text>
                   </TouchableOpacity>
                   <TouchableOpacity
@@ -221,7 +367,7 @@ export default function ConfirmationScreen({ navigation, route }: ConfirmationSc
                     onPress={handleOpenInBrowser}
                     activeOpacity={0.7}
                   >
-                    <Icon name="arrow_right" size={16} color={COLORS.VERY_LIGHT_GRAY} />
+                    <Icon name="arrow_right" size={s(16)} color={COLORS.VERY_LIGHT_GRAY} />
                     <Text style={styles.actionButtonText}>Open Link</Text>
                   </TouchableOpacity>
                 </View>
@@ -229,7 +375,7 @@ export default function ConfirmationScreen({ navigation, route }: ConfirmationSc
             ) : (
               <View style={styles.urlContainer}>
                 <ActivityIndicator size="small" color={COLORS.PRIMARY_BLUE} />
-                <Text style={[styles.urlText, { marginTop: 8 }]}>Generating link...</Text>
+                <Text style={[styles.urlText, { marginTop: s(8) }]}>Generating link...</Text>
               </View>
             )}
           </>
@@ -243,7 +389,7 @@ export default function ConfirmationScreen({ navigation, route }: ConfirmationSc
             onPress={handleViewExplorer}
           >
             <Text style={styles.explorerButtonText}>View on Explorer</Text>
-            <Icon name="arrow_right" size={16} color={COLORS.PRIMARY_BLUE} />
+            <Icon name="arrow_right" size={s(16)} color={COLORS.PRIMARY_BLUE} />
           </TouchableOpacity>
         )}
 
@@ -264,4 +410,3 @@ export default function ConfirmationScreen({ navigation, route }: ConfirmationSc
     </View>
   );
 }
-

@@ -1,53 +1,19 @@
 /**
  * AssetPriceChart Component
  * Displays price chart with timeframe selector for BTC and UNIT assets
+ * Uses responsive scaling with s() and sf() functions
  */
 
 import React, { memo, useCallback, useMemo, useState } from 'react';
-import { View, Text, TouchableOpacity, StyleSheet, ActivityIndicator } from 'react-native';
+import { View, Text, TouchableOpacity, ActivityIndicator, Dimensions } from 'react-native';
 import PriceChart from '../charts/PriceChart';
 import { COLORS } from '../../theme';
 import { generateUnitPriceData, PriceTimeframe, PriceDataPoint } from '../../utils/priceDataGenerator';
 import { formatFiat } from '../../utils/formatters';
 import { AssetChartSkeleton } from './AssetSkeleton';
+import { useResponsive } from '../../hooks/useResponsive';
 
-interface TimeframeButtonProps {
-  timeframe: string;
-  isActive: boolean;
-  isLoading: boolean;
-  onPress: () => void;
-}
-
-// Memoized timeframe button to prevent re-renders
-const TimeframeButton = memo(function TimeframeButton({
-  timeframe,
-  isActive,
-  isLoading,
-  onPress,
-}: TimeframeButtonProps) {
-  return (
-    <TouchableOpacity
-      style={[
-        styles.timeframeButton,
-        isActive && styles.timeframeButtonActive,
-      ]}
-      onPress={onPress}
-    >
-      {isLoading && isActive ? (
-        <ActivityIndicator size="small" color={COLORS.PRIMARY_BLUE} />
-      ) : (
-        <Text
-          style={[
-            styles.timeframeButtonText,
-            isActive && styles.timeframeButtonTextActive,
-          ]}
-        >
-          {timeframe}
-        </Text>
-      )}
-    </TouchableOpacity>
-  );
-});
+const { width: SCREEN_WIDTH } = Dimensions.get('window');
 
 const TIMEFRAMES = ['1D', '1W', '1M', '1Y'];
 
@@ -61,28 +27,9 @@ interface AssetPriceChartProps {
   onTimeframeChange: (timeframe: PriceTimeframe) => void;
   onRetry: () => void;
   currentPrice?: number | null;
-  /** Custom width for the chart (defaults to screen width) */
   width?: number;
-  /** Custom height for the chart (defaults to 143) */
   height?: number;
-  /** Scale factor for timeframe buttons (defaults to 1) */
-  scale?: number;
 }
-
-// Price chip component - displays current price with chart-matching color
-const PriceChip = memo(function PriceChip({ price, assetType, isPositive }: { price: number; assetType: 'BTC' | 'UNIT'; isPositive: boolean }) {
-  const formattedPrice = `$${formatFiat(price)}`;
-
-  const chipColor = isPositive ? COLORS.SUCCESS_GREEN : COLORS.RED;
-  // 10% opacity background
-  const chipBgColor = isPositive ? 'rgba(89, 170, 138, 0.1)' : 'rgba(208, 76, 104, 0.1)';
-
-  return (
-    <View style={[styles.priceChip, { backgroundColor: chipBgColor, borderColor: chipColor }]}>
-      <Text style={[styles.priceChipText, { color: chipColor }]}>{formattedPrice}</Text>
-    </View>
-  );
-});
 
 export const AssetPriceChart = memo(function AssetPriceChart({
   assetType,
@@ -96,17 +43,14 @@ export const AssetPriceChart = memo(function AssetPriceChart({
   currentPrice,
   width,
   height,
-  scale = 1,
 }: AssetPriceChartProps) {
-  // State for scrubbed price (when user is dragging on chart)
+  const { s, sf } = useResponsive();
   const [scrubbedPrice, setScrubbedPrice] = useState<number | null>(null);
 
-  // Handle scrub callback from chart
   const handleScrub = useCallback((price: number | null) => {
     setScrubbedPrice(price);
   }, []);
 
-  // Create stable callbacks for each timeframe to prevent re-renders
   const handlePress1D = useCallback(() => onTimeframeChange('1D'), [onTimeframeChange]);
   const handlePress1W = useCallback(() => onTimeframeChange('1W'), [onTimeframeChange]);
   const handlePress1M = useCallback(() => onTimeframeChange('1M'), [onTimeframeChange]);
@@ -119,7 +63,6 @@ export const AssetPriceChart = memo(function AssetPriceChart({
     '1Y': handlePress1Y,
   }), [handlePress1D, handlePress1W, handlePress1M, handlePress1Y]);
 
-  // Memoize UNIT price data
   const unitData = useMemo(() => {
     if (assetType === 'UNIT') {
       return generateUnitPriceData(selectedTimeframe);
@@ -127,193 +70,152 @@ export const AssetPriceChart = memo(function AssetPriceChart({
     return null;
   }, [assetType, selectedTimeframe]);
 
-  // Memoize timeframe buttons to prevent re-renders
-  const timeframeButtonsNoLoading = useMemo(() => (
-    <View style={[
-      styles.timeframeButtons,
-      { transform: [{ scale }], transformOrigin: 'top center', height: 44 * scale },
-    ]}>
-      {TIMEFRAMES.map((timeframe) => (
-        <TimeframeButton
-          key={timeframe}
-          timeframe={timeframe}
-          isActive={selectedTimeframe === timeframe}
-          isLoading={false}
-          onPress={timeframeHandlers[timeframe as PriceTimeframe]}
-        />
-      ))}
-    </View>
-  ), [selectedTimeframe, timeframeHandlers, scale]);
+  // Price chip component
+  const renderPriceChip = (price: number, chipIsPositive: boolean) => {
+    const formattedPrice = `$${formatFiat(price)}`;
+    const chipColor = chipIsPositive ? COLORS.SUCCESS_GREEN : COLORS.RED;
+    const chipBgColor = chipIsPositive ? 'rgba(89, 170, 138, 0.1)' : 'rgba(208, 76, 104, 0.1)';
 
-  const timeframeButtonsWithLoading = useMemo(() => (
-    <View style={[
-      styles.timeframeButtons,
-      { transform: [{ scale }], transformOrigin: 'top center', height: 44 * scale },
-    ]}>
-      {TIMEFRAMES.map((timeframe) => (
-        <TimeframeButton
-          key={timeframe}
-          timeframe={timeframe}
-          isActive={selectedTimeframe === timeframe}
-          isLoading={priceLoading}
-          onPress={timeframeHandlers[timeframe as PriceTimeframe]}
-        />
-      ))}
+    return (
+      <View style={{
+        position: 'absolute',
+        top: s(8),
+        right: 0,
+        paddingHorizontal: s(10),
+        paddingVertical: s(4),
+        borderRadius: s(12),
+        borderWidth: 1,
+        backgroundColor: chipBgColor,
+        borderColor: chipColor,
+      }}>
+        <Text style={{ fontSize: sf(12), fontWeight: '700', color: chipColor }}>
+          {formattedPrice}
+        </Text>
+      </View>
+    );
+  };
+
+  // Timeframe buttons
+  const renderTimeframeButtons = (showLoading: boolean) => (
+    <View style={{
+      flexDirection: 'row',
+      justifyContent: 'center',
+      gap: s(3),
+      marginTop: s(4),
+      paddingHorizontal: s(5),
+    }}>
+      {TIMEFRAMES.map((timeframe) => {
+        const isActive = selectedTimeframe === timeframe;
+        return (
+          <TouchableOpacity
+            key={timeframe}
+            style={{
+              paddingHorizontal: s(2),
+              paddingVertical: s(12),
+              borderRadius: s(10),
+              backgroundColor: isActive ? COLORS.VERY_DARK_GRAY : 'transparent',
+              minWidth: s(64),
+              height: s(44),
+              alignItems: 'center',
+              justifyContent: 'center',
+            }}
+            onPress={timeframeHandlers[timeframe as PriceTimeframe]}
+          >
+            {showLoading && priceLoading && isActive ? (
+              <ActivityIndicator size="small" color={COLORS.PRIMARY_BLUE} />
+            ) : (
+              <Text style={{
+                color: isActive ? COLORS.WHITE : COLORS.SECONDARY_TEXT,
+                fontSize: sf(13),
+                fontWeight: '700',
+              }}>
+                {timeframe}
+              </Text>
+            )}
+          </TouchableOpacity>
+        );
+      })}
     </View>
-  ), [selectedTimeframe, priceLoading, timeframeHandlers, scale]);
+  );
+
+  // Calculate chart width accounting for 24px padding on each side
+  const chartWidth = width ?? (SCREEN_WIDTH - s(24) * 2);
 
   // For UNIT, use generated data
   if (assetType === 'UNIT') {
-    // Get the last price from the unit data
     const unitLastPrice = unitData && unitData.length > 0 ? unitData[unitData.length - 1][1] : 1.00;
-    // Show scrubbed price when scrubbing, otherwise show the last price
     const unitDisplayPrice = scrubbedPrice ?? unitLastPrice;
 
     return (
-      <View style={styles.chartContainer}>
-        <View style={styles.chartWrapper}>
+      <View style={{ paddingVertical: s(4), paddingHorizontal: s(24), marginTop: s(2) }}>
+        <View style={{ position: 'relative' }}>
           <PriceChart
             data={unitData}
             isPositive={true}
             minBoundary={0.5}
             maxBoundary={1.5}
             onScrub={handleScrub}
-            width={width}
+            width={chartWidth}
             height={height}
           />
-          <PriceChip price={unitDisplayPrice} assetType="UNIT" isPositive={true} />
+          {renderPriceChip(unitDisplayPrice, true)}
         </View>
-        {timeframeButtonsNoLoading}
+        {renderTimeframeButtons(false)}
       </View>
     );
   }
 
-  // For BTC, use real data
   if (assetType !== 'BTC') return null;
 
-  // Show skeleton while loading and no error
   if (!priceData && !priceError && priceLoading) {
     return <AssetChartSkeleton />;
   }
 
   return (
-    <View style={styles.chartContainer}>
+    <View style={{ paddingVertical: s(4), paddingHorizontal: s(24), marginTop: s(2) }}>
       {priceError ? (
-        <View style={styles.errorContainer}>
-          <Text style={styles.errorText}>
-            {priceError.includes('Rate limit')
-              ? 'Rate limit reached'
-              : 'Failed to load price data'}
+        <View style={{ alignItems: 'center', justifyContent: 'center', paddingVertical: s(10) }}>
+          <Text style={{ color: COLORS.RED, fontSize: sf(15), fontWeight: '600', marginBottom: s(1.5) }}>
+            {priceError.includes('Rate limit') ? 'Rate limit reached' : 'Failed to load price data'}
           </Text>
-          <Text style={styles.errorSubtext}>
+          <Text style={{ color: COLORS.SECONDARY_TEXT, fontSize: sf(13), marginBottom: s(4), textAlign: 'center' }}>
             {priceError.includes('Rate limit')
               ? 'Please wait a moment before retrying'
               : 'Check your connection and try again'}
           </Text>
           <TouchableOpacity
-            style={styles.retryButton}
+            style={{
+              paddingHorizontal: s(6),
+              paddingVertical: s(2.5),
+              backgroundColor: COLORS.PRIMARY_BLUE,
+              borderRadius: s(10),
+            }}
             onPress={onRetry}
           >
-            <Text style={styles.retryButtonText}>Retry</Text>
+            <Text style={{ color: COLORS.WHITE, fontSize: sf(14), fontWeight: '600' }}>Retry</Text>
           </TouchableOpacity>
         </View>
       ) : priceData ? (
-        (() => {
-          // Get price from currentPrice prop or last value in chart data
-          const defaultPrice = currentPrice ?? (priceData.length > 0 ? priceData[priceData.length - 1][1] : null);
-          // Show scrubbed price when scrubbing, otherwise show the default price
-          const displayPrice = scrubbedPrice ?? defaultPrice;
-          return (
-            <>
-              <View style={styles.chartWrapper}>
-                <PriceChart data={priceData} isPositive={isPositive} minBoundary={undefined} maxBoundary={undefined} onScrub={handleScrub} width={width} height={height} />
-                {displayPrice && <PriceChip price={displayPrice} assetType="BTC" isPositive={isPositive} />}
-              </View>
-              {timeframeButtonsWithLoading}
-            </>
-          );
-        })()
+        <>
+          <View style={{ position: 'relative' }}>
+            <PriceChart
+              data={priceData}
+              isPositive={isPositive}
+              minBoundary={undefined}
+              maxBoundary={undefined}
+              onScrub={handleScrub}
+              width={chartWidth}
+              height={height}
+            />
+            {(() => {
+              const defaultPrice = currentPrice ?? (priceData.length > 0 ? priceData[priceData.length - 1][1] : null);
+              const displayPrice = scrubbedPrice ?? defaultPrice;
+              return displayPrice ? renderPriceChip(displayPrice, isPositive) : null;
+            })()}
+          </View>
+          {renderTimeframeButtons(true)}
+        </>
       ) : null}
     </View>
   );
-});
-
-const styles = StyleSheet.create({
-  chartContainer: {
-    paddingHorizontal: 0,
-    paddingVertical: 4,
-    marginTop: 2,
-  },
-  chartWrapper: {
-    position: 'relative',
-  },
-  priceChip: {
-    position: 'absolute',
-    top: 8,
-    right: 0,
-    paddingHorizontal: 10,
-    paddingVertical: 4,
-    borderRadius: 12,
-    borderWidth: 1,
-  },
-  priceChipText: {
-    fontSize: 12,
-    fontWeight: '700',
-  },
-  timeframeButtons: {
-    flexDirection: 'row',
-    justifyContent: 'center',
-    gap: 3,
-    marginTop: 4,
-    paddingHorizontal: 5,
-  },
-  timeframeButton: {
-    paddingHorizontal: 2,
-    paddingVertical: 12,
-    borderRadius: 10,
-    backgroundColor: 'transparent',
-    minWidth: 64,
-    height: 44,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  timeframeButtonActive: {
-    backgroundColor: COLORS.VERY_DARK_GRAY,
-  },
-  timeframeButtonText: {
-    color: COLORS.SECONDARY_TEXT,
-    fontSize: 13,
-    fontWeight: '700',
-  },
-  timeframeButtonTextActive: {
-    color: COLORS.WHITE,
-  },
-  errorContainer: {
-    alignItems: 'center',
-    justifyContent: 'center',
-    paddingVertical: 10,
-  },
-  errorText: {
-    color: COLORS.RED,
-    fontSize: 15,
-    fontWeight: '600',
-    marginBottom: 1.5,
-  },
-  errorSubtext: {
-    color: COLORS.SECONDARY_TEXT,
-    fontSize: 13,
-    marginBottom: 4,
-    textAlign: 'center',
-  },
-  retryButton: {
-    paddingHorizontal: 6,
-    paddingVertical: 2.5,
-    backgroundColor: COLORS.PRIMARY_BLUE,
-    borderRadius: 10,
-  },
-  retryButtonText: {
-    color: COLORS.WHITE,
-    fontSize: 14,
-    fontWeight: '600',
-  },
 });

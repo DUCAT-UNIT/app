@@ -128,7 +128,7 @@ function VaultDetailScreen({ navigation }: VaultDetailScreenProps): React.JSX.El
 
   return (
     <SafeAreaView style={styles.container}>
-      <VaultHeader onBackPress={handleBackPress} />
+      <VaultHeader onBackPress={handleBackPress} onChartPress={handleChartPress} />
 
       <ScrollView
         style={styles.scrollView}

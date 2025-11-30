@@ -1,10 +1,11 @@
 /**
  * AssetTurboList Component
  * Displays list of sent Turbo tokens in the Asset Detail screen
+ * Uses responsive scaling with s() and sf() functions
  */
 
 import React, { useState, useEffect, useCallback, memo } from 'react';
-import { View, Text, TouchableOpacity, StyleSheet, ActivityIndicator } from 'react-native';
+import { View, Text, TouchableOpacity, ActivityIndicator } from 'react-native';
 import * as Clipboard from 'expo-clipboard';
 
 import { COLORS } from '../../theme';
@@ -12,6 +13,7 @@ import Icon from '../icons';
 import { formatTransactionDate } from '../../utils/formatters/dates';
 import { formatUnitAmount } from '../../utils/formatters/amounts';
 import globalStyles from '../../styles';
+import { useResponsive } from '../../hooks/useResponsive';
 import {
   getSentLockedTokens,
 } from '../../services/cashu/cashuLockedTokensService';
@@ -38,33 +40,41 @@ interface TurboTokenItemProps {
 
 // Memoized token item component to prevent unnecessary re-renders
 const TurboTokenItem = memo(function TurboTokenItem({ item, isClaimed, isSelfClaim, onCopy }: TurboTokenItemProps) {
+  const { s, sf } = useResponsive();
+
   // Determine status and styling based on claim state
   const getStatusConfig = () => {
     if (isSelfClaim) {
       return {
-        chipStyle: localStyles.selfClaimChip,
-        textStyle: localStyles.selfClaimChipText,
+        chipBgColor: 'rgba(89, 170, 138, 0.2)',
+        chipBorderColor: 'transparent',
+        chipBorderWidth: 0,
+        textColor: COLORS.GREEN,
         statusText: 'Self Claim',
         amountColor: COLORS.GREEN,
       };
     }
     if (isClaimed) {
       return {
-        chipStyle: localStyles.claimedChip,
-        textStyle: localStyles.claimedChipText,
+        chipBgColor: 'transparent',
+        chipBorderColor: COLORS.PRIMARY_BLUE,
+        chipBorderWidth: 1,
+        textColor: COLORS.PRIMARY_BLUE,
         statusText: 'Claimed',
         amountColor: '#DDDDDD',
       };
     }
     return {
-      chipStyle: localStyles.activeChip,
-      textStyle: localStyles.activeChipText,
+      chipBgColor: 'rgba(89, 170, 138, 0.2)',
+      chipBorderColor: 'transparent',
+      chipBorderWidth: 0,
+      textColor: COLORS.GREEN,
       statusText: 'Active',
       amountColor: COLORS.GREEN,
     };
   };
 
-  const { chipStyle, textStyle, statusText, amountColor } = getStatusConfig();
+  const { chipBgColor, chipBorderColor, chipBorderWidth, textColor, statusText, amountColor } = getStatusConfig();
 
   return (
     <TouchableOpacity
@@ -72,20 +82,25 @@ const TurboTokenItem = memo(function TurboTokenItem({ item, isClaimed, isSelfCla
       onPress={() => onCopy(item)}
       activeOpacity={0.7}
     >
-      <View style={localStyles.assetLogo}>
-        <Icon name="turbo" size={40} color="#DDDDDD" />
+      <View style={{ marginRight: s(10) }}>
+        <Icon name="turbo" size={s(40)} color="#DDDDDD" />
       </View>
-      <View style={localStyles.txContentContainer}>
+      <View style={{ flex: 1 }}>
         <View style={globalStyles.historyTxTopRow}>
           <View style={globalStyles.historyTxColumn1}>
-            <Text style={[globalStyles.historyTxAmount, localStyles.actionText]}>
+            <Text style={[globalStyles.historyTxAmount, { color: '#DDDDDD' }]}>
               Turbo
             </Text>
           </View>
           <View style={globalStyles.historyTxRightGroup}>
             <View style={globalStyles.historyTxColumn2}>
-              <View style={[globalStyles.vaultAmountChip, chipStyle]}>
-                <Text style={[globalStyles.vaultAmountChipText, textStyle]}>
+              <View style={[globalStyles.vaultAmountChip, {
+                backgroundColor: chipBgColor,
+                borderColor: chipBorderColor,
+                borderWidth: chipBorderWidth,
+                marginLeft: 0,
+              }]}>
+                <Text style={[globalStyles.vaultAmountChipText, { color: textColor }]}>
                   {statusText}
                 </Text>
               </View>
@@ -94,7 +109,7 @@ const TurboTokenItem = memo(function TurboTokenItem({ item, isClaimed, isSelfCla
               <View style={globalStyles.balanceWithIcon}>
                 <Icon
                   name="unit_symbol"
-                  size={12}
+                  size={s(12)}
                   color={amountColor}
                   style={globalStyles.assetAmountIcon}
                 />
@@ -116,6 +131,7 @@ const TurboTokenItem = memo(function TurboTokenItem({ item, isClaimed, isSelfCla
 }, (prev, next) => prev.item.id === next.item.id && prev.isClaimed === next.isClaimed && prev.isSelfClaim === next.isSelfClaim);
 
 export function AssetTurboList() {
+  const { s, sf } = useResponsive();
   const [tokens, setTokens] = useState<TokenRecord[]>([]);
   const [claimedTokens, setClaimedTokens] = useState(new Set<string>());
   const [selfClaimTokens, setSelfClaimTokens] = useState(new Set<string>());
@@ -198,10 +214,20 @@ export function AssetTurboList() {
   // Show loading spinner while checking token states
   if (isLoading) {
     return (
-      <View style={localStyles.activityContainer}>
-        <View style={localStyles.loadingContainer}>
+      <View style={{
+        paddingHorizontal: s(24),
+        paddingBottom: s(5),
+      }}>
+        <View style={{
+          alignItems: 'center',
+          paddingVertical: s(20),
+          gap: s(12),
+        }}>
           <ActivityIndicator size="small" color={COLORS.PRIMARY_BLUE} />
-          <Text style={localStyles.loadingText}>Checking token status...</Text>
+          <Text style={{
+            color: '#DDDDDD',
+            fontSize: sf(14),
+          }}>Checking token status...</Text>
         </View>
       </View>
     );
@@ -209,16 +235,28 @@ export function AssetTurboList() {
 
   if (tokens.length === 0) {
     return (
-      <View style={localStyles.activityContainer}>
-        <View style={localStyles.emptyContainer}>
-          <Text style={localStyles.emptyText}>No Turbo tokens sent</Text>
+      <View style={{
+        paddingHorizontal: s(24),
+        paddingBottom: s(5),
+      }}>
+        <View style={{
+          alignItems: 'center',
+          paddingVertical: s(12),
+        }}>
+          <Text style={{
+            color: '#DDDDDD',
+            fontSize: sf(16),
+          }}>No Turbo tokens sent</Text>
         </View>
       </View>
     );
   }
 
   return (
-    <View style={localStyles.activityContainer}>
+    <View style={{
+      paddingHorizontal: s(24),
+      paddingBottom: s(5),
+    }}>
       {tokens.map((item) => (
         <TurboTokenItem
           key={item.id}
@@ -231,59 +269,3 @@ export function AssetTurboList() {
     </View>
   );
 }
-
-const localStyles = StyleSheet.create({
-  assetLogo: {
-    marginRight: 10,
-  },
-  txContentContainer: {
-    flex: 1,
-  },
-  actionText: {
-    color: '#DDDDDD',
-  },
-  activeChip: {
-    backgroundColor: 'rgba(89, 170, 138, 0.2)',
-    marginLeft: 0,
-  },
-  activeChipText: {
-    color: COLORS.GREEN,
-  },
-  claimedChip: {
-    backgroundColor: 'transparent',
-    borderWidth: 1,
-    borderColor: COLORS.PRIMARY_BLUE,
-    marginLeft: 0,
-  },
-  claimedChipText: {
-    color: COLORS.PRIMARY_BLUE,
-  },
-  selfClaimChip: {
-    backgroundColor: 'rgba(89, 170, 138, 0.2)',
-    marginLeft: 0,
-  },
-  selfClaimChipText: {
-    color: COLORS.GREEN,
-  },
-  activityContainer: {
-    paddingHorizontal: 4,
-    paddingBottom: 5,
-  },
-  loadingContainer: {
-    alignItems: 'center',
-    paddingVertical: 20,
-    gap: 12,
-  },
-  loadingText: {
-    color: '#DDDDDD',
-    fontSize: 14,
-  },
-  emptyContainer: {
-    alignItems: 'center',
-    paddingVertical: 12,
-  },
-  emptyText: {
-    color: '#DDDDDD',
-    fontSize: 16,
-  },
-});

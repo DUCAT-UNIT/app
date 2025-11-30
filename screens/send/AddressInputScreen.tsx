@@ -21,6 +21,7 @@ import { useSendFlow, AssetType } from '../../contexts/SendFlowContext';
 import { useKeyboard } from '../../hooks/useKeyboard';
 import { logger } from '../../utils/logger';
 import { useNavigationHandlers } from '../../contexts/NavigationHandlersContext';
+import { useResponsive } from '../../hooks/useResponsive';
 import styles from './AddressInputScreen.styles';
 
 /**
@@ -45,6 +46,7 @@ export default function AddressInputScreen({ navigation, route }: AddressInputSc
   const { settingsHandlers } = useNavigationHandlers();
   const advancedMode = settingsHandlers?.advancedMode || false;
   const { keyboardHeight } = useKeyboard();
+  const { s, sf, scale } = useResponsive();
   const addressInputRef = useRef<TextInput>(null);
   const [addressError, setAddressError] = useState('');
 
@@ -124,27 +126,31 @@ export default function AddressInputScreen({ navigation, route }: AddressInputSc
 
   return (
     <View style={styles.container} testID="address-input-screen">
-      <View style={styles.header}>
-        <TouchableOpacity onPress={() => navigation.goBack()} style={styles.backButton} testID="address-input-back-btn">
-          <Icon name="back" size={24} color={COLORS.VERY_LIGHT_GRAY} />
+      <View style={[styles.header, { paddingTop: s(60), paddingHorizontal: s(20), paddingBottom: s(20) }]}>
+        <TouchableOpacity
+          onPress={() => navigation.goBack()}
+          style={[styles.backButton, { width: s(40), height: s(40), marginRight: s(8) }]}
+          testID="address-input-back-btn"
+        >
+          <Icon name="back" size={s(24)} color={COLORS.VERY_LIGHT_GRAY} />
         </TouchableOpacity>
-        <Text style={styles.title}>Enter Address</Text>
+        <Text style={[styles.title, { fontSize: sf(32) }]}>Enter Address</Text>
       </View>
 
-      <View style={styles.content}>
-        <View style={styles.labelRow}>
-          <Text style={styles.label}>Recipient Address</Text>
-          <View style={styles.labelRight}>
+      <View style={[styles.content, { paddingHorizontal: s(20), paddingTop: s(20) }]}>
+        <View style={[styles.labelRow, { marginBottom: s(12) }]}>
+          <Text style={[styles.label, { fontSize: sf(16) }]}>Recipient Address</Text>
+          <View style={[styles.labelRight, { gap: s(8) }]}>
             {assetType === 'unit' && advancedMode && (
               <>
-                <Icon name="turbo" size={16} color={COLORS.YELLOW} />
+                <Icon name="turbo" size={s(16)} color={COLORS.YELLOW} />
                 <Switch
                   value={turboEnabled}
                   onValueChange={setTurboEnabled}
                   trackColor={{ false: COLORS.MID_DARK_GRAY, true: COLORS.YELLOW }}
                   thumbColor={COLORS.WHITE}
                   ios_backgroundColor={COLORS.MID_DARK_GRAY}
-                  style={styles.switch}
+                  style={{ transform: [{ scale: scale * 0.8 }] }}
                   testID="address-turbo-toggle"
                 />
               </>
@@ -152,10 +158,10 @@ export default function AddressInputScreen({ navigation, route }: AddressInputSc
           </View>
         </View>
 
-        <View style={styles.inputRow}>
+        <View style={[styles.inputRow, { borderRadius: s(12), paddingHorizontal: s(16), paddingVertical: s(14) }]}>
           <TextInput
             ref={addressInputRef}
-            style={styles.input}
+            style={[styles.input, { fontSize: sf(16), minHeight: s(48) }]}
             value={sendRecipient}
             onChangeText={handleRecipientChange}
             placeholder="tb1q... or tb1p..."
@@ -167,20 +173,24 @@ export default function AddressInputScreen({ navigation, route }: AddressInputSc
             numberOfLines={2}
             testID="address-input"
           />
-          <Pressable style={styles.pasteButton} onPress={handlePaste} testID="address-paste-btn">
-            <Icon name="paste" size={18} color={COLORS.WHITE} />
+          <Pressable
+            style={[styles.pasteButton, { borderRadius: s(8), paddingHorizontal: s(12), paddingVertical: s(10), marginLeft: s(12) }]}
+            onPress={handlePaste}
+            testID="address-paste-btn"
+          >
+            <Icon name="paste" size={s(18)} color={COLORS.WHITE} />
           </Pressable>
         </View>
 
-        <View style={styles.errorContainer}>
-          {addressError ? <Text style={styles.errorText} testID="address-error">{addressError}</Text> : null}
+        <View style={[styles.errorContainer, { minHeight: s(24), paddingTop: s(8) }]}>
+          {addressError ? <Text style={[styles.errorText, { fontSize: sf(13) }]} testID="address-error">{addressError}</Text> : null}
         </View>
 
         {assetType === 'unit' && turboEnabled && (
-          <View style={styles.turboWarningContainer}>
+          <View style={[styles.turboWarningContainer, { borderRadius: s(12), padding: s(16), marginTop: s(8) }]}>
             <View style={styles.turboWarningTextContainer}>
-              <Text style={styles.turboWarningTitle}>Turbo Transaction</Text>
-              <Text style={styles.turboWarningText}>
+              <Text style={[styles.turboWarningTitle, { fontSize: sf(16), marginBottom: s(4) }]}>Turbo Transaction</Text>
+              <Text style={[styles.turboWarningText, { fontSize: sf(13), lineHeight: s(18) }]}>
                 Anonymous, instant, and private.{'\n'}
                 The recipient has to claim the funds manually.
               </Text>
@@ -189,15 +199,19 @@ export default function AddressInputScreen({ navigation, route }: AddressInputSc
         )}
       </View>
 
-      <View style={[styles.buttonContainer, { bottom: keyboardHeight }]}>
+      <View style={[styles.buttonContainer, { bottom: keyboardHeight, paddingHorizontal: s(20), paddingVertical: s(16) }]}>
         <TouchableOpacity
-          style={[styles.continueButton, (!sendRecipient || addressError) && styles.continueButtonDisabled]}
+          style={[
+            styles.continueButton,
+            { borderRadius: s(12), paddingVertical: s(16) },
+            (!sendRecipient || addressError) && styles.continueButtonDisabled
+          ]}
           onPress={handleContinue}
           disabled={!sendRecipient || !!addressError}
           activeOpacity={0.7}
           testID="address-continue-btn"
         >
-          <Text style={styles.continueButtonText}>Continue</Text>
+          <Text style={[styles.continueButtonText, { fontSize: sf(16) }]}>Continue</Text>
         </TouchableOpacity>
       </View>
     </View>

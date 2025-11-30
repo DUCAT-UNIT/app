@@ -26,6 +26,7 @@ import { RecipientHeader, BalanceMaxButton } from '../../components/amountInput'
 import InsufficientTurboSheet from '../../components/send/InsufficientTurboSheet';
 import { useCashu } from '../../contexts/CashuContext';
 import { useNavigationHandlers } from '../../contexts/NavigationHandlersContext';
+import { useResponsive } from '../../hooks/useResponsive';
 import styles from './AmountInputScreen.styles';
 
 /**
@@ -65,6 +66,7 @@ export default function AmountInputScreen({ navigation, route }: AmountInputScre
   const { wallet } = useWallet();
   const { keyboardHeight } = useKeyboard();
   const amountInputRef = useRef<TextInput>(null);
+  const { s, sf } = useResponsive();
 
   // Cashu mint params
   const isCashuMint = route?.params?.cashuMint === true;
@@ -168,6 +170,13 @@ export default function AmountInputScreen({ navigation, route }: AmountInputScre
   const hasInsufficientBalance = hasNoUnitBalance || exceedsBalance;
   const isReviewDisabled = !sendAmount || hasInsufficientBalance || isRequestingMint;
 
+  // Dynamic font sizing for amount input
+  const displayAmount = formatNumberWithCommas(sendAmount);
+  let fontSize = sf(54);
+  if (displayAmount.length > 8) fontSize = sf(40);
+  if (displayAmount.length > 12) fontSize = sf(32);
+  if (displayAmount.length > 15) fontSize = sf(24);
+
   return (
     <View style={styles.container} testID="amount-input-screen">
       <RecipientHeader
@@ -176,7 +185,7 @@ export default function AmountInputScreen({ navigation, route }: AmountInputScre
         addressType={addressType}
       />
 
-      <View style={styles.content}>
+      <View style={[styles.content, { paddingTop: s(40) }]}>
         <BalanceMaxButton
           assetLabel={assetLabel}
           balance={balance}
@@ -187,24 +196,35 @@ export default function AmountInputScreen({ navigation, route }: AmountInputScre
         />
 
         {hasInsufficientBalance && (
-          <View style={styles.warningContainer} testID="amount-error">
-            <Icon name="warning" size={16} color={COLORS.DANGER_RED} />
-            <Text style={styles.warningText}>
+          <View style={[
+            styles.warningContainer,
+            {
+              borderRadius: s(8),
+              paddingVertical: s(12),
+              paddingHorizontal: s(16),
+              marginBottom: s(24),
+              gap: s(8),
+            }
+          ]} testID="amount-error">
+            <Icon name="warning" size={s(16)} color={COLORS.DANGER_RED} />
+            <Text style={[styles.warningText, { fontSize: sf(14) }]}>
               {hasNoUnitBalance ? 'No available UNIT balance to send' : 'Insufficient balance'}
             </Text>
           </View>
         )}
 
-        <View style={styles.amountInputRow}>
+        <View style={[styles.amountInputRow, { marginBottom: s(12) }]}>
           <TextInput
             ref={amountInputRef}
             style={[
               styles.amountInput,
-              formatNumberWithCommas(sendAmount).length > 8 && styles.mediumText,
-              formatNumberWithCommas(sendAmount).length > 12 && styles.smallText,
-              formatNumberWithCommas(sendAmount).length > 15 && styles.xsmallText,
+              {
+                fontSize,
+                marginRight: s(12),
+                minWidth: s(60),
+              }
             ]}
-            value={formatNumberWithCommas(sendAmount)}
+            value={displayAmount}
             onChangeText={handleAmountChange}
             placeholder="0"
             placeholderTextColor={COLORS.MID_DARK_GRAY}
@@ -215,22 +235,26 @@ export default function AmountInputScreen({ navigation, route }: AmountInputScre
           />
           <Icon
             name={sendAssetType === 'btc' ? 'btc_symbol' : 'unit_symbol'}
-            size={32}
+            size={s(32)}
             color={COLORS.VERY_LIGHT_GRAY}
           />
         </View>
 
-        <Text style={styles.usdValue} testID="amount-usd-value">≈ ${usdValue} USD</Text>
+        <Text style={[styles.usdValue, { fontSize: sf(18) }]} testID="amount-usd-value">≈ ${usdValue} USD</Text>
       </View>
 
       <View style={[styles.buttonContainer, { bottom: keyboardHeight }]}>
         <TouchableScale
-          style={[styles.reviewButton, isReviewDisabled && styles.reviewButtonDisabled]}
+          style={[
+            styles.reviewButton,
+            { borderRadius: s(12), paddingVertical: s(16) },
+            isReviewDisabled && styles.reviewButtonDisabled
+          ]}
           onPress={onReviewPress}
           disabled={isReviewDisabled}
           testID="amount-review-btn"
         >
-          <Text style={styles.reviewButtonText}>Review</Text>
+          <Text style={[styles.reviewButtonText, { fontSize: sf(16) }]}>Review</Text>
         </TouchableScale>
       </View>
 
@@ -238,7 +262,7 @@ export default function AmountInputScreen({ navigation, route }: AmountInputScre
         <View style={styles.loadingOverlay}>
           <View style={styles.loadingContent}>
             <ActivityIndicator size="large" color={COLORS.PRIMARY_BLUE} />
-            <Text style={styles.loadingText}>Preparing Turbo transaction...</Text>
+            <Text style={[styles.loadingText, { fontSize: sf(16), marginTop: s(16) }]}>Preparing Turbo transaction...</Text>
           </View>
         </View>
       )}

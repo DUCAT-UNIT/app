@@ -1050,7 +1050,7 @@ export const VaultHealthChartView = memo(function VaultHealthChartView({
                   <View key={i} style={styles.drawerTxItem}>
                     {/* Icon */}
                     <View style={styles.drawerTxIcon}>
-                      <Icon name="vault_logo" size={36} color={COLORS.WHITE} />
+                      <Icon name="vault_logo" size={28} color={COLORS.WHITE} />
                     </View>
 
                     {/* Content */}

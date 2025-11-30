@@ -10,6 +10,7 @@ import Icon from '../icons';
 import { VaultActivityListSkeleton } from './VaultSkeleton';
 import type { VaultHistoryTransaction } from '../../services/vaultService';
 import { formatUnitAmount, formatBalance } from '../../utils/formatters';
+import { useResponsive } from '../../hooks/useResponsive';
 
 const INITIAL_LOAD_COUNT = 10;
 const LOAD_MORE_COUNT = 10;
@@ -63,6 +64,7 @@ const VaultTransactionItem = memo(function VaultTransactionItem({
   isHighlighted?: boolean;
   onPress?: () => void;
 }) {
+  const { s, sf } = useResponsive();
   const actionLower = transaction.action.toLowerCase();
 
   // Determine UNIT color based on action
@@ -85,23 +87,24 @@ const VaultTransactionItem = memo(function VaultTransactionItem({
     <TouchableOpacity
       style={[
         styles.transactionItem,
+        { paddingTop: s(8), paddingBottom: s(16), paddingLeft: s(12) },
         isHighlighted && styles.transactionItemHighlighted
       ]}
       activeOpacity={0.7}
       onPress={onPress}
     >
       {/* Vault Icon */}
-      <View style={styles.iconContainer}>
-        <Icon name="vault_logo" size={40} color="#DDDDDD" />
+      <View style={{ marginRight: s(14), alignSelf: 'center' }}>
+        <Icon name="vault_logo" size={s(28)} color="#DDDDDD" />
       </View>
 
       {/* Content */}
       <View style={styles.contentContainer}>
         {/* Top Row: Action | Confirmed | Amounts */}
-        <View style={styles.topRow}>
+        <View style={[styles.topRow, { marginBottom: s(4) }]}>
           {/* Column 1: Action label */}
           <View style={styles.column1}>
-            <Text style={styles.transactionAction}>
+            <Text style={[styles.transactionAction, { fontSize: sf(14) }]}>
               {formatAction(transaction.action)}
             </Text>
           </View>
@@ -109,24 +112,24 @@ const VaultTransactionItem = memo(function VaultTransactionItem({
           <View style={styles.rightGroup}>
             {/* Column 2: Confirmed chip */}
             <View style={styles.column2}>
-              <View style={styles.confirmedChip}>
-                <Text style={styles.confirmedChipText}>Confirmed</Text>
+              <View style={[styles.confirmedChip, { paddingHorizontal: s(6), paddingVertical: s(4), borderRadius: s(4), marginLeft: s(4) }]}>
+                <Text style={[styles.confirmedChipText, { fontSize: sf(10) }]}>Confirmed</Text>
               </View>
             </View>
             {/* Column 3: Amounts */}
             <View style={styles.column3}>
               {transaction.unit_amt !== 0 && (
                 <View style={styles.amountRow}>
-                  <Icon name="unit_symbol" size={12} color={unitColor} style={styles.amountIcon} />
-                  <Text style={[styles.transactionAmount, { color: unitColor }]}>
+                  <Icon name="unit_symbol" size={s(10)} color={unitColor} style={[styles.amountIcon, { marginRight: s(3) }]} />
+                  <Text style={[styles.transactionAmount, { color: unitColor, fontSize: sf(12) }]}>
                     {formatUnitAmount(Math.abs(transaction.unit_amt))}
                   </Text>
                 </View>
               )}
               {transaction.btc_amt !== 0 && (
                 <View style={styles.amountRow}>
-                  <Icon name="btc_symbol" size={12} color={btcColor} style={styles.amountIcon} />
-                  <Text style={[styles.transactionAmount, { color: btcColor }]}>
+                  <Icon name="btc_symbol" size={s(10)} color={btcColor} style={[styles.amountIcon, { marginRight: s(3) }]} />
+                  <Text style={[styles.transactionAmount, { color: btcColor, fontSize: sf(12) }]}>
                     {formatBalance(Math.abs(transaction.btc_amt) / 100_000_000)}
                   </Text>
                 </View>
@@ -136,7 +139,7 @@ const VaultTransactionItem = memo(function VaultTransactionItem({
         </View>
 
         {/* Bottom Row: Date */}
-        <Text style={styles.transactionDate}>
+        <Text style={[styles.transactionDate, { fontSize: sf(11) }]}>
           {formatDate(transaction.timestamp)}
         </Text>
       </View>
@@ -169,6 +172,7 @@ export const VaultActivityList = memo(function VaultActivityList({
   highlightedEventDate,
   onTransactionPress,
 }: VaultActivityListProps) {
+  const { s, sf } = useResponsive();
   const [displayCount, setDisplayCount] = useState(INITIAL_LOAD_COUNT);
 
   // Pre-compute a map of transaction timestamps to indices for O(1) lookup
@@ -222,13 +226,22 @@ export const VaultActivityList = memo(function VaultActivityList({
   const renderFooter = useCallback(() => {
     if (!hasMore) return null;
     return (
-      <TouchableOpacity style={styles.loadMoreButton} onPress={handleLoadMore}>
-        <Text style={styles.loadMoreText}>
+      <TouchableOpacity
+        style={[styles.loadMoreButton, {
+          borderRadius: s(10),
+          paddingVertical: s(14),
+          paddingHorizontal: s(20),
+          marginTop: s(12),
+          marginBottom: s(8)
+        }]}
+        onPress={handleLoadMore}
+      >
+        <Text style={[styles.loadMoreText, { fontSize: sf(14) }]}>
           Load More ({filteredTransactions.length - displayCount} remaining)
         </Text>
       </TouchableOpacity>
     );
-  }, [hasMore, handleLoadMore, filteredTransactions.length, displayCount]);
+  }, [hasMore, handleLoadMore, filteredTransactions.length, displayCount, s, sf]);
 
   if (isLoading) {
     return <VaultActivityListSkeleton />;
@@ -236,9 +249,9 @@ export const VaultActivityList = memo(function VaultActivityList({
 
   if (transactions.length === 0) {
     return (
-      <View style={styles.emptyContainer}>
-        <Text style={styles.emptyText}>No vault activity yet</Text>
-        <Text style={styles.emptySubtext}>
+      <View style={[styles.emptyContainer, { paddingVertical: s(40) }]}>
+        <Text style={[styles.emptyText, { fontSize: sf(16), marginBottom: s(8) }]}>No vault activity yet</Text>
+        <Text style={[styles.emptySubtext, { fontSize: sf(14) }]}>
           Your vault transactions will appear here
         </Text>
       </View>
@@ -248,9 +261,9 @@ export const VaultActivityList = memo(function VaultActivityList({
   // If filter is active but no matches found, show empty state
   if (highlightedEventDate && filteredTransactions.length === 0) {
     return (
-      <View style={styles.emptyContainer}>
-        <Text style={styles.emptyText}>No matching activity</Text>
-        <Text style={styles.emptySubtext}>
+      <View style={[styles.emptyContainer, { paddingVertical: s(40) }]}>
+        <Text style={[styles.emptyText, { fontSize: sf(16), marginBottom: s(8) }]}>No matching activity</Text>
+        <Text style={[styles.emptySubtext, { fontSize: sf(14) }]}>
           Clear the filter to see all transactions
         </Text>
       </View>
@@ -262,7 +275,7 @@ export const VaultActivityList = memo(function VaultActivityList({
       data={displayTransactions}
       renderItem={renderItem}
       keyExtractor={keyExtractor}
-      style={styles.container}
+      style={[styles.container, { paddingHorizontal: s(16) }]}
       scrollEnabled={false}
       ListFooterComponent={renderFooter}
     />
@@ -291,12 +304,9 @@ const styles = StyleSheet.create({
   transactionItem: {
     flexDirection: 'row',
     alignItems: 'center',
-    paddingVertical: 12,
     borderBottomWidth: 1,
     borderBottomColor: COLORS.VERY_DARK_GRAY,
     borderRadius: 8,
-    paddingHorizontal: 8,
-    marginHorizontal: -8,
   },
   transactionItemHighlighted: {
     borderWidth: 1.5,

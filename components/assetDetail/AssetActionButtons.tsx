@@ -7,6 +7,7 @@ import React from 'react';
 import { View, Text, TouchableOpacity, StyleSheet } from 'react-native';
 import Icon from '../icons';
 import { COLORS } from '../../theme';
+import { useResponsive } from '../../hooks/useResponsive';
 
 interface AssetActionButtonsProps {
   onSendPress: () => void;
@@ -18,49 +19,51 @@ interface AssetActionButtonsProps {
 }
 
 export function AssetActionButtons({ onSendPress, onReceivePress, onConsolidatePress, onTurboPress, showConsolidate, advancedMode = false }: AssetActionButtonsProps) {
+  const { s, sf } = useResponsive();
+
   return (
-    <View style={styles.actionButtonsContainer}>
+    <View style={[styles.actionButtonsContainer, { paddingHorizontal: s(24), paddingVertical: s(12), gap: s(12) }]}>
       {showConsolidate && advancedMode && (
         <TouchableOpacity
-          style={styles.actionButton}
+          style={[styles.actionButton, { minWidth: s(62) }]}
           onPress={onTurboPress}
         >
-          <View style={styles.actionButtonIcon}>
-            <Icon name="turbo" size={19} color={COLORS.DARK_BG} />
+          <View style={[styles.actionButtonIcon, { width: s(50), height: s(50), borderRadius: s(8), marginBottom: s(2) }]}>
+            <Icon name="turbo" size={s(19)} color={COLORS.DARK_BG} />
           </View>
-          <Text style={styles.actionButtonLabel}>Turbo</Text>
+          <Text style={[styles.actionButtonLabel, { fontSize: sf(13) }]}>Turbo</Text>
         </TouchableOpacity>
       )}
 
       <TouchableOpacity
-        style={styles.actionButton}
+        style={[styles.actionButton, { minWidth: s(62) }]}
         onPress={onSendPress}
       >
-        <View style={styles.actionButtonIcon}>
-          <Icon name="send" size={19} color={COLORS.DARK_BG} />
+        <View style={[styles.actionButtonIcon, { width: s(50), height: s(50), borderRadius: s(8), marginBottom: s(2) }]}>
+          <Icon name="send" size={s(19)} color={COLORS.DARK_BG} />
         </View>
-        <Text style={styles.actionButtonLabel}>Send</Text>
+        <Text style={[styles.actionButtonLabel, { fontSize: sf(13) }]}>Send</Text>
       </TouchableOpacity>
 
       <TouchableOpacity
-        style={styles.actionButton}
+        style={[styles.actionButton, { minWidth: s(62) }]}
         onPress={onReceivePress}
       >
-        <View style={styles.actionButtonIcon}>
-          <Icon name="receive" size={19} color={COLORS.DARK_BG} />
+        <View style={[styles.actionButtonIcon, { width: s(50), height: s(50), borderRadius: s(8), marginBottom: s(2) }]}>
+          <Icon name="receive" size={s(19)} color={COLORS.DARK_BG} />
         </View>
-        <Text style={styles.actionButtonLabel}>Receive</Text>
+        <Text style={[styles.actionButtonLabel, { fontSize: sf(13) }]}>Receive</Text>
       </TouchableOpacity>
 
       {showConsolidate && advancedMode && (
         <TouchableOpacity
-          style={styles.actionButton}
+          style={[styles.actionButton, { minWidth: s(62) }]}
           onPress={onConsolidatePress}
         >
-          <View style={styles.actionButtonIcon}>
-            <Icon name="fuse" size={19} color={COLORS.DARK_BG} />
+          <View style={[styles.actionButtonIcon, { width: s(50), height: s(50), borderRadius: s(8), marginBottom: s(2) }]}>
+            <Icon name="fuse" size={s(19)} color={COLORS.DARK_BG} />
           </View>
-          <Text style={styles.actionButtonLabel}>Fuse</Text>
+          <Text style={[styles.actionButtonLabel, { fontSize: sf(13) }]}>Fuse</Text>
         </TouchableOpacity>
       )}
     </View>
@@ -71,26 +74,18 @@ const styles = StyleSheet.create({
   actionButtonsContainer: {
     flexDirection: 'row',
     justifyContent: 'center',
-    paddingHorizontal: 5,
-    paddingVertical: 12,
-    gap: 12,
   },
   actionButton: {
     alignItems: 'center',
-    minWidth: 62,
   },
   actionButtonIcon: {
-    width: 50,
-    height: 50,
     borderRadius: 8,
     backgroundColor: COLORS.WHITE,
     justifyContent: 'center',
     alignItems: 'center',
-    marginBottom: 2,
     borderWidth: 0,
   },
   actionButtonLabel: {
-    fontSize: 13,
     color: COLORS.WHITE,
     fontWeight: '600',
   },

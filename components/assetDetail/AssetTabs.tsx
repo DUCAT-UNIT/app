@@ -1,11 +1,13 @@
 /**
  * AssetTabs Component
  * Tab selector for Activity, Turbo, and About sections
+ * Uses responsive scaling with s() and sf() functions
  */
 
 import React, { memo, useCallback, useMemo } from 'react';
-import { View, Text, TouchableOpacity, StyleSheet } from 'react-native';
+import { View, Text, TouchableOpacity } from 'react-native';
 import { COLORS } from '../../theme';
+import { useResponsive } from '../../hooks/useResponsive';
 
 interface AssetTabsProps {
   selectedTab: string;
@@ -14,34 +16,14 @@ interface AssetTabsProps {
   advancedMode?: boolean;
 }
 
-// Memoized individual tab button to prevent re-renders
-const TabButton = memo(function TabButton({
-  tab,
-  isSelected,
-  onPress,
-}: {
-  tab: string;
-  isSelected: boolean;
-  onPress: () => void;
-}) {
-  return (
-    <TouchableOpacity
-      style={[styles.tab, isSelected && styles.activeTab]}
-      onPress={onPress}
-    >
-      <Text style={[styles.tabText, isSelected && styles.activeTabText]}>
-        {tab}
-      </Text>
-    </TouchableOpacity>
-  );
-});
-
 export const AssetTabs = memo(function AssetTabs({
   selectedTab,
   onTabChange,
   assetType,
   advancedMode = false
 }: AssetTabsProps) {
+  const { s, sf } = useResponsive();
+
   // Memoize tab options to prevent array recreation
   const TAB_OPTIONS = useMemo(() =>
     (assetType === 'UNIT' && advancedMode)
@@ -63,42 +45,35 @@ export const AssetTabs = memo(function AssetTabs({
   }), [handleActivityPress, handleTurboPress, handleAboutPress]);
 
   return (
-    <View style={styles.tabContainer}>
-      {TAB_OPTIONS.map((tab) => (
-        <TabButton
-          key={tab}
-          tab={tab}
-          isSelected={selectedTab === tab}
-          onPress={tabHandlers[tab]}
-        />
-      ))}
+    <View style={{
+      flexDirection: 'row',
+      paddingHorizontal: s(24),
+      marginTop: s(16),
+      marginBottom: s(16),
+      gap: s(24),
+    }}>
+      {TAB_OPTIONS.map((tab) => {
+        const isSelected = selectedTab === tab;
+        return (
+          <TouchableOpacity
+            key={tab}
+            style={{
+              paddingBottom: s(8),
+              borderBottomWidth: isSelected ? 2 : 0,
+              borderBottomColor: COLORS.PRIMARY_BLUE,
+            }}
+            onPress={tabHandlers[tab]}
+          >
+            <Text style={{
+              fontSize: sf(16),
+              fontWeight: '600',
+              color: isSelected ? COLORS.WHITE : COLORS.SECONDARY_TEXT,
+            }}>
+              {tab.charAt(0) + tab.slice(1).toLowerCase()}
+            </Text>
+          </TouchableOpacity>
+        );
+      })}
     </View>
   );
-});
-
-const styles = StyleSheet.create({
-  tabContainer: {
-    flexDirection: 'row',
-    paddingHorizontal: 16,
-    marginTop: 16,
-    marginBottom: 16,
-    gap: 12,
-  },
-  tab: {
-    paddingVertical: 12,
-    paddingHorizontal: 28,
-    borderRadius: 10,
-    backgroundColor: 'transparent',
-  },
-  activeTab: {
-    backgroundColor: COLORS.VERY_DARK_GRAY,
-  },
-  tabText: {
-    fontSize: 14,
-    fontWeight: '600',
-    color: COLORS.SECONDARY_TEXT,
-  },
-  activeTabText: {
-    color: COLORS.WHITE,
-  },
 });

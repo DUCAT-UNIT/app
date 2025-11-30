@@ -181,7 +181,7 @@ export default function VaultTransactionDetailsSheet({
       {/* Header */}
       <View style={styles.header}>
         <View style={styles.headerContent}>
-          <Icon name="vault_logo" size={28} color="#DDDDDD" />
+          <Icon name="vault_logo" size={24} color="#DDDDDD" />
           <View style={styles.headerText}>
             <Text style={styles.title}>{formatAction(details.action)}</Text>
             <Text style={styles.subtitle}>{formatDate(details.timestamp)}</Text>

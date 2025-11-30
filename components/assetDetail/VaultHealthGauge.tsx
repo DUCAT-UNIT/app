@@ -10,6 +10,7 @@ import Svg, { Path, Circle, Text as SvgText, TSpan } from 'react-native-svg';
 import { COLORS } from '../../theme';
 import Icon from '../icons';
 import { formatBalance, formatFiat } from '../../utils/formatters';
+import { useResponsive } from '../../hooks/useResponsive';
 
 // Constants
 const LIQUIDATION_RATE = 1.5;
@@ -128,7 +129,6 @@ export interface VaultHealthGaugeProps {
   onRepayPress?: () => void;
   onDepositPress?: () => void;
   onWithdrawPress?: () => void;
-  onChartPress?: () => void;
 }
 
 export const VaultHealthGauge = memo(function VaultHealthGauge({
@@ -140,8 +140,9 @@ export const VaultHealthGauge = memo(function VaultHealthGauge({
   onRepayPress,
   onDepositPress,
   onWithdrawPress,
-  onChartPress,
 }: VaultHealthGaugeProps): React.JSX.Element {
+  const { s, sf } = useResponsive();
+
   // Memoize liquidation price calculation
   const liquidationPrice = useMemo(() =>
     totalDebt > 0 && totalCollateral > 0
@@ -201,16 +202,9 @@ export const VaultHealthGauge = memo(function VaultHealthGauge({
   );
 
   return (
-    <View style={styles.container}>
-      {/* Gauge Container with Chart Button */}
-      <View style={styles.gaugeContainer}>
-        {/* Chart button - top right */}
-        {onChartPress && (
-          <TouchableOpacity style={styles.chartButton} onPress={onChartPress} activeOpacity={0.7}>
-            <Icon name="chart" size={20} color={COLORS.WHITE} />
-          </TouchableOpacity>
-        )}
-
+    <View style={[styles.container, { paddingHorizontal: s(24), paddingTop: s(8) }]}>
+      {/* Gauge Container */}
+      <View style={[styles.gaugeContainer, { marginBottom: s(8) }]}>
         <Svg
           width="100%"
           height="100%"
@@ -318,62 +312,63 @@ export const VaultHealthGauge = memo(function VaultHealthGauge({
         </Svg>
       </View>
 
-      {/* Stats Row - Debt | Collateral */}
-      <View style={styles.statsRow}>
-        <View style={styles.statItem}>
-          <Text style={styles.statLabel}>Debt</Text>
-          <View style={styles.statValueRow}>
-            <Icon name="unit_symbol" size={16} color={COLORS.WHITE} />
-            <Text style={styles.statValue}>{formatFiat(totalDebt)}</Text>
-          </View>
-        </View>
-        <View style={styles.statDivider} />
-        <View style={styles.statItem}>
-          <Text style={styles.statLabel}>Collateral</Text>
-          <View style={styles.statValueRow}>
-            <Icon name="btc_symbol" size={16} color={COLORS.WHITE} />
-            <Text style={styles.statValue}>{formatBalance(totalCollateral)}</Text>
-          </View>
-        </View>
-      </View>
-
-      {/* Liquidation Price */}
-      <View style={styles.liquidationRow}>
-        <Text style={styles.liquidationLabel}>Liquidation Price</Text>
-        <Text style={[styles.liquidationValue, { color: titleColor }]}>
+      {/* Liquidation Price - moved up */}
+      <View style={[styles.liquidationRow, { marginBottom: s(16) }]}>
+        <Text style={[styles.liquidationLabel, { fontSize: sf(14), marginBottom: s(2) }]}>Liquidation Price</Text>
+        <Text style={[styles.liquidationValue, { color: titleColor, fontSize: sf(18) }]}>
           ${formatFiat(liquidationPrice, 0)}
         </Text>
       </View>
 
-      {/* Action Buttons */}
-      <View style={styles.actionsRow}>
-        <TouchableOpacity style={styles.actionButton} onPress={onDepositPress}>
-          <View style={styles.actionButtonIcon}>
-            <Text style={styles.buttonIcon}>+</Text>
+      {/* Stats Row - Collateral | Debt with action buttons below each */}
+      <View style={[styles.statsRow, { marginBottom: s(8) }]}>
+        {/* Collateral Column with Deposit/Withdraw */}
+        <View style={[styles.statColumn, { paddingHorizontal: s(16) }]}>
+          <Text style={[styles.statLabel, { fontSize: sf(14), marginBottom: s(4) }]}>Collateral</Text>
+          <View style={[styles.statValueRow, { gap: s(4), marginBottom: s(12) }]}>
+            <Icon name="btc_symbol" size={s(18)} color={COLORS.WHITE} />
+            <Text style={[styles.statValue, { fontSize: sf(20) }]}>{formatBalance(totalCollateral)}</Text>
           </View>
-          <Text style={styles.actionButtonLabel}>Deposit</Text>
-        </TouchableOpacity>
+          <View style={[styles.buttonPair, { gap: s(8) }]}>
+            <TouchableOpacity style={styles.actionButton} onPress={onDepositPress}>
+              <View style={[styles.actionButtonIcon, { width: s(56), height: s(56), borderRadius: s(8), marginBottom: s(2) }]}>
+                <Text style={[styles.buttonIcon, { fontSize: sf(25) }]}>+</Text>
+              </View>
+              <Text style={[styles.actionButtonLabel, { fontSize: sf(10) }]}>Deposit</Text>
+            </TouchableOpacity>
+            <TouchableOpacity style={styles.actionButton} onPress={onWithdrawPress}>
+              <View style={[styles.actionButtonIcon, { width: s(56), height: s(56), borderRadius: s(8), marginBottom: s(2) }]}>
+                <Text style={[styles.buttonIcon, { fontSize: sf(25) }]}>−</Text>
+              </View>
+              <Text style={[styles.actionButtonLabel, { fontSize: sf(10) }]}>Withdraw</Text>
+            </TouchableOpacity>
+          </View>
+        </View>
 
-        <TouchableOpacity style={styles.actionButton} onPress={onBorrowPress}>
-          <View style={styles.actionButtonIcon}>
-            <Text style={styles.buttonIcon}>↑</Text>
-          </View>
-          <Text style={styles.actionButtonLabel}>Borrow</Text>
-        </TouchableOpacity>
+        <View style={[styles.statDivider, { height: s(120) }]} />
 
-        <TouchableOpacity style={styles.actionButton} onPress={onRepayPress}>
-          <View style={styles.actionButtonIcon}>
-            <Text style={styles.buttonIcon}>↓</Text>
+        {/* Debt Column with Borrow/Repay */}
+        <View style={[styles.statColumn, { paddingHorizontal: s(16) }]}>
+          <Text style={[styles.statLabel, { fontSize: sf(14), marginBottom: s(4) }]}>Debt</Text>
+          <View style={[styles.statValueRow, { gap: s(4), marginBottom: s(12) }]}>
+            <Icon name="unit_symbol" size={s(18)} color={COLORS.WHITE} />
+            <Text style={[styles.statValue, { fontSize: sf(20) }]}>{formatFiat(totalDebt)}</Text>
           </View>
-          <Text style={styles.actionButtonLabel}>Repay</Text>
-        </TouchableOpacity>
-
-        <TouchableOpacity style={styles.actionButton} onPress={onWithdrawPress}>
-          <View style={styles.actionButtonIcon}>
-            <Text style={styles.buttonIcon}>−</Text>
+          <View style={[styles.buttonPair, { gap: s(8) }]}>
+            <TouchableOpacity style={styles.actionButton} onPress={onBorrowPress}>
+              <View style={[styles.actionButtonIcon, { width: s(56), height: s(56), borderRadius: s(8), marginBottom: s(2) }]}>
+                <Text style={[styles.buttonIcon, { fontSize: sf(25) }]}>↑</Text>
+              </View>
+              <Text style={[styles.actionButtonLabel, { fontSize: sf(10) }]}>Borrow</Text>
+            </TouchableOpacity>
+            <TouchableOpacity style={styles.actionButton} onPress={onRepayPress}>
+              <View style={[styles.actionButtonIcon, { width: s(56), height: s(56), borderRadius: s(8), marginBottom: s(2) }]}>
+                <Text style={[styles.buttonIcon, { fontSize: sf(25) }]}>↓</Text>
+              </View>
+              <Text style={[styles.actionButtonLabel, { fontSize: sf(10) }]}>Repay</Text>
+            </TouchableOpacity>
           </View>
-          <Text style={styles.actionButtonLabel}>Withdraw</Text>
-        </TouchableOpacity>
+        </View>
       </View>
     </View>
   );
@@ -390,29 +385,12 @@ const styles = StyleSheet.create({
     width: '100%',
     aspectRatio: 1.5,
     marginBottom: 16,
-    position: 'relative',
-  },
-  chartButton: {
-    position: 'absolute',
-    top: 8,
-    right: 8,
-    width: 36,
-    height: 36,
-    borderRadius: 18,
-    backgroundColor: COLORS.VERY_DARK_GRAY,
-    justifyContent: 'center',
-    alignItems: 'center',
-    zIndex: 10,
   },
   statsRow: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
     marginBottom: 16,
-  },
-  statItem: {
-    alignItems: 'center',
-    paddingHorizontal: 32,
   },
   statLabel: {
     fontSize: 14,
@@ -429,10 +407,17 @@ const styles = StyleSheet.create({
     fontWeight: '600',
     color: COLORS.WHITE,
   },
+  statColumn: {
+    alignItems: 'center',
+    flex: 1,
+  },
   statDivider: {
     width: 1,
-    height: 40,
     backgroundColor: COLORS.DARK_GRAY,
+  },
+  buttonPair: {
+    flexDirection: 'row',
+    justifyContent: 'center',
   },
   liquidationRow: {
     alignItems: 'center',
@@ -446,11 +431,6 @@ const styles = StyleSheet.create({
   liquidationValue: {
     fontSize: 20,
     fontWeight: '600',
-  },
-  actionsRow: {
-    flexDirection: 'row',
-    justifyContent: 'center',
-    gap: 12,
   },
   actionButton: {
     alignItems: 'center',

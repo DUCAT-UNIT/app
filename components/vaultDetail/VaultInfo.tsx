@@ -7,6 +7,7 @@ import React, { memo } from 'react';
 import { View, StyleSheet } from 'react-native';
 import { VaultHealthGauge } from '../assetDetail/VaultHealthGauge';
 import { VaultInfoSkeleton } from './VaultSkeleton';
+import { useResponsive } from '../../hooks/useResponsive';
 
 interface VaultInfoProps {
   totalDebt: number;
@@ -28,16 +29,18 @@ export const VaultInfo = memo(function VaultInfo({
   priceChange24h = 0,
   onChartPress,
 }: VaultInfoProps) {
+  const { s } = useResponsive();
+
   if (isLoading) {
     return (
-      <View style={styles.container}>
+      <View style={[styles.container, { paddingVertical: s(8) }]}>
         <VaultInfoSkeleton />
       </View>
     );
   }
 
   return (
-    <View style={styles.container}>
+    <View style={[styles.container, { paddingVertical: s(8) }]}>
       <VaultHealthGauge
         totalDebt={totalDebt}
         totalCollateral={totalCollateral}
@@ -51,7 +54,5 @@ export const VaultInfo = memo(function VaultInfo({
 });
 
 const styles = StyleSheet.create({
-  container: {
-    paddingVertical: 8,
-  },
+  container: {},
 });

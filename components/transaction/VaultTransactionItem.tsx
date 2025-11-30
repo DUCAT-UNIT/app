@@ -1,5 +1,6 @@
 /**
  * VaultTransactionItem Component
+ * Uses responsive scaling with s() and sf() functions
  */
 
 import React from 'react';
@@ -9,6 +10,7 @@ import { COLORS } from '../../theme';
 import { formatTransactionDate } from '../../utils/formatters/dates';
 import { formatUnitAmount } from '../../utils/formatters/amounts';
 import { formatBalance } from '../../utils/formatters';
+import { useResponsive } from '../../hooks/useResponsive';
 import localStyles from './TransactionItem.styles';
 import type { VaultAction, VaultTransactionData } from '../../types/assets';
 
@@ -33,9 +35,11 @@ interface VaultAmountDisplayProps {
   vaultData: VaultTransactionData;
   action: VaultAction;
   styles: VaultTransactionStyles;
+  s: (value: number) => number;
+  sf: (value: number) => number;
 }
 
-function VaultAmountDisplay({ vaultData, action, styles }: VaultAmountDisplayProps) {
+function VaultAmountDisplay({ vaultData, action, styles, s, sf }: VaultAmountDisplayProps) {
   const isPositiveAction = action === 'Deposit' || action === 'Repay' || action === 'Open';
   const color = isPositiveAction ? COLORS.GREEN : COLORS.RED;
 
@@ -44,16 +48,16 @@ function VaultAmountDisplay({ vaultData, action, styles }: VaultAmountDisplayPro
   // Show both amounts for Repossess (liquidation shows collateral taken + debt cleared)
   if (hasBoth) {
     return (
-      <View style={{ alignItems: 'flex-end', gap: 2 }}>
+      <View style={{ alignItems: 'flex-end', gap: s(2) }}>
         <View style={styles.balanceWithIcon}>
-          <Icon name="btc_symbol" size={12} color={COLORS.RED} style={styles.assetAmountIcon} />
-          <Text style={[styles.assetAmount, { color: COLORS.RED }]}>
+          <Icon name="btc_symbol" size={s(12)} color={COLORS.RED} style={styles.assetAmountIcon} />
+          <Text style={[styles.assetAmount, { color: COLORS.RED, fontSize: sf(14) }]}>
             {formatBalance(vaultData.btcAmount / 100000000)}
           </Text>
         </View>
         <View style={styles.balanceWithIcon}>
-          <Icon name="unit_symbol" size={12} color={COLORS.GREEN} style={styles.assetAmountIcon} />
-          <Text style={[styles.assetAmount, { color: COLORS.GREEN }]}>
+          <Icon name="unit_symbol" size={s(12)} color={COLORS.GREEN} style={styles.assetAmountIcon} />
+          <Text style={[styles.assetAmount, { color: COLORS.GREEN, fontSize: sf(14) }]}>
             {formatUnitAmount(vaultData.unitAmount)}
           </Text>
         </View>
@@ -64,8 +68,8 @@ function VaultAmountDisplay({ vaultData, action, styles }: VaultAmountDisplayPro
   if (vaultData.btcAmount > 0) {
     return (
       <View style={styles.balanceWithIcon}>
-        <Icon name="btc_symbol" size={12} color={color} style={styles.assetAmountIcon} />
-        <Text style={[styles.assetAmount, { color }]}>
+        <Icon name="btc_symbol" size={s(12)} color={color} style={styles.assetAmountIcon} />
+        <Text style={[styles.assetAmount, { color, fontSize: sf(14) }]}>
           {formatBalance(vaultData.btcAmount / 100000000)}
         </Text>
       </View>
@@ -75,8 +79,8 @@ function VaultAmountDisplay({ vaultData, action, styles }: VaultAmountDisplayPro
   if (vaultData.unitAmount > 0) {
     return (
       <View style={styles.balanceWithIcon}>
-        <Icon name="unit_symbol" size={12} color={color} style={styles.assetAmountIcon} />
-        <Text style={[styles.assetAmount, { color }]}>
+        <Icon name="unit_symbol" size={s(12)} color={color} style={styles.assetAmountIcon} />
+        <Text style={[styles.assetAmount, { color, fontSize: sf(14) }]}>
           {formatUnitAmount(vaultData.unitAmount)}
         </Text>
       </View>
@@ -106,34 +110,39 @@ export interface VaultTransactionItemProps {
 }
 
 export default function VaultTransactionItem({ tx, styles, onPress }: VaultTransactionItemProps) {
+  const { s, sf } = useResponsive();
   const vaultData = tx.vaultData;
   const action: VaultAction = vaultData.action;
   const actionLabel: Record<VaultAction, string> = { Borrow: 'Borrow', Repay: 'Repay', Deposit: 'Deposit', Withdraw: 'Withdraw', Open: 'Open', Repossess: 'Repossess' };
   const label = actionLabel[action] || action;
 
   return (
-    <TouchableOpacity style={styles.historyTxRow} onPress={onPress} activeOpacity={0.7}>
-      <View style={localStyles.vaultLogo}>
-        <Icon name="vault_logo" size={40} />
+    <TouchableOpacity
+      style={[styles.historyTxRow, { paddingLeft: 5, paddingTop: 12, paddingBottom: 12 }]}
+      onPress={onPress}
+      activeOpacity={0.7}
+    >
+      <View style={{ marginRight: s(16), alignSelf: 'center' }}>
+        <Icon name="vault_logo" size={s(28)} />
       </View>
       <View style={localStyles.txContentContainer}>
-        <View style={styles.historyTxTopRow}>
+        <View style={[styles.historyTxTopRow, { marginBottom: s(4) }]}>
           <View style={styles.historyTxColumn1}>
-            <Text style={[styles.historyTxAmount, localStyles.actionText]}>{label}</Text>
+            <Text style={[styles.historyTxAmount, localStyles.actionText, { fontSize: sf(14), marginBottom: s(4) }]}>{label}</Text>
           </View>
           <View style={styles.historyTxRightGroup}>
             <View style={styles.historyTxColumn2}>
-              <View style={[styles.vaultAmountChip, localStyles.vaultConfirmedChip]}>
-                <Text style={[styles.vaultAmountChipText, localStyles.vaultConfirmedText]}>Confirmed</Text>
+              <View style={[styles.vaultAmountChip, localStyles.vaultConfirmedChip, { paddingHorizontal: s(6), paddingVertical: s(4), borderRadius: s(4), marginLeft: s(4) }]}>
+                <Text style={[styles.vaultAmountChipText, localStyles.vaultConfirmedText, { fontSize: sf(10) }]}>Confirmed</Text>
               </View>
             </View>
             <View style={styles.historyTxColumn3}>
-              <VaultAmountDisplay vaultData={vaultData} action={action} styles={styles} />
+              <VaultAmountDisplay vaultData={vaultData} action={action} styles={styles} s={s} sf={sf} />
             </View>
           </View>
         </View>
         <View style={styles.historyTxBottomRow}>
-          <Text style={styles.historyTxDate}>{formatTransactionDate(tx.status.block_time)}</Text>
+          <Text style={[styles.historyTxDate, { fontSize: sf(12) }]}>{formatTransactionDate(tx.status.block_time)}</Text>
         </View>
       </View>
     </TouchableOpacity>

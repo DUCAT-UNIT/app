@@ -8,6 +8,7 @@ import { View, Text, TouchableOpacity, ViewStyle, TextStyle } from 'react-native
 import Icon from '../icons';
 import { COLORS } from '../../theme';
 import { formatBalance, formatFiat } from '../../utils/formatters';
+import { useResponsive } from '../../hooks/useResponsive';
 
 // Constants
 const CURRENCY_ICON_SIZE = 10;
@@ -60,6 +61,7 @@ const AssetCard = React.memo(function AssetCard({
   customAmountStyle,
   onPress,
 }: AssetCardProps) {
+  const { s } = useResponsive();
   const CardWrapper = onPress ? TouchableOpacity : View;
 
   return (
@@ -70,7 +72,7 @@ const AssetCard = React.memo(function AssetCard({
     >
       <View style={styles.assetRow}>
         <View style={styles.assetLeft}>
-          <View style={[styles.btcIcon, assetName !== 'Bitcoin' && styles.ducatIcon]}>
+          <View style={[styles.btcIcon, assetName !== 'Bitcoin' && styles.ducatIcon, { marginRight: s(9) }]}>
             <Icon name={assetLogo} size={ASSET_LOGO_SIZE} />
           </View>
           <View style={styles.assetInfo}>

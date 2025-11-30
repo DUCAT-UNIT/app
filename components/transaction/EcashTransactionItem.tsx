@@ -1,5 +1,6 @@
 /**
  * EcashTransactionItem Component
+ * Uses responsive scaling with s() and sf() functions
  */
 
 import React from 'react';
@@ -8,6 +9,7 @@ import Icon from '../icons';
 import { COLORS } from '../../theme';
 import { formatTransactionDate } from '../../utils/formatters/dates';
 import { formatUnitAmount } from '../../utils/formatters/amounts';
+import { useResponsive } from '../../hooks/useResponsive';
 import localStyles from './TransactionItem.styles';
 
 interface EcashTransactionStyles {
@@ -55,6 +57,7 @@ export interface EcashTransactionItemProps {
 }
 
 export default function EcashTransactionItem({ tx, styles, onPress }: EcashTransactionItemProps) {
+  const { s, sf } = useResponsive();
   const { amount, isSent, isReceived, isAutoclaim } = tx.txData;
   const isClaimed = tx.claimed === true;
   const isPartial = tx.partiallySpent === true;
@@ -97,26 +100,30 @@ export default function EcashTransactionItem({ tx, styles, onPress }: EcashTrans
   const { statusText, chipStyle, chipTextStyle } = getStatusConfig();
 
   return (
-    <TouchableOpacity style={styles.historyTxRow} onPress={onPress} activeOpacity={0.7}>
-      <View style={localStyles.assetLogoContainer}>
-        <Icon name="unit_logo" size={40} />
-        <Text style={localStyles.lightningBadge}>⚡</Text>
+    <TouchableOpacity
+      style={[styles.historyTxRow, { paddingHorizontal: 0, paddingLeft: 0, paddingTop: 12, paddingBottom: 12 }]}
+      onPress={onPress}
+      activeOpacity={0.7}
+    >
+      <View style={[localStyles.assetLogoContainer, { width: s(40), height: s(40), marginRight: s(10), marginLeft: 0 }]}>
+        <Icon name="unit_logo" size={s(40)} />
+        <Text style={[localStyles.lightningBadge, { bottom: s(-4), right: s(-3), fontSize: sf(16), lineHeight: sf(16) }]}>⚡</Text>
       </View>
       <View style={localStyles.txContentContainer}>
-        <View style={styles.historyTxTopRow}>
+        <View style={[styles.historyTxTopRow, { marginBottom: s(4) }]}>
           <View style={styles.historyTxColumn1}>
-            <Text style={[styles.historyTxAmount, localStyles.actionText]}>{actionText}</Text>
+            <Text style={[styles.historyTxAmount, localStyles.actionText, { fontSize: sf(14), marginBottom: s(4) }]}>{actionText}</Text>
           </View>
           <View style={styles.historyTxRightGroup}>
             <View style={styles.historyTxColumn2}>
-              <View style={[styles.vaultAmountChip, chipStyle]}>
-                <Text style={[styles.vaultAmountChipText, chipTextStyle]}>{statusText}</Text>
+              <View style={[styles.vaultAmountChip, chipStyle, { paddingHorizontal: s(6), paddingVertical: s(4), borderRadius: s(4), marginLeft: s(4) }]}>
+                <Text style={[styles.vaultAmountChipText, chipTextStyle, { fontSize: sf(10) }]}>{statusText}</Text>
               </View>
             </View>
             <View style={styles.historyTxColumn3}>
               <View style={styles.balanceWithIcon}>
-                <Icon name="unit_symbol" size={12} color={amountColor} style={styles.assetAmountIcon} />
-                <Text style={[styles.assetAmount, { color: amountColor }]}>
+                <Icon name="unit_symbol" size={s(12)} color={amountColor} style={styles.assetAmountIcon} />
+                <Text style={[styles.assetAmount, { color: amountColor, fontSize: sf(14) }]}>
                   {formatUnitAmount(Math.abs(amount))}
                 </Text>
               </View>
@@ -124,7 +131,7 @@ export default function EcashTransactionItem({ tx, styles, onPress }: EcashTrans
           </View>
         </View>
         <View style={styles.historyTxBottomRow}>
-          <Text style={styles.historyTxDate}>{formatTransactionDate(tx.timestamp / 1000)}</Text>
+          <Text style={[styles.historyTxDate, { fontSize: sf(12) }]}>{formatTransactionDate(tx.timestamp / 1000)}</Text>
         </View>
       </View>
     </TouchableOpacity>

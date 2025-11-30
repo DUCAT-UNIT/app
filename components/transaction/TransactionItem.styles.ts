@@ -1,5 +1,7 @@
 /**
  * TransactionItem Styles
+ * Note: These are static styles. For responsive scaling,
+ * components should use useResponsive() hook with inline styles.
  */
 
 import { StyleSheet } from 'react-native';
@@ -7,23 +9,18 @@ import { COLORS } from '../../theme';
 
 export default StyleSheet.create({
   vaultLogo: {
-    marginRight: 10,
+    // marginRight handled inline with s()
   },
   assetLogo: {
-    marginRight: 10,
+    // marginRight handled inline with s()
   },
   assetLogoContainer: {
-    marginRight: 10,
     position: 'relative',
-    width: 40,
-    height: 40,
+    // width, height, marginRight handled inline with s()
   },
   lightningBadge: {
     position: 'absolute',
-    bottom: -4,
-    right: -3,
-    fontSize: 16,
-    lineHeight: 16,
+    // bottom, right, fontSize handled inline with s()/sf()
   },
   txContentContainer: {
     flex: 1,

@@ -25,6 +25,7 @@ import { PriceProvider } from './contexts/PriceContext';
 import { CashuProvider } from './contexts/CashuContext';
 // AirdropProvider removed - not currently used in provider hierarchy
 import { UIProvider } from './contexts/UIContext';
+import { ResponsiveProvider } from './contexts/ResponsiveContext';
 import { useNotifications } from './contexts/NotificationContext';
 
 // Navigation
@@ -223,11 +224,13 @@ export default function App() {
     >
       <AuthProvider>
         <UIProvider>
-          <WalletProvider>
-            <AppProviders>
-              <AppNavigator />
-            </AppProviders>
-          </WalletProvider>
+          <ResponsiveProvider>
+            <WalletProvider>
+              <AppProviders>
+                <AppNavigator />
+              </AppProviders>
+            </WalletProvider>
+          </ResponsiveProvider>
         </UIProvider>
       </AuthProvider>
     </ErrorBoundary>

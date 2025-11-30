@@ -8,6 +8,10 @@ import { useCashu } from '../../contexts/CashuContext';
 import { useDisplayPreferences } from "../../contexts/DisplayPreferencesContext";
 import { useWalletCalculations } from '../../hooks/useWalletCalculations';
 import { useFormattedBalances } from '../../hooks/useFormattedBalances';
+import { useResponsive } from '../../hooks/useResponsive';
+import { useVaultCardStyles } from '../../hooks/useVaultCardStyles';
+import { useAssetCardStyles } from '../../hooks/useAssetCardStyles';
+import { useTotalBalanceStyles } from '../../hooks/useTotalBalanceStyles';
 import { COLORS } from '../../theme';
 import TotalBalanceSection, { TotalBalanceSectionStyles } from '../../components/wallet/TotalBalanceSection';
 import VaultCard, { VaultCardStyles } from '../../components/wallet/VaultCard';
@@ -86,6 +90,12 @@ const WalletScreen = React.memo(function WalletScreen({
     btcPrice,
     vaultData: vaultData as { totalDebt?: number; totalCollateral?: number; currentPrice?: number } | null,
   });
+
+  // Responsive scaling (needs totalBalanceUSD)
+  const { s, sf } = useResponsive();
+  const vaultCardStyles = useVaultCardStyles();
+  const assetCardStyles = useAssetCardStyles();
+  const { styles: totalBalanceStyles, largeBalanceStyle: responsiveLargeBalanceStyle } = useTotalBalanceStyles({ totalBalanceUSD });
 
   // Calculate UNIT totals (Runes + Ecash)
   // Runes from ord comes in display units (already divided)
@@ -168,38 +178,38 @@ const WalletScreen = React.memo(function WalletScreen({
         totalBTC={formatted.totalBTC}
         totalUSD={formatted.totalUSD}
         totalBalanceUSD={totalBalanceUSD}
-        styles={styles}
-        largeBalanceStyle={localStyles.largeBalanceAmount}
+        styles={{ ...styles, ...totalBalanceStyles }}
+        largeBalanceStyle={responsiveLargeBalanceStyle || localStyles.largeBalanceAmount}
       />
 
-      {/* Actions - Vault and Wallet Buttons */}
-      <View style={localStyles.actionsRow} testID="wallet-actions">
-        <TouchableOpacity style={localStyles.actionButton} onPress={onVaultPress} testID="wallet-repay-btn">
-          <View style={localStyles.actionButtonIcon}>
-            <Text style={localStyles.buttonIcon}>↓</Text>
+      {/* Actions - Vault and Wallet Buttons - Scaled with s() */}
+      <View style={{ flexDirection: 'row', justifyContent: 'flex-start', marginLeft: s(24), gap: s(12) }} testID="wallet-actions">
+        <TouchableOpacity style={{ alignItems: 'center' }} onPress={onVaultPress} testID="wallet-repay-btn">
+          <View style={{ width: s(50), height: s(50), borderRadius: s(8), backgroundColor: '#DDDDDD', justifyContent: 'center', alignItems: 'center', marginBottom: s(2) }}>
+            <Text style={{ fontSize: sf(24), color: COLORS.DARK_BG, fontWeight: '200' }}>↓</Text>
           </View>
-          <Text style={localStyles.actionButtonLabel}>Repay</Text>
+          <Text style={{ fontSize: sf(13), color: COLORS.WHITE, fontWeight: '600' }}>Repay</Text>
         </TouchableOpacity>
 
-        <TouchableOpacity style={localStyles.actionButton} onPress={onReceivePress} testID="wallet-deposit-btn">
-          <View style={localStyles.actionButtonIcon}>
-            <Text style={localStyles.buttonIcon}>+</Text>
+        <TouchableOpacity style={{ alignItems: 'center' }} onPress={onReceivePress} testID="wallet-deposit-btn">
+          <View style={{ width: s(50), height: s(50), borderRadius: s(8), backgroundColor: '#DDDDDD', justifyContent: 'center', alignItems: 'center', marginBottom: s(2) }}>
+            <Text style={{ fontSize: sf(24), color: COLORS.DARK_BG, fontWeight: '200' }}>+</Text>
           </View>
-          <Text style={localStyles.actionButtonLabel}>Deposit</Text>
+          <Text style={{ fontSize: sf(13), color: COLORS.WHITE, fontWeight: '600' }}>Deposit</Text>
         </TouchableOpacity>
 
-        <TouchableOpacity style={localStyles.actionButton} onPress={onSendPress} testID="wallet-withdraw-btn">
-          <View style={localStyles.actionButtonIcon}>
-            <Text style={localStyles.buttonIcon}>-</Text>
+        <TouchableOpacity style={{ alignItems: 'center' }} onPress={onSendPress} testID="wallet-withdraw-btn">
+          <View style={{ width: s(50), height: s(50), borderRadius: s(8), backgroundColor: '#DDDDDD', justifyContent: 'center', alignItems: 'center', marginBottom: s(2) }}>
+            <Text style={{ fontSize: sf(24), color: COLORS.DARK_BG, fontWeight: '200' }}>-</Text>
           </View>
-          <Text style={localStyles.actionButtonLabel}>Withdraw</Text>
+          <Text style={{ fontSize: sf(13), color: COLORS.WHITE, fontWeight: '600' }}>Withdraw</Text>
         </TouchableOpacity>
 
-        <TouchableOpacity style={localStyles.actionButton} onPress={onVaultPress} testID="wallet-borrow-btn">
-          <View style={localStyles.actionButtonIcon}>
-            <Text style={localStyles.buttonIcon}>↑</Text>
+        <TouchableOpacity style={{ alignItems: 'center' }} onPress={onVaultPress} testID="wallet-borrow-btn">
+          <View style={{ width: s(50), height: s(50), borderRadius: s(8), backgroundColor: '#DDDDDD', justifyContent: 'center', alignItems: 'center', marginBottom: s(2) }}>
+            <Text style={{ fontSize: sf(24), color: COLORS.DARK_BG, fontWeight: '200' }}>↑</Text>
           </View>
-          <Text style={localStyles.actionButtonLabel}>Borrow</Text>
+          <Text style={{ fontSize: sf(13), color: COLORS.WHITE, fontWeight: '600' }}>Borrow</Text>
         </TouchableOpacity>
       </View>
 
@@ -209,61 +219,69 @@ const WalletScreen = React.memo(function WalletScreen({
       {/* Scrollable Assets Container */}
       <ScrollView
         style={styles.assetsScrollContainer}
-        contentContainerStyle={styles.assetsScrollContent}
+        contentContainerStyle={{ paddingBottom: s(16) }}
         showsVerticalScrollIndicator={false}
       >
         {/* Vault Card */}
-        <VaultCard
-          hasVault={hasVault}
-          vaultHealthColor={vaultHealthColor}
-          vaultHealthPercentage={vaultHealthPercentage}
-          vaultDebt={vaultDebt}
-          vaultCollateral={vaultCollateral}
-          onVaultPress={onVaultPress}
-          onCreateVault={handleCreateVault}
-          creatingVault={creatingVault}
-          styles={styles}
-        />
+        <View style={{ paddingHorizontal: s(24), marginBottom: s(8) }}>
+          <VaultCard
+            hasVault={hasVault}
+            vaultHealthColor={vaultHealthColor}
+            vaultHealthPercentage={vaultHealthPercentage}
+            vaultDebt={vaultDebt}
+            vaultCollateral={vaultCollateral}
+            onVaultPress={onVaultPress}
+            onCreateVault={handleCreateVault}
+            creatingVault={creatingVault}
+            styles={vaultCardStyles}
+          />
+        </View>
 
-        {/* Bitcoin Balance Card - Clickable for asset detail */}
-        <AssetCard
-          assetName="Bitcoin"
-          assetLogo="btc_logo"
-          amountLabel="btc_symbol"
-          amountValue={formatted.segwitBTC}
-          displayInBTC={showTotalInBTC}
-          btcValue={formatted.segwitBTC}
-          usdValue={formatted.segwitUSD}
-          styles={styles}
-          onPress={handleBTCPress}
-        />
+        {/* Bitcoin Balance Card */}
+        <View style={{ paddingHorizontal: s(24), marginBottom: s(8) }}>
+          <AssetCard
+            assetName="Bitcoin"
+            assetLogo="btc_logo"
+            amountLabel="btc_symbol"
+            amountValue={formatted.segwitBTC}
+            displayInBTC={showTotalInBTC}
+            btcValue={formatted.segwitBTC}
+            usdValue={formatted.segwitUSD}
+            styles={assetCardStyles}
+            onPress={handleBTCPress}
+          />
+        </View>
 
         {/* UNIT (Runes + Ecash) Combined Card */}
-        <AssetCard
-          assetName="UNIT"
-          assetLogo="unit_logo"
-          amountLabel="unit_symbol"
-          amountValue={unitTotals.formatted}
-          displayInBTC={showTotalInBTC}
-          btcValue={unitTotals.btcValue}
-          usdValue={unitTotals.usdValue}
-          styles={styles}
-          onPress={handleUNITPress}
-        />
+        <View style={{ paddingHorizontal: s(24), marginBottom: s(8) }}>
+          <AssetCard
+            assetName="UNIT"
+            assetLogo="unit_logo"
+            amountLabel="unit_symbol"
+            amountValue={unitTotals.formatted}
+            displayInBTC={showTotalInBTC}
+            btcValue={unitTotals.btcValue}
+            usdValue={unitTotals.usdValue}
+            styles={assetCardStyles}
+            onPress={handleUNITPress}
+          />
+        </View>
 
         {/* DUCAT•RUNE Card - Non-clickable */}
         {showZeroAssets && (
-          <AssetCard
-            assetName="DUCAT•RUNE"
-            assetLogo="ducat_logo"
-            amountValue="Đ 0.00"
-            displayInBTC={showTotalInBTC}
-            btcValue="0.00"
-            usdValue="0.00"
-            styles={styles}
-            isLast={true}
-            customAmountStyle={localStyles.ducatAmount}
-          />
+          <View style={{ paddingHorizontal: s(24) }}>
+            <AssetCard
+              assetName="DUCAT•RUNE"
+              assetLogo="ducat_logo"
+              amountValue="Đ 0.00"
+              displayInBTC={showTotalInBTC}
+              btcValue="0.00"
+              usdValue="0.00"
+              styles={assetCardStyles}
+              isLast={true}
+              customAmountStyle={localStyles.ducatAmount}
+            />
+          </View>
         )}
       </ScrollView>
     </View>
@@ -280,8 +298,8 @@ const localStyles = StyleSheet.create({
   actionsRow: {
     flexDirection: 'row',
     justifyContent: 'flex-start',
-    paddingHorizontal: 20,
-    paddingVertical: 8,
+    padding: 0,
+    margin: 0,
     gap: 12,
   },
   actionButton: {

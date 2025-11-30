@@ -5,7 +5,7 @@
  */
 
 import React, { useState } from 'react';
-import { Text, View, TouchableOpacity, Animated } from 'react-native';
+import { Text, View, TouchableOpacity, Animated, StyleSheet } from 'react-native';
 import { StatusBar } from 'expo-status-bar';
 import * as SecureStore from 'expo-secure-store';
 import * as LocalAuthentication from 'expo-local-authentication';
@@ -14,9 +14,10 @@ import { savePin } from '../../services/pinService';
 import { SECURE_KEYS } from '../../utils/constants';
 import { ERRORS } from '../../utils/messages';
 import { COLORS } from '../../theme';
+import { colors, spacing, fonts, fontSizes, radii } from '../../styles/theme';
 import Icon from '../../components/icons';
 import TouchableScale from '../../components/common/TouchableScale';
-import styles from '../../styles';
+import { useResponsive } from '../../hooks/useResponsive';
 import { notify } from '../../utils/notify';
 
 /**
@@ -53,6 +54,7 @@ export default function PinSetupScreen({
   onCancel,
   fetchBalance,
 }: PinSetupScreenProps): React.JSX.Element {
+  const { s, sf } = useResponsive();
   const [pin, setPin] = useState('');
   const [confirmPin, setConfirmPin] = useState('');
   const [pinStep, setPinStep] = useState<PinStep>('enter');
@@ -183,6 +185,12 @@ export default function PinSetupScreen({
   };
 
   const currentPin = pinStep === 'confirm' ? confirmPin : pin;
+  const keySize = s(76);
+  const keyTextSize = sf(32);
+  const iconSize = s(28);
+  const dotSize = s(16);
+  const dotGap = s(spacing.md);
+  const keypadGap = s(32);
 
   return (
     <>
@@ -192,17 +200,17 @@ export default function PinSetupScreen({
         {/* Cancel button (top right) */}
         {onCancel && (
           <TouchableOpacity
-            style={styles.lockCancelButton}
+            style={[styles.lockCancelButton, { top: s(16), right: s(20), padding: s(12) }]}
             onPress={onCancel}
             hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
             testID="pin-setup-cancel-btn"
           >
-            <Text style={styles.lockCancelButtonText}>Cancel</Text>
+            <Text style={[styles.lockCancelButtonText, { fontSize: sf(fontSizes.md) }]}>Cancel</Text>
           </TouchableOpacity>
         )}
 
         {/* Title */}
-        <Text style={styles.lockTitle} testID="pin-setup-title">
+        <Text style={[styles.lockTitle, { fontSize: sf(20), marginBottom: s(32), marginTop: s(20), paddingHorizontal: s(spacing.lg) }]} testID="pin-setup-title">
           {changingPin
             ? pinStep === 'enter'
               ? 'Enter New PIN'
@@ -213,46 +221,50 @@ export default function PinSetupScreen({
         </Text>
 
         {/* PIN Error */}
-        {pinError ? <Text style={styles.lockPinError} testID="pin-setup-error">{pinError}</Text> : null}
+        {pinError ? (
+          <Text style={[styles.lockPinError, { fontSize: sf(fontSizes.md), marginBottom: s(20), paddingHorizontal: s(spacing.lg) }]} testID="pin-setup-error">
+            {pinError}
+          </Text>
+        ) : null}
 
         {/* PIN Dots */}
-        <Animated.View style={[styles.lockPinDots, { transform: [{ translateX: shakeAnimation }] }]} testID="pin-setup-dots">
+        <Animated.View style={[styles.lockPinDots, { transform: [{ translateX: shakeAnimation }], gap: dotGap, marginBottom: s(spacing.lg) }]} testID="pin-setup-dots">
           {[0, 1, 2, 3, 4, 5].map((i) => (
             <View
               key={i}
-              style={[styles.lockPinDot, i < currentPin.length && styles.lockPinDotFilled]}
+              style={[styles.lockPinDot, { width: dotSize, height: dotSize, borderRadius: dotSize / 2 }, i < currentPin.length && styles.lockPinDotFilled]}
               testID={`pin-dot-${i}`}
             />
           ))}
         </Animated.View>
 
         {/* Keypad */}
-        <View style={styles.lockKeypad} testID="pin-setup-keypad">
+        <View style={[styles.lockKeypad, { maxWidth: s(352), paddingHorizontal: s(spacing.lg), marginBottom: s(40) }]} testID="pin-setup-keypad">
           {[
             [1, 2, 3],
             [4, 5, 6],
             [7, 8, 9],
           ].map((row, rowIndex) => (
-            <View key={rowIndex} style={styles.lockKeypadRow}>
+            <View key={rowIndex} style={[styles.lockKeypadRow, { marginBottom: s(spacing.lg), gap: keypadGap }]}>
               {row.map((num) => (
                 <TouchableScale
                   key={num}
-                  style={styles.lockKey}
+                  style={[styles.lockKey, { width: keySize, height: keySize, borderRadius: keySize / 2 }]}
                   onPress={() => handlePinDigit(String(num))}
                   testID={`pin-keypad-${num}`}
                 >
-                  <Text style={styles.lockKeyText}>{num}</Text>
+                  <Text style={[styles.lockKeyText, { fontSize: keyTextSize }]}>{num}</Text>
                 </TouchableScale>
               ))}
             </View>
           ))}
-          <View style={styles.lockKeypadRow}>
-            <View style={styles.lockKey} />
-            <TouchableScale style={styles.lockKey} onPress={() => handlePinDigit('0')} testID="pin-keypad-0">
-              <Text style={styles.lockKeyText}>0</Text>
+          <View style={[styles.lockKeypadRow, { gap: keypadGap }]}>
+            <View style={[styles.lockKey, { width: keySize, height: keySize, borderRadius: keySize / 2 }]} />
+            <TouchableScale style={[styles.lockKey, { width: keySize, height: keySize, borderRadius: keySize / 2 }]} onPress={() => handlePinDigit('0')} testID="pin-keypad-0">
+              <Text style={[styles.lockKeyText, { fontSize: keyTextSize }]}>0</Text>
             </TouchableScale>
-            <TouchableScale style={styles.lockKey} onPress={handlePinDelete} haptic={false} testID="pin-keypad-delete">
-              <Icon name="delete" size={28} color={COLORS.WHITE} />
+            <TouchableScale style={[styles.lockKey, { width: keySize, height: keySize, borderRadius: keySize / 2 }]} onPress={handlePinDelete} haptic={false} testID="pin-keypad-delete">
+              <Icon name="delete" size={iconSize} color={COLORS.WHITE} />
             </TouchableScale>
           </View>
         </View>
@@ -261,25 +273,35 @@ export default function PinSetupScreen({
       {/* Biometric Authentication Prompt */}
       {showBiometricPrompt && (
         <View style={styles.modalOverlay} testID="biometric-modal">
-          <View style={styles.biometricPromptModal}>
-            <Text style={styles.biometricPromptTitle}>Biometric Authentication</Text>
-            <Text style={styles.biometricPromptText}>
+          <View style={[styles.biometricPromptModal, { borderRadius: s(radii.xl), padding: s(spacing.xl) }]}>
+            <Text style={[styles.biometricPromptTitle, { fontSize: sf(fontSizes.lg), marginBottom: s(spacing.md) }]}>
+              Biometric Authentication
+            </Text>
+            <Text style={[styles.biometricPromptText, { fontSize: sf(fontSizes.md), marginBottom: s(25), lineHeight: s(22) }]}>
               Do you want to use biometric authentication (FaceID or TouchID) for UNIT Wallet?
             </Text>
-            <View style={styles.biometricPromptButtons}>
+            <View style={[styles.biometricPromptButtons, { gap: s(12) }]}>
               <TouchableOpacity
-                style={[styles.biometricPromptButton, styles.biometricPromptButtonYes]}
+                style={[styles.biometricPromptButton, styles.biometricPromptButtonYes, {
+                  paddingVertical: s(spacing.md),
+                  paddingHorizontal: s(spacing.lg),
+                  borderRadius: s(radii.lg)
+                }]}
                 onPress={handleBiometricEnable}
                 testID="biometric-enable-btn"
               >
-                <Text style={styles.biometricPromptButtonText}>Yes, Enable</Text>
+                <Text style={[styles.biometricPromptButtonText, { fontSize: sf(fontSizes.md) }]}>Yes, Enable</Text>
               </TouchableOpacity>
               <TouchableOpacity
-                style={[styles.biometricPromptButton, styles.biometricPromptButtonNo]}
+                style={[styles.biometricPromptButton, styles.biometricPromptButtonNo, {
+                  paddingVertical: s(spacing.md),
+                  paddingHorizontal: s(spacing.lg),
+                  borderRadius: s(radii.lg)
+                }]}
                 onPress={handleBiometricSkip}
                 testID="biometric-skip-btn"
               >
-                <Text style={styles.biometricPromptButtonTextNo}>No, Thanks</Text>
+                <Text style={[styles.biometricPromptButtonTextNo, { fontSize: sf(fontSizes.md) }]}>No, Thanks</Text>
               </TouchableOpacity>
             </View>
           </View>
@@ -288,3 +310,109 @@ export default function PinSetupScreen({
     </>
   );
 }
+
+const styles = StyleSheet.create({
+  lockScreen: {
+    flex: 1,
+    backgroundColor: colors.bg.primary,
+    alignItems: 'center',
+    justifyContent: 'flex-start',
+    paddingHorizontal: 0,
+    paddingTop: 0,
+  },
+  lockCancelButton: {
+    position: 'absolute',
+    zIndex: 10,
+  },
+  lockCancelButtonText: {
+    fontFamily: fonts.medium,
+    fontWeight: '600' as const,
+    color: colors.brand.primary,
+  },
+  lockTitle: {
+    fontFamily: fonts.regular,
+    color: colors.text.primary,
+    textAlign: 'center',
+  },
+  lockPinError: {
+    color: colors.semantic.error,
+    fontFamily: fonts.bold,
+    fontWeight: 'bold' as const,
+    textAlign: 'center',
+  },
+  lockPinDots: {
+    flexDirection: 'row',
+    justifyContent: 'center',
+  },
+  lockPinDot: {
+    backgroundColor: colors.bg.tertiary,
+  },
+  lockPinDotFilled: {
+    backgroundColor: colors.text.primary,
+  },
+  lockKeypad: {
+    width: '100%',
+  },
+  lockKeypadRow: {
+    flexDirection: 'row',
+    justifyContent: 'center',
+  },
+  lockKey: {
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: 'transparent',
+  },
+  lockKeyText: {
+    fontFamily: fonts.regular,
+    color: colors.text.primary,
+    fontWeight: '300' as const,
+  },
+  modalOverlay: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
+    bottom: 0,
+    backgroundColor: 'rgba(0, 0, 0, 0.5)',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  biometricPromptModal: {
+    backgroundColor: colors.bg.secondary,
+    width: '85%',
+    maxWidth: 400,
+  },
+  biometricPromptTitle: {
+    fontFamily: fonts.bold,
+    fontWeight: 'bold' as const,
+    color: colors.text.primary,
+    textAlign: 'center',
+  },
+  biometricPromptText: {
+    fontFamily: fonts.regular,
+    color: colors.text.primary,
+    textAlign: 'center',
+  },
+  biometricPromptButtons: {
+    flexDirection: 'column',
+  },
+  biometricPromptButton: {
+    alignItems: 'center',
+  },
+  biometricPromptButtonYes: {
+    backgroundColor: colors.brand.primary,
+  },
+  biometricPromptButtonNo: {
+    backgroundColor: COLORS.OFF_WHITE,
+  },
+  biometricPromptButtonText: {
+    fontFamily: fonts.medium,
+    fontWeight: '600' as const,
+    color: colors.text.primary,
+  },
+  biometricPromptButtonTextNo: {
+    fontFamily: fonts.medium,
+    fontWeight: '600' as const,
+    color: COLORS.DARK_GRAY,
+  },
+});

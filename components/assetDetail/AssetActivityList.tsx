@@ -1,14 +1,16 @@
 /**
  * AssetActivityList Component
  * Displays transaction list with loading, empty states, and pagination
+ * Uses responsive scaling with s() and sf() functions
  */
 
 import React, { useState, useCallback, memo, useMemo } from 'react';
-import { View, Text, TouchableOpacity, StyleSheet, FlatList } from 'react-native';
+import { View, Text, TouchableOpacity, FlatList } from 'react-native';
 import TransactionItem, { Transaction } from '../transaction/TransactionItem';
 import { COLORS } from '../../theme';
 import globalStyles from '../../styles';
 import { AssetActivityListSkeleton } from './AssetSkeleton';
+import { useResponsive } from '../../hooks/useResponsive';
 import type { ProcessedTransaction } from '../../hooks/useAssetTransactions';
 
 // Accept either the strict Transaction type or the more flexible ProcessedTransaction
@@ -34,6 +36,7 @@ export const AssetActivityList = memo(function AssetActivityList({
   onTransactionPress,
   advancedMode = false
 }: AssetActivityListProps) {
+  const { s, sf } = useResponsive();
   const [visibleTransactions, setVisibleTransactions] = useState(20);
 
   // Memoize displayed transactions slice (must be before early returns)
@@ -80,15 +83,29 @@ export const AssetActivityList = memo(function AssetActivityList({
     if (!hasMore) return null;
     return (
       <TouchableOpacity
-        style={styles.loadMoreButton}
+        style={{
+          backgroundColor: COLORS.CARD_BG,
+          borderRadius: s(10),
+          paddingVertical: s(14),
+          paddingHorizontal: s(20),
+          marginTop: s(12),
+          marginBottom: s(8),
+          alignItems: 'center',
+          borderWidth: 1,
+          borderColor: COLORS.BORDER_COLOR,
+        }}
         onPress={handleLoadMore}
       >
-        <Text style={styles.loadMoreText}>
+        <Text style={{
+          color: COLORS.WHITE,
+          fontSize: sf(14),
+          fontWeight: '600',
+        }}>
           Load More ({transactions.length - visibleTransactions} remaining)
         </Text>
       </TouchableOpacity>
     );
-  }, [hasMore, handleLoadMore, transactions.length, visibleTransactions]);
+  }, [hasMore, handleLoadMore, transactions.length, visibleTransactions, s, sf]);
 
   // Early returns for loading/empty states (after all hooks)
   if (isLoading) {
@@ -97,16 +114,30 @@ export const AssetActivityList = memo(function AssetActivityList({
 
   if (transactions.length === 0) {
     return (
-      <View style={styles.activityContainer}>
-        <View style={styles.emptyContainer}>
-          <Text style={styles.emptyText}>No transaction history</Text>
+      <View style={{
+        paddingHorizontal: s(24),
+        paddingBottom: s(5),
+        minHeight: s(200),
+      }}>
+        <View style={{
+          alignItems: 'center',
+          paddingVertical: s(12),
+        }}>
+          <Text style={{
+            color: '#DDDDDD',
+            fontSize: sf(16),
+          }}>No transaction history</Text>
         </View>
       </View>
     );
   }
 
   return (
-    <View style={styles.activityContainer}>
+    <View style={{
+      paddingHorizontal: s(24),
+      paddingBottom: s(5),
+      minHeight: s(200),
+    }}>
       <FlatList
         data={displayedTransactions}
         renderItem={renderItem}
@@ -121,36 +152,4 @@ export const AssetActivityList = memo(function AssetActivityList({
       />
     </View>
   );
-});
-
-const styles = StyleSheet.create({
-  activityContainer: {
-    paddingHorizontal: 4,
-    paddingBottom: 5,
-    minHeight: 200, // Fixed height to prevent layout jumping
-  },
-  emptyContainer: {
-    alignItems: 'center',
-    paddingVertical: 12,
-  },
-  emptyText: {
-    color: '#DDDDDD',
-    fontSize: 16,
-  },
-  loadMoreButton: {
-    backgroundColor: COLORS.CARD_BG,
-    borderRadius: 10,
-    paddingVertical: 14,
-    paddingHorizontal: 20,
-    marginTop: 12,
-    marginBottom: 8,
-    alignItems: 'center',
-    borderWidth: 1,
-    borderColor: COLORS.BORDER_COLOR,
-  },
-  loadMoreText: {
-    color: COLORS.WHITE,
-    fontSize: 14,
-    fontWeight: '600',
-  },
 });

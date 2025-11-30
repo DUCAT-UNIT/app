@@ -5,16 +5,17 @@
  */
 
 import React, { useState, useEffect, useCallback, useRef, memo } from 'react';
-import { Text, View, TouchableOpacity, Animated } from 'react-native';
+import { Text, View, TouchableOpacity, Animated, StyleSheet } from 'react-native';
 import { StatusBar } from 'expo-status-bar';
 import * as Haptics from 'expo-haptics';
 import { verifyPin } from '../../services/pinService';
 import * as PasskeyService from '../../services/passkey';
 import { ERRORS } from '../../utils/messages';
 import { COLORS } from '../../theme';
+import { colors, spacing, fonts, fontSizes } from '../../styles/theme';
 import Icon from '../../components/icons';
 import TouchableScale from '../../components/common/TouchableScale';
-import styles from '../../styles';
+import { useResponsive } from '../../hooks/useResponsive';
 import logger from '../../utils/logger';
 
 /**
@@ -25,6 +26,10 @@ interface KeypadButtonProps {
   digit: string;
   /** Callback invoked when the button is pressed */
   onPress: (digit: string) => void;
+  /** Scaled size for the key */
+  keySize: number;
+  /** Scaled font size for the key text */
+  fontSize: number;
 }
 
 /**
@@ -40,16 +45,17 @@ interface LockScreenProps {
 }
 
 // Memoized keypad button component
-const KeypadButton = memo(function KeypadButton({ digit, onPress }: KeypadButtonProps): React.JSX.Element {
+const KeypadButton = memo(function KeypadButton({ digit, onPress, keySize, fontSize }: KeypadButtonProps): React.JSX.Element {
   const handlePress = useCallback(() => onPress(digit), [digit, onPress]);
   return (
-    <TouchableScale style={styles.lockKey} onPress={handlePress} testID={`lock-keypad-${digit}`}>
-      <Text style={styles.lockKeyText}>{digit}</Text>
+    <TouchableScale style={[styles.lockKey, { width: keySize, height: keySize, borderRadius: keySize / 2 }]} onPress={handlePress} testID={`lock-keypad-${digit}`}>
+      <Text style={[styles.lockKeyText, { fontSize }]}>{digit}</Text>
     </TouchableScale>
   );
 });
 
 export default function LockScreen({ onAuthenticated, showFaceIdButton, onFaceIdPress }: LockScreenProps): React.JSX.Element {
+  const { s, sf } = useResponsive();
   const [pin, setPin] = useState('');
   const [pinError, setPinError] = useState('');
   const [, setPasskeyEnabled] = useState(false);
@@ -133,55 +139,118 @@ export default function LockScreen({ onAuthenticated, showFaceIdButton, onFaceId
     }
   }, [pin, onAuthenticated]);
 
+  const keySize = s(76);
+  const keyTextSize = sf(32);
+  const iconSize = s(28);
+  const dotSize = s(16);
+  const dotGap = s(spacing.md);
+  const keypadGap = s(32);
+  const keypadMaxWidth = s(352);
+
   return (
     <View style={styles.lockScreen} testID="lock-screen">
       <StatusBar style="light" />
 
       {/* Title */}
-      <Text style={styles.lockTitle} testID="lock-title">Enter PIN</Text>
+      <Text style={[styles.lockTitle, { fontSize: sf(20), marginBottom: s(32), marginTop: s(20), paddingHorizontal: s(spacing.lg) }]} testID="lock-title">
+        Enter PIN
+      </Text>
 
       {/* PIN Error */}
-      {pinError ? <Text style={styles.lockPinError} testID="lock-error">{pinError}</Text> : null}
+      {pinError ? (
+        <Text style={[styles.lockPinError, { fontSize: sf(fontSizes.md), marginBottom: s(20), paddingHorizontal: s(spacing.lg) }]} testID="lock-error">
+          {pinError}
+        </Text>
+      ) : null}
 
       {/* PIN Dots */}
-      <Animated.View style={[styles.lockPinDots, { transform: [{ translateX: shakeAnimation }] }]} testID="lock-dots">
+      <Animated.View style={[styles.lockPinDots, { transform: [{ translateX: shakeAnimation }], gap: dotGap, marginBottom: s(spacing.lg) }]} testID="lock-dots">
         {[0, 1, 2, 3, 4, 5].map((i) => (
-          <View key={i} style={[styles.lockPinDot, i < pin.length && styles.lockPinDotFilled]} testID={`lock-dot-${i}`} />
+          <View key={i} style={[styles.lockPinDot, { width: dotSize, height: dotSize, borderRadius: dotSize / 2 }, i < pin.length && styles.lockPinDotFilled]} testID={`lock-dot-${i}`} />
         ))}
       </Animated.View>
 
       {/* Keypad */}
-      <View style={styles.lockKeypad} testID="lock-keypad">
+      <View style={[styles.lockKeypad, { maxWidth: keypadMaxWidth, paddingHorizontal: s(spacing.lg), marginBottom: s(40) }]} testID="lock-keypad">
         {[
           ['1', '2', '3'],
           ['4', '5', '6'],
           ['7', '8', '9'],
         ].map((row, rowIndex) => (
-          <View key={rowIndex} style={styles.lockKeypadRow}>
+          <View key={rowIndex} style={[styles.lockKeypadRow, { marginBottom: s(spacing.lg), gap: keypadGap }]}>
             {row.map((num) => (
-              <KeypadButton key={num} digit={num} onPress={handlePinDigit} />
+              <KeypadButton key={num} digit={num} onPress={handlePinDigit} keySize={keySize} fontSize={keyTextSize} />
             ))}
           </View>
         ))}
-        <View style={styles.lockKeypadRow}>
+        <View style={[styles.lockKeypadRow, { gap: keypadGap }]}>
           {/* FaceID / Passkey Button - Bottom Left */}
           {showPasskeyButton ? (
-            <TouchableOpacity style={styles.lockKey} onPress={handlePasskeyUnlock} testID="lock-passkey-btn">
-              <Icon name="face_id" size={32} color={COLORS.PRIMARY_BLUE} />
+            <TouchableOpacity style={[styles.lockKey, { width: keySize, height: keySize, borderRadius: keySize / 2 }]} onPress={handlePasskeyUnlock} testID="lock-passkey-btn">
+              <Icon name="face_id" size={s(32)} color={COLORS.PRIMARY_BLUE} />
             </TouchableOpacity>
           ) : showFaceIdButton && onFaceIdPress ? (
-            <TouchableOpacity style={styles.lockKey} onPress={onFaceIdPress} testID="lock-faceid-btn">
-              <Icon name="face_id" size={32} color={COLORS.PRIMARY_BLUE} />
+            <TouchableOpacity style={[styles.lockKey, { width: keySize, height: keySize, borderRadius: keySize / 2 }]} onPress={onFaceIdPress} testID="lock-faceid-btn">
+              <Icon name="face_id" size={s(32)} color={COLORS.PRIMARY_BLUE} />
             </TouchableOpacity>
           ) : (
-            <View style={styles.lockKey} />
+            <View style={[styles.lockKey, { width: keySize, height: keySize, borderRadius: keySize / 2 }]} />
           )}
-          <KeypadButton digit="0" onPress={handlePinDigit} />
-          <TouchableScale style={styles.lockKey} onPress={handlePinDelete} haptic={false} testID="lock-keypad-delete">
-            <Icon name="delete" size={28} color={COLORS.WHITE} />
+          <KeypadButton digit="0" onPress={handlePinDigit} keySize={keySize} fontSize={keyTextSize} />
+          <TouchableScale style={[styles.lockKey, { width: keySize, height: keySize, borderRadius: keySize / 2 }]} onPress={handlePinDelete} haptic={false} testID="lock-keypad-delete">
+            <Icon name="delete" size={iconSize} color={COLORS.WHITE} />
           </TouchableScale>
         </View>
       </View>
     </View>
   );
 }
+
+const styles = StyleSheet.create({
+  lockScreen: {
+    flex: 1,
+    backgroundColor: colors.bg.primary,
+    alignItems: 'center',
+    justifyContent: 'flex-start',
+    paddingHorizontal: 0,
+    paddingTop: 0,
+  },
+  lockTitle: {
+    fontFamily: fonts.regular,
+    color: colors.text.primary,
+    textAlign: 'center',
+  },
+  lockPinError: {
+    color: colors.semantic.error,
+    fontFamily: fonts.bold,
+    fontWeight: 'bold' as const,
+    textAlign: 'center',
+  },
+  lockPinDots: {
+    flexDirection: 'row',
+    justifyContent: 'center',
+  },
+  lockPinDot: {
+    backgroundColor: colors.bg.tertiary,
+  },
+  lockPinDotFilled: {
+    backgroundColor: colors.text.primary,
+  },
+  lockKeypad: {
+    width: '100%',
+  },
+  lockKeypadRow: {
+    flexDirection: 'row',
+    justifyContent: 'center',
+  },
+  lockKey: {
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: 'transparent',
+  },
+  lockKeyText: {
+    fontFamily: fonts.regular,
+    color: colors.text.primary,
+    fontWeight: '300' as const,
+  },
+});

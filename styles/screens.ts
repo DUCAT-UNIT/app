@@ -2430,8 +2430,9 @@ export const history = StyleSheet.create({
   },
   historyTxRow: {
     flexDirection: 'row',
-    paddingVertical: spacing.lg,
-    paddingHorizontal: 4,
+    paddingTop: 20,
+    paddingBottom: spacing.lg,
+    paddingLeft: 12,
     borderBottomWidth: 1,
     borderBottomColor: colors.border.default,
   },

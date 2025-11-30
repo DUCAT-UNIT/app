@@ -71,7 +71,7 @@ export const BrandIcons = {
   ),
 
   vault_logo: ({ width, height, color = '#DDDDDD' }: { width?: number; height?: number; color?: string }) => (
-    <Svg width={width} height={height} viewBox="0 0 24 24" fill="none">
+    <Svg width={width} height={height} viewBox="6 6 12 12" fill="none">
       <G>
         <Path
           d="M16.6829 6H7.31707C6.59109 6 6 6.59109 6 7.31707V16.6829C6 17.4089 6.59109 18 7.31707 18H16.6829C17.4089 18 18 17.4089 18 16.6829V7.31707C18 6.59109 17.4089 6 16.6829 6ZM17.1 16.2C17.1045 16.729 16.792 17.0834 16.2 17.1H7.8C7.16424 17.1474 6.86501 16.7749 6.9 16.2V7.8C6.91941 7.18715 7.21187 6.89204 7.8 6.9H16.2C16.8532 6.86779 17.1448 7.20988 17.1 7.8V16.2Z"

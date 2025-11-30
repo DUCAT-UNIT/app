@@ -3,22 +3,15 @@
  * Matches the design of the QRModal component but as a navigation screen
  */
 
-import React, { useState } from 'react';
-import { View, Text, TouchableOpacity, ScrollView, StyleSheet, Dimensions, Share } from 'react-native';
+import React, { useState, useMemo } from 'react';
+import { View, Text, TouchableOpacity, ScrollView, StyleSheet, Share } from 'react-native';
 import { NavigationProp, RouteProp } from '@react-navigation/native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import QRCode from 'react-native-qrcode-svg';
 import * as Clipboard from 'expo-clipboard';
 import Icon from '../../components/icons';
 import { COLORS } from '../../theme';
-
-const SCREEN_WIDTH = Dimensions.get('window').width;
-const HORIZONTAL_PADDING = SCREEN_WIDTH < 375 ? 16 : 20;
-
-// Calculate QR code size based on screen width (same as QRModal)
-const QR_SIZE =
-  SCREEN_WIDTH < 375 ? Math.min(SCREEN_WIDTH * 0.5, 180) : Math.min(SCREEN_WIDTH * 0.6, 220);
-const LOGO_SIZE = Math.floor(QR_SIZE * 0.21);
+import { useResponsive } from '../../hooks/useResponsive';
 
 /**
  * Route parameters for ReceiveQRScreen
@@ -39,7 +32,33 @@ interface ReceiveQRScreenProps {
 export default function ReceiveQRScreen({ route, navigation }: ReceiveQRScreenProps): React.JSX.Element {
   const { address, addressType = 'Native SegWit' } = route.params || {};
   const [justCopied, setJustCopied] = useState(false);
+  const { width, s, sf, screenSize } = useResponsive();
 
+  // Calculate responsive values
+  const responsiveValues = useMemo(() => {
+    const horizontalPadding = screenSize === 'XS' ? 16 : 20;
+    const qrSize = screenSize === 'XS' ? Math.min(width * 0.5, 180) : Math.min(width * 0.6, 220);
+    const logoSize = Math.floor(qrSize * 0.21);
+    const isSmallScreen = screenSize === 'XS' || screenSize === 'S';
+
+    return {
+      horizontalPadding,
+      qrSize,
+      logoSize,
+      networkBarPadding: isSmallScreen ? 4 : 6,
+      contentPaddingTop: width <= 400 ? 10 : 20,
+      contentPaddingBottom: width <= 400 ? 24 : 32,
+      titleSize: isSmallScreen ? 20 : 28,
+      titleMarginBottom: isSmallScreen ? 4 : 8,
+      subtitleSize: isSmallScreen ? 12 : 15,
+      subtitleMarginBottom: width <= 400 ? 8 : 40,
+      qrContainerPadding: isSmallScreen ? 10 : 20,
+      qrContainerMarginBottom: isSmallScreen ? 12 : 32,
+      addressContainerPadding: isSmallScreen ? 12 : 16,
+      addressContainerMarginBottom: isSmallScreen ? 16 : 32,
+      shareButtonPaddingVertical: isSmallScreen ? 12 : 14,
+    };
+  }, [width, screenSize]);
 
   const handleCopy = async () => {
     await Clipboard.setStringAsync(address);
@@ -60,37 +79,44 @@ export default function ReceiveQRScreen({ route, navigation }: ReceiveQRScreenPr
   return (
     <SafeAreaView style={styles.container} edges={['top']} testID="receive-qr-screen">
       {/* Network header bar */}
-      <View style={styles.networkBar}>
+      <View style={[styles.networkBar, { paddingVertical: responsiveValues.networkBarPadding }]}>
         <Text style={styles.networkText}>Mutinynet Edition</Text>
       </View>
 
       <ScrollView
         style={styles.scrollContainer}
-        contentContainerStyle={styles.content}
+        contentContainerStyle={[
+          styles.content,
+          {
+            paddingHorizontal: responsiveValues.horizontalPadding,
+            paddingTop: responsiveValues.contentPaddingTop,
+            paddingBottom: responsiveValues.contentPaddingBottom,
+          },
+        ]}
         showsVerticalScrollIndicator={false}
       >
         {/* Header with back button and title */}
         <View style={styles.header}>
           <TouchableOpacity onPress={() => navigation.goBack()} style={styles.backButton} testID="receive-back-btn">
-            <Icon name="back" size={24} color={COLORS.VERY_LIGHT_GRAY} />
+            <Icon name="back" size={s(24)} color={COLORS.VERY_LIGHT_GRAY} />
           </TouchableOpacity>
           <View style={styles.titleContainer}>
-            <Text style={styles.title}>
+            <Text style={[styles.title, { fontSize: responsiveValues.titleSize, marginBottom: responsiveValues.titleMarginBottom }]}>
               {addressType === 'Taproot' ? 'UNIT address' : 'Bitcoin address'}
             </Text>
           </View>
         </View>
-        <Text style={styles.subtitle}>
+        <Text style={[styles.subtitle, { fontSize: responsiveValues.subtitleSize, marginBottom: responsiveValues.subtitleMarginBottom }]}>
           {addressType === 'Taproot'
             ? 'Only use this address to receive UNIT.'
             : 'Only use this address to receive Bitcoin.'}
         </Text>
 
         {/* QR Code */}
-        <View style={styles.qrCodeContainer} testID="receive-qr-code">
+        <View style={[styles.qrCodeContainer, { padding: responsiveValues.qrContainerPadding, marginBottom: responsiveValues.qrContainerMarginBottom }]} testID="receive-qr-code">
           <QRCode
             value={address}
-            size={QR_SIZE}
+            size={responsiveValues.qrSize}
             backgroundColor="white"
             color="black"
             logo={
@@ -98,15 +124,15 @@ export default function ReceiveQRScreen({ route, navigation }: ReceiveQRScreenPr
                 ? require('../../assets/logos/unit-log.png')
                 : require('../../assets/logos/btc-logo.png')
             }
-            logoSize={LOGO_SIZE}
+            logoSize={responsiveValues.logoSize}
             logoBackgroundColor="white"
-            logoBorderRadius={Math.floor(LOGO_SIZE / 2)}
+            logoBorderRadius={Math.floor(responsiveValues.logoSize / 2)}
           />
         </View>
 
         {/* Address container - tap to copy */}
         <TouchableOpacity
-          style={styles.addressContainer}
+          style={[styles.addressContainer, { padding: responsiveValues.addressContainerPadding, marginBottom: responsiveValues.addressContainerMarginBottom }]}
           onPress={handleCopy}
           activeOpacity={0.7}
           testID="receive-copy-btn"
@@ -125,7 +151,7 @@ export default function ReceiveQRScreen({ route, navigation }: ReceiveQRScreenPr
         </TouchableOpacity>
 
         {/* Share button */}
-        <TouchableOpacity style={styles.shareButton} onPress={handleShare} testID="receive-share-btn">
+        <TouchableOpacity style={[styles.shareButton, { paddingVertical: responsiveValues.shareButtonPaddingVertical }]} onPress={handleShare} testID="receive-share-btn">
           <Text style={styles.shareIcon}>↗</Text>
           <Text style={styles.shareButtonText}>Share</Text>
         </TouchableOpacity>
@@ -141,7 +167,6 @@ const styles = StyleSheet.create({
   },
   networkBar: {
     backgroundColor: COLORS.CARD_BG,
-    paddingVertical: SCREEN_WIDTH < 375 ? 4 : 6,
     paddingHorizontal: 0,
     width: '100%',
     alignSelf: 'stretch',
@@ -162,9 +187,6 @@ const styles = StyleSheet.create({
   },
   content: {
     alignItems: 'center',
-    paddingHorizontal: HORIZONTAL_PADDING,
-    paddingTop: SCREEN_WIDTH <= 400 ? 10 : 20,
-    paddingBottom: SCREEN_WIDTH <= 400 ? 24 : 32,
     flexGrow: 1,
   },
   header: {
@@ -183,33 +205,25 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   title: {
-    fontSize: SCREEN_WIDTH < 375 ? 20 : 28,
     fontFamily: 'CabinetGrotesk-Bold',
     color: COLORS.VERY_LIGHT_GRAY,
     fontWeight: 'bold',
-    marginBottom: SCREEN_WIDTH < 375 ? 4 : 8,
   },
   subtitle: {
-    fontSize: SCREEN_WIDTH < 375 ? 12 : 15,
     fontFamily: 'CabinetGrotesk-Regular',
     color: COLORS.SECONDARY_TEXT,
-    marginBottom: SCREEN_WIDTH <= 400 ? 8 : 40,
     textAlign: 'center',
   },
   qrCodeContainer: {
     backgroundColor: COLORS.WHITE,
-    padding: SCREEN_WIDTH < 375 ? 10 : 20,
     borderRadius: 16,
-    marginBottom: SCREEN_WIDTH < 375 ? 12 : 32,
   },
   addressContainer: {
     width: '100%',
     backgroundColor: COLORS.CARD_BG,
     borderRadius: 12,
-    padding: SCREEN_WIDTH < 375 ? 12 : 16,
     flexDirection: 'row',
     alignItems: 'center',
-    marginBottom: SCREEN_WIDTH < 375 ? 16 : 32,
   },
   addressContentContainer: {
     flex: 1,
@@ -242,7 +256,6 @@ const styles = StyleSheet.create({
     backgroundColor: 'transparent',
     borderWidth: 1,
     borderColor: COLORS.BORDER_COLOR,
-    paddingVertical: SCREEN_WIDTH < 375 ? 12 : 14,
     borderRadius: 12,
     flexDirection: 'row',
     justifyContent: 'center',

@@ -1,5 +1,6 @@
 /**
  * RegularTransactionItem Component
+ * Uses responsive scaling with s() and sf() functions
  */
 
 import React, { memo, useMemo } from 'react';
@@ -9,6 +10,7 @@ import { COLORS } from '../../theme';
 import { formatTransactionDate } from '../../utils/formatters/dates';
 import { formatUnitAmount } from '../../utils/formatters/amounts';
 import { formatBalance } from '../../utils/formatters';
+import { useResponsive } from '../../hooks/useResponsive';
 import localStyles from './TransactionItem.styles';
 import type { DisplayAssetType } from '../../types/assets';
 
@@ -60,6 +62,7 @@ interface RegularTransactionItemProps {
 }
 
 export default memo(function RegularTransactionItem({ tx, styles, onPress, advancedMode = false }: RegularTransactionItemProps) {
+  const { s, sf } = useResponsive();
   const { amount, assetType, isSent, isReceived } = tx.txData;
   const numericAmount = typeof amount === 'bigint' ? Number(amount) : amount;
 
@@ -106,20 +109,24 @@ export default memo(function RegularTransactionItem({ tx, styles, onPress, advan
   const amountColor = isReceived ? COLORS.GREEN : COLORS.RED;
 
   return (
-    <TouchableOpacity style={styles.historyTxRow} onPress={onPress} activeOpacity={0.7}>
-      <View style={localStyles.assetLogo}>
+    <TouchableOpacity
+      style={[styles.historyTxRow, { paddingHorizontal: 0, paddingLeft: 0, paddingTop: 12, paddingBottom: 12 }]}
+      onPress={onPress}
+      activeOpacity={0.7}
+    >
+      <View style={{ marginRight: s(10), marginLeft: 0 }}>
         <Icon name={showTurboUI ? 'turbo' : (assetType === 'UNIT' ? 'unit_logo' : 'btc_logo')}
-          size={styles.logoSize ?? 40} color={showTurboUI ? '#DDDDDD' : undefined} />
+          size={s(40)} color={showTurboUI ? '#DDDDDD' : undefined} />
       </View>
       <View style={localStyles.txContentContainer}>
-        <View style={styles.historyTxTopRow}>
+        <View style={[styles.historyTxTopRow, { marginBottom: s(4) }]}>
           <View style={styles.historyTxColumn1}>
-            <Text style={[styles.historyTxAmount, localStyles.actionText]}>{actionLabel}</Text>
+            <Text style={[styles.historyTxAmount, localStyles.actionText, { fontSize: sf(14), marginBottom: s(4) }]}>{actionLabel}</Text>
           </View>
           <View style={styles.historyTxRightGroup}>
             <View style={styles.historyTxColumn2}>
-              <View style={[styles.vaultAmountChip, statusConfig.chipStyle]}>
-                <Text style={[styles.vaultAmountChipText, statusConfig.chipTextStyle]}>
+              <View style={[styles.vaultAmountChip, statusConfig.chipStyle, { paddingHorizontal: s(6), paddingVertical: s(4), borderRadius: s(4), marginLeft: s(4) }]}>
+                <Text style={[styles.vaultAmountChipText, statusConfig.chipTextStyle, { fontSize: sf(10) }]}>
                   {statusConfig.statusText}
                 </Text>
               </View>
@@ -128,8 +135,8 @@ export default memo(function RegularTransactionItem({ tx, styles, onPress, advan
               {numericAmount !== 0 && (
                 <View style={styles.balanceWithIcon}>
                   <Icon name={assetType === 'UNIT' ? 'unit_symbol' : 'btc_symbol'}
-                    size={12} color={amountColor} style={styles.assetAmountIcon} />
-                  <Text style={[styles.assetAmount, { color: amountColor }]}>
+                    size={s(12)} color={amountColor} style={styles.assetAmountIcon} />
+                  <Text style={[styles.assetAmount, { color: amountColor, fontSize: sf(14) }]}>
                     {formattedAmount}
                   </Text>
                 </View>
@@ -138,7 +145,7 @@ export default memo(function RegularTransactionItem({ tx, styles, onPress, advan
           </View>
         </View>
         <View style={styles.historyTxBottomRow}>
-          <Text style={styles.historyTxDate}>{formattedDate}</Text>
+          <Text style={[styles.historyTxDate, { fontSize: sf(12) }]}>{formattedDate}</Text>
         </View>
       </View>
     </TouchableOpacity>

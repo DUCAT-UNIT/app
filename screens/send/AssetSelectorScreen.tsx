@@ -15,6 +15,7 @@ import { useCashu } from '../../contexts/CashuContext';
 import { logger } from '../../utils/logger';
 import { getRunesAmount } from '../../utils/runesHelper';
 import { formatBalance, formatFiat } from '../../utils/formatters';
+import { useResponsive } from '../../hooks/useResponsive';
 
 /**
  * Props for AssetSelectorScreen
@@ -28,6 +29,7 @@ export default function AssetSelectorScreen({ navigation }: AssetSelectorScreenP
   const { btcPrice } = usePrice();
   const { setSendAssetType } = useSendFlow();
   const { balance: cashuBalance } = useCashu();
+  const { s, sf } = useResponsive();
 
   // Memoize balance calculations to prevent recalculation on every render
   const btcBalance = useMemo(
@@ -50,65 +52,65 @@ export default function AssetSelectorScreen({ navigation }: AssetSelectorScreenP
   return (
     <View style={localStyles.container} testID="asset-selector-screen">
       {/* Header */}
-      <View style={localStyles.header}>
-        <TouchableOpacity onPress={() => navigation.getParent()?.goBack()} style={localStyles.backButton} testID="asset-selector-back-btn">
-          <Icon name="back" size={24} color={COLORS.VERY_LIGHT_GRAY} />
+      <View style={[localStyles.header, { paddingTop: s(60), paddingHorizontal: s(20), paddingBottom: s(20) }]}>
+        <TouchableOpacity onPress={() => navigation.getParent()?.goBack()} style={[localStyles.backButton, { width: s(40), height: s(40) }]} testID="asset-selector-back-btn">
+          <Icon name="back" size={s(24)} color={COLORS.VERY_LIGHT_GRAY} />
         </TouchableOpacity>
-        <Text style={localStyles.title}>Select Asset</Text>
+        <Text style={[localStyles.title, { fontSize: sf(32) }]}>Select Asset</Text>
       </View>
 
       {/* Content */}
-      <View style={localStyles.content}>
-        <Text style={localStyles.subtitle}>Choose which asset you want to send</Text>
+      <View style={[localStyles.content, { paddingHorizontal: s(20), paddingTop: s(20) }]}>
+        <Text style={[localStyles.subtitle, { fontSize: sf(16), marginBottom: s(24) }]}>Choose which asset you want to send</Text>
 
         {/* BTC Card */}
         <TouchableOpacity
-          style={localStyles.assetCard}
+          style={[localStyles.assetCard, { padding: s(16), marginBottom: s(12) }]}
           onPress={() => handleSelectAsset('btc')}
           activeOpacity={0.7}
           testID="asset-btc"
         >
-          <View style={localStyles.assetIconContainer}>
-            <Icon name="btc_logo" size={40} />
+          <View style={[localStyles.assetIconContainer, { marginRight: s(16) }]}>
+            <Icon name="btc_logo" size={s(40)} />
           </View>
           <View style={localStyles.assetInfo}>
-            <Text style={localStyles.assetName}>Bitcoin</Text>
-            <Text style={localStyles.assetSymbol}>BTC</Text>
+            <Text style={[localStyles.assetName, { fontSize: sf(16), marginBottom: s(2) }]}>Bitcoin</Text>
+            <Text style={[localStyles.assetSymbol, { fontSize: sf(13) }]}>BTC</Text>
           </View>
-          <View style={localStyles.assetBalance}>
-            <Text style={localStyles.balanceAmount}>
+          <View style={[localStyles.assetBalance, { marginRight: s(12) }]}>
+            <Text style={[localStyles.balanceAmount, { fontSize: sf(16), marginBottom: s(2) }]}>
               {formatBalance(btcBalance, 8)}
             </Text>
-            <Text style={localStyles.balanceUsd}>
+            <Text style={[localStyles.balanceUsd, { fontSize: sf(13) }]}>
               ${formatFiat(btcBalance * (btcPrice || 0))}
             </Text>
           </View>
-          <Icon name="arrow_right" size={20} color={COLORS.SECONDARY_TEXT} />
+          <Icon name="arrow_right" size={s(20)} color={COLORS.SECONDARY_TEXT} />
         </TouchableOpacity>
 
         {/* UNIT Card */}
         <TouchableOpacity
-          style={localStyles.assetCard}
+          style={[localStyles.assetCard, { padding: s(16), marginBottom: s(12) }]}
           onPress={() => handleSelectAsset('unit')}
           activeOpacity={0.7}
           testID="asset-unit"
         >
-          <View style={localStyles.assetIconContainer}>
-            <Icon name="unit_logo" size={40} />
+          <View style={[localStyles.assetIconContainer, { marginRight: s(16) }]}>
+            <Icon name="unit_logo" size={s(40)} />
           </View>
           <View style={localStyles.assetInfo}>
-            <Text style={localStyles.assetName}>Unit Rune</Text>
-            <Text style={localStyles.assetSymbol}>UNIT</Text>
+            <Text style={[localStyles.assetName, { fontSize: sf(16), marginBottom: s(2) }]}>Unit Rune</Text>
+            <Text style={[localStyles.assetSymbol, { fontSize: sf(13) }]}>UNIT</Text>
           </View>
-          <View style={localStyles.assetBalance}>
-            <Text style={localStyles.balanceAmount}>
+          <View style={[localStyles.assetBalance, { marginRight: s(12) }]}>
+            <Text style={[localStyles.balanceAmount, { fontSize: sf(16), marginBottom: s(2) }]}>
               {formatFiat(unitBalance)}
             </Text>
-            <Text style={localStyles.balanceUsd}>
+            <Text style={[localStyles.balanceUsd, { fontSize: sf(13) }]}>
               ${formatFiat(unitBalance)}
             </Text>
           </View>
-          <Icon name="arrow_right" size={20} color={COLORS.SECONDARY_TEXT} />
+          <Icon name="arrow_right" size={s(20)} color={COLORS.SECONDARY_TEXT} />
         </TouchableOpacity>
       </View>
     </View>
@@ -123,18 +125,12 @@ const localStyles = StyleSheet.create({
   header: {
     flexDirection: 'row',
     alignItems: 'center',
-    paddingTop: 60,
-    paddingHorizontal: 20,
-    paddingBottom: 20,
   },
   backButton: {
-    width: 40,
-    height: 40,
     justifyContent: 'center',
     marginRight: 8,
   },
   title: {
-    fontSize: 32,
     fontWeight: 'bold',
     color: COLORS.VERY_LIGHT_GRAY,
     fontFamily: 'CabinetGrotesk-Bold',
@@ -142,13 +138,9 @@ const localStyles = StyleSheet.create({
   },
   content: {
     flex: 1,
-    paddingHorizontal: 20,
-    paddingTop: 20,
   },
   subtitle: {
-    fontSize: 16,
     color: COLORS.SECONDARY_TEXT,
-    marginBottom: 24,
     fontFamily: 'CabinetGrotesk-Regular',
   },
   assetCard: {
@@ -156,42 +148,31 @@ const localStyles = StyleSheet.create({
     alignItems: 'center',
     backgroundColor: COLORS.CARD_BG,
     borderRadius: 12,
-    padding: 16,
-    marginBottom: 12,
     borderWidth: 1,
     borderColor: COLORS.BORDER_COLOR,
   },
-  assetIconContainer: {
-    marginRight: 16,
-  },
+  assetIconContainer: {},
   assetInfo: {
     flex: 1,
   },
   assetName: {
-    fontSize: 16,
     fontWeight: '600',
     color: COLORS.VERY_LIGHT_GRAY,
     fontFamily: 'CabinetGrotesk-Bold',
-    marginBottom: 2,
   },
   assetSymbol: {
-    fontSize: 13,
     color: COLORS.SECONDARY_TEXT,
     fontFamily: 'CabinetGrotesk-Regular',
   },
   assetBalance: {
     alignItems: 'flex-end',
-    marginRight: 12,
   },
   balanceAmount: {
-    fontSize: 16,
     fontWeight: '600',
     color: COLORS.VERY_LIGHT_GRAY,
     fontFamily: 'CabinetGrotesk-Bold',
-    marginBottom: 2,
   },
   balanceUsd: {
-    fontSize: 13,
     color: COLORS.SECONDARY_TEXT,
     fontFamily: 'CabinetGrotesk-Regular',
   },
