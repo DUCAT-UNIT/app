@@ -16,7 +16,7 @@ const isDev = __DEV__;
 // REAL-TIME SENTRY STREAMING
 // Set to true to stream all logs to Sentry in real-time (uses quota!)
 // ============================================================================
-const STREAM_TO_SENTRY = true;
+const STREAM_TO_SENTRY = false;
 
 export type LogContext = Record<string, unknown>;
 export type SentryLevel = 'debug' | 'info' | 'warning' | 'error' | 'fatal';

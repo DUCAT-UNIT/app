@@ -63,7 +63,11 @@ export function useAppSettings({ biometricEnabled, setIsAuthenticated }: UseAppS
         if (savedEcashThreshold !== null) {
           setEcashThreshold(parseInt(savedEcashThreshold, 10));
         }
-      } catch (error: unknown) {}
+      } catch (error: unknown) {
+        logger.warn('Failed to load app settings', {
+          error: error instanceof Error ? error.message : String(error)
+        });
+      }
     };
     loadSettings();
   }, []);

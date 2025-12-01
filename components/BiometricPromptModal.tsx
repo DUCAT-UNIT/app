@@ -62,7 +62,9 @@ export default function BiometricPromptModal({
         // Only set authenticated if this callback is provided
         onBiometricEnabled(true, result.success);
       }
-    } catch (error: unknown) {}
+    } catch (error: unknown) {
+      console.warn('Biometric authentication failed:', error);
+    }
   };
 
   const handleSkip = async () => {

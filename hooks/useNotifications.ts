@@ -114,7 +114,10 @@ export function useNotifications(): UseNotificationsReturn {
       //     // Silently fail if notification already dismissed
       //   }
       // }, 15000);
-    } catch (error: unknown) {}
+    } catch (error: unknown) {
+      // Notification functionality disabled - using snackbars only
+      // Silently ignore since this is intentionally a no-op
+    }
   };
 
   return {

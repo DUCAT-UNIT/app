@@ -306,8 +306,17 @@ export const verifyPin = async (enteredPin: string): Promise<PinVerificationResu
     // Hash entered PIN with PBKDF2
     const enteredHashedPin = await hashPin(enteredPin, storedSalt);
 
+    // Verify PIN is stored - if not, this is a corrupted state
+    if (!storedHashedPin) {
+      return {
+        success: false,
+        error: 'PIN not configured',
+        remainingAttempts: 0,
+      };
+    }
+
     // Use constant-time comparison to prevent timing attacks
-    const isValid = verifyPinHash(storedHashedPin || '', enteredHashedPin);
+    const isValid = verifyPinHash(storedHashedPin, enteredHashedPin);
 
     if (isValid) {
       // Success - reset attempts
