@@ -10,6 +10,7 @@ import { RunestoneInfo } from './RunestoneInfo';
 import { truncateAddress } from '../../utils/formatters/addresses';
 import { formatBTC, satsToBTC } from '../../utils/bitcoin/conversions';
 import { formatUnitAmount, formatFiat } from '../../utils/formatters/amounts';
+import { useResponsive } from '../../hooks/useResponsive';
 
 export type OutputType = 'recipient' | 'change' | 'rune_return' | 'op_return';
 export type AssetType = 'BTC' | 'UNIT' | 'RUNE';
@@ -35,6 +36,7 @@ export interface TransactionOutputProps {
 }
 
 export function TransactionOutput({ output, sendIntent, runeUtxoBalance, btcPrice }: TransactionOutputProps) {
+  const { s, sf } = useResponsive();
   const unitAmount = sendIntent.assetType === 'UNIT' ? parseFloat(sendIntent.amount) : 0;
   const isRuneOutput = sendIntent.assetType === 'UNIT' &&
     (output.type === 'recipient' || output.type === 'rune_return');
@@ -53,25 +55,25 @@ export function TransactionOutput({ output, sendIntent, runeUtxoBalance, btcPric
   }
 
   return (
-    <View style={styles.txItem}>
-      <View style={styles.txItemHeader}>
-        <Text style={styles.txAddress} selectable numberOfLines={1}>
+    <View style={[styles.txItem, { borderRadius: s(8), padding: s(12), marginBottom: s(8) }]}>
+      <View style={[styles.txItemHeader, { marginBottom: s(6) }]}>
+        <Text style={[styles.txAddress, { fontSize: sf(12), marginRight: s(8) }]} selectable numberOfLines={1}>
           {truncateAddress(output.address, 5, 5)}
         </Text>
 
         {/* Show UNIT chip for rune outputs */}
         {isRuneOutput && output.type === 'recipient' && (
-          <View style={styles.unitChip}>
-            <Icon name="unit_symbol" size={10} color={COLORS.PRIMARY_BLUE} />
-            <Text style={styles.unitChipText}>
+          <View style={[styles.unitChip, { paddingHorizontal: s(8), paddingVertical: s(3), borderRadius: s(4), gap: s(4) }]}>
+            <Icon name="unit_symbol" size={s(10)} color={COLORS.PRIMARY_BLUE} />
+            <Text style={[styles.unitChipText, { fontSize: sf(10) }]}>
               {formatUnitAmount(unitAmount)}
             </Text>
           </View>
         )}
         {isRuneOutput && output.type === 'rune_return' && runeUtxoBalance && remainingUnit > 0 && (
-          <View style={styles.unitChip}>
-            <Icon name="unit_symbol" size={10} color={COLORS.PRIMARY_BLUE} />
-            <Text style={styles.unitChipText}>
+          <View style={[styles.unitChip, { paddingHorizontal: s(8), paddingVertical: s(3), borderRadius: s(4), gap: s(4) }]}>
+            <Icon name="unit_symbol" size={s(10)} color={COLORS.PRIMARY_BLUE} />
+            <Text style={[styles.unitChipText, { fontSize: sf(10) }]}>
               {formatFiat(remainingUnit)}
             </Text>
           </View>
@@ -79,10 +81,10 @@ export function TransactionOutput({ output, sendIntent, runeUtxoBalance, btcPric
 
         {/* Show regular labels for non-rune outputs */}
         {!isRuneOutput && outputLabel && output.type !== 'op_return' && (
-          <Text style={styles.txChangeLabel}>{outputLabel}</Text>
+          <Text style={[styles.txChangeLabel, { fontSize: sf(10), paddingHorizontal: s(8), paddingVertical: s(3), borderRadius: s(4) }]}>{outputLabel}</Text>
         )}
         {output.type === 'op_return' && (
-          <Text style={styles.txChangeLabel}>Runestone</Text>
+          <Text style={[styles.txChangeLabel, { fontSize: sf(10), paddingHorizontal: s(8), paddingVertical: s(3), borderRadius: s(4) }]}>Runestone</Text>
         )}
       </View>
 
@@ -95,10 +97,10 @@ export function TransactionOutput({ output, sendIntent, runeUtxoBalance, btcPric
         />
       ) : (
         <View style={styles.txValueRow}>
-          <Text style={styles.txValue}>
+          <Text style={[styles.txValue, { fontSize: sf(14) }]}>
             {formatBTC(output.value)} BTC
           </Text>
-          <Text style={styles.txUsd}>
+          <Text style={[styles.txUsd, { fontSize: sf(13) }]}>
             ${formatFiat(satsToBTC(output.value) * (btcPrice || 0))}
           </Text>
         </View>
@@ -110,9 +112,6 @@ export function TransactionOutput({ output, sendIntent, runeUtxoBalance, btcPric
 const styles = StyleSheet.create({
   txItem: {
     backgroundColor: COLORS.CARD_BG,
-    borderRadius: 8,
-    padding: 12,
-    marginBottom: 8,
     borderWidth: 1,
     borderColor: COLORS.BORDER_COLOR,
   },
@@ -120,14 +119,11 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    marginBottom: 6,
   },
   txAddress: {
-    fontSize: 12,
     color: COLORS.VERY_LIGHT_GRAY,
     fontFamily: 'monospace',
     flex: 1,
-    marginRight: 8,
   },
   txValueRow: {
     flexDirection: 'row',
@@ -135,34 +131,23 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   txValue: {
-    fontSize: 14,
     fontWeight: '500',
     color: COLORS.VERY_LIGHT_GRAY,
   },
   txUsd: {
-    fontSize: 13,
     color: COLORS.SECONDARY_TEXT,
   },
   txChangeLabel: {
-    fontSize: 10,
     color: COLORS.PRIMARY_BLUE,
     backgroundColor: COLORS.PRIMARY_BLUE + '20',
-    paddingHorizontal: 8,
-    paddingVertical: 3,
-    borderRadius: 4,
     fontWeight: '500',
   },
   unitChip: {
     flexDirection: 'row',
     alignItems: 'center',
     backgroundColor: COLORS.PRIMARY_BLUE + '20',
-    paddingHorizontal: 8,
-    paddingVertical: 3,
-    borderRadius: 4,
-    gap: 4,
   },
   unitChipText: {
-    fontSize: 10,
     color: COLORS.PRIMARY_BLUE,
     fontWeight: '600',
     fontFamily: 'CabinetGrotesk-Bold',

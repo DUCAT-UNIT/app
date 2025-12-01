@@ -106,8 +106,37 @@ export function useTransactionBuilder({
         throw new Error('Wallet not initialized');
       }
 
-      const unconfirmedUtxos = getUnconfirmedUTXOs('segwit', sendIntent);
+      logger.debug('[createBtcIntent] Starting BTC intent creation');
+      logger.debug('[createBtcIntent] Current sendIntent:', sendIntent ? 'exists' : 'null');
+
+      // Release any orphaned UTXOs from previous failed attempts BEFORE building intent
+      await releaseOrphanedUtxos(getSpentUtxos, unmarkUtxosAsSpent);
+
+      // If there's an existing intent, release its UTXOs since we're rebuilding, not chaining
+      if (sendIntent && !sendIntent.txid && sendIntent.assetType === 'BTC') {
+        const oldUtxosToRelease: UtxoRef[] = sendIntent.inputs?.map((i: UTXO) => ({ txid: i.txid, vout: i.vout })) || [];
+        if (oldUtxosToRelease.length > 0) {
+          logger.debug('[createBtcIntent] Releasing old intent UTXOs before rebuild:', { count: oldUtxosToRelease.length });
+          await unmarkUtxosAsSpent(oldUtxosToRelease);
+        }
+      }
+
+      // Pass null to avoid excluding old intent's UTXOs - we're starting fresh
+      const unconfirmedUtxos = getUnconfirmedUTXOs('segwit', null);
       const spentUtxos = getSpentUtxos();
+
+      logger.debug('[createBtcIntent] Unconfirmed UTXOs from pending:', {
+        count: unconfirmedUtxos.length,
+        utxos: unconfirmedUtxos.map(u => ({
+          txid: u.txid.slice(0, 16) + '...',
+          vout: u.vout,
+          value: u.value,
+        })),
+      });
+      logger.debug('[createBtcIntent] Spent UTXOs:', {
+        count: spentUtxos.size,
+        keys: Array.from(spentUtxos).slice(0, 5),
+      });
 
       const intent = await createBtcIntentService(
         sendRecipient,
@@ -156,8 +185,27 @@ export function useTransactionBuilder({
         throw new Error(ERRORS.NO_UNIT_BALANCE);
       }
 
-      const unconfirmedTaprootUtxos = requireConfirmedUtxos ? [] : getUnconfirmedUTXOs('taproot', sendIntent);
-      const unconfirmedSegwitUtxos = requireConfirmedUtxos ? [] : getUnconfirmedUTXOs('segwit', sendIntent);
+      // Release any orphaned UTXOs from previous failed attempts BEFORE building intent
+      await releaseOrphanedUtxos(getSpentUtxos, unmarkUtxosAsSpent);
+
+      // If there's an existing intent, release its UTXOs since we're rebuilding, not chaining
+      if (sendIntent && !sendIntent.txid && sendIntent.assetType === 'UNIT') {
+        const oldUtxosToRelease: UtxoRef[] = [];
+        if (sendIntent.runeUtxo) {
+          oldUtxosToRelease.push({ txid: sendIntent.runeUtxo.transaction, vout: sendIntent.runeUtxo.vout });
+        }
+        if (sendIntent.satUtxo) {
+          oldUtxosToRelease.push({ txid: sendIntent.satUtxo.txid, vout: sendIntent.satUtxo.vout });
+        }
+        if (oldUtxosToRelease.length > 0) {
+          logger.debug('[createUnitIntent] Releasing old intent UTXOs before rebuild:', { count: oldUtxosToRelease.length });
+          await unmarkUtxosAsSpent(oldUtxosToRelease);
+        }
+      }
+
+      // Pass null to avoid excluding old intent's UTXOs - we're starting fresh
+      const unconfirmedTaprootUtxos = requireConfirmedUtxos ? [] : getUnconfirmedUTXOs('taproot', null);
+      const unconfirmedSegwitUtxos = requireConfirmedUtxos ? [] : getUnconfirmedUTXOs('segwit', null);
       const spentUtxos = getSpentUtxos();
 
       const intent = await createUnitIntentService(

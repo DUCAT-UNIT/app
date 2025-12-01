@@ -6,23 +6,26 @@ import React from 'react';
 import { View, Text, StyleSheet } from 'react-native';
 import { COLORS } from '../../theme';
 import { formatFiat } from '../../utils/formatters';
+import { useResponsive } from '../../hooks/useResponsive';
 
 interface FeeBreakdownProps {
   actualFee: number;
 }
 
 export default function FeeBreakdown({ actualFee }: FeeBreakdownProps) {
+  const { s, sf } = useResponsive();
+
   return (
     <>
-      <Text style={styles.sectionTitle}>Transaction details</Text>
-      <View style={styles.detailsCard}>
-        <View style={styles.detailRow}>
-          <Text style={styles.detailLabel}>Network:</Text>
-          <Text style={styles.detailValue}>Mutinynet</Text>
+      <Text style={[styles.sectionTitle, { fontSize: sf(16), marginBottom: s(12) }]}>Transaction details</Text>
+      <View style={[styles.detailsCard, { borderRadius: s(12), padding: s(16), marginBottom: s(24) }]}>
+        <View style={[styles.detailRow, { marginBottom: s(10) }]}>
+          <Text style={[styles.detailLabel, { fontSize: sf(14) }]}>Network:</Text>
+          <Text style={[styles.detailValue, { fontSize: sf(14) }]}>Mutinynet</Text>
         </View>
         <View style={styles.detailRowLast}>
-          <Text style={styles.detailLabel}>Total fees:</Text>
-          <Text style={styles.detailValue}>{formatFiat(actualFee, 0)} sats</Text>
+          <Text style={[styles.detailLabel, { fontSize: sf(14) }]}>Total fees:</Text>
+          <Text style={[styles.detailValue, { fontSize: sf(14) }]}>{formatFiat(actualFee, 0)} sats</Text>
         </View>
       </View>
     </>
@@ -31,23 +34,17 @@ export default function FeeBreakdown({ actualFee }: FeeBreakdownProps) {
 
 const styles = StyleSheet.create({
   sectionTitle: {
-    fontSize: 16,
     fontWeight: '400',
     color: COLORS.VERY_LIGHT_GRAY,
-    marginBottom: 12,
   },
   detailsCard: {
     backgroundColor: COLORS.CARD_BG,
-    borderRadius: 12,
-    padding: 14,
-    marginBottom: 24,
     width: '100%',
   },
   detailRow: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'flex-start',
-    marginBottom: 10,
     width: '100%',
   },
   detailRowLast: {
@@ -57,12 +54,10 @@ const styles = StyleSheet.create({
     width: '100%',
   },
   detailLabel: {
-    fontSize: 14,
     color: COLORS.SECONDARY_TEXT,
     fontWeight: '400',
   },
   detailValue: {
-    fontSize: 14,
     fontWeight: '400',
     color: COLORS.VERY_LIGHT_GRAY,
     textAlign: 'right',

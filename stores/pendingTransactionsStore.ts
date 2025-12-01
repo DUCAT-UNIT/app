@@ -44,6 +44,7 @@ export interface PendingTransaction {
   assetType: 'BTC' | 'UNIT';
   status: 'pending' | 'invalid';
   timestamp: number;
+  sentAmount?: number; // Amount sent in the transaction (sats for BTC, smallest units for UNIT)
 }
 
 interface PendingTransactionsState {
@@ -58,7 +59,8 @@ interface PendingTransactionsActions {
     txid: string,
     outputs: PendingTransactionOutput[],
     assetType: 'BTC' | 'UNIT',
-    parentTxid?: string | null
+    parentTxid?: string | null,
+    sentAmount?: number
   ) => Promise<void>;
   confirmTransaction: (txid: string) => Promise<void>;
   invalidateTransaction: (
@@ -125,6 +127,21 @@ export const usePendingTransactionsStore = create<PendingTransactionsStore>((set
 
   // Load from storage for a specific account
   loadFromStorage: async (accountIndex: number) => {
+    const { currentAccount: prevAccount, pendingTransactions: prevTxs } = get();
+    const prevTxCount = Object.keys(prevTxs).length;
+
+    logger.info('[loadFromStorage] Called with:', {
+      newAccount: accountIndex,
+      prevAccount,
+      prevPendingTxCount: prevTxCount,
+    });
+
+    // Only reset if account actually changed
+    if (accountIndex === prevAccount) {
+      logger.info('[loadFromStorage] Same account, skipping reset');
+      return;
+    }
+
     // Reset state immediately to prevent stale data
     set({
       pendingTransactions: {},
@@ -160,8 +177,18 @@ export const usePendingTransactionsStore = create<PendingTransactionsStore>((set
   },
 
   // Add a new pending transaction
-  addPendingTransaction: async (txid, outputs, assetType, parentTxid = null) => {
+  addPendingTransaction: async (txid, outputs, assetType, parentTxid = null, sentAmount) => {
     const { pendingTransactions, currentAccount } = get();
+
+    logger.info('[addPendingTransaction] Adding pending tx:', {
+      txid: txid.slice(0, 16) + '...',
+      outputCount: outputs.length,
+      outputs: outputs.map(o => ({ address: o.address?.slice(0, 15) + '...', value: o.value, vout: o.vout })),
+      assetType,
+      parentTxid: parentTxid?.slice(0, 16),
+      currentAccount,
+      sentAmount,
+    });
 
     const newTx: PendingTransaction = {
       txid,
@@ -170,6 +197,7 @@ export const usePendingTransactionsStore = create<PendingTransactionsStore>((set
       assetType,
       status: 'pending',
       timestamp: Date.now(),
+      sentAmount,
     };
 
     const updated = {
@@ -179,6 +207,10 @@ export const usePendingTransactionsStore = create<PendingTransactionsStore>((set
 
     set({ pendingTransactions: updated });
     await savePendingTransactions(updated, currentAccount);
+
+    logger.info('[addPendingTransaction] Pending transactions after add:', {
+      totalCount: Object.keys(updated).length,
+    });
   },
 
   // Confirm transaction and remove from pending
@@ -236,13 +268,34 @@ export const usePendingTransactionsStore = create<PendingTransactionsStore>((set
 
   // Get unconfirmed UTXOs
   getUnconfirmedUTXOs: (addressType = 'all', excludeFromIntent = null) => {
-    const { pendingTransactions } = get();
+    const { pendingTransactions, spentUtxos } = get();
     const excludedKeys = buildExclusionSet(excludeFromIntent);
-    return getUnconfirmedUTXOsFromPending(
+
+    // Debug logging
+    const txCount = Object.keys(pendingTransactions).length;
+    logger.debug('[getUnconfirmedUTXOs] Pending transactions count:', { count: txCount });
+    logger.debug('[getUnconfirmedUTXOs] Address type filter:', { addressType });
+    logger.debug('[getUnconfirmedUTXOs] Excluded keys:', { count: excludedKeys.size, keys: Array.from(excludedKeys).slice(0, 3) });
+    logger.debug('[getUnconfirmedUTXOs] Spent UTXOs:', { count: spentUtxos.size, keys: Array.from(spentUtxos).slice(0, 3) });
+
+    // Log each pending transaction
+    Object.entries(pendingTransactions).forEach(([txid, tx]) => {
+      logger.debug('[getUnconfirmedUTXOs] Pending tx:', {
+        txid: txid.slice(0, 16) + '...',
+        status: tx.status,
+        outputCount: tx.outputs?.length || 0,
+        outputs: tx.outputs?.map(o => ({ address: o.address?.slice(0, 10) + '...', value: o.value, vout: o.vout })),
+      });
+    });
+
+    const result = getUnconfirmedUTXOsFromPending(
       pendingTransactions as Record<string, UtilsPendingTransaction>,
       addressType,
       excludedKeys
     );
+
+    logger.debug('[getUnconfirmedUTXOs] Returning UTXOs:', { count: result.length });
+    return result;
   },
 
   // Get unconfirmed balance

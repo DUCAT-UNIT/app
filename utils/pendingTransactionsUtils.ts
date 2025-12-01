@@ -137,19 +137,34 @@ export function getUnconfirmedUTXOsFromPending(
         // Check if this UTXO should be excluded
         const key = `${tx.txid}:${output.vout}`;
         if (excludedKeys.has(key)) {
+          logger.debug('[getUnconfirmedUTXOsFromPending] Excluding UTXO (in exclusion set):', { key });
           return; // Skip this UTXO
         }
 
         // Filter by address type if specified
-        if (matchesAddressType(output.address, addressType)) {
-          utxos.push({
-            ...output,
-            txid: tx.txid,
-            status: { confirmed: false }, // Match blockchain API format
-            parentTxid: tx.parentTxid,
-            assetType: tx.assetType,
+        const matches = matchesAddressType(output.address, addressType);
+        if (!matches) {
+          logger.debug('[getUnconfirmedUTXOsFromPending] Filtering UTXO (address type mismatch):', {
+            address: output.address?.slice(0, 15) + '...',
+            addressType,
+            isSegwit: output.address?.startsWith('tb1q') || output.address?.startsWith('bc1q'),
+            isTaproot: output.address?.startsWith('tb1p') || output.address?.startsWith('bc1p'),
           });
+          return;
         }
+
+        utxos.push({
+          ...output,
+          txid: tx.txid,
+          status: { confirmed: false }, // Match blockchain API format
+          parentTxid: tx.parentTxid,
+          assetType: tx.assetType,
+        });
+      });
+    } else {
+      logger.debug('[getUnconfirmedUTXOsFromPending] Skipping tx (not pending):', {
+        txid: tx.txid?.slice(0, 16) + '...',
+        status: tx.status,
       });
     }
   });

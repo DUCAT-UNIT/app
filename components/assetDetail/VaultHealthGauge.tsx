@@ -330,13 +330,13 @@ export const VaultHealthGauge = memo(function VaultHealthGauge({
             <Text style={[styles.statValue, { fontSize: sf(20) }]}>{formatBalance(totalCollateral)}</Text>
           </View>
           <View style={[styles.buttonPair, { gap: s(8) }]}>
-            <TouchableOpacity style={styles.actionButton} onPress={onDepositPress}>
+            <TouchableOpacity style={[styles.actionButton, { flex: 1 }]} onPress={onDepositPress}>
               <View style={[styles.actionButtonIcon, { width: s(56), height: s(56), borderRadius: s(8), marginBottom: s(2) }]}>
                 <Text style={[styles.buttonIcon, { fontSize: sf(25) }]}>+</Text>
               </View>
               <Text style={[styles.actionButtonLabel, { fontSize: sf(10) }]}>Deposit</Text>
             </TouchableOpacity>
-            <TouchableOpacity style={styles.actionButton} onPress={onWithdrawPress}>
+            <TouchableOpacity style={[styles.actionButton, { flex: 1 }]} onPress={onWithdrawPress}>
               <View style={[styles.actionButtonIcon, { width: s(56), height: s(56), borderRadius: s(8), marginBottom: s(2) }]}>
                 <Text style={[styles.buttonIcon, { fontSize: sf(25) }]}>−</Text>
               </View>
@@ -355,13 +355,13 @@ export const VaultHealthGauge = memo(function VaultHealthGauge({
             <Text style={[styles.statValue, { fontSize: sf(20) }]}>{formatFiat(totalDebt)}</Text>
           </View>
           <View style={[styles.buttonPair, { gap: s(8) }]}>
-            <TouchableOpacity style={styles.actionButton} onPress={onBorrowPress}>
+            <TouchableOpacity style={[styles.actionButton, { flex: 1 }]} onPress={onBorrowPress}>
               <View style={[styles.actionButtonIcon, { width: s(56), height: s(56), borderRadius: s(8), marginBottom: s(2) }]}>
                 <Text style={[styles.buttonIcon, { fontSize: sf(25) }]}>↑</Text>
               </View>
               <Text style={[styles.actionButtonLabel, { fontSize: sf(10) }]}>Borrow</Text>
             </TouchableOpacity>
-            <TouchableOpacity style={styles.actionButton} onPress={onRepayPress}>
+            <TouchableOpacity style={[styles.actionButton, { flex: 1 }]} onPress={onRepayPress}>
               <View style={[styles.actionButtonIcon, { width: s(56), height: s(56), borderRadius: s(8), marginBottom: s(2) }]}>
                 <Text style={[styles.buttonIcon, { fontSize: sf(25) }]}>↓</Text>
               </View>

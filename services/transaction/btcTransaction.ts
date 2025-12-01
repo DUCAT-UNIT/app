@@ -76,10 +76,27 @@ export async function createBtcIntent(
 
     // Fetch and merge UTXOs
     const confirmedUtxos = await fetchUtxosService(sourceAddress);
+
+    // Debug logging for UTXO sources
+    console.log('[BTC Intent] Confirmed UTXOs from API:', confirmedUtxos.length);
+    console.log('[BTC Intent] Unconfirmed UTXOs from pending:', unconfirmedUtxos.length);
+    console.log('[BTC Intent] Spent UTXOs to filter:', spentUtxos.size);
+
     const availableUtxos = mergeAndFilterUtxos(confirmedUtxos, unconfirmedUtxos, spentUtxos);
 
+    console.log('[BTC Intent] Available UTXOs after merge:', availableUtxos.length);
+
     if (availableUtxos.length === 0) {
-      throw new Error(ERRORS.NO_CONFIRMED_FUNDS);
+      // Provide more context in the error
+      const hasUnconfirmed = unconfirmedUtxos.length > 0;
+      const allSpent = spentUtxos.size > 0 && confirmedUtxos.length === 0 && unconfirmedUtxos.length === 0;
+      console.error('[BTC Intent] No available UTXOs!', {
+        confirmedCount: confirmedUtxos.length,
+        unconfirmedCount: unconfirmedUtxos.length,
+        spentCount: spentUtxos.size,
+        spentKeys: Array.from(spentUtxos).slice(0, 5), // First 5 for debugging
+      });
+      throw new Error(hasUnconfirmed ? ERRORS.NO_CONFIRMED_FUNDS : (allSpent ? 'All UTXOs are currently locked' : ERRORS.NO_CONFIRMED_FUNDS));
     }
 
     // Create fee calculator

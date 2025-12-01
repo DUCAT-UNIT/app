@@ -30,10 +30,19 @@ export function useReviewScreenData(): UseReviewScreenDataReturn {
   const [isDetailsExpanded, setIsDetailsExpanded] = useState(false);
   const [runeUtxoBalance, setRuneUtxoBalance] = useState<number | null>(null);
 
-  // Get UNIT balance from rune UTXO
+  // Get UNIT balance from rune UTXO(s)
   useEffect(() => {
-    if (sendIntent?.assetType === 'UNIT' && sendIntent?.runeUtxo?.runeAmount) {
-      setRuneUtxoBalance(sendIntent.runeUtxo.runeAmount);
+    if (sendIntent?.assetType === 'UNIT') {
+      // Sum all rune UTXOs if multiple, otherwise use single runeUtxo
+      if (sendIntent.runeUtxos && sendIntent.runeUtxos.length > 0) {
+        const totalRuneBalance = sendIntent.runeUtxos.reduce(
+          (sum, utxo) => sum + (utxo.runeAmount || 0),
+          0
+        );
+        setRuneUtxoBalance(totalRuneBalance);
+      } else if (sendIntent.runeUtxo?.runeAmount) {
+        setRuneUtxoBalance(sendIntent.runeUtxo.runeAmount);
+      }
     }
   }, [sendIntent]);
 

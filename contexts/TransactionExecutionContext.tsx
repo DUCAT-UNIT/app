@@ -77,7 +77,15 @@ export const TransactionExecutionProvider: React.FC<TransactionExecutionProvider
   fetchBalance,
   fetchTransactionHistory,
 }) => {
-  const { setIntentStep, sendAssetType, sendAmount } = useSendFlow();
+  const { setIntentStep, sendAssetType, sendAmount, turboEnabled } = useSendFlow();
+
+  // Helper to determine snackbar action type
+  const getSnackbarAction = useCallback(() => {
+    if (sendAssetType === 'unit') {
+      return turboEnabled ? 'swap' : 'unit_send';
+    }
+    return 'withdraw';
+  }, [sendAssetType, turboEnabled]);
   const { sendIntent, setSendIntent } = useTransactionBuild();
   const { wallet } = useWallet();
   const { addPendingTransaction, confirmTransaction, invalidateTransaction, pendingTransactions, markUtxoAsSpent, markUtxosAsSpent } = usePendingTransactions();
@@ -100,7 +108,7 @@ export const TransactionExecutionProvider: React.FC<TransactionExecutionProvider
       if (!intent || !intent.signedTxHex) {
         showSnackbar({
           type: 'error',
-          action: sendAssetType === 'unit' ? 'swap' : 'withdraw',
+          action: getSnackbarAction(),
           message: ERRORS.TRANSACTION_CANCELLED,
         });
         return;
@@ -162,11 +170,23 @@ export const TransactionExecutionProvider: React.FC<TransactionExecutionProvider
         }
 
         // For UNIT transactions, calculate rune change amount
+        // Must sum ALL rune UTXOs (not just the first one) when multiple are used
         let runeChangeAmount = 0;
-        if (sendAssetType === 'unit' && intent.assetType === 'UNIT' && intent.runeUtxo?.runeAmount && intent.amount) {
+        if (sendAssetType === 'unit' && intent.assetType === 'UNIT' && intent.amount) {
           const intentAmount = typeof intent.amount === 'string' ? parseFloat(intent.amount) : intent.amount;
-          runeChangeAmount = intent.runeUtxo.runeAmount - intentAmount;
-          logger.debug('Rune change amount:', runeChangeAmount);
+
+          // Sum total rune input from all UTXOs
+          let totalRuneInput = 0;
+          if (intent.runeUtxos && intent.runeUtxos.length > 0) {
+            totalRuneInput = intent.runeUtxos.reduce((sum, utxo) => sum + (utxo.runeAmount || 0), 0);
+            logger.debug('Total rune input from', intent.runeUtxos.length, 'UTXOs:', totalRuneInput);
+          } else if (intent.runeUtxo?.runeAmount) {
+            // Fallback for backward compatibility
+            totalRuneInput = intent.runeUtxo.runeAmount;
+          }
+
+          runeChangeAmount = totalRuneInput - intentAmount;
+          logger.debug('Rune change amount:', runeChangeAmount, '(input:', totalRuneInput, '- sent:', intentAmount, ')');
         }
 
         // Decode each output
@@ -210,8 +230,13 @@ export const TransactionExecutionProvider: React.FC<TransactionExecutionProvider
         // If we have change outputs, store them as pending with parent tracking
         if (outputs.length > 0) {
           const assetType = sendAssetType === 'unit' ? 'UNIT' : 'BTC';
-          logger.debug('💾 Adding pending transaction:', txid, 'with', outputs.length, 'outputs');
-          await addPendingTransaction(txid, outputs, assetType, parentTxid);
+          // Calculate sent amount in smallest units
+          const sentAmountNum = parseFloat(sendAmount) || 0;
+          const sentAmountSmallest = sendAssetType === 'unit'
+            ? Math.round(sentAmountNum * 100) // UNIT uses 2 decimal places
+            : Math.round(sentAmountNum * 100000000); // BTC to sats
+          logger.debug('💾 Adding pending transaction:', txid, 'with', outputs.length, 'outputs', 'sentAmount:', sentAmountSmallest);
+          await addPendingTransaction(txid, outputs, assetType, parentTxid, sentAmountSmallest);
         } else {
           logger.debug('⚠️ No change outputs found to save');
         }
@@ -284,7 +309,7 @@ export const TransactionExecutionProvider: React.FC<TransactionExecutionProvider
       logger.error('❌ Broadcast failed:', { error: _error instanceof Error ? _error.message : String(_error) });
       showSnackbar({
         type: 'error',
-        action: sendAssetType === 'unit' ? 'swap' : 'withdraw',
+        action: getSnackbarAction(),
         message: parseErrorMessage(_error),
       });
       setIntentStep('reviewing');
@@ -294,7 +319,7 @@ export const TransactionExecutionProvider: React.FC<TransactionExecutionProvider
         await invalidateTransaction(intent.txid, 'Transaction broadcast failed');
       }
     }
-  }, [sendIntent, setSendIntent, wallet, showSnackbar, setIntentStep, sendAssetType, sendAmount, startTransactionPolling, notificationsEnabled, sendTransactionConfirmedNotification, fetchBalance, fetchTransactionHistory, addPendingTransaction, confirmTransaction, invalidateTransaction, pendingTransactions, markUtxoAsSpent, markUtxosAsSpent]);
+  }, [sendIntent, setSendIntent, wallet, showSnackbar, setIntentStep, sendAssetType, sendAmount, startTransactionPolling, notificationsEnabled, sendTransactionConfirmedNotification, fetchBalance, fetchTransactionHistory, addPendingTransaction, confirmTransaction, invalidateTransaction, pendingTransactions, markUtxoAsSpent, markUtxosAsSpent, getSnackbarAction]);
 
   // Sign the PSBT
   const signIntent = useCallback(async (options: SignOptions = {}): Promise<boolean> => {
@@ -304,7 +329,7 @@ export const TransactionExecutionProvider: React.FC<TransactionExecutionProvider
       if (!sendIntent) {
         showSnackbar({
           type: 'error',
-          action: sendAssetType === 'unit' ? 'swap' : 'withdraw',
+          action: getSnackbarAction(),
           message: ERRORS.TRANSACTION_CANCELLED,
         });
         setIntentStep('idle');
@@ -330,13 +355,13 @@ export const TransactionExecutionProvider: React.FC<TransactionExecutionProvider
       logger.error('Error signing transaction:', { error: _error instanceof Error ? _error.message : String(_error) });
       showSnackbar({
         type: 'error',
-        action: sendAssetType === 'unit' ? 'swap' : 'withdraw',
+        action: getSnackbarAction(),
         message: parseErrorMessage(_error),
       });
       setIntentStep('reviewing');
       return false;
     }
-  }, [sendIntent, currentAccount, setIntentStep, setSendIntent, showSnackbar, sendAssetType, broadcastIntent]);
+  }, [sendIntent, currentAccount, setIntentStep, setSendIntent, showSnackbar, broadcastIntent, getSnackbarAction]);
 
   // Memoize the value object to prevent unnecessary re-renders
   const value = useMemo(

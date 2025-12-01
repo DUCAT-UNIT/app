@@ -1,20 +1,21 @@
 /**
  * AmountInputScreen - Full screen for entering send amount
- * Features: MAX button, USD conversion, dynamic font sizing
+ * Features: MAX button, USD conversion, dynamic font sizing, fee estimation
  */
 
-import React, { useEffect, useRef } from 'react';
+import React, { useEffect, useRef, useMemo, useCallback, useState } from 'react';
 import {
   Text,
   View,
   TextInput,
   ActivityIndicator,
+  Pressable,
 } from 'react-native';
 import { NavigationProp, RouteProp } from '@react-navigation/native';
 import { COLORS } from '../../theme';
-import Icon from '../../components/icons';
 import TouchableScale from '../../components/common/TouchableScale';
 import { formatNumberWithCommas } from '../../utils/sendHelpers';
+import { formatFiat } from '../../utils/formatters';
 import { useSendFlow } from '../../contexts/SendFlowContext';
 import { useBalance } from '../../contexts/WalletDataContext';
 import { usePrice } from '../../contexts/PriceContext';
@@ -22,12 +23,16 @@ import { useWallet } from '../../contexts/WalletContext';
 import { useKeyboard } from '../../hooks/useKeyboard';
 import { useAmountInput } from '../../hooks/useAmountInput';
 import { useTurboReview } from '../../hooks/useTurboReview';
-import { RecipientHeader, BalanceMaxButton } from '../../components/amountInput';
+import { RecipientHeader } from '../../components/amountInput';
 import InsufficientTurboSheet from '../../components/send/InsufficientTurboSheet';
 import { useCashu } from '../../contexts/CashuContext';
 import { useNavigationHandlers } from '../../contexts/NavigationHandlersContext';
 import { useResponsive } from '../../hooks/useResponsive';
 import styles from './AmountInputScreen.styles';
+
+// Estimated fees in sats (conservative estimates)
+const ESTIMATED_BTC_FEE_SATS = 250;
+const ESTIMATED_UNIT_FEE_SATS = 500; // UNIT transactions have more outputs
 
 /**
  * Route parameters for AmountInputScreen
@@ -114,6 +119,14 @@ export default function AmountInputScreen({ navigation, route }: AmountInputScre
       ? 'Taproot'
       : 'Native SegWit';
 
+  // Fee estimation
+  const estimatedFeeSats = sendAssetType === 'unit' ? ESTIMATED_UNIT_FEE_SATS : ESTIMATED_BTC_FEE_SATS;
+  const estimatedFeeBtc = estimatedFeeSats / 100000000;
+
+  // Check if user has enough BTC to cover fees when sending UNIT
+  const btcBalanceSats = Math.round((segwitBalance || 0) * 100000000);
+  const hasInsufficientBtcForFees = sendAssetType === 'unit' && btcBalanceSats < estimatedFeeSats;
+
   // Auto-focus input
   useEffect(() => {
     const timer = setTimeout(() => {
@@ -142,6 +155,80 @@ export default function AmountInputScreen({ navigation, route }: AmountInputScre
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
+  // Auto-toggle turbo based on ecash threshold
+  useEffect(() => {
+    if (sendAssetType === 'unit' && sendAmount) {
+      const amount = parseFloat(sendAmount) || 0;
+      if (amount >= ecashThreshold && turboEnabled) {
+        // Turn OFF when amount exceeds threshold
+        setTurboEnabled(false);
+      } else if (amount > 0 && amount < ecashThreshold && !turboEnabled) {
+        // Turn ON when amount drops below threshold
+        setTurboEnabled(true);
+      }
+    }
+  }, [sendAmount, sendAssetType, ecashThreshold, turboEnabled, setTurboEnabled]);
+
+  // State for checking ecash balance
+  const [isCheckingEcash, setIsCheckingEcash] = useState(false);
+
+  // Local state for toggle-triggered insufficient sheet
+  const [toggleInsufficientAmount, setToggleInsufficientAmount] = useState(0);
+  const [toggleInsufficientBalance, setToggleInsufficientBalance] = useState(0);
+  const [showToggleInsufficientSheet, setShowToggleInsufficientSheet] = useState(false);
+
+  // Handle turbo toggle with ecash balance check
+  const handleTurboToggle = useCallback(async (enabled: boolean) => {
+    if (!enabled) {
+      // Turning OFF - just disable
+      setTurboEnabled(false);
+      return;
+    }
+
+    // Turning ON - check if amount exceeds threshold
+    const amount = parseFloat(sendAmount) || 0;
+    if (amount >= ecashThreshold) {
+      // Can't enable turbo for amounts over threshold
+      return;
+    }
+
+    // Check ecash balance
+    setIsCheckingEcash(true);
+    try {
+      const { getBalance } = await import('../../services/cashu/cashuWalletService');
+      const ecashBalance = await getBalance();
+      const ecashBalanceSmallestUnits = Math.round(ecashBalance * 100);
+      const amountInSmallestUnits = Math.round(amount * 100);
+
+      if (ecashBalanceSmallestUnits >= amountInSmallestUnits) {
+        // Has enough ecash - enable turbo
+        setTurboEnabled(true);
+      } else {
+        // Not enough ecash - show warning sheet
+        setToggleInsufficientAmount(amount);
+        setToggleInsufficientBalance(ecashBalance);
+        setShowToggleInsufficientSheet(true);
+      }
+    } catch {
+      // On error, just enable turbo (will check again on review)
+      setTurboEnabled(true);
+    } finally {
+      setIsCheckingEcash(false);
+    }
+  }, [sendAmount, ecashThreshold, setTurboEnabled]);
+
+  // Handle user choosing to use turbo from toggle sheet (needs minting)
+  const handleToggleUseTurbo = useCallback(() => {
+    setShowToggleInsufficientSheet(false);
+    setTurboEnabled(true);
+  }, [setTurboEnabled]);
+
+  // Handle user choosing to not use turbo from toggle sheet
+  const handleToggleSendNormally = useCallback(() => {
+    setShowToggleInsufficientSheet(false);
+    setTurboEnabled(false);
+  }, [setTurboEnabled]);
+
   const handleAmountChange = (text: string): void => {
     let processed = text;
 
@@ -168,7 +255,15 @@ export default function AmountInputScreen({ navigation, route }: AmountInputScre
   const enteredAmount = parseFloat(sendAmount) || 0;
   const exceedsBalance = sendAmount && enteredAmount > balance;
   const hasInsufficientBalance = hasNoUnitBalance || exceedsBalance;
-  const isReviewDisabled = !sendAmount || hasInsufficientBalance || isRequestingMint;
+
+  // For BTC, also check if amount + fee exceeds balance
+  const btcAmountPlusFee = sendAssetType === 'btc' ? enteredAmount + estimatedFeeBtc : 0;
+  const btcExceedsWithFees = sendAssetType === 'btc' && sendAmount && btcAmountPlusFee > (segwitBalance || 0);
+
+  const isReviewDisabled = !sendAmount || hasInsufficientBalance || hasInsufficientBtcForFees || btcExceedsWithFees || isRequestingMint;
+
+  // Show turbo toggle for UNIT transactions
+  const showTurboToggle = sendAssetType === 'unit';
 
   // Dynamic font sizing for amount input
   const displayAmount = formatNumberWithCommas(sendAmount);
@@ -183,78 +278,94 @@ export default function AmountInputScreen({ navigation, route }: AmountInputScre
         onBackPress={() => navigation.goBack()}
         recipientAddress={sendRecipient}
         addressType={addressType}
+        showTurboToggle={showTurboToggle}
+        turboEnabled={turboEnabled}
+        onTurboToggle={handleTurboToggle}
       />
 
-      <View style={[styles.content, { paddingTop: s(40) }]}>
-        <BalanceMaxButton
-          assetLabel={assetLabel}
-          balance={balance}
-          assetType={sendAssetType}
-          onMaxPress={handleMaxPress}
-          isCalculating={isCalculatingMax}
-          testID="amount-max-btn"
-        />
-
-        {hasInsufficientBalance && (
-          <View style={[
-            styles.warningContainer,
-            {
-              borderRadius: s(8),
-              paddingVertical: s(12),
-              paddingHorizontal: s(16),
-              marginBottom: s(24),
-              gap: s(8),
-            }
-          ]} testID="amount-error">
-            <Icon name="warning" size={s(16)} color={COLORS.DANGER_RED} />
-            <Text style={[styles.warningText, { fontSize: sf(14) }]}>
-              {hasNoUnitBalance ? 'No available UNIT balance to send' : 'Insufficient balance'}
-            </Text>
+      <View style={[styles.content, { paddingHorizontal: s(20), paddingBottom: keyboardHeight > 0 ? keyboardHeight + s(80) : s(100) }]}>
+        {/* Main Amount Display - Strike style */}
+        <View style={styles.amountSection}>
+          <View style={[styles.amountInputRow]}>
+            <TextInput
+              ref={amountInputRef}
+              style={[
+                styles.amountInput,
+                {
+                  fontSize,
+                  minWidth: s(60),
+                }
+              ]}
+              value={displayAmount}
+              onChangeText={handleAmountChange}
+              placeholder="0"
+              placeholderTextColor={COLORS.MID_DARK_GRAY}
+              keyboardType="decimal-pad"
+              returnKeyType="done"
+              onSubmitEditing={onReviewPress}
+              testID="amount-input"
+            />
+            <Text style={[styles.assetSymbol, { fontSize: sf(24), marginLeft: s(8) }]}>{assetLabel}</Text>
           </View>
-        )}
 
-        <View style={[styles.amountInputRow, { marginBottom: s(12) }]}>
-          <TextInput
-            ref={amountInputRef}
+          {/* USD Value */}
+          <Text style={[styles.usdValue, { fontSize: sf(18), marginTop: s(12) }]} testID="amount-usd-value">
+            ${usdValue}
+          </Text>
+
+          {/* Available Balance - Tappable */}
+          <Pressable
+            onPress={handleMaxPress}
+            disabled={isCalculatingMax}
             style={[
-              styles.amountInput,
-              {
-                fontSize,
-                marginRight: s(12),
-                minWidth: s(60),
-              }
+              styles.balanceButton,
+              { marginTop: s(24), paddingVertical: s(8), paddingHorizontal: s(16), borderRadius: s(20) },
+              (hasInsufficientBalance || hasInsufficientBtcForFees || btcExceedsWithFees) && styles.balanceButtonError
             ]}
-            value={displayAmount}
-            onChangeText={handleAmountChange}
-            placeholder="0"
-            placeholderTextColor={COLORS.MID_DARK_GRAY}
-            keyboardType="decimal-pad"
-            returnKeyType="done"
-            onSubmitEditing={onReviewPress}
-            testID="amount-input"
-          />
-          <Icon
-            name={sendAssetType === 'btc' ? 'btc_symbol' : 'unit_symbol'}
-            size={s(32)}
-            color={COLORS.VERY_LIGHT_GRAY}
-          />
-        </View>
+            testID="amount-max-btn"
+          >
+            {isCalculatingMax ? (
+              <ActivityIndicator size="small" color={COLORS.PRIMARY_BLUE} />
+            ) : (
+              <Text style={[
+                styles.balanceButtonText,
+                { fontSize: sf(14) },
+                (hasInsufficientBalance || hasInsufficientBtcForFees || btcExceedsWithFees) && styles.balanceButtonTextError
+              ]}>
+                {hasInsufficientBtcForFees
+                  ? 'Insufficient BTC for fees'
+                  : hasInsufficientBalance || btcExceedsWithFees
+                  ? 'Insufficient balance'
+                  : `${sendAssetType === 'btc' ? formatFiat(balance, 8) : formatFiat(balance)} ${assetLabel} available`}
+              </Text>
+            )}
+          </Pressable>
 
-        <Text style={[styles.usdValue, { fontSize: sf(18) }]} testID="amount-usd-value">≈ ${usdValue} USD</Text>
+          {/* Turbo Info Card */}
+          {sendAssetType === 'unit' && turboEnabled && (
+            <View style={[styles.turboInfoContainer, { borderRadius: s(12), padding: s(16), marginTop: s(16) }]}>
+              <Text style={[styles.turboInfoTitle, { fontSize: sf(16), marginBottom: s(4) }]}>Turbo Transaction</Text>
+              <Text style={[styles.turboInfoText, { fontSize: sf(13), lineHeight: s(18) }]}>
+                Anonymous, instant, and private.{'\n'}
+                The recipient has to claim the funds manually.
+              </Text>
+            </View>
+          )}
+        </View>
       </View>
 
-      <View style={[styles.buttonContainer, { bottom: keyboardHeight }]}>
+      <View style={[styles.buttonContainer, { bottom: keyboardHeight, paddingHorizontal: s(20), paddingVertical: s(16) }]}>
         <TouchableScale
           style={[
             styles.reviewButton,
-            { borderRadius: s(12), paddingVertical: s(16) },
+            { borderRadius: s(14), paddingVertical: s(18) },
             isReviewDisabled && styles.reviewButtonDisabled
           ]}
           onPress={onReviewPress}
           disabled={isReviewDisabled}
           testID="amount-review-btn"
         >
-          <Text style={[styles.reviewButtonText, { fontSize: sf(16) }]}>Review</Text>
+          <Text style={[styles.reviewButtonText, { fontSize: sf(17) }]}>Review</Text>
         </TouchableScale>
       </View>
 
@@ -274,6 +385,16 @@ export default function AmountInputScreen({ navigation, route }: AmountInputScre
         onSendNormally={handleSendNormally}
         requiredAmount={insufficientTurboAmount}
         currentBalance={insufficientTurboBalance}
+      />
+
+      {/* Sheet for toggle-triggered insufficient ecash */}
+      <InsufficientTurboSheet
+        visible={showToggleInsufficientSheet}
+        onClose={() => setShowToggleInsufficientSheet(false)}
+        onUseTurbo={handleToggleUseTurbo}
+        onSendNormally={handleToggleSendNormally}
+        requiredAmount={toggleInsufficientAmount}
+        currentBalance={toggleInsufficientBalance}
       />
     </View>
   );

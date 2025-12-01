@@ -120,7 +120,7 @@ export default function ReviewScreen({ navigation, route }: ReviewScreenProps): 
       {/* Header with back button */}
       <View style={[localStyles.header, {
         paddingTop: s(60),
-        paddingHorizontal: s(20),
+        paddingHorizontal: s(24),
         paddingBottom: s(20)
       }]}>
         <TouchableOpacity
@@ -137,7 +137,7 @@ export default function ReviewScreen({ navigation, route }: ReviewScreenProps): 
       </View>
 
       <ScrollView style={localStyles.scrollView} showsVerticalScrollIndicator={false}>
-        <View style={[localStyles.content, { paddingHorizontal: s(20) }]}>
+        <View style={[localStyles.content, { paddingHorizontal: s(24) }]}>
           {/* Transaction Summary */}
           <TransactionSummary
             recipient={(sendIntent.recipient as string) || ''}
@@ -193,7 +193,7 @@ export default function ReviewScreen({ navigation, route }: ReviewScreenProps): 
       {/* Buttons - Fixed at bottom */}
       <View style={[localStyles.buttonContainer, {
         gap: s(12),
-        paddingHorizontal: s(20),
+        paddingHorizontal: s(24),
         paddingTop: s(8),
         paddingBottom: s(20)
       }]}>

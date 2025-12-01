@@ -7,6 +7,7 @@ import { Text, StyleSheet } from 'react-native';
 import { COLORS } from '../../theme';
 import { TransactionInput, PSBTInput } from './TransactionInput';
 import { TransactionOutput, PSBTOutput, SendIntent } from './TransactionOutput';
+import { useResponsive } from '../../hooks/useResponsive';
 
 export interface InputOutputListProps {
   psbtInputs: PSBTInput[];
@@ -23,11 +24,13 @@ export function InputOutputList({
   runeUtxoBalance,
   btcPrice
 }: InputOutputListProps) {
+  const { s, sf } = useResponsive();
+
   return (
     <>
       {psbtInputs && psbtInputs.length > 0 && (
         <>
-          <Text style={styles.sectionTitle}>Inputs</Text>
+          <Text style={[styles.sectionTitle, { fontSize: sf(16), marginBottom: s(12) }]}>Inputs</Text>
           {psbtInputs.map((input: PSBTInput, index: number) => (
             <TransactionInput key={index} input={input} btcPrice={btcPrice} />
           ))}
@@ -36,13 +39,14 @@ export function InputOutputList({
 
       {outputs && outputs.length > 0 && (
         <>
-          <Text style={styles.sectionTitle}>Outputs</Text>
+          <Text style={[styles.sectionTitle, { fontSize: sf(16), marginBottom: s(12) }]}>Outputs</Text>
           {outputs.map((output: PSBTOutput, index: number) => (
             <TransactionOutput
               key={index}
               output={output}
               sendIntent={sendIntent}
               runeUtxoBalance={runeUtxoBalance}
+              btcPrice={btcPrice}
             />
           ))}
         </>
@@ -53,9 +57,7 @@ export function InputOutputList({
 
 const styles = StyleSheet.create({
   sectionTitle: {
-    fontSize: 16,
     fontWeight: '400',
     color: COLORS.VERY_LIGHT_GRAY,
-    marginBottom: 12,
   },
 });

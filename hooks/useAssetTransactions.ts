@@ -10,6 +10,7 @@ import { calculateTransactionAmount, Transaction } from '../services/transaction
 import { EcashTokenRecord } from '../services/cashu/cashuLockedTokensService';
 import { TokenWithStatus } from '../services/cashu/tokenStatusService';
 import { useEcashTokens } from '../contexts/WalletDataContext';
+import { usePendingTxs } from '../contexts/PendingTransactionsContext';
 import { logger } from '../utils/logger';
 import type { DisplayAssetType } from '../types/assets';
 
@@ -38,6 +39,7 @@ export interface ProcessedTransaction {
   isAutoclaim?: boolean;
   timestamp?: number;
   vaultTransaction?: boolean;
+  isPending?: boolean;
   [key: string]: unknown;
 }
 
@@ -67,6 +69,9 @@ export function useAssetTransactions(
   const transactionsProcessedRef = useRef(false);
   // Cache for parsed transaction data - keyed by txid, persists across renders
   const txDataCacheRef = useRef<Map<string, TxData>>(new Map());
+
+  // Get pending transactions from store
+  const pendingTransactions = usePendingTxs();
 
   // Use pre-loaded ecash tokens from context (no more on-demand fetching)
   const { ecashTokens: preloadedEcashTokens, loadingEcashTokens, fetchEcashTokens } = useEcashTokens();
@@ -104,9 +109,10 @@ export function useAssetTransactions(
     }
 
     // Create a hash to check if we need to recalculate
+    const pendingTxIds = Object.keys(pendingTransactions).join(',');
     const txHash = transactionHistory
       .map(t => `${t.txid}:${t.status?.confirmed || false}:${t.status?.block_height || 0}`)
-      .join('|') + `-${assetType}-ecash:${ecashTokens.length}`;
+      .join('|') + `-${assetType}-ecash:${ecashTokens.length}-pending:${pendingTxIds}`;
 
     const hashChanged = txHash !== lastTxHashRef.current;
 
@@ -206,11 +212,77 @@ export function useAssetTransactions(
         } as ProcessedTransaction;
       });
 
-    // Merge and sort by timestamp (most recent first)
-    const merged: ProcessedTransaction[] = [...filtered, ...ecashTxs].sort((a, b) => {
-      const aTime = a.timestamp || a.status?.block_time || 0;
-      const bTime = b.timestamp || b.status?.block_time || 0;
-      return bTime - aTime;
+    // Convert pending transactions to ProcessedTransaction format
+    const pendingTxs: ProcessedTransaction[] = Object.values(pendingTransactions)
+      .filter(tx => {
+        // Filter by asset type and only include pending (not invalid)
+        if (tx.status !== 'pending') return false;
+        return tx.assetType === assetType;
+      })
+      .filter(tx => {
+        // Exclude if already confirmed in transactionHistory
+        return !transactionHistory.some(histTx => histTx.txid === tx.txid);
+      })
+      .map(tx => {
+        // Use sentAmount if available, otherwise fall back to calculating from outputs
+        let amount: number;
+        if (tx.sentAmount !== undefined && tx.sentAmount > 0) {
+          // Sent transactions show as negative
+          amount = -tx.sentAmount;
+        } else {
+          // Fallback: calculate from outputs (change amounts)
+          const totalValue = tx.outputs.reduce((sum, output) => sum + (output.value || 0), 0);
+          const totalRuneAmount = tx.outputs.reduce((sum, output) => sum + (output.runeAmount || 0), 0);
+          amount = tx.assetType === 'UNIT' ? -totalRuneAmount : -totalValue;
+        }
+
+        return {
+          txid: tx.txid,
+          timestamp: tx.timestamp / 1000, // Convert to seconds
+          status: {
+            confirmed: false,
+            block_time: Math.floor(tx.timestamp / 1000),
+          },
+          isPending: true,
+          txData: {
+            amount,
+            assetType: tx.assetType,
+            numericAmount: amount,
+            isSent: true,
+            isReceived: false,
+          },
+        } as ProcessedTransaction;
+      });
+
+    // Helper to normalize timestamps to seconds for comparison
+    // - ecash tokens use milliseconds (Date.now())
+    // - on-chain transactions use seconds (block_time)
+    // - pending transactions use timestamp / 1000 (already converted above)
+    const getTimeInSeconds = (tx: ProcessedTransaction): number => {
+      if (tx.ecashToken && tx.timestamp) {
+        // Ecash timestamps are in milliseconds
+        return tx.timestamp / 1000;
+      }
+      // On-chain and pending transactions use seconds
+      return tx.timestamp || tx.status?.block_time || 0;
+    };
+
+    // Merge and sort all transactions
+    // - Pending transactions go at the top, sorted by timestamp (most recent first)
+    // - Then confirmed/ecash transactions sorted by timestamp (most recent first)
+    const merged: ProcessedTransaction[] = [...pendingTxs, ...filtered, ...ecashTxs].sort((a, b) => {
+      const aIsPending = (a as ProcessedTransaction & { isPending?: boolean }).isPending;
+      const bIsPending = (b as ProcessedTransaction & { isPending?: boolean }).isPending;
+
+      // If both are pending or both are not pending, sort by timestamp
+      if (aIsPending === bIsPending) {
+        const aTime = getTimeInSeconds(a);
+        const bTime = getTimeInSeconds(b);
+        return bTime - aTime; // Most recent first
+      }
+
+      // Pending transactions always at top
+      return aIsPending ? -1 : 1;
     });
 
     lastTxHashRef.current = txHash;
@@ -218,7 +290,7 @@ export function useAssetTransactions(
     transactionsProcessedRef.current = true;
 
     return merged;
-  }, [transactionHistory, segwitAddress, taprootAddress, assetType, ecashTokens, currentPubkeyHex]);
+  }, [transactionHistory, segwitAddress, taprootAddress, assetType, ecashTokens, currentPubkeyHex, pendingTransactions]);
 
   // Loading is true only when we have no data yet
   const isLoading = !ecashReady || (transactionHistory !== null && filteredTransactions.length === 0 && !transactionsProcessedRef.current);

@@ -8,6 +8,7 @@ import { useState, useEffect, useMemo, useCallback, useRef } from 'react';
 import { Linking } from 'react-native';
 import * as bitcoin from 'bitcoinjs-lib';
 import { useTransactionHistory, useEcashTokens } from '../contexts/WalletDataContext';
+import { usePendingTxs } from '../contexts/PendingTransactionsContext';
 import { calculateTransactionAmount, Transaction } from '../services/transactionHistoryService';
 import { getTxUrl, getOrdTxUrl } from '../utils/constants';
 import { useNavigationHandlers } from '../contexts/NavigationHandlersContext';
@@ -35,6 +36,7 @@ export interface ProcessedTransaction extends Transaction {
   partiallySpent?: boolean;
   isAutoclaim?: boolean;
   timestamp?: number;
+  isPending?: boolean;
 }
 
 // Alias for backwards compatibility
@@ -56,6 +58,9 @@ export function useTransactionHistoryData(
   const transactionHistory = rawTransactionHistory as Transaction[];
   const { settingsHandlers } = useNavigationHandlers();
   const advancedMode = settingsHandlers.advancedMode;
+
+  // Get pending transactions from store
+  const pendingTransactions = usePendingTxs();
 
   // Use pre-loaded ecash tokens from context (no more on-demand fetching)
   const { ecashTokens: preloadedEcashTokens, loadingEcashTokens, fetchEcashTokens } = useEcashTokens();
@@ -227,15 +232,75 @@ export function useTransactionHistoryData(
         } as ProcessedTransaction;
       });
 
-    // Merge and sort by timestamp (most recent first)
-    const merged: ProcessedTransaction[] = [...regularTxs, ...ecashTxs].sort((a, b) => {
-      const aTime = a.timestamp || 0;
-      const bTime = b.timestamp || 0;
-      return bTime - aTime;
+    // Convert pending transactions to ProcessedTransaction format
+    const pendingTxs: ProcessedTransaction[] = Object.values(pendingTransactions)
+      .filter(tx => {
+        // Only include pending (not invalid) transactions
+        if (tx.status !== 'pending') return false;
+        // Exclude if already confirmed in transactionHistory
+        return !transactionHistory.some(histTx => histTx.txid === tx.txid);
+      })
+      .map(tx => {
+        // Use sentAmount if available, otherwise fall back to calculating from outputs
+        let amount: number;
+        if (tx.sentAmount !== undefined && tx.sentAmount > 0) {
+          // Sent transactions show as negative
+          amount = -tx.sentAmount;
+        } else {
+          // Fallback: calculate from outputs (change amounts)
+          const totalValue = tx.outputs.reduce((sum, output) => sum + (output.value || 0), 0);
+          const totalRuneAmount = tx.outputs.reduce((sum, output) => sum + (output.runeAmount || 0), 0);
+          amount = tx.assetType === 'UNIT' ? -totalRuneAmount : -totalValue;
+        }
+
+        return {
+          txid: tx.txid,
+          timestamp: tx.timestamp / 1000, // Convert to seconds
+          status: {
+            confirmed: false,
+            block_time: Math.floor(tx.timestamp / 1000),
+          },
+          isPending: true,
+          txData: {
+            amount,
+            assetType: tx.assetType,
+            numericAmount: amount,
+            isSent: true,
+            isReceived: false,
+          },
+        } as ProcessedTransaction;
+      });
+
+    // Helper to normalize timestamps to seconds for comparison
+    const getTimeInSeconds = (tx: ProcessedTransaction): number => {
+      if (tx.ecashToken && tx.timestamp) {
+        // Ecash timestamps are in milliseconds
+        return tx.timestamp / 1000;
+      }
+      // On-chain and pending transactions use seconds
+      return tx.timestamp || tx.status?.block_time || 0;
+    };
+
+    // Merge and sort all transactions
+    // - Pending transactions go at the top, sorted by timestamp (most recent first)
+    // - Then confirmed/ecash transactions sorted by timestamp (most recent first)
+    const merged: ProcessedTransaction[] = [...pendingTxs, ...regularTxs, ...ecashTxs].sort((a, b) => {
+      const aIsPending = a.isPending;
+      const bIsPending = b.isPending;
+
+      // If both are pending or both are not pending, sort by timestamp
+      if (aIsPending === bIsPending) {
+        const aTime = getTimeInSeconds(a);
+        const bTime = getTimeInSeconds(b);
+        return bTime - aTime; // Most recent first
+      }
+
+      // Pending transactions always at top
+      return aIsPending ? -1 : 1;
     });
 
     return merged;
-  }, [transactionHistory, ecashTokens, segwitAddress, taprootAddress, currentPubkeyHex]);
+  }, [transactionHistory, ecashTokens, segwitAddress, taprootAddress, currentPubkeyHex, pendingTransactions]);
 
   // Open transaction in blockchain explorer
   const openTxInExplorer = useCallback(async (txid: string, assetType: string): Promise<void> => {

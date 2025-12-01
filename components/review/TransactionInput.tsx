@@ -9,6 +9,7 @@ import Icon from '../icons';
 import { truncateAddress } from '../../utils/formatters/addresses';
 import { formatBTC, satsToBTC } from '../../utils/bitcoin/conversions';
 import { formatUnitAmount, formatFiat } from '../../utils/formatters/amounts';
+import { useResponsive } from '../../hooks/useResponsive';
 import type { PSBTInput } from '../../services/psbtService';
 
 // Re-export for backwards compatibility
@@ -20,26 +21,28 @@ export interface TransactionInputProps {
 }
 
 export function TransactionInput({ input, btcPrice }: TransactionInputProps) {
+  const { s, sf } = useResponsive();
+
   return (
-    <View style={styles.txItem}>
-      <View style={styles.txItemHeader}>
-        <Text style={styles.txAddress} selectable numberOfLines={1}>
+    <View style={[styles.txItem, { borderRadius: s(8), padding: s(12), marginBottom: s(8) }]}>
+      <View style={[styles.txItemHeader, { marginBottom: s(6) }]}>
+        <Text style={[styles.txAddress, { fontSize: sf(12), marginRight: s(8) }]} selectable numberOfLines={1}>
           {truncateAddress(input.address, 5, 5)}
         </Text>
         {input.type === 'rune' && input.runeAmount && (
-          <View style={styles.unitChip}>
-            <Icon name="unit_symbol" size={10} color={COLORS.PRIMARY_BLUE} />
-            <Text style={styles.unitChipText}>
+          <View style={[styles.unitChip, { paddingHorizontal: s(8), paddingVertical: s(3), borderRadius: s(4), gap: s(4) }]}>
+            <Icon name="unit_symbol" size={s(10)} color={COLORS.PRIMARY_BLUE} />
+            <Text style={[styles.unitChipText, { fontSize: sf(10) }]}>
               {formatUnitAmount(input.runeAmount)}
             </Text>
           </View>
         )}
       </View>
       <View style={styles.txValueRow}>
-        <Text style={styles.txValue}>
+        <Text style={[styles.txValue, { fontSize: sf(14) }]}>
           {formatBTC(input.value)} BTC
         </Text>
-        <Text style={styles.txUsd}>
+        <Text style={[styles.txUsd, { fontSize: sf(13) }]}>
           ${formatFiat(satsToBTC(input.value) * (btcPrice || 0))}
         </Text>
       </View>
@@ -50,9 +53,6 @@ export function TransactionInput({ input, btcPrice }: TransactionInputProps) {
 const styles = StyleSheet.create({
   txItem: {
     backgroundColor: COLORS.CARD_BG,
-    borderRadius: 8,
-    padding: 12,
-    marginBottom: 8,
     borderWidth: 1,
     borderColor: COLORS.BORDER_COLOR,
   },
@@ -60,14 +60,11 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    marginBottom: 6,
   },
   txAddress: {
-    fontSize: 12,
     color: COLORS.VERY_LIGHT_GRAY,
     fontFamily: 'monospace',
     flex: 1,
-    marginRight: 8,
   },
   txValueRow: {
     flexDirection: 'row',
@@ -75,25 +72,18 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   txValue: {
-    fontSize: 14,
     fontWeight: '500',
     color: COLORS.VERY_LIGHT_GRAY,
   },
   txUsd: {
-    fontSize: 13,
     color: COLORS.SECONDARY_TEXT,
   },
   unitChip: {
     flexDirection: 'row',
     alignItems: 'center',
     backgroundColor: COLORS.PRIMARY_BLUE + '20',
-    paddingHorizontal: 8,
-    paddingVertical: 3,
-    borderRadius: 4,
-    gap: 4,
   },
   unitChipText: {
-    fontSize: 10,
     color: COLORS.PRIMARY_BLUE,
     fontWeight: '600',
     fontFamily: 'CabinetGrotesk-Bold',

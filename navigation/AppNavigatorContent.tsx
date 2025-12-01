@@ -3,10 +3,13 @@
  * Renders the root navigator and global UI elements
  */
 
-import React from 'react';
+import React, { useEffect, useRef } from 'react';
 
 // Navigation
 import RootNavigator from './RootNavigator';
+import { checkPendingTurboTransaction } from '../stores/turboProcessingStore';
+import { useSendFlowStore } from '../stores/sendFlowStore';
+import { logger } from '../utils/logger';
 
 // Components
 import AccountSwitcherModal from '../components/AccountSwitcherModal';
@@ -100,6 +103,36 @@ export default function AppNavigatorContent({
     setIsAuthenticated,
     walletExistsRef: { current: !!wallet },
   });
+
+  // Check for pending turbo transaction on startup
+  const pendingTurboChecked = useRef(false);
+  const pendingTurboState = useRef<{ sendAmount: string; sendRecipient: string } | null>(null);
+
+  useEffect(() => {
+    if (pendingTurboChecked.current || isLoading) return;
+    pendingTurboChecked.current = true;
+
+    const checkPendingTurbo = async () => {
+      const pendingState = await checkPendingTurboTransaction();
+      if (pendingState && pendingState.isProcessing) {
+        logger.info('[AppNavigatorContent] Found pending turbo transaction, will resume:', {
+          amount: pendingState.sendAmount,
+          recipient: pendingState.sendRecipient,
+        });
+        // Store for navigation to pick up
+        pendingTurboState.current = {
+          sendAmount: pendingState.sendAmount,
+          sendRecipient: pendingState.sendRecipient,
+        };
+        // Set the send flow state so TurboProcessingScreen has the data
+        useSendFlowStore.getState().setSendAmount(pendingState.sendAmount);
+        useSendFlowStore.getState().setSendRecipient(pendingState.sendRecipient);
+        useSendFlowStore.getState().setSendAssetType('unit');
+      }
+    };
+
+    checkPendingTurbo();
+  }, [isLoading]);
 
   // Show loading splash (initial load only)
   if (isLoading) {

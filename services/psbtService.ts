@@ -74,8 +74,19 @@ function buildInputs(sendIntent: SendIntent): PSBTInput[] {
   const inputs: PSBTInput[] = [];
 
   if (sendIntent.assetType === 'UNIT') {
-    // For UNIT transactions, we have runeUtxo and satUtxo
-    if (sendIntent.runeUtxo) {
+    // For UNIT transactions, we have runeUtxos (array) or runeUtxo (single) and satUtxo
+    // Handle multiple rune UTXOs
+    if (sendIntent.runeUtxos && sendIntent.runeUtxos.length > 0) {
+      sendIntent.runeUtxos.forEach(utxo => {
+        inputs.push({
+          address: sendIntent.sourceAddress!,
+          value: utxo.value,
+          type: 'rune',
+          runeAmount: utxo.runeAmount,
+        });
+      });
+    } else if (sendIntent.runeUtxo) {
+      // Fallback for single runeUtxo (backward compatibility)
       inputs.push({
         address: sendIntent.sourceAddress!,
         value: sendIntent.runeUtxo.value,

@@ -1,5 +1,6 @@
 /**
  * AmountInputScreen Styles
+ * Strike-inspired clean, minimal design
  */
 
 import { StyleSheet } from 'react-native';
@@ -13,47 +14,31 @@ export default StyleSheet.create({
   content: {
     flex: 1,
     paddingHorizontal: 20,
-    paddingTop: 40,
   },
-  warningContainer: {
-    flexDirection: 'row',
-    alignItems: 'center',
+  // Amount Section - centered
+  amountSection: {
+    flex: 1,
     justifyContent: 'center',
-    backgroundColor: 'rgba(208, 76, 104, 0.1)',
-    borderRadius: 8,
-    paddingVertical: 12,
-    paddingHorizontal: 16,
-    marginBottom: 24,
-    gap: 8,
-  },
-  warningText: {
-    fontSize: 14,
-    color: COLORS.DANGER_RED,
-    fontFamily: 'CabinetGrotesk-Medium',
+    alignItems: 'center',
   },
   amountInputRow: {
     flexDirection: 'row',
-    alignItems: 'center',
+    alignItems: 'baseline',
     justifyContent: 'center',
-    marginBottom: 12,
   },
   amountInput: {
     fontSize: 56,
     fontWeight: 'bold',
     color: COLORS.VERY_LIGHT_GRAY,
     fontFamily: 'CabinetGrotesk-Bold',
-    textAlign: 'right',
-    marginRight: 12,
+    textAlign: 'center',
     minWidth: 60,
   },
-  mediumText: {
-    fontSize: 44,
-  },
-  smallText: {
-    fontSize: 36,
-  },
-  xsmallText: {
-    fontSize: 28,
+  assetSymbol: {
+    fontSize: 24,
+    fontWeight: '500',
+    color: COLORS.MEDIUM_GRAY,
+    fontFamily: 'CabinetGrotesk-Medium',
   },
   usdValue: {
     fontSize: 18,
@@ -61,6 +46,49 @@ export default StyleSheet.create({
     textAlign: 'center',
     fontFamily: 'CabinetGrotesk-Regular',
   },
+  // Balance Button - tappable pill
+  balanceButton: {
+    backgroundColor: COLORS.CARD_BG,
+    borderRadius: 20,
+    paddingVertical: 8,
+    paddingHorizontal: 16,
+  },
+  // Turbo Info Card
+  turboInfoContainer: {
+    backgroundColor: COLORS.PRIMARY_BLUE + '15',
+    borderRadius: 12,
+    padding: 16,
+    marginTop: 16,
+    borderWidth: 1,
+    borderColor: COLORS.PRIMARY_BLUE + '25',
+  },
+  turboInfoTitle: {
+    fontSize: 16,
+    fontWeight: '600',
+    color: COLORS.VERY_LIGHT_GRAY,
+    fontFamily: 'CabinetGrotesk-Bold',
+    marginBottom: 4,
+    textAlign: 'center',
+  },
+  turboInfoText: {
+    fontSize: 13,
+    lineHeight: 18,
+    color: COLORS.SECONDARY_TEXT,
+    fontFamily: 'CabinetGrotesk-Regular',
+    textAlign: 'center',
+  },
+  balanceButtonError: {
+    backgroundColor: 'rgba(208, 76, 104, 0.15)',
+  },
+  balanceButtonText: {
+    fontSize: 14,
+    color: COLORS.PRIMARY_BLUE,
+    fontFamily: 'CabinetGrotesk-Medium',
+  },
+  balanceButtonTextError: {
+    color: COLORS.DANGER_RED,
+  },
+  // Button Container
   buttonContainer: {
     position: 'absolute',
     left: 0,
@@ -73,8 +101,8 @@ export default StyleSheet.create({
   },
   reviewButton: {
     backgroundColor: COLORS.PRIMARY_BLUE,
-    borderRadius: 12,
-    paddingVertical: 16,
+    borderRadius: 14,
+    paddingVertical: 18,
     alignItems: 'center',
     justifyContent: 'center',
   },
@@ -83,11 +111,12 @@ export default StyleSheet.create({
     opacity: 0.5,
   },
   reviewButtonText: {
-    fontSize: 16,
+    fontSize: 17,
     fontWeight: '600',
     color: COLORS.WHITE,
     fontFamily: 'CabinetGrotesk-Bold',
   },
+  // Loading Overlay
   loadingOverlay: {
     position: 'absolute',
     top: 0,

@@ -8,6 +8,7 @@ import { View, Text, StyleSheet } from 'react-native';
 import { COLORS } from '../../theme';
 import Icon from '../icons';
 import { truncateAddress } from '../../utils/formatters/addresses';
+import { useResponsive } from '../../hooks/useResponsive';
 
 interface TransactionSummaryProps {
   recipient: string;
@@ -22,33 +23,35 @@ export default function TransactionSummary({
   displayAmount,
   usdAmount
 }: TransactionSummaryProps) {
+  const { s, sf } = useResponsive();
+
   return (
-    <View style={styles.card}>
+    <View style={[styles.card, { borderRadius: s(12), padding: s(16), marginBottom: s(20) }]}>
       {/* To Row - Address on same line */}
-      <View style={styles.toRow}>
-        <Text style={styles.labelText}>To:</Text>
-        <Text style={styles.addressText} selectable>
+      <View style={[styles.toRow, { marginBottom: s(12) }]}>
+        <Text style={[styles.labelText, { fontSize: sf(14), marginRight: s(8) }]}>To:</Text>
+        <Text style={[styles.addressText, { fontSize: sf(14) }]} selectable>
           {truncateAddress(recipient, 5, 5)}
         </Text>
       </View>
 
       {/* Amount Row with Icon */}
       <View style={styles.amountRow}>
-        <View style={styles.assetIcon}>
+        <View style={[styles.assetIcon, { marginRight: s(16) }]}>
           <Icon
             name={assetType === 'UNIT' ? 'unit_logo' : 'btc_logo'}
-            size={30}
+            size={s(30)}
           />
         </View>
         <View style={styles.assetInfo}>
-          <Text style={styles.assetAmountLabel}>Amount</Text>
-          <Text style={styles.assetTypeText}>
+          <Text style={[styles.assetAmountLabel, { fontSize: sf(15), marginBottom: s(3) }]}>Amount</Text>
+          <Text style={[styles.assetTypeText, { fontSize: sf(11) }]}>
             {assetType === 'UNIT' ? 'UNIT•RUNE' : 'Bitcoin'}
           </Text>
         </View>
         <View style={styles.amountValues}>
-          <Text style={styles.amountValue}>{displayAmount}</Text>
-          <Text style={styles.amountUsdValue}>$ {usdAmount}</Text>
+          <Text style={[styles.amountValue, { fontSize: sf(15), marginBottom: s(3) }]}>{displayAmount}</Text>
+          <Text style={[styles.amountUsdValue, { fontSize: sf(11) }]}>$ {usdAmount}</Text>
         </View>
       </View>
     </View>
@@ -58,25 +61,18 @@ export default function TransactionSummary({
 const styles = StyleSheet.create({
   card: {
     backgroundColor: COLORS.CARD_BG,
-    borderRadius: 12,
-    padding: 14,
-    marginBottom: 20,
     width: '100%',
   },
   toRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    marginBottom: 12,
     width: '100%',
   },
   labelText: {
-    fontSize: 14,
     color: COLORS.SECONDARY_TEXT,
     fontWeight: '400',
-    marginRight: 8,
   },
   addressText: {
-    fontSize: 14,
     fontWeight: '400',
     color: COLORS.VERY_LIGHT_GRAY,
     flex: 1,
@@ -88,32 +84,26 @@ const styles = StyleSheet.create({
     width: '100%',
   },
   assetIcon: {
-    marginRight: 20,
+    // marginRight applied inline
   },
   assetInfo: {
     flex: 1,
   },
   assetAmountLabel: {
-    fontSize: 15,
     fontWeight: '400',
     color: COLORS.VERY_LIGHT_GRAY,
-    marginBottom: 3,
   },
   assetTypeText: {
-    fontSize: 11,
     color: COLORS.SECONDARY_TEXT,
   },
   amountValues: {
     alignItems: 'flex-end',
   },
   amountValue: {
-    fontSize: 15,
     fontWeight: '400',
     color: COLORS.VERY_LIGHT_GRAY,
-    marginBottom: 3,
   },
   amountUsdValue: {
-    fontSize: 11,
     color: COLORS.SECONDARY_TEXT,
   },
 });

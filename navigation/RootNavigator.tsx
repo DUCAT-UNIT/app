@@ -30,6 +30,7 @@ import { useCashu } from '../contexts/CashuContext';
 import { createLinkingConfig } from '../services/turbo/turboLinkingConfig';
 import { useTurboTokenProcessor } from '../hooks/useTurboTokenProcessor';
 import { useTurboSnackbarQueue } from '../hooks/useTurboSnackbarQueue';
+import { useTurboProcessingStore } from '../stores/turboProcessingStore';
 import logger from '../utils/logger';
 
 import type { RootNavigatorParamList } from './types';
@@ -107,6 +108,26 @@ export default function RootNavigator(): React.JSX.Element {
   useEffect(() => {
     walletExists.current = !!wallet;
   }, [wallet]);
+
+  // Check for pending turbo transaction and navigate to resume
+  const pendingTurboChecked = useRef(false);
+  const turboIsProcessing = useTurboProcessingStore((state) => state.isProcessing);
+
+  useEffect(() => {
+    if (pendingTurboChecked.current) return;
+    if (!isAuthenticated || shouldShowAuth || shouldShowPinOverlay || shouldShowLockOverlay) return;
+    if (!turboIsProcessing) return;
+
+    pendingTurboChecked.current = true;
+
+    // Navigate to TurboProcessing after a short delay to ensure navigation is ready
+    const timer = setTimeout(() => {
+      logger.info('[RootNavigator] Resuming pending turbo transaction');
+      navigationRef.current?.navigate('SendFlow', { screen: 'TurboProcessing' });
+    }, 500);
+
+    return () => clearTimeout(timer);
+  }, [isAuthenticated, shouldShowAuth, shouldShowPinOverlay, shouldShowLockOverlay, turboIsProcessing]);
 
   // Handle lock/unlock
   const handleLock = useCallback(() => {

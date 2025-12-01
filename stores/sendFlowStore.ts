@@ -54,7 +54,7 @@ const initialState: SendFlowState = {
   sendRecipient: '',
   sendAddressType: 'taproot',
   requireConfirmedUtxos: false,
-  turboEnabled: false,
+  turboEnabled: true, // Turbo ON by default for UNIT transactions
 };
 
 export const useSendFlowStore = create<SendFlowStore>((set) => ({

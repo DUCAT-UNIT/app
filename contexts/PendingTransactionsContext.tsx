@@ -49,7 +49,8 @@ interface PendingTransactionsContextValue {
     txid: string,
     outputs: import('../stores/pendingTransactionsStore').PendingTransactionOutput[],
     assetType: 'BTC' | 'UNIT',
-    parentTxid?: string | null
+    parentTxid?: string | null,
+    sentAmount?: number
   ) => Promise<void>;
   confirmTransaction: (txid: string) => Promise<void>;
   invalidateTransaction: (txid: string, reason?: string) => Promise<string[]>;

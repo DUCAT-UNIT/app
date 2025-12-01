@@ -1,14 +1,16 @@
 /**
  * TurboProcessingScreen - Processing screen for Turbo token creation
  * Shows progress during: selecting proofs, creating secrets, swapping, shortening URL
+ * Persists state to survive app restarts
  */
 
 import React, { useEffect, useState, useRef } from 'react';
-import { Text, View, ActivityIndicator, StyleSheet, Alert } from 'react-native';
+import { Text, View, ActivityIndicator, StyleSheet, Alert, BackHandler } from 'react-native';
 import { NavigationProp, StackActions } from '@react-navigation/native';
 import { COLORS } from '../../theme';
 import { useSendFlow } from '../../contexts/SendFlowContext';
 import { useWallet } from '../../contexts/WalletContext';
+import { useTurboProcessingStore } from '../../stores/turboProcessingStore';
 import { logger } from '../../utils/logger';
 
 /**
@@ -27,14 +29,31 @@ export default function TurboProcessingScreen({ navigation }: TurboProcessingScr
   const hasStarted = useRef(false);
   const timeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
+  // Get store actions
+  const { startProcessing, updateProgress, completeProcessing, failProcessing } = useTurboProcessingStore();
+
+  // Prevent back navigation while processing
+  useEffect(() => {
+    const backHandler = BackHandler.addEventListener('hardwareBackPress', () => {
+      // Prevent back button - transaction must complete
+      return true;
+    });
+
+    return () => backHandler.remove();
+  }, []);
+
   // Start token creation when screen mounts
   useEffect(() => {
     if (hasStarted.current) return;
     hasStarted.current = true;
 
+    // Persist state immediately
+    startProcessing({ sendAmount, sendRecipient });
+
     // Set a timeout to detect if we get stuck
-    timeoutRef.current = setTimeout(() => {
+    timeoutRef.current = setTimeout(async () => {
       logger.error('Token creation timeout - stuck on step:', { step: currentStep, message: currentMessage });
+      await failProcessing();
       Alert.alert(
         'Error',
         `Token creation timed out at: ${currentMessage}. Please check your balance and try again.`,
@@ -45,7 +64,7 @@ export default function TurboProcessingScreen({ navigation }: TurboProcessingScr
           }
         ]
       );
-    }, 30000); // 30 second timeout
+    }, 60000); // 60 second timeout
 
     const createToken = async () => {
       try {
@@ -73,10 +92,11 @@ export default function TurboProcessingScreen({ navigation }: TurboProcessingScr
           amountInSmallestUnits,
           recipientPubkey,
           {},
-          (step, total, message) => {
+          async (step, total, message) => {
             logger.info('Progress update:', { step, total, message });
             setCurrentStep(step);
             setCurrentMessage(message);
+            await updateProgress(step, message);
           }
         );
         logger.info('sendP2PKToken completed successfully');
@@ -84,6 +104,7 @@ export default function TurboProcessingScreen({ navigation }: TurboProcessingScr
         // Step 5: Shortening URL
         setCurrentStep(5);
         setCurrentMessage('Shortening URL');
+        await updateProgress(5, 'Shortening URL');
 
         // Generate shortened URL and save token to storage
         let shortUrl;
@@ -106,6 +127,9 @@ export default function TurboProcessingScreen({ navigation }: TurboProcessingScr
           clearTimeout(timeoutRef.current);
         }
 
+        // Mark processing as complete
+        await completeProcessing();
+
         // Navigate to confirmation
         navigation.dispatch(
           StackActions.replace('Confirmation', {
@@ -124,6 +148,9 @@ export default function TurboProcessingScreen({ navigation }: TurboProcessingScr
         if (timeoutRef.current) {
           clearTimeout(timeoutRef.current);
         }
+
+        // Mark processing as failed
+        await failProcessing();
 
         // Show error and go back
         Alert.alert(
@@ -147,7 +174,7 @@ export default function TurboProcessingScreen({ navigation }: TurboProcessingScr
         clearTimeout(timeoutRef.current);
       }
     };
-  }, [navigation, sendAmount, sendRecipient, wallet?.taprootAddress, currentStep, currentMessage]);
+  }, [navigation, sendAmount, sendRecipient, wallet?.taprootAddress, currentStep, currentMessage, startProcessing, updateProgress, completeProcessing, failProcessing]);
 
   return (
     <View style={localStyles.container} testID="turbo-processing-screen">
