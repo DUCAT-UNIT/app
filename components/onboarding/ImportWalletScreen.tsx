@@ -1,19 +1,22 @@
 /**
  * ImportWalletScreen - Enter 12-word seed phrase to import wallet
+ * Compact, responsive design for all screen sizes
  */
 
-import React, { useEffect, useRef } from 'react';
+import React, { useState, useCallback, useMemo } from 'react';
 import {
   Text,
   View,
   TouchableOpacity,
   TextInput,
   ScrollView,
-  TouchableWithoutFeedback,
-  Keyboard,
+  KeyboardAvoidingView,
+  Platform,
   StyleSheet,
 } from 'react-native';
-import styles from '../../styles';
+import * as Clipboard from 'expo-clipboard';
+import { colors, fonts, fontSizes, fontWeights, radii, layout } from '../../styles/theme';
+import Icon from '../icons';
 
 interface ImportWalletScreenProps {
   importSeedPhrase: string[];
@@ -25,143 +28,409 @@ interface ImportWalletScreenProps {
   onCancel: () => void;
 }
 
+const WORD_COUNT = 12;
+const isSmallScreen = layout.screen.width <= 375;
+
 export default function ImportWalletScreen({
   importSeedPhrase,
   setImportSeedPhrase,
   seedInputRefs,
   isImporting,
-  keyboardHeight,
   onImport,
   onCancel,
 }: ImportWalletScreenProps) {
-  const scrollViewRef = useRef<ScrollView>(null);
+  const [focusedIndex, setFocusedIndex] = useState<number | null>(null);
 
-  // Auto-scroll when keyboard appears
-  useEffect(() => {
-    const keyboardDidShowListener = Keyboard.addListener('keyboardDidShow', (e) => {
-      setTimeout(() => {
-        const scrollOffset = e.endCoordinates.height * 0.1;
-        scrollViewRef.current?.scrollTo({ y: scrollOffset, animated: true });
-      }, 100);
-    });
+  const filledCount = useMemo(() => {
+    return importSeedPhrase.filter((word) => word.trim().length > 0).length;
+  }, [importSeedPhrase]);
 
-    return () => {
-      keyboardDidShowListener.remove();
-    };
+  const isComplete = filledCount === WORD_COUNT;
+
+  const handlePaste = useCallback(async () => {
+    try {
+      const text = await Clipboard.getStringAsync();
+      if (!text) return;
+
+      const words = text
+        .trim()
+        .toLowerCase()
+        .split(/\s+/)
+        .filter((w) => w.length > 0)
+        .slice(0, WORD_COUNT);
+
+      if (words.length > 0) {
+        const newPhrase = Array(WORD_COUNT).fill('');
+        words.forEach((word, i) => {
+          newPhrase[i] = word;
+        });
+        setImportSeedPhrase(newPhrase);
+      }
+    } catch {
+      // Clipboard access denied or failed silently
+    }
+  }, [setImportSeedPhrase]);
+
+  const handleClear = useCallback(() => {
+    setImportSeedPhrase(Array(WORD_COUNT).fill(''));
+    seedInputRefs.current[0]?.focus();
+  }, [setImportSeedPhrase, seedInputRefs]);
+
+  const handleTextChange = useCallback(
+    (text: string, index: number) => {
+      if (text.includes(' ')) {
+        const words = text
+          .trim()
+          .toLowerCase()
+          .split(/\s+/)
+          .filter((w) => w.length > 0);
+        const newPhrase = [...importSeedPhrase];
+
+        words.forEach((pastedWord: string, i: number) => {
+          if (index + i < WORD_COUNT) {
+            newPhrase[index + i] = pastedWord.trim();
+          }
+        });
+
+        setImportSeedPhrase(newPhrase);
+        const nextIndex = Math.min(index + words.length, WORD_COUNT - 1);
+        setTimeout(() => seedInputRefs.current[nextIndex]?.focus(), 50);
+      } else {
+        const newPhrase = [...importSeedPhrase];
+        newPhrase[index] = text.toLowerCase().replace(/\s/g, '');
+        setImportSeedPhrase(newPhrase);
+      }
+    },
+    [importSeedPhrase, setImportSeedPhrase, seedInputRefs]
+  );
+
+  const handleSubmitEditing = useCallback(
+    (index: number) => {
+      if (index < WORD_COUNT - 1) {
+        seedInputRefs.current[index + 1]?.focus();
+      }
+    },
+    [seedInputRefs]
+  );
+
+  const handleFocus = useCallback((index: number) => {
+    setFocusedIndex(index);
   }, []);
 
-  const handleTextChange = (text: string, index: number) => {
-    // Handle paste - if text contains spaces, split across inputs
-    if (text.includes(' ')) {
-      const words = text.trim().split(/\s+/);
-      const newPhrase = [...importSeedPhrase];
+  const handleBlur = useCallback(() => {
+    setFocusedIndex(null);
+  }, []);
 
-      words.forEach((pastedWord: string, i: number) => {
-        if (index + i < 12) {
-          newPhrase[index + i] = pastedWord.toLowerCase().trim();
-        }
-      });
+  const renderWordInput = useCallback(
+    (index: number) => {
+      const word = importSeedPhrase[index] || '';
+      const isFocused = focusedIndex === index;
+      const hasContent = word.trim().length > 0;
 
-      setImportSeedPhrase(newPhrase);
+      return (
+        <View key={index} style={styles.wordWrapper}>
+          <TouchableOpacity
+            activeOpacity={0.8}
+            onPress={() => seedInputRefs.current[index]?.focus()}
+            style={[
+              styles.wordContainer,
+              isFocused && styles.wordContainerFocused,
+              hasContent && !isFocused && styles.wordContainerFilled,
+            ]}
+          >
+            <Text
+              style={[
+                styles.wordNumber,
+                isFocused && styles.wordNumberFocused,
+                hasContent && !isFocused && styles.wordNumberFilled,
+              ]}
+            >
+              {index + 1}
+            </Text>
+            <TextInput
+              ref={(ref) => {
+                seedInputRefs.current[index] = ref;
+              }}
+              style={styles.wordInput}
+              value={word}
+              onChangeText={(text) => handleTextChange(text, index)}
+              onFocus={() => handleFocus(index)}
+              onBlur={handleBlur}
+              placeholderTextColor={colors.text.tertiary}
+              autoCapitalize="none"
+              autoCorrect={false}
+              autoComplete="off"
+              spellCheck={false}
+              returnKeyType={index < WORD_COUNT - 1 ? 'next' : 'done'}
+              onSubmitEditing={() => handleSubmitEditing(index)}
+              blurOnSubmit={false}
+              selectTextOnFocus
+            />
+          </TouchableOpacity>
+        </View>
+      );
+    },
+    [
+      importSeedPhrase,
+      focusedIndex,
+      seedInputRefs,
+      handleTextChange,
+      handleFocus,
+      handleBlur,
+      handleSubmitEditing,
+    ]
+  );
 
-      const nextIndex = Math.min(index + words.length, 11);
-      if (seedInputRefs.current[nextIndex]) {
-        setTimeout(() => seedInputRefs.current[nextIndex]?.focus(), 50);
-      }
-    } else {
-      // Normal typing
-      const newPhrase = [...importSeedPhrase];
-      newPhrase[index] = text.toLowerCase().trim();
-      setImportSeedPhrase(newPhrase);
-
-      // Auto-advance if word looks complete
-      if (text.length >= 3 && index < 11 && text.trim() && !text.includes(' ')) {
-        setTimeout(() => {
-          if (seedInputRefs.current[index + 1]) {
-            seedInputRefs.current[index + 1]?.focus();
-          }
-        }, 300);
-      }
+  const rows = useMemo(() => {
+    const result: number[][] = [];
+    for (let i = 0; i < WORD_COUNT; i += 2) {
+      result.push([i, i + 1]);
     }
-  };
-
-  const scrollContentStyle = [
-    localStyles.scrollContent,
-    { paddingBottom: keyboardHeight > 0 ? keyboardHeight + 20 : 60 },
-  ];
+    return result;
+  }, []);
 
   return (
-    <View style={localStyles.importContainer}>
-      <TouchableWithoutFeedback onPress={Keyboard.dismiss}>
-        <ScrollView
-          ref={scrollViewRef}
-          style={localStyles.scrollContainer}
-          contentContainerStyle={scrollContentStyle}
-          keyboardShouldPersistTaps="handled"
-          showsVerticalScrollIndicator={false}
-        >
-          <View style={styles.walletInfo}>
-            <Text style={styles.stepIndicator}>Import Wallet</Text>
-            <Text style={styles.label}>Enter your 12-word seed phrase:</Text>
-            <View style={styles.seedWordsGrid}>
-              {importSeedPhrase.map((word, index) => (
-                <View key={index} style={styles.seedWordContainer}>
-                  <Text style={styles.seedWordNumber}>{index + 1}</Text>
-                  <TextInput
-                    ref={(ref) => {
-                      seedInputRefs.current[index] = ref;
-                    }}
-                    style={styles.seedWordInput}
-                    value={word}
-                    onChangeText={(text) => handleTextChange(text, index)}
-                    placeholder={`Word ${index + 1}`}
-                    placeholderTextColor="#666666"
-                    autoCapitalize="none"
-                    autoCorrect={false}
-                    autoComplete="off"
-                    returnKeyType={index < 11 ? 'next' : 'done'}
-                    onSubmitEditing={() => {
-                      if (index < 11 && seedInputRefs.current[index + 1]) {
-                        seedInputRefs.current[index + 1]?.focus();
-                      }
-                    }}
-                  />
-                </View>
-              ))}
+    <KeyboardAvoidingView
+      style={styles.container}
+      behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+      keyboardVerticalOffset={Platform.OS === 'ios' ? 0 : 20}
+    >
+      <ScrollView
+        style={styles.scrollView}
+        contentContainerStyle={styles.scrollContent}
+        keyboardShouldPersistTaps="handled"
+        showsVerticalScrollIndicator={false}
+      >
+        {/* Header */}
+        <View style={styles.header}>
+          <Text style={styles.title}>Import Wallet</Text>
+          <Text style={styles.subtitle}>Enter your 12-word recovery phrase</Text>
+        </View>
+
+        {/* Progress row with paste/clear button */}
+        <View style={styles.progressRow}>
+          <View style={styles.progressBarContainer}>
+            <View style={styles.progressBar}>
+              <View
+                style={[styles.progressFill, { width: `${(filledCount / WORD_COUNT) * 100}%` }]}
+              />
             </View>
-            <TouchableOpacity
-              style={[styles.button, localStyles.importButton, isImporting && styles.buttonDisabled]}
-              onPress={onImport}
-              disabled={isImporting}
-            >
-              <Text style={styles.buttonText}>
-                {isImporting ? 'Importing...' : 'Import Wallet'}
-              </Text>
-            </TouchableOpacity>
-            <TouchableOpacity
-              style={[styles.button, styles.secondaryButton]}
-              onPress={onCancel}
-            >
-              <Text style={styles.buttonText}>Cancel</Text>
-            </TouchableOpacity>
+            <Text style={styles.progressText}>{filledCount}/{WORD_COUNT}</Text>
           </View>
-        </ScrollView>
-      </TouchableWithoutFeedback>
-    </View>
+
+          {filledCount === 0 ? (
+            <TouchableOpacity style={styles.actionButton} onPress={handlePaste} activeOpacity={0.7}>
+              <Icon name="copy" size={14} color={colors.brand.primary} />
+              <Text style={styles.actionButtonText}>Paste</Text>
+            </TouchableOpacity>
+          ) : (
+            <TouchableOpacity style={styles.actionButton} onPress={handleClear} activeOpacity={0.7}>
+              <Icon name="x" size={14} color={colors.text.secondary} />
+              <Text style={[styles.actionButtonText, styles.clearButtonText]}>Clear</Text>
+            </TouchableOpacity>
+          )}
+        </View>
+
+        {/* Seed phrase grid */}
+        <View style={styles.gridContainer}>
+          {rows.map((row, rowIndex) => (
+            <View key={rowIndex} style={styles.row}>
+              {row.map((wordIndex) => renderWordInput(wordIndex))}
+            </View>
+          ))}
+        </View>
+
+        {/* Buttons */}
+        <View style={styles.buttonContainer}>
+          <TouchableOpacity
+            style={[
+              styles.importButton,
+              (!isComplete || isImporting) && styles.buttonDisabled,
+            ]}
+            onPress={onImport}
+            disabled={!isComplete || isImporting}
+            activeOpacity={0.8}
+          >
+            <Text style={[styles.importButtonText, (!isComplete || isImporting) && styles.buttonTextDisabled]}>
+              {isImporting ? 'Importing...' : 'Import Wallet'}
+            </Text>
+          </TouchableOpacity>
+
+          <TouchableOpacity style={styles.cancelButton} onPress={onCancel} activeOpacity={0.7}>
+            <Text style={styles.cancelButtonText}>Cancel</Text>
+          </TouchableOpacity>
+        </View>
+      </ScrollView>
+    </KeyboardAvoidingView>
   );
 }
 
-const localStyles = StyleSheet.create({
-  importContainer: {
+const styles = StyleSheet.create({
+  container: {
     flex: 1,
+    backgroundColor: colors.bg.primary,
   },
-  scrollContainer: {
+  scrollView: {
     flex: 1,
   },
   scrollContent: {
-    // Base style, paddingBottom is dynamic
+    paddingHorizontal: layout.padding,
+    paddingTop: isSmallScreen ? 12 : 20,
+    paddingBottom: 30,
+  },
+  header: {
+    alignItems: 'center',
+    marginBottom: isSmallScreen ? 16 : 20,
+  },
+  title: {
+    fontFamily: fonts.bold,
+    fontSize: isSmallScreen ? fontSizes.xl : fontSizes.xxl,
+    fontWeight: fontWeights.bold,
+    color: colors.text.primary,
+    marginBottom: 4,
+  },
+  subtitle: {
+    fontFamily: fonts.regular,
+    fontSize: isSmallScreen ? fontSizes.sm : fontSizes.md,
+    color: colors.text.secondary,
+    textAlign: 'center',
+  },
+  progressRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    marginBottom: isSmallScreen ? 14 : 18,
+    gap: 12,
+  },
+  progressBarContainer: {
+    flex: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10,
+  },
+  progressBar: {
+    flex: 1,
+    height: 3,
+    backgroundColor: colors.bg.tertiary,
+    borderRadius: 2,
+    overflow: 'hidden',
+  },
+  progressFill: {
+    height: '100%',
+    backgroundColor: colors.brand.primary,
+    borderRadius: 2,
+  },
+  progressText: {
+    fontFamily: fonts.medium,
+    fontSize: fontSizes.sm,
+    color: colors.text.secondary,
+    minWidth: 32,
+  },
+  actionButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    paddingVertical: 6,
+    paddingHorizontal: 10,
+    borderRadius: radii.md,
+    backgroundColor: colors.bg.secondary,
+  },
+  actionButtonText: {
+    fontFamily: fonts.medium,
+    fontSize: fontSizes.sm,
+    color: colors.brand.primary,
+  },
+  clearButtonText: {
+    color: colors.text.secondary,
+  },
+  gridContainer: {
+    marginBottom: 16,
+  },
+  row: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    marginBottom: isSmallScreen ? 8 : 10,
+  },
+  wordWrapper: {
+    width: '48.5%',
+  },
+  wordContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: colors.bg.secondary,
+    borderRadius: radii.md,
+    borderWidth: 1,
+    borderColor: colors.border.default,
+    height: isSmallScreen ? 44 : 48,
+    paddingLeft: 10,
+    paddingRight: 6,
+  },
+  wordContainerFocused: {
+    borderColor: colors.brand.primary,
+    borderWidth: 2,
+    paddingLeft: 9,
+    paddingRight: 5,
+  },
+  wordContainerFilled: {
+    borderColor: colors.border.light,
+    backgroundColor: colors.bg.secondary,
+  },
+  wordNumber: {
+    fontFamily: fonts.bold,
+    fontSize: isSmallScreen ? 11 : 12,
+    fontWeight: fontWeights.bold,
+    color: colors.text.tertiary,
+    width: 18,
+    textAlign: 'center',
+  },
+  wordNumberFocused: {
+    color: colors.brand.primary,
+  },
+  wordNumberFilled: {
+    color: colors.text.secondary,
+  },
+  wordInput: {
+    flex: 1,
+    fontFamily: fonts.regular,
+    fontSize: isSmallScreen ? 14 : 15,
+    color: colors.text.primary,
+    paddingVertical: 0,
+    paddingHorizontal: 6,
+    height: '100%',
+  },
+  buttonContainer: {
+    gap: 10,
+    marginTop: 4,
   },
   importButton: {
-    marginTop: 5,
+    backgroundColor: colors.brand.primary,
+    borderRadius: radii.lg,
+    paddingVertical: isSmallScreen ? 14 : 16,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  buttonDisabled: {
+    backgroundColor: colors.bg.tertiary,
+  },
+  importButtonText: {
+    fontFamily: fonts.bold,
+    fontSize: fontSizes.md,
+    fontWeight: fontWeights.bold,
+    color: colors.text.inverse,
+  },
+  buttonTextDisabled: {
+    color: colors.text.tertiary,
+  },
+  cancelButton: {
+    backgroundColor: 'transparent',
+    borderRadius: radii.lg,
+    paddingVertical: isSmallScreen ? 14 : 16,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  cancelButtonText: {
+    fontFamily: fonts.medium,
+    fontSize: fontSizes.md,
+    color: colors.text.secondary,
   },
 });
