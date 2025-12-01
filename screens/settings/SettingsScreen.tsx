@@ -39,6 +39,8 @@ interface SettingsScreenProps {
   onViewCashuSettings: () => void;
   /** Callback to view About screen */
   onViewAbout: () => void;
+  /** Whether advanced/developer mode is enabled */
+  advancedMode?: boolean;
 }
 
 /**
@@ -68,6 +70,7 @@ const SettingsScreen = React.memo(function SettingsScreen({
   onViewAdvanced,
   onViewCashuSettings,
   onViewAbout,
+  advancedMode = false,
 }: SettingsScreenProps): React.ReactElement {
   return (
     <View style={localStyles.container} testID="settings-screen">
@@ -100,12 +103,15 @@ const SettingsScreen = React.memo(function SettingsScreen({
               onPress={onViewAdvanced}
               testID="settings-advanced-btn"
             />
-            <SettingsOption
-              iconName="asset"
-              title="Cashu"
-              onPress={onViewCashuSettings}
-              testID="settings-cashu-btn"
-            />
+            {/* Cashu settings only visible in developer mode */}
+            {advancedMode && (
+              <SettingsOption
+                iconName="asset"
+                title="Cashu"
+                onPress={onViewCashuSettings}
+                testID="settings-cashu-btn"
+              />
+            )}
             <SettingsOption iconName="logout" title="Lock Wallet" onPress={onLockWallet} testID="settings-lock-btn" />
             <SettingsOption
               iconName="asset"

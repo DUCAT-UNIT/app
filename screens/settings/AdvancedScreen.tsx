@@ -147,37 +147,43 @@ const AdvancedScreen = React.memo(function AdvancedScreen({ route }: AdvancedScr
               rightText={getThresholdDisplay()}
               testID="advanced-ecash-threshold-btn"
             />
-            <SettingsOption
-              iconName="switch_account"
-              title="Select Account"
-              onPress={onSwitchAccount}
-              testID="advanced-switch-account-btn"
-            />
+            {/* Account selection only visible in developer mode */}
+            {advancedMode && (
+              <SettingsOption
+                iconName="switch_account"
+                title="Select Account"
+                onPress={onSwitchAccount}
+                testID="advanced-switch-account-btn"
+              />
+            )}
           </View>
 
-          <View style={styles.section}>
-            <Text style={styles.sectionTitle}>Troubleshooting</Text>
-            <TouchableOpacity
-              style={styles.clearCacheButton}
-              onPress={handleClearCache}
-              disabled={isClearing}
-              activeOpacity={0.7}
-              testID="advanced-clear-cache-btn"
-            >
-              <View style={styles.clearCacheContent}>
-                <Icon name="delete" size={24} color="#FF6B6B" />
-                <View style={styles.clearCacheTextContainer}>
-                  <Text style={styles.clearCacheTitle}>Clear App Cache</Text>
-                  <Text style={styles.clearCacheSubtitle}>
-                    Fixes issues with P2PK tokens and other problems
-                  </Text>
+          {/* Troubleshooting section only visible in developer mode */}
+          {advancedMode && (
+            <View style={styles.section}>
+              <Text style={styles.sectionTitle}>Troubleshooting</Text>
+              <TouchableOpacity
+                style={styles.clearCacheButton}
+                onPress={handleClearCache}
+                disabled={isClearing}
+                activeOpacity={0.7}
+                testID="advanced-clear-cache-btn"
+              >
+                <View style={styles.clearCacheContent}>
+                  <Icon name="delete" size={24} color="#FF6B6B" />
+                  <View style={styles.clearCacheTextContainer}>
+                    <Text style={styles.clearCacheTitle}>Clear App Cache</Text>
+                    <Text style={styles.clearCacheSubtitle}>
+                      Fixes issues with P2PK tokens and other problems
+                    </Text>
+                  </View>
                 </View>
-              </View>
-              {isClearing && (
-                <ActivityIndicator size="small" color="#FF6B6B" style={styles.spinner} />
-              )}
-            </TouchableOpacity>
-          </View>
+                {isClearing && (
+                  <ActivityIndicator size="small" color="#FF6B6B" style={styles.spinner} />
+                )}
+              </TouchableOpacity>
+            </View>
+          )}
         </View>
       </ScrollView>
     </View>

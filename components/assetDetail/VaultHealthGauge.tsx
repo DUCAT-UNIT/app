@@ -315,7 +315,7 @@ export const VaultHealthGauge = memo(function VaultHealthGauge({
       {/* Liquidation Price - moved up */}
       <View style={[styles.liquidationRow, { marginBottom: s(16) }]}>
         <Text style={[styles.liquidationLabel, { fontSize: sf(14), marginBottom: s(2) }]}>Liquidation Price</Text>
-        <Text style={[styles.liquidationValue, { color: titleColor, fontSize: sf(18) }]}>
+        <Text style={[styles.liquidationValue, { color: COLORS.DANGER_RED, fontSize: sf(18) }]}>
           ${formatFiat(liquidationPrice, 0)}
         </Text>
       </View>
@@ -324,7 +324,7 @@ export const VaultHealthGauge = memo(function VaultHealthGauge({
       <View style={[styles.statsRow, { marginBottom: s(8) }]}>
         {/* Collateral Column with Deposit/Withdraw */}
         <View style={[styles.statColumn, { paddingHorizontal: s(16) }]}>
-          <Text style={[styles.statLabel, { fontSize: sf(14), marginBottom: s(4) }]}>Collateral</Text>
+          <Text style={[styles.statLabel, { fontSize: sf(14), marginBottom: s(4) }]}>Locked Bitcoin</Text>
           <View style={[styles.statValueRow, { gap: s(4), marginBottom: s(12) }]}>
             <Icon name="btc_symbol" size={s(18)} color={COLORS.WHITE} />
             <Text style={[styles.statValue, { fontSize: sf(20) }]}>{formatBalance(totalCollateral)}</Text>
@@ -349,7 +349,7 @@ export const VaultHealthGauge = memo(function VaultHealthGauge({
 
         {/* Debt Column with Borrow/Repay */}
         <View style={[styles.statColumn, { paddingHorizontal: s(16) }]}>
-          <Text style={[styles.statLabel, { fontSize: sf(14), marginBottom: s(4) }]}>Debt</Text>
+          <Text style={[styles.statLabel, { fontSize: sf(14), marginBottom: s(4) }]}>UNIT Debt</Text>
           <View style={[styles.statValueRow, { gap: s(4), marginBottom: s(12) }]}>
             <Icon name="unit_symbol" size={s(18)} color={COLORS.WHITE} />
             <Text style={[styles.statValue, { fontSize: sf(20) }]}>{formatFiat(totalDebt)}</Text>

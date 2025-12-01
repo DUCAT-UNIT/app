@@ -210,7 +210,8 @@ export default function WalletPage({ route }: WalletPageProps) {
           <MutinynetBanner />
           <SettingsScreen onClose={closeSettings} onLockWallet={settingsHandlers.handleLogout}
             onViewPreferences={handleViewPreferences} onViewSecurity={handleViewSecurity}
-            onViewAdvanced={handleViewAdvanced} onViewCashuSettings={handleViewCashuSettings} onViewAbout={handleViewAbout} />
+            onViewAdvanced={handleViewAdvanced} onViewCashuSettings={handleViewCashuSettings} onViewAbout={handleViewAbout}
+            advancedMode={settingsHandlers.advancedMode} />
         </Animated.View>
       )}
 
