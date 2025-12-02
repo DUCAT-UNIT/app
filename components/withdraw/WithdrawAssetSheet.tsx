@@ -8,7 +8,7 @@ import React, { memo, useMemo, useCallback, useRef, useEffect } from 'react';
 import { View, Text, TouchableOpacity, Animated, StyleSheet, PanResponder, Dimensions } from 'react-native';
 import Icon from '../icons';
 import { COLORS } from '../../theme';
-import { useSendFlow, AssetType } from '../../contexts/SendFlowContext';
+import { useSendFlow, type AssetType } from '../../stores/sendFlowStore';
 import { formatBalance, formatFiat } from '../../utils/formatters';
 import { getRunesAmount } from '../../utils/runesHelper';
 

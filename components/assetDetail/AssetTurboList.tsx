@@ -19,7 +19,7 @@ import {
 } from '../../services/cashu/cashuLockedTokensService';
 import { decodeToken } from '../../services/cashu/crypto';
 import { checkProofsSpent } from '../../services/cashu/cashuMintClient';
-import { useNotifications } from '../../contexts/NotificationContext';
+import { useNotifications } from '../../stores/notificationStore';
 import { useWallet } from '../../contexts/WalletContext';
 import { logger } from '../../utils/logger';
 

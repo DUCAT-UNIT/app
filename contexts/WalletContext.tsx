@@ -1,6 +1,6 @@
 import React, { createContext, useContext, useState, useCallback, useMemo, ReactNode } from 'react';
 import * as WalletService from '../services/walletService';
-import { useNotifications } from './NotificationContext';
+import { useNotifications } from '../stores/notificationStore';
 import { logger } from '../utils/logger';
 import { clearP2PKCache } from '../services/cashu/p2pk';
 

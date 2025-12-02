@@ -16,7 +16,7 @@ import { useWallet } from './WalletContext';
 import { useBalance, useTransactionHistory, useVaultData } from './WalletDataContext';
 import { useOnboardingFlow } from './AuthContext';
 import { useSeedPhrase } from './SeedPhraseContext';
-import { useNotifications } from './NotificationContext';
+import { useNotifications } from '../stores/notificationStore';
 import { useCashuOperations } from './CashuContext';
 import { useSettings } from '../hooks/useSettings';
 import { useAccountSwitcher } from '../hooks/useAccountSwitcher';
@@ -184,7 +184,7 @@ export const NavigationHandlersProvider: React.FC<NavigationHandlersProviderProp
     // Cashu functions (resetAndRefresh clears pending mints and fetches fresh balance)
     resetAndRefreshCashu,
     // Toast notification (shown after data loads)
-    showToast: showSnackbar,
+    showToast: (message: string, type: 'success' | 'error') => showSnackbar({ title: message, type }),
   });
 
   // Passkey migration modal state (for showing after wallet import)

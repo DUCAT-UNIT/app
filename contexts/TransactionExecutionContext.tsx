@@ -12,13 +12,13 @@ import * as BackgroundTaskService from '../services/backgroundTaskService';
 import { parseErrorMessage } from '../utils/errorParser';
 import { ERRORS } from '../utils/messages';
 import { MUTINYNET_NETWORK } from '../utils/bitcoin';
-import { useSendFlow } from './SendFlowContext';
+import { useSendFlow } from '../stores/sendFlowStore';
 import { useTransactionBuild } from './TransactionBuildContext';
 import type { SendIntent } from './TransactionBuildContext';
 import { usePendingTransactions, PendingTransactionOutput } from './PendingTransactionsContext';
 import { useWallet } from './WalletContext';
 import { logger } from '../utils/logger';
-import type { SnackbarParams } from './NotificationContext';
+import type { SnackbarParams } from '../stores/notificationStore';
 
 interface BroadcastOptions {
   skipAutoConfirm?: boolean;

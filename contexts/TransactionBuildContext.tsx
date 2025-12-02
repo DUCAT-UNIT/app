@@ -5,7 +5,7 @@
  */
 
 import React, { createContext, useContext, useState, useMemo, ReactNode } from 'react';
-import { useSendFlow } from './SendFlowContext';
+import { useSendFlow } from '../stores/sendFlowStore';
 import { usePendingTransactions } from './PendingTransactionsContext';
 import { useBalance } from './WalletDataContext';
 import { useTransactionBuilder } from '../hooks/useTransactionBuilder';

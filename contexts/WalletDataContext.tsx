@@ -71,6 +71,10 @@ export interface WalletDataContextValue {
   vaultError: string | null;
   fetchVault: () => Promise<void>;
   resetVaultData: () => void;
+  // Vault transactions (cached like BTC transaction history)
+  vaultTransactions: import('../services/vaultService').VaultHistoryTransaction[];
+  loadingVaultTransactions: boolean;
+  fetchVaultTransactions: () => Promise<void>;
   // Ecash tokens
   ecashTokens: TokenWithStatus[];
   loadingEcashTokens: boolean;
@@ -239,9 +243,10 @@ export const WalletDataProvider: React.FC<WalletDataProviderProps> = ({ children
     balance.fetchBalance();
     vault.fetchVault();
 
-    // Only fetch transaction history and ecash tokens after both balances have loaded at least once
+    // Only fetch transaction history, vault transactions, and ecash tokens after both balances have loaded at least once
     if (initialBalancesLoadedRef.current) {
       history.fetchTransactionHistory();
+      vault.fetchVaultTransactions();
       fetchEcashTokens();
     } else {
       logger.debug('[WalletDataContext] Skipping transaction history - waiting for balances to load', {
@@ -252,7 +257,7 @@ export const WalletDataProvider: React.FC<WalletDataProviderProps> = ({ children
       });
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [wallet, balance.fetchBalance, vault.fetchVault, history.fetchTransactionHistory, fetchEcashTokens]);
+  }, [wallet, balance.fetchBalance, vault.fetchVault, vault.fetchVaultTransactions, history.fetchTransactionHistory, fetchEcashTokens]);
 
   // Handle wallet changes - reset data when removed, fetch on first load
   // NOTE: Account switches are handled by useAccountSwitcher in NavigationHandlersContext
@@ -278,11 +283,12 @@ export const WalletDataProvider: React.FC<WalletDataProviderProps> = ({ children
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [wallet, balance.resetBalances, balance.fetchBalance, history.resetTransactionHistory, vault.resetVaultData, vault.fetchVault, resetEcashTokens]);
 
-  // Trigger initial transaction history and ecash tokens load once both balances have loaded
+  // Trigger initial transaction history, vault transactions, and ecash tokens load once both balances have loaded
   useEffect(() => {
     if (bothBalancesLoaded && initialBalancesLoadedRef.current) {
-      logger.debug('[WalletDataContext] Both balances ready - fetching transaction history and ecash tokens');
+      logger.debug('[WalletDataContext] Both balances ready - fetching transaction history, vault transactions, and ecash tokens');
       history.fetchTransactionHistory();
+      vault.fetchVaultTransactions();
       fetchEcashTokens();
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -355,6 +361,10 @@ export const WalletDataProvider: React.FC<WalletDataProviderProps> = ({ children
       vaultError: vault.vaultError,
       fetchVault: vault.fetchVault,
       resetVaultData: vault.resetVaultData,
+      // Vault transactions (cached like BTC transaction history)
+      vaultTransactions: vault.vaultTransactions,
+      loadingVaultTransactions: vault.loadingVaultTransactions,
+      fetchVaultTransactions: vault.fetchVaultTransactions,
       // Ecash tokens
       ecashTokens,
       loadingEcashTokens,

@@ -47,7 +47,6 @@ export const VaultInfo = memo(function VaultInfo({
         currentPrice={currentPrice}
         healthPercentage={healthPercentage}
         priceChange24h={priceChange24h}
-        onChartPress={onChartPress}
       />
     </View>
   );

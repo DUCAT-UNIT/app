@@ -1,34 +1,25 @@
 /**
- * UIContext - Global UI state management (FULLY MIGRATED)
- * This file now just re-exports the split contexts for convenience
+ * UIContext - Global UI state management (FULLY MIGRATED TO ZUSTAND)
  *
- * PERFORMANCE: Split into 2 separate contexts to prevent unnecessary re-renders
- * - DisplayPreferencesContext: Only re-renders when display settings change
- * - NotificationContext: Only re-renders when toasts/snackbars change
+ * MIGRATION COMPLETE: No providers needed - using Zustand stores directly
+ * - DisplayPreferences: stores/displayPreferencesStore.ts
+ * - Notifications: stores/notificationStore.ts
  *
- * MIGRATION COMPLETE: All backwards compatibility removed
- * Components should use useDisplayPreferences() or useNotifications() directly
+ * This file now just provides a no-op provider for backwards compatibility
+ * and re-exports hooks from the stores.
  */
 
 import React, { ReactNode } from 'react';
-import { DisplayPreferencesProvider } from './DisplayPreferencesContext';
-import { NotificationProvider } from './NotificationContext';
 
-// Re-export hooks for convenience
-export { useDisplayPreferences } from './DisplayPreferencesContext';
-export { useNotifications } from './NotificationContext';
+// Re-export hooks from stores
+export { useDisplayPreferences } from '../stores/displayPreferencesStore';
+export { useNotifications } from '../stores/notificationStore';
 
 interface UIProviderProps {
   children: ReactNode;
 }
 
-// UIProvider wraps both contexts
+// UIProvider is now a pass-through - Zustand stores don't need providers
 export const UIProvider: React.FC<UIProviderProps> = ({ children }) => {
-  return (
-    <DisplayPreferencesProvider>
-      <NotificationProvider>
-        {children}
-      </NotificationProvider>
-    </DisplayPreferencesProvider>
-  );
+  return <>{children}</>;
 };

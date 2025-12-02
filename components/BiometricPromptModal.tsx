@@ -8,6 +8,7 @@ import { View, Text, TouchableOpacity, ViewStyle, TextStyle } from 'react-native
 import * as SecureStore from 'expo-secure-store';
 import * as LocalAuthentication from 'expo-local-authentication';
 import { SECURE_KEYS } from '../utils/constants';
+import { logger } from '../utils/logger';
 
 interface BiometricPromptModalProps {
   visible: boolean;
@@ -63,7 +64,7 @@ export default function BiometricPromptModal({
         onBiometricEnabled(true, result.success);
       }
     } catch (error: unknown) {
-      console.warn('Biometric authentication failed:', error);
+      logger.warn('Biometric authentication failed', { error: error instanceof Error ? error.message : String(error) });
     }
   };
 
