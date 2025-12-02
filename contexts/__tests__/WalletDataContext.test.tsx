@@ -5,7 +5,7 @@
 
 import React from 'react';
 import { renderHook, act } from '@testing-library/react-native';
-import { WalletDataProvider, useWalletData, useBalance, useTransactionHistory, useVaultData } from '../WalletDataContext';
+import { WalletDataProvider, useWalletData, useBalance, useTransactionHistory, useVaultData, useEcashTokens } from '../WalletDataContext';
 import { useWallet } from '../WalletContext';
 import { usePendingTransactions } from '../PendingTransactionsContext';
 import { usePolling } from '../../hooks/usePolling';
@@ -68,6 +68,10 @@ describe('WalletDataContext', () => {
     vaultError: null,
     fetchVault: jest.fn(),
     resetVaultData: jest.fn(),
+    // Vault transactions (cached like BTC transaction history)
+    vaultTransactions: [],
+    loadingVaultTransactions: false,
+    fetchVaultTransactions: jest.fn(),
   };
 
   beforeEach(() => {
@@ -132,6 +136,16 @@ describe('WalletDataContext', () => {
 
       consoleError.mockRestore();
     });
+
+    it('useEcashTokens should throw error when used outside provider', () => {
+      const consoleError = jest.spyOn(console, 'error').mockImplementation(() => {});
+
+      expect(() => {
+        renderHook(() => useEcashTokens());
+      }).toThrow('useEcashTokens must be used within a WalletDataProvider');
+
+      consoleError.mockRestore();
+    });
   });
 
   describe('Backwards compatibility hooks', () => {
@@ -154,6 +168,14 @@ describe('WalletDataContext', () => {
       const { result } = renderHook(() => useVaultData(), { wrapper });
 
       expect(result.current).toBe(mockVault);
+    });
+
+    it('should provide useEcashTokens hook', () => {
+      const wrapper = ({ children }) => <WalletDataProvider>{children}</WalletDataProvider>;
+      const { result } = renderHook(() => useEcashTokens(), { wrapper });
+
+      expect(result.current).toBeDefined();
+      expect(result.current.ecashTokens).toEqual([]);
     });
   });
 
@@ -400,6 +422,10 @@ describe('WalletDataContext', () => {
       expect(result.current.vaultData).toBe(mockVault.vaultData);
       expect(result.current.loadingVault).toBe(mockVault.loadingVault);
       expect(result.current.fetchVault).toBe(mockVault.fetchVault);
+      // Vault transactions
+      expect(result.current.vaultTransactions).toBe(mockVault.vaultTransactions);
+      expect(result.current.loadingVaultTransactions).toBe(mockVault.loadingVaultTransactions);
+      expect(result.current.fetchVaultTransactions).toBe(mockVault.fetchVaultTransactions);
     });
   });
 });

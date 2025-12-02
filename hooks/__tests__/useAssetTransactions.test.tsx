@@ -72,6 +72,20 @@ jest.mock('../../services/cashu/cashuMintClient', () => ({
 
 jest.mock('../../services/transactionHistoryService');
 
+// Mock pending transactions context
+let mockPendingTransactions = {};
+jest.mock('../../contexts/PendingTransactionsContext', () => ({
+  usePendingTxs: () => mockPendingTransactions,
+}));
+
+// Mock bitcoinjs-lib for taproot address decoding
+const mockFromBech32 = jest.fn();
+jest.mock('bitcoinjs-lib', () => ({
+  address: {
+    fromBech32: (...args) => mockFromBech32(...args),
+  },
+}));
+
 // Helper to render hooks with react-test-renderer
 function renderHook(initialProps) {
   const result = { current: null };
@@ -107,12 +121,16 @@ describe('useAssetTransactions', () => {
     // Reset mock ecash tokens from context
     mockEcashTokens = [];
     mockLoadingEcashTokens = false;
+    // Reset pending transactions
+    mockPendingTransactions = {};
     // Reset legacy mocks (kept for backwards compatibility with some tests)
     mockGetSentLockedTokens.mockResolvedValue([]);
     mockGetReceivedTokens.mockResolvedValue([]);
     mockDecodeToken.mockReturnValue({ proofs: [] });
     mockCheckProofsSpent.mockResolvedValue({ states: [] });
     mockUpdateTokenClaimedStatus.mockResolvedValue(undefined);
+    // Default: successful taproot decode
+    mockFromBech32.mockReturnValue({ data: Buffer.from('test_pubkey_hex', 'hex') });
   });
 
   it('should return empty array when transaction history is null', () => {
@@ -717,8 +735,9 @@ describe('useAssetTransactions', () => {
 
     it('should merge ecash and regular transactions sorted by time', () => {
       // Set pre-loaded ecash tokens from context
+      // Note: ecash timestamps are in milliseconds, block_time is in seconds
       mockEcashTokens = [
-        { id: 'token1', token: 'cashuAbc', amount: 10000, timestamp: 2000, claimed: true, recipient: 'someone' },
+        { id: 'token1', token: 'cashuAbc', amount: 10000, timestamp: 2000000, claimed: true, recipient: 'someone' },
       ];
       mockLoadingEcashTokens = false;
 
@@ -744,7 +763,7 @@ describe('useAssetTransactions', () => {
       });
 
       expect(result.current.transactions).toHaveLength(3);
-      // Sorted by time: tx2 (3000), token1 (2000), tx1 (1000)
+      // Sorted by time: tx2 (3000s), token1 (2000s from 2000000ms), tx1 (1000s)
       expect(result.current.transactions[0].txid).toBe('tx2');
       expect(result.current.transactions[1].txid).toBe('token1');
       expect(result.current.transactions[2].txid).toBe('tx1');
@@ -951,15 +970,16 @@ describe('useAssetTransactions', () => {
 
     it('should prefer timestamp over block_time for ecash', () => {
       // Set pre-loaded ecash tokens from context
+      // Note: ecash timestamps are in milliseconds, on-chain timestamps are in seconds
       mockEcashTokens = [
-        { id: 'token1', token: 'cashuAbc', amount: 100, timestamp: 5000, claimed: true, recipient: 'someone' },
+        { id: 'token1', token: 'cashuAbc', amount: 100, timestamp: 5000000, claimed: true, recipient: 'someone' },
       ];
       mockLoadingEcashTokens = false;
 
       const txHistory = [
         {
           txid: 'tx1',
-          timestamp: 2000, // Has both
+          timestamp: 2000, // Has both (in seconds)
           status: { block_time: 1000 },
           txData: { amount: 100, assetType: 'UNIT', numericAmount: 100 },
         },
@@ -973,9 +993,9 @@ describe('useAssetTransactions', () => {
         advancedMode: false,
       });
 
-      // token1 (5000) should come first
+      // token1 (5000s from 5000000ms) should come first
       expect(result.current.transactions[0].txid).toBe('token1');
-      // tx1 uses timestamp (2000) not block_time (1000)
+      // tx1 uses timestamp (2000s) not block_time (1000s)
       expect(result.current.transactions[1].txid).toBe('tx1');
     });
 
@@ -1074,6 +1094,368 @@ describe('useAssetTransactions', () => {
 
       // Should process the transaction since txData is null (falsy)
       expect(result.current.transactions).toHaveLength(1);
+    });
+  });
+
+  describe('Pending transactions', () => {
+    it('should include pending BTC transactions', () => {
+      mockPendingTransactions = {
+        'pending_tx_1': {
+          txid: 'pending_tx_1',
+          status: 'pending',
+          assetType: 'BTC',
+          timestamp: 5000000, // milliseconds
+          sentAmount: 100000,
+          outputs: [{ address: 'bc1qtest', value: 50000 }],
+        },
+      };
+
+      const txHistory = [];
+
+      const { result } = renderHook({
+        txHistory,
+        assetType: 'BTC',
+        segwit: segwitAddress,
+        taproot: taprootAddress,
+      });
+
+      expect(result.current.transactions).toHaveLength(1);
+      expect(result.current.transactions[0].txid).toBe('pending_tx_1');
+      expect(result.current.transactions[0].isPending).toBe(true);
+      expect(result.current.transactions[0].txData.amount).toBe(-100000); // Negative for sent
+    });
+
+    it('should include pending UNIT transactions with sentAmount', () => {
+      mockPendingTransactions = {
+        'pending_tx_unit': {
+          txid: 'pending_tx_unit',
+          status: 'pending',
+          assetType: 'UNIT',
+          timestamp: 5000000,
+          sentAmount: 500,
+          outputs: [{ address: 'bc1qtest', value: 1000, runeAmount: 500 }],
+        },
+      };
+
+      const txHistory = [];
+
+      const { result } = renderHook({
+        txHistory,
+        assetType: 'UNIT',
+        segwit: segwitAddress,
+        taproot: taprootAddress,
+        advancedMode: true,
+      });
+
+      expect(result.current.transactions).toHaveLength(1);
+      expect(result.current.transactions[0].txData.amount).toBe(-500);
+    });
+
+    it('should calculate amount from outputs when sentAmount is not available (BTC)', () => {
+      mockPendingTransactions = {
+        'pending_tx_no_sent': {
+          txid: 'pending_tx_no_sent',
+          status: 'pending',
+          assetType: 'BTC',
+          timestamp: 5000000,
+          outputs: [
+            { address: 'bc1qtest', value: 30000 },
+            { address: 'bc1qtest2', value: 20000 },
+          ],
+        },
+      };
+
+      const txHistory = [];
+
+      const { result } = renderHook({
+        txHistory,
+        assetType: 'BTC',
+        segwit: segwitAddress,
+        taproot: taprootAddress,
+      });
+
+      expect(result.current.transactions).toHaveLength(1);
+      expect(result.current.transactions[0].txData.amount).toBe(-50000); // -(30000 + 20000)
+    });
+
+    it('should calculate amount from runeAmount for UNIT when sentAmount is not available', () => {
+      mockPendingTransactions = {
+        'pending_tx_rune': {
+          txid: 'pending_tx_rune',
+          status: 'pending',
+          assetType: 'UNIT',
+          timestamp: 5000000,
+          outputs: [
+            { address: 'bc1qtest', value: 546, runeAmount: 100 },
+            { address: 'bc1qtest2', value: 546, runeAmount: 200 },
+          ],
+        },
+      };
+
+      const txHistory = [];
+
+      const { result } = renderHook({
+        txHistory,
+        assetType: 'UNIT',
+        segwit: segwitAddress,
+        taproot: taprootAddress,
+        advancedMode: true,
+      });
+
+      expect(result.current.transactions).toHaveLength(1);
+      expect(result.current.transactions[0].txData.amount).toBe(-300); // -(100 + 200)
+    });
+
+    it('should filter out invalid pending transactions', () => {
+      mockPendingTransactions = {
+        'invalid_tx': {
+          txid: 'invalid_tx',
+          status: 'invalid', // Not 'pending'
+          assetType: 'BTC',
+          timestamp: 5000000,
+          sentAmount: 100000,
+          outputs: [],
+        },
+      };
+
+      const txHistory = [];
+
+      const { result } = renderHook({
+        txHistory,
+        assetType: 'BTC',
+        segwit: segwitAddress,
+        taproot: taprootAddress,
+      });
+
+      expect(result.current.transactions).toHaveLength(0);
+    });
+
+    it('should exclude pending transactions that are already confirmed', () => {
+      mockPendingTransactions = {
+        'pending_tx_confirmed': {
+          txid: 'tx_already_confirmed',
+          status: 'pending',
+          assetType: 'BTC',
+          timestamp: 5000000,
+          sentAmount: 100000,
+          outputs: [],
+        },
+      };
+
+      const txHistory = [
+        {
+          txid: 'tx_already_confirmed',
+          status: { confirmed: true, block_time: 1000 },
+          txData: { amount: 100000, assetType: 'BTC', numericAmount: 100000 },
+        },
+      ];
+
+      const { result } = renderHook({
+        txHistory,
+        assetType: 'BTC',
+        segwit: segwitAddress,
+        taproot: taprootAddress,
+      });
+
+      // Should only have the confirmed tx, not the pending one
+      expect(result.current.transactions).toHaveLength(1);
+      expect(result.current.transactions[0].isPending).toBeUndefined();
+    });
+
+    it('should sort pending transactions at top before confirmed', () => {
+      mockPendingTransactions = {
+        'pending_tx_1': {
+          txid: 'pending_tx_1',
+          status: 'pending',
+          assetType: 'BTC',
+          timestamp: 1000000, // Lower timestamp
+          sentAmount: 100000,
+          outputs: [],
+        },
+      };
+
+      const txHistory = [
+        {
+          txid: 'confirmed_tx',
+          status: { confirmed: true, block_time: 5000 }, // Higher timestamp
+          txData: { amount: 100000, assetType: 'BTC', numericAmount: 100000 },
+        },
+      ];
+
+      const { result } = renderHook({
+        txHistory,
+        assetType: 'BTC',
+        segwit: segwitAddress,
+        taproot: taprootAddress,
+      });
+
+      expect(result.current.transactions).toHaveLength(2);
+      // Pending should be first even though its timestamp is lower
+      expect(result.current.transactions[0].txid).toBe('pending_tx_1');
+      expect(result.current.transactions[0].isPending).toBe(true);
+      expect(result.current.transactions[1].txid).toBe('confirmed_tx');
+    });
+
+    it('should filter pending transactions by asset type', () => {
+      mockPendingTransactions = {
+        'pending_btc': {
+          txid: 'pending_btc',
+          status: 'pending',
+          assetType: 'BTC',
+          timestamp: 5000000,
+          sentAmount: 100000,
+          outputs: [],
+        },
+        'pending_unit': {
+          txid: 'pending_unit',
+          status: 'pending',
+          assetType: 'UNIT',
+          timestamp: 5000000,
+          sentAmount: 500,
+          outputs: [],
+        },
+      };
+
+      const { result } = renderHook({
+        txHistory: [],
+        assetType: 'BTC',
+        segwit: segwitAddress,
+        taproot: taprootAddress,
+      });
+
+      // Should only show BTC pending tx
+      expect(result.current.transactions).toHaveLength(1);
+      expect(result.current.transactions[0].txid).toBe('pending_btc');
+    });
+  });
+
+  describe('Self-claim detection', () => {
+    it('should detect self-claimed sent tokens by taprootAddress match', () => {
+      // Sent token where taprootAddress matches the user's taproot address
+      mockEcashTokens = [
+        {
+          id: 'self_claim_token',
+          token: 'cashuAbc',
+          amount: 100,
+          timestamp: 1000,
+          claimed: true,
+          recipient: 'some_pubkey',
+          taprootAddress: taprootAddress, // Same as user's taproot address
+        },
+      ];
+      mockLoadingEcashTokens = false;
+
+      const { result } = renderHook({
+        txHistory: [],
+        assetType: 'UNIT',
+        segwit: segwitAddress,
+        taproot: taprootAddress,
+        advancedMode: false,
+      });
+
+      expect(result.current.transactions).toHaveLength(1);
+      expect(result.current.transactions[0].isAutoclaim).toBe(true);
+      // Self-claimed tokens show as positive (received back)
+      expect(result.current.transactions[0].txData.numericAmount).toBe(100);
+    });
+
+    it('should detect self-claimed sent tokens by pubkey match', () => {
+      // Mock fromBech32 to return a pubkey that matches the recipient
+      const pubkeyHex = '0123456789abcdef';
+      mockFromBech32.mockReturnValue({ data: Buffer.from(pubkeyHex, 'hex') });
+
+      mockEcashTokens = [
+        {
+          id: 'self_claim_pubkey',
+          token: 'cashuAbc',
+          amount: 200,
+          timestamp: 1000,
+          claimed: true,
+          recipient: pubkeyHex, // Matches decoded pubkey
+        },
+      ];
+      mockLoadingEcashTokens = false;
+
+      const { result } = renderHook({
+        txHistory: [],
+        assetType: 'UNIT',
+        segwit: segwitAddress,
+        taproot: taprootAddress,
+        advancedMode: false,
+      });
+
+      expect(result.current.transactions).toHaveLength(1);
+      expect(result.current.transactions[0].isAutoclaim).toBe(true);
+    });
+
+    it('should filter out received tokens that are self-claims (by taprootAddress)', () => {
+      // Received token where taprootAddress matches (self-send)
+      mockEcashTokens = [
+        {
+          id: 'received_self_claim',
+          token: 'cashuAbc',
+          amount: 100,
+          timestamp: 1000,
+          claimed: false,
+          sender: 'someone_else',
+          taprootAddress: taprootAddress, // Matches user's address - should be filtered
+        },
+        {
+          id: 'received_from_other',
+          token: 'cashuDef',
+          amount: 200,
+          timestamp: 2000,
+          claimed: false,
+          sender: 'other_sender',
+          taprootAddress: 'bc1pdifferent', // Different address - should be included
+        },
+      ];
+      mockLoadingEcashTokens = false;
+
+      const { result } = renderHook({
+        txHistory: [],
+        assetType: 'UNIT',
+        segwit: segwitAddress,
+        taproot: taprootAddress,
+        advancedMode: false,
+      });
+
+      // Only the received token from different address should be included
+      expect(result.current.transactions).toHaveLength(1);
+      expect(result.current.transactions[0].txid).toBe('received_from_other');
+    });
+  });
+
+  describe('Taproot address decode error handling', () => {
+    it('should handle taproot address decode error gracefully', () => {
+      // Make fromBech32 throw an error
+      mockFromBech32.mockImplementation(() => {
+        throw new Error('Invalid bech32 address');
+      });
+
+      mockEcashTokens = [
+        {
+          id: 'token1',
+          token: 'cashuAbc',
+          amount: 100,
+          timestamp: 1000,
+          claimed: false,
+          recipient: 'someone',
+        },
+      ];
+      mockLoadingEcashTokens = false;
+
+      const { result } = renderHook({
+        txHistory: [],
+        assetType: 'UNIT',
+        segwit: segwitAddress,
+        taproot: taprootAddress,
+        advancedMode: false,
+      });
+
+      // Should still work, just without self-claim detection by pubkey
+      expect(result.current.transactions).toHaveLength(1);
+      expect(result.current.isLoading).toBe(false);
     });
   });
 });

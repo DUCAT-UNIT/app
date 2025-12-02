@@ -233,6 +233,10 @@ describe('useTurboReview', () => {
       expect(mockProps.setTurboEnabled).not.toHaveBeenCalled();
       expect(mockNavigation.navigate).toHaveBeenCalledWith('Processing', expect.any(Object));
     });
+
+    // Note: Tests for TurboProcessing navigation and insufficient sheet display
+    // when turbo is enabled require the getBalance dynamic import to be properly
+    // configured. The existing tests in handleUseTurbo cover the mint flow.
   });
 
   describe('handleSendNormally', () => {
@@ -328,6 +332,37 @@ describe('useTurboReview', () => {
         '[useTurboReview] Failed to request mint quote:',
         { error: 'Mint request failed' }
       );
+      expect(Alert.alert).toHaveBeenCalledWith(
+        'Error',
+        'Failed to initiate Turbo transaction. Please try again.'
+      );
+    });
+
+    it('should throw error when mint quote amount is undefined', async () => {
+      mockRequestMintImpl.mockResolvedValue({
+        quoteId: 'quote123',
+        depositAddress: 'bc1qtest',
+        amount: undefined, // Missing amount
+      });
+      mockProps.sendRecipient = 'original_recipient';
+      const { result, rerender } = renderHookWithProps(mockProps);
+
+      // First trigger the insufficient balance flow to set insufficientTurboAmount
+      mockGetBalanceImpl.mockResolvedValue(0.3);
+      mockProps.sendAmount = '0.5';
+      mockProps.turboEnabled = true;
+      rerender(mockProps);
+
+      await act(async () => {
+        await result.current.handleReview();
+      });
+
+      // Now call handleUseTurbo which will fail due to undefined amount
+      await act(async () => {
+        await result.current.handleUseTurbo();
+      });
+
+      expect(result.current.isRequestingMint).toBe(false);
       expect(Alert.alert).toHaveBeenCalledWith(
         'Error',
         'Failed to initiate Turbo transaction. Please try again.'

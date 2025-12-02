@@ -128,4 +128,216 @@ describe('useVaultDataFetch', () => {
     expect(result.current.vaultError).toBe(null);
     expect(result.current.loadingVault).toBe(false);
   });
+
+  it('should not update state when vault data has not changed', async () => {
+    const mockVaultData = {
+      vaultTag: 'vault-123',
+      totalDebt: 50000,
+      totalCollateral: 0.001,
+      currentPrice: 50000000,
+    };
+
+    vaultService.fetchVaultData.mockResolvedValue(mockVaultData);
+
+    const { result } = renderHook(() => useVaultDataFetch(mockWallet));
+
+    // First fetch
+    await act(async () => {
+      await result.current.fetchVault();
+    });
+
+    expect(result.current.vaultData).toEqual(mockVaultData);
+
+    // Second fetch with same data - should not trigger re-render
+    await act(async () => {
+      await result.current.fetchVault();
+    });
+
+    expect(result.current.vaultData).toEqual(mockVaultData);
+    expect(vaultService.fetchVaultData).toHaveBeenCalledTimes(2);
+  });
+
+  describe('fetchVaultTransactions', () => {
+    const mockTransactions = [
+      { timestamp: 1000, action: 'borrow', amount_borrowed: 100, vault_amount: 500, btc_amt: 0.01, unit_amt: 100, oracle_price: 50000 },
+      { timestamp: 900, action: 'deposit', amount_borrowed: 0, vault_amount: 400, btc_amt: 0.02, unit_amt: 0, oracle_price: 50000 },
+    ];
+
+    it('should initialize with empty transactions', () => {
+      const { result } = renderHook(() => useVaultDataFetch(mockWallet));
+
+      expect(result.current.vaultTransactions).toEqual([]);
+      expect(result.current.loadingVaultTransactions).toBe(false);
+    });
+
+    it('should fetch vault transactions successfully', async () => {
+      vaultService.fetchVaultHistory.mockResolvedValue(mockTransactions);
+
+      const { result } = renderHook(() => useVaultDataFetch(mockWallet));
+
+      await act(async () => {
+        await result.current.fetchVaultTransactions();
+      });
+
+      expect(result.current.vaultTransactions).toEqual(mockTransactions);
+      expect(result.current.loadingVaultTransactions).toBe(false);
+    });
+
+    it('should show loading only on initial fetch', async () => {
+      // Create a deferred promise to control when the fetch resolves
+      let resolvePromise;
+      const deferredPromise = new Promise((resolve) => {
+        resolvePromise = resolve;
+      });
+
+      vaultService.fetchVaultHistory.mockReturnValue(deferredPromise);
+
+      const { result } = renderHook(() => useVaultDataFetch(mockWallet));
+
+      // Start fetch but don't await yet
+      let fetchPromise;
+      act(() => {
+        fetchPromise = result.current.fetchVaultTransactions();
+      });
+
+      // Loading should be true during initial fetch
+      expect(result.current.loadingVaultTransactions).toBe(true);
+
+      // Resolve the promise
+      await act(async () => {
+        resolvePromise(mockTransactions);
+        await fetchPromise;
+      });
+
+      expect(result.current.loadingVaultTransactions).toBe(false);
+    });
+
+    it('should not show loading on background refresh', async () => {
+      vaultService.fetchVaultHistory.mockResolvedValue(mockTransactions);
+
+      const { result } = renderHook(() => useVaultDataFetch(mockWallet));
+
+      // First fetch
+      await act(async () => {
+        await result.current.fetchVaultTransactions();
+      });
+
+      // Second fetch (background refresh) - should not show loading
+      let loadingDuringRefresh = true;
+      vaultService.fetchVaultHistory.mockImplementation(async () => {
+        loadingDuringRefresh = result.current.loadingVaultTransactions;
+        return mockTransactions;
+      });
+
+      await act(async () => {
+        await result.current.fetchVaultTransactions();
+      });
+
+      expect(loadingDuringRefresh).toBe(false);
+    });
+
+    it('should not fetch transactions when wallet is missing', async () => {
+      const { result } = renderHook(() => useVaultDataFetch(null));
+
+      await act(async () => {
+        await result.current.fetchVaultTransactions();
+      });
+
+      expect(vaultService.fetchVaultHistory).not.toHaveBeenCalled();
+    });
+
+    it('should not fetch transactions when taprootPubkey is missing', async () => {
+      const incompleteWallet = { segwitAddress: 'bc1qtest' };
+
+      const { result } = renderHook(() => useVaultDataFetch(incompleteWallet));
+
+      await act(async () => {
+        await result.current.fetchVaultTransactions();
+      });
+
+      expect(vaultService.fetchVaultHistory).not.toHaveBeenCalled();
+    });
+
+    it('should handle fetch transactions error gracefully', async () => {
+      vaultService.fetchVaultHistory.mockRejectedValue(new Error('API error'));
+
+      const { result } = renderHook(() => useVaultDataFetch(mockWallet));
+
+      await act(async () => {
+        await result.current.fetchVaultTransactions();
+      });
+
+      // Should not throw, just log error
+      expect(result.current.vaultTransactions).toEqual([]);
+      expect(result.current.loadingVaultTransactions).toBe(false);
+    });
+
+    it('should update transactions when they have changed', async () => {
+      const initialTransactions = [
+        { timestamp: 1000, action: 'borrow', amount_borrowed: 100, vault_amount: 500, btc_amt: 0.01, unit_amt: 100, oracle_price: 50000 },
+      ];
+      const updatedTransactions = [
+        { timestamp: 1100, action: 'repay', amount_borrowed: 50, vault_amount: 450, btc_amt: 0, unit_amt: 50, oracle_price: 51000 },
+        { timestamp: 1000, action: 'borrow', amount_borrowed: 100, vault_amount: 500, btc_amt: 0.01, unit_amt: 100, oracle_price: 50000 },
+      ];
+
+      vaultService.fetchVaultHistory.mockResolvedValue(initialTransactions);
+
+      const { result } = renderHook(() => useVaultDataFetch(mockWallet));
+
+      await act(async () => {
+        await result.current.fetchVaultTransactions();
+      });
+
+      expect(result.current.vaultTransactions).toEqual(initialTransactions);
+
+      // Update with new transactions
+      vaultService.fetchVaultHistory.mockResolvedValue(updatedTransactions);
+
+      await act(async () => {
+        await result.current.fetchVaultTransactions();
+      });
+
+      expect(result.current.vaultTransactions).toEqual(updatedTransactions);
+    });
+
+    it('should not update transactions when unchanged', async () => {
+      vaultService.fetchVaultHistory.mockResolvedValue(mockTransactions);
+
+      const { result } = renderHook(() => useVaultDataFetch(mockWallet));
+
+      // First fetch
+      await act(async () => {
+        await result.current.fetchVaultTransactions();
+      });
+
+      const firstResult = result.current.vaultTransactions;
+
+      // Second fetch with same data
+      await act(async () => {
+        await result.current.fetchVaultTransactions();
+      });
+
+      // Should be the same reference (no update)
+      expect(result.current.vaultTransactions).toBe(firstResult);
+    });
+
+    it('should reset transactions when resetVaultData is called', async () => {
+      vaultService.fetchVaultHistory.mockResolvedValue(mockTransactions);
+
+      const { result } = renderHook(() => useVaultDataFetch(mockWallet));
+
+      await act(async () => {
+        await result.current.fetchVaultTransactions();
+      });
+
+      expect(result.current.vaultTransactions).toEqual(mockTransactions);
+
+      act(() => {
+        result.current.resetVaultData();
+      });
+
+      expect(result.current.vaultTransactions).toEqual([]);
+    });
+  });
 });

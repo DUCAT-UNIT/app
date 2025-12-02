@@ -75,7 +75,7 @@ describe('runesUtxoSelection', () => {
         }),
       });
 
-      // Mock ord output response for first UTXO
+      // Mock ord output response for first UTXO (txid1:0)
       (global as any).fetch.mockResolvedValueOnce({
         json: async () => ({
           transaction: 'txid1',
@@ -88,7 +88,16 @@ describe('runesUtxoSelection', () => {
         }),
       });
 
-      // Mock outspend check (unspent)
+      // Mock ord output response for second UTXO (txid2:1) - fetched in parallel
+      (global as any).fetch.mockResolvedValueOnce({
+        json: async () => ({
+          transaction: 'txid2',
+          value: 5000,
+          runes: {}, // No runes
+        }),
+      });
+
+      // Mock outspend check for txid1:0 (unspent)
       (global as any).fetch.mockResolvedValueOnce({
         json: async () => ({ spent: false }),
       });

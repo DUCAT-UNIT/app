@@ -5,6 +5,18 @@
 import React from 'react';
 import { render } from '@testing-library/react-native';
 
+// Mock useResponsive hook
+jest.mock('../../../hooks/useResponsive', () => ({
+  useResponsive: () => ({
+    width: 375,
+    height: 812,
+    screenSize: 'medium',
+    scale: 1,
+    s: (value: number) => value,
+    sf: (value: number) => value,
+  }),
+}));
+
 // Mock Icon component inline
 jest.mock('../../icons', () => {
   const _React = require('react');

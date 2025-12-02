@@ -117,14 +117,14 @@ describe('useSettingsScreenCallbacks', () => {
       expect(mockNavigation.goBack).toHaveBeenCalled();
     });
 
-    it('should log debug when onAutoLockToggle is called', () => {
+    it('should log info when onAutoLockToggle is called', () => {
       const { logger } = require('../../utils/logger');
       callbacks.handleViewSecurity();
 
       const params = mockNavigation.navigate.mock.calls[0][1];
       params.onAutoLockToggle();
 
-      expect(logger.debug).toHaveBeenCalledWith('Auto lock toggle pressed');
+      expect(logger.info).toHaveBeenCalledWith('Auto lock toggle pressed - feature not yet available');
     });
 
     it('should use biometricEnabled value for faceIdEnabled', () => {

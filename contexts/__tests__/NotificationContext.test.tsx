@@ -6,8 +6,11 @@
 
 import React from 'react';
 import { create, act } from 'react-test-renderer';
-import { NotificationProvider, useNotifications } from '../NotificationContext';
+import { useNotifications } from '../../stores/notificationStore';
 import { resetNotificationStore } from '../../stores';
+
+// No-op provider for backwards compatibility (Zustand stores don't need providers)
+const NotificationProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => <>{children}</>;
 
 // Mock logger
 jest.mock('../../utils/logger', () => ({

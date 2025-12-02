@@ -89,19 +89,13 @@ describe('logger', () => {
       });
     });
 
-    it('should stream debug to Sentry when enabled', () => {
+    // Note: STREAM_TO_SENTRY is disabled by default to conserve Sentry quota
+    // This test verifies the non-streaming behavior is correct
+    it('should not stream debug to Sentry when streaming is disabled', () => {
       logger.debug('Stream test', { data: 'value' });
 
-      expect(Sentry.captureMessage).toHaveBeenCalledWith(
-        '[DEBUG] Stream test',
-        expect.objectContaining({
-          level: 'debug',
-          tags: {
-            log_category: 'DEBUG',
-            stream: 'realtime',
-          },
-        })
-      );
+      // captureMessage should NOT be called for debug when streaming is disabled
+      expect(Sentry.captureMessage).not.toHaveBeenCalled();
     });
   });
 
@@ -116,15 +110,13 @@ describe('logger', () => {
       });
     });
 
-    it('should stream info to Sentry', () => {
+    // Note: STREAM_TO_SENTRY is disabled by default to conserve Sentry quota
+    // This test verifies the non-streaming behavior is correct
+    it('should not stream info to Sentry when streaming is disabled', () => {
       logger.info('Info stream', { key: 'value' });
 
-      expect(Sentry.captureMessage).toHaveBeenCalledWith(
-        '[INFO] Info stream',
-        expect.objectContaining({
-          level: 'info',
-        })
-      );
+      // captureMessage should NOT be called for info when streaming is disabled
+      expect(Sentry.captureMessage).not.toHaveBeenCalled();
     });
   });
 
@@ -238,19 +230,13 @@ describe('logger', () => {
       );
     });
 
-    it('should stream cashu operations to Sentry', () => {
+    // Note: STREAM_TO_SENTRY is disabled by default to conserve Sentry quota
+    // This test verifies the non-streaming behavior is correct
+    it('should not stream cashu operations to Sentry when streaming is disabled', () => {
       logger.cashu('receive', { proofs: 3 });
 
-      expect(Sentry.captureMessage).toHaveBeenCalledWith(
-        '[CASHU] receive',
-        expect.objectContaining({
-          level: 'info',
-          tags: {
-            log_category: 'CASHU',
-            stream: 'realtime',
-          },
-        })
-      );
+      // captureMessage should NOT be called when streaming is disabled
+      expect(Sentry.captureMessage).not.toHaveBeenCalled();
     });
   });
 
@@ -277,15 +263,13 @@ describe('logger', () => {
       );
     });
 
-    it('should stream auth to Sentry', () => {
+    // Note: STREAM_TO_SENTRY is disabled by default to conserve Sentry quota
+    // This test verifies the non-streaming behavior is correct
+    it('should not stream auth to Sentry when streaming is disabled', () => {
       logger.auth('logout');
 
-      expect(Sentry.captureMessage).toHaveBeenCalledWith(
-        '[AUTH] logout',
-        expect.objectContaining({
-          level: 'info',
-        })
-      );
+      // captureMessage should NOT be called when streaming is disabled
+      expect(Sentry.captureMessage).not.toHaveBeenCalled();
     });
   });
 

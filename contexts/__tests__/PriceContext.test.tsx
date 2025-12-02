@@ -5,9 +5,12 @@
 
 import React from 'react';
 import { create, act } from 'react-test-renderer';
-import { PriceProvider, usePrice } from '../PriceContext';
+import { usePrice, usePriceStore } from '../../stores/priceStore';
 import * as balanceService from '../../services/balanceService';
 import { resetPriceStore } from '../../stores';
+
+// No-op provider for backwards compatibility (Zustand stores don't need providers)
+const PriceProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => <>{children}</>;
 
 // Helper to render hooks with react-test-renderer
 function renderHook(hook, { wrapper: Wrapper } = {}) {
@@ -73,8 +76,9 @@ describe('PriceContext', () => {
     const wrapper = ({ children }) => <PriceProvider>{children}</PriceProvider>;
     const { result } = renderHook(() => usePrice(), { wrapper });
 
-    // Wait for the async effect to complete
+    // Zustand stores don't auto-fetch on mount - need to call startAutoRefresh explicitly
     await act(async () => {
+      usePriceStore.getState().startAutoRefresh();
       await Promise.resolve();
     });
 
@@ -90,8 +94,9 @@ describe('PriceContext', () => {
     const wrapper = ({ children }) => <PriceProvider>{children}</PriceProvider>;
     renderHook(() => usePrice(), { wrapper });
 
-    // Initial fetch
+    // Start auto-refresh (this does initial fetch + starts interval)
     await act(async () => {
+      usePriceStore.getState().startAutoRefresh();
       await Promise.resolve();
     });
 
@@ -139,14 +144,14 @@ describe('PriceContext', () => {
     const wrapper = ({ children }) => <PriceProvider>{children}</PriceProvider>;
     const { result } = renderHook(() => usePrice(), { wrapper });
 
-    // Wait for initial fetch
+    // Manual fetch (no auto-fetch on mount in Zustand)
     await act(async () => {
-      await Promise.resolve();
+      await result.current.fetchBtcPrice();
     });
 
     expect(result.current.btcPrice).toBe(mockPrice);
 
-    // Manual fetch
+    // Another manual fetch
     await act(async () => {
       await result.current.fetchBtcPrice();
     });
@@ -165,12 +170,14 @@ describe('PriceContext', () => {
     const wrapper = ({ children }) => <PriceProvider>{children}</PriceProvider>;
     const { result } = renderHook(() => usePrice(), { wrapper });
 
-    // Start loading
-    await act(async () => {
-      await Promise.resolve(); // Let the effect run
+    // Start fetch manually (no auto-fetch in Zustand)
+    act(() => {
+      result.current.fetchBtcPrice();
     });
 
-    // Should be loading (note: might already be false if promise resolved immediately)
+    // Should be loading while promise is pending
+    expect(result.current.loadingBtcPrice).toBe(true);
+
     // Resolve the promise
     await act(async () => {
       resolvePrice(50000);

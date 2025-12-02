@@ -32,9 +32,10 @@ import * as p2pk from '../../services/cashu/p2pk';
 jest.mock('../../services/walletService');
 jest.mock('expo-secure-store');
 jest.mock('../../services/cashu/p2pk');
-jest.mock('../NotificationContext', () => ({
+jest.mock('../../stores/notificationStore', () => ({
   useNotifications: () => ({
     showToast: jest.fn(),
+    showSnackbar: jest.fn(),
   }),
 }));
 

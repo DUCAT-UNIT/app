@@ -284,6 +284,69 @@ describe('useTransactionBuilder', () => {
         expect.any(Set)
       );
     });
+
+    it('should release old intent UTXOs when rebuilding BTC intent', async () => {
+      // Existing intent that hasn't been broadcast
+      mockProps.sendIntent = {
+        assetType: 'BTC',
+        inputs: [
+          { txid: 'old_txid1', vout: 0 },
+          { txid: 'old_txid2', vout: 1 },
+        ],
+      };
+
+      const { result } = renderHook(() => useTransactionBuilder(mockProps));
+
+      await act(async () => {
+        await result.current.createSendIntent();
+      });
+
+      // Should release old UTXOs before building new intent
+      expect(mockProps.unmarkUtxosAsSpent).toHaveBeenCalledWith([
+        { txid: 'old_txid1', vout: 0 },
+        { txid: 'old_txid2', vout: 1 },
+      ]);
+    });
+
+    it('should not release old intent UTXOs if already broadcast', async () => {
+      // Existing intent that HAS been broadcast
+      mockProps.sendIntent = {
+        assetType: 'BTC',
+        inputs: [{ txid: 'old_txid1', vout: 0 }],
+        txid: 'broadcast_txid',
+      };
+
+      const { result } = renderHook(() => useTransactionBuilder(mockProps));
+
+      await act(async () => {
+        await result.current.createSendIntent();
+      });
+
+      // Should not release broadcast transaction UTXOs
+      expect(mockProps.unmarkUtxosAsSpent).not.toHaveBeenCalledWith([
+        { txid: 'old_txid1', vout: 0 },
+      ]);
+    });
+
+    it('should release locked UTXOs on error after marking them', async () => {
+      // Mock to return intent with inputs, then fail on second call
+      createBtcIntent.mockResolvedValueOnce({
+        assetType: 'BTC',
+        inputs: [{ txid: 'txid1', vout: 0 }],
+      });
+
+      // First call marks UTXOs, then markUtxosAsSpent throws
+      mockProps.markUtxosAsSpent.mockRejectedValueOnce(new Error('Storage error'));
+
+      const { result } = renderHook(() => useTransactionBuilder(mockProps));
+
+      await act(async () => {
+        await result.current.createSendIntent();
+      });
+
+      // Error should be handled gracefully
+      expect(notify.build.error).toHaveBeenCalled();
+    });
   });
 
   describe('createUnitIntent', () => {
@@ -452,6 +515,129 @@ describe('useTransactionBuilder', () => {
 
       expect(releaseOrphanedUtxos).toHaveBeenCalled();
       expect(notify.build.error).toHaveBeenCalled();
+    });
+
+    it('should release old intent UTXOs when rebuilding UNIT intent', async () => {
+      // Existing UNIT intent that hasn't been broadcast
+      mockProps.sendIntent = {
+        assetType: 'UNIT',
+        runeUtxo: { transaction: 'old_rune_txid', vout: 0 },
+        satUtxo: { txid: 'old_sat_txid', vout: 1 },
+      };
+
+      const { result } = renderHook(() => useTransactionBuilder(mockProps));
+
+      await act(async () => {
+        await result.current.createSendIntent();
+      });
+
+      // Should release old UTXOs before building new intent
+      expect(mockProps.unmarkUtxosAsSpent).toHaveBeenCalledWith([
+        { txid: 'old_rune_txid', vout: 0 },
+        { txid: 'old_sat_txid', vout: 1 },
+      ]);
+    });
+
+    it('should release only runeUtxo when rebuilding UNIT intent without satUtxo', async () => {
+      mockProps.sendIntent = {
+        assetType: 'UNIT',
+        runeUtxo: { transaction: 'old_rune_txid', vout: 0 },
+        satUtxo: null,
+      };
+
+      const { result } = renderHook(() => useTransactionBuilder(mockProps));
+
+      await act(async () => {
+        await result.current.createSendIntent();
+      });
+
+      expect(mockProps.unmarkUtxosAsSpent).toHaveBeenCalledWith([
+        { txid: 'old_rune_txid', vout: 0 },
+      ]);
+    });
+
+    it('should not release old UNIT intent UTXOs if already broadcast', async () => {
+      mockProps.sendIntent = {
+        assetType: 'UNIT',
+        runeUtxo: { transaction: 'old_rune_txid', vout: 0 },
+        satUtxo: { txid: 'old_sat_txid', vout: 1 },
+        txid: 'broadcast_txid',
+      };
+
+      const { result } = renderHook(() => useTransactionBuilder(mockProps));
+
+      await act(async () => {
+        await result.current.createSendIntent();
+      });
+
+      // Should not release broadcast transaction UTXOs
+      expect(mockProps.unmarkUtxosAsSpent).not.toHaveBeenCalledWith([
+        { txid: 'old_rune_txid', vout: 0 },
+        { txid: 'old_sat_txid', vout: 1 },
+      ]);
+    });
+
+    it('should release locked UTXOs on error after marking them for UNIT', async () => {
+      createUnitIntent.mockResolvedValueOnce({
+        assetType: 'UNIT',
+        runeUtxo: { transaction: 'txid1', vout: 0 },
+        satUtxo: { txid: 'txid2', vout: 1 },
+      });
+
+      // markUtxosAsSpent throws after successful intent creation
+      mockProps.markUtxosAsSpent.mockRejectedValueOnce(new Error('Storage error'));
+
+      const { result } = renderHook(() => useTransactionBuilder(mockProps));
+
+      await act(async () => {
+        await result.current.createSendIntent();
+      });
+
+      // Error should be handled gracefully
+      expect(notify.build.error).toHaveBeenCalled();
+    });
+
+    it('should pass unconfirmed taproot UTXOs with runeAmount to createUnitIntent', async () => {
+      mockProps.getUnconfirmedUTXOs.mockImplementation((addressType) => {
+        if (addressType === 'taproot') {
+          return [{ txid: 'taproot1', vout: 0, value: 5000, runeAmount: 100 }];
+        }
+        if (addressType === 'segwit') {
+          return [{ txid: 'segwit1', vout: 0, value: 10000 }];
+        }
+        return [];
+      });
+
+      const { result } = renderHook(() => useTransactionBuilder(mockProps));
+
+      await act(async () => {
+        await result.current.createSendIntent();
+      });
+
+      expect(createUnitIntent).toHaveBeenCalledWith(
+        'bc1qrecipient...',
+        '0.001',
+        'tb1ptest...',
+        'bc1qtest...',
+        0,
+        [{ txid: 'taproot1', vout: 0, value: 5000, runeAmount: 100 }],
+        [{ txid: 'segwit1', vout: 0, value: 10000, runeAmount: undefined }],
+        expect.any(Set)
+      );
+    });
+
+    it('should handle runesBalance as array format', async () => {
+      // Test the Array.isArray branch for runesBalance format
+      mockProps.runesBalance = [[0, 1000]]; // Array format: [index, amount]
+
+      const { result } = renderHook(() => useTransactionBuilder(mockProps));
+
+      await act(async () => {
+        await result.current.createSendIntent();
+      });
+
+      expect(createUnitIntent).toHaveBeenCalled();
+      expect(mockProps.setIntentStep).toHaveBeenCalledWith('reviewing');
     });
   });
 

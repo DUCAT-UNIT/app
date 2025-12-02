@@ -469,16 +469,15 @@ describe('PinService', () => {
         return Promise.resolve(null);
       });
       mockHashPin.mockResolvedValue('entered-hash');
-      mockVerifyPinHash.mockReturnValue(false);
-      mockRecordFailedAttempt.mockResolvedValue({
-        shouldLockout: false,
-        newFailedAttempts: 1,
-      });
 
       const result = await verifyPin('123456');
 
-      // Should use empty string for comparison when stored hash is null
-      expect(mockVerifyPinHash).toHaveBeenCalledWith('', 'entered-hash');
+      // Should return error when PIN hash is not configured
+      expect(result.success).toBe(false);
+      expect(result.error).toBe('PIN not configured');
+      expect(result.remainingAttempts).toBe(0);
+      // verifyPinHash should not be called when there's no stored hash
+      expect(mockVerifyPinHash).not.toHaveBeenCalled();
     });
   });
 

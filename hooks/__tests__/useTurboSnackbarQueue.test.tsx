@@ -264,4 +264,46 @@ describe('useTurboSnackbarQueue', () => {
 
     expect(mockProps.showSnackbar).not.toHaveBeenCalled();
   });
+
+  it('should cleanup interval on unmount', () => {
+    const { unmount } = renderHookWithProps(mockProps);
+
+    // Unmount the component
+    act(() => {
+      unmount();
+    });
+
+    // Add snackbar after unmount
+    global.pendingTurboSnackbars = [
+      { type: 'success', message: 'After unmount' },
+    ];
+
+    // Advance timer - should not process since unmounted
+    act(() => {
+      jest.advanceTimersByTime(1000);
+    });
+
+    expect(mockProps.showSnackbar).not.toHaveBeenCalled();
+  });
+
+  it('should not process snackbars after unmount even with queued items', () => {
+    const { unmount } = renderHookWithProps(mockProps);
+
+    // Queue a snackbar but unmount before it's processed
+    act(() => {
+      unmount();
+    });
+
+    // Even if we add snackbars after unmount, they shouldn't be processed
+    global.pendingTurboSnackbars = [
+      { type: 'error', message: 'Too late' },
+    ];
+
+    act(() => {
+      jest.advanceTimersByTime(500);
+    });
+
+    expect(mockProps.showSnackbar).not.toHaveBeenCalled();
+  });
+
 });

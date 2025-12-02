@@ -30,14 +30,14 @@ function renderHook(hook) {
 }
 import * as psbtService from '../../services/psbtService';
 import * as TransactionBuildContext from '../../contexts/TransactionBuildContext';
-import * as PriceContext from '../../contexts/PriceContext';
+import * as PriceContext from '../../stores/priceStore';
 
 // Mock contexts
 jest.mock('../../contexts/TransactionBuildContext', () => ({
   useTransactionBuild: jest.fn(),
 }));
 
-jest.mock('../../contexts/PriceContext', () => ({
+jest.mock('../../stores/priceStore', () => ({
   usePrice: jest.fn(),
 }));
 

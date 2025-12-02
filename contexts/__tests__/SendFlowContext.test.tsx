@@ -5,8 +5,11 @@
 
 import React from 'react';
 import { create, act } from 'react-test-renderer';
-import { SendFlowProvider, useSendFlow } from '../SendFlowContext';
+import { useSendFlow } from '../../stores/sendFlowStore';
 import { resetSendFlowStore } from '../../stores';
+
+// No-op provider for backwards compatibility (Zustand stores don't need providers)
+const SendFlowProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => <>{children}</>;
 
 // Mock logger
 jest.mock('../../utils/logger', () => ({
@@ -266,7 +269,7 @@ describe('SendFlowContext', () => {
     expect(result.current.sendRecipient).toBe('');
     expect(result.current.sendAddressType).toBe('taproot');
     expect(result.current.requireConfirmedUtxos).toBe(false);
-    expect(result.current.turboEnabled).toBe(false);
+    expect(result.current.turboEnabled).toBe(true); // Turbo is ON by default
   });
 
   describe('Setters with function updaters', () => {
@@ -351,13 +354,13 @@ describe('SendFlowContext', () => {
       const wrapper = ({ children }) => <SendFlowProvider>{children}</SendFlowProvider>;
       const { result } = renderHook(() => useSendFlow(), { wrapper });
 
-      expect(result.current.turboEnabled).toBe(false);
+      expect(result.current.turboEnabled).toBe(true); // Turbo is ON by default
 
-      // Use function updater
+      // Use function updater to toggle OFF
       act(() => {
         result.current.setTurboEnabled((prev) => !prev);
       });
-      expect(result.current.turboEnabled).toBe(true);
+      expect(result.current.turboEnabled).toBe(false);
     });
   });
 });

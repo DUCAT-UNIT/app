@@ -5,8 +5,11 @@
 
 import React from 'react';
 import { create, act } from 'react-test-renderer';
-import { DisplayPreferencesProvider, useDisplayPreferences } from '../DisplayPreferencesContext';
+import { useDisplayPreferences } from '../../stores/displayPreferencesStore';
 import { resetDisplayPreferencesStore } from '../../stores';
+
+// No-op provider for backwards compatibility (Zustand stores don't need providers)
+const DisplayPreferencesProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => <>{children}</>;
 
 // Helper to render hooks with react-test-renderer
 function renderHook(hook, { wrapper: Wrapper } = {}) {

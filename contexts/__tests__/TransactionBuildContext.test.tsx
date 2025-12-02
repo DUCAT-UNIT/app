@@ -6,7 +6,7 @@
 import React from 'react';
 import { create, act } from 'react-test-renderer';
 import { TransactionBuildProvider, useTransactionBuild } from '../TransactionBuildContext';
-import { useSendFlow } from '../SendFlowContext';
+import { useSendFlow } from '../../stores/sendFlowStore';
 import { usePendingTransactions } from '../PendingTransactionsContext';
 import { useBalance } from '../WalletDataContext';
 import * as TransactionService from '../../services/transaction';
@@ -32,7 +32,7 @@ function renderHook(hook, { wrapper: Wrapper } = {}) {
 }
 
 // Mock dependencies
-jest.mock('../SendFlowContext');
+jest.mock('../../stores/sendFlowStore');
 jest.mock('../PendingTransactionsContext');
 jest.mock('../../services/transaction');
 jest.mock('../WalletDataContext', () => ({
