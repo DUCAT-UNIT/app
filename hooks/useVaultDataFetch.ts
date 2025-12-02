@@ -5,7 +5,7 @@
  */
 
 import { useState, useCallback, useRef, useEffect } from 'react';
-import { fetchVaultData, VaultData } from '../services/vaultService';
+import { fetchVaultData, fetchVaultHistory, VaultData, VaultHistoryTransaction } from '../services/vaultService';
 import logger from '../utils/logger';
 import type { WalletAddresses } from '../contexts/WalletContext';
 
@@ -15,6 +15,10 @@ export interface UseVaultDataFetchReturn {
   vaultError: string | null;
   fetchVault: () => Promise<void>;
   resetVaultData: () => void;
+  // Vault transactions (cached like BTC transaction history)
+  vaultTransactions: VaultHistoryTransaction[];
+  loadingVaultTransactions: boolean;
+  fetchVaultTransactions: () => Promise<void>;
 }
 
 /**
@@ -38,15 +42,21 @@ export function useVaultDataFetch(wallet: WalletAddresses | null): UseVaultDataF
   const [loadingVault, setLoadingVault] = useState(false);
   const [vaultError, setVaultError] = useState<string | null>(null);
 
+  // Vault transactions state (cached like BTC transaction history)
+  const [vaultTransactions, setVaultTransactions] = useState<VaultHistoryTransaction[]>([]);
+  const [loadingVaultTransactions, setLoadingVaultTransactions] = useState(false);
+
   // Keep a ref to previous vault data for comparison
   const prevVaultDataRef = useRef<VaultData | null>(null);
   const prevWalletPubkeyRef = useRef<string | undefined>(undefined);
+  const prevVaultTransactionsRef = useRef<VaultHistoryTransaction[]>([]);
 
-  // Reset prevVaultDataRef when wallet pubkey changes
+  // Reset refs when wallet pubkey changes
   useEffect(() => {
     const currentPubkey = wallet?.taprootPubkey;
     if (currentPubkey !== prevWalletPubkeyRef.current) {
       prevVaultDataRef.current = null;
+      prevVaultTransactionsRef.current = [];
       prevWalletPubkeyRef.current = currentPubkey;
     }
   }, [wallet?.taprootPubkey]);
@@ -80,11 +90,52 @@ export function useVaultDataFetch(wallet: WalletAddresses | null): UseVaultDataF
   }, [wallet]);
 
   /**
+   * Fetch vault transactions (history) from validator API
+   * Cached in context to avoid refetching on every screen visit
+   */
+  const fetchVaultTransactions = useCallback(async (): Promise<void> => {
+    const vaultPubkey = wallet?.taprootPubkey;
+
+    if (!vaultPubkey) {
+      return;
+    }
+
+    try {
+      // Only show loading on initial fetch, not background refreshes
+      if (vaultTransactions.length === 0) {
+        setLoadingVaultTransactions(true);
+      }
+
+      const transactions = await fetchVaultHistory(vaultPubkey);
+
+      // Only update state if transactions have actually changed
+      // Compare by checking first and last transaction timestamps and length
+      const prev = prevVaultTransactionsRef.current;
+      const hasChanged =
+        transactions.length !== prev.length ||
+        (transactions.length > 0 && prev.length > 0 &&
+          (transactions[0].timestamp !== prev[0].timestamp ||
+           transactions[transactions.length - 1].timestamp !== prev[prev.length - 1].timestamp));
+
+      if (hasChanged || prev.length === 0) {
+        prevVaultTransactionsRef.current = transactions;
+        setVaultTransactions(transactions);
+      }
+    } catch (error: unknown) {
+      logger.error('[useVaultDataFetch] Failed to fetch vault transactions', { error: error instanceof Error ? error.message : String(error) });
+    } finally {
+      setLoadingVaultTransactions(false);
+    }
+  }, [wallet, vaultTransactions.length]);
+
+  /**
    * Reset vault data (called when wallet is reset)
    */
   const resetVaultData = useCallback((): void => {
     setVaultData(null);
+    setVaultTransactions([]);
     prevVaultDataRef.current = null;
+    prevVaultTransactionsRef.current = [];
   }, []);
 
   return {
@@ -92,8 +143,12 @@ export function useVaultDataFetch(wallet: WalletAddresses | null): UseVaultDataF
     vaultData,
     loadingVault,
     vaultError,
+    // Vault transactions
+    vaultTransactions,
+    loadingVaultTransactions,
     // Functions
     fetchVault,
     resetVaultData,
+    fetchVaultTransactions,
   };
 }

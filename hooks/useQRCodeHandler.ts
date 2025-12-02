@@ -12,7 +12,7 @@ import { hasP2PKProofs } from '../services/cashu/p2pk';
 import { decodeToken, encodeToken } from '../services/cashu/crypto';
 import { checkProofsSpent } from '../services/cashu/cashuMintClient';
 import { notify } from '../utils/notify';
-import type { SnackbarParams } from '../contexts/NotificationContext';
+import type { SnackbarParams } from '../stores/notificationStore';
 
 interface ReceiveTokenResult {
   amount: number;

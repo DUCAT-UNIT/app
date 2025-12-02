@@ -65,8 +65,11 @@ export function useSettingsScreenCallbacks({
       onFaceIdToggle: settingsHandlers.handleFaceIdToggle,
       onChangePin: settingsHandlers.handleChangePin,
       onAutoLockToggle: () => {
-        // TODO: Implement auto lock toggle
-        logger.debug('Auto lock toggle pressed');
+        logger.info('Auto lock toggle pressed - feature not yet available');
+        Alert.alert(
+          'Coming Soon',
+          'Auto-lock functionality will be available in a future update.'
+        );
       },
       onViewSeedPhrase: settingsHandlers.handleViewSeedPhrase,
       onDeleteWallet: settingsHandlers.handleDeleteWallet,

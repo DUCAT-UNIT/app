@@ -114,7 +114,10 @@ export function useAppSettings({ biometricEnabled, setIsAuthenticated }: UseAppS
           }
 
           await SecureStore.setItemAsync('returnToSettingsAfterAuth', 'true');
-        } catch {
+        } catch (error: unknown) {
+          logger.warn('Biometric auth failed for notifications toggle', {
+            error: error instanceof Error ? error.message : String(error)
+          });
           notify.auth.requiredForNotifications();
           return;
         }
@@ -135,7 +138,11 @@ export function useAppSettings({ biometricEnabled, setIsAuthenticated }: UseAppS
       } else {
         notify.settings.notificationsDisabled();
       }
-    } catch {
+    } catch (error: unknown) {
+      logger.error('Failed to save notification setting', {
+        error: error instanceof Error ? error.message : String(error),
+        attemptedValue: newValue
+      });
       notify.settings.notificationsFailed();
     }
   }, [pendingNotificationsValue, biometricEnabled, setIsAuthenticated]);
@@ -148,7 +155,8 @@ export function useAppSettings({ biometricEnabled, setIsAuthenticated }: UseAppS
     try {
       await clearWallet();
       notify.cashu.cacheCleared();
-    } catch {
+    } catch (error) {
+      logger.warn('Failed to clear Cashu cache', { error: error instanceof Error ? error.message : String(error) });
       notify.cashu.cacheClearFailed();
     }
   }, []);
@@ -188,7 +196,8 @@ export function useAppSettings({ biometricEnabled, setIsAuthenticated }: UseAppS
       const { clearSentLockedTokens } = await import('../services/cashu/cashuLockedTokensService.js');
       await clearSentLockedTokens();
       notify.cashu.lockedTokensCleared();
-    } catch {
+    } catch (error) {
+      logger.warn('Failed to clear locked tokens', { error: error instanceof Error ? error.message : String(error) });
       notify.cashu.lockedTokensClearFailed();
     }
   }, []);

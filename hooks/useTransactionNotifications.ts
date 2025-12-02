@@ -4,7 +4,7 @@
  */
 
 import { useEffect } from 'react';
-import type { SnackbarParams } from '../contexts/NotificationContext';
+import type { SnackbarParams } from '../stores/notificationStore';
 
 interface UseTransactionNotificationsParams {
   intentStep: string | undefined;

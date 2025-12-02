@@ -11,7 +11,7 @@ import { logger } from '../utils/logger';
 import { releaseOrphanedUtxos } from '../utils/pendingTransactionsUtils';
 import { notify } from '../utils/notify';
 
-import type { AssetType, IntentStep } from '../contexts/SendFlowContext';
+import type { AssetType, IntentStep } from '../stores/sendFlowStore';
 import type { WalletAddresses } from '../contexts/WalletContext';
 import type { TransactionIntent, AddressType, UnconfirmedUTXO as PendingUnconfirmedUTXO } from '../utils/pendingTransactionsUtils';
 import type { UTXO } from '../services/transaction/utxoSelection';
@@ -80,6 +80,28 @@ interface UseTransactionBuilderReturn {
   cancelIntent: () => Promise<void>;
 }
 
+/**
+ * Hook for building Bitcoin and UNIT (Runes) transaction intents
+ * Handles UTXO selection, locking, and PSBT creation with proper cleanup on failure
+ *
+ * @param params - Configuration parameters for transaction building
+ * @param params.wallet - Wallet addresses (segwit and taproot)
+ * @param params.currentAccount - Current BIP32 account index
+ * @param params.sendRecipient - Destination address
+ * @param params.sendAmount - Amount to send (in BTC or UNIT)
+ * @param params.sendAssetType - Type of asset ('BTC' or 'UNIT')
+ * @param params.requireConfirmedUtxos - Whether to only use confirmed UTXOs
+ * @param params.runesBalance - Current Runes balance for UNIT transactions
+ * @param params.sendIntent - Current transaction intent (if any)
+ * @param params.setSendIntent - Function to update send intent state
+ * @param params.setIntentStep - Function to update send flow step
+ * @param params.getUnconfirmedUTXOs - Get unconfirmed UTXOs for address type
+ * @param params.getSpentUtxos - Get set of spent UTXO keys
+ * @param params.markUtxosAsSpent - Lock UTXOs to prevent double-spending
+ * @param params.unmarkUtxosAsSpent - Release locked UTXOs on cancel/failure
+ * @param params.setSendRecipient - Update recipient address
+ * @returns Object containing createSendIntent and cancelIntent functions
+ */
 export function useTransactionBuilder({
   wallet,
   currentAccount,

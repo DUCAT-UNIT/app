@@ -79,7 +79,12 @@ export function useAmountInput({
     if (!amount || !(sendAssetType === 'btc' ? price : 1)) {
       return '0.00';
     }
-    const numericValue = parseFloat(amount) * (sendAssetType === 'btc' ? price : 1);
+    const parsedAmount = parseFloat(amount);
+    // Validate numeric value: reject NaN, Infinity, and negative numbers
+    if (!Number.isFinite(parsedAmount) || parsedAmount < 0) {
+      return '0.00';
+    }
+    const numericValue = parsedAmount * (sendAssetType === 'btc' ? price : 1);
     return formatFiat(numericValue);
   };
 

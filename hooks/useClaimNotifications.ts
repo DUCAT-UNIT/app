@@ -6,7 +6,7 @@
 import { useEffect } from 'react';
 import { useNavigation } from '@react-navigation/native';
 import { logger } from '../utils/logger';
-import type { SnackbarParams } from '../contexts/NotificationContext';
+import type { SnackbarParams } from '../stores/notificationStore';
 
 // Navigation type for this hook
 type ClaimNavigationType = {

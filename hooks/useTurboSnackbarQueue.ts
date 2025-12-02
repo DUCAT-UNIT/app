@@ -66,7 +66,10 @@ export function useTurboSnackbarQueue({
       return;
     }
 
+    let isMounted = true;
+
     const checkQueuedSnackbars = () => {
+      if (!isMounted) return;
       if (turboGlobal.pendingTurboSnackbars && turboGlobal.pendingTurboSnackbars.length > 0) {
         logger.debug('[TURBO] Showing queued snackbar');
         const lastSnackbar = turboGlobal.pendingTurboSnackbars[turboGlobal.pendingTurboSnackbars.length - 1];
@@ -83,9 +86,10 @@ export function useTurboSnackbarQueue({
     const interval = setInterval(checkQueuedSnackbars, 500);
 
     return () => {
+      isMounted = false;
       clearInterval(interval);
     };
-  }, [isAuthenticated, shouldShowPinOverlay, showSnackbarWithDedup, dismissSnackbar]);
+  }, [isAuthenticated, shouldShowPinOverlay, showSnackbarWithDedup]);
 
   return { showSnackbarWithDedup };
 }
