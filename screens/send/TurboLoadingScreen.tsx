@@ -7,7 +7,7 @@ import React, { useEffect, useRef } from 'react';
 import { View, Text, ActivityIndicator, StyleSheet, Alert } from 'react-native';
 import { NavigationProp, RouteProp, StackActions } from '@react-navigation/native';
 import { COLORS } from '../../theme';
-import { useSendFlow, AssetType } from '../../contexts/SendFlowContext';
+import { useSendFlow, type AssetType } from '../../stores/sendFlowStore';
 import { useTransactionBuild } from '../../contexts/TransactionBuildContext';
 import { usePendingTransactions } from '../../contexts/PendingTransactionsContext';
 import { logger } from '../../utils/logger';

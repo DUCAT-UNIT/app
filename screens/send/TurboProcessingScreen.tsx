@@ -8,7 +8,7 @@ import React, { useEffect, useState, useRef } from 'react';
 import { Text, View, ActivityIndicator, StyleSheet, Alert, BackHandler } from 'react-native';
 import { NavigationProp, StackActions } from '@react-navigation/native';
 import { COLORS } from '../../theme';
-import { useSendFlow } from '../../contexts/SendFlowContext';
+import { useSendFlow } from '../../stores/sendFlowStore';
 import { useWallet } from '../../contexts/WalletContext';
 import { useTurboProcessingStore } from '../../stores/turboProcessingStore';
 import { logger } from '../../utils/logger';

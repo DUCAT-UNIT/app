@@ -19,7 +19,7 @@ import { useBottomSheetAnimation } from '../../hooks/useBottomSheetAnimation';
 import { useTransactionHistoryData, DisplayTransaction } from '../../hooks/useTransactionHistoryData';
 import TokenDetailsSheet from '../../components/ecash/TokenDetailsSheet';
 import VaultTransactionDetailsSheet from '../../components/vaultDetail/VaultTransactionDetailsSheet';
-import { useNotifications } from '../../contexts/NotificationContext';
+import { useNotifications } from '../../stores/notificationStore';
 import type { TokenRecord, EcashTokenRecord } from '../../services/cashu/cashuLockedTokensService';
 import type { VaultHistoryTransaction } from '../../services/vaultService';
 
@@ -55,7 +55,7 @@ interface TransactionHistoryStyles extends TransactionItemStyles {
   historyEmptyContainer: ViewStyle;
   historyEmptyText: TextStyle;
   historyScrollView: ViewStyle;
-  [key: string]: ViewStyle | TextStyle;
+  [key: string]: ViewStyle | TextStyle | number | undefined;
 }
 
 /**

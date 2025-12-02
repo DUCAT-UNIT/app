@@ -2,10 +2,10 @@ import React, { useCallback } from 'react';
 import { View, Text, TouchableOpacity, ScrollView, StyleSheet, ViewStyle, TextStyle } from 'react-native';
 import { useWallet } from '../../contexts/WalletContext';
 import { useBalance } from '../../contexts/WalletDataContext';
-import { usePrice } from '../../contexts/PriceContext';
+import { usePrice } from '../../stores/priceStore';
 import { useVaultData } from '../../contexts/WalletDataContext';
 import { useCashu } from '../../contexts/CashuContext';
-import { useDisplayPreferences } from "../../contexts/DisplayPreferencesContext";
+import { useDisplayPreferences } from "../../stores/displayPreferencesStore";
 import { useWalletCalculations } from '../../hooks/useWalletCalculations';
 import { useFormattedBalances } from '../../hooks/useFormattedBalances';
 import { useResponsive } from '../../hooks/useResponsive';
@@ -267,11 +267,11 @@ const WalletScreen = React.memo(function WalletScreen({
           />
         </View>
 
-        {/* DUCAT•RUNE Card - Non-clickable */}
+        {/* DUCAT Card - Non-clickable */}
         {showZeroAssets && (
           <View style={{ paddingHorizontal: s(24) }}>
             <AssetCard
-              assetName="DUCAT•RUNE"
+              assetName="DUCAT"
               assetLogo="ducat_logo"
               amountValue="Đ 0.00"
               displayInBTC={showTotalInBTC}

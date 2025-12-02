@@ -8,10 +8,10 @@ import React, { useEffect, useState, useRef } from 'react';
 import { Text, View, ActivityIndicator, StyleSheet } from 'react-native';
 import { NavigationProp, RouteProp, StackActions } from '@react-navigation/native';
 import { COLORS } from '../../theme';
-import { useSendFlow, AssetType } from '../../contexts/SendFlowContext';
+import { useSendFlow, type AssetType } from '../../stores/sendFlowStore';
 import { useTransactionBuild } from '../../contexts/TransactionBuildContext';
 import { useTransactionExecution } from '../../contexts/TransactionExecutionContext';
-import { useNotifications } from "../../contexts/NotificationContext";
+import { useNotifications } from "../../stores/notificationStore";
 import { logger } from '../../utils/logger';
 
 /**

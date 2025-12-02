@@ -18,7 +18,7 @@ import { COLORS } from '../../theme';
 import Icon from '../../components/icons';
 import QRScanner from '../../components/scanner/QRScanner';
 import { validateBitcoinAddress } from '../../utils/bitcoin';
-import { useSendFlow, AssetType } from '../../contexts/SendFlowContext';
+import { useSendFlow, type AssetType } from '../../stores/sendFlowStore';
 import { useKeyboard } from '../../hooks/useKeyboard';
 import { logger } from '../../utils/logger';
 import { useNavigationHandlers } from '../../contexts/NavigationHandlersContext';

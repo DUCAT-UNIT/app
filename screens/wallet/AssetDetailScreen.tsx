@@ -12,7 +12,7 @@ import {
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { COLORS } from '../../theme';
 import { useBalance, useTransactionHistory } from '../../contexts/WalletDataContext';
-import { usePrice } from '../../contexts/PriceContext';
+import { usePrice } from '../../stores/priceStore';
 import { useWallet } from '../../contexts/WalletContext';
 import { useCashu } from '../../contexts/CashuContext';
 import { usePendingTransactions } from '../../contexts/PendingTransactionsContext';
@@ -36,7 +36,7 @@ import { useTurboConvert } from '../../hooks/useTurboConvert';
 import { useRedeemCashuToken } from '../../hooks/useRedeemCashuToken';
 import { getTxUrl, getOrdTxUrl } from '../../utils/constants';
 import TokenDetailsSheet from '../../components/ecash/TokenDetailsSheet';
-import { useNotifications } from '../../contexts/NotificationContext';
+import { useNotifications } from '../../stores/notificationStore';
 import { getRunesAmount } from '../../utils/runesHelper';
 
 /**
