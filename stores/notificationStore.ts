@@ -184,3 +184,20 @@ export const resetNotificationStore = () => {
   useNotificationStore.setState({ snackbar: null });
 };
 
+/**
+ * useNotifications - Backwards-compatible hook
+ */
+export const useNotifications = () => {
+  const store = useNotificationStore();
+  return {
+    snackbar: store.snackbar,
+    showSnackbar: store.showSnackbar,
+    dismissSnackbar: store.dismissSnackbar,
+    showMessage: store.showMessage,
+    // Legacy showToast - maps to showMessage for backwards compatibility
+    // Note: Defaults to 'success' to match original toast behavior
+    showToast: (message: string, type: SnackbarType = 'success') => {
+      store.showMessage(message, type);
+    },
+  };
+};

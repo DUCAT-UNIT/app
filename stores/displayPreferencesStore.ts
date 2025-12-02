@@ -60,3 +60,36 @@ export const resetDisplayPreferencesStore = () => {
     showUnitInUnit: false,
   });
 };
+
+/**
+ * useDisplayPreferences - Backwards-compatible hook
+ */
+export const useDisplayPreferences = () => {
+  const store = useDisplayPreferencesStore();
+  return {
+    showTotalInBTC: store.showTotalInBTC,
+    showBTCInBTC: store.showBTCInBTC,
+    showUnitInUnit: store.showUnitInUnit,
+    setShowTotalInBTC: (value: boolean | ((prev: boolean) => boolean)) => {
+      if (typeof value === 'function') {
+        store.setShowTotalInBTC(value(useDisplayPreferencesStore.getState().showTotalInBTC));
+      } else {
+        store.setShowTotalInBTC(value);
+      }
+    },
+    setShowBTCInBTC: (value: boolean | ((prev: boolean) => boolean)) => {
+      if (typeof value === 'function') {
+        store.setShowBTCInBTC(value(useDisplayPreferencesStore.getState().showBTCInBTC));
+      } else {
+        store.setShowBTCInBTC(value);
+      }
+    },
+    setShowUnitInUnit: (value: boolean | ((prev: boolean) => boolean)) => {
+      if (typeof value === 'function') {
+        store.setShowUnitInUnit(value(useDisplayPreferencesStore.getState().showUnitInUnit));
+      } else {
+        store.setShowUnitInUnit(value);
+      }
+    },
+  };
+};

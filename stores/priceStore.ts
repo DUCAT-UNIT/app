@@ -8,6 +8,7 @@
 
 import { create } from 'zustand';
 import { fetchBtcPrice as fetchBtcPriceService } from '../services/balanceService';
+import { logger } from '../utils/logger';
 
 interface PriceState {
   btcPrice: number | null;
@@ -43,7 +44,8 @@ export const usePriceStore = create<PriceStore>((set, get) => ({
         btcPrice: price,
         lastFetchTime: Date.now(),
       });
-    } catch {
+    } catch (error) {
+      logger.debug('Failed to fetch BTC price', { error: error instanceof Error ? error.message : String(error) });
       set({ btcPrice: null });
     } finally {
       set({ loadingBtcPrice: false });
@@ -96,4 +98,16 @@ export const resetPriceStore = () => {
     loadingBtcPrice: false,
     lastFetchTime: null,
   });
+};
+
+/**
+ * usePrice - Backwards-compatible hook that returns price state and actions
+ */
+export const usePrice = () => {
+  const store = usePriceStore();
+  return {
+    btcPrice: store.btcPrice,
+    loadingBtcPrice: store.loadingBtcPrice,
+    fetchBtcPrice: store.fetchBtcPrice,
+  };
 };

@@ -57,6 +57,9 @@ const initialState: SendFlowState = {
   turboEnabled: true, // Turbo ON by default for UNIT transactions
 };
 
+// Timer for auto-reset from 'confirmed' to 'idle'
+let resetTimer: ReturnType<typeof setTimeout> | null = null;
+
 export const useSendFlowStore = create<SendFlowStore>((set) => ({
   // Initial state
   ...initialState,
@@ -64,6 +67,13 @@ export const useSendFlowStore = create<SendFlowStore>((set) => ({
   // Actions
   setIntentStep: (step) => {
     logger.debug('[SendFlowStore] setIntentStep:', { to: step });
+
+    // Cancel any existing reset timer when step changes
+    if (resetTimer) {
+      clearTimeout(resetTimer);
+      resetTimer = null;
+    }
+
     // When transaction is confirmed, clear transaction fields
     // so they don't persist to the next transaction
     if (step === 'confirmed') {
@@ -73,6 +83,11 @@ export const useSendFlowStore = create<SendFlowStore>((set) => ({
         sendAmount: '',
         sendAssetType: null,
       });
+      // Auto-reset to idle after 10 seconds
+      resetTimer = setTimeout(() => {
+        set({ intentStep: 'idle' });
+        resetTimer = null;
+      }, 10000);
     } else {
       set({ intentStep: step });
     }
@@ -104,5 +119,73 @@ export const useTurboEnabled = () => useSendFlowStore((state) => state.turboEnab
  * Reset store to initial state (useful for testing)
  */
 export const resetSendFlowStore = () => {
+  // Clear any pending reset timer
+  if (resetTimer) {
+    clearTimeout(resetTimer);
+    resetTimer = null;
+  }
   useSendFlowStore.setState(initialState);
+};
+
+/**
+ * useSendFlow - Backwards-compatible hook that returns all state and actions
+ * Use this when you need multiple values, or use selective hooks for performance
+ */
+export const useSendFlow = () => {
+  const store = useSendFlowStore();
+  return {
+    // State
+    intentStep: store.intentStep,
+    sendAssetType: store.sendAssetType,
+    sendAmount: store.sendAmount,
+    sendRecipient: store.sendRecipient,
+    sendAddressType: store.sendAddressType,
+    requireConfirmedUtxos: store.requireConfirmedUtxos,
+    turboEnabled: store.turboEnabled,
+    // Actions (wrapped to match React.Dispatch<SetStateAction<T>> signature for backwards compat)
+    setIntentStep: store.setIntentStep,
+    setSendAssetType: (value: AssetType | ((prev: AssetType) => AssetType)) => {
+      if (typeof value === 'function') {
+        store.setSendAssetType(value(useSendFlowStore.getState().sendAssetType));
+      } else {
+        store.setSendAssetType(value);
+      }
+    },
+    setSendAmount: (value: string | ((prev: string) => string)) => {
+      if (typeof value === 'function') {
+        store.setSendAmount(value(useSendFlowStore.getState().sendAmount));
+      } else {
+        store.setSendAmount(value);
+      }
+    },
+    setSendRecipient: (value: string | ((prev: string) => string)) => {
+      if (typeof value === 'function') {
+        store.setSendRecipient(value(useSendFlowStore.getState().sendRecipient));
+      } else {
+        store.setSendRecipient(value);
+      }
+    },
+    setSendAddressType: (value: AddressType | ((prev: AddressType) => AddressType)) => {
+      if (typeof value === 'function') {
+        store.setSendAddressType(value(useSendFlowStore.getState().sendAddressType));
+      } else {
+        store.setSendAddressType(value);
+      }
+    },
+    setRequireConfirmedUtxos: (value: boolean | ((prev: boolean) => boolean)) => {
+      if (typeof value === 'function') {
+        store.setRequireConfirmedUtxos(value(useSendFlowStore.getState().requireConfirmedUtxos));
+      } else {
+        store.setRequireConfirmedUtxos(value);
+      }
+    },
+    setTurboEnabled: (value: boolean | ((prev: boolean) => boolean)) => {
+      if (typeof value === 'function') {
+        store.setTurboEnabled(value(useSendFlowStore.getState().turboEnabled));
+      } else {
+        store.setTurboEnabled(value);
+      }
+    },
+    resetSendFlow: store.resetSendFlow,
+  };
 };

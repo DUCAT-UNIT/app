@@ -7,13 +7,13 @@ import React, { MutableRefObject } from 'react';
 
 // Contexts
 import { useOnboardingFlow } from '../contexts/AuthContext';
-import { SendFlowProvider } from '../contexts/SendFlowContext';
+// SendFlowProvider removed - using Zustand store directly
 import { TransactionBuildProvider } from '../contexts/TransactionBuildContext';
 import { TransactionExecutionProvider } from '../contexts/TransactionExecutionContext';
 import { SeedPhraseProvider } from '../contexts/SeedPhraseContext';
 import { AirdropProvider } from '../contexts/AirdropContext';
 import { NavigationHandlersProvider } from '../contexts/NavigationHandlersContext';
-import { useNotifications } from '../contexts/NotificationContext';
+import { useNotifications } from '../stores/notificationStore';
 import type { WalletAddresses } from '../contexts/WalletContext';
 
 // Local components
@@ -72,7 +72,6 @@ export default function AppProvidersWrapper({
 
   return (
     <AirdropProvider seedConfirmed={seedConfirmed}>
-      <SendFlowProvider>
         <TransactionBuildProvider
           wallet={wallet}
           currentAccount={currentAccount}
@@ -96,7 +95,6 @@ export default function AppProvidersWrapper({
             </SeedPhraseProvider>
           </TransactionExecutionProvider>
         </TransactionBuildProvider>
-      </SendFlowProvider>
     </AirdropProvider>
   );
 }
