@@ -9,7 +9,7 @@ import { Buffer } from 'buffer';
 global.Buffer = Buffer;
 
 
-import React from 'react';
+import React, { useEffect } from 'react';
 import { useFonts } from 'expo-font';
 import BIP32Factory from 'bip32';
 import * as bitcoin from 'bitcoinjs-lib';
@@ -21,12 +21,12 @@ import { AuthProvider } from './contexts/AuthContext';
 import { WalletProvider, useWallet } from './contexts/WalletContext';
 import { PendingTransactionsProvider } from './contexts/PendingTransactionsContext';
 import { WalletDataProvider } from './contexts/WalletDataContext';
-import { PriceProvider } from './contexts/PriceContext';
+import { usePriceStore } from './stores/priceStore';
 import { CashuProvider } from './contexts/CashuContext';
 // AirdropProvider removed - not currently used in provider hierarchy
 import { UIProvider } from './contexts/UIContext';
 import { ResponsiveProvider } from './contexts/ResponsiveContext';
-import { useNotifications } from './contexts/NotificationContext';
+import { useNotifications } from './stores/notificationStore';
 
 // Navigation
 import AppNavigator from './navigation/AppNavigator';
@@ -190,14 +190,19 @@ Sentry.init({
 function AppProviders({ children }: { children: React.ReactNode }) {
   const { currentAccount } = useWallet();
   const { showSnackbar } = useNotifications();
+  const startAutoRefresh = usePriceStore((state) => state.startAutoRefresh);
+
+  // Start BTC price auto-refresh on mount
+  useEffect(() => {
+    const cleanup = startAutoRefresh();
+    return cleanup;
+  }, [startAutoRefresh]);
 
   return (
     <PendingTransactionsProvider currentAccount={currentAccount} showSnackbar={showSnackbar}>
       <CashuProvider>
         <WalletDataProvider>
-          <PriceProvider>
-            {children}
-          </PriceProvider>
+          {children}
         </WalletDataProvider>
       </CashuProvider>
     </PendingTransactionsProvider>

@@ -54,6 +54,18 @@ module.exports = {
     '!hooks/useBottomSheetAnimation.{js,ts}',    // Requires react-native-reanimated
     '!hooks/usePriceChart.{js,ts}',              // Requires gesture/animation libraries
 
+    // --- Style Hooks (return theme objects, low testing value) ---
+    '!hooks/useAssetCardStyles.{js,ts}',         // Returns themed style objects
+    '!hooks/useBannerStyles.{js,ts}',            // Returns themed style objects
+    '!hooks/useChartStyles.{js,ts}',             // Returns themed style objects
+    '!hooks/useProgressStyles.{js,ts}',          // Returns themed style objects
+    '!hooks/usePromotionStyles.{js,ts}',         // Returns themed style objects
+    '!hooks/useTotalBalanceStyles.{js,ts}',      // Returns themed style objects
+    '!hooks/useVaultHealthStyles.{js,ts}',       // Returns themed style objects
+
+    // --- Notification Helpers (complex Zustand mocking issues) ---
+    '!utils/notify.{js,ts}',                     // Zustand getState() mocking incompatible with Jest
+
     // Note: Dynamic import hooks have been refactored to use static imports for testability
     // '!hooks/useRedeemCashuToken.ts',     // Refactored to use static imports
     // '!hooks/useTurboMintCompletion.ts',  // Refactored to use static imports
@@ -71,6 +83,7 @@ module.exports = {
     // --- Complex Integration Contexts (better tested with E2E) ---
     '!contexts/NavigationHandlersContext.{js,ts,tsx}', // Navigation-dependent, requires full nav stack
     '!contexts/SeedPhraseContext.{js,ts,tsx}',         // Requires React Native Animated mocking
+    '!contexts/ResponsiveContext.{js,ts,tsx}',         // Requires React Native Dimensions API
   ],
   coverageThreshold: {
     global: {

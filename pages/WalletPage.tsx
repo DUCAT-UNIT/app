@@ -24,13 +24,13 @@ import WithdrawAssetSheet from '../components/withdraw/WithdrawAssetSheet';
 
 // Contexts
 import { useWallet } from '../contexts/WalletContext';
-import { useSendFlow } from '../contexts/SendFlowContext';
+import { useSendFlow } from '../stores/sendFlowStore';
 import { useTransactionExecution } from '../contexts/TransactionExecutionContext';
 import { useOnboardingFlow } from '../contexts/AuthContext';
 import { useNavigationHandlers } from '../contexts/NavigationHandlersContext';
-import { useNotifications } from "../contexts/NotificationContext";
+import { useNotifications } from "../stores/notificationStore";
 import { useBalance } from '../contexts/WalletDataContext';
-import { usePrice } from '../contexts/PriceContext';
+import { usePrice } from '../stores/priceStore';
 import { useCashu } from '../contexts/CashuContext';
 
 // Hooks

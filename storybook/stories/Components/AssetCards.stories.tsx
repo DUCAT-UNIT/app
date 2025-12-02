@@ -117,7 +117,7 @@ const AllAssetsStory = ({ deviceSize }: AllAssetsStoryProps) => {
           onPress={() => {}}
         />
         <AssetCard
-          assetName="DUCAT•RUNE"
+          assetName="DUCAT"
           assetLogo="ducat_logo"
           amountValue="Đ 0.00"
           displayInBTC={false}
