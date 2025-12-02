@@ -10,7 +10,7 @@ import OnboardingPageComponent from '../pages/OnboardingPage';
 import { useOnboardingFlow } from '../contexts/AuthContext';
 import { useNavigationHandlers } from '../contexts/NavigationHandlersContext';
 import { useBalance, useTransactionHistory } from '../contexts/WalletDataContext';
-import { useNotifications } from '../contexts/NotificationContext';
+import { useNotifications } from '../stores/notificationStore';
 import { useKeyboard } from '../hooks/useKeyboard';
 import styles from '../styles';
 

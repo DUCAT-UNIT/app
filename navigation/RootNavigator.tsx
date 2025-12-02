@@ -21,7 +21,7 @@ import { useAuth } from '../contexts/AuthContext';
 import { useWallet } from '../contexts/WalletContext';
 import { useBalance } from '../contexts/WalletDataContext';
 import { useNavigationHandlers } from '../contexts/NavigationHandlersContext';
-import { useNotifications } from '../contexts/NotificationContext';
+import { useNotifications } from '../stores/notificationStore';
 import { useNavigationState } from '../hooks/useNavigationState';
 import { useAppLifecycle } from '../hooks/useAppLifecycle';
 import { useOnboardingFlow } from '../contexts/AuthContext';

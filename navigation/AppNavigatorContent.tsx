@@ -25,7 +25,7 @@ import { useWallet } from '../contexts/WalletContext';
 import { useAirdrop } from '../contexts/AirdropContext';
 import { useSeedPhrase } from '../contexts/SeedPhraseContext';
 import { useNavigationHandlers } from '../contexts/NavigationHandlersContext';
-import { useNotifications } from '../contexts/NotificationContext';
+import { useNotifications } from '../stores/notificationStore';
 import type { WalletAddresses } from '../contexts/WalletContext';
 
 // Hooks
