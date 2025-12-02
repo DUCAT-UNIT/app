@@ -91,6 +91,9 @@ export const fetchVaultHistory = async (vaultPubkey: string): Promise<VaultHisto
 
     return allHistory;
   } catch (error: unknown) {
+    logger.warn('Failed to fetch vault history', {
+      error: error instanceof Error ? error.message : String(error),
+    });
     return [];
   }
 };

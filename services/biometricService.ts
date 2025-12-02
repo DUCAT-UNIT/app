@@ -103,6 +103,9 @@ export const checkBiometricSupport = async (): Promise<boolean> => {
     const isEnrolled = await LocalAuthentication.isEnrolledAsync();
     return hasHardware && isEnrolled;
   } catch (error: unknown) {
+    logger.debug('Biometric support check failed', {
+      error: error instanceof Error ? error.message : String(error),
+    });
     return false;
   }
 };
@@ -163,6 +166,9 @@ export const isBiometricEnabled = async (): Promise<boolean> => {
     const enabled = await SecureStore.getItemAsync(SECURE_KEYS.BIOMETRIC_ENABLED);
     return enabled === 'true';
   } catch (error: unknown) {
+    logger.debug('Failed to check biometric enabled status', {
+      error: error instanceof Error ? error.message : String(error),
+    });
     return false;
   }
 };

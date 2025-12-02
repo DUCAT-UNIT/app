@@ -74,59 +74,40 @@ export const clearAppCache = async (): Promise<CacheClearSummary> => {
   logger.info('[CacheService] Starting AGGRESSIVE cache clear...');
 
   try {
-    // 1. Clear known SecureStore keys
-    for (const key of CLEARABLE_SECURE_STORE_KEYS) {
-      try {
+    // 1. Clear known SecureStore keys (in parallel)
+    const secureStoreResults = await Promise.allSettled(
+      CLEARABLE_SECURE_STORE_KEYS.map(async (key) => {
         await SecureStore.deleteItemAsync(key);
-        summary.secureStoreCleared++;
-        logger.info(`[CacheService] Cleared SecureStore key: ${key}`);
-      } catch (error: unknown) {
-        // Key might not exist, that's okay
-        if (!(error as Error).message.includes('not found')) {
-          logger.warn(`[CacheService] Failed to clear ${key}:`, { error: (error as Error).message });
-        }
-      }
-    }
+        return key;
+      })
+    );
+    summary.secureStoreCleared = secureStoreResults.filter((r) => r.status === 'fulfilled').length;
+    logger.info(`[CacheService] Cleared ${summary.secureStoreCleared} SecureStore keys`);
 
-    // 2. AGGRESSIVE: Clear all possible cashu_proofs_* keys for accounts 0-50
+    // 2. AGGRESSIVE: Clear all possible cashu_proofs_* keys for accounts 0-50 (in parallel)
     logger.info('[CacheService] Aggressively clearing cashu proofs for all accounts...');
+    const cashuProofKeys: string[] = [];
     for (let i = 0; i < 50; i++) {
-      // Try multiple address patterns that might exist
-      const possibleKeys = [
-        `cashu_proofs_account_${i}`,
-        `cashu_proofs_${i}`,
-      ];
-
-      for (const key of possibleKeys) {
-        try {
-          await SecureStore.deleteItemAsync(key);
-          summary.cashuProofsCleared++;
-        } catch (error: unknown) {
-          // Ignore - key doesn't exist
-        }
-      }
+      cashuProofKeys.push(`cashu_proofs_account_${i}`, `cashu_proofs_${i}`);
     }
+    const cashuResults = await Promise.allSettled(
+      cashuProofKeys.map((key) => SecureStore.deleteItemAsync(key))
+    );
+    summary.cashuProofsCleared = cashuResults.filter((r) => r.status === 'fulfilled').length;
 
-    // 3. AGGRESSIVE: Clear all possible derived_key_* cache for multiple versions
+    // 3. AGGRESSIVE: Clear all possible derived_key_* cache for multiple versions (in parallel)
     logger.info('[CacheService] Aggressively clearing derived key cache...');
+    const derivedKeys: string[] = [];
     const keyVersions = ['v1_', 'v2_', 'v3_', 'v4_', ''];
     for (const version of keyVersions) {
       for (let i = 0; i < 50; i++) {
-        const possibleKeys = [
-          `derived_key_${version}account_${i}`,
-          `derived_key_${version}${i}`,
-        ];
-
-        for (const key of possibleKeys) {
-          try {
-            await SecureStore.deleteItemAsync(key);
-            summary.derivedKeysCleared++;
-          } catch (error: unknown) {
-            // Ignore - key doesn't exist
-          }
-        }
+        derivedKeys.push(`derived_key_${version}account_${i}`, `derived_key_${version}${i}`);
       }
     }
+    const derivedResults = await Promise.allSettled(
+      derivedKeys.map((key) => SecureStore.deleteItemAsync(key))
+    );
+    summary.derivedKeysCleared = derivedResults.filter((r) => r.status === 'fulfilled').length;
 
     // 4. Clear AsyncStorage (except protected keys)
     try {

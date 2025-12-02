@@ -7,6 +7,7 @@ import * as BackgroundFetch from 'expo-background-fetch';
 import * as TaskManager from 'expo-task-manager';
 import * as SecureStore from 'expo-secure-store';
 import { getTxApiUrl } from '../utils/constants';
+import { logger } from '../utils/logger';
 
 const BACKGROUND_FETCH_TASK = 'background-transaction-check';
 const PENDING_TX_KEY = 'pending_transactions';
@@ -38,24 +39,34 @@ TaskManager.defineTask(BACKGROUND_FETCH_TASK, async () => {
     }
 
     const pendingTxs = JSON.parse(pendingTxsJson) as PendingTransaction[];
-    let hasUpdates = false;
 
-    // Check each pending transaction
-    for (const tx of pendingTxs) {
-      const isConfirmed = await checkTransactionConfirmation(tx.txid);
+    // Check all transactions in parallel
+    const confirmationResults = await Promise.all(
+      pendingTxs.map(async (tx) => ({
+        txid: tx.txid,
+        isConfirmed: await checkTransactionConfirmation(tx.txid),
+      }))
+    );
 
-      if (isConfirmed) {
-        // Remove from pending list
-        const updatedTxs = pendingTxs.filter((t) => t.txid !== tx.txid);
-        await SecureStore.setItemAsync(PENDING_TX_KEY, JSON.stringify(updatedTxs));
-        hasUpdates = true;
-      }
+    // Filter out confirmed transactions
+    const confirmedTxids = new Set(
+      confirmationResults.filter((r) => r.isConfirmed).map((r) => r.txid)
+    );
+    const hasUpdates = confirmedTxids.size > 0;
+
+    if (hasUpdates) {
+      const updatedTxs = pendingTxs.filter((tx) => !confirmedTxids.has(tx.txid));
+      await SecureStore.setItemAsync(PENDING_TX_KEY, JSON.stringify(updatedTxs));
+      logger.debug('[BackgroundTask] Confirmed transactions removed', { count: confirmedTxids.size });
     }
 
     return hasUpdates
       ? BackgroundFetch.BackgroundFetchResult.NewData
       : BackgroundFetch.BackgroundFetchResult.NoData;
   } catch (error: unknown) {
+    logger.error(error instanceof Error ? error : new Error(String(error)), {
+      context: 'BackgroundTask',
+    });
     return BackgroundFetch.BackgroundFetchResult.Failed;
   }
 });
@@ -86,7 +97,7 @@ export async function registerBackgroundFetchAsync(): Promise<void> {
       startOnBoot: true, // Start on device reboot
     });
   } catch (error: unknown) {
-    // Silently fail
+    logger.debug('[BackgroundTask] Failed to register task', { error: error instanceof Error ? error.message : String(error) });
   }
 }
 
@@ -97,7 +108,7 @@ export async function unregisterBackgroundFetchAsync(): Promise<void> {
   try {
     await BackgroundFetch.unregisterTaskAsync(BACKGROUND_FETCH_TASK);
   } catch (error: unknown) {
-    // Silently fail
+    logger.debug('[BackgroundTask] Failed to unregister task', { error: error instanceof Error ? error.message : String(error) });
   }
 }
 
@@ -125,7 +136,7 @@ export async function addPendingTransaction(
 
     await SecureStore.setItemAsync(PENDING_TX_KEY, JSON.stringify(pendingTxs));
   } catch (error: unknown) {
-    // Silently fail
+    logger.warn('[BackgroundTask] Failed to add pending transaction', { txid, error: error instanceof Error ? error.message : String(error) });
   }
 }
 
@@ -142,7 +153,7 @@ export async function removePendingTransaction(txid: string): Promise<void> {
 
     await SecureStore.setItemAsync(PENDING_TX_KEY, JSON.stringify(updatedTxs));
   } catch (error: unknown) {
-    // Silently fail
+    logger.warn('[BackgroundTask] Failed to remove pending transaction', { txid, error: error instanceof Error ? error.message : String(error) });
   }
 }
 
@@ -154,6 +165,7 @@ export async function getPendingTransactions(): Promise<PendingTransaction[]> {
     const pendingTxsJson = await SecureStore.getItemAsync(PENDING_TX_KEY);
     return pendingTxsJson ? JSON.parse(pendingTxsJson) : [];
   } catch (error: unknown) {
+    logger.warn('[BackgroundTask] Failed to get pending transactions', { error: error instanceof Error ? error.message : String(error) });
     return [];
   }
 }

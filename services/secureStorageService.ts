@@ -175,7 +175,25 @@ export const getCachedAddresses = async (
     const cached = await SecureStore.getItemAsync(SECURE_KEYS.CACHED_ADDRESSES);
     if (!cached) return null;
 
-    const parsed: CachedAddresses = JSON.parse(cached);
+    let parsed: CachedAddresses;
+    try {
+      parsed = JSON.parse(cached);
+    } catch (parseError) {
+      logger.warn('Invalid JSON in cached addresses, clearing cache', { error: parseError instanceof Error ? parseError.message : String(parseError) });
+      await SecureStore.deleteItemAsync(SECURE_KEYS.CACHED_ADDRESSES);
+      return null;
+    }
+
+    // Validate structure
+    if (typeof parsed !== 'object' || parsed === null ||
+        typeof parsed.accountIndex !== 'number' ||
+        !parsed.addresses ||
+        typeof parsed.addresses.segwitAddress !== 'string') {
+      logger.warn('Invalid cached addresses structure, clearing cache');
+      await SecureStore.deleteItemAsync(SECURE_KEYS.CACHED_ADDRESSES);
+      return null;
+    }
+
     // Return null if account index doesn't match (need to re-derive)
     if (parsed.accountIndex !== accountIndex) return null;
 
@@ -216,6 +234,9 @@ interface MultiAccountCache {
 // In-memory cache for even faster lookups (avoids async storage read)
 let memoryCache: MultiAccountCache | null = null;
 
+// Mutex to prevent race conditions during cache operations
+let cacheOperationInProgress: Promise<void> | null = null;
+
 /**
  * Get addresses from multi-account cache
  * Uses in-memory cache first, then falls back to secure storage
@@ -235,7 +256,22 @@ export const getMultiAccountCache = async (
     const cached = await SecureStore.getItemAsync(SECURE_KEYS.MULTI_ACCOUNT_CACHE);
     if (!cached) return null;
 
-    const parsed: MultiAccountCache = JSON.parse(cached);
+    let parsed: MultiAccountCache;
+    try {
+      parsed = JSON.parse(cached);
+    } catch (parseError) {
+      logger.warn('Invalid JSON in multi-account cache, clearing cache', { error: parseError instanceof Error ? parseError.message : String(parseError) });
+      await SecureStore.deleteItemAsync(SECURE_KEYS.MULTI_ACCOUNT_CACHE);
+      return null;
+    }
+
+    // Validate structure is an object
+    if (typeof parsed !== 'object' || parsed === null || Array.isArray(parsed)) {
+      logger.warn('Invalid multi-account cache structure, clearing cache');
+      await SecureStore.deleteItemAsync(SECURE_KEYS.MULTI_ACCOUNT_CACHE);
+      return null;
+    }
+
     // Populate memory cache
     memoryCache = parsed;
 
@@ -257,6 +293,16 @@ export const saveToMultiAccountCache = async (
   accountIndex: number,
   addresses: { segwitAddress: string; taprootAddress: string; segwitPubkey: string; taprootPubkey: string }
 ): Promise<boolean> => {
+  // Wait for any pending operation to complete (prevents race conditions)
+  if (cacheOperationInProgress) {
+    await cacheOperationInProgress;
+  }
+
+  let resolveOperation: () => void;
+  cacheOperationInProgress = new Promise<void>((resolve) => {
+    resolveOperation = resolve;
+  });
+
   try {
     // Load existing cache or create new
     let cache: MultiAccountCache = {};
@@ -266,7 +312,15 @@ export const saveToMultiAccountCache = async (
     } else {
       const existing = await SecureStore.getItemAsync(SECURE_KEYS.MULTI_ACCOUNT_CACHE);
       if (existing) {
-        cache = JSON.parse(existing);
+        try {
+          const parsed = JSON.parse(existing);
+          // Validate structure
+          if (typeof parsed === 'object' && parsed !== null && !Array.isArray(parsed)) {
+            cache = parsed;
+          }
+        } catch (parseError) {
+          logger.warn('Invalid JSON in multi-account cache during save, resetting', { error: parseError instanceof Error ? parseError.message : String(parseError) });
+        }
       }
     }
 
@@ -282,6 +336,9 @@ export const saveToMultiAccountCache = async (
   } catch (error: unknown) {
     logger.error('Failed to save to multi-account cache', { error: error instanceof Error ? error.message : String(error) });
     return false;
+  } finally {
+    resolveOperation!();
+    cacheOperationInProgress = null;
   }
 };
 

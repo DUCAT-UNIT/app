@@ -133,6 +133,10 @@ export const fetchAddressTransactions = async (address: string): Promise<Transac
 
     return allTxs;
   } catch (error: unknown) {
+    logger.warn('Failed to fetch address transactions', {
+      address: address.substring(0, 10) + '...',
+      error: error instanceof Error ? error.message : String(error),
+    });
     return [];
   }
 };
@@ -222,6 +226,10 @@ export const parseRuneTransfer = (
 
     return null;
   } catch (error: unknown) {
+    logger.debug('Failed to parse rune transfer', {
+      txid: tx.txid,
+      error: error instanceof Error ? error.message : String(error),
+    });
     return null;
   }
 };
