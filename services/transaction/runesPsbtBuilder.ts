@@ -54,8 +54,11 @@ export async function buildRunesPsbt(
   // Normalize runeUtxos to array
   const runeUtxoArray = Array.isArray(runeUtxos) ? runeUtxos : [runeUtxos];
 
-  // Fetch transaction hex for sat input
-  const satTxHex = await fetchTransactionHex(satUtxo.txid);
+  // Fetch all transaction hexes in parallel (sat input + all rune inputs)
+  const [satTxHex, ...runeTxHexes] = await Promise.all([
+    fetchTransactionHex(satUtxo.txid),
+    ...runeUtxoArray.map((utxo) => fetchTransactionHex(utxo.transaction)),
+  ]);
   const satTx = bitcoin.Transaction.fromHex(satTxHex);
 
   // Decode taproot address
@@ -73,9 +76,9 @@ export async function buildRunesPsbt(
   });
 
   // Add all rune inputs (Input 1, 2, 3, ... N)
-  for (const runeUtxo of runeUtxoArray) {
-    const runeTxHex = await fetchTransactionHex(runeUtxo.transaction);
-    const runeTx = bitcoin.Transaction.fromHex(runeTxHex);
+  for (let i = 0; i < runeUtxoArray.length; i++) {
+    const runeUtxo = runeUtxoArray[i];
+    const runeTx = bitcoin.Transaction.fromHex(runeTxHexes[i]);
 
     psbt.addInput({
       hash: runeUtxo.transaction,

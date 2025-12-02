@@ -119,48 +119,61 @@ export async function findRuneUtxo(
   logger.debug('[findRuneUtxo] Already have from unconfirmed:', { totalRuneAmount });
   logger.debug('[findRuneUtxo] Found outputs from ord API:', { count: ordData.outputs?.length || 0 });
 
-  // Collect confirmed UTXOs
-  for (const output of ordData.outputs || []) {
+  // Batch fetch all output data in parallel
+  const outputs = ordData.outputs || [];
+  const outputDataPromises = outputs.map(async (output) => {
     const utxoResponse = await fetch(getOrdOutputUrl(output), {
       headers: { Accept: 'application/json' },
     });
-    const utxoData = await utxoResponse.json() as OrdUtxoData;
+    return { output, data: await utxoResponse.json() as OrdUtxoData };
+  });
+  const outputResults = await Promise.all(outputDataPromises);
 
-    // Check if this UTXO has DUCAT•UNIT•RUNE
-    if (utxoData.runes && utxoData.runes['DUCAT•UNIT•RUNE']) {
-      const runeAmount = parseInt(utxoData.runes['DUCAT•UNIT•RUNE'].amount, 10);
-      const vout = parseInt(output.match(/:(.*)$/)?.[1] || '0', 10);
-      const key = `${utxoData.transaction}:${vout}`;
+  // Filter to only UTXOs with our rune
+  const runeOutputs = outputResults.filter(
+    ({ data }) => data.runes && data.runes['DUCAT•UNIT•RUNE']
+  );
 
-      logger.debug('[findRuneUtxo] Found UTXO with rune amount:', { runeAmount, totalSoFar: totalRuneAmount + runeAmount });
+  // Batch check spend status for all rune UTXOs in parallel
+  const spendCheckPromises = runeOutputs.map(async ({ output, data }) => {
+    const vout = parseInt(output.match(/:(.*)$/)?.[1] || '0', 10);
+    const key = `${data.transaction}:${vout}`;
 
-      // Check if already spent
-      if (spentUtxos.has(key)) {
-        logger.debug('⚠️ Skipping spent rune UTXO from ord API:', { key });
-        continue;
-      }
+    // Skip if already in our spent set
+    if (spentUtxos.has(key)) {
+      return { output, data, vout, key, spent: true };
+    }
 
-      // Verify unspent on blockchain
-      const spendResponse = await fetch(getTxOutspendUrl(utxoData.transaction, vout));
-      const spendData = await spendResponse.json() as SpendData;
+    const spendResponse = await fetch(getTxOutspendUrl(data.transaction, vout));
+    const spendData = await spendResponse.json() as SpendData;
+    return { output, data, vout, key, spent: spendData.spent };
+  });
+  const spendResults = await Promise.all(spendCheckPromises);
 
-      if (!spendData.spent) {
-        selectedUtxos.push({
-          transaction: utxoData.transaction,
-          vout: vout,
-          value: utxoData.value,
-          runeAmount: runeAmount,
-          status: { confirmed: true },
-        });
-        totalRuneAmount += runeAmount;
+  // Collect unspent UTXOs
+  for (const { data, vout, key, spent } of spendResults) {
+    if (spent) {
+      logger.debug('⚠️ Skipping spent rune UTXO:', { key });
+      continue;
+    }
 
-        // If we have enough, return
-        if (totalRuneAmount >= amountInRunes) {
-          logger.debug('[findRuneUtxo] ✅ Found sufficient runes using', { count: selectedUtxos.length });
-          logger.debug('[findRuneUtxo] Total rune amount:', { totalRuneAmount, unit: totalRuneAmount / 100 });
-          return selectedUtxos;
-        }
-      }
+    const runeAmount = parseInt(data.runes!['DUCAT•UNIT•RUNE']!.amount, 10);
+    logger.debug('[findRuneUtxo] Found UTXO with rune amount:', { runeAmount, totalSoFar: totalRuneAmount + runeAmount });
+
+    selectedUtxos.push({
+      transaction: data.transaction,
+      vout: vout,
+      value: data.value,
+      runeAmount: runeAmount,
+      status: { confirmed: true },
+    });
+    totalRuneAmount += runeAmount;
+
+    // If we have enough, return
+    if (totalRuneAmount >= amountInRunes) {
+      logger.debug('[findRuneUtxo] ✅ Found sufficient runes using', { count: selectedUtxos.length });
+      logger.debug('[findRuneUtxo] Total rune amount:', { totalRuneAmount, unit: totalRuneAmount / 100 });
+      return selectedUtxos;
     }
   }
 

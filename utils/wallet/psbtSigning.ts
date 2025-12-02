@@ -19,6 +19,25 @@ import {
   writeVarInt,
   varIntSize,
 } from './cryptoHelpers';
+import { logger } from '../logger';
+
+/**
+ * Internal PSBT cache type for low-level signing operations.
+ * bitcoinjs-lib exposes __CACHE for advanced use cases like Taproot signing.
+ */
+interface PsbtCache {
+  __TX: bitcoin.Transaction & {
+    hashForWitnessV1(
+      inputIndex: number,
+      scripts: Buffer[],
+      values: bigint[],
+      sighashType: number,
+      leafHash?: Buffer
+    ): Buffer;
+  };
+}
+
+type PsbtWithCache = bitcoin.Psbt & { __CACHE: PsbtCache };
 
 /**
  * Sign a PSBT with the mobile wallet
@@ -38,7 +57,10 @@ export async function signPsbt(
       accountIndex = parseInt(storedAccount, 10);
     }
   } catch (error: unknown) {
-    // Ignore SecureStore errors, use default account 0
+    // SecureStore errors are non-critical, use default account 0
+    logger.debug('SecureStore read failed, using default account 0', {
+      error: error instanceof Error ? error.message : String(error),
+    });
   }
 
   return await withMnemonic(async (mnemonic: string) => {
@@ -80,7 +102,11 @@ export async function signPsbt(
 }
 
 /**
- * Sign a Taproot input (key-path or script-path)
+ * Sign a Taproot input using either key-path or script-path spending
+ * Automatically detects the spending path based on tapLeafScript presence
+ * @param psbt - The PSBT to sign
+ * @param inputIndex - Index of the input to sign
+ * @param keyPair - BIP32 key pair for signing (must include private key)
  */
 async function signTaprootInput(
   psbt: bitcoin.Psbt,
@@ -98,7 +124,12 @@ async function signTaprootInput(
 }
 
 /**
- * Sign a script-path Taproot input
+ * Sign a script-path Taproot input (P2TR script spend)
+ * Computes the tapleaf hash and creates a Schnorr signature for the script
+ * @param psbt - The PSBT to sign
+ * @param inputIndex - Index of the input to sign
+ * @param keyPair - BIP32 key pair for signing
+ * @param input - The PSBT input data containing tapLeafScript
  */
 function signScriptPathInput(
   psbt: bitcoin.Psbt,
@@ -120,8 +151,10 @@ function signScriptPathInput(
   );
 
   const sighash = input.sighashType || 0x00;
-  // @ts-expect-error - Accessing internal cache for low-level signing
-  const hash = psbt.__CACHE.__TX.hashForWitnessV1(
+  // Access internal PSBT cache for low-level Taproot signing (required by bitcoinjs-lib)
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const psbtCache = (psbt as any).__CACHE as PsbtCache;
+  const hash = psbtCache.__TX.hashForWitnessV1(
     inputIndex,
     psbt.data.inputs.map((i) => i.witnessUtxo!.script),
     psbt.data.inputs.map((i) => i.witnessUtxo!.value),
@@ -148,7 +181,12 @@ function signScriptPathInput(
 }
 
 /**
- * Sign a key-path Taproot input
+ * Sign a key-path Taproot input (P2TR key spend)
+ * Creates a tweaked Schnorr signature using the internal key
+ * Falls back to manual signing if standard bitcoinjs-lib signing fails
+ * @param psbt - The PSBT to sign
+ * @param inputIndex - Index of the input to sign
+ * @param keyPair - BIP32 key pair for signing (x-only pubkey derived internally)
  */
 function signKeyPathInput(
   psbt: bitcoin.Psbt,
@@ -163,9 +201,11 @@ function signKeyPathInput(
     );
     psbt.signInput(inputIndex, tweakedSigner);
   } catch (error: unknown) {
-    // Fall back to manual signing
-    // @ts-expect-error - Accessing internal cache for low-level signing
-    const tx = psbt.__CACHE.__TX.clone();
+    // Fall back to manual signing when standard signing fails
+    // Access internal PSBT cache for low-level Taproot signing (required by bitcoinjs-lib)
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const psbtCache = (psbt as any).__CACHE as PsbtCache;
+    const tx = psbtCache.__TX.clone();
     const sighash = tx.hashForWitnessV1(
       inputIndex,
       psbt.data.inputs.map((input) => input.witnessUtxo!.script),
@@ -183,7 +223,11 @@ function signKeyPathInput(
 }
 
 /**
- * Sign a SegWit input
+ * Sign a SegWit (P2WPKH) input and finalize it
+ * Uses standard ECDSA signing for native SegWit addresses
+ * @param psbt - The PSBT to sign
+ * @param inputIndex - Index of the input to sign
+ * @param keyPair - EC key pair for ECDSA signing
  */
 function signSegwitInput(
   psbt: bitcoin.Psbt,
@@ -195,6 +239,10 @@ function signSegwitInput(
   try {
     psbt.finalizeInput(inputIndex);
   } catch (error: unknown) {
-    // Ignore finalization errors
+    // Finalization may fail for partially-signed PSBTs - this is expected behavior
+    logger.debug('SegWit input finalization skipped (expected for multi-sig)', {
+      inputIndex,
+      error: error instanceof Error ? error.message : String(error),
+    });
   }
 }

@@ -9,6 +9,7 @@ import { MUTINYNET_NETWORK, validateAndNormalizeAddress } from '../../utils/bitc
 import { fetchUtxos as fetchUtxosService } from '../balanceService';
 import { ERRORS } from '../../utils/messages';
 import { getTxHexUrl } from '../../utils/constants';
+import { logger } from '../../utils/logger';
 import {
   mergeAndFilterUtxos,
   selectUtxosForTransaction,
@@ -77,24 +78,26 @@ export async function createBtcIntent(
     // Fetch and merge UTXOs
     const confirmedUtxos = await fetchUtxosService(sourceAddress);
 
-    // Debug logging for UTXO sources
-    console.log('[BTC Intent] Confirmed UTXOs from API:', confirmedUtxos.length);
-    console.log('[BTC Intent] Unconfirmed UTXOs from pending:', unconfirmedUtxos.length);
-    console.log('[BTC Intent] Spent UTXOs to filter:', spentUtxos.size);
+    // Log UTXO sources for debugging
+    logger.transaction('utxo_fetch', {
+      confirmed: confirmedUtxos.length,
+      unconfirmed: unconfirmedUtxos.length,
+      spent: spentUtxos.size,
+    });
 
     const availableUtxos = mergeAndFilterUtxos(confirmedUtxos, unconfirmedUtxos, spentUtxos);
 
-    console.log('[BTC Intent] Available UTXOs after merge:', availableUtxos.length);
+    logger.debug('[BTC Intent] Available UTXOs after merge:', { count: availableUtxos.length });
 
     if (availableUtxos.length === 0) {
       // Provide more context in the error
       const hasUnconfirmed = unconfirmedUtxos.length > 0;
       const allSpent = spentUtxos.size > 0 && confirmedUtxos.length === 0 && unconfirmedUtxos.length === 0;
-      console.error('[BTC Intent] No available UTXOs!', {
+      logger.error(new Error('[BTC Intent] No available UTXOs'), {
         confirmedCount: confirmedUtxos.length,
         unconfirmedCount: unconfirmedUtxos.length,
         spentCount: spentUtxos.size,
-        spentKeys: Array.from(spentUtxos).slice(0, 5), // First 5 for debugging
+        spentKeys: Array.from(spentUtxos).slice(0, 5),
       });
       throw new Error(hasUnconfirmed ? ERRORS.NO_CONFIRMED_FUNDS : (allSpent ? 'All UTXOs are currently locked' : ERRORS.NO_CONFIRMED_FUNDS));
     }
@@ -155,6 +158,10 @@ export async function createBtcIntent(
 
 /**
  * Fetch transaction hex for each input UTXO
+ * Required for constructing witness data in SegWit transactions
+ * @param selectedUtxos - Array of selected UTXOs to fetch transaction data for
+ * @returns Array of UTXOs with their full transaction hex attached
+ * @throws Error if any transaction fetch fails
  */
 async function fetchInputTransactions(selectedUtxos: UTXO[]): Promise<UtxoWithTx[]> {
   return Promise.all(
@@ -173,7 +180,15 @@ async function fetchInputTransactions(selectedUtxos: UTXO[]): Promise<UtxoWithTx
 }
 
 /**
- * Build PSBT for BTC transaction
+ * Build a Partially Signed Bitcoin Transaction (PSBT) for a BTC send
+ * Creates inputs from selected UTXOs and outputs for recipient and change
+ * @param inputsWithTx - UTXOs with transaction hex for witness construction
+ * @param recipient - Destination Bitcoin address
+ * @param amountInSats - Amount to send in satoshis
+ * @param sourceAddress - Source address for change output
+ * @param change - Change amount in satoshis
+ * @param dustLimit - Minimum output value (outputs below this are omitted)
+ * @returns Unsigned PSBT ready for signing
  */
 function buildBtcPsbt(
   inputsWithTx: UtxoWithTx[],

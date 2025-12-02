@@ -1,5 +1,10 @@
 /**
  * P2PK Signing - Signing operations for P2PK proofs (NUT-11)
+ *
+ * Implements Schnorr signature creation for Pay-to-Public-Key locked Cashu tokens.
+ * P2PK proofs require a valid Schnorr signature witness to be redeemed.
+ *
+ * @see https://github.com/cashubtc/nuts/blob/main/11.md - NUT-11: Pay to Public Key
  */
 
 import { Buffer } from 'buffer';
@@ -10,10 +15,20 @@ import { logger } from '../../../utils/logger';
 import { isP2PKLocked, CashuProof } from './p2pkVerification';
 
 /**
- * Sign a P2PK secret to create a witness
- * @param secret - The P2PK secret to sign (serialized JSON)
- * @param privateKey - Private key to sign with (hex)
- * @returns P2PK witness (serialized JSON)
+ * Sign a P2PK secret to create a witness for token redemption
+ * Creates a Schnorr signature over SHA256(secret) using the provided private key
+ *
+ * @param secret - The P2PK secret to sign (JSON array: ["P2PK", { data: pubkey, ... }])
+ * @param privateKey - 32-byte private key in hex format (64 characters)
+ * @returns P2PK witness as JSON string: { signatures: [sig_hex] }
+ * @throws Error if secret or private key is invalid, or if signing fails
+ *
+ * @example
+ * const witness = await signP2PKSecret(
+ *   '["P2PK", {"data": "02abc..."}]',
+ *   'deadbeef...'
+ * );
+ * // Returns: '{"signatures":["abc123..."]}'
  */
 /** P2PK secret structure: ["P2PK", { data: pubkey, ... }] */
 type P2PKSecretParsed = ['P2PK', { data?: string; [key: string]: unknown }];
@@ -34,12 +49,12 @@ export const signP2PKSecret = async (secret: string, privateKey: string): Promis
 
   logger.cashu('p2pk_sign_start', {
     step: 'SIGNING',
-    secretLength: secret?.length,
-    secretPreview: secret?.substring(0, 40) + '...',
-    privateKeyLength: privateKey?.length,
+    secretLength: secret?.length ?? 0,
+    secretPreview: secret ? secret.substring(0, 40) + '...' : 'NULL',
+    privateKeyLength: privateKey?.length ?? 0,
     privateKeyType: typeof privateKey,
-    expectedPubkey: expectedPubkey ? expectedPubkey : 'UNKNOWN',
-    expectedPubkeyLength: expectedPubkey?.length,
+    expectedPubkey: expectedPubkey ?? 'UNKNOWN',
+    expectedPubkeyLength: expectedPubkey?.length ?? 0,
   });
 
   try {
@@ -126,7 +141,8 @@ export const signP2PKSecret = async (secret: string, privateKey: string): Promis
 
     return JSON.stringify(witness);
   } catch (error: unknown) {
-    logger.error('Failed to sign P2PK secret', { error: (error as Error).message });
+    const errorMessage = error instanceof Error ? error.message : String(error);
+    logger.error('Failed to sign P2PK secret', { error: errorMessage });
 
     // Create enhanced error with diagnostics for user
     const diagnostics: string[] = [];
@@ -142,17 +158,17 @@ export const signP2PKSecret = async (secret: string, privateKey: string): Promis
       if (typeof privateKey === 'string') {
         diagnostics.push(`Private key length: ${privateKey.length} chars`);
         if (privateKey.length !== 64) {
-          diagnostics.push(`⚠️ Expected 64 chars, got ${privateKey.length}`);
+          diagnostics.push(`Expected 64 chars, got ${privateKey.length}`);
         }
       } else {
-        diagnostics.push(`⚠️ Private key is ${typeof privateKey}, expected string`);
+        diagnostics.push(`Private key is ${typeof privateKey}, expected string`);
       }
     } else {
-      diagnostics.push('⚠️ Private key is null/undefined');
+      diagnostics.push('Private key is null/undefined');
     }
 
     // Add original error details
-    diagnostics.push(`Error: ${(error as Error).message}`);
+    diagnostics.push(`Error: ${errorMessage}`);
 
     const enhancedMessage = `P2PK signing failed\n\n${diagnostics.join('\n')}`;
     throw new Error(enhancedMessage);
@@ -160,10 +176,17 @@ export const signP2PKSecret = async (secret: string, privateKey: string): Promis
 };
 
 /**
- * Sign P2PK locked proofs with witness signatures
- * @param proofs - Array of Cashu proofs
- * @param privateKey - Private key to sign with (hex, 32 bytes)
- * @returns Proofs with witness signatures added
+ * Sign all P2PK locked proofs in a batch with witness signatures
+ * Non-P2PK proofs are passed through unchanged
+ *
+ * @param proofs - Array of Cashu proofs (may include both P2PK and regular proofs)
+ * @param privateKey - 32-byte private key in hex format (64 characters)
+ * @returns Array of proofs with witness signatures added to P2PK-locked ones
+ * @throws Error if any P2PK proof fails to sign
+ *
+ * @example
+ * const signedProofs = await signP2PKProofs(mixedProofs, walletPrivateKey);
+ * // P2PK proofs now have witness field, regular proofs unchanged
  */
 export const signP2PKProofs = async (proofs: CashuProof[], privateKey: string): Promise<CashuProof[]> => {
   const p2pkCount = proofs.filter(p => isP2PKLocked(p)).length;
