@@ -214,3 +214,96 @@ describe('parseFormattedAmount', () => {
     expect(parseFormattedAmount('.99')).toBe(0.99);
   });
 });
+
+// Import the remaining functions for testing
+import { formatUnitAmount, parseUnitToSmallestUnits } from '../amounts';
+
+describe('formatUnitAmount', () => {
+  it('should format smallest units to display format', () => {
+    expect(formatUnitAmount(10000)).toBe('100.00');
+    expect(formatUnitAmount(5050)).toBe('50.50');
+    expect(formatUnitAmount(100)).toBe('1.00');
+  });
+
+  it('should handle null and undefined', () => {
+    expect(formatUnitAmount(null)).toBe('0.00');
+    expect(formatUnitAmount(undefined)).toBe('0.00');
+  });
+
+  it('should handle bigint values', () => {
+    expect(formatUnitAmount(BigInt(10000))).toBe('100.00');
+    expect(formatUnitAmount(BigInt(5050))).toBe('50.50');
+  });
+
+  it('should respect custom decimal places', () => {
+    expect(formatUnitAmount(10000, 0)).toBe('100');
+    expect(formatUnitAmount(10000, 4)).toBe('100.0000');
+  });
+
+  it('should handle zero', () => {
+    expect(formatUnitAmount(0)).toBe('0.00');
+  });
+
+  it('should handle NaN', () => {
+    expect(formatUnitAmount(NaN)).toBe('0.00');
+  });
+
+  it('should handle non-number types coerced to NaN', () => {
+    // @ts-ignore - Testing invalid input type
+    expect(formatUnitAmount('invalid')).toBe('0.00');
+    // @ts-ignore - Testing invalid input type
+    expect(formatUnitAmount({})).toBe('0.00');
+  });
+
+  it('should handle large values with thousand separators', () => {
+    expect(formatUnitAmount(100000000)).toBe('1,000,000.00');
+  });
+
+  it('should handle negative values', () => {
+    expect(formatUnitAmount(-10000)).toBe('-100.00');
+  });
+});
+
+describe('parseUnitToSmallestUnits', () => {
+  it('should parse display amount to smallest units', () => {
+    expect(parseUnitToSmallestUnits(100)).toBe(10000);
+    expect(parseUnitToSmallestUnits(50.50)).toBe(5050);
+    expect(parseUnitToSmallestUnits(1)).toBe(100);
+  });
+
+  it('should parse string amounts', () => {
+    expect(parseUnitToSmallestUnits('100')).toBe(10000);
+    expect(parseUnitToSmallestUnits('50.50')).toBe(5050);
+    expect(parseUnitToSmallestUnits('0.99')).toBe(99);
+  });
+
+  it('should handle null and undefined', () => {
+    expect(parseUnitToSmallestUnits(null)).toBe(0);
+    expect(parseUnitToSmallestUnits(undefined)).toBe(0);
+  });
+
+  it('should handle NaN strings', () => {
+    expect(parseUnitToSmallestUnits('invalid')).toBe(0);
+    expect(parseUnitToSmallestUnits('abc')).toBe(0);
+  });
+
+  it('should handle zero', () => {
+    expect(parseUnitToSmallestUnits(0)).toBe(0);
+    expect(parseUnitToSmallestUnits('0')).toBe(0);
+  });
+
+  it('should round to avoid floating point issues', () => {
+    // 0.1 + 0.2 floating point issue
+    expect(parseUnitToSmallestUnits(0.1)).toBe(10);
+    expect(parseUnitToSmallestUnits(0.29)).toBe(29);
+  });
+
+  it('should handle negative values', () => {
+    expect(parseUnitToSmallestUnits(-100)).toBe(-10000);
+    expect(parseUnitToSmallestUnits('-50.50')).toBe(-5050);
+  });
+
+  it('should handle empty string', () => {
+    expect(parseUnitToSmallestUnits('')).toBe(0);
+  });
+});

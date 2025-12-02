@@ -316,5 +316,170 @@ describe('keyDerivation', () => {
       expect(result.xOnlyPubkey).toBe(''); // Empty buffer toString('hex')
       expect(result).toHaveProperty('accountIndex');
     });
+
+    it('should try known account index first for Taproot and return if found', async () => {
+      const mockChild = {
+        publicKey: Buffer.alloc(33),
+        privateKey: Buffer.alloc(32),
+      };
+
+      const mockRoot = {
+        derivePath: jest.fn(() => mockChild),
+      };
+
+      const { bip32 } = require('../cryptoHelpers');
+      bip32.fromSeed.mockReturnValue(mockRoot);
+
+      bitcoin.payments.p2tr.mockReturnValue({
+        address: 'tb1pknown',
+        pubkey: Buffer.alloc(32),
+      });
+
+      withMnemonic.mockImplementation(async (callback) => {
+        return callback('test mnemonic');
+      });
+
+      const result = await getPrivateKeyForAddress('tb1pknown', 5);
+
+      expect(result).toHaveProperty('accountIndex');
+      expect(result.accountIndex).toBe(5);
+    });
+
+    it('should try known account index first for SegWit and return if found', async () => {
+      const mockChild = {
+        publicKey: Buffer.alloc(33),
+        privateKey: Buffer.alloc(32),
+      };
+
+      const mockRoot = {
+        derivePath: jest.fn(() => mockChild),
+      };
+
+      const { bip32 } = require('../cryptoHelpers');
+      bip32.fromSeed.mockReturnValue(mockRoot);
+
+      bitcoin.payments.p2wpkh.mockReturnValue({
+        address: 'tb1qknown',
+        pubkey: Buffer.alloc(33),
+      });
+
+      withMnemonic.mockImplementation(async (callback) => {
+        return callback('test mnemonic');
+      });
+
+      const result = await getPrivateKeyForAddress('tb1qknown', 3);
+
+      expect(result).toHaveProperty('accountIndex');
+      expect(result.accountIndex).toBe(3);
+    });
+
+    it('should fall back to search when known Taproot account does not match', async () => {
+      const mockChild = {
+        publicKey: Buffer.alloc(33),
+        privateKey: Buffer.alloc(32),
+      };
+
+      const mockRoot = {
+        derivePath: jest.fn(() => mockChild),
+      };
+
+      const { bip32, getDerivationPath } = require('../cryptoHelpers');
+      bip32.fromSeed.mockReturnValue(mockRoot);
+
+      // First call (known account) returns wrong address, subsequent calls find match
+      let callCount = 0;
+      bitcoin.payments.p2tr.mockImplementation(() => {
+        callCount++;
+        // First call is for known account (returns wrong),
+        // second call (account 0, since we skip account 5) finds the address
+        if (callCount === 1) {
+          return { address: 'tb1pdifferent', pubkey: Buffer.alloc(32) };
+        }
+        return { address: 'tb1pfallback', pubkey: Buffer.alloc(32) };
+      });
+
+      withMnemonic.mockImplementation(async (callback) => {
+        return callback('test mnemonic');
+      });
+
+      const result = await getPrivateKeyForAddress('tb1pfallback', 5);
+
+      // Should have found it via fallback search, not from known account
+      expect(result).toHaveProperty('privateKey');
+      expect(result.accountIndex).toBe(0); // Found at account 0 (first account searched after skipping 5)
+    });
+
+    it('should fall back to search when known SegWit account does not match', async () => {
+      const mockChild = {
+        publicKey: Buffer.alloc(33),
+        privateKey: Buffer.alloc(32),
+      };
+
+      const mockRoot = {
+        derivePath: jest.fn(() => mockChild),
+      };
+
+      const { bip32 } = require('../cryptoHelpers');
+      bip32.fromSeed.mockReturnValue(mockRoot);
+
+      let callCount = 0;
+      bitcoin.payments.p2wpkh.mockImplementation(() => {
+        callCount++;
+        if (callCount === 1) {
+          return { address: 'tb1qdifferent', pubkey: Buffer.alloc(33) };
+        }
+        return { address: 'tb1qfallback', pubkey: Buffer.alloc(33) };
+      });
+
+      withMnemonic.mockImplementation(async (callback) => {
+        return callback('test mnemonic');
+      });
+
+      const result = await getPrivateKeyForAddress('tb1qfallback', 2);
+
+      expect(result).toHaveProperty('privateKey');
+      expect(result.accountIndex).toBe(0); // Found at account 0
+    });
+
+    it('should skip known account index during fallback search to avoid double-checking', async () => {
+      const mockChild = {
+        publicKey: Buffer.alloc(33),
+        privateKey: Buffer.alloc(32),
+      };
+
+      const derivedPaths: string[] = [];
+      const mockRoot = {
+        derivePath: jest.fn((path: string) => {
+          derivedPaths.push(path);
+          return mockChild;
+        }),
+      };
+
+      const { bip32, getDerivationPath } = require('../cryptoHelpers');
+      bip32.fromSeed.mockReturnValue(mockRoot);
+
+      // Make it find match at account 1
+      let callCount = 0;
+      bitcoin.payments.p2tr.mockImplementation(() => {
+        callCount++;
+        // First call: known account (0) - wrong address
+        // Second call: account 0 in loop - but this is skipped!
+        // So second call is actually account 1 - finds match
+        if (callCount <= 1) {
+          return { address: 'tb1pdifferent', pubkey: Buffer.alloc(32) };
+        }
+        return { address: 'tb1pskiptest', pubkey: Buffer.alloc(32) };
+      });
+
+      withMnemonic.mockImplementation(async (callback) => {
+        return callback('test mnemonic');
+      });
+
+      const result = await getPrivateKeyForAddress('tb1pskiptest', 0);
+
+      // Known account 0 was tried first and failed
+      // Then loop starts at 0, but skips 0, goes to 1 where it finds match
+      expect(result.accountIndex).toBe(1);
+    });
   });
 });
