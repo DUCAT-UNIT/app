@@ -4,7 +4,7 @@
  */
 
 import React, { useState, useEffect, useMemo, memo } from 'react';
-import { View, Text, TouchableOpacity, Modal, ScrollView, Dimensions } from 'react-native';
+import { View, Text, TouchableOpacity, Modal, ScrollView, Dimensions, Animated } from 'react-native';
 import Svg, { Path, Line, Defs, LinearGradient, Stop } from 'react-native-svg';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { COLORS } from '../../../theme';
@@ -199,6 +199,42 @@ export const FullscreenVaultChart = memo(function FullscreenVaultChart({
                   );
                 })}
               </Svg>
+
+              {/* Animated Scrubber Line */}
+              <Animated.View
+                style={[
+                  styles.scrubberLine,
+                  {
+                    opacity: scrubOpacity,
+                    transform: [{ translateX: scrubXAnim }],
+                    height: CHART_HEIGHT - 60,
+                    backgroundColor: scrubColorAnim.interpolate({
+                      inputRange: [0, 0.5, 1],
+                      outputRange: ['#D04C68', '#FDE37B', '#59AA8A'],
+                    }),
+                  },
+                ]}
+              />
+
+              {/* Animated Scrubber Dot */}
+              <Animated.View
+                style={[
+                  styles.scrubberDot,
+                  {
+                    opacity: scrubOpacity,
+                    transform: [
+                      { translateX: Animated.subtract(scrubXAnim, 6) },
+                      { translateY: Animated.subtract(scrubYAnim, 6) },
+                    ],
+                    backgroundColor: scrubColorAnim.interpolate({
+                      inputRange: [0, 0.5, 1],
+                      outputRange: ['#D04C68', '#FDE37B', '#59AA8A'],
+                    }),
+                  },
+                ]}
+              >
+                <View style={styles.scrubberDotInner} />
+              </Animated.View>
             </View>
           )}
 
