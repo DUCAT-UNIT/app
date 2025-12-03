@@ -117,7 +117,7 @@ const VaultTransactionItem = memo(function VaultTransactionItem({
               </View>
             </View>
             {/* Column 3: Amounts */}
-            <View style={styles.column3}>
+            <View style={[styles.column3, isHighlighted && { marginRight: 8 }]}>
               {transaction.unit_amt !== 0 && (
                 <View style={styles.amountRow}>
                   <Icon name="unit_symbol" size={s(10)} color={unitColor} style={[styles.amountIcon, { marginRight: s(3) }]} />
