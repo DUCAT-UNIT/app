@@ -37,6 +37,7 @@ export const FullscreenVaultChart = memo(function FullscreenVaultChart({
   const [scrubData, setScrubData] = useState<ScrubData>({ health: null, x: null });
   const [hoveredRefLineIndex, setHoveredRefLineIndex] = useState<number | null>(null);
   const [lockedEventDate, setLockedEventDate] = useState<number | null>(null);
+  const [lockedRefLineIndex, setLockedRefLineIndex] = useState<number | null>(null);
 
   // Safe area insets (portrait mode)
   const insets = useSafeAreaInsets();
@@ -76,10 +77,14 @@ export const FullscreenVaultChart = memo(function FullscreenVaultChart({
     onHoveredRefLineChange: setHoveredRefLineIndex,
     onLockRefLine: (index, data) => {
       if (index !== null && referenceLines[index]) {
-        // Lock to this event - convert to milliseconds for VaultActivityList
+        // Lock to this event
         setLockedEventDate(referenceLines[index].date);
+        setLockedRefLineIndex(index);
+        // Keep scrubber visible
+        scrubOpacity.setValue(1);
       } else {
         setLockedEventDate(null);
+        setLockedRefLineIndex(null);
       }
     },
   });
@@ -98,18 +103,22 @@ export const FullscreenVaultChart = memo(function FullscreenVaultChart({
   const healthColor = getHealthColor(displayHealth);
   const healthChipBg = getHealthChipBg(displayHealth);
 
-  // Reset state when modal closes or timeframe changes
+  // Reset state when modal closes
   useEffect(() => {
     if (!visible) {
       setScrubData({ health: null, x: null });
       setLockedEventDate(null);
+      setLockedRefLineIndex(null);
+      scrubOpacity.setValue(0);
     }
-  }, [visible]);
+  }, [visible, scrubOpacity]);
 
   // Reset locked event when timeframe changes
   useEffect(() => {
     setLockedEventDate(null);
-  }, [selectedTimeframe]);
+    setLockedRefLineIndex(null);
+    scrubOpacity.setValue(0);
+  }, [selectedTimeframe, scrubOpacity]);
 
   return (
     <Modal visible={visible} animationType="fade" onRequestClose={onClose}>
@@ -264,9 +273,14 @@ export const FullscreenVaultChart = memo(function FullscreenVaultChart({
                         const refLine = referenceLines[hoveredRefLineIndex];
                         return `${refLine.prevValue.toFixed(0)}% → ${refLine.newValue.toFixed(0)}%`;
                       })()
-                    : scrubData.health
-                      ? `${scrubData.health.toFixed(0)}%`
-                      : ''
+                    : lockedRefLineIndex !== null && referenceLines[lockedRefLineIndex]
+                      ? (() => {
+                          const refLine = referenceLines[lockedRefLineIndex];
+                          return `${refLine.prevValue.toFixed(0)}% → ${refLine.newValue.toFixed(0)}%`;
+                        })()
+                      : scrubData.health
+                        ? `${scrubData.health.toFixed(0)}%`
+                        : ''
                   }
                 </Animated.Text>
               </Animated.View>
@@ -296,7 +310,11 @@ export const FullscreenVaultChart = memo(function FullscreenVaultChart({
             {lockedEventDate && (
               <TouchableOpacity
                 style={styles.clearFilterButton}
-                onPress={() => setLockedEventDate(null)}
+                onPress={() => {
+                  setLockedEventDate(null);
+                  setLockedRefLineIndex(null);
+                  scrubOpacity.setValue(0);
+                }}
               >
                 <Icon name="close" size={12} color={COLORS.PRIMARY_BLUE} />
                 <Text style={styles.clearFilterText}>

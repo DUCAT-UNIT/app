@@ -125,14 +125,15 @@ export function useScrubAnimation({
         pendingUpdateRef.current = null;
       }
 
-      // Hide animated scrubber
-      scrubOpacity.setValue(0);
-
       const nearbyRefIndex = hoveredRefLineRef.current;
       if (nearbyRefIndex !== null && referenceLines[nearbyRefIndex]) {
+        // Locking to an event - keep scrubber visible
         const refLine = referenceLines[nearbyRefIndex];
         const exactX = xScale(refLine.date);
         onLockRefLine(nearbyRefIndex, { health: refLine.newValue, x: exactX });
+      } else {
+        // Not locking - hide scrubber
+        scrubOpacity.setValue(0);
       }
       onScrubDataChange({ health: null, x: null });
       onHoveredRefLineChange(null);
