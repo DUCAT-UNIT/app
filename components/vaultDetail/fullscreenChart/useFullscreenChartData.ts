@@ -10,7 +10,7 @@ import { logger } from '../../../utils/logger';
 import type { VaultHistoryTransaction } from '../../../services/vaultService';
 import type { BitcoinData, PriceTimeframe, SeriesItem, ReferenceLine } from '../vaultChart/types';
 import { transformToEvents, createEventSeries } from '../vaultChart/utils';
-import { CACHE_KEY_PREFIX, CACHE_EXPIRY_MS, LEFT_MARGIN, RIGHT_MARGIN, LANDSCAPE_WIDTH, LANDSCAPE_HEIGHT, CHART_PADDING } from './constants';
+import { CACHE_KEY_PREFIX, CACHE_EXPIRY_MS, LEFT_MARGIN, RIGHT_MARGIN, PORTRAIT_WIDTH, PORTRAIT_HEIGHT, CHART_PADDING } from './constants';
 
 interface UseFullscreenChartDataReturn {
   loading: boolean;
@@ -38,9 +38,9 @@ export function useFullscreenChartData(
   const [btcPrices, setBtcPrices] = useState<BitcoinData[] | null>(null);
   const [loading, setLoading] = useState(true);
 
-  // Chart dimensions
-  const chartWidth = LANDSCAPE_WIDTH - LEFT_MARGIN - RIGHT_MARGIN;
-  const chartHeight = LANDSCAPE_HEIGHT;
+  // Chart dimensions (portrait mode)
+  const chartWidth = PORTRAIT_WIDTH - LEFT_MARGIN - RIGHT_MARGIN;
+  const chartHeight = PORTRAIT_HEIGHT;
   const drawWidth = chartWidth - CHART_PADDING.left - CHART_PADDING.right;
   const drawHeight = chartHeight - CHART_PADDING.top - CHART_PADDING.bottom;
 

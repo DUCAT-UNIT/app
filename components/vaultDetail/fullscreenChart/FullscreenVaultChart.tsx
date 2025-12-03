@@ -40,10 +40,10 @@ export const FullscreenVaultChart = memo(function FullscreenVaultChart({
   const drawerAnim = useRef(new Animated.Value(DRAWER_WIDTH)).current;
   const [drawerSide, setDrawerSide] = useState<'left' | 'right' | null>(null);
 
-  // Safe area insets
+  // Safe area insets (portrait mode)
   const insets = useSafeAreaInsets();
-  const safeAreaTop = insets.left;
-  const safeAreaBottom = insets.right;
+  const safeAreaTop = insets.top;
+  const safeAreaBottom = insets.bottom;
 
   // Chart data
   const {
@@ -155,7 +155,7 @@ export const FullscreenVaultChart = memo(function FullscreenVaultChart({
   return (
     <Modal visible={visible} animationType="fade" onRequestClose={onClose}>
       <View style={styles.modalContainer}>
-        <View style={[styles.rotatedContainer, { paddingTop: safeAreaTop, paddingBottom: safeAreaBottom }]}>
+        <View style={[styles.portraitContainer, { paddingTop: safeAreaTop, paddingBottom: safeAreaBottom }]}>
           {/* Top controls - hidden when drawer open */}
           {drawerSide === null && (
             <View style={[styles.topRightControls, { top: safeAreaTop + 16 }]}>

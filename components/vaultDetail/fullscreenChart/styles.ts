@@ -5,7 +5,7 @@
 
 import { StyleSheet } from 'react-native';
 import { COLORS } from '../../../theme';
-import { DRAWER_WIDTH, LEFT_MARGIN, RIGHT_MARGIN, LANDSCAPE_WIDTH, LANDSCAPE_HEIGHT } from './constants';
+import { DRAWER_WIDTH, LEFT_MARGIN, RIGHT_MARGIN, PORTRAIT_WIDTH, PORTRAIT_HEIGHT } from './constants';
 
 export const fullscreenStyles = StyleSheet.create({
   modalContainer: {
@@ -14,10 +14,10 @@ export const fullscreenStyles = StyleSheet.create({
     justifyContent: 'center',
     alignItems: 'center',
   },
-  rotatedContainer: {
-    width: LANDSCAPE_WIDTH,
-    height: LANDSCAPE_HEIGHT,
-    transform: [{ rotate: '90deg' }],
+  portraitContainer: {
+    flex: 1,
+    width: PORTRAIT_WIDTH,
+    height: PORTRAIT_HEIGHT,
     backgroundColor: COLORS.DARK_BG,
   },
   topRightControls: {

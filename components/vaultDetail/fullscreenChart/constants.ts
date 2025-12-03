@@ -14,9 +14,9 @@ export const DRAWER_WIDTH = 280;
 export const LEFT_MARGIN = 50;
 export const RIGHT_MARGIN = 0;
 
-// Landscape dimensions (rotated 90°)
-export const LANDSCAPE_WIDTH = SCREEN_HEIGHT;
-export const LANDSCAPE_HEIGHT = SCREEN_WIDTH;
+// Portrait dimensions (no rotation)
+export const PORTRAIT_WIDTH = SCREEN_WIDTH;
+export const PORTRAIT_HEIGHT = SCREEN_HEIGHT;
 
 // Chart padding
 export const CHART_PADDING = { top: 70, right: 0, bottom: 70, left: 0 };
