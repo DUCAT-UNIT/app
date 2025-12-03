@@ -44,3 +44,6 @@ yarn-error.*
 .claude
 *storybook.log
 storybook-static
+
+# Test coverage
+coverage/
