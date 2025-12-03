@@ -151,8 +151,23 @@ export const VaultHealthGauge = memo(function VaultHealthGauge({
     [totalDebt, totalCollateral]
   );
 
+  // Check if there's no debt
+  const hasNoDebt = totalDebt === 0;
+
   // Memoize all health metrics calculations together
   const healthMetrics = useMemo(() => {
+    // If no debt, show N/A
+    if (hasNoDebt) {
+      return {
+        healthValue: 0,
+        isLiquidated: false,
+        activePath: '' as keyof PathSettings | '',
+        currentTitle: 'N/A',
+        isHealthFinite: false,
+        displayHealthValue: 'N/A',
+      };
+    }
+
     const healthValue = healthPercentage;
     const isLiquidated = healthValue < 135 && healthValue > 0;
     const activePath = getActivePath(healthValue);
@@ -168,7 +183,7 @@ export const VaultHealthGauge = memo(function VaultHealthGauge({
       isHealthFinite,
       displayHealthValue,
     };
-  }, [healthPercentage]);
+  }, [healthPercentage, hasNoDebt]);
 
   const { healthValue, isLiquidated, activePath, currentTitle, isHealthFinite, displayHealthValue } = healthMetrics;
 
@@ -316,7 +331,7 @@ export const VaultHealthGauge = memo(function VaultHealthGauge({
       <View style={[styles.liquidationRow, { marginBottom: s(16) }]}>
         <Text style={[styles.liquidationLabel, { fontSize: sf(14), marginBottom: s(2) }]}>Liquidation Price</Text>
         <Text style={[styles.liquidationValue, { color: COLORS.DANGER_RED, fontSize: sf(18) }]}>
-          ${formatFiat(liquidationPrice, 0)}
+          {hasNoDebt ? 'N/A' : `$${formatFiat(liquidationPrice, 0)}`}
         </Text>
       </View>
 
