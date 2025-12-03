@@ -139,6 +139,34 @@ export function useFullscreenChartData(
     return series.filter(s => s.healthValue !== null) as Array<SeriesItem & { healthValue: number }>;
   }, [series]);
 
+  // Find the "open" event timestamp (first transaction)
+  const openEventTimestamp = useMemo(() => {
+    const openTx = transactions.find(tx => tx.action.toLowerCase() === 'open');
+    return openTx ? openTx.timestamp * 1000 : null; // Convert to milliseconds
+  }, [transactions]);
+
+  // Calculate centered time domain (center on open event)
+  const timeDomain = useMemo((): [number, number] => {
+    if (!series.length) return [Date.now() - 86400000, Date.now()];
+
+    const seriesMin = series[0].date;
+    const seriesMax = series[series.length - 1].date;
+    const fullRange = seriesMax - seriesMin;
+
+    // If we have an open event, center the chart on it
+    if (openEventTimestamp && openEventTimestamp >= seriesMin && openEventTimestamp <= seriesMax) {
+      // Calculate half the range
+      const halfRange = fullRange / 2;
+      // Center on open event
+      const centeredMin = openEventTimestamp - halfRange;
+      const centeredMax = openEventTimestamp + halfRange;
+      return [centeredMin, centeredMax];
+    }
+
+    // Default: use series range
+    return [seriesMin, seriesMax];
+  }, [series, openEventTimestamp]);
+
   // Y domain
   const yDomain = useMemo((): [number, number] => {
     if (!lineData.length) return [125, 350];
@@ -150,14 +178,13 @@ export function useFullscreenChartData(
     return [min, max];
   }, [lineData]);
 
-  // Scale functions
+  // Scale functions - use centered time domain
   const xScale = useCallback((timestamp: number) => {
     if (!series.length) return CHART_PADDING.left;
-    const minX = series[0].date;
-    const maxX = series[series.length - 1].date;
+    const [minX, maxX] = timeDomain;
     const range = maxX - minX || 1;
     return CHART_PADDING.left + ((timestamp - minX) / range) * drawWidth;
-  }, [series, drawWidth, chartWidthValue]);
+  }, [series, timeDomain, drawWidth]);
 
   const yScale = useCallback((value: number) => {
     const [minY, maxY] = yDomain;
@@ -250,8 +277,7 @@ export function useFullscreenChartData(
 
     const clampedX = Math.max(0, Math.min(x, chartWidthValue));
     const ratio = clampedX / chartWidthValue;
-    const minTime = series[0].date;
-    const maxTime = series[series.length - 1].date;
+    const [minTime, maxTime] = timeDomain;
     const targetTime = minTime + ratio * (maxTime - minTime);
 
     if (lineData.length === 1) return lineData[0].healthValue;
@@ -272,7 +298,7 @@ export function useFullscreenChartData(
     const afterPoint = lineData[afterIdx];
     const timeFraction = (targetTime - beforePoint.date) / (afterPoint.date - beforePoint.date || 1);
     return beforePoint.healthValue + timeFraction * (afterPoint.healthValue - beforePoint.healthValue);
-  }, [lineData, series, chartWidthValue]);
+  }, [lineData, series, chartWidthValue, timeDomain]);
 
   // Find nearby reference line
   const findNearbyRefLine = useCallback((x: number): number | null => {

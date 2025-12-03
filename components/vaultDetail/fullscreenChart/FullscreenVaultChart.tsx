@@ -33,9 +33,10 @@ export const FullscreenVaultChart = memo(function FullscreenVaultChart({
   onClose,
   transactions,
 }: FullscreenVaultChartProps) {
-  const [selectedTimeframe, setSelectedTimeframe] = useState<PriceTimeframe>('1W');
+  const [selectedTimeframe, setSelectedTimeframe] = useState<PriceTimeframe>('1Y');
   const [scrubData, setScrubData] = useState<ScrubData>({ health: null, x: null });
   const [hoveredRefLineIndex, setHoveredRefLineIndex] = useState<number | null>(null);
+  const [lockedEventDate, setLockedEventDate] = useState<number | null>(null);
 
   // Safe area insets (portrait mode)
   const insets = useSafeAreaInsets();
@@ -57,7 +58,7 @@ export const FullscreenVaultChart = memo(function FullscreenVaultChart({
     findNearbyRefLine,
   } = useFullscreenChartData(visible, selectedTimeframe, transactions, CHART_HEIGHT);
 
-  // Scrub animation (simplified - no locking)
+  // Scrub animation with locking to filter activity
   const {
     scrubXAnim,
     scrubYAnim,
@@ -73,7 +74,14 @@ export const FullscreenVaultChart = memo(function FullscreenVaultChart({
     findNearbyRefLine,
     onScrubDataChange: setScrubData,
     onHoveredRefLineChange: setHoveredRefLineIndex,
-    onLockRefLine: () => {}, // No-op, no drawer
+    onLockRefLine: (index, data) => {
+      if (index !== null && referenceLines[index]) {
+        // Lock to this event - convert to milliseconds for VaultActivityList
+        setLockedEventDate(referenceLines[index].date);
+      } else {
+        setLockedEventDate(null);
+      }
+    },
   });
 
   // Filter transactions based on selected timeframe
@@ -90,12 +98,18 @@ export const FullscreenVaultChart = memo(function FullscreenVaultChart({
   const healthColor = getHealthColor(displayHealth);
   const healthChipBg = getHealthChipBg(displayHealth);
 
-  // Reset state when modal closes
+  // Reset state when modal closes or timeframe changes
   useEffect(() => {
     if (!visible) {
       setScrubData({ health: null, x: null });
+      setLockedEventDate(null);
     }
   }, [visible]);
+
+  // Reset locked event when timeframe changes
+  useEffect(() => {
+    setLockedEventDate(null);
+  }, [selectedTimeframe]);
 
   return (
     <Modal visible={visible} animationType="fade" onRequestClose={onClose}>
@@ -206,11 +220,22 @@ export const FullscreenVaultChart = memo(function FullscreenVaultChart({
 
         {/* Activity section - bottom 40% */}
         <View style={styles.activitySection}>
-          <Text style={styles.activityTitle}>Activity</Text>
+          <View style={styles.activityHeader}>
+            <Text style={styles.activityTitle}>Activity</Text>
+            {lockedEventDate && (
+              <TouchableOpacity
+                style={styles.clearFilterButton}
+                onPress={() => setLockedEventDate(null)}
+              >
+                <Text style={styles.clearFilterText}>Clear Filter</Text>
+              </TouchableOpacity>
+            )}
+          </View>
           <ScrollView showsVerticalScrollIndicator={false}>
             <VaultActivityList
               transactions={filteredTransactions}
               isLoading={loading}
+              highlightedEventDate={lockedEventDate}
             />
           </ScrollView>
         </View>

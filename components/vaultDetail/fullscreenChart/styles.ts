@@ -105,11 +105,27 @@ export const fullscreenStyles = StyleSheet.create({
     borderTopWidth: 1,
     borderTopColor: COLORS.VERY_DARK_GRAY,
   },
+  activityHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    paddingVertical: 12,
+  },
   activityTitle: {
     fontSize: 16,
     fontWeight: '600',
     color: COLORS.WHITE,
-    paddingVertical: 12,
+  },
+  clearFilterButton: {
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    borderRadius: 12,
+    backgroundColor: COLORS.VERY_DARK_GRAY,
+  },
+  clearFilterText: {
+    fontSize: 12,
+    fontWeight: '600',
+    color: COLORS.PRIMARY_BLUE,
   },
   activityList: {
     paddingBottom: 16,
