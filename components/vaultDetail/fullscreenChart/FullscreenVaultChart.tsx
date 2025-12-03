@@ -263,7 +263,16 @@ export const FullscreenVaultChart = memo(function FullscreenVaultChart({
                     },
                   ]}
                 >
-                  {scrubData.health ? `${scrubData.health.toFixed(0)}%` : ''}
+                  {hoveredRefLineIndex !== null && referenceLines[hoveredRefLineIndex]
+                    ? (() => {
+                        const refLine = referenceLines[hoveredRefLineIndex];
+                        const change = refLine.newValue - refLine.prevValue;
+                        return `${change >= 0 ? '+' : ''}${change.toFixed(0)}%`;
+                      })()
+                    : scrubData.health
+                      ? `${scrubData.health.toFixed(0)}%`
+                      : ''
+                  }
                 </Animated.Text>
               </Animated.View>
             </View>
