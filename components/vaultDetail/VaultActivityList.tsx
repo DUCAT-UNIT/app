@@ -337,6 +337,7 @@ const styles = StyleSheet.create({
   column2: {},
   column3: {
     alignItems: 'flex-end',
+    paddingRight: 8,
   },
   transactionAction: {
     fontSize: 16,

@@ -138,7 +138,7 @@ export const FullscreenVaultChart = memo(function FullscreenVaultChart({
               <Text style={styles.emptyText}>No health history available</Text>
             </View>
           ) : (
-            <View style={[styles.chartWrapper, { marginLeft: LEFT_MARGIN, marginRight: RIGHT_MARGIN }]} {...panResponder.panHandlers}>
+            <View style={styles.chartWrapper} {...panResponder.panHandlers}>
               <Svg width={chartWidth} height={CHART_HEIGHT - 100}>
                 <Defs>
                   <LinearGradient
@@ -266,8 +266,7 @@ export const FullscreenVaultChart = memo(function FullscreenVaultChart({
                   {hoveredRefLineIndex !== null && referenceLines[hoveredRefLineIndex]
                     ? (() => {
                         const refLine = referenceLines[hoveredRefLineIndex];
-                        const change = refLine.newValue - refLine.prevValue;
-                        return `${change >= 0 ? '+' : ''}${change.toFixed(0)}%`;
+                        return `${refLine.prevValue.toFixed(0)}% → ${refLine.newValue.toFixed(0)}%`;
                       })()
                     : scrubData.health
                       ? `${scrubData.health.toFixed(0)}%`
@@ -303,7 +302,8 @@ export const FullscreenVaultChart = memo(function FullscreenVaultChart({
                 style={styles.clearFilterButton}
                 onPress={() => setLockedEventDate(null)}
               >
-                <Text style={styles.clearFilterText}>Clear Filter</Text>
+                <Icon name="close" size={12} color={COLORS.PRIMARY_BLUE} />
+                <Text style={styles.clearFilterText}>{selectedTimeframe}</Text>
               </TouchableOpacity>
             )}
           </View>

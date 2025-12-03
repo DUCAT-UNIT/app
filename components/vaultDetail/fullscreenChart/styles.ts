@@ -47,6 +47,7 @@ export const fullscreenStyles = StyleSheet.create({
     height: '60%',
     justifyContent: 'flex-start',
     overflow: 'hidden',
+    paddingHorizontal: 16,
   },
   chartWrapper: {
     flex: 1,
@@ -80,9 +81,10 @@ export const fullscreenStyles = StyleSheet.create({
     top: 0,
     left: 0,
     backgroundColor: COLORS.DARK_BG,
-    paddingHorizontal: 6,
-    paddingVertical: 2,
-    borderRadius: 4,
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    borderRadius: 6,
+    minWidth: 50,
   },
   scrubberLabelText: {
     fontSize: 12,
@@ -112,7 +114,6 @@ export const fullscreenStyles = StyleSheet.create({
     justifyContent: 'center',
     gap: 4,
     paddingVertical: 8,
-    marginHorizontal: LEFT_MARGIN,
   },
   timeframeButton: {
     paddingHorizontal: 16,
@@ -152,6 +153,9 @@ export const fullscreenStyles = StyleSheet.create({
     color: COLORS.WHITE,
   },
   clearFilterButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
     paddingHorizontal: 12,
     paddingVertical: 6,
     borderRadius: 12,

@@ -39,9 +39,9 @@ export function useFullscreenChartData(
   const [btcPrices, setBtcPrices] = useState<BitcoinData[] | null>(null);
   const [loading, setLoading] = useState(true);
 
-  // Chart dimensions (portrait mode)
+  // Chart dimensions (portrait mode) - account for 16px padding on each side
   const effectiveChartHeight = chartHeight ?? PORTRAIT_HEIGHT;
-  const chartWidthValue = PORTRAIT_WIDTH - LEFT_MARGIN - RIGHT_MARGIN;
+  const chartWidthValue = PORTRAIT_WIDTH - 32; // 16px padding on each side
   const drawWidth = chartWidthValue - CHART_PADDING.left - CHART_PADDING.right;
   const drawHeight = effectiveChartHeight - CHART_PADDING.top - CHART_PADDING.bottom;
 
