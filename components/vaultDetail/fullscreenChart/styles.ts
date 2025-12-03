@@ -75,6 +75,19 @@ export const fullscreenStyles = StyleSheet.create({
     borderRadius: 3,
     backgroundColor: '#fff',
   },
+  scrubberLabel: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    backgroundColor: COLORS.DARK_BG,
+    paddingHorizontal: 6,
+    paddingVertical: 2,
+    borderRadius: 4,
+  },
+  scrubberLabelText: {
+    fontSize: 12,
+    fontWeight: '700',
+  },
   loadingContainer: {
     flex: 1,
     justifyContent: 'center',
@@ -99,8 +112,7 @@ export const fullscreenStyles = StyleSheet.create({
     justifyContent: 'center',
     gap: 4,
     paddingVertical: 8,
-    paddingLeft: LEFT_MARGIN,
-    paddingRight: RIGHT_MARGIN,
+    marginHorizontal: LEFT_MARGIN,
   },
   timeframeButton: {
     paddingHorizontal: 16,

@@ -127,8 +127,8 @@ export const FullscreenVaultChart = memo(function FullscreenVaultChart({
           </TouchableOpacity>
         </View>
 
-        {/* Chart area - top half */}
-        <View style={[styles.chartSection, { paddingLeft: LEFT_MARGIN, paddingRight: RIGHT_MARGIN }]}>
+        {/* Chart area - top 60% */}
+        <View style={styles.chartSection}>
           {loading ? (
             <View style={styles.loadingContainer}>
               <Text style={styles.loadingText}>Loading chart...</Text>
@@ -138,20 +138,20 @@ export const FullscreenVaultChart = memo(function FullscreenVaultChart({
               <Text style={styles.emptyText}>No health history available</Text>
             </View>
           ) : (
-            <View style={styles.chartWrapper} {...panResponder.panHandlers}>
-              <Svg width={chartWidth} height={CHART_HEIGHT - 60}>
+            <View style={[styles.chartWrapper, { marginLeft: LEFT_MARGIN, marginRight: RIGHT_MARGIN }]} {...panResponder.panHandlers}>
+              <Svg width={chartWidth} height={CHART_HEIGHT - 100}>
                 <Defs>
                   <LinearGradient
                     id="fsAreaGradient"
                     x1="0"
                     y1={yScale(yDomain[1])}
                     x2="0"
-                    y2={CHART_HEIGHT - 60}
+                    y2={CHART_HEIGHT - 100}
                     gradientUnits="userSpaceOnUse"
                   >
                     <Stop offset="0" stopColor="#59AA8A" stopOpacity="0.15" />
-                    <Stop offset={Math.max(0, (yScale(200) - yScale(yDomain[1])) / (CHART_HEIGHT - 60 - yScale(yDomain[1])))} stopColor="#59AA8A" stopOpacity="0.15" />
-                    <Stop offset={Math.max(0, (yScale(160) - yScale(yDomain[1])) / (CHART_HEIGHT - 60 - yScale(yDomain[1])))} stopColor="#FDE37B" stopOpacity="0.1" />
+                    <Stop offset={Math.max(0, (yScale(200) - yScale(yDomain[1])) / (CHART_HEIGHT - 100 - yScale(yDomain[1])))} stopColor="#59AA8A" stopOpacity="0.15" />
+                    <Stop offset={Math.max(0, (yScale(160) - yScale(yDomain[1])) / (CHART_HEIGHT - 100 - yScale(yDomain[1])))} stopColor="#FDE37B" stopOpacity="0.1" />
                     <Stop offset="1" stopColor="#D04C68" stopOpacity="0.05" />
                   </LinearGradient>
                   <LinearGradient
@@ -200,14 +200,17 @@ export const FullscreenVaultChart = memo(function FullscreenVaultChart({
                 })}
               </Svg>
 
-              {/* Animated Scrubber Line */}
+              {/* Animated Scrubber Line - from Y position to bottom */}
               <Animated.View
                 style={[
                   styles.scrubberLine,
                   {
                     opacity: scrubOpacity,
-                    transform: [{ translateX: scrubXAnim }],
-                    height: CHART_HEIGHT - 60,
+                    transform: [
+                      { translateX: scrubXAnim },
+                      { translateY: scrubYAnim },
+                    ],
+                    height: Animated.subtract(CHART_HEIGHT - 100, scrubYAnim),
                     backgroundColor: scrubColorAnim.interpolate({
                       inputRange: [0, 0.5, 1],
                       outputRange: ['#D04C68', '#FDE37B', '#59AA8A'],
@@ -234,6 +237,34 @@ export const FullscreenVaultChart = memo(function FullscreenVaultChart({
                 ]}
               >
                 <View style={styles.scrubberDotInner} />
+              </Animated.View>
+
+              {/* Percentage label following the scrubber */}
+              <Animated.View
+                style={[
+                  styles.scrubberLabel,
+                  {
+                    opacity: scrubOpacity,
+                    transform: [
+                      { translateX: Animated.subtract(scrubXAnim, 20) },
+                      { translateY: Animated.subtract(scrubYAnim, 28) },
+                    ],
+                  },
+                ]}
+              >
+                <Animated.Text
+                  style={[
+                    styles.scrubberLabelText,
+                    {
+                      color: scrubColorAnim.interpolate({
+                        inputRange: [0, 0.5, 1],
+                        outputRange: ['#D04C68', '#FDE37B', '#59AA8A'],
+                      }),
+                    },
+                  ]}
+                >
+                  {scrubData.health ? `${scrubData.health.toFixed(0)}%` : ''}
+                </Animated.Text>
               </Animated.View>
             </View>
           )}
