@@ -1,0 +1,325 @@
+/**
+ * useDepositVault Hook
+ * Orchestrates the full deposit flow for adding more BTC collateral to an existing vault
+ */
+
+import { useCallback, useRef, useEffect } from 'react';
+import { useDepositStore } from '../stores/depositStore';
+import { useWallet } from '../contexts/WalletContext';
+import { usePrice } from '../stores/priceStore';
+import { getGuardianClient, disconnectGuardian } from '../services/guardianService';
+import {
+  createDepositConfig,
+  createVaultReqDeposit,
+  guardianSendReqDeposit,
+  computeVaultPrevoutFromTx,
+  buildVaultProfile,
+} from '../services/vaultOperationsService';
+import { fetchPriceQuote } from '../services/oracleService';
+import { createVaultWallet } from '../services/vaultWalletService';
+import { fetchVaultData, fetchVaultHistory } from '../services/vaultService';
+import { computeLiquidationPrice } from '../utils/vaultUtils';
+import { logger } from '../utils/logger';
+import type { DepositProcessingStep } from '../stores/depositStore';
+import type { VaultProfile } from '@ducat-unit/client-sdk';
+
+export interface UseDepositVaultResult {
+  /** Initiates the deposit process */
+  deposit: () => Promise<{ vaultTxid: string } | null>;
+  /** Fetches and loads current vault data */
+  loadVaultData: () => Promise<boolean>;
+  /** Cancels the current operation and resets state */
+  cancel: () => void;
+  /** Whether an operation is in progress */
+  isLoading: boolean;
+  /** Current error message, if any */
+  error: string | null;
+  /** Vault transaction ID after successful deposit */
+  vaultTxid: string | null;
+  /** Whether vault data has been loaded */
+  vaultDataLoaded: boolean;
+}
+
+export function useDepositVault(): UseDepositVaultResult {
+  const { wallet } = useWallet();
+  const { btcPrice } = usePrice();
+
+  const {
+    depositAmountSats,
+    selectedFeeRate,
+    currentUnitBorrowed,
+    currentBtcLocked,
+    loading,
+    error,
+    vaultTxid,
+    setLoading,
+    setError,
+    setVaultTxid,
+    setCurrentStep,
+    setProcessingStep,
+    setCurrentVaultData,
+    setBitcoinPrice,
+    reset,
+  } = useDepositStore();
+
+  // Track if we're in the middle of an operation
+  const operationInProgressRef = useRef(false);
+  const vaultDataLoadedRef = useRef(false);
+
+  // Update bitcoin price when it changes
+  useEffect(() => {
+    setBitcoinPrice(btcPrice);
+  }, [btcPrice, setBitcoinPrice]);
+
+  const updateProcessingStep = useCallback(
+    (step: DepositProcessingStep) => {
+      setProcessingStep(step);
+    },
+    [setProcessingStep]
+  );
+
+  /**
+   * Load current vault data from the validator API
+   */
+  const loadVaultData = useCallback(async (): Promise<boolean> => {
+    if (!wallet?.taprootPubkey) {
+      setError('Wallet not connected');
+      return false;
+    }
+
+    try {
+      setLoading(true);
+      logger.debug('[useDepositVault] Loading vault data...');
+
+      const vaultData = await fetchVaultData(wallet.taprootPubkey);
+
+      if (!vaultData) {
+        setError('No vault found. Please create a vault first.');
+        return false;
+      }
+
+      // Convert from API units to display units
+      const unitBorrowed = vaultData.totalDebt || 0;
+      const btcLocked = vaultData.totalCollateral || 0;
+
+      setCurrentVaultData(unitBorrowed, btcLocked);
+      vaultDataLoadedRef.current = true;
+
+      logger.debug('[useDepositVault] Vault data loaded:', {
+        unitBorrowed,
+        btcLocked,
+        vaultId: vaultData.vaultId,
+      });
+
+      return true;
+    } catch (err) {
+      const errorMessage = err instanceof Error ? err.message : 'Failed to load vault data';
+      logger.error('[useDepositVault] Error loading vault data:', { error: errorMessage });
+      setError(errorMessage);
+      return false;
+    } finally {
+      setLoading(false);
+    }
+  }, [wallet?.taprootPubkey, setLoading, setError, setCurrentVaultData]);
+
+  /**
+   * Build VaultProfile from current vault data
+   */
+  const buildVaultProfileFromData = useCallback(async (): Promise<VaultProfile | null> => {
+    if (!wallet?.taprootPubkey) {
+      return null;
+    }
+
+    try {
+      // Fetch full vault data including vaultInfo
+      const vaultData = await fetchVaultData(wallet.taprootPubkey);
+
+      if (!vaultData?.vaultInfo) {
+        logger.error('[useDepositVault] No vault info available');
+        return null;
+      }
+
+      // Fetch vault history to get the latest transaction for VaultPrevout
+      const history = await fetchVaultHistory(wallet.taprootPubkey);
+
+      if (!history || history.length === 0) {
+        logger.error('[useDepositVault] No vault history available');
+        return null;
+      }
+
+      const latestTx = history[0];
+      const vaultPrevout = computeVaultPrevoutFromTx(latestTx);
+
+      if (!vaultPrevout) {
+        logger.error('[useDepositVault] Could not compute VaultPrevout from transaction');
+        return null;
+      }
+
+      const profile = buildVaultProfile(
+        wallet.taprootPubkey,
+        vaultData.vaultInfo,
+        vaultPrevout
+      );
+
+      logger.debug('[useDepositVault] VaultProfile built:', {
+        acct_id: profile.acct_id,
+        master_id: profile.master_id,
+        hasRdata: !!profile.rdata,
+        hasUtxo: !!profile.utxo,
+      });
+
+      return profile;
+    } catch (err) {
+      logger.error('[useDepositVault] Error building VaultProfile:', { error: err });
+      return null;
+    }
+  }, [wallet?.taprootPubkey]);
+
+  const deposit = useCallback(async (): Promise<{ vaultTxid: string } | null> => {
+    // Prevent double execution
+    if (operationInProgressRef.current) {
+      logger.warn('[useDepositVault] Operation already in progress');
+      return null;
+    }
+
+    // Validate wallet connection
+    if (!wallet?.segwitAddress || !wallet?.taprootAddress) {
+      setError('Wallet not connected');
+      return null;
+    }
+
+    // Validate bitcoin price
+    if (!btcPrice) {
+      setError('Bitcoin price not available');
+      return null;
+    }
+
+    // Validate deposit amount
+    if (depositAmountSats <= 0) {
+      setError('Please enter an amount to deposit');
+      return null;
+    }
+
+    // Validate vault data is loaded
+    if (currentBtcLocked <= 0 && currentUnitBorrowed <= 0) {
+      setError('No vault data. Please load vault data first.');
+      return null;
+    }
+
+    operationInProgressRef.current = true;
+    setLoading(true);
+    setError(null);
+    setCurrentStep('processing');
+
+    try {
+      // Step 1: Build VaultProfile and create config
+      updateProcessingStep(1);
+      logger.debug('[useDepositVault] Step 1: Building VaultProfile and config...');
+
+      const vaultProfile = await buildVaultProfileFromData();
+
+      if (!vaultProfile) {
+        throw new Error('Failed to build vault profile. Please try again.');
+      }
+
+      // Create VaultWallet instance
+      const vaultWallet = await createVaultWallet({
+        segwitAddress: wallet.segwitAddress,
+        segwitPubkey: wallet.segwitPubkey || '',
+        taprootAddress: wallet.taprootAddress,
+        taprootPubkey: wallet.taprootPubkey || '',
+      });
+
+      const depositConfig = createDepositConfig(depositAmountSats, selectedFeeRate);
+
+      // Step 2: Connect to guardian (no reservation needed for deposit)
+      updateProcessingStep(2);
+      logger.debug('[useDepositVault] Step 2: Connecting to guardian...');
+
+      const gclient = await getGuardianClient(wallet.taprootPubkey || '');
+
+      // Step 3: Create deposit request with PSBT
+      updateProcessingStep(3);
+      logger.debug('[useDepositVault] Step 3: Creating deposit request...');
+
+      // Calculate new liquidation price after deposit
+      const newCollateral = currentBtcLocked + depositAmountSats / 100_000_000;
+      const newLiquidationPrice = computeLiquidationPrice(currentUnitBorrowed, newCollateral);
+
+      // Fetch oracle quote
+      const oracleQuote = await fetchPriceQuote(newLiquidationPrice);
+
+      const depositReq = await createVaultReqDeposit(
+        vaultWallet,
+        depositConfig,
+        {
+          feeRate: selectedFeeRate,
+          oracleQuote,
+          vaultProfile,
+        }
+      );
+
+      // Step 4: Submit to guardian
+      updateProcessingStep(4);
+      logger.debug('[useDepositVault] Step 4: Submitting to guardian...');
+
+      const result = await guardianSendReqDeposit(gclient, depositReq);
+
+      setVaultTxid(result.vault_txid);
+      setCurrentStep('success');
+
+      logger.info('[useDepositVault] Deposit completed successfully:', {
+        vault_txid: result.vault_txid,
+      });
+
+      return { vaultTxid: result.vault_txid };
+    } catch (err) {
+      const errorMessage = err instanceof Error ? err.message : 'Deposit operation failed';
+      const errorStack = err instanceof Error ? err.stack : undefined;
+      logger.error('[useDepositVault] Error:', {
+        message: errorMessage,
+        stack: errorStack,
+      });
+      setError(errorMessage);
+      setCurrentStep('confirm'); // Go back to confirm step on error
+      return null;
+    } finally {
+      operationInProgressRef.current = false;
+      setLoading(false);
+      disconnectGuardian();
+    }
+  }, [
+    wallet,
+    btcPrice,
+    depositAmountSats,
+    selectedFeeRate,
+    currentUnitBorrowed,
+    currentBtcLocked,
+    setLoading,
+    setError,
+    setVaultTxid,
+    setCurrentStep,
+    updateProcessingStep,
+    buildVaultProfileFromData,
+  ]);
+
+  const cancel = useCallback(() => {
+    operationInProgressRef.current = false;
+    vaultDataLoadedRef.current = false;
+    disconnectGuardian();
+    reset();
+  }, [reset]);
+
+  return {
+    deposit,
+    loadVaultData,
+    cancel,
+    isLoading: loading,
+    error,
+    vaultTxid,
+    vaultDataLoaded: vaultDataLoadedRef.current,
+  };
+}
+
+// Re-export for convenience
+export { useDeposit } from '../stores/depositStore';

@@ -25,6 +25,8 @@ import { FullscreenVaultChart } from '../../components/vaultDetail/fullscreenCha
 interface VaultDetailScreenProps {
   navigation: {
     goBack: () => void;
+    navigate: (screen: string, params?: object) => void;
+    getParent: () => { navigate: (screen: string, params?: object) => void } | undefined;
   };
 }
 
@@ -117,6 +119,23 @@ function VaultDetailScreen({ navigation }: VaultDetailScreenProps): React.JSX.El
     setChartVisible(false);
   }, []);
 
+  // Vault action handlers
+  const handleBorrowPress = useCallback(() => {
+    navigation.getParent()?.navigate('BorrowFlow');
+  }, [navigation]);
+
+  const handleRepayPress = useCallback(() => {
+    navigation.getParent()?.navigate('RepayFlow');
+  }, [navigation]);
+
+  const handleDepositPress = useCallback(() => {
+    navigation.getParent()?.navigate('DepositFlow');
+  }, [navigation]);
+
+  const handleWithdrawPress = useCallback(() => {
+    navigation.getParent()?.navigate('WithdrawFlow');
+  }, [navigation]);
+
   return (
     <SafeAreaView style={styles.container}>
       <VaultHeader onBackPress={handleBackPress} onChartPress={handleChartPress} />
@@ -140,6 +159,10 @@ function VaultDetailScreen({ navigation }: VaultDetailScreenProps): React.JSX.El
           healthColor={vaultHealthColor}
           isLoading={showVaultLoading}
           onChartPress={handleChartPress}
+          onBorrowPress={handleBorrowPress}
+          onRepayPress={handleRepayPress}
+          onDepositPress={handleDepositPress}
+          onWithdrawPress={handleWithdrawPress}
         />
 
         <VaultTabs

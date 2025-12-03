@@ -32,6 +32,24 @@ export const API = {
   VAULT: 'https://validator.ducatprotocol.com/api',
   PHONE: 'https://phone.ducatprotocol.com',
   COINGECKO: 'https://api.coingecko.com/api/v3',
+  // Vault creation endpoints
+  GUARDIAN_WS: 'wss://guardian-mutinynet-1.ducatprotocol.com',
+  QUOTE_SERVER: 'https://quote.ducatprotocol.com',
+  PRICE_SERVER: 'https://price.ducatprotocol.com',
+  // Aliases for SDK compatibility
+  ESPLORA_URL: 'https://mutinynet.com/api',
+  ORD_URL: 'https://ord-mutinynet.ducatprotocol.com',
+} as const;
+
+// Vault creation constants
+export const VAULT_CONFIG = {
+  MIN_COL_RATE: 1.6, // 160% minimum collateralization ratio
+  LIQUIDATION_RATE: 1.35, // 135% liquidation threshold
+  VIN_ALLOWANCE: 350, // Virtual bytes allowance per input
+  TX_TIMEOUT: 60_000, // 60s guardian timeout
+  UNIT_POSTAGE: 10_000, // Satoshis for UNIT output
+  TOKEN_POSTAGE: 10_000, // Satoshis for token output
+  RUNE_LABEL: 'DUCAT•UNIT•RUNE', // Rune label for UNIT token
 } as const;
 
 // API Keys (for services that require authentication)

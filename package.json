@@ -28,6 +28,7 @@
   },
   "dependencies": {
     "@bitcoinerlab/secp256k1": "^1.2.0",
+    "@ducat-unit/client-sdk": "0.7.23",
     "@expo/vector-icons": "^15.0.3",
     "@ngraveio/bc-ur": "^1.1.13",
     "@noble/secp256k1": "^3.0.0",

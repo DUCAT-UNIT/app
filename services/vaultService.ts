@@ -10,6 +10,12 @@ export interface VaultHistoryTransaction {
   oracle_price: number;
   timestamp: number;
   action: string;
+  // Additional fields for VaultProfile construction
+  transaction_id?: string;
+  utxo?: string;
+  utxo_script?: string;
+  liquidation_hash?: string;
+  liquidation_threshold?: number;
 }
 
 export interface VaultData {
@@ -27,6 +33,31 @@ export interface VaultData {
     timestamp: number;
     action: string;
   };
+  // Extended vault info for borrow operations
+  vaultInfo?: VaultInfo;
+}
+
+/**
+ * Full vault info from validator API
+ * Used for constructing VaultProfile for borrow/repay operations
+ */
+export interface VaultInfo {
+  vault_id: string;
+  vault_tag: string;
+  vault_pubkey: string;
+  btc_locked: number;
+  unit_borrowed: number;
+  collateral_ratio: number;
+  creation_account: string;
+  guard_pubkey: string;
+  master_id: string;
+  liquidation_hash: string;
+  liquidation_price: number;
+  oracle_price: number;
+  oracle_timestamp: number;
+  utxo: string;
+  vault_last_action: string;
+  vault_version: number;
 }
 
 interface VaultListVault {
@@ -34,11 +65,25 @@ interface VaultListVault {
   vault_tag: string;
   btc_locked: number;
   unit_borrowed: number;
+  // Extended fields
+  vault_pubkey?: string;
+  collateral_ratio?: number;
+  creation_account?: string;
+  guard_pubkey?: string;
+  master_id?: string;
+  liquidation_hash?: string;
+  liquidation_price?: number;
+  oracle_price?: number;
+  oracle_timestamp?: number;
+  utxo?: string;
+  vault_last_action?: string;
+  vault_version?: number;
 }
 
 interface VaultListResponse {
   vaults: VaultListVault[];
   current_price: number;
+  vaults_total?: number;
 }
 
 interface VaultHistoryResponse {
@@ -175,6 +220,27 @@ export const fetchVaultData = async (vaultPubkey: string): Promise<VaultData | n
 
     // Use data from first vault only (not totals across all vaults)
     const firstVault = vaultListData.vaults[0];
+
+    // Construct full VaultInfo for borrow operations
+    const vaultInfo: VaultInfo = {
+      vault_id: firstVault.vault_id,
+      vault_tag: firstVault.vault_tag,
+      vault_pubkey: firstVault.vault_pubkey || '',
+      btc_locked: firstVault.btc_locked,
+      unit_borrowed: firstVault.unit_borrowed,
+      collateral_ratio: firstVault.collateral_ratio || 0,
+      creation_account: firstVault.creation_account || '',
+      guard_pubkey: firstVault.guard_pubkey || '',
+      master_id: firstVault.master_id || '',
+      liquidation_hash: firstVault.liquidation_hash || '',
+      liquidation_price: firstVault.liquidation_price || 0,
+      oracle_price: firstVault.oracle_price || vaultListData.current_price,
+      oracle_timestamp: firstVault.oracle_timestamp || 0,
+      utxo: firstVault.utxo || '',
+      vault_last_action: firstVault.vault_last_action || '',
+      vault_version: firstVault.vault_version || 1,
+    };
+
     const vaultData: VaultData = {
       vaultId,
       vaultTag,
@@ -190,12 +256,14 @@ export const fetchVaultData = async (vaultPubkey: string): Promise<VaultData | n
         timestamp: latestTransaction.timestamp,
         action: latestTransaction.action,
       },
+      vaultInfo,
     };
 
     logger.debug('✅ Vault data fetched successfully (first vault only):', {
       vaultTag,
       totalDebt: firstVault.unit_borrowed,
       totalCollateral: firstVault.btc_locked,
+      hasVaultInfo: !!vaultInfo.creation_account,
     });
 
     return vaultData;

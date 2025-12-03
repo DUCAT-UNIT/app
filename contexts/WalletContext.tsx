@@ -7,6 +7,7 @@ import { clearP2PKCache } from '../services/cashu/p2pk';
 export interface WalletAddresses {
   segwitAddress: string;
   taprootAddress: string;
+  segwitPubkey: string;
   taprootPubkey: string;
   [key: string]: unknown;
 }
@@ -51,6 +52,7 @@ export const WalletProvider: React.FC<WalletProviderProps> = ({ children }) => {
         setWallet({
           segwitAddress: addresses.segwitAddress,
           taprootAddress: addresses.taprootAddress,
+          segwitPubkey: addresses.segwitPubkey,
           taprootPubkey: addresses.taprootPubkey,
         });
         setCurrentAccount(accountIndex);
@@ -69,6 +71,7 @@ export const WalletProvider: React.FC<WalletProviderProps> = ({ children }) => {
     setWallet({
       segwitAddress: addresses.segwitAddress,
       taprootAddress: addresses.taprootAddress,
+      segwitPubkey: addresses.segwitPubkey,
       taprootPubkey: addresses.taprootPubkey,
     });
     setCurrentAccount(accountIndex);
@@ -100,6 +103,7 @@ export const WalletProvider: React.FC<WalletProviderProps> = ({ children }) => {
     setWallet({
       segwitAddress: addresses.segwitAddress,
       taprootAddress: addresses.taprootAddress,
+      segwitPubkey: addresses.segwitPubkey,
       taprootPubkey: addresses.taprootPubkey,
     });
     setCurrentAccount(accountIndex);

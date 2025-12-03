@@ -18,6 +18,10 @@ interface VaultInfoProps {
   isLoading?: boolean;
   priceChange24h?: number;
   onChartPress?: () => void;
+  onBorrowPress?: () => void;
+  onRepayPress?: () => void;
+  onDepositPress?: () => void;
+  onWithdrawPress?: () => void;
 }
 
 export const VaultInfo = memo(function VaultInfo({
@@ -28,6 +32,10 @@ export const VaultInfo = memo(function VaultInfo({
   isLoading = false,
   priceChange24h = 0,
   onChartPress,
+  onBorrowPress,
+  onRepayPress,
+  onDepositPress,
+  onWithdrawPress,
 }: VaultInfoProps) {
   const { s } = useResponsive();
 
@@ -47,6 +55,10 @@ export const VaultInfo = memo(function VaultInfo({
         currentPrice={currentPrice}
         healthPercentage={healthPercentage}
         priceChange24h={priceChange24h}
+        onBorrowPress={onBorrowPress}
+        onRepayPress={onRepayPress}
+        onDepositPress={onDepositPress}
+        onWithdrawPress={onWithdrawPress}
       />
     </View>
   );

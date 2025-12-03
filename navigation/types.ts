@@ -27,6 +27,61 @@ export type SendStackParamList = {
 };
 
 /**
+ * Vault Creation Navigator
+ * Stack for vault creation flow
+ */
+export type VaultCreateStackParamList = {
+  VaultAmounts: undefined;
+  VaultConfirm: undefined;
+  VaultProcessing: undefined;
+  VaultSuccess: { txid?: string };
+};
+
+/**
+ * Borrow Navigator
+ * Stack for borrow flow (borrowing more UNIT from existing vault)
+ */
+export type BorrowStackParamList = {
+  BorrowInput: undefined;
+  BorrowConfirm: undefined;
+  BorrowProcessing: undefined;
+  BorrowSuccess: { txid?: string };
+};
+
+/**
+ * Deposit Navigator
+ * Stack for deposit flow (adding more BTC collateral to existing vault)
+ */
+export type DepositStackParamList = {
+  DepositInput: undefined;
+  DepositConfirm: undefined;
+  DepositProcessing: undefined;
+  DepositSuccess: { vaultTxid?: string };
+};
+
+/**
+ * Repay Navigator
+ * Stack for repay flow (paying back UNIT debt)
+ */
+export type RepayStackParamList = {
+  RepayInput: undefined;
+  RepayConfirm: undefined;
+  RepayProcessing: undefined;
+  RepaySuccess: { vaultTxid?: string };
+};
+
+/**
+ * Withdraw Navigator
+ * Stack for withdraw flow (withdrawing BTC collateral from existing vault)
+ */
+export type WithdrawStackParamList = {
+  WithdrawInput: undefined;
+  WithdrawConfirm: undefined;
+  WithdrawProcessing: undefined;
+  WithdrawSuccess: { vaultTxid?: string };
+};
+
+/**
  * Root Stack Navigator (top level)
  * Switches between Auth flow and Main app
  */
@@ -34,6 +89,11 @@ export type RootNavigatorParamList = {
   Auth: undefined;
   Main: undefined;
   SendFlow: NavigatorScreenParams<SendStackParamList> | undefined;
+  VaultCreateFlow: NavigatorScreenParams<VaultCreateStackParamList> | undefined;
+  BorrowFlow: NavigatorScreenParams<BorrowStackParamList> | undefined;
+  DepositFlow: NavigatorScreenParams<DepositStackParamList> | undefined;
+  RepayFlow: NavigatorScreenParams<RepayStackParamList> | undefined;
+  WithdrawFlow: NavigatorScreenParams<WithdrawStackParamList> | undefined;
 };
 
 /**

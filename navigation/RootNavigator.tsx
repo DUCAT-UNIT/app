@@ -10,6 +10,11 @@ import { createStackNavigator } from '@react-navigation/stack';
 import AuthStack from './AuthStack';
 import MainTabs from './MainTabs';
 import SendNavigator from './SendNavigator';
+import VaultCreateNavigator from './VaultCreateNavigator';
+import BorrowNavigator from './BorrowNavigator';
+import DepositNavigator from './DepositNavigator';
+import RepayNavigator from './RepayNavigator';
+import WithdrawNavigator from './WithdrawNavigator';
 import PinSetupScreenComponent from '../screens/auth/PinSetupScreen';
 import LockScreen from '../screens/auth/LockScreen';
 import PasskeyMigrationModal from '../components/PasskeyMigrationModal';
@@ -190,6 +195,41 @@ export default function RootNavigator(): React.JSX.Element {
               <Stack.Screen
                 name="SendFlow"
                 component={SendNavigator}
+                options={{
+                  presentation: 'modal',
+                }}
+              />
+              <Stack.Screen
+                name="VaultCreateFlow"
+                component={VaultCreateNavigator}
+                options={{
+                  presentation: 'modal',
+                }}
+              />
+              <Stack.Screen
+                name="BorrowFlow"
+                component={BorrowNavigator}
+                options={{
+                  presentation: 'modal',
+                }}
+              />
+              <Stack.Screen
+                name="DepositFlow"
+                component={DepositNavigator}
+                options={{
+                  presentation: 'modal',
+                }}
+              />
+              <Stack.Screen
+                name="RepayFlow"
+                component={RepayNavigator}
+                options={{
+                  presentation: 'modal',
+                }}
+              />
+              <Stack.Screen
+                name="WithdrawFlow"
+                component={WithdrawNavigator}
                 options={{
                   presentation: 'modal',
                 }}

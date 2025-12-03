@@ -150,6 +150,11 @@ export default function WalletPage({ route }: WalletPageProps) {
     (navigation as { navigate: (screen: string) => void }).navigate('VaultDetail');
   };
 
+  // Navigate to vault creation flow
+  const handleCreateVaultPress = () => {
+    (navigation as { navigate: (screen: string) => void }).navigate('VaultCreateFlow');
+  };
+
   if (!hasCheckedInitialFlags) return <SplashScreen />;
 
   return (
@@ -167,7 +172,7 @@ export default function WalletPage({ route }: WalletPageProps) {
               onHistoryPress={() => setShowTxHistory(true)}
               onQRScanPress={() => setShowQRScanner(true)}
               onSettingsPress={openSettings}
-              onCreateVaultPress={handleVaultPress}
+              onCreateVaultPress={handleCreateVaultPress}
               onVaultPress={handleVaultPress}
               onAssetPress={(assetType) => (navigation as { navigate: (screen: string, params?: object) => void }).navigate('AssetDetail', { assetType, advancedMode: settingsHandlers.advancedMode })}
               _sendAddressType={sendAddressType ?? undefined}

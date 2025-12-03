@@ -547,7 +547,7 @@ describe('TransactionExecutionContext', () => {
     useSendFlow.mockReturnValue({
       setIntentStep: mockSetIntentStep,
       sendAssetType: 'unit',
-      sendAmount: '100',
+      sendAmount: '50',
     });
 
     usePendingTransactions.mockReturnValue({
@@ -1481,6 +1481,146 @@ describe('TransactionExecutionContext', () => {
         'UNIT',
         null,
         10000 // sentAmountSmallest
+      );
+    });
+
+    it('should only set first pending input as parent (skip subsequent pending inputs)', async () => {
+      const mockAddPendingTransaction = jest.fn();
+      const mockMarkUtxoAsSpent = jest.fn();
+
+      const pendingTxid1 = 'a'.repeat(64);
+      const pendingTxid2 = 'b'.repeat(64);
+
+      usePendingTransactions.mockReturnValue({
+        pendingTransactions: {
+          [pendingTxid1]: { status: 'pending', outputs: [] },
+          [pendingTxid2]: { status: 'pending', outputs: [] },
+        },
+        addPendingTransaction: mockAddPendingTransaction,
+        confirmTransaction: jest.fn(),
+        invalidateTransaction: jest.fn(),
+        markUtxoAsSpent: mockMarkUtxoAsSpent,
+        markUtxosAsSpent: jest.fn(),
+      });
+
+      // Mock transaction spending from TWO pending transactions
+      const mockTx = {
+        ins: [
+          { hash: Buffer.from(pendingTxid1, 'hex').reverse() },
+          { hash: Buffer.from(pendingTxid2, 'hex').reverse() },
+        ],
+        outs: [{ script: Buffer.from('mock_script'), value: 10000 }],
+      };
+
+      jest.spyOn(bitcoin.Transaction, 'fromHex').mockReturnValue(mockTx);
+      jest.spyOn(bitcoin.address, 'fromOutputScript').mockReturnValue('tb1qtest');
+
+      useTransactionBuild.mockReturnValue({
+        sendIntent: { ...mockSignedIntent, signedTxHex: 'mock_hex' },
+        setSendIntent: mockSetSendIntent,
+      });
+
+      TransactionService.broadcastTransaction.mockResolvedValue('child_txid');
+
+      const wrapper = ({ children }) => (
+        <TransactionExecutionProvider
+          currentAccount={0}
+          showSnackbar={mockShowSnackbar}
+          startTransactionPolling={mockStartTransactionPolling}
+          sendTransactionConfirmedNotification={mockSendTransactionConfirmedNotification}
+          notificationsEnabled={true}
+          fetchBalance={mockFetchBalance}
+        >
+          {children}
+        </TransactionExecutionProvider>
+      );
+      const { result } = renderHook(() => useTransactionExecution(), { wrapper });
+
+      await act(async () => {
+        await result.current.broadcastIntent();
+      });
+
+      // Should mark both UTXOs as spent
+      expect(mockMarkUtxoAsSpent).toHaveBeenCalledTimes(2);
+
+      // But only first pending txid should be set as parent
+      expect(mockAddPendingTransaction).toHaveBeenCalledWith(
+        'child_txid',
+        expect.any(Array),
+        'BTC',
+        pendingTxid1, // First pending input is parent, second is ignored
+        expect.any(Number)
+      );
+    });
+
+    it('should use runeUtxo.runeAmount fallback when runeUtxos is empty', async () => {
+      const mockAddPendingTransaction = jest.fn();
+
+      useSendFlow.mockReturnValue({
+        setIntentStep: mockSetIntentStep,
+        sendAssetType: 'unit',
+        sendAmount: '50',
+      });
+
+      usePendingTransactions.mockReturnValue({
+        pendingTransactions: {},
+        addPendingTransaction: mockAddPendingTransaction,
+        confirmTransaction: jest.fn(),
+        invalidateTransaction: jest.fn(),
+        markUtxoAsSpent: jest.fn(),
+        markUtxosAsSpent: jest.fn(),
+      });
+
+      const mockTx = {
+        ins: [{ hash: Buffer.from('a'.repeat(64), 'hex') }],
+        outs: [{ script: Buffer.from('mock_script'), value: 10000 }],
+      };
+
+      jest.spyOn(bitcoin.Transaction, 'fromHex').mockReturnValue(mockTx);
+      jest.spyOn(bitcoin.address, 'fromOutputScript').mockReturnValue('tb1ptest');
+
+      // Intent with empty runeUtxos array but has runeUtxo (backward compat)
+      const signedIntent = {
+        ...mockSignedIntent,
+        signedTxHex: 'mock_signed_hex',
+        assetType: 'UNIT',
+        runeUtxos: [], // Empty array
+        runeUtxo: { runeAmount: 300 }, // Fallback to this
+        amount: '50',
+      };
+
+      useTransactionBuild.mockReturnValue({
+        sendIntent: signedIntent,
+        setSendIntent: mockSetSendIntent,
+      });
+
+      TransactionService.broadcastTransaction.mockResolvedValue('mock_txid_fallback');
+
+      const wrapper = ({ children }) => (
+        <TransactionExecutionProvider
+          currentAccount={0}
+          showSnackbar={mockShowSnackbar}
+          startTransactionPolling={mockStartTransactionPolling}
+          sendTransactionConfirmedNotification={mockSendTransactionConfirmedNotification}
+          notificationsEnabled={true}
+          fetchBalance={mockFetchBalance}
+        >
+          {children}
+        </TransactionExecutionProvider>
+      );
+      const { result } = renderHook(() => useTransactionExecution(), { wrapper });
+
+      await act(async () => {
+        await result.current.broadcastIntent();
+      });
+
+      // runeChangeAmount = 300 - 50 = 250
+      expect(mockAddPendingTransaction).toHaveBeenCalledWith(
+        'mock_txid_fallback',
+        [{ address: 'tb1ptest', value: 10000, vout: 0, runeAmount: 250 }],
+        'UNIT',
+        null,
+        5000
       );
     });
 
