@@ -1,0 +1,13 @@
+diff --git a/node_modules/@ducat-unit/client-sdk/dist/util/runes.js b/node_modules/@ducat-unit/client-sdk/dist/util/runes.js
+index 1234567..abcdefg 100644
+--- a/node_modules/@ducat-unit/client-sdk/dist/util/runes.js
++++ b/node_modules/@ducat-unit/client-sdk/dist/util/runes.js
+@@ -1,4 +1,7 @@
+-import { encodeRunestone } from '@ducat-unit/runestone';
++// PATCHED: Use CommonJS require for React Native Metro bundler compatibility
++// ESM import from CommonJS package doesn't resolve correctly in Metro
++// See: patches/@ducat-unit+client-sdk+0.7.23.patch
++const { encodeRunestone } = require('@ducat-unit/runestone');
+ const RUNE_ID_REGEX = /\d+:\d+/;
+ export function transfer_runes(rune_id, amount, output) {
+     if (!RUNE_ID_REGEX.test(rune_id)) {

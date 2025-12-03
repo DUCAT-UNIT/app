@@ -1,0 +1,18 @@
+diff --git a/node_modules/@ducat-unit/runestone/dist/src/runestone.js b/node_modules/@ducat-unit/runestone/dist/src/runestone.js
+index 1234567..abcdefg 100644
+--- a/node_modules/@ducat-unit/runestone/dist/src/runestone.js
++++ b/node_modules/@ducat-unit/runestone/dist/src/runestone.js
+@@ -161,7 +161,11 @@ class Runestone {
+         stack.push(constants_1.OP_RETURN);
+         stack.push(constants_1.MAGIC_NUMBER);
+         const payload = Buffer.concat(payloads);
+         for (let i = 0; i < payload.length; i += constants_1.MAX_SCRIPT_ELEMENT_SIZE) {
+-            stack.push(payload.subarray(i, i + constants_1.MAX_SCRIPT_ELEMENT_SIZE));
++            // PATCHED: In React Native, Buffer.subarray() returns a Uint8Array, not a Buffer.
++            // Buffer.isBuffer(Uint8Array) returns false, causing script.compile to treat
++            // the payload as an opcode instead of data. Wrap with Buffer.from() to ensure
++            // it's a proper Buffer that passes Buffer.isBuffer() check.
++            stack.push(Buffer.from(payload.subarray(i, i + constants_1.MAX_SCRIPT_ELEMENT_SIZE)));
+         }
+         return script_1.script.compile(stack);
+     }
