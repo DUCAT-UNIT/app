@@ -116,11 +116,7 @@ export const FullscreenVaultChart = memo(function FullscreenVaultChart({
       <View style={[styles.modalContainer, { paddingTop: safeAreaTop, paddingBottom: safeAreaBottom }]}>
         {/* Header */}
         <View style={styles.header}>
-          <View style={[styles.healthChip, { backgroundColor: healthChipBg, borderColor: healthColor }]}>
-            <Text style={[styles.healthChipText, { color: healthColor }]}>
-              {displayHealth ? `${displayHealth.toFixed(0)}%` : 'N/A'}
-            </Text>
-          </View>
+          <View style={{ width: 44 }} />
           <Text style={styles.headerTitle}>Vault Health</Text>
           <TouchableOpacity style={styles.closeButton} onPress={onClose} activeOpacity={0.7}>
             <Icon name="close" size={24} color={COLORS.WHITE} />
@@ -303,7 +299,13 @@ export const FullscreenVaultChart = memo(function FullscreenVaultChart({
                 onPress={() => setLockedEventDate(null)}
               >
                 <Icon name="close" size={12} color={COLORS.PRIMARY_BLUE} />
-                <Text style={styles.clearFilterText}>{selectedTimeframe}</Text>
+                <Text style={styles.clearFilterText}>
+                  {new Date(lockedEventDate).toLocaleDateString('en-US', {
+                    month: 'short',
+                    day: 'numeric',
+                    year: 'numeric',
+                  })}
+                </Text>
               </TouchableOpacity>
             )}
           </View>

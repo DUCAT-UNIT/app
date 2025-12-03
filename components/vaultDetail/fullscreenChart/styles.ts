@@ -137,7 +137,6 @@ export const fullscreenStyles = StyleSheet.create({
   // Activity section (bottom half)
   activitySection: {
     flex: 1,
-    paddingHorizontal: 16,
     borderTopWidth: 1,
     borderTopColor: COLORS.VERY_DARK_GRAY,
   },
@@ -146,6 +145,7 @@ export const fullscreenStyles = StyleSheet.create({
     justifyContent: 'space-between',
     alignItems: 'center',
     paddingVertical: 12,
+    paddingHorizontal: 16,
   },
   activityTitle: {
     fontSize: 16,
