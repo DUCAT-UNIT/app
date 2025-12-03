@@ -1,33 +1,28 @@
 /**
  * FullscreenChart Styles
- * StyleSheet definitions for fullscreen vault chart
+ * StyleSheet definitions for fullscreen vault chart with activity list
  */
 
 import { StyleSheet } from 'react-native';
 import { COLORS } from '../../../theme';
-import { DRAWER_WIDTH, LEFT_MARGIN, RIGHT_MARGIN, PORTRAIT_WIDTH, PORTRAIT_HEIGHT } from './constants';
+import { LEFT_MARGIN, RIGHT_MARGIN } from './constants';
 
 export const fullscreenStyles = StyleSheet.create({
   modalContainer: {
     flex: 1,
     backgroundColor: COLORS.DARK_BG,
-    justifyContent: 'center',
-    alignItems: 'center',
   },
-  portraitContainer: {
-    flex: 1,
-    width: PORTRAIT_WIDTH,
-    height: PORTRAIT_HEIGHT,
-    backgroundColor: COLORS.DARK_BG,
-  },
-  topRightControls: {
-    position: 'absolute',
-    top: 16,
-    right: 16,
+  header: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 8,
-    zIndex: 10,
+    justifyContent: 'space-between',
+    paddingHorizontal: 16,
+    paddingVertical: 12,
+  },
+  headerTitle: {
+    fontSize: 18,
+    fontWeight: '600',
+    color: COLORS.WHITE,
   },
   closeButton: {
     width: 44,
@@ -37,20 +32,25 @@ export const fullscreenStyles = StyleSheet.create({
     justifyContent: 'center',
     alignItems: 'center',
   },
-  chartContainer: {
-    flex: 1,
-    justifyContent: 'flex-start',
-    overflow: 'hidden',
-  },
   healthChip: {
     paddingHorizontal: 12,
-    paddingVertical: 10,
+    paddingVertical: 8,
     borderRadius: 16,
     borderWidth: 1.5,
   },
   healthChipText: {
     fontSize: 14,
     fontWeight: '700',
+  },
+  // Chart section (top half)
+  chartSection: {
+    height: '40%',
+    justifyContent: 'flex-start',
+    overflow: 'hidden',
+  },
+  chartWrapper: {
+    flex: 1,
+    position: 'relative',
   },
   loadingContainer: {
     flex: 1,
@@ -70,11 +70,121 @@ export const fullscreenStyles = StyleSheet.create({
     color: COLORS.SECONDARY_TEXT,
     fontSize: 14,
   },
-  chartWrapper: {
-    width: '100%',
-    position: 'relative',
+  // Timeframe buttons
+  timeframeButtons: {
+    flexDirection: 'row',
+    justifyContent: 'center',
+    gap: 4,
+    paddingVertical: 8,
+    paddingLeft: LEFT_MARGIN,
+    paddingRight: RIGHT_MARGIN,
   },
-  // Native animated scrubber styles
+  timeframeButton: {
+    paddingHorizontal: 16,
+    paddingVertical: 8,
+    borderRadius: 12,
+    backgroundColor: 'transparent',
+    minWidth: 50,
+    alignItems: 'center',
+  },
+  timeframeButtonActive: {
+    backgroundColor: COLORS.VERY_DARK_GRAY,
+  },
+  timeframeText: {
+    color: COLORS.SECONDARY_TEXT,
+    fontSize: 13,
+    fontWeight: '600',
+  },
+  timeframeTextActive: {
+    color: COLORS.WHITE,
+  },
+  // Activity section (bottom half)
+  activitySection: {
+    flex: 1,
+    paddingHorizontal: 16,
+    borderTopWidth: 1,
+    borderTopColor: COLORS.VERY_DARK_GRAY,
+  },
+  activityTitle: {
+    fontSize: 16,
+    fontWeight: '600',
+    color: COLORS.WHITE,
+    paddingVertical: 12,
+  },
+  activityList: {
+    paddingBottom: 16,
+  },
+  emptyActivity: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  emptyActivityText: {
+    color: COLORS.SECONDARY_TEXT,
+    fontSize: 14,
+  },
+  // Transaction item styles
+  txItem: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingVertical: 12,
+    paddingHorizontal: 12,
+    marginBottom: 8,
+    borderRadius: 12,
+    backgroundColor: COLORS.VERY_DARK_GRAY,
+  },
+  txIconContainer: {
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginRight: 12,
+  },
+  txContent: {
+    flex: 1,
+  },
+  txTopRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 4,
+  },
+  txAction: {
+    fontSize: 14,
+    fontWeight: '600',
+  },
+  txDate: {
+    fontSize: 12,
+    color: COLORS.SECONDARY_TEXT,
+  },
+  txAmounts: {
+    flexDirection: 'row',
+    gap: 12,
+  },
+  txAmount: {
+    fontSize: 13,
+    fontWeight: '500',
+  },
+  // Legacy styles (kept for compatibility, can be removed later)
+  portraitContainer: {
+    flex: 1,
+    backgroundColor: COLORS.DARK_BG,
+  },
+  topRightControls: {
+    position: 'absolute',
+    top: 16,
+    right: 16,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    zIndex: 10,
+  },
+  chartContainer: {
+    flex: 1,
+    justifyContent: 'flex-start',
+    overflow: 'hidden',
+  },
   animatedScrubberLine: {
     position: 'absolute',
     top: 0,
@@ -96,149 +206,5 @@ export const fullscreenStyles = StyleSheet.create({
     height: 6,
     borderRadius: 3,
     backgroundColor: '#fff',
-  },
-  timeframeButtons: {
-    position: 'absolute',
-    bottom: 8,
-    left: 0,
-    right: 0,
-    flexDirection: 'row',
-    justifyContent: 'center',
-    gap: 4,
-    paddingLeft: LEFT_MARGIN,
-    paddingRight: RIGHT_MARGIN,
-  },
-  timeframeButton: {
-    paddingHorizontal: 20,
-    paddingVertical: 12,
-    borderRadius: 12,
-    backgroundColor: 'transparent',
-    minWidth: 70,
-    alignItems: 'center',
-  },
-  timeframeButtonActive: {
-    backgroundColor: COLORS.VERY_DARK_GRAY,
-  },
-  timeframeText: {
-    color: COLORS.SECONDARY_TEXT,
-    fontSize: 14,
-    fontWeight: '700',
-  },
-  timeframeTextActive: {
-    color: COLORS.WHITE,
-  },
-  // Drawer styles
-  drawer: {
-    position: 'absolute',
-    top: 0,
-    bottom: 0,
-    width: DRAWER_WIDTH,
-    backgroundColor: COLORS.VERY_DARK_GRAY,
-    paddingTop: 24,
-    paddingHorizontal: 16,
-    shadowColor: '#000',
-    shadowOpacity: 0.25,
-    shadowRadius: 10,
-    elevation: 5,
-    zIndex: 50,
-  },
-  drawerRight: {
-    right: 0,
-    borderLeftWidth: 1,
-    borderLeftColor: COLORS.DARK_GRAY,
-    shadowOffset: { width: -2, height: 0 },
-  },
-  drawerLeft: {
-    left: LEFT_MARGIN,
-    borderRightWidth: 1,
-    borderRightColor: COLORS.DARK_GRAY,
-    shadowOffset: { width: 2, height: 0 },
-  },
-  drawerHeader: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'flex-start',
-    marginBottom: 16,
-    paddingBottom: 8,
-    borderBottomWidth: 1,
-    borderBottomColor: COLORS.DARK_GRAY,
-  },
-  drawerHeaderLeft: {
-    flex: 1,
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 8,
-  },
-  drawerTitle: {
-    fontSize: 16,
-    fontWeight: '600',
-    color: COLORS.WHITE,
-  },
-  drawerHealthChip: {
-    paddingHorizontal: 10,
-    paddingVertical: 4,
-    borderRadius: 12,
-    borderWidth: 1,
-  },
-  drawerHealthChipText: {
-    fontSize: 11,
-    fontWeight: '600',
-  },
-  drawerCloseBtn: {
-    width: 32,
-    height: 32,
-    borderRadius: 16,
-    backgroundColor: COLORS.DARK_GRAY,
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  drawerTransactions: {
-    flex: 1,
-  },
-  drawerEmptyText: {
-    fontSize: 14,
-    color: COLORS.SECONDARY_TEXT,
-    textAlign: 'center',
-    marginTop: 32,
-  },
-  drawerTxItem: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    paddingVertical: 8,
-    paddingHorizontal: 8,
-    marginBottom: 8,
-    borderRadius: 12,
-    borderWidth: 1.5,
-    borderColor: COLORS.PRIMARY_BLUE,
-  },
-  drawerTxIcon: {
-    marginRight: 8,
-  },
-  drawerTxContent: {
-    flex: 1,
-  },
-  drawerTxTopRow: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    marginBottom: 4,
-  },
-  drawerTxAction: {
-    fontSize: 14,
-    fontWeight: '600',
-    color: COLORS.WHITE,
-  },
-  drawerTxAmountRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 4,
-  },
-  drawerTxAmount: {
-    fontSize: 14,
-    fontWeight: '600',
-  },
-  drawerTxDate: {
-    fontSize: 12,
-    color: COLORS.SECONDARY_TEXT,
   },
 });

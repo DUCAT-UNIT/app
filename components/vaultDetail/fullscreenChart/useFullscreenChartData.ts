@@ -33,16 +33,17 @@ interface UseFullscreenChartDataReturn {
 export function useFullscreenChartData(
   visible: boolean,
   selectedTimeframe: PriceTimeframe,
-  transactions: VaultHistoryTransaction[]
+  transactions: VaultHistoryTransaction[],
+  chartHeight?: number
 ): UseFullscreenChartDataReturn {
   const [btcPrices, setBtcPrices] = useState<BitcoinData[] | null>(null);
   const [loading, setLoading] = useState(true);
 
   // Chart dimensions (portrait mode)
-  const chartWidth = PORTRAIT_WIDTH - LEFT_MARGIN - RIGHT_MARGIN;
-  const chartHeight = PORTRAIT_HEIGHT;
-  const drawWidth = chartWidth - CHART_PADDING.left - CHART_PADDING.right;
-  const drawHeight = chartHeight - CHART_PADDING.top - CHART_PADDING.bottom;
+  const effectiveChartHeight = chartHeight ?? PORTRAIT_HEIGHT;
+  const chartWidthValue = PORTRAIT_WIDTH - LEFT_MARGIN - RIGHT_MARGIN;
+  const drawWidth = chartWidthValue - CHART_PADDING.left - CHART_PADDING.right;
+  const drawHeight = effectiveChartHeight - CHART_PADDING.top - CHART_PADDING.bottom;
 
   // Fetch BTC prices
   useEffect(() => {
@@ -156,7 +157,7 @@ export function useFullscreenChartData(
     const maxX = series[series.length - 1].date;
     const range = maxX - minX || 1;
     return CHART_PADDING.left + ((timestamp - minX) / range) * drawWidth;
-  }, [series, drawWidth]);
+  }, [series, drawWidth, chartWidthValue]);
 
   const yScale = useCallback((value: number) => {
     const [minY, maxY] = yDomain;
@@ -169,7 +170,7 @@ export function useFullscreenChartData(
     if (lineData.length === 0) return [];
 
     const leftEdge = 0;
-    const rightEdge = chartWidth;
+    const rightEdge = chartWidthValue;
     const eventDates = new Set(referenceLines.map(rl => rl.date));
 
     if (lineData.length === 1) {
@@ -202,14 +203,14 @@ export function useFullscreenChartData(
     if (currentSegment !== '') segments.push(currentSegment);
 
     return segments;
-  }, [lineData, xScale, yScale, referenceLines, chartWidth]);
+  }, [lineData, xScale, yScale, referenceLines, chartWidthValue]);
 
   // Generate area path
   const areaPath = useMemo(() => {
     if (lineData.length === 0) return '';
-    const bottomY = chartHeight;
+    const bottomY = effectiveChartHeight;
     const leftEdge = 0;
-    const rightEdge = chartWidth;
+    const rightEdge = chartWidthValue;
     const eventDates = new Set(referenceLines.map(rl => rl.date));
 
     if (lineData.length === 1) {
@@ -241,14 +242,14 @@ export function useFullscreenChartData(
     path += ` L ${rightEdge} ${lastY}`;
     path += ` L ${rightEdge} ${bottomY} Z`;
     return path;
-  }, [lineData, xScale, yScale, chartWidth, chartHeight, referenceLines]);
+  }, [lineData, xScale, yScale, chartWidthValue, effectiveChartHeight, referenceLines]);
 
   // Get health at X position
   const getHealthAtX = useCallback((x: number): number | null => {
     if (!lineData.length || !series.length) return null;
 
-    const clampedX = Math.max(0, Math.min(x, chartWidth));
-    const ratio = clampedX / chartWidth;
+    const clampedX = Math.max(0, Math.min(x, chartWidthValue));
+    const ratio = clampedX / chartWidthValue;
     const minTime = series[0].date;
     const maxTime = series[series.length - 1].date;
     const targetTime = minTime + ratio * (maxTime - minTime);
@@ -271,7 +272,7 @@ export function useFullscreenChartData(
     const afterPoint = lineData[afterIdx];
     const timeFraction = (targetTime - beforePoint.date) / (afterPoint.date - beforePoint.date || 1);
     return beforePoint.healthValue + timeFraction * (afterPoint.healthValue - beforePoint.healthValue);
-  }, [lineData, series, chartWidth]);
+  }, [lineData, series, chartWidthValue]);
 
   // Find nearby reference line
   const findNearbyRefLine = useCallback((x: number): number | null => {
@@ -298,8 +299,8 @@ export function useFullscreenChartData(
     lineSegments,
     areaPath,
     yDomain,
-    chartWidth,
-    chartHeight,
+    chartWidth: chartWidthValue,
+    chartHeight: effectiveChartHeight,
     drawWidth,
     drawHeight,
     xScale,
