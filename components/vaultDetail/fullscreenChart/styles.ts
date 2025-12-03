@@ -42,9 +42,9 @@ export const fullscreenStyles = StyleSheet.create({
     fontSize: 14,
     fontWeight: '700',
   },
-  // Chart section (top half)
+  // Chart section (top 60%)
   chartSection: {
-    height: '40%',
+    height: '60%',
     justifyContent: 'flex-start',
     overflow: 'hidden',
   },

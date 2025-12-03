@@ -1,114 +1,32 @@
 /**
  * FullscreenVaultChart Component
- * Fullscreen modal with chart on top half and activity list below
+ * Fullscreen modal with chart on top 60% and activity list below
  */
 
-import React, { useState, useCallback, useEffect, useMemo, memo } from 'react';
-import { View, Text, TouchableOpacity, Modal, FlatList, Dimensions } from 'react-native';
+import React, { useState, useEffect, useMemo, memo } from 'react';
+import { View, Text, TouchableOpacity, Modal, ScrollView, Dimensions } from 'react-native';
 import Svg, { Path, Line, Defs, LinearGradient, Stop } from 'react-native-svg';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { COLORS } from '../../../theme';
 import Icon from '../../icons';
+import { VaultActivityList } from '../VaultActivityList';
 import type { VaultHistoryTransaction } from '../../../services/vaultService';
 import type { PriceTimeframe, ScrubData } from '../vaultChart/types';
 import { TIMEFRAMES, INTERVAL_CONFIG } from '../vaultChart/types';
 import { getHealthColor, getHealthChipBg } from '../vaultChart/utils';
-import { LEFT_MARGIN, RIGHT_MARGIN, PORTRAIT_WIDTH } from './constants';
+import { LEFT_MARGIN, RIGHT_MARGIN } from './constants';
 import { fullscreenStyles as styles } from './styles';
 import { useFullscreenChartData } from './useFullscreenChartData';
 import { useScrubAnimation } from './useScrubAnimation';
-import { formatUnitAmount, formatBalance } from '../../../utils/formatters';
 
 const { height: SCREEN_HEIGHT } = Dimensions.get('window');
-const CHART_HEIGHT = SCREEN_HEIGHT * 0.4; // 40% for chart area
+const CHART_HEIGHT = SCREEN_HEIGHT * 0.6; // 60% for chart area
 
 interface FullscreenVaultChartProps {
   visible: boolean;
   onClose: () => void;
   transactions: VaultHistoryTransaction[];
 }
-
-// Transaction item component
-const TransactionItem = memo(function TransactionItem({
-  transaction,
-  onPress,
-}: {
-  transaction: VaultHistoryTransaction;
-  onPress?: () => void;
-}) {
-  const formatDate = (timestamp: number): string => {
-    const date = new Date(timestamp * 1000);
-    return date.toLocaleDateString('en-US', {
-      month: 'short',
-      day: 'numeric',
-      year: 'numeric',
-    });
-  };
-
-  const formatAction = (action: string): string => {
-    const actionMap: Record<string, string> = {
-      'open': 'Open Vault',
-      'borrow': 'Borrow',
-      'repay': 'Repay',
-      'deposit': 'Deposit',
-      'withdraw': 'Withdraw',
-      'liquidate': 'Liquidation',
-    };
-    return actionMap[action.toLowerCase()] || action;
-  };
-
-  const getActionColor = (action: string): string => {
-    const colorMap: Record<string, string> = {
-      'open': COLORS.SUCCESS_GREEN,
-      'borrow': COLORS.SUCCESS_GREEN,
-      'repay': COLORS.PRIMARY_BLUE,
-      'deposit': COLORS.SUCCESS_GREEN,
-      'withdraw': COLORS.RED,
-      'liquidate': COLORS.RED,
-    };
-    return colorMap[action.toLowerCase()] || COLORS.WHITE;
-  };
-
-  const actionColor = getActionColor(transaction.action);
-  const hasBtcChange = transaction.btc_amt !== 0;
-  const hasUnitChange = transaction.unit_amt !== 0;
-
-  return (
-    <TouchableOpacity
-      style={styles.txItem}
-      onPress={onPress}
-      activeOpacity={0.7}
-    >
-      <View style={[styles.txIconContainer, { backgroundColor: `${actionColor}20` }]}>
-        <Icon
-          name={transaction.action === 'withdraw' || transaction.action === 'repay' ? 'arrow-up' : 'arrow-down'}
-          size={16}
-          color={actionColor}
-        />
-      </View>
-      <View style={styles.txContent}>
-        <View style={styles.txTopRow}>
-          <Text style={[styles.txAction, { color: actionColor }]}>
-            {formatAction(transaction.action)}
-          </Text>
-          <Text style={styles.txDate}>{formatDate(transaction.timestamp)}</Text>
-        </View>
-        <View style={styles.txAmounts}>
-          {hasBtcChange && (
-            <Text style={[styles.txAmount, { color: transaction.btc_amt > 0 ? COLORS.SUCCESS_GREEN : COLORS.RED }]}>
-              {transaction.btc_amt > 0 ? '+' : ''}{formatBalance(transaction.btc_amt, 8)} BTC
-            </Text>
-          )}
-          {hasUnitChange && (
-            <Text style={[styles.txAmount, { color: transaction.unit_amt > 0 ? COLORS.SUCCESS_GREEN : COLORS.RED }]}>
-              {transaction.unit_amt > 0 ? '+' : ''}{formatUnitAmount(transaction.unit_amt)} UNIT
-            </Text>
-          )}
-        </View>
-      </View>
-    </TouchableOpacity>
-  );
-});
 
 export const FullscreenVaultChart = memo(function FullscreenVaultChart({
   visible,
@@ -178,13 +96,6 @@ export const FullscreenVaultChart = memo(function FullscreenVaultChart({
       setScrubData({ health: null, x: null });
     }
   }, [visible]);
-
-  const renderTransaction = useCallback(({ item }: { item: VaultHistoryTransaction }) => (
-    <TransactionItem transaction={item} />
-  ), []);
-
-  const keyExtractor = useCallback((item: VaultHistoryTransaction) =>
-    `${item.transaction_id ?? item.timestamp}-${item.timestamp}`, []);
 
   return (
     <Modal visible={visible} animationType="fade" onRequestClose={onClose}>
@@ -293,22 +204,15 @@ export const FullscreenVaultChart = memo(function FullscreenVaultChart({
           </View>
         </View>
 
-        {/* Activity section - bottom half */}
+        {/* Activity section - bottom 40% */}
         <View style={styles.activitySection}>
           <Text style={styles.activityTitle}>Activity</Text>
-          {filteredTransactions.length === 0 ? (
-            <View style={styles.emptyActivity}>
-              <Text style={styles.emptyActivityText}>No activity in this timeframe</Text>
-            </View>
-          ) : (
-            <FlatList
-              data={filteredTransactions}
-              renderItem={renderTransaction}
-              keyExtractor={keyExtractor}
-              showsVerticalScrollIndicator={false}
-              contentContainerStyle={styles.activityList}
+          <ScrollView showsVerticalScrollIndicator={false}>
+            <VaultActivityList
+              transactions={filteredTransactions}
+              isLoading={loading}
             />
-          )}
+          </ScrollView>
         </View>
       </View>
     </Modal>
