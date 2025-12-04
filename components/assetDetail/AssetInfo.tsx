@@ -1,7 +1,6 @@
 /**
  * AssetInfo Component
  * Displays asset balance and price information
- * For UNIT asset, also displays vault health information
  */
 
 import React from 'react';
@@ -9,7 +8,6 @@ import { View, Text, StyleSheet } from 'react-native';
 import Icon from '../icons';
 import { COLORS } from '../../theme';
 import { formatBalance, formatFiat } from '../../utils/formatters/index';
-import { VaultHealthGauge } from './VaultHealthGauge';
 import { AssetInfoSkeleton } from './AssetSkeleton';
 import { useResponsive } from '../../hooks/useResponsive';
 
@@ -51,9 +49,10 @@ export interface AssetInfoProps {
   isLoading: boolean;
   vaultHealth?: VaultHealthData;
   testID?: string;
+  isPendingVaultTx?: boolean;
 }
 
-export function AssetInfo({ assetType, balance, fiatValue, btcPrice, priceData, priceDirection, isLoading, vaultHealth }: AssetInfoProps) {
+export function AssetInfo({ assetType, balance, fiatValue, btcPrice, priceData, priceDirection, isLoading }: AssetInfoProps) {
   const { s, sf } = useResponsive();
 
   // For UNIT, show the actual UNIT amount with commas and 2 decimals
@@ -93,17 +92,6 @@ export function AssetInfo({ assetType, balance, fiatValue, btcPrice, priceData, 
         <Text style={[styles.priceChange, { fontSize: sf(16), color: priceDirection.isPositive ? COLORS.SUCCESS_GREEN : COLORS.RED }]}>
           {priceDirection.isPositive ? '▲' : '▼'} {priceDirection.percentChange}% ({priceDirection.isPositive ? '+' : '-'}${priceDirection.dollarChange})
         </Text>
-      )}
-
-      {/* Vault Health Section for UNIT */}
-      {assetType === 'UNIT' && vaultHealth && vaultHealth.hasVault && !vaultHealth.isLoading && (
-        <VaultHealthGauge
-          totalDebt={vaultHealth.totalDebt}
-          totalCollateral={vaultHealth.totalCollateral}
-          currentPrice={vaultHealth.currentPrice}
-          healthPercentage={vaultHealth.healthPercentage}
-          priceChange24h={vaultHealth.priceChange24h}
-        />
       )}
     </View>
   );
