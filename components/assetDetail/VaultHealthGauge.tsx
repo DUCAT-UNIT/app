@@ -4,13 +4,15 @@
  * Matches storybook design with centered gauge and stats below
  */
 
-import React, { useMemo, memo } from 'react';
+import React, { useMemo, memo, useCallback } from 'react';
 import { View, Text, StyleSheet, TouchableOpacity } from 'react-native';
 import Svg, { Path, Circle, Text as SvgText, TSpan } from 'react-native-svg';
+import * as Haptics from 'expo-haptics';
 import { COLORS } from '../../theme';
 import Icon from '../icons';
 import { formatBalance, formatFiat } from '../../utils/formatters';
 import { useResponsive } from '../../hooks/useResponsive';
+import { useNotificationStore } from '../../stores/notificationStore';
 
 // Constants
 const LIQUIDATION_RATE = 1.5;
@@ -125,6 +127,7 @@ export interface VaultHealthGaugeProps {
   healthPercentage: number;
   priceChange24h?: number;
   isLoading?: boolean;
+  isPendingTransaction?: boolean;
   onBorrowPress?: () => void;
   onRepayPress?: () => void;
   onDepositPress?: () => void;
@@ -136,12 +139,36 @@ export const VaultHealthGauge = memo(function VaultHealthGauge({
   totalCollateral,
   currentPrice,
   healthPercentage,
+  isPendingTransaction = false,
   onBorrowPress,
   onRepayPress,
   onDepositPress,
   onWithdrawPress,
 }: VaultHealthGaugeProps): React.JSX.Element {
   const { s, sf } = useResponsive();
+
+  // Check if health is below minimum (160%)
+  const isLowHealth = healthPercentage > 0 && healthPercentage < 160;
+
+  // Handler for disabled vault action buttons - shows popup with haptic feedback
+  const handleDisabledPress = useCallback(() => {
+    Haptics.notificationAsync(Haptics.NotificationFeedbackType.Warning);
+    useNotificationStore.getState().showSnackbar({
+      title: 'Transaction pending',
+      description: 'Please wait for the current vault transaction to confirm',
+      type: 'warning',
+    });
+  }, []);
+
+  // Handler for low health - shows popup with haptic feedback
+  const handleLowHealthPress = useCallback(() => {
+    Haptics.notificationAsync(Haptics.NotificationFeedbackType.Warning);
+    useNotificationStore.getState().showSnackbar({
+      title: 'Health too low',
+      description: 'Vault health must be above 160% to withdraw or borrow',
+      type: 'warning',
+    });
+  }, []);
 
   // Memoize liquidation price calculation
   const liquidationPrice = useMemo(() =>
@@ -151,12 +178,9 @@ export const VaultHealthGauge = memo(function VaultHealthGauge({
     [totalDebt, totalCollateral]
   );
 
-  // Check if there's no debt
   const hasNoDebt = totalDebt === 0;
 
-  // Memoize all health metrics calculations together
   const healthMetrics = useMemo(() => {
-    // If no debt, show N/A
     if (hasNoDebt) {
       return {
         healthValue: 0,
@@ -345,17 +369,23 @@ export const VaultHealthGauge = memo(function VaultHealthGauge({
             <Text style={[styles.statValue, { fontSize: sf(20) }]}>{formatBalance(totalCollateral)}</Text>
           </View>
           <View style={[styles.buttonPair, { gap: s(8) }]}>
-            <TouchableOpacity style={[styles.actionButton, { flex: 1 }]} onPress={onDepositPress}>
-              <View style={[styles.actionButtonIcon, { width: s(56), height: s(56), borderRadius: s(8), marginBottom: s(2) }]}>
-                <Text style={[styles.buttonIcon, { fontSize: sf(25) }]}>+</Text>
+            <TouchableOpacity
+              style={[styles.actionButton, { flex: 1 }, isPendingTransaction && styles.actionButtonDisabled]}
+              onPress={isPendingTransaction ? handleDisabledPress : onDepositPress}
+            >
+              <View style={[styles.actionButtonIcon, { width: s(56), height: s(56), borderRadius: s(8), marginBottom: s(2) }, isPendingTransaction && styles.actionButtonIconDisabled]}>
+                <Text style={[styles.buttonIcon, { fontSize: sf(25) }, isPendingTransaction && styles.buttonIconDisabled]}>+</Text>
               </View>
-              <Text style={[styles.actionButtonLabel, { fontSize: sf(10) }]}>Deposit</Text>
+              <Text style={[styles.actionButtonLabel, { fontSize: sf(10) }, isPendingTransaction && styles.actionButtonLabelDisabled]}>Deposit</Text>
             </TouchableOpacity>
-            <TouchableOpacity style={[styles.actionButton, { flex: 1 }]} onPress={onWithdrawPress}>
-              <View style={[styles.actionButtonIcon, { width: s(56), height: s(56), borderRadius: s(8), marginBottom: s(2) }]}>
-                <Text style={[styles.buttonIcon, { fontSize: sf(25) }]}>−</Text>
+            <TouchableOpacity
+              style={[styles.actionButton, { flex: 1 }, (isPendingTransaction || isLowHealth) && styles.actionButtonDisabled]}
+              onPress={isPendingTransaction ? handleDisabledPress : isLowHealth ? handleLowHealthPress : onWithdrawPress}
+            >
+              <View style={[styles.actionButtonIcon, { width: s(56), height: s(56), borderRadius: s(8), marginBottom: s(2) }, (isPendingTransaction || isLowHealth) && styles.actionButtonIconDisabled]}>
+                <Text style={[styles.buttonIcon, { fontSize: sf(25) }, (isPendingTransaction || isLowHealth) && styles.buttonIconDisabled]}>−</Text>
               </View>
-              <Text style={[styles.actionButtonLabel, { fontSize: sf(10) }]}>Withdraw</Text>
+              <Text style={[styles.actionButtonLabel, { fontSize: sf(10) }, (isPendingTransaction || isLowHealth) && styles.actionButtonLabelDisabled]}>Withdraw</Text>
             </TouchableOpacity>
           </View>
         </View>
@@ -370,17 +400,23 @@ export const VaultHealthGauge = memo(function VaultHealthGauge({
             <Text style={[styles.statValue, { fontSize: sf(20) }]}>{formatFiat(totalDebt)}</Text>
           </View>
           <View style={[styles.buttonPair, { gap: s(8) }]}>
-            <TouchableOpacity style={[styles.actionButton, { flex: 1 }]} onPress={onBorrowPress}>
-              <View style={[styles.actionButtonIcon, { width: s(56), height: s(56), borderRadius: s(8), marginBottom: s(2) }]}>
-                <Text style={[styles.buttonIcon, { fontSize: sf(25) }]}>↑</Text>
+            <TouchableOpacity
+              style={[styles.actionButton, { flex: 1 }, (isPendingTransaction || isLowHealth) && styles.actionButtonDisabled]}
+              onPress={isPendingTransaction ? handleDisabledPress : isLowHealth ? handleLowHealthPress : onBorrowPress}
+            >
+              <View style={[styles.actionButtonIcon, { width: s(56), height: s(56), borderRadius: s(8), marginBottom: s(2) }, (isPendingTransaction || isLowHealth) && styles.actionButtonIconDisabled]}>
+                <Text style={[styles.buttonIcon, { fontSize: sf(25) }, (isPendingTransaction || isLowHealth) && styles.buttonIconDisabled]}>↑</Text>
               </View>
-              <Text style={[styles.actionButtonLabel, { fontSize: sf(10) }]}>Borrow</Text>
+              <Text style={[styles.actionButtonLabel, { fontSize: sf(10) }, (isPendingTransaction || isLowHealth) && styles.actionButtonLabelDisabled]}>Borrow</Text>
             </TouchableOpacity>
-            <TouchableOpacity style={[styles.actionButton, { flex: 1 }]} onPress={onRepayPress}>
-              <View style={[styles.actionButtonIcon, { width: s(56), height: s(56), borderRadius: s(8), marginBottom: s(2) }]}>
-                <Text style={[styles.buttonIcon, { fontSize: sf(25) }]}>↓</Text>
+            <TouchableOpacity
+              style={[styles.actionButton, { flex: 1 }, isPendingTransaction && styles.actionButtonDisabled]}
+              onPress={isPendingTransaction ? handleDisabledPress : onRepayPress}
+            >
+              <View style={[styles.actionButtonIcon, { width: s(56), height: s(56), borderRadius: s(8), marginBottom: s(2) }, isPendingTransaction && styles.actionButtonIconDisabled]}>
+                <Text style={[styles.buttonIcon, { fontSize: sf(25) }, isPendingTransaction && styles.buttonIconDisabled]}>↓</Text>
               </View>
-              <Text style={[styles.actionButtonLabel, { fontSize: sf(10) }]}>Repay</Text>
+              <Text style={[styles.actionButtonLabel, { fontSize: sf(10) }, isPendingTransaction && styles.actionButtonLabelDisabled]}>Repay</Text>
             </TouchableOpacity>
           </View>
         </View>
@@ -468,6 +504,18 @@ const styles = StyleSheet.create({
     fontSize: 12,
     color: COLORS.WHITE,
     fontWeight: '600',
+  },
+  actionButtonDisabled: {
+    opacity: 0.5,
+  },
+  actionButtonIconDisabled: {
+    backgroundColor: COLORS.DARK_GRAY,
+  },
+  buttonIconDisabled: {
+    color: COLORS.SECONDARY_TEXT,
+  },
+  actionButtonLabelDisabled: {
+    color: COLORS.SECONDARY_TEXT,
   },
 });
 
