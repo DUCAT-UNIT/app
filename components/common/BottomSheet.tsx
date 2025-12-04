@@ -116,6 +116,8 @@ export default function BottomSheet({
       transparent
       animationType="fade"
       onRequestClose={onClose}
+      presentationStyle="overFullScreen"
+      statusBarTranslucent
     >
       <View style={styles.container}>
         {/* Backdrop - tapping closes */}

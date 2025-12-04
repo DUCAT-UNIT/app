@@ -17,7 +17,9 @@ interface VaultChartDrawerProps {
   drawerAnim: Animated.Value;
   activeRefLine: ReferenceLine | null;
   transactions: VaultHistoryTransaction[];
+  allTransactions: VaultHistoryTransaction[];
   onClose: () => void;
+  onTransactionPress?: (transaction: VaultHistoryTransaction, previousTransaction: VaultHistoryTransaction | null) => void;
 }
 
 export const VaultChartDrawer = memo(function VaultChartDrawer({
@@ -25,8 +27,15 @@ export const VaultChartDrawer = memo(function VaultChartDrawer({
   drawerAnim,
   activeRefLine,
   transactions,
+  allTransactions,
   onClose,
+  onTransactionPress,
 }: VaultChartDrawerProps) {
+  // Find previous transaction for a given transaction
+  const getPreviousTransaction = (tx: VaultHistoryTransaction): VaultHistoryTransaction | null => {
+    const index = allTransactions.findIndex(t => t.timestamp === tx.timestamp);
+    return index < allTransactions.length - 1 ? allTransactions[index + 1] : null;
+  };
   if (drawerSide === null) return null;
 
   return (
@@ -68,9 +77,15 @@ export const VaultChartDrawer = memo(function VaultChartDrawer({
             const isCollateralAction = tx.action === 'deposit' || tx.action === 'withdraw' || tx.action === 'open';
             const isPositive = tx.action === 'deposit' || tx.action === 'borrow' || tx.action === 'open';
             const amountColor = isPositive ? COLORS.SUCCESS_GREEN : COLORS.RED;
+            const previousTx = getPreviousTransaction(tx);
 
             return (
-              <View key={i} style={styles.drawerTxItem}>
+              <TouchableOpacity
+                key={i}
+                style={styles.drawerTxItem}
+                activeOpacity={0.7}
+                onPress={() => onTransactionPress?.(tx, previousTx)}
+              >
                 <View style={styles.drawerTxIcon}>
                   <Icon name="vault_logo" size={28} color={COLORS.WHITE} />
                 </View>
@@ -93,7 +108,7 @@ export const VaultChartDrawer = memo(function VaultChartDrawer({
                   </View>
                   <Text style={styles.drawerTxDate}>{formatDate(tx.timestamp)}</Text>
                 </View>
-              </View>
+              </TouchableOpacity>
             );
           })
         )}

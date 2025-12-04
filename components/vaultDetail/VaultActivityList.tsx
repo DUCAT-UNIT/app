@@ -4,11 +4,12 @@
  */
 
 import React, { memo, useState, useCallback, useMemo } from 'react';
-import { View, Text, StyleSheet, TouchableOpacity, FlatList } from 'react-native';
+import { View, Text, StyleSheet, TouchableOpacity, FlatList, ActivityIndicator } from 'react-native';
 import { COLORS } from '../../theme';
 import Icon from '../icons';
 import { VaultActivityListSkeleton } from './VaultSkeleton';
 import type { VaultHistoryTransaction } from '../../services/vaultService';
+import type { PendingVaultTransaction } from '../../stores/pendingVaultTransactionStore';
 import { formatUnitAmount, formatBalance } from '../../utils/formatters';
 import { useResponsive } from '../../hooks/useResponsive';
 
@@ -20,6 +21,7 @@ interface VaultActivityListProps {
   isLoading: boolean;
   highlightedEventDate?: number | null;
   onTransactionPress?: (transaction: VaultHistoryTransaction, previousTransaction: VaultHistoryTransaction | null) => void;
+  pendingTransaction?: PendingVaultTransaction | null;
 }
 
 const formatDate = (timestamp: number): string => {
@@ -55,17 +57,115 @@ const getActionColor = (action: string): string => {
   return colorMap[action.toLowerCase()] || COLORS.WHITE;
 };
 
+const PendingVaultTransactionItem = memo(function PendingVaultTransactionItem({
+  transaction,
+}: {
+  transaction: PendingVaultTransaction;
+}) {
+  const { s, sf } = useResponsive();
+  const actionLower = transaction.action.toLowerCase();
+
+  // Determine UNIT color based on action
+  const getUnitColor = () => {
+    if (actionLower === 'borrow' || actionLower === 'open') return COLORS.GREEN;
+    return COLORS.RED;
+  };
+
+  // Determine BTC color based on action
+  const getBtcColor = () => {
+    if (actionLower === 'deposit') return COLORS.GREEN;
+    return COLORS.RED;
+  };
+
+  const unitColor = getUnitColor();
+  const btcColor = getBtcColor();
+
+  return (
+    <View
+      style={[
+        styles.transactionItem,
+        styles.pendingTransactionItem,
+        { paddingTop: s(8), paddingBottom: s(16), paddingLeft: s(12) },
+      ]}
+    >
+      {/* Vault Icon */}
+      <View style={{ marginRight: s(14), alignSelf: 'center' }}>
+        <Icon name="vault_logo" size={s(28)} color="#DDDDDD" />
+      </View>
+
+      {/* Content */}
+      <View style={styles.contentContainer}>
+        {/* Top Row: Action | Pending | Amounts */}
+        <View style={[styles.topRow, { marginBottom: s(4) }]}>
+          {/* Column 1: Action label */}
+          <View style={styles.column1}>
+            <Text style={[styles.transactionAction, { fontSize: sf(14) }]}>
+              {formatAction(transaction.action)}
+            </Text>
+          </View>
+          {/* Right group: Pending chip + Amounts */}
+          <View style={styles.rightGroup}>
+            {/* Column 2: Pending chip with spinner */}
+            <View style={styles.column2}>
+              <View style={[styles.pendingChip, { paddingHorizontal: s(6), paddingVertical: s(4), borderRadius: s(4), marginLeft: s(4) }]}>
+                <ActivityIndicator size="small" color={COLORS.YELLOW} style={{ marginRight: s(4) }} />
+                <Text style={[styles.pendingChipText, { fontSize: sf(10) }]}>Pending</Text>
+              </View>
+            </View>
+            {/* Column 3: Amounts */}
+            <View style={[styles.column3, { marginRight: s(8) }]}>
+              {transaction.unitAmt !== 0 && (
+                <View style={styles.amountRow}>
+                  <Icon name="unit_symbol" size={s(10)} color={unitColor} style={[styles.amountIcon, { marginRight: s(3) }]} />
+                  <Text style={[styles.transactionAmount, { color: unitColor, fontSize: sf(12) }]}>
+                    {formatUnitAmount(Math.abs(transaction.unitAmt))}
+                  </Text>
+                </View>
+              )}
+              {transaction.btcAmt !== 0 && (
+                <View style={styles.amountRow}>
+                  <Icon name="btc_symbol" size={s(10)} color={btcColor} style={[styles.amountIcon, { marginRight: s(3) }]} />
+                  <Text style={[styles.transactionAmount, { color: btcColor, fontSize: sf(12) }]}>
+                    {formatBalance(Math.abs(transaction.btcAmt) / 100_000_000)}
+                  </Text>
+                </View>
+              )}
+            </View>
+          </View>
+        </View>
+
+        {/* Bottom Row: Date */}
+        <Text style={[styles.transactionDate, { fontSize: sf(11) }]}>
+          {formatDate(Math.floor(transaction.timestamp / 1000))}
+        </Text>
+      </View>
+    </View>
+  );
+});
+
 const VaultTransactionItem = memo(function VaultTransactionItem({
   transaction,
+  previousTransaction,
   isHighlighted,
   onPress,
 }: {
   transaction: VaultHistoryTransaction;
+  previousTransaction: VaultHistoryTransaction | null;
   isHighlighted?: boolean;
   onPress?: () => void;
 }) {
   const { s, sf } = useResponsive();
   const actionLower = transaction.action.toLowerCase();
+
+  // Calculate unit amount from debt change if unit_amt is 0
+  const effectiveUnitAmt = useMemo(() => {
+    if (transaction.unit_amt !== 0) return transaction.unit_amt;
+    if (previousTransaction) {
+      const debtChange = Math.abs(transaction.amount_borrowed - previousTransaction.amount_borrowed);
+      if (debtChange > 0) return debtChange;
+    }
+    return 0;
+  }, [transaction, previousTransaction]);
 
   // Determine UNIT color based on action
   const getUnitColor = () => {
@@ -118,11 +218,11 @@ const VaultTransactionItem = memo(function VaultTransactionItem({
             </View>
             {/* Column 3: Amounts */}
             <View style={[styles.column3, isHighlighted && { marginRight: 8 }]}>
-              {transaction.unit_amt !== 0 && (
+              {effectiveUnitAmt !== 0 && (
                 <View style={styles.amountRow}>
                   <Icon name="unit_symbol" size={s(10)} color={unitColor} style={[styles.amountIcon, { marginRight: s(3) }]} />
                   <Text style={[styles.transactionAmount, { color: unitColor, fontSize: sf(12) }]}>
-                    {formatUnitAmount(Math.abs(transaction.unit_amt))}
+                    {formatUnitAmount(Math.abs(effectiveUnitAmt))}
                   </Text>
                 </View>
               )}
@@ -171,6 +271,7 @@ export const VaultActivityList = memo(function VaultActivityList({
   isLoading,
   highlightedEventDate,
   onTransactionPress,
+  pendingTransaction,
 }: VaultActivityListProps) {
   const { s, sf } = useResponsive();
   const [displayCount, setDisplayCount] = useState(INITIAL_LOAD_COUNT);
@@ -214,6 +315,7 @@ export const VaultActivityList = memo(function VaultActivityList({
     return (
       <VaultTransactionItem
         transaction={item}
+        previousTransaction={previousTransaction}
         isHighlighted={isTransactionHighlighted(item.timestamp, highlightedEventDate)}
         onPress={onTransactionPress ? () => onTransactionPress(item, previousTransaction) : undefined}
       />
@@ -242,6 +344,11 @@ export const VaultActivityList = memo(function VaultActivityList({
       </TouchableOpacity>
     );
   }, [hasMore, handleLoadMore, filteredTransactions.length, displayCount, s, sf]);
+
+  const renderHeader = useCallback(() => {
+    if (!pendingTransaction) return null;
+    return <PendingVaultTransactionItem transaction={pendingTransaction} />;
+  }, [pendingTransaction]);
 
   if (isLoading) {
     return <VaultActivityListSkeleton />;
@@ -277,6 +384,7 @@ export const VaultActivityList = memo(function VaultActivityList({
       keyExtractor={keyExtractor}
       style={[styles.container, { paddingHorizontal: s(16) }]}
       scrollEnabled={false}
+      ListHeaderComponent={renderHeader}
       ListFooterComponent={renderFooter}
     />
   );
@@ -313,6 +421,26 @@ const styles = StyleSheet.create({
     borderColor: '#1858E4',
     borderBottomColor: '#1858E4',
     marginVertical: 4,
+  },
+  pendingTransactionItem: {
+    borderWidth: 1.5,
+    borderColor: COLORS.YELLOW,
+    borderBottomColor: COLORS.YELLOW,
+    marginBottom: 8,
+    backgroundColor: 'rgba(245, 228, 162, 0.05)',
+  },
+  pendingChip: {
+    backgroundColor: 'rgba(245, 228, 162, 0.2)',
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    borderRadius: 4,
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
+  pendingChipText: {
+    color: COLORS.YELLOW,
+    fontSize: 12,
+    fontWeight: '600',
   },
   iconContainer: {
     marginRight: 10,

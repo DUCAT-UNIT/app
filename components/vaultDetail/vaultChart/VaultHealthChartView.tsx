@@ -27,6 +27,7 @@ interface VaultHealthChartViewProps {
   totalDebt?: number;
   totalCollateral?: number;
   currentPrice?: number;
+  onTransactionPress?: (transaction: VaultHistoryTransaction, previousTransaction: VaultHistoryTransaction | null) => void;
 }
 
 export const VaultHealthChartView = memo(function VaultHealthChartView({
@@ -35,6 +36,7 @@ export const VaultHealthChartView = memo(function VaultHealthChartView({
   onLockFilter,
   onScrollEnable,
   highlightedEventDate,
+  onTransactionPress,
 }: VaultHealthChartViewProps) {
   const [selectedTimeframe, setSelectedTimeframe] = useState<PriceTimeframe>('1D');
   const [scrubData, setScrubData] = useState<ScrubData>({ health: null, x: null });
@@ -339,7 +341,9 @@ export const VaultHealthChartView = memo(function VaultHealthChartView({
         drawerAnim={drawerAnim}
         activeRefLine={activeRefLine}
         transactions={lockedEventTransactions}
+        allTransactions={transactions}
         onClose={closeDrawer}
+        onTransactionPress={onTransactionPress}
       />
     </View>
   );

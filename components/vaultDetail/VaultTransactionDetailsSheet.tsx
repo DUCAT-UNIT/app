@@ -150,10 +150,16 @@ export default function VaultTransactionDetailsSheet({
       beforeLiquidation = calculateLiquidationPrice(beforeCollateral, beforeDebt);
     }
 
+    // Calculate unit amount from debt change if unit_amt is 0
+    let unitAmt = transaction.unit_amt;
+    if (unitAmt === 0 && beforeDebt !== afterDebt) {
+      unitAmt = Math.abs(beforeDebt - afterDebt);
+    }
+
     return {
       action: transaction.action,
       btcAmt: transaction.btc_amt,
-      unitAmt: transaction.unit_amt,
+      unitAmt,
       oraclePrice,
       timestamp: transaction.timestamp,
       before: {
