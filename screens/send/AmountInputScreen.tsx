@@ -28,6 +28,7 @@ import InsufficientTurboSheet from '../../components/send/InsufficientTurboSheet
 import { useCashu } from '../../contexts/CashuContext';
 import { useNavigationHandlers } from '../../contexts/NavigationHandlersContext';
 import { useResponsive } from '../../hooks/useResponsive';
+import { logger } from '../../utils/logger';
 import styles from './AmountInputScreen.styles';
 
 // Estimated fees in sats (conservative estimates)
@@ -209,8 +210,9 @@ export default function AmountInputScreen({ navigation, route }: AmountInputScre
         setToggleInsufficientBalance(ecashBalance);
         setShowToggleInsufficientSheet(true);
       }
-    } catch {
+    } catch (error) {
       // On error, just enable turbo (will check again on review)
+      logger.warn('Failed to check ecash balance for turbo toggle', { error: (error as Error).message });
       setTurboEnabled(true);
     } finally {
       setIsCheckingEcash(false);
