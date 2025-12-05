@@ -284,6 +284,24 @@ describe('vaultService', () => {
           timestamp: 1000,
           action: 'deposit',
         },
+        vaultInfo: {
+          vault_id: 'vault_1',
+          vault_tag: 'My Vault',
+          unit_borrowed: 1000,
+          btc_locked: 5000,
+          oracle_price: 50000,
+          vault_version: 1,
+          collateral_ratio: 0,
+          liquidation_price: 0,
+          master_id: '',
+          creation_account: '',
+          guard_pubkey: '',
+          vault_pubkey: '',
+          liquidation_hash: '',
+          utxo: '',
+          oracle_timestamp: 0,
+          vault_last_action: '',
+        },
       });
     });
 
