@@ -46,13 +46,14 @@ export function ProcessingStepsList({
 }: ProcessingStepsListProps) {
   return (
     <View style={styles.container}>
-      {([1, 2, 3, 4] as ProcessingStep[]).map((step) => (
+      {([1, 2, 3, 4] as ProcessingStep[]).map((step, index) => (
         <ProcessingStepItem
           key={step}
           step={step}
           currentStep={currentStep}
           config={STEPS[step]}
           isError={hasError && errorStep === step}
+          isLast={index === 3}
         />
       ))}
     </View>
@@ -64,6 +65,7 @@ interface ProcessingStepItemProps {
   currentStep: ProcessingStep;
   config: StepConfig;
   isError: boolean;
+  isLast: boolean;
 }
 
 function ProcessingStepItem({
@@ -71,6 +73,7 @@ function ProcessingStepItem({
   currentStep,
   config,
   isError,
+  isLast,
 }: ProcessingStepItemProps) {
   const isCompleted = step < currentStep && !isError;
   const isCurrent = step === currentStep;
@@ -109,7 +112,7 @@ function ProcessingStepItem({
   };
 
   return (
-    <View style={styles.stepItem}>
+    <View style={[styles.stepItem, isLast && styles.stepItemLast]}>
       {getIconContent()}
 
       <View style={styles.stepContent}>
@@ -134,7 +137,7 @@ function ProcessingStepItem({
         </Text>
       </View>
 
-      {step < 4 && <View style={styles.connector} />}
+      {!isLast && <View style={styles.connector} />}
     </View>
   );
 }
@@ -176,21 +179,27 @@ export function VaultStepIndicator({
 
 const styles = StyleSheet.create({
   container: {
-    paddingVertical: spacing.md,
+    flex: 1,
+    paddingVertical: spacing.lg,
+    paddingHorizontal: spacing.md,
+    justifyContent: 'space-between',
   },
   stepItem: {
+    flex: 1,
     flexDirection: 'row',
     alignItems: 'flex-start',
-    marginBottom: spacing.lg,
     position: 'relative',
   },
+  stepItemLast: {
+    flex: 0,
+  },
   iconContainer: {
-    width: 32,
-    height: 32,
+    width: 48,
+    height: 48,
     borderRadius: radii.full,
     justifyContent: 'center',
     alignItems: 'center',
-    marginRight: spacing.md,
+    marginRight: spacing.lg,
   },
   iconCompleted: {
     backgroundColor: 'rgba(89, 170, 138, 0.15)',
@@ -205,16 +214,16 @@ const styles = StyleSheet.create({
     backgroundColor: 'rgba(208, 76, 104, 0.15)',
   },
   stepNumber: {
-    fontSize: fontSizes.sm,
+    fontSize: fontSizes.lg,
     fontFamily: fonts.medium,
     color: colors.text.tertiary,
   },
   stepContent: {
     flex: 1,
-    paddingTop: 4,
+    paddingTop: 6,
   },
   stepTitle: {
-    fontSize: fontSizes.md,
+    fontSize: fontSizes.lg,
     fontFamily: fonts.medium,
     color: colors.text.primary,
     marginBottom: spacing.xs,
@@ -232,7 +241,7 @@ const styles = StyleSheet.create({
     color: colors.semantic.error,
   },
   stepDescription: {
-    fontSize: fontSizes.sm,
+    fontSize: fontSizes.md,
     fontFamily: fonts.regular,
     color: colors.text.secondary,
   },
@@ -241,10 +250,10 @@ const styles = StyleSheet.create({
   },
   connector: {
     position: 'absolute',
-    left: 15,
-    top: 36,
+    left: 23,
+    top: 52,
+    bottom: 4,
     width: 2,
-    height: 24,
     backgroundColor: colors.border.default,
   },
   // Step indicator styles

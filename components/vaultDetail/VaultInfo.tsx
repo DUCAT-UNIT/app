@@ -17,6 +17,7 @@ interface VaultInfoProps {
   healthColor: string;
   isLoading?: boolean;
   priceChange24h?: number;
+  isPendingTransaction?: boolean;
   onChartPress?: () => void;
   onBorrowPress?: () => void;
   onRepayPress?: () => void;
@@ -31,6 +32,7 @@ export const VaultInfo = memo(function VaultInfo({
   healthPercentage,
   isLoading = false,
   priceChange24h = 0,
+  isPendingTransaction = false,
   onChartPress,
   onBorrowPress,
   onRepayPress,
@@ -55,6 +57,7 @@ export const VaultInfo = memo(function VaultInfo({
         currentPrice={currentPrice}
         healthPercentage={healthPercentage}
         priceChange24h={priceChange24h}
+        isPendingTransaction={isPendingTransaction}
         onBorrowPress={onBorrowPress}
         onRepayPress={onRepayPress}
         onDepositPress={onDepositPress}

@@ -228,7 +228,7 @@ export default function WithdrawInputScreen({ navigation }: WithdrawInputScreenP
             <View style={styles.inputMeta}>
               <Text style={styles.usdValue}>≈ {formatFiat(withdrawUsdValue)}</Text>
               <Text style={styles.balance}>
-                Max: {formatBTC(maxWithdrawable / 100_000_000)} BTC
+                Max: {formatBTC(maxWithdrawable)} BTC
               </Text>
             </View>
           </View>

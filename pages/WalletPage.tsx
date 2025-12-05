@@ -43,6 +43,7 @@ import { useTransactionNotifications } from '../hooks/useTransactionNotification
 import { useEcashThresholdManager } from '../hooks/useEcashThresholdManager';
 import { useSettingsScreenCallbacks } from '../hooks/useSettingsScreenCallbacks';
 import { getRunesAmount } from '../utils/runesHelper';
+import { useHasPendingVaultTx } from '../stores/pendingVaultTransactionStore';
 
 // Styles
 import localStyles from './WalletPage.styles';
@@ -76,6 +77,7 @@ export default function WalletPage({ route }: WalletPageProps) {
   const { intentStep, sendAssetType, sendAddressType } = useSendFlow();
   const { broadcastedTxid } = useTransactionExecution();
   const { showToast, dismissSnackbar, showSnackbar } = useNotifications();
+  const isPendingVaultTx = useHasPendingVaultTx();
 
   // Calculate current UNIT balance for ecash balance check
   const currentUnitBalance = getRunesAmount(runesBalance);
@@ -177,6 +179,7 @@ export default function WalletPage({ route }: WalletPageProps) {
               onAssetPress={(assetType) => (navigation as { navigate: (screen: string, params?: object) => void }).navigate('AssetDetail', { assetType, advancedMode: settingsHandlers.advancedMode })}
               _sendAddressType={sendAddressType ?? undefined}
               showZeroAssets={settingsHandlers.showZeroAssets}
+              isPendingVaultTx={isPendingVaultTx}
             />
           </View>
         </View>

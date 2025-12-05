@@ -69,9 +69,6 @@ export default function DepositInputScreen({ navigation }: DepositInputScreenPro
     return Math.round((segwitBalance || 0) * 100_000_000);
   }, [segwitBalance]);
 
-  // Available balance in BTC for display
-  const availableBalanceBtcDisplay = segwitBalance || 0;
-
   // Handle close - reset state and dismiss modal
   const handleClose = useCallback(() => {
     reset();
@@ -235,7 +232,7 @@ export default function DepositInputScreen({ navigation }: DepositInputScreenPro
             <View style={styles.inputMeta}>
               <Text style={styles.usdValue}>≈ {formatFiat(depositUsdValue)}</Text>
               <Text style={styles.balance}>
-                Available: {formatBTC(availableBalanceBtcDisplay)} BTC
+                Available: {formatBTC(availableBalanceSats)} BTC
               </Text>
             </View>
           </View>

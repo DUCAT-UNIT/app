@@ -8,6 +8,8 @@ import { useRepayStore } from '../stores/repayStore';
 import { useWallet } from '../contexts/WalletContext';
 import { usePrice } from '../stores/priceStore';
 import { getGuardianClient, disconnectGuardian } from '../services/guardianService';
+import { usePendingVaultTransactionStore } from '../stores/pendingVaultTransactionStore';
+import { useNotificationStore } from '../stores/notificationStore';
 import {
   createRepayConfig,
   createVaultReqRepay,
@@ -283,6 +285,25 @@ export function useRepayVault(): UseRepayVaultResult {
       setIssueTxid(result.txid);
       setVaultTxid(result.vault_txid);
       setCurrentStep('success');
+
+      // Set pending transaction for activity list and button disabling
+      await usePendingVaultTransactionStore.getState().setPendingTransaction({
+        txid: result.txid,
+        vaultTxid: result.vault_txid,
+        action: 'repay',
+        btcAmt: 0,
+        unitAmt: repayConfig.repay_amount, // In cents
+        timestamp: Date.now(),
+        vaultPubkey: wallet.taprootPubkey || '',
+      });
+
+      // Show info snackbar about pending confirmation
+      useNotificationStore.getState().showSnackbar({
+        title: 'Vault transaction confirming',
+        description: 'Please wait for the block to get mined',
+        type: 'info',
+        persistent: true,
+      });
 
       logger.info('[useRepayVault] Repay completed successfully:', {
         issue_txid: result.txid,

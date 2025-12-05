@@ -11,6 +11,8 @@ import { COLORS } from '../../theme';
 import { usePrice } from '../../stores/priceStore';
 import { useVaultData } from '../../contexts/WalletDataContext';
 import { useWalletCalculations } from '../../hooks/useWalletCalculations';
+import { usePendingVaultTransactionStore, usePendingVaultTx } from '../../stores/pendingVaultTransactionStore';
+import { useNotificationStore } from '../../stores/notificationStore';
 import type { VaultHistoryTransaction } from '../../services/vaultService';
 import {
   VaultHeader,
@@ -43,6 +45,8 @@ function VaultDetailScreen({ navigation }: VaultDetailScreenProps): React.JSX.El
   const transactionsLoadedRef = useRef(false);
   // Fullscreen chart modal
   const [chartVisible, setChartVisible] = useState(false);
+  // Pending vault transaction state
+  const pendingTransaction = usePendingVaultTx();
 
   // Use pre-loaded vault data and transactions from context (instant display, no waiting)
   const {
@@ -82,6 +86,22 @@ function VaultDetailScreen({ navigation }: VaultDetailScreenProps): React.JSX.El
     fetchVault();
     fetchVaultTransactions();
   }, [fetchVault, fetchVaultTransactions]);
+
+  // Clear pending transaction when it appears in vault history (confirmed)
+  useEffect(() => {
+    if (pendingTransaction && vaultTransactions.length > 0) {
+      // Check if the pending transaction's txid matches any in the history
+      const isConfirmed = vaultTransactions.some(
+        tx => tx.transaction_id === pendingTransaction.txid ||
+              tx.transaction_id === pendingTransaction.vaultTxid
+      );
+      if (isConfirmed) {
+        // Transaction confirmed - clear pending state and dismiss snackbar
+        usePendingVaultTransactionStore.getState().clearPendingTransaction();
+        useNotificationStore.getState().dismissSnackbar();
+      }
+    }
+  }, [pendingTransaction, vaultTransactions]);
 
   // Handle pull-to-refresh
   const handleRefresh = useCallback(async () => {
@@ -158,6 +178,7 @@ function VaultDetailScreen({ navigation }: VaultDetailScreenProps): React.JSX.El
           healthPercentage={vaultHealthPercentage}
           healthColor={vaultHealthColor}
           isLoading={showVaultLoading}
+          isPendingTransaction={!!pendingTransaction}
           onChartPress={handleChartPress}
           onBorrowPress={handleBorrowPress}
           onRepayPress={handleRepayPress}
@@ -175,6 +196,7 @@ function VaultDetailScreen({ navigation }: VaultDetailScreenProps): React.JSX.El
             transactions={vaultTransactions}
             isLoading={showTransactionsLoading}
             onTransactionPress={handleTransactionPress}
+            pendingTransaction={pendingTransaction}
           />
         ) : (
           <VaultAbout />

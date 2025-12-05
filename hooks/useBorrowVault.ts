@@ -8,6 +8,8 @@ import { useBorrowStore } from '../stores/borrowStore';
 import { useWallet } from '../contexts/WalletContext';
 import { usePrice } from '../stores/priceStore';
 import { getGuardianClient, disconnectGuardian } from '../services/guardianService';
+import { usePendingVaultTransactionStore } from '../stores/pendingVaultTransactionStore';
+import { useNotificationStore } from '../stores/notificationStore';
 import {
   createBorrowConfig,
   guardianBorrowReserve,
@@ -102,8 +104,6 @@ export function useBorrowVault(): UseBorrowVaultResult {
         return false;
       }
 
-      // Convert from API units to display units
-      // totalDebt is in UNIT (dollars), totalCollateral is in BTC
       const unitBorrowed = vaultData.totalDebt || 0;
       const btcLocked = vaultData.totalCollateral || 0;
 
@@ -280,6 +280,25 @@ export function useBorrowVault(): UseBorrowVaultResult {
 
       setTxid(result.txid, result.vault_txid);
       setCurrentStep('success');
+
+      // Set pending transaction for activity list and button disabling
+      await usePendingVaultTransactionStore.getState().setPendingTransaction({
+        txid: result.txid,
+        vaultTxid: result.vault_txid,
+        action: 'borrow',
+        btcAmt: 0,
+        unitAmt: borrowConfig.borrow_amount, // In cents
+        timestamp: Date.now(),
+        vaultPubkey: wallet.taprootPubkey || '',
+      });
+
+      // Show info snackbar about pending confirmation
+      useNotificationStore.getState().showSnackbar({
+        title: 'Vault transaction confirming',
+        description: 'Please wait for the block to get mined',
+        type: 'info',
+        persistent: true,
+      });
 
       logger.info('[useBorrowVault] Borrow completed successfully:', {
         txid: result.txid,

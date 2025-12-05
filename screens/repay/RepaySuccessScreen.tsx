@@ -56,13 +56,32 @@ export default function RepaySuccessScreen({ navigation, route }: RepaySuccessSc
     }
   }, [vaultTxid]);
 
-  // Handle done - reset state and go back to wallet
+  // Handle done - reset state and go to vault detail page
   const handleDone = useCallback(() => {
     reset();
-    // Navigate back to main screen
+    // Navigate to vault detail screen
     navigation.getParent()?.reset({
       index: 0,
-      routes: [{ name: 'Main' }],
+      routes: [
+        {
+          name: 'Main',
+          state: {
+            routes: [
+              {
+                name: 'WalletTab',
+                state: {
+                  routes: [
+                    { name: 'WalletHome' },
+                    { name: 'VaultDetail' },
+                  ],
+                  index: 1,
+                },
+              },
+            ],
+            index: 0,
+          },
+        },
+      ],
     });
   }, [reset, navigation]);
 
