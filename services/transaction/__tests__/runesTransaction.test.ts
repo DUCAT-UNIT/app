@@ -18,7 +18,7 @@ jest.mock('../../../utils/bitcoin', () => ({
   validateAndNormalizeAddress: jest.fn((addr) => addr),
 }));
 
-jest.mock('../../../runestone-encoder', () => ({
+jest.mock('../../../utils/runestoneEncoder', () => ({
   encodeRunestone: jest.fn(() => Buffer.from('mockrunestone')),
 }));
 

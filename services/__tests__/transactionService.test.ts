@@ -24,7 +24,7 @@ jest.mock('../../utils/bitcoin', () => ({
   deriveSigningKeys: jest.fn(),
 }));
 
-jest.mock('../../runestone-encoder', () => ({
+jest.mock('../../utils/runestoneEncoder', () => ({
   encodeRunestone: jest.fn(() => ({
     encodedRunestone: Buffer.from('6a5d02000d', 'hex'), // Mock OP_RETURN runestone
   })),

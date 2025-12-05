@@ -39,7 +39,7 @@ jest.mock('../../../utils/constants', () => ({
   getTxHexUrl: jest.fn((txid) => `https://example.com/tx/${txid}/hex`),
 }));
 
-jest.mock('../../../runestone-encoder', () => ({
+jest.mock('../../../utils/runestoneEncoder', () => ({
   encodeRunestone: jest.fn(() => ({
     encodedRunestone: Buffer.from('runestone', 'hex'),
   })),
@@ -49,7 +49,7 @@ jest.mock('../../../runestone-encoder', () => ({
 global.fetch = jest.fn();
 
 import { fetchTransactionHex, buildRunesPsbt } from '../runesPsbtBuilder';
-import { encodeRunestone } from '../../../runestone-encoder';
+import { encodeRunestone } from '../../../utils/runestoneEncoder';
 
 describe('runesPsbtBuilder', () => {
   beforeEach(() => {

@@ -4,7 +4,7 @@
  */
 
 import { retrySilently } from '../utils/retry';
-import { decodeRunestone } from '../runestone-encoder';
+import { decodeRunestone } from '../utils/runestoneEncoder';
 import { fetchVaultHistory } from './vaultService';
 import { getAddressTxsUrl } from '../utils/constants';
 import { logger } from '../utils/logger';

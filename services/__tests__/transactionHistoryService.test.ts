@@ -26,9 +26,9 @@ jest.mock('../../utils/constants', () => ({
 }));
 
 jest.mock('../vaultService');
-jest.mock('../../runestone-encoder');
+jest.mock('../../utils/runestoneEncoder');
 
-const { decodeRunestone } = require('../../runestone-encoder');
+const { decodeRunestone } = require('../../utils/runestoneEncoder');
 const mockFetchVaultHistory = fetchVaultHistory as jest.MockedFunction<typeof fetchVaultHistory>;
 
 describe('transactionHistoryService', () => {

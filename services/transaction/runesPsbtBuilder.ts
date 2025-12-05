@@ -5,7 +5,7 @@
 
 import * as bitcoin from 'bitcoinjs-lib';
 import * as ecc from '@bitcoinerlab/secp256k1';
-import { encodeRunestone } from '../../runestone-encoder';
+import { encodeRunestone } from '../../utils/runestoneEncoder';
 import { MUTINYNET_NETWORK } from '../../utils/bitcoin';
 import { getTxHexUrl } from '../../utils/constants';
 import { RuneUtxo, SatUtxo } from './runesUtxoSelection';
