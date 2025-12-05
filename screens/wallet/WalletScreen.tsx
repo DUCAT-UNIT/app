@@ -1,11 +1,13 @@
 import React, { useCallback } from 'react';
 import { View, Text, TouchableOpacity, ScrollView, StyleSheet, ViewStyle, TextStyle } from 'react-native';
+import * as Haptics from 'expo-haptics';
 import { useWallet } from '../../contexts/WalletContext';
 import { useBalance } from '../../contexts/WalletDataContext';
 import { usePrice } from '../../stores/priceStore';
 import { useVaultData } from '../../contexts/WalletDataContext';
 import { useCashu } from '../../contexts/CashuContext';
 import { useDisplayPreferences } from "../../stores/displayPreferencesStore";
+import { useNotificationStore } from '../../stores/notificationStore';
 import { useWalletCalculations } from '../../hooks/useWalletCalculations';
 import { useFormattedBalances } from '../../hooks/useFormattedBalances';
 import { useResponsive } from '../../hooks/useResponsive';
@@ -51,6 +53,7 @@ interface WalletScreenProps {
   onAssetPress?: (asset: string) => void;
   _sendAddressType?: 'taproot' | 'segwit';
   showZeroAssets: boolean;
+  isPendingVaultTx?: boolean;
 }
 
 const WalletScreen = React.memo(function WalletScreen({
@@ -65,6 +68,7 @@ const WalletScreen = React.memo(function WalletScreen({
   onAssetPress,
   _sendAddressType,
   showZeroAssets,
+  isPendingVaultTx = false,
 }: WalletScreenProps): React.ReactElement {
   const { wallet: _wallet, currentAccount } = useWallet();
   const { segwitBalance, taprootBalance, runesBalance, balanceError, setBalanceError, fetchBalance } = useBalance();
@@ -157,6 +161,29 @@ const WalletScreen = React.memo(function WalletScreen({
     onAssetPress?.('UNIT');
   }, [onAssetPress]);
 
+  // Check if vault health is below minimum (160%)
+  const isLowHealth = vaultHealthPercentage > 0 && vaultHealthPercentage < 160;
+
+  // Handler for disabled vault action buttons - shows popup with haptic feedback
+  const handleDisabledPress = useCallback(() => {
+    Haptics.notificationAsync(Haptics.NotificationFeedbackType.Warning);
+    useNotificationStore.getState().showSnackbar({
+      title: 'Transaction pending',
+      description: 'Please wait for the current vault transaction to confirm',
+      type: 'warning',
+    });
+  }, []);
+
+  // Handler for low health - shows popup with haptic feedback
+  const handleLowHealthPress = useCallback(() => {
+    Haptics.notificationAsync(Haptics.NotificationFeedbackType.Warning);
+    useNotificationStore.getState().showSnackbar({
+      title: 'Health too low',
+      description: 'Vault health must be above 160% to withdraw or borrow',
+      type: 'warning',
+    });
+  }, []);
+
   return (
     <View style={styles.walletContainer} testID="wallet-screen">
       {/* Header with Account Number and Settings Icon */}
@@ -184,11 +211,11 @@ const WalletScreen = React.memo(function WalletScreen({
 
       {/* Actions - Vault and Wallet Buttons - Scaled with s() */}
       <View style={{ flexDirection: 'row', justifyContent: 'flex-start', marginLeft: s(24), gap: s(12) }} testID="wallet-actions">
-        <TouchableOpacity style={{ alignItems: 'center' }} onPress={onVaultPress} testID="wallet-repay-btn">
-          <View style={{ width: s(50), height: s(50), borderRadius: s(8), backgroundColor: '#DDDDDD', justifyContent: 'center', alignItems: 'center', marginBottom: s(2) }}>
+        <TouchableOpacity style={{ alignItems: 'center', opacity: isPendingVaultTx ? 0.5 : 1 }} onPress={isPendingVaultTx ? handleDisabledPress : onVaultPress} testID="wallet-repay-btn">
+          <View style={{ width: s(50), height: s(50), borderRadius: s(8), backgroundColor: isPendingVaultTx ? '#888888' : '#DDDDDD', justifyContent: 'center', alignItems: 'center', marginBottom: s(2) }}>
             <Text style={{ fontSize: sf(24), color: COLORS.DARK_BG, fontWeight: '200' }}>↓</Text>
           </View>
-          <Text style={{ fontSize: sf(13), color: COLORS.WHITE, fontWeight: '600' }}>Repay</Text>
+          <Text style={{ fontSize: sf(13), color: isPendingVaultTx ? COLORS.SECONDARY_TEXT : COLORS.WHITE, fontWeight: '600' }}>Repay</Text>
         </TouchableOpacity>
 
         <TouchableOpacity style={{ alignItems: 'center' }} onPress={onReceivePress} testID="wallet-deposit-btn">
@@ -198,18 +225,18 @@ const WalletScreen = React.memo(function WalletScreen({
           <Text style={{ fontSize: sf(13), color: COLORS.WHITE, fontWeight: '600' }}>Deposit</Text>
         </TouchableOpacity>
 
-        <TouchableOpacity style={{ alignItems: 'center' }} onPress={onSendPress} testID="wallet-withdraw-btn">
-          <View style={{ width: s(50), height: s(50), borderRadius: s(8), backgroundColor: '#DDDDDD', justifyContent: 'center', alignItems: 'center', marginBottom: s(2) }}>
+        <TouchableOpacity style={{ alignItems: 'center', opacity: (isPendingVaultTx || isLowHealth) ? 0.5 : 1 }} onPress={isPendingVaultTx ? handleDisabledPress : isLowHealth ? handleLowHealthPress : onSendPress} testID="wallet-withdraw-btn">
+          <View style={{ width: s(50), height: s(50), borderRadius: s(8), backgroundColor: (isPendingVaultTx || isLowHealth) ? '#888888' : '#DDDDDD', justifyContent: 'center', alignItems: 'center', marginBottom: s(2) }}>
             <Text style={{ fontSize: sf(24), color: COLORS.DARK_BG, fontWeight: '200' }}>-</Text>
           </View>
-          <Text style={{ fontSize: sf(13), color: COLORS.WHITE, fontWeight: '600' }}>Withdraw</Text>
+          <Text style={{ fontSize: sf(13), color: (isPendingVaultTx || isLowHealth) ? COLORS.SECONDARY_TEXT : COLORS.WHITE, fontWeight: '600' }}>Withdraw</Text>
         </TouchableOpacity>
 
-        <TouchableOpacity style={{ alignItems: 'center' }} onPress={onVaultPress} testID="wallet-borrow-btn">
-          <View style={{ width: s(50), height: s(50), borderRadius: s(8), backgroundColor: '#DDDDDD', justifyContent: 'center', alignItems: 'center', marginBottom: s(2) }}>
+        <TouchableOpacity style={{ alignItems: 'center', opacity: (isPendingVaultTx || isLowHealth) ? 0.5 : 1 }} onPress={isPendingVaultTx ? handleDisabledPress : isLowHealth ? handleLowHealthPress : onVaultPress} testID="wallet-borrow-btn">
+          <View style={{ width: s(50), height: s(50), borderRadius: s(8), backgroundColor: (isPendingVaultTx || isLowHealth) ? '#888888' : '#DDDDDD', justifyContent: 'center', alignItems: 'center', marginBottom: s(2) }}>
             <Text style={{ fontSize: sf(24), color: COLORS.DARK_BG, fontWeight: '200' }}>↑</Text>
           </View>
-          <Text style={{ fontSize: sf(13), color: COLORS.WHITE, fontWeight: '600' }}>Borrow</Text>
+          <Text style={{ fontSize: sf(13), color: (isPendingVaultTx || isLowHealth) ? COLORS.SECONDARY_TEXT : COLORS.WHITE, fontWeight: '600' }}>Borrow</Text>
         </TouchableOpacity>
       </View>
 

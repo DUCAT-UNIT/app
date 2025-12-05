@@ -11,12 +11,11 @@ import {
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { COLORS } from '../../theme';
-import { useBalance, useTransactionHistory } from '../../contexts/WalletDataContext';
+import { useBalance, useTransactionHistory, useVaultData } from '../../contexts/WalletDataContext';
 import { usePrice } from '../../stores/priceStore';
 import { useWallet } from '../../contexts/WalletContext';
 import { useCashu } from '../../contexts/CashuContext';
 import { usePendingTransactions } from '../../contexts/PendingTransactionsContext';
-import { useVaultDataFetch } from '../../hooks/useVaultDataFetch';
 import { useWalletCalculations } from '../../hooks/useWalletCalculations';
 import {
   AssetHeader,
@@ -35,6 +34,7 @@ import { useFuseEcash } from '../../hooks/useFuseEcash';
 import { useTurboConvert } from '../../hooks/useTurboConvert';
 import { useRedeemCashuToken } from '../../hooks/useRedeemCashuToken';
 import { getTxUrl, getOrdTxUrl } from '../../utils/constants';
+import { useHasPendingVaultTx } from '../../stores/pendingVaultTransactionStore';
 import TokenDetailsSheet from '../../components/ecash/TokenDetailsSheet';
 import { useNotifications } from '../../stores/notificationStore';
 import { getRunesAmount } from '../../utils/runesHelper';
@@ -88,8 +88,8 @@ function AssetDetailScreen({ route = {}, navigation }: AssetDetailScreenProps): 
   const { transactionHistory, loadingTransactionHistory, fetchTransactionHistory } = useTransactionHistory();
   const { getSpentUtxos, unmarkUtxosAsSpent } = usePendingTransactions();
 
-  // Vault data fetching (only for UNIT asset type)
-  const { vaultData, loadingVault } = useVaultDataFetch(assetType === 'UNIT' ? wallet : null);
+  // Vault data from shared context (participates in 10s polling)
+  const { vaultData, loadingVault } = useVaultData();
 
   // Calculate vault health metrics
   const {
@@ -109,6 +109,7 @@ function AssetDetailScreen({ route = {}, navigation }: AssetDetailScreenProps): 
   const [showTokenDetails, setShowTokenDetails] = useState<boolean>(false);
   const scrollY = useRef(new Animated.Value(0)).current;
   const { showToast } = useNotifications();
+  const isPendingVaultTx = useHasPendingVaultTx();
 
   // Track if balance has ever loaded (prevents spinner on background updates)
   const balanceLoadedRef = useRef(false);
@@ -268,6 +269,7 @@ function AssetDetailScreen({ route = {}, navigation }: AssetDetailScreenProps): 
               isLoading: loadingVault,
               priceChange24h: priceDirection.isPositive ? parseFloat(priceDirection.percentChange) : -parseFloat(priceDirection.percentChange),
             } : undefined}
+            isPendingVaultTx={isPendingVaultTx}
           />
 
           {assetType === 'UNIT' && (
