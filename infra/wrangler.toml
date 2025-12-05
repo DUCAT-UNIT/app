@@ -1,0 +1,9 @@
+name = "apple-app-site-association"
+main = "cloudflare-worker-apple-app-site-association.js"
+compatibility_date = "2024-01-01"
+
+# Routes for ducatprotocol.com
+routes = [
+  { pattern = "ducatprotocol.com/.well-known/apple-app-site-association", zone_name = "ducatprotocol.com" },
+  { pattern = "www.ducatprotocol.com/.well-known/apple-app-site-association", zone_name = "ducatprotocol.com" }
+]
