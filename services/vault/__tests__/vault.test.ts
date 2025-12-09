@@ -1231,6 +1231,61 @@ describe('Vault Request Creation', () => {
       await expect(createVaultReqWithdraw(mockWallet as any, withdrawConfig, options))
         .rejects.toThrow('Withdrawal validation failed');
     });
+
+    it('should handle non-Error exceptions in withdraw request creation', async () => {
+      const { createVaultReqWithdraw } = require('../withdraw');
+
+      const mockWallet = {
+        vault: {
+          withdraw: {
+            ctx: jest.fn().mockReturnValue({ config: 'withdraw_ctx' }),
+            req: jest.fn().mockRejectedValue('String error'),
+          },
+        },
+      };
+
+      const withdrawConfig = { change_amount: 50000, tx_feerate: 3 };
+      const options = { feeRate: 3, oracleQuote: mockOracleQuote, vaultProfile: mockVaultProfile };
+
+      await expect(createVaultReqWithdraw(mockWallet as any, withdrawConfig, options))
+        .rejects.toBe('String error');
+    });
+  });
+});
+
+describe('Vault Guardian Error Handling', () => {
+  describe('guardianSendReqWithdraw', () => {
+    it('should handle Error exceptions', async () => {
+      const { guardianSendReqWithdraw } = require('../withdraw');
+      const mockGuardianClient = {
+        req: {
+          vault: {
+            withdraw: jest.fn().mockReturnValue({
+              resolve: jest.fn().mockRejectedValue(new Error('Withdraw failed')),
+            }),
+          },
+        },
+      };
+
+      await expect(guardianSendReqWithdraw(mockGuardianClient, {}))
+        .rejects.toThrow('Withdraw failed');
+    });
+
+    it('should handle non-Error exceptions', async () => {
+      const { guardianSendReqWithdraw } = require('../withdraw');
+      const mockGuardianClient = {
+        req: {
+          vault: {
+            withdraw: jest.fn().mockReturnValue({
+              resolve: jest.fn().mockRejectedValue('Non-error exception'),
+            }),
+          },
+        },
+      };
+
+      await expect(guardianSendReqWithdraw(mockGuardianClient, {}))
+        .rejects.toBe('Non-error exception');
+    });
   });
 });
 
