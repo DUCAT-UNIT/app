@@ -318,4 +318,225 @@ describe('useBorrowVault', () => {
       expect(mockBorrowStore.reset).toHaveBeenCalled();
     });
   });
+
+  describe('loadVaultData', () => {
+    it('should return false if wallet not connected', async () => {
+      const { useWallet } = require('../../contexts/WalletContext');
+      useWallet.mockReturnValueOnce({ wallet: null });
+
+      const { result } = renderHook(() => useBorrowVault());
+
+      let loadResult;
+      await act(async () => {
+        loadResult = await result.current.loadVaultData();
+      });
+
+      expect(loadResult).toBe(false);
+    });
+
+    it('should handle fetchVaultData error', async () => {
+      const { fetchVaultData } = require('../../services/vaultService');
+      fetchVaultData.mockRejectedValueOnce(new Error('Fetch failed'));
+
+      const { result } = renderHook(() => useBorrowVault());
+
+      let loadResult;
+      await act(async () => {
+        loadResult = await result.current.loadVaultData();
+      });
+
+      expect(loadResult).toBe(false);
+      expect(mockBorrowStore.setError).toHaveBeenCalledWith('Fetch failed');
+    });
+
+    it('should handle non-Error throws', async () => {
+      const { fetchVaultData } = require('../../services/vaultService');
+      fetchVaultData.mockRejectedValueOnce('string error');
+
+      const { result } = renderHook(() => useBorrowVault());
+
+      let loadResult;
+      await act(async () => {
+        loadResult = await result.current.loadVaultData();
+      });
+
+      expect(loadResult).toBe(false);
+      expect(mockBorrowStore.setError).toHaveBeenCalledWith('Failed to load vault data');
+    });
+  });
+
+  describe('borrowMore with profile errors', () => {
+    it('should handle error when vaultInfo is missing during borrow', async () => {
+      const { fetchVaultData } = require('../../services/vaultService');
+      fetchVaultData.mockResolvedValueOnce({ vaultId: 'v1', vaultInfo: null });
+
+      const { result } = renderHook(() => useBorrowVault());
+
+      let borrowResult;
+      await act(async () => {
+        borrowResult = await result.current.borrowMore();
+      });
+
+      expect(borrowResult).toBeNull();
+    });
+
+    it('should handle error when history is empty during borrow', async () => {
+      const { fetchVaultHistory } = require('../../services/vaultService');
+      fetchVaultHistory.mockResolvedValueOnce([]);
+
+      const { result } = renderHook(() => useBorrowVault());
+
+      let borrowResult;
+      await act(async () => {
+        borrowResult = await result.current.borrowMore();
+      });
+
+      expect(borrowResult).toBeNull();
+    });
+
+    it('should handle error when computeVaultPrevoutFromTx returns null', async () => {
+      const { computeVaultPrevoutFromTx } = require('../../services/vaultOperationsService');
+      computeVaultPrevoutFromTx.mockReturnValueOnce(null);
+
+      const { result } = renderHook(() => useBorrowVault());
+
+      let borrowResult;
+      await act(async () => {
+        borrowResult = await result.current.borrowMore();
+      });
+
+      expect(borrowResult).toBeNull();
+    });
+
+    it('should handle wallet not connected in buildVaultProfileFromData (line 139)', async () => {
+      const { useWallet } = require('../../contexts/WalletContext');
+      useWallet.mockReturnValueOnce({ wallet: {
+        segwitAddress: 'tb1qtest...',
+        taprootAddress: 'tb1ptest...',
+        taprootPubkey: null, // null pubkey
+      }});
+
+      const { result } = renderHook(() => useBorrowVault());
+
+      let borrowResult;
+      await act(async () => {
+        borrowResult = await result.current.borrowMore();
+      });
+
+      // Should fail when trying to build profile
+      expect(borrowResult).toBeNull();
+    });
+
+    it('should handle error in buildVaultProfileFromData (lines 182-183)', async () => {
+      const { fetchVaultData } = require('../../services/vaultService');
+      fetchVaultData.mockRejectedValueOnce(new Error('Network error'));
+
+      const { result } = renderHook(() => useBorrowVault());
+
+      let borrowResult;
+      await act(async () => {
+        borrowResult = await result.current.borrowMore();
+      });
+
+      expect(borrowResult).toBeNull();
+      const { logger } = require('../../utils/logger');
+      expect(logger.error).toHaveBeenCalledWith(
+        '[useBorrowVault] Error building VaultProfile:',
+        { error: expect.any(Error) }
+      );
+    });
+
+    it('should return null if operation already in progress (lines 190-191)', async () => {
+      const { result } = renderHook(() => useBorrowVault());
+
+      // Start first borrow
+      const firstBorrow = act(async () => {
+        return result.current.borrowMore();
+      });
+
+      // Try to start second borrow immediately
+      let secondResult;
+      await act(async () => {
+        secondResult = await result.current.borrowMore();
+      });
+
+      // Second call should return null due to operation in progress
+      expect(secondResult).toBeNull();
+      const { logger } = require('../../utils/logger');
+      expect(logger.warn).toHaveBeenCalledWith('[useBorrowVault] Operation already in progress');
+
+      // Wait for first to complete
+      await firstBorrow;
+    });
+
+    it('should handle history array with null (line 156)', async () => {
+      const { fetchVaultHistory } = require('../../services/vaultService');
+      fetchVaultHistory.mockResolvedValueOnce(null);
+
+      const { result } = renderHook(() => useBorrowVault());
+
+      let borrowResult;
+      await act(async () => {
+        borrowResult = await result.current.borrowMore();
+      });
+
+      expect(borrowResult).toBeNull();
+    });
+
+    it('should handle wallet with null pubkeys', async () => {
+      const { useWallet } = require('../../contexts/WalletContext');
+      useWallet.mockReturnValueOnce({ wallet: {
+        segwitAddress: 'tb1qtest...',
+        segwitPubkey: null, // null pubkey
+        taprootAddress: 'tb1ptest...',
+        taprootPubkey: 'pubkey2',
+      }});
+
+      const { result } = renderHook(() => useBorrowVault());
+
+      let borrowResult;
+      await act(async () => {
+        borrowResult = await result.current.borrowMore();
+      });
+
+      // Should succeed with empty string for null pubkeys
+      expect(borrowResult).toEqual({ txid: 'txid123', vaultTxid: 'vtxid123' });
+    });
+
+    it('should handle non-Error exception', async () => {
+      const { guardianSendReqBorrow } = require('../../services/vaultOperationsService');
+      // Throw a non-Error object
+      guardianSendReqBorrow.mockRejectedValueOnce({ message: 'Custom error' });
+
+      const { result } = renderHook(() => useBorrowVault());
+
+      let borrowResult;
+      await act(async () => {
+        borrowResult = await result.current.borrowMore();
+      });
+
+      expect(borrowResult).toBeNull();
+      expect(mockBorrowStore.setError).toHaveBeenCalledWith('Borrow operation failed');
+    });
+
+    it('should handle vault data with null totalDebt and totalCollateral (lines 111-112)', async () => {
+      const { fetchVaultData } = require('../../services/vaultService');
+      fetchVaultData.mockResolvedValueOnce({
+        vaultId: 'vault1',
+        totalDebt: null,
+        totalCollateral: null,
+        vaultInfo: { creation_account: 'acct1', guard_pubkey: 'guard1', master_id: 'master1' },
+      });
+
+      const { result } = renderHook(() => useBorrowVault());
+
+      let success;
+      await act(async () => {
+        success = await result.current.loadVaultData();
+      });
+
+      expect(success).toBe(true);
+      expect(mockBorrowStore.setCurrentVaultData).toHaveBeenCalledWith(0, 0);
+    });
+  });
 });

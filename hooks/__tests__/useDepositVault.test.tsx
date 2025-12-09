@@ -316,4 +316,225 @@ describe('useDepositVault', () => {
       expect(mockDepositStore.reset).toHaveBeenCalled();
     });
   });
+
+  describe('loadVaultData', () => {
+    it('should return false if wallet not connected', async () => {
+      const { useWallet } = require('../../contexts/WalletContext');
+      useWallet.mockReturnValueOnce({ wallet: null });
+
+      const { result } = renderHook(() => useDepositVault());
+
+      let loadResult;
+      await act(async () => {
+        loadResult = await result.current.loadVaultData();
+      });
+
+      expect(loadResult).toBe(false);
+    });
+
+    it('should handle fetchVaultData error', async () => {
+      const { fetchVaultData } = require('../../services/vaultService');
+      fetchVaultData.mockRejectedValueOnce(new Error('Fetch failed'));
+
+      const { result } = renderHook(() => useDepositVault());
+
+      let loadResult;
+      await act(async () => {
+        loadResult = await result.current.loadVaultData();
+      });
+
+      expect(loadResult).toBe(false);
+      expect(mockDepositStore.setError).toHaveBeenCalledWith('Fetch failed');
+    });
+
+    it('should handle non-Error throws', async () => {
+      const { fetchVaultData } = require('../../services/vaultService');
+      fetchVaultData.mockRejectedValueOnce('string error');
+
+      const { result } = renderHook(() => useDepositVault());
+
+      let loadResult;
+      await act(async () => {
+        loadResult = await result.current.loadVaultData();
+      });
+
+      expect(loadResult).toBe(false);
+      expect(mockDepositStore.setError).toHaveBeenCalledWith('Failed to load vault data');
+    });
+  });
+
+  describe('deposit with profile errors', () => {
+    it('should handle error when vaultInfo is missing during deposit', async () => {
+      const { fetchVaultData } = require('../../services/vaultService');
+      fetchVaultData.mockResolvedValueOnce({ vaultId: 'v1', vaultInfo: null });
+
+      const { result } = renderHook(() => useDepositVault());
+
+      let depositResult;
+      await act(async () => {
+        depositResult = await result.current.deposit();
+      });
+
+      expect(depositResult).toBeNull();
+    });
+
+    it('should handle error when history is empty during deposit', async () => {
+      const { fetchVaultHistory } = require('../../services/vaultService');
+      fetchVaultHistory.mockResolvedValueOnce([]);
+
+      const { result } = renderHook(() => useDepositVault());
+
+      let depositResult;
+      await act(async () => {
+        depositResult = await result.current.deposit();
+      });
+
+      expect(depositResult).toBeNull();
+    });
+
+    it('should handle error when computeVaultPrevoutFromTx returns null', async () => {
+      const { computeVaultPrevoutFromTx } = require('../../services/vaultOperationsService');
+      computeVaultPrevoutFromTx.mockReturnValueOnce(null);
+
+      const { result } = renderHook(() => useDepositVault());
+
+      let depositResult;
+      await act(async () => {
+        depositResult = await result.current.deposit();
+      });
+
+      expect(depositResult).toBeNull();
+    });
+
+    it('should handle wallet not connected in buildVaultProfileFromData (line 136)', async () => {
+      const { useWallet } = require('../../contexts/WalletContext');
+      useWallet.mockReturnValueOnce({ wallet: {
+        segwitAddress: 'tb1qtest...',
+        taprootAddress: 'tb1ptest...',
+        taprootPubkey: null, // null pubkey
+      }});
+
+      const { result } = renderHook(() => useDepositVault());
+
+      let depositResult;
+      await act(async () => {
+        depositResult = await result.current.deposit();
+      });
+
+      // Should fail when trying to build profile
+      expect(depositResult).toBeNull();
+    });
+
+    it('should handle error in buildVaultProfileFromData (lines 179-180)', async () => {
+      const { fetchVaultData } = require('../../services/vaultService');
+      fetchVaultData.mockRejectedValueOnce(new Error('Network error'));
+
+      const { result } = renderHook(() => useDepositVault());
+
+      let depositResult;
+      await act(async () => {
+        depositResult = await result.current.deposit();
+      });
+
+      expect(depositResult).toBeNull();
+      const { logger } = require('../../utils/logger');
+      expect(logger.error).toHaveBeenCalledWith(
+        '[useDepositVault] Error building VaultProfile:',
+        { error: expect.any(Error) }
+      );
+    });
+
+    it('should return null if operation already in progress (lines 187-188)', async () => {
+      const { result } = renderHook(() => useDepositVault());
+
+      // Start first deposit
+      const firstDeposit = act(async () => {
+        return result.current.deposit();
+      });
+
+      // Try to start second deposit immediately
+      let secondResult;
+      await act(async () => {
+        secondResult = await result.current.deposit();
+      });
+
+      // Second call should return null due to operation in progress
+      expect(secondResult).toBeNull();
+      const { logger } = require('../../utils/logger');
+      expect(logger.warn).toHaveBeenCalledWith('[useDepositVault] Operation already in progress');
+
+      // Wait for first to complete
+      await firstDeposit;
+    });
+
+    it('should handle history array with null', async () => {
+      const { fetchVaultHistory } = require('../../services/vaultService');
+      fetchVaultHistory.mockResolvedValueOnce(null);
+
+      const { result } = renderHook(() => useDepositVault());
+
+      let depositResult;
+      await act(async () => {
+        depositResult = await result.current.deposit();
+      });
+
+      expect(depositResult).toBeNull();
+    });
+
+    it('should handle wallet with null pubkeys', async () => {
+      const { useWallet } = require('../../contexts/WalletContext');
+      useWallet.mockReturnValueOnce({ wallet: {
+        segwitAddress: 'tb1qtest...',
+        segwitPubkey: null, // null pubkey
+        taprootAddress: 'tb1ptest...',
+        taprootPubkey: 'pubkey2',
+      }});
+
+      const { result } = renderHook(() => useDepositVault());
+
+      let depositResult;
+      await act(async () => {
+        depositResult = await result.current.deposit();
+      });
+
+      // Should succeed with empty string for null pubkeys
+      expect(depositResult).toEqual({ vaultTxid: 'vtxid123' });
+    });
+
+    it('should handle non-Error exception', async () => {
+      const { guardianSendReqDeposit } = require('../../services/vaultOperationsService');
+      // Throw a non-Error object
+      guardianSendReqDeposit.mockRejectedValueOnce({ message: 'Custom error' });
+
+      const { result } = renderHook(() => useDepositVault());
+
+      let depositResult;
+      await act(async () => {
+        depositResult = await result.current.deposit();
+      });
+
+      expect(depositResult).toBeNull();
+      expect(mockDepositStore.setError).toHaveBeenCalledWith('Deposit operation failed');
+    });
+
+    it('should handle vault data with null totalDebt and totalCollateral (lines 108-109)', async () => {
+      const { fetchVaultData } = require('../../services/vaultService');
+      fetchVaultData.mockResolvedValueOnce({
+        vaultId: 'vault1',
+        totalDebt: null,
+        totalCollateral: null,
+        vaultInfo: { creation_account: 'acct1', guard_pubkey: 'guard1', master_id: 'master1' },
+      });
+
+      const { result } = renderHook(() => useDepositVault());
+
+      let success;
+      await act(async () => {
+        success = await result.current.loadVaultData();
+      });
+
+      expect(success).toBe(true);
+      expect(mockDepositStore.setCurrentVaultData).toHaveBeenCalledWith(0, 0);
+    });
+  });
 });

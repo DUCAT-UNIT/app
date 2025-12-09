@@ -338,4 +338,281 @@ describe('useRepayVault', () => {
       expect(mockRepayStore.reset).toHaveBeenCalled();
     });
   });
+
+  describe('loadVaultData', () => {
+    it('should return false if wallet not connected', async () => {
+      const { useWallet } = require('../../contexts/WalletContext');
+      useWallet.mockReturnValueOnce({ wallet: null });
+
+      const { result } = renderHook(() => useRepayVault());
+
+      let loadResult;
+      await act(async () => {
+        loadResult = await result.current.loadVaultData();
+      });
+
+      expect(loadResult).toBe(false);
+    });
+
+    it('should handle fetchVaultData error', async () => {
+      const { fetchVaultData } = require('../../services/vaultService');
+      fetchVaultData.mockRejectedValueOnce(new Error('Fetch failed'));
+
+      const { result } = renderHook(() => useRepayVault());
+
+      let loadResult;
+      await act(async () => {
+        loadResult = await result.current.loadVaultData();
+      });
+
+      expect(loadResult).toBe(false);
+      expect(mockRepayStore.setError).toHaveBeenCalledWith('Fetch failed');
+    });
+
+    it('should handle non-Error throws', async () => {
+      const { fetchVaultData } = require('../../services/vaultService');
+      fetchVaultData.mockRejectedValueOnce('string error');
+
+      const { result } = renderHook(() => useRepayVault());
+
+      let loadResult;
+      await act(async () => {
+        loadResult = await result.current.loadVaultData();
+      });
+
+      expect(loadResult).toBe(false);
+      expect(mockRepayStore.setError).toHaveBeenCalledWith('Failed to load vault data');
+    });
+  });
+
+  describe('repay with profile errors', () => {
+    it('should handle error when vaultInfo is missing during repay', async () => {
+      const { fetchVaultData } = require('../../services/vaultService');
+      fetchVaultData.mockResolvedValueOnce({ vaultId: 'v1', vaultInfo: null });
+
+      const { result } = renderHook(() => useRepayVault());
+
+      let repayResult;
+      await act(async () => {
+        repayResult = await result.current.repay();
+      });
+
+      expect(repayResult).toBeNull();
+    });
+
+    it('should handle error when history is empty during repay', async () => {
+      const { fetchVaultHistory } = require('../../services/vaultService');
+      fetchVaultHistory.mockResolvedValueOnce([]);
+
+      const { result } = renderHook(() => useRepayVault());
+
+      let repayResult;
+      await act(async () => {
+        repayResult = await result.current.repay();
+      });
+
+      expect(repayResult).toBeNull();
+    });
+
+    it('should handle error when computeVaultPrevoutFromTx returns null', async () => {
+      const { computeVaultPrevoutFromTx } = require('../../services/vaultOperationsService');
+      computeVaultPrevoutFromTx.mockReturnValueOnce(null);
+
+      const { result } = renderHook(() => useRepayVault());
+
+      let repayResult;
+      await act(async () => {
+        repayResult = await result.current.repay();
+      });
+
+      expect(repayResult).toBeNull();
+    });
+
+    it('should handle wallet not connected in buildVaultProfileFromData (line 141)', async () => {
+      const { useWallet } = require('../../contexts/WalletContext');
+      useWallet.mockReturnValueOnce({ wallet: {
+        segwitAddress: 'tb1qtest...',
+        taprootAddress: 'tb1ptest...',
+        taprootPubkey: null, // null pubkey
+      }});
+
+      const { result } = renderHook(() => useRepayVault());
+
+      let repayResult;
+      await act(async () => {
+        repayResult = await result.current.repay();
+      });
+
+      // Should fail when trying to build profile
+      expect(repayResult).toBeNull();
+    });
+
+    it('should handle error in buildVaultProfileFromData (lines 184-185)', async () => {
+      const { fetchVaultData } = require('../../services/vaultService');
+      fetchVaultData.mockRejectedValueOnce(new Error('Network error'));
+
+      const { result } = renderHook(() => useRepayVault());
+
+      let repayResult;
+      await act(async () => {
+        repayResult = await result.current.repay();
+      });
+
+      expect(repayResult).toBeNull();
+      const { logger } = require('../../utils/logger');
+      expect(logger.error).toHaveBeenCalledWith(
+        '[useRepayVault] Error building VaultProfile:',
+        { error: expect.any(Error) }
+      );
+    });
+
+    it('should return null if operation already in progress (lines 192-193)', async () => {
+      const { result } = renderHook(() => useRepayVault());
+
+      // Start first repay
+      const firstRepay = act(async () => {
+        return result.current.repay();
+      });
+
+      // Try to start second repay immediately
+      let secondResult;
+      await act(async () => {
+        secondResult = await result.current.repay();
+      });
+
+      // Second call should return null due to operation in progress
+      expect(secondResult).toBeNull();
+      const { logger } = require('../../utils/logger');
+      expect(logger.warn).toHaveBeenCalledWith('[useRepayVault] Operation already in progress');
+
+      // Wait for first to complete
+      await firstRepay;
+    });
+
+    it('should allow repay when vault has valid data (tests false branch of line 221)', async () => {
+      // Test FALSE branch of line 221: NOT (currentBtcLocked <= 0 && currentUnitBorrowed <= 0)
+      // This happens when at least one of them is > 0
+      mockRepayStore.currentBtcLocked = 0.01; // > 0
+      mockRepayStore.currentUnitBorrowed = 100; // > 0
+      mockRepayStore.repayAmountUnit = 50; // Valid amount
+
+      const { result } = renderHook(() => useRepayVault());
+
+      let repayResult;
+      await act(async () => {
+        repayResult = await result.current.repay();
+      });
+
+      // Should succeed
+      expect(repayResult).toEqual({ txid: 'txid123', vaultTxid: 'vtxid123' });
+    });
+
+    it('should allow repay when vault has debt but no collateral (tests false branch of line 221 part 2)', async () => {
+      // Another test for FALSE branch: currentBtcLocked = 0 but currentUnitBorrowed > 0
+      mockRepayStore.currentBtcLocked = 0; // = 0
+      mockRepayStore.currentUnitBorrowed = 100; // > 0, so overall condition is FALSE
+      mockRepayStore.repayAmountUnit = 50; // Valid amount
+
+      const { result } = renderHook(() => useRepayVault());
+
+      let repayResult;
+      await act(async () => {
+        repayResult = await result.current.repay();
+      });
+
+      // Should succeed because at least one value > 0
+      expect(repayResult).toEqual({ txid: 'txid123', vaultTxid: 'vtxid123' });
+    });
+
+    it('should handle vault data with null totalDebt and totalCollateral (lines 113-114)', async () => {
+      const { fetchVaultData } = require('../../services/vaultService');
+      fetchVaultData.mockResolvedValueOnce({
+        vaultId: 'vault1',
+        totalDebt: null,
+        totalCollateral: null,
+        vaultInfo: { creation_account: 'acct1', guard_pubkey: 'guard1', master_id: 'master1' },
+      });
+
+      const { result } = renderHook(() => useRepayVault());
+
+      let success;
+      await act(async () => {
+        success = await result.current.loadVaultData();
+      });
+
+      expect(success).toBe(true);
+      expect(mockRepayStore.setCurrentVaultData).toHaveBeenCalledWith(0, 0);
+    });
+
+    it('should handle wallet with null pubkeys (lines 245, 247, 257, 301)', async () => {
+      const { useWallet } = require('../../contexts/WalletContext');
+      useWallet.mockReturnValueOnce({ wallet: {
+        segwitAddress: 'tb1qtest...',
+        segwitPubkey: null, // null pubkey
+        taprootAddress: 'tb1ptest...',
+        taprootPubkey: 'pubkey2',
+      }});
+
+      const { result } = renderHook(() => useRepayVault());
+
+      let repayResult;
+      await act(async () => {
+        repayResult = await result.current.repay();
+      });
+
+      // Should succeed with empty string for null pubkeys
+      expect(repayResult).toEqual({ txid: 'txid123', vaultTxid: 'vtxid123' });
+    });
+
+    it('should handle history array with null (line 156)', async () => {
+      const { fetchVaultHistory } = require('../../services/vaultService');
+      fetchVaultHistory.mockResolvedValueOnce(null);
+
+      const { result } = renderHook(() => useRepayVault());
+
+      let repayResult;
+      await act(async () => {
+        repayResult = await result.current.repay();
+      });
+
+      expect(repayResult).toBeNull();
+    });
+
+    it('should calculate liquidation price to 0 when repaying all debt (line 265)', async () => {
+      // Repay entire debt
+      mockRepayStore.repayAmountUnit = 100; // Equal to currentUnitBorrowed
+      mockRepayStore.currentUnitBorrowed = 100;
+
+      const { computeLiquidationPrice } = require('../../utils/vaultUtils');
+      computeLiquidationPrice.mockClear();
+
+      const { result } = renderHook(() => useRepayVault());
+
+      let repayResult;
+      await act(async () => {
+        repayResult = await result.current.repay();
+      });
+
+      // Should succeed and liquidation price should be 0 (newDebt = 0)
+      expect(repayResult).toEqual({ txid: 'txid123', vaultTxid: 'vtxid123' });
+      // computeLiquidationPrice should not be called when newDebt is 0
+      expect(computeLiquidationPrice).not.toHaveBeenCalled();
+    });
+
+    it('should handle non-Error exception in repay (line 320)', async () => {
+      const { guardianSendReqRepay } = require('../../services/vaultOperationsService');
+      // Throw a non-Error object
+      guardianSendReqRepay.mockRejectedValueOnce({ message: 'Custom error' });
+
+      const { result } = renderHook(() => useRepayVault());
+
+      let repayResult;
+      await act(async () => {
+        repayResult = await result.current.repay();
+      });
+
+      expect(repayResult).toBeNull();
+      expect(mockRepayStore.setError).toHaveBeenCalledWith('Repay operation failed');
+    });
+  });
 });

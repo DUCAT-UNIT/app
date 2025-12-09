@@ -354,4 +354,336 @@ describe('useWithdrawVault', () => {
       expect(mockWithdrawStore.reset).toHaveBeenCalled();
     });
   });
+
+  describe('loadVaultData', () => {
+    it('should return false if wallet not connected', async () => {
+      const { useWallet } = require('../../contexts/WalletContext');
+      useWallet.mockReturnValueOnce({ wallet: null });
+
+      const { result } = renderHook(() => useWithdrawVault());
+
+      let loadResult;
+      await act(async () => {
+        loadResult = await result.current.loadVaultData();
+      });
+
+      expect(loadResult).toBe(false);
+    });
+
+    it('should handle fetchVaultData error', async () => {
+      const { fetchVaultData } = require('../../services/vaultService');
+      fetchVaultData.mockRejectedValueOnce(new Error('Fetch failed'));
+
+      const { result } = renderHook(() => useWithdrawVault());
+
+      let loadResult;
+      await act(async () => {
+        loadResult = await result.current.loadVaultData();
+      });
+
+      expect(loadResult).toBe(false);
+      expect(mockWithdrawStore.setError).toHaveBeenCalledWith('Fetch failed');
+    });
+
+    it('should handle non-Error throws', async () => {
+      const { fetchVaultData } = require('../../services/vaultService');
+      fetchVaultData.mockRejectedValueOnce('string error');
+
+      const { result } = renderHook(() => useWithdrawVault());
+
+      let loadResult;
+      await act(async () => {
+        loadResult = await result.current.loadVaultData();
+      });
+
+      expect(loadResult).toBe(false);
+      expect(mockWithdrawStore.setError).toHaveBeenCalledWith('Failed to load vault data');
+    });
+  });
+
+  describe('withdraw with profile errors', () => {
+    it('should handle error when vaultInfo is missing during withdraw', async () => {
+      const { fetchVaultData } = require('../../services/vaultService');
+      fetchVaultData.mockResolvedValueOnce({ vaultId: 'v1', vaultInfo: null });
+
+      const { result } = renderHook(() => useWithdrawVault());
+
+      let withdrawResult;
+      await act(async () => {
+        withdrawResult = await result.current.withdraw();
+      });
+
+      expect(withdrawResult).toBeNull();
+    });
+
+    it('should handle error when history is empty during withdraw', async () => {
+      const { fetchVaultHistory } = require('../../services/vaultService');
+      fetchVaultHistory.mockResolvedValueOnce([]);
+
+      const { result } = renderHook(() => useWithdrawVault());
+
+      let withdrawResult;
+      await act(async () => {
+        withdrawResult = await result.current.withdraw();
+      });
+
+      expect(withdrawResult).toBeNull();
+    });
+
+    it('should handle error when computeVaultPrevoutFromTx returns null', async () => {
+      const { computeVaultPrevoutFromTx } = require('../../services/vaultOperationsService');
+      computeVaultPrevoutFromTx.mockReturnValueOnce(null);
+
+      const { result } = renderHook(() => useWithdrawVault());
+
+      let withdrawResult;
+      await act(async () => {
+        withdrawResult = await result.current.withdraw();
+      });
+
+      expect(withdrawResult).toBeNull();
+    });
+
+    it('should return null if health ratio would fall below minimum (line 235-236)', async () => {
+      // Set up conditions where withdrawal would violate health ratio
+      mockWithdrawStore.currentUnitBorrowed = 1000; // High debt
+      mockWithdrawStore.currentBtcLocked = 0.01; // 1,000,000 sats collateral
+      mockWithdrawStore.withdrawAmountSats = 900000; // Withdraw most of collateral
+
+      const { result } = renderHook(() => useWithdrawVault());
+
+      let withdrawResult;
+      await act(async () => {
+        withdrawResult = await result.current.withdraw();
+      });
+
+      expect(withdrawResult).toBeNull();
+      expect(mockWithdrawStore.setError).toHaveBeenCalledWith(
+        expect.stringContaining('below minimum health ratio')
+      );
+    });
+
+    it('should allow withdrawal when no debt (line 189)', async () => {
+      // No debt means health check always passes
+      mockWithdrawStore.currentUnitBorrowed = 0;
+      mockWithdrawStore.currentBtcLocked = 0.01;
+      mockWithdrawStore.withdrawAmountSats = 500000; // Can withdraw freely with no debt
+
+      const { result } = renderHook(() => useWithdrawVault());
+
+      let withdrawResult;
+      await act(async () => {
+        withdrawResult = await result.current.withdraw();
+      });
+
+      expect(withdrawResult).toEqual({ vaultTxid: 'vtxid123' });
+    });
+
+    it('should handle non-Error exception with stack (lines 204-206)', async () => {
+      const { guardianSendReqWithdraw } = require('../../services/vaultOperationsService');
+      // Throw a non-Error object
+      guardianSendReqWithdraw.mockRejectedValueOnce({ message: 'Custom error' });
+
+      const { result } = renderHook(() => useWithdrawVault());
+
+      let withdrawResult;
+      await act(async () => {
+        withdrawResult = await result.current.withdraw();
+      });
+
+      expect(withdrawResult).toBeNull();
+      expect(mockWithdrawStore.setError).toHaveBeenCalledWith('Withdraw operation failed');
+    });
+
+    it('should return null if operation already in progress', async () => {
+      const { result } = renderHook(() => useWithdrawVault());
+
+      // Start first withdrawal
+      const firstWithdraw = act(async () => {
+        return result.current.withdraw();
+      });
+
+      // Try to start second withdrawal immediately
+      let secondResult;
+      await act(async () => {
+        secondResult = await result.current.withdraw();
+      });
+
+      // Second call should return null due to operation in progress
+      expect(secondResult).toBeNull();
+
+      // Wait for first to complete
+      await firstWithdraw;
+    });
+
+    it('should handle wallet not connected in buildVaultProfileFromData (line 137)', async () => {
+      const { useWallet } = require('../../contexts/WalletContext');
+      // Wallet connected initially for validation checks
+      useWallet.mockReturnValueOnce({ wallet: {
+        segwitAddress: 'tb1qtest...',
+        taprootAddress: 'tb1ptest...',
+        taprootPubkey: null, // But pubkey is null
+      }});
+
+      const { usePrice } = require('../../stores/priceStore');
+      usePrice.mockReturnValueOnce({ btcPrice: 100000 });
+
+      const { result } = renderHook(() => useWithdrawVault());
+
+      let withdrawResult;
+      await act(async () => {
+        withdrawResult = await result.current.withdraw();
+      });
+
+      // Should fail when trying to build profile
+      expect(withdrawResult).toBeNull();
+    });
+
+    it('should handle error in buildVaultProfileFromData (lines 180-181)', async () => {
+      const { fetchVaultData } = require('../../services/vaultService');
+      fetchVaultData.mockRejectedValueOnce(new Error('Network error'));
+
+      const { result } = renderHook(() => useWithdrawVault());
+
+      let withdrawResult;
+      await act(async () => {
+        withdrawResult = await result.current.withdraw();
+      });
+
+      expect(withdrawResult).toBeNull();
+      const { logger } = require('../../utils/logger');
+      expect(logger.error).toHaveBeenCalledWith(
+        '[useWithdrawVault] Error building VaultProfile:',
+        { error: expect.any(Error) }
+      );
+    });
+
+    it('should validate vault data is loaded before withdraw (lines 241-242)', async () => {
+      mockWithdrawStore.currentBtcLocked = 0; // No vault data loaded
+      mockWithdrawStore.withdrawAmountSats = 50000;
+
+      const { result } = renderHook(() => useWithdrawVault());
+
+      let withdrawResult;
+      await act(async () => {
+        withdrawResult = await result.current.withdraw();
+      });
+
+      expect(withdrawResult).toBeNull();
+      // Will trigger withdraw amount check or vault data check
+      expect(mockWithdrawStore.setError).toHaveBeenCalled();
+    });
+
+    it('should handle vault data with null totalDebt and totalCollateral (lines 109-110)', async () => {
+      const { fetchVaultData } = require('../../services/vaultService');
+      fetchVaultData.mockResolvedValueOnce({
+        vaultId: 'vault1',
+        totalDebt: null,
+        totalCollateral: null,
+        vaultInfo: { creation_account: 'acct1', guard_pubkey: 'guard1', master_id: 'master1' },
+      });
+
+      const { result } = renderHook(() => useWithdrawVault());
+
+      let success;
+      await act(async () => {
+        success = await result.current.loadVaultData();
+      });
+
+      expect(success).toBe(true);
+      expect(mockWithdrawStore.setCurrentVaultData).toHaveBeenCalledWith(0, 0);
+    });
+
+    it('should handle wallet with null pubkeys (lines 264, 266, 275, 317)', async () => {
+      const { useWallet } = require('../../contexts/WalletContext');
+      useWallet.mockReturnValueOnce({ wallet: {
+        segwitAddress: 'tb1qtest...',
+        segwitPubkey: null, // null pubkey
+        taprootAddress: 'tb1ptest...',
+        taprootPubkey: 'pubkey2',
+      }});
+
+      const { result } = renderHook(() => useWithdrawVault());
+
+      let withdrawResult;
+      await act(async () => {
+        withdrawResult = await result.current.withdraw();
+      });
+
+      // Should succeed with empty string for null pubkeys
+      expect(withdrawResult).toEqual({ vaultTxid: 'vtxid123' });
+    });
+
+    it('should return false when health check has newCollateral exactly 0 (line 192)', async () => {
+      // Set up so newCollateral becomes exactly 0
+      mockWithdrawStore.currentUnitBorrowed = 100;
+      mockWithdrawStore.currentBtcLocked = 0.001; // 100,000 sats
+      mockWithdrawStore.withdrawAmountSats = 100000; // Withdraw all collateral
+
+      const { result } = renderHook(() => useWithdrawVault());
+
+      let withdrawResult;
+      await act(async () => {
+        withdrawResult = await result.current.withdraw();
+      });
+
+      expect(withdrawResult).toBeNull();
+      expect(mockWithdrawStore.setError).toHaveBeenCalledWith(
+        expect.stringContaining('below minimum health ratio')
+      );
+    });
+
+    it('should calculate liquidation price when no debt (line 283)', async () => {
+      // Test the branch: currentUnitBorrowed > 0 && newCollateral > 0 = false (no debt)
+      mockWithdrawStore.currentUnitBorrowed = 0; // No debt
+      mockWithdrawStore.currentBtcLocked = 0.01;
+      mockWithdrawStore.withdrawAmountSats = 100000;
+
+      const { computeLiquidationPrice } = require('../../utils/vaultUtils');
+      computeLiquidationPrice.mockClear();
+
+      const { result } = renderHook(() => useWithdrawVault());
+
+      let withdrawResult;
+      await act(async () => {
+        withdrawResult = await result.current.withdraw();
+      });
+
+      // Should succeed without calculating liquidation price
+      expect(withdrawResult).toEqual({ vaultTxid: 'vtxid123' });
+      // computeLiquidationPrice should not be called when no debt
+      expect(computeLiquidationPrice).not.toHaveBeenCalled();
+    });
+
+    it('should calculate liquidation price when newCollateral is 0 (line 283)', async () => {
+      // Test the branch: currentUnitBorrowed > 0 && newCollateral > 0 = false (newCollateral = 0)
+      mockWithdrawStore.currentUnitBorrowed = 100; // Has debt
+      mockWithdrawStore.currentBtcLocked = 0.001; // 100,000 sats
+      mockWithdrawStore.withdrawAmountSats = 99999; // Leave 1 sat, which violates health
+
+      const { result } = renderHook(() => useWithdrawVault());
+
+      let withdrawResult;
+      await act(async () => {
+        withdrawResult = await result.current.withdraw();
+      });
+
+      // Should fail due to health ratio
+      expect(withdrawResult).toBeNull();
+    });
+
+    it('should handle history array with null (line 152)', async () => {
+      const { fetchVaultHistory } = require('../../services/vaultService');
+      fetchVaultHistory.mockResolvedValueOnce(null);
+
+      const { result } = renderHook(() => useWithdrawVault());
+
+      let withdrawResult;
+      await act(async () => {
+        withdrawResult = await result.current.withdraw();
+      });
+
+      expect(withdrawResult).toBeNull();
+    });
+  });
 });
