@@ -21,7 +21,8 @@ export const SECURE_KEYS = {
 
 // PIN hashing version
 export const PIN_HASH_VERSION = {
-  PBKDF2_10K: '2', // PBKDF2-like with 10K iterations
+  PBKDF2_10K: '1', // Legacy: PBKDF2 with 10K iterations
+  PBKDF2_310K: '2', // Current: PBKDF2 with 310K iterations (OWASP compliant)
 } as const;
 
 // API endpoints
@@ -50,6 +51,18 @@ export const VAULT_CONFIG = {
   UNIT_POSTAGE: 10_000, // Satoshis for UNIT output
   TOKEN_POSTAGE: 10_000, // Satoshis for token output
   RUNE_LABEL: 'DUCAT•UNIT•RUNE', // Rune label for UNIT token
+} as const;
+
+// Runes configuration
+export const RUNES_CONFIG = {
+  // DUCAT•UNIT•RUNE ID (block 1527352, tx 1)
+  // CRITICAL: This ID must match the actual rune on the network
+  // Incorrect ID will cause loss of funds
+  DUCAT_UNIT_RUNE_ID: {
+    block: 1527352n,
+    tx: 1n,
+  },
+  DUCAT_UNIT_RUNE_LABEL: 'DUCAT•UNIT•RUNE',
 } as const;
 
 // API Keys (for services that require authentication)

@@ -21,11 +21,19 @@ export const PIN = {
  */
 export const CRYPTO = {
   // PBKDF2 iterations for PIN hashing
-  // Balance between security and mobile performance
-  PIN_HASH_ITERATIONS: 10000,
+  // OWASP recommendation: 310,000+ iterations for PBKDF2-SHA512
+  // NIST minimum: 100,000 iterations
+  // Updated from 10,000 to 310,000 per security audit
+  PIN_HASH_ITERATIONS: 310000,
+
+  // Legacy iteration count for migration
+  LEGACY_PIN_HASH_ITERATIONS: 10000,
 
   // Salt length in bytes
   SALT_LENGTH_BYTES: 32,
+
+  // Version tracking for hash algorithm changes
+  PIN_HASH_VERSION: 2, // v1 = 10k iterations, v2 = 310k iterations
 } as const;
 
 /**

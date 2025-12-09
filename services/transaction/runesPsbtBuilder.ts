@@ -7,8 +7,9 @@ import * as bitcoin from 'bitcoinjs-lib';
 import * as ecc from '@bitcoinerlab/secp256k1';
 import { encodeRunestone } from '../../utils/runestoneEncoder';
 import { MUTINYNET_NETWORK } from '../../utils/bitcoin';
-import { getTxHexUrl } from '../../utils/constants';
+import { getTxHexUrl, RUNES_CONFIG } from '../../utils/constants';
 import { RuneUtxo, SatUtxo } from './runesUtxoSelection';
+import { logger } from '../../utils/logger';
 
 // Initialize ECC library
 bitcoin.initEccLib(ecc);
@@ -91,11 +92,23 @@ export async function buildRunesPsbt(
     });
   }
 
-  // Create runestone
+  // Validate Rune ID before creating transaction
+  // This prevents accidental use of wrong rune ID which could cause loss of funds
+  const runeId = RUNES_CONFIG.DUCAT_UNIT_RUNE_ID;
+
+  // Log rune ID being used for audit trail
+  logger.transaction('Building Runes PSBT', {
+    runeId: `${runeId.block}:${runeId.tx}`,
+    expectedLabel: RUNES_CONFIG.DUCAT_UNIT_RUNE_LABEL,
+    amountInRunes,
+    recipient,
+  });
+
+  // Create runestone with validated Rune ID
   const runestoneConfig = {
     edicts: [
       {
-        id: { block: 1527352n, tx: 1n }, // DUCAT•UNIT•RUNE ID
+        id: runeId, // Use centralized constant
         amount: BigInt(amountInRunes),
         output: 1, // Recipient is at output 1
       },

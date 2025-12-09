@@ -5,6 +5,7 @@
 
 import * as SecureStore from 'expo-secure-store';
 import { SECURE_KEYS, PIN_HASH_VERSION } from '../utils/constants';
+import { CRYPTO } from '../constants/security';
 import { logger } from '../utils/logger';
 import {
   loadLockoutState,
@@ -91,10 +92,10 @@ export const savePinWithHash = async (pin: string): Promise<SavePinResult> => {
     const salt = await generateSalt();
     const hashedPin = await hashPin(pin, salt);
 
-    // Store the hashed PIN, salt, and version
+    // Store the hashed PIN, salt, and version (using new 310K iteration standard)
     await SecureStore.setItemAsync(SECURE_KEYS.PIN, hashedPin);
     await SecureStore.setItemAsync(SECURE_KEYS.PIN_SALT, salt);
-    await SecureStore.setItemAsync(SECURE_KEYS.PIN_VERSION, PIN_HASH_VERSION.PBKDF2_10K);
+    await SecureStore.setItemAsync(SECURE_KEYS.PIN_VERSION, PIN_HASH_VERSION.PBKDF2_310K);
 
     // CRITICAL: Read back the salt to verify it was stored correctly
     const verifiedSalt = await SecureStore.getItemAsync(SECURE_KEYS.PIN_SALT);
@@ -118,7 +119,7 @@ export const savePinWithHash = async (pin: string): Promise<SavePinResult> => {
       );
     }
 
-    if (verifiedVersion !== PIN_HASH_VERSION.PBKDF2_10K) {
+    if (verifiedVersion !== PIN_HASH_VERSION.PBKDF2_310K) {
       throw new Error(
         'CRITICAL: PIN version verification failed. ' +
         'Expected version does not match stored version. ' +
@@ -158,10 +159,10 @@ export const savePin = async (pin: string): Promise<boolean> => {
     const salt = await generateSalt();
     const hashedPin = await hashPin(pin, salt);
 
-    // Store the hashed PIN, salt, and version
+    // Store the hashed PIN, salt, and version (using new 310K iteration standard)
     await SecureStore.setItemAsync(SECURE_KEYS.PIN, hashedPin);
     await SecureStore.setItemAsync(SECURE_KEYS.PIN_SALT, salt);
-    await SecureStore.setItemAsync(SECURE_KEYS.PIN_VERSION, PIN_HASH_VERSION.PBKDF2_10K);
+    await SecureStore.setItemAsync(SECURE_KEYS.PIN_VERSION, PIN_HASH_VERSION.PBKDF2_310K);
 
     // CRITICAL: Read back the salt to verify it was stored correctly
     // If salt is corrupted, the user will never be able to unlock their wallet
@@ -186,7 +187,7 @@ export const savePin = async (pin: string): Promise<boolean> => {
       );
     }
 
-    if (verifiedVersion !== PIN_HASH_VERSION.PBKDF2_10K) {
+    if (verifiedVersion !== PIN_HASH_VERSION.PBKDF2_310K) {
       throw new Error(
         'CRITICAL: PIN version verification failed. ' +
         'Expected version does not match stored version. ' +
@@ -224,9 +225,9 @@ export const savePinWithExistingSalt = async (pin: string, existingSalt: string)
   try {
     const hashedPin = await hashPin(pin, existingSalt);
 
-    // Store the hashed PIN and version (salt already exists)
+    // Store the hashed PIN and version (salt already exists, using new 310K iteration standard)
     await SecureStore.setItemAsync(SECURE_KEYS.PIN, hashedPin);
-    await SecureStore.setItemAsync(SECURE_KEYS.PIN_VERSION, PIN_HASH_VERSION.PBKDF2_10K);
+    await SecureStore.setItemAsync(SECURE_KEYS.PIN_VERSION, PIN_HASH_VERSION.PBKDF2_310K);
 
     // CRITICAL: Read back the PIN hash to verify it was stored correctly
     const verifiedPin = await SecureStore.getItemAsync(SECURE_KEYS.PIN);
@@ -241,7 +242,7 @@ export const savePinWithExistingSalt = async (pin: string, existingSalt: string)
       );
     }
 
-    if (verifiedVersion !== PIN_HASH_VERSION.PBKDF2_10K) {
+    if (verifiedVersion !== PIN_HASH_VERSION.PBKDF2_310K) {
       throw new Error(
         'CRITICAL: PIN version verification failed. ' +
         'Expected version does not match stored version. ' +
@@ -272,6 +273,7 @@ export { checkPinLockout, resetPinAttempts, getRemainingPinAttempts };
 
 /**
  * Verify entered PIN against stored hashed PIN with rate limiting
+ * Includes automatic migration from legacy 10K iterations to 310K iterations
  * @param enteredPin - PIN to verify
  * @returns Verification result with success status and optional error
  */
@@ -290,30 +292,36 @@ export const verifyPin = async (enteredPin: string): Promise<PinVerificationResu
     // Load current lockout state
     const { failedAttempts } = await loadLockoutState();
 
-    // Retrieve the stored salt and hashed PIN
+    // Retrieve the stored salt, hashed PIN, and version
     const storedHashedPin = await SecureStore.getItemAsync(SECURE_KEYS.PIN);
     const storedSalt = await SecureStore.getItemAsync(SECURE_KEYS.PIN_SALT);
+    const storedVersion = await SecureStore.getItemAsync(SECURE_KEYS.PIN_VERSION);
 
     // If salt doesn't exist, this is a corrupted state
     if (!storedSalt) {
       return {
         success: false,
-        error: 'PIN needs to be reset',
+        error: 'PIN authentication unavailable. Please restore wallet from seed phrase.',
         remainingAttempts: 0,
       };
     }
-
-    // Hash entered PIN with PBKDF2
-    const enteredHashedPin = await hashPin(enteredPin, storedSalt);
 
     // Verify PIN is stored - if not, this is a corrupted state
     if (!storedHashedPin) {
       return {
         success: false,
-        error: 'PIN not configured',
+        error: 'PIN not configured. Please set up authentication.',
         remainingAttempts: 0,
       };
     }
+
+    // Determine iteration count based on version (migration support)
+    // Default to legacy 10K for backwards compatibility if no version stored
+    const isLegacyVersion = !storedVersion || storedVersion === PIN_HASH_VERSION.PBKDF2_10K;
+    const iterations = isLegacyVersion ? CRYPTO.LEGACY_PIN_HASH_ITERATIONS : CRYPTO.PIN_HASH_ITERATIONS;
+
+    // Hash entered PIN with appropriate iteration count
+    const enteredHashedPin = await hashPin(enteredPin, storedSalt, iterations);
 
     // Use constant-time comparison to prevent timing attacks
     const isValid = verifyPinHash(storedHashedPin, enteredHashedPin);
@@ -321,6 +329,35 @@ export const verifyPin = async (enteredPin: string): Promise<PinVerificationResu
     if (isValid) {
       // Success - reset attempts
       await resetPinAttempts();
+
+      // AUTOMATIC MIGRATION: If user is on legacy version, migrate to new version
+      if (isLegacyVersion) {
+        try {
+          logger.security('Migrating PIN from legacy 10K to 310K iterations');
+
+          // Re-hash with new iteration count (same salt)
+          const newHashedPin = await hashPin(enteredPin, storedSalt);
+
+          // Update stored hash and version
+          await SecureStore.setItemAsync(SECURE_KEYS.PIN, newHashedPin);
+          await SecureStore.setItemAsync(SECURE_KEYS.PIN_VERSION, PIN_HASH_VERSION.PBKDF2_310K);
+
+          // Verify migration succeeded
+          const verifiedPin = await SecureStore.getItemAsync(SECURE_KEYS.PIN);
+          const verifiedVersion = await SecureStore.getItemAsync(SECURE_KEYS.PIN_VERSION);
+
+          if (verifiedPin === newHashedPin && verifiedVersion === PIN_HASH_VERSION.PBKDF2_310K) {
+            logger.security('PIN migration successful - now using 310K iterations');
+          } else {
+            // Migration failed but user is still authenticated with legacy hash
+            logger.error('PIN migration verification failed - user still on legacy hash');
+          }
+        } catch (migrationError) {
+          // Log but don't fail authentication - user successfully authenticated with legacy hash
+          logger.error('PIN migration failed:', { error: (migrationError as Error).message });
+        }
+      }
+
       return { success: true };
     } else {
       // Failed attempt - record it and check for lockout
@@ -334,10 +371,11 @@ export const verifyPin = async (enteredPin: string): Promise<PinVerificationResu
         };
       }
 
+      const remainingAttempts = Math.max(0, getMaxPinAttempts() - result.newFailedAttempts);
       return {
         success: false,
-        error: 'Incorrect PIN',
-        remainingAttempts: Math.max(0, getMaxPinAttempts() - result.newFailedAttempts),
+        error: `Incorrect PIN. ${remainingAttempts} ${remainingAttempts === 1 ? 'attempt' : 'attempts'} remaining.`,
+        remainingAttempts,
       };
     }
   } catch (error: unknown) {

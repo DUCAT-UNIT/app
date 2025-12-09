@@ -25,6 +25,7 @@ jest.mock('../../utils/logger', () => ({
     info: jest.fn(),
     warn: jest.fn(),
     error: jest.fn(),
+    security: jest.fn(),
   },
 }));
 
@@ -307,11 +308,13 @@ describe('PinService', () => {
       mockGetItemAsync.mockImplementation((key) => {
         if (key === 'wallet_pin_v1') return Promise.resolve('stored-hash');
         if (key === 'wallet_pin_salt_v1') return Promise.resolve('stored-salt');
+        if (key === 'wallet_pin_version_v1') return Promise.resolve('2'); // Current version
         return Promise.resolve(null);
       });
       mockHashPin.mockResolvedValue('stored-hash');
       mockVerifyPinHash.mockReturnValue(true);
       mockResetPinAttempts.mockResolvedValue();
+      mockSetItemAsync.mockResolvedValue(); // For migration
 
       const result = await verifyPin('123456');
 
@@ -340,7 +343,7 @@ describe('PinService', () => {
 
       expect(result).toEqual({
         success: false,
-        error: 'PIN needs to be reset',
+        error: 'PIN authentication unavailable. Please restore wallet from seed phrase.',
         remainingAttempts: 0,
       });
     });
@@ -351,6 +354,7 @@ describe('PinService', () => {
       mockGetItemAsync.mockImplementation((key) => {
         if (key === 'wallet_pin_v1') return Promise.resolve('stored-hash');
         if (key === 'wallet_pin_salt_v1') return Promise.resolve('stored-salt');
+        if (key === 'wallet_pin_version_v1') return Promise.resolve('2'); // Current version
         return Promise.resolve(null);
       });
       mockHashPin.mockResolvedValue('different-hash');
@@ -364,7 +368,7 @@ describe('PinService', () => {
 
       expect(result).toEqual({
         success: false,
-        error: 'Incorrect PIN',
+        error: 'Incorrect PIN. 7 attempts remaining.',
         remainingAttempts: 7, // 10 - 3
       });
     });
@@ -375,6 +379,7 @@ describe('PinService', () => {
       mockGetItemAsync.mockImplementation((key) => {
         if (key === 'wallet_pin_v1') return Promise.resolve('stored-hash');
         if (key === 'wallet_pin_salt_v1') return Promise.resolve('stored-salt');
+        if (key === 'wallet_pin_version_v1') return Promise.resolve('2'); // Current version
         return Promise.resolve(null);
       });
       mockHashPin.mockResolvedValue('different-hash');
@@ -400,6 +405,7 @@ describe('PinService', () => {
       mockGetItemAsync.mockImplementation((key) => {
         if (key === 'wallet_pin_v1') return Promise.resolve('stored-hash');
         if (key === 'wallet_pin_salt_v1') return Promise.resolve('stored-salt');
+        if (key === 'wallet_pin_version_v1') return Promise.resolve('2'); // Current version
         return Promise.resolve(null);
       });
       mockHashPin.mockResolvedValue('different-hash');
@@ -429,11 +435,13 @@ describe('PinService', () => {
       mockGetItemAsync.mockImplementation((key) => {
         if (key === 'wallet_pin_v1') return Promise.resolve('stored-hash');
         if (key === 'wallet_pin_salt_v1') return Promise.resolve('stored-salt');
+        if (key === 'wallet_pin_version_v1') return Promise.resolve('2'); // Current version
         return Promise.resolve(null);
       });
       mockHashPin.mockResolvedValue('entered-hash');
       mockVerifyPinHash.mockReturnValue(true);
       mockResetPinAttempts.mockResolvedValue();
+      mockSetItemAsync.mockResolvedValue(); // For migration
 
       await verifyPin('123456');
 
@@ -446,6 +454,7 @@ describe('PinService', () => {
       mockGetItemAsync.mockImplementation((key) => {
         if (key === 'wallet_pin_v1') return Promise.resolve('stored-hash');
         if (key === 'wallet_pin_salt_v1') return Promise.resolve('stored-salt');
+        if (key === 'wallet_pin_version_v1') return Promise.resolve('2'); // Current version
         return Promise.resolve(null);
       });
       mockHashPin.mockResolvedValue('different-hash');
@@ -466,6 +475,7 @@ describe('PinService', () => {
       mockGetItemAsync.mockImplementation((key) => {
         if (key === 'wallet_pin_v1') return Promise.resolve(null);
         if (key === 'wallet_pin_salt_v1') return Promise.resolve('stored-salt');
+        if (key === 'wallet_pin_version_v1') return Promise.resolve('2'); // Current version
         return Promise.resolve(null);
       });
       mockHashPin.mockResolvedValue('entered-hash');
@@ -474,7 +484,7 @@ describe('PinService', () => {
 
       // Should return error when PIN hash is not configured
       expect(result.success).toBe(false);
-      expect(result.error).toBe('PIN not configured');
+      expect(result.error).toBe('PIN not configured. Please set up authentication.');
       expect(result.remainingAttempts).toBe(0);
       // verifyPinHash should not be called when there's no stored hash
       expect(mockVerifyPinHash).not.toHaveBeenCalled();

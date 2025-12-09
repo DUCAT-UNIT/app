@@ -9,10 +9,54 @@ import { SECURE_KEYS } from '../utils/constants';
 import { logger } from '../utils/logger';
 
 /**
- * Securely clear a string from memory (best effort)
- * Note: JavaScript doesn't guarantee memory overwriting, but we try our best
- * @param str - String to clear
- * @returns Cleared string (filled with zeros)
+ * Attempt to securely clear a string from memory (BEST EFFORT ONLY)
+ *
+ * SECURITY NOTE: This function provides LIMITED security guarantees
+ * ============================================================
+ *
+ * JavaScript's memory model does NOT support secure memory wiping:
+ *
+ * 1. STRING IMMUTABILITY: JavaScript strings are immutable. Any operation
+ *    creates NEW string objects in memory, leaving the original intact until
+ *    garbage collected. This function cannot overwrite the original string.
+ *
+ * 2. GARBAGE COLLECTOR: JavaScript's GC is non-deterministic. Old string
+ *    references may persist in memory for seconds, minutes, or longer.
+ *    We have no control over when (or if) memory is actually freed.
+ *
+ * 3. JIT COMPILER: V8/Hermes JIT may create multiple copies of strings
+ *    during optimization. These copies are invisible to JavaScript and
+ *    cannot be wiped by this function.
+ *
+ * 4. MEMORY FRAGMENTATION: Even after GC, sensitive data may remain in
+ *    freed memory pages until overwritten by other allocations.
+ *
+ * 5. SWAP/HIBERNATION: On mobile devices, memory may be paged to disk
+ *    during low memory conditions, persisting sensitive data to storage.
+ *
+ * 6. CRASH DUMPS: Core dumps or crash reports may capture memory contents
+ *    including sensitive data, even after this "wiping" attempt.
+ *
+ * ACTUAL SECURITY MEASURES:
+ * ========================
+ *
+ * PRIMARY DEFENSE: **Minimize mnemonic lifetime** using the withMnemonic()
+ * pattern. Keep sensitive data in memory for <100ms instead of seconds/minutes.
+ *
+ * SECONDARY DEFENSE: This function attempts to create garbage to increase
+ * likelihood of memory overwriting, but provides NO GUARANTEES.
+ *
+ * TERTIARY DEFENSE: Device-level encryption (iOS/Android full-disk encryption)
+ * protects memory dumps and swap files at rest.
+ *
+ * RECOMMENDATION FOR MAINNET: Consider implementing a native module using:
+ * - iOS: SecureEnclave + sodium_memzero() from libsodium
+ * - Android: KeyStore + sodium_memzero() from libsodium
+ *
+ * These provide hardware-backed secure memory with guaranteed wiping.
+ *
+ * @param str - String to attempt wiping (will NOT be modified due to immutability)
+ * @returns A new string filled with random data (original string persists in memory)
  */
 const securelyWipeString = (str: string | null): string => {
   if (!str || typeof str !== 'string') return '';
