@@ -37,12 +37,25 @@ jest.mock('../../../utils/bitcoin', () => ({
 
 jest.mock('../../../utils/constants', () => ({
   getTxHexUrl: jest.fn((txid) => `https://example.com/tx/${txid}/hex`),
+  RUNES_CONFIG: {
+    DUCAT_UNIT_RUNE_ID: {
+      block: 1527352n,
+      tx: 1n,
+    },
+    DUCAT_UNIT_RUNE_LABEL: 'DUCAT•UNIT•RUNE',
+  },
 }));
 
 jest.mock('../../../utils/runestoneEncoder', () => ({
   encodeRunestone: jest.fn(() => ({
     encodedRunestone: Buffer.from('runestone', 'hex'),
   })),
+}));
+
+jest.mock('../../../utils/logger', () => ({
+  logger: {
+    transaction: jest.fn(),
+  },
 }));
 
 // Mock fetch globally
@@ -58,6 +71,7 @@ describe('runesPsbtBuilder', () => {
     mockAddOutput.mockClear();
 
     (global.fetch as jest.Mock).mockResolvedValue({
+      ok: true,
       text: jest.fn().mockResolvedValue('0100000001abcd...'),
     });
   });

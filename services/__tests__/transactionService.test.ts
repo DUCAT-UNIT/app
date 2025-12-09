@@ -384,11 +384,13 @@ describe('transactionService', () => {
         })
         // Mock transaction hex for sat UTXO
         .mockResolvedValueOnce({
+          ok: true,
           text: async () =>
             '0200000000010100000000000000000000000000000000000000000000000000000000000000000000000000ffffffff0100e1f50500000000160014000000000000000000000000000000000000000000000000',
         })
         // Mock transaction hex for rune UTXO
         .mockResolvedValueOnce({
+          ok: true,
           text: async () =>
             '0200000000010100000000000000000000000000000000000000000000000000000000000000000000000000ffffffff0100e1f50500000000160014000000000000000000000000000000000000000000000000',
         });
@@ -454,11 +456,13 @@ describe('transactionService', () => {
         })
         // Mock transaction hex for sat UTXO
         .mockResolvedValueOnce({
+          ok: true,
           text: async () =>
             '0200000000010100000000000000000000000000000000000000000000000000000000000000000000000000ffffffff0100e1f50500000000160014000000000000000000000000000000000000000000000000',
         })
         // Mock transaction hex for rune UTXO
         .mockResolvedValueOnce({
+          ok: true,
           text: async () =>
             '0200000000010100000000000000000000000000000000000000000000000000000000000000000000000000ffffffff0100e1f50500000000160014000000000000000000000000000000000000000000000000',
         });
