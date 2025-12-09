@@ -190,5 +190,150 @@ describe('cashuSendToken', () => {
         'response_keyset'
       );
     });
+
+    it('should save change proofs when removeProofs fails after swap', async () => {
+      (sumProofs as jest.Mock).mockReturnValue(96);
+      (getOrFetchKeys as jest.Mock).mockResolvedValue({
+        keysets: [{ id: 'keyset1', keys: { 1: 'key1' } }],
+      });
+      (splitAmount as jest.Mock).mockReturnValue([64]);
+      (createBlindedOutputs as jest.Mock).mockResolvedValue({
+        outputs: [{ amount: 64 }, { amount: 32 }],
+        blindingData: [{}, {}],
+      });
+      (swapTokens as jest.Mock).mockResolvedValue({
+        signatures: [{ id: 'keyset1' }, {}],
+      });
+      (unblindSignatures as jest.Mock).mockReturnValue([
+        { amount: 64, secret: 'new1', C: 'C', id: 'id' },
+        { amount: 32, secret: 'new2', C: 'C', id: 'id' },
+      ]);
+
+      // Make removeProofs fail, but addProofs should still be called in inner catch
+      (removeProofs as jest.Mock).mockRejectedValue(new Error('removeProofs failed'));
+      (addProofs as jest.Mock).mockResolvedValue(undefined);
+
+      await expect(sendToken(64, true)).rejects.toThrow('removeProofs failed');
+
+      // Should have attempted to save change proofs in inner catch block (line 123)
+      expect(addProofs).toHaveBeenCalledTimes(1);
+      expect(addProofs).toHaveBeenCalledWith([{ amount: 32, secret: 'new2', C: 'C', id: 'id' }]);
+    });
+
+    it('should throw critical error when both removeProofs and addProofs fail after swap', async () => {
+      (sumProofs as jest.Mock).mockReturnValue(96);
+      (getOrFetchKeys as jest.Mock).mockResolvedValue({
+        keysets: [{ id: 'keyset1', keys: { 1: 'key1' } }],
+      });
+      (splitAmount as jest.Mock).mockReturnValue([64]);
+      (createBlindedOutputs as jest.Mock).mockResolvedValue({
+        outputs: [{ amount: 64 }, { amount: 32 }],
+        blindingData: [{}, {}],
+      });
+      (swapTokens as jest.Mock).mockResolvedValue({
+        signatures: [{ id: 'keyset1' }, {}],
+      });
+      (unblindSignatures as jest.Mock).mockReturnValue([
+        { amount: 64, secret: 'new1', C: 'C', id: 'id' },
+        { amount: 32, secret: 'new2', C: 'C', id: 'id' },
+      ]);
+
+      // Both removeProofs and addProofs fail - critical scenario
+      (removeProofs as jest.Mock).mockRejectedValueOnce(new Error('removeProofs failed'));
+      (addProofs as jest.Mock).mockRejectedValueOnce(new Error('addProofs critical failure'));
+
+      await expect(sendToken(64, true)).rejects.toThrow('addProofs critical failure');
+
+      // Should have attempted both operations
+      expect(removeProofs).toHaveBeenCalled();
+      expect(addProofs).toHaveBeenCalled();
+    });
+
+    it('should save change proofs in catch block when encodeToken fails after swap', async () => {
+      (sumProofs as jest.Mock).mockReturnValue(96);
+      (getOrFetchKeys as jest.Mock).mockResolvedValue({
+        keysets: [{ id: 'keyset1', keys: { 1: 'key1' } }],
+      });
+      (splitAmount as jest.Mock).mockReturnValue([64]);
+      (createBlindedOutputs as jest.Mock).mockResolvedValue({
+        outputs: [{ amount: 64 }, { amount: 32 }],
+        blindingData: [{}, {}],
+      });
+      (swapTokens as jest.Mock).mockResolvedValue({
+        signatures: [{ id: 'keyset1' }, {}],
+      });
+      (unblindSignatures as jest.Mock).mockReturnValue([
+        { amount: 64, secret: 'new1', C: 'C', id: 'id' },
+        { amount: 32, secret: 'new2', C: 'C', id: 'id' },
+      ]);
+
+      // Proof operations succeed, but encodeToken fails
+      (removeProofs as jest.Mock).mockResolvedValue(undefined);
+      (addProofs as jest.Mock).mockResolvedValue(undefined);
+      (encodeToken as jest.Mock).mockImplementation(() => {
+        throw new Error('encodeToken failed');
+      });
+
+      await expect(sendToken(64, true)).rejects.toThrow('encodeToken failed');
+
+      // Should have attempted to save change proofs in outer catch block
+      expect(removeProofs).toHaveBeenCalledTimes(2); // Once in try, once in catch
+      expect(addProofs).toHaveBeenCalledTimes(2); // Once in try, once in catch
+    });
+
+    it('should handle failure to save change proofs in outer catch block', async () => {
+      (sumProofs as jest.Mock).mockReturnValue(96);
+      (getOrFetchKeys as jest.Mock).mockResolvedValue({
+        keysets: [{ id: 'keyset1', keys: { 1: 'key1' } }],
+      });
+      (splitAmount as jest.Mock).mockReturnValue([64]);
+      (createBlindedOutputs as jest.Mock).mockResolvedValue({
+        outputs: [{ amount: 64 }, { amount: 32 }],
+        blindingData: [{}, {}],
+      });
+      (swapTokens as jest.Mock).mockResolvedValue({
+        signatures: [{ id: 'keyset1' }, {}],
+      });
+      (unblindSignatures as jest.Mock).mockReturnValue([
+        { amount: 64, secret: 'new1', C: 'C', id: 'id' },
+        { amount: 32, secret: 'new2', C: 'C', id: 'id' },
+      ]);
+
+      // Successful first time, but encodeToken fails
+      (removeProofs as jest.Mock).mockResolvedValueOnce(undefined);
+      (addProofs as jest.Mock).mockResolvedValueOnce(undefined);
+      (encodeToken as jest.Mock).mockImplementation(() => {
+        throw new Error('encodeToken failed');
+      });
+
+      // In outer catch, second removeProofs fails
+      (removeProofs as jest.Mock).mockRejectedValueOnce(new Error('second removeProofs failed'));
+
+      await expect(sendToken(64, true)).rejects.toThrow('encodeToken failed');
+
+      // Should still throw the original error even if recovery fails
+      expect(removeProofs).toHaveBeenCalledTimes(2);
+    });
+
+    it('should not attempt to save change when swap never happened', async () => {
+      (sumProofs as jest.Mock).mockReturnValue(96);
+      (getOrFetchKeys as jest.Mock).mockResolvedValue({
+        keysets: [{ id: 'keyset1', keys: { 1: 'key1' } }],
+      });
+      (splitAmount as jest.Mock).mockReturnValue([64]);
+      (createBlindedOutputs as jest.Mock).mockResolvedValue({
+        outputs: [{ amount: 64 }, { amount: 32 }],
+        blindingData: [{}, {}],
+      });
+
+      // Swap itself fails before completing
+      (swapTokens as jest.Mock).mockRejectedValue(new Error('Swap network error'));
+
+      await expect(sendToken(64, true)).rejects.toThrow('Swap network error');
+
+      // Should NOT attempt to save change proofs since swap never completed
+      expect(removeProofs).not.toHaveBeenCalled();
+      expect(addProofs).not.toHaveBeenCalled();
+    });
   });
 });
