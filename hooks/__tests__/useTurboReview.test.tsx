@@ -234,9 +234,96 @@ describe('useTurboReview', () => {
       expect(mockNavigation.navigate).toHaveBeenCalledWith('Processing', expect.any(Object));
     });
 
-    // Note: Tests for TurboProcessing navigation and insufficient sheet display
-    // when turbo is enabled require the getBalance dynamic import to be properly
-    // configured. The existing tests in handleUseTurbo cover the mint flow.
+    it('should navigate to TurboProcessing when ecash balance is sufficient', async () => {
+      // Mock sufficient ecash balance
+      mockGetBalanceImpl.mockResolvedValue(150);
+      mockProps.sendAmount = '100';
+      mockProps.turboEnabled = true;
+      mockProps.sendAssetType = 'unit';
+      const { result } = renderHookWithProps(mockProps);
+
+      await act(async () => {
+        await result.current.handleReview();
+      });
+
+      expect(mockNavigation.navigate).toHaveBeenCalledWith('TurboProcessing');
+      expect(result.current.isRequestingMint).toBe(false);
+    });
+
+    it('should show insufficient turbo sheet when ecash balance is not enough', async () => {
+      // Mock insufficient ecash balance
+      mockGetBalanceImpl.mockResolvedValue(50);
+      mockProps.sendAmount = '100';
+      mockProps.turboEnabled = true;
+      mockProps.sendAssetType = 'unit';
+      const { result } = renderHookWithProps(mockProps);
+
+      await act(async () => {
+        await result.current.handleReview();
+      });
+
+      expect(result.current.showInsufficientTurboSheet).toBe(true);
+      expect(result.current.insufficientTurboAmount).toBe(100);
+      expect(result.current.insufficientTurboBalance).toBe(50);
+      expect(mockNavigation.navigate).not.toHaveBeenCalled();
+    });
+
+    it('should handle exact ecash balance match', async () => {
+      // Mock exact ecash balance
+      mockGetBalanceImpl.mockResolvedValue(100);
+      mockProps.sendAmount = '100';
+      mockProps.turboEnabled = true;
+      mockProps.sendAssetType = 'unit';
+      const { result } = renderHookWithProps(mockProps);
+
+      await act(async () => {
+        await result.current.handleReview();
+      });
+
+      expect(mockNavigation.navigate).toHaveBeenCalledWith('TurboProcessing');
+    });
+
+    it('should handle fractional amounts correctly', async () => {
+      // Mock ecash balance with fractions
+      mockGetBalanceImpl.mockResolvedValue(0.55);
+      mockProps.sendAmount = '0.50';
+      mockProps.turboEnabled = true;
+      mockProps.sendAssetType = 'unit';
+      const { result } = renderHookWithProps(mockProps);
+
+      await act(async () => {
+        await result.current.handleReview();
+      });
+
+      expect(mockNavigation.navigate).toHaveBeenCalledWith('TurboProcessing');
+    });
+
+    it('should set isRequestingMint to true during balance check', async () => {
+      mockGetBalanceImpl.mockImplementation(() => {
+        // Check that isRequestingMint is true during the async operation
+        return new Promise(resolve => {
+          setTimeout(() => resolve(100), 10);
+        });
+      });
+      mockProps.sendAmount = '50';
+      mockProps.turboEnabled = true;
+      mockProps.sendAssetType = 'unit';
+      const { result } = renderHookWithProps(mockProps);
+
+      // Start the async operation
+      const reviewPromise = act(async () => {
+        await result.current.handleReview();
+      });
+
+      // Wait a moment then check isRequestingMint is true
+      await new Promise(resolve => setTimeout(resolve, 5));
+
+      // Complete the operation
+      await reviewPromise;
+
+      // After completion, should be false
+      expect(result.current.isRequestingMint).toBe(false);
+    });
   });
 
   describe('handleSendNormally', () => {

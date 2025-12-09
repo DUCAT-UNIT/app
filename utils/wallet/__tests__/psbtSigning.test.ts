@@ -410,4 +410,263 @@ describe('psbtSigning', () => {
       expect(typeof exported).toBe('function');
     });
   });
+
+  describe('edge cases and error handling', () => {
+    it('should handle missing witnessUtxo for extractWitnessData in Taproot script-path', async () => {
+      const mockInput1 = {
+        witnessUtxo: {
+          script: Buffer.from('5120' + '00'.repeat(32), 'hex'),
+          value: BigInt(10000),
+        },
+        tapLeafScript: [{
+          leafVersion: 0xc0,
+          script: Buffer.from('abcd', 'hex'),
+        }],
+      };
+      const mockInput2 = {
+        witnessUtxo: undefined, // Missing witnessUtxo
+      };
+      (bitcoin.Psbt.fromBase64 as jest.Mock).mockReturnValue(createMockPsbt([mockInput1, mockInput2]));
+
+      await expect(signPsbtRaw('test_psbt_base64', { 'tb1ptest': [0] })).rejects.toThrow('missing witnessUtxo');
+    });
+
+    it('should handle empty tapLeafScript as key-path signing', async () => {
+      const mockInput = {
+        witnessUtxo: {
+          script: Buffer.from('5120' + '00'.repeat(32), 'hex'),
+          value: BigInt(10000),
+        },
+        tapLeafScript: [], // Empty tapLeafScript - treated as key-path
+      };
+      (bitcoin.Psbt.fromBase64 as jest.Mock).mockReturnValue(createMockPsbt([mockInput]));
+
+      // Empty tapLeafScript array is falsy for length check, so it falls back to key-path signing
+      const result = await signPsbtRaw('test_psbt_base64', { 'tb1ptest': [0] });
+      expect(result).toBe('signed_psbt_base64');
+    });
+
+    it('should handle Taproot key-path with y-coordinate negation (0x03 prefix)', async () => {
+      const mockKeyPairOdd = {
+        privateKey: Buffer.alloc(32, 0x01),
+        publicKey: Buffer.concat([Buffer.from([0x03]), Buffer.alloc(32, 0x02)]), // 0x03 prefix
+      };
+
+      const cryptoHelpers = require('../cryptoHelpers');
+      const originalFromSeed = cryptoHelpers.bip32.fromSeed;
+      cryptoHelpers.bip32.fromSeed.mockReturnValueOnce({
+        derivePath: jest.fn().mockReturnValue(mockKeyPairOdd),
+      });
+
+      const mockInput = {
+        witnessUtxo: {
+          script: Buffer.from('5120' + '00'.repeat(32), 'hex'),
+          value: BigInt(10000),
+        },
+      };
+      (bitcoin.Psbt.fromBase64 as jest.Mock).mockReturnValue(createMockPsbt([mockInput]));
+
+      try {
+        await signPsbtRaw('test_psbt_base64', { 'tb1ptest': [0] });
+      } catch {
+        // Expected
+      }
+
+      expect(mockUpdateInput).toHaveBeenCalled();
+
+      // Restore
+      cryptoHelpers.bip32.fromSeed = originalFromSeed;
+    });
+
+    it('should handle missing private key for Taproot script-path', async () => {
+      const mockKeyPairNoPriv = {
+        privateKey: undefined,
+        publicKey: Buffer.concat([Buffer.from([0x02]), Buffer.alloc(32, 0x02)]),
+      };
+
+      const cryptoHelpers = require('../cryptoHelpers');
+      const originalFromSeed = cryptoHelpers.bip32.fromSeed;
+      cryptoHelpers.bip32.fromSeed.mockReturnValueOnce({
+        derivePath: jest.fn().mockReturnValue(mockKeyPairNoPriv),
+      });
+
+      const mockInput = {
+        witnessUtxo: {
+          script: Buffer.from('5120' + '00'.repeat(32), 'hex'),
+          value: BigInt(10000),
+        },
+        tapLeafScript: [{
+          leafVersion: 0xc0,
+          script: Buffer.from('abcd', 'hex'),
+        }],
+      };
+      (bitcoin.Psbt.fromBase64 as jest.Mock).mockReturnValue(createMockPsbt([mockInput]));
+
+      await expect(signPsbtRaw('test_psbt_base64', { 'tb1ptest': [0] })).rejects.toThrow('missing private key');
+
+      // Restore
+      cryptoHelpers.bip32.fromSeed = originalFromSeed;
+    });
+
+    it('should handle missing private key for Taproot key-path', async () => {
+      const mockKeyPairNoPriv = {
+        privateKey: undefined,
+        publicKey: Buffer.concat([Buffer.from([0x02]), Buffer.alloc(32, 0x02)]),
+      };
+
+      const cryptoHelpers = require('../cryptoHelpers');
+      const originalFromSeed = cryptoHelpers.bip32.fromSeed;
+      cryptoHelpers.bip32.fromSeed.mockReturnValueOnce({
+        derivePath: jest.fn().mockReturnValue(mockKeyPairNoPriv),
+      });
+
+      const mockInput = {
+        witnessUtxo: {
+          script: Buffer.from('5120' + '00'.repeat(32), 'hex'),
+          value: BigInt(10000),
+        },
+      };
+      (bitcoin.Psbt.fromBase64 as jest.Mock).mockReturnValue(createMockPsbt([mockInput]));
+
+      await expect(signPsbtRaw('test_psbt_base64', { 'tb1ptest': [0] })).rejects.toThrow('missing private key');
+
+      // Restore
+      cryptoHelpers.bip32.fromSeed = originalFromSeed;
+    });
+
+    it('should handle non-Buffer private key for Taproot script-path', async () => {
+      const mockKeyPairUint8 = {
+        privateKey: new Uint8Array(32).fill(0x01),
+        publicKey: Buffer.concat([Buffer.from([0x02]), Buffer.alloc(32, 0x02)]),
+      };
+
+      const cryptoHelpers = require('../cryptoHelpers');
+      const originalFromSeed = cryptoHelpers.bip32.fromSeed;
+      cryptoHelpers.bip32.fromSeed.mockReturnValueOnce({
+        derivePath: jest.fn().mockReturnValue(mockKeyPairUint8),
+      });
+
+      const mockInput = {
+        witnessUtxo: {
+          script: Buffer.from('5120' + '00'.repeat(32), 'hex'),
+          value: BigInt(10000),
+        },
+        tapLeafScript: [{
+          leafVersion: 0xc0,
+          script: Buffer.from('abcd', 'hex'),
+        }],
+      };
+      (bitcoin.Psbt.fromBase64 as jest.Mock).mockReturnValue(createMockPsbt([mockInput]));
+
+      try {
+        await signPsbtRaw('test_psbt_base64', { 'tb1ptest': [0] });
+      } catch {
+        // Expected
+      }
+
+      expect(mockUpdateInput).toHaveBeenCalled();
+
+      // Restore
+      cryptoHelpers.bip32.fromSeed = originalFromSeed;
+    });
+
+    it('should handle non-Buffer private key for Taproot key-path', async () => {
+      const mockKeyPairUint8 = {
+        privateKey: new Uint8Array(32).fill(0x01),
+        publicKey: Buffer.concat([Buffer.from([0x02]), Buffer.alloc(32, 0x02)]),
+      };
+
+      const cryptoHelpers = require('../cryptoHelpers');
+      const originalFromSeed = cryptoHelpers.bip32.fromSeed;
+      cryptoHelpers.bip32.fromSeed.mockReturnValueOnce({
+        derivePath: jest.fn().mockReturnValue(mockKeyPairUint8),
+      });
+
+      const mockInput = {
+        witnessUtxo: {
+          script: Buffer.from('5120' + '00'.repeat(32), 'hex'),
+          value: BigInt(10000),
+        },
+      };
+      (bitcoin.Psbt.fromBase64 as jest.Mock).mockReturnValue(createMockPsbt([mockInput]));
+
+      try {
+        await signPsbtRaw('test_psbt_base64', { 'tb1ptest': [0] });
+      } catch {
+        // Expected
+      }
+
+      expect(mockUpdateInput).toHaveBeenCalled();
+
+      // Restore
+      cryptoHelpers.bip32.fromSeed = originalFromSeed;
+    });
+
+    it('should sign multiple inputs across different addresses', async () => {
+      const mockInput1 = {
+        witnessUtxo: {
+          script: Buffer.from('0014' + '00'.repeat(20), 'hex'),
+          value: BigInt(10000),
+        },
+      };
+      const mockInput2 = {
+        witnessUtxo: {
+          script: Buffer.from('5120' + '00'.repeat(32), 'hex'),
+          value: BigInt(20000),
+        },
+      };
+      (bitcoin.Psbt.fromBase64 as jest.Mock).mockReturnValue(createMockPsbt([mockInput1, mockInput2]));
+
+      try {
+        await signPsbtRaw('test_psbt_base64', {
+          'tb1qtest': [0],
+          'tb1ptest': [1],
+        });
+      } catch {
+        // Expected
+      }
+
+      expect(mockSignInput).toHaveBeenCalled();
+      expect(mockUpdateInput).toHaveBeenCalled();
+    });
+
+    it('should handle partialSig after signing in signPsbtRaw', async () => {
+      const mockInput = {
+        witnessUtxo: {
+          script: Buffer.from('0014' + '00'.repeat(20), 'hex'),
+          value: BigInt(10000),
+        },
+        partialSig: [{
+          pubkey: Buffer.alloc(33, 0x02),
+          signature: Buffer.alloc(64, 0x44),
+        }],
+      };
+      const mockPsbt = createMockPsbt([mockInput]);
+      mockPsbt.data.inputs[0] = mockInput;
+      (bitcoin.Psbt.fromBase64 as jest.Mock).mockReturnValue(mockPsbt);
+
+      const result = await signPsbtRaw('test_psbt_base64', {
+        'tb1qtest': [0],
+      });
+
+      expect(result).toBe('signed_psbt_base64');
+    });
+
+    it('should handle finalization errors gracefully in signSegwitInput', async () => {
+      const mockInput = {
+        witnessUtxo: {
+          script: Buffer.from('0014' + '00'.repeat(20), 'hex'),
+          value: BigInt(10000),
+        },
+      };
+      const mockPsbt = createMockPsbt([mockInput]);
+      mockPsbt.finalizeInput.mockImplementation(() => {
+        throw new Error('Finalization error');
+      });
+      (bitcoin.Psbt.fromBase64 as jest.Mock).mockReturnValue(mockPsbt);
+
+      // Should not throw - finalization errors are caught and logged
+      await expect(signPsbt('test_psbt_base64', { 'tb1qtest': [0] })).resolves.toBeTruthy();
+    });
+  });
 });

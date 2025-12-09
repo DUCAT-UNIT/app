@@ -163,9 +163,60 @@ describe('useTurboConvert', () => {
     expect(Alert.alert).not.toHaveBeenCalledWith('No On-chain UNIT', expect.any(String));
   });
 
-  // Note: The following tests would require the dynamic import to work.
-  // Since Jest mock hoisting doesn't fully support dynamic imports in this codebase,
-  // we test what we can and document this limitation.
-  // Lines 38-41 (navigation after successful mint) and 52-53 (error handling)
-  // require integration tests or refactoring to static imports for full coverage.
+  it('should request mint and navigate on successful conversion', async () => {
+    const { requestMint } = require('../../services/cashu/cashuWalletService');
+    requestMint.mockResolvedValue({
+      quoteId: 'quote456',
+      depositAddress: 'bc1qdeposit',
+      amount: 100.5,
+    });
+
+    mockProps.runesBalance = [{ rune: 'UNIT', amount: '100.50', divisibility: 0 }];
+    const { result } = renderHookWithProps(mockProps);
+
+    await act(async () => {
+      await result.current.handleTurboPress();
+    });
+
+    expect(requestMint).toHaveBeenCalledWith(100.5);
+    expect(mockNavigation.navigate).toHaveBeenCalledWith('SendFlow', {
+      screen: 'TurboLoading',
+      params: {
+        assetType: 'unit',
+        prefillAddress: 'bc1qdeposit',
+        prefillAmount: 100.5,
+        mintQuoteId: 'quote456',
+        mintAmount: 100.5,
+        isTurbo: true,
+      },
+    });
+  });
+
+  it('should show error alert when requestMint fails', async () => {
+    const { requestMint } = require('../../services/cashu/cashuWalletService');
+    requestMint.mockRejectedValue(new Error('Mint service unavailable'));
+
+    mockProps.runesBalance = [{ rune: 'UNIT', amount: '100', divisibility: 0 }];
+    const { result } = renderHookWithProps(mockProps);
+
+    await act(async () => {
+      await result.current.handleTurboPress();
+    });
+
+    expect(Alert.alert).toHaveBeenCalledWith('Error', 'Failed to convert: Mint service unavailable');
+  });
+
+  it('should handle non-Error exceptions', async () => {
+    const { requestMint } = require('../../services/cashu/cashuWalletService');
+    requestMint.mockRejectedValue('String error');
+
+    mockProps.runesBalance = [{ rune: 'UNIT', amount: '50', divisibility: 0 }];
+    const { result } = renderHookWithProps(mockProps);
+
+    await act(async () => {
+      await result.current.handleTurboPress();
+    });
+
+    expect(Alert.alert).toHaveBeenCalledWith('Error', 'Failed to convert: String error');
+  });
 });

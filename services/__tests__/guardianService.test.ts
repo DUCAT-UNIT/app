@@ -23,14 +23,16 @@ jest.mock('../../utils/logger', () => ({
   },
 }));
 
-// Mock SDK
+// Simplified mock SDK
 const mockOnce = jest.fn();
-const mockGuardianSocket = jest.fn().mockImplementation(() => ({
+const mockSocket = {
   once: mockOnce,
-}));
+  isConnected: false,
+  isError: false,
+};
 
 jest.mock('@ducat-unit/client-sdk', () => ({
-  GuardianSocket: mockGuardianSocket,
+  GuardianSocket: jest.fn().mockImplementation(() => mockSocket),
 }));
 
 import {
@@ -46,6 +48,9 @@ describe('guardianService', () => {
     jest.clearAllMocks();
     jest.useFakeTimers();
     disconnectGuardian();
+    mockOnce.mockReset();
+    mockSocket.isConnected = false;
+    mockSocket.isError = false;
   });
 
   afterEach(() => {
@@ -101,14 +106,139 @@ describe('guardianService', () => {
       expect(createGuardianClient).toBeDefined();
     });
 
-    it('should be a function that creates clients', () => {
+    it('should be a function', () => {
       expect(typeof createGuardianClient).toBe('function');
+    });
+
+    it('should register event handlers on socket', async () => {
+      // Mock ready event firing immediately
+      mockOnce.mockImplementation((event, callback) => {
+        if (event === 'ready') {
+          setTimeout(() => callback(), 0);
+        }
+      });
+
+      const clientPromise = createGuardianClient({ pubkey: 'test-pubkey' });
+
+      jest.advanceTimersByTime(100);
+
+      const client = await clientPromise;
+      expect(client).toBeDefined();
+      expect(mockOnce).toHaveBeenCalledWith('error', expect.any(Function));
+      expect(mockOnce).toHaveBeenCalledWith('close', expect.any(Function));
+      expect(mockOnce).toHaveBeenCalledWith('ready', expect.any(Function));
+    });
+
+    it('should timeout if no ready event', async () => {
+      mockOnce.mockImplementation(() => {});
+
+      const clientPromise = createGuardianClient({ pubkey: 'test-pubkey' });
+
+      jest.advanceTimersByTime(31000);
+
+      await expect(clientPromise).rejects.toThrow('Guardian connection timeout');
     });
   });
 
   describe('getGuardianClient', () => {
     it('should be defined', () => {
       expect(getGuardianClient).toBeDefined();
+    });
+
+    it('should be a function', () => {
+      expect(typeof getGuardianClient).toBe('function');
+    });
+
+    it('should return a promise', () => {
+      // Verify getGuardianClient returns a promise
+      const result = getGuardianClient('test-pubkey');
+      expect(result).toBeInstanceOf(Promise);
+      result.catch(() => {}); // Catch the inevitable timeout
+    });
+  });
+
+  describe('error handling', () => {
+    it('should handle socket error event', async () => {
+      let errorCallback;
+      mockOnce.mockImplementation((event, callback) => {
+        if (event === 'error') {
+          errorCallback = callback;
+        }
+      });
+
+      const clientPromise = createGuardianClient({ pubkey: 'test-pubkey' });
+
+      // Trigger error event
+      if (errorCallback) {
+        errorCallback(new Error('Socket error'));
+      }
+
+      jest.advanceTimersByTime(100);
+
+      await expect(clientPromise).rejects.toThrow('Socket error');
+    });
+
+    it('should handle socket error as string', async () => {
+      let errorCallback;
+      mockOnce.mockImplementation((event, callback) => {
+        if (event === 'error') {
+          errorCallback = callback;
+        }
+      });
+
+      const clientPromise = createGuardianClient({ pubkey: 'test-pubkey' });
+
+      // Trigger error event with string
+      if (errorCallback) {
+        errorCallback('connection refused');
+      }
+
+      jest.advanceTimersByTime(100);
+
+      await expect(clientPromise).rejects.toThrow('guardian: connection refused');
+    });
+
+    it('should handle socket close event', async () => {
+      let closeCallback;
+      let readyCallback;
+      mockOnce.mockImplementation((event, callback) => {
+        if (event === 'close') {
+          closeCallback = callback;
+        }
+        if (event === 'ready') {
+          readyCallback = callback;
+        }
+      });
+
+      const clientPromise = createGuardianClient({ pubkey: 'test-pubkey' });
+
+      // First trigger ready to establish connection
+      if (readyCallback) {
+        readyCallback();
+      }
+
+      jest.advanceTimersByTime(100);
+
+      const client = await clientPromise;
+      expect(client).toBeDefined();
+
+      // Now trigger close
+      if (closeCallback) {
+        closeCallback();
+      }
+
+      // Connection should be cleaned up
+      expect(isGuardianConnected()).toBe(false);
+    });
+  });
+
+  describe('exports', () => {
+    it('should export all required functions', () => {
+      expect(typeof createGuardianClient).toBe('function');
+      expect(typeof getGuardianClient).toBe('function');
+      expect(typeof disconnectGuardian).toBe('function');
+      expect(typeof isGuardianConnected).toBe('function');
+      expect(typeof withGuardianTimeout).toBe('function');
     });
   });
 });

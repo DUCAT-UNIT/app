@@ -6,7 +6,7 @@
 import { useState, useCallback, Dispatch, SetStateAction } from 'react';
 import { Alert } from 'react-native';
 import { logger } from '../utils/logger';
-import { requestMint } from '../services/cashu/cashuWalletService';
+import { requestMint, getBalance } from '../services/cashu/cashuWalletService';
 import type { SendFlowAssetType } from '../types/assets';
 import type { MinimalNavigation } from '../navigation/types';
 
@@ -79,7 +79,6 @@ export function useTurboReview({
         const displayAmount = parseFloat(sendAmount);
         const amountInSmallestUnits = Math.round(displayAmount * 100);
 
-        const { getBalance } = await import('../services/cashu/cashuWalletService');
         const ecashBalance = await getBalance();
         const ecashBalanceSmallestUnits = Math.round(ecashBalance * 100);
 

@@ -7,6 +7,7 @@ import { useCallback } from 'react';
 import { Alert } from 'react-native';
 import { releaseOrphanedUtxos } from '../utils/pendingTransactionsUtils';
 import { getRunesAmount } from '../utils/runesHelper';
+import { requestMint } from '../services/cashu/cashuWalletService';
 import type { RuneBalance } from '../services/balanceService';
 import type { MinimalNavigation } from '../navigation/types';
 import type { UtxoRef } from '../types/assets';
@@ -40,8 +41,6 @@ export function useTurboConvert({
     await releaseOrphanedUtxos(getSpentUtxos, unmarkUtxosAsSpent);
 
     try {
-      const { requestMint } = await import('../services/cashu/cashuWalletService');
-
       // Request mint quote
       const mintQuote = await requestMint(unitRunesAmount);
 

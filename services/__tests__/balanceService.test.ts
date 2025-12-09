@@ -270,4 +270,48 @@ describe('balanceService', () => {
       expect(result).toBeNull();
     });
   });
+
+  describe('fetchWalletBalances additional tests', () => {
+    it('should fetch all balances successfully with fetchParallel', async () => {
+      // fetchWalletBalances uses fetchParallel internally
+      fetchParallel.mockResolvedValueOnce([
+        0.0005,  // segwitBalance (50000 sats in BTC)
+        0.001,   // taprootBalance (100000 sats in BTC)
+        [],      // runesBalance
+      ]);
+
+      const result = await fetchWalletBalances('tb1qsegwit', 'tb1ptaproot');
+
+      expect(result).toBeDefined();
+      expect(result.segwitBalance).toBe(0.0005);
+      expect(result.taprootBalance).toBe(0.001);
+    });
+
+    it('should handle zero balances', async () => {
+      // Mock fetchParallel with 0 balances
+      fetchParallel.mockResolvedValueOnce([
+        0,       // segwitBalance
+        0,       // taprootBalance
+        [],      // runesBalance
+      ]);
+
+      const result = await fetchWalletBalances('tb1qsegwit', 'tb1ptaproot');
+
+      expect(result.segwitBalance).toBe(0);
+      expect(result.taprootBalance).toBe(0);
+    });
+
+    it('should include runes balance in result', async () => {
+      const runesBalance = [{ rune: 'UNIT', amount: '100.5' }];
+      fetchParallel.mockResolvedValueOnce([
+        0.001,         // segwitBalance
+        0.002,         // taprootBalance
+        runesBalance,  // runesBalance
+      ]);
+
+      const result = await fetchWalletBalances('tb1qsegwit', 'tb1ptaproot');
+
+      expect(result.runesBalance).toEqual(runesBalance);
+    });
+  });
 });

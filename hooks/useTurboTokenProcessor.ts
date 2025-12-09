@@ -6,6 +6,7 @@
 import React from 'react';
 import { logger } from '../utils/logger';
 import { markTokenAsProcessed, turboGlobal } from '../services/turbo/turboTokenStorage';
+import { saveReceivedToken } from '../services/cashu/cashuLockedTokensService';
 import { useTokenProcessingStore, selectPendingToken } from '../stores/tokenProcessingStore';
 import type { SnackbarParams } from '../types/notification';
 import type { WalletAddresses } from '../contexts/WalletContext';
@@ -84,7 +85,6 @@ export function useTurboTokenProcessor({
 
       // Save to transaction history
       try {
-        const { saveReceivedToken } = await import('../services/cashu/cashuLockedTokensService');
         await saveReceivedToken(token, 'Turbo Claim', result.amount * 100, wallet?.taprootAddress || '');
         logger.debug('[TURBO] Saved to transaction history');
       } catch (err: unknown) {
