@@ -30,6 +30,8 @@ module.exports = {
     '!**/index.{js,ts,tsx}',           // All index files are re-exports
     '!services/cashu/cashuTokenOperations.{js,ts}', // Re-exports cashu operations
     '!services/cashu/cashuMintClient.{js,ts}',      // Re-exports from mintClient/
+    '!services/vaultOperationsService.{js,ts}',     // Re-exports from vault/
+    '!services/vaultWalletService.{js,ts}',         // Re-exports from vaultWallet/
     '!utils/wallet.{js,ts}',           // Re-exports wallet utilities
 
     // --- Platform-Specific Services (require native modules unavailable in Jest) ---
