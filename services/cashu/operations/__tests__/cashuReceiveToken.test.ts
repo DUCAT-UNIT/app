@@ -279,5 +279,133 @@ describe('cashuReceiveToken', () => {
       expect(result.amount).toBe(64);
       expect(signP2PKProofs).toHaveBeenCalledWith(p2pkProofs, 'privatekey123');
     });
+
+    it('should throw error when no keys available from mint (line 196)', async () => {
+      (decodeToken as jest.Mock).mockReturnValue(mockToken);
+      (loadProofs as jest.Mock).mockResolvedValue([]);
+      (isP2PKLocked as jest.Mock).mockReturnValue(false);
+      // No keysets and no keys
+      (getOrFetchKeys as jest.Mock).mockResolvedValue({});
+
+      await expect(receiveToken('cashuAtoken...')).rejects.toThrow('No keys available from mint');
+    });
+
+    it('should retry saving proofs and succeed on second attempt (lines 250-259)', async () => {
+      (decodeToken as jest.Mock).mockReturnValue(mockToken);
+      (loadProofs as jest.Mock).mockResolvedValue([]);
+      (isP2PKLocked as jest.Mock).mockReturnValue(false);
+      (getOrFetchKeys as jest.Mock).mockResolvedValue({
+        keysets: [{ id: 'keyset1', keys: { 1: 'key1' } }],
+      });
+      (splitAmount as jest.Mock).mockReturnValue([64, 32]);
+      (createBlindedOutputs as jest.Mock).mockResolvedValue({
+        outputs: [{ amount: 64 }, { amount: 32 }],
+        blindingData: [{}, {}],
+      });
+      (swapTokens as jest.Mock).mockResolvedValue({
+        signatures: [{ id: 'keyset1' }, {}],
+      });
+      (unblindSignatures as jest.Mock).mockReturnValue([
+        { amount: 64, secret: 'new1', C: 'C', id: 'id' },
+        { amount: 32, secret: 'new2', C: 'C', id: 'id' },
+      ]);
+
+      // Fail first, succeed second
+      (addProofs as jest.Mock)
+        .mockRejectedValueOnce(new Error('Storage error'))
+        .mockResolvedValueOnce(undefined);
+
+      const { logger } = require('../../../../utils/logger');
+
+      const result = await receiveToken('cashuAtoken...');
+
+      expect(result.amount).toBe(96);
+      expect(addProofs).toHaveBeenCalledTimes(2);
+      expect(logger.warn).toHaveBeenCalledWith(
+        expect.stringContaining('Failed to save proofs'),
+        expect.objectContaining({ error: 'Storage error' })
+      );
+    });
+
+    it('should fail after all retry attempts and store in recovery queue (lines 267-294)', async () => {
+      const mockSetItemAsync = jest.fn().mockResolvedValue(undefined);
+      jest.spyOn(require('expo-secure-store'), 'setItemAsync').mockImplementation(mockSetItemAsync);
+
+      (decodeToken as jest.Mock).mockReturnValue(mockToken);
+      (loadProofs as jest.Mock).mockResolvedValue([]);
+      (isP2PKLocked as jest.Mock).mockReturnValue(false);
+      (getOrFetchKeys as jest.Mock).mockResolvedValue({
+        keysets: [{ id: 'keyset1', keys: { 1: 'key1' } }],
+      });
+      (splitAmount as jest.Mock).mockReturnValue([64, 32]);
+      (createBlindedOutputs as jest.Mock).mockResolvedValue({
+        outputs: [{ amount: 64 }, { amount: 32 }],
+        blindingData: [{}, {}],
+      });
+      (swapTokens as jest.Mock).mockResolvedValue({
+        signatures: [{ id: 'keyset1' }, {}],
+      });
+      (unblindSignatures as jest.Mock).mockReturnValue([
+        { amount: 64, secret: 'new1', C: 'C', id: 'id' },
+        { amount: 32, secret: 'new2', C: 'C', id: 'id' },
+      ]);
+
+      // Fail all attempts
+      (addProofs as jest.Mock).mockRejectedValue(new Error('Persistent storage error'));
+
+      const { logger } = require('../../../../utils/logger');
+
+      await expect(receiveToken('cashuAtoken...')).rejects.toThrow(
+        'Critical error: Received proofs from mint but failed to save locally'
+      );
+
+      expect(addProofs).toHaveBeenCalledTimes(3); // MAX_RETRIES = 3
+      expect(logger.error).toHaveBeenCalledWith(
+        'CRITICAL: Failed to save received proofs after all retries - FUND LOSS RISK',
+        expect.objectContaining({
+          error: 'Persistent storage error',
+          proofCount: 2,
+          amount: 96,
+        })
+      );
+      expect(mockSetItemAsync).toHaveBeenCalledWith(
+        expect.stringContaining('cashu_failed_proofs_'),
+        expect.stringContaining('new1')
+      );
+    });
+
+    it('should handle recovery queue storage failure (lines 287-291)', async () => {
+      const mockSetItemAsync = jest.fn().mockRejectedValue(new Error('SecureStore full'));
+      jest.spyOn(require('expo-secure-store'), 'setItemAsync').mockImplementation(mockSetItemAsync);
+
+      (decodeToken as jest.Mock).mockReturnValue(mockToken);
+      (loadProofs as jest.Mock).mockResolvedValue([]);
+      (isP2PKLocked as jest.Mock).mockReturnValue(false);
+      (getOrFetchKeys as jest.Mock).mockResolvedValue({
+        keysets: [{ id: 'keyset1', keys: { 1: 'key1' } }],
+      });
+      (splitAmount as jest.Mock).mockReturnValue([64, 32]);
+      (createBlindedOutputs as jest.Mock).mockResolvedValue({
+        outputs: [{ amount: 64 }, { amount: 32 }],
+        blindingData: [{}, {}],
+      });
+      (swapTokens as jest.Mock).mockResolvedValue({
+        signatures: [{ id: 'keyset1' }, {}],
+      });
+      (unblindSignatures as jest.Mock).mockReturnValue([
+        { amount: 64, secret: 'new1', C: 'C', id: 'id' },
+        { amount: 32, secret: 'new2', C: 'C', id: 'id' },
+      ]);
+      (addProofs as jest.Mock).mockRejectedValue(new Error('Storage error'));
+
+      const { logger } = require('../../../../utils/logger');
+
+      await expect(receiveToken('cashuAtoken...')).rejects.toThrow('Critical error');
+
+      expect(logger.error).toHaveBeenCalledWith(
+        'Failed to store proofs in recovery queue',
+        expect.objectContaining({ error: 'SecureStore full' })
+      );
+    });
   });
 });
