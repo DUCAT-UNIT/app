@@ -10,6 +10,7 @@ export const SECURE_KEYS = {
   MULTI_ACCOUNT_CACHE: 'wallet_multi_account_cache_v1', // Multi-account address cache for fast switching
   PIN: 'wallet_pin_v1',
   PIN_SALT: 'wallet_pin_salt_v1',
+  PIN_SALT_HMAC: 'wallet_pin_salt_hmac_v1', // HMAC for salt integrity verification
   PIN_VERSION: 'wallet_pin_version_v1', // Track PIN hashing algorithm version
   BIOMETRIC_ENABLED: 'wallet_biometric_enabled_v1',
   // Passkey authentication keys

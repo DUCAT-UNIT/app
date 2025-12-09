@@ -19,6 +19,8 @@ import {
   generateSalt,
   hashPin,
   verifyPinHash,
+  generateSaltHmac,
+  verifySaltHmac,
 } from './pinHashing';
 
 /**
@@ -92,14 +94,20 @@ export const savePinWithHash = async (pin: string): Promise<SavePinResult> => {
     const salt = await generateSalt();
     const hashedPin = await hashPin(pin, salt);
 
-    // Store the hashed PIN, salt, and version (using new 310K iteration standard)
+    // Generate HMAC for salt integrity verification
+    // Use PIN hash as HMAC key (device-bound, derivable from user input)
+    const saltHmac = generateSaltHmac(salt, hashedPin);
+
+    // Store the hashed PIN, salt, HMAC, and version (using new 310K iteration standard)
     await SecureStore.setItemAsync(SECURE_KEYS.PIN, hashedPin);
     await SecureStore.setItemAsync(SECURE_KEYS.PIN_SALT, salt);
+    await SecureStore.setItemAsync(SECURE_KEYS.PIN_SALT_HMAC, saltHmac);
     await SecureStore.setItemAsync(SECURE_KEYS.PIN_VERSION, PIN_HASH_VERSION.PBKDF2_310K);
 
-    // CRITICAL: Read back the salt to verify it was stored correctly
+    // CRITICAL: Read back all values to verify they were stored correctly
     const verifiedSalt = await SecureStore.getItemAsync(SECURE_KEYS.PIN_SALT);
     const verifiedPin = await SecureStore.getItemAsync(SECURE_KEYS.PIN);
+    const verifiedHmac = await SecureStore.getItemAsync(SECURE_KEYS.PIN_SALT_HMAC);
     const verifiedVersion = await SecureStore.getItemAsync(SECURE_KEYS.PIN_VERSION);
 
     // Verify all critical values were stored correctly
@@ -123,6 +131,14 @@ export const savePinWithHash = async (pin: string): Promise<SavePinResult> => {
       throw new Error(
         'CRITICAL: PIN version verification failed. ' +
         'Expected version does not match stored version. ' +
+        'This would prevent wallet access.'
+      );
+    }
+
+    if (verifiedHmac !== saltHmac) {
+      throw new Error(
+        'CRITICAL: Salt HMAC verification failed. ' +
+        'Expected HMAC does not match stored HMAC. ' +
         'This would prevent wallet access.'
       );
     }
@@ -159,15 +175,20 @@ export const savePin = async (pin: string): Promise<boolean> => {
     const salt = await generateSalt();
     const hashedPin = await hashPin(pin, salt);
 
-    // Store the hashed PIN, salt, and version (using new 310K iteration standard)
+    // Generate HMAC for salt integrity verification
+    const saltHmac = generateSaltHmac(salt, hashedPin);
+
+    // Store the hashed PIN, salt, HMAC, and version (using new 310K iteration standard)
     await SecureStore.setItemAsync(SECURE_KEYS.PIN, hashedPin);
     await SecureStore.setItemAsync(SECURE_KEYS.PIN_SALT, salt);
+    await SecureStore.setItemAsync(SECURE_KEYS.PIN_SALT_HMAC, saltHmac);
     await SecureStore.setItemAsync(SECURE_KEYS.PIN_VERSION, PIN_HASH_VERSION.PBKDF2_310K);
 
-    // CRITICAL: Read back the salt to verify it was stored correctly
+    // CRITICAL: Read back all values to verify they were stored correctly
     // If salt is corrupted, the user will never be able to unlock their wallet
     const verifiedSalt = await SecureStore.getItemAsync(SECURE_KEYS.PIN_SALT);
     const verifiedPin = await SecureStore.getItemAsync(SECURE_KEYS.PIN);
+    const verifiedHmac = await SecureStore.getItemAsync(SECURE_KEYS.PIN_SALT_HMAC);
     const verifiedVersion = await SecureStore.getItemAsync(SECURE_KEYS.PIN_VERSION);
 
     // Verify all critical values were stored correctly
@@ -191,6 +212,14 @@ export const savePin = async (pin: string): Promise<boolean> => {
       throw new Error(
         'CRITICAL: PIN version verification failed. ' +
         'Expected version does not match stored version. ' +
+        'This would prevent wallet access.'
+      );
+    }
+
+    if (verifiedHmac !== saltHmac) {
+      throw new Error(
+        'CRITICAL: Salt HMAC verification failed. ' +
+        'Expected HMAC does not match stored HMAC. ' +
         'This would prevent wallet access.'
       );
     }
@@ -225,12 +254,17 @@ export const savePinWithExistingSalt = async (pin: string, existingSalt: string)
   try {
     const hashedPin = await hashPin(pin, existingSalt);
 
-    // Store the hashed PIN and version (salt already exists, using new 310K iteration standard)
+    // Generate HMAC for salt integrity verification (salt already exists)
+    const saltHmac = generateSaltHmac(existingSalt, hashedPin);
+
+    // Store the hashed PIN, HMAC, and version (salt already exists, using new 310K iteration standard)
     await SecureStore.setItemAsync(SECURE_KEYS.PIN, hashedPin);
+    await SecureStore.setItemAsync(SECURE_KEYS.PIN_SALT_HMAC, saltHmac);
     await SecureStore.setItemAsync(SECURE_KEYS.PIN_VERSION, PIN_HASH_VERSION.PBKDF2_310K);
 
-    // CRITICAL: Read back the PIN hash to verify it was stored correctly
+    // CRITICAL: Read back all values to verify they were stored correctly
     const verifiedPin = await SecureStore.getItemAsync(SECURE_KEYS.PIN);
+    const verifiedHmac = await SecureStore.getItemAsync(SECURE_KEYS.PIN_SALT_HMAC);
     const verifiedVersion = await SecureStore.getItemAsync(SECURE_KEYS.PIN_VERSION);
 
     // Verify all critical values were stored correctly
@@ -246,6 +280,14 @@ export const savePinWithExistingSalt = async (pin: string, existingSalt: string)
       throw new Error(
         'CRITICAL: PIN version verification failed. ' +
         'Expected version does not match stored version. ' +
+        'This would prevent wallet access.'
+      );
+    }
+
+    if (verifiedHmac !== saltHmac) {
+      throw new Error(
+        'CRITICAL: Salt HMAC verification failed. ' +
+        'Expected HMAC does not match stored HMAC. ' +
         'This would prevent wallet access.'
       );
     }
@@ -292,9 +334,10 @@ export const verifyPin = async (enteredPin: string): Promise<PinVerificationResu
     // Load current lockout state
     const { failedAttempts } = await loadLockoutState();
 
-    // Retrieve the stored salt, hashed PIN, and version
+    // Retrieve the stored salt, hashed PIN, HMAC, and version
     const storedHashedPin = await SecureStore.getItemAsync(SECURE_KEYS.PIN);
     const storedSalt = await SecureStore.getItemAsync(SECURE_KEYS.PIN_SALT);
+    const storedHmac = await SecureStore.getItemAsync(SECURE_KEYS.PIN_SALT_HMAC);
     const storedVersion = await SecureStore.getItemAsync(SECURE_KEYS.PIN_VERSION);
 
     // If salt doesn't exist, this is a corrupted state
@@ -315,6 +358,20 @@ export const verifyPin = async (enteredPin: string): Promise<PinVerificationResu
       };
     }
 
+    // Verify salt integrity using HMAC (if HMAC exists)
+    // HMAC may not exist for legacy installations - that's OK, we'll create it on next save
+    if (storedHmac) {
+      const isIntegrityValid = verifySaltHmac(storedSalt, storedHmac, storedHashedPin);
+      if (!isIntegrityValid) {
+        logger.error('Salt integrity check failed - possible corruption detected');
+        return {
+          success: false,
+          error: 'PIN data corrupted. Please restore wallet from seed phrase.',
+          remainingAttempts: 0,
+        };
+      }
+    }
+
     // Determine iteration count based on version (migration support)
     // Default to legacy 10K for backwards compatibility if no version stored
     const isLegacyVersion = !storedVersion || storedVersion === PIN_HASH_VERSION.PBKDF2_10K;
@@ -330,24 +387,36 @@ export const verifyPin = async (enteredPin: string): Promise<PinVerificationResu
       // Success - reset attempts
       await resetPinAttempts();
 
-      // AUTOMATIC MIGRATION: If user is on legacy version, migrate to new version
-      if (isLegacyVersion) {
+      // AUTOMATIC MIGRATION: If user is on legacy version or missing HMAC, migrate to new version
+      const needsMigration = isLegacyVersion || !storedHmac;
+      if (needsMigration) {
         try {
-          logger.security('Migrating PIN from legacy 10K to 310K iterations');
+          if (isLegacyVersion) {
+            logger.security('Migrating PIN from legacy 10K to 310K iterations');
+          } else {
+            logger.security('Adding salt HMAC to existing PIN');
+          }
 
-          // Re-hash with new iteration count (same salt)
-          const newHashedPin = await hashPin(enteredPin, storedSalt);
+          // Re-hash with new iteration count (same salt) - or use existing hash if only adding HMAC
+          const newHashedPin = isLegacyVersion ? await hashPin(enteredPin, storedSalt) : storedHashedPin;
 
-          // Update stored hash and version
+          // Generate HMAC for salt integrity
+          const saltHmac = generateSaltHmac(storedSalt, newHashedPin);
+
+          // Update stored hash, HMAC, and version
           await SecureStore.setItemAsync(SECURE_KEYS.PIN, newHashedPin);
+          await SecureStore.setItemAsync(SECURE_KEYS.PIN_SALT_HMAC, saltHmac);
           await SecureStore.setItemAsync(SECURE_KEYS.PIN_VERSION, PIN_HASH_VERSION.PBKDF2_310K);
 
           // Verify migration succeeded
           const verifiedPin = await SecureStore.getItemAsync(SECURE_KEYS.PIN);
+          const verifiedHmac = await SecureStore.getItemAsync(SECURE_KEYS.PIN_SALT_HMAC);
           const verifiedVersion = await SecureStore.getItemAsync(SECURE_KEYS.PIN_VERSION);
 
-          if (verifiedPin === newHashedPin && verifiedVersion === PIN_HASH_VERSION.PBKDF2_310K) {
-            logger.security('PIN migration successful - now using 310K iterations');
+          if (verifiedPin === newHashedPin &&
+              verifiedHmac === saltHmac &&
+              verifiedVersion === PIN_HASH_VERSION.PBKDF2_310K) {
+            logger.security('PIN migration successful - now using 310K iterations with HMAC integrity');
           } else {
             // Migration failed but user is still authenticated with legacy hash
             logger.error('PIN migration verification failed - user still on legacy hash');

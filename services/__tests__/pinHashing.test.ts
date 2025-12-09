@@ -120,7 +120,7 @@ describe('hashPin', () => {
     expect(mockPbkdf2Sync).toHaveBeenCalledWith(
       pin,
       Buffer.from(salt, 'hex'),
-      10000, // CRYPTO.PIN_HASH_ITERATIONS
+      310000, // CRYPTO.PIN_HASH_ITERATIONS (updated from 10K to 310K)
       64,
       'sha512'
     );
@@ -140,10 +140,10 @@ describe('hashPin', () => {
     mockPbkdf2Sync.mockReturnValue(mockDerivedKey);
 
     await hashPin('000000', 'salt123');
-    expect(mockPbkdf2Sync).toHaveBeenCalledWith('000000', expect.any(Buffer), 10000, 64, 'sha512');
+    expect(mockPbkdf2Sync).toHaveBeenCalledWith('000000', expect.any(Buffer), 310000, 64, 'sha512');
 
     await hashPin('999999', 'salt456');
-    expect(mockPbkdf2Sync).toHaveBeenCalledWith('999999', expect.any(Buffer), 10000, 64, 'sha512');
+    expect(mockPbkdf2Sync).toHaveBeenCalledWith('999999', expect.any(Buffer), 310000, 64, 'sha512');
   });
 });
 

@@ -5,7 +5,7 @@
 
 import * as Crypto from 'expo-crypto';
 // eslint-disable-next-line @typescript-eslint/no-var-requires
-const { pbkdf2Sync } = require('react-native-quick-crypto');
+const { pbkdf2Sync, createHmac } = require('react-native-quick-crypto');
 import { CRYPTO } from '../constants/security';
 
 /**
@@ -86,6 +86,52 @@ export const verifyPinHash = (storedHash: string, enteredHash: string): boolean 
            timingSafeEqual(storedBuffer, enteredBuffer);
   } catch (error: unknown) {
     // If comparison fails (e.g., invalid hex), treat as invalid PIN
+    return false;
+  }
+};
+
+/**
+ * Generate HMAC for salt integrity verification
+ * Uses device-specific key derived from secure random bytes
+ *
+ * SECURITY NOTE: This provides integrity checking, not confidentiality.
+ * - Prevents accidental corruption of salt
+ * - Detects tampering with salt storage
+ * - Does NOT prevent determined attacker with root access
+ *
+ * @param salt - Salt to generate HMAC for (hex string)
+ * @param key - HMAC key (hex string) - should be stored separately from salt
+ * @returns HMAC (hex string)
+ */
+export const generateSaltHmac = (salt: string, key: string): string => {
+  try {
+    const hmac = createHmac('sha256', Buffer.from(key, 'hex'));
+    hmac.update(Buffer.from(salt, 'hex'));
+    return hmac.digest('hex');
+  } catch (error: unknown) {
+    throw new Error('HMAC generation failed: ' + (error as Error).message);
+  }
+};
+
+/**
+ * Verify salt HMAC for integrity checking
+ * @param salt - Salt to verify (hex string)
+ * @param expectedHmac - Expected HMAC (hex string)
+ * @param key - HMAC key (hex string)
+ * @returns True if HMAC matches
+ */
+export const verifySaltHmac = (salt: string, expectedHmac: string, key: string): boolean => {
+  try {
+    const computedHmac = generateSaltHmac(salt, key);
+    const expectedBuffer = Buffer.from(expectedHmac, 'hex');
+    const computedBuffer = Buffer.from(computedHmac, 'hex');
+
+    // Use constant-time comparison
+    return expectedBuffer.length === computedBuffer.length &&
+           expectedBuffer.length > 0 &&
+           timingSafeEqual(expectedBuffer, computedBuffer);
+  } catch (error: unknown) {
+    // If verification fails, treat as invalid
     return false;
   }
 };

@@ -50,11 +50,15 @@ jest.mock('../pinLockout', () => ({
 const mockGenerateSalt = jest.fn();
 const mockHashPin = jest.fn();
 const mockVerifyPinHash = jest.fn();
+const mockGenerateSaltHmac = jest.fn();
+const mockVerifySaltHmac = jest.fn();
 
 jest.mock('../pinHashing', () => ({
   generateSalt: (...args) => mockGenerateSalt(...args),
   hashPin: (...args) => mockHashPin(...args),
   verifyPinHash: (...args) => mockVerifyPinHash(...args),
+  generateSaltHmac: (...args) => mockGenerateSaltHmac(...args),
+  verifySaltHmac: (...args) => mockVerifySaltHmac(...args),
 }));
 
 // Typed mock references
@@ -82,10 +86,12 @@ describe('PinService', () => {
     it('should save PIN and return hash with salt', async () => {
       mockGenerateSalt.mockResolvedValue('test-salt-hex');
       mockHashPin.mockResolvedValue('hashed-pin-hex');
+      mockGenerateSaltHmac.mockReturnValue('test-hmac');
       mockSetItemAsync.mockResolvedValue();
       mockGetItemAsync.mockImplementation((key) => {
         if (key === 'wallet_pin_salt_v1') return Promise.resolve('test-salt-hex');
         if (key === 'wallet_pin_v1') return Promise.resolve('hashed-pin-hex');
+        if (key === 'wallet_pin_salt_hmac_v1') return Promise.resolve('test-hmac');
         if (key === 'wallet_pin_version_v1') return Promise.resolve('2');
         return Promise.resolve(null);
       });
@@ -104,10 +110,12 @@ describe('PinService', () => {
     it('should throw CRITICAL error when salt verification fails', async () => {
       mockGenerateSalt.mockResolvedValue('test-salt-hex');
       mockHashPin.mockResolvedValue('hashed-pin-hex');
+      mockGenerateSaltHmac.mockReturnValue('test-hmac');
       mockSetItemAsync.mockResolvedValue();
       mockGetItemAsync.mockImplementation((key) => {
         if (key === 'wallet_pin_salt_v1') return Promise.resolve('different-salt');
         if (key === 'wallet_pin_v1') return Promise.resolve('hashed-pin-hex');
+        if (key === 'wallet_pin_salt_hmac_v1') return Promise.resolve('test-hmac');
         if (key === 'wallet_pin_version_v1') return Promise.resolve('2');
         return Promise.resolve(null);
       });
@@ -118,10 +126,12 @@ describe('PinService', () => {
     it('should throw CRITICAL error when hash verification fails', async () => {
       mockGenerateSalt.mockResolvedValue('test-salt-hex');
       mockHashPin.mockResolvedValue('hashed-pin-hex');
+      mockGenerateSaltHmac.mockReturnValue('test-hmac');
       mockSetItemAsync.mockResolvedValue();
       mockGetItemAsync.mockImplementation((key) => {
         if (key === 'wallet_pin_salt_v1') return Promise.resolve('test-salt-hex');
         if (key === 'wallet_pin_v1') return Promise.resolve('different-hash');
+        if (key === 'wallet_pin_salt_hmac_v1') return Promise.resolve('test-hmac');
         if (key === 'wallet_pin_version_v1') return Promise.resolve('2');
         return Promise.resolve(null);
       });
@@ -132,10 +142,12 @@ describe('PinService', () => {
     it('should throw CRITICAL error when version verification fails', async () => {
       mockGenerateSalt.mockResolvedValue('test-salt-hex');
       mockHashPin.mockResolvedValue('hashed-pin-hex');
+      mockGenerateSaltHmac.mockReturnValue('test-hmac');
       mockSetItemAsync.mockResolvedValue();
       mockGetItemAsync.mockImplementation((key) => {
         if (key === 'wallet_pin_salt_v1') return Promise.resolve('test-salt-hex');
         if (key === 'wallet_pin_v1') return Promise.resolve('hashed-pin-hex');
+        if (key === 'wallet_pin_salt_hmac_v1') return Promise.resolve('wrong-hmac');
         if (key === 'wallet_pin_version_v1') return Promise.resolve('1');
         return Promise.resolve(null);
       });
@@ -162,10 +174,12 @@ describe('PinService', () => {
     it('should save PIN and return true on success', async () => {
       mockGenerateSalt.mockResolvedValue('test-salt-hex');
       mockHashPin.mockResolvedValue('hashed-pin-hex');
+      mockGenerateSaltHmac.mockReturnValue('test-hmac');
       mockSetItemAsync.mockResolvedValue();
       mockGetItemAsync.mockImplementation((key) => {
         if (key === 'wallet_pin_salt_v1') return Promise.resolve('test-salt-hex');
         if (key === 'wallet_pin_v1') return Promise.resolve('hashed-pin-hex');
+        if (key === 'wallet_pin_salt_hmac_v1') return Promise.resolve('test-hmac');
         if (key === 'wallet_pin_version_v1') return Promise.resolve('2');
         return Promise.resolve(null);
       });
@@ -181,10 +195,12 @@ describe('PinService', () => {
     it('should throw CRITICAL error when salt verification fails', async () => {
       mockGenerateSalt.mockResolvedValue('test-salt-hex');
       mockHashPin.mockResolvedValue('hashed-pin-hex');
+      mockGenerateSaltHmac.mockReturnValue('test-hmac');
       mockSetItemAsync.mockResolvedValue();
       mockGetItemAsync.mockImplementation((key) => {
         if (key === 'wallet_pin_salt_v1') return Promise.resolve('different-salt');
         if (key === 'wallet_pin_v1') return Promise.resolve('hashed-pin-hex');
+        if (key === 'wallet_pin_salt_hmac_v1') return Promise.resolve('test-hmac');
         if (key === 'wallet_pin_version_v1') return Promise.resolve('2');
         return Promise.resolve(null);
       });
@@ -195,10 +211,12 @@ describe('PinService', () => {
     it('should throw CRITICAL error when hash verification fails', async () => {
       mockGenerateSalt.mockResolvedValue('test-salt-hex');
       mockHashPin.mockResolvedValue('hashed-pin-hex');
+      mockGenerateSaltHmac.mockReturnValue('test-hmac');
       mockSetItemAsync.mockResolvedValue();
       mockGetItemAsync.mockImplementation((key) => {
         if (key === 'wallet_pin_salt_v1') return Promise.resolve('test-salt-hex');
         if (key === 'wallet_pin_v1') return Promise.resolve('different-hash');
+        if (key === 'wallet_pin_salt_hmac_v1') return Promise.resolve('test-hmac');
         if (key === 'wallet_pin_version_v1') return Promise.resolve('2');
         return Promise.resolve(null);
       });
@@ -209,10 +227,12 @@ describe('PinService', () => {
     it('should throw CRITICAL error when version verification fails', async () => {
       mockGenerateSalt.mockResolvedValue('test-salt-hex');
       mockHashPin.mockResolvedValue('hashed-pin-hex');
+      mockGenerateSaltHmac.mockReturnValue('test-hmac');
       mockSetItemAsync.mockResolvedValue();
       mockGetItemAsync.mockImplementation((key) => {
         if (key === 'wallet_pin_salt_v1') return Promise.resolve('test-salt-hex');
         if (key === 'wallet_pin_v1') return Promise.resolve('hashed-pin-hex');
+        if (key === 'wallet_pin_salt_hmac_v1') return Promise.resolve('wrong-hmac');
         if (key === 'wallet_pin_version_v1') return Promise.resolve('wrong-version');
         return Promise.resolve(null);
       });
@@ -240,9 +260,11 @@ describe('PinService', () => {
   describe('savePinWithExistingSalt', () => {
     it('should save PIN using existing salt', async () => {
       mockHashPin.mockResolvedValue('hashed-pin-hex');
+      mockGenerateSaltHmac.mockReturnValue('test-hmac');
       mockSetItemAsync.mockResolvedValue();
       mockGetItemAsync.mockImplementation((key) => {
         if (key === 'wallet_pin_v1') return Promise.resolve('hashed-pin-hex');
+        if (key === 'wallet_pin_salt_hmac_v1') return Promise.resolve('test-hmac');
         if (key === 'wallet_pin_version_v1') return Promise.resolve('2');
         return Promise.resolve(null);
       });
@@ -257,9 +279,11 @@ describe('PinService', () => {
 
     it('should throw CRITICAL error when hash verification fails', async () => {
       mockHashPin.mockResolvedValue('hashed-pin-hex');
+      mockGenerateSaltHmac.mockReturnValue('test-hmac');
       mockSetItemAsync.mockResolvedValue();
       mockGetItemAsync.mockImplementation((key) => {
         if (key === 'wallet_pin_v1') return Promise.resolve('different-hash');
+        if (key === 'wallet_pin_salt_hmac_v1') return Promise.resolve('test-hmac');
         if (key === 'wallet_pin_version_v1') return Promise.resolve('2');
         return Promise.resolve(null);
       });
@@ -271,9 +295,11 @@ describe('PinService', () => {
 
     it('should throw CRITICAL error when version verification fails', async () => {
       mockHashPin.mockResolvedValue('hashed-pin-hex');
+      mockGenerateSaltHmac.mockReturnValue('test-hmac');
       mockSetItemAsync.mockResolvedValue();
       mockGetItemAsync.mockImplementation((key) => {
         if (key === 'wallet_pin_v1') return Promise.resolve('hashed-pin-hex');
+        if (key === 'wallet_pin_salt_hmac_v1') return Promise.resolve('wrong-hmac');
         if (key === 'wallet_pin_version_v1') return Promise.resolve('wrong');
         return Promise.resolve(null);
       });
@@ -308,11 +334,13 @@ describe('PinService', () => {
       mockGetItemAsync.mockImplementation((key) => {
         if (key === 'wallet_pin_v1') return Promise.resolve('stored-hash');
         if (key === 'wallet_pin_salt_v1') return Promise.resolve('stored-salt');
+        if (key === 'wallet_pin_salt_hmac_v1') return Promise.resolve('test-hmac');
         if (key === 'wallet_pin_version_v1') return Promise.resolve('2'); // Current version
         return Promise.resolve(null);
       });
       mockHashPin.mockResolvedValue('stored-hash');
       mockVerifyPinHash.mockReturnValue(true);
+      mockVerifySaltHmac.mockReturnValue(true);
       mockResetPinAttempts.mockResolvedValue();
       mockSetItemAsync.mockResolvedValue(); // For migration
 
@@ -354,11 +382,13 @@ describe('PinService', () => {
       mockGetItemAsync.mockImplementation((key) => {
         if (key === 'wallet_pin_v1') return Promise.resolve('stored-hash');
         if (key === 'wallet_pin_salt_v1') return Promise.resolve('stored-salt');
+        if (key === 'wallet_pin_salt_hmac_v1') return Promise.resolve('test-hmac');
         if (key === 'wallet_pin_version_v1') return Promise.resolve('2'); // Current version
         return Promise.resolve(null);
       });
       mockHashPin.mockResolvedValue('different-hash');
       mockVerifyPinHash.mockReturnValue(false);
+      mockVerifySaltHmac.mockReturnValue(true);
       mockRecordFailedAttempt.mockResolvedValue({
         shouldLockout: false,
         newFailedAttempts: 3,
@@ -379,11 +409,13 @@ describe('PinService', () => {
       mockGetItemAsync.mockImplementation((key) => {
         if (key === 'wallet_pin_v1') return Promise.resolve('stored-hash');
         if (key === 'wallet_pin_salt_v1') return Promise.resolve('stored-salt');
+        if (key === 'wallet_pin_salt_hmac_v1') return Promise.resolve('test-hmac');
         if (key === 'wallet_pin_version_v1') return Promise.resolve('2'); // Current version
         return Promise.resolve(null);
       });
       mockHashPin.mockResolvedValue('different-hash');
       mockVerifyPinHash.mockReturnValue(false);
+      mockVerifySaltHmac.mockReturnValue(true);
       mockRecordFailedAttempt.mockResolvedValue({
         shouldLockout: true,
         newFailedAttempts: 10,
@@ -405,11 +437,13 @@ describe('PinService', () => {
       mockGetItemAsync.mockImplementation((key) => {
         if (key === 'wallet_pin_v1') return Promise.resolve('stored-hash');
         if (key === 'wallet_pin_salt_v1') return Promise.resolve('stored-salt');
+        if (key === 'wallet_pin_salt_hmac_v1') return Promise.resolve('test-hmac');
         if (key === 'wallet_pin_version_v1') return Promise.resolve('2'); // Current version
         return Promise.resolve(null);
       });
       mockHashPin.mockResolvedValue('different-hash');
       mockVerifyPinHash.mockReturnValue(false);
+      mockVerifySaltHmac.mockReturnValue(true);
       mockRecordFailedAttempt.mockRejectedValue(
         new Error('Unable to enforce rate limiting. Access denied for security.')
       );
@@ -435,11 +469,13 @@ describe('PinService', () => {
       mockGetItemAsync.mockImplementation((key) => {
         if (key === 'wallet_pin_v1') return Promise.resolve('stored-hash');
         if (key === 'wallet_pin_salt_v1') return Promise.resolve('stored-salt');
+        if (key === 'wallet_pin_salt_hmac_v1') return Promise.resolve('test-hmac');
         if (key === 'wallet_pin_version_v1') return Promise.resolve('2'); // Current version
         return Promise.resolve(null);
       });
       mockHashPin.mockResolvedValue('entered-hash');
       mockVerifyPinHash.mockReturnValue(true);
+      mockVerifySaltHmac.mockReturnValue(true);
       mockResetPinAttempts.mockResolvedValue();
       mockSetItemAsync.mockResolvedValue(); // For migration
 
@@ -454,11 +490,13 @@ describe('PinService', () => {
       mockGetItemAsync.mockImplementation((key) => {
         if (key === 'wallet_pin_v1') return Promise.resolve('stored-hash');
         if (key === 'wallet_pin_salt_v1') return Promise.resolve('stored-salt');
+        if (key === 'wallet_pin_salt_hmac_v1') return Promise.resolve('test-hmac');
         if (key === 'wallet_pin_version_v1') return Promise.resolve('2'); // Current version
         return Promise.resolve(null);
       });
       mockHashPin.mockResolvedValue('different-hash');
       mockVerifyPinHash.mockReturnValue(false);
+      mockVerifySaltHmac.mockReturnValue(true);
       mockRecordFailedAttempt.mockResolvedValue({
         shouldLockout: false,
         newFailedAttempts: 15, // More than max
