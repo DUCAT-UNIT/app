@@ -10,6 +10,7 @@ import { fetchUtxos as fetchUtxosService } from '../balanceService';
 import { ERRORS } from '../../utils/messages';
 import { getTxHexUrl } from '../../utils/constants';
 import { logger } from '../../utils/logger';
+import { fetchWithTimeout } from '../../utils/api';
 import {
   mergeAndFilterUtxos,
   selectUtxosForTransaction,
@@ -183,16 +184,16 @@ export async function createBtcIntent(
 }
 
 /**
- * Fetch transaction hex for each input UTXO
+ * Fetch transaction hex for each input UTXO with timeout
  * Required for constructing witness data in SegWit transactions
  * @param selectedUtxos - Array of selected UTXOs to fetch transaction data for
  * @returns Array of UTXOs with their full transaction hex attached
- * @throws Error if any transaction fetch fails
+ * @throws Error if any transaction fetch fails or times out after 30 seconds
  */
 async function fetchInputTransactions(selectedUtxos: UTXO[]): Promise<UtxoWithTx[]> {
   return Promise.all(
     selectedUtxos.map(async (utxo) => {
-      const txResponse = await fetch(getTxHexUrl(utxo.txid));
+      const txResponse = await fetchWithTimeout(getTxHexUrl(utxo.txid), {}, 30000); // 30s timeout for blockchain API
       if (!txResponse.ok) {
         throw new Error(`Failed to fetch transaction ${utxo.txid}: HTTP ${txResponse.status}`);
       }

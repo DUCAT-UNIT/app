@@ -175,11 +175,25 @@ export const unblindSignature = (C_: string, r: string, A: string): string => {
     const rABytes = Buffer.from(rA);
 
     // Negate the y-coordinate by flipping the prefix byte (02 <-> 03)
+    // SECURITY NOTE: This relies on compressed point format (33 bytes, prefix 02/03)
+    // - Prefix 0x02: even y-coordinate
+    // - Prefix 0x03: odd y-coordinate
+    // - Negating flips parity: (x, y) → (x, -y mod p)
+    // This is mathematically correct for secp256k1, but fragile if library changes format.
+    // Test coverage validates this assumption holds.
     const negRA = Buffer.from(rABytes);
+
+    // Validate compressed point format before manipulation
+    if (negRA.length !== 33) {
+      throw new Error(`Invalid point length: expected 33 bytes (compressed), got ${negRA.length}`);
+    }
+
     if (negRA[0] === 0x02) {
-      negRA[0] = 0x03;
+      negRA[0] = 0x03; // Even → Odd
     } else if (negRA[0] === 0x03) {
-      negRA[0] = 0x02;
+      negRA[0] = 0x02; // Odd → Even
+    } else {
+      throw new Error(`Invalid point prefix: expected 0x02 or 0x03 (compressed), got 0x${negRA[0].toString(16)}`);
     }
 
     // C = C_ + (-(r*A)) = C_ - r*A

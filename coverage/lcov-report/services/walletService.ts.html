@@ -23,30 +23,30 @@
         <div class='clearfix'>
             
             <div class='fl pad1y space-right2'>
-                <span class="strong">100% </span>
+                <span class="strong">94.33% </span>
                 <span class="quiet">Statements</span>
-                <span class='fraction'>50/50</span>
+                <span class='fraction'>50/53</span>
             </div>
         
             
             <div class='fl pad1y space-right2'>
-                <span class="strong">100% </span>
+                <span class="strong">76% </span>
                 <span class="quiet">Branches</span>
-                <span class='fraction'>19/19</span>
+                <span class='fraction'>19/25</span>
             </div>
         
             
             <div class='fl pad1y space-right2'>
-                <span class="strong">100% </span>
+                <span class="strong">70% </span>
                 <span class="quiet">Functions</span>
-                <span class='fraction'>7/7</span>
+                <span class='fraction'>7/10</span>
             </div>
         
             
             <div class='fl pad1y space-right2'>
-                <span class="strong">100% </span>
+                <span class="strong">94.33% </span>
                 <span class="quiet">Lines</span>
-                <span class='fraction'>50/50</span>
+                <span class='fraction'>50/53</span>
             </div>
         
             
@@ -237,7 +237,15 @@
 <a name='L172'></a><a href='#L172'>172</a>
 <a name='L173'></a><a href='#L173'>173</a>
 <a name='L174'></a><a href='#L174'>174</a>
-<a name='L175'></a><a href='#L175'>175</a></td><td class="line-coverage quiet"><span class="cline-any cline-neutral">&nbsp;</span>
+<a name='L175'></a><a href='#L175'>175</a>
+<a name='L176'></a><a href='#L176'>176</a>
+<a name='L177'></a><a href='#L177'>177</a>
+<a name='L178'></a><a href='#L178'>178</a>
+<a name='L179'></a><a href='#L179'>179</a>
+<a name='L180'></a><a href='#L180'>180</a>
+<a name='L181'></a><a href='#L181'>181</a>
+<a name='L182'></a><a href='#L182'>182</a></td><td class="line-coverage quiet"><span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
@@ -333,22 +341,26 @@
 <span class="cline-any cline-yes">3x</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-yes">1x</span>
-<span class="cline-any cline-yes">1x</span>
-<span class="cline-any cline-neutral">&nbsp;</span>
-<span class="cline-any cline-neutral">&nbsp;</span>
-<span class="cline-any cline-neutral">&nbsp;</span>
-<span class="cline-any cline-yes">2x</span>
-<span class="cline-any cline-yes">2x</span>
-<span class="cline-any cline-yes">1x</span>
+<span class="cline-any cline-no">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-yes">1x</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-yes">2x</span>
+<span class="cline-any cline-yes">2x</span>
+<span class="cline-any cline-yes">1x</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-yes">1x</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-yes">2x</span>
+<span class="cline-any cline-yes">1x</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
@@ -371,6 +383,8 @@
 <span class="cline-any cline-yes">4x</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-yes">1x</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-yes">1x</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
@@ -420,6 +434,7 @@ import * as Crypto from 'expo-crypto';
 import * as bip39 from 'bip39';
 import { deriveAddressesFromMnemonic, type DerivedAddresses } from '../utils/bitcoin';
 import { getCurrentAccount, withMnemonic, saveMnemonic, saveCurrentAccount, getCachedAddresses, saveCachedAddresses, getMultiAccountCache, saveToMultiAccountCache } from './secureStorageService';
+import { logger } from '../utils/logger';
 &nbsp;
 export interface GenerateWalletResult {
   mnemonic: string;
@@ -505,8 +520,10 @@ export const loadWalletFromStorage = async (): Promise&lt;LoadWalletResult&gt; =
     // Try single-account cache (fast path - ~5ms)
     const cachedAddresses = await getCachedAddresses(accountIndex);
     if (cachedAddresses) {
-      // Populate multi-account cache for future fast switching
-      void saveToMultiAccountCache(accountIndex, cachedAddresses);
+      // Populate multi-account cache for future fast switching (non-blocking with error logging)
+      saveToMultiAccountCache(accountIndex, cachedAddresses).catch(<span class="fstat-no" title="function not covered" >(e</span>rror) =&gt; {
+<span class="cstat-no" title="statement not covered" >        logger.warn('Failed to save to multi-account cache', { error: error instanceof Error ? error.message : String(error) });</span>
+      });
       return { addresses: cachedAddresses, accountIndex };
     }
 &nbsp;
@@ -518,12 +535,14 @@ export const loadWalletFromStorage = async (): Promise&lt;LoadWalletResult&gt; =
       return deriveAddressesFromMnemonic(mnemonic, accountIndex);
     });
 &nbsp;
-    // Cache the derived addresses for next startup and fast switching
+    // Cache the derived addresses for next startup and fast switching (non-blocking with error logging)
     if (addresses) {
-      void Promise.all([
+      Promise.all([
         saveCachedAddresses(accountIndex, addresses),
         saveToMultiAccountCache(accountIndex, addresses),
-      ]);
+      ]).catch(<span class="fstat-no" title="function not covered" >(e</span>rror) =&gt; {
+<span class="cstat-no" title="statement not covered" >        logger.warn('Failed to cache derived addresses', { error: error instanceof Error ? error.message : String(error) });</span>
+      });
     }
 &nbsp;
     return { addresses, accountIndex };
@@ -543,8 +562,10 @@ export const switchToAccount = async (accountIndex: number): Promise&lt;SwitchAc
     // Try multi-account cache first (fast path - instant if in memory, ~5ms from storage)
     const cachedAddresses = await getMultiAccountCache(accountIndex);
     if (cachedAddresses) {
-      // Update current account index (fire and forget)
-      void saveCurrentAccount(accountIndex);
+      // Update current account index (non-blocking with error logging)
+      saveCurrentAccount(accountIndex).catch(<span class="fstat-no" title="function not covered" >(e</span>rror) =&gt; {
+<span class="cstat-no" title="statement not covered" >        logger.warn('Failed to save current account index', { error: error instanceof Error ? error.message : String(error) });</span>
+      });
       return { addresses: cachedAddresses };
     }
 &nbsp;
@@ -592,7 +613,7 @@ export const saveWalletToStorage = async (mnemonic: string, accountIndex = 0): P
             <div class='footer quiet pad2 space-top1 center small'>
                 Code coverage generated by
                 <a href="https://istanbul.js.org/" target="_blank" rel="noopener noreferrer">istanbul</a>
-                at 2025-12-02T18:49:08.404Z
+                at 2025-12-09T18:03:19.199Z
             </div>
         <script src="../prettify.js"></script>
         <script>

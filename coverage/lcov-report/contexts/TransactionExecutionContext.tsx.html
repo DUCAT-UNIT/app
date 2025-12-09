@@ -25,28 +25,28 @@
             <div class='fl pad1y space-right2'>
                 <span class="strong">100% </span>
                 <span class="quiet">Statements</span>
-                <span class='fraction'>145/145</span>
+                <span class='fraction'>150/150</span>
             </div>
         
             
             <div class='fl pad1y space-right2'>
-                <span class="strong">92.39% </span>
+                <span class="strong">89.79% </span>
                 <span class="quiet">Branches</span>
-                <span class='fraction'>85/92</span>
+                <span class='fraction'>88/98</span>
             </div>
         
             
             <div class='fl pad1y space-right2'>
                 <span class="strong">100% </span>
                 <span class="quiet">Functions</span>
-                <span class='fraction'>12/12</span>
+                <span class='fraction'>13/13</span>
             </div>
         
             
             <div class='fl pad1y space-right2'>
                 <span class="strong">100% </span>
                 <span class="quiet">Lines</span>
-                <span class='fraction'>141/141</span>
+                <span class='fraction'>145/145</span>
             </div>
         
             
@@ -452,7 +452,22 @@
 <a name='L387'></a><a href='#L387'>387</a>
 <a name='L388'></a><a href='#L388'>388</a>
 <a name='L389'></a><a href='#L389'>389</a>
-<a name='L390'></a><a href='#L390'>390</a></td><td class="line-coverage quiet"><span class="cline-any cline-neutral">&nbsp;</span>
+<a name='L390'></a><a href='#L390'>390</a>
+<a name='L391'></a><a href='#L391'>391</a>
+<a name='L392'></a><a href='#L392'>392</a>
+<a name='L393'></a><a href='#L393'>393</a>
+<a name='L394'></a><a href='#L394'>394</a>
+<a name='L395'></a><a href='#L395'>395</a>
+<a name='L396'></a><a href='#L396'>396</a>
+<a name='L397'></a><a href='#L397'>397</a>
+<a name='L398'></a><a href='#L398'>398</a>
+<a name='L399'></a><a href='#L399'>399</a>
+<a name='L400'></a><a href='#L400'>400</a>
+<a name='L401'></a><a href='#L401'>401</a>
+<a name='L402'></a><a href='#L402'>402</a>
+<a name='L403'></a><a href='#L403'>403</a>
+<a name='L404'></a><a href='#L404'>404</a>
+<a name='L405'></a><a href='#L405'>405</a></td><td class="line-coverage quiet"><span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
@@ -472,6 +487,22 @@
 <span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-yes">5x</span>
+<span class="cline-any cline-yes">5x</span>
+<span class="cline-any cline-yes">5x</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-yes">4x</span>
+<span class="cline-any cline-yes">4x</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
@@ -686,7 +717,6 @@
 <span class="cline-any cline-yes">11x</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-yes">11x</span>
-<span class="cline-any cline-yes">11x</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-yes">11x</span>
@@ -862,6 +892,22 @@ import { usePendingTransactions, PendingTransactionOutput } from './PendingTrans
 import { useWallet } from './WalletContext';
 import { logger } from '../utils/logger';
 import type { SnackbarParams } from '../stores/notificationStore';
+&nbsp;
+/**
+ * Safe BTC to satoshi conversion avoiding floating point errors
+ * @param btcString - BTC amount as string (e.g. "0.001")
+ * @returns Amount in satoshis
+ */
+function btcToSats(btcString: string): number {
+  // Split on decimal point and handle each part as integer
+  const parts = btcString.replace(',', '.').split('.');
+  const wholePart = parseInt(parts[0] || <span class="branch-1 cbranch-no" title="branch not covered" >'0',</span> 10) * 100000000;
+  if (parts.length === 1) return wholePart;
+&nbsp;
+  // Pad or truncate decimal part to 8 digits
+  const decimalPart = (parts[1] || <span class="branch-1 cbranch-no" title="branch not covered" >'')</span>.padEnd(8, '0').slice(0, 8);
+  return wholePart + parseInt(decimalPart, 10);
+}
 &nbsp;
 interface BroadcastOptions {
   skipAutoConfirm?: boolean;
@@ -1073,13 +1119,12 @@ export const TransactionExecutionProvider: React.FC&lt;TransactionExecutionProvi
         // If we have change outputs, store them as pending with parent tracking
         if (outputs.length &gt; 0) {
           const assetType = sendAssetType === 'unit' ? 'UNIT' : 'BTC';
-          // Calculate sent amount in smallest units
-          const sentAmountNum = parseFloat(sendAmount) || 0;
+          // Calculate sent amount in smallest units using safe conversion
           const sentAmountSmallest = sendAssetType === 'unit'
-            ? Math.round(sentAmountNum * 100) // UNIT uses 2 decimal places
-            : Math.round(sentAmountNum * 100000000); // BTC to sats
-          logger.debug('💾 Adding pending transaction:', txid, 'with', outputs.length, 'outputs', 'sentAmount:', sentAmountSmallest);
-          await addPendingTransaction(txid, outputs, assetType, parentTxid, sentAmountSmallest);
+            ? Math.round((parseFloat(sendAmount) || <span class="branch-1 cbranch-no" title="branch not covered" >0)</span> * 100) // UNIT uses 2 decimal places
+            : btcToSats(sendAmount); // BTC to sats - use safe conversion
+          logger.debug('💾 Adding pending transaction:', txid, 'with', outputs.length, 'outputs', 'sentAmount:', sentAmountSmallest, 'inputUtxos:', spentInputs.length);
+          await addPendingTransaction(txid, outputs, assetType, parentTxid, sentAmountSmallest, spentInputs);
         } else {
           logger.debug('⚠️ No change outputs found to save');
         }
@@ -1237,7 +1282,7 @@ export const TransactionExecutionProvider: React.FC&lt;TransactionExecutionProvi
             <div class='footer quiet pad2 space-top1 center small'>
                 Code coverage generated by
                 <a href="https://istanbul.js.org/" target="_blank" rel="noopener noreferrer">istanbul</a>
-                at 2025-12-02T18:49:08.404Z
+                at 2025-12-09T18:03:19.199Z
             </div>
         <script src="../prettify.js"></script>
         <script>

@@ -23,16 +23,16 @@
         <div class='clearfix'>
             
             <div class='fl pad1y space-right2'>
-                <span class="strong">95.09% </span>
+                <span class="strong">94.23% </span>
                 <span class="quiet">Statements</span>
-                <span class='fraction'>97/102</span>
+                <span class='fraction'>98/104</span>
             </div>
         
             
             <div class='fl pad1y space-right2'>
-                <span class="strong">80% </span>
+                <span class="strong">72.41% </span>
                 <span class="quiet">Branches</span>
-                <span class='fraction'>20/25</span>
+                <span class='fraction'>21/29</span>
             </div>
         
             
@@ -44,9 +44,9 @@
         
             
             <div class='fl pad1y space-right2'>
-                <span class="strong">97.89% </span>
+                <span class="strong">96.9% </span>
                 <span class="quiet">Lines</span>
-                <span class='fraction'>93/95</span>
+                <span class='fraction'>94/97</span>
             </div>
         
             
@@ -318,7 +318,15 @@
 <a name='L253'></a><a href='#L253'>253</a>
 <a name='L254'></a><a href='#L254'>254</a>
 <a name='L255'></a><a href='#L255'>255</a>
-<a name='L256'></a><a href='#L256'>256</a></td><td class="line-coverage quiet"><span class="cline-any cline-neutral">&nbsp;</span>
+<a name='L256'></a><a href='#L256'>256</a>
+<a name='L257'></a><a href='#L257'>257</a>
+<a name='L258'></a><a href='#L258'>258</a>
+<a name='L259'></a><a href='#L259'>259</a>
+<a name='L260'></a><a href='#L260'>260</a>
+<a name='L261'></a><a href='#L261'>261</a>
+<a name='L262'></a><a href='#L262'>262</a>
+<a name='L263'></a><a href='#L263'>263</a></td><td class="line-coverage quiet"><span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
@@ -418,6 +426,8 @@
 <span class="cline-any cline-yes">24x</span>
 <span class="cline-any cline-yes">24x</span>
 <span class="cline-any cline-yes">24x</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
@@ -524,7 +534,11 @@
 <span class="cline-any cline-yes">2x</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
-<span class="cline-any cline-yes">2x</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-yes">6x</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-yes">4x</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
@@ -579,6 +593,7 @@ import { useBalance } from './WalletDataContext';
 import { useWallet } from './WalletContext';
 import { useAuth } from './AuthContext';
 import * as AirdropService from '../services/airdropService';
+import { logger } from '../utils/logger';
 import {
   configureAudioMode,
   preloadConfettiSound,
@@ -674,7 +689,9 @@ export const AirdropProvider: React.FC&lt;AirdropProviderProps&gt; = ({ children
         confettiSoundRef.current = sound;
         setAudioReady(true);
       } catch (error: unknown) {
-        // Error already logged in preloadConfettiSound
+<span class="cstat-no" title="statement not covered" >        logger.warn('Failed to preload confetti sound', {</span>
+          error: error instanceof Error ? error.message : String(error)
+        });
       }
     };
 &nbsp;
@@ -778,10 +795,14 @@ export const AirdropProvider: React.FC&lt;AirdropProviderProps&gt; = ({ children
               setAirdropTxId(result.txId);
               setShowAirdropModal(true);
               // Don't trigger effects here - wait for user to click "Get Started"
-              // Clean up pending state
-              clearPendingAirdrop(pendingKey);
             }, 500);
+&nbsp;
+            // Clear pending airdrop outside setTimeout to avoid race condition
+            await clearPendingAirdrop(pendingKey);
           } catch (error: unknown) {
+            logger.warn('Failed to request airdrop', {
+              error: error instanceof Error ? error.message : <span class="branch-1 cbranch-no" title="branch not covered" >String(error)</span>
+            });
             // Keep the lastAirdropTime to prevent immediate retries
           } finally {
             // Release lock and clear ref
@@ -835,7 +856,7 @@ export const AirdropProvider: React.FC&lt;AirdropProviderProps&gt; = ({ children
             <div class='footer quiet pad2 space-top1 center small'>
                 Code coverage generated by
                 <a href="https://istanbul.js.org/" target="_blank" rel="noopener noreferrer">istanbul</a>
-                at 2025-12-02T18:49:08.404Z
+                at 2025-12-09T18:03:19.199Z
             </div>
         <script src="../prettify.js"></script>
         <script>

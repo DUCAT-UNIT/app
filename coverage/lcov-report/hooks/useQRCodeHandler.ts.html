@@ -25,28 +25,28 @@
             <div class='fl pad1y space-right2'>
                 <span class="strong">100% </span>
                 <span class="quiet">Statements</span>
-                <span class='fraction'>97/97</span>
+                <span class='fraction'>95/95</span>
             </div>
         
             
             <div class='fl pad1y space-right2'>
                 <span class="strong">100% </span>
                 <span class="quiet">Branches</span>
-                <span class='fraction'>63/63</span>
+                <span class='fraction'>59/59</span>
             </div>
         
             
             <div class='fl pad1y space-right2'>
                 <span class="strong">100% </span>
                 <span class="quiet">Functions</span>
-                <span class='fraction'>8/8</span>
+                <span class='fraction'>7/7</span>
             </div>
         
             
             <div class='fl pad1y space-right2'>
                 <span class="strong">100% </span>
                 <span class="quiet">Lines</span>
-                <span class='fraction'>93/93</span>
+                <span class='fraction'>92/92</span>
             </div>
         
             
@@ -363,23 +363,7 @@
 <a name='L298'></a><a href='#L298'>298</a>
 <a name='L299'></a><a href='#L299'>299</a>
 <a name='L300'></a><a href='#L300'>300</a>
-<a name='L301'></a><a href='#L301'>301</a>
-<a name='L302'></a><a href='#L302'>302</a>
-<a name='L303'></a><a href='#L303'>303</a>
-<a name='L304'></a><a href='#L304'>304</a>
-<a name='L305'></a><a href='#L305'>305</a>
-<a name='L306'></a><a href='#L306'>306</a>
-<a name='L307'></a><a href='#L307'>307</a>
-<a name='L308'></a><a href='#L308'>308</a>
-<a name='L309'></a><a href='#L309'>309</a>
-<a name='L310'></a><a href='#L310'>310</a>
-<a name='L311'></a><a href='#L311'>311</a>
-<a name='L312'></a><a href='#L312'>312</a>
-<a name='L313'></a><a href='#L313'>313</a>
-<a name='L314'></a><a href='#L314'>314</a>
-<a name='L315'></a><a href='#L315'>315</a>
-<a name='L316'></a><a href='#L316'>316</a>
-<a name='L317'></a><a href='#L317'>317</a></td><td class="line-coverage quiet"><span class="cline-any cline-neutral">&nbsp;</span>
+<a name='L301'></a><a href='#L301'>301</a></td><td class="line-coverage quiet"><span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
@@ -439,16 +423,7 @@
 <span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
-<span class="cline-any cline-neutral">&nbsp;</span>
-<span class="cline-any cline-neutral">&nbsp;</span>
-<span class="cline-any cline-neutral">&nbsp;</span>
-<span class="cline-any cline-neutral">&nbsp;</span>
-<span class="cline-any cline-neutral">&nbsp;</span>
-<span class="cline-any cline-neutral">&nbsp;</span>
-<span class="cline-any cline-neutral">&nbsp;</span>
-<span class="cline-any cline-neutral">&nbsp;</span>
-<span class="cline-any cline-neutral">&nbsp;</span>
-<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-yes">34x</span>
 <span class="cline-any cline-yes">34x</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-yes">34x</span>
@@ -478,10 +453,6 @@
 <span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-yes">4x</span>
-<span class="cline-any cline-neutral">&nbsp;</span>
-<span class="cline-any cline-neutral">&nbsp;</span>
-<span class="cline-any cline-neutral">&nbsp;</span>
-<span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-yes">4x</span>
 <span class="cline-any cline-yes">1x</span>
 <span class="cline-any cline-yes">1x</span>
@@ -502,9 +473,6 @@
 <span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-yes">3x</span>
-<span class="cline-any cline-yes">1x</span>
-<span class="cline-any cline-yes">1x</span>
-<span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-yes">3x</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
@@ -703,12 +671,12 @@
 import { useCallback } from 'react';
 import { Alert } from 'react-native';
 import { useNavigation, NavigationProp, ParamListBase } from '@react-navigation/native';
-import * as Crypto from 'expo-crypto';
 import { logger } from '../utils/logger';
 import { hasP2PKProofs } from '../services/cashu/p2pk';
 import { decodeToken, encodeToken } from '../services/cashu/crypto';
 import { checkProofsSpent } from '../services/cashu/cashuMintClient';
 import { notify } from '../utils/notify';
+import { useTokenProcessingStore } from '../stores/tokenProcessingStore';
 import type { SnackbarParams } from '../stores/notificationStore';
 &nbsp;
 interface ReceiveTokenResult {
@@ -747,16 +715,6 @@ interface TokenEntry {
   proofs: Proof[];
 }
 &nbsp;
-// Extend global for token processing
-declare global {
-  // eslint-disable-next-line no-var
-  var processedCashuTokens: Set&lt;string&gt; | undefined;
-  // eslint-disable-next-line no-var
-  var pendingCashuToken: string | undefined;
-  // eslint-disable-next-line no-var
-  var triggerPendingTokenCheck: (() =&gt; void) | undefined;
-}
-&nbsp;
 /**
  * Hook for handling various QR code formats
  */
@@ -766,6 +724,7 @@ export function useQRCodeHandler({
   setShowQRScanner,
 }: UseQRCodeHandlerParams): (data: string) =&gt; Promise&lt;void&gt; {
   const navigation = useNavigation&lt;NavigationProp&lt;ParamListBase&gt;&gt;();
+  const tokenStore = useTokenProcessingStore();
 &nbsp;
   const handleQRScan = useCallback(async (data: string) =&gt; {
     logger.debug('[useQRCodeHandler] QR scanned:', data);
@@ -792,13 +751,9 @@ export function useQRCodeHandler({
           // This is a Turbo token - check if already processed
           logger.debug('[useQRCodeHandler] P2PK token detected, checking if already processed');
 &nbsp;
-          // Check if already processed
-          const tokenHash = await Crypto.digestStringAsync(
-            Crypto.CryptoDigestAlgorithm.SHA256,
-            data
-          );
-&nbsp;
-          if (global.processedCashuTokens &amp;&amp; global.processedCashuTokens.has(tokenHash)) {
+          // Check if already processed using the token store
+          const alreadyProcessed = await tokenStore.isTokenProcessed(data);
+          if (alreadyProcessed) {
             logger.debug('[useQRCodeHandler] Token already processed, showing error');
             setShowQRScanner(false);
             showSnackbar({
@@ -809,18 +764,15 @@ export function useQRCodeHandler({
             return;
           }
 &nbsp;
-          // Store token globally for processing
+          // Store token in store for processing
           logger.debug('[useQRCodeHandler] Processing new token');
-          global.pendingCashuToken = data;
+          tokenStore.setPendingToken(data);
 &nbsp;
           // Close scanner immediately
           setShowQRScanner(false);
 &nbsp;
           // Trigger the claim process which shows the loading overlay
-          if (typeof global.triggerPendingTokenCheck === 'function') {
-            const triggerCheck = global.triggerPendingTokenCheck;
-            setTimeout(() =&gt; triggerCheck(), 50);
-          }
+          tokenStore.triggerTokenCheck();
           return;
         }
 &nbsp;
@@ -1005,7 +957,7 @@ export function useQRCodeHandler({
     // Unknown format
     logger.debug('[useQRCodeHandler] Unknown QR format:', { data });
     notify.token.unknownFormat();
-  }, [navigation, receiveCashuToken, showSnackbar, setShowQRScanner]);
+  }, [navigation, receiveCashuToken, showSnackbar, setShowQRScanner, tokenStore]);
 &nbsp;
   return handleQRScan;
 }
@@ -1018,7 +970,7 @@ export default useQRCodeHandler;
             <div class='footer quiet pad2 space-top1 center small'>
                 Code coverage generated by
                 <a href="https://istanbul.js.org/" target="_blank" rel="noopener noreferrer">istanbul</a>
-                at 2025-12-02T18:49:08.404Z
+                at 2025-12-09T18:03:19.199Z
             </div>
         <script src="../prettify.js"></script>
         <script>

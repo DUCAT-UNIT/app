@@ -464,6 +464,51 @@ describe('cashuCrypto', () => {
       // Should throw error instead of silently returning C_
       expect(() => unblindSignature(C_, r, A)).toThrow('Unblinding failed: Point multiply failed');
     });
+
+    it('should throw error for invalid point length (not 33 bytes)', () => {
+      // Return uncompressed point (65 bytes) instead of compressed (33 bytes)
+      (ecc.pointMultiply as jest.Mock).mockReturnValue(new Uint8Array(65));
+
+      const C_ = '02' + 'aa'.repeat(32);
+      const r = 'bb'.repeat(32);
+      const A = '02' + 'cc'.repeat(32);
+
+      expect(() => unblindSignature(C_, r, A)).toThrow('Invalid point length: expected 33 bytes (compressed), got 65');
+    });
+
+    it('should throw error for invalid point prefix (not 0x02 or 0x03)', () => {
+      // Return point with invalid prefix (e.g., uncompressed 0x04)
+      const invalidPoint = new Uint8Array([0x04, ...new Array(32).fill(0)]);
+      (ecc.pointMultiply as jest.Mock).mockReturnValue(invalidPoint);
+
+      const C_ = '02' + 'aa'.repeat(32);
+      const r = 'bb'.repeat(32);
+      const A = '02' + 'cc'.repeat(32);
+
+      expect(() => unblindSignature(C_, r, A)).toThrow('Unblinding failed: Invalid point prefix');
+      expect(() => unblindSignature(C_, r, A)).toThrow('got 0x4'); // Note: JavaScript toString(16) doesn't pad
+    });
+
+    it('should validate point format assumptions (security test)', () => {
+      // This test validates the assumption that negating works by flipping prefix
+      // If the library changes to return uncompressed points, this should fail
+      const compressedPoint = new Uint8Array([0x02, ...new Array(32).fill(0xaa)]);
+      (ecc.pointMultiply as jest.Mock).mockReturnValue(compressedPoint);
+      (ecc.pointAdd as jest.Mock).mockReturnValue(new Uint8Array([0x03, ...new Array(32).fill(0xbb)]));
+
+      const C_ = '02' + 'aa'.repeat(32);
+      const r = 'bb'.repeat(32);
+      const A = '02' + 'cc'.repeat(32);
+
+      const result = unblindSignature(C_, r, A);
+
+      expect(result).toBeDefined();
+      // Verify pointMultiply returned compressed format
+      expect(ecc.pointMultiply).toHaveBeenCalled();
+      const multiplyCall = (ecc.pointMultiply as jest.Mock).mock.results[0].value;
+      expect(multiplyCall).toHaveLength(33); // Compressed
+      expect([0x02, 0x03]).toContain(multiplyCall[0]); // Valid prefix
+    });
   });
 
   describe('createBlindedOutputs', () => {

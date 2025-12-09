@@ -10,17 +10,24 @@ import { MUTINYNET_NETWORK } from '../../utils/bitcoin';
 import { getTxHexUrl, RUNES_CONFIG } from '../../utils/constants';
 import { RuneUtxo, SatUtxo } from './runesUtxoSelection';
 import { logger } from '../../utils/logger';
+import { fetchWithTimeout } from '../../utils/api';
 
 // Initialize ECC library
 bitcoin.initEccLib(ecc);
 
 /**
- * Fetch transaction hex from API
+ * Fetch transaction hex from API with timeout
  * @param txid - Transaction ID
  * @returns Transaction hex
+ * @throws Error if request times out after 30 seconds
  */
 export async function fetchTransactionHex(txid: string): Promise<string> {
-  const response = await fetch(getTxHexUrl(txid));
+  const response = await fetchWithTimeout(getTxHexUrl(txid), {}, 30000); // 30s timeout for blockchain API
+
+  if (!response.ok) {
+    throw new Error(`Failed to fetch transaction ${txid}: ${response.status} ${response.statusText}`);
+  }
+
   return await response.text();
 }
 
