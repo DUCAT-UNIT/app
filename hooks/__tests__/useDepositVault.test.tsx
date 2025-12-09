@@ -87,16 +87,20 @@ jest.mock('../../stores/depositStore', () => ({
   useDeposit: jest.fn(() => mockDepositStore),
 }));
 
+const mockSetPendingTransaction = jest.fn().mockResolvedValue(undefined);
 jest.mock('../../stores/pendingVaultTransactionStore', () => ({
-  usePendingVaultTransactionStore: jest.fn(() => ({
-    setPendingTransaction: jest.fn().mockResolvedValue(undefined),
-  })),
+  usePendingVaultTransactionStore: jest.fn((selector) => {
+    const state = { setPendingTransaction: mockSetPendingTransaction };
+    return typeof selector === 'function' ? selector(state) : state;
+  }),
 }));
 
+const mockShowSnackbar = jest.fn();
 jest.mock('../../stores/notificationStore', () => ({
-  useNotificationStore: jest.fn(() => ({
-    showSnackbar: jest.fn(),
-  })),
+  useNotificationStore: jest.fn((selector) => {
+    const state = { showSnackbar: mockShowSnackbar };
+    return typeof selector === 'function' ? selector(state) : state;
+  }),
 }));
 
 jest.mock('../../contexts/WalletContext', () => ({

@@ -148,18 +148,18 @@ describe('iCloudStorage', () => {
       pinSalt: 'pin-salt',
     };
 
-    it('should save all data to iCloud successfully', async () => {
+    it('should save all data to iCloud successfully (atomic v2 format)', async () => {
       mockSetItem.mockResolvedValue();
 
       const result = await saveToICloud(validBackupData);
 
-      expect(result).toContain('All 6 keys saved successfully');
-      expect(mockSetItem).toHaveBeenCalledWith('ducat_encrypted_mnemonic_v1', 'encrypted-data');
-      expect(mockSetItem).toHaveBeenCalledWith('ducat_encryption_iv_v1', 'iv-data');
-      expect(mockSetItem).toHaveBeenCalledWith('ducat_encryption_tag_v1', 'tag-data');
-      expect(mockSetItem).toHaveBeenCalledWith('ducat_credential_id_v1', 'cred-id');
-      expect(mockSetItem).toHaveBeenCalledWith('ducat_user_handle_v1', 'user-handle');
-      expect(mockSetItem).toHaveBeenCalledWith('ducat_pin_salt_v1', 'pin-salt');
+      // Now uses single atomic backup instead of 6 separate keys
+      expect(result).toContain('Atomic backup saved successfully');
+      expect(result).toContain('Backup saved successfully with atomic write protection');
+
+      // Verify atomic backup was saved with correct key
+      expect(mockSetItem).toHaveBeenCalledWith('ducat_backup_v2', expect.stringContaining('"version":2'));
+      expect(mockSetItem).toHaveBeenCalledWith('ducat_backup_v2', expect.stringContaining('"encrypted":"encrypted-data"'));
     });
 
     it('should include debug info in result', async () => {
@@ -169,7 +169,8 @@ describe('iCloudStorage', () => {
 
       expect(result).toContain('iCloud Save Debug');
       expect(result).toContain('Input validation');
-      expect(result).toContain('Saving to iCloud keys');
+      // Now uses atomic backup format
+      expect(result).toContain('Saving atomic backup to iCloud');
     });
 
     it('should throw error with debug info when setItem fails', async () => {
@@ -227,36 +228,41 @@ describe('iCloudStorage', () => {
   });
 
   describe('loadFromICloud', () => {
-    it('should load all data from iCloud successfully', async () => {
-      mockGetItem.mockImplementation((key) => {
-        const data = {
-          'ducat_encrypted_mnemonic_v1': 'encrypted-data',
-          'ducat_encryption_iv_v1': 'iv-data',
-          'ducat_encryption_tag_v1': 'tag-data',
-          'ducat_credential_id_v1': 'cred-id',
-          'ducat_user_handle_v1': 'user-handle',
-          'ducat_pin_salt_v1': 'pin-salt',
-        };
-        return Promise.resolve(data[key] || null);
-      });
-
-      const result = await loadFromICloud();
-
-      expect(result).toEqual({
+    it('should load all data from iCloud successfully (v2 atomic format)', async () => {
+      // New v2 atomic backup format
+      const atomicBackup = JSON.stringify({
+        version: 2,
         encrypted: 'encrypted-data',
         iv: 'iv-data',
         tag: 'tag-data',
         credentialId: 'cred-id',
         userHandle: 'user-handle',
         pinSalt: 'pin-salt',
-        _debugInfo: expect.stringContaining('All required keys loaded successfully'),
+        timestamp: Date.now(),
       });
+
+      mockGetItem.mockImplementation((key) => {
+        if (key === 'ducat_backup_v2') {
+          return Promise.resolve(atomicBackup);
+        }
+        return Promise.resolve(null);
+      });
+
+      const result = await loadFromICloud();
+
+      expect(result.encrypted).toBe('encrypted-data');
+      expect(result.iv).toBe('iv-data');
+      expect(result.tag).toBe('tag-data');
+      expect(result.credentialId).toBe('cred-id');
+      expect(result.userHandle).toBe('user-handle');
+      expect(result.pinSalt).toBe('pin-salt');
+      expect(result._debugInfo).toContain('Atomic backup loaded successfully');
     });
 
     it('should throw error when no backup exists', async () => {
       mockGetItem.mockResolvedValue(null);
 
-      await expect(loadFromICloud()).rejects.toThrow('No encrypted mnemonic in iCloud');
+      await expect(loadFromICloud()).rejects.toThrow('backup does not exist');
     });
 
     it('should throw error when IV is missing', async () => {
@@ -371,7 +377,8 @@ describe('iCloudStorage', () => {
       const result = await hasICloudBackup();
 
       expect(result).toBe(true);
-      expect(mockGetItem).toHaveBeenCalledWith('ducat_encrypted_mnemonic_v1');
+      // Now uses atomic backup key v2
+      expect(mockGetItem).toHaveBeenCalledWith('ducat_backup_v2');
     });
 
     it('should return false when no backup exists', async () => {
@@ -437,12 +444,13 @@ describe('iCloudStorage', () => {
       await expect(clearICloud()).rejects.toThrow('Clear failed');
     });
 
-    it('should call removeItem 6 times for all keys', async () => {
+    it('should call removeItem 7 times for all keys (1 v2 + 6 v1 legacy)', async () => {
       mockRemoveItem.mockResolvedValue();
 
       await clearICloud();
 
-      expect(mockRemoveItem).toHaveBeenCalledTimes(6);
+      // 1 atomic v2 key + 6 legacy v1 keys
+      expect(mockRemoveItem).toHaveBeenCalledTimes(7);
     });
   });
 });

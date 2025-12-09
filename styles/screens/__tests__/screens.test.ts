@@ -1,3 +1,4 @@
+// @ts-nocheck
 /**
  * Tests for Screen Styles Module
  * Verifies style exports and structure

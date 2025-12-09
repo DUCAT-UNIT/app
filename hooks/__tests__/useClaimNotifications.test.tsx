@@ -27,6 +27,14 @@ jest.mock('@react-navigation/native', () => ({
   }),
 }));
 
+// Mock tokenProcessingStore
+const mockTriggerWalletReload = jest.fn();
+jest.mock('../../stores/tokenProcessingStore', () => ({
+  useTokenProcessingStore: () => ({
+    triggerWalletReload: mockTriggerWalletReload,
+  }),
+}));
+
 // Helper to render hooks with props
 function renderHookWithProps(hook, props) {
   const result = { current: null };
@@ -61,12 +69,11 @@ describe('useClaimNotifications', () => {
     showSnackbar = jest.fn();
     dismissSnackbar = jest.fn();
     switchAccount = jest.fn().mockResolvedValue();
-    global.reloadWallet = jest.fn();
+    mockTriggerWalletReload.mockClear();
   });
 
   afterEach(() => {
     jest.useRealTimers();
-    delete global.reloadWallet;
   });
 
   it('should show success snackbar on claimSuccess', () => {
@@ -188,7 +195,7 @@ describe('useClaimNotifications', () => {
 
     expect(dismissSnackbar).toHaveBeenCalled();
     expect(switchAccount).toHaveBeenCalledWith(1); // account 2 -> index 1
-    expect(global.reloadWallet).toHaveBeenCalled();
+    expect(mockTriggerWalletReload).toHaveBeenCalled();
     expect(mockSetParams).toHaveBeenCalledWith({
       claimError: undefined,
       claimToken: undefined,

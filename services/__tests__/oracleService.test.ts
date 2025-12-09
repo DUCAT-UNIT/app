@@ -34,7 +34,8 @@ jest.mock('../../utils/logger', () => ({
 const mockFetch = jest.fn();
 global.fetch = mockFetch;
 
-import { fetchCurrentPrice } from '../oracleService';
+import { fetchCurrentPrice, fetchPriceQuote } from '../oracleService';
+import { OracleAPI } from '@ducat-unit/client-sdk';
 
 describe('oracleService', () => {
   beforeEach(() => {
@@ -87,6 +88,88 @@ describe('oracleService', () => {
         expect(true).toBe(false); // Should not reach here
       } catch (e) {
         expect(e.message).toContain('Failed to fetch current Bitcoin price');
+      }
+    });
+  });
+
+  describe('fetchPriceQuote', () => {
+    it('should fetch price quote successfully', async () => {
+      const mockQuote = {
+        price: 100000,
+        signature: 'mock_signature',
+        timestamp: Date.now(),
+      };
+
+      (OracleAPI.quote.fetch_price_quote as jest.Mock).mockResolvedValue({
+        ok: true,
+        data: mockQuote,
+      });
+
+      const result = await fetchPriceQuote(50000);
+
+      expect(OracleAPI.quote.fetch_price_quote).toHaveBeenCalledWith(
+        'https://test.quote.server',
+        50000
+      );
+      expect(result).toEqual(mockQuote);
+    });
+
+    it('should use minimum threshold of 1 for zero price', async () => {
+      const mockQuote = { price: 100000 };
+
+      (OracleAPI.quote.fetch_price_quote as jest.Mock).mockResolvedValue({
+        ok: true,
+        data: mockQuote,
+      });
+
+      await fetchPriceQuote(0);
+
+      expect(OracleAPI.quote.fetch_price_quote).toHaveBeenCalledWith(
+        'https://test.quote.server',
+        1
+      );
+    });
+
+    it('should floor liquidation price', async () => {
+      const mockQuote = { price: 100000 };
+
+      (OracleAPI.quote.fetch_price_quote as jest.Mock).mockResolvedValue({
+        ok: true,
+        data: mockQuote,
+      });
+
+      await fetchPriceQuote(50000.75);
+
+      expect(OracleAPI.quote.fetch_price_quote).toHaveBeenCalledWith(
+        'https://test.quote.server',
+        50000
+      );
+    });
+
+    it('should throw error on API error response', async () => {
+      (OracleAPI.quote.fetch_price_quote as jest.Mock).mockResolvedValue({
+        ok: false,
+        error: 'API Error',
+      });
+
+      try {
+        await fetchPriceQuote(50000);
+        expect(true).toBe(false);
+      } catch (e) {
+        expect(e.message).toContain('Oracle');
+      }
+    });
+
+    it('should throw error on network failure', async () => {
+      (OracleAPI.quote.fetch_price_quote as jest.Mock).mockRejectedValue(
+        new Error('Network error')
+      );
+
+      try {
+        await fetchPriceQuote(50000);
+        expect(true).toBe(false);
+      } catch (e) {
+        expect(e.message).toContain('price quote');
       }
     });
   });

@@ -448,6 +448,211 @@ describe('Vault Config Creators', () => {
   });
 });
 
+describe('Vault Guardian Operations', () => {
+  describe('guardianOpenVaultReserve', () => {
+    it('should reserve UNIT from guardian for vault opening', async () => {
+      const { guardianOpenVaultReserve } = require('../open');
+      const mockGuardianClient = {
+        req: {
+          unit: {
+            reserve: jest.fn().mockReturnValue({
+              resolve: jest.fn().mockResolvedValue({
+                mint_account: 'mint_acct_123',
+                unit_amount: 10000,
+              }),
+            }),
+          },
+        },
+      };
+
+      const vaultConfig = {
+        borrow_amount: 10000,
+        deposit_amount: 100000,
+        vault_label: 'test-vault',
+        tx_feerate: 5,
+      };
+
+      const result = await guardianOpenVaultReserve(
+        mockGuardianClient,
+        vaultConfig,
+        'vault_pubkey_123'
+      );
+
+      expect(result.mint_account).toBe('mint_acct_123');
+      expect(mockGuardianClient.req.unit.reserve).toHaveBeenCalledWith({
+        unit_amount: 10000,
+        vault_action: 'open',
+        vault_pubkey: 'vault_pubkey_123',
+      });
+    });
+  });
+
+  describe('guardianSendReqOpen', () => {
+    it('should submit vault request to guardian', async () => {
+      const { guardianSendReqOpen } = require('../open');
+      const mockGuardianClient = {
+        req: {
+          vault: {
+            open: jest.fn().mockReturnValue({
+              resolve: jest.fn().mockResolvedValue({
+                issue_txid: 'txid_abc123',
+              }),
+            }),
+          },
+        },
+      };
+
+      const vaultReq = {
+        issue_txid: 'txid_abc123',
+        vault_txid: 'vault_txid_456',
+      };
+
+      const result = await guardianSendReqOpen(mockGuardianClient, vaultReq);
+
+      expect(result).toBe('txid_abc123');
+      expect(mockGuardianClient.req.vault.open).toHaveBeenCalledWith(vaultReq);
+    });
+
+    it('should throw on guardian error', async () => {
+      const { guardianSendReqOpen } = require('../open');
+      const mockGuardianClient = {
+        req: {
+          vault: {
+            open: jest.fn().mockReturnValue({
+              resolve: jest.fn().mockRejectedValue(new Error('Guardian error')),
+            }),
+          },
+        },
+      };
+
+      await expect(guardianSendReqOpen(mockGuardianClient, {})).rejects.toThrow('Guardian error');
+    });
+  });
+
+  describe('guardianBorrowReserve', () => {
+    it('should reserve UNIT from guardian for borrowing', async () => {
+      const { guardianBorrowReserve } = require('../borrow');
+      const mockGuardianClient = {
+        req: {
+          unit: {
+            reserve: jest.fn().mockReturnValue({
+              resolve: jest.fn().mockResolvedValue({
+                mint_account: 'borrow_acct_123',
+              }),
+            }),
+          },
+        },
+      };
+
+      const borrowConfig = {
+        borrow_amount: 5000,
+        deposit_amount: 0,
+        tx_feerate: 3,
+      };
+
+      const result = await guardianBorrowReserve(
+        mockGuardianClient,
+        borrowConfig,
+        'vault_pubkey_borrow'
+      );
+
+      expect(result.mint_account).toBe('borrow_acct_123');
+      expect(mockGuardianClient.req.unit.reserve).toHaveBeenCalledWith({
+        unit_amount: 5000,
+        vault_action: 'borrow',
+        vault_pubkey: 'vault_pubkey_borrow',
+      });
+    });
+  });
+
+  describe('guardianSendReqBorrow', () => {
+    it('should be defined', () => {
+      const { guardianSendReqBorrow } = require('../borrow');
+      expect(guardianSendReqBorrow).toBeDefined();
+    });
+  });
+
+  describe('guardianRepayReserve', () => {
+    it('should reserve account from guardian for repay', async () => {
+      const { guardianRepayReserve } = require('../repay');
+      const mockGuardianClient = {
+        req: {
+          unit: {
+            reserve: jest.fn().mockReturnValue({
+              resolve: jest.fn().mockResolvedValue({
+                burn_account: 'burn_acct_123',
+              }),
+            }),
+          },
+        },
+      };
+
+      const repayConfig = {
+        repay_amount: 7500,
+        deposit_amount: 0,
+        tx_feerate: 4,
+      };
+
+      const result = await guardianRepayReserve(
+        mockGuardianClient,
+        repayConfig,
+        'vault_pubkey_repay'
+      );
+
+      expect(result.burn_account).toBe('burn_acct_123');
+    });
+  });
+
+  describe('guardianSendReqRepay', () => {
+    it('should be defined', () => {
+      const { guardianSendReqRepay } = require('../repay');
+      expect(guardianSendReqRepay).toBeDefined();
+    });
+  });
+
+  describe('guardianSendReqDeposit', () => {
+    it('should submit deposit request to guardian', async () => {
+      const { guardianSendReqDeposit } = require('../deposit');
+      const mockGuardianClient = {
+        req: {
+          vault: {
+            deposit: jest.fn().mockReturnValue({
+              resolve: jest.fn().mockResolvedValue({
+                vault_txid: 'deposit_vault_txid',
+              }),
+            }),
+          },
+        },
+      };
+
+      const result = await guardianSendReqDeposit(mockGuardianClient, {});
+
+      expect(result.vault_txid).toBe('deposit_vault_txid');
+    });
+  });
+
+  describe('guardianSendReqWithdraw', () => {
+    it('should submit withdraw request to guardian', async () => {
+      const { guardianSendReqWithdraw } = require('../withdraw');
+      const mockGuardianClient = {
+        req: {
+          vault: {
+            withdraw: jest.fn().mockReturnValue({
+              resolve: jest.fn().mockResolvedValue({
+                vault_txid: 'withdraw_vault_txid',
+              }),
+            }),
+          },
+        },
+      };
+
+      const result = await guardianSendReqWithdraw(mockGuardianClient, {});
+
+      expect(result.vault_txid).toBe('withdraw_vault_txid');
+    });
+  });
+});
+
 describe('Vault Index Re-exports', () => {
   it('should export all utils', () => {
     const index = require('../index');

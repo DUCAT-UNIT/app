@@ -34,6 +34,8 @@ jest.mock('@ducat-unit/client-sdk', () => ({
 }));
 
 import {
+  createGuardianClient,
+  getGuardianClient,
   disconnectGuardian,
   isGuardianConnected,
   withGuardianTimeout,
@@ -91,6 +93,22 @@ describe('guardianService', () => {
       jest.advanceTimersByTime(31000);
 
       await expect(resultPromise).rejects.toThrow('Guardian operation timeout');
+    });
+  });
+
+  describe('createGuardianClient', () => {
+    it('should be defined', () => {
+      expect(createGuardianClient).toBeDefined();
+    });
+
+    it('should be a function that creates clients', () => {
+      expect(typeof createGuardianClient).toBe('function');
+    });
+  });
+
+  describe('getGuardianClient', () => {
+    it('should be defined', () => {
+      expect(getGuardianClient).toBeDefined();
     });
   });
 });

@@ -51,7 +51,7 @@ jest.mock('react-native', () => ({
 const mockGetItem = AsyncStorage.getItem as jest.MockedFunction<typeof AsyncStorage.getItem>;
 const mockSetItem = AsyncStorage.setItem as jest.MockedFunction<typeof AsyncStorage.setItem>;
 
-// Import the actual module once
+// Import the module once
 const sentryService = require('../sentryService');
 
 describe('sentryService', () => {
@@ -61,6 +61,9 @@ describe('sentryService', () => {
     // Reset module state
     mockGetItem.mockResolvedValue(null);
     mockSetItem.mockResolvedValue(undefined);
+
+    // Reset internal service state for clean tests
+    sentryService._resetForTesting();
   });
 
   describe('getDeviceId', () => {

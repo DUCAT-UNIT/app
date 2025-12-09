@@ -59,6 +59,18 @@ jest.mock('../../services/cashu/cashuMintClient', () => ({
   checkProofsSpent: (...args) => mockCheckProofsSpent(...args),
 }));
 
+// Mock tokenProcessingStore
+const mockSetPendingToken = jest.fn();
+const mockIsTokenProcessed = jest.fn();
+const mockTriggerTokenCheck = jest.fn();
+jest.mock('../../stores/tokenProcessingStore', () => ({
+  useTokenProcessingStore: () => ({
+    setPendingToken: mockSetPendingToken,
+    isTokenProcessed: mockIsTokenProcessed,
+    triggerTokenCheck: mockTriggerTokenCheck,
+  }),
+}));
+
 // Mock atob for base64 decoding
 global.atob = jest.fn((str) => Buffer.from(str, 'base64').toString('utf8'));
 
@@ -98,10 +110,10 @@ describe('useQRCodeHandler', () => {
       return 1;
     });
 
-    // Clear global state
-    global.processedCashuTokens = undefined;
-    global.pendingCashuToken = undefined;
-    global.triggerPendingTokenCheck = undefined;
+    // Clear store mock default behavior
+    mockSetPendingToken.mockClear();
+    mockIsTokenProcessed.mockResolvedValue(false);
+    mockTriggerTokenCheck.mockClear();
 
     mockProps = {
       receiveCashuToken: jest.fn().mockResolvedValue({ amount: 100 }),
@@ -202,38 +214,29 @@ describe('useQRCodeHandler', () => {
       mockHasP2PKProofs.mockReturnValue(true);
     });
 
-    it('should handle P2PK token and set pending token globally', async () => {
+    it('should handle P2PK token and set pending token via store', async () => {
       const { result } = renderHookWithProps(mockProps);
 
       await act(async () => {
         await result.current('cashuAtestP2PKtoken');
       });
 
-      expect(global.pendingCashuToken).toBe('cashuAtestP2PKtoken');
+      expect(mockSetPendingToken).toHaveBeenCalledWith('cashuAtestP2PKtoken');
       expect(mockProps.setShowQRScanner).toHaveBeenCalledWith(false);
     });
 
-    it('should trigger pending token check if function is available', async () => {
-      jest.useFakeTimers({ legacyFakeTimers: true });
-      const mockTriggerCheck = jest.fn();
-      global.triggerPendingTokenCheck = mockTriggerCheck;
-
+    it('should trigger pending token check via store', async () => {
       const { result } = renderHookWithProps(mockProps);
 
       await act(async () => {
         await result.current('cashuAtestP2PKtoken');
       });
 
-      await act(async () => {
-        jest.advanceTimersByTime(100);
-      });
-
-      expect(mockTriggerCheck).toHaveBeenCalled();
-      jest.useRealTimers();
+      expect(mockTriggerTokenCheck).toHaveBeenCalled();
     });
 
     it('should show error snackbar for already processed token', async () => {
-      global.processedCashuTokens = new Set(['mockhash123']);
+      mockIsTokenProcessed.mockResolvedValue(true);
 
       const { result } = renderHookWithProps(mockProps);
 
@@ -250,7 +253,7 @@ describe('useQRCodeHandler', () => {
     });
 
     it('should process new P2PK token when not already processed', async () => {
-      global.processedCashuTokens = new Set(['differenthash']);
+      mockIsTokenProcessed.mockResolvedValue(false);
 
       const { result } = renderHookWithProps(mockProps);
 
@@ -258,7 +261,7 @@ describe('useQRCodeHandler', () => {
         await result.current('cashuAtestP2PKtoken');
       });
 
-      expect(global.pendingCashuToken).toBe('cashuAtestP2PKtoken');
+      expect(mockSetPendingToken).toHaveBeenCalledWith('cashuAtestP2PKtoken');
     });
   });
 
