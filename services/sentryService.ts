@@ -6,6 +6,7 @@
 import * as Sentry from '@sentry/react-native';
 import * as Device from 'expo-device';
 import * as Application from 'expo-application';
+import * as Crypto from 'expo-crypto';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { Platform } from 'react-native';
 
@@ -18,11 +19,13 @@ let isInitialized = false;
 
 /**
  * Generate a unique device identifier
- * Uses a combination of device info + random UUID for persistence
+ * Uses a combination of device info + cryptographically secure random for persistence
  */
 async function generateDeviceId(): Promise<string> {
   const timestamp = Date.now().toString(36);
-  const random = Math.random().toString(36).substring(2, 10);
+  // Use cryptographically secure random bytes instead of Math.random()
+  const randomBytes = Crypto.getRandomBytes(6);
+  const random = Array.from(randomBytes).map(b => b.toString(16).padStart(2, '0')).join('');
   const deviceInfo = `${Device.brand || 'unknown'}-${Device.modelName || 'device'}`.replace(/\s+/g, '-');
   return `${deviceInfo}-${timestamp}-${random}`;
 }
@@ -115,7 +118,7 @@ export async function initializeSentrySession(): Promise<string | null> {
 /**
  * Track screen navigation
  */
-export function trackScreen(screenName: string, params: Record<string, any> = {}): void {
+export function trackScreen(screenName: string, params: Record<string, unknown> = {}): void {
   Sentry.addBreadcrumb({
     category: 'navigation',
     message: `Screen: ${screenName}`,
@@ -134,7 +137,7 @@ export function trackScreen(screenName: string, params: Record<string, any> = {}
 /**
  * Track user action
  */
-export function trackAction(action: string, category = 'user_action', data: Record<string, any> = {}): void {
+export function trackAction(action: string, category = 'user_action', data: Record<string, unknown> = {}): void {
   Sentry.addBreadcrumb({
     category,
     message: action,
@@ -149,7 +152,7 @@ export function trackAction(action: string, category = 'user_action', data: Reco
 /**
  * Track transaction flow with detailed steps
  */
-export function trackTransactionFlow(step: string, data: Record<string, any> = {}): void {
+export function trackTransactionFlow(step: string, data: Record<string, unknown> = {}): void {
   const sanitizedData = sanitizeParams(data);
 
   Sentry.addBreadcrumb({
@@ -177,7 +180,7 @@ export function trackTransactionFlow(step: string, data: Record<string, any> = {
 /**
  * Track wallet operations
  */
-export function trackWalletOperation(operation: string, data: Record<string, any> = {}): void {
+export function trackWalletOperation(operation: string, data: Record<string, unknown> = {}): void {
   Sentry.addBreadcrumb({
     category: 'wallet',
     message: `Wallet: ${operation}`,
@@ -193,7 +196,7 @@ export function trackWalletOperation(operation: string, data: Record<string, any
 /**
  * Track Cashu/eCash operations
  */
-export function trackCashuOperation(operation: string, data: Record<string, any> = {}): void {
+export function trackCashuOperation(operation: string, data: Record<string, unknown> = {}): void {
   Sentry.addBreadcrumb({
     category: 'cashu',
     message: `Cashu: ${operation}`,
@@ -209,7 +212,7 @@ export function trackCashuOperation(operation: string, data: Record<string, any>
 /**
  * Track authentication events
  */
-export function trackAuth(event: string, data: Record<string, any> = {}): void {
+export function trackAuth(event: string, data: Record<string, unknown> = {}): void {
   Sentry.addBreadcrumb({
     category: 'auth',
     message: `Auth: ${event}`,
@@ -251,19 +254,21 @@ export function trackApiCall(endpoint: string, method: string, status: number, d
 /**
  * Track errors with context
  */
-export function trackError(error: Error | string, context: Record<string, any> = {}, level: Sentry.SeverityLevel = 'error'): void {
+export function trackError(error: Error | string, context: Record<string, unknown> = {}, level: Sentry.SeverityLevel = 'error'): void {
   const sanitizedContext = sanitizeParams(context);
+
+  const tags = (context.tags as Record<string, string> | undefined) || {};
 
   if (error instanceof Error) {
     Sentry.captureException(error, {
       level,
-      tags: context.tags || {},
+      tags,
       extra: sanitizedContext,
     });
   } else {
     Sentry.captureMessage(String(error), {
       level,
-      tags: context.tags || {},
+      tags,
       extra: sanitizedContext,
     });
   }
@@ -289,7 +294,7 @@ export function trackPerformance(metric: string, value: number, unit = 'ms'): vo
 /**
  * Set custom context for current session
  */
-export function setSessionContext(key: string, data: Record<string, any>): void {
+export function setSessionContext(key: string, data: Record<string, unknown>): void {
   Sentry.setContext(key, sanitizeParams(data));
 }
 
@@ -371,6 +376,16 @@ function sanitizeEndpoint(endpoint: string): string {
   return endpoint.split('?')[0];
 }
 
+/**
+ * Reset internal state (for testing only)
+ * @internal
+ */
+export function _resetForTesting(): void {
+  deviceId = null;
+  sessionStartTime = null;
+  isInitialized = false;
+}
+
 export default {
   initializeSentrySession,
   getDeviceId,
@@ -387,4 +402,5 @@ export default {
   setTag,
   getSessionDuration,
   endSession,
+  _resetForTesting,
 };

@@ -50,6 +50,11 @@ export const swapTokens = async (inputs: CashuProof[], outputs: BlindedOutput[])
       throw new Error('Invalid swap response: missing signatures');
     }
 
+    // Validate signature count matches expected output count
+    if (response.signatures.length !== outputs.length) {
+      throw new Error(`Signature count mismatch: expected ${outputs.length} signatures but got ${response.signatures.length}`);
+    }
+
     logger.info('Tokens swapped', { signatureCount: response.signatures.length });
     return response;
   } catch (error: unknown) {

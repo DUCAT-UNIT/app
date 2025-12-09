@@ -6,12 +6,12 @@
 import { useCallback } from 'react';
 import { Alert } from 'react-native';
 import { useNavigation, NavigationProp, ParamListBase } from '@react-navigation/native';
-import * as Crypto from 'expo-crypto';
 import { logger } from '../utils/logger';
 import { hasP2PKProofs } from '../services/cashu/p2pk';
 import { decodeToken, encodeToken } from '../services/cashu/crypto';
 import { checkProofsSpent } from '../services/cashu/cashuMintClient';
 import { notify } from '../utils/notify';
+import { useTokenProcessingStore } from '../stores/tokenProcessingStore';
 import type { SnackbarParams } from '../stores/notificationStore';
 
 interface ReceiveTokenResult {
@@ -50,16 +50,6 @@ interface TokenEntry {
   proofs: Proof[];
 }
 
-// Extend global for token processing
-declare global {
-  // eslint-disable-next-line no-var
-  var processedCashuTokens: Set<string> | undefined;
-  // eslint-disable-next-line no-var
-  var pendingCashuToken: string | undefined;
-  // eslint-disable-next-line no-var
-  var triggerPendingTokenCheck: (() => void) | undefined;
-}
-
 /**
  * Hook for handling various QR code formats
  */
@@ -69,6 +59,7 @@ export function useQRCodeHandler({
   setShowQRScanner,
 }: UseQRCodeHandlerParams): (data: string) => Promise<void> {
   const navigation = useNavigation<NavigationProp<ParamListBase>>();
+  const tokenStore = useTokenProcessingStore();
 
   const handleQRScan = useCallback(async (data: string) => {
     logger.debug('[useQRCodeHandler] QR scanned:', data);
@@ -95,13 +86,9 @@ export function useQRCodeHandler({
           // This is a Turbo token - check if already processed
           logger.debug('[useQRCodeHandler] P2PK token detected, checking if already processed');
 
-          // Check if already processed
-          const tokenHash = await Crypto.digestStringAsync(
-            Crypto.CryptoDigestAlgorithm.SHA256,
-            data
-          );
-
-          if (global.processedCashuTokens && global.processedCashuTokens.has(tokenHash)) {
+          // Check if already processed using the token store
+          const alreadyProcessed = await tokenStore.isTokenProcessed(data);
+          if (alreadyProcessed) {
             logger.debug('[useQRCodeHandler] Token already processed, showing error');
             setShowQRScanner(false);
             showSnackbar({
@@ -112,18 +99,15 @@ export function useQRCodeHandler({
             return;
           }
 
-          // Store token globally for processing
+          // Store token in store for processing
           logger.debug('[useQRCodeHandler] Processing new token');
-          global.pendingCashuToken = data;
+          tokenStore.setPendingToken(data);
 
           // Close scanner immediately
           setShowQRScanner(false);
 
           // Trigger the claim process which shows the loading overlay
-          if (typeof global.triggerPendingTokenCheck === 'function') {
-            const triggerCheck = global.triggerPendingTokenCheck;
-            setTimeout(() => triggerCheck(), 50);
-          }
+          tokenStore.triggerTokenCheck();
           return;
         }
 
@@ -308,7 +292,7 @@ export function useQRCodeHandler({
     // Unknown format
     logger.debug('[useQRCodeHandler] Unknown QR format:', { data });
     notify.token.unknownFormat();
-  }, [navigation, receiveCashuToken, showSnackbar, setShowQRScanner]);
+  }, [navigation, receiveCashuToken, showSnackbar, setShowQRScanner, tokenStore]);
 
   return handleQRScan;
 }

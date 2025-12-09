@@ -113,9 +113,17 @@ export const deriveAddressesFromMnemonic = (mnemonic: string, accountIndex = 0):
     network: MUTINYNET_NETWORK,
   });
 
+  // Validate addresses exist before returning
+  if (!segwitPayment.address) {
+    throw new Error('Failed to generate SegWit address from public key');
+  }
+  if (!taprootPayment.address) {
+    throw new Error('Failed to generate Taproot address from public key');
+  }
+
   return {
-    segwitAddress: segwitPayment.address!,
-    taprootAddress: taprootPayment.address!,
+    segwitAddress: segwitPayment.address,
+    taprootAddress: taprootPayment.address,
     segwitPubkey: Buffer.from(segwitChild.publicKey).toString('hex'),
     taprootPubkey: Buffer.from(xOnlyPubkey).toString('hex'), // Use x-only pubkey (32 bytes) for Taproot
   };

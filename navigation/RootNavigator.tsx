@@ -52,9 +52,8 @@ const PinSetupScreen: AnyComponent = withErrorBoundary(PinSetupScreenComponent, 
   fallbackMessage: 'Unable to load PIN setup. Please restart the app.',
 });
 
-// Create linking config once - cast to any to avoid strict type checking
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
-const linking = createLinkingConfig() as any;
+// Create linking config once
+const linking = createLinkingConfig();
 
 // Track navigation state changes
 const navigationRef = createRef<NavigationContainerRef<RootNavigatorParamList>>();
@@ -87,24 +86,23 @@ export default function RootNavigator(): React.JSX.Element {
   const { receive, refresh: refreshCashu } = useCashu();
 
   // Turbo token processing
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const { isVerifyingToken } = useTurboTokenProcessor({
     isAuthenticated,
     shouldShowPinOverlay,
     receive,
     fetchBalance,
     refreshCashu,
-    wallet: wallet as any,
-    showSnackbar: showSnackbar as any,
+    wallet,
+    showSnackbar,
     dismissSnackbar,
-    switchAccount: switchAccount as any,
+    switchAccount,
   });
 
   // Turbo snackbar queue
   useTurboSnackbarQueue({
     isAuthenticated,
     shouldShowPinOverlay,
-    showSnackbar: showSnackbar as any,
+    showSnackbar,
     dismissSnackbar,
   });
 

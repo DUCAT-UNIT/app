@@ -3,7 +3,7 @@
  * Orchestrates the full repay flow for paying back UNIT debt
  */
 
-import { useCallback, useRef, useEffect } from 'react';
+import { useCallback, useRef, useEffect, useState } from 'react';
 import { useRepayStore } from '../stores/repayStore';
 import { useWallet } from '../contexts/WalletContext';
 import { usePrice } from '../stores/priceStore';
@@ -69,9 +69,13 @@ export function useRepayVault(): UseRepayVaultResult {
     reset,
   } = useRepayStore();
 
+  // Get store actions
+  const setPendingTransaction = usePendingVaultTransactionStore((state) => state.setPendingTransaction);
+  const showSnackbar = useNotificationStore((state) => state.showSnackbar);
+
   // Track if we're in the middle of an operation
   const operationInProgressRef = useRef(false);
-  const vaultDataLoadedRef = useRef(false);
+  const [vaultDataLoaded, setVaultDataLoaded] = useState(false);
 
   // Update bitcoin price when it changes
   useEffect(() => {
@@ -110,7 +114,7 @@ export function useRepayVault(): UseRepayVaultResult {
       const btcLocked = vaultData.totalCollateral || 0;
 
       setCurrentVaultData(unitBorrowed, btcLocked);
-      vaultDataLoadedRef.current = true;
+      setVaultDataLoaded(true);
 
       logger.debug('[useRepayVault] Vault data loaded:', {
         unitBorrowed,
@@ -287,7 +291,7 @@ export function useRepayVault(): UseRepayVaultResult {
       setCurrentStep('success');
 
       // Set pending transaction for activity list and button disabling
-      await usePendingVaultTransactionStore.getState().setPendingTransaction({
+      await setPendingTransaction({
         txid: result.txid,
         vaultTxid: result.vault_txid,
         action: 'repay',
@@ -298,7 +302,7 @@ export function useRepayVault(): UseRepayVaultResult {
       });
 
       // Show info snackbar about pending confirmation
-      useNotificationStore.getState().showSnackbar({
+      showSnackbar({
         title: 'Vault transaction confirming',
         description: 'Please wait for the block to get mined',
         type: 'info',
@@ -340,11 +344,13 @@ export function useRepayVault(): UseRepayVaultResult {
     setCurrentStep,
     updateProcessingStep,
     buildVaultProfileFromData,
+    setPendingTransaction,
+    showSnackbar,
   ]);
 
   const cancel = useCallback(() => {
     operationInProgressRef.current = false;
-    vaultDataLoadedRef.current = false;
+    setVaultDataLoaded(false);
     disconnectGuardian();
     reset();
   }, [reset]);
@@ -357,7 +363,7 @@ export function useRepayVault(): UseRepayVaultResult {
     error,
     issueTxid,
     vaultTxid,
-    vaultDataLoaded: vaultDataLoadedRef.current,
+    vaultDataLoaded,
   };
 }
 

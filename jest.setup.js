@@ -131,12 +131,29 @@ jest.mock('expo-application', () => ({
 
 // Mock expo-crypto with real crypto implementation for testing
 jest.mock('expo-crypto', () => {
-  const { webcrypto: nodeWebcrypto, createHash } = require('node:crypto');
+  const { webcrypto: nodeWebcrypto, createHash, randomBytes } = require('node:crypto');
   return {
+    // Synchronous version - used by secureStorageService, useSeedVerification, sentryService
+    getRandomBytes: (size) => {
+      return new Uint8Array(randomBytes(size));
+    },
+    // Async version
     getRandomBytesAsync: async (size) => {
       const buffer = new Uint8Array(size);
       nodeWebcrypto.getRandomValues(buffer);
       return buffer;
+    },
+    // Synchronous digest
+    digest: (algorithm, data) => {
+      const algoMap = {
+        'SHA-256': 'sha256',
+        'SHA256': 'sha256',
+        'SHA-384': 'sha384',
+        'SHA-512': 'sha512',
+      };
+      const hashAlgo = algoMap[algorithm] || 'sha256';
+      const hash = createHash(hashAlgo).update(Buffer.from(data));
+      return new Uint8Array(hash.digest());
     },
     digestStringAsync: async (algorithm, data) => {
       // Map Expo algorithm names to Node crypto algorithm names

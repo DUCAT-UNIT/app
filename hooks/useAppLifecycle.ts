@@ -58,8 +58,11 @@ export function useAppLifecycle({
 
     // Cleanup: ensure screen capture is allowed when component unmounts
     return () => {
-      ScreenCapture.allowScreenCaptureAsync().catch(() => {
-        // Cleanup errors are expected and non-critical
+      ScreenCapture.allowScreenCaptureAsync().catch((error) => {
+        // Cleanup errors are expected and non-critical, but log for debugging
+        logger.debug('[useAppLifecycle] Screen capture cleanup failed (non-critical)', {
+          error: error instanceof Error ? error.message : String(error)
+        });
       });
     };
   }, []);

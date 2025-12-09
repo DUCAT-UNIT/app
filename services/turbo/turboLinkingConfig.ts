@@ -4,6 +4,7 @@
  */
 
 import { Linking, AppState, NativeEventSubscription, AppStateStatus } from 'react-native';
+import type { LinkingOptions } from '@react-navigation/native';
 import { logger } from '../../utils/logger';
 import { hashToken, initializeTokenStorage, turboGlobal } from './turboTokenStorage';
 
@@ -172,7 +173,7 @@ const createAppStateHandler = () => {
 /**
  * Linking configuration for React Navigation
  */
-export const createLinkingConfig = () => ({
+export const createLinkingConfig = (): LinkingOptions<object> => ({
   prefixes: ['ducat://', 'https://ducatprotocol.com', 'https://www.ducatprotocol.com'],
   config: {
     screens: {
@@ -206,7 +207,7 @@ export const createLinkingConfig = () => ({
     };
   },
 
-  async getStateFromPath(path: string, _options: unknown) {
+  getStateFromPath(path: string, _options: unknown) {
     logger.debug('[TURBO] getStateFromPath:', { pathPreview: path?.substring(0, 100) });
 
     // Check for Turbo token URLs
@@ -217,8 +218,11 @@ export const createLinkingConfig = () => ({
 
     if (isTurboUrl) {
       logger.debug('[TURBO] Processing token URL');
-      await processUrlAndStoreToken(path);
-      return null; // Prevent navigation
+      // Fire-and-forget async processing with error logging
+      processUrlAndStoreToken(path).catch((error) => {
+        logger.error('[TURBO] Failed to process URL token:', { error: error instanceof Error ? error.message : String(error) });
+      });
+      return undefined; // Return undefined to prevent navigation, let async processing handle token
     }
 
     return undefined; // Use default behavior

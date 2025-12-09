@@ -8,7 +8,7 @@ import * as ecc from '@bitcoinerlab/secp256k1';
 import { Point } from '@noble/secp256k1';
 import { logger } from '../../../utils/logger';
 import { generateSecret, generateBlindingFactor } from './cryptoSecrets';
-import { CashuProof } from './cryptoProofs';
+import { CashuProof, createProof } from './cryptoProofs';
 
 export interface BlindedMessage {
   amount: number;
@@ -80,8 +80,8 @@ export const hashToCurve = async (secret: string): Promise<string> => {
       Point.fromHex(pointHex);
       // Valid point found!
       return pointHex;
-    } catch {
-      // Not a valid point, try next counter
+    } catch (_) {
+      // Not a valid point on curve, try next counter (expected behavior per NUT-00)
       continue;
     }
   }
@@ -258,7 +258,11 @@ export const unblindSignatures = (
   keys: Record<number, string>,
   keysetId: string
 ): CashuProof[] => {
-  const { createProof } = require('./cryptoProofs');
+  // Validate signature count matches blinding data count
+  if (signatures.length !== blindingData.length) {
+    throw new Error(`Signature count mismatch: got ${signatures.length} signatures but ${blindingData.length} blinding data entries`);
+  }
+
   const proofs: CashuProof[] = [];
 
   for (let i = 0; i < signatures.length; i++) {
@@ -268,8 +272,7 @@ export const unblindSignatures = (
     // Get mint's public key for this amount
     const A = keys[data.amount];
     if (!A) {
-      logger.warn('No public key for amount', { amount: data.amount });
-      continue;
+      throw new Error(`No public key available for amount ${data.amount}. Cannot unblind signature.`);
     }
 
     // Unblind signature

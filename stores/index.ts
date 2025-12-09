@@ -60,6 +60,13 @@ export {
   type PendingTransactionOutput,
 } from './pendingTransactionsStore';
 
+// Token Processing (replaces global variables)
+export {
+  useTokenProcessingStore,
+  selectPendingToken,
+  selectHasPendingToken,
+} from './tokenProcessingStore';
+
 /**
  * Reset all stores to initial state (useful for testing)
  */
@@ -69,10 +76,12 @@ export const resetAllStores = async () => {
   const { resetSendFlowStore } = await import('./sendFlowStore');
   const { resetNotificationStore } = await import('./notificationStore');
   const { resetPendingTransactionsStore } = await import('./pendingTransactionsStore');
+  const { useTokenProcessingStore } = await import('./tokenProcessingStore');
 
   resetDisplayPreferencesStore();
   resetPriceStore();
   resetSendFlowStore();
   resetNotificationStore();
   resetPendingTransactionsStore();
+  useTokenProcessingStore.getState().reset();
 };

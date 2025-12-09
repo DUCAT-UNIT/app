@@ -8,6 +8,7 @@ import { useState, useCallback, useMemo } from 'react';
 import { authenticateWithBiometrics } from '../services/biometricService';
 import * as SettingsService from '../services/settingsService';
 import { notify } from '../utils/notify';
+import { logger } from '../utils/logger';
 
 interface AuthenticatedToggleConfig {
   settingKey: string;
@@ -96,7 +97,8 @@ export function useAuthenticatedToggle(config: AuthenticatedToggleConfig): Authe
             SettingsService.SettingKeys.RETURN_TO_SETTINGS_AFTER_AUTH,
             true
           );
-        } catch {
+        } catch (error: unknown) {
+          logger.error('[useAuthenticatedToggle] Biometric auth failed', { error: error instanceof Error ? error.message : String(error), settingName });
           notify.auth.required(`${newValue ? 'enable' : 'disable'} ${settingName}`);
           return;
         }
@@ -126,7 +128,8 @@ export function useAuthenticatedToggle(config: AuthenticatedToggleConfig): Authe
       } else {
         notify.settings.disabled(settingName);
       }
-    } catch {
+    } catch (error: unknown) {
+      logger.error('[useAuthenticatedToggle] Failed to save setting', { error: error instanceof Error ? error.message : String(error), settingName, settingKey });
       notify.settings.failed(settingName);
     }
   }, [

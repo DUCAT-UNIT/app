@@ -41,6 +41,26 @@ interface PsbtCache {
 type PsbtWithCache = bitcoin.Psbt & { __CACHE: PsbtCache };
 
 /**
+ * Extract witnessUtxo data from all PSBT inputs with validation
+ * @throws Error if any input is missing witnessUtxo
+ */
+function extractWitnessData(psbt: bitcoin.Psbt): { scripts: Buffer[]; values: bigint[] } {
+  const scripts: Buffer[] = [];
+  const values: bigint[] = [];
+
+  for (let i = 0; i < psbt.data.inputs.length; i++) {
+    const input = psbt.data.inputs[i];
+    if (!input.witnessUtxo) {
+      throw new Error(`Input ${i} is missing witnessUtxo - cannot sign PSBT`);
+    }
+    scripts.push(Buffer.from(input.witnessUtxo.script));
+    values.push(input.witnessUtxo.value);
+  }
+
+  return { scripts, values };
+}
+
+/**
  * Sign a PSBT with the mobile wallet
  * @param psbtBase64 - PSBT in base64 format
  * @param signInputs - Map of addresses to input indices to sign
@@ -138,7 +158,11 @@ function signScriptPathInput(
   keyPair: BIP32Interface,
   input: PsbtInput
 ): void {
-  const tapLeafScript = input.tapLeafScript![0];
+  // Validate tapLeafScript exists and has at least one element
+  if (!input.tapLeafScript || input.tapLeafScript.length === 0) {
+    throw new Error(`Input ${inputIndex} has no tapLeafScript for script-path signing`);
+  }
+  const tapLeafScript = input.tapLeafScript[0];
   const leafVersion = tapLeafScript.leafVersion;
   const script = tapLeafScript.script;
 
@@ -152,18 +176,25 @@ function signScriptPathInput(
   );
 
   const sighash = input.sighashType || 0x00;
+  // Extract and validate witnessUtxo data from all inputs
+  const { scripts, values } = extractWitnessData(psbt);
+
   // Access internal PSBT cache for low-level Taproot signing (required by bitcoinjs-lib)
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const psbtCache = (psbt as any).__CACHE as PsbtCache;
   const hash = psbtCache.__TX.hashForWitnessV1(
     inputIndex,
-    psbt.data.inputs.map((i) => i.witnessUtxo!.script),
-    psbt.data.inputs.map((i) => i.witnessUtxo!.value),
+    scripts,
+    values,
     sighash,
     tapleafHash
   );
 
-  let privateKey = keyPair.privateKey!;
+  // Validate private key exists
+  if (!keyPair.privateKey) {
+    throw new Error('Key pair is missing private key for signing');
+  }
+  let privateKey = keyPair.privateKey;
   if (!Buffer.isBuffer(privateKey)) {
     privateKey = Buffer.from(privateKey);
   }
@@ -203,14 +234,17 @@ function signKeyPathInput(
     psbt.signInput(inputIndex, tweakedSigner);
   } catch (error: unknown) {
     // Fall back to manual signing when standard signing fails
+    // Extract and validate witnessUtxo data from all inputs
+    const { scripts, values } = extractWitnessData(psbt);
+
     // Access internal PSBT cache for low-level Taproot signing (required by bitcoinjs-lib)
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const psbtCache = (psbt as any).__CACHE as PsbtCache;
     const tx = psbtCache.__TX.clone();
     const sighash = tx.hashForWitnessV1(
       inputIndex,
-      psbt.data.inputs.map((input) => input.witnessUtxo!.script),
-      psbt.data.inputs.map((input) => input.witnessUtxo!.value),
+      scripts,
+      values,
       bitcoin.Transaction.SIGHASH_DEFAULT
     );
 
@@ -218,7 +252,12 @@ function signKeyPathInput(
       bitcoin.crypto.taggedHash('TapTweak', xOnlyPubkey)
     );
 
-    const signature = ecc.signSchnorr(sighash, (tweakedSigner as BIP32Interface).privateKey!);
+    // Validate tweaked signer has private key
+    const tweakedKeyPair = tweakedSigner as BIP32Interface;
+    if (!tweakedKeyPair.privateKey) {
+      throw new Error('Tweaked key pair is missing private key for signing');
+    }
+    const signature = ecc.signSchnorr(sighash, tweakedKeyPair.privateKey);
     psbt.updateInput(inputIndex, { tapKeySig: Buffer.from(signature) });
   }
 }
@@ -400,7 +439,11 @@ export async function signPsbtRaw(
               logger.debug(`[signPsbtRaw] Using SCRIPT-PATH signing for Taproot (manual Schnorr)`);
               logger.debug(`[signPsbtRaw] tapLeafScript present: ${!!input.tapLeafScript}`);
 
-              const tapLeafScript = input.tapLeafScript![0];
+              // Validate tapLeafScript exists and has at least one element
+              if (!input.tapLeafScript || input.tapLeafScript.length === 0) {
+                throw new Error(`Input ${inputIndex} has no tapLeafScript for script-path signing`);
+              }
+              const tapLeafScript = input.tapLeafScript[0];
               const leafVersion = tapLeafScript.leafVersion;
               const script = tapLeafScript.script;
 
@@ -418,22 +461,28 @@ export async function signPsbtRaw(
 
               logger.debug(`[signPsbtRaw] tapleafHash: ${Buffer.from(tapleafHash).toString('hex')}`);
 
+              // Extract and validate witnessUtxo data from all inputs
+              const { scripts: witnessScripts, values: witnessValues } = extractWitnessData(psbt);
+
               // Get the sighash for script-path spending
               const sighash = input.sighashType || 0x00; // SIGHASH_DEFAULT
               // eslint-disable-next-line @typescript-eslint/no-explicit-any
               const psbtCache = (psbt as any).__CACHE as PsbtCache;
               const hash = psbtCache.__TX.hashForWitnessV1(
                 inputIndex,
-                psbt.data.inputs.map(i => Buffer.from(i.witnessUtxo!.script)),
-                psbt.data.inputs.map(i => i.witnessUtxo!.value),
+                witnessScripts.map(s => Buffer.from(s)),
+                witnessValues,
                 sighash,
                 tapleafHash
               );
 
               logger.debug(`[signPsbtRaw] sighash for script-path: ${Buffer.from(hash).toString('hex')}`);
 
-              // Use original private key for script-path (no tweaking needed)
-              let privateKey = keyPair.privateKey!;
+              // Validate private key exists
+              if (!keyPair.privateKey) {
+                throw new Error('Key pair is missing private key for signing');
+              }
+              let privateKey = keyPair.privateKey;
               if (!Buffer.isBuffer(privateKey)) {
                 privateKey = Buffer.from(privateKey);
               }
@@ -461,8 +510,11 @@ export async function signPsbtRaw(
               // KEY-PATH spending - set tapKeySig directly
               logger.debug(`[signPsbtRaw] Using KEY-PATH signing for Taproot`);
 
-              // Handle y-coordinate negation manually for key-path
-              let privateKey2 = keyPair.privateKey!;
+              // Validate private key exists
+              if (!keyPair.privateKey) {
+                throw new Error('Key pair is missing private key for signing');
+              }
+              let privateKey2 = keyPair.privateKey;
               if (!Buffer.isBuffer(privateKey2)) {
                 privateKey2 = Buffer.from(privateKey2);
               }
@@ -476,14 +528,17 @@ export async function signPsbtRaw(
                 privateKey2 = Buffer.from(negatedNum.toString(16).padStart(64, '0'), 'hex');
               }
 
+              // Extract and validate witnessUtxo data from all inputs
+              const { scripts: keyPathScripts, values: keyPathValues } = extractWitnessData(psbt);
+
               // Get the sighash for key-path spending
               const sighashKey = input.sighashType || 0x00; // SIGHASH_DEFAULT
               // eslint-disable-next-line @typescript-eslint/no-explicit-any
               const psbtCache2 = (psbt as any).__CACHE as PsbtCache;
               const hash2 = psbtCache2.__TX.hashForWitnessV1(
                 inputIndex,
-                psbt.data.inputs.map(i => Buffer.from(i.witnessUtxo!.script)),
-                psbt.data.inputs.map(i => i.witnessUtxo!.value),
+                keyPathScripts.map(s => Buffer.from(s)),
+                keyPathValues,
                 sighashKey
               );
 

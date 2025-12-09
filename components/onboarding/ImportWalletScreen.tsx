@@ -17,6 +17,7 @@ import {
 import * as Clipboard from 'expo-clipboard';
 import { colors, fonts, fontSizes, fontWeights, radii, layout } from '../../styles/theme';
 import Icon from '../icons';
+import { logger } from '../../utils/logger';
 
 interface ImportWalletScreenProps {
   importSeedPhrase: string[];
@@ -66,8 +67,9 @@ export default function ImportWalletScreen({
         });
         setImportSeedPhrase(newPhrase);
       }
-    } catch {
-      // Clipboard access denied or failed silently
+    } catch (error: unknown) {
+      // Clipboard access may be denied by user or system
+      logger.debug('[ImportWalletScreen] Clipboard access failed', { error: error instanceof Error ? error.message : String(error) });
     }
   }, [setImportSeedPhrase]);
 

@@ -541,7 +541,7 @@ describe('cashuCrypto', () => {
       expect(proofs[0]).toHaveProperty('id');
     });
 
-    it('should skip proofs without matching public key', () => {
+    it('should throw error when public key is missing for amount', () => {
       const signatures = [
         { C_: '02' + 'aa'.repeat(32), id: 'keyset1' },
       ];
@@ -550,9 +550,10 @@ describe('cashuCrypto', () => {
       ];
       const keys = {}; // No key for amount 100
 
-      const proofs = unblindSignatures(signatures, blindingData, keys, 'keyset1');
-
-      expect(proofs).toHaveLength(0);
+      // Now throws error instead of silently skipping - prevents fund loss
+      expect(() => unblindSignatures(signatures, blindingData, keys, 'keyset1')).toThrow(
+        'No public key available for amount 100. Cannot unblind signature.'
+      );
     });
 
     it('should use signature id if present', () => {

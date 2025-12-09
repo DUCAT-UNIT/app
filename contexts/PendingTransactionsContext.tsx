@@ -50,7 +50,8 @@ interface PendingTransactionsContextValue {
     outputs: import('../stores/pendingTransactionsStore').PendingTransactionOutput[],
     assetType: 'BTC' | 'UNIT',
     parentTxid?: string | null,
-    sentAmount?: number
+    sentAmount?: number,
+    inputUtxos?: Array<{ txid: string; vout: number }>
   ) => Promise<void>;
   confirmTransaction: (txid: string) => Promise<void>;
   invalidateTransaction: (txid: string, reason?: string) => Promise<string[]>;
@@ -66,6 +67,7 @@ interface PendingTransactionsContextValue {
 
 // Store the showSnackbar function in module scope for the hook
 let _showSnackbar: ((params: SnackbarParams) => void) | null = null;
+let _showSnackbarSetCount = 0;
 
 /**
  * Legacy hook - returns all pending transactions values
@@ -121,7 +123,13 @@ export const PendingTransactionsProvider: React.FC<PendingTransactionsProviderPr
 
   // Store showSnackbar in module scope for the hook
   useEffect(() => {
+    if (_showSnackbar !== null) {
+      console.warn('[PendingTransactionsProvider] Multiple providers detected - _showSnackbar is being overwritten', {
+        setCount: _showSnackbarSetCount + 1,
+      });
+    }
     _showSnackbar = showSnackbar;
+    _showSnackbarSetCount++;
     return () => {
       _showSnackbar = null;
     };

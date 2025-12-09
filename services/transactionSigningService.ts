@@ -128,13 +128,6 @@ export const signIntent = async (
   const signedTx = psbt.extractTransaction();
   const signedTxHex = signedTx.toHex();
 
-  // VERIFY: Check that runestone is in the transaction (for UNIT transactions)
-  if (intent.assetType === 'UNIT') {
-    signedTx.outs.forEach(() => {
-      // Verification logic removed - keeping structure for future enhancements
-    });
-  }
-
   return {
     signedTxHex,
     txid: signedTx.getId(),

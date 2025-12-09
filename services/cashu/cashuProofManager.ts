@@ -63,9 +63,18 @@ const migrateGlobalProofs = async (taprootAddress: string): Promise<void> => {
 
     // Migrate: copy old proofs to new account-specific key
     await SecureStore.setItemAsync(newKey, oldProofs);
+
+    // Parse proof count safely for logging
+    let proofCount = 0;
+    try {
+      proofCount = JSON.parse(oldProofs).length;
+    } catch (parseError) {
+      logger.warn('Failed to parse old proofs for count', { error: (parseError as Error).message });
+    }
+
     logger.info('Migrated proofs from global storage to account-specific storage', {
       address: taprootAddress,
-      proofCount: JSON.parse(oldProofs).length
+      proofCount
     });
 
     // Delete old global key
@@ -110,7 +119,13 @@ export const loadProofs = async (): Promise<CashuProof[]> => {
       return [];
     }
 
-    const proofs: CashuProof[] = JSON.parse(stored);
+    let proofs: CashuProof[];
+    try {
+      proofs = JSON.parse(stored);
+    } catch (parseError) {
+      logger.error('Failed to parse stored proofs', { error: (parseError as Error).message });
+      return [];
+    }
 
     // Log stack trace to see who's calling this
     const caller = new Error().stack?.split('\n')[2]?.trim() || 'unknown';
@@ -135,18 +150,26 @@ export const saveProofs = async (proofs: CashuProof[]): Promise<void> => {
     const STORAGE_KEY = getStorageKey();
     const serialized = JSON.stringify(proofs);
 
-    // Delete first to force cache invalidation
-    await SecureStore.deleteItemAsync(STORAGE_KEY);
-
-    // Small delay to ensure delete completes
-    await new Promise(resolve => setTimeout(resolve, 50));
-
-    // Now write the new value
+    // Atomic write operation - SecureStore.setItemAsync overwrites existing data
+    // No need to delete first, which eliminates the race condition
     await SecureStore.setItemAsync(STORAGE_KEY, serialized);
 
     // Verify the write succeeded
     const verification = await SecureStore.getItemAsync(STORAGE_KEY);
-    const verified: CashuProof[] = JSON.parse(verification || '[]');
+    if (!verification) {
+      logger.error('SecureStore write verification failed - no data returned');
+      throw new Error('Failed to save proofs - verification returned null');
+    }
+
+    let verified: CashuProof[];
+    try {
+      verified = JSON.parse(verification);
+    } catch (parseError) {
+      logger.error('SecureStore write verification failed - invalid JSON', {
+        error: (parseError as Error).message,
+      });
+      throw new Error('Failed to save proofs - verification returned invalid JSON');
+    }
 
     if (verified.length !== proofs.length) {
       logger.error('SecureStore write verification failed!', {
@@ -206,7 +229,13 @@ export const loadProofsPartial = async (limit: number | null = null): Promise<Ca
       return [];
     }
 
-    const proofs: CashuProof[] = JSON.parse(stored);
+    let proofs: CashuProof[];
+    try {
+      proofs = JSON.parse(stored);
+    } catch (parseError) {
+      logger.error('Failed to parse stored proofs', { error: (parseError as Error).message });
+      return [];
+    }
 
     if (limit !== null && proofs.length > limit) {
       logger.info('Loaded partial proofs from storage', {

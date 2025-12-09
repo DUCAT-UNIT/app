@@ -20,7 +20,7 @@ const getScaledStyles = (scale: number) => ({
   vaultCard: {
     ...vault.vaultCard,
     padding: 4,
-    height: 'auto',
+    height: 'auto' as const,
     marginBottom: 0,
   },
   vaultIconContainer: {

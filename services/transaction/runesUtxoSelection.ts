@@ -157,7 +157,13 @@ export async function findRuneUtxo(
       continue;
     }
 
-    const runeAmount = parseInt(data.runes!['DUCAT•UNIT•RUNE']!.amount, 10);
+    // Safe access with validation (already filtered but double-check for safety)
+    const runeData = data.runes?.['DUCAT•UNIT•RUNE'];
+    if (!runeData?.amount) {
+      logger.warn('[findRuneUtxo] Skipping UTXO with missing rune data:', { key });
+      continue;
+    }
+    const runeAmount = parseInt(runeData.amount, 10);
     logger.debug('[findRuneUtxo] Found UTXO with rune amount:', { runeAmount, totalSoFar: totalRuneAmount + runeAmount });
 
     selectedUtxos.push({

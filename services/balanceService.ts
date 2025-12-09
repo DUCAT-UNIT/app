@@ -5,6 +5,7 @@
 import { getJSON, fetchParallel } from '../utils/apiClient';
 import { getAddressUrl, getAddressUtxoUrl, getOrdAddressUrl, API_KEYS } from '../utils/constants';
 import { satsToBTC } from '../utils/bitcoin/conversions';
+import { logger } from '../utils/logger';
 
 const BALANCE_FETCH_TIMEOUT = 10000; // 10 seconds
 
@@ -76,7 +77,17 @@ export const fetchWalletBalances = async (
         });
         const totalReceived = data.chain_stats?.funded_txo_sum || 0;
         const totalSpent = data.chain_stats?.spent_txo_sum || 0;
-        return satsToBTC(totalReceived - totalSpent);
+        const balance = totalReceived - totalSpent;
+        if (balance < 0) {
+          logger.warn('Negative balance detected, returning 0', {
+            address: segwitAddress.slice(0, 10) + '...',
+            totalReceived,
+            totalSpent,
+            calculated: balance,
+          });
+          return 0;
+        }
+        return satsToBTC(balance);
       },
       defaultValue: 0 as number | RuneBalance[],
     },
@@ -89,7 +100,17 @@ export const fetchWalletBalances = async (
         });
         const totalReceived = data.chain_stats?.funded_txo_sum || 0;
         const totalSpent = data.chain_stats?.spent_txo_sum || 0;
-        return satsToBTC(totalReceived - totalSpent);
+        const balance = totalReceived - totalSpent;
+        if (balance < 0) {
+          logger.warn('Negative balance detected, returning 0', {
+            address: taprootAddress.slice(0, 10) + '...',
+            totalReceived,
+            totalSpent,
+            calculated: balance,
+          });
+          return 0;
+        }
+        return satsToBTC(balance);
       },
       defaultValue: 0 as number | RuneBalance[],
     },

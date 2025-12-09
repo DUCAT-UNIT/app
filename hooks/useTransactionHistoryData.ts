@@ -312,8 +312,8 @@ export function useTransactionHistoryData(
       if (supported) {
         await Linking.openURL(url);
       }
-    } catch {
-      // Silently fail
+    } catch (error: unknown) {
+      logger.warn('[useTransactionHistoryData] Failed to open tx in explorer', { error: error instanceof Error ? error.message : String(error), txid });
     }
   }, []);
 

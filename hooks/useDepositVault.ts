@@ -3,7 +3,7 @@
  * Orchestrates the full deposit flow for adding more BTC collateral to an existing vault
  */
 
-import { useCallback, useRef, useEffect } from 'react';
+import { useCallback, useRef, useEffect, useState } from 'react';
 import { useDepositStore } from '../stores/depositStore';
 import { useWallet } from '../contexts/WalletContext';
 import { usePrice } from '../stores/priceStore';
@@ -64,9 +64,13 @@ export function useDepositVault(): UseDepositVaultResult {
     reset,
   } = useDepositStore();
 
+  // Get store actions
+  const setPendingTransaction = usePendingVaultTransactionStore((state) => state.setPendingTransaction);
+  const showSnackbar = useNotificationStore((state) => state.showSnackbar);
+
   // Track if we're in the middle of an operation
   const operationInProgressRef = useRef(false);
-  const vaultDataLoadedRef = useRef(false);
+  const [vaultDataLoaded, setVaultDataLoaded] = useState(false);
 
   // Update bitcoin price when it changes
   useEffect(() => {
@@ -105,7 +109,7 @@ export function useDepositVault(): UseDepositVaultResult {
       const btcLocked = vaultData.totalCollateral || 0;
 
       setCurrentVaultData(unitBorrowed, btcLocked);
-      vaultDataLoadedRef.current = true;
+      setVaultDataLoaded(true);
 
       logger.debug('[useDepositVault] Vault data loaded:', {
         unitBorrowed,
@@ -271,7 +275,7 @@ export function useDepositVault(): UseDepositVaultResult {
       setCurrentStep('success');
 
       // Set pending transaction for activity list and button disabling
-      await usePendingVaultTransactionStore.getState().setPendingTransaction({
+      await setPendingTransaction({
         txid: result.vault_txid,
         vaultTxid: result.vault_txid,
         action: 'deposit',
@@ -282,7 +286,7 @@ export function useDepositVault(): UseDepositVaultResult {
       });
 
       // Show info snackbar about pending confirmation
-      useNotificationStore.getState().showSnackbar({
+      showSnackbar({
         title: 'Vault transaction confirming',
         description: 'Please wait for the block to get mined',
         type: 'info',
@@ -322,11 +326,13 @@ export function useDepositVault(): UseDepositVaultResult {
     setCurrentStep,
     updateProcessingStep,
     buildVaultProfileFromData,
+    setPendingTransaction,
+    showSnackbar,
   ]);
 
   const cancel = useCallback(() => {
     operationInProgressRef.current = false;
-    vaultDataLoadedRef.current = false;
+    setVaultDataLoaded(false);
     disconnectGuardian();
     reset();
   }, [reset]);
@@ -338,7 +344,7 @@ export function useDepositVault(): UseDepositVaultResult {
     isLoading: loading,
     error,
     vaultTxid,
-    vaultDataLoaded: vaultDataLoadedRef.current,
+    vaultDataLoaded,
   };
 }
 

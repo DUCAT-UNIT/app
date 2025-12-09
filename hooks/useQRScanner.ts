@@ -152,8 +152,9 @@ export function useQRScanner({ visible, onScan }: UseQRScannerParams): UseQRScan
           if (/^[A-Za-z0-9+/=]+$/.test(fullPayload)) {
             finalPayload = atob(fullPayload);
           }
-        } catch {
-          // Use raw payload
+        } catch (error: unknown) {
+          // Base64 decode failed, use raw payload
+          logger.debug('[QRScanner] Base64 decode failed, using raw payload', { error: error instanceof Error ? error.message : String(error) });
         }
 
         // Remove duplicate prefix

@@ -63,7 +63,7 @@ export const logger = {
     if (isDev) {
       console.log(`[DEBUG] ${message}`, ...args);
     }
-    const data = args.length > 0 ? (typeof args[0] === 'object' ? args[0] as LogContext : { args }) : {};
+    const data = args.length > 0 ? (args[0] !== null && typeof args[0] === 'object' ? args[0] as LogContext : { args }) : {};
     Sentry.addBreadcrumb({
       message,
       level: 'debug',

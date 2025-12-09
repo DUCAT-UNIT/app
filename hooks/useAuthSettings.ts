@@ -7,6 +7,7 @@ import { useState, useCallback, useMemo } from 'react';
 import * as SecureStore from 'expo-secure-store';
 import { authenticateWithBiometrics } from '../services/biometricService';
 import { notify } from '../utils/notify';
+import { logger } from '../utils/logger';
 
 interface UseAuthSettingsParams {
   biometricEnabled: boolean;
@@ -59,7 +60,8 @@ export function useAuthSettings({ biometricEnabled, setBiometricEnabled, setIsAu
 
         // Biometric auth succeeded, set flag to return to settings
         await SecureStore.setItemAsync('returnToSettingsAfterAuth', 'true');
-      } catch {
+      } catch (error: unknown) {
+        logger.error('[useAuthSettings] Biometric auth failed for Face ID toggle', { error: error instanceof Error ? error.message : String(error) });
         notify.auth.requiredForFaceId();
         return;
       }
@@ -74,7 +76,8 @@ export function useAuthSettings({ biometricEnabled, setBiometricEnabled, setIsAu
       } else {
         notify.settings.faceIdDisabled();
       }
-    } catch {
+    } catch (error: unknown) {
+      logger.error('[useAuthSettings] Failed to save biometric setting', { error: error instanceof Error ? error.message : String(error) });
       notify.settings.faceIdFailed();
     }
   }, [pendingFaceIdValue, setBiometricEnabled, setIsAuthenticated]);

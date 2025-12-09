@@ -38,7 +38,15 @@ TaskManager.defineTask(BACKGROUND_FETCH_TASK, async () => {
       return BackgroundFetch.BackgroundFetchResult.NoData;
     }
 
-    const pendingTxs = JSON.parse(pendingTxsJson) as PendingTransaction[];
+    let pendingTxs: PendingTransaction[] = [];
+    try {
+      pendingTxs = JSON.parse(pendingTxsJson) as PendingTransaction[];
+    } catch (parseError) {
+      logger.error('Failed to parse pending transactions JSON', {
+        error: parseError instanceof Error ? parseError.message : String(parseError)
+      });
+      return BackgroundFetch.BackgroundFetchResult.Failed;
+    }
 
     // Check all transactions in parallel
     const confirmationResults = await Promise.all(
@@ -82,6 +90,10 @@ async function checkTransactionConfirmation(txid: string): Promise<boolean> {
     const tx = await response.json() as TransactionStatusResponse;
     return tx.status && tx.status.confirmed;
   } catch (error: unknown) {
+    logger.warn('Error checking transaction confirmation', {
+      txid,
+      error: error instanceof Error ? error.message : String(error)
+    });
     return false;
   }
 }
@@ -123,7 +135,18 @@ export async function addPendingTransaction(
 ): Promise<void> {
   try {
     const pendingTxsJson = await SecureStore.getItemAsync(PENDING_TX_KEY);
-    const pendingTxs: PendingTransaction[] = pendingTxsJson ? JSON.parse(pendingTxsJson) : [];
+    let pendingTxs: PendingTransaction[] = [];
+    if (pendingTxsJson) {
+      try {
+        pendingTxs = JSON.parse(pendingTxsJson) as PendingTransaction[];
+      } catch (parseError) {
+        logger.error('Failed to parse pending transactions JSON', {
+          error: parseError instanceof Error ? parseError.message : String(parseError)
+        });
+        // Start fresh if JSON is corrupted
+        pendingTxs = [];
+      }
+    }
 
     // Add new transaction
     pendingTxs.push({
@@ -148,7 +171,15 @@ export async function removePendingTransaction(txid: string): Promise<void> {
     const pendingTxsJson = await SecureStore.getItemAsync(PENDING_TX_KEY);
     if (!pendingTxsJson) return;
 
-    const pendingTxs = JSON.parse(pendingTxsJson) as PendingTransaction[];
+    let pendingTxs: PendingTransaction[] = [];
+    try {
+      pendingTxs = JSON.parse(pendingTxsJson) as PendingTransaction[];
+    } catch (parseError) {
+      logger.error('Failed to parse pending transactions JSON', {
+        error: parseError instanceof Error ? parseError.message : String(parseError)
+      });
+      return;
+    }
     const updatedTxs = pendingTxs.filter((tx) => tx.txid !== txid);
 
     await SecureStore.setItemAsync(PENDING_TX_KEY, JSON.stringify(updatedTxs));
@@ -163,7 +194,18 @@ export async function removePendingTransaction(txid: string): Promise<void> {
 export async function getPendingTransactions(): Promise<PendingTransaction[]> {
   try {
     const pendingTxsJson = await SecureStore.getItemAsync(PENDING_TX_KEY);
-    return pendingTxsJson ? JSON.parse(pendingTxsJson) : [];
+    if (!pendingTxsJson) return [];
+
+    let pendingTxs: PendingTransaction[] = [];
+    try {
+      pendingTxs = JSON.parse(pendingTxsJson) as PendingTransaction[];
+    } catch (parseError) {
+      logger.error('Failed to parse pending transactions JSON', {
+        error: parseError instanceof Error ? parseError.message : String(parseError)
+      });
+      return [];
+    }
+    return pendingTxs;
   } catch (error: unknown) {
     logger.warn('[BackgroundTask] Failed to get pending transactions', { error: error instanceof Error ? error.message : String(error) });
     return [];

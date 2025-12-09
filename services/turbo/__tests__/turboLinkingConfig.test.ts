@@ -136,30 +136,32 @@ describe('turboLinkingConfig', () => {
   });
 
   describe('getStateFromPath', () => {
-    it('should return null for turbo URL to prevent navigation', async () => {
+    it('should return undefined for turbo URL to prevent navigation', async () => {
       const config = createLinkingConfig();
       (global as any).processedCashuTokens = new Set<string>();
 
-      const result = await config.getStateFromPath('ducat://turbo/cashuAtoken123', {});
+      // getStateFromPath is now synchronous and fires async processing in background
+      const result = config.getStateFromPath('ducat://turbo/cashuAtoken123', {});
 
-      expect(result).toBe(null);
+      expect(result).toBe(undefined);
     });
 
     it('should return undefined for non-turbo URLs', async () => {
       const config = createLinkingConfig();
 
-      const result = await config.getStateFromPath('ducat://wallet', {});
+      const result = config.getStateFromPath('ducat://wallet', {});
 
       expect(result).toBe(undefined);
     });
 
-    it('should return null for unit URL with token param', async () => {
+    it('should return undefined for unit URL with token param', async () => {
       const config = createLinkingConfig();
       (global as any).processedCashuTokens = new Set<string>();
 
-      const result = await config.getStateFromPath('https://example.com/unit?t=base64token', {});
+      // getStateFromPath is now synchronous and fires async processing in background
+      const result = config.getStateFromPath('https://example.com/unit?t=base64token', {});
 
-      expect(result).toBe(null);
+      expect(result).toBe(undefined);
     });
 
     it('should store token in global for processing', async () => {

@@ -90,8 +90,9 @@ export async function getGuardianClient(
     logger.debug('[GuardianService] Waiting for pending connection');
     try {
       return await gclientPromise;
-    } catch {
+    } catch (error: unknown) {
       // Connection failed, will create new one below
+      logger.debug('[GuardianService] Pending connection failed, creating new one', { error: error instanceof Error ? error.message : String(error) });
     }
   }
 

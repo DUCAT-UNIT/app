@@ -3,6 +3,7 @@
  * Handles receiving tokens from QR codes or text
  */
 
+import * as SecureStore from 'expo-secure-store';
 import { logger } from '../../../utils/logger';
 import { MINT_URL, swapTokens as swapTokensAPI } from '../cashuMintClient';
 import {
@@ -229,9 +230,70 @@ export const receiveToken = async (tokenString: string): Promise<ReceiveTokenRes
     );
     logger.info('[PERF] Unblind signatures took', { durationMs: Date.now() - t8 });
 
-    // Add swapped proofs to wallet
+    // Add swapped proofs to wallet with retry logic to prevent fund loss
     const t9 = Date.now();
-    await addProofs(newProofs);
+    const MAX_RETRIES = 3;
+    let saveSuccess = false;
+    let lastError: Error | null = null;
+
+    for (let attempt = 1; attempt <= MAX_RETRIES; attempt++) {
+      try {
+        await addProofs(newProofs);
+        saveSuccess = true;
+        logger.info('Successfully saved received proofs', {
+          attempt,
+          proofCount: newProofs.length,
+          amount,
+        });
+        break;
+      } catch (error) {
+        lastError = error instanceof Error ? error : new Error(String(error));
+        logger.warn(`Failed to save proofs (attempt ${attempt}/${MAX_RETRIES})`, {
+          error: lastError.message,
+          proofCount: newProofs.length,
+          amount,
+        });
+
+        // Wait before retrying (exponential backoff: 100ms, 200ms, 400ms)
+        if (attempt < MAX_RETRIES) {
+          await new Promise(resolve => setTimeout(resolve, 100 * Math.pow(2, attempt - 1)));
+        }
+      }
+    }
+
+    // CRITICAL: If all retries failed, log proofs for manual recovery
+    if (!saveSuccess) {
+      // Log critical error with full proof data for recovery
+      logger.error('CRITICAL: Failed to save received proofs after all retries - FUND LOSS RISK', {
+        error: lastError?.message,
+        proofCount: newProofs.length,
+        amount,
+        proofSecrets: newProofs.map(p => p.secret),
+        proofData: JSON.stringify(newProofs),
+        timestamp: new Date().toISOString(),
+        recoveryNote: 'These proofs were successfully received from mint but failed to persist locally',
+      });
+
+      // Attempt to store in a recovery queue
+      try {
+        const recoveryKey = `cashu_failed_proofs_${Date.now()}`;
+        await SecureStore.setItemAsync(recoveryKey, JSON.stringify({
+          proofs: newProofs,
+          amount,
+          timestamp: new Date().toISOString(),
+          error: lastError?.message,
+        }));
+        logger.info('Stored failed proofs in recovery queue', { recoveryKey });
+      } catch (recoveryError) {
+        logger.error('Failed to store proofs in recovery queue', {
+          error: recoveryError instanceof Error ? recoveryError.message : String(recoveryError),
+        });
+      }
+
+      // Re-throw the error to notify the user
+      throw new Error(`Critical error: Received proofs from mint but failed to save locally. Error: ${lastError?.message}. Proofs logged for recovery.`);
+    }
+
     const saveTime = Date.now() - t9;
 
     const totalTime = Date.now() - perfStart;

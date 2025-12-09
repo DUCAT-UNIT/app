@@ -20,6 +20,22 @@ import { useWallet } from './WalletContext';
 import { logger } from '../utils/logger';
 import type { SnackbarParams } from '../stores/notificationStore';
 
+/**
+ * Safe BTC to satoshi conversion avoiding floating point errors
+ * @param btcString - BTC amount as string (e.g. "0.001")
+ * @returns Amount in satoshis
+ */
+function btcToSats(btcString: string): number {
+  // Split on decimal point and handle each part as integer
+  const parts = btcString.replace(',', '.').split('.');
+  const wholePart = parseInt(parts[0] || '0', 10) * 100000000;
+  if (parts.length === 1) return wholePart;
+
+  // Pad or truncate decimal part to 8 digits
+  const decimalPart = (parts[1] || '').padEnd(8, '0').slice(0, 8);
+  return wholePart + parseInt(decimalPart, 10);
+}
+
 interface BroadcastOptions {
   skipAutoConfirm?: boolean;
 }
@@ -230,13 +246,12 @@ export const TransactionExecutionProvider: React.FC<TransactionExecutionProvider
         // If we have change outputs, store them as pending with parent tracking
         if (outputs.length > 0) {
           const assetType = sendAssetType === 'unit' ? 'UNIT' : 'BTC';
-          // Calculate sent amount in smallest units
-          const sentAmountNum = parseFloat(sendAmount) || 0;
+          // Calculate sent amount in smallest units using safe conversion
           const sentAmountSmallest = sendAssetType === 'unit'
-            ? Math.round(sentAmountNum * 100) // UNIT uses 2 decimal places
-            : Math.round(sentAmountNum * 100000000); // BTC to sats
-          logger.debug('💾 Adding pending transaction:', txid, 'with', outputs.length, 'outputs', 'sentAmount:', sentAmountSmallest);
-          await addPendingTransaction(txid, outputs, assetType, parentTxid, sentAmountSmallest);
+            ? Math.round((parseFloat(sendAmount) || 0) * 100) // UNIT uses 2 decimal places
+            : btcToSats(sendAmount); // BTC to sats - use safe conversion
+          logger.debug('💾 Adding pending transaction:', txid, 'with', outputs.length, 'outputs', 'sentAmount:', sentAmountSmallest, 'inputUtxos:', spentInputs.length);
+          await addPendingTransaction(txid, outputs, assetType, parentTxid, sentAmountSmallest, spentInputs);
         } else {
           logger.debug('⚠️ No change outputs found to save');
         }

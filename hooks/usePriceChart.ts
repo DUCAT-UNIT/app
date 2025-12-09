@@ -219,6 +219,7 @@ export function usePriceChart(assetType: string, selectedTimeframe: Timeframe): 
           }
 
           // Cache to AsyncStorage (async, non-blocking)
+          // Cache write failures are non-critical - app works without cache
           AsyncStorage.setItem(
             cacheKey,
             JSON.stringify({
@@ -226,7 +227,8 @@ export function usePriceChart(assetType: string, selectedTimeframe: Timeframe): 
               timestamp
             })
           ).catch(() => {
-            // Silently fail cache write
+            // Cache write failures are expected in some scenarios (e.g., storage full)
+            // and don't affect app functionality - data will be fetched fresh next time
           });
         } else {
           setPriceError(null);

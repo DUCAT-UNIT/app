@@ -94,7 +94,8 @@ export function checkBatchAllowed(wallet: VaultWallet): boolean {
     const satsAddress = wallet.acct?.sats?.address || '';
     // Native segwit addresses start with tb1q (testnet) or bc1q (mainnet)
     return satsAddress.startsWith('tb1q') || satsAddress.startsWith('bc1q');
-  } catch {
+  } catch (error: unknown) {
+    logger.warn('[VaultOps] Failed to check batch allowed', { error: error instanceof Error ? error.message : String(error) });
     return false;
   }
 }

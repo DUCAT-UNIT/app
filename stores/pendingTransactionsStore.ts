@@ -45,6 +45,7 @@ export interface PendingTransaction {
   status: 'pending' | 'invalid';
   timestamp: number;
   sentAmount?: number; // Amount sent in the transaction (sats for BTC, smallest units for UNIT)
+  inputUtxos?: Array<{ txid: string; vout: number }>; // Track which UTXOs were spent by this transaction
 }
 
 interface PendingTransactionsState {
@@ -60,7 +61,8 @@ interface PendingTransactionsActions {
     outputs: PendingTransactionOutput[],
     assetType: 'BTC' | 'UNIT',
     parentTxid?: string | null,
-    sentAmount?: number
+    sentAmount?: number,
+    inputUtxos?: Array<{ txid: string; vout: number }>
   ) => Promise<void>;
   confirmTransaction: (txid: string) => Promise<void>;
   invalidateTransaction: (
@@ -177,7 +179,7 @@ export const usePendingTransactionsStore = create<PendingTransactionsStore>((set
   },
 
   // Add a new pending transaction
-  addPendingTransaction: async (txid, outputs, assetType, parentTxid = null, sentAmount) => {
+  addPendingTransaction: async (txid, outputs, assetType, parentTxid = null, sentAmount, inputUtxos) => {
     const { pendingTransactions, currentAccount } = get();
 
     logger.info('[addPendingTransaction] Adding pending tx:', {
@@ -188,6 +190,7 @@ export const usePendingTransactionsStore = create<PendingTransactionsStore>((set
       parentTxid: parentTxid?.slice(0, 16),
       currentAccount,
       sentAmount,
+      inputUtxoCount: inputUtxos?.length || 0,
     });
 
     const newTx: PendingTransaction = {
@@ -198,6 +201,7 @@ export const usePendingTransactionsStore = create<PendingTransactionsStore>((set
       status: 'pending',
       timestamp: Date.now(),
       sentAmount,
+      inputUtxos,
     };
 
     const updated = {
@@ -215,21 +219,38 @@ export const usePendingTransactionsStore = create<PendingTransactionsStore>((set
 
   // Confirm transaction and remove from pending
   confirmTransaction: async (txid) => {
-    const { pendingTransactions, currentAccount } = get();
+    const { pendingTransactions, spentUtxos, currentAccount } = get();
 
+    const confirmedTx = pendingTransactions[txid];
     const updated: Record<string, PendingTransaction> = { ...pendingTransactions };
     delete updated[txid];
 
-    // Clear spent UTXOs when transaction confirms
-    const clearedSpent = new Set<string>();
+    // Only clear spent UTXOs that were inputs to this confirmed transaction
+    // Keep spent UTXOs from other pending transactions intact
+    const updatedSpentUtxos = new Set(spentUtxos);
+
+    if (confirmedTx?.inputUtxos) {
+      logger.info('[confirmTransaction] Clearing spent UTXOs for confirmed tx:', {
+        txid: txid.slice(0, 16) + '...',
+        inputCount: confirmedTx.inputUtxos.length,
+      });
+
+      confirmedTx.inputUtxos.forEach(({ txid: inputTxid, vout }) => {
+        const key = `${inputTxid}:${vout}`;
+        updatedSpentUtxos.delete(key);
+        logger.debug('[confirmTransaction] Cleared UTXO:', key);
+      });
+    } else {
+      logger.warn('[confirmTransaction] No inputUtxos tracked for tx', { txid: txid.slice(0, 16) + '...' });
+    }
 
     set({
       pendingTransactions: updated,
-      spentUtxos: clearedSpent,
+      spentUtxos: updatedSpentUtxos,
     });
 
     await savePendingTransactions(updated, currentAccount);
-    await saveSpentUtxos(clearedSpent, currentAccount);
+    await saveSpentUtxos(updatedSpentUtxos, currentAccount);
   },
 
   // Invalidate transaction and all children

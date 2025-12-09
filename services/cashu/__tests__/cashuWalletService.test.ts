@@ -265,7 +265,7 @@ describe('cashuWalletService', () => {
 
         await cashuWalletService.saveProofs(mockProofs);
 
-        expect(SecureStore.deleteItemAsync).toHaveBeenCalledWith(`cashu_proofs_${testAddress}`);
+        // Note: deleteItemAsync is no longer called - atomic write removes the race condition
         expect(SecureStore.setItemAsync).toHaveBeenCalledWith(
           `cashu_proofs_${testAddress}`,
           serialized

@@ -58,9 +58,6 @@ export default function VaultAmountsScreen({ navigation }: VaultAmountsScreenPro
   const { segwitBalance, taprootBalance, runesBalance } = useBalance();
   const { btcPrice } = usePrice();
 
-  // Debug: log balances
-  console.log('[VaultAmounts] Balances:', { segwitBalance, taprootBalance, runesBalance, btcPrice });
-
   // Update bitcoin price in store when it changes
   useEffect(() => {
     if (btcPrice) {

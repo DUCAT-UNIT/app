@@ -89,7 +89,6 @@ const VaultHealthStory = ({
             totalCollateral={totalCollateral}
             currentPrice={currentPrice}
             healthPercentage={healthPercentage}
-            transactions={showChart ? mockTransactions : []}
             onBorrowPress={() => {}}
             onRepayPress={() => {}}
             onDepositPress={() => {}}
@@ -130,7 +129,6 @@ const HealthyVaultStory = ({ deviceSize }: HealthStateStoryProps) => {
           totalCollateral={0.15}
           currentPrice={95000}
           healthPercentage={285}
-          transactions={mockTransactions}
           onBorrowPress={() => {}}
           onRepayPress={() => {}}
           onDepositPress={() => {}}
@@ -152,7 +150,6 @@ const ModerateVaultStory = ({ deviceSize }: HealthStateStoryProps) => {
           totalCollateral={0.15}
           currentPrice={95000}
           healthPercentage={180}
-          transactions={mockTransactions}
           onBorrowPress={() => {}}
           onRepayPress={() => {}}
           onDepositPress={() => {}}
@@ -174,7 +171,6 @@ const RiskyVaultStory = ({ deviceSize }: HealthStateStoryProps) => {
           totalCollateral={0.15}
           currentPrice={95000}
           healthPercentage={145}
-          transactions={mockTransactions}
           onBorrowPress={() => {}}
           onRepayPress={() => {}}
           onDepositPress={() => {}}
@@ -209,7 +205,6 @@ const AllHealthStatesStory = ({ deviceSize }: HealthStateStoryProps) => {
               totalCollateral={state.collateral}
               currentPrice={95000}
               healthPercentage={state.health}
-              transactions={[]}
               onBorrowPress={() => {}}
               onRepayPress={() => {}}
               onDepositPress={() => {}}
@@ -239,7 +234,6 @@ const DeviceSizeOverviewStory = () => (
             totalCollateral={0.15}
             currentPrice={95000}
             healthPercentage={225}
-            transactions={mockTransactions.slice(0, 2)}
             onBorrowPress={() => {}}
             onRepayPress={() => {}}
             onDepositPress={() => {}}

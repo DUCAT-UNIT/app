@@ -28,6 +28,26 @@ import {
 } from './psbtBinaryUtils';
 
 /**
+ * Extract witnessUtxo data from all PSBT inputs with validation
+ * @throws Error if any input is missing witnessUtxo
+ */
+function extractWitnessData(psbt: bitcoin.Psbt): { scripts: Buffer[]; values: bigint[] } {
+  const scripts: Buffer[] = [];
+  const values: bigint[] = [];
+
+  for (let i = 0; i < psbt.data.inputs.length; i++) {
+    const input = psbt.data.inputs[i];
+    if (!input.witnessUtxo) {
+      throw new Error(`Input ${i} is missing witnessUtxo - cannot sign PSBT`);
+    }
+    scripts.push(Buffer.from(input.witnessUtxo.script));
+    values.push(input.witnessUtxo.value);
+  }
+
+  return { scripts, values };
+}
+
+/**
  * Sign a PSBT while preserving OP_RETURN outputs.
  *
  * Strategy:
@@ -85,8 +105,11 @@ export async function signPsbtWithSdkObject(sdkPdata: any, signInputs: Record<st
             // SegWit P2WPKH signing
             const derivationPath = `m/84'/1'/0'/0/${accountIndex}`;
             const child = root.derivePath(derivationPath);
+            if (!child.privateKey) {
+              throw new Error('Failed to derive private key for SegWit signing');
+            }
             const ECPairInstance = getECPair();
-            const keyPair = ECPairInstance.fromPrivateKey(child.privateKey!, { network: MUTINYNET_NETWORK });
+            const keyPair = ECPairInstance.fromPrivateKey(child.privateKey, { network: MUTINYNET_NETWORK });
 
             // Sign in bitcoinjs-lib
             bjsPsbt.signInput(inputIndex, keyPair);
@@ -114,7 +137,11 @@ export async function signPsbtWithSdkObject(sdkPdata: any, signInputs: Record<st
 
             if (isScriptPath) {
               // SCRIPT-PATH spending
-              const tapLeafScript = bjsInput.tapLeafScript![0];
+              // Validate tapLeafScript exists and has at least one element
+              if (!bjsInput.tapLeafScript || bjsInput.tapLeafScript.length === 0) {
+                throw new Error(`Input ${inputIndex} has no tapLeafScript for script-path signing`);
+              }
+              const tapLeafScript = bjsInput.tapLeafScript[0];
               const leafVersion = tapLeafScript.leafVersion;
               const script = tapLeafScript.script;
 
@@ -127,20 +154,26 @@ export async function signPsbtWithSdkObject(sdkPdata: any, signInputs: Record<st
                 Buffer.concat([Buffer.from([leafVersion]), scriptLengthVarint, script])
               );
 
+              // Extract and validate witnessUtxo data from all inputs
+              const { scripts, values } = extractWitnessData(bjsPsbt);
+
               // Get the sighash for script-path spending
               const sighash = bjsInput.sighashType || 0x00;
               // eslint-disable-next-line @typescript-eslint/no-explicit-any
               const psbtCache = (bjsPsbt as any).__CACHE as PsbtCache;
               const hash = psbtCache.__TX.hashForWitnessV1(
                 inputIndex,
-                bjsPsbt.data.inputs.map(i => Buffer.from(i.witnessUtxo!.script)),
-                bjsPsbt.data.inputs.map(i => i.witnessUtxo!.value),
+                scripts,
+                values,
                 sighash,
                 tapleafHash
               );
 
               // Sign with original private key (no tweaking for script-path)
-              let privateKey = keyPair.privateKey!;
+              if (!keyPair.privateKey) {
+                throw new Error('Key pair is missing private key for script-path signing');
+              }
+              let privateKey = keyPair.privateKey;
               if (!Buffer.isBuffer(privateKey)) {
                 privateKey = Buffer.from(privateKey);
               }
@@ -159,7 +192,10 @@ export async function signPsbtWithSdkObject(sdkPdata: any, signInputs: Record<st
 
             } else {
               // KEY-PATH spending
-              let privateKey = keyPair.privateKey!;
+              if (!keyPair.privateKey) {
+                throw new Error('Key pair is missing private key for key-path signing');
+              }
+              let privateKey = keyPair.privateKey;
               if (!Buffer.isBuffer(privateKey)) {
                 privateKey = Buffer.from(privateKey);
               }
@@ -173,14 +209,17 @@ export async function signPsbtWithSdkObject(sdkPdata: any, signInputs: Record<st
                 privateKey = Buffer.from(negatedNum.toString(16).padStart(64, '0'), 'hex');
               }
 
+              // Extract and validate witnessUtxo data from all inputs
+              const { scripts: keyPathScripts, values: keyPathValues } = extractWitnessData(bjsPsbt);
+
               // Get the sighash for key-path spending
               const sighash = bjsInput.sighashType || 0x00;
               // eslint-disable-next-line @typescript-eslint/no-explicit-any
               const psbtCache = (bjsPsbt as any).__CACHE as PsbtCache;
               const hash = psbtCache.__TX.hashForWitnessV1(
                 inputIndex,
-                bjsPsbt.data.inputs.map(i => Buffer.from(i.witnessUtxo!.script)),
-                bjsPsbt.data.inputs.map(i => i.witnessUtxo!.value),
+                keyPathScripts,
+                keyPathValues,
                 sighash
               );
 
@@ -391,8 +430,8 @@ export function psbtPreProcess(client: VaultWallet, pdata: any, manifest: Record
 
       if (prevout === undefined) continue;
 
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      const script_meta = TX.parse_script_meta(prevout.script as any);
+      // SDK type mismatch: script is Uint8Array but SDK expects string | Bytes
+      const script_meta = TX.parse_script_meta(prevout.script as Parameters<typeof TX.parse_script_meta>[0]);
       const script_type = script_meta.type;
       const script_key = script_meta.key?.hex;
 

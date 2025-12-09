@@ -20,6 +20,28 @@ import {
 // Initialize ECC library
 bitcoin.initEccLib(ecc);
 
+/**
+ * Safe BTC to satoshi conversion avoiding floating point errors
+ * @param btcString - BTC amount as string (e.g. "0.001")
+ * @returns Amount in satoshis
+ * @throws Error if amount is negative
+ */
+function btcToSats(btcString: string): number {
+  // Check for negative amounts
+  if (btcString.startsWith('-')) {
+    throw new Error(ERRORS.INVALID_AMOUNT);
+  }
+
+  // Split on decimal point and handle each part as integer
+  const parts = btcString.replace(',', '.').split('.');
+  const wholePart = parseInt(parts[0] || '0', 10) * 100000000;
+  if (parts.length === 1) return wholePart;
+
+  // Pad or truncate decimal part to 8 digits
+  const decimalPart = (parts[1] || '').padEnd(8, '0').slice(0, 8);
+  return wholePart + parseInt(decimalPart, 10);
+}
+
 export interface BtcTransactionIntent {
   id: string;
   type: 'send';
@@ -64,9 +86,8 @@ export async function createBtcIntent(
     // Validate and normalize recipient address
     const validatedRecipient = validateAndNormalizeAddress(recipient);
 
-    // Parse amount
-    const normalizedAmount = amount.replace(',', '.');
-    const amountInSats = Math.floor(parseFloat(normalizedAmount) * 100000000);
+    // Parse amount using safe conversion to avoid floating point precision errors
+    const amountInSats = btcToSats(amount);
 
     if (isNaN(amountInSats) || amountInSats <= 0) {
       throw new Error(ERRORS.INVALID_AMOUNT);
@@ -135,7 +156,7 @@ export async function createBtcIntent(
 
     // Create intent object
     return {
-      id: Date.now().toString(),
+      id: `${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
       type: 'send',
       assetType: 'BTC',
       amount: amountInSats,
@@ -152,6 +173,11 @@ export async function createBtcIntent(
       timestamp: Date.now(),
     };
   } catch (error: unknown) {
+    logger.error(error instanceof Error ? error : new Error(String(error)), {
+      operation: 'createBtcIntent',
+      recipient,
+      amount,
+    });
     throw error;
   }
 }

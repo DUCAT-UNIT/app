@@ -7,6 +7,7 @@
  * - Persists verification state across app backgrounding
  */
 
+import * as Crypto from 'expo-crypto';
 import { usePersistedObject } from './usePersistedState';
 import { notify } from '../utils/notify';
 
@@ -68,32 +69,53 @@ export function useSeedVerification({
   const setWordChoices = (value: WordChoices): void => updateVerificationState({ wordChoices: value });
 
   /**
+   * Generate cryptographically secure random index
+   */
+  const secureRandomIndex = (max: number): number => {
+    const randomBytes = Crypto.getRandomBytes(4);
+    const randomValue = new DataView(randomBytes.buffer).getUint32(0, true);
+    return randomValue % max;
+  };
+
+  /**
+   * Cryptographically secure shuffle using Fisher-Yates
+   */
+  const secureShuffleArray = <T>(array: T[]): T[] => {
+    const shuffled = [...array];
+    for (let i = shuffled.length - 1; i > 0; i--) {
+      const j = secureRandomIndex(i + 1);
+      [shuffled[i], shuffled[j]] = [shuffled[j], shuffled[i]];
+    }
+    return shuffled;
+  };
+
+  /**
    * Generate multiple choice options for seed word verification
    */
   const generateChoicesForWord = (correctWord: string, allWords: string[]): string[] => {
     const choices = [correctWord];
     const otherWords = allWords.filter((w) => w !== correctWord);
 
-    // Add 3 random wrong choices
+    // Add 3 random wrong choices using secure random
     while (choices.length < 4) {
-      const randomWord = otherWords[Math.floor(Math.random() * otherWords.length)];
+      const randomWord = otherWords[secureRandomIndex(otherWords.length)];
       if (!choices.includes(randomWord)) {
         choices.push(randomWord);
       }
     }
 
-    // Shuffle choices
-    return choices.sort(() => Math.random() - 0.5);
+    // Shuffle choices using secure shuffle
+    return secureShuffleArray(choices);
   };
 
   /**
    * Proceed from seed phrase display to verification
    */
   const proceedToVerification = (): void => {
-    // Select 3 random indices for verification
+    // Select 3 random indices for verification using secure random
     const indices: number[] = [];
     while (indices.length < 3) {
-      const randomIndex = Math.floor(Math.random() * 12);
+      const randomIndex = secureRandomIndex(12);
       if (!indices.includes(randomIndex)) {
         indices.push(randomIndex);
       }

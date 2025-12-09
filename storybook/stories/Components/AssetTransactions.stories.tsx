@@ -33,7 +33,7 @@ const getScaledStyles = (config: DeviceConfig) => ({
   historyTxRow: {
     ...history.historyTxRow,
     paddingVertical: config.padding,
-    alignItems: 'center',
+    alignItems: 'center' as const,
   },
   historyLogoImage: {
     ...history.historyLogoImage,
@@ -160,6 +160,8 @@ interface TransactionStoryProps {
   action: 'send' | 'receive';
   status: 'confirmed' | 'pending';
   deviceSize: DeviceSize;
+  includeVault?: boolean;
+  vaultAction?: string;
 }
 
 const TransactionStory = ({ amount, assetType, action, status, deviceSize }: TransactionStoryProps) => {

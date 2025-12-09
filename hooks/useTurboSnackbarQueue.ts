@@ -6,13 +6,7 @@
 import React from 'react';
 import { logger } from '../utils/logger';
 import { turboGlobal } from '../services/turbo/turboTokenStorage';
-
-interface SnackbarParams {
-  type: string;
-  action?: string;
-  description?: string;
-  message?: string;
-}
+import type { SnackbarParams, SnackbarType } from '../types/notification';
 
 interface UseTurboSnackbarQueueParams {
   isAuthenticated: boolean;
@@ -73,9 +67,9 @@ export function useTurboSnackbarQueue({
       if (turboGlobal.pendingTurboSnackbars && turboGlobal.pendingTurboSnackbars.length > 0) {
         logger.debug('[TURBO] Showing queued snackbar');
         const lastSnackbar = turboGlobal.pendingTurboSnackbars[turboGlobal.pendingTurboSnackbars.length - 1];
-        // Convert TurboSnackbarParams to local SnackbarParams format
+        // Convert TurboSnackbarParams to SnackbarParams format with proper type
         showSnackbarWithDedup({
-          type: lastSnackbar.type,
+          type: lastSnackbar.type as SnackbarType,
           message: lastSnackbar.message,
         });
         turboGlobal.pendingTurboSnackbars = [];

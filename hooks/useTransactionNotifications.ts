@@ -4,6 +4,8 @@
  */
 
 import { useEffect } from 'react';
+import { Linking } from 'react-native';
+import { getTxUrl, getOrdTxUrl } from '../utils/constants';
 import type { SnackbarParams } from '../stores/notificationStore';
 
 interface UseTransactionNotificationsParams {
@@ -27,8 +29,6 @@ export function useTransactionNotifications({
 
     const action = sendAssetType === 'unit' ? 'swap' : 'withdraw';
     const onPress = async (): Promise<void> => {
-      const { getTxUrl, getOrdTxUrl } = require('../utils/constants');
-      const { Linking } = require('react-native');
       const url = sendAssetType === 'unit' ? getOrdTxUrl(broadcastedTxid) : getTxUrl(broadcastedTxid);
       const supported = await Linking.canOpenURL(url);
       if (supported) {

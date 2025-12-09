@@ -4,6 +4,7 @@
  */
 
 import * as SecureStore from 'expo-secure-store';
+import * as Crypto from 'expo-crypto';
 import { SECURE_KEYS } from '../utils/constants';
 import { logger } from '../utils/logger';
 
@@ -22,12 +23,16 @@ const securelyWipeString = (str: string | null): string => {
     cleared += '\0';
   }
 
-  // Overwrite multiple times
+  // Generate cryptographically secure random bytes for overwriting
+  // Using expo-crypto for secure random generation
+  const randomBytes = Crypto.getRandomBytes(str.length * 3);
+
+  // Overwrite multiple times with secure random data
   for (let pass = 0; pass < 3; pass++) {
     for (let i = 0; i < str.length; i++) {
       cleared =
         cleared.substring(0, i) +
-        String.fromCharCode(Math.floor(Math.random() * 256)) +
+        String.fromCharCode(randomBytes[pass * str.length + i]) +
         cleared.substring(i + 1);
     }
   }

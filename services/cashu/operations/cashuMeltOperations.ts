@@ -97,7 +97,8 @@ export const completeMelt = async (quoteId: string, totalAmount: number): Promis
         keys = keyData.keysets[0].keys;
       } else if (keyData.keys) {
         keys = keyData.keys;
-        keysetId = '';
+        // Don't use empty string - throw error if no keyset available
+        throw new Error('No keyset ID available from mint');
       } else {
         throw new Error('No keys available from mint');
       }
@@ -115,11 +116,17 @@ export const completeMelt = async (quoteId: string, totalAmount: number): Promis
       const response = await swapTokensAPI(selectedProofs, outputs);
       didSwap = true;
 
+      // Validate signatures array is not empty before accessing
+      if (!response.signatures || response.signatures.length === 0) {
+        throw new Error('Mint returned no signatures');
+      }
+      const keysetIdFromResponse = response.signatures[0].id || keysetId;
+
       const allNewProofs = unblindSignatures(
         response.signatures,
         blindingData,
         keys,
-        response.signatures[0]?.id || keysetId
+        keysetIdFromResponse
       );
 
       proofsToMelt = allNewProofs.slice(0, meltAmounts.length);
@@ -226,7 +233,8 @@ export const completeMeltWithoutCleanup = async (quoteId: string, totalAmount: n
         keys = keyData.keysets[0].keys;
       } else if (keyData.keys) {
         keys = keyData.keys;
-        keysetId = '';
+        // Don't use empty string - throw error if no keyset available
+        throw new Error('No keyset ID available from mint');
       } else {
         throw new Error('No keys available from mint');
       }
@@ -242,11 +250,17 @@ export const completeMeltWithoutCleanup = async (quoteId: string, totalAmount: n
       const response = await swapTokensAPI(selectedProofs, outputs);
       didSwap = true;
 
+      // Validate signatures array is not empty before accessing
+      if (!response.signatures || response.signatures.length === 0) {
+        throw new Error('Mint returned no signatures');
+      }
+      const keysetIdFromResponse = response.signatures[0].id || keysetId;
+
       const allNewProofs = unblindSignatures(
         response.signatures,
         blindingData,
         keys,
-        response.signatures[0]?.id || keysetId
+        keysetIdFromResponse
       );
 
       proofsToMelt = allNewProofs.slice(0, meltAmounts.length);

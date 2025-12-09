@@ -133,9 +133,9 @@ describe('cashuMeltOperations', () => {
       expect(addProofs).toHaveBeenCalled();
     });
 
-    it('should handle legacy key format (line 90)', async () => {
+    it('should throw error for legacy key format without keyset ID (line 90)', async () => {
       (sumProofs as jest.Mock).mockReturnValue(150);
-      // Legacy format without keysets array
+      // Legacy format without keysets array - now rejected for security
       (getOrFetchKeys as jest.Mock).mockResolvedValue({
         keys: { 1: 'key1', 2: 'key2' },
       });
@@ -144,21 +144,9 @@ describe('cashuMeltOperations', () => {
         outputs: [{ amount: 64 }, { amount: 32 }],
         blindingData: [{}, {}],
       });
-      (swapTokens as jest.Mock).mockResolvedValue({
-        signatures: [{}, {}],
-      });
-      (unblindSignatures as jest.Mock).mockReturnValue([
-        { amount: 64, secret: 's1', C: 'C1', id: 'id1' },
-        { amount: 32, secret: 's2', C: 'C2', id: 'id2' },
-      ]);
-      (meltTokens as jest.Mock).mockResolvedValue({
-        paid: true,
-        payment_preimage: 'txid123',
-      });
 
-      const result = await completeMelt('quote123', 100);
-
-      expect(result.paid).toBe(true);
+      // Should throw error because legacy format without keyset ID is rejected
+      await expect(completeMelt('quote123', 100)).rejects.toThrow('No keyset ID available from mint');
     });
 
     it('should save change proofs when melt fails after swap (lines 156-170)', async () => {
@@ -239,31 +227,19 @@ describe('cashuMeltOperations', () => {
       expect(result.changeProofs).toBeNull();
     });
 
-    it('should handle legacy key format (line 210)', async () => {
+    it('should throw error for legacy key format without keyset ID (line 210)', async () => {
       (sumProofs as jest.Mock).mockReturnValue(150);
       (getOrFetchKeys as jest.Mock).mockResolvedValue({
-        keys: { 1: 'key1' }, // Legacy format
+        keys: { 1: 'key1' }, // Legacy format - now rejected for security
       });
       (splitAmount as jest.Mock).mockReturnValue([64, 32]);
       (createBlindedOutputs as jest.Mock).mockResolvedValue({
         outputs: [{ amount: 64 }, { amount: 32 }],
         blindingData: [{}, {}],
       });
-      (swapTokens as jest.Mock).mockResolvedValue({
-        signatures: [{}, {}],
-      });
-      (unblindSignatures as jest.Mock).mockReturnValue([
-        { amount: 64, secret: 's1', C: 'C1', id: 'id1' },
-        { amount: 32, secret: 's2', C: 'C2', id: 'id2' },
-      ]);
-      (meltTokens as jest.Mock).mockResolvedValue({
-        paid: true,
-        payment_preimage: 'txid123',
-      });
 
-      const result = await completeMeltWithoutCleanup('quote123', 100);
-
-      expect(result.paid).toBe(true);
+      // Should throw error because legacy format without keyset ID is rejected
+      await expect(completeMeltWithoutCleanup('quote123', 100)).rejects.toThrow('No keyset ID available from mint');
     });
 
     it('should save change proofs on melt failure after swap (lines 255-271)', async () => {

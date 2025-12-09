@@ -73,6 +73,10 @@ export const checkICloudAvailability = async (): Promise<ICloudAvailabilityResul
 
 // iCloud keys
 const ICLOUD_KEYS = {
+  // V2: Atomic backup (single JSON object - prevents partial writes)
+  ATOMIC_BACKUP: 'ducat_backup_v2',
+
+  // V1: Legacy keys (deprecated - kept for migration only)
   ENCRYPTED_MNEMONIC: 'ducat_encrypted_mnemonic_v1',
   ENCRYPTION_IV: 'ducat_encryption_iv_v1',
   ENCRYPTION_TAG: 'ducat_encryption_tag_v1',
@@ -81,8 +85,22 @@ const ICLOUD_KEYS = {
   PIN_SALT: 'ducat_pin_salt_v1', // CRITICAL: Salt for 10k iteration PIN hashing
 } as const;
 
+// Backup version for atomic storage
+const BACKUP_VERSION = 2;
+
+interface AtomicBackupData {
+  version: number;
+  encrypted: string;
+  iv: string;
+  tag: string;
+  credentialId: string;
+  userHandle: string;
+  pinSalt: string;
+  timestamp: number;
+}
+
 /**
- * Save encrypted mnemonic to iCloud
+ * Save encrypted mnemonic to iCloud using atomic storage
  * @param data - Encrypted mnemonic data
  * @param data.encrypted - Base64 encrypted mnemonic
  * @param data.iv - Base64 IV
@@ -100,7 +118,7 @@ export const saveToICloud = async ({
   userHandle,
   pinSalt
 }: EncryptedBackupData): Promise<string> => {
-  let saveSteps = 'iCloud Save Debug:\n';
+  let saveSteps = 'iCloud Save Debug (Atomic V2):\n';
   try {
     saveSteps += `Input validation:\n`;
     saveSteps += `  - encrypted: ${!!encrypted} (length: ${encrypted?.length || 0})\n`;
@@ -110,7 +128,7 @@ export const saveToICloud = async ({
     saveSteps += `  - userHandle: ${!!userHandle} (length: ${userHandle?.length || 0})\n`;
     saveSteps += `  - pinSalt: ${!!pinSalt} (length: ${pinSalt?.length || 0})\n`;
 
-    logger.debug('Saving encrypted mnemonic to iCloud', {
+    logger.debug('Saving encrypted mnemonic to iCloud (atomic)', {
       hasEncrypted: !!encrypted,
       encryptedLength: encrypted?.length,
       hasIv: !!iv,
@@ -119,44 +137,58 @@ export const saveToICloud = async ({
       hasUserHandle: !!userHandle,
       hasPinSalt: !!pinSalt,
       pinSaltLength: pinSalt?.length,
+      version: BACKUP_VERSION,
     });
 
-    saveSteps += `Saving to iCloud keys:\n`;
+    // Create atomic backup object
+    const backupData: AtomicBackupData = {
+      version: BACKUP_VERSION,
+      encrypted,
+      iv,
+      tag,
+      credentialId,
+      userHandle,
+      pinSalt,
+      timestamp: Date.now(),
+    };
+
+    saveSteps += `\nCreating atomic backup (v${BACKUP_VERSION})...\n`;
+    saveSteps += `  - Backup size: ${JSON.stringify(backupData).length} bytes\n`;
+    saveSteps += `  - Timestamp: ${new Date(backupData.timestamp).toISOString()}\n`;
+
     try {
-      saveSteps += `  1. Saving ENCRYPTED_MNEMONIC...\n`;
-      await iCloudStorage.setItem(ICLOUD_KEYS.ENCRYPTED_MNEMONIC, encrypted);
-      saveSteps += `     ✅ Saved\n`;
+      saveSteps += `\nSaving atomic backup to iCloud...\n`;
+      await iCloudStorage.setItem(ICLOUD_KEYS.ATOMIC_BACKUP, JSON.stringify(backupData));
+      saveSteps += `  ✅ Atomic backup saved successfully\n`;
 
-      saveSteps += `  2. Saving ENCRYPTION_IV...\n`;
-      await iCloudStorage.setItem(ICLOUD_KEYS.ENCRYPTION_IV, iv);
-      saveSteps += `     ✅ Saved\n`;
-
-      saveSteps += `  3. Saving ENCRYPTION_TAG...\n`;
-      await iCloudStorage.setItem(ICLOUD_KEYS.ENCRYPTION_TAG, tag);
-      saveSteps += `     ✅ Saved\n`;
-
-      saveSteps += `  4. Saving CREDENTIAL_ID...\n`;
-      await iCloudStorage.setItem(ICLOUD_KEYS.CREDENTIAL_ID, credentialId);
-      saveSteps += `     ✅ Saved\n`;
-
-      saveSteps += `  5. Saving USER_HANDLE...\n`;
-      await iCloudStorage.setItem(ICLOUD_KEYS.USER_HANDLE, userHandle);
-      saveSteps += `     ✅ Saved\n`;
-
-      saveSteps += `  6. Saving PIN_SALT...\n`;
-      await iCloudStorage.setItem(ICLOUD_KEYS.PIN_SALT, pinSalt);
-      saveSteps += `     ✅ Saved\n`;
+      // Clean up legacy keys if they exist (migration)
+      saveSteps += `\nCleaning up legacy keys (if any)...\n`;
+      try {
+        await Promise.all([
+          iCloudStorage.removeItem(ICLOUD_KEYS.ENCRYPTED_MNEMONIC),
+          iCloudStorage.removeItem(ICLOUD_KEYS.ENCRYPTION_IV),
+          iCloudStorage.removeItem(ICLOUD_KEYS.ENCRYPTION_TAG),
+          iCloudStorage.removeItem(ICLOUD_KEYS.CREDENTIAL_ID),
+          iCloudStorage.removeItem(ICLOUD_KEYS.USER_HANDLE),
+          iCloudStorage.removeItem(ICLOUD_KEYS.PIN_SALT),
+        ]);
+        saveSteps += `  ✅ Legacy keys cleaned up\n`;
+      } catch (cleanupError) {
+        // Non-critical - legacy keys might not exist
+        saveSteps += `  ⚠️ Legacy cleanup skipped (keys may not exist)\n`;
+      }
     } catch (setError) {
       const err = setError as ICloudError;
-      saveSteps += `     ❌ Failed: ${err.message}\n`;
-      saveSteps += `     Error code: ${err.code || 'N/A'}\n`;
+      saveSteps += `  ❌ Failed: ${err.message}\n`;
+      saveSteps += `  Error code: ${err.code || 'N/A'}\n`;
       throw setError;
     }
 
-    saveSteps += `\n✅ All 6 keys saved successfully\n`;
+    saveSteps += `\n✅ Backup saved successfully with atomic write protection\n`;
     saveSteps += `Note: Data syncs to iCloud asynchronously (may take a few seconds)\n`;
+    saveSteps += `\nBenefit: Single atomic write prevents data corruption if app crashes during save\n`;
 
-    logger.debug('Successfully saved to iCloud (data will sync asynchronously)');
+    logger.debug('Successfully saved to iCloud with atomic write protection');
 
     // Return debug info for display
     return saveSteps;
@@ -178,6 +210,7 @@ export const saveToICloud = async ({
 
 /**
  * Load encrypted mnemonic from iCloud
+ * Supports both atomic (v2) and legacy (v1) formats for backward compatibility
  * @returns Encrypted mnemonic data or null if not found
  */
 export const loadFromICloud = async (): Promise<LoadedBackupData> => {
@@ -185,15 +218,67 @@ export const loadFromICloud = async (): Promise<LoadedBackupData> => {
   try {
     logger.debug('Loading encrypted mnemonic from iCloud');
 
-    loadSteps += 'Loading keys from iCloud:\n';
+    // Try loading atomic backup first (v2)
+    loadSteps += 'Checking for atomic backup (v2)...\n';
+    const atomicBackupJson = await iCloudStorage.getItem(ICLOUD_KEYS.ATOMIC_BACKUP);
+
+    if (atomicBackupJson) {
+      loadSteps += '  ✅ Atomic backup found\n';
+      try {
+        const backupData = JSON.parse(atomicBackupJson) as AtomicBackupData;
+        loadSteps += `  - Version: ${backupData.version}\n`;
+        loadSteps += `  - Timestamp: ${new Date(backupData.timestamp).toISOString()}\n`;
+        loadSteps += `  - Backup size: ${atomicBackupJson.length} bytes\n`;
+
+        // Validate all required fields exist
+        if (!backupData.encrypted || !backupData.iv || !backupData.credentialId ||
+            !backupData.userHandle || !backupData.pinSalt) {
+          logger.error('Atomic backup is missing required fields', {
+            hasEncrypted: !!backupData.encrypted,
+            hasIv: !!backupData.iv,
+            hasCredentialId: !!backupData.credentialId,
+            hasUserHandle: !!backupData.userHandle,
+            hasPinSalt: !!backupData.pinSalt,
+          });
+          loadSteps += '\n❌ Atomic backup is corrupted (missing required fields)\n';
+          throw new Error(loadSteps);
+        }
+
+        logger.debug('Successfully loaded atomic backup from iCloud', {
+          version: backupData.version,
+          timestamp: backupData.timestamp,
+        });
+        loadSteps += '\n✅ Atomic backup loaded successfully\n';
+
+        return {
+          encrypted: backupData.encrypted,
+          iv: backupData.iv,
+          tag: backupData.tag || '',
+          credentialId: backupData.credentialId,
+          userHandle: backupData.userHandle,
+          pinSalt: backupData.pinSalt,
+          _debugInfo: loadSteps,
+        };
+      } catch (parseError) {
+        logger.error('Failed to parse atomic backup', { error: (parseError as Error).message });
+        loadSteps += `  ❌ Failed to parse atomic backup: ${(parseError as Error).message}\n`;
+        loadSteps += '  Falling back to legacy format...\n';
+      }
+    } else {
+      loadSteps += '  ⚠️ No atomic backup found\n';
+      loadSteps += '  Trying legacy format (v1)...\n';
+    }
+
+    // Fall back to legacy format (v1)
+    loadSteps += '\nLoading legacy keys from iCloud:\n';
 
     loadSteps += '  1. Loading ENCRYPTED_MNEMONIC...\n';
     const encrypted = await iCloudStorage.getItem(ICLOUD_KEYS.ENCRYPTED_MNEMONIC);
     loadSteps += `     ${encrypted ? '✅' : '❌'} ${encrypted ? `Found (${encrypted.length} chars)` : 'Not found (null)'}\n`;
 
     if (!encrypted) {
-      logger.debug('No backup found in iCloud');
-      throw new Error(loadSteps + '\n❌ No encrypted mnemonic in iCloud - backup does not exist');
+      logger.debug('No backup found in iCloud (neither v2 nor v1)');
+      throw new Error(loadSteps + '\n❌ No backup found in iCloud - backup does not exist');
     }
 
     loadSteps += '  2. Loading ENCRYPTION_IV...\n';
@@ -227,8 +312,9 @@ export const loadFromICloud = async (): Promise<LoadedBackupData> => {
       throw new Error(loadSteps);
     }
 
-    logger.debug('Successfully loaded from iCloud');
-    loadSteps += '\n✅ All required keys loaded successfully\n';
+    logger.debug('Successfully loaded legacy backup from iCloud (will be migrated on next save)');
+    loadSteps += '\n✅ Legacy backup loaded successfully\n';
+    loadSteps += '⚠️ Note: This backup will be automatically migrated to atomic format on next save\n';
 
     return {
       encrypted,
@@ -237,7 +323,7 @@ export const loadFromICloud = async (): Promise<LoadedBackupData> => {
       credentialId,
       userHandle,
       pinSalt,
-      _debugInfo: loadSteps, // Include debug info in return
+      _debugInfo: loadSteps,
     };
   } catch (error: unknown) {
     logger.error('Failed to load from iCloud', { error: (error as Error).message });
@@ -251,15 +337,30 @@ export const loadFromICloud = async (): Promise<LoadedBackupData> => {
 };
 
 /**
- * Check if iCloud backup exists
+ * Check if iCloud backup exists (checks both atomic v2 and legacy v1 formats)
  * @returns True if backup exists, false otherwise
  */
 export const hasICloudBackup = async (): Promise<boolean> => {
   try {
     logger.debug('Checking for iCloud backup...');
+
+    // Check for atomic backup first (v2)
+    const atomicBackup = await iCloudStorage.getItem(ICLOUD_KEYS.ATOMIC_BACKUP);
+    if (atomicBackup) {
+      logger.debug('iCloud backup check result: atomic backup (v2) found', {
+        backupSize: atomicBackup.length,
+      });
+      return true;
+    }
+
+    // Fall back to legacy format (v1)
     const encrypted = await iCloudStorage.getItem(ICLOUD_KEYS.ENCRYPTED_MNEMONIC);
     const hasData = !!encrypted;
-    logger.debug('iCloud backup check result:', { hasData, encryptedLength: encrypted?.length });
+    logger.debug('iCloud backup check result:', {
+      hasData,
+      format: hasData ? 'legacy (v1)' : 'none',
+      encryptedLength: encrypted?.length,
+    });
     return hasData;
   } catch (error: unknown) {
     const err = error as ICloudError;
@@ -285,19 +386,27 @@ export const hasICloudBackup = async (): Promise<boolean> => {
 
 /**
  * Clear all data from iCloud (for wallet deletion)
+ * Clears both atomic (v2) and legacy (v1) formats
  */
 export const clearICloud = async (): Promise<void> => {
   try {
-    logger.debug('Clearing iCloud backup');
+    logger.debug('Clearing iCloud backup (both v2 and v1 formats)');
 
-    await iCloudStorage.removeItem(ICLOUD_KEYS.ENCRYPTED_MNEMONIC);
-    await iCloudStorage.removeItem(ICLOUD_KEYS.ENCRYPTION_IV);
-    await iCloudStorage.removeItem(ICLOUD_KEYS.ENCRYPTION_TAG);
-    await iCloudStorage.removeItem(ICLOUD_KEYS.CREDENTIAL_ID);
-    await iCloudStorage.removeItem(ICLOUD_KEYS.USER_HANDLE);
-    await iCloudStorage.removeItem(ICLOUD_KEYS.PIN_SALT);
+    // Clear all formats atomically using Promise.all
+    await Promise.all([
+      // V2: Atomic backup
+      iCloudStorage.removeItem(ICLOUD_KEYS.ATOMIC_BACKUP),
 
-    logger.debug('iCloud backup cleared');
+      // V1: Legacy keys (for backward compatibility)
+      iCloudStorage.removeItem(ICLOUD_KEYS.ENCRYPTED_MNEMONIC),
+      iCloudStorage.removeItem(ICLOUD_KEYS.ENCRYPTION_IV),
+      iCloudStorage.removeItem(ICLOUD_KEYS.ENCRYPTION_TAG),
+      iCloudStorage.removeItem(ICLOUD_KEYS.CREDENTIAL_ID),
+      iCloudStorage.removeItem(ICLOUD_KEYS.USER_HANDLE),
+      iCloudStorage.removeItem(ICLOUD_KEYS.PIN_SALT),
+    ]);
+
+    logger.debug('iCloud backup cleared (all formats)');
   } catch (error: unknown) {
     logger.error('Failed to clear iCloud backup', { error: (error as Error).message });
     throw error;

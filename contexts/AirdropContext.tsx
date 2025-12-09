@@ -4,6 +4,7 @@ import { useBalance } from './WalletDataContext';
 import { useWallet } from './WalletContext';
 import { useAuth } from './AuthContext';
 import * as AirdropService from '../services/airdropService';
+import { logger } from '../utils/logger';
 import {
   configureAudioMode,
   preloadConfettiSound,
@@ -99,7 +100,9 @@ export const AirdropProvider: React.FC<AirdropProviderProps> = ({ children, seed
         confettiSoundRef.current = sound;
         setAudioReady(true);
       } catch (error: unknown) {
-        // Error already logged in preloadConfettiSound
+        logger.warn('Failed to preload confetti sound', {
+          error: error instanceof Error ? error.message : String(error)
+        });
       }
     };
 
@@ -203,10 +206,14 @@ export const AirdropProvider: React.FC<AirdropProviderProps> = ({ children, seed
               setAirdropTxId(result.txId);
               setShowAirdropModal(true);
               // Don't trigger effects here - wait for user to click "Get Started"
-              // Clean up pending state
-              clearPendingAirdrop(pendingKey);
             }, 500);
+
+            // Clear pending airdrop outside setTimeout to avoid race condition
+            await clearPendingAirdrop(pendingKey);
           } catch (error: unknown) {
+            logger.warn('Failed to request airdrop', {
+              error: error instanceof Error ? error.message : String(error)
+            });
             // Keep the lastAirdropTime to prevent immediate retries
           } finally {
             // Release lock and clear ref

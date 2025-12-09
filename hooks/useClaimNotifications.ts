@@ -6,6 +6,7 @@
 import { useEffect } from 'react';
 import { useNavigation } from '@react-navigation/native';
 import { logger } from '../utils/logger';
+import { useTokenProcessingStore } from '../stores/tokenProcessingStore';
 import type { SnackbarParams } from '../stores/notificationStore';
 
 // Navigation type for this hook
@@ -13,12 +14,6 @@ type ClaimNavigationType = {
   setParams: (params: Record<string, unknown>) => void;
   navigate: (screen: string, params?: Record<string, unknown>) => void;
 };
-
-// Extend global for reloadWallet
-declare global {
-  // eslint-disable-next-line no-var
-  var reloadWallet: (() => void) | undefined;
-}
 
 interface ClaimRouteParams {
   claimSuccess?: boolean;
@@ -52,6 +47,7 @@ export function useClaimNotifications({
   switchAccount,
 }: UseClaimNotificationsParams): void {
   const navigation = useNavigation() as ClaimNavigationType;
+  const tokenStore = useTokenProcessingStore();
 
   useEffect(() => {
     logger.debug('🎯 useClaimNotifications effect triggered:', {
@@ -117,10 +113,9 @@ export function useClaimNotifications({
               await switchAccount(targetAccountIndex);
               logger.info('[useClaimNotifications] Account switched successfully');
 
-              if (global.reloadWallet) {
-                logger.info('[useClaimNotifications] Reloading wallet...');
-                global.reloadWallet();
-              }
+              // Trigger wallet reload via store
+              logger.info('[useClaimNotifications] Reloading wallet via store...');
+              tokenStore.triggerWalletReload();
 
               // Clear the error params
               logger.info('[useClaimNotifications] Clearing route params...');
@@ -162,5 +157,5 @@ export function useClaimNotifications({
         navigation.setParams({ claimError: undefined, claimToken: undefined });
       }
     }
-  }, [route?.params?.claimSuccess, route?.params?.claimError, route?.params?.claimToken, showSnackbar, navigation, switchAccount, dismissSnackbar]);
+  }, [route?.params?.claimSuccess, route?.params?.claimError, route?.params?.claimToken, showSnackbar, navigation, switchAccount, dismissSnackbar, tokenStore]);
 }

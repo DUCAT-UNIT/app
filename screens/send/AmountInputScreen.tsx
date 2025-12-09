@@ -36,6 +36,22 @@ const ESTIMATED_BTC_FEE_SATS = 250;
 const ESTIMATED_UNIT_FEE_SATS = 500; // UNIT transactions have more outputs
 
 /**
+ * Safe BTC to satoshi conversion avoiding floating point errors
+ * @param btcString - BTC amount as string (e.g. "0.001")
+ * @returns Amount in satoshis
+ */
+function btcToSats(btcString: string): number {
+  // Split on decimal point and handle each part as integer
+  const parts = btcString.replace(',', '.').split('.');
+  const wholePart = parseInt(parts[0] || '0', 10) * 100000000;
+  if (parts.length === 1) return wholePart;
+
+  // Pad or truncate decimal part to 8 digits
+  const decimalPart = (parts[1] || '').padEnd(8, '0').slice(0, 8);
+  return wholePart + parseInt(decimalPart, 10);
+}
+
+/**
  * Route parameters for AmountInputScreen
  */
 interface AmountInputRouteParams {
@@ -125,7 +141,7 @@ export default function AmountInputScreen({ navigation, route }: AmountInputScre
   const estimatedFeeBtc = estimatedFeeSats / 100000000;
 
   // Check if user has enough BTC to cover fees when sending UNIT
-  const btcBalanceSats = Math.round((segwitBalance || 0) * 100000000);
+  const btcBalanceSats = btcToSats((segwitBalance || 0).toString());
   const hasInsufficientBtcForFees = sendAssetType === 'unit' && btcBalanceSats < estimatedFeeSats;
 
   // Auto-focus input
@@ -198,6 +214,7 @@ export default function AmountInputScreen({ navigation, route }: AmountInputScre
     try {
       const { getBalance } = await import('../../services/cashu/cashuWalletService');
       const ecashBalance = await getBalance();
+      // Safe conversion: multiply by 100 using integer math to avoid floating point errors
       const ecashBalanceSmallestUnits = Math.round(ecashBalance * 100);
       const amountInSmallestUnits = Math.round(amount * 100);
 

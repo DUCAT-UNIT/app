@@ -6,6 +6,7 @@
 import { useCallback, useRef } from 'react';
 import { useVaultCreationStore } from '../stores/vaultCreationStore';
 import { useWallet } from '../contexts/WalletContext';
+import { useBalance } from '../contexts/WalletDataContext';
 import { usePrice } from '../stores/priceStore';
 import { getGuardianClient, disconnectGuardian } from '../services/guardianService';
 import {
@@ -39,6 +40,7 @@ export interface UseCreateVaultResult {
 
 export function useCreateVault(): UseCreateVaultResult {
   const { wallet } = useWallet();
+  const { segwitBalance } = useBalance();
   const { btcPrice } = usePrice();
 
   const {
@@ -91,7 +93,7 @@ export function useCreateVault(): UseCreateVaultResult {
         btcAmount,
         unitAmount,
         btcPrice,
-        btcAmount // TODO: Get actual available balance
+        segwitBalance // Available BTC balance from wallet
       );
 
       if (!validation.isValid) {
@@ -182,6 +184,7 @@ export function useCreateVault(): UseCreateVaultResult {
       btcPrice,
       btcAmount,
       unitAmount,
+      segwitBalance,
       selectedFeeRate,
       setLoading,
       setError,

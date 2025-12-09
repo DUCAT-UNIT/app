@@ -183,7 +183,7 @@ describe('cashuProofManager', () => {
 
       await saveProofs(proofs);
 
-      expect(SecureStore.deleteItemAsync).toHaveBeenCalledWith('cashu_proofs_test_save_account');
+      // Note: deleteItemAsync is no longer called - atomic write removes the race condition
       expect(SecureStore.setItemAsync).toHaveBeenCalledWith(
         'cashu_proofs_test_save_account',
         JSON.stringify(proofs)
@@ -201,12 +201,11 @@ describe('cashuProofManager', () => {
       (SecureStore.setItemAsync as jest.Mock).mockImplementationOnce(() => Promise.resolve());
 
       await expect(saveProofs(proofs)).rejects.toThrow(
-        'Failed to save proofs - verification failed'
+        'Failed to save proofs - verification returned null'
       );
 
       expect(logger.error).toHaveBeenCalledWith(
-        'SecureStore write verification failed!',
-        expect.objectContaining({ expected: 2, actual: 0 })
+        'SecureStore write verification failed - no data returned'
       );
     });
   });

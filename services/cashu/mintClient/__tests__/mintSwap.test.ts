@@ -125,7 +125,8 @@ describe('Mint Swap Service', () => {
     });
 
     it('should handle empty inputs array', async () => {
-      const mockResponse = { signatures: [] };
+      // With empty inputs but outputs, the mint should return matching signatures
+      const mockResponse = { signatures: [{ C_: 'sig1' }, { C_: 'sig2' }] };
       (postJSON as jest.Mock).mockResolvedValue(mockResponse);
 
       const result = await swapTokens([], mockOutputs);
@@ -151,16 +152,28 @@ describe('Mint Swap Service', () => {
     });
 
     it('should log signature count on success', async () => {
+      // Signatures count must match outputs count
       const mockResponse = {
-        signatures: [{ C_: '1' }, { C_: '2' }, { C_: '3' }],
+        signatures: [{ C_: '1' }, { C_: '2' }],
       };
       (postJSON as jest.Mock).mockResolvedValue(mockResponse);
 
       await swapTokens(mockInputs, mockOutputs);
 
       expect(logger.info).toHaveBeenCalledWith('Tokens swapped', {
-        signatureCount: 3,
+        signatureCount: 2,
       });
+    });
+
+    it('should throw error if signatures count does not match outputs count', async () => {
+      const mockResponse = {
+        signatures: [{ C_: '1' }, { C_: '2' }, { C_: '3' }],
+      };
+      (postJSON as jest.Mock).mockResolvedValue(mockResponse);
+
+      await expect(swapTokens(mockInputs, mockOutputs)).rejects.toThrow(
+        'Signature count mismatch: expected 2 signatures but got 3'
+      );
     });
   });
 

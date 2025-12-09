@@ -12,6 +12,7 @@ import * as LocalAuthentication from 'expo-local-authentication';
 import * as SecureStore from 'expo-secure-store';
 import { SECURE_KEYS } from '../utils/constants';
 import * as PasskeyService from '../services/passkey';
+import { logger } from '../utils/logger';
 
 interface UseAuthParams {
   onSeedConfirmed?: (confirmed: boolean) => void;
@@ -103,8 +104,12 @@ export function useAuth({ onSeedConfirmed }: UseAuthParams): UseAuthReturn {
     try {
       const biometricPref = await SecureStore.getItemAsync(SECURE_KEYS.BIOMETRIC_ENABLED);
       setBiometricEnabled(biometricPref === 'true');
-    } catch (_error: unknown) {
-      // Silently fail - use default value
+    } catch (error) {
+      logger.warn('Failed to load biometric preference', {
+        operation: 'loadBiometricPreference',
+        error: error instanceof Error ? error.message : String(error)
+      });
+      // Use default value (false)
     }
   }, []);
 
@@ -113,8 +118,12 @@ export function useAuth({ onSeedConfirmed }: UseAuthParams): UseAuthReturn {
     try {
       const passkeyPref = await PasskeyService.isPasskeyEnabled();
       setPasskeyEnabled(passkeyPref);
-    } catch (_error: unknown) {
-      // Silently fail - use default value
+    } catch (error) {
+      logger.warn('Failed to load passkey preference', {
+        operation: 'loadPasskeyPreference',
+        error: error instanceof Error ? error.message : String(error)
+      });
+      // Use default value (false)
     }
   }, []);
 
@@ -127,7 +136,11 @@ export function useAuth({ onSeedConfirmed }: UseAuthParams): UseAuthReturn {
         return true;
       }
       return false;
-    } catch (_error: unknown) {
+    } catch (error) {
+      logger.warn('Passkey authentication failed', {
+        operation: 'authenticateWithPasskey',
+        error: error instanceof Error ? error.message : String(error)
+      });
       return false;
     }
   }, []);
@@ -163,7 +176,11 @@ export function useAuth({ onSeedConfirmed }: UseAuthParams): UseAuthReturn {
         // When biometric is not enabled, show the biometric prompt
         setShowBiometricPrompt(true);
       }
-    } catch (_error: unknown) {
+    } catch (error) {
+      logger.warn('Biometric authentication failed', {
+        operation: 'authenticateUser',
+        error: error instanceof Error ? error.message : String(error)
+      });
       // On error, show biometric prompt so user can enable it
       setShowBiometricPrompt(true);
     }
@@ -227,11 +244,28 @@ export function useAuth({ onSeedConfirmed }: UseAuthParams): UseAuthReturn {
 
   // Start PIN change flow
   const startPinChange = useCallback(async () => {
-    setChangingPin(true);
-    // Save flag to return to settings after PIN change
-    await SecureStore.setItemAsync('returnToSettingsAfterPinChange', 'true');
-    // Don't set settingUpPin yet - wait until after authentication
-    setIsAuthenticated(false); // Lock wallet to trigger authentication
+    try {
+      setChangingPin(true);
+      // Save flag to return to settings after PIN change
+      await SecureStore.setItemAsync('returnToSettingsAfterPinChange', 'true');
+      // Don't set settingUpPin yet - wait until after authentication
+      setIsAuthenticated(false); // Lock wallet to trigger authentication
+    } catch (error) {
+      logger.warn('Failed to start PIN change flow', {
+        operation: 'startPinChange',
+        error: error instanceof Error ? error.message : String(error)
+      });
+      // Clean up the flag on error
+      try {
+        await SecureStore.deleteItemAsync('returnToSettingsAfterPinChange');
+      } catch (cleanupError) {
+        logger.warn('Failed to cleanup PIN change flag', {
+          operation: 'startPinChange_cleanup',
+          error: cleanupError instanceof Error ? cleanupError.message : String(cleanupError)
+        });
+      }
+      setChangingPin(false);
+    }
   }, []);
 
   // Memoize state values
@@ -257,8 +291,8 @@ export function useAuth({ onSeedConfirmed }: UseAuthParams): UseAuthReturn {
     settingUpPin, changingPin, showPinEntry, pin, confirmPin, pinError, pinStep,
   ]);
 
-  // Setters are stable references from useState, no memoization needed
-  const setters = {
+  // Memoize setters object to prevent recreation on every render
+  const setters = useMemo(() => ({
     setIsAuthenticated,
     setBiometricEnabled,
     setShowBiometricPrompt,
@@ -272,7 +306,21 @@ export function useAuth({ onSeedConfirmed }: UseAuthParams): UseAuthReturn {
     setConfirmPin,
     setPinError,
     setPinStep,
-  };
+  }), [
+    setIsAuthenticated,
+    setBiometricEnabled,
+    setShowBiometricPrompt,
+    setShowFaceIdButton,
+    setPasskeyEnabled,
+    setShowPasskeyPrompt,
+    setShowPinEntry,
+    setSettingUpPin,
+    setChangingPin,
+    setPin,
+    setConfirmPin,
+    setPinError,
+    setPinStep,
+  ]);
 
   // Memoize functions
   const functions = useMemo(() => ({
@@ -297,5 +345,5 @@ export function useAuth({ onSeedConfirmed }: UseAuthParams): UseAuthReturn {
     ...state,
     ...setters,
     ...functions,
-  }), [state, functions]);
+  }), [state, setters, functions]);
 }

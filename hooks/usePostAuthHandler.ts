@@ -1,6 +1,8 @@
 import { useCallback, MutableRefObject } from 'react';
 import * as SecureStore from 'expo-secure-store';
 import { notify } from '../utils/notify';
+import { deleteWalletData } from '../services/secureStorageService';
+import { logger } from '../utils/logger';
 
 interface UsePostAuthHandlerParams {
   changingPin: boolean;
@@ -71,8 +73,7 @@ export function usePostAuthHandler({
       await SecureStore.deleteItemAsync('pendingWalletDelete');
       // Trigger wallet deletion
       try {
-        const SecureStorageService = require('../services/secureStorageService');
-        const success = await SecureStorageService.deleteWalletData();
+        const success = await deleteWalletData();
         if (success) {
           resetWallet();
           if (walletExists && walletExists.current !== undefined) {
@@ -83,7 +84,8 @@ export function usePostAuthHandler({
         } else {
           notify.wallet.deleteFailed();
         }
-      } catch {
+      } catch (error: unknown) {
+        logger.error('[usePostAuthHandler] Failed to delete wallet', { error: error instanceof Error ? error.message : String(error) });
         notify.wallet.deleteFailed();
       }
       return;

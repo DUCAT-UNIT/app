@@ -217,8 +217,9 @@ describe('cashuMintClient', () => {
 
   describe('swapTokens', () => {
     it('should swap tokens successfully', async () => {
+      // Signatures count must match outputs count for security validation
       const mockResponse = {
-        signatures: [{ C_: 'newsig1' }],
+        signatures: [{ C_: 'newsig1' }, { C_: 'newsig2' }],
       };
       (postJSON as jest.Mock).mockResolvedValue(mockResponse);
 

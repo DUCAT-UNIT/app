@@ -8,6 +8,7 @@ import * as SecureStore from 'expo-secure-store';
 import { authenticateWithBiometrics } from '../services/biometricService';
 import { deleteWalletData } from '../services/secureStorageService';
 import { notify } from '../utils/notify';
+import { logger } from '../utils/logger';
 
 interface UseWalletActionsParams {
   resetAuth: () => void;
@@ -65,7 +66,8 @@ export function useWalletActions({ resetAuth, resetWallet, clearVaultCredentials
         setIsAuthenticated(false);
         return;
       }
-    } catch {
+    } catch (error: unknown) {
+      logger.error('[useWalletActions] Biometric auth failed for wallet delete', { error: error instanceof Error ? error.message : String(error) });
       notify.auth.requiredForDeleteWallet();
       return;
     }
@@ -89,7 +91,8 @@ export function useWalletActions({ resetAuth, resetWallet, clearVaultCredentials
       } else {
         notify.wallet.deleteFailed();
       }
-    } catch {
+    } catch (error: unknown) {
+      logger.error('[useWalletActions] Failed to delete wallet', { error: error instanceof Error ? error.message : String(error) });
       notify.wallet.deleteFailed();
     }
   }, [resetAuth, resetWallet, clearVaultCredentials, walletExistsRef, setIsAuthenticated]);

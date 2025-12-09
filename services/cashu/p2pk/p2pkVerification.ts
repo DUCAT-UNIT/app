@@ -29,7 +29,8 @@ export const isP2PKSecret = (secret: string): boolean => {
       secretPreview: secret?.substring(0, 30) + '...',
     });
     return isP2PK;
-  } catch {
+  } catch (_) {
+    // Not JSON format - this is expected for regular (non-P2PK) secrets
     logger.cashu('p2pk_secret_check', {
       step: 'DETECTION',
       isP2PK: false,
@@ -157,7 +158,8 @@ export const hasP2PKProofs = (tokenString: string): boolean => {
       try {
         const parsed = JSON.parse(p.secret) as unknown;
         return Array.isArray(parsed) && parsed[0] === 'P2PK';
-      } catch {
+      } catch (_) {
+        // Not JSON format - expected for regular secrets
         return false;
       }
     }).length;

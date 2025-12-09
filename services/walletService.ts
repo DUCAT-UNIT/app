@@ -7,6 +7,7 @@ import * as Crypto from 'expo-crypto';
 import * as bip39 from 'bip39';
 import { deriveAddressesFromMnemonic, type DerivedAddresses } from '../utils/bitcoin';
 import { getCurrentAccount, withMnemonic, saveMnemonic, saveCurrentAccount, getCachedAddresses, saveCachedAddresses, getMultiAccountCache, saveToMultiAccountCache } from './secureStorageService';
+import { logger } from '../utils/logger';
 
 export interface GenerateWalletResult {
   mnemonic: string;
@@ -92,8 +93,10 @@ export const loadWalletFromStorage = async (): Promise<LoadWalletResult> => {
     // Try single-account cache (fast path - ~5ms)
     const cachedAddresses = await getCachedAddresses(accountIndex);
     if (cachedAddresses) {
-      // Populate multi-account cache for future fast switching
-      void saveToMultiAccountCache(accountIndex, cachedAddresses);
+      // Populate multi-account cache for future fast switching (non-blocking with error logging)
+      saveToMultiAccountCache(accountIndex, cachedAddresses).catch((error) => {
+        logger.warn('Failed to save to multi-account cache', { error: error instanceof Error ? error.message : String(error) });
+      });
       return { addresses: cachedAddresses, accountIndex };
     }
 
@@ -105,12 +108,14 @@ export const loadWalletFromStorage = async (): Promise<LoadWalletResult> => {
       return deriveAddressesFromMnemonic(mnemonic, accountIndex);
     });
 
-    // Cache the derived addresses for next startup and fast switching
+    // Cache the derived addresses for next startup and fast switching (non-blocking with error logging)
     if (addresses) {
-      void Promise.all([
+      Promise.all([
         saveCachedAddresses(accountIndex, addresses),
         saveToMultiAccountCache(accountIndex, addresses),
-      ]);
+      ]).catch((error) => {
+        logger.warn('Failed to cache derived addresses', { error: error instanceof Error ? error.message : String(error) });
+      });
     }
 
     return { addresses, accountIndex };
@@ -130,8 +135,10 @@ export const switchToAccount = async (accountIndex: number): Promise<SwitchAccou
     // Try multi-account cache first (fast path - instant if in memory, ~5ms from storage)
     const cachedAddresses = await getMultiAccountCache(accountIndex);
     if (cachedAddresses) {
-      // Update current account index (fire and forget)
-      void saveCurrentAccount(accountIndex);
+      // Update current account index (non-blocking with error logging)
+      saveCurrentAccount(accountIndex).catch((error) => {
+        logger.warn('Failed to save current account index', { error: error instanceof Error ? error.message : String(error) });
+      });
       return { addresses: cachedAddresses };
     }
 

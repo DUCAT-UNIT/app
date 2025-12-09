@@ -83,8 +83,8 @@ export function createMobileWalletAPI(segwitAddress: string): WalletConnectAPI {
           const txin = pre_pdata.getInput(i);
           const prevout = txin.witnessUtxo;
           if (prevout) {
-            // eslint-disable-next-line @typescript-eslint/no-explicit-any
-            const scriptMeta = TX.parse_script_meta(prevout.script as any);
+            // SDK type mismatch: script is Uint8Array but SDK expects string | Bytes
+            const scriptMeta = TX.parse_script_meta(prevout.script as Parameters<typeof TX.parse_script_meta>[0]);
             logger.debug(`[VaultWalletService] Input ${i}: type=${scriptMeta.type}, hasTapLeafScript=${!!txin.tapLeafScript}`);
           }
         }
@@ -122,8 +122,8 @@ export function createMobileWalletAPI(segwitAddress: string): WalletConnectAPI {
 
           if (prevout === undefined) continue;
 
-          // eslint-disable-next-line @typescript-eslint/no-explicit-any
-          const meta = TX.parse_script_meta(prevout.script as any);
+          // SDK type mismatch: script is Uint8Array but SDK expects string | Bytes
+          const meta = TX.parse_script_meta(prevout.script as Parameters<typeof TX.parse_script_meta>[0]);
           if (meta.key === undefined) continue;
 
           if (meta.type === 'p2w-pkh' && meta.key.hex === sats_pkh) {

@@ -3,7 +3,7 @@
  * Orchestrates the full withdraw flow for removing BTC collateral from an existing vault
  */
 
-import { useCallback, useRef, useEffect } from 'react';
+import { useCallback, useRef, useEffect, useState } from 'react';
 import { useWithdrawStore } from '../stores/withdrawStore';
 import { useWallet } from '../contexts/WalletContext';
 import { usePrice } from '../stores/priceStore';
@@ -65,9 +65,13 @@ export function useWithdrawVault(): UseWithdrawVaultResult {
     reset,
   } = useWithdrawStore();
 
+  // Get store actions
+  const setPendingTransaction = usePendingVaultTransactionStore((state) => state.setPendingTransaction);
+  const showSnackbar = useNotificationStore((state) => state.showSnackbar);
+
   // Track if we're in the middle of an operation
   const operationInProgressRef = useRef(false);
-  const vaultDataLoadedRef = useRef(false);
+  const [vaultDataLoaded, setVaultDataLoaded] = useState(false);
 
   // Update bitcoin price when it changes
   useEffect(() => {
@@ -106,7 +110,7 @@ export function useWithdrawVault(): UseWithdrawVaultResult {
       const btcLocked = vaultData.totalCollateral || 0;
 
       setCurrentVaultData(unitBorrowed, btcLocked);
-      vaultDataLoadedRef.current = true;
+      setVaultDataLoaded(true);
 
       logger.debug('[useWithdrawVault] Vault data loaded:', {
         unitBorrowed,
@@ -303,7 +307,7 @@ export function useWithdrawVault(): UseWithdrawVaultResult {
       setCurrentStep('success');
 
       // Set pending transaction for activity list and button disabling
-      await usePendingVaultTransactionStore.getState().setPendingTransaction({
+      await setPendingTransaction({
         txid: result.vault_txid,
         vaultTxid: result.vault_txid,
         action: 'withdraw',
@@ -314,7 +318,7 @@ export function useWithdrawVault(): UseWithdrawVaultResult {
       });
 
       // Show info snackbar about pending confirmation
-      useNotificationStore.getState().showSnackbar({
+      showSnackbar({
         title: 'Vault transaction confirming',
         description: 'Please wait for the block to get mined',
         type: 'info',
@@ -355,11 +359,13 @@ export function useWithdrawVault(): UseWithdrawVaultResult {
     updateProcessingStep,
     buildVaultProfileFromData,
     validateHealthAfterWithdraw,
+    setPendingTransaction,
+    showSnackbar,
   ]);
 
   const cancel = useCallback(() => {
     operationInProgressRef.current = false;
-    vaultDataLoadedRef.current = false;
+    setVaultDataLoaded(false);
     disconnectGuardian();
     reset();
   }, [reset]);
@@ -371,7 +377,7 @@ export function useWithdrawVault(): UseWithdrawVaultResult {
     isLoading: loading,
     error,
     vaultTxid,
-    vaultDataLoaded: vaultDataLoadedRef.current,
+    vaultDataLoaded,
   };
 }
 

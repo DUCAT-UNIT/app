@@ -28,12 +28,16 @@ export interface SendTokenResult {
  * Creates a token that can be shared via QR code or text
  */
 export const sendToken = async (amount: number, returnChange = true): Promise<SendTokenResult> => {
+  let selectedProofs: CashuProof[] | null = null;
+  let changeProofs: CashuProof[] | null = null;
+  let didSwap = false;
+
   try {
     logger.info('Sending token', { amount, returnChange });
 
     // Select proofs
     const allProofs = await loadProofs();
-    const selectedProofs = selectProofsForAmount(allProofs, amount);
+    selectedProofs = selectProofsForAmount(allProofs, amount);
     const selectedAmount = sumProofs(selectedProofs);
 
     logger.info('Selected proofs', {
@@ -43,7 +47,7 @@ export const sendToken = async (amount: number, returnChange = true): Promise<Se
     });
 
     let proofsToSend = selectedProofs;
-    let changeProofs: CashuProof[] = [];
+    changeProofs = [];
 
     // If we need to create change
     if (returnChange && selectedAmount > amount) {
@@ -74,8 +78,10 @@ export const sendToken = async (amount: number, returnChange = true): Promise<Se
         ...changeAmounts,
       ], keysetId);
 
-      // Swap with mint
+      // CRITICAL: After this swap, selectedProofs are spent with the mint
+      // If any error occurs after this, we MUST save changeProofs to avoid fund loss
       const response = await swapTokensAPI(selectedProofs, outputs);
+      didSwap = true;
 
       // Unblind all
       const allNewProofs = unblindSignatures(
@@ -96,9 +102,37 @@ export const sendToken = async (amount: number, returnChange = true): Promise<Se
     }
 
     // Remove spent proofs, add change
-    await removeProofs(selectedProofs);
-    if (changeProofs.length > 0) {
-      await addProofs(changeProofs);
+    // Wrap in try-catch to ensure change proofs are saved even if removeProofs fails
+    try {
+      await removeProofs(selectedProofs);
+      if (changeProofs.length > 0) {
+        await addProofs(changeProofs);
+      }
+      logger.info('Successfully updated proofs after swap', {
+        removedCount: selectedProofs.length,
+        changeCount: changeProofs.length,
+      });
+    } catch (proofError) {
+      // If we swapped and have change proofs, we MUST save them
+      if (didSwap && changeProofs && changeProofs.length > 0) {
+        logger.warn('Error updating proofs after swap - attempting to save change proofs', {
+          error: (proofError as Error).message,
+        });
+        try {
+          // Try to save change proofs even if removeProofs failed
+          await addProofs(changeProofs);
+          logger.info('Successfully saved change proofs after removeProofs failure', {
+            changeCount: changeProofs.length,
+          });
+        } catch (saveError) {
+          logger.error('CRITICAL: Failed to save change proofs after swap!', {
+            error: (saveError as Error).message,
+            changeProofsCount: changeProofs.length,
+          });
+          throw saveError;
+        }
+      }
+      throw proofError;
     }
 
     // Encode token for sending
@@ -114,7 +148,27 @@ export const sendToken = async (amount: number, returnChange = true): Promise<Se
       balance: newBalance,
     };
   } catch (error: unknown) {
-    logger.error('Failed to send token', { error: (error as Error).message });
+    logger.error('Failed to send token', { error: (error as Error).message, didSwap });
+
+    // CRITICAL: If we swapped for change but operation failed, we MUST save the change proofs
+    // The old proofs are already spent with the mint after the swap
+    if (didSwap && changeProofs && changeProofs.length > 0 && selectedProofs) {
+      logger.warn('Send token failed after swap - saving change proofs to prevent fund loss');
+      try {
+        await removeProofs(selectedProofs);
+        await addProofs(changeProofs);
+        logger.info('Successfully saved change proofs after send token failure', {
+          changeCount: changeProofs.length,
+        });
+      } catch (saveError) {
+        logger.error('CRITICAL: Failed to save change proofs after send token failure!', {
+          error: (saveError as Error).message,
+          changeProofsCount: changeProofs.length,
+        });
+        // Still throw the original error, but user needs to know about this
+      }
+    }
+
     throw error;
   }
 };
