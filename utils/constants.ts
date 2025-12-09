@@ -43,6 +43,15 @@ export const API = {
   ORD_URL: 'https://ord-mutinynet.ducatprotocol.com',
 } as const;
 
+// Bitcoin transaction constants
+export const BITCOIN_TX = {
+  DUST_LIMIT: 546, // Minimum output amount in satoshis to avoid dust
+  SATOSHIS_PER_BTC: 100_000_000, // Number of satoshis in 1 BTC
+  ESTIMATED_TX_FEE: 1_000, // Default transaction fee in satoshis
+  RUNE_OUTPUT_AMOUNT: 10_000, // Standard amount for rune-bearing outputs
+  TX_TIMEOUT_BUFFER: 5_000, // Extra milliseconds to wait beyond configured timeout
+} as const;
+
 // Vault creation constants
 export const VAULT_CONFIG = {
   MIN_COL_RATE: 1.6, // 160% minimum collateralization ratio

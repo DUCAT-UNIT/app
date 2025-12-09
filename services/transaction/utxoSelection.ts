@@ -4,6 +4,7 @@
  */
 
 import logger from '../../utils/logger';
+import { BITCOIN_TX } from '../../utils/constants';
 
 export interface UTXO {
   txid: string;
@@ -74,7 +75,7 @@ export function selectUtxosForTransaction(
   availableUtxos: UTXO[],
   amountInSats: number,
   calculateFee: FeeCalculator,
-  dustLimit = 546
+  dustLimit = BITCOIN_TX.DUST_LIMIT
 ): UtxoSelectionResult {
   const selectedUtxos: UTXO[] = [];
   const selectedUtxoKeys = new Set<string>();

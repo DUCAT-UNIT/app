@@ -12,7 +12,7 @@ import type {
   WalletVaultBorrowConfig,
   WalletVaultBorrowRequest,
 } from '@ducat-unit/client-sdk';
-import { VAULT_CONFIG } from '../../utils/constants';
+import { VAULT_CONFIG, BITCOIN_TX } from '../../utils/constants';
 import { logger } from '../../utils/logger';
 import { withGuardianTimeout } from '../guardianService';
 import { checkBatchAllowed, Utxo } from './utils';
@@ -174,7 +174,7 @@ export async function guardianSendReqBorrow(
 
     const guardRes = await withGuardianTimeout(
       guardSub.resolve(VAULT_CONFIG.TX_TIMEOUT),
-      VAULT_CONFIG.TX_TIMEOUT + 5000
+      VAULT_CONFIG.TX_TIMEOUT + BITCOIN_TX.TX_TIMEOUT_BUFFER
     ) as { issue_txid: string; vault_txid: string };
 
     const txid = guardRes.issue_txid;

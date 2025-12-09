@@ -8,7 +8,7 @@ import * as ecc from '@bitcoinerlab/secp256k1';
 import { MUTINYNET_NETWORK, validateAndNormalizeAddress } from '../../utils/bitcoin';
 import { fetchUtxos as fetchUtxosService } from '../balanceService';
 import { ERRORS } from '../../utils/messages';
-import { getTxHexUrl } from '../../utils/constants';
+import { getTxHexUrl, BITCOIN_TX } from '../../utils/constants';
 import { logger } from '../../utils/logger';
 import { fetchWithTimeout } from '../../utils/api';
 import {
@@ -35,7 +35,7 @@ function btcToSats(btcString: string): number {
 
   // Split on decimal point and handle each part as integer
   const parts = btcString.replace(',', '.').split('.');
-  const wholePart = parseInt(parts[0] || '0', 10) * 100000000;
+  const wholePart = parseInt(parts[0] || '0', 10) * BITCOIN_TX.SATOSHIS_PER_BTC;
   if (parts.length === 1) return wholePart;
 
   // Pad or truncate decimal part to 8 digits
@@ -128,12 +128,11 @@ export async function createBtcIntent(
     const calculateFee = createFeeCalculator(1); // 1 sat/vbyte for testnet
 
     // Select UTXOs and calculate fee
-    const DUST_LIMIT = 546;
     const { selectedUtxos, totalInput, fee, change } = selectUtxosForTransaction(
       availableUtxos,
       amountInSats,
       calculateFee,
-      DUST_LIMIT
+      BITCOIN_TX.DUST_LIMIT
     );
 
     // Final check for sufficient funds
@@ -152,7 +151,7 @@ export async function createBtcIntent(
       amountInSats,
       sourceAddress,
       change,
-      DUST_LIMIT
+      BITCOIN_TX.DUST_LIMIT
     );
 
     // Create intent object

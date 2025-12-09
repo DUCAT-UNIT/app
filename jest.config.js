@@ -49,7 +49,6 @@ module.exports = {
     '!hooks/useNotifications.{js,ts}',          // Requires Expo push notifications
     '!hooks/usePasskeyCreation.{js,ts}',        // Requires WebAuthn credential creation
     '!hooks/usePasskeyRestore.{js,ts}',         // Requires WebAuthn authentication
-    '!hooks/useVaultWebView.{js,ts}',           // Requires react-native-webview
 
     // --- Animation/Visual Hooks (require native animation libraries) ---
     '!hooks/useReceiveScreenAnimations.{js,ts}', // Requires react-native-reanimated

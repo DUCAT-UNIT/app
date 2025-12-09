@@ -5,6 +5,7 @@
 
 import { validateAndNormalizeAddress } from '../../utils/bitcoin';
 import { ERRORS } from '../../utils/messages';
+import { BITCOIN_TX } from '../../utils/constants';
 import { findRuneUtxo, findSatUtxo, RuneUtxo, SatUtxo } from './runesUtxoSelection';
 import { buildRunesPsbt } from './runesPsbtBuilder';
 
@@ -88,10 +89,10 @@ export async function createUnitIntent(
     }
 
     // Calculate transaction amounts
-    const fee = 1000;
-    const recipientSats = 10000;
-    const runeReturnSats = 10000;
-    const dustLimit = 546;
+    const fee = BITCOIN_TX.ESTIMATED_TX_FEE;
+    const recipientSats = BITCOIN_TX.RUNE_OUTPUT_AMOUNT;
+    const runeReturnSats = BITCOIN_TX.RUNE_OUTPUT_AMOUNT;
+    const dustLimit = BITCOIN_TX.DUST_LIMIT;
 
     // Sum up all rune UTXO values
     const totalRuneUtxoValue = runeUtxos.reduce((sum, utxo) => sum + utxo.value, 0);

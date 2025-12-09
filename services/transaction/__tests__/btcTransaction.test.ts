@@ -45,6 +45,13 @@ jest.mock('../../../utils/messages', () => ({
 
 jest.mock('../../../utils/constants', () => ({
   getTxHexUrl: jest.fn((txid) => `https://example.com/tx/${txid}/hex`),
+  BITCOIN_TX: {
+    DUST_LIMIT: 546,
+    SATOSHIS_PER_BTC: 100_000_000,
+    ESTIMATED_TX_FEE: 1_000,
+    RUNE_OUTPUT_AMOUNT: 10_000,
+    TX_TIMEOUT_BUFFER: 5_000,
+  },
 }));
 
 // Mock fetch globally

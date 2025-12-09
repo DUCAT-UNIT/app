@@ -11,7 +11,7 @@ import type {
   WalletVaultWithdrawConfig,
   WalletVaultWithdrawRequest,
 } from '@ducat-unit/client-sdk';
-import { VAULT_CONFIG } from '../../utils/constants';
+import { VAULT_CONFIG, BITCOIN_TX } from '../../utils/constants';
 import { logger } from '../../utils/logger';
 import { withGuardianTimeout } from '../guardianService';
 
@@ -116,7 +116,7 @@ export async function guardianSendReqWithdraw(
 
     const guardRes = await withGuardianTimeout(
       guardSub.resolve(VAULT_CONFIG.TX_TIMEOUT),
-      VAULT_CONFIG.TX_TIMEOUT + 5000
+      VAULT_CONFIG.TX_TIMEOUT + BITCOIN_TX.TX_TIMEOUT_BUFFER
     ) as { vault_txid: string };
 
     const vault_txid = guardRes.vault_txid;
