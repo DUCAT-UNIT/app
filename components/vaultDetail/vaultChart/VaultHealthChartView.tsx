@@ -133,6 +133,8 @@ export const VaultHealthChartView = memo(function VaultHealthChartView({
   const panResponder = useMemo(() => PanResponder.create({
     onStartShouldSetPanResponder: () => true,
     onMoveShouldSetPanResponder: () => true,
+    onPanResponderTerminationRequest: () => false, // Prevent parent ScrollView from stealing gesture
+    onShouldBlockNativeResponder: () => true, // Block native scroll while scrubbing
     onPanResponderGrant: (evt: GestureResponderEvent) => {
       onScrollEnable?.(false);
       setLockedRefLineIndex(null);

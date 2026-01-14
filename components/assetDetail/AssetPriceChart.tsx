@@ -29,6 +29,8 @@ interface AssetPriceChartProps {
   currentPrice?: number | null;
   width?: number;
   height?: number;
+  onScrubStart?: () => void;
+  onScrubEnd?: () => void;
 }
 
 export const AssetPriceChart = memo(function AssetPriceChart({
@@ -43,6 +45,8 @@ export const AssetPriceChart = memo(function AssetPriceChart({
   currentPrice,
   width,
   height,
+  onScrubStart,
+  onScrubEnd,
 }: AssetPriceChartProps) {
   const { s, sf } = useResponsive();
   const [scrubbedPrice, setScrubbedPrice] = useState<number | null>(null);
@@ -155,6 +159,8 @@ export const AssetPriceChart = memo(function AssetPriceChart({
             minBoundary={0.5}
             maxBoundary={1.5}
             onScrub={handleScrub}
+            onScrubStart={onScrubStart}
+            onScrubEnd={onScrubEnd}
             width={chartWidth}
             height={height}
           />
@@ -204,6 +210,8 @@ export const AssetPriceChart = memo(function AssetPriceChart({
               minBoundary={undefined}
               maxBoundary={undefined}
               onScrub={handleScrub}
+              onScrubStart={onScrubStart}
+              onScrubEnd={onScrubEnd}
               width={chartWidth}
               height={height}
             />

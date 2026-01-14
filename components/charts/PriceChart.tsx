@@ -17,11 +17,13 @@ interface PriceChartProps {
   minBoundary?: number;
   maxBoundary?: number;
   onScrub?: (price: number | null, timestamp: number | null) => void;
+  onScrubStart?: () => void;
+  onScrubEnd?: () => void;
   width?: number;
   height?: number;
 }
 
-function PriceChart({ data, isPositive, minBoundary, maxBoundary, onScrub, width, height }: PriceChartProps) {
+function PriceChart({ data, isPositive, minBoundary, maxBoundary, onScrub, onScrubStart, onScrubEnd, width, height }: PriceChartProps) {
   // State for scrubber position
   const [scrubX, setScrubX] = useState<number | null>(null);
   const [scrubY, setScrubY] = useState<number | null>(null);
@@ -156,8 +158,9 @@ function PriceChart({ data, isPositive, minBoundary, maxBoundary, onScrub, width
     const { price, y, timestamp } = getPriceAtX(x);
     setScrubX(x);
     setScrubY(y);
+    if (onScrubStart) onScrubStart();
     if (onScrub) onScrub(price, timestamp);
-  }, [getPriceAtX, onScrub]);
+  }, [getPriceAtX, onScrub, onScrubStart]);
 
   const handleScrubMove = useCallback((x: number) => {
     const { price, y, timestamp } = getPriceAtX(x);
@@ -169,13 +172,16 @@ function PriceChart({ data, isPositive, minBoundary, maxBoundary, onScrub, width
   const handleScrubEnd = useCallback(() => {
     setScrubX(null);
     setScrubY(null);
+    if (onScrubEnd) onScrubEnd();
     if (onScrub) onScrub(null, null);
-  }, [onScrub]);
+  }, [onScrub, onScrubEnd]);
 
   // Create pan responder for gesture handling
   const panResponder = useMemo(() => PanResponder.create({
     onStartShouldSetPanResponder: () => true,
     onMoveShouldSetPanResponder: () => true,
+    onPanResponderTerminationRequest: () => false, // Prevent parent ScrollView from stealing gesture
+    onShouldBlockNativeResponder: () => true, // Block native scroll while scrubbing
     onPanResponderGrant: (evt: GestureResponderEvent) => {
       handleScrubStart(evt.nativeEvent.locationX);
     },
@@ -264,13 +270,15 @@ function PriceChart({ data, isPositive, minBoundary, maxBoundary, onScrub, width
 
 // Custom comparison function for React.memo
 const arePropsEqual = (prevProps: PriceChartProps, nextProps: PriceChartProps) => {
-  // Only re-render if data array reference, isPositive, boundaries, dimensions, or onScrub actually change
+  // Only re-render if data array reference, isPositive, boundaries, dimensions, or callbacks actually change
   return (
     prevProps.data === nextProps.data &&
     prevProps.isPositive === nextProps.isPositive &&
     prevProps.minBoundary === nextProps.minBoundary &&
     prevProps.maxBoundary === nextProps.maxBoundary &&
     prevProps.onScrub === nextProps.onScrub &&
+    prevProps.onScrubStart === nextProps.onScrubStart &&
+    prevProps.onScrubEnd === nextProps.onScrubEnd &&
     prevProps.width === nextProps.width &&
     prevProps.height === nextProps.height
   );

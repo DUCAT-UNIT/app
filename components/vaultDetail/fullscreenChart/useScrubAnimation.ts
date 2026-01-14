@@ -81,6 +81,8 @@ export function useScrubAnimation({
   const panResponder = useMemo(() => PanResponder.create({
     onStartShouldSetPanResponder: () => true,
     onMoveShouldSetPanResponder: () => true,
+    onPanResponderTerminationRequest: () => false, // Prevent parent ScrollView from stealing gesture
+    onShouldBlockNativeResponder: () => true, // Block native scroll while scrubbing
     onPanResponderGrant: (evt: GestureResponderEvent) => {
       isPanningRef.current = true;
       if (pendingUpdateRef.current) {

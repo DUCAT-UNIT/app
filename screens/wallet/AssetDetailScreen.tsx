@@ -107,6 +107,7 @@ function AssetDetailScreen({ route = {}, navigation }: AssetDetailScreenProps): 
   const [selectedTimeframe, setSelectedTimeframe] = useState<'1D' | '1W' | '1M' | '1Y'>('1M');
   const [selectedToken, setSelectedToken] = useState<TokenData | null>(null);
   const [showTokenDetails, setShowTokenDetails] = useState<boolean>(false);
+  const [isChartScrubbing, setIsChartScrubbing] = useState(false);
   const scrollY = useRef(new Animated.Value(0)).current;
   const { showToast } = useNotifications();
   const isPendingVaultTx = useHasPendingVaultTx();
@@ -217,6 +218,14 @@ function AssetDetailScreen({ route = {}, navigation }: AssetDetailScreenProps): 
     showToast(message, 'success');
   }, [showToast]);
 
+  const handleChartScrubStart = useCallback(() => {
+    setIsChartScrubbing(true);
+  }, []);
+
+  const handleChartScrubEnd = useCallback(() => {
+    setIsChartScrubbing(false);
+  }, []);
+
   const handleTransactionPress = useCallback(async (tx: { ecashToken?: boolean; isAutoclaim?: boolean; tokenData?: { recipient: string; shortUrl: string; token: string; claimed: boolean }; txid: string }) => {
     if (tx.ecashToken) {
       setSelectedToken(tx.tokenData ? { ...tx.tokenData, isSelfClaim: tx.isAutoclaim } : null);
@@ -248,6 +257,7 @@ function AssetDetailScreen({ route = {}, navigation }: AssetDetailScreenProps): 
             { useNativeDriver: false }
           )}
           scrollEventThrottle={16}
+          scrollEnabled={!isChartScrubbing}
         >
           <AssetInfo
             assetType={assetType}
@@ -298,6 +308,8 @@ function AssetDetailScreen({ route = {}, navigation }: AssetDetailScreenProps): 
             onTimeframeChange={setSelectedTimeframe}
             onRetry={() => setPriceError(null)}
             currentPrice={btcPrice}
+            onScrubStart={handleChartScrubStart}
+            onScrubEnd={handleChartScrubEnd}
           />
 
           <AssetTabs
