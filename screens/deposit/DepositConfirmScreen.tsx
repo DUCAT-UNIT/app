@@ -4,13 +4,13 @@
  */
 
 import React, { useCallback, useState } from 'react';
-import { Text, View, ScrollView, StyleSheet, Alert } from 'react-native';
+import { Text, View, ScrollView, StyleSheet, Alert, TouchableOpacity } from 'react-native';
 import { NavigationProp } from '@react-navigation/native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import * as LocalAuthentication from 'expo-local-authentication';
 import { Ionicons } from '@expo/vector-icons';
 import TouchableScale from '../../components/common/TouchableScale';
-import { HealthFactorGauge } from '../../components/vaultCreation';
+import { VaultActionGauge, VaultChangesCard } from '../../components/vaultAction';
 import { useDeposit } from '../../stores/depositStore';
 import { useDepositVault } from '../../hooks/useDepositVault';
 import { usePrice } from '../../stores/priceStore';
@@ -101,102 +101,52 @@ export default function DepositConfirmScreen({ navigation }: DepositConfirmScree
       <ScrollView
         style={styles.scrollView}
         contentContainerStyle={styles.scrollContent}
+        showsVerticalScrollIndicator={false}
       >
         {/* Header */}
         <View style={styles.header}>
-          <TouchableScale onPress={handleBack} style={styles.backButton}>
-            <Ionicons name="arrow-back" size={24} color={colors.text.primary} />
-          </TouchableScale>
           <Text style={styles.title}>Confirm Deposit</Text>
+          <TouchableOpacity onPress={handleBack} hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}>
+            <Ionicons name="close" size={24} color={colors.text.secondary} />
+          </TouchableOpacity>
         </View>
 
-        {/* Health Factor Display */}
-        <View style={styles.healthContainer}>
-          <HealthFactorGauge healthFactor={newHealthFactor} size="lg" />
+        {/* Gauge */}
+        <VaultActionGauge
+          currentHealth={healthFactor}
+          newHealth={newHealthFactor}
+          showTransition={true}
+        />
+
+        {/* Deposit Amount Card */}
+        <View style={styles.depositCard}>
+          <Text style={styles.depositLabel}>Depositing</Text>
+          <Text style={styles.depositAmount}>+{formatBTC(depositAmountBtc)} BTC</Text>
+          <Text style={styles.depositUsd}>≈ {formatFiat(depositUsdValue)}</Text>
         </View>
 
-        {/* Summary Card */}
-        <View style={styles.summaryCard}>
-          <Text style={styles.summaryTitle}>Deposit Summary</Text>
-
-          <View style={styles.summaryRow}>
-            <Text style={styles.summaryLabel}>Current Collateral</Text>
-            <View style={styles.summaryValue}>
-              <Text style={styles.summaryAmount}>{currentBtcLocked.toFixed(8)} BTC</Text>
-            </View>
-          </View>
-
-          <View style={styles.divider} />
-
-          <View style={styles.summaryRow}>
-            <Text style={styles.summaryLabel}>Deposit Amount</Text>
-            <View style={styles.summaryValue}>
-              <Text style={styles.summaryAmountHighlight}>+{formatBTC(depositAmountBtc)} BTC</Text>
-              <Text style={styles.summaryUsd}>≈ {formatFiat(depositUsdValue)}</Text>
-            </View>
-          </View>
-
-          <View style={styles.divider} />
-
-          <View style={styles.summaryRow}>
-            <Text style={styles.summaryLabel}>New Total Collateral</Text>
-            <View style={styles.summaryValue}>
-              <Text style={styles.summaryAmount}>{totalCollateral.toFixed(8)} BTC</Text>
-            </View>
-          </View>
-
-          <View style={styles.divider} />
-
-          <View style={styles.summaryRow}>
-            <Text style={styles.summaryLabel}>Debt (unchanged)</Text>
-            <Text style={styles.summaryAmount}>{currentUnitBorrowed.toFixed(2)} UNIT</Text>
-          </View>
-
-          <View style={styles.divider} />
-
-          <View style={styles.summaryRow}>
-            <Text style={styles.summaryLabel}>Health Factor</Text>
-            <View style={styles.healthChange}>
-              <Text style={[styles.summaryAmount, { color: getHealthColor(healthFactor) }]}>
-                {healthFactor}%
-              </Text>
-              <Ionicons name="arrow-forward" size={14} color={colors.text.tertiary} />
-              <Text style={[styles.summaryAmount, { color: getHealthColor(newHealthFactor) }]}>
-                {newHealthFactor}%
-              </Text>
-            </View>
-          </View>
-
-          <View style={styles.divider} />
-
-          <View style={styles.summaryRow}>
-            <Text style={styles.summaryLabel}>Liquidation Price</Text>
-            <View style={styles.healthChange}>
-              <Text style={styles.summaryAmount}>{formatFiat(liquidationPrice)}</Text>
-              <Ionicons name="arrow-forward" size={14} color={colors.text.tertiary} />
-              <Text style={[styles.summaryAmount, { color: colors.semantic.success }]}>
-                {formatFiat(newLiquidationPrice)}
-              </Text>
-            </View>
-          </View>
-
-          <View style={styles.divider} />
-
-          <View style={styles.summaryRow}>
-            <Text style={styles.summaryLabel}>Network Fee</Text>
-            <View style={styles.summaryValue}>
-              <Text style={styles.summaryAmount}>~{estimatedFee} sats</Text>
-              <Text style={styles.summaryUsd}>≈ {formatFiat(feeUsdValue)}</Text>
-            </View>
-          </View>
+        {/* Vault Changes */}
+        <View style={styles.section}>
+          <VaultChangesCard
+            currentCollateral={currentBtcLocked}
+            currentDebt={currentUnitBorrowed}
+            currentHealth={healthFactor}
+            newCollateral={totalCollateral}
+            newDebt={currentUnitBorrowed}
+            newHealth={newHealthFactor}
+            currentLiquidationPrice={liquidationPrice}
+            newLiquidationPrice={newLiquidationPrice}
+            showChanges={true}
+          />
         </View>
 
-        {/* Info */}
-        <View style={styles.infoContainer}>
-          <Ionicons name="information-circle-outline" size={20} color={colors.brand.primary} />
-          <Text style={styles.infoText}>
-            Depositing more BTC improves your vault health and lowers your liquidation risk.
-          </Text>
+        {/* Network Fee */}
+        <View style={styles.feeCard}>
+          <Text style={styles.feeLabel}>Network Fee</Text>
+          <View style={styles.feeValue}>
+            <Text style={styles.feeAmount}>~{estimatedFee} sats</Text>
+            <Text style={styles.feeUsd}>≈ {formatFiat(feeUsdValue)}</Text>
+          </View>
         </View>
 
         {/* Error message */}
@@ -207,16 +157,8 @@ export default function DepositConfirmScreen({ navigation }: DepositConfirmScree
         )}
       </ScrollView>
 
-      {/* Footer Buttons */}
+      {/* Footer */}
       <View style={styles.footer}>
-        <TouchableScale
-          style={styles.cancelButton}
-          onPress={handleBack}
-          disabled={isLoading || isAuthenticating}
-        >
-          <Text style={styles.cancelText}>Back</Text>
-        </TouchableScale>
-
         <TouchableScale
           style={[styles.confirmButton, (isLoading || isAuthenticating) && styles.buttonDisabled]}
           onPress={handleConfirm}
@@ -233,12 +175,6 @@ export default function DepositConfirmScreen({ navigation }: DepositConfirmScree
   );
 }
 
-function getHealthColor(healthFactor: number): string {
-  if (healthFactor >= 200) return colors.semantic.success;
-  if (healthFactor >= 161) return colors.semantic.warning;
-  return colors.semantic.error;
-}
-
 const styles = StyleSheet.create({
   container: {
     flex: 1,
@@ -253,92 +189,79 @@ const styles = StyleSheet.create({
   },
   header: {
     flexDirection: 'row',
+    justifyContent: 'space-between',
     alignItems: 'center',
-    marginBottom: spacing.lg,
-  },
-  backButton: {
-    marginRight: spacing.md,
+    marginBottom: spacing.sm,
   },
   title: {
     fontSize: fontSizes.xxl,
     fontFamily: fonts.bold,
     color: colors.text.primary,
   },
-  healthContainer: {
-    alignItems: 'center',
-    marginVertical: spacing.xl,
-  },
-  summaryCard: {
+  depositCard: {
     backgroundColor: colors.bg.secondary,
     borderRadius: radii.lg,
     padding: spacing.lg,
-    marginBottom: spacing.lg,
+    alignItems: 'center',
+    marginTop: spacing.lg,
+    borderWidth: 1,
+    borderColor: colors.border.default,
   },
-  summaryTitle: {
-    fontSize: fontSizes.lg,
+  depositLabel: {
+    fontSize: fontSizes.sm,
+    fontFamily: fonts.medium,
+    color: colors.text.secondary,
+    marginBottom: spacing.xs,
+  },
+  depositAmount: {
+    fontSize: fontSizes.xxxl,
     fontFamily: fonts.bold,
-    color: colors.text.primary,
-    marginBottom: spacing.lg,
+    color: colors.brand.primary,
   },
-  summaryRow: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'flex-start',
-    paddingVertical: spacing.sm,
-  },
-  summaryLabel: {
+  depositUsd: {
     fontSize: fontSizes.md,
     fontFamily: fonts.regular,
+    color: colors.text.tertiary,
+    marginTop: spacing.xs,
+  },
+  section: {
+    marginTop: spacing.lg,
+  },
+  feeCard: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    backgroundColor: colors.bg.secondary,
+    borderRadius: radii.lg,
+    padding: spacing.lg,
+    marginTop: spacing.lg,
+    borderWidth: 1,
+    borderColor: colors.border.default,
+  },
+  feeLabel: {
+    fontSize: fontSizes.md,
+    fontFamily: fonts.medium,
     color: colors.text.secondary,
   },
-  summaryValue: {
+  feeValue: {
     alignItems: 'flex-end',
   },
-  summaryAmount: {
+  feeAmount: {
     fontSize: fontSizes.md,
     fontFamily: fonts.medium,
     color: colors.text.primary,
   },
-  summaryAmountHighlight: {
-    fontSize: fontSizes.md,
-    fontFamily: fonts.bold,
-    color: colors.brand.primary,
-  },
-  summaryUsd: {
+  feeUsd: {
     fontSize: fontSizes.sm,
     fontFamily: fonts.regular,
     color: colors.text.tertiary,
     marginTop: 2,
   },
-  healthChange: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: spacing.xs,
-  },
-  divider: {
-    height: 1,
-    backgroundColor: colors.border.default,
-    marginVertical: spacing.xs,
-  },
-  infoContainer: {
-    flexDirection: 'row',
-    backgroundColor: 'rgba(74, 144, 226, 0.1)',
-    borderRadius: radii.md,
-    padding: spacing.md,
-    marginBottom: spacing.lg,
-    gap: spacing.sm,
-  },
-  infoText: {
-    flex: 1,
-    fontSize: fontSizes.sm,
-    fontFamily: fonts.regular,
-    color: colors.brand.primary,
-  },
   errorContainer: {
     backgroundColor: 'rgba(208, 76, 104, 0.1)',
     borderRadius: radii.md,
     padding: spacing.md,
-    marginBottom: spacing.lg,
+    marginTop: spacing.lg,
   },
   errorText: {
     fontSize: fontSizes.sm,
@@ -351,27 +274,12 @@ const styles = StyleSheet.create({
     bottom: 0,
     left: 0,
     right: 0,
-    flexDirection: 'row',
     padding: spacing.lg,
     backgroundColor: colors.bg.primary,
     borderTopWidth: 1,
     borderTopColor: colors.border.default,
-    gap: spacing.md,
-  },
-  cancelButton: {
-    flex: 1,
-    backgroundColor: colors.bg.tertiary,
-    borderRadius: radii.lg,
-    paddingVertical: spacing.md,
-    alignItems: 'center',
-  },
-  cancelText: {
-    fontSize: fontSizes.md,
-    fontFamily: fonts.medium,
-    color: colors.text.primary,
   },
   confirmButton: {
-    flex: 2,
     backgroundColor: colors.brand.primary,
     borderRadius: radii.lg,
     paddingVertical: spacing.md,
