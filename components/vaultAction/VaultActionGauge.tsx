@@ -132,7 +132,7 @@ export const VaultActionGauge = memo(function VaultActionGauge({
         <Svg
           width="100%"
           height="100%"
-          viewBox={`-15 -15 ${SVG_SIZE + 30} ${(SVG_SIZE + 30) * 0.75}`}
+          viewBox={`-20 -20 ${SVG_SIZE + 40} ${(SVG_SIZE + 40) * 0.85}`}
         >
           {/* Red path (135% - 160%) */}
           <Path
@@ -191,8 +191,8 @@ export const VaultActionGauge = memo(function VaultActionGauge({
 
           {/* Min label (135%) */}
           <SvgText
-            x={28}
-            y={SVG_SIZE / 2 + 50}
+            x={20}
+            y={SVG_SIZE / 2 + 62}
             textAnchor="start"
             fill="#8e8d90"
             fontSize={11}
@@ -203,8 +203,8 @@ export const VaultActionGauge = memo(function VaultActionGauge({
 
           {/* Max label (300%+) */}
           <SvgText
-            x={SVG_SIZE - 28}
-            y={SVG_SIZE / 2 + 50}
+            x={SVG_SIZE - 20}
+            y={SVG_SIZE / 2 + 62}
             textAnchor="end"
             fill="#8e8d90"
             fontSize={11}
@@ -221,13 +221,13 @@ export const VaultActionGauge = memo(function VaultActionGauge({
 const styles = StyleSheet.create({
   container: {
     alignItems: 'center',
-    marginTop: -16,
-    marginBottom: -16,
+    marginTop: -12,
+    marginBottom: -20,
   },
   gaugeContainer: {
     width: '100%',
-    maxWidth: 240,
-    aspectRatio: 1.4,
+    maxWidth: 260,
+    aspectRatio: 1.25,
   },
 });
 
