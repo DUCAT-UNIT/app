@@ -1,13 +1,11 @@
 /**
  * BorrowInputScreen - Enter additional UNIT borrow amount
- * Features: Current vault data display, max button, health factor preview
  */
 
 import React, { useEffect, useMemo, useCallback, useState } from 'react';
 import {
   Text,
   View,
-  TextInput,
   ScrollView,
   KeyboardAvoidingView,
   Platform,
@@ -19,11 +17,12 @@ import { NavigationProp } from '@react-navigation/native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import TouchableScale from '../../components/common/TouchableScale';
-import { HealthFactorBar } from '../../components/vaultCreation';
+import { VaultActionGauge, VaultChangesCard } from '../../components/vaultAction';
+import { UnitAmountSlider } from '../../components/vaultAction/UnitAmountSlider';
 import { useBorrow } from '../../stores/borrowStore';
 import { useBorrowVault } from '../../hooks/useBorrowVault';
-import { usePrice } from '../../stores/priceStore';
-import { formatFiat } from '../../utils/formatters';
+import { usePriceStore } from '../../stores/priceStore';
+import { computeHealthFactor, computeLiquidationPrice } from '../../utils/vaultUtils';
 import { colors, fonts, fontSizes, spacing, radii } from '../../styles/theme';
 
 interface BorrowInputScreenProps {
@@ -35,248 +34,186 @@ export default function BorrowInputScreen({ navigation }: BorrowInputScreenProps
     borrowAmount,
     currentUnitBorrowed,
     currentBtcLocked,
-    selectedFeeRate,
-    newHealthFactor,
-    newLiquidationPrice,
     maxBorrowable,
-    healthFactor,
     setBorrowAmount,
     setCurrentStep,
     error,
-    setError,
     reset,
   } = useBorrow();
 
   const { loadVaultData, isLoading: isLoadingVault } = useBorrowVault();
-  const { btcPrice } = usePrice();
-
-  // Local input state
-  const [unitInput, setUnitInput] = useState(borrowAmount > 0 ? borrowAmount.toString() : '');
+  const { btcPrice, fetchBtcPrice } = usePriceStore();
   const [vaultLoaded, setVaultLoaded] = useState(false);
 
-  // Load vault data on mount
-  useEffect(() => {
-    const load = async () => {
-      const success = await loadVaultData();
-      setVaultLoaded(success);
-    };
-    load();
-  }, [loadVaultData]);
+  // Local preview state for real-time updates during drag
+  const [previewAmount, setPreviewAmount] = useState(borrowAmount);
 
-  // Handle close - reset state and dismiss modal
+  useEffect(() => {
+    if (!btcPrice) {
+      fetchBtcPrice();
+    }
+    loadVaultData().then(setVaultLoaded);
+  }, [loadVaultData, btcPrice, fetchBtcPrice]);
+
   const handleClose = useCallback(() => {
     reset();
     navigation.getParent()?.goBack();
   }, [reset, navigation]);
 
-  // Handle UNIT input change
-  const handleUnitChange = useCallback((text: string) => {
-    const cleaned = text.replace(/[^0-9.]/g, '');
-    const parts = cleaned.split('.');
-    const formatted = parts.length > 2
-      ? parts[0] + '.' + parts.slice(1).join('')
-      : cleaned;
+  // Compute current health directly
+  const currentHealth = useMemo(() => {
+    if (!btcPrice || currentBtcLocked <= 0 || currentUnitBorrowed <= 0) return 0;
+    return computeHealthFactor(currentBtcLocked, btcPrice, currentUnitBorrowed);
+  }, [btcPrice, currentBtcLocked, currentUnitBorrowed]);
 
-    setUnitInput(formatted);
-    const value = parseFloat(formatted) || 0;
-    setBorrowAmount(value);
-  }, [setBorrowAmount]);
+  const currentLiqPrice = useMemo(() => {
+    if (currentBtcLocked <= 0 || currentUnitBorrowed <= 0) return 0;
+    return computeLiquidationPrice(currentUnitBorrowed, currentBtcLocked);
+  }, [currentBtcLocked, currentUnitBorrowed]);
 
-  // Handle MAX button for UNIT
-  const handleMaxUnit = useCallback(() => {
-    if (maxBorrowable !== null && maxBorrowable > 0) {
-      const max = Math.floor(maxBorrowable);
-      setUnitInput(max.toString());
-      setBorrowAmount(max);
+  // Sync preview amount when store value changes
+  useEffect(() => {
+    setPreviewAmount(borrowAmount);
+  }, [borrowAmount]);
+
+  // Preview calculations after borrow - uses previewAmount for real-time updates
+  const preview = useMemo(() => {
+    const newDebt = currentUnitBorrowed + previewAmount;
+
+    if (!btcPrice || currentBtcLocked <= 0 || newDebt <= 0) {
+      return { newDebt, newHealth: 0, newLiqPrice: 0 };
     }
-  }, [maxBorrowable, setBorrowAmount]);
 
-  // Calculate total debt after borrow
-  const totalDebt = useMemo(() => {
-    return currentUnitBorrowed + borrowAmount;
-  }, [currentUnitBorrowed, borrowAmount]);
+    return {
+      newDebt,
+      newHealth: computeHealthFactor(currentBtcLocked, btcPrice, newDebt),
+      newLiqPrice: computeLiquidationPrice(newDebt, currentBtcLocked),
+    };
+  }, [previewAmount, currentBtcLocked, currentUnitBorrowed, btcPrice]);
 
-  // Validation
-  const canContinue = useMemo(() => {
-    if (!vaultLoaded || currentBtcLocked <= 0) return false;
-    if (borrowAmount <= 0) return false;
-    if (maxBorrowable !== null && borrowAmount > maxBorrowable) return false;
-    if (newHealthFactor < 160) return false;
-    return true;
-  }, [vaultLoaded, currentBtcLocked, borrowAmount, maxBorrowable, newHealthFactor]);
+  // Check if borrow would violate min health (160%)
+  const wouldViolateMinHealth = useMemo(() => {
+    if (previewAmount <= 0) return false;
+    return preview.newHealth < 160;
+  }, [previewAmount, preview.newHealth]);
 
-  // Handle continue
+  // Live update handler
+  const handleLiveValueChange = useCallback((val: number) => {
+    setPreviewAmount(val);
+  }, []);
+
+  // Max borrowable in UNIT (floor to whole numbers)
+  const maxBorrowableUnit = useMemo(() => {
+    return maxBorrowable !== null ? Math.max(0, Math.floor(maxBorrowable)) : 0;
+  }, [maxBorrowable]);
+
+  const canContinue = vaultLoaded && borrowAmount > 0 && !wouldViolateMinHealth;
+
   const handleContinue = useCallback(() => {
     if (!canContinue) return;
     setCurrentStep('confirm');
     navigation.navigate('BorrowConfirm');
   }, [canContinue, setCurrentStep, navigation]);
 
-  // Loading state
   if (isLoadingVault && !vaultLoaded) {
     return (
       <SafeAreaView style={styles.container} edges={['top']}>
-        <View style={styles.loadingContainer}>
+        <View style={styles.centered}>
           <ActivityIndicator size="large" color={colors.brand.primary} />
-          <Text style={styles.loadingText}>Loading vault data...</Text>
+          <Text style={styles.loadingText}>Loading vault...</Text>
         </View>
       </SafeAreaView>
     );
   }
 
-  // No vault state
   if (vaultLoaded && currentBtcLocked <= 0) {
     return (
       <SafeAreaView style={styles.container} edges={['top']}>
-        <View style={styles.content}>
-          <View style={styles.headerRow}>
-            <Text style={styles.title}>Borrow More</Text>
-            <TouchableOpacity onPress={handleClose} style={styles.closeButton}>
-              <Ionicons name="close" size={24} color={colors.text.secondary} />
-            </TouchableOpacity>
-          </View>
-          <View style={styles.noVaultContainer}>
-            <Ionicons name="alert-circle-outline" size={48} color={colors.semantic.warning} />
-            <Text style={styles.noVaultText}>No vault found</Text>
-            <Text style={styles.noVaultSubtext}>
-              Please create a vault first to borrow UNIT.
-            </Text>
-            <TouchableScale style={styles.createVaultButton} onPress={handleClose}>
-              <Text style={styles.createVaultText}>Close</Text>
-            </TouchableScale>
-          </View>
+        <View style={styles.centered}>
+          <Ionicons name="alert-circle-outline" size={48} color={colors.semantic.warning} />
+          <Text style={styles.noVaultText}>No vault found</Text>
+          <TouchableScale style={styles.closeBtn} onPress={handleClose}>
+            <Text style={styles.closeBtnText}>Close</Text>
+          </TouchableScale>
         </View>
       </SafeAreaView>
     );
   }
 
+  const hasChanges = previewAmount > 0;
+
   return (
     <SafeAreaView style={styles.container} edges={['top']}>
-      <KeyboardAvoidingView
-        behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
-        style={styles.keyboardView}
-      >
-        <ScrollView
-          style={styles.scrollView}
-          contentContainerStyle={styles.scrollContent}
-          keyboardShouldPersistTaps="handled"
-        >
+      <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : 'height'} style={styles.flex}>
+        <ScrollView style={styles.flex} contentContainerStyle={styles.scroll} showsVerticalScrollIndicator={false}>
           {/* Header */}
           <View style={styles.header}>
-            <View style={styles.headerRow}>
-              <Text style={styles.title}>Borrow More</Text>
-              <TouchableOpacity onPress={handleClose} style={styles.closeButton}>
-                <Ionicons name="close" size={24} color={colors.text.secondary} />
-              </TouchableOpacity>
-            </View>
-            <Text style={styles.subtitle}>
-              Borrow additional UNIT against your existing collateral
-            </Text>
+            <Text style={styles.title}>Borrow UNIT</Text>
+            <TouchableOpacity onPress={handleClose} hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}>
+              <Ionicons name="close" size={24} color={colors.text.secondary} />
+            </TouchableOpacity>
           </View>
 
-          {/* Current Vault Info */}
-          <View style={styles.vaultInfoCard}>
-            <Text style={styles.vaultInfoTitle}>Current Vault</Text>
-            <View style={styles.vaultInfoRow}>
-              <Text style={styles.vaultInfoLabel}>Collateral</Text>
-              <Text style={styles.vaultInfoValue}>{currentBtcLocked.toFixed(8)} BTC</Text>
-            </View>
-            <View style={styles.vaultInfoRow}>
-              <Text style={styles.vaultInfoLabel}>Current Debt</Text>
-              <Text style={styles.vaultInfoValue}>{currentUnitBorrowed.toFixed(2)} UNIT</Text>
-            </View>
-            <View style={styles.vaultInfoRow}>
-              <Text style={styles.vaultInfoLabel}>Health Factor</Text>
-              <Text style={[styles.vaultInfoValue, { color: getHealthColor(healthFactor) }]}>
-                {healthFactor}%
+          {/* Gauge */}
+          <VaultActionGauge
+            currentHealth={currentHealth}
+            newHealth={hasChanges ? preview.newHealth : undefined}
+            showTransition={hasChanges}
+          />
+
+          {/* Slider */}
+          <View style={styles.section}>
+            <UnitAmountSlider
+              value={borrowAmount}
+              maxValue={maxBorrowableUnit}
+              onValueChange={setBorrowAmount}
+              onLiveValueChange={handleLiveValueChange}
+              label="UNIT to Borrow"
+              disabled={maxBorrowableUnit <= 0}
+            />
+          </View>
+
+          {/* Warning for min health violation */}
+          {wouldViolateMinHealth && (
+            <View style={styles.warning}>
+              <Ionicons name="warning" size={20} color={colors.semantic.error} />
+              <Text style={styles.warningText}>
+                This would put your vault below the minimum health of 160%.
               </Text>
-            </View>
-          </View>
-
-          {/* UNIT Borrow Section */}
-          <View style={styles.inputSection}>
-            <View style={styles.inputHeader}>
-              <Text style={styles.inputLabel}>Additional UNIT to Borrow</Text>
-              <TouchableScale onPress={handleMaxUnit} disabled={maxBorrowable === null || maxBorrowable <= 0}>
-                <Text style={[styles.maxButton, (maxBorrowable === null || maxBorrowable <= 0) && styles.maxButtonDisabled]}>
-                  MAX
-                </Text>
-              </TouchableScale>
-            </View>
-
-            <View style={styles.inputContainer}>
-              <TextInput
-                style={styles.input}
-                value={unitInput}
-                onChangeText={handleUnitChange}
-                placeholder="0.00"
-                placeholderTextColor={colors.text.tertiary}
-                keyboardType="decimal-pad"
-                autoFocus
-              />
-              <Text style={styles.inputSuffix}>UNIT</Text>
-            </View>
-
-            <View style={styles.inputMeta}>
-              <Text style={styles.usdValue}>≈ {formatFiat(borrowAmount)}</Text>
-              <Text style={styles.balance}>
-                Max: {maxBorrowable !== null ? Math.floor(maxBorrowable) : '-'} UNIT
-              </Text>
-            </View>
-          </View>
-
-          {/* New Totals */}
-          {borrowAmount > 0 && (
-            <View style={styles.previewCard}>
-              <Text style={styles.previewTitle}>After Borrow</Text>
-              <View style={styles.previewRow}>
-                <Text style={styles.previewLabel}>Total Debt</Text>
-                <Text style={styles.previewValue}>{totalDebt.toFixed(2)} UNIT</Text>
-              </View>
-              <View style={styles.previewRow}>
-                <Text style={styles.previewLabel}>New Health Factor</Text>
-                <Text style={[styles.previewValue, { color: getHealthColor(newHealthFactor) }]}>
-                  {newHealthFactor}%
-                </Text>
-              </View>
-              {newLiquidationPrice > 0 && (
-                <View style={styles.previewRow}>
-                  <Text style={styles.previewLabel}>Liquidation Price</Text>
-                  <Text style={[styles.previewValue, { color: colors.semantic.warning }]}>
-                    {formatFiat(newLiquidationPrice)}
-                  </Text>
-                </View>
-              )}
             </View>
           )}
 
-          {/* Health Factor */}
-          <View style={styles.healthSection}>
-            <Text style={styles.healthLabel}>New Health Factor</Text>
-            <HealthFactorBar healthFactor={borrowAmount > 0 ? newHealthFactor : healthFactor} />
-            <View style={styles.healthMeta}>
-              <Text style={styles.healthHint}>
-                Minimum 160% required. Higher is safer.
-              </Text>
-            </View>
+          {/* Changes */}
+          <View style={styles.section}>
+            <VaultChangesCard
+              currentCollateral={currentBtcLocked}
+              currentDebt={currentUnitBorrowed}
+              currentHealth={currentHealth}
+              newCollateral={currentBtcLocked}
+              newDebt={preview.newDebt}
+              newHealth={hasChanges ? preview.newHealth : currentHealth}
+              currentLiquidationPrice={currentLiqPrice}
+              newLiquidationPrice={hasChanges ? preview.newLiqPrice : currentLiqPrice}
+              showChanges={hasChanges}
+              actionType="debt"
+            />
           </View>
 
-          {/* Error message */}
           {error && (
-            <View style={styles.errorContainer}>
+            <View style={styles.error}>
               <Text style={styles.errorText}>{error}</Text>
             </View>
           )}
         </ScrollView>
 
-        {/* Continue Button */}
+        {/* Footer */}
         <View style={styles.footer}>
           <TouchableScale
-            style={[styles.continueButton, !canContinue && styles.continueButtonDisabled]}
+            style={[styles.continueBtn, !canContinue && styles.continueBtnDisabled]}
             onPress={handleContinue}
             disabled={!canContinue}
           >
-            <Text style={[styles.continueText, !canContinue && styles.continueTextDisabled]}>
+            <Text style={[styles.continueBtnText, !canContinue && styles.continueBtnTextDisabled]}>
               Continue
             </Text>
           </TouchableScale>
@@ -286,265 +223,25 @@ export default function BorrowInputScreen({ navigation }: BorrowInputScreenProps
   );
 }
 
-function getHealthColor(healthFactor: number): string {
-  if (healthFactor >= 200) return colors.semantic.success;
-  if (healthFactor >= 161) return colors.semantic.warning;
-  return colors.semantic.error;
-}
-
 const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-    backgroundColor: colors.bg.primary,
-  },
-  loadingContainer: {
-    flex: 1,
-    justifyContent: 'center',
-    alignItems: 'center',
-    gap: spacing.md,
-  },
-  loadingText: {
-    fontSize: fontSizes.md,
-    fontFamily: fonts.regular,
-    color: colors.text.secondary,
-  },
-  noVaultContainer: {
-    flex: 1,
-    justifyContent: 'center',
-    alignItems: 'center',
-    padding: spacing.xl,
-    gap: spacing.md,
-  },
-  noVaultText: {
-    fontSize: fontSizes.xl,
-    fontFamily: fonts.bold,
-    color: colors.text.primary,
-  },
-  noVaultSubtext: {
-    fontSize: fontSizes.md,
-    fontFamily: fonts.regular,
-    color: colors.text.secondary,
-    textAlign: 'center',
-  },
-  createVaultButton: {
-    backgroundColor: colors.brand.primary,
-    borderRadius: radii.lg,
-    paddingVertical: spacing.md,
-    paddingHorizontal: spacing.xl,
-    marginTop: spacing.lg,
-  },
-  createVaultText: {
-    fontSize: fontSizes.md,
-    fontFamily: fonts.bold,
-    color: colors.text.white,
-  },
-  keyboardView: {
-    flex: 1,
-  },
-  scrollView: {
-    flex: 1,
-  },
-  scrollContent: {
-    padding: spacing.lg,
-    paddingBottom: 100,
-  },
-  content: {
-    flex: 1,
-    padding: spacing.lg,
-  },
-  header: {
-    marginBottom: spacing.lg,
-  },
-  headerRow: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-  },
-  closeButton: {
-    padding: spacing.xs,
-  },
-  title: {
-    fontSize: fontSizes.xxl,
-    fontFamily: fonts.bold,
-    color: colors.text.primary,
-    marginBottom: spacing.xs,
-  },
-  subtitle: {
-    fontSize: fontSizes.md,
-    fontFamily: fonts.regular,
-    color: colors.text.secondary,
-  },
-  vaultInfoCard: {
-    backgroundColor: colors.bg.secondary,
-    borderRadius: radii.lg,
-    padding: spacing.md,
-    marginBottom: spacing.xl,
-  },
-  vaultInfoTitle: {
-    fontSize: fontSizes.sm,
-    fontFamily: fonts.medium,
-    color: colors.text.tertiary,
-    marginBottom: spacing.sm,
-  },
-  vaultInfoRow: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    paddingVertical: spacing.xs,
-  },
-  vaultInfoLabel: {
-    fontSize: fontSizes.md,
-    fontFamily: fonts.regular,
-    color: colors.text.secondary,
-  },
-  vaultInfoValue: {
-    fontSize: fontSizes.md,
-    fontFamily: fonts.medium,
-    color: colors.text.primary,
-  },
-  inputSection: {
-    marginBottom: spacing.xl,
-  },
-  inputHeader: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    marginBottom: spacing.sm,
-  },
-  inputLabel: {
-    fontSize: fontSizes.md,
-    fontFamily: fonts.medium,
-    color: colors.text.primary,
-  },
-  maxButton: {
-    fontSize: fontSizes.sm,
-    fontFamily: fonts.bold,
-    color: colors.brand.primary,
-  },
-  maxButtonDisabled: {
-    color: colors.text.tertiary,
-  },
-  inputContainer: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: colors.bg.secondary,
-    borderRadius: radii.lg,
-    paddingHorizontal: spacing.md,
-    paddingVertical: spacing.md,
-    borderWidth: 1,
-    borderColor: colors.border.default,
-  },
-  input: {
-    flex: 1,
-    fontSize: fontSizes.xl,
-    fontFamily: fonts.medium,
-    color: colors.text.primary,
-  },
-  inputSuffix: {
-    fontSize: fontSizes.md,
-    fontFamily: fonts.medium,
-    color: colors.text.secondary,
-    marginLeft: spacing.sm,
-  },
-  inputMeta: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    marginTop: spacing.xs,
-    paddingHorizontal: spacing.xs,
-  },
-  usdValue: {
-    fontSize: fontSizes.sm,
-    fontFamily: fonts.regular,
-    color: colors.text.secondary,
-  },
-  balance: {
-    fontSize: fontSizes.sm,
-    fontFamily: fonts.regular,
-    color: colors.text.tertiary,
-  },
-  previewCard: {
-    backgroundColor: colors.bg.secondary,
-    borderRadius: radii.lg,
-    padding: spacing.md,
-    marginBottom: spacing.lg,
-  },
-  previewTitle: {
-    fontSize: fontSizes.sm,
-    fontFamily: fonts.medium,
-    color: colors.text.tertiary,
-    marginBottom: spacing.sm,
-  },
-  previewRow: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    paddingVertical: spacing.xs,
-  },
-  previewLabel: {
-    fontSize: fontSizes.md,
-    fontFamily: fonts.regular,
-    color: colors.text.secondary,
-  },
-  previewValue: {
-    fontSize: fontSizes.md,
-    fontFamily: fonts.medium,
-    color: colors.text.primary,
-  },
-  healthSection: {
-    backgroundColor: colors.bg.secondary,
-    borderRadius: radii.lg,
-    padding: spacing.md,
-    marginBottom: spacing.lg,
-  },
-  healthLabel: {
-    fontSize: fontSizes.md,
-    fontFamily: fonts.medium,
-    color: colors.text.primary,
-    marginBottom: spacing.md,
-  },
-  healthMeta: {
-    marginTop: spacing.md,
-  },
-  healthHint: {
-    fontSize: fontSizes.sm,
-    fontFamily: fonts.regular,
-    color: colors.text.tertiary,
-  },
-  errorContainer: {
-    backgroundColor: 'rgba(208, 76, 104, 0.1)',
-    borderRadius: radii.md,
-    padding: spacing.md,
-    marginBottom: spacing.lg,
-  },
-  errorText: {
-    fontSize: fontSizes.sm,
-    fontFamily: fonts.medium,
-    color: colors.semantic.error,
-    textAlign: 'center',
-  },
-  footer: {
-    position: 'absolute',
-    bottom: 0,
-    left: 0,
-    right: 0,
-    padding: spacing.lg,
-    backgroundColor: colors.bg.primary,
-    borderTopWidth: 1,
-    borderTopColor: colors.border.default,
-  },
-  continueButton: {
-    backgroundColor: colors.brand.primary,
-    borderRadius: radii.lg,
-    paddingVertical: spacing.md,
-    alignItems: 'center',
-  },
-  continueButtonDisabled: {
-    backgroundColor: colors.bg.tertiary,
-  },
-  continueText: {
-    fontSize: fontSizes.md,
-    fontFamily: fonts.bold,
-    color: colors.text.white,
-  },
-  continueTextDisabled: {
-    color: colors.text.tertiary,
-  },
+  container: { flex: 1, backgroundColor: colors.bg.primary },
+  flex: { flex: 1 },
+  scroll: { padding: spacing.lg, paddingBottom: 120 },
+  centered: { flex: 1, justifyContent: 'center', alignItems: 'center', gap: spacing.md },
+  loadingText: { color: colors.text.secondary, fontSize: fontSizes.md },
+  noVaultText: { color: colors.text.primary, fontSize: fontSizes.xl, fontFamily: fonts.bold },
+  closeBtn: { backgroundColor: colors.brand.primary, borderRadius: radii.lg, paddingVertical: spacing.md, paddingHorizontal: spacing.xl, marginTop: spacing.lg },
+  closeBtnText: { color: colors.text.white, fontSize: fontSizes.md, fontFamily: fonts.bold },
+  header: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: spacing.sm },
+  title: { color: colors.text.primary, fontSize: fontSizes.xxl, fontFamily: fonts.bold },
+  section: { marginTop: spacing.lg },
+  warning: { flexDirection: 'row', backgroundColor: 'rgba(208,76,104,0.1)', borderRadius: radii.md, padding: spacing.md, marginTop: spacing.lg, gap: spacing.sm },
+  warningText: { flex: 1, color: colors.semantic.error, fontSize: fontSizes.sm, fontFamily: fonts.medium },
+  error: { backgroundColor: 'rgba(208,76,104,0.1)', borderRadius: radii.md, padding: spacing.md, marginTop: spacing.lg },
+  errorText: { color: colors.semantic.error, fontSize: fontSizes.sm, textAlign: 'center' },
+  footer: { position: 'absolute', bottom: 0, left: 0, right: 0, padding: spacing.lg, backgroundColor: colors.bg.primary, borderTopWidth: 1, borderTopColor: colors.border.default },
+  continueBtn: { backgroundColor: colors.brand.primary, borderRadius: radii.lg, paddingVertical: spacing.md, alignItems: 'center' },
+  continueBtnDisabled: { backgroundColor: colors.bg.tertiary },
+  continueBtnText: { color: colors.text.white, fontSize: fontSizes.md, fontFamily: fonts.bold },
+  continueBtnTextDisabled: { color: colors.text.tertiary },
 });

@@ -10,3 +10,6 @@ export type { VaultChangesCardProps } from './VaultChangesCard';
 
 export { AmountSlider } from './AmountSlider';
 export type { AmountSliderProps } from './AmountSlider';
+
+export { UnitAmountSlider } from './UnitAmountSlider';
+export type { UnitAmountSliderProps } from './UnitAmountSlider';

@@ -4,13 +4,12 @@
  */
 
 import React, { useCallback, useState } from 'react';
-import { Text, View, ScrollView, StyleSheet, Alert } from 'react-native';
+import { Text, View, ScrollView, StyleSheet, Alert, TouchableOpacity } from 'react-native';
 import { NavigationProp } from '@react-navigation/native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import * as LocalAuthentication from 'expo-local-authentication';
 import { Ionicons } from '@expo/vector-icons';
 import TouchableScale from '../../components/common/TouchableScale';
-import { HealthFactorGauge } from '../../components/vaultCreation';
 import { useBorrow } from '../../stores/borrowStore';
 import { useBorrowVault } from '../../hooks/useBorrowVault';
 import { usePrice } from '../../stores/priceStore';
@@ -42,6 +41,7 @@ export default function BorrowConfirmScreen({ navigation }: BorrowConfirmScreenP
 
   // Calculate values
   const totalDebt = currentUnitBorrowed + borrowAmount;
+  const borrowUsdValue = borrowAmount; // UNIT is roughly pegged to USD
   const estimatedFee = getOpCostOpen(selectedFeeRate);
   const feeUsdValue = btcPrice ? (estimatedFee / 100_000_000) * btcPrice : 0;
 
@@ -50,12 +50,10 @@ export default function BorrowConfirmScreen({ navigation }: BorrowConfirmScreenP
     try {
       setIsAuthenticating(true);
 
-      // Check if biometrics are available
       const hasHardware = await LocalAuthentication.hasHardwareAsync();
       const isEnrolled = await LocalAuthentication.isEnrolledAsync();
 
       if (hasHardware && isEnrolled) {
-        // Authenticate with biometrics
         const result = await LocalAuthentication.authenticateAsync({
           promptMessage: 'Authenticate to borrow UNIT',
           fallbackLabel: 'Use PIN',
@@ -72,7 +70,6 @@ export default function BorrowConfirmScreen({ navigation }: BorrowConfirmScreenP
         }
       }
 
-      // Proceed with borrow operation
       setIsAuthenticating(false);
       setCurrentStep('processing');
       navigation.navigate('BorrowProcessing');
@@ -88,7 +85,6 @@ export default function BorrowConfirmScreen({ navigation }: BorrowConfirmScreenP
     }
   }, [borrowMore, setCurrentStep, navigation]);
 
-  // Handle back navigation
   const handleBack = useCallback(() => {
     setCurrentStep('input');
     navigation.goBack();
@@ -99,93 +95,84 @@ export default function BorrowConfirmScreen({ navigation }: BorrowConfirmScreenP
       <ScrollView
         style={styles.scrollView}
         contentContainerStyle={styles.scrollContent}
+        showsVerticalScrollIndicator={false}
       >
         {/* Header */}
         <View style={styles.header}>
-          <TouchableScale onPress={handleBack} style={styles.backButton}>
-            <Ionicons name="arrow-back" size={24} color={colors.text.primary} />
-          </TouchableScale>
           <Text style={styles.title}>Confirm Borrow</Text>
+          <TouchableOpacity onPress={handleBack} hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}>
+            <Ionicons name="close" size={24} color={colors.text.secondary} />
+          </TouchableOpacity>
         </View>
 
-        {/* Health Factor Display */}
-        <View style={styles.healthContainer}>
-          <HealthFactorGauge healthFactor={newHealthFactor} size="lg" />
-        </View>
-
-        {/* Summary Card */}
+        {/* Summary Card - All info in one dense block */}
         <View style={styles.summaryCard}>
-          <Text style={styles.summaryTitle}>Borrow Summary</Text>
-
-          <View style={styles.summaryRow}>
-            <Text style={styles.summaryLabel}>Current Debt</Text>
-            <View style={styles.summaryValue}>
-              <Text style={styles.summaryAmount}>{currentUnitBorrowed.toFixed(2)} UNIT</Text>
-            </View>
+          {/* Borrow Amount - Highlighted */}
+          <View style={styles.borrowSection}>
+            <Text style={styles.borrowLabel}>Borrow Amount</Text>
+            <Text style={styles.borrowAmount}>+{Math.floor(borrowAmount)} UNIT</Text>
+            <Text style={styles.borrowUsd}>≈ ${formatFiat(borrowUsdValue)}</Text>
           </View>
 
           <View style={styles.divider} />
 
-          <View style={styles.summaryRow}>
-            <Text style={styles.summaryLabel}>Additional Borrow</Text>
-            <View style={styles.summaryValue}>
-              <Text style={styles.summaryAmountHighlight}>+{borrowAmount.toFixed(2)} UNIT</Text>
-              <Text style={styles.summaryUsd}>≈ {formatFiat(borrowAmount)}</Text>
-            </View>
+          {/* Debt */}
+          <View style={styles.row}>
+            <Text style={styles.label}>Current Debt</Text>
+            <Text style={styles.value}>{currentUnitBorrowed.toFixed(0)} UNIT</Text>
+          </View>
+
+          <View style={styles.row}>
+            <Text style={styles.label}>New Debt</Text>
+            <Text style={styles.valueHighlight}>{totalDebt.toFixed(0)} UNIT</Text>
           </View>
 
           <View style={styles.divider} />
 
-          <View style={styles.summaryRow}>
-            <Text style={styles.summaryLabel}>New Total Debt</Text>
-            <View style={styles.summaryValue}>
-              <Text style={styles.summaryAmount}>{totalDebt.toFixed(2)} UNIT</Text>
-              <Text style={styles.summaryUsd}>≈ {formatFiat(totalDebt)}</Text>
-            </View>
+          {/* Collateral */}
+          <View style={styles.row}>
+            <Text style={styles.label}>Collateral (unchanged)</Text>
+            <Text style={styles.value}>{currentBtcLocked.toFixed(8)} BTC</Text>
           </View>
 
           <View style={styles.divider} />
 
-          <View style={styles.summaryRow}>
-            <Text style={styles.summaryLabel}>Collateral (unchanged)</Text>
-            <Text style={styles.summaryAmount}>{currentBtcLocked.toFixed(8)} BTC</Text>
-          </View>
-
-          <View style={styles.divider} />
-
-          <View style={styles.summaryRow}>
-            <Text style={styles.summaryLabel}>Health Factor</Text>
-            <View style={styles.healthChange}>
-              <Text style={[styles.summaryAmount, { color: getHealthColor(healthFactor) }]}>
-                {healthFactor}%
+          {/* Health Factor */}
+          <View style={styles.row}>
+            <Text style={styles.label}>Health Factor</Text>
+            <View style={styles.changeRow}>
+              <Text style={[styles.value, { color: getHealthColor(healthFactor) }]}>
+                {healthFactor.toFixed(0)}%
               </Text>
               <Ionicons name="arrow-forward" size={14} color={colors.text.tertiary} />
-              <Text style={[styles.summaryAmount, { color: getHealthColor(newHealthFactor) }]}>
-                {newHealthFactor}%
+              <Text style={[styles.valueHighlight, { color: getHealthColor(newHealthFactor) }]}>
+                {newHealthFactor.toFixed(0)}%
               </Text>
             </View>
           </View>
 
-          <View style={styles.divider} />
-
-          <View style={styles.summaryRow}>
-            <Text style={styles.summaryLabel}>Liquidation Price</Text>
-            <View style={styles.healthChange}>
-              <Text style={styles.summaryAmount}>{formatFiat(liquidationPrice)}</Text>
+          {/* Liquidation Price */}
+          <View style={styles.row}>
+            <Text style={styles.label}>Liquidation Price</Text>
+            <View style={styles.changeRow}>
+              <Text style={[styles.value, { color: colors.semantic.error }]}>
+                ${formatFiat(liquidationPrice, 0)}
+              </Text>
               <Ionicons name="arrow-forward" size={14} color={colors.text.tertiary} />
-              <Text style={[styles.summaryAmount, { color: colors.semantic.warning }]}>
-                {formatFiat(newLiquidationPrice)}
+              <Text style={[styles.valueHighlight, { color: colors.semantic.error }]}>
+                ${formatFiat(newLiquidationPrice, 0)}
               </Text>
             </View>
           </View>
 
           <View style={styles.divider} />
 
-          <View style={styles.summaryRow}>
-            <Text style={styles.summaryLabel}>Network Fee</Text>
-            <View style={styles.summaryValue}>
-              <Text style={styles.summaryAmount}>~{estimatedFee} sats</Text>
-              <Text style={styles.summaryUsd}>≈ {formatFiat(feeUsdValue)}</Text>
+          {/* Network Fee */}
+          <View style={styles.row}>
+            <Text style={styles.label}>Network Fee</Text>
+            <View style={styles.feeContainer}>
+              <Text style={styles.value}>~{estimatedFee} sats</Text>
+              <Text style={styles.feeUsd}>≈ ${formatFiat(feeUsdValue)}</Text>
             </View>
           </View>
         </View>
@@ -206,14 +193,14 @@ export default function BorrowConfirmScreen({ navigation }: BorrowConfirmScreenP
         )}
       </ScrollView>
 
-      {/* Footer Buttons */}
+      {/* Footer */}
       <View style={styles.footer}>
         <TouchableScale
-          style={styles.cancelButton}
+          style={styles.backButton}
           onPress={handleBack}
           disabled={isLoading || isAuthenticating}
         >
-          <Text style={styles.cancelText}>Back</Text>
+          <Text style={styles.backText}>Back</Text>
         </TouchableScale>
 
         <TouchableScale
@@ -232,9 +219,9 @@ export default function BorrowConfirmScreen({ navigation }: BorrowConfirmScreenP
   );
 }
 
-function getHealthColor(healthFactor: number): string {
-  if (healthFactor >= 200) return colors.semantic.success;
-  if (healthFactor >= 161) return colors.semantic.warning;
+function getHealthColor(health: number): string {
+  if (health >= 200) return colors.semantic.success;
+  if (health > 160) return '#fde37b'; // Moderate yellow
   return colors.semantic.error;
 }
 
@@ -252,79 +239,89 @@ const styles = StyleSheet.create({
   },
   header: {
     flexDirection: 'row',
+    justifyContent: 'space-between',
     alignItems: 'center',
     marginBottom: spacing.lg,
-  },
-  backButton: {
-    marginRight: spacing.md,
   },
   title: {
     fontSize: fontSizes.xxl,
     fontFamily: fonts.bold,
     color: colors.text.primary,
   },
-  healthContainer: {
-    alignItems: 'center',
-    marginVertical: spacing.xl,
-  },
   summaryCard: {
     backgroundColor: colors.bg.secondary,
     borderRadius: radii.lg,
     padding: spacing.lg,
-    marginBottom: spacing.lg,
+    borderWidth: 1,
+    borderColor: colors.border.default,
   },
-  summaryTitle: {
-    fontSize: fontSizes.lg,
-    fontFamily: fonts.bold,
-    color: colors.text.primary,
-    marginBottom: spacing.lg,
+  borrowSection: {
+    alignItems: 'center',
+    paddingVertical: spacing.md,
   },
-  summaryRow: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'flex-start',
-    paddingVertical: spacing.sm,
-  },
-  summaryLabel: {
-    fontSize: fontSizes.md,
-    fontFamily: fonts.regular,
-    color: colors.text.secondary,
-  },
-  summaryValue: {
-    alignItems: 'flex-end',
-  },
-  summaryAmount: {
-    fontSize: fontSizes.md,
+  borrowLabel: {
+    fontSize: fontSizes.sm,
     fontFamily: fonts.medium,
-    color: colors.text.primary,
+    color: colors.text.secondary,
+    marginBottom: spacing.xs,
   },
-  summaryAmountHighlight: {
-    fontSize: fontSizes.md,
+  borrowAmount: {
+    fontSize: fontSizes.xxxl,
     fontFamily: fonts.bold,
     color: colors.brand.primary,
   },
-  summaryUsd: {
-    fontSize: fontSizes.sm,
+  borrowUsd: {
+    fontSize: fontSizes.md,
     fontFamily: fonts.regular,
     color: colors.text.tertiary,
-    marginTop: 2,
-  },
-  healthChange: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: spacing.xs,
+    marginTop: spacing.xs,
   },
   divider: {
     height: 1,
     backgroundColor: colors.border.default,
-    marginVertical: spacing.xs,
+    marginVertical: spacing.md,
+  },
+  row: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    paddingVertical: spacing.sm,
+  },
+  label: {
+    fontSize: fontSizes.md,
+    fontFamily: fonts.regular,
+    color: colors.text.secondary,
+  },
+  value: {
+    fontSize: fontSizes.md,
+    fontFamily: fonts.medium,
+    color: colors.text.primary,
+  },
+  valueHighlight: {
+    fontSize: fontSizes.md,
+    fontFamily: fonts.bold,
+    color: colors.text.primary,
+  },
+  changeRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: spacing.xs,
+  },
+  feeContainer: {
+    alignItems: 'flex-end',
+  },
+  feeUsd: {
+    fontSize: fontSizes.xs,
+    fontFamily: fonts.regular,
+    color: colors.text.tertiary,
+    marginTop: 2,
   },
   warningContainer: {
     flexDirection: 'row',
-    backgroundColor: 'rgba(245, 166, 35, 0.1)',
+    backgroundColor: 'rgba(230, 190, 80, 0.1)',
     borderRadius: radii.md,
     padding: spacing.md,
-    marginBottom: spacing.lg,
+    marginTop: spacing.lg,
     gap: spacing.sm,
   },
   warningText: {
@@ -337,7 +334,7 @@ const styles = StyleSheet.create({
     backgroundColor: 'rgba(208, 76, 104, 0.1)',
     borderRadius: radii.md,
     padding: spacing.md,
-    marginBottom: spacing.lg,
+    marginTop: spacing.lg,
   },
   errorText: {
     fontSize: fontSizes.sm,
@@ -357,14 +354,14 @@ const styles = StyleSheet.create({
     borderTopColor: colors.border.default,
     gap: spacing.md,
   },
-  cancelButton: {
+  backButton: {
     flex: 1,
     backgroundColor: colors.bg.tertiary,
     borderRadius: radii.lg,
     paddingVertical: spacing.md,
     alignItems: 'center',
   },
-  cancelText: {
+  backText: {
     fontSize: fontSizes.md,
     fontFamily: fonts.medium,
     color: colors.text.primary,

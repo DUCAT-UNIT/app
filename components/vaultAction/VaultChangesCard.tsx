@@ -84,6 +84,8 @@ export interface VaultChangesCardProps {
   newLiquidationPrice?: number;
   // Show change arrows
   showChanges?: boolean;
+  // Action type - determines whether to show collateral or debt change
+  actionType?: 'collateral' | 'debt';
 }
 
 export const VaultChangesCard = memo(function VaultChangesCard({
@@ -96,6 +98,7 @@ export const VaultChangesCard = memo(function VaultChangesCard({
   currentLiquidationPrice,
   newLiquidationPrice,
   showChanges = true,
+  actionType = 'collateral',
 }: VaultChangesCardProps): React.JSX.Element {
   const { s, sf } = useResponsive();
 
@@ -110,15 +113,28 @@ export const VaultChangesCard = memo(function VaultChangesCard({
         {showChanges ? 'VAULT CHANGES' : 'VAULT STATUS'}
       </Text>
 
-      {/* Collateral Row */}
-      <ChangeRow
-        label="Collateral"
-        beforeValue={formatBalance(currentCollateral)}
-        afterValue={formatBalance(newCollateral)}
-        icon="btc_symbol"
-        showChange={showChanges && collateralChanged}
-        afterColor={COLORS.WHITE}
-      />
+      {/* Collateral Row - shown for deposit/withdraw */}
+      {actionType === 'collateral' && (
+        <ChangeRow
+          label="Collateral"
+          beforeValue={formatBalance(currentCollateral)}
+          afterValue={formatBalance(newCollateral)}
+          icon="btc_symbol"
+          showChange={showChanges && collateralChanged}
+          afterColor={COLORS.WHITE}
+        />
+      )}
+
+      {/* Debt Row - shown for borrow/repay */}
+      {actionType === 'debt' && (
+        <ChangeRow
+          label="Debt"
+          beforeValue={`${currentDebt.toFixed(0)} UNIT`}
+          afterValue={`${newDebt.toFixed(0)} UNIT`}
+          showChange={showChanges && debtChanged}
+          afterColor={COLORS.WHITE}
+        />
+      )}
 
       {/* Health Factor Row */}
       <ChangeRow
