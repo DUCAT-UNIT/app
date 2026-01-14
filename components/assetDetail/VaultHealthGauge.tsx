@@ -247,7 +247,7 @@ export const VaultHealthGauge = memo(function VaultHealthGauge({
         <Svg
           width="100%"
           height="100%"
-          viewBox={`-10 -10 ${SVG_SIZE + 20} ${(SVG_SIZE + 20) * 0.75}`}
+          viewBox={`-10 -10 ${SVG_SIZE + 20} ${(SVG_SIZE + 20) * 0.78}`}
         >
           {/* Red path (135% - 160%) */}
           <Path
@@ -304,7 +304,7 @@ export const VaultHealthGauge = memo(function VaultHealthGauge({
           {/* 135% label */}
           <SvgText
             x={56}
-            y={212}
+            y={222}
             textAnchor="middle"
             fill="#ddd"
             fillOpacity={0.5}
@@ -339,8 +339,8 @@ export const VaultHealthGauge = memo(function VaultHealthGauge({
 
           {/* 300% label */}
           <SvgText
-            x={248}
-            y={212}
+            x={235}
+            y={222}
             textAnchor="middle"
             fill="#ddd"
             fillOpacity={0.5}

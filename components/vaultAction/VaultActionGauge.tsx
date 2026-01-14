@@ -46,14 +46,12 @@ const mapValueToRange = (value: number): number => {
 };
 
 const calculateDynamicRadius = (mappedValue: number): number => {
-  // Use smaller radius to keep marker within viewBox bounds
-  if (mappedValue < 10) return 88;
-  if (mappedValue < 17) return 86;
-  if (mappedValue >= 17 && mappedValue < 19) return 85;
-  if (mappedValue >= 19 && mappedValue <= 24.7) return 85;
-  if (mappedValue <= 70) return 83;
-  // Cap radius for high values
-  return 83;
+  if (mappedValue < 10) return 95;
+  if (mappedValue < 17) return 93;
+  if (mappedValue >= 17 && mappedValue < 19) return 92;
+  if (mappedValue >= 19 && mappedValue <= 24.7) return 92;
+  if (mappedValue <= 70) return 90;
+  return 90 + ((mappedValue - 65) / 25) * 5;
 };
 
 const getActivePath = (healthValue: number): keyof PathSettings | '' => {
@@ -133,7 +131,7 @@ export const VaultActionGauge = memo(function VaultActionGauge({
         <Svg
           width="100%"
           height="100%"
-          viewBox={`-25 -15 ${SVG_SIZE + 50} ${SVG_SIZE * 1.0}`}
+          viewBox={`-10 -10 ${SVG_SIZE + 20} ${(SVG_SIZE + 20) * 0.75}`}
         >
           {/* Red path (135% - 160%) */}
           <Path
@@ -192,8 +190,8 @@ export const VaultActionGauge = memo(function VaultActionGauge({
 
           {/* Min label (135%) */}
           <SvgText
-            x={10}
-            y={SVG_SIZE / 2 + 75}
+            x={28}
+            y={SVG_SIZE / 2 + 50}
             textAnchor="start"
             fill="#8e8d90"
             fontSize={11}
@@ -204,8 +202,8 @@ export const VaultActionGauge = memo(function VaultActionGauge({
 
           {/* Max label (300%+) */}
           <SvgText
-            x={SVG_SIZE - 40}
-            y={SVG_SIZE / 2 + 75}
+            x={SVG_SIZE - 28}
+            y={SVG_SIZE / 2 + 50}
             textAnchor="end"
             fill="#8e8d90"
             fontSize={11}
@@ -222,13 +220,13 @@ export const VaultActionGauge = memo(function VaultActionGauge({
 const styles = StyleSheet.create({
   container: {
     alignItems: 'center',
-    marginTop: -8,
-    marginBottom: -32,
+    marginTop: -24,
+    marginBottom: -24,
   },
   gaugeContainer: {
     width: '100%',
-    maxWidth: 280,
-    aspectRatio: 1.2,
+    maxWidth: 220,
+    aspectRatio: 1.5,
   },
 });
 
