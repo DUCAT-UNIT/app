@@ -110,7 +110,7 @@ export default function BorrowConfirmScreen({ navigation }: BorrowConfirmScreenP
           {/* Borrow Amount - Highlighted */}
           <View style={styles.borrowSection}>
             <Text style={styles.borrowLabel}>Borrow Amount</Text>
-            <Text style={styles.borrowAmount}>+{Math.floor(borrowAmount)} UNIT</Text>
+            <Text style={styles.borrowAmount}>+{borrowAmount.toFixed(2)} UNIT</Text>
             <Text style={styles.borrowUsd}>≈ ${formatFiat(borrowUsdValue)}</Text>
           </View>
 
@@ -119,12 +119,12 @@ export default function BorrowConfirmScreen({ navigation }: BorrowConfirmScreenP
           {/* Debt */}
           <View style={styles.row}>
             <Text style={styles.label}>Current Debt</Text>
-            <Text style={styles.value}>{currentUnitBorrowed.toFixed(0)} UNIT</Text>
+            <Text style={styles.value}>{currentUnitBorrowed.toFixed(2)} UNIT</Text>
           </View>
 
           <View style={styles.row}>
             <Text style={styles.label}>New Debt</Text>
-            <Text style={styles.valueHighlight}>{totalDebt.toFixed(0)} UNIT</Text>
+            <Text style={styles.valueHighlight}>{totalDebt.toFixed(2)} UNIT</Text>
           </View>
 
           <View style={styles.divider} />

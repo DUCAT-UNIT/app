@@ -129,8 +129,8 @@ export const VaultChangesCard = memo(function VaultChangesCard({
       {actionType === 'debt' && (
         <ChangeRow
           label="Debt"
-          beforeValue={`${currentDebt.toFixed(0)} UNIT`}
-          afterValue={`${newDebt.toFixed(0)} UNIT`}
+          beforeValue={`${currentDebt.toFixed(2)} UNIT`}
+          afterValue={`${newDebt.toFixed(2)} UNIT`}
           showChange={showChanges && debtChanged}
           afterColor={COLORS.WHITE}
         />

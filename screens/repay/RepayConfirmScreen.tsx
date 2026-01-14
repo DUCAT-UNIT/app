@@ -110,7 +110,7 @@ export default function RepayConfirmScreen({ navigation }: RepayConfirmScreenPro
           {/* Repay Amount - Highlighted */}
           <View style={styles.repaySection}>
             <Text style={styles.repayLabel}>Repay Amount</Text>
-            <Text style={styles.repayAmount}>-{Math.floor(repayAmountUnit)} UNIT</Text>
+            <Text style={styles.repayAmount}>-{repayAmountUnit.toFixed(2)} UNIT</Text>
             <Text style={styles.repayUsd}>≈ ${formatFiat(repayUsdValue)}</Text>
           </View>
 
@@ -119,13 +119,13 @@ export default function RepayConfirmScreen({ navigation }: RepayConfirmScreenPro
           {/* Debt */}
           <View style={styles.row}>
             <Text style={styles.label}>Current Debt</Text>
-            <Text style={styles.value}>{currentUnitBorrowed.toFixed(0)} UNIT</Text>
+            <Text style={styles.value}>{currentUnitBorrowed.toFixed(2)} UNIT</Text>
           </View>
 
           <View style={styles.row}>
             <Text style={styles.label}>New Debt</Text>
             <Text style={[styles.valueHighlight, newDebt === 0 && { color: colors.semantic.success }]}>
-              {newDebt.toFixed(0)} UNIT
+              {newDebt.toFixed(2)} UNIT
             </Text>
           </View>
 

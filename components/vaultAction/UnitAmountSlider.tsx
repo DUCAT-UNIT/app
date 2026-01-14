@@ -141,13 +141,13 @@ export const UnitAmountSlider = memo(function UnitAmountSlider({
 
   const handleTapToEdit = useCallback(() => {
     if (disabled) return;
-    setEditText(Math.floor(value).toString());
+    setEditText(value.toFixed(2));
     setIsEditing(true);
     setTimeout(() => inputRef.current?.focus(), 100);
   }, [disabled, value]);
 
   const handleEditSubmit = useCallback(() => {
-    const parsed = parseInt(editText, 10);
+    const parsed = parseFloat(editText);
     if (!isNaN(parsed) && parsed >= 0) {
       const clamped = Math.min(parsed, maxValue);
       currentValue.value = clamped;
@@ -171,10 +171,10 @@ export const UnitAmountSlider = memo(function UnitAmountSlider({
     width: thumbX.value + THUMB_SIZE / 2,
   }));
 
-  // Animated text props for UNIT value - whole numbers
+  // Animated text props for UNIT value - two decimal places
   const unitAnimatedProps = useAnimatedProps(() => {
     const v = currentValue.value;
-    const text = Math.floor(v).toString();
+    const text = v.toFixed(2);
     return { text, defaultValue: text };
   });
 

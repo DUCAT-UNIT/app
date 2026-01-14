@@ -121,10 +121,10 @@ export default function RepayInputScreen({ navigation }: RepayInputScreenProps) 
     if (!vaultLoaded) return null;
     if (repayAmountUnit <= 0) return null;
     if (repayAmountUnit > currentUnitBorrowed) {
-      return `Cannot repay more than your debt (${currentUnitBorrowed.toFixed(0)} UNIT)`;
+      return `Cannot repay more than your debt (${currentUnitBorrowed.toFixed(2)} UNIT)`;
     }
     if (repayAmountUnit > unitBalance) {
-      return `Insufficient UNIT balance. You have ${unitBalance.toFixed(0)} UNIT available.`;
+      return `Insufficient UNIT balance. You have ${unitBalance.toFixed(2)} UNIT available.`;
     }
     return null;
   }, [vaultLoaded, repayAmountUnit, currentUnitBorrowed, unitBalance]);
@@ -171,7 +171,7 @@ export default function RepayInputScreen({ navigation }: RepayInputScreenProps) 
           <Ionicons name="alert-circle-outline" size={48} color={colors.semantic.warning} />
           <Text style={styles.noVaultText}>No UNIT Available</Text>
           <Text style={styles.noVaultSubtext}>
-            You need UNIT to repay your debt of {currentUnitBorrowed.toFixed(0)} UNIT.
+            You need UNIT to repay your debt of {currentUnitBorrowed.toFixed(2)} UNIT.
           </Text>
           <TouchableScale style={styles.closeBtn} onPress={handleClose}>
             <Text style={styles.closeBtnText}>Close</Text>
@@ -213,7 +213,7 @@ export default function RepayInputScreen({ navigation }: RepayInputScreenProps) 
               disabled={maxRepayableUnit <= 0}
             />
             <Text style={styles.balanceText}>
-              Available: {unitBalance.toFixed(0)} UNIT
+              Available: {unitBalance.toFixed(2)} UNIT
             </Text>
           </View>
 
