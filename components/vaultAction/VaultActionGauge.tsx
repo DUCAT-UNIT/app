@@ -204,7 +204,7 @@ export const VaultActionGauge = memo(function VaultActionGauge({
 
           {/* Max label (300%+) */}
           <SvgText
-            x={SVG_SIZE - 10}
+            x={SVG_SIZE - 40}
             y={SVG_SIZE / 2 + 75}
             textAnchor="end"
             fill="#8e8d90"
