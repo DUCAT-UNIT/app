@@ -23,16 +23,16 @@
         <div class='clearfix'>
             
             <div class='fl pad1y space-right2'>
-                <span class="strong">100% </span>
+                <span class="strong">96.55% </span>
                 <span class="quiet">Statements</span>
-                <span class='fraction'>25/25</span>
+                <span class='fraction'>28/29</span>
             </div>
         
             
             <div class='fl pad1y space-right2'>
-                <span class="strong">100% </span>
+                <span class="strong">83.33% </span>
                 <span class="quiet">Branches</span>
-                <span class='fraction'>4/4</span>
+                <span class='fraction'>5/6</span>
             </div>
         
             
@@ -44,9 +44,9 @@
         
             
             <div class='fl pad1y space-right2'>
-                <span class="strong">100% </span>
+                <span class="strong">96.42% </span>
                 <span class="quiet">Lines</span>
-                <span class='fraction'>24/24</span>
+                <span class='fraction'>27/28</span>
             </div>
         
             
@@ -199,7 +199,29 @@
 <a name='L134'></a><a href='#L134'>134</a>
 <a name='L135'></a><a href='#L135'>135</a>
 <a name='L136'></a><a href='#L136'>136</a>
-<a name='L137'></a><a href='#L137'>137</a></td><td class="line-coverage quiet"><span class="cline-any cline-neutral">&nbsp;</span>
+<a name='L137'></a><a href='#L137'>137</a>
+<a name='L138'></a><a href='#L138'>138</a>
+<a name='L139'></a><a href='#L139'>139</a>
+<a name='L140'></a><a href='#L140'>140</a>
+<a name='L141'></a><a href='#L141'>141</a>
+<a name='L142'></a><a href='#L142'>142</a>
+<a name='L143'></a><a href='#L143'>143</a>
+<a name='L144'></a><a href='#L144'>144</a>
+<a name='L145'></a><a href='#L145'>145</a>
+<a name='L146'></a><a href='#L146'>146</a>
+<a name='L147'></a><a href='#L147'>147</a>
+<a name='L148'></a><a href='#L148'>148</a>
+<a name='L149'></a><a href='#L149'>149</a>
+<a name='L150'></a><a href='#L150'>150</a>
+<a name='L151'></a><a href='#L151'>151</a>
+<a name='L152'></a><a href='#L152'>152</a>
+<a name='L153'></a><a href='#L153'>153</a>
+<a name='L154'></a><a href='#L154'>154</a>
+<a name='L155'></a><a href='#L155'>155</a>
+<a name='L156'></a><a href='#L156'>156</a>
+<a name='L157'></a><a href='#L157'>157</a></td><td class="line-coverage quiet"><span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
@@ -220,7 +242,13 @@
 <span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-yes">25x</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-yes">25x</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-yes">25x</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
@@ -286,6 +314,18 @@
 <span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-yes">11x</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-yes">11x</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
@@ -344,19 +384,27 @@ import * as bitcoin from 'bitcoinjs-lib';
 import * as ecc from '@bitcoinerlab/secp256k1';
 import { encodeRunestone } from '../../utils/runestoneEncoder';
 import { MUTINYNET_NETWORK } from '../../utils/bitcoin';
-import { getTxHexUrl } from '../../utils/constants';
+import { getTxHexUrl, RUNES_CONFIG } from '../../utils/constants';
 import { RuneUtxo, SatUtxo } from './runesUtxoSelection';
+import { logger } from '../../utils/logger';
+import { fetchWithTimeout } from '../../utils/api';
 &nbsp;
 // Initialize ECC library
 bitcoin.initEccLib(ecc);
 &nbsp;
 /**
- * Fetch transaction hex from API
+ * Fetch transaction hex from API with timeout
  * @param txid - Transaction ID
  * @returns Transaction hex
+ * @throws Error if request times out after 30 seconds
  */
 export async function fetchTransactionHex(txid: string): Promise&lt;string&gt; {
-  const response = await fetch(getTxHexUrl(txid));
+  const response = await fetchWithTimeout(getTxHexUrl(txid), {}, 30000); // 30s timeout for blockchain API
+&nbsp;
+  <span class="missing-if-branch" title="if path not taken" >I</span>if (!response.ok) {
+<span class="cstat-no" title="statement not covered" >    throw new Error(`Failed to fetch transaction ${txid}: ${response.status} ${response.statusText}`);</span>
+  }
+&nbsp;
   return await response.text();
 }
 &nbsp;
@@ -428,11 +476,23 @@ export async function buildRunesPsbt(
     });
   }
 &nbsp;
-  // Create runestone
+  // Validate Rune ID before creating transaction
+  // This prevents accidental use of wrong rune ID which could cause loss of funds
+  const runeId = RUNES_CONFIG.DUCAT_UNIT_RUNE_ID;
+&nbsp;
+  // Log rune ID being used for audit trail
+  logger.transaction('Building Runes PSBT', {
+    runeId: `${runeId.block}:${runeId.tx}`,
+    expectedLabel: RUNES_CONFIG.DUCAT_UNIT_RUNE_LABEL,
+    amountInRunes,
+    recipient,
+  });
+&nbsp;
+  // Create runestone with validated Rune ID
   const runestoneConfig = {
     edicts: [
       {
-        id: { block: 1527352n, tx: 1n }, // DUCAT•UNIT•RUNE ID
+        id: runeId, // Use centralized constant
         amount: BigInt(amountInRunes),
         output: 1, // Recipient is at output 1
       },
@@ -478,7 +538,7 @@ export async function buildRunesPsbt(
             <div class='footer quiet pad2 space-top1 center small'>
                 Code coverage generated by
                 <a href="https://istanbul.js.org/" target="_blank" rel="noopener noreferrer">istanbul</a>
-                at 2025-12-09T18:03:19.199Z
+                at 2025-12-09T21:18:15.259Z
             </div>
         <script src="../../prettify.js"></script>
         <script>

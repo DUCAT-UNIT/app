@@ -121,7 +121,12 @@ export async function guardianSendReqDeposit(
   gclient: GuardianSocket,
   depositReq: WalletVaultDepositRequest
 ): Promise<{ vault_txid: string }> {
-  logger.debug('[VaultOps] Submitting deposit request to guardian...');
+  logger.debug('[VaultOps] Submitting deposit request to guardian...', {
+    vault_txid: depositReq.vault_txid,
+    sats_inputs_count: depositReq.sats_inputs?.length,
+    has_psbt: !!depositReq.psbt,
+    has_sigs: !!depositReq.sigs,
+  });
 
   try {
     const guardSub = await gclient.req.vault.deposit(depositReq);
@@ -141,10 +146,20 @@ export async function guardianSendReqDeposit(
 
     return { vault_txid };
   } catch (error) {
-    const errorMessage = error instanceof Error ? error.message : String(error);
+    let errorMessage: string;
+    if (error instanceof Error) {
+      errorMessage = error.message;
+    } else if (typeof error === 'object' && error !== null) {
+      // Guardian errors may be objects with various properties
+      errorMessage = JSON.stringify(error);
+    } else {
+      errorMessage = String(error);
+    }
     logger.error('[VaultOps] Failed to submit deposit request:', {
       message: errorMessage,
+      errorType: typeof error,
+      errorKeys: typeof error === 'object' && error !== null ? Object.keys(error) : [],
     });
-    throw error;
+    throw new Error(`Failed to submit deposit request: ${errorMessage}`);
   }
 }

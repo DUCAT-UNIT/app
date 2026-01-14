@@ -50,7 +50,12 @@ export function useTurboTokenProcessor({
 
   // Use token processing store instead of global variables
   const pendingToken = useTokenProcessingStore(selectPendingToken);
-  const tokenStore = useTokenProcessingStore();
+  // Get stable references to store actions to avoid re-renders
+  const consumePendingToken = useTokenProcessingStore((state) => state.consumePendingToken);
+  const registerTokenCheckCallback = useTokenProcessingStore((state) => state.registerTokenCheckCallback);
+  const unregisterTokenCheckCallback = useTokenProcessingStore((state) => state.unregisterTokenCheckCallback);
+  const triggerWalletReload = useTokenProcessingStore((state) => state.triggerWalletReload);
+  const setPendingToken = useTokenProcessingStore((state) => state.setPendingToken);
 
   // Debug: Log authentication state changes
   React.useEffect(() => {
@@ -104,7 +109,7 @@ export function useTurboTokenProcessor({
 
       // Trigger UI refresh via store
       setTimeout(() => {
-        tokenStore.triggerWalletReload();
+        triggerWalletReload();
       }, 1000);
 
       setIsVerifyingToken(false);
@@ -148,11 +153,11 @@ export function useTurboTokenProcessor({
                   await switchAccount(targetAccountIndex);
 
                   // Trigger wallet reload via store
-                  tokenStore.triggerWalletReload();
+                  triggerWalletReload();
 
                   await new Promise(resolve => setTimeout(resolve, 1000));
                   // Set pending token via store for retry
-                  tokenStore.setPendingToken(tokenToRetry);
+                  setPendingToken(tokenToRetry);
                 } catch (err: unknown) {
                   logger.error('[TURBO] Failed to switch account:', { error: err instanceof Error ? err.message : String(err) });
                   showSnackbar({
@@ -172,7 +177,7 @@ export function useTurboTokenProcessor({
         message: snackbarConfig.description || errorMessage,
       }];
     }
-  }, [receive, wallet, fetchBalance, refreshCashu, dismissSnackbar, switchAccount, showSnackbar, tokenStore]);
+  }, [receive, wallet, fetchBalance, refreshCashu, dismissSnackbar, switchAccount, showSnackbar, triggerWalletReload, setPendingToken]);
 
   // Poll for pending tokens using the store
   React.useEffect(() => {
@@ -181,7 +186,7 @@ export function useTurboTokenProcessor({
     }
 
     const checkPendingToken = () => {
-      const token = tokenStore.consumePendingToken();
+      const token = consumePendingToken();
       if (token && !isVerifyingToken) {
         logger.debug('[TURBO] Processing pending token from store');
         processToken(token);
@@ -193,13 +198,13 @@ export function useTurboTokenProcessor({
     const interval = setInterval(checkPendingToken, 500);
 
     // Register callback for external triggering via store
-    tokenStore.registerTokenCheckCallback(checkPendingToken);
+    registerTokenCheckCallback(checkPendingToken);
 
     return () => {
       clearInterval(interval);
-      tokenStore.unregisterTokenCheckCallback();
+      unregisterTokenCheckCallback();
     };
-  }, [isAuthenticated, shouldShowPinOverlay, isVerifyingToken, processToken, tokenStore]);
+  }, [isAuthenticated, shouldShowPinOverlay, isVerifyingToken, processToken, consumePendingToken, registerTokenCheckCallback, unregisterTokenCheckCallback]);
 
   return { isVerifyingToken };
 }

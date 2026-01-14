@@ -47,7 +47,8 @@ export function useClaimNotifications({
   switchAccount,
 }: UseClaimNotificationsParams): void {
   const navigation = useNavigation() as ClaimNavigationType;
-  const tokenStore = useTokenProcessingStore();
+  // Get stable reference to triggerWalletReload to avoid re-renders
+  const triggerWalletReload = useTokenProcessingStore((state) => state.triggerWalletReload);
 
   useEffect(() => {
     logger.debug('🎯 useClaimNotifications effect triggered:', {
@@ -115,7 +116,7 @@ export function useClaimNotifications({
 
               // Trigger wallet reload via store
               logger.info('[useClaimNotifications] Reloading wallet via store...');
-              tokenStore.triggerWalletReload();
+              triggerWalletReload();
 
               // Clear the error params
               logger.info('[useClaimNotifications] Clearing route params...');
@@ -157,5 +158,5 @@ export function useClaimNotifications({
         navigation.setParams({ claimError: undefined, claimToken: undefined });
       }
     }
-  }, [route?.params?.claimSuccess, route?.params?.claimError, route?.params?.claimToken, showSnackbar, navigation, switchAccount, dismissSnackbar, tokenStore]);
+  }, [route?.params?.claimSuccess, route?.params?.claimError, route?.params?.claimToken, showSnackbar, navigation, switchAccount, dismissSnackbar, triggerWalletReload]);
 }

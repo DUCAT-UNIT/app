@@ -9,21 +9,46 @@ const { pbkdf2Sync, createHmac } = require('react-native-quick-crypto');
 import { CRYPTO } from '../constants/security';
 
 /**
- * Manual constant-time comparison since timingSafeEqual isn't available
- * Prevents timing attacks by ensuring comparison takes same time regardless of where strings differ
+ * Constant-time buffer comparison to prevent timing attacks
+ *
+ * SECURITY: This implementation ensures comparison takes the same amount of time
+ * regardless of where (or if) the buffers differ. This prevents attackers from
+ * using timing measurements to deduce information about the stored value.
+ *
+ * Key security properties:
+ * 1. Always iterates over the longer buffer length (no early exit on length mismatch)
+ * 2. Uses XOR accumulation to avoid branch prediction leaks
+ * 3. Length difference is detected without revealing which buffer is longer
+ *
  * @param a - First buffer
  * @param b - Second buffer
- * @returns True if buffers are equal
+ * @returns True if buffers are equal in both length and content
  */
 export const timingSafeEqual = (a: Buffer, b: Buffer): boolean => {
-  if (a.length !== b.length) {
-    return false;
-  }
+  // Use the longer length to ensure we always do the same amount of work
+  // This prevents timing leaks based on buffer length differences
+  const maxLength = Math.max(a.length, b.length);
+
+  // Track length mismatch separately - will be non-zero if lengths differ
+  // Using XOR ensures this is computed in constant time
+  let lengthMismatch = a.length ^ b.length;
+
+  // Accumulate XOR differences across all bytes
+  // Even if lengths differ, we iterate over maxLength to maintain constant time
   let result = 0;
-  for (let i = 0; i < a.length; i++) {
-    result |= a[i] ^ b[i];
+  for (let i = 0; i < maxLength; i++) {
+    // Use 0 as fallback for out-of-bounds access to avoid undefined behavior
+    // The lengthMismatch flag ensures we still return false for different lengths
+    const byteA = i < a.length ? a[i] : 0;
+    const byteB = i < b.length ? b[i] : 0;
+    result |= byteA ^ byteB;
   }
-  return result === 0;
+
+  // Both conditions must be true:
+  // 1. No length mismatch (lengthMismatch === 0)
+  // 2. No byte differences (result === 0)
+  // Using bitwise OR to combine without short-circuit evaluation
+  return (lengthMismatch | result) === 0;
 };
 
 /**
@@ -71,21 +96,36 @@ export const hashPin = async (pin: string, salt: string, iterations?: number): P
 
 /**
  * Verify two PIN hashes are equal using constant-time comparison
- * Prevents timing attacks
+ * Prevents timing attacks by delegating to timingSafeEqual which handles all cases
  * @param storedHash - Stored hash (hex string)
  * @param enteredHash - Entered hash (hex string)
  * @returns True if hashes match
  */
 export const verifyPinHash = (storedHash: string, enteredHash: string): boolean => {
   try {
+    // Handle empty/invalid inputs in constant time
+    if (!storedHash || !enteredHash) {
+      // Still do a dummy comparison to maintain constant time
+      const dummy = Buffer.alloc(64);
+      timingSafeEqual(dummy, dummy);
+      return false;
+    }
+
     const storedBuffer = Buffer.from(storedHash, 'hex');
     const enteredBuffer = Buffer.from(enteredHash, 'hex');
-    // timingSafeEqual requires same length, so check length first (constant time)
-    return storedBuffer.length === enteredBuffer.length &&
-           storedBuffer.length > 0 &&
-           timingSafeEqual(storedBuffer, enteredBuffer);
+
+    // timingSafeEqual now handles length mismatches in constant time
+    // No need for separate length check that could leak timing info
+    return timingSafeEqual(storedBuffer, enteredBuffer);
   } catch (error: unknown) {
     // If comparison fails (e.g., invalid hex), treat as invalid PIN
+    // Do a dummy comparison to maintain constant time even on error path
+    try {
+      const dummy = Buffer.alloc(64);
+      timingSafeEqual(dummy, dummy);
+    } catch {
+      // Ignore errors in dummy comparison
+    }
     return false;
   }
 };
@@ -115,6 +155,7 @@ export const generateSaltHmac = (salt: string, key: string): string => {
 
 /**
  * Verify salt HMAC for integrity checking
+ * Uses constant-time comparison to prevent timing attacks
  * @param salt - Salt to verify (hex string)
  * @param expectedHmac - Expected HMAC (hex string)
  * @param key - HMAC key (hex string)
@@ -126,12 +167,17 @@ export const verifySaltHmac = (salt: string, expectedHmac: string, key: string):
     const expectedBuffer = Buffer.from(expectedHmac, 'hex');
     const computedBuffer = Buffer.from(computedHmac, 'hex');
 
-    // Use constant-time comparison
-    return expectedBuffer.length === computedBuffer.length &&
-           expectedBuffer.length > 0 &&
-           timingSafeEqual(expectedBuffer, computedBuffer);
+    // timingSafeEqual now handles all cases including length mismatches
+    // in constant time - no separate length check needed
+    return timingSafeEqual(expectedBuffer, computedBuffer);
   } catch (error: unknown) {
-    // If verification fails, treat as invalid
+    // If verification fails, do a dummy comparison to maintain constant time
+    try {
+      const dummy = Buffer.alloc(32);
+      timingSafeEqual(dummy, dummy);
+    } catch {
+      // Ignore errors in dummy comparison
+    }
     return false;
   }
 };

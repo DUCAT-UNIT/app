@@ -170,8 +170,16 @@ export function useDepositVault(): UseDepositVaultResult {
       logger.debug('[useDepositVault] VaultProfile built:', {
         acct_id: profile.acct_id,
         master_id: profile.master_id,
+        vault_pk: profile.vault_pk,
+        guard_pk: profile.guard_pk?.substring(0, 20) + '...',
         hasRdata: !!profile.rdata,
         hasUtxo: !!profile.utxo,
+        rdata_unit_balance: profile.rdata?.unit_balance,
+        rdata_vault_action: profile.rdata?.vault_action,
+        utxo_txid: profile.utxo?.txid,
+        utxo_vout: profile.utxo?.vout,
+        utxo_value: profile.utxo?.value,
+        vaultId: vaultData.vaultId,
       });
 
       return profile;

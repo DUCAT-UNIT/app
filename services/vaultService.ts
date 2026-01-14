@@ -204,24 +204,11 @@ export const fetchVaultData = async (vaultPubkey: string): Promise<VaultData | n
 
     const vaultHistoryData = await vaultHistoryResponse.json() as VaultHistoryResponse;
 
-    if (!vaultHistoryData.history || vaultHistoryData.history.length === 0) {
-      // Use data from first vault only (not totals across all vaults)
-      const firstVault = vaultListData.vaults[0];
-      return {
-        vaultId,
-        vaultTag,
-        totalDebt: firstVault.unit_borrowed,
-        totalCollateral: firstVault.btc_locked,
-        currentPrice: vaultListData.current_price,
-      };
-    }
-
-    const latestTransaction = vaultHistoryData.history[0];
-
     // Use data from first vault only (not totals across all vaults)
     const firstVault = vaultListData.vaults[0];
 
-    // Construct full VaultInfo for borrow operations
+    // Construct full VaultInfo for borrow/deposit/repay/withdraw operations
+    // This is needed even when there's no recent history
     const vaultInfo: VaultInfo = {
       vault_id: firstVault.vault_id,
       vault_tag: firstVault.vault_tag,
@@ -241,13 +228,20 @@ export const fetchVaultData = async (vaultPubkey: string): Promise<VaultData | n
       vault_version: firstVault.vault_version || 1,
     };
 
+    // Build the vault data object
     const vaultData: VaultData = {
       vaultId,
       vaultTag,
       totalDebt: firstVault.unit_borrowed,
       totalCollateral: firstVault.btc_locked,
       currentPrice: vaultListData.current_price,
-      latestTransaction: {
+      vaultInfo,
+    };
+
+    // Add latest transaction if history exists
+    if (vaultHistoryData.history && vaultHistoryData.history.length > 0) {
+      const latestTransaction = vaultHistoryData.history[0];
+      vaultData.latestTransaction = {
         amountBorrowed: latestTransaction.amount_borrowed,
         vaultAmount: latestTransaction.vault_amount,
         btcAmount: latestTransaction.btc_amt,
@@ -255,9 +249,8 @@ export const fetchVaultData = async (vaultPubkey: string): Promise<VaultData | n
         oraclePrice: latestTransaction.oracle_price,
         timestamp: latestTransaction.timestamp,
         action: latestTransaction.action,
-      },
-      vaultInfo,
-    };
+      };
+    }
 
     logger.debug('✅ Vault data fetched successfully (first vault only):', {
       vaultTag,
