@@ -46,13 +46,14 @@ const mapValueToRange = (value: number): number => {
 };
 
 const calculateDynamicRadius = (mappedValue: number): number => {
-  if (mappedValue < 10) return 95;
-  if (mappedValue < 17) return 93;
-  if (mappedValue >= 17 && mappedValue < 19) return 92;
-  if (mappedValue >= 19 && mappedValue <= 24.7) return 92;
-  if (mappedValue <= 70) return 90;
-  // Cap radius at 92 for high values to prevent marker going outside bounds
-  return Math.min(90 + ((mappedValue - 65) / 25) * 5, 92);
+  // Use smaller radius to keep marker within viewBox bounds
+  if (mappedValue < 10) return 88;
+  if (mappedValue < 17) return 86;
+  if (mappedValue >= 17 && mappedValue < 19) return 85;
+  if (mappedValue >= 19 && mappedValue <= 24.7) return 85;
+  if (mappedValue <= 70) return 83;
+  // Cap radius for high values
+  return 83;
 };
 
 const getActivePath = (healthValue: number): keyof PathSettings | '' => {
@@ -132,7 +133,7 @@ export const VaultActionGauge = memo(function VaultActionGauge({
         <Svg
           width="100%"
           height="100%"
-          viewBox={`-20 -20 ${SVG_SIZE + 40} ${(SVG_SIZE + 40) * 0.85}`}
+          viewBox={`-25 -15 ${SVG_SIZE + 50} ${SVG_SIZE * 0.9}`}
         >
           {/* Red path (135% - 160%) */}
           <Path
@@ -221,13 +222,13 @@ export const VaultActionGauge = memo(function VaultActionGauge({
 const styles = StyleSheet.create({
   container: {
     alignItems: 'center',
-    marginTop: -12,
-    marginBottom: -20,
+    marginTop: -8,
+    marginBottom: -24,
   },
   gaugeContainer: {
     width: '100%',
-    maxWidth: 260,
-    aspectRatio: 1.25,
+    maxWidth: 280,
+    aspectRatio: 1.4,
   },
 });
 
