@@ -13,7 +13,7 @@ import TouchableScale from '../../components/common/TouchableScale';
 import { useDeposit } from '../../stores/depositStore';
 import { useDepositVault } from '../../hooks/useDepositVault';
 import { usePrice } from '../../stores/priceStore';
-import { formatFiat, formatBTC } from '../../utils/formatters';
+import { formatFiat } from '../../utils/formatters';
 import { getOpCostOpen } from '../../utils/vaultUtils';
 import { colors, fonts, fontSizes, spacing, radii } from '../../styles/theme';
 
@@ -115,8 +115,8 @@ export default function DepositConfirmScreen({ navigation }: DepositConfirmScree
           {/* Deposit Amount - Highlighted */}
           <View style={styles.depositSection}>
             <Text style={styles.depositLabel}>Deposit Amount</Text>
-            <Text style={styles.depositAmount}>+{formatBTC(depositAmountBtc)} BTC</Text>
-            <Text style={styles.depositUsd}>≈ {formatFiat(depositUsdValue)}</Text>
+            <Text style={styles.depositAmount}>+{(depositAmountSats / 100_000_000).toFixed(8)} BTC</Text>
+            <Text style={styles.depositUsd}>≈ ${formatFiat(depositUsdValue)}</Text>
           </View>
 
           <View style={styles.divider} />
@@ -153,11 +153,11 @@ export default function DepositConfirmScreen({ navigation }: DepositConfirmScree
             <Text style={styles.label}>Liquidation Price</Text>
             <View style={styles.changeRow}>
               <Text style={[styles.value, { color: colors.semantic.error }]}>
-                {formatFiat(liquidationPrice)}
+                ${formatFiat(liquidationPrice, 0)}
               </Text>
               <Ionicons name="arrow-forward" size={14} color={colors.text.tertiary} />
               <Text style={[styles.valueHighlight, { color: colors.semantic.error }]}>
-                {formatFiat(newLiquidationPrice)}
+                ${formatFiat(newLiquidationPrice, 0)}
               </Text>
             </View>
           </View>
@@ -169,7 +169,7 @@ export default function DepositConfirmScreen({ navigation }: DepositConfirmScree
             <Text style={styles.label}>Network Fee</Text>
             <View style={styles.feeContainer}>
               <Text style={styles.value}>~{estimatedFee} sats</Text>
-              <Text style={styles.feeUsd}>≈ {formatFiat(feeUsdValue)}</Text>
+              <Text style={styles.feeUsd}>≈ ${formatFiat(feeUsdValue)}</Text>
             </View>
           </View>
         </View>
