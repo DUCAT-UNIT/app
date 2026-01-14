@@ -1,13 +1,11 @@
 /**
  * WithdrawInputScreen - Enter BTC withdraw amount
- * Features: Current vault data display, max button, health factor preview, minimum health warning
  */
 
 import React, { useEffect, useMemo, useCallback, useState } from 'react';
 import {
   Text,
   View,
-  TextInput,
   ScrollView,
   KeyboardAvoidingView,
   Platform,
@@ -19,11 +17,11 @@ import { NavigationProp } from '@react-navigation/native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import TouchableScale from '../../components/common/TouchableScale';
-import { HealthFactorBar } from '../../components/vaultCreation';
+import { VaultActionGauge, VaultChangesCard, AmountSlider } from '../../components/vaultAction';
 import { useWithdraw } from '../../stores/withdrawStore';
 import { useWithdrawVault } from '../../hooks/useWithdrawVault';
-import { usePrice } from '../../stores/priceStore';
-import { formatFiat, formatBTC } from '../../utils/formatters';
+import { usePriceStore } from '../../stores/priceStore';
+import { computeHealthFactor, computeLiquidationPrice } from '../../utils/vaultUtils';
 import { VAULT_CONFIG } from '../../utils/constants';
 import { colors, fonts, fontSizes, spacing, radii } from '../../styles/theme';
 
@@ -37,10 +35,6 @@ export default function WithdrawInputScreen({ navigation }: WithdrawInputScreenP
     withdrawAmountBtc,
     currentUnitBorrowed,
     currentBtcLocked,
-    newHealthFactor,
-    newLiquidationPrice,
-    healthFactor,
-    newCollateral,
     maxWithdrawable,
     setWithdrawAmountBtc,
     setCurrentStep,
@@ -49,258 +43,179 @@ export default function WithdrawInputScreen({ navigation }: WithdrawInputScreenP
   } = useWithdraw();
 
   const { loadVaultData, isLoading: isLoadingVault } = useWithdrawVault();
-  const { btcPrice } = usePrice();
-
-  // Local input state
-  const [btcInput, setBtcInput] = useState(withdrawAmountBtc > 0 ? withdrawAmountBtc.toString() : '');
+  const { btcPrice, fetchBtcPrice } = usePriceStore();
   const [vaultLoaded, setVaultLoaded] = useState(false);
 
-  // Load vault data on mount
-  useEffect(() => {
-    const load = async () => {
-      const success = await loadVaultData();
-      setVaultLoaded(success);
-    };
-    load();
-  }, [loadVaultData]);
+  // Local preview state for real-time updates during drag
+  const [previewAmount, setPreviewAmount] = useState(withdrawAmountBtc);
 
-  // Handle close - reset state and dismiss modal
+  useEffect(() => {
+    if (!btcPrice) {
+      fetchBtcPrice();
+    }
+    loadVaultData().then(setVaultLoaded);
+  }, [loadVaultData, btcPrice, fetchBtcPrice]);
+
+  // Max withdrawable in BTC
+  const maxWithdrawableBtc = useMemo(() => {
+    return Math.max(0, maxWithdrawable / 100_000_000);
+  }, [maxWithdrawable]);
+
   const handleClose = useCallback(() => {
     reset();
     navigation.getParent()?.goBack();
   }, [reset, navigation]);
 
-  // Handle BTC input change
-  const handleBtcChange = useCallback((text: string) => {
-    const cleaned = text.replace(/[^0-9.]/g, '');
-    const parts = cleaned.split('.');
-    const formatted = parts.length > 2
-      ? parts[0] + '.' + parts.slice(1).join('')
-      : cleaned;
+  // Compute current health directly
+  const currentHealth = useMemo(() => {
+    if (!btcPrice || currentBtcLocked <= 0 || currentUnitBorrowed <= 0) return 0;
+    return computeHealthFactor(currentBtcLocked, btcPrice, currentUnitBorrowed);
+  }, [btcPrice, currentBtcLocked, currentUnitBorrowed]);
 
-    setBtcInput(formatted);
-    const value = parseFloat(formatted) || 0;
-    setWithdrawAmountBtc(value);
-  }, [setWithdrawAmountBtc]);
+  const currentLiqPrice = useMemo(() => {
+    if (currentBtcLocked <= 0 || currentUnitBorrowed <= 0) return 0;
+    return computeLiquidationPrice(currentUnitBorrowed, currentBtcLocked);
+  }, [currentBtcLocked, currentUnitBorrowed]);
 
-  // Handle MAX button for BTC
-  const handleMaxBtc = useCallback(() => {
-    if (maxWithdrawable > 0) {
-      const maxBtc = maxWithdrawable / 100_000_000;
-      setBtcInput(maxBtc.toFixed(8));
-      setWithdrawAmountBtc(maxBtc);
+  // Sync preview amount when store value changes
+  useEffect(() => {
+    setPreviewAmount(withdrawAmountBtc);
+  }, [withdrawAmountBtc]);
+
+  // Preview calculations after withdrawal - uses previewAmount for real-time updates
+  const preview = useMemo(() => {
+    const newCollateral = Math.max(0, currentBtcLocked - previewAmount);
+
+    if (!btcPrice || newCollateral <= 0 || currentUnitBorrowed <= 0) {
+      return { newCollateral, newHealth: 0, newLiqPrice: 0 };
     }
-  }, [maxWithdrawable, setWithdrawAmountBtc]);
 
-  // Calculate USD value
-  const withdrawUsdValue = useMemo(() => {
-    return btcPrice ? withdrawAmountBtc * btcPrice : 0;
-  }, [withdrawAmountBtc, btcPrice]);
+    return {
+      newCollateral,
+      newHealth: computeHealthFactor(newCollateral, btcPrice, currentUnitBorrowed),
+      newLiqPrice: computeLiquidationPrice(currentUnitBorrowed, newCollateral),
+    };
+  }, [previewAmount, currentBtcLocked, currentUnitBorrowed, btcPrice]);
 
   // Check if withdrawal would violate min health
   const wouldViolateMinHealth = useMemo(() => {
-    if (withdrawAmountBtc <= 0) return false;
-    if (currentUnitBorrowed <= 0) return false; // No debt, can withdraw freely
-    return newHealthFactor < VAULT_CONFIG.MIN_COL_RATE * 100;
-  }, [withdrawAmountBtc, currentUnitBorrowed, newHealthFactor]);
+    if (previewAmount <= 0) return false;
+    if (currentUnitBorrowed <= 0) return false;
+    return preview.newHealth < VAULT_CONFIG.MIN_COL_RATE * 100;
+  }, [previewAmount, currentUnitBorrowed, preview.newHealth]);
 
-  // Validation
-  const canContinue = useMemo(() => {
-    if (!vaultLoaded) return false;
-    if (withdrawAmountSats <= 0) return false;
-    if (withdrawAmountSats > Math.floor(currentBtcLocked * 100_000_000)) return false;
-    if (wouldViolateMinHealth) return false;
-    return true;
-  }, [vaultLoaded, withdrawAmountSats, currentBtcLocked, wouldViolateMinHealth]);
+  // Live update handler
+  const handleLiveValueChange = useCallback((val: number) => {
+    setPreviewAmount(val);
+  }, []);
 
-  // Handle continue
+  const canContinue = vaultLoaded && withdrawAmountSats > 0 && !wouldViolateMinHealth;
+
   const handleContinue = useCallback(() => {
     if (!canContinue) return;
     setCurrentStep('confirm');
     navigation.navigate('WithdrawConfirm');
   }, [canContinue, setCurrentStep, navigation]);
 
-  // Loading state
   if (isLoadingVault && !vaultLoaded) {
     return (
       <SafeAreaView style={styles.container} edges={['top']}>
-        <View style={styles.loadingContainer}>
+        <View style={styles.centered}>
           <ActivityIndicator size="large" color={colors.brand.primary} />
-          <Text style={styles.loadingText}>Loading vault data...</Text>
+          <Text style={styles.loadingText}>Loading vault...</Text>
         </View>
       </SafeAreaView>
     );
   }
 
-  // No vault state
   if (vaultLoaded && currentBtcLocked <= 0) {
     return (
       <SafeAreaView style={styles.container} edges={['top']}>
-        <View style={styles.content}>
-          <View style={styles.headerRow}>
-            <Text style={styles.title}>Withdraw BTC</Text>
-            <TouchableOpacity onPress={handleClose} style={styles.closeButton}>
-              <Ionicons name="close" size={24} color={colors.text.secondary} />
-            </TouchableOpacity>
-          </View>
-          <View style={styles.noVaultContainer}>
-            <Ionicons name="alert-circle-outline" size={48} color={colors.semantic.warning} />
-            <Text style={styles.noVaultText}>No collateral to withdraw</Text>
-            <Text style={styles.noVaultSubtext}>
-              Your vault has no BTC collateral.
-            </Text>
-            <TouchableScale style={styles.createVaultButton} onPress={handleClose}>
-              <Text style={styles.createVaultText}>Close</Text>
-            </TouchableScale>
-          </View>
+        <View style={styles.centered}>
+          <Ionicons name="alert-circle-outline" size={48} color={colors.semantic.warning} />
+          <Text style={styles.noVaultText}>No collateral to withdraw</Text>
+          <TouchableScale style={styles.closeBtn} onPress={handleClose}>
+            <Text style={styles.closeBtnText}>Close</Text>
+          </TouchableScale>
         </View>
       </SafeAreaView>
     );
   }
 
+  const hasChanges = previewAmount > 0;
+
   return (
     <SafeAreaView style={styles.container} edges={['top']}>
-      <KeyboardAvoidingView
-        behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
-        style={styles.keyboardView}
-      >
-        <ScrollView
-          style={styles.scrollView}
-          contentContainerStyle={styles.scrollContent}
-          keyboardShouldPersistTaps="handled"
-        >
+      <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : 'height'} style={styles.flex}>
+        <ScrollView style={styles.flex} contentContainerStyle={styles.scroll} showsVerticalScrollIndicator={false}>
           {/* Header */}
           <View style={styles.header}>
-            <View style={styles.headerRow}>
-              <Text style={styles.title}>Withdraw BTC</Text>
-              <TouchableOpacity onPress={handleClose} style={styles.closeButton}>
-                <Ionicons name="close" size={24} color={colors.text.secondary} />
-              </TouchableOpacity>
-            </View>
-            <Text style={styles.subtitle}>
-              Withdraw BTC collateral from your vault
-            </Text>
+            <Text style={styles.title}>Withdraw BTC</Text>
+            <TouchableOpacity onPress={handleClose} hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}>
+              <Ionicons name="close" size={24} color={colors.text.secondary} />
+            </TouchableOpacity>
           </View>
 
-          {/* Current Vault Info */}
-          <View style={styles.vaultInfoCard}>
-            <Text style={styles.vaultInfoTitle}>Current Vault</Text>
-            <View style={styles.vaultInfoRow}>
-              <Text style={styles.vaultInfoLabel}>Collateral</Text>
-              <Text style={styles.vaultInfoValue}>{currentBtcLocked.toFixed(8)} BTC</Text>
-            </View>
-            <View style={styles.vaultInfoRow}>
-              <Text style={styles.vaultInfoLabel}>Debt</Text>
-              <Text style={styles.vaultInfoValue}>{currentUnitBorrowed.toFixed(2)} UNIT</Text>
-            </View>
-            <View style={styles.vaultInfoRow}>
-              <Text style={styles.vaultInfoLabel}>Health Factor</Text>
-              <Text style={[styles.vaultInfoValue, { color: getHealthColor(healthFactor) }]}>
-                {healthFactor}%
-              </Text>
-            </View>
-          </View>
+          {/* Gauge */}
+          <VaultActionGauge
+            currentHealth={currentHealth}
+            newHealth={hasChanges ? preview.newHealth : undefined}
+            showTransition={hasChanges}
+          />
 
-          {/* BTC Withdraw Section */}
-          <View style={styles.inputSection}>
-            <View style={styles.inputHeader}>
-              <Text style={styles.inputLabel}>BTC to Withdraw</Text>
-              <TouchableScale onPress={handleMaxBtc} disabled={maxWithdrawable <= 0}>
-                <Text style={[styles.maxButton, maxWithdrawable <= 0 && styles.maxButtonDisabled]}>
-                  MAX
-                </Text>
-              </TouchableScale>
-            </View>
-
-            <View style={[styles.inputContainer, wouldViolateMinHealth && styles.inputContainerError]}>
-              <TextInput
-                style={styles.input}
-                value={btcInput}
-                onChangeText={handleBtcChange}
-                placeholder="0.00000000"
-                placeholderTextColor={colors.text.tertiary}
-                keyboardType="decimal-pad"
-                autoFocus
-              />
-              <Text style={styles.inputSuffix}>BTC</Text>
-            </View>
-
-            <View style={styles.inputMeta}>
-              <Text style={styles.usdValue}>≈ {formatFiat(withdrawUsdValue)}</Text>
-              <Text style={styles.balance}>
-                Max: {formatBTC(maxWithdrawable)} BTC
-              </Text>
-            </View>
+          {/* Slider */}
+          <View style={styles.section}>
+            <AmountSlider
+              value={withdrawAmountBtc}
+              maxValue={maxWithdrawableBtc}
+              onValueChange={setWithdrawAmountBtc}
+              onLiveValueChange={handleLiveValueChange}
+              label="BTC to Withdraw"
+              btcPrice={btcPrice ?? undefined}
+              disabled={maxWithdrawableBtc <= 0}
+            />
           </View>
 
           {/* Warning for min health violation */}
           {wouldViolateMinHealth && (
-            <View style={styles.warningContainer}>
+            <View style={styles.warning}>
               <Ionicons name="warning" size={20} color={colors.semantic.error} />
               <Text style={styles.warningText}>
-                Withdrawing this amount would put your vault below the minimum health ratio of {VAULT_CONFIG.MIN_COL_RATE * 100}%.
+                This would put your vault below the minimum health of {VAULT_CONFIG.MIN_COL_RATE * 100}%.
               </Text>
             </View>
           )}
 
-          {/* New Totals */}
-          {withdrawAmountBtc > 0 && !wouldViolateMinHealth && (
-            <View style={styles.previewCard}>
-              <Text style={styles.previewTitle}>After Withdrawal</Text>
-              <View style={styles.previewRow}>
-                <Text style={styles.previewLabel}>Remaining Collateral</Text>
-                <Text style={styles.previewValue}>{newCollateral.toFixed(8)} BTC</Text>
-              </View>
-              <View style={styles.previewRow}>
-                <Text style={styles.previewLabel}>New Health Factor</Text>
-                <Text style={[styles.previewValue, { color: getHealthColor(newHealthFactor) }]}>
-                  {currentUnitBorrowed > 0 ? `${newHealthFactor}%` : 'N/A'}
-                </Text>
-              </View>
-              {newLiquidationPrice > 0 && currentUnitBorrowed > 0 && (
-                <View style={styles.previewRow}>
-                  <Text style={styles.previewLabel}>Liquidation Price</Text>
-                  <Text style={[styles.previewValue, { color: colors.semantic.warning }]}>
-                    {formatFiat(newLiquidationPrice)}
-                  </Text>
-                </View>
-              )}
-            </View>
-          )}
-
-          {/* Health Factor */}
-          <View style={styles.healthSection}>
-            <Text style={styles.healthLabel}>New Health Factor</Text>
-            <HealthFactorBar
-              healthFactor={
-                withdrawAmountBtc > 0 && currentUnitBorrowed > 0
-                  ? newHealthFactor
-                  : healthFactor
-              }
+          {/* Changes */}
+          <View style={styles.section}>
+            <VaultChangesCard
+              currentCollateral={currentBtcLocked}
+              currentDebt={currentUnitBorrowed}
+              currentHealth={currentHealth}
+              newCollateral={preview.newCollateral}
+              newDebt={currentUnitBorrowed}
+              newHealth={hasChanges ? preview.newHealth : currentHealth}
+              currentLiquidationPrice={currentLiqPrice}
+              newLiquidationPrice={hasChanges ? preview.newLiqPrice : currentLiqPrice}
+              showChanges={hasChanges}
             />
-            <View style={styles.healthMeta}>
-              <Text style={styles.healthHint}>
-                Withdrawing collateral reduces vault health and increases liquidation risk.
-              </Text>
-            </View>
           </View>
 
-          {/* Error message */}
           {error && (
-            <View style={styles.errorContainer}>
+            <View style={styles.error}>
               <Text style={styles.errorText}>{error}</Text>
             </View>
           )}
         </ScrollView>
 
-        {/* Continue Button */}
+        {/* Footer */}
         <View style={styles.footer}>
           <TouchableScale
-            style={[styles.continueButton, !canContinue && styles.continueButtonDisabled]}
+            style={[styles.continueBtn, !canContinue && styles.continueBtnDisabled]}
             onPress={handleContinue}
             disabled={!canContinue}
           >
-            <Text style={[styles.continueText, !canContinue && styles.continueTextDisabled]}>
+            <Text style={[styles.continueBtnText, !canContinue && styles.continueBtnTextDisabled]}>
               Continue
             </Text>
           </TouchableScale>
@@ -310,282 +225,25 @@ export default function WithdrawInputScreen({ navigation }: WithdrawInputScreenP
   );
 }
 
-function getHealthColor(healthFactor: number): string {
-  if (healthFactor >= 200) return colors.semantic.success;
-  if (healthFactor >= 161) return colors.semantic.warning;
-  return colors.semantic.error;
-}
-
 const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-    backgroundColor: colors.bg.primary,
-  },
-  loadingContainer: {
-    flex: 1,
-    justifyContent: 'center',
-    alignItems: 'center',
-    gap: spacing.md,
-  },
-  loadingText: {
-    fontSize: fontSizes.md,
-    fontFamily: fonts.regular,
-    color: colors.text.secondary,
-  },
-  noVaultContainer: {
-    flex: 1,
-    justifyContent: 'center',
-    alignItems: 'center',
-    padding: spacing.xl,
-    gap: spacing.md,
-  },
-  noVaultText: {
-    fontSize: fontSizes.xl,
-    fontFamily: fonts.bold,
-    color: colors.text.primary,
-  },
-  noVaultSubtext: {
-    fontSize: fontSizes.md,
-    fontFamily: fonts.regular,
-    color: colors.text.secondary,
-    textAlign: 'center',
-  },
-  createVaultButton: {
-    backgroundColor: colors.brand.primary,
-    borderRadius: radii.lg,
-    paddingVertical: spacing.md,
-    paddingHorizontal: spacing.xl,
-    marginTop: spacing.lg,
-  },
-  createVaultText: {
-    fontSize: fontSizes.md,
-    fontFamily: fonts.bold,
-    color: colors.text.white,
-  },
-  keyboardView: {
-    flex: 1,
-  },
-  scrollView: {
-    flex: 1,
-  },
-  scrollContent: {
-    padding: spacing.lg,
-    paddingBottom: 100,
-  },
-  content: {
-    flex: 1,
-    padding: spacing.lg,
-  },
-  header: {
-    marginBottom: spacing.lg,
-  },
-  headerRow: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-  },
-  closeButton: {
-    padding: spacing.xs,
-  },
-  title: {
-    fontSize: fontSizes.xxl,
-    fontFamily: fonts.bold,
-    color: colors.text.primary,
-    marginBottom: spacing.xs,
-  },
-  subtitle: {
-    fontSize: fontSizes.md,
-    fontFamily: fonts.regular,
-    color: colors.text.secondary,
-  },
-  vaultInfoCard: {
-    backgroundColor: colors.bg.secondary,
-    borderRadius: radii.lg,
-    padding: spacing.md,
-    marginBottom: spacing.xl,
-  },
-  vaultInfoTitle: {
-    fontSize: fontSizes.sm,
-    fontFamily: fonts.medium,
-    color: colors.text.tertiary,
-    marginBottom: spacing.sm,
-  },
-  vaultInfoRow: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    paddingVertical: spacing.xs,
-  },
-  vaultInfoLabel: {
-    fontSize: fontSizes.md,
-    fontFamily: fonts.regular,
-    color: colors.text.secondary,
-  },
-  vaultInfoValue: {
-    fontSize: fontSizes.md,
-    fontFamily: fonts.medium,
-    color: colors.text.primary,
-  },
-  inputSection: {
-    marginBottom: spacing.xl,
-  },
-  inputHeader: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    marginBottom: spacing.sm,
-  },
-  inputLabel: {
-    fontSize: fontSizes.md,
-    fontFamily: fonts.medium,
-    color: colors.text.primary,
-  },
-  maxButton: {
-    fontSize: fontSizes.sm,
-    fontFamily: fonts.bold,
-    color: colors.brand.primary,
-  },
-  maxButtonDisabled: {
-    color: colors.text.tertiary,
-  },
-  inputContainer: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: colors.bg.secondary,
-    borderRadius: radii.lg,
-    paddingHorizontal: spacing.md,
-    paddingVertical: spacing.md,
-    borderWidth: 1,
-    borderColor: colors.border.default,
-  },
-  inputContainerError: {
-    borderColor: colors.semantic.error,
-  },
-  input: {
-    flex: 1,
-    fontSize: fontSizes.xl,
-    fontFamily: fonts.medium,
-    color: colors.text.primary,
-  },
-  inputSuffix: {
-    fontSize: fontSizes.md,
-    fontFamily: fonts.medium,
-    color: colors.text.secondary,
-    marginLeft: spacing.sm,
-  },
-  inputMeta: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    marginTop: spacing.xs,
-    paddingHorizontal: spacing.xs,
-  },
-  usdValue: {
-    fontSize: fontSizes.sm,
-    fontFamily: fonts.regular,
-    color: colors.text.secondary,
-  },
-  balance: {
-    fontSize: fontSizes.sm,
-    fontFamily: fonts.regular,
-    color: colors.text.tertiary,
-  },
-  warningContainer: {
-    flexDirection: 'row',
-    backgroundColor: 'rgba(208, 76, 104, 0.1)',
-    borderRadius: radii.md,
-    padding: spacing.md,
-    marginBottom: spacing.lg,
-    gap: spacing.sm,
-  },
-  warningText: {
-    flex: 1,
-    fontSize: fontSizes.sm,
-    fontFamily: fonts.medium,
-    color: colors.semantic.error,
-  },
-  previewCard: {
-    backgroundColor: colors.bg.secondary,
-    borderRadius: radii.lg,
-    padding: spacing.md,
-    marginBottom: spacing.lg,
-  },
-  previewTitle: {
-    fontSize: fontSizes.sm,
-    fontFamily: fonts.medium,
-    color: colors.text.tertiary,
-    marginBottom: spacing.sm,
-  },
-  previewRow: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    paddingVertical: spacing.xs,
-  },
-  previewLabel: {
-    fontSize: fontSizes.md,
-    fontFamily: fonts.regular,
-    color: colors.text.secondary,
-  },
-  previewValue: {
-    fontSize: fontSizes.md,
-    fontFamily: fonts.medium,
-    color: colors.text.primary,
-  },
-  healthSection: {
-    backgroundColor: colors.bg.secondary,
-    borderRadius: radii.lg,
-    padding: spacing.md,
-    marginBottom: spacing.lg,
-  },
-  healthLabel: {
-    fontSize: fontSizes.md,
-    fontFamily: fonts.medium,
-    color: colors.text.primary,
-    marginBottom: spacing.md,
-  },
-  healthMeta: {
-    marginTop: spacing.md,
-  },
-  healthHint: {
-    fontSize: fontSizes.sm,
-    fontFamily: fonts.regular,
-    color: colors.text.tertiary,
-  },
-  errorContainer: {
-    backgroundColor: 'rgba(208, 76, 104, 0.1)',
-    borderRadius: radii.md,
-    padding: spacing.md,
-    marginBottom: spacing.lg,
-  },
-  errorText: {
-    fontSize: fontSizes.sm,
-    fontFamily: fonts.medium,
-    color: colors.semantic.error,
-    textAlign: 'center',
-  },
-  footer: {
-    position: 'absolute',
-    bottom: 0,
-    left: 0,
-    right: 0,
-    padding: spacing.lg,
-    backgroundColor: colors.bg.primary,
-    borderTopWidth: 1,
-    borderTopColor: colors.border.default,
-  },
-  continueButton: {
-    backgroundColor: colors.brand.primary,
-    borderRadius: radii.lg,
-    paddingVertical: spacing.md,
-    alignItems: 'center',
-  },
-  continueButtonDisabled: {
-    backgroundColor: colors.bg.tertiary,
-  },
-  continueText: {
-    fontSize: fontSizes.md,
-    fontFamily: fonts.bold,
-    color: colors.text.white,
-  },
-  continueTextDisabled: {
-    color: colors.text.tertiary,
-  },
+  container: { flex: 1, backgroundColor: colors.bg.primary },
+  flex: { flex: 1 },
+  scroll: { padding: spacing.lg, paddingBottom: 120 },
+  centered: { flex: 1, justifyContent: 'center', alignItems: 'center', gap: spacing.md },
+  loadingText: { color: colors.text.secondary, fontSize: fontSizes.md },
+  noVaultText: { color: colors.text.primary, fontSize: fontSizes.xl, fontFamily: fonts.bold },
+  closeBtn: { backgroundColor: colors.brand.primary, borderRadius: radii.lg, paddingVertical: spacing.md, paddingHorizontal: spacing.xl, marginTop: spacing.lg },
+  closeBtnText: { color: colors.text.white, fontSize: fontSizes.md, fontFamily: fonts.bold },
+  header: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: spacing.sm },
+  title: { color: colors.text.primary, fontSize: fontSizes.xxl, fontFamily: fonts.bold },
+  section: { marginTop: spacing.lg },
+  warning: { flexDirection: 'row', backgroundColor: 'rgba(208,76,104,0.1)', borderRadius: radii.md, padding: spacing.md, marginTop: spacing.lg, gap: spacing.sm },
+  warningText: { flex: 1, color: colors.semantic.error, fontSize: fontSizes.sm, fontFamily: fonts.medium },
+  error: { backgroundColor: 'rgba(208,76,104,0.1)', borderRadius: radii.md, padding: spacing.md, marginTop: spacing.lg },
+  errorText: { color: colors.semantic.error, fontSize: fontSizes.sm, textAlign: 'center' },
+  footer: { position: 'absolute', bottom: 0, left: 0, right: 0, padding: spacing.lg, backgroundColor: colors.bg.primary, borderTopWidth: 1, borderTopColor: colors.border.default },
+  continueBtn: { backgroundColor: colors.brand.primary, borderRadius: radii.lg, paddingVertical: spacing.md, alignItems: 'center' },
+  continueBtnDisabled: { backgroundColor: colors.bg.tertiary },
+  continueBtnText: { color: colors.text.white, fontSize: fontSizes.md, fontFamily: fonts.bold },
+  continueBtnTextDisabled: { color: colors.text.tertiary },
 });
