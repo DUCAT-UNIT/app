@@ -10,7 +10,6 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import * as LocalAuthentication from 'expo-local-authentication';
 import { Ionicons } from '@expo/vector-icons';
 import TouchableScale from '../../components/common/TouchableScale';
-import { VaultActionGauge, VaultChangesCard } from '../../components/vaultAction';
 import { useDeposit } from '../../stores/depositStore';
 import { useDepositVault } from '../../hooks/useDepositVault';
 import { usePrice } from '../../stores/priceStore';
@@ -111,41 +110,67 @@ export default function DepositConfirmScreen({ navigation }: DepositConfirmScree
           </TouchableOpacity>
         </View>
 
-        {/* Gauge */}
-        <VaultActionGauge
-          currentHealth={healthFactor}
-          newHealth={newHealthFactor}
-          showTransition={true}
-        />
+        {/* Summary Card - All info in one dense block */}
+        <View style={styles.summaryCard}>
+          {/* Deposit Amount - Highlighted */}
+          <View style={styles.depositSection}>
+            <Text style={styles.depositLabel}>Deposit Amount</Text>
+            <Text style={styles.depositAmount}>+{formatBTC(depositAmountBtc)} BTC</Text>
+            <Text style={styles.depositUsd}>≈ {formatFiat(depositUsdValue)}</Text>
+          </View>
 
-        {/* Deposit Amount Card */}
-        <View style={styles.depositCard}>
-          <Text style={styles.depositLabel}>Depositing</Text>
-          <Text style={styles.depositAmount}>+{formatBTC(depositAmountBtc)} BTC</Text>
-          <Text style={styles.depositUsd}>≈ {formatFiat(depositUsdValue)}</Text>
-        </View>
+          <View style={styles.divider} />
 
-        {/* Vault Changes */}
-        <View style={styles.section}>
-          <VaultChangesCard
-            currentCollateral={currentBtcLocked}
-            currentDebt={currentUnitBorrowed}
-            currentHealth={healthFactor}
-            newCollateral={totalCollateral}
-            newDebt={currentUnitBorrowed}
-            newHealth={newHealthFactor}
-            currentLiquidationPrice={liquidationPrice}
-            newLiquidationPrice={newLiquidationPrice}
-            showChanges={true}
-          />
-        </View>
+          {/* Collateral */}
+          <View style={styles.row}>
+            <Text style={styles.label}>Current Collateral</Text>
+            <Text style={styles.value}>{currentBtcLocked.toFixed(8)} BTC</Text>
+          </View>
 
-        {/* Network Fee */}
-        <View style={styles.feeCard}>
-          <Text style={styles.feeLabel}>Network Fee</Text>
-          <View style={styles.feeValue}>
-            <Text style={styles.feeAmount}>~{estimatedFee} sats</Text>
-            <Text style={styles.feeUsd}>≈ {formatFiat(feeUsdValue)}</Text>
+          <View style={styles.row}>
+            <Text style={styles.label}>New Collateral</Text>
+            <Text style={styles.valueHighlight}>{totalCollateral.toFixed(8)} BTC</Text>
+          </View>
+
+          <View style={styles.divider} />
+
+          {/* Health Factor */}
+          <View style={styles.row}>
+            <Text style={styles.label}>Health Factor</Text>
+            <View style={styles.changeRow}>
+              <Text style={[styles.value, { color: getHealthColor(healthFactor) }]}>
+                {healthFactor.toFixed(0)}%
+              </Text>
+              <Ionicons name="arrow-forward" size={14} color={colors.text.tertiary} />
+              <Text style={[styles.valueHighlight, { color: getHealthColor(newHealthFactor) }]}>
+                {newHealthFactor.toFixed(0)}%
+              </Text>
+            </View>
+          </View>
+
+          {/* Liquidation Price */}
+          <View style={styles.row}>
+            <Text style={styles.label}>Liquidation Price</Text>
+            <View style={styles.changeRow}>
+              <Text style={[styles.value, { color: colors.semantic.error }]}>
+                {formatFiat(liquidationPrice)}
+              </Text>
+              <Ionicons name="arrow-forward" size={14} color={colors.text.tertiary} />
+              <Text style={[styles.valueHighlight, { color: colors.semantic.error }]}>
+                {formatFiat(newLiquidationPrice)}
+              </Text>
+            </View>
+          </View>
+
+          <View style={styles.divider} />
+
+          {/* Network Fee */}
+          <View style={styles.row}>
+            <Text style={styles.label}>Network Fee</Text>
+            <View style={styles.feeContainer}>
+              <Text style={styles.value}>~{estimatedFee} sats</Text>
+              <Text style={styles.feeUsd}>≈ {formatFiat(feeUsdValue)}</Text>
+            </View>
           </View>
         </View>
 
@@ -160,6 +185,14 @@ export default function DepositConfirmScreen({ navigation }: DepositConfirmScree
       {/* Footer */}
       <View style={styles.footer}>
         <TouchableScale
+          style={styles.backButton}
+          onPress={handleBack}
+          disabled={isLoading || isAuthenticating}
+        >
+          <Text style={styles.backText}>Back</Text>
+        </TouchableScale>
+
+        <TouchableScale
           style={[styles.confirmButton, (isLoading || isAuthenticating) && styles.buttonDisabled]}
           onPress={handleConfirm}
           disabled={isLoading || isAuthenticating}
@@ -173,6 +206,12 @@ export default function DepositConfirmScreen({ navigation }: DepositConfirmScree
       </View>
     </SafeAreaView>
   );
+}
+
+function getHealthColor(health: number): string {
+  if (health >= 200) return colors.semantic.success;
+  if (health > 160) return '#fde37b'; // Moderate yellow
+  return colors.semantic.error;
 }
 
 const styles = StyleSheet.create({
@@ -191,21 +230,23 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    marginBottom: spacing.sm,
+    marginBottom: spacing.lg,
   },
   title: {
     fontSize: fontSizes.xxl,
     fontFamily: fonts.bold,
     color: colors.text.primary,
   },
-  depositCard: {
+  summaryCard: {
     backgroundColor: colors.bg.secondary,
     borderRadius: radii.lg,
     padding: spacing.lg,
-    alignItems: 'center',
-    marginTop: spacing.lg,
     borderWidth: 1,
     borderColor: colors.border.default,
+  },
+  depositSection: {
+    alignItems: 'center',
+    paddingVertical: spacing.md,
   },
   depositLabel: {
     fontSize: fontSizes.sm,
@@ -224,35 +265,42 @@ const styles = StyleSheet.create({
     color: colors.text.tertiary,
     marginTop: spacing.xs,
   },
-  section: {
-    marginTop: spacing.lg,
+  divider: {
+    height: 1,
+    backgroundColor: colors.border.default,
+    marginVertical: spacing.md,
   },
-  feeCard: {
+  row: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    backgroundColor: colors.bg.secondary,
-    borderRadius: radii.lg,
-    padding: spacing.lg,
-    marginTop: spacing.lg,
-    borderWidth: 1,
-    borderColor: colors.border.default,
+    paddingVertical: spacing.sm,
   },
-  feeLabel: {
+  label: {
     fontSize: fontSizes.md,
-    fontFamily: fonts.medium,
+    fontFamily: fonts.regular,
     color: colors.text.secondary,
   },
-  feeValue: {
-    alignItems: 'flex-end',
-  },
-  feeAmount: {
+  value: {
     fontSize: fontSizes.md,
     fontFamily: fonts.medium,
     color: colors.text.primary,
   },
+  valueHighlight: {
+    fontSize: fontSizes.md,
+    fontFamily: fonts.bold,
+    color: colors.text.primary,
+  },
+  changeRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: spacing.xs,
+  },
+  feeContainer: {
+    alignItems: 'flex-end',
+  },
   feeUsd: {
-    fontSize: fontSizes.sm,
+    fontSize: fontSizes.xs,
     fontFamily: fonts.regular,
     color: colors.text.tertiary,
     marginTop: 2,
@@ -274,12 +322,27 @@ const styles = StyleSheet.create({
     bottom: 0,
     left: 0,
     right: 0,
+    flexDirection: 'row',
     padding: spacing.lg,
     backgroundColor: colors.bg.primary,
     borderTopWidth: 1,
     borderTopColor: colors.border.default,
+    gap: spacing.md,
+  },
+  backButton: {
+    flex: 1,
+    backgroundColor: colors.bg.tertiary,
+    borderRadius: radii.lg,
+    paddingVertical: spacing.md,
+    alignItems: 'center',
+  },
+  backText: {
+    fontSize: fontSizes.md,
+    fontFamily: fonts.medium,
+    color: colors.text.primary,
   },
   confirmButton: {
+    flex: 2,
     backgroundColor: colors.brand.primary,
     borderRadius: radii.lg,
     paddingVertical: spacing.md,
