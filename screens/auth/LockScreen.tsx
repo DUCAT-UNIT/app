@@ -101,11 +101,7 @@ export default function LockScreen({ onAuthenticated, showFaceIdButton, onFaceId
               });
               Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
               shakeError();
-              const errorMsg = result.error || ERRORS.INCORRECT_PIN;
-              const attemptsMsg = result.remainingAttempts
-                ? ` (${result.remainingAttempts} attempts remaining)`
-                : '';
-              setPinError(errorMsg + attemptsMsg);
+              setPinError(result.error || ERRORS.INCORRECT_PIN);
               setPin('');
             }
           });
