@@ -3,6 +3,7 @@ import { Audio } from 'expo-av';
 import { useBalance } from './WalletDataContext';
 import { useWallet } from './WalletContext';
 import { useAuth } from './AuthContext';
+import { useNavigationHandlers } from './NavigationHandlersContext';
 import * as AirdropService from '../services/airdropService';
 import { logger } from '../utils/logger';
 import {
@@ -55,11 +56,21 @@ export const AirdropProvider: React.FC<AirdropProviderProps> = ({ children, seed
   const { segwitBalance, taprootBalance } = useBalance();
   const { wallet, currentAccount } = useWallet();
   const { isAuthenticated } = useAuth();
+  const { showBiometricSetupModal } = useNavigationHandlers();
 
   // Airdrop modal state
   const [showAirdropModal, setShowAirdropModal] = useState(false);
   const [airdropTxId, setAirdropTxId] = useState('');
   const [audioReady, setAudioReady] = useState(false);
+
+  // Track pending airdrop txId to show modal after biometric modal is dismissed
+  const pendingAirdropTxIdRef = useRef<string | null>(null);
+
+  // Store biometric modal state in ref for use in async functions (avoids stale closures)
+  const showBiometricSetupModalRef = useRef(showBiometricSetupModal);
+  useEffect(() => {
+    showBiometricSetupModalRef.current = showBiometricSetupModal;
+  }, [showBiometricSetupModal]);
 
   // Track if airdrop is in progress using ref + lock mechanism
   // Using ref avoids infinite loops from state updates triggering effects
@@ -125,6 +136,15 @@ export const AirdropProvider: React.FC<AirdropProviderProps> = ({ children, seed
     taprootBalanceRef.current = taprootBalance;
   }, [segwitBalance, taprootBalance]);
 
+  // Show pending airdrop modal when biometric modal is dismissed
+  useEffect(() => {
+    if (!showBiometricSetupModal && pendingAirdropTxIdRef.current) {
+      setAirdropTxId(pendingAirdropTxIdRef.current);
+      setShowAirdropModal(true);
+      pendingAirdropTxIdRef.current = null;
+    }
+  }, [showBiometricSetupModal]);
+
   // Clean up expired airdrop locks on mount
   useEffect(() => {
     const cleanup = async () => {
@@ -146,8 +166,13 @@ export const AirdropProvider: React.FC<AirdropProviderProps> = ({ children, seed
 
       // If there's a pending airdrop and balance is now > 0, show the modal
       if (pendingTxId && (segwitBalance > 0 || taprootBalance > 0)) {
-        setAirdropTxId(pendingTxId);
-        setShowAirdropModal(true);
+        // Defer showing modal if biometric setup modal is visible
+        if (showBiometricSetupModal) {
+          pendingAirdropTxIdRef.current = pendingTxId;
+        } else {
+          setAirdropTxId(pendingTxId);
+          setShowAirdropModal(true);
+        }
         // Don't trigger effects here - wait for user to click "Get Started"
         // Clear the pending airdrop
         await clearPendingAirdrop(pendingKey);
@@ -155,7 +180,7 @@ export const AirdropProvider: React.FC<AirdropProviderProps> = ({ children, seed
     };
 
     checkPending();
-  }, [wallet, currentAccount, segwitBalance, taprootBalance]);
+  }, [wallet, currentAccount, segwitBalance, taprootBalance, showBiometricSetupModal]);
 
   // Auto-request airdrop when BTC balance is 0 (check once per day)
   useEffect(() => {
@@ -201,12 +226,15 @@ export const AirdropProvider: React.FC<AirdropProviderProps> = ({ children, seed
             // Store pending airdrop in SecureStore (survives state resets during onboarding)
             await storePendingAirdrop(pendingKey, result.txId);
 
-            // Show modal immediately - don't wait for balance update
-            setTimeout(() => {
+            // Show modal - defer if biometric setup modal is visible
+            pendingAirdropTxIdRef.current = result.txId;
+            // If biometric modal is not showing, display immediately (use ref for fresh value)
+            if (!showBiometricSetupModalRef.current) {
               setAirdropTxId(result.txId);
               setShowAirdropModal(true);
-              // Don't trigger effects here - wait for user to click "Get Started"
-            }, 500);
+              pendingAirdropTxIdRef.current = null;
+            }
+            // Don't trigger effects here - wait for user to click "Get Started"
 
             // Clear pending airdrop outside setTimeout to avoid race condition
             await clearPendingAirdrop(pendingKey);

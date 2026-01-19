@@ -91,11 +91,9 @@ export function useOnboardingHandlers({
         hasAddresses: !!loadResult?.addresses,
       });
 
-      // Schedule passkey modal BEFORE navigation
-      logger.debug('[OnboardingHandlers] Scheduling passkey migration modal');
-      setTimeout(() => {
-        showPasskeyMigrationPromptGlobal(capturedMnemonic, capturedPin);
-      }, 2000);
+      // Show passkey modal immediately after setup completes
+      logger.debug('[OnboardingHandlers] Showing passkey migration modal');
+      showPasskeyMigrationPromptGlobal(capturedMnemonic, capturedPin);
 
       // Complete setup
       await handlePinSetupCompleteWrapper();

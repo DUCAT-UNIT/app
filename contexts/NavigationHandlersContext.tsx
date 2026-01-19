@@ -272,13 +272,13 @@ export const NavigationHandlersProvider: React.FC<NavigationHandlersProviderProp
     }
   }, [setBiometricEnabled]);
 
-  const handleBiometricSetupSkip = useCallback(async () => {
-    // Save the preference to SecureStore
-    await SecureStore.setItemAsync(SECURE_KEYS.BIOMETRIC_ENABLED, 'false');
+  const handleBiometricSetupSkip = useCallback(() => {
+    // Hide modal immediately for instant feedback
+    setShowBiometricSetupModal(false);
     // Update auth context state
     setBiometricEnabled(false);
-    // Hide modal
-    setShowBiometricSetupModal(false);
+    // Save the preference to SecureStore in background
+    SecureStore.setItemAsync(SECURE_KEYS.BIOMETRIC_ENABLED, 'false');
   }, [setBiometricEnabled]);
 
   // Settings handlers object - memoized to prevent recreation on every render

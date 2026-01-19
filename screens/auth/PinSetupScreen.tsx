@@ -181,10 +181,10 @@ export default function PinSetupScreen({
     }
   };
 
-  const handleBiometricSkip = async (): Promise<void> => {
+  const handleBiometricSkip = (): void => {
     setShowBiometricPrompt(false);
-    // Save the preference as disabled
-    await SecureStore.setItemAsync(SECURE_KEYS.BIOMETRIC_ENABLED, 'false');
+    // Save the preference as disabled (non-blocking for instant feedback)
+    SecureStore.setItemAsync(SECURE_KEYS.BIOMETRIC_ENABLED, 'false');
     // Pass the PIN back to parent for potential passkey migration
     onPinSetupComplete(pin);
   };

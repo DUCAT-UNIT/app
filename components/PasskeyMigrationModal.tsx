@@ -15,6 +15,7 @@ import styles from '../styles';
 interface PasskeyMigrationModalProps {
   visible: boolean;
   onClose: () => void;
+  onPasskeyEnabled?: () => void;
   mnemonic: string;
   currentPin: string;
   showToast: (message: string, type: 'success' | 'error') => void;
@@ -23,6 +24,7 @@ interface PasskeyMigrationModalProps {
 export default function PasskeyMigrationModal({
   visible,
   onClose,
+  onPasskeyEnabled,
   mnemonic,
   currentPin,
   showToast,
@@ -54,10 +56,13 @@ export default function PasskeyMigrationModal({
 
       showToast('Passkey enabled! Your wallet is now backed up to iCloud.', 'success');
       onClose();
+      // Trigger biometric setup prompt after passkey is enabled
+      onPasskeyEnabled?.();
     } catch (error: unknown) {
-      const err = error instanceof Error ? error : new Error(String(error));
-      logger.error(err, { component: 'PasskeyMigrationModal', action: 'handleEnablePasskey' });
-      showToast(err.message || 'Failed to enable passkey', 'error');
+      logger.error(error instanceof Error ? error : new Error(String(error)), { component: 'PasskeyMigrationModal', action: 'handleEnablePasskey' });
+      showToast('Passkey setup cancelled', 'error');
+      // Close modal on error (user cancelled or other failure)
+      onClose();
     } finally {
       setIsAdding(false);
     }

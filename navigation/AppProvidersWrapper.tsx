@@ -71,30 +71,30 @@ export default function AppProvidersWrapper({
   const { showSnackbar } = useNotifications();
 
   return (
-    <AirdropProvider seedConfirmed={seedConfirmed}>
-        <TransactionBuildProvider
-          wallet={wallet}
-          currentAccount={currentAccount}
-        >
-          <TransactionExecutionProvider
-            currentAccount={currentAccount}
-            showSnackbar={showSnackbar}
-            startTransactionPolling={startPolling}
-            sendTransactionConfirmedNotification={createNotificationAdapter(sendTransactionConfirmedNotification)}
-            notificationsEnabled={notificationsEnabled}
-            fetchBalance={fetchBalance}
-            fetchTransactionHistory={fetchTransactionHistory as (() => Promise<void>) | undefined}
-          >
-            <SeedPhraseProvider setIsAuthenticated={setIsAuthenticated}>
-              <NavigationHandlersProvider walletExists={walletExists}>
-                <AppNavigatorContent
-                  loadWallet={loadWallet}
-                  loadBiometricPreference={loadBiometricPreference}
-                />
-              </NavigationHandlersProvider>
-            </SeedPhraseProvider>
-          </TransactionExecutionProvider>
-        </TransactionBuildProvider>
-    </AirdropProvider>
+    <TransactionBuildProvider
+      wallet={wallet}
+      currentAccount={currentAccount}
+    >
+      <TransactionExecutionProvider
+        currentAccount={currentAccount}
+        showSnackbar={showSnackbar}
+        startTransactionPolling={startPolling}
+        sendTransactionConfirmedNotification={createNotificationAdapter(sendTransactionConfirmedNotification)}
+        notificationsEnabled={notificationsEnabled}
+        fetchBalance={fetchBalance}
+        fetchTransactionHistory={fetchTransactionHistory as (() => Promise<void>) | undefined}
+      >
+        <SeedPhraseProvider setIsAuthenticated={setIsAuthenticated}>
+          <NavigationHandlersProvider walletExists={walletExists}>
+            <AirdropProvider seedConfirmed={seedConfirmed}>
+              <AppNavigatorContent
+                loadWallet={loadWallet}
+                loadBiometricPreference={loadBiometricPreference}
+              />
+            </AirdropProvider>
+          </NavigationHandlersProvider>
+        </SeedPhraseProvider>
+      </TransactionExecutionProvider>
+    </TransactionBuildProvider>
   );
 }

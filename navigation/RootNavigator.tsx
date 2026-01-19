@@ -167,9 +167,21 @@ export default function RootNavigator(): React.JSX.Element {
     passkeyMigrationData,
     hidePasskeyMigrationPrompt,
     showBiometricSetupModal,
+    showBiometricSetupPrompt,
     handleBiometricSetupEnable,
     handleBiometricSetupSkip,
   } = useNavigationHandlers();
+
+  // Handle passkey enabled - show biometric setup prompt if supported
+  const handlePasskeyEnabled = useCallback(async () => {
+    // Check if biometrics are supported and enrolled
+    const LocalAuthentication = await import('expo-local-authentication');
+    const hasHardware = await LocalAuthentication.hasHardwareAsync();
+    const isEnrolled = await LocalAuthentication.isEnrolledAsync();
+    if (hasHardware && isEnrolled) {
+      showBiometricSetupPrompt();
+    }
+  }, [showBiometricSetupPrompt]);
 
   return (
     <View
@@ -249,13 +261,14 @@ export default function RootNavigator(): React.JSX.Element {
           <PasskeyMigrationModal
             visible={showPasskeyMigrationModal}
             onClose={hidePasskeyMigrationPrompt}
+            onPasskeyEnabled={handlePasskeyEnabled}
             mnemonic={passkeyMigrationData.mnemonic}
             currentPin={passkeyMigrationData.pin}
             showToast={showToast}
           />
         )}
 
-        {/* Biometric Setup Modal (after passkey wallet creation) */}
+        {/* Biometric Setup Modal (after passkey wallet creation or migration) */}
         <BiometricSetupModal
           visible={showBiometricSetupModal}
           onEnable={handleBiometricSetupEnable}
