@@ -3,11 +3,13 @@
  */
 
 import React, { useState } from 'react';
-import { View, Text, Modal, TouchableOpacity, ActivityIndicator } from 'react-native';
+import { View, Text, Modal, TouchableOpacity, ActivityIndicator, ScrollView } from 'react-native';
 import * as Device from 'expo-device';
 import { COLORS } from '../theme';
 import { addPasskeyToExistingWallet, isPasskeySupported } from '../services/passkey';
 import { logger } from '../utils/logger';
+import { useResponsive } from '../hooks/useResponsive';
+import { spacing, radii, fontSizes } from '../styles/theme';
 import styles from '../styles';
 
 interface PasskeyMigrationModalProps {
@@ -25,11 +27,15 @@ export default function PasskeyMigrationModal({
   currentPin,
   showToast,
 }: PasskeyMigrationModalProps) {
+  const { s, sf } = useResponsive();
   const [isAdding, setIsAdding] = useState(false);
 
   const handleEnablePasskey = async () => {
     try {
       setIsAdding(true);
+
+      // Small delay to let iOS properly prepare the passkey sheet presentation
+      await new Promise(resolve => setTimeout(resolve, 300));
 
       // Check if passkeys are supported
       const supported = await isPasskeySupported();
@@ -69,35 +75,65 @@ export default function PasskeyMigrationModal({
       onRequestClose={onClose}
     >
       <View style={styles.modalOverlay}>
-        <View style={styles.biometricPromptModal}>
-          <Text style={styles.biometricPromptTitle}>Enable Passkey Recovery?</Text>
+        <ScrollView
+          contentContainerStyle={{ flexGrow: 1, justifyContent: 'center', alignItems: 'center' }}
+          showsVerticalScrollIndicator={false}
+        >
+          <View style={[styles.biometricPromptModal, {
+            borderRadius: s(radii.xxl),
+            padding: s(spacing.xl),
+            marginVertical: s(spacing.xl),
+          }]}>
+            <Text style={[styles.biometricPromptTitle, {
+              fontSize: sf(fontSizes.xl),
+              marginBottom: s(spacing.lg)
+            }]}>
+              Enable Passkey Recovery?
+            </Text>
 
-          <Text style={styles.biometricPromptText}>
-            Secure your wallet with passkey and back it up to iCloud for easy recovery across devices.
-          </Text>
+            <Text style={[styles.biometricPromptText, {
+              fontSize: sf(fontSizes.md),
+              marginBottom: s(25),
+              lineHeight: sf(24)
+            }]}>
+              Secure your wallet with passkey and back it up to iCloud for easy recovery across devices.
+            </Text>
 
-          <View style={styles.biometricPromptButtons}>
-            <TouchableOpacity
-              style={[styles.biometricPromptButton, styles.biometricPromptButtonYes]}
-              onPress={handleEnablePasskey}
-              disabled={isAdding}
-            >
-              {isAdding ? (
-                <ActivityIndicator color={COLORS.VERY_LIGHT_GRAY} />
-              ) : (
-                <Text style={styles.biometricPromptButtonText}>Enable Passkey</Text>
-              )}
-            </TouchableOpacity>
+            <View style={[styles.biometricPromptButtons, { gap: s(12) }]}>
+              <TouchableOpacity
+                style={[styles.biometricPromptButton, styles.biometricPromptButtonYes, {
+                  paddingVertical: s(spacing.lg),
+                  paddingHorizontal: s(20),
+                  borderRadius: s(radii.lg),
+                }]}
+                onPress={handleEnablePasskey}
+                disabled={isAdding}
+              >
+                {isAdding ? (
+                  <ActivityIndicator color={COLORS.VERY_LIGHT_GRAY} />
+                ) : (
+                  <Text style={[styles.biometricPromptButtonText, { fontSize: sf(fontSizes.md) }]}>
+                    Enable Passkey
+                  </Text>
+                )}
+              </TouchableOpacity>
 
-            <TouchableOpacity
-              style={[styles.biometricPromptButton, styles.biometricPromptButtonNo]}
-              onPress={handleSkip}
-              disabled={isAdding}
-            >
-              <Text style={styles.biometricPromptButtonTextNo}>Skip for Now</Text>
-            </TouchableOpacity>
+              <TouchableOpacity
+                style={[styles.biometricPromptButton, styles.biometricPromptButtonNo, {
+                  paddingVertical: s(spacing.lg),
+                  paddingHorizontal: s(20),
+                  borderRadius: s(radii.lg),
+                }]}
+                onPress={handleSkip}
+                disabled={isAdding}
+              >
+                <Text style={[styles.biometricPromptButtonTextNo, { fontSize: sf(fontSizes.md) }]}>
+                  Skip for Now
+                </Text>
+              </TouchableOpacity>
+            </View>
           </View>
-        </View>
+        </ScrollView>
       </View>
     </Modal>
   );
