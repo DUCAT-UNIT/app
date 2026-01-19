@@ -18,6 +18,7 @@ import * as Clipboard from 'expo-clipboard';
 import { colors, fonts, fontSizes, fontWeights, radii, layout } from '../../styles/theme';
 import Icon from '../icons';
 import { logger } from '../../utils/logger';
+import { notify } from '../../utils/notify';
 
 interface ImportWalletScreenProps {
   importSeedPhrase: string[];
@@ -110,9 +111,19 @@ export default function ImportWalletScreen({
     (index: number) => {
       if (index < WORD_COUNT - 1) {
         seedInputRefs.current[index + 1]?.focus();
+      } else if (isComplete && !isImporting) {
+        // On the 12th word, trigger import if form is complete
+        onImport();
+      } else if (!isComplete) {
+        // Show error with missing word position and focus on first empty word
+        const firstEmptyIndex = importSeedPhrase.findIndex((word) => word.trim().length === 0);
+        if (firstEmptyIndex !== -1) {
+          notify.error(`Please enter a word for position ${firstEmptyIndex + 1}`);
+          seedInputRefs.current[firstEmptyIndex]?.focus();
+        }
       }
     },
-    [seedInputRefs]
+    [seedInputRefs, isComplete, isImporting, onImport, importSeedPhrase]
   );
 
   const handleFocus = useCallback((index: number) => {
@@ -241,28 +252,28 @@ export default function ImportWalletScreen({
             </View>
           ))}
         </View>
-
-        {/* Buttons */}
-        <View style={styles.buttonContainer}>
-          <TouchableOpacity
-            style={[
-              styles.importButton,
-              (!isComplete || isImporting) && styles.buttonDisabled,
-            ]}
-            onPress={onImport}
-            disabled={!isComplete || isImporting}
-            activeOpacity={0.8}
-          >
-            <Text style={[styles.importButtonText, (!isComplete || isImporting) && styles.buttonTextDisabled]}>
-              {isImporting ? 'Importing...' : 'Import Wallet'}
-            </Text>
-          </TouchableOpacity>
-
-          <TouchableOpacity style={styles.cancelButton} onPress={onCancel} activeOpacity={0.7}>
-            <Text style={styles.cancelButtonText}>Cancel</Text>
-          </TouchableOpacity>
-        </View>
       </ScrollView>
+
+      {/* Buttons pinned to bottom */}
+      <View style={styles.buttonContainer}>
+        <TouchableOpacity
+          style={[
+            styles.importButton,
+            (!isComplete || isImporting) && styles.buttonDisabled,
+          ]}
+          onPress={onImport}
+          disabled={!isComplete || isImporting}
+          activeOpacity={0.8}
+        >
+          <Text style={[styles.importButtonText, (!isComplete || isImporting) && styles.buttonTextDisabled]}>
+            {isImporting ? 'Importing...' : 'Import Wallet'}
+          </Text>
+        </TouchableOpacity>
+
+        <TouchableOpacity style={styles.cancelButton} onPress={onCancel} activeOpacity={0.7}>
+          <Text style={styles.cancelButtonText}>Cancel</Text>
+        </TouchableOpacity>
+      </View>
     </KeyboardAvoidingView>
   );
 }
@@ -402,7 +413,9 @@ const styles = StyleSheet.create({
   },
   buttonContainer: {
     gap: 10,
-    marginTop: 4,
+    paddingHorizontal: layout.padding,
+    paddingBottom: isSmallScreen ? 20 : 30,
+    paddingTop: 10,
   },
   importButton: {
     backgroundColor: colors.brand.primary,
@@ -415,10 +428,10 @@ const styles = StyleSheet.create({
     backgroundColor: colors.bg.tertiary,
   },
   importButtonText: {
-    fontFamily: fonts.bold,
+    fontFamily: fonts.medium,
     fontSize: fontSizes.md,
-    fontWeight: fontWeights.bold,
-    color: colors.text.inverse,
+    fontWeight: fontWeights.semibold,
+    color: colors.text.primary,
   },
   buttonTextDisabled: {
     color: colors.text.tertiary,
@@ -433,6 +446,7 @@ const styles = StyleSheet.create({
   cancelButtonText: {
     fontFamily: fonts.medium,
     fontSize: fontSizes.md,
+    fontWeight: fontWeights.semibold,
     color: colors.text.secondary,
   },
 });
