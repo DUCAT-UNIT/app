@@ -36,7 +36,7 @@ export default memo(function ErrorBanner({ errorMessage, onRetry }: ErrorBannerP
 const styles = StyleSheet.create({
   errorBanner: {
     flexDirection: 'row',
-    alignItems: 'center',
+    alignItems: 'flex-start',
     backgroundColor: COLORS.ERROR_BG,
     borderLeftWidth: ERROR_BORDER_WIDTH,
     borderLeftColor: COLORS.DANGER_RED,
@@ -49,11 +49,14 @@ const styles = StyleSheet.create({
   },
   errorIconContainer: {
     marginRight: ERROR_ICON_MARGIN,
+    marginTop: 2,
   },
   errorText: {
     flex: 1,
+    flexWrap: 'wrap',
     color: COLORS.DANGER_RED,
     fontSize: ERROR_TEXT_SIZE,
     fontWeight: '500',
+    lineHeight: ERROR_TEXT_SIZE * 1.4,
   },
 });
