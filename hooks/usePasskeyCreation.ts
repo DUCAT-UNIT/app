@@ -18,6 +18,7 @@ interface UsePasskeyCreationParams {
   setIsAuthenticated: (value: boolean) => void;
   setSeedConfirmed: (value: boolean) => void;
   setWalletAddresses: (addresses: WalletAddresses, accountIndex: number) => void;
+  setBiometricEnabled: (value: boolean) => void;
 }
 
 interface UsePasskeyCreationReturn {
@@ -44,7 +45,8 @@ interface UsePasskeyCreationReturn {
 export function usePasskeyCreation({
   setIsAuthenticated,
   setSeedConfirmed,
-  setWalletAddresses
+  setWalletAddresses,
+  setBiometricEnabled,
 }: UsePasskeyCreationParams): UsePasskeyCreationReturn {
   const [creatingWithPasskey, setCreatingWithPasskey] = useState(false);
   const [passkeyMnemonic, setPasskeyMnemonic] = useState<string | null>(null);
@@ -208,8 +210,10 @@ export function usePasskeyCreation({
    */
   const handleBiometricEnable = async (): Promise<void> => {
     try {
-      // Save the preference
+      // Save the preference to SecureStore
       await SecureStore.setItemAsync(SECURE_KEYS.BIOMETRIC_ENABLED, 'true');
+      // Update auth context state
+      setBiometricEnabled(true);
 
       // Trigger biometric authentication to confirm
       await LocalAuthentication.authenticateAsync({
@@ -229,8 +233,10 @@ export function usePasskeyCreation({
    * Handle biometric skip choice
    */
   const handleBiometricSkip = async (): Promise<void> => {
-    // Save the preference as disabled
+    // Save the preference to SecureStore
     await SecureStore.setItemAsync(SECURE_KEYS.BIOMETRIC_ENABLED, 'false');
+    // Update auth context state
+    setBiometricEnabled(false);
     completePasskeySetup();
   };
 

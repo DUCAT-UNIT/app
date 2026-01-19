@@ -3,7 +3,7 @@
  */
 
 import React from 'react';
-import { View, StyleSheet, Text, TouchableOpacity, ScrollView } from 'react-native';
+import { View, StyleSheet, Text, TouchableOpacity, ScrollView, Modal } from 'react-native';
 import { StatusBar } from 'expo-status-bar';
 import { logger } from '../utils/logger';
 
@@ -91,7 +91,7 @@ export default function OnboardingPage({
     passkeyPinConfirm, setPasskeyPin, setPasskeyPinConfirm, setShowPinInput, resetPasskeyCreation,
     showBiometricPrompt: showPasskeyBiometricPrompt, handleBiometricEnable: handlePasskeyBiometricEnable,
     handleBiometricSkip: handlePasskeyBiometricSkip,
-  } = usePasskeyCreation({ setIsAuthenticated, setSeedConfirmed, setWalletAddresses });
+  } = usePasskeyCreation({ setIsAuthenticated, setSeedConfirmed, setWalletAddresses, setBiometricEnabled });
 
   // Responsive sizing
   const { s, sf } = useResponsive();
@@ -124,56 +124,56 @@ export default function OnboardingPage({
     proceedToVerification, verifySeeds, keyboardHeight,
   };
 
-  // Passkey Biometric Prompt (after passkey wallet creation)
-  if (showPasskeyBiometricPrompt) {
-    return (
-      <View style={localStyles.container}>
-        <MutinynetBanner />
-        <View style={localStyles.biometricOverlay}>
-          <ScrollView
-            contentContainerStyle={{ flexGrow: 1, justifyContent: 'center', alignItems: 'center' }}
-            showsVerticalScrollIndicator={false}
-          >
-            <View style={[localStyles.biometricModal, {
-              borderRadius: s(radii.xl),
-              padding: s(spacing.xl),
-              marginVertical: s(spacing.xl),
-            }]}>
-              <Text style={[localStyles.biometricTitle, { fontSize: sf(fontSizes.lg), marginBottom: s(spacing.md) }]}>
-                Biometric Authentication
-              </Text>
-              <Text style={[localStyles.biometricText, { fontSize: sf(fontSizes.md), marginBottom: s(25), lineHeight: sf(22) }]}>
-                Do you want to use biometric authentication (FaceID or TouchID) for quick access to your wallet?
-              </Text>
-              <View style={[localStyles.biometricButtons, { gap: s(12) }]}>
-                <TouchableOpacity
-                  style={[localStyles.biometricButton, localStyles.biometricButtonYes, {
-                    paddingVertical: s(spacing.md),
-                    paddingHorizontal: s(spacing.lg),
-                    borderRadius: s(radii.lg)
-                  }]}
-                  onPress={handlePasskeyBiometricEnable}
-                >
-                  <Text style={[localStyles.biometricButtonText, { fontSize: sf(fontSizes.md) }]}>Yes, Enable</Text>
-                </TouchableOpacity>
-                <TouchableOpacity
-                  style={[localStyles.biometricButton, localStyles.biometricButtonNo, {
-                    paddingVertical: s(spacing.md),
-                    paddingHorizontal: s(spacing.lg),
-                    borderRadius: s(radii.lg)
-                  }]}
-                  onPress={handlePasskeyBiometricSkip}
-                >
-                  <Text style={[localStyles.biometricButtonTextNo, { fontSize: sf(fontSizes.md) }]}>No, Thanks</Text>
-                </TouchableOpacity>
-              </View>
+  // Passkey Biometric Prompt Modal (after passkey wallet creation)
+  const biometricModal = (
+    <Modal
+      visible={showPasskeyBiometricPrompt}
+      transparent
+      animationType="fade"
+    >
+      <View style={localStyles.biometricOverlay}>
+        <ScrollView
+          contentContainerStyle={{ flexGrow: 1, justifyContent: 'center', alignItems: 'center' }}
+          showsVerticalScrollIndicator={false}
+        >
+          <View style={[localStyles.biometricModal, {
+            borderRadius: s(radii.xl),
+            padding: s(spacing.xl),
+            marginVertical: s(spacing.xl),
+          }]}>
+            <Text style={[localStyles.biometricTitle, { fontSize: sf(fontSizes.lg), marginBottom: s(spacing.md) }]}>
+              Biometric Authentication
+            </Text>
+            <Text style={[localStyles.biometricText, { fontSize: sf(fontSizes.md), marginBottom: s(25), lineHeight: sf(22) }]}>
+              Do you want to use biometric authentication (FaceID or TouchID) for quick access to your wallet?
+            </Text>
+            <View style={[localStyles.biometricButtons, { gap: s(12) }]}>
+              <TouchableOpacity
+                style={[localStyles.biometricButton, localStyles.biometricButtonYes, {
+                  paddingVertical: s(spacing.md),
+                  paddingHorizontal: s(spacing.lg),
+                  borderRadius: s(radii.lg)
+                }]}
+                onPress={handlePasskeyBiometricEnable}
+              >
+                <Text style={[localStyles.biometricButtonText, { fontSize: sf(fontSizes.md) }]}>Yes, Enable</Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                style={[localStyles.biometricButton, localStyles.biometricButtonNo, {
+                  paddingVertical: s(spacing.md),
+                  paddingHorizontal: s(spacing.lg),
+                  borderRadius: s(radii.lg)
+                }]}
+                onPress={handlePasskeyBiometricSkip}
+              >
+                <Text style={[localStyles.biometricButtonTextNo, { fontSize: sf(fontSizes.md) }]}>No, Thanks</Text>
+              </TouchableOpacity>
             </View>
-          </ScrollView>
-        </View>
-        <StatusBar style="light" />
+          </View>
+        </ScrollView>
       </View>
-    );
-  }
+    </Modal>
+  );
 
   // Passkey PIN Input (creation)
   if (showPinInput) {
@@ -250,6 +250,7 @@ export default function OnboardingPage({
       <View style={localStyles.welcomeContainer}>
         <MutinynetBanner />
         <WelcomeScreen {...welcomeProps} />
+        {biometricModal}
         <StatusBar style="light" />
       </View>
     );
@@ -263,13 +264,15 @@ export default function OnboardingPage({
         <WelcomeScreen {...welcomeProps} importingWallet={false} showingIntro={true} showingSeeds={false}
           verifyingSeeds={false} tempMnemonicWords={[]} verificationWords={{}} requiredIndices={[]}
           wordChoices={{}} restoringWithPasskey={false} />
+        {biometricModal}
         <StatusBar style="light" />
       </View>
     );
   }
 
   logger.debug('[OnboardingPage] Reached unexpected state:', { wallet: !!wallet, isAuthenticated, seedConfirmed });
-  return null;
+  // Render biometric modal even in unexpected state (wallet may have just been created)
+  return biometricModal;
 }
 
 const localStyles = StyleSheet.create({
