@@ -9,6 +9,8 @@ import { StatusBar } from 'expo-status-bar';
 import MutinynetBanner from './MutinynetBanner';
 import Icon from './icons';
 import { COLORS } from '../theme';
+import { colors, fonts, fontSizes, spacing } from '../styles/theme';
+import { useResponsive } from '../hooks/useResponsive';
 import styles from '../styles';
 
 interface PasskeyPinInputProps {
@@ -28,6 +30,8 @@ export default function PasskeyPinInput({
   onPinComplete,
   onCancel,
 }: PasskeyPinInputProps) {
+  const { s, sf } = useResponsive();
+
   const handleDigit = (digit: string) => {
     if (pin.length < 6) {
       const newPin = pin + digit;
@@ -47,13 +51,13 @@ export default function PasskeyPinInput({
     <View style={localStyles.container}>
       <MutinynetBanner />
 
-      {/* Cancel button - top right */}
+      {/* Cancel button - top right, below MutinynetBanner */}
       <TouchableOpacity
-        style={localStyles.cancelButton}
+        style={[localStyles.cancelButton, { top: s(100), right: s(20), padding: s(12) }]}
         onPress={onCancel}
         hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
       >
-        <Text style={localStyles.cancelButtonText}>Cancel</Text>
+        <Text style={[localStyles.cancelButtonText, { fontSize: sf(fontSizes.md) }]}>Cancel</Text>
       </TouchableOpacity>
 
       <View style={localStyles.contentWrapper}>
@@ -123,15 +127,12 @@ const localStyles = StyleSheet.create({
   },
   cancelButton: {
     position: 'absolute',
-    top: 100,
-    left: 20,
-    padding: 12,
     zIndex: 10,
   },
   cancelButtonText: {
-    fontSize: 16,
+    fontFamily: fonts.medium,
     fontWeight: '600',
-    color: COLORS.WHITE,
+    color: colors.text.primary,
   },
   contentWrapper: {
     flex: 1,

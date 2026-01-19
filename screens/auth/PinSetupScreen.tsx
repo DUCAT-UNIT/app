@@ -5,7 +5,7 @@
  */
 
 import React, { useState } from 'react';
-import { Text, View, TouchableOpacity, Animated, StyleSheet } from 'react-native';
+import { Text, View, TouchableOpacity, Animated, StyleSheet, ScrollView } from 'react-native';
 import { StatusBar } from 'expo-status-bar';
 import * as SecureStore from 'expo-secure-store';
 import * as LocalAuthentication from 'expo-local-authentication';
@@ -19,6 +19,7 @@ import Icon from '../../components/icons';
 import TouchableScale from '../../components/common/TouchableScale';
 import { useResponsive } from '../../hooks/useResponsive';
 import { notify } from '../../utils/notify';
+import { logger } from '../../utils/logger';
 
 /**
  * Type for the PIN setup step
@@ -113,10 +114,13 @@ export default function PinSetupScreen({
               savePin(pin).then(async (success) => {
                 if (success) {
                   // Initial wallet creation or import
+                  logger.auth('PIN saved successfully, checking biometric support', { isBiometricSupported });
                   if (isBiometricSupported) {
+                    logger.auth('Showing biometric prompt');
                     setShowBiometricPrompt(true);
                   } else {
                     // No biometric support, complete setup
+                    logger.auth('No biometric support, completing setup');
                     // Pass the PIN back to parent for potential passkey migration
                     onPinSetupComplete(pin);
                   }
@@ -273,38 +277,47 @@ export default function PinSetupScreen({
       {/* Biometric Authentication Prompt */}
       {showBiometricPrompt && (
         <View style={styles.modalOverlay} testID="biometric-modal">
-          <View style={[styles.biometricPromptModal, { borderRadius: s(radii.xl), padding: s(spacing.xl) }]}>
-            <Text style={[styles.biometricPromptTitle, { fontSize: sf(fontSizes.lg), marginBottom: s(spacing.md) }]}>
-              Biometric Authentication
-            </Text>
-            <Text style={[styles.biometricPromptText, { fontSize: sf(fontSizes.md), marginBottom: s(25), lineHeight: s(22) }]}>
-              Do you want to use biometric authentication (FaceID or TouchID) for UNIT Wallet?
-            </Text>
-            <View style={[styles.biometricPromptButtons, { gap: s(12) }]}>
-              <TouchableOpacity
-                style={[styles.biometricPromptButton, styles.biometricPromptButtonYes, {
-                  paddingVertical: s(spacing.md),
-                  paddingHorizontal: s(spacing.lg),
-                  borderRadius: s(radii.lg)
-                }]}
-                onPress={handleBiometricEnable}
-                testID="biometric-enable-btn"
-              >
-                <Text style={[styles.biometricPromptButtonText, { fontSize: sf(fontSizes.md) }]}>Yes, Enable</Text>
-              </TouchableOpacity>
-              <TouchableOpacity
-                style={[styles.biometricPromptButton, styles.biometricPromptButtonNo, {
-                  paddingVertical: s(spacing.md),
-                  paddingHorizontal: s(spacing.lg),
-                  borderRadius: s(radii.lg)
-                }]}
-                onPress={handleBiometricSkip}
-                testID="biometric-skip-btn"
-              >
-                <Text style={[styles.biometricPromptButtonTextNo, { fontSize: sf(fontSizes.md) }]}>No, Thanks</Text>
-              </TouchableOpacity>
+          <ScrollView
+            contentContainerStyle={{ flexGrow: 1, justifyContent: 'center', alignItems: 'center' }}
+            showsVerticalScrollIndicator={false}
+          >
+            <View style={[styles.biometricPromptModal, {
+              borderRadius: s(radii.xl),
+              padding: s(spacing.xl),
+              marginVertical: s(spacing.xl),
+            }]}>
+              <Text style={[styles.biometricPromptTitle, { fontSize: sf(fontSizes.lg), marginBottom: s(spacing.md) }]}>
+                Biometric Authentication
+              </Text>
+              <Text style={[styles.biometricPromptText, { fontSize: sf(fontSizes.md), marginBottom: s(25), lineHeight: sf(22) }]}>
+                Do you want to use biometric authentication (FaceID or TouchID) for UNIT Wallet?
+              </Text>
+              <View style={[styles.biometricPromptButtons, { gap: s(12) }]}>
+                <TouchableOpacity
+                  style={[styles.biometricPromptButton, styles.biometricPromptButtonYes, {
+                    paddingVertical: s(spacing.md),
+                    paddingHorizontal: s(spacing.lg),
+                    borderRadius: s(radii.lg)
+                  }]}
+                  onPress={handleBiometricEnable}
+                  testID="biometric-enable-btn"
+                >
+                  <Text style={[styles.biometricPromptButtonText, { fontSize: sf(fontSizes.md) }]}>Yes, Enable</Text>
+                </TouchableOpacity>
+                <TouchableOpacity
+                  style={[styles.biometricPromptButton, styles.biometricPromptButtonNo, {
+                    paddingVertical: s(spacing.md),
+                    paddingHorizontal: s(spacing.lg),
+                    borderRadius: s(radii.lg)
+                  }]}
+                  onPress={handleBiometricSkip}
+                  testID="biometric-skip-btn"
+                >
+                  <Text style={[styles.biometricPromptButtonTextNo, { fontSize: sf(fontSizes.md) }]}>No, Thanks</Text>
+                </TouchableOpacity>
+              </View>
             </View>
-          </View>
+          </ScrollView>
         </View>
       )}
     </>
@@ -327,7 +340,7 @@ const styles = StyleSheet.create({
   lockCancelButtonText: {
     fontFamily: fonts.medium,
     fontWeight: '600' as const,
-    color: colors.brand.primary,
+    color: colors.text.primary,
   },
   lockTitle: {
     fontFamily: fonts.regular,
