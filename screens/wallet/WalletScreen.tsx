@@ -186,7 +186,7 @@ const WalletScreen = React.memo(function WalletScreen({
 
   return (
     <View style={styles.walletContainer} testID="wallet-screen">
-      {/* Header with Account Number and Settings Icon */}
+      {/* Header with Total Balance label and Settings Icon */}
       <WalletHeader
         accountNumber={currentAccount + 1}
         onHistoryPress={onHistoryPress}

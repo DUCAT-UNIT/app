@@ -1,6 +1,6 @@
 /**
  * WalletHeader Component
- * Displays account name and action buttons
+ * Displays total balance and action buttons
  */
 
 import React from 'react';
@@ -36,9 +36,7 @@ export default function WalletHeader({
 }: WalletHeaderProps) {
   return (
     <View style={styles.xverseHeader}>
-      <View style={styles.xverseHeaderLeft}>
-        <Text style={styles.xverseAccountName}>Account {accountNumber}</Text>
-      </View>
+      <View style={styles.xverseHeaderLeft} />
       <View style={styles.xverseHeaderRight}>
         <TouchableOpacity style={styles.headerIconButton} onPress={onHistoryPress}>
           <Icon name="transaction_history" size={HEADER_ICON_SIZE} color={COLORS.VERY_LIGHT_GRAY} />
