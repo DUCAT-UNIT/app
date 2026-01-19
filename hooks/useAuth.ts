@@ -89,8 +89,11 @@ export function useAuth({ onSeedConfirmed }: UseAuthParams): UseAuthReturn {
   // Check biometric and passkey support on mount
   useEffect(() => {
     const checkAuthSupport = async () => {
-      const compatible = await LocalAuthentication.hasHardwareAsync();
-      setIsBiometricSupported(compatible);
+      // Check both hardware availability AND enrollment
+      const hasHardware = await LocalAuthentication.hasHardwareAsync();
+      const isEnrolled = await LocalAuthentication.isEnrolledAsync();
+      setIsBiometricSupported(hasHardware && isEnrolled);
+      logger.auth('Biometric support check', { hasHardware, isEnrolled, supported: hasHardware && isEnrolled });
 
       const passkeySupported = await PasskeyService.isPasskeySupported();
       setIsPasskeySupported(passkeySupported);

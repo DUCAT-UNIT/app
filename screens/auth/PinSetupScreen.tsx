@@ -112,15 +112,16 @@ export default function PinSetupScreen({
             } else {
               // Initial wallet creation - just save PIN normally
               savePin(pin).then(async (success) => {
+                logger.auth('savePin result', { success, isBiometricSupported });
                 if (success) {
                   // Initial wallet creation or import
                   logger.auth('PIN saved successfully, checking biometric support', { isBiometricSupported });
                   if (isBiometricSupported) {
-                    logger.auth('Showing biometric prompt');
+                    logger.auth('Showing biometric prompt - setting showBiometricPrompt to true');
                     setShowBiometricPrompt(true);
                   } else {
                     // No biometric support, complete setup
-                    logger.auth('No biometric support, completing setup');
+                    logger.auth('No biometric support (isBiometricSupported=false), completing setup without prompt');
                     // Pass the PIN back to parent for potential passkey migration
                     onPinSetupComplete(pin);
                   }
