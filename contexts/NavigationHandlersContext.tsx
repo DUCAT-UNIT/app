@@ -77,6 +77,11 @@ interface NavigationHandlersContextValue {
   passkeyMigrationData: PasskeyMigrationData | null;
   showPasskeyMigrationPrompt: (mnemonic: string, pin: string) => void;
   hidePasskeyMigrationPrompt: () => void;
+  showBiometricSetupModal: boolean;
+  showBiometricSetupPrompt: () => void;
+  hideBiometricSetupPrompt: () => void;
+  handleBiometricSetupEnable: () => Promise<void>;
+  handleBiometricSetupSkip: () => Promise<void>;
 }
 
 const NavigationHandlersContext = createContext<NavigationHandlersContextValue | undefined>(undefined);
@@ -191,6 +196,9 @@ export const NavigationHandlersProvider: React.FC<NavigationHandlersProviderProp
   const [showPasskeyMigrationModal, setShowPasskeyMigrationModal] = useState(false);
   const [passkeyMigrationData, setPasskeyMigrationData] = useState<PasskeyMigrationData | null>(null);
 
+  // Biometric setup modal state (for showing after passkey wallet creation)
+  const [showBiometricSetupModal, setShowBiometricSetupModal] = useState(false);
+
   // Reset wallet and state
   const resetWalletAndState = useCallback(async () => {
     await SecureStore.deleteItemAsync(SECURE_KEYS.MNEMONIC);
@@ -232,6 +240,46 @@ export const NavigationHandlersProvider: React.FC<NavigationHandlersProviderProp
     setShowPasskeyMigrationModal(false);
     setPasskeyMigrationData(null);
   }, []);
+
+  // Biometric setup handlers (for passkey wallet creation)
+  const showBiometricSetupPrompt = useCallback(() => {
+    setShowBiometricSetupModal(true);
+  }, []);
+
+  const hideBiometricSetupPrompt = useCallback(() => {
+    setShowBiometricSetupModal(false);
+  }, []);
+
+  const handleBiometricSetupEnable = useCallback(async () => {
+    try {
+      // Save the preference to SecureStore
+      await SecureStore.setItemAsync(SECURE_KEYS.BIOMETRIC_ENABLED, 'true');
+      // Update auth context state
+      setBiometricEnabled(true);
+
+      // Trigger biometric authentication to confirm
+      const LocalAuthentication = await import('expo-local-authentication');
+      await LocalAuthentication.authenticateAsync({
+        promptMessage: 'Authenticate to enable biometric login',
+        fallbackLabel: 'Use PIN instead',
+      });
+
+      // Hide modal
+      setShowBiometricSetupModal(false);
+    } catch {
+      // Hide modal even if biometric auth fails
+      setShowBiometricSetupModal(false);
+    }
+  }, [setBiometricEnabled]);
+
+  const handleBiometricSetupSkip = useCallback(async () => {
+    // Save the preference to SecureStore
+    await SecureStore.setItemAsync(SECURE_KEYS.BIOMETRIC_ENABLED, 'false');
+    // Update auth context state
+    setBiometricEnabled(false);
+    // Hide modal
+    setShowBiometricSetupModal(false);
+  }, [setBiometricEnabled]);
 
   // Settings handlers object - memoized to prevent recreation on every render
   const settingsHandlers = useMemo(
@@ -313,6 +361,13 @@ export const NavigationHandlersProvider: React.FC<NavigationHandlersProviderProp
       passkeyMigrationData,
       showPasskeyMigrationPrompt,
       hidePasskeyMigrationPrompt,
+
+      // Biometric setup
+      showBiometricSetupModal,
+      showBiometricSetupPrompt,
+      hideBiometricSetupPrompt,
+      handleBiometricSetupEnable,
+      handleBiometricSetupSkip,
     }),
     [
       handlePinSetupCompleteWrapper,
@@ -344,6 +399,11 @@ export const NavigationHandlersProvider: React.FC<NavigationHandlersProviderProp
       passkeyMigrationData,
       showPasskeyMigrationPrompt,
       hidePasskeyMigrationPrompt,
+      showBiometricSetupModal,
+      showBiometricSetupPrompt,
+      hideBiometricSetupPrompt,
+      handleBiometricSetupEnable,
+      handleBiometricSetupSkip,
     ]
   );
 

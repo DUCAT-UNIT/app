@@ -18,6 +18,7 @@ import WithdrawNavigator from './WithdrawNavigator';
 import PinSetupScreenComponent from '../screens/auth/PinSetupScreen';
 import LockScreen from '../screens/auth/LockScreen';
 import PasskeyMigrationModal from '../components/PasskeyMigrationModal';
+import BiometricSetupModal from '../components/BiometricSetupModal';
 import MutinynetBanner from '../components/MutinynetBanner';
 import { withErrorBoundary } from '../components/withErrorBoundary';
 import { COLORS } from '../theme';
@@ -165,6 +166,9 @@ export default function RootNavigator(): React.JSX.Element {
     showPasskeyMigrationModal,
     passkeyMigrationData,
     hidePasskeyMigrationPrompt,
+    showBiometricSetupModal,
+    handleBiometricSetupEnable,
+    handleBiometricSetupSkip,
   } = useNavigationHandlers();
 
   return (
@@ -250,6 +254,13 @@ export default function RootNavigator(): React.JSX.Element {
             showToast={showToast}
           />
         )}
+
+        {/* Biometric Setup Modal (after passkey wallet creation) */}
+        <BiometricSetupModal
+          visible={showBiometricSetupModal}
+          onEnable={handleBiometricSetupEnable}
+          onSkip={handleBiometricSetupSkip}
+        />
 
         {/* Token Verification Loading Overlay */}
         {isVerifyingToken && (
