@@ -31,14 +31,6 @@ export function useCashuBalance({ wallet }: UseCashuBalanceParams): UseCashuBala
     balanceRef.current = balance;
   }, [balance]);
 
-  // Update cashu account when wallet changes (lightweight - just updates the account key)
-  // NOTE: Balance reset and fetch is handled by useAccountSwitcher for snappier account switching
-  useEffect(() => {
-    if (wallet?.taprootAddress) {
-      setCurrentAccount(wallet.taprootAddress);
-    }
-  }, [wallet?.taprootAddress]);
-
   const fetchBalance = useCallback(async (fullLoad = true) => {
     try {
       if (!fullLoad) {
@@ -73,6 +65,19 @@ export function useCashuBalance({ wallet }: UseCashuBalanceParams): UseCashuBala
     }
   }, []);  // Empty deps - uses ref for fallback value, avoiding the balance dependency
 
+  // Update cashu account when wallet changes
+  // Reset balance to 0 immediately, then set account and fetch correct balance
+  useEffect(() => {
+    if (wallet?.taprootAddress) {
+      // Reset balance immediately to prevent showing stale data from wrong account
+      setBalance(0);
+      // Set account and then fetch balance (awaited to ensure correct storage key)
+      setCurrentAccount(wallet.taprootAddress).then(() => {
+        fetchBalance(false);
+      });
+    }
+  }, [wallet?.taprootAddress, fetchBalance]);
+
   // Auto-refresh balance every 10 seconds
   usePolling({
     onPoll: fetchBalance,
@@ -89,11 +94,6 @@ export function useCashuBalance({ wallet }: UseCashuBalanceParams): UseCashuBala
     });
 
     return unsubscribe;
-  }, [fetchBalance]);
-
-  // Initial load - use fast loading
-  useEffect(() => {
-    fetchBalance(false);
   }, [fetchBalance]);
 
   return {
