@@ -65,7 +65,7 @@ export function usePasskeyCreation({
       setShowPinInput(true);
       setCreatingWithPasskey(true);
     } catch (error: unknown) {
-      notify.passkey.creationFailed(error instanceof Error ? error.message : undefined);
+      notify.passkey.creationFailed();
     }
   };
 
@@ -97,10 +97,10 @@ export function usePasskeyCreation({
         // Create wallet (use microtask to let UI update while keeping promise chain)
         await Promise.resolve().then(async () => {
           await createWalletWithPasskey(pin);
-        }).catch((error) => {
+        }).catch(() => {
           Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
           setIsCreating(false);
-          notify.passkey.walletCreationFailed(error instanceof Error ? error.message : undefined);
+          notify.passkey.walletCreationFailed();
           setCreatingWithPasskey(false);
           setConfirmingPin(false);
           setPasskeyPin('');
@@ -111,7 +111,7 @@ export function usePasskeyCreation({
         setConfirmingPin(true);
       }
     } catch (error: unknown) {
-      notify.passkey.pinProcessFailed(error instanceof Error ? error.message : undefined);
+      notify.passkey.pinProcessFailed();
     }
   };
 

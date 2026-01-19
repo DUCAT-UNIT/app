@@ -60,7 +60,7 @@ export function usePasskeyRestore({
       // Show PIN input
       setShowRestorePinInput(true);
     } catch (error: unknown) {
-      notify.passkey.restoreFailed(error instanceof Error ? error.message : undefined);
+      notify.passkey.restoreFailed();
     }
   };
 
@@ -101,7 +101,8 @@ export function usePasskeyRestore({
 
       notify.passkey.restored();
     } catch (error: unknown) {
-      notify.passkey.walletRestoreFailed(error instanceof Error ? error.message : undefined);
+      notify.passkey.walletRestoreFailed();
+      setRestorePin('');
       setIsRestoring(false);
     } finally {
       setIsRestoring(false);

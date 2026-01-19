@@ -113,12 +113,12 @@ export const notify = {
     enabled: () => notify.success(NOTIFICATIONS.PASSKEY_ENABLED),
     noWallet: () => notify.error(NOTIFICATIONS.PASSKEY_NO_WALLET),
     icloudFailed: () => notify.warning(NOTIFICATIONS.PASSKEY_ICLOUD_FAILED),
-    creationFailed: (error?: string) => notify.error(error || NOTIFICATIONS.PASSKEY_CREATION_FAILED),
-    restoreFailed: (error?: string) => notify.error(error || NOTIFICATIONS.PASSKEY_RESTORE_FAILED),
-    walletCreationFailed: (error?: string) => notify.error(error || NOTIFICATIONS.PASSKEY_WALLET_CREATION_FAILED),
-    walletRestoreFailed: (error?: string) => notify.error(error || NOTIFICATIONS.PASSKEY_WALLET_RESTORE_FAILED),
-    enableFailed: (error?: string) => notify.error(error || NOTIFICATIONS.PASSKEY_ENABLE_FAILED),
-    pinProcessFailed: (error?: string) => notify.error(error || NOTIFICATIONS.PASSKEY_PIN_PROCESS_FAILED),
+    creationFailed: () => notify.error(NOTIFICATIONS.PASSKEY_CREATION_FAILED),
+    restoreFailed: () => notify.error(NOTIFICATIONS.PASSKEY_RESTORE_FAILED),
+    walletCreationFailed: () => notify.error(NOTIFICATIONS.PASSKEY_WALLET_CREATION_FAILED),
+    walletRestoreFailed: () => notify.error(NOTIFICATIONS.PASSKEY_WALLET_RESTORE_FAILED),
+    enableFailed: () => notify.error(NOTIFICATIONS.PASSKEY_ENABLE_FAILED),
+    pinProcessFailed: () => notify.error(NOTIFICATIONS.PASSKEY_PIN_PROCESS_FAILED),
   },
 
   // ============================================
