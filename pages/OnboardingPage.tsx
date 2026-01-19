@@ -3,7 +3,7 @@
  */
 
 import React from 'react';
-import { View, StyleSheet } from 'react-native';
+import { View, StyleSheet, Text, TouchableOpacity, ScrollView } from 'react-native';
 import { StatusBar } from 'expo-status-bar';
 import { logger } from '../utils/logger';
 
@@ -14,6 +14,10 @@ import LockScreen from '../screens/auth/LockScreen';
 import MutinynetBanner from '../components/MutinynetBanner';
 import BiometricPromptModal from '../components/BiometricPromptModal';
 import PasskeyPinInput from '../components/PasskeyPinInput';
+
+// Styles
+import { colors, spacing, fonts, fontSizes, radii } from '../styles/theme';
+import { useResponsive } from '../hooks/useResponsive';
 
 // Contexts
 import { useAuth } from '../contexts/AuthContext';
@@ -85,7 +89,12 @@ export default function OnboardingPage({
   const {
     startPasskeyCreation, handlePinEntry, showPinInput, passkeyPin, confirmingPin,
     passkeyPinConfirm, setPasskeyPin, setPasskeyPinConfirm, setShowPinInput, resetPasskeyCreation,
+    showBiometricPrompt: showPasskeyBiometricPrompt, handleBiometricEnable: handlePasskeyBiometricEnable,
+    handleBiometricSkip: handlePasskeyBiometricSkip,
   } = usePasskeyCreation({ setIsAuthenticated, setSeedConfirmed, setWalletAddresses });
+
+  // Responsive sizing
+  const { s, sf } = useResponsive();
 
   // Passkey restore hook
   const {
@@ -114,6 +123,57 @@ export default function OnboardingPage({
     resetWallet: handleCancelOnboarding, resetCreationState, resetVerificationState,
     proceedToVerification, verifySeeds, keyboardHeight,
   };
+
+  // Passkey Biometric Prompt (after passkey wallet creation)
+  if (showPasskeyBiometricPrompt) {
+    return (
+      <View style={localStyles.container}>
+        <MutinynetBanner />
+        <View style={localStyles.biometricOverlay}>
+          <ScrollView
+            contentContainerStyle={{ flexGrow: 1, justifyContent: 'center', alignItems: 'center' }}
+            showsVerticalScrollIndicator={false}
+          >
+            <View style={[localStyles.biometricModal, {
+              borderRadius: s(radii.xl),
+              padding: s(spacing.xl),
+              marginVertical: s(spacing.xl),
+            }]}>
+              <Text style={[localStyles.biometricTitle, { fontSize: sf(fontSizes.lg), marginBottom: s(spacing.md) }]}>
+                Biometric Authentication
+              </Text>
+              <Text style={[localStyles.biometricText, { fontSize: sf(fontSizes.md), marginBottom: s(25), lineHeight: sf(22) }]}>
+                Do you want to use biometric authentication (FaceID or TouchID) for quick access to your wallet?
+              </Text>
+              <View style={[localStyles.biometricButtons, { gap: s(12) }]}>
+                <TouchableOpacity
+                  style={[localStyles.biometricButton, localStyles.biometricButtonYes, {
+                    paddingVertical: s(spacing.md),
+                    paddingHorizontal: s(spacing.lg),
+                    borderRadius: s(radii.lg)
+                  }]}
+                  onPress={handlePasskeyBiometricEnable}
+                >
+                  <Text style={[localStyles.biometricButtonText, { fontSize: sf(fontSizes.md) }]}>Yes, Enable</Text>
+                </TouchableOpacity>
+                <TouchableOpacity
+                  style={[localStyles.biometricButton, localStyles.biometricButtonNo, {
+                    paddingVertical: s(spacing.md),
+                    paddingHorizontal: s(spacing.lg),
+                    borderRadius: s(radii.lg)
+                  }]}
+                  onPress={handlePasskeyBiometricSkip}
+                >
+                  <Text style={[localStyles.biometricButtonTextNo, { fontSize: sf(fontSizes.md) }]}>No, Thanks</Text>
+                </TouchableOpacity>
+              </View>
+            </View>
+          </ScrollView>
+        </View>
+        <StatusBar style="light" />
+      </View>
+    );
+  }
 
   // Passkey PIN Input (creation)
   if (showPinInput) {
@@ -215,4 +275,48 @@ export default function OnboardingPage({
 const localStyles = StyleSheet.create({
   container: { flex: 1, backgroundColor: COLORS.DARK_BG, paddingHorizontal: 0 },
   welcomeContainer: { flex: 1, backgroundColor: COLORS.DARK_BG },
+  biometricOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(0, 0, 0, 0.5)',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  biometricModal: {
+    backgroundColor: colors.bg.secondary,
+    width: '85%',
+    maxWidth: 400,
+  },
+  biometricTitle: {
+    fontFamily: fonts.bold,
+    fontWeight: 'bold' as const,
+    color: colors.text.primary,
+    textAlign: 'center',
+  },
+  biometricText: {
+    fontFamily: fonts.regular,
+    color: colors.text.primary,
+    textAlign: 'center',
+  },
+  biometricButtons: {
+    flexDirection: 'column',
+  },
+  biometricButton: {
+    alignItems: 'center',
+  },
+  biometricButtonYes: {
+    backgroundColor: colors.brand.primary,
+  },
+  biometricButtonNo: {
+    backgroundColor: COLORS.OFF_WHITE,
+  },
+  biometricButtonText: {
+    fontFamily: fonts.medium,
+    fontWeight: '600' as const,
+    color: colors.text.primary,
+  },
+  biometricButtonTextNo: {
+    fontFamily: fonts.medium,
+    fontWeight: '600' as const,
+    color: COLORS.DARK_GRAY,
+  },
 });

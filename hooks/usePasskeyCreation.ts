@@ -6,9 +6,13 @@
 import { useState, useRef, Dispatch, SetStateAction, MutableRefObject } from 'react';
 import * as Device from 'expo-device';
 import * as Haptics from 'expo-haptics';
+import * as SecureStore from 'expo-secure-store';
+import * as LocalAuthentication from 'expo-local-authentication';
 import * as PasskeyService from '../services/passkey';
 import type { WalletAddresses } from '../contexts/WalletContext';
 import { notify } from '../utils/notify';
+import { SECURE_KEYS } from '../utils/constants';
+import { logger } from '../utils/logger';
 
 interface UsePasskeyCreationParams {
   setIsAuthenticated: (value: boolean) => void;
@@ -26,12 +30,15 @@ interface UsePasskeyCreationReturn {
   confirmingPin: boolean;
   passkeyPinConfirm: string;
   walletExistsRef: MutableRefObject<boolean>;
+  showBiometricPrompt: boolean;
   setPasskeyPin: Dispatch<SetStateAction<string>>;
   setPasskeyPinConfirm: Dispatch<SetStateAction<string>>;
   setShowPinInput: Dispatch<SetStateAction<boolean>>;
   startPasskeyCreation: () => Promise<void>;
   handlePinEntry: (pin: string) => Promise<void>;
   resetPasskeyCreation: () => void;
+  handleBiometricEnable: () => Promise<void>;
+  handleBiometricSkip: () => Promise<void>;
 }
 
 export function usePasskeyCreation({
@@ -47,6 +54,7 @@ export function usePasskeyCreation({
   const [passkeyPin, setPasskeyPin] = useState('');
   const [confirmingPin, setConfirmingPin] = useState(false);
   const [passkeyPinConfirm, setPasskeyPinConfirm] = useState('');
+  const [showBiometricPrompt, setShowBiometricPrompt] = useState(false);
   const walletExistsRef = useRef(false);
 
   /**
@@ -141,18 +149,24 @@ export function usePasskeyCreation({
       // This ensures useNavigationState sees wallet as existing (no onboarding screen)
       setWalletAddresses(addresses, 0);
 
-      // Set auth states to navigate to wallet
-      setIsAuthenticated(true);
-      setSeedConfirmed(true);
+      // Check if biometrics are supported and enrolled
+      const hasHardware = await LocalAuthentication.hasHardwareAsync();
+      const isEnrolled = await LocalAuthentication.isEnrolledAsync();
+      const biometricSupported = hasHardware && isEnrolled;
+      logger.auth('Passkey creation: checking biometric support', { hasHardware, isEnrolled, biometricSupported });
 
-      // Reset UI states to hide PIN input and show wallet screen
-      setShowPinInput(false);
-      setPasskeyPin('');
-      setPasskeyPinConfirm('');
-      setConfirmingPin(false);
-      setCreatingWithPasskey(false);
+      if (biometricSupported) {
+        // Show biometric prompt before completing navigation
+        logger.auth('Passkey creation: showing biometric prompt');
+        setShowBiometricPrompt(true);
+        // Don't complete navigation yet - wait for biometric choice
+      } else {
+        // No biometric support, complete navigation immediately
+        logger.auth('Passkey creation: no biometric support, completing setup');
+        completePasskeySetup();
+      }
 
-      // Show immediate success - navigation happens instantly
+      // Show immediate success
       notify.passkey.created();
 
       // Handle iCloud backup result in background (non-blocking)
@@ -170,6 +184,54 @@ export function usePasskeyCreation({
     } finally {
       setIsCreating(false);
     }
+  };
+
+  /**
+   * Complete passkey setup (after biometric choice or if biometrics not supported)
+   */
+  const completePasskeySetup = (): void => {
+    // Set auth states to navigate to wallet
+    setIsAuthenticated(true);
+    setSeedConfirmed(true);
+
+    // Reset UI states to hide PIN input and show wallet screen
+    setShowPinInput(false);
+    setPasskeyPin('');
+    setPasskeyPinConfirm('');
+    setConfirmingPin(false);
+    setCreatingWithPasskey(false);
+    setShowBiometricPrompt(false);
+  };
+
+  /**
+   * Handle biometric enable choice
+   */
+  const handleBiometricEnable = async (): Promise<void> => {
+    try {
+      // Save the preference
+      await SecureStore.setItemAsync(SECURE_KEYS.BIOMETRIC_ENABLED, 'true');
+
+      // Trigger biometric authentication to confirm
+      await LocalAuthentication.authenticateAsync({
+        promptMessage: 'Authenticate to enable biometric login',
+        fallbackLabel: 'Use PIN instead',
+      });
+
+      // Complete setup regardless of biometric result
+      completePasskeySetup();
+    } catch (error: unknown) {
+      // Complete setup even if biometric auth fails
+      completePasskeySetup();
+    }
+  };
+
+  /**
+   * Handle biometric skip choice
+   */
+  const handleBiometricSkip = async (): Promise<void> => {
+    // Save the preference as disabled
+    await SecureStore.setItemAsync(SECURE_KEYS.BIOMETRIC_ENABLED, 'false');
+    completePasskeySetup();
   };
 
   /**
@@ -197,6 +259,7 @@ export function usePasskeyCreation({
     confirmingPin,
     passkeyPinConfirm,
     walletExistsRef,
+    showBiometricPrompt,
 
     // Setters
     setPasskeyPin,
@@ -207,5 +270,7 @@ export function usePasskeyCreation({
     startPasskeyCreation,
     handlePinEntry,
     resetPasskeyCreation,
+    handleBiometricEnable,
+    handleBiometricSkip,
   };
 }
