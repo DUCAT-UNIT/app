@@ -145,24 +145,22 @@ export function usePasskeyCreation({
       // This ensures useNavigationState sees wallet as existing (no onboarding screen)
       setWalletAddresses(addresses, 0);
 
-      // Complete navigation first - take user to wallet home screen
-      completePasskeySetup();
-
-      // Show immediate success
-      notify.passkey.created();
-
-      // Check if biometrics are supported and enrolled (after navigation)
+      // Check if biometrics are supported and enrolled
       const hasHardware = await LocalAuthentication.hasHardwareAsync();
       const isEnrolled = await LocalAuthentication.isEnrolledAsync();
       const biometricSupported = hasHardware && isEnrolled;
       logger.auth('Passkey creation: checking biometric support', { hasHardware, isEnrolled, biometricSupported });
 
+      // Complete navigation - take user to wallet home screen
+      completePasskeySetup();
+
+      // Show immediate success
+      notify.passkey.created();
+
+      // Show biometric prompt immediately after setup is complete
       if (biometricSupported) {
-        // Show biometric prompt on top of wallet home screen (with small delay for navigation)
         logger.auth('Passkey creation: showing biometric prompt');
-        setTimeout(() => {
-          showBiometricSetupPrompt();
-        }, 500);
+        showBiometricSetupPrompt();
       }
 
       // Handle iCloud backup result in background (non-blocking)
