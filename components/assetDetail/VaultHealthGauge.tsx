@@ -130,6 +130,8 @@ export interface VaultHealthGaugeProps {
   priceChange24h?: number;
   isLoading?: boolean;
   isPendingTransaction?: boolean;
+  walletBtcBalance?: number;
+  walletUnitBalance?: number;
   onBorrowPress?: () => void;
   onRepayPress?: () => void;
   onDepositPress?: () => void;
@@ -142,6 +144,8 @@ export const VaultHealthGauge = memo(function VaultHealthGauge({
   currentPrice,
   healthPercentage,
   isPendingTransaction = false,
+  walletBtcBalance = 0,
+  walletUnitBalance = 0,
   onBorrowPress,
   onRepayPress,
   onDepositPress,
@@ -192,6 +196,26 @@ export const VaultHealthGauge = memo(function VaultHealthGauge({
     });
   }, []);
 
+  // Handler for no BTC in wallet - shows popup with haptic feedback
+  const handleNoBtcPress = useCallback(() => {
+    Haptics.notificationAsync(Haptics.NotificationFeedbackType.Warning);
+    useNotificationStore.getState().showSnackbar({
+      title: 'No BTC available',
+      description: 'You need BTC in your wallet to deposit',
+      type: 'warning',
+    });
+  }, []);
+
+  // Handler for no UNIT in wallet - shows popup with haptic feedback
+  const handleNoUnitPress = useCallback(() => {
+    Haptics.notificationAsync(Haptics.NotificationFeedbackType.Warning);
+    useNotificationStore.getState().showSnackbar({
+      title: 'No UNIT available',
+      description: 'You need UNIT in your wallet to repay',
+      type: 'warning',
+    });
+  }, []);
+
   // Memoize liquidation price calculation
   const liquidationPrice = useMemo(() =>
     totalDebt > 0 && totalCollateral > 0
@@ -202,6 +226,8 @@ export const VaultHealthGauge = memo(function VaultHealthGauge({
 
   const hasNoDebt = totalDebt === 0;
   const hasInsufficientCollateral = totalCollateral < MIN_WITHDRAW_COLLATERAL;
+  const hasNoBtc = walletBtcBalance <= 0;
+  const hasNoUnit = walletUnitBalance <= 0;
 
   const healthMetrics = useMemo(() => {
     if (hasNoDebt) {
@@ -395,13 +421,13 @@ export const VaultHealthGauge = memo(function VaultHealthGauge({
           </View>
           <View style={[styles.buttonPair, { gap: s(8) }]}>
             <TouchableOpacity
-              style={[styles.actionButton, { flex: 1 }, isPendingTransaction && styles.actionButtonDisabled]}
-              onPress={isPendingTransaction ? handleDisabledPress : onDepositPress}
+              style={[styles.actionButton, { flex: 1 }, (isPendingTransaction || hasNoBtc) && styles.actionButtonDisabled]}
+              onPress={isPendingTransaction ? handleDisabledPress : hasNoBtc ? handleNoBtcPress : onDepositPress}
             >
-              <View style={[styles.actionButtonIcon, { width: s(56), height: s(56), borderRadius: s(8), marginBottom: s(2) }, isPendingTransaction && styles.actionButtonIconDisabled]}>
-                <Text style={[styles.buttonIcon, { fontSize: sf(25) }, isPendingTransaction && styles.buttonIconDisabled]}>+</Text>
+              <View style={[styles.actionButtonIcon, { width: s(56), height: s(56), borderRadius: s(8), marginBottom: s(2) }, (isPendingTransaction || hasNoBtc) && styles.actionButtonIconDisabled]}>
+                <Text style={[styles.buttonIcon, { fontSize: sf(25) }, (isPendingTransaction || hasNoBtc) && styles.buttonIconDisabled]}>+</Text>
               </View>
-              <Text style={[styles.actionButtonLabel, { fontSize: sf(10) }, isPendingTransaction && styles.actionButtonLabelDisabled]}>Deposit</Text>
+              <Text style={[styles.actionButtonLabel, { fontSize: sf(10) }, (isPendingTransaction || hasNoBtc) && styles.actionButtonLabelDisabled]}>Deposit</Text>
             </TouchableOpacity>
             <TouchableOpacity
               style={[styles.actionButton, { flex: 1 }, (isPendingTransaction || isLowHealth || hasInsufficientCollateral) && styles.actionButtonDisabled]}
@@ -435,13 +461,13 @@ export const VaultHealthGauge = memo(function VaultHealthGauge({
               <Text style={[styles.actionButtonLabel, { fontSize: sf(10) }, (isPendingTransaction || isLowHealth || hasNoDebt) && styles.actionButtonLabelDisabled]}>Borrow</Text>
             </TouchableOpacity>
             <TouchableOpacity
-              style={[styles.actionButton, { flex: 1 }, (isPendingTransaction || hasNoDebt) && styles.actionButtonDisabled]}
-              onPress={isPendingTransaction ? handleDisabledPress : hasNoDebt ? handleNoDebtPress : onRepayPress}
+              style={[styles.actionButton, { flex: 1 }, (isPendingTransaction || hasNoDebt || hasNoUnit) && styles.actionButtonDisabled]}
+              onPress={isPendingTransaction ? handleDisabledPress : hasNoDebt ? handleNoDebtPress : hasNoUnit ? handleNoUnitPress : onRepayPress}
             >
-              <View style={[styles.actionButtonIcon, { width: s(56), height: s(56), borderRadius: s(8), marginBottom: s(2) }, (isPendingTransaction || hasNoDebt) && styles.actionButtonIconDisabled]}>
-                <Text style={[styles.buttonIcon, { fontSize: sf(25) }, (isPendingTransaction || hasNoDebt) && styles.buttonIconDisabled]}>↓</Text>
+              <View style={[styles.actionButtonIcon, { width: s(56), height: s(56), borderRadius: s(8), marginBottom: s(2) }, (isPendingTransaction || hasNoDebt || hasNoUnit) && styles.actionButtonIconDisabled]}>
+                <Text style={[styles.buttonIcon, { fontSize: sf(25) }, (isPendingTransaction || hasNoDebt || hasNoUnit) && styles.buttonIconDisabled]}>↓</Text>
               </View>
-              <Text style={[styles.actionButtonLabel, { fontSize: sf(10) }, (isPendingTransaction || hasNoDebt) && styles.actionButtonLabelDisabled]}>Repay</Text>
+              <Text style={[styles.actionButtonLabel, { fontSize: sf(10) }, (isPendingTransaction || hasNoDebt || hasNoUnit) && styles.actionButtonLabelDisabled]}>Repay</Text>
             </TouchableOpacity>
           </View>
         </View>

@@ -9,8 +9,9 @@ import { StyleSheet, ScrollView, RefreshControl } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { COLORS } from '../../theme';
 import { usePrice } from '../../stores/priceStore';
-import { useVaultData } from '../../contexts/WalletDataContext';
+import { useVaultData, useBalance } from '../../contexts/WalletDataContext';
 import { useWalletCalculations } from '../../hooks/useWalletCalculations';
+import { getRunesAmount } from '../../utils/runesHelper';
 import { usePendingVaultTransactionStore, usePendingVaultTx } from '../../stores/pendingVaultTransactionStore';
 import { useNotificationStore } from '../../stores/notificationStore';
 import type { VaultHistoryTransaction } from '../../services/vaultService';
@@ -57,6 +58,11 @@ function VaultDetailScreen({ navigation }: VaultDetailScreenProps): React.JSX.El
     loadingVaultTransactions,
     fetchVaultTransactions,
   } = useVaultData();
+
+  // Get wallet balances for button states
+  const { segwitBalance, runesBalance } = useBalance();
+  const walletBtcBalance = segwitBalance || 0;
+  const walletUnitBalance = getRunesAmount(runesBalance);
 
   // Mark as loaded once we have data (prevents skeleton on background refresh)
   if (vaultData !== null) {
@@ -179,6 +185,8 @@ function VaultDetailScreen({ navigation }: VaultDetailScreenProps): React.JSX.El
           healthColor={vaultHealthColor}
           isLoading={showVaultLoading}
           isPendingTransaction={!!pendingTransaction}
+          walletBtcBalance={walletBtcBalance}
+          walletUnitBalance={walletUnitBalance}
           onChartPress={handleChartPress}
           onBorrowPress={handleBorrowPress}
           onRepayPress={handleRepayPress}

@@ -18,6 +18,8 @@ interface VaultInfoProps {
   isLoading?: boolean;
   priceChange24h?: number;
   isPendingTransaction?: boolean;
+  walletBtcBalance?: number;
+  walletUnitBalance?: number;
   onChartPress?: () => void;
   onBorrowPress?: () => void;
   onRepayPress?: () => void;
@@ -33,6 +35,8 @@ export const VaultInfo = memo(function VaultInfo({
   isLoading = false,
   priceChange24h = 0,
   isPendingTransaction = false,
+  walletBtcBalance = 0,
+  walletUnitBalance = 0,
   onChartPress,
   onBorrowPress,
   onRepayPress,
@@ -58,6 +62,8 @@ export const VaultInfo = memo(function VaultInfo({
         healthPercentage={healthPercentage}
         priceChange24h={priceChange24h}
         isPendingTransaction={isPendingTransaction}
+        walletBtcBalance={walletBtcBalance}
+        walletUnitBalance={walletUnitBalance}
         onBorrowPress={onBorrowPress}
         onRepayPress={onRepayPress}
         onDepositPress={onDepositPress}
