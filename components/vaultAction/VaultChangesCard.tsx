@@ -139,10 +139,10 @@ export const VaultChangesCard = memo(function VaultChangesCard({
       {/* Health Factor Row */}
       <ChangeRow
         label="Health"
-        beforeValue={`${currentHealth.toFixed(0)}%`}
-        afterValue={`${newHealth.toFixed(0)}%`}
-        beforeColor={getHealthColor(currentHealth)}
-        afterColor={getHealthColor(newHealth)}
+        beforeValue={currentDebt === 0 ? '\u221E' : `${currentHealth.toFixed(0)}%`}
+        afterValue={newDebt === 0 ? '\u221E' : `${newHealth.toFixed(0)}%`}
+        beforeColor={currentDebt === 0 ? COLORS.SUCCESS_GREEN : getHealthColor(currentHealth)}
+        afterColor={newDebt === 0 ? COLORS.SUCCESS_GREEN : getHealthColor(newHealth)}
         showChange={showChanges && healthChanged}
       />
 

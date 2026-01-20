@@ -77,25 +77,39 @@ export interface VaultActionGaugeProps {
   currentHealth: number;
   newHealth?: number;
   showTransition?: boolean;
+  hasNoDebt?: boolean;
 }
 
 export const VaultActionGauge = memo(function VaultActionGauge({
   currentHealth,
   newHealth,
   showTransition = false,
+  hasNoDebt = false,
 }: VaultActionGaugeProps): React.JSX.Element {
   const { s, sf } = useResponsive();
 
   const displayHealth = showTransition && newHealth !== undefined ? newHealth : currentHealth;
-  const hasNoData = displayHealth <= 0;
+  const hasNoData = displayHealth <= 0 && !hasNoDebt;
 
   const healthMetrics = useMemo(() => {
+    // Show infinity when there's no debt
+    if (hasNoDebt) {
+      return {
+        activePath: 'green' as keyof PathSettings | '',
+        displayValue: '\u221E',
+        titleColor: pathSettings.green.color,
+        isHealthFinite: false,
+        isInfinite: true,
+      };
+    }
+
     if (hasNoData) {
       return {
         activePath: '' as keyof PathSettings | '',
         displayValue: 'N/A',
         titleColor: '#ddd',
         isHealthFinite: false,
+        isInfinite: false,
       };
     }
 
@@ -104,10 +118,10 @@ export const VaultActionGauge = memo(function VaultActionGauge({
     const titleColor = getHealthColor(displayHealth);
     const isHealthFinite = Number.isFinite(displayHealth);
 
-    return { activePath, displayValue, titleColor, isHealthFinite };
-  }, [displayHealth, hasNoData]);
+    return { activePath, displayValue, titleColor, isHealthFinite, isInfinite: false };
+  }, [displayHealth, hasNoData, hasNoDebt]);
 
-  const { activePath, displayValue, titleColor, isHealthFinite } = healthMetrics;
+  const { activePath, displayValue, titleColor, isHealthFinite, isInfinite } = healthMetrics;
 
   const markerPosition = useMemo(() => {
     const centerX = SVG_SIZE / 2;
@@ -153,7 +167,7 @@ export const VaultActionGauge = memo(function VaultActionGauge({
           />
 
           {/* Marker */}
-          {isHealthFinite && (
+          {isHealthFinite && !isInfinite && (
             <Circle
               cx={Number.isNaN(markerX) ? SVG_SIZE / 2 : markerX}
               cy={Number.isNaN(markerY) ? 10 : markerY}
@@ -173,7 +187,7 @@ export const VaultActionGauge = memo(function VaultActionGauge({
             fontSize={16}
             fontWeight="500"
           >
-            <TSpan>{getHealthTitle(displayHealth)}</TSpan>
+            <TSpan>{isInfinite ? 'Healthy' : getHealthTitle(displayHealth)}</TSpan>
           </SvgText>
 
           {/* Health percentage */}
@@ -185,7 +199,7 @@ export const VaultActionGauge = memo(function VaultActionGauge({
             fontSize={24}
             fontWeight="600"
           >
-            <TSpan>{isHealthFinite ? `${displayValue}%` : 'N/A'}</TSpan>
+            <TSpan>{isInfinite ? displayValue : (isHealthFinite ? `${displayValue}%` : 'N/A')}</TSpan>
           </SvgText>
 
           {/* Min label (135%) */}

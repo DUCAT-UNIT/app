@@ -3,9 +3,13 @@
  * Features: success checkmark, explorer link, Done button
  */
 
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useState, useCallback } from 'react';
 import { Text, View, TouchableOpacity, ActivityIndicator, StyleSheet } from 'react-native';
 import { NavigationProp, RouteProp } from '@react-navigation/native';
+import { SafeAreaView } from 'react-native-safe-area-context';
+import { Ionicons } from '@expo/vector-icons';
+import * as Clipboard from 'expo-clipboard';
+import * as Haptics from 'expo-haptics';
 import { COLORS } from '../../theme';
 import Icon from '../../components/icons';
 import { useTransactionHistory } from '../../contexts/WalletDataContext';
@@ -17,6 +21,8 @@ import { useTurboMintCompletion } from '../../hooks/useTurboMintCompletion';
 import { useCashuMintCompletion } from '../../hooks/useCashuMintCompletion';
 import { useConfirmationHandlers } from '../../hooks/useConfirmationHandlers';
 import { useResponsive } from '../../hooks/useResponsive';
+import { useNotifications } from '../../stores/notificationStore';
+import { colors, fonts, fontSizes, spacing, radii } from '../../styles/theme';
 
 /**
  * Route parameters for ConfirmationScreen
@@ -48,6 +54,7 @@ export default function ConfirmationScreen({ navigation, route }: ConfirmationSc
   const { wallet } = useWallet();
   const { refresh: refreshCashuBalance } = useCashu();
   const { s, sf } = useResponsive();
+  const { showToast } = useNotifications();
 
   // Extract and validate route params
   const {
@@ -136,6 +143,20 @@ export default function ConfirmationScreen({ navigation, route }: ConfirmationSc
     navigation,
   });
 
+  // Copy transaction ID to clipboard
+  const handleCopyTxid = useCallback(async () => {
+    if (broadcastedTxid) {
+      await Clipboard.setStringAsync(broadcastedTxid);
+      Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+      showToast('Transaction ID copied');
+    }
+  }, [broadcastedTxid, showToast]);
+
+  // Truncate txid for display
+  const truncatedTxid = broadcastedTxid
+    ? `${broadcastedTxid.slice(0, 8)}...${broadcastedTxid.slice(-8)}`
+    : '';
+
   // If we're in 'ready' state but expecting turbo data that hasn't arrived yet, show loading
   const isWaitingForTurboData = processingStage === 'ready' && isTurbo && skipMint && (!turboToken || !turboDeeplink);
 
@@ -143,7 +164,7 @@ export default function ConfirmationScreen({ navigation, route }: ConfirmationSc
   const styles = StyleSheet.create({
     container: {
       flex: 1,
-      backgroundColor: COLORS.DARK_BG,
+      backgroundColor: colors.bg.primary,
     },
     content: {
       flex: 1,
@@ -189,11 +210,11 @@ export default function ConfirmationScreen({ navigation, route }: ConfirmationSc
       lineHeight: sf(20, 16),
     },
     title: {
-      fontSize: sf(24),
-      fontWeight: '600',
-      color: COLORS.WHITE,
+      fontSize: fontSizes.xxl,
+      fontFamily: fonts.bold,
+      color: colors.text.primary,
       textAlign: 'center',
-      marginBottom: s(12),
+      marginBottom: spacing.md,
     },
     subtitle: {
       fontSize: sf(14),
@@ -201,6 +222,61 @@ export default function ConfirmationScreen({ navigation, route }: ConfirmationSc
       textAlign: 'center',
       lineHeight: sf(20, 16),
     },
+    // New styles for non-turbo success screen (matching VaultActionSuccess)
+    iconContainer: {
+      marginBottom: spacing.xl,
+    },
+    iconCircle: {
+      width: 96,
+      height: 96,
+      borderRadius: radii.full,
+      backgroundColor: 'rgba(89, 170, 138, 0.15)',
+      justifyContent: 'center',
+      alignItems: 'center',
+    },
+    linksContainer: {
+      marginTop: spacing.xl,
+      backgroundColor: colors.bg.secondary,
+      borderRadius: radii.lg,
+      paddingVertical: spacing.md,
+      paddingHorizontal: spacing.xl,
+      alignSelf: 'center',
+    },
+    linkRow: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      justifyContent: 'center',
+      paddingVertical: spacing.md,
+    },
+    txId: {
+      fontSize: fontSizes.md,
+      fontFamily: fonts.mono,
+      color: colors.text.secondary,
+      marginLeft: spacing.sm,
+    },
+    divider: {
+      height: 1,
+      backgroundColor: colors.border.default,
+    },
+    explorerText: {
+      fontSize: fontSizes.md,
+      fontFamily: fonts.medium,
+      color: colors.brand.primary,
+      marginLeft: spacing.sm,
+    },
+    warningRow: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      justifyContent: 'center',
+      marginTop: spacing.lg,
+    },
+    infoText: {
+      fontSize: fontSizes.xs,
+      fontFamily: fonts.regular,
+      color: colors.text.tertiary,
+      marginLeft: spacing.xs,
+    },
+    // Legacy styles for turbo flow
     explorerButton: {
       flexDirection: 'row',
       alignItems: 'center',
@@ -267,24 +343,77 @@ export default function ConfirmationScreen({ navigation, route }: ConfirmationSc
       fontWeight: '500',
       color: COLORS.VERY_LIGHT_GRAY,
     },
-    buttonContainer: {
-      paddingHorizontal: s(20),
-      paddingBottom: s(20),
+    footer: {
+      padding: spacing.lg,
+      borderTopWidth: 1,
+      borderTopColor: colors.border.default,
     },
     doneButton: {
-      backgroundColor: COLORS.PRIMARY_BLUE,
-      paddingVertical: s(14),
-      borderRadius: s(10),
+      backgroundColor: colors.brand.primary,
+      borderRadius: radii.lg,
+      paddingVertical: spacing.md,
       alignItems: 'center',
     },
     doneButtonText: {
-      fontSize: sf(15),
-      fontWeight: '600',
-      color: COLORS.WHITE,
+      fontSize: fontSizes.md,
+      fontFamily: fonts.bold,
+      color: colors.text.white,
     },
   });
 
-  return (
+  // Non-turbo success view (matching VaultActionSuccess design)
+  const renderNonTurboSuccess = () => (
+    <SafeAreaView style={styles.container} edges={['top', 'bottom']} testID="confirmation-screen">
+      <View style={styles.content}>
+        {/* Success Icon */}
+        <View style={styles.iconContainer}>
+          <View style={styles.iconCircle}>
+            <Ionicons name="checkmark" size={48} color={colors.semantic.success} />
+          </View>
+        </View>
+
+        {/* Success Message */}
+        <Text style={styles.title}>Transaction Sent!</Text>
+
+        {/* Transaction Links */}
+        {broadcastedTxid && (
+          <View style={styles.linksContainer}>
+            <TouchableOpacity onPress={handleCopyTxid} style={styles.linkRow} activeOpacity={0.7}>
+              <Ionicons name="copy-outline" size={16} color={colors.text.secondary} />
+              <Text style={styles.txId}>{truncatedTxid}</Text>
+            </TouchableOpacity>
+
+            <View style={styles.divider} />
+
+            <TouchableOpacity onPress={handleViewExplorer} style={styles.linkRow} activeOpacity={0.7}>
+              <Ionicons name="open-outline" size={16} color={colors.brand.primary} />
+              <Text style={styles.explorerText}>View on Explorer</Text>
+            </TouchableOpacity>
+          </View>
+        )}
+
+        <View style={styles.warningRow}>
+          <Ionicons name="time-outline" size={14} color={colors.text.tertiary} />
+          <Text style={styles.infoText}>May take a few minutes to confirm.</Text>
+        </View>
+      </View>
+
+      {/* Done Button */}
+      <View style={styles.footer}>
+        <TouchableOpacity
+          style={styles.doneButton}
+          onPress={handleDone}
+          activeOpacity={0.7}
+          testID="confirmation-done-btn"
+        >
+          <Text style={styles.doneButtonText}>Done</Text>
+        </TouchableOpacity>
+      </View>
+    </SafeAreaView>
+  );
+
+  // Turbo/processing view (keep existing design)
+  const renderTurboOrProcessingView = () => (
     <View style={styles.container} testID="confirmation-screen">
       {/* Content */}
       <View style={styles.content}>
@@ -311,27 +440,17 @@ export default function ConfirmationScreen({ navigation, route }: ConfirmationSc
           </>
         )}
 
-        {/* Stage 2: Ready - Show turbo icon or checkmark */}
-        {!isWaitingForTurboData && processingStage === 'ready' && (
+        {/* Stage 2: Ready - Show turbo icon */}
+        {!isWaitingForTurboData && processingStage === 'ready' && isTurbo && turboToken && (
           <>
             <View style={styles.checkmarkContainer}>
-              {isTurbo && turboToken ? (
-                <View style={styles.heroLogoContainer}>
-                  <Icon name="unit_logo" size={s(80)} />
-                  <Text style={styles.heroLightningBadge}>⚡</Text>
-                </View>
-              ) : (
-                <View style={styles.checkmark}>
-                  <Icon name="check" size={s(48)} color={COLORS.SUCCESS_GREEN} />
-                </View>
-              )}
+              <View style={styles.heroLogoContainer}>
+                <Icon name="unit_logo" size={s(80)} />
+                <Text style={styles.heroLightningBadge}>⚡</Text>
+              </View>
             </View>
-            <Text style={styles.title}>
-              {isTurbo && turboToken ? 'Turbo Token Ready' : 'Transaction Sent'}
-            </Text>
-            <Text style={styles.subtitle}>
-              {isTurbo && turboToken ? 'Share this link with the recipient' : 'Your transaction has been successfully broadcast to the network'}
-            </Text>
+            <Text style={styles.title}>Turbo Token Ready</Text>
+            <Text style={styles.subtitle}>Share this link with the recipient</Text>
           </>
         )}
 
@@ -380,23 +499,10 @@ export default function ConfirmationScreen({ navigation, route }: ConfirmationSc
             )}
           </>
         )}
-
-        {/* View Explorer Button - for non-turbo transactions */}
-        {!isTurbo && !skipMint && broadcastedTxid && (
-          <TouchableOpacity
-            style={styles.explorerButton}
-            activeOpacity={0.7}
-            onPress={handleViewExplorer}
-          >
-            <Text style={styles.explorerButtonText}>View on Explorer</Text>
-            <Icon name="arrow_right" size={s(16)} color={COLORS.PRIMARY_BLUE} />
-          </TouchableOpacity>
-        )}
-
       </View>
 
       {/* Done Button - Fixed at bottom */}
-      <View style={styles.buttonContainer}>
+      <View style={styles.footer}>
         <TouchableOpacity
           style={styles.doneButton}
           onPress={handleDone}
@@ -406,7 +512,11 @@ export default function ConfirmationScreen({ navigation, route }: ConfirmationSc
           <Text style={styles.doneButtonText}>Done</Text>
         </TouchableOpacity>
       </View>
-
     </View>
   );
+
+  // Show non-turbo success view for regular BTC transactions
+  const showNonTurboSuccess = !isTurbo && !skipMint && processingStage === 'ready';
+
+  return showNonTurboSuccess ? renderNonTurboSuccess() : renderTurboOrProcessingView();
 }

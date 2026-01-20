@@ -200,6 +200,7 @@ export default function RepayInputScreen({ navigation }: RepayInputScreenProps) 
             currentHealth={currentHealth}
             newHealth={hasChanges ? preview.newHealth : undefined}
             showTransition={hasChanges}
+            hasNoDebt={hasChanges && preview.newDebt === 0}
           />
 
           {/* Slider */}

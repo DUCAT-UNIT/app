@@ -12,6 +12,7 @@ import {
   Alert,
   ActivityIndicator,
 } from 'react-native';
+import { useNavigation } from '@react-navigation/native';
 import { COLORS } from '../../theme';
 import Icon from '../../components/icons';
 import MutinynetBanner from '../../components/MutinynetBanner';
@@ -68,8 +69,50 @@ const AdvancedScreen = React.memo(function AdvancedScreen({ route }: AdvancedScr
   const { settingsHandlers } = useNavigationHandlers();
   const advancedMode = settingsHandlers?.advancedMode || false;
   const ecashThreshold = settingsHandlers?.ecashThreshold || 100;
+  const navigation = useNavigation<any>();
 
   const [isClearing, setIsClearing] = useState<boolean>(false);
+
+  // Preview Confirmation Screen (dev only)
+  const handlePreviewConfirmation = () => {
+    navigation.navigate('SendFlow', {
+      screen: 'Confirmation',
+      params: {
+        isTurbo: false,
+        skipMint: false,
+        cashuMint: false,
+        broadcastedTxid: 'abc123def456789012345678901234567890abcdef1234567890abcdef12345678',
+        mintQuoteId: undefined,
+        mintAmount: undefined,
+        turboRecipient: undefined,
+      },
+    });
+  };
+
+  // Preview Turbo Confirmation Screen (dev only)
+  const handlePreviewTurboConfirmation = () => {
+    navigation.navigate('SendFlow', {
+      screen: 'Confirmation',
+      params: {
+        isTurbo: true,
+        skipMint: true,
+        turboToken: 'cashuBpGF0gaJhaUgArSaMTR9YJmFwomFhAmFzeEAxMjM0NTY3ODkwYWJjZGVmMTIzNDU2Nzg5MGFiY2RlZg',
+        turboDeeplink: 'https://ducat.app/claim?token=cashuBpGF0gaJhaUgArSaMTR9YJmFw',
+        turboAmount: 100,
+        turboRecipient: 'tb1p1234567890abcdef',
+      },
+    });
+  };
+
+  // Preview Vault Deposit Success Screen (dev only)
+  const handlePreviewDepositSuccess = () => {
+    navigation.navigate('DepositFlow', {
+      screen: 'DepositSuccess',
+      params: {
+        vaultTxid: 'abc123def456789012345678901234567890abcdef1234567890abcdef12345678',
+      },
+    });
+  };
 
   // Format threshold display value
   const getThresholdDisplay = (): string => {
@@ -182,6 +225,31 @@ const AdvancedScreen = React.memo(function AdvancedScreen({ route }: AdvancedScr
                   <ActivityIndicator size="small" color="#FF6B6B" style={styles.spinner} />
                 )}
               </TouchableOpacity>
+            </View>
+          )}
+
+          {/* Screen Previews - Developer mode only */}
+          {advancedMode && (
+            <View style={styles.section}>
+              <Text style={styles.sectionTitle}>Screen Previews</Text>
+              <SettingsOption
+                iconName="check"
+                title="Confirmation (Normal TX)"
+                onPress={handlePreviewConfirmation}
+                testID="advanced-preview-confirmation-btn"
+              />
+              <SettingsOption
+                iconName="turbo"
+                title="Confirmation (Turbo TX)"
+                onPress={handlePreviewTurboConfirmation}
+                testID="advanced-preview-turbo-btn"
+              />
+              <SettingsOption
+                iconName="btc_symbol"
+                title="Vault Deposit Success"
+                onPress={handlePreviewDepositSuccess}
+                testID="advanced-preview-deposit-btn"
+              />
             </View>
           )}
         </View>

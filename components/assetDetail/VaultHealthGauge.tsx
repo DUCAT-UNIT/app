@@ -208,10 +208,11 @@ export const VaultHealthGauge = memo(function VaultHealthGauge({
       return {
         healthValue: 0,
         isLiquidated: false,
-        activePath: '' as keyof PathSettings | '',
-        currentTitle: 'N/A',
+        activePath: 'green' as keyof PathSettings | '',
+        currentTitle: 'Healthy',
         isHealthFinite: false,
-        displayHealthValue: 'N/A',
+        displayHealthValue: '\u221E',
+        isInfinite: true,
       };
     }
 
@@ -229,10 +230,11 @@ export const VaultHealthGauge = memo(function VaultHealthGauge({
       currentTitle,
       isHealthFinite,
       displayHealthValue,
+      isInfinite: false,
     };
   }, [healthPercentage, hasNoDebt]);
 
-  const { healthValue, isLiquidated, activePath, currentTitle, isHealthFinite, displayHealthValue } = healthMetrics;
+  const { healthValue, isLiquidated, activePath, currentTitle, isHealthFinite, displayHealthValue, isInfinite } = healthMetrics;
 
   // Memoize marker position calculations
   const markerPosition = useMemo(() => {
@@ -289,7 +291,7 @@ export const VaultHealthGauge = memo(function VaultHealthGauge({
           />
 
           {/* Marker */}
-          {isHealthFinite && (
+          {isHealthFinite && !isInfinite && (
             <Circle
               cx={Number.isNaN(markerX) ? 108.16 : markerX}
               cy={Number.isNaN(markerY) ? 13 : markerY}
@@ -321,7 +323,7 @@ export const VaultHealthGauge = memo(function VaultHealthGauge({
             fontSize={32}
             fontWeight="600"
           >
-            <TSpan>{isHealthFinite ? `${displayHealthValue}%` : 'N/A'}</TSpan>
+            <TSpan>{isInfinite ? displayHealthValue : (isHealthFinite ? `${displayHealthValue}%` : 'N/A')}</TSpan>
           </SvgText>
 
           {/* 135% label */}
