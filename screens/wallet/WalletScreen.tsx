@@ -167,8 +167,9 @@ const WalletScreen = React.memo(function WalletScreen({
   const isLowHealth = vaultHealthPercentage > 0 && vaultHealthPercentage < 160;
   // Check if there's no debt (can't repay/borrow)
   const hasNoDebt = vaultDebt === 0;
-  // Check if collateral is too low for withdraw
-  const hasInsufficientCollateral = vaultCollateral < MIN_WITHDRAW_COLLATERAL;
+  // Check if total wallet BTC is too low for withdraw (not vault collateral)
+  const totalWalletBTC = (segwitBalance || 0) + (taprootBalance || 0);
+  const hasInsufficientFunds = totalWalletBTC < MIN_WITHDRAW_COLLATERAL;
 
   // Handler for disabled vault action buttons - shows popup with haptic feedback
   const handleDisabledPress = useCallback(() => {
@@ -251,11 +252,11 @@ const WalletScreen = React.memo(function WalletScreen({
           <Text style={{ fontSize: sf(13), color: COLORS.WHITE, fontWeight: '600' }}>Deposit</Text>
         </TouchableOpacity>
 
-        <TouchableOpacity style={{ alignItems: 'center', opacity: (isPendingVaultTx || isLowHealth || hasInsufficientCollateral) ? 0.5 : 1 }} onPress={isPendingVaultTx ? handleDisabledPress : hasInsufficientCollateral ? handleInsufficientFundsPress : isLowHealth ? handleLowHealthPress : onSendPress} testID="wallet-withdraw-btn">
-          <View style={{ width: s(50), height: s(50), borderRadius: s(8), backgroundColor: (isPendingVaultTx || isLowHealth || hasInsufficientCollateral) ? '#888888' : '#DDDDDD', justifyContent: 'center', alignItems: 'center', marginBottom: s(2) }}>
+        <TouchableOpacity style={{ alignItems: 'center', opacity: hasInsufficientFunds ? 0.5 : 1 }} onPress={hasInsufficientFunds ? handleInsufficientFundsPress : onSendPress} testID="wallet-withdraw-btn">
+          <View style={{ width: s(50), height: s(50), borderRadius: s(8), backgroundColor: hasInsufficientFunds ? '#888888' : '#DDDDDD', justifyContent: 'center', alignItems: 'center', marginBottom: s(2) }}>
             <Text style={{ fontSize: sf(24), color: COLORS.DARK_BG, fontWeight: '200' }}>-</Text>
           </View>
-          <Text style={{ fontSize: sf(13), color: (isPendingVaultTx || isLowHealth || hasInsufficientCollateral) ? COLORS.SECONDARY_TEXT : COLORS.WHITE, fontWeight: '600' }}>Withdraw</Text>
+          <Text style={{ fontSize: sf(13), color: hasInsufficientFunds ? COLORS.SECONDARY_TEXT : COLORS.WHITE, fontWeight: '600' }}>Withdraw</Text>
         </TouchableOpacity>
 
         <TouchableOpacity style={{ alignItems: 'center', opacity: (isPendingVaultTx || isLowHealth || hasNoDebt) ? 0.5 : 1 }} onPress={isPendingVaultTx ? handleDisabledPress : hasNoDebt ? handleNoDebtPress : isLowHealth ? handleLowHealthPress : onVaultPress} testID="wallet-borrow-btn">
