@@ -135,6 +135,24 @@ export default function DepositInputScreen({ navigation }: DepositInputScreenPro
     );
   }
 
+  // No BTC balance state
+  if (vaultLoaded && availableBalanceBtc <= 0) {
+    return (
+      <SafeAreaView style={styles.container} edges={['top']}>
+        <View style={styles.centered}>
+          <Ionicons name="alert-circle-outline" size={48} color={colors.semantic.warning} />
+          <Text style={styles.noVaultText}>No BTC Available</Text>
+          <Text style={styles.noVaultSubtext}>
+            You need BTC in your wallet to deposit into your vault.
+          </Text>
+          <TouchableScale style={styles.closeBtn} onPress={handleClose}>
+            <Text style={styles.closeBtnText}>Close</Text>
+          </TouchableScale>
+        </View>
+      </SafeAreaView>
+    );
+  }
+
   const hasChanges = previewAmount > 0;
 
   return (
@@ -215,6 +233,7 @@ const styles = StyleSheet.create({
   centered: { flex: 1, justifyContent: 'center', alignItems: 'center', gap: spacing.md },
   loadingText: { color: colors.text.secondary, fontSize: fontSizes.md },
   noVaultText: { color: colors.text.primary, fontSize: fontSizes.xl, fontFamily: fonts.bold },
+  noVaultSubtext: { color: colors.text.secondary, fontSize: fontSizes.md, textAlign: 'center' },
   closeBtn: { backgroundColor: colors.brand.primary, borderRadius: radii.lg, paddingVertical: spacing.md, paddingHorizontal: spacing.xl, marginTop: spacing.lg },
   closeBtnText: { color: colors.text.white, fontSize: fontSizes.md, fontFamily: fonts.bold },
   header: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: spacing.sm },
