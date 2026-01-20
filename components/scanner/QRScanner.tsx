@@ -22,11 +22,14 @@ export default function QRScanner({ visible, onClose, onScan }: QRScannerProps) 
   const { handleBarCodeScanned, progress, isScanning, totalChunks, scannedChunks, bcurProgress } =
     useQRScanner({ visible, onScan });
 
+  // Don't render anything if not visible - this ensures camera is fully unmounted
+  if (!visible) return null;
+
   if (!permission) return null;
 
   if (!permission.granted) {
     return (
-      <Modal visible={visible} animationType="slide">
+      <Modal visible={visible} animationType="slide" onRequestClose={onClose}>
         <View style={styles.permissionContainer}>
           <Icon name="qr_scan" size={64} color={COLORS.VERY_LIGHT_GRAY} />
           <Text style={styles.permissionTitle}>Camera Permission Required</Text>
@@ -45,7 +48,7 @@ export default function QRScanner({ visible, onClose, onScan }: QRScannerProps) 
   }
 
   return (
-    <Modal visible={visible} animationType="slide">
+    <Modal visible={visible} animationType="slide" onRequestClose={onClose}>
       <View style={styles.container}>
         <CameraView
           style={styles.camera}

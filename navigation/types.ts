@@ -16,13 +16,13 @@ export type { AssetTypeParam, AddressTypeParam } from '../types/assets';
  */
 export type SendStackParamList = {
   AssetSelector: undefined;
-  AddressInput: { assetType?: string };
-  AmountInput: { assetType?: string; address?: string };
+  AddressInput: { assetType?: string; prefillAddress?: string; prefillAmount?: string };
+  AmountInput: { assetType?: string; address?: string; prefillAmount?: string; autoAdvance?: boolean };
   TurboLoading: undefined;
   Review: { assetType?: string; address?: string; amount?: number };
   Processing: undefined;
   TurboProcessing: undefined;
-  TurboClaiming: { tokenAmount?: number };
+  TurboClaiming: { tokenString?: string; tokenAmount?: number };
   Confirmation: { txid?: string; amount?: number };
 };
 

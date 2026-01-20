@@ -16,6 +16,7 @@ interface UseWalletActionsParams {
   clearVaultCredentials?: () => void;
   walletExistsRef?: MutableRefObject<boolean>;
   setIsAuthenticated: (value: boolean) => void;
+  onLock?: () => void;
 }
 
 interface UseWalletActionsReturn {
@@ -30,7 +31,7 @@ interface UseWalletActionsReturn {
   cancelDeleteWallet: () => void;
 }
 
-export function useWalletActions({ resetAuth, resetWallet, clearVaultCredentials, walletExistsRef, setIsAuthenticated }: UseWalletActionsParams): UseWalletActionsReturn {
+export function useWalletActions({ resetAuth, resetWallet, clearVaultCredentials, walletExistsRef, setIsAuthenticated, onLock }: UseWalletActionsParams): UseWalletActionsReturn {
   const [showLogoutModal, setShowLogoutModal] = useState(false);
   const [showDeleteModal, setShowDeleteModal] = useState(false);
 
@@ -40,8 +41,14 @@ export function useWalletActions({ resetAuth, resetWallet, clearVaultCredentials
 
   const confirmLogout = useCallback((): void => {
     setShowLogoutModal(false);
-    setIsAuthenticated(false);
-  }, [setIsAuthenticated]);
+    // Call onLock to dismiss modals, keyboard, and reset navigation
+    if (onLock) {
+      onLock();
+    } else {
+      // Fallback if onLock not provided
+      setIsAuthenticated(false);
+    }
+  }, [setIsAuthenticated, onLock]);
 
   const cancelLogout = useCallback((): void => {
     setShowLogoutModal(false);

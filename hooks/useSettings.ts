@@ -22,6 +22,7 @@ interface UseSettingsParams {
   resetWallet: () => void;
   clearVaultCredentials?: () => void;
   walletExistsRef?: MutableRefObject<boolean>;
+  onLock?: () => void;
 }
 
 export function useSettings(props: UseSettingsParams) {

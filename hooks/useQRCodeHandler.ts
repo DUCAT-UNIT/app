@@ -12,6 +12,7 @@ import { decodeToken, encodeToken } from '../services/cashu/crypto';
 import { checkProofsSpent } from '../services/cashu/cashuMintClient';
 import { notify } from '../utils/notify';
 import { useTokenProcessingStore } from '../stores/tokenProcessingStore';
+import { useSendFlowStore } from '../stores/sendFlowStore';
 import type { SnackbarParams } from '../stores/notificationStore';
 
 interface ReceiveTokenResult {
@@ -68,11 +69,25 @@ export function useQRCodeHandler({
 
     // Handle Bitcoin addresses
     if (data.startsWith('bitcoin:') || data.startsWith('tb1') || data.startsWith('bc1')) {
+      // Extract address from BIP21 URI if present (bitcoin:address?amount=...)
+      let address = data;
+      if (data.toLowerCase().startsWith('bitcoin:')) {
+        address = data.replace(/^bitcoin:/i, '').split('?')[0];
+      }
+
+      // Determine asset type based on address type
+      // Default to BTC for now - user can change if needed
+      const assetType = 'btc';
+
+      // Close scanner FIRST before any navigation to prevent race conditions
+      setShowQRScanner(false);
+
+      // Navigate to send flow - address is passed via route params, not the store
+      // Don't call resetSendFlow here as it would clear the prefilled address
       navigation.navigate('SendFlow', {
         screen: 'AddressInput',
-        params: { scannedAddress: data },
+        params: { prefillAddress: address, assetType },
       });
-      requestAnimationFrame(() => setShowQRScanner(false));
       return;
     }
 
@@ -111,7 +126,8 @@ export function useQRCodeHandler({
           return;
         }
 
-        // Regular token - check proofs first
+        // Regular token - close scanner first, then check proofs
+        setShowQRScanner(false);
         notify.token.checking();
 
         // Decode and analyze the token
@@ -190,6 +206,7 @@ export function useQRCodeHandler({
         }
       } catch (error: unknown) {
         logger.error('[useQRCodeHandler] Token check failed:', { error: error instanceof Error ? error.message : String(error) });
+        setShowQRScanner(false);
         showSnackbar({
           type: 'error',
           action: 'claim',
@@ -201,6 +218,8 @@ export function useQRCodeHandler({
 
     // Handle JSON proofs format
     if (data.startsWith('{') || data.startsWith('[')) {
+      // Close scanner first
+      setShowQRScanner(false);
       try {
         const parsed = JSON.parse(data) as { token?: TokenEntry[]; proofs?: Proof[] };
         logger.debug('[useQRCodeHandler] Parsed JSON:', parsed);
@@ -274,22 +293,28 @@ export function useQRCodeHandler({
         }
 
         if (token) {
+          // Close scanner FIRST before any navigation to prevent race conditions
+          setShowQRScanner(false);
+
           // Navigate to claiming screen
           navigation.navigate('SendFlow', {
             screen: 'TurboClaiming',
             params: { tokenString: token },
           });
         } else {
+          setShowQRScanner(false);
           notify.token.extractFailed();
         }
       } catch (error: unknown) {
         logger.error('[useQRCodeHandler] Failed to extract token:', { error: error instanceof Error ? error.message : String(error) });
+        setShowQRScanner(false);
         notify.token.extractError(error instanceof Error ? error.message : String(error));
       }
       return;
     }
 
-    // Unknown format
+    // Unknown format - close scanner and notify
+    setShowQRScanner(false);
     logger.debug('[useQRCodeHandler] Unknown QR format:', { data });
     notify.token.unknownFormat();
   }, [navigation, receiveCashuToken, showSnackbar, setShowQRScanner, tokenStore]);

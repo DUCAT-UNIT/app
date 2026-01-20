@@ -8,6 +8,7 @@
  */
 
 import React, { createContext, useContext, useCallback, useMemo, useState, ReactNode, MutableRefObject } from 'react';
+import { Keyboard } from 'react-native';
 import * as SecureStore from 'expo-secure-store';
 import { SECURE_KEYS } from '../utils/constants';
 import { resetOnboardingState } from '../utils/onboardingHelpers';
@@ -128,6 +129,25 @@ export const NavigationHandlersProvider: React.FC<NavigationHandlersProviderProp
     loadSeedPhrase,
   });
 
+  // Modal state (declared early so handleLockApp can reference them)
+  const [showPasskeyMigrationModal, setShowPasskeyMigrationModal] = useState(false);
+  const [passkeyMigrationData, setPasskeyMigrationData] = useState<PasskeyMigrationData | null>(null);
+  const [showBiometricSetupModal, setShowBiometricSetupModal] = useState(false);
+
+  // Lock app handler - dismisses modals, keyboard, and locks the app
+  const handleLockApp = useCallback(() => {
+    // Dismiss keyboard
+    Keyboard.dismiss();
+
+    // Dismiss all open modals
+    setShowPasskeyMigrationModal(false);
+    setPasskeyMigrationData(null);
+    setShowBiometricSetupModal(false);
+
+    // Lock the app
+    setIsAuthenticated(false);
+  }, [setIsAuthenticated]);
+
   // Settings handlers
   const {
     notificationsEnabled,
@@ -165,6 +185,7 @@ export const NavigationHandlersProvider: React.FC<NavigationHandlersProviderProp
     startPinChange,
     walletExistsRef: walletExists,
     setIsAuthenticated,
+    onLock: handleLockApp,
   });
 
   // Account switcher - coordinates all data reset/fetch during account switch
@@ -192,13 +213,6 @@ export const NavigationHandlersProvider: React.FC<NavigationHandlersProviderProp
     showToast: (message: string, type: 'success' | 'error') => showSnackbar({ title: message, type }),
   });
 
-  // Passkey migration modal state (for showing after wallet import)
-  const [showPasskeyMigrationModal, setShowPasskeyMigrationModal] = useState(false);
-  const [passkeyMigrationData, setPasskeyMigrationData] = useState<PasskeyMigrationData | null>(null);
-
-  // Biometric setup modal state (for showing after passkey wallet creation)
-  const [showBiometricSetupModal, setShowBiometricSetupModal] = useState(false);
-
   // Reset wallet and state
   const resetWalletAndState = useCallback(async () => {
     await SecureStore.deleteItemAsync(SECURE_KEYS.MNEMONIC);
@@ -219,8 +233,11 @@ export const NavigationHandlersProvider: React.FC<NavigationHandlersProviderProp
 
   // PIN change complete wrapper
   const handlePinChangeCompleteWrapper = useCallback(async () => {
+    // First complete the PIN change (sets settingUpPin=false, changingPin=false)
     await handlePinChangeComplete();
-  }, [handlePinChangeComplete]);
+    // Ensure user is authenticated after PIN change
+    setIsAuthenticated(true);
+  }, [handlePinChangeComplete, setIsAuthenticated]);
 
   // PIN change cancel
   const handleCancelPinChange = useCallback(async () => {
@@ -272,13 +289,13 @@ export const NavigationHandlersProvider: React.FC<NavigationHandlersProviderProp
     }
   }, [setBiometricEnabled]);
 
-  const handleBiometricSetupSkip = useCallback(() => {
+  const handleBiometricSetupSkip = useCallback(async () => {
     // Hide modal immediately for instant feedback
     setShowBiometricSetupModal(false);
     // Update auth context state
     setBiometricEnabled(false);
-    // Save the preference to SecureStore in background
-    SecureStore.setItemAsync(SECURE_KEYS.BIOMETRIC_ENABLED, 'false');
+    // Save the preference to SecureStore
+    await SecureStore.setItemAsync(SECURE_KEYS.BIOMETRIC_ENABLED, 'false');
   }, [setBiometricEnabled]);
 
   // Settings handlers object - memoized to prevent recreation on every render

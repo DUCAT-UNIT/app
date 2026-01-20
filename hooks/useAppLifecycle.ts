@@ -12,7 +12,7 @@ import { AppState, AppStateStatus } from 'react-native';
 import * as ScreenCapture from 'expo-screen-capture';
 import { logger } from '../utils/logger';
 
-const INACTIVITY_TIMEOUT = 2 * 60 * 1000; // 2 minutes in milliseconds
+const INACTIVITY_TIMEOUT = 30 * 1000; // 30 seconds in milliseconds
 
 interface UseAppLifecycleParams {
   isAuthenticated: boolean;
@@ -40,6 +40,19 @@ export function useAppLifecycle({
   const appState = useRef<AppStateStatus>(AppState.currentState);
   const inactivityTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const wasInBackground = useRef(false);
+
+  // Use refs for callbacks to avoid stale closures in timers
+  const onLockRef = useRef(onLock);
+  const onAuthenticateUserRef = useRef(onAuthenticateUser);
+
+  // Keep refs updated
+  useEffect(() => {
+    onLockRef.current = onLock;
+  }, [onLock]);
+
+  useEffect(() => {
+    onAuthenticateUserRef.current = onAuthenticateUser;
+  }, [onAuthenticateUser]);
 
   // Allow screenshots by default (privacy mode disabled)
   useEffect(() => {
@@ -95,11 +108,11 @@ export function useAppLifecycle({
         // Require re-authentication if wallet exists AND seed backup is confirmed
         if (walletExists.current && seedConfirmedRef.current) {
           logger.debug('[useAppLifecycle] 🔒 LOCKING WALLET');
-          onLock();
+          onLockRef.current();
           // Only auto-trigger biometrics if user has enabled it AND device supports it
           if (isBiometricSupported && biometricEnabled) {
             logger.debug('[useAppLifecycle] Triggering biometric auth');
-            onAuthenticateUser();
+            onAuthenticateUserRef.current();
           }
         } else {
           logger.debug('[useAppLifecycle] NOT locking - conditions not met');
@@ -115,13 +128,11 @@ export function useAppLifecycle({
   }, [
     isBiometricSupported,
     biometricEnabled,
-    onLock,
-    onAuthenticateUser,
     walletExists,
     seedConfirmedRef,
-  ]);
+  ]); // onLock and onAuthenticateUser use refs to avoid stale closures
 
-  // Inactivity timer - locks wallet after 2 minutes of no interaction
+  // Inactivity timer - locks wallet after inactivity
   const startInactivityTimer = useCallback(() => {
     // Clear any existing timer
     if (inactivityTimer.current) {
@@ -131,9 +142,10 @@ export function useAppLifecycle({
     // Set new timer
     inactivityTimer.current = setTimeout(() => {
       // Lock the wallet after inactivity timeout
-      onLock();
+      logger.info('[useAppLifecycle] ⏱️ Inactivity timeout reached - locking wallet');
+      onLockRef.current();
     }, INACTIVITY_TIMEOUT);
-  }, [onLock]);
+  }, []); // No deps needed - uses ref for latest callback
 
   const resetInactivityTimer = useCallback(() => {
     // Restart timer when user interacts

@@ -4,7 +4,7 @@
  */
 
 import React, { createRef, useCallback, useEffect, useRef } from 'react';
-import { View, StyleSheet, ActivityIndicator, Text } from 'react-native';
+import { View, StyleSheet, ActivityIndicator, Text, Keyboard } from 'react-native';
 import { NavigationContainer, NavigationContainerRef, Route } from '@react-navigation/native';
 import { createStackNavigator } from '@react-navigation/stack';
 import AuthStack from './AuthStack';
@@ -32,6 +32,7 @@ import { useNavigationState } from '../hooks/useNavigationState';
 import { useAppLifecycle } from '../hooks/useAppLifecycle';
 import { useOnboardingFlow } from '../contexts/AuthContext';
 import { useCashu } from '../contexts/CashuContext';
+import { useAirdrop } from '../contexts/AirdropContext';
 
 import { createLinkingConfig } from '../services/turbo/turboLinkingConfig';
 import { useTurboTokenProcessor } from '../hooks/useTurboTokenProcessor';
@@ -85,6 +86,7 @@ export default function RootNavigator(): React.JSX.Element {
   const { fetchBalance } = useBalance();
   const { showToast, showSnackbar, dismissSnackbar } = useNotifications();
   const { receive, refresh: refreshCashu } = useCashu();
+  const { setShowAirdropModal } = useAirdrop();
 
   // Turbo token processing
   const { isVerifyingToken } = useTurboTokenProcessor({
@@ -133,19 +135,49 @@ export default function RootNavigator(): React.JSX.Element {
     return () => clearTimeout(timer);
   }, [isAuthenticated, shouldShowAuth, shouldShowPinOverlay, shouldShowLockOverlay, turboIsProcessing]);
 
-  // Handle lock/unlock
+  // Get handlers from context (needed for handleLock)
+  const {
+    handlePinSetupCompleteWrapper,
+    handlePinChangeCompleteWrapper,
+    handleCancelPinChange,
+    handleLockScreenAuthenticatedWrapper,
+    showPasskeyMigrationModal,
+    passkeyMigrationData,
+    hidePasskeyMigrationPrompt,
+    showBiometricSetupModal,
+    showBiometricSetupPrompt,
+    hideBiometricSetupPrompt,
+    handleBiometricSetupEnable,
+    handleBiometricSetupSkip,
+  } = useNavigationHandlers();
+
+  // Handle lock/unlock - dismiss all modals and reset navigation
   const handleLock = useCallback(() => {
+    logger.info('[RootNavigator] handleLock called - dismissing modals and locking');
+
+    // Dismiss keyboard
+    Keyboard.dismiss();
+
+    // Dismiss all open modals
+    hidePasskeyMigrationPrompt();
+    hideBiometricSetupPrompt();
+    setShowAirdropModal(false);
+
+    // Reset navigation to main screen
+    if (navigationRef.current?.isReady()) {
+      navigationRef.current.reset({
+        index: 0,
+        routes: [{ name: 'Main' }],
+      });
+    }
+
+    // Lock the app
     setIsAuthenticated(false);
-  }, [setIsAuthenticated]);
+  }, [setIsAuthenticated, hidePasskeyMigrationPrompt, hideBiometricSetupPrompt, setShowAirdropModal]);
 
   const handleAuthenticateUser = useCallback(async () => {
     await authenticateUser();
   }, [authenticateUser]);
-
-  // Handle successful authentication from lock overlay
-  const handleLockScreenAuthenticated = useCallback(() => {
-    setIsAuthenticated(true);
-  }, [setIsAuthenticated]);
 
   // Set up app lifecycle (inactivity timer, app state changes)
   const { resetInactivityTimer } = useAppLifecycle({
@@ -158,19 +190,6 @@ export default function RootNavigator(): React.JSX.Element {
     onAuthenticateUser: handleAuthenticateUser,
   });
 
-  // Get handlers from context
-  const {
-    handlePinSetupCompleteWrapper,
-    handlePinChangeCompleteWrapper,
-    handleCancelPinChange,
-    showPasskeyMigrationModal,
-    passkeyMigrationData,
-    hidePasskeyMigrationPrompt,
-    showBiometricSetupModal,
-    showBiometricSetupPrompt,
-    handleBiometricSetupEnable,
-    handleBiometricSetupSkip,
-  } = useNavigationHandlers();
 
   // Handle passkey enabled - show biometric setup prompt if supported
   const handlePasskeyEnabled = useCallback(async () => {
@@ -186,11 +205,10 @@ export default function RootNavigator(): React.JSX.Element {
   return (
     <View
       style={styles.container}
-      onStartShouldSetResponder={() => {
+      onTouchStart={() => {
         if (isAuthenticated) {
           resetInactivityTimer();
         }
-        return false;
       }}
     >
       <NavigationContainer linking={linking} ref={navigationRef} onStateChange={onNavigationStateChange}>
@@ -249,7 +267,7 @@ export default function RootNavigator(): React.JSX.Element {
           <View style={styles.lockOverlay}>
             <MutinynetBanner />
             <LockScreen
-              onAuthenticated={handleLockScreenAuthenticated}
+              onAuthenticated={handleLockScreenAuthenticatedWrapper}
               showFaceIdButton={biometricEnabled && isBiometricSupported}
               onFaceIdPress={handleAuthenticateUser}
             />
