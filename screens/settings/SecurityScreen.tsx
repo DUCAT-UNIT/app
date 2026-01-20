@@ -32,20 +32,6 @@ interface SecurityScreenProps {
     params: {
       /** Callback to close the Security screen */
       onClose: () => void;
-      /** Callback to toggle Face ID/biometric authentication */
-      onFaceIdToggle: () => void;
-      /** Callback to change PIN */
-      onChangePin: () => void;
-      /** Callback to toggle auto-lock */
-      onAutoLockToggle: () => void;
-      /** Callback to view seed phrase */
-      onViewSeedPhrase: () => void;
-      /** Callback to delete wallet */
-      onDeleteWallet: () => void;
-      /** Whether Face ID/biometric is enabled */
-      faceIdEnabled: boolean;
-      /** Whether auto-lock is enabled */
-      autoLockEnabled: boolean;
     };
   };
 }
@@ -80,10 +66,6 @@ const SecurityScreen = React.memo(function SecurityScreen({ route }: SecurityScr
     handleDeleteWallet: onDeleteWallet,
   } = settingsHandlers;
 
-  // Auto-lock not yet implemented - placeholder
-  const autoLockEnabled = false;
-  const onAutoLockToggle = (): void => {};
-
   const faceIdEnabled = biometricEnabled;
 
   return (
@@ -108,13 +90,6 @@ const SecurityScreen = React.memo(function SecurityScreen({ route }: SecurityScr
               testID="security-biometric-btn"
             />
             <SettingsOption iconName="pin" title="Change PIN" onPress={onChangePin} testID="security-change-pin-btn" />
-            <SettingsOption
-              iconName="logout"
-              title="Auto Lock"
-              onPress={onAutoLockToggle}
-              rightText={autoLockEnabled ? 'ON' : 'OFF'}
-              testID="security-auto-lock-btn"
-            />
             <SettingsOption
               iconName="recovery_phrase"
               title="Backup Wallet"

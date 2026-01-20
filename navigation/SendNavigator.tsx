@@ -9,6 +9,7 @@ import { createStackNavigator } from '@react-navigation/stack';
 import { useNavigation, EventArg } from '@react-navigation/native';
 import { COLORS } from '../theme';
 import { useTransactionBuild } from '../contexts/TransactionBuildContext';
+import { useSendFlowStore } from '../stores/sendFlowStore';
 import { withErrorBoundary } from '../components/withErrorBoundary';
 
 // Screen imports
@@ -87,6 +88,7 @@ interface BeforeRemoveEvent {
 function SendNavigatorContent(): null {
   const navigation = useNavigation();
   const { cancelIntent } = useTransactionBuild();
+  const resetSendFlow = useSendFlowStore((state) => state.resetSendFlow);
 
   // Clean up when send flow is dismissed (e.g., swipe down or back from first screen)
   useEffect(() => {
@@ -96,11 +98,13 @@ function SendNavigatorContent(): null {
       if (e.data.action.type === 'GO_BACK' || e.data.action.type === 'POP') {
         // Cancel any active intent and release UTXOs
         cancelIntent();
+        // Reset send flow state (address, amount, asset type)
+        resetSendFlow();
       }
     });
 
     return unsubscribe;
-  }, [navigation, cancelIntent]);
+  }, [navigation, cancelIntent, resetSendFlow]);
 
   return null;
 }

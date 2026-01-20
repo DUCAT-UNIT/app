@@ -70,9 +70,11 @@ export default function AddressInputScreen({ navigation, route }: AddressInputSc
     }
   }, [assetType, advancedMode, setTurboEnabled]);
 
+  // Handle prefilled address from QR scan or deep link
   useEffect(() => {
     const { prefillAddress, prefillAmount } = route.params || {};
-    if (prefillAddress && !sendRecipient) {
+    if (prefillAddress) {
+      logger.debug('AddressInputScreen: Prefilling address from params:', prefillAddress);
       handleRecipientChange(prefillAddress);
       if (prefillAmount) {
         setTimeout(() => {
@@ -81,7 +83,7 @@ export default function AddressInputScreen({ navigation, route }: AddressInputSc
       }
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+  }, [route.params?.prefillAddress]);
 
   useEffect(() => {
     const timer = setTimeout(() => addressInputRef.current?.focus(), 300);
@@ -91,7 +93,9 @@ export default function AddressInputScreen({ navigation, route }: AddressInputSc
   const handlePaste = async () => {
     const text = await Clipboard.getStringAsync();
     if (text) {
-      handleRecipientChange(text);
+      // Only use first line (remove newlines and extra whitespace)
+      const firstLine = text.split(/[\r\n]/)[0].trim();
+      handleRecipientChange(firstLine);
       setTimeout(() => addressInputRef.current?.focus(), 50);
     }
   };
@@ -111,16 +115,18 @@ export default function AddressInputScreen({ navigation, route }: AddressInputSc
   };
 
   const handleRecipientChange = (text: string): void => {
-    setSendRecipient(text);
+    // Strip newlines and only use first line
+    const cleanText = text.split(/[\r\n]/)[0].trim();
+    setSendRecipient(cleanText);
     setAddressError('');
     setIsValidAddress(false);
 
-    if (text) {
-      const validation = validateBitcoinAddress(text);
+    if (cleanText) {
+      const validation = validateBitcoinAddress(cleanText);
       if (!validation.valid) {
         setAddressError(validation.error || 'Invalid address');
       } else if (assetType === 'unit') {
-        const isTaproot = text.startsWith('tb1p') || text.startsWith('bc1p');
+        const isTaproot = cleanText.startsWith('tb1p') || cleanText.startsWith('bc1p');
         if (!isTaproot) {
           setAddressError('UNIT transfers require a Taproot address (tb1p... or bc1p...)');
         } else {
@@ -128,7 +134,7 @@ export default function AddressInputScreen({ navigation, route }: AddressInputSc
           setIsValidAddress(true);
         }
       } else {
-        const addressType = text.startsWith('tb1p') || text.startsWith('bc1p') ? 'taproot' : 'segwit';
+        const addressType = cleanText.startsWith('tb1p') || cleanText.startsWith('bc1p') ? 'taproot' : 'segwit';
         setSendAddressType(addressType);
         setIsValidAddress(true);
       }
