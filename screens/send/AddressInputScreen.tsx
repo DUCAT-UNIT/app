@@ -128,7 +128,7 @@ export default function AddressInputScreen({ navigation, route }: AddressInputSc
       } else if (assetType === 'unit') {
         const isTaproot = cleanText.startsWith('tb1p') || cleanText.startsWith('bc1p');
         if (!isTaproot) {
-          setAddressError('UNIT transfers require a Taproot address (tb1p... or bc1p...)');
+          setAddressError('UNIT requires Taproot (bc1p/tb1p)');
         } else {
           setSendAddressType('taproot');
           setIsValidAddress(true);
@@ -171,9 +171,9 @@ export default function AddressInputScreen({ navigation, route }: AddressInputSc
           <Text style={[styles.label, { fontSize: sf(12) }]}>Recipient Address</Text>
           <View style={[styles.labelRight, { gap: s(8) }]}>
             {addressError ? (
-              <View style={{ flexDirection: 'row', alignItems: 'center', gap: s(4), flexShrink: 1 }}>
+              <View style={{ flexDirection: 'row', alignItems: 'center', gap: s(4) }}>
                 <Icon name="close" size={s(14)} color={COLORS.DANGER_RED} />
-                <Text style={{ fontSize: sf(11), color: COLORS.DANGER_RED, fontFamily: 'CabinetGrotesk-Regular' }} numberOfLines={1}>{addressError}</Text>
+                <Text style={{ fontSize: sf(11), color: COLORS.DANGER_RED, fontFamily: 'CabinetGrotesk-Regular' }}>Invalid</Text>
               </View>
             ) : isValidAddress ? (
               <View style={{ flexDirection: 'row', alignItems: 'center', gap: s(4) }}>
@@ -197,6 +197,12 @@ export default function AddressInputScreen({ navigation, route }: AddressInputSc
             )}
           </View>
         </View>
+        {/* Error message displayed below label row */}
+        {addressError && (
+          <Text style={{ fontSize: sf(12), color: COLORS.DANGER_RED, fontFamily: 'CabinetGrotesk-Regular', marginBottom: s(8) }}>
+            {addressError}
+          </Text>
+        )}
 
         {/* Input Container with Action Buttons */}
         <View style={[styles.inputContainer, { borderRadius: s(16) }]}>

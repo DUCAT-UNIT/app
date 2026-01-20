@@ -43,17 +43,10 @@ const WithdrawAssetSheet = memo(function WithdrawAssetSheet({
   const formattedBtcUsd = useMemo(() => formatFiat(btcBalance * (btcPrice || 0)), [btcBalance, btcPrice]);
   const formattedUnitBalance = useMemo(() => formatFiat(unitBalance), [unitBalance]);
 
-  // Dismiss handler
+  // Dismiss handler - close immediately, no animation delay
   const handleDismiss = useCallback(() => {
-    Animated.timing(translateY, {
-      toValue: SCREEN_HEIGHT,
-      duration: 200,
-      useNativeDriver: true,
-    }).start(() => {
-      sheetOpacity.setValue(0);
-      onClose();
-    });
-  }, [translateY, sheetOpacity, onClose]);
+    onClose();
+  }, [onClose]);
 
   // Pan responder created once
   const panResponderRef = useRef(
@@ -85,17 +78,13 @@ const WithdrawAssetSheet = memo(function WithdrawAssetSheet({
     })
   );
 
-  // Fast open/close - matches ReceiveScreen behavior
-  const prevVisible = useRef(visible);
+  // Fast open/close - ensure sheet is visible when mounted
   useEffect(() => {
-    if (visible && !prevVisible.current) {
-      // Instant show - no slide animation for faster feel
+    if (visible) {
+      // Always reset position and show when becoming visible
       translateY.setValue(0);
       sheetOpacity.setValue(1);
-    } else if (!visible && prevVisible.current) {
-      sheetOpacity.setValue(0);
     }
-    prevVisible.current = visible;
   }, [visible, translateY, sheetOpacity]);
 
   const handleSelectAsset = useCallback((assetType: AssetType) => {
