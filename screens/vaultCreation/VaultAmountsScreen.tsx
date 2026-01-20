@@ -1,13 +1,12 @@
 /**
  * VaultAmountsScreen - Enter BTC deposit and UNIT borrow amounts
- * Features: Health factor display, max buttons, fee selection
+ * Features: Sliders for input, VaultActionGauge for health display
  */
 
 import React, { useEffect, useMemo, useCallback, useState } from 'react';
 import {
   Text,
   View,
-  TextInput,
   ScrollView,
   KeyboardAvoidingView,
   Platform,
@@ -18,12 +17,12 @@ import { NavigationProp } from '@react-navigation/native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import TouchableScale from '../../components/common/TouchableScale';
-import { HealthFactorBar } from '../../components/vaultCreation';
+import { VaultActionGauge, AmountSlider } from '../../components/vaultAction';
+import { UnitAmountSlider } from '../../components/vaultAction/UnitAmountSlider';
 import { useVaultCreation } from '../../stores/vaultCreationStore';
 import { useBalance } from '../../contexts/WalletDataContext';
 import { usePrice } from '../../stores/priceStore';
-import { getMaxUnit, getOpCostOpen } from '../../utils/vaultUtils';
-import { formatFiat } from '../../utils/formatters';
+import { getOpCostOpen, computeHealthFactor } from '../../utils/vaultUtils';
 import { colors, fonts, fontSizes, spacing, radii } from '../../styles/theme';
 
 interface VaultAmountsScreenProps {
@@ -40,11 +39,9 @@ export default function VaultAmountsScreen({ navigation }: VaultAmountsScreenPro
     maxBorrowable,
     setBtcAmount,
     setUnitAmount,
-    setSelectedFeeRate,
     setBitcoinPrice,
     setCurrentStep,
     error,
-    setError,
     reset,
   } = useVaultCreation();
 
@@ -54,8 +51,12 @@ export default function VaultAmountsScreen({ navigation }: VaultAmountsScreenPro
     navigation.getParent()?.goBack();
   }, [reset, navigation]);
 
-  const { segwitBalance, taprootBalance, runesBalance } = useBalance();
+  const { segwitBalance } = useBalance();
   const { btcPrice } = usePrice();
+
+  // Local preview states for real-time updates during drag
+  const [previewBtcAmount, setPreviewBtcAmount] = useState(btcAmount);
+  const [previewUnitAmount, setPreviewUnitAmount] = useState(unitAmount);
 
   // Update bitcoin price in store when it changes
   useEffect(() => {
@@ -64,65 +65,50 @@ export default function VaultAmountsScreen({ navigation }: VaultAmountsScreenPro
     }
   }, [btcPrice, setBitcoinPrice]);
 
-  // Local input states for controlled inputs
-  const [btcInput, setBtcInput] = useState(btcAmount > 0 ? btcAmount.toString() : '');
-  const [unitInput, setUnitInput] = useState(unitAmount > 0 ? unitAmount.toString() : '');
+  // Sync preview amounts when store values change
+  useEffect(() => {
+    setPreviewBtcAmount(btcAmount);
+  }, [btcAmount]);
+
+  useEffect(() => {
+    setPreviewUnitAmount(unitAmount);
+  }, [unitAmount]);
 
   // Calculate available BTC (balance minus fees)
-  // Note: segwitBalance is already in BTC, not sats
   const availableBtc = useMemo(() => {
     if (!segwitBalance) return 0;
     const feeCost = getOpCostOpen(selectedFeeRate) / 100_000_000;
     return Math.max(segwitBalance - feeCost - 0.00001, 0); // Leave small buffer
   }, [segwitBalance, selectedFeeRate]);
 
-  // Handle BTC input change
-  const handleBtcChange = useCallback((text: string) => {
-    // Allow only numbers and one decimal point
-    const cleaned = text.replace(/[^0-9.]/g, '');
-    const parts = cleaned.split('.');
-    const formatted = parts.length > 2
-      ? parts[0] + '.' + parts.slice(1).join('')
-      : cleaned;
+  // Calculate max borrowable for preview BTC amount (at 160% minimum health)
+  const previewMaxBorrowable = useMemo(() => {
+    if (!btcPrice || previewBtcAmount <= 0) return 0;
+    // Max borrow = (collateral * price) / 1.6 (160% health factor)
+    return Math.floor((previewBtcAmount * btcPrice) / 1.6);
+  }, [previewBtcAmount, btcPrice]);
 
-    setBtcInput(formatted);
-    const value = parseFloat(formatted) || 0;
-    setBtcAmount(value);
-  }, [setBtcAmount]);
+  // Preview health calculation
+  const previewHealth = useMemo(() => {
+    if (!btcPrice || previewBtcAmount <= 0 || previewUnitAmount <= 0) return 0;
+    return computeHealthFactor(previewBtcAmount, btcPrice, previewUnitAmount);
+  }, [previewBtcAmount, previewUnitAmount, btcPrice]);
 
-  // Handle UNIT input change
-  const handleUnitChange = useCallback((text: string) => {
-    const cleaned = text.replace(/[^0-9.]/g, '');
-    const parts = cleaned.split('.');
-    const formatted = parts.length > 2
-      ? parts[0] + '.' + parts.slice(1).join('')
-      : cleaned;
+  // Check if health would be below minimum
+  const healthBelowMin = previewHealth > 0 && previewHealth < 160;
 
-    setUnitInput(formatted);
-    const value = parseFloat(formatted) || 0;
-    setUnitAmount(value);
-  }, [setUnitAmount]);
-
-  // Handle MAX button for BTC
-  const handleMaxBtc = useCallback(() => {
-    setBtcInput(availableBtc.toFixed(8));
-    setBtcAmount(availableBtc);
-  }, [availableBtc, setBtcAmount]);
-
-  // Handle MAX button for UNIT
-  const handleMaxUnit = useCallback(() => {
-    if (maxBorrowable !== null) {
-      const max = Math.floor(maxBorrowable);
-      setUnitInput(max.toString());
-      setUnitAmount(max);
+  // Live update handlers
+  const handleBtcLiveChange = useCallback((val: number) => {
+    setPreviewBtcAmount(val);
+    // Reset UNIT preview if BTC changes significantly
+    if (val < previewBtcAmount * 0.5) {
+      setPreviewUnitAmount(0);
     }
-  }, [maxBorrowable, setUnitAmount]);
+  }, [previewBtcAmount]);
 
-  // Calculate USD values
-  const btcUsdValue = useMemo(() => {
-    if (!btcPrice || btcAmount <= 0) return null;
-    return btcAmount * btcPrice;
-  }, [btcAmount, btcPrice]);
+  const handleUnitLiveChange = useCallback((val: number) => {
+    setPreviewUnitAmount(val);
+  }, []);
 
   // Validation
   const canContinue = useMemo(() => {
@@ -139,16 +125,19 @@ export default function VaultAmountsScreen({ navigation }: VaultAmountsScreenPro
     navigation.navigate('VaultConfirm');
   }, [canContinue, setCurrentStep, navigation]);
 
+  const hasChanges = previewBtcAmount > 0 && previewUnitAmount > 0;
+
   return (
     <SafeAreaView style={styles.container} edges={['top']}>
       <KeyboardAvoidingView
         behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
-        style={styles.keyboardView}
+        style={styles.flex}
       >
         <ScrollView
-          style={styles.scrollView}
-          contentContainerStyle={styles.scrollContent}
+          style={styles.flex}
+          contentContainerStyle={styles.scroll}
           keyboardShouldPersistTaps="handled"
+          showsVerticalScrollIndicator={false}
         >
           {/* Header */}
           <View style={styles.header}>
@@ -158,92 +147,51 @@ export default function VaultAmountsScreen({ navigation }: VaultAmountsScreenPro
             </TouchableOpacity>
           </View>
 
-          <Text style={styles.subtitle}>
-            Deposit BTC as collateral and borrow UNIT stablecoins
-          </Text>
+          {/* Gauge */}
+          <VaultActionGauge
+            currentHealth={0}
+            newHealth={hasChanges ? previewHealth : undefined}
+            showTransition={hasChanges}
+          />
 
-          {/* BTC Deposit Section */}
-          <View style={styles.inputSection}>
-            <View style={styles.inputHeader}>
-              <Text style={styles.inputLabel}>Deposit BTC</Text>
-              <TouchableScale onPress={handleMaxBtc}>
-                <Text style={styles.maxButton}>MAX</Text>
-              </TouchableScale>
-            </View>
-
-            <View style={styles.inputContainer}>
-              <TextInput
-                style={styles.input}
-                value={btcInput}
-                onChangeText={handleBtcChange}
-                placeholder="0.00"
-                placeholderTextColor={colors.text.tertiary}
-                keyboardType="decimal-pad"
-                autoFocus
-              />
-              <Text style={styles.inputSuffix}>BTC</Text>
-            </View>
-
-            <View style={styles.inputMeta}>
-              <Text style={styles.usdValue}>
-                {btcUsdValue !== null ? `≈ ${formatFiat(btcUsdValue)}` : ''}
-              </Text>
-              <Text style={styles.balance}>
-                Available: {availableBtc.toFixed(8)} BTC
-              </Text>
-            </View>
+          {/* BTC Slider */}
+          <View style={styles.section}>
+            <AmountSlider
+              value={btcAmount}
+              maxValue={availableBtc}
+              onValueChange={setBtcAmount}
+              onLiveValueChange={handleBtcLiveChange}
+              label="BTC to Deposit"
+              btcPrice={btcPrice ?? undefined}
+              disabled={availableBtc <= 0}
+            />
           </View>
 
-          {/* UNIT Borrow Section */}
-          <View style={styles.inputSection}>
-            <View style={styles.inputHeader}>
-              <Text style={styles.inputLabel}>Borrow UNIT</Text>
-              <TouchableScale onPress={handleMaxUnit} disabled={maxBorrowable === null}>
-                <Text style={[styles.maxButton, maxBorrowable === null && styles.maxButtonDisabled]}>
-                  MAX
-                </Text>
-              </TouchableScale>
-            </View>
-
-            <View style={styles.inputContainer}>
-              <TextInput
-                style={styles.input}
-                value={unitInput}
-                onChangeText={handleUnitChange}
-                placeholder="0.00"
-                placeholderTextColor={colors.text.tertiary}
-                keyboardType="decimal-pad"
-              />
-              <Text style={styles.inputSuffix}>UNIT</Text>
-            </View>
-
-            <View style={styles.inputMeta}>
-              <Text style={styles.usdValue}>≈ {formatFiat(unitAmount)}</Text>
-              <Text style={styles.balance}>
-                Max borrowable: {maxBorrowable !== null ? Math.floor(maxBorrowable) : '-'} UNIT
-              </Text>
-            </View>
+          {/* UNIT Slider */}
+          <View style={styles.section}>
+            <UnitAmountSlider
+              value={unitAmount}
+              maxValue={previewMaxBorrowable}
+              onValueChange={setUnitAmount}
+              onLiveValueChange={handleUnitLiveChange}
+              label="UNIT to Borrow"
+              disabled={previewMaxBorrowable <= 0}
+            />
           </View>
 
-          {/* Health Factor */}
-          <View style={styles.healthSection}>
-            <Text style={styles.healthLabel}>Health Factor</Text>
-            <HealthFactorBar healthFactor={healthFactor} />
-            <View style={styles.healthMeta}>
-              <Text style={styles.healthHint}>
-                Minimum 160% required. Higher is safer.
+          {/* Warning for min health violation */}
+          {healthBelowMin && (
+            <View style={styles.warning}>
+              <Ionicons name="warning" size={20} color={colors.semantic.error} />
+              <Text style={styles.warningText}>
+                Health factor must be at least 160%. Reduce borrow amount or increase collateral.
               </Text>
-              {liquidationPrice > 0 && (
-                <Text style={styles.liquidationPrice}>
-                  Liquidation at: {formatFiat(liquidationPrice)}
-                </Text>
-              )}
             </View>
-          </View>
+          )}
 
           {/* Error message */}
           {error && (
-            <View style={styles.errorContainer}>
+            <View style={styles.error}>
               <Text style={styles.errorText}>{error}</Text>
             </View>
           )}
@@ -252,11 +200,11 @@ export default function VaultAmountsScreen({ navigation }: VaultAmountsScreenPro
         {/* Continue Button */}
         <View style={styles.footer}>
           <TouchableScale
-            style={[styles.continueButton, !canContinue && styles.continueButtonDisabled]}
+            style={[styles.continueBtn, !canContinue && styles.continueBtnDisabled]}
             onPress={handleContinue}
             disabled={!canContinue}
           >
-            <Text style={[styles.continueText, !canContinue && styles.continueTextDisabled]}>
+            <Text style={[styles.continueBtnText, !canContinue && styles.continueBtnTextDisabled]}>
               Continue
             </Text>
           </TouchableScale>
@@ -267,20 +215,9 @@ export default function VaultAmountsScreen({ navigation }: VaultAmountsScreenPro
 }
 
 const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-    backgroundColor: colors.bg.primary,
-  },
-  keyboardView: {
-    flex: 1,
-  },
-  scrollView: {
-    flex: 1,
-  },
-  scrollContent: {
-    padding: spacing.lg,
-    paddingBottom: 100,
-  },
+  container: { flex: 1, backgroundColor: colors.bg.primary },
+  flex: { flex: 1 },
+  scroll: { padding: spacing.lg, paddingBottom: 120 },
   header: {
     flexDirection: 'row',
     justifyContent: 'space-between',
@@ -292,108 +229,30 @@ const styles = StyleSheet.create({
     fontFamily: fonts.bold,
     color: colors.text.primary,
   },
-  subtitle: {
-    fontSize: fontSizes.md,
-    fontFamily: fonts.regular,
-    color: colors.text.secondary,
-    marginBottom: spacing.lg,
-  },
-  inputSection: {
-    marginBottom: spacing.xl,
-  },
-  inputHeader: {
+  section: { marginTop: spacing.lg },
+  warning: {
     flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    marginBottom: spacing.sm,
-  },
-  inputLabel: {
-    fontSize: fontSizes.md,
-    fontFamily: fonts.medium,
-    color: colors.text.primary,
-  },
-  maxButton: {
-    fontSize: fontSizes.sm,
-    fontFamily: fonts.bold,
-    color: colors.brand.primary,
-  },
-  maxButtonDisabled: {
-    color: colors.text.tertiary,
-  },
-  inputContainer: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: colors.bg.secondary,
-    borderRadius: radii.lg,
-    paddingHorizontal: spacing.md,
-    paddingVertical: spacing.md,
-    borderWidth: 1,
-    borderColor: colors.border.default,
-  },
-  input: {
-    flex: 1,
-    fontSize: fontSizes.xl,
-    fontFamily: fonts.medium,
-    color: colors.text.primary,
-  },
-  inputSuffix: {
-    fontSize: fontSizes.md,
-    fontFamily: fonts.medium,
-    color: colors.text.secondary,
-    marginLeft: spacing.sm,
-  },
-  inputMeta: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    marginTop: spacing.xs,
-    paddingHorizontal: spacing.xs,
-  },
-  usdValue: {
-    fontSize: fontSizes.sm,
-    fontFamily: fonts.regular,
-    color: colors.text.secondary,
-  },
-  balance: {
-    fontSize: fontSizes.sm,
-    fontFamily: fonts.regular,
-    color: colors.text.tertiary,
-  },
-  healthSection: {
-    backgroundColor: colors.bg.secondary,
-    borderRadius: radii.lg,
-    padding: spacing.md,
-    marginBottom: spacing.lg,
-  },
-  healthLabel: {
-    fontSize: fontSizes.md,
-    fontFamily: fonts.medium,
-    color: colors.text.primary,
-    marginBottom: spacing.md,
-  },
-  healthMeta: {
-    marginTop: spacing.md,
-  },
-  healthHint: {
-    fontSize: fontSizes.sm,
-    fontFamily: fonts.regular,
-    color: colors.text.tertiary,
-  },
-  liquidationPrice: {
-    fontSize: fontSizes.sm,
-    fontFamily: fonts.medium,
-    color: colors.semantic.warning,
-    marginTop: spacing.xs,
-  },
-  errorContainer: {
-    backgroundColor: 'rgba(208, 76, 104, 0.1)',
+    backgroundColor: 'rgba(208,76,104,0.1)',
     borderRadius: radii.md,
     padding: spacing.md,
-    marginBottom: spacing.lg,
+    marginTop: spacing.lg,
+    gap: spacing.sm,
   },
-  errorText: {
+  warningText: {
+    flex: 1,
+    color: colors.semantic.error,
     fontSize: fontSizes.sm,
     fontFamily: fonts.medium,
+  },
+  error: {
+    backgroundColor: 'rgba(208,76,104,0.1)',
+    borderRadius: radii.md,
+    padding: spacing.md,
+    marginTop: spacing.lg,
+  },
+  errorText: {
     color: colors.semantic.error,
+    fontSize: fontSizes.sm,
     textAlign: 'center',
   },
   footer: {
@@ -406,21 +265,17 @@ const styles = StyleSheet.create({
     borderTopWidth: 1,
     borderTopColor: colors.border.default,
   },
-  continueButton: {
+  continueBtn: {
     backgroundColor: colors.brand.primary,
     borderRadius: radii.lg,
     paddingVertical: spacing.md,
     alignItems: 'center',
   },
-  continueButtonDisabled: {
-    backgroundColor: colors.bg.tertiary,
-  },
-  continueText: {
+  continueBtnDisabled: { backgroundColor: colors.bg.tertiary },
+  continueBtnText: {
+    color: colors.text.white,
     fontSize: fontSizes.md,
     fontFamily: fonts.bold,
-    color: colors.text.white,
   },
-  continueTextDisabled: {
-    color: colors.text.tertiary,
-  },
+  continueBtnTextDisabled: { color: colors.text.tertiary },
 });
