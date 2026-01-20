@@ -241,8 +241,8 @@ export default function VaultTransactionDetailsSheet({
         {/* Liquidation Price Change */}
         <ChangeRow
           label="Liquidation Price"
-          beforeValue={details.before.liquidation > 0 ? `$${formatFiat(details.before.liquidation, 2)}` : 'N/A'}
-          afterValue={details.after.liquidation > 0 ? `$${formatFiat(details.after.liquidation, 2)}` : 'N/A'}
+          beforeValue={details.before.liquidation > 0 ? `$${formatFiat(details.before.liquidation, 2)}` : '\u221E'}
+          afterValue={details.after.liquidation > 0 ? `$${formatFiat(details.after.liquidation, 2)}` : '\u221E'}
           afterColor={details.after.liquidation < details.before.liquidation ? COLORS.GREEN : details.after.liquidation > details.before.liquidation ? COLORS.RED : COLORS.WHITE}
         />
       </View>
