@@ -43,6 +43,9 @@ export default function AssetSelectorScreen({ navigation }: AssetSelectorScreenP
     return unitRunesBalance + (cashuBalance || 0);
   }, [runesBalance, cashuBalance]);
 
+  const hasNoBtc = btcBalance <= 0;
+  const hasNoUnit = unitBalance <= 0;
+
   const handleSelectAsset = useCallback((assetType: AssetType): void => {
     logger.debug('Setting asset type to:', { assetType });
     setSendAssetType(assetType);
@@ -65,52 +68,52 @@ export default function AssetSelectorScreen({ navigation }: AssetSelectorScreenP
 
         {/* BTC Card */}
         <TouchableOpacity
-          style={[localStyles.assetCard, { padding: s(16), marginBottom: s(12) }]}
-          onPress={() => handleSelectAsset('btc')}
-          activeOpacity={0.7}
+          style={[localStyles.assetCard, { padding: s(16), marginBottom: s(12) }, hasNoBtc && localStyles.assetCardDisabled]}
+          onPress={hasNoBtc ? undefined : () => handleSelectAsset('btc')}
+          activeOpacity={hasNoBtc ? 1 : 0.7}
           testID="asset-btc"
         >
-          <View style={[localStyles.assetIconContainer, { marginRight: s(16) }]}>
+          <View style={[localStyles.assetIconContainer, { marginRight: s(16) }, hasNoBtc && localStyles.iconDisabled]}>
             <Icon name="btc_logo" size={s(40)} />
           </View>
           <View style={localStyles.assetInfo}>
-            <Text style={[localStyles.assetName, { fontSize: sf(16), marginBottom: s(2) }]}>Bitcoin</Text>
+            <Text style={[localStyles.assetName, { fontSize: sf(16), marginBottom: s(2) }, hasNoBtc && localStyles.textDisabled]}>Bitcoin</Text>
             <Text style={[localStyles.assetSymbol, { fontSize: sf(13) }]}>BTC</Text>
           </View>
           <View style={[localStyles.assetBalance, { marginRight: s(12) }]}>
-            <Text style={[localStyles.balanceAmount, { fontSize: sf(16), marginBottom: s(2) }]}>
-              {formatBalance(btcBalance, 8)}
+            <Text style={[localStyles.balanceAmount, { fontSize: sf(16), marginBottom: s(2) }, hasNoBtc && localStyles.textDisabled]}>
+              {hasNoBtc ? 'No balance' : formatBalance(btcBalance, 8)}
             </Text>
             <Text style={[localStyles.balanceUsd, { fontSize: sf(13) }]}>
-              ${formatFiat(btcBalance * (btcPrice || 0))}
+              {hasNoBtc ? '' : `$${formatFiat(btcBalance * (btcPrice || 0))}`}
             </Text>
           </View>
-          <Icon name="arrow_right" size={s(20)} color={COLORS.SECONDARY_TEXT} />
+          <Icon name="arrow_right" size={s(20)} color={hasNoBtc ? COLORS.DARK_GRAY : COLORS.SECONDARY_TEXT} />
         </TouchableOpacity>
 
         {/* UNIT Card */}
         <TouchableOpacity
-          style={[localStyles.assetCard, { padding: s(16), marginBottom: s(12) }]}
-          onPress={() => handleSelectAsset('unit')}
-          activeOpacity={0.7}
+          style={[localStyles.assetCard, { padding: s(16), marginBottom: s(12) }, hasNoUnit && localStyles.assetCardDisabled]}
+          onPress={hasNoUnit ? undefined : () => handleSelectAsset('unit')}
+          activeOpacity={hasNoUnit ? 1 : 0.7}
           testID="asset-unit"
         >
-          <View style={[localStyles.assetIconContainer, { marginRight: s(16) }]}>
+          <View style={[localStyles.assetIconContainer, { marginRight: s(16) }, hasNoUnit && localStyles.iconDisabled]}>
             <Icon name="unit_logo" size={s(40)} />
           </View>
           <View style={localStyles.assetInfo}>
-            <Text style={[localStyles.assetName, { fontSize: sf(16), marginBottom: s(2) }]}>Unit Rune</Text>
+            <Text style={[localStyles.assetName, { fontSize: sf(16), marginBottom: s(2) }, hasNoUnit && localStyles.textDisabled]}>Unit Rune</Text>
             <Text style={[localStyles.assetSymbol, { fontSize: sf(13) }]}>UNIT</Text>
           </View>
           <View style={[localStyles.assetBalance, { marginRight: s(12) }]}>
-            <Text style={[localStyles.balanceAmount, { fontSize: sf(16), marginBottom: s(2) }]}>
-              {formatFiat(unitBalance)}
+            <Text style={[localStyles.balanceAmount, { fontSize: sf(16), marginBottom: s(2) }, hasNoUnit && localStyles.textDisabled]}>
+              {hasNoUnit ? 'No balance' : formatFiat(unitBalance)}
             </Text>
             <Text style={[localStyles.balanceUsd, { fontSize: sf(13) }]}>
-              ${formatFiat(unitBalance)}
+              {hasNoUnit ? '' : `$${formatFiat(unitBalance)}`}
             </Text>
           </View>
-          <Icon name="arrow_right" size={s(20)} color={COLORS.SECONDARY_TEXT} />
+          <Icon name="arrow_right" size={s(20)} color={hasNoUnit ? COLORS.DARK_GRAY : COLORS.SECONDARY_TEXT} />
         </TouchableOpacity>
       </View>
     </View>
@@ -150,6 +153,15 @@ const localStyles = StyleSheet.create({
     borderRadius: 12,
     borderWidth: 1,
     borderColor: COLORS.BORDER_COLOR,
+  },
+  assetCardDisabled: {
+    opacity: 0.5,
+  },
+  iconDisabled: {
+    opacity: 0.5,
+  },
+  textDisabled: {
+    color: COLORS.SECONDARY_TEXT,
   },
   assetIconContainer: {},
   assetInfo: {

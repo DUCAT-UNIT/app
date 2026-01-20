@@ -169,7 +169,9 @@ const WalletScreen = React.memo(function WalletScreen({
   const hasNoDebt = vaultDebt === 0;
   // Check if total wallet BTC is too low for withdraw (not vault collateral)
   const totalWalletBTC = (segwitBalance || 0) + (taprootBalance || 0);
-  const hasInsufficientFunds = totalWalletBTC < MIN_WITHDRAW_COLLATERAL;
+  // Check if wallet has no funds to send (neither BTC nor UNIT)
+  const totalUnitBalance = getRunesAmount(runesBalance) + ((cashuBalance || 0) / 100);
+  const hasInsufficientFunds = totalWalletBTC < MIN_WITHDRAW_COLLATERAL && totalUnitBalance <= 0;
 
   // Handler for disabled vault action buttons - shows popup with haptic feedback
   const handleDisabledPress = useCallback(() => {
@@ -205,8 +207,8 @@ const WalletScreen = React.memo(function WalletScreen({
   const handleInsufficientFundsPress = useCallback(() => {
     Haptics.notificationAsync(Haptics.NotificationFeedbackType.Warning);
     useNotificationStore.getState().showSnackbar({
-      title: 'Insufficient funds',
-      description: 'Not enough collateral to cover withdrawal transaction fees',
+      title: 'No funds available',
+      description: 'You need BTC or UNIT in your wallet to send',
       type: 'warning',
     });
   }, []);
