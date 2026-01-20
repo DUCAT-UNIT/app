@@ -10,6 +10,8 @@ import {
   TextInput,
   ActivityIndicator,
   Pressable,
+  InputAccessoryView,
+  Platform,
 } from 'react-native';
 import { NavigationProp, RouteProp } from '@react-navigation/native';
 import { COLORS } from '../../theme';
@@ -302,7 +304,7 @@ export default function AmountInputScreen({ navigation, route }: AmountInputScre
         onTurboToggle={handleTurboToggle}
       />
 
-      <View style={[styles.content, { paddingHorizontal: s(20), paddingBottom: keyboardHeight > 0 ? keyboardHeight + s(80) : s(100) }]}>
+      <View style={[styles.content, { paddingHorizontal: s(20), paddingBottom: keyboardHeight > 0 ? keyboardHeight + s(100) : s(120) }]}>
         {/* Main Amount Display - Strike style */}
         <View style={styles.amountSection}>
           <View style={[styles.amountInputRow]}>
@@ -322,6 +324,7 @@ export default function AmountInputScreen({ navigation, route }: AmountInputScre
               keyboardType="decimal-pad"
               returnKeyType="done"
               onSubmitEditing={onReviewPress}
+              inputAccessoryViewID="amountInputAccessory"
               testID="amount-input"
             />
             <Text style={[styles.assetSymbol, { fontSize: sf(24), marginLeft: s(8) }]}>{assetLabel}</Text>
@@ -415,6 +418,13 @@ export default function AmountInputScreen({ navigation, route }: AmountInputScre
         requiredAmount={toggleInsufficientAmount}
         currentBalance={toggleInsufficientBalance}
       />
+
+      {/* Empty InputAccessoryView to hide keyboard Done button on iOS */}
+      {Platform.OS === 'ios' && (
+        <InputAccessoryView nativeID="amountInputAccessory">
+          <View />
+        </InputAccessoryView>
+      )}
     </View>
   );
 }
