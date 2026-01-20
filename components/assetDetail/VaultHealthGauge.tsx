@@ -201,7 +201,7 @@ export const VaultHealthGauge = memo(function VaultHealthGauge({
     Haptics.notificationAsync(Haptics.NotificationFeedbackType.Warning);
     useNotificationStore.getState().showSnackbar({
       title: 'No BTC available',
-      description: 'You need BTC in your wallet to deposit',
+      description: 'You need BTC in your wallet to pay for transaction fees',
       type: 'warning',
     });
   }, []);
@@ -452,22 +452,22 @@ export const VaultHealthGauge = memo(function VaultHealthGauge({
           </View>
           <View style={[styles.buttonPair, { gap: s(8) }]}>
             <TouchableOpacity
-              style={[styles.actionButton, { flex: 1 }, (isPendingTransaction || isLowHealth || hasNoDebt) && styles.actionButtonDisabled]}
-              onPress={isPendingTransaction ? handleDisabledPress : hasNoDebt ? handleNoDebtPress : isLowHealth ? handleLowHealthPress : onBorrowPress}
+              style={[styles.actionButton, { flex: 1 }, (isPendingTransaction || isLowHealth || hasNoDebt || hasNoBtc) && styles.actionButtonDisabled]}
+              onPress={isPendingTransaction ? handleDisabledPress : hasNoBtc ? handleNoBtcPress : hasNoDebt ? handleNoDebtPress : isLowHealth ? handleLowHealthPress : onBorrowPress}
             >
-              <View style={[styles.actionButtonIcon, { width: s(56), height: s(56), borderRadius: s(8), marginBottom: s(2) }, (isPendingTransaction || isLowHealth || hasNoDebt) && styles.actionButtonIconDisabled]}>
-                <Text style={[styles.buttonIcon, { fontSize: sf(25) }, (isPendingTransaction || isLowHealth || hasNoDebt) && styles.buttonIconDisabled]}>↑</Text>
+              <View style={[styles.actionButtonIcon, { width: s(56), height: s(56), borderRadius: s(8), marginBottom: s(2) }, (isPendingTransaction || isLowHealth || hasNoDebt || hasNoBtc) && styles.actionButtonIconDisabled]}>
+                <Text style={[styles.buttonIcon, { fontSize: sf(25) }, (isPendingTransaction || isLowHealth || hasNoDebt || hasNoBtc) && styles.buttonIconDisabled]}>↑</Text>
               </View>
-              <Text style={[styles.actionButtonLabel, { fontSize: sf(10) }, (isPendingTransaction || isLowHealth || hasNoDebt) && styles.actionButtonLabelDisabled]}>Borrow</Text>
+              <Text style={[styles.actionButtonLabel, { fontSize: sf(10) }, (isPendingTransaction || isLowHealth || hasNoDebt || hasNoBtc) && styles.actionButtonLabelDisabled]}>Borrow</Text>
             </TouchableOpacity>
             <TouchableOpacity
-              style={[styles.actionButton, { flex: 1 }, (isPendingTransaction || hasNoDebt || hasNoUnit) && styles.actionButtonDisabled]}
-              onPress={isPendingTransaction ? handleDisabledPress : hasNoDebt ? handleNoDebtPress : hasNoUnit ? handleNoUnitPress : onRepayPress}
+              style={[styles.actionButton, { flex: 1 }, (isPendingTransaction || hasNoDebt || hasNoUnit || hasNoBtc) && styles.actionButtonDisabled]}
+              onPress={isPendingTransaction ? handleDisabledPress : hasNoBtc ? handleNoBtcPress : hasNoDebt ? handleNoDebtPress : hasNoUnit ? handleNoUnitPress : onRepayPress}
             >
-              <View style={[styles.actionButtonIcon, { width: s(56), height: s(56), borderRadius: s(8), marginBottom: s(2) }, (isPendingTransaction || hasNoDebt || hasNoUnit) && styles.actionButtonIconDisabled]}>
-                <Text style={[styles.buttonIcon, { fontSize: sf(25) }, (isPendingTransaction || hasNoDebt || hasNoUnit) && styles.buttonIconDisabled]}>↓</Text>
+              <View style={[styles.actionButtonIcon, { width: s(56), height: s(56), borderRadius: s(8), marginBottom: s(2) }, (isPendingTransaction || hasNoDebt || hasNoUnit || hasNoBtc) && styles.actionButtonIconDisabled]}>
+                <Text style={[styles.buttonIcon, { fontSize: sf(25) }, (isPendingTransaction || hasNoDebt || hasNoUnit || hasNoBtc) && styles.buttonIconDisabled]}>↓</Text>
               </View>
-              <Text style={[styles.actionButtonLabel, { fontSize: sf(10) }, (isPendingTransaction || hasNoDebt || hasNoUnit) && styles.actionButtonLabelDisabled]}>Repay</Text>
+              <Text style={[styles.actionButtonLabel, { fontSize: sf(10) }, (isPendingTransaction || hasNoDebt || hasNoUnit || hasNoBtc) && styles.actionButtonLabelDisabled]}>Repay</Text>
             </TouchableOpacity>
           </View>
         </View>
