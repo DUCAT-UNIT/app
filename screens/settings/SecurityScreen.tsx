@@ -96,6 +96,11 @@ const SecurityScreen = React.memo(function SecurityScreen({ route }: SecurityScr
               onPress={onViewSeedPhrase}
               testID="security-backup-btn"
             />
+          </View>
+
+          {/* Danger Zone */}
+          <Text style={localStyles.dangerZoneHeader}>Danger Zone</Text>
+          <View style={localStyles.dangerSection}>
             <SettingsOption
               iconName="delete_wallet"
               title="Delete Wallet"
@@ -169,6 +174,23 @@ const localStyles = StyleSheet.create({
   },
   section: {
     marginBottom: 30,
+  },
+  dangerZoneHeader: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: COLORS.DANGER_RED,
+    fontFamily: 'CabinetGrotesk-Bold',
+    textTransform: 'uppercase',
+    letterSpacing: 1,
+    marginBottom: 12,
+    marginTop: 10,
+  },
+  dangerSection: {
+    borderWidth: 1,
+    borderColor: COLORS.DANGER_RED + '40',
+    borderRadius: 12,
+    backgroundColor: COLORS.DANGER_RED + '10',
+    paddingHorizontal: 12,
   },
   option: {
     flexDirection: 'row',

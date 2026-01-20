@@ -109,9 +109,11 @@ export const AmountSlider = memo(function AmountSlider({
       const x = Math.max(0, Math.min(e.x - THUMB_SIZE / 2, w - THUMB_SIZE));
       thumbX.value = x;
       const ratio = x / (w - THUMB_SIZE);
-      const newVal = Math.round(ratio * maxVal.value * 100000000) / 100000000;
+      // Round to satoshi (1 sat = 0.00000001 BTC)
+      const sats = Math.round(ratio * maxVal.value * 100000000);
+      const newVal = sats / 100000000;
       currentValue.value = newVal;
-      lastLiveUpdate.value = newVal;
+      lastLiveUpdate.value = sats;
       runOnJS(updateLive)(newVal);
     })
     .onUpdate((e) => {
@@ -121,11 +123,13 @@ export const AmountSlider = memo(function AmountSlider({
       const x = Math.max(0, Math.min(e.x - THUMB_SIZE / 2, w - THUMB_SIZE));
       thumbX.value = x;
       const ratio = x / (w - THUMB_SIZE);
-      const newVal = Math.round(ratio * maxVal.value * 100000000) / 100000000;
+      // Round to satoshi (1 sat = 0.00000001 BTC)
+      const sats = Math.round(ratio * maxVal.value * 100000000);
+      const newVal = sats / 100000000;
       currentValue.value = newVal;
-      // Throttle live updates - only update if changed significantly
-      if (Math.abs(newVal - lastLiveUpdate.value) > 0.00001) {
-        lastLiveUpdate.value = newVal;
+      // Only update if satoshi value changed
+      if (sats !== lastLiveUpdate.value) {
+        lastLiveUpdate.value = sats;
         runOnJS(updateLive)(newVal);
       }
     })
@@ -177,7 +181,7 @@ export const AmountSlider = memo(function AmountSlider({
     width: thumbX.value + THUMB_SIZE / 2,
   }));
 
-  // Animated text props for BTC value - fixed 8 decimal places for consistency
+  // Animated text props for BTC value - fixed 8 decimal places
   const btcAnimatedProps = useAnimatedProps(() => {
     const v = currentValue.value;
     const text = v.toFixed(8);

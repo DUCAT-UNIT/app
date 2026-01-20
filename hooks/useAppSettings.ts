@@ -73,19 +73,28 @@ export function useAppSettings({ biometricEnabled, setIsAuthenticated }: UseAppS
   }, []);
 
   const handleShowZeroAssetsToggle = useCallback(async () => {
-    const newValue = !showZeroAssets;
-    setShowZeroAssets(newValue);
-    await SecureStore.setItemAsync('showZeroAssets', newValue.toString());
-  }, [showZeroAssets]);
+    let newValue: boolean;
+    setShowZeroAssets(prev => {
+      newValue = !prev;
+      return newValue;
+    });
+    await new Promise(resolve => setTimeout(resolve, 0));
+    await SecureStore.setItemAsync('showZeroAssets', newValue!.toString());
+  }, []);
 
   const handleAdvancedModeToggle = useCallback(async () => {
-    logger.debug('[useAppSettings] Advanced Mode toggle called, current value:', advancedMode);
-    const newValue = !advancedMode;
-    logger.debug('[useAppSettings] Setting Advanced Mode to:', newValue);
-    setAdvancedMode(newValue);
-    await SecureStore.setItemAsync('advancedMode', newValue.toString());
+    // Use functional setState to get the latest value and avoid stale closure
+    let newValue: boolean;
+    setAdvancedMode(prev => {
+      newValue = !prev;
+      logger.debug('[useAppSettings] Advanced Mode toggle:', prev, '->', newValue);
+      return newValue;
+    });
+    // Small delay to ensure state is updated before persisting
+    await new Promise(resolve => setTimeout(resolve, 0));
+    await SecureStore.setItemAsync('advancedMode', newValue!.toString());
     logger.debug('[useAppSettings] Advanced Mode toggle complete');
-  }, [advancedMode]);
+  }, []);
 
   const handleNotificationsToggle = useCallback(() => {
     const newValue = !notificationsEnabled;

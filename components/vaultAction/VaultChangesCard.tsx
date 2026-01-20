@@ -186,21 +186,26 @@ const styles = StyleSheet.create({
   changeValues: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 8,
   },
   valueContainer: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: 4,
+    width: 110,
+    justifyContent: 'flex-end',
   },
   beforeValue: {
     fontWeight: '500',
+    fontVariant: ['tabular-nums'],
   },
   arrow: {
     color: COLORS.SECONDARY_TEXT,
+    width: 30,
+    textAlign: 'center',
   },
   afterValue: {
     fontWeight: '600',
+    fontVariant: ['tabular-nums'],
   },
 });
 

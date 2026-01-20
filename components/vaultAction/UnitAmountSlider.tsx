@@ -101,10 +101,11 @@ export const UnitAmountSlider = memo(function UnitAmountSlider({
       const x = Math.max(0, Math.min(e.x - THUMB_SIZE / 2, w - THUMB_SIZE));
       thumbX.value = x;
       const ratio = x / (w - THUMB_SIZE);
-      // Round to 2 decimal places (per cent)
-      const newVal = Math.round(ratio * maxVal.value * 100) / 100;
+      // Round to cents (0.01 UNIT increments)
+      const cents = Math.round(ratio * maxVal.value * 100);
+      const newVal = cents / 100;
       currentValue.value = newVal;
-      lastLiveUpdate.value = newVal;
+      lastLiveUpdate.value = cents;
       runOnJS(updateLive)(newVal);
     })
     .onUpdate((e) => {
@@ -114,12 +115,13 @@ export const UnitAmountSlider = memo(function UnitAmountSlider({
       const x = Math.max(0, Math.min(e.x - THUMB_SIZE / 2, w - THUMB_SIZE));
       thumbX.value = x;
       const ratio = x / (w - THUMB_SIZE);
-      // Round to 2 decimal places (per cent)
-      const newVal = Math.round(ratio * maxVal.value * 100) / 100;
+      // Round to cents (0.01 UNIT increments)
+      const cents = Math.round(ratio * maxVal.value * 100);
+      const newVal = cents / 100;
       currentValue.value = newVal;
-      // Throttle live updates (0.01 threshold)
-      if (Math.abs(newVal - lastLiveUpdate.value) >= 0.01) {
-        lastLiveUpdate.value = newVal;
+      // Only update if cents value changed
+      if (cents !== lastLiveUpdate.value) {
+        lastLiveUpdate.value = cents;
         runOnJS(updateLive)(newVal);
       }
     })
@@ -290,8 +292,9 @@ const styles = StyleSheet.create({
     fontWeight: '700',
     padding: 0,
     margin: 0,
-    minWidth: 80,
-    textAlign: 'center',
+    width: 150,
+    textAlign: 'right',
+    fontVariant: ['tabular-nums'],
   },
   editInput: {
     color: COLORS.WHITE,
