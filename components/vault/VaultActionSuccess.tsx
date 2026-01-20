@@ -15,7 +15,7 @@ import { getTxUrl } from '../../utils/constants';
 import { formatFiat, formatBTC } from '../../utils/formatters';
 import { colors, fonts, fontSizes, spacing, radii } from '../../styles/theme';
 
-export type VaultActionType = 'deposit' | 'withdraw' | 'borrow' | 'repay';
+export type VaultActionType = 'create' | 'deposit' | 'withdraw' | 'borrow' | 'repay';
 
 interface VaultActionSuccessProps {
   actionType: VaultActionType;
@@ -27,6 +27,10 @@ interface VaultActionSuccessProps {
 }
 
 const ACTION_CONFIG = {
+  create: {
+    title: 'Vault Created!',
+    message: 'May take a few minutes to confirm.',
+  },
   deposit: {
     title: 'Deposit Complete!',
     message: 'Collateral added. May take a few minutes to confirm.',

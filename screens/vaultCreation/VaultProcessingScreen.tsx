@@ -7,7 +7,7 @@ import React, { useEffect } from 'react';
 import { Text, View, StyleSheet } from 'react-native';
 import { NavigationProp } from '@react-navigation/native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { ProcessingStepsList, VaultStepIndicator } from '../../components/vaultCreation';
+import { ProcessingStepsList } from '../../components/vaultCreation';
 import { useVaultCreation } from '../../stores/vaultCreationStore';
 import { colors, fonts, fontSizes, spacing } from '../../styles/theme';
 
@@ -42,8 +42,6 @@ export default function VaultProcessingScreen({ navigation }: VaultProcessingScr
             Please wait while we process your vault creation
           </Text>
         </View>
-
-        <VaultStepIndicator currentStep={3} />
 
         {/* Processing Steps */}
         <View style={styles.stepsContainer}>

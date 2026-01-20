@@ -19,7 +19,6 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import TouchableScale from '../../components/common/TouchableScale';
 import { HealthFactorBar } from '../../components/vaultCreation';
-import { VaultStepIndicator } from '../../components/vaultCreation';
 import { useVaultCreation } from '../../stores/vaultCreationStore';
 import { useBalance } from '../../contexts/WalletDataContext';
 import { usePrice } from '../../stores/priceStore';
@@ -153,18 +152,15 @@ export default function VaultAmountsScreen({ navigation }: VaultAmountsScreenPro
         >
           {/* Header */}
           <View style={styles.header}>
-            <View style={styles.headerRow}>
-              <Text style={styles.title}>Create Vault</Text>
-              <TouchableOpacity onPress={handleClose} style={styles.closeButton}>
-                <Ionicons name="close" size={24} color={colors.text.secondary} />
-              </TouchableOpacity>
-            </View>
-            <Text style={styles.subtitle}>
-              Deposit BTC as collateral and borrow UNIT stablecoins
-            </Text>
+            <Text style={styles.title}>Create Vault</Text>
+            <TouchableOpacity onPress={handleClose} hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}>
+              <Ionicons name="close" size={24} color={colors.text.secondary} />
+            </TouchableOpacity>
           </View>
 
-          <VaultStepIndicator currentStep={1} />
+          <Text style={styles.subtitle}>
+            Deposit BTC as collateral and borrow UNIT stablecoins
+          </Text>
 
           {/* BTC Deposit Section */}
           <View style={styles.inputSection}>
@@ -286,26 +282,21 @@ const styles = StyleSheet.create({
     paddingBottom: 100,
   },
   header: {
-    marginBottom: spacing.lg,
-  },
-  headerRow: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-  },
-  closeButton: {
-    padding: spacing.xs,
+    marginBottom: spacing.sm,
   },
   title: {
     fontSize: fontSizes.xxl,
     fontFamily: fonts.bold,
     color: colors.text.primary,
-    marginBottom: spacing.xs,
   },
   subtitle: {
     fontSize: fontSizes.md,
     fontFamily: fonts.regular,
     color: colors.text.secondary,
+    marginBottom: spacing.lg,
   },
   inputSection: {
     marginBottom: spacing.xl,

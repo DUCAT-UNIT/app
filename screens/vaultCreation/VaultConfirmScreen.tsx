@@ -4,13 +4,13 @@
  */
 
 import React, { useCallback, useState } from 'react';
-import { Text, View, ScrollView, StyleSheet, Alert } from 'react-native';
+import { Text, View, ScrollView, StyleSheet, Alert, TouchableOpacity } from 'react-native';
 import { NavigationProp } from '@react-navigation/native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import * as LocalAuthentication from 'expo-local-authentication';
 import { Ionicons } from '@expo/vector-icons';
 import TouchableScale from '../../components/common/TouchableScale';
-import { HealthFactorGauge, VaultStepIndicator } from '../../components/vaultCreation';
+import { HealthFactorGauge } from '../../components/vaultCreation';
 import { useVaultCreation } from '../../stores/vaultCreationStore';
 import { useCreateVault } from '../../hooks/useCreateVault';
 import { usePrice } from '../../stores/priceStore';
@@ -99,13 +99,11 @@ export default function VaultConfirmScreen({ navigation }: VaultConfirmScreenPro
       >
         {/* Header */}
         <View style={styles.header}>
-          <TouchableScale onPress={handleBack} style={styles.backButton}>
-            <Ionicons name="arrow-back" size={24} color={colors.text.primary} />
-          </TouchableScale>
           <Text style={styles.title}>Confirm Vault</Text>
+          <TouchableOpacity onPress={handleBack} hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}>
+            <Ionicons name="close" size={24} color={colors.text.secondary} />
+          </TouchableOpacity>
         </View>
-
-        <VaultStepIndicator currentStep={2} />
 
         {/* Health Factor Display */}
         <View style={styles.healthContainer}>
@@ -224,11 +222,9 @@ const styles = StyleSheet.create({
   },
   header: {
     flexDirection: 'row',
+    justifyContent: 'space-between',
     alignItems: 'center',
     marginBottom: spacing.lg,
-  },
-  backButton: {
-    marginRight: spacing.md,
   },
   title: {
     fontSize: fontSizes.xxl,
