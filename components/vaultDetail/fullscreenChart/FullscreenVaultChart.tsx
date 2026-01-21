@@ -3,19 +3,18 @@
  * Fullscreen modal with chart on top 60% and activity list below
  */
 
-import React, { useState, useEffect, useMemo, useCallback, useRef, memo } from 'react';
-import { View, Text, TouchableOpacity, Modal, ScrollView, Dimensions, Animated, TouchableWithoutFeedback, PanResponder as RNPanResponder, StyleSheet } from 'react-native';
+import React, { useState, useEffect, useMemo, useCallback, memo } from 'react';
+import { View, Text, TouchableOpacity, Modal, ScrollView, Dimensions, Animated } from 'react-native';
 import Svg, { Path, Line, Defs, LinearGradient, Stop } from 'react-native-svg';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { COLORS } from '../../../theme';
 import Icon from '../../icons';
 import { VaultActivityList } from '../VaultActivityList';
+import VaultTransactionDetailsSheet from '../VaultTransactionDetailsSheet';
 import type { VaultHistoryTransaction } from '../../../services/vaultService';
-import { formatBalance, formatUnitAmount, formatFiat } from '../../../utils/formatters';
 import type { PriceTimeframe, ScrubData } from '../vaultChart/types';
 import { TIMEFRAMES, INTERVAL_CONFIG } from '../vaultChart/types';
 import { getHealthColor, getHealthChipBg } from '../vaultChart/utils';
-import { LEFT_MARGIN, RIGHT_MARGIN } from './constants';
 import { fullscreenStyles as styles } from './styles';
 import { useFullscreenChartData } from './useFullscreenChartData';
 import { useScrubAnimation } from './useScrubAnimation';
@@ -125,9 +124,6 @@ export const FullscreenVaultChart = memo(function FullscreenVaultChart({
     scrubOpacity.setValue(0);
   }, [selectedTimeframe, scrubOpacity]);
 
-  // Bottom sheet animation
-  const sheetTranslateY = useRef(new Animated.Value(500)).current;
-
   // Transaction press handler
   const handleTransactionPress = useCallback((
     transaction: VaultHistoryTransaction,
@@ -136,24 +132,11 @@ export const FullscreenVaultChart = memo(function FullscreenVaultChart({
     setSelectedTransaction(transaction);
     setPreviousTransaction(prevTransaction);
     setShowTransactionDetails(true);
-    // Animate sheet in
-    sheetTranslateY.setValue(500);
-    Animated.spring(sheetTranslateY, {
-      toValue: 0,
-      useNativeDriver: true,
-      friction: 8,
-    }).start();
-  }, [sheetTranslateY]);
+  }, []);
 
   const handleCloseTransactionDetails = useCallback(() => {
-    Animated.timing(sheetTranslateY, {
-      toValue: 500,
-      duration: 200,
-      useNativeDriver: true,
-    }).start(() => {
-      setShowTransactionDetails(false);
-    });
-  }, [sheetTranslateY]);
+    setShowTransactionDetails(false);
+  }, []);
 
   return (
     <Modal visible={visible} animationType="fade" onRequestClose={onClose}>
@@ -372,255 +355,16 @@ export const FullscreenVaultChart = memo(function FullscreenVaultChart({
           </ScrollView>
         </View>
 
-        {/* Inline Bottom Sheet for Transaction Details */}
-        {showTransactionDetails && selectedTransaction && (
-          <>
-            {/* Backdrop */}
-            <TouchableWithoutFeedback onPress={handleCloseTransactionDetails}>
-              <View style={inlineSheetStyles.backdrop} />
-            </TouchableWithoutFeedback>
-
-            {/* Sheet */}
-            <Animated.View
-              style={[
-                inlineSheetStyles.sheet,
-                { transform: [{ translateY: sheetTranslateY }] },
-              ]}
-            >
-              {/* Handle */}
-              <View style={inlineSheetStyles.handleContainer}>
-                <View style={inlineSheetStyles.handle} />
-              </View>
-
-              {/* Header */}
-              <View style={inlineSheetStyles.header}>
-                <View style={inlineSheetStyles.headerContent}>
-                  <Icon name="vault_logo" size={24} color="#DDDDDD" />
-                  <View style={inlineSheetStyles.headerText}>
-                    <Text style={inlineSheetStyles.title}>
-                      {selectedTransaction.action === 'open' ? 'Open Vault' :
-                       selectedTransaction.action === 'borrow' ? 'Borrow UNIT' :
-                       selectedTransaction.action === 'repay' ? 'Repay UNIT' :
-                       selectedTransaction.action === 'deposit' ? 'Deposit BTC' :
-                       selectedTransaction.action === 'withdraw' ? 'Withdraw BTC' :
-                       selectedTransaction.action}
-                    </Text>
-                    <Text style={inlineSheetStyles.subtitle}>
-                      {new Date(selectedTransaction.timestamp * 1000).toLocaleDateString('en-US', {
-                        weekday: 'short',
-                        month: 'short',
-                        day: 'numeric',
-                        year: 'numeric',
-                        hour: '2-digit',
-                        minute: '2-digit',
-                      })}
-                    </Text>
-                  </View>
-                </View>
-                <TouchableOpacity onPress={handleCloseTransactionDetails} style={inlineSheetStyles.closeButton}>
-                  <Icon name="close" size={24} color={COLORS.WHITE} />
-                </TouchableOpacity>
-              </View>
-
-              {/* Summary */}
-              <View style={inlineSheetStyles.summarySection}>
-                <View style={[inlineSheetStyles.summaryCard, {
-                  borderColor: selectedTransaction.action === 'deposit' || selectedTransaction.action === 'repay'
-                    ? COLORS.GREEN : COLORS.RED
-                }]}>
-                  <Text style={inlineSheetStyles.summaryText}>
-                    {selectedTransaction.action === 'open' ? `Opened vault with ${formatBalance(selectedTransaction.btc_amt / 100_000_000)} BTC` :
-                     selectedTransaction.action === 'borrow' ? `Borrowed ${formatUnitAmount(Math.abs(previousTransaction ? selectedTransaction.amount_borrowed - previousTransaction.amount_borrowed : selectedTransaction.amount_borrowed))} UNIT` :
-                     selectedTransaction.action === 'repay' ? `Repaid ${formatUnitAmount(Math.abs(previousTransaction ? previousTransaction.amount_borrowed - selectedTransaction.amount_borrowed : selectedTransaction.unit_amt))} UNIT` :
-                     selectedTransaction.action === 'deposit' ? `Deposited ${formatBalance(selectedTransaction.btc_amt / 100_000_000)} BTC` :
-                     selectedTransaction.action === 'withdraw' ? `Withdrew ${formatBalance(Math.abs(selectedTransaction.btc_amt) / 100_000_000)} BTC` :
-                     selectedTransaction.action}
-                  </Text>
-                  <Text style={inlineSheetStyles.oraclePriceText}>
-                    Oracle Price: ${formatFiat(selectedTransaction.oracle_price, 2)}
-                  </Text>
-                </View>
-              </View>
-
-              {/* Changes */}
-              <View style={inlineSheetStyles.changesSection}>
-                <Text style={inlineSheetStyles.sectionTitle}>Vault Changes</Text>
-
-                {/* Collateral */}
-                <View style={inlineSheetStyles.changeRow}>
-                  <Text style={inlineSheetStyles.changeLabel}>Collateral</Text>
-                  <View style={inlineSheetStyles.changeValues}>
-                    <View style={inlineSheetStyles.valueContainer}>
-                      <Icon name="btc_symbol" size={12} color={COLORS.SECONDARY_TEXT} />
-                      <Text style={inlineSheetStyles.beforeValue}>
-                        {formatBalance(previousTransaction ? previousTransaction.vault_amount / 100_000_000 : 0)}
-                      </Text>
-                    </View>
-                    <Text style={inlineSheetStyles.arrow}>→</Text>
-                    <View style={inlineSheetStyles.valueContainer}>
-                      <Icon name="btc_symbol" size={12} color={COLORS.WHITE} />
-                      <Text style={inlineSheetStyles.afterValue}>
-                        {formatBalance(selectedTransaction.vault_amount / 100_000_000)}
-                      </Text>
-                    </View>
-                  </View>
-                </View>
-
-                {/* Debt */}
-                <View style={inlineSheetStyles.changeRow}>
-                  <Text style={inlineSheetStyles.changeLabel}>Total Debt</Text>
-                  <View style={inlineSheetStyles.changeValues}>
-                    <View style={inlineSheetStyles.valueContainer}>
-                      <Icon name="unit_symbol" size={12} color={COLORS.SECONDARY_TEXT} />
-                      <Text style={inlineSheetStyles.beforeValue}>
-                        {formatUnitAmount(previousTransaction ? previousTransaction.amount_borrowed : 0)}
-                      </Text>
-                    </View>
-                    <Text style={inlineSheetStyles.arrow}>→</Text>
-                    <View style={inlineSheetStyles.valueContainer}>
-                      <Icon name="unit_symbol" size={12} color={COLORS.WHITE} />
-                      <Text style={inlineSheetStyles.afterValue}>
-                        {formatUnitAmount(selectedTransaction.amount_borrowed)}
-                      </Text>
-                    </View>
-                  </View>
-                </View>
-              </View>
-            </Animated.View>
-          </>
-        )}
+        {/* Transaction Details Sheet */}
+        <VaultTransactionDetailsSheet
+          visible={showTransactionDetails}
+          onClose={handleCloseTransactionDetails}
+          transaction={selectedTransaction}
+          previousTransaction={previousTransaction}
+        />
       </View>
     </Modal>
   );
-});
-
-// Inline sheet styles (to avoid nested Modal issues)
-const inlineSheetStyles = StyleSheet.create({
-  backdrop: {
-    ...StyleSheet.absoluteFillObject,
-    backgroundColor: 'rgba(0, 0, 0, 0.7)',
-  },
-  sheet: {
-    position: 'absolute',
-    bottom: 0,
-    left: 0,
-    right: 0,
-    backgroundColor: COLORS.DARK_BG,
-    borderTopLeftRadius: 20,
-    borderTopRightRadius: 20,
-    paddingBottom: 40,
-  },
-  handleContainer: {
-    alignItems: 'center',
-    paddingVertical: 12,
-  },
-  handle: {
-    width: 40,
-    height: 5,
-    backgroundColor: COLORS.MEDIUM_GRAY,
-    borderRadius: 3,
-  },
-  header: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    paddingHorizontal: 20,
-    paddingBottom: 16,
-    borderBottomWidth: 1,
-    borderBottomColor: COLORS.BORDER_COLOR,
-  },
-  headerContent: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 12,
-    flex: 1,
-  },
-  headerText: {
-    flex: 1,
-  },
-  title: {
-    fontSize: 20,
-    fontWeight: 'bold',
-    color: COLORS.WHITE,
-  },
-  subtitle: {
-    fontSize: 14,
-    color: COLORS.SECONDARY_TEXT,
-    marginTop: 4,
-  },
-  closeButton: {
-    padding: 4,
-  },
-  summarySection: {
-    paddingHorizontal: 20,
-    marginTop: 20,
-  },
-  summaryCard: {
-    backgroundColor: COLORS.CARD_BG,
-    borderRadius: 12,
-    padding: 16,
-    borderWidth: 1,
-  },
-  summaryText: {
-    fontSize: 16,
-    fontWeight: '600',
-    color: COLORS.WHITE,
-    marginBottom: 8,
-  },
-  oraclePriceText: {
-    fontSize: 14,
-    color: COLORS.SECONDARY_TEXT,
-  },
-  changesSection: {
-    paddingHorizontal: 20,
-    marginTop: 24,
-  },
-  sectionTitle: {
-    fontSize: 12,
-    color: COLORS.SECONDARY_TEXT,
-    marginBottom: 16,
-    textTransform: 'uppercase',
-    fontWeight: '600',
-  },
-  changeRow: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    paddingVertical: 12,
-    borderBottomWidth: 1,
-    borderBottomColor: COLORS.VERY_DARK_GRAY,
-  },
-  changeLabel: {
-    fontSize: 14,
-    color: COLORS.SECONDARY_TEXT,
-    flex: 1,
-  },
-  changeValues: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    flex: 2,
-    justifyContent: 'flex-end',
-  },
-  valueContainer: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 4,
-  },
-  beforeValue: {
-    fontSize: 14,
-    fontWeight: '500',
-    color: COLORS.SECONDARY_TEXT,
-  },
-  arrow: {
-    fontSize: 14,
-    color: COLORS.SECONDARY_TEXT,
-    marginHorizontal: 8,
-  },
-  afterValue: {
-    fontSize: 14,
-    fontWeight: '600',
-    color: COLORS.WHITE,
-  },
 });
 
 export default FullscreenVaultChart;

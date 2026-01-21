@@ -3,12 +3,13 @@
  * Bottom sheet showing vault transaction details with before/after state changes
  */
 
-import React, { useMemo } from 'react';
-import { View, Text, StyleSheet } from 'react-native';
+import React, { useMemo, useCallback } from 'react';
+import { View, Text, StyleSheet, TouchableOpacity, Linking } from 'react-native';
 import { COLORS } from '../../theme';
 import Icon from '../icons';
 import BottomSheet from '../common/BottomSheet';
 import { formatBalance, formatUnitAmount, formatFiat } from '../../utils/formatters';
+import { getOrdTxUrl } from '../../utils/constants';
 import type { VaultHistoryTransaction } from '../../services/vaultService';
 
 const LIQUIDATION_RATE = 1.5;
@@ -91,6 +92,12 @@ const formatDate = (timestamp: number): string => {
   });
 };
 
+// Format txid for display (truncated)
+const formatTxid = (txid: string): string => {
+  if (txid.length <= 16) return txid;
+  return `${txid.slice(0, 8)}...${txid.slice(-8)}`;
+};
+
 interface ChangeRowProps {
   label: string;
   beforeValue: string;
@@ -101,15 +108,21 @@ interface ChangeRowProps {
 }
 
 function ChangeRow({ label, beforeValue, afterValue, beforeColor = COLORS.SECONDARY_TEXT, afterColor = COLORS.WHITE, icon }: ChangeRowProps) {
+  const hasChange = beforeValue !== afterValue;
+
   return (
     <View style={styles.changeRow}>
       <Text style={styles.changeLabel}>{label}</Text>
       <View style={styles.changeValues}>
-        <View style={styles.valueContainer}>
-          {icon && <Icon name={icon as 'btc_symbol' | 'unit_symbol'} size={12} color={beforeColor} style={styles.valueIcon} />}
-          <Text style={[styles.beforeValue, { color: beforeColor }]}>{beforeValue}</Text>
-        </View>
-        <Text style={styles.arrow}>→</Text>
+        {hasChange && (
+          <>
+            <View style={styles.valueContainer}>
+              {icon && <Icon name={icon as 'btc_symbol' | 'unit_symbol'} size={12} color={beforeColor} style={styles.valueIcon} />}
+              <Text style={[styles.beforeValue, { color: beforeColor }]}>{beforeValue}</Text>
+            </View>
+            <Text style={styles.arrow}>→</Text>
+          </>
+        )}
         <View style={styles.valueContainer}>
           {icon && <Icon name={icon as 'btc_symbol' | 'unit_symbol'} size={12} color={afterColor} style={styles.valueIcon} />}
           <Text style={[styles.afterValue, { color: afterColor }]}>{afterValue}</Text>
@@ -162,6 +175,7 @@ export default function VaultTransactionDetailsSheet({
       unitAmt,
       oraclePrice,
       timestamp: transaction.timestamp,
+      transactionId: transaction.transaction_id,
       before: {
         collateral: beforeCollateral,
         debt: beforeDebt,
@@ -176,6 +190,20 @@ export default function VaultTransactionDetailsSheet({
       },
     };
   }, [transaction, previousTransaction]);
+
+  // Open in explorer
+  const openInExplorer = useCallback(async () => {
+    if (!details?.transactionId) return;
+    try {
+      const url = getOrdTxUrl(details.transactionId);
+      const supported = await Linking.canOpenURL(url);
+      if (supported) {
+        await Linking.openURL(url);
+      }
+    } catch (error) {
+      // Silently fail
+    }
+  }, [details?.transactionId]);
 
   if (!details) return null;
 
@@ -245,7 +273,28 @@ export default function VaultTransactionDetailsSheet({
           afterValue={details.after.liquidation > 0 ? `$${formatFiat(details.after.liquidation, 2)}` : '\u221E'}
           afterColor={details.after.liquidation < details.before.liquidation ? COLORS.GREEN : details.after.liquidation > details.before.liquidation ? COLORS.RED : COLORS.WHITE}
         />
+
+        {/* Transaction ID */}
+        {details.transactionId && (
+          <TouchableOpacity style={styles.txIdRow} onPress={openInExplorer} activeOpacity={0.7}>
+            <Text style={styles.changeLabel}>Transaction ID</Text>
+            <View style={styles.txIdValueContainer}>
+              <Text style={styles.txIdValue}>{formatTxid(details.transactionId)}</Text>
+              <Icon name="external_link" size={14} color={COLORS.PRIMARY_BLUE} style={styles.linkIcon} />
+            </View>
+          </TouchableOpacity>
+        )}
       </View>
+
+      {/* View in Explorer Button */}
+      {details.transactionId && (
+        <View style={styles.buttonSection}>
+          <TouchableOpacity style={styles.explorerButton} onPress={openInExplorer} activeOpacity={0.7}>
+            <Text style={styles.explorerButtonText}>View in Explorer</Text>
+            <Icon name="external_link" size={16} color={COLORS.PRIMARY_BLUE} />
+          </TouchableOpacity>
+        </View>
+      )}
     </BottomSheet>
   );
 }
@@ -349,5 +398,45 @@ const styles = StyleSheet.create({
   afterValue: {
     fontSize: 14,
     fontWeight: '600',
+  },
+  txIdRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    paddingVertical: 12,
+    borderBottomWidth: 1,
+    borderBottomColor: COLORS.VERY_DARK_GRAY,
+  },
+  txIdValueContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
+  txIdValue: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: COLORS.PRIMARY_BLUE,
+  },
+  linkIcon: {
+    marginLeft: 6,
+  },
+  buttonSection: {
+    paddingHorizontal: 20,
+    marginTop: 24,
+    marginBottom: 8,
+  },
+  explorerButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 8,
+    paddingVertical: 14,
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: COLORS.PRIMARY_BLUE,
+  },
+  explorerButtonText: {
+    fontSize: 16,
+    fontWeight: '600',
+    color: COLORS.PRIMARY_BLUE,
   },
 });

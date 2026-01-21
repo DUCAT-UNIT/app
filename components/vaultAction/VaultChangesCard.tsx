@@ -86,6 +86,8 @@ export interface VaultChangesCardProps {
   showChanges?: boolean;
   // Action type - determines whether to show collateral or debt change
   actionType?: 'collateral' | 'debt';
+  // Hide the title
+  hideTitle?: boolean;
 }
 
 export const VaultChangesCard = memo(function VaultChangesCard({
@@ -99,6 +101,7 @@ export const VaultChangesCard = memo(function VaultChangesCard({
   newLiquidationPrice,
   showChanges = true,
   actionType = 'collateral',
+  hideTitle = false,
 }: VaultChangesCardProps): React.JSX.Element {
   const { s, sf } = useResponsive();
 
@@ -109,9 +112,11 @@ export const VaultChangesCard = memo(function VaultChangesCard({
 
   return (
     <View style={[styles.container, { padding: s(16), borderRadius: s(16) }]}>
-      <Text style={[styles.title, { fontSize: sf(12), marginBottom: s(8) }]}>
-        {showChanges ? 'VAULT CHANGES' : 'VAULT STATUS'}
-      </Text>
+      {!hideTitle && (
+        <Text style={[styles.title, { fontSize: sf(12), marginBottom: s(8) }]}>
+          {showChanges ? 'VAULT CHANGES' : 'VAULT STATUS'}
+        </Text>
+      )}
 
       {/* Collateral Row - shown for deposit/withdraw */}
       {actionType === 'collateral' && (
@@ -150,10 +155,10 @@ export const VaultChangesCard = memo(function VaultChangesCard({
       {(currentLiquidationPrice !== undefined || newLiquidationPrice !== undefined) && (
         <ChangeRow
           label="Liquidation"
-          beforeValue={currentLiquidationPrice ? `$${formatFiat(currentLiquidationPrice, 0)}` : '\u221E'}
-          afterValue={newLiquidationPrice ? `$${formatFiat(newLiquidationPrice, 0)}` : '\u221E'}
-          beforeColor={COLORS.DANGER_RED}
-          afterColor={COLORS.DANGER_RED}
+          beforeValue={currentLiquidationPrice && currentLiquidationPrice !== Infinity ? `$${formatFiat(currentLiquidationPrice, 0)}` : 'None'}
+          afterValue={newLiquidationPrice && newLiquidationPrice !== Infinity ? `$${formatFiat(newLiquidationPrice, 0)}` : 'None'}
+          beforeColor={currentLiquidationPrice === Infinity ? COLORS.SUCCESS_GREEN : COLORS.DANGER_RED}
+          afterColor={newLiquidationPrice === Infinity ? COLORS.SUCCESS_GREEN : COLORS.DANGER_RED}
           showChange={showChanges && liquidationChanged}
         />
       )}
