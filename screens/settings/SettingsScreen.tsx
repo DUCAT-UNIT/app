@@ -167,28 +167,30 @@ const SettingsScreen = React.memo(function SettingsScreen({
             />
           </View>
 
-          {/* Danger Zone */}
-          <View style={localStyles.section}>
-            <Text style={localStyles.sectionTitle}>Danger Zone</Text>
-            <TouchableOpacity
-              style={localStyles.dangerOption}
-              onPress={handleClearCache}
-              disabled={isClearing}
-              activeOpacity={0.7}
-              testID="settings-clear-cache-btn"
-            >
-              <View style={localStyles.optionLeft}>
-                <Icon name="delete" size={24} color={COLORS.DANGER_RED} />
-                <View>
-                  <Text style={localStyles.dangerText}>Clear App Cache</Text>
-                  <Text style={localStyles.dangerSubtext}>Fixes issues with tokens and data</Text>
+          {/* Danger Zone - only shown in advanced/dev mode */}
+          {advancedMode && (
+            <View style={localStyles.section}>
+              <Text style={localStyles.sectionTitle}>Danger Zone</Text>
+              <TouchableOpacity
+                style={localStyles.dangerOption}
+                onPress={handleClearCache}
+                disabled={isClearing}
+                activeOpacity={0.7}
+                testID="settings-clear-cache-btn"
+              >
+                <View style={localStyles.optionLeft}>
+                  <Icon name="delete" size={24} color={COLORS.DANGER_RED} />
+                  <View>
+                    <Text style={localStyles.dangerText}>Clear App Cache</Text>
+                    <Text style={localStyles.dangerSubtext}>Fixes issues with tokens and data</Text>
+                  </View>
                 </View>
-              </View>
-              {isClearing && (
-                <ActivityIndicator size="small" color={COLORS.DANGER_RED} />
-              )}
-            </TouchableOpacity>
-          </View>
+                {isClearing && (
+                  <ActivityIndicator size="small" color={COLORS.DANGER_RED} />
+                )}
+              </TouchableOpacity>
+            </View>
+          )}
         </View>
       </ScrollView>
     </View>
