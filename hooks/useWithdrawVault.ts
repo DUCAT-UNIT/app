@@ -47,23 +47,24 @@ export function useWithdrawVault(): UseWithdrawVaultResult {
   const { wallet } = useWallet();
   const { btcPrice } = usePrice();
 
-  const {
-    withdrawAmountSats,
-    selectedFeeRate,
-    currentUnitBorrowed,
-    currentBtcLocked,
-    loading,
-    error,
-    vaultTxid,
-    setLoading,
-    setError,
-    setVaultTxid,
-    setCurrentStep,
-    setProcessingStep,
-    setCurrentVaultData,
-    setBitcoinPrice,
-    reset,
-  } = useWithdrawStore();
+  // Use individual selectors for reactive state
+  const withdrawAmountSats = useWithdrawStore((state) => state.withdrawAmountSats);
+  const selectedFeeRate = useWithdrawStore((state) => state.selectedFeeRate);
+  const currentUnitBorrowed = useWithdrawStore((state) => state.currentUnitBorrowed);
+  const currentBtcLocked = useWithdrawStore((state) => state.currentBtcLocked);
+  const loading = useWithdrawStore((state) => state.loading);
+  const error = useWithdrawStore((state) => state.error);
+  const vaultTxid = useWithdrawStore((state) => state.vaultTxid);
+
+  // Get actions (stable references)
+  const setLoading = useWithdrawStore((state) => state.setLoading);
+  const setError = useWithdrawStore((state) => state.setError);
+  const setVaultTxid = useWithdrawStore((state) => state.setVaultTxid);
+  const setCurrentStep = useWithdrawStore((state) => state.setCurrentStep);
+  const setProcessingStep = useWithdrawStore((state) => state.setProcessingStep);
+  const setCurrentVaultData = useWithdrawStore((state) => state.setCurrentVaultData);
+  const setBitcoinPrice = useWithdrawStore((state) => state.setBitcoinPrice);
+  const reset = useWithdrawStore((state) => state.reset);
 
   // Get store actions
   const setPendingTransaction = usePendingVaultTransactionStore((state) => state.setPendingTransaction);

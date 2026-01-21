@@ -49,25 +49,26 @@ export function useRepayVault(): UseRepayVaultResult {
   const { wallet } = useWallet();
   const { btcPrice } = usePrice();
 
-  const {
-    repayAmountUnit,
-    selectedFeeRate,
-    currentUnitBorrowed,
-    currentBtcLocked,
-    loading,
-    error,
-    issueTxid,
-    vaultTxid,
-    setLoading,
-    setError,
-    setIssueTxid,
-    setVaultTxid,
-    setCurrentStep,
-    setProcessingStep,
-    setCurrentVaultData,
-    setBitcoinPrice,
-    reset,
-  } = useRepayStore();
+  // Use individual selectors for reactive state
+  const repayAmountUnit = useRepayStore((state) => state.repayAmountUnit);
+  const selectedFeeRate = useRepayStore((state) => state.selectedFeeRate);
+  const currentUnitBorrowed = useRepayStore((state) => state.currentUnitBorrowed);
+  const currentBtcLocked = useRepayStore((state) => state.currentBtcLocked);
+  const loading = useRepayStore((state) => state.loading);
+  const error = useRepayStore((state) => state.error);
+  const issueTxid = useRepayStore((state) => state.issueTxid);
+  const vaultTxid = useRepayStore((state) => state.vaultTxid);
+
+  // Get actions (stable references)
+  const setLoading = useRepayStore((state) => state.setLoading);
+  const setError = useRepayStore((state) => state.setError);
+  const setIssueTxid = useRepayStore((state) => state.setIssueTxid);
+  const setVaultTxid = useRepayStore((state) => state.setVaultTxid);
+  const setCurrentStep = useRepayStore((state) => state.setCurrentStep);
+  const setProcessingStep = useRepayStore((state) => state.setProcessingStep);
+  const setCurrentVaultData = useRepayStore((state) => state.setCurrentVaultData);
+  const setBitcoinPrice = useRepayStore((state) => state.setBitcoinPrice);
+  const reset = useRepayStore((state) => state.reset);
 
   // Get store actions
   const setPendingTransaction = usePendingVaultTransactionStore((state) => state.setPendingTransaction);

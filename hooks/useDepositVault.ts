@@ -46,23 +46,24 @@ export function useDepositVault(): UseDepositVaultResult {
   const { wallet } = useWallet();
   const { btcPrice } = usePrice();
 
-  const {
-    depositAmountSats,
-    selectedFeeRate,
-    currentUnitBorrowed,
-    currentBtcLocked,
-    loading,
-    error,
-    vaultTxid,
-    setLoading,
-    setError,
-    setVaultTxid,
-    setCurrentStep,
-    setProcessingStep,
-    setCurrentVaultData,
-    setBitcoinPrice,
-    reset,
-  } = useDepositStore();
+  // Use individual selectors for reactive state
+  const depositAmountSats = useDepositStore((state) => state.depositAmountSats);
+  const selectedFeeRate = useDepositStore((state) => state.selectedFeeRate);
+  const currentUnitBorrowed = useDepositStore((state) => state.currentUnitBorrowed);
+  const currentBtcLocked = useDepositStore((state) => state.currentBtcLocked);
+  const loading = useDepositStore((state) => state.loading);
+  const error = useDepositStore((state) => state.error);
+  const vaultTxid = useDepositStore((state) => state.vaultTxid);
+
+  // Get actions (stable references)
+  const setLoading = useDepositStore((state) => state.setLoading);
+  const setError = useDepositStore((state) => state.setError);
+  const setVaultTxid = useDepositStore((state) => state.setVaultTxid);
+  const setCurrentStep = useDepositStore((state) => state.setCurrentStep);
+  const setProcessingStep = useDepositStore((state) => state.setProcessingStep);
+  const setCurrentVaultData = useDepositStore((state) => state.setCurrentVaultData);
+  const setBitcoinPrice = useDepositStore((state) => state.setBitcoinPrice);
+  const reset = useDepositStore((state) => state.reset);
 
   // Get store actions
   const setPendingTransaction = usePendingVaultTransactionStore((state) => state.setPendingTransaction);

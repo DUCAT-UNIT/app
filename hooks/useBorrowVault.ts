@@ -49,24 +49,25 @@ export function useBorrowVault(): UseBorrowVaultResult {
   const { wallet } = useWallet();
   const { btcPrice } = usePrice();
 
-  const {
-    borrowAmount,
-    selectedFeeRate,
-    currentUnitBorrowed,
-    currentBtcLocked,
-    loading,
-    error,
-    txid,
-    vaultTxid,
-    setLoading,
-    setError,
-    setTxid,
-    setCurrentStep,
-    setProcessingStep,
-    setCurrentVaultData,
-    setBitcoinPrice,
-    reset,
-  } = useBorrowStore();
+  // Use individual selectors for reactive state
+  const borrowAmount = useBorrowStore((state) => state.borrowAmount);
+  const selectedFeeRate = useBorrowStore((state) => state.selectedFeeRate);
+  const currentUnitBorrowed = useBorrowStore((state) => state.currentUnitBorrowed);
+  const currentBtcLocked = useBorrowStore((state) => state.currentBtcLocked);
+  const loading = useBorrowStore((state) => state.loading);
+  const error = useBorrowStore((state) => state.error);
+  const txid = useBorrowStore((state) => state.txid);
+  const vaultTxid = useBorrowStore((state) => state.vaultTxid);
+
+  // Get actions (stable references)
+  const setLoading = useBorrowStore((state) => state.setLoading);
+  const setError = useBorrowStore((state) => state.setError);
+  const setTxid = useBorrowStore((state) => state.setTxid);
+  const setCurrentStep = useBorrowStore((state) => state.setCurrentStep);
+  const setProcessingStep = useBorrowStore((state) => state.setProcessingStep);
+  const setCurrentVaultData = useBorrowStore((state) => state.setCurrentVaultData);
+  const setBitcoinPrice = useBorrowStore((state) => state.setBitcoinPrice);
+  const reset = useBorrowStore((state) => state.reset);
 
   // Get store actions
   const setPendingTransaction = usePendingVaultTransactionStore((state) => state.setPendingTransaction);
