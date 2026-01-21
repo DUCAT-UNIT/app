@@ -5,6 +5,7 @@
 
 import { useState } from 'react';
 import { calculateMaxSendableBTC } from '../services/transactionCalculationService';
+import { hasSufficientBtcForFeesSync, TransactionType } from '../services/feeEstimationService';
 import { logger } from '../utils/logger';
 import { getRunesAmount } from '../utils/runesHelper';
 import { formatFiat } from '../utils/formatters';
@@ -20,6 +21,7 @@ interface UseAmountInputParams {
   wallet: WalletAddresses | null;
   sendAddressType?: string | null;
   setSendAmount: (amount: string) => void;
+  feeRate?: number; // Fee rate in sat/vB for max calculation
 }
 
 interface UseAmountInputReturn {
@@ -36,7 +38,8 @@ export function useAmountInput({
   runesBalance,
   cashuBalance,
   wallet,
-  setSendAmount
+  setSendAmount,
+  feeRate,
 }: UseAmountInputParams): UseAmountInputReturn {
   const [isCalculatingMax, setIsCalculatingMax] = useState(false);
 
@@ -59,6 +62,7 @@ export function useAmountInput({
         const maxSendable = await calculateMaxSendableBTC({
           sourceAddress: sourceAddress || '',
           btcBalance: segwitBalance, // Use only segwit balance for BTC
+          feeRate, // Pass fee rate for accurate max calculation
         });
         setSendAmount(String(maxSendable));
       } catch (error: unknown) {
@@ -69,7 +73,18 @@ export function useAmountInput({
         setIsCalculatingMax(false);
       }
     } else {
-      // For UNIT, just use full balance
+      // For UNIT, check if user has BTC for fees before setting max
+      const btcBalanceSats = Math.round((segwitBalance || 0) * 100_000_000);
+      const feeCheck = hasSufficientBtcForFeesSync(TransactionType.UNIT_SEND, btcBalanceSats);
+
+      if (!feeCheck.hasSufficientBtc) {
+        logger.warn('Insufficient BTC for UNIT send fees', {
+          required: feeCheck.requiredBtcSats,
+          available: feeCheck.availableBtcSats,
+        });
+      }
+
+      // Set max UNIT balance regardless (validation will catch fee issue)
       setSendAmount(String(balance || 0));
     }
   };

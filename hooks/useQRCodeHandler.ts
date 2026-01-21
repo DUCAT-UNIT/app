@@ -85,7 +85,7 @@ export function useQRCodeHandler({
       // Navigate to send flow - address is passed via route params, not the store
       // Don't call resetSendFlow here as it would clear the prefilled address
       navigation.navigate('SendFlow', {
-        screen: 'AddressInput',
+        screen: 'SendInput',
         params: { prefillAddress: address, assetType },
       });
       return;

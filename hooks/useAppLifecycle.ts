@@ -54,7 +54,7 @@ export function useAppLifecycle({
     onAuthenticateUserRef.current = onAuthenticateUser;
   }, [onAuthenticateUser]);
 
-  // Allow screenshots by default (privacy mode disabled)
+  // Allow screenshots by default
   useEffect(() => {
     const manageScreenCapture = async () => {
       try {

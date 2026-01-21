@@ -111,7 +111,7 @@ export function useTurboReview({
     } else {
       // Normal flow
       navigation.navigate('Processing', {
-        fromScreen: 'AmountInput',
+        fromScreen: 'SendInput',
         action: 'create_intent',
         cashuMint: isCashuMint,
         quoteId: cashuQuoteId,
@@ -151,7 +151,7 @@ export function useTurboReview({
       setIsRequestingMint(false);
 
       navigation.navigate('Processing', {
-        fromScreen: 'AmountInput',
+        fromScreen: 'SendInput',
         action: 'create_intent',
         isTurbo: true,
         mintQuoteId: mintQuote.quoteId,
@@ -172,7 +172,7 @@ export function useTurboReview({
     setTurboEnabled(false);
 
     navigation.navigate('Processing', {
-      fromScreen: 'AmountInput',
+      fromScreen: 'SendInput',
       action: 'create_intent',
     });
   }, [setTurboEnabled, navigation]);

@@ -73,17 +73,13 @@ export function usePostAuthHandler({
       await SecureStore.deleteItemAsync('pendingWalletDelete');
       // Trigger wallet deletion
       try {
-        const success = await deleteWalletData();
-        if (success) {
-          resetWallet();
-          if (walletExists && walletExists.current !== undefined) {
-            walletExists.current = false;
-          }
-          resetAuth();
-          notify.wallet.deleted();
-        } else {
-          notify.wallet.deleteFailed();
+        await deleteWalletData();
+        resetWallet();
+        if (walletExists && walletExists.current !== undefined) {
+          walletExists.current = false;
         }
+        resetAuth();
+        notify.wallet.deleted();
       } catch (error: unknown) {
         logger.error('[usePostAuthHandler] Failed to delete wallet', { error: error instanceof Error ? error.message : String(error) });
         notify.wallet.deleteFailed();

@@ -72,9 +72,11 @@ export function useCashuBalance({ wallet }: UseCashuBalanceParams): UseCashuBala
       // Reset balance immediately to prevent showing stale data from wrong account
       setBalance(0);
       // Set account and then fetch balance (awaited to ensure correct storage key)
-      setCurrentAccount(wallet.taprootAddress).then(() => {
+      const initAccount = async () => {
+        await setCurrentAccount(wallet.taprootAddress);
         fetchBalance(false);
-      });
+      };
+      initAccount();
     }
   }, [wallet?.taprootAddress, fetchBalance]);
 

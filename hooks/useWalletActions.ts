@@ -81,23 +81,19 @@ export function useWalletActions({ resetAuth, resetWallet, clearVaultCredentials
 
     // Authentication successful, proceed with deletion
     try {
-      const success = await deleteWalletData();
-      if (success) {
-        // Clear vault credentials and data
-        if (clearVaultCredentials) {
-          clearVaultCredentials();
-        }
-
-        resetWallet();
-        if (walletExistsRef && walletExistsRef.current !== undefined) {
-          walletExistsRef.current = false;
-        }
-        resetAuth();
-
-        notify.wallet.deleted();
-      } else {
-        notify.wallet.deleteFailed();
+      await deleteWalletData();
+      // Clear vault credentials and data
+      if (clearVaultCredentials) {
+        clearVaultCredentials();
       }
+
+      resetWallet();
+      if (walletExistsRef && walletExistsRef.current !== undefined) {
+        walletExistsRef.current = false;
+      }
+      resetAuth();
+
+      notify.wallet.deleted();
     } catch (error: unknown) {
       logger.error('[useWalletActions] Failed to delete wallet', { error: error instanceof Error ? error.message : String(error) });
       notify.wallet.deleteFailed();
