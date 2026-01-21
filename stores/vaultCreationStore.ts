@@ -139,7 +139,7 @@ export const useVaultCreationStore = create<VaultCreationStore>((set, get) => ({
 
   getLiquidationPrice: () => {
     const { btcAmount, unitAmount } = get();
-    if (btcAmount <= 0 || unitAmount <= 0) return 0;
+    if (btcAmount <= 0) return 0;
     return computeLiquidationPrice(unitAmount, btcAmount);
   },
 

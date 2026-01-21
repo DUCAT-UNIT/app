@@ -22,7 +22,7 @@ import { UnitAmountSlider } from '../../components/vaultAction/UnitAmountSlider'
 import { useVaultCreation } from '../../stores/vaultCreationStore';
 import { useBalance } from '../../contexts/WalletDataContext';
 import { usePrice } from '../../stores/priceStore';
-import { getOpCostOpen, computeHealthFactor } from '../../utils/vaultUtils';
+import { getOpCostOpen, computeHealthFactor, computeLiquidationPrice } from '../../utils/vaultUtils';
 import { colors, fonts, fontSizes, spacing, radii } from '../../styles/theme';
 
 interface VaultAmountsScreenProps {
@@ -97,14 +97,19 @@ export default function VaultAmountsScreen({ navigation }: VaultAmountsScreenPro
   // Check if health would be below minimum
   const healthBelowMin = previewHealth > 0 && previewHealth < 160;
 
-  // Live update handlers
+  // Preview liquidation price calculation
+  const previewLiquidationPrice = useMemo(() => {
+    if (previewBtcAmount <= 0) return 0;
+    return computeLiquidationPrice(previewUnitAmount, previewBtcAmount);
+  }, [previewBtcAmount, previewUnitAmount]);
+
+  // Live update handlers - always reset UNIT when BTC changes
   const handleBtcLiveChange = useCallback((val: number) => {
     setPreviewBtcAmount(val);
-    // Reset UNIT preview if BTC changes significantly
-    if (val < previewBtcAmount * 0.5) {
-      setPreviewUnitAmount(0);
-    }
-  }, [previewBtcAmount]);
+    // Always reset UNIT to 0 when BTC slider is touched
+    setPreviewUnitAmount(0);
+    setUnitAmount(0);
+  }, [setUnitAmount]);
 
   const handleUnitLiveChange = useCallback((val: number) => {
     setPreviewUnitAmount(val);
@@ -152,7 +157,20 @@ export default function VaultAmountsScreen({ navigation }: VaultAmountsScreenPro
             currentHealth={0}
             newHealth={hasChanges ? previewHealth : undefined}
             showTransition={hasChanges}
+            hasNoDebt={previewUnitAmount <= 0}
           />
+
+          {/* Liquidation Price */}
+          {(previewLiquidationPrice > 0 || previewLiquidationPrice === Infinity) && (
+            <View style={styles.liquidationPrice}>
+              <Text style={styles.liquidationLabel}>Liquidation Price</Text>
+              <Text style={styles.liquidationValue}>
+                {previewLiquidationPrice === Infinity
+                  ? 'None'
+                  : `$${previewLiquidationPrice.toLocaleString('en-US', { maximumFractionDigits: 0 })}`}
+              </Text>
+            </View>
+          )}
 
           {/* BTC Slider */}
           <View style={styles.section}>
@@ -228,6 +246,20 @@ const styles = StyleSheet.create({
     fontSize: fontSizes.xxl,
     fontFamily: fonts.bold,
     color: colors.text.primary,
+  },
+  liquidationPrice: {
+    alignItems: 'center',
+    marginTop: spacing.sm,
+  },
+  liquidationLabel: {
+    fontSize: fontSizes.sm,
+    fontFamily: fonts.regular,
+    color: colors.text.tertiary,
+  },
+  liquidationValue: {
+    fontSize: fontSizes.md,
+    fontFamily: fonts.semiBold,
+    color: colors.text.secondary,
   },
   section: { marginTop: spacing.lg },
   warning: {

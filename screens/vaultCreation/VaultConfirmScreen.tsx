@@ -10,8 +10,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import * as LocalAuthentication from 'expo-local-authentication';
 import { Ionicons } from '@expo/vector-icons';
 import TouchableScale from '../../components/common/TouchableScale';
-import { HealthFactorGauge } from '../../components/vaultCreation';
-import { useVaultCreation } from '../../stores/vaultCreationStore';
+import { useVaultCreation, useVaultCreationStore } from '../../stores/vaultCreationStore';
 import { useCreateVault } from '../../hooks/useCreateVault';
 import { usePrice } from '../../stores/priceStore';
 import { formatFiat } from '../../utils/formatters';
@@ -23,15 +22,17 @@ interface VaultConfirmScreenProps {
 }
 
 export default function VaultConfirmScreen({ navigation }: VaultConfirmScreenProps) {
-  const {
-    btcAmount,
-    unitAmount,
-    selectedFeeRate,
-    healthFactor,
-    liquidationPrice,
-    setCurrentStep,
-    error,
-  } = useVaultCreation();
+  // Use direct store subscription for reactive updates
+  const btcAmount = useVaultCreationStore((state) => state.btcAmount);
+  const unitAmount = useVaultCreationStore((state) => state.unitAmount);
+  const selectedFeeRate = useVaultCreationStore((state) => state.selectedFeeRate);
+  const error = useVaultCreationStore((state) => state.error);
+  const setCurrentStep = useVaultCreationStore((state) => state.setCurrentStep);
+  const getHealthFactor = useVaultCreationStore((state) => state.getHealthFactor);
+  const getLiquidationPrice = useVaultCreationStore((state) => state.getLiquidationPrice);
+
+  const healthFactor = getHealthFactor();
+  const liquidationPrice = getLiquidationPrice();
 
   const { createVault, isLoading } = useCreateVault();
   const { btcPrice } = usePrice();
@@ -96,6 +97,7 @@ export default function VaultConfirmScreen({ navigation }: VaultConfirmScreenPro
       <ScrollView
         style={styles.scrollView}
         contentContainerStyle={styles.scrollContent}
+        showsVerticalScrollIndicator={false}
       >
         {/* Header */}
         <View style={styles.header}>
@@ -105,68 +107,66 @@ export default function VaultConfirmScreen({ navigation }: VaultConfirmScreenPro
           </TouchableOpacity>
         </View>
 
-        {/* Health Factor Display */}
-        <View style={styles.healthContainer}>
-          <HealthFactorGauge healthFactor={healthFactor} size="lg" />
-        </View>
-
         {/* Summary Card */}
         <View style={styles.summaryCard}>
-          <Text style={styles.summaryTitle}>Vault Summary</Text>
+          {/* Deposit Amount - Highlighted */}
+          <View style={styles.highlightSection}>
+            <Text style={styles.highlightLabel}>BTC Deposit</Text>
+            <Text style={styles.highlightAmount}>{btcAmount.toFixed(8)} BTC</Text>
+            <Text style={styles.highlightUsd}>≈ ${formatFiat(btcUsdValue)}</Text>
+          </View>
 
-          <View style={styles.summaryRow}>
-            <Text style={styles.summaryLabel}>Deposit</Text>
-            <View style={styles.summaryValue}>
-              <Text style={styles.summaryAmount}>{btcAmount.toFixed(8)} BTC</Text>
-              <Text style={styles.summaryUsd}>≈ {formatFiat(btcUsdValue)}</Text>
+          <View style={styles.divider} />
+
+          {/* Borrow Amount */}
+          <View style={styles.row}>
+            <Text style={styles.label}>UNIT to Borrow</Text>
+            <View style={styles.valueContainer}>
+              <Text style={styles.valueHighlight}>{unitAmount.toFixed(2)} UNIT</Text>
+              <Text style={styles.valueUsd}>≈ ${formatFiat(unitAmount)}</Text>
             </View>
           </View>
 
           <View style={styles.divider} />
 
-          <View style={styles.summaryRow}>
-            <Text style={styles.summaryLabel}>Borrow</Text>
-            <View style={styles.summaryValue}>
-              <Text style={styles.summaryAmount}>{unitAmount.toFixed(2)} UNIT</Text>
-              <Text style={styles.summaryUsd}>≈ {formatFiat(unitAmount)}</Text>
-            </View>
+          {/* Health Factor */}
+          <View style={styles.row}>
+            <Text style={styles.label}>Health Factor</Text>
+            <Text style={[styles.valueHighlight, { color: getHealthColor(healthFactor) }]}>
+              {unitAmount > 0 ? `${healthFactor}%` : '∞'}
+            </Text>
           </View>
 
-          <View style={styles.divider} />
-
-          <View style={styles.summaryRow}>
-            <Text style={styles.summaryLabel}>Health Factor</Text>
-            <Text style={[styles.summaryAmount, { color: getHealthColor(healthFactor) }]}>
-              {healthFactor}%
+          {/* Liquidation Price */}
+          <View style={styles.row}>
+            <Text style={styles.label}>Liquidation Price</Text>
+            <Text style={[styles.value, { color: liquidationPrice === Infinity ? colors.semantic.success : colors.semantic.error }]}>
+              {liquidationPrice === Infinity ? 'None' : `$${formatFiat(liquidationPrice, 0)}`}
             </Text>
           </View>
 
           <View style={styles.divider} />
 
-          <View style={styles.summaryRow}>
-            <Text style={styles.summaryLabel}>Liquidation Price</Text>
-            <Text style={styles.summaryAmount}>{formatFiat(liquidationPrice)}</Text>
-          </View>
-
-          <View style={styles.divider} />
-
-          <View style={styles.summaryRow}>
-            <Text style={styles.summaryLabel}>Network Fee</Text>
-            <View style={styles.summaryValue}>
-              <Text style={styles.summaryAmount}>~{estimatedFee} sats</Text>
-              <Text style={styles.summaryUsd}>≈ {formatFiat(feeUsdValue)}</Text>
+          {/* Network Fee */}
+          <View style={styles.row}>
+            <Text style={styles.label}>Network Fee</Text>
+            <View style={styles.valueContainer}>
+              <Text style={styles.value}>~{estimatedFee} sats</Text>
+              <Text style={styles.valueUsd}>≈ ${formatFiat(feeUsdValue)}</Text>
             </View>
           </View>
         </View>
 
-        {/* Warning */}
-        <View style={styles.warningContainer}>
-          <Ionicons name="warning-outline" size={20} color={colors.semantic.warning} />
-          <Text style={styles.warningText}>
-            Your vault may be liquidated if the health factor drops below 135%.
-            Monitor your vault regularly.
-          </Text>
-        </View>
+        {/* Warning - only show if there's debt */}
+        {unitAmount > 0 && (
+          <View style={styles.warningContainer}>
+            <Ionicons name="warning-outline" size={20} color={colors.semantic.warning} />
+            <Text style={styles.warningText}>
+              Your vault may be liquidated if the health factor drops below 135%.
+              Monitor your vault regularly.
+            </Text>
+          </View>
+        )}
 
         {/* Error message */}
         {error && (
@@ -176,14 +176,14 @@ export default function VaultConfirmScreen({ navigation }: VaultConfirmScreenPro
         )}
       </ScrollView>
 
-      {/* Footer Buttons */}
+      {/* Footer */}
       <View style={styles.footer}>
         <TouchableScale
-          style={styles.cancelButton}
+          style={styles.backButton}
           onPress={handleBack}
           disabled={isLoading || isAuthenticating}
         >
-          <Text style={styles.cancelText}>Back</Text>
+          <Text style={styles.backText}>Back</Text>
         </TouchableScale>
 
         <TouchableScale
@@ -231,58 +231,75 @@ const styles = StyleSheet.create({
     fontFamily: fonts.bold,
     color: colors.text.primary,
   },
-  healthContainer: {
-    alignItems: 'center',
-    marginVertical: spacing.xl,
-  },
   summaryCard: {
     backgroundColor: colors.bg.secondary,
     borderRadius: radii.lg,
     padding: spacing.lg,
-    marginBottom: spacing.lg,
+    borderWidth: 1,
+    borderColor: colors.border.default,
   },
-  summaryTitle: {
-    fontSize: fontSizes.lg,
-    fontFamily: fonts.bold,
-    color: colors.text.primary,
-    marginBottom: spacing.lg,
+  highlightSection: {
+    alignItems: 'center',
+    paddingVertical: spacing.md,
   },
-  summaryRow: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'flex-start',
-    paddingVertical: spacing.sm,
-  },
-  summaryLabel: {
-    fontSize: fontSizes.md,
-    fontFamily: fonts.regular,
-    color: colors.text.secondary,
-  },
-  summaryValue: {
-    alignItems: 'flex-end',
-  },
-  summaryAmount: {
-    fontSize: fontSizes.md,
-    fontFamily: fonts.medium,
-    color: colors.text.primary,
-  },
-  summaryUsd: {
+  highlightLabel: {
     fontSize: fontSizes.sm,
+    fontFamily: fonts.medium,
+    color: colors.text.secondary,
+    marginBottom: spacing.xs,
+  },
+  highlightAmount: {
+    fontSize: fontSizes.xxxl,
+    fontFamily: fonts.bold,
+    color: colors.brand.primary,
+  },
+  highlightUsd: {
+    fontSize: fontSizes.md,
     fontFamily: fonts.regular,
     color: colors.text.tertiary,
-    marginTop: 2,
+    marginTop: spacing.xs,
   },
   divider: {
     height: 1,
     backgroundColor: colors.border.default,
-    marginVertical: spacing.xs,
+    marginVertical: spacing.md,
+  },
+  row: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    paddingVertical: spacing.sm,
+  },
+  label: {
+    fontSize: fontSizes.md,
+    fontFamily: fonts.regular,
+    color: colors.text.secondary,
+  },
+  value: {
+    fontSize: fontSizes.md,
+    fontFamily: fonts.medium,
+    color: colors.text.primary,
+  },
+  valueHighlight: {
+    fontSize: fontSizes.md,
+    fontFamily: fonts.bold,
+    color: colors.text.primary,
+  },
+  valueContainer: {
+    alignItems: 'flex-end',
+  },
+  valueUsd: {
+    fontSize: fontSizes.xs,
+    fontFamily: fonts.regular,
+    color: colors.text.tertiary,
+    marginTop: 2,
   },
   warningContainer: {
     flexDirection: 'row',
-    backgroundColor: 'rgba(245, 166, 35, 0.1)',
+    backgroundColor: 'rgba(230, 190, 80, 0.1)',
     borderRadius: radii.md,
     padding: spacing.md,
-    marginBottom: spacing.lg,
+    marginTop: spacing.lg,
     gap: spacing.sm,
   },
   warningText: {
@@ -295,7 +312,7 @@ const styles = StyleSheet.create({
     backgroundColor: 'rgba(208, 76, 104, 0.1)',
     borderRadius: radii.md,
     padding: spacing.md,
-    marginBottom: spacing.lg,
+    marginTop: spacing.lg,
   },
   errorText: {
     fontSize: fontSizes.sm,
@@ -315,14 +332,14 @@ const styles = StyleSheet.create({
     borderTopColor: colors.border.default,
     gap: spacing.md,
   },
-  cancelButton: {
+  backButton: {
     flex: 1,
     backgroundColor: colors.bg.tertiary,
     borderRadius: radii.lg,
     paddingVertical: spacing.md,
     alignItems: 'center',
   },
-  cancelText: {
+  backText: {
     fontSize: fontSizes.md,
     fontFamily: fonts.medium,
     color: colors.text.primary,
