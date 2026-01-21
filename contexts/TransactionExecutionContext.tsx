@@ -293,6 +293,12 @@ export const TransactionExecutionProvider: React.FC<TransactionExecutionProvider
             BackgroundTaskService.removePendingTransaction(txid);
             // Mark pending transaction as confirmed
             confirmTransaction(txid);
+            // Show confirmation snackbar
+            showSnackbar({
+              type: 'success',
+              action: getSnackbarAction(),
+              txid,
+            });
           }
           // Only auto-set intentStep='confirmed' if not doing turbo mint (which handles it manually)
           if (!skipAutoConfirm) {

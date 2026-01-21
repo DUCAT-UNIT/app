@@ -14,6 +14,8 @@ import { useTransactionHistoryFetch, UseTransactionHistoryFetchReturn } from '..
 import { useVaultDataFetch, UseVaultDataFetchReturn } from '../hooks/useVaultDataFetch';
 import { getSentLockedTokens, getReceivedTokens, subscribeToTokenChanges } from '../services/cashu/cashuLockedTokensService';
 import { loadTokensWithStatus, TokenWithStatus } from '../services/cashu/tokenStatusService';
+import { usePendingVaultTransactionStore } from '../stores/pendingVaultTransactionStore';
+import { useNotificationStore } from '../stores/notificationStore';
 import { logger } from '../utils/logger';
 
 // Polling intervals (in milliseconds)
@@ -210,6 +212,46 @@ export const WalletDataProvider: React.FC<WalletDataProviderProps> = ({ children
       unsubscribe();
     };
   }, [wallet, fetchEcashTokens]);
+
+  // ============================================================
+  // VAULT TRANSACTION CONFIRMATION CHECK
+  // ============================================================
+  // Check if pending vault transaction has been confirmed (appears in history)
+  const pendingVaultTx = usePendingVaultTransactionStore((state) => state.pendingTransaction);
+
+  useEffect(() => {
+    if (pendingVaultTx && vault.vaultTransactions.length > 0) {
+      logger.debug('[WalletDataContext] Checking vault tx confirmation', {
+        pendingTxid: pendingVaultTx.txid,
+        pendingVaultTxid: pendingVaultTx.vaultTxid,
+        pendingAction: pendingVaultTx.action,
+        historyCount: vault.vaultTransactions.length,
+        historyTxIds: vault.vaultTransactions.slice(0, 5).map(tx => tx.transaction_id),
+      });
+
+      // Check if the pending transaction's txid matches any in the history
+      const isConfirmed = vault.vaultTransactions.some(
+        tx => tx.transaction_id === pendingVaultTx.txid ||
+              tx.transaction_id === pendingVaultTx.vaultTxid
+      );
+
+      logger.debug('[WalletDataContext] Confirmation check result', { isConfirmed });
+
+      if (isConfirmed) {
+        // Transaction confirmed - clear pending state and show success snackbar
+        const confirmedAction = pendingVaultTx.action;
+        const confirmedTxid = pendingVaultTx.vaultTxid || pendingVaultTx.txid;
+        logger.info('[WalletDataContext] Vault transaction confirmed', { action: confirmedAction, txid: confirmedTxid });
+        usePendingVaultTransactionStore.getState().clearPendingTransaction();
+        // Show success snackbar (replaces the info snackbar without dismissing first to avoid cooldown)
+        useNotificationStore.getState().showSnackbar({
+          type: 'success',
+          action: confirmedAction,
+          txid: confirmedTxid,
+        });
+      }
+    }
+  }, [pendingVaultTx, vault.vaultTransactions]);
 
   // ============================================================
   // UNIFIED AUTO-REFRESH POLLING
