@@ -16,6 +16,23 @@ import { COLORS } from '../../theme';
 import Icon from '../icons';
 import { formatUnitAmount } from '../../utils/formatters/amounts';
 
+/**
+ * TurboUnitIcon - Unit logo with lightning bolt emoji overlay
+ */
+function TurboUnitIcon({ size = 48 }: { size?: number }) {
+  return (
+    <View style={{ width: size, height: size }}>
+      <Icon name="unit_logo" size={size} color={COLORS.PRIMARY_BLUE} />
+      <Text style={{
+        position: 'absolute',
+        right: -12,
+        bottom: -6,
+        fontSize: size * 0.55,
+      }}>⚡</Text>
+    </View>
+  );
+}
+
 interface LowEcashBalanceModalProps {
   visible: boolean;
   onClose: () => void;
@@ -43,7 +60,7 @@ export default function LowEcashBalanceModal({
       <Pressable style={styles.overlay} onPress={onClose}>
         <Pressable style={styles.modal} onPress={(e) => e.stopPropagation()}>
           <View style={styles.iconContainer}>
-            <Icon name="unit_logo" size={48} color={COLORS.PRIMARY_BLUE} />
+            <TurboUnitIcon size={56} />
           </View>
 
           <Text style={styles.title}>Low Turbo UNIT Balance</Text>
