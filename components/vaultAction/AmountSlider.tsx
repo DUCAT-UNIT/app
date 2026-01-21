@@ -35,6 +35,12 @@ export interface AmountSliderProps {
   label?: string;
   btcPrice?: number;
   disabled?: boolean;
+  /** Optional footer content to render inside the card (e.g., fee selector) */
+  renderFooter?: () => React.ReactNode;
+  /** Remove bottom border radius when attached to another element below */
+  attachedBottom?: boolean;
+  /** Custom color for slider track fill (defaults to PRIMARY_BLUE) */
+  sliderColor?: string;
 }
 
 const THUMB_SIZE = 24;
@@ -48,6 +54,9 @@ export const AmountSlider = memo(function AmountSlider({
   label = 'Amount',
   btcPrice,
   disabled = false,
+  renderFooter,
+  attachedBottom = false,
+  sliderColor = COLORS.PRIMARY_BLUE,
 }: AmountSliderProps): React.JSX.Element {
   const [width, setWidth] = useState(0);
   const [isEditing, setIsEditing] = useState(false);
@@ -200,65 +209,81 @@ export const AmountSlider = memo(function AmountSlider({
   });
 
   return (
-    <View style={styles.container}>
-      {/* Header */}
-      <View style={styles.header}>
-        <Text style={styles.label}>{label}</Text>
-        <TouchableScale onPress={handleMax} disabled={disabled}>
-          <Text style={[styles.maxBtn, disabled && styles.maxBtnDisabled]}>MAX</Text>
-        </TouchableScale>
-      </View>
-
-      {/* Value - tap to edit or animated display */}
-      {isEditing ? (
-        <View style={styles.valueContainer}>
-          <View style={styles.valueRow}>
-            <Icon name="btc_symbol" size={24} color={COLORS.WHITE} />
-            <TextInput
-              ref={inputRef}
-              style={styles.editInput}
-              value={editText}
-              onChangeText={setEditText}
-              keyboardType="decimal-pad"
-              onSubmitEditing={handleEditSubmit}
-              onBlur={handleEditSubmit}
-              selectTextOnFocus
-              autoFocus
-            />
-            <Text style={styles.btcUnit}>BTC</Text>
-          </View>
-          <Text style={styles.usdTextStatic}>Tap done when finished</Text>
+    <View style={[
+      styles.container,
+      attachedBottom && styles.containerAttachedBottom,
+      renderFooter && styles.containerWithFooter,
+    ]}>
+      {/* Slider area with bottom radius when footer exists */}
+      <View style={renderFooter ? styles.sliderArea : undefined}>
+        {/* Header */}
+        <View style={styles.header}>
+          <Text style={styles.label}>{label}</Text>
+          <TouchableScale onPress={handleMax} disabled={disabled}>
+            <Text style={[styles.maxBtn, disabled && styles.maxBtnDisabled]}>MAX</Text>
+          </TouchableScale>
         </View>
-      ) : (
-        <TouchableOpacity onPress={handleTapToEdit} activeOpacity={0.7} style={styles.valueContainer}>
-          <View style={styles.valueRow}>
-            <Icon name="btc_symbol" size={24} color={COLORS.WHITE} />
+
+        {/* Value - tap to edit or animated display */}
+        {isEditing ? (
+          <View style={styles.valueContainer}>
+            <View style={styles.valueRow}>
+              <Icon name="btc_symbol" size={24} color={COLORS.WHITE} />
+              <TextInput
+                ref={inputRef}
+                style={styles.editInput}
+                value={editText}
+                onChangeText={setEditText}
+                keyboardType="decimal-pad"
+                onSubmitEditing={handleEditSubmit}
+                onBlur={handleEditSubmit}
+                selectTextOnFocus
+                autoFocus
+              />
+              <Text style={styles.btcUnit}>BTC</Text>
+            </View>
+            <Text style={styles.usdTextStatic}>Tap done when finished</Text>
+          </View>
+        ) : (
+          <TouchableOpacity onPress={handleTapToEdit} activeOpacity={0.7} style={styles.valueContainer}>
+            <View style={styles.valueRow}>
+              <View style={styles.btcIcon}>
+                <Icon name="btc_symbol" size={24} color={COLORS.WHITE} />
+              </View>
+              <AnimatedTextInput
+                editable={false}
+                style={styles.valueText}
+                animatedProps={btcAnimatedProps}
+                pointerEvents="none"
+              />
+              <Text style={styles.btcUnit}>BTC</Text>
+            </View>
             <AnimatedTextInput
               editable={false}
-              style={styles.valueText}
-              animatedProps={btcAnimatedProps}
+              style={styles.usdText}
+              animatedProps={usdAnimatedProps}
               pointerEvents="none"
             />
-            <Text style={styles.btcUnit}>BTC</Text>
-          </View>
-          <AnimatedTextInput
-            editable={false}
-            style={styles.usdText}
-            animatedProps={usdAnimatedProps}
-            pointerEvents="none"
-          />
-        </TouchableOpacity>
-      )}
+          </TouchableOpacity>
+        )}
 
-      {/* Slider */}
-      <GestureDetector gesture={gesture}>
-        <View style={styles.sliderWrap} onLayout={handleLayout}>
-          <View style={styles.track}>
-            <Animated.View style={[styles.trackFill, trackFillStyle]} />
+        {/* Slider */}
+        <GestureDetector gesture={gesture}>
+          <View style={styles.sliderWrap} onLayout={handleLayout}>
+            <View style={styles.track}>
+              <Animated.View style={[styles.trackFill, trackFillStyle, { backgroundColor: sliderColor }]} />
+            </View>
+            <Animated.View style={[styles.thumb, thumbStyle]} />
           </View>
-          <Animated.View style={[styles.thumb, thumbStyle]} />
+        </GestureDetector>
+      </View>
+
+      {/* Optional footer content */}
+      {renderFooter && (
+        <View style={styles.footer}>
+          {renderFooter()}
         </View>
-      </GestureDetector>
+      )}
     </View>
   );
 });
@@ -270,6 +295,27 @@ const styles = StyleSheet.create({
     padding: 16,
     borderWidth: 1,
     borderColor: COLORS.BORDER_COLOR,
+    overflow: 'hidden',
+  },
+  containerAttachedBottom: {
+    borderBottomLeftRadius: 0,
+    borderBottomRightRadius: 0,
+    borderBottomWidth: 0,
+  },
+  containerWithFooter: {
+    borderBottomLeftRadius: 16,
+    borderBottomRightRadius: 16,
+  },
+  sliderArea: {
+    backgroundColor: COLORS.CARD_BG,
+    borderBottomLeftRadius: 16,
+    borderBottomRightRadius: 16,
+    paddingBottom: 16,
+    marginHorizontal: -16,
+    paddingHorizontal: 16,
+    marginTop: -16,
+    paddingTop: 16,
+    zIndex: 1,
   },
   header: {
     flexDirection: 'row',
@@ -297,8 +343,13 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
-    gap: 8,
     marginBottom: 4,
+    width: '100%',
+    position: 'relative',
+  },
+  btcIcon: {
+    position: 'absolute',
+    left: 16,
   },
   valueText: {
     color: COLORS.WHITE,
@@ -306,7 +357,7 @@ const styles = StyleSheet.create({
     fontWeight: '700',
     padding: 0,
     margin: 0,
-    minWidth: 100,
+    width: 220,
     textAlign: 'center',
   },
   editInput: {
@@ -321,6 +372,8 @@ const styles = StyleSheet.create({
     borderBottomColor: COLORS.PRIMARY_BLUE,
   },
   btcUnit: {
+    position: 'absolute',
+    right: 16,
     color: COLORS.SECONDARY_TEXT,
     fontSize: 16,
     fontWeight: '500',
@@ -367,6 +420,30 @@ const styles = StyleSheet.create({
     shadowOpacity: 0.2,
     shadowRadius: 3,
     elevation: 4,
+  },
+  footer: {
+    marginTop: -8,
+    marginHorizontal: -16,
+    marginBottom: -16,
+    backgroundColor: '#28272C',
+    borderBottomLeftRadius: 16,
+    borderBottomRightRadius: 16,
+    paddingHorizontal: 16,
+    paddingTop: 20,
+    paddingBottom: 12,
+  },
+  footerDivider: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
+    height: 16,
+    borderBottomLeftRadius: 16,
+    borderBottomRightRadius: 16,
+    borderBottomWidth: 1,
+    borderLeftWidth: 1,
+    borderRightWidth: 1,
+    borderColor: COLORS.BORDER_COLOR,
   },
 });
 
