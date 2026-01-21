@@ -87,15 +87,14 @@ const securelyWipeString = (str: string | null): string => {
 /**
  * Save mnemonic to secure storage
  * @param mnemonic - BIP39 mnemonic phrase
- * @returns Success status
+ * @throws Error if save fails (critical operation)
  */
-export const saveMnemonic = async (mnemonic: string): Promise<boolean> => {
+export const saveMnemonic = async (mnemonic: string): Promise<void> => {
   try {
     await SecureStore.setItemAsync(SECURE_KEYS.MNEMONIC, mnemonic);
-    return true;
   } catch (error: unknown) {
     logger.error('Failed to save mnemonic', { error: error instanceof Error ? error.message : String(error) });
-    return false;
+    throw new Error('Failed to save wallet securely');
   }
 };
 
@@ -138,15 +137,14 @@ export const withMnemonic = async <T>(callback: (mnemonic: string) => Promise<T>
 
 /**
  * Delete mnemonic from secure storage
- * @returns Success status
+ * @throws Error if delete fails (critical operation)
  */
-export const deleteMnemonic = async (): Promise<boolean> => {
+export const deleteMnemonic = async (): Promise<void> => {
   try {
     await SecureStore.deleteItemAsync(SECURE_KEYS.MNEMONIC);
-    return true;
   } catch (error: unknown) {
     logger.error('Failed to delete mnemonic', { error: error instanceof Error ? error.message : String(error) });
-    return false;
+    throw new Error('Failed to delete wallet securely');
   }
 };
 
@@ -411,9 +409,9 @@ export const clearMultiAccountCache = async (): Promise<boolean> => {
  * IMPORTANT: This clears ALL wallet data including PIN, passkey, and lockout state
  * NOTE: iCloud backup is preserved by default to allow wallet recovery
  * @param clearICloudBackup - Whether to also clear iCloud passkey backup (default: false)
- * @returns Success status
+ * @throws Error if critical deletion fails
  */
-export const deleteWalletData = async (clearICloudBackup = false): Promise<boolean> => {
+export const deleteWalletData = async (clearICloudBackup = false): Promise<void> => {
   try {
     // Clear passkey data if it exists (iCloud backup preserved by default for recovery)
     try {
@@ -462,10 +460,8 @@ export const deleteWalletData = async (clearICloudBackup = false): Promise<boole
       SecureStore.deleteItemAsync(SECURE_KEYS.PASSKEY_USER_HANDLE),
       SecureStore.deleteItemAsync(SECURE_KEYS.WALLET_CREATION_METHOD),
     ]);
-
-    return true;
   } catch (error: unknown) {
     logger.error(error as Error, { context: 'deleteWalletData' });
-    return false;
+    throw new Error('Failed to delete wallet data securely');
   }
 };

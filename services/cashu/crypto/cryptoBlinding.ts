@@ -248,8 +248,7 @@ export const createBlindedOutputs = async (
     })
   );
 
-  // Sort outputs by amount (ascending) for privacy (NUT-03 recommendation)
-  // This prevents the mint from distinguishing between send amount and change
+  // Sort outputs by amount (ascending) per NUT-03 recommendation
   blindedMessages.sort((a, b) => a.output.amount - b.output.amount);
 
   return {

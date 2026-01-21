@@ -79,7 +79,7 @@ const createBlindedOutputsWithSecrets = async (
     });
   }
 
-  // Sort outputs by amount for privacy (NUT-03)
+  // Sort outputs by amount per NUT-03
   const combined: BlindedOutputWithData[] = outputs.map((output, i) => ({
     output,
     blindingData: blindingData[i]
@@ -197,7 +197,7 @@ export const sendP2PKToken = async (
     }
 
     // Track which secrets are P2PK vs normal (for identification after sorting)
-    // This is needed because createBlindedOutputsWithSecrets sorts outputs by amount for privacy
+    // This is needed because createBlindedOutputsWithSecrets sorts outputs by amount
     const secretTypeMap = new Map<string, 'p2pk' | 'change'>();
     p2pkSecrets.forEach(secret => secretTypeMap.set(secret, 'p2pk'));
     changeSecrets.forEach(secret => secretTypeMap.set(secret, 'change'));
@@ -280,7 +280,9 @@ export const sendP2PKToken = async (
 
     const newBalance = await getBalance();
 
-    logger.info('P2PK token created', { amount, locked: true, newBalance, balanceChange: newBalance - (await loadProofs().then(sumProofs) - selectedAmount) });
+    const currentProofs = await loadProofs();
+    const currentTotal = sumProofs(currentProofs);
+    logger.info('P2PK token created', { amount, locked: true, newBalance, balanceChange: newBalance - (currentTotal - selectedAmount) });
 
     return {
       token,

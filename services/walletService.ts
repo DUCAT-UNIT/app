@@ -167,15 +167,9 @@ export const switchToAccount = async (accountIndex: number): Promise<SwitchAccou
  * Save wallet to secure storage
  * @param mnemonic - BIP39 mnemonic phrase
  * @param accountIndex - Account index
- * @returns Success status
+ * @throws Error if save fails (critical operation)
  */
-export const saveWalletToStorage = async (mnemonic: string, accountIndex = 0): Promise<boolean> => {
-  try {
-    const mnemonicSaved = await saveMnemonic(mnemonic);
-    const accountSaved = await saveCurrentAccount(accountIndex);
-
-    return mnemonicSaved && accountSaved;
-  } catch (error: unknown) {
-    return false;
-  }
+export const saveWalletToStorage = async (mnemonic: string, accountIndex = 0): Promise<void> => {
+  await saveMnemonic(mnemonic);
+  await saveCurrentAccount(accountIndex);
 };
