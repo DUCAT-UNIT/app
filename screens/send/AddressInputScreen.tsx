@@ -18,7 +18,7 @@ import { COLORS } from '../../theme';
 import Icon from '../../components/icons';
 import QRScanner from '../../components/scanner/QRScanner';
 import { validateBitcoinAddress } from '../../utils/bitcoin';
-import { useSendFlow, type AssetType } from '../../stores/sendFlowStore';
+import { useSendFlowStore, type AssetType } from '../../stores/sendFlowStore';
 import { useKeyboard } from '../../hooks/useKeyboard';
 import { logger } from '../../utils/logger';
 import { useNavigationHandlers } from '../../contexts/NavigationHandlersContext';
@@ -43,7 +43,16 @@ interface AddressInputScreenProps {
 }
 
 export default function AddressInputScreen({ navigation, route }: AddressInputScreenProps): React.JSX.Element {
-  const { sendAssetType, sendRecipient, setSendRecipient, setSendAddressType, setSendAssetType, turboEnabled, setTurboEnabled } = useSendFlow();
+  // Use individual selectors to avoid re-rendering on unrelated state changes
+  const sendAssetType = useSendFlowStore((state) => state.sendAssetType);
+  const sendRecipient = useSendFlowStore((state) => state.sendRecipient);
+  const turboEnabled = useSendFlowStore((state) => state.turboEnabled);
+
+  // Use stable store actions directly to avoid infinite loops
+  const setSendRecipient = useSendFlowStore((state) => state.setSendRecipient);
+  const setSendAddressType = useSendFlowStore((state) => state.setSendAddressType);
+  const setSendAssetType = useSendFlowStore((state) => state.setSendAssetType);
+  const setTurboEnabled = useSendFlowStore((state) => state.setTurboEnabled);
   const { settingsHandlers } = useNavigationHandlers();
   const advancedMode = settingsHandlers?.advancedMode || false;
   const { keyboardHeight } = useKeyboard();
@@ -64,11 +73,11 @@ export default function AddressInputScreen({ navigation, route }: AddressInputSc
   }, [route.params?.assetType, sendAssetType, setSendAssetType]);
 
   useEffect(() => {
-    if (assetType === 'unit' && advancedMode) {
+    if (assetType === 'unit') {
       logger.debug('AddressInputScreen: Enabling Turbo mode by default for UNIT');
       setTurboEnabled(true);
     }
-  }, [assetType, advancedMode, setTurboEnabled]);
+  }, [assetType, setTurboEnabled]);
 
   // Handle prefilled address from QR scan or deep link
   useEffect(() => {
@@ -181,20 +190,6 @@ export default function AddressInputScreen({ navigation, route }: AddressInputSc
                 <Text style={{ fontSize: sf(12), color: COLORS.GREEN, fontFamily: 'CabinetGrotesk-Regular' }}>Valid</Text>
               </View>
             ) : null}
-            {assetType === 'unit' && advancedMode && (
-              <>
-                <Icon name="turbo" size={s(16)} color={COLORS.YELLOW} />
-                <Switch
-                  value={turboEnabled}
-                  onValueChange={setTurboEnabled}
-                  trackColor={{ false: COLORS.MID_DARK_GRAY, true: COLORS.YELLOW }}
-                  thumbColor={COLORS.WHITE}
-                  ios_backgroundColor={COLORS.MID_DARK_GRAY}
-                  style={{ transform: [{ scale: scale * 0.8 }] }}
-                  testID="address-turbo-toggle"
-                />
-              </>
-            )}
           </View>
         </View>
         {/* Error message displayed below label row */}

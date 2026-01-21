@@ -12,6 +12,7 @@ import TouchableScale from '../../components/common/TouchableScale';
 import { useReviewScreenData } from '../../hooks/useReviewScreenData';
 import { useTransactionBuild } from '../../contexts/TransactionBuildContext';
 import { useNavigationHandlers } from '../../contexts/NavigationHandlersContext';
+import { useSendFlowStore } from '../../stores/sendFlowStore';
 import TransactionSummary from '../../components/review/TransactionSummary';
 import FeeBreakdown from '../../components/review/FeeBreakdown';
 import { InputOutputList } from '../../components/review/InputOutputList';
@@ -63,6 +64,7 @@ export default function ReviewScreen({ navigation, route }: ReviewScreenProps): 
     actualFee,
   } = useReviewScreenData();
 
+  const selectedFeeRate = useSendFlowStore((state) => state.selectedFeeRate);
   const { cancelIntent } = useTransactionBuild();
 
   // Handle missing sendIntent - navigate back in useEffect, not during render
@@ -146,14 +148,11 @@ export default function ReviewScreen({ navigation, route }: ReviewScreenProps): 
             usdAmount={usdAmount}
           />
 
-          {/* Turbo Warning - only show when Advanced Mode is enabled */}
-          {isTurbo && advancedMode && <TurboWarning />}
-
           {/* Unconfirmed Inputs Warning */}
           {hasUnconfirmedInputs && <UnconfirmedWarning />}
 
           {/* Fee Breakdown */}
-          <FeeBreakdown actualFee={actualFee} />
+          <FeeBreakdown actualFee={actualFee} feeRate={selectedFeeRate} />
 
           {/* Details Section - Collapsible */}
           <TouchableOpacity

@@ -14,8 +14,7 @@ import { withErrorBoundary } from '../components/withErrorBoundary';
 
 // Screen imports
 import AssetSelectorScreenComponent from '../screens/send/AssetSelectorScreen';
-import AddressInputScreenComponent from '../screens/send/AddressInputScreen';
-import AmountInputScreenComponent from '../screens/send/AmountInputScreen';
+import SendInputScreenComponent from '../screens/send/SendInputScreen';
 import ReviewScreenComponent from '../screens/send/ReviewScreen';
 import ProcessingScreenComponent from '../screens/send/ProcessingScreen';
 import TurboProcessingScreenComponent from '../screens/send/TurboProcessingScreen';
@@ -35,14 +34,9 @@ const AssetSelectorScreen: AnyComponent = withErrorBoundary(AssetSelectorScreenC
   fallbackMessage: 'Unable to load asset selector. Please try again.',
 });
 
-const AddressInputScreen: AnyComponent = withErrorBoundary(AddressInputScreenComponent, {
-  boundaryName: 'AddressInputScreen',
-  fallbackMessage: 'Unable to load address input. Please try again.',
-});
-
-const AmountInputScreen: AnyComponent = withErrorBoundary(AmountInputScreenComponent, {
-  boundaryName: 'AmountInputScreen',
-  fallbackMessage: 'Unable to load amount input. Please try again.',
+const SendInputScreen: AnyComponent = withErrorBoundary(SendInputScreenComponent, {
+  boundaryName: 'SendInputScreen',
+  fallbackMessage: 'Unable to load send input. Please try again.',
 });
 
 const ReviewScreen: AnyComponent = withErrorBoundary(ReviewScreenComponent, {
@@ -127,12 +121,8 @@ export default function SendNavigator(): React.JSX.Element {
           component={AssetSelectorScreen}
         />
         <SendStack.Screen
-          name="AddressInput"
-          component={AddressInputScreen}
-        />
-        <SendStack.Screen
-          name="AmountInput"
-          component={AmountInputScreen}
+          name="SendInput"
+          component={SendInputScreen}
         />
         <SendStack.Screen
           name="TurboLoading"

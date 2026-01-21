@@ -32,6 +32,7 @@ interface SendFlowState {
   sendAddressType: AddressType;
   requireConfirmedUtxos: boolean;
   turboEnabled: boolean;
+  selectedFeeRate: number;
 }
 
 interface SendFlowActions {
@@ -42,6 +43,7 @@ interface SendFlowActions {
   setSendAddressType: (type: AddressType) => void;
   setRequireConfirmedUtxos: (required: boolean) => void;
   setTurboEnabled: (enabled: boolean) => void;
+  setSelectedFeeRate: (rate: number) => void;
   resetSendFlow: () => void;
 }
 
@@ -55,6 +57,7 @@ const initialState: SendFlowState = {
   sendAddressType: 'taproot',
   requireConfirmedUtxos: false,
   turboEnabled: true, // Turbo ON by default for UNIT transactions
+  selectedFeeRate: 2, // Default to standard (2 sat/vB)
 };
 
 // Timer for auto-reset from 'confirmed' to 'idle'
@@ -99,6 +102,7 @@ export const useSendFlowStore = create<SendFlowStore>((set) => ({
   setSendAddressType: (type) => set({ sendAddressType: type }),
   setRequireConfirmedUtxos: (required) => set({ requireConfirmedUtxos: required }),
   setTurboEnabled: (enabled) => set({ turboEnabled: enabled }),
+  setSelectedFeeRate: (rate) => set({ selectedFeeRate: rate }),
 
   resetSendFlow: () => {
     logger.debug('[SendFlowStore] resetSendFlow');
@@ -142,6 +146,7 @@ export const useSendFlow = () => {
     sendAddressType: store.sendAddressType,
     requireConfirmedUtxos: store.requireConfirmedUtxos,
     turboEnabled: store.turboEnabled,
+    selectedFeeRate: store.selectedFeeRate,
     // Actions (wrapped to match React.Dispatch<SetStateAction<T>> signature for backwards compat)
     setIntentStep: store.setIntentStep,
     setSendAssetType: (value: AssetType | ((prev: AssetType) => AssetType)) => {
@@ -186,6 +191,7 @@ export const useSendFlow = () => {
         store.setTurboEnabled(value);
       }
     },
+    setSelectedFeeRate: store.setSelectedFeeRate,
     resetSendFlow: store.resetSendFlow,
   };
 };

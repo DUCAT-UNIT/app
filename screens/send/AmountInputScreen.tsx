@@ -18,13 +18,15 @@ import { COLORS } from '../../theme';
 import TouchableScale from '../../components/common/TouchableScale';
 import { formatNumberWithCommas } from '../../utils/sendHelpers';
 import { formatFiat } from '../../utils/formatters';
-import { useSendFlow } from '../../stores/sendFlowStore';
+import { useSendFlowStore } from '../../stores/sendFlowStore';
 import { useBalance } from '../../contexts/WalletDataContext';
 import { usePrice } from '../../stores/priceStore';
 import { useWallet } from '../../contexts/WalletContext';
 import { useKeyboard } from '../../hooks/useKeyboard';
 import { useAmountInput } from '../../hooks/useAmountInput';
 import { useTurboReview } from '../../hooks/useTurboReview';
+import { useFeeEstimate } from '../../hooks/useFeeEstimate';
+import { TransactionType } from '../../services/feeEstimationService';
 import { RecipientHeader } from '../../components/amountInput';
 import InsufficientTurboSheet from '../../components/send/InsufficientTurboSheet';
 import { useCashu } from '../../contexts/CashuContext';
@@ -32,10 +34,6 @@ import { useNavigationHandlers } from '../../contexts/NavigationHandlersContext'
 import { useResponsive } from '../../hooks/useResponsive';
 import { logger } from '../../utils/logger';
 import styles from './AmountInputScreen.styles';
-
-// Estimated fees in sats (conservative estimates)
-const ESTIMATED_BTC_FEE_SATS = 250;
-const ESTIMATED_UNIT_FEE_SATS = 500; // UNIT transactions have more outputs
 
 /**
  * Safe BTC to satoshi conversion avoiding floating point errors
@@ -72,16 +70,17 @@ interface AmountInputScreenProps {
 }
 
 export default function AmountInputScreen({ navigation, route }: AmountInputScreenProps): React.JSX.Element {
-  const {
-    sendAssetType,
-    sendAmount,
-    setSendAmount,
-    sendRecipient,
-    sendAddressType,
-    turboEnabled,
-    setTurboEnabled,
-    setSendRecipient,
-  } = useSendFlow();
+  // Use individual selectors to avoid re-rendering on unrelated state changes
+  const sendAssetType = useSendFlowStore((state) => state.sendAssetType);
+  const sendAmount = useSendFlowStore((state) => state.sendAmount);
+  const sendRecipient = useSendFlowStore((state) => state.sendRecipient);
+  const sendAddressType = useSendFlowStore((state) => state.sendAddressType);
+  const turboEnabled = useSendFlowStore((state) => state.turboEnabled);
+
+  // Use stable store actions directly to avoid infinite loops from unstable references
+  const setSendAmount = useSendFlowStore((state) => state.setSendAmount);
+  const setTurboEnabled = useSendFlowStore((state) => state.setTurboEnabled);
+  const setSendRecipient = useSendFlowStore((state) => state.setSendRecipient);
   const { settingsHandlers } = useNavigationHandlers();
   const ecashThreshold = settingsHandlers?.ecashThreshold || 100;
   const { segwitBalance, taprootBalance, runesBalance } = useBalance();
@@ -138,8 +137,16 @@ export default function AmountInputScreen({ navigation, route }: AmountInputScre
       ? 'Taproot'
       : 'Native SegWit';
 
-  // Fee estimation
-  const estimatedFeeSats = sendAssetType === 'unit' ? ESTIMATED_UNIT_FEE_SATS : ESTIMATED_BTC_FEE_SATS;
+  // Dynamic fee estimation based on transaction type
+  const transactionType = sendAssetType === 'unit' ? TransactionType.UNIT_SEND : TransactionType.BTC_SEND;
+  const { feeEstimateSats } = useFeeEstimate({
+    type: transactionType,
+    sourceAddress: wallet?.segwitAddress,
+    enabled: true,
+  });
+
+  // Fee estimation with 10% buffer
+  const estimatedFeeSats = Math.ceil(feeEstimateSats * 1.1);
   const estimatedFeeBtc = estimatedFeeSats / 100000000;
 
   // Check if user has enough BTC to cover fees when sending UNIT
@@ -174,9 +181,12 @@ export default function AmountInputScreen({ navigation, route }: AmountInputScre
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  // Auto-toggle turbo based on ecash threshold
+  // Track if user has manually toggled turbo (to prevent auto-override)
+  const userToggledTurbo = useRef(false);
+
+  // Auto-toggle turbo based on ecash threshold (only if user hasn't manually toggled)
   useEffect(() => {
-    if (sendAssetType === 'unit' && sendAmount) {
+    if (sendAssetType === 'unit' && sendAmount && !userToggledTurbo.current) {
       const amount = parseFloat(sendAmount) || 0;
       if (amount >= ecashThreshold && turboEnabled) {
         // Turn OFF when amount exceeds threshold
@@ -198,20 +208,18 @@ export default function AmountInputScreen({ navigation, route }: AmountInputScre
 
   // Handle turbo toggle with ecash balance check
   const handleTurboToggle = useCallback(async (enabled: boolean) => {
+    // Mark that user has manually toggled (prevents auto-override by threshold logic)
+    userToggledTurbo.current = true;
+
     if (!enabled) {
       // Turning OFF - just disable
       setTurboEnabled(false);
       return;
     }
 
-    // Turning ON - check if amount exceeds threshold
+    // Turning ON - check ecash balance
     const amount = parseFloat(sendAmount) || 0;
-    if (amount >= ecashThreshold) {
-      // Can't enable turbo for amounts over threshold
-      return;
-    }
 
-    // Check ecash balance
     setIsCheckingEcash(true);
     try {
       const { getBalance } = await import('../../services/cashu/cashuWalletService');
@@ -236,7 +244,7 @@ export default function AmountInputScreen({ navigation, route }: AmountInputScre
     } finally {
       setIsCheckingEcash(false);
     }
-  }, [sendAmount, ecashThreshold, setTurboEnabled]);
+  }, [sendAmount, setTurboEnabled]);
 
   // Handle user choosing to use turbo from toggle sheet (needs minting)
   const handleToggleUseTurbo = useCallback(() => {

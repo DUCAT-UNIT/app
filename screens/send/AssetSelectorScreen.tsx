@@ -49,7 +49,7 @@ export default function AssetSelectorScreen({ navigation }: AssetSelectorScreenP
   const handleSelectAsset = useCallback((assetType: AssetType): void => {
     logger.debug('Setting asset type to:', { assetType });
     setSendAssetType(assetType);
-    navigation.navigate('AddressInput', { assetType });
+    navigation.navigate('SendInput', { assetType });
   }, [setSendAssetType, navigation]);
 
   return (
