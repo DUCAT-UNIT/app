@@ -15,7 +15,7 @@ export function formatFiat(amount: number | null | undefined, decimals = 2, curr
     return '0.00';
   }
 
-  if (typeof amount !== 'number' || isNaN(amount)) {
+  if (typeof amount !== 'number' || isNaN(amount) || !isFinite(amount)) {
     return '0.00';
   }
 

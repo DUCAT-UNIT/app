@@ -17,6 +17,8 @@ export interface PostOptions {
   timeout?: number;
   description?: string;
   retryOptions?: RetryOptions;
+  /** AbortSignal for request cancellation (e.g., from useEffect cleanup) */
+  signal?: AbortSignal;
 }
 
 export interface GetOptions {
@@ -24,6 +26,8 @@ export interface GetOptions {
   timeout?: number;
   description?: string;
   retryOptions?: RetryOptions;
+  /** AbortSignal for request cancellation (e.g., from useEffect cleanup) */
+  signal?: AbortSignal;
 }
 
 /**
@@ -43,6 +47,7 @@ export async function postWithRetry(
     timeout = DEFAULT_TIMEOUT,
     description = 'POST request',
     retryOptions = {},
+    signal,
   } = options;
 
   const startTime = Date.now();
@@ -58,6 +63,7 @@ export async function postWithRetry(
               ...headers,
             },
             body: JSON.stringify(body),
+            signal,
           },
           timeout
         ),
@@ -85,6 +91,7 @@ export async function getWithRetry(url: string, options: GetOptions = {}): Promi
     timeout = DEFAULT_TIMEOUT,
     description = 'GET request',
     retryOptions = {},
+    signal,
   } = options;
 
   const startTime = Date.now();
@@ -98,6 +105,7 @@ export async function getWithRetry(url: string, options: GetOptions = {}): Promi
             headers: {
               ...headers,
             },
+            signal,
           },
           timeout
         ),

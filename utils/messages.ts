@@ -177,16 +177,16 @@ export const NOTIFICATIONS = {
   QR_UNKNOWN_FORMAT: 'Unknown QR code format',
 
   // ============================================
-  // Ecash / Cashu Operations
+  // Turbo UNIT Operations
   // ============================================
-  CASHU_CACHE_CLEARED: 'Cashu cache cleared successfully',
-  CASHU_CACHE_CLEAR_FAILED: 'Failed to clear Cashu cache',
+  CASHU_CACHE_CLEARED: 'Turbo UNIT cache cleared successfully',
+  CASHU_CACHE_CLEAR_FAILED: 'Failed to clear Turbo UNIT cache',
   CASHU_RECOVERING_CHANGE: 'Recovering change from sent tokens...',
   CASHU_LOCKED_TOKENS_CLEARED: 'Sent locked tokens history cleared',
   CASHU_LOCKED_TOKENS_CLEAR_FAILED: 'Failed to clear locked tokens history',
   CONVERSION_COMPLETE: 'Conversion complete',
   CONVERSION_FAILED: (error: string) => `Failed to complete conversion: ${error}`,
-  PAYMENT_SENT_AWAITING: 'Payment sent. Ecash will be available once confirmed.',
+  PAYMENT_SENT_AWAITING: 'Payment sent. Turbo UNIT will be available once confirmed.',
 
   // ============================================
   // Ecash Threshold / Navigation
@@ -201,7 +201,7 @@ export const NOTIFICATIONS = {
   COPIED: (item: string) => `${item} copied to clipboard`,
   COPY_FAILED: (item: string) => `Failed to copy ${item}`,
   ADDRESS_COPIED: (type: string) => `${type} address copied to clipboard`,
-  TOKEN_COPIED: 'Cashu token copied to clipboard',
+  TOKEN_COPIED: 'Turbo UNIT token copied to clipboard',
   TOKEN_COPY_FAILED: 'Failed to copy token to clipboard',
   LINK_COPIED: 'Link copied to clipboard',
 

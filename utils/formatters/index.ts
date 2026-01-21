@@ -59,6 +59,9 @@ export const formatBalance = (balance: number | null | undefined, decimals = 8):
       maximumFractionDigits: decimals,
     });
   }
+  if (!isFinite(balance)) {
+    return '0.00000000';
+  }
   return balance.toLocaleString('en-US', {
     minimumFractionDigits: decimals,
     maximumFractionDigits: decimals,

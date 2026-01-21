@@ -44,7 +44,7 @@ export interface Utxo {
   txid: string;
   vout: number;
   value: number;
-  script: string;
+  script?: string;
 }
 
 /**
@@ -53,7 +53,8 @@ export interface Utxo {
 function calculateVinAllowance(utxos: Utxo[], feeRate: number): number {
   // Simplified calculation - uses estimated sizes
   const vsize = utxos.reduce((acc, utxo) => {
-    const scriptType = getScriptType(utxo.script);
+    // Default to native segwit if script is unavailable
+    const scriptType = utxo.script ? getScriptType(utxo.script) : 'p2w-pkh';
     return acc + getScriptSize(scriptType);
   }, 0);
 
@@ -110,10 +111,11 @@ export function getMaxUnitRounded(btc: number, bitcoinPrice: number | undefined)
  * Computes the liquidation price threshold
  * @param unitInVault - Total UNIT in vault
  * @param btcInVault - Total BTC in vault
- * @returns Liquidation price in USD
+ * @returns Liquidation price in USD, or Infinity if no debt (cannot be liquidated)
  */
 export function computeLiquidationPrice(unitInVault: number, btcInVault: number): number {
   if (btcInVault === 0) return 0;
+  if (unitInVault === 0) return Infinity;
   const tholdPrice = (unitInVault * VAULT_CONFIG.LIQUIDATION_RATE) / btcInVault;
   return Math.floor(tholdPrice * 100) / 100;
 }

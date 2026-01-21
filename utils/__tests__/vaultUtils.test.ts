@@ -161,6 +161,11 @@ describe('vaultUtils', () => {
       expect(price).toBe(0);
     });
 
+    it('should return Infinity for zero UNIT (no debt = no liquidation risk)', () => {
+      const price = computeLiquidationPrice(0, 1);
+      expect(price).toBe(Infinity);
+    });
+
     it('should floor to 2 decimal places', () => {
       // Result should be floored
       const price = computeLiquidationPrice(1000, 0.015);
