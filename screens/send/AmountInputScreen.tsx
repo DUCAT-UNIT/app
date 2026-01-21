@@ -376,7 +376,7 @@ export default function AmountInputScreen({ navigation, route }: AmountInputScre
             <View style={[styles.turboInfoContainer, { borderRadius: s(12), padding: s(16), marginTop: s(16) }]}>
               <Text style={[styles.turboInfoTitle, { fontSize: sf(16), marginBottom: s(4) }]}>Turbo Transaction</Text>
               <Text style={[styles.turboInfoText, { fontSize: sf(13), lineHeight: s(18) }]}>
-                Anonymous, instant, and private.{'\n'}
+                Instant transaction.{'\n'}
                 The recipient has to claim the funds manually.
               </Text>
             </View>

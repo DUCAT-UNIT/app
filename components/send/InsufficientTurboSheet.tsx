@@ -55,10 +55,10 @@ export default function InsufficientTurboSheet({
             <Text style={styles.optionTitle}>Use Turbo UNIT</Text>
           </View>
           <Text style={styles.optionDescription}>
-            Private & instant after confirmation. Requires waiting for on-chain confirmation to mint. User will have to claim the tokens on their side.
+            Instant after confirmation. Requires waiting for on-chain confirmation to mint. User will have to claim the tokens on their side.
           </Text>
           <View style={styles.badge}>
-            <Text style={styles.badgeText}>Private</Text>
+            <Text style={styles.badgeText}>Instant</Text>
           </View>
         </TouchableOpacity>
 
@@ -73,7 +73,7 @@ export default function InsufficientTurboSheet({
             <Text style={styles.optionTitle}>Send Normally</Text>
           </View>
           <Text style={styles.optionDescription}>
-            Standard on-chain transaction. Also have to wait for an on-chain confirmation, not private.
+            Standard on-chain transaction. Also have to wait for an on-chain confirmation.
           </Text>
           <View style={[styles.badge, styles.badgeSecondary]}>
             <Text style={styles.badgeText}>On-Chain</Text>

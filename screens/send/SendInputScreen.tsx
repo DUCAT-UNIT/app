@@ -16,6 +16,7 @@ import {
   StyleSheet,
   ActivityIndicator,
   Keyboard,
+  Switch,
 } from 'react-native';
 import { NavigationProp, RouteProp } from '@react-navigation/native';
 import { SafeAreaView } from 'react-native-safe-area-context';
@@ -71,7 +72,7 @@ export default function SendInputScreen({ navigation, route }: SendInputScreenPr
   const setTurboEnabled = useSendFlowStore((state) => state.setTurboEnabled);
 
   // Hooks
-  const { segwitBalance, runesBalance, utxos } = useBalance();
+  const { segwitBalance, runesBalance, utxos, unconfirmedSegwitBalance } = useBalance();
   const { btcPrice } = usePrice();
   const { wallet } = useWallet();
   const { keyboardHeight } = useKeyboard();
@@ -132,8 +133,8 @@ export default function SendInputScreen({ navigation, route }: SendInputScreenPr
 
   const estimatedFeeSats = Math.ceil(feeEstimateSats * 1.1); // 10% buffer
 
-  // Balance calculations
-  const btcBalance = segwitBalance || 0;
+  // Balance calculations (include unconfirmed for transaction chaining)
+  const btcBalance = (segwitBalance || 0) + (unconfirmedSegwitBalance || 0);
   const unitBalance = useMemo(() => getRunesAmount(runesBalance), [runesBalance]);
 
   // For BTC: max sendable = balance - fee
@@ -374,6 +375,24 @@ export default function SendInputScreen({ navigation, route }: SendInputScreenPr
             )}
           </View>
 
+          {/* Turbo Toggle for UNIT */}
+          {!isBtc && (
+            <View style={styles.turboSection}>
+              <View style={styles.turboRow}>
+                <View style={styles.turboLabelContainer}>
+                  <Text style={styles.turboLabel}>⚡ Turbo UNIT</Text>
+                  <Text style={styles.turboDescription}>Instant transaction</Text>
+                </View>
+                <Switch
+                  value={turboEnabled}
+                  onValueChange={setTurboEnabled}
+                  trackColor={{ false: colors.bg.tertiary, true: colors.brand.primary }}
+                  thumbColor={colors.text.white}
+                />
+              </View>
+            </View>
+          )}
+
           {/* Warning for insufficient BTC for UNIT fees */}
           {insufficientBtcForFees && (
             <View style={styles.warning}>
@@ -515,6 +534,31 @@ const styles = StyleSheet.create({
   },
   addressIconBtn: {
     padding: spacing.xs,
+  },
+  turboSection: {
+    marginTop: spacing.lg,
+  },
+  turboRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    backgroundColor: colors.bg.secondary,
+    borderRadius: radii.lg,
+    padding: spacing.md,
+  },
+  turboLabelContainer: {
+    flex: 1,
+  },
+  turboLabel: {
+    color: colors.text.primary,
+    fontSize: fontSizes.md,
+    fontFamily: fonts.bold,
+  },
+  turboDescription: {
+    color: colors.text.tertiary,
+    fontSize: fontSizes.sm,
+    fontFamily: fonts.regular,
+    marginTop: 2,
   },
   warning: {
     flexDirection: 'row',

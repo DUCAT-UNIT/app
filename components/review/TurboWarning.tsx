@@ -19,7 +19,7 @@ export default function TurboWarning() {
       </View>
       <View style={styles.textContainer}>
         <Text style={[styles.warningText, { fontSize: sf(14), lineHeight: sf(20) }]}>
-          Turbo mode lets you operate anonymously. All transactions are private and untraceable.
+          Turbo mode lets you operate immediately. All transactions are completed instantly.
         </Text>
       </View>
     </View>
