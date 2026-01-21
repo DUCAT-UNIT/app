@@ -19,11 +19,12 @@ type WithdrawStackParamList = {
 type WithdrawSuccessScreenProps = StackScreenProps<WithdrawStackParamList, 'WithdrawSuccess'>;
 
 export default function WithdrawSuccessScreen({ navigation, route }: WithdrawSuccessScreenProps) {
-  const { vaultTxid: storeVaultTxid, withdrawAmountBtc, reset } = useWithdraw();
+  const { vaultTxid: storeVaultTxid, withdrawAmountSats, reset } = useWithdraw();
   const { btcPrice } = usePrice();
 
   const vaultTxid = route.params?.vaultTxid || storeVaultTxid || '';
-  const withdrawUsdValue = btcPrice ? withdrawAmountBtc * btcPrice : 0;
+  // VaultActionSuccess expects satoshis for BTC amounts (formatBTC converts sats to BTC)
+  const withdrawUsdValue = btcPrice ? (withdrawAmountSats / 100_000_000) * btcPrice : 0;
 
   const handleDone = useCallback(() => {
     reset();
@@ -55,7 +56,7 @@ export default function WithdrawSuccessScreen({ navigation, route }: WithdrawSuc
   return (
     <VaultActionSuccess
       actionType="withdraw"
-      amount={withdrawAmountBtc}
+      amount={withdrawAmountSats}
       usdValue={withdrawUsdValue}
       txid={vaultTxid}
       unit="BTC"

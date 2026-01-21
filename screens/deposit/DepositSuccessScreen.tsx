@@ -19,11 +19,12 @@ type DepositStackParamList = {
 type DepositSuccessScreenProps = StackScreenProps<DepositStackParamList, 'DepositSuccess'>;
 
 export default function DepositSuccessScreen({ navigation, route }: DepositSuccessScreenProps) {
-  const { vaultTxid: storeVaultTxid, depositAmountBtc, reset } = useDeposit();
+  const { vaultTxid: storeVaultTxid, depositAmountSats, reset } = useDeposit();
   const { btcPrice } = usePrice();
 
   const vaultTxid = route.params?.vaultTxid || storeVaultTxid || '';
-  const depositUsdValue = btcPrice ? depositAmountBtc * btcPrice : 0;
+  // VaultActionSuccess expects satoshis for BTC amounts (formatBTC converts sats to BTC)
+  const depositUsdValue = btcPrice ? (depositAmountSats / 100_000_000) * btcPrice : 0;
 
   const handleDone = useCallback(() => {
     reset();
@@ -55,7 +56,7 @@ export default function DepositSuccessScreen({ navigation, route }: DepositSucce
   return (
     <VaultActionSuccess
       actionType="deposit"
-      amount={depositAmountBtc}
+      amount={depositAmountSats}
       usdValue={depositUsdValue}
       txid={vaultTxid}
       unit="BTC"
