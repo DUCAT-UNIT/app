@@ -1,54 +1,53 @@
 /**
  * WithdrawAssetSheet Component
  * Bottom sheet for selecting asset to withdraw
- * Optimized for fast appearance matching ReceiveScreen behavior
  */
 
 import React, { memo, useMemo, useCallback, useRef, useEffect } from 'react';
-import { View, Text, TouchableOpacity, Animated, StyleSheet, PanResponder, Dimensions } from 'react-native';
+import { View, Text, TouchableOpacity, Animated, StyleSheet, PanResponder } from 'react-native';
 import Icon from '../icons';
 import { COLORS } from '../../theme';
 import { useSendFlow, type AssetType } from '../../stores/sendFlowStore';
 import { formatBalance, formatFiat } from '../../utils/formatters';
-import { getRunesAmount } from '../../utils/runesHelper';
-
-const SCREEN_HEIGHT = Dimensions.get('window').height;
 
 interface WithdrawAssetSheetProps {
   visible: boolean;
   onClose: () => void;
   onAssetSelect: (assetType: AssetType) => void;
-  // Pre-computed balances passed from parent to avoid context lookups
+  onVaultWithdraw?: () => void;
   btcBalance: number;
   unitBalance: number;
   btcPrice: number | null;
+  vaultCollateral?: number;
+  hasVault?: boolean;
 }
 
 const WithdrawAssetSheet = memo(function WithdrawAssetSheet({
   visible,
   onClose,
   onAssetSelect,
+  onVaultWithdraw,
   btcBalance,
   unitBalance,
   btcPrice,
+  vaultCollateral = 0,
+  hasVault = false,
 }: WithdrawAssetSheetProps) {
   const { setSendAssetType } = useSendFlow();
 
-  // Animation values - using refs for stable references
   const sheetOpacity = useRef(new Animated.Value(0)).current;
   const translateY = useRef(new Animated.Value(0)).current;
 
-  // Memoize formatted values
   const formattedBtcBalance = useMemo(() => formatBalance(btcBalance, 8), [btcBalance]);
   const formattedBtcUsd = useMemo(() => formatFiat(btcBalance * (btcPrice || 0)), [btcBalance, btcPrice]);
   const formattedUnitBalance = useMemo(() => formatFiat(unitBalance), [unitBalance]);
+  const formattedVaultCollateral = useMemo(() => formatBalance(vaultCollateral, 8), [vaultCollateral]);
+  const formattedVaultUsd = useMemo(() => formatFiat(vaultCollateral * (btcPrice || 0)), [vaultCollateral, btcPrice]);
 
-  // Dismiss handler - close immediately, no animation delay
   const handleDismiss = useCallback(() => {
     onClose();
   }, [onClose]);
 
-  // Pan responder created once
   const panResponderRef = useRef(
     PanResponder.create({
       onStartShouldSetPanResponder: () => false,
@@ -78,10 +77,8 @@ const WithdrawAssetSheet = memo(function WithdrawAssetSheet({
     })
   );
 
-  // Fast open/close - ensure sheet is visible when mounted
   useEffect(() => {
     if (visible) {
-      // Always reset position and show when becoming visible
       translateY.setValue(0);
       sheetOpacity.setValue(1);
     }
@@ -89,12 +86,15 @@ const WithdrawAssetSheet = memo(function WithdrawAssetSheet({
 
   const handleSelectAsset = useCallback((assetType: AssetType) => {
     setSendAssetType(assetType);
-    // Navigate immediately, close sheet in background
     onAssetSelect(assetType);
     onClose();
   }, [setSendAssetType, onAssetSelect, onClose]);
 
-  // Don't render anything if not visible (performance optimization)
+  const handleVaultWithdraw = useCallback(() => {
+    onClose();
+    onVaultWithdraw?.();
+  }, [onClose, onVaultWithdraw]);
+
   if (!visible) return null;
 
   return (
@@ -118,47 +118,55 @@ const WithdrawAssetSheet = memo(function WithdrawAssetSheet({
         <View style={styles.handle} />
         <Text style={styles.title}>Withdraw</Text>
 
-        {/* BTC Card */}
+        {/* BTC Row */}
         <TouchableOpacity
-          style={styles.assetCard}
+          style={styles.row}
           onPress={() => handleSelectAsset('btc')}
           activeOpacity={0.7}
           testID="withdraw-asset-btc"
         >
-          <View style={styles.assetIconContainer}>
-            <Icon name="btc_logo" size={40} />
+          <Icon name="btc_logo" size={32} />
+          <View style={styles.rowInfo}>
+            <Text style={styles.rowLabel}>Bitcoin</Text>
+            <Text style={styles.rowSubtext}>{formattedBtcBalance} BTC</Text>
           </View>
-          <View style={styles.assetInfo}>
-            <Text style={styles.assetName}>Bitcoin</Text>
-            <Text style={styles.assetSymbol}>BTC</Text>
-          </View>
-          <View style={styles.assetBalance}>
-            <Text style={styles.balanceAmount}>{formattedBtcBalance}</Text>
-            <Text style={styles.balanceUsd}>${formattedBtcUsd}</Text>
-          </View>
-          <Icon name="arrow_right" size={20} color={COLORS.SECONDARY_TEXT} />
+          <Text style={styles.rowValue}>${formattedBtcUsd}</Text>
+          <Icon name="arrow_right" size={18} color={COLORS.SECONDARY_TEXT} />
         </TouchableOpacity>
 
-        {/* UNIT Card */}
+        {/* UNIT Row */}
         <TouchableOpacity
-          style={styles.assetCard}
+          style={styles.row}
           onPress={() => handleSelectAsset('unit')}
           activeOpacity={0.7}
           testID="withdraw-asset-unit"
         >
-          <View style={styles.assetIconContainer}>
-            <Icon name="unit_logo" size={40} />
+          <Icon name="unit_logo" size={32} />
+          <View style={styles.rowInfo}>
+            <Text style={styles.rowLabel}>UNIT</Text>
+            <Text style={styles.rowSubtext}>{formattedUnitBalance} UNIT</Text>
           </View>
-          <View style={styles.assetInfo}>
-            <Text style={styles.assetName}>Unit Rune</Text>
-            <Text style={styles.assetSymbol}>UNIT</Text>
-          </View>
-          <View style={styles.assetBalance}>
-            <Text style={styles.balanceAmount}>{formattedUnitBalance}</Text>
-            <Text style={styles.balanceUsd}>${formattedUnitBalance}</Text>
-          </View>
-          <Icon name="arrow_right" size={20} color={COLORS.SECONDARY_TEXT} />
+          <Text style={styles.rowValue}>${formattedUnitBalance}</Text>
+          <Icon name="arrow_right" size={18} color={COLORS.SECONDARY_TEXT} />
         </TouchableOpacity>
+
+        {/* Vault Row */}
+        {hasVault && onVaultWithdraw && (
+          <TouchableOpacity
+            style={styles.row}
+            onPress={handleVaultWithdraw}
+            activeOpacity={0.7}
+            testID="withdraw-asset-vault"
+          >
+            <Icon name="vault_logo" size={32} />
+            <View style={styles.rowInfo}>
+              <Text style={styles.rowLabel}>Vault</Text>
+              <Text style={styles.rowSubtext}>{formattedVaultCollateral} BTC collateral</Text>
+            </View>
+            <Text style={styles.rowValue}>${formattedVaultUsd}</Text>
+            <Icon name="arrow_right" size={18} color={COLORS.SECONDARY_TEXT} />
+          </TouchableOpacity>
+        )}
       </Animated.View>
     </>
   );
@@ -171,7 +179,7 @@ const styles = StyleSheet.create({
     left: 0,
     right: 0,
     bottom: 0,
-    backgroundColor: 'rgba(0, 0, 0, 0.4)',
+    backgroundColor: 'rgba(0, 0, 0, 0.5)',
     zIndex: 999,
   },
   container: {
@@ -183,71 +191,50 @@ const styles = StyleSheet.create({
     borderTopLeftRadius: 20,
     borderTopRightRadius: 20,
     paddingBottom: 40,
-    paddingHorizontal: 24,
-    paddingTop: 16,
+    paddingHorizontal: 20,
+    paddingTop: 12,
     zIndex: 1000,
-    minHeight: '50%',
-    maxHeight: '90%',
   },
   handle: {
-    width: 40,
+    width: 36,
     height: 4,
-    backgroundColor: COLORS.VERY_DARK_GRAY,
-    borderRadius: 4,
+    backgroundColor: COLORS.MEDIUM_GRAY,
+    borderRadius: 2,
     alignSelf: 'center',
-    marginBottom: 24,
+    marginBottom: 20,
   },
   title: {
-    fontSize: 20,
-    fontWeight: 'bold',
-    color: COLORS.VERY_LIGHT_GRAY,
-    fontFamily: 'CabinetGrotesk-Bold',
+    fontSize: 18,
+    fontWeight: '600',
+    color: COLORS.WHITE,
     textAlign: 'center',
-    marginBottom: 24,
+    marginBottom: 20,
   },
-  assetCard: {
+  row: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: COLORS.CARD_BG,
-    borderRadius: 12,
-    padding: 20,
-    marginBottom: 24,
-    borderWidth: 1,
-    borderColor: COLORS.BORDER_COLOR,
+    paddingVertical: 14,
+    borderBottomWidth: 1,
+    borderBottomColor: COLORS.VERY_DARK_GRAY,
+    gap: 12,
   },
-  assetIconContainer: {
-    marginRight: 16,
-  },
-  assetInfo: {
+  rowInfo: {
     flex: 1,
   },
-  assetName: {
-    fontSize: 16,
+  rowLabel: {
+    fontSize: 15,
     fontWeight: '600',
-    color: COLORS.VERY_LIGHT_GRAY,
-    fontFamily: 'CabinetGrotesk-Bold',
-    marginBottom: 2,
+    color: COLORS.WHITE,
   },
-  assetSymbol: {
+  rowSubtext: {
     fontSize: 13,
     color: COLORS.SECONDARY_TEXT,
-    fontFamily: 'CabinetGrotesk-Regular',
+    marginTop: 2,
   },
-  assetBalance: {
-    alignItems: 'flex-end',
-    marginRight: 12,
-  },
-  balanceAmount: {
-    fontSize: 16,
-    fontWeight: '600',
-    color: COLORS.VERY_LIGHT_GRAY,
-    fontFamily: 'CabinetGrotesk-Bold',
-    marginBottom: 2,
-  },
-  balanceUsd: {
-    fontSize: 13,
+  rowValue: {
+    fontSize: 14,
     color: COLORS.SECONDARY_TEXT,
-    fontFamily: 'CabinetGrotesk-Regular',
+    marginRight: 4,
   },
 });
 
