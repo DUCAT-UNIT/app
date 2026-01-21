@@ -4,10 +4,12 @@
  */
 
 import React, { useState } from 'react';
-import { View, Text, TouchableOpacity, Animated, Share, ViewStyle, TextStyle } from 'react-native';
+import { View, Text, TouchableOpacity, Animated, Share, ViewStyle, TextStyle, StyleSheet } from 'react-native';
 import * as Clipboard from 'expo-clipboard';
 import AddressRow from '../../components/receive/AddressRow';
 import QRModal from '../../components/receive/QRModal';
+import Icon from '../../components/icons';
+import { COLORS } from '../../theme';
 import { useReceiveScreenAnimations } from '../../hooks/useReceiveScreenAnimations';
 
 /**
@@ -56,6 +58,8 @@ interface ReceiveScreenProps {
   preSelectedAddress?: string | null;
   preSelectedType?: string | null;
   dismissQRClosesSheet?: boolean;
+  onVaultDeposit?: () => void;
+  hasVault?: boolean;
 }
 
 const ReceiveScreen = React.memo(function ReceiveScreen({
@@ -69,6 +73,8 @@ const ReceiveScreen = React.memo(function ReceiveScreen({
   preSelectedAddress = null,
   preSelectedType = null,
   dismissQRClosesSheet: _dismissQRClosesSheet = true,
+  onVaultDeposit,
+  hasVault = false,
 }: ReceiveScreenProps): React.ReactElement {
   const [showQrModal, setShowQrModal] = useState(false);
   const [selectedAddress, setSelectedAddress] = useState<string | null>(null);
@@ -174,6 +180,11 @@ const ReceiveScreen = React.memo(function ReceiveScreen({
     }
   };
 
+  const handleVaultDeposit = (): void => {
+    onClose();
+    onVaultDeposit?.();
+  };
+
   return (
     <>
       {showReceiveSheet && !showQrModal && (
@@ -217,6 +228,23 @@ const ReceiveScreen = React.memo(function ReceiveScreen({
           onQrPress={() => handleQrPress(taprootAddress, 'UNIT Address')}
           styles={styles}
         />
+
+        {/* Vault Deposit Option */}
+        {hasVault && onVaultDeposit && (
+          <TouchableOpacity
+            style={localStyles.vaultRow}
+            onPress={handleVaultDeposit}
+            activeOpacity={0.7}
+            testID="receive-vault-deposit"
+          >
+            <Icon name="vault_logo" size={32} />
+            <View style={localStyles.vaultInfo}>
+              <Text style={localStyles.vaultLabel}>Vault</Text>
+              <Text style={localStyles.vaultSubtext}>Deposit BTC collateral</Text>
+            </View>
+            <Icon name="arrow_right" size={18} color={COLORS.SECONDARY_TEXT} />
+          </TouchableOpacity>
+        )}
       </Animated.View>
 
       {/* QR Code Modal */}
@@ -236,6 +264,31 @@ const ReceiveScreen = React.memo(function ReceiveScreen({
       />
     </>
   );
+});
+
+const localStyles = StyleSheet.create({
+  vaultRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingVertical: 14,
+    borderBottomWidth: 1,
+    borderBottomColor: COLORS.VERY_DARK_GRAY,
+    gap: 12,
+    marginTop: 8,
+  },
+  vaultInfo: {
+    flex: 1,
+  },
+  vaultLabel: {
+    fontSize: 15,
+    fontWeight: '600',
+    color: COLORS.WHITE,
+  },
+  vaultSubtext: {
+    fontSize: 13,
+    color: COLORS.SECONDARY_TEXT,
+    marginTop: 2,
+  },
 });
 
 export default ReceiveScreen;
