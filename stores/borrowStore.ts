@@ -219,43 +219,93 @@ export const resetBorrowStore = () => {
 
 /**
  * useBorrow - Hook that returns commonly used state and actions
+ * Uses individual selectors for reactive computed values
  */
 export const useBorrow = () => {
-  const store = useBorrowStore();
+  // Subscribe to primitive state values - these are reactive
+  const borrowAmount = useBorrowStore((state) => state.borrowAmount);
+  const selectedFeeRate = useBorrowStore((state) => state.selectedFeeRate);
+  const currentUnitBorrowed = useBorrowStore((state) => state.currentUnitBorrowed);
+  const currentBtcLocked = useBorrowStore((state) => state.currentBtcLocked);
+  const bitcoinPrice = useBorrowStore((state) => state.bitcoinPrice);
+  const currentStep = useBorrowStore((state) => state.currentStep);
+  const processingStep = useBorrowStore((state) => state.processingStep);
+  const loading = useBorrowStore((state) => state.loading);
+  const error = useBorrowStore((state) => state.error);
+  const txid = useBorrowStore((state) => state.txid);
+  const vaultTxid = useBorrowStore((state) => state.vaultTxid);
+
+  // Subscribe to actions (stable references)
+  const setBorrowAmount = useBorrowStore((state) => state.setBorrowAmount);
+  const setSelectedFeeRate = useBorrowStore((state) => state.setSelectedFeeRate);
+  const setCurrentVaultData = useBorrowStore((state) => state.setCurrentVaultData);
+  const setBitcoinPrice = useBorrowStore((state) => state.setBitcoinPrice);
+  const setCurrentStep = useBorrowStore((state) => state.setCurrentStep);
+  const setProcessingStep = useBorrowStore((state) => state.setProcessingStep);
+  const setLoading = useBorrowStore((state) => state.setLoading);
+  const setError = useBorrowStore((state) => state.setError);
+  const setTxid = useBorrowStore((state) => state.setTxid);
+  const reset = useBorrowStore((state) => state.reset);
+
+  // Compute derived values from reactive state
+  const totalDebt = currentUnitBorrowed + borrowAmount;
+
+  const healthFactor = (!bitcoinPrice || currentBtcLocked <= 0 || currentUnitBorrowed <= 0)
+    ? 0
+    : computeHealthFactor(currentBtcLocked, bitcoinPrice, currentUnitBorrowed);
+
+  const newHealthFactor = (!bitcoinPrice || currentBtcLocked <= 0 || totalDebt <= 0)
+    ? 0
+    : computeHealthFactor(currentBtcLocked, bitcoinPrice, totalDebt);
+
+  const liquidationPrice = (currentBtcLocked <= 0 || currentUnitBorrowed <= 0)
+    ? 0
+    : computeLiquidationPrice(currentUnitBorrowed, currentBtcLocked);
+
+  const newLiquidationPrice = (currentBtcLocked <= 0 || totalDebt <= 0)
+    ? 0
+    : computeLiquidationPrice(totalDebt, currentBtcLocked);
+
+  const maxTotal = getMaxUnit(currentBtcLocked, bitcoinPrice ?? undefined);
+  const maxBorrowable = maxTotal !== null ? Math.max(0, maxTotal - currentUnitBorrowed) : null;
+
+  const healthStatus = getHealthStatus(healthFactor);
+  const newHealthStatus = getHealthStatus(newHealthFactor);
+
   return {
     // State
-    borrowAmount: store.borrowAmount,
-    selectedFeeRate: store.selectedFeeRate,
-    currentUnitBorrowed: store.currentUnitBorrowed,
-    currentBtcLocked: store.currentBtcLocked,
-    bitcoinPrice: store.bitcoinPrice,
-    currentStep: store.currentStep,
-    processingStep: store.processingStep,
-    loading: store.loading,
-    error: store.error,
-    txid: store.txid,
-    vaultTxid: store.vaultTxid,
+    borrowAmount,
+    selectedFeeRate,
+    currentUnitBorrowed,
+    currentBtcLocked,
+    bitcoinPrice,
+    currentStep,
+    processingStep,
+    loading,
+    error,
+    txid,
+    vaultTxid,
 
     // Computed
-    totalDebt: store.getTotalDebt(),
-    healthFactor: store.getHealthFactor(),
-    newHealthFactor: store.getNewHealthFactor(),
-    liquidationPrice: store.getLiquidationPrice(),
-    newLiquidationPrice: store.getNewLiquidationPrice(),
-    maxBorrowable: store.getMaxBorrowable(),
-    healthStatus: store.getHealthStatus(),
-    newHealthStatus: store.getNewHealthStatus(),
+    totalDebt,
+    healthFactor,
+    newHealthFactor,
+    liquidationPrice,
+    newLiquidationPrice,
+    maxBorrowable,
+    healthStatus,
+    newHealthStatus,
 
     // Actions
-    setBorrowAmount: store.setBorrowAmount,
-    setSelectedFeeRate: store.setSelectedFeeRate,
-    setCurrentVaultData: store.setCurrentVaultData,
-    setBitcoinPrice: store.setBitcoinPrice,
-    setCurrentStep: store.setCurrentStep,
-    setProcessingStep: store.setProcessingStep,
-    setLoading: store.setLoading,
-    setError: store.setError,
-    setTxid: store.setTxid,
-    reset: store.reset,
+    setBorrowAmount,
+    setSelectedFeeRate,
+    setCurrentVaultData,
+    setBitcoinPrice,
+    setCurrentStep,
+    setProcessingStep,
+    setLoading,
+    setError,
+    setTxid,
+    reset,
   };
 };

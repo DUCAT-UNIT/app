@@ -239,44 +239,101 @@ export const resetWithdrawStore = () => {
 
 /**
  * useWithdraw - Hook that returns commonly used state and actions
+ * Uses individual selectors for reactive computed values
  */
 export const useWithdraw = () => {
-  const store = useWithdrawStore();
+  // Subscribe to primitive state values - these are reactive
+  const withdrawAmountSats = useWithdrawStore((state) => state.withdrawAmountSats);
+  const selectedFeeRate = useWithdrawStore((state) => state.selectedFeeRate);
+  const currentUnitBorrowed = useWithdrawStore((state) => state.currentUnitBorrowed);
+  const currentBtcLocked = useWithdrawStore((state) => state.currentBtcLocked);
+  const bitcoinPrice = useWithdrawStore((state) => state.bitcoinPrice);
+  const currentStep = useWithdrawStore((state) => state.currentStep);
+  const processingStep = useWithdrawStore((state) => state.processingStep);
+  const loading = useWithdrawStore((state) => state.loading);
+  const error = useWithdrawStore((state) => state.error);
+  const vaultTxid = useWithdrawStore((state) => state.vaultTxid);
+
+  // Subscribe to actions (stable references)
+  const setWithdrawAmountSats = useWithdrawStore((state) => state.setWithdrawAmountSats);
+  const setWithdrawAmountBtc = useWithdrawStore((state) => state.setWithdrawAmountBtc);
+  const setSelectedFeeRate = useWithdrawStore((state) => state.setSelectedFeeRate);
+  const setCurrentVaultData = useWithdrawStore((state) => state.setCurrentVaultData);
+  const setBitcoinPrice = useWithdrawStore((state) => state.setBitcoinPrice);
+  const setCurrentStep = useWithdrawStore((state) => state.setCurrentStep);
+  const setProcessingStep = useWithdrawStore((state) => state.setProcessingStep);
+  const setLoading = useWithdrawStore((state) => state.setLoading);
+  const setError = useWithdrawStore((state) => state.setError);
+  const setVaultTxid = useWithdrawStore((state) => state.setVaultTxid);
+  const reset = useWithdrawStore((state) => state.reset);
+
+  // Compute derived values from reactive state
+  const withdrawAmountBtc = withdrawAmountSats / 100_000_000;
+  const newCollateral = Math.max(0, currentBtcLocked - withdrawAmountSats / 100_000_000);
+
+  const healthFactor = (!bitcoinPrice || currentBtcLocked <= 0 || currentUnitBorrowed <= 0)
+    ? 0
+    : computeHealthFactor(currentBtcLocked, bitcoinPrice, currentUnitBorrowed);
+
+  const newHealthFactor = (!bitcoinPrice || newCollateral <= 0 || currentUnitBorrowed <= 0)
+    ? 0
+    : computeHealthFactor(newCollateral, bitcoinPrice, currentUnitBorrowed);
+
+  const liquidationPrice = (currentBtcLocked <= 0 || currentUnitBorrowed <= 0)
+    ? 0
+    : computeLiquidationPrice(currentUnitBorrowed, currentBtcLocked);
+
+  const newLiquidationPrice = (newCollateral <= 0 || currentUnitBorrowed <= 0)
+    ? 0
+    : computeLiquidationPrice(currentUnitBorrowed, newCollateral);
+
+  const healthStatus = getHealthStatus(healthFactor);
+  const newHealthStatus = getHealthStatus(newHealthFactor);
+
+  // Calculate max withdrawable
+  let maxWithdrawable = 0;
+  if (bitcoinPrice && currentBtcLocked > 0 && currentUnitBorrowed > 0) {
+    const minHealthRatio = VAULT_CONFIG.MIN_COL_RATE * 100;
+    const minCollateral = (minHealthRatio * currentUnitBorrowed) / (bitcoinPrice * 100);
+    const maxWithdrawableBtc = Math.max(0, currentBtcLocked - minCollateral);
+    maxWithdrawable = Math.floor(maxWithdrawableBtc * 100_000_000);
+  }
+
   return {
     // State
-    withdrawAmountSats: store.withdrawAmountSats,
-    selectedFeeRate: store.selectedFeeRate,
-    currentUnitBorrowed: store.currentUnitBorrowed,
-    currentBtcLocked: store.currentBtcLocked,
-    bitcoinPrice: store.bitcoinPrice,
-    currentStep: store.currentStep,
-    processingStep: store.processingStep,
-    loading: store.loading,
-    error: store.error,
-    vaultTxid: store.vaultTxid,
+    withdrawAmountSats,
+    selectedFeeRate,
+    currentUnitBorrowed,
+    currentBtcLocked,
+    bitcoinPrice,
+    currentStep,
+    processingStep,
+    loading,
+    error,
+    vaultTxid,
 
     // Computed
-    withdrawAmountBtc: store.getWithdrawAmountBtc(),
-    newCollateral: store.getNewCollateral(),
-    healthFactor: store.getHealthFactor(),
-    newHealthFactor: store.getNewHealthFactor(),
-    liquidationPrice: store.getLiquidationPrice(),
-    newLiquidationPrice: store.getNewLiquidationPrice(),
-    healthStatus: store.getHealthStatus(),
-    newHealthStatus: store.getNewHealthStatus(),
-    maxWithdrawable: store.getMaxWithdrawable(),
+    withdrawAmountBtc,
+    newCollateral,
+    healthFactor,
+    newHealthFactor,
+    liquidationPrice,
+    newLiquidationPrice,
+    healthStatus,
+    newHealthStatus,
+    maxWithdrawable,
 
     // Actions
-    setWithdrawAmountSats: store.setWithdrawAmountSats,
-    setWithdrawAmountBtc: store.setWithdrawAmountBtc,
-    setSelectedFeeRate: store.setSelectedFeeRate,
-    setCurrentVaultData: store.setCurrentVaultData,
-    setBitcoinPrice: store.setBitcoinPrice,
-    setCurrentStep: store.setCurrentStep,
-    setProcessingStep: store.setProcessingStep,
-    setLoading: store.setLoading,
-    setError: store.setError,
-    setVaultTxid: store.setVaultTxid,
-    reset: store.reset,
+    setWithdrawAmountSats,
+    setWithdrawAmountBtc,
+    setSelectedFeeRate,
+    setCurrentVaultData,
+    setBitcoinPrice,
+    setCurrentStep,
+    setProcessingStep,
+    setLoading,
+    setError,
+    setVaultTxid,
+    reset,
   };
 };

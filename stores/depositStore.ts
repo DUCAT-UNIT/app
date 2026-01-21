@@ -229,45 +229,95 @@ export const resetDepositStore = () => {
 
 /**
  * useDeposit - Hook that returns commonly used state and actions
+ * Uses individual selectors for reactive computed values
  */
 export const useDeposit = () => {
-  const store = useDepositStore();
+  // Subscribe to primitive state values - these are reactive
+  const depositAmountSats = useDepositStore((state) => state.depositAmountSats);
+  const selectedFeeRate = useDepositStore((state) => state.selectedFeeRate);
+  const currentUnitBorrowed = useDepositStore((state) => state.currentUnitBorrowed);
+  const currentBtcLocked = useDepositStore((state) => state.currentBtcLocked);
+  const bitcoinPrice = useDepositStore((state) => state.bitcoinPrice);
+  const availableBalance = useDepositStore((state) => state.availableBalance);
+  const currentStep = useDepositStore((state) => state.currentStep);
+  const processingStep = useDepositStore((state) => state.processingStep);
+  const loading = useDepositStore((state) => state.loading);
+  const error = useDepositStore((state) => state.error);
+  const vaultTxid = useDepositStore((state) => state.vaultTxid);
+
+  // Subscribe to actions (stable references)
+  const setDepositAmountSats = useDepositStore((state) => state.setDepositAmountSats);
+  const setDepositAmountBtc = useDepositStore((state) => state.setDepositAmountBtc);
+  const setSelectedFeeRate = useDepositStore((state) => state.setSelectedFeeRate);
+  const setCurrentVaultData = useDepositStore((state) => state.setCurrentVaultData);
+  const setBitcoinPrice = useDepositStore((state) => state.setBitcoinPrice);
+  const setAvailableBalance = useDepositStore((state) => state.setAvailableBalance);
+  const setCurrentStep = useDepositStore((state) => state.setCurrentStep);
+  const setProcessingStep = useDepositStore((state) => state.setProcessingStep);
+  const setLoading = useDepositStore((state) => state.setLoading);
+  const setError = useDepositStore((state) => state.setError);
+  const setVaultTxid = useDepositStore((state) => state.setVaultTxid);
+  const reset = useDepositStore((state) => state.reset);
+
+  // Compute derived values from reactive state
+  const depositAmountBtc = depositAmountSats / 100_000_000;
+  const totalCollateral = currentBtcLocked + depositAmountSats / 100_000_000;
+
+  const healthFactor = (!bitcoinPrice || currentBtcLocked <= 0 || currentUnitBorrowed <= 0)
+    ? 0
+    : computeHealthFactor(currentBtcLocked, bitcoinPrice, currentUnitBorrowed);
+
+  const newHealthFactor = (!bitcoinPrice || totalCollateral <= 0 || currentUnitBorrowed <= 0)
+    ? 0
+    : computeHealthFactor(totalCollateral, bitcoinPrice, currentUnitBorrowed);
+
+  const liquidationPrice = (currentBtcLocked <= 0 || currentUnitBorrowed <= 0)
+    ? 0
+    : computeLiquidationPrice(currentUnitBorrowed, currentBtcLocked);
+
+  const newLiquidationPrice = (totalCollateral <= 0 || currentUnitBorrowed <= 0)
+    ? 0
+    : computeLiquidationPrice(currentUnitBorrowed, totalCollateral);
+
+  const healthStatus = getHealthStatus(healthFactor);
+  const newHealthStatus = getHealthStatus(newHealthFactor);
+
   return {
     // State
-    depositAmountSats: store.depositAmountSats,
-    selectedFeeRate: store.selectedFeeRate,
-    currentUnitBorrowed: store.currentUnitBorrowed,
-    currentBtcLocked: store.currentBtcLocked,
-    bitcoinPrice: store.bitcoinPrice,
-    availableBalance: store.availableBalance,
-    currentStep: store.currentStep,
-    processingStep: store.processingStep,
-    loading: store.loading,
-    error: store.error,
-    vaultTxid: store.vaultTxid,
+    depositAmountSats,
+    selectedFeeRate,
+    currentUnitBorrowed,
+    currentBtcLocked,
+    bitcoinPrice,
+    availableBalance,
+    currentStep,
+    processingStep,
+    loading,
+    error,
+    vaultTxid,
 
     // Computed
-    depositAmountBtc: store.getDepositAmountBtc(),
-    totalCollateral: store.getTotalCollateral(),
-    healthFactor: store.getHealthFactor(),
-    newHealthFactor: store.getNewHealthFactor(),
-    liquidationPrice: store.getLiquidationPrice(),
-    newLiquidationPrice: store.getNewLiquidationPrice(),
-    healthStatus: store.getHealthStatus(),
-    newHealthStatus: store.getNewHealthStatus(),
+    depositAmountBtc,
+    totalCollateral,
+    healthFactor,
+    newHealthFactor,
+    liquidationPrice,
+    newLiquidationPrice,
+    healthStatus,
+    newHealthStatus,
 
     // Actions
-    setDepositAmountSats: store.setDepositAmountSats,
-    setDepositAmountBtc: store.setDepositAmountBtc,
-    setSelectedFeeRate: store.setSelectedFeeRate,
-    setCurrentVaultData: store.setCurrentVaultData,
-    setBitcoinPrice: store.setBitcoinPrice,
-    setAvailableBalance: store.setAvailableBalance,
-    setCurrentStep: store.setCurrentStep,
-    setProcessingStep: store.setProcessingStep,
-    setLoading: store.setLoading,
-    setError: store.setError,
-    setVaultTxid: store.setVaultTxid,
-    reset: store.reset,
+    setDepositAmountSats,
+    setDepositAmountBtc,
+    setSelectedFeeRate,
+    setCurrentVaultData,
+    setBitcoinPrice,
+    setAvailableBalance,
+    setCurrentStep,
+    setProcessingStep,
+    setLoading,
+    setError,
+    setVaultTxid,
+    reset,
   };
 };
