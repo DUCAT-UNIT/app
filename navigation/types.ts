@@ -16,8 +16,7 @@ export type { AssetTypeParam, AddressTypeParam } from '../types/assets';
  */
 export type SendStackParamList = {
   AssetSelector: undefined;
-  AddressInput: { assetType?: string; prefillAddress?: string; prefillAmount?: string };
-  AmountInput: { assetType?: string; address?: string; prefillAmount?: string; autoAdvance?: boolean };
+  SendInput: { assetType?: string; prefillAddress?: string; prefillAmount?: string };
   TurboLoading: undefined;
   Review: { assetType?: string; address?: string; amount?: number };
   Processing: undefined;
@@ -123,6 +122,7 @@ export type WalletStackParamList = {
   Advanced: undefined;
   CashuSettings: undefined;
   About: undefined;
+  FeeRateDemo: undefined;
 };
 
 /**

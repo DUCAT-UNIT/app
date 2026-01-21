@@ -158,6 +158,9 @@ export default function RootNavigator(): React.JSX.Element {
     // Dismiss keyboard
     Keyboard.dismiss();
 
+    // Dismiss snackbar
+    dismissSnackbar();
+
     // Dismiss all open modals
     hidePasskeyMigrationPrompt();
     hideBiometricSetupPrompt();
@@ -173,7 +176,7 @@ export default function RootNavigator(): React.JSX.Element {
 
     // Lock the app
     setIsAuthenticated(false);
-  }, [setIsAuthenticated, hidePasskeyMigrationPrompt, hideBiometricSetupPrompt, setShowAirdropModal]);
+  }, [setIsAuthenticated, dismissSnackbar, hidePasskeyMigrationPrompt, hideBiometricSetupPrompt, setShowAirdropModal]);
 
   const handleAuthenticateUser = useCallback(async () => {
     await authenticateUser();
