@@ -3,7 +3,7 @@
  * Full-screen settings view with modern dark aesthetic
  */
 
-import React from 'react';
+import React, { useState } from 'react';
 import {
   Text,
   View,
@@ -11,9 +11,13 @@ import {
   StyleSheet,
   Dimensions,
   ScrollView,
+  Alert,
+  ActivityIndicator,
 } from 'react-native';
 import { COLORS } from '../../theme';
 import Icon from '../../components/icons';
+import { clearAppCache } from '../../services/cacheService';
+import { logger } from '../../utils/logger';
 
 // Get device dimensions for responsive sizing
 const { width: SCREEN_WIDTH } = Dimensions.get('window');
@@ -72,6 +76,48 @@ const SettingsScreen = React.memo(function SettingsScreen({
   onViewAbout,
   advancedMode = false,
 }: SettingsScreenProps): React.ReactElement {
+  const [isClearing, setIsClearing] = useState<boolean>(false);
+
+  const handleClearCache = (): void => {
+    Alert.alert(
+      'Clear App Cache',
+      'This will clear all cached data except your wallet keys and PIN. This can help resolve issues.\n\nYour balance and settings will be preserved.',
+      [
+        {
+          text: 'Cancel',
+          style: 'cancel',
+        },
+        {
+          text: 'Clear Cache',
+          style: 'destructive',
+          onPress: async () => {
+            setIsClearing(true);
+            try {
+              const result = await clearAppCache();
+              logger.debug('[SettingsScreen] Cache cleared:', result);
+
+              Alert.alert(
+                'Cache Cleared',
+                `Successfully cleared cached data.\n\n${result.errors.length > 0 ? `Errors: ${result.errors.join(', ')}` : 'No errors.'}`,
+                [{ text: 'OK' }]
+              );
+            } catch (error: unknown) {
+              const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+              logger.error(error, { context: 'SettingsScreen', action: 'clearCache' });
+              Alert.alert(
+                'Error',
+                `Failed to clear cache: ${errorMessage}`,
+                [{ text: 'OK' }]
+              );
+            } finally {
+              setIsClearing(false);
+            }
+          },
+        },
+      ]
+    );
+  };
+
   return (
     <View style={localStyles.container} testID="settings-screen">
       {/* Header with back button and title on same line */}
@@ -103,11 +149,11 @@ const SettingsScreen = React.memo(function SettingsScreen({
               onPress={onViewAdvanced}
               testID="settings-advanced-btn"
             />
-            {/* Cashu settings only visible in developer mode */}
+            {/* Turbo UNIT settings only visible in developer mode */}
             {advancedMode && (
               <SettingsOption
                 iconName="asset"
-                title="Cashu"
+                title="Turbo UNIT"
                 onPress={onViewCashuSettings}
                 testID="settings-cashu-btn"
               />
@@ -119,6 +165,29 @@ const SettingsScreen = React.memo(function SettingsScreen({
               onPress={onViewAbout}
               testID="settings-about-btn"
             />
+          </View>
+
+          {/* Danger Zone */}
+          <View style={localStyles.section}>
+            <Text style={localStyles.sectionTitle}>Danger Zone</Text>
+            <TouchableOpacity
+              style={localStyles.dangerOption}
+              onPress={handleClearCache}
+              disabled={isClearing}
+              activeOpacity={0.7}
+              testID="settings-clear-cache-btn"
+            >
+              <View style={localStyles.optionLeft}>
+                <Icon name="delete" size={24} color={COLORS.DANGER_RED} />
+                <View>
+                  <Text style={localStyles.dangerText}>Clear App Cache</Text>
+                  <Text style={localStyles.dangerSubtext}>Fixes issues with tokens and data</Text>
+                </View>
+              </View>
+              {isClearing && (
+                <ActivityIndicator size="small" color={COLORS.DANGER_RED} />
+              )}
+            </TouchableOpacity>
           </View>
         </View>
       </ScrollView>
@@ -227,5 +296,30 @@ const localStyles = StyleSheet.create({
   },
   dangerText: {
     color: COLORS.DANGER_RED,
+    fontSize: 16,
+    fontFamily: 'CabinetGrotesk-Regular',
+  },
+  dangerSubtext: {
+    color: '#888',
+    fontSize: 12,
+    fontFamily: 'CabinetGrotesk-Regular',
+    marginTop: 2,
+  },
+  sectionTitle: {
+    fontSize: 12,
+    color: '#888',
+    fontFamily: 'CabinetGrotesk-Medium',
+    marginBottom: 12,
+    textTransform: 'uppercase',
+    letterSpacing: 1,
+  },
+  dangerOption: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingVertical: 16,
+    paddingHorizontal: 4,
+    borderBottomWidth: 1,
+    borderBottomColor: COLORS.BORDER_COLOR,
   },
 });

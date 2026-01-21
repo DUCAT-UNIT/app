@@ -83,7 +83,7 @@ const CashuSettingsScreen = React.memo(function CashuSettingsScreen({ route }: C
         <TouchableOpacity onPress={onClose} style={localStyles.backButton} testID="cashu-settings-back-btn">
           <Icon name="back" size={24} color={COLORS.VERY_LIGHT_GRAY} />
         </TouchableOpacity>
-        <Text style={localStyles.title}>Cashu</Text>
+        <Text style={localStyles.title}>Turbo UNIT</Text>
       </View>
 
       <ScrollView style={localStyles.scrollView} showsVerticalScrollIndicator={false}>
@@ -104,7 +104,7 @@ const CashuSettingsScreen = React.memo(function CashuSettingsScreen({ route }: C
             />
             <SettingsOption
               iconName="asset"
-              title="Redeem Cashu Token"
+              title="Redeem Turbo UNIT Token"
               onPress={onRedeemToken}
               testID="cashu-redeem-token-btn"
             />
@@ -123,7 +123,7 @@ const CashuSettingsScreen = React.memo(function CashuSettingsScreen({ route }: C
             />
             <SettingsOption
               iconName="delete_wallet"
-              title="Clear Cashu Cache"
+              title="Clear Turbo UNIT Cache"
               onPress={onClearCashuCache}
               isDanger
               testID="cashu-clear-cache-btn"
