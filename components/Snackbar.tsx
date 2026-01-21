@@ -124,9 +124,28 @@ const TYPE_TO_ICON: Record<SnackbarType, keyof typeof Icons> = {
 };
 
 /**
+ * Success messages for specific actions
+ */
+const SUCCESS_MESSAGES: Record<string, string> = {
+  deposit: 'BTC successfully deposited to vault',
+  withdraw: 'BTC successfully withdrawn from vault',
+  borrow: 'UNIT successfully borrowed',
+  repay: 'UNIT debt successfully repaid',
+  create: 'Vault created successfully',
+  faucet: 'Testnet coins received',
+  swap: 'Turbo UNIT swap completed',
+  unit_send: 'UNIT transaction confirmed',
+  claim: 'UNIT claimed successfully',
+  liquidation: 'Vault liquidation processed',
+  repossess: 'Liquidation claim completed',
+  conversion_turbo: 'Converted to Turbo UNIT',
+  convert: 'TurboUNIT conversion completed',
+};
+
+/**
  * Compute title based on type and action
  */
-const computeTitle = (type: SnackbarType, label: string): string => {
+const computeTitle = (type: SnackbarType, label: string, action?: string): string => {
   switch (type) {
     case 'pending':
     case 'progress':
@@ -134,6 +153,10 @@ const computeTitle = (type: SnackbarType, label: string): string => {
     case 'submitted':
       return `${label} submitted`;
     case 'success':
+      // Use specific success message if available
+      if (action && SUCCESS_MESSAGES[action]) {
+        return SUCCESS_MESSAGES[action];
+      }
       return `${label} completed successfully`;
     case 'error':
       return `${label} failed`;
@@ -172,7 +195,7 @@ export default function Snackbar({ params, onClose }: SnackbarProps) {
 
   const isSpinning = type === 'progress' || type === 'pending';
   const label = action ? (ACTION_LABELS[action] || 'Transaction') : 'Notification';
-  const title = titleOverride || messageOverride || computeTitle(type, label);
+  const title = titleOverride || messageOverride || computeTitle(type, label, action);
   const IconComponent = Icons[TYPE_TO_ICON[type]];
 
   useEffect(() => {

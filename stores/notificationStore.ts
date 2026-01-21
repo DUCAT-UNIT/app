@@ -63,7 +63,8 @@ export const useNotificationStore = create<NotificationStore>((set, get) => ({
     logger.debug('🎯 NotificationStore showSnackbar called with:', snackbarParams);
 
     // If we just dismissed a snackbar, ignore new ones briefly
-    if (dismissCooldown) {
+    // Exception: success/error snackbars always show (they're important confirmations)
+    if (dismissCooldown && snackbarParams.type !== 'success' && snackbarParams.type !== 'error') {
       logger.debug('🎯 Ignoring snackbar during cooldown period');
       return;
     }
