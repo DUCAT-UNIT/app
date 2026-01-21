@@ -11,6 +11,7 @@ import { useNavigation } from '@react-navigation/native';
 
 // Components
 import WalletScreen from '../screens/wallet/WalletScreen';
+import ReceiveScreen from '../screens/wallet/ReceiveScreen';
 import TransactionHistoryScreen from '../screens/wallet/TransactionHistoryScreen';
 import SettingsScreen from '../screens/settings/SettingsScreen';
 import MutinynetBanner from '../components/MutinynetBanner';
@@ -19,7 +20,7 @@ import SplashScreen from '../screens/SplashScreen';
 import EcashConversionModal from '../components/settings/EcashConversionModal';
 import LowEcashBalanceModal from '../components/ecash/LowEcashBalanceModal';
 import QRScanner from '../components/scanner/QRScanner';
-import TransferSheet from '../components/transfer/TransferSheet';
+import { WithdrawSheet, DepositSheet } from '../components/transfer/TransferSheet';
 
 // Contexts
 import { useWallet } from '../contexts/WalletContext';
@@ -76,7 +77,7 @@ export default function WalletPage({ route }: WalletPageProps) {
   const { btcPrice } = usePrice();
   const { balance: cashuBalance, receive: receiveCashuToken } = useCashu();
   const { wallet, switchAccount, currentAccount } = useWallet();
-  const { intentStep, sendAssetType, sendAddressType } = useSendFlow();
+  const { intentStep, sendAssetType, sendAddressType, turboEnabled } = useSendFlow();
   const { broadcastedTxid } = useTransactionExecution();
   const { showToast, dismissSnackbar, showSnackbar } = useNotifications();
   const isPendingVaultTx = useHasPendingVaultTx();
@@ -92,7 +93,7 @@ export default function WalletPage({ route }: WalletPageProps) {
   } = useEcashBalanceCheck(cashuBalance, settingsHandlers.ecashThreshold, currentUnitBalance);
 
   // Transaction notifications
-  useTransactionNotifications({ intentStep, broadcastedTxid: broadcastedTxid ?? undefined, sendAssetType: sendAssetType ?? undefined, showSnackbar });
+  useTransactionNotifications({ intentStep, broadcastedTxid: broadcastedTxid ?? undefined, sendAssetType: sendAssetType ?? undefined, turboEnabled, showSnackbar });
   useClaimNotifications({ route, showSnackbar, dismissSnackbar, switchAccount: switchAccount as unknown as (accountIndex: number) => Promise<void> });
 
   // Navigation hooks
@@ -101,11 +102,15 @@ export default function WalletPage({ route }: WalletPageProps) {
     settingsPanResponderRef, openSettings, closeSettings,
   } = useSettingsNavigation();
 
-  const { showReceiveSheet, setShowReceiveSheet, showTxHistory, setShowTxHistory } = useSheetNavigation();
+  const { showTxHistory, setShowTxHistory } = useSheetNavigation();
 
-  // Transfer sheet (combined withdraw/deposit)
-  const [showTransferSheet, setShowTransferSheet] = useState(false);
-  const [transferMode, setTransferMode] = useState<'withdraw' | 'deposit'>('withdraw');
+  // Withdraw and Deposit sheets
+  const [showWithdrawSheet, setShowWithdrawSheet] = useState(false);
+  const [showDepositSheet, setShowDepositSheet] = useState(false);
+
+  // Receive screen with QR (for when user selects asset from deposit sheet)
+  const [showReceiveQR, setShowReceiveQR] = useState(false);
+  const [receiveAssetType, setReceiveAssetType] = useState<'btc' | 'unit' | null>(null);
 
   // QR Scanner
   const [showQRScanner, setShowQRScanner] = useState(false);
@@ -132,11 +137,10 @@ export default function WalletPage({ route }: WalletPageProps) {
     handleEcashThresholdPress,
   });
 
-  // Handle navigation param to open receive sheet (now opens transfer sheet in deposit mode)
+  // Handle navigation param to open deposit sheet
   useEffect(() => {
     if (route?.params?.openReceive) {
-      setTransferMode('deposit');
-      setShowTransferSheet(true);
+      setShowDepositSheet(true);
       (navigation as unknown as { setParams: (params: { openReceive: boolean }) => void }).setParams({ openReceive: false });
     }
   }, [route?.params?.openReceive, navigation]);
@@ -156,24 +160,24 @@ export default function WalletPage({ route }: WalletPageProps) {
     (navigation as { navigate: (screen: string) => void }).navigate('VaultDetail');
   };
 
-  // Navigate to repay flow
+  // Navigate to repay flow - go up to root navigator (WalletStack -> MainTabs -> Root)
   const handleRepayPress = () => {
-    (navigation as { navigate: (screen: string) => void }).navigate('RepayFlow');
+    navigation.getParent()?.getParent()?.navigate('RepayFlow' as never);
   };
 
-  // Navigate to borrow flow
+  // Navigate to borrow flow - go up to root navigator (WalletStack -> MainTabs -> Root)
   const handleBorrowPress = () => {
-    (navigation as { navigate: (screen: string) => void }).navigate('BorrowFlow');
+    navigation.getParent()?.getParent()?.navigate('BorrowFlow' as never);
   };
 
-  // Navigate to vault withdraw flow
+  // Navigate to vault withdraw flow - go up to root navigator (WalletStack -> MainTabs -> Root)
   const handleVaultWithdraw = () => {
-    (navigation as { navigate: (screen: string) => void }).navigate('WithdrawFlow');
+    navigation.getParent()?.getParent()?.navigate('WithdrawFlow' as never);
   };
 
-  // Navigate to vault deposit flow
+  // Navigate to vault deposit flow - go up to root navigator (WalletStack -> MainTabs -> Root)
   const handleVaultDeposit = () => {
-    (navigation as { navigate: (screen: string) => void }).navigate('DepositFlow');
+    navigation.getParent()?.getParent()?.navigate('DepositFlow' as never);
   };
 
   // Navigate to vault creation flow
@@ -193,8 +197,8 @@ export default function WalletPage({ route }: WalletPageProps) {
             <WalletScreen
               key={`wallet-${currentAccount}`}
               styles={styles}
-              onSendPress={() => { setTransferMode('withdraw'); setShowTransferSheet(true); }}
-              onReceivePress={() => { setTransferMode('deposit'); setShowTransferSheet(true); }}
+              onSendPress={() => setShowWithdrawSheet(true)}
+              onReceivePress={() => setShowDepositSheet(true)}
               onHistoryPress={() => setShowTxHistory(true)}
               onQRScanPress={() => setShowQRScanner(true)}
               onSettingsPress={openSettings}
@@ -215,10 +219,9 @@ export default function WalletPage({ route }: WalletPageProps) {
           segwitAddress={wallet?.segwitAddress || ''} taprootAddress={wallet?.taprootAddress || ''}
           vaultPubkey={wallet?.taprootPubkey || ''} advancedMode={settingsHandlers.advancedMode} />
         <QRScanner visible={showQRScanner} onClose={() => setShowQRScanner(false)} onScan={handleQRScan} />
-        <TransferSheet
-          visible={showTransferSheet}
-          onClose={() => setShowTransferSheet(false)}
-          initialMode={transferMode}
+        <WithdrawSheet
+          visible={showWithdrawSheet}
+          onClose={() => setShowWithdrawSheet(false)}
           onAssetSelect={(assetType) => {
             (navigation as { navigate: (screen: string, params?: object) => void }).navigate('SendFlow', {
               screen: 'SendInput',
@@ -226,15 +229,36 @@ export default function WalletPage({ route }: WalletPageProps) {
             });
           }}
           onVaultWithdraw={handleVaultWithdraw}
-          onVaultDeposit={handleVaultDeposit}
-          segwitAddress={wallet?.segwitAddress || ''}
-          taprootAddress={wallet?.taprootAddress || ''}
-          showToast={showToast}
           btcBalance={(segwitBalance || 0) + (taprootBalance || 0)}
           unitBalance={currentUnitBalance + (cashuBalance || 0)}
           btcPrice={btcPrice}
           vaultCollateral={vaultCollateral}
           hasVault={hasVault}
+        />
+        <DepositSheet
+          visible={showDepositSheet}
+          onClose={() => setShowDepositSheet(false)}
+          onAssetSelect={(assetType) => {
+            setReceiveAssetType(assetType);
+            setShowReceiveQR(true);
+          }}
+          onVaultDeposit={handleVaultDeposit}
+          hasVault={hasVault}
+        />
+        <ReceiveScreen
+          key={`receive-qr-${currentAccount}`}
+          styles={styles}
+          showReceiveSheet={showReceiveQR}
+          onClose={() => {
+            setShowReceiveQR(false);
+            setReceiveAssetType(null);
+          }}
+          segwitAddress={wallet?.segwitAddress || ''}
+          taprootAddress={wallet?.taprootAddress || ''}
+          showToast={showToast}
+          autoOpenQR={true}
+          preSelectedAddress={receiveAssetType === 'btc' ? wallet?.segwitAddress : wallet?.taprootAddress}
+          preSelectedType={receiveAssetType === 'btc' ? 'BTC Address' : 'UNIT Address'}
         />
         <StatusBar style="light" />
         {/* Snackbar is rendered at app level in AppNavigatorContent */}

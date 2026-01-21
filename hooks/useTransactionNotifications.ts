@@ -12,6 +12,7 @@ interface UseTransactionNotificationsParams {
   intentStep: string | undefined;
   broadcastedTxid: string | undefined;
   sendAssetType: string | undefined;
+  turboEnabled?: boolean;
   showSnackbar: (params: SnackbarParams) => void;
 }
 
@@ -22,12 +23,16 @@ export function useTransactionNotifications({
   intentStep,
   broadcastedTxid,
   sendAssetType,
+  turboEnabled = false,
   showSnackbar,
 }: UseTransactionNotificationsParams): void {
   useEffect(() => {
     if (!broadcastedTxid) return;
 
-    const action = sendAssetType === 'unit' ? 'swap' : 'btc_send';
+    // Determine action based on asset type and turbo mode
+    const action = sendAssetType === 'unit'
+      ? (turboEnabled ? 'swap' : 'unit_send')
+      : 'btc_send';
     const onPress = async (): Promise<void> => {
       const url = sendAssetType === 'unit' ? getOrdTxUrl(broadcastedTxid) : getTxUrl(broadcastedTxid);
       const supported = await Linking.canOpenURL(url);
@@ -53,5 +58,5 @@ export function useTransactionNotifications({
         onPress,
       });
     }
-  }, [intentStep, broadcastedTxid, sendAssetType, showSnackbar]);
+  }, [intentStep, broadcastedTxid, sendAssetType, turboEnabled, showSnackbar]);
 }
