@@ -16,7 +16,7 @@ import TransactionHistoryScreen from '../screens/wallet/TransactionHistoryScreen
 import SettingsScreen from '../screens/settings/SettingsScreen';
 import MutinynetBanner from '../components/MutinynetBanner';
 import SplashScreen from '../screens/SplashScreen';
-import EcashThresholdSheet from '../components/settings/EcashThresholdSheet';
+// EcashThresholdSheet is now rendered at app level in AppNavigatorContent
 import EcashConversionModal from '../components/settings/EcashConversionModal';
 import LowEcashBalanceModal from '../components/ecash/LowEcashBalanceModal';
 import QRScanner from '../components/scanner/QRScanner';
@@ -196,7 +196,7 @@ export default function WalletPage({ route }: WalletPageProps) {
           onClose={() => setShowWithdrawSheet(false)}
           onAssetSelect={(assetType) => {
             (navigation as { navigate: (screen: string, params?: object) => void }).navigate('SendFlow', {
-              screen: 'AddressInput',
+              screen: 'SendInput',
               params: { assetType }
             });
           }}
@@ -224,8 +224,7 @@ export default function WalletPage({ route }: WalletPageProps) {
       )}
 
       {/* Modals */}
-      <EcashThresholdSheet visible={showThresholdSheet} onClose={() => setShowThresholdSheet(false)}
-        onSelectThreshold={handleThresholdSelect} currentThreshold={settingsHandlers.ecashThreshold || 100} />
+      {/* EcashThresholdSheet is now rendered at app level in AppNavigatorContent */}
       <EcashConversionModal visible={showConversionModal} onClose={() => setShowConversionModal(false)}
         onConfirm={handleConfirmConversion} amountToConvert={conversionAmount}
         unitBalance={savedUnitBalance} newThreshold={pendingThreshold || 100} />

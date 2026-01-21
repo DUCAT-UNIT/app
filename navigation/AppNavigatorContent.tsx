@@ -18,6 +18,10 @@ import SeedPhraseOverlay from '../components/SeedPhraseOverlay';
 import SplashScreen from '../screens/SplashScreen';
 import AirdropSuccessModal from '../components/AirdropSuccessModal';
 import Snackbar from '../components/Snackbar';
+import EcashThresholdSheet from '../components/settings/EcashThresholdSheet';
+
+// Stores
+import { useEcashThresholdSheetStore } from '../stores/ecashThresholdSheetStore';
 
 // Contexts
 import { useAuth, useOnboardingFlow } from '../contexts/AuthContext';
@@ -33,6 +37,30 @@ import { useWalletInitialization } from '../hooks/useWalletInitialization';
 
 // Styles
 import styles from '../styles';
+
+/**
+ * Global wrapper for EcashThresholdSheet that uses the global store
+ * This allows the sheet to be shown from anywhere in the app
+ */
+function EcashThresholdSheetGlobal() {
+  const visible = useEcashThresholdSheetStore((state) => state.visible);
+  const hide = useEcashThresholdSheetStore((state) => state.hide);
+  const { settingsHandlers } = useNavigationHandlers();
+
+  const handleSelectThreshold = (value: number) => {
+    settingsHandlers.handleEcashThresholdChange(value);
+    hide();
+  };
+
+  return (
+    <EcashThresholdSheet
+      visible={visible}
+      onClose={hide}
+      onSelectThreshold={handleSelectThreshold}
+      currentThreshold={settingsHandlers.ecashThreshold || 100}
+    />
+  );
+}
 
 export interface AppNavigatorContentProps {
   loadWallet: () => Promise<{ exists: boolean; addresses?: WalletAddresses }>;
@@ -195,6 +223,9 @@ export default function AppNavigatorContent({
         onClose={() => setShowAirdropModal(false)}
         txId={airdropTxId}
       />
+
+      {/* Ecash Threshold Sheet - rendered at app level to appear above all navigation */}
+      <EcashThresholdSheetGlobal />
 
       {/* Global Snackbar - rendered at app level for all screens */}
       {snackbar && (

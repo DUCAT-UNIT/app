@@ -9,6 +9,7 @@ import { logger } from '../utils/logger';
 import { getRunesAmount } from '../utils/runesHelper';
 import { requestMint } from '../services/cashu/cashuWalletService';
 import { notify } from '../utils/notify';
+import { useEcashThresholdSheetStore } from '../stores/ecashThresholdSheetStore';
 import type { RuneBalance } from '../services/balanceService';
 import type { ExtendedNavigation } from '../navigation/types';
 
@@ -52,16 +53,32 @@ export function useEcashThresholdManager({
 }: UseEcashThresholdManagerParams): UseEcashThresholdManagerReturn {
   const navigation = useNavigation() as ExtendedNavigation;
 
-  // Ecash threshold management state
-  const [showThresholdSheet, setShowThresholdSheet] = useState(false);
+  // Use global store for threshold sheet visibility (so it can render at app level)
+  const showThresholdSheet = useEcashThresholdSheetStore((state) => state.visible);
+  const showThresholdSheetAction = useEcashThresholdSheetStore((state) => state.show);
+  const hideThresholdSheetAction = useEcashThresholdSheetStore((state) => state.hide);
+
+  // Wrapper to match existing interface
+  const setShowThresholdSheet: Dispatch<SetStateAction<boolean>> = useCallback((value) => {
+    if (typeof value === 'function') {
+      const newValue = value(showThresholdSheet);
+      if (newValue) showThresholdSheetAction();
+      else hideThresholdSheetAction();
+    } else {
+      if (value) showThresholdSheetAction();
+      else hideThresholdSheetAction();
+    }
+  }, [showThresholdSheet, showThresholdSheetAction, hideThresholdSheetAction]);
+
+  // Ecash threshold management state (local)
   const [showConversionModal, setShowConversionModal] = useState(false);
   const [pendingThreshold, setPendingThreshold] = useState<number | null>(null);
   const [conversionAmount, setConversionAmount] = useState(0);
   const [savedUnitBalance, setSavedUnitBalance] = useState(0);
 
   const handleEcashThresholdPress = useCallback(() => {
-    setShowThresholdSheet(true);
-  }, []);
+    showThresholdSheetAction();
+  }, [showThresholdSheetAction]);
 
   const handleThresholdSelect = useCallback(async (newThreshold: number) => {
     setShowThresholdSheet(false);
