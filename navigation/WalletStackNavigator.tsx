@@ -17,6 +17,7 @@ import AboutScreenComponent from '../screens/settings/AboutScreen';
 import PreferencesScreenComponent from '../screens/settings/PreferencesScreen';
 import SecurityScreenComponent from '../screens/settings/SecurityScreen';
 import AdvancedScreenComponent from '../screens/settings/AdvancedScreen';
+import FeeRateDemoComponent from '../screens/dev/FeeRateDemo';
 import { COLORS } from '../theme';
 
 import type { WalletStackParamList } from './types';
@@ -81,12 +82,18 @@ const AdvancedScreen: AnyComponent = withErrorBoundary(AdvancedScreenComponent, 
   fallbackMessage: 'Unable to load advanced settings. Please try again.',
 });
 
+const FeeRateDemo: AnyComponent = withErrorBoundary(FeeRateDemoComponent, {
+  boundaryName: 'FeeRateDemo',
+  fallbackMessage: 'Unable to load fee rate demo. Please try again.',
+});
+
 const Stack = createStackNavigator<WalletStackParamList>();
 
 // Custom card style interpolator for slide from right animation
 const slideFromRight: StackCardStyleInterpolator = ({ current, layouts }) => {
   return {
     cardStyle: {
+      backgroundColor: COLORS.DARK_BG,
       transform: [
         {
           translateX: current.progress.interpolate({
@@ -105,6 +112,7 @@ const settingsScreenOptions: StackNavigationOptions = {
   gestureDirection: 'horizontal',
   gestureResponseDistance: 50,
   gestureVelocityImpact: 0.3,
+  detachPreviousScreen: false, // Keep previous screen mounted to prevent white flash
   transitionSpec: {
     open: {
       animation: 'spring',
@@ -138,6 +146,7 @@ const detailScreenOptions: StackNavigationOptions = {
   gestureDirection: 'horizontal',
   gestureResponseDistance: 50,
   gestureVelocityImpact: 0.3,
+  detachPreviousScreen: false, // Keep previous screen mounted to prevent white flash
   transitionSpec: {
     open: {
       animation: 'spring',
@@ -171,10 +180,12 @@ export default function WalletStackNavigator(): React.JSX.Element {
       screenOptions={{
         headerShown: false,
         cardStyle: { backgroundColor: COLORS.DARK_BG },
+        cardOverlayEnabled: false,
         animation: 'fade',
         // Optimize transition performance
         cardStyleInterpolator: ({ current }) => ({
           cardStyle: {
+            backgroundColor: COLORS.DARK_BG,
             opacity: current.progress,
           },
         }),
@@ -202,18 +213,12 @@ export default function WalletStackNavigator(): React.JSX.Element {
       <Stack.Screen
         name="CashuReceive"
         component={CashuReceiveScreen}
-        options={{
-          gestureEnabled: true,
-          gestureDirection: 'horizontal',
-        }}
+        options={detailScreenOptions}
       />
       <Stack.Screen
         name="RecoverMint"
         component={RecoverMintScreen}
-        options={{
-          gestureEnabled: true,
-          gestureDirection: 'horizontal',
-        }}
+        options={detailScreenOptions}
       />
       <Stack.Screen
         name="Preferences"
@@ -238,6 +243,11 @@ export default function WalletStackNavigator(): React.JSX.Element {
       <Stack.Screen
         name="About"
         component={AboutScreen}
+        options={settingsScreenOptions}
+      />
+      <Stack.Screen
+        name="FeeRateDemo"
+        component={FeeRateDemo}
         options={settingsScreenOptions}
       />
     </Stack.Navigator>

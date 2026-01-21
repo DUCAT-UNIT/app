@@ -9,15 +9,13 @@ import {
   View,
   TouchableOpacity,
   ScrollView,
-  Alert,
-  ActivityIndicator,
 } from 'react-native';
 import { useNavigation } from '@react-navigation/native';
 import { COLORS } from '../../theme';
 import Icon from '../../components/icons';
 import MutinynetBanner from '../../components/MutinynetBanner';
+import LowEcashBalanceModal from '../../components/ecash/LowEcashBalanceModal';
 import { useNavigationHandlers } from '../../contexts/NavigationHandlersContext';
-import { clearAppCache } from '../../services/cacheService';
 import { logger } from '../../utils/logger';
 import { styles } from './AdvancedScreen.styles';
 
@@ -65,99 +63,20 @@ const AdvancedScreen = React.memo(function AdvancedScreen({ route }: AdvancedScr
     onEcashThresholdPress,
   } = route.params;
 
+  const navigation = useNavigation();
+
+  // State for previewing the low ecash balance modal
+  const [showLowBalanceModal, setShowLowBalanceModal] = useState(false);
+
   // Get advancedMode and ecashThreshold directly from context so they update when toggled
   const { settingsHandlers } = useNavigationHandlers();
   const advancedMode = settingsHandlers?.advancedMode || false;
   const ecashThreshold = settingsHandlers?.ecashThreshold || 100;
-  const navigation = useNavigation<any>();
-
-  const [isClearing, setIsClearing] = useState<boolean>(false);
-
-  // Preview Confirmation Screen (dev only)
-  const handlePreviewConfirmation = () => {
-    navigation.navigate('SendFlow', {
-      screen: 'Confirmation',
-      params: {
-        isTurbo: false,
-        skipMint: false,
-        cashuMint: false,
-        broadcastedTxid: 'abc123def456789012345678901234567890abcdef1234567890abcdef12345678',
-        mintQuoteId: undefined,
-        mintAmount: undefined,
-        turboRecipient: undefined,
-      },
-    });
-  };
-
-  // Preview Turbo Confirmation Screen (dev only)
-  const handlePreviewTurboConfirmation = () => {
-    navigation.navigate('SendFlow', {
-      screen: 'Confirmation',
-      params: {
-        isTurbo: true,
-        skipMint: true,
-        turboToken: 'cashuBpGF0gaJhaUgArSaMTR9YJmFwomFhAmFzeEAxMjM0NTY3ODkwYWJjZGVmMTIzNDU2Nzg5MGFiY2RlZg',
-        turboDeeplink: 'https://ducat.app/claim?token=cashuBpGF0gaJhaUgArSaMTR9YJmFw',
-        turboAmount: 100,
-        turboRecipient: 'tb1p1234567890abcdef',
-      },
-    });
-  };
-
-  // Preview Vault Deposit Success Screen (dev only)
-  const handlePreviewDepositSuccess = () => {
-    navigation.navigate('DepositFlow', {
-      screen: 'DepositSuccess',
-      params: {
-        vaultTxid: 'abc123def456789012345678901234567890abcdef1234567890abcdef12345678',
-      },
-    });
-  };
 
   // Format threshold display value
   const getThresholdDisplay = (): string => {
     if (ecashThreshold === Infinity) return 'All transfers';
     return `${ecashThreshold} UNIT`;
-  };
-
-  const handleClearCache = (): void => {
-    Alert.alert(
-      'Clear App Cache',
-      'This will clear all cached data except your wallet keys and PIN. This can help resolve issues with P2PK tokens and other problems.\n\nYour balance and settings will be preserved.',
-      [
-        {
-          text: 'Cancel',
-          style: 'cancel',
-        },
-        {
-          text: 'Clear Cache',
-          style: 'destructive',
-          onPress: async () => {
-            setIsClearing(true);
-            try {
-              const result = await clearAppCache();
-              logger.debug('[AdvancedScreen] Cache cleared:', result);
-
-              Alert.alert(
-                'Cache Cleared',
-                `Successfully cleared:\n• ${result.secureStoreCleared} secure items\n• ${result.cashuProofsCleared} cashu proof caches\n• ${result.derivedKeysCleared} derived key caches\n• ${result.asyncStorageCleared} storage items\n\n${result.errors.length > 0 ? `Errors: ${result.errors.join(', ')}` : 'No errors.'}`,
-                [{ text: 'OK' }]
-              );
-            } catch (error: unknown) {
-              const errorMessage = error instanceof Error ? error.message : 'Unknown error';
-              logger.error(error, { context: 'AdvancedScreen', action: 'clearCache' });
-              Alert.alert(
-                'Error',
-                `Failed to clear cache: ${errorMessage}`,
-                [{ text: 'OK' }]
-              );
-            } finally {
-              setIsClearing(false);
-            }
-          },
-        },
-      ]
-    );
   };
 
   logger.debug('[AdvancedScreen] Rendering with advancedMode:', advancedMode, 'ecashThreshold:', ecashThreshold);
@@ -185,75 +104,51 @@ const AdvancedScreen = React.memo(function AdvancedScreen({ route }: AdvancedScr
             />
             <SettingsOption
               iconName="unit_logo"
-              title="Ecash Default"
+              title="Turbo UNIT Default"
               onPress={onEcashThresholdPress}
               rightText={getThresholdDisplay()}
               testID="advanced-ecash-threshold-btn"
             />
             {/* Account selection only visible in developer mode */}
             {advancedMode && (
-              <SettingsOption
-                iconName="switch_account"
-                title="Select Account"
-                onPress={onSwitchAccount}
-                testID="advanced-switch-account-btn"
-              />
+              <>
+                <SettingsOption
+                  iconName="switch_account"
+                  title="Select Account"
+                  onPress={onSwitchAccount}
+                  testID="advanced-switch-account-btn"
+                />
+                <SettingsOption
+                  iconName="settings"
+                  title="Fee Selector Demo"
+                  onPress={() => navigation.navigate('FeeRateDemo' as never)}
+                  testID="advanced-fee-demo-btn"
+                />
+                <SettingsOption
+                  iconName="unit_logo"
+                  title="Low Balance Modal Preview"
+                  onPress={() => setShowLowBalanceModal(true)}
+                  testID="advanced-low-balance-modal-btn"
+                />
+              </>
             )}
           </View>
 
-          {/* Troubleshooting section only visible in developer mode */}
-          {advancedMode && (
-            <View style={styles.section}>
-              <Text style={styles.sectionTitle}>Troubleshooting</Text>
-              <TouchableOpacity
-                style={styles.clearCacheButton}
-                onPress={handleClearCache}
-                disabled={isClearing}
-                activeOpacity={0.7}
-                testID="advanced-clear-cache-btn"
-              >
-                <View style={styles.clearCacheContent}>
-                  <Icon name="delete" size={24} color="#FF6B6B" />
-                  <View style={styles.clearCacheTextContainer}>
-                    <Text style={styles.clearCacheTitle}>Clear App Cache</Text>
-                    <Text style={styles.clearCacheSubtitle}>
-                      Fixes issues with P2PK tokens and other problems
-                    </Text>
-                  </View>
-                </View>
-                {isClearing && (
-                  <ActivityIndicator size="small" color="#FF6B6B" style={styles.spinner} />
-                )}
-              </TouchableOpacity>
-            </View>
-          )}
-
-          {/* Screen Previews - Developer mode only */}
-          {advancedMode && (
-            <View style={styles.section}>
-              <Text style={styles.sectionTitle}>Screen Previews</Text>
-              <SettingsOption
-                iconName="check"
-                title="Confirmation (Normal TX)"
-                onPress={handlePreviewConfirmation}
-                testID="advanced-preview-confirmation-btn"
-              />
-              <SettingsOption
-                iconName="turbo"
-                title="Confirmation (Turbo TX)"
-                onPress={handlePreviewTurboConfirmation}
-                testID="advanced-preview-turbo-btn"
-              />
-              <SettingsOption
-                iconName="btc_symbol"
-                title="Vault Deposit Success"
-                onPress={handlePreviewDepositSuccess}
-                testID="advanced-preview-deposit-btn"
-              />
-            </View>
-          )}
         </View>
       </ScrollView>
+
+      {/* Low Ecash Balance Modal Preview */}
+      <LowEcashBalanceModal
+        visible={showLowBalanceModal}
+        onClose={() => setShowLowBalanceModal(false)}
+        onConfirm={() => {
+          setShowLowBalanceModal(false);
+          logger.debug('[AdvancedScreen] Low balance modal confirm pressed');
+        }}
+        currentBalance={25}
+        defaultThreshold={100}
+        amountNeeded={75}
+      />
     </View>
   );
 });
