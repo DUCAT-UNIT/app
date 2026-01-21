@@ -71,13 +71,13 @@ export default function CashuReceiveScreen({ route }: CashuReceiveScreenProps): 
   if (mode === 'choose') {
     return (
       <SafeAreaView style={styles.container} edges={['top']} testID="cashu-receive-screen">
-        <Header title="Receive Cashu" onBack={() => navigation.goBack()} testID="cashu-receive-header" backTestID="cashu-receive-back-btn" />
+        <Header title="Receive Turbo UNIT" onBack={() => navigation.goBack()} testID="cashu-receive-header" backTestID="cashu-receive-back-btn" />
         <View style={styles.choiceContainer}>
           <TouchableScale style={styles.choiceCard} onPress={() => setMode('mint')} testID="cashu-receive-mint-btn">
             <Icon name="btc_logo" size={48} color={COLORS.PRIMARY_BLUE} />
             <Text style={styles.choiceTitle}>Mint from Runes</Text>
             <Text style={styles.choiceDesc}>
-              Deposit UNIT runes to mint Cashu tokens
+              Deposit UNIT runes to mint Turbo UNIT
             </Text>
           </TouchableScale>
 
@@ -85,7 +85,7 @@ export default function CashuReceiveScreen({ route }: CashuReceiveScreenProps): 
             <Icon name="qr_code" size={48} color={COLORS.PRIMARY_BLUE} />
             <Text style={styles.choiceTitle}>Receive Token</Text>
             <Text style={styles.choiceDesc}>
-              Scan or paste a Cashu token from someone else
+              Scan or paste a Turbo UNIT token from someone else
             </Text>
           </TouchableScale>
         </View>
@@ -146,7 +146,7 @@ export default function CashuReceiveScreen({ route }: CashuReceiveScreenProps): 
   if (mode === 'mint') {
     return (
       <SafeAreaView style={styles.container} edges={['top']} testID="cashu-mint-screen">
-        <Header title="Mint Cashu" onBack={() => setMode('choose')} testID="cashu-mint-header" backTestID="cashu-mint-back-btn" />
+        <Header title="Mint Turbo UNIT" onBack={() => setMode('choose')} testID="cashu-mint-header" backTestID="cashu-mint-back-btn" />
         <View style={styles.inputContainer}>
           <Text style={styles.label}>Amount (sats)</Text>
           <View style={styles.inputWrapper}>
@@ -170,12 +170,12 @@ export default function CashuReceiveScreen({ route }: CashuReceiveScreenProps): 
             {isLoading ? (
               <ActivityIndicator size="small" color="white" testID="cashu-mint-loading" />
             ) : (
-              <Text style={styles.buttonText}>Mint Cashu</Text>
+              <Text style={styles.buttonText}>Mint Turbo UNIT</Text>
             )}
           </TouchableScale>
 
           <Text style={styles.helpText}>
-            This will send UNIT to the mint and automatically issue Cashu tokens once the transaction confirms.
+            This will send UNIT to the mint and automatically issue Turbo UNIT once the transaction confirms.
           </Text>
         </View>
       </SafeAreaView>
@@ -187,11 +187,11 @@ export default function CashuReceiveScreen({ route }: CashuReceiveScreenProps): 
     <SafeAreaView style={styles.container} edges={['top']} testID="cashu-receive-token-screen">
       <Header title="Receive Token" onBack={() => setMode('choose')} testID="cashu-receive-token-header" backTestID="cashu-receive-token-back-btn" />
       <View style={styles.inputContainer}>
-        <Text style={styles.label}>Cashu Token</Text>
+        <Text style={styles.label}>Turbo UNIT Token</Text>
         <View style={[styles.inputWrapper, styles.textAreaWrapper]}>
           <TextInput
             style={[styles.input, styles.textArea]}
-            placeholder="Paste Cashu token here (cashuA...)"
+            placeholder="Paste Turbo UNIT token here (cashuA...)"
             multiline
             numberOfLines={4}
             value={pasteValue}
@@ -207,7 +207,7 @@ export default function CashuReceiveScreen({ route }: CashuReceiveScreenProps): 
             if (clipboardContent && clipboardContent.startsWith('cashu')) {
               setPasteValue(clipboardContent);
             } else {
-              Alert.alert('No Token Found', 'No Cashu token found in clipboard');
+              Alert.alert('No Token Found', 'No Turbo UNIT token found in clipboard');
             }
           }}
           testID="cashu-receive-paste-btn"

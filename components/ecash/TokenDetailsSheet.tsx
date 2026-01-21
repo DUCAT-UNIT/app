@@ -46,11 +46,6 @@ export default function TokenDetailsSheet({
     onCopy?.('Short URL copied');
   };
 
-  const handleCopyToken = async () => {
-    await Clipboard.setStringAsync(cashuToken);
-    onCopy?.('Token copied');
-  };
-
   const handleOpenInSafari = () => {
     Linking.openURL(shortUrl);
   };
@@ -65,11 +60,6 @@ export default function TokenDetailsSheet({
     }
   };
 
-  // Truncate token for display
-  const truncatedToken = cashuToken.length > 50
-    ? `${cashuToken.substring(0, 25)}...${cashuToken.substring(cashuToken.length - 25)}`
-    : cashuToken;
-
   return (
     <BottomSheet visible={visible} onClose={onClose}>
       {/* Header with custom content */}
@@ -77,7 +67,7 @@ export default function TokenDetailsSheet({
         <View style={styles.headerContent}>
           <Icon name="unit_logo" size={24} color={COLORS.PRIMARY_BLUE} />
           <View style={styles.headerText}>
-            <Text style={styles.title}>Ecash Token</Text>
+            <Text style={styles.title}>Turbo UNIT</Text>
             <Text style={styles.subtitle}>
               {recipientAddress
                 ? `Bound to address: ${truncateAddress(recipientAddress, 5, 5)}`
@@ -134,36 +124,11 @@ export default function TokenDetailsSheet({
         )}
       </View>
 
-      {/* Base64 Token Card - Only show in advanced mode */}
-      {advancedMode && (
-        <View style={styles.section}>
-          <Text style={styles.sectionLabel}>Cashu Token</Text>
-          <View style={styles.card}>
-            <TouchableOpacity
-              style={styles.cardContent}
-              onPress={handleCopyToken}
-              activeOpacity={0.7}
-            >
-              <Text style={styles.cardText} numberOfLines={2}>
-                {truncatedToken}
-              </Text>
-            </TouchableOpacity>
-            <TouchableOpacity
-              style={styles.actionButton}
-              onPress={handleCopyToken}
-              activeOpacity={0.7}
-            >
-              <Icon name="copy" size={20} color={COLORS.PRIMARY_BLUE} />
-            </TouchableOpacity>
-          </View>
-        </View>
-      )}
-
       {/* Info */}
       <View style={styles.infoBox}>
         <Icon name="info" size={16} color={COLORS.SECONDARY_TEXT} />
         <Text style={styles.infoText}>
-          Share this token to send ecash. The recipient can claim it by opening the link.
+          Share this token to send Turbo UNIT. The recipient can claim it by opening the link.
         </Text>
       </View>
     </BottomSheet>

@@ -27,7 +27,7 @@ export default function InsufficientTurboSheet({
   currentBalance,
 }: InsufficientTurboSheetProps) {
   return (
-    <BottomSheet visible={visible} onClose={onClose} title="Insufficient Turbo Balance">
+    <BottomSheet visible={visible} onClose={onClose} title="Insufficient Turbo UNIT Balance">
       <View style={styles.container}>
         <View style={styles.balanceInfo}>
           <View style={styles.balanceRow}>
@@ -35,13 +35,13 @@ export default function InsufficientTurboSheet({
             <Text style={styles.balanceValue}>{requiredAmount.toFixed(2)} UNIT</Text>
           </View>
           <View style={styles.balanceRow}>
-            <Text style={styles.balanceLabel}>Your Turbo Balance:</Text>
+            <Text style={styles.balanceLabel}>Your Turbo UNIT Balance:</Text>
             <Text style={styles.balanceValue}>{currentBalance.toFixed(2)} UNIT</Text>
           </View>
         </View>
 
         <Text style={styles.description}>
-          You don't have enough Turbo balance for this transaction. Choose how you'd like to proceed:
+          You don't have enough Turbo UNIT balance for this transaction. Choose how you'd like to proceed:
         </Text>
 
         {/* Use Turbo Option */}
@@ -52,7 +52,7 @@ export default function InsufficientTurboSheet({
         >
           <View style={styles.optionHeader}>
             <Icon name="unit_logo" size={24} color={COLORS.PRIMARY_BLUE} />
-            <Text style={styles.optionTitle}>Use Turbo</Text>
+            <Text style={styles.optionTitle}>Use Turbo UNIT</Text>
           </View>
           <Text style={styles.optionDescription}>
             Private & instant after confirmation. Requires waiting for on-chain confirmation to mint. User will have to claim the tokens on their side.

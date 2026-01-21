@@ -34,9 +34,9 @@ export default function EcashThresholdSheet({ visible, onClose, onSelectThreshol
   };
 
   return (
-    <BottomSheet visible={visible} onClose={onClose} title="Ecash Default">
+    <BottomSheet visible={visible} onClose={onClose} title="Turbo UNIT Default">
       <Text style={styles.description}>
-        Transactions below this threshold will automatically use ecash for faster, private payments.
+        Transactions below this threshold will automatically use Turbo UNIT for faster payments.
       </Text>
 
       <View style={styles.optionsContainer}>

@@ -46,28 +46,28 @@ export default function LowEcashBalanceModal({
             <Icon name="unit_logo" size={48} color={COLORS.PRIMARY_BLUE} />
           </View>
 
-          <Text style={styles.title}>Low Turbo Unit Balance</Text>
+          <Text style={styles.title}>Low Turbo UNIT Balance</Text>
 
           <Text style={styles.message}>
-            Your Turbo Unit balance is below the default amount. Turbo Unit allows you to operate instantly and privately through Turbo transactions.
+            Your Turbo UNIT balance is running low. Top up to continue enjoying instant transactions.
           </Text>
 
           <View style={styles.balanceInfo}>
             <View style={styles.balanceRow}>
-              <Text style={styles.balanceLabel}>Current Balance:</Text>
+              <Text style={styles.balanceLabel}>Current Balance</Text>
               <Text style={styles.balanceValue}>{formatUnitAmount(currentBalance)} UNIT</Text>
             </View>
+            <View style={styles.divider} />
             <View style={styles.balanceRow}>
-              <Text style={styles.balanceLabel}>Default Amount:</Text>
+              <Text style={styles.balanceLabel}>Default Amount</Text>
               <Text style={styles.balanceValue}>{formatUnitAmount(defaultThreshold)} UNIT</Text>
             </View>
+            <View style={styles.divider} />
             <View style={styles.balanceRow}>
-              <Text style={styles.balanceLabel}>Amount Needed:</Text>
+              <Text style={styles.balanceLabel}>Amount to Top Up</Text>
               <Text style={[styles.balanceValue, styles.highlight]}>{formatUnitAmount(amountNeeded)} UNIT</Text>
             </View>
           </View>
-
-          <Text style={styles.question}>Would you like to top up?</Text>
 
           <View style={styles.buttons}>
             <TouchableOpacity
@@ -96,24 +96,24 @@ export default function LowEcashBalanceModal({
 const styles = StyleSheet.create({
   overlay: {
     flex: 1,
-    backgroundColor: 'rgba(0, 0, 0, 0.8)',
+    backgroundColor: 'rgba(0, 0, 0, 0.85)',
     justifyContent: 'center',
     alignItems: 'center',
+    paddingHorizontal: 24,
   },
   modal: {
     backgroundColor: COLORS.CARD_BG,
-    borderRadius: 16,
-    padding: 24,
-    marginHorizontal: 32,
-    maxWidth: 400,
+    borderRadius: 20,
+    padding: 28,
     width: '100%',
+    maxWidth: 340,
   },
   iconContainer: {
     alignItems: 'center',
-    marginBottom: 16,
+    marginBottom: 20,
   },
   title: {
-    fontSize: 20,
+    fontSize: 22,
     fontWeight: 'bold',
     color: COLORS.WHITE,
     textAlign: 'center',
@@ -121,41 +121,42 @@ const styles = StyleSheet.create({
     fontFamily: 'CabinetGrotesk-Bold',
   },
   message: {
-    fontSize: 15,
-    color: COLORS.SECONDARY_TEXT,
+    fontSize: 16,
+    color: COLORS.LIGHT_GRAY,
     textAlign: 'center',
-    lineHeight: 22,
-    marginBottom: 20,
+    lineHeight: 24,
+    marginBottom: 24,
   },
   balanceInfo: {
-    backgroundColor: 'rgba(59, 130, 246, 0.1)',
-    borderRadius: 8,
-    padding: 16,
-    marginBottom: 16,
+    backgroundColor: COLORS.DARK_BG,
+    borderRadius: 14,
+    padding: 18,
+    marginBottom: 28,
   },
   balanceRow: {
     flexDirection: 'row',
     justifyContent: 'space-between',
-    marginBottom: 8,
+    alignItems: 'center',
+    paddingVertical: 6,
+  },
+  divider: {
+    height: 1,
+    backgroundColor: COLORS.BORDER_COLOR,
+    marginVertical: 12,
   },
   balanceLabel: {
-    fontSize: 14,
-    color: COLORS.SECONDARY_TEXT,
+    fontSize: 15,
+    color: COLORS.LIGHT_GRAY,
+    fontFamily: 'CabinetGrotesk-Regular',
   },
   balanceValue: {
-    fontSize: 14,
+    fontSize: 15,
     color: COLORS.WHITE,
     fontWeight: '600',
+    fontFamily: 'CabinetGrotesk-Medium',
   },
   highlight: {
     color: COLORS.PRIMARY_BLUE,
-  },
-  question: {
-    fontSize: 15,
-    color: COLORS.WHITE,
-    textAlign: 'center',
-    marginBottom: 20,
-    fontWeight: '600',
   },
   buttons: {
     flexDirection: 'row',
@@ -164,8 +165,8 @@ const styles = StyleSheet.create({
   cancelButton: {
     flex: 1,
     backgroundColor: COLORS.MID_DARK_GRAY,
-    borderRadius: 10,
-    paddingVertical: 14,
+    borderRadius: 12,
+    paddingVertical: 16,
     alignItems: 'center',
   },
   cancelButtonText: {
@@ -177,8 +178,8 @@ const styles = StyleSheet.create({
   confirmButton: {
     flex: 1,
     backgroundColor: COLORS.PRIMARY_BLUE,
-    borderRadius: 10,
-    paddingVertical: 14,
+    borderRadius: 12,
+    paddingVertical: 16,
     alignItems: 'center',
   },
   confirmButtonText: {

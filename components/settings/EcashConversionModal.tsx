@@ -52,7 +52,7 @@ export default function EcashConversionModal({
             <Icon name="unit_logo" size={48} color={COLORS.PRIMARY_BLUE} />
           </View>
 
-          <Text style={styles.title}>Convert to Ecash?</Text>
+          <Text style={styles.title}>Convert to Turbo UNIT?</Text>
 
           {isConvertingAll ? (
             <Text style={styles.message}>
@@ -60,7 +60,7 @@ export default function EcashConversionModal({
               <Text style={styles.highlight}>
                 ({safeUnitBalance.toFixed(2)} UNIT)
               </Text>
-              {' '}to ecash for simpler transacting.
+              {' '}to Turbo UNIT for simpler transacting.
             </Text>
           ) : (
             <Text style={styles.message}>
@@ -72,14 +72,14 @@ export default function EcashConversionModal({
               <Text style={styles.highlight}>
                 {safeUnitBalance.toFixed(2)} UNIT
               </Text>
-              {' '}into ecash for simpler transacting.
+              {' '}into Turbo UNIT for simpler transacting.
             </Text>
           )}
 
           <View style={styles.infoBox}>
             <Icon name="info" size={16} color={COLORS.SECONDARY_TEXT} />
             <Text style={styles.infoText}>
-              Ecash enables instant, private payments for transactions under {newThreshold === Infinity ? 'any amount' : `${newThreshold} UNIT`}.
+              Turbo UNIT enables instant payments for transactions under {newThreshold === Infinity ? 'any amount' : `${newThreshold} UNIT`}.
             </Text>
           </View>
 
