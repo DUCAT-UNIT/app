@@ -12,29 +12,17 @@ import { useResponsive } from '../../hooks/useResponsive';
 interface AssetActionButtonsProps {
   onSendPress: () => void;
   onReceivePress: () => void;
-  onConsolidatePress: () => void;
-  onTurboPress: () => void;
-  showConsolidate: boolean;
+  onConsolidatePress?: () => void;
+  onTurboPress?: () => void;
+  showConsolidate?: boolean;
   advancedMode?: boolean;
 }
 
-export function AssetActionButtons({ onSendPress, onReceivePress, onConsolidatePress, onTurboPress, showConsolidate, advancedMode = false }: AssetActionButtonsProps) {
+export function AssetActionButtons({ onSendPress, onReceivePress }: AssetActionButtonsProps) {
   const { s, sf } = useResponsive();
 
   return (
     <View style={[styles.actionButtonsContainer, { paddingHorizontal: s(24), paddingVertical: s(12), gap: s(12) }]}>
-      {showConsolidate && advancedMode && (
-        <TouchableOpacity
-          style={[styles.actionButton, { minWidth: s(62) }]}
-          onPress={onTurboPress}
-        >
-          <View style={[styles.actionButtonIcon, { width: s(50), height: s(50), borderRadius: s(8), marginBottom: s(2) }]}>
-            <Icon name="turbo" size={s(19)} color={COLORS.DARK_BG} />
-          </View>
-          <Text style={[styles.actionButtonLabel, { fontSize: sf(13) }]}>Turbo</Text>
-        </TouchableOpacity>
-      )}
-
       <TouchableOpacity
         style={[styles.actionButton, { minWidth: s(62) }]}
         onPress={onSendPress}
@@ -54,18 +42,6 @@ export function AssetActionButtons({ onSendPress, onReceivePress, onConsolidateP
         </View>
         <Text style={[styles.actionButtonLabel, { fontSize: sf(13) }]}>Receive</Text>
       </TouchableOpacity>
-
-      {showConsolidate && advancedMode && (
-        <TouchableOpacity
-          style={[styles.actionButton, { minWidth: s(62) }]}
-          onPress={onConsolidatePress}
-        >
-          <View style={[styles.actionButtonIcon, { width: s(50), height: s(50), borderRadius: s(8), marginBottom: s(2) }]}>
-            <Icon name="fuse" size={s(19)} color={COLORS.DARK_BG} />
-          </View>
-          <Text style={[styles.actionButtonLabel, { fontSize: sf(13) }]}>Fuse</Text>
-        </TouchableOpacity>
-      )}
     </View>
   );
 }

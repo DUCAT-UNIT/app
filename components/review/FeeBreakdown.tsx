@@ -10,9 +10,10 @@ import { useResponsive } from '../../hooks/useResponsive';
 
 interface FeeBreakdownProps {
   actualFee: number;
+  feeRate?: number;
 }
 
-export default function FeeBreakdown({ actualFee }: FeeBreakdownProps) {
+export default function FeeBreakdown({ actualFee, feeRate }: FeeBreakdownProps) {
   const { s, sf } = useResponsive();
 
   return (
@@ -23,6 +24,12 @@ export default function FeeBreakdown({ actualFee }: FeeBreakdownProps) {
           <Text style={[styles.detailLabel, { fontSize: sf(14) }]}>Network:</Text>
           <Text style={[styles.detailValue, { fontSize: sf(14) }]}>Mutinynet</Text>
         </View>
+        {feeRate !== undefined && (
+          <View style={[styles.detailRow, { marginBottom: s(10) }]}>
+            <Text style={[styles.detailLabel, { fontSize: sf(14) }]}>Fee rate:</Text>
+            <Text style={[styles.detailValue, { fontSize: sf(14) }]}>{feeRate} sat/vB</Text>
+          </View>
+        )}
         <View style={styles.detailRowLast}>
           <Text style={[styles.detailLabel, { fontSize: sf(14) }]}>Total fees:</Text>
           <Text style={[styles.detailValue, { fontSize: sf(14) }]}>{formatFiat(actualFee, 0)} sats</Text>

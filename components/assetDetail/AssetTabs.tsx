@@ -1,10 +1,10 @@
 /**
  * AssetTabs Component
- * Tab selector for Activity, Turbo, and About sections
+ * Tab selector for Activity and About sections
  * Uses responsive scaling with s() and sf() functions
  */
 
-import React, { memo, useCallback, useMemo } from 'react';
+import React, { memo, useCallback } from 'react';
 import { View, Text, TouchableOpacity } from 'react-native';
 import { COLORS } from '../../theme';
 import { useResponsive } from '../../hooks/useResponsive';
@@ -16,33 +16,23 @@ interface AssetTabsProps {
   advancedMode?: boolean;
 }
 
+const TAB_OPTIONS = ['ACTIVITY', 'ABOUT'];
+
 export const AssetTabs = memo(function AssetTabs({
   selectedTab,
   onTabChange,
-  assetType,
-  advancedMode = false
 }: AssetTabsProps) {
   const { s, sf } = useResponsive();
 
-  // Memoize tab options to prevent array recreation
-  const TAB_OPTIONS = useMemo(() =>
-    (assetType === 'UNIT' && advancedMode)
-      ? ['ACTIVITY', 'TURBO', 'ABOUT']
-      : ['ACTIVITY', 'ABOUT'],
-    [assetType, advancedMode]
-  );
-
   // Memoize individual tab handlers to avoid inline function recreation
   const handleActivityPress = useCallback(() => onTabChange('ACTIVITY'), [onTabChange]);
-  const handleTurboPress = useCallback(() => onTabChange('TURBO'), [onTabChange]);
   const handleAboutPress = useCallback(() => onTabChange('ABOUT'), [onTabChange]);
 
   // Map tab names to their handlers
-  const tabHandlers: Record<string, () => void> = useMemo(() => ({
+  const tabHandlers: Record<string, () => void> = {
     'ACTIVITY': handleActivityPress,
-    'TURBO': handleTurboPress,
     'ABOUT': handleAboutPress,
-  }), [handleActivityPress, handleTurboPress, handleAboutPress]);
+  };
 
   return (
     <View style={{

@@ -68,16 +68,15 @@ export default memo(function RegularTransactionItem({ tx, styles, onPress, advan
 
   // Memoize expensive calculations
   const { isEcashSwapTransaction, showTurboUI, actionLabel, statusConfig, formattedAmount, formattedDate } = useMemo(() => {
-    // Check for Turbo/eCash Swap transaction (sending UNIT to mint)
+    // Check for eCash Swap transaction (sending UNIT to mint)
     const isEcashSwap = assetType === 'UNIT' && isSent && tx.vout?.some((output: TransactionOutput) =>
       output.scriptpubkey_address === TURBO_MINT_ADDRESS
     );
-    const showTurbo = isEcashSwap && advancedMode;
+    const showTurbo = false; // Turbo UI disabled
 
     // Determine action label
     let label: string;
-    if (showTurbo) label = 'Activate';
-    else if (isEcashSwap) label = 'eCash Swap';
+    if (isEcashSwap) label = 'eCash Swap';
     else if (isSent && isReceived) label = 'Self Claim';
     else label = isSent ? 'Sent' : 'Received';
 
