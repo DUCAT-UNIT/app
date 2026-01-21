@@ -3,16 +3,18 @@
  * Features: Summary display, biometric authentication before signing
  */
 
-import React, { useCallback, useState } from 'react';
+import React, { useCallback, useState, useMemo } from 'react';
 import { Text, View, ScrollView, StyleSheet, Alert, TouchableOpacity } from 'react-native';
 import { NavigationProp } from '@react-navigation/native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import * as LocalAuthentication from 'expo-local-authentication';
 import { Ionicons } from '@expo/vector-icons';
 import TouchableScale from '../../components/common/TouchableScale';
+import Icon from '../../components/icons';
 import { useDeposit } from '../../stores/depositStore';
 import { useDepositVault } from '../../hooks/useDepositVault';
 import { usePrice } from '../../stores/priceStore';
+import { useBalance } from '../../contexts/WalletDataContext';
 import { formatFiat } from '../../utils/formatters';
 import { getOpCostOpen } from '../../utils/vaultUtils';
 import { colors, fonts, fontSizes, spacing, radii } from '../../styles/theme';
@@ -39,11 +41,17 @@ export default function DepositConfirmScreen({ navigation }: DepositConfirmScree
 
   const { deposit, isLoading } = useDepositVault();
   const { btcPrice } = usePrice();
+  const { utxos } = useBalance();
   const [isAuthenticating, setIsAuthenticating] = useState(false);
 
   // Calculate values
   const depositUsdValue = btcPrice ? depositAmountBtc * btcPrice : 0;
-  const estimatedFee = getOpCostOpen(selectedFeeRate);
+
+  // Dynamic fee calculation based on UTXOs and selected rate
+  const estimatedFee = useMemo(() => {
+    return getOpCostOpen(selectedFeeRate, utxos);
+  }, [selectedFeeRate, utxos]);
+
   const feeUsdValue = btcPrice ? (estimatedFee / 100_000_000) * btcPrice : 0;
 
   // Handle confirm with biometric authentication
@@ -115,21 +123,36 @@ export default function DepositConfirmScreen({ navigation }: DepositConfirmScree
           {/* Deposit Amount - Highlighted */}
           <View style={styles.depositSection}>
             <Text style={styles.depositLabel}>Deposit Amount</Text>
-            <Text style={styles.depositAmount}>+{(depositAmountSats / 100_000_000).toFixed(8)} BTC</Text>
+            <View style={styles.amountRow}>
+              <Text style={styles.depositAmount}>{(depositAmountSats / 100_000_000).toFixed(8)}</Text>
+              <Icon name="btc_symbol" size={24} />
+            </View>
             <Text style={styles.depositUsd}>≈ ${formatFiat(depositUsdValue)}</Text>
           </View>
 
           <View style={styles.divider} />
 
-          {/* Collateral */}
+          {/* Collateral - same line */}
           <View style={styles.row}>
-            <Text style={styles.label}>Current Collateral</Text>
-            <Text style={styles.value}>{currentBtcLocked.toFixed(8)} BTC</Text>
+            <Text style={styles.label}>Collateral</Text>
+            <View style={styles.changeRow}>
+              <Text style={styles.valueSecondary}>{currentBtcLocked.toFixed(8)}</Text>
+              <Icon name="btc_symbol" size={14} color={colors.text.secondary} />
+              <Ionicons name="arrow-forward" size={14} color={colors.text.tertiary} />
+              <Text style={styles.valueHighlight}>{totalCollateral.toFixed(8)}</Text>
+              <Icon name="btc_symbol" size={14} />
+            </View>
           </View>
 
+          <View style={styles.divider} />
+
+          {/* Debt - unchanged */}
           <View style={styles.row}>
-            <Text style={styles.label}>New Collateral</Text>
-            <Text style={styles.valueHighlight}>{totalCollateral.toFixed(8)} BTC</Text>
+            <Text style={styles.label}>Debt (unchanged)</Text>
+            <View style={styles.changeRow}>
+              <Text style={styles.value}>{currentUnitBorrowed.toFixed(2)}</Text>
+              <Icon name="unit_symbol" size={16} />
+            </View>
           </View>
 
           <View style={styles.divider} />
@@ -162,15 +185,23 @@ export default function DepositConfirmScreen({ navigation }: DepositConfirmScree
             </View>
           </View>
 
-          <View style={styles.divider} />
+        </View>
 
-          {/* Network Fee */}
-          <View style={styles.row}>
-            <Text style={styles.label}>Network Fee</Text>
-            <View style={styles.feeContainer}>
-              <Text style={styles.value}>~{estimatedFee} sats</Text>
-              <Text style={styles.feeUsd}>≈ ${formatFiat(feeUsdValue)}</Text>
+        {/* Fee Display */}
+        <View style={styles.feeSection}>
+          <View style={styles.feeRow}>
+            <Text style={styles.feeLabel}>Network Fee</Text>
+            <View style={styles.feeValues}>
+              <View style={styles.feeAmountRow}>
+                <Text style={styles.feeAmount}>{(estimatedFee / 100_000_000).toFixed(8)}</Text>
+                <Icon name="btc_symbol" size={14} />
+              </View>
+              <Text style={styles.feeUsdText}>≈ ${formatFiat(feeUsdValue)}</Text>
             </View>
+          </View>
+          <View style={[styles.feeRow, { marginTop: spacing.sm }]}>
+            <Text style={styles.feeLabel}>Fee Rate</Text>
+            <Text style={styles.feeAmount}>{selectedFeeRate} sat/vB</Text>
           </View>
         </View>
 
@@ -254,10 +285,15 @@ const styles = StyleSheet.create({
     color: colors.text.secondary,
     marginBottom: spacing.xs,
   },
+  amountRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: spacing.sm,
+  },
   depositAmount: {
     fontSize: fontSizes.xxxl,
     fontFamily: fonts.bold,
-    color: colors.brand.primary,
+    color: colors.text.primary,
   },
   depositUsd: {
     fontSize: fontSizes.md,
@@ -286,6 +322,11 @@ const styles = StyleSheet.create({
     fontFamily: fonts.medium,
     color: colors.text.primary,
   },
+  valueSecondary: {
+    fontSize: fontSizes.md,
+    fontFamily: fonts.medium,
+    color: colors.text.secondary,
+  },
   valueHighlight: {
     fontSize: fontSizes.md,
     fontFamily: fonts.bold,
@@ -296,14 +337,42 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     gap: spacing.xs,
   },
-  feeContainer: {
+  feeSection: {
+    marginTop: spacing.lg,
+    backgroundColor: colors.bg.secondary,
+    borderRadius: radii.lg,
+    padding: spacing.md,
+    borderWidth: 1,
+    borderColor: colors.border.default,
+  },
+  feeRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+  },
+  feeLabel: {
+    fontSize: fontSizes.md,
+    fontFamily: fonts.medium,
+    color: colors.text.secondary,
+  },
+  feeValues: {
     alignItems: 'flex-end',
   },
-  feeUsd: {
-    fontSize: fontSizes.xs,
+  feeAmountRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: spacing.xs,
+  },
+  feeAmount: {
+    fontSize: fontSizes.md,
+    fontFamily: fonts.medium,
+    color: colors.text.primary,
+  },
+  feeUsdText: {
+    fontSize: fontSizes.sm,
     fontFamily: fonts.regular,
     color: colors.text.tertiary,
-    marginTop: 2,
+    marginTop: spacing.xs,
   },
   errorContainer: {
     backgroundColor: 'rgba(208, 76, 104, 0.1)',

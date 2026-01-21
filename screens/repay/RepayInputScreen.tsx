@@ -17,15 +17,23 @@ import { NavigationProp } from '@react-navigation/native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import TouchableScale from '../../components/common/TouchableScale';
+import { FeeRateDropdown } from '../../components/common/FeeRateSelectorCompact';
 import { VaultActionGauge, VaultChangesCard } from '../../components/vaultAction';
 import { UnitAmountSlider } from '../../components/vaultAction/UnitAmountSlider';
 import { useRepay } from '../../stores/repayStore';
 import { useRepayVault } from '../../hooks/useRepayVault';
 import { usePriceStore } from '../../stores/priceStore';
 import { useBalance } from '../../contexts/WalletDataContext';
-import { computeHealthFactor, computeLiquidationPrice } from '../../utils/vaultUtils';
+import { computeHealthFactor, computeLiquidationPrice, getOpCostOpen } from '../../utils/vaultUtils';
 import { getRunesAmount } from '../../utils/runesHelper';
 import { colors, fonts, fontSizes, spacing, radii } from '../../styles/theme';
+
+// Health-based slider colors (matching VaultActionGauge)
+const getHealthSliderColor = (health: number): string => {
+  if (health <= 160) return '#d04c68'; // red
+  if (health <= 200) return '#fde37b'; // yellow
+  return '#59aa8a'; // green
+};
 
 interface RepayInputScreenProps {
   navigation: NavigationProp<Record<string, object | undefined>>;
@@ -37,6 +45,8 @@ export default function RepayInputScreen({ navigation }: RepayInputScreenProps) 
     currentUnitBorrowed,
     currentBtcLocked,
     maxRepayable,
+    selectedFeeRate,
+    setSelectedFeeRate,
     setRepayAmountUnit,
     setAvailableUnitBalance,
     setCurrentStep,
@@ -46,8 +56,24 @@ export default function RepayInputScreen({ navigation }: RepayInputScreenProps) 
 
   const { loadVaultData, isLoading: isLoadingVault } = useRepayVault();
   const { btcPrice, fetchBtcPrice } = usePriceStore();
-  const { runesBalance } = useBalance();
+  const { runesBalance, segwitBalance, utxos } = useBalance();
   const [vaultLoaded, setVaultLoaded] = useState(false);
+
+  // BTC balance in sats for fee validation
+  const btcBalanceSats = Math.round((segwitBalance || 0) * 100_000_000);
+
+  // Calculate estimated fee based on selected rate and UTXOs
+  const estimatedFeeSats = useMemo(() => {
+    return getOpCostOpen(selectedFeeRate, utxos);
+  }, [selectedFeeRate, utxos]);
+
+  // Check if user has sufficient BTC for the selected fee rate
+  const hasSufficientBtc = btcBalanceSats >= estimatedFeeSats;
+  const feeErrorMessage = !hasSufficientBtc
+    ? btcBalanceSats === 0
+      ? 'You need BTC in your wallet for transaction fees'
+      : `Need ${(estimatedFeeSats / 100_000_000).toFixed(8)} BTC for fees, have ${(btcBalanceSats / 100_000_000).toFixed(8)} BTC`
+    : null;
 
   // Get UNIT balance from runes
   const unitBalance = useMemo((): number => {
@@ -94,8 +120,12 @@ export default function RepayInputScreen({ navigation }: RepayInputScreenProps) 
   const preview = useMemo(() => {
     const newDebt = Math.max(0, currentUnitBorrowed - previewAmount);
 
-    if (!btcPrice || currentBtcLocked <= 0 || newDebt <= 0) {
-      return { newDebt, newHealth: newDebt === 0 ? 999 : 0, newLiqPrice: 0 };
+    if (!btcPrice || currentBtcLocked <= 0) {
+      return { newDebt, newHealth: 0, newLiqPrice: 0 };
+    }
+
+    if (newDebt <= 0) {
+      return { newDebt, newHealth: 999, newLiqPrice: Infinity };
     }
 
     return {
@@ -129,7 +159,7 @@ export default function RepayInputScreen({ navigation }: RepayInputScreenProps) 
     return null;
   }, [vaultLoaded, repayAmountUnit, currentUnitBorrowed, unitBalance]);
 
-  const canContinue = vaultLoaded && repayAmountUnit > 0 && repayAmountUnit <= currentUnitBorrowed && repayAmountUnit <= unitBalance;
+  const canContinue = vaultLoaded && repayAmountUnit > 0 && repayAmountUnit <= currentUnitBorrowed && repayAmountUnit <= unitBalance && hasSufficientBtc;
 
   const handleContinue = useCallback(() => {
     if (!canContinue) return;
@@ -203,7 +233,7 @@ export default function RepayInputScreen({ navigation }: RepayInputScreenProps) 
             hasNoDebt={hasChanges && preview.newDebt === 0}
           />
 
-          {/* Slider */}
+          {/* Slider with Fee Selector inside */}
           <View style={styles.section}>
             <UnitAmountSlider
               value={repayAmountUnit}
@@ -212,10 +242,17 @@ export default function RepayInputScreen({ navigation }: RepayInputScreenProps) 
               onLiveValueChange={handleLiveValueChange}
               label="UNIT to Repay"
               disabled={maxRepayableUnit <= 0}
+              sliderColor={getHealthSliderColor(hasChanges ? preview.newHealth : currentHealth)}
+              hideAvailable
+              renderFooter={() => (
+                <FeeRateDropdown
+                  selectedRate={selectedFeeRate}
+                  onRateChange={setSelectedFeeRate}
+                  estimatedFeeSats={estimatedFeeSats}
+                  transparent
+                />
+              )}
             />
-            <Text style={styles.balanceText}>
-              Available: {unitBalance.toFixed(2)} UNIT
-            </Text>
           </View>
 
           {/* Validation/Error message */}
@@ -223,6 +260,14 @@ export default function RepayInputScreen({ navigation }: RepayInputScreenProps) 
             <View style={styles.warning}>
               <Ionicons name="warning" size={20} color={colors.semantic.error} />
               <Text style={styles.warningText}>{error || validationMessage}</Text>
+            </View>
+          )}
+
+          {/* Warning for insufficient BTC for fees */}
+          {!hasSufficientBtc && feeErrorMessage && (
+            <View style={styles.warning}>
+              <Ionicons name="warning" size={20} color={colors.semantic.error} />
+              <Text style={styles.warningText}>{feeErrorMessage}</Text>
             </View>
           )}
 
@@ -239,6 +284,7 @@ export default function RepayInputScreen({ navigation }: RepayInputScreenProps) 
               newLiquidationPrice={hasChanges ? preview.newLiqPrice : currentLiqPrice}
               showChanges={hasChanges}
               actionType="debt"
+              hideTitle
             />
           </View>
         </ScrollView>
@@ -273,7 +319,7 @@ const styles = StyleSheet.create({
   header: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: spacing.sm },
   title: { color: colors.text.primary, fontSize: fontSizes.xxl, fontFamily: fonts.bold },
   section: { marginTop: spacing.lg },
-  balanceText: { color: colors.text.tertiary, fontSize: fontSizes.sm, textAlign: 'right', marginTop: spacing.xs },
+  feeSection: { marginTop: spacing.lg },
   warning: { flexDirection: 'row', backgroundColor: 'rgba(208,76,104,0.1)', borderRadius: radii.md, padding: spacing.md, marginTop: spacing.lg, gap: spacing.sm },
   warningText: { flex: 1, color: colors.semantic.error, fontSize: fontSizes.sm, fontFamily: fonts.medium },
   footer: { position: 'absolute', bottom: 0, left: 0, right: 0, padding: spacing.lg, backgroundColor: colors.bg.primary, borderTopWidth: 1, borderTopColor: colors.border.default },

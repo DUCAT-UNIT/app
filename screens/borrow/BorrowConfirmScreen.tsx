@@ -3,16 +3,18 @@
  * Features: Summary display, biometric authentication before signing
  */
 
-import React, { useCallback, useState } from 'react';
+import React, { useCallback, useState, useMemo } from 'react';
 import { Text, View, ScrollView, StyleSheet, Alert, TouchableOpacity } from 'react-native';
 import { NavigationProp } from '@react-navigation/native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import * as LocalAuthentication from 'expo-local-authentication';
 import { Ionicons } from '@expo/vector-icons';
 import TouchableScale from '../../components/common/TouchableScale';
+import Icon from '../../components/icons';
 import { useBorrow } from '../../stores/borrowStore';
 import { useBorrowVault } from '../../hooks/useBorrowVault';
 import { usePrice } from '../../stores/priceStore';
+import { useBalance } from '../../contexts/WalletDataContext';
 import { formatFiat } from '../../utils/formatters';
 import { getOpCostOpen } from '../../utils/vaultUtils';
 import { colors, fonts, fontSizes, spacing, radii } from '../../styles/theme';
@@ -37,12 +39,18 @@ export default function BorrowConfirmScreen({ navigation }: BorrowConfirmScreenP
 
   const { borrowMore, isLoading } = useBorrowVault();
   const { btcPrice } = usePrice();
+  const { utxos } = useBalance();
   const [isAuthenticating, setIsAuthenticating] = useState(false);
 
   // Calculate values
   const totalDebt = currentUnitBorrowed + borrowAmount;
   const borrowUsdValue = borrowAmount; // UNIT is roughly pegged to USD
-  const estimatedFee = getOpCostOpen(selectedFeeRate);
+
+  // Dynamic fee calculation based on UTXOs and selected rate
+  const estimatedFee = useMemo(() => {
+    return getOpCostOpen(selectedFeeRate, utxos);
+  }, [selectedFeeRate, utxos]);
+
   const feeUsdValue = btcPrice ? (estimatedFee / 100_000_000) * btcPrice : 0;
 
   // Handle confirm with biometric authentication
@@ -107,32 +115,39 @@ export default function BorrowConfirmScreen({ navigation }: BorrowConfirmScreenP
 
         {/* Summary Card - All info in one dense block */}
         <View style={styles.summaryCard}>
-          {/* Borrow Amount - Highlighted */}
+          {/* Borrow Amount - Highlighted in white */}
           <View style={styles.borrowSection}>
             <Text style={styles.borrowLabel}>Borrow Amount</Text>
-            <Text style={styles.borrowAmount}>+{borrowAmount.toFixed(2)} UNIT</Text>
+            <View style={styles.amountRow}>
+              <Text style={styles.borrowAmount}>{borrowAmount.toFixed(2)}</Text>
+              <Icon name="unit_symbol" size={24} />
+            </View>
             <Text style={styles.borrowUsd}>≈ ${formatFiat(borrowUsdValue)}</Text>
           </View>
 
           <View style={styles.divider} />
 
-          {/* Debt */}
+          {/* Debt - same line */}
           <View style={styles.row}>
-            <Text style={styles.label}>Current Debt</Text>
-            <Text style={styles.value}>{currentUnitBorrowed.toFixed(2)} UNIT</Text>
-          </View>
-
-          <View style={styles.row}>
-            <Text style={styles.label}>New Debt</Text>
-            <Text style={styles.valueHighlight}>{totalDebt.toFixed(2)} UNIT</Text>
+            <Text style={styles.label}>Debt</Text>
+            <View style={styles.changeRow}>
+              <Text style={styles.valueSecondary}>{currentUnitBorrowed.toFixed(2)}</Text>
+              <Icon name="unit_symbol" size={14} color={colors.text.secondary} />
+              <Ionicons name="arrow-forward" size={14} color={colors.text.tertiary} />
+              <Text style={styles.valueHighlight}>{totalDebt.toFixed(2)}</Text>
+              <Icon name="unit_symbol" size={14} />
+            </View>
           </View>
 
           <View style={styles.divider} />
 
-          {/* Collateral */}
+          {/* Collateral - unchanged */}
           <View style={styles.row}>
             <Text style={styles.label}>Collateral (unchanged)</Text>
-            <Text style={styles.value}>{currentBtcLocked.toFixed(8)} BTC</Text>
+            <View style={styles.changeRow}>
+              <Text style={styles.value}>{currentBtcLocked.toFixed(8)}</Text>
+              <Icon name="btc_symbol" size={16} />
+            </View>
           </View>
 
           <View style={styles.divider} />
@@ -142,11 +157,11 @@ export default function BorrowConfirmScreen({ navigation }: BorrowConfirmScreenP
             <Text style={styles.label}>Health Factor</Text>
             <View style={styles.changeRow}>
               <Text style={[styles.value, { color: getHealthColor(healthFactor) }]}>
-                {healthFactor.toFixed(0)}%
+                {healthFactor >= 999 ? '∞' : `${healthFactor.toFixed(0)}%`}
               </Text>
               <Ionicons name="arrow-forward" size={14} color={colors.text.tertiary} />
               <Text style={[styles.valueHighlight, { color: getHealthColor(newHealthFactor) }]}>
-                {newHealthFactor.toFixed(0)}%
+                {newHealthFactor >= 999 ? '∞' : `${newHealthFactor.toFixed(0)}%`}
               </Text>
             </View>
           </View>
@@ -165,24 +180,24 @@ export default function BorrowConfirmScreen({ navigation }: BorrowConfirmScreenP
             </View>
           </View>
 
-          <View style={styles.divider} />
-
-          {/* Network Fee */}
-          <View style={styles.row}>
-            <Text style={styles.label}>Network Fee</Text>
-            <View style={styles.feeContainer}>
-              <Text style={styles.value}>~{estimatedFee} sats</Text>
-              <Text style={styles.feeUsd}>≈ ${formatFiat(feeUsdValue)}</Text>
-            </View>
-          </View>
         </View>
 
-        {/* Warning */}
-        <View style={styles.warningContainer}>
-          <Ionicons name="warning-outline" size={20} color={colors.semantic.warning} />
-          <Text style={styles.warningText}>
-            Borrowing more will increase your liquidation risk. Your vault may be liquidated if the health factor drops below 135%.
-          </Text>
+        {/* Fee Display */}
+        <View style={styles.feeSection}>
+          <View style={styles.feeRow}>
+            <Text style={styles.feeLabel}>Network Fee</Text>
+            <View style={styles.feeValues}>
+              <View style={styles.feeAmountRow}>
+                <Text style={styles.feeAmount}>{(estimatedFee / 100_000_000).toFixed(8)}</Text>
+                <Icon name="btc_symbol" size={14} />
+              </View>
+              <Text style={styles.feeUsdText}>≈ ${formatFiat(feeUsdValue)}</Text>
+            </View>
+          </View>
+          <View style={[styles.feeRow, { marginTop: spacing.sm }]}>
+            <Text style={styles.feeLabel}>Fee Rate</Text>
+            <Text style={styles.feeAmount}>{selectedFeeRate} sat/vB</Text>
+          </View>
         </View>
 
         {/* Error message */}
@@ -265,10 +280,15 @@ const styles = StyleSheet.create({
     color: colors.text.secondary,
     marginBottom: spacing.xs,
   },
+  amountRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: spacing.sm,
+  },
   borrowAmount: {
     fontSize: fontSizes.xxxl,
     fontFamily: fonts.bold,
-    color: colors.brand.primary,
+    color: colors.text.primary,
   },
   borrowUsd: {
     fontSize: fontSizes.md,
@@ -297,6 +317,11 @@ const styles = StyleSheet.create({
     fontFamily: fonts.medium,
     color: colors.text.primary,
   },
+  valueSecondary: {
+    fontSize: fontSizes.md,
+    fontFamily: fonts.medium,
+    color: colors.text.secondary,
+  },
   valueHighlight: {
     fontSize: fontSizes.md,
     fontFamily: fonts.bold,
@@ -307,28 +332,42 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     gap: spacing.xs,
   },
-  feeContainer: {
+  feeSection: {
+    marginTop: spacing.lg,
+    backgroundColor: colors.bg.secondary,
+    borderRadius: radii.lg,
+    padding: spacing.md,
+    borderWidth: 1,
+    borderColor: colors.border.default,
+  },
+  feeRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+  },
+  feeLabel: {
+    fontSize: fontSizes.md,
+    fontFamily: fonts.medium,
+    color: colors.text.secondary,
+  },
+  feeValues: {
     alignItems: 'flex-end',
   },
-  feeUsd: {
-    fontSize: fontSizes.xs,
-    fontFamily: fonts.regular,
-    color: colors.text.tertiary,
-    marginTop: 2,
-  },
-  warningContainer: {
+  feeAmountRow: {
     flexDirection: 'row',
-    backgroundColor: 'rgba(230, 190, 80, 0.1)',
-    borderRadius: radii.md,
-    padding: spacing.md,
-    marginTop: spacing.lg,
-    gap: spacing.sm,
+    alignItems: 'center',
+    gap: spacing.xs,
   },
-  warningText: {
-    flex: 1,
+  feeAmount: {
+    fontSize: fontSizes.md,
+    fontFamily: fonts.medium,
+    color: colors.text.primary,
+  },
+  feeUsdText: {
     fontSize: fontSizes.sm,
     fontFamily: fonts.regular,
-    color: colors.semantic.warning,
+    color: colors.text.tertiary,
+    marginTop: spacing.xs,
   },
   errorContainer: {
     backgroundColor: 'rgba(208, 76, 104, 0.1)',

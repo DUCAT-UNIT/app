@@ -17,13 +17,22 @@ import { NavigationProp } from '@react-navigation/native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import TouchableScale from '../../components/common/TouchableScale';
+import { FeeRateDropdown } from '../../components/common/FeeRateSelectorCompact';
 import { VaultActionGauge, VaultChangesCard } from '../../components/vaultAction';
 import { UnitAmountSlider } from '../../components/vaultAction/UnitAmountSlider';
 import { useBorrow } from '../../stores/borrowStore';
 import { useBorrowVault } from '../../hooks/useBorrowVault';
 import { usePriceStore } from '../../stores/priceStore';
-import { computeHealthFactor, computeLiquidationPrice } from '../../utils/vaultUtils';
+import { useBalance } from '../../contexts/WalletDataContext';
+import { computeHealthFactor, computeLiquidationPrice, getOpCostOpen } from '../../utils/vaultUtils';
 import { colors, fonts, fontSizes, spacing, radii } from '../../styles/theme';
+
+// Health-based slider colors (matching VaultActionGauge)
+const getHealthSliderColor = (health: number): string => {
+  if (health <= 160) return '#d04c68'; // red
+  if (health <= 200) return '#fde37b'; // yellow
+  return '#59aa8a'; // green
+};
 
 interface BorrowInputScreenProps {
   navigation: NavigationProp<Record<string, object | undefined>>;
@@ -35,6 +44,8 @@ export default function BorrowInputScreen({ navigation }: BorrowInputScreenProps
     currentUnitBorrowed,
     currentBtcLocked,
     maxBorrowable,
+    selectedFeeRate,
+    setSelectedFeeRate,
     setBorrowAmount,
     setCurrentStep,
     error,
@@ -43,7 +54,24 @@ export default function BorrowInputScreen({ navigation }: BorrowInputScreenProps
 
   const { loadVaultData, isLoading: isLoadingVault } = useBorrowVault();
   const { btcPrice, fetchBtcPrice } = usePriceStore();
+  const { segwitBalance, utxos } = useBalance();
   const [vaultLoaded, setVaultLoaded] = useState(false);
+
+  // BTC balance in sats for fee validation
+  const btcBalanceSats = Math.round((segwitBalance || 0) * 100_000_000);
+
+  // Calculate estimated fee based on selected rate and UTXOs
+  const estimatedFeeSats = useMemo(() => {
+    return getOpCostOpen(selectedFeeRate, utxos);
+  }, [selectedFeeRate, utxos]);
+
+  // Check if user has sufficient BTC for the selected fee rate
+  const hasSufficientBtc = btcBalanceSats >= estimatedFeeSats;
+  const feeErrorMessage = !hasSufficientBtc
+    ? btcBalanceSats === 0
+      ? 'You need BTC in your wallet for transaction fees'
+      : `Need ${(estimatedFeeSats / 100_000_000).toFixed(8)} BTC for fees, have ${(btcBalanceSats / 100_000_000).toFixed(8)} BTC`
+    : null;
 
   // Local preview state for real-time updates during drag
   const [previewAmount, setPreviewAmount] = useState(borrowAmount);
@@ -67,7 +95,7 @@ export default function BorrowInputScreen({ navigation }: BorrowInputScreenProps
   }, [btcPrice, currentBtcLocked, currentUnitBorrowed]);
 
   const currentLiqPrice = useMemo(() => {
-    if (currentBtcLocked <= 0 || currentUnitBorrowed <= 0) return 0;
+    if (currentBtcLocked <= 0) return 0;
     return computeLiquidationPrice(currentUnitBorrowed, currentBtcLocked);
   }, [currentBtcLocked, currentUnitBorrowed]);
 
@@ -107,7 +135,7 @@ export default function BorrowInputScreen({ navigation }: BorrowInputScreenProps
     return maxBorrowable !== null ? Math.max(0, Math.floor(maxBorrowable)) : 0;
   }, [maxBorrowable]);
 
-  const canContinue = vaultLoaded && borrowAmount > 0 && !wouldViolateMinHealth;
+  const canContinue = vaultLoaded && borrowAmount > 0 && !wouldViolateMinHealth && hasSufficientBtc;
 
   const handleContinue = useCallback(() => {
     if (!canContinue) return;
@@ -161,7 +189,7 @@ export default function BorrowInputScreen({ navigation }: BorrowInputScreenProps
             showTransition={hasChanges}
           />
 
-          {/* Slider */}
+          {/* Slider with Fee Selector inside */}
           <View style={styles.section}>
             <UnitAmountSlider
               value={borrowAmount}
@@ -170,6 +198,16 @@ export default function BorrowInputScreen({ navigation }: BorrowInputScreenProps
               onLiveValueChange={handleLiveValueChange}
               label="UNIT to Borrow"
               disabled={maxBorrowableUnit <= 0}
+              sliderColor={getHealthSliderColor(hasChanges ? preview.newHealth : currentHealth)}
+              hideAvailable
+              renderFooter={() => (
+                <FeeRateDropdown
+                  selectedRate={selectedFeeRate}
+                  onRateChange={setSelectedFeeRate}
+                  estimatedFeeSats={estimatedFeeSats}
+                  transparent
+                />
+              )}
             />
           </View>
 
@@ -180,6 +218,14 @@ export default function BorrowInputScreen({ navigation }: BorrowInputScreenProps
               <Text style={styles.warningText}>
                 This would put your vault below the minimum health of 160%.
               </Text>
+            </View>
+          )}
+
+          {/* Warning for insufficient BTC for fees */}
+          {!hasSufficientBtc && feeErrorMessage && (
+            <View style={styles.warning}>
+              <Ionicons name="warning" size={20} color={colors.semantic.error} />
+              <Text style={styles.warningText}>{feeErrorMessage}</Text>
             </View>
           )}
 
@@ -196,6 +242,7 @@ export default function BorrowInputScreen({ navigation }: BorrowInputScreenProps
               newLiquidationPrice={hasChanges ? preview.newLiqPrice : currentLiqPrice}
               showChanges={hasChanges}
               actionType="debt"
+              hideTitle
             />
           </View>
 
@@ -235,6 +282,7 @@ const styles = StyleSheet.create({
   header: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: spacing.sm },
   title: { color: colors.text.primary, fontSize: fontSizes.xxl, fontFamily: fonts.bold },
   section: { marginTop: spacing.lg },
+  feeSection: { marginTop: spacing.lg },
   warning: { flexDirection: 'row', backgroundColor: 'rgba(208,76,104,0.1)', borderRadius: radii.md, padding: spacing.md, marginTop: spacing.lg, gap: spacing.sm },
   warningText: { flex: 1, color: colors.semantic.error, fontSize: fontSizes.sm, fontFamily: fonts.medium },
   error: { backgroundColor: 'rgba(208,76,104,0.1)', borderRadius: radii.md, padding: spacing.md, marginTop: spacing.lg },

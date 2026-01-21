@@ -3,16 +3,18 @@
  * Features: Summary display, biometric authentication before signing
  */
 
-import React, { useCallback, useState } from 'react';
+import React, { useCallback, useState, useMemo } from 'react';
 import { Text, View, ScrollView, StyleSheet, Alert, TouchableOpacity } from 'react-native';
 import { NavigationProp } from '@react-navigation/native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import * as LocalAuthentication from 'expo-local-authentication';
 import { Ionicons } from '@expo/vector-icons';
 import TouchableScale from '../../components/common/TouchableScale';
+import Icon from '../../components/icons';
 import { useWithdraw } from '../../stores/withdrawStore';
 import { useWithdrawVault } from '../../hooks/useWithdrawVault';
 import { usePrice } from '../../stores/priceStore';
+import { useBalance } from '../../contexts/WalletDataContext';
 import { formatFiat } from '../../utils/formatters';
 import { getOpCostOpen } from '../../utils/vaultUtils';
 import { colors, fonts, fontSizes, spacing, radii } from '../../styles/theme';
@@ -38,12 +40,18 @@ export default function WithdrawConfirmScreen({ navigation }: WithdrawConfirmScr
 
   const { withdraw, isLoading } = useWithdrawVault();
   const { btcPrice } = usePrice();
+  const { utxos } = useBalance();
   const [isAuthenticating, setIsAuthenticating] = useState(false);
 
   // Calculate values
   const withdrawAmountBtc = withdrawAmountSats / 100_000_000;
   const withdrawUsdValue = btcPrice ? withdrawAmountBtc * btcPrice : 0;
-  const estimatedFee = getOpCostOpen(selectedFeeRate);
+
+  // Dynamic fee calculation based on UTXOs and selected rate
+  const estimatedFee = useMemo(() => {
+    return getOpCostOpen(selectedFeeRate, utxos);
+  }, [selectedFeeRate, utxos]);
+
   const feeUsdValue = btcPrice ? (estimatedFee / 100_000_000) * btcPrice : 0;
 
   // Handle confirm with biometric authentication
@@ -111,21 +119,36 @@ export default function WithdrawConfirmScreen({ navigation }: WithdrawConfirmScr
           {/* Withdraw Amount - Highlighted */}
           <View style={styles.withdrawSection}>
             <Text style={styles.withdrawLabel}>Withdraw Amount</Text>
-            <Text style={styles.withdrawAmount}>-{withdrawAmountBtc.toFixed(8)} BTC</Text>
+            <View style={styles.amountRow}>
+              <Text style={styles.withdrawAmount}>{withdrawAmountBtc.toFixed(8)}</Text>
+              <Icon name="btc_symbol" size={24} />
+            </View>
             <Text style={styles.withdrawUsd}>≈ ${formatFiat(withdrawUsdValue)}</Text>
           </View>
 
           <View style={styles.divider} />
 
-          {/* Collateral */}
+          {/* Collateral - same line */}
           <View style={styles.row}>
-            <Text style={styles.label}>Current Collateral</Text>
-            <Text style={styles.value}>{currentBtcLocked.toFixed(8)} BTC</Text>
+            <Text style={styles.label}>Collateral</Text>
+            <View style={styles.changeRow}>
+              <Text style={styles.valueSecondary}>{currentBtcLocked.toFixed(8)}</Text>
+              <Icon name="btc_symbol" size={14} color={colors.text.secondary} />
+              <Ionicons name="arrow-forward" size={14} color={colors.text.tertiary} />
+              <Text style={styles.valueHighlight}>{newCollateral.toFixed(8)}</Text>
+              <Icon name="btc_symbol" size={14} />
+            </View>
           </View>
 
+          <View style={styles.divider} />
+
+          {/* Debt - unchanged */}
           <View style={styles.row}>
-            <Text style={styles.label}>New Collateral</Text>
-            <Text style={styles.valueHighlight}>{newCollateral.toFixed(8)} BTC</Text>
+            <Text style={styles.label}>Debt (unchanged)</Text>
+            <View style={styles.changeRow}>
+              <Text style={styles.value}>{currentUnitBorrowed.toFixed(2)}</Text>
+              <Icon name="unit_symbol" size={16} />
+            </View>
           </View>
 
           {currentUnitBorrowed > 0 && (
@@ -162,24 +185,24 @@ export default function WithdrawConfirmScreen({ navigation }: WithdrawConfirmScr
             </>
           )}
 
-          <View style={styles.divider} />
-
-          {/* Network Fee */}
-          <View style={styles.row}>
-            <Text style={styles.label}>Network Fee</Text>
-            <View style={styles.feeContainer}>
-              <Text style={styles.value}>~{estimatedFee} sats</Text>
-              <Text style={styles.feeUsd}>≈ ${formatFiat(feeUsdValue)}</Text>
-            </View>
-          </View>
         </View>
 
-        {/* Warning */}
-        <View style={styles.warningContainer}>
-          <Ionicons name="warning-outline" size={20} color={colors.semantic.warning} />
-          <Text style={styles.warningText}>
-            Withdrawing collateral reduces vault health and increases liquidation risk.
-          </Text>
+        {/* Fee Display */}
+        <View style={styles.feeSection}>
+          <View style={styles.feeRow}>
+            <Text style={styles.feeLabel}>Network Fee</Text>
+            <View style={styles.feeValues}>
+              <View style={styles.feeAmountRow}>
+                <Text style={styles.feeAmount}>{(estimatedFee / 100_000_000).toFixed(8)}</Text>
+                <Icon name="btc_symbol" size={14} />
+              </View>
+              <Text style={styles.feeUsdText}>≈ ${formatFiat(feeUsdValue)}</Text>
+            </View>
+          </View>
+          <View style={[styles.feeRow, { marginTop: spacing.sm }]}>
+            <Text style={styles.feeLabel}>Fee Rate</Text>
+            <Text style={styles.feeAmount}>{selectedFeeRate} sat/vB</Text>
+          </View>
         </View>
 
         {/* Error message */}
@@ -262,10 +285,15 @@ const styles = StyleSheet.create({
     color: colors.text.secondary,
     marginBottom: spacing.xs,
   },
+  amountRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: spacing.sm,
+  },
   withdrawAmount: {
     fontSize: fontSizes.xxxl,
     fontFamily: fonts.bold,
-    color: colors.semantic.warning,
+    color: colors.text.primary,
   },
   withdrawUsd: {
     fontSize: fontSizes.md,
@@ -294,6 +322,11 @@ const styles = StyleSheet.create({
     fontFamily: fonts.medium,
     color: colors.text.primary,
   },
+  valueSecondary: {
+    fontSize: fontSizes.md,
+    fontFamily: fonts.medium,
+    color: colors.text.secondary,
+  },
   valueHighlight: {
     fontSize: fontSizes.md,
     fontFamily: fonts.bold,
@@ -304,28 +337,42 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     gap: spacing.xs,
   },
-  feeContainer: {
+  feeSection: {
+    marginTop: spacing.lg,
+    backgroundColor: colors.bg.secondary,
+    borderRadius: radii.lg,
+    padding: spacing.md,
+    borderWidth: 1,
+    borderColor: colors.border.default,
+  },
+  feeRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+  },
+  feeLabel: {
+    fontSize: fontSizes.md,
+    fontFamily: fonts.medium,
+    color: colors.text.secondary,
+  },
+  feeValues: {
     alignItems: 'flex-end',
   },
-  feeUsd: {
-    fontSize: fontSizes.xs,
-    fontFamily: fonts.regular,
-    color: colors.text.tertiary,
-    marginTop: 2,
-  },
-  warningContainer: {
+  feeAmountRow: {
     flexDirection: 'row',
-    backgroundColor: 'rgba(230, 190, 80, 0.1)',
-    borderRadius: radii.md,
-    padding: spacing.md,
-    marginTop: spacing.lg,
-    gap: spacing.sm,
+    alignItems: 'center',
+    gap: spacing.xs,
   },
-  warningText: {
-    flex: 1,
+  feeAmount: {
+    fontSize: fontSizes.md,
+    fontFamily: fonts.medium,
+    color: colors.text.primary,
+  },
+  feeUsdText: {
     fontSize: fontSizes.sm,
     fontFamily: fonts.regular,
-    color: colors.semantic.warning,
+    color: colors.text.tertiary,
+    marginTop: spacing.xs,
   },
   errorContainer: {
     backgroundColor: 'rgba(208, 76, 104, 0.1)',

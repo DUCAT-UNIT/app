@@ -2,7 +2,7 @@
  * DepositInputScreen - Enter BTC deposit amount
  */
 
-import React, { useEffect, useMemo, useCallback, useState } from 'react';
+import React, { useEffect, useMemo, useCallback, useState, useRef } from 'react';
 import {
   Text,
   View,
@@ -17,13 +17,21 @@ import { NavigationProp } from '@react-navigation/native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import TouchableScale from '../../components/common/TouchableScale';
+import { FeeRateDropdown } from '../../components/common/FeeRateSelectorCompact';
 import { VaultActionGauge, VaultChangesCard, AmountSlider } from '../../components/vaultAction';
 import { useDeposit } from '../../stores/depositStore';
 import { useDepositVault } from '../../hooks/useDepositVault';
 import { usePriceStore } from '../../stores/priceStore';
 import { useBalance } from '../../contexts/WalletDataContext';
-import { computeHealthFactor, computeLiquidationPrice } from '../../utils/vaultUtils';
+import { computeHealthFactor, computeLiquidationPrice, getOpCostOpen } from '../../utils/vaultUtils';
 import { colors, fonts, fontSizes, spacing, radii } from '../../styles/theme';
+
+// Health-based slider colors (matching VaultActionGauge)
+const getHealthSliderColor = (health: number): string => {
+  if (health <= 160) return '#d04c68'; // red
+  if (health <= 200) return '#fde37b'; // yellow
+  return '#59aa8a'; // green
+};
 
 interface DepositInputScreenProps {
   navigation: NavigationProp<Record<string, object | undefined>>;
@@ -35,6 +43,8 @@ export default function DepositInputScreen({ navigation }: DepositInputScreenPro
     depositAmountBtc,
     currentUnitBorrowed,
     currentBtcLocked,
+    selectedFeeRate,
+    setSelectedFeeRate,
     setDepositAmountBtc,
     setCurrentStep,
     error,
@@ -43,8 +53,13 @@ export default function DepositInputScreen({ navigation }: DepositInputScreenPro
 
   const { loadVaultData, isLoading: isLoadingVault } = useDepositVault();
   const { btcPrice, fetchBtcPrice } = usePriceStore();
-  const { segwitBalance } = useBalance();
+  const { segwitBalance, utxos } = useBalance();
   const [vaultLoaded, setVaultLoaded] = useState(false);
+
+  // Calculate estimated fee based on selected rate and UTXOs
+  const estimatedFeeSats = useMemo(() => {
+    return getOpCostOpen(selectedFeeRate, utxos);
+  }, [selectedFeeRate, utxos]);
 
   // Local preview state for real-time updates during drag
   const [previewAmount, setPreviewAmount] = useState(depositAmountBtc);
@@ -58,8 +73,10 @@ export default function DepositInputScreen({ navigation }: DepositInputScreenPro
   }, [loadVaultData, btcPrice, fetchBtcPrice]);
 
   const availableBalanceBtc = useMemo(() => {
-    return Math.max(0, (segwitBalance || 0) - 0.0001);
-  }, [segwitBalance]);
+    // Convert fee from sats to BTC (fee already includes buffer)
+    const feeBtc = estimatedFeeSats / 100_000_000;
+    return Math.max(0, (segwitBalance || 0) - feeBtc);
+  }, [segwitBalance, estimatedFeeSats]);
 
   const handleClose = useCallback(() => {
     reset();
@@ -73,7 +90,7 @@ export default function DepositInputScreen({ navigation }: DepositInputScreenPro
   }, [btcPrice, currentBtcLocked, currentUnitBorrowed]);
 
   const currentLiqPrice = useMemo(() => {
-    if (currentBtcLocked <= 0 || currentUnitBorrowed <= 0) return 0;
+    if (currentBtcLocked <= 0) return 0;
     return computeLiquidationPrice(currentUnitBorrowed, currentBtcLocked);
   }, [currentBtcLocked, currentUnitBorrowed]);
 
@@ -82,12 +99,39 @@ export default function DepositInputScreen({ navigation }: DepositInputScreenPro
     setPreviewAmount(depositAmountBtc);
   }, [depositAmountBtc]);
 
+  // Track previous max to detect if user was at max before fee change
+  const prevMaxRef = useRef(availableBalanceBtc);
+
+  // Adjust deposit amount when max changes based on fee rate
+  useEffect(() => {
+    const prevMax = prevMaxRef.current;
+    // Use larger tolerance for floating point comparison (1 satoshi = 0.00000001)
+    const wasAtMax = prevMax > 0 && Math.abs(depositAmountBtc - prevMax) < 0.000001;
+
+    if (wasAtMax && availableBalanceBtc > 0) {
+      // User was at max - follow the new max (up or down)
+      setDepositAmountBtc(availableBalanceBtc);
+      setPreviewAmount(availableBalanceBtc);
+    } else if (depositAmountBtc > availableBalanceBtc && availableBalanceBtc > 0) {
+      // User exceeded new max - clamp down
+      setDepositAmountBtc(availableBalanceBtc);
+      setPreviewAmount(availableBalanceBtc);
+    }
+
+    prevMaxRef.current = availableBalanceBtc;
+  }, [availableBalanceBtc, depositAmountBtc, setDepositAmountBtc]);
+
   // Preview calculations after deposit - uses previewAmount for real-time updates
   const preview = useMemo(() => {
     const newCollateral = currentBtcLocked + previewAmount;
 
-    if (!btcPrice || newCollateral <= 0 || currentUnitBorrowed <= 0) {
+    if (!btcPrice || newCollateral <= 0) {
       return { newCollateral, newHealth: currentHealth, newLiqPrice: currentLiqPrice };
+    }
+
+    // If no debt, health is infinite and no liquidation risk
+    if (currentUnitBorrowed <= 0) {
+      return { newCollateral, newHealth: 999, newLiqPrice: Infinity };
     }
 
     return {
@@ -174,7 +218,7 @@ export default function DepositInputScreen({ navigation }: DepositInputScreenPro
             showTransition={hasChanges}
           />
 
-          {/* Slider */}
+          {/* Slider with Fee Selector inside */}
           <View style={styles.section}>
             <AmountSlider
               value={depositAmountBtc}
@@ -184,6 +228,15 @@ export default function DepositInputScreen({ navigation }: DepositInputScreenPro
               label="BTC to Deposit"
               btcPrice={btcPrice ?? undefined}
               disabled={availableBalanceBtc <= 0}
+              sliderColor={getHealthSliderColor(hasChanges ? preview.newHealth : currentHealth)}
+              renderFooter={() => (
+                <FeeRateDropdown
+                  selectedRate={selectedFeeRate}
+                  onRateChange={setSelectedFeeRate}
+                  estimatedFeeSats={estimatedFeeSats}
+                  transparent
+                />
+              )}
             />
           </View>
 
@@ -199,6 +252,7 @@ export default function DepositInputScreen({ navigation }: DepositInputScreenPro
               currentLiquidationPrice={currentLiqPrice}
               newLiquidationPrice={hasChanges ? preview.newLiqPrice : currentLiqPrice}
               showChanges={hasChanges}
+              hideTitle
             />
           </View>
 
