@@ -52,6 +52,8 @@ interface WalletScreenProps {
   onSettingsPress: () => void;
   onCreateVaultPress: () => void;
   onVaultPress: () => void;
+  onRepayPress: () => void;
+  onBorrowPress: () => void;
   onAssetPress?: (asset: string) => void;
   _sendAddressType?: 'taproot' | 'segwit';
   showZeroAssets: boolean;
@@ -67,6 +69,8 @@ const WalletScreen = React.memo(function WalletScreen({
   onSettingsPress,
   onCreateVaultPress,
   onVaultPress,
+  onRepayPress,
+  onBorrowPress,
   onAssetPress,
   _sendAddressType,
   showZeroAssets,
@@ -240,18 +244,18 @@ const WalletScreen = React.memo(function WalletScreen({
 
       {/* Actions - Vault and Wallet Buttons - Scaled with s() */}
       <View style={{ flexDirection: 'row', justifyContent: 'flex-start', marginLeft: s(24), gap: s(12) }} testID="wallet-actions">
-        <TouchableOpacity style={{ alignItems: 'center', opacity: (isPendingVaultTx || hasNoDebt) ? 0.5 : 1 }} onPress={isPendingVaultTx ? handleDisabledPress : hasNoDebt ? handleNoDebtPress : onVaultPress} testID="wallet-repay-btn">
+        <TouchableOpacity style={{ alignItems: 'center', opacity: (isPendingVaultTx || hasNoDebt) ? 0.5 : 1 }} onPress={isPendingVaultTx ? handleDisabledPress : hasNoDebt ? handleNoDebtPress : onRepayPress} testID="wallet-repay-btn">
           <View style={{ width: s(50), height: s(50), borderRadius: s(8), backgroundColor: (isPendingVaultTx || hasNoDebt) ? '#888888' : '#DDDDDD', justifyContent: 'center', alignItems: 'center', marginBottom: s(2) }}>
             <Text style={{ fontSize: sf(24), color: COLORS.DARK_BG, fontWeight: '200' }}>↓</Text>
           </View>
           <Text style={{ fontSize: sf(13), color: (isPendingVaultTx || hasNoDebt) ? COLORS.SECONDARY_TEXT : COLORS.WHITE, fontWeight: '600' }}>Repay</Text>
         </TouchableOpacity>
 
-        <TouchableOpacity style={{ alignItems: 'center' }} onPress={onReceivePress} testID="wallet-deposit-btn">
-          <View style={{ width: s(50), height: s(50), borderRadius: s(8), backgroundColor: '#DDDDDD', justifyContent: 'center', alignItems: 'center', marginBottom: s(2) }}>
-            <Text style={{ fontSize: sf(24), color: COLORS.DARK_BG, fontWeight: '200' }}>+</Text>
+        <TouchableOpacity style={{ alignItems: 'center', opacity: (isPendingVaultTx || isLowHealth || hasNoDebt) ? 0.5 : 1 }} onPress={isPendingVaultTx ? handleDisabledPress : hasNoDebt ? handleNoDebtPress : isLowHealth ? handleLowHealthPress : onBorrowPress} testID="wallet-borrow-btn">
+          <View style={{ width: s(50), height: s(50), borderRadius: s(8), backgroundColor: (isPendingVaultTx || isLowHealth || hasNoDebt) ? '#888888' : '#DDDDDD', justifyContent: 'center', alignItems: 'center', marginBottom: s(2) }}>
+            <Text style={{ fontSize: sf(24), color: COLORS.DARK_BG, fontWeight: '200' }}>↑</Text>
           </View>
-          <Text style={{ fontSize: sf(13), color: COLORS.WHITE, fontWeight: '600' }}>Deposit</Text>
+          <Text style={{ fontSize: sf(13), color: (isPendingVaultTx || isLowHealth || hasNoDebt) ? COLORS.SECONDARY_TEXT : COLORS.WHITE, fontWeight: '600' }}>Borrow</Text>
         </TouchableOpacity>
 
         <TouchableOpacity style={{ alignItems: 'center', opacity: hasInsufficientFunds ? 0.5 : 1 }} onPress={hasInsufficientFunds ? handleInsufficientFundsPress : onSendPress} testID="wallet-withdraw-btn">
@@ -261,11 +265,11 @@ const WalletScreen = React.memo(function WalletScreen({
           <Text style={{ fontSize: sf(13), color: hasInsufficientFunds ? COLORS.SECONDARY_TEXT : COLORS.WHITE, fontWeight: '600' }}>Withdraw</Text>
         </TouchableOpacity>
 
-        <TouchableOpacity style={{ alignItems: 'center', opacity: (isPendingVaultTx || isLowHealth || hasNoDebt) ? 0.5 : 1 }} onPress={isPendingVaultTx ? handleDisabledPress : hasNoDebt ? handleNoDebtPress : isLowHealth ? handleLowHealthPress : onVaultPress} testID="wallet-borrow-btn">
-          <View style={{ width: s(50), height: s(50), borderRadius: s(8), backgroundColor: (isPendingVaultTx || isLowHealth || hasNoDebt) ? '#888888' : '#DDDDDD', justifyContent: 'center', alignItems: 'center', marginBottom: s(2) }}>
-            <Text style={{ fontSize: sf(24), color: COLORS.DARK_BG, fontWeight: '200' }}>↑</Text>
+        <TouchableOpacity style={{ alignItems: 'center' }} onPress={onReceivePress} testID="wallet-deposit-btn">
+          <View style={{ width: s(50), height: s(50), borderRadius: s(8), backgroundColor: '#DDDDDD', justifyContent: 'center', alignItems: 'center', marginBottom: s(2) }}>
+            <Text style={{ fontSize: sf(24), color: COLORS.DARK_BG, fontWeight: '200' }}>+</Text>
           </View>
-          <Text style={{ fontSize: sf(13), color: (isPendingVaultTx || isLowHealth || hasNoDebt) ? COLORS.SECONDARY_TEXT : COLORS.WHITE, fontWeight: '600' }}>Borrow</Text>
+          <Text style={{ fontSize: sf(13), color: COLORS.WHITE, fontWeight: '600' }}>Deposit</Text>
         </TouchableOpacity>
       </View>
 
