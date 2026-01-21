@@ -108,7 +108,7 @@ const PendingVaultTransactionItem = memo(function PendingVaultTransactionItem({
             {/* Column 2: Pending chip with spinner */}
             <View style={styles.column2}>
               <View style={[styles.pendingChip, { paddingHorizontal: s(6), paddingVertical: s(4), borderRadius: s(4), marginLeft: s(4) }]}>
-                <ActivityIndicator size="small" color={COLORS.YELLOW} style={{ marginRight: s(4) }} />
+                <ActivityIndicator size={sf(8)} color={COLORS.PRIMARY_BLUE} style={{ marginRight: s(3), transform: [{ scale: 0.6 }] }} />
                 <Text style={[styles.pendingChipText, { fontSize: sf(10) }]}>Pending</Text>
               </View>
             </View>
@@ -423,14 +423,10 @@ const styles = StyleSheet.create({
     marginVertical: 4,
   },
   pendingTransactionItem: {
-    borderWidth: 1.5,
-    borderColor: COLORS.YELLOW,
-    borderBottomColor: COLORS.YELLOW,
     marginBottom: 8,
-    backgroundColor: 'rgba(245, 228, 162, 0.05)',
   },
   pendingChip: {
-    backgroundColor: 'rgba(245, 228, 162, 0.2)',
+    backgroundColor: COLORS.CARD_BG,
     paddingHorizontal: 8,
     paddingVertical: 4,
     borderRadius: 4,
@@ -438,7 +434,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   pendingChipText: {
-    color: COLORS.YELLOW,
+    color: COLORS.WHITE,
     fontSize: 12,
     fontWeight: '600',
   },
