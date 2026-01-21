@@ -12,8 +12,7 @@ import { usePrice } from '../../stores/priceStore';
 import { useVaultData, useBalance } from '../../contexts/WalletDataContext';
 import { useWalletCalculations } from '../../hooks/useWalletCalculations';
 import { getRunesAmount } from '../../utils/runesHelper';
-import { usePendingVaultTransactionStore, usePendingVaultTx } from '../../stores/pendingVaultTransactionStore';
-import { useNotificationStore } from '../../stores/notificationStore';
+import { usePendingVaultTx } from '../../stores/pendingVaultTransactionStore';
 import type { VaultHistoryTransaction } from '../../services/vaultService';
 import {
   VaultHeader,
@@ -93,21 +92,8 @@ function VaultDetailScreen({ navigation }: VaultDetailScreenProps): React.JSX.El
     fetchVaultTransactions();
   }, [fetchVault, fetchVaultTransactions]);
 
-  // Clear pending transaction when it appears in vault history (confirmed)
-  useEffect(() => {
-    if (pendingTransaction && vaultTransactions.length > 0) {
-      // Check if the pending transaction's txid matches any in the history
-      const isConfirmed = vaultTransactions.some(
-        tx => tx.transaction_id === pendingTransaction.txid ||
-              tx.transaction_id === pendingTransaction.vaultTxid
-      );
-      if (isConfirmed) {
-        // Transaction confirmed - clear pending state and dismiss snackbar
-        usePendingVaultTransactionStore.getState().clearPendingTransaction();
-        useNotificationStore.getState().dismissSnackbar();
-      }
-    }
-  }, [pendingTransaction, vaultTransactions]);
+  // Note: Vault transaction confirmation check is now handled globally in WalletDataContext
+  // This ensures snackbars are shown even when the user is not on this screen
 
   // Handle pull-to-refresh
   const handleRefresh = useCallback(async () => {
