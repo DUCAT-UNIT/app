@@ -27,7 +27,7 @@ export function useTransactionNotifications({
   useEffect(() => {
     if (!broadcastedTxid) return;
 
-    const action = sendAssetType === 'unit' ? 'swap' : 'withdraw';
+    const action = sendAssetType === 'unit' ? 'swap' : 'btc_send';
     const onPress = async (): Promise<void> => {
       const url = sendAssetType === 'unit' ? getOrdTxUrl(broadcastedTxid) : getTxUrl(broadcastedTxid);
       const supported = await Linking.canOpenURL(url);

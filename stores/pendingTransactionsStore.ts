@@ -275,7 +275,7 @@ export const usePendingTransactionsStore = create<PendingTransactionsStore>((set
 
       // Determine action based on asset type
       const transaction = pendingTransactions[txid];
-      const action = transaction?.assetType === 'UNIT' ? 'swap' : 'withdraw';
+      const action = transaction?.assetType === 'UNIT' ? 'swap' : 'btc_send';
 
       showSnackbar({
         type: 'error',

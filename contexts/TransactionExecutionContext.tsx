@@ -100,7 +100,7 @@ export const TransactionExecutionProvider: React.FC<TransactionExecutionProvider
     if (sendAssetType === 'unit') {
       return turboEnabled ? 'swap' : 'unit_send';
     }
-    return 'withdraw';
+    return 'btc_send';
   }, [sendAssetType, turboEnabled]);
   const { sendIntent, setSendIntent } = useTransactionBuild();
   const { wallet } = useWallet();
@@ -275,7 +275,7 @@ export const TransactionExecutionProvider: React.FC<TransactionExecutionProvider
 
       // Add to background monitoring
       const assetType = sendAssetType === 'unit' ? 'UNIT' : 'BTC';
-      await BackgroundTaskService.addPendingTransaction(txid, assetType, sendAmount, 'withdraw');
+      await BackgroundTaskService.addPendingTransaction(txid, assetType, sendAmount, 'send');
 
       // Immediately fetch transaction history to show the new tx
       if (fetchTransactionHistory) {
@@ -288,7 +288,7 @@ export const TransactionExecutionProvider: React.FC<TransactionExecutionProvider
         (isConfirmed) => {
           if (isConfirmed) {
             if (notificationsEnabled) {
-              sendTransactionConfirmedNotification(assetType, Number(sendAmount) || 0, txid, 'withdraw');
+              sendTransactionConfirmedNotification(assetType, Number(sendAmount) || 0, txid, 'send');
             }
             BackgroundTaskService.removePendingTransaction(txid);
             // Mark pending transaction as confirmed

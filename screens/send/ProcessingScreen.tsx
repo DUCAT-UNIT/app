@@ -69,7 +69,7 @@ export default function ProcessingScreen({ navigation, route }: ProcessingScreen
     setTimeout(() => showSnackbar({
       type: 'error',
       message: errorMessage,
-      action: sendAssetType === 'unit' ? 'swap' : 'withdraw',
+      action: sendAssetType === 'unit' ? 'swap' : 'btc_send',
     }), 300);
   };
 
