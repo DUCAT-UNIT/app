@@ -7,7 +7,6 @@ import React, { useState, useRef, useMemo, useCallback } from 'react';
 import {
   StyleSheet,
   Animated,
-  Linking,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { COLORS } from '../../theme';
@@ -33,11 +32,12 @@ import { useAssetTransactions } from '../../hooks/useAssetTransactions';
 import { useFuseEcash } from '../../hooks/useFuseEcash';
 import { useTurboConvert } from '../../hooks/useTurboConvert';
 import { useRedeemCashuToken } from '../../hooks/useRedeemCashuToken';
-import { getTxUrl, getOrdTxUrl } from '../../utils/constants';
 import { useHasPendingVaultTx } from '../../stores/pendingVaultTransactionStore';
 import TokenDetailsSheet from '../../components/ecash/TokenDetailsSheet';
+import TransactionDetailsSheet from '../../components/transaction/TransactionDetailsSheet';
 import { useNotifications } from '../../stores/notificationStore';
 import { getRunesAmount } from '../../utils/runesHelper';
+import type { DisplayAssetType } from '../../types/assets';
 
 /**
  * Props for AssetDetailScreen component
@@ -108,6 +108,19 @@ function AssetDetailScreen({ route = {}, navigation }: AssetDetailScreenProps): 
   const [selectedToken, setSelectedToken] = useState<TokenData | null>(null);
   const [showTokenDetails, setShowTokenDetails] = useState<boolean>(false);
   const [isChartScrubbing, setIsChartScrubbing] = useState(false);
+  // Regular transaction details state
+  const [selectedRegularTx, setSelectedRegularTx] = useState<{
+    txid: string;
+    timestamp?: number;
+    confirmed: boolean;
+    txData: {
+      amount: number | bigint;
+      assetType: DisplayAssetType;
+      isSent: boolean;
+      isReceived: boolean;
+    };
+  } | null>(null);
+  const [showRegularTxDetails, setShowRegularTxDetails] = useState(false);
   const scrollY = useRef(new Animated.Value(0)).current;
   const { showToast } = useNotifications();
   const isPendingVaultTx = useHasPendingVaultTx();
@@ -195,7 +208,7 @@ function AssetDetailScreen({ route = {}, navigation }: AssetDetailScreenProps): 
     switch (action) {
       case 'send':
         navigation.navigate('SendFlow', {
-          screen: 'AddressInput',
+          screen: 'SendInput',
           params: { assetType: assetType.toLowerCase() }
         });
         break;
@@ -226,24 +239,29 @@ function AssetDetailScreen({ route = {}, navigation }: AssetDetailScreenProps): 
     setIsChartScrubbing(false);
   }, []);
 
-  const handleTransactionPress = useCallback(async (tx: { ecashToken?: boolean; isAutoclaim?: boolean; tokenData?: { recipient: string; shortUrl: string; token: string; claimed: boolean }; txid: string }) => {
+  const handleTransactionPress = useCallback((tx: { ecashToken?: boolean; isAutoclaim?: boolean; tokenData?: { recipient: string; shortUrl: string; token: string; claimed: boolean }; txid: string; status?: { confirmed: boolean; block_time?: number }; txData?: { amount: number | bigint; assetType: string; isSent: boolean; isReceived: boolean } }) => {
     if (tx.ecashToken) {
       setSelectedToken(tx.tokenData ? { ...tx.tokenData, isSelfClaim: tx.isAutoclaim } : null);
       setShowTokenDetails(true);
       return;
     }
 
-    try {
-      const url = assetType === 'UNIT' ? getOrdTxUrl(tx.txid) : getTxUrl(tx.txid);
-      const supported = await Linking.canOpenURL(url);
-      if (supported) {
-        await Linking.openURL(url);
-      }
-    } catch (error: unknown) {
-      // Silently fail - error is intentionally caught and ignored
-      void error;
+    // Show transaction details sheet for regular transactions
+    if (tx.txData) {
+      setSelectedRegularTx({
+        txid: tx.txid,
+        timestamp: tx.status?.block_time,
+        confirmed: tx.status?.confirmed ?? false,
+        txData: {
+          amount: tx.txData.amount,
+          assetType: tx.txData.assetType as DisplayAssetType,
+          isSent: tx.txData.isSent,
+          isReceived: tx.txData.isReceived,
+        },
+      });
+      setShowRegularTxDetails(true);
     }
-  }, [assetType]);
+  }, []);
 
   return (
     <>
@@ -347,6 +365,16 @@ function AssetDetailScreen({ route = {}, navigation }: AssetDetailScreenProps): 
           isSelfClaim={selectedToken.isSelfClaim}
         />
       )}
+
+      {/* Regular Transaction Details Sheet */}
+      <TransactionDetailsSheet
+        visible={showRegularTxDetails}
+        onClose={() => setShowRegularTxDetails(false)}
+        txid={selectedRegularTx?.txid ?? null}
+        timestamp={selectedRegularTx?.timestamp}
+        confirmed={selectedRegularTx?.confirmed ?? false}
+        txData={selectedRegularTx?.txData ?? null}
+      />
     </>
   );
 }

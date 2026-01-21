@@ -19,9 +19,11 @@ import { useBottomSheetAnimation } from '../../hooks/useBottomSheetAnimation';
 import { useTransactionHistoryData, DisplayTransaction } from '../../hooks/useTransactionHistoryData';
 import TokenDetailsSheet from '../../components/ecash/TokenDetailsSheet';
 import VaultTransactionDetailsSheet from '../../components/vaultDetail/VaultTransactionDetailsSheet';
+import TransactionDetailsSheet from '../../components/transaction/TransactionDetailsSheet';
 import { useNotifications } from '../../stores/notificationStore';
 import type { TokenRecord, EcashTokenRecord } from '../../services/cashu/cashuLockedTokensService';
 import type { VaultHistoryTransaction } from '../../services/vaultService';
+import type { DisplayAssetType } from '../../types/assets';
 
 /** Type guard to check if token is a sent token (TokenRecord) */
 function isSentToken(token: EcashTokenRecord): token is TokenRecord {
@@ -84,6 +86,19 @@ export default function TransactionHistoryScreen({
   const [selectedVaultTx, setSelectedVaultTx] = useState<VaultHistoryTransaction | null>(null);
   const [previousVaultTx, setPreviousVaultTx] = useState<VaultHistoryTransaction | null>(null);
   const [showVaultDetails, setShowVaultDetails] = useState(false);
+  // Regular transaction details state
+  const [selectedRegularTx, setSelectedRegularTx] = useState<{
+    txid: string;
+    timestamp?: number;
+    confirmed: boolean;
+    txData: {
+      amount: number | bigint;
+      assetType: DisplayAssetType;
+      isSent: boolean;
+      isReceived: boolean;
+    };
+  } | null>(null);
+  const [showRegularTxDetails, setShowRegularTxDetails] = useState(false);
   const { showToast } = useNotifications();
 
   // Animation and gesture handling
@@ -93,7 +108,7 @@ export default function TransactionHistoryScreen({
   );
 
   // Transaction history data and logic
-  const { loading, displayTransactions, openTxInExplorer } = useTransactionHistoryData(
+  const { loading, displayTransactions } = useTransactionHistoryData(
     showHistorySheet,
     segwitAddress,
     taprootAddress
@@ -170,11 +185,25 @@ export default function TransactionHistoryScreen({
             return;
           }
 
-          openTxInExplorer(tx.txid, tx.txData?.assetType ?? 'BTC');
+          // Handle regular BTC/UNIT transactions - show details sheet
+          if (tx.txData) {
+            setSelectedRegularTx({
+              txid: tx.txid,
+              timestamp: tx.status?.block_time,
+              confirmed: tx.status?.confirmed ?? false,
+              txData: {
+                amount: tx.txData.amount,
+                assetType: tx.txData.assetType as DisplayAssetType,
+                isSent: tx.txData.isSent,
+                isReceived: tx.txData.isReceived,
+              },
+            });
+            setShowRegularTxDetails(true);
+          }
         }}
       />
     ),
-    [styles, openTxInExplorer, convertToVaultHistoryTx, findPreviousVaultTx]
+    [styles, convertToVaultHistoryTx, findPreviousVaultTx]
   );
 
   // KeyExtractor for FlatList
@@ -195,7 +224,7 @@ export default function TransactionHistoryScreen({
 
   return (
     <>
-      {showHistorySheet && !showTokenDetails && !showVaultDetails && (
+      {showHistorySheet && !showTokenDetails && !showVaultDetails && !showRegularTxDetails && (
         <TouchableOpacity
           style={styles.bottomSheetBackdrop}
           activeOpacity={1}
@@ -211,7 +240,7 @@ export default function TransactionHistoryScreen({
             transform: [{ translateY }],
           },
         ]}
-        pointerEvents={!showHistorySheet || showTokenDetails || showVaultDetails ? 'none' : 'auto'}
+        pointerEvents={!showHistorySheet || showTokenDetails || showVaultDetails || showRegularTxDetails ? 'none' : 'auto'}
       >
         <View style={styles.historyHandleArea} {...panResponder.panHandlers}>
           <View style={styles.bottomSheetHandle} />
@@ -261,6 +290,16 @@ export default function TransactionHistoryScreen({
         onClose={() => setShowVaultDetails(false)}
         transaction={selectedVaultTx}
         previousTransaction={previousVaultTx}
+      />
+
+      {/* Regular Transaction Details Sheet */}
+      <TransactionDetailsSheet
+        visible={showRegularTxDetails}
+        onClose={() => setShowRegularTxDetails(false)}
+        txid={selectedRegularTx?.txid ?? null}
+        timestamp={selectedRegularTx?.timestamp}
+        confirmed={selectedRegularTx?.confirmed ?? false}
+        txData={selectedRegularTx?.txData ?? null}
       />
     </>
   );
