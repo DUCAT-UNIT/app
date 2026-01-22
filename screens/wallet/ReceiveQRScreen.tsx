@@ -12,6 +12,7 @@ import * as Clipboard from 'expo-clipboard';
 import Icon from '../../components/icons';
 import { COLORS } from '../../theme';
 import { useResponsive } from '../../hooks/useResponsive';
+import { useNotifications } from '../../stores/notificationStore';
 
 /**
  * Route parameters for ReceiveQRScreen
@@ -33,6 +34,7 @@ export default function ReceiveQRScreen({ route, navigation }: ReceiveQRScreenPr
   const { address, addressType = 'Native SegWit' } = route.params || {};
   const [justCopied, setJustCopied] = useState(false);
   const { width, s, sf, screenSize } = useResponsive();
+  const { showSnackbar } = useNotifications();
 
   // Calculate responsive values
   const responsiveValues = useMemo(() => {
@@ -64,6 +66,11 @@ export default function ReceiveQRScreen({ route, navigation }: ReceiveQRScreenPr
     await Clipboard.setStringAsync(address);
     setJustCopied(true);
     setTimeout(() => setJustCopied(false), 2000);
+    const assetName = addressType === 'Taproot' ? 'UNIT' : 'BTC';
+    showSnackbar({
+      message: `${assetName} address copied`,
+      type: 'success',
+    });
   };
 
   const handleShare = async () => {
