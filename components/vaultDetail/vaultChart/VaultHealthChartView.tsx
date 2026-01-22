@@ -39,10 +39,10 @@ export const VaultHealthChartView = memo(function VaultHealthChartView({
   onTransactionPress,
 }: VaultHealthChartViewProps) {
   const [selectedTimeframe, setSelectedTimeframe] = useState<PriceTimeframe>('1D');
-  const [scrubData, setScrubData] = useState<ScrubData>({ health: null, x: null });
+  const [scrubData, setScrubData] = useState<ScrubData>({ health: null, x: null, timestamp: null });
   const [hoveredRefLineIndex, setHoveredRefLineIndex] = useState<number | null>(null);
   const [lockedRefLineIndex, setLockedRefLineIndex] = useState<number | null>(null);
-  const [lockedScrubData, setLockedScrubData] = useState<ScrubData>({ health: null, x: null });
+  const [lockedScrubData, setLockedScrubData] = useState<ScrubData>({ health: null, x: null, timestamp: null });
 
   // Drawer animation
   const drawerAnim = useRef(new Animated.Value(DRAWER_WIDTH)).current;
@@ -70,9 +70,21 @@ export const VaultHealthChartView = memo(function VaultHealthChartView({
   useEffect(() => {
     if (highlightedEventDate === null && lockedRefLineIndex !== null) {
       setLockedRefLineIndex(null);
-      setLockedScrubData({ health: null, x: null });
+      setLockedScrubData({ health: null, x: null, timestamp: null });
     }
   }, [highlightedEventDate, lockedRefLineIndex]);
+
+  // Get timestamp at X position
+  const getTimestampAtX = useCallback((x: number): number | null => {
+    if (!series.length) return null;
+
+    const clampedX = Math.max(padding.left, Math.min(x, padding.left + dimensions.drawWidth));
+    const ratio = (clampedX - padding.left) / dimensions.drawWidth;
+
+    const minTime = series[0].date;
+    const maxTime = series[series.length - 1].date;
+    return minTime + ratio * (maxTime - minTime);
+  }, [series, padding.left, dimensions.drawWidth]);
 
   // Get health at X position - interpolate based on line path
   const getHealthAtX = useCallback((x: number): number | null => {
@@ -138,17 +150,17 @@ export const VaultHealthChartView = memo(function VaultHealthChartView({
     onPanResponderGrant: (evt: GestureResponderEvent) => {
       onScrollEnable?.(false);
       setLockedRefLineIndex(null);
-      setLockedScrubData({ health: null, x: null });
+      setLockedScrubData({ health: null, x: null, timestamp: null });
 
       const x = evt.nativeEvent.locationX;
-      setScrubData({ health: getHealthAtX(x), x });
+      setScrubData({ health: getHealthAtX(x), x, timestamp: getTimestampAtX(x) });
       const refLineIdx = findNearbyRefLine(x);
       setHoveredRefLineIndex(refLineIdx);
       onHighlightEvent?.(refLineIdx !== null && referenceLines[refLineIdx] ? referenceLines[refLineIdx].date : null);
     },
     onPanResponderMove: (evt: GestureResponderEvent) => {
       const x = evt.nativeEvent.locationX;
-      setScrubData({ health: getHealthAtX(x), x });
+      setScrubData({ health: getHealthAtX(x), x, timestamp: getTimestampAtX(x) });
       const refLineIdx = findNearbyRefLine(x);
       setHoveredRefLineIndex(refLineIdx);
       onHighlightEvent?.(refLineIdx !== null && referenceLines[refLineIdx] ? referenceLines[refLineIdx].date : null);
@@ -159,11 +171,11 @@ export const VaultHealthChartView = memo(function VaultHealthChartView({
         const refLine = referenceLines[hoveredRefLineIndex];
         const exactX = xScale(refLine.date);
         setLockedRefLineIndex(hoveredRefLineIndex);
-        setLockedScrubData({ health: refLine.newValue, x: exactX });
+        setLockedScrubData({ health: refLine.newValue, x: exactX, timestamp: refLine.date });
         onHighlightEvent?.(refLine.date);
         onLockFilter?.(refLine.txTimestamp);
       }
-      setScrubData({ health: null, x: null });
+      setScrubData({ health: null, x: null, timestamp: null });
       setHoveredRefLineIndex(null);
     },
     onPanResponderTerminate: () => {
@@ -171,14 +183,14 @@ export const VaultHealthChartView = memo(function VaultHealthChartView({
       if (hoveredRefLineIndex !== null && referenceLines[hoveredRefLineIndex]) {
         const refLine = referenceLines[hoveredRefLineIndex];
         setLockedRefLineIndex(hoveredRefLineIndex);
-        setLockedScrubData({ health: refLine.newValue, x: xScale(refLine.date) });
+        setLockedScrubData({ health: refLine.newValue, x: xScale(refLine.date), timestamp: refLine.date });
         onHighlightEvent?.(refLine.date);
         onLockFilter?.(refLine.txTimestamp);
       }
-      setScrubData({ health: null, x: null });
+      setScrubData({ health: null, x: null, timestamp: null });
       setHoveredRefLineIndex(null);
     },
-  }), [getHealthAtX, findNearbyRefLine, referenceLines, onHighlightEvent, onLockFilter, onScrollEnable, hoveredRefLineIndex, xScale]);
+  }), [getHealthAtX, getTimestampAtX, findNearbyRefLine, referenceLines, onHighlightEvent, onLockFilter, onScrollEnable, hoveredRefLineIndex, xScale]);
 
   // Active reference line
   const activeRefLineIndex = hoveredRefLineIndex ?? lockedRefLineIndex;
@@ -192,6 +204,21 @@ export const VaultHealthChartView = memo(function VaultHealthChartView({
   // Active scrub position
   const activeScrubX = scrubData.x ?? lockedScrubData.x;
   const activeScrubHealth = scrubData.health ?? lockedScrubData.health;
+  const activeScrubTimestamp = scrubData.timestamp ?? lockedScrubData.timestamp;
+
+  // Format timestamp for display
+  const formatScrubDate = (timestamp: number | null): string | null => {
+    if (timestamp === null) return null;
+    const date = new Date(timestamp);
+    const now = new Date();
+    const isToday = date.toDateString() === now.toDateString();
+    const timeStr = date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+    if (isToday) {
+      return `Today, ${timeStr}`;
+    }
+    const dateStr = date.toLocaleDateString([], { month: 'short', day: 'numeric' });
+    return `${dateStr}, ${timeStr}`;
+  };
 
   // Drawer animation
   useEffect(() => {
@@ -233,7 +260,7 @@ export const VaultHealthChartView = memo(function VaultHealthChartView({
   // Close drawer
   const closeDrawer = useCallback(() => {
     setLockedRefLineIndex(null);
-    setLockedScrubData({ health: null, x: null });
+    setLockedScrubData({ health: null, x: null, timestamp: null });
     onHighlightEvent?.(null);
     onLockFilter?.(null);
   }, [onHighlightEvent, onLockFilter]);
@@ -324,6 +351,13 @@ export const VaultHealthChartView = memo(function VaultHealthChartView({
         </Svg>
       </View>
 
+      {/* Date/time display when scrubbing */}
+      {activeScrubTimestamp !== null && (
+        <View style={styles.scrubDateContainer}>
+          <Text style={styles.scrubDateText}>{formatScrubDate(activeScrubTimestamp)}</Text>
+        </View>
+      )}
+
       {/* Timeframe buttons */}
       <View style={styles.timeframeButtons}>
         {TIMEFRAMES.map((tf) => (
@@ -333,7 +367,7 @@ export const VaultHealthChartView = memo(function VaultHealthChartView({
             onPress={() => {
               setSelectedTimeframe(tf);
               setLockedRefLineIndex(null);
-              setLockedScrubData({ health: null, x: null });
+              setLockedScrubData({ health: null, x: null, timestamp: null });
               onHighlightEvent?.(null);
               onLockFilter?.(null);
             }}

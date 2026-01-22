@@ -67,4 +67,13 @@ export const chartStyles = StyleSheet.create({
   timeframeTextActive: {
     color: '#fff',
   },
+  scrubDateContainer: {
+    alignItems: 'center',
+    marginTop: 4,
+  },
+  scrubDateText: {
+    color: COLORS.SECONDARY_TEXT,
+    fontSize: 12,
+    fontWeight: '500',
+  },
 });

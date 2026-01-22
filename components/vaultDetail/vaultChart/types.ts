@@ -43,6 +43,7 @@ export interface ReferenceLine {
 export interface ScrubData {
   health: number | null;
   x: number | null;
+  timestamp: number | null;
 }
 
 export interface VaultHealthChartViewProps {
