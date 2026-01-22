@@ -23,7 +23,7 @@ import { UnitAmountSlider } from '../../components/vaultAction/UnitAmountSlider'
 import { useBorrow } from '../../stores/borrowStore';
 import { useBorrowVault } from '../../hooks/useBorrowVault';
 import { usePriceStore } from '../../stores/priceStore';
-import { useBalance } from '../../contexts/WalletDataContext';
+import { useBalance, useVaultData } from '../../contexts/WalletDataContext';
 import { computeHealthFactor, computeLiquidationPrice, getOpCostOpen } from '../../utils/vaultUtils';
 import { colors, fonts, fontSizes, spacing, radii } from '../../styles/theme';
 
@@ -52,10 +52,25 @@ export default function BorrowInputScreen({ navigation }: BorrowInputScreenProps
     reset,
   } = useBorrow();
 
-  const { loadVaultData, isLoading: isLoadingVault } = useBorrowVault();
+  const { loadVaultData } = useBorrowVault();
   const { btcPrice, fetchBtcPrice } = usePriceStore();
   const { segwitBalance, utxos } = useBalance();
-  const [vaultLoaded, setVaultLoaded] = useState(false);
+  const { vaultData } = useVaultData();
+
+  // Use vault data directly from context for immediate display
+  const contextBtcLocked = vaultData?.totalCollateral ?? 0;
+  const contextUnitBorrowed = vaultData?.totalDebt ?? 0;
+
+  // Use context values if store hasn't synced yet - prioritize whichever has data
+  const effectiveBtcLocked = currentBtcLocked > 0 ? currentBtcLocked : contextBtcLocked;
+  const effectiveUnitBorrowed = currentUnitBorrowed > 0 ? currentUnitBorrowed : contextUnitBorrowed;
+
+  // Track if initial data has been loaded to prevent layout flash
+  const [isInitializing, setIsInitializing] = useState(true);
+
+  // Consider vault loaded if we have effective data from either source
+  const hasVaultData = effectiveBtcLocked > 0 || effectiveUnitBorrowed > 0;
+  const vaultLoaded = vaultData !== null || hasVaultData;
 
   // BTC balance in sats for fee validation
   const btcBalanceSats = Math.round((segwitBalance || 0) * 100_000_000);
@@ -80,24 +95,35 @@ export default function BorrowInputScreen({ navigation }: BorrowInputScreenProps
     if (!btcPrice) {
       fetchBtcPrice();
     }
-    loadVaultData().then(setVaultLoaded);
-  }, [loadVaultData, btcPrice, fetchBtcPrice]);
+    // Sync vault data from context to borrow store
+    if (vaultData) {
+      loadVaultData();
+    }
+  }, [btcPrice, fetchBtcPrice, vaultData, loadVaultData]);
+
+  // Mark initialization complete after first render with data
+  useEffect(() => {
+    if (vaultLoaded && isInitializing) {
+      const timer = setTimeout(() => setIsInitializing(false), 50);
+      return () => clearTimeout(timer);
+    }
+  }, [vaultLoaded, isInitializing]);
 
   const handleClose = useCallback(() => {
     reset();
     navigation.getParent()?.goBack();
   }, [reset, navigation]);
 
-  // Compute current health directly
+  // Compute current health directly using effective values from context
   const currentHealth = useMemo(() => {
-    if (!btcPrice || currentBtcLocked <= 0 || currentUnitBorrowed <= 0) return 0;
-    return computeHealthFactor(currentBtcLocked, btcPrice, currentUnitBorrowed);
-  }, [btcPrice, currentBtcLocked, currentUnitBorrowed]);
+    if (!btcPrice || effectiveBtcLocked <= 0 || effectiveUnitBorrowed <= 0) return 0;
+    return computeHealthFactor(effectiveBtcLocked, btcPrice, effectiveUnitBorrowed);
+  }, [btcPrice, effectiveBtcLocked, effectiveUnitBorrowed]);
 
   const currentLiqPrice = useMemo(() => {
-    if (currentBtcLocked <= 0) return 0;
-    return computeLiquidationPrice(currentUnitBorrowed, currentBtcLocked);
-  }, [currentBtcLocked, currentUnitBorrowed]);
+    if (effectiveBtcLocked <= 0) return 0;
+    return computeLiquidationPrice(effectiveUnitBorrowed, effectiveBtcLocked);
+  }, [effectiveBtcLocked, effectiveUnitBorrowed]);
 
   // Sync preview amount when store value changes
   useEffect(() => {
@@ -106,18 +132,18 @@ export default function BorrowInputScreen({ navigation }: BorrowInputScreenProps
 
   // Preview calculations after borrow - uses previewAmount for real-time updates
   const preview = useMemo(() => {
-    const newDebt = currentUnitBorrowed + previewAmount;
+    const newDebt = effectiveUnitBorrowed + previewAmount;
 
-    if (!btcPrice || currentBtcLocked <= 0 || newDebt <= 0) {
+    if (!btcPrice || effectiveBtcLocked <= 0 || newDebt <= 0) {
       return { newDebt, newHealth: 0, newLiqPrice: 0 };
     }
 
     return {
       newDebt,
-      newHealth: computeHealthFactor(currentBtcLocked, btcPrice, newDebt),
-      newLiqPrice: computeLiquidationPrice(newDebt, currentBtcLocked),
+      newHealth: computeHealthFactor(effectiveBtcLocked, btcPrice, newDebt),
+      newLiqPrice: computeLiquidationPrice(newDebt, effectiveBtcLocked),
     };
-  }, [previewAmount, currentBtcLocked, currentUnitBorrowed, btcPrice]);
+  }, [previewAmount, effectiveBtcLocked, effectiveUnitBorrowed, btcPrice]);
 
   // Check if borrow would violate min health (160%)
   const wouldViolateMinHealth = useMemo(() => {
@@ -143,18 +169,18 @@ export default function BorrowInputScreen({ navigation }: BorrowInputScreenProps
     navigation.navigate('BorrowConfirm');
   }, [canContinue, setCurrentStep, navigation]);
 
-  if (isLoadingVault && !vaultLoaded) {
+  // Show loading state during initialization to prevent layout flash
+  if (isInitializing) {
     return (
       <SafeAreaView style={styles.container} edges={['top']}>
-        <View style={styles.centered}>
+        <View style={styles.loadingContainer}>
           <ActivityIndicator size="large" color={colors.brand.primary} />
-          <Text style={styles.loadingText}>Loading vault...</Text>
         </View>
       </SafeAreaView>
     );
   }
 
-  if (vaultLoaded && currentBtcLocked <= 0) {
+  if (vaultLoaded && effectiveBtcLocked <= 0) {
     return (
       <SafeAreaView style={styles.container} edges={['top']}>
         <View style={styles.centered}>
@@ -232,10 +258,10 @@ export default function BorrowInputScreen({ navigation }: BorrowInputScreenProps
           {/* Changes */}
           <View style={styles.section}>
             <VaultChangesCard
-              currentCollateral={currentBtcLocked}
-              currentDebt={currentUnitBorrowed}
+              currentCollateral={effectiveBtcLocked}
+              currentDebt={effectiveUnitBorrowed}
               currentHealth={currentHealth}
-              newCollateral={currentBtcLocked}
+              newCollateral={effectiveBtcLocked}
               newDebt={preview.newDebt}
               newHealth={hasChanges ? preview.newHealth : currentHealth}
               currentLiquidationPrice={currentLiqPrice}
@@ -274,6 +300,7 @@ const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: colors.bg.primary },
   flex: { flex: 1 },
   scroll: { padding: spacing.lg, paddingBottom: 120 },
+  loadingContainer: { flex: 1, justifyContent: 'center', alignItems: 'center' },
   centered: { flex: 1, justifyContent: 'center', alignItems: 'center', gap: spacing.md },
   loadingText: { color: colors.text.secondary, fontSize: fontSizes.md },
   noVaultText: { color: colors.text.primary, fontSize: fontSizes.xl, fontFamily: fonts.bold },

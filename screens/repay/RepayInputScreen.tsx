@@ -23,7 +23,7 @@ import { UnitAmountSlider } from '../../components/vaultAction/UnitAmountSlider'
 import { useRepay } from '../../stores/repayStore';
 import { useRepayVault } from '../../hooks/useRepayVault';
 import { usePriceStore } from '../../stores/priceStore';
-import { useBalance } from '../../contexts/WalletDataContext';
+import { useBalance, useVaultData } from '../../contexts/WalletDataContext';
 import { computeHealthFactor, computeLiquidationPrice, getOpCostOpen } from '../../utils/vaultUtils';
 import { getRunesAmount } from '../../utils/runesHelper';
 import { colors, fonts, fontSizes, spacing, radii } from '../../styles/theme';
@@ -54,10 +54,25 @@ export default function RepayInputScreen({ navigation }: RepayInputScreenProps) 
     reset,
   } = useRepay();
 
-  const { loadVaultData, isLoading: isLoadingVault } = useRepayVault();
+  const { loadVaultData } = useRepayVault();
   const { btcPrice, fetchBtcPrice } = usePriceStore();
   const { runesBalance, segwitBalance, utxos } = useBalance();
-  const [vaultLoaded, setVaultLoaded] = useState(false);
+  const { vaultData } = useVaultData();
+
+  // Use vault data directly from context for immediate display
+  const contextBtcLocked = vaultData?.totalCollateral ?? 0;
+  const contextUnitBorrowed = vaultData?.totalDebt ?? 0;
+
+  // Use context values if store hasn't synced yet - prioritize whichever has data
+  const effectiveBtcLocked = currentBtcLocked > 0 ? currentBtcLocked : contextBtcLocked;
+  const effectiveUnitBorrowed = currentUnitBorrowed > 0 ? currentUnitBorrowed : contextUnitBorrowed;
+
+  // Track if initial data has been loaded to prevent layout flash
+  const [isInitializing, setIsInitializing] = useState(true);
+
+  // Consider vault loaded if we have effective data from either source
+  const hasVaultData = effectiveBtcLocked > 0 || effectiveUnitBorrowed > 0;
+  const vaultLoaded = vaultData !== null || hasVaultData;
 
   // BTC balance in sats for fee validation
   const btcBalanceSats = Math.round((segwitBalance || 0) * 100_000_000);
@@ -87,8 +102,19 @@ export default function RepayInputScreen({ navigation }: RepayInputScreenProps) 
     if (!btcPrice) {
       fetchBtcPrice();
     }
-    loadVaultData().then(setVaultLoaded);
-  }, [loadVaultData, btcPrice, fetchBtcPrice]);
+    // Sync vault data from context to repay store
+    if (vaultData) {
+      loadVaultData();
+    }
+  }, [btcPrice, fetchBtcPrice, vaultData, loadVaultData]);
+
+  // Mark initialization complete after first render with data
+  useEffect(() => {
+    if (vaultLoaded && isInitializing) {
+      const timer = setTimeout(() => setIsInitializing(false), 50);
+      return () => clearTimeout(timer);
+    }
+  }, [vaultLoaded, isInitializing]);
 
   // Update available UNIT balance
   useEffect(() => {
@@ -100,16 +126,16 @@ export default function RepayInputScreen({ navigation }: RepayInputScreenProps) 
     navigation.getParent()?.goBack();
   }, [reset, navigation]);
 
-  // Compute current health directly
+  // Compute current health directly using effective values from context
   const currentHealth = useMemo(() => {
-    if (!btcPrice || currentBtcLocked <= 0 || currentUnitBorrowed <= 0) return 0;
-    return computeHealthFactor(currentBtcLocked, btcPrice, currentUnitBorrowed);
-  }, [btcPrice, currentBtcLocked, currentUnitBorrowed]);
+    if (!btcPrice || effectiveBtcLocked <= 0 || effectiveUnitBorrowed <= 0) return 0;
+    return computeHealthFactor(effectiveBtcLocked, btcPrice, effectiveUnitBorrowed);
+  }, [btcPrice, effectiveBtcLocked, effectiveUnitBorrowed]);
 
   const currentLiqPrice = useMemo(() => {
-    if (currentBtcLocked <= 0 || currentUnitBorrowed <= 0) return 0;
-    return computeLiquidationPrice(currentUnitBorrowed, currentBtcLocked);
-  }, [currentBtcLocked, currentUnitBorrowed]);
+    if (effectiveBtcLocked <= 0 || effectiveUnitBorrowed <= 0) return 0;
+    return computeLiquidationPrice(effectiveUnitBorrowed, effectiveBtcLocked);
+  }, [effectiveBtcLocked, effectiveUnitBorrowed]);
 
   // Sync preview amount when store value changes
   useEffect(() => {
@@ -118,9 +144,9 @@ export default function RepayInputScreen({ navigation }: RepayInputScreenProps) 
 
   // Preview calculations after repay - uses previewAmount for real-time updates
   const preview = useMemo(() => {
-    const newDebt = Math.max(0, currentUnitBorrowed - previewAmount);
+    const newDebt = Math.max(0, effectiveUnitBorrowed - previewAmount);
 
-    if (!btcPrice || currentBtcLocked <= 0) {
+    if (!btcPrice || effectiveBtcLocked <= 0) {
       return { newDebt, newHealth: 0, newLiqPrice: 0 };
     }
 
@@ -130,10 +156,10 @@ export default function RepayInputScreen({ navigation }: RepayInputScreenProps) 
 
     return {
       newDebt,
-      newHealth: computeHealthFactor(currentBtcLocked, btcPrice, newDebt),
-      newLiqPrice: computeLiquidationPrice(newDebt, currentBtcLocked),
+      newHealth: computeHealthFactor(effectiveBtcLocked, btcPrice, newDebt),
+      newLiqPrice: computeLiquidationPrice(newDebt, effectiveBtcLocked),
     };
-  }, [previewAmount, currentBtcLocked, currentUnitBorrowed, btcPrice]);
+  }, [previewAmount, effectiveBtcLocked, effectiveUnitBorrowed, btcPrice]);
 
   // Live update handler
   const handleLiveValueChange = useCallback((val: number) => {
@@ -142,24 +168,24 @@ export default function RepayInputScreen({ navigation }: RepayInputScreenProps) 
 
   // Max repayable in UNIT (floor to whole numbers, limited by balance)
   const maxRepayableUnit = useMemo(() => {
-    const max = Math.min(maxRepayable || currentUnitBorrowed, unitBalance);
+    const max = Math.min(maxRepayable || effectiveUnitBorrowed, unitBalance);
     return Math.max(0, Math.floor(max));
-  }, [maxRepayable, currentUnitBorrowed, unitBalance]);
+  }, [maxRepayable, effectiveUnitBorrowed, unitBalance]);
 
   // Validation message
   const validationMessage = useMemo(() => {
     if (!vaultLoaded) return null;
     if (repayAmountUnit <= 0) return null;
-    if (repayAmountUnit > currentUnitBorrowed) {
-      return `Cannot repay more than your debt (${currentUnitBorrowed.toFixed(2)} UNIT)`;
+    if (repayAmountUnit > effectiveUnitBorrowed) {
+      return `Cannot repay more than your debt (${effectiveUnitBorrowed.toFixed(2)} UNIT)`;
     }
     if (repayAmountUnit > unitBalance) {
       return `Insufficient UNIT balance. You have ${unitBalance.toFixed(2)} UNIT available.`;
     }
     return null;
-  }, [vaultLoaded, repayAmountUnit, currentUnitBorrowed, unitBalance]);
+  }, [vaultLoaded, repayAmountUnit, effectiveUnitBorrowed, unitBalance]);
 
-  const canContinue = vaultLoaded && repayAmountUnit > 0 && repayAmountUnit <= currentUnitBorrowed && repayAmountUnit <= unitBalance && hasSufficientBtc;
+  const canContinue = vaultLoaded && repayAmountUnit > 0 && repayAmountUnit <= effectiveUnitBorrowed && repayAmountUnit <= unitBalance && hasSufficientBtc;
 
   const handleContinue = useCallback(() => {
     if (!canContinue) return;
@@ -167,19 +193,19 @@ export default function RepayInputScreen({ navigation }: RepayInputScreenProps) 
     navigation.navigate('RepayConfirm');
   }, [canContinue, setCurrentStep, navigation]);
 
-  if (isLoadingVault && !vaultLoaded) {
+  // Show loading state during initialization to prevent layout flash
+  if (isInitializing) {
     return (
       <SafeAreaView style={styles.container} edges={['top']}>
-        <View style={styles.centered}>
+        <View style={styles.loadingContainer}>
           <ActivityIndicator size="large" color={colors.brand.primary} />
-          <Text style={styles.loadingText}>Loading vault...</Text>
         </View>
       </SafeAreaView>
     );
   }
 
   // No vault debt state
-  if (vaultLoaded && currentUnitBorrowed <= 0) {
+  if (vaultLoaded && effectiveUnitBorrowed <= 0) {
     return (
       <SafeAreaView style={styles.container} edges={['top']}>
         <View style={styles.centered}>
@@ -194,14 +220,14 @@ export default function RepayInputScreen({ navigation }: RepayInputScreenProps) 
   }
 
   // No UNIT balance state
-  if (vaultLoaded && currentUnitBorrowed > 0 && unitBalance <= 0) {
+  if (vaultLoaded && effectiveUnitBorrowed > 0 && unitBalance <= 0) {
     return (
       <SafeAreaView style={styles.container} edges={['top']}>
         <View style={styles.centered}>
           <Ionicons name="alert-circle-outline" size={48} color={colors.semantic.warning} />
           <Text style={styles.noVaultText}>No UNIT Available</Text>
           <Text style={styles.noVaultSubtext}>
-            You need UNIT to repay your debt of {currentUnitBorrowed.toFixed(2)} UNIT.
+            You need UNIT to repay your debt of {effectiveUnitBorrowed.toFixed(2)} UNIT.
           </Text>
           <TouchableScale style={styles.closeBtn} onPress={handleClose}>
             <Text style={styles.closeBtnText}>Close</Text>
@@ -274,10 +300,10 @@ export default function RepayInputScreen({ navigation }: RepayInputScreenProps) 
           {/* Changes */}
           <View style={styles.section}>
             <VaultChangesCard
-              currentCollateral={currentBtcLocked}
-              currentDebt={currentUnitBorrowed}
+              currentCollateral={effectiveBtcLocked}
+              currentDebt={effectiveUnitBorrowed}
               currentHealth={currentHealth}
-              newCollateral={currentBtcLocked}
+              newCollateral={effectiveBtcLocked}
               newDebt={preview.newDebt}
               newHealth={hasChanges ? preview.newHealth : currentHealth}
               currentLiquidationPrice={currentLiqPrice}
@@ -310,6 +336,7 @@ const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: colors.bg.primary },
   flex: { flex: 1 },
   scroll: { padding: spacing.lg, paddingBottom: 120 },
+  loadingContainer: { flex: 1, justifyContent: 'center', alignItems: 'center' },
   centered: { flex: 1, justifyContent: 'center', alignItems: 'center', gap: spacing.md, padding: spacing.xl },
   loadingText: { color: colors.text.secondary, fontSize: fontSizes.md },
   noVaultText: { color: colors.text.primary, fontSize: fontSizes.xl, fontFamily: fonts.bold },

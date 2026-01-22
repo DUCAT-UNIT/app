@@ -22,7 +22,7 @@ import { VaultActionGauge, VaultChangesCard, AmountSlider } from '../../componen
 import { useDeposit } from '../../stores/depositStore';
 import { useDepositVault } from '../../hooks/useDepositVault';
 import { usePriceStore } from '../../stores/priceStore';
-import { useBalance } from '../../contexts/WalletDataContext';
+import { useBalance, useVaultData } from '../../contexts/WalletDataContext';
 import { computeHealthFactor, computeLiquidationPrice, getOpCostOpen } from '../../utils/vaultUtils';
 import { colors, fonts, fontSizes, spacing, radii } from '../../styles/theme';
 
@@ -51,10 +51,25 @@ export default function DepositInputScreen({ navigation }: DepositInputScreenPro
     reset,
   } = useDeposit();
 
-  const { loadVaultData, isLoading: isLoadingVault } = useDepositVault();
+  const { loadVaultData } = useDepositVault();
   const { btcPrice, fetchBtcPrice } = usePriceStore();
   const { segwitBalance, utxos } = useBalance();
-  const [vaultLoaded, setVaultLoaded] = useState(false);
+  const { vaultData } = useVaultData();
+
+  // Use vault data directly from context for immediate display
+  const contextBtcLocked = vaultData?.totalCollateral ?? 0;
+  const contextUnitBorrowed = vaultData?.totalDebt ?? 0;
+
+  // Use context values if store hasn't synced yet - prioritize whichever has data
+  const effectiveBtcLocked = currentBtcLocked > 0 ? currentBtcLocked : contextBtcLocked;
+  const effectiveUnitBorrowed = currentUnitBorrowed > 0 ? currentUnitBorrowed : contextUnitBorrowed;
+
+  // Track if initial data has been loaded to prevent layout flash
+  const [isInitializing, setIsInitializing] = useState(true);
+
+  // Consider vault loaded if we have effective data from either source
+  const hasVaultData = effectiveBtcLocked > 0 || effectiveUnitBorrowed > 0;
+  const vaultLoaded = vaultData !== null || hasVaultData;
 
   // Calculate estimated fee based on selected rate and UTXOs
   const estimatedFeeSats = useMemo(() => {
@@ -69,8 +84,20 @@ export default function DepositInputScreen({ navigation }: DepositInputScreenPro
     if (!btcPrice) {
       fetchBtcPrice();
     }
-    loadVaultData().then(setVaultLoaded);
-  }, [loadVaultData, btcPrice, fetchBtcPrice]);
+    // Sync vault data from context to deposit store
+    if (vaultData) {
+      loadVaultData();
+    }
+  }, [btcPrice, fetchBtcPrice, vaultData, loadVaultData]);
+
+  // Mark initialization complete after first render with data
+  useEffect(() => {
+    if (vaultLoaded && isInitializing) {
+      // Small delay to let layout stabilize before showing content
+      const timer = setTimeout(() => setIsInitializing(false), 50);
+      return () => clearTimeout(timer);
+    }
+  }, [vaultLoaded, isInitializing]);
 
   const availableBalanceBtc = useMemo(() => {
     // Convert fee from sats to BTC (fee already includes buffer)
@@ -83,16 +110,16 @@ export default function DepositInputScreen({ navigation }: DepositInputScreenPro
     navigation.getParent()?.goBack();
   }, [reset, navigation]);
 
-  // Compute current health directly using price store
+  // Compute current health directly using effective values from context
   const currentHealth = useMemo(() => {
-    if (!btcPrice || currentBtcLocked <= 0 || currentUnitBorrowed <= 0) return 0;
-    return computeHealthFactor(currentBtcLocked, btcPrice, currentUnitBorrowed);
-  }, [btcPrice, currentBtcLocked, currentUnitBorrowed]);
+    if (!btcPrice || effectiveBtcLocked <= 0 || effectiveUnitBorrowed <= 0) return 0;
+    return computeHealthFactor(effectiveBtcLocked, btcPrice, effectiveUnitBorrowed);
+  }, [btcPrice, effectiveBtcLocked, effectiveUnitBorrowed]);
 
   const currentLiqPrice = useMemo(() => {
-    if (currentBtcLocked <= 0) return 0;
-    return computeLiquidationPrice(currentUnitBorrowed, currentBtcLocked);
-  }, [currentBtcLocked, currentUnitBorrowed]);
+    if (effectiveBtcLocked <= 0) return 0;
+    return computeLiquidationPrice(effectiveUnitBorrowed, effectiveBtcLocked);
+  }, [effectiveBtcLocked, effectiveUnitBorrowed]);
 
   // Sync preview amount when store value changes
   useEffect(() => {
@@ -123,23 +150,23 @@ export default function DepositInputScreen({ navigation }: DepositInputScreenPro
 
   // Preview calculations after deposit - uses previewAmount for real-time updates
   const preview = useMemo(() => {
-    const newCollateral = currentBtcLocked + previewAmount;
+    const newCollateral = effectiveBtcLocked + previewAmount;
 
     if (!btcPrice || newCollateral <= 0) {
       return { newCollateral, newHealth: currentHealth, newLiqPrice: currentLiqPrice };
     }
 
     // If no debt, health is infinite and no liquidation risk
-    if (currentUnitBorrowed <= 0) {
+    if (effectiveUnitBorrowed <= 0) {
       return { newCollateral, newHealth: 999, newLiqPrice: Infinity };
     }
 
     return {
       newCollateral,
-      newHealth: computeHealthFactor(newCollateral, btcPrice, currentUnitBorrowed),
-      newLiqPrice: computeLiquidationPrice(currentUnitBorrowed, newCollateral),
+      newHealth: computeHealthFactor(newCollateral, btcPrice, effectiveUnitBorrowed),
+      newLiqPrice: computeLiquidationPrice(effectiveUnitBorrowed, newCollateral),
     };
-  }, [previewAmount, currentBtcLocked, currentUnitBorrowed, btcPrice, currentHealth, currentLiqPrice]);
+  }, [previewAmount, effectiveBtcLocked, effectiveUnitBorrowed, btcPrice, currentHealth, currentLiqPrice]);
 
   // Live update handler - updates local preview without triggering store
   const handleLiveValueChange = useCallback((val: number) => {
@@ -154,18 +181,18 @@ export default function DepositInputScreen({ navigation }: DepositInputScreenPro
     navigation.navigate('DepositConfirm');
   }, [canContinue, setCurrentStep, navigation]);
 
-  if (isLoadingVault && !vaultLoaded) {
+  // Show loading state during initialization to prevent layout flash
+  if (isInitializing) {
     return (
       <SafeAreaView style={styles.container} edges={['top']}>
-        <View style={styles.centered}>
+        <View style={styles.loadingContainer}>
           <ActivityIndicator size="large" color={colors.brand.primary} />
-          <Text style={styles.loadingText}>Loading vault...</Text>
         </View>
       </SafeAreaView>
     );
   }
 
-  if (vaultLoaded && currentBtcLocked <= 0 && currentUnitBorrowed <= 0) {
+  if (vaultLoaded && effectiveBtcLocked <= 0 && effectiveUnitBorrowed <= 0) {
     return (
       <SafeAreaView style={styles.container} edges={['top']}>
         <View style={styles.centered}>
@@ -243,11 +270,11 @@ export default function DepositInputScreen({ navigation }: DepositInputScreenPro
           {/* Changes */}
           <View style={styles.section}>
             <VaultChangesCard
-              currentCollateral={currentBtcLocked}
-              currentDebt={currentUnitBorrowed}
+              currentCollateral={effectiveBtcLocked}
+              currentDebt={effectiveUnitBorrowed}
               currentHealth={currentHealth}
               newCollateral={preview.newCollateral}
-              newDebt={currentUnitBorrowed}
+              newDebt={effectiveUnitBorrowed}
               newHealth={hasChanges ? preview.newHealth : currentHealth}
               currentLiquidationPrice={currentLiqPrice}
               newLiquidationPrice={hasChanges ? preview.newLiqPrice : currentLiqPrice}
@@ -284,6 +311,7 @@ const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: colors.bg.primary },
   flex: { flex: 1 },
   scroll: { padding: spacing.lg, paddingBottom: 120 },
+  loadingContainer: { flex: 1, justifyContent: 'center', alignItems: 'center' },
   centered: { flex: 1, justifyContent: 'center', alignItems: 'center', gap: spacing.md },
   loadingText: { color: colors.text.secondary, fontSize: fontSizes.md },
   noVaultText: { color: colors.text.primary, fontSize: fontSizes.xl, fontFamily: fonts.bold },
