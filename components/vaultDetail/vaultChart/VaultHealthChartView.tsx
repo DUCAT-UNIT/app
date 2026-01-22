@@ -308,13 +308,19 @@ export const VaultHealthChartView = memo(function VaultHealthChartView({
           ))}
 
           {/* Scrubber */}
-          {activeScrubX !== null && activeScrubHealth !== null && (
-            <G>
-              <Line x1={activeScrubX} x2={activeScrubX} y1={yScale(activeScrubHealth) + 6} y2={chartHeight - padding.bottom} stroke={healthColor} strokeWidth={1} />
-              <Circle cx={activeScrubX} cy={yScale(activeScrubHealth)} r={6} fill={healthColor} />
-              <Circle cx={activeScrubX} cy={yScale(activeScrubHealth)} r={3} fill="#fff" />
-            </G>
-          )}
+          {activeScrubX !== null && activeScrubHealth !== null && (() => {
+            // Clamp scrubber position to chart bounds
+            const clampedX = Math.max(padding.left, Math.min(activeScrubX, chartWidth - padding.right));
+            const scrubberY = yScale(activeScrubHealth);
+            const clampedY = Math.max(padding.top, Math.min(scrubberY, chartHeight - padding.bottom));
+            return (
+              <G>
+                <Line x1={clampedX} x2={clampedX} y1={clampedY + 6} y2={chartHeight - padding.bottom} stroke={healthColor} strokeWidth={1} />
+                <Circle cx={clampedX} cy={clampedY} r={6} fill={healthColor} />
+                <Circle cx={clampedX} cy={clampedY} r={3} fill="#fff" />
+              </G>
+            );
+          })()}
         </Svg>
       </View>
 
