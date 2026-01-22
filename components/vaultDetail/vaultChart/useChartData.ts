@@ -36,7 +36,8 @@ export function useChartData(
   const dimensions = useMemo<ChartDimensions>(() => {
     const chartWidth = SCREEN_WIDTH;
     const chartHeight = 140;
-    const padding = { top: 25, right: 0, bottom: 15, left: 0 };
+    // Add horizontal padding to keep scrubber circle (radius 6) within bounds
+    const padding = { top: 25, right: 8, bottom: 15, left: 8 };
     return {
       chartWidth,
       chartHeight,
