@@ -86,6 +86,7 @@ export default function SendInputScreen({ navigation, route }: SendInputScreenPr
   const [showQRScanner, setShowQRScanner] = useState(false);
   const [previewAmount, setPreviewAmount] = useState(0);
   const prevMaxRef = useRef<number>(0);
+  const [isInitializing, setIsInitializing] = useState(true);
 
   const assetType = route.params?.assetType || sendAssetType;
 
@@ -121,6 +122,14 @@ export default function SendInputScreen({ navigation, route }: SendInputScreenPr
       setSendAssetType(route.params.assetType);
     }
   }, [route.params?.assetType, sendAssetType, setSendAssetType]);
+
+  // Mark initialization complete after first render to prevent layout flash
+  useEffect(() => {
+    if (isInitializing) {
+      const timer = setTimeout(() => setIsInitializing(false), 50);
+      return () => clearTimeout(timer);
+    }
+  }, [isInitializing]);
 
   // Fee estimation
   const transactionType = isBtc ? TransactionType.BTC_SEND : TransactionType.UNIT_SEND;
@@ -269,6 +278,17 @@ export default function SendInputScreen({ navigation, route }: SendInputScreenPr
       handleTurboReview();
     }
   }, [canContinue, isBtc, navigation, handleTurboReview]);
+
+  // Show loading state during initialization to prevent layout flash
+  if (isInitializing) {
+    return (
+      <SafeAreaView style={styles.container} edges={['top']}>
+        <View style={styles.loadingContainer}>
+          <ActivityIndicator size="large" color={colors.brand.primary} />
+        </View>
+      </SafeAreaView>
+    );
+  }
 
   return (
     <SafeAreaView style={styles.container} edges={['top']}>
@@ -462,6 +482,7 @@ const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: colors.bg.primary },
   flex: { flex: 1 },
   scroll: { padding: spacing.lg, paddingBottom: 120 },
+  loadingContainer: { flex: 1, justifyContent: 'center', alignItems: 'center' },
   header: {
     flexDirection: 'row',
     justifyContent: 'space-between',
