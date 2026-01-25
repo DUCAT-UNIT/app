@@ -287,12 +287,12 @@ export function useBorrowVault(): UseBorrowVaultResult {
         vaultPubkey: wallet.taprootPubkey || '',
       });
 
-      // Show info snackbar about pending confirmation
+      // Show info snackbar about pending confirmation (auto-dismiss after 7s)
       showSnackbar({
         title: 'Vault transaction confirming',
         description: 'Please wait for the block to get mined',
         type: 'info',
-        persistent: true,
+        duration: 7000,
       });
 
       logger.info('[useBorrowVault] Borrow completed successfully:', {
