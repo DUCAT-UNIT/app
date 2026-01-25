@@ -101,15 +101,24 @@ export async function createBtcIntent(
     const confirmedUtxos = await fetchUtxosService(sourceAddress);
 
     // Log UTXO sources for debugging
-    logger.transaction('utxo_fetch', {
+    logger.info('[BTC Intent] UTXO sources:', {
       confirmed: confirmedUtxos.length,
+      confirmedTotal: confirmedUtxos.reduce((sum, u) => sum + u.value, 0),
       unconfirmed: unconfirmedUtxos.length,
+      unconfirmedTotal: unconfirmedUtxos.reduce((sum, u) => sum + u.value, 0),
+      unconfirmedUtxos: unconfirmedUtxos.map(u => ({ txid: u.txid.slice(0, 12) + '...', vout: u.vout, value: u.value })),
       spent: spentUtxos.size,
+      spentKeys: Array.from(spentUtxos).slice(0, 5),
+      requestedAmountSats: amountInSats,
     });
 
     const availableUtxos = mergeAndFilterUtxos(confirmedUtxos, unconfirmedUtxos, spentUtxos);
 
-    logger.debug('[BTC Intent] Available UTXOs after merge:', { count: availableUtxos.length });
+    logger.info('[BTC Intent] Available UTXOs after merge:', {
+      count: availableUtxos.length,
+      totalValue: availableUtxos.reduce((sum, u) => sum + u.value, 0),
+      utxos: availableUtxos.map(u => ({ txid: u.txid.slice(0, 12) + '...', vout: u.vout, value: u.value })),
+    });
 
     if (availableUtxos.length === 0) {
       // Provide more context in the error
@@ -135,9 +144,26 @@ export async function createBtcIntent(
       BITCOIN_TX.DUST_LIMIT
     );
 
+    logger.info('[BTC Intent] UTXO selection result:', {
+      selectedCount: selectedUtxos.length,
+      totalInput,
+      fee,
+      change,
+      amountInSats,
+      requiredAmount: amountInSats + fee,
+      shortfall: (amountInSats + fee) - totalInput,
+    });
+
     // Final check for sufficient funds
     const requiredAmount = amountInSats + fee;
     if (totalInput < requiredAmount) {
+      logger.error(new Error('[BTC Intent] Insufficient funds'), {
+        totalInput,
+        requiredAmount,
+        shortfall: requiredAmount - totalInput,
+        amountInSats,
+        fee,
+      });
       throw new Error(ERRORS.INSUFFICIENT_FUNDS);
     }
 

@@ -159,6 +159,7 @@ function parseRuneAmount(amount: string): number {
   }
 
   // Multiply by 100 for runestone encoding (UNIT display amount * 100)
-  // Use Math.floor to ensure we get an integer for the runestone
-  return Math.floor(userAmount * 100);
+  // Use Math.round to ensure we get an integer and avoid floating point errors
+  // (e.g., 8.45 * 100 = 844.9999... should become 845, not 844)
+  return Math.round(userAmount * 100);
 }

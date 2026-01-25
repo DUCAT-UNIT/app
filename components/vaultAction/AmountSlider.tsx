@@ -110,6 +110,8 @@ export const AmountSlider = memo(function AmountSlider({
 
   const gesture = Gesture.Pan()
     .enabled(!disabled)
+    .activeOffsetX([-0, 0])
+    .activeOffsetY([-0, 0])
     .onBegin((e) => {
       'worklet';
       isDragging.value = true;
@@ -124,6 +126,7 @@ export const AmountSlider = memo(function AmountSlider({
       currentValue.value = newVal;
       lastLiveUpdate.value = sats;
       runOnJS(updateLive)(newVal);
+      runOnJS(updateParent)(newVal);
     })
     .onUpdate((e) => {
       'worklet';

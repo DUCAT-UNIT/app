@@ -113,7 +113,7 @@ describe('useFuseEcash', () => {
 
     expect(Alert.alert).toHaveBeenCalledWith(
       'Fuse E-cash to UNIT?',
-      'Convert all 100.50 eUNIT to on-chain UNIT?',
+      'Convert all 100.50 tUNIT to on-chain UNIT?',
       expect.arrayContaining([
         expect.objectContaining({ text: 'Cancel', style: 'cancel' }),
         expect.objectContaining({ text: 'Fuse' }),
@@ -131,7 +131,7 @@ describe('useFuseEcash', () => {
 
     expect(Alert.alert).toHaveBeenCalledWith(
       'Fuse E-cash to UNIT?',
-      'Convert all 50.12 eUNIT to on-chain UNIT?',
+      'Convert all 50.12 tUNIT to on-chain UNIT?',
       expect.any(Array)
     );
   });

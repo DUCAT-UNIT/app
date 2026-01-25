@@ -27,6 +27,7 @@ interface UseFullscreenChartDataReturn {
   xScale: (timestamp: number) => number;
   yScale: (value: number) => number;
   getHealthAtX: (x: number) => number | null;
+  getTimestampAtX: (x: number) => number | null;
   findNearbyRefLine: (x: number) => number | null;
 }
 
@@ -271,6 +272,16 @@ export function useFullscreenChartData(
     return path;
   }, [lineData, xScale, yScale, chartWidthValue, effectiveChartHeight, referenceLines]);
 
+  // Get timestamp at X position
+  const getTimestampAtX = useCallback((x: number): number | null => {
+    if (!series.length) return null;
+
+    const clampedX = Math.max(0, Math.min(x, chartWidthValue));
+    const ratio = clampedX / chartWidthValue;
+    const [minTime, maxTime] = timeDomain;
+    return minTime + ratio * (maxTime - minTime);
+  }, [series, chartWidthValue, timeDomain]);
+
   // Get health at X position
   const getHealthAtX = useCallback((x: number): number | null => {
     if (!lineData.length || !series.length) return null;
@@ -332,6 +343,7 @@ export function useFullscreenChartData(
     xScale,
     yScale,
     getHealthAtX,
+    getTimestampAtX,
     findNearbyRefLine,
   };
 }

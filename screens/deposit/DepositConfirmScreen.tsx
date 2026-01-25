@@ -176,11 +176,11 @@ export default function DepositConfirmScreen({ navigation }: DepositConfirmScree
             <Text style={styles.label}>Liquidation Price</Text>
             <View style={styles.changeRow}>
               <Text style={[styles.value, { color: colors.semantic.error }]}>
-                ${formatFiat(liquidationPrice, 0)}
+                ${formatFiat(liquidationPrice)}
               </Text>
               <Ionicons name="arrow-forward" size={14} color={colors.text.tertiary} />
               <Text style={[styles.valueHighlight, { color: colors.semantic.error }]}>
-                ${formatFiat(newLiquidationPrice, 0)}
+                ${formatFiat(newLiquidationPrice)}
               </Text>
             </View>
           </View>

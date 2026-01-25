@@ -85,7 +85,7 @@ export function useTurboTokenProcessor({
       setIsVerifyingToken(true);
       const result = await receive(token);
 
-      const amountDisplay = result.amount.toFixed(2);
+      const amountDisplay = (result.amount / 100).toFixed(2);
       logger.debug('[TURBO] Success! Received:', amountDisplay, 'UNIT');
 
       // Save to transaction history
@@ -179,21 +179,39 @@ export function useTurboTokenProcessor({
     }
   }, [receive, wallet, fetchBalance, refreshCashu, dismissSnackbar, switchAccount, showSnackbar, triggerWalletReload, setPendingToken]);
 
-  // Poll for pending tokens using the store
+  // Poll for pending tokens using the store AND global turboGlobal
   React.useEffect(() => {
+    logger.debug('[TURBO] Token processor effect running', {
+      isAuthenticated,
+      shouldShowPinOverlay,
+      isVerifyingToken,
+      hasTurboGlobalToken: !!turboGlobal.pendingCashuToken,
+    });
+
     if (!isAuthenticated || shouldShowPinOverlay) {
+      logger.debug('[TURBO] Token processor skipping - not authenticated or pin overlay showing');
       return;
     }
 
     const checkPendingToken = () => {
-      const token = consumePendingToken();
+      // First check the Zustand store
+      let token = consumePendingToken();
+
+      // Also check turboGlobal (used by deep link handler)
+      if (!token && turboGlobal.pendingCashuToken) {
+        token = turboGlobal.pendingCashuToken;
+        turboGlobal.pendingCashuToken = undefined; // Clear it
+        logger.debug('[TURBO] Found pending token from turboGlobal', { tokenLength: token?.length });
+      }
+
       if (token && !isVerifyingToken) {
-        logger.debug('[TURBO] Processing pending token from store');
+        logger.debug('[TURBO] Processing pending token', { tokenLength: token.length });
         processToken(token);
       }
     };
 
     // Check immediately and poll
+    logger.debug('[TURBO] Starting token polling');
     checkPendingToken();
     const interval = setInterval(checkPendingToken, 500);
 

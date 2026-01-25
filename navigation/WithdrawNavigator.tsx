@@ -4,7 +4,7 @@
  */
 
 import React from 'react';
-import { createStackNavigator } from '@react-navigation/stack';
+import { createStackNavigator, CardStyleInterpolators } from '@react-navigation/stack';
 import {
   WithdrawInputScreen,
   WithdrawConfirmScreen,
@@ -23,6 +23,11 @@ export default function WithdrawNavigator(): React.JSX.Element {
         headerShown: false,
         cardStyle: { backgroundColor: COLORS.DARK_BG },
         gestureEnabled: false,
+        cardStyleInterpolator: CardStyleInterpolators.forNoAnimation,
+        transitionSpec: {
+          open: { animation: 'timing', config: { duration: 0 } },
+          close: { animation: 'timing', config: { duration: 0 } },
+        },
       }}
     >
       <Stack.Screen name="WithdrawInput" component={WithdrawInputScreen} />

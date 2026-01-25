@@ -122,6 +122,8 @@ export type WalletStackParamList = {
   Advanced: undefined;
   CashuSettings: undefined;
   About: undefined;
+  TermsOfService: { onClose: () => void };
+  PrivacyPolicy: { onClose: () => void };
   FeeRateDemo: undefined;
 };
 

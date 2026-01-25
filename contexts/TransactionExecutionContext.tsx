@@ -49,7 +49,7 @@ interface TransactionExecutionContextValue {
   toastDismissed: boolean;
   setBroadcastedTxid: React.Dispatch<React.SetStateAction<string | null>>;
   setToastDismissed: React.Dispatch<React.SetStateAction<boolean>>;
-  signIntent: (options?: SignOptions) => Promise<boolean>;
+  signIntent: (options?: SignOptions) => Promise<string | null>;
   broadcastIntent: (intent?: SendIntent | null, options?: BroadcastOptions) => Promise<void>;
 }
 
@@ -343,7 +343,7 @@ export const TransactionExecutionProvider: React.FC<TransactionExecutionProvider
   }, [sendIntent, setSendIntent, wallet, showSnackbar, setIntentStep, sendAssetType, sendAmount, startTransactionPolling, notificationsEnabled, sendTransactionConfirmedNotification, fetchBalance, fetchTransactionHistory, addPendingTransaction, confirmTransaction, invalidateTransaction, pendingTransactions, markUtxoAsSpent, markUtxosAsSpent, getSnackbarAction]);
 
   // Sign the PSBT
-  const signIntent = useCallback(async (options: SignOptions = {}): Promise<boolean> => {
+  const signIntent = useCallback(async (options: SignOptions = {}): Promise<string | null> => {
     try {
       setIntentStep('signing');
 
@@ -354,7 +354,7 @@ export const TransactionExecutionProvider: React.FC<TransactionExecutionProvider
           message: ERRORS.TRANSACTION_CANCELLED,
         });
         setIntentStep('idle');
-        return false;
+        return null;
       }
 
       const { signedTxHex, txid } = await signIntentService(sendIntent as SigningTransactionIntent, currentAccount);
@@ -371,7 +371,7 @@ export const TransactionExecutionProvider: React.FC<TransactionExecutionProvider
 
       // Automatically broadcast (pass options through)
       await broadcastIntent(signedIntent, options);
-      return true;
+      return txid;
     } catch (_error) {
       logger.error('Error signing transaction:', { error: _error instanceof Error ? _error.message : String(_error) });
       showSnackbar({
@@ -380,7 +380,7 @@ export const TransactionExecutionProvider: React.FC<TransactionExecutionProvider
         message: parseErrorMessage(_error),
       });
       setIntentStep('reviewing');
-      return false;
+      return null;
     }
   }, [sendIntent, currentAccount, setIntentStep, setSendIntent, showSnackbar, broadcastIntent, getSnackbarAction]);
 

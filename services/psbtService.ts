@@ -205,9 +205,11 @@ export function buildFallbackOutputs(sendIntent: SendIntent): PSBTOutput[] {
       type: 'recipient'
     });
   } else {
+    // Use Math.round to avoid floating-point precision errors
+    // (e.g., 0.00000845 * 100000000 = 844.9999... should become 845, not 844)
     outputs.push({
       address: sendIntent.recipient,
-      value: Math.floor(parseFloat(sendIntent.amountBTC) * 100000000),
+      value: Math.round(parseFloat(sendIntent.amountBTC) * 100000000),
       type: 'recipient'
     });
   }

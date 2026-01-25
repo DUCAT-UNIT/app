@@ -22,6 +22,7 @@ interface UseAmountInputParams {
   sendAddressType?: string | null;
   setSendAmount: (amount: string) => void;
   feeRate?: number; // Fee rate in sat/vB for max calculation
+  unconfirmedSegwitBalance?: number; // Unconfirmed balance from pending transactions
 }
 
 interface UseAmountInputReturn {
@@ -40,15 +41,17 @@ export function useAmountInput({
   wallet,
   setSendAmount,
   feeRate,
+  unconfirmedSegwitBalance,
 }: UseAmountInputParams): UseAmountInputReturn {
   const [isCalculatingMax, setIsCalculatingMax] = useState(false);
 
   // Calculate balance based on asset type
-  // BTC is always sent from segwit address, so only show segwit balance
-  const btcBalance = segwitBalance || 0;
+  // BTC is always sent from segwit address - include unconfirmed for tx chaining
+  const btcBalance = (segwitBalance || 0) + (unconfirmedSegwitBalance || 0);
   // For UNIT, combine on-chain runes balance + ecash balance
+  // Runes come in display units, ecash is in smallest units (needs /100)
   const unitRunesBalance = getRunesAmount(runesBalance);
-  const unitBalance = unitRunesBalance + (cashuBalance || 0);
+  const unitBalance = unitRunesBalance + ((cashuBalance || 0) / 100);
   const balance = sendAssetType === 'btc' ? btcBalance : unitBalance;
   const assetLabel = sendAssetType === 'btc' ? 'BTC' : 'UNIT';
 

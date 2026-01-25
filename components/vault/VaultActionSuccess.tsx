@@ -105,7 +105,7 @@ export default function VaultActionSuccess({
         {/* Success Message */}
         <Text style={styles.title}>{config.title}</Text>
         <Text style={styles.amount}>{formattedAmount}</Text>
-        <Text style={styles.amountUsd}>{formatFiat(usdValue)}</Text>
+        <Text style={styles.amountUsd}>≈ ${formatFiat(usdValue)}</Text>
 
         {/* Transaction Links */}
         {txid && (

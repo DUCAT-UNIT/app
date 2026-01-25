@@ -1,5 +1,6 @@
 // Cloudflare Worker to serve apple-app-site-association
-// Deploy this to ducat.app/.well-known/apple-app-site-association
+// Deploy this to ducatprotocol.com/.well-known/apple-app-site-association
+// and short.ducatprotocol.com/.well-known/apple-app-site-association
 
 export default {
   async fetch(request, env, ctx) {
@@ -11,7 +12,15 @@ export default {
 
       const association = {
         "webcredentials": {
-          "apps": ["Q8HU4KXHK4.com.anonymous.SimpleWallet"]
+          "apps": ["Q8HU4KXHK4.com.ducatprotocol.DucatProtocolWallet"]
+        },
+        "applinks": {
+          "details": [
+            {
+              "appID": "Q8HU4KXHK4.com.ducatprotocol.DucatProtocolWallet",
+              "paths": ["*"]
+            }
+          ]
         }
       };
 

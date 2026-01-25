@@ -139,11 +139,8 @@ export const useNotificationStore = create<NotificationStore>((set, get) => ({
       turboGlobal.pendingTurboSnackbars = [];
     }
 
-    // Clear any pending token so it doesn't retry when coming back to app
-    if (typeof global !== 'undefined' && turboGlobal.pendingCashuToken) {
-      logger.debug('Clearing pending token on snackbar dismiss');
-      turboGlobal.pendingCashuToken = undefined;
-    }
+    // NOTE: Do NOT clear pendingCashuToken here - it should persist through lock/unlock
+    // The token is cleared after processing in useTurboTokenProcessor
 
     // Add cooldown period - block new snackbars for 500ms
     dismissCooldown = true;

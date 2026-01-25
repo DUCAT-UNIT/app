@@ -5,6 +5,17 @@
 
 import { create } from 'zustand';
 
+// Module-level ref for the onSelect callback — avoids re-renders when setting it
+let _onSelectHandler: ((value: number) => void) | null = null;
+
+export const setThresholdSheetOnSelect = (handler: (value: number) => void) => {
+  _onSelectHandler = handler;
+};
+
+export const getThresholdSheetOnSelect = (): ((value: number) => void) | null => {
+  return _onSelectHandler;
+};
+
 interface EcashThresholdSheetState {
   visible: boolean;
   show: () => void;

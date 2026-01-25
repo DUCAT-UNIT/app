@@ -3,13 +3,13 @@
  * Extracts ecash threshold management logic from WalletPage
  */
 
-import { useState, useCallback, Dispatch, SetStateAction } from 'react';
+import { useState, useCallback, useEffect, Dispatch, SetStateAction } from 'react';
 import { useNavigation } from '@react-navigation/native';
 import { logger } from '../utils/logger';
 import { getRunesAmount } from '../utils/runesHelper';
 import { requestMint } from '../services/cashu/cashuWalletService';
 import { notify } from '../utils/notify';
-import { useEcashThresholdSheetStore } from '../stores/ecashThresholdSheetStore';
+import { useEcashThresholdSheetStore, setThresholdSheetOnSelect } from '../stores/ecashThresholdSheetStore';
 import type { RuneBalance } from '../services/balanceService';
 import type { ExtendedNavigation } from '../navigation/types';
 
@@ -83,8 +83,8 @@ export function useEcashThresholdManager({
   const handleThresholdSelect = useCallback(async (newThreshold: number) => {
     setShowThresholdSheet(false);
 
-    // If selecting same threshold or 100, just update
-    if (newThreshold === settingsHandlers.ecashThreshold || newThreshold === 100) {
+    // If selecting same threshold, just update
+    if (newThreshold === settingsHandlers.ecashThreshold) {
       settingsHandlers.handleEcashThresholdChange(newThreshold);
       return;
     }
@@ -93,15 +93,13 @@ export function useEcashThresholdManager({
     const currentEcashBalance = cashuBalance || 0;
     // runesBalance can be array of arrays or array of objects
     const currentUnitBalance = getRunesAmount(runesBalance);
-    const requiredAmount = newThreshold === Infinity ? 0 : newThreshold;
 
-    if (requiredAmount > currentEcashBalance && requiredAmount > 0) {
-      // Need to convert more
-      const amountNeeded = requiredAmount - currentEcashBalance;
+    // For Infinity (convert all), use entire UNIT balance; otherwise use the threshold
+    const requiredAmount = newThreshold === Infinity ? currentEcashBalance + currentUnitBalance : newThreshold;
+    const amountNeeded = Math.max(0, requiredAmount - currentEcashBalance);
+    const actualConversionAmount = Math.min(amountNeeded, currentUnitBalance);
 
-      // Check if we have enough UNIT balance
-      const actualConversionAmount = Math.min(amountNeeded, currentUnitBalance);
-
+    if (actualConversionAmount > 0) {
       logger.debug('[useEcashThresholdManager] Setting conversion modal state:', {
         currentUnitBalance,
         amountNeeded,
@@ -114,10 +112,15 @@ export function useEcashThresholdManager({
       setSavedUnitBalance(currentUnitBalance);
       setShowConversionModal(true);
     } else {
-      // No conversion needed, just update threshold
+      // No conversion possible (no UNIT balance), just update threshold
       settingsHandlers.handleEcashThresholdChange(newThreshold);
     }
   }, [cashuBalance, runesBalance, settingsHandlers]);
+
+  // Register handleThresholdSelect so the app-level sheet can use it
+  useEffect(() => {
+    setThresholdSheetOnSelect(handleThresholdSelect);
+  }, [handleThresholdSelect]);
 
   const handleConfirmConversion = useCallback(async () => {
     logger.debug('[useEcashThresholdManager] handleConfirmConversion called', {
@@ -184,6 +187,7 @@ export function useEcashThresholdManager({
               action: 'create_intent',
               cashuMint: true,
               quoteId: mintQuote.quoteId,
+              mintAmount: mintQuote.amount,
               assetType: 'unit',
               amount: amountStr,
               recipient: mintQuote.depositAddress,
@@ -224,6 +228,7 @@ export function useEcashThresholdManager({
           action: 'create_intent',
           cashuMint: true,
           quoteId: mintQuote.quoteId,
+          mintAmount: mintQuote.amount,
           assetType: 'unit',
           amount: amountStr,
           recipient: mintQuote.depositAddress,

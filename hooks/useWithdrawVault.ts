@@ -7,6 +7,7 @@ import { useCallback, useRef, useEffect, useState } from 'react';
 import { useWithdrawStore } from '../stores/withdrawStore';
 import { useWallet } from '../contexts/WalletContext';
 import { usePrice } from '../stores/priceStore';
+import { useVaultData } from '../contexts/WalletDataContext';
 import { getGuardianClient, disconnectGuardian } from '../services/guardianService';
 import { usePendingVaultTransactionStore } from '../stores/pendingVaultTransactionStore';
 import { useNotificationStore } from '../stores/notificationStore';
@@ -46,6 +47,7 @@ export interface UseWithdrawVaultResult {
 export function useWithdrawVault(): UseWithdrawVaultResult {
   const { wallet } = useWallet();
   const { btcPrice } = usePrice();
+  const { vaultData: contextVaultData } = useVaultData();
 
   // Use individual selectors for reactive state
   const withdrawAmountSats = useWithdrawStore((state) => state.withdrawAmountSats);
@@ -87,7 +89,7 @@ export function useWithdrawVault(): UseWithdrawVaultResult {
   );
 
   /**
-   * Load current vault data from the validator API
+   * Load current vault data from context (already fetched by WalletDataContext)
    */
   const loadVaultData = useCallback(async (): Promise<boolean> => {
     if (!wallet?.taprootPubkey) {
@@ -95,40 +97,27 @@ export function useWithdrawVault(): UseWithdrawVaultResult {
       return false;
     }
 
-    try {
-      setLoading(true);
-      logger.debug('[useWithdrawVault] Loading vault data...');
-
-      const vaultData = await fetchVaultData(wallet.taprootPubkey);
-
-      if (!vaultData) {
-        setError('No vault found. Please create a vault first.');
-        return false;
-      }
-
-      // Convert from API units to display units
-      const unitBorrowed = vaultData.totalDebt || 0;
-      const btcLocked = vaultData.totalCollateral || 0;
-
-      setCurrentVaultData(unitBorrowed, btcLocked);
-      setVaultDataLoaded(true);
-
-      logger.debug('[useWithdrawVault] Vault data loaded:', {
-        unitBorrowed,
-        btcLocked,
-        vaultId: vaultData.vaultId,
-      });
-
-      return true;
-    } catch (err) {
-      const errorMessage = err instanceof Error ? err.message : 'Failed to load vault data';
-      logger.error('[useWithdrawVault] Error loading vault data:', { error: errorMessage });
-      setError(errorMessage);
+    // Use vault data from context - no API call needed
+    if (!contextVaultData) {
+      setError('No vault found. Please create a vault first.');
       return false;
-    } finally {
-      setLoading(false);
     }
-  }, [wallet?.taprootPubkey, setLoading, setError, setCurrentVaultData]);
+
+    // Convert from API units to display units
+    const unitBorrowed = contextVaultData.totalDebt || 0;
+    const btcLocked = contextVaultData.totalCollateral || 0;
+
+    setCurrentVaultData(unitBorrowed, btcLocked);
+    setVaultDataLoaded(true);
+
+    logger.debug('[useWithdrawVault] Vault data synced from context:', {
+      unitBorrowed,
+      btcLocked,
+      vaultId: contextVaultData.vaultId,
+    });
+
+    return true;
+  }, [wallet?.taprootPubkey, contextVaultData, setError, setCurrentVaultData]);
 
   /**
    * Build VaultProfile from current vault data

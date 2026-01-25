@@ -76,15 +76,15 @@ export function useAssetTransactions(
   // Use pre-loaded ecash tokens from context (no more on-demand fetching)
   const { ecashTokens: preloadedEcashTokens, loadingEcashTokens, fetchEcashTokens } = useEcashTokens();
 
-  // Filter tokens: only use for UNIT and non-advanced mode
-  const ecashTokens = (assetType === 'UNIT' && !advancedMode) ? preloadedEcashTokens : [];
+  // Filter tokens: only use for UNIT in advanced mode
+  const ecashTokens = (assetType === 'UNIT' && advancedMode) ? preloadedEcashTokens : [];
 
-  // Ecash is ready if: not UNIT, or advanced mode, or tokens have loaded
-  const ecashReady = assetType !== 'UNIT' || advancedMode || !loadingEcashTokens || preloadedEcashTokens.length > 0;
+  // Ecash is ready if: not UNIT, or not advanced mode (doesn't need ecash), or tokens have loaded
+  const ecashReady = assetType !== 'UNIT' || !advancedMode || !loadingEcashTokens || preloadedEcashTokens.length > 0;
 
   // Trigger background refresh when component mounts (data is already available)
   useEffect(() => {
-    if (assetType === 'UNIT' && !advancedMode) {
+    if (assetType === 'UNIT' && advancedMode) {
       fetchEcashTokens();
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -163,14 +163,14 @@ export function useAssetTransactions(
     }
 
     // First pass: identify self-claimed sent tokens
+    // A self-claim is when the recipient of a sent token is the current user (they claimed their own token)
     const selfClaimedSentTokenIds = new Set<string>();
     ecashTokens.forEach((token) => {
       const isSentToken = 'recipient' in token;
       if (isSentToken && token.claimed) {
         const sentToken = token as { recipient: string; taprootAddress: string | null };
-        const isSelfClaim =
-          (sentToken.taprootAddress && taprootAddress && sentToken.taprootAddress === taprootAddress) ||
-          (currentPubkeyHex && sentToken.recipient === currentPubkeyHex);
+        // Check if this is a self-claim: the recipient pubkey matches the current user's pubkey
+        const isSelfClaim = currentPubkeyHex && sentToken.recipient === currentPubkeyHex;
         if (isSelfClaim) {
           selfClaimedSentTokenIds.add(token.id);
         }

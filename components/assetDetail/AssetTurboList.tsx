@@ -201,6 +201,26 @@ export function AssetTurboList() {
     }
   }, [wallet?.taprootAddress, loadTokens]);
 
+  // Poll for claimed status updates every 5 seconds
+  useEffect(() => {
+    if (!wallet?.taprootAddress || tokens.length === 0) {
+      return;
+    }
+
+    // Only poll if there are unclaimed tokens
+    const hasUnclaimedTokens = tokens.some(t => !claimedTokens.has(t.id));
+    if (!hasUnclaimedTokens) {
+      return;
+    }
+
+    const pollInterval = setInterval(() => {
+      logger.debug('AssetTurboList', 'Polling for claimed status updates');
+      checkTokensClaimed(tokens, wallet.taprootAddress);
+    }, 5000);
+
+    return () => clearInterval(pollInterval);
+  }, [wallet?.taprootAddress, tokens, claimedTokens, checkTokensClaimed]);
+
   const handleCopyToken = useCallback(async (tokenRecord: TokenRecord) => {
     try {
       await Clipboard.setStringAsync(tokenRecord.token);

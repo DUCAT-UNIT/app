@@ -406,7 +406,7 @@ export const VaultHealthGauge = memo(function VaultHealthGauge({
       <View style={[styles.liquidationRow, { marginBottom: s(16) }]}>
         <Text style={[styles.liquidationLabel, { fontSize: sf(14), marginBottom: s(2) }]}>Liquidation Price</Text>
         <Text style={[styles.liquidationValue, { color: COLORS.DANGER_RED, fontSize: sf(18) }]}>
-          {hasNoDebt ? '\u221E' : `$${formatFiat(liquidationPrice, 0)}`}
+          {hasNoDebt ? '\u221E' : `$${formatFiat(liquidationPrice)}`}
         </Text>
       </View>
 

@@ -53,8 +53,11 @@ export function useTurboMintCompletion({
   );
   const [isCompletingMint, setIsCompletingMint] = useState(false);
   const hasMintCompleted = useRef(false);
+  const mountedRef = useRef(true);
 
   useEffect(() => {
+    mountedRef.current = true;
+
     logger.debug('[useTurboMintCompletion] Checking mint completion:', {
       isTurbo,
       skipMint,
@@ -78,6 +81,7 @@ export function useTurboMintCompletion({
     logger.debug('[useTurboMintCompletion] Starting mint completion process');
 
     const completeMintProcess = async () => {
+      if (!mountedRef.current) return;
       setIsCompletingMint(true);
       try {
         logger.debug('[useTurboMintCompletion] Starting to poll for payment confirmation');
@@ -88,7 +92,9 @@ export function useTurboMintCompletion({
         const maxAttempts = 30; // 30 seconds
 
         while (!paidQuote && attempts < maxAttempts) {
+          if (!mountedRef.current) return;
           await new Promise(resolve => setTimeout(resolve, 1000));
+          if (!mountedRef.current) return;
           const quote = await checkMintQuote(mintQuoteId);
           logger.debug(`[useTurboMintCompletion] Check ${attempts + 1}/${maxAttempts}:`, quote);
           if (quote.state === 'PAID' || quote.state === 'ISSUED') {
@@ -98,10 +104,13 @@ export function useTurboMintCompletion({
           attempts++;
         }
 
+        if (!mountedRef.current) return;
+
         if (paidQuote && paidQuote.amount !== undefined) {
           logger.debug('[useTurboMintCompletion] Payment confirmed! Completing mint with amount:', paidQuote.amount);
           // Complete mint to get e-cash tokens - quote.amount is already in smallest units
           const proofs = await completeMint(mintQuoteId, paidQuote.amount);
+          if (!mountedRef.current) return;
           logger.debug('[useTurboMintCompletion] Mint completed successfully, received proofs:', proofs?.length);
 
           // If we have a turbo recipient, create a P2PK locked token
@@ -120,6 +129,7 @@ export function useTurboMintCompletion({
               // Send exactly the mint amount as P2PK locked token
               logger.debug('[useTurboMintCompletion] Creating P2PK token for amount:', mintAmount);
               const result = await sendP2PKToken(mintAmount, recipientPubkey, {});
+              if (!mountedRef.current) return;
               logger.debug('[useTurboMintCompletion] sendP2PKToken result:', { hasToken: !!result?.token, resultType: typeof result });
               const token = result?.token;
               if (!token) {
@@ -129,12 +139,14 @@ export function useTurboMintCompletion({
 
               // Generate shortened URL for the token
               const shortUrl = await shortenCashuToken(token);
+              if (!mountedRef.current) return;
               logger.debug('[useTurboMintCompletion] Generated short URL:', shortUrl);
               setTurboDeeplink(shortUrl);
 
               // Store the sent P2PK token
               // saveSentLockedToken(token, recipient, amount, txid, shortUrl, taprootAddress)
               await saveSentLockedToken(token, turboRecipient, mintAmount, null, shortUrl, senderTaprootAddress);
+              if (!mountedRef.current) return;
               logger.debug('[useTurboMintCompletion] P2PK token stored successfully');
 
               // Store token for display
@@ -145,7 +157,7 @@ export function useTurboMintCompletion({
             } catch (storageError) {
               logger.error('[useTurboMintCompletion] Failed to generate/save token:', { error: storageError instanceof Error ? storageError.message : String(storageError) });
               // Non-critical error - still transition to ready stage so user isn't stuck
-              setProcessingStage('ready');
+              if (mountedRef.current) setProcessingStage('ready');
             }
           } else {
             // No turbo recipient - just transition to ready
@@ -155,6 +167,7 @@ export function useTurboMintCompletion({
           // Refresh balance
           await fetchTransactionHistory();
 
+          if (!mountedRef.current) return;
           setIsCompletingMint(false);
 
           // Refresh cashu balance to reflect the new tokens
@@ -169,17 +182,21 @@ export function useTurboMintCompletion({
           }
         } else {
           logger.debug('[useTurboMintCompletion] Payment not confirmed after 30 seconds');
-          setIsCompletingMint(false);
+          if (mountedRef.current) setIsCompletingMint(false);
           notify.cashu.paymentSentAwaiting();
         }
       } catch (error: unknown) {
         logger.error('[useTurboMintCompletion] Error during mint completion:', { error: error instanceof Error ? error.message : String(error) });
-        setIsCompletingMint(false);
+        if (mountedRef.current) setIsCompletingMint(false);
         notify.cashu.conversionFailed(error instanceof Error ? error.message : String(error));
       }
     };
 
     completeMintProcess();
+
+    return () => {
+      mountedRef.current = false;
+    };
   }, [isTurbo, mintQuoteId, mintAmount, turboRecipient, skipMint, senderTaprootAddress, fetchTransactionHistory, refreshCashuBalance, processingStage]);
 
   return {

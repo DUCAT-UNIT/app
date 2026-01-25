@@ -90,6 +90,22 @@ export const fullscreenStyles = StyleSheet.create({
     fontSize: 12,
     fontWeight: '700',
   },
+  scrubberDateLabel: {
+    position: 'absolute',
+    bottom: 8,
+    left: 0,
+    backgroundColor: COLORS.VERY_DARK_GRAY,
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    borderRadius: 6,
+    minWidth: 90,
+    alignItems: 'center',
+  },
+  scrubberDateText: {
+    fontSize: 11,
+    fontWeight: '600',
+    color: COLORS.SECONDARY_TEXT,
+  },
   loadingContainer: {
     flex: 1,
     justifyContent: 'center',

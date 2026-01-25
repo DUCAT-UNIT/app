@@ -3,7 +3,7 @@
  */
 
 import React from 'react';
-import { createStackNavigator } from '@react-navigation/stack';
+import { createStackNavigator, CardStyleInterpolators } from '@react-navigation/stack';
 import { COLORS } from '../theme';
 import {
   BorrowInputScreen,
@@ -21,7 +21,12 @@ export default function BorrowNavigator(): React.JSX.Element {
       screenOptions={{
         headerShown: false,
         cardStyle: { backgroundColor: COLORS.DARK_BG },
-        gestureEnabled: false, // Disable gestures during borrow flow
+        gestureEnabled: false,
+        cardStyleInterpolator: CardStyleInterpolators.forNoAnimation,
+        transitionSpec: {
+          open: { animation: 'timing', config: { duration: 0 } },
+          close: { animation: 'timing', config: { duration: 0 } },
+        },
       }}
     >
       <Stack.Screen name="BorrowInput" component={BorrowInputScreen} />

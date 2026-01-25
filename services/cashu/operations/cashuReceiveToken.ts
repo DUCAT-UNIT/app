@@ -17,7 +17,6 @@ import {
   isP2PKLocked,
   getP2PKRecipient,
   findAccountForP2PKToken,
-  getP2PKPrivateKey,
   signP2PKProofs,
 } from '../p2pk';
 import { getCurrentAccount } from '../../secureStorageService';
@@ -111,7 +110,8 @@ export const receiveToken = async (tokenString: string): Promise<ReceiveTokenRes
       message: hasP2PKProofs ? 'Token contains P2PK locked proofs' : 'Regular token (no P2PK)',
     });
 
-    // If P2PK locked, verify token belongs to current account
+    // If P2PK locked, verify token belongs to current account and get the private key
+    let p2pkPrivateKey: string | null = null;
     if (hasP2PKProofs) {
       logger.info('⚠️ P2PK token detected, verifying account ownership');
 
@@ -134,8 +134,7 @@ export const receiveToken = async (tokenString: string): Promise<ReceiveTokenRes
         const currentAccountIndex = await getCurrentAccount();
         logger.info(`[P2PK TOKEN] 📍 Current account index: ${currentAccountIndex}`);
 
-        // Find which account owns this pubkey
-        // Use dynamic scan range based on current account
+        // Find which account owns this pubkey - this also returns the correct private key
         const accountMatch = await findAccountForP2PKToken(recipientPubkey);
 
         if (!accountMatch) {
@@ -152,36 +151,27 @@ export const receiveToken = async (tokenString: string): Promise<ReceiveTokenRes
         }
 
         logger.info('✅ P2PK token verified for current account', { accountIndex: currentAccountIndex });
+
+        // Use the private key from accountMatch - this is the correct key for this specific token
+        p2pkPrivateKey = accountMatch.privateKey;
+        logger.info('[P2PK TOKEN] 🔑 Using private key from account match (not cached key)', {
+          privateKeyFirst8: accountMatch.privateKey?.substring(0, 8) + '...',
+          privateKeyLength: accountMatch.privateKey?.length,
+          expectedPubkey: recipientPubkey?.substring(0, 16) + '...',
+        });
       } else {
         logger.warn('⚠️ Could not extract recipient pubkey from P2PK token');
       }
     }
 
-    // Parallelize independent operations (removed spent check - swap will fail if spent)
+    // Get mint keys (P2PK private key already obtained above if needed)
     const t4 = Date.now();
-    const [keyData, privateKey] = await Promise.all([
-      // 1. Get mint keys (network call or cache)
-      (async () => {
-        const t4b = Date.now();
-        logger.info('Getting mint keys');
-        const result = await getOrFetchKeys();
-        logger.info('[PERF] getOrFetchKeys took', { durationMs: Date.now() - t4b });
-        return result;
-      })(),
+    logger.info('Getting mint keys');
+    const keyData = await getOrFetchKeys();
+    logger.info('[PERF] getOrFetchKeys took', { durationMs: Date.now() - t4 });
 
-      // 2. Get private key if P2PK (only if needed)
-      hasP2PKProofs ? (async () => {
-        const t4c = Date.now();
-        logger.info('P2PK locked proofs detected, getting private key');
-
-        // Get cached taproot address and private key
-        const p2pkKey = await getP2PKPrivateKey();
-
-        logger.info('[PERF] getP2PKPrivateKey took', { durationMs: Date.now() - t4c });
-        return p2pkKey;
-      })() : null
-    ]);
-    logger.info('[PERF] Parallel operations (getKeys + deriveKey) took', { durationMs: Date.now() - t4 });
+    // Use the private key we got from findAccountForP2PKToken
+    const privateKey = p2pkPrivateKey;
 
     // Extract keys from keyData
     let keys: Record<string, string>;
@@ -201,7 +191,13 @@ export const receiveToken = async (tokenString: string): Promise<ReceiveTokenRes
     // If P2PK locked, sign them with the private key we already got
     if (hasP2PKProofs && privateKey) {
       const t5 = Date.now();
-      logger.info('Signing P2PK proofs');
+      logger.info('[P2PK TOKEN] 🔑 About to sign proofs with privateKey:', {
+        privateKeyFirst8: privateKey.substring(0, 8) + '...',
+        privateKeyLength: privateKey.length,
+        p2pkPrivateKeyFirst8: p2pkPrivateKey?.substring(0, 8) + '...',
+        p2pkPrivateKeyLength: p2pkPrivateKey?.length,
+        keysMatch: privateKey === p2pkPrivateKey,
+      });
       proofsToSwap = await signP2PKProofs(proofs, privateKey);
       logger.info('[PERF] P2PK signing took', { durationMs: Date.now() - t5 });
     }

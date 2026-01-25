@@ -7,6 +7,7 @@ import { useCallback, useRef, useEffect, useState } from 'react';
 import { useBorrowStore } from '../stores/borrowStore';
 import { useWallet } from '../contexts/WalletContext';
 import { usePrice } from '../stores/priceStore';
+import { useVaultData } from '../contexts/WalletDataContext';
 import { getGuardianClient, disconnectGuardian } from '../services/guardianService';
 import { usePendingVaultTransactionStore } from '../stores/pendingVaultTransactionStore';
 import { useNotificationStore } from '../stores/notificationStore';
@@ -48,6 +49,7 @@ export interface UseBorrowVaultResult {
 export function useBorrowVault(): UseBorrowVaultResult {
   const { wallet } = useWallet();
   const { btcPrice } = usePrice();
+  const { vaultData: contextVaultData } = useVaultData();
 
   // Use individual selectors for reactive state
   const borrowAmount = useBorrowStore((state) => state.borrowAmount);
@@ -90,7 +92,7 @@ export function useBorrowVault(): UseBorrowVaultResult {
   );
 
   /**
-   * Load current vault data from the validator API
+   * Load current vault data from context (already fetched by WalletDataContext)
    */
   const loadVaultData = useCallback(async (): Promise<boolean> => {
     if (!wallet?.taprootPubkey) {
@@ -98,39 +100,27 @@ export function useBorrowVault(): UseBorrowVaultResult {
       return false;
     }
 
-    try {
-      setLoading(true);
-      logger.debug('[useBorrowVault] Loading vault data...');
-
-      const vaultData = await fetchVaultData(wallet.taprootPubkey);
-
-      if (!vaultData) {
-        setError('No vault found. Please create a vault first.');
-        return false;
-      }
-
-      const unitBorrowed = vaultData.totalDebt || 0;
-      const btcLocked = vaultData.totalCollateral || 0;
-
-      setCurrentVaultData(unitBorrowed, btcLocked);
-      setVaultDataLoaded(true);
-
-      logger.debug('[useBorrowVault] Vault data loaded:', {
-        unitBorrowed,
-        btcLocked,
-        vaultId: vaultData.vaultId,
-      });
-
-      return true;
-    } catch (err) {
-      const errorMessage = err instanceof Error ? err.message : 'Failed to load vault data';
-      logger.error('[useBorrowVault] Error loading vault data:', { error: errorMessage });
-      setError(errorMessage);
+    // Use vault data from context - no API call needed
+    if (!contextVaultData) {
+      setError('No vault found. Please create a vault first.');
       return false;
-    } finally {
-      setLoading(false);
     }
-  }, [wallet?.taprootPubkey, setLoading, setError, setCurrentVaultData]);
+
+    // Convert from API units to display units
+    const unitBorrowed = contextVaultData.totalDebt || 0;
+    const btcLocked = contextVaultData.totalCollateral || 0;
+
+    setCurrentVaultData(unitBorrowed, btcLocked);
+    setVaultDataLoaded(true);
+
+    logger.debug('[useBorrowVault] Vault data synced from context:', {
+      unitBorrowed,
+      btcLocked,
+      vaultId: contextVaultData.vaultId,
+    });
+
+    return true;
+  }, [wallet?.taprootPubkey, contextVaultData, setError, setCurrentVaultData]);
 
   /**
    * Build VaultProfile from current vault data

@@ -141,6 +141,14 @@ export const VaultHealthChartView = memo(function VaultHealthChartView({
     return null;
   }, [referenceLines, xScale]);
 
+  // Clamp X to drawable chart area (accounting for scrubber circle radius of 6px)
+  const clampX = useCallback((rawX: number): number => {
+    const circleRadius = 6;
+    const minX = padding.left + circleRadius;
+    const maxX = chartWidth - padding.right - circleRadius;
+    return Math.max(minX, Math.min(rawX, maxX));
+  }, [padding.left, chartWidth, padding.right]);
+
   // Pan responder for scrubbing
   const panResponder = useMemo(() => PanResponder.create({
     onStartShouldSetPanResponder: () => true,
@@ -152,14 +160,16 @@ export const VaultHealthChartView = memo(function VaultHealthChartView({
       setLockedRefLineIndex(null);
       setLockedScrubData({ health: null, x: null, timestamp: null });
 
-      const x = evt.nativeEvent.locationX;
+      const rawX = evt.nativeEvent.locationX;
+      const x = clampX(rawX);
       setScrubData({ health: getHealthAtX(x), x, timestamp: getTimestampAtX(x) });
       const refLineIdx = findNearbyRefLine(x);
       setHoveredRefLineIndex(refLineIdx);
       onHighlightEvent?.(refLineIdx !== null && referenceLines[refLineIdx] ? referenceLines[refLineIdx].date : null);
     },
     onPanResponderMove: (evt: GestureResponderEvent) => {
-      const x = evt.nativeEvent.locationX;
+      const rawX = evt.nativeEvent.locationX;
+      const x = clampX(rawX);
       setScrubData({ health: getHealthAtX(x), x, timestamp: getTimestampAtX(x) });
       const refLineIdx = findNearbyRefLine(x);
       setHoveredRefLineIndex(refLineIdx);
@@ -190,7 +200,7 @@ export const VaultHealthChartView = memo(function VaultHealthChartView({
       setScrubData({ health: null, x: null, timestamp: null });
       setHoveredRefLineIndex(null);
     },
-  }), [getHealthAtX, getTimestampAtX, findNearbyRefLine, referenceLines, onHighlightEvent, onLockFilter, onScrollEnable, hoveredRefLineIndex, xScale]);
+  }), [getHealthAtX, getTimestampAtX, findNearbyRefLine, referenceLines, onHighlightEvent, onLockFilter, onScrollEnable, hoveredRefLineIndex, xScale, clampX]);
 
   // Active reference line
   const activeRefLineIndex = hoveredRefLineIndex ?? lockedRefLineIndex;
@@ -206,9 +216,13 @@ export const VaultHealthChartView = memo(function VaultHealthChartView({
   const activeScrubHealth = scrubData.health ?? lockedScrubData.health;
   const activeScrubTimestamp = scrubData.timestamp ?? lockedScrubData.timestamp;
 
-  // Format timestamp for display
+  // DEBUG: Log scrub state
+  console.log('[VaultHealthChart] activeScrubTimestamp:', activeScrubTimestamp, 'lineData.length:', lineData.length);
+
+  // Format timestamp for display (timestamp is in milliseconds from series data)
   const formatScrubDate = (timestamp: number | null): string | null => {
     if (timestamp === null) return null;
+    // Series dates are already in milliseconds
     const date = new Date(timestamp);
     const now = new Date();
     const isToday = date.toDateString() === now.toDateString();
@@ -336,32 +350,30 @@ export const VaultHealthChartView = memo(function VaultHealthChartView({
 
           {/* Scrubber */}
           {activeScrubX !== null && activeScrubHealth !== null && (() => {
-            // Clamp scrubber position to chart bounds, accounting for circle radius (6px)
             const circleRadius = 6;
-            const minX = padding.left + circleRadius;
-            const maxX = chartWidth - padding.right - circleRadius;
-            const clampedX = Math.max(minX, Math.min(activeScrubX, maxX));
             const scrubberY = yScale(activeScrubHealth);
-            const minY = padding.top + circleRadius;
-            const maxY = chartHeight - padding.bottom - circleRadius;
-            const clampedY = Math.max(minY, Math.min(scrubberY, maxY));
+            const clampedY = Math.max(padding.top, Math.min(scrubberY, chartHeight - padding.bottom));
             return (
               <G>
-                <Line x1={clampedX} x2={clampedX} y1={clampedY + circleRadius} y2={chartHeight - padding.bottom} stroke={healthColor} strokeWidth={1} />
-                <Circle cx={clampedX} cy={clampedY} r={circleRadius} fill={healthColor} />
-                <Circle cx={clampedX} cy={clampedY} r={3} fill="#fff" />
+                <Line x1={activeScrubX} x2={activeScrubX} y1={clampedY + circleRadius} y2={chartHeight - padding.bottom} stroke={healthColor} strokeWidth={1} />
+                <Circle cx={activeScrubX} cy={clampedY} r={circleRadius} fill={healthColor} />
+                <Circle cx={activeScrubX} cy={clampedY} r={3} fill="#fff" />
               </G>
             );
           })()}
         </Svg>
       </View>
 
-      {/* Date/time display when scrubbing */}
-      {activeScrubTimestamp !== null && (
-        <View style={styles.scrubDateContainer}>
-          <Text style={styles.scrubDateText}>{formatScrubDate(activeScrubTimestamp)}</Text>
-        </View>
-      )}
+      {/* Date/time display */}
+      <View style={[styles.scrubDateContainer, { backgroundColor: 'rgba(255,0,0,0.1)' }]}>
+        <Text style={[styles.scrubDateText, { color: '#FFFFFF' }]}>
+          {activeScrubTimestamp !== null
+            ? formatScrubDate(activeScrubTimestamp)
+            : (lineData.length > 0
+                ? formatScrubDate(lineData[lineData.length - 1].date)
+                : 'TEST DATE')}
+        </Text>
+      </View>
 
       {/* Timeframe buttons */}
       <View style={styles.timeframeButtons}>

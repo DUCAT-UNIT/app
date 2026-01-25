@@ -94,6 +94,7 @@ export default function ConfirmationScreen({ navigation, route }: ConfirmationSc
   useCashuMintCompletion({
     cashuMint,
     quoteId,
+    mintAmount,
     fetchTransactionHistory,
     refreshCashuBalance,
   });
@@ -501,17 +502,19 @@ export default function ConfirmationScreen({ navigation, route }: ConfirmationSc
         )}
       </View>
 
-      {/* Done Button - Fixed at bottom */}
-      <View style={styles.footer}>
-        <TouchableOpacity
-          style={styles.doneButton}
-          onPress={handleDone}
-          activeOpacity={0.7}
-          testID="confirmation-done-btn"
-        >
-          <Text style={styles.doneButtonText}>Done</Text>
-        </TouchableOpacity>
-      </View>
+      {/* Done Button - Fixed at bottom, only show when ready */}
+      {processingStage === 'ready' && (
+        <View style={styles.footer}>
+          <TouchableOpacity
+            style={styles.doneButton}
+            onPress={handleDone}
+            activeOpacity={0.7}
+            testID="confirmation-done-btn"
+          >
+            <Text style={styles.doneButtonText}>Done</Text>
+          </TouchableOpacity>
+        </View>
+      )}
     </View>
   );
 

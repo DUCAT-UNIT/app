@@ -4,6 +4,7 @@ import * as Clipboard from 'expo-clipboard';
 import { getTxUrl } from '../utils/constants';
 import { logger } from '../utils/logger';
 import { notify } from '../utils/notify';
+import { useSendFlowStore } from '../stores/sendFlowStore';
 
 interface NavigationWithParent {
   getParent: () => { goBack: () => void } | undefined;
@@ -82,18 +83,23 @@ export function useConfirmationHandlers({
     }
   }, [turboDeeplink]);
 
+  const resetSendFlow = useSendFlowStore((state) => state.resetSendFlow);
+
   const handleDone = useCallback(() => {
     // Refresh transaction history one more time before closing
     if (fetchTransactionHistory) {
       fetchTransactionHistory();
     }
 
+    // Reset the send flow state to clean up for next transaction
+    resetSendFlow();
+
     // Dismiss the send flow modal
     // Add a small delay to allow the fetch to start
     setTimeout(() => {
       navigation.getParent()?.goBack();
     }, 100);
-  }, [fetchTransactionHistory, navigation]);
+  }, [fetchTransactionHistory, navigation, resetSendFlow]);
 
   return {
     handleViewExplorer,

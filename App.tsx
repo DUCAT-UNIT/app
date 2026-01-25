@@ -109,7 +109,7 @@ function sanitizeObject<T>(obj: T, depth = 0): T {
 Sentry.init({
   dsn: process.env.EXPO_PUBLIC_SENTRY_DSN,
   environment: __DEV__ ? 'development' : 'production',
-  enabled: true, // TEMPORARILY enabled in dev to test
+  enabled: false, // Disabled - no data sent to Sentry
   tracesSampleRate: 1.0, // Capture 100% of transactions for performance monitoring
 
   beforeSend(event, _hint) {

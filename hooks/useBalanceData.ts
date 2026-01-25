@@ -7,7 +7,8 @@
 import { useState, useCallback, useMemo, useRef, useEffect, Dispatch, SetStateAction } from 'react';
 import { fetchWalletBalances, fetchUtxos as fetchUtxosService, RuneBalance, UTXO } from '../services/balanceService';
 import type { WalletAddresses } from '../contexts/WalletContext';
-import type { UnconfirmedBalance } from '../utils/pendingTransactionsUtils';
+import type { UnconfirmedBalance, UnconfirmedUTXO } from '../utils/pendingTransactionsUtils';
+import { logger } from '../utils/logger';
 
 export type { UnconfirmedBalance };
 
@@ -47,7 +48,8 @@ export interface UseBalanceDataReturn {
 
 export function useBalanceData(
   wallet: WalletAddresses | null,
-  getUnconfirmedBalance: (type: 'segwit' | 'taproot') => UnconfirmedBalance
+  getUnconfirmedBalance: (type: 'segwit' | 'taproot') => UnconfirmedBalance,
+  getUnconfirmedUTXOs?: (type: 'segwit' | 'taproot') => UnconfirmedUTXO[]
 ): UseBalanceDataReturn {
   // Balance state
   const [segwitBalance, setSegwitBalance] = useState(0);
@@ -115,18 +117,70 @@ export function useBalanceData(
         }
 
         // Also fetch unconfirmed balances from pending transactions
-        const unconfirmedSegwit = getUnconfirmedBalance('segwit');
-        const unconfirmedTaproot = getUnconfirmedBalance('taproot');
-        setUnconfirmedSegwitBalance(unconfirmedSegwit.btc);
-        setUnconfirmedTaprootBalance(unconfirmedTaproot.btc);
-        setUnconfirmedRunesBalance(unconfirmedTaproot.runes);
+        // But we need to filter out UTXOs that have already confirmed to avoid double-counting
+        if (getUnconfirmedUTXOs) {
+          // Fetch confirmed UTXOs for both addresses to check for overlap
+          const [confirmedSegwitUtxos, confirmedTaprootUtxos] = await Promise.all([
+            fetchUtxosService(segwitAddress),
+            fetchUtxosService(taprootAddress),
+          ]);
+          const confirmedSegwitKeys = new Set(confirmedSegwitUtxos.map(u => `${u.txid}:${u.vout}`));
+          const confirmedTaprootKeys = new Set(confirmedTaprootUtxos.map(u => `${u.txid}:${u.vout}`));
+
+          // Get unconfirmed UTXOs and filter out any that are already confirmed
+          const unconfirmedSegwitUtxos = getUnconfirmedUTXOs('segwit');
+          const unconfirmedTaprootUtxos = getUnconfirmedUTXOs('taproot');
+
+          const filteredSegwitUtxos = unconfirmedSegwitUtxos.filter(u => {
+            const key = `${u.txid}:${u.vout}`;
+            const isConfirmed = confirmedSegwitKeys.has(key);
+            if (isConfirmed) {
+              logger.info('[useBalanceData] Filtering out already-confirmed segwit UTXO:', { key, value: u.value });
+            }
+            return !isConfirmed;
+          });
+
+          const filteredTaprootUtxos = unconfirmedTaprootUtxos.filter(u => {
+            const key = `${u.txid}:${u.vout}`;
+            const isConfirmed = confirmedTaprootKeys.has(key);
+            if (isConfirmed) {
+              logger.info('[useBalanceData] Filtering out already-confirmed taproot UTXO:', { key, value: u.value, runeAmount: u.runeAmount });
+            }
+            return !isConfirmed;
+          });
+
+          // Calculate filtered unconfirmed balance
+          const filteredSegwitBtc = filteredSegwitUtxos.reduce((sum, u) => sum + (u.value || 0), 0) / 100000000;
+          const filteredTaprootBtc = filteredTaprootUtxos.reduce((sum, u) => sum + (u.value || 0), 0) / 100000000;
+          const filteredRunesBalance = filteredTaprootUtxos.reduce((sum, u) => sum + (u.runeAmount || 0), 0) / 100;
+
+          logger.info('[useBalanceData] Unconfirmed balance after filtering:', {
+            segwitBefore: getUnconfirmedBalance('segwit').btc,
+            segwitAfter: filteredSegwitBtc,
+            segwitFiltered: unconfirmedSegwitUtxos.length - filteredSegwitUtxos.length,
+            taprootBefore: getUnconfirmedBalance('taproot').btc,
+            taprootAfter: filteredTaprootBtc,
+            taprootFiltered: unconfirmedTaprootUtxos.length - filteredTaprootUtxos.length,
+          });
+
+          setUnconfirmedSegwitBalance(filteredSegwitBtc);
+          setUnconfirmedTaprootBalance(filteredTaprootBtc);
+          setUnconfirmedRunesBalance(filteredRunesBalance);
+        } else {
+          // Fallback to old behavior if getUnconfirmedUTXOs not provided
+          const unconfirmedSegwit = getUnconfirmedBalance('segwit');
+          const unconfirmedTaproot = getUnconfirmedBalance('taproot');
+          setUnconfirmedSegwitBalance(unconfirmedSegwit.btc);
+          setUnconfirmedTaprootBalance(unconfirmedTaproot.btc);
+          setUnconfirmedRunesBalance(unconfirmedTaproot.runes);
+        }
       } catch (error: unknown) {
         setBalanceError('Failed to fetch balance. Tap to retry.');
       } finally {
         setLoadingBalance(false);
       }
     },
-    [wallet, getUnconfirmedBalance]
+    [wallet, getUnconfirmedBalance, getUnconfirmedUTXOs]
   );
 
   // Refresh balances (pull-to-refresh)

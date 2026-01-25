@@ -4,9 +4,11 @@
  */
 
 import React, { createRef, useCallback, useEffect, useRef } from 'react';
-import { View, StyleSheet, ActivityIndicator, Text, Keyboard } from 'react-native';
+import { View, StyleSheet, ActivityIndicator, Text, Keyboard, Alert } from 'react-native';
+import * as LocalAuthentication from 'expo-local-authentication';
+import * as SecureStore from 'expo-secure-store';
 import { NavigationContainer, NavigationContainerRef, Route } from '@react-navigation/native';
-import { createStackNavigator } from '@react-navigation/stack';
+import { createStackNavigator, CardStyleInterpolators, StackNavigationOptions } from '@react-navigation/stack';
 import AuthStack from './AuthStack';
 import MainTabs from './MainTabs';
 import SendNavigator from './SendNavigator';
@@ -35,6 +37,7 @@ import { useCashu } from '../contexts/CashuContext';
 import { useAirdrop } from '../contexts/AirdropContext';
 
 import { createLinkingConfig } from '../services/turbo/turboLinkingConfig';
+import { SECURE_KEYS } from '../utils/constants';
 import { useTurboTokenProcessor } from '../hooks/useTurboTokenProcessor';
 import { useTurboSnackbarQueue } from '../hooks/useTurboSnackbarQueue';
 import { useTurboProcessingStore } from '../stores/turboProcessingStore';
@@ -47,6 +50,15 @@ import type { LogContext } from '../types';
 type AnyComponent = React.ComponentType<any>;
 
 const Stack = createStackNavigator<RootNavigatorParamList>();
+
+// No animation options for instant screen transitions
+const noAnimationOptions: StackNavigationOptions = {
+  cardStyleInterpolator: CardStyleInterpolators.forNoAnimation,
+  transitionSpec: {
+    open: { animation: 'timing', config: { duration: 0 } },
+    close: { animation: 'timing', config: { duration: 0 } },
+  },
+};
 
 // Wrap PIN setup screen with error boundary
 const PinSetupScreen: AnyComponent = withErrorBoundary(PinSetupScreenComponent, {
@@ -79,7 +91,7 @@ export default function RootNavigator(): React.JSX.Element {
     isAuthenticated,
     biometricEnabled,
     setIsAuthenticated,
-    authenticateUser,
+    setBiometricEnabled,
   } = useAuth();
   const { wallet, switchAccount } = useWallet();
   const { seedConfirmedRef } = useOnboardingFlow();
@@ -118,22 +130,43 @@ export default function RootNavigator(): React.JSX.Element {
   // Check for pending turbo transaction and navigate to resume
   const pendingTurboChecked = useRef(false);
   const turboIsProcessing = useTurboProcessingStore((state) => state.isProcessing);
+  const loadPersistedState = useTurboProcessingStore((state) => state.loadPersistedState);
 
   useEffect(() => {
     if (pendingTurboChecked.current) return;
     if (!isAuthenticated || shouldShowAuth || shouldShowPinOverlay || shouldShowLockOverlay) return;
-    if (!turboIsProcessing) return;
 
-    pendingTurboChecked.current = true;
+    // Load persisted state first, then check if we need to resume
+    const checkAndResume = async () => {
+      // Load persisted state from AsyncStorage if not already loaded
+      const persistedState = await loadPersistedState();
 
-    // Navigate to TurboProcessing after a short delay to ensure navigation is ready
-    const timer = setTimeout(() => {
-      logger.info('[RootNavigator] Resuming pending turbo transaction');
-      navigationRef.current?.navigate('SendFlow', { screen: 'TurboProcessing' });
-    }, 500);
+      if (persistedState && persistedState.isProcessing) {
+        pendingTurboChecked.current = true;
 
-    return () => clearTimeout(timer);
-  }, [isAuthenticated, shouldShowAuth, shouldShowPinOverlay, shouldShowLockOverlay, turboIsProcessing]);
+        // Also restore the send flow state
+        const { useSendFlowStore: sendStore } = await import('../stores/sendFlowStore');
+        sendStore.getState().setSendAmount(persistedState.sendAmount);
+        sendStore.getState().setSendRecipient(persistedState.sendRecipient);
+        sendStore.getState().setSendAssetType('unit');
+        sendStore.getState().setTurboEnabled(true);
+
+        // Navigate to TurboProcessing after a short delay to ensure navigation is ready
+        setTimeout(() => {
+          logger.info('[RootNavigator] Resuming pending turbo transaction', {
+            amount: persistedState.sendAmount,
+            recipient: persistedState.sendRecipient,
+          });
+          navigationRef.current?.navigate('SendFlow', { screen: 'TurboProcessing' });
+        }, 500);
+      } else {
+        // No pending transaction, mark as checked
+        pendingTurboChecked.current = true;
+      }
+    };
+
+    checkAndResume();
+  }, [isAuthenticated, shouldShowAuth, shouldShowPinOverlay, shouldShowLockOverlay, loadPersistedState]);
 
   // Get handlers from context (needed for handleLock)
   const {
@@ -178,9 +211,58 @@ export default function RootNavigator(): React.JSX.Element {
     setIsAuthenticated(false);
   }, [setIsAuthenticated, dismissSnackbar, hidePasskeyMigrationPrompt, hideBiometricSetupPrompt, setShowAirdropModal]);
 
-  const handleAuthenticateUser = useCallback(async () => {
-    await authenticateUser();
-  }, [authenticateUser]);
+  // Handle biometric authentication with proper post-auth flow
+  const handleBiometricAuth = useCallback(async () => {
+    logger.debug('[RootNavigator] handleBiometricAuth called', { biometricEnabled, isBiometricSupported });
+    try {
+      if (biometricEnabled) {
+        // Biometrics enabled - authenticate directly
+        const result = await LocalAuthentication.authenticateAsync({
+          promptMessage: 'Authenticate to unlock wallet',
+          fallbackLabel: 'Use PIN',
+          disableDeviceFallback: true,
+        });
+
+        if (result.success) {
+          setIsAuthenticated(true);
+          handleLockScreenAuthenticatedWrapper();
+        }
+      } else {
+        // Biometrics not enabled - ask user if they want to enable
+        Alert.alert(
+          'Enable Face ID',
+          'Would you like to enable Face ID for faster login?',
+          [
+            {
+              text: 'Not Now',
+              style: 'cancel',
+            },
+            {
+              text: 'Enable',
+              onPress: async () => {
+                // Try to authenticate with biometrics
+                const result = await LocalAuthentication.authenticateAsync({
+                  promptMessage: 'Authenticate to enable Face ID',
+                  fallbackLabel: 'Cancel',
+                  disableDeviceFallback: true,
+                });
+
+                if (result.success) {
+                  // Save biometric preference and complete auth
+                  await SecureStore.setItemAsync(SECURE_KEYS.BIOMETRIC_ENABLED, 'true');
+                  setBiometricEnabled(true);
+                  setIsAuthenticated(true);
+                  handleLockScreenAuthenticatedWrapper();
+                }
+              },
+            },
+          ]
+        );
+      }
+    } catch (error) {
+      logger.error('[RootNavigator] Biometric auth error:', { error: error instanceof Error ? error.message : String(error) });
+    }
+  }, [biometricEnabled, isBiometricSupported, setIsAuthenticated, setBiometricEnabled, handleLockScreenAuthenticatedWrapper]);
 
   // Set up app lifecycle (inactivity timer, app state changes)
   const { resetInactivityTimer } = useAppLifecycle({
@@ -190,7 +272,7 @@ export default function RootNavigator(): React.JSX.Element {
     isBiometricSupported,
     biometricEnabled,
     onLock: handleLock,
-    onAuthenticateUser: handleAuthenticateUser,
+    onAuthenticateUser: handleBiometricAuth,
   });
 
 
@@ -241,10 +323,26 @@ export default function RootNavigator(): React.JSX.Element {
                   presentation: 'modal',
                 }}
               />
-              <Stack.Screen name="BorrowFlow" component={BorrowNavigator} />
-              <Stack.Screen name="DepositFlow" component={DepositNavigator} />
-              <Stack.Screen name="RepayFlow" component={RepayNavigator} />
-              <Stack.Screen name="WithdrawFlow" component={WithdrawNavigator} />
+              <Stack.Screen
+                name="BorrowFlow"
+                component={BorrowNavigator}
+                options={noAnimationOptions}
+              />
+              <Stack.Screen
+                name="DepositFlow"
+                component={DepositNavigator}
+                options={noAnimationOptions}
+              />
+              <Stack.Screen
+                name="RepayFlow"
+                component={RepayNavigator}
+                options={noAnimationOptions}
+              />
+              <Stack.Screen
+                name="WithdrawFlow"
+                component={WithdrawNavigator}
+                options={noAnimationOptions}
+              />
             </React.Fragment>
           )}
         </Stack.Navigator>
@@ -271,8 +369,8 @@ export default function RootNavigator(): React.JSX.Element {
             <MutinynetBanner />
             <LockScreen
               onAuthenticated={handleLockScreenAuthenticatedWrapper}
-              showFaceIdButton={biometricEnabled && isBiometricSupported}
-              onFaceIdPress={handleAuthenticateUser}
+              showFaceIdButton={isBiometricSupported}
+              onFaceIdPress={handleBiometricAuth}
             />
           </View>
         )}

@@ -192,7 +192,24 @@ export const createLinkingConfig = (): LinkingOptions<object> => ({
     // Initialize processed tokens storage
     initializeTokenStorage();
 
-    // Listen for URL events
+    // Check for initial URL (cold start from deep link)
+    logger.debug('[TURBO] Checking for initial URL');
+    Linking.getInitialURL().then((initialUrl) => {
+      if (initialUrl) {
+        logger.debug('[TURBO] Initial URL found:', { urlPreview: initialUrl?.substring(0, 100) });
+        if (initialUrl.includes('ducat://turbo/') || initialUrl.includes('unit?')) {
+          processUrlAndStoreToken(initialUrl).catch((error) => {
+            logger.error('[TURBO] Failed to process initial URL:', { error: error instanceof Error ? error.message : String(error) });
+          });
+        }
+      } else {
+        logger.debug('[TURBO] No initial URL');
+      }
+    }).catch((error) => {
+      logger.error('[TURBO] Failed to get initial URL:', { error: error instanceof Error ? error.message : String(error) });
+    });
+
+    // Listen for URL events (app already open)
     logger.debug('[TURBO] Registering URL listener');
     const urlSubscription = Linking.addEventListener('url', onReceiveURL);
 

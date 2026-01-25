@@ -4,6 +4,7 @@
  */
 
 import { getAddressUtxoUrl } from '../utils/constants';
+import { logger } from '../utils/logger';
 
 // Transaction size calculation constants
 const BASE_TX_SIZE = 10;
@@ -73,11 +74,21 @@ export const calculateMaxSendableBTC = async ({
   feeRate = DEFAULT_FEE_RATE,
 }: MaxSendableParams): Promise<number> => {
   try {
+    logger.info('[calculateMaxSendableBTC] Starting calculation:', {
+      sourceAddress: sourceAddress?.slice(0, 15) + '...',
+      btcBalance,
+      btcBalanceInSats: Math.round(btcBalance * 100000000),
+      feeRate,
+    });
+
     if (!sourceAddress) {
       // Fallback: use balance-based estimation
       const estimatedFee = 250; // Conservative estimate in sats
       const btcBalanceInSats = Math.round(btcBalance * 100000000);
       const maxSendable = Math.max(0, btcBalanceInSats - estimatedFee);
+      logger.info('[calculateMaxSendableBTC] No source address, using balance fallback:', {
+        maxSendable: maxSendable / 100000000,
+      });
       return maxSendable / 100000000; // Convert back to BTC
     }
 
@@ -88,19 +99,37 @@ export const calculateMaxSendableBTC = async ({
     const totalInputValue = confirmedUtxos.reduce((sum, utxo) => sum + utxo.value, 0);
     const numInputsNeeded = confirmedUtxos.length;
 
+    logger.info('[calculateMaxSendableBTC] Confirmed UTXOs only (no unconfirmed!):', {
+      confirmedCount: confirmedUtxos.length,
+      totalInputValue,
+      btcBalanceProvided: Math.round(btcBalance * 100000000),
+      difference: Math.round(btcBalance * 100000000) - totalInputValue,
+    });
+
     // When sending MAX, there's only 1 output (recipient), no change
     // Calculate fee for all inputs and 1 output
     const estimatedFee = calculateTransactionFee(numInputsNeeded, 1, feeRate);
     const actualMaxSendable = totalInputValue - estimatedFee;
 
+    logger.info('[calculateMaxSendableBTC] Result:', {
+      totalInputValue,
+      estimatedFee,
+      actualMaxSendable,
+      actualMaxSendableBTC: actualMaxSendable / 100000000,
+    });
+
     // Ensure we're above dust limit
     if (actualMaxSendable < DUST_LIMIT) {
+      logger.warn('[calculateMaxSendableBTC] Below dust limit, returning 0');
       return 0;
     }
 
     return actualMaxSendable / 100000000; // Convert to BTC
   } catch (error: unknown) {
     // Fallback on error: use balance-based estimation
+    logger.error(error instanceof Error ? error : new Error(String(error)), {
+      context: 'calculateMaxSendableBTC fallback',
+    });
     const estimatedFee = 250; // Conservative estimate in sats
     const btcBalanceInSats = Math.round(btcBalance * 100000000);
     const maxSendable = Math.max(0, btcBalanceInSats - estimatedFee);

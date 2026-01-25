@@ -12,7 +12,6 @@ import { useNavigationHandlers } from '../contexts/NavigationHandlersContext';
 import { useBalance, useTransactionHistory } from '../contexts/WalletDataContext';
 import { useNotifications } from '../stores/notificationStore';
 import { useKeyboard } from '../hooks/useKeyboard';
-import styles from '../styles';
 
 import type { AuthStackParamList } from './types';
 
@@ -66,7 +65,6 @@ export default function AuthStack(): React.JSX.Element {
             handleCancelPinChange={handleCancelPinChange}
             handleLockScreenAuthenticatedWrapper={handleLockScreenAuthenticatedWrapper}
             keyboardHeight={keyboardHeight}
-            styles={styles}
           />
         )}
       </Stack.Screen>

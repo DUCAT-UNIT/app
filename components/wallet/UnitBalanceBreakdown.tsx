@@ -1,6 +1,6 @@
 /**
  * UnitBalanceBreakdown Component
- * Displays breakdown of UNIT balance between E-UNIT (e-cash) and UNIT (runes)
+ * Displays breakdown of UNIT balance between tUNIT (turbo/ecash) and UNIT (runes)
  * with a visual progress bar
  * Uses responsive scaling with s() and sf() functions
  */
@@ -101,7 +101,7 @@ const UnitBalanceBreakdown = memo(function UnitBalanceBreakdown({ ecashBalance, 
           }}>onchain</Text>
         </View>
 
-        {/* E-UNIT (E-cash) - right aligned position, left aligned text */}
+        {/* tUNIT (turbo) - right aligned position, left aligned text */}
         <View style={{ alignItems: 'flex-start' }}>
           <View style={{
             flexDirection: 'row',
@@ -120,7 +120,7 @@ const UnitBalanceBreakdown = memo(function UnitBalanceBreakdown({ ecashBalance, 
               fontWeight: '500',
               color: COLORS.WHITE,
             }}>
-              {formattedEcash} eUNIT
+              {formattedEcash} tUNIT
             </Text>
           </View>
           <Text style={{
@@ -128,7 +128,7 @@ const UnitBalanceBreakdown = memo(function UnitBalanceBreakdown({ ecashBalance, 
             fontWeight: '400',
             color: COLORS.SECONDARY_TEXT,
             marginLeft: s(10),
-          }}>ecash</Text>
+          }}>turbo</Text>
         </View>
       </View>
     </View>

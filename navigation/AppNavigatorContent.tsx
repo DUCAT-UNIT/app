@@ -21,7 +21,7 @@ import Snackbar from '../components/Snackbar';
 import EcashThresholdSheet from '../components/settings/EcashThresholdSheet';
 
 // Stores
-import { useEcashThresholdSheetStore } from '../stores/ecashThresholdSheetStore';
+import { useEcashThresholdSheetStore, getThresholdSheetOnSelect } from '../stores/ecashThresholdSheetStore';
 
 // Contexts
 import { useAuth, useOnboardingFlow } from '../contexts/AuthContext';
@@ -48,8 +48,15 @@ function EcashThresholdSheetGlobal() {
   const { settingsHandlers } = useNavigationHandlers();
 
   const handleSelectThreshold = (value: number) => {
-    settingsHandlers.handleEcashThresholdChange(value);
-    hide();
+    const onSelect = getThresholdSheetOnSelect();
+    if (onSelect) {
+      // Use the hook's handleThresholdSelect which handles conversion modal logic
+      onSelect(value);
+    } else {
+      // Fallback: directly update threshold
+      settingsHandlers.handleEcashThresholdChange(value);
+      hide();
+    }
   };
 
   return (

@@ -47,7 +47,7 @@ export function useFuseEcash({
 
     Alert.alert(
       'Fuse E-cash to UNIT?',
-      `Convert all ${cashuBalance.toFixed(2)} eUNIT to on-chain UNIT?`,
+      `Convert all ${cashuBalance.toFixed(2)} tUNIT to on-chain UNIT?`,
       [
         { text: 'Cancel', style: 'cancel' },
         {

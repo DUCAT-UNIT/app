@@ -14,8 +14,9 @@ import { deriveAddressesFromMnemonic, MUTINYNET_NETWORK } from '../../../utils/b
 import { getPrivateKeyForAddress } from '../../../utils/wallet';
 
 // Cache keys for P2PK private key (cleared when account changes)
-const CACHE_KEY_ADDRESS = 'p2pk_taproot_address_v3';  // v3: now uses tweaked pubkeys
-const CACHE_KEY_PRIVKEY = 'p2pk_private_key_v3';       // v3: now uses tweaked privkeys
+// v4: Fixed BIP-341 parity handling for odd Y coordinate pubkeys
+const CACHE_KEY_ADDRESS = 'p2pk_taproot_address_v4';
+const CACHE_KEY_PRIVKEY = 'p2pk_private_key_v4';
 
 export interface AccountMatch {
   accountIndex: number;
@@ -157,22 +158,46 @@ export const findAccountForP2PKToken = async (
             accountsChecked: idx + 1,
           });
 
-          // Compute tweaked private key
+          // Compute tweaked private key (BIP-341 compliant)
+          // Important: If the internal pubkey has odd Y, we must negate the private key first
           const tweak = bitcoin.crypto.taggedHash('TapTweak', xOnlyPubkey);
-          const internalPrivkey = taprootChild.privateKey;
+          let internalPrivkey = taprootChild.privateKey;
           if (!internalPrivkey) {
             throw new Error('Failed to derive internal private key');
           }
+
+          // Check if we need to negate the internal private key
+          // This is needed when the internal pubkey has an odd Y coordinate
+          const internalPubkey = taprootChild.publicKey;
+          const hasOddY = internalPubkey[0] === 0x03; // 0x03 prefix means odd Y
+
+          if (hasOddY) {
+            // Negate the private key: negated = n - key (where n is the curve order)
+            internalPrivkey = ecc.privateNegate(internalPrivkey);
+            if (!internalPrivkey) {
+              throw new Error('Failed to negate internal private key');
+            }
+            logger.info('[P2PK KEY] Negated internal private key (odd Y coordinate)');
+          }
+
           const tweakedPrivkey = ecc.privateAdd(internalPrivkey, tweak);
           if (!tweakedPrivkey) {
             throw new Error('Failed to compute tweaked private key');
           }
           const tweakedPrivkeyHex = Buffer.from(tweakedPrivkey).toString('hex');
 
+          // Verify the tweaked private key derives back to the expected pubkey
+          const verifyPubkey = ecc.pointFromScalar(tweakedPrivkey);
+          const verifyPubkeyXOnly = verifyPubkey ? Buffer.from(verifyPubkey).slice(1).toString('hex') : 'FAILED';
+
           logger.cashu('p2pk_private_key_derived', {
             step: 'ACCOUNT_MATCH',
             accountIndex,
             privateKeyLength: tweakedPrivkeyHex?.length,
+            privateKeyFirst8: tweakedPrivkeyHex?.substring(0, 8) + '...',
+            verifyPubkeyXOnly,
+            expectedPubkey: recipientPubkey,
+            pubkeyVerified: verifyPubkeyXOnly === recipientPubkey,
             message: 'Tweaked private key derived successfully',
           });
 

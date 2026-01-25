@@ -72,6 +72,34 @@ export default function TurboProcessingScreen({ navigation }: TurboProcessingScr
 
         const amountInSmallestUnits = Math.round(parseFloat(sendAmount) * 100);
 
+        // Early balance check before attempting to create token
+        const { getBalance } = await import('../../services/cashu/cashuBalanceService');
+        const availableBalance = await getBalance();
+
+        if (availableBalance < amountInSmallestUnits) {
+          // Not enough ecash - go back and show the insufficient sheet
+          logger.warn('TurboProcessing: Insufficient ecash balance detected early', {
+            available: availableBalance,
+            required: amountInSmallestUnits,
+            shortfall: amountInSmallestUnits - availableBalance,
+          });
+
+          if (timeoutRef.current) {
+            clearTimeout(timeoutRef.current);
+          }
+          await failProcessing();
+
+          // Navigate back to amount input with params to show insufficient sheet
+          navigation.dispatch(
+            StackActions.replace('AmountInput', {
+              showInsufficientSheet: true,
+              insufficientAmount: parseFloat(sendAmount),
+              insufficientBalance: availableBalance / 100,
+            })
+          );
+          return;
+        }
+
         const { sendP2PKToken } = await import('../../services/cashu/cashuWalletService');
 
         // For P2PK, we need the tweaked output pubkey (extracted from the Taproot address)

@@ -342,6 +342,20 @@ export const fetchAllTransactionHistory = async (
 
     // Add vault transactions
     vaultHistory.forEach((vaultTx: VaultTransaction) => {
+      // Normalize action to capitalized form (API returns lowercase)
+      const normalizeAction = (action: string): string => {
+        const actionMap: Record<string, string> = {
+          open: 'Open',
+          borrow: 'Borrow',
+          repay: 'Repay',
+          deposit: 'Deposit',
+          withdraw: 'Withdraw',
+          liquidate: 'Repossess',
+          repossess: 'Repossess',
+        };
+        return actionMap[action.toLowerCase()] || action;
+      };
+
       // Create a synthetic transaction object for vault transactions
       const syntheticTx: Transaction = {
         txid: vaultTx.transaction_id || `vault-${vaultTx.timestamp}`,
@@ -351,7 +365,7 @@ export const fetchAllTransactionHistory = async (
         },
         vaultTransaction: true,
         vaultData: {
-          action: vaultTx.action,
+          action: normalizeAction(vaultTx.action),
           amountBorrowed: vaultTx.amount_borrowed,
           vaultAmount: vaultTx.vault_amount,
           btcAmount: vaultTx.btc_amt,

@@ -1,13 +1,13 @@
 {
   "webcredentials": {
     "apps": [
-      "Q8HU4KXHK4.com.anonymous.SimpleWallet"
+      "Q8HU4KXHK4.com.ducatprotocol.DucatProtocolWallet"
     ]
   },
   "applinks": {
     "details": [
       {
-        "appID": "Q8HU4KXHK4.com.anonymous.SimpleWallet",
+        "appID": "Q8HU4KXHK4.com.ducatprotocol.DucatProtocolWallet",
         "paths": ["*"]
       }
     ]

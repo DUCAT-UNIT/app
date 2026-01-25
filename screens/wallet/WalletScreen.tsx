@@ -1,5 +1,5 @@
-import React, { useCallback } from 'react';
-import { View, Text, TouchableOpacity, ScrollView, StyleSheet, ViewStyle, TextStyle } from 'react-native';
+import React, { useCallback, useState } from 'react';
+import { View, Text, TouchableOpacity, ScrollView, StyleSheet, ViewStyle, TextStyle, RefreshControl } from 'react-native';
 import * as Haptics from 'expo-haptics';
 import { useWallet } from '../../contexts/WalletContext';
 import { useBalance } from '../../contexts/WalletDataContext';
@@ -80,7 +80,7 @@ const WalletScreen = React.memo(function WalletScreen({
   const { segwitBalance, taprootBalance, runesBalance, balanceError, setBalanceError, fetchBalance } = useBalance();
   const { btcPrice } = usePrice();
   const { vaultData } = useVaultData();
-  const { balance: cashuBalance } = useCashu();
+  const { balance: cashuBalance, refresh: refreshCashu } = useCashu();
   const { showTotalInBTC, setShowTotalInBTC } = useDisplayPreferences();
 
   // Calculate all wallet-related values (business logic extracted to hook)
@@ -130,6 +130,23 @@ const WalletScreen = React.memo(function WalletScreen({
     runesBalance: getRunesAmount(runesBalance),
     btcPrice,
   });
+
+  // Pull-to-refresh state
+  const [refreshing, setRefreshing] = useState(false);
+
+  // Handle pull-to-refresh - refreshes balance and recovers any unclaimed mint quotes
+  const handleRefresh = useCallback(async () => {
+    setRefreshing(true);
+    try {
+      // Refresh balance (also triggers mint quote recovery)
+      await Promise.all([
+        fetchBalance(),
+        refreshCashu(),
+      ]);
+    } finally {
+      setRefreshing(false);
+    }
+  }, [fetchBalance, refreshCashu]);
 
   // Prevent multiple rapid clicks on create vault button
   const [creatingVault, setCreatingVault] = React.useState(false);
@@ -281,6 +298,14 @@ const WalletScreen = React.memo(function WalletScreen({
         style={styles.assetsScrollContainer}
         contentContainerStyle={{ paddingBottom: s(16) }}
         showsVerticalScrollIndicator={false}
+        refreshControl={
+          <RefreshControl
+            refreshing={refreshing}
+            onRefresh={handleRefresh}
+            tintColor={COLORS.PRIMARY_BLUE}
+            colors={[COLORS.PRIMARY_BLUE]}
+          />
+        }
       >
         {/* Vault Card */}
         <View style={{ paddingHorizontal: s(24), marginBottom: s(8) }}>

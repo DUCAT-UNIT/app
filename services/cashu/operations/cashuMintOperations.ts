@@ -14,6 +14,7 @@ import { createBlindedOutputs, unblindSignatures, splitAmount, BlindedOutput } f
 import { getOrFetchKeys } from '../cashuBalanceService';
 import { addProofs } from '../cashuProofManager';
 import { CashuProof } from '../crypto';
+import { saveMintQuote, removeMintQuote, updateMintQuoteState } from '../cashuMintQuoteRecovery';
 
 export interface MintQuoteResult {
   quoteId: string;
@@ -38,6 +39,15 @@ export const requestMint = async (amount: number): Promise<MintQuoteResult> => {
       quoteAmount: quote.amount,
       depositAddress: quote.request,
     });
+
+    // Persist the quote for recovery in case of crash
+    if (quote.amount !== undefined) {
+      await saveMintQuote({
+        quoteId: quote.quote,
+        amount: quote.amount,
+        depositAddress: quote.request,
+      });
+    }
 
     return {
       quoteId: quote.quote,
@@ -91,6 +101,9 @@ export const completeMint = async (quoteId: string, amount: number): Promise<Cas
   try {
     logger.info('Completing mint', { quoteId, amount });
 
+    // Mark quote as pending to prevent double-claim attempts
+    await updateMintQuoteState(quoteId, 'PENDING');
+
     const keyData = await getOrFetchKeys();
 
     // Extract keys from keyData
@@ -143,11 +156,16 @@ export const completeMint = async (quoteId: string, amount: number): Promise<Cas
     // Add proofs to wallet
     await addProofs(proofs);
 
+    // Remove the quote from recovery storage after successful claim
+    await removeMintQuote(quoteId);
+
     logger.info('Mint completed', { proofCount: proofs.length });
 
     return proofs;
   } catch (error: unknown) {
     logger.error('Failed to complete mint', { error: (error as Error).message });
+    // Reset state so recovery can try again
+    await updateMintQuoteState(quoteId, 'PAID');
     throw error;
   }
 };

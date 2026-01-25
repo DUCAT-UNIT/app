@@ -17,6 +17,7 @@ import { NavigationProp } from '@react-navigation/native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import TouchableScale from '../../components/common/TouchableScale';
+import { FeeRateDropdown } from '../../components/common/FeeRateSelectorCompact';
 import { VaultActionGauge, AmountSlider } from '../../components/vaultAction';
 import { UnitAmountSlider } from '../../components/vaultAction/UnitAmountSlider';
 import { useVaultCreation } from '../../stores/vaultCreationStore';
@@ -24,6 +25,13 @@ import { useBalance } from '../../contexts/WalletDataContext';
 import { usePrice } from '../../stores/priceStore';
 import { getOpCostOpen, computeHealthFactor, computeLiquidationPrice } from '../../utils/vaultUtils';
 import { colors, fonts, fontSizes, spacing, radii } from '../../styles/theme';
+
+// Health-based slider colors (matching VaultActionGauge)
+const getHealthSliderColor = (health: number): string => {
+  if (health <= 160) return '#d04c68'; // red
+  if (health <= 200) return '#fde37b'; // yellow
+  return '#59aa8a'; // green
+};
 
 interface VaultAmountsScreenProps {
   navigation: NavigationProp<Record<string, object | undefined>>;
@@ -34,6 +42,7 @@ export default function VaultAmountsScreen({ navigation }: VaultAmountsScreenPro
     btcAmount,
     unitAmount,
     selectedFeeRate,
+    setSelectedFeeRate,
     healthFactor,
     liquidationPrice,
     maxBorrowable,
@@ -51,8 +60,13 @@ export default function VaultAmountsScreen({ navigation }: VaultAmountsScreenPro
     navigation.getParent()?.goBack();
   }, [reset, navigation]);
 
-  const { segwitBalance } = useBalance();
+  const { segwitBalance, utxos } = useBalance();
   const { btcPrice } = usePrice();
+
+  // Calculate estimated fee based on selected rate and UTXOs
+  const estimatedFeeSats = useMemo(() => {
+    return getOpCostOpen(selectedFeeRate, utxos);
+  }, [selectedFeeRate, utxos]);
 
   // Local preview states for real-time updates during drag
   const [previewBtcAmount, setPreviewBtcAmount] = useState(btcAmount);
@@ -161,18 +175,16 @@ export default function VaultAmountsScreen({ navigation }: VaultAmountsScreenPro
           />
 
           {/* Liquidation Price */}
-          {(previewLiquidationPrice > 0 || previewLiquidationPrice === Infinity) && (
-            <View style={styles.liquidationPrice}>
-              <Text style={styles.liquidationLabel}>Liquidation Price</Text>
-              <Text style={styles.liquidationValue}>
-                {previewLiquidationPrice === Infinity
-                  ? 'None'
-                  : `$${previewLiquidationPrice.toLocaleString('en-US', { maximumFractionDigits: 0 })}`}
-              </Text>
-            </View>
-          )}
+          <View style={styles.liquidationPrice}>
+            <Text style={styles.liquidationLabel}>Liquidation Price</Text>
+            <Text style={styles.liquidationValue}>
+              {previewLiquidationPrice > 0 && previewLiquidationPrice !== Infinity
+                ? `$${previewLiquidationPrice.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
+                : 'None'}
+            </Text>
+          </View>
 
-          {/* BTC Slider */}
+          {/* Connected Sliders - Deposit + Borrow as one unit */}
           <View style={styles.section}>
             <AmountSlider
               value={btcAmount}
@@ -182,19 +194,28 @@ export default function VaultAmountsScreen({ navigation }: VaultAmountsScreenPro
               label="BTC to Deposit"
               btcPrice={btcPrice ?? undefined}
               disabled={availableBtc <= 0}
+              attachedBottom
             />
-          </View>
-
-          {/* UNIT Slider */}
-          <View style={styles.section}>
-            <UnitAmountSlider
-              value={unitAmount}
-              maxValue={previewMaxBorrowable}
-              onValueChange={setUnitAmount}
-              onLiveValueChange={handleUnitLiveChange}
-              label="UNIT to Borrow"
-              disabled={previewMaxBorrowable <= 0}
-            />
+            <View style={previewBtcAmount <= 0 ? styles.disabledSection : undefined}>
+              <UnitAmountSlider
+                value={unitAmount}
+                maxValue={previewMaxBorrowable}
+                onValueChange={setUnitAmount}
+                onLiveValueChange={handleUnitLiveChange}
+                label="UNIT to Borrow"
+                disabled={previewMaxBorrowable <= 0}
+                sliderColor={getHealthSliderColor(hasChanges ? previewHealth : 0)}
+                attachedTop
+                renderFooter={() => (
+                  <FeeRateDropdown
+                    selectedRate={selectedFeeRate}
+                    onRateChange={setSelectedFeeRate}
+                    estimatedFeeSats={estimatedFeeSats}
+                    transparent
+                  />
+                )}
+              />
+            </View>
           </View>
 
           {/* Warning for min health violation */}
@@ -235,7 +256,7 @@ export default function VaultAmountsScreen({ navigation }: VaultAmountsScreenPro
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: colors.bg.primary },
   flex: { flex: 1 },
-  scroll: { padding: spacing.lg, paddingBottom: 120 },
+  scroll: { padding: spacing.md, paddingBottom: 120 },
   header: {
     flexDirection: 'row',
     justifyContent: 'space-between',
@@ -249,7 +270,7 @@ const styles = StyleSheet.create({
   },
   liquidationPrice: {
     alignItems: 'center',
-    marginTop: spacing.sm,
+    marginTop: spacing.xs,
   },
   liquidationLabel: {
     fontSize: fontSizes.sm,
@@ -258,10 +279,11 @@ const styles = StyleSheet.create({
   },
   liquidationValue: {
     fontSize: fontSizes.md,
-    fontFamily: fonts.semiBold,
+    fontFamily: fonts.medium,
     color: colors.text.secondary,
   },
-  section: { marginTop: spacing.lg },
+  section: { marginTop: spacing.md },
+  disabledSection: { opacity: 0.4 },
   warning: {
     flexDirection: 'row',
     backgroundColor: 'rgba(208,76,104,0.1)',
@@ -292,7 +314,8 @@ const styles = StyleSheet.create({
     bottom: 0,
     left: 0,
     right: 0,
-    padding: spacing.lg,
+    paddingHorizontal: spacing.md,
+    paddingVertical: spacing.sm,
     backgroundColor: colors.bg.primary,
     borderTopWidth: 1,
     borderTopColor: colors.border.default,

@@ -44,13 +44,26 @@ export function mergeAndFilterUtxos(
     utxoMap.set(key, utxo);
   });
 
-  // Add unconfirmed UTXOs, but don't overwrite if already present
+  // Add unconfirmed UTXOs, but don't overwrite if already present (already confirmed)
+  let skippedDuplicates = 0;
   unconfirmedUtxos.forEach(utxo => {
     const key = `${utxo.txid}:${utxo.vout}`;
     if (!utxoMap.has(key)) {
       utxoMap.set(key, utxo);
+    } else {
+      skippedDuplicates++;
+      logger.info('[mergeAndFilterUtxos] Skipping unconfirmed UTXO (already confirmed):', {
+        key,
+        value: utxo.value,
+      });
     }
   });
+
+  if (skippedDuplicates > 0) {
+    logger.info('[mergeAndFilterUtxos] Skipped duplicates (unconfirmed already in confirmed):', {
+      count: skippedDuplicates,
+    });
+  }
 
   // Filter out spent UTXOs
   return Array.from(utxoMap.values()).filter(utxo => {

@@ -49,7 +49,7 @@ export function TransactionOutput({ output, sendIntent, runeUtxoBalance, btcPric
   if (output.type === 'change') {
     outputLabel = 'Change';
   } else if (output.type === 'rune_return') {
-    outputLabel = 'Rune Return';
+    outputLabel = 'UNIT Return';
   } else if (output.type === 'op_return') {
     outputLabel = 'Runestone';
   }

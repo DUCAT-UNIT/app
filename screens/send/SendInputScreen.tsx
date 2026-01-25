@@ -41,6 +41,7 @@ import { getRunesAmount } from '../../utils/runesHelper';
 import { useTurboReview } from '../../hooks/useTurboReview';
 import { useNavigationHandlers } from '../../contexts/NavigationHandlersContext';
 import InsufficientTurboSheet from '../../components/send/InsufficientTurboSheet';
+import { useCashu } from '../../contexts/CashuContext';
 import { logger } from '../../utils/logger';
 import { colors, fonts, fontSizes, spacing, radii } from '../../styles/theme';
 
@@ -73,6 +74,7 @@ export default function SendInputScreen({ navigation, route }: SendInputScreenPr
 
   // Hooks
   const { segwitBalance, runesBalance, utxos, unconfirmedSegwitBalance } = useBalance();
+  const { balance: cashuBalance } = useCashu();
   const { btcPrice } = usePrice();
   const { wallet } = useWallet();
   const { keyboardHeight } = useKeyboard();
@@ -144,7 +146,10 @@ export default function SendInputScreen({ navigation, route }: SendInputScreenPr
 
   // Balance calculations (include unconfirmed for transaction chaining)
   const btcBalance = (segwitBalance || 0) + (unconfirmedSegwitBalance || 0);
-  const unitBalance = useMemo(() => getRunesAmount(runesBalance), [runesBalance]);
+  // For UNIT, combine on-chain runes balance + ecash balance
+  // Runes come in display units, ecash is in smallest units (needs /100)
+  const unitRunesBalance = useMemo(() => getRunesAmount(runesBalance), [runesBalance]);
+  const unitBalance = unitRunesBalance + ((cashuBalance || 0) / 100);
 
   // For BTC: max sendable = balance - fee
   const maxSendableBtc = useMemo(() => {

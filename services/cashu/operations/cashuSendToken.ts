@@ -16,6 +16,11 @@ import {
 } from '../crypto';
 import { getOrFetchKeys, getBalance } from '../cashuBalanceService';
 import { loadProofs, removeProofs, addProofs } from '../cashuProofManager';
+import {
+  savePendingSwap,
+  updateSwapWithResponse,
+  clearPendingSwap,
+} from '../cashuSwapRecovery';
 
 export interface SendTokenResult {
   token: string;
@@ -78,10 +83,32 @@ export const sendToken = async (amount: number, returnChange = true): Promise<Se
         ...changeAmounts,
       ], keysetId);
 
+      // Track which secrets are send vs change (by index before sorting)
+      // For regular sendToken, first N outputs are send, rest are change
+      const secretTypeMap: Record<string, 'send' | 'change'> = {};
+      blindingData.forEach((data, index) => {
+        secretTypeMap[data.secret] = index < sendAmounts.length ? 'send' : 'change';
+      });
+
+      // CRITICAL: Save pending swap BEFORE calling the mint
+      // This allows recovery if app crashes after swap but before saving proofs
+      await savePendingSwap({
+        inputProofs: selectedProofs,
+        blindingData,
+        keys,
+        keysetId,
+        secretTypeMap: secretTypeMap as Record<string, 'p2pk' | 'change'>,
+      });
+
       // CRITICAL: After this swap, selectedProofs are spent with the mint
       // If any error occurs after this, we MUST save changeProofs to avoid fund loss
       const response = await swapTokensAPI(selectedProofs, outputs);
       didSwap = true;
+
+      // CRITICAL: Save the mint's response immediately for recovery
+      await updateSwapWithResponse({
+        signatures: response.signatures,
+      });
 
       // Unblind all
       const allNewProofs = unblindSignatures(
@@ -91,9 +118,9 @@ export const sendToken = async (amount: number, returnChange = true): Promise<Se
         response.signatures[0]?.id || keysetId
       );
 
-      // Split into send and change
-      proofsToSend = allNewProofs.slice(0, sendAmounts.length);
-      changeProofs = allNewProofs.slice(sendAmounts.length);
+      // Split into send and change using secret type (handles sorted outputs correctly)
+      proofsToSend = allNewProofs.filter(proof => secretTypeMap[proof.secret] === 'send');
+      changeProofs = allNewProofs.filter(proof => secretTypeMap[proof.secret] === 'change');
 
       logger.info('Swap completed', {
         sendProofs: proofsToSend.length,
@@ -101,13 +128,19 @@ export const sendToken = async (amount: number, returnChange = true): Promise<Se
       });
     }
 
-    // Remove spent proofs, add change
-    // Wrap in try-catch to ensure change proofs are saved even if removeProofs fails
+    // CRITICAL: Save change proofs FIRST, then remove spent proofs
+    // This order ensures we never lose change if app crashes mid-operation
+    // If we crash after adding change but before removing spent, we might have
+    // duplicates, but that's better than losing proofs (duplicates are cleaned
+    // up by the mint on next spend attempt)
     try {
-      await removeProofs(selectedProofs);
       if (changeProofs.length > 0) {
         await addProofs(changeProofs);
+        logger.info('Change proofs added back to wallet', {
+          count: changeProofs.length,
+        });
       }
+      await removeProofs(selectedProofs);
       logger.info('Successfully updated proofs after swap', {
         removedCount: selectedProofs.length,
         changeCount: changeProofs.length,
@@ -135,6 +168,11 @@ export const sendToken = async (amount: number, returnChange = true): Promise<Se
       throw proofError;
     }
 
+    // CRITICAL: Clear the pending swap AFTER all proofs are saved
+    if (didSwap) {
+      await clearPendingSwap();
+    }
+
     // Encode token for sending
     const token = encodeToken(proofsToSend, MINT_URL);
 
@@ -155,8 +193,11 @@ export const sendToken = async (amount: number, returnChange = true): Promise<Se
     if (didSwap && changeProofs && changeProofs.length > 0 && selectedProofs) {
       logger.warn('Send token failed after swap - saving change proofs to prevent fund loss');
       try {
-        await removeProofs(selectedProofs);
+        // Save change proofs FIRST
         await addProofs(changeProofs);
+        await removeProofs(selectedProofs);
+        // Clear pending swap after successful recovery
+        await clearPendingSwap();
         logger.info('Successfully saved change proofs after send token failure', {
           changeCount: changeProofs.length,
         });
@@ -165,6 +206,7 @@ export const sendToken = async (amount: number, returnChange = true): Promise<Se
           error: (saveError as Error).message,
           changeProofsCount: changeProofs.length,
         });
+        // Don't clear pending swap - recovery will try again on next startup
         // Still throw the original error, but user needs to know about this
       }
     }

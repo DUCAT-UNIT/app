@@ -155,8 +155,8 @@ export const VaultChangesCard = memo(function VaultChangesCard({
       {(currentLiquidationPrice !== undefined || newLiquidationPrice !== undefined) && (
         <ChangeRow
           label="Liquidation"
-          beforeValue={currentLiquidationPrice && currentLiquidationPrice !== Infinity ? `$${formatFiat(currentLiquidationPrice, 0)}` : 'None'}
-          afterValue={newLiquidationPrice && newLiquidationPrice !== Infinity ? `$${formatFiat(newLiquidationPrice, 0)}` : 'None'}
+          beforeValue={currentLiquidationPrice && currentLiquidationPrice !== Infinity ? `$${formatFiat(currentLiquidationPrice)}` : 'None'}
+          afterValue={newLiquidationPrice && newLiquidationPrice !== Infinity ? `$${formatFiat(newLiquidationPrice)}` : 'None'}
           beforeColor={currentLiquidationPrice === Infinity ? COLORS.SUCCESS_GREEN : COLORS.DANGER_RED}
           afterColor={newLiquidationPrice === Infinity ? COLORS.SUCCESS_GREEN : COLORS.DANGER_RED}
           showChange={showChanges && liquidationChanged}

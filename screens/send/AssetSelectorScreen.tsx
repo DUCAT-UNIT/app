@@ -38,9 +38,10 @@ export default function AssetSelectorScreen({ navigation }: AssetSelectorScreenP
   );
 
   // For UNIT, combine on-chain runes + ecash balance
+  // Runes come in display units, ecash is in smallest units (needs /100)
   const unitBalance = useMemo(() => {
     const unitRunesBalance = getRunesAmount(runesBalance);
-    return unitRunesBalance + (cashuBalance || 0);
+    return unitRunesBalance + ((cashuBalance || 0) / 100);
   }, [runesBalance, cashuBalance]);
 
   const hasNoBtc = btcBalance <= 0;
@@ -102,7 +103,7 @@ export default function AssetSelectorScreen({ navigation }: AssetSelectorScreenP
             <Icon name="unit_logo" size={s(40)} />
           </View>
           <View style={localStyles.assetInfo}>
-            <Text style={[localStyles.assetName, { fontSize: sf(16), marginBottom: s(2) }, hasNoUnit && localStyles.textDisabled]}>Unit Rune</Text>
+            <Text style={[localStyles.assetName, { fontSize: sf(16), marginBottom: s(2) }, hasNoUnit && localStyles.textDisabled]}>UNIT</Text>
             <Text style={[localStyles.assetSymbol, { fontSize: sf(13) }]}>UNIT</Text>
           </View>
           <View style={[localStyles.assetBalance, { marginRight: s(12) }]}>

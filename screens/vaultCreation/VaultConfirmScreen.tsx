@@ -3,16 +3,18 @@
  * Features: Summary display, biometric authentication before signing
  */
 
-import React, { useCallback, useState } from 'react';
+import React, { useCallback, useState, useMemo } from 'react';
 import { Text, View, ScrollView, StyleSheet, Alert, TouchableOpacity } from 'react-native';
 import { NavigationProp } from '@react-navigation/native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import * as LocalAuthentication from 'expo-local-authentication';
 import { Ionicons } from '@expo/vector-icons';
 import TouchableScale from '../../components/common/TouchableScale';
-import { useVaultCreation, useVaultCreationStore } from '../../stores/vaultCreationStore';
+import Icon from '../../components/icons';
+import { useVaultCreationStore } from '../../stores/vaultCreationStore';
 import { useCreateVault } from '../../hooks/useCreateVault';
 import { usePrice } from '../../stores/priceStore';
+import { useBalance } from '../../contexts/WalletDataContext';
 import { formatFiat } from '../../utils/formatters';
 import { getOpCostOpen } from '../../utils/vaultUtils';
 import { colors, fonts, fontSizes, spacing, radii } from '../../styles/theme';
@@ -36,11 +38,17 @@ export default function VaultConfirmScreen({ navigation }: VaultConfirmScreenPro
 
   const { createVault, isLoading } = useCreateVault();
   const { btcPrice } = usePrice();
+  const { utxos } = useBalance();
   const [isAuthenticating, setIsAuthenticating] = useState(false);
 
   // Calculate USD values
   const btcUsdValue = btcPrice ? btcAmount * btcPrice : 0;
-  const estimatedFee = getOpCostOpen(selectedFeeRate);
+
+  // Dynamic fee calculation based on UTXOs and selected rate
+  const estimatedFee = useMemo(() => {
+    return getOpCostOpen(selectedFeeRate, utxos);
+  }, [selectedFeeRate, utxos]);
+
   const feeUsdValue = btcPrice ? (estimatedFee / 100_000_000) * btcPrice : 0;
 
   // Handle confirm with biometric authentication
@@ -107,13 +115,16 @@ export default function VaultConfirmScreen({ navigation }: VaultConfirmScreenPro
           </TouchableOpacity>
         </View>
 
-        {/* Summary Card */}
+        {/* Summary Card - All info in one dense block */}
         <View style={styles.summaryCard}>
           {/* Deposit Amount - Highlighted */}
-          <View style={styles.highlightSection}>
-            <Text style={styles.highlightLabel}>BTC Deposit</Text>
-            <Text style={styles.highlightAmount}>{btcAmount.toFixed(8)} BTC</Text>
-            <Text style={styles.highlightUsd}>≈ ${formatFiat(btcUsdValue)}</Text>
+          <View style={styles.depositSection}>
+            <Text style={styles.depositLabel}>BTC Deposit</Text>
+            <View style={styles.amountRow}>
+              <Text style={styles.depositAmount}>{btcAmount.toFixed(8)}</Text>
+              <Icon name="btc_symbol" size={24} />
+            </View>
+            <Text style={styles.depositUsd}>≈ ${formatFiat(btcUsdValue)}</Text>
           </View>
 
           <View style={styles.divider} />
@@ -121,9 +132,9 @@ export default function VaultConfirmScreen({ navigation }: VaultConfirmScreenPro
           {/* Borrow Amount */}
           <View style={styles.row}>
             <Text style={styles.label}>UNIT to Borrow</Text>
-            <View style={styles.valueContainer}>
-              <Text style={styles.valueHighlight}>{unitAmount.toFixed(2)} UNIT</Text>
-              <Text style={styles.valueUsd}>≈ ${formatFiat(unitAmount)}</Text>
+            <View style={styles.changeRow}>
+              <Text style={styles.valueHighlight}>{unitAmount.toFixed(2)}</Text>
+              <Icon name="unit_symbol" size={14} />
             </View>
           </View>
 
@@ -140,33 +151,30 @@ export default function VaultConfirmScreen({ navigation }: VaultConfirmScreenPro
           {/* Liquidation Price */}
           <View style={styles.row}>
             <Text style={styles.label}>Liquidation Price</Text>
-            <Text style={[styles.value, { color: liquidationPrice === Infinity ? colors.semantic.success : colors.semantic.error }]}>
-              {liquidationPrice === Infinity ? 'None' : `$${formatFiat(liquidationPrice, 0)}`}
+            <Text style={[styles.valueHighlight, { color: colors.semantic.error }]}>
+              {liquidationPrice === Infinity || liquidationPrice === 0 ? 'None' : `$${formatFiat(liquidationPrice)}`}
             </Text>
           </View>
 
-          <View style={styles.divider} />
-
-          {/* Network Fee */}
-          <View style={styles.row}>
-            <Text style={styles.label}>Network Fee</Text>
-            <View style={styles.valueContainer}>
-              <Text style={styles.value}>~{estimatedFee} sats</Text>
-              <Text style={styles.valueUsd}>≈ ${formatFiat(feeUsdValue)}</Text>
-            </View>
-          </View>
         </View>
 
-        {/* Warning - only show if there's debt */}
-        {unitAmount > 0 && (
-          <View style={styles.warningContainer}>
-            <Ionicons name="warning-outline" size={20} color={colors.semantic.warning} />
-            <Text style={styles.warningText}>
-              Your vault may be liquidated if the health factor drops below 135%.
-              Monitor your vault regularly.
-            </Text>
+        {/* Fee Display - Separate section matching other confirm screens */}
+        <View style={styles.feeSection}>
+          <View style={styles.feeRow}>
+            <Text style={styles.feeLabel}>Network Fee</Text>
+            <View style={styles.feeValues}>
+              <View style={styles.feeAmountRow}>
+                <Text style={styles.feeAmount}>{(estimatedFee / 100_000_000).toFixed(8)}</Text>
+                <Icon name="btc_symbol" size={14} />
+              </View>
+              <Text style={styles.feeUsdText}>≈ ${formatFiat(feeUsdValue)}</Text>
+            </View>
           </View>
-        )}
+          <View style={[styles.feeRow, { marginTop: spacing.sm }]}>
+            <Text style={styles.feeLabel}>Fee Rate</Text>
+            <Text style={styles.feeAmount}>{selectedFeeRate} sat/vB</Text>
+          </View>
+        </View>
 
         {/* Error message */}
         {error && (
@@ -202,9 +210,9 @@ export default function VaultConfirmScreen({ navigation }: VaultConfirmScreenPro
   );
 }
 
-function getHealthColor(healthFactor: number): string {
-  if (healthFactor >= 200) return colors.semantic.success;
-  if (healthFactor >= 161) return colors.semantic.warning;
+function getHealthColor(health: number): string {
+  if (health >= 200) return colors.semantic.success;
+  if (health > 160) return '#fde37b'; // Moderate yellow
   return colors.semantic.error;
 }
 
@@ -238,22 +246,27 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: colors.border.default,
   },
-  highlightSection: {
+  depositSection: {
     alignItems: 'center',
     paddingVertical: spacing.md,
   },
-  highlightLabel: {
+  depositLabel: {
     fontSize: fontSizes.sm,
     fontFamily: fonts.medium,
     color: colors.text.secondary,
     marginBottom: spacing.xs,
   },
-  highlightAmount: {
+  amountRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: spacing.sm,
+  },
+  depositAmount: {
     fontSize: fontSizes.xxxl,
     fontFamily: fonts.bold,
-    color: colors.brand.primary,
+    color: colors.text.primary,
   },
-  highlightUsd: {
+  depositUsd: {
     fontSize: fontSizes.md,
     fontFamily: fonts.regular,
     color: colors.text.tertiary,
@@ -285,28 +298,47 @@ const styles = StyleSheet.create({
     fontFamily: fonts.bold,
     color: colors.text.primary,
   },
-  valueContainer: {
+  changeRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: spacing.xs,
+  },
+  feeSection: {
+    marginTop: spacing.lg,
+    backgroundColor: colors.bg.secondary,
+    borderRadius: radii.lg,
+    padding: spacing.md,
+    borderWidth: 1,
+    borderColor: colors.border.default,
+  },
+  feeRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+  },
+  feeLabel: {
+    fontSize: fontSizes.md,
+    fontFamily: fonts.medium,
+    color: colors.text.secondary,
+  },
+  feeValues: {
     alignItems: 'flex-end',
   },
-  valueUsd: {
-    fontSize: fontSizes.xs,
-    fontFamily: fonts.regular,
-    color: colors.text.tertiary,
-    marginTop: 2,
-  },
-  warningContainer: {
+  feeAmountRow: {
     flexDirection: 'row',
-    backgroundColor: 'rgba(230, 190, 80, 0.1)',
-    borderRadius: radii.md,
-    padding: spacing.md,
-    marginTop: spacing.lg,
-    gap: spacing.sm,
+    alignItems: 'center',
+    gap: spacing.xs,
   },
-  warningText: {
-    flex: 1,
+  feeAmount: {
+    fontSize: fontSizes.md,
+    fontFamily: fonts.medium,
+    color: colors.text.primary,
+  },
+  feeUsdText: {
     fontSize: fontSizes.sm,
     fontFamily: fonts.regular,
-    color: colors.semantic.warning,
+    color: colors.text.tertiary,
+    marginTop: spacing.xs,
   },
   errorContainer: {
     backgroundColor: 'rgba(208, 76, 104, 0.1)',

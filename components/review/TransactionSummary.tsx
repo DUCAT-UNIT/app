@@ -46,7 +46,7 @@ export default function TransactionSummary({
         <View style={styles.assetInfo}>
           <Text style={[styles.assetAmountLabel, { fontSize: sf(15), marginBottom: s(3) }]}>Amount</Text>
           <Text style={[styles.assetTypeText, { fontSize: sf(11) }]}>
-            {assetType === 'UNIT' ? 'UNIT•RUNE' : 'Bitcoin'}
+            {assetType === 'UNIT' ? 'UNIT' : 'Bitcoin'}
           </Text>
         </View>
         <View style={styles.amountValues}>

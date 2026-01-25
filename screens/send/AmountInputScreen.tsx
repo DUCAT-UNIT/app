@@ -59,6 +59,10 @@ interface AmountInputRouteParams {
   quoteId?: string;
   prefillAmount?: string;
   autoAdvance?: boolean;
+  // For insufficient balance redirect from TurboProcessingScreen
+  showInsufficientSheet?: boolean;
+  insufficientAmount?: number;
+  insufficientBalance?: number;
 }
 
 /**
@@ -83,7 +87,7 @@ export default function AmountInputScreen({ navigation, route }: AmountInputScre
   const setSendRecipient = useSendFlowStore((state) => state.setSendRecipient);
   const { settingsHandlers } = useNavigationHandlers();
   const ecashThreshold = settingsHandlers?.ecashThreshold || 100;
-  const { segwitBalance, taprootBalance, runesBalance } = useBalance();
+  const { segwitBalance, taprootBalance, runesBalance, unconfirmedSegwitBalance } = useBalance();
   const { balance: cashuBalance } = useCashu();
   const { btcPrice } = usePrice();
   const { wallet } = useWallet();
@@ -105,6 +109,7 @@ export default function AmountInputScreen({ navigation, route }: AmountInputScre
     wallet,
     sendAddressType,
     setSendAmount,
+    unconfirmedSegwitBalance,
   });
 
   // Turbo review logic
@@ -180,6 +185,22 @@ export default function AmountInputScreen({ navigation, route }: AmountInputScre
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
+
+  // Handle insufficient balance redirect from TurboProcessingScreen
+  useEffect(() => {
+    const { showInsufficientSheet, insufficientAmount, insufficientBalance } = route.params || {};
+
+    if (showInsufficientSheet && insufficientAmount !== undefined && insufficientBalance !== undefined) {
+      logger.debug('[AmountInputScreen] Showing insufficient sheet from redirect', {
+        amount: insufficientAmount,
+        balance: insufficientBalance,
+      });
+      setToggleInsufficientAmount(insufficientAmount);
+      setToggleInsufficientBalance(insufficientBalance);
+      setShowToggleInsufficientSheet(true);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [route.params?.showInsufficientSheet]);
 
   // Track if user has manually toggled turbo (to prevent auto-override)
   const userToggledTurbo = useRef(false);

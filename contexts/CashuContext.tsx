@@ -8,6 +8,8 @@
 import React, { createContext, useContext, useState, useCallback, useMemo, useEffect, useRef, ReactNode } from 'react';
 import { logger } from '../utils/logger';
 import { clearWallet, setCurrentAccount } from '../services/cashu/cashuWalletService';
+import { checkAndRecoverSwaps } from '../services/cashu/cashuSwapRecovery';
+import { recoverUnclaimedMintQuotes } from '../services/cashu/cashuMintQuoteRecovery';
 import { useWallet } from './WalletContext';
 import { useCashuBalance } from '../hooks/useCashuBalance';
 import { useCashuMint } from '../hooks/useCashuMint';
@@ -49,6 +51,7 @@ export interface CashuOperationsValue {
   startMint: (amount: number) => Promise<MintQuoteResult>;
   checkAndCompleteMint: (quoteId: string) => Promise<MintCheckResult>;
   removePendingMint: (quoteId: string) => void;
+  addPendingMint: (quoteId: string, amount: number) => void;
   autoMint: (amountSats: number, onSuccess?: (data: AutoMintSuccessData) => void) => Promise<MintQuoteResult>;
   receive: (token: string) => Promise<ReceiveTokenResult>;
   send: (amount: number) => Promise<SendTokenResult>;
@@ -135,12 +138,74 @@ export const CashuProvider: React.FC<CashuProviderProps> = ({ children }) => {
   const {
     receive,
     send,
-  } = useCashuSendReceive({ setIsLoading, setError, setBalance, fetchBalance });
+  } = useCashuSendReceive({ setIsLoading, setError, setBalance, fetchBalance, taprootAddress: wallet?.taprootAddress });
+
+  /**
+   * Add an externally-created mint quote to the pending mints list.
+   * Used by the threshold conversion flow which creates its own quote
+   * via useEcashThresholdManager but needs app-level polling to complete it.
+   */
+  const addPendingMint = useCallback((quoteId: string, amount: number) => {
+    setPendingMints((prev) => {
+      // Don't add duplicates
+      if (prev.some(m => m.quoteId === quoteId)) {
+        logger.debug('[CashuContext] addPendingMint: already exists', { quoteId: quoteId.substring(0, 8) });
+        return prev;
+      }
+      logger.debug('[CashuContext] addPendingMint: adding to pending mints', { quoteId: quoteId.substring(0, 8), amount });
+      return [
+        ...prev,
+        {
+          quoteId,
+          amount,
+          depositAddress: '', // Not needed for completion polling
+          state: 'UNPAID',
+          createdAt: Date.now(),
+        },
+      ];
+    });
+  }, [setPendingMints]);
 
   // Track wallet for reference (account switch reset is handled by useAccountSwitcher)
   useEffect(() => {
     prevWalletRef.current = wallet;
   }, [wallet]);
+
+  // Check for and recover any pending swap/mint transactions on startup
+  const recoveryChecked = useRef(false);
+  useEffect(() => {
+    if (recoveryChecked.current || !wallet?.taprootAddress) {
+      return;
+    }
+    recoveryChecked.current = true;
+
+    const runRecovery = async () => {
+      try {
+        // Check for pending swap recovery (proofs lost mid-swap)
+        logger.info('[CashuContext] Checking for pending swap recovery...');
+        await checkAndRecoverSwaps();
+
+        // Check for unclaimed mint quotes (paid but not claimed)
+        logger.info('[CashuContext] Checking for unclaimed mint quotes...');
+        const mintRecovery = await recoverUnclaimedMintQuotes();
+        if (mintRecovery.recovered > 0) {
+          logger.info('[CashuContext] Recovered unclaimed mint quotes on startup', {
+            recovered: mintRecovery.recovered,
+            totalAmount: mintRecovery.totalAmountRecovered,
+          });
+        }
+
+        // Refresh balance after potential recovery
+        await fetchBalance();
+      } catch (error) {
+        logger.error('[CashuContext] Recovery check failed', {
+          error: error instanceof Error ? error.message : String(error),
+        });
+      }
+    };
+
+    runRecovery();
+  }, [wallet?.taprootAddress, fetchBalance]);
 
   /**
    * Clear all Cashu proofs (for testing/reset)
@@ -161,9 +226,36 @@ export const CashuProvider: React.FC<CashuProviderProps> = ({ children }) => {
   }, [setBalance, setPendingMints, setError]);
 
   /**
-   * Refresh all data
+   * Refresh all data and recover any unclaimed mint quotes
    */
   const refresh = useCallback(async () => {
+    // First, check for any paid but unclaimed mint quotes
+    try {
+      logger.info('[CashuContext] Checking for unclaimed mint quotes...');
+      const recoveryResult = await recoverUnclaimedMintQuotes();
+
+      if (recoveryResult.recovered > 0) {
+        logger.info('[CashuContext] Recovered unclaimed mint quotes', {
+          recovered: recoveryResult.recovered,
+          totalAmount: recoveryResult.totalAmountRecovered,
+        });
+      }
+    } catch (error) {
+      logger.error('[CashuContext] Mint quote recovery failed', {
+        error: error instanceof Error ? error.message : String(error),
+      });
+    }
+
+    // Also check for swap recovery
+    try {
+      await checkAndRecoverSwaps();
+    } catch (error) {
+      logger.error('[CashuContext] Swap recovery failed during refresh', {
+        error: error instanceof Error ? error.message : String(error),
+      });
+    }
+
+    // Finally, refresh balance
     await fetchBalance();
   }, [fetchBalance]);
 
@@ -201,6 +293,7 @@ export const CashuProvider: React.FC<CashuProviderProps> = ({ children }) => {
     startMint,
     checkAndCompleteMint,
     removePendingMint,
+    addPendingMint,
     autoMint,
     receive,
     send,
@@ -210,7 +303,7 @@ export const CashuProvider: React.FC<CashuProviderProps> = ({ children }) => {
     resetAndRefresh,
     reset,
   }), [
-    startMint, checkAndCompleteMint, removePendingMint, autoMint,
+    startMint, checkAndCompleteMint, removePendingMint, addPendingMint, autoMint,
     receive, send, startMelt, finishMelt, refresh, resetAndRefresh, reset,
   ]);
 

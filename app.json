@@ -1,8 +1,8 @@
 {
   "expo": {
     "name": "DUCAT",
-    "slug": "SimpleWallet",
-    "version": "1.0.0",
+    "slug": "ducat-wallet",
+    "version": "0.0.1",
     "orientation": "portrait",
     "icon": "./assets/logos/icon.png",
     "userInterfaceStyle": "light",
@@ -15,8 +15,8 @@
     },
     "ios": {
       "supportsTablet": true,
-      "bundleIdentifier": "com.anonymous.SimpleWallet",
-      "buildNumber": "91",
+      "bundleIdentifier": "com.ducatprotocol.DucatProtocolWallet",
+      "buildNumber": "1",
       "associatedDomains": [
         "webcredentials:ducatprotocol.com",
         "applinks:ducatprotocol.com"
@@ -25,7 +25,7 @@
       "iCloudContainerEnvironment": "Production",
       "entitlements": {
         "com.apple.developer.icloud-container-identifiers": [
-          "iCloud.com.anonymous.SimpleWallet"
+          "iCloud.com.ducatprotocol.DucatProtocolWallet"
         ],
         "com.apple.developer.ubiquity-kvstore-identifier": "$(TeamIdentifierPrefix)$(CFBundleIdentifier)"
       },
@@ -70,9 +70,9 @@
     ],
     "extra": {
       "eas": {
-        "projectId": "0f1d2d8f-944e-49f8-a48d-bf4c96b96ebb"
+        "projectId": "ffbcd1c0-efeb-449f-bdfc-009dd286125e"
       }
     },
-    "owner": "zk_bit"
+    "owner": "ducat-protocol-inc"
   }
 }

@@ -14,6 +14,8 @@ import CashuReceiveScreenComponent from '../screens/cashu/CashuReceiveScreen';
 import RecoverMintScreenComponent from '../screens/wallet/RecoverMintScreen';
 import CashuSettingsScreenComponent from '../screens/settings/CashuSettingsScreen';
 import AboutScreenComponent from '../screens/settings/AboutScreen';
+import TermsOfServiceScreenComponent from '../screens/settings/TermsOfServiceScreen';
+import PrivacyPolicyScreenComponent from '../screens/settings/PrivacyPolicyScreen';
 import PreferencesScreenComponent from '../screens/settings/PreferencesScreen';
 import SecurityScreenComponent from '../screens/settings/SecurityScreen';
 import AdvancedScreenComponent from '../screens/settings/AdvancedScreen';
@@ -65,6 +67,16 @@ const CashuSettingsScreen: AnyComponent = withErrorBoundary(CashuSettingsScreenC
 const AboutScreen: AnyComponent = withErrorBoundary(AboutScreenComponent, {
   boundaryName: 'AboutScreen',
   fallbackMessage: 'Unable to load about screen. Please try again.',
+});
+
+const TermsOfServiceScreen: AnyComponent = withErrorBoundary(TermsOfServiceScreenComponent, {
+  boundaryName: 'TermsOfServiceScreen',
+  fallbackMessage: 'Unable to load terms of service. Please try again.',
+});
+
+const PrivacyPolicyScreen: AnyComponent = withErrorBoundary(PrivacyPolicyScreenComponent, {
+  boundaryName: 'PrivacyPolicyScreen',
+  fallbackMessage: 'Unable to load privacy policy. Please try again.',
 });
 
 const PreferencesScreen: AnyComponent = withErrorBoundary(PreferencesScreenComponent, {
@@ -243,6 +255,16 @@ export default function WalletStackNavigator(): React.JSX.Element {
       <Stack.Screen
         name="About"
         component={AboutScreen}
+        options={settingsScreenOptions}
+      />
+      <Stack.Screen
+        name="TermsOfService"
+        component={TermsOfServiceScreen}
+        options={settingsScreenOptions}
+      />
+      <Stack.Screen
+        name="PrivacyPolicy"
+        component={PrivacyPolicyScreen}
         options={settingsScreenOptions}
       />
       <Stack.Screen

@@ -187,65 +187,70 @@ const ReceiveScreen = React.memo(function ReceiveScreen({
 
   return (
     <>
-      {showReceiveSheet && !showQrModal && (
-        <TouchableOpacity
-          style={styles.bottomSheetBackdrop}
-          activeOpacity={1}
-          onPress={handleDismiss}
-        />
-      )}
+      {/* Only show the address selection sheet when NOT in autoOpenQR mode */}
+      {!autoOpenQR && (
+        <>
+          {showReceiveSheet && !showQrModal && (
+            <TouchableOpacity
+              style={styles.bottomSheetBackdrop}
+              activeOpacity={1}
+              onPress={handleDismiss}
+            />
+          )}
 
-      <Animated.View
-        style={[
-          styles.bottomSheet,
-          {
-            opacity: receiveSheetOpacity,
-            transform: [{ translateY: receiveTranslateY }],
-          },
-        ]}
-        pointerEvents={showReceiveSheet && !showQrModal ? 'auto' : 'none'}
-        {...panResponder.panHandlers}
-      >
-        <View style={styles.bottomSheetHandle} />
-        <Text style={styles.bottomSheetTitle}>Receive</Text>
-
-        {/* BTC Address Row */}
-        <AddressRow
-          label="BTC Address"
-          address={segwitAddress}
-          tag="BTC"
-          onCopy={() => handleCopyAddress(segwitAddress, 'BTC')}
-          onQrPress={() => handleQrPress(segwitAddress, 'BTC Address')}
-          styles={styles}
-        />
-
-        {/* UNIT Address Row */}
-        <AddressRow
-          label="UNIT Address"
-          address={taprootAddress}
-          tag="UNIT"
-          onCopy={() => handleCopyAddress(taprootAddress, 'UNIT')}
-          onQrPress={() => handleQrPress(taprootAddress, 'UNIT Address')}
-          styles={styles}
-        />
-
-        {/* Vault Deposit Option */}
-        {hasVault && onVaultDeposit && (
-          <TouchableOpacity
-            style={localStyles.vaultRow}
-            onPress={handleVaultDeposit}
-            activeOpacity={0.7}
-            testID="receive-vault-deposit"
+          <Animated.View
+            style={[
+              styles.bottomSheet,
+              {
+                opacity: receiveSheetOpacity,
+                transform: [{ translateY: receiveTranslateY }],
+              },
+            ]}
+            pointerEvents={showReceiveSheet && !showQrModal ? 'auto' : 'none'}
+            {...panResponder.panHandlers}
           >
-            <Icon name="vault_logo" size={32} />
-            <View style={localStyles.vaultInfo}>
-              <Text style={localStyles.vaultLabel}>Vault</Text>
-              <Text style={localStyles.vaultSubtext}>Deposit BTC collateral</Text>
-            </View>
-            <Icon name="arrow_right" size={18} color={COLORS.SECONDARY_TEXT} />
-          </TouchableOpacity>
-        )}
-      </Animated.View>
+            <View style={styles.bottomSheetHandle} />
+            <Text style={styles.bottomSheetTitle}>Receive</Text>
+
+            {/* BTC Address Row */}
+            <AddressRow
+              label="BTC Address"
+              address={segwitAddress}
+              tag="BTC"
+              onCopy={() => handleCopyAddress(segwitAddress, 'BTC')}
+              onQrPress={() => handleQrPress(segwitAddress, 'BTC Address')}
+              styles={styles}
+            />
+
+            {/* UNIT Address Row */}
+            <AddressRow
+              label="UNIT Address"
+              address={taprootAddress}
+              tag="UNIT"
+              onCopy={() => handleCopyAddress(taprootAddress, 'UNIT')}
+              onQrPress={() => handleQrPress(taprootAddress, 'UNIT Address')}
+              styles={styles}
+            />
+
+            {/* Vault Deposit Option */}
+            {hasVault && onVaultDeposit && (
+              <TouchableOpacity
+                style={localStyles.vaultRow}
+                onPress={handleVaultDeposit}
+                activeOpacity={0.7}
+                testID="receive-vault-deposit"
+              >
+                <Icon name="vault_logo" size={32} />
+                <View style={localStyles.vaultInfo}>
+                  <Text style={localStyles.vaultLabel}>Vault</Text>
+                  <Text style={localStyles.vaultSubtext}>Deposit BTC collateral</Text>
+                </View>
+                <Icon name="arrow_right" size={18} color={COLORS.SECONDARY_TEXT} />
+              </TouchableOpacity>
+            )}
+          </Animated.View>
+        </>
+      )}
 
       {/* QR Code Modal */}
       <QRModal

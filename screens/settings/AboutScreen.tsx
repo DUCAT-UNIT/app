@@ -10,12 +10,13 @@ import {
   TouchableOpacity,
   StyleSheet,
   ScrollView,
-  Linking,
 } from 'react-native';
+import { useNavigation } from '@react-navigation/native';
+import type { StackNavigationProp } from '@react-navigation/stack';
 import { COLORS } from '../../theme';
 import Icon from '../../components/icons';
 import MutinynetBanner from '../../components/MutinynetBanner';
-import { logger } from '../../utils/logger';
+import type { WalletStackParamList } from '../../navigation/types';
 
 // Get device dimensions for responsive sizing
 const { width: SCREEN_WIDTH } = require('react-native').Dimensions.get('window');
@@ -54,18 +55,18 @@ interface SettingsOptionProps {
   testID?: string;
 }
 
+type AboutScreenNavigationProp = StackNavigationProp<WalletStackParamList, 'About'>;
+
 const AboutScreen = React.memo(function AboutScreen({ route }: AboutScreenProps): React.ReactElement {
   const { onClose } = route.params;
+  const navigation = useNavigation<AboutScreenNavigationProp>();
 
-  const handleOpenLink = async (url: string): Promise<void> => {
-    try {
-      const supported = await Linking.canOpenURL(url);
-      if (supported) {
-        await Linking.openURL(url);
-      }
-    } catch (error: unknown) {
-      logger.error(error, { context: 'AboutScreen', action: 'openURL', url });
-    }
+  const handleViewTermsOfService = (): void => {
+    navigation.navigate('TermsOfService', { onClose: () => navigation.goBack() });
+  };
+
+  const handleViewPrivacyPolicy = (): void => {
+    navigation.navigate('PrivacyPolicy', { onClose: () => navigation.goBack() });
   };
 
   return (
@@ -85,13 +86,13 @@ const AboutScreen = React.memo(function AboutScreen({ route }: AboutScreenProps)
             <SettingsOption
               iconName="asset"
               title="Terms of Service"
-              onPress={() => handleOpenLink('https://ducatprotocol.com/terms')}
+              onPress={handleViewTermsOfService}
               testID="about-terms-btn"
             />
             <SettingsOption
               iconName="asset"
               title="Privacy Policy"
-              onPress={() => handleOpenLink('https://ducatprotocol.com/privacy')}
+              onPress={handleViewPrivacyPolicy}
               testID="about-privacy-btn"
             />
             <View style={localStyles.versionOption} testID="about-version">

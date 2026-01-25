@@ -25,6 +25,11 @@ import {
 } from '../p2pk';
 import { getOrFetchKeys, getBalance } from '../cashuBalanceService';
 import { loadProofs, removeProofs, addProofs } from '../cashuProofManager';
+import {
+  savePendingSwap,
+  updateSwapWithResponse,
+  clearPendingSwap,
+} from '../cashuSwapRecovery';
 
 type ProgressCallback = (current: number, total: number, message: string) => void;
 
@@ -202,6 +207,12 @@ export const sendP2PKToken = async (
     p2pkSecrets.forEach(secret => secretTypeMap.set(secret, 'p2pk'));
     changeSecrets.forEach(secret => secretTypeMap.set(secret, 'change'));
 
+    // Convert Map to plain object for serialization
+    const secretTypeRecord: Record<string, 'p2pk' | 'change'> = {};
+    secretTypeMap.forEach((value, key) => {
+      secretTypeRecord[key] = value;
+    });
+
     // Create blinded outputs using our custom secrets
     // CRITICAL: Secrets and amounts arrays MUST match 1:1
     const allSecrets = [...p2pkSecrets, ...changeSecrets];
@@ -218,11 +229,26 @@ export const sendP2PKToken = async (
 
     const { outputs, blindingData } = await createBlindedOutputsWithSecrets(allSecrets, allAmounts, keysetId);
 
-    // Step 3: Swap with mint
+    // Step 3: Swap with mint (with recovery protection)
     if (onProgress) onProgress(++currentStep, totalSteps, 'Swapping with mint');
+
+    // CRITICAL: Save pending swap BEFORE calling the mint
+    // This allows recovery if app crashes after swap but before saving proofs
+    await savePendingSwap({
+      inputProofs: selectedProofs,
+      blindingData,
+      keys,
+      keysetId,
+      secretTypeMap: secretTypeRecord,
+    });
 
     // Swap with mint
     const response = await swapTokensAPI(selectedProofs, outputs);
+
+    // CRITICAL: Save the mint's response immediately for recovery
+    await updateSwapWithResponse({
+      signatures: response.signatures,
+    });
 
     // Unblind all
     const allNewProofs = unblindSignatures(
@@ -261,11 +287,14 @@ export const sendP2PKToken = async (
       areAllNormal: changeProofs.every(p => !p.secret.startsWith('["P2PK"'))
     });
 
-    // Step 4: Save to wallet
+    // Step 4: Save to wallet (order matters for recovery!)
     if (onProgress) onProgress(++currentStep, totalSteps, 'Saving to wallet');
 
-    // Remove spent proofs, add change
-    await removeProofs(selectedProofs);
+    // CRITICAL: Save change proofs FIRST, then remove spent proofs
+    // This order ensures we never lose change if app crashes mid-operation
+    // If we crash after adding change but before removing spent, we might have
+    // duplicates, but that's better than losing proofs (duplicates are cleaned
+    // up by the mint on next spend attempt)
     if (changeProofs.length > 0) {
       await addProofs(changeProofs);
       logger.info('Change proofs added back to wallet', {
@@ -274,6 +303,12 @@ export const sendP2PKToken = async (
         secrets: changeProofs.map(p => p.secret.substring(0, 20) + '...'),
       });
     }
+
+    // Now remove the spent proofs
+    await removeProofs(selectedProofs);
+
+    // CRITICAL: Clear the pending swap AFTER all proofs are saved
+    await clearPendingSwap();
 
     // Encode token for sending (P2PK locked)
     const token = encodeToken(proofsToSend, MINT_URL);

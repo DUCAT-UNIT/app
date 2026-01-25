@@ -37,6 +37,8 @@ export interface UnitAmountSliderProps {
   renderFooter?: () => React.ReactNode;
   /** Remove bottom border radius when attached to another element below */
   attachedBottom?: boolean;
+  /** Remove top border radius when attached to another element above */
+  attachedTop?: boolean;
   /** Custom color for slider track fill (defaults to PRIMARY_BLUE) */
   sliderColor?: string;
   /** Hide the available amount in header */
@@ -55,6 +57,7 @@ export const UnitAmountSlider = memo(function UnitAmountSlider({
   disabled = false,
   renderFooter,
   attachedBottom = false,
+  attachedTop = false,
   sliderColor = COLORS.PRIMARY_BLUE,
   hideAvailable = false,
 }: UnitAmountSliderProps): React.JSX.Element {
@@ -105,6 +108,8 @@ export const UnitAmountSlider = memo(function UnitAmountSlider({
 
   const gesture = Gesture.Pan()
     .enabled(!disabled)
+    .activeOffsetX([-0, 0])
+    .activeOffsetY([-0, 0])
     .onBegin((e) => {
       'worklet';
       isDragging.value = true;
@@ -119,6 +124,7 @@ export const UnitAmountSlider = memo(function UnitAmountSlider({
       currentValue.value = newVal;
       lastLiveUpdate.value = cents;
       runOnJS(updateLive)(newVal);
+      runOnJS(updateParent)(newVal);
     })
     .onUpdate((e) => {
       'worklet';
@@ -195,7 +201,8 @@ export const UnitAmountSlider = memo(function UnitAmountSlider({
   // Animated text props for USD value (UNIT ≈ $1)
   const usdAnimatedProps = useAnimatedProps(() => {
     const v = currentValue.value;
-    const formatted = '$' + Math.floor(v).toLocaleString('en-US');
+    // Show with 2 decimal places for proper dollar amounts
+    const formatted = '$' + v.toFixed(2);
     return { text: formatted, defaultValue: formatted };
   });
 
@@ -203,6 +210,7 @@ export const UnitAmountSlider = memo(function UnitAmountSlider({
     <View style={[
       styles.container,
       attachedBottom && styles.containerAttachedBottom,
+      attachedTop && styles.containerAttachedTop,
       renderFooter && styles.containerWithFooter,
     ]}>
       {/* Slider area with bottom radius when footer exists */}
@@ -288,6 +296,11 @@ const styles = StyleSheet.create({
     borderBottomLeftRadius: 0,
     borderBottomRightRadius: 0,
     borderBottomWidth: 0,
+  },
+  containerAttachedTop: {
+    borderTopLeftRadius: 0,
+    borderTopRightRadius: 0,
+    borderTopWidth: 0,
   },
   containerWithFooter: {
     borderBottomLeftRadius: 16,

@@ -16,6 +16,7 @@ import { getSentLockedTokens, getReceivedTokens, subscribeToTokenChanges } from 
 import { loadTokensWithStatus, TokenWithStatus } from '../services/cashu/tokenStatusService';
 import { usePendingVaultTransactionStore } from '../stores/pendingVaultTransactionStore';
 import { useNotificationStore } from '../stores/notificationStore';
+import { useSendFlowStore } from '../stores/sendFlowStore';
 import { logger } from '../utils/logger';
 
 // Polling intervals (in milliseconds)
@@ -145,15 +146,15 @@ interface WalletDataProviderProps {
 
 export const WalletDataProvider: React.FC<WalletDataProviderProps> = ({ children }) => {
   const { wallet } = useWallet();
-  const { getUnconfirmedBalance } = usePendingTransactions();
+  const { getUnconfirmedBalance, getUnconfirmedUTXOs } = usePendingTransactions();
   const { isLoading: loadingCashu, balance: cashuBalance } = useCashu();
 
   // ============================================================
   // USE EXTRACTED HOOKS FOR DATA MANAGEMENT
   // ============================================================
 
-  // Balance data hook
-  const balance = useBalanceData(wallet, getUnconfirmedBalance);
+  // Balance data hook - pass getUnconfirmedUTXOs to filter out already-confirmed UTXOs
+  const balance = useBalanceData(wallet, getUnconfirmedBalance, getUnconfirmedUTXOs);
 
   // Transaction history data hook
   const history = useTransactionHistoryFetch(wallet);
@@ -243,12 +244,19 @@ export const WalletDataProvider: React.FC<WalletDataProviderProps> = ({ children
         const confirmedTxid = pendingVaultTx.vaultTxid || pendingVaultTx.txid;
         logger.info('[WalletDataContext] Vault transaction confirmed', { action: confirmedAction, txid: confirmedTxid });
         usePendingVaultTransactionStore.getState().clearPendingTransaction();
-        // Show success snackbar (replaces the info snackbar without dismissing first to avoid cooldown)
-        useNotificationStore.getState().showSnackbar({
-          type: 'success',
-          action: confirmedAction,
-          txid: confirmedTxid,
-        });
+        // Only show snackbar if no other snackbar is active and no send flow in progress —
+        // avoids overwriting swap/send confirmation banners
+        const currentSnackbar = useNotificationStore.getState().snackbar;
+        const intentStep = useSendFlowStore.getState().intentStep;
+        if (!currentSnackbar && intentStep === 'idle') {
+          useNotificationStore.getState().showSnackbar({
+            type: 'success',
+            action: confirmedAction,
+            txid: confirmedTxid,
+          });
+        } else {
+          logger.debug('[WalletDataContext] Skipping vault confirmation snackbar', { hasSnackbar: !!currentSnackbar, intentStep });
+        }
       }
     }
   }, [pendingVaultTx, vault.vaultTransactions]);

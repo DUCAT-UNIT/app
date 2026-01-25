@@ -76,8 +76,9 @@ export function useQRCodeHandler({
       }
 
       // Determine asset type based on address type
-      // Default to BTC for now - user can change if needed
-      const assetType = 'btc';
+      // Taproot (tb1p/bc1p) addresses default to UNIT, segwit defaults to BTC
+      const isTaproot = address.startsWith('tb1p') || address.startsWith('bc1p');
+      const assetType = isTaproot ? 'unit' : 'btc';
 
       // Close scanner FIRST before any navigation to prevent race conditions
       setShowQRScanner(false);

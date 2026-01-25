@@ -13,7 +13,8 @@ import { logger } from '../logger';
 import { bip32, ecc, getECPair, getDerivationPath } from './cryptoHelpers';
 
 // SecureStore key prefix for derived keys
-const DERIVED_KEY_VERSION = 'v4_';
+// v5: Fixed BIP-341 parity handling for odd Y coordinate pubkeys
+const DERIVED_KEY_VERSION = 'v5_';
 const DERIVED_KEY_PREFIX = 'derived_key_' + DERIVED_KEY_VERSION;
 
 export interface DerivedKeyData {
@@ -127,9 +128,25 @@ function findTaprootAccount(
   const outputPubkey = payment.pubkey || Buffer.alloc(0);
   const outputPubkeyHex = outputPubkey.toString('hex');
 
-  // Compute tweaked private key
+  // Compute tweaked private key (BIP-341 compliant)
+  // Important: If the internal pubkey has odd Y, we must negate the private key first
   const tweak = bitcoin.crypto.taggedHash('TapTweak', xOnlyPubkey);
-  const internalPrivkey = Buffer.from(child.privateKey!);
+  let internalPrivkey = Buffer.from(child.privateKey!);
+
+  // Check if we need to negate the internal private key
+  // This is needed when the internal pubkey has an odd Y coordinate
+  const hasOddY = child.publicKey[0] === 0x03; // 0x03 prefix means odd Y
+
+  if (hasOddY) {
+    // Negate the private key
+    const negatedPrivkey = ecc.privateNegate(internalPrivkey);
+    if (!negatedPrivkey) {
+      throw new Error('Failed to negate internal private key');
+    }
+    internalPrivkey = Buffer.from(negatedPrivkey);
+    logger.debug('[findTaprootAccount] Negated internal private key (odd Y coordinate)');
+  }
+
   const tweakedPrivkey = ecc.privateAdd(internalPrivkey, tweak);
   const tweakedPrivkeyHex = Buffer.from(tweakedPrivkey!).toString('hex');
 

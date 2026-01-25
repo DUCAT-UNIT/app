@@ -34,7 +34,7 @@ export const FullscreenVaultChart = memo(function FullscreenVaultChart({
   transactions,
 }: FullscreenVaultChartProps) {
   const [selectedTimeframe, setSelectedTimeframe] = useState<PriceTimeframe>('1Y');
-  const [scrubData, setScrubData] = useState<ScrubData>({ health: null, x: null });
+  const [scrubData, setScrubData] = useState<ScrubData>({ health: null, x: null, timestamp: null });
   const [hoveredRefLineIndex, setHoveredRefLineIndex] = useState<number | null>(null);
   const [lockedEventDate, setLockedEventDate] = useState<number | null>(null);
   const [lockedRefLineIndex, setLockedRefLineIndex] = useState<number | null>(null);
@@ -60,6 +60,7 @@ export const FullscreenVaultChart = memo(function FullscreenVaultChart({
     xScale,
     yScale,
     getHealthAtX,
+    getTimestampAtX,
     findNearbyRefLine,
   } = useFullscreenChartData(visible, selectedTimeframe, transactions, CHART_HEIGHT);
 
@@ -72,10 +73,12 @@ export const FullscreenVaultChart = memo(function FullscreenVaultChart({
     panResponder,
   } = useScrubAnimation({
     chartWidth,
+    padding: { left: 0, right: 0 },
     referenceLines,
     xScale,
     yScale,
     getHealthAtX,
+    getTimestampAtX,
     findNearbyRefLine,
     onScrubDataChange: setScrubData,
     onHoveredRefLineChange: setHoveredRefLineIndex,
@@ -93,24 +96,52 @@ export const FullscreenVaultChart = memo(function FullscreenVaultChart({
     },
   });
 
-  // Filter transactions based on selected timeframe
+  // Filter transactions based on selected timeframe and locked event
   const filteredTransactions = useMemo(() => {
     const { unitLength, numberOfUnits } = INTERVAL_CONFIG[selectedTimeframe];
     const now = Date.now() / 1000;
     const timeframeStart = now - (unitLength * numberOfUnits);
 
-    return transactions.filter(tx => tx.timestamp >= timeframeStart);
-  }, [transactions, selectedTimeframe]);
+    // First filter by overall timeframe
+    let filtered = transactions.filter(tx => tx.timestamp >= timeframeStart);
+
+    // If an event is locked, further filter to only show transactions in that time bucket
+    if (lockedEventDate !== null) {
+      // lockedEventDate is in milliseconds, convert to seconds for comparison
+      const bucketEnd = lockedEventDate / 1000;
+      const bucketStart = bucketEnd - unitLength;
+      filtered = filtered.filter(tx => tx.timestamp > bucketStart && tx.timestamp <= bucketEnd);
+    }
+
+    return filtered;
+  }, [transactions, selectedTimeframe, lockedEventDate]);
 
   // Display values
   const displayHealth = scrubData.health ?? (lineData.length > 0 ? lineData[lineData.length - 1].healthValue : null);
   const healthColor = getHealthColor(displayHealth);
   const healthChipBg = getHealthChipBg(displayHealth);
 
+  // Format timestamp for display
+  const formatScrubDate = (timestamp: number | null): string | null => {
+    if (timestamp === null) return null;
+    const date = new Date(timestamp);
+    const now = new Date();
+    const isToday = date.toDateString() === now.toDateString();
+    const timeStr = date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+    if (isToday) {
+      return `Today, ${timeStr}`;
+    }
+    const dateStr = date.toLocaleDateString([], { month: 'short', day: 'numeric' });
+    return `${dateStr}, ${timeStr}`;
+  };
+
+  // Active timestamp for display
+  const activeScrubTimestamp = scrubData.timestamp;
+
   // Reset state when modal closes
   useEffect(() => {
     if (!visible) {
-      setScrubData({ health: null, x: null });
+      setScrubData({ health: null, x: null, timestamp: null });
       setLockedEventDate(null);
       setLockedRefLineIndex(null);
       scrubOpacity.setValue(0);
@@ -262,7 +293,7 @@ export const FullscreenVaultChart = memo(function FullscreenVaultChart({
                 <View style={styles.scrubberDotInner} />
               </Animated.View>
 
-              {/* Percentage label following the scrubber */}
+              {/* Percentage label following the scrubber (above) */}
               <Animated.View
                 style={[
                   styles.scrubberLabel,
@@ -301,6 +332,23 @@ export const FullscreenVaultChart = memo(function FullscreenVaultChart({
                         : ''
                   }
                 </Animated.Text>
+              </Animated.View>
+
+              {/* Date/time label following the scrubber (at bottom of chart) */}
+              <Animated.View
+                style={[
+                  styles.scrubberDateLabel,
+                  {
+                    opacity: scrubOpacity,
+                    transform: [
+                      { translateX: Animated.subtract(scrubXAnim, 45) },
+                    ],
+                  },
+                ]}
+              >
+                <Text style={styles.scrubberDateText}>
+                  {formatScrubDate(scrubData.timestamp) || ''}
+                </Text>
               </Animated.View>
             </View>
           )}

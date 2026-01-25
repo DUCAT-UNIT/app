@@ -5,7 +5,7 @@
 
 import React, { useEffect } from 'react';
 import { Text, View, TouchableOpacity, ScrollView, StyleSheet } from 'react-native';
-import { NavigationProp, RouteProp, CommonActions } from '@react-navigation/native';
+import { NavigationProp, RouteProp, CommonActions, useIsFocused } from '@react-navigation/native';
 import { COLORS } from '../../theme';
 import Icon from '../../components/icons';
 import TouchableScale from '../../components/common/TouchableScale';
@@ -66,13 +66,17 @@ export default function ReviewScreen({ navigation, route }: ReviewScreenProps): 
 
   const selectedFeeRate = useSendFlowStore((state) => state.selectedFeeRate);
   const { cancelIntent } = useTransactionBuild();
+  const isFocused = useIsFocused();
 
-  // Handle missing sendIntent - navigate back in useEffect, not during render
+  // Handle missing sendIntent - navigate back only when this screen is focused.
+  // sendIntent gets cleared during broadcast (sign_and_broadcast phase), but ReviewScreen
+  // is still mounted in the stack behind ProcessingScreen. Without the isFocused check,
+  // this effect would call goBack() and disrupt navigation to ConfirmationScreen.
   useEffect(() => {
-    if (!sendIntent) {
+    if (!sendIntent && isFocused) {
       navigation.goBack();
     }
-  }, [sendIntent, navigation]);
+  }, [sendIntent, navigation, isFocused]);
 
   // Don't render if no sendIntent
   if (!sendIntent) {

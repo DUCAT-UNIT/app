@@ -65,8 +65,8 @@ export function useTransactionHistoryData(
   // Use pre-loaded ecash tokens from context (no more on-demand fetching)
   const { ecashTokens: preloadedEcashTokens, loadingEcashTokens, fetchEcashTokens } = useEcashTokens();
 
-  // Filter tokens by advanced mode
-  const ecashTokens = advancedMode ? [] : preloadedEcashTokens;
+  // Filter tokens by advanced mode - show ecash tokens only in advanced mode
+  const ecashTokens = advancedMode ? preloadedEcashTokens : [];
 
   // Cache for parsed transaction data - keyed by txid, persists across renders
   // This prevents recalculating amounts when just confirmation status changes
@@ -78,7 +78,7 @@ export function useTransactionHistoryData(
 
     // Trigger background refresh to ensure data is fresh
     fetchTransactionHistory();
-    if (!advancedMode) {
+    if (advancedMode) {
       fetchEcashTokens();
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -87,7 +87,7 @@ export function useTransactionHistoryData(
   // Loading is only true when both transaction history AND ecash tokens are loading
   // and we have no data to show yet
   const loading = (loadingTransactionHistory && transactionHistory.length === 0) ||
-    (!advancedMode && loadingEcashTokens && ecashTokens.length === 0);
+    (advancedMode && loadingEcashTokens && ecashTokens.length === 0);
 
   // Cache taproot pubkey decoding - only changes when address changes
   const currentPubkeyHex = useMemo(() => {
@@ -168,15 +168,14 @@ export function useTransactionHistoryData(
     }
 
     // First pass: identify self-claimed sent tokens
+    // A self-claim is when the recipient of a sent token is the current user (they claimed their own token)
     const selfClaimedSentTokenIds = new Set<string>();
     ecashTokens.forEach((token) => {
       const isSentToken = 'recipient' in token;
       if (isSentToken && token.claimed) {
         const sentToken = token as { recipient: string; taprootAddress: string | null };
-        // Check if this is a self-claim
-        const isSelfClaim =
-          (sentToken.taprootAddress && taprootAddress && sentToken.taprootAddress === taprootAddress) ||
-          (currentPubkeyHex && sentToken.recipient === currentPubkeyHex);
+        // Check if this is a self-claim: the recipient pubkey matches the current user's pubkey
+        const isSelfClaim = currentPubkeyHex && sentToken.recipient === currentPubkeyHex;
         if (isSelfClaim) {
           selfClaimedSentTokenIds.add(token.id);
         }

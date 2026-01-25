@@ -10,10 +10,8 @@ export const chartStyles = StyleSheet.create({
   container: {
     marginTop: 8,
     width: '100%',
-    minHeight: 200,
-    marginHorizontal: -16,
-    paddingHorizontal: 0,
-    overflow: 'hidden',
+    minHeight: 220,
+    // No overflow hidden - we need date display below chart
   },
   chartWrapper: {
     position: 'relative',
@@ -69,11 +67,14 @@ export const chartStyles = StyleSheet.create({
   },
   scrubDateContainer: {
     alignItems: 'center',
+    justifyContent: 'center',
     marginTop: 4,
+    height: 20,
   },
   scrubDateText: {
     color: COLORS.SECONDARY_TEXT,
     fontSize: 12,
     fontWeight: '500',
+    textAlign: 'center',
   },
 });

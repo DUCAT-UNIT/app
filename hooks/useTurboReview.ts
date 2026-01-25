@@ -79,12 +79,13 @@ export function useTurboReview({
         const displayAmount = parseFloat(sendAmount);
         const amountInSmallestUnits = Math.round(displayAmount * 100);
 
-        const ecashBalance = await getBalance();
-        const ecashBalanceSmallestUnits = Math.round(ecashBalance * 100);
+        // getBalance() already returns smallest units (integer)
+        const ecashBalanceSmallestUnits = await getBalance();
 
         logger.debug('[useTurboReview] Checking ecash balance:', {
           requested: displayAmount,
-          ecashBalance,
+          requestedSmallestUnits: amountInSmallestUnits,
+          ecashBalanceSmallestUnits,
           hasEnough: ecashBalanceSmallestUnits >= amountInSmallestUnits,
         });
 
@@ -99,7 +100,8 @@ export function useTurboReview({
         logger.debug('[useTurboReview] Insufficient ecash - showing sheet');
         setIsRequestingMint(false);
         setInsufficientTurboAmount(displayAmount);
-        setInsufficientTurboBalance(ecashBalance);
+        // Convert smallest units back to display units for UI
+        setInsufficientTurboBalance(ecashBalanceSmallestUnits / 100);
         setShowInsufficientTurboSheet(true);
         return;
       } catch (error: unknown) {
@@ -126,7 +128,19 @@ export function useTurboReview({
     try {
       setIsRequestingMint(true);
 
-      const mintQuote = await requestMint(insufficientTurboAmount);
+      // Calculate the difference needed to mint (not the full amount)
+      // insufficientTurboAmount is in display units, insufficientTurboBalance is also in display units
+      // Convert to smallest units (integer) for the mint request
+      const differenceDisplayUnits = insufficientTurboAmount - insufficientTurboBalance;
+      const differenceSmallestUnits = Math.round(differenceDisplayUnits * 100);
+      logger.debug('[useTurboReview] Calculating mint amount:', {
+        totalRequired: insufficientTurboAmount,
+        currentBalance: insufficientTurboBalance,
+        differenceDisplayUnits,
+        differenceSmallestUnits,
+      });
+
+      const mintQuote = await requestMint(differenceSmallestUnits);
       const originalRecipient = sendRecipient;
 
       logger.debug('[useTurboReview] Mint quote received:', {
@@ -135,27 +149,35 @@ export function useTurboReview({
         quoteAmount: mintQuote.amount,
       });
 
-      // CRITICAL: Update sendAmount to match the quote amount exactly
-      // mintQuote.amount is in smallest units, convert to display units
+      // The mint quote is for the difference amount
+      // After minting completes, we'll send the FULL original amount to the recipient
       if (mintQuote.amount === undefined) {
         throw new Error('Mint quote amount is undefined');
       }
+
+      // sendAmount for the BTC transaction is the difference (to mint)
       const quoteDisplayAmount = (mintQuote.amount / 100).toString();
-      logger.debug('[useTurboReview] Updating sendAmount to match quote:', {
+      logger.debug('[useTurboReview] Mint flow setup:', {
         originalSendAmount: sendAmount,
-        quoteAmount: mintQuote.amount,
-        newSendAmount: quoteDisplayAmount,
+        mintDifferenceAmount: mintQuote.amount,
+        btcSendAmount: quoteDisplayAmount,
+        finalTurboAmount: insufficientTurboAmount,
       });
+
+      // Set send amount to the mint difference (this is the BTC we send to the mint)
       setSendAmount(quoteDisplayAmount);
       setSendRecipient(mintQuote.depositAddress);
       setIsRequestingMint(false);
+
+      // Pass the FULL turbo amount (in smallest units) that will be sent after minting
+      const fullTurboAmountSmallestUnits = Math.round(insufficientTurboAmount * 100);
 
       navigation.navigate('Processing', {
         fromScreen: 'SendInput',
         action: 'create_intent',
         isTurbo: true,
         mintQuoteId: mintQuote.quoteId,
-        mintAmount: mintQuote.amount,
+        mintAmount: fullTurboAmountSmallestUnits, // Full amount to send after minting
         turboRecipient: originalRecipient,
       });
     } catch (error: unknown) {
@@ -163,7 +185,7 @@ export function useTurboReview({
       logger.error('[useTurboReview] Failed to request mint quote:', { error: error instanceof Error ? error.message : String(error) });
       Alert.alert('Error', 'Failed to initiate Turbo transaction. Please try again.');
     }
-  }, [insufficientTurboAmount, sendAmount, sendRecipient, setSendAmount, setSendRecipient, navigation]);
+  }, [insufficientTurboAmount, insufficientTurboBalance, sendAmount, sendRecipient, setSendAmount, setSendRecipient, navigation]);
 
   const handleSendNormally = useCallback(() => {
     setShowInsufficientTurboSheet(false);

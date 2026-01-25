@@ -70,6 +70,7 @@ export default function EcashTransactionItem({ tx, styles, onPress }: EcashTrans
     return 'Send';
   };
   const actionText = getActionText();
+  const assetLabel = 'tUNIT';
 
   // Determine amount color - red for sent, green for received/self claim
   const amountColor = (isSent && !isAutoclaim && !tx.isAutoclaim) ? COLORS.RED : COLORS.GREEN;
@@ -131,7 +132,7 @@ export default function EcashTransactionItem({ tx, styles, onPress }: EcashTrans
           </View>
         </View>
         <View style={styles.historyTxBottomRow}>
-          <Text style={[styles.historyTxDate, { fontSize: sf(12) }]}>{formatTransactionDate(tx.timestamp / 1000)}</Text>
+          <Text style={[styles.historyTxDate, { fontSize: sf(12) }]}>{formatTransactionDate(tx.timestamp / 1000)} · {assetLabel}</Text>
         </View>
       </View>
     </TouchableOpacity>

@@ -2,9 +2,12 @@
  * OnboardingPage - Handles wallet creation, import, and authentication flows
  */
 
-import React from 'react';
-import { View, StyleSheet } from 'react-native';
+import React, { useCallback } from 'react';
+import { View, StyleSheet, Alert } from 'react-native';
 import { StatusBar } from 'expo-status-bar';
+import * as LocalAuthentication from 'expo-local-authentication';
+import * as SecureStore from 'expo-secure-store';
+import { SECURE_KEYS } from '../utils/constants';
 import { logger } from '../utils/logger';
 
 // Components
@@ -12,7 +15,6 @@ import WelcomeScreen from '../screens/auth/WelcomeScreen';
 import PinSetupScreen from '../screens/auth/PinSetupScreen';
 import LockScreen from '../screens/auth/LockScreen';
 import MutinynetBanner from '../components/MutinynetBanner';
-import BiometricPromptModal from '../components/BiometricPromptModal';
 import PasskeyPinInput from '../components/PasskeyPinInput';
 
 // Contexts
@@ -31,9 +33,6 @@ import { useOnboardingHandlers } from '../hooks/useOnboardingHandlers';
 // Utils
 import { COLORS } from '../theme';
 
-// Types
-import type { ViewStyle, TextStyle, ImageStyle } from 'react-native';
-
 interface OnboardingPageProps {
   seedConfirmed: boolean;
   setSeedConfirmed: (confirmed: boolean) => void;
@@ -45,18 +44,17 @@ interface OnboardingPageProps {
   handleCancelPinChange: () => void;
   handleLockScreenAuthenticatedWrapper: () => void;
   keyboardHeight: number;
-  styles: Record<string, ViewStyle | TextStyle | ImageStyle>;
 }
 
 export default function OnboardingPage({
   seedConfirmed, setSeedConfirmed, fetchBalance, fetchTransactionHistory,
   resetWalletAndState, handlePinSetupCompleteWrapper, handlePinChangeCompleteWrapper,
-  handleCancelPinChange, handleLockScreenAuthenticatedWrapper, keyboardHeight, styles,
+  handleCancelPinChange, handleLockScreenAuthenticatedWrapper, keyboardHeight,
 }: OnboardingPageProps) {
   const {
-    isAuthenticated, isBiometricSupported, showBiometricPrompt, showFaceIdButton,
+    isAuthenticated, isBiometricSupported, biometricEnabled,
     settingUpPin, changingPin, showPinEntry, setIsAuthenticated, setSettingUpPin,
-    setBiometricEnabled, setShowBiometricPrompt, authenticateUser,
+    setBiometricEnabled,
   } = useAuth();
 
   const { wallet, currentAccount, loadWallet, setWalletAddresses } = useWallet();
@@ -103,6 +101,59 @@ export default function OnboardingPage({
     fetchBalance, fetchTransactionHistory, showPasskeyMigrationPromptGlobal,
     isImportedWallet, importedMnemonic,
   });
+
+  // Handle biometric authentication with proper post-auth flow
+  const handleBiometricAuth = useCallback(async () => {
+    logger.debug('[OnboardingPage] handleBiometricAuth called', { biometricEnabled, isBiometricSupported });
+    try {
+      if (biometricEnabled) {
+        // Biometrics enabled - authenticate directly
+        const result = await LocalAuthentication.authenticateAsync({
+          promptMessage: 'Authenticate to unlock wallet',
+          fallbackLabel: 'Use PIN',
+          disableDeviceFallback: true,
+        });
+
+        if (result.success) {
+          setIsAuthenticated(true);
+          handleLockScreenAuthenticatedWrapper();
+        }
+      } else {
+        // Biometrics not enabled - ask user if they want to enable
+        Alert.alert(
+          'Enable Face ID',
+          'Would you like to enable Face ID for faster login?',
+          [
+            {
+              text: 'Not Now',
+              style: 'cancel',
+            },
+            {
+              text: 'Enable',
+              onPress: async () => {
+                // Try to authenticate with biometrics
+                const result = await LocalAuthentication.authenticateAsync({
+                  promptMessage: 'Authenticate to enable Face ID',
+                  fallbackLabel: 'Cancel',
+                  disableDeviceFallback: true,
+                });
+
+                if (result.success) {
+                  // Save biometric preference and complete auth
+                  await SecureStore.setItemAsync(SECURE_KEYS.BIOMETRIC_ENABLED, 'true');
+                  setBiometricEnabled(true);
+                  setIsAuthenticated(true);
+                  handleLockScreenAuthenticatedWrapper();
+                }
+              },
+            },
+          ]
+        );
+      }
+    } catch (error) {
+      logger.error('[OnboardingPage] Biometric auth error:', { error: error instanceof Error ? error.message : String(error) });
+    }
+  }, [biometricEnabled, setIsAuthenticated, setBiometricEnabled, handleLockScreenAuthenticatedWrapper]);
 
   // Common WelcomeScreen props
   const welcomeProps = {
@@ -158,7 +209,11 @@ export default function OnboardingPage({
     return (
       <View style={localStyles.container}>
         <MutinynetBanner />
-        <LockScreen onAuthenticated={handleLockScreenAuthenticatedWrapper} />
+        <LockScreen
+          onAuthenticated={handleLockScreenAuthenticatedWrapper}
+          showFaceIdButton={isBiometricSupported}
+          onFaceIdPress={handleBiometricAuth}
+        />
         <StatusBar style="light" />
       </View>
     );
@@ -169,12 +224,11 @@ export default function OnboardingPage({
     return (
       <View style={localStyles.container}>
         <MutinynetBanner />
-        <LockScreen onAuthenticated={handleLockScreenAuthenticatedWrapper}
-          showFaceIdButton={showFaceIdButton && !showBiometricPrompt} onFaceIdPress={authenticateUser} />
-        <BiometricPromptModal visible={showBiometricPrompt} isAuthenticated={isAuthenticated}
-          onClose={() => setShowBiometricPrompt(false)}
-          onBiometricEnabled={(enabled, authSuccess) => { setBiometricEnabled(enabled); if (authSuccess) setIsAuthenticated(true); }}
-          onBiometricDisabled={() => setBiometricEnabled(false)} styles={styles as Parameters<typeof BiometricPromptModal>[0]['styles']} />
+        <LockScreen
+          onAuthenticated={handleLockScreenAuthenticatedWrapper}
+          showFaceIdButton={isBiometricSupported}
+          onFaceIdPress={handleBiometricAuth}
+        />
         <StatusBar style="light" />
       </View>
     );

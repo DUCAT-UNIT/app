@@ -90,7 +90,8 @@ export default function ProcessingScreen({ navigation, route }: ProcessingScreen
       setSendAmount(paramAmount);
       setSendRecipient(paramRecipient);
     }
-  }, [paramAssetType, paramAmount, paramRecipient, setSendAssetType, setSendAmount, setSendRecipient]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [paramAssetType, paramAmount, paramRecipient]);
 
   // Messages for different asset types during PSBT creation
   const btcCreatingMessages = [
@@ -141,15 +142,6 @@ export default function ProcessingScreen({ navigation, route }: ProcessingScreen
 
   // Start the action when screen mounts
   useEffect(() => {
-    logger.debug('🎬🎬 [ProcessingScreen] useEffect fired', {
-      hasStarted: hasStarted.current,
-      action,
-      isTurbo,
-      isCashuMint,
-      mintQuoteId,
-      cashuQuoteId,
-    });
-
     if (!hasStarted.current && action === 'create_intent') {
       // For Cashu mint flow, wait for send flow state to be set from route params
       if (isCashuMint && (!sendAssetType || !sendAmount || !sendRecipient)) {
@@ -165,16 +157,13 @@ export default function ProcessingScreen({ navigation, route }: ProcessingScreen
       }, 100);
     } else if (!hasStarted.current && action === 'sign_and_broadcast') {
       hasStarted.current = true;
-      logger.debug('🎬 [ProcessingScreen] Starting sign_and_broadcast flow');
       // Small delay before signing
       setTimeout(async () => {
         try {
           // Sign and broadcast transaction
-          const success = await signIntent();
+          const txid = await signIntent();
 
-          if (success) {
-            // Navigate to Confirmation immediately after broadcast
-            // Confirmation screen will handle the mint process for turbo/cashu flows
+          if (txid) {
             navigation.dispatch(
               StackActions.replace('Confirmation', {
                 isTurbo,
@@ -184,6 +173,7 @@ export default function ProcessingScreen({ navigation, route }: ProcessingScreen
                 cashuMint: isCashuMint,
                 quoteId: cashuQuoteId,
                 skipMint: false, // Let ConfirmationScreen handle the mint
+                broadcastedTxid: txid,
               })
             );
           } else {

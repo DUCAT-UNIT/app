@@ -14,13 +14,14 @@ import type { StackScreenProps } from '@react-navigation/stack';
 type VaultSuccessScreenProps = StackScreenProps<VaultCreateStackParamList, 'VaultSuccess'>;
 
 export default function VaultSuccessScreen({ navigation, route }: VaultSuccessScreenProps) {
-  const { txid: storeTxid, btcAmount, unitAmount, reset } = useVaultCreation();
+  const { txid: storeTxid, btcAmount, reset } = useVaultCreation();
   const { btcPrice } = usePrice();
 
   const txid = route.params?.txid || storeTxid || '';
 
-  // Calculate USD value of deposited BTC
-  const btcUsdValue = btcPrice ? btcAmount * btcPrice : btcAmount * 100000;
+  // VaultActionSuccess expects satoshis for BTC amounts (formatBTC converts sats to BTC)
+  const btcAmountSats = Math.round(btcAmount * 100_000_000);
+  const btcUsdValue = btcPrice ? btcAmount * btcPrice : 0;
 
   // Handle done - reset state and go back to wallet
   const handleDone = useCallback(() => {
@@ -35,7 +36,7 @@ export default function VaultSuccessScreen({ navigation, route }: VaultSuccessSc
   return (
     <VaultActionSuccess
       actionType="create"
-      amount={btcAmount}
+      amount={btcAmountSats}
       usdValue={btcUsdValue}
       txid={txid}
       unit="BTC"
