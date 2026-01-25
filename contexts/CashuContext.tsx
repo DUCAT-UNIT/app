@@ -10,11 +10,17 @@ import { logger } from '../utils/logger';
 import { clearWallet, setCurrentAccount } from '../services/cashu/cashuWalletService';
 import { checkAndRecoverSwaps } from '../services/cashu/cashuSwapRecovery';
 import { recoverUnclaimedMintQuotes } from '../services/cashu/cashuMintQuoteRecovery';
+import { recoverPendingTurboSend } from '../services/cashu/cashuTurboRecovery';
+import { sendP2PKToken } from '../services/cashu/operations/cashuSendP2PK';
+import { extractPubkeyFromTaprootAddress } from '../utils/bitcoin';
+import { shortenCashuToken } from '../services/urlShortener';
+import { saveSentLockedToken } from '../services/cashu/cashuLockedTokensService';
 import { useWallet } from './WalletContext';
 import { useCashuBalance } from '../hooks/useCashuBalance';
 import { useCashuMint } from '../hooks/useCashuMint';
 import { useCashuMelt } from '../hooks/useCashuMelt';
 import { useCashuSendReceive } from '../hooks/useCashuSendReceive';
+import { notify } from '../utils/notify';
 import type { MintQuoteResult } from '../services/cashu/operations/cashuMintOperations';
 import type { MeltQuoteResult, MeltResult } from '../services/cashu/operations/cashuMeltOperations';
 import type { SendTokenResult } from '../services/cashu/operations/cashuSendToken';
@@ -171,7 +177,7 @@ export const CashuProvider: React.FC<CashuProviderProps> = ({ children }) => {
     prevWalletRef.current = wallet;
   }, [wallet]);
 
-  // Check for and recover any pending swap/mint transactions on startup
+  // Check for and recover any pending swap/mint/turbo transactions on startup
   const recoveryChecked = useRef(false);
   useEffect(() => {
     if (recoveryChecked.current || !wallet?.taprootAddress) {
@@ -193,6 +199,26 @@ export const CashuProvider: React.FC<CashuProviderProps> = ({ children }) => {
             recovered: mintRecovery.recovered,
             totalAmount: mintRecovery.totalAmountRecovered,
           });
+        }
+
+        // Check for pending turbo sends (mint completed but P2PK not sent)
+        logger.info('[CashuContext] Checking for pending turbo sends...');
+        const turboRecovery = await recoverPendingTurboSend(
+          sendP2PKToken,
+          extractPubkeyFromTaprootAddress,
+          shortenCashuToken,
+          saveSentLockedToken
+        );
+        if (turboRecovery.recovered) {
+          logger.info('[CashuContext] Recovered pending turbo send on startup', {
+            recipient: turboRecovery.recipient?.substring(0, 12) + '...',
+            amount: turboRecovery.amount,
+            hasToken: !!turboRecovery.token,
+          });
+          // Notify user that their turbo send was recovered
+          if (turboRecovery.token) {
+            notify.transaction.success('send');
+          }
         }
 
         // Refresh balance after potential recovery
