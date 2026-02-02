@@ -93,8 +93,14 @@ export function useWalletImport({ currentAccount, setSettingUpPin }: UseWalletIm
     await new Promise((resolve) => setTimeout(resolve, 10));
 
     try {
+      // E2E bypass: use test seed phrase in dev builds with explicit env var
+      const isE2E = __DEV__ && process.env.EXPO_PUBLIC_E2E_BYPASS === 'true';
+      const seedWords = isE2E && importSeedPhrase.every(w => !w.trim())
+        ? 'abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon about'.split(' ')
+        : importSeedPhrase;
+
       // Join the array of words and trim/normalize
-      const mnemonic = importSeedPhrase
+      const mnemonic = seedWords
         .map((word) => word.trim().toLowerCase())
         .join(' ')
         .trim();

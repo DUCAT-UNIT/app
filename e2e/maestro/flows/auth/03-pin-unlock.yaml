@@ -1,0 +1,23 @@
+appId: com.ducatprotocol.DucatProtocolWallet
+---
+# PIN Unlock - Lock/unlock cycle
+# Import wallet → kill app → relaunch → PIN → wallet
+
+# First set up a wallet
+- runFlow: ../../helpers/import-wallet.yaml
+
+# Kill and relaunch the app (without clearing state)
+- stopApp
+- launchApp
+- runFlow: ../../helpers/dismiss-dev-client.yaml
+
+# Lock screen should appear
+- assertVisible:
+    id: "lock-screen"
+
+# Enter PIN to unlock
+- runFlow: ../../helpers/enter-pin-lock.yaml
+
+# Verify wallet screen loads after unlock
+- assertVisible:
+    id: "wallet-screen"

@@ -1,0 +1,22 @@
+appId: com.ducatprotocol.DucatProtocolWallet
+---
+# Vault Withdraw - Navigate to vault withdraw flow
+# Import wallet → navigate to vault → start withdraw
+
+- runFlow: ../../helpers/import-wallet.yaml
+
+# Navigate to vault tab
+- tapOn:
+    id: "tab-vault"
+
+# Verify vault screen
+- assertVisible:
+    id: "vault-screen"
+
+# Tap withdraw
+- tapOn:
+    id: "vault-withdraw-btn"
+
+# Verify withdraw screen elements
+- assertVisible:
+    id: "vault-withdraw-screen"

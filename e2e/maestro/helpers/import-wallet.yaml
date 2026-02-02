@@ -1,0 +1,38 @@
+appId: com.ducatprotocol.DucatProtocolWallet
+---
+- launchApp:
+    clearState: true
+    clearKeychain: true
+- runFlow: dismiss-dev-client.yaml
+- assertVisible:
+    id: "welcome-screen"
+- tapOn:
+    id: "welcome-restore-wallet-btn"
+- assertVisible:
+    id: "restore-choice-screen"
+- tapOn:
+    id: "restore-seed-phrase-btn"
+- assertVisible:
+    id: "import-wallet-screen"
+- tapOn:
+    id: "import-wallet-btn"
+- assertVisible:
+    id: "pin-setup-title"
+- runFlow: enter-pin-setup.yaml
+- runFlow: enter-pin-setup.yaml
+- runFlow:
+    when:
+      visible:
+        id: "biometric-modal"
+    commands:
+      - tapOn:
+          id: "biometric-skip-btn"
+- runFlow:
+    when:
+      visible:
+        id: "passkey-migration-modal"
+    commands:
+      - tapOn:
+          id: "passkey-skip-btn"
+- assertVisible:
+    id: "wallet-screen"

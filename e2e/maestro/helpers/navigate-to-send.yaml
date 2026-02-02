@@ -1,0 +1,6 @@
+appId: com.ducatprotocol.DucatProtocolWallet
+---
+- tapOn:
+    id: "action-send"
+- assertVisible:
+    id: "send-input-screen"

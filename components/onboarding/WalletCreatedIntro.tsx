@@ -13,7 +13,7 @@ interface WalletCreatedIntroProps {
 
 export default function WalletCreatedIntro({ onContinue, onCancel }: WalletCreatedIntroProps) {
   return (
-    <View style={styles.walletInfo}>
+    <View style={styles.walletInfo} testID="intro-screen">
       <Text style={styles.stepIndicator}>Step 1 of 4</Text>
 
       <View style={styles.introIconContainer}>
@@ -32,7 +32,7 @@ export default function WalletCreatedIntro({ onContinue, onCancel }: WalletCreat
         <Text style={styles.infoItem}>✓ Never share it</Text>
       </View>
 
-      <TouchableOpacity style={styles.button} onPress={onContinue}>
+      <TouchableOpacity style={styles.button} onPress={onContinue} testID="intro-continue-btn">
         <Text style={styles.buttonText}>Continue</Text>
       </TouchableOpacity>
 

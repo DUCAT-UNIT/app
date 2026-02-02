@@ -84,7 +84,7 @@ export default function PasskeyMigrationModal({
           contentContainerStyle={{ flexGrow: 1, justifyContent: 'center', alignItems: 'center' }}
           showsVerticalScrollIndicator={false}
         >
-          <View style={[styles.biometricPromptModal, {
+          <View testID="passkey-migration-modal" style={[styles.biometricPromptModal, {
             borderRadius: s(radii.xxl),
             padding: s(spacing.xl),
             marginVertical: s(spacing.xl),
@@ -124,6 +124,7 @@ export default function PasskeyMigrationModal({
               </TouchableOpacity>
 
               <TouchableOpacity
+                testID="passkey-skip-btn"
                 style={[styles.biometricPromptButton, styles.biometricPromptButtonNo, {
                   paddingVertical: s(spacing.lg),
                   paddingHorizontal: s(20),

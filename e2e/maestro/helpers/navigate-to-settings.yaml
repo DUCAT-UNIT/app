@@ -1,0 +1,6 @@
+appId: com.ducatprotocol.DucatProtocolWallet
+---
+- tapOn:
+    id: "tab-settings"
+- assertVisible:
+    id: "settings-screen"

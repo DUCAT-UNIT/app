@@ -1,0 +1,19 @@
+appId: com.ducatprotocol.DucatProtocolWallet
+---
+# Navigate Settings - Verify all settings menu items visible
+# Import wallet → open settings → verify menu items
+
+- runFlow: ../../helpers/import-wallet.yaml
+
+# Navigate to settings
+- runFlow: ../../helpers/navigate-to-settings.yaml
+
+# Verify settings menu items are visible
+- assertVisible:
+    id: "settings-screen"
+- assertVisible:
+    id: "settings-security"
+- assertVisible:
+    id: "settings-network"
+- assertVisible:
+    id: "settings-about"

@@ -1,0 +1,22 @@
+appId: com.ducatprotocol.DucatProtocolWallet
+---
+# Vault Deposit - Navigate to vault deposit flow
+# Import wallet → navigate to vault → start deposit
+
+- runFlow: ../../helpers/import-wallet.yaml
+
+# Navigate to vault tab
+- tapOn:
+    id: "tab-vault"
+
+# Verify vault screen
+- assertVisible:
+    id: "vault-screen"
+
+# Tap deposit
+- tapOn:
+    id: "vault-deposit-btn"
+
+# Verify deposit screen elements
+- assertVisible:
+    id: "vault-deposit-screen"

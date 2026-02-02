@@ -1,0 +1,33 @@
+appId: com.ducatprotocol.DucatProtocolWallet
+---
+# Send UNIT - Full send flow for UNIT asset
+# Import wallet → select UNIT → enter address + amount → review
+# Note: Requires funded wallet to complete.
+
+- runFlow: ../../helpers/import-wallet.yaml
+
+# Navigate to send
+- tapOn:
+    id: "action-send"
+
+# Select UNIT asset
+- tapOn:
+    id: "asset-select-unit"
+
+# Verify send input screen
+- assertVisible:
+    id: "send-input-screen"
+
+# Enter recipient address
+- tapOn:
+    id: "address-input"
+- inputText: "${TESTNET_ADDRESS}"
+
+# Enter amount
+- tapOn:
+    id: "amount-input"
+- inputText: "100"
+
+# Tap review (may fail if wallet has insufficient funds)
+- tapOn:
+    label: "Review transaction"

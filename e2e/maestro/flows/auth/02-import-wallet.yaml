@@ -1,0 +1,56 @@
+appId: com.ducatprotocol.DucatProtocolWallet
+---
+# Import Wallet - Seed phrase import flow
+# E2E bypass auto-fills test seed when import button is tapped with empty fields
+# clearState → welcome → restore choice → import screen → tap import → PIN → wallet
+
+- launchApp:
+    clearState: true
+    clearKeychain: true
+- runFlow: ../../helpers/dismiss-dev-client.yaml
+
+# Welcome screen
+- assertVisible:
+    id: "welcome-screen"
+- tapOn:
+    id: "welcome-restore-wallet-btn"
+
+# Restore choice screen
+- assertVisible:
+    id: "restore-choice-screen"
+- tapOn:
+    id: "restore-seed-phrase-btn"
+
+# Import wallet screen - E2E bypass auto-fills seed
+- assertVisible:
+    id: "import-wallet-screen"
+- tapOn:
+    id: "import-wallet-btn"
+
+# PIN setup - enter PIN twice
+- assertVisible:
+    id: "pin-setup-title"
+- runFlow: ../../helpers/enter-pin-setup.yaml
+- runFlow: ../../helpers/enter-pin-setup.yaml
+
+# Skip biometric if prompted
+- runFlow:
+    when:
+      visible:
+        id: "biometric-modal"
+    commands:
+      - tapOn:
+          id: "biometric-skip-btn"
+
+# Skip passkey migration if prompted
+- runFlow:
+    when:
+      visible:
+        id: "passkey-migration-modal"
+    commands:
+      - tapOn:
+          id: "passkey-skip-btn"
+
+# Verify wallet screen loads
+- assertVisible:
+    id: "wallet-screen"

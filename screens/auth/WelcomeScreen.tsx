@@ -87,6 +87,8 @@ interface WelcomeScreenProps {
   setShowingSeeds: (value: boolean) => void;
   /** Setter for restoringWithPasskey state */
   setRestoringWithPasskey?: (value: boolean) => void;
+  /** Function to create a new wallet (seed phrase flow, no passkey) */
+  createWallet?: () => void | Promise<void>;
   /** Function to create a new wallet with passkey support */
   createWalletWithPasskey?: () => void | Promise<void>;
   /** Function to import wallet from seed phrase */
@@ -130,6 +132,7 @@ export default function WelcomeScreen({
   setRestoringWithPasskey,
 
   // Functions
+  createWallet,
   createWalletWithPasskey,
   importWallet,
   restoreWithPasskey,
@@ -148,10 +151,12 @@ export default function WelcomeScreen({
   };
 
   // Initial welcome screen (no wallet exists)
+  // In E2E mode, use seed phrase creation to avoid passkey system dialogs
+  const isE2E = __DEV__ && process.env.EXPO_PUBLIC_E2E_BYPASS === 'true';
   if (!wallet && !importingWallet && !restoringWithPasskey) {
     return (
       <InitialWelcome
-        onCreateWallet={createWalletWithPasskey}
+        onCreateWallet={isE2E ? createWallet : createWalletWithPasskey}
         onRestoreWallet={() => setRestoringWithPasskey?.(true)}
       />
     );

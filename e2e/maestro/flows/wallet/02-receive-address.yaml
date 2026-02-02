@@ -1,0 +1,18 @@
+appId: com.ducatprotocol.DucatProtocolWallet
+---
+# Receive Address - Verify receive QR/address displayed
+# Import wallet → tap deposit → verify QR code and address
+
+- runFlow: ../../helpers/import-wallet.yaml
+
+# Tap deposit/receive button
+- tapOn:
+    id: "action-deposit"
+
+# Verify receive screen elements
+- assertVisible:
+    id: "receive-screen"
+- assertVisible:
+    id: "receive-qr-code"
+- assertVisible:
+    id: "receive-address"

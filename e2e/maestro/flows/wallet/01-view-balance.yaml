@@ -1,0 +1,22 @@
+appId: com.ducatprotocol.DucatProtocolWallet
+---
+# View Balance - Verify wallet screen elements load
+# Import wallet → verify balance section, asset cards, action buttons
+
+- runFlow: ../../helpers/import-wallet.yaml
+
+# Verify wallet screen elements
+- assertVisible:
+    id: "wallet-screen"
+- assertVisible:
+    id: "balance-section"
+- assertVisible:
+    id: "asset-card-btc"
+- assertVisible:
+    id: "asset-card-unit"
+
+# Verify action buttons
+- assertVisible:
+    id: "action-send"
+- assertVisible:
+    id: "action-deposit"

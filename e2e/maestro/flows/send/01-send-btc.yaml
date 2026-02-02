@@ -1,0 +1,33 @@
+appId: com.ducatprotocol.DucatProtocolWallet
+---
+# Send BTC - Full send flow
+# Import wallet → select BTC → enter address + amount → review → confirm
+# Note: Requires funded wallet to complete. May fail at review step on empty wallet.
+
+- runFlow: ../../helpers/import-wallet.yaml
+
+# Navigate to send
+- tapOn:
+    id: "action-send"
+
+# Select BTC asset
+- tapOn:
+    id: "asset-select-btc"
+
+# Verify send input screen
+- assertVisible:
+    id: "send-input-screen"
+
+# Enter recipient address
+- tapOn:
+    id: "address-input"
+- inputText: "${TESTNET_ADDRESS}"
+
+# Enter amount (small test amount)
+- tapOn:
+    id: "amount-input"
+- inputText: "0.0001"
+
+# Tap review (may fail if wallet has insufficient funds)
+- tapOn:
+    label: "Review transaction"

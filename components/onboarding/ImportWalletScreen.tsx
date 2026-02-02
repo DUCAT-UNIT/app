@@ -145,6 +145,7 @@ export default function ImportWalletScreen({
           <TouchableOpacity
             activeOpacity={0.8}
             onPress={() => seedInputRefs.current[index]?.focus()}
+            testID={`seed-word-container-${index}`}
             style={[
               styles.wordContainer,
               isFocused && styles.wordContainerFocused,
@@ -164,6 +165,7 @@ export default function ImportWalletScreen({
               ref={(ref) => {
                 seedInputRefs.current[index] = ref;
               }}
+              testID={`seed-input-${index}`}
               style={styles.wordInput}
               value={word}
               onChangeText={(text) => handleTextChange(text, index)}
@@ -207,6 +209,7 @@ export default function ImportWalletScreen({
       style={styles.container}
       behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
       keyboardVerticalOffset={Platform.OS === 'ios' ? 0 : 20}
+      testID="import-wallet-screen"
     >
       <ScrollView
         style={styles.scrollView}
@@ -232,7 +235,7 @@ export default function ImportWalletScreen({
           </View>
 
           {filledCount === 0 ? (
-            <TouchableOpacity style={styles.actionButton} onPress={handlePaste} activeOpacity={0.7}>
+            <TouchableOpacity style={styles.actionButton} onPress={handlePaste} activeOpacity={0.7} testID="import-paste-btn">
               <Icon name="copy" size={14} color={colors.brand.primary} />
               <Text style={styles.actionButtonText}>Paste</Text>
             </TouchableOpacity>
@@ -262,8 +265,9 @@ export default function ImportWalletScreen({
             (!isComplete || isImporting) && styles.buttonDisabled,
           ]}
           onPress={onImport}
-          disabled={!isComplete || isImporting}
+          disabled={(!isComplete && !(__DEV__ && process.env.EXPO_PUBLIC_E2E_BYPASS === 'true')) || isImporting}
           activeOpacity={0.8}
+          testID="import-wallet-btn"
         >
           <Text style={[styles.importButtonText, (!isComplete || isImporting) && styles.buttonTextDisabled]}>
             {isImporting ? 'Importing...' : 'Import Wallet'}
