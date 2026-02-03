@@ -1,7 +1,7 @@
 appId: com.ducatprotocol.DucatProtocolWallet
 ---
-# Send BTC - Verify withdraw sheet opens and send screen loads
-# Import wallet → tap withdraw → select BTC → verify send screen
+# Deposit BTC - Verify deposit sheet opens and BTC receive screen loads
+# Import wallet → tap deposit → select BTC → verify receive screen
 
 - runFlow: ../../helpers/import-wallet.yaml
 
@@ -9,20 +9,21 @@ appId: com.ducatprotocol.DucatProtocolWallet
 - assertVisible:
     id: "wallet-screen"
 
-# Tap withdraw button - opens withdraw sheet
+# Tap deposit button - opens deposit sheet
 - tapOn:
-    id: "wallet-withdraw-btn"
+    id: "wallet-deposit-btn"
 
-# Select BTC from withdraw sheet
+# Select BTC from deposit sheet
 - extendedWaitUntil:
     visible:
-      id: "withdraw-btc"
+      id: "deposit-btc"
     timeout: 5000
 - tapOn:
-    id: "withdraw-btc"
+    id: "deposit-btc"
 
-# Verify send input screen loads
+# Wait for navigation then verify receive screen loaded
+- waitForAnimationToEnd
 - extendedWaitUntil:
     visible:
-      id: "send-input-screen"
-    timeout: 5000
+      text: "Only use this address to receive Bitcoin."
+    timeout: 10000

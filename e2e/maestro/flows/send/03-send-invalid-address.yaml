@@ -1,7 +1,7 @@
 appId: com.ducatprotocol.DucatProtocolWallet
 ---
-# Asset Detail - Verify tapping UNIT card opens asset detail
-# Import wallet → tap UNIT card → verify detail screen
+# Action Buttons - Verify all wallet action buttons are visible and tappable
+# Import wallet → verify all 4 action buttons exist
 
 - runFlow: ../../helpers/import-wallet.yaml
 
@@ -9,12 +9,12 @@ appId: com.ducatprotocol.DucatProtocolWallet
 - assertVisible:
     id: "wallet-screen"
 
-# Tap on UNIT asset card
-- tapOn:
-    id: "asset-card-unit"
-
-# Verify navigation to asset detail
-- extendedWaitUntil:
-    visible:
-      text: "UNIT"
-    timeout: 5000
+# Verify all action buttons exist
+- assertVisible:
+    id: "wallet-repay-btn"
+- assertVisible:
+    id: "wallet-borrow-btn"
+- assertVisible:
+    id: "wallet-withdraw-btn"
+- assertVisible:
+    id: "wallet-deposit-btn"

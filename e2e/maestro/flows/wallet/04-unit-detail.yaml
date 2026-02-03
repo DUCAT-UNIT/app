@@ -1,0 +1,20 @@
+appId: com.ducatprotocol.DucatProtocolWallet
+---
+# UNIT Detail - Tap UNIT asset card and verify detail screen
+# Import wallet → tap UNIT card → verify UNIT detail
+
+- runFlow: ../../helpers/import-wallet.yaml
+
+# Verify wallet screen
+- assertVisible:
+    id: "wallet-screen"
+
+# Tap on UNIT asset card
+- tapOn:
+    id: "asset-card-unit"
+
+# Verify navigation to asset detail
+- extendedWaitUntil:
+    visible:
+      text: "UNIT"
+    timeout: 5000

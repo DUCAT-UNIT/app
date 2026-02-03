@@ -1,7 +1,7 @@
 appId: com.ducatprotocol.DucatProtocolWallet
 ---
-# Deposit Sheet - Verify deposit sheet shows BTC and UNIT options
-# Import wallet → tap deposit → verify both deposit options
+# Deposit UNIT - Verify deposit sheet shows UNIT option
+# Import wallet → tap deposit → verify UNIT option visible
 
 - runFlow: ../../helpers/import-wallet.yaml
 
@@ -13,10 +13,8 @@ appId: com.ducatprotocol.DucatProtocolWallet
 - tapOn:
     id: "wallet-deposit-btn"
 
-# Verify deposit sheet shows both options
+# Verify deposit sheet shows UNIT option
 - extendedWaitUntil:
     visible:
-      id: "deposit-btc"
+      id: "deposit-unit"
     timeout: 5000
-- assertVisible:
-    id: "deposit-unit"
