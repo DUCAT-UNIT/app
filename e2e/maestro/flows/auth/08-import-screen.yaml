@@ -1,0 +1,35 @@
+appId: com.ducatprotocol.DucatProtocolWallet
+---
+# Import Screen - Verify import wallet screen shows seed inputs and buttons
+# clearState → welcome → restore → seed phrase → verify import screen elements
+
+- launchApp:
+    clearState: true
+    clearKeychain: true
+- runFlow: ../../helpers/dismiss-dev-client.yaml
+
+# Welcome screen → restore → seed phrase
+- assertVisible:
+    id: "welcome-screen"
+- tapOn:
+    id: "welcome-restore-wallet-btn"
+- assertVisible:
+    id: "restore-choice-screen"
+- tapOn:
+    id: "restore-seed-phrase-btn"
+
+# Verify import wallet screen
+- assertVisible:
+    id: "import-wallet-screen"
+
+# Verify seed word inputs exist
+- assertVisible:
+    id: "seed-word-container-0"
+- assertVisible:
+    id: "seed-word-container-11"
+
+# Verify paste and import buttons
+- assertVisible:
+    id: "import-paste-btn"
+- assertVisible:
+    id: "import-wallet-btn"

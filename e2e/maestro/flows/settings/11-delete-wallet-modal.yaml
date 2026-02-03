@@ -1,0 +1,42 @@
+appId: com.ducatprotocol.DucatProtocolWallet
+---
+# Delete Wallet Modal - Verify delete wallet shows confirmation then cancel
+# Import wallet → settings → security → delete → cancel modal → verify still on security
+
+- runFlow: ../../helpers/import-wallet.yaml
+
+# Navigate to security settings
+- assertVisible:
+    id: "wallet-screen"
+- tapOn:
+    id: "wallet-settings-btn"
+- extendedWaitUntil:
+    visible:
+      id: "settings-screen"
+    timeout: 5000
+- tapOn:
+    id: "settings-security-btn"
+- extendedWaitUntil:
+    visible:
+      id: "security-screen"
+    timeout: 5000
+
+# Tap delete wallet
+- tapOn:
+    id: "security-delete-btn"
+
+# Verify delete confirmation modal appears
+- extendedWaitUntil:
+    visible:
+      text: "Delete Wallet"
+    timeout: 3000
+
+# Cancel the deletion
+- tapOn:
+    text: "Cancel"
+
+# Verify we're still on security screen
+- extendedWaitUntil:
+    visible:
+      id: "security-screen"
+    timeout: 5000

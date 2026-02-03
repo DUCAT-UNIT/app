@@ -1,0 +1,29 @@
+appId: com.ducatprotocol.DucatProtocolWallet
+---
+# Deposit UNIT Receive - Open deposit sheet, select UNIT, verify receive screen
+# Import wallet → deposit → UNIT → verify UNIT receive screen loads
+
+- runFlow: ../../helpers/import-wallet.yaml
+
+# Verify wallet screen
+- assertVisible:
+    id: "wallet-screen"
+
+# Open deposit sheet
+- tapOn:
+    id: "wallet-deposit-btn"
+
+# Select UNIT from deposit sheet
+- extendedWaitUntil:
+    visible:
+      id: "deposit-unit"
+    timeout: 5000
+- tapOn:
+    id: "deposit-unit"
+
+# Verify UNIT receive screen loads (use text since testIDs not exposed)
+- waitForAnimationToEnd
+- extendedWaitUntil:
+    visible:
+      text: "Only use this address to receive UNIT."
+    timeout: 10000
