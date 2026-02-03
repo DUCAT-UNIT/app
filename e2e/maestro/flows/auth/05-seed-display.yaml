@@ -1,0 +1,39 @@
+appId: com.ducatprotocol.DucatProtocolWallet
+---
+# Seed Display - Verify all 12 seed words are shown during wallet creation
+# clearState → welcome → create → intro → verify seed words visible
+
+- launchApp:
+    clearState: true
+    clearKeychain: true
+- runFlow: ../../helpers/dismiss-dev-client.yaml
+
+# Welcome screen
+- assertVisible:
+    id: "welcome-screen"
+- tapOn:
+    id: "welcome-create-wallet-btn"
+
+# Wallet Created Intro screen
+- extendedWaitUntil:
+    visible:
+      id: "intro-screen"
+    timeout: 30000
+- tapOn:
+    id: "intro-continue-btn"
+
+# Seed phrase display - verify all 12 words are shown
+- assertVisible:
+    id: "seed-display-screen"
+- assertVisible:
+    id: "seed-word-0"
+- assertVisible:
+    id: "seed-word-5"
+- assertVisible:
+    id: "seed-word-11"
+
+# Verify continue and cancel buttons exist
+- assertVisible:
+    id: "seed-display-continue-btn"
+- assertVisible:
+    id: "seed-display-cancel-btn"

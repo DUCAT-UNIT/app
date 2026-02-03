@@ -1,0 +1,43 @@
+appId: com.ducatprotocol.DucatProtocolWallet
+---
+# Wrong PIN - Enter wrong PIN on lock screen and verify error
+# Import wallet → kill app → relaunch → wrong PIN → verify error → correct PIN → wallet
+
+# First set up a wallet
+- runFlow: ../../helpers/import-wallet.yaml
+
+# Kill and relaunch the app (without clearing state)
+- stopApp
+- launchApp
+- runFlow: ../../helpers/dismiss-dev-client.yaml
+
+# Lock screen should appear
+- assertVisible:
+    id: "lock-screen"
+
+# Enter wrong PIN (654321 instead of 123456)
+- tapOn:
+    id: "lock-keypad-6"
+- tapOn:
+    id: "lock-keypad-5"
+- tapOn:
+    id: "lock-keypad-4"
+- tapOn:
+    id: "lock-keypad-3"
+- tapOn:
+    id: "lock-keypad-2"
+- tapOn:
+    id: "lock-keypad-1"
+
+# Verify error message appears
+- extendedWaitUntil:
+    visible:
+      id: "lock-error"
+    timeout: 5000
+
+# Now enter correct PIN
+- runFlow: ../../helpers/enter-pin-lock.yaml
+
+# Verify wallet screen loads after correct unlock
+- assertVisible:
+    id: "wallet-screen"
