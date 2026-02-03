@@ -1,13 +1,11 @@
 import React, { useCallback, useState } from 'react';
 import { View, Text, TouchableOpacity, ScrollView, StyleSheet, ViewStyle, TextStyle, RefreshControl } from 'react-native';
-import * as Haptics from 'expo-haptics';
 import { useWallet } from '../../contexts/WalletContext';
 import { useBalance } from '../../contexts/WalletDataContext';
 import { usePrice } from '../../stores/priceStore';
 import { useVaultData } from '../../contexts/WalletDataContext';
 import { useCashu } from '../../contexts/CashuContext';
 import { useDisplayPreferences } from "../../stores/displayPreferencesStore";
-import { useNotificationStore } from '../../stores/notificationStore';
 import { useWalletCalculations } from '../../hooks/useWalletCalculations';
 import { useFormattedBalances } from '../../hooks/useFormattedBalances';
 import { useResponsive } from '../../hooks/useResponsive';
@@ -19,6 +17,7 @@ import TotalBalanceSection, { TotalBalanceSectionStyles } from '../../components
 import VaultCard, { VaultCardStyles } from '../../components/wallet/VaultCard';
 import AssetCard, { AssetCardStyles } from '../../components/wallet/AssetCard';
 import WalletHeader, { WalletHeaderStyles } from '../../components/wallet/WalletHeader';
+import WalletActions from '../../components/wallet/WalletActions';
 import ErrorBanner from '../../components/wallet/ErrorBanner';
 import { getRunesAmount } from '../../utils/runesHelper';
 import { formatFiat, formatBalance } from '../../utils/formatters';
@@ -194,46 +193,6 @@ const WalletScreen = React.memo(function WalletScreen({
   const totalUnitBalance = getRunesAmount(runesBalance) + ((cashuBalance || 0) / 100);
   const hasInsufficientFunds = totalWalletBTC < MIN_WITHDRAW_COLLATERAL && totalUnitBalance <= 0;
 
-  // Handler for disabled vault action buttons - shows popup with haptic feedback
-  const handleDisabledPress = useCallback(() => {
-    Haptics.notificationAsync(Haptics.NotificationFeedbackType.Warning);
-    useNotificationStore.getState().showSnackbar({
-      title: 'Transaction pending',
-      description: 'Please wait for the current vault transaction to confirm',
-      type: 'warning',
-    });
-  }, []);
-
-  // Handler for low health - shows popup with haptic feedback
-  const handleLowHealthPress = useCallback(() => {
-    Haptics.notificationAsync(Haptics.NotificationFeedbackType.Warning);
-    useNotificationStore.getState().showSnackbar({
-      title: 'Health too low',
-      description: 'Vault health must be above 160% to withdraw or borrow',
-      type: 'warning',
-    });
-  }, []);
-
-  // Handler for no debt (can't repay/borrow) - shows popup with haptic feedback
-  const handleNoDebtPress = useCallback(() => {
-    Haptics.notificationAsync(Haptics.NotificationFeedbackType.Warning);
-    useNotificationStore.getState().showSnackbar({
-      title: 'No debt',
-      description: 'You have no UNIT debt to repay or borrow against',
-      type: 'warning',
-    });
-  }, []);
-
-  // Handler for insufficient funds to withdraw - shows popup with haptic feedback
-  const handleInsufficientFundsPress = useCallback(() => {
-    Haptics.notificationAsync(Haptics.NotificationFeedbackType.Warning);
-    useNotificationStore.getState().showSnackbar({
-      title: 'No funds available',
-      description: 'You need BTC or UNIT in your wallet to send',
-      type: 'warning',
-    });
-  }, []);
-
   return (
     <View style={styles.walletContainer} testID="wallet-screen">
       {/* Header with Total Balance label and Settings Icon */}
@@ -257,38 +216,20 @@ const WalletScreen = React.memo(function WalletScreen({
         totalBalanceUSD={totalBalanceUSD}
         styles={{ ...styles, ...totalBalanceStyles }}
         largeBalanceStyle={responsiveLargeBalanceStyle || localStyles.largeBalanceAmount}
+        testID="balance-section"
       />
 
-      {/* Actions - Vault and Wallet Buttons - Scaled with s() */}
-      <View style={{ flexDirection: 'row', justifyContent: 'flex-start', marginLeft: s(24), gap: s(12) }} testID="wallet-actions">
-        <TouchableOpacity style={{ alignItems: 'center', opacity: (isPendingVaultTx || hasNoDebt) ? 0.5 : 1 }} onPress={isPendingVaultTx ? handleDisabledPress : hasNoDebt ? handleNoDebtPress : onRepayPress} testID="wallet-repay-btn">
-          <View style={{ width: s(50), height: s(50), borderRadius: s(8), backgroundColor: (isPendingVaultTx || hasNoDebt) ? '#888888' : '#DDDDDD', justifyContent: 'center', alignItems: 'center', marginBottom: s(2) }}>
-            <Text style={{ fontSize: sf(24), color: COLORS.DARK_BG, fontWeight: '200' }}>↓</Text>
-          </View>
-          <Text style={{ fontSize: sf(13), color: (isPendingVaultTx || hasNoDebt) ? COLORS.SECONDARY_TEXT : COLORS.WHITE, fontWeight: '600' }}>Repay</Text>
-        </TouchableOpacity>
-
-        <TouchableOpacity style={{ alignItems: 'center', opacity: (isPendingVaultTx || isLowHealth || hasNoDebt) ? 0.5 : 1 }} onPress={isPendingVaultTx ? handleDisabledPress : hasNoDebt ? handleNoDebtPress : isLowHealth ? handleLowHealthPress : onBorrowPress} testID="wallet-borrow-btn">
-          <View style={{ width: s(50), height: s(50), borderRadius: s(8), backgroundColor: (isPendingVaultTx || isLowHealth || hasNoDebt) ? '#888888' : '#DDDDDD', justifyContent: 'center', alignItems: 'center', marginBottom: s(2) }}>
-            <Text style={{ fontSize: sf(24), color: COLORS.DARK_BG, fontWeight: '200' }}>↑</Text>
-          </View>
-          <Text style={{ fontSize: sf(13), color: (isPendingVaultTx || isLowHealth || hasNoDebt) ? COLORS.SECONDARY_TEXT : COLORS.WHITE, fontWeight: '600' }}>Borrow</Text>
-        </TouchableOpacity>
-
-        <TouchableOpacity style={{ alignItems: 'center', opacity: hasInsufficientFunds ? 0.5 : 1 }} onPress={hasInsufficientFunds ? handleInsufficientFundsPress : onSendPress} testID="wallet-withdraw-btn">
-          <View style={{ width: s(50), height: s(50), borderRadius: s(8), backgroundColor: hasInsufficientFunds ? '#888888' : '#DDDDDD', justifyContent: 'center', alignItems: 'center', marginBottom: s(2) }}>
-            <Text style={{ fontSize: sf(24), color: COLORS.DARK_BG, fontWeight: '200' }}>-</Text>
-          </View>
-          <Text style={{ fontSize: sf(13), color: hasInsufficientFunds ? COLORS.SECONDARY_TEXT : COLORS.WHITE, fontWeight: '600' }}>Withdraw</Text>
-        </TouchableOpacity>
-
-        <TouchableOpacity style={{ alignItems: 'center' }} onPress={onReceivePress} testID="wallet-deposit-btn">
-          <View style={{ width: s(50), height: s(50), borderRadius: s(8), backgroundColor: '#DDDDDD', justifyContent: 'center', alignItems: 'center', marginBottom: s(2) }}>
-            <Text style={{ fontSize: sf(24), color: COLORS.DARK_BG, fontWeight: '200' }}>+</Text>
-          </View>
-          <Text style={{ fontSize: sf(13), color: COLORS.WHITE, fontWeight: '600' }}>Deposit</Text>
-        </TouchableOpacity>
-      </View>
+      {/* Actions - Vault and Wallet Buttons */}
+      <WalletActions
+        isPendingVaultTx={isPendingVaultTx}
+        isLowHealth={isLowHealth}
+        hasNoDebt={hasNoDebt}
+        hasInsufficientFunds={hasInsufficientFunds}
+        onRepayPress={onRepayPress}
+        onBorrowPress={onBorrowPress}
+        onSendPress={onSendPress}
+        onReceivePress={onReceivePress}
+      />
 
       {/* Divider */}
       <View style={styles.balanceDivider} />
@@ -334,6 +275,7 @@ const WalletScreen = React.memo(function WalletScreen({
             usdValue={formatted.segwitUSD}
             styles={assetCardStyles}
             onPress={handleBTCPress}
+            testID="asset-card-btc"
           />
         </View>
 
@@ -349,6 +291,7 @@ const WalletScreen = React.memo(function WalletScreen({
             usdValue={unitTotals.usdValue}
             styles={assetCardStyles}
             onPress={handleUNITPress}
+            testID="asset-card-unit"
           />
         </View>
 

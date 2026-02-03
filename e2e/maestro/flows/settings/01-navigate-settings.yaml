@@ -1,6 +1,6 @@
 appId: com.ducatprotocol.DucatProtocolWallet
 ---
-# Navigate Settings - Verify all settings menu items visible
+# Navigate Settings - Verify settings menu items visible
 # Import wallet → open settings → verify menu items
 
 - runFlow: ../../helpers/import-wallet.yaml
@@ -12,8 +12,36 @@ appId: com.ducatprotocol.DucatProtocolWallet
 - assertVisible:
     id: "settings-screen"
 - assertVisible:
-    id: "settings-security"
+    id: "settings-preferences-btn"
 - assertVisible:
-    id: "settings-network"
+    id: "settings-security-btn"
 - assertVisible:
-    id: "settings-about"
+    id: "settings-advanced-btn"
+- assertVisible:
+    id: "settings-about-btn"
+- assertVisible:
+    id: "settings-lock-btn"
+
+# Navigate to security screen
+- tapOn:
+    id: "settings-security-btn"
+- assertVisible:
+    id: "security-screen"
+- assertVisible:
+    id: "security-biometric-btn"
+- assertVisible:
+    id: "security-change-pin-btn"
+- assertVisible:
+    id: "security-backup-btn"
+
+# Go back to settings
+- tapOn:
+    id: "security-back-btn"
+- assertVisible:
+    id: "settings-screen"
+
+# Go back to wallet
+- tapOn:
+    id: "settings-back-btn"
+- assertVisible:
+    id: "wallet-screen"

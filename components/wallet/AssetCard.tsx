@@ -60,17 +60,27 @@ const AssetCard = React.memo(function AssetCard({
   isLast,
   customAmountStyle,
   onPress,
+  testID,
 }: AssetCardProps) {
   const { s } = useResponsive();
   const CardWrapper = onPress ? TouchableOpacity : View;
+
+  // Format accessibility label
+  const formattedBtcValue = typeof btcValue === 'number' ? formatBalance(btcValue, BTC_DECIMAL_PLACES) : btcValue;
+  const formattedUsdValue = typeof usdValue === 'number' ? formatFiat(usdValue, USD_DECIMAL_PLACES) : usdValue;
+  const valueLabel = displayInBTC ? `${formattedBtcValue} Bitcoin` : `$${formattedUsdValue}`;
 
   return (
     <CardWrapper
       style={[styles.assetCard, isLast && styles.assetCardLast]}
       onPress={onPress}
       activeOpacity={0.7}
+      testID={testID}
+      accessibilityRole={onPress ? "button" : undefined}
+      accessibilityLabel={`${assetName}: ${amountValue}, value ${valueLabel}`}
+      accessibilityHint={onPress ? `View ${assetName} details` : undefined}
     >
-      <View style={styles.assetRow}>
+      <View style={styles.assetRow} accessibilityElementsHidden>
         <View style={styles.assetLeft}>
           <View style={[styles.btcIcon, assetName !== 'Bitcoin' && styles.ducatIcon, { marginRight: s(9) }]}>
             <Icon name={assetLogo} size={ASSET_LOGO_SIZE} />
@@ -101,17 +111,13 @@ const AssetCard = React.memo(function AssetCard({
               style={styles.assetIcon}
             />
             <Text style={styles.assetValue}>
-              {typeof btcValue === 'number'
-                ? formatBalance(btcValue, BTC_DECIMAL_PLACES)
-                : btcValue}
+              {formattedBtcValue}
             </Text>
           </View>
         ) : (
           <Text style={styles.assetValue}>
             ${' '}
-            {typeof usdValue === 'number'
-              ? formatFiat(usdValue, USD_DECIMAL_PLACES)
-              : usdValue}
+            {formattedUsdValue}
           </Text>
         )}
       </View>

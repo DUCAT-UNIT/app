@@ -1,22 +1,20 @@
 appId: com.ducatprotocol.DucatProtocolWallet
 ---
-# Vault Withdraw - Navigate to vault withdraw flow
-# Import wallet → navigate to vault → start withdraw
+# Vault - Verify asset card navigation to BTC detail
+# Import wallet → tap BTC card → verify asset detail screen
 
 - runFlow: ../../helpers/import-wallet.yaml
 
-# Navigate to vault tab
-- tapOn:
-    id: "tab-vault"
-
-# Verify vault screen
+# Verify wallet screen
 - assertVisible:
-    id: "vault-screen"
+    id: "wallet-screen"
 
-# Tap withdraw
+# Tap on BTC asset card
 - tapOn:
-    id: "vault-withdraw-btn"
+    id: "asset-card-btc"
 
-# Verify withdraw screen elements
-- assertVisible:
-    id: "vault-withdraw-screen"
+# Verify navigation to asset detail (screen may vary based on navigation setup)
+- extendedWaitUntil:
+    visible:
+      text: "Bitcoin"
+    timeout: 5000

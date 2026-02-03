@@ -35,16 +35,36 @@ export default function WalletHeader({
   styles,
 }: WalletHeaderProps) {
   return (
-    <View style={styles.xverseHeader}>
+    <View style={styles.xverseHeader} accessibilityRole="header" accessibilityLabel={`Account ${accountNumber} wallet`}>
       <View style={styles.xverseHeaderLeft} />
-      <View style={styles.xverseHeaderRight}>
-        <TouchableOpacity style={styles.headerIconButton} onPress={onHistoryPress}>
+      <View style={styles.xverseHeaderRight} accessibilityRole="toolbar" accessibilityLabel="Header actions">
+        <TouchableOpacity
+          style={styles.headerIconButton}
+          onPress={onHistoryPress}
+          testID="wallet-history-btn"
+          accessibilityRole="button"
+          accessibilityLabel="Transaction history"
+          accessibilityHint="View your transaction history"
+        >
           <Icon name="transaction_history" size={HEADER_ICON_SIZE} color={COLORS.VERY_LIGHT_GRAY} />
         </TouchableOpacity>
-        <TouchableOpacity style={styles.headerIconButton} onPress={onQRScanPress}>
+        <TouchableOpacity
+          style={styles.headerIconButton}
+          onPress={onQRScanPress}
+          accessibilityRole="button"
+          accessibilityLabel="Scan QR code"
+          accessibilityHint="Scan a QR code to send or receive"
+        >
           <Icon name="qr_scan" size={HEADER_ICON_SIZE} color={COLORS.VERY_LIGHT_GRAY} />
         </TouchableOpacity>
-        <TouchableOpacity style={styles.headerIconButton} onPress={onSettingsPress}>
+        <TouchableOpacity
+          style={styles.headerIconButton}
+          onPress={onSettingsPress}
+          testID="wallet-settings-btn"
+          accessibilityRole="button"
+          accessibilityLabel="Settings"
+          accessibilityHint="Open app settings"
+        >
           <Icon name="settings" size={HEADER_ICON_SIZE} color={COLORS.VERY_LIGHT_GRAY} />
         </TouchableOpacity>
       </View>

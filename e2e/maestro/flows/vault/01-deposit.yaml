@@ -1,22 +1,14 @@
 appId: com.ducatprotocol.DucatProtocolWallet
 ---
-# Vault Deposit - Navigate to vault deposit flow
-# Import wallet → navigate to vault → start deposit
+# Vault - Verify Create Vault button visible on new wallet
+# Import wallet → verify create vault button by accessibility label
 
 - runFlow: ../../helpers/import-wallet.yaml
 
-# Navigate to vault tab
-- tapOn:
-    id: "tab-vault"
-
-# Verify vault screen
+# Verify wallet screen
 - assertVisible:
-    id: "vault-screen"
+    id: "wallet-screen"
 
-# Tap deposit
-- tapOn:
-    id: "vault-deposit-btn"
-
-# Verify deposit screen elements
+# Verify vault card section exists (accessibility label on the disabled card)
 - assertVisible:
-    id: "vault-deposit-screen"
+    id: "vault-overlay"

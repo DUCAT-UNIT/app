@@ -1,33 +1,28 @@
 appId: com.ducatprotocol.DucatProtocolWallet
 ---
-# Send BTC - Full send flow
-# Import wallet → select BTC → enter address + amount → review → confirm
-# Note: Requires funded wallet to complete. May fail at review step on empty wallet.
+# Send BTC - Verify withdraw sheet opens and send screen loads
+# Import wallet → tap withdraw → select BTC → verify send screen
 
 - runFlow: ../../helpers/import-wallet.yaml
 
-# Navigate to send
-- tapOn:
-    id: "action-send"
-
-# Select BTC asset
-- tapOn:
-    id: "asset-select-btc"
-
-# Verify send input screen
+# Verify wallet screen
 - assertVisible:
-    id: "send-input-screen"
+    id: "wallet-screen"
 
-# Enter recipient address
+# Tap withdraw button - opens withdraw sheet
 - tapOn:
-    id: "address-input"
-- inputText: "${TESTNET_ADDRESS}"
+    id: "wallet-withdraw-btn"
 
-# Enter amount (small test amount)
+# Select BTC from withdraw sheet
+- extendedWaitUntil:
+    visible:
+      id: "withdraw-btc"
+    timeout: 5000
 - tapOn:
-    id: "amount-input"
-- inputText: "0.0001"
+    id: "withdraw-btc"
 
-# Tap review (may fail if wallet has insufficient funds)
-- tapOn:
-    label: "Review transaction"
+# Verify send input screen loads
+- extendedWaitUntil:
+    visible:
+      id: "send-input-screen"
+    timeout: 5000

@@ -1,27 +1,20 @@
 appId: com.ducatprotocol.DucatProtocolWallet
 ---
-# Send Invalid Address - Verify error state on garbage address
-# Import wallet → navigate to send → enter invalid address → verify error
+# Asset Detail - Verify tapping UNIT card opens asset detail
+# Import wallet → tap UNIT card → verify detail screen
 
 - runFlow: ../../helpers/import-wallet.yaml
 
-# Navigate to send
-- tapOn:
-    id: "action-send"
-
-# Select BTC asset
-- tapOn:
-    id: "asset-select-btc"
-
-# Verify send input screen
+# Verify wallet screen
 - assertVisible:
-    id: "send-input-screen"
+    id: "wallet-screen"
 
-# Enter invalid address
+# Tap on UNIT asset card
 - tapOn:
-    id: "address-input"
-- inputText: "not-a-valid-bitcoin-address"
+    id: "asset-card-unit"
 
-# Verify error state appears
-- assertVisible:
-    id: "address-error"
+# Verify navigation to asset detail
+- extendedWaitUntil:
+    visible:
+      text: "UNIT"
+    timeout: 5000

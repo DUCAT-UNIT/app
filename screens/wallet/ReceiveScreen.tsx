@@ -209,7 +209,7 @@ const ReceiveScreen = React.memo(function ReceiveScreen({
             pointerEvents={showReceiveSheet && !showQrModal ? 'auto' : 'none'}
             {...panResponder.panHandlers}
           >
-            <View style={styles.bottomSheetHandle} />
+            <View style={styles.bottomSheetHandle} testID="receive-screen" />
             <Text style={styles.bottomSheetTitle}>Receive</Text>
 
             {/* BTC Address Row */}
