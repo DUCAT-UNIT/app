@@ -5,36 +5,13 @@
  */
 
 import React, { createContext, useContext, useState, useEffect, useMemo, useCallback, ReactNode } from 'react';
-import * as bitcoin from 'bitcoinjs-lib';
-import { signIntent as signIntentService, broadcastTransaction } from '../services/transaction';
-import type { TransactionIntent as SigningTransactionIntent } from '../services/transactionSigningService';
-import * as BackgroundTaskService from '../services/backgroundTaskService';
-import { parseErrorMessage } from '../utils/errorParser';
-import { ERRORS } from '../utils/messages';
-import { MUTINYNET_NETWORK } from '../utils/bitcoin';
 import { useSendFlow } from '../stores/sendFlowStore';
 import { useTransactionBuild } from './TransactionBuildContext';
 import type { SendIntent } from './TransactionBuildContext';
-import { usePendingTransactions, PendingTransactionOutput } from './PendingTransactionsContext';
+import { usePendingTransactions } from './PendingTransactionsContext';
 import { useWallet } from './WalletContext';
-import { logger } from '../utils/logger';
+import { useTransactionSigning, useTransactionBroadcast } from '../hooks/transaction';
 import type { SnackbarParams } from '../stores/notificationStore';
-
-/**
- * Safe BTC to satoshi conversion avoiding floating point errors
- * @param btcString - BTC amount as string (e.g. "0.001")
- * @returns Amount in satoshis
- */
-function btcToSats(btcString: string): number {
-  // Split on decimal point and handle each part as integer
-  const parts = btcString.replace(',', '.').split('.');
-  const wholePart = parseInt(parts[0] || '0', 10) * 100000000;
-  if (parts.length === 1) return wholePart;
-
-  // Pad or truncate decimal part to 8 digits
-  const decimalPart = (parts[1] || '').padEnd(8, '0').slice(0, 8);
-  return wholePart + parseInt(decimalPart, 10);
-}
 
 interface BroadcastOptions {
   skipAutoConfirm?: boolean;
@@ -94,6 +71,20 @@ export const TransactionExecutionProvider: React.FC<TransactionExecutionProvider
   fetchTransactionHistory,
 }) => {
   const { setIntentStep, sendAssetType, sendAmount, turboEnabled } = useSendFlow();
+  const { sendIntent, setSendIntent } = useTransactionBuild();
+  const { wallet } = useWallet();
+  const {
+    addPendingTransaction,
+    confirmTransaction,
+    invalidateTransaction,
+    pendingTransactions,
+    markUtxoAsSpent,
+    markUtxosAsSpent,
+  } = usePendingTransactions();
+
+  // Execution state
+  const [broadcastedTxid, setBroadcastedTxid] = useState<string | null>(null);
+  const [toastDismissed, setToastDismissed] = useState(false);
 
   // Helper to determine snackbar action type
   const getSnackbarAction = useCallback(() => {
@@ -102,13 +93,6 @@ export const TransactionExecutionProvider: React.FC<TransactionExecutionProvider
     }
     return 'btc_send';
   }, [sendAssetType, turboEnabled]);
-  const { sendIntent, setSendIntent } = useTransactionBuild();
-  const { wallet } = useWallet();
-  const { addPendingTransaction, confirmTransaction, invalidateTransaction, pendingTransactions, markUtxoAsSpent, markUtxosAsSpent } = usePendingTransactions();
-
-  // Execution state
-  const [broadcastedTxid, setBroadcastedTxid] = useState<string | null>(null);
-  const [toastDismissed, setToastDismissed] = useState(false);
 
   // Reset toast dismissed state when confirmed
   useEffect(() => {
@@ -117,285 +101,69 @@ export const TransactionExecutionProvider: React.FC<TransactionExecutionProvider
     }
   }, [broadcastedTxid]);
 
-  // Broadcast the signed transaction
-  const broadcastIntent = useCallback(async (intent: SendIntent | null = sendIntent, options: BroadcastOptions = {}) => {
-    const { skipAutoConfirm = false } = options; // Skip auto-setting intentStep='confirmed' for turbo mint flows
-    try {
-      if (!intent || !intent.signedTxHex) {
-        showSnackbar({
-          type: 'error',
-          action: getSnackbarAction(),
-          message: ERRORS.TRANSACTION_CANCELLED,
-        });
-        return;
-      }
+  // Transaction signing hook
+  const { signTransaction } = useTransactionSigning({
+    currentAccount,
+    sendIntent,
+    setSendIntent,
+    setIntentStep,
+    showSnackbar,
+    getSnackbarAction,
+  });
 
-      logger.debug('📡 Broadcasting transaction...', { skipAutoConfirm });
-      // Log inputs based on asset type
-      if (intent.assetType === 'BTC') {
-        logger.debug('Intent inputs:', intent.inputs.map(i => `${i.txid}:${i.vout}`));
-      } else if (intent.assetType === 'UNIT') {
-        if (intent.runeUtxo) logger.debug('Rune UTXO:', `${intent.runeUtxo.transaction}:${intent.runeUtxo.vout}`);
-        if (intent.satUtxo) logger.debug('Sat UTXO:', `${intent.satUtxo.txid}:${intent.satUtxo.vout}`);
-      }
+  // Transaction broadcast hook
+  const { broadcast } = useTransactionBroadcast({
+    wallet,
+    pendingTransactions,
+    sendAssetType,
+    sendAmount,
+    setSendIntent,
+    setIntentStep,
+    setBroadcastedTxid,
+    setToastDismissed,
+    showSnackbar,
+    getSnackbarAction,
+    markUtxoAsSpent,
+    markUtxosAsSpent,
+    addPendingTransaction,
+    confirmTransaction,
+    invalidateTransaction,
+    startTransactionPolling,
+    sendTransactionConfirmedNotification,
+    notificationsEnabled,
+    fetchBalance,
+    fetchTransactionHistory,
+  });
 
-      const txid = await broadcastTransaction(intent.signedTxHex);
-      logger.debug('✅ Broadcast successful, txid:', txid);
+  // Sign and broadcast the PSBT
+  const signIntent = useCallback(
+    async (options: SignOptions = {}): Promise<string | null> => {
+      const result = await signTransaction();
+      if (!result) return null;
 
-      // Extract outputs from signed transaction for pending tracking FIRST
-      // This must happen before setting intentStep to 'pending' so that the outputs
-      // are available for the next transaction if the user creates one immediately
-      try {
-        const tx = bitcoin.Transaction.fromHex(intent.signedTxHex);
-        const outputs: PendingTransactionOutput[] = [];
+      // Automatically broadcast after signing
+      await broadcast(result.signedIntent, options);
+      return result.txid;
+    },
+    [signTransaction, broadcast]
+  );
 
-        logger.debug('🔍 Extracting outputs from broadcasted tx:', txid);
-        logger.debug('Total outputs in tx:', tx.outs.length);
-
-        // Mark ALL inputs as spent to prevent reuse
-        const spentInputs: Array<{ txid: string; vout: number }> = [];
-        let parentTxid: string | null = null;
-
-        for (const input of tx.ins) {
-          const inputTxid = Buffer.from(input.hash).reverse().toString('hex');
-          const inputVout = input.index;
-
-          logger.debug('Input:', inputTxid, 'vout:', inputVout);
-
-          // Add to spent list
-          spentInputs.push({ txid: inputTxid, vout: inputVout });
-
-          // Check if this input is spending from a pending transaction (for parent-child tracking)
-          if (pendingTransactions[inputTxid] && pendingTransactions[inputTxid].status === 'pending') {
-            if (!parentTxid) {
-              parentTxid = inputTxid; // Set first pending input as parent
-            }
-
-            logger.debug('Removing pending output:', inputTxid, 'vout:', inputVout);
-            // Mark this pending UTXO as spent (removes it from pending outputs)
-            await markUtxoAsSpent(inputTxid, inputVout);
-          }
-        }
-
-        // NOTE: UTXOs are now locked immediately after intent creation (see TransactionBuildContext)
-        // This call is kept as a safety net and to ensure pending transaction inputs are properly tracked
-        // It's idempotent - marking an already-spent UTXO as spent again is harmless
-        if (spentInputs.length > 0) {
-          logger.debug('📝 Re-confirming', spentInputs.length, 'UTXOs are spent (safety check)');
-          await markUtxosAsSpent(spentInputs);
-        }
-
-        // For UNIT transactions, calculate rune change amount
-        // Must sum ALL rune UTXOs (not just the first one) when multiple are used
-        let runeChangeAmount = 0;
-        if (sendAssetType === 'unit' && intent.assetType === 'UNIT' && intent.amount) {
-          const intentAmount = typeof intent.amount === 'string' ? parseFloat(intent.amount) : intent.amount;
-
-          // Sum total rune input from all UTXOs
-          let totalRuneInput = 0;
-          if (intent.runeUtxos && intent.runeUtxos.length > 0) {
-            totalRuneInput = intent.runeUtxos.reduce((sum, utxo) => sum + (utxo.runeAmount || 0), 0);
-            logger.debug('Total rune input from', intent.runeUtxos.length, 'UTXOs:', totalRuneInput);
-          } else if (intent.runeUtxo?.runeAmount) {
-            // Fallback for backward compatibility
-            totalRuneInput = intent.runeUtxo.runeAmount;
-          }
-
-          runeChangeAmount = totalRuneInput - intentAmount;
-          logger.debug('Rune change amount:', runeChangeAmount, '(input:', totalRuneInput, '- sent:', intentAmount, ')');
-        }
-
-        // Decode each output
-        tx.outs.forEach((output, vout) => {
-          try {
-            const address = bitcoin.address.fromOutputScript(output.script, MUTINYNET_NETWORK);
-            const value = Number(output.value);
-
-            logger.debug(`Output ${vout}: ${address} = ${value} sats`);
-
-            // Check if this is a change output (going back to our wallet)
-            const isChange =
-              address === wallet?.segwitAddress ||
-              address === wallet?.taprootAddress;
-
-            logger.debug(`Is change? ${isChange} (segwit: ${wallet?.segwitAddress}, taproot: ${wallet?.taprootAddress})`);
-
-            if (isChange) {
-              const outputData: PendingTransactionOutput = {
-                address,
-                value,
-                vout,
-              };
-
-              // For UNIT transactions, output 0 is the rune return (change)
-              if (sendAssetType === 'unit' && vout === 0 && runeChangeAmount > 0) {
-                outputData.runeAmount = runeChangeAmount;
-              }
-
-              logger.debug('✅ Adding change output:', outputData);
-              outputs.push(outputData);
-            }
-          } catch (_error) {
-            logger.debug(`Output ${vout}: OP_RETURN or non-standard`);
-            // Could be OP_RETURN or other non-standard output, skip
-          }
-        });
-
-        logger.debug('Total change outputs found:', outputs.length);
-
-        // If we have change outputs, store them as pending with parent tracking
-        if (outputs.length > 0) {
-          const assetType = sendAssetType === 'unit' ? 'UNIT' : 'BTC';
-          // Calculate sent amount in smallest units using safe conversion
-          const sentAmountSmallest = sendAssetType === 'unit'
-            ? Math.round((parseFloat(sendAmount) || 0) * 100) // UNIT uses 2 decimal places
-            : btcToSats(sendAmount); // BTC to sats - use safe conversion
-          logger.debug('💾 Adding pending transaction:', txid, 'with', outputs.length, 'outputs', 'sentAmount:', sentAmountSmallest, 'inputUtxos:', spentInputs.length);
-          await addPendingTransaction(txid, outputs, assetType, parentTxid, sentAmountSmallest, spentInputs);
-        } else {
-          logger.debug('⚠️ No change outputs found to save');
-        }
-      } catch (error: unknown) {
-        logger.error('❌ Error extracting change outputs:', { error: error instanceof Error ? error.message : String(error) });
-        // Non-critical error, continue with broadcast
-      }
-
-      // NOW move to pending state after outputs are extracted and saved
-      // This ensures the outputs are available for the next transaction
-      setBroadcastedTxid(txid);
-      setIntentStep('pending');
-      setToastDismissed(false);
-
-      // CRITICAL: Clear the send intent after successful broadcast
-      // This prevents the old intent from being used as exclusion criteria
-      // when creating the next transaction. Without this, the next transaction
-      // would exclude UTXOs that were inputs to this (now broadcast) transaction,
-      // even though those UTXOs are already spent on-chain.
-      setSendIntent(null);
-
-      // Add to background monitoring
-      const assetType = sendAssetType === 'unit' ? 'UNIT' : 'BTC';
-      await BackgroundTaskService.addPendingTransaction(txid, assetType, sendAmount, 'send');
-
-      // Immediately fetch transaction history to show the new tx
-      if (fetchTransactionHistory) {
-        fetchTransactionHistory();
-      }
-
-      // Start polling for confirmation
-      startTransactionPolling(
-        txid,
-        (isConfirmed) => {
-          if (isConfirmed) {
-            if (notificationsEnabled) {
-              sendTransactionConfirmedNotification(assetType, Number(sendAmount) || 0, txid, 'send');
-            }
-            BackgroundTaskService.removePendingTransaction(txid);
-            // Mark pending transaction as confirmed
-            confirmTransaction(txid);
-            // Show confirmation snackbar
-            showSnackbar({
-              type: 'success',
-              action: getSnackbarAction(),
-              txid,
-            });
-          }
-          // Only auto-set intentStep='confirmed' if not doing turbo mint (which handles it manually)
-          if (!skipAutoConfirm) {
-            logger.debug('Polling: Setting intentStep to confirmed');
-            setIntentStep('confirmed');
-          } else {
-            logger.debug('Polling: Skipping auto-confirm for turbo mint flow');
-          }
-          fetchBalance();
-          if (fetchTransactionHistory) {
-            fetchTransactionHistory(); // Update transaction list when confirmed
-          }
-        },
-        (_error) => {
-          // Error polling, but don't block the user - just mark as confirmed after timeout
-          if (!skipAutoConfirm) {
-            logger.debug('Polling error: Setting intentStep to confirmed');
-            setIntentStep('confirmed');
-          } else {
-            logger.debug('Polling error: Skipping auto-confirm for turbo mint flow');
-          }
-          fetchBalance();
-          if (fetchTransactionHistory) {
-            fetchTransactionHistory(); // Update transaction list even on error
-          }
-        }
-      );
-    } catch (_error) {
-      logger.error('❌ Broadcast failed:', { error: _error instanceof Error ? _error.message : String(_error) });
-      showSnackbar({
-        type: 'error',
-        action: getSnackbarAction(),
-        message: parseErrorMessage(_error),
-      });
-      setIntentStep('reviewing');
-
-      // Invalidate the transaction if broadcast failed
-      if (intent?.txid) {
-        await invalidateTransaction(intent.txid, 'Transaction broadcast failed');
-      }
-    }
-  }, [sendIntent, setSendIntent, wallet, showSnackbar, setIntentStep, sendAssetType, sendAmount, startTransactionPolling, notificationsEnabled, sendTransactionConfirmedNotification, fetchBalance, fetchTransactionHistory, addPendingTransaction, confirmTransaction, invalidateTransaction, pendingTransactions, markUtxoAsSpent, markUtxosAsSpent, getSnackbarAction]);
-
-  // Sign the PSBT
-  const signIntent = useCallback(async (options: SignOptions = {}): Promise<string | null> => {
-    try {
-      setIntentStep('signing');
-
-      if (!sendIntent) {
-        showSnackbar({
-          type: 'error',
-          action: getSnackbarAction(),
-          message: ERRORS.TRANSACTION_CANCELLED,
-        });
-        setIntentStep('idle');
-        return null;
-      }
-
-      const { signedTxHex, txid } = await signIntentService(sendIntent as SigningTransactionIntent, currentAccount);
-
-      // Update intent with signed transaction
-      const signedIntent: SendIntent = {
-        ...sendIntent,
-        signedTxHex,
-        txid,
-      };
-
-      setSendIntent(signedIntent);
-      setIntentStep('broadcasting');
-
-      // Automatically broadcast (pass options through)
-      await broadcastIntent(signedIntent, options);
-      return txid;
-    } catch (_error) {
-      logger.error('Error signing transaction:', { error: _error instanceof Error ? _error.message : String(_error) });
-      showSnackbar({
-        type: 'error',
-        action: getSnackbarAction(),
-        message: parseErrorMessage(_error),
-      });
-      setIntentStep('reviewing');
-      return null;
-    }
-  }, [sendIntent, currentAccount, setIntentStep, setSendIntent, showSnackbar, broadcastIntent, getSnackbarAction]);
+  // Broadcast an already-signed intent
+  const broadcastIntent = useCallback(
+    async (intent: SendIntent | null = sendIntent, options: BroadcastOptions = {}) => {
+      // If intent is null, the broadcast hook will show the error snackbar
+      await broadcast(intent as SendIntent, options);
+    },
+    [sendIntent, broadcast]
+  );
 
   // Memoize the value object to prevent unnecessary re-renders
   const value = useMemo(
     () => ({
-      // State
       broadcastedTxid,
       toastDismissed,
-
-      // Setters
       setBroadcastedTxid,
       setToastDismissed,
-
-      // Handlers
       signIntent,
       broadcastIntent,
     }),

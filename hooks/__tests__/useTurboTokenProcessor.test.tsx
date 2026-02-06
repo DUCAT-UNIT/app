@@ -1,10 +1,11 @@
-// @ts-nocheck
 /**
  * Tests for useTurboTokenProcessor hook
  */
 
-import React from 'react';
+import * as React from 'react';
 import { renderHook, act, waitFor } from '@testing-library/react-native';
+import type { WalletAddresses } from '../../contexts/WalletContext';
+import type { SnackbarParams } from '../../types/notification';
 
 // Mock dependencies BEFORE imports
 jest.mock('../../utils/logger', () => ({
@@ -18,7 +19,7 @@ jest.mock('../../utils/logger', () => ({
 
 jest.mock('../../services/turbo/turboTokenStorage', () => ({
   markTokenAsProcessed: jest.fn().mockResolvedValue(undefined),
-  turboGlobal: { pendingTurboSnackbars: [] },
+  turboGlobal: { pendingTurboSnackbars: [] as Array<{ type: string; message: string }> },
 }));
 
 jest.mock('../../services/cashu/cashuLockedTokensService', () => ({
@@ -30,8 +31,19 @@ jest.mock('expo-crypto', () => ({
   CryptoDigestAlgorithm: { SHA256: 'SHA-256' },
 }));
 
+// Define the mock store state type
+interface MockStoreState {
+  pendingToken: string | null;
+  consumePendingToken: jest.Mock<string | null, []>;
+  setPendingToken: jest.Mock<void, [string]>;
+  clearPendingToken: jest.Mock<void, []>;
+  registerTokenCheckCallback: jest.Mock<void, [() => void]>;
+  unregisterTokenCheckCallback: jest.Mock<void, []>;
+  triggerWalletReload: jest.Mock<void, []>;
+}
+
 // Create a mock store state
-let mockStoreState = {
+let mockStoreState: MockStoreState = {
   pendingToken: null,
   consumePendingToken: jest.fn(() => null),
   setPendingToken: jest.fn(),
@@ -42,21 +54,34 @@ let mockStoreState = {
 };
 
 jest.mock('../../stores/tokenProcessingStore', () => ({
-  useTokenProcessingStore: jest.fn((selector) => {
+  useTokenProcessingStore: jest.fn((selector: (state: MockStoreState) => unknown) => {
     if (typeof selector === 'function') {
       return selector(mockStoreState);
     }
     return mockStoreState;
   }),
-  selectPendingToken: (state) => state.pendingToken,
+  selectPendingToken: (state: MockStoreState) => state.pendingToken,
 }));
 
 import { useTurboTokenProcessor } from '../useTurboTokenProcessor';
 import { turboGlobal } from '../../services/turbo/turboTokenStorage';
 import { saveReceivedToken } from '../../services/cashu/cashuLockedTokensService';
 
+// Define the mock params type for testing
+interface MockTurboTokenProcessorParams {
+  isAuthenticated: boolean;
+  shouldShowPinOverlay: boolean;
+  receive: jest.Mock<Promise<{ amount: number }>, [string]>;
+  fetchBalance: jest.Mock<Promise<void>, []>;
+  refreshCashu: jest.Mock<Promise<void>, []>;
+  wallet: { taprootAddress: string } | null;
+  showSnackbar: jest.Mock<void, [SnackbarParams]>;
+  dismissSnackbar: jest.Mock<void, []>;
+  switchAccount: jest.Mock<Promise<WalletAddresses>, [number]>;
+}
+
 describe('useTurboTokenProcessor', () => {
-  let mockProps;
+  let mockProps: MockTurboTokenProcessorParams;
 
   beforeEach(() => {
     jest.clearAllMocks();
@@ -85,7 +110,7 @@ describe('useTurboTokenProcessor', () => {
       wallet: { taprootAddress: 'tb1p...' },
       showSnackbar: jest.fn(),
       dismissSnackbar: jest.fn(),
-      switchAccount: jest.fn().mockResolvedValue({}),
+      switchAccount: jest.fn().mockResolvedValue({} as WalletAddresses),
     };
   });
 
@@ -94,12 +119,12 @@ describe('useTurboTokenProcessor', () => {
   });
 
   it('should return isVerifyingToken state', () => {
-    const { result } = renderHook(() => useTurboTokenProcessor(mockProps));
-    expect(result.current.isVerifyingToken).toBe(false);
+    const { result } = renderHook(() => useTurboTokenProcessor(mockProps as any));
+    expect(result.current!.isVerifyingToken).toBe(false);
   });
 
   it('should register token check callback when authenticated', () => {
-    renderHook(() => useTurboTokenProcessor(mockProps));
+    renderHook(() => useTurboTokenProcessor(mockProps as any));
     expect(mockStoreState.registerTokenCheckCallback).toHaveBeenCalled();
   });
 
@@ -107,7 +132,7 @@ describe('useTurboTokenProcessor', () => {
     renderHook(() => useTurboTokenProcessor({
       ...mockProps,
       isAuthenticated: false,
-    }));
+    } as any));
     expect(mockStoreState.registerTokenCheckCallback).not.toHaveBeenCalled();
   });
 
@@ -115,12 +140,12 @@ describe('useTurboTokenProcessor', () => {
     renderHook(() => useTurboTokenProcessor({
       ...mockProps,
       shouldShowPinOverlay: true,
-    }));
+    } as any));
     expect(mockStoreState.registerTokenCheckCallback).not.toHaveBeenCalled();
   });
 
   it('should cleanup on unmount', () => {
-    const { unmount } = renderHook(() => useTurboTokenProcessor(mockProps));
+    const { unmount } = renderHook(() => useTurboTokenProcessor(mockProps as any));
 
     act(() => {
       unmount();
@@ -140,7 +165,7 @@ describe('useTurboTokenProcessor', () => {
       return null;
     });
 
-    renderHook(() => useTurboTokenProcessor(mockProps));
+    renderHook(() => useTurboTokenProcessor(mockProps as any));
 
     await act(async () => {
       jest.advanceTimersByTime(100);
@@ -161,7 +186,7 @@ describe('useTurboTokenProcessor', () => {
         return null;
       });
 
-      renderHook(() => useTurboTokenProcessor(mockProps));
+      renderHook(() => useTurboTokenProcessor(mockProps as any));
 
       await act(async () => {
         jest.advanceTimersByTime(100);
@@ -184,7 +209,7 @@ describe('useTurboTokenProcessor', () => {
         return null;
       });
 
-      renderHook(() => useTurboTokenProcessor(mockProps));
+      renderHook(() => useTurboTokenProcessor(mockProps as any));
 
       await act(async () => {
         jest.advanceTimersByTime(100);
@@ -204,7 +229,7 @@ describe('useTurboTokenProcessor', () => {
 
   describe('processToken error handling', () => {
     it('should handle generic error', async () => {
-      mockProps.receive.mockRejectedValue(new Error('Unknown error'));
+      mockProps.receive.mockRejectedValueOnce(new Error('Unknown error'));
       let tokenConsumed = false;
       mockStoreState.consumePendingToken = jest.fn(() => {
         if (!tokenConsumed) {
@@ -214,7 +239,7 @@ describe('useTurboTokenProcessor', () => {
         return null;
       });
 
-      renderHook(() => useTurboTokenProcessor(mockProps));
+      renderHook(() => useTurboTokenProcessor(mockProps as any));
 
       await act(async () => {
         jest.advanceTimersByTime(100);
@@ -232,7 +257,7 @@ describe('useTurboTokenProcessor', () => {
     });
 
     it('should handle "already spent" error', async () => {
-      mockProps.receive.mockRejectedValue(new Error('Token has already spent proofs'));
+      mockProps.receive.mockRejectedValueOnce(new Error('Token has already spent proofs'));
       let tokenConsumed = false;
       mockStoreState.consumePendingToken = jest.fn(() => {
         if (!tokenConsumed) {
@@ -242,7 +267,7 @@ describe('useTurboTokenProcessor', () => {
         return null;
       });
 
-      renderHook(() => useTurboTokenProcessor(mockProps));
+      renderHook(() => useTurboTokenProcessor(mockProps as any));
 
       await act(async () => {
         jest.advanceTimersByTime(100);
@@ -250,12 +275,12 @@ describe('useTurboTokenProcessor', () => {
       });
 
       await waitFor(() => {
-        expect(turboGlobal.pendingTurboSnackbars[0].message).toBe('Token already claimed');
+        expect(turboGlobal.pendingTurboSnackbars![0].message).toBe('Token already claimed');
       });
     });
 
     it('should handle P2PK verification error', async () => {
-      mockProps.receive.mockRejectedValue(new Error('P2PK verification failed: invalid'));
+      mockProps.receive.mockRejectedValueOnce(new Error('P2PK verification failed: invalid'));
       let tokenConsumed = false;
       mockStoreState.consumePendingToken = jest.fn(() => {
         if (!tokenConsumed) {
@@ -265,7 +290,7 @@ describe('useTurboTokenProcessor', () => {
         return null;
       });
 
-      renderHook(() => useTurboTokenProcessor(mockProps));
+      renderHook(() => useTurboTokenProcessor(mockProps as any));
 
       await act(async () => {
         jest.advanceTimersByTime(100);
@@ -273,12 +298,12 @@ describe('useTurboTokenProcessor', () => {
       });
 
       await waitFor(() => {
-        expect(turboGlobal.pendingTurboSnackbars[0].message).toContain('P2PK verification failed');
+        expect(turboGlobal.pendingTurboSnackbars![0].message).toContain('P2PK verification failed');
       });
     });
 
     it('should handle account switch error message', async () => {
-      mockProps.receive.mockRejectedValue(new Error('This proof belongs to account 2'));
+      mockProps.receive.mockRejectedValueOnce(new Error('This proof belongs to account 2'));
       let tokenConsumed = false;
       mockStoreState.consumePendingToken = jest.fn(() => {
         if (!tokenConsumed) {
@@ -288,7 +313,7 @@ describe('useTurboTokenProcessor', () => {
         return null;
       });
 
-      renderHook(() => useTurboTokenProcessor(mockProps));
+      renderHook(() => useTurboTokenProcessor(mockProps as any));
 
       await act(async () => {
         jest.advanceTimersByTime(100);
@@ -296,12 +321,12 @@ describe('useTurboTokenProcessor', () => {
       });
 
       await waitFor(() => {
-        expect(turboGlobal.pendingTurboSnackbars[0].message).toContain('account 2');
+        expect(turboGlobal.pendingTurboSnackbars![0].message).toContain('account 2');
       });
     });
 
     it('should handle error without message', async () => {
-      mockProps.receive.mockRejectedValue(new Error());
+      mockProps.receive.mockRejectedValueOnce(new Error());
       let tokenConsumed = false;
       mockStoreState.consumePendingToken = jest.fn(() => {
         if (!tokenConsumed) {
@@ -311,7 +336,7 @@ describe('useTurboTokenProcessor', () => {
         return null;
       });
 
-      renderHook(() => useTurboTokenProcessor(mockProps));
+      renderHook(() => useTurboTokenProcessor(mockProps as any));
 
       await act(async () => {
         jest.advanceTimersByTime(100);
@@ -319,12 +344,12 @@ describe('useTurboTokenProcessor', () => {
       });
 
       await waitFor(() => {
-        expect(turboGlobal.pendingTurboSnackbars[0].message).toBe('Failed to receive token');
+        expect(turboGlobal.pendingTurboSnackbars![0].message).toBe('Failed to receive token');
       });
     });
 
     it('should handle Swap failed error', async () => {
-      mockProps.receive.mockRejectedValue(new Error('Swap failed: insufficient liquidity'));
+      mockProps.receive.mockRejectedValueOnce(new Error('Swap failed: insufficient liquidity'));
       let tokenConsumed = false;
       mockStoreState.consumePendingToken = jest.fn(() => {
         if (!tokenConsumed) {
@@ -334,7 +359,7 @@ describe('useTurboTokenProcessor', () => {
         return null;
       });
 
-      renderHook(() => useTurboTokenProcessor(mockProps));
+      renderHook(() => useTurboTokenProcessor(mockProps as any));
 
       await act(async () => {
         jest.advanceTimersByTime(100);
@@ -342,12 +367,12 @@ describe('useTurboTokenProcessor', () => {
       });
 
       await waitFor(() => {
-        expect(turboGlobal.pendingTurboSnackbars[0].message).toContain('Swap failed');
+        expect(turboGlobal.pendingTurboSnackbars![0].message).toContain('Swap failed');
       });
     });
 
     it('should handle non-Error throw', async () => {
-      mockProps.receive.mockRejectedValue('string error');
+      mockProps.receive.mockRejectedValueOnce('string error');
       let tokenConsumed = false;
       mockStoreState.consumePendingToken = jest.fn(() => {
         if (!tokenConsumed) {
@@ -357,7 +382,7 @@ describe('useTurboTokenProcessor', () => {
         return null;
       });
 
-      renderHook(() => useTurboTokenProcessor(mockProps));
+      renderHook(() => useTurboTokenProcessor(mockProps as any));
 
       await act(async () => {
         jest.advanceTimersByTime(100);
@@ -365,14 +390,14 @@ describe('useTurboTokenProcessor', () => {
       });
 
       await waitFor(() => {
-        expect(turboGlobal.pendingTurboSnackbars[0].message).toBe('string error');
+        expect(turboGlobal.pendingTurboSnackbars![0].message).toBe('string error');
       });
     });
   });
 
   describe('account switch flow', () => {
     it('should provide Switch & Claim button on account error', async () => {
-      mockProps.receive.mockRejectedValue(new Error('This proof belongs to account 3'));
+      mockProps.receive.mockRejectedValueOnce(new Error('This proof belongs to account 3'));
       let tokenConsumed = false;
       mockStoreState.consumePendingToken = jest.fn(() => {
         if (!tokenConsumed) {
@@ -382,7 +407,7 @@ describe('useTurboTokenProcessor', () => {
         return null;
       });
 
-      renderHook(() => useTurboTokenProcessor(mockProps));
+      renderHook(() => useTurboTokenProcessor(mockProps as any));
 
       await act(async () => {
         jest.advanceTimersByTime(100);
@@ -391,7 +416,7 @@ describe('useTurboTokenProcessor', () => {
 
       // The snackbar should have been queued with account switch action
       await waitFor(() => {
-        expect(turboGlobal.pendingTurboSnackbars[0].message).toContain('account 3');
+        expect(turboGlobal.pendingTurboSnackbars![0].message).toContain('account 3');
       });
     });
   });
@@ -407,7 +432,7 @@ describe('useTurboTokenProcessor', () => {
         return null;
       });
 
-      renderHook(() => useTurboTokenProcessor(mockProps));
+      renderHook(() => useTurboTokenProcessor(mockProps as any));
 
       await act(async () => {
         jest.advanceTimersByTime(100);
@@ -430,7 +455,7 @@ describe('useTurboTokenProcessor', () => {
         return null;
       });
 
-      renderHook(() => useTurboTokenProcessor(mockProps));
+      renderHook(() => useTurboTokenProcessor(mockProps as any));
 
       await act(async () => {
         jest.advanceTimersByTime(100);
@@ -455,7 +480,7 @@ describe('useTurboTokenProcessor', () => {
         return null;
       });
 
-      renderHook(() => useTurboTokenProcessor(mockProps));
+      renderHook(() => useTurboTokenProcessor(mockProps as any));
 
       await act(async () => {
         jest.advanceTimersByTime(100);
@@ -477,7 +502,7 @@ describe('useTurboTokenProcessor', () => {
 
   describe('polling behavior', () => {
     it('should poll for pending tokens at 500ms intervals', async () => {
-      renderHook(() => useTurboTokenProcessor(mockProps));
+      renderHook(() => useTurboTokenProcessor(mockProps as any));
 
       // Should check immediately
       expect(mockStoreState.consumePendingToken).toHaveBeenCalledTimes(1);
@@ -508,11 +533,11 @@ describe('useTurboTokenProcessor', () => {
       });
 
       // Make receive take a long time
-      mockProps.receive.mockImplementation(() => new Promise(resolve => {
+      mockProps.receive.mockImplementationOnce(() => new Promise(resolve => {
         setTimeout(() => resolve({ amount: 100 }), 2000);
       }));
 
-      renderHook(() => useTurboTokenProcessor(mockProps));
+      renderHook(() => useTurboTokenProcessor(mockProps as any));
 
       // First check - should start processing
       await act(async () => {
@@ -544,7 +569,7 @@ describe('useTurboTokenProcessor', () => {
         return null;
       });
 
-      renderHook(() => useTurboTokenProcessor(mockProps));
+      renderHook(() => useTurboTokenProcessor(mockProps as any));
 
       await act(async () => {
         jest.advanceTimersByTime(100);
@@ -563,7 +588,7 @@ describe('useTurboTokenProcessor', () => {
 
     it('should handle saveReceivedToken failure gracefully', async () => {
       const { logger } = require('../../utils/logger');
-      (saveReceivedToken as jest.Mock).mockRejectedValue(new Error('Storage error'));
+      (saveReceivedToken as jest.Mock).mockRejectedValueOnce(new Error('Storage error'));
 
       let tokenConsumed = false;
       mockStoreState.consumePendingToken = jest.fn(() => {
@@ -574,7 +599,7 @@ describe('useTurboTokenProcessor', () => {
         return null;
       });
 
-      renderHook(() => useTurboTokenProcessor(mockProps));
+      renderHook(() => useTurboTokenProcessor(mockProps as any));
 
       await act(async () => {
         jest.advanceTimersByTime(100);
@@ -596,7 +621,7 @@ describe('useTurboTokenProcessor', () => {
     it('should create actionButtons for account switch error', async () => {
       // We'll manually test the button creation logic by verifying the pattern
       // The actual button onPress is tested via integration
-      mockProps.receive.mockRejectedValue(new Error('This proof belongs to account 3'));
+      mockProps.receive.mockRejectedValueOnce(new Error('This proof belongs to account 3'));
       let tokenConsumed = false;
 
       mockStoreState.consumePendingToken = jest.fn(() => {
@@ -607,7 +632,7 @@ describe('useTurboTokenProcessor', () => {
         return null;
       });
 
-      renderHook(() => useTurboTokenProcessor(mockProps));
+      renderHook(() => useTurboTokenProcessor(mockProps as any));
 
       await act(async () => {
         jest.advanceTimersByTime(100);
@@ -616,19 +641,19 @@ describe('useTurboTokenProcessor', () => {
 
       // Wait for error processing - the snackbar should be queued
       await waitFor(() => {
-        expect(turboGlobal.pendingTurboSnackbars[0].message).toContain('account 3');
+        expect(turboGlobal.pendingTurboSnackbars![0].message).toContain('account 3');
       });
 
       // The hook creates actionButtons internally, but we can't easily access them
       // because turboGlobal only stores simplified data. The button exists in the
       // snackbarConfig but isn't persisted. This is covered by the error message check.
-      expect(turboGlobal.pendingTurboSnackbars[0].type).toBe('error');
+      expect(turboGlobal.pendingTurboSnackbars![0].type).toBe('error');
     });
 
     it('should execute account switch flow when button is pressed', async () => {
       const { logger } = require('../../utils/logger');
 
-      mockProps.receive.mockRejectedValue(new Error('This proof belongs to account 2'));
+      mockProps.receive.mockRejectedValueOnce(new Error('This proof belongs to account 2'));
       let tokenConsumed = false;
       let buttonOnPress: (() => void) | null = null;
 
@@ -642,7 +667,7 @@ describe('useTurboTokenProcessor', () => {
         return null;
       });
 
-      renderHook(() => useTurboTokenProcessor(mockProps));
+      renderHook(() => useTurboTokenProcessor(mockProps as any));
 
       await act(async () => {
         jest.advanceTimersByTime(100);
@@ -672,8 +697,8 @@ describe('useTurboTokenProcessor', () => {
     it('should handle account switch failure in button handler', async () => {
       const { logger } = require('../../utils/logger');
 
-      mockProps.receive.mockRejectedValue(new Error('This proof belongs to account 2'));
-      mockProps.switchAccount.mockRejectedValue(new Error('Switch failed'));
+      mockProps.receive.mockRejectedValueOnce(new Error('This proof belongs to account 2'));
+      mockProps.switchAccount.mockRejectedValueOnce(new Error('Switch failed'));
 
       let tokenConsumed = false;
       mockStoreState.consumePendingToken = jest.fn(() => {
@@ -684,7 +709,7 @@ describe('useTurboTokenProcessor', () => {
         return null;
       });
 
-      renderHook(() => useTurboTokenProcessor(mockProps));
+      renderHook(() => useTurboTokenProcessor(mockProps as any));
 
       await act(async () => {
         jest.advanceTimersByTime(100);

@@ -1,4 +1,3 @@
-// @ts-nocheck
 /**
  * Tests for cashuProofManager
  * Focused on covering uncovered lines: 69-70, 196-197

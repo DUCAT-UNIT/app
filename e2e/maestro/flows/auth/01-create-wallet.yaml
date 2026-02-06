@@ -3,16 +3,20 @@ appId: com.ducatprotocol.DucatProtocolWallet
 # Create Wallet - Seed phrase creation flow (E2E mode bypasses passkeys)
 # clearState → welcome → intro → seed display → verify (bypassed) → PIN → wallet
 
-- launchApp:
-    clearState: true
-    clearKeychain: true
-- runFlow: ../../helpers/dismiss-dev-client.yaml
+- runFlow: ../helpers/clear-and-launch.yaml
 
-# Welcome screen
-- assertVisible:
-    id: "welcome-screen"
+# Tap create button — first tap may dismiss Expo Dev Client overlay
 - tapOn:
     id: "welcome-create-wallet-btn"
+
+# If overlay intercepted first tap, we're still on welcome screen — retry
+- runFlow:
+    when:
+      visible:
+        id: "welcome-screen"
+    commands:
+      - tapOn:
+          id: "welcome-create-wallet-btn"
 
 # Wallet Created Intro screen (wallet generation may take a few seconds)
 - extendedWaitUntil:
@@ -37,8 +41,8 @@ appId: com.ducatprotocol.DucatProtocolWallet
 # PIN setup - enter PIN twice
 - assertVisible:
     id: "pin-setup-title"
-- runFlow: ../../helpers/enter-pin-setup.yaml
-- runFlow: ../../helpers/enter-pin-setup.yaml
+- runFlow: ../helpers/enter-pin-setup.yaml
+- runFlow: ../helpers/enter-pin-setup.yaml
 
 # Skip biometric if prompted
 - runFlow:
@@ -49,6 +53,23 @@ appId: com.ducatprotocol.DucatProtocolWallet
       - tapOn:
           id: "biometric-skip-btn"
 
-# Verify wallet screen loads
-- assertVisible:
-    id: "wallet-screen"
+# Skip passkey migration if prompted
+- runFlow:
+    when:
+      visible:
+        id: "passkey-migration-modal"
+    commands:
+      - tapOn:
+          id: "passkey-skip-btn"
+
+# Dismiss airdrop modal if it appears
+- runFlow: ../helpers/dismiss-airdrop.yaml
+
+# Dismiss low ecash modal if it appears
+- runFlow: ../helpers/dismiss-low-ecash.yaml
+
+# Verify wallet screen loads (may take time after PIN setup)
+- extendedWaitUntil:
+    visible:
+      id: "wallet-screen"
+    timeout: 15000

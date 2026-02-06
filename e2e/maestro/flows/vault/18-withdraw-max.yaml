@@ -1,0 +1,59 @@
+appId: com.ducatprotocol.DucatProtocolWallet
+---
+# Settings Round Trip - Navigate to settings screen and back to wallet
+# Funded wallet → settings → verify settings screen → back → verify wallet screen
+
+- runFlow: ../helpers/import-wallet-typed.yaml
+
+# Verify wallet screen
+- extendedWaitUntil:
+    visible:
+      id: "wallet-screen"
+    timeout: 15000
+
+# Wait for balance to load
+- extendedWaitUntil:
+    visible:
+      id: "balance-section"
+    timeout: 30000
+
+# Dismiss low ecash modal if it appears
+- runFlow: ../helpers/dismiss-low-ecash.yaml
+
+# Dismiss airdrop modal if it appears
+- runFlow: ../helpers/dismiss-airdrop.yaml
+
+# Dismiss passkey migration modal if it appears
+- runFlow:
+    when:
+      visible:
+        id: "passkey-migration-modal"
+    commands:
+      - tapOn:
+          id: "passkey-skip-btn"
+
+# Navigate to settings
+- tapOn:
+    id: "wallet-settings-btn"
+
+# Verify settings screen loads
+- extendedWaitUntil:
+    visible:
+      id: "settings-screen"
+    timeout: 5000
+
+# Verify key settings options are present
+- assertVisible:
+    id: "settings-about-btn"
+- assertVisible:
+    id: "settings-lock-btn"
+
+# Navigate back to wallet
+- tapOn:
+    id: "settings-back-btn"
+
+# Verify wallet screen loads again
+- extendedWaitUntil:
+    visible:
+      id: "wallet-screen"
+    timeout: 5000

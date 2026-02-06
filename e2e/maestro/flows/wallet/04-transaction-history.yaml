@@ -1,0 +1,38 @@
+appId: com.ducatprotocol.DucatProtocolWallet
+---
+# Transaction History - Verify funded wallet shows transaction history screen
+# Funded wallet → tap history → verify history screen loads
+
+- runFlow: ../helpers/import-wallet-typed.yaml
+
+# Wait for wallet to fully load
+- extendedWaitUntil:
+    visible:
+      id: "wallet-screen"
+    timeout: 15000
+
+# Dismiss low ecash modal if it appears
+- runFlow: ../helpers/dismiss-low-ecash.yaml
+
+# Dismiss airdrop modal if it appears
+- runFlow: ../helpers/dismiss-airdrop.yaml
+
+# Skip passkey migration if it appears
+- runFlow:
+    when:
+      visible:
+        id: "passkey-migration-modal"
+    commands:
+      - tapOn:
+          id: "passkey-skip-btn"
+
+# Tap history button
+- tapOn:
+    id: "wallet-history-btn"
+
+# Verify transaction history screen loads
+- waitForAnimationToEnd
+- extendedWaitUntil:
+    visible:
+      text: "Transaction History"
+    timeout: 15000

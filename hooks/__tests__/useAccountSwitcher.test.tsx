@@ -1,4 +1,3 @@
-// @ts-nocheck
 /**
  * Tests for useAccountSwitcher Hook
  */
@@ -10,22 +9,22 @@ import { useAccountSwitcher } from '../useAccountSwitcher';
 import { ERRORS, DIALOGS } from '../../utils/messages';
 
 // Helper to render hooks with react-test-renderer
-function renderHook(hook) {
-  const result = { current: null };
+function renderHook<T>(hook: () => T) {
+  const result: { current: T | null } = { current: null };
 
   function TestComponent() {
     result.current = hook();
     return null;
   }
 
-  let component;
+  let component: ReturnType<typeof create> | undefined;
   act(() => {
     component = create(<TestComponent />);
   });
 
   return {
     result,
-    unmount: () => component.unmount(),
+    unmount: () => component?.unmount(),
   };
 }
 
@@ -35,7 +34,7 @@ jest.mock('react-native/Libraries/Alert/Alert', () => ({
 }));
 
 describe('useAccountSwitcher', () => {
-  let mockSwitchAccountContext;
+  let mockSwitchAccountContext: jest.Mock;
   const mockAddresses = {
     segwitAddress: 'tb1qnewsegwit',
     taprootAddress: 'tb1pnewtaproot',
@@ -58,9 +57,9 @@ describe('useAccountSwitcher', () => {
       useAccountSwitcher({ switchAccountContext: mockSwitchAccountContext })
     );
 
-    expect(result.current.showAccountPicker).toBe(false);
-    expect(result.current.newAccountIndex).toBe('');
-    expect(result.current.switchingAccount).toBe(false);
+    expect(result.current!.showAccountPicker).toBe(false);
+    expect(result.current!.newAccountIndex).toBe('');
+    expect(result.current!.switchingAccount).toBe(false);
   });
 
   it('should switch account successfully', async () => {
@@ -69,16 +68,16 @@ describe('useAccountSwitcher', () => {
     );
 
     await act(async () => {
-      const switchPromise = result.current.switchAccount(2); // Switch to Account 2
+      const switchPromise = result.current!.switchAccount(2); // Switch to Account 2
       jest.advanceTimersByTime(0); // Advance past the setTimeout(0)
       await switchPromise;
     });
 
     // Should call context with correct index (Account 2 = index 1)
     expect(mockSwitchAccountContext).toHaveBeenCalledWith(1);
-    expect(result.current.showAccountPicker).toBe(false);
-    expect(result.current.newAccountIndex).toBe('');
-    expect(result.current.switchingAccount).toBe(false);
+    expect(result.current!.showAccountPicker).toBe(false);
+    expect(result.current!.newAccountIndex).toBe('');
+    expect(result.current!.switchingAccount).toBe(false);
   });
 
   it('should convert account number to index correctly', async () => {
@@ -87,14 +86,14 @@ describe('useAccountSwitcher', () => {
     );
 
     await act(async () => {
-      const switchPromise = result.current.switchAccount(1); // Account 1 = index 0
+      const switchPromise = result.current!.switchAccount(1); // Account 1 = index 0
       jest.advanceTimersByTime(0);
       await switchPromise;
     });
     expect(mockSwitchAccountContext).toHaveBeenCalledWith(0);
 
     await act(async () => {
-      const switchPromise = result.current.switchAccount(5); // Account 5 = index 4
+      const switchPromise = result.current!.switchAccount(5); // Account 5 = index 4
       jest.advanceTimersByTime(0);
       await switchPromise;
     });
@@ -102,8 +101,8 @@ describe('useAccountSwitcher', () => {
   });
 
   it('should set switchingAccount to true during operation until balance loads', async () => {
-    let resolveSwitch;
-    let resolveBalance;
+    let resolveSwitch: () => void;
+    let resolveBalance: (value?: unknown) => void;
     mockSwitchAccountContext = jest.fn(
       () => new Promise((resolve) => (resolveSwitch = () => resolve(mockAddresses)))
     );
@@ -114,17 +113,17 @@ describe('useAccountSwitcher', () => {
     const { result } = renderHook(() =>
       useAccountSwitcher({
         switchAccountContext: mockSwitchAccountContext,
-        fetchBalance: mockFetchBalance,
+        fetchBalance: mockFetchBalance as jest.Mock,
       })
     );
 
     // Start switching
     act(() => {
-      result.current.switchAccount(2);
+      result.current!.switchAccount(2);
     });
 
     // Should be switching initially
-    expect(result.current.switchingAccount).toBe(true);
+    expect(result.current!.switchingAccount).toBe(true);
 
     // Advance past the setTimeout(0) that forces React render
     await act(async () => {
@@ -132,23 +131,23 @@ describe('useAccountSwitcher', () => {
     });
 
     // Still switching while waiting for switchAccountContext
-    expect(result.current.switchingAccount).toBe(true);
+    expect(result.current!.switchingAccount).toBe(true);
 
     // Resolve the switchAccountContext promise (returns addresses)
     await act(async () => {
-      resolveSwitch();
+      resolveSwitch!();
     });
 
     // Still switching - waiting for balance to load
-    expect(result.current.switchingAccount).toBe(true);
+    expect(result.current!.switchingAccount).toBe(true);
 
     // Resolve the fetchBalance promise
     await act(async () => {
-      resolveBalance();
+      resolveBalance!(undefined);
     });
 
     // Now should no longer be switching
-    expect(result.current.switchingAccount).toBe(false);
+    expect(result.current!.switchingAccount).toBe(false);
   });
 
   it('should show alert on switch error', async () => {
@@ -160,7 +159,7 @@ describe('useAccountSwitcher', () => {
     );
 
     await act(async () => {
-      const switchPromise = result.current.switchAccount(2);
+      const switchPromise = result.current!.switchAccount(2);
       jest.advanceTimersByTime(0);
       await switchPromise;
     });
@@ -169,7 +168,7 @@ describe('useAccountSwitcher', () => {
       DIALOGS.ERROR_TITLE,
       ERRORS.ACCOUNT_SWITCH_FAILED
     );
-    expect(result.current.switchingAccount).toBe(false);
+    expect(result.current!.switchingAccount).toBe(false);
   });
 
   it('should handle setShowAccountPicker', () => {
@@ -178,16 +177,16 @@ describe('useAccountSwitcher', () => {
     );
 
     act(() => {
-      result.current.setShowAccountPicker(true);
+      result.current!.setShowAccountPicker(true);
     });
 
-    expect(result.current.showAccountPicker).toBe(true);
+    expect(result.current!.showAccountPicker).toBe(true);
 
     act(() => {
-      result.current.setShowAccountPicker(false);
+      result.current!.setShowAccountPicker(false);
     });
 
-    expect(result.current.showAccountPicker).toBe(false);
+    expect(result.current!.showAccountPicker).toBe(false);
   });
 
   it('should handle setNewAccountIndex', () => {
@@ -196,16 +195,16 @@ describe('useAccountSwitcher', () => {
     );
 
     act(() => {
-      result.current.setNewAccountIndex('3');
+      result.current!.setNewAccountIndex('3');
     });
 
-    expect(result.current.newAccountIndex).toBe('3');
+    expect(result.current!.newAccountIndex).toBe('3');
 
     act(() => {
-      result.current.setNewAccountIndex('');
+      result.current!.setNewAccountIndex('');
     });
 
-    expect(result.current.newAccountIndex).toBe('');
+    expect(result.current!.newAccountIndex).toBe('');
   });
 
   it('should reset modal state after successful switch', async () => {
@@ -215,23 +214,23 @@ describe('useAccountSwitcher', () => {
 
     // Set up modal state
     act(() => {
-      result.current.setShowAccountPicker(true);
-      result.current.setNewAccountIndex('5');
+      result.current!.setShowAccountPicker(true);
+      result.current!.setNewAccountIndex('5');
     });
 
-    expect(result.current.showAccountPicker).toBe(true);
-    expect(result.current.newAccountIndex).toBe('5');
+    expect(result.current!.showAccountPicker).toBe(true);
+    expect(result.current!.newAccountIndex).toBe('5');
 
     // Switch account
     await act(async () => {
-      const switchPromise = result.current.switchAccount(5);
+      const switchPromise = result.current!.switchAccount(5);
       jest.advanceTimersByTime(0);
       await switchPromise;
     });
 
     // Modal state should be reset
-    expect(result.current.showAccountPicker).toBe(false);
-    expect(result.current.newAccountIndex).toBe('');
+    expect(result.current!.showAccountPicker).toBe(false);
+    expect(result.current!.newAccountIndex).toBe('');
   });
 
   it('should not reset modal state after failed switch', async () => {
@@ -243,20 +242,20 @@ describe('useAccountSwitcher', () => {
 
     // Set up modal state
     act(() => {
-      result.current.setShowAccountPicker(true);
-      result.current.setNewAccountIndex('5');
+      result.current!.setShowAccountPicker(true);
+      result.current!.setNewAccountIndex('5');
     });
 
     // Switch account (will fail)
     await act(async () => {
-      const switchPromise = result.current.switchAccount(5);
+      const switchPromise = result.current!.switchAccount(5);
       jest.advanceTimersByTime(0);
       await switchPromise;
     });
 
     // Modal state remains (user might want to retry)
-    expect(result.current.showAccountPicker).toBe(true);
-    expect(result.current.newAccountIndex).toBe('5');
+    expect(result.current!.showAccountPicker).toBe(true);
+    expect(result.current!.newAccountIndex).toBe('5');
   });
 
   it('should handle rapid account switches', async () => {
@@ -266,19 +265,19 @@ describe('useAccountSwitcher', () => {
 
     // Switch to multiple accounts rapidly
     await act(async () => {
-      const switchPromise = result.current.switchAccount(2);
+      const switchPromise = result.current!.switchAccount(2);
       jest.advanceTimersByTime(0);
       await switchPromise;
     });
 
     await act(async () => {
-      const switchPromise = result.current.switchAccount(3);
+      const switchPromise = result.current!.switchAccount(3);
       jest.advanceTimersByTime(0);
       await switchPromise;
     });
 
     await act(async () => {
-      const switchPromise = result.current.switchAccount(1);
+      const switchPromise = result.current!.switchAccount(1);
       jest.advanceTimersByTime(0);
       await switchPromise;
     });
@@ -302,7 +301,7 @@ describe('useAccountSwitcher', () => {
       );
 
       await act(async () => {
-        const switchPromise = result.current.switchAccount(2);
+        const switchPromise = result.current!.switchAccount(2);
         jest.advanceTimersByTime(0);
         await switchPromise;
       });
@@ -313,7 +312,7 @@ describe('useAccountSwitcher', () => {
         mockAddresses.taprootAddress
       );
       // switchingAccount should be false AFTER fetchBalance completes
-      expect(result.current.switchingAccount).toBe(false);
+      expect(result.current!.switchingAccount).toBe(false);
     });
 
     it('should call fetchVault in background', async () => {
@@ -327,7 +326,7 @@ describe('useAccountSwitcher', () => {
       );
 
       await act(async () => {
-        const switchPromise = result.current.switchAccount(2);
+        const switchPromise = result.current!.switchAccount(2);
         jest.advanceTimersByTime(0);
         await switchPromise;
       });
@@ -350,7 +349,7 @@ describe('useAccountSwitcher', () => {
       );
 
       await act(async () => {
-        const switchPromise = result.current.switchAccount(2);
+        const switchPromise = result.current!.switchAccount(2);
         jest.advanceTimersByTime(0);
         await switchPromise;
       });
@@ -379,7 +378,7 @@ describe('useAccountSwitcher', () => {
       );
 
       await act(async () => {
-        const switchPromise = result.current.switchAccount(2);
+        const switchPromise = result.current!.switchAccount(2);
         jest.advanceTimersByTime(0);
         await switchPromise;
       });
@@ -402,7 +401,7 @@ describe('useAccountSwitcher', () => {
       );
 
       await act(async () => {
-        const switchPromise = result.current.switchAccount(2);
+        const switchPromise = result.current!.switchAccount(2);
         jest.advanceTimersByTime(0);
         await switchPromise;
       });
@@ -425,7 +424,7 @@ describe('useAccountSwitcher', () => {
 
       // Should not throw
       await act(async () => {
-        const switchPromise = result.current.switchAccount(2);
+        const switchPromise = result.current!.switchAccount(2);
         jest.advanceTimersByTime(0);
         await switchPromise;
       });
@@ -435,7 +434,7 @@ describe('useAccountSwitcher', () => {
         await Promise.resolve();
       });
 
-      expect(result.current.switchingAccount).toBe(false);
+      expect(result.current!.switchingAccount).toBe(false);
     });
 
     it('should catch synchronous errors in fire-and-forget callbacks', async () => {
@@ -452,12 +451,12 @@ describe('useAccountSwitcher', () => {
 
       // Should not throw
       await act(async () => {
-        const switchPromise = result.current.switchAccount(2);
+        const switchPromise = result.current!.switchAccount(2);
         jest.advanceTimersByTime(0);
         await switchPromise;
       });
 
-      expect(result.current.switchingAccount).toBe(false);
+      expect(result.current!.switchingAccount).toBe(false);
     });
 
     it('should call onAccountSwitched callback', async () => {
@@ -471,7 +470,7 @@ describe('useAccountSwitcher', () => {
       );
 
       await act(async () => {
-        const switchPromise = result.current.switchAccount(3); // Account 3 = index 2
+        const switchPromise = result.current!.switchAccount(3); // Account 3 = index 2
         jest.advanceTimersByTime(0);
         await switchPromise;
       });
@@ -492,7 +491,7 @@ describe('useAccountSwitcher', () => {
       );
 
       await act(async () => {
-        const switchPromise = result.current.switchAccount(2);
+        const switchPromise = result.current!.switchAccount(2);
         jest.advanceTimersByTime(0);
         await switchPromise;
       });
@@ -511,7 +510,7 @@ describe('useAccountSwitcher', () => {
       );
 
       await act(async () => {
-        const switchPromise = result.current.switchAccount(2);
+        const switchPromise = result.current!.switchAccount(2);
         jest.advanceTimersByTime(0);
         await switchPromise;
       });
@@ -530,7 +529,7 @@ describe('useAccountSwitcher', () => {
       );
 
       await act(async () => {
-        const switchPromise = result.current.switchAccount(2);
+        const switchPromise = result.current!.switchAccount(2);
         jest.advanceTimersByTime(0);
         await switchPromise;
       });
@@ -552,7 +551,7 @@ describe('useAccountSwitcher', () => {
 
       // Should not throw
       await act(async () => {
-        const switchPromise = result.current.switchAccount(2);
+        const switchPromise = result.current!.switchAccount(2);
         jest.advanceTimersByTime(0);
         await switchPromise;
       });
@@ -562,7 +561,7 @@ describe('useAccountSwitcher', () => {
         await Promise.resolve();
       });
 
-      expect(result.current.switchingAccount).toBe(false);
+      expect(result.current!.switchingAccount).toBe(false);
     });
 
     it('should handle non-Error exceptions in sync callbacks', async () => {
@@ -579,12 +578,121 @@ describe('useAccountSwitcher', () => {
 
       // Should not throw
       await act(async () => {
-        const switchPromise = result.current.switchAccount(2);
+        const switchPromise = result.current!.switchAccount(2);
         jest.advanceTimersByTime(0);
         await switchPromise;
       });
 
-      expect(result.current.switchingAccount).toBe(false);
+      expect(result.current!.switchingAccount).toBe(false);
+    });
+
+    it('should handle fetchVault failure gracefully', async () => {
+      const mockFetchVault = jest.fn().mockRejectedValue(new Error('Vault fetch failed'));
+
+      const { result } = renderHook(() =>
+        useAccountSwitcher({
+          switchAccountContext: mockSwitchAccountContext,
+          fetchVault: mockFetchVault,
+        })
+      );
+
+      // Should not throw
+      await act(async () => {
+        const switchPromise = result.current!.switchAccount(2);
+        jest.advanceTimersByTime(0);
+        await switchPromise;
+      });
+
+      expect(result.current!.switchingAccount).toBe(false);
+    });
+
+    it('should handle resetAndRefreshCashu failure gracefully', async () => {
+      const mockResetAndRefreshCashu = jest.fn().mockRejectedValue(new Error('Cashu refresh failed'));
+
+      const { result } = renderHook(() =>
+        useAccountSwitcher({
+          switchAccountContext: mockSwitchAccountContext,
+          resetAndRefreshCashu: mockResetAndRefreshCashu,
+        })
+      );
+
+      // Should not throw
+      await act(async () => {
+        const switchPromise = result.current!.switchAccount(2);
+        jest.advanceTimersByTime(0);
+        await switchPromise;
+      });
+
+      await act(async () => {
+        await Promise.resolve();
+        await Promise.resolve();
+      });
+
+      expect(result.current!.switchingAccount).toBe(false);
+    });
+
+    it('should handle fetchTransactionHistory failure gracefully', async () => {
+      const mockFetchTransactionHistory = jest.fn().mockRejectedValue(new Error('History fetch failed'));
+
+      const { result } = renderHook(() =>
+        useAccountSwitcher({
+          switchAccountContext: mockSwitchAccountContext,
+          fetchTransactionHistory: mockFetchTransactionHistory,
+        })
+      );
+
+      // Should not throw
+      await act(async () => {
+        const switchPromise = result.current!.switchAccount(2);
+        jest.advanceTimersByTime(0);
+        await switchPromise;
+      });
+
+      await act(async () => {
+        await Promise.resolve();
+        await Promise.resolve();
+      });
+
+      expect(result.current!.switchingAccount).toBe(false);
+    });
+  });
+
+  describe('showToast callback', () => {
+    it('should call showToast with success message after switch', async () => {
+      const mockShowToast = jest.fn();
+
+      const { result } = renderHook(() =>
+        useAccountSwitcher({
+          switchAccountContext: mockSwitchAccountContext,
+          showToast: mockShowToast,
+        })
+      );
+
+      await act(async () => {
+        const switchPromise = result.current!.switchAccount(3); // Account 3 = index 2
+        jest.advanceTimersByTime(0);
+        await switchPromise;
+      });
+
+      expect(mockShowToast).toHaveBeenCalledWith('Switched to Account 3', 'success');
+    });
+
+    it('should not call showToast if not provided', async () => {
+      const { result } = renderHook(() =>
+        useAccountSwitcher({
+          switchAccountContext: mockSwitchAccountContext,
+          // showToast is not provided
+        })
+      );
+
+      // Should not throw
+      await act(async () => {
+        const switchPromise = result.current!.switchAccount(2);
+        jest.advanceTimersByTime(0);
+        await switchPromise;
+      });
+
+      expect(result.current!.switchingAccount).toBe(false);
     });
   });
 });

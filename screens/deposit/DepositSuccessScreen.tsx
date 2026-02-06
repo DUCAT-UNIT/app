@@ -40,9 +40,8 @@ export default function DepositSuccessScreen({ navigation, route }: DepositSucce
                 state: {
                   routes: [
                     { name: 'WalletHome' },
-                    { name: 'VaultDetail' },
                   ],
-                  index: 1,
+                  index: 0,
                 },
               },
             ],

@@ -4,34 +4,47 @@ appId: com.ducatprotocol.DucatProtocolWallet
 # E2E bypass auto-fills test seed when import button is tapped with empty fields
 # clearState → welcome → restore choice → import screen → tap import → PIN → wallet
 
-- launchApp:
-    clearState: true
-    clearKeychain: true
-- runFlow: ../../helpers/dismiss-dev-client.yaml
+- runFlow: ../helpers/clear-and-launch.yaml
 
-# Welcome screen
-- assertVisible:
-    id: "welcome-screen"
+# Tap restore button — first tap may dismiss Expo Dev Client overlay
 - tapOn:
     id: "welcome-restore-wallet-btn"
 
+# If overlay intercepted first tap, we're still on welcome screen — retry
+- runFlow:
+    when:
+      visible:
+        id: "welcome-screen"
+    commands:
+      - tapOn:
+          id: "welcome-restore-wallet-btn"
+
 # Restore choice screen
-- assertVisible:
-    id: "restore-choice-screen"
+- extendedWaitUntil:
+    visible:
+      id: "restore-choice-screen"
+    timeout: 5000
 - tapOn:
     id: "restore-seed-phrase-btn"
 
 # Import wallet screen - E2E bypass auto-fills seed
 - assertVisible:
     id: "import-wallet-screen"
+- scrollUntilVisible:
+    element:
+      id: "import-wallet-btn"
+    direction: DOWN
+    timeout: 5000
 - tapOn:
     id: "import-wallet-btn"
 
-# PIN setup - enter PIN twice
-- assertVisible:
-    id: "pin-setup-title"
-- runFlow: ../../helpers/enter-pin-setup.yaml
-- runFlow: ../../helpers/enter-pin-setup.yaml
+# PIN setup - enter PIN twice (key derivation takes time)
+- extendedWaitUntil:
+    visible:
+      id: "pin-setup-title"
+    timeout: 30000
+- runFlow: ../helpers/enter-pin-setup.yaml
+- runFlow: ../helpers/enter-pin-setup.yaml
 
 # Skip biometric if prompted
 - runFlow:
@@ -51,6 +64,14 @@ appId: com.ducatprotocol.DucatProtocolWallet
       - tapOn:
           id: "passkey-skip-btn"
 
+# Dismiss airdrop modal if it appears
+- runFlow: ../helpers/dismiss-airdrop.yaml
+
+# Dismiss low ecash modal if it appears
+- runFlow: ../helpers/dismiss-low-ecash.yaml
+
 # Verify wallet screen loads
-- assertVisible:
-    id: "wallet-screen"
+- extendedWaitUntil:
+    visible:
+      id: "wallet-screen"
+    timeout: 15000

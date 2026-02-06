@@ -1,4 +1,3 @@
-// @ts-nocheck
 /**
  * Tests for useEcashBalanceCheck hook
  */
@@ -22,18 +21,18 @@ const mockLogger = {
 };
 
 // Add logger to global scope for the hook
-global.logger = mockLogger;
+(global as Record<string, unknown>).logger = mockLogger;
 
 import AsyncStorage from '@react-native-async-storage/async-storage';
 
 // Helper to render hooks with props
-function renderHookWithProps(cashuBalance, ecashThreshold, unitBalance) {
-  const result = { current: null };
-  function TestComponent({ balance, threshold, unit }) {
-    result.current = useEcashBalanceCheck(balance, threshold, unit);
+function renderHookWithProps(cashuBalance: number | null | undefined, ecashThreshold: number | null | undefined, unitBalance: number) {
+  const result: { current: ReturnType<typeof useEcashBalanceCheck> | null } = { current: null };
+  function TestComponent({ balance, threshold, unit }: { balance: number | null | undefined; threshold: number | null | undefined; unit: number }) {
+    result.current = useEcashBalanceCheck(balance, threshold ?? undefined, unit);
     return null;
   }
-  let component;
+  let component: ReturnType<typeof create> | undefined;
   act(() => {
     component = create(
       <TestComponent balance={cashuBalance} threshold={ecashThreshold} unit={unitBalance} />
@@ -41,11 +40,11 @@ function renderHookWithProps(cashuBalance, ecashThreshold, unitBalance) {
   });
   return {
     result,
-    unmount: component.unmount,
+    unmount: component!.unmount,
     component,
-    rerender: (newBalance, newThreshold, newUnit) => {
+    rerender: (newBalance: number | null | undefined, newThreshold: number | null | undefined, newUnit: number) => {
       act(() => {
-        component.update(
+        component?.update(
           <TestComponent balance={newBalance} threshold={newThreshold} unit={newUnit} />
         );
       });
@@ -56,37 +55,37 @@ function renderHookWithProps(cashuBalance, ecashThreshold, unitBalance) {
 describe('useEcashBalanceCheck', () => {
   beforeEach(() => {
     jest.clearAllMocks();
-    AsyncStorage.getItem.mockResolvedValue(null);
-    AsyncStorage.setItem.mockResolvedValue();
+    (AsyncStorage.getItem as jest.Mock).mockResolvedValue(null);
+    (AsyncStorage.setItem as jest.Mock).mockResolvedValue(undefined);
   });
 
   it('should return initial state', () => {
     const { result } = renderHookWithProps(100, 100, 1000);
 
-    expect(result.current.showLowBalanceModal).toBe(false);
-    expect(result.current.amountNeeded).toBe(0);
-    expect(result.current.currentBalance).toBe(100);
-    expect(result.current.defaultThreshold).toBe(100);
-    expect(typeof result.current.closeModal).toBe('function');
+    expect(result.current!.showLowBalanceModal).toBe(false);
+    expect(result.current!.amountNeeded).toBe(0);
+    expect(result.current!.currentBalance).toBe(100);
+    expect(result.current!.defaultThreshold).toBe(100);
+    expect(typeof result.current!.closeModal).toBe('function');
   });
 
   it('should handle null cashuBalance', () => {
     const { result } = renderHookWithProps(null, 100, 1000);
 
-    expect(result.current.currentBalance).toBe(0);
-    expect(result.current.showLowBalanceModal).toBe(false);
+    expect(result.current!.currentBalance).toBe(0);
+    expect(result.current!.showLowBalanceModal).toBe(false);
   });
 
   it('should handle undefined cashuBalance', () => {
     const { result } = renderHookWithProps(undefined, 100, 1000);
 
-    expect(result.current.currentBalance).toBe(0);
+    expect(result.current!.currentBalance).toBe(0);
   });
 
   it('should use default threshold when ecashThreshold is null', () => {
     const { result } = renderHookWithProps(100, null, 1000);
 
-    expect(result.current.defaultThreshold).toBe(100);
+    expect(result.current!.defaultThreshold).toBe(100);
   });
 
   it('should show modal when balance is low and unit balance sufficient', async () => {
@@ -99,8 +98,8 @@ describe('useEcashBalanceCheck', () => {
       await Promise.resolve();
     });
 
-    expect(result.current.showLowBalanceModal).toBe(true);
-    expect(result.current.amountNeeded).toBe(90); // 100 - 10
+    expect(result.current!.showLowBalanceModal).toBe(true);
+    expect(result.current!.amountNeeded).toBe(90); // 100 - 10
   });
 
   it('should not show modal when balance is above threshold', async () => {
@@ -112,7 +111,7 @@ describe('useEcashBalanceCheck', () => {
       await Promise.resolve();
     });
 
-    expect(result.current.showLowBalanceModal).toBe(false);
+    expect(result.current!.showLowBalanceModal).toBe(false);
   });
 
   it('should not show modal when unit balance is insufficient', async () => {
@@ -124,13 +123,13 @@ describe('useEcashBalanceCheck', () => {
       await Promise.resolve();
     });
 
-    expect(result.current.showLowBalanceModal).toBe(false);
+    expect(result.current!.showLowBalanceModal).toBe(false);
   });
 
   it('should not show modal during cooldown period', async () => {
     // Mock that we checked recently (1 hour ago)
     const oneHourAgo = Date.now() - 60 * 60 * 1000;
-    AsyncStorage.getItem.mockResolvedValue(oneHourAgo.toString());
+    (AsyncStorage.getItem as jest.Mock).mockResolvedValue(oneHourAgo.toString());
 
     const { result } = renderHookWithProps(10, 100, 1000);
 
@@ -138,13 +137,13 @@ describe('useEcashBalanceCheck', () => {
       await Promise.resolve();
     });
 
-    expect(result.current.showLowBalanceModal).toBe(false);
+    expect(result.current!.showLowBalanceModal).toBe(false);
   });
 
   it('should show modal after cooldown expires', async () => {
     // Mock that we checked 25 hours ago (cooldown is 24 hours)
     const twentyFiveHoursAgo = Date.now() - 25 * 60 * 60 * 1000;
-    AsyncStorage.getItem.mockResolvedValue(twentyFiveHoursAgo.toString());
+    (AsyncStorage.getItem as jest.Mock).mockResolvedValue(twentyFiveHoursAgo.toString());
 
     const { result } = renderHookWithProps(10, 100, 1000);
 
@@ -152,7 +151,7 @@ describe('useEcashBalanceCheck', () => {
       await Promise.resolve();
     });
 
-    expect(result.current.showLowBalanceModal).toBe(true);
+    expect(result.current!.showLowBalanceModal).toBe(true);
   });
 
   it('should save check time when showing modal', async () => {
@@ -175,13 +174,13 @@ describe('useEcashBalanceCheck', () => {
       await Promise.resolve();
     });
 
-    expect(result.current.showLowBalanceModal).toBe(true);
+    expect(result.current!.showLowBalanceModal).toBe(true);
 
     act(() => {
-      result.current.closeModal();
+      result.current!.closeModal();
     });
 
-    expect(result.current.showLowBalanceModal).toBe(false);
+    expect(result.current!.showLowBalanceModal).toBe(false);
   });
 
   it('should only check once per session', async () => {
@@ -191,11 +190,11 @@ describe('useEcashBalanceCheck', () => {
       await Promise.resolve();
     });
 
-    expect(result.current.showLowBalanceModal).toBe(true);
+    expect(result.current!.showLowBalanceModal).toBe(true);
 
     // Close modal
     act(() => {
-      result.current.closeModal();
+      result.current!.closeModal();
     });
 
     // Rerender - should not check again
@@ -206,11 +205,11 @@ describe('useEcashBalanceCheck', () => {
     });
 
     // Should not show again in same session
-    expect(result.current.showLowBalanceModal).toBe(false);
+    expect(result.current!.showLowBalanceModal).toBe(false);
   });
 
   it('should handle AsyncStorage.getItem error gracefully', async () => {
-    AsyncStorage.getItem.mockRejectedValue(new Error('Storage error'));
+    (AsyncStorage.getItem as jest.Mock).mockRejectedValue(new Error('Storage error'));
 
     const { result } = renderHookWithProps(10, 100, 1000);
 
@@ -219,11 +218,11 @@ describe('useEcashBalanceCheck', () => {
     });
 
     // Should still show modal despite error
-    expect(result.current.showLowBalanceModal).toBe(true);
+    expect(result.current!.showLowBalanceModal).toBe(true);
   });
 
   it('should handle AsyncStorage.setItem error gracefully', async () => {
-    AsyncStorage.setItem.mockRejectedValue(new Error('Storage error'));
+    (AsyncStorage.setItem as jest.Mock).mockRejectedValue(new Error('Storage error'));
 
     const { result } = renderHookWithProps(10, 100, 1000);
 
@@ -232,7 +231,7 @@ describe('useEcashBalanceCheck', () => {
     });
 
     // Should still show modal despite error
-    expect(result.current.showLowBalanceModal).toBe(true);
+    expect(result.current!.showLowBalanceModal).toBe(true);
   });
 
   it('should calculate correct amount needed', async () => {
@@ -243,7 +242,7 @@ describe('useEcashBalanceCheck', () => {
       await Promise.resolve();
     });
 
-    expect(result.current.amountNeeded).toBe(175);
+    expect(result.current!.amountNeeded).toBe(175);
   });
 
   it('should show modal when balance is exactly at threshold boundary', async () => {
@@ -255,7 +254,7 @@ describe('useEcashBalanceCheck', () => {
       await Promise.resolve();
     });
 
-    expect(result.current.showLowBalanceModal).toBe(true);
+    expect(result.current!.showLowBalanceModal).toBe(true);
   });
 
   it('should not show modal when balance is 0 and unit balance is 0', async () => {
@@ -266,6 +265,6 @@ describe('useEcashBalanceCheck', () => {
     });
 
     // Unit balance insufficient
-    expect(result.current.showLowBalanceModal).toBe(false);
+    expect(result.current!.showLowBalanceModal).toBe(false);
   });
 });

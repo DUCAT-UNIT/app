@@ -1,4 +1,3 @@
-// @ts-nocheck
 /**
  * Tests for Passkey Encryption Service
  * Covers generateRandomMnemonic, deriveEncryptionKey, encryptMnemonic, decryptMnemonic
@@ -38,6 +37,7 @@ import {
   decryptMnemonic,
 } from '../encryption';
 import { hashPinForEncryption } from '../../pinService';
+import type { AesGcmKey, EncryptedMnemonicData } from '../../../types/crypto';
 
 // Get mocked function reference
 const mockHashPinForEncryption = hashPinForEncryption as jest.Mock;
@@ -94,7 +94,7 @@ describe('Passkey Encryption', () => {
 
       // Key should be a CryptoKey from real crypto.subtle
       expect(key).toBeDefined();
-      expect(key.type).toBe('secret');
+      expect(key.algorithm.name).toBe('AES-GCM');
       expect(mockHashPinForEncryption).not.toHaveBeenCalled();
     });
 
@@ -108,7 +108,7 @@ describe('Passkey Encryption', () => {
       );
 
       expect(key).toBeDefined();
-      expect(key.type).toBe('secret');
+      expect(key.algorithm.name).toBe('AES-GCM');
       expect(mockHashPinForEncryption).toHaveBeenCalledWith(mockPin, mockPinSalt);
     });
 
@@ -142,7 +142,7 @@ describe('Passkey Encryption', () => {
       // Both keys should be valid
       expect(key1).toBeDefined();
       expect(key2).toBeDefined();
-      expect(key1.type).toBe(key2.type);
+      expect(key1.algorithm.name).toBe(key2.algorithm.name);
     });
 
     it('should produce different keys with different credentials', async () => {
@@ -187,7 +187,7 @@ describe('Passkey Encryption', () => {
   });
 
   describe('encryptMnemonic', () => {
-    let encryptionKey;
+    let encryptionKey: AesGcmKey;
 
     beforeEach(async () => {
       encryptionKey = await deriveEncryptionKey(
@@ -242,8 +242,8 @@ describe('Passkey Encryption', () => {
   });
 
   describe('decryptMnemonic', () => {
-    let encryptionKey;
-    let encrypted;
+    let encryptionKey: AesGcmKey;
+    let encrypted: EncryptedMnemonicData;
 
     beforeEach(async () => {
       encryptionKey = await deriveEncryptionKey(

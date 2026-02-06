@@ -1,0 +1,8 @@
+appId: com.ducatprotocol.DucatProtocolWallet
+---
+# Wait for the app to finish launching and be ready
+# After clearState + launchApp, the app may take time to load the JS bundle
+- extendedWaitUntil:
+    visible:
+      id: "welcome-screen"
+    timeout: 30000

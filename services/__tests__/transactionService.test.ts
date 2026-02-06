@@ -1,6 +1,8 @@
-// @ts-nocheck
 /**
  * Tests for transactionService
+ *
+ * NOTE: This file uses type-safe fetch mock pattern.
+ * See testUtils/fetchMock.ts for the implementation.
  */
 
 import * as TransactionService from '../transaction';
@@ -9,17 +11,23 @@ import * as balanceService from '../balanceService';
 import * as SecureStorageService from '../secureStorageService';
 import { ERRORS } from '../../utils/messages';
 import * as bitcoinUtils from '../../utils/bitcoin';
+import {
+  setupMockFetch,
+  getMockFetch,
+  createMockResponse,
+  createMockTextResponse,
+} from './testUtils';
 
 jest.mock('../balanceService');
 jest.mock('../secureStorageService');
 jest.mock('../../utils/retry', () => ({
-  retrySilently: jest.fn((fn) => fn()),
+  retrySilently: jest.fn((fn: () => unknown) => fn()),
 }));
 
 // Mock utils/bitcoin to prevent BIP32Factory from running
 jest.mock('../../utils/bitcoin', () => ({
   MUTINYNET_NETWORK: {},
-  validateAndNormalizeAddress: jest.fn((addr) => addr),
+  validateAndNormalizeAddress: jest.fn((addr: string) => addr),
   deriveAddressesFromMnemonic: jest.fn(),
   deriveSigningKeys: jest.fn(),
 }));
@@ -30,8 +38,46 @@ jest.mock('../../utils/runestoneEncoder', () => ({
   })),
 }));
 
-// Mock fetch
-(global as any).fetch = jest.fn();
+/**
+ * Mock callback type for withMnemonic
+ */
+type MnemonicCallback<T> = (mnemonic: string) => T;
+
+/**
+ * Mock signing key interface
+ */
+interface MockSigningKey {
+  publicKey: Buffer;
+  privateKey: Buffer;
+  tweak?: jest.Mock;
+}
+
+/**
+ * Mock PSBT interface for testing
+ */
+interface MockPsbtData {
+  inputs: Array<{
+    witnessUtxo?: {
+      script: Buffer;
+      value: number;
+    };
+    tapKeySig?: Buffer;
+  }>;
+}
+
+interface MockPsbt {
+  data: MockPsbtData;
+  __CACHE?: {
+    __TX: {
+      clone: jest.Mock;
+    };
+  };
+  signInput: jest.Mock;
+  updateInput?: jest.Mock;
+  finalizeInput?: jest.Mock;
+  finalizeAllInputs: jest.Mock;
+  extractTransaction: jest.Mock;
+}
 
 // Mock bitcoinjs-lib
 const mockPsbtInstance = {
@@ -64,6 +110,7 @@ jest.mock('bitcoinjs-lib', () => {
 describe('transactionService', () => {
   beforeEach(() => {
     jest.clearAllMocks();
+    setupMockFetch();
     (mockPsbtInstance.addInput as jest.Mock).mockClear();
     (mockPsbtInstance.addOutput as jest.Mock).mockClear();
     (mockPsbtInstance.toBase64 as jest.Mock).mockReturnValue('mock_psbt_base64');
@@ -107,11 +154,11 @@ describe('transactionService', () => {
         },
       ]);
 
-      ((global as any).fetch as jest.Mock).mockResolvedValue({
-        ok: true,
-        text: async () =>
-          '0200000000010100000000000000000000000000000000000000000000000000000000000000000000000000ffffffff0100e1f50500000000160014000000000000000000000000000000000000000000000000',
-      });
+      getMockFetch().mockResolvedValue(
+        createMockTextResponse(
+          '0200000000010100000000000000000000000000000000000000000000000000000000000000000000000000ffffffff0100e1f50500000000160014000000000000000000000000000000000000000000000000'
+        )
+      );
 
       await expect(
         TransactionService.createBtcIntent('tb1qtest123456789', '0.1', 'tb1qsource', 0)
@@ -129,11 +176,11 @@ describe('transactionService', () => {
       ];
 
       (balanceService.fetchUtxos as jest.Mock).mockResolvedValue(mockUtxos);
-      ((global as any).fetch as jest.Mock).mockResolvedValue({
-        ok: true,
-        text: async () =>
-          '0200000000010100000000000000000000000000000000000000000000000000000000000000000000000000ffffffff0100e1f50500000000160014000000000000000000000000000000000000000000000000',
-      });
+      getMockFetch().mockResolvedValue(
+        createMockTextResponse(
+          '0200000000010100000000000000000000000000000000000000000000000000000000000000000000000000ffffffff0100e1f50500000000160014000000000000000000000000000000000000000000000000'
+        )
+      );
 
       const result = await TransactionService.createBtcIntent(
         'tb1qrecipient',
@@ -162,11 +209,11 @@ describe('transactionService', () => {
         },
       ]);
 
-      ((global as any).fetch as jest.Mock).mockResolvedValue({
-        ok: true,
-        text: async () =>
-          '0200000000010100000000000000000000000000000000000000000000000000000000000000000000000000ffffffff0100e1f50500000000160014000000000000000000000000000000000000000000000000',
-      });
+      getMockFetch().mockResolvedValue(
+        createMockTextResponse(
+          '0200000000010100000000000000000000000000000000000000000000000000000000000000000000000000ffffffff0100e1f50500000000160014000000000000000000000000000000000000000000000000'
+        )
+      );
 
       const result = await TransactionService.createBtcIntent(
         'tb1qtest',
@@ -189,11 +236,11 @@ describe('transactionService', () => {
         },
       ]);
 
-      ((global as any).fetch as jest.Mock).mockResolvedValue({
-        ok: true,
-        text: async () =>
-          '0200000000010100000000000000000000000000000000000000000000000000000000000000000000000000ffffffff0100e1f50500000000160014000000000000000000000000000000000000000000000000',
-      });
+      getMockFetch().mockResolvedValue(
+        createMockTextResponse(
+          '0200000000010100000000000000000000000000000000000000000000000000000000000000000000000000ffffffff0100e1f50500000000160014000000000000000000000000000000000000000000000000'
+        )
+      );
 
       await TransactionService.createBtcIntent('tb1qrecipient', '0.0001', 'tb1qsource', 0);
 
@@ -211,10 +258,9 @@ describe('transactionService', () => {
         },
       ]);
 
-      ((global as any).fetch as jest.Mock).mockResolvedValue({
-        ok: true,
-        text: async () => '020000000001010000000000',
-      });
+      getMockFetch().mockResolvedValue(
+        createMockTextResponse('020000000001010000000000')
+      );
 
       await TransactionService.createBtcIntent('tb1qtest', '0.0001', 'tb1qsource', 0);
 
@@ -231,11 +277,11 @@ describe('transactionService', () => {
         },
       ]);
 
-      ((global as any).fetch as jest.Mock).mockResolvedValue({
-        ok: true,
-        text: async () =>
-          '0200000000010100000000000000000000000000000000000000000000000000000000000000000000000000ffffffff0100e1f50500000000160014000000000000000000000000000000000000000000000000',
-      });
+      getMockFetch().mockResolvedValue(
+        createMockTextResponse(
+          '0200000000010100000000000000000000000000000000000000000000000000000000000000000000000000ffffffff0100e1f50500000000160014000000000000000000000000000000000000000000000000'
+        )
+      );
 
       const result = await TransactionService.createBtcIntent(
         'tb1qrecipient',
@@ -283,9 +329,7 @@ describe('transactionService', () => {
     });
 
     it('should throw error when no rune UTXOs found', async () => {
-      ((global as any).fetch as jest.Mock).mockResolvedValue({
-        json: async () => ({ outputs: [] }),
-      });
+      getMockFetch().mockResolvedValue(createMockResponse({ outputs: [] }));
 
       await expect(
         TransactionService.createUnitIntent('tb1precipient', '100', 'tb1ptaproot', 'tb1qsegwit', 0)
@@ -293,21 +337,18 @@ describe('transactionService', () => {
     });
 
     it('should throw error when no UTXOs with sufficient runes', async () => {
-      ((global as any).fetch as jest.Mock)
-        .mockResolvedValueOnce({
-          json: async () => ({ outputs: ['mock_txid:0'] }),
-        })
-        .mockResolvedValueOnce({
-          json: async () => ({
-            transaction: 'mock_txid',
-            value: 10000,
-            runes: {
-              'DUCAT•UNIT•RUNE': {
-                amount: '50', // Only 50, need 10000 (100 * 100)
-              },
+      getMockFetch()
+        .mockResolvedValueOnce(createMockResponse({ outputs: ['mock_txid:0'] }))
+        .mockResolvedValueOnce(createMockResponse({
+          transaction: 'mock_txid',
+          value: 10000,
+          runes: {
+            'DUCAT•UNIT•RUNE': {
+              amount: '50', // Only 50, need 10000 (100 * 100)
             },
-          }),
-        });
+          },
+        }))
+        .mockResolvedValueOnce(createMockResponse({ spent: false })); // spend check
 
       await expect(
         TransactionService.createUnitIntent('tb1precipient', '100', 'tb1ptaproot', 'tb1qsegwit', 0)
@@ -316,35 +357,27 @@ describe('transactionService', () => {
 
     it('should throw error when sat UTXO insufficient for fees', async () => {
       // Mock rune UTXO with sufficient runes
-      ((global as any).fetch as jest.Mock)
-        .mockResolvedValueOnce({
-          json: async () => ({ outputs: ['mock_rune_tx:0'] }),
-        })
-        .mockResolvedValueOnce({
-          json: async () => ({
-            transaction: 'mock_rune_tx',
-            value: 546,
-            runes: {
-              'DUCAT•UNIT•RUNE': {
-                amount: '10000', // Sufficient runes
-              },
+      getMockFetch()
+        .mockResolvedValueOnce(createMockResponse({ outputs: ['mock_rune_tx:0'] }))
+        .mockResolvedValueOnce(createMockResponse({
+          transaction: 'mock_rune_tx',
+          value: 546,
+          runes: {
+            'DUCAT•UNIT•RUNE': {
+              amount: '10000', // Sufficient runes
             },
-          }),
-        })
-        .mockResolvedValueOnce({
-          json: async () => ({ spent: false }),
-        })
+          },
+        }))
+        .mockResolvedValueOnce(createMockResponse({ spent: false }))
         // Mock segwit UTXOs with insufficient sats
-        .mockResolvedValueOnce({
-          json: async () => [
-            {
-              txid: 'mock_sat_tx',
-              vout: 0,
-              value: 5000, // Less than 12000 required
-              status: { confirmed: true },
-            },
-          ],
-        });
+        .mockResolvedValueOnce(createMockResponse([
+          {
+            txid: 'mock_sat_tx',
+            vout: 0,
+            value: 5000, // Less than 12000 required
+            status: { confirmed: true },
+          },
+        ]));
 
       await expect(
         TransactionService.createUnitIntent('tb1precipient', '100', 'tb1ptaproot', 'tb1qsegwit', 0)
@@ -353,47 +386,39 @@ describe('transactionService', () => {
 
     it('should create UNIT intent successfully with valid UTXOs', async () => {
       // Mock rune UTXO
-      ((global as any).fetch as jest.Mock)
-        .mockResolvedValueOnce({
-          json: async () => ({ outputs: ['mock_rune_tx:0'] }),
-        })
-        .mockResolvedValueOnce({
-          json: async () => ({
-            transaction: 'mock_rune_tx',
-            value: 546,
-            runes: {
-              'DUCAT•UNIT•RUNE': {
-                amount: '10000',
-              },
+      getMockFetch()
+        .mockResolvedValueOnce(createMockResponse({ outputs: ['mock_rune_tx:0'] }))
+        .mockResolvedValueOnce(createMockResponse({
+          transaction: 'mock_rune_tx',
+          value: 546,
+          runes: {
+            'DUCAT•UNIT•RUNE': {
+              amount: '10000',
             },
-          }),
-        })
-        .mockResolvedValueOnce({
-          json: async () => ({ spent: false }),
-        })
+          },
+        }))
+        .mockResolvedValueOnce(createMockResponse({ spent: false }))
         // Mock segwit UTXOs
-        .mockResolvedValueOnce({
-          json: async () => [
-            {
-              txid: 'mock_sat_tx',
-              vout: 0,
-              value: 30000, // Sufficient for fees + 2x 10k outputs + change
-              status: { confirmed: true },
-            },
-          ],
-        })
+        .mockResolvedValueOnce(createMockResponse([
+          {
+            txid: 'mock_sat_tx',
+            vout: 0,
+            value: 30000, // Sufficient for fees + 2x 10k outputs + change
+            status: { confirmed: true },
+          },
+        ]))
         // Mock transaction hex for sat UTXO
-        .mockResolvedValueOnce({
-          ok: true,
-          text: async () =>
-            '0200000000010100000000000000000000000000000000000000000000000000000000000000000000000000ffffffff0100e1f50500000000160014000000000000000000000000000000000000000000000000',
-        })
+        .mockResolvedValueOnce(
+          createMockTextResponse(
+            '0200000000010100000000000000000000000000000000000000000000000000000000000000000000000000ffffffff0100e1f50500000000160014000000000000000000000000000000000000000000000000'
+          )
+        )
         // Mock transaction hex for rune UTXO
-        .mockResolvedValueOnce({
-          ok: true,
-          text: async () =>
-            '0200000000010100000000000000000000000000000000000000000000000000000000000000000000000000ffffffff0100e1f50500000000160014000000000000000000000000000000000000000000000000',
-        });
+        .mockResolvedValueOnce(
+          createMockTextResponse(
+            '0200000000010100000000000000000000000000000000000000000000000000000000000000000000000000ffffffff0100e1f50500000000160014000000000000000000000000000000000000000000000000'
+          )
+        );
 
       const result = await TransactionService.createUnitIntent(
         'tb1precipient',
@@ -422,50 +447,42 @@ describe('transactionService', () => {
 
     it('should throw error when change is negative (insufficient total for fees + outputs)', async () => {
       // Mock rune UTXO with sufficient runes
-      ((global as any).fetch as jest.Mock)
-        .mockResolvedValueOnce({
-          json: async () => ({ outputs: ['mock_rune_tx:0'] }),
-        })
-        .mockResolvedValueOnce({
-          json: async () => ({
-            transaction: 'mock_rune_tx',
-            value: 546, // Minimum value
-            runes: {
-              'DUCAT•UNIT•RUNE': {
-                amount: '10000',
-              },
+      getMockFetch()
+        .mockResolvedValueOnce(createMockResponse({ outputs: ['mock_rune_tx:0'] }))
+        .mockResolvedValueOnce(createMockResponse({
+          transaction: 'mock_rune_tx',
+          value: 546, // Minimum value
+          runes: {
+            'DUCAT•UNIT•RUNE': {
+              amount: '10000',
             },
-          }),
-        })
-        .mockResolvedValueOnce({
-          json: async () => ({ spent: false }),
-        })
+          },
+        }))
+        .mockResolvedValueOnce(createMockResponse({ spent: false }))
         // Mock segwit UTXOs with insufficient sats
         // Total: 546 (rune) + 12000 (sat) = 12546
         // Needed: 1000 (fee) + 10000 (recipient) + 10000 (rune return) = 21000
         // Change = 12546 - 21000 = -8454 (negative!)
-        .mockResolvedValueOnce({
-          json: async () => [
-            {
-              txid: 'mock_sat_tx',
-              vout: 0,
-              value: 12000, // Passes initial filter but still insufficient for transaction
-              status: { confirmed: true },
-            },
-          ],
-        })
+        .mockResolvedValueOnce(createMockResponse([
+          {
+            txid: 'mock_sat_tx',
+            vout: 0,
+            value: 12000, // Passes initial filter but still insufficient for transaction
+            status: { confirmed: true },
+          },
+        ]))
         // Mock transaction hex for sat UTXO
-        .mockResolvedValueOnce({
-          ok: true,
-          text: async () =>
-            '0200000000010100000000000000000000000000000000000000000000000000000000000000000000000000ffffffff0100e1f50500000000160014000000000000000000000000000000000000000000000000',
-        })
+        .mockResolvedValueOnce(
+          createMockTextResponse(
+            '0200000000010100000000000000000000000000000000000000000000000000000000000000000000000000ffffffff0100e1f50500000000160014000000000000000000000000000000000000000000000000'
+          )
+        )
         // Mock transaction hex for rune UTXO
-        .mockResolvedValueOnce({
-          ok: true,
-          text: async () =>
-            '0200000000010100000000000000000000000000000000000000000000000000000000000000000000000000ffffffff0100e1f50500000000160014000000000000000000000000000000000000000000000000',
-        });
+        .mockResolvedValueOnce(
+          createMockTextResponse(
+            '0200000000010100000000000000000000000000000000000000000000000000000000000000000000000000ffffffff0100e1f50500000000160014000000000000000000000000000000000000000000000000'
+          )
+        );
 
       await expect(
         TransactionService.createUnitIntent('tb1precipient', '100', 'tb1ptaproot', 'tb1qsegwit', 0)
@@ -515,9 +532,11 @@ describe('transactionService', () => {
         // psbt field is missing
       } as unknown as TransactionIntent;
 
-      (SecureStorageService.withMnemonic as jest.Mock).mockImplementation((callback: any) => {
-        return callback('test mnemonic phrase for unit testing only');
-      });
+      (SecureStorageService.withMnemonic as jest.Mock).mockImplementation(
+        <T>(callback: MnemonicCallback<T>) => {
+          return callback('test mnemonic phrase for unit testing only');
+        }
+      );
 
       await expect(TransactionService.signIntent(invalidIntent, 0)).rejects.toThrow();
     });
@@ -529,17 +548,19 @@ describe('transactionService', () => {
         psbt: 'invalid_psbt_base64',
       };
 
-      (SecureStorageService.withMnemonic as jest.Mock).mockImplementation((callback: any) => {
-        return callback('test mnemonic phrase for unit testing only');
-      });
+      (SecureStorageService.withMnemonic as jest.Mock).mockImplementation(
+        <T>(callback: MnemonicCallback<T>) => {
+          return callback('test mnemonic phrase for unit testing only');
+        }
+      );
 
       await expect(TransactionService.signIntent(invalidIntent, 0)).rejects.toThrow();
     });
 
     describe('UNIT Token Signing (Taproot)', () => {
-      let mockSegwitChild: any;
-      let mockTaprootChild: any;
-      let mockPsbt: any;
+      let mockSegwitChild: MockSigningKey;
+      let mockTaprootChild: MockSigningKey;
+      let mockPsbt: MockPsbt;
 
       beforeEach(() => {
         // Mock derived keys
@@ -571,9 +592,11 @@ describe('transactionService', () => {
         };
 
         // Mock SecureStorageService.withMnemonic to return derived keys
-        (SecureStorageService.withMnemonic as jest.Mock).mockImplementation((callback: any) => {
-          return callback('test mnemonic phrase for unit testing only');
-        });
+        (SecureStorageService.withMnemonic as jest.Mock).mockImplementation(
+          <T>(callback: MnemonicCallback<T>) => {
+            return callback('test mnemonic phrase for unit testing only');
+          }
+        );
 
         // Mock PSBT instance with methods
         mockPsbt = {
@@ -680,9 +703,9 @@ describe('transactionService', () => {
     });
 
     describe('BTC Signing (SegWit)', () => {
-      let mockSegwitChild: any;
-      let mockTaprootChild: any;
-      let mockPsbt: any;
+      let mockSegwitChild: MockSigningKey;
+      let mockTaprootChild: MockSigningKey;
+      let mockPsbt: MockPsbt;
 
       beforeEach(() => {
         mockSegwitChild = {
@@ -707,9 +730,11 @@ describe('transactionService', () => {
           ),
         };
 
-        (SecureStorageService.withMnemonic as jest.Mock).mockImplementation((callback: any) => {
-          return callback('test mnemonic phrase for unit testing only');
-        });
+        (SecureStorageService.withMnemonic as jest.Mock).mockImplementation(
+          <T>(callback: MnemonicCallback<T>) => {
+            return callback('test mnemonic phrase for unit testing only');
+          }
+        );
 
         mockPsbt = {
           data: {

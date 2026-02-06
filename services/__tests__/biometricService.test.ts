@@ -1,4 +1,3 @@
-// @ts-nocheck
 /**
  * Tests for Biometric Authentication Service
  */
@@ -305,7 +304,7 @@ describe('BiometricService', () => {
       mockGetItemAsync
         .mockResolvedValueOnce(null) // checkBiometricLockout
         .mockResolvedValueOnce('4'); // recordBiometricAttempt
-      mockAuthenticateAsync.mockResolvedValue({ success: false, error: 'failed' });
+      mockAuthenticateAsync.mockResolvedValue({ success: false, error: 'failed' } as any);
       mockSetItemAsync.mockResolvedValue();
 
       const result = await authenticateWithBiometrics();

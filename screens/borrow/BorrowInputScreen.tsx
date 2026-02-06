@@ -1,5 +1,8 @@
 /**
  * BorrowInputScreen - Enter additional UNIT borrow amount
+ *
+ * @deprecated Use BorrowInputScreenNew from screens/vault/screens instead.
+ * This screen will be removed in a future release.
  */
 
 import React, { useEffect, useMemo, useCallback, useState } from 'react';
@@ -197,7 +200,7 @@ export default function BorrowInputScreen({ navigation }: BorrowInputScreenProps
   const hasChanges = previewAmount > 0;
 
   return (
-    <SafeAreaView style={styles.container} edges={['top']}>
+    <SafeAreaView style={styles.container} edges={['top']} testID="vault-borrow-input-screen">
       <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : 'height'} style={styles.flex}>
         <ScrollView style={styles.flex} contentContainerStyle={styles.scroll} showsVerticalScrollIndicator={false}>
           {/* Header */}
@@ -285,6 +288,7 @@ export default function BorrowInputScreen({ navigation }: BorrowInputScreenProps
             style={[styles.continueBtn, !canContinue && styles.continueBtnDisabled]}
             onPress={handleContinue}
             disabled={!canContinue}
+            testID="vault-borrow-continue-btn"
           >
             <Text style={[styles.continueBtnText, !canContinue && styles.continueBtnTextDisabled]}>
               Continue

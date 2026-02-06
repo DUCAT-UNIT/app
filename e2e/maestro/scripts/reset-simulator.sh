@@ -9,6 +9,7 @@ xcrun simctl uninstall booted "$APP_BUNDLE_ID" 2>/dev/null
 
 if [ "$1" = "full" ]; then
   echo "Performing full simulator erase..."
+  xcrun simctl shutdown booted 2>/dev/null || true
   xcrun simctl erase booted
   echo "Simulator fully erased."
 else

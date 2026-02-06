@@ -1,0 +1,49 @@
+appId: com.ducatprotocol.DucatProtocolWallet
+---
+# Borrow Button - Verify borrow button exists and is tappable
+# Import wallet → verify borrow button is visible on wallet screen
+
+- runFlow: ../helpers/import-wallet-typed.yaml
+
+# Verify wallet screen
+- extendedWaitUntil:
+    visible:
+      id: "wallet-screen"
+    timeout: 15000
+
+# Wait for balance to load
+- extendedWaitUntil:
+    visible:
+      id: "balance-section"
+    timeout: 30000
+
+# Dismiss low ecash modal if it appears
+- runFlow: ../helpers/dismiss-low-ecash.yaml
+
+# Dismiss airdrop modal if it appears
+- runFlow: ../helpers/dismiss-airdrop.yaml
+
+# Dismiss passkey migration modal if it appears
+- runFlow:
+    when:
+      visible:
+        id: "passkey-migration-modal"
+    commands:
+      - tapOn:
+          id: "passkey-skip-btn"
+
+# Wait for wallet actions
+- extendedWaitUntil:
+    visible:
+      id: "wallet-actions"
+    timeout: 15000
+
+# Verify borrow button is visible
+- assertVisible:
+    id: "wallet-borrow-btn"
+
+# Verify other wallet action buttons visible too
+- assertVisible:
+    id: "wallet-deposit-btn"
+- assertVisible:
+    id: "wallet-withdraw-btn"

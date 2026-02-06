@@ -12,7 +12,8 @@ import { AppState, AppStateStatus } from 'react-native';
 import * as ScreenCapture from 'expo-screen-capture';
 import { logger } from '../utils/logger';
 
-const INACTIVITY_TIMEOUT = 30 * 1000; // 30 seconds in milliseconds
+const IS_E2E = __DEV__ && process.env.EXPO_PUBLIC_E2E_BYPASS === 'true';
+const INACTIVITY_TIMEOUT = IS_E2E ? 600 * 1000 : 30 * 1000; // 10 min for E2E, 30s normal
 
 interface UseAppLifecycleParams {
   isAuthenticated: boolean;
@@ -100,8 +101,8 @@ export function useAppLifecycle({
         logger.debug('[useAppLifecycle] App went to background - setting flag');
       }
 
-      // Lock when coming back to active AND we were in background
-      if (nextAppState === 'active' && wasInBackground.current) {
+      // Lock when coming back to active AND we were in background (skip in E2E)
+      if (nextAppState === 'active' && wasInBackground.current && !IS_E2E) {
         logger.debug('[useAppLifecycle] Coming back to active from background');
         wasInBackground.current = false; // Reset flag
 

@@ -1,4 +1,3 @@
-// @ts-nocheck
 /**
  * Tests for Oracle Service - fetchCurrentPrice function
  */
@@ -76,7 +75,7 @@ describe('oracleService', () => {
         await fetchCurrentPrice();
         expect(true).toBe(false); // Should not reach here
       } catch (e) {
-        expect(e.message).toContain('Failed to fetch current Bitcoin price');
+        expect((e as Error).message).toContain('Failed to fetch current Bitcoin price');
       }
     });
 
@@ -87,7 +86,7 @@ describe('oracleService', () => {
         await fetchCurrentPrice();
         expect(true).toBe(false); // Should not reach here
       } catch (e) {
-        expect(e.message).toContain('Failed to fetch current Bitcoin price');
+        expect((e as Error).message).toContain('Failed to fetch current Bitcoin price');
       }
     });
   });
@@ -156,7 +155,7 @@ describe('oracleService', () => {
         await fetchPriceQuote(50000);
         expect(true).toBe(false);
       } catch (e) {
-        expect(e.message).toContain('Oracle');
+        expect((e as Error).message).toContain('Oracle');
       }
     });
 
@@ -169,7 +168,7 @@ describe('oracleService', () => {
         await fetchPriceQuote(50000);
         expect(true).toBe(false);
       } catch (e) {
-        expect(e.message).toContain('price quote');
+        expect((e as Error).message).toContain('price quote');
       }
     });
   });

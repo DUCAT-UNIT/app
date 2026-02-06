@@ -1,0 +1,58 @@
+appId: com.ducatprotocol.DucatProtocolWallet
+---
+# Send UNIT Asset Select - Test UNIT selection from withdraw asset sheet
+# Funded wallet → withdraw → select UNIT → verify send UNIT screen
+
+- runFlow: ../helpers/import-wallet-typed.yaml
+
+# Verify wallet screen
+- extendedWaitUntil:
+    visible:
+      id: "wallet-screen"
+    timeout: 15000
+
+# Dismiss low ecash modal if it appears
+- runFlow: ../helpers/dismiss-low-ecash.yaml
+
+# Dismiss airdrop modal if it appears
+- runFlow: ../helpers/dismiss-airdrop.yaml
+
+# Dismiss passkey migration modal if it appears
+- runFlow:
+    when:
+      visible:
+        id: "passkey-migration-modal"
+    commands:
+      - tapOn:
+          id: "passkey-skip-btn"
+
+# Wait for wallet actions
+- extendedWaitUntil:
+    visible:
+      id: "wallet-actions"
+    timeout: 15000
+
+# Tap withdraw button
+- tapOn:
+    id: "wallet-withdraw-btn"
+
+# Verify both options visible
+- extendedWaitUntil:
+    visible:
+      id: "withdraw-btc"
+    timeout: 5000
+- assertVisible:
+    id: "withdraw-unit"
+
+# Select UNIT
+- tapOn:
+    id: "withdraw-unit"
+
+# Verify send input screen loads with UNIT
+- waitForAnimationToEnd
+- extendedWaitUntil:
+    visible:
+      id: "send-input-screen"
+    timeout: 10000
+- assertVisible:
+    text: "Send UNIT"

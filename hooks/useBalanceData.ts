@@ -105,6 +105,7 @@ export function useBalanceData(
           balances.taprootBalance !== prevBalances.taproot ||
           runesChanged;
 
+        logger.info('[useBalanceData] fetchBalance result:', { segwit: balances.segwitBalance, taproot: balances.taprootBalance, changed: balancesChanged });
         if (balancesChanged) {
           prevBalancesRef.current = {
             segwit: balances.segwitBalance,

@@ -1,6 +1,9 @@
 /**
  * WithdrawProcessingScreen - Shows withdraw operation progress
  * Features: 4-step progress tracker, animated indicators, background support
+ *
+ * @deprecated Use WithdrawProcessingScreenNew from screens/vault/screens instead.
+ * This screen will be removed in a future release.
  */
 
 import React, { useEffect, useRef, useState } from 'react';
@@ -11,6 +14,8 @@ import { useWithdraw } from '../../stores/withdrawStore';
 import type { ProcessingStep } from '../../stores/vaultCreationStore';
 import { useNotificationStore } from '../../stores/notificationStore';
 import { useAuth } from '../../contexts/AuthContext';
+import { useWithdrawVault } from '../../hooks/useWithdrawVault';
+import { logger } from '../../utils/logger';
 import { colors, fonts, fontSizes, spacing } from '../../styles/theme';
 
 const STEP_DURATION_MS = 1000; // Minimum 1 second per step
@@ -21,10 +26,12 @@ interface WithdrawProcessingScreenProps {
 }
 
 export default function WithdrawProcessingScreen({ navigation }: WithdrawProcessingScreenProps) {
-  const { processingStep, currentStep, error, vaultTxid, reset } = useWithdraw();
+  const { processingStep, currentStep, error, vaultTxid, reset, setCurrentStep } = useWithdraw();
+  const { withdraw } = useWithdrawVault();
   const { isAuthenticated } = useAuth();
   const appState = useRef(AppState.currentState);
   const hasShownError = useRef(false);
+  const operationStarted = useRef(false);
 
   // Visual step state - advances at minimum 1 second per step
   const [visualStep, setVisualStep] = useState(1);
@@ -32,6 +39,24 @@ export default function WithdrawProcessingScreen({ navigation }: WithdrawProcess
 
   // Track if we can start animating (after FaceID delay)
   const [canAnimate, setCanAnimate] = useState(false);
+
+  // Execute withdraw operation when screen mounts
+  useEffect(() => {
+    if (operationStarted.current) return;
+    operationStarted.current = true;
+
+    logger.debug('[WithdrawProcessing] Starting withdraw operation...');
+    withdraw().then((result) => {
+      if (result) {
+        logger.debug('[WithdrawProcessing] Withdraw succeeded:', { vaultTxid: result.vaultTxid });
+        setCurrentStep('success');
+      } else {
+        logger.error('[WithdrawProcessing] Withdraw returned null');
+      }
+    }).catch((err) => {
+      logger.error('[WithdrawProcessing] Withdraw error:', { error: err });
+    });
+  }, []);
 
   // Wait for FaceID/splash screen to complete before starting animation
   // Use a delay since FaceID doesn't reliably trigger app state changes
@@ -114,7 +139,7 @@ export default function WithdrawProcessingScreen({ navigation }: WithdrawProcess
   };
 
   return (
-    <View style={styles.container}>
+    <View style={styles.container} testID="vault-withdraw-processing-screen">
       <View style={styles.content}>
         {/* Header */}
         <View style={styles.header}>

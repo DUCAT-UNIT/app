@@ -1,0 +1,49 @@
+appId: com.ducatprotocol.DucatProtocolWallet
+---
+# Advanced Screen - Verify advanced settings screen loads with all options
+# Import wallet → settings → advanced → verify dev mode + ecash threshold
+
+- runFlow: ../helpers/import-wallet-typed.yaml
+
+# Navigate to settings
+- extendedWaitUntil:
+    visible:
+      id: "wallet-screen"
+    timeout: 15000
+- runFlow: ../helpers/dismiss-low-ecash.yaml
+- runFlow: ../helpers/dismiss-airdrop.yaml
+- runFlow:
+    when:
+      visible:
+        id: "passkey-migration-modal"
+    commands:
+      - tapOn:
+          id: "passkey-skip-btn"
+- tapOn:
+    id: "wallet-settings-btn"
+- extendedWaitUntil:
+    visible:
+      id: "settings-screen"
+    timeout: 5000
+
+# Navigate to advanced
+- tapOn:
+    id: "settings-advanced-btn"
+- extendedWaitUntil:
+    visible:
+      id: "advanced-screen"
+    timeout: 5000
+
+# Verify advanced screen content
+- assertVisible:
+    id: "advanced-dev-mode-btn"
+- assertVisible:
+    id: "advanced-ecash-threshold-btn"
+
+# Go back to settings
+- tapOn:
+    id: "advanced-back-btn"
+- extendedWaitUntil:
+    visible:
+      id: "settings-screen"
+    timeout: 5000

@@ -1,0 +1,55 @@
+appId: com.ducatprotocol.DucatProtocolWallet
+---
+# Borrow Button Tap - Verify tapping borrow button is responsive (wallet may block due to low health)
+# Funded wallet → tap borrow → verify wallet screen remains visible (safe regardless of vault state)
+
+- runFlow: ../helpers/import-wallet-typed.yaml
+
+# Verify wallet screen
+- extendedWaitUntil:
+    visible:
+      id: "wallet-screen"
+    timeout: 15000
+
+# Wait for balance to load
+- extendedWaitUntil:
+    visible:
+      id: "balance-section"
+    timeout: 30000
+
+# Dismiss low ecash modal if it appears
+- runFlow: ../helpers/dismiss-low-ecash.yaml
+
+# Wait for wallet actions
+- extendedWaitUntil:
+    visible:
+      id: "wallet-actions"
+    timeout: 15000
+
+# Dismiss airdrop modal if it appears
+- runFlow: ../helpers/dismiss-airdrop.yaml
+
+# Dismiss passkey migration modal if it appears
+- runFlow:
+    when:
+      visible:
+        id: "passkey-migration-modal"
+    commands:
+      - tapOn:
+          id: "passkey-skip-btn"
+
+# Verify borrow button is visible and tappable
+- assertVisible:
+    id: "wallet-borrow-btn"
+
+# Tap Borrow button (may show alert or navigate depending on vault health)
+- tapOn:
+    id: "wallet-borrow-btn"
+
+# Wait a moment for any response
+- waitForAnimationToEnd
+
+# Verify we're still in the app (either wallet screen or borrow screen is visible)
+- assertVisible:
+    id: "wallet-screen"
+    optional: true

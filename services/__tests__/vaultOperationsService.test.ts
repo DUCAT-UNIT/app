@@ -1,4 +1,3 @@
-// @ts-nocheck
 /**
  * Tests for Vault Operations Service
  * This service is a re-export module

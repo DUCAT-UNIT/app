@@ -1,6 +1,8 @@
 /**
  * Deposit Store (Zustand)
  * Manages the deposit UI flow state for adding more BTC collateral to an existing vault
+ *
+ * Refactored to use common vault store pattern from stores/vault/
  */
 
 import { create } from 'zustand';
@@ -11,204 +13,138 @@ import {
   getHealthStatus,
   type HealthStatus,
 } from '../utils/vaultUtils';
+import {
+  createCommonVaultSlice,
+  computeVaultHealth,
+  computeNewVaultHealth,
+} from './vault';
+import type {
+  CommonVaultState,
+  CommonVaultActions,
+  VaultOperationStep,
+  ProcessingStep,
+} from './vault';
 
-export type DepositStep =
-  | 'input' // Step 1: Enter BTC deposit amount
-  | 'confirm' // Step 2: Review and confirm
-  | 'processing' // Step 3: Transaction in progress
-  | 'success'; // Step 4: Transaction complete
+// Re-export types for backwards compatibility
+export type DepositStep = VaultOperationStep;
+export type DepositProcessingStep = ProcessingStep;
 
-export type DepositProcessingStep = 1 | 2 | 3 | 4;
-// 1: Awaiting user signatures
-// 2: Request received by node
-// 3: Validation in progress
-// 4: Network approvals
-
-interface DepositState {
+/**
+ * Deposit-specific state (extends common state)
+ */
+interface DepositSpecificState {
   // Form data
   depositAmountSats: number; // BTC to deposit in satoshis
-  selectedFeeRate: number;
-
-  // Current vault data
-  currentUnitBorrowed: number; // Current UNIT debt in vault
-  currentBtcLocked: number; // Current BTC locked in vault (in BTC, not sats)
-  bitcoinPrice: number | null;
   availableBalance: number; // Available BTC balance for deposit (in sats)
-
-  // Process state
-  currentStep: DepositStep;
-  processingStep: DepositProcessingStep;
-  loading: boolean;
-  error: string | null;
-  vaultTxid: string | null;
 }
 
-interface DepositActions {
+/**
+ * Deposit-specific actions (extends common actions)
+ */
+interface DepositSpecificActions {
   // Form actions
   setDepositAmountSats: (amount: number) => void;
   setDepositAmountBtc: (amount: number) => void;
-  setSelectedFeeRate: (rate: number) => void;
-
-  // Vault data actions
-  setCurrentVaultData: (unitBorrowed: number, btcLocked: number) => void;
-  setBitcoinPrice: (price: number | null) => void;
   setAvailableBalance: (balance: number) => void;
 
-  // Navigation
-  setCurrentStep: (step: DepositStep) => void;
-  setProcessingStep: (step: DepositProcessingStep) => void;
-
-  // Process actions
-  setLoading: (loading: boolean) => void;
-  setError: (error: string | null) => void;
-  setVaultTxid: (vaultTxid: string | null) => void;
-
-  // Computed getters
+  // Deposit-specific computed getters
   getDepositAmountBtc: () => number;
   getTotalCollateral: () => number;
-  getHealthFactor: () => number;
   getNewHealthFactor: () => number;
-  getLiquidationPrice: () => number;
   getNewLiquidationPrice: () => number;
-  getHealthStatus: () => HealthStatus;
   getNewHealthStatus: () => HealthStatus;
-
-  // Reset
-  reset: () => void;
 }
 
+// Full store types
+type DepositState = CommonVaultState & DepositSpecificState;
+type DepositActions = CommonVaultActions & DepositSpecificActions;
 type DepositStore = DepositState & DepositActions;
 
-const initialState: DepositState = {
+// Deposit-specific initial state
+const depositSpecificInitialState: DepositSpecificState = {
   depositAmountSats: 0,
-  selectedFeeRate: 1,
-  currentUnitBorrowed: 0,
-  currentBtcLocked: 0,
-  bitcoinPrice: null,
   availableBalance: 0,
-  currentStep: 'input',
-  processingStep: 1,
-  loading: false,
-  error: null,
-  vaultTxid: null,
 };
 
-export const useDepositStore = create<DepositStore>((set, get) => ({
-  // Initial state
-  ...initialState,
+export const useDepositStore = create<DepositStore>()((set, get, store) => {
+  // Get common slice
+  const commonSlice = createCommonVaultSlice<DepositStore>({
+    storeName: 'DepositStore',
+  })(set, get, store);
 
-  // Form actions
-  setDepositAmountSats: (depositAmountSats) => {
-    logger.debug('[DepositStore] setDepositAmountSats:', depositAmountSats);
-    set({ depositAmountSats, error: null });
-  },
+  return {
+    // Spread common state and actions
+    ...commonSlice,
 
-  setDepositAmountBtc: (btcAmount) => {
-    const sats = Math.round(btcAmount * 100_000_000);
-    logger.debug('[DepositStore] setDepositAmountBtc:', { btcAmount, sats });
-    set({ depositAmountSats: sats, error: null });
-  },
+    // Deposit-specific initial state
+    ...depositSpecificInitialState,
 
-  setSelectedFeeRate: (selectedFeeRate) => {
-    logger.debug('[DepositStore] setSelectedFeeRate:', selectedFeeRate);
-    set({ selectedFeeRate });
-  },
+    // Deposit-specific form actions
+    setDepositAmountSats: (depositAmountSats) => {
+      logger.debug('[DepositStore] setDepositAmountSats:', depositAmountSats);
+      set({ depositAmountSats, error: null });
+    },
 
-  // Vault data actions
-  setCurrentVaultData: (unitBorrowed, btcLocked) => {
-    logger.debug('[DepositStore] setCurrentVaultData:', { unitBorrowed, btcLocked });
-    set({
-      currentUnitBorrowed: unitBorrowed,
-      currentBtcLocked: btcLocked,
-    });
-  },
+    setDepositAmountBtc: (btcAmount) => {
+      const sats = Math.round(btcAmount * 100_000_000);
+      logger.debug('[DepositStore] setDepositAmountBtc:', { btcAmount, sats });
+      set({ depositAmountSats: sats, error: null });
+    },
 
-  setBitcoinPrice: (bitcoinPrice) => {
-    set({ bitcoinPrice });
-  },
+    setAvailableBalance: (availableBalance) => {
+      logger.debug('[DepositStore] setAvailableBalance:', availableBalance);
+      set({ availableBalance });
+    },
 
-  setAvailableBalance: (availableBalance) => {
-    logger.debug('[DepositStore] setAvailableBalance:', availableBalance);
-    set({ availableBalance });
-  },
+    // Deposit-specific computed getters
+    getDepositAmountBtc: () => {
+      const { depositAmountSats } = get();
+      return depositAmountSats / 100_000_000;
+    },
 
-  // Navigation
-  setCurrentStep: (currentStep) => {
-    logger.debug('[DepositStore] setCurrentStep:', currentStep);
-    set({ currentStep, error: null });
-  },
+    getTotalCollateral: () => {
+      const { currentBtcLocked, depositAmountSats } = get();
+      return currentBtcLocked + depositAmountSats / 100_000_000;
+    },
 
-  setProcessingStep: (processingStep) => {
-    logger.debug('[DepositStore] setProcessingStep:', processingStep);
-    set({ processingStep });
-  },
+    getNewHealthFactor: () => {
+      const { depositAmountSats, currentBtcLocked, currentUnitBorrowed, bitcoinPrice } = get();
+      const totalCollateral = currentBtcLocked + depositAmountSats / 100_000_000;
+      if (!bitcoinPrice || totalCollateral <= 0 || currentUnitBorrowed <= 0) return 0;
+      return computeHealthFactor(totalCollateral, bitcoinPrice, currentUnitBorrowed);
+    },
 
-  // Process actions
-  setLoading: (loading) => set({ loading }),
+    getNewLiquidationPrice: () => {
+      const { depositAmountSats, currentBtcLocked, currentUnitBorrowed } = get();
+      const totalCollateral = currentBtcLocked + depositAmountSats / 100_000_000;
+      if (totalCollateral <= 0 || currentUnitBorrowed <= 0) return 0;
+      return computeLiquidationPrice(currentUnitBorrowed, totalCollateral);
+    },
 
-  setError: (error) => {
-    logger.debug('[DepositStore] setError:', error);
-    set({ error, loading: false });
-  },
+    getNewHealthStatus: () => {
+      const healthFactor = get().getNewHealthFactor();
+      return getHealthStatus(healthFactor);
+    },
 
-  setVaultTxid: (vaultTxid) => {
-    logger.debug('[DepositStore] setVaultTxid:', vaultTxid);
-    set({ vaultTxid });
-  },
-
-  // Computed getters
-  getDepositAmountBtc: () => {
-    const { depositAmountSats } = get();
-    return depositAmountSats / 100_000_000;
-  },
-
-  getTotalCollateral: () => {
-    const { currentBtcLocked, depositAmountSats } = get();
-    return currentBtcLocked + depositAmountSats / 100_000_000;
-  },
-
-  getHealthFactor: () => {
-    const { currentBtcLocked, currentUnitBorrowed, bitcoinPrice } = get();
-    if (!bitcoinPrice || currentBtcLocked <= 0 || currentUnitBorrowed <= 0) return 0;
-    return computeHealthFactor(currentBtcLocked, bitcoinPrice, currentUnitBorrowed);
-  },
-
-  getNewHealthFactor: () => {
-    const { depositAmountSats, currentBtcLocked, currentUnitBorrowed, bitcoinPrice } = get();
-    const totalCollateral = currentBtcLocked + depositAmountSats / 100_000_000;
-    if (!bitcoinPrice || totalCollateral <= 0 || currentUnitBorrowed <= 0) return 0;
-    return computeHealthFactor(totalCollateral, bitcoinPrice, currentUnitBorrowed);
-  },
-
-  getLiquidationPrice: () => {
-    const { currentBtcLocked, currentUnitBorrowed } = get();
-    if (currentBtcLocked <= 0 || currentUnitBorrowed <= 0) return 0;
-    return computeLiquidationPrice(currentUnitBorrowed, currentBtcLocked);
-  },
-
-  getNewLiquidationPrice: () => {
-    const { depositAmountSats, currentBtcLocked, currentUnitBorrowed } = get();
-    const totalCollateral = currentBtcLocked + depositAmountSats / 100_000_000;
-    if (totalCollateral <= 0 || currentUnitBorrowed <= 0) return 0;
-    return computeLiquidationPrice(currentUnitBorrowed, totalCollateral);
-  },
-
-  getHealthStatus: () => {
-    const healthFactor = get().getHealthFactor();
-    return getHealthStatus(healthFactor);
-  },
-
-  getNewHealthStatus: () => {
-    const healthFactor = get().getNewHealthFactor();
-    return getHealthStatus(healthFactor);
-  },
-
-  // Reset
-  reset: () => {
-    logger.debug('[DepositStore] reset');
-    set(initialState);
-  },
-}));
+    // Override reset to include deposit-specific state
+    reset: () => {
+      logger.debug('[DepositStore] reset');
+      set({
+        ...depositSpecificInitialState,
+        // Reset common state
+        selectedFeeRate: 1,
+        currentUnitBorrowed: 0,
+        currentBtcLocked: 0,
+        bitcoinPrice: null,
+        currentStep: 'input',
+        processingStep: 1,
+        loading: false,
+        error: null,
+        vaultTxid: null,
+      });
+    },
+  };
+});
 
 /**
  * Selector hooks for granular subscriptions
@@ -224,7 +160,7 @@ export const useDepositVaultTxid = () => useDepositStore((state) => state.vaultT
  * Reset store to initial state (useful for testing)
  */
 export const resetDepositStore = () => {
-  useDepositStore.setState(initialState);
+  useDepositStore.getState().reset();
 };
 
 /**
@@ -261,26 +197,21 @@ export const useDeposit = () => {
 
   // Compute derived values from reactive state
   const depositAmountBtc = depositAmountSats / 100_000_000;
+  const availableBalanceBtc = availableBalance / 100_000_000;
   const totalCollateral = currentBtcLocked + depositAmountSats / 100_000_000;
 
-  const healthFactor = (!bitcoinPrice || currentBtcLocked <= 0 || currentUnitBorrowed <= 0)
-    ? 0
-    : computeHealthFactor(currentBtcLocked, bitcoinPrice, currentUnitBorrowed);
+  // Use helper functions for health calculations
+  const { healthFactor, liquidationPrice, healthStatus } = computeVaultHealth(
+    currentBtcLocked,
+    currentUnitBorrowed,
+    bitcoinPrice
+  );
 
-  const newHealthFactor = (!bitcoinPrice || totalCollateral <= 0 || currentUnitBorrowed <= 0)
-    ? 0
-    : computeHealthFactor(totalCollateral, bitcoinPrice, currentUnitBorrowed);
-
-  const liquidationPrice = (currentBtcLocked <= 0 || currentUnitBorrowed <= 0)
-    ? 0
-    : computeLiquidationPrice(currentUnitBorrowed, currentBtcLocked);
-
-  const newLiquidationPrice = (totalCollateral <= 0 || currentUnitBorrowed <= 0)
-    ? 0
-    : computeLiquidationPrice(currentUnitBorrowed, totalCollateral);
-
-  const healthStatus = getHealthStatus(healthFactor);
-  const newHealthStatus = getHealthStatus(newHealthFactor);
+  const { newHealthFactor, newLiquidationPrice, newHealthStatus } = computeNewVaultHealth(
+    totalCollateral,
+    currentUnitBorrowed,
+    bitcoinPrice
+  );
 
   return {
     // State
@@ -298,6 +229,7 @@ export const useDeposit = () => {
 
     // Computed
     depositAmountBtc,
+    availableBalanceBtc,
     totalCollateral,
     healthFactor,
     newHealthFactor,

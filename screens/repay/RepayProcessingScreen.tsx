@@ -1,6 +1,9 @@
 /**
  * RepayProcessingScreen - Shows repay operation progress
  * Features: 4-step progress tracker, animated indicators, background support
+ *
+ * @deprecated Use RepayProcessingScreenNew from screens/vault/screens instead.
+ * This screen will be removed in a future release.
  */
 
 import React, { useEffect, useRef, useState } from 'react';
@@ -11,6 +14,8 @@ import { useRepay } from '../../stores/repayStore';
 import type { ProcessingStep } from '../../stores/vaultCreationStore';
 import { useNotificationStore } from '../../stores/notificationStore';
 import { useAuth } from '../../contexts/AuthContext';
+import { useRepayVault } from '../../hooks/useRepayVault';
+import { logger } from '../../utils/logger';
 import { colors, fonts, fontSizes, spacing } from '../../styles/theme';
 
 const STEP_DURATION_MS = 1000; // Minimum 1 second per step
@@ -21,10 +26,12 @@ interface RepayProcessingScreenProps {
 }
 
 export default function RepayProcessingScreen({ navigation }: RepayProcessingScreenProps) {
-  const { processingStep, currentStep, error, vaultTxid, reset } = useRepay();
+  const { processingStep, currentStep, error, vaultTxid, reset, setCurrentStep } = useRepay();
+  const { repay } = useRepayVault();
   const { isAuthenticated } = useAuth();
   const appState = useRef(AppState.currentState);
   const hasShownError = useRef(false);
+  const operationStarted = useRef(false);
 
   // Visual step state - advances at minimum 1 second per step
   const [visualStep, setVisualStep] = useState(1);
@@ -32,6 +39,24 @@ export default function RepayProcessingScreen({ navigation }: RepayProcessingScr
 
   // Track if we can start animating (after FaceID delay)
   const [canAnimate, setCanAnimate] = useState(false);
+
+  // Execute repay operation when screen mounts
+  useEffect(() => {
+    if (operationStarted.current) return;
+    operationStarted.current = true;
+
+    logger.debug('[RepayProcessing] Starting repay operation...');
+    repay().then((result) => {
+      if (result) {
+        logger.debug('[RepayProcessing] Repay succeeded:', { vaultTxid: result.vaultTxid });
+        setCurrentStep('success');
+      } else {
+        logger.error('[RepayProcessing] Repay returned null');
+      }
+    }).catch((err) => {
+      logger.error('[RepayProcessing] Repay error:', { error: err });
+    });
+  }, []);
 
   // Wait for FaceID/splash screen to complete before starting animation
   // Use a delay since FaceID doesn't reliably trigger app state changes
@@ -114,7 +139,7 @@ export default function RepayProcessingScreen({ navigation }: RepayProcessingScr
   };
 
   return (
-    <View style={styles.container}>
+    <View style={styles.container} testID="vault-repay-processing-screen">
       <View style={styles.content}>
         {/* Header */}
         <View style={styles.header}>

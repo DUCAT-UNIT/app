@@ -1,6 +1,8 @@
-// @ts-nocheck
 /**
  * Tests for Transaction Calculation Service
+ *
+ * NOTE: This file uses type-safe fetch mock pattern.
+ * See testUtils/fetchMock.ts for the implementation.
  */
 
 import {
@@ -10,17 +12,20 @@ import {
   calculateMaxSendableBTC,
 } from '../transactionCalculationService';
 import type { Wallet } from '../transactionCalculationService';
-
-// Mock fetch
-(global as any).fetch = jest.fn();
+import {
+  setupMockFetch,
+  getMockFetch,
+  createMockResponse,
+} from './testUtils';
 
 jest.mock('../../utils/constants', () => ({
-  getAddressUtxoUrl: jest.fn((address) => `https://api.example.com/address/${address}/utxo`),
+  getAddressUtxoUrl: jest.fn((address: string) => `https://api.example.com/address/${address}/utxo`),
 }));
 
 describe('transactionCalculationService', () => {
   beforeEach(() => {
     jest.clearAllMocks();
+    setupMockFetch();
   });
 
   describe('calculateTransactionFee', () => {
@@ -206,9 +211,7 @@ describe('transactionCalculationService', () => {
         { txid: 'tx3', vout: 0, value: 30000, status: { confirmed: true } },
       ];
 
-      (global as any).fetch.mockResolvedValueOnce({
-        json: async () => mockUtxos,
-      });
+      getMockFetch().mockResolvedValueOnce(createMockResponse(mockUtxos));
 
       const result = await fetchUtxosForAddress('tb1qtest');
 
@@ -224,9 +227,7 @@ describe('transactionCalculationService', () => {
         { txid: 'tx2', vout: 1, value: 20000, status: { confirmed: false } },
       ];
 
-      (global as any).fetch.mockResolvedValueOnce({
-        json: async () => mockUtxos,
-      });
+      getMockFetch().mockResolvedValueOnce(createMockResponse(mockUtxos));
 
       const result = await fetchUtxosForAddress('tb1qtest');
 
@@ -234,9 +235,7 @@ describe('transactionCalculationService', () => {
     });
 
     it('should return empty array if no UTXOs', async () => {
-      (global as any).fetch.mockResolvedValueOnce({
-        json: async () => [],
-      });
+      getMockFetch().mockResolvedValueOnce(createMockResponse([]));
 
       const result = await fetchUtxosForAddress('tb1qtest');
 
@@ -251,9 +250,7 @@ describe('transactionCalculationService', () => {
         { txid: 'tx2', vout: 1, value: 50000, status: { confirmed: true } },
       ];
 
-      (global as any).fetch.mockResolvedValueOnce({
-        json: async () => mockUtxos,
-      });
+      getMockFetch().mockResolvedValueOnce(createMockResponse(mockUtxos));
 
       const result = await calculateMaxSendableBTC({
         sourceAddress: 'tb1qtest',
@@ -285,9 +282,7 @@ describe('transactionCalculationService', () => {
         { txid: 'tx1', vout: 0, value: 600, status: { confirmed: true } },
       ];
 
-      (global as any).fetch.mockResolvedValueOnce({
-        json: async () => mockUtxos,
-      });
+      getMockFetch().mockResolvedValueOnce(createMockResponse(mockUtxos));
 
       const result = await calculateMaxSendableBTC({
         sourceAddress: 'tb1qtest',
@@ -300,7 +295,7 @@ describe('transactionCalculationService', () => {
     });
 
     it('should handle fetch errors with fallback', async () => {
-      (global as any).fetch.mockRejectedValueOnce(new Error('Network error'));
+      getMockFetch().mockRejectedValueOnce(new Error('Network error'));
 
       const result = await calculateMaxSendableBTC({
         sourceAddress: 'tb1qtest',
@@ -316,9 +311,7 @@ describe('transactionCalculationService', () => {
     });
 
     it('should handle empty UTXO list with fallback', async () => {
-      (global as any).fetch.mockResolvedValueOnce({
-        json: async () => [],
-      });
+      getMockFetch().mockResolvedValueOnce(createMockResponse([]));
 
       const result = await calculateMaxSendableBTC({
         sourceAddress: 'tb1qtest',
@@ -337,9 +330,7 @@ describe('transactionCalculationService', () => {
         { txid: 'tx1', vout: 0, value: 100000, status: { confirmed: true } },
       ];
 
-      (global as any).fetch.mockResolvedValueOnce({
-        json: async () => mockUtxos,
-      });
+      getMockFetch().mockResolvedValueOnce(createMockResponse(mockUtxos));
 
       const result = await calculateMaxSendableBTC({
         sourceAddress: 'tb1qtest',
@@ -361,9 +352,7 @@ describe('transactionCalculationService', () => {
         status: { confirmed: true },
       }));
 
-      (global as any).fetch.mockResolvedValueOnce({
-        json: async () => mockUtxos,
-      });
+      getMockFetch().mockResolvedValueOnce(createMockResponse(mockUtxos));
 
       const result = await calculateMaxSendableBTC({
         sourceAddress: 'tb1qtest',
@@ -382,9 +371,7 @@ describe('transactionCalculationService', () => {
         { txid: 'tx1', vout: 0, value: 100, status: { confirmed: true } },
       ];
 
-      (global as any).fetch.mockResolvedValueOnce({
-        json: async () => mockUtxos,
-      });
+      getMockFetch().mockResolvedValueOnce(createMockResponse(mockUtxos));
 
       const result = await calculateMaxSendableBTC({
         sourceAddress: 'tb1qtest',

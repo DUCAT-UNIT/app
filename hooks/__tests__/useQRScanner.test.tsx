@@ -1,4 +1,3 @@
-// @ts-nocheck
 /**
  * Tests for useQRScanner hook
  */
@@ -32,22 +31,25 @@ jest.mock('../../utils/logger', () => ({
 }));
 
 // Helper to render hooks with props
-function renderHookWithProps(props) {
-  const result = { current: null };
-  function TestComponent({ hookProps }) {
-    result.current = useQRScanner(hookProps);
+type UseQRScannerParams = Parameters<typeof useQRScanner>[0];
+type UseQRScannerReturn = ReturnType<typeof useQRScanner>;
+
+function renderHookWithProps(props: UseQRScannerParams) {
+  const result: { current: UseQRScannerReturn | null } = { current: null };
+  function TestComponent({ hookProps }: { hookProps?: UseQRScannerParams }) {
+    result.current = useQRScanner(hookProps!);
     return null;
   }
-  let component;
+  let component: ReturnType<typeof create> | undefined;
   act(() => {
     component = create(<TestComponent hookProps={props} />);
   });
   return {
     result,
-    unmount: () => component.unmount(),
-    rerender: (newProps) => {
+    unmount: () => component?.unmount(),
+    rerender: (newProps?: UseQRScannerParams) => {
       act(() => {
-        component.update(<TestComponent hookProps={newProps} />);
+        component?.update(<TestComponent hookProps={newProps} />);
       });
     },
   };
@@ -71,12 +73,12 @@ describe('useQRScanner', () => {
     it('should return initial state', () => {
       const { result } = renderHookWithProps({ visible: true, onScan: mockOnScan });
 
-      expect(result.current.handleBarCodeScanned).toBeDefined();
-      expect(result.current.progress).toBe(0);
-      expect(result.current.isScanning).toBeFalsy();
-      expect(result.current.totalChunks).toBeNull();
-      expect(result.current.scannedChunks.size).toBe(0);
-      expect(result.current.bcurProgress).toBe(0);
+      expect(result.current!.handleBarCodeScanned).toBeDefined();
+      expect(result.current!.progress).toBe(0);
+      expect(result.current!.isScanning).toBeFalsy();
+      expect(result.current!.totalChunks).toBeNull();
+      expect(result.current!.scannedChunks.size).toBe(0);
+      expect(result.current!.bcurProgress).toBe(0);
     });
   });
 
@@ -86,17 +88,17 @@ describe('useQRScanner', () => {
 
       // Simulate scanning a NUT-16 chunk to set some state
       act(() => {
-        result.current.handleBarCodeScanned({ data: '1/3:chunk1!' });
+        result.current!.handleBarCodeScanned({ data: '1/3:chunk1!' });
       });
 
-      expect(result.current.totalChunks).toBe(3);
+      expect(result.current!.totalChunks).toBe(3);
 
       // Hide the scanner
       rerender({ visible: false, onScan: mockOnScan });
 
-      expect(result.current.totalChunks).toBeNull();
-      expect(result.current.scannedChunks.size).toBe(0);
-      expect(result.current.bcurProgress).toBe(0);
+      expect(result.current!.totalChunks).toBeNull();
+      expect(result.current!.scannedChunks.size).toBe(0);
+      expect(result.current!.bcurProgress).toBe(0);
     });
 
     it('should clear pending timeout when visible becomes false', () => {
@@ -104,7 +106,7 @@ describe('useQRScanner', () => {
 
       // Complete a scan to set a timeout (but don't advance timers)
       act(() => {
-        result.current.handleBarCodeScanned({ data: '1/1:complete!' });
+        result.current!.handleBarCodeScanned({ data: '1/1:complete!' });
       });
 
       // Now hide the scanner before the timeout fires
@@ -135,7 +137,7 @@ describe('useQRScanner', () => {
       const { result } = renderHookWithProps({ visible: true, onScan: mockOnScan });
 
       act(() => {
-        result.current.handleBarCodeScanned({ data: '' });
+        result.current!.handleBarCodeScanned({ data: '' });
       });
 
       expect(mockOnScan).not.toHaveBeenCalled();
@@ -145,7 +147,7 @@ describe('useQRScanner', () => {
       const { result } = renderHookWithProps({ visible: true, onScan: mockOnScan });
 
       act(() => {
-        result.current.handleBarCodeScanned({ data: null });
+        result.current!.handleBarCodeScanned({ data: null as unknown as string });
       });
 
       expect(mockOnScan).not.toHaveBeenCalled();
@@ -159,7 +161,7 @@ describe('useQRScanner', () => {
       const binaryData = '\x00\x01\x02\x03';
 
       act(() => {
-        result.current.handleBarCodeScanned({ data: binaryData });
+        result.current!.handleBarCodeScanned({ data: binaryData });
       });
 
       expect(logger.warn).toHaveBeenCalledWith('[QRScanner] Detected binary/corrupted QR data, ignoring');
@@ -170,7 +172,7 @@ describe('useQRScanner', () => {
       const { result } = renderHookWithProps({ visible: true, onScan: mockOnScan });
 
       act(() => {
-        result.current.handleBarCodeScanned({ data: 'bitcoin:bc1qtest' });
+        result.current!.handleBarCodeScanned({ data: 'bitcoin:bc1qtest' });
       });
 
       expect(mockOnScan).toHaveBeenCalledWith('bitcoin:bc1qtest');
@@ -181,14 +183,14 @@ describe('useQRScanner', () => {
 
       // First scan
       act(() => {
-        result.current.handleBarCodeScanned({ data: 'first-scan' });
+        result.current!.handleBarCodeScanned({ data: 'first-scan' });
       });
 
       expect(mockOnScan).toHaveBeenCalledTimes(1);
 
       // Second scan should be ignored
       act(() => {
-        result.current.handleBarCodeScanned({ data: 'second-scan' });
+        result.current!.handleBarCodeScanned({ data: 'second-scan' });
       });
 
       expect(mockOnScan).toHaveBeenCalledTimes(1);
@@ -202,7 +204,7 @@ describe('useQRScanner', () => {
       const { result } = renderHookWithProps({ visible: true, onScan: mockOnScan });
 
       act(() => {
-        result.current.handleBarCodeScanned({ data: 'ur:bytes/1-5/test' });
+        result.current!.handleBarCodeScanned({ data: 'ur:bytes/1-5/test' });
       });
 
       expect(logger.debug).toHaveBeenCalledWith('[QRScanner] BC-UR format detected');
@@ -214,11 +216,11 @@ describe('useQRScanner', () => {
       const { result } = renderHookWithProps({ visible: true, onScan: mockOnScan });
 
       act(() => {
-        result.current.handleBarCodeScanned({ data: 'ur:bytes/1-10/test' });
+        result.current!.handleBarCodeScanned({ data: 'ur:bytes/1-10/test' });
       });
 
       // Progress should be set based on expected parts
-      expect(result.current.bcurProgress).toBeGreaterThan(0);
+      expect(result.current!.bcurProgress).toBeGreaterThan(0);
     });
 
     it('should update progress on subsequent parts', () => {
@@ -226,17 +228,17 @@ describe('useQRScanner', () => {
 
       // First part
       act(() => {
-        result.current.handleBarCodeScanned({ data: 'ur:bytes/1-3/part1' });
+        result.current!.handleBarCodeScanned({ data: 'ur:bytes/1-3/part1' });
       });
 
-      const initialProgress = result.current.bcurProgress;
+      const initialProgress = result.current!.bcurProgress;
 
       // Second part
       act(() => {
-        result.current.handleBarCodeScanned({ data: 'ur:bytes/2-3/part2' });
+        result.current!.handleBarCodeScanned({ data: 'ur:bytes/2-3/part2' });
       });
 
-      expect(result.current.bcurProgress).toBeGreaterThanOrEqual(initialProgress);
+      expect(result.current!.bcurProgress).toBeGreaterThanOrEqual(initialProgress);
     });
 
     it('should complete and call onScan when decoder is complete', () => {
@@ -249,12 +251,12 @@ describe('useQRScanner', () => {
 
       // First part creates decoder
       act(() => {
-        result.current.handleBarCodeScanned({ data: 'ur:bytes/1-2/part1' });
+        result.current!.handleBarCodeScanned({ data: 'ur:bytes/1-2/part1' });
       });
 
       // Second part completes
       act(() => {
-        result.current.handleBarCodeScanned({ data: 'ur:bytes/2-2/part2' });
+        result.current!.handleBarCodeScanned({ data: 'ur:bytes/2-2/part2' });
       });
 
       // Advance timers for the setTimeout
@@ -263,7 +265,7 @@ describe('useQRScanner', () => {
       });
 
       expect(mockOnScan).toHaveBeenCalledWith('cashuAtoken123');
-      expect(result.current.bcurProgress).toBe(0);
+      expect(result.current!.bcurProgress).toBe(0);
     });
 
     it('should handle BC-UR decode errors', () => {
@@ -275,22 +277,22 @@ describe('useQRScanner', () => {
       const { result } = renderHookWithProps({ visible: true, onScan: mockOnScan });
 
       act(() => {
-        result.current.handleBarCodeScanned({ data: 'ur:bytes/invalid' });
+        result.current!.handleBarCodeScanned({ data: 'ur:bytes/invalid' });
       });
 
       expect(logger.error).toHaveBeenCalledWith('[QRScanner] BC-UR decode error:', { error: 'Decode error' });
-      expect(result.current.bcurProgress).toBe(0);
+      expect(result.current!.bcurProgress).toBe(0);
     });
 
     it('should handle UR format without part numbers', () => {
       const { result } = renderHookWithProps({ visible: true, onScan: mockOnScan });
 
       act(() => {
-        result.current.handleBarCodeScanned({ data: 'UR:BYTES/somedata' });
+        result.current!.handleBarCodeScanned({ data: 'UR:BYTES/somedata' });
       });
 
       // Should still work without throwing
-      expect(result.current.bcurProgress).toBeGreaterThan(0);
+      expect(result.current!.bcurProgress).toBeGreaterThan(0);
     });
   });
 
@@ -299,26 +301,26 @@ describe('useQRScanner', () => {
       const { result } = renderHookWithProps({ visible: true, onScan: mockOnScan });
 
       act(() => {
-        result.current.handleBarCodeScanned({ data: '1/3:chunk1payload' });
+        result.current!.handleBarCodeScanned({ data: '1/3:chunk1payload' });
       });
 
-      expect(result.current.totalChunks).toBe(3);
-      expect(result.current.scannedChunks.size).toBe(1);
+      expect(result.current!.totalChunks).toBe(3);
+      expect(result.current!.scannedChunks.size).toBe(1);
     });
 
     it('should accumulate multiple chunks', () => {
       const { result } = renderHookWithProps({ visible: true, onScan: mockOnScan });
 
       act(() => {
-        result.current.handleBarCodeScanned({ data: '1/3:chunk1' });
+        result.current!.handleBarCodeScanned({ data: '1/3:chunk1' });
       });
 
       act(() => {
-        result.current.handleBarCodeScanned({ data: '2/3:chunk2' });
+        result.current!.handleBarCodeScanned({ data: '2/3:chunk2' });
       });
 
-      expect(result.current.scannedChunks.size).toBe(2);
-      expect(result.current.progress).toBeCloseTo(66.67, 0);
+      expect(result.current!.scannedChunks.size).toBe(2);
+      expect(result.current!.progress).toBeCloseTo(66.67, 0);
     });
 
     it('should assemble full payload when all chunks received', () => {
@@ -326,11 +328,11 @@ describe('useQRScanner', () => {
 
       // Use special chars to prevent base64 decoding
       act(() => {
-        result.current.handleBarCodeScanned({ data: '1/2:part-1!' });
+        result.current!.handleBarCodeScanned({ data: '1/2:part-1!' });
       });
 
       act(() => {
-        result.current.handleBarCodeScanned({ data: '2/2:part-2!' });
+        result.current!.handleBarCodeScanned({ data: '2/2:part-2!' });
       });
 
       act(() => {
@@ -347,7 +349,7 @@ describe('useQRScanner', () => {
       const base64Payload = btoa('hello');
 
       act(() => {
-        result.current.handleBarCodeScanned({ data: `1/1:${base64Payload}` });
+        result.current!.handleBarCodeScanned({ data: `1/1:${base64Payload}` });
       });
 
       act(() => {
@@ -362,7 +364,7 @@ describe('useQRScanner', () => {
 
       // Not valid base64
       act(() => {
-        result.current.handleBarCodeScanned({ data: '1/1:not-base64-!!!' });
+        result.current!.handleBarCodeScanned({ data: '1/1:not-base64-!!!' });
       });
 
       act(() => {
@@ -379,7 +381,7 @@ describe('useQRScanner', () => {
       // a payload that won't be base64 decoded OR will decode to cashucashu...
       // Using special char to prevent base64 decode attempt
       act(() => {
-        result.current.handleBarCodeScanned({ data: '1/1:cashucashuA!token' });
+        result.current!.handleBarCodeScanned({ data: '1/1:cashucashuA!token' });
       });
 
       act(() => {
@@ -394,9 +396,9 @@ describe('useQRScanner', () => {
 
       // Use payloads with special chars so they don't get base64 decoded
       act(() => {
-        result.current.handleBarCodeScanned({ data: '3/3:chunk-3!' });
-        result.current.handleBarCodeScanned({ data: '1/3:chunk-1!' });
-        result.current.handleBarCodeScanned({ data: '2/3:chunk-2!' });
+        result.current!.handleBarCodeScanned({ data: '3/3:chunk-3!' });
+        result.current!.handleBarCodeScanned({ data: '1/3:chunk-1!' });
+        result.current!.handleBarCodeScanned({ data: '2/3:chunk-2!' });
       });
 
       act(() => {
@@ -412,22 +414,22 @@ describe('useQRScanner', () => {
       const { result } = renderHookWithProps({ visible: true, onScan: mockOnScan });
 
       act(() => {
-        result.current.handleBarCodeScanned({ data: '1/4:chunk1' });
+        result.current!.handleBarCodeScanned({ data: '1/4:chunk1' });
       });
 
-      expect(result.current.progress).toBe(25);
-      expect(result.current.isScanning).toBe(4);
+      expect(result.current!.progress).toBe(25);
+      expect(result.current!.isScanning).toBe(4);
     });
 
     it('should use bcurProgress when no NUT-16 chunks', () => {
       const { result } = renderHookWithProps({ visible: true, onScan: mockOnScan });
 
       act(() => {
-        result.current.handleBarCodeScanned({ data: 'ur:bytes/1-2/test' });
+        result.current!.handleBarCodeScanned({ data: 'ur:bytes/1-2/test' });
       });
 
-      expect(result.current.progress).toBe(result.current.bcurProgress);
-      expect(result.current.isScanning).toBeTruthy();
+      expect(result.current!.progress).toBe(result.current!.bcurProgress);
+      expect(result.current!.isScanning).toBeTruthy();
     });
   });
 
@@ -437,7 +439,7 @@ describe('useQRScanner', () => {
 
       // Complete a NUT-16 scan (use special char to avoid base64 decode)
       act(() => {
-        result.current.handleBarCodeScanned({ data: '1/1:complete-payload!' });
+        result.current!.handleBarCodeScanned({ data: '1/1:complete-payload!' });
       });
 
       // onScan should not be called yet
@@ -461,12 +463,12 @@ describe('useQRScanner', () => {
 
       // First part creates decoder
       act(() => {
-        result.current.handleBarCodeScanned({ data: 'ur:bytes/1-1/test' });
+        result.current!.handleBarCodeScanned({ data: 'ur:bytes/1-1/test' });
       });
 
       // Second scan triggers complete
       act(() => {
-        result.current.handleBarCodeScanned({ data: 'ur:bytes/1-1/test' });
+        result.current!.handleBarCodeScanned({ data: 'ur:bytes/1-1/test' });
       });
 
       // onScan should not be called yet

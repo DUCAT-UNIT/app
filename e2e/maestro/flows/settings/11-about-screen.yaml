@@ -1,0 +1,51 @@
+appId: com.ducatprotocol.DucatProtocolWallet
+---
+# About Screen - Verify about screen loads with version info
+# Import wallet → settings → about → verify version + links
+
+- runFlow: ../helpers/import-wallet-typed.yaml
+
+# Navigate to settings
+- extendedWaitUntil:
+    visible:
+      id: "wallet-screen"
+    timeout: 15000
+- runFlow: ../helpers/dismiss-low-ecash.yaml
+- runFlow: ../helpers/dismiss-airdrop.yaml
+- runFlow:
+    when:
+      visible:
+        id: "passkey-migration-modal"
+    commands:
+      - tapOn:
+          id: "passkey-skip-btn"
+- tapOn:
+    id: "wallet-settings-btn"
+- extendedWaitUntil:
+    visible:
+      id: "settings-screen"
+    timeout: 5000
+
+# Navigate to about
+- tapOn:
+    id: "settings-about-btn"
+- extendedWaitUntil:
+    visible:
+      id: "about-screen"
+    timeout: 5000
+
+# Verify about screen content
+- assertVisible:
+    id: "about-version"
+- assertVisible:
+    id: "about-terms-btn"
+- assertVisible:
+    id: "about-privacy-btn"
+
+# Go back to settings
+- tapOn:
+    id: "about-back-btn"
+- extendedWaitUntil:
+    visible:
+      id: "settings-screen"
+    timeout: 5000

@@ -1,0 +1,38 @@
+appId: com.ducatprotocol.DucatProtocolWallet
+---
+# Auto-Lock on Background - Verify app locks after backgrounding
+# Import wallet → background app → foreground → verify lock screen appears
+
+- runFlow: ../helpers/import-wallet-typed.yaml
+
+# Verify wallet screen loads
+- extendedWaitUntil:
+    visible:
+      id: "wallet-screen"
+    timeout: 15000
+
+# Stop and relaunch the app (simulates backgrounding - wallet persists in SecureStore)
+- stopApp
+- launchApp
+- openLink: "com.ducatprotocol.DucatProtocolWallet://expo-development-client/?url=http%3A%2F%2Flocalhost%3A8081"
+
+# Verify lock screen appears (wallet exists, seedConfirmed=true, not authenticated)
+- extendedWaitUntil:
+    visible:
+      id: "lock-screen"
+    timeout: 60000
+
+# Unlock with correct PIN
+- runFlow: ../helpers/enter-pin-lock.yaml
+
+# Dismiss airdrop modal if it appears
+- runFlow: ../helpers/dismiss-airdrop.yaml
+
+# Dismiss low ecash modal if it appears
+- runFlow: ../helpers/dismiss-low-ecash.yaml
+
+# Verify wallet screen loads after unlock
+- extendedWaitUntil:
+    visible:
+      id: "wallet-screen"
+    timeout: 15000

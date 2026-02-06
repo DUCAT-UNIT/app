@@ -1,0 +1,49 @@
+appId: com.ducatprotocol.DucatProtocolWallet
+---
+# Withdraw BTC from Vault - Verify vault withdraw screen loads after navigation
+
+- runFlow: ../helpers/import-wallet-typed.yaml
+
+# Wait for wallet screen
+- extendedWaitUntil:
+    visible:
+      id: "wallet-screen"
+    timeout: 15000
+
+# Wait for balance to load
+- extendedWaitUntil:
+    visible:
+      id: "balance-section"
+    timeout: 30000
+
+# Dismiss low ecash modal if visible
+- runFlow: ../helpers/dismiss-low-ecash.yaml
+
+# Dismiss airdrop modal if visible
+- runFlow: ../helpers/dismiss-airdrop.yaml
+
+# Wait for wallet actions
+- extendedWaitUntil:
+    visible:
+      id: "wallet-actions"
+    timeout: 15000
+
+# Tap Withdraw button to open sheet
+- tapOn:
+    id: "wallet-withdraw-btn"
+
+# Select vault withdraw option (not BTC send)
+- extendedWaitUntil:
+    visible:
+      id: "withdraw-vault"
+    timeout: 5000
+- tapOn:
+    id: "withdraw-vault"
+
+# Verify withdraw input screen loads with correct content
+- extendedWaitUntil:
+    visible:
+      id: "vault-withdraw-input-screen"
+    timeout: 10000
+- assertVisible:
+    text: "Withdraw BTC"

@@ -1,4 +1,3 @@
-// @ts-nocheck
 /**
  * Tests for useTurboConvert hook
  */
@@ -24,30 +23,30 @@ jest.mock('../../services/cashu/cashuWalletService', () => ({
 }));
 
 // Helper to render hooks with props
-function renderHookWithProps(props) {
-  const result = { current: null };
-  function TestComponent({ hookProps }) {
+function renderHookWithProps(props: any) {
+  const result: { current: ReturnType<typeof useTurboConvert> | null } = { current: null };
+  function TestComponent({ hookProps }: { hookProps?: any }) {
     result.current = useTurboConvert(hookProps);
     return null;
   }
-  let component;
+  let component: ReturnType<typeof create> | undefined;
   act(() => {
     component = create(<TestComponent hookProps={props} />);
   });
   return {
     result,
-    unmount: component.unmount,
+    unmount: component!.unmount,
     component,
-    rerender: (newProps) => {
+    rerender: (newProps?: unknown) => {
       act(() => {
-        component.update(<TestComponent hookProps={newProps} />);
+        component?.update(<TestComponent hookProps={newProps} />);
       });
     },
   };
 }
 
 describe('useTurboConvert', () => {
-  let mockProps;
+  let mockProps: Record<string, unknown>;
   const mockNavigation = {
     navigate: jest.fn(),
   };
@@ -58,14 +57,14 @@ describe('useTurboConvert', () => {
       runesBalance: [{ rune: 'UNIT', amount: '100.50', divisibility: 0 }],
       navigation: mockNavigation,
       getSpentUtxos: jest.fn(() => new Set()),
-      unmarkUtxosAsSpent: jest.fn().mockResolvedValue(),
+      unmarkUtxosAsSpent: jest.fn().mockResolvedValue(undefined),
     };
   });
 
   it('should return handleTurboPress function', () => {
     const { result } = renderHookWithProps(mockProps);
 
-    expect(typeof result.current.handleTurboPress).toBe('function');
+    expect(typeof result.current!.handleTurboPress).toBe('function');
   });
 
   it('should show alert when runesBalance is empty', async () => {
@@ -73,7 +72,7 @@ describe('useTurboConvert', () => {
     const { result } = renderHookWithProps(mockProps);
 
     await act(async () => {
-      await result.current.handleTurboPress();
+      await result.current!.handleTurboPress();
     });
 
     expect(Alert.alert).toHaveBeenCalledWith('No On-chain UNIT', "You don't have any on-chain UNIT to convert.");
@@ -84,7 +83,7 @@ describe('useTurboConvert', () => {
     const { result } = renderHookWithProps(mockProps);
 
     await act(async () => {
-      await result.current.handleTurboPress();
+      await result.current!.handleTurboPress();
     });
 
     expect(Alert.alert).toHaveBeenCalledWith('No On-chain UNIT', "You don't have any on-chain UNIT to convert.");
@@ -95,7 +94,7 @@ describe('useTurboConvert', () => {
     const { result } = renderHookWithProps(mockProps);
 
     await act(async () => {
-      await result.current.handleTurboPress();
+      await result.current!.handleTurboPress();
     });
 
     expect(Alert.alert).toHaveBeenCalledWith('No On-chain UNIT', "You don't have any on-chain UNIT to convert.");
@@ -103,12 +102,12 @@ describe('useTurboConvert', () => {
 
   it('should clear spent UTXOs if any exist', async () => {
     const spentUtxos = new Set(['txid1:0', 'txid2:1']);
-    mockProps.getSpentUtxos.mockReturnValue(spentUtxos);
+    (mockProps.getSpentUtxos as jest.Mock).mockReturnValue(spentUtxos);
     const { result } = renderHookWithProps(mockProps);
 
     await act(async () => {
       try {
-        await result.current.handleTurboPress();
+        await result.current!.handleTurboPress();
       } catch {
         // Dynamic import may fail in test environment
       }
@@ -121,12 +120,12 @@ describe('useTurboConvert', () => {
   });
 
   it('should not call unmarkUtxosAsSpent when no spent UTXOs', async () => {
-    mockProps.getSpentUtxos.mockReturnValue(new Set());
+    (mockProps.getSpentUtxos as jest.Mock).mockReturnValue(new Set());
     const { result } = renderHookWithProps(mockProps);
 
     await act(async () => {
       try {
-        await result.current.handleTurboPress();
+        await result.current!.handleTurboPress();
       } catch {
         // Dynamic import may fail in test environment
       }
@@ -137,12 +136,12 @@ describe('useTurboConvert', () => {
 
   it('should update when runesBalance changes', () => {
     const { result, rerender } = renderHookWithProps(mockProps);
-    const firstCallback = result.current.handleTurboPress;
+    const firstCallback = result.current!.handleTurboPress;
 
     rerender({ ...mockProps, runesBalance: [{ rune: 'UNIT', amount: '200', divisibility: 0 }] });
 
     // Callback should be recreated due to dependency change
-    expect(result.current.handleTurboPress).not.toBe(firstCallback);
+    expect(result.current!.handleTurboPress).not.toBe(firstCallback);
   });
 
   it('should parse runes balance correctly', async () => {
@@ -153,7 +152,7 @@ describe('useTurboConvert', () => {
     // We can't easily test the internal parsing, but we verify no error with decimal
     await act(async () => {
       try {
-        await result.current.handleTurboPress();
+        await result.current!.handleTurboPress();
       } catch {
         // Dynamic import may fail
       }
@@ -175,7 +174,7 @@ describe('useTurboConvert', () => {
     const { result } = renderHookWithProps(mockProps);
 
     await act(async () => {
-      await result.current.handleTurboPress();
+      await result.current!.handleTurboPress();
     });
 
     expect(requestMint).toHaveBeenCalledWith(100.5);
@@ -200,7 +199,7 @@ describe('useTurboConvert', () => {
     const { result } = renderHookWithProps(mockProps);
 
     await act(async () => {
-      await result.current.handleTurboPress();
+      await result.current!.handleTurboPress();
     });
 
     expect(Alert.alert).toHaveBeenCalledWith('Error', 'Failed to convert: Mint service unavailable');
@@ -214,7 +213,7 @@ describe('useTurboConvert', () => {
     const { result } = renderHookWithProps(mockProps);
 
     await act(async () => {
-      await result.current.handleTurboPress();
+      await result.current!.handleTurboPress();
     });
 
     expect(Alert.alert).toHaveBeenCalledWith('Error', 'Failed to convert: String error');

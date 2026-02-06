@@ -3,10 +3,10 @@ appId: com.ducatprotocol.DucatProtocolWallet
 # Change PIN - Navigate to security and initiate PIN change
 # Import wallet → settings → security → change PIN → enter current → enter new × 2
 
-- runFlow: ../../helpers/import-wallet.yaml
+- runFlow: ../helpers/import-wallet-typed.yaml
 
 # Navigate to settings → security
-- runFlow: ../../helpers/navigate-to-settings.yaml
+- runFlow: ../helpers/navigate-to-settings.yaml
 - tapOn:
     id: "settings-security-btn"
 - assertVisible:
@@ -17,7 +17,7 @@ appId: com.ducatprotocol.DucatProtocolWallet
     id: "security-change-pin-btn"
 
 # Enter current PIN (123456)
-- runFlow: ../../helpers/enter-pin-lock.yaml
+- runFlow: ../helpers/enter-pin-lock.yaml
 
 # Enter new PIN (654321) twice
 - tapOn:

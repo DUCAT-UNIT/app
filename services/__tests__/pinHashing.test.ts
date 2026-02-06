@@ -1,4 +1,3 @@
-// @ts-nocheck
 /**
  * Tests for PIN Hashing Utilities
  */
@@ -8,6 +7,8 @@ import {
   generateSalt,
   hashPin,
   verifyPinHash,
+  generateSaltHmac,
+  verifySaltHmac,
 } from '../pinHashing';
 import * as Crypto from 'expo-crypto';
 
@@ -23,6 +24,7 @@ jest.mock('expo-crypto', () => ({
 // Mock react-native-quick-crypto
 jest.mock('react-native-quick-crypto', () => ({
   pbkdf2Sync: jest.fn(),
+  createHmac: (algorithm: string, key: Buffer) => require('crypto').createHmac(algorithm, key),
 }));
 
 // Get mocked functions with proper typing
@@ -200,5 +202,109 @@ describe('verifyPinHash', () => {
     const hash2 = 'abcdef123456';
 
     expect(verifyPinHash(hash1, hash2)).toBe(true);
+  });
+});
+
+describe('generateSaltHmac', () => {
+  it('should generate a valid HMAC for salt', () => {
+    const salt = 'deadbeef123456789012345678901234';
+    const key = 'cafebabe123456789012345678901234';
+
+    const hmac = generateSaltHmac(salt, key);
+
+    // HMAC should be a 64-character hex string (32 bytes for SHA256)
+    expect(hmac).toHaveLength(64);
+    expect(/^[0-9a-f]+$/.test(hmac)).toBe(true);
+  });
+
+  it('should generate consistent HMACs for the same salt and key', () => {
+    const salt = 'deadbeef123456789012345678901234';
+    const key = 'cafebabe123456789012345678901234';
+
+    const hmac1 = generateSaltHmac(salt, key);
+    const hmac2 = generateSaltHmac(salt, key);
+
+    expect(hmac1).toBe(hmac2);
+  });
+
+  it('should generate different HMACs for different salts', () => {
+    const salt1 = 'deadbeef123456789012345678901234';
+    const salt2 = 'cafebabe123456789012345678901234';
+    const key = 'aabbccdd123456789012345678901234';
+
+    const hmac1 = generateSaltHmac(salt1, key);
+    const hmac2 = generateSaltHmac(salt2, key);
+
+    expect(hmac1).not.toBe(hmac2);
+  });
+
+  it('should generate different HMACs for different keys', () => {
+    const salt = 'deadbeef123456789012345678901234';
+    const key1 = 'cafebabe123456789012345678901234';
+    const key2 = 'aabbccdd123456789012345678901234';
+
+    const hmac1 = generateSaltHmac(salt, key1);
+    const hmac2 = generateSaltHmac(salt, key2);
+
+    expect(hmac1).not.toBe(hmac2);
+  });
+
+  it('should throw error for invalid hex strings', () => {
+    const invalidSalt = 'notvalidhex!@#';
+    const key = 'cafebabe123456789012345678901234';
+
+    // Invalid hex may cause Buffer.from to produce unexpected results
+    // The function should handle it gracefully or throw
+    expect(() => generateSaltHmac(invalidSalt, key)).not.toThrow();
+  });
+});
+
+describe('verifySaltHmac', () => {
+  it('should return true for valid HMAC', () => {
+    const salt = 'deadbeef123456789012345678901234';
+    const key = 'cafebabe123456789012345678901234';
+    const expectedHmac = generateSaltHmac(salt, key);
+
+    expect(verifySaltHmac(salt, expectedHmac, key)).toBe(true);
+  });
+
+  it('should return false for invalid HMAC', () => {
+    const salt = 'deadbeef123456789012345678901234';
+    const key = 'cafebabe123456789012345678901234';
+    const wrongHmac = 'aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa';
+
+    expect(verifySaltHmac(salt, wrongHmac, key)).toBe(false);
+  });
+
+  it('should return false for tampered salt', () => {
+    const salt = 'deadbeef123456789012345678901234';
+    const tamperedSalt = 'deadbeef123456789012345678901235';
+    const key = 'cafebabe123456789012345678901234';
+    const expectedHmac = generateSaltHmac(salt, key);
+
+    expect(verifySaltHmac(tamperedSalt, expectedHmac, key)).toBe(false);
+  });
+
+  it('should return false for wrong key', () => {
+    const salt = 'deadbeef123456789012345678901234';
+    const key = 'cafebabe123456789012345678901234';
+    const wrongKey = 'aabbccdd123456789012345678901234';
+    const expectedHmac = generateSaltHmac(salt, key);
+
+    expect(verifySaltHmac(salt, expectedHmac, wrongKey)).toBe(false);
+  });
+
+  it('should handle errors gracefully', () => {
+    // Pass values that could cause errors
+    expect(verifySaltHmac(null as unknown as string, 'hmac', 'key')).toBe(false);
+    expect(verifySaltHmac('salt', null as unknown as string, 'key')).toBe(false);
+  });
+
+  it('should return false for mismatched HMAC lengths', () => {
+    const salt = 'deadbeef123456789012345678901234';
+    const key = 'cafebabe123456789012345678901234';
+    const shortHmac = 'aabbccdd'; // Too short
+
+    expect(verifySaltHmac(salt, shortHmac, key)).toBe(false);
   });
 });

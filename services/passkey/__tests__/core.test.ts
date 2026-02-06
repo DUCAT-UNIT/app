@@ -1,4 +1,3 @@
-// @ts-nocheck
 /**
  * Tests for Passkey Core - Basic support checks and constants
  */

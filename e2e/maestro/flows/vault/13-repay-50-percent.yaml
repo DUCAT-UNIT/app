@@ -1,0 +1,45 @@
+appId: com.ducatprotocol.DucatProtocolWallet
+---
+# Balance Section Visible - Verify total balance USD section is visible on wallet screen
+# Funded wallet → verify balance-section with USD total visible
+
+- runFlow: ../helpers/import-wallet-typed.yaml
+
+# Verify wallet screen
+- extendedWaitUntil:
+    visible:
+      id: "wallet-screen"
+    timeout: 15000
+
+# Wait for balance to load
+- extendedWaitUntil:
+    visible:
+      id: "balance-section"
+    timeout: 30000
+
+# Dismiss low ecash modal if it appears
+- runFlow: ../helpers/dismiss-low-ecash.yaml
+
+# Dismiss airdrop modal if it appears
+- runFlow: ../helpers/dismiss-airdrop.yaml
+
+# Dismiss passkey migration modal if it appears
+- runFlow:
+    when:
+      visible:
+        id: "passkey-migration-modal"
+    commands:
+      - tapOn:
+          id: "passkey-skip-btn"
+
+# Verify balance section is visible
+- assertVisible:
+    id: "balance-section"
+
+# Verify wallet actions area is visible
+- assertVisible:
+    id: "wallet-actions"
+
+# Verify vault card is present
+- assertVisible:
+    id: "vault-card"

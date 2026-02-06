@@ -1,4 +1,3 @@
-// @ts-nocheck
 /**
  * Tests for psbtService
  */
@@ -8,6 +7,7 @@ import {
   parsePSBT,
   buildFallbackOutputs,
   hasUnconfirmedInputs,
+  type SendIntent,
 } from '../psbtService';
 
 // Mock bitcoinjs-lib
@@ -64,7 +64,7 @@ describe('psbtService', () => {
         recipient: 'tb1qrecipient123',
       };
 
-      const result = parsePSBT(sendIntent);
+      const result = parsePSBT(sendIntent as SendIntent);
 
       expect(result.psbtInputs).toHaveLength(1);
       expect(result.psbtOutputs).toHaveLength(2);
@@ -101,7 +101,7 @@ describe('psbtService', () => {
         feeAddress: 'tb1q456',
       };
 
-      const result = parsePSBT(sendIntent);
+      const result = parsePSBT(sendIntent as SendIntent);
 
       expect(result.psbtInputs).toHaveLength(2);
       expect(result.psbtOutputs).toHaveLength(3);
@@ -121,7 +121,7 @@ describe('psbtService', () => {
         sourceAddress: 'tb1q123',
       };
 
-      const result = parsePSBT(sendIntent);
+      const result = parsePSBT(sendIntent as any);
 
       expect(result.psbtInputs).toEqual([]);
       expect(result.psbtOutputs).toEqual([]);
@@ -150,7 +150,7 @@ describe('psbtService', () => {
         recipient: 'tb1precipient',
       };
 
-      const result = parsePSBT(sendIntent);
+      const result = parsePSBT(sendIntent as SendIntent);
 
       expect(result.psbtOutputs[0].type).toBe('rune_return');
       expect(result.psbtOutputs[1].type).toBe('recipient');
@@ -169,7 +169,7 @@ describe('psbtService', () => {
         change: 50000,
       };
 
-      const result = buildFallbackOutputs(sendIntent);
+      const result = buildFallbackOutputs(sendIntent as SendIntent);
 
       expect(result).toHaveLength(2);
       expect(result[0]).toEqual({
@@ -194,7 +194,7 @@ describe('psbtService', () => {
         change: 5000,
       };
 
-      const result = buildFallbackOutputs(sendIntent);
+      const result = buildFallbackOutputs(sendIntent as SendIntent);
 
       expect(result).toHaveLength(2);
       expect(result[0]).toEqual({
@@ -219,7 +219,7 @@ describe('psbtService', () => {
         change: 0,
       };
 
-      const result = buildFallbackOutputs(sendIntent);
+      const result = buildFallbackOutputs(sendIntent as SendIntent);
 
       expect(result).toHaveLength(1);
       expect(result[0].type).toBe('recipient');
@@ -235,7 +235,7 @@ describe('psbtService', () => {
         change: -100,
       };
 
-      const result = buildFallbackOutputs(sendIntent);
+      const result = buildFallbackOutputs(sendIntent as SendIntent);
 
       expect(result).toHaveLength(1);
     });
@@ -313,13 +313,11 @@ describe('psbtService', () => {
     });
 
     it('should return false if inputs array is empty', () => {
-      const sendIntent = {
+      const result = hasUnconfirmedInputs({
         psbt: '',
         assetType: 'BTC' as const,
         inputs: [],
-      };
-
-      const result = hasUnconfirmedInputs(sendIntent);
+      } as any);
       expect(result).toBe(false);
     });
   });

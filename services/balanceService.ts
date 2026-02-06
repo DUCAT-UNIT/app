@@ -78,6 +78,7 @@ export const fetchWalletBalances = async (
         const totalReceived = data.chain_stats?.funded_txo_sum || 0;
         const totalSpent = data.chain_stats?.spent_txo_sum || 0;
         const balance = totalReceived - totalSpent;
+        logger.info('[balanceService] SegWit raw:', { totalReceived, totalSpent, balance, btc: satsToBTC(balance) });
         if (balance < 0) {
           logger.warn('Negative balance detected, returning 0', {
             address: segwitAddress.slice(0, 10) + '...',
@@ -101,6 +102,7 @@ export const fetchWalletBalances = async (
         const totalReceived = data.chain_stats?.funded_txo_sum || 0;
         const totalSpent = data.chain_stats?.spent_txo_sum || 0;
         const balance = totalReceived - totalSpent;
+        logger.info('[balanceService] Taproot raw:', { totalReceived, totalSpent, balance, btc: satsToBTC(balance) });
         if (balance < 0) {
           logger.warn('Negative balance detected, returning 0', {
             address: taprootAddress.slice(0, 10) + '...',

@@ -1,4 +1,3 @@
-// @ts-nocheck
 /**
  * Tests for PriceContext
  */
@@ -13,22 +12,22 @@ import { resetPriceStore } from '../../stores';
 const PriceProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => <>{children}</>;
 
 // Helper to render hooks with react-test-renderer
-function renderHook(hook, { wrapper: Wrapper } = {}) {
-  const result = { current: null };
+function renderHook<T>(hook: () => T, { wrapper: Wrapper }: { wrapper?: React.ComponentType<{ children: React.ReactNode }> } = {}) {
+  const result: { current: T | null } = { current: null };
 
   function TestComponent() {
     result.current = hook();
     return null;
   }
 
-  let component;
+  let component: ReturnType<typeof create> | undefined;
   act(() => {
     component = Wrapper
       ? create(<Wrapper><TestComponent /></Wrapper>)
       : create(<TestComponent />);
   });
 
-  return { result, rerender: component.update, unmount: component.unmount };
+  return { result, rerender: component!.update, unmount: component!.unmount };
 }
 
 // Mock dependencies
@@ -51,29 +50,29 @@ describe('PriceContext', () => {
     // Zustand stores don't require providers - they're globally accessible
     const { result } = renderHook(() => usePrice());
 
-    expect(result.current.btcPrice).toBe(null);
-    expect(result.current.fetchBtcPrice).toBeDefined();
+    expect(result.current!.btcPrice).toBe(null);
+    expect(result.current!.fetchBtcPrice).toBeDefined();
   });
 
   it('should provide initial state', async () => {
-    balanceService.fetchBtcPrice.mockResolvedValue(null);
+    (balanceService.fetchBtcPrice as jest.Mock).mockResolvedValue(null);
 
-    const wrapper = ({ children }) => <PriceProvider>{children}</PriceProvider>;
+    const wrapper = ({ children }: { children: React.ReactNode }) => <PriceProvider>{children}</PriceProvider>;
     const { result } = renderHook(() => usePrice(), { wrapper });
 
     await act(async () => {
       await Promise.resolve();
     });
 
-    expect(result.current.btcPrice).toBe(null);
-    expect(result.current.loadingBtcPrice).toBe(false);
+    expect(result.current!.btcPrice).toBe(null);
+    expect(result.current!.loadingBtcPrice).toBe(false);
   });
 
   it('should fetch BTC price on mount', async () => {
     const mockPrice = 50000;
-    balanceService.fetchBtcPrice.mockResolvedValue(mockPrice);
+    (balanceService.fetchBtcPrice as jest.Mock).mockResolvedValue(mockPrice);
 
-    const wrapper = ({ children }) => <PriceProvider>{children}</PriceProvider>;
+    const wrapper = ({ children }: { children: React.ReactNode }) => <PriceProvider>{children}</PriceProvider>;
     const { result } = renderHook(() => usePrice(), { wrapper });
 
     // Zustand stores don't auto-fetch on mount - need to call startAutoRefresh explicitly
@@ -83,15 +82,15 @@ describe('PriceContext', () => {
     });
 
     expect(balanceService.fetchBtcPrice).toHaveBeenCalledTimes(1);
-    expect(result.current.btcPrice).toBe(mockPrice);
-    expect(result.current.loadingBtcPrice).toBe(false);
+    expect(result.current!.btcPrice).toBe(mockPrice);
+    expect(result.current!.loadingBtcPrice).toBe(false);
   });
 
   it('should auto-refresh price every 60 seconds', async () => {
     const mockPrice = 50000;
-    balanceService.fetchBtcPrice.mockResolvedValue(mockPrice);
+    (balanceService.fetchBtcPrice as jest.Mock).mockResolvedValue(mockPrice);
 
-    const wrapper = ({ children }) => <PriceProvider>{children}</PriceProvider>;
+    const wrapper = ({ children }: { children: React.ReactNode }) => <PriceProvider>{children}</PriceProvider>;
     renderHook(() => usePrice(), { wrapper });
 
     // Start auto-refresh (this does initial fetch + starts interval)
@@ -120,9 +119,9 @@ describe('PriceContext', () => {
   });
 
   it('should handle fetchBtcPrice errors gracefully', async () => {
-    balanceService.fetchBtcPrice.mockRejectedValue(new Error('Network error'));
+    (balanceService.fetchBtcPrice as jest.Mock).mockRejectedValue(new Error('Network error'));
 
-    const wrapper = ({ children }) => <PriceProvider>{children}</PriceProvider>;
+    const wrapper = ({ children }: { children: React.ReactNode }) => <PriceProvider>{children}</PriceProvider>;
     const { result } = renderHook(() => usePrice(), { wrapper });
 
     await act(async () => {
@@ -130,53 +129,53 @@ describe('PriceContext', () => {
     });
 
     // Should set price to null on error
-    expect(result.current.btcPrice).toBe(null);
-    expect(result.current.loadingBtcPrice).toBe(false);
+    expect(result.current!.btcPrice).toBe(null);
+    expect(result.current!.loadingBtcPrice).toBe(false);
   });
 
   it('should manually fetch BTC price', async () => {
     const mockPrice = 50000;
     const newPrice = 51000;
-    balanceService.fetchBtcPrice
+    (balanceService.fetchBtcPrice as jest.Mock)
       .mockResolvedValueOnce(mockPrice)
       .mockResolvedValueOnce(newPrice);
 
-    const wrapper = ({ children }) => <PriceProvider>{children}</PriceProvider>;
+    const wrapper = ({ children }: { children: React.ReactNode }) => <PriceProvider>{children}</PriceProvider>;
     const { result } = renderHook(() => usePrice(), { wrapper });
 
     // Manual fetch (no auto-fetch on mount in Zustand)
     await act(async () => {
-      await result.current.fetchBtcPrice();
+      await result.current!.fetchBtcPrice();
     });
 
-    expect(result.current.btcPrice).toBe(mockPrice);
+    expect(result.current!.btcPrice).toBe(mockPrice);
 
     // Another manual fetch
     await act(async () => {
-      await result.current.fetchBtcPrice();
+      await result.current!.fetchBtcPrice();
     });
 
     expect(balanceService.fetchBtcPrice).toHaveBeenCalledTimes(2);
-    expect(result.current.btcPrice).toBe(newPrice);
+    expect(result.current!.btcPrice).toBe(newPrice);
   });
 
   it('should set loading state during fetch', async () => {
-    let resolvePrice;
-    const pricePromise = new Promise((resolve) => {
+    let resolvePrice: (value: number) => void;
+    const pricePromise = new Promise<number>((resolve) => {
       resolvePrice = resolve;
     });
-    balanceService.fetchBtcPrice.mockReturnValue(pricePromise);
+    (balanceService.fetchBtcPrice as jest.Mock).mockReturnValue(pricePromise);
 
-    const wrapper = ({ children }) => <PriceProvider>{children}</PriceProvider>;
+    const wrapper = ({ children }: { children: React.ReactNode }) => <PriceProvider>{children}</PriceProvider>;
     const { result } = renderHook(() => usePrice(), { wrapper });
 
     // Start fetch manually (no auto-fetch in Zustand)
     act(() => {
-      result.current.fetchBtcPrice();
+      result.current!.fetchBtcPrice();
     });
 
     // Should be loading while promise is pending
-    expect(result.current.loadingBtcPrice).toBe(true);
+    expect(result.current!.loadingBtcPrice).toBe(true);
 
     // Resolve the promise
     await act(async () => {
@@ -184,22 +183,22 @@ describe('PriceContext', () => {
       await pricePromise;
     });
 
-    expect(result.current.loadingBtcPrice).toBe(false);
-    expect(result.current.btcPrice).toBe(50000);
+    expect(result.current!.loadingBtcPrice).toBe(false);
+    expect(result.current!.btcPrice).toBe(50000);
   });
 
   it('should cleanup interval on unmount', async () => {
     const mockPrice = 50000;
-    balanceService.fetchBtcPrice.mockResolvedValue(mockPrice);
+    (balanceService.fetchBtcPrice as jest.Mock).mockResolvedValue(mockPrice);
 
-    const wrapper = ({ children }) => <PriceProvider>{children}</PriceProvider>;
+    const wrapper = ({ children }: { children: React.ReactNode }) => <PriceProvider>{children}</PriceProvider>;
     const { unmount } = renderHook(() => usePrice(), { wrapper });
 
     await act(async () => {
       await Promise.resolve();
     });
 
-    const callCount = balanceService.fetchBtcPrice.mock.calls.length;
+    const callCount = (balanceService.fetchBtcPrice as jest.Mock).mock.calls.length;
 
     // Unmount
     act(() => {

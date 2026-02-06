@@ -1,0 +1,41 @@
+appId: com.ducatprotocol.DucatProtocolWallet
+---
+# Seed Display - Test seed phrase display during onboarding
+# clearState → create wallet → verify seed display screen with 12 words
+
+- runFlow: ../helpers/clear-and-launch.yaml
+
+# Tap create button — first tap may dismiss Expo Dev Client overlay
+- tapOn:
+    id: "welcome-create-wallet-btn"
+
+# If overlay intercepted first tap, we're still on welcome screen — retry
+- runFlow:
+    when:
+      visible:
+        id: "welcome-screen"
+    commands:
+      - tapOn:
+          id: "welcome-create-wallet-btn"
+
+# Wait for wallet created intro screen
+- extendedWaitUntil:
+    visible:
+      id: "intro-screen"
+    timeout: 30000
+- tapOn:
+    id: "intro-continue-btn"
+
+# Verify seed phrase display screen loads
+- assertVisible:
+    id: "seed-display-screen"
+
+# Verify seed words are displayed (first and last)
+- assertVisible:
+    id: "seed-word-0"
+- assertVisible:
+    id: "seed-word-11"
+
+# Verify continue button is present
+- assertVisible:
+    id: "seed-display-continue-btn"

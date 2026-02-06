@@ -212,6 +212,7 @@ export default function ImportWalletScreen({
       testID="import-wallet-screen"
     >
       <ScrollView
+        testID="import-scroll-view"
         style={styles.scrollView}
         contentContainerStyle={styles.scrollContent}
         keyboardShouldPersistTaps="handled"

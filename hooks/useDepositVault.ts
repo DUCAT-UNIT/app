@@ -1,6 +1,19 @@
 /**
  * useDepositVault Hook
  * Orchestrates the full deposit flow for adding more BTC collateral to an existing vault
+ *
+ * @deprecated This hook is deprecated. Use `useDepositVaultNew` from `hooks/vault` instead.
+ * The new implementation uses the unified `useVaultOperation` base hook which consolidates
+ * common patterns across all vault operations (borrow, deposit, repay, withdraw).
+ *
+ * Migration:
+ * ```ts
+ * // Before
+ * import { useDepositVault } from '../hooks/useDepositVault';
+ *
+ * // After
+ * import { useDepositVaultNew } from '../hooks/vault';
+ * ```
  */
 
 import { useCallback, useRef, useEffect, useState } from 'react';
@@ -180,6 +193,16 @@ export function useDepositVault(): UseDepositVaultResult {
   }, [wallet?.taprootPubkey]);
 
   const deposit = useCallback(async (): Promise<{ vaultTxid: string } | null> => {
+    logger.debug('[useDepositVault] deposit() called with:', {
+      operationInProgress: operationInProgressRef.current,
+      hasSegwit: !!wallet?.segwitAddress,
+      hasTaproot: !!wallet?.taprootAddress,
+      btcPrice,
+      depositAmountSats,
+      currentBtcLocked,
+      currentUnitBorrowed,
+    });
+
     // Prevent double execution
     if (operationInProgressRef.current) {
       logger.warn('[useDepositVault] Operation already in progress');
@@ -188,24 +211,28 @@ export function useDepositVault(): UseDepositVaultResult {
 
     // Validate wallet connection
     if (!wallet?.segwitAddress || !wallet?.taprootAddress) {
+      logger.error('[useDepositVault] Wallet not connected');
       setError('Wallet not connected');
       return null;
     }
 
     // Validate bitcoin price
     if (!btcPrice) {
+      logger.error('[useDepositVault] Bitcoin price not available');
       setError('Bitcoin price not available');
       return null;
     }
 
     // Validate deposit amount
     if (depositAmountSats <= 0) {
+      logger.error('[useDepositVault] Deposit amount is 0');
       setError('Please enter an amount to deposit');
       return null;
     }
 
     // Validate vault data is loaded
     if (currentBtcLocked <= 0 && currentUnitBorrowed <= 0) {
+      logger.error('[useDepositVault] No vault data');
       setError('No vault data. Please load vault data first.');
       return null;
     }

@@ -10,15 +10,15 @@ import type {
 import { OracleAPI } from '@ducat-unit/client-sdk';
 import { TX, PSBT, hash160, taptweak_pubkey } from '@ducat-unit/client-sdk/util';
 import { API } from '../../utils/constants';
-import { signPsbtRaw } from '../../utils/wallet/psbtSigning';
 import { logger } from '../../utils/logger';
 import {
+  signPsbtRaw,
   signPsbtWithSdkObject,
   patchPreProcessFields,
   patchPostProcessFields,
   psbtPreProcess,
   psbtPostProcess,
-} from './psbtSigning';
+} from '../signing';
 import { extractOpReturnFromPsbt } from './psbtBinaryUtils';
 
 /**

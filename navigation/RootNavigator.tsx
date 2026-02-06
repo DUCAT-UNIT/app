@@ -9,14 +9,16 @@ import * as LocalAuthentication from 'expo-local-authentication';
 import * as SecureStore from 'expo-secure-store';
 import { NavigationContainer, NavigationContainerRef, Route } from '@react-navigation/native';
 import { createStackNavigator, CardStyleInterpolators, StackNavigationOptions } from '@react-navigation/stack';
-import AuthStack from './AuthStack';
-import MainTabs from './MainTabs';
-import SendNavigator from './SendNavigator';
-import VaultCreateNavigator from './VaultCreateNavigator';
-import BorrowNavigator from './BorrowNavigator';
-import DepositNavigator from './DepositNavigator';
-import RepayNavigator from './RepayNavigator';
-import WithdrawNavigator from './WithdrawNavigator';
+import {
+  AuthStack,
+  MainTabs,
+  SendNavigator,
+  VaultCreateNavigator,
+  BorrowNavigator,
+  DepositNavigator,
+  RepayNavigator,
+  WithdrawNavigator,
+} from './navigators';
 import PinSetupScreenComponent from '../screens/auth/PinSetupScreen';
 import LockScreen from '../screens/auth/LockScreen';
 import PasskeyMigrationModal from '../components/PasskeyMigrationModal';
@@ -25,16 +27,18 @@ import MutinynetBanner from '../components/MutinynetBanner';
 import { withErrorBoundary } from '../components/withErrorBoundary';
 import { COLORS } from '../theme';
 
-import { useAuth } from '../contexts/AuthContext';
-import { useWallet } from '../contexts/WalletContext';
-import { useBalance } from '../contexts/WalletDataContext';
-import { useNavigationHandlers } from '../contexts/NavigationHandlersContext';
+import {
+  useAuth,
+  useOnboardingFlow,
+  useWallet,
+  useBalance,
+  useNavigationHandlers,
+  useCashu,
+  useAirdrop,
+} from '../contexts';
 import { useNotifications } from '../stores/notificationStore';
 import { useNavigationState } from '../hooks/useNavigationState';
 import { useAppLifecycle } from '../hooks/useAppLifecycle';
-import { useOnboardingFlow } from '../contexts/AuthContext';
-import { useCashu } from '../contexts/CashuContext';
-import { useAirdrop } from '../contexts/AirdropContext';
 
 import { createLinkingConfig } from '../services/turbo/turboLinkingConfig';
 import { SECURE_KEYS } from '../utils/constants';

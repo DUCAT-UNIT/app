@@ -1,6 +1,8 @@
 /**
  * Borrow Store (Zustand)
  * Manages the borrow UI flow state for borrowing more UNIT from an existing vault
+ *
+ * Refactored to use common vault store pattern from stores/vault/
  */
 
 import { create } from 'zustand';
@@ -12,193 +14,138 @@ import {
   getHealthStatus,
   type HealthStatus,
 } from '../utils/vaultUtils';
+import {
+  createCommonVaultSlice,
+  computeVaultHealth,
+  computeNewVaultHealth,
+} from './vault';
+import type {
+  CommonVaultState,
+  CommonVaultActions,
+  VaultOperationStep,
+  ProcessingStep,
+} from './vault';
 
-export type BorrowStep =
-  | 'input' // Step 1: Enter UNIT borrow amount
-  | 'confirm' // Step 2: Review and confirm
-  | 'processing' // Step 3: Transaction in progress
-  | 'success'; // Step 4: Transaction complete
+// Re-export types for backwards compatibility
+export type BorrowStep = VaultOperationStep;
+export type BorrowProcessingStep = ProcessingStep;
 
-export type BorrowProcessingStep = 1 | 2 | 3 | 4;
-// 1: Awaiting user signatures
-// 2: Request received by node
-// 3: Validation in progress
-// 4: Network approvals
-
-interface BorrowState {
+/**
+ * Borrow-specific state (extends common state)
+ */
+interface BorrowSpecificState {
   // Form data
   borrowAmount: number; // Additional UNIT to borrow
-  selectedFeeRate: number;
-
-  // Current vault data
-  currentUnitBorrowed: number; // Current UNIT debt in vault
-  currentBtcLocked: number; // Current BTC locked in vault
-  bitcoinPrice: number | null;
-
-  // Process state
-  currentStep: BorrowStep;
-  processingStep: BorrowProcessingStep;
-  loading: boolean;
-  error: string | null;
+  // Legacy field - some consumers may still use txid
   txid: string | null;
-  vaultTxid: string | null;
 }
 
-interface BorrowActions {
+/**
+ * Borrow-specific actions (extends common actions)
+ */
+interface BorrowSpecificActions {
   // Form actions
   setBorrowAmount: (amount: number) => void;
-  setSelectedFeeRate: (rate: number) => void;
 
-  // Vault data actions
-  setCurrentVaultData: (unitBorrowed: number, btcLocked: number) => void;
-  setBitcoinPrice: (price: number | null) => void;
-
-  // Navigation
-  setCurrentStep: (step: BorrowStep) => void;
-  setProcessingStep: (step: BorrowProcessingStep) => void;
-
-  // Process actions
-  setLoading: (loading: boolean) => void;
-  setError: (error: string | null) => void;
+  // Legacy action for backwards compatibility
   setTxid: (txid: string | null, vaultTxid?: string | null) => void;
 
-  // Computed getters
+  // Borrow-specific computed getters
   getTotalDebt: () => number;
-  getHealthFactor: () => number;
   getNewHealthFactor: () => number;
-  getLiquidationPrice: () => number;
   getNewLiquidationPrice: () => number;
   getMaxBorrowable: () => number | null;
-  getHealthStatus: () => HealthStatus;
   getNewHealthStatus: () => HealthStatus;
-
-  // Reset
-  reset: () => void;
 }
 
+// Full store types
+type BorrowState = CommonVaultState & BorrowSpecificState;
+type BorrowActions = CommonVaultActions & BorrowSpecificActions;
 type BorrowStore = BorrowState & BorrowActions;
 
-const initialState: BorrowState = {
+// Borrow-specific initial state
+const borrowSpecificInitialState: BorrowSpecificState = {
   borrowAmount: 0,
-  selectedFeeRate: 1,
-  currentUnitBorrowed: 0,
-  currentBtcLocked: 0,
-  bitcoinPrice: null,
-  currentStep: 'input',
-  processingStep: 1,
-  loading: false,
-  error: null,
   txid: null,
-  vaultTxid: null,
 };
 
-export const useBorrowStore = create<BorrowStore>((set, get) => ({
-  // Initial state
-  ...initialState,
+export const useBorrowStore = create<BorrowStore>()((set, get, store) => {
+  // Get common slice
+  const commonSlice = createCommonVaultSlice<BorrowStore>({
+    storeName: 'BorrowStore',
+  })(set, get, store);
 
-  // Form actions
-  setBorrowAmount: (borrowAmount) => {
-    logger.debug('[BorrowStore] setBorrowAmount:', borrowAmount);
-    set({ borrowAmount, error: null });
-  },
+  return {
+    // Spread common state and actions
+    ...commonSlice,
 
-  setSelectedFeeRate: (selectedFeeRate) => {
-    logger.debug('[BorrowStore] setSelectedFeeRate:', selectedFeeRate);
-    set({ selectedFeeRate });
-  },
+    // Borrow-specific initial state
+    ...borrowSpecificInitialState,
 
-  // Vault data actions
-  setCurrentVaultData: (unitBorrowed, btcLocked) => {
-    logger.debug('[BorrowStore] setCurrentVaultData:', { unitBorrowed, btcLocked });
-    set({
-      currentUnitBorrowed: unitBorrowed,
-      currentBtcLocked: btcLocked,
-    });
-  },
+    // Borrow-specific form actions
+    setBorrowAmount: (borrowAmount) => {
+      logger.debug('[BorrowStore] setBorrowAmount:', borrowAmount);
+      set({ borrowAmount, error: null });
+    },
 
-  setBitcoinPrice: (bitcoinPrice) => {
-    set({ bitcoinPrice });
-  },
+    // Legacy action for backwards compatibility
+    setTxid: (txid, vaultTxid = null) => {
+      logger.debug('[BorrowStore] setTxid:', { txid, vaultTxid });
+      set({ txid, vaultTxid });
+    },
 
-  // Navigation
-  setCurrentStep: (currentStep) => {
-    logger.debug('[BorrowStore] setCurrentStep:', currentStep);
-    set({ currentStep, error: null });
-  },
+    // Borrow-specific computed getters
+    getTotalDebt: () => {
+      const { currentUnitBorrowed, borrowAmount } = get();
+      return currentUnitBorrowed + borrowAmount;
+    },
 
-  setProcessingStep: (processingStep) => {
-    logger.debug('[BorrowStore] setProcessingStep:', processingStep);
-    set({ processingStep });
-  },
+    getNewHealthFactor: () => {
+      const { currentBtcLocked, borrowAmount, currentUnitBorrowed, bitcoinPrice } = get();
+      const totalDebt = currentUnitBorrowed + borrowAmount;
+      if (!bitcoinPrice || currentBtcLocked <= 0 || totalDebt <= 0) return 0;
+      return computeHealthFactor(currentBtcLocked, bitcoinPrice, totalDebt);
+    },
 
-  // Process actions
-  setLoading: (loading) => set({ loading }),
+    getNewLiquidationPrice: () => {
+      const { currentBtcLocked, borrowAmount, currentUnitBorrowed } = get();
+      const totalDebt = currentUnitBorrowed + borrowAmount;
+      if (currentBtcLocked <= 0 || totalDebt <= 0) return 0;
+      return computeLiquidationPrice(totalDebt, currentBtcLocked);
+    },
 
-  setError: (error) => {
-    logger.debug('[BorrowStore] setError:', error);
-    set({ error, loading: false });
-  },
+    getMaxBorrowable: () => {
+      const { currentBtcLocked, currentUnitBorrowed, bitcoinPrice } = get();
+      const maxTotal = getMaxUnit(currentBtcLocked, bitcoinPrice ?? undefined);
+      if (maxTotal === null) return null;
+      return Math.max(0, maxTotal - currentUnitBorrowed);
+    },
 
-  setTxid: (txid, vaultTxid = null) => {
-    logger.debug('[BorrowStore] setTxid:', { txid, vaultTxid });
-    set({ txid, vaultTxid });
-  },
+    getNewHealthStatus: () => {
+      const healthFactor = get().getNewHealthFactor();
+      return getHealthStatus(healthFactor);
+    },
 
-  // Computed getters
-  getTotalDebt: () => {
-    const { currentUnitBorrowed, borrowAmount } = get();
-    return currentUnitBorrowed + borrowAmount;
-  },
-
-  getHealthFactor: () => {
-    const { currentBtcLocked, currentUnitBorrowed, bitcoinPrice } = get();
-    if (!bitcoinPrice || currentBtcLocked <= 0 || currentUnitBorrowed <= 0) return 0;
-    return computeHealthFactor(currentBtcLocked, bitcoinPrice, currentUnitBorrowed);
-  },
-
-  getNewHealthFactor: () => {
-    const { currentBtcLocked, borrowAmount, currentUnitBorrowed, bitcoinPrice } = get();
-    const totalDebt = currentUnitBorrowed + borrowAmount;
-    if (!bitcoinPrice || currentBtcLocked <= 0 || totalDebt <= 0) return 0;
-    return computeHealthFactor(currentBtcLocked, bitcoinPrice, totalDebt);
-  },
-
-  getLiquidationPrice: () => {
-    const { currentBtcLocked, currentUnitBorrowed } = get();
-    if (currentBtcLocked <= 0 || currentUnitBorrowed <= 0) return 0;
-    return computeLiquidationPrice(currentUnitBorrowed, currentBtcLocked);
-  },
-
-  getNewLiquidationPrice: () => {
-    const { currentBtcLocked, borrowAmount, currentUnitBorrowed } = get();
-    const totalDebt = currentUnitBorrowed + borrowAmount;
-    if (currentBtcLocked <= 0 || totalDebt <= 0) return 0;
-    return computeLiquidationPrice(totalDebt, currentBtcLocked);
-  },
-
-  getMaxBorrowable: () => {
-    const { currentBtcLocked, currentUnitBorrowed, bitcoinPrice } = get();
-    const maxTotal = getMaxUnit(currentBtcLocked, bitcoinPrice ?? undefined);
-    if (maxTotal === null) return null;
-    return Math.max(0, maxTotal - currentUnitBorrowed);
-  },
-
-  getHealthStatus: () => {
-    const healthFactor = get().getHealthFactor();
-    return getHealthStatus(healthFactor);
-  },
-
-  getNewHealthStatus: () => {
-    const healthFactor = get().getNewHealthFactor();
-    return getHealthStatus(healthFactor);
-  },
-
-  // Reset
-  reset: () => {
-    logger.debug('[BorrowStore] reset');
-    set(initialState);
-  },
-}));
+    // Override reset to include borrow-specific state
+    reset: () => {
+      logger.debug('[BorrowStore] reset');
+      set({
+        ...commonSlice,
+        ...borrowSpecificInitialState,
+        // Reset common state
+        selectedFeeRate: 1,
+        currentUnitBorrowed: 0,
+        currentBtcLocked: 0,
+        bitcoinPrice: null,
+        currentStep: 'input',
+        processingStep: 1,
+        loading: false,
+        error: null,
+        vaultTxid: null,
+      });
+    },
+  };
+});
 
 /**
  * Selector hooks for granular subscriptions
@@ -214,7 +161,7 @@ export const useBorrowTxid = () => useBorrowStore((state) => state.txid);
  * Reset store to initial state (useful for testing)
  */
 export const resetBorrowStore = () => {
-  useBorrowStore.setState(initialState);
+  useBorrowStore.getState().reset();
 };
 
 /**
@@ -250,27 +197,21 @@ export const useBorrow = () => {
   // Compute derived values from reactive state
   const totalDebt = currentUnitBorrowed + borrowAmount;
 
-  const healthFactor = (!bitcoinPrice || currentBtcLocked <= 0 || currentUnitBorrowed <= 0)
-    ? 0
-    : computeHealthFactor(currentBtcLocked, bitcoinPrice, currentUnitBorrowed);
+  // Use helper functions for health calculations
+  const { healthFactor, liquidationPrice, healthStatus } = computeVaultHealth(
+    currentBtcLocked,
+    currentUnitBorrowed,
+    bitcoinPrice
+  );
 
-  const newHealthFactor = (!bitcoinPrice || currentBtcLocked <= 0 || totalDebt <= 0)
-    ? 0
-    : computeHealthFactor(currentBtcLocked, bitcoinPrice, totalDebt);
-
-  const liquidationPrice = (currentBtcLocked <= 0 || currentUnitBorrowed <= 0)
-    ? 0
-    : computeLiquidationPrice(currentUnitBorrowed, currentBtcLocked);
-
-  const newLiquidationPrice = (currentBtcLocked <= 0 || totalDebt <= 0)
-    ? 0
-    : computeLiquidationPrice(totalDebt, currentBtcLocked);
+  const { newHealthFactor, newLiquidationPrice, newHealthStatus } = computeNewVaultHealth(
+    currentBtcLocked,
+    totalDebt,
+    bitcoinPrice
+  );
 
   const maxTotal = getMaxUnit(currentBtcLocked, bitcoinPrice ?? undefined);
   const maxBorrowable = maxTotal !== null ? Math.max(0, maxTotal - currentUnitBorrowed) : null;
-
-  const healthStatus = getHealthStatus(healthFactor);
-  const newHealthStatus = getHealthStatus(newHealthFactor);
 
   return {
     // State

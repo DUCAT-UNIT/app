@@ -1,7 +1,9 @@
-// @ts-nocheck
 /**
  * Tests for Transaction History Service
  * Tests transaction fetching, rune transfer parsing, and transaction amount calculation
+ *
+ * NOTE: This file uses type-safe fetch mock pattern.
+ * See testUtils/fetchMock.ts for the implementation.
  */
 
 import {
@@ -11,14 +13,19 @@ import {
   fetchAllTransactionHistory,
 } from '../transactionHistoryService';
 import { fetchVaultHistory } from '../vaultService';
+import {
+  setupMockFetch,
+  getMockFetch,
+  createMockResponse,
+} from './testUtils';
 
 // Mock dependencies
 jest.mock('../../utils/retry', () => ({
-  retrySilently: jest.fn((fn) => fn()),
+  retrySilently: jest.fn((fn: () => unknown) => fn()),
 }));
 
 jest.mock('../../utils/constants', () => ({
-  getAddressTxsUrl: jest.fn((address, lastTxid) =>
+  getAddressTxsUrl: jest.fn((address: string, lastTxid?: string) =>
     lastTxid
       ? `https://api.example.com/address/${address}/txs/chain/${lastTxid}`
       : `https://api.example.com/address/${address}/txs`
@@ -28,13 +35,15 @@ jest.mock('../../utils/constants', () => ({
 jest.mock('../vaultService');
 jest.mock('../../utils/runestoneEncoder');
 
-const { decodeRunestone } = require('../../utils/runestoneEncoder');
+const { decodeRunestone } = jest.requireMock('../../utils/runestoneEncoder') as {
+  decodeRunestone: jest.Mock;
+};
 const mockFetchVaultHistory = fetchVaultHistory as jest.MockedFunction<typeof fetchVaultHistory>;
 
 describe('transactionHistoryService', () => {
   beforeEach(() => {
     jest.clearAllMocks();
-    (global as any).fetch = jest.fn();
+    setupMockFetch();
   });
 
   describe('fetchAddressTransactions', () => {
@@ -46,15 +55,12 @@ describe('transactionHistoryService', () => {
         { txid: 'tx2', status: { block_time: 2000 } },
       ];
 
-      (global as any).fetch.mockResolvedValueOnce({
-        ok: true,
-        json: async () => mockTxs,
-      });
+      getMockFetch().mockResolvedValueOnce(createMockResponse(mockTxs));
 
       const result = await fetchAddressTransactions(address);
 
       expect(result).toEqual(mockTxs);
-      expect((global as any).fetch).toHaveBeenCalledTimes(1);
+      expect(getMockFetch()).toHaveBeenCalledTimes(1);
     });
 
     it('should handle pagination correctly', async () => {
@@ -72,50 +78,42 @@ describe('transactionHistoryService', () => {
         status: { block_time: 2000 + i },
       }));
 
-      (global as any).fetch
-        .mockResolvedValueOnce({
-          ok: true,
-          json: async () => page1,
-        })
-        .mockResolvedValueOnce({
-          ok: true,
-          json: async () => page2,
-        });
+      getMockFetch()
+        .mockResolvedValueOnce(createMockResponse(page1))
+        .mockResolvedValueOnce(createMockResponse(page2));
 
       const result = await fetchAddressTransactions(address);
 
       expect(result).toHaveLength(35);
-      expect((global as any).fetch).toHaveBeenCalledTimes(2);
+      expect(getMockFetch()).toHaveBeenCalledTimes(2);
     });
 
     it('should stop after max pages (40)', async () => {
       const address = 'tb1qw508d6qejxtdg4y5r3zarvary0c5xw7kxpjzsx';
 
       // Mock 41 pages of 25 transactions each
-      (global as any).fetch.mockImplementation(() =>
-        Promise.resolve({
-          ok: true,
-          json: async () => Array.from({ length: 25 }, (_, i) => ({
+      getMockFetch().mockImplementation(() =>
+        Promise.resolve(createMockResponse(
+          Array.from({ length: 25 }, (_, i) => ({
             txid: `tx${i}`,
             status: { block_time: 1000 },
-          })),
-        })
+          }))
+        ))
       );
 
       const result = await fetchAddressTransactions(address);
 
       // Should only fetch 40 pages
-      expect((global as any).fetch).toHaveBeenCalledTimes(40);
+      expect(getMockFetch()).toHaveBeenCalledTimes(40);
       expect(result).toHaveLength(1000); // 40 pages * 25 txs
     });
 
     it('should return empty array on error', async () => {
       const address = 'tb1qw508d6qejxtdg4y5r3zarvary0c5xw7kxpjzsx';
 
-      (global as any).fetch.mockResolvedValueOnce({
-        ok: false,
-        statusText: 'Not Found',
-      });
+      getMockFetch().mockResolvedValueOnce(
+        createMockResponse({}, { ok: false, status: 404, statusText: 'Not Found' })
+      );
 
       const result = await fetchAddressTransactions(address);
 
@@ -125,10 +123,7 @@ describe('transactionHistoryService', () => {
     it('should handle empty response', async () => {
       const address = 'tb1qw508d6qejxtdg4y5r3zarvary0c5xw7kxpjzsx';
 
-      (global as any).fetch.mockResolvedValueOnce({
-        ok: true,
-        json: async () => [],
-      });
+      getMockFetch().mockResolvedValueOnce(createMockResponse([]));
 
       const result = await fetchAddressTransactions(address);
 
@@ -599,15 +594,9 @@ describe('transactionHistoryService', () => {
         },
       ];
 
-      (global as any).fetch
-        .mockResolvedValueOnce({
-          ok: true,
-          json: async () => segwitTxs,
-        })
-        .mockResolvedValueOnce({
-          ok: true,
-          json: async () => taprootTxs,
-        });
+      getMockFetch()
+        .mockResolvedValueOnce(createMockResponse(segwitTxs))
+        .mockResolvedValueOnce(createMockResponse(taprootTxs));
 
       mockFetchVaultHistory.mockResolvedValueOnce(vaultHistory);
 
@@ -622,15 +611,9 @@ describe('transactionHistoryService', () => {
     it('should deduplicate transactions by txid', async () => {
       const duplicateTx = { txid: 'tx1', status: { block_time: 1000 } };
 
-      (global as any).fetch
-        .mockResolvedValueOnce({
-          ok: true,
-          json: async () => [duplicateTx],
-        })
-        .mockResolvedValueOnce({
-          ok: true,
-          json: async () => [duplicateTx],
-        });
+      getMockFetch()
+        .mockResolvedValueOnce(createMockResponse([duplicateTx]))
+        .mockResolvedValueOnce(createMockResponse([duplicateTx]));
 
       mockFetchVaultHistory.mockResolvedValueOnce([]);
 
@@ -659,15 +642,9 @@ describe('transactionHistoryService', () => {
         },
       ];
 
-      (global as any).fetch
-        .mockResolvedValueOnce({
-          ok: true,
-          json: async () => segwitTxs,
-        })
-        .mockResolvedValueOnce({
-          ok: true,
-          json: async () => [],
-        });
+      getMockFetch()
+        .mockResolvedValueOnce(createMockResponse(segwitTxs))
+        .mockResolvedValueOnce(createMockResponse([]));
 
       mockFetchVaultHistory.mockResolvedValueOnce(vaultHistory);
 
@@ -701,15 +678,9 @@ describe('transactionHistoryService', () => {
         },
       ];
 
-      (global as any).fetch
-        .mockResolvedValueOnce({
-          ok: true,
-          json: async () => segwitTxs,
-        })
-        .mockResolvedValueOnce({
-          ok: true,
-          json: async () => taprootTxs,
-        });
+      getMockFetch()
+        .mockResolvedValueOnce(createMockResponse(segwitTxs))
+        .mockResolvedValueOnce(createMockResponse(taprootTxs));
 
       mockFetchVaultHistory.mockResolvedValueOnce(vaultHistory);
 
@@ -722,7 +693,7 @@ describe('transactionHistoryService', () => {
 
     it('should handle fetch errors gracefully', async () => {
       // fetchAddressTransactions catches errors and returns []
-      (global as any).fetch.mockRejectedValueOnce(new Error('Network error'));
+      getMockFetch().mockRejectedValueOnce(new Error('Network error'));
       mockFetchVaultHistory.mockResolvedValueOnce([]);
 
       const result = await fetchAllTransactionHistory(segwitAddress, taprootAddress, vaultPubkey);

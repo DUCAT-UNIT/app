@@ -1,9 +1,16 @@
-// @ts-nocheck
 /**
  * Tests for runesTransaction service - focused on spent UTXO branch coverage
+ *
+ * NOTE: This file uses type-safe fetch mock pattern.
+ * See services/__tests__/testUtils/fetchMock.ts for the implementation.
  */
 
 import { createUnitIntent } from '../runesTransaction';
+import {
+  setupMockFetch,
+  getMockFetch,
+  createMockResponse,
+} from '../../__tests__/testUtils';
 
 // Mock modules
 jest.mock('../../../utils/bitcoin', () => ({
@@ -15,15 +22,12 @@ jest.mock('../../../utils/bitcoin', () => ({
     scriptHash: 0xc4,
     wif: 0xef,
   },
-  validateAndNormalizeAddress: jest.fn((addr) => addr),
+  validateAndNormalizeAddress: jest.fn((addr: string) => addr),
 }));
 
 jest.mock('../../../utils/runestoneEncoder', () => ({
   encodeRunestone: jest.fn(() => Buffer.from('mockrunestone')),
 }));
-
-// Mock global fetch
-(global as any).fetch = jest.fn();
 
 describe('runesTransaction - spent UTXO branches', () => {
   const mockTaprootAddress = 'tb1ptestaddress';
@@ -32,7 +36,7 @@ describe('runesTransaction - spent UTXO branches', () => {
 
   beforeEach(() => {
     jest.clearAllMocks();
-    (global as any).fetch.mockClear();
+    setupMockFetch();
   });
 
   describe('spent UTXO handling', () => {
@@ -44,8 +48,8 @@ describe('runesTransaction - spent UTXO branches', () => {
       ];
 
       // Mock API calls - return empty to avoid finding runes
-      (global as any).fetch.mockImplementation((_url: string) => {
-        return Promise.resolve({ json: () => Promise.resolve({}) });
+      getMockFetch().mockImplementation(() => {
+        return Promise.resolve(createMockResponse({}));
       });
 
       // Expect error since no rune UTXO is available (spent UTXO should be skipped)

@@ -4,121 +4,23 @@
  * Helps validate if users have sufficient BTC for transaction fees
  */
 
-import { BITCOIN_TX, VAULT_CONFIG, getAddressUtxoUrl } from '../utils/constants';
+import { BITCOIN_TX, VAULT_CONFIG } from '../utils/constants';
 import { fetchUtxosForAddress, calculateTransactionFee } from './transactionCalculationService';
+import {
+  TransactionType,
+  FeeEstimate,
+  BtcSufficiencyResult,
+  DEFAULT_FEE_RATE,
+  FEE_BUFFER_PERCENTAGE,
+  calculateDynamicVinAllowance,
+  getTransactionShape,
+  getVaultBaseCost,
+  generateFeeErrorMessage,
+} from './feeEstimationTypes';
 
-/**
- * Transaction types supported by the fee estimation service
- */
-export enum TransactionType {
-  BTC_SEND = 'BTC_SEND',
-  UNIT_SEND = 'UNIT_SEND',
-  VAULT_DEPOSIT = 'VAULT_DEPOSIT',
-  VAULT_WITHDRAW = 'VAULT_WITHDRAW',
-  VAULT_BORROW = 'VAULT_BORROW',
-  VAULT_REPAY = 'VAULT_REPAY',
-}
-
-/**
- * Fee estimation result
- */
-export interface FeeEstimate {
-  feeSats: number;
-  feeRate: number;
-  numInputs: number;
-  numOutputs: number;
-}
-
-/**
- * Result of BTC sufficiency check
- */
-export interface BtcSufficiencyResult {
-  hasSufficientBtc: boolean;
-  requiredBtcSats: number;
-  availableBtcSats: number;
-  shortfallSats: number;
-  errorMessage: string | null;
-}
-
-// Transaction size constants (matching transactionCalculationService and vaultUtils)
-const BASE_TX_SIZE = 10;
-const P2WPKH_INPUT_SIZE = 68;  // Native SegWit input
-const P2TR_INPUT_SIZE = 57;    // Taproot input
-const P2SH_INPUT_SIZE = 108;   // P2SH input
-const P2PKH_INPUT_SIZE = 148;  // Legacy input
-const P2WPKH_OUTPUT_SIZE = 31;
-const DEFAULT_FEE_RATE = 1; // sats per vbyte
-
-// Buffer percentage for fee safety margin (10%)
-const FEE_BUFFER_PERCENTAGE = 0.1;
-
-/**
- * Get input size based on script type (matching vaultUtils.ts)
- */
-function getInputSizeForScript(script?: string): number {
-  if (!script) return P2WPKH_INPUT_SIZE; // Default to SegWit
-  if (script.startsWith('5120')) return P2TR_INPUT_SIZE;   // Taproot
-  if (script.startsWith('0014')) return P2WPKH_INPUT_SIZE; // Native SegWit
-  if (script.startsWith('a914')) return P2SH_INPUT_SIZE;   // P2SH
-  return P2PKH_INPUT_SIZE; // Legacy fallback
-}
-
-/**
- * Calculate dynamic VIN allowance based on actual UTXOs
- * This matches the pattern in vaultUtils.ts calculateVinAllowance()
- */
-function calculateDynamicVinAllowance(
-  utxos: Array<{ script?: string }>,
-  feeRate: number
-): number {
-  if (!utxos || utxos.length === 0) {
-    // Fallback to single UTXO estimate
-    return VAULT_CONFIG.VIN_ALLOWANCE * feeRate;
-  }
-
-  const totalVsize = utxos.reduce((acc, utxo) => {
-    return acc + getInputSizeForScript(utxo.script);
-  }, 0);
-
-  return totalVsize * feeRate;
-}
-
-/**
- * Get estimated number of inputs and outputs for each transaction type
- * Based on actual transaction structures from the codebase:
- * - runesPsbtBuilder.ts for UNIT sends
- * - services/vault/*.ts for vault operations
- */
-function getTransactionShape(type: TransactionType): { inputs: number; outputs: number } {
-  switch (type) {
-    case TransactionType.BTC_SEND:
-      // Simple P2WPKH send: 1+ inputs, 2 outputs (recipient + change)
-      return { inputs: 1, outputs: 2 };
-    case TransactionType.UNIT_SEND:
-      // Runes transaction (runesPsbtBuilder.ts):
-      // Inputs: 1 P2WPKH (fees) + 1+ Taproot (rune UTXOs)
-      // Outputs: rune return + recipient + change + OP_RETURN runestone
-      return { inputs: 2, outputs: 4 };
-    case TransactionType.VAULT_DEPOSIT:
-      // Deposit: user provides sats UTXOs (deposit amount + fees)
-      // SDK constructs PSBT with vault UTXO update
-      return { inputs: 1, outputs: 2 };
-    case TransactionType.VAULT_WITHDRAW:
-      // Withdraw: no user UTXOs needed - withdraws from vault UTXO
-      // User only pays signing fee, vault covers tx fee
-      return { inputs: 0, outputs: 2 };
-    case TransactionType.VAULT_BORROW:
-      // Borrow: user provides sats UTXOs for fees
-      // Creates 2 transactions (issue + vault update)
-      return { inputs: 1, outputs: 3 };
-    case TransactionType.VAULT_REPAY:
-      // Repay: user provides sats UTXOs (fees) + rune UTXOs (UNIT to burn)
-      // Creates 2 transactions (repay + vault update)
-      return { inputs: 2, outputs: 3 };
-    default:
-      return { inputs: 1, outputs: 2 };
-  }
-}
+// Re-export types for consumers
+export { TransactionType } from './feeEstimationTypes';
+export type { FeeEstimate, BtcSufficiencyResult } from './feeEstimationTypes';
 
 /**
  * Estimate transaction fee based on transaction type and UTXOs
@@ -192,25 +94,6 @@ export async function estimateTransactionFee(
     numInputs,
     numOutputs: baseShape.outputs,
   };
-}
-
-/**
- * Get base cost for vault operations (SDK's txQuote.total_cost)
- * Values based on test mocks in services/vault/__tests__/vault.test.ts
- */
-function getVaultBaseCost(type: TransactionType): number {
-  switch (type) {
-    case TransactionType.VAULT_DEPOSIT:
-      return 1000;
-    case TransactionType.VAULT_WITHDRAW:
-      return 500;
-    case TransactionType.VAULT_BORROW:
-      return 1000;
-    case TransactionType.VAULT_REPAY:
-      return 800;
-    default:
-      return 1000;
-  }
 }
 
 /**
@@ -326,77 +209,6 @@ export async function hasSufficientBtcForFees(
       shortfallSats: shortfall,
       errorMessage,
     };
-  }
-}
-
-/**
- * Format BTC amount for display, removing unnecessary trailing zeros
- * @param sats - Amount in satoshis
- * @returns Formatted BTC string
- */
-function formatBtcAmount(sats: number): string {
-  const btc = sats / 100_000_000;
-  // Show up to 8 decimal places, but remove trailing zeros
-  if (btc < 0.0001) {
-    return btc.toFixed(8).replace(/\.?0+$/, '');
-  } else if (btc < 0.01) {
-    return btc.toFixed(6).replace(/\.?0+$/, '');
-  } else {
-    return btc.toFixed(4).replace(/\.?0+$/, '');
-  }
-}
-
-/**
- * Generate a specific, helpful error message based on the situation
- * @param btcBalanceSats - User's BTC balance in satoshis
- * @param requiredSats - Required BTC for fees in satoshis
- * @param type - Transaction type
- * @returns Error message string
- */
-function generateFeeErrorMessage(
-  btcBalanceSats: number,
-  requiredSats: number,
-  type: TransactionType
-): string {
-  const requiredBtc = formatBtcAmount(requiredSats);
-  const availableBtc = formatBtcAmount(btcBalanceSats);
-  const shortfallSats = requiredSats - btcBalanceSats;
-  const shortfallBtc = formatBtcAmount(shortfallSats);
-
-  // Zero balance case
-  if (btcBalanceSats === 0) {
-    switch (type) {
-      case TransactionType.UNIT_SEND:
-        return 'You need BTC in your wallet to send UNIT (for transaction fees)';
-      case TransactionType.VAULT_BORROW:
-        return 'You need BTC in your wallet to borrow UNIT (for transaction fees)';
-      case TransactionType.VAULT_REPAY:
-        return 'You need BTC in your wallet to repay your vault (for transaction fees)';
-      case TransactionType.VAULT_WITHDRAW:
-        return 'You need BTC in your wallet to withdraw from your vault (for transaction fees)';
-      case TransactionType.VAULT_DEPOSIT:
-        return 'You need more BTC to cover the deposit and transaction fees';
-      default:
-        return 'You need BTC in your wallet for transaction fees';
-    }
-  }
-
-  // Has some BTC but not enough
-  switch (type) {
-    case TransactionType.UNIT_SEND:
-      return `Need ${shortfallBtc} more BTC for fees to send UNIT. You have ${availableBtc} BTC, need ${requiredBtc} BTC.`;
-    case TransactionType.VAULT_BORROW:
-      return `Need ${shortfallBtc} more BTC for fees to borrow. You have ${availableBtc} BTC, need ${requiredBtc} BTC.`;
-    case TransactionType.VAULT_REPAY:
-      return `Need ${shortfallBtc} more BTC for fees to repay. You have ${availableBtc} BTC, need ${requiredBtc} BTC.`;
-    case TransactionType.VAULT_WITHDRAW:
-      return `Need ${shortfallBtc} more BTC for fees to withdraw. You have ${availableBtc} BTC, need ${requiredBtc} BTC.`;
-    case TransactionType.VAULT_DEPOSIT:
-      return `Need ${shortfallBtc} more BTC for deposit fees. You have ${availableBtc} BTC, need ${requiredBtc} BTC.`;
-    case TransactionType.BTC_SEND:
-      return `Need ${shortfallBtc} more BTC to cover fees. You have ${availableBtc} BTC, need ${requiredBtc} BTC total.`;
-    default:
-      return `Need ${requiredBtc} BTC for fees, but only have ${availableBtc} BTC`;
   }
 }
 

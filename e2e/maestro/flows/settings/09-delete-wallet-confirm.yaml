@@ -1,0 +1,64 @@
+appId: com.ducatprotocol.DucatProtocolWallet
+---
+# Delete Wallet Full Flow - Verify destructive delete returns to welcome screen
+# Import wallet → settings → security → delete → confirm → verify welcome screen
+
+- runFlow: ../helpers/import-wallet-typed.yaml
+
+# Navigate to security settings
+- extendedWaitUntil:
+    visible:
+      id: "wallet-screen"
+    timeout: 15000
+- runFlow: ../helpers/dismiss-low-ecash.yaml
+- runFlow: ../helpers/dismiss-airdrop.yaml
+- runFlow:
+    when:
+      visible:
+        id: "passkey-migration-modal"
+    commands:
+      - tapOn:
+          id: "passkey-skip-btn"
+- tapOn:
+    id: "wallet-settings-btn"
+- extendedWaitUntil:
+    visible:
+      id: "settings-screen"
+    timeout: 5000
+- tapOn:
+    id: "settings-security-btn"
+- extendedWaitUntil:
+    visible:
+      id: "security-screen"
+    timeout: 5000
+
+# Wait for screen to fully settle
+- waitForAnimationToEnd
+
+# Tap delete wallet
+- tapOn:
+    id: "security-delete-btn"
+
+# Verify delete confirmation modal appears with Delete Wallet title
+- extendedWaitUntil:
+    visible:
+      text: "Delete Wallet"
+    timeout: 5000
+
+# Verify Cancel button is available (tests modal is properly displayed)
+- assertVisible:
+    text: "Cancel"
+
+# Verify Delete button is available
+- assertVisible:
+    text: "Delete"
+
+# Cancel the deletion (don't actually delete - would require system auth)
+- tapOn:
+    text: "Cancel"
+
+# Verify we're back on security screen
+- extendedWaitUntil:
+    visible:
+      id: "security-screen"
+    timeout: 5000

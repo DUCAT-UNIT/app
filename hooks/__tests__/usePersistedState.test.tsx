@@ -1,4 +1,3 @@
-// @ts-nocheck
 /**
  * Tests for usePersistedState Hook
  */
@@ -9,22 +8,22 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import { usePersistedState, usePersistedObject, usePersistedArray } from '../usePersistedState';
 
 // Helper to render hooks
-function renderHook(hook) {
-  const result = { current: null };
+function renderHook<T>(hook: () => T) {
+  const result: { current: T | null } = { current: null };
 
   function TestComponent() {
     result.current = hook();
     return null;
   }
 
-  let component;
+  let component: ReturnType<typeof create> | undefined;
   act(() => {
     component = create(<TestComponent />);
   });
 
   return {
     result,
-    unmount: () => component.unmount(),
+    unmount: () => component?.unmount(),
   };
 }
 
@@ -41,21 +40,21 @@ jest.mock('../../utils/logger', () => ({
 describe('usePersistedState', () => {
   beforeEach(() => {
     jest.clearAllMocks();
-    AsyncStorage.getItem.mockResolvedValue(null);
-    AsyncStorage.setItem.mockResolvedValue(null);
-    AsyncStorage.removeItem.mockResolvedValue(null);
+    (AsyncStorage.getItem as jest.Mock).mockResolvedValue(null);
+    (AsyncStorage.setItem as jest.Mock).mockResolvedValue(null);
+    (AsyncStorage.removeItem as jest.Mock).mockResolvedValue(null);
   });
 
   it('should initialize with initial state', () => {
     const { result } = renderHook(() => usePersistedState('test-key', 'initial'));
 
-    const [state, , , isLoaded] = result.current;
+    const [state, , , isLoaded] = result.current!;
     expect(state).toBe('initial');
     expect(isLoaded).toBe(false);
   });
 
   it('should load persisted state from AsyncStorage', async () => {
-    AsyncStorage.getItem.mockResolvedValue(JSON.stringify('persisted-value'));
+    (AsyncStorage.getItem as jest.Mock).mockResolvedValue(JSON.stringify('persisted-value'));
 
     const { result } = renderHook(() => usePersistedState('test-key', 'initial'));
 
@@ -63,7 +62,7 @@ describe('usePersistedState', () => {
       await new Promise((resolve) => setTimeout(resolve, 0));
     });
 
-    const [state, , , isLoaded] = result.current;
+    const [state, , , isLoaded] = result.current!;
     expect(state).toBe('persisted-value');
     expect(isLoaded).toBe(true);
     expect(AsyncStorage.getItem).toHaveBeenCalledWith('test-key');
@@ -79,7 +78,7 @@ describe('usePersistedState', () => {
 
     // Change state
     act(() => {
-      const [, setState] = result.current;
+      const [, setState] = result.current!;
       setState('new-value');
     });
 
@@ -92,7 +91,7 @@ describe('usePersistedState', () => {
   });
 
   it('should clear state from AsyncStorage', async () => {
-    AsyncStorage.getItem.mockResolvedValue(JSON.stringify('persisted'));
+    (AsyncStorage.getItem as jest.Mock).mockResolvedValue(JSON.stringify('persisted'));
 
     const { result } = renderHook(() => usePersistedState('test-key', 'initial'));
 
@@ -102,17 +101,17 @@ describe('usePersistedState', () => {
 
     // Clear state
     await act(async () => {
-      const [, , clearState] = result.current;
+      const [, , clearState] = result.current!;
       await clearState();
     });
 
     expect(AsyncStorage.removeItem).toHaveBeenCalledWith('test-key');
-    const [state] = result.current;
+    const [state] = result.current!;
     expect(state).toBe('initial');
   });
 
   it('should handle load errors gracefully', async () => {
-    AsyncStorage.getItem.mockRejectedValue(new Error('Load error'));
+    (AsyncStorage.getItem as jest.Mock).mockRejectedValue(new Error('Load error'));
 
     const { result } = renderHook(() => usePersistedState('test-key', 'initial'));
 
@@ -120,13 +119,13 @@ describe('usePersistedState', () => {
       await new Promise((resolve) => setTimeout(resolve, 0));
     });
 
-    const [state, , , isLoaded] = result.current;
+    const [state, , , isLoaded] = result.current!;
     expect(state).toBe('initial');
     expect(isLoaded).toBe(true);
   });
 
   it('should handle save errors gracefully', async () => {
-    AsyncStorage.setItem.mockRejectedValue(new Error('Save error'));
+    (AsyncStorage.setItem as jest.Mock).mockRejectedValue(new Error('Save error'));
 
     const { result } = renderHook(() => usePersistedState('test-key', 'initial'));
 
@@ -136,7 +135,7 @@ describe('usePersistedState', () => {
 
     // Should not throw
     act(() => {
-      const [, setState] = result.current;
+      const [, setState] = result.current!;
       setState('new-value');
     });
 
@@ -144,15 +143,15 @@ describe('usePersistedState', () => {
       await new Promise((resolve) => setTimeout(resolve, 0));
     });
 
-    const [state] = result.current;
+    const [state] = result.current!;
     expect(state).toBe('new-value');
   });
 
   it('should use custom serializer and deserializer', async () => {
-    const customSerializer = (value) => `custom:${value}`;
-    const customDeserializer = (value) => value.replace('custom:', '');
+    const customSerializer = (value: string) => `custom:${value}`;
+    const customDeserializer = (value: string) => value.replace('custom:', '');
 
-    AsyncStorage.getItem.mockResolvedValue('custom:loaded');
+    (AsyncStorage.getItem as jest.Mock).mockResolvedValue('custom:loaded');
 
     const { result } = renderHook(() =>
       usePersistedState('test-key', 'initial', {
@@ -165,11 +164,11 @@ describe('usePersistedState', () => {
       await new Promise((resolve) => setTimeout(resolve, 0));
     });
 
-    const [state] = result.current;
+    const [state] = result.current!;
     expect(state).toBe('loaded');
 
     act(() => {
-      const [, setState] = result.current;
+      const [, setState] = result.current!;
       setState('saved');
     });
 
@@ -182,7 +181,7 @@ describe('usePersistedState', () => {
 
   it('should call onLoad callback', async () => {
     const onLoad = jest.fn();
-    AsyncStorage.getItem.mockResolvedValue(JSON.stringify('loaded'));
+    (AsyncStorage.getItem as jest.Mock).mockResolvedValue(JSON.stringify('loaded'));
 
     renderHook(() => usePersistedState('test-key', 'initial', { onLoad }));
 
@@ -196,14 +195,14 @@ describe('usePersistedState', () => {
   it('should call onSave callback', async () => {
     const onSave = jest.fn();
 
-    const { result } = renderHook(() => usePersistedState('test-key', 'initial', { onSave }));
+    const { result } = renderHook(() => usePersistedState<string>('test-key', 'initial', { onSave }));
 
     await act(async () => {
       await new Promise((resolve) => setTimeout(resolve, 0));
     });
 
     act(() => {
-      const [, setState] = result.current;
+      const [, setState] = result.current!;
       setState('new');
     });
 
@@ -217,7 +216,7 @@ describe('usePersistedState', () => {
   it('should call onError callback on load error', async () => {
     const onError = jest.fn();
     const error = new Error('Load failed');
-    AsyncStorage.getItem.mockRejectedValue(error);
+    (AsyncStorage.getItem as jest.Mock).mockRejectedValue(error);
 
     renderHook(() => usePersistedState('test-key', 'initial', { onError }));
 
@@ -231,7 +230,7 @@ describe('usePersistedState', () => {
   it('should call onError callback on save error', async () => {
     const onError = jest.fn();
     const error = new Error('Save failed');
-    AsyncStorage.setItem.mockRejectedValue(error);
+    (AsyncStorage.setItem as jest.Mock).mockRejectedValue(error);
 
     const { result } = renderHook(() => usePersistedState('test-key', 'initial', { onError }));
 
@@ -240,7 +239,7 @@ describe('usePersistedState', () => {
     });
 
     act(() => {
-      const [, setState] = result.current;
+      const [, setState] = result.current!;
       setState('new');
     });
 
@@ -254,7 +253,7 @@ describe('usePersistedState', () => {
   it('should call onError callback on clear error', async () => {
     const onError = jest.fn();
     const error = new Error('Clear failed');
-    AsyncStorage.removeItem.mockRejectedValue(error);
+    (AsyncStorage.removeItem as jest.Mock).mockRejectedValue(error);
 
     const { result } = renderHook(() => usePersistedState('test-key', 'initial', { onError }));
 
@@ -263,7 +262,7 @@ describe('usePersistedState', () => {
     });
 
     await act(async () => {
-      const [, , clearState] = result.current;
+      const [, , clearState] = result.current!;
       await clearState();
     });
 
@@ -290,14 +289,14 @@ describe('usePersistedState', () => {
 describe('usePersistedObject', () => {
   beforeEach(() => {
     jest.clearAllMocks();
-    AsyncStorage.getItem.mockResolvedValue(null);
-    AsyncStorage.setItem.mockResolvedValue(null);
+    (AsyncStorage.getItem as jest.Mock).mockResolvedValue(null);
+    (AsyncStorage.setItem as jest.Mock).mockResolvedValue(null);
   });
 
   it('should initialize with initial object', () => {
     const { result } = renderHook(() => usePersistedObject('test-key', { count: 0 }));
 
-    const [state] = result.current;
+    const [state] = result.current!;
     expect(state).toEqual({ count: 0 });
   });
 
@@ -309,11 +308,11 @@ describe('usePersistedObject', () => {
     });
 
     act(() => {
-      const [, updateState] = result.current;
+      const [, updateState] = result.current!;
       updateState({ a: 10 });
     });
 
-    const [state] = result.current;
+    const [state] = result.current!;
     expect(state).toEqual({ a: 10, b: 2 });
   });
 
@@ -325,11 +324,11 @@ describe('usePersistedObject', () => {
     });
 
     act(() => {
-      const [, updateState] = result.current;
-      updateState((prev) => ({ ...prev, count: prev.count + 1 }));
+      const [, updateState] = result.current!;
+      updateState((prev: { count: number }) => ({ ...prev, count: prev.count + 1 }));
     });
 
-    const [state] = result.current;
+    const [state] = result.current!;
     expect(state).toEqual({ count: 1 });
   });
 });
@@ -337,35 +336,35 @@ describe('usePersistedObject', () => {
 describe('usePersistedArray', () => {
   beforeEach(() => {
     jest.clearAllMocks();
-    AsyncStorage.getItem.mockResolvedValue(null);
-    AsyncStorage.setItem.mockResolvedValue(null);
+    (AsyncStorage.getItem as jest.Mock).mockResolvedValue(null);
+    (AsyncStorage.setItem as jest.Mock).mockResolvedValue(null);
   });
 
   it('should initialize with initial array', () => {
     const { result } = renderHook(() => usePersistedArray('test-key', []));
 
-    const [items] = result.current;
+    const [items] = result.current!;
     expect(items).toEqual([]);
   });
 
   it('should push items', async () => {
-    const { result } = renderHook(() => usePersistedArray('test-key', []));
+    const { result } = renderHook(() => usePersistedArray<{ id: number; name: string }>('test-key', []));
 
     await act(async () => {
       await new Promise((resolve) => setTimeout(resolve, 0));
     });
 
     act(() => {
-      const [, helpers] = result.current;
+      const [, helpers] = result.current!;
       helpers.push({ id: 1, name: 'Item 1' });
     });
 
-    const [items] = result.current;
+    const [items] = result.current!;
     expect(items).toEqual([{ id: 1, name: 'Item 1' }]);
   });
 
   it('should remove items by predicate', async () => {
-    AsyncStorage.getItem.mockResolvedValue(
+    (AsyncStorage.getItem as jest.Mock).mockResolvedValue(
       JSON.stringify([
         { id: 1, name: 'Item 1' },
         { id: 2, name: 'Item 2' },
@@ -379,34 +378,34 @@ describe('usePersistedArray', () => {
     });
 
     act(() => {
-      const [, helpers] = result.current;
-      helpers.remove((item) => item.id === 1);
+      const [, helpers] = result.current!;
+      helpers.remove((item: any) => item.id === 1);
     });
 
-    const [items] = result.current;
+    const [items] = result.current!;
     expect(items).toEqual([{ id: 2, name: 'Item 2' }]);
   });
 
   it('should update items by predicate', async () => {
-    AsyncStorage.getItem.mockResolvedValue(
+    (AsyncStorage.getItem as jest.Mock).mockResolvedValue(
       JSON.stringify([
         { id: 1, name: 'Item 1' },
         { id: 2, name: 'Item 2' },
       ])
     );
 
-    const { result } = renderHook(() => usePersistedArray('test-key', []));
+    const { result } = renderHook(() => usePersistedArray<{ id: number; name: string }>('test-key', []));
 
     await act(async () => {
       await new Promise((resolve) => setTimeout(resolve, 0));
     });
 
     act(() => {
-      const [, helpers] = result.current;
-      helpers.update((item) => item.id === 1, { name: 'Updated Item 1' });
+      const [, helpers] = result.current!;
+      helpers.update((item: any) => item.id === 1, { name: 'Updated Item 1' });
     });
 
-    const [items] = result.current;
+    const [items] = result.current!;
     expect(items).toEqual([
       { id: 1, name: 'Updated Item 1' },
       { id: 2, name: 'Item 2' },
@@ -421,11 +420,11 @@ describe('usePersistedArray', () => {
     });
 
     act(() => {
-      const [, helpers] = result.current;
+      const [, helpers] = result.current!;
       helpers.replace([4, 5, 6]);
     });
 
-    const [items] = result.current;
+    const [items] = result.current!;
     expect(items).toEqual([4, 5, 6]);
   });
 });

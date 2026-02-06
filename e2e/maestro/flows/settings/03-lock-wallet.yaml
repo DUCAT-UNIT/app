@@ -1,0 +1,45 @@
+appId: com.ducatprotocol.DucatProtocolWallet
+---
+# Lock Wallet - Verify lock wallet returns to lock screen
+# Import wallet → settings → lock → confirm → verify lock screen
+
+- runFlow: ../helpers/import-wallet-typed.yaml
+
+# Navigate to settings
+- extendedWaitUntil:
+    visible:
+      id: "wallet-screen"
+    timeout: 15000
+- runFlow: ../helpers/dismiss-low-ecash.yaml
+- runFlow: ../helpers/dismiss-airdrop.yaml
+- runFlow:
+    when:
+      visible:
+        id: "passkey-migration-modal"
+    commands:
+      - tapOn:
+          id: "passkey-skip-btn"
+- tapOn:
+    id: "wallet-settings-btn"
+- extendedWaitUntil:
+    visible:
+      id: "settings-screen"
+    timeout: 5000
+
+# Tap lock wallet
+- tapOn:
+    id: "settings-lock-btn"
+
+# Confirmation modal appears - tap Lock button
+- extendedWaitUntil:
+    visible:
+      text: "Lock"
+    timeout: 3000
+- tapOn:
+    text: "Lock"
+
+# Verify we're back at lock screen
+- extendedWaitUntil:
+    visible:
+      id: "lock-screen"
+    timeout: 5000

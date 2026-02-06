@@ -4,20 +4,30 @@ appId: com.ducatprotocol.DucatProtocolWallet
 # Import wallet → kill app → relaunch → PIN → wallet
 
 # First set up a wallet
-- runFlow: ../../helpers/import-wallet.yaml
+- runFlow: ../helpers/import-wallet-typed.yaml
 
-# Kill and relaunch the app (without clearing state)
+# Kill and relaunch the app (without clearing state - wallet persists in SecureStore)
 - stopApp
 - launchApp
-- runFlow: ../../helpers/dismiss-dev-client.yaml
+- openLink: "com.ducatprotocol.DucatProtocolWallet://expo-development-client/?url=http%3A%2F%2Flocalhost%3A8081"
 
-# Lock screen should appear
-- assertVisible:
-    id: "lock-screen"
+# Lock screen should appear (wallet exists, seedConfirmed=true, not authenticated)
+- extendedWaitUntil:
+    visible:
+      id: "lock-screen"
+    timeout: 60000
 
 # Enter PIN to unlock
-- runFlow: ../../helpers/enter-pin-lock.yaml
+- runFlow: ../helpers/enter-pin-lock.yaml
+
+# Dismiss airdrop modal if it appears
+- runFlow: ../helpers/dismiss-airdrop.yaml
+
+# Dismiss low ecash modal if it appears
+- runFlow: ../helpers/dismiss-low-ecash.yaml
 
 # Verify wallet screen loads after unlock
-- assertVisible:
-    id: "wallet-screen"
+- extendedWaitUntil:
+    visible:
+      id: "wallet-screen"
+    timeout: 15000

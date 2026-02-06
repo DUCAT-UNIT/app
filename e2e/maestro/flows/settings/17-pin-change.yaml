@@ -1,0 +1,82 @@
+appId: com.ducatprotocol.DucatProtocolWallet
+---
+# PIN Change - Test PIN change flow from security settings
+# Import wallet → settings → security → change PIN → enter old → enter new × 2 → verify
+
+- runFlow: ../helpers/import-wallet-typed.yaml
+
+# Verify wallet screen
+- extendedWaitUntil:
+    visible:
+      id: "wallet-screen"
+    timeout: 15000
+
+# Dismiss low ecash modal if it appears
+- runFlow: ../helpers/dismiss-low-ecash.yaml
+
+# Dismiss airdrop modal if it appears
+- runFlow: ../helpers/dismiss-airdrop.yaml
+
+# Dismiss passkey migration modal if it appears
+- runFlow:
+    when:
+      visible:
+        id: "passkey-migration-modal"
+    commands:
+      - tapOn:
+          id: "passkey-skip-btn"
+
+# Navigate to settings → security
+- tapOn:
+    id: "wallet-settings-btn"
+- extendedWaitUntil:
+    visible:
+      id: "settings-screen"
+    timeout: 5000
+- tapOn:
+    id: "settings-security-btn"
+- extendedWaitUntil:
+    visible:
+      id: "security-screen"
+    timeout: 5000
+
+# Tap change PIN
+- tapOn:
+    id: "security-change-pin-btn"
+
+# Enter current PIN (123456)
+- runFlow: ../helpers/enter-pin-lock.yaml
+
+# Enter new PIN (654321)
+- tapOn:
+    id: "pin-keypad-6"
+- tapOn:
+    id: "pin-keypad-5"
+- tapOn:
+    id: "pin-keypad-4"
+- tapOn:
+    id: "pin-keypad-3"
+- tapOn:
+    id: "pin-keypad-2"
+- tapOn:
+    id: "pin-keypad-1"
+
+# Confirm new PIN (654321)
+- tapOn:
+    id: "pin-keypad-6"
+- tapOn:
+    id: "pin-keypad-5"
+- tapOn:
+    id: "pin-keypad-4"
+- tapOn:
+    id: "pin-keypad-3"
+- tapOn:
+    id: "pin-keypad-2"
+- tapOn:
+    id: "pin-keypad-1"
+
+# Verify returns to security screen
+- extendedWaitUntil:
+    visible:
+      id: "security-screen"
+    timeout: 10000

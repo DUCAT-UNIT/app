@@ -241,7 +241,7 @@ export default function OnboardingPage({
 
   if (shouldShowWelcome && !isFullySetUp) {
     return (
-      <View style={localStyles.welcomeContainer}>
+      <View style={localStyles.welcomeContainer} testID="onboarding-page">
         <MutinynetBanner />
         <WelcomeScreen {...welcomeProps} />
         <StatusBar style="light" />

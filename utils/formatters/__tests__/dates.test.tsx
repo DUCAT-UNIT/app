@@ -1,4 +1,3 @@
-// @ts-nocheck
 /**
  * Tests for Date Formatting Utilities
  */
@@ -51,7 +50,7 @@ describe('formatTimestamp', () => {
   });
 
   it('should return "Invalid date" for invalid timestamp', () => {
-    expect(formatTimestamp('invalid')).toBe('Invalid date');
+    expect(formatTimestamp('invalid' as any)).toBe('Invalid date');
   });
 
   it('should return "Pending" for NaN', () => {
@@ -205,7 +204,7 @@ describe('isToday', () => {
   it('should return false for invalid input', () => {
     expect(isToday(null)).toBe(false);
     expect(isToday(undefined)).toBe(false);
-    expect(isToday('invalid')).toBe(false);
+    expect(isToday('invalid' as any)).toBe(false);
     expect(isToday(0)).toBe(false);
   });
 });

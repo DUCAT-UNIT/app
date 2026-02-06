@@ -1,6 +1,19 @@
 /**
  * useRepayVault Hook
  * Orchestrates the full repay flow for paying back UNIT debt
+ *
+ * @deprecated This hook is deprecated. Use `useRepayVaultNew` from `hooks/vault` instead.
+ * The new implementation uses the unified `useVaultOperation` base hook which consolidates
+ * common patterns across all vault operations (borrow, deposit, repay, withdraw).
+ *
+ * Migration:
+ * ```ts
+ * // Before
+ * import { useRepayVault } from '../hooks/useRepayVault';
+ *
+ * // After
+ * import { useRepayVaultNew } from '../hooks/vault';
+ * ```
  */
 
 import { useCallback, useRef, useEffect, useState } from 'react';

@@ -1,7 +1,17 @@
-// @ts-nocheck
 /**
  * Tests for turboTokenStorage service
  */
+
+/**
+ * Extended global interface for testing turbo token storage
+ */
+interface TurboTokenStorageGlobal {
+  processedCashuTokens?: Set<string> | { has?: jest.Mock };
+  processedCashuTokensLoading?: boolean;
+}
+
+// Type-safe global accessor for tests
+const testGlobal = global as typeof global & TurboTokenStorageGlobal;
 
 // Mock dependencies BEFORE imports
 jest.mock('expo-secure-store', () => ({
@@ -40,8 +50,8 @@ describe('turboTokenStorage', () => {
   beforeEach(() => {
     jest.clearAllMocks();
     // Reset global state
-    delete (global as any).processedCashuTokens;
-    delete (global as any).processedCashuTokensLoading;
+    delete testGlobal.processedCashuTokens;
+    delete testGlobal.processedCashuTokensLoading;
     (Crypto.digestStringAsync as jest.Mock).mockResolvedValue('mockedHashValue');
     (SecureStore.getItemAsync as jest.Mock).mockResolvedValue(null);
     (SecureStore.setItemAsync as jest.Mock).mockResolvedValue(undefined);
@@ -138,22 +148,22 @@ describe('turboTokenStorage', () => {
 
   describe('markTokenAsProcessed', () => {
     it('should mark token as processed when global set exists', async () => {
-      (global as any).processedCashuTokens = new Set<string>();
+      testGlobal.processedCashuTokens = new Set<string>();
 
       await markTokenAsProcessed('cashuAtoken');
 
-      expect((global as any).processedCashuTokens.has('mockedHashValue')).toBe(true);
+      expect(testGlobal.processedCashuTokens.has('mockedHashValue')).toBe(true);
       expect(SecureStore.setItemAsync).toHaveBeenCalled();
     });
 
     it('should not throw when global set does not exist', async () => {
-      delete (global as any).processedCashuTokens;
+      delete testGlobal.processedCashuTokens;
 
       await expect(markTokenAsProcessed('cashuAtoken')).resolves.not.toThrow();
     });
 
     it('should handle errors gracefully', async () => {
-      (global as any).processedCashuTokens = new Set<string>();
+      testGlobal.processedCashuTokens = new Set<string>();
       (Crypto.digestStringAsync as jest.Mock).mockRejectedValue(new Error('Hash error'));
 
       // Should not throw
@@ -163,11 +173,11 @@ describe('turboTokenStorage', () => {
     it('should log error when add operation fails (line 73)', async () => {
       const { logger } = require('../../../utils/logger');
       // Set up a fake object that throws when add is called
-      (global as any).processedCashuTokens = {
+      testGlobal.processedCashuTokens = {
         add: jest.fn().mockImplementation(() => {
           throw new Error('Add operation failed');
         }),
-      };
+      } as any;
 
       await markTokenAsProcessed('cashuAtoken');
 
@@ -180,7 +190,7 @@ describe('turboTokenStorage', () => {
 
   describe('isTokenProcessed', () => {
     it('should return true for processed token', async () => {
-      (global as any).processedCashuTokens = new Set(['mockedHashValue']);
+      testGlobal.processedCashuTokens = new Set(['mockedHashValue']);
 
       const result = await isTokenProcessed('cashuAtoken');
 
@@ -188,7 +198,7 @@ describe('turboTokenStorage', () => {
     });
 
     it('should return false for unprocessed token', async () => {
-      (global as any).processedCashuTokens = new Set(['otherHash']);
+      testGlobal.processedCashuTokens = new Set(['otherHash']);
 
       const result = await isTokenProcessed('cashuAtoken');
 
@@ -196,7 +206,7 @@ describe('turboTokenStorage', () => {
     });
 
     it('should return false when global set does not exist', async () => {
-      delete (global as any).processedCashuTokens;
+      delete testGlobal.processedCashuTokens;
 
       const result = await isTokenProcessed('cashuAtoken');
 
@@ -205,7 +215,7 @@ describe('turboTokenStorage', () => {
     });
 
     it('should return false on error', async () => {
-      (global as any).processedCashuTokens = new Set<string>();
+      testGlobal.processedCashuTokens = new Set<string>();
       (Crypto.digestStringAsync as jest.Mock).mockRejectedValue(new Error('Hash error'));
 
       const result = await isTokenProcessed('cashuAtoken');
@@ -216,7 +226,7 @@ describe('turboTokenStorage', () => {
     it('should log error and return false when has operation fails (lines 85-86)', async () => {
       const { logger } = require('../../../utils/logger');
       // Set up a fake object that throws when has is called
-      (global as any).processedCashuTokens = {
+      testGlobal.processedCashuTokens = {
         has: jest.fn().mockImplementation(() => {
           throw new Error('Has operation failed');
         }),
@@ -238,18 +248,18 @@ describe('turboTokenStorage', () => {
 
       await initializeTokenStorage();
 
-      expect((global as any).processedCashuTokens).toBeInstanceOf(Set);
-      expect((global as any).processedCashuTokens.size).toBe(2);
-      expect((global as any).processedCashuTokensLoading).toBe(false);
+      expect(testGlobal.processedCashuTokens).toBeInstanceOf(Set);
+      expect((testGlobal.processedCashuTokens as Set<string>).size).toBe(2);
+      expect(testGlobal.processedCashuTokensLoading).toBe(false);
     });
 
     it('should not reinitialize if already initialized', async () => {
-      (global as any).processedCashuTokens = new Set(['existingHash']);
+      testGlobal.processedCashuTokens = new Set(['existingHash']);
 
       await initializeTokenStorage();
 
       expect(SecureStore.getItemAsync as jest.Mock).not.toHaveBeenCalled();
-      expect((global as any).processedCashuTokens.has('existingHash')).toBe(true);
+      expect(testGlobal.processedCashuTokens.has('existingHash')).toBe(true);
     });
 
     it('should handle load errors and create empty set', async () => {
@@ -257,9 +267,9 @@ describe('turboTokenStorage', () => {
 
       await initializeTokenStorage();
 
-      expect((global as any).processedCashuTokens).toBeInstanceOf(Set);
-      expect((global as any).processedCashuTokens.size).toBe(0);
-      expect((global as any).processedCashuTokensLoading).toBe(false);
+      expect(testGlobal.processedCashuTokens).toBeInstanceOf(Set);
+      expect((testGlobal.processedCashuTokens as Set<string>).size).toBe(0);
+      expect(testGlobal.processedCashuTokensLoading).toBe(false);
     });
 
     it('should log error and create empty set when loadProcessedTokens throws (lines 103-105)', async () => {
@@ -277,23 +287,23 @@ describe('turboTokenStorage', () => {
         '[TURBO] Failed to load processed tokens, starting fresh:',
         expect.objectContaining({ message: 'Logger debug failed' })
       );
-      expect((global as any).processedCashuTokens).toBeInstanceOf(Set);
-      expect((global as any).processedCashuTokens.size).toBe(0);
-      expect((global as any).processedCashuTokensLoading).toBe(false);
+      expect(testGlobal.processedCashuTokens).toBeInstanceOf(Set);
+      expect((testGlobal.processedCashuTokens as Set<string>).size).toBe(0);
+      expect(testGlobal.processedCashuTokensLoading).toBe(false);
     });
 
     it('should set loading flag during initialization', async () => {
       let loadingDuringInit = null;
 
       (SecureStore.getItemAsync as jest.Mock).mockImplementation(() => {
-        loadingDuringInit = (global as any).processedCashuTokensLoading;
+        loadingDuringInit = testGlobal.processedCashuTokensLoading;
         return Promise.resolve(null);
       });
 
       await initializeTokenStorage();
 
       expect(loadingDuringInit).toBe(true);
-      expect((global as any).processedCashuTokensLoading).toBe(false);
+      expect(testGlobal.processedCashuTokensLoading).toBe(false);
     });
   });
 });

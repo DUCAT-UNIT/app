@@ -1,4 +1,3 @@
-// @ts-nocheck
 /**
  * Tests for useBackgroundSplash Hook
  */
@@ -9,22 +8,22 @@ import { AppState } from 'react-native';
 import { useBackgroundSplash } from '../useBackgroundSplash';
 
 // Helper to render hooks with react-test-renderer
-function renderHook(hook) {
-  const result = { current: null };
+function renderHook<T>(hook: () => T) {
+  const result: { current: T | null } = { current: null };
 
   function TestComponent() {
     result.current = hook();
     return null;
   }
 
-  let component;
+  let component: ReturnType<typeof create> | undefined;
   act(() => {
     component = create(<TestComponent />);
   });
 
   return {
     result,
-    unmount: () => component.unmount(),
+    unmount: () => component?.unmount(),
   };
 }
 
@@ -35,14 +34,14 @@ jest.mock('react-native/Libraries/AppState/AppState', () => ({
 }));
 
 describe('useBackgroundSplash', () => {
-  let mockEventListener;
-  let mockSubscription;
+  let mockEventListener: ((state: string) => void) | null;
+  let mockSubscription: { remove: jest.Mock };
 
   beforeEach(() => {
     mockEventListener = null;
     mockSubscription = { remove: jest.fn() };
 
-    AppState.addEventListener.mockImplementation((event, listener) => {
+    (AppState.addEventListener as jest.Mock).mockImplementation((_event: string, listener: (state: string) => void) => {
       mockEventListener = listener;
       return mockSubscription;
     });
@@ -55,7 +54,7 @@ describe('useBackgroundSplash', () => {
   it('should initialize with splash hidden', () => {
     const { result } = renderHook(() => useBackgroundSplash());
 
-    expect(result.current.opacityRef._value).toBe(0);
+    expect((result.current!.opacityRef as any)._value).toBe(0);
   });
 
   it('should set up AppState listener on mount', () => {
@@ -67,13 +66,13 @@ describe('useBackgroundSplash', () => {
   it('should show splash when app goes to background', () => {
     const { result } = renderHook(() => useBackgroundSplash());
 
-    expect(result.current.opacityRef._value).toBe(0);
+    expect((result.current!.opacityRef as any)._value).toBe(0);
 
     act(() => {
-      mockEventListener('background');
+      mockEventListener!('background');
     });
 
-    expect(result.current.opacityRef._value).toBe(1);
+    expect((result.current!.opacityRef as any)._value).toBe(1);
   });
 
   it('should hide splash when app becomes active', () => {
@@ -81,29 +80,29 @@ describe('useBackgroundSplash', () => {
 
     // First, show splash
     act(() => {
-      mockEventListener('background');
+      mockEventListener!('background');
     });
-    expect(result.current.opacityRef._value).toBe(1);
+    expect((result.current!.opacityRef as any)._value).toBe(1);
 
     // Then, go to active - animation starts to 0
     act(() => {
-      mockEventListener('active');
+      mockEventListener!('active');
     });
     // Note: Animated.timing is mocked to call callback immediately, so value should be 0
-    expect(result.current.opacityRef._value).toBe(0);
+    expect((result.current!.opacityRef as any)._value).toBe(0);
   });
 
   it('should show splash when app becomes inactive', () => {
     const { result } = renderHook(() => useBackgroundSplash());
 
     // First, ensure starting hidden
-    expect(result.current.opacityRef._value).toBe(0);
+    expect((result.current!.opacityRef as any)._value).toBe(0);
 
     // Go to inactive (e.g., during Face ID) - should show splash
     act(() => {
-      mockEventListener('inactive');
+      mockEventListener!('inactive');
     });
-    expect(result.current.opacityRef._value).toBe(1);
+    expect((result.current!.opacityRef as any)._value).toBe(1);
   });
 
   it('should handle background -> inactive -> active transition correctly', () => {
@@ -111,21 +110,21 @@ describe('useBackgroundSplash', () => {
 
     // Go to background
     act(() => {
-      mockEventListener('background');
+      mockEventListener!('background');
     });
-    expect(result.current.opacityRef._value).toBe(1);
+    expect((result.current!.opacityRef as any)._value).toBe(1);
 
     // Transition to inactive - splash should stay shown
     act(() => {
-      mockEventListener('inactive');
+      mockEventListener!('inactive');
     });
-    expect(result.current.opacityRef._value).toBe(1);
+    expect((result.current!.opacityRef as any)._value).toBe(1);
 
     // Finally to active - should hide
     act(() => {
-      mockEventListener('active');
+      mockEventListener!('active');
     });
-    expect(result.current.opacityRef._value).toBe(0);
+    expect((result.current!.opacityRef as any)._value).toBe(0);
   });
 
   it('should show splash for inactive state', () => {
@@ -133,11 +132,11 @@ describe('useBackgroundSplash', () => {
 
     // App goes inactive (e.g., Face ID prompt, notification, control center)
     act(() => {
-      mockEventListener('inactive');
+      mockEventListener!('inactive');
     });
 
     // SHOULD show splash for inactive state to protect sensitive info
-    expect(result.current.opacityRef._value).toBe(1);
+    expect((result.current!.opacityRef as any)._value).toBe(1);
   });
 
   it('should handle multiple background/active cycles', () => {
@@ -145,25 +144,25 @@ describe('useBackgroundSplash', () => {
 
     // Cycle 1: background -> active
     act(() => {
-      mockEventListener('background');
+      mockEventListener!('background');
     });
-    expect(result.current.opacityRef._value).toBe(1);
+    expect((result.current!.opacityRef as any)._value).toBe(1);
 
     act(() => {
-      mockEventListener('active');
+      mockEventListener!('active');
     });
-    expect(result.current.opacityRef._value).toBe(0);
+    expect((result.current!.opacityRef as any)._value).toBe(0);
 
     // Cycle 2: background -> active
     act(() => {
-      mockEventListener('background');
+      mockEventListener!('background');
     });
-    expect(result.current.opacityRef._value).toBe(1);
+    expect((result.current!.opacityRef as any)._value).toBe(1);
 
     act(() => {
-      mockEventListener('active');
+      mockEventListener!('active');
     });
-    expect(result.current.opacityRef._value).toBe(0);
+    expect((result.current!.opacityRef as any)._value).toBe(0);
   });
 
   it('should remove listener on unmount', () => {

@@ -1,6 +1,19 @@
 /**
  * useBorrowVault Hook
  * Orchestrates the full borrow flow for borrowing more UNIT from an existing vault
+ *
+ * @deprecated This hook is deprecated. Use `useBorrowVaultNew` from `hooks/vault` instead.
+ * The new implementation uses the unified `useVaultOperation` base hook which consolidates
+ * common patterns across all vault operations (borrow, deposit, repay, withdraw).
+ *
+ * Migration:
+ * ```ts
+ * // Before
+ * import { useBorrowVault } from '../hooks/useBorrowVault';
+ *
+ * // After
+ * import { useBorrowVaultNew } from '../hooks/vault';
+ * ```
  */
 
 import { useCallback, useRef, useEffect, useState } from 'react';

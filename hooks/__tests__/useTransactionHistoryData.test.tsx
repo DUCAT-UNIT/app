@@ -1,4 +1,3 @@
-// @ts-nocheck
 /**
  * Tests for useTransactionHistoryData hook
  */
@@ -14,11 +13,11 @@ import { Linking } from 'react-native';
 jest.mock('../../contexts/WalletDataContext');
 jest.mock('../../services/transactionHistoryService');
 jest.mock('../../contexts/NavigationHandlersContext', () => ({
-  useNavigationHandlers: () => ({
+  useNavigationHandlers: jest.fn(() => ({
     settingsHandlers: {
       advancedMode: false,
     },
-  }),
+  })),
 }));
 jest.mock('../../services/cashu/cashuLockedTokensService', () => ({
   getSentLockedTokens: jest.fn(() => Promise.resolve([])),
@@ -28,10 +27,10 @@ jest.mock('../../services/cashu/cashuLockedTokensService', () => ({
 
 // Mock tokenStatusService - delegates to underlying token fetching mocks
 jest.mock('../../services/cashu/tokenStatusService', () => ({
-  loadTokensWithStatus: async (taprootAddress, getSentLockedTokens, getReceivedTokens) => {
+  loadTokensWithStatus: async (taprootAddress: string, getSentLockedTokens: (addr: string) => Promise<unknown[]>, getReceivedTokens: (addr: string) => Promise<unknown[]>) => {
     const sent = await getSentLockedTokens(taprootAddress);
     const received = await getReceivedTokens(taprootAddress);
-    return [...sent, ...received].map(t => ({ ...t, claimed: t.claimed ?? false }));
+    return [...sent, ...received].map((t: any) => ({ ...t, claimed: t.claimed ?? false }));
   },
   checkTokensStatus: jest.fn(),
   checkTokenStatus: jest.fn(),
@@ -39,27 +38,35 @@ jest.mock('../../services/cashu/tokenStatusService', () => ({
 }));
 
 // Helper to render hooks
-function renderHook(hook, initialProps) {
-  let props = initialProps;
-  const result = { current: null };
+interface HookProps {
+  showHistorySheet: boolean;
+  segwitAddress: string | undefined;
+  taprootAddress: string | undefined;
+}
 
-  function TestComponent({ hookProps }) {
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+function renderHook(hook: (...args: any[]) => any, initialProps: HookProps) {
+  let props: HookProps = initialProps;
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const result: { current: any } = { current: null };
+
+  function TestComponent({ hookProps }: { hookProps: HookProps }) {
     result.current = hook(hookProps.showHistorySheet, hookProps.segwitAddress, hookProps.taprootAddress);
     return null;
   }
 
-  let component;
+  let component: ReturnType<typeof create> | undefined;
   act(() => {
     component = create(<TestComponent hookProps={props} />);
   });
 
   return {
     result,
-    unmount: () => component.unmount(),
-    rerender: (newProps) => {
+    unmount: () => component?.unmount(),
+    rerender: (newProps: HookProps) => {
       props = newProps;
       act(() => {
-        component.update(<TestComponent hookProps={newProps} />);
+        component?.update(<TestComponent hookProps={newProps} />);
       });
     }
   };
@@ -74,28 +81,28 @@ describe('useTransactionHistoryData', () => {
   beforeEach(() => {
     jest.clearAllMocks();
 
-    WalletDataContext.useTransactionHistory.mockReturnValue({
+    (WalletDataContext.useTransactionHistory as jest.Mock).mockReturnValue({
       transactionHistory: [],
       loadingTransactionHistory: false,
       fetchTransactionHistory: mockFetchTransactionHistory,
     });
 
     // Mock useEcashTokens - pre-loaded ecash tokens from context
-    WalletDataContext.useEcashTokens.mockReturnValue({
+    (WalletDataContext.useEcashTokens as jest.Mock).mockReturnValue({
       ecashTokens: [],
       loadingEcashTokens: false,
       fetchEcashTokens: mockFetchEcashTokens,
       resetEcashTokens: jest.fn(),
     });
 
-    transactionHistoryService.calculateTransactionAmount.mockReturnValue({
+    (transactionHistoryService.calculateTransactionAmount as jest.Mock).mockReturnValue({
       amount: 100000,
       type: 'BTC',
       isSelfTransfer: false,
     });
 
-    Linking.canOpenURL.mockResolvedValue(true);
-    Linking.openURL.mockResolvedValue(undefined);
+    (Linking.canOpenURL as jest.Mock).mockResolvedValue(true);
+    (Linking.openURL as jest.Mock).mockResolvedValue(undefined);
   });
 
   it('should initialize with empty data', () => {
@@ -105,8 +112,8 @@ describe('useTransactionHistoryData', () => {
     );
 
     // Loading is false initially when sheet is closed
-    expect(result.current.loading).toBe(false);
-    expect(result.current.displayTransactions).toEqual([]);
+    expect(result.current!.loading).toBe(false);
+    expect(result.current!.displayTransactions).toEqual([]);
   });
 
   it('should fetch transaction history when sheet opens', () => {
@@ -121,7 +128,7 @@ describe('useTransactionHistoryData', () => {
   });
 
   it('should show loading when no cached data and loading from context', () => {
-    WalletDataContext.useTransactionHistory.mockReturnValue({
+    (WalletDataContext.useTransactionHistory as jest.Mock).mockReturnValue({
       transactionHistory: [],
       loadingTransactionHistory: true,
       fetchTransactionHistory: mockFetchTransactionHistory,
@@ -132,11 +139,11 @@ describe('useTransactionHistoryData', () => {
       { showHistorySheet: true, segwitAddress: mockSegwitAddress, taprootAddress: mockTaprootAddress }
     );
 
-    expect(result.current.loading).toBe(true);
+    expect(result.current!.loading).toBe(true);
   });
 
   it('should not show loading when cached data exists', () => {
-    WalletDataContext.useTransactionHistory.mockReturnValue({
+    (WalletDataContext.useTransactionHistory as jest.Mock).mockReturnValue({
       transactionHistory: [{ txid: 'tx1', confirmations: 6 }],
       loadingTransactionHistory: false,
       fetchTransactionHistory: mockFetchTransactionHistory,
@@ -148,7 +155,7 @@ describe('useTransactionHistoryData', () => {
     );
 
     // With cached data and not loading, loading should be false
-    expect(result.current.loading).toBe(false);
+    expect(result.current!.loading).toBe(false);
   });
 
   it('should filter out self-transfers', () => {
@@ -157,14 +164,14 @@ describe('useTransactionHistoryData', () => {
       { txid: 'tx2', confirmations: 3 },
     ];
 
-    WalletDataContext.useTransactionHistory.mockReturnValue({
+    (WalletDataContext.useTransactionHistory as jest.Mock).mockReturnValue({
       transactionHistory: mockTransactions,
       loadingTransactionHistory: false,
       fetchTransactionHistory: mockFetchTransactionHistory,
     });
 
     // Mock to return different values based on which tx is being processed
-    transactionHistoryService.calculateTransactionAmount.mockImplementation((tx) => {
+    (transactionHistoryService.calculateTransactionAmount as jest.Mock).mockImplementation((tx) => {
       if (tx.txid === 'tx1') {
         return { amount: 100000, type: 'BTC', isSelfTransfer: false };
       } else if (tx.txid === 'tx2') {
@@ -178,8 +185,8 @@ describe('useTransactionHistoryData', () => {
       { showHistorySheet: false, segwitAddress: mockSegwitAddress, taprootAddress: mockTaprootAddress }
     );
 
-    expect(result.current.displayTransactions).toHaveLength(1);
-    expect(result.current.displayTransactions[0].txid).toBe('tx1');
+    expect(result.current!.displayTransactions).toHaveLength(1);
+    expect(result.current!.displayTransactions[0].txid).toBe('tx1');
   });
 
   it('should filter out zero amount transactions', () => {
@@ -188,7 +195,7 @@ describe('useTransactionHistoryData', () => {
       { txid: 'tx2', confirmations: 3 },
     ];
 
-    WalletDataContext.useTransactionHistory.mockReturnValue({
+    (WalletDataContext.useTransactionHistory as jest.Mock).mockReturnValue({
       transactionHistory: mockTransactions,
       loadingTransactionHistory: false,
       fetchTransactionHistory: mockFetchTransactionHistory,
@@ -196,7 +203,7 @@ describe('useTransactionHistoryData', () => {
 
     // Mock to return different values based on which tx is being processed
     // Note: calculateTransactionAmount is called twice per transaction (filter + map)
-    transactionHistoryService.calculateTransactionAmount.mockImplementation((tx) => {
+    (transactionHistoryService.calculateTransactionAmount as jest.Mock).mockImplementation((tx) => {
       if (tx.txid === 'tx1') {
         return { amount: 100000, type: 'BTC', isSelfTransfer: false };
       } else if (tx.txid === 'tx2') {
@@ -210,7 +217,7 @@ describe('useTransactionHistoryData', () => {
       { showHistorySheet: false, segwitAddress: mockSegwitAddress, taprootAddress: mockTaprootAddress }
     );
 
-    expect(result.current.displayTransactions).toHaveLength(1);
+    expect(result.current!.displayTransactions).toHaveLength(1);
   });
 
   it('should always show vault transactions', () => {
@@ -218,7 +225,7 @@ describe('useTransactionHistoryData', () => {
       { txid: 'tx1', confirmations: 6, vaultTransaction: true },
     ];
 
-    WalletDataContext.useTransactionHistory.mockReturnValue({
+    (WalletDataContext.useTransactionHistory as jest.Mock).mockReturnValue({
       transactionHistory: mockTransactions,
       loadingTransactionHistory: false,
       fetchTransactionHistory: mockFetchTransactionHistory,
@@ -229,8 +236,8 @@ describe('useTransactionHistoryData', () => {
       { showHistorySheet: false, segwitAddress: mockSegwitAddress, taprootAddress: mockTaprootAddress }
     );
 
-    expect(result.current.displayTransactions).toHaveLength(1);
-    expect(result.current.displayTransactions[0].vaultTransaction).toBe(true);
+    expect(result.current!.displayTransactions).toHaveLength(1);
+    expect(result.current!.displayTransactions[0].vaultTransaction).toBe(true);
   });
 
   it('should attach txData for sent transactions', () => {
@@ -238,13 +245,13 @@ describe('useTransactionHistoryData', () => {
       { txid: 'tx1', confirmations: 6 },
     ];
 
-    WalletDataContext.useTransactionHistory.mockReturnValue({
+    (WalletDataContext.useTransactionHistory as jest.Mock).mockReturnValue({
       transactionHistory: mockTransactions,
       loadingTransactionHistory: false,
       fetchTransactionHistory: mockFetchTransactionHistory,
     });
 
-    transactionHistoryService.calculateTransactionAmount.mockReturnValue({
+    (transactionHistoryService.calculateTransactionAmount as jest.Mock).mockReturnValue({
       amount: -100000,
       type: 'BTC',
       isSelfTransfer: false,
@@ -255,10 +262,10 @@ describe('useTransactionHistoryData', () => {
       { showHistorySheet: false, segwitAddress: mockSegwitAddress, taprootAddress: mockTaprootAddress }
     );
 
-    expect(result.current.displayTransactions[0].txData).toBeDefined();
-    expect(result.current.displayTransactions[0].txData.isSent).toBe(true);
-    expect(result.current.displayTransactions[0].txData.isReceived).toBe(false);
-    expect(result.current.displayTransactions[0].txData.assetType).toBe('BTC');
+    expect(result.current!.displayTransactions[0].txData).toBeDefined();
+    expect(result.current!.displayTransactions[0].txData.isSent).toBe(true);
+    expect(result.current!.displayTransactions[0].txData.isReceived).toBe(false);
+    expect(result.current!.displayTransactions[0].txData.assetType).toBe('BTC');
   });
 
   it('should attach txData for received transactions', () => {
@@ -266,13 +273,13 @@ describe('useTransactionHistoryData', () => {
       { txid: 'tx1', confirmations: 6 },
     ];
 
-    WalletDataContext.useTransactionHistory.mockReturnValue({
+    (WalletDataContext.useTransactionHistory as jest.Mock).mockReturnValue({
       transactionHistory: mockTransactions,
       loadingTransactionHistory: false,
       fetchTransactionHistory: mockFetchTransactionHistory,
     });
 
-    transactionHistoryService.calculateTransactionAmount.mockReturnValue({
+    (transactionHistoryService.calculateTransactionAmount as jest.Mock).mockReturnValue({
       amount: 100000,
       type: 'BTC',
       isSelfTransfer: false,
@@ -283,9 +290,9 @@ describe('useTransactionHistoryData', () => {
       { showHistorySheet: false, segwitAddress: mockSegwitAddress, taprootAddress: mockTaprootAddress }
     );
 
-    expect(result.current.displayTransactions[0].txData).toBeDefined();
-    expect(result.current.displayTransactions[0].txData.isSent).toBe(false);
-    expect(result.current.displayTransactions[0].txData.isReceived).toBe(true);
+    expect(result.current!.displayTransactions[0].txData).toBeDefined();
+    expect(result.current!.displayTransactions[0].txData.isSent).toBe(false);
+    expect(result.current!.displayTransactions[0].txData.isReceived).toBe(true);
   });
 
   it('should handle BigInt amounts for UNIT transactions', () => {
@@ -293,13 +300,13 @@ describe('useTransactionHistoryData', () => {
       { txid: 'tx1', confirmations: 6 },
     ];
 
-    WalletDataContext.useTransactionHistory.mockReturnValue({
+    (WalletDataContext.useTransactionHistory as jest.Mock).mockReturnValue({
       transactionHistory: mockTransactions,
       loadingTransactionHistory: false,
       fetchTransactionHistory: mockFetchTransactionHistory,
     });
 
-    transactionHistoryService.calculateTransactionAmount.mockReturnValue({
+    (transactionHistoryService.calculateTransactionAmount as jest.Mock).mockReturnValue({
       amount: 1000000n,
       type: 'UNIT',
       isSelfTransfer: false,
@@ -310,8 +317,8 @@ describe('useTransactionHistoryData', () => {
       { showHistorySheet: false, segwitAddress: mockSegwitAddress, taprootAddress: mockTaprootAddress }
     );
 
-    expect(result.current.displayTransactions[0].txData.numericAmount).toBe(1000000);
-    expect(result.current.displayTransactions[0].txData.assetType).toBe('UNIT');
+    expect(result.current!.displayTransactions[0].txData.numericAmount).toBe(1000000);
+    expect(result.current!.displayTransactions[0].txData.assetType).toBe('UNIT');
   });
 
   it('should open BTC transaction in explorer', async () => {
@@ -321,7 +328,7 @@ describe('useTransactionHistoryData', () => {
     );
 
     await act(async () => {
-      await result.current.openTxInExplorer('tx123', 'BTC');
+      await result.current!.openTxInExplorer('tx123', 'BTC');
     });
 
     expect(Linking.canOpenURL).toHaveBeenCalled();
@@ -335,7 +342,7 @@ describe('useTransactionHistoryData', () => {
     );
 
     await act(async () => {
-      await result.current.openTxInExplorer('tx123', 'UNIT');
+      await result.current!.openTxInExplorer('tx123', 'UNIT');
     });
 
     expect(Linking.canOpenURL).toHaveBeenCalled();
@@ -343,7 +350,7 @@ describe('useTransactionHistoryData', () => {
   });
 
   it('should handle unsupported URL gracefully', async () => {
-    Linking.canOpenURL.mockResolvedValue(false);
+    (Linking.canOpenURL as jest.Mock).mockResolvedValue(false);
 
     const { result } = renderHook(
       useTransactionHistoryData,
@@ -351,7 +358,7 @@ describe('useTransactionHistoryData', () => {
     );
 
     await act(async () => {
-      await result.current.openTxInExplorer('tx123', 'BTC');
+      await result.current!.openTxInExplorer('tx123', 'BTC');
     });
 
     expect(Linking.canOpenURL).toHaveBeenCalled();
@@ -359,7 +366,7 @@ describe('useTransactionHistoryData', () => {
   });
 
   it('should handle linking errors gracefully', async () => {
-    Linking.openURL.mockRejectedValue(new Error('Failed to open'));
+    (Linking.openURL as jest.Mock).mockRejectedValue(new Error('Failed to open'));
 
     const { result } = renderHook(
       useTransactionHistoryData,
@@ -368,7 +375,7 @@ describe('useTransactionHistoryData', () => {
 
     // Should not throw
     await act(async () => {
-      await result.current.openTxInExplorer('tx123', 'BTC');
+      await result.current!.openTxInExplorer('tx123', 'BTC');
     });
 
     expect(Linking.openURL).toHaveBeenCalled();
@@ -380,7 +387,7 @@ describe('useTransactionHistoryData', () => {
 
   describe('Missing addresses', () => {
     it('should return empty transactions when segwitAddress is missing', () => {
-      WalletDataContext.useTransactionHistory.mockReturnValue({
+      (WalletDataContext.useTransactionHistory as jest.Mock).mockReturnValue({
         transactionHistory: [{ txid: 'tx1', confirmations: 6 }],
         loadingTransactionHistory: false,
         fetchTransactionHistory: mockFetchTransactionHistory,
@@ -391,11 +398,11 @@ describe('useTransactionHistoryData', () => {
         { showHistorySheet: true, segwitAddress: undefined, taprootAddress: mockTaprootAddress }
       );
 
-      expect(result.current.displayTransactions).toEqual([]);
+      expect(result.current!.displayTransactions).toEqual([]);
     });
 
     it('should return empty transactions when taprootAddress is missing', () => {
-      WalletDataContext.useTransactionHistory.mockReturnValue({
+      (WalletDataContext.useTransactionHistory as jest.Mock).mockReturnValue({
         transactionHistory: [{ txid: 'tx1', confirmations: 6 }],
         loadingTransactionHistory: false,
         fetchTransactionHistory: mockFetchTransactionHistory,
@@ -406,7 +413,7 @@ describe('useTransactionHistoryData', () => {
         { showHistorySheet: true, segwitAddress: mockSegwitAddress, taprootAddress: undefined }
       );
 
-      expect(result.current.displayTransactions).toEqual([]);
+      expect(result.current!.displayTransactions).toEqual([]);
     });
   });
 
@@ -420,7 +427,7 @@ describe('useTransactionHistoryData', () => {
         }),
       }));
 
-      WalletDataContext.useTransactionHistory.mockReturnValue({
+      (WalletDataContext.useTransactionHistory as jest.Mock).mockReturnValue({
         transactionHistory: [],
         loadingTransactionHistory: false,
         fetchTransactionHistory: mockFetchTransactionHistory,
@@ -432,7 +439,7 @@ describe('useTransactionHistoryData', () => {
       );
 
       // With advanced mode on, only regular transactions should be shown
-      expect(result.current.displayTransactions).toEqual([]);
+      expect(result.current!.displayTransactions).toEqual([]);
     });
   });
 
@@ -443,16 +450,24 @@ describe('useTransactionHistoryData', () => {
 
     it('should use pre-loaded ecash tokens from context when sheet opens', async () => {
       // Now ecash tokens are pre-loaded from context, not fetched on demand
-      WalletDataContext.useTransactionHistory.mockReturnValue({
+      // fetchEcashTokens is only called when advancedMode is true
+      const { useNavigationHandlers } = jest.requireMock('../../contexts/NavigationHandlersContext');
+      (useNavigationHandlers as jest.Mock).mockReturnValue({
+        settingsHandlers: {
+          advancedMode: true, // Must be true for fetchEcashTokens to be called
+        },
+      });
+
+      (WalletDataContext.useTransactionHistory as jest.Mock).mockReturnValue({
         transactionHistory: [],
         loadingTransactionHistory: false,
         fetchTransactionHistory: mockFetchTransactionHistory,
       });
 
       // Mock pre-loaded ecash tokens from context
-      WalletDataContext.useEcashTokens.mockReturnValue({
+      (WalletDataContext.useEcashTokens as jest.Mock).mockReturnValue({
         ecashTokens: [
-          { id: 'token1', token: 'cashuAbc123', amount: 10000, timestamp: 2000, claimed: false },
+          { id: 'token1', token: 'cashuAbc123', amount: 10000, timestamp: 2000, claimed: false, recipient: 'someone' },
           { id: 'token2', token: 'cashuDef456', amount: 5000, timestamp: 3000, claimed: true, sender: 'someone' },
         ],
         loadingEcashTokens: false,
@@ -472,10 +487,10 @@ describe('useTransactionHistoryData', () => {
         await Promise.resolve();
       });
 
-      // Should call fetchEcashTokens for background refresh when sheet opens
+      // Should call fetchEcashTokens for background refresh when sheet opens (only in advancedMode)
       expect(mockFetchEcashTokens).toHaveBeenCalled();
-      // Should include pre-loaded ecash tokens in display
-      expect(result.current.displayTransactions.length).toBeGreaterThan(0);
+      // Should include pre-loaded ecash tokens in display (advancedMode shows ecash)
+      expect(result.current!.displayTransactions.length).toBeGreaterThan(0);
     });
 
     it('should handle token with cached claimed status', async () => {
@@ -487,7 +502,7 @@ describe('useTransactionHistoryData', () => {
       ]);
       mockGetReceivedTokens.mockResolvedValue([]);
 
-      WalletDataContext.useTransactionHistory.mockReturnValue({
+      (WalletDataContext.useTransactionHistory as jest.Mock).mockReturnValue({
         transactionHistory: [],
         loadingTransactionHistory: false,
         fetchTransactionHistory: mockFetchTransactionHistory,
@@ -507,7 +522,7 @@ describe('useTransactionHistoryData', () => {
       });
 
       // Should find ecash transactions in the display
-      expect(result.current.displayTransactions.length).toBeGreaterThanOrEqual(0);
+      expect(result.current!.displayTransactions.length).toBeGreaterThanOrEqual(0);
     });
 
     it('should handle token without valid token string', async () => {
@@ -519,7 +534,7 @@ describe('useTransactionHistoryData', () => {
       ]);
       mockGetReceivedTokens.mockResolvedValue([]);
 
-      WalletDataContext.useTransactionHistory.mockReturnValue({
+      (WalletDataContext.useTransactionHistory as jest.Mock).mockReturnValue({
         transactionHistory: [],
         loadingTransactionHistory: false,
         fetchTransactionHistory: mockFetchTransactionHistory,
@@ -551,7 +566,7 @@ describe('useTransactionHistoryData', () => {
       ]);
       mockGetReceivedTokens.mockResolvedValue([]);
 
-      WalletDataContext.useTransactionHistory.mockReturnValue({
+      (WalletDataContext.useTransactionHistory as jest.Mock).mockReturnValue({
         transactionHistory: [],
         loadingTransactionHistory: false,
         fetchTransactionHistory: mockFetchTransactionHistory,
@@ -583,7 +598,7 @@ describe('useTransactionHistoryData', () => {
       ]);
       mockGetReceivedTokens.mockResolvedValue([]);
 
-      WalletDataContext.useTransactionHistory.mockReturnValue({
+      (WalletDataContext.useTransactionHistory as jest.Mock).mockReturnValue({
         transactionHistory: [],
         loadingTransactionHistory: false,
         fetchTransactionHistory: mockFetchTransactionHistory,
@@ -615,7 +630,7 @@ describe('useTransactionHistoryData', () => {
       ]);
       mockGetReceivedTokens.mockResolvedValue([]);
 
-      WalletDataContext.useTransactionHistory.mockReturnValue({
+      (WalletDataContext.useTransactionHistory as jest.Mock).mockReturnValue({
         transactionHistory: [],
         loadingTransactionHistory: false,
         fetchTransactionHistory: mockFetchTransactionHistory,
@@ -658,7 +673,7 @@ describe('useTransactionHistoryData', () => {
       ]);
       mockGetReceivedTokens.mockResolvedValue([]);
 
-      WalletDataContext.useTransactionHistory.mockReturnValue({
+      (WalletDataContext.useTransactionHistory as jest.Mock).mockReturnValue({
         transactionHistory: [],
         loadingTransactionHistory: false,
         fetchTransactionHistory: mockFetchTransactionHistory,
@@ -697,7 +712,7 @@ describe('useTransactionHistoryData', () => {
       ]);
       mockGetReceivedTokens.mockResolvedValue([]);
 
-      WalletDataContext.useTransactionHistory.mockReturnValue({
+      (WalletDataContext.useTransactionHistory as jest.Mock).mockReturnValue({
         transactionHistory: [],
         loadingTransactionHistory: false,
         fetchTransactionHistory: mockFetchTransactionHistory,
@@ -725,7 +740,7 @@ describe('useTransactionHistoryData', () => {
 
       mockSentLockedTokens.mockRejectedValue(new Error('Network error'));
 
-      WalletDataContext.useTransactionHistory.mockReturnValue({
+      (WalletDataContext.useTransactionHistory as jest.Mock).mockReturnValue({
         transactionHistory: [],
         loadingTransactionHistory: false,
         fetchTransactionHistory: mockFetchTransactionHistory,
@@ -758,7 +773,7 @@ describe('useTransactionHistoryData', () => {
       ]);
       mockGetReceivedTokens.mockResolvedValue([]);
 
-      WalletDataContext.useTransactionHistory.mockReturnValue({
+      (WalletDataContext.useTransactionHistory as jest.Mock).mockReturnValue({
         transactionHistory: [],
         loadingTransactionHistory: false,
         fetchTransactionHistory: mockFetchTransactionHistory,
@@ -778,7 +793,7 @@ describe('useTransactionHistoryData', () => {
       });
 
       // Check if ecash token amount is stored as integer (10000, negative for sent)
-      const ecashTx = result.current.displayTransactions.find(tx => tx.ecashToken);
+      const ecashTx = result.current!.displayTransactions.find((tx: any) => tx.ecashToken);
       if (ecashTx) {
         expect(ecashTx.txData.numericAmount).toBe(-10000);
       }
@@ -798,13 +813,13 @@ describe('useTransactionHistoryData', () => {
         { txid: 'tx2', confirmations: 3, timestamp: 3000 },
       ];
 
-      WalletDataContext.useTransactionHistory.mockReturnValue({
+      (WalletDataContext.useTransactionHistory as jest.Mock).mockReturnValue({
         transactionHistory: mockTransactions,
         loadingTransactionHistory: false,
         fetchTransactionHistory: mockFetchTransactionHistory,
       });
 
-      transactionHistoryService.calculateTransactionAmount.mockReturnValue({
+      (transactionHistoryService.calculateTransactionAmount as jest.Mock).mockReturnValue({
         amount: 100000,
         type: 'BTC',
         isSelfTransfer: false,
@@ -824,10 +839,10 @@ describe('useTransactionHistoryData', () => {
       });
 
       // Should be sorted: tx2 (3000), token1 (2000), tx1 (1000)
-      if (result.current.displayTransactions.length >= 3) {
-        expect(result.current.displayTransactions[0].txid).toBe('tx2');
-        expect(result.current.displayTransactions[1].txid).toBe('token1');
-        expect(result.current.displayTransactions[2].txid).toBe('tx1');
+      if (result.current!.displayTransactions.length >= 3) {
+        expect(result.current!.displayTransactions[0].txid).toBe('tx2');
+        expect(result.current!.displayTransactions[1].txid).toBe('token1');
+        expect(result.current!.displayTransactions[2].txid).toBe('tx1');
       }
     });
 
@@ -849,7 +864,7 @@ describe('useTransactionHistoryData', () => {
       ]);
       mockGetReceivedTokens.mockResolvedValue([]);
 
-      WalletDataContext.useTransactionHistory.mockReturnValue({
+      (WalletDataContext.useTransactionHistory as jest.Mock).mockReturnValue({
         transactionHistory: [],
         loadingTransactionHistory: false,
         fetchTransactionHistory: mockFetchTransactionHistory,
@@ -868,7 +883,7 @@ describe('useTransactionHistoryData', () => {
         await Promise.resolve();
       });
 
-      const ecashTx = result.current.displayTransactions.find(tx => tx.ecashToken);
+      const ecashTx = result.current!.displayTransactions.find((tx: any) => tx.ecashToken);
       if (ecashTx) {
         expect(ecashTx.isAutoclaim).toBe(true);
         expect(ecashTx.txData.isAutoclaim).toBe(true);
@@ -894,7 +909,7 @@ describe('useTransactionHistoryData', () => {
         },
       ]);
 
-      WalletDataContext.useTransactionHistory.mockReturnValue({
+      (WalletDataContext.useTransactionHistory as jest.Mock).mockReturnValue({
         transactionHistory: [],
         loadingTransactionHistory: false,
         fetchTransactionHistory: mockFetchTransactionHistory,
@@ -914,7 +929,7 @@ describe('useTransactionHistoryData', () => {
       });
 
       // The received token from same account should be filtered out
-      expect(result.current.displayTransactions.length).toBe(0);
+      expect(result.current!.displayTransactions.length).toBe(0);
     });
 
     it('should handle taproot address decoding errors gracefully', async () => {
@@ -926,7 +941,7 @@ describe('useTransactionHistoryData', () => {
       ]);
       mockGetReceivedTokens.mockResolvedValue([]);
 
-      WalletDataContext.useTransactionHistory.mockReturnValue({
+      (WalletDataContext.useTransactionHistory as jest.Mock).mockReturnValue({
         transactionHistory: [],
         loadingTransactionHistory: false,
         fetchTransactionHistory: mockFetchTransactionHistory,
@@ -949,7 +964,7 @@ describe('useTransactionHistoryData', () => {
       });
 
       // Should still process tokens even with invalid address
-      expect(result.current.displayTransactions.length).toBeGreaterThanOrEqual(0);
+      expect(result.current!.displayTransactions.length).toBeGreaterThanOrEqual(0);
     });
   });
 
@@ -965,14 +980,21 @@ describe('useTransactionHistoryData', () => {
     it('should trigger background refresh when sheet opens', async () => {
       // Token subscription is now handled in WalletDataContext, not in this hook
       // This hook uses pre-loaded tokens from context and triggers background refresh
+      // fetchEcashTokens is only called when advancedMode is true
+      const { useNavigationHandlers } = jest.requireMock('../../contexts/NavigationHandlersContext');
+      (useNavigationHandlers as jest.Mock).mockReturnValue({
+        settingsHandlers: {
+          advancedMode: true, // Must be true for fetchEcashTokens to be called
+        },
+      });
 
-      WalletDataContext.useTransactionHistory.mockReturnValue({
+      (WalletDataContext.useTransactionHistory as jest.Mock).mockReturnValue({
         transactionHistory: [],
         loadingTransactionHistory: false,
         fetchTransactionHistory: mockFetchTransactionHistory,
       });
 
-      WalletDataContext.useEcashTokens.mockReturnValue({
+      (WalletDataContext.useEcashTokens as jest.Mock).mockReturnValue({
         ecashTokens: [],
         loadingEcashTokens: false,
         fetchEcashTokens: mockFetchEcashTokens,
@@ -991,7 +1013,7 @@ describe('useTransactionHistoryData', () => {
         await Promise.resolve();
       });
 
-      // Should call fetchEcashTokens for background refresh
+      // Should call fetchEcashTokens for background refresh (only in advancedMode)
       expect(mockFetchEcashTokens).toHaveBeenCalled();
       // Should also fetch transaction history
       expect(mockFetchTransactionHistory).toHaveBeenCalled();

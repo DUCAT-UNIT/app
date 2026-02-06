@@ -124,8 +124,6 @@ export async function guardianSendReqDeposit(
   logger.debug('[VaultOps] Submitting deposit request to guardian...', {
     vault_txid: depositReq.vault_txid,
     sats_inputs_count: depositReq.sats_inputs?.length,
-    has_psbt: !!depositReq.psbt,
-    has_sigs: !!depositReq.sigs,
   });
 
   try {

@@ -184,13 +184,30 @@ export const AirdropProvider: React.FC<AirdropProviderProps> = ({ children, seed
 
   // Auto-request airdrop when BTC balance is 0 (check once per day)
   useEffect(() => {
-    if (!wallet?.segwitAddress) return;
-    if (!isAuthenticated) return;
-    if (!seedConfirmed) return;
+    if (!wallet?.segwitAddress) {
+      logger.debug('[Airdrop] Skipping: no wallet address');
+      return;
+    }
+    if (!isAuthenticated) {
+      logger.debug('[Airdrop] Skipping: not authenticated');
+      return;
+    }
+    if (!seedConfirmed) {
+      logger.debug('[Airdrop] Skipping: seed not confirmed');
+      return;
+    }
+
+    logger.debug('[Airdrop] All conditions met, scheduling check in 3s', {
+      address: wallet.segwitAddress.slice(0, 12) + '...',
+      currentAccount,
+    });
 
     const requestAirdropIfNeeded = async () => {
       // Skip if already in progress
-      if (airdropInProgress.current) return;
+      if (airdropInProgress.current) {
+        logger.debug('[Airdrop] Skipping: already in progress');
+        return;
+      }
 
       const airdropKey = getAirdropKey(wallet.segwitAddress, currentAccount);
       const lockKey = getLockKey(wallet.segwitAddress, currentAccount);
@@ -199,16 +216,19 @@ export const AirdropProvider: React.FC<AirdropProviderProps> = ({ children, seed
       try {
         // Check for existing lock (prevents race conditions across mounts)
         if (await isLockActive(lockKey)) {
+          logger.debug('[Airdrop] Skipping: lock active');
           return;
         }
 
         // Get current balance from refs (always fresh, not stale closure values)
         const totalBtcBalance = segwitBalanceRef.current + taprootBalanceRef.current;
+        logger.debug('[Airdrop] Balance check', { totalBtcBalance, segwit: segwitBalanceRef.current, taproot: taprootBalanceRef.current });
 
         // If balance is 0, request airdrop
         if (totalBtcBalance === 0) {
           // Check if cooldown period has passed
           if (!(await isCooldownExpired(airdropKey))) {
+            logger.debug('[Airdrop] Skipping: cooldown not expired');
             return;
           }
 
@@ -221,7 +241,10 @@ export const AirdropProvider: React.FC<AirdropProviderProps> = ({ children, seed
             await recordAirdropTime(airdropKey);
 
             // Request airdrop
+            logger.debug('[Airdrop] Requesting airdrop for', { address: wallet.segwitAddress.slice(0, 12) + '...' });
             const result = await AirdropService.requestAirdrop(wallet.segwitAddress);
+
+            logger.debug('[Airdrop] Airdrop received!', { txId: result.txId });
 
             // Store pending airdrop in SecureStore (survives state resets during onboarding)
             await storePendingAirdrop(pendingKey, result.txId);
@@ -239,7 +262,7 @@ export const AirdropProvider: React.FC<AirdropProviderProps> = ({ children, seed
             // Clear pending airdrop outside setTimeout to avoid race condition
             await clearPendingAirdrop(pendingKey);
           } catch (error: unknown) {
-            logger.warn('Failed to request airdrop', {
+            logger.warn('[Airdrop] Failed to request airdrop', {
               error: error instanceof Error ? error.message : String(error)
             });
             // Keep the lastAirdropTime to prevent immediate retries

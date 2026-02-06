@@ -1,4 +1,3 @@
-// @ts-nocheck
 /**
  * Tests for useFormattedBalances hook
  */
@@ -8,17 +7,17 @@ import { create, act } from 'react-test-renderer';
 import { useFormattedBalances } from '../useFormattedBalances';
 
 // Helper to render hooks
-function renderHook(hook) {
-  const result = { current: null };
+function renderHook<T>(hook: () => T) {
+  const result: { current: T | null } = { current: null };
   function TestComponent() {
     result.current = hook();
     return null;
   }
-  let component;
+  let component: ReturnType<typeof create> | undefined;
   act(() => {
     component = create(<TestComponent />);
   });
-  return { result, rerender: component.update };
+  return { result, rerender: component!.update };
 }
 
 describe('useFormattedBalances', () => {
@@ -31,9 +30,9 @@ describe('useFormattedBalances', () => {
       })
     );
 
-    expect(result.current.totalBTC).toBe('1.23456789');
-    expect(result.current.segwitBTC).toBe('0.50000000');
-    expect(result.current.taprootBTC).toBe('0.25000000');
+    expect(result.current!.totalBTC).toBe('1.23456789');
+    expect(result.current!.segwitBTC).toBe('0.50000000');
+    expect(result.current!.taprootBTC).toBe('0.25000000');
   });
 
   it('should format USD amounts with 2 decimal places', () => {
@@ -46,9 +45,9 @@ describe('useFormattedBalances', () => {
       })
     );
 
-    expect(result.current.totalUSD).toBe('50,000.12');
-    expect(result.current.segwitUSD).toBe('50,000.00');
-    expect(result.current.taprootUSD).toBe('25,000.00');
+    expect(result.current!.totalUSD).toBe('50,000.12');
+    expect(result.current!.segwitUSD).toBe('50,000.00');
+    expect(result.current!.taprootUSD).toBe('25,000.00');
   });
 
   it('should format rune amounts as integers', () => {
@@ -58,7 +57,7 @@ describe('useFormattedBalances', () => {
       })
     );
 
-    expect(result.current.runes).toBe('1,234,567');
+    expect(result.current!.runes).toBe('1,234,567');
   });
 
   it('should handle zero values', () => {
@@ -73,32 +72,46 @@ describe('useFormattedBalances', () => {
       })
     );
 
-    expect(result.current.totalBTC).toBe('0.00000000');
-    expect(result.current.totalUSD).toBe('0.00');
-    expect(result.current.segwitBTC).toBe('0.00000000');
-    expect(result.current.taprootBTC).toBe('0.00000000');
-    expect(result.current.runes).toBe('0');
+    expect(result.current!.totalBTC).toBe('0.00000000');
+    expect(result.current!.totalUSD).toBe('0.00');
+    expect(result.current!.segwitBTC).toBe('0.00000000');
+    expect(result.current!.taprootBTC).toBe('0.00000000');
+    expect(result.current!.runes).toBe('0');
   });
 
   it('should use default values when parameters are undefined', () => {
     const { result } = renderHook(() => useFormattedBalances({}));
 
-    expect(result.current.totalBTC).toBe('0.00000000');
-    expect(result.current.totalUSD).toBe('0.00');
-    expect(result.current.segwitBTC).toBe('0.00000000');
-    expect(result.current.taprootBTC).toBe('0.00000000');
-    expect(result.current.runes).toBe('0');
+    expect(result.current!.totalBTC).toBe('0.00000000');
+    expect(result.current!.totalUSD).toBe('0.00');
+    expect(result.current!.segwitBTC).toBe('0.00000000');
+    expect(result.current!.taprootBTC).toBe('0.00000000');
+    expect(result.current!.runes).toBe('0');
+  });
+
+  it('should handle null btcPrice by defaulting to 0', () => {
+    const { result } = renderHook(() =>
+      useFormattedBalances({
+        segwitBalance: 1,
+        taprootBalance: 0.5,
+        btcPrice: null, // Explicitly null
+      })
+    );
+
+    // With null price treated as 0, USD values should be 0
+    expect(result.current!.segwitUSD).toBe('0.00');
+    expect(result.current!.taprootUSD).toBe('0.00');
   });
 
   it('should return stable references when inputs are the same', () => {
-    let results = [];
-    function TestComponent({ balances }) {
+    const results: any[] = [];
+    function TestComponent({ balances }: { balances: any }) {
       const formatted = useFormattedBalances(balances);
       results.push(formatted);
       return null;
     }
 
-    let component;
+    let component: ReturnType<typeof create> | undefined;
     const balances = { totalBalanceBTC: 1.5, btcPrice: 50000 };
 
     act(() => {
@@ -107,7 +120,7 @@ describe('useFormattedBalances', () => {
 
     // Re-render with same object reference
     act(() => {
-      component.update(<TestComponent balances={balances} />);
+      component?.update(<TestComponent balances={balances} />);
     });
 
     // Both renders should produce the same formatted string values

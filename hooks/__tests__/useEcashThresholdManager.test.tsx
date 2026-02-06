@@ -1,4 +1,3 @@
-// @ts-nocheck
 /**
  * Tests for useEcashThresholdManager hook
  * Covers threshold selection, conversion flow, and low balance top-up
@@ -20,7 +19,7 @@ jest.mock('../../utils/logger', () => ({
 }));
 
 const mockNavigate = jest.fn();
-let mockGetParentReturn = null;
+let mockGetParentReturn: ReturnType<typeof jest.fn> | null = null;
 const mockGetParent = jest.fn(() => mockGetParentReturn);
 
 jest.mock('@react-navigation/native', () => ({
@@ -33,34 +32,47 @@ jest.mock('@react-navigation/native', () => ({
 const mockRequestMint = jest.fn();
 
 jest.mock('../../services/cashu/cashuWalletService', () => ({
-  requestMint: (...args) => mockRequestMint(...args),
+  requestMint: (...args: unknown[]) => mockRequestMint(...args),
 }));
 
 // Helper to render hooks with props
-function renderHookWithProps(props) {
-  const result = { current: null };
-  function TestComponent({ hookProps }) {
-    result.current = useEcashThresholdManager(hookProps);
+function renderHookWithProps(props: Record<string, unknown>) {
+  const result: { current: ReturnType<typeof useEcashThresholdManager> | null } = { current: null };
+  function TestComponent({ hookProps }: { hookProps?: Record<string, unknown> }) {
+    result.current = useEcashThresholdManager(hookProps as unknown as Parameters<typeof useEcashThresholdManager>[0]);
     return null;
   }
-  let component;
+  let component: ReturnType<typeof create> | undefined;
   act(() => {
     component = create(<TestComponent hookProps={props} />);
   });
   return {
     result,
-    unmount: component.unmount,
+    unmount: component!.unmount,
     component,
-    rerender: (newProps) => {
+    rerender: (newProps?: Record<string, unknown>) => {
       act(() => {
-        component.update(<TestComponent hookProps={newProps} />);
+        component?.update(<TestComponent hookProps={newProps} />);
       });
     },
   };
 }
 
 describe('useEcashThresholdManager', () => {
-  let mockProps;
+  let mockProps: {
+    cashuBalance: number | null;
+    runesBalance: { rune: string; amount: string; divisibility: number }[];
+    settingsHandlers: {
+      ecashThreshold: number;
+      handleEcashThresholdChange: jest.Mock;
+    };
+    showSnackbar: jest.Mock;
+    showSettings: boolean;
+    closeSettings: jest.Mock;
+    lowBalanceAmountNeeded: number;
+    closeLowBalanceModal: jest.Mock;
+    [key: string]: unknown;
+  };
 
   beforeEach(() => {
     jest.clearAllMocks();
@@ -93,22 +105,22 @@ describe('useEcashThresholdManager', () => {
   it('should return initial state', () => {
     const { result } = renderHookWithProps(mockProps);
 
-    expect(result.current.showThresholdSheet).toBe(false);
-    expect(result.current.showConversionModal).toBe(false);
-    expect(result.current.conversionAmount).toBe(0);
-    expect(result.current.savedUnitBalance).toBe(0);
-    expect(result.current.pendingThreshold).toBe(null);
+    expect(result.current!.showThresholdSheet).toBe(false);
+    expect(result.current!.showConversionModal).toBe(false);
+    expect(result.current!.conversionAmount).toBe(0);
+    expect(result.current!.savedUnitBalance).toBe(0);
+    expect(result.current!.pendingThreshold).toBe(null);
   });
 
   it('should return handler functions', () => {
     const { result } = renderHookWithProps(mockProps);
 
-    expect(typeof result.current.handleEcashThresholdPress).toBe('function');
-    expect(typeof result.current.handleThresholdSelect).toBe('function');
-    expect(typeof result.current.handleConfirmConversion).toBe('function');
-    expect(typeof result.current.handleLowBalanceTopUp).toBe('function');
-    expect(typeof result.current.setShowThresholdSheet).toBe('function');
-    expect(typeof result.current.setShowConversionModal).toBe('function');
+    expect(typeof result.current!.handleEcashThresholdPress).toBe('function');
+    expect(typeof result.current!.handleThresholdSelect).toBe('function');
+    expect(typeof result.current!.handleConfirmConversion).toBe('function');
+    expect(typeof result.current!.handleLowBalanceTopUp).toBe('function');
+    expect(typeof result.current!.setShowThresholdSheet).toBe('function');
+    expect(typeof result.current!.setShowConversionModal).toBe('function');
   });
 
   describe('handleEcashThresholdPress', () => {
@@ -116,10 +128,10 @@ describe('useEcashThresholdManager', () => {
       const { result } = renderHookWithProps(mockProps);
 
       act(() => {
-        result.current.handleEcashThresholdPress();
+        result.current!.handleEcashThresholdPress();
       });
 
-      expect(result.current.showThresholdSheet).toBe(true);
+      expect(result.current!.showThresholdSheet).toBe(true);
     });
   });
 
@@ -128,11 +140,11 @@ describe('useEcashThresholdManager', () => {
       const { result } = renderHookWithProps(mockProps);
 
       await act(async () => {
-        await result.current.handleThresholdSelect(100);
+        await result.current!.handleThresholdSelect(100);
       });
 
       expect(mockProps.settingsHandlers.handleEcashThresholdChange).toHaveBeenCalledWith(100);
-      expect(result.current.showConversionModal).toBe(false);
+      expect(result.current!.showConversionModal).toBe(false);
     });
 
     it('should update threshold directly when selecting 100', async () => {
@@ -145,7 +157,7 @@ describe('useEcashThresholdManager', () => {
       });
 
       await act(async () => {
-        await result.current.handleThresholdSelect(100);
+        await result.current!.handleThresholdSelect(100);
       });
 
       expect(mockProps.settingsHandlers.handleEcashThresholdChange).toHaveBeenCalledWith(100);
@@ -158,12 +170,12 @@ describe('useEcashThresholdManager', () => {
       });
 
       await act(async () => {
-        await result.current.handleThresholdSelect(200);
+        await result.current!.handleThresholdSelect(200);
       });
 
-      expect(result.current.showConversionModal).toBe(true);
-      expect(result.current.pendingThreshold).toBe(200);
-      expect(result.current.conversionAmount).toBe(150); // 200 - 50
+      expect(result.current!.showConversionModal).toBe(true);
+      expect(result.current!.pendingThreshold).toBe(200);
+      expect(result.current!.conversionAmount).toBe(150); // 200 - 50
     });
 
     it('should limit conversion to available unit balance', async () => {
@@ -174,10 +186,10 @@ describe('useEcashThresholdManager', () => {
       });
 
       await act(async () => {
-        await result.current.handleThresholdSelect(500);
+        await result.current!.handleThresholdSelect(500);
       });
 
-      expect(result.current.conversionAmount).toBe(100); // Limited by unit balance
+      expect(result.current!.conversionAmount).toBe(100); // Limited by unit balance
     });
 
     it('should update directly when ecash balance is sufficient', async () => {
@@ -187,21 +199,26 @@ describe('useEcashThresholdManager', () => {
       });
 
       await act(async () => {
-        await result.current.handleThresholdSelect(200);
+        await result.current!.handleThresholdSelect(200);
       });
 
       expect(mockProps.settingsHandlers.handleEcashThresholdChange).toHaveBeenCalledWith(200);
-      expect(result.current.showConversionModal).toBe(false);
+      expect(result.current!.showConversionModal).toBe(false);
     });
 
     it('should handle Infinity threshold', async () => {
-      const { result } = renderHookWithProps(mockProps);
-
-      await act(async () => {
-        await result.current.handleThresholdSelect(Infinity);
+      // With no UNIT balance, Infinity should update threshold directly
+      // (no conversion needed since there's nothing to convert)
+      const { result } = renderHookWithProps({
+        ...mockProps,
+        runesBalance: [], // No UNIT balance to convert
       });
 
-      // Infinity means no required amount
+      await act(async () => {
+        await result.current!.handleThresholdSelect(Infinity);
+      });
+
+      // With no UNIT balance, should update threshold directly
       expect(mockProps.settingsHandlers.handleEcashThresholdChange).toHaveBeenCalledWith(Infinity);
     });
 
@@ -213,10 +230,10 @@ describe('useEcashThresholdManager', () => {
       });
 
       await act(async () => {
-        await result.current.handleThresholdSelect(200);
+        await result.current!.handleThresholdSelect(200);
       });
 
-      expect(result.current.conversionAmount).toBe(0);
+      expect(result.current!.conversionAmount).toBe(0);
     });
 
     it('should handle null cashuBalance', async () => {
@@ -226,12 +243,12 @@ describe('useEcashThresholdManager', () => {
       });
 
       await act(async () => {
-        await result.current.handleThresholdSelect(200);
+        await result.current!.handleThresholdSelect(200);
       });
 
       // Should use 0 for null cashuBalance
-      expect(result.current.showConversionModal).toBe(true);
-      expect(result.current.conversionAmount).toBe(200);
+      expect(result.current!.showConversionModal).toBe(true);
+      expect(result.current!.conversionAmount).toBe(200);
     });
 
     it('should close threshold sheet when selecting', async () => {
@@ -239,16 +256,16 @@ describe('useEcashThresholdManager', () => {
 
       // First open the sheet
       act(() => {
-        result.current.handleEcashThresholdPress();
+        result.current!.handleEcashThresholdPress();
       });
-      expect(result.current.showThresholdSheet).toBe(true);
+      expect(result.current!.showThresholdSheet).toBe(true);
 
       // Then select a threshold
       await act(async () => {
-        await result.current.handleThresholdSelect(100);
+        await result.current!.handleThresholdSelect(100);
       });
 
-      expect(result.current.showThresholdSheet).toBe(false);
+      expect(result.current!.showThresholdSheet).toBe(false);
     });
   });
 
@@ -261,18 +278,18 @@ describe('useEcashThresholdManager', () => {
 
       // First trigger conversion modal
       await act(async () => {
-        await result.current.handleThresholdSelect(200);
+        await result.current!.handleThresholdSelect(200);
       });
 
-      expect(result.current.showConversionModal).toBe(true);
+      expect(result.current!.showConversionModal).toBe(true);
 
       // Now confirm conversion
       await act(async () => {
-        await result.current.handleConfirmConversion();
+        await result.current!.handleConfirmConversion();
       });
 
       expect(mockRequestMint).toHaveBeenCalledWith(150);
-      expect(result.current.showConversionModal).toBe(false);
+      expect(result.current!.showConversionModal).toBe(false);
       expect(mockProps.settingsHandlers.handleEcashThresholdChange).toHaveBeenCalledWith(200);
 
       // Advance timer for setTimeout navigation
@@ -299,11 +316,11 @@ describe('useEcashThresholdManager', () => {
       });
 
       await act(async () => {
-        await result.current.handleThresholdSelect(200);
+        await result.current!.handleThresholdSelect(200);
       });
 
       await act(async () => {
-        await result.current.handleConfirmConversion();
+        await result.current!.handleConfirmConversion();
       });
 
       expect(mockProps.closeSettings).toHaveBeenCalled();
@@ -317,11 +334,11 @@ describe('useEcashThresholdManager', () => {
       });
 
       await act(async () => {
-        await result.current.handleThresholdSelect(200);
+        await result.current!.handleThresholdSelect(200);
       });
 
       await act(async () => {
-        await result.current.handleConfirmConversion();
+        await result.current!.handleConfirmConversion();
       });
 
       expect(mockProps.closeSettings).not.toHaveBeenCalled();
@@ -336,11 +353,11 @@ describe('useEcashThresholdManager', () => {
       });
 
       await act(async () => {
-        await result.current.handleThresholdSelect(200);
+        await result.current!.handleThresholdSelect(200);
       });
 
       await act(async () => {
-        await result.current.handleConfirmConversion();
+        await result.current!.handleConfirmConversion();
       });
 
       expect(notify.cashu.conversionStartFailed).toHaveBeenCalled();
@@ -355,11 +372,11 @@ describe('useEcashThresholdManager', () => {
       });
 
       await act(async () => {
-        await result.current.handleThresholdSelect(200);
+        await result.current!.handleThresholdSelect(200);
       });
 
       await act(async () => {
-        await result.current.handleConfirmConversion();
+        await result.current!.handleConfirmConversion();
       });
 
       expect(notify.cashu.conversionStartFailed).toHaveBeenCalled();
@@ -376,11 +393,11 @@ describe('useEcashThresholdManager', () => {
       });
 
       await act(async () => {
-        await result.current.handleThresholdSelect(200);
+        await result.current!.handleThresholdSelect(200);
       });
 
       await act(async () => {
-        await result.current.handleConfirmConversion();
+        await result.current!.handleConfirmConversion();
       });
 
       await act(async () => {
@@ -395,7 +412,7 @@ describe('useEcashThresholdManager', () => {
 
       // Call confirm directly without setting pending threshold
       await act(async () => {
-        await result.current.handleConfirmConversion();
+        await result.current!.handleConfirmConversion();
       });
 
       expect(mockProps.settingsHandlers.handleEcashThresholdChange).not.toHaveBeenCalled();
@@ -412,7 +429,7 @@ describe('useEcashThresholdManager', () => {
         navigate: jest.fn(),
         getParent: jest.fn(() => mockGrandparent),
       };
-      mockGetParent.mockReturnValue(mockParent);
+      mockGetParent.mockReturnValue(mockParent as unknown as ReturnType<typeof jest.fn> | null);
 
       const { result } = renderHookWithProps({
         ...mockProps,
@@ -420,11 +437,11 @@ describe('useEcashThresholdManager', () => {
       });
 
       await act(async () => {
-        await result.current.handleThresholdSelect(200);
+        await result.current!.handleThresholdSelect(200);
       });
 
       await act(async () => {
-        await result.current.handleConfirmConversion();
+        await result.current!.handleConfirmConversion();
       });
 
       await act(async () => {
@@ -446,7 +463,7 @@ describe('useEcashThresholdManager', () => {
       const { result } = renderHookWithProps(mockProps);
 
       await act(async () => {
-        await result.current.handleLowBalanceTopUp();
+        await result.current!.handleLowBalanceTopUp();
       });
 
       expect(mockProps.closeLowBalanceModal).toHaveBeenCalled();
@@ -470,7 +487,7 @@ describe('useEcashThresholdManager', () => {
       const { result } = renderHookWithProps(mockProps);
 
       await act(async () => {
-        await result.current.handleLowBalanceTopUp();
+        await result.current!.handleLowBalanceTopUp();
       });
 
       expect(notify.cashu.topupStartFailed).toHaveBeenCalled();
@@ -482,7 +499,7 @@ describe('useEcashThresholdManager', () => {
       const { result } = renderHookWithProps(mockProps);
 
       await act(async () => {
-        await result.current.handleLowBalanceTopUp();
+        await result.current!.handleLowBalanceTopUp();
       });
 
       expect(notify.cashu.topupStartFailed).toHaveBeenCalled();
@@ -494,26 +511,26 @@ describe('useEcashThresholdManager', () => {
       const { result } = renderHookWithProps(mockProps);
 
       act(() => {
-        result.current.setShowThresholdSheet(true);
+        result.current!.setShowThresholdSheet(true);
       });
 
-      expect(result.current.showThresholdSheet).toBe(true);
+      expect(result.current!.showThresholdSheet).toBe(true);
 
       act(() => {
-        result.current.setShowThresholdSheet(false);
+        result.current!.setShowThresholdSheet(false);
       });
 
-      expect(result.current.showThresholdSheet).toBe(false);
+      expect(result.current!.showThresholdSheet).toBe(false);
     });
 
     it('should allow setting showConversionModal', () => {
       const { result } = renderHookWithProps(mockProps);
 
       act(() => {
-        result.current.setShowConversionModal(true);
+        result.current!.setShowConversionModal(true);
       });
 
-      expect(result.current.showConversionModal).toBe(true);
+      expect(result.current!.showConversionModal).toBe(true);
     });
   });
 

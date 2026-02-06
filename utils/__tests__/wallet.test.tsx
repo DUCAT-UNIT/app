@@ -1,4 +1,3 @@
-// @ts-nocheck
 /**
  * Tests for Wallet utilities
  * Focuses on helper functions and basic PSBT operations
@@ -129,7 +128,7 @@ describe('wallet utilities', () => {
 
   describe('signMessage error handling', () => {
     it('should handle mnemonic retrieval failure', async () => {
-      secureStorageService.withMnemonic.mockImplementationOnce(() => {
+      (secureStorageService.withMnemonic as jest.Mock).mockImplementationOnce(() => {
         throw new Error('Mnemonic not available');
       });
 

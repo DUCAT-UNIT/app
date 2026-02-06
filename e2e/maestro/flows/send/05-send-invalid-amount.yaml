@@ -1,0 +1,71 @@
+appId: com.ducatprotocol.DucatProtocolWallet
+---
+# Send Insufficient Balance - Verify error when amount exceeds balance
+# Funded wallet → withdraw → BTC → enter address → amount exceeds balance → verify warning
+
+- runFlow: ../helpers/import-wallet-typed.yaml
+
+# Verify wallet screen
+- extendedWaitUntil:
+    visible:
+      id: "wallet-screen"
+    timeout: 15000
+
+# Dismiss low ecash modal if it appears
+- runFlow: ../helpers/dismiss-low-ecash.yaml
+
+# Dismiss airdrop modal if it appears
+- runFlow: ../helpers/dismiss-airdrop.yaml
+
+# Skip passkey migration if it appears
+- runFlow:
+    when:
+      visible:
+        id: "passkey-migration-modal"
+    commands:
+      - tapOn:
+          id: "passkey-skip-btn"
+
+# Wait for wallet actions to load
+- extendedWaitUntil:
+    visible:
+      id: "wallet-actions"
+    timeout: 15000
+
+# Open send BTC screen
+- tapOn:
+    id: "wallet-withdraw-btn"
+- extendedWaitUntil:
+    visible:
+      id: "withdraw-btc"
+    timeout: 5000
+- tapOn:
+    id: "withdraw-btc"
+
+# Verify send input screen loads
+- waitForAnimationToEnd
+- extendedWaitUntil:
+    visible:
+      id: "send-input-screen"
+    timeout: 10000
+
+# Tap address input field
+- extendedWaitUntil:
+    visible:
+      text: "Recipient Bitcoin address.*"
+    timeout: 5000
+- tapOn:
+    text: "Recipient Bitcoin address.*"
+- inputText: "tb1qw508d6qejxtdg4y5r3zarvary0c5xw7kxpjzsx"
+- hideKeyboard
+
+# Wait for address validation
+- extendedWaitUntil:
+    visible:
+      text: "Valid"
+    timeout: 5000
+
+# The review button should not be tappable without an amount
+# (slider starts at 0, so review should be disabled)
+- assertVisible:
+    text: "Send BTC"

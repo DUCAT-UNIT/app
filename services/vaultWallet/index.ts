@@ -29,14 +29,14 @@ export {
   patchPsbtInputFields,
 } from './psbtBinaryUtils';
 
-// Re-export signing functions
+// Re-export signing functions from unified signing service
 export {
   signPsbtWithSdkObject,
   patchPreProcessFields,
   patchPostProcessFields,
   psbtPreProcess,
   psbtPostProcess,
-} from './psbtSigning';
+} from '../signing';
 
 // Re-export wallet API
 export { createMobileWalletAPI } from './walletApi';

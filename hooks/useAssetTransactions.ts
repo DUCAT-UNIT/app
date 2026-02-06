@@ -13,6 +13,13 @@ import { useEcashTokens } from '../contexts/WalletDataContext';
 import { usePendingTxs } from '../contexts/PendingTransactionsContext';
 import { logger } from '../utils/logger';
 import type { DisplayAssetType } from '../types/assets';
+import {
+  processPendingTransactions,
+  findSelfClaimedTokenIds,
+  processEcashTokens,
+  mergeAndSortTransactions,
+  type PendingTx,
+} from '../utils/transactionMerging';
 
 interface TxData {
   amount: number | bigint;
@@ -162,128 +169,18 @@ export function useAssetTransactions(
       } as ProcessedTransaction);
     }
 
-    // First pass: identify self-claimed sent tokens
-    // A self-claim is when the recipient of a sent token is the current user (they claimed their own token)
-    const selfClaimedSentTokenIds = new Set<string>();
-    ecashTokens.forEach((token) => {
-      const isSentToken = 'recipient' in token;
-      if (isSentToken && token.claimed) {
-        const sentToken = token as { recipient: string; taprootAddress: string | null };
-        // Check if this is a self-claim: the recipient pubkey matches the current user's pubkey
-        const isSelfClaim = currentPubkeyHex && sentToken.recipient === currentPubkeyHex;
-        if (isSelfClaim) {
-          selfClaimedSentTokenIds.add(token.id);
-        }
-      }
-    });
+    // Use shared utilities for ecash and pending transaction processing
+    const selfClaimedSentTokenIds = findSelfClaimedTokenIds(ecashTokens, currentPubkeyHex);
+    const ecashTxs = processEcashTokens(ecashTokens, selfClaimedSentTokenIds, taprootAddress) as ProcessedTransaction[];
 
-    // Merge ecash tokens, filtering out received tokens that are self-claims
-    const ecashTxs: ProcessedTransaction[] = ecashTokens
-      .filter((token) => {
-        const isReceivedToken = 'sender' in token;
-        if (isReceivedToken) {
-          const receivedToken = token as { sender: string; taprootAddress: string | null };
-          if (receivedToken.taprootAddress && taprootAddress && receivedToken.taprootAddress === taprootAddress) {
-            return false;
-          }
-        }
-        return true;
-      })
-      .map((token) => {
-        const amount = token.amount;
-        const isSentToken = 'recipient' in token;
-        const isAutoclaim = selfClaimedSentTokenIds.has(token.id);
+    const confirmedTxids = new Set(transactionHistory.map(tx => tx.txid));
+    const pendingTxs = processPendingTransactions(
+      pendingTransactions as unknown as Record<string, PendingTx>,
+      assetType,
+      confirmedTxids
+    ) as ProcessedTransaction[];
 
-        return {
-          txid: token.id,
-          timestamp: token.timestamp,
-          ecashToken: true,
-          tokenData: token,
-          claimed: token.claimed,
-          isAutoclaim,
-          txData: {
-            amount: isAutoclaim ? amount : (isSentToken ? -amount : amount),
-            assetType: 'UNIT',
-            numericAmount: isAutoclaim ? amount : (isSentToken ? -amount : amount),
-            isSent: isSentToken && !isAutoclaim,
-            isReceived: !isSentToken || isAutoclaim,
-            isAutoclaim,
-          },
-        } as ProcessedTransaction;
-      });
-
-    // Convert pending transactions to ProcessedTransaction format
-    const pendingTxs: ProcessedTransaction[] = Object.values(pendingTransactions)
-      .filter(tx => {
-        // Filter by asset type and only include pending (not invalid)
-        if (tx.status !== 'pending') return false;
-        return tx.assetType === assetType;
-      })
-      .filter(tx => {
-        // Exclude if already confirmed in transactionHistory
-        return !transactionHistory.some(histTx => histTx.txid === tx.txid);
-      })
-      .map(tx => {
-        // Use sentAmount if available, otherwise fall back to calculating from outputs
-        let amount: number;
-        if (tx.sentAmount !== undefined && tx.sentAmount > 0) {
-          // Sent transactions show as negative
-          amount = -tx.sentAmount;
-        } else {
-          // Fallback: calculate from outputs (change amounts)
-          const totalValue = tx.outputs.reduce((sum, output) => sum + (output.value || 0), 0);
-          const totalRuneAmount = tx.outputs.reduce((sum, output) => sum + (output.runeAmount || 0), 0);
-          amount = tx.assetType === 'UNIT' ? -totalRuneAmount : -totalValue;
-        }
-
-        return {
-          txid: tx.txid,
-          timestamp: tx.timestamp / 1000, // Convert to seconds
-          status: {
-            confirmed: false,
-            block_time: Math.floor(tx.timestamp / 1000),
-          },
-          isPending: true,
-          txData: {
-            amount,
-            assetType: tx.assetType,
-            numericAmount: amount,
-            isSent: true,
-            isReceived: false,
-          },
-        } as ProcessedTransaction;
-      });
-
-    // Helper to normalize timestamps to seconds for comparison
-    // - ecash tokens use milliseconds (Date.now())
-    // - on-chain transactions use seconds (block_time)
-    // - pending transactions use timestamp / 1000 (already converted above)
-    const getTimeInSeconds = (tx: ProcessedTransaction): number => {
-      if (tx.ecashToken && tx.timestamp) {
-        // Ecash timestamps are in milliseconds
-        return tx.timestamp / 1000;
-      }
-      // On-chain and pending transactions use seconds
-      return tx.timestamp || tx.status?.block_time || 0;
-    };
-
-    // Merge and sort all transactions
-    // - Pending transactions go at the top, sorted by timestamp (most recent first)
-    // - Then confirmed/ecash transactions sorted by timestamp (most recent first)
-    const merged: ProcessedTransaction[] = [...pendingTxs, ...filtered, ...ecashTxs].sort((a, b) => {
-      const aIsPending = (a as ProcessedTransaction & { isPending?: boolean }).isPending;
-      const bIsPending = (b as ProcessedTransaction & { isPending?: boolean }).isPending;
-
-      // If both are pending or both are not pending, sort by timestamp
-      if (aIsPending === bIsPending) {
-        const aTime = getTimeInSeconds(a);
-        const bTime = getTimeInSeconds(b);
-        return bTime - aTime; // Most recent first
-      }
-
-      // Pending transactions always at top
-      return aIsPending ? -1 : 1;
-    });
+    const merged = mergeAndSortTransactions(pendingTxs, filtered, ecashTxs) as unknown as ProcessedTransaction[];
 
     lastTxHashRef.current = txHash;
     filteredTxRef.current = merged;

@@ -1,4 +1,3 @@
-// @ts-nocheck
 /**
  * Tests for Bitcoin Conversion Utilities
  */
@@ -43,7 +42,7 @@ describe('satsToBTC', () => {
   });
 
   it('should handle invalid input', () => {
-    expect(satsToBTC('invalid')).toBe(0);
+    expect(satsToBTC('invalid' as unknown as number)).toBe(0);
     expect(satsToBTC(NaN)).toBe(0);
   });
 
@@ -117,7 +116,7 @@ describe('formatBTC', () => {
   });
 
   it('should handle invalid input', () => {
-    expect(formatBTC('invalid', 2)).toBe('0.00');
+    expect(formatBTC('invalid' as unknown as number, 2)).toBe('0.00');
     expect(formatBTC(NaN, 2)).toBe('0.00');
   });
 
@@ -152,7 +151,7 @@ describe('formatBTCSmart', () => {
   });
 
   it('should handle invalid input', () => {
-    expect(formatBTCSmart('invalid')).toBe('0.00');
+    expect(formatBTCSmart('invalid' as unknown as number)).toBe('0.00');
   });
 
   it('should handle small amounts', () => {
@@ -266,7 +265,7 @@ describe('formatBTCAuto', () => {
   });
 
   it('should handle invalid input', () => {
-    const result = formatBTCAuto('invalid');
+    const result = formatBTCAuto('invalid' as unknown as number);
     expect(result.value).toBe('0');
     expect(result.unit).toBe('BTC');
   });

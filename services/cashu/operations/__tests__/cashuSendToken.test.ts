@@ -1,7 +1,16 @@
-// @ts-nocheck
 /**
  * Tests for cashuSendToken
  */
+
+/**
+ * Mock proof interface for testing
+ */
+interface MockProof {
+  amount: number;
+  secret: string;
+  C: string;
+  id: string;
+}
 
 jest.mock('../../../../utils/logger', () => ({
   logger: {
@@ -48,7 +57,7 @@ describe('cashuSendToken', () => {
   });
 
   describe('sendToken', () => {
-    const mockProofs = [
+    const mockProofs: MockProof[] = [
       { amount: 64, secret: 's1', C: 'C1', id: 'id' },
       { amount: 32, secret: 's2', C: 'C2', id: 'id' },
     ];
@@ -63,7 +72,7 @@ describe('cashuSendToken', () => {
 
     it('should send token without change (exact amount)', async () => {
       (sumProofs as jest.Mock).mockReturnValue(64);
-      (selectProofsForAmount as jest.Mock).mockReturnValue([mockProofs[0 as any]]);
+      (selectProofsForAmount as jest.Mock).mockReturnValue([mockProofs[0]]);
 
       const result = await sendToken(64, false);
 
@@ -77,10 +86,16 @@ describe('cashuSendToken', () => {
       (getOrFetchKeys as jest.Mock).mockResolvedValue({
         keysets: [{ id: 'keyset1', keys: { 1: 'key1' } }],
       });
-      (splitAmount as jest.Mock).mockReturnValue([64]);
+      // splitAmount is called twice: once for send amounts, once for change
+      (splitAmount as jest.Mock)
+        .mockReturnValueOnce([64]) // send amount
+        .mockReturnValueOnce([32]); // change amount
       (createBlindedOutputs as jest.Mock).mockResolvedValue({
         outputs: [{ amount: 64 }, { amount: 32 }],
-        blindingData: [{}, {}],
+        blindingData: [
+          { secret: 'new1' }, // First is send (index 0 < sendAmounts.length=1)
+          { secret: 'new2' }, // Second is change (index 1 >= sendAmounts.length=1)
+        ],
       });
       (swapTokens as jest.Mock).mockResolvedValue({
         signatures: [{ id: 'keyset1' }, {}],
@@ -93,7 +108,8 @@ describe('cashuSendToken', () => {
       const result = await sendToken(64, true);
 
       expect(result.token).toBe('cashuAtoken...');
-      expect(addProofs).toHaveBeenCalled();
+      // Change proof (secret: new2) should be added back
+      expect(addProofs).toHaveBeenCalledWith([{ amount: 32, secret: 'new2', C: 'C', id: 'id' }]);
     });
 
     it('should handle legacy keys format (line 57)', async () => {
@@ -102,10 +118,15 @@ describe('cashuSendToken', () => {
       (getOrFetchKeys as jest.Mock).mockResolvedValue({
         keys: { 1: 'key1', 2: 'key2' },
       });
-      (splitAmount as jest.Mock).mockReturnValue([64]);
+      (splitAmount as jest.Mock)
+        .mockReturnValueOnce([64]) // send amount
+        .mockReturnValueOnce([32]); // change amount
       (createBlindedOutputs as jest.Mock).mockResolvedValue({
         outputs: [{ amount: 64 }, { amount: 32 }],
-        blindingData: [{}, {}],
+        blindingData: [
+          { secret: 'new1' },
+          { secret: 'new2' },
+        ],
       });
       (swapTokens as jest.Mock).mockResolvedValue({
         signatures: [{}, {}],
@@ -168,17 +189,19 @@ describe('cashuSendToken', () => {
       (getOrFetchKeys as jest.Mock).mockResolvedValue({
         keysets: [{ id: 'keyset1', keys: { 1: 'key1' } }],
       });
-      (splitAmount as jest.Mock).mockReturnValue([64]);
+      (splitAmount as jest.Mock)
+        .mockReturnValueOnce([64])
+        .mockReturnValueOnce([32]);
       (createBlindedOutputs as jest.Mock).mockResolvedValue({
         outputs: [{ amount: 64 }, { amount: 32 }],
-        blindingData: [{}, {}],
+        blindingData: [{ secret: 'new1' }, { secret: 'new2' }],
       });
       (swapTokens as jest.Mock).mockResolvedValue({
         signatures: [{ id: 'response_keyset' }, {}],
       });
       (unblindSignatures as jest.Mock).mockReturnValue([
-        { amount: 64 },
-        { amount: 32 },
+        { amount: 64, secret: 'new1' },
+        { amount: 32, secret: 'new2' },
       ]);
 
       await sendToken(64, true);
@@ -196,10 +219,12 @@ describe('cashuSendToken', () => {
       (getOrFetchKeys as jest.Mock).mockResolvedValue({
         keysets: [{ id: 'keyset1', keys: { 1: 'key1' } }],
       });
-      (splitAmount as jest.Mock).mockReturnValue([64]);
+      (splitAmount as jest.Mock)
+        .mockReturnValueOnce([64])
+        .mockReturnValueOnce([32]);
       (createBlindedOutputs as jest.Mock).mockResolvedValue({
         outputs: [{ amount: 64 }, { amount: 32 }],
-        blindingData: [{}, {}],
+        blindingData: [{ secret: 'new1' }, { secret: 'new2' }],
       });
       (swapTokens as jest.Mock).mockResolvedValue({
         signatures: [{ id: 'keyset1' }, {}],
@@ -209,14 +234,17 @@ describe('cashuSendToken', () => {
         { amount: 32, secret: 'new2', C: 'C', id: 'id' },
       ]);
 
-      // Make removeProofs fail, but addProofs should still be called in inner catch
+      // addProofs is called 3x: try block, inner catch, outer catch
+      (addProofs as jest.Mock)
+        .mockResolvedValueOnce(undefined) // First call succeeds (try block line 138)
+        .mockResolvedValueOnce(undefined) // Second call in inner catch block (line 156)
+        .mockResolvedValueOnce(undefined); // Third call in outer catch block (line 197)
       (removeProofs as jest.Mock).mockRejectedValue(new Error('removeProofs failed'));
-      (addProofs as jest.Mock).mockResolvedValue(undefined);
 
       await expect(sendToken(64, true)).rejects.toThrow('removeProofs failed');
 
-      // Should have attempted to save change proofs in inner catch block (line 123)
-      expect(addProofs).toHaveBeenCalledTimes(1);
+      // addProofs is called 3 times: try block, inner catch block, outer catch block
+      expect(addProofs).toHaveBeenCalledTimes(3);
       expect(addProofs).toHaveBeenCalledWith([{ amount: 32, secret: 'new2', C: 'C', id: 'id' }]);
     });
 
@@ -225,10 +253,12 @@ describe('cashuSendToken', () => {
       (getOrFetchKeys as jest.Mock).mockResolvedValue({
         keysets: [{ id: 'keyset1', keys: { 1: 'key1' } }],
       });
-      (splitAmount as jest.Mock).mockReturnValue([64]);
+      (splitAmount as jest.Mock)
+        .mockReturnValueOnce([64])
+        .mockReturnValueOnce([32]);
       (createBlindedOutputs as jest.Mock).mockResolvedValue({
         outputs: [{ amount: 64 }, { amount: 32 }],
-        blindingData: [{}, {}],
+        blindingData: [{ secret: 'new1' }, { secret: 'new2' }],
       });
       (swapTokens as jest.Mock).mockResolvedValue({
         signatures: [{ id: 'keyset1' }, {}],
@@ -238,15 +268,19 @@ describe('cashuSendToken', () => {
         { amount: 32, secret: 'new2', C: 'C', id: 'id' },
       ]);
 
-      // Both removeProofs and addProofs fail - critical scenario
+      // addProofs is called 3x: try block (succeeds), inner catch (succeeds), outer catch (fails)
+      (addProofs as jest.Mock)
+        .mockResolvedValueOnce(undefined) // First addProofs in try block
+        .mockResolvedValueOnce(undefined) // Second addProofs in inner catch block
+        .mockRejectedValueOnce(new Error('addProofs critical failure')); // Third addProofs in outer catch block
       (removeProofs as jest.Mock).mockRejectedValueOnce(new Error('removeProofs failed'));
-      (addProofs as jest.Mock).mockRejectedValueOnce(new Error('addProofs critical failure'));
 
-      await expect(sendToken(64, true)).rejects.toThrow('addProofs critical failure');
+      // Original error is thrown even when recovery fails (outer catch logs but doesn't re-throw)
+      await expect(sendToken(64, true)).rejects.toThrow('removeProofs failed');
 
-      // Should have attempted both operations
+      // addProofs is called 3 times: try block, inner catch, outer catch (first 2 succeed, 3rd fails)
+      expect(addProofs).toHaveBeenCalledTimes(3);
       expect(removeProofs).toHaveBeenCalled();
-      expect(addProofs).toHaveBeenCalled();
     });
 
     it('should save change proofs in catch block when encodeToken fails after swap', async () => {
@@ -254,10 +288,12 @@ describe('cashuSendToken', () => {
       (getOrFetchKeys as jest.Mock).mockResolvedValue({
         keysets: [{ id: 'keyset1', keys: { 1: 'key1' } }],
       });
-      (splitAmount as jest.Mock).mockReturnValue([64]);
+      (splitAmount as jest.Mock)
+        .mockReturnValueOnce([64])
+        .mockReturnValueOnce([32]);
       (createBlindedOutputs as jest.Mock).mockResolvedValue({
         outputs: [{ amount: 64 }, { amount: 32 }],
-        blindingData: [{}, {}],
+        blindingData: [{ secret: 'new1' }, { secret: 'new2' }],
       });
       (swapTokens as jest.Mock).mockResolvedValue({
         signatures: [{ id: 'keyset1' }, {}],
@@ -286,10 +322,12 @@ describe('cashuSendToken', () => {
       (getOrFetchKeys as jest.Mock).mockResolvedValue({
         keysets: [{ id: 'keyset1', keys: { 1: 'key1' } }],
       });
-      (splitAmount as jest.Mock).mockReturnValue([64]);
+      (splitAmount as jest.Mock)
+        .mockReturnValueOnce([64])
+        .mockReturnValueOnce([32]);
       (createBlindedOutputs as jest.Mock).mockResolvedValue({
         outputs: [{ amount: 64 }, { amount: 32 }],
-        blindingData: [{}, {}],
+        blindingData: [{ secret: 'new1' }, { secret: 'new2' }],
       });
       (swapTokens as jest.Mock).mockResolvedValue({
         signatures: [{ id: 'keyset1' }, {}],

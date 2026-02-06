@@ -1,4 +1,3 @@
-// @ts-nocheck
 /**
  * Tests for airdropCelebration utilities
  */
@@ -52,6 +51,8 @@ jest.mock('../logger', () => ({
   },
 }));
 
+declare const global: typeof globalThis & { __DEV__?: boolean };
+
 // Import after mocks are set up
 import {
   configureAudioMode,
@@ -91,7 +92,7 @@ describe('airdropCelebration', () => {
         playAsync: jest.fn(),
       };
 
-      Audio.Sound.createAsync.mockResolvedValue({ sound: mockSound });
+      (Audio.Sound.createAsync as jest.Mock).mockResolvedValue({ sound: mockSound });
 
       const result = await preloadConfettiSound();
 
@@ -104,7 +105,7 @@ describe('airdropCelebration', () => {
 
     it('should throw error when sound creation fails', async () => {
       const error = new Error('Failed to create sound');
-      Audio.Sound.createAsync.mockRejectedValue(error);
+      (Audio.Sound.createAsync as jest.Mock).mockRejectedValue(error);
 
       await expect(preloadConfettiSound()).rejects.toThrow('Failed to create sound');
     });
@@ -118,7 +119,7 @@ describe('airdropCelebration', () => {
         stopAsync: jest.fn().mockResolvedValue(undefined),
       };
 
-      await playConfettiSound(mockSound);
+      await playConfettiSound(mockSound as any);
 
       expect(mockSound.setPositionAsync).toHaveBeenCalledWith(0);
       expect(mockSound.playAsync).toHaveBeenCalled();
@@ -131,7 +132,7 @@ describe('airdropCelebration', () => {
         stopAsync: jest.fn().mockResolvedValue(undefined),
       };
 
-      Audio.Sound.createAsync.mockResolvedValue({ sound: mockSound });
+      (Audio.Sound.createAsync as jest.Mock).mockResolvedValue({ sound: mockSound });
 
       await playConfettiSound(null);
 
@@ -147,7 +148,7 @@ describe('airdropCelebration', () => {
         stopAsync: jest.fn().mockResolvedValue(undefined),
       };
 
-      await playConfettiSound(mockSound);
+      await playConfettiSound(mockSound as any);
 
       // Fast-forward 3 seconds
       jest.advanceTimersByTime(3000);
@@ -167,7 +168,7 @@ describe('airdropCelebration', () => {
       };
 
       // Should not throw
-      await playConfettiSound(mockSound);
+      await playConfettiSound(mockSound as any);
 
       global.__DEV__ = originalDev;
     });
@@ -181,7 +182,7 @@ describe('airdropCelebration', () => {
       };
 
       // Should not throw
-      await playConfettiSound(mockSound);
+      await playConfettiSound(mockSound as any);
 
       global.__DEV__ = originalDev;
     });
@@ -193,7 +194,7 @@ describe('airdropCelebration', () => {
         unloadAsync: jest.fn().mockResolvedValue(undefined),
       };
 
-      await unloadSound(mockSound);
+      await unloadSound(mockSound as any);
 
       expect(mockSound.unloadAsync).toHaveBeenCalled();
     });

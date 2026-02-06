@@ -1,0 +1,35 @@
+appId: com.ducatprotocol.DucatProtocolWallet
+---
+# Vault Card Visible - Verify vault card is displayed on wallet screen
+# Funded wallet → scroll to vault card → verify vault info displayed
+
+- runFlow: ../helpers/import-wallet-typed.yaml
+
+# Verify wallet screen
+- extendedWaitUntil:
+    visible:
+      id: "wallet-screen"
+    timeout: 15000
+
+# Wait for balance to load
+- extendedWaitUntil:
+    visible:
+      id: "balance-section"
+    timeout: 30000
+
+# Dismiss low ecash modal if it appears
+- runFlow: ../helpers/dismiss-low-ecash.yaml
+
+# Dismiss airdrop modal if it appears
+- runFlow: ../helpers/dismiss-airdrop.yaml
+
+# Scroll to vault card
+- scrollUntilVisible:
+    element:
+      id: "vault-card"
+    direction: DOWN
+    timeout: 10000
+
+# Verify vault card is visible
+- assertVisible:
+    id: "vault-card"

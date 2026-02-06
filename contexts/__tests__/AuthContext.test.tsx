@@ -1,4 +1,3 @@
-// @ts-nocheck
 /**
  * Tests for AuthContext
  */
@@ -8,22 +7,22 @@ import { create, act } from 'react-test-renderer';
 import { AuthProvider, useAuth } from '../AuthContext';
 
 // Helper to render hooks with react-test-renderer
-function renderHook(hook, { wrapper: Wrapper } = {}) {
-  const result = { current: null };
+function renderHook<T>(hook: () => T, { wrapper: Wrapper }: { wrapper?: React.ComponentType<{ children: React.ReactNode }> } = {}) {
+  const result: { current: T | null } = { current: null };
 
   function TestComponent() {
     result.current = hook();
     return null;
   }
 
-  let component;
+  let component: ReturnType<typeof create> | undefined;
   act(() => {
     component = Wrapper
       ? create(<Wrapper><TestComponent /></Wrapper>)
       : create(<TestComponent />);
   });
 
-  return { result, rerender: component.update, unmount: component.unmount };
+  return { result, rerender: component!.update, unmount: component!.unmount };
 }
 import { useAuth as useAuthHook } from '../../hooks/useAuth';
 import * as SecureStore from 'expo-secure-store';
@@ -45,9 +44,9 @@ describe('AuthContext', () => {
 
   beforeEach(() => {
     jest.clearAllMocks();
-    useAuthHook.mockReturnValue(mockAuthState);
-    SecureStore.deleteItemAsync.mockResolvedValue();
-    resetOnboardingState.mockResolvedValue();
+    (useAuthHook as jest.Mock).mockReturnValue(mockAuthState);
+    (SecureStore.deleteItemAsync as jest.Mock).mockResolvedValue(undefined);
+    (resetOnboardingState as jest.Mock).mockResolvedValue(undefined);
   });
 
   it('should throw error when used outside provider', () => {
@@ -61,7 +60,7 @@ describe('AuthContext', () => {
   });
 
   it('should provide auth state from hook', () => {
-    const wrapper = ({ children }) => <AuthProvider>{children}</AuthProvider>;
+    const wrapper = ({ children }: { children: React.ReactNode }) => <AuthProvider>{children}</AuthProvider>;
     const { result } = renderHook(() => useAuth(), { wrapper });
 
     // Should include all auth state from the hook
@@ -73,7 +72,7 @@ describe('AuthContext', () => {
 
   it('should pass onSeedConfirmed to hook', () => {
     const onSeedConfirmed = jest.fn();
-    const wrapper = ({ children }) => (
+    const wrapper = ({ children }: { children: React.ReactNode }) => (
       <AuthProvider onSeedConfirmed={onSeedConfirmed}>{children}</AuthProvider>
     );
 
@@ -92,101 +91,101 @@ describe('AuthContext', () => {
       refreshAuth: jest.fn(),
     };
 
-    useAuthHook.mockReturnValue(fullAuthState);
+    (useAuthHook as jest.Mock).mockReturnValue(fullAuthState);
 
-    const wrapper = ({ children }) => <AuthProvider>{children}</AuthProvider>;
+    const wrapper = ({ children }: { children: React.ReactNode }) => <AuthProvider>{children}</AuthProvider>;
     const { result } = renderHook(() => useAuth(), { wrapper });
 
-    expect(result.current.isAuthenticated).toBe(true);
-    expect(result.current.isLoading).toBe(false);
-    expect(result.current.user).toEqual({ id: '123' });
+    expect(result.current!.isAuthenticated).toBe(true);
+    expect((result.current as any).isLoading).toBe(false);
+    expect((result.current as any).user).toEqual({ id: '123' });
   });
 
   describe('Onboarding State', () => {
     it('should initialize with seedConfirmed as false', () => {
-      const wrapper = ({ children }) => <AuthProvider>{children}</AuthProvider>;
+      const wrapper = ({ children }: { children: React.ReactNode }) => <AuthProvider>{children}</AuthProvider>;
       const { result } = renderHook(() => useAuth(), { wrapper });
 
-      expect(result.current.seedConfirmed).toBe(false);
-      expect(result.current.onboarding.seedConfirmed).toBe(false);
+      expect(result.current!.seedConfirmed).toBe(false);
+      expect(result.current!.onboarding.seedConfirmed).toBe(false);
     });
 
     it('should update seedConfirmed state', () => {
-      const wrapper = ({ children }) => <AuthProvider>{children}</AuthProvider>;
+      const wrapper = ({ children }: { children: React.ReactNode }) => <AuthProvider>{children}</AuthProvider>;
       const { result } = renderHook(() => useAuth(), { wrapper });
 
       act(() => {
-        result.current.setSeedConfirmed(true);
+        result.current!.setSeedConfirmed(true);
       });
 
-      expect(result.current.seedConfirmed).toBe(true);
-      expect(result.current.onboarding.seedConfirmed).toBe(true);
+      expect(result.current!.seedConfirmed).toBe(true);
+      expect(result.current!.onboarding.seedConfirmed).toBe(true);
     });
 
     it('should keep seedConfirmedRef in sync with state', () => {
-      const wrapper = ({ children }) => <AuthProvider>{children}</AuthProvider>;
+      const wrapper = ({ children }: { children: React.ReactNode }) => <AuthProvider>{children}</AuthProvider>;
       const { result } = renderHook(() => useAuth(), { wrapper });
 
-      expect(result.current.seedConfirmedRef.current).toBe(false);
+      expect(result.current!.seedConfirmedRef.current).toBe(false);
 
       act(() => {
-        result.current.setSeedConfirmed(true);
+        result.current!.setSeedConfirmed(true);
       });
 
-      expect(result.current.seedConfirmedRef.current).toBe(true);
+      expect(result.current!.seedConfirmedRef.current).toBe(true);
     });
 
     it('should provide refs for inactivityTimer and amountInput', () => {
-      const wrapper = ({ children }) => <AuthProvider>{children}</AuthProvider>;
+      const wrapper = ({ children }: { children: React.ReactNode }) => <AuthProvider>{children}</AuthProvider>;
       const { result } = renderHook(() => useAuth(), { wrapper });
 
-      expect(result.current.inactivityTimerRef).toBeDefined();
-      expect(result.current.inactivityTimerRef.current).toBeNull();
-      expect(result.current.amountInputRef).toBeDefined();
-      expect(result.current.amountInputRef.current).toBeNull();
+      expect(result.current!.inactivityTimerRef).toBeDefined();
+      expect(result.current!.inactivityTimerRef.current).toBeNull();
+      expect(result.current!.amountInputRef).toBeDefined();
+      expect(result.current!.amountInputRef.current).toBeNull();
     });
   });
 
   describe('resetWalletAndState', () => {
     it('should delete secure store items and reset state', async () => {
-      const wrapper = ({ children }) => <AuthProvider>{children}</AuthProvider>;
+      const wrapper = ({ children }: { children: React.ReactNode }) => <AuthProvider>{children}</AuthProvider>;
       const { result } = renderHook(() => useAuth(), { wrapper });
 
       // Set seedConfirmed to true first
       act(() => {
-        result.current.setSeedConfirmed(true);
+        result.current!.setSeedConfirmed(true);
       });
 
       await act(async () => {
-        await result.current.resetWalletAndState();
+        await result.current!.resetWalletAndState();
       });
 
       expect(SecureStore.deleteItemAsync).toHaveBeenCalledWith(SECURE_KEYS.MNEMONIC);
       expect(SecureStore.deleteItemAsync).toHaveBeenCalledWith(SECURE_KEYS.CURRENT_ACCOUNT);
       expect(resetOnboardingState).toHaveBeenCalled();
-      expect(result.current.seedConfirmed).toBe(false);
+      expect(result.current!.seedConfirmed).toBe(false);
     });
 
     it('should call resetWallet callback if provided', async () => {
       const resetWallet = jest.fn();
-      const wrapper = ({ children }) => (
+      const wrapper = ({ children }: { children: React.ReactNode }) => (
         <AuthProvider resetWallet={resetWallet}>{children}</AuthProvider>
       );
       const { result } = renderHook(() => useAuth(), { wrapper });
 
       await act(async () => {
-        await result.current.resetWalletAndState();
+        await result.current!.resetWalletAndState();
       });
 
       expect(resetWallet).toHaveBeenCalled();
     });
 
     it('should work without resetWallet callback', async () => {
-      const wrapper = ({ children }) => <AuthProvider>{children}</AuthProvider>;
+      const wrapper = ({ children }: { children: React.ReactNode }) => <AuthProvider>{children}</AuthProvider>;
       const { result } = renderHook(() => useAuth(), { wrapper });
 
       await act(async () => {
-        await result.current.resetWalletAndState();
+        await result.current!.resetWalletAndState();
       });
 
       expect(SecureStore.deleteItemAsync).toHaveBeenCalled();
@@ -197,19 +196,19 @@ describe('AuthContext', () => {
   describe('resetInactivityTimer', () => {
     it('should clear timer if one exists', () => {
       jest.useFakeTimers();
-      const wrapper = ({ children }) => <AuthProvider>{children}</AuthProvider>;
+      const wrapper = ({ children }: { children: React.ReactNode }) => <AuthProvider>{children}</AuthProvider>;
       const { result } = renderHook(() => useAuth(), { wrapper });
 
       // Set a timer
       const timerId = setTimeout(() => {}, 5000);
-      result.current.inactivityTimerRef.current = timerId;
+      result.current!.inactivityTimerRef.current = timerId;
 
       act(() => {
-        result.current.resetInactivityTimer();
+        result.current!.resetInactivityTimer();
       });
 
       // Timer should be cleared (we can't directly test clearTimeout, but we can verify it was called)
-      expect(result.current.inactivityTimerRef.current).toBe(timerId);
+      expect(result.current!.inactivityTimerRef.current).toBe(timerId);
 
       jest.useRealTimers();
     });
@@ -219,7 +218,7 @@ describe('AuthContext', () => {
     it('should return onboarding namespace', () => {
       const { useOnboardingFlow } = require('../AuthContext');
 
-      const result = { current: null };
+      const result: { current: any } = { current: null };
       function TestComponent() {
         result.current = useOnboardingFlow();
         return null;

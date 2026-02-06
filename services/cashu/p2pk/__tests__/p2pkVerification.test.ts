@@ -1,4 +1,3 @@
-// @ts-nocheck
 /**
  * Tests for P2PK Verification (NUT-11)
  */
@@ -229,7 +228,7 @@ describe('p2pkVerification', () => {
     it('should return false for proof with null secret', () => {
       const proof = {
         amount: 100,
-        secret: null,
+        secret: null as any,
         C: 'commitment',
         id: 'keysetId',
       };

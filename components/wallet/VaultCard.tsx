@@ -80,6 +80,7 @@ export default memo(function VaultCard({
       onPress={hasVault ? onVaultPress : undefined}
       activeOpacity={hasVault ? 0.7 : 1}
       disabled={!hasVault}
+      testID="vault-card"
       accessibilityRole="button"
       accessibilityLabel={hasVault ? `Vault with ${vaultHealthPercentage}% health, ${formattedDebt} UNIT debt, ${formattedCollateral} BTC collateral` : "No vault created"}
       accessibilityHint={hasVault ? "Opens vault details" : "Create a vault to borrow UNIT"}

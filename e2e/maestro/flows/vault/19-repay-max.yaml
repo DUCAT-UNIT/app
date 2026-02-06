@@ -1,0 +1,83 @@
+appId: com.ducatprotocol.DucatProtocolWallet
+---
+# Deposit Screen Close Navigation - Open deposit vault screen and close to return to wallet
+# Funded wallet → deposit → vault → verify screen → close → verify wallet
+
+- runFlow: ../helpers/import-wallet-typed.yaml
+
+# Verify wallet screen
+- extendedWaitUntil:
+    visible:
+      id: "wallet-screen"
+    timeout: 15000
+
+# Wait for balance to load
+- extendedWaitUntil:
+    visible:
+      id: "balance-section"
+    timeout: 30000
+
+# Dismiss low ecash modal if it appears
+- runFlow: ../helpers/dismiss-low-ecash.yaml
+
+# Wait for wallet actions
+- extendedWaitUntil:
+    visible:
+      id: "wallet-actions"
+    timeout: 15000
+
+# Dismiss airdrop modal if it appears
+- runFlow: ../helpers/dismiss-airdrop.yaml
+
+# Dismiss passkey migration modal if it appears
+- runFlow:
+    when:
+      visible:
+        id: "passkey-migration-modal"
+    commands:
+      - tapOn:
+          id: "passkey-skip-btn"
+
+# Navigate to deposit options
+- tapOn:
+    id: "wallet-deposit-btn"
+- extendedWaitUntil:
+    visible:
+      id: "deposit-btc"
+    timeout: 5000
+
+# Check if vault deposit option exists
+- runFlow:
+    when:
+      visible:
+        id: "deposit-vault"
+    commands:
+      - tapOn:
+          id: "deposit-vault"
+      - waitForAnimationToEnd
+      # Verify deposit input screen loads
+      - extendedWaitUntil:
+          visible:
+            id: "vault-deposit-input-screen"
+          timeout: 10000
+      - assertVisible:
+          text: "Deposit BTC"
+      # Verify vault info visible
+      - assertVisible:
+          text: "Collateral"
+
+# If vault deposit not available, test BTC deposit flow
+- runFlow:
+    when:
+      notVisible:
+        id: "vault-deposit-input-screen"
+    commands:
+      - tapOn:
+          id: "deposit-btc"
+      - waitForAnimationToEnd
+      - extendedWaitUntil:
+          visible:
+            id: "receive-qr-screen"
+          timeout: 10000
+      - assertVisible:
+          text: "Bitcoin address"

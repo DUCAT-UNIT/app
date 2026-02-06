@@ -1,0 +1,48 @@
+appId: com.ducatprotocol.DucatProtocolWallet
+---
+# Cashu Receive Screen - Verify ecash receive screen loads with options
+# Import wallet → navigate to cashu receive → verify mint and receive token options
+
+- runFlow: ../helpers/import-wallet-typed.yaml
+
+# Verify wallet screen
+- extendedWaitUntil:
+    visible:
+      id: "wallet-screen"
+    timeout: 15000
+
+# Dismiss low ecash modal if it appears
+- runFlow: ../helpers/dismiss-low-ecash.yaml
+
+# Dismiss airdrop modal if it appears
+- runFlow: ../helpers/dismiss-airdrop.yaml
+
+# Dismiss passkey migration modal if it appears
+- runFlow:
+    when:
+      visible:
+        id: "passkey-migration-modal"
+    commands:
+      - tapOn:
+          id: "passkey-skip-btn"
+
+# Navigate to deposit → receive UNIT (cashu)
+- tapOn:
+    id: "wallet-deposit-btn"
+- extendedWaitUntil:
+    visible:
+      id: "deposit-unit"
+    timeout: 5000
+- tapOn:
+    id: "deposit-unit"
+
+# Verify UNIT receive screen loads (use text since testID may not be exposed)
+- waitForAnimationToEnd
+- extendedWaitUntil:
+    visible:
+      text: "UNIT address"
+    timeout: 10000
+
+# Verify address section is visible
+- assertVisible:
+    text: "Only use this address to receive UNIT."

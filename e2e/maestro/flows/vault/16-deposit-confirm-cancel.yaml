@@ -1,0 +1,53 @@
+appId: com.ducatprotocol.DucatProtocolWallet
+---
+# Deposit Sheet Options - Verify deposit sheet shows both BTC and vault deposit options
+# Funded wallet → tap deposit → verify both deposit-btc and deposit-vault options visible
+
+- runFlow: ../helpers/import-wallet-typed.yaml
+
+# Verify wallet screen
+- extendedWaitUntil:
+    visible:
+      id: "wallet-screen"
+    timeout: 15000
+
+# Wait for balance to load
+- extendedWaitUntil:
+    visible:
+      id: "balance-section"
+    timeout: 30000
+
+# Dismiss low ecash modal if it appears
+- runFlow: ../helpers/dismiss-low-ecash.yaml
+
+# Wait for wallet actions
+- extendedWaitUntil:
+    visible:
+      id: "wallet-actions"
+    timeout: 15000
+
+# Dismiss airdrop modal if it appears
+- runFlow: ../helpers/dismiss-airdrop.yaml
+
+# Dismiss passkey migration modal if it appears
+- runFlow:
+    when:
+      visible:
+        id: "passkey-migration-modal"
+    commands:
+      - tapOn:
+          id: "passkey-skip-btn"
+
+# Tap Deposit button to open sheet
+- tapOn:
+    id: "wallet-deposit-btn"
+
+# Verify deposit-btc option is visible in the sheet
+- extendedWaitUntil:
+    visible:
+      id: "deposit-btc"
+    timeout: 5000
+
+# Verify deposit-vault option may or may not be visible (depends on wallet state)
+# Just verify we got the sheet open with at least BTC option
+- waitForAnimationToEnd

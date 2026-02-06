@@ -3,10 +3,10 @@ appId: com.ducatprotocol.DucatProtocolWallet
 # Navigate Settings - Verify settings menu items visible
 # Import wallet → open settings → verify menu items
 
-- runFlow: ../../helpers/import-wallet.yaml
+- runFlow: ../helpers/import-wallet-typed.yaml
 
 # Navigate to settings
-- runFlow: ../../helpers/navigate-to-settings.yaml
+- runFlow: ../helpers/navigate-to-settings.yaml
 
 # Verify settings menu items are visible
 - assertVisible:

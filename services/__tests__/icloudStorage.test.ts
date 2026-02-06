@@ -1,4 +1,3 @@
-// @ts-nocheck
 /**
  * Tests for iCloud Storage Service
  */
@@ -37,6 +36,20 @@ jest.mock('../../utils/logger', () => ({
   },
 }));
 
+/**
+ * Error type with optional code property (common in native modules)
+ */
+interface ICloudError extends Error {
+  code?: string;
+}
+
+/**
+ * Mutable platform type for testing
+ */
+interface MutablePlatform {
+  OS: string;
+}
+
 // Typed mock references
 const mockGetItem = iCloudStorage.getItem as jest.MockedFunction<typeof iCloudStorage.getItem>;
 const mockSetItem = iCloudStorage.setItem as jest.MockedFunction<typeof iCloudStorage.setItem>;
@@ -46,7 +59,7 @@ describe('iCloudStorage', () => {
   beforeEach(() => {
     jest.clearAllMocks();
     // Reset Platform.OS to ios for each test
-    (Platform as any).OS = 'ios';
+    (Platform as MutablePlatform).OS = 'ios';
   });
 
   describe('checkICloudAvailability', () => {
@@ -60,7 +73,7 @@ describe('iCloudStorage', () => {
     });
 
     it('should return unavailable on non-iOS platform', async () => {
-      (Platform as any).OS = 'android';
+      (Platform as MutablePlatform).OS = 'android';
 
       const result = await checkICloudAvailability();
 
@@ -72,7 +85,7 @@ describe('iCloudStorage', () => {
 
     it('should return unavailable when iCloud storage not available', async () => {
       const error = new Error('iCloud not available');
-      (error as any).code = 'ICLOUD_STORAGE_NOT_AVAILABLE';
+      (error as ICloudError).code = 'ICLOUD_STORAGE_NOT_AVAILABLE';
       mockGetItem.mockRejectedValue(error);
 
       const result = await checkICloudAvailability();
@@ -106,7 +119,7 @@ describe('iCloudStorage', () => {
     it('should return available when getItem throws unknown error (iCloud accessible but key not found)', async () => {
       // Throw an error that is NOT ICLOUD_STORAGE_NOT_AVAILABLE and NOT "not entitled"
       const error = new Error('Key not found');
-      (error as any).code = 'KEY_NOT_FOUND';
+      (error as ICloudError).code = 'KEY_NOT_FOUND';
       mockGetItem.mockRejectedValue(error);
 
       const result = await checkICloudAvailability();
@@ -175,7 +188,7 @@ describe('iCloudStorage', () => {
 
     it('should throw error with debug info when setItem fails', async () => {
       const error = new Error('Storage full');
-      (error as any).code = 'STORAGE_FULL';
+      (error as ICloudError).code = 'STORAGE_FULL';
       mockSetItem.mockRejectedValue(error);
 
       await expect(saveToICloud(validBackupData)).rejects.toThrow('iCloud Save Debug');
@@ -183,16 +196,16 @@ describe('iCloudStorage', () => {
 
     it('should include error details in thrown error', async () => {
       const error = new Error('Storage full');
-      (error as any).code = 'STORAGE_FULL';
+      (error as ICloudError).code = 'STORAGE_FULL';
       mockSetItem.mockRejectedValue(error);
 
       try {
         await saveToICloud(validBackupData);
         fail('Should have thrown');
       } catch (e) {
-        expect(e.message).toContain('SAVE FAILED');
-        expect(e.message).toContain('Storage full');
-        expect(e.message).toContain('STORAGE_FULL');
+        expect((e as Error).message).toContain('SAVE FAILED');
+        expect((e as Error).message).toContain('Storage full');
+        expect((e as Error).message).toContain('STORAGE_FULL');
       }
     });
 
@@ -267,7 +280,7 @@ describe('iCloudStorage', () => {
 
     it('should throw error when IV is missing', async () => {
       mockGetItem.mockImplementation((key) => {
-        const data = {
+        const data: Record<string, string | null> = {
           'ducat_encrypted_mnemonic_v1': 'encrypted-data',
           'ducat_encryption_iv_v1': null,
           'ducat_credential_id_v1': 'cred-id',
@@ -282,7 +295,7 @@ describe('iCloudStorage', () => {
 
     it('should throw error when credentialId is missing', async () => {
       mockGetItem.mockImplementation((key) => {
-        const data = {
+        const data: Record<string, string | null> = {
           'ducat_encrypted_mnemonic_v1': 'encrypted-data',
           'ducat_encryption_iv_v1': 'iv-data',
           'ducat_credential_id_v1': null,
@@ -297,7 +310,7 @@ describe('iCloudStorage', () => {
 
     it('should throw error when userHandle is missing', async () => {
       mockGetItem.mockImplementation((key) => {
-        const data = {
+        const data: Record<string, string | null> = {
           'ducat_encrypted_mnemonic_v1': 'encrypted-data',
           'ducat_encryption_iv_v1': 'iv-data',
           'ducat_credential_id_v1': 'cred-id',
@@ -312,7 +325,7 @@ describe('iCloudStorage', () => {
 
     it('should throw error when pinSalt is missing', async () => {
       mockGetItem.mockImplementation((key) => {
-        const data = {
+        const data: Record<string, string | null> = {
           'ducat_encrypted_mnemonic_v1': 'encrypted-data',
           'ducat_encryption_iv_v1': 'iv-data',
           'ducat_credential_id_v1': 'cred-id',
@@ -327,7 +340,7 @@ describe('iCloudStorage', () => {
 
     it('should handle missing tag gracefully (optional field)', async () => {
       mockGetItem.mockImplementation((key) => {
-        const data = {
+        const data: Record<string, string | null> = {
           'ducat_encrypted_mnemonic_v1': 'encrypted-data',
           'ducat_encryption_iv_v1': 'iv-data',
           'ducat_encryption_tag_v1': null,
@@ -345,16 +358,16 @@ describe('iCloudStorage', () => {
 
     it('should include debug info when load fails', async () => {
       const error = new Error('Network error');
-      (error as any).code = 'NETWORK_ERROR';
+      (error as ICloudError).code = 'NETWORK_ERROR';
       mockGetItem.mockRejectedValue(error);
 
       try {
         await loadFromICloud();
         fail('Should have thrown');
       } catch (e) {
-        expect(e.message).toContain('iCloud Load Debug');
-        expect(e.message).toContain('Load failed');
-        expect(e.message).toContain('Network error');
+        expect((e as Error).message).toContain('iCloud Load Debug');
+        expect((e as Error).message).toContain('Load failed');
+        expect((e as Error).message).toContain('Network error');
       }
     });
 
@@ -391,7 +404,7 @@ describe('iCloudStorage', () => {
 
     it('should throw enhanced error when iCloud not available', async () => {
       const error = new Error('iCloud not available');
-      (error as any).code = 'ICLOUD_STORAGE_NOT_AVAILABLE';
+      (error as ICloudError).code = 'ICLOUD_STORAGE_NOT_AVAILABLE';
       mockGetItem.mockRejectedValue(error);
 
       await expect(hasICloudBackup()).rejects.toThrow('iCloud is not available');
@@ -408,7 +421,7 @@ describe('iCloudStorage', () => {
 
     it('should throw generic error for other failures', async () => {
       const error = new Error('Unknown error');
-      (error as any).code = 'UNKNOWN';
+      (error as ICloudError).code = 'UNKNOWN';
       mockGetItem.mockRejectedValue(error);
 
       await expect(hasICloudBackup()).rejects.toThrow('iCloud access failed: Unknown error');

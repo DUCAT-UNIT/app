@@ -1,4 +1,3 @@
-// @ts-nocheck
 /**
  * Tests for useWithdrawVault hook
  */
@@ -89,7 +88,12 @@ const mockWithdrawStore = {
 };
 
 jest.mock('../../stores/withdrawStore', () => ({
-  useWithdrawStore: jest.fn(() => mockWithdrawStore),
+  useWithdrawStore: jest.fn((selector) => {
+    if (typeof selector === 'function') {
+      return selector(mockWithdrawStore);
+    }
+    return mockWithdrawStore;
+  }),
   useWithdraw: jest.fn(() => mockWithdrawStore),
 }));
 
@@ -126,6 +130,16 @@ jest.mock('../../stores/priceStore', () => ({
   })),
 }));
 
+jest.mock('../../contexts/WalletDataContext', () => ({
+  useVaultData: jest.fn(() => ({
+    vaultData: {
+      totalDebt: 100,
+      totalCollateral: 0.01,
+      vaultId: 'vault1',
+    },
+  })),
+}));
+
 import { useWithdrawVault } from '../useWithdrawVault';
 import { getGuardianClient } from '../../services/guardianService';
 import { guardianSendReqWithdraw } from '../../services/vaultOperationsService';
@@ -145,10 +159,10 @@ describe('useWithdrawVault', () => {
   it('should return initial state', () => {
     const { result } = renderHook(() => useWithdrawVault());
 
-    expect(result.current.isLoading).toBe(false);
-    expect(result.current.error).toBeNull();
-    expect(result.current.vaultTxid).toBeNull();
-    expect(result.current.vaultDataLoaded).toBe(false);
+    expect(result.current!.isLoading).toBe(false);
+    expect(result.current!.error).toBeNull();
+    expect(result.current!.vaultTxid).toBeNull();
+    expect(result.current!.vaultDataLoaded).toBe(false);
   });
 
   describe('loadVaultData', () => {
@@ -157,7 +171,7 @@ describe('useWithdrawVault', () => {
 
       let success;
       await act(async () => {
-        success = await result.current.loadVaultData();
+        success = await result.current!.loadVaultData();
       });
 
       expect(success).toBe(true);
@@ -166,13 +180,13 @@ describe('useWithdrawVault', () => {
 
     it('should return false if wallet not connected', async () => {
       const { useWallet } = require('../../contexts/WalletContext');
-      useWallet.mockReturnValueOnce({ wallet: null });
+      (useWallet as jest.Mock).mockReturnValueOnce({ wallet: null });
 
       const { result } = renderHook(() => useWithdrawVault());
 
       let success;
       await act(async () => {
-        success = await result.current.loadVaultData();
+        success = await result.current!.loadVaultData();
       });
 
       expect(success).toBe(false);
@@ -180,13 +194,14 @@ describe('useWithdrawVault', () => {
     });
 
     it('should return false if no vault found', async () => {
-      (fetchVaultData as jest.Mock).mockResolvedValueOnce(null);
+      const { useVaultData } = require('../../contexts/WalletDataContext');
+      useVaultData.mockReturnValueOnce({ vaultData: null });
 
       const { result } = renderHook(() => useWithdrawVault());
 
       let success;
       await act(async () => {
-        success = await result.current.loadVaultData();
+        success = await result.current!.loadVaultData();
       });
 
       expect(success).toBe(false);
@@ -200,7 +215,7 @@ describe('useWithdrawVault', () => {
 
       let withdrawResult;
       await act(async () => {
-        withdrawResult = await result.current.withdraw();
+        withdrawResult = await result.current!.withdraw();
       });
 
       expect(withdrawResult).toEqual({ vaultTxid: 'vtxid123' });
@@ -209,13 +224,13 @@ describe('useWithdrawVault', () => {
 
     it('should return null if wallet not connected', async () => {
       const { useWallet } = require('../../contexts/WalletContext');
-      useWallet.mockReturnValueOnce({ wallet: null });
+      (useWallet as jest.Mock).mockReturnValueOnce({ wallet: null });
 
       const { result } = renderHook(() => useWithdrawVault());
 
       let withdrawResult;
       await act(async () => {
-        withdrawResult = await result.current.withdraw();
+        withdrawResult = await result.current!.withdraw();
       });
 
       expect(withdrawResult).toBeNull();
@@ -230,7 +245,7 @@ describe('useWithdrawVault', () => {
 
       let withdrawResult;
       await act(async () => {
-        withdrawResult = await result.current.withdraw();
+        withdrawResult = await result.current!.withdraw();
       });
 
       expect(withdrawResult).toBeNull();
@@ -244,7 +259,7 @@ describe('useWithdrawVault', () => {
 
       let withdrawResult;
       await act(async () => {
-        withdrawResult = await result.current.withdraw();
+        withdrawResult = await result.current!.withdraw();
       });
 
       expect(withdrawResult).toBeNull();
@@ -258,7 +273,7 @@ describe('useWithdrawVault', () => {
 
       let withdrawResult;
       await act(async () => {
-        withdrawResult = await result.current.withdraw();
+        withdrawResult = await result.current!.withdraw();
       });
 
       expect(withdrawResult).toBeNull();
@@ -273,7 +288,7 @@ describe('useWithdrawVault', () => {
 
       let withdrawResult;
       await act(async () => {
-        withdrawResult = await result.current.withdraw();
+        withdrawResult = await result.current!.withdraw();
       });
 
       expect(withdrawResult).toBeNull();
@@ -288,7 +303,7 @@ describe('useWithdrawVault', () => {
 
       let withdrawResult;
       await act(async () => {
-        withdrawResult = await result.current.withdraw();
+        withdrawResult = await result.current!.withdraw();
       });
 
       expect(withdrawResult).toBeNull();
@@ -302,7 +317,7 @@ describe('useWithdrawVault', () => {
 
       let withdrawResult;
       await act(async () => {
-        withdrawResult = await result.current.withdraw();
+        withdrawResult = await result.current!.withdraw();
       });
 
       expect(withdrawResult).toBeNull();
@@ -313,7 +328,7 @@ describe('useWithdrawVault', () => {
       const { result } = renderHook(() => useWithdrawVault());
 
       await act(async () => {
-        await result.current.withdraw();
+        await result.current!.withdraw();
       });
 
       expect(mockWithdrawStore.setProcessingStep).toHaveBeenCalledWith(1);
@@ -332,7 +347,7 @@ describe('useWithdrawVault', () => {
 
       let withdrawResult;
       await act(async () => {
-        withdrawResult = await result.current.withdraw();
+        withdrawResult = await result.current!.withdraw();
       });
 
       // Verify success path
@@ -347,7 +362,7 @@ describe('useWithdrawVault', () => {
       const { result } = renderHook(() => useWithdrawVault());
 
       act(() => {
-        result.current.cancel();
+        result.current!.cancel();
       });
 
       expect(disconnectGuardian).toHaveBeenCalled();
@@ -358,46 +373,52 @@ describe('useWithdrawVault', () => {
   describe('loadVaultData', () => {
     it('should return false if wallet not connected', async () => {
       const { useWallet } = require('../../contexts/WalletContext');
-      useWallet.mockReturnValueOnce({ wallet: null });
+      (useWallet as jest.Mock).mockReturnValueOnce({ wallet: null });
 
       const { result } = renderHook(() => useWithdrawVault());
 
       let loadResult;
       await act(async () => {
-        loadResult = await result.current.loadVaultData();
+        loadResult = await result.current!.loadVaultData();
       });
 
       expect(loadResult).toBe(false);
     });
 
-    it('should handle fetchVaultData error', async () => {
-      const { fetchVaultData } = require('../../services/vaultService');
-      fetchVaultData.mockRejectedValueOnce(new Error('Fetch failed'));
+    it('should return false if vault data is undefined', async () => {
+      const { useVaultData } = require('../../contexts/WalletDataContext');
+      useVaultData.mockReturnValueOnce({ vaultData: undefined });
 
       const { result } = renderHook(() => useWithdrawVault());
 
       let loadResult;
       await act(async () => {
-        loadResult = await result.current.loadVaultData();
+        loadResult = await result.current!.loadVaultData();
       });
 
       expect(loadResult).toBe(false);
-      expect(mockWithdrawStore.setError).toHaveBeenCalledWith('Fetch failed');
+      expect(mockWithdrawStore.setError).toHaveBeenCalledWith('No vault found. Please create a vault first.');
     });
 
-    it('should handle non-Error throws', async () => {
-      const { fetchVaultData } = require('../../services/vaultService');
-      fetchVaultData.mockRejectedValueOnce('string error');
+    it('should handle vault data with zero values', async () => {
+      const { useVaultData } = require('../../contexts/WalletDataContext');
+      useVaultData.mockReturnValueOnce({
+        vaultData: {
+          totalDebt: 0,
+          totalCollateral: 0,
+          vaultId: 'vault1'
+        }
+      });
 
       const { result } = renderHook(() => useWithdrawVault());
 
       let loadResult;
       await act(async () => {
-        loadResult = await result.current.loadVaultData();
+        loadResult = await result.current!.loadVaultData();
       });
 
-      expect(loadResult).toBe(false);
-      expect(mockWithdrawStore.setError).toHaveBeenCalledWith('Failed to load vault data');
+      expect(loadResult).toBe(true);
+      expect(mockWithdrawStore.setCurrentVaultData).toHaveBeenCalledWith(0, 0);
     });
   });
 
@@ -410,7 +431,7 @@ describe('useWithdrawVault', () => {
 
       let withdrawResult;
       await act(async () => {
-        withdrawResult = await result.current.withdraw();
+        withdrawResult = await result.current!.withdraw();
       });
 
       expect(withdrawResult).toBeNull();
@@ -424,7 +445,7 @@ describe('useWithdrawVault', () => {
 
       let withdrawResult;
       await act(async () => {
-        withdrawResult = await result.current.withdraw();
+        withdrawResult = await result.current!.withdraw();
       });
 
       expect(withdrawResult).toBeNull();
@@ -438,7 +459,7 @@ describe('useWithdrawVault', () => {
 
       let withdrawResult;
       await act(async () => {
-        withdrawResult = await result.current.withdraw();
+        withdrawResult = await result.current!.withdraw();
       });
 
       expect(withdrawResult).toBeNull();
@@ -454,7 +475,7 @@ describe('useWithdrawVault', () => {
 
       let withdrawResult;
       await act(async () => {
-        withdrawResult = await result.current.withdraw();
+        withdrawResult = await result.current!.withdraw();
       });
 
       expect(withdrawResult).toBeNull();
@@ -473,7 +494,7 @@ describe('useWithdrawVault', () => {
 
       let withdrawResult;
       await act(async () => {
-        withdrawResult = await result.current.withdraw();
+        withdrawResult = await result.current!.withdraw();
       });
 
       expect(withdrawResult).toEqual({ vaultTxid: 'vtxid123' });
@@ -488,7 +509,7 @@ describe('useWithdrawVault', () => {
 
       let withdrawResult;
       await act(async () => {
-        withdrawResult = await result.current.withdraw();
+        withdrawResult = await result.current!.withdraw();
       });
 
       expect(withdrawResult).toBeNull();
@@ -500,13 +521,13 @@ describe('useWithdrawVault', () => {
 
       // Start first withdrawal
       const firstWithdraw = act(async () => {
-        return result.current.withdraw();
+        return result.current!.withdraw();
       });
 
       // Try to start second withdrawal immediately
       let secondResult;
       await act(async () => {
-        secondResult = await result.current.withdraw();
+        secondResult = await result.current!.withdraw();
       });
 
       // Second call should return null due to operation in progress
@@ -519,7 +540,7 @@ describe('useWithdrawVault', () => {
     it('should handle wallet not connected in buildVaultProfileFromData (line 137)', async () => {
       const { useWallet } = require('../../contexts/WalletContext');
       // Wallet connected initially for validation checks
-      useWallet.mockReturnValueOnce({ wallet: {
+      (useWallet as jest.Mock).mockReturnValueOnce({ wallet: {
         segwitAddress: 'tb1qtest...',
         taprootAddress: 'tb1ptest...',
         taprootPubkey: null, // But pubkey is null
@@ -532,7 +553,7 @@ describe('useWithdrawVault', () => {
 
       let withdrawResult;
       await act(async () => {
-        withdrawResult = await result.current.withdraw();
+        withdrawResult = await result.current!.withdraw();
       });
 
       // Should fail when trying to build profile
@@ -547,7 +568,7 @@ describe('useWithdrawVault', () => {
 
       let withdrawResult;
       await act(async () => {
-        withdrawResult = await result.current.withdraw();
+        withdrawResult = await result.current!.withdraw();
       });
 
       expect(withdrawResult).toBeNull();
@@ -566,7 +587,7 @@ describe('useWithdrawVault', () => {
 
       let withdrawResult;
       await act(async () => {
-        withdrawResult = await result.current.withdraw();
+        withdrawResult = await result.current!.withdraw();
       });
 
       expect(withdrawResult).toBeNull();
@@ -575,19 +596,21 @@ describe('useWithdrawVault', () => {
     });
 
     it('should handle vault data with null totalDebt and totalCollateral (lines 109-110)', async () => {
-      const { fetchVaultData } = require('../../services/vaultService');
-      fetchVaultData.mockResolvedValueOnce({
-        vaultId: 'vault1',
-        totalDebt: null,
-        totalCollateral: null,
-        vaultInfo: { creation_account: 'acct1', guard_pubkey: 'guard1', master_id: 'master1' },
+      const { useVaultData } = require('../../contexts/WalletDataContext');
+      useVaultData.mockReturnValueOnce({
+        vaultData: {
+          vaultId: 'vault1',
+          totalDebt: null,
+          totalCollateral: null,
+          vaultInfo: { creation_account: 'acct1', guard_pubkey: 'guard1', master_id: 'master1' },
+        }
       });
 
       const { result } = renderHook(() => useWithdrawVault());
 
       let success;
       await act(async () => {
-        success = await result.current.loadVaultData();
+        success = await result.current!.loadVaultData();
       });
 
       expect(success).toBe(true);
@@ -596,7 +619,7 @@ describe('useWithdrawVault', () => {
 
     it('should handle wallet with null pubkeys (lines 264, 266, 275, 317)', async () => {
       const { useWallet } = require('../../contexts/WalletContext');
-      useWallet.mockReturnValueOnce({ wallet: {
+      (useWallet as jest.Mock).mockReturnValueOnce({ wallet: {
         segwitAddress: 'tb1qtest...',
         segwitPubkey: null, // null pubkey
         taprootAddress: 'tb1ptest...',
@@ -607,7 +630,7 @@ describe('useWithdrawVault', () => {
 
       let withdrawResult;
       await act(async () => {
-        withdrawResult = await result.current.withdraw();
+        withdrawResult = await result.current!.withdraw();
       });
 
       // Should succeed with empty string for null pubkeys
@@ -624,7 +647,7 @@ describe('useWithdrawVault', () => {
 
       let withdrawResult;
       await act(async () => {
-        withdrawResult = await result.current.withdraw();
+        withdrawResult = await result.current!.withdraw();
       });
 
       expect(withdrawResult).toBeNull();
@@ -646,7 +669,7 @@ describe('useWithdrawVault', () => {
 
       let withdrawResult;
       await act(async () => {
-        withdrawResult = await result.current.withdraw();
+        withdrawResult = await result.current!.withdraw();
       });
 
       // Should succeed without calculating liquidation price
@@ -665,7 +688,7 @@ describe('useWithdrawVault', () => {
 
       let withdrawResult;
       await act(async () => {
-        withdrawResult = await result.current.withdraw();
+        withdrawResult = await result.current!.withdraw();
       });
 
       // Should fail due to health ratio
@@ -680,7 +703,7 @@ describe('useWithdrawVault', () => {
 
       let withdrawResult;
       await act(async () => {
-        withdrawResult = await result.current.withdraw();
+        withdrawResult = await result.current!.withdraw();
       });
 
       expect(withdrawResult).toBeNull();

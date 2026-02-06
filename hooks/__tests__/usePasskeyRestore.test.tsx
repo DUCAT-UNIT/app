@@ -1,4 +1,3 @@
-// @ts-nocheck
 /**
  * Tests for usePasskeyRestore Hook
  */
@@ -10,24 +9,25 @@ import { usePasskeyRestore } from '../usePasskeyRestore';
 import { savePin } from '../../services/pinService';
 import { saveMnemonic, saveCurrentAccount } from '../../services/secureStorageService';
 import { notify } from '../../utils/notify';
+import type { WalletAddresses } from '../../contexts/WalletContext';
 
 // Helper to render hooks with react-test-renderer
-function renderHook(hook) {
-  const result = { current: null };
+function renderHook<T>(hook: () => T) {
+  const result: { current: T | null } = { current: null };
 
   function TestComponent() {
     result.current = hook();
     return null;
   }
 
-  let component;
+  let component: ReturnType<typeof create> | undefined;
   act(() => {
     component = create(<TestComponent />);
   });
 
   return {
     result,
-    unmount: () => component.unmount(),
+    unmount: () => component?.unmount(),
   };
 }
 
@@ -45,7 +45,12 @@ jest.mock('../../services/secureStorageService', () => ({
 }));
 
 describe('usePasskeyRestore', () => {
-  let mockProps;
+  let mockProps: {
+    setIsAuthenticated: jest.Mock;
+    setSeedConfirmed: jest.Mock;
+    loadWallet: jest.Mock;
+    setWalletAddresses: jest.Mock<void, [WalletAddresses, number]>;
+  };
 
   beforeEach(() => {
     mockProps = {
@@ -56,25 +61,25 @@ describe('usePasskeyRestore', () => {
     };
 
     jest.clearAllMocks();
-    PasskeyService.isPasskeySupported.mockResolvedValue(true);
-    PasskeyService.hasICloudBackup.mockResolvedValue(true);
-    PasskeyService.recoverWithPasskey.mockResolvedValue({
+    (PasskeyService.isPasskeySupported as jest.Mock).mockResolvedValue(true);
+    (PasskeyService.hasICloudBackup as jest.Mock).mockResolvedValue(true);
+    (PasskeyService.recoverWithPasskey as jest.Mock).mockResolvedValue({
       mnemonic: 'test mnemonic phrase',
       addresses: { segwit: 'bc1q...', taproot: 'bc1p...' },
     });
-    savePin.mockResolvedValue(undefined);
-    saveMnemonic.mockResolvedValue(undefined);
-    saveCurrentAccount.mockResolvedValue(undefined);
+    (savePin as jest.Mock).mockResolvedValue(undefined);
+    (saveMnemonic as jest.Mock).mockResolvedValue(undefined);
+    (saveCurrentAccount as jest.Mock).mockResolvedValue(undefined);
   });
 
   describe('Initialization', () => {
     it('should initialize with default state', () => {
       const { result } = renderHook(() => usePasskeyRestore(mockProps));
 
-      expect(result.current.restoringWithPasskey).toBe(false);
-      expect(result.current.showRestorePinInput).toBe(false);
-      expect(result.current.restorePin).toBe('');
-      expect(result.current.isRestoring).toBe(false);
+      expect(result.current!.restoringWithPasskey).toBe(false);
+      expect(result.current!.showRestorePinInput).toBe(false);
+      expect(result.current!.restorePin).toBe('');
+      expect(result.current!.isRestoring).toBe(false);
     });
 
     it('should return all expected properties', () => {
@@ -90,78 +95,78 @@ describe('usePasskeyRestore', () => {
       expect(result.current).toHaveProperty('restoreWalletWithPasskey');
       expect(result.current).toHaveProperty('resetPasskeyRestore');
 
-      expect(typeof result.current.setRestoringWithPasskey).toBe('function');
-      expect(typeof result.current.setRestorePin).toBe('function');
-      expect(typeof result.current.startPasskeyRestore).toBe('function');
-      expect(typeof result.current.restoreWalletWithPasskey).toBe('function');
-      expect(typeof result.current.resetPasskeyRestore).toBe('function');
+      expect(typeof result.current!.setRestoringWithPasskey).toBe('function');
+      expect(typeof result.current!.setRestorePin).toBe('function');
+      expect(typeof result.current!.startPasskeyRestore).toBe('function');
+      expect(typeof result.current!.restoreWalletWithPasskey).toBe('function');
+      expect(typeof result.current!.resetPasskeyRestore).toBe('function');
     });
   });
 
   describe('startPasskeyRestore', () => {
     it('should show PIN input when passkey is supported and backup exists', async () => {
-      PasskeyService.isPasskeySupported.mockResolvedValue(true);
-      PasskeyService.hasICloudBackup.mockResolvedValue(true);
+      (PasskeyService.isPasskeySupported as jest.Mock).mockResolvedValue(true);
+      (PasskeyService.hasICloudBackup as jest.Mock).mockResolvedValue(true);
 
       const { result } = renderHook(() => usePasskeyRestore(mockProps));
 
       await act(async () => {
-        await result.current.startPasskeyRestore();
+        await result.current!.startPasskeyRestore();
       });
 
       expect(PasskeyService.isPasskeySupported).toHaveBeenCalled();
       expect(PasskeyService.hasICloudBackup).toHaveBeenCalled();
-      expect(result.current.showRestorePinInput).toBe(true);
+      expect(result.current!.showRestorePinInput).toBe(true);
     });
 
     it('should show error when passkeys not supported', async () => {
-      PasskeyService.isPasskeySupported.mockResolvedValue(false);
+      (PasskeyService.isPasskeySupported as jest.Mock).mockResolvedValue(false);
 
       const { result } = renderHook(() => usePasskeyRestore(mockProps));
 
       await act(async () => {
-        await result.current.startPasskeyRestore();
+        await result.current!.startPasskeyRestore();
       });
 
       expect(notify.passkey.notSupported).toHaveBeenCalled();
-      expect(result.current.showRestorePinInput).toBe(false);
+      expect(result.current!.showRestorePinInput).toBe(false);
     });
 
     it('should show error when no iCloud backup exists', async () => {
-      PasskeyService.isPasskeySupported.mockResolvedValue(true);
-      PasskeyService.hasICloudBackup.mockResolvedValue(false);
+      (PasskeyService.isPasskeySupported as jest.Mock).mockResolvedValue(true);
+      (PasskeyService.hasICloudBackup as jest.Mock).mockResolvedValue(false);
 
       const { result } = renderHook(() => usePasskeyRestore(mockProps));
 
       await act(async () => {
-        await result.current.startPasskeyRestore();
+        await result.current!.startPasskeyRestore();
       });
 
       expect(notify.passkey.noWallet).toHaveBeenCalled();
-      expect(result.current.showRestorePinInput).toBe(false);
+      expect(result.current!.showRestorePinInput).toBe(false);
     });
 
     it('should handle errors during passkey check', async () => {
       const error = new Error('Passkey check failed');
-      PasskeyService.isPasskeySupported.mockRejectedValue(error);
+      (PasskeyService.isPasskeySupported as jest.Mock).mockRejectedValue(error);
 
       const { result } = renderHook(() => usePasskeyRestore(mockProps));
 
       await act(async () => {
-        await result.current.startPasskeyRestore();
+        await result.current!.startPasskeyRestore();
       });
 
       expect(notify.passkey.restoreFailed).toHaveBeenCalled();
-      expect(result.current.showRestorePinInput).toBe(false);
+      expect(result.current!.showRestorePinInput).toBe(false);
     });
 
     it('should handle errors without message', async () => {
-      PasskeyService.isPasskeySupported.mockRejectedValue(new Error());
+      (PasskeyService.isPasskeySupported as jest.Mock).mockRejectedValue(new Error());
 
       const { result } = renderHook(() => usePasskeyRestore(mockProps));
 
       await act(async () => {
-        await result.current.startPasskeyRestore();
+        await result.current!.startPasskeyRestore();
       });
 
       expect(notify.passkey.restoreFailed).toHaveBeenCalled();
@@ -173,28 +178,28 @@ describe('usePasskeyRestore', () => {
     // The validation and error handling paths are thoroughly tested below
 
     it('should set isRestoring to true during restoration', async () => {
-      let restoreResolve;
+      let restoreResolve: (value: unknown) => void;
       const restorePromise = new Promise((resolve) => {
         restoreResolve = resolve;
       });
-      PasskeyService.recoverWithPasskey.mockReturnValue(restorePromise);
+      (PasskeyService.recoverWithPasskey as jest.Mock).mockReturnValue(restorePromise);
 
       const { result } = renderHook(() => usePasskeyRestore(mockProps));
 
-      expect(result.current.isRestoring).toBe(false);
+      expect(result.current!.isRestoring).toBe(false);
 
       act(() => {
-        result.current.restoreWalletWithPasskey('123456');
+        result.current!.restoreWalletWithPasskey('123456');
       });
 
-      expect(result.current.isRestoring).toBe(true);
+      expect(result.current!.isRestoring).toBe(true);
 
       await act(async () => {
         restoreResolve({ mnemonic: 'test', addresses: {} });
         await restorePromise;
       });
 
-      expect(result.current.isRestoring).toBe(false);
+      expect(result.current!.isRestoring).toBe(false);
     });
   });
 
@@ -203,19 +208,19 @@ describe('usePasskeyRestore', () => {
       const { result } = renderHook(() => usePasskeyRestore(mockProps));
 
       await act(async () => {
-        await result.current.restoreWalletWithPasskey(null);
+        await result.current!.restoreWalletWithPasskey(null as unknown as string);
       });
 
       expect(notify.pin.invalid).toHaveBeenCalled();
       expect(PasskeyService.recoverWithPasskey).not.toHaveBeenCalled();
-      expect(result.current.isRestoring).toBe(false);
+      expect(result.current!.isRestoring).toBe(false);
     });
 
     it('should show error when PIN is empty', async () => {
       const { result } = renderHook(() => usePasskeyRestore(mockProps));
 
       await act(async () => {
-        await result.current.restoreWalletWithPasskey('');
+        await result.current!.restoreWalletWithPasskey('');
       });
 
       expect(notify.pin.invalid).toHaveBeenCalled();
@@ -226,7 +231,7 @@ describe('usePasskeyRestore', () => {
       const { result } = renderHook(() => usePasskeyRestore(mockProps));
 
       await act(async () => {
-        await result.current.restoreWalletWithPasskey('12345');
+        await result.current!.restoreWalletWithPasskey('12345');
       });
 
       expect(notify.pin.invalid).toHaveBeenCalled();
@@ -237,7 +242,7 @@ describe('usePasskeyRestore', () => {
       const { result } = renderHook(() => usePasskeyRestore(mockProps));
 
       await act(async () => {
-        await result.current.restoreWalletWithPasskey('1234567');
+        await result.current!.restoreWalletWithPasskey('1234567');
       });
 
       expect(notify.pin.invalid).toHaveBeenCalled();
@@ -248,42 +253,42 @@ describe('usePasskeyRestore', () => {
   describe('restoreWalletWithPasskey - Error Handling', () => {
     it('should handle passkey recovery errors', async () => {
       const error = new Error('Recovery failed');
-      PasskeyService.recoverWithPasskey.mockRejectedValue(error);
+      (PasskeyService.recoverWithPasskey as jest.Mock).mockRejectedValue(error);
 
       const { result } = renderHook(() => usePasskeyRestore(mockProps));
 
       await act(async () => {
-        await result.current.restoreWalletWithPasskey('123456');
+        await result.current!.restoreWalletWithPasskey('123456');
       });
 
       expect(notify.passkey.walletRestoreFailed).toHaveBeenCalled();
       expect(mockProps.setIsAuthenticated).not.toHaveBeenCalled();
       expect(mockProps.setWalletAddresses).not.toHaveBeenCalled();
-      expect(result.current.isRestoring).toBe(false);
+      expect(result.current!.isRestoring).toBe(false);
     });
 
     it('should handle errors without message', async () => {
-      PasskeyService.recoverWithPasskey.mockRejectedValue(new Error());
+      (PasskeyService.recoverWithPasskey as jest.Mock).mockRejectedValue(new Error());
 
       const { result } = renderHook(() => usePasskeyRestore(mockProps));
 
       await act(async () => {
-        await result.current.restoreWalletWithPasskey('123456');
+        await result.current!.restoreWalletWithPasskey('123456');
       });
 
       expect(notify.passkey.walletRestoreFailed).toHaveBeenCalled();
     });
 
     it('should reset isRestoring on error', async () => {
-      PasskeyService.recoverWithPasskey.mockRejectedValue(new Error('Failed'));
+      (PasskeyService.recoverWithPasskey as jest.Mock).mockRejectedValue(new Error('Failed'));
 
       const { result } = renderHook(() => usePasskeyRestore(mockProps));
 
       await act(async () => {
-        await result.current.restoreWalletWithPasskey('123456');
+        await result.current!.restoreWalletWithPasskey('123456');
       });
 
-      expect(result.current.isRestoring).toBe(false);
+      expect(result.current!.isRestoring).toBe(false);
     });
   });
 
@@ -293,26 +298,26 @@ describe('usePasskeyRestore', () => {
 
       // First set some state
       await act(async () => {
-        await result.current.startPasskeyRestore();
+        await result.current!.startPasskeyRestore();
       });
       act(() => {
-        result.current.setRestoringWithPasskey(true);
-        result.current.setRestorePin('123456');
+        result.current!.setRestoringWithPasskey(true);
+        result.current!.setRestorePin('123456');
       });
 
-      expect(result.current.showRestorePinInput).toBe(true);
-      expect(result.current.restoringWithPasskey).toBe(true);
-      expect(result.current.restorePin).toBe('123456');
+      expect(result.current!.showRestorePinInput).toBe(true);
+      expect(result.current!.restoringWithPasskey).toBe(true);
+      expect(result.current!.restorePin).toBe('123456');
 
       // Reset
       act(() => {
-        result.current.resetPasskeyRestore();
+        result.current!.resetPasskeyRestore();
       });
 
-      expect(result.current.restoringWithPasskey).toBe(false);
-      expect(result.current.showRestorePinInput).toBe(false);
-      expect(result.current.restorePin).toBe('');
-      expect(result.current.isRestoring).toBe(false);
+      expect(result.current!.restoringWithPasskey).toBe(false);
+      expect(result.current!.showRestorePinInput).toBe(false);
+      expect(result.current!.restorePin).toBe('');
+      expect(result.current!.isRestoring).toBe(false);
     });
   });
 
@@ -320,25 +325,25 @@ describe('usePasskeyRestore', () => {
     it('should update restoringWithPasskey state', () => {
       const { result } = renderHook(() => usePasskeyRestore(mockProps));
 
-      expect(result.current.restoringWithPasskey).toBe(false);
+      expect(result.current!.restoringWithPasskey).toBe(false);
 
       act(() => {
-        result.current.setRestoringWithPasskey(true);
+        result.current!.setRestoringWithPasskey(true);
       });
 
-      expect(result.current.restoringWithPasskey).toBe(true);
+      expect(result.current!.restoringWithPasskey).toBe(true);
     });
 
     it('should update restorePin state', () => {
       const { result } = renderHook(() => usePasskeyRestore(mockProps));
 
-      expect(result.current.restorePin).toBe('');
+      expect(result.current!.restorePin).toBe('');
 
       act(() => {
-        result.current.setRestorePin('123456');
+        result.current!.setRestorePin('123456');
       });
 
-      expect(result.current.restorePin).toBe('123456');
+      expect(result.current!.restorePin).toBe('123456');
     });
   });
 
@@ -350,7 +355,7 @@ describe('usePasskeyRestore', () => {
         taprootAddress: 'bc1ptest',
       };
 
-      PasskeyService.recoverWithPasskey.mockResolvedValue({
+      (PasskeyService.recoverWithPasskey as jest.Mock).mockResolvedValue({
         mnemonic: mockMnemonic,
         addresses: mockAddresses,
       });
@@ -358,7 +363,7 @@ describe('usePasskeyRestore', () => {
       const { result } = renderHook(() => usePasskeyRestore(mockProps));
 
       await act(async () => {
-        await result.current.restoreWalletWithPasskey('123456');
+        await result.current!.restoreWalletWithPasskey('123456');
       });
 
       // Should call recovery service
@@ -384,10 +389,10 @@ describe('usePasskeyRestore', () => {
       expect(notify.passkey.restored).toHaveBeenCalled();
 
       // Should reset state
-      expect(result.current.showRestorePinInput).toBe(false);
-      expect(result.current.restorePin).toBe('');
-      expect(result.current.restoringWithPasskey).toBe(false);
-      expect(result.current.isRestoring).toBe(false);
+      expect(result.current!.showRestorePinInput).toBe(false);
+      expect(result.current!.restorePin).toBe('');
+      expect(result.current!.restoringWithPasskey).toBe(false);
+      expect(result.current!.isRestoring).toBe(false);
     });
 
     it('should set isRestoring to false after successful restoration', async () => {
@@ -397,7 +402,7 @@ describe('usePasskeyRestore', () => {
         taprootAddress: 'bc1ptest',
       };
 
-      PasskeyService.recoverWithPasskey.mockResolvedValue({
+      (PasskeyService.recoverWithPasskey as jest.Mock).mockResolvedValue({
         mnemonic: mockMnemonic,
         addresses: mockAddresses,
       });
@@ -405,10 +410,10 @@ describe('usePasskeyRestore', () => {
       const { result } = renderHook(() => usePasskeyRestore(mockProps));
 
       await act(async () => {
-        await result.current.restoreWalletWithPasskey('123456');
+        await result.current!.restoreWalletWithPasskey('123456');
       });
 
-      expect(result.current.isRestoring).toBe(false);
+      expect(result.current!.isRestoring).toBe(false);
     });
 
     it('should handle restoration with different PIN formats', async () => {
@@ -418,7 +423,7 @@ describe('usePasskeyRestore', () => {
         taprootAddress: 'bc1ptest',
       };
 
-      PasskeyService.recoverWithPasskey.mockResolvedValue({
+      (PasskeyService.recoverWithPasskey as jest.Mock).mockResolvedValue({
         mnemonic: mockMnemonic,
         addresses: mockAddresses,
       });
@@ -427,7 +432,7 @@ describe('usePasskeyRestore', () => {
 
       // Try with numeric string
       await act(async () => {
-        await result.current.restoreWalletWithPasskey('000000');
+        await result.current!.restoreWalletWithPasskey('000000');
       });
 
       expect(savePin).toHaveBeenCalledWith('000000');
@@ -442,7 +447,7 @@ describe('usePasskeyRestore', () => {
         taprootAddress: 'bc1ptest',
       };
 
-      PasskeyService.recoverWithPasskey.mockResolvedValue({
+      (PasskeyService.recoverWithPasskey as jest.Mock).mockResolvedValue({
         mnemonic: mockMnemonic,
         addresses: mockAddresses,
       });
@@ -451,17 +456,17 @@ describe('usePasskeyRestore', () => {
 
       // Show PIN input first
       await act(async () => {
-        await result.current.startPasskeyRestore();
+        await result.current!.startPasskeyRestore();
       });
 
-      expect(result.current.showRestorePinInput).toBe(true);
+      expect(result.current!.showRestorePinInput).toBe(true);
 
       // Restore wallet
       await act(async () => {
-        await result.current.restoreWalletWithPasskey('123456');
+        await result.current!.restoreWalletWithPasskey('123456');
       });
 
-      expect(result.current.showRestorePinInput).toBe(false);
+      expect(result.current!.showRestorePinInput).toBe(false);
     });
 
     it('should clear restore PIN after successful restore', async () => {
@@ -471,7 +476,7 @@ describe('usePasskeyRestore', () => {
         taprootAddress: 'bc1ptest',
       };
 
-      PasskeyService.recoverWithPasskey.mockResolvedValue({
+      (PasskeyService.recoverWithPasskey as jest.Mock).mockResolvedValue({
         mnemonic: mockMnemonic,
         addresses: mockAddresses,
       });
@@ -480,17 +485,17 @@ describe('usePasskeyRestore', () => {
 
       // Set PIN
       act(() => {
-        result.current.setRestorePin('123456');
+        result.current!.setRestorePin('123456');
       });
 
-      expect(result.current.restorePin).toBe('123456');
+      expect(result.current!.restorePin).toBe('123456');
 
       // Restore wallet
       await act(async () => {
-        await result.current.restoreWalletWithPasskey('123456');
+        await result.current!.restoreWalletWithPasskey('123456');
       });
 
-      expect(result.current.restorePin).toBe('');
+      expect(result.current!.restorePin).toBe('');
     });
 
     it('should set restoringWithPasskey to false after successful restore', async () => {
@@ -500,7 +505,7 @@ describe('usePasskeyRestore', () => {
         taprootAddress: 'bc1ptest',
       };
 
-      PasskeyService.recoverWithPasskey.mockResolvedValue({
+      (PasskeyService.recoverWithPasskey as jest.Mock).mockResolvedValue({
         mnemonic: mockMnemonic,
         addresses: mockAddresses,
       });
@@ -509,17 +514,17 @@ describe('usePasskeyRestore', () => {
 
       // Set restoringWithPasskey
       act(() => {
-        result.current.setRestoringWithPasskey(true);
+        result.current!.setRestoringWithPasskey(true);
       });
 
-      expect(result.current.restoringWithPasskey).toBe(true);
+      expect(result.current!.restoringWithPasskey).toBe(true);
 
       // Restore wallet
       await act(async () => {
-        await result.current.restoreWalletWithPasskey('123456');
+        await result.current!.restoreWalletWithPasskey('123456');
       });
 
-      expect(result.current.restoringWithPasskey).toBe(false);
+      expect(result.current!.restoringWithPasskey).toBe(false);
     });
   });
 });

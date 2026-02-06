@@ -1,0 +1,46 @@
+appId: com.ducatprotocol.DucatProtocolWallet
+---
+# Receive Copy Address - Verify deposit BTC flow works
+# Import wallet → deposit → BTC → verify receive screen
+
+- runFlow: ../helpers/import-wallet-typed.yaml
+
+# Wait for wallet actions to be ready
+- extendedWaitUntil:
+    visible:
+      id: "wallet-actions"
+    timeout: 20000
+
+# Dismiss modals
+- runFlow: ../helpers/dismiss-low-ecash.yaml
+- runFlow: ../helpers/dismiss-airdrop.yaml
+- runFlow:
+    when:
+      visible:
+        id: "passkey-migration-modal"
+    commands:
+      - tapOn:
+          id: "passkey-skip-btn"
+
+# Tap Deposit button
+- tapOn:
+    id: "wallet-deposit-btn"
+
+# Wait for deposit sheet and select BTC
+- extendedWaitUntil:
+    visible:
+      id: "deposit-btc"
+    timeout: 5000
+- tapOn:
+    id: "deposit-btc"
+
+# Wait for receive screen to load
+- waitForAnimationToEnd
+- extendedWaitUntil:
+    visible:
+      text: "Bitcoin address"
+    timeout: 15000
+
+# Verify we're on the receive screen
+- assertVisible:
+    text: "Only use this address to receive Bitcoin."

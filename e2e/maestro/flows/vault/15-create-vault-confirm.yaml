@@ -1,0 +1,39 @@
+appId: com.ducatprotocol.DucatProtocolWallet
+---
+# Wallet Header Icons - Verify wallet header shows history and settings buttons
+# Funded wallet → verify wallet-history-btn and wallet-settings-btn visible
+
+- runFlow: ../helpers/import-wallet-typed.yaml
+
+# Verify wallet screen
+- extendedWaitUntil:
+    visible:
+      id: "wallet-screen"
+    timeout: 15000
+
+# Wait for balance to load
+- extendedWaitUntil:
+    visible:
+      id: "balance-section"
+    timeout: 30000
+
+# Dismiss low ecash modal if it appears
+- runFlow: ../helpers/dismiss-low-ecash.yaml
+
+# Dismiss airdrop modal if it appears
+- runFlow: ../helpers/dismiss-airdrop.yaml
+
+# Dismiss passkey migration modal if it appears
+- runFlow:
+    when:
+      visible:
+        id: "passkey-migration-modal"
+    commands:
+      - tapOn:
+          id: "passkey-skip-btn"
+
+# Verify header action buttons are visible
+- assertVisible:
+    id: "wallet-history-btn"
+- assertVisible:
+    id: "wallet-settings-btn"

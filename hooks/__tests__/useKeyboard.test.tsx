@@ -1,4 +1,3 @@
-// @ts-nocheck
 /**
  * Tests for useKeyboard Hook
  */
@@ -9,22 +8,22 @@ import { Keyboard, Platform } from 'react-native';
 import { useKeyboard } from '../useKeyboard';
 
 // Helper to render hooks with react-test-renderer
-function renderHook(hook) {
-  const result = { current: null };
+function renderHook<T>(hook: () => T) {
+  const result: { current: T | null } = { current: null };
 
   function TestComponent() {
     result.current = hook();
     return null;
   }
 
-  let component;
+  let component: ReturnType<typeof create> | undefined;
   act(() => {
     component = create(<TestComponent />);
   });
 
   return {
     result,
-    unmount: () => component.unmount(),
+    unmount: () => component?.unmount(),
   };
 }
 
@@ -34,11 +33,11 @@ jest.mock('react-native/Libraries/Components/Keyboard/Keyboard', () => ({
 }));
 
 describe('useKeyboard', () => {
-  let mockListeners = {};
+  let mockListeners: Record<string, Function> = {};
 
   beforeEach(() => {
     mockListeners = {};
-    Keyboard.addListener = jest.fn((event, callback) => {
+    (Keyboard.addListener as jest.Mock) = jest.fn((event: string, callback: Function) => {
       mockListeners[event] = callback;
       return { remove: jest.fn() };
     });
@@ -51,8 +50,8 @@ describe('useKeyboard', () => {
   it('should initialize with keyboard hidden', () => {
     const { result } = renderHook(() => useKeyboard());
 
-    expect(result.current.keyboardHeight).toBe(0);
-    expect(result.current.isKeyboardVisible).toBe(false);
+    expect(result.current!.keyboardHeight).toBe(0);
+    expect(result.current!.isKeyboardVisible).toBe(false);
   });
 
   it('should listen to correct events on iOS', () => {
@@ -83,8 +82,8 @@ describe('useKeyboard', () => {
       });
     });
 
-    expect(result.current.keyboardHeight).toBe(350);
-    expect(result.current.isKeyboardVisible).toBe(true);
+    expect(result.current!.keyboardHeight).toBe(350);
+    expect(result.current!.isKeyboardVisible).toBe(true);
   });
 
   it('should reset keyboard height and visibility when keyboard hides', () => {
@@ -98,15 +97,15 @@ describe('useKeyboard', () => {
       });
     });
 
-    expect(result.current.isKeyboardVisible).toBe(true);
+    expect(result.current!.isKeyboardVisible).toBe(true);
 
     // Hide keyboard
     act(() => {
       mockListeners.keyboardWillHide();
     });
 
-    expect(result.current.keyboardHeight).toBe(0);
-    expect(result.current.isKeyboardVisible).toBe(false);
+    expect(result.current!.keyboardHeight).toBe(0);
+    expect(result.current!.isKeyboardVisible).toBe(false);
   });
 
   it('should handle keyboard show with different heights', () => {
@@ -119,7 +118,7 @@ describe('useKeyboard', () => {
       });
     });
 
-    expect(result.current.keyboardHeight).toBe(291);
+    expect(result.current!.keyboardHeight).toBe(291);
 
     act(() => {
       mockListeners.keyboardWillShow({
@@ -127,7 +126,7 @@ describe('useKeyboard', () => {
       });
     });
 
-    expect(result.current.keyboardHeight).toBe(400);
+    expect(result.current!.keyboardHeight).toBe(400);
   });
 
 
@@ -141,13 +140,13 @@ describe('useKeyboard', () => {
       });
     });
 
-    expect(result.current.isKeyboardVisible).toBe(true);
+    expect(result.current!.isKeyboardVisible).toBe(true);
 
     act(() => {
       mockListeners.keyboardWillHide();
     });
 
-    expect(result.current.isKeyboardVisible).toBe(false);
+    expect(result.current!.isKeyboardVisible).toBe(false);
 
     act(() => {
       mockListeners.keyboardWillShow({
@@ -155,6 +154,6 @@ describe('useKeyboard', () => {
       });
     });
 
-    expect(result.current.isKeyboardVisible).toBe(true);
+    expect(result.current!.isKeyboardVisible).toBe(true);
   });
 });

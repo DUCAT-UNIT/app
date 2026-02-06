@@ -1,4 +1,3 @@
-// @ts-nocheck
 /**
  * Tests for useClaimNotifications hook
  */
@@ -30,45 +29,49 @@ jest.mock('@react-navigation/native', () => ({
 // Mock tokenProcessingStore
 const mockTriggerWalletReload = jest.fn();
 jest.mock('../../stores/tokenProcessingStore', () => ({
-  useTokenProcessingStore: () => ({
-    triggerWalletReload: mockTriggerWalletReload,
-  }),
+  useTokenProcessingStore: (selector: (store: Record<string, unknown>) => unknown) => {
+    const store = {
+      triggerWalletReload: mockTriggerWalletReload,
+    };
+    return selector ? selector(store) : store;
+  },
 }));
 
 // Helper to render hooks with props
-function renderHookWithProps(hook, props) {
-  const result = { current: null };
-  function TestComponent({ hookProps }) {
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+function renderHookWithProps<T>(hook: (props: any) => T, props: unknown) {
+  const result: { current: T | null } = { current: null };
+  function TestComponent({ hookProps }: { hookProps?: unknown }) {
     result.current = hook(hookProps);
     return null;
   }
-  let component;
+  let component: ReturnType<typeof create> | undefined;
   act(() => {
     component = create(<TestComponent hookProps={props} />);
   });
   return {
     result,
-    unmount: component.unmount,
+    unmount: component!.unmount,
     component,
-    rerender: (newProps) => {
+    rerender: (newProps?: unknown) => {
       act(() => {
-        component.update(<TestComponent hookProps={newProps} />);
+        component?.update(<TestComponent hookProps={newProps} />);
       });
     },
   };
 }
 
 describe('useClaimNotifications', () => {
-  let showSnackbar;
-  let dismissSnackbar;
-  let switchAccount;
+  let showSnackbar: jest.Mock;
+  let dismissSnackbar: jest.Mock;
+  let switchAccount: jest.Mock;
 
   beforeEach(() => {
     jest.clearAllMocks();
     jest.useFakeTimers();
     showSnackbar = jest.fn();
     dismissSnackbar = jest.fn();
-    switchAccount = jest.fn().mockResolvedValue();
+    switchAccount = jest.fn().mockResolvedValue(undefined);
     mockTriggerWalletReload.mockClear();
   });
 

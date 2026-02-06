@@ -76,6 +76,13 @@ import { createBorrowConfig } from '../borrow';
 import { createDepositConfig } from '../deposit';
 import { createRepayConfig } from '../repay';
 import { createWithdrawConfig } from '../withdraw';
+import {
+  createMockWalletForBatchCheck,
+  createMockTxForPrevout,
+  type MockVaultWalletForBatchCheck,
+  type MockTxForPrevout,
+  type MockVaultHistoryTx,
+} from './mockTypes';
 
 describe('Vault Utils', () => {
   describe('readVarInt', () => {
@@ -130,63 +137,33 @@ describe('Vault Utils', () => {
 
   describe('checkBatchAllowed', () => {
     it('should return true for native segwit testnet address (tb1q)', () => {
-      const wallet = {
-        acct: {
-          sats: {
-            address: 'tb1qw508d6qejxtdg4y5r3zarvary0c5xw7kxpjzsx',
-          },
-        },
-      };
-      expect(checkBatchAllowed(wallet as any)).toBe(true);
+      const wallet = createMockWalletForBatchCheck('tb1qw508d6qejxtdg4y5r3zarvary0c5xw7kxpjzsx');
+      expect(checkBatchAllowed(wallet as Parameters<typeof checkBatchAllowed>[0])).toBe(true);
     });
 
     it('should return true for native segwit mainnet address (bc1q)', () => {
-      const wallet = {
-        acct: {
-          sats: {
-            address: 'bc1qw508d6qejxtdg4y5r3zarvary0c5xw7kv8f3t4',
-          },
-        },
-      };
-      expect(checkBatchAllowed(wallet as any)).toBe(true);
+      const wallet = createMockWalletForBatchCheck('bc1qw508d6qejxtdg4y5r3zarvary0c5xw7kv8f3t4');
+      expect(checkBatchAllowed(wallet as Parameters<typeof checkBatchAllowed>[0])).toBe(true);
     });
 
     it('should return false for taproot address (tb1p)', () => {
-      const wallet = {
-        acct: {
-          sats: {
-            address: 'tb1p5cyxnuxmeuwuvkwfem96lqzszd02n6xdcjrs20cac6yqjjwudpxqp3mvzv',
-          },
-        },
-      };
-      expect(checkBatchAllowed(wallet as any)).toBe(false);
+      const wallet = createMockWalletForBatchCheck('tb1p5cyxnuxmeuwuvkwfem96lqzszd02n6xdcjrs20cac6yqjjwudpxqp3mvzv');
+      expect(checkBatchAllowed(wallet as Parameters<typeof checkBatchAllowed>[0])).toBe(false);
     });
 
     it('should return false for legacy address', () => {
-      const wallet = {
-        acct: {
-          sats: {
-            address: '1BvBMSEYstWetqTFn5Au4m4GFg7xJaNVN2',
-          },
-        },
-      };
-      expect(checkBatchAllowed(wallet as any)).toBe(false);
+      const wallet = createMockWalletForBatchCheck('1BvBMSEYstWetqTFn5Au4m4GFg7xJaNVN2');
+      expect(checkBatchAllowed(wallet as Parameters<typeof checkBatchAllowed>[0])).toBe(false);
     });
 
     it('should return false for empty address', () => {
-      const wallet = {
-        acct: {
-          sats: {
-            address: '',
-          },
-        },
-      };
-      expect(checkBatchAllowed(wallet as any)).toBe(false);
+      const wallet = createMockWalletForBatchCheck('');
+      expect(checkBatchAllowed(wallet as Parameters<typeof checkBatchAllowed>[0])).toBe(false);
     });
 
     it('should return false and not throw for missing acct', () => {
-      const wallet = {};
-      expect(checkBatchAllowed(wallet as any)).toBe(false);
+      const wallet: MockVaultWalletForBatchCheck = {};
+      expect(checkBatchAllowed(wallet as Parameters<typeof checkBatchAllowed>[0])).toBe(false);
     });
   });
 
@@ -246,22 +223,23 @@ describe('Vault Utils', () => {
   });
 
   describe('computeVaultPrevoutFromTx', () => {
+    // These tests verify defensive behavior with missing required fields
     it('should return null if utxo is missing', () => {
-      const tx = {
+      const tx: MockVaultHistoryTx = {
         transaction_id: 'abc123',
-        utxo: undefined,
+        utxo: undefined, // Intentionally missing to test defensive handling
         amount_borrowed: 1000,
         oracle_price: 50000,
         timestamp: 1234567890,
         action: 'Open',
         vault_amount: 100000,
       };
-      expect(computeVaultPrevoutFromTx(tx as any)).toBeNull();
+      expect(computeVaultPrevoutFromTx(tx)).toBeNull();
     });
 
     it('should return null if transaction_id is missing', () => {
-      const tx = {
-        transaction_id: undefined,
+      const tx: MockVaultHistoryTx = {
+        transaction_id: undefined, // Intentionally missing to test defensive handling
         utxo: 'txid:0',
         amount_borrowed: 1000,
         oracle_price: 50000,
@@ -269,7 +247,7 @@ describe('Vault Utils', () => {
         action: 'Open',
         vault_amount: 100000,
       };
-      expect(computeVaultPrevoutFromTx(tx as any)).toBeNull();
+      expect(computeVaultPrevoutFromTx(tx)).toBeNull();
     });
 
     it('should create VaultPrevout from valid transaction', () => {
@@ -299,7 +277,7 @@ describe('Vault Utils', () => {
     });
 
     it('should handle missing optional fields', () => {
-      const tx = {
+      const tx: MockVaultHistoryTx = {
         transaction_id: 'abc123',
         utxo: 'abc123:0',
         amount_borrowed: 500,
@@ -309,7 +287,7 @@ describe('Vault Utils', () => {
         vault_amount: 50000,
       };
 
-      const result = computeVaultPrevoutFromTx(tx as any);
+      const result = computeVaultPrevoutFromTx(tx);
 
       expect(result).not.toBeNull();
       expect(result?.rdata.thold_hash).toBe('');
@@ -1089,6 +1067,127 @@ describe('Vault Request Creation', () => {
       await createVaultReqDeposit(mockWallet as any, depositConfig, options);
 
       expect(mockWallet.fetch.sats_utxos).not.toHaveBeenCalled();
+    });
+
+    it('should use provided utxos even when not isMaxAmount', async () => {
+      const { createVaultReqDeposit } = require('../deposit');
+
+      const mockWallet = {
+        vault: {
+          deposit: {
+            ctx: jest.fn().mockReturnValue({ config: 'deposit_ctx' }),
+            quote: jest.fn().mockReturnValue({ total_cost: 500 }),
+            req: jest.fn().mockResolvedValue({ vault_txid: 'deposit_vault' }),
+          },
+        },
+        fetch: {
+          sats_utxos: jest.fn(),
+        },
+      };
+
+      const providedUtxos = [{ txid: 'utxo1', vout: 0, value: 10000 }];
+      const depositConfig = { deposit_amount: 10000, tx_feerate: 5 };
+      const options = {
+        feeRate: 5,
+        oracleQuote: mockOracleQuote,
+        vaultProfile: mockVaultProfile,
+        isMaxAmount: false,
+        utxos: providedUtxos,
+      };
+
+      await createVaultReqDeposit(mockWallet as any, depositConfig, options);
+
+      // Should NOT call fetch.sats_utxos since utxos were provided
+      expect(mockWallet.fetch.sats_utxos).not.toHaveBeenCalled();
+    });
+
+    it('should handle errors during deposit request creation', async () => {
+      const { createVaultReqDeposit } = require('../deposit');
+
+      const mockWallet = {
+        vault: {
+          deposit: {
+            ctx: jest.fn().mockReturnValue({ config: 'deposit_ctx' }),
+            quote: jest.fn().mockReturnValue({ total_cost: 500 }),
+            req: jest.fn().mockRejectedValue(new Error('Deposit validation failed')),
+          },
+        },
+        fetch: {
+          sats_utxos: jest.fn().mockResolvedValue([{ txid: 'utxo1', vout: 0, value: 5000 }]),
+        },
+      };
+
+      const depositConfig = { deposit_amount: 10000, tx_feerate: 5 };
+      const options = { feeRate: 5, oracleQuote: mockOracleQuote, vaultProfile: mockVaultProfile };
+
+      await expect(createVaultReqDeposit(mockWallet as any, depositConfig, options))
+        .rejects.toThrow('Deposit validation failed');
+    });
+  });
+
+  describe('guardianSendReqDeposit error handling', () => {
+    it('should handle Error exceptions with proper message formatting', async () => {
+      const { guardianSendReqDeposit } = require('../deposit');
+      const mockGuardianClient = {
+        req: {
+          vault: {
+            deposit: jest.fn().mockReturnValue({
+              resolve: jest.fn().mockRejectedValue(new Error('Deposit failed')),
+            }),
+          },
+        },
+      };
+
+      await expect(guardianSendReqDeposit(mockGuardianClient, {}))
+        .rejects.toThrow('Failed to submit deposit request: Deposit failed');
+    });
+
+    it('should handle object exceptions with JSON stringification', async () => {
+      const { guardianSendReqDeposit } = require('../deposit');
+      const mockGuardianClient = {
+        req: {
+          vault: {
+            deposit: jest.fn().mockReturnValue({
+              resolve: jest.fn().mockRejectedValue({ code: 'DEPOSIT_ERROR', reason: 'Insufficient funds' }),
+            }),
+          },
+        },
+      };
+
+      await expect(guardianSendReqDeposit(mockGuardianClient, {}))
+        .rejects.toThrow('Failed to submit deposit request: {"code":"DEPOSIT_ERROR","reason":"Insufficient funds"}');
+    });
+
+    it('should handle non-Error non-object exceptions with String conversion', async () => {
+      const { guardianSendReqDeposit } = require('../deposit');
+      const mockGuardianClient = {
+        req: {
+          vault: {
+            deposit: jest.fn().mockReturnValue({
+              resolve: jest.fn().mockRejectedValue('Plain string error'),
+            }),
+          },
+        },
+      };
+
+      await expect(guardianSendReqDeposit(mockGuardianClient, {}))
+        .rejects.toThrow('Failed to submit deposit request: Plain string error');
+    });
+
+    it('should handle null exceptions', async () => {
+      const { guardianSendReqDeposit } = require('../deposit');
+      const mockGuardianClient = {
+        req: {
+          vault: {
+            deposit: jest.fn().mockReturnValue({
+              resolve: jest.fn().mockRejectedValue(null),
+            }),
+          },
+        },
+      };
+
+      await expect(guardianSendReqDeposit(mockGuardianClient, {}))
+        .rejects.toThrow('Failed to submit deposit request: null');
     });
   });
 

@@ -22,8 +22,8 @@ describe('useNotificationsPreference', () => {
 
     const { result } = renderHook(() => useNotificationsPreference());
 
-    expect(result.current.isLoading).toBe(true);
-    expect(result.current.notificationsEnabled).toBe(false);
+    expect(result.current!.isLoading).toBe(true);
+    expect(result.current!.notificationsEnabled).toBe(false);
   });
 
   it('should load notifications enabled as true from storage', async () => {
@@ -32,10 +32,10 @@ describe('useNotificationsPreference', () => {
     const { result } = renderHook(() => useNotificationsPreference());
 
     await waitFor(() => {
-      expect(result.current.isLoading).toBe(false);
+      expect(result.current!.isLoading).toBe(false);
     });
 
-    expect(result.current.notificationsEnabled).toBe(true);
+    expect(result.current!.notificationsEnabled).toBe(true);
     expect(SecureStore.getItemAsync).toHaveBeenCalledWith('notificationsEnabled');
   });
 
@@ -45,10 +45,10 @@ describe('useNotificationsPreference', () => {
     const { result } = renderHook(() => useNotificationsPreference());
 
     await waitFor(() => {
-      expect(result.current.isLoading).toBe(false);
+      expect(result.current!.isLoading).toBe(false);
     });
 
-    expect(result.current.notificationsEnabled).toBe(false);
+    expect(result.current!.notificationsEnabled).toBe(false);
   });
 
   it('should default to false when storage returns null', async () => {
@@ -57,10 +57,10 @@ describe('useNotificationsPreference', () => {
     const { result } = renderHook(() => useNotificationsPreference());
 
     await waitFor(() => {
-      expect(result.current.isLoading).toBe(false);
+      expect(result.current!.isLoading).toBe(false);
     });
 
-    expect(result.current.notificationsEnabled).toBe(false);
+    expect(result.current!.notificationsEnabled).toBe(false);
   });
 
   it('should default to false when storage returns undefined', async () => {
@@ -69,10 +69,10 @@ describe('useNotificationsPreference', () => {
     const { result } = renderHook(() => useNotificationsPreference());
 
     await waitFor(() => {
-      expect(result.current.isLoading).toBe(false);
+      expect(result.current!.isLoading).toBe(false);
     });
 
-    expect(result.current.notificationsEnabled).toBe(false);
+    expect(result.current!.notificationsEnabled).toBe(false);
   });
 
   it('should only load once on mount', async () => {
@@ -81,7 +81,7 @@ describe('useNotificationsPreference', () => {
     const { result, rerender } = renderHook(() => useNotificationsPreference());
 
     await waitFor(() => {
-      expect(result.current.isLoading).toBe(false);
+      expect(result.current!.isLoading).toBe(false);
     });
 
     // Rerender the hook
@@ -98,11 +98,11 @@ describe('useNotificationsPreference', () => {
     const { result } = renderHook(() => useNotificationsPreference());
 
     await waitFor(() => {
-      expect(result.current.isLoading).toBe(false);
+      expect(result.current!.isLoading).toBe(false);
     });
 
     // 'TRUE' !== 'true', so should be false
-    expect(result.current.notificationsEnabled).toBe(false);
+    expect(result.current!.notificationsEnabled).toBe(false);
   });
 
   it('should return correct interface shape', async () => {
@@ -111,7 +111,7 @@ describe('useNotificationsPreference', () => {
     const { result } = renderHook(() => useNotificationsPreference());
 
     await waitFor(() => {
-      expect(result.current.isLoading).toBe(false);
+      expect(result.current!.isLoading).toBe(false);
     });
 
     // Check that the returned object has the expected shape

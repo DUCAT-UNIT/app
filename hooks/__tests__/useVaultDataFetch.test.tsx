@@ -1,4 +1,3 @@
-// @ts-nocheck
 /**
  * Tests for useVaultDataFetch hook
  */
@@ -7,31 +6,35 @@ import React from 'react';
 import { create, act } from 'react-test-renderer';
 import { useVaultDataFetch } from '../useVaultDataFetch';
 import * as vaultService from '../../services/vaultService';
+import type { WalletAddresses } from '../../contexts/WalletContext';
 
 // Mock vault service
 jest.mock('../../services/vaultService');
 
 // Helper to render hooks
-function renderHook(hook, props) {
-  const result = { current: null };
+function renderHook<T>(hook: () => T) {
+  const result: { current: T | null } = { current: null };
   function TestComponent() {
-    result.current = hook(props);
+    result.current = hook();
     return null;
   }
-  let component;
+  let component: ReturnType<typeof create> | undefined;
   act(() => {
     component = create(<TestComponent />);
   });
   return {
     result,
-    unmount: () => component.unmount(),
+    unmount: () => component?.unmount(),
   };
 }
 
 describe('useVaultDataFetch', () => {
   const mockWallet = {
+    segwitAddress: 'bc1qtest',
+    taprootAddress: 'bc1ptest',
+    segwitPubkey: 'segpub123',
     taprootPubkey: 'pubkey123',
-  };
+  } as WalletAddresses;
 
   beforeEach(() => {
     jest.clearAllMocks();
@@ -40,9 +43,9 @@ describe('useVaultDataFetch', () => {
   it('should initialize with default state', () => {
     const { result } = renderHook(() => useVaultDataFetch(mockWallet));
 
-    expect(result.current.vaultData).toBe(null);
-    expect(result.current.loadingVault).toBe(false);
-    expect(result.current.vaultError).toBe(null);
+    expect(result.current!.vaultData).toBe(null);
+    expect(result.current!.loadingVault).toBe(false);
+    expect(result.current!.vaultError).toBe(null);
   });
 
   it('should fetch vault data successfully', async () => {
@@ -54,37 +57,37 @@ describe('useVaultDataFetch', () => {
       healthRatio: 200,
     };
 
-    vaultService.fetchVaultData.mockResolvedValue(mockVaultData);
+    (vaultService.fetchVaultData as jest.Mock).mockResolvedValue(mockVaultData);
 
     const { result } = renderHook(() => useVaultDataFetch(mockWallet));
 
     await act(async () => {
-      await result.current.fetchVault();
+      await result.current!.fetchVault();
     });
 
-    expect(result.current.vaultData).toEqual(mockVaultData);
-    expect(result.current.vaultError).toBe(null);
-    expect(result.current.loadingVault).toBe(false);
+    expect(result.current!.vaultData).toEqual(mockVaultData);
+    expect(result.current!.vaultError).toBe(null);
+    expect(result.current!.loadingVault).toBe(false);
   });
 
   it('should handle vault fetch error', async () => {
-    vaultService.fetchVaultData.mockRejectedValue(new Error('Vault API error'));
+    (vaultService.fetchVaultData as jest.Mock).mockRejectedValue(new Error('Vault API error'));
 
     const { result } = renderHook(() => useVaultDataFetch(mockWallet));
 
     await act(async () => {
-      await result.current.fetchVault();
+      await result.current!.fetchVault();
     });
 
-    expect(result.current.vaultError).toBe('Failed to fetch vault data');
-    expect(result.current.loadingVault).toBe(false);
+    expect(result.current!.vaultError).toBe('Failed to fetch vault data');
+    expect(result.current!.loadingVault).toBe(false);
   });
 
   it('should not fetch when wallet is missing', async () => {
     const { result } = renderHook(() => useVaultDataFetch(null));
 
     await act(async () => {
-      await result.current.fetchVault();
+      await result.current!.fetchVault();
     });
 
     expect(vaultService.fetchVaultData).not.toHaveBeenCalled();
@@ -94,12 +97,12 @@ describe('useVaultDataFetch', () => {
     const incompleteWallet = {
       segwitAddress: 'bc1qtest',
       // Missing taprootPubkey
-    };
+    } as unknown as WalletAddresses;
 
     const { result } = renderHook(() => useVaultDataFetch(incompleteWallet));
 
     await act(async () => {
-      await result.current.fetchVault();
+      await result.current!.fetchVault();
     });
 
     expect(vaultService.fetchVaultData).not.toHaveBeenCalled();
@@ -109,24 +112,24 @@ describe('useVaultDataFetch', () => {
     const { result } = renderHook(() => useVaultDataFetch(mockWallet));
 
     act(() => {
-      result.current.resetVaultData();
+      result.current!.resetVaultData();
     });
 
-    expect(result.current.vaultData).toBe(null);
+    expect(result.current!.vaultData).toBe(null);
   });
 
   it('should handle null vault data (no vault exists)', async () => {
-    vaultService.fetchVaultData.mockResolvedValue(null);
+    (vaultService.fetchVaultData as jest.Mock).mockResolvedValue(null);
 
     const { result } = renderHook(() => useVaultDataFetch(mockWallet));
 
     await act(async () => {
-      await result.current.fetchVault();
+      await result.current!.fetchVault();
     });
 
-    expect(result.current.vaultData).toBe(null);
-    expect(result.current.vaultError).toBe(null);
-    expect(result.current.loadingVault).toBe(false);
+    expect(result.current!.vaultData).toBe(null);
+    expect(result.current!.vaultError).toBe(null);
+    expect(result.current!.loadingVault).toBe(false);
   });
 
   it('should not update state when vault data has not changed', async () => {
@@ -137,23 +140,23 @@ describe('useVaultDataFetch', () => {
       currentPrice: 50000000,
     };
 
-    vaultService.fetchVaultData.mockResolvedValue(mockVaultData);
+    (vaultService.fetchVaultData as jest.Mock).mockResolvedValue(mockVaultData);
 
     const { result } = renderHook(() => useVaultDataFetch(mockWallet));
 
     // First fetch
     await act(async () => {
-      await result.current.fetchVault();
+      await result.current!.fetchVault();
     });
 
-    expect(result.current.vaultData).toEqual(mockVaultData);
+    expect(result.current!.vaultData).toEqual(mockVaultData);
 
     // Second fetch with same data - should not trigger re-render
     await act(async () => {
-      await result.current.fetchVault();
+      await result.current!.fetchVault();
     });
 
-    expect(result.current.vaultData).toEqual(mockVaultData);
+    expect(result.current!.vaultData).toEqual(mockVaultData);
     expect(vaultService.fetchVaultData).toHaveBeenCalledTimes(2);
   });
 
@@ -166,42 +169,42 @@ describe('useVaultDataFetch', () => {
     it('should initialize with empty transactions', () => {
       const { result } = renderHook(() => useVaultDataFetch(mockWallet));
 
-      expect(result.current.vaultTransactions).toEqual([]);
-      expect(result.current.loadingVaultTransactions).toBe(false);
+      expect(result.current!.vaultTransactions).toEqual([]);
+      expect(result.current!.loadingVaultTransactions).toBe(false);
     });
 
     it('should fetch vault transactions successfully', async () => {
-      vaultService.fetchVaultHistory.mockResolvedValue(mockTransactions);
+      (vaultService.fetchVaultHistory as jest.Mock).mockResolvedValue(mockTransactions);
 
       const { result } = renderHook(() => useVaultDataFetch(mockWallet));
 
       await act(async () => {
-        await result.current.fetchVaultTransactions();
+        await result.current!.fetchVaultTransactions();
       });
 
-      expect(result.current.vaultTransactions).toEqual(mockTransactions);
-      expect(result.current.loadingVaultTransactions).toBe(false);
+      expect(result.current!.vaultTransactions).toEqual(mockTransactions);
+      expect(result.current!.loadingVaultTransactions).toBe(false);
     });
 
     it('should show loading only on initial fetch', async () => {
       // Create a deferred promise to control when the fetch resolves
-      let resolvePromise;
+      let resolvePromise: (value: unknown) => void;
       const deferredPromise = new Promise((resolve) => {
         resolvePromise = resolve;
       });
 
-      vaultService.fetchVaultHistory.mockReturnValue(deferredPromise);
+      (vaultService.fetchVaultHistory as jest.Mock).mockReturnValue(deferredPromise);
 
       const { result } = renderHook(() => useVaultDataFetch(mockWallet));
 
       // Start fetch but don't await yet
-      let fetchPromise;
+      let fetchPromise: Promise<void>;
       act(() => {
-        fetchPromise = result.current.fetchVaultTransactions();
+        fetchPromise = result.current!.fetchVaultTransactions();
       });
 
       // Loading should be true during initial fetch
-      expect(result.current.loadingVaultTransactions).toBe(true);
+      expect(result.current!.loadingVaultTransactions).toBe(true);
 
       // Resolve the promise
       await act(async () => {
@@ -209,28 +212,28 @@ describe('useVaultDataFetch', () => {
         await fetchPromise;
       });
 
-      expect(result.current.loadingVaultTransactions).toBe(false);
+      expect(result.current!.loadingVaultTransactions).toBe(false);
     });
 
     it('should not show loading on background refresh', async () => {
-      vaultService.fetchVaultHistory.mockResolvedValue(mockTransactions);
+      (vaultService.fetchVaultHistory as jest.Mock).mockResolvedValue(mockTransactions);
 
       const { result } = renderHook(() => useVaultDataFetch(mockWallet));
 
       // First fetch
       await act(async () => {
-        await result.current.fetchVaultTransactions();
+        await result.current!.fetchVaultTransactions();
       });
 
       // Second fetch (background refresh) - should not show loading
       let loadingDuringRefresh = true;
-      vaultService.fetchVaultHistory.mockImplementation(async () => {
-        loadingDuringRefresh = result.current.loadingVaultTransactions;
+      (vaultService.fetchVaultHistory as jest.Mock).mockImplementation(async () => {
+        loadingDuringRefresh = result.current!.loadingVaultTransactions;
         return mockTransactions;
       });
 
       await act(async () => {
-        await result.current.fetchVaultTransactions();
+        await result.current!.fetchVaultTransactions();
       });
 
       expect(loadingDuringRefresh).toBe(false);
@@ -240,36 +243,36 @@ describe('useVaultDataFetch', () => {
       const { result } = renderHook(() => useVaultDataFetch(null));
 
       await act(async () => {
-        await result.current.fetchVaultTransactions();
+        await result.current!.fetchVaultTransactions();
       });
 
       expect(vaultService.fetchVaultHistory).not.toHaveBeenCalled();
     });
 
     it('should not fetch transactions when taprootPubkey is missing', async () => {
-      const incompleteWallet = { segwitAddress: 'bc1qtest' };
+      const incompleteWallet = { segwitAddress: 'bc1qtest' } as unknown as WalletAddresses;
 
       const { result } = renderHook(() => useVaultDataFetch(incompleteWallet));
 
       await act(async () => {
-        await result.current.fetchVaultTransactions();
+        await result.current!.fetchVaultTransactions();
       });
 
       expect(vaultService.fetchVaultHistory).not.toHaveBeenCalled();
     });
 
     it('should handle fetch transactions error gracefully', async () => {
-      vaultService.fetchVaultHistory.mockRejectedValue(new Error('API error'));
+      (vaultService.fetchVaultHistory as jest.Mock).mockRejectedValue(new Error('API error'));
 
       const { result } = renderHook(() => useVaultDataFetch(mockWallet));
 
       await act(async () => {
-        await result.current.fetchVaultTransactions();
+        await result.current!.fetchVaultTransactions();
       });
 
       // Should not throw, just log error
-      expect(result.current.vaultTransactions).toEqual([]);
-      expect(result.current.loadingVaultTransactions).toBe(false);
+      expect(result.current!.vaultTransactions).toEqual([]);
+      expect(result.current!.loadingVaultTransactions).toBe(false);
     });
 
     it('should update transactions when they have changed', async () => {
@@ -281,63 +284,63 @@ describe('useVaultDataFetch', () => {
         { timestamp: 1000, action: 'borrow', amount_borrowed: 100, vault_amount: 500, btc_amt: 0.01, unit_amt: 100, oracle_price: 50000 },
       ];
 
-      vaultService.fetchVaultHistory.mockResolvedValue(initialTransactions);
+      (vaultService.fetchVaultHistory as jest.Mock).mockResolvedValue(initialTransactions);
 
       const { result } = renderHook(() => useVaultDataFetch(mockWallet));
 
       await act(async () => {
-        await result.current.fetchVaultTransactions();
+        await result.current!.fetchVaultTransactions();
       });
 
-      expect(result.current.vaultTransactions).toEqual(initialTransactions);
+      expect(result.current!.vaultTransactions).toEqual(initialTransactions);
 
       // Update with new transactions
-      vaultService.fetchVaultHistory.mockResolvedValue(updatedTransactions);
+      (vaultService.fetchVaultHistory as jest.Mock).mockResolvedValue(updatedTransactions);
 
       await act(async () => {
-        await result.current.fetchVaultTransactions();
+        await result.current!.fetchVaultTransactions();
       });
 
-      expect(result.current.vaultTransactions).toEqual(updatedTransactions);
+      expect(result.current!.vaultTransactions).toEqual(updatedTransactions);
     });
 
     it('should not update transactions when unchanged', async () => {
-      vaultService.fetchVaultHistory.mockResolvedValue(mockTransactions);
+      (vaultService.fetchVaultHistory as jest.Mock).mockResolvedValue(mockTransactions);
 
       const { result } = renderHook(() => useVaultDataFetch(mockWallet));
 
       // First fetch
       await act(async () => {
-        await result.current.fetchVaultTransactions();
+        await result.current!.fetchVaultTransactions();
       });
 
-      const firstResult = result.current.vaultTransactions;
+      const firstResult = result.current!.vaultTransactions;
 
       // Second fetch with same data
       await act(async () => {
-        await result.current.fetchVaultTransactions();
+        await result.current!.fetchVaultTransactions();
       });
 
       // Should be the same reference (no update)
-      expect(result.current.vaultTransactions).toBe(firstResult);
+      expect(result.current!.vaultTransactions).toBe(firstResult);
     });
 
     it('should reset transactions when resetVaultData is called', async () => {
-      vaultService.fetchVaultHistory.mockResolvedValue(mockTransactions);
+      (vaultService.fetchVaultHistory as jest.Mock).mockResolvedValue(mockTransactions);
 
       const { result } = renderHook(() => useVaultDataFetch(mockWallet));
 
       await act(async () => {
-        await result.current.fetchVaultTransactions();
+        await result.current!.fetchVaultTransactions();
       });
 
-      expect(result.current.vaultTransactions).toEqual(mockTransactions);
+      expect(result.current!.vaultTransactions).toEqual(mockTransactions);
 
       act(() => {
-        result.current.resetVaultData();
+        result.current!.resetVaultData();
       });
 
-      expect(result.current.vaultTransactions).toEqual([]);
+      expect(result.current!.vaultTransactions).toEqual([]);
     });
   });
 });

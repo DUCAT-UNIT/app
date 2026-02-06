@@ -1,4 +1,3 @@
-// @ts-nocheck
 /**
  * Tests for useBorrowVault hook
  */
@@ -85,7 +84,12 @@ const mockBorrowStore = {
 };
 
 jest.mock('../../stores/borrowStore', () => ({
-  useBorrowStore: jest.fn(() => mockBorrowStore),
+  useBorrowStore: jest.fn((selector) => {
+    if (typeof selector === 'function') {
+      return selector(mockBorrowStore);
+    }
+    return mockBorrowStore;
+  }),
   useBorrow: jest.fn(() => mockBorrowStore),
 }));
 
@@ -122,6 +126,16 @@ jest.mock('../../stores/priceStore', () => ({
   })),
 }));
 
+jest.mock('../../contexts/WalletDataContext', () => ({
+  useVaultData: jest.fn(() => ({
+    vaultData: {
+      totalDebt: 100,
+      totalCollateral: 0.01,
+      vaultId: 'vault1',
+    },
+  })),
+}));
+
 import { useBorrowVault } from '../useBorrowVault';
 import { getGuardianClient } from '../../services/guardianService';
 import { guardianSendReqBorrow } from '../../services/vaultOperationsService';
@@ -141,11 +155,11 @@ describe('useBorrowVault', () => {
   it('should return initial state', () => {
     const { result } = renderHook(() => useBorrowVault());
 
-    expect(result.current.isLoading).toBe(false);
-    expect(result.current.error).toBeNull();
-    expect(result.current.txid).toBeNull();
-    expect(result.current.vaultTxid).toBeNull();
-    expect(result.current.vaultDataLoaded).toBe(false);
+    expect(result.current!.isLoading).toBe(false);
+    expect(result.current!.error).toBeNull();
+    expect(result.current!.txid).toBeNull();
+    expect(result.current!.vaultTxid).toBeNull();
+    expect(result.current!.vaultDataLoaded).toBe(false);
   });
 
   describe('loadVaultData', () => {
@@ -154,7 +168,7 @@ describe('useBorrowVault', () => {
 
       let success;
       await act(async () => {
-        success = await result.current.loadVaultData();
+        success = await result.current!.loadVaultData();
       });
 
       expect(success).toBe(true);
@@ -163,13 +177,13 @@ describe('useBorrowVault', () => {
 
     it('should return false if wallet not connected', async () => {
       const { useWallet } = require('../../contexts/WalletContext');
-      useWallet.mockReturnValueOnce({ wallet: null });
+      (useWallet as jest.Mock).mockReturnValueOnce({ wallet: null });
 
       const { result } = renderHook(() => useBorrowVault());
 
       let success;
       await act(async () => {
-        success = await result.current.loadVaultData();
+        success = await result.current!.loadVaultData();
       });
 
       expect(success).toBe(false);
@@ -177,13 +191,14 @@ describe('useBorrowVault', () => {
     });
 
     it('should return false if no vault found', async () => {
-      (fetchVaultData as jest.Mock).mockResolvedValueOnce(null);
+      const { useVaultData } = require('../../contexts/WalletDataContext');
+      useVaultData.mockReturnValueOnce({ vaultData: null });
 
       const { result } = renderHook(() => useBorrowVault());
 
       let success;
       await act(async () => {
-        success = await result.current.loadVaultData();
+        success = await result.current!.loadVaultData();
       });
 
       expect(success).toBe(false);
@@ -197,7 +212,7 @@ describe('useBorrowVault', () => {
 
       let borrowResult;
       await act(async () => {
-        borrowResult = await result.current.borrowMore();
+        borrowResult = await result.current!.borrowMore();
       });
 
       expect(borrowResult).toEqual({ txid: 'txid123', vaultTxid: 'vtxid123' });
@@ -206,13 +221,13 @@ describe('useBorrowVault', () => {
 
     it('should return null if wallet not connected', async () => {
       const { useWallet } = require('../../contexts/WalletContext');
-      useWallet.mockReturnValueOnce({ wallet: null });
+      (useWallet as jest.Mock).mockReturnValueOnce({ wallet: null });
 
       const { result } = renderHook(() => useBorrowVault());
 
       let borrowResult;
       await act(async () => {
-        borrowResult = await result.current.borrowMore();
+        borrowResult = await result.current!.borrowMore();
       });
 
       expect(borrowResult).toBeNull();
@@ -227,7 +242,7 @@ describe('useBorrowVault', () => {
 
       let borrowResult;
       await act(async () => {
-        borrowResult = await result.current.borrowMore();
+        borrowResult = await result.current!.borrowMore();
       });
 
       expect(borrowResult).toBeNull();
@@ -241,7 +256,7 @@ describe('useBorrowVault', () => {
 
       let borrowResult;
       await act(async () => {
-        borrowResult = await result.current.borrowMore();
+        borrowResult = await result.current!.borrowMore();
       });
 
       expect(borrowResult).toBeNull();
@@ -255,7 +270,7 @@ describe('useBorrowVault', () => {
 
       let borrowResult;
       await act(async () => {
-        borrowResult = await result.current.borrowMore();
+        borrowResult = await result.current!.borrowMore();
       });
 
       expect(borrowResult).toBeNull();
@@ -269,7 +284,7 @@ describe('useBorrowVault', () => {
 
       let borrowResult;
       await act(async () => {
-        borrowResult = await result.current.borrowMore();
+        borrowResult = await result.current!.borrowMore();
       });
 
       expect(borrowResult).toBeNull();
@@ -283,7 +298,7 @@ describe('useBorrowVault', () => {
 
       let borrowResult;
       await act(async () => {
-        borrowResult = await result.current.borrowMore();
+        borrowResult = await result.current!.borrowMore();
       });
 
       expect(borrowResult).toBeNull();
@@ -294,7 +309,7 @@ describe('useBorrowVault', () => {
       const { result } = renderHook(() => useBorrowVault());
 
       await act(async () => {
-        await result.current.borrowMore();
+        await result.current!.borrowMore();
       });
 
       expect(mockBorrowStore.setProcessingStep).toHaveBeenCalledWith(1);
@@ -311,7 +326,7 @@ describe('useBorrowVault', () => {
       const { result } = renderHook(() => useBorrowVault());
 
       act(() => {
-        result.current.cancel();
+        result.current!.cancel();
       });
 
       expect(disconnectGuardian).toHaveBeenCalled();
@@ -322,46 +337,46 @@ describe('useBorrowVault', () => {
   describe('loadVaultData', () => {
     it('should return false if wallet not connected', async () => {
       const { useWallet } = require('../../contexts/WalletContext');
-      useWallet.mockReturnValueOnce({ wallet: null });
+      (useWallet as jest.Mock).mockReturnValueOnce({ wallet: null });
 
       const { result } = renderHook(() => useBorrowVault());
 
       let loadResult;
       await act(async () => {
-        loadResult = await result.current.loadVaultData();
+        loadResult = await result.current!.loadVaultData();
       });
 
       expect(loadResult).toBe(false);
     });
 
-    it('should handle fetchVaultData error', async () => {
-      const { fetchVaultData } = require('../../services/vaultService');
-      fetchVaultData.mockRejectedValueOnce(new Error('Fetch failed'));
+    it('should handle missing vault data from context', async () => {
+      const { useVaultData } = require('../../contexts/WalletDataContext');
+      useVaultData.mockReturnValueOnce({ vaultData: null });
 
       const { result } = renderHook(() => useBorrowVault());
 
       let loadResult;
       await act(async () => {
-        loadResult = await result.current.loadVaultData();
+        loadResult = await result.current!.loadVaultData();
       });
 
       expect(loadResult).toBe(false);
-      expect(mockBorrowStore.setError).toHaveBeenCalledWith('Fetch failed');
+      expect(mockBorrowStore.setError).toHaveBeenCalledWith('No vault found. Please create a vault first.');
     });
 
-    it('should handle non-Error throws', async () => {
-      const { fetchVaultData } = require('../../services/vaultService');
-      fetchVaultData.mockRejectedValueOnce('string error');
+    it('should handle undefined vault data from context', async () => {
+      const { useVaultData } = require('../../contexts/WalletDataContext');
+      useVaultData.mockReturnValueOnce({ vaultData: undefined });
 
       const { result } = renderHook(() => useBorrowVault());
 
       let loadResult;
       await act(async () => {
-        loadResult = await result.current.loadVaultData();
+        loadResult = await result.current!.loadVaultData();
       });
 
       expect(loadResult).toBe(false);
-      expect(mockBorrowStore.setError).toHaveBeenCalledWith('Failed to load vault data');
+      expect(mockBorrowStore.setError).toHaveBeenCalledWith('No vault found. Please create a vault first.');
     });
   });
 
@@ -374,7 +389,7 @@ describe('useBorrowVault', () => {
 
       let borrowResult;
       await act(async () => {
-        borrowResult = await result.current.borrowMore();
+        borrowResult = await result.current!.borrowMore();
       });
 
       expect(borrowResult).toBeNull();
@@ -388,7 +403,7 @@ describe('useBorrowVault', () => {
 
       let borrowResult;
       await act(async () => {
-        borrowResult = await result.current.borrowMore();
+        borrowResult = await result.current!.borrowMore();
       });
 
       expect(borrowResult).toBeNull();
@@ -402,7 +417,7 @@ describe('useBorrowVault', () => {
 
       let borrowResult;
       await act(async () => {
-        borrowResult = await result.current.borrowMore();
+        borrowResult = await result.current!.borrowMore();
       });
 
       expect(borrowResult).toBeNull();
@@ -410,7 +425,7 @@ describe('useBorrowVault', () => {
 
     it('should handle wallet not connected in buildVaultProfileFromData (line 139)', async () => {
       const { useWallet } = require('../../contexts/WalletContext');
-      useWallet.mockReturnValueOnce({ wallet: {
+      (useWallet as jest.Mock).mockReturnValueOnce({ wallet: {
         segwitAddress: 'tb1qtest...',
         taprootAddress: 'tb1ptest...',
         taprootPubkey: null, // null pubkey
@@ -420,7 +435,7 @@ describe('useBorrowVault', () => {
 
       let borrowResult;
       await act(async () => {
-        borrowResult = await result.current.borrowMore();
+        borrowResult = await result.current!.borrowMore();
       });
 
       // Should fail when trying to build profile
@@ -435,7 +450,7 @@ describe('useBorrowVault', () => {
 
       let borrowResult;
       await act(async () => {
-        borrowResult = await result.current.borrowMore();
+        borrowResult = await result.current!.borrowMore();
       });
 
       expect(borrowResult).toBeNull();
@@ -451,13 +466,13 @@ describe('useBorrowVault', () => {
 
       // Start first borrow
       const firstBorrow = act(async () => {
-        return result.current.borrowMore();
+        return result.current!.borrowMore();
       });
 
       // Try to start second borrow immediately
       let secondResult;
       await act(async () => {
-        secondResult = await result.current.borrowMore();
+        secondResult = await result.current!.borrowMore();
       });
 
       // Second call should return null due to operation in progress
@@ -477,7 +492,7 @@ describe('useBorrowVault', () => {
 
       let borrowResult;
       await act(async () => {
-        borrowResult = await result.current.borrowMore();
+        borrowResult = await result.current!.borrowMore();
       });
 
       expect(borrowResult).toBeNull();
@@ -485,7 +500,7 @@ describe('useBorrowVault', () => {
 
     it('should handle wallet with null pubkeys', async () => {
       const { useWallet } = require('../../contexts/WalletContext');
-      useWallet.mockReturnValueOnce({ wallet: {
+      (useWallet as jest.Mock).mockReturnValueOnce({ wallet: {
         segwitAddress: 'tb1qtest...',
         segwitPubkey: null, // null pubkey
         taprootAddress: 'tb1ptest...',
@@ -496,7 +511,7 @@ describe('useBorrowVault', () => {
 
       let borrowResult;
       await act(async () => {
-        borrowResult = await result.current.borrowMore();
+        borrowResult = await result.current!.borrowMore();
       });
 
       // Should succeed with empty string for null pubkeys
@@ -512,7 +527,7 @@ describe('useBorrowVault', () => {
 
       let borrowResult;
       await act(async () => {
-        borrowResult = await result.current.borrowMore();
+        borrowResult = await result.current!.borrowMore();
       });
 
       expect(borrowResult).toBeNull();
@@ -520,19 +535,20 @@ describe('useBorrowVault', () => {
     });
 
     it('should handle vault data with null totalDebt and totalCollateral (lines 111-112)', async () => {
-      const { fetchVaultData } = require('../../services/vaultService');
-      fetchVaultData.mockResolvedValueOnce({
-        vaultId: 'vault1',
-        totalDebt: null,
-        totalCollateral: null,
-        vaultInfo: { creation_account: 'acct1', guard_pubkey: 'guard1', master_id: 'master1' },
+      const { useVaultData } = require('../../contexts/WalletDataContext');
+      useVaultData.mockReturnValueOnce({
+        vaultData: {
+          vaultId: 'vault1',
+          totalDebt: null,
+          totalCollateral: null,
+        },
       });
 
       const { result } = renderHook(() => useBorrowVault());
 
       let success;
       await act(async () => {
-        success = await result.current.loadVaultData();
+        success = await result.current!.loadVaultData();
       });
 
       expect(success).toBe(true);

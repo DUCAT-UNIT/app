@@ -1,0 +1,74 @@
+appId: com.ducatprotocol.DucatProtocolWallet
+---
+# Vault Deposit Screen - Verify deposit button and sheet work
+# Tests: navigate to deposit sheet via Deposit button
+# Note: Vault deposit option only shows if wallet has a vault
+
+- runFlow: ../helpers/import-wallet-typed.yaml
+
+# Verify wallet screen
+- extendedWaitUntil:
+    visible:
+      id: "wallet-screen"
+    timeout: 15000
+
+# Wait for balance and vault data to load
+- extendedWaitUntil:
+    visible:
+      id: "balance-section"
+    timeout: 30000
+
+# Dismiss low ecash modal if it appears
+- runFlow: ../helpers/dismiss-low-ecash.yaml
+
+# Wait for wallet actions
+- extendedWaitUntil:
+    visible:
+      id: "wallet-actions"
+    timeout: 15000
+
+# Dismiss airdrop modal if it appears
+- runFlow: ../helpers/dismiss-airdrop.yaml
+
+# Dismiss passkey migration modal if it appears
+- runFlow:
+    when:
+      visible:
+        id: "passkey-migration-modal"
+    commands:
+      - tapOn:
+          id: "passkey-skip-btn"
+
+# Tap Deposit button
+- tapOn:
+    id: "wallet-deposit-btn"
+
+# Wait for deposit sheet to appear
+- extendedWaitUntil:
+    visible:
+      id: "deposit-btc"
+    timeout: 5000
+
+# Verify BTC deposit option exists
+- assertVisible:
+    id: "deposit-btc"
+
+# Verify UNIT deposit option exists
+- assertVisible:
+    id: "deposit-unit"
+
+# If vault deposit exists, tap it; otherwise test passes
+- runFlow:
+    when:
+      visible:
+        id: "deposit-vault"
+    commands:
+      - tapOn:
+          id: "deposit-vault"
+      - waitForAnimationToEnd
+      - extendedWaitUntil:
+          visible:
+            id: "vault-deposit-input-screen"
+          timeout: 10000
+      - assertVisible:
+          text: "Deposit BTC"

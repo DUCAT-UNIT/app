@@ -1,0 +1,11 @@
+flows:
+  - "auth/*"
+  - "ecash/*"
+  - "send/*"
+  - "settings/*"
+  - "vault/*"
+  - "wallet/*"
+  - "test/*"
+
+executionOrder:
+  continueOnFailure: true

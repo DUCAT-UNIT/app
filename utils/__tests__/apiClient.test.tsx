@@ -1,4 +1,3 @@
-// @ts-nocheck
 /**
  * Tests for API Client
  */
@@ -28,12 +27,12 @@ jest.mock('../logger', () => ({
 describe('postWithRetry', () => {
   beforeEach(() => {
     jest.clearAllMocks();
-    retry.retrySilently.mockImplementation((fn) => fn());
+    (retry.retrySilently as jest.Mock).mockImplementation((fn: () => unknown) => fn());
   });
 
   it('should make POST request with default options', async () => {
     const mockResponse = { ok: true };
-    api.fetchWithTimeout.mockResolvedValue(mockResponse);
+    (api.fetchWithTimeout as jest.Mock).mockResolvedValue(mockResponse);
 
     const result = await postWithRetry('https://api.test', { data: 'test' });
 
@@ -50,7 +49,7 @@ describe('postWithRetry', () => {
   });
 
   it('should merge custom headers', async () => {
-    api.fetchWithTimeout.mockResolvedValue({});
+    (api.fetchWithTimeout as jest.Mock).mockResolvedValue({});
 
     await postWithRetry('https://api.test', {}, {
       headers: { 'X-Custom': 'value' },
@@ -69,7 +68,7 @@ describe('postWithRetry', () => {
   });
 
   it('should use custom timeout', async () => {
-    api.fetchWithTimeout.mockResolvedValue({});
+    (api.fetchWithTimeout as jest.Mock).mockResolvedValue({});
 
     await postWithRetry('https://api.test', {}, { timeout: 5000 });
 
@@ -81,7 +80,7 @@ describe('postWithRetry', () => {
   });
 
   it('should pass retry options to retrySilently', async () => {
-    api.fetchWithTimeout.mockResolvedValue({});
+    (api.fetchWithTimeout as jest.Mock).mockResolvedValue({});
 
     await postWithRetry('https://api.test', {}, {
       retryOptions: { maxRetries: 5 },
@@ -97,12 +96,12 @@ describe('postWithRetry', () => {
 describe('getWithRetry', () => {
   beforeEach(() => {
     jest.clearAllMocks();
-    retry.retrySilently.mockImplementation((fn) => fn());
+    (retry.retrySilently as jest.Mock).mockImplementation((fn: () => unknown) => fn());
   });
 
   it('should make GET request with default options', async () => {
     const mockResponse = { ok: true };
-    api.fetchWithTimeout.mockResolvedValue(mockResponse);
+    (api.fetchWithTimeout as jest.Mock).mockResolvedValue(mockResponse);
 
     const result = await getWithRetry('https://api.test');
 
@@ -118,7 +117,7 @@ describe('getWithRetry', () => {
   });
 
   it('should include custom headers', async () => {
-    api.fetchWithTimeout.mockResolvedValue({});
+    (api.fetchWithTimeout as jest.Mock).mockResolvedValue({});
 
     await getWithRetry('https://api.test', {
       headers: { Authorization: 'Bearer token' },
@@ -134,7 +133,7 @@ describe('getWithRetry', () => {
   });
 
   it('should use custom timeout', async () => {
-    api.fetchWithTimeout.mockResolvedValue({});
+    (api.fetchWithTimeout as jest.Mock).mockResolvedValue({});
 
     await getWithRetry('https://api.test', { timeout: 3000 });
 
@@ -149,7 +148,7 @@ describe('getWithRetry', () => {
 describe('postJSON', () => {
   beforeEach(() => {
     jest.clearAllMocks();
-    retry.retrySilently.mockImplementation((fn) => fn());
+    (retry.retrySilently as jest.Mock).mockImplementation((fn: () => unknown) => fn());
   });
 
   it('should POST and parse JSON response', async () => {
@@ -158,7 +157,7 @@ describe('postJSON', () => {
       ok: true,
       json: jest.fn().mockResolvedValue(mockData),
     };
-    api.fetchWithTimeout.mockResolvedValue(mockResponse);
+    (api.fetchWithTimeout as jest.Mock).mockResolvedValue(mockResponse);
 
     const result = await postJSON('https://api.test', { data: 'test' });
 
@@ -167,7 +166,7 @@ describe('postJSON', () => {
   });
 
   it('should pass options to postWithRetry', async () => {
-    api.fetchWithTimeout.mockResolvedValue({
+    (api.fetchWithTimeout as jest.Mock).mockResolvedValue({
       ok: true,
       json: jest.fn().mockResolvedValue({}),
     });
@@ -188,7 +187,7 @@ describe('postJSON', () => {
       statusText: 'Bad Request',
       json: jest.fn().mockResolvedValue({ error: 'Invalid input' }),
     };
-    api.fetchWithTimeout.mockResolvedValue(mockResponse);
+    (api.fetchWithTimeout as jest.Mock).mockResolvedValue(mockResponse);
 
     await expect(postJSON('https://api.test', { data: 'test' })).rejects.toThrow('Invalid input');
   });
@@ -200,7 +199,7 @@ describe('postJSON', () => {
       statusText: 'Internal Server Error',
       json: jest.fn().mockResolvedValue({ message: 'Server crashed' }),
     };
-    api.fetchWithTimeout.mockResolvedValue(mockResponse);
+    (api.fetchWithTimeout as jest.Mock).mockResolvedValue(mockResponse);
 
     await expect(postJSON('https://api.test', { data: 'test' })).rejects.toThrow('Server crashed');
   });
@@ -212,7 +211,7 @@ describe('postJSON', () => {
       statusText: 'Not Found',
       json: jest.fn().mockResolvedValue({}),
     };
-    api.fetchWithTimeout.mockResolvedValue(mockResponse);
+    (api.fetchWithTimeout as jest.Mock).mockResolvedValue(mockResponse);
 
     await expect(postJSON('https://api.test', { data: 'test' })).rejects.toThrow('HTTP 404: Not Found');
   });
@@ -224,7 +223,7 @@ describe('postJSON', () => {
       statusText: 'Internal Server Error',
       json: jest.fn().mockRejectedValue(new Error('Invalid JSON')),
     };
-    api.fetchWithTimeout.mockResolvedValue(mockResponse);
+    (api.fetchWithTimeout as jest.Mock).mockResolvedValue(mockResponse);
 
     await expect(postJSON('https://api.test', { data: 'test' })).rejects.toThrow('HTTP 500: Internal Server Error');
   });
@@ -233,7 +232,7 @@ describe('postJSON', () => {
 describe('getJSON', () => {
   beforeEach(() => {
     jest.clearAllMocks();
-    retry.retrySilently.mockImplementation((fn) => fn());
+    (retry.retrySilently as jest.Mock).mockImplementation((fn: () => unknown) => fn());
   });
 
   it('should GET and parse JSON response', async () => {
@@ -243,7 +242,7 @@ describe('getJSON', () => {
       headers: { get: jest.fn().mockReturnValue('application/json') },
       json: jest.fn().mockResolvedValue(mockData),
     };
-    api.fetchWithTimeout.mockResolvedValue(mockResponse);
+    (api.fetchWithTimeout as jest.Mock).mockResolvedValue(mockResponse);
 
     const result = await getJSON('https://api.test');
 
@@ -252,7 +251,7 @@ describe('getJSON', () => {
   });
 
   it('should pass options to getWithRetry', async () => {
-    api.fetchWithTimeout.mockResolvedValue({
+    (api.fetchWithTimeout as jest.Mock).mockResolvedValue({
       ok: true,
       headers: { get: jest.fn().mockReturnValue('application/json') },
       json: jest.fn().mockResolvedValue({}),
@@ -274,7 +273,7 @@ describe('getJSON', () => {
       statusText: 'Not Found',
       headers: { get: jest.fn().mockReturnValue('application/json') },
     };
-    api.fetchWithTimeout.mockResolvedValue(mockResponse);
+    (api.fetchWithTimeout as jest.Mock).mockResolvedValue(mockResponse);
 
     await expect(getJSON('https://api.test')).rejects.toThrow('HTTP 404: Not Found');
   });
@@ -285,7 +284,7 @@ describe('getJSON', () => {
       headers: { get: jest.fn().mockReturnValue('text/html') },
       json: jest.fn().mockResolvedValue({}),
     };
-    api.fetchWithTimeout.mockResolvedValue(mockResponse);
+    (api.fetchWithTimeout as jest.Mock).mockResolvedValue(mockResponse);
 
     await expect(getJSON('https://api.test')).rejects.toThrow('Expected JSON response but got text/html');
   });
@@ -297,7 +296,7 @@ describe('getJSON', () => {
       headers: { get: jest.fn().mockReturnValue(null) },
       json: jest.fn().mockResolvedValue(mockData),
     };
-    api.fetchWithTimeout.mockResolvedValue(mockResponse);
+    (api.fetchWithTimeout as jest.Mock).mockResolvedValue(mockResponse);
 
     const result = await getJSON('https://api.test');
     expect(result).toEqual(mockData);
@@ -307,12 +306,12 @@ describe('getJSON', () => {
 describe('getWithRetry error handling', () => {
   beforeEach(() => {
     jest.clearAllMocks();
-    retry.retrySilently.mockImplementation((fn) => fn());
+    (retry.retrySilently as jest.Mock).mockImplementation((fn: () => unknown) => fn());
   });
 
   it('should log API call and rethrow error on failure', async () => {
     const error = new Error('Network failed');
-    api.fetchWithTimeout.mockRejectedValue(error);
+    (api.fetchWithTimeout as jest.Mock).mockRejectedValue(error);
 
     await expect(getWithRetry('https://api.test')).rejects.toThrow('Network failed');
   });
@@ -321,12 +320,12 @@ describe('getWithRetry error handling', () => {
 describe('postWithRetry error handling', () => {
   beforeEach(() => {
     jest.clearAllMocks();
-    retry.retrySilently.mockImplementation((fn) => fn());
+    (retry.retrySilently as jest.Mock).mockImplementation((fn: () => unknown) => fn());
   });
 
   it('should log API call and rethrow error on failure', async () => {
     const error = new Error('Network failed');
-    api.fetchWithTimeout.mockRejectedValue(error);
+    (api.fetchWithTimeout as jest.Mock).mockRejectedValue(error);
 
     await expect(postWithRetry('https://api.test', { data: 'test' })).rejects.toThrow('Network failed');
   });

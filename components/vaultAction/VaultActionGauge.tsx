@@ -139,9 +139,27 @@ export const VaultActionGauge = memo(function VaultActionGauge({
   // Scale factor for compact gauge
   const scale = SVG_SIZE / 298;
 
+  // Build accessibility label
+  const accessibilityLabel = useMemo(() => {
+    if (isInfinite || hasNoDebt) {
+      return 'Vault health: Healthy, no debt';
+    }
+    if (hasNoData) {
+      return 'Vault health: Not available';
+    }
+    const healthTitle = getHealthTitle(displayHealth);
+    const healthPercent = displayHealth > 500 ? 'over 500' : displayHealth.toFixed(0);
+    return `Vault health: ${healthTitle}, ${healthPercent} percent`;
+  }, [isInfinite, hasNoDebt, hasNoData, displayHealth]);
+
   return (
-    <View style={styles.container}>
-      <View style={styles.gaugeContainer}>
+    <View
+      style={styles.container}
+      accessible
+      accessibilityRole="text"
+      accessibilityLabel={accessibilityLabel}
+    >
+      <View style={styles.gaugeContainer} accessibilityElementsHidden>
         <Svg
           width="100%"
           height="100%"

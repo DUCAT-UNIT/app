@@ -1,0 +1,51 @@
+appId: com.ducatprotocol.DucatProtocolWallet
+---
+# Pull to Refresh - Test pull-to-refresh on wallet screen
+# Funded wallet → swipe down to refresh → verify wallet screen still visible
+
+- runFlow: ../helpers/import-wallet-typed.yaml
+
+# Verify wallet screen
+- extendedWaitUntil:
+    visible:
+      id: "wallet-screen"
+    timeout: 15000
+
+# Wait for balance to load
+- extendedWaitUntil:
+    visible:
+      id: "balance-section"
+    timeout: 30000
+
+# Dismiss low ecash modal if it appears
+- runFlow: ../helpers/dismiss-low-ecash.yaml
+
+# Dismiss airdrop modal if it appears
+- runFlow: ../helpers/dismiss-airdrop.yaml
+
+# Dismiss passkey migration modal if it appears
+- runFlow:
+    when:
+      visible:
+        id: "passkey-migration-modal"
+    commands:
+      - tapOn:
+          id: "passkey-skip-btn"
+
+# Pull to refresh by swiping down from top of wallet content
+- swipe:
+    direction: DOWN
+    duration: 1000
+
+# Wait for refresh to complete
+- waitForAnimationToEnd
+
+# Verify wallet screen is still visible after refresh
+- assertVisible:
+    id: "wallet-screen"
+
+# Verify balance section still present
+- extendedWaitUntil:
+    visible:
+      id: "balance-section"
+    timeout: 15000

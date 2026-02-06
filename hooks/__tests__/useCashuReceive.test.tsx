@@ -1,4 +1,3 @@
-// @ts-nocheck
 /**
  * Tests for useCashuReceive hook
  */
@@ -31,30 +30,36 @@ jest.mock('@react-navigation/native', () => ({
 }));
 
 // Helper to render hooks with props
-function renderHookWithProps(props) {
-  const result = { current: null };
-  function TestComponent({ hookProps }) {
-    result.current = useCashuReceive(hookProps);
+function renderHookWithProps(props: Record<string, unknown>) {
+  const result: { current: ReturnType<typeof useCashuReceive> | null } = { current: null };
+  function TestComponent({ hookProps }: { hookProps?: Record<string, unknown> }) {
+    result.current = useCashuReceive(hookProps as unknown as Parameters<typeof useCashuReceive>[0]);
     return null;
   }
-  let component;
+  let component: ReturnType<typeof create> | undefined;
   act(() => {
     component = create(<TestComponent hookProps={props} />);
   });
   return {
     result,
-    unmount: component.unmount,
+    unmount: component!.unmount,
     component,
-    rerender: (newProps) => {
+    rerender: (newProps?: Record<string, unknown>) => {
       act(() => {
-        component.update(<TestComponent hookProps={newProps} />);
+        component?.update(<TestComponent hookProps={newProps} />);
       });
     },
   };
 }
 
 describe('useCashuReceive', () => {
-  let mockProps;
+  let mockProps: {
+    startMint: jest.Mock;
+    checkAndCompleteMint: jest.Mock;
+    receive: jest.Mock;
+    navigation: typeof mockNavigation;
+    [key: string]: unknown;
+  };
   const mockNavigation = {
     goBack: jest.fn(),
     dispatch: jest.fn(),
@@ -78,25 +83,25 @@ describe('useCashuReceive', () => {
   it('should return initial state', () => {
     const { result } = renderHookWithProps(mockProps);
 
-    expect(result.current.mode).toBe('choose');
-    expect(result.current.amount).toBe('');
-    expect(result.current.mintQuote).toBeNull();
-    expect(result.current.isLoading).toBe(false);
-    expect(result.current.pasteValue).toBe('');
-    expect(result.current.justCopied).toBe(false);
+    expect(result.current!.mode).toBe('choose');
+    expect(result.current!.amount).toBe('');
+    expect(result.current!.mintQuote).toBeNull();
+    expect(result.current!.isLoading).toBe(false);
+    expect(result.current!.pasteValue).toBe('');
+    expect(result.current!.justCopied).toBe(false);
   });
 
   it('should expose all expected functions', () => {
     const { result } = renderHookWithProps(mockProps);
 
-    expect(typeof result.current.setMode).toBe('function');
-    expect(typeof result.current.setAmount).toBe('function');
-    expect(typeof result.current.setPasteValue).toBe('function');
-    expect(typeof result.current.handleStartMint).toBe('function');
-    expect(typeof result.current.handleReceiveToken).toBe('function');
-    expect(typeof result.current.handleAutoMint).toBe('function');
-    expect(typeof result.current.handleCopyAddress).toBe('function');
-    expect(typeof result.current.resetMintQuote).toBe('function');
+    expect(typeof result.current!.setMode).toBe('function');
+    expect(typeof result.current!.setAmount).toBe('function');
+    expect(typeof result.current!.setPasteValue).toBe('function');
+    expect(typeof result.current!.handleStartMint).toBe('function');
+    expect(typeof result.current!.handleReceiveToken).toBe('function');
+    expect(typeof result.current!.handleAutoMint).toBe('function');
+    expect(typeof result.current!.handleCopyAddress).toBe('function');
+    expect(typeof result.current!.resetMintQuote).toBe('function');
   });
 
   describe('handleStartMint', () => {
@@ -104,7 +109,7 @@ describe('useCashuReceive', () => {
       const { result } = renderHookWithProps(mockProps);
 
       await act(async () => {
-        await result.current.handleStartMint();
+        await result.current!.handleStartMint();
       });
 
       expect(Alert.alert).toHaveBeenCalledWith('Invalid Amount', 'Please enter a valid amount');
@@ -115,11 +120,11 @@ describe('useCashuReceive', () => {
       const { result } = renderHookWithProps(mockProps);
 
       act(() => {
-        result.current.setAmount('0');
+        result.current!.setAmount('0');
       });
 
       await act(async () => {
-        await result.current.handleStartMint();
+        await result.current!.handleStartMint();
       });
 
       expect(Alert.alert).toHaveBeenCalledWith('Invalid Amount', 'Please enter a valid amount');
@@ -129,11 +134,11 @@ describe('useCashuReceive', () => {
       const { result } = renderHookWithProps(mockProps);
 
       act(() => {
-        result.current.setAmount('100');
+        result.current!.setAmount('100');
       });
 
       await act(async () => {
-        await result.current.handleStartMint();
+        await result.current!.handleStartMint();
       });
 
       expect(mockProps.startMint).toHaveBeenCalledWith(100);
@@ -144,11 +149,11 @@ describe('useCashuReceive', () => {
       const { result } = renderHookWithProps(mockProps);
 
       act(() => {
-        result.current.setAmount('100');
+        result.current!.setAmount('100');
       });
 
       await act(async () => {
-        await result.current.handleStartMint();
+        await result.current!.handleStartMint();
       });
 
       expect(Alert.alert).toHaveBeenCalledWith('Error', 'Mint failed');
@@ -159,11 +164,11 @@ describe('useCashuReceive', () => {
       const { result } = renderHookWithProps(mockProps);
 
       act(() => {
-        result.current.setAmount('100');
+        result.current!.setAmount('100');
       });
 
       await act(async () => {
-        await result.current.handleStartMint();
+        await result.current!.handleStartMint();
       });
 
       expect(Alert.alert).toHaveBeenCalledWith('Error', 'String error');
@@ -175,7 +180,7 @@ describe('useCashuReceive', () => {
       const { result } = renderHookWithProps(mockProps);
 
       await act(async () => {
-        await result.current.handleReceiveToken();
+        await result.current!.handleReceiveToken();
       });
 
       expect(Alert.alert).toHaveBeenCalledWith('Invalid Token', 'Please paste a Cashu token');
@@ -185,11 +190,11 @@ describe('useCashuReceive', () => {
       const { result } = renderHookWithProps(mockProps);
 
       act(() => {
-        result.current.setPasteValue('cashuAtoken123');
+        result.current!.setPasteValue('cashuAtoken123');
       });
 
       await act(async () => {
-        await result.current.handleReceiveToken();
+        await result.current!.handleReceiveToken();
       });
 
       expect(mockProps.receive).toHaveBeenCalledWith('cashuAtoken123');
@@ -200,11 +205,11 @@ describe('useCashuReceive', () => {
       const { result } = renderHookWithProps(mockProps);
 
       act(() => {
-        result.current.setPasteValue('cashuAtoken123');
+        result.current!.setPasteValue('cashuAtoken123');
       });
 
       await act(async () => {
-        await result.current.handleReceiveToken();
+        await result.current!.handleReceiveToken();
       });
 
       expect(Alert.alert).toHaveBeenCalledWith('Error', 'Receive failed');
@@ -215,11 +220,11 @@ describe('useCashuReceive', () => {
       const { result } = renderHookWithProps(mockProps);
 
       act(() => {
-        result.current.setPasteValue('cashuAtoken123');
+        result.current!.setPasteValue('cashuAtoken123');
       });
 
       await act(async () => {
-        await result.current.handleReceiveToken();
+        await result.current!.handleReceiveToken();
       });
 
       expect(Alert.alert).toHaveBeenCalledWith('Error', 'String error');
@@ -231,7 +236,7 @@ describe('useCashuReceive', () => {
       const { result } = renderHookWithProps(mockProps);
 
       await act(async () => {
-        await result.current.handleAutoMint();
+        await result.current!.handleAutoMint();
       });
 
       expect(Alert.alert).toHaveBeenCalledWith('Invalid Amount', 'Please enter a valid amount');
@@ -241,11 +246,11 @@ describe('useCashuReceive', () => {
       const { result } = renderHookWithProps(mockProps);
 
       act(() => {
-        result.current.setAmount('100');
+        result.current!.setAmount('100');
       });
 
       await act(async () => {
-        await result.current.handleAutoMint();
+        await result.current!.handleAutoMint();
       });
 
       expect(mockProps.startMint).toHaveBeenCalledWith(100);
@@ -255,22 +260,22 @@ describe('useCashuReceive', () => {
 
   describe('handleCopyAddress', () => {
     it('should copy address and set justCopied flag', async () => {
-      const mockSetStringAsync = jest.fn().mockResolvedValue();
+      const mockSetStringAsync = jest.fn().mockResolvedValue(undefined);
       const { result } = renderHookWithProps(mockProps);
 
       await act(async () => {
-        await result.current.handleCopyAddress('bc1qtest', mockSetStringAsync);
+        await result.current!.handleCopyAddress('bc1qtest', mockSetStringAsync);
       });
 
       expect(mockSetStringAsync).toHaveBeenCalledWith('bc1qtest');
-      expect(result.current.justCopied).toBe(true);
+      expect(result.current!.justCopied).toBe(true);
 
       // Wait for timeout to clear flag
       act(() => {
         jest.advanceTimersByTime(2000);
       });
 
-      expect(result.current.justCopied).toBe(false);
+      expect(result.current!.justCopied).toBe(false);
     });
 
     it('should not copy if address is empty', async () => {
@@ -278,7 +283,7 @@ describe('useCashuReceive', () => {
       const { result } = renderHookWithProps(mockProps);
 
       await act(async () => {
-        await result.current.handleCopyAddress('', mockSetStringAsync);
+        await result.current!.handleCopyAddress('', mockSetStringAsync);
       });
 
       expect(mockSetStringAsync).not.toHaveBeenCalled();
@@ -290,15 +295,15 @@ describe('useCashuReceive', () => {
       const { result } = renderHookWithProps(mockProps);
 
       act(() => {
-        result.current.setMode('mint');
+        result.current!.setMode('mint');
       });
 
       act(() => {
-        result.current.resetMintQuote();
+        result.current!.resetMintQuote();
       });
 
-      expect(result.current.mintQuote).toBeNull();
-      expect(result.current.mode).toBe('choose');
+      expect(result.current!.mintQuote).toBeNull();
+      expect(result.current!.mode).toBe('choose');
     });
   });
 
@@ -308,11 +313,11 @@ describe('useCashuReceive', () => {
       const { result } = renderHookWithProps(mockProps);
 
       act(() => {
-        result.current.setAmount('100');
+        result.current!.setAmount('100');
       });
 
       await act(async () => {
-        await result.current.handleAutoMint();
+        await result.current!.handleAutoMint();
       });
 
       expect(Alert.alert).toHaveBeenCalledWith('Error', 'Mint quote failed');
@@ -323,11 +328,11 @@ describe('useCashuReceive', () => {
       const { result } = renderHookWithProps(mockProps);
 
       act(() => {
-        result.current.setAmount('100');
+        result.current!.setAmount('100');
       });
 
       await act(async () => {
-        await result.current.handleAutoMint();
+        await result.current!.handleAutoMint();
       });
 
       expect(Alert.alert).toHaveBeenCalledWith('Error', 'String error');
@@ -342,16 +347,16 @@ describe('useCashuReceive', () => {
 
       // Set mode to mint and create a quote
       act(() => {
-        result.current.setAmount('100');
+        result.current!.setAmount('100');
       });
 
       await act(async () => {
-        await result.current.handleStartMint();
+        await result.current!.handleStartMint();
       });
 
       // Set mode to mint
       act(() => {
-        result.current.setMode('mint');
+        result.current!.setMode('mint');
       });
 
       // Advance timer to trigger interval
@@ -370,16 +375,16 @@ describe('useCashuReceive', () => {
 
       // Set mode to mint and create a quote
       act(() => {
-        result.current.setAmount('100');
+        result.current!.setAmount('100');
       });
 
       await act(async () => {
-        await result.current.handleStartMint();
+        await result.current!.handleStartMint();
       });
 
       // Set mode to mint
       act(() => {
-        result.current.setMode('mint');
+        result.current!.setMode('mint');
       });
 
       // Advance timer to trigger interval
@@ -402,16 +407,16 @@ describe('useCashuReceive', () => {
 
       // Set mode to mint and create a quote
       act(() => {
-        result.current.setAmount('100');
+        result.current!.setAmount('100');
       });
 
       await act(async () => {
-        await result.current.handleStartMint();
+        await result.current!.handleStartMint();
       });
 
       // Set mode to mint
       act(() => {
-        result.current.setMode('mint');
+        result.current!.setMode('mint');
       });
 
       // Advance timer to trigger interval
@@ -420,8 +425,8 @@ describe('useCashuReceive', () => {
       });
 
       // Find the success alert call and invoke the onPress callback
-      const alertCall = Alert.alert.mock.calls.find(
-        call => call[0] === 'Success!' && call[1].includes('Minted')
+      const alertCall = (Alert.alert as jest.Mock).mock.calls.find(
+        (call: unknown[]) => call[0] === 'Success!' && (call[1] as string).includes('Minted')
       );
       expect(alertCall).toBeDefined();
 
@@ -444,16 +449,16 @@ describe('useCashuReceive', () => {
 
       // Set mode to mint and create a quote
       act(() => {
-        result.current.setAmount('100');
+        result.current!.setAmount('100');
       });
 
       await act(async () => {
-        await result.current.handleStartMint();
+        await result.current!.handleStartMint();
       });
 
       // Set mode to mint
       act(() => {
-        result.current.setMode('mint');
+        result.current!.setMode('mint');
       });
 
       // Advance timer to trigger interval
@@ -473,16 +478,16 @@ describe('useCashuReceive', () => {
 
       // Set mode to mint and create a quote
       act(() => {
-        result.current.setAmount('100');
+        result.current!.setAmount('100');
       });
 
       await act(async () => {
-        await result.current.handleStartMint();
+        await result.current!.handleStartMint();
       });
 
       // Set mode to mint
       act(() => {
-        result.current.setMode('mint');
+        result.current!.setMode('mint');
       });
 
       // Advance timer to trigger interval
@@ -499,15 +504,15 @@ describe('useCashuReceive', () => {
 
       // Set mode to mint and create a quote
       act(() => {
-        result.current.setAmount('100');
+        result.current!.setAmount('100');
       });
 
       await act(async () => {
-        await result.current.handleStartMint();
+        await result.current!.handleStartMint();
       });
 
       act(() => {
-        result.current.setMode('mint');
+        result.current!.setMode('mint');
       });
 
       // Unmount should cleanup interval
@@ -529,15 +534,15 @@ describe('useCashuReceive', () => {
       const { result } = renderHookWithProps(mockProps);
 
       act(() => {
-        result.current.setPasteValue('cashuAtoken123');
+        result.current!.setPasteValue('cashuAtoken123');
       });
 
       await act(async () => {
-        await result.current.handleReceiveToken();
+        await result.current!.handleReceiveToken();
       });
 
       // Extract the onPress callback from Alert.alert call
-      const alertCall = Alert.alert.mock.calls.find(call => call[0] === 'Success!');
+      const alertCall = (Alert.alert as jest.Mock).mock.calls.find((call: unknown[]) => call[0] === 'Success!');
       expect(alertCall).toBeDefined();
 
       // Get the button config

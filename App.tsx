@@ -9,6 +9,13 @@ import { Buffer } from 'buffer';
 global.Buffer = Buffer;
 
 
+import { LogBox } from 'react-native';
+
+// Suppress all log notifications in E2E mode to prevent overlay interference
+if (__DEV__ && process.env.EXPO_PUBLIC_E2E_BYPASS === 'true') {
+  LogBox.ignoreAllLogs(true);
+}
+
 import React, { useEffect } from 'react';
 import { useFonts } from 'expo-font';
 import BIP32Factory from 'bip32';

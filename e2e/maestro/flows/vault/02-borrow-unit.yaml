@@ -1,0 +1,46 @@
+appId: com.ducatprotocol.DucatProtocolWallet
+---
+# Borrow UNIT - Verify vault borrow functionality
+# Note: Test wallet must have an existing vault to borrow
+
+- runFlow: ../helpers/import-wallet-typed.yaml
+
+# Wait for wallet screen
+- extendedWaitUntil:
+    visible:
+      id: "wallet-screen"
+    timeout: 15000
+
+# Dismiss low ecash modal if it appears
+- runFlow: ../helpers/dismiss-low-ecash.yaml
+
+# Dismiss airdrop modal if visible
+- runFlow: ../helpers/dismiss-airdrop.yaml
+
+# Dismiss passkey migration modal if it appears
+- runFlow:
+    when:
+      visible:
+        id: "passkey-migration-modal"
+    commands:
+      - tapOn:
+          id: "passkey-skip-btn"
+
+# Wait for wallet actions to load
+- extendedWaitUntil:
+    visible:
+      id: "wallet-actions"
+    timeout: 15000
+
+# Verify borrow button exists in wallet actions
+# Note: Borrow may be disabled if no vault exists - that's expected
+- assertVisible:
+    id: "wallet-borrow-btn"
+
+# Verify other vault action buttons are present
+- assertVisible:
+    id: "wallet-deposit-btn"
+
+# Verify wallet screen is still functional
+- assertVisible:
+    id: "wallet-screen"

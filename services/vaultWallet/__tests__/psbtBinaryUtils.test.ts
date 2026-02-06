@@ -1,12 +1,11 @@
-// @ts-nocheck
 /**
  * Tests for PSBT Binary Utilities
  */
 
 // Mock crypto helpers
 jest.mock('../../../utils/wallet/cryptoHelpers', () => ({
-  varIntSize: jest.fn((n) => (n < 0xfd ? 1 : n <= 0xffff ? 3 : 5)),
-  writeVarInt: jest.fn((buf, value, offset) => {
+  varIntSize: jest.fn((n: number) => (n < 0xfd ? 1 : n <= 0xffff ? 3 : 5)),
+  writeVarInt: jest.fn((buf: Buffer, value: number, offset: number) => {
     if (value < 0xfd) {
       buf[offset] = value;
       return 1;
@@ -332,9 +331,11 @@ describe('psbtBinaryUtils', () => {
 
       const psbtBase64 = Buffer.concat(parts).toString('base64');
 
+      // Use a type assertion to test invalid type handling
+      type SignatureType = 'segwit' | 'taproot-key' | 'taproot-script';
       const signatures = [{
         inputIndex: 0,
-        type: 'invalid-type' as any,
+        type: 'invalid-type' as SignatureType, // Force invalid type for error handling test
         signature: Buffer.from([0x01]),
       }];
 

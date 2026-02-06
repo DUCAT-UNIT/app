@@ -1,4 +1,3 @@
-// @ts-nocheck
 /**
  * Tests for Passkey Credential Creation Utilities
  * Uses the real crypto implementation from jest.setup.js for integration testing

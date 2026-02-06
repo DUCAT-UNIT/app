@@ -68,12 +68,17 @@ export function FeeRateSegmented({
               onPress={() => !disabled && onRateChange(option.rate)}
               disabled={disabled}
               activeOpacity={0.7}
+              accessibilityRole="button"
+              accessibilityLabel={`${option.label} fee rate, ${option.rate} satoshi per virtual byte`}
+              accessibilityState={{ selected: isSelected, disabled }}
+              accessibilityHint={`Select ${option.label.toLowerCase()} fee rate`}
             >
               <Text
                 style={[
                   segmentedStyles.segmentText,
                   isSelected && segmentedStyles.segmentTextSelected,
                 ]}
+                accessibilityElementsHidden
               >
                 {option.label}
               </Text>
@@ -161,14 +166,18 @@ export function FeeRateDropdown({
         onPress={() => !disabled && setExpanded(!expanded)}
         activeOpacity={0.7}
         disabled={disabled}
+        accessibilityRole="button"
+        accessibilityLabel={`Network fee: ${selectedOption.label}, ${selectedOption.rate} satoshi per virtual byte${estimatedFeeSats !== undefined ? `, estimated ${estimatedFeeSats.toLocaleString()} satoshis` : ''}`}
+        accessibilityHint={expanded ? "Collapse fee options" : "Expand to select fee rate"}
+        accessibilityState={{ expanded, disabled }}
       >
-        <View style={dropdownStyles.headerLeft}>
+        <View style={dropdownStyles.headerLeft} accessibilityElementsHidden>
           <Text style={dropdownStyles.label}>Network Fee</Text>
           <Text style={dropdownStyles.selectedLabel}>
             {selectedOption.label} ({selectedOption.rate} sat/vB)
           </Text>
         </View>
-        <View style={dropdownStyles.headerRight}>
+        <View style={dropdownStyles.headerRight} accessibilityElementsHidden>
           {estimatedFeeSats !== undefined && (
             <Text style={dropdownStyles.estimate}>~{estimatedFeeSats.toLocaleString()} sats</Text>
           )}
@@ -196,14 +205,17 @@ export function FeeRateDropdown({
                   setExpanded(false);
                 }}
                 activeOpacity={0.7}
+                accessibilityRole="button"
+                accessibilityLabel={`${option.label} fee rate, ${option.description}, ${option.rate} satoshi per virtual byte`}
+                accessibilityState={{ selected: isSelected }}
               >
-                <View>
+                <View accessibilityElementsHidden>
                   <Text style={[dropdownStyles.optionLabel, isSelected && dropdownStyles.optionLabelSelected]}>
                     {option.label}
                   </Text>
                   <Text style={dropdownStyles.optionDesc}>{option.description}</Text>
                 </View>
-                <Text style={[dropdownStyles.optionRate, isSelected && dropdownStyles.optionRateSelected]}>
+                <Text style={[dropdownStyles.optionRate, isSelected && dropdownStyles.optionRateSelected]} accessibilityElementsHidden>
                   {option.rate} sat/vB
                 </Text>
               </TouchableOpacity>
@@ -340,12 +352,16 @@ export function FeeRateCompactButtons({
               onPress={() => !disabled && onRateChange(option.rate)}
               disabled={disabled}
               activeOpacity={0.7}
+              accessibilityRole="button"
+              accessibilityLabel={`${option.label} fee rate, ${option.rate} satoshi per virtual byte`}
+              accessibilityState={{ selected: isSelected, disabled }}
             >
               <Text
                 style={[
                   compactStyles.buttonText,
                   isSelected && compactStyles.buttonTextSelected,
                 ]}
+                accessibilityElementsHidden
               >
                 {option.label} ({option.rate})
               </Text>

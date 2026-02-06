@@ -265,7 +265,7 @@ function AssetDetailScreen({ route = {}, navigation }: AssetDetailScreenProps): 
 
   return (
     <>
-      <SafeAreaView style={styles.container}>
+      <SafeAreaView style={styles.container} testID="asset-detail-screen">
         <AssetHeader onBackPress={() => navigation.goBack()} />
 
         <Animated.ScrollView

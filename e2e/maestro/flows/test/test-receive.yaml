@@ -1,0 +1,32 @@
+appId: com.ducatprotocol.DucatProtocolWallet
+---
+# Simplified test - just navigate to receive
+
+- runFlow: ../helpers/import-wallet-typed.yaml
+
+# Verify wallet screen
+- extendedWaitUntil:
+    visible:
+      id: "wallet-screen"
+    timeout: 20000
+
+# Tap deposit
+- tapOn:
+    id: "wallet-deposit-btn"
+
+# Select BTC  
+- extendedWaitUntil:
+    visible:
+      id: "deposit-btc"
+    timeout: 5000
+- tapOn:
+    id: "deposit-btc"
+
+# Check what's visible
+- waitForAnimationToEnd
+
+# Check for receive screen
+- extendedWaitUntil:
+    visible:
+      text: "Bitcoin address"
+    timeout: 10000

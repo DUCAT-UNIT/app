@@ -1,4 +1,3 @@
-// @ts-nocheck
 /**
  * Tests for useCashuMint hook
  */
@@ -6,6 +5,18 @@
 import React from 'react';
 import { create, act } from 'react-test-renderer';
 import { useCashuMint } from '../useCashuMint';
+import type { MintQuoteResult } from '../../services/cashu/operations/cashuMintOperations';
+
+// Define type for the hook return value
+type UseCashuMintReturn = ReturnType<typeof useCashuMint>;
+
+// Define type for mint check result
+interface MintCheckResult {
+  completed: boolean;
+  proofs?: Array<{ id: string }>;
+  amount?: number;
+  state?: string;
+}
 
 // Mock dependencies
 jest.mock('react-native', () => ({
@@ -39,37 +50,37 @@ import { requestMint, checkMintStatus, completeMint } from '../../services/cashu
 import { usePolling } from '../usePolling';
 
 // Helper to render hooks
-function renderHook(hook) {
-  const result = { current: null };
+function renderHook<T>(hook: () => T) {
+  const result: { current: T | null } = { current: null };
   function TestComponent() {
     result.current = hook();
     return null;
   }
-  let component;
+  let component: ReturnType<typeof create> | undefined;
   act(() => {
     component = create(<TestComponent />);
   });
-  return { result, unmount: component.unmount, component };
+  return { result, unmount: component!.unmount, component };
 }
 
 describe('useCashuMint', () => {
-  let fetchBalance;
-  let setIsLoading;
-  let setError;
+  let fetchBalance: jest.Mock;
+  let setIsLoading: jest.Mock;
+  let setError: jest.Mock;
 
   beforeEach(() => {
     jest.clearAllMocks();
-    fetchBalance = jest.fn().mockResolvedValue();
+    fetchBalance = jest.fn().mockResolvedValue(undefined);
     setIsLoading = jest.fn();
     setError = jest.fn();
-    usePolling.mockImplementation(() => {});
-    requestMint.mockResolvedValue({
+    (usePolling as jest.Mock).mockImplementation(() => {});
+    (requestMint as jest.Mock).mockResolvedValue({
       quoteId: 'quote123',
       amount: 100,
       depositAddress: 'tb1p...',
     });
-    checkMintStatus.mockResolvedValue({ paid: false, state: 'UNPAID' });
-    completeMint.mockResolvedValue([{ id: 'proof1' }, { id: 'proof2' }]);
+    (checkMintStatus as jest.Mock).mockResolvedValue({ paid: false, state: 'UNPAID' });
+    (completeMint as jest.Mock).mockResolvedValue([{ id: 'proof1' }, { id: 'proof2' }]);
   });
 
   it('should return expected functions and state', () => {
@@ -77,12 +88,12 @@ describe('useCashuMint', () => {
       useCashuMint({ fetchBalance, setIsLoading, setError })
     );
 
-    expect(result.current.pendingMints).toEqual([]);
-    expect(typeof result.current.startMint).toBe('function');
-    expect(typeof result.current.checkAndCompleteMint).toBe('function');
-    expect(typeof result.current.removePendingMint).toBe('function');
-    expect(typeof result.current.autoMint).toBe('function');
-    expect(typeof result.current.setPendingMints).toBe('function');
+    expect(result.current!.pendingMints).toEqual([]);
+    expect(typeof result.current!.startMint).toBe('function');
+    expect(typeof result.current!.checkAndCompleteMint).toBe('function');
+    expect(typeof result.current!.removePendingMint).toBe('function');
+    expect(typeof result.current!.autoMint).toBe('function');
+    expect(typeof result.current!.setPendingMints).toBe('function');
   });
 
   describe('startMint', () => {
@@ -91,22 +102,22 @@ describe('useCashuMint', () => {
         useCashuMint({ fetchBalance, setIsLoading, setError })
       );
 
-      let quote;
+      let quote: MintQuoteResult | undefined;
       await act(async () => {
-        quote = await result.current.startMint(100);
+        quote = await result.current!.startMint(100);
       });
 
       expect(setIsLoading).toHaveBeenCalledWith(true);
       expect(setError).toHaveBeenCalledWith(null);
       expect(requestMint).toHaveBeenCalledWith(100);
-      expect(quote.quoteId).toBe('quote123');
-      expect(result.current.pendingMints.length).toBe(1);
-      expect(result.current.pendingMints[0].quoteId).toBe('quote123');
+      expect(quote!.quoteId).toBe('quote123');
+      expect(result.current!.pendingMints.length).toBe(1);
+      expect(result.current!.pendingMints[0].quoteId).toBe('quote123');
       expect(setIsLoading).toHaveBeenLastCalledWith(false);
     });
 
     it('should handle start mint error', async () => {
-      requestMint.mockRejectedValue(new Error('Mint request failed'));
+      (requestMint as jest.Mock).mockRejectedValue(new Error('Mint request failed'));
 
       const { result } = renderHook(() =>
         useCashuMint({ fetchBalance, setIsLoading, setError })
@@ -114,7 +125,7 @@ describe('useCashuMint', () => {
 
       await expect(
         act(async () => {
-          await result.current.startMint(100);
+          await result.current!.startMint(100);
         })
       ).rejects.toThrow('Mint request failed');
 
@@ -131,20 +142,20 @@ describe('useCashuMint', () => {
 
       // First add a pending mint
       await act(async () => {
-        await result.current.startMint(100);
+        await result.current!.startMint(100);
       });
 
-      let status;
+      let status: MintCheckResult | undefined;
       await act(async () => {
-        status = await result.current.checkAndCompleteMint('quote123');
+        status = await result.current!.checkAndCompleteMint('quote123');
       });
 
-      expect(status.completed).toBe(false);
-      expect(status.state).toBe('UNPAID');
+      expect(status!.completed).toBe(false);
+      expect(status!.state).toBe('UNPAID');
     });
 
     it('should complete mint when paid', async () => {
-      checkMintStatus.mockResolvedValue({ paid: true, state: 'PAID' });
+      (checkMintStatus as jest.Mock).mockResolvedValue({ paid: true, state: 'PAID' });
 
       const { result } = renderHook(() =>
         useCashuMint({ fetchBalance, setIsLoading, setError })
@@ -152,24 +163,24 @@ describe('useCashuMint', () => {
 
       // First add a pending mint
       await act(async () => {
-        await result.current.startMint(100);
+        await result.current!.startMint(100);
       });
 
-      let status;
+      let status: MintCheckResult | undefined;
       await act(async () => {
-        status = await result.current.checkAndCompleteMint('quote123');
+        status = await result.current!.checkAndCompleteMint('quote123');
       });
 
-      expect(status.completed).toBe(true);
-      expect(status.proofs.length).toBe(2);
-      expect(status.amount).toBe(100);
+      expect(status!.completed).toBe(true);
+      expect(status!.proofs!.length).toBe(2);
+      expect(status!.amount).toBe(100);
       expect(completeMint).toHaveBeenCalledWith('quote123', 100);
       expect(fetchBalance).toHaveBeenCalled();
-      expect(result.current.pendingMints.length).toBe(0);
+      expect(result.current!.pendingMints.length).toBe(0);
     });
 
     it('should throw error when quote not found', async () => {
-      checkMintStatus.mockResolvedValue({ paid: true });
+      (checkMintStatus as jest.Mock).mockResolvedValue({ paid: true });
 
       const { result } = renderHook(() =>
         useCashuMint({ fetchBalance, setIsLoading, setError })
@@ -177,13 +188,39 @@ describe('useCashuMint', () => {
 
       await expect(
         act(async () => {
-          await result.current.checkAndCompleteMint('unknown');
+          await result.current!.checkAndCompleteMint('unknown');
         })
       ).rejects.toThrow('Quote not found');
     });
 
+    it('should throw error when quote amount is undefined', async () => {
+      // Mock a quote without amount
+      (requestMint as jest.Mock).mockResolvedValue({
+        quoteId: 'quote_no_amount',
+        amount: undefined,
+        depositAddress: 'tb1p...',
+      });
+      (checkMintStatus as jest.Mock).mockResolvedValue({ paid: true, state: 'PAID' });
+
+      const { result } = renderHook(() =>
+        useCashuMint({ fetchBalance, setIsLoading, setError })
+      );
+
+      // Add the pending mint (without amount)
+      await act(async () => {
+        await result.current!.startMint(100);
+      });
+
+      // Try to complete - should throw because quote.amount is undefined
+      await expect(
+        act(async () => {
+          await result.current!.checkAndCompleteMint('quote_no_amount');
+        })
+      ).rejects.toThrow('Quote amount is undefined');
+    });
+
     it('should handle check error', async () => {
-      checkMintStatus.mockRejectedValue(new Error('Check failed'));
+      (checkMintStatus as jest.Mock).mockRejectedValue(new Error('Check failed'));
 
       const { result } = renderHook(() =>
         useCashuMint({ fetchBalance, setIsLoading, setError })
@@ -191,7 +228,7 @@ describe('useCashuMint', () => {
 
       await expect(
         act(async () => {
-          await result.current.checkAndCompleteMint('quote123');
+          await result.current!.checkAndCompleteMint('quote123');
         })
       ).rejects.toThrow('Check failed');
     });
@@ -204,16 +241,16 @@ describe('useCashuMint', () => {
       );
 
       await act(async () => {
-        await result.current.startMint(100);
+        await result.current!.startMint(100);
       });
 
-      expect(result.current.pendingMints.length).toBe(1);
+      expect(result.current!.pendingMints.length).toBe(1);
 
       act(() => {
-        result.current.removePendingMint('quote123');
+        result.current!.removePendingMint('quote123');
       });
 
-      expect(result.current.pendingMints.length).toBe(0);
+      expect(result.current!.pendingMints.length).toBe(0);
     });
   });
 
@@ -225,23 +262,23 @@ describe('useCashuMint', () => {
         useCashuMint({ fetchBalance, setIsLoading, setError })
       );
 
-      let quote;
+      let quote: MintQuoteResult | undefined;
       await act(async () => {
-        quote = await result.current.autoMint(100, onSuccess);
+        quote = await result.current!.autoMint(100, onSuccess);
       });
 
       expect(requestMint).toHaveBeenCalledWith(100);
-      expect(quote.quoteId).toBe('quote123');
+      expect(quote!.quoteId).toBe('quote123');
       expect(onSuccess).toHaveBeenCalledWith({
         address: 'tb1p...',
         amount: 100,
         quoteId: 'quote123',
       });
-      expect(result.current.pendingMints.length).toBe(1);
+      expect(result.current!.pendingMints.length).toBe(1);
     });
 
     it('should handle autoMint error and show alert', async () => {
-      requestMint.mockRejectedValue(new Error('Auto mint failed'));
+      (requestMint as jest.Mock).mockRejectedValue(new Error('Auto mint failed'));
 
       const { result } = renderHook(() =>
         useCashuMint({ fetchBalance, setIsLoading, setError })
@@ -249,7 +286,7 @@ describe('useCashuMint', () => {
 
       await expect(
         act(async () => {
-          await result.current.autoMint(100);
+          await result.current!.autoMint(100);
         })
       ).rejects.toThrow('Auto mint failed');
 
@@ -275,12 +312,12 @@ describe('useCashuMint', () => {
 
     it('should auto-complete pending mints when polling (lines 135-142)', async () => {
       // Capture the onPoll callback
-      let capturedOnPoll;
-      usePolling.mockImplementation(({ onPoll }) => {
+      let capturedOnPoll: (() => Promise<void>) | undefined;
+      (usePolling as jest.Mock).mockImplementation(({ onPoll }: { onPoll: () => Promise<void> }) => {
         capturedOnPoll = onPoll;
       });
 
-      checkMintStatus.mockResolvedValue({ paid: true, state: 'PAID' });
+      (checkMintStatus as jest.Mock).mockResolvedValue({ paid: true, state: 'PAID' });
 
       const { result } = renderHook(() =>
         useCashuMint({ fetchBalance, setIsLoading, setError })
@@ -288,32 +325,32 @@ describe('useCashuMint', () => {
 
       // First add a pending mint
       await act(async () => {
-        await result.current.startMint(100);
+        await result.current!.startMint(100);
       });
 
-      expect(result.current.pendingMints.length).toBe(1);
+      expect(result.current!.pendingMints.length).toBe(1);
 
       // Execute the polling callback
       await act(async () => {
-        await capturedOnPoll();
+        await capturedOnPoll!();
       });
 
       // Mint should be auto-completed and removed from pending
       expect(checkMintStatus).toHaveBeenCalledWith('quote123');
       expect(completeMint).toHaveBeenCalledWith('quote123', 100);
-      expect(result.current.pendingMints.length).toBe(0);
+      expect(result.current!.pendingMints.length).toBe(0);
     });
 
     it('should handle polling errors gracefully (line 142)', async () => {
       const { logger } = require('../../utils/logger');
 
       // Capture the onPoll callback
-      let capturedOnPoll;
-      usePolling.mockImplementation(({ onPoll }) => {
+      let capturedOnPoll: (() => Promise<void>) | undefined;
+      (usePolling as jest.Mock).mockImplementation(({ onPoll }: { onPoll: () => Promise<void> }) => {
         capturedOnPoll = onPoll;
       });
 
-      checkMintStatus.mockRejectedValue(new Error('Network error'));
+      (checkMintStatus as jest.Mock).mockRejectedValue(new Error('Network error'));
 
       const { result } = renderHook(() =>
         useCashuMint({ fetchBalance, setIsLoading, setError })
@@ -321,12 +358,12 @@ describe('useCashuMint', () => {
 
       // First add a pending mint
       await act(async () => {
-        await result.current.startMint(100);
+        await result.current!.startMint(100);
       });
 
       // Execute the polling callback - should not throw
       await act(async () => {
-        await capturedOnPoll();
+        await capturedOnPoll!();
       });
 
       // Error should be logged but not thrown
@@ -335,7 +372,7 @@ describe('useCashuMint', () => {
         expect.objectContaining({ quoteId: 'quote123', error: 'Network error' })
       );
       // Mint should still be in pending list
-      expect(result.current.pendingMints.length).toBe(1);
+      expect(result.current!.pendingMints.length).toBe(1);
     });
 
     it('should enable polling when pendingMints has items', async () => {
@@ -352,7 +389,7 @@ describe('useCashuMint', () => {
 
       // Add a pending mint
       await act(async () => {
-        await result.current.startMint(100);
+        await result.current!.startMint(100);
       });
 
       // Now polling should be enabled

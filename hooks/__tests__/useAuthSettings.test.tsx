@@ -1,4 +1,3 @@
-// @ts-nocheck
 /**
  * Tests for useAuthSettings Hook
  */
@@ -11,22 +10,22 @@ import { useAuthSettings } from '../useAuthSettings';
 import { notify } from '../../utils/notify';
 
 // Helper to render hooks with react-test-renderer
-function renderHook(hook) {
-  const result = { current: null };
+function renderHook<T>(hook: () => T) {
+  const result: { current: T | null } = { current: null };
 
   function TestComponent() {
     result.current = hook();
     return null;
   }
 
-  let component;
+  let component: ReturnType<typeof create> | undefined;
   act(() => {
     component = create(<TestComponent />);
   });
 
   return {
     result,
-    unmount: () => component.unmount(),
+    unmount: () => component?.unmount(),
   };
 }
 
@@ -42,7 +41,12 @@ jest.mock('../../services/biometricService', () => ({
 }));
 
 describe('useAuthSettings', () => {
-  let mockProps;
+  let mockProps: {
+    biometricEnabled: boolean;
+    setBiometricEnabled: jest.Mock;
+    setIsAuthenticated: jest.Mock;
+    startPinChange: jest.Mock;
+  };
 
   beforeEach(() => {
     mockProps = {
@@ -52,21 +56,21 @@ describe('useAuthSettings', () => {
       startPinChange: jest.fn(),
     };
     jest.clearAllMocks();
-    SecureStore.setItemAsync.mockResolvedValue(null);
-    biometricService.authenticateWithBiometrics.mockResolvedValue({ success: true });
+    (SecureStore.setItemAsync as jest.Mock).mockResolvedValue(null);
+    (biometricService.authenticateWithBiometrics as jest.Mock).mockResolvedValue({ success: true });
   });
 
   it('should initialize with modal hidden', () => {
     const { result } = renderHook(() => useAuthSettings(mockProps));
 
-    expect(result.current.showFaceIdModal).toBe(false);
+    expect(result.current!.showFaceIdModal).toBe(false);
   });
 
   it('should call startPinChange when handleChangePin is called', () => {
     const { result } = renderHook(() => useAuthSettings(mockProps));
 
     act(() => {
-      result.current.handleChangePin();
+      result.current!.handleChangePin();
     });
 
     expect(mockProps.startPinChange).toHaveBeenCalled();
@@ -75,13 +79,13 @@ describe('useAuthSettings', () => {
   it('should show modal when toggling Face ID', () => {
     const { result } = renderHook(() => useAuthSettings(mockProps));
 
-    expect(result.current.showFaceIdModal).toBe(false);
+    expect(result.current!.showFaceIdModal).toBe(false);
 
     act(() => {
-      result.current.handleFaceIdToggle();
+      result.current!.handleFaceIdToggle();
     });
 
-    expect(result.current.showFaceIdModal).toBe(true);
+    expect(result.current!.showFaceIdModal).toBe(true);
   });
 
   it('should hide modal when canceling Face ID toggle', () => {
@@ -89,15 +93,15 @@ describe('useAuthSettings', () => {
 
     // First show the modal
     act(() => {
-      result.current.handleFaceIdToggle();
+      result.current!.handleFaceIdToggle();
     });
-    expect(result.current.showFaceIdModal).toBe(true);
+    expect(result.current!.showFaceIdModal).toBe(true);
 
     // Then cancel
     act(() => {
-      result.current.cancelFaceIdToggle();
+      result.current!.cancelFaceIdToggle();
     });
-    expect(result.current.showFaceIdModal).toBe(false);
+    expect(result.current!.showFaceIdModal).toBe(false);
   });
 
   describe('confirmFaceIdToggle - Enabling', () => {
@@ -106,18 +110,18 @@ describe('useAuthSettings', () => {
     });
 
     it('should enable Face ID when biometric authentication succeeds', async () => {
-      biometricService.authenticateWithBiometrics.mockResolvedValue({ success: true });
+      (biometricService.authenticateWithBiometrics as jest.Mock).mockResolvedValue({ success: true });
 
       const { result } = renderHook(() => useAuthSettings(mockProps));
 
       // Start toggle
       act(() => {
-        result.current.handleFaceIdToggle();
+        result.current!.handleFaceIdToggle();
       });
 
       // Confirm
       await act(async () => {
-        await result.current.confirmFaceIdToggle();
+        await result.current!.confirmFaceIdToggle();
       });
 
       expect(biometricService.authenticateWithBiometrics).toHaveBeenCalledWith(
@@ -128,20 +132,20 @@ describe('useAuthSettings', () => {
       expect(SecureStore.setItemAsync).toHaveBeenCalledWith('biometricEnabled', 'true');
       expect(mockProps.setBiometricEnabled).toHaveBeenCalledWith(true);
       expect(notify.settings.faceIdEnabled).toHaveBeenCalled();
-      expect(result.current.showFaceIdModal).toBe(false);
+      expect(result.current!.showFaceIdModal).toBe(false);
     });
 
     it('should fall back to PIN when biometric authentication fails', async () => {
-      biometricService.authenticateWithBiometrics.mockResolvedValue({ success: false });
+      (biometricService.authenticateWithBiometrics as jest.Mock).mockResolvedValue({ success: false });
 
       const { result } = renderHook(() => useAuthSettings(mockProps));
 
       act(() => {
-        result.current.handleFaceIdToggle();
+        result.current!.handleFaceIdToggle();
       });
 
       await act(async () => {
-        await result.current.confirmFaceIdToggle();
+        await result.current!.confirmFaceIdToggle();
       });
 
       expect(SecureStore.setItemAsync).toHaveBeenCalledWith('pendingFaceIdEnable', 'true');
@@ -152,16 +156,33 @@ describe('useAuthSettings', () => {
 
     it('should handle biometric authentication errors', async () => {
       const mockError = new Error('Biometric error');
-      biometricService.authenticateWithBiometrics.mockRejectedValue(mockError);
+      (biometricService.authenticateWithBiometrics as jest.Mock).mockRejectedValue(mockError);
 
       const { result } = renderHook(() => useAuthSettings(mockProps));
 
       act(() => {
-        result.current.handleFaceIdToggle();
+        result.current!.handleFaceIdToggle();
       });
 
       await act(async () => {
-        await result.current.confirmFaceIdToggle();
+        await result.current!.confirmFaceIdToggle();
+      });
+
+      expect(notify.auth.requiredForFaceId).toHaveBeenCalled();
+      expect(mockProps.setBiometricEnabled).not.toHaveBeenCalled();
+    });
+
+    it('should handle non-Error biometric authentication errors', async () => {
+      (biometricService.authenticateWithBiometrics as jest.Mock).mockRejectedValue('string error');
+
+      const { result } = renderHook(() => useAuthSettings(mockProps));
+
+      act(() => {
+        result.current!.handleFaceIdToggle();
+      });
+
+      await act(async () => {
+        await result.current!.confirmFaceIdToggle();
       });
 
       expect(notify.auth.requiredForFaceId).toHaveBeenCalled();
@@ -169,9 +190,9 @@ describe('useAuthSettings', () => {
     });
 
     it('should handle SecureStore errors when saving', async () => {
-      biometricService.authenticateWithBiometrics.mockResolvedValue({ success: true });
+      (biometricService.authenticateWithBiometrics as jest.Mock).mockResolvedValue({ success: true });
       // Make setItemAsync fail only on the final biometricEnabled save
-      SecureStore.setItemAsync.mockImplementation((key) => {
+      (SecureStore.setItemAsync as jest.Mock).mockImplementation((key: string) => {
         if (key === 'biometricEnabled') {
           return Promise.reject(new Error('Storage error'));
         }
@@ -181,11 +202,11 @@ describe('useAuthSettings', () => {
       const { result } = renderHook(() => useAuthSettings(mockProps));
 
       act(() => {
-        result.current.handleFaceIdToggle();
+        result.current!.handleFaceIdToggle();
       });
 
       await act(async () => {
-        await result.current.confirmFaceIdToggle();
+        await result.current!.confirmFaceIdToggle();
       });
 
       expect(notify.settings.faceIdFailed).toHaveBeenCalled();
@@ -193,16 +214,16 @@ describe('useAuthSettings', () => {
 
     it('should not crash if notify is not available', async () => {
       const propsWithoutToast = { ...mockProps };
-      biometricService.authenticateWithBiometrics.mockResolvedValue({ success: true });
+      (biometricService.authenticateWithBiometrics as jest.Mock).mockResolvedValue({ success: true });
 
       const { result } = renderHook(() => useAuthSettings(propsWithoutToast));
 
       act(() => {
-        result.current.handleFaceIdToggle();
+        result.current!.handleFaceIdToggle();
       });
 
       await act(async () => {
-        await result.current.confirmFaceIdToggle();
+        await result.current!.confirmFaceIdToggle();
       });
 
       // Should not throw and should complete
@@ -220,12 +241,12 @@ describe('useAuthSettings', () => {
 
       // Start toggle (to disable)
       act(() => {
-        result.current.handleFaceIdToggle();
+        result.current!.handleFaceIdToggle();
       });
 
       // Confirm
       await act(async () => {
-        await result.current.confirmFaceIdToggle();
+        await result.current!.confirmFaceIdToggle();
       });
 
       // Should NOT prompt for biometric authentication when disabling
@@ -236,16 +257,32 @@ describe('useAuthSettings', () => {
     });
 
     it('should handle SecureStore errors when disabling', async () => {
-      SecureStore.setItemAsync.mockRejectedValue(new Error('Storage error'));
+      (SecureStore.setItemAsync as jest.Mock).mockRejectedValue(new Error('Storage error'));
 
       const { result } = renderHook(() => useAuthSettings(mockProps));
 
       act(() => {
-        result.current.handleFaceIdToggle();
+        result.current!.handleFaceIdToggle();
       });
 
       await act(async () => {
-        await result.current.confirmFaceIdToggle();
+        await result.current!.confirmFaceIdToggle();
+      });
+
+      expect(notify.settings.faceIdFailed).toHaveBeenCalled();
+    });
+
+    it('should handle non-Error SecureStore errors when disabling', async () => {
+      (SecureStore.setItemAsync as jest.Mock).mockRejectedValue('non-error storage failure');
+
+      const { result } = renderHook(() => useAuthSettings(mockProps));
+
+      act(() => {
+        result.current!.handleFaceIdToggle();
+      });
+
+      await act(async () => {
+        await result.current!.confirmFaceIdToggle();
       });
 
       expect(notify.settings.faceIdFailed).toHaveBeenCalled();
@@ -255,16 +292,16 @@ describe('useAuthSettings', () => {
   describe('Toggle Cycle', () => {
     it('should toggle from false to true when enabling', async () => {
       mockProps.biometricEnabled = false;
-      biometricService.authenticateWithBiometrics.mockResolvedValue({ success: true });
+      (biometricService.authenticateWithBiometrics as jest.Mock).mockResolvedValue({ success: true });
 
       const { result } = renderHook(() => useAuthSettings(mockProps));
 
       // Enable Face ID (false -> true)
       act(() => {
-        result.current.handleFaceIdToggle();
+        result.current!.handleFaceIdToggle();
       });
       await act(async () => {
-        await result.current.confirmFaceIdToggle();
+        await result.current!.confirmFaceIdToggle();
       });
 
       expect(mockProps.setBiometricEnabled).toHaveBeenCalledWith(true);
@@ -278,10 +315,10 @@ describe('useAuthSettings', () => {
 
       // Disable Face ID (true -> false)
       act(() => {
-        result.current.handleFaceIdToggle();
+        result.current!.handleFaceIdToggle();
       });
       await act(async () => {
-        await result.current.confirmFaceIdToggle();
+        await result.current!.confirmFaceIdToggle();
       });
 
       expect(mockProps.setBiometricEnabled).toHaveBeenCalledWith(false);
@@ -299,11 +336,11 @@ describe('useAuthSettings', () => {
       expect(result.current).toHaveProperty('confirmFaceIdToggle');
       expect(result.current).toHaveProperty('cancelFaceIdToggle');
 
-      expect(typeof result.current.handleChangePin).toBe('function');
-      expect(typeof result.current.handleFaceIdToggle).toBe('function');
-      expect(typeof result.current.confirmFaceIdToggle).toBe('function');
-      expect(typeof result.current.cancelFaceIdToggle).toBe('function');
-      expect(typeof result.current.showFaceIdModal).toBe('boolean');
+      expect(typeof result.current!.handleChangePin).toBe('function');
+      expect(typeof result.current!.handleFaceIdToggle).toBe('function');
+      expect(typeof result.current!.confirmFaceIdToggle).toBe('function');
+      expect(typeof result.current!.cancelFaceIdToggle).toBe('function');
+      expect(typeof result.current!.showFaceIdModal).toBe('boolean');
     });
 
     it('should memoize return value', () => {
@@ -314,12 +351,12 @@ describe('useAuthSettings', () => {
       // Re-render without changing dependencies
       act(() => {
         // Trigger a re-render by calling a function
-        result.current.cancelFaceIdToggle();
+        result.current!.cancelFaceIdToggle();
       });
 
       // Functions should remain stable due to useCallback/useMemo
-      expect(result.current.handleChangePin).toBe(firstResult.handleChangePin);
-      expect(result.current.cancelFaceIdToggle).toBe(firstResult.cancelFaceIdToggle);
+      expect(result.current!.handleChangePin).toBe(firstResult!.handleChangePin);
+      expect(result.current!.cancelFaceIdToggle).toBe(firstResult!.cancelFaceIdToggle);
     });
   });
 });

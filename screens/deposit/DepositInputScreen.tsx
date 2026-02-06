@@ -1,5 +1,8 @@
 /**
  * DepositInputScreen - Enter BTC deposit amount
+ *
+ * @deprecated Use DepositInputScreenNew from screens/vault/screens instead.
+ * This screen will be removed in a future release.
  */
 
 import React, { useEffect, useMemo, useCallback, useState, useRef } from 'react';
@@ -227,7 +230,7 @@ export default function DepositInputScreen({ navigation }: DepositInputScreenPro
   const hasChanges = previewAmount > 0;
 
   return (
-    <SafeAreaView style={styles.container} edges={['top']}>
+    <SafeAreaView style={styles.container} edges={['top']} testID="vault-deposit-input-screen">
       <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : 'height'} style={styles.flex}>
         <ScrollView style={styles.flex} contentContainerStyle={styles.scroll} showsVerticalScrollIndicator={false}>
           {/* Header */}
@@ -296,6 +299,7 @@ export default function DepositInputScreen({ navigation }: DepositInputScreenPro
             style={[styles.continueBtn, !canContinue && styles.continueBtnDisabled]}
             onPress={handleContinue}
             disabled={!canContinue}
+            testID="vault-deposit-continue-btn"
           >
             <Text style={[styles.continueBtnText, !canContinue && styles.continueBtnTextDisabled]}>
               Continue

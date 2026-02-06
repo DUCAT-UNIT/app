@@ -1,10 +1,22 @@
-// @ts-nocheck
 /**
  * Tests for Vault Service
  * Tests vault history and vault data fetching
+ *
+ * NOTE: This file uses a type-safe fetch mock pattern.
+ * See testUtils/fetchMock.ts for the implementation.
  */
 
 import { fetchVaultHistory, fetchVaultData } from '../vaultService';
+import {
+  setupMockFetch,
+  getMockFetch,
+  createMockResponse,
+  getFetchCallCount,
+  getFetchCall,
+  getFetchCallBody,
+  mockFetchReject,
+  expectFetchNotCalled,
+} from './testUtils';
 
 // Mock dependencies
 jest.mock('../../utils/retry', () => ({
@@ -20,14 +32,14 @@ jest.mock('../../utils/constants', () => ({
 describe('vaultService', () => {
   beforeEach(() => {
     jest.clearAllMocks();
-    (global as any).fetch = jest.fn();
+    setupMockFetch();
   });
 
   describe('fetchVaultHistory', () => {
     it('should return empty array if no vaultPubkey provided', async () => {
       const result = await fetchVaultHistory(null as unknown as string);
       expect(result).toEqual([]);
-      expect((global as any).fetch).not.toHaveBeenCalled();
+      expect(getFetchCallCount()).toBe(0);
     });
 
     it('should fetch vault history successfully', async () => {
@@ -57,26 +69,20 @@ describe('vaultService', () => {
         ],
       };
 
-      (global as any).fetch
-        .mockResolvedValueOnce({
-          json: async () => vaultListResponse,
-        })
-        .mockResolvedValueOnce({
-          json: async () => historyResponse,
-        });
+      getMockFetch()
+        .mockResolvedValueOnce(createMockResponse(vaultListResponse))
+        .mockResolvedValueOnce(createMockResponse(historyResponse));
 
       const result = await fetchVaultHistory(vaultPubkey);
 
       expect(result).toEqual(historyResponse.history);
-      expect((global as any).fetch).toHaveBeenCalledTimes(2);
+      expect(getFetchCallCount()).toBe(2);
     });
 
     it('should return empty array if no vaults found', async () => {
       const vaultPubkey = 'vault_pubkey_123';
 
-      (global as any).fetch.mockResolvedValueOnce({
-        json: async () => ({ vaults: [] }),
-      });
+      getMockFetch().mockResolvedValueOnce(createMockResponse({ vaults: [] }));
 
       const result = await fetchVaultHistory(vaultPubkey);
 
@@ -106,21 +112,15 @@ describe('vaultService', () => {
         })),
       };
 
-      (global as any).fetch
-        .mockResolvedValueOnce({
-          json: async () => vaultListResponse,
-        })
-        .mockResolvedValueOnce({
-          json: async () => page1,
-        })
-        .mockResolvedValueOnce({
-          json: async () => page2,
-        });
+      getMockFetch()
+        .mockResolvedValueOnce(createMockResponse(vaultListResponse))
+        .mockResolvedValueOnce(createMockResponse(page1))
+        .mockResolvedValueOnce(createMockResponse(page2));
 
       const result = await fetchVaultHistory(vaultPubkey);
 
       expect(result).toHaveLength(350);
-      expect((global as any).fetch).toHaveBeenCalledTimes(3); // 1 for vault list, 2 for history
+      expect(getFetchCallCount()).toBe(3); // 1 for vault list, 2 for history
     });
 
     it('should stop after max pages (20)', async () => {
@@ -138,17 +138,18 @@ describe('vaultService', () => {
         })),
       };
 
-      (global as any).fetch.mockImplementation((url: string) => {
-        if (url.includes('vault_list')) {
-          return Promise.resolve({ json: async () => vaultListResponse });
+      getMockFetch().mockImplementation((url: RequestInfo | URL) => {
+        const urlStr = String(url);
+        if (urlStr.includes('vault_list')) {
+          return Promise.resolve(createMockResponse(vaultListResponse));
         }
-        return Promise.resolve({ json: async () => fullPageResponse });
+        return Promise.resolve(createMockResponse(fullPageResponse));
       });
 
       const result = await fetchVaultHistory(vaultPubkey);
 
       // 1 for vault_list + 20 for history pages
-      expect((global as any).fetch).toHaveBeenCalledTimes(21);
+      expect(getFetchCallCount()).toBe(21);
       expect(result).toHaveLength(5000); // 20 pages * 250 items
     });
 
@@ -159,13 +160,9 @@ describe('vaultService', () => {
         vaults: [{ vault_id: 'vault_1' }],
       };
 
-      (global as any).fetch
-        .mockResolvedValueOnce({
-          json: async () => vaultListResponse,
-        })
-        .mockResolvedValueOnce({
-          json: async () => ({ history: [] }),
-        });
+      getMockFetch()
+        .mockResolvedValueOnce(createMockResponse(vaultListResponse))
+        .mockResolvedValueOnce(createMockResponse({ history: [] }));
 
       const result = await fetchVaultHistory(vaultPubkey);
 
@@ -175,7 +172,7 @@ describe('vaultService', () => {
     it('should return empty array on error', async () => {
       const vaultPubkey = 'vault_pubkey_123';
 
-      (global as any).fetch.mockRejectedValueOnce(new Error('Network error'));
+      mockFetchReject(new Error('Network error'));
 
       const result = await fetchVaultHistory(vaultPubkey);
 
@@ -196,18 +193,18 @@ describe('vaultService', () => {
         })),
       };
 
-      (global as any).fetch
-        .mockResolvedValueOnce({
-          json: async () => vaultListResponse,
-        })
-        .mockResolvedValueOnce({
-          json: async () => historyResponse,
-        });
+      getMockFetch()
+        .mockResolvedValueOnce(createMockResponse(vaultListResponse))
+        .mockResolvedValueOnce(createMockResponse(historyResponse));
 
       await fetchVaultHistory(vaultPubkey);
 
-      const historyCall = (global as any).fetch.mock.calls[1];
-      const requestBody = JSON.parse(historyCall[1].body);
+      const requestBody = getFetchCallBody<{
+        vault_id: string;
+        pagination: { limit: number; offset: number };
+        timestamp_start?: number;
+        timestamp_end?: number;
+      }>(1);
 
       expect(requestBody).toMatchObject({
         vault_id: 'vault_1',
@@ -216,8 +213,8 @@ describe('vaultService', () => {
           offset: 0,
         },
       });
-      expect(requestBody.timestamp_start).toBeDefined();
-      expect(requestBody.timestamp_end).toBeDefined();
+      expect(requestBody?.timestamp_start).toBeDefined();
+      expect(requestBody?.timestamp_end).toBeDefined();
     });
   });
 
@@ -225,7 +222,7 @@ describe('vaultService', () => {
     it('should return null if no vaultPubkey provided', async () => {
       const result = await fetchVaultData(null as unknown as string);
       expect(result).toBeNull();
-      expect((global as any).fetch).not.toHaveBeenCalled();
+      expectFetchNotCalled();
     });
 
     it('should fetch vault data with latest transaction', async () => {
@@ -259,13 +256,9 @@ describe('vaultService', () => {
         ],
       };
 
-      (global as any).fetch
-        .mockResolvedValueOnce({
-          json: async () => vaultListResponse,
-        })
-        .mockResolvedValueOnce({
-          json: async () => historyResponse,
-        });
+      getMockFetch()
+        .mockResolvedValueOnce(createMockResponse(vaultListResponse))
+        .mockResolvedValueOnce(createMockResponse(historyResponse));
 
       const result = await fetchVaultData(vaultPubkey);
 
@@ -322,32 +315,28 @@ describe('vaultService', () => {
         current_price: 50000,
       };
 
-      (global as any).fetch
-        .mockResolvedValueOnce({
-          json: async () => vaultListResponse,
-        })
-        .mockResolvedValueOnce({
-          json: async () => ({ history: [] }),
-        });
+      getMockFetch()
+        .mockResolvedValueOnce(createMockResponse(vaultListResponse))
+        .mockResolvedValueOnce(createMockResponse({ history: [] }));
 
       const result = await fetchVaultData(vaultPubkey);
 
-      expect(result).toEqual({
+      expect(result).toMatchObject({
         vaultId: 'vault_1',
         vaultTag: 'My Vault',
         totalDebt: 1000,
         totalCollateral: 5000,
         currentPrice: 50000,
       });
+      expect(result?.vaultInfo).toBeDefined();
+      expect(result?.vaultInfo?.vault_id).toBe('vault_1');
       expect(result?.latestTransaction).toBeUndefined();
     });
 
     it('should return null if no vaults found', async () => {
       const vaultPubkey = 'vault_pubkey_123';
 
-      (global as any).fetch.mockResolvedValueOnce({
-        json: async () => ({ vaults: [] }),
-      });
+      getMockFetch().mockResolvedValueOnce(createMockResponse({ vaults: [] }));
 
       const result = await fetchVaultData(vaultPubkey);
 
@@ -357,7 +346,7 @@ describe('vaultService', () => {
     it('should return null on error', async () => {
       const vaultPubkey = 'vault_pubkey_123';
 
-      (global as any).fetch.mockRejectedValueOnce(new Error('Network error'));
+      mockFetchReject(new Error('Network error'));
 
       const result = await fetchVaultData(vaultPubkey);
 
@@ -374,18 +363,18 @@ describe('vaultService', () => {
         current_price: 0,
       };
 
-      (global as any).fetch
-        .mockResolvedValueOnce({
-          json: async () => vaultListResponse,
-        })
-        .mockResolvedValueOnce({
-          json: async () => ({ history: [] }),
-        });
+      getMockFetch()
+        .mockResolvedValueOnce(createMockResponse(vaultListResponse))
+        .mockResolvedValueOnce(createMockResponse({ history: [] }));
 
       await fetchVaultData(vaultPubkey);
 
-      const historyCall = (global as any).fetch.mock.calls[1];
-      const requestBody = JSON.parse(historyCall[1].body);
+      const requestBody = getFetchCallBody<{
+        vault_id: string;
+        pagination: { limit: number; offset: number };
+        timestamp_start: number;
+        timestamp_end: number;
+      }>(1);
 
       expect(requestBody).toMatchObject({
         vault_id: 'vault_1',
@@ -397,7 +386,7 @@ describe('vaultService', () => {
 
       // Verify 30-day time range
       const thirtyDaysInSeconds = 30 * 24 * 60 * 60;
-      const timeDiff = requestBody.timestamp_end - requestBody.timestamp_start;
+      const timeDiff = (requestBody?.timestamp_end ?? 0) - (requestBody?.timestamp_start ?? 0);
       expect(timeDiff).toBeCloseTo(thirtyDaysInSeconds, -2); // Allow some variance
     });
 
@@ -428,38 +417,31 @@ describe('vaultService', () => {
         current_price: 50000,
       };
 
-      (global as any).fetch
-        .mockResolvedValueOnce({
-          json: async () => vaultListResponse,
-        })
-        .mockResolvedValueOnce({
-          json: async () => ({ history: [] }),
-        });
+      getMockFetch()
+        .mockResolvedValueOnce(createMockResponse(vaultListResponse))
+        .mockResolvedValueOnce(createMockResponse({ history: [] }));
 
       const result = await fetchVaultData(vaultPubkey);
 
       // Should use first vault's data, not totals
-      expect(result).toEqual({
+      expect(result).toMatchObject({
         vaultId: 'vault_1',
         vaultTag: 'First Vault',
         totalDebt: 1000,
         totalCollateral: 5000,
         currentPrice: 50000,
       });
+      expect(result?.vaultInfo).toBeDefined();
+      expect(result?.vaultInfo?.vault_id).toBe('vault_1');
 
       // Should query history for first vault ID
-      const historyCall = (global as any).fetch.mock.calls[1];
-      const requestBody = JSON.parse(historyCall[1].body);
-      expect(requestBody.vault_id).toBe('vault_1');
+      const requestBody = getFetchCallBody<{ vault_id: string }>(1);
+      expect(requestBody?.vault_id).toBe('vault_1');
     });
 
     it('should log debug messages for multiple vaults', async () => {
       const vaultPubkey = 'vault_pubkey_123';
 
-      const mockLogger = {
-        debug: jest.fn(),
-        error: jest.fn(),
-      };
       jest.spyOn(console, 'log').mockImplementation();
 
       const vaultListResponse = {
@@ -470,18 +452,15 @@ describe('vaultService', () => {
         current_price: 50000,
       };
 
-      (global as any).fetch
-        .mockResolvedValueOnce({
-          json: async () => vaultListResponse,
-        })
-        .mockResolvedValueOnce({
-          json: async () => ({ history: [] }),
-        });
+      getMockFetch()
+        .mockResolvedValueOnce(createMockResponse(vaultListResponse))
+        .mockResolvedValueOnce(createMockResponse({ history: [] }));
 
       await fetchVaultData(vaultPubkey);
 
       // Should have used first vault
-      expect((global as any).fetch.mock.calls[1][1].body).toContain('vault_1');
+      const call = getFetchCall(1);
+      expect(call?.[1]?.body).toContain('vault_1');
     });
 
     it('should handle single vault without logging multiple vaults warning', async () => {
@@ -499,23 +478,21 @@ describe('vaultService', () => {
         current_price: 50000,
       };
 
-      (global as any).fetch
-        .mockResolvedValueOnce({
-          json: async () => vaultListResponse,
-        })
-        .mockResolvedValueOnce({
-          json: async () => ({ history: [] }),
-        });
+      getMockFetch()
+        .mockResolvedValueOnce(createMockResponse(vaultListResponse))
+        .mockResolvedValueOnce(createMockResponse({ history: [] }));
 
       const result = await fetchVaultData(vaultPubkey);
 
-      expect(result).toEqual({
+      expect(result).toMatchObject({
         vaultId: 'vault_1',
         vaultTag: 'Only Vault',
         totalDebt: 1000,
         totalCollateral: 5000,
         currentPrice: 50000,
       });
+      expect(result?.vaultInfo).toBeDefined();
+      expect(result?.vaultInfo?.vault_id).toBe('vault_1');
     });
 
     it('should use first vault data in latestTransaction', async () => {
@@ -553,13 +530,9 @@ describe('vaultService', () => {
         ],
       };
 
-      (global as any).fetch
-        .mockResolvedValueOnce({
-          json: async () => vaultListResponse,
-        })
-        .mockResolvedValueOnce({
-          json: async () => historyResponse,
-        });
+      getMockFetch()
+        .mockResolvedValueOnce(createMockResponse(vaultListResponse))
+        .mockResolvedValueOnce(createMockResponse(historyResponse));
 
       const result = await fetchVaultData(vaultPubkey);
 

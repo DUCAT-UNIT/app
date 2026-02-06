@@ -161,6 +161,28 @@ export const AmountSlider = memo(function AmountSlider({
     onLiveValueChange?.(maxValue);
   }, [disabled, maxValue, onValueChange, onLiveValueChange, currentValue, thumbX, width]);
 
+  const handleHalf = useCallback(() => {
+    if (disabled || maxValue <= 0) return;
+    const half = Math.round((maxValue / 2) * 100000000) / 100000000;
+    currentValue.value = half;
+    if (width > 0) {
+      thumbX.value = (half / maxValue) * (width - THUMB_SIZE);
+    }
+    onValueChange(half);
+    onLiveValueChange?.(half);
+  }, [disabled, maxValue, onValueChange, onLiveValueChange, currentValue, thumbX, width]);
+
+  const handleQuarter = useCallback(() => {
+    if (disabled || maxValue <= 0) return;
+    const quarter = Math.round((maxValue / 4) * 100000000) / 100000000;
+    currentValue.value = quarter;
+    if (width > 0) {
+      thumbX.value = (quarter / maxValue) * (width - THUMB_SIZE);
+    }
+    onValueChange(quarter);
+    onLiveValueChange?.(quarter);
+  }, [disabled, maxValue, onValueChange, onLiveValueChange, currentValue, thumbX, width]);
+
   const handleTapToEdit = useCallback(() => {
     if (disabled) return;
     setEditText(value.toFixed(8));
@@ -221,10 +243,38 @@ export const AmountSlider = memo(function AmountSlider({
       <View style={renderFooter ? styles.sliderArea : undefined}>
         {/* Header */}
         <View style={styles.header}>
-          <Text style={styles.label}>{label}</Text>
-          <TouchableScale onPress={handleMax} disabled={disabled}>
-            <Text style={[styles.maxBtn, disabled && styles.maxBtnDisabled]}>MAX</Text>
-          </TouchableScale>
+          <Text style={styles.label} accessibilityElementsHidden>{label}</Text>
+          <View style={{ flexDirection: 'row', gap: 12 }}>
+            {__DEV__ && process.env.EXPO_PUBLIC_E2E_BYPASS === 'true' && (
+              <>
+                <TouchableScale
+                  onPress={handleQuarter}
+                  disabled={disabled}
+                  testID="btc-slider-quarter-btn"
+                >
+                  <Text style={[styles.maxBtn, disabled && styles.maxBtnDisabled]}>QTR</Text>
+                </TouchableScale>
+                <TouchableScale
+                  onPress={handleHalf}
+                  disabled={disabled}
+                  testID="btc-slider-half-btn"
+                >
+                  <Text style={[styles.maxBtn, disabled && styles.maxBtnDisabled]}>HALF</Text>
+                </TouchableScale>
+              </>
+            )}
+            <TouchableScale
+              onPress={handleMax}
+              disabled={disabled}
+              testID="btc-slider-max-btn"
+              accessibilityRole="button"
+              accessibilityLabel="Set maximum amount"
+              accessibilityHint="Sets the amount to the maximum available"
+              accessibilityState={{ disabled }}
+            >
+              <Text style={[styles.maxBtn, disabled && styles.maxBtnDisabled]} accessibilityElementsHidden>MAX</Text>
+            </TouchableScale>
+          </View>
         </View>
 
         {/* Value - tap to edit or animated display */}
@@ -248,8 +298,15 @@ export const AmountSlider = memo(function AmountSlider({
             <Text style={styles.usdTextStatic}>Tap done when finished</Text>
           </View>
         ) : (
-          <TouchableOpacity onPress={handleTapToEdit} activeOpacity={0.7} style={styles.valueContainer}>
-            <View style={styles.valueRow}>
+          <TouchableOpacity
+            onPress={handleTapToEdit}
+            activeOpacity={0.7}
+            style={styles.valueContainer}
+            accessibilityRole="button"
+            accessibilityLabel={`Current amount: ${value.toFixed(8)} BTC. Tap to edit`}
+            accessibilityHint="Opens keyboard to enter a specific amount"
+          >
+            <View style={styles.valueRow} accessibilityElementsHidden>
               <View style={styles.btcIcon}>
                 <Icon name="btc_symbol" size={24} color={COLORS.WHITE} />
               </View>
@@ -272,7 +329,18 @@ export const AmountSlider = memo(function AmountSlider({
 
         {/* Slider */}
         <GestureDetector gesture={gesture}>
-          <View style={styles.sliderWrap} onLayout={handleLayout}>
+          <View
+            style={styles.sliderWrap}
+            onLayout={handleLayout}
+            accessibilityRole="adjustable"
+            accessibilityLabel={`${label} slider`}
+            accessibilityValue={{
+              min: 0,
+              max: maxValue,
+              now: value,
+            }}
+            accessibilityHint="Drag to adjust the amount"
+          >
             <View style={styles.track}>
               <Animated.View style={[styles.trackFill, trackFillStyle, { backgroundColor: sliderColor }]} />
             </View>

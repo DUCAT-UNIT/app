@@ -1,6 +1,9 @@
 /**
  * RepayConfirmScreen - Review and confirm repay operation
  * Features: Summary display, biometric authentication before signing
+ *
+ * @deprecated Use RepayConfirmScreenNew from screens/vault/screens instead.
+ * This screen will be removed in a future release.
  */
 
 import React, { useCallback, useState, useMemo } from 'react';
@@ -18,6 +21,7 @@ import { useBalance } from '../../contexts/WalletDataContext';
 import { formatFiat } from '../../utils/formatters';
 import { getOpCostOpen } from '../../utils/vaultUtils';
 import { colors, fonts, fontSizes, spacing, radii } from '../../styles/theme';
+import { logger } from '../../utils/logger';
 
 interface RepayConfirmScreenProps {
   navigation: NavigationProp<Record<string, object | undefined>>;
@@ -58,35 +62,35 @@ export default function RepayConfirmScreen({ navigation }: RepayConfirmScreenPro
     try {
       setIsAuthenticating(true);
 
-      const hasHardware = await LocalAuthentication.hasHardwareAsync();
-      const isEnrolled = await LocalAuthentication.isEnrolledAsync();
+      // Skip biometric auth in E2E mode
+      const isE2E = __DEV__ && process.env.EXPO_PUBLIC_E2E_BYPASS === 'true';
 
-      if (hasHardware && isEnrolled) {
-        const result = await LocalAuthentication.authenticateAsync({
-          promptMessage: 'Authenticate to repay UNIT',
-          fallbackLabel: 'Use PIN',
-          cancelLabel: 'Cancel',
-          disableDeviceFallback: false,
-        });
+      if (!isE2E) {
+        const hasHardware = await LocalAuthentication.hasHardwareAsync();
+        const isEnrolled = await LocalAuthentication.isEnrolledAsync();
 
-        if (!result.success) {
-          if (result.error !== 'user_cancel') {
-            Alert.alert('Authentication Failed', 'Please try again');
+        if (hasHardware && isEnrolled) {
+          const result = await LocalAuthentication.authenticateAsync({
+            promptMessage: 'Authenticate to repay UNIT',
+            fallbackLabel: 'Use PIN',
+            cancelLabel: 'Cancel',
+            disableDeviceFallback: false,
+          });
+
+          if (!result.success) {
+            if (result.error !== 'user_cancel') {
+              Alert.alert('Authentication Failed', 'Please try again');
+            }
+            setIsAuthenticating(false);
+            return;
           }
-          setIsAuthenticating(false);
-          return;
         }
       }
 
       setIsAuthenticating(false);
       setCurrentStep('processing');
+      // Operation runs from the processing screen after navigation
       navigation.navigate('RepayProcessing');
-
-      const result = await repay();
-      if (result) {
-        setCurrentStep('success');
-        navigation.navigate('RepaySuccess', { vaultTxid: result.vaultTxid });
-      }
     } catch (err) {
       setIsAuthenticating(false);
       Alert.alert('Error', 'Failed to complete repayment. Please try again.');
@@ -99,7 +103,7 @@ export default function RepayConfirmScreen({ navigation }: RepayConfirmScreenPro
   }, [setCurrentStep, navigation]);
 
   return (
-    <SafeAreaView style={styles.container} edges={['top']}>
+    <SafeAreaView style={styles.container} edges={['top']} testID="vault-repay-confirm-screen">
       <ScrollView
         style={styles.scrollView}
         contentContainerStyle={styles.scrollContent}
@@ -226,6 +230,7 @@ export default function RepayConfirmScreen({ navigation }: RepayConfirmScreenPro
           style={[styles.confirmButton, (isLoading || isAuthenticating) && styles.buttonDisabled]}
           onPress={handleConfirm}
           disabled={isLoading || isAuthenticating}
+          testID="vault-repay-confirm-btn"
         >
           {isAuthenticating ? (
             <Ionicons name="finger-print" size={20} color={colors.text.white} />

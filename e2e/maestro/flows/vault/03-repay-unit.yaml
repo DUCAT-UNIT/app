@@ -1,0 +1,44 @@
+appId: com.ducatprotocol.DucatProtocolWallet
+---
+# Repay UNIT - Verify vault repay screen loads after navigation
+
+- runFlow: ../helpers/import-wallet-typed.yaml
+
+# Wait for wallet screen
+- extendedWaitUntil:
+    visible:
+      id: "wallet-screen"
+    timeout: 15000
+
+# Wait for balance to load
+- extendedWaitUntil:
+    visible:
+      id: "balance-section"
+    timeout: 30000
+
+# Dismiss low ecash modal if visible
+- runFlow: ../helpers/dismiss-low-ecash.yaml
+
+# Dismiss airdrop modal if visible
+- runFlow: ../helpers/dismiss-airdrop.yaml
+
+# Dismiss passkey migration modal if it appears
+- runFlow:
+    when:
+      visible:
+        id: "passkey-migration-modal"
+    commands:
+      - tapOn:
+          id: "passkey-skip-btn"
+
+# Tap Repay button (navigates directly to repay flow)
+- tapOn:
+    id: "wallet-repay-btn"
+
+# Verify repay input screen loads with correct content
+- extendedWaitUntil:
+    visible:
+      id: "vault-repay-input-screen"
+    timeout: 10000
+- assertVisible:
+    text: "Repay UNIT"

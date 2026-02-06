@@ -1,0 +1,44 @@
+appId: com.ducatprotocol.DucatProtocolWallet
+---
+# Receive Address - Verify deposit opens BTC receive screen with QR and address
+# Import wallet → tap deposit → select BTC → verify receive screen
+
+- runFlow: ../helpers/import-wallet-typed.yaml
+
+# Wait for wallet screen
+- extendedWaitUntil:
+    visible:
+      id: "wallet-screen"
+    timeout: 15000
+
+# Dismiss modals
+- runFlow: ../helpers/dismiss-low-ecash.yaml
+- runFlow: ../helpers/dismiss-airdrop.yaml
+- runFlow:
+    when:
+      visible:
+        id: "passkey-migration-modal"
+    commands:
+      - tapOn:
+          id: "passkey-skip-btn"
+
+# Navigate to receive via Deposit button
+- tapOn:
+    id: "wallet-deposit-btn"
+
+# Deposit sheet opens - select BTC via testID
+- extendedWaitUntil:
+    visible:
+      id: "deposit-btc"
+    timeout: 5000
+- tapOn:
+    id: "deposit-btc"
+
+# Wait for navigation then verify receive screen loaded
+# Note: ReceiveQRScreen testIDs aren't exposed to Maestro (iOS accessibility issue)
+# Using accessibility text match instead
+- waitForAnimationToEnd
+- extendedWaitUntil:
+    visible:
+      text: "Only use this address to receive Bitcoin."
+    timeout: 10000

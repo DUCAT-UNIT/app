@@ -1,0 +1,74 @@
+appId: com.ducatprotocol.DucatProtocolWallet
+---
+# Send UNIT with Amount - UNIT send with address and QTR amount selection
+# Funded wallet → withdraw → UNIT → address → QTR → verify screen
+
+- runFlow: ../helpers/import-wallet-typed.yaml
+
+- extendedWaitUntil:
+    visible:
+      id: "wallet-screen"
+    timeout: 15000
+- runFlow: ../helpers/dismiss-low-ecash.yaml
+- runFlow: ../helpers/dismiss-airdrop.yaml
+
+- runFlow:
+    when:
+      visible:
+        id: "passkey-migration-modal"
+    commands:
+      - tapOn:
+          id: "passkey-skip-btn"
+
+# Wait for wallet actions
+- extendedWaitUntil:
+    visible:
+      id: "wallet-actions"
+    timeout: 15000
+
+# Open send UNIT
+- tapOn:
+    id: "wallet-withdraw-btn"
+- extendedWaitUntil:
+    visible:
+      id: "withdraw-unit"
+    timeout: 5000
+- tapOn:
+    id: "withdraw-unit"
+
+- waitForAnimationToEnd
+- extendedWaitUntil:
+    visible:
+      id: "send-input-screen"
+    timeout: 10000
+- assertVisible:
+    text: "Send UNIT"
+
+# Wait for screen to fully render before interacting
+- waitForAnimationToEnd
+
+# Enter address
+- extendedWaitUntil:
+    visible:
+      text: "Recipient Bitcoin address.*"
+    timeout: 5000
+- tapOn:
+    text: "Recipient Bitcoin address.*"
+- inputText: "tb1pqqqqp399et2xygdj5xreqhjjvcmzhxw4aywxecjdzew6hylgvsesf3hn0c"
+- hideKeyboard
+- waitForAnimationToEnd
+
+# Wait for address validation
+- extendedWaitUntil:
+    visible:
+      text: "Valid"
+    timeout: 5000
+
+# Select QTR amount using testID (E2E mode exposes this button)
+- tapOn:
+    id: "unit-slider-quarter-btn"
+- waitForAnimationToEnd
+
+# Verify still on send screen
+- assertVisible:
+    id: "send-input-screen"

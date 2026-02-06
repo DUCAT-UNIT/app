@@ -1,4 +1,3 @@
-// @ts-nocheck
 /**
  * Tests for useWalletCreation Hook
  * Validates new wallet creation flow including mnemonic generation and secure storage
@@ -31,29 +30,36 @@ jest.mock('../../utils/errorParser', () => ({
 jest.useFakeTimers();
 
 // Helper to render hooks with props
-function renderHook(hook, { initialProps } = {}) {
-  const result = { current: null };
-  function TestComponent({ hookProps }) {
+function renderHook<T>(hook: (props?: unknown) => T, { initialProps }: { initialProps?: unknown } = {}) {
+  const result: { current: T | null } = { current: null };
+  function TestComponent({ hookProps }: { hookProps?: unknown }) {
     result.current = hook(hookProps);
     return null;
   }
-  let component;
+  let component: ReturnType<typeof create> | undefined;
   act(() => {
     component = create(<TestComponent hookProps={initialProps} />);
   });
   return {
     result,
-    rerender: (newProps) => {
+    rerender: (newProps?: unknown) => {
       act(() => {
-        component.update(<TestComponent hookProps={newProps} />);
+        component?.update(<TestComponent hookProps={newProps} />);
       });
     },
-    unmount: () => component.unmount(),
+    unmount: () => component?.unmount(),
   };
 }
 
+interface UseWalletCreationParams {
+  currentAccount: number;
+  setIsAuthenticated: (value: boolean) => void;
+  setSeedConfirmed: (value: boolean) => void;
+  loadWallet: (() => Promise<unknown>) | undefined;
+}
+
 describe('useWalletCreation', () => {
-  let mockProps;
+  let mockProps: UseWalletCreationParams;
   const mockMnemonic = 'abandon ability able about above absent absorb abstract absurd abuse access accident';
   const mockAddresses = {
     address: 'tb1qtest',
@@ -64,14 +70,14 @@ describe('useWalletCreation', () => {
   beforeEach(() => {
     jest.clearAllMocks();
     jest.clearAllTimers();
-    AsyncStorage.getItem.mockResolvedValue(null);
-    AsyncStorage.setItem.mockResolvedValue();
-    AsyncStorage.removeItem.mockResolvedValue();
-    WalletService.generateWallet.mockResolvedValue({
+    (AsyncStorage.getItem as jest.Mock).mockResolvedValue(null);
+    (AsyncStorage.setItem as jest.Mock).mockResolvedValue(undefined);
+    (AsyncStorage.removeItem as jest.Mock).mockResolvedValue(undefined);
+    (WalletService.generateWallet as jest.Mock).mockResolvedValue({
       mnemonic: mockMnemonic,
       addresses: mockAddresses,
     });
-    WalletService.saveWalletToStorage.mockResolvedValue();
+    (WalletService.saveWalletToStorage as jest.Mock).mockResolvedValue(undefined);
 
     mockProps = {
       currentAccount: 0,
@@ -91,7 +97,7 @@ describe('useWalletCreation', () => {
         await Promise.resolve();
       });
 
-      expect(result.current.tempMnemonicWords).toEqual([]);
+      expect(result.current!.tempMnemonicWords).toEqual([]);
     });
 
     it('should start with intro and seeds hidden', async () => {
@@ -103,8 +109,8 @@ describe('useWalletCreation', () => {
         await Promise.resolve();
       });
 
-      expect(result.current.showingIntro).toBe(false);
-      expect(result.current.showingSeeds).toBe(false);
+      expect(result.current!.showingIntro).toBe(false);
+      expect(result.current!.showingSeeds).toBe(false);
     });
 
     it('should load persisted state on mount', async () => {
@@ -114,7 +120,7 @@ describe('useWalletCreation', () => {
         showingIntro: true,
         showingSeeds: false,
       };
-      AsyncStorage.getItem.mockResolvedValue(JSON.stringify(savedState));
+      (AsyncStorage.getItem as jest.Mock).mockResolvedValue(JSON.stringify(savedState));
 
       const { result } = renderHook(() => useWalletCreation(mockProps), {
         initialProps: mockProps,
@@ -124,12 +130,12 @@ describe('useWalletCreation', () => {
         await Promise.resolve();
       });
 
-      expect(result.current.tempMnemonicWords).toEqual(savedState.tempMnemonicWords);
-      expect(result.current.showingIntro).toBe(true);
+      expect(result.current!.tempMnemonicWords).toEqual(savedState.tempMnemonicWords);
+      expect(result.current!.showingIntro).toBe(true);
     });
 
     it('should handle AsyncStorage errors gracefully', async () => {
-      AsyncStorage.getItem.mockRejectedValue(new Error('Storage error'));
+      (AsyncStorage.getItem as jest.Mock).mockRejectedValue(new Error('Storage error'));
 
       const { result } = renderHook(() => useWalletCreation(mockProps), {
         initialProps: mockProps,
@@ -139,7 +145,7 @@ describe('useWalletCreation', () => {
         await Promise.resolve();
       });
 
-      expect(result.current.tempMnemonicWords).toEqual([]);
+      expect(result.current!.tempMnemonicWords).toEqual([]);
     });
 
     it('should load partial persisted state', async () => {
@@ -147,7 +153,7 @@ describe('useWalletCreation', () => {
       const savedState = {
         tempMnemonicWords: ['abandon', 'ability', 'able', 'about', 'above', 'absent', 'absorb', 'abstract', 'absurd', 'abuse', 'access', 'accident'],
       };
-      AsyncStorage.getItem.mockResolvedValue(JSON.stringify(savedState));
+      (AsyncStorage.getItem as jest.Mock).mockResolvedValue(JSON.stringify(savedState));
 
       const { result } = renderHook(() => useWalletCreation(mockProps), {
         initialProps: mockProps,
@@ -157,9 +163,9 @@ describe('useWalletCreation', () => {
         await Promise.resolve();
       });
 
-      expect(result.current.tempMnemonicWords).toEqual(savedState.tempMnemonicWords);
-      expect(result.current.showingIntro).toBe(false);
-      expect(result.current.showingSeeds).toBe(false);
+      expect(result.current!.tempMnemonicWords).toEqual(savedState.tempMnemonicWords);
+      expect(result.current!.showingIntro).toBe(false);
+      expect(result.current!.showingSeeds).toBe(false);
     });
 
     it('should handle persisted state with undefined values', async () => {
@@ -170,7 +176,7 @@ describe('useWalletCreation', () => {
         showingIntro: undefined,
         showingSeeds: undefined,
       };
-      AsyncStorage.getItem.mockResolvedValue(JSON.stringify(savedState));
+      (AsyncStorage.getItem as jest.Mock).mockResolvedValue(JSON.stringify(savedState));
 
       const { result } = renderHook(() => useWalletCreation(mockProps), {
         initialProps: mockProps,
@@ -181,9 +187,9 @@ describe('useWalletCreation', () => {
       });
 
       // Should not set values when they are null/undefined
-      expect(result.current.tempMnemonicWords).toEqual([]);
-      expect(result.current.showingIntro).toBe(false);
-      expect(result.current.showingSeeds).toBe(false);
+      expect(result.current!.tempMnemonicWords).toEqual([]);
+      expect(result.current!.showingIntro).toBe(false);
+      expect(result.current!.showingSeeds).toBe(false);
     });
 
     it('should handle persisted state with false values', async () => {
@@ -194,7 +200,7 @@ describe('useWalletCreation', () => {
         showingIntro: false,
         showingSeeds: false,
       };
-      AsyncStorage.getItem.mockResolvedValue(JSON.stringify(savedState));
+      (AsyncStorage.getItem as jest.Mock).mockResolvedValue(JSON.stringify(savedState));
 
       const { result } = renderHook(() => useWalletCreation(mockProps), {
         initialProps: mockProps,
@@ -204,9 +210,9 @@ describe('useWalletCreation', () => {
         await Promise.resolve();
       });
 
-      expect(result.current.tempMnemonicWords).toEqual(savedState.tempMnemonicWords);
-      expect(result.current.showingIntro).toBe(false);
-      expect(result.current.showingSeeds).toBe(false);
+      expect(result.current!.tempMnemonicWords).toEqual(savedState.tempMnemonicWords);
+      expect(result.current!.showingIntro).toBe(false);
+      expect(result.current!.showingSeeds).toBe(false);
     });
   });
 
@@ -217,11 +223,11 @@ describe('useWalletCreation', () => {
       });
 
       await act(async () => {
-        await result.current.createWallet();
+        await result.current!.createWallet();
       });
 
       expect(WalletService.generateWallet).toHaveBeenCalledWith(mockProps.currentAccount);
-      expect(result.current.tempMnemonicWords).toEqual(mockMnemonic.split(' '));
+      expect(result.current!.tempMnemonicWords).toEqual(mockMnemonic.split(' '));
     });
 
     it('should show intro screen after creation', async () => {
@@ -230,11 +236,11 @@ describe('useWalletCreation', () => {
       });
 
       await act(async () => {
-        await result.current.createWallet();
+        await result.current!.createWallet();
       });
 
-      expect(result.current.showingIntro).toBe(true);
-      expect(result.current.showingSeeds).toBe(false);
+      expect(result.current!.showingIntro).toBe(true);
+      expect(result.current!.showingSeeds).toBe(false);
     });
 
     it('should authenticate user after wallet creation', async () => {
@@ -243,7 +249,7 @@ describe('useWalletCreation', () => {
       });
 
       await act(async () => {
-        await result.current.createWallet();
+        await result.current!.createWallet();
       });
 
       expect(mockProps.setIsAuthenticated).toHaveBeenCalledWith(true);
@@ -255,7 +261,7 @@ describe('useWalletCreation', () => {
       });
 
       await act(async () => {
-        await result.current.createWallet();
+        await result.current!.createWallet();
       });
 
       expect(mockProps.setSeedConfirmed).toHaveBeenCalledWith(false);
@@ -267,21 +273,21 @@ describe('useWalletCreation', () => {
       });
 
       await act(async () => {
-        await result.current.createWallet();
+        await result.current!.createWallet();
       });
 
-      expect(result.current.walletExistsRef.current).toBe(false);
+      expect(result.current!.walletExistsRef.current).toBe(false);
     });
 
     it('should handle wallet generation errors', async () => {
-      WalletService.generateWallet.mockRejectedValue(new Error('Generation failed'));
+      (WalletService.generateWallet as jest.Mock).mockRejectedValue(new Error('Generation failed'));
 
       const { result } = renderHook(() => useWalletCreation(mockProps), {
         initialProps: mockProps,
       });
 
       await act(async () => {
-        await result.current.createWallet();
+        await result.current!.createWallet();
       });
 
       expect(notify.operationFailed).toHaveBeenCalled();
@@ -293,7 +299,7 @@ describe('useWalletCreation', () => {
       });
 
       await act(async () => {
-        await result.current.createWallet();
+        await result.current!.createWallet();
       });
 
       expect(WalletService.saveWalletToStorage).not.toHaveBeenCalled();
@@ -307,11 +313,11 @@ describe('useWalletCreation', () => {
       });
 
       await act(async () => {
-        await result.current.createWallet();
+        await result.current!.createWallet();
       });
 
       await act(async () => {
-        const success = await result.current.saveWalletAfterPinSetup();
+        const success = await result.current!.saveWalletAfterPinSetup();
         expect(success).toBe(true);
       });
 
@@ -327,11 +333,11 @@ describe('useWalletCreation', () => {
       });
 
       await act(async () => {
-        await result.current.createWallet();
+        await result.current!.createWallet();
       });
 
       await act(async () => {
-        await result.current.saveWalletAfterPinSetup();
+        await result.current!.saveWalletAfterPinSetup();
       });
 
       expect(mockProps.loadWallet).toHaveBeenCalled();
@@ -343,16 +349,16 @@ describe('useWalletCreation', () => {
       });
 
       await act(async () => {
-        await result.current.createWallet();
+        await result.current!.createWallet();
       });
 
-      expect(result.current.walletExistsRef.current).toBe(false);
+      expect(result.current!.walletExistsRef.current).toBe(false);
 
       await act(async () => {
-        await result.current.saveWalletAfterPinSetup();
+        await result.current!.saveWalletAfterPinSetup();
       });
 
-      expect(result.current.walletExistsRef.current).toBe(true);
+      expect(result.current!.walletExistsRef.current).toBe(true);
     });
 
     it('should securely clear temporary mnemonic', async () => {
@@ -361,17 +367,17 @@ describe('useWalletCreation', () => {
       });
 
       await act(async () => {
-        await result.current.createWallet();
+        await result.current!.createWallet();
       });
 
-      expect(result.current.tempMnemonicWords.length).toBe(12);
+      expect(result.current!.tempMnemonicWords.length).toBe(12);
 
       await act(async () => {
-        await result.current.saveWalletAfterPinSetup();
+        await result.current!.saveWalletAfterPinSetup();
       });
 
       // Should be asterisks initially
-      expect(result.current.tempMnemonicWords.every(w => w.includes('*'))).toBe(true);
+      expect(result.current!.tempMnemonicWords.every(w => w.includes('*'))).toBe(true);
 
       // After timeout, should be empty
       await act(async () => {
@@ -379,7 +385,7 @@ describe('useWalletCreation', () => {
         await Promise.resolve();
       });
 
-      expect(result.current.tempMnemonicWords).toEqual([]);
+      expect(result.current!.tempMnemonicWords).toEqual([]);
     });
 
     it('should clear persisted state', async () => {
@@ -388,11 +394,11 @@ describe('useWalletCreation', () => {
       });
 
       await act(async () => {
-        await result.current.createWallet();
+        await result.current!.createWallet();
       });
 
       await act(async () => {
-        await result.current.saveWalletAfterPinSetup();
+        await result.current!.saveWalletAfterPinSetup();
       });
 
       expect(AsyncStorage.removeItem).toHaveBeenCalledWith('wallet_creation_state');
@@ -404,7 +410,7 @@ describe('useWalletCreation', () => {
       });
 
       await act(async () => {
-        const success = await result.current.saveWalletAfterPinSetup();
+        const success = await result.current!.saveWalletAfterPinSetup();
         expect(success).toBe(false);
       });
 
@@ -412,35 +418,35 @@ describe('useWalletCreation', () => {
     });
 
     it('should handle save errors gracefully', async () => {
-      WalletService.saveWalletToStorage.mockRejectedValue(new Error('Save failed'));
+      (WalletService.saveWalletToStorage as jest.Mock).mockRejectedValue(new Error('Save failed'));
 
       const { result } = renderHook(() => useWalletCreation(mockProps), {
         initialProps: mockProps,
       });
 
       await act(async () => {
-        await result.current.createWallet();
+        await result.current!.createWallet();
       });
 
       await act(async () => {
-        const success = await result.current.saveWalletAfterPinSetup();
+        const success = await result.current!.saveWalletAfterPinSetup();
         expect(success).toBe(false);
       });
     });
 
     it('should work without loadWallet callback', async () => {
-      mockProps.loadWallet = null;
+      mockProps.loadWallet = undefined;
 
       const { result } = renderHook(() => useWalletCreation(mockProps), {
         initialProps: mockProps,
       });
 
       await act(async () => {
-        await result.current.createWallet();
+        await result.current!.createWallet();
       });
 
       await act(async () => {
-        const success = await result.current.saveWalletAfterPinSetup();
+        const success = await result.current!.saveWalletAfterPinSetup();
         expect(success).toBe(true);
       });
     });
@@ -453,18 +459,18 @@ describe('useWalletCreation', () => {
       });
 
       await act(async () => {
-        await result.current.createWallet();
+        await result.current!.createWallet();
       });
 
-      expect(result.current.showingIntro).toBe(true);
+      expect(result.current!.showingIntro).toBe(true);
 
       await act(async () => {
-        await result.current.resetCreationState();
+        await result.current!.resetCreationState();
       });
 
-      expect(result.current.showingIntro).toBe(false);
-      expect(result.current.showingSeeds).toBe(false);
-      expect(result.current.walletExistsRef.current).toBe(false);
+      expect(result.current!.showingIntro).toBe(false);
+      expect(result.current!.showingSeeds).toBe(false);
+      expect(result.current!.walletExistsRef.current).toBe(false);
     });
 
     it('should securely clear mnemonic', async () => {
@@ -473,15 +479,15 @@ describe('useWalletCreation', () => {
       });
 
       await act(async () => {
-        await result.current.createWallet();
+        await result.current!.createWallet();
       });
 
       await act(async () => {
-        await result.current.resetCreationState();
+        await result.current!.resetCreationState();
       });
 
       // Should be asterisks initially
-      expect(result.current.tempMnemonicWords.every(w => w.includes('*'))).toBe(true);
+      expect(result.current!.tempMnemonicWords.every(w => w.includes('*'))).toBe(true);
 
       // After timeout, should be empty
       await act(async () => {
@@ -489,7 +495,7 @@ describe('useWalletCreation', () => {
         await Promise.resolve();
       });
 
-      expect(result.current.tempMnemonicWords).toEqual([]);
+      expect(result.current!.tempMnemonicWords).toEqual([]);
     });
 
     it('should clear persisted state', async () => {
@@ -498,7 +504,7 @@ describe('useWalletCreation', () => {
       });
 
       await act(async () => {
-        await result.current.resetCreationState();
+        await result.current!.resetCreationState();
       });
 
       expect(AsyncStorage.removeItem).toHaveBeenCalledWith('wallet_creation_state');
@@ -516,7 +522,7 @@ describe('useWalletCreation', () => {
       });
 
       await act(async () => {
-        await result.current.createWallet();
+        await result.current!.createWallet();
       });
 
       await act(async () => {
@@ -538,10 +544,10 @@ describe('useWalletCreation', () => {
       });
 
       act(() => {
-        result.current.setShowingIntro(true);
+        result.current!.setShowingIntro(true);
       });
 
-      expect(result.current.showingIntro).toBe(true);
+      expect(result.current!.showingIntro).toBe(true);
     });
 
     it('should allow setting showingSeeds', () => {
@@ -550,23 +556,23 @@ describe('useWalletCreation', () => {
       });
 
       act(() => {
-        result.current.setShowingSeeds(true);
+        result.current!.setShowingSeeds(true);
       });
 
-      expect(result.current.showingSeeds).toBe(true);
+      expect(result.current!.showingSeeds).toBe(true);
     });
   });
 
   describe('Edge Cases', () => {
     it('should handle wallet generation returning null', async () => {
-      WalletService.generateWallet.mockResolvedValue(null);
+      (WalletService.generateWallet as jest.Mock).mockResolvedValue(null);
 
       const { result } = renderHook(() => useWalletCreation(mockProps), {
         initialProps: mockProps,
       });
 
       await act(async () => {
-        await result.current.createWallet();
+        await result.current!.createWallet();
       });
 
       // Should handle gracefully
@@ -574,7 +580,7 @@ describe('useWalletCreation', () => {
     });
 
     it('should handle missing addresses', async () => {
-      WalletService.generateWallet.mockResolvedValue({
+      (WalletService.generateWallet as jest.Mock).mockResolvedValue({
         mnemonic: mockMnemonic,
         addresses: null,
       });
@@ -584,10 +590,10 @@ describe('useWalletCreation', () => {
       });
 
       await act(async () => {
-        await result.current.createWallet();
+        await result.current!.createWallet();
       });
 
-      expect(result.current.tempMnemonicWords).toEqual(mockMnemonic.split(' '));
+      expect(result.current!.tempMnemonicWords).toEqual(mockMnemonic.split(' '));
     });
 
     it('should handle multiple create wallet calls', async () => {
@@ -596,16 +602,16 @@ describe('useWalletCreation', () => {
       });
 
       await act(async () => {
-        await result.current.createWallet();
+        await result.current!.createWallet();
       });
 
-      const firstMnemonic = result.current.tempMnemonicWords;
+      const firstMnemonic = result.current!.tempMnemonicWords;
 
       await act(async () => {
-        await result.current.createWallet();
+        await result.current!.createWallet();
       });
 
-      expect(result.current.tempMnemonicWords).toEqual(firstMnemonic);
+      expect(result.current!.tempMnemonicWords).toEqual(firstMnemonic);
     });
   });
 
@@ -615,8 +621,8 @@ describe('useWalletCreation', () => {
         initialProps: mockProps,
       });
 
-      expect(result.current.walletExistsRef).toBeDefined();
-      expect(result.current.walletExistsRef.current).toBe(false);
+      expect(result.current!.walletExistsRef).toBeDefined();
+      expect(result.current!.walletExistsRef.current).toBe(false);
     });
 
     it('should update walletExistsRef after saving', async () => {
@@ -625,14 +631,14 @@ describe('useWalletCreation', () => {
       });
 
       await act(async () => {
-        await result.current.createWallet();
+        await result.current!.createWallet();
       });
 
       await act(async () => {
-        await result.current.saveWalletAfterPinSetup();
+        await result.current!.saveWalletAfterPinSetup();
       });
 
-      expect(result.current.walletExistsRef.current).toBe(true);
+      expect(result.current!.walletExistsRef.current).toBe(true);
     });
   });
 });

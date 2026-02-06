@@ -1,4 +1,3 @@
-// @ts-nocheck
 /**
  * Tests for Bitcoin utility functions
  */
@@ -152,7 +151,7 @@ describe('bitcoin utilities', () => {
       });
 
       it('should reject non-string input', () => {
-        const result = validateBitcoinAddress(123);
+        const result = validateBitcoinAddress(123 as any);
         expect(result.valid).toBe(false);
         expect(result.error).toBe('Address is required');
       });
@@ -286,7 +285,7 @@ describe('bitcoin utilities', () => {
 
     it('should throw error for null address', () => {
       expect(() => {
-        validateAndNormalizeAddress(null);
+        validateAndNormalizeAddress(null as any);
       }).toThrow('Address is required');
     });
 
@@ -305,10 +304,10 @@ describe('bitcoin utilities', () => {
 
   describe('edge cases', () => {
     it('should handle various invalid input types', () => {
-      expect(validateBitcoinAddress(0).valid).toBe(false);
-      expect(validateBitcoinAddress(false).valid).toBe(false);
-      expect(validateBitcoinAddress({}).valid).toBe(false);
-      expect(validateBitcoinAddress([]).valid).toBe(false);
+      expect(validateBitcoinAddress(0 as any).valid).toBe(false);
+      expect(validateBitcoinAddress(false as any).valid).toBe(false);
+      expect(validateBitcoinAddress({} as any).valid).toBe(false);
+      expect(validateBitcoinAddress([] as any).valid).toBe(false);
     });
 
     it('should handle extremely long strings', () => {

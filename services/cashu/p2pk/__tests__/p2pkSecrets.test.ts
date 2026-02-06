@@ -1,4 +1,3 @@
-// @ts-nocheck
 /**
  * Tests for P2PK Secrets (NUT-11)
  */

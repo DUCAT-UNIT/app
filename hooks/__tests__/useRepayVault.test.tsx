@@ -1,4 +1,3 @@
-// @ts-nocheck
 /**
  * Tests for useRepayVault hook
  */
@@ -86,7 +85,12 @@ const mockRepayStore = {
 };
 
 jest.mock('../../stores/repayStore', () => ({
-  useRepayStore: jest.fn(() => mockRepayStore),
+  useRepayStore: jest.fn((selector) => {
+    if (typeof selector === 'function') {
+      return selector(mockRepayStore);
+    }
+    return mockRepayStore;
+  }),
   useRepay: jest.fn(() => mockRepayStore),
 }));
 
@@ -123,6 +127,16 @@ jest.mock('../../stores/priceStore', () => ({
   })),
 }));
 
+jest.mock('../../contexts/WalletDataContext', () => ({
+  useVaultData: jest.fn(() => ({
+    vaultData: {
+      totalDebt: 100,
+      totalCollateral: 0.01,
+      vaultId: 'vault1',
+    },
+  })),
+}));
+
 import { useRepayVault } from '../useRepayVault';
 import { getGuardianClient } from '../../services/guardianService';
 import { guardianSendReqRepay } from '../../services/vaultOperationsService';
@@ -143,11 +157,11 @@ describe('useRepayVault', () => {
   it('should return initial state', () => {
     const { result } = renderHook(() => useRepayVault());
 
-    expect(result.current.isLoading).toBe(false);
-    expect(result.current.error).toBeNull();
-    expect(result.current.issueTxid).toBeNull();
-    expect(result.current.vaultTxid).toBeNull();
-    expect(result.current.vaultDataLoaded).toBe(false);
+    expect(result.current!.isLoading).toBe(false);
+    expect(result.current!.error).toBeNull();
+    expect(result.current!.issueTxid).toBeNull();
+    expect(result.current!.vaultTxid).toBeNull();
+    expect(result.current!.vaultDataLoaded).toBe(false);
   });
 
   describe('loadVaultData', () => {
@@ -156,7 +170,7 @@ describe('useRepayVault', () => {
 
       let success;
       await act(async () => {
-        success = await result.current.loadVaultData();
+        success = await result.current!.loadVaultData();
       });
 
       expect(success).toBe(true);
@@ -165,13 +179,13 @@ describe('useRepayVault', () => {
 
     it('should return false if wallet not connected', async () => {
       const { useWallet } = require('../../contexts/WalletContext');
-      useWallet.mockReturnValueOnce({ wallet: null });
+      (useWallet as jest.Mock).mockReturnValueOnce({ wallet: null });
 
       const { result } = renderHook(() => useRepayVault());
 
       let success;
       await act(async () => {
-        success = await result.current.loadVaultData();
+        success = await result.current!.loadVaultData();
       });
 
       expect(success).toBe(false);
@@ -179,13 +193,14 @@ describe('useRepayVault', () => {
     });
 
     it('should return false if no vault found', async () => {
-      (fetchVaultData as jest.Mock).mockResolvedValueOnce(null);
+      const { useVaultData } = require('../../contexts/WalletDataContext');
+      useVaultData.mockReturnValueOnce({ vaultData: null });
 
       const { result } = renderHook(() => useRepayVault());
 
       let success;
       await act(async () => {
-        success = await result.current.loadVaultData();
+        success = await result.current!.loadVaultData();
       });
 
       expect(success).toBe(false);
@@ -199,7 +214,7 @@ describe('useRepayVault', () => {
 
       let repayResult;
       await act(async () => {
-        repayResult = await result.current.repay();
+        repayResult = await result.current!.repay();
       });
 
       expect(repayResult).toEqual({ txid: 'txid123', vaultTxid: 'vtxid123' });
@@ -209,13 +224,13 @@ describe('useRepayVault', () => {
 
     it('should return null if wallet not connected', async () => {
       const { useWallet } = require('../../contexts/WalletContext');
-      useWallet.mockReturnValueOnce({ wallet: null });
+      (useWallet as jest.Mock).mockReturnValueOnce({ wallet: null });
 
       const { result } = renderHook(() => useRepayVault());
 
       let repayResult;
       await act(async () => {
-        repayResult = await result.current.repay();
+        repayResult = await result.current!.repay();
       });
 
       expect(repayResult).toBeNull();
@@ -230,7 +245,7 @@ describe('useRepayVault', () => {
 
       let repayResult;
       await act(async () => {
-        repayResult = await result.current.repay();
+        repayResult = await result.current!.repay();
       });
 
       expect(repayResult).toBeNull();
@@ -244,7 +259,7 @@ describe('useRepayVault', () => {
 
       let repayResult;
       await act(async () => {
-        repayResult = await result.current.repay();
+        repayResult = await result.current!.repay();
       });
 
       expect(repayResult).toBeNull();
@@ -258,7 +273,7 @@ describe('useRepayVault', () => {
 
       let repayResult;
       await act(async () => {
-        repayResult = await result.current.repay();
+        repayResult = await result.current!.repay();
       });
 
       expect(repayResult).toBeNull();
@@ -274,7 +289,7 @@ describe('useRepayVault', () => {
 
       let repayResult;
       await act(async () => {
-        repayResult = await result.current.repay();
+        repayResult = await result.current!.repay();
       });
 
       expect(repayResult).toBeNull();
@@ -289,7 +304,7 @@ describe('useRepayVault', () => {
 
       let repayResult;
       await act(async () => {
-        repayResult = await result.current.repay();
+        repayResult = await result.current!.repay();
       });
 
       expect(repayResult).toBeNull();
@@ -303,7 +318,7 @@ describe('useRepayVault', () => {
 
       let repayResult;
       await act(async () => {
-        repayResult = await result.current.repay();
+        repayResult = await result.current!.repay();
       });
 
       expect(repayResult).toBeNull();
@@ -314,7 +329,7 @@ describe('useRepayVault', () => {
       const { result } = renderHook(() => useRepayVault());
 
       await act(async () => {
-        await result.current.repay();
+        await result.current!.repay();
       });
 
       expect(mockRepayStore.setProcessingStep).toHaveBeenCalledWith(1);
@@ -331,7 +346,7 @@ describe('useRepayVault', () => {
       const { result } = renderHook(() => useRepayVault());
 
       act(() => {
-        result.current.cancel();
+        result.current!.cancel();
       });
 
       expect(disconnectGuardian).toHaveBeenCalled();
@@ -342,46 +357,46 @@ describe('useRepayVault', () => {
   describe('loadVaultData', () => {
     it('should return false if wallet not connected', async () => {
       const { useWallet } = require('../../contexts/WalletContext');
-      useWallet.mockReturnValueOnce({ wallet: null });
+      (useWallet as jest.Mock).mockReturnValueOnce({ wallet: null });
 
       const { result } = renderHook(() => useRepayVault());
 
       let loadResult;
       await act(async () => {
-        loadResult = await result.current.loadVaultData();
+        loadResult = await result.current!.loadVaultData();
       });
 
       expect(loadResult).toBe(false);
     });
 
-    it('should handle fetchVaultData error', async () => {
-      const { fetchVaultData } = require('../../services/vaultService');
-      fetchVaultData.mockRejectedValueOnce(new Error('Fetch failed'));
+    it('should handle missing vault data from context', async () => {
+      const { useVaultData } = require('../../contexts/WalletDataContext');
+      useVaultData.mockReturnValueOnce({ vaultData: null });
 
       const { result } = renderHook(() => useRepayVault());
 
       let loadResult;
       await act(async () => {
-        loadResult = await result.current.loadVaultData();
+        loadResult = await result.current!.loadVaultData();
       });
 
       expect(loadResult).toBe(false);
-      expect(mockRepayStore.setError).toHaveBeenCalledWith('Fetch failed');
+      expect(mockRepayStore.setError).toHaveBeenCalledWith('No vault found. Please create a vault first.');
     });
 
-    it('should handle non-Error throws', async () => {
-      const { fetchVaultData } = require('../../services/vaultService');
-      fetchVaultData.mockRejectedValueOnce('string error');
+    it('should handle undefined vault data from context', async () => {
+      const { useVaultData } = require('../../contexts/WalletDataContext');
+      useVaultData.mockReturnValueOnce({ vaultData: undefined });
 
       const { result } = renderHook(() => useRepayVault());
 
       let loadResult;
       await act(async () => {
-        loadResult = await result.current.loadVaultData();
+        loadResult = await result.current!.loadVaultData();
       });
 
       expect(loadResult).toBe(false);
-      expect(mockRepayStore.setError).toHaveBeenCalledWith('Failed to load vault data');
+      expect(mockRepayStore.setError).toHaveBeenCalledWith('No vault found. Please create a vault first.');
     });
   });
 
@@ -394,7 +409,7 @@ describe('useRepayVault', () => {
 
       let repayResult;
       await act(async () => {
-        repayResult = await result.current.repay();
+        repayResult = await result.current!.repay();
       });
 
       expect(repayResult).toBeNull();
@@ -408,7 +423,7 @@ describe('useRepayVault', () => {
 
       let repayResult;
       await act(async () => {
-        repayResult = await result.current.repay();
+        repayResult = await result.current!.repay();
       });
 
       expect(repayResult).toBeNull();
@@ -422,7 +437,7 @@ describe('useRepayVault', () => {
 
       let repayResult;
       await act(async () => {
-        repayResult = await result.current.repay();
+        repayResult = await result.current!.repay();
       });
 
       expect(repayResult).toBeNull();
@@ -430,7 +445,7 @@ describe('useRepayVault', () => {
 
     it('should handle wallet not connected in buildVaultProfileFromData (line 141)', async () => {
       const { useWallet } = require('../../contexts/WalletContext');
-      useWallet.mockReturnValueOnce({ wallet: {
+      (useWallet as jest.Mock).mockReturnValueOnce({ wallet: {
         segwitAddress: 'tb1qtest...',
         taprootAddress: 'tb1ptest...',
         taprootPubkey: null, // null pubkey
@@ -440,7 +455,7 @@ describe('useRepayVault', () => {
 
       let repayResult;
       await act(async () => {
-        repayResult = await result.current.repay();
+        repayResult = await result.current!.repay();
       });
 
       // Should fail when trying to build profile
@@ -455,7 +470,7 @@ describe('useRepayVault', () => {
 
       let repayResult;
       await act(async () => {
-        repayResult = await result.current.repay();
+        repayResult = await result.current!.repay();
       });
 
       expect(repayResult).toBeNull();
@@ -471,13 +486,13 @@ describe('useRepayVault', () => {
 
       // Start first repay
       const firstRepay = act(async () => {
-        return result.current.repay();
+        return result.current!.repay();
       });
 
       // Try to start second repay immediately
       let secondResult;
       await act(async () => {
-        secondResult = await result.current.repay();
+        secondResult = await result.current!.repay();
       });
 
       // Second call should return null due to operation in progress
@@ -500,7 +515,7 @@ describe('useRepayVault', () => {
 
       let repayResult;
       await act(async () => {
-        repayResult = await result.current.repay();
+        repayResult = await result.current!.repay();
       });
 
       // Should succeed
@@ -517,7 +532,7 @@ describe('useRepayVault', () => {
 
       let repayResult;
       await act(async () => {
-        repayResult = await result.current.repay();
+        repayResult = await result.current!.repay();
       });
 
       // Should succeed because at least one value > 0
@@ -525,19 +540,20 @@ describe('useRepayVault', () => {
     });
 
     it('should handle vault data with null totalDebt and totalCollateral (lines 113-114)', async () => {
-      const { fetchVaultData } = require('../../services/vaultService');
-      fetchVaultData.mockResolvedValueOnce({
-        vaultId: 'vault1',
-        totalDebt: null,
-        totalCollateral: null,
-        vaultInfo: { creation_account: 'acct1', guard_pubkey: 'guard1', master_id: 'master1' },
+      const { useVaultData } = require('../../contexts/WalletDataContext');
+      useVaultData.mockReturnValueOnce({
+        vaultData: {
+          vaultId: 'vault1',
+          totalDebt: null,
+          totalCollateral: null,
+        },
       });
 
       const { result } = renderHook(() => useRepayVault());
 
       let success;
       await act(async () => {
-        success = await result.current.loadVaultData();
+        success = await result.current!.loadVaultData();
       });
 
       expect(success).toBe(true);
@@ -546,7 +562,7 @@ describe('useRepayVault', () => {
 
     it('should handle wallet with null pubkeys (lines 245, 247, 257, 301)', async () => {
       const { useWallet } = require('../../contexts/WalletContext');
-      useWallet.mockReturnValueOnce({ wallet: {
+      (useWallet as jest.Mock).mockReturnValueOnce({ wallet: {
         segwitAddress: 'tb1qtest...',
         segwitPubkey: null, // null pubkey
         taprootAddress: 'tb1ptest...',
@@ -557,7 +573,7 @@ describe('useRepayVault', () => {
 
       let repayResult;
       await act(async () => {
-        repayResult = await result.current.repay();
+        repayResult = await result.current!.repay();
       });
 
       // Should succeed with empty string for null pubkeys
@@ -572,7 +588,7 @@ describe('useRepayVault', () => {
 
       let repayResult;
       await act(async () => {
-        repayResult = await result.current.repay();
+        repayResult = await result.current!.repay();
       });
 
       expect(repayResult).toBeNull();
@@ -590,7 +606,7 @@ describe('useRepayVault', () => {
 
       let repayResult;
       await act(async () => {
-        repayResult = await result.current.repay();
+        repayResult = await result.current!.repay();
       });
 
       // Should succeed and liquidation price should be 0 (newDebt = 0)
@@ -608,7 +624,7 @@ describe('useRepayVault', () => {
 
       let repayResult;
       await act(async () => {
-        repayResult = await result.current.repay();
+        repayResult = await result.current!.repay();
       });
 
       expect(repayResult).toBeNull();

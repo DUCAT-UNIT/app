@@ -1,4 +1,3 @@
-// @ts-nocheck
 /**
  * Tests for cashuCrypto service
  */

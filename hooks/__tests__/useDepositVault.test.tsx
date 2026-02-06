@@ -1,4 +1,3 @@
-// @ts-nocheck
 /**
  * Tests for useDepositVault hook
  */
@@ -83,7 +82,12 @@ const mockDepositStore = {
 };
 
 jest.mock('../../stores/depositStore', () => ({
-  useDepositStore: jest.fn(() => mockDepositStore),
+  useDepositStore: jest.fn((selector) => {
+    if (typeof selector === 'function') {
+      return selector(mockDepositStore);
+    }
+    return mockDepositStore;
+  }),
   useDeposit: jest.fn(() => mockDepositStore),
 }));
 
@@ -120,6 +124,16 @@ jest.mock('../../stores/priceStore', () => ({
   })),
 }));
 
+jest.mock('../../contexts/WalletDataContext', () => ({
+  useVaultData: jest.fn(() => ({
+    vaultData: {
+      totalDebt: 100,
+      totalCollateral: 0.01,
+      vaultId: 'vault1',
+    },
+  })),
+}));
+
 import { useDepositVault } from '../useDepositVault';
 import { getGuardianClient } from '../../services/guardianService';
 import { guardianSendReqDeposit } from '../../services/vaultOperationsService';
@@ -139,10 +153,10 @@ describe('useDepositVault', () => {
   it('should return initial state', () => {
     const { result } = renderHook(() => useDepositVault());
 
-    expect(result.current.isLoading).toBe(false);
-    expect(result.current.error).toBeNull();
-    expect(result.current.vaultTxid).toBeNull();
-    expect(result.current.vaultDataLoaded).toBe(false);
+    expect(result.current!.isLoading).toBe(false);
+    expect(result.current!.error).toBeNull();
+    expect(result.current!.vaultTxid).toBeNull();
+    expect(result.current!.vaultDataLoaded).toBe(false);
   });
 
   describe('loadVaultData', () => {
@@ -151,7 +165,7 @@ describe('useDepositVault', () => {
 
       let success;
       await act(async () => {
-        success = await result.current.loadVaultData();
+        success = await result.current!.loadVaultData();
       });
 
       expect(success).toBe(true);
@@ -160,13 +174,13 @@ describe('useDepositVault', () => {
 
     it('should return false if wallet not connected', async () => {
       const { useWallet } = require('../../contexts/WalletContext');
-      useWallet.mockReturnValueOnce({ wallet: null });
+      (useWallet as jest.Mock).mockReturnValueOnce({ wallet: null });
 
       const { result } = renderHook(() => useDepositVault());
 
       let success;
       await act(async () => {
-        success = await result.current.loadVaultData();
+        success = await result.current!.loadVaultData();
       });
 
       expect(success).toBe(false);
@@ -174,13 +188,14 @@ describe('useDepositVault', () => {
     });
 
     it('should return false if no vault found', async () => {
-      (fetchVaultData as jest.Mock).mockResolvedValueOnce(null);
+      const { useVaultData } = require('../../contexts/WalletDataContext');
+      useVaultData.mockReturnValueOnce({ vaultData: null });
 
       const { result } = renderHook(() => useDepositVault());
 
       let success;
       await act(async () => {
-        success = await result.current.loadVaultData();
+        success = await result.current!.loadVaultData();
       });
 
       expect(success).toBe(false);
@@ -194,7 +209,7 @@ describe('useDepositVault', () => {
 
       let depositResult;
       await act(async () => {
-        depositResult = await result.current.deposit();
+        depositResult = await result.current!.deposit();
       });
 
       expect(depositResult).toEqual({ vaultTxid: 'vtxid123' });
@@ -203,13 +218,13 @@ describe('useDepositVault', () => {
 
     it('should return null if wallet not connected', async () => {
       const { useWallet } = require('../../contexts/WalletContext');
-      useWallet.mockReturnValueOnce({ wallet: null });
+      (useWallet as jest.Mock).mockReturnValueOnce({ wallet: null });
 
       const { result } = renderHook(() => useDepositVault());
 
       let depositResult;
       await act(async () => {
-        depositResult = await result.current.deposit();
+        depositResult = await result.current!.deposit();
       });
 
       expect(depositResult).toBeNull();
@@ -224,7 +239,7 @@ describe('useDepositVault', () => {
 
       let depositResult;
       await act(async () => {
-        depositResult = await result.current.deposit();
+        depositResult = await result.current!.deposit();
       });
 
       expect(depositResult).toBeNull();
@@ -238,7 +253,7 @@ describe('useDepositVault', () => {
 
       let depositResult;
       await act(async () => {
-        depositResult = await result.current.deposit();
+        depositResult = await result.current!.deposit();
       });
 
       expect(depositResult).toBeNull();
@@ -253,7 +268,7 @@ describe('useDepositVault', () => {
 
       let depositResult;
       await act(async () => {
-        depositResult = await result.current.deposit();
+        depositResult = await result.current!.deposit();
       });
 
       expect(depositResult).toBeNull();
@@ -267,7 +282,7 @@ describe('useDepositVault', () => {
 
       let depositResult;
       await act(async () => {
-        depositResult = await result.current.deposit();
+        depositResult = await result.current!.deposit();
       });
 
       expect(depositResult).toBeNull();
@@ -281,7 +296,7 @@ describe('useDepositVault', () => {
 
       let depositResult;
       await act(async () => {
-        depositResult = await result.current.deposit();
+        depositResult = await result.current!.deposit();
       });
 
       expect(depositResult).toBeNull();
@@ -292,7 +307,7 @@ describe('useDepositVault', () => {
       const { result } = renderHook(() => useDepositVault());
 
       await act(async () => {
-        await result.current.deposit();
+        await result.current!.deposit();
       });
 
       expect(mockDepositStore.setProcessingStep).toHaveBeenCalledWith(1);
@@ -309,7 +324,7 @@ describe('useDepositVault', () => {
       const { result } = renderHook(() => useDepositVault());
 
       act(() => {
-        result.current.cancel();
+        result.current!.cancel();
       });
 
       expect(disconnectGuardian).toHaveBeenCalled();
@@ -320,46 +335,46 @@ describe('useDepositVault', () => {
   describe('loadVaultData', () => {
     it('should return false if wallet not connected', async () => {
       const { useWallet } = require('../../contexts/WalletContext');
-      useWallet.mockReturnValueOnce({ wallet: null });
+      (useWallet as jest.Mock).mockReturnValueOnce({ wallet: null });
 
       const { result } = renderHook(() => useDepositVault());
 
       let loadResult;
       await act(async () => {
-        loadResult = await result.current.loadVaultData();
+        loadResult = await result.current!.loadVaultData();
       });
 
       expect(loadResult).toBe(false);
     });
 
-    it('should handle fetchVaultData error', async () => {
-      const { fetchVaultData } = require('../../services/vaultService');
-      fetchVaultData.mockRejectedValueOnce(new Error('Fetch failed'));
+    it('should handle missing vault data from context', async () => {
+      const { useVaultData } = require('../../contexts/WalletDataContext');
+      useVaultData.mockReturnValueOnce({ vaultData: null });
 
       const { result } = renderHook(() => useDepositVault());
 
       let loadResult;
       await act(async () => {
-        loadResult = await result.current.loadVaultData();
+        loadResult = await result.current!.loadVaultData();
       });
 
       expect(loadResult).toBe(false);
-      expect(mockDepositStore.setError).toHaveBeenCalledWith('Fetch failed');
+      expect(mockDepositStore.setError).toHaveBeenCalledWith('No vault found. Please create a vault first.');
     });
 
-    it('should handle non-Error throws', async () => {
-      const { fetchVaultData } = require('../../services/vaultService');
-      fetchVaultData.mockRejectedValueOnce('string error');
+    it('should handle undefined vault data from context', async () => {
+      const { useVaultData } = require('../../contexts/WalletDataContext');
+      useVaultData.mockReturnValueOnce({ vaultData: undefined });
 
       const { result } = renderHook(() => useDepositVault());
 
       let loadResult;
       await act(async () => {
-        loadResult = await result.current.loadVaultData();
+        loadResult = await result.current!.loadVaultData();
       });
 
       expect(loadResult).toBe(false);
-      expect(mockDepositStore.setError).toHaveBeenCalledWith('Failed to load vault data');
+      expect(mockDepositStore.setError).toHaveBeenCalledWith('No vault found. Please create a vault first.');
     });
   });
 
@@ -372,7 +387,7 @@ describe('useDepositVault', () => {
 
       let depositResult;
       await act(async () => {
-        depositResult = await result.current.deposit();
+        depositResult = await result.current!.deposit();
       });
 
       expect(depositResult).toBeNull();
@@ -386,7 +401,7 @@ describe('useDepositVault', () => {
 
       let depositResult;
       await act(async () => {
-        depositResult = await result.current.deposit();
+        depositResult = await result.current!.deposit();
       });
 
       expect(depositResult).toBeNull();
@@ -400,7 +415,7 @@ describe('useDepositVault', () => {
 
       let depositResult;
       await act(async () => {
-        depositResult = await result.current.deposit();
+        depositResult = await result.current!.deposit();
       });
 
       expect(depositResult).toBeNull();
@@ -408,7 +423,7 @@ describe('useDepositVault', () => {
 
     it('should handle wallet not connected in buildVaultProfileFromData (line 136)', async () => {
       const { useWallet } = require('../../contexts/WalletContext');
-      useWallet.mockReturnValueOnce({ wallet: {
+      (useWallet as jest.Mock).mockReturnValueOnce({ wallet: {
         segwitAddress: 'tb1qtest...',
         taprootAddress: 'tb1ptest...',
         taprootPubkey: null, // null pubkey
@@ -418,7 +433,7 @@ describe('useDepositVault', () => {
 
       let depositResult;
       await act(async () => {
-        depositResult = await result.current.deposit();
+        depositResult = await result.current!.deposit();
       });
 
       // Should fail when trying to build profile
@@ -433,7 +448,7 @@ describe('useDepositVault', () => {
 
       let depositResult;
       await act(async () => {
-        depositResult = await result.current.deposit();
+        depositResult = await result.current!.deposit();
       });
 
       expect(depositResult).toBeNull();
@@ -449,13 +464,13 @@ describe('useDepositVault', () => {
 
       // Start first deposit
       const firstDeposit = act(async () => {
-        return result.current.deposit();
+        return result.current!.deposit();
       });
 
       // Try to start second deposit immediately
       let secondResult;
       await act(async () => {
-        secondResult = await result.current.deposit();
+        secondResult = await result.current!.deposit();
       });
 
       // Second call should return null due to operation in progress
@@ -475,7 +490,7 @@ describe('useDepositVault', () => {
 
       let depositResult;
       await act(async () => {
-        depositResult = await result.current.deposit();
+        depositResult = await result.current!.deposit();
       });
 
       expect(depositResult).toBeNull();
@@ -483,7 +498,7 @@ describe('useDepositVault', () => {
 
     it('should handle wallet with null pubkeys', async () => {
       const { useWallet } = require('../../contexts/WalletContext');
-      useWallet.mockReturnValueOnce({ wallet: {
+      (useWallet as jest.Mock).mockReturnValueOnce({ wallet: {
         segwitAddress: 'tb1qtest...',
         segwitPubkey: null, // null pubkey
         taprootAddress: 'tb1ptest...',
@@ -494,7 +509,7 @@ describe('useDepositVault', () => {
 
       let depositResult;
       await act(async () => {
-        depositResult = await result.current.deposit();
+        depositResult = await result.current!.deposit();
       });
 
       // Should succeed with empty string for null pubkeys
@@ -510,7 +525,7 @@ describe('useDepositVault', () => {
 
       let depositResult;
       await act(async () => {
-        depositResult = await result.current.deposit();
+        depositResult = await result.current!.deposit();
       });
 
       expect(depositResult).toBeNull();
@@ -518,19 +533,20 @@ describe('useDepositVault', () => {
     });
 
     it('should handle vault data with null totalDebt and totalCollateral (lines 108-109)', async () => {
-      const { fetchVaultData } = require('../../services/vaultService');
-      fetchVaultData.mockResolvedValueOnce({
-        vaultId: 'vault1',
-        totalDebt: null,
-        totalCollateral: null,
-        vaultInfo: { creation_account: 'acct1', guard_pubkey: 'guard1', master_id: 'master1' },
+      const { useVaultData } = require('../../contexts/WalletDataContext');
+      useVaultData.mockReturnValueOnce({
+        vaultData: {
+          vaultId: 'vault1',
+          totalDebt: null,
+          totalCollateral: null,
+        },
       });
 
       const { result } = renderHook(() => useDepositVault());
 
       let success;
       await act(async () => {
-        success = await result.current.loadVaultData();
+        success = await result.current!.loadVaultData();
       });
 
       expect(success).toBe(true);

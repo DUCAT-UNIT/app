@@ -58,7 +58,7 @@ export default function LowEcashBalanceModal({
       onRequestClose={onClose}
     >
       <Pressable style={styles.overlay} onPress={onClose}>
-        <Pressable style={styles.modal} onPress={(e) => e.stopPropagation()}>
+        <Pressable style={styles.modal} onPress={(e) => e.stopPropagation()} testID="low-ecash-modal">
           <View style={styles.iconContainer}>
             <TurboUnitIcon size={56} />
           </View>
@@ -92,7 +92,7 @@ export default function LowEcashBalanceModal({
               onPress={onClose}
               activeOpacity={0.7}
             >
-              <Text style={styles.cancelButtonText}>Not Now</Text>
+              <Text style={styles.cancelButtonText} testID="low-ecash-dismiss-btn">Not Now</Text>
             </TouchableOpacity>
 
             <TouchableOpacity

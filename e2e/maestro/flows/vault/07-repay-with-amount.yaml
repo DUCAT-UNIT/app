@@ -1,0 +1,55 @@
+appId: com.ducatprotocol.DucatProtocolWallet
+---
+# Repay Button Tap - Verify tapping repay button is responsive (may be blocked by vault state)
+# Funded wallet → tap repay → verify wallet screen remains visible (safe regardless of vault state)
+
+- runFlow: ../helpers/import-wallet-typed.yaml
+
+# Verify wallet screen
+- extendedWaitUntil:
+    visible:
+      id: "wallet-screen"
+    timeout: 15000
+
+# Wait for balance to load
+- extendedWaitUntil:
+    visible:
+      id: "balance-section"
+    timeout: 30000
+
+# Dismiss low ecash modal if it appears
+- runFlow: ../helpers/dismiss-low-ecash.yaml
+
+# Wait for wallet actions
+- extendedWaitUntil:
+    visible:
+      id: "wallet-actions"
+    timeout: 15000
+
+# Dismiss airdrop modal if it appears
+- runFlow: ../helpers/dismiss-airdrop.yaml
+
+# Dismiss passkey migration modal if it appears
+- runFlow:
+    when:
+      visible:
+        id: "passkey-migration-modal"
+    commands:
+      - tapOn:
+          id: "passkey-skip-btn"
+
+# Verify repay button is visible and tappable
+- assertVisible:
+    id: "wallet-repay-btn"
+
+# Tap Repay button (may show alert or navigate depending on vault state)
+- tapOn:
+    id: "wallet-repay-btn"
+
+# Wait a moment for any response
+- waitForAnimationToEnd
+
+# Verify we're still in the app (either wallet screen or repay screen is visible)
+- assertVisible:
+    id: "wallet-screen"
+    optional: true

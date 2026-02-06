@@ -1,0 +1,46 @@
+appId: com.ducatprotocol.DucatProtocolWallet
+---
+# Asset Detail BTC - Navigate to BTC asset detail and verify screen elements
+# Funded wallet → tap BTC card → verify detail screen with Bitcoin content
+
+- runFlow: ../helpers/import-wallet-typed.yaml
+
+# Verify wallet screen
+- extendedWaitUntil:
+    visible:
+      id: "wallet-screen"
+    timeout: 15000
+
+# Dismiss low ecash modal if it appears
+- runFlow: ../helpers/dismiss-low-ecash.yaml
+
+# Dismiss airdrop modal if it appears
+- runFlow: ../helpers/dismiss-airdrop.yaml
+
+# Dismiss passkey migration modal if it appears
+- runFlow:
+    when:
+      visible:
+        id: "passkey-migration-modal"
+    commands:
+      - tapOn:
+          id: "passkey-skip-btn"
+
+# Wait for asset cards to load
+- extendedWaitUntil:
+    visible:
+      id: "asset-card-btc"
+    timeout: 15000
+
+# Tap BTC asset card
+- tapOn:
+    id: "asset-card-btc"
+
+# Verify asset detail screen loads
+- waitForAnimationToEnd
+- extendedWaitUntil:
+    visible:
+      text: "Bitcoin"
+    timeout: 10000
+- assertVisible:
+    text: "Activity"

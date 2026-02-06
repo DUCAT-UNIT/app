@@ -1,4 +1,3 @@
-// @ts-nocheck
 /**
  * Tests for useTurboReview hook
  */
@@ -41,30 +40,30 @@ jest.mock('../../services/cashu/cashuWalletService', () => ({
 import { requestMint, getBalance } from '../../services/cashu/cashuWalletService';
 
 // Helper to render hooks with props
-function renderHookWithProps(props) {
-  const result = { current: null };
-  function TestComponent({ hookProps }) {
+function renderHookWithProps(props: any) {
+  const result: { current: ReturnType<typeof useTurboReview> | null } = { current: null };
+  function TestComponent({ hookProps }: { hookProps?: any }) {
     result.current = useTurboReview(hookProps);
     return null;
   }
-  let component;
+  let component: ReturnType<typeof create> | undefined;
   act(() => {
     component = create(<TestComponent hookProps={props} />);
   });
   return {
     result,
-    unmount: component.unmount,
+    unmount: component!.unmount,
     component,
-    rerender: (newProps) => {
+    rerender: (newProps?: unknown) => {
       act(() => {
-        component.update(<TestComponent hookProps={newProps} />);
+        component?.update(<TestComponent hookProps={newProps} />);
       });
     },
   };
 }
 
 describe('useTurboReview', () => {
-  let mockProps;
+  let mockProps: Record<string, unknown>;
   const mockNavigation = {
     navigate: jest.fn(),
   };
@@ -95,19 +94,19 @@ describe('useTurboReview', () => {
   it('should return initial state', () => {
     const { result } = renderHookWithProps(mockProps);
 
-    expect(result.current.isRequestingMint).toBe(false);
-    expect(result.current.showInsufficientTurboSheet).toBe(false);
-    expect(result.current.insufficientTurboAmount).toBe(0);
-    expect(result.current.insufficientTurboBalance).toBe(0);
+    expect(result.current!.isRequestingMint).toBe(false);
+    expect(result.current!.showInsufficientTurboSheet).toBe(false);
+    expect(result.current!.insufficientTurboAmount).toBe(0);
+    expect(result.current!.insufficientTurboBalance).toBe(0);
   });
 
   it('should expose all expected functions', () => {
     const { result } = renderHookWithProps(mockProps);
 
-    expect(typeof result.current.handleReview).toBe('function');
-    expect(typeof result.current.handleUseTurbo).toBe('function');
-    expect(typeof result.current.handleSendNormally).toBe('function');
-    expect(typeof result.current.setShowInsufficientTurboSheet).toBe('function');
+    expect(typeof result.current!.handleReview).toBe('function');
+    expect(typeof result.current!.handleUseTurbo).toBe('function');
+    expect(typeof result.current!.handleSendNormally).toBe('function');
+    expect(typeof result.current!.setShowInsufficientTurboSheet).toBe('function');
   });
 
   describe('handleReview', () => {
@@ -116,7 +115,7 @@ describe('useTurboReview', () => {
       const { result } = renderHookWithProps(mockProps);
 
       await act(async () => {
-        await result.current.handleReview();
+        await result.current!.handleReview();
       });
 
       expect(mockNavigation.navigate).not.toHaveBeenCalled();
@@ -128,11 +127,11 @@ describe('useTurboReview', () => {
       const { result } = renderHookWithProps(mockProps);
 
       await act(async () => {
-        await result.current.handleReview();
+        await result.current!.handleReview();
       });
 
       expect(mockNavigation.navigate).toHaveBeenCalledWith('Processing', {
-        fromScreen: 'AmountInput',
+        fromScreen: 'SendInput',
         action: 'create_intent',
         cashuMint: false,
         quoteId: null,
@@ -146,7 +145,7 @@ describe('useTurboReview', () => {
       const { result } = renderHookWithProps(mockProps);
 
       await act(async () => {
-        await result.current.handleReview();
+        await result.current!.handleReview();
       });
 
       expect(mockProps.setTurboEnabled).toHaveBeenCalledWith(true);
@@ -159,7 +158,7 @@ describe('useTurboReview', () => {
       const { result } = renderHookWithProps(mockProps);
 
       await act(async () => {
-        await result.current.handleReview();
+        await result.current!.handleReview();
       });
 
       // setTurboEnabled should not be called if already true
@@ -178,14 +177,14 @@ describe('useTurboReview', () => {
       const { result } = renderHookWithProps(mockProps);
 
       await act(async () => {
-        await result.current.handleReview();
+        await result.current!.handleReview();
       });
 
       expect(Alert.alert).toHaveBeenCalledWith(
         'Error',
         'Failed to initiate Turbo transaction. Please try again.'
       );
-      expect(result.current.isRequestingMint).toBe(false);
+      expect(result.current!.isRequestingMint).toBe(false);
     });
 
     it('should navigate to Processing with cashuMint params', async () => {
@@ -195,11 +194,11 @@ describe('useTurboReview', () => {
       const { result } = renderHookWithProps(mockProps);
 
       await act(async () => {
-        await result.current.handleReview();
+        await result.current!.handleReview();
       });
 
       expect(mockNavigation.navigate).toHaveBeenCalledWith('Processing', {
-        fromScreen: 'AmountInput',
+        fromScreen: 'SendInput',
         action: 'create_intent',
         cashuMint: true,
         quoteId: 'quote123',
@@ -213,7 +212,7 @@ describe('useTurboReview', () => {
       const { result } = renderHookWithProps(mockProps);
 
       await act(async () => {
-        await result.current.handleReview();
+        await result.current!.handleReview();
       });
 
       // At threshold (not below), should not auto-enable
@@ -227,7 +226,7 @@ describe('useTurboReview', () => {
       const { result } = renderHookWithProps(mockProps);
 
       await act(async () => {
-        await result.current.handleReview();
+        await result.current!.handleReview();
       });
 
       expect(mockProps.setTurboEnabled).not.toHaveBeenCalled();
@@ -235,64 +234,71 @@ describe('useTurboReview', () => {
     });
 
     it('should navigate to TurboProcessing when ecash balance is sufficient', async () => {
-      // Mock sufficient ecash balance
-      mockGetBalanceImpl.mockResolvedValue(150);
+      // Mock sufficient ecash balance (in smallest units)
+      // sendAmount '100' = 100 display units = 10000 smallest units
+      // So we need balance >= 10000
+      mockGetBalanceImpl.mockResolvedValue(15000);
       mockProps.sendAmount = '100';
       mockProps.turboEnabled = true;
       mockProps.sendAssetType = 'unit';
       const { result } = renderHookWithProps(mockProps);
 
       await act(async () => {
-        await result.current.handleReview();
+        await result.current!.handleReview();
       });
 
       expect(mockNavigation.navigate).toHaveBeenCalledWith('TurboProcessing');
-      expect(result.current.isRequestingMint).toBe(false);
+      expect(result.current!.isRequestingMint).toBe(false);
     });
 
     it('should show insufficient turbo sheet when ecash balance is not enough', async () => {
-      // Mock insufficient ecash balance
-      mockGetBalanceImpl.mockResolvedValue(50);
+      // Mock insufficient ecash balance (in smallest units)
+      // sendAmount '100' = 100 display units = 10000 smallest units
+      // Balance of 5000 smallest units = 50 display units (insufficient)
+      mockGetBalanceImpl.mockResolvedValue(5000);
       mockProps.sendAmount = '100';
       mockProps.turboEnabled = true;
       mockProps.sendAssetType = 'unit';
       const { result } = renderHookWithProps(mockProps);
 
       await act(async () => {
-        await result.current.handleReview();
+        await result.current!.handleReview();
       });
 
-      expect(result.current.showInsufficientTurboSheet).toBe(true);
-      expect(result.current.insufficientTurboAmount).toBe(100);
-      expect(result.current.insufficientTurboBalance).toBe(50);
+      expect(result.current!.showInsufficientTurboSheet).toBe(true);
+      expect(result.current!.insufficientTurboAmount).toBe(100); // display units
+      expect(result.current!.insufficientTurboBalance).toBe(50); // converted to display units (5000/100)
       expect(mockNavigation.navigate).not.toHaveBeenCalled();
     });
 
     it('should handle exact ecash balance match', async () => {
-      // Mock exact ecash balance
-      mockGetBalanceImpl.mockResolvedValue(100);
+      // Mock exact ecash balance (in smallest units)
+      // sendAmount '100' = 100 display units = 10000 smallest units
+      mockGetBalanceImpl.mockResolvedValue(10000);
       mockProps.sendAmount = '100';
       mockProps.turboEnabled = true;
       mockProps.sendAssetType = 'unit';
       const { result } = renderHookWithProps(mockProps);
 
       await act(async () => {
-        await result.current.handleReview();
+        await result.current!.handleReview();
       });
 
       expect(mockNavigation.navigate).toHaveBeenCalledWith('TurboProcessing');
     });
 
     it('should handle fractional amounts correctly', async () => {
-      // Mock ecash balance with fractions
-      mockGetBalanceImpl.mockResolvedValue(0.55);
+      // Mock ecash balance with fractions (in smallest units)
+      // sendAmount '0.50' = 0.5 display units = 50 smallest units
+      // Balance of 55 smallest units = 0.55 display units (sufficient)
+      mockGetBalanceImpl.mockResolvedValue(55);
       mockProps.sendAmount = '0.50';
       mockProps.turboEnabled = true;
       mockProps.sendAssetType = 'unit';
       const { result } = renderHookWithProps(mockProps);
 
       await act(async () => {
-        await result.current.handleReview();
+        await result.current!.handleReview();
       });
 
       expect(mockNavigation.navigate).toHaveBeenCalledWith('TurboProcessing');
@@ -312,7 +318,7 @@ describe('useTurboReview', () => {
 
       // Start the async operation
       const reviewPromise = act(async () => {
-        await result.current.handleReview();
+        await result.current!.handleReview();
       });
 
       // Wait a moment then check isRequestingMint is true
@@ -322,7 +328,7 @@ describe('useTurboReview', () => {
       await reviewPromise;
 
       // After completion, should be false
-      expect(result.current.isRequestingMint).toBe(false);
+      expect(result.current!.isRequestingMint).toBe(false);
     });
   });
 
@@ -331,13 +337,13 @@ describe('useTurboReview', () => {
       const { result } = renderHookWithProps(mockProps);
 
       act(() => {
-        result.current.handleSendNormally();
+        result.current!.handleSendNormally();
       });
 
-      expect(result.current.showInsufficientTurboSheet).toBe(false);
+      expect(result.current!.showInsufficientTurboSheet).toBe(false);
       expect(mockProps.setTurboEnabled).toHaveBeenCalledWith(false);
       expect(mockNavigation.navigate).toHaveBeenCalledWith('Processing', {
-        fromScreen: 'AmountInput',
+        fromScreen: 'SendInput',
         action: 'create_intent',
       });
     });
@@ -349,16 +355,16 @@ describe('useTurboReview', () => {
 
       // First set the sheet to visible
       act(() => {
-        result.current.setShowInsufficientTurboSheet(true);
+        result.current!.setShowInsufficientTurboSheet(true);
       });
 
-      expect(result.current.showInsufficientTurboSheet).toBe(true);
+      expect(result.current!.showInsufficientTurboSheet).toBe(true);
 
       await act(async () => {
-        await result.current.handleUseTurbo();
+        await result.current!.handleUseTurbo();
       });
 
-      expect(result.current.showInsufficientTurboSheet).toBe(false);
+      expect(result.current!.showInsufficientTurboSheet).toBe(false);
     });
 
     it('should request mint and navigate to Processing with turbo params', async () => {
@@ -367,28 +373,29 @@ describe('useTurboReview', () => {
 
       // Simulate state where insufficientTurboAmount is set
       // First trigger the insufficient balance flow
-      mockGetBalanceImpl.mockResolvedValue(0.3);
-      mockProps.sendAmount = '0.5';
+      // getBalance() returns smallest units, so 30 means 0.30 display units
+      mockGetBalanceImpl.mockResolvedValue(30);
+      mockProps.sendAmount = '0.5'; // 0.5 display units = 50 smallest units
       mockProps.turboEnabled = true;
       rerender(mockProps);
 
       await act(async () => {
-        await result.current.handleReview();
+        await result.current!.handleReview();
       });
 
       // Now call handleUseTurbo
       await act(async () => {
-        await result.current.handleUseTurbo();
+        await result.current!.handleUseTurbo();
       });
 
       expect(mockRequestMintImpl).toHaveBeenCalled();
       expect(mockProps.setSendRecipient).toHaveBeenCalledWith('bc1qtest');
       expect(mockNavigation.navigate).toHaveBeenCalledWith('Processing', {
-        fromScreen: 'AmountInput',
+        fromScreen: 'SendInput',
         action: 'create_intent',
         isTurbo: true,
         mintQuoteId: 'quote123',
-        mintAmount: 100,
+        mintAmount: 50, // insufficientTurboAmount (0.5) * 100
         turboRecipient: 'original_recipient',
       });
     });
@@ -406,15 +413,15 @@ describe('useTurboReview', () => {
       rerender(mockProps);
 
       await act(async () => {
-        await result.current.handleReview();
+        await result.current!.handleReview();
       });
 
       // Now call handleUseTurbo which will fail
       await act(async () => {
-        await result.current.handleUseTurbo();
+        await result.current!.handleUseTurbo();
       });
 
-      expect(result.current.isRequestingMint).toBe(false);
+      expect(result.current!.isRequestingMint).toBe(false);
       expect(logger.error).toHaveBeenCalledWith(
         '[useTurboReview] Failed to request mint quote:',
         { error: 'Mint request failed' }
@@ -441,15 +448,15 @@ describe('useTurboReview', () => {
       rerender(mockProps);
 
       await act(async () => {
-        await result.current.handleReview();
+        await result.current!.handleReview();
       });
 
       // Now call handleUseTurbo which will fail due to undefined amount
       await act(async () => {
-        await result.current.handleUseTurbo();
+        await result.current!.handleUseTurbo();
       });
 
-      expect(result.current.isRequestingMint).toBe(false);
+      expect(result.current!.isRequestingMint).toBe(false);
       expect(Alert.alert).toHaveBeenCalledWith(
         'Error',
         'Failed to initiate Turbo transaction. Please try again.'
@@ -461,19 +468,19 @@ describe('useTurboReview', () => {
     it('should allow setting showInsufficientTurboSheet', () => {
       const { result } = renderHookWithProps(mockProps);
 
-      expect(result.current.showInsufficientTurboSheet).toBe(false);
+      expect(result.current!.showInsufficientTurboSheet).toBe(false);
 
       act(() => {
-        result.current.setShowInsufficientTurboSheet(true);
+        result.current!.setShowInsufficientTurboSheet(true);
       });
 
-      expect(result.current.showInsufficientTurboSheet).toBe(true);
+      expect(result.current!.showInsufficientTurboSheet).toBe(true);
 
       act(() => {
-        result.current.setShowInsufficientTurboSheet(false);
+        result.current!.setShowInsufficientTurboSheet(false);
       });
 
-      expect(result.current.showInsufficientTurboSheet).toBe(false);
+      expect(result.current!.showInsufficientTurboSheet).toBe(false);
     });
   });
 });

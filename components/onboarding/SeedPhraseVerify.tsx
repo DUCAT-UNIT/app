@@ -28,14 +28,14 @@ export default function SeedPhraseVerify({
   };
 
   return (
-    <View style={styles.walletInfo}>
+    <View style={styles.walletInfo} testID="seed-verify-screen">
       <Text style={styles.stepIndicator}>Step 3 of 4</Text>
 
       <Text style={styles.label}>Select the correct word:</Text>
 
       {requiredIndices.map((index) => (
         <View key={index} style={styles.verifyBox}>
-          <Text style={styles.verifyLabel}>Word #{index + 1}</Text>
+          <Text style={styles.verifyLabel} testID={`seed-verify-word-${index}`}>Word #{index + 1}</Text>
           <View style={styles.choicesContainer}>
             {wordChoices[index]?.map((choice, choiceIndex) => (
               <TouchableOpacity
@@ -45,6 +45,7 @@ export default function SeedPhraseVerify({
                   verificationWords[index] === choice && styles.choiceButtonSelected,
                 ]}
                 onPress={() => handleWordSelect(index, choice)}
+                testID={`seed-choice-${index}-${choiceIndex}`}
               >
                 <Text
                   style={[
@@ -60,13 +61,14 @@ export default function SeedPhraseVerify({
         </View>
       ))}
 
-      <TouchableOpacity style={styles.button} onPress={onVerify}>
+      <TouchableOpacity style={styles.button} onPress={onVerify} testID="seed-verify-btn">
         <Text style={styles.buttonText}>Verify</Text>
       </TouchableOpacity>
 
       <TouchableOpacity
         style={[styles.button, styles.secondaryButton]}
         onPress={onCancel}
+        testID="seed-verify-cancel-btn"
       >
         <Text style={styles.buttonText}>Start Over</Text>
       </TouchableOpacity>

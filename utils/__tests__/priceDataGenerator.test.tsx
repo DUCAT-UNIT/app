@@ -1,4 +1,3 @@
-// @ts-nocheck
 /**
  * Tests for Price Data Generator Utilities
  */
@@ -40,7 +39,7 @@ describe('generateUnitPriceData', () => {
   });
 
   it('should default to 1M timeframe for unknown timeframe', () => {
-    const data = generateUnitPriceData('UNKNOWN');
+    const data = generateUnitPriceData('UNKNOWN' as any);
 
     expect(data).toHaveLength(60);
   });

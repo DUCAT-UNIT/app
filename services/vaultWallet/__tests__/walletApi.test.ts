@@ -1,4 +1,3 @@
-// @ts-nocheck
 /**
  * Tests for Wallet API
  */
@@ -6,8 +5,7 @@
 import { createMobileWalletAPI } from '../walletApi';
 import { OracleAPI } from '@ducat-unit/client-sdk';
 import { TX, PSBT } from '@ducat-unit/client-sdk/util';
-import * as psbtSigning from '../psbtSigning';
-import * as psbtSigningUtils from '../../../utils/wallet/psbtSigning';
+import * as signing from '../../signing';
 import { Buffer } from 'buffer';
 
 // Mock dependencies
@@ -40,7 +38,8 @@ jest.mock('@ducat-unit/client-sdk/util', () => ({
   taptweak_pubkey: jest.fn(() => 'def456'),
 }));
 
-jest.mock('../psbtSigning', () => ({
+jest.mock('../../signing', () => ({
+  signPsbtRaw: jest.fn(),
   signPsbtWithSdkObject: jest.fn(),
   patchPreProcessFields: jest.fn((psbt) => psbt),
   patchPostProcessFields: jest.fn((psbt) => psbt),
@@ -50,10 +49,6 @@ jest.mock('../psbtSigning', () => ({
 
 jest.mock('../psbtBinaryUtils', () => ({
   extractOpReturnFromPsbt: jest.fn(() => 'mock-op-return'),
-}));
-
-jest.mock('../../../utils/wallet/psbtSigning', () => ({
-  signPsbtRaw: jest.fn(),
 }));
 
 jest.mock('../../../utils/logger', () => ({
@@ -93,7 +88,7 @@ describe('walletApi', () => {
         vault: 1000,
       },
     },
-  };
+  } as any;
 
   beforeEach(() => {
     jest.clearAllMocks();
@@ -260,15 +255,15 @@ describe('walletApi', () => {
 
         (PSBT.decode as jest.Mock).mockReturnValue(mockPdata);
         (PSBT.encode as jest.Mock).mockReturnValue(mockSignedPsbt);
-        (psbtSigningUtils.signPsbtRaw as jest.Mock).mockResolvedValue(mockSignedPsbt);
+        (signing.signPsbtRaw as jest.Mock).mockResolvedValue(mockSignedPsbt);
 
         const api = createMobileWalletAPI('tb1qtest');
         const result = await api.sign.psbt(mockClient)(mockPsbt, mockManifest);
 
         expect(PSBT.decode).toHaveBeenCalledWith(mockPsbt);
-        expect(psbtSigning.psbtPreProcess).toHaveBeenCalledWith(mockClient, mockPdata, mockManifest);
-        expect(psbtSigningUtils.signPsbtRaw).toHaveBeenCalled();
-        expect(psbtSigning.psbtPostProcess).toHaveBeenCalled();
+        expect(signing.psbtPreProcess).toHaveBeenCalledWith(mockClient, mockPdata, mockManifest);
+        expect(signing.signPsbtRaw).toHaveBeenCalled();
+        expect(signing.psbtPostProcess).toHaveBeenCalled();
         expect(result).toBe(mockSignedPsbt);
       });
     });
@@ -288,7 +283,7 @@ describe('walletApi', () => {
 
         (PSBT.decode as jest.Mock).mockReturnValue(mockPdata);
         (PSBT.encode as jest.Mock).mockReturnValue(mockSignedPsbt);
-        (psbtSigningUtils.signPsbtRaw as jest.Mock).mockResolvedValue(mockSignedPsbt);
+        (signing.signPsbtRaw as jest.Mock).mockResolvedValue(mockSignedPsbt);
         (TX.parse_script_meta as jest.Mock).mockReturnValue({
           type: 'p2w-pkh',
           key: { hex: 'abc123' },
@@ -298,9 +293,9 @@ describe('walletApi', () => {
         const result = await api.sign.utxos(mockClient)(mockPsbt);
 
         expect(PSBT.decode).toHaveBeenCalledWith(mockPsbt);
-        expect(psbtSigning.psbtPreProcess).toHaveBeenCalled();
-        expect(psbtSigningUtils.signPsbtRaw).toHaveBeenCalled();
-        expect(psbtSigning.psbtPostProcess).toHaveBeenCalled();
+        expect(signing.psbtPreProcess).toHaveBeenCalled();
+        expect(signing.signPsbtRaw).toHaveBeenCalled();
+        expect(signing.psbtPostProcess).toHaveBeenCalled();
         expect(result).toBe(mockSignedPsbt);
       });
 
@@ -316,7 +311,7 @@ describe('walletApi', () => {
 
         (PSBT.decode as jest.Mock).mockReturnValue(mockPdata);
         (PSBT.encode as jest.Mock).mockReturnValue(mockSignedPsbt);
-        (psbtSigningUtils.signPsbtRaw as jest.Mock).mockResolvedValue(mockSignedPsbt);
+        (signing.signPsbtRaw as jest.Mock).mockResolvedValue(mockSignedPsbt);
 
         const api = createMobileWalletAPI('tb1qtest');
         const result = await api.sign.utxos(mockClient)(mockPsbt);
@@ -338,7 +333,7 @@ describe('walletApi', () => {
 
         (PSBT.decode as jest.Mock).mockReturnValue(mockPdata);
         (PSBT.encode as jest.Mock).mockReturnValue(mockSignedPsbt);
-        (psbtSigningUtils.signPsbtRaw as jest.Mock).mockResolvedValue(mockSignedPsbt);
+        (signing.signPsbtRaw as jest.Mock).mockResolvedValue(mockSignedPsbt);
         (TX.parse_script_meta as jest.Mock).mockReturnValue({
           type: 'p2tr',
           key: { hex: 'def456' },
@@ -361,17 +356,17 @@ describe('walletApi', () => {
         const mockSignedPsbt = 'cHNidP8SIGNED==';
 
         (PSBT.decode as jest.Mock).mockReturnValue(mockPdata);
-        (psbtSigning.patchPreProcessFields as jest.Mock).mockImplementation((psbt) => psbt);
-        (psbtSigning.signPsbtWithSdkObject as jest.Mock).mockResolvedValue(mockSignedPsbt);
-        (psbtSigning.patchPostProcessFields as jest.Mock).mockImplementation((psbt) => psbt);
+        (signing.patchPreProcessFields as jest.Mock).mockImplementation((psbt) => psbt);
+        (signing.signPsbtWithSdkObject as jest.Mock).mockResolvedValue(mockSignedPsbt);
+        (signing.patchPostProcessFields as jest.Mock).mockImplementation((psbt) => psbt);
 
         const api = createMobileWalletAPI('tb1qtest');
-        const result = await api.sign.batch(mockClient)(mockPsbts);
+        const result = await api.sign.batch!(mockClient)(mockPsbts);
 
         expect(result).toHaveLength(2);
-        expect(psbtSigning.patchPreProcessFields).toHaveBeenCalledTimes(2);
-        expect(psbtSigning.signPsbtWithSdkObject).toHaveBeenCalledTimes(2);
-        expect(psbtSigning.patchPostProcessFields).toHaveBeenCalledTimes(2); // Only first 2 PSBTs
+        expect(signing.patchPreProcessFields).toHaveBeenCalledTimes(2);
+        expect(signing.signPsbtWithSdkObject).toHaveBeenCalledTimes(2);
+        expect(signing.patchPostProcessFields).toHaveBeenCalledTimes(2); // Only first 2 PSBTs
       });
 
       it('should only post-process first 2 PSBTs', async () => {
@@ -384,20 +379,20 @@ describe('walletApi', () => {
         const mockSignedPsbt = 'cHNidP8SIGNED==';
 
         (PSBT.decode as jest.Mock).mockReturnValue(mockPdata);
-        (psbtSigning.patchPreProcessFields as jest.Mock).mockImplementation((psbt) => psbt);
-        (psbtSigning.signPsbtWithSdkObject as jest.Mock).mockResolvedValue(mockSignedPsbt);
-        (psbtSigning.patchPostProcessFields as jest.Mock).mockImplementation((psbt) => psbt);
+        (signing.patchPreProcessFields as jest.Mock).mockImplementation((psbt) => psbt);
+        (signing.signPsbtWithSdkObject as jest.Mock).mockResolvedValue(mockSignedPsbt);
+        (signing.patchPostProcessFields as jest.Mock).mockImplementation((psbt) => psbt);
 
         const api = createMobileWalletAPI('tb1qtest');
-        const result = await api.sign.batch(mockClient)(mockPsbts);
+        const result = await api.sign.batch!(mockClient)(mockPsbts);
 
         expect(result).toHaveLength(3);
-        expect(psbtSigning.patchPostProcessFields).toHaveBeenCalledTimes(2); // Only first 2
+        expect(signing.patchPostProcessFields).toHaveBeenCalledTimes(2); // Only first 2
       });
 
       it('should handle empty batch', async () => {
         const api = createMobileWalletAPI('tb1qtest');
-        const result = await api.sign.batch(mockClient)([]);
+        const result = await api.sign.batch!(mockClient)([]);
 
         expect(result).toEqual([]);
       });

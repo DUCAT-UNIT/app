@@ -1,4 +1,3 @@
-// @ts-nocheck
 /**
  * Tests for Logger Utility
  */
@@ -36,20 +35,20 @@ jest.mock('../../services/sentryService', () => ({
 }));
 
 // Store original __DEV__ value
-const originalDev = global.__DEV__;
+const originalDev = (global as Record<string, unknown>).__DEV__;
 
 describe('logger', () => {
-  let logger;
-  let sentryService;
-  let consoleLogSpy;
-  let consoleWarnSpy;
-  let consoleErrorSpy;
+  let logger: ReturnType<typeof require>;
+  let sentryService: ReturnType<typeof require>;
+  let consoleLogSpy: jest.SpyInstance;
+  let consoleWarnSpy: jest.SpyInstance;
+  let consoleErrorSpy: jest.SpyInstance;
 
   beforeEach(() => {
     jest.clearAllMocks();
 
     // Reset to dev mode by default
-    global.__DEV__ = true;
+    (global as Record<string, unknown>).__DEV__ = true;
 
     // Import logger (module reuse - __DEV__ is checked at runtime for most methods)
     logger = require('../logger').logger;
@@ -65,7 +64,7 @@ describe('logger', () => {
     consoleLogSpy.mockRestore();
     consoleWarnSpy.mockRestore();
     consoleErrorSpy.mockRestore();
-    global.__DEV__ = originalDev;
+    (global as Record<string, unknown>).__DEV__ = originalDev;
   });
 
   describe('debug', () => {

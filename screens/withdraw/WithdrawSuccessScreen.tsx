@@ -40,9 +40,8 @@ export default function WithdrawSuccessScreen({ navigation, route }: WithdrawSuc
                 state: {
                   routes: [
                     { name: 'WalletHome' },
-                    { name: 'VaultDetail' },
                   ],
-                  index: 1,
+                  index: 0,
                 },
               },
             ],

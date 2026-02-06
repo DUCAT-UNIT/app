@@ -4,18 +4,32 @@ appId: com.ducatprotocol.DucatProtocolWallet
 # Import wallet → kill app → relaunch → wrong PIN → verify error → correct PIN → wallet
 
 # First set up a wallet
-- runFlow: ../../helpers/import-wallet.yaml
+- runFlow: ../helpers/import-wallet-typed.yaml
 
-# Kill and relaunch the app (without clearing state)
+# Kill and relaunch the app (without clearing state - wallet persists in SecureStore)
 - stopApp
 - launchApp
-- runFlow: ../../helpers/dismiss-dev-client.yaml
+- openLink: "com.ducatprotocol.DucatProtocolWallet://expo-development-client/?url=http%3A%2F%2Flocalhost%3A8081"
 
-# Lock screen should appear
-- assertVisible:
-    id: "lock-screen"
+# Lock screen should appear (wallet exists, seedConfirmed=true, not authenticated)
+- extendedWaitUntil:
+    visible:
+      id: "lock-screen"
+    timeout: 60000
 
-# Enter wrong PIN (654321 instead of 123456)
+# Dismiss any Expo Dev Client overlay (same pattern as clear-and-launch)
+- waitForAnimationToEnd
+- tapOn:
+    point: "50%,10%"
+- waitForAnimationToEnd
+
+# Wait for keypad to be fully interactive
+- extendedWaitUntil:
+    visible:
+      id: "lock-keypad-1"
+    timeout: 5000
+
+# Enter wrong PIN (654321) — rapid taps, matching working enter-pin-lock.yaml pattern
 - tapOn:
     id: "lock-keypad-6"
 - tapOn:
@@ -29,15 +43,23 @@ appId: com.ducatprotocol.DucatProtocolWallet
 - tapOn:
     id: "lock-keypad-1"
 
-# Verify error message appears
+# Verify error message appears (PIN hashing via PBKDF2 takes a few seconds)
 - extendedWaitUntil:
     visible:
       id: "lock-error"
-    timeout: 5000
+    timeout: 15000
 
 # Now enter correct PIN
-- runFlow: ../../helpers/enter-pin-lock.yaml
+- runFlow: ../helpers/enter-pin-lock.yaml
+
+# Dismiss airdrop modal if it appears
+- runFlow: ../helpers/dismiss-airdrop.yaml
+
+# Dismiss low ecash modal if it appears
+- runFlow: ../helpers/dismiss-low-ecash.yaml
 
 # Verify wallet screen loads after correct unlock
-- assertVisible:
-    id: "wallet-screen"
+- extendedWaitUntil:
+    visible:
+      id: "wallet-screen"
+    timeout: 15000

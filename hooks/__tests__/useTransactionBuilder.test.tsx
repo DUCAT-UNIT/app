@@ -1,11 +1,10 @@
-// @ts-nocheck
 /**
  * Tests for useTransactionBuilder hook
  */
 
 import React from 'react';
 import { create, act } from 'react-test-renderer';
-import { useTransactionBuilder } from '../useTransactionBuilder';
+import { useTransactionBuilder, UseTransactionBuilderParams } from '../useTransactionBuilder';
 import { notify } from '../../utils/notify';
 
 // Mock dependencies
@@ -36,28 +35,47 @@ jest.mock('../../utils/logger', () => ({
 }));
 
 jest.mock('../../utils/pendingTransactionsUtils', () => ({
-  releaseOrphanedUtxos: jest.fn().mockResolvedValue(),
+  releaseOrphanedUtxos: jest.fn().mockResolvedValue(undefined),
 }));
 
 import { createBtcIntent, createUnitIntent } from '../../services/transaction';
 import { releaseOrphanedUtxos } from '../../utils/pendingTransactionsUtils';
 
 // Helper to render hooks
-function renderHook(hook, props) {
-  const result = { current: null };
-  function TestComponent() {
+function renderHook<T, P>(hook: (props: P) => T, props: P) {
+  const result: { current: T | null } = { current: null };
+  function TestComponent(): null {
     result.current = hook(props);
     return null;
   }
-  let component;
+  let component: ReturnType<typeof create> | undefined;
   act(() => {
     component = create(<TestComponent />);
   });
-  return { result, unmount: component.unmount, component };
+  return { result, unmount: component!.unmount, component };
 }
 
+// Type for the hook props - simplified version for testing
+type MockProps = {
+  wallet: { segwitAddress: string; taprootAddress: string } | null;
+  currentAccount: number;
+  sendRecipient: string;
+  sendAmount: string;
+  sendAssetType: string;
+  requireConfirmedUtxos: boolean;
+  runesBalance: Array<{ rune: string; amount: number }>;
+  sendIntent: unknown;
+  setSendIntent: jest.Mock;
+  setIntentStep: jest.Mock;
+  getUnconfirmedUTXOs: jest.Mock;
+  getSpentUtxos: jest.Mock;
+  markUtxosAsSpent: jest.Mock;
+  unmarkUtxosAsSpent: jest.Mock;
+  setSendRecipient: jest.Mock;
+};
+
 describe('useTransactionBuilder', () => {
-  let mockProps;
+  let mockProps: MockProps;
 
   beforeEach(() => {
     jest.clearAllMocks();
@@ -79,19 +97,19 @@ describe('useTransactionBuilder', () => {
       setIntentStep: jest.fn(),
       getUnconfirmedUTXOs: jest.fn().mockReturnValue([]),
       getSpentUtxos: jest.fn().mockReturnValue(new Set()),
-      markUtxosAsSpent: jest.fn().mockResolvedValue(),
-      unmarkUtxosAsSpent: jest.fn().mockResolvedValue(),
+      markUtxosAsSpent: jest.fn().mockResolvedValue(undefined),
+      unmarkUtxosAsSpent: jest.fn().mockResolvedValue(undefined),
       setSendRecipient: jest.fn(),
     };
 
-    createBtcIntent.mockResolvedValue({
+    (createBtcIntent as jest.Mock).mockResolvedValue({
       assetType: 'BTC',
       inputs: [{ txid: 'txid1', vout: 0, value: 10000 }],
       outputs: [],
       fee: 500,
     });
 
-    createUnitIntent.mockResolvedValue({
+    (createUnitIntent as jest.Mock).mockResolvedValue({
       assetType: 'UNIT',
       runeUtxo: { transaction: 'txid2', vout: 0 },
       satUtxo: { txid: 'txid3', vout: 1 },
@@ -103,20 +121,20 @@ describe('useTransactionBuilder', () => {
   });
 
   it('should return createSendIntent and cancelIntent functions', () => {
-    const { result } = renderHook(() => useTransactionBuilder(mockProps));
+    const { result } = renderHook(useTransactionBuilder, mockProps as unknown as UseTransactionBuilderParams);
 
-    expect(typeof result.current.createSendIntent).toBe('function');
-    expect(typeof result.current.cancelIntent).toBe('function');
+    expect(typeof result.current!.createSendIntent).toBe('function');
+    expect(typeof result.current!.cancelIntent).toBe('function');
   });
 
   describe('createSendIntent', () => {
     it('should show error when recipient is missing', async () => {
       mockProps.sendRecipient = '';
 
-      const { result } = renderHook(() => useTransactionBuilder(mockProps));
+      const { result } = renderHook(useTransactionBuilder, mockProps as unknown as UseTransactionBuilderParams);
 
       await act(async () => {
-        await result.current.createSendIntent();
+        await result.current!.createSendIntent();
       });
 
       expect(notify.build.missingRecipientAmount).toHaveBeenCalled();
@@ -131,10 +149,10 @@ describe('useTransactionBuilder', () => {
     it('should show error when amount is missing', async () => {
       mockProps.sendAmount = '';
 
-      const { result } = renderHook(() => useTransactionBuilder(mockProps));
+      const { result } = renderHook(useTransactionBuilder, mockProps as unknown as UseTransactionBuilderParams);
 
       await act(async () => {
-        await result.current.createSendIntent();
+        await result.current!.createSendIntent();
       });
 
       expect(notify.build.missingRecipientAmount).toHaveBeenCalled();
@@ -143,10 +161,10 @@ describe('useTransactionBuilder', () => {
     it('should trim recipient address before processing', async () => {
       mockProps.sendRecipient = '  bc1qrecipient...  ';
 
-      const { result } = renderHook(() => useTransactionBuilder(mockProps));
+      const { result } = renderHook(useTransactionBuilder, mockProps as unknown as UseTransactionBuilderParams);
 
       await act(async () => {
-        await result.current.createSendIntent();
+        await result.current!.createSendIntent();
       });
 
       expect(mockProps.setSendRecipient).toHaveBeenCalledWith('bc1qrecipient...');
@@ -155,10 +173,10 @@ describe('useTransactionBuilder', () => {
     it('should show error for unknown asset type', async () => {
       mockProps.sendAssetType = 'unknown';
 
-      const { result } = renderHook(() => useTransactionBuilder(mockProps));
+      const { result } = renderHook(useTransactionBuilder, mockProps as unknown as UseTransactionBuilderParams);
 
       await act(async () => {
-        await result.current.createSendIntent();
+        await result.current!.createSendIntent();
       });
 
       expect(notify.build.assetRequired).toHaveBeenCalled();
@@ -173,10 +191,10 @@ describe('useTransactionBuilder', () => {
 
   describe('createBtcIntent', () => {
     it('should create BTC intent and set reviewing step', async () => {
-      const { result } = renderHook(() => useTransactionBuilder(mockProps));
+      const { result } = renderHook(useTransactionBuilder, mockProps as unknown as UseTransactionBuilderParams);
 
       await act(async () => {
-        await result.current.createSendIntent();
+        await result.current!.createSendIntent();
       });
 
       expect(createBtcIntent).toHaveBeenCalledWith(
@@ -192,10 +210,10 @@ describe('useTransactionBuilder', () => {
     });
 
     it('should lock UTXOs when creating BTC intent', async () => {
-      const { result } = renderHook(() => useTransactionBuilder(mockProps));
+      const { result } = renderHook(useTransactionBuilder, mockProps as unknown as UseTransactionBuilderParams);
 
       await act(async () => {
-        await result.current.createSendIntent();
+        await result.current!.createSendIntent();
       });
 
       expect(mockProps.markUtxosAsSpent).toHaveBeenCalledWith([
@@ -206,34 +224,34 @@ describe('useTransactionBuilder', () => {
     it('should throw error when wallet is not initialized', async () => {
       mockProps.wallet = null;
 
-      const { result } = renderHook(() => useTransactionBuilder(mockProps));
+      const { result } = renderHook(useTransactionBuilder, mockProps as unknown as UseTransactionBuilderParams);
 
       await act(async () => {
-        await result.current.createSendIntent();
+        await result.current!.createSendIntent();
       });
 
       expect(notify.build.error).toHaveBeenCalled();
     });
 
     it('should throw error when segwitAddress is missing', async () => {
-      mockProps.wallet = { taprootAddress: 'tb1ptest...' };
+      mockProps.wallet = { segwitAddress: '', taprootAddress: 'tb1ptest...' };
 
-      const { result } = renderHook(() => useTransactionBuilder(mockProps));
+      const { result } = renderHook(useTransactionBuilder, mockProps as unknown as UseTransactionBuilderParams);
 
       await act(async () => {
-        await result.current.createSendIntent();
+        await result.current!.createSendIntent();
       });
 
       expect(notify.build.error).toHaveBeenCalled();
     });
 
     it('should unlock UTXOs and release orphaned on error', async () => {
-      createBtcIntent.mockRejectedValue(new Error('Insufficient funds'));
+      (createBtcIntent as jest.Mock).mockRejectedValue(new Error('Insufficient funds'));
 
-      const { result } = renderHook(() => useTransactionBuilder(mockProps));
+      const { result } = renderHook(useTransactionBuilder, mockProps as unknown as UseTransactionBuilderParams);
 
       await act(async () => {
-        await result.current.createSendIntent();
+        await result.current!.createSendIntent();
       });
 
       expect(releaseOrphanedUtxos).toHaveBeenCalled();
@@ -243,7 +261,7 @@ describe('useTransactionBuilder', () => {
     it('should unlock locked UTXOs on error after marking', async () => {
       // First call succeeds (UTXOs locked), then error occurs
       let callCount = 0;
-      createBtcIntent.mockImplementation(async () => {
+      (createBtcIntent as jest.Mock).mockImplementation(async () => {
         callCount++;
         if (callCount === 1) {
           return {
@@ -254,11 +272,11 @@ describe('useTransactionBuilder', () => {
         throw new Error('Network error');
       });
 
-      const { result } = renderHook(() => useTransactionBuilder(mockProps));
+      const { result } = renderHook(useTransactionBuilder, mockProps as unknown as UseTransactionBuilderParams);
 
       // First call should succeed
       await act(async () => {
-        await result.current.createSendIntent();
+        await result.current!.createSendIntent();
       });
 
       expect(mockProps.markUtxosAsSpent).toHaveBeenCalled();
@@ -269,10 +287,10 @@ describe('useTransactionBuilder', () => {
         { txid: 'unconfirmed1', vout: 0, value: 5000, status: { confirmed: false } },
       ]);
 
-      const { result } = renderHook(() => useTransactionBuilder(mockProps));
+      const { result } = renderHook(useTransactionBuilder, mockProps as unknown as UseTransactionBuilderParams);
 
       await act(async () => {
-        await result.current.createSendIntent();
+        await result.current!.createSendIntent();
       });
 
       expect(createBtcIntent).toHaveBeenCalledWith(
@@ -295,10 +313,10 @@ describe('useTransactionBuilder', () => {
         ],
       };
 
-      const { result } = renderHook(() => useTransactionBuilder(mockProps));
+      const { result } = renderHook(useTransactionBuilder, mockProps as unknown as UseTransactionBuilderParams);
 
       await act(async () => {
-        await result.current.createSendIntent();
+        await result.current!.createSendIntent();
       });
 
       // Should release old UTXOs before building new intent
@@ -316,10 +334,10 @@ describe('useTransactionBuilder', () => {
         txid: 'broadcast_txid',
       };
 
-      const { result } = renderHook(() => useTransactionBuilder(mockProps));
+      const { result } = renderHook(useTransactionBuilder, mockProps as unknown as UseTransactionBuilderParams);
 
       await act(async () => {
-        await result.current.createSendIntent();
+        await result.current!.createSendIntent();
       });
 
       // Should not release broadcast transaction UTXOs
@@ -330,7 +348,7 @@ describe('useTransactionBuilder', () => {
 
     it('should release locked UTXOs on error after marking them', async () => {
       // Mock to return intent with inputs, then fail on second call
-      createBtcIntent.mockResolvedValueOnce({
+      (createBtcIntent as jest.Mock).mockResolvedValueOnce({
         assetType: 'BTC',
         inputs: [{ txid: 'txid1', vout: 0 }],
       });
@@ -338,10 +356,10 @@ describe('useTransactionBuilder', () => {
       // First call marks UTXOs, then markUtxosAsSpent throws
       mockProps.markUtxosAsSpent.mockRejectedValueOnce(new Error('Storage error'));
 
-      const { result } = renderHook(() => useTransactionBuilder(mockProps));
+      const { result } = renderHook(useTransactionBuilder, mockProps as unknown as UseTransactionBuilderParams);
 
       await act(async () => {
-        await result.current.createSendIntent();
+        await result.current!.createSendIntent();
       });
 
       // Error should be handled gracefully
@@ -355,10 +373,10 @@ describe('useTransactionBuilder', () => {
     });
 
     it('should create UNIT intent and set reviewing step', async () => {
-      const { result } = renderHook(() => useTransactionBuilder(mockProps));
+      const { result } = renderHook(useTransactionBuilder, mockProps as unknown as UseTransactionBuilderParams);
 
       await act(async () => {
-        await result.current.createSendIntent();
+        await result.current!.createSendIntent();
       });
 
       expect(createUnitIntent).toHaveBeenCalled();
@@ -367,10 +385,10 @@ describe('useTransactionBuilder', () => {
     });
 
     it('should lock UTXOs when creating UNIT intent', async () => {
-      const { result } = renderHook(() => useTransactionBuilder(mockProps));
+      const { result } = renderHook(useTransactionBuilder, mockProps as unknown as UseTransactionBuilderParams);
 
       await act(async () => {
-        await result.current.createSendIntent();
+        await result.current!.createSendIntent();
       });
 
       expect(mockProps.markUtxosAsSpent).toHaveBeenCalledWith([
@@ -382,22 +400,22 @@ describe('useTransactionBuilder', () => {
     it('should throw error when wallet is not initialized', async () => {
       mockProps.wallet = null;
 
-      const { result } = renderHook(() => useTransactionBuilder(mockProps));
+      const { result } = renderHook(useTransactionBuilder, mockProps as unknown as UseTransactionBuilderParams);
 
       await act(async () => {
-        await result.current.createSendIntent();
+        await result.current!.createSendIntent();
       });
 
       expect(notify.build.error).toHaveBeenCalled();
     });
 
     it('should throw error when taprootAddress is missing', async () => {
-      mockProps.wallet = { segwitAddress: 'bc1qtest...' };
+      mockProps.wallet = { segwitAddress: 'bc1qtest...', taprootAddress: '' };
 
-      const { result } = renderHook(() => useTransactionBuilder(mockProps));
+      const { result } = renderHook(useTransactionBuilder, mockProps as unknown as UseTransactionBuilderParams);
 
       await act(async () => {
-        await result.current.createSendIntent();
+        await result.current!.createSendIntent();
       });
 
       expect(notify.build.error).toHaveBeenCalled();
@@ -406,10 +424,10 @@ describe('useTransactionBuilder', () => {
     it('should throw error when UNIT balance is zero', async () => {
       mockProps.runesBalance = [{ rune: 'UNIT', amount: 0 }];
 
-      const { result } = renderHook(() => useTransactionBuilder(mockProps));
+      const { result } = renderHook(useTransactionBuilder, mockProps as unknown as UseTransactionBuilderParams);
 
       await act(async () => {
-        await result.current.createSendIntent();
+        await result.current!.createSendIntent();
       });
 
       expect(notify.build.error).toHaveBeenCalled();
@@ -418,22 +436,22 @@ describe('useTransactionBuilder', () => {
     it('should throw error when runesBalance is empty', async () => {
       mockProps.runesBalance = [];
 
-      const { result } = renderHook(() => useTransactionBuilder(mockProps));
+      const { result } = renderHook(useTransactionBuilder, mockProps as unknown as UseTransactionBuilderParams);
 
       await act(async () => {
-        await result.current.createSendIntent();
+        await result.current!.createSendIntent();
       });
 
       expect(notify.build.error).toHaveBeenCalled();
     });
 
     it('should throw error when runesBalance is null', async () => {
-      mockProps.runesBalance = null;
+      (mockProps as any).runesBalance = null;
 
-      const { result } = renderHook(() => useTransactionBuilder(mockProps));
+      const { result } = renderHook(useTransactionBuilder, mockProps as unknown as UseTransactionBuilderParams);
 
       await act(async () => {
-        await result.current.createSendIntent();
+        await result.current!.createSendIntent();
       });
 
       expect(notify.build.error).toHaveBeenCalled();
@@ -445,10 +463,10 @@ describe('useTransactionBuilder', () => {
         { txid: 'unconfirmed1', vout: 0, value: 5000 },
       ]);
 
-      const { result } = renderHook(() => useTransactionBuilder(mockProps));
+      const { result } = renderHook(useTransactionBuilder, mockProps as unknown as UseTransactionBuilderParams);
 
       await act(async () => {
-        await result.current.createSendIntent();
+        await result.current!.createSendIntent();
       });
 
       expect(createUnitIntent).toHaveBeenCalledWith(
@@ -464,7 +482,7 @@ describe('useTransactionBuilder', () => {
     });
 
     it('should handle UNIT intent with multiple runeUtxos', async () => {
-      createUnitIntent.mockResolvedValue({
+      (createUnitIntent as jest.Mock).mockResolvedValue({
         assetType: 'UNIT',
         runeUtxos: [
           { transaction: 'txid2', vout: 0 },
@@ -473,10 +491,10 @@ describe('useTransactionBuilder', () => {
         satUtxo: { txid: 'txid3', vout: 1 },
       });
 
-      const { result } = renderHook(() => useTransactionBuilder(mockProps));
+      const { result } = renderHook(useTransactionBuilder, mockProps as unknown as UseTransactionBuilderParams);
 
       await act(async () => {
-        await result.current.createSendIntent();
+        await result.current!.createSendIntent();
       });
 
       expect(mockProps.markUtxosAsSpent).toHaveBeenCalledWith([
@@ -487,16 +505,16 @@ describe('useTransactionBuilder', () => {
     });
 
     it('should handle UNIT intent without satUtxo', async () => {
-      createUnitIntent.mockResolvedValue({
+      (createUnitIntent as jest.Mock).mockResolvedValue({
         assetType: 'UNIT',
         runeUtxo: { transaction: 'txid2', vout: 0 },
         satUtxo: null,
       });
 
-      const { result } = renderHook(() => useTransactionBuilder(mockProps));
+      const { result } = renderHook(useTransactionBuilder, mockProps as unknown as UseTransactionBuilderParams);
 
       await act(async () => {
-        await result.current.createSendIntent();
+        await result.current!.createSendIntent();
       });
 
       expect(mockProps.markUtxosAsSpent).toHaveBeenCalledWith([
@@ -505,12 +523,12 @@ describe('useTransactionBuilder', () => {
     });
 
     it('should unlock UTXOs and release orphaned on error', async () => {
-      createUnitIntent.mockRejectedValue(new Error('UTXO selection failed'));
+      (createUnitIntent as jest.Mock).mockRejectedValue(new Error('UTXO selection failed'));
 
-      const { result } = renderHook(() => useTransactionBuilder(mockProps));
+      const { result } = renderHook(useTransactionBuilder, mockProps as unknown as UseTransactionBuilderParams);
 
       await act(async () => {
-        await result.current.createSendIntent();
+        await result.current!.createSendIntent();
       });
 
       expect(releaseOrphanedUtxos).toHaveBeenCalled();
@@ -525,10 +543,10 @@ describe('useTransactionBuilder', () => {
         satUtxo: { txid: 'old_sat_txid', vout: 1 },
       };
 
-      const { result } = renderHook(() => useTransactionBuilder(mockProps));
+      const { result } = renderHook(useTransactionBuilder, mockProps as unknown as UseTransactionBuilderParams);
 
       await act(async () => {
-        await result.current.createSendIntent();
+        await result.current!.createSendIntent();
       });
 
       // Should release old UTXOs before building new intent
@@ -545,10 +563,10 @@ describe('useTransactionBuilder', () => {
         satUtxo: null,
       };
 
-      const { result } = renderHook(() => useTransactionBuilder(mockProps));
+      const { result } = renderHook(useTransactionBuilder, mockProps as unknown as UseTransactionBuilderParams);
 
       await act(async () => {
-        await result.current.createSendIntent();
+        await result.current!.createSendIntent();
       });
 
       expect(mockProps.unmarkUtxosAsSpent).toHaveBeenCalledWith([
@@ -564,10 +582,10 @@ describe('useTransactionBuilder', () => {
         txid: 'broadcast_txid',
       };
 
-      const { result } = renderHook(() => useTransactionBuilder(mockProps));
+      const { result } = renderHook(useTransactionBuilder, mockProps as unknown as UseTransactionBuilderParams);
 
       await act(async () => {
-        await result.current.createSendIntent();
+        await result.current!.createSendIntent();
       });
 
       // Should not release broadcast transaction UTXOs
@@ -578,7 +596,7 @@ describe('useTransactionBuilder', () => {
     });
 
     it('should release locked UTXOs on error after marking them for UNIT', async () => {
-      createUnitIntent.mockResolvedValueOnce({
+      (createUnitIntent as jest.Mock).mockResolvedValueOnce({
         assetType: 'UNIT',
         runeUtxo: { transaction: 'txid1', vout: 0 },
         satUtxo: { txid: 'txid2', vout: 1 },
@@ -587,10 +605,10 @@ describe('useTransactionBuilder', () => {
       // markUtxosAsSpent throws after successful intent creation
       mockProps.markUtxosAsSpent.mockRejectedValueOnce(new Error('Storage error'));
 
-      const { result } = renderHook(() => useTransactionBuilder(mockProps));
+      const { result } = renderHook(useTransactionBuilder, mockProps as unknown as UseTransactionBuilderParams);
 
       await act(async () => {
-        await result.current.createSendIntent();
+        await result.current!.createSendIntent();
       });
 
       // Error should be handled gracefully
@@ -608,10 +626,10 @@ describe('useTransactionBuilder', () => {
         return [];
       });
 
-      const { result } = renderHook(() => useTransactionBuilder(mockProps));
+      const { result } = renderHook(useTransactionBuilder, mockProps as unknown as UseTransactionBuilderParams);
 
       await act(async () => {
-        await result.current.createSendIntent();
+        await result.current!.createSendIntent();
       });
 
       expect(createUnitIntent).toHaveBeenCalledWith(
@@ -628,12 +646,12 @@ describe('useTransactionBuilder', () => {
 
     it('should handle runesBalance as array format', async () => {
       // Test the Array.isArray branch for runesBalance format
-      mockProps.runesBalance = [[0, 1000]]; // Array format: [index, amount]
+      (mockProps as any).runesBalance = [[0, 1000]]; // Array format: [index, amount]
 
-      const { result } = renderHook(() => useTransactionBuilder(mockProps));
+      const { result } = renderHook(useTransactionBuilder, mockProps as unknown as UseTransactionBuilderParams);
 
       await act(async () => {
-        await result.current.createSendIntent();
+        await result.current!.createSendIntent();
       });
 
       expect(createUnitIntent).toHaveBeenCalled();
@@ -645,10 +663,10 @@ describe('useTransactionBuilder', () => {
     it('should do nothing when sendIntent is null', async () => {
       mockProps.sendIntent = null;
 
-      const { result } = renderHook(() => useTransactionBuilder(mockProps));
+      const { result } = renderHook(useTransactionBuilder, mockProps as unknown as UseTransactionBuilderParams);
 
       await act(async () => {
-        await result.current.cancelIntent();
+        await result.current!.cancelIntent();
       });
 
       expect(mockProps.unmarkUtxosAsSpent).not.toHaveBeenCalled();
@@ -662,10 +680,10 @@ describe('useTransactionBuilder', () => {
         txid: 'broadcasted_txid',
       };
 
-      const { result } = renderHook(() => useTransactionBuilder(mockProps));
+      const { result } = renderHook(useTransactionBuilder, mockProps as unknown as UseTransactionBuilderParams);
 
       await act(async () => {
-        await result.current.cancelIntent();
+        await result.current!.cancelIntent();
       });
 
       expect(mockProps.unmarkUtxosAsSpent).not.toHaveBeenCalled();
@@ -682,10 +700,10 @@ describe('useTransactionBuilder', () => {
         ],
       };
 
-      const { result } = renderHook(() => useTransactionBuilder(mockProps));
+      const { result } = renderHook(useTransactionBuilder, mockProps as unknown as UseTransactionBuilderParams);
 
       await act(async () => {
-        await result.current.cancelIntent();
+        await result.current!.cancelIntent();
       });
 
       expect(mockProps.unmarkUtxosAsSpent).toHaveBeenCalledWith([
@@ -703,10 +721,10 @@ describe('useTransactionBuilder', () => {
         satUtxo: { txid: 'txid3', vout: 1 },
       };
 
-      const { result } = renderHook(() => useTransactionBuilder(mockProps));
+      const { result } = renderHook(useTransactionBuilder, mockProps as unknown as UseTransactionBuilderParams);
 
       await act(async () => {
-        await result.current.cancelIntent();
+        await result.current!.cancelIntent();
       });
 
       expect(mockProps.unmarkUtxosAsSpent).toHaveBeenCalledWith([
@@ -722,10 +740,10 @@ describe('useTransactionBuilder', () => {
         satUtxo: null,
       };
 
-      const { result } = renderHook(() => useTransactionBuilder(mockProps));
+      const { result } = renderHook(useTransactionBuilder, mockProps as unknown as UseTransactionBuilderParams);
 
       await act(async () => {
-        await result.current.cancelIntent();
+        await result.current!.cancelIntent();
       });
 
       expect(mockProps.unmarkUtxosAsSpent).toHaveBeenCalledWith([
@@ -740,10 +758,10 @@ describe('useTransactionBuilder', () => {
         satUtxo: null,
       };
 
-      const { result } = renderHook(() => useTransactionBuilder(mockProps));
+      const { result } = renderHook(useTransactionBuilder, mockProps as unknown as UseTransactionBuilderParams);
 
       await act(async () => {
-        await result.current.cancelIntent();
+        await result.current!.cancelIntent();
       });
 
       expect(mockProps.unmarkUtxosAsSpent).not.toHaveBeenCalled();

@@ -1,0 +1,228 @@
+/**
+ * Vault Screen Types
+ * Configuration types for generic vault operation screens
+ */
+
+import type { NavigationProp } from '@react-navigation/native';
+import type { HealthStatus } from '../../utils/vaultUtils';
+
+/**
+ * Vault operation type
+ */
+export type VaultOperationType = 'borrow' | 'deposit' | 'repay' | 'withdraw';
+
+/**
+ * Asset type for the operation
+ */
+export type VaultAssetType = 'BTC' | 'UNIT';
+
+/**
+ * Common vault state from any store
+ */
+export interface VaultStoreState {
+  // Current vault data
+  currentUnitBorrowed: number;
+  currentBtcLocked: number;
+  bitcoinPrice: number | null;
+
+  // Form state
+  selectedFeeRate: number;
+
+  // Process state
+  currentStep: string;
+  processingStep: number;
+  loading: boolean;
+  error: string | null;
+  vaultTxid: string | null;
+
+  // Computed health values
+  healthFactor: number;
+  newHealthFactor: number;
+  liquidationPrice: number;
+  newLiquidationPrice: number;
+  healthStatus: HealthStatus;
+  newHealthStatus: HealthStatus;
+
+  // Actions
+  setSelectedFeeRate: (rate: number) => void;
+  setCurrentStep: (step: string) => void;
+  setProcessingStep: (step: number) => void;
+  reset: () => void;
+}
+
+/**
+ * Operation-specific amount configuration
+ */
+export interface AmountConfig {
+  /** Current amount value */
+  value: number;
+  /** Set amount callback */
+  setValue: (amount: number) => void;
+  /** Maximum amount allowed */
+  maxValue: number;
+  /** Slider label */
+  label: string;
+  /** Whether slider uses UNIT (true) or BTC (false) */
+  isUnitAmount: boolean;
+  /** Whether to hide available balance on slider */
+  hideAvailable?: boolean;
+}
+
+/**
+ * Preview of vault state after operation
+ */
+export interface VaultPreview {
+  newCollateral: number;
+  newDebt: number;
+  newHealth: number;
+  newLiqPrice: number;
+}
+
+/**
+ * Validation result for the operation
+ */
+export interface ValidationResult {
+  canContinue: boolean;
+  warnings: string[];
+  errors: string[];
+}
+
+/**
+ * Empty state configuration
+ */
+export interface EmptyStateConfig {
+  icon: 'alert-circle-outline' | 'checkmark-circle-outline' | 'warning-outline';
+  iconColor: string;
+  title: string;
+  subtitle?: string;
+}
+
+/**
+ * Screen route configuration
+ */
+export interface VaultRoutes {
+  input: string;
+  confirm: string;
+  processing: string;
+  success: string;
+}
+
+/**
+ * Input screen configuration
+ */
+export interface VaultInputScreenConfig {
+  /** Operation type */
+  operationType: VaultOperationType;
+
+  /** Screen title */
+  title: string;
+
+  /** Asset being operated on */
+  asset: VaultAssetType;
+
+  /** Route names for navigation */
+  routes: VaultRoutes;
+
+  /** Get amount configuration from store state */
+  getAmountConfig: (state: any) => AmountConfig;
+
+  /** Compute preview values */
+  computePreview: (
+    amount: number,
+    effectiveBtcLocked: number,
+    effectiveUnitBorrowed: number,
+    bitcoinPrice: number | null
+  ) => VaultPreview;
+
+  /** Validate current state */
+  validate: (
+    amount: number,
+    maxAmount: number,
+    effectiveBtcLocked: number,
+    effectiveUnitBorrowed: number,
+    preview: VaultPreview,
+    hasSufficientBtcForFees: boolean,
+    additionalData?: any
+  ) => ValidationResult;
+
+  /** Get empty state configuration */
+  getEmptyState: (
+    effectiveBtcLocked: number,
+    effectiveUnitBorrowed: number,
+    additionalData?: any
+  ) => EmptyStateConfig | null;
+
+  /** Whether to check for min health violation */
+  checksMinHealth: boolean;
+
+  /** VaultChangesCard action type */
+  changesActionType?: 'debt' | 'collateral';
+}
+
+/**
+ * Confirm screen configuration
+ */
+export interface VaultConfirmScreenConfig {
+  /** Operation type */
+  operationType: VaultOperationType;
+
+  /** Screen title */
+  title: string;
+
+  /** Auth prompt message */
+  authMessage: string;
+
+  /** Route names for navigation */
+  routes: VaultRoutes;
+
+  /** Get primary amount from store */
+  getPrimaryAmount: (state: any) => { amount: number; unit: string };
+
+  /** Execute the operation */
+  executeOperation: () => Promise<{ txid: string } | null>;
+
+  /** Get summary rows for the confirm card */
+  getSummaryRows: (state: any, btcPrice: number | null) => SummaryRow[];
+}
+
+/**
+ * Summary row in confirm screen
+ */
+export interface SummaryRow {
+  label: string;
+  currentValue: string | number;
+  currentUnit?: string;
+  newValue?: string | number;
+  newUnit?: string;
+  showArrow?: boolean;
+  valueColor?: string;
+  newValueColor?: string;
+}
+
+/**
+ * Processing screen configuration
+ */
+export interface VaultProcessingScreenConfig {
+  /** Operation type */
+  operationType: VaultOperationType;
+
+  /** Screen title (e.g., "Borrowing UNIT") */
+  title: string;
+
+  /** Subtitle shown while processing */
+  subtitle: string;
+
+  /** Error subtitle */
+  errorSubtitle: string;
+
+  /** Route names for navigation */
+  routes: VaultRoutes;
+
+  /** Get status message for each step */
+  getStatusMessage: (step: number) => string;
+}
+
+/**
+ * Navigation prop type
+ */
+export type VaultScreenNavigationProp = NavigationProp<Record<string, object | undefined>>;

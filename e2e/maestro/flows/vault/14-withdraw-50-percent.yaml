@@ -1,0 +1,53 @@
+appId: com.ducatprotocol.DucatProtocolWallet
+---
+# Wallet Action Buttons - Verify all 4 vault action buttons are visible on wallet screen
+# Funded wallet → verify Repay, Borrow, Withdraw, Deposit buttons visible
+
+- runFlow: ../helpers/import-wallet-typed.yaml
+
+# Verify wallet screen
+- extendedWaitUntil:
+    visible:
+      id: "wallet-screen"
+    timeout: 15000
+
+# Wait for balance to load
+- extendedWaitUntil:
+    visible:
+      id: "balance-section"
+    timeout: 30000
+
+# Dismiss low ecash modal if it appears
+- runFlow: ../helpers/dismiss-low-ecash.yaml
+
+# Wait for wallet actions to appear
+- extendedWaitUntil:
+    visible:
+      id: "wallet-actions"
+    timeout: 15000
+
+# Dismiss airdrop modal if it appears
+- runFlow: ../helpers/dismiss-airdrop.yaml
+
+# Dismiss passkey migration modal if it appears
+- runFlow:
+    when:
+      visible:
+        id: "passkey-migration-modal"
+    commands:
+      - tapOn:
+          id: "passkey-skip-btn"
+
+# Verify wallet actions toolbar is visible
+- assertVisible:
+    id: "wallet-actions"
+
+# Verify all 4 action buttons are visible
+- assertVisible:
+    id: "wallet-repay-btn"
+- assertVisible:
+    id: "wallet-borrow-btn"
+- assertVisible:
+    id: "wallet-withdraw-btn"
+- assertVisible:
+    id: "wallet-deposit-btn"

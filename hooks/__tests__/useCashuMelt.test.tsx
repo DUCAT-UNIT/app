@@ -1,4 +1,3 @@
-// @ts-nocheck
 /**
  * Tests for useCashuMelt hook
  */
@@ -25,31 +24,31 @@ jest.mock('../../services/cashu/cashuWalletService', () => ({
 import { requestMelt, completeMelt } from '../../services/cashu/cashuWalletService';
 
 // Helper to render hooks
-function renderHook(hook) {
-  const result = { current: null };
-  function TestComponent() {
+function renderHook<T>(hook: () => T): { result: { current: T | null }; unmount: () => void; component: ReturnType<typeof create> } {
+  const result: { current: T | null } = { current: null };
+  function TestComponent(): null {
     result.current = hook();
     return null;
   }
-  let component;
+  let component: ReturnType<typeof create> | undefined;
   act(() => {
     component = create(<TestComponent />);
   });
-  return { result, unmount: component.unmount, component };
+  return { result, unmount: component!.unmount, component: component! };
 }
 
 describe('useCashuMelt', () => {
-  let setIsLoading;
-  let setError;
-  let setBalance;
+  let setIsLoading: jest.Mock;
+  let setError: jest.Mock;
+  let setBalance: jest.Mock;
 
   beforeEach(() => {
     jest.clearAllMocks();
     setIsLoading = jest.fn();
     setError = jest.fn();
     setBalance = jest.fn();
-    requestMelt.mockResolvedValue({ quoteId: 'quote123', total: 100 });
-    completeMelt.mockResolvedValue({ txid: 'txid123', balance: 50 });
+    (requestMelt as jest.Mock).mockResolvedValue({ quoteId: 'quote123', total: 100 });
+    (completeMelt as jest.Mock).mockResolvedValue({ txid: 'txid123', balance: 50 });
   });
 
   it('should return startMelt and finishMelt functions', () => {
@@ -57,8 +56,8 @@ describe('useCashuMelt', () => {
       useCashuMelt({ setIsLoading, setError, setBalance })
     );
 
-    expect(typeof result.current.startMelt).toBe('function');
-    expect(typeof result.current.finishMelt).toBe('function');
+    expect(typeof result.current!.startMelt).toBe('function');
+    expect(typeof result.current!.finishMelt).toBe('function');
   });
 
   describe('startMelt', () => {
@@ -69,7 +68,7 @@ describe('useCashuMelt', () => {
 
       let quote;
       await act(async () => {
-        quote = await result.current.startMelt('tb1p...', 100);
+        quote = await result.current!.startMelt('tb1p...', 100);
       });
 
       expect(setIsLoading).toHaveBeenCalledWith(true);
@@ -80,7 +79,7 @@ describe('useCashuMelt', () => {
     });
 
     it('should handle melt request error', async () => {
-      requestMelt.mockRejectedValue(new Error('Request failed'));
+      (requestMelt as jest.Mock).mockRejectedValue(new Error('Request failed'));
 
       const { result } = renderHook(() =>
         useCashuMelt({ setIsLoading, setError, setBalance })
@@ -88,9 +87,9 @@ describe('useCashuMelt', () => {
 
       await act(async () => {
         try {
-          await result.current.startMelt('tb1p...', 100);
+          await result.current!.startMelt('tb1p...', 100);
         } catch (e) {
-          expect(e.message).toBe('Request failed');
+          expect((e as Error).message).toBe('Request failed');
         }
       });
 
@@ -99,7 +98,7 @@ describe('useCashuMelt', () => {
     });
 
     it('should throw error on melt request failure', async () => {
-      requestMelt.mockRejectedValue(new Error('Network error'));
+      (requestMelt as jest.Mock).mockRejectedValue(new Error('Network error'));
 
       const { result } = renderHook(() =>
         useCashuMelt({ setIsLoading, setError, setBalance })
@@ -107,9 +106,27 @@ describe('useCashuMelt', () => {
 
       await expect(
         act(async () => {
-          await result.current.startMelt('tb1p...', 100);
+          await result.current!.startMelt('tb1p...', 100);
         })
       ).rejects.toThrow('Network error');
+    });
+
+    it('should handle non-Error rejection in startMelt', async () => {
+      (requestMelt as jest.Mock).mockRejectedValue('string error');
+
+      const { result } = renderHook(() =>
+        useCashuMelt({ setIsLoading, setError, setBalance })
+      );
+
+      await act(async () => {
+        try {
+          await result.current!.startMelt('tb1p...', 100);
+        } catch {
+          // Expected to throw
+        }
+      });
+
+      expect(setError).toHaveBeenCalledWith('string error');
     });
   });
 
@@ -121,7 +138,7 @@ describe('useCashuMelt', () => {
 
       let meltResult;
       await act(async () => {
-        meltResult = await result.current.finishMelt('quote123', 100);
+        meltResult = await result.current!.finishMelt('quote123', 100);
       });
 
       expect(setIsLoading).toHaveBeenCalledWith(true);
@@ -133,7 +150,7 @@ describe('useCashuMelt', () => {
     });
 
     it('should handle melt completion error', async () => {
-      completeMelt.mockRejectedValue(new Error('Completion failed'));
+      (completeMelt as jest.Mock).mockRejectedValue(new Error('Completion failed'));
 
       const { result } = renderHook(() =>
         useCashuMelt({ setIsLoading, setError, setBalance })
@@ -141,9 +158,9 @@ describe('useCashuMelt', () => {
 
       await act(async () => {
         try {
-          await result.current.finishMelt('quote123', 100);
+          await result.current!.finishMelt('quote123', 100);
         } catch (e) {
-          expect(e.message).toBe('Completion failed');
+          expect((e as Error).message).toBe('Completion failed');
         }
       });
 
@@ -152,7 +169,7 @@ describe('useCashuMelt', () => {
     });
 
     it('should throw error on melt completion failure', async () => {
-      completeMelt.mockRejectedValue(new Error('Transaction failed'));
+      (completeMelt as jest.Mock).mockRejectedValue(new Error('Transaction failed'));
 
       const { result } = renderHook(() =>
         useCashuMelt({ setIsLoading, setError, setBalance })
@@ -160,9 +177,27 @@ describe('useCashuMelt', () => {
 
       await expect(
         act(async () => {
-          await result.current.finishMelt('quote123', 100);
+          await result.current!.finishMelt('quote123', 100);
         })
       ).rejects.toThrow('Transaction failed');
+    });
+
+    it('should handle non-Error rejection in finishMelt', async () => {
+      (completeMelt as jest.Mock).mockRejectedValue('string error');
+
+      const { result } = renderHook(() =>
+        useCashuMelt({ setIsLoading, setError, setBalance })
+      );
+
+      await act(async () => {
+        try {
+          await result.current!.finishMelt('quote123', 100);
+        } catch {
+          // Expected to throw
+        }
+      });
+
+      expect(setError).toHaveBeenCalledWith('string error');
     });
   });
 });

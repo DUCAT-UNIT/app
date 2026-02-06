@@ -1,0 +1,45 @@
+appId: com.ducatprotocol.DucatProtocolWallet
+---
+# Bitcoin Card Visible - Verify Bitcoin asset card is displayed on wallet screen
+# Funded wallet → verify BTC asset card with balance section
+
+- runFlow: ../helpers/import-wallet-typed.yaml
+
+# Verify wallet screen
+- extendedWaitUntil:
+    visible:
+      id: "wallet-screen"
+    timeout: 15000
+
+# Wait for balance to load
+- extendedWaitUntil:
+    visible:
+      id: "balance-section"
+    timeout: 30000
+
+# Dismiss low ecash modal if it appears
+- runFlow: ../helpers/dismiss-low-ecash.yaml
+
+# Dismiss airdrop modal if it appears
+- runFlow: ../helpers/dismiss-airdrop.yaml
+
+# Dismiss passkey migration modal if it appears
+- runFlow:
+    when:
+      visible:
+        id: "passkey-migration-modal"
+    commands:
+      - tapOn:
+          id: "passkey-skip-btn"
+
+# Verify Bitcoin asset card is visible
+- assertVisible:
+    id: "asset-card-btc"
+
+# Verify UNIT asset card also visible
+- assertVisible:
+    id: "asset-card-unit"
+
+# Verify balance section loaded
+- assertVisible:
+    id: "balance-section"

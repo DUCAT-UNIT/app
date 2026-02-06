@@ -36,9 +36,8 @@ export default function RepaySuccessScreen({ navigation, route }: RepaySuccessSc
                 state: {
                   routes: [
                     { name: 'WalletHome' },
-                    { name: 'VaultDetail' },
                   ],
-                  index: 1,
+                  index: 0,
                 },
               },
             ],

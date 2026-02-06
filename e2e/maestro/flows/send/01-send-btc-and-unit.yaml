@@ -1,0 +1,56 @@
+appId: com.ducatprotocol.DucatProtocolWallet
+---
+# Send BTC & UNIT - Verify both send options are accessible
+# Funded wallet → withdraw → verify BTC and UNIT options
+
+- runFlow: ../helpers/import-wallet-typed.yaml
+
+# Verify wallet screen
+- extendedWaitUntil:
+    visible:
+      id: "wallet-screen"
+    timeout: 15000
+
+# Dismiss low ecash modal if it appears
+- runFlow: ../helpers/dismiss-low-ecash.yaml
+
+# Dismiss airdrop modal if it appears
+- runFlow: ../helpers/dismiss-airdrop.yaml
+
+# Dismiss passkey migration modal if it appears
+- runFlow:
+    when:
+      visible:
+        id: "passkey-migration-modal"
+    commands:
+      - tapOn:
+          id: "passkey-skip-btn"
+
+# Wait for wallet actions
+- extendedWaitUntil:
+    visible:
+      id: "wallet-actions"
+    timeout: 15000
+
+# Tap withdraw button
+- tapOn:
+    id: "wallet-withdraw-btn"
+
+# Verify both BTC and UNIT withdraw options are available
+- extendedWaitUntil:
+    visible:
+      id: "withdraw-btc"
+    timeout: 5000
+- assertVisible:
+    id: "withdraw-unit"
+
+# Tap BTC to verify send screen loads
+- tapOn:
+    id: "withdraw-btc"
+- waitForAnimationToEnd
+- extendedWaitUntil:
+    visible:
+      id: "send-input-screen"
+    timeout: 10000
+- assertVisible:
+    text: "Send BTC"

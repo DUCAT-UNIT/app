@@ -1,4 +1,3 @@
-// @ts-nocheck
 /**
  * Tests for cashuReceiveToken
  */
@@ -256,7 +255,7 @@ describe('cashuReceiveToken', () => {
       (isP2PKLocked as jest.Mock).mockReturnValue(true);
       (getP2PKRecipient as jest.Mock).mockReturnValue('pubkey123');
       (getCurrentAccount as jest.Mock).mockResolvedValue(0);
-      (findAccountForP2PKToken as jest.Mock).mockResolvedValue({ accountIndex: 0 }); // Same account
+      (findAccountForP2PKToken as jest.Mock).mockResolvedValue({ accountIndex: 0, privateKey: 'privatekey123' }); // Same account
       (getOrFetchKeys as jest.Mock).mockResolvedValue({
         keysets: [{ id: 'keyset1', keys: { 1: 'key1' } }],
       });

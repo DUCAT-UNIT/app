@@ -1,7 +1,16 @@
-// @ts-nocheck
 /**
  * Tests for cashuMeltOperations
  */
+
+/**
+ * Type for proof objects used in tests
+ */
+interface MockProof {
+  amount: number;
+  secret: string;
+  C: string;
+  id: string;
+}
 
 // Mock dependencies
 jest.mock('../../../../utils/logger', () => ({
@@ -303,9 +312,10 @@ describe('cashuMeltOperations', () => {
     });
 
     it('should cleanup proofs without change', async () => {
-      const proofsToRemove = [{ amount: 64, secret: 's1', C: 'C1', id: 'id1' }];
+      const proofsToRemove: MockProof[] = [{ amount: 64, secret: 's1', C: 'C1', id: 'id1' }];
 
-      await cleanupMeltProofs(proofsToRemove, '' as any);
+      // Pass null for no change proofs
+      await cleanupMeltProofs(proofsToRemove, null);
 
       expect(removeProofs).toHaveBeenCalledWith(proofsToRemove);
       expect(addProofs).not.toHaveBeenCalled();
@@ -314,7 +324,8 @@ describe('cashuMeltOperations', () => {
     it('should throw error on cleanup failure (lines 294-295)', async () => {
       (removeProofs as jest.Mock).mockRejectedValue(new Error('Cleanup failed'));
 
-      await expect(cleanupMeltProofs([{ amount: 64, secret: 's1', C: 'C1', id: 'id1' }], '' as any)).rejects.toThrow('Cleanup failed');
+      const proofsToRemove: MockProof[] = [{ amount: 64, secret: 's1', C: 'C1', id: 'id1' }];
+      await expect(cleanupMeltProofs(proofsToRemove, null)).rejects.toThrow('Cleanup failed');
     });
   });
 });

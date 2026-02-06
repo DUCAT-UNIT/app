@@ -1,0 +1,89 @@
+appId: com.ducatprotocol.DucatProtocolWallet
+---
+# Withdraw Input Screen Verification - Navigate to withdraw input and verify title and vault info
+# Funded wallet → withdraw → vault → verify "Withdraw BTC" title and "Collateral" visible
+
+- runFlow: ../helpers/import-wallet-typed.yaml
+
+# Verify wallet screen
+- extendedWaitUntil:
+    visible:
+      id: "wallet-screen"
+    timeout: 15000
+
+# Wait for balance to load
+- extendedWaitUntil:
+    visible:
+      id: "balance-section"
+    timeout: 30000
+
+# Dismiss low ecash modal if it appears
+- runFlow: ../helpers/dismiss-low-ecash.yaml
+
+# Wait for wallet actions
+- extendedWaitUntil:
+    visible:
+      id: "wallet-actions"
+    timeout: 15000
+
+# Dismiss airdrop modal if it appears
+- runFlow: ../helpers/dismiss-airdrop.yaml
+
+# Dismiss passkey migration modal if it appears
+- runFlow:
+    when:
+      visible:
+        id: "passkey-migration-modal"
+    commands:
+      - tapOn:
+          id: "passkey-skip-btn"
+
+# Tap Withdraw button to open sheet
+- tapOn:
+    id: "wallet-withdraw-btn"
+
+# Wait for sheet
+- extendedWaitUntil:
+    visible:
+      id: "withdraw-btc"
+    timeout: 5000
+
+# Check if vault withdraw option exists
+- runFlow:
+    when:
+      visible:
+        id: "withdraw-vault"
+    commands:
+      - tapOn:
+          id: "withdraw-vault"
+      - waitForAnimationToEnd
+      # Verify withdraw input screen loads
+      - extendedWaitUntil:
+          visible:
+            id: "vault-withdraw-input-screen"
+          timeout: 10000
+      # Verify screen title
+      - assertVisible:
+          text: "Withdraw BTC"
+      # Verify vault info card shows collateral
+      - assertVisible:
+          text: "Collateral"
+
+# If vault withdraw not available, verify BTC send option works
+- runFlow:
+    when:
+      notVisible:
+        id: "vault-withdraw-input-screen"
+    commands:
+      - runFlow:
+          when:
+            visible:
+              id: "withdraw-btc"
+          commands:
+            - tapOn:
+                id: "withdraw-btc"
+            - waitForAnimationToEnd
+            - extendedWaitUntil:
+                visible:
+                  id: "send-input-screen"
+                timeout: 10000

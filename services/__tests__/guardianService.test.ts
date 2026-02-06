@@ -1,4 +1,3 @@
-// @ts-nocheck
 /**
  * Tests for Guardian Service
  */
@@ -155,12 +154,13 @@ describe('guardianService', () => {
       expect(result).toBeInstanceOf(Promise);
       result.catch(() => {}); // Catch the inevitable timeout
     });
+
   });
 
   describe('error handling', () => {
     it('should handle socket error event', async () => {
-      let errorCallback;
-      mockOnce.mockImplementation((event, callback) => {
+      let errorCallback: ((err: unknown) => void) | undefined;
+      mockOnce.mockImplementation((event: string, callback: (err: unknown) => void) => {
         if (event === 'error') {
           errorCallback = callback;
         }
@@ -179,8 +179,8 @@ describe('guardianService', () => {
     });
 
     it('should handle socket error as string', async () => {
-      let errorCallback;
-      mockOnce.mockImplementation((event, callback) => {
+      let errorCallback: ((err: unknown) => void) | undefined;
+      mockOnce.mockImplementation((event: string, callback: (err: unknown) => void) => {
         if (event === 'error') {
           errorCallback = callback;
         }
@@ -199,9 +199,9 @@ describe('guardianService', () => {
     });
 
     it('should handle socket close event', async () => {
-      let closeCallback;
-      let readyCallback;
-      mockOnce.mockImplementation((event, callback) => {
+      let closeCallback: (() => void) | undefined;
+      let readyCallback: (() => void) | undefined;
+      mockOnce.mockImplementation((event: string, callback: () => void) => {
         if (event === 'close') {
           closeCallback = callback;
         }

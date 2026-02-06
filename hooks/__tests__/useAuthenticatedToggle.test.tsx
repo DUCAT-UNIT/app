@@ -1,4 +1,3 @@
-// @ts-nocheck
 /**
  * Tests for useAuthenticatedToggle Hook
  */
@@ -11,22 +10,22 @@ import { useAuthenticatedToggle, useAuthToEnable, useAuthToToggle } from '../use
 import { notify } from '../../utils/notify';
 
 // Helper to render hooks with react-test-renderer
-function renderHook(hook) {
-  const result = { current: null };
+function renderHook<T>(hook: () => T) {
+  const result: { current: T | null } = { current: null };
 
   function TestComponent() {
     result.current = hook();
     return null;
   }
 
-  let component;
+  let component: ReturnType<typeof create> | undefined;
   act(() => {
     component = create(<TestComponent />);
   });
 
   return {
     result,
-    unmount: () => component.unmount(),
+    unmount: () => component?.unmount(),
   };
 }
 
@@ -35,7 +34,17 @@ jest.mock('../../services/biometricService');
 jest.mock('../../services/settingsService');
 
 describe('useAuthenticatedToggle', () => {
-  let mockConfig;
+  let mockConfig: {
+    settingKey: string;
+    settingName: string;
+    currentValue: boolean;
+    onValueChange: jest.Mock;
+    biometricEnabled: boolean;
+    setIsAuthenticated: jest.Mock;
+    pendingEnableKey?: string;
+    authPrompt?: string;
+    requireAuthToDisable?: boolean;
+  };
 
   beforeEach(() => {
     mockConfig = {
@@ -48,42 +57,42 @@ describe('useAuthenticatedToggle', () => {
     };
 
     jest.clearAllMocks();
-    biometricService.authenticateWithBiometrics.mockResolvedValue({ success: true });
-    SettingsService.setBoolean.mockResolvedValue(null);
+    (biometricService.authenticateWithBiometrics as jest.Mock).mockResolvedValue({ success: true });
+    (SettingsService.setBoolean as jest.Mock).mockResolvedValue(null);
   });
 
   describe('Basic functionality', () => {
     it('should initialize with modal hidden', () => {
       const { result } = renderHook(() => useAuthenticatedToggle(mockConfig));
 
-      expect(result.current.showModal).toBe(false);
+      expect(result.current!.showModal).toBe(false);
     });
 
     it('should show modal when handleToggle is called', () => {
       const { result } = renderHook(() => useAuthenticatedToggle(mockConfig));
 
-      expect(result.current.showModal).toBe(false);
+      expect(result.current!.showModal).toBe(false);
 
       act(() => {
-        result.current.handleToggle();
+        result.current!.handleToggle();
       });
 
-      expect(result.current.showModal).toBe(true);
+      expect(result.current!.showModal).toBe(true);
     });
 
     it('should hide modal when cancelToggle is called', () => {
       const { result } = renderHook(() => useAuthenticatedToggle(mockConfig));
 
       act(() => {
-        result.current.handleToggle();
+        result.current!.handleToggle();
       });
-      expect(result.current.showModal).toBe(true);
+      expect(result.current!.showModal).toBe(true);
 
       act(() => {
-        result.current.cancelToggle();
+        result.current!.cancelToggle();
       });
 
-      expect(result.current.showModal).toBe(false);
+      expect(result.current!.showModal).toBe(false);
     });
 
     it('should return all expected properties', () => {
@@ -93,9 +102,9 @@ describe('useAuthenticatedToggle', () => {
       expect(result.current).toHaveProperty('handleToggle');
       expect(result.current).toHaveProperty('confirmToggle');
       expect(result.current).toHaveProperty('cancelToggle');
-      expect(typeof result.current.handleToggle).toBe('function');
-      expect(typeof result.current.confirmToggle).toBe('function');
-      expect(typeof result.current.cancelToggle).toBe('function');
+      expect(typeof result.current!.handleToggle).toBe('function');
+      expect(typeof result.current!.confirmToggle).toBe('function');
+      expect(typeof result.current!.cancelToggle).toBe('function');
     });
   });
 
@@ -109,11 +118,11 @@ describe('useAuthenticatedToggle', () => {
       const { result } = renderHook(() => useAuthenticatedToggle(mockConfig));
 
       act(() => {
-        result.current.handleToggle();
+        result.current!.handleToggle();
       });
 
       await act(async () => {
-        await result.current.confirmToggle();
+        await result.current!.confirmToggle();
       });
 
       expect(biometricService.authenticateWithBiometrics).not.toHaveBeenCalled();
@@ -129,16 +138,16 @@ describe('useAuthenticatedToggle', () => {
     });
 
     it('should enable when biometric auth succeeds', async () => {
-      biometricService.authenticateWithBiometrics.mockResolvedValue({ success: true });
+      (biometricService.authenticateWithBiometrics as jest.Mock).mockResolvedValue({ success: true });
 
       const { result } = renderHook(() => useAuthenticatedToggle(mockConfig));
 
       act(() => {
-        result.current.handleToggle();
+        result.current!.handleToggle();
       });
 
       await act(async () => {
-        await result.current.confirmToggle();
+        await result.current!.confirmToggle();
       });
 
       expect(biometricService.authenticateWithBiometrics).toHaveBeenCalledWith(
@@ -160,11 +169,11 @@ describe('useAuthenticatedToggle', () => {
       const { result } = renderHook(() => useAuthenticatedToggle(mockConfig));
 
       act(() => {
-        result.current.handleToggle();
+        result.current!.handleToggle();
       });
 
       await act(async () => {
-        await result.current.confirmToggle();
+        await result.current!.confirmToggle();
       });
 
       expect(biometricService.authenticateWithBiometrics).toHaveBeenCalledWith(
@@ -174,16 +183,16 @@ describe('useAuthenticatedToggle', () => {
     });
 
     it('should redirect to PIN when biometric auth fails', async () => {
-      biometricService.authenticateWithBiometrics.mockResolvedValue({ success: false });
+      (biometricService.authenticateWithBiometrics as jest.Mock).mockResolvedValue({ success: false });
 
       const { result } = renderHook(() => useAuthenticatedToggle(mockConfig));
 
       act(() => {
-        result.current.handleToggle();
+        result.current!.handleToggle();
       });
 
       await act(async () => {
-        await result.current.confirmToggle();
+        await result.current!.confirmToggle();
       });
 
       expect(SettingsService.setBoolean).toHaveBeenCalledWith('pendingTestSettingEnable', true);
@@ -197,32 +206,32 @@ describe('useAuthenticatedToggle', () => {
 
     it('should use custom pendingEnableKey when provided', async () => {
       mockConfig.pendingEnableKey = 'customPendingKey';
-      biometricService.authenticateWithBiometrics.mockResolvedValue({ success: false });
+      (biometricService.authenticateWithBiometrics as jest.Mock).mockResolvedValue({ success: false });
 
       const { result } = renderHook(() => useAuthenticatedToggle(mockConfig));
 
       act(() => {
-        result.current.handleToggle();
+        result.current!.handleToggle();
       });
 
       await act(async () => {
-        await result.current.confirmToggle();
+        await result.current!.confirmToggle();
       });
 
       expect(SettingsService.setBoolean).toHaveBeenCalledWith('customPendingKey', true);
     });
 
     it('should handle biometric authentication errors', async () => {
-      biometricService.authenticateWithBiometrics.mockRejectedValue(new Error('Auth error'));
+      (biometricService.authenticateWithBiometrics as jest.Mock).mockRejectedValue(new Error('Auth error'));
 
       const { result } = renderHook(() => useAuthenticatedToggle(mockConfig));
 
       act(() => {
-        result.current.handleToggle();
+        result.current!.handleToggle();
       });
 
       await act(async () => {
-        await result.current.confirmToggle();
+        await result.current!.confirmToggle();
       });
 
       expect(notify.auth.required).toHaveBeenCalled();
@@ -239,11 +248,11 @@ describe('useAuthenticatedToggle', () => {
       const { result } = renderHook(() => useAuthenticatedToggle(mockConfig));
 
       act(() => {
-        result.current.handleToggle();
+        result.current!.handleToggle();
       });
 
       await act(async () => {
-        await result.current.confirmToggle();
+        await result.current!.confirmToggle();
       });
 
       expect(biometricService.authenticateWithBiometrics).not.toHaveBeenCalled();
@@ -267,11 +276,11 @@ describe('useAuthenticatedToggle', () => {
       const { result } = renderHook(() => useAuthenticatedToggle(mockConfig));
 
       act(() => {
-        result.current.handleToggle();
+        result.current!.handleToggle();
       });
 
       await act(async () => {
-        await result.current.confirmToggle();
+        await result.current!.confirmToggle();
       });
 
       expect(biometricService.authenticateWithBiometrics).toHaveBeenCalledWith(
@@ -287,16 +296,16 @@ describe('useAuthenticatedToggle', () => {
     it('should handle settings save errors', async () => {
       // Disabling doesn't need auth, so it goes straight to save which will fail
       mockConfig.currentValue = true;
-      SettingsService.setBoolean.mockRejectedValue(new Error('Storage error'));
+      (SettingsService.setBoolean as jest.Mock).mockRejectedValue(new Error('Storage error'));
 
       const { result } = renderHook(() => useAuthenticatedToggle(mockConfig));
 
       act(() => {
-        result.current.handleToggle();
+        result.current!.handleToggle();
       });
 
       await act(async () => {
-        await result.current.confirmToggle();
+        await result.current!.confirmToggle();
       });
 
       expect(notify.settings.failed).toHaveBeenCalled();
@@ -318,11 +327,11 @@ describe('useAuthenticatedToggle', () => {
 
       // Start disable (should NOT require auth)
       act(() => {
-        result.current.handleToggle();
+        result.current!.handleToggle();
       });
 
       await act(async () => {
-        await result.current.confirmToggle();
+        await result.current!.confirmToggle();
       });
 
       // Should disable without authentication
@@ -344,11 +353,11 @@ describe('useAuthenticatedToggle', () => {
 
       // Start disable (SHOULD require auth)
       act(() => {
-        result.current.handleToggle();
+        result.current!.handleToggle();
       });
 
       await act(async () => {
-        await result.current.confirmToggle();
+        await result.current!.confirmToggle();
       });
 
       // Should require authentication even for disable

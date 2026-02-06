@@ -18,7 +18,7 @@ export default function SeedPhraseDisplay({
   onCancel,
 }: SeedPhraseDisplayProps) {
   return (
-    <View style={styles.walletInfo}>
+    <View style={styles.walletInfo} testID="seed-display-screen">
       <Text style={styles.stepIndicator}>Step 2 of 4</Text>
 
       <Text style={styles.label}>Write down these 12 words:</Text>
@@ -27,20 +27,21 @@ export default function SeedPhraseDisplay({
         {seedWords.map((word, index) => (
           <View key={index} style={styles.seedBox}>
             <Text style={styles.seedNumber}>{index + 1}</Text>
-            <Text style={styles.seedWord}>{word}</Text>
+            <Text style={styles.seedWord} testID={`seed-word-${index}`}>{word}</Text>
           </View>
         ))}
       </View>
 
       <Text style={styles.warning}>⚠️ Write them down and keep them safe!</Text>
 
-      <TouchableOpacity style={styles.button} onPress={onContinue}>
+      <TouchableOpacity style={styles.button} onPress={onContinue} testID="seed-display-continue-btn">
         <Text style={styles.buttonText}>I've Written Them Down</Text>
       </TouchableOpacity>
 
       <TouchableOpacity
         style={[styles.button, styles.secondaryButton]}
         onPress={onCancel}
+        testID="seed-display-cancel-btn"
       >
         <Text style={styles.buttonText}>Cancel</Text>
       </TouchableOpacity>

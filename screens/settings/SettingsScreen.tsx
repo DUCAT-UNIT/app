@@ -121,11 +121,18 @@ const SettingsScreen = React.memo(function SettingsScreen({
   return (
     <View style={localStyles.container} testID="settings-screen">
       {/* Header with back button and title on same line */}
-      <View style={localStyles.header}>
-        <TouchableOpacity onPress={onClose} style={localStyles.backButton} testID="settings-back-btn">
+      <View style={localStyles.header} accessibilityRole="header">
+        <TouchableOpacity
+          onPress={onClose}
+          style={localStyles.backButton}
+          testID="settings-back-btn"
+          accessibilityRole="button"
+          accessibilityLabel="Go back"
+          accessibilityHint="Returns to the previous screen"
+        >
           <Icon name="back" size={24} color={COLORS.VERY_LIGHT_GRAY} />
         </TouchableOpacity>
-        <Text style={localStyles.title}>Settings</Text>
+        <Text style={localStyles.title} accessibilityRole="header">Settings</Text>
       </View>
 
       <ScrollView style={localStyles.scrollView} showsVerticalScrollIndicator={false}>
@@ -177,8 +184,12 @@ const SettingsScreen = React.memo(function SettingsScreen({
                 disabled={isClearing}
                 activeOpacity={0.7}
                 testID="settings-clear-cache-btn"
+                accessibilityRole="button"
+                accessibilityLabel="Clear app cache"
+                accessibilityHint="Fixes issues with tokens and data. Will prompt for confirmation."
+                accessibilityState={{ disabled: isClearing }}
               >
-                <View style={localStyles.optionLeft}>
+                <View style={localStyles.optionLeft} accessibilityElementsHidden>
                   <Icon name="delete" size={24} color={COLORS.DANGER_RED} />
                   <View>
                     <Text style={localStyles.dangerText}>Clear App Cache</Text>
@@ -186,7 +197,7 @@ const SettingsScreen = React.memo(function SettingsScreen({
                   </View>
                 </View>
                 {isClearing && (
-                  <ActivityIndicator size="small" color={COLORS.DANGER_RED} />
+                  <ActivityIndicator size="small" color={COLORS.DANGER_RED} accessibilityElementsHidden />
                 )}
               </TouchableOpacity>
             </View>
@@ -207,12 +218,19 @@ const SettingsOption = React.memo(function SettingsOption({
   testID
 }: SettingsOptionProps): React.ReactElement {
   return (
-    <TouchableOpacity style={localStyles.option} onPress={onPress} testID={testID}>
-      <View style={localStyles.optionLeft}>
+    <TouchableOpacity
+      style={localStyles.option}
+      onPress={onPress}
+      testID={testID}
+      accessibilityRole="button"
+      accessibilityLabel={title}
+      accessibilityHint={`Open ${title} settings`}
+    >
+      <View style={localStyles.optionLeft} accessibilityElementsHidden>
         <Icon name={iconName} size={24} color={isDanger ? COLORS.DANGER_RED : '#DDDDDD'} />
         <Text style={[localStyles.optionTitle, isDanger && localStyles.dangerText]}>{title}</Text>
       </View>
-      <View style={localStyles.optionRight}>
+      <View style={localStyles.optionRight} accessibilityElementsHidden>
         {rightText && <Text style={localStyles.optionRightText}>{rightText}</Text>}
         <Text style={localStyles.optionArrow}>›</Text>
       </View>
