@@ -3,7 +3,7 @@
  * Calculates balance-related values for send flow
  */
 
-import { useMemo } from 'react';
+import { useMemo, useRef } from 'react';
 import { useBalance } from '../../../contexts/WalletDataContext';
 import { useCashu } from '../../../contexts/CashuContext';
 import { getRunesAmount } from '../../../utils/runesHelper';
@@ -39,7 +39,14 @@ export function useSendBalances({
 
   // For UNIT, combine on-chain runes balance + ecash balance
   // Runes come in display units, ecash is in smallest units (needs /100)
-  const unitRunesBalance = useMemo(() => getRunesAmount(runesBalance), [runesBalance]);
+  const rawRunes = useMemo(() => getRunesAmount(runesBalance), [runesBalance]);
+  // E2E bypass: Ord indexer on Mutinynet is intermittent — cache last known
+  // non-zero Runes balance so the send screen stays usable between polls.
+  const lastKnownRunes = useRef(0);
+  if (rawRunes > 0) lastKnownRunes.current = rawRunes;
+  const unitRunesBalance = (__DEV__ && process.env.EXPO_PUBLIC_E2E_BYPASS === 'true')
+    ? (rawRunes > 0 ? rawRunes : lastKnownRunes.current)
+    : rawRunes;
   const unitBalance = unitRunesBalance + ((cashuBalance || 0) / 100);
 
   // For BTC: max sendable = balance - fee
