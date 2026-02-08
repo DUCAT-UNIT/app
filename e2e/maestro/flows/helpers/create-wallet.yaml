@@ -1,0 +1,93 @@
+appId: com.ducatprotocol.DucatProtocolWallet
+---
+# Create a fresh wallet with airdrop funding
+# clearState → welcome → intro → seed display → verify (bypassed) → PIN → airdrop → wallet
+# Each test gets a unique wallet with fresh BTC from Mutinynet airdrop
+
+- runFlow: clear-and-launch.yaml
+
+# Wait for welcome screen to be fully interactive
+- waitForAnimationToEnd
+
+# Tap create button — first tap may dismiss Expo Dev Client overlay
+- tapOn:
+    id: "welcome-create-wallet-btn"
+
+# If overlay intercepted first tap, we're still on welcome screen — retry
+- runFlow:
+    when:
+      visible:
+        id: "welcome-screen"
+    commands:
+      - tapOn:
+          id: "welcome-create-wallet-btn"
+
+# Wallet Created Intro screen (wallet generation may take a few seconds)
+- extendedWaitUntil:
+    visible:
+      id: "intro-screen"
+    timeout: 30000
+- tapOn:
+    id: "intro-continue-btn"
+
+# Seed phrase display
+- assertVisible:
+    id: "seed-display-screen"
+- tapOn:
+    id: "seed-display-continue-btn"
+
+# Seed verification - tap verify (E2E bypass auto-passes)
+- assertVisible:
+    id: "seed-verify-screen"
+- tapOn:
+    id: "seed-verify-btn"
+
+# PIN setup - enter PIN twice
+- assertVisible:
+    id: "pin-setup-title"
+- runFlow: enter-pin-setup.yaml
+- runFlow: enter-pin-setup.yaml
+
+# Skip biometric if prompted
+- runFlow:
+    when:
+      visible:
+        id: "biometric-modal"
+    commands:
+      - tapOn:
+          id: "biometric-skip-btn"
+
+# Skip passkey migration if prompted
+- runFlow:
+    when:
+      visible:
+        id: "passkey-migration-modal"
+    commands:
+      - tapOn:
+          id: "passkey-skip-btn"
+
+# Accept airdrop — tapping "Get Started" dismisses the airdrop success modal
+# The airdrop funds the wallet with BTC on Mutinynet automatically
+- runFlow: dismiss-airdrop.yaml
+
+# Dismiss low ecash modal if it appears
+- runFlow: dismiss-low-ecash.yaml
+
+# Verify wallet screen loads
+- extendedWaitUntil:
+    visible:
+      id: "wallet-screen"
+    timeout: 15000
+
+# Wait for balance section to appear
+- extendedWaitUntil:
+    visible:
+      id: "balance-section"
+    timeout: 30000
+
+# Wait for airdrop BTC to arrive (~30s on Mutinynet)
+# Airdrop gives 0.1 BTC — wait for the BTC amount to appear in the balance
+- extendedWaitUntil:
+    visible:
+      text: "0.10000000"
+    timeout: 90000

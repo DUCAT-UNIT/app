@@ -1,0 +1,55 @@
+appId: com.ducatprotocol.DucatProtocolWallet
+---
+# Vault Borrow - Two separate on-chain transactions:
+#   1. Create vault (HALF BTC deposit + QTR UNIT borrow) via helper
+#   2. Borrow additional UNIT from the existing vault
+# Requires vault to be confirmed on-chain before second borrow
+
+# Step 1: Create wallet, create vault, wait for on-chain confirmation
+- runFlow: ../helpers/create-wallet-with-vault.yaml
+
+# Wallet action buttons should now be visible (helper scrolls back to top)
+# Borrow button enabled: isPendingVaultTx=false, hasDebt=true, health>160%
+- extendedWaitUntil:
+    visible:
+      id: "wallet-borrow-btn"
+    timeout: 10000
+
+# Step 2: Borrow additional UNIT (second on-chain transaction)
+- tapOn:
+    id: "wallet-borrow-btn"
+
+# Wait for borrow input screen
+- extendedWaitUntil:
+    visible:
+      id: "vault-borrow-input-screen"
+    timeout: 10000
+
+# Select QTR UNIT to borrow (conservative to maintain health)
+- tapOn:
+    id: "unit-slider-quarter-btn"
+- waitForAnimationToEnd
+
+# Continue to confirm
+- tapOn:
+    id: "vault-borrow-continue-btn"
+- extendedWaitUntil:
+    visible:
+      id: "vault-borrow-confirm-screen"
+    timeout: 10000
+
+# Confirm & Sign
+- tapOn:
+    id: "vault-borrow-confirm-btn"
+
+# Wait for success (skip transient processing screen)
+- extendedWaitUntil:
+    visible:
+      id: "vault-borrow-success-screen"
+    timeout: 120000
+- assertVisible:
+    text: "Borrow Complete!"
+
+# Tap Done
+- tapOn:
+    id: "vault-success-done-btn"

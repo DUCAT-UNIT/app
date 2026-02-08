@@ -1,0 +1,60 @@
+appId: com.ducatprotocol.DucatProtocolWallet
+---
+# Send Zero Amount - Verify review button blocked without selecting amount
+# Opens send screen, enters valid address, skips amount selection → review disabled
+
+- runFlow: ../helpers/create-wallet.yaml
+
+- waitForAnimationToEnd
+- waitForAnimationToEnd
+
+# Wait for funded balance
+- extendedWaitUntil:
+    visible:
+      text: "0.10000000"
+    timeout: 30000
+
+- extendedWaitUntil:
+    visible:
+      id: "wallet-actions"
+    timeout: 15000
+
+# Open send BTC screen
+- tapOn:
+    id: "wallet-withdraw-btn"
+- waitForAnimationToEnd
+- extendedWaitUntil:
+    visible:
+      id: "withdraw-btc"
+    timeout: 10000
+- tapOn:
+    id: "withdraw-btc"
+
+- waitForAnimationToEnd
+- extendedWaitUntil:
+    visible:
+      id: "send-input-screen"
+    timeout: 10000
+
+# Enter valid address but DON'T select any amount
+- extendedWaitUntil:
+    visible:
+      text: "Recipient Bitcoin address.*"
+    timeout: 5000
+- tapOn:
+    text: "Recipient Bitcoin address.*"
+- inputText: "tb1qw508d6qejxtdg4y5r3zarvary0c5xw7kxpjzsx"
+- hideKeyboard
+
+- extendedWaitUntil:
+    visible:
+      text: "Valid"
+    timeout: 5000
+
+# Tap review button without selecting amount — should not navigate
+- tapOn:
+    id: "send-review-btn"
+
+# Should still be on send input screen (review button was disabled)
+- assertVisible:
+    id: "send-input-screen"

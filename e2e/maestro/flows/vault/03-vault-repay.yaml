@@ -1,0 +1,55 @@
+appId: com.ducatprotocol.DucatProtocolWallet
+---
+# Vault Repay - Create vault with UNIT debt, then repay some UNIT
+#   1. Create wallet + vault (HALF BTC + QTR UNIT borrow) via helper
+#   2. Repay portion of UNIT debt back to vault
+# After vault creation, wallet has QTR UNIT available to repay
+
+# Step 1: Create wallet, create vault, wait for on-chain confirmation
+- runFlow: ../helpers/create-wallet-with-vault.yaml
+
+# Wallet action buttons should now be visible (helper scrolls back to top)
+# Repay button enabled: isPendingVaultTx=false, hasDebt=true (QTR UNIT)
+- extendedWaitUntil:
+    visible:
+      id: "wallet-repay-btn"
+    timeout: 10000
+
+# Step 2: Repay UNIT debt
+- tapOn:
+    id: "wallet-repay-btn"
+
+# Wait for repay input screen
+- extendedWaitUntil:
+    visible:
+      id: "vault-repay-input-screen"
+    timeout: 10000
+
+# Select QTR UNIT to repay (partial repayment of debt)
+- tapOn:
+    id: "unit-slider-quarter-btn"
+- waitForAnimationToEnd
+
+# Continue to confirm
+- tapOn:
+    id: "vault-repay-continue-btn"
+- extendedWaitUntil:
+    visible:
+      id: "vault-repay-confirm-screen"
+    timeout: 10000
+
+# Confirm & Sign
+- tapOn:
+    id: "vault-repay-confirm-btn"
+
+# Wait for success (skip transient processing screen)
+- extendedWaitUntil:
+    visible:
+      id: "vault-repay-success-screen"
+    timeout: 120000
+- assertVisible:
+    text: "Repayment Complete!"
+
+# Tap Done
+- tapOn:
+    id: "vault-success-done-btn"

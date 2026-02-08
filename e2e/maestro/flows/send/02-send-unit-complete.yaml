@@ -1,0 +1,94 @@
+appId: com.ducatprotocol.DucatProtocolWallet
+---
+# Send UNIT Complete - Full UNIT send flow to confirmation
+# Creates vault first (to get UNIT via borrow), then sends UNIT to a taproot address
+#   1. Create wallet + vault (HALF BTC + QTR UNIT borrow) via helper
+#   2. Send UNIT to a valid taproot address
+
+# Step 1: Create wallet, create vault, wait for on-chain confirmation
+# After this, wallet has QTR UNIT from vault borrow
+- runFlow: ../helpers/create-wallet-with-vault.yaml
+
+# Wallet action buttons should now be visible (helper scrolls back to top)
+- extendedWaitUntil:
+    visible:
+      id: "wallet-actions"
+    timeout: 15000
+
+# Step 2: Send UNIT
+# Open withdraw sheet and select UNIT
+- tapOn:
+    id: "wallet-withdraw-btn"
+- waitForAnimationToEnd
+- extendedWaitUntil:
+    visible:
+      id: "withdraw-unit"
+    timeout: 10000
+- tapOn:
+    id: "withdraw-unit"
+
+# Verify send UNIT screen loads
+- waitForAnimationToEnd
+- extendedWaitUntil:
+    visible:
+      id: "send-input-screen"
+    timeout: 10000
+
+# Enter a valid taproot address (required for Runes/UNIT)
+- extendedWaitUntil:
+    visible:
+      text: "Recipient Bitcoin address.*"
+    timeout: 5000
+- tapOn:
+    text: "Recipient Bitcoin address.*"
+- inputText: "tb1pqqqqp399et2xygdj5xreqhjjvcmzhxw4aywxecjdzew6hylgvsesf3hn0c"
+- hideKeyboard
+
+# Wait for address validation
+- extendedWaitUntil:
+    visible:
+      text: "Valid"
+    timeout: 5000
+
+# Select QTR amount of available UNIT
+- tapOn:
+    id: "unit-slider-quarter-btn"
+- waitForAnimationToEnd
+
+# Tap review button
+- extendedWaitUntil:
+    visible:
+      text: "Review transaction"
+    timeout: 5000
+- tapOn:
+    text: "Review transaction"
+
+# Wait for review screen
+- extendedWaitUntil:
+    visible:
+      id: "review-screen"
+    timeout: 10000
+- assertVisible:
+    text: "You will send"
+
+# Confirm and sign
+- tapOn:
+    text: "Confirm and Sign"
+
+# Wait for confirmation screen (processing may flash too quickly)
+- extendedWaitUntil:
+    visible:
+      id: "confirmation-screen"
+    timeout: 120000
+
+# Verify success
+- assertVisible:
+    text: "Transaction Sent!"
+
+# Tap Done and verify wallet screen
+- tapOn:
+    id: "confirmation-done-btn"
+- extendedWaitUntil:
+    visible:
+      id: "wallet-screen"
+    timeout: 10000

@@ -1,0 +1,64 @@
+appId: com.ducatprotocol.DucatProtocolWallet
+---
+# Vault Withdraw - Create vault, then withdraw BTC collateral
+#   1. Create wallet + vault (HALF BTC + QTR UNIT borrow) via helper
+#   2. Withdraw BTC from vault collateral back to wallet
+# Max withdrawable respects health factor constraint (must stay >= 160%)
+
+# Step 1: Create wallet, create vault, wait for on-chain confirmation
+- runFlow: ../helpers/create-wallet-with-vault.yaml
+
+# Wallet action buttons should now be visible (helper scrolls back to top)
+- extendedWaitUntil:
+    visible:
+      id: "wallet-actions"
+    timeout: 10000
+
+# Step 2: Withdraw BTC from vault
+# Tap Withdraw button to open transfer sheet
+- tapOn:
+    id: "wallet-withdraw-btn"
+- waitForAnimationToEnd
+
+# Select vault withdrawal option (visible because hasVault=true)
+- extendedWaitUntil:
+    visible:
+      id: "withdraw-vault"
+    timeout: 10000
+- tapOn:
+    id: "withdraw-vault"
+
+# Wait for vault withdraw input screen
+- extendedWaitUntil:
+    visible:
+      id: "vault-withdraw-input-screen"
+    timeout: 10000
+
+# Select QTR BTC to withdraw (conservative to maintain health)
+- tapOn:
+    id: "btc-slider-quarter-btn"
+- waitForAnimationToEnd
+
+# Continue to confirm
+- tapOn:
+    id: "vault-withdraw-continue-btn"
+- extendedWaitUntil:
+    visible:
+      id: "vault-withdraw-confirm-screen"
+    timeout: 10000
+
+# Confirm & Sign
+- tapOn:
+    id: "vault-withdraw-confirm-btn"
+
+# Wait for success (skip transient processing screen)
+- extendedWaitUntil:
+    visible:
+      id: "vault-withdraw-success-screen"
+    timeout: 120000
+- assertVisible:
+    text: "Withdrawal Complete!"
+
+# Tap Done
+- tapOn:
+    id: "vault-success-done-btn"

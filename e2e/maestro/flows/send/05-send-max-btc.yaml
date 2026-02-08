@@ -1,0 +1,84 @@
+appId: com.ducatprotocol.DucatProtocolWallet
+---
+# Send Max BTC - Full UTXO drain with MAX amount
+# Tests edge case: fee calculation when sending entire balance
+
+- runFlow: ../helpers/create-wallet.yaml
+
+- waitForAnimationToEnd
+- waitForAnimationToEnd
+
+- extendedWaitUntil:
+    visible:
+      id: "wallet-actions"
+    timeout: 15000
+
+# Open send BTC screen
+- tapOn:
+    id: "wallet-withdraw-btn"
+- waitForAnimationToEnd
+- extendedWaitUntil:
+    visible:
+      id: "withdraw-btc"
+    timeout: 10000
+- tapOn:
+    id: "withdraw-btc"
+
+- waitForAnimationToEnd
+- extendedWaitUntil:
+    visible:
+      id: "send-input-screen"
+    timeout: 10000
+
+# Enter a valid testnet address
+- extendedWaitUntil:
+    visible:
+      text: "Recipient Bitcoin address.*"
+    timeout: 5000
+- tapOn:
+    text: "Recipient Bitcoin address.*"
+- inputText: "tb1qw508d6qejxtdg4y5r3zarvary0c5xw7kxpjzsx"
+- hideKeyboard
+
+- extendedWaitUntil:
+    visible:
+      text: "Valid"
+    timeout: 5000
+
+# Select MAX amount (full UTXO drain)
+- tapOn:
+    id: "btc-slider-max-btn"
+- waitForAnimationToEnd
+
+# Review and confirm
+- extendedWaitUntil:
+    visible:
+      text: "Review transaction"
+    timeout: 5000
+- tapOn:
+    text: "Review transaction"
+
+- extendedWaitUntil:
+    visible:
+      id: "review-screen"
+    timeout: 10000
+- assertVisible:
+    text: "You will send"
+
+- tapOn:
+    text: "Confirm and Sign"
+
+- extendedWaitUntil:
+    visible:
+      id: "confirmation-screen"
+    timeout: 120000
+
+- assertVisible:
+    text: "Transaction Sent!"
+
+- tapOn:
+    id: "confirmation-done-btn"
+- extendedWaitUntil:
+    visible:
+      id: "wallet-screen"
+    timeout: 10000
