@@ -30,6 +30,7 @@ export function TurboToggle({
           onValueChange={onToggle}
           trackColor={{ false: colors.bg.tertiary, true: colors.brand.primary }}
           thumbColor={colors.text.white}
+          testID="send-turbo-toggle"
           accessibilityLabel="Enable Turbo UNIT"
           accessibilityRole="switch"
           accessibilityState={{ checked: enabled }}

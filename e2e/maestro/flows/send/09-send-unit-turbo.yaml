@@ -1,0 +1,105 @@
+appId: com.ducatprotocol.DucatProtocolWallet
+---
+# Send UNIT with Turbo — InsufficientTurboSheet interaction test
+# Verifies the Turbo UNIT flow when ecash balance is insufficient:
+#   1. Create wallet + vault (has UNIT from borrow, but NO ecash)
+#   2. Open UNIT send with Turbo enabled (default)
+#   3. InsufficientTurboSheet appears on Review (ecash = 0)
+#   4. Verify both buttons are accessible, then tap "Send Normally"
+#   5. Complete on-chain UNIT send through ReviewScreen
+# NOTE: Full Turbo mint flow (Use Turbo UNIT → mint → P2PK) cannot be tested
+# E2E until Cashu mint supports the 'unit' currency. This test verifies the
+# sheet UX and the Send Normally fallback path.
+
+# Step 1: Create wallet with vault
+- runFlow: ../helpers/create-wallet-with-vault.yaml
+
+- extendedWaitUntil:
+    visible:
+      id: "wallet-actions"
+    timeout: 15000
+
+# Step 2: Open UNIT send
+- tapOn:
+    id: "wallet-withdraw-btn"
+- waitForAnimationToEnd
+- waitForAnimationToEnd
+- assertVisible:
+    id: "withdraw-unit"
+- tapOn:
+    id: "withdraw-unit"
+
+- waitForAnimationToEnd
+- waitForAnimationToEnd
+- assertVisible:
+    id: "send-input-screen"
+
+# Enter a valid taproot address (required for Runes/UNIT)
+- tapOn:
+    text: "Recipient Bitcoin address.*"
+- inputText: "tb1pqqqqp399et2xygdj5xreqhjjvcmzhxw4aywxecjdzew6hylgvsesf3hn0c"
+- hideKeyboard
+
+- extendedWaitUntil:
+    visible:
+      text: "Valid"
+    timeout: 10000
+
+# Select QTR amount of UNIT
+- tapOn:
+    id: "unit-slider-quarter-btn"
+- waitForAnimationToEnd
+
+# Verify Turbo toggle is visible and ON by default
+- assertVisible:
+    id: "send-turbo-toggle"
+
+# Step 3: Tap Review — InsufficientTurboSheet appears (no ecash balance)
+- tapOn:
+    text: "Review transaction"
+
+# Wait for async ecash balance check + BottomSheet render
+- waitForAnimationToEnd
+- waitForAnimationToEnd
+
+# Step 4: Verify InsufficientTurboSheet buttons are accessible
+# BottomSheet has E2E bypass (View overlay instead of Modal) for Maestro accessibility
+- extendedWaitUntil:
+    visible:
+      id: "turbo-use-turbo-btn"
+    timeout: 30000
+- assertVisible:
+    id: "turbo-send-normally-btn"
+
+# Tap "Send Normally" to proceed with on-chain send
+- tapOn:
+    id: "turbo-send-normally-btn"
+- waitForAnimationToEnd
+
+# Step 5: ReviewScreen should appear for the on-chain UNIT send
+- extendedWaitUntil:
+    visible:
+      id: "review-screen"
+    timeout: 10000
+- assertVisible:
+    text: "You will send"
+
+# Confirm and sign
+- tapOn:
+    text: "Confirm and Sign"
+
+# Wait for on-chain confirmation
+- extendedWaitUntil:
+    visible:
+      id: "confirmation-screen"
+    timeout: 120000
+
+# Verify success and return to wallet
+- assertVisible:
+    text: "Transaction Sent!"
+- tapOn:
+    id: "confirmation-done-btn"
+- extendedWaitUntil:
+    visible:
+      id: "wallet-screen"
+    timeout: 10000

@@ -1,0 +1,81 @@
+appId: com.ducatprotocol.DucatProtocolWallet
+---
+# Cashu Mint Screen - Navigate to mint flow and verify UI elements
+# Import wallet → settings → cashu → redeem → choose mint → verify mint input screen
+
+- runFlow: ../helpers/import-wallet-typed.yaml
+
+# Wait for wallet screen
+- extendedWaitUntil:
+    visible:
+      id: "wallet-screen"
+    timeout: 15000
+- runFlow: ../helpers/dismiss-low-ecash.yaml
+- runFlow: ../helpers/dismiss-airdrop.yaml
+- runFlow:
+    when:
+      visible:
+        id: "passkey-migration-modal"
+    commands:
+      - tapOn:
+          id: "passkey-skip-btn"
+
+# Navigate to settings
+- tapOn:
+    id: "wallet-settings-btn"
+- extendedWaitUntil:
+    visible:
+      id: "settings-screen"
+    timeout: 5000
+
+# Enable dev mode (required for cashu settings)
+- tapOn:
+    id: "settings-advanced-btn"
+- extendedWaitUntil:
+    visible:
+      id: "advanced-screen"
+    timeout: 5000
+- tapOn:
+    id: "advanced-dev-mode-btn"
+- tapOn:
+    id: "advanced-back-btn"
+- extendedWaitUntil:
+    visible:
+      id: "settings-screen"
+    timeout: 5000
+
+# Open Cashu settings
+- tapOn:
+    id: "settings-cashu-btn"
+- extendedWaitUntil:
+    visible:
+      id: "cashu-settings-screen"
+    timeout: 5000
+
+# Tap Redeem Token to open CashuReceiveScreen
+- tapOn:
+    id: "cashu-redeem-token-btn"
+- waitForAnimationToEnd
+- extendedWaitUntil:
+    visible:
+      id: "cashu-receive-screen"
+    timeout: 10000
+
+# Choose Mint option
+- tapOn:
+    id: "cashu-receive-mint-btn"
+- waitForAnimationToEnd
+
+# Verify mint amount input screen UI elements
+- extendedWaitUntil:
+    visible:
+      id: "cashu-mint-screen"
+    timeout: 10000
+- assertVisible:
+    id: "cashu-mint-amount-input"
+- assertVisible:
+    id: "cashu-mint-btn"
+
+# Verify the screen title text is present
+- assertVisible:
+    text: "Mint Turbo UNIT"

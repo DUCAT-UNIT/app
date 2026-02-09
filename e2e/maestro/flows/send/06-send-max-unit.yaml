@@ -47,6 +47,11 @@ appId: com.ducatprotocol.DucatProtocolWallet
     id: "unit-slider-max-btn"
 - waitForAnimationToEnd
 
+# Disable Turbo toggle (enabled by default) to send on-chain
+- tapOn:
+    id: "send-turbo-toggle"
+- waitForAnimationToEnd
+
 # Review and confirm
 - extendedWaitUntil:
     visible:

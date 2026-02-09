@@ -61,11 +61,8 @@ export function useTurboReview({
     }
 
     // Auto-enable Turbo for UNIT transactions less than threshold
-    // E2E bypass: No Cashu mint on Mutinynet — force on-chain send
     let shouldUseTurbo = turboEnabled;
-    if (__DEV__ && process.env.EXPO_PUBLIC_E2E_BYPASS === 'true') {
-      shouldUseTurbo = false;
-    } else if (sendAssetType === 'unit') {
+    if (sendAssetType === 'unit') {
       const displayAmount = parseFloat(sendAmount);
       if (displayAmount < ecashThreshold && !turboEnabled) {
         logger.debug(`[useTurboReview] Auto-enabling Turbo for < ${ecashThreshold} UNIT`);

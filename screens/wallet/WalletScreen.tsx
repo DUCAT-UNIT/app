@@ -295,6 +295,7 @@ const WalletScreen = React.memo(function WalletScreen({
           />
         </View>
 
+
         {/* DUCAT Card - Non-clickable */}
         {showZeroAssets && (
           <View style={{ paddingHorizontal: s(24) }}>

@@ -55,6 +55,11 @@ appId: com.ducatprotocol.DucatProtocolWallet
     id: "unit-slider-quarter-btn"
 - waitForAnimationToEnd
 
+# Disable Turbo toggle (enabled by default) to send on-chain
+- tapOn:
+    id: "send-turbo-toggle"
+- waitForAnimationToEnd
+
 # Tap review button
 - extendedWaitUntil:
     visible:

@@ -29,6 +29,12 @@ export function useEcashBalanceCheck(
 
   useEffect(() => {
     const checkBalance = async () => {
+      // Skip in E2E testing to avoid modal race conditions
+      if (__DEV__ && process.env.EXPO_PUBLIC_E2E_BYPASS === 'true') {
+        hasChecked.current = true;
+        return;
+      }
+
       // Only check once per session and if we have valid data
       if (hasChecked.current || cashuBalance === null || cashuBalance === undefined) {
         return;
