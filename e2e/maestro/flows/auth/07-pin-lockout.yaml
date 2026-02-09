@@ -1,0 +1,87 @@
+appId: com.ducatprotocol.DucatProtocolWallet
+---
+# PIN Lockout Counter - Verify wrong PIN attempts decrement counter
+# Import wallet → relaunch → wrong PIN × 2 → verify counter → correct PIN → unlock
+
+# Set up wallet with PIN 123456
+- runFlow: ../helpers/import-wallet-typed.yaml
+
+# Kill and relaunch app (wallet persists, goes to lock screen)
+- stopApp
+- launchApp
+- openLink: "com.ducatprotocol.DucatProtocolWallet://expo-development-client/?url=http%3A%2F%2Flocalhost%3A8081"
+
+# Wait for lock screen
+- extendedWaitUntil:
+    visible:
+      id: "lock-screen"
+    timeout: 60000
+
+# Dismiss Expo Dev Client overlay
+- waitForAnimationToEnd
+- tapOn:
+    point: "50%,10%"
+- waitForAnimationToEnd
+
+# Wait for keypad
+- extendedWaitUntil:
+    visible:
+      id: "lock-keypad-1"
+    timeout: 5000
+
+# Enter wrong PIN (999999) — first attempt
+- tapOn:
+    id: "lock-keypad-9"
+- tapOn:
+    id: "lock-keypad-9"
+- tapOn:
+    id: "lock-keypad-9"
+- tapOn:
+    id: "lock-keypad-9"
+- tapOn:
+    id: "lock-keypad-9"
+- tapOn:
+    id: "lock-keypad-9"
+
+# Verify error with attempt counter (9 remaining)
+- extendedWaitUntil:
+    visible:
+      id: "lock-error"
+    timeout: 15000
+- assertVisible:
+    text: ".*9 attempt.*"
+
+# Enter wrong PIN again (888888) — second attempt
+- tapOn:
+    id: "lock-keypad-8"
+- tapOn:
+    id: "lock-keypad-8"
+- tapOn:
+    id: "lock-keypad-8"
+- tapOn:
+    id: "lock-keypad-8"
+- tapOn:
+    id: "lock-keypad-8"
+- tapOn:
+    id: "lock-keypad-8"
+
+# Verify counter decremented (8 remaining)
+- extendedWaitUntil:
+    visible:
+      id: "lock-error"
+    timeout: 15000
+- assertVisible:
+    text: ".*8 attempt.*"
+
+# Enter correct PIN (123456) to unlock
+- runFlow: ../helpers/enter-pin-lock.yaml
+
+# Dismiss modals
+- runFlow: ../helpers/dismiss-airdrop.yaml
+- runFlow: ../helpers/dismiss-low-ecash.yaml
+
+# Verify wallet unlocked
+- extendedWaitUntil:
+    visible:
+      id: "wallet-screen"
+    timeout: 15000

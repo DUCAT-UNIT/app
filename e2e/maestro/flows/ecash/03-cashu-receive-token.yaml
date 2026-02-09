@@ -1,0 +1,84 @@
+appId: com.ducatprotocol.DucatProtocolWallet
+---
+# Cashu Receive Token - Navigate to cashu receive screen via settings
+# Import wallet → settings → cashu settings → redeem token → verify receive screen
+
+- runFlow: ../helpers/import-wallet-typed.yaml
+
+# Navigate to settings
+- extendedWaitUntil:
+    visible:
+      id: "wallet-screen"
+    timeout: 15000
+- runFlow: ../helpers/dismiss-low-ecash.yaml
+- runFlow: ../helpers/dismiss-airdrop.yaml
+- runFlow:
+    when:
+      visible:
+        id: "passkey-migration-modal"
+    commands:
+      - tapOn:
+          id: "passkey-skip-btn"
+
+- tapOn:
+    id: "wallet-settings-btn"
+- extendedWaitUntil:
+    visible:
+      id: "settings-screen"
+    timeout: 5000
+
+# Enable dev mode first (required for cashu settings)
+- tapOn:
+    id: "settings-advanced-btn"
+- extendedWaitUntil:
+    visible:
+      id: "advanced-screen"
+    timeout: 5000
+- tapOn:
+    id: "advanced-dev-mode-btn"
+- tapOn:
+    id: "advanced-back-btn"
+- extendedWaitUntil:
+    visible:
+      id: "settings-screen"
+    timeout: 5000
+
+# Open Cashu settings
+- tapOn:
+    id: "settings-cashu-btn"
+- extendedWaitUntil:
+    visible:
+      id: "cashu-settings-screen"
+    timeout: 5000
+
+# Tap Redeem Token to open CashuReceiveScreen
+- tapOn:
+    id: "cashu-redeem-token-btn"
+
+# Screen opens in 'choose' mode — pick mint or receive
+- waitForAnimationToEnd
+- extendedWaitUntil:
+    visible:
+      id: "cashu-receive-screen"
+    timeout: 10000
+
+# Verify both options visible
+- assertVisible:
+    id: "cashu-receive-mint-btn"
+- assertVisible:
+    id: "cashu-receive-token-btn"
+
+# Select "Receive Token" mode
+- tapOn:
+    id: "cashu-receive-token-btn"
+- waitForAnimationToEnd
+
+# Verify token input screen
+- extendedWaitUntil:
+    visible:
+      id: "cashu-receive-token-screen"
+    timeout: 10000
+- assertVisible:
+    id: "cashu-receive-token-input"
+- assertVisible:
+    id: "cashu-receive-submit-btn"
