@@ -1,0 +1,20 @@
+appId: com.ducatprotocol.DucatProtocolWallet
+---
+# Transaction History - Verify history bottom sheet opens after airdrop
+# Create wallet (gets airdrop tx) → open history → verify sheet appears with title
+
+- runFlow: ../helpers/create-wallet.yaml
+
+# Wait for animations
+- waitForAnimationToEnd
+- waitForAnimationToEnd
+
+# Navigate to transaction history (opens as bottom sheet)
+- tapOn:
+    id: "wallet-history-btn"
+
+# Wait for Transaction History bottom sheet title
+- extendedWaitUntil:
+    visible:
+      text: "Transaction History"
+    timeout: 10000

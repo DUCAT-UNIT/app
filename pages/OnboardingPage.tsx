@@ -25,7 +25,6 @@ import { useNavigationHandlers } from '../contexts/NavigationHandlersContext';
 // Hooks
 import { useWalletCreation } from '../hooks/useWalletCreation';
 import { useWalletImport } from '../hooks/useWalletImport';
-import { useSeedVerification } from '../hooks/useSeedVerification';
 import { usePasskeyCreation } from '../hooks/usePasskeyCreation';
 import { usePasskeyRestore } from '../hooks/usePasskeyRestore';
 import { useOnboardingHandlers } from '../hooks/useOnboardingHandlers';
@@ -62,8 +61,7 @@ export default function OnboardingPage({
 
   // Wallet creation hook
   const {
-    tempMnemonicWords, showingIntro, showingSeeds, setShowingIntro, setShowingSeeds,
-    createWallet, saveWalletAfterPinSetup, resetCreationState,
+    saveWalletAfterPinSetup, resetCreationState,
   } = useWalletCreation({ currentAccount, setIsAuthenticated, setSeedConfirmed, loadWallet });
 
   // Wallet import hook
@@ -72,12 +70,6 @@ export default function OnboardingPage({
     importedMnemonic, setImportingWallet, setImportSeedPhrase, setIsImportedWallet,
     setImportedMnemonic, importWallet,
   } = useWalletImport({ currentAccount, setSettingUpPin });
-
-  // Seed verification hook
-  const {
-    verifyingSeeds, verificationWords, requiredIndices, wordChoices, setVerificationWords,
-    proceedToVerification, verifySeeds, resetVerificationState,
-  } = useSeedVerification({ tempMnemonicWords, setSettingUpPin, setShowingSeeds });
 
   // Passkey creation hook
   const {
@@ -93,8 +85,8 @@ export default function OnboardingPage({
 
   // Onboarding handlers
   const { handlePinSetupComplete, handlePinChangeComplete, handleCancelOnboarding } = useOnboardingHandlers({
-    setIsImportedWallet, setImportedMnemonic, setShowingIntro, setShowingSeeds, setImportingWallet,
-    setImportSeedPhrase, setVerificationWords, saveWalletAfterPinSetup, loadWallet,
+    setIsImportedWallet, setImportedMnemonic, setImportingWallet,
+    setImportSeedPhrase, saveWalletAfterPinSetup, loadWallet,
     handlePinSetupCompleteWrapper: handlePinSetupCompleteWrapper as (...args: unknown[]) => Promise<void>,
     handlePinChangeCompleteWrapper: handlePinChangeCompleteWrapper as (...args: unknown[]) => Promise<void>,
     resetWalletAndState,
@@ -157,13 +149,11 @@ export default function OnboardingPage({
 
   // Common WelcomeScreen props
   const welcomeProps = {
-    wallet, importingWallet, showingIntro, showingSeeds, verifyingSeeds, tempMnemonicWords,
-    importSeedPhrase, verificationWords, requiredIndices, wordChoices, seedInputRefs, isImporting,
-    restoringWithPasskey, setImportingWallet, setImportSeedPhrase, setVerificationWords,
-    setShowingIntro, setShowingSeeds, setRestoringWithPasskey, createWallet,
+    importingWallet, importSeedPhrase, seedInputRefs, isImporting,
+    restoringWithPasskey, setImportingWallet, setImportSeedPhrase,
+    setRestoringWithPasskey,
     createWalletWithPasskey: startPasskeyCreation, importWallet, restoreWithPasskey: startPasskeyRestore,
-    resetWallet: handleCancelOnboarding, resetCreationState, resetVerificationState,
-    proceedToVerification, verifySeeds, keyboardHeight,
+    keyboardHeight,
   };
 
   // Passkey PIN Input (creation)
@@ -220,7 +210,7 @@ export default function OnboardingPage({
   }
 
   // Locked state (wallet exists but not authenticated)
-  if (!isAuthenticated && wallet && seedConfirmed && !showingIntro && !showingSeeds && !verifyingSeeds && !settingUpPin) {
+  if (!isAuthenticated && wallet && seedConfirmed && !settingUpPin) {
     return (
       <View style={localStyles.container}>
         <MutinynetBanner />
@@ -235,7 +225,7 @@ export default function OnboardingPage({
   }
 
   // Welcome/Onboarding Screen
-  const shouldShowWelcome = (!wallet || importingWallet || showingIntro || showingSeeds || verifyingSeeds || restoringWithPasskey)
+  const shouldShowWelcome = (!wallet || importingWallet || restoringWithPasskey)
     && !showPinInput && !showRestorePinInput;
   const isFullySetUp = wallet && isAuthenticated && seedConfirmed;
 
@@ -244,19 +234,6 @@ export default function OnboardingPage({
       <View style={localStyles.welcomeContainer} testID="onboarding-page">
         <MutinynetBanner />
         <WelcomeScreen {...welcomeProps} />
-        <StatusBar style="light" />
-      </View>
-    );
-  }
-
-  // Fallback: wallet exists but seedConfirmed=false
-  if (wallet && !seedConfirmed) {
-    return (
-      <View style={localStyles.welcomeContainer}>
-        <MutinynetBanner />
-        <WelcomeScreen {...welcomeProps} importingWallet={false} showingIntro={true} showingSeeds={false}
-          verifyingSeeds={false} tempMnemonicWords={[]} verificationWords={{}} requiredIndices={[]}
-          wordChoices={{}} restoringWithPasskey={false} />
         <StatusBar style="light" />
       </View>
     );

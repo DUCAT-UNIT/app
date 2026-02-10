@@ -1,0 +1,71 @@
+appId: com.ducatprotocol.DucatProtocolWallet
+---
+# Delete Wallet Modal - Verify delete triggers confirmation and cancel works
+# Note: Full deletion requires native iOS LocalAuthentication which Maestro can't automate
+# This test verifies the confirmation modal appears and cancel dismisses it
+# Import wallet → settings → security → delete → modal appears → cancel → still on security
+
+- runFlow: ../helpers/import-wallet-typed.yaml
+
+# Wait for wallet screen
+- extendedWaitUntil:
+    visible:
+      id: "wallet-screen"
+    timeout: 15000
+
+# Dismiss modals
+- runFlow: ../helpers/dismiss-low-ecash.yaml
+- runFlow: ../helpers/dismiss-airdrop.yaml
+- runFlow:
+    when:
+      visible:
+        id: "passkey-migration-modal"
+    commands:
+      - tapOn:
+          id: "passkey-skip-btn"
+
+# Navigate to settings
+- tapOn:
+    id: "wallet-settings-btn"
+- extendedWaitUntil:
+    visible:
+      id: "settings-screen"
+    timeout: 10000
+
+# Navigate to security
+- tapOn:
+    id: "settings-security-btn"
+- extendedWaitUntil:
+    visible:
+      id: "security-screen"
+    timeout: 10000
+
+# Tap delete wallet button
+- tapOn:
+    id: "security-delete-btn"
+
+# Wait for confirmation modal
+- extendedWaitUntil:
+    visible:
+      id: "confirmation-modal"
+    timeout: 5000
+
+# Verify modal shows delete wallet text
+- assertVisible:
+    text: "Delete Wallet"
+
+# Verify both buttons are present
+- assertVisible:
+    id: "confirmation-cancel-btn"
+- assertVisible:
+    id: "confirmation-confirm-btn"
+
+# Cancel the deletion
+- tapOn:
+    id: "confirmation-cancel-btn"
+
+# Verify modal is dismissed and we're back on security screen
+- extendedWaitUntil:
+    visible:
+      id: "security-screen"
+    timeout: 5000

@@ -1,7 +1,7 @@
 appId: com.ducatprotocol.DucatProtocolWallet
 ---
 # Create a fresh wallet with airdrop funding
-# clearState → welcome → intro → seed display → verify (bypassed) → PIN → airdrop → wallet
+# clearState → welcome → passkey PIN (enter + confirm) → airdrop → wallet
 # Each test gets a unique wallet with fresh BTC from Mutinynet airdrop
 
 - runFlow: clear-and-launch.yaml
@@ -22,30 +22,16 @@ appId: com.ducatprotocol.DucatProtocolWallet
       - tapOn:
           id: "welcome-create-wallet-btn"
 
-# Wallet Created Intro screen (wallet generation may take a few seconds)
+# PasskeyPinInput screen — enter 6-digit PIN
 - extendedWaitUntil:
     visible:
-      id: "intro-screen"
+      id: "pin-setup-screen"
     timeout: 30000
-- tapOn:
-    id: "intro-continue-btn"
 
-# Seed phrase display
-- assertVisible:
-    id: "seed-display-screen"
-- tapOn:
-    id: "seed-display-continue-btn"
-
-# Seed verification - tap verify (E2E bypass auto-passes)
-- assertVisible:
-    id: "seed-verify-screen"
-- tapOn:
-    id: "seed-verify-btn"
-
-# PIN setup - enter PIN twice
-- assertVisible:
-    id: "pin-setup-title"
+# Enter PIN (123456)
 - runFlow: enter-pin-setup.yaml
+
+# Confirm PIN (123456 again)
 - runFlow: enter-pin-setup.yaml
 
 # Skip biometric if prompted
@@ -57,14 +43,12 @@ appId: com.ducatprotocol.DucatProtocolWallet
       - tapOn:
           id: "biometric-skip-btn"
 
-# Skip passkey migration if prompted
-- runFlow:
-    when:
-      visible:
-        id: "passkey-migration-modal"
-    commands:
-      - tapOn:
-          id: "passkey-skip-btn"
+# Wait for airdrop modal — passkey flow is fast so AirdropContext's 3s delay
+# + network request may not have completed yet. Wait for it to appear.
+- extendedWaitUntil:
+    visible:
+      text: "Get Started"
+    timeout: 30000
 
 # Accept airdrop — tapping "Get Started" dismisses the airdrop success modal
 # The airdrop funds the wallet with BTC on Mutinynet automatically

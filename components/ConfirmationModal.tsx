@@ -53,7 +53,7 @@ export default function ConfirmationModal({
   if (!visible) return null;
 
   return (
-    <View style={styles.modalOverlay}>
+    <View style={styles.modalOverlay} testID="confirmation-modal">
       <View style={styles.confirmationModal}>
         {iconName && (
           <View style={styles.confirmationModalIconContainer}>
@@ -66,6 +66,7 @@ export default function ConfirmationModal({
           <TouchableOpacity
             style={[styles.confirmationModalButton, styles.confirmationModalButtonCancel]}
             onPress={onCancel}
+            testID="confirmation-cancel-btn"
           >
             <Text style={styles.confirmationModalButtonTextCancel}>{cancelText || 'Cancel'}</Text>
           </TouchableOpacity>
@@ -77,6 +78,7 @@ export default function ConfirmationModal({
                 : styles.confirmationModalButtonPrimary,
             ]}
             onPress={onConfirm}
+            testID="confirmation-confirm-btn"
           >
             <Text style={styles.confirmationModalButtonText}>{confirmText || 'Confirm'}</Text>
           </TouchableOpacity>

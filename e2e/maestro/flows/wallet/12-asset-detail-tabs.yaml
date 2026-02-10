@@ -1,0 +1,48 @@
+appId: com.ducatprotocol.DucatProtocolWallet
+---
+# Asset Detail Tabs - Verify tab switching on BTC asset detail screen
+# Create wallet → tap BTC card → verify Activity tab → tap About tab → verify content
+
+- runFlow: ../helpers/create-wallet.yaml
+
+# Wait for animations
+- waitForAnimationToEnd
+- waitForAnimationToEnd
+
+# Tap Bitcoin card to open asset detail
+- tapOn:
+    id: "asset-card-btc"
+
+# Wait for asset detail screen
+- extendedWaitUntil:
+    visible:
+      id: "asset-detail-screen"
+    timeout: 10000
+
+# Verify Activity tab is visible and selected by default
+- assertVisible:
+    id: "asset-tab-activity"
+- assertVisible:
+    id: "asset-tab-about"
+
+# Verify Activity content is shown (the tab text "Activity")
+- assertVisible:
+    text: "Activity"
+
+# Switch to About tab
+- tapOn:
+    id: "asset-tab-about"
+- waitForAnimationToEnd
+
+# Verify About content loads (About tab shows asset info)
+- assertVisible:
+    text: "About"
+
+# Switch back to Activity tab
+- tapOn:
+    id: "asset-tab-activity"
+- waitForAnimationToEnd
+
+# Verify Activity content is back
+- assertVisible:
+    text: "Activity"

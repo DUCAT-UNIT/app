@@ -1,7 +1,7 @@
 appId: com.ducatprotocol.DucatProtocolWallet
 ---
-# Create Wallet - Seed phrase creation flow (E2E mode bypasses passkeys)
-# clearState → welcome → intro → seed display → verify (bypassed) → PIN → wallet
+# Create Wallet - Passkey PIN creation flow (E2E bypasses native passkey dialog)
+# clearState → welcome → passkey PIN (enter + confirm) → wallet
 
 - runFlow: ../helpers/clear-and-launch.yaml
 
@@ -18,30 +18,16 @@ appId: com.ducatprotocol.DucatProtocolWallet
       - tapOn:
           id: "welcome-create-wallet-btn"
 
-# Wallet Created Intro screen (wallet generation may take a few seconds)
+# PasskeyPinInput screen — enter 6-digit PIN
 - extendedWaitUntil:
     visible:
-      id: "intro-screen"
+      id: "pin-setup-screen"
     timeout: 30000
-- tapOn:
-    id: "intro-continue-btn"
 
-# Seed phrase display
-- assertVisible:
-    id: "seed-display-screen"
-- tapOn:
-    id: "seed-display-continue-btn"
-
-# Seed verification - tap verify (E2E bypass auto-passes)
-- assertVisible:
-    id: "seed-verify-screen"
-- tapOn:
-    id: "seed-verify-btn"
-
-# PIN setup - enter PIN twice
-- assertVisible:
-    id: "pin-setup-title"
+# Enter PIN (123456)
 - runFlow: ../helpers/enter-pin-setup.yaml
+
+# Confirm PIN (123456 again)
 - runFlow: ../helpers/enter-pin-setup.yaml
 
 # Skip biometric if prompted
@@ -53,14 +39,12 @@ appId: com.ducatprotocol.DucatProtocolWallet
       - tapOn:
           id: "biometric-skip-btn"
 
-# Skip passkey migration if prompted
-- runFlow:
-    when:
-      visible:
-        id: "passkey-migration-modal"
-    commands:
-      - tapOn:
-          id: "passkey-skip-btn"
+# Wait for airdrop modal — passkey flow is fast so AirdropContext's 3s delay
+# + network request may not have completed yet
+- extendedWaitUntil:
+    visible:
+      text: "Get Started"
+    timeout: 30000
 
 # Dismiss airdrop modal if it appears
 - runFlow: ../helpers/dismiss-airdrop.yaml

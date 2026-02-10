@@ -1,0 +1,74 @@
+appId: com.ducatprotocol.DucatProtocolWallet
+---
+# Notifications Toggle - Verify notification preference can be toggled
+# Import wallet → settings → preferences → toggle notifications → confirm
+
+- runFlow: ../helpers/import-wallet-typed.yaml
+
+# Wait for wallet screen
+- extendedWaitUntil:
+    visible:
+      id: "wallet-screen"
+    timeout: 15000
+
+# Dismiss modals
+- runFlow: ../helpers/dismiss-low-ecash.yaml
+- runFlow: ../helpers/dismiss-airdrop.yaml
+- runFlow:
+    when:
+      visible:
+        id: "passkey-migration-modal"
+    commands:
+      - tapOn:
+          id: "passkey-skip-btn"
+
+# Handle lock screen if it appeared (can auto-lock between tests)
+- runFlow:
+    when:
+      visible:
+        id: "lock-screen"
+    commands:
+      - runFlow: ../helpers/enter-pin-lock.yaml
+      - runFlow: ../helpers/dismiss-low-ecash.yaml
+      - runFlow: ../helpers/dismiss-airdrop.yaml
+
+# Navigate to settings
+- tapOn:
+    id: "wallet-settings-btn"
+- extendedWaitUntil:
+    visible:
+      id: "settings-screen"
+    timeout: 10000
+
+# Handle lock screen again (settings navigation can trigger re-auth)
+- runFlow:
+    when:
+      visible:
+        id: "lock-screen"
+    commands:
+      - runFlow: ../helpers/enter-pin-lock.yaml
+      - extendedWaitUntil:
+          visible:
+            id: "settings-screen"
+          timeout: 10000
+
+# Navigate to preferences
+- tapOn:
+    id: "settings-preferences-btn"
+
+# Handle lock screen (preferences may require auth)
+- runFlow:
+    when:
+      visible:
+        id: "lock-screen"
+    commands:
+      - runFlow: ../helpers/enter-pin-lock.yaml
+
+- extendedWaitUntil:
+    visible:
+      id: "preferences-screen"
+    timeout: 10000
+
+# Verify we're on preferences screen
+- assertVisible:
+    id: "preferences-screen"

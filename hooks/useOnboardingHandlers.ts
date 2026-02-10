@@ -6,7 +6,6 @@
 import { logger } from '../utils/logger';
 import type { WalletAddresses } from '../contexts/WalletContext';
 import { notify } from '../utils/notify';
-type VerificationWords = Record<number, string>;
 
 interface LoadWalletResult {
   exists: boolean;
@@ -16,11 +15,8 @@ interface LoadWalletResult {
 interface UseOnboardingHandlersParams {
   setIsImportedWallet: (value: boolean) => void;
   setImportedMnemonic: (value: string | null) => void;
-  setShowingIntro: (value: boolean) => void;
-  setShowingSeeds: (value: boolean) => void;
   setImportingWallet: (value: boolean) => void;
   setImportSeedPhrase: (value: string[]) => void;
-  setVerificationWords: (value: VerificationWords) => void;
   saveWalletAfterPinSetup: () => Promise<boolean>;
   loadWallet: () => Promise<LoadWalletResult | undefined>;
   handlePinSetupCompleteWrapper: (...args: unknown[]) => Promise<void>;
@@ -42,11 +38,8 @@ interface UseOnboardingHandlersReturn {
 export function useOnboardingHandlers({
   setIsImportedWallet,
   setImportedMnemonic,
-  setShowingIntro,
-  setShowingSeeds,
   setImportingWallet,
   setImportSeedPhrase,
-  setVerificationWords,
   saveWalletAfterPinSetup,
   loadWallet,
   handlePinSetupCompleteWrapper,
@@ -131,11 +124,8 @@ export function useOnboardingHandlers({
 
   // Reset all onboarding UI state and wallet data
   const handleCancelOnboarding = async (): Promise<void> => {
-    setShowingIntro(false);
-    setShowingSeeds(false);
     setImportingWallet(false);
     setImportSeedPhrase(Array(12).fill(''));
-    setVerificationWords({});
     setIsImportedWallet(false);
 
     await resetWalletAndState();

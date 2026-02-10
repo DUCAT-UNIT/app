@@ -53,6 +53,7 @@ export const AssetTabs = memo(function AssetTabs({
               borderBottomColor: COLORS.PRIMARY_BLUE,
             }}
             onPress={tabHandlers[tab]}
+            testID={`asset-tab-${tab.toLowerCase()}`}
           >
             <Text style={{
               fontSize: sf(16),

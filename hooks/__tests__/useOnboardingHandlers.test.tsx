@@ -48,11 +48,8 @@ describe('useOnboardingHandlers', () => {
     mockProps = {
       setIsImportedWallet: jest.fn(),
       setImportedMnemonic: jest.fn(),
-      setShowingIntro: jest.fn(),
-      setShowingSeeds: jest.fn(),
       setImportingWallet: jest.fn(),
       setImportSeedPhrase: jest.fn(),
-      setVerificationWords: jest.fn(),
       saveWalletAfterPinSetup: jest.fn().mockResolvedValue(true),
       loadWallet: jest.fn().mockResolvedValue({
         exists: true,
@@ -229,11 +226,8 @@ describe('useOnboardingHandlers', () => {
         await result.current!.handleCancelOnboarding();
       });
 
-      expect(mockProps.setShowingIntro).toHaveBeenCalledWith(false);
-      expect(mockProps.setShowingSeeds).toHaveBeenCalledWith(false);
       expect(mockProps.setImportingWallet).toHaveBeenCalledWith(false);
       expect(mockProps.setImportSeedPhrase).toHaveBeenCalledWith(Array(12).fill(''));
-      expect(mockProps.setVerificationWords).toHaveBeenCalledWith({});
       expect(mockProps.setIsImportedWallet).toHaveBeenCalledWith(false);
       expect(mockProps.resetWalletAndState).toHaveBeenCalled();
     });
