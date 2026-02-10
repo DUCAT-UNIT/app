@@ -1,9 +1,9 @@
 appId: com.ducatprotocol.DucatProtocolWallet
 ---
-# Funded Balance - Verify wallet loads with non-zero BTC balance
-# Import wallet with typed seed → verify balance section shows BTC amount
+# Funded Balance - Verify wallet loads with real BTC balance after airdrop
+# Create fresh wallet → airdrop → verify actual BTC amount displayed
 
-- runFlow: ../helpers/import-wallet-typed.yaml
+- runFlow: ../helpers/create-wallet.yaml
 
 # Wait for balance data to load from mutinynet
 - extendedWaitUntil:
@@ -25,6 +25,10 @@ appId: com.ducatprotocol.DucatProtocolWallet
     visible:
       id: "asset-card-btc"
     timeout: 10000
+
+# Assert real BTC balance from airdrop (0.1 BTC)
+- assertVisible:
+    text: "0.10000000"
 
 # Verify wallet action buttons loaded (confirms full data load)
 - assertVisible:

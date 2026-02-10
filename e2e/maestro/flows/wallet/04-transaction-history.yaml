@@ -1,23 +1,13 @@
 appId: com.ducatprotocol.DucatProtocolWallet
 ---
-# Transaction History - Verify funded wallet shows transaction history screen
-# Funded wallet → tap history → verify history screen loads
+# Transaction History - Verify funded wallet shows transaction history with transactions
+# Create fresh wallet (airdrop) → tap history → verify history loads with transactions (not empty)
 
-- runFlow: ../helpers/import-wallet-typed.yaml
+- runFlow: ../helpers/create-wallet.yaml
 
-# Wait for wallet to fully load
-- extendedWaitUntil:
-    visible:
-      id: "wallet-screen"
-    timeout: 15000
-
-# Dismiss low ecash modal if it appears
+# Dismiss modals
 - runFlow: ../helpers/dismiss-low-ecash.yaml
-
-# Dismiss airdrop modal if it appears
 - runFlow: ../helpers/dismiss-airdrop.yaml
-
-# Skip passkey migration if it appears
 - runFlow:
     when:
       visible:
@@ -36,3 +26,8 @@ appId: com.ducatprotocol.DucatProtocolWallet
     visible:
       text: "Transaction History"
     timeout: 15000
+
+# Verify the list is NOT empty — "No transactions yet" should not appear
+# (airdrop creates at least one "Received" BTC transaction)
+- assertNotVisible:
+    text: "No transactions yet"

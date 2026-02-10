@@ -1,7 +1,9 @@
 appId: com.ducatprotocol.DucatProtocolWallet
 ---
-# Cashu Mint Screen - Navigate to mint flow with funded wallet and verify interactive UI
-# Create wallet with vault (has UNIT) → settings → cashu → mint → verify input and interaction
+# Cashu Mint Initiation - Navigate full mint path, enter amount, initiate mint, verify error handling
+# The Mutinynet Cashu mint currently returns "Unsupported unit: unit" — test verifies the full
+# user journey through to mint initiation and proper error dialog handling.
+# Create wallet with vault (has UNIT Runes) → settings → cashu → mint → enter amount → tap mint → handle error
 
 - runFlow: ../helpers/create-wallet-with-vault.yaml
 
@@ -50,26 +52,47 @@ appId: com.ducatprotocol.DucatProtocolWallet
 - tapOn:
     id: "cashu-receive-mint-btn"
 - waitForAnimationToEnd
-
-# Verify mint amount input screen UI elements
 - extendedWaitUntil:
     visible:
       id: "cashu-mint-screen"
     timeout: 10000
-- assertVisible:
-    id: "cashu-mint-amount-input"
-- assertVisible:
-    id: "cashu-mint-btn"
 
-# Verify the screen title text is present
+# Verify mint screen UI elements
 - assertVisible:
     text: "Mint Turbo UNIT"
+- assertVisible:
+    text: "Amount (sats)"
 
-# Test amount input accepts numeric values
+# Enter mint amount (100 sats)
 - tapOn:
     id: "cashu-mint-amount-input"
 - inputText: "100"
 
-# Verify mint button is interactive after entering amount
-- assertVisible:
+# Tap mint button to initiate auto-mint flow
+- tapOn:
     id: "cashu-mint-btn"
+
+# Mint server currently returns "Unsupported unit: unit" error
+# Verify the error dialog appears and can be dismissed
+- extendedWaitUntil:
+    visible:
+      text: "Error"
+    timeout: 30000
+
+# Verify the error message content
+- assertVisible:
+    text: "Unsupported unit: unit"
+
+# Dismiss error dialog
+- tapOn:
+    text: "OK"
+
+# Verify we return to the mint screen (app handles error gracefully)
+- extendedWaitUntil:
+    visible:
+      id: "cashu-mint-screen"
+    timeout: 5000
+
+# Verify mint screen is still functional after error
+- assertVisible:
+    text: "Mint Turbo UNIT"

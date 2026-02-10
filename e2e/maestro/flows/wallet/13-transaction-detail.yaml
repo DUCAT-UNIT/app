@@ -1,7 +1,7 @@
 appId: com.ducatprotocol.DucatProtocolWallet
 ---
-# Transaction History - Verify history bottom sheet opens after airdrop
-# Create wallet (gets airdrop tx) → open history → verify sheet appears with title
+# Transaction Detail - Verify history shows transactions (not empty state)
+# Create wallet (airdrop tx) → open history → verify non-empty transaction list
 
 - runFlow: ../helpers/create-wallet.yaml
 
@@ -9,12 +9,28 @@ appId: com.ducatprotocol.DucatProtocolWallet
 - waitForAnimationToEnd
 - waitForAnimationToEnd
 
+# Dismiss modals that may appear
+- runFlow: ../helpers/dismiss-low-ecash.yaml
+- runFlow: ../helpers/dismiss-airdrop.yaml
+- runFlow:
+    when:
+      visible:
+        id: "passkey-migration-modal"
+    commands:
+      - tapOn:
+          id: "passkey-skip-btn"
+
 # Navigate to transaction history (opens as bottom sheet)
 - tapOn:
     id: "wallet-history-btn"
 
 # Wait for Transaction History bottom sheet title
+- waitForAnimationToEnd
 - extendedWaitUntil:
     visible:
       text: "Transaction History"
     timeout: 10000
+
+# Verify "No transactions yet" is NOT shown (airdrop creates at least 1 transaction)
+- assertNotVisible:
+    text: "No transactions yet"

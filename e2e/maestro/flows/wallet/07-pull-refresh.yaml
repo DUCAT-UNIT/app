@@ -1,21 +1,9 @@
 appId: com.ducatprotocol.DucatProtocolWallet
 ---
-# Pull to Refresh - Test pull-to-refresh on wallet screen
-# Funded wallet → swipe down to refresh → verify wallet screen still visible
+# Pull to Refresh - Verify pull-to-refresh preserves real BTC balance
+# Create funded wallet → assert balance → swipe refresh → assert balance persists
 
-- runFlow: ../helpers/import-wallet-typed.yaml
-
-# Verify wallet screen
-- extendedWaitUntil:
-    visible:
-      id: "wallet-screen"
-    timeout: 15000
-
-# Wait for balance to load
-- extendedWaitUntil:
-    visible:
-      id: "balance-section"
-    timeout: 30000
+- runFlow: ../helpers/create-wallet.yaml
 
 # Dismiss low ecash modal if it appears
 - runFlow: ../helpers/dismiss-low-ecash.yaml
@@ -31,6 +19,10 @@ appId: com.ducatprotocol.DucatProtocolWallet
     commands:
       - tapOn:
           id: "passkey-skip-btn"
+
+# Assert BTC balance before refresh
+- assertVisible:
+    text: "0.10000000"
 
 # Pull to refresh by swiping down from top of wallet content
 - swipe:
@@ -48,4 +40,10 @@ appId: com.ducatprotocol.DucatProtocolWallet
 - extendedWaitUntil:
     visible:
       id: "balance-section"
+    timeout: 15000
+
+# Assert BTC balance persists after refresh
+- extendedWaitUntil:
+    visible:
+      text: "0.10000000"
     timeout: 15000

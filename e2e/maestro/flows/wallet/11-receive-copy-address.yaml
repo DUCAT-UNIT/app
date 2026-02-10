@@ -1,7 +1,7 @@
 appId: com.ducatprotocol.DucatProtocolWallet
 ---
-# Receive BTC Address - Verify deposit flow opens receive screen with Bitcoin address
-# Import wallet → deposit → BTC → verify receive screen content
+# Receive BTC Address - Verify deposit flow opens receive screen with full BTC address UI
+# Import wallet → deposit → BTC → verify receive screen content including Share button
 
 - runFlow: ../helpers/import-wallet-typed.yaml
 
@@ -44,3 +44,8 @@ appId: com.ducatprotocol.DucatProtocolWallet
 # Verify Bitcoin address title
 - assertVisible:
     text: "Bitcoin address"
+
+
+# Verify Mutinynet banner
+- assertVisible:
+    text: "Mutinynet Edition"

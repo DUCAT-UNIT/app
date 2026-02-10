@@ -51,6 +51,7 @@ export default function WalletHeader({
         <TouchableOpacity
           style={styles.headerIconButton}
           onPress={onQRScanPress}
+          testID="wallet-scan-btn"
           accessibilityRole="button"
           accessibilityLabel="Scan QR code"
           accessibilityHint="Scan a QR code to send or receive"

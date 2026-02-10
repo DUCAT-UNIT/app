@@ -1,15 +1,9 @@
 appId: com.ducatprotocol.DucatProtocolWallet
 ---
-# BTC Asset Detail - Verify tapping BTC card opens asset detail screen
-# Funded wallet → tap BTC card → verify detail screen loads
+# BTC Asset Detail - Verify BTC card opens detail screen with real balance
+# Create funded wallet → tap BTC card → verify detail screen shows actual BTC amount
 
-- runFlow: ../helpers/import-wallet-typed.yaml
-
-# Verify wallet screen
-- extendedWaitUntil:
-    visible:
-      id: "wallet-screen"
-    timeout: 15000
+- runFlow: ../helpers/create-wallet.yaml
 
 # Dismiss low ecash modal if it appears
 - runFlow: ../helpers/dismiss-low-ecash.yaml
@@ -42,5 +36,11 @@ appId: com.ducatprotocol.DucatProtocolWallet
     visible:
       text: "Bitcoin"
     timeout: 10000
+
+# Verify real BTC balance is shown on detail screen
+- assertVisible:
+    text: "0.10000000 BTC"
+
+# Verify Activity tab is visible
 - assertVisible:
     text: "Activity"

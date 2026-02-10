@@ -1,7 +1,7 @@
 appId: com.ducatprotocol.DucatProtocolWallet
 ---
-# Cashu Receive Token - Navigate to cashu receive screen via settings
-# Import wallet → settings → cashu settings → redeem token → verify receive screen
+# Cashu Receive Token - Navigate to receive screen and verify full UI elements
+# Import wallet → settings → cashu settings → redeem token → verify all input UI elements
 
 - runFlow: ../helpers/import-wallet-typed.yaml
 
@@ -73,7 +73,7 @@ appId: com.ducatprotocol.DucatProtocolWallet
     id: "cashu-receive-token-btn"
 - waitForAnimationToEnd
 
-# Verify token input screen
+# Verify token input screen with all UI elements
 - extendedWaitUntil:
     visible:
       id: "cashu-receive-token-screen"
@@ -82,3 +82,15 @@ appId: com.ducatprotocol.DucatProtocolWallet
     id: "cashu-receive-token-input"
 - assertVisible:
     id: "cashu-receive-submit-btn"
+
+# Verify paste button is present
+- assertVisible:
+    id: "cashu-receive-paste-btn"
+
+# Verify "Receive" button text is shown
+- assertVisible:
+    text: "Receive"
+
+# Verify help text is present (guides user on how to get tokens)
+- assertVisible:
+    text: "Paste from Clipboard"

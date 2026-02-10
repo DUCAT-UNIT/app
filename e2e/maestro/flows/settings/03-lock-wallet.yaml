@@ -1,7 +1,7 @@
 appId: com.ducatprotocol.DucatProtocolWallet
 ---
-# Lock Wallet - Verify lock wallet returns to lock screen
-# Import wallet → settings → lock → confirm → verify lock screen
+# Lock Wallet - Verify lock wallet locks and PIN unlock restores wallet access
+# Import wallet → settings → lock → confirm → verify lock screen → enter PIN → verify wallet loads
 
 - runFlow: ../helpers/import-wallet-typed.yaml
 
@@ -38,8 +38,31 @@ appId: com.ducatprotocol.DucatProtocolWallet
 - tapOn:
     text: "Lock"
 
-# Verify we're back at lock screen
+# Verify we're at lock screen
 - extendedWaitUntil:
     visible:
       id: "lock-screen"
     timeout: 5000
+
+# Verify lock keypad is present
+- assertVisible:
+    id: "lock-keypad"
+
+# === UNLOCK: Enter PIN (123456) to verify lock/unlock cycle ===
+- runFlow: ../helpers/enter-pin-lock.yaml
+
+# Verify wallet screen loads after unlock
+- extendedWaitUntil:
+    visible:
+      id: "wallet-screen"
+    timeout: 15000
+
+# Dismiss modals that may re-appear after unlock
+- runFlow: ../helpers/dismiss-low-ecash.yaml
+- runFlow: ../helpers/dismiss-airdrop.yaml
+
+# Verify wallet is fully functional (balance section loaded)
+- extendedWaitUntil:
+    visible:
+      id: "balance-section"
+    timeout: 15000
