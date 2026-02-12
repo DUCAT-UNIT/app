@@ -1,4 +1,3 @@
-// @ts-nocheck
 /**
  * Tests for keyDerivation utilities
  */
@@ -63,8 +62,8 @@ import { getPrivateKeyForAddress } from '../keyDerivation';
 describe('keyDerivation', () => {
   beforeEach(() => {
     jest.clearAllMocks();
-    SecureStore.getItemAsync.mockResolvedValue(null);
-    SecureStore.setItemAsync.mockResolvedValue();
+    (SecureStore.getItemAsync as jest.Mock).mockResolvedValue(null);
+    (SecureStore.setItemAsync as jest.Mock).mockResolvedValue(undefined);
   });
 
   describe('getPrivateKeyForAddress', () => {
@@ -74,7 +73,7 @@ describe('keyDerivation', () => {
         xOnlyPubkey: 'cached_pubkey',
         accountIndex: 5,
       };
-      SecureStore.getItemAsync.mockResolvedValue(JSON.stringify(cachedData));
+      (SecureStore.getItemAsync as jest.Mock).mockResolvedValue(JSON.stringify(cachedData));
 
       const result = await getPrivateKeyForAddress('tb1ptest123');
 
@@ -95,12 +94,12 @@ describe('keyDerivation', () => {
       const { bip32 } = require('../cryptoHelpers');
       bip32.fromSeed.mockReturnValue(mockRoot);
 
-      bitcoin.payments.p2tr.mockReturnValue({
+      (bitcoin.payments.p2tr as jest.Mock).mockReturnValue({
         address: 'tb1ptest123',
         pubkey: Buffer.alloc(32),
       });
 
-      withMnemonic.mockImplementation(async (callback) => {
+      (withMnemonic as jest.Mock).mockImplementation(async (callback: (m: string) => Promise<unknown>) => {
         return callback('test mnemonic');
       });
 
@@ -126,12 +125,12 @@ describe('keyDerivation', () => {
       bip32.fromSeed.mockReturnValue(mockRoot);
 
       // Make p2tr return different address
-      bitcoin.payments.p2tr.mockReturnValue({
+      (bitcoin.payments.p2tr as jest.Mock).mockReturnValue({
         address: 'tb1pdifferent',
         pubkey: Buffer.alloc(32),
       });
 
-      withMnemonic.mockImplementation(async (callback) => {
+      (withMnemonic as jest.Mock).mockImplementation(async (callback: (m: string) => Promise<unknown>) => {
         return callback('test mnemonic');
       });
 
@@ -153,12 +152,12 @@ describe('keyDerivation', () => {
       const { bip32 } = require('../cryptoHelpers');
       bip32.fromSeed.mockReturnValue(mockRoot);
 
-      bitcoin.payments.p2tr.mockReturnValue({
+      (bitcoin.payments.p2tr as jest.Mock).mockReturnValue({
         address: 'tb1ptest456',
         pubkey: Buffer.alloc(32),
       });
 
-      withMnemonic.mockImplementation(async (callback) => {
+      (withMnemonic as jest.Mock).mockImplementation(async (callback: (m: string) => Promise<unknown>) => {
         return callback('test mnemonic');
       });
 
@@ -171,7 +170,7 @@ describe('keyDerivation', () => {
     });
 
     it('should handle cache read errors gracefully', async () => {
-      SecureStore.getItemAsync.mockRejectedValue(new Error('Cache read error'));
+      (SecureStore.getItemAsync as jest.Mock).mockRejectedValue(new Error('Cache read error'));
 
       const mockChild = {
         publicKey: Buffer.alloc(33),
@@ -185,12 +184,12 @@ describe('keyDerivation', () => {
       const { bip32 } = require('../cryptoHelpers');
       bip32.fromSeed.mockReturnValue(mockRoot);
 
-      bitcoin.payments.p2tr.mockReturnValue({
+      (bitcoin.payments.p2tr as jest.Mock).mockReturnValue({
         address: 'tb1perror',
         pubkey: Buffer.alloc(32),
       });
 
-      withMnemonic.mockImplementation(async (callback) => {
+      (withMnemonic as jest.Mock).mockImplementation(async (callback: (m: string) => Promise<unknown>) => {
         return callback('test mnemonic');
       });
 
@@ -200,7 +199,7 @@ describe('keyDerivation', () => {
     });
 
     it('should handle cache write errors gracefully', async () => {
-      SecureStore.setItemAsync.mockRejectedValue(new Error('Cache write error'));
+      (SecureStore.setItemAsync as jest.Mock).mockRejectedValue(new Error('Cache write error'));
 
       const mockChild = {
         publicKey: Buffer.alloc(33),
@@ -214,12 +213,12 @@ describe('keyDerivation', () => {
       const { bip32 } = require('../cryptoHelpers');
       bip32.fromSeed.mockReturnValue(mockRoot);
 
-      bitcoin.payments.p2tr.mockReturnValue({
+      (bitcoin.payments.p2tr as jest.Mock).mockReturnValue({
         address: 'tb1pwrite',
         pubkey: Buffer.alloc(32),
       });
 
-      withMnemonic.mockImplementation(async (callback) => {
+      (withMnemonic as jest.Mock).mockImplementation(async (callback: (m: string) => Promise<unknown>) => {
         return callback('test mnemonic');
       });
 
@@ -242,12 +241,12 @@ describe('keyDerivation', () => {
       bip32.fromSeed.mockReturnValue(mockRoot);
 
       // For SegWit, p2wpkh is used
-      bitcoin.payments.p2wpkh.mockReturnValue({
+      (bitcoin.payments.p2wpkh as jest.Mock).mockReturnValue({
         address: 'tb1qtest123',
         pubkey: Buffer.alloc(33),
       });
 
-      withMnemonic.mockImplementation(async (callback) => {
+      (withMnemonic as jest.Mock).mockImplementation(async (callback: (m: string) => Promise<unknown>) => {
         return callback('test mnemonic');
       });
 
@@ -273,12 +272,12 @@ describe('keyDerivation', () => {
       bip32.fromSeed.mockReturnValue(mockRoot);
 
       // Make p2wpkh return different address - tests findSegwitAccount returning null
-      bitcoin.payments.p2wpkh.mockReturnValue({
+      (bitcoin.payments.p2wpkh as jest.Mock).mockReturnValue({
         address: 'tb1qdifferent',
         pubkey: Buffer.alloc(33),
       });
 
-      withMnemonic.mockImplementation(async (callback) => {
+      (withMnemonic as jest.Mock).mockImplementation(async (callback: (m: string) => Promise<unknown>) => {
         return callback('test mnemonic');
       });
 
@@ -301,12 +300,12 @@ describe('keyDerivation', () => {
       bip32.fromSeed.mockReturnValue(mockRoot);
 
       // Return undefined pubkey to test fallback to Buffer.alloc(0)
-      bitcoin.payments.p2tr.mockReturnValue({
+      (bitcoin.payments.p2tr as jest.Mock).mockReturnValue({
         address: 'tb1pnopubkey',
         pubkey: undefined,
       });
 
-      withMnemonic.mockImplementation(async (callback) => {
+      (withMnemonic as jest.Mock).mockImplementation(async (callback: (m: string) => Promise<unknown>) => {
         return callback('test mnemonic');
       });
 
@@ -330,12 +329,12 @@ describe('keyDerivation', () => {
       const { bip32 } = require('../cryptoHelpers');
       bip32.fromSeed.mockReturnValue(mockRoot);
 
-      bitcoin.payments.p2tr.mockReturnValue({
+      (bitcoin.payments.p2tr as jest.Mock).mockReturnValue({
         address: 'tb1pknown',
         pubkey: Buffer.alloc(32),
       });
 
-      withMnemonic.mockImplementation(async (callback) => {
+      (withMnemonic as jest.Mock).mockImplementation(async (callback: (m: string) => Promise<unknown>) => {
         return callback('test mnemonic');
       });
 
@@ -358,12 +357,12 @@ describe('keyDerivation', () => {
       const { bip32 } = require('../cryptoHelpers');
       bip32.fromSeed.mockReturnValue(mockRoot);
 
-      bitcoin.payments.p2wpkh.mockReturnValue({
+      (bitcoin.payments.p2wpkh as jest.Mock).mockReturnValue({
         address: 'tb1qknown',
         pubkey: Buffer.alloc(33),
       });
 
-      withMnemonic.mockImplementation(async (callback) => {
+      (withMnemonic as jest.Mock).mockImplementation(async (callback: (m: string) => Promise<unknown>) => {
         return callback('test mnemonic');
       });
 
@@ -388,7 +387,7 @@ describe('keyDerivation', () => {
 
       // First call (known account) returns wrong address, subsequent calls find match
       let callCount = 0;
-      bitcoin.payments.p2tr.mockImplementation(() => {
+      (bitcoin.payments.p2tr as jest.Mock).mockImplementation(() => {
         callCount++;
         // First call is for known account (returns wrong),
         // second call (account 0, since we skip account 5) finds the address
@@ -398,7 +397,7 @@ describe('keyDerivation', () => {
         return { address: 'tb1pfallback', pubkey: Buffer.alloc(32) };
       });
 
-      withMnemonic.mockImplementation(async (callback) => {
+      (withMnemonic as jest.Mock).mockImplementation(async (callback: (m: string) => Promise<unknown>) => {
         return callback('test mnemonic');
       });
 
@@ -423,7 +422,7 @@ describe('keyDerivation', () => {
       bip32.fromSeed.mockReturnValue(mockRoot);
 
       let callCount = 0;
-      bitcoin.payments.p2wpkh.mockImplementation(() => {
+      (bitcoin.payments.p2wpkh as jest.Mock).mockImplementation(() => {
         callCount++;
         if (callCount === 1) {
           return { address: 'tb1qdifferent', pubkey: Buffer.alloc(33) };
@@ -431,7 +430,7 @@ describe('keyDerivation', () => {
         return { address: 'tb1qfallback', pubkey: Buffer.alloc(33) };
       });
 
-      withMnemonic.mockImplementation(async (callback) => {
+      (withMnemonic as jest.Mock).mockImplementation(async (callback: (m: string) => Promise<unknown>) => {
         return callback('test mnemonic');
       });
 
@@ -460,7 +459,7 @@ describe('keyDerivation', () => {
 
       // Make it find match at account 1
       let callCount = 0;
-      bitcoin.payments.p2tr.mockImplementation(() => {
+      (bitcoin.payments.p2tr as jest.Mock).mockImplementation(() => {
         callCount++;
         // First call: known account (0) - wrong address
         // Second call: account 0 in loop - but this is skipped!
@@ -471,7 +470,7 @@ describe('keyDerivation', () => {
         return { address: 'tb1pskiptest', pubkey: Buffer.alloc(32) };
       });
 
-      withMnemonic.mockImplementation(async (callback) => {
+      (withMnemonic as jest.Mock).mockImplementation(async (callback: (m: string) => Promise<unknown>) => {
         return callback('test mnemonic');
       });
 

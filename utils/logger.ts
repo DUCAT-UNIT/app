@@ -7,7 +7,7 @@
 /* eslint-disable no-console */
 
 import * as Sentry from '@sentry/react-native';
-import sentryService from '../services/sentryService';
+import sentryService, { sanitizeParams } from '../services/sentryService';
 
 // Determine if we're in development mode
 const isDev = __DEV__;
@@ -64,12 +64,13 @@ export const logger = {
       console.log(`[DEBUG] ${message}`, ...args);
     }
     const data = args.length > 0 ? (args[0] !== null && typeof args[0] === 'object' ? args[0] as LogContext : { args }) : {};
+    const sanitized = sanitizeParams(data as Record<string, unknown>);
     Sentry.addBreadcrumb({
       message,
       level: 'debug',
-      data,
+      data: sanitized,
     });
-    streamToSentry('DEBUG', message, data, 'debug');
+    streamToSentry('DEBUG', message, sanitized, 'debug');
   },
 
   /**
@@ -81,12 +82,13 @@ export const logger = {
     if (isDev) {
       console.log(`[INFO] ${message}`, context);
     }
+    const sanitized = sanitizeParams(context as Record<string, unknown>);
     Sentry.addBreadcrumb({
       message,
       level: 'info',
-      data: context,
+      data: sanitized,
     });
-    streamToSentry('INFO', message, context, 'info');
+    streamToSentry('INFO', message, sanitized, 'info');
   },
 
   /**
@@ -98,10 +100,11 @@ export const logger = {
     if (isDev) {
       console.warn(`[WARN] ${message}`, context);
     }
+    const sanitized = sanitizeParams(context as Record<string, unknown>);
     Sentry.addBreadcrumb({
       message,
       level: 'warning',
-      data: context,
+      data: sanitized,
     });
     Sentry.captureMessage(message, 'warning');
   },
@@ -115,14 +118,15 @@ export const logger = {
     if (isDev) {
       console.error('[ERROR]', error, context);
     }
+    const sanitized = sanitizeParams(context as Record<string, unknown>);
     if (error instanceof Error) {
       Sentry.captureException(error, {
-        contexts: { extra: context },
+        contexts: { extra: sanitized },
       });
     } else {
       Sentry.captureMessage(String(error), {
         level: 'error',
-        contexts: { extra: context },
+        contexts: { extra: sanitized },
       });
     }
   },
@@ -272,7 +276,7 @@ export const logger = {
       level: 'info',
       data: {
         operation,
-        ...data,
+        ...sanitizeParams(data as Record<string, unknown>),
         timestamp: new Date().toISOString(),
       },
     });
@@ -293,7 +297,7 @@ export const logger = {
       level: 'info',
       data: {
         operation,
-        ...data,
+        ...sanitizeParams(data as Record<string, unknown>),
         timestamp: new Date().toISOString(),
       },
     });
@@ -314,7 +318,7 @@ export const logger = {
       level: 'info',
       data: {
         step,
-        ...data,
+        ...sanitizeParams(data as Record<string, unknown>),
         timestamp: new Date().toISOString(),
       },
     });

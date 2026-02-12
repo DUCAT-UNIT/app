@@ -108,17 +108,15 @@ const meta: Meta = {
 };
 
 export default meta;
-type Story = StoryObj;
-
-export const DeviceSizeOverview: Story = {
+export const DeviceSizeOverview: StoryObj = {
   render: () => <DeviceSizeOverviewStory />,
   parameters: {
     controls: { disable: true },
   },
 };
 
-export const Basic: Story = {
-  render: (args: BasicStoryProps) => <BasicStory {...args} />,
+export const Basic: StoryObj<BasicStoryProps> = {
+  render: (args) => <BasicStory {...args} />,
   args: {
     balanceUSD: 12500000,
     deviceSize: 'L',

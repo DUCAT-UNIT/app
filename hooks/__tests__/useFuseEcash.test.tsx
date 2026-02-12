@@ -1,4 +1,3 @@
-// @ts-nocheck
 /**
  * Tests for useFuseEcash hook
  * Covers fuse flow, polling, and error handling
@@ -8,6 +7,8 @@ import React from 'react';
 import { create, act } from 'react-test-renderer';
 import { Alert } from 'react-native';
 import { useFuseEcash } from '../useFuseEcash';
+
+type UseFuseEcashParams = Parameters<typeof useFuseEcash>[0];
 
 // Mock dependencies
 jest.mock('../../utils/logger', () => ({
@@ -31,29 +32,29 @@ const mockCompleteMeltWithoutCleanup = jest.fn();
 const mockCleanupMeltProofs = jest.fn();
 
 jest.mock('../../services/cashu/cashuWalletService', () => ({
-  requestMelt: (...args) => mockRequestMelt(...args),
-  completeMeltWithoutCleanup: (...args) => mockCompleteMeltWithoutCleanup(...args),
-  cleanupMeltProofs: (...args) => mockCleanupMeltProofs(...args),
+  requestMelt: (...args: unknown[]) => mockRequestMelt(...args),
+  completeMeltWithoutCleanup: (...args: unknown[]) => mockCompleteMeltWithoutCleanup(...args),
+  cleanupMeltProofs: (...args: unknown[]) => mockCleanupMeltProofs(...args),
 }));
 
 // Helper to render hooks with props
-function renderHookWithProps(props) {
-  const result = { current: null };
-  function TestComponent({ hookProps }) {
+function renderHookWithProps(props: UseFuseEcashParams) {
+  const result: { current: ReturnType<typeof useFuseEcash> | null } = { current: null };
+  function TestComponent({ hookProps }: { hookProps: UseFuseEcashParams }) {
     result.current = useFuseEcash(hookProps);
     return null;
   }
-  let component;
+  let component: ReturnType<typeof create> | undefined;
   act(() => {
     component = create(<TestComponent hookProps={props} />);
   });
   return {
     result,
-    unmount: component.unmount,
+    unmount: component!.unmount,
     component,
-    rerender: (newProps) => {
+    rerender: (newProps: UseFuseEcashParams) => {
       act(() => {
-        component.update(<TestComponent hookProps={newProps} />);
+        component?.update(<TestComponent hookProps={newProps} />);
       });
     },
   };
@@ -67,7 +68,7 @@ async function flushPromisesAndTimers() {
 }
 
 describe('useFuseEcash', () => {
-  let mockProps;
+  let mockProps: UseFuseEcashParams;
 
   beforeEach(() => {
     jest.clearAllMocks();
@@ -76,7 +77,7 @@ describe('useFuseEcash', () => {
       cashuBalance: 100.50,
       taprootAddress: 'tb1ptest12345',
       transactionHistory: [],
-      fetchTransactionHistory: jest.fn().mockResolvedValue(),
+      fetchTransactionHistory: jest.fn().mockResolvedValue(undefined),
     };
 
     // Default mocks
@@ -90,7 +91,7 @@ describe('useFuseEcash', () => {
 
   it('should return handleFusePress function', () => {
     const { result } = renderHookWithProps(mockProps);
-    expect(typeof result.current.handleFusePress).toBe('function');
+    expect(typeof result.current!.handleFusePress).toBe('function');
   });
 
   it('should show alert when cashuBalance is 0', async () => {
@@ -98,7 +99,7 @@ describe('useFuseEcash', () => {
     const { result } = renderHookWithProps(props);
 
     await act(async () => {
-      await result.current.handleFusePress();
+      await result.current!.handleFusePress();
     });
 
     expect(Alert.alert).toHaveBeenCalledWith('No E-cash', "You don't have any e-cash to fuse.");
@@ -108,7 +109,7 @@ describe('useFuseEcash', () => {
     const { result } = renderHookWithProps(mockProps);
 
     await act(async () => {
-      await result.current.handleFusePress();
+      await result.current!.handleFusePress();
     });
 
     expect(Alert.alert).toHaveBeenCalledWith(
@@ -126,7 +127,7 @@ describe('useFuseEcash', () => {
     const { result } = renderHookWithProps(props);
 
     await act(async () => {
-      await result.current.handleFusePress();
+      await result.current!.handleFusePress();
     });
 
     expect(Alert.alert).toHaveBeenCalledWith(
@@ -140,17 +141,17 @@ describe('useFuseEcash', () => {
     const { result } = renderHookWithProps(mockProps);
 
     expect(result.current).toHaveProperty('handleFusePress');
-    expect(Object.keys(result.current)).toHaveLength(1);
+    expect(Object.keys(result.current!)).toHaveLength(1);
   });
 
   it('should have cancel and fuse buttons in alert', async () => {
     const { result } = renderHookWithProps(mockProps);
 
     await act(async () => {
-      await result.current.handleFusePress();
+      await result.current!.handleFusePress();
     });
 
-    const alertCall = Alert.alert.mock.calls[0];
+    const alertCall = (Alert.alert as jest.Mock).mock.calls[0];
     const buttons = alertCall[2];
 
     expect(buttons).toHaveLength(2);
@@ -167,10 +168,10 @@ describe('useFuseEcash', () => {
       const { result } = renderHookWithProps(mockProps);
 
       await act(async () => {
-        await result.current.handleFusePress();
+        await result.current!.handleFusePress();
       });
 
-      const fuseButton = Alert.alert.mock.calls[0][2][1];
+      const fuseButton = (Alert.alert as jest.Mock).mock.calls[0][2][1];
 
       await act(async () => {
         await fuseButton.onPress();
@@ -185,10 +186,10 @@ describe('useFuseEcash', () => {
       const { result } = renderHookWithProps(mockProps);
 
       await act(async () => {
-        await result.current.handleFusePress();
+        await result.current!.handleFusePress();
       });
 
-      const fuseButton = Alert.alert.mock.calls[0][2][1];
+      const fuseButton = (Alert.alert as jest.Mock).mock.calls[0][2][1];
 
       await act(async () => {
         await fuseButton.onPress();
@@ -211,13 +212,13 @@ describe('useFuseEcash', () => {
       const { result } = renderHookWithProps(mockProps);
 
       await act(async () => {
-        await result.current.handleFusePress();
+        await result.current!.handleFusePress();
       });
 
-      const fuseButton = Alert.alert.mock.calls[0][2][1];
+      const fuseButton = (Alert.alert as jest.Mock).mock.calls[0][2][1];
 
       // Start the fuse operation
-      let fusePromise;
+      let fusePromise: Promise<void> | undefined;
       await act(async () => {
         fusePromise = fuseButton.onPress();
       });
@@ -243,12 +244,12 @@ describe('useFuseEcash', () => {
       const { result } = renderHookWithProps(mockProps);
 
       await act(async () => {
-        await result.current.handleFusePress();
+        await result.current!.handleFusePress();
       });
 
-      const fuseButton = Alert.alert.mock.calls[0][2][1];
+      const fuseButton = (Alert.alert as jest.Mock).mock.calls[0][2][1];
 
-      let fusePromise;
+      let fusePromise: Promise<void> | undefined;
       await act(async () => {
         fusePromise = fuseButton.onPress();
       });
@@ -279,12 +280,12 @@ describe('useFuseEcash', () => {
       const { result } = renderHookWithProps(props);
 
       await act(async () => {
-        await result.current.handleFusePress();
+        await result.current!.handleFusePress();
       });
 
-      const fuseButton = Alert.alert.mock.calls[0][2][1];
+      const fuseButton = (Alert.alert as jest.Mock).mock.calls[0][2][1];
 
-      let fusePromise;
+      let fusePromise: Promise<void> | undefined;
       await act(async () => {
         fusePromise = fuseButton.onPress();
       });
@@ -315,12 +316,12 @@ describe('useFuseEcash', () => {
       const { result } = renderHookWithProps(props);
 
       await act(async () => {
-        await result.current.handleFusePress();
+        await result.current!.handleFusePress();
       });
 
-      const fuseButton = Alert.alert.mock.calls[0][2][1];
+      const fuseButton = (Alert.alert as jest.Mock).mock.calls[0][2][1];
 
-      let fusePromise;
+      let fusePromise: Promise<void> | undefined;
       await act(async () => {
         fusePromise = fuseButton.onPress();
       });
@@ -343,12 +344,12 @@ describe('useFuseEcash', () => {
       const { result } = renderHookWithProps(mockProps);
 
       await act(async () => {
-        await result.current.handleFusePress();
+        await result.current!.handleFusePress();
       });
 
-      const fuseButton = Alert.alert.mock.calls[0][2][1];
+      const fuseButton = (Alert.alert as jest.Mock).mock.calls[0][2][1];
 
-      let fusePromise;
+      let fusePromise: Promise<void> | undefined;
       await act(async () => {
         fusePromise = fuseButton.onPress();
       });
@@ -382,12 +383,12 @@ describe('useFuseEcash', () => {
       const { result } = renderHookWithProps(props);
 
       await act(async () => {
-        await result.current.handleFusePress();
+        await result.current!.handleFusePress();
       });
 
-      const fuseButton = Alert.alert.mock.calls[0][2][1];
+      const fuseButton = (Alert.alert as jest.Mock).mock.calls[0][2][1];
 
-      let fusePromise;
+      let fusePromise: Promise<void> | undefined;
       await act(async () => {
         fusePromise = fuseButton.onPress();
       });
@@ -421,12 +422,12 @@ describe('useFuseEcash', () => {
       const { result } = renderHookWithProps(props);
 
       await act(async () => {
-        await result.current.handleFusePress();
+        await result.current!.handleFusePress();
       });
 
-      const fuseButton = Alert.alert.mock.calls[0][2][1];
+      const fuseButton = (Alert.alert as jest.Mock).mock.calls[0][2][1];
 
-      let fusePromise;
+      let fusePromise: Promise<void> | undefined;
       await act(async () => {
         fusePromise = fuseButton.onPress();
       });
@@ -459,12 +460,12 @@ describe('useFuseEcash', () => {
       const { result } = renderHookWithProps(props);
 
       await act(async () => {
-        await result.current.handleFusePress();
+        await result.current!.handleFusePress();
       });
 
-      const fuseButton = Alert.alert.mock.calls[0][2][1];
+      const fuseButton = (Alert.alert as jest.Mock).mock.calls[0][2][1];
 
-      let fusePromise;
+      let fusePromise: Promise<void> | undefined;
       await act(async () => {
         fusePromise = fuseButton.onPress();
       });
@@ -490,12 +491,12 @@ describe('useFuseEcash', () => {
       const { result } = renderHookWithProps(mockProps);
 
       await act(async () => {
-        await result.current.handleFusePress();
+        await result.current!.handleFusePress();
       });
 
-      const fuseButton = Alert.alert.mock.calls[0][2][1];
+      const fuseButton = (Alert.alert as jest.Mock).mock.calls[0][2][1];
 
-      let fusePromise;
+      let fusePromise: Promise<void> | undefined;
       await act(async () => {
         fusePromise = fuseButton.onPress();
       });

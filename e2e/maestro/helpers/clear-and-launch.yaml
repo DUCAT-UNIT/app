@@ -1,0 +1,25 @@
+appId: com.ducatprotocol.DucatProtocolWallet
+---
+# Relaunch the app via Expo dev client deep link
+# NOTE: App state clearing is handled EXTERNALLY by the test runner
+# (run-parallel.sh does uninstall/reinstall + TCC permission grant before each test)
+# This avoids clearState wiping system permissions (notifications, paste).
+
+# Step 1: Stop any running instance
+- launchApp:
+    stopApp: true
+
+# Step 2: Launch the app fresh
+- launchApp
+
+# Step 3: Open deep link to connect to Metro bundler
+- openLink: "com.ducatprotocol.DucatProtocolWallet://expo-development-client/?url=http%3A%2F%2Flocalhost%3A8081"
+
+# Step 4: Wait for the JS bundle to download and the welcome screen to appear
+- extendedWaitUntil:
+    visible:
+      id: "welcome-screen"
+    timeout: 120000
+
+# Step 5: Wait for animations to settle so buttons are interactive
+- waitForAnimationToEnd

@@ -11,6 +11,7 @@ import * as ecc from '@bitcoinerlab/secp256k1';
 import { MUTINYNET_NETWORK } from '../utils/bitcoin';
 import { withMnemonic } from './secureStorageService';
 import { ERRORS } from '../utils/messages';
+import { validateAndNormalizeAddress } from '../utils/bitcoin';
 
 // Initialize BIP32 and ECC library
 const bip32 = BIP32Factory(ecc);
@@ -34,6 +35,55 @@ export interface TransactionIntent {
 export interface SignedTransaction {
   signedTxHex: string;
   txid: string;
+}
+
+function verifyPsbtMatchesIntent(intent: TransactionIntent, psbt: bitcoin.Psbt): void {
+  const recipient = (intent as any).recipient as string | undefined;
+  const expectedAmount = (intent as any).amount as number | undefined;
+  const sourceAddress = (intent as any).sourceAddress as string | undefined;
+  const feeAddress = (intent as any).feeAddress as string | undefined;
+
+  if (!recipient || expectedAmount === undefined || !sourceAddress) {
+    throw new Error('SECURITY: Missing intent fields for PSBT validation');
+  }
+
+  if (!psbt.txOutputs || psbt.txOutputs.length === 0) {
+    throw new Error('SECURITY: PSBT has no outputs to validate');
+  }
+
+  const normalizedRecipient = validateAndNormalizeAddress(recipient);
+  const normalizedChange = validateAndNormalizeAddress(sourceAddress);
+  const normalizedFee = feeAddress ? validateAndNormalizeAddress(feeAddress) : null;
+
+  let recipientValue = 0n;
+
+  psbt.txOutputs.forEach((output) => {
+    // Allow OP_RETURN (runestone / metadata)
+    if (output.script[0] === 0x6a) {
+      return;
+    }
+
+    let addr: string;
+    try {
+      addr = bitcoin.address.fromOutputScript(output.script, MUTINYNET_NETWORK);
+    } catch (e) {
+      // If script cannot be decoded and is not OP_RETURN, reject
+      throw new Error('SECURITY: PSBT contains undecodable output script');
+    }
+    if (addr === normalizedRecipient) {
+      recipientValue += output.value;
+      return;
+    }
+    if (addr === normalizedChange || (normalizedFee && addr === normalizedFee)) {
+      return;
+    }
+
+    throw new Error('SECURITY: PSBT contains outputs not reviewed by user');
+  });
+
+  if (intent.assetType === 'BTC' && recipientValue < BigInt(expectedAmount)) {
+    throw new Error('SECURITY: Recipient amount in PSBT is less than approved amount');
+  }
 }
 
 /**
@@ -77,6 +127,42 @@ export const signIntent = async (
 
   // Load PSBT with correct network (testnet)
   const psbt = bitcoin.Psbt.fromBase64(intent.psbt, { network: MUTINYNET_NETWORK });
+
+  // SECURITY: Validate PSBT matches the reviewed intent before signing
+  verifyPsbtMatchesIntent(intent, psbt);
+
+  // SECURITY: Verify each input belongs to our wallet before signing.
+  // Prevents signing a malicious PSBT that spends someone else's UTXOs.
+  const expectedSegwitScript = bitcoin.payments.p2wpkh({
+    pubkey: segwitChild.publicKey,
+    network: MUTINYNET_NETWORK,
+  }).output;
+  const xOnlyPubkey = taprootChild.publicKey.slice(1, 33);
+  const expectedTaprootScript = bitcoin.payments.p2tr({
+    internalPubkey: xOnlyPubkey,
+    network: MUTINYNET_NETWORK,
+  }).output;
+
+  for (let i = 0; i < psbt.data.inputs.length; i++) {
+    const input = psbt.data.inputs[i];
+    const witnessScript = input.witnessUtxo?.script;
+
+    if (!witnessScript) {
+      throw new Error(
+        `SECURITY: Input ${i} has no witnessUtxo script - cannot verify ownership`
+      );
+    }
+
+    const witnessHex = Buffer.from(witnessScript).toString('hex');
+    const matchesSegwit = expectedSegwitScript && witnessHex === Buffer.from(expectedSegwitScript).toString('hex');
+    const matchesTaproot = expectedTaprootScript && witnessHex === Buffer.from(expectedTaprootScript).toString('hex');
+
+    if (!matchesSegwit && !matchesTaproot) {
+      throw new Error(
+        `SECURITY: Input ${i} script does not match any wallet address - refusing to sign`
+      );
+    }
+  }
 
   // UNIFIED SIGNING: Both UNIT and BTC use the same safe signing logic
   // SECURITY: Use bitcoinjs-lib's built-in tweak method instead of manual crypto

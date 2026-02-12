@@ -1,4 +1,3 @@
-// @ts-nocheck
 /**
  * Tests for Mint Swap Service
  * Covers swapTokens and checkProofsSpent including error handling

@@ -1,4 +1,3 @@
-// @ts-nocheck
 /**
  * Tests for TransactionBuildContext
  */
@@ -6,34 +5,35 @@
 import React from 'react';
 import { create, act } from 'react-test-renderer';
 import { TransactionBuildProvider, useTransactionBuild } from '../TransactionBuildContext';
+import type { WalletAddresses } from '../WalletContext';
 import { useSendFlow } from '../../stores/sendFlowStore';
-import { usePendingTransactions } from '../PendingTransactionsContext';
+import { usePendingTransactionsStore } from '../../stores/pendingTransactionsStore';
 import { useBalance } from '../WalletDataContext';
 import * as TransactionService from '../../services/transaction';
 import { ERRORS } from '../../utils/messages';
 
 // Helper to render hooks with react-test-renderer
-function renderHook(hook, { wrapper: Wrapper } = {}) {
-  const result = { current: null };
+function renderHook<T>(hook: () => T, { wrapper: Wrapper }: { wrapper?: React.ComponentType<{ children: React.ReactNode }> } = {}) {
+  const result: { current: T | null } = { current: null };
 
   function TestComponent() {
     result.current = hook();
     return null;
   }
 
-  let component;
+  let component: ReturnType<typeof create> | undefined;
   act(() => {
     component = Wrapper
       ? create(<Wrapper><TestComponent /></Wrapper>)
       : create(<TestComponent />);
   });
 
-  return { result, rerender: component.update, unmount: component.unmount };
+  return { result, rerender: component!.update, unmount: component!.unmount };
 }
 
 // Mock dependencies
 jest.mock('../../stores/sendFlowStore');
-jest.mock('../PendingTransactionsContext');
+jest.mock('../../stores/pendingTransactionsStore');
 jest.mock('../../services/transaction');
 jest.mock('../WalletDataContext', () => ({
   useBalance: jest.fn(),
@@ -46,6 +46,8 @@ describe('TransactionBuildContext', () => {
   const mockWallet = {
     segwitAddress: 'bc1qsegwit',
     taprootAddress: 'bc1ptaproot',
+    segwitPubkey: 'mock_segwit_pubkey',
+    taprootPubkey: 'mock_taproot_pubkey',
   };
   const mockSetIntentStep = jest.fn();
   const mockSetSendRecipient = jest.fn();
@@ -56,11 +58,11 @@ describe('TransactionBuildContext', () => {
     jest.useFakeTimers();
 
     // Reset notify mocks
-    mockNotify.build.error.mockClear();
-    mockNotify.build.missingRecipientAmount.mockClear();
-    mockNotify.build.assetRequired.mockClear();
+    (mockNotify.build.error as jest.Mock).mockClear();
+    (mockNotify.build.missingRecipientAmount as jest.Mock).mockClear();
+    (mockNotify.build.assetRequired as jest.Mock).mockClear();
 
-    useSendFlow.mockReturnValue({
+    (useSendFlow as jest.Mock).mockReturnValue({
       sendRecipient: 'bc1qrecipient',
       sendAmount: '0.001',
       sendAssetType: 'btc',
@@ -68,12 +70,12 @@ describe('TransactionBuildContext', () => {
       setSendRecipient: mockSetSendRecipient,
     });
 
-    usePendingTransactions.mockReturnValue({
+    (usePendingTransactionsStore as jest.Mock).mockReturnValue({
       getUnconfirmedUTXOs: jest.fn().mockReturnValue([]),
       getSpentUtxos: jest.fn().mockReturnValue([]),
     });
 
-    useBalance.mockReturnValue({
+    (useBalance as jest.Mock).mockReturnValue({
       runesBalance: [],
     });
   });
@@ -93,21 +95,21 @@ describe('TransactionBuildContext', () => {
   });
 
   it('should provide initial state', () => {
-    const wrapper = ({ children }) => (
+    const wrapper = ({ children }: { children: React.ReactNode }) => (
       <TransactionBuildProvider wallet={mockWallet} currentAccount={0} >
         {children}
       </TransactionBuildProvider>
     );
     const { result } = renderHook(() => useTransactionBuild(), { wrapper });
 
-    expect(result.current.sendIntent).toBe(null);
+    expect(result.current!.sendIntent).toBe(null);
   });
 
   it('should create BTC intent successfully', async () => {
     const mockIntent = { psbt: 'mock_psbt', fee: 1000 };
-    TransactionService.createBtcIntent.mockResolvedValue(mockIntent);
+    (TransactionService.createBtcIntent as jest.Mock).mockResolvedValue(mockIntent);
 
-    const wrapper = ({ children }) => (
+    const wrapper = ({ children }: { children: React.ReactNode }) => (
       <TransactionBuildProvider wallet={mockWallet} currentAccount={0} >
         {children}
       </TransactionBuildProvider>
@@ -115,7 +117,7 @@ describe('TransactionBuildContext', () => {
     const { result } = renderHook(() => useTransactionBuild(), { wrapper });
 
     await act(async () => {
-      await result.current.createSendIntent();
+      await result.current!.createSendIntent();
     });
 
     expect(mockSetIntentStep).toHaveBeenCalledWith('creating');
@@ -127,17 +129,17 @@ describe('TransactionBuildContext', () => {
       [], // unconfirmed UTXOs
       [] // spent UTXOs
     );
-    expect(result.current.sendIntent).toEqual(mockIntent);
+    expect(result.current!.sendIntent).toEqual(mockIntent);
     expect(mockSetIntentStep).toHaveBeenCalledWith('reviewing');
   });
 
   it('should create UNIT intent successfully', async () => {
     const mockIntent = { psbt: 'mock_psbt_unit', fee: 2000 };
-    TransactionService.createUnitIntent.mockResolvedValue(mockIntent);
+    (TransactionService.createUnitIntent as jest.Mock).mockResolvedValue(mockIntent);
 
     // Need to set up the mocks BEFORE rendering the component
     // Override the default mock from beforeEach
-    useSendFlow.mockReturnValue({
+    (useSendFlow as jest.Mock).mockReturnValue({
       sendRecipient: 'bc1qrecipient',
       sendAmount: '100',
       sendAssetType: 'unit',  // This is the key change
@@ -146,11 +148,11 @@ describe('TransactionBuildContext', () => {
     });
 
     // Mock useBalance to return UNIT balance
-    useBalance.mockReturnValue({
+    (useBalance as jest.Mock).mockReturnValue({
       runesBalance: [['UNIT', '1000']],  // User has 1000 UNIT
     });
 
-    const wrapper = ({ children }) => (
+    const wrapper = ({ children }: { children: React.ReactNode }) => (
       <TransactionBuildProvider wallet={mockWallet} currentAccount={0} >
         {children}
       </TransactionBuildProvider>
@@ -159,7 +161,7 @@ describe('TransactionBuildContext', () => {
 
     // Make sure mock is still set for the call
     await act(async () => {
-      await result.current.createSendIntent();
+      await result.current!.createSendIntent();
     });
 
     expect(mockSetIntentStep).toHaveBeenCalledWith('creating');
@@ -173,14 +175,14 @@ describe('TransactionBuildContext', () => {
       [], // unconfirmed segwit UTXOs
       []  // spent UTXOs
     );
-    expect(result.current.sendIntent).toEqual(mockIntent);
+    expect(result.current!.sendIntent).toEqual(mockIntent);
     expect(mockSetIntentStep).toHaveBeenCalledWith('reviewing');
   });
 
   it('should handle BTC intent creation error', async () => {
-    TransactionService.createBtcIntent.mockRejectedValue(new Error('Insufficient funds'));
+    (TransactionService.createBtcIntent as jest.Mock).mockRejectedValue(new Error('Insufficient funds'));
 
-    const wrapper = ({ children }) => (
+    const wrapper = ({ children }: { children: React.ReactNode }) => (
       <TransactionBuildProvider wallet={mockWallet} currentAccount={0} >
         {children}
       </TransactionBuildProvider>
@@ -188,7 +190,7 @@ describe('TransactionBuildContext', () => {
     const { result } = renderHook(() => useTransactionBuild(), { wrapper });
 
     await act(async () => {
-      await result.current.createSendIntent();
+      await result.current!.createSendIntent();
     });
 
     expect(mockNotify.build.error).toHaveBeenCalled();
@@ -202,7 +204,7 @@ describe('TransactionBuildContext', () => {
   });
 
   it('should handle UNIT intent creation error', async () => {
-    useSendFlow.mockReturnValue({
+    (useSendFlow as jest.Mock).mockReturnValue({
       sendRecipient: 'bc1qrecipient',
       sendAmount: '100',
       sendAssetType: 'unit',
@@ -210,9 +212,9 @@ describe('TransactionBuildContext', () => {
       setSendRecipient: mockSetSendRecipient,
     });
 
-    TransactionService.createUnitIntent.mockRejectedValue(new Error('Invalid recipient'));
+    (TransactionService.createUnitIntent as jest.Mock).mockRejectedValue(new Error('Invalid recipient'));
 
-    const wrapper = ({ children }) => (
+    const wrapper = ({ children }: { children: React.ReactNode }) => (
       <TransactionBuildProvider wallet={mockWallet} currentAccount={0} >
         {children}
       </TransactionBuildProvider>
@@ -220,7 +222,7 @@ describe('TransactionBuildContext', () => {
     const { result } = renderHook(() => useTransactionBuild(), { wrapper });
 
     await act(async () => {
-      await result.current.createSendIntent();
+      await result.current!.createSendIntent();
     });
 
     expect(mockNotify.build.error).toHaveBeenCalled();
@@ -233,7 +235,7 @@ describe('TransactionBuildContext', () => {
   });
 
   it('should validate missing recipient or amount', async () => {
-    useSendFlow.mockReturnValue({
+    (useSendFlow as jest.Mock).mockReturnValue({
       sendRecipient: '',
       sendAmount: '',
       sendAssetType: 'btc',
@@ -241,7 +243,7 @@ describe('TransactionBuildContext', () => {
       setSendRecipient: mockSetSendRecipient,
     });
 
-    const wrapper = ({ children }) => (
+    const wrapper = ({ children }: { children: React.ReactNode }) => (
       <TransactionBuildProvider wallet={mockWallet} currentAccount={0} >
         {children}
       </TransactionBuildProvider>
@@ -249,7 +251,7 @@ describe('TransactionBuildContext', () => {
     const { result } = renderHook(() => useTransactionBuild(), { wrapper });
 
     await act(async () => {
-      await result.current.createSendIntent();
+      await result.current!.createSendIntent();
     });
 
     expect(mockNotify.build.missingRecipientAmount).toHaveBeenCalled();
@@ -263,7 +265,7 @@ describe('TransactionBuildContext', () => {
   });
 
   it('should validate asset type selection', async () => {
-    useSendFlow.mockReturnValue({
+    (useSendFlow as jest.Mock).mockReturnValue({
       sendRecipient: 'bc1qrecipient',
       sendAmount: '0.001',
       sendAssetType: null,
@@ -271,7 +273,7 @@ describe('TransactionBuildContext', () => {
       setSendRecipient: mockSetSendRecipient,
     });
 
-    const wrapper = ({ children }) => (
+    const wrapper = ({ children }: { children: React.ReactNode }) => (
       <TransactionBuildProvider wallet={mockWallet} currentAccount={0} >
         {children}
       </TransactionBuildProvider>
@@ -279,7 +281,7 @@ describe('TransactionBuildContext', () => {
     const { result } = renderHook(() => useTransactionBuild(), { wrapper });
 
     await act(async () => {
-      await result.current.createSendIntent();
+      await result.current!.createSendIntent();
     });
 
     expect(mockNotify.build.assetRequired).toHaveBeenCalled();
@@ -292,7 +294,7 @@ describe('TransactionBuildContext', () => {
   });
 
   it('should trim recipient address', async () => {
-    useSendFlow.mockReturnValue({
+    (useSendFlow as jest.Mock).mockReturnValue({
       sendRecipient: '  bc1qrecipient  ',
       sendAmount: '0.001',
       sendAssetType: 'btc',
@@ -301,9 +303,9 @@ describe('TransactionBuildContext', () => {
     });
 
     const mockIntent = { psbt: 'mock_psbt', fee: 1000 };
-    TransactionService.createBtcIntent.mockResolvedValue(mockIntent);
+    (TransactionService.createBtcIntent as jest.Mock).mockResolvedValue(mockIntent);
 
-    const wrapper = ({ children }) => (
+    const wrapper = ({ children }: { children: React.ReactNode }) => (
       <TransactionBuildProvider wallet={mockWallet} currentAccount={0} >
         {children}
       </TransactionBuildProvider>
@@ -311,7 +313,7 @@ describe('TransactionBuildContext', () => {
     const { result } = renderHook(() => useTransactionBuild(), { wrapper });
 
     await act(async () => {
-      await result.current.createSendIntent();
+      await result.current!.createSendIntent();
     });
 
     expect(mockSetSendRecipient).toHaveBeenCalledWith('bc1qrecipient');
@@ -328,20 +330,20 @@ describe('TransactionBuildContext', () => {
   });
 
   it('should manually set sendIntent', () => {
-    const wrapper = ({ children }) => (
+    const wrapper = ({ children }: { children: React.ReactNode }) => (
       <TransactionBuildProvider wallet={mockWallet} currentAccount={0} >
         {children}
       </TransactionBuildProvider>
     );
     const { result } = renderHook(() => useTransactionBuild(), { wrapper });
 
-    const mockIntent = { psbt: 'manual_psbt', fee: 500 };
+    const mockIntent = { psbt: 'manual_psbt', fee: 500 } as any;
 
     act(() => {
-      result.current.setSendIntent(mockIntent);
+      result.current!.setSendIntent(mockIntent);
     });
 
-    expect(result.current.sendIntent).toEqual(mockIntent);
+    expect(result.current!.sendIntent).toEqual(mockIntent);
   });
 
   it('should create BTC intent with unconfirmed UTXOs', async () => {
@@ -350,7 +352,7 @@ describe('TransactionBuildContext', () => {
       { txid: 'unconfirmed2', vout: 1, value: 30000 },
     ];
 
-    usePendingTransactions.mockReturnValue({
+    (usePendingTransactionsStore as jest.Mock).mockReturnValue({
       getUnconfirmedUTXOs: jest.fn().mockReturnValue(mockUnconfirmedUtxos),
       getSpentUtxos: jest.fn().mockReturnValue([]),
     });
@@ -363,16 +365,16 @@ describe('TransactionBuildContext', () => {
         { txid: 'confirmed1', vout: 0 },
       ],
     };
-    TransactionService.createBtcIntent.mockResolvedValue(mockIntent);
+    (TransactionService.createBtcIntent as jest.Mock).mockResolvedValue(mockIntent);
 
     const mockMarkUtxosAsSpent = jest.fn();
-    usePendingTransactions.mockReturnValue({
+    (usePendingTransactionsStore as jest.Mock).mockReturnValue({
       getUnconfirmedUTXOs: jest.fn().mockReturnValue(mockUnconfirmedUtxos),
       getSpentUtxos: jest.fn().mockReturnValue([]),
       markUtxosAsSpent: mockMarkUtxosAsSpent,
     });
 
-    const wrapper = ({ children }) => (
+    const wrapper = ({ children }: { children: React.ReactNode }) => (
       <TransactionBuildProvider wallet={mockWallet} currentAccount={0} >
         {children}
       </TransactionBuildProvider>
@@ -380,7 +382,7 @@ describe('TransactionBuildContext', () => {
     const { result } = renderHook(() => useTransactionBuild(), { wrapper });
 
     await act(async () => {
-      await result.current.createSendIntent();
+      await result.current!.createSendIntent();
     });
 
     expect(TransactionService.createBtcIntent).toHaveBeenCalledWith(
@@ -391,11 +393,11 @@ describe('TransactionBuildContext', () => {
       mockUnconfirmedUtxos,
       []
     );
-    expect(result.current.sendIntent).toEqual(mockIntent);
+    expect(result.current!.sendIntent).toEqual(mockIntent);
   });
 
   it('should handle UNIT intent with missing wallet addresses', async () => {
-    useSendFlow.mockReturnValue({
+    (useSendFlow as jest.Mock).mockReturnValue({
       sendRecipient: 'bc1qrecipient',
       sendAmount: '100',
       sendAssetType: 'unit',
@@ -403,9 +405,9 @@ describe('TransactionBuildContext', () => {
       setSendRecipient: mockSetSendRecipient,
     });
 
-    const incompleteWallet = { segwitAddress: 'bc1qsegwit' }; // Missing taproot
+    const incompleteWallet = { segwitAddress: 'bc1qsegwit', taprootAddress: '', segwitPubkey: '', taprootPubkey: '' } as WalletAddresses; // Missing taproot
 
-    const wrapper = ({ children }) => (
+    const wrapper = ({ children }: { children: React.ReactNode }) => (
       <TransactionBuildProvider wallet={incompleteWallet} currentAccount={0} >
         {children}
       </TransactionBuildProvider>
@@ -413,7 +415,7 @@ describe('TransactionBuildContext', () => {
     const { result } = renderHook(() => useTransactionBuild(), { wrapper });
 
     await act(async () => {
-      await result.current.createSendIntent();
+      await result.current!.createSendIntent();
     });
 
     expect(mockNotify.build.error).toHaveBeenCalled();
@@ -428,17 +430,17 @@ describe('TransactionBuildContext', () => {
         { txid: 'input1', vout: 0 },
         { txid: 'input2', vout: 1 },
       ],
-    };
+    } as any;
 
     const mockUnmarkUtxosAsSpent = jest.fn();
-    usePendingTransactions.mockReturnValue({
+    (usePendingTransactionsStore as jest.Mock).mockReturnValue({
       getUnconfirmedUTXOs: jest.fn().mockReturnValue([]),
       getSpentUtxos: jest.fn().mockReturnValue([]),
       unmarkUtxosAsSpent: mockUnmarkUtxosAsSpent,
       markUtxosAsSpent: jest.fn(),
     });
 
-    const wrapper = ({ children }) => (
+    const wrapper = ({ children }: { children: React.ReactNode }) => (
       <TransactionBuildProvider wallet={mockWallet} currentAccount={0} >
         {children}
       </TransactionBuildProvider>
@@ -447,19 +449,19 @@ describe('TransactionBuildContext', () => {
 
     // Set an intent
     act(() => {
-      result.current.setSendIntent(mockIntent);
+      result.current!.setSendIntent(mockIntent);
     });
 
     // Cancel the intent
     await act(async () => {
-      await result.current.cancelIntent();
+      await result.current!.cancelIntent();
     });
 
     expect(mockUnmarkUtxosAsSpent).toHaveBeenCalledWith([
       { txid: 'input1', vout: 0 },
       { txid: 'input2', vout: 1 },
     ]);
-    expect(result.current.sendIntent).toBeNull();
+    expect(result.current!.sendIntent).toBeNull();
     expect(mockSetIntentStep).toHaveBeenCalledWith('idle');
   });
 
@@ -478,17 +480,17 @@ describe('TransactionBuildContext', () => {
         vout: 1,
         value: 15000,
       },
-    };
+    } as any;
 
     const mockUnmarkUtxosAsSpent = jest.fn();
-    usePendingTransactions.mockReturnValue({
+    (usePendingTransactionsStore as jest.Mock).mockReturnValue({
       getUnconfirmedUTXOs: jest.fn().mockReturnValue([]),
       getSpentUtxos: jest.fn().mockReturnValue([]),
       unmarkUtxosAsSpent: mockUnmarkUtxosAsSpent,
       markUtxosAsSpent: jest.fn(),
     });
 
-    const wrapper = ({ children }) => (
+    const wrapper = ({ children }: { children: React.ReactNode }) => (
       <TransactionBuildProvider wallet={mockWallet} currentAccount={0} >
         {children}
       </TransactionBuildProvider>
@@ -497,19 +499,19 @@ describe('TransactionBuildContext', () => {
 
     // Set a UNIT intent
     act(() => {
-      result.current.setSendIntent(mockIntent);
+      result.current!.setSendIntent(mockIntent);
     });
 
     // Cancel the intent
     await act(async () => {
-      await result.current.cancelIntent();
+      await result.current!.cancelIntent();
     });
 
     expect(mockUnmarkUtxosAsSpent).toHaveBeenCalledWith([
       { txid: 'rune_txid', vout: 0 },
       { txid: 'sat_txid', vout: 1 },
     ]);
-    expect(result.current.sendIntent).toBeNull();
+    expect(result.current!.sendIntent).toBeNull();
     expect(mockSetIntentStep).toHaveBeenCalledWith('idle');
   });
 
@@ -521,17 +523,17 @@ describe('TransactionBuildContext', () => {
       inputs: [
         { txid: 'input1', vout: 0 },
       ],
-    };
+    } as any;
 
     const mockUnmarkUtxosAsSpent = jest.fn();
-    usePendingTransactions.mockReturnValue({
+    (usePendingTransactionsStore as jest.Mock).mockReturnValue({
       getUnconfirmedUTXOs: jest.fn().mockReturnValue([]),
       getSpentUtxos: jest.fn().mockReturnValue([]),
       unmarkUtxosAsSpent: mockUnmarkUtxosAsSpent,
       markUtxosAsSpent: jest.fn(),
     });
 
-    const wrapper = ({ children }) => (
+    const wrapper = ({ children }: { children: React.ReactNode }) => (
       <TransactionBuildProvider wallet={mockWallet} currentAccount={0} >
         {children}
       </TransactionBuildProvider>
@@ -540,30 +542,30 @@ describe('TransactionBuildContext', () => {
 
     // Set a broadcast intent
     act(() => {
-      result.current.setSendIntent(mockIntent);
+      result.current!.setSendIntent(mockIntent);
     });
 
     // Cancel the intent
     await act(async () => {
-      await result.current.cancelIntent();
+      await result.current!.cancelIntent();
     });
 
     // Should NOT release UTXOs since transaction was broadcast
     expect(mockUnmarkUtxosAsSpent).not.toHaveBeenCalled();
-    expect(result.current.sendIntent).toBeNull();
+    expect(result.current!.sendIntent).toBeNull();
     expect(mockSetIntentStep).toHaveBeenCalledWith('idle');
   });
 
   it('should handle cancelIntent when no intent exists', async () => {
     const mockUnmarkUtxosAsSpent = jest.fn();
-    usePendingTransactions.mockReturnValue({
+    (usePendingTransactionsStore as jest.Mock).mockReturnValue({
       getUnconfirmedUTXOs: jest.fn().mockReturnValue([]),
       getSpentUtxos: jest.fn().mockReturnValue([]),
       unmarkUtxosAsSpent: mockUnmarkUtxosAsSpent,
       markUtxosAsSpent: jest.fn(),
     });
 
-    const wrapper = ({ children }) => (
+    const wrapper = ({ children }: { children: React.ReactNode }) => (
       <TransactionBuildProvider wallet={mockWallet} currentAccount={0} >
         {children}
       </TransactionBuildProvider>
@@ -572,11 +574,11 @@ describe('TransactionBuildContext', () => {
 
     // Cancel when no intent exists (should return early)
     await act(async () => {
-      await result.current.cancelIntent();
+      await result.current!.cancelIntent();
     });
 
     expect(mockUnmarkUtxosAsSpent).not.toHaveBeenCalled();
-    expect(result.current.sendIntent).toBeNull();
+    expect(result.current!.sendIntent).toBeNull();
   });
 
   it('should lock UTXOs when creating UNIT intent with runeUtxo and satUtxo', async () => {
@@ -594,10 +596,10 @@ describe('TransactionBuildContext', () => {
         value: 15000,
       },
     };
-    TransactionService.createUnitIntent.mockResolvedValue(mockIntent);
+    (TransactionService.createUnitIntent as jest.Mock).mockResolvedValue(mockIntent);
 
     const mockMarkUtxosAsSpent = jest.fn();
-    useSendFlow.mockReturnValue({
+    (useSendFlow as jest.Mock).mockReturnValue({
       sendRecipient: 'bc1qrecipient',
       sendAmount: '100',
       sendAssetType: 'unit',
@@ -605,17 +607,17 @@ describe('TransactionBuildContext', () => {
       setSendRecipient: mockSetSendRecipient,
     });
 
-    usePendingTransactions.mockReturnValue({
+    (usePendingTransactionsStore as jest.Mock).mockReturnValue({
       getUnconfirmedUTXOs: jest.fn().mockReturnValue([]),
       getSpentUtxos: jest.fn().mockReturnValue([]),
       markUtxosAsSpent: mockMarkUtxosAsSpent,
     });
 
-    useBalance.mockReturnValue({
+    (useBalance as jest.Mock).mockReturnValue({
       runesBalance: [['UNIT', '1000']],
     });
 
-    const wrapper = ({ children }) => (
+    const wrapper = ({ children }: { children: React.ReactNode }) => (
       <TransactionBuildProvider wallet={mockWallet} currentAccount={0} >
         {children}
       </TransactionBuildProvider>
@@ -623,7 +625,7 @@ describe('TransactionBuildContext', () => {
     const { result } = renderHook(() => useTransactionBuild(), { wrapper });
 
     await act(async () => {
-      await result.current.createSendIntent();
+      await result.current!.createSendIntent();
     });
 
     // Verify both rune and sat UTXOs were locked
@@ -634,7 +636,7 @@ describe('TransactionBuildContext', () => {
   });
 
   it('should handle UNIT intent with zero runes balance', async () => {
-    useSendFlow.mockReturnValue({
+    (useSendFlow as jest.Mock).mockReturnValue({
       sendRecipient: 'bc1qrecipient',
       sendAmount: '100',
       sendAssetType: 'unit',
@@ -642,11 +644,11 @@ describe('TransactionBuildContext', () => {
       setSendRecipient: mockSetSendRecipient,
     });
 
-    useBalance.mockReturnValue({
+    (useBalance as jest.Mock).mockReturnValue({
       runesBalance: [], // No runes balance
     });
 
-    const wrapper = ({ children }) => (
+    const wrapper = ({ children }: { children: React.ReactNode }) => (
       <TransactionBuildProvider wallet={mockWallet} currentAccount={0} >
         {children}
       </TransactionBuildProvider>
@@ -654,7 +656,7 @@ describe('TransactionBuildContext', () => {
     const { result } = renderHook(() => useTransactionBuild(), { wrapper });
 
     await act(async () => {
-      await result.current.createSendIntent();
+      await result.current!.createSendIntent();
     });
 
     expect(mockNotify.build.error).toHaveBeenCalled();

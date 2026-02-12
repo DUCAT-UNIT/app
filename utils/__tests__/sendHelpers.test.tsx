@@ -1,4 +1,3 @@
-// @ts-nocheck
 /**
  * Tests for Send Transaction Helper Functions
  */

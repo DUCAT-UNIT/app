@@ -1,13 +1,11 @@
-// @ts-nocheck
 /**
  * Tests for useCashuMintCompletion hook
- * Covers mint completion polling and error handling
+ * Covers mint completion registration and tracking via app-level CashuContext
  */
 
 import React from 'react';
 import { create, act } from 'react-test-renderer';
 import { useCashuMintCompletion } from '../useCashuMintCompletion';
-import { notify } from '../../utils/notify';
 
 // Mock dependencies
 jest.mock('../../utils/logger', () => ({
@@ -19,383 +17,234 @@ jest.mock('../../utils/logger', () => ({
   },
 }));
 
-// Mock service functions
-const mockCompleteMint = jest.fn();
-const mockCheckMintQuote = jest.fn();
+// Mock CashuContext
+const mockAddPendingMint = jest.fn();
+let mockPendingMints: { quoteId: string; amount: number }[] = [];
 
-jest.mock('../../services/cashu/cashuWalletService', () => ({
-  completeMint: (...args) => mockCompleteMint(...args),
-}));
-
-jest.mock('../../services/cashu/cashuMintClient', () => ({
-  checkMintQuote: (...args) => mockCheckMintQuote(...args),
+jest.mock('../../contexts/CashuContext', () => ({
+  useCashuBalanceState: () => ({
+    pendingMints: mockPendingMints,
+  }),
+  useCashuOperations: () => ({
+    addPendingMint: mockAddPendingMint,
+  }),
 }));
 
 // Helper to render hooks with props
-function renderHookWithProps(props) {
-  const result = { current: null };
-  function TestComponent({ hookProps }) {
-    result.current = useCashuMintCompletion(hookProps);
+function renderHookWithProps(props: Record<string, unknown>) {
+  const result: { current: ReturnType<typeof useCashuMintCompletion> | null } = { current: null };
+  function TestComponent({ hookProps }: { hookProps?: Record<string, unknown> }) {
+    result.current = useCashuMintCompletion(hookProps as unknown as Parameters<typeof useCashuMintCompletion>[0]);
     return null;
   }
-  let component;
+  let component: ReturnType<typeof create> | undefined;
   act(() => {
     component = create(<TestComponent hookProps={props} />);
   });
   return {
     result,
-    unmount: component.unmount,
+    unmount: component!.unmount,
     component,
-    rerender: (newProps) => {
+    rerender: (newProps?: Record<string, unknown>) => {
       act(() => {
-        component.update(<TestComponent hookProps={newProps} />);
+        component?.update(<TestComponent hookProps={newProps} />);
       });
     },
   };
 }
 
 describe('useCashuMintCompletion', () => {
-  let mockProps;
+  let mockProps: Record<string, unknown>;
 
   beforeEach(() => {
     jest.clearAllMocks();
-    jest.useFakeTimers();
+    mockPendingMints = [];
 
     mockProps = {
       cashuMint: false,
       quoteId: undefined,
-      fetchTransactionHistory: jest.fn().mockResolvedValue(),
-      refreshCashuBalance: jest.fn().mockResolvedValue(),
+      mintAmount: undefined,
+      fetchTransactionHistory: jest.fn().mockResolvedValue(undefined),
+      refreshCashuBalance: jest.fn().mockResolvedValue(undefined),
     };
-
-    // Default mocks
-    mockCheckMintQuote.mockResolvedValue({ state: 'PENDING', amount: 100 });
-    mockCompleteMint.mockResolvedValue(undefined);
-  });
-
-  afterEach(() => {
-    jest.useRealTimers();
   });
 
   it('should return initial state', () => {
     const { result } = renderHookWithProps(mockProps);
 
-    expect(result.current.isCompletingMint).toBe(false);
+    expect(result.current!.isCompletingMint).toBe(false);
   });
 
-  it('should not start completion when cashuMint is false', () => {
-    const { result } = renderHookWithProps({
+  it('should not register mint when cashuMint is false', () => {
+    renderHookWithProps({
       ...mockProps,
       cashuMint: false,
       quoteId: 'quote123',
+      mintAmount: 100,
     });
 
-    expect(result.current.isCompletingMint).toBe(false);
-    expect(mockCheckMintQuote).not.toHaveBeenCalled();
+    expect(mockAddPendingMint).not.toHaveBeenCalled();
   });
 
-  it('should not start completion when cashuMint is undefined', () => {
-    const { result } = renderHookWithProps({
+  it('should not register mint when cashuMint is undefined', () => {
+    renderHookWithProps({
       ...mockProps,
       cashuMint: undefined,
       quoteId: 'quote123',
+      mintAmount: 100,
     });
 
-    expect(result.current.isCompletingMint).toBe(false);
-    expect(mockCheckMintQuote).not.toHaveBeenCalled();
+    expect(mockAddPendingMint).not.toHaveBeenCalled();
   });
 
-  it('should not start completion when quoteId is missing', () => {
-    const { result } = renderHookWithProps({
+  it('should not register mint when quoteId is missing', () => {
+    renderHookWithProps({
       ...mockProps,
       cashuMint: true,
       quoteId: undefined,
+      mintAmount: 100,
     });
 
-    expect(result.current.isCompletingMint).toBe(false);
-    expect(mockCheckMintQuote).not.toHaveBeenCalled();
+    expect(mockAddPendingMint).not.toHaveBeenCalled();
+  });
+
+  it('should not register mint when mintAmount is missing', () => {
+    renderHookWithProps({
+      ...mockProps,
+      cashuMint: true,
+      quoteId: 'quote123',
+      mintAmount: undefined,
+    });
+
+    expect(mockAddPendingMint).not.toHaveBeenCalled();
   });
 
   it('should have correct return type structure', () => {
     const { result } = renderHookWithProps(mockProps);
 
     expect(result.current).toHaveProperty('isCompletingMint');
-    expect(typeof result.current.isCompletingMint).toBe('boolean');
+    expect(typeof result.current!.isCompletingMint).toBe('boolean');
   });
 
-  describe('Mint completion flow', () => {
-    it('should poll for payment and complete mint on PAID state', async () => {
-      mockCheckMintQuote.mockResolvedValue({ state: 'PAID', amount: 100 });
+  describe('Mint registration', () => {
+    it('should register pending mint when all params provided', () => {
+      renderHookWithProps({
+        ...mockProps,
+        cashuMint: true,
+        quoteId: 'quote123',
+        mintAmount: 100,
+      });
+
+      expect(mockAddPendingMint).toHaveBeenCalledWith('quote123', 100);
+    });
+
+    it('should set isCompletingMint to true after registration', async () => {
+      // Mock that the mint will be added to pending (simulating what addPendingMint does)
+      mockPendingMints = [{ quoteId: 'quote123', amount: 100 }];
 
       const { result } = renderHookWithProps({
         ...mockProps,
         cashuMint: true,
         quoteId: 'quote123',
+        mintAmount: 100,
       });
 
+      // Wait for effect to run
       await act(async () => {
         await Promise.resolve();
       });
 
-      await act(async () => {
-        jest.advanceTimersByTime(1000);
-        await Promise.resolve();
-      });
-
-      expect(mockCheckMintQuote).toHaveBeenCalledWith('quote123');
-      expect(mockCompleteMint).toHaveBeenCalledWith('quote123', 100);
+      expect(result.current!.isCompletingMint).toBe(true);
     });
 
-    it('should poll for payment and complete mint on ISSUED state', async () => {
-      mockCheckMintQuote.mockResolvedValue({ state: 'ISSUED', amount: 200 });
-
-      const { result } = renderHookWithProps({
-        ...mockProps,
-        cashuMint: true,
-        quoteId: 'quote456',
-      });
-
-      await act(async () => {
-        await Promise.resolve();
-      });
-
-      await act(async () => {
-        jest.advanceTimersByTime(1000);
-        await Promise.resolve();
-      });
-
-      expect(mockCompleteMint).toHaveBeenCalledWith('quote456', 200);
-    });
-
-    it('should show snackbar on successful completion', async () => {
-      mockCheckMintQuote.mockResolvedValue({ state: 'PAID', amount: 100 });
-
-      const { result } = renderHookWithProps({
+    it('should only register once even on rerender', () => {
+      const { rerender } = renderHookWithProps({
         ...mockProps,
         cashuMint: true,
         quoteId: 'quote123',
+        mintAmount: 100,
       });
-
-      await act(async () => {
-        await Promise.resolve();
-      });
-
-      await act(async () => {
-        jest.advanceTimersByTime(1000);
-        await Promise.resolve();
-        await Promise.resolve();
-      });
-
-      expect(notify.cashu.conversionComplete).toHaveBeenCalled();
-    });
-
-    it('should refresh transaction history if provided', async () => {
-      mockCheckMintQuote.mockResolvedValue({ state: 'PAID', amount: 100 });
-
-      const { result } = renderHookWithProps({
-        ...mockProps,
-        cashuMint: true,
-        quoteId: 'quote123',
-      });
-
-      await act(async () => {
-        await Promise.resolve();
-      });
-
-      await act(async () => {
-        jest.advanceTimersByTime(1000);
-        await Promise.resolve();
-        await Promise.resolve();
-      });
-
-      expect(mockProps.fetchTransactionHistory).toHaveBeenCalled();
-    });
-
-    it('should work without fetchTransactionHistory', async () => {
-      mockCheckMintQuote.mockResolvedValue({ state: 'PAID', amount: 100 });
-
-      const props = {
-        ...mockProps,
-        cashuMint: true,
-        quoteId: 'quote123',
-        fetchTransactionHistory: undefined,
-      };
-
-      const { result } = renderHookWithProps(props);
-
-      await act(async () => {
-        await Promise.resolve();
-      });
-
-      await act(async () => {
-        jest.advanceTimersByTime(1000);
-        await Promise.resolve();
-        await Promise.resolve();
-      });
-
-      expect(mockCompleteMint).toHaveBeenCalled();
-      expect(mockProps.refreshCashuBalance).toHaveBeenCalled();
-    });
-
-    it('should refresh cashu balance after completion', async () => {
-      mockCheckMintQuote.mockResolvedValue({ state: 'PAID', amount: 100 });
-
-      const { result } = renderHookWithProps({
-        ...mockProps,
-        cashuMint: true,
-        quoteId: 'quote123',
-      });
-
-      await act(async () => {
-        await Promise.resolve();
-      });
-
-      await act(async () => {
-        jest.advanceTimersByTime(1000);
-        await Promise.resolve();
-        await Promise.resolve();
-      });
-
-      expect(mockProps.refreshCashuBalance).toHaveBeenCalled();
-    });
-
-    it('should show toast when payment not confirmed after timeout', async () => {
-      mockCheckMintQuote.mockResolvedValue({ state: 'PENDING', amount: 100 });
-
-      const { result } = renderHookWithProps({
-        ...mockProps,
-        cashuMint: true,
-        quoteId: 'quote123',
-      });
-
-      await act(async () => {
-        await Promise.resolve();
-      });
-
-      for (let i = 0; i < 35; i++) {
-        await act(async () => {
-          jest.advanceTimersByTime(1000);
-          await Promise.resolve();
-        });
-      }
-
-      expect(notify.cashu.paymentSentAwaiting).toHaveBeenCalled();
-    });
-
-    it('should handle error during mint completion', async () => {
-      mockCheckMintQuote.mockRejectedValue(new Error('Network error'));
-
-      const { result } = renderHookWithProps({
-        ...mockProps,
-        cashuMint: true,
-        quoteId: 'quote123',
-      });
-
-      await act(async () => {
-        await Promise.resolve();
-      });
-
-      await act(async () => {
-        jest.advanceTimersByTime(1000);
-        await Promise.resolve();
-      });
-
-      expect(notify.cashu.conversionFailed).toHaveBeenCalled();
-    });
-
-    it('should handle non-Error exception during completion', async () => {
-      mockCheckMintQuote.mockRejectedValue('String error');
-
-      const { result } = renderHookWithProps({
-        ...mockProps,
-        cashuMint: true,
-        quoteId: 'quote123',
-      });
-
-      await act(async () => {
-        await Promise.resolve();
-      });
-
-      await act(async () => {
-        jest.advanceTimersByTime(1000);
-        await Promise.resolve();
-      });
-
-      expect(notify.cashu.conversionFailed).toHaveBeenCalled();
-    });
-
-    it('should not restart completion if already completed', async () => {
-      mockCheckMintQuote.mockResolvedValue({ state: 'PAID', amount: 100 });
-
-      const { result, rerender } = renderHookWithProps({
-        ...mockProps,
-        cashuMint: true,
-        quoteId: 'quote123',
-      });
-
-      await act(async () => {
-        await Promise.resolve();
-      });
-
-      await act(async () => {
-        jest.advanceTimersByTime(1000);
-        await Promise.resolve();
-      });
-
-      const callCount = mockCheckMintQuote.mock.calls.length;
 
       rerender({
         ...mockProps,
         cashuMint: true,
         quoteId: 'quote123',
+        mintAmount: 100,
       });
 
-      await act(async () => {
-        jest.advanceTimersByTime(1000);
-        await Promise.resolve();
+      expect(mockAddPendingMint).toHaveBeenCalledTimes(1);
+    });
+  });
+
+  describe('Mint completion tracking', () => {
+    it('should track when mint is still pending', () => {
+      mockPendingMints = [{ quoteId: 'quote123', amount: 100 }];
+
+      const { result } = renderHookWithProps({
+        ...mockProps,
+        cashuMint: true,
+        quoteId: 'quote123',
+        mintAmount: 100,
       });
 
-      expect(mockCheckMintQuote.mock.calls.length).toBe(callCount);
+      // Mint is still pending, so isCompletingMint should remain true
+      expect(result.current!.isCompletingMint).toBe(true);
     });
 
-    it('should skip when hasCashuMintCompleted ref is true after rerender with new callback', async () => {
-      mockCheckMintQuote.mockResolvedValue({ state: 'PAID', amount: 100 });
+    it('should detect when mint completes (removed from pendingMints)', () => {
+      // Start with pending mint
+      mockPendingMints = [{ quoteId: 'quote123', amount: 100 }];
 
       const { result, rerender } = renderHookWithProps({
         ...mockProps,
         cashuMint: true,
         quoteId: 'quote123',
+        mintAmount: 100,
       });
 
-      // Run first completion
-      await act(async () => {
-        await Promise.resolve();
-      });
+      expect(result.current!.isCompletingMint).toBe(true);
 
-      await act(async () => {
-        jest.advanceTimersByTime(1000);
-        await Promise.resolve();
-        await Promise.resolve();
-      });
+      // Simulate mint completion by removing from pendingMints
+      mockPendingMints = [];
 
-      const callCount = mockCheckMintQuote.mock.calls.length;
-
-      // Rerender with a NEW showToast function (different reference)
-      // This will cause the effect to run again, hitting the hasCashuMintCompleted check
       rerender({
         ...mockProps,
         cashuMint: true,
         quoteId: 'quote123',
-        showToast: jest.fn(), // new reference
+        mintAmount: 100,
       });
 
-      await act(async () => {
-        jest.advanceTimersByTime(1000);
-        await Promise.resolve();
+      expect(result.current!.isCompletingMint).toBe(false);
+    });
+
+    it('should only track completion for its own quoteId', () => {
+      // Start with our pending mint
+      mockPendingMints = [
+        { quoteId: 'quote123', amount: 100 },
+        { quoteId: 'other456', amount: 200 },
+      ];
+
+      const { result, rerender } = renderHookWithProps({
+        ...mockProps,
+        cashuMint: true,
+        quoteId: 'quote123',
+        mintAmount: 100,
       });
 
-      // Should not have made additional calls
-      expect(mockCheckMintQuote.mock.calls.length).toBe(callCount);
+      expect(result.current!.isCompletingMint).toBe(true);
+
+      // Remove only other quote, ours still pending
+      mockPendingMints = [{ quoteId: 'quote123', amount: 100 }];
+
+      rerender({
+        ...mockProps,
+        cashuMint: true,
+        quoteId: 'quote123',
+        mintAmount: 100,
+      });
+
+      // Should still be completing since our quote is still pending
+      expect(result.current!.isCompletingMint).toBe(true);
     });
   });
 });

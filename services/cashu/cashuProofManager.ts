@@ -1,4 +1,6 @@
 import * as SecureStore from 'expo-secure-store';
+import * as Crypto from 'expo-crypto';
+import { Buffer } from 'buffer';
 import { logger } from '../../utils/logger';
 import { checkProofsSpent, CheckStateResponse } from './cashuMintClient';
 import { CashuProof } from './crypto';
@@ -8,6 +10,28 @@ import { CashuProof } from './crypto';
  * Handles proof storage, retrieval, and account management
  * Extracted from cashuWalletService.js for better separation of concerns
  */
+
+// Account-scoped mutex locks for proof operations to prevent concurrent read-modify-write races
+// Each account gets its own lock chain so operations on different accounts don't serialize
+const _proofLocks: Map<string, Promise<unknown>> = new Map();
+
+function withProofLock<T>(fn: () => Promise<T>): Promise<T> {
+  const key = currentAccount || '__default__';
+  const existing = _proofLocks.get(key) || Promise.resolve();
+  const run = async () => fn();
+  const next = existing.then(run, run);
+  _proofLocks.set(key, next);
+  return next as Promise<T>;
+}
+
+/**
+ * Compute SHA-256 integrity hash for proof data
+ */
+const computeProofHash = async (serialized: string): Promise<string> => {
+  const bytes = Buffer.from(serialized, 'utf-8');
+  const hashBuffer = await Crypto.digest(Crypto.CryptoDigestAlgorithm.SHA256, bytes);
+  return Buffer.from(hashBuffer).toString('hex');
+};
 
 // Current account address for account-specific storage
 let currentAccount: string | null = null;
@@ -107,10 +131,7 @@ export const getStorageKey = (): string => {
   return `cashu_proofs_${currentAccount}`;
 };
 
-/**
- * Load proofs from secure storage
- */
-export const loadProofs = async (): Promise<CashuProof[]> => {
+const readProofsUnsafe = async (): Promise<CashuProof[]> => {
   try {
     const STORAGE_KEY = getStorageKey();
     const stored = await SecureStore.getItemAsync(STORAGE_KEY);
@@ -143,9 +164,16 @@ export const loadProofs = async (): Promise<CashuProof[]> => {
 };
 
 /**
+ * Load proofs from secure storage (non-locking; callers that mutate should lock separately)
+ */
+export const loadProofs = async (): Promise<CashuProof[]> => {
+  return readProofsUnsafe();
+};
+
+/**
  * Save proofs to secure storage
  */
-export const saveProofs = async (proofs: CashuProof[]): Promise<void> => {
+export const saveProofs = async (proofs: CashuProof[], verify = true): Promise<void> => {
   try {
     const STORAGE_KEY = getStorageKey();
     const serialized = JSON.stringify(proofs);
@@ -154,29 +182,42 @@ export const saveProofs = async (proofs: CashuProof[]): Promise<void> => {
     // No need to delete first, which eliminates the race condition
     await SecureStore.setItemAsync(STORAGE_KEY, serialized);
 
-    // Verify the write succeeded
-    const verification = await SecureStore.getItemAsync(STORAGE_KEY);
-    if (!verification) {
-      logger.error('SecureStore write verification failed - no data returned');
-      throw new Error('Failed to save proofs - verification returned null');
-    }
+    // Store integrity hash alongside proofs
+    const hash = await computeProofHash(serialized);
+    await SecureStore.setItemAsync(`${STORAGE_KEY}_hash`, hash);
 
-    let verified: CashuProof[];
-    try {
-      verified = JSON.parse(verification);
-    } catch (parseError) {
-      logger.error('SecureStore write verification failed - invalid JSON', {
-        error: (parseError as Error).message,
-      });
-      throw new Error('Failed to save proofs - verification returned invalid JSON');
-    }
+    if (verify) {
+      const verification = await SecureStore.getItemAsync(STORAGE_KEY);
+      if (!verification) {
+        logger.error('SecureStore write verification failed - no data returned');
+        throw new Error('Failed to save proofs - verification returned null');
+      }
 
-    if (verified.length !== proofs.length) {
-      logger.error('SecureStore write verification failed!', {
-        expected: proofs.length,
-        actual: verified.length,
-      });
-      throw new Error('Failed to save proofs - verification failed');
+      try {
+        const verified = JSON.parse(verification);
+        if (!Array.isArray(verified) || verified.length !== proofs.length) {
+          logger.error('SecureStore write verification failed!', {
+            expected: proofs.length,
+            actual: Array.isArray(verified) ? verified.length : 'non-array',
+          });
+          throw new Error('Failed to save proofs - verification failed');
+        }
+
+        // Verify integrity hash matches
+        const verifyHash = await computeProofHash(verification);
+        if (verifyHash !== hash) {
+          logger.error('Proof integrity hash mismatch after write');
+          throw new Error('Failed to save proofs - integrity check failed');
+        }
+      } catch (parseError) {
+        if ((parseError as Error).message.includes('Failed to save proofs')) {
+          throw parseError;
+        }
+        logger.error('SecureStore write verification failed - invalid JSON', {
+          error: (parseError as Error).message,
+        });
+        throw new Error('Failed to save proofs - verification failed');
+      }
     }
 
     logger.info('Saved proofs to storage', { count: proofs.length });
@@ -188,12 +229,15 @@ export const saveProofs = async (proofs: CashuProof[]): Promise<void> => {
 
 /**
  * Add new proofs to wallet
+ * Uses mutex lock to prevent concurrent read-modify-write race conditions
  */
-export const addProofs = async (newProofs: CashuProof[]): Promise<void> => {
-  const existing = await loadProofs();
-  const combined = [...existing, ...newProofs];
-  await saveProofs(combined);
-  logger.info('Added proofs', { added: newProofs.length, total: combined.length });
+export const addProofs = async (newProofs: CashuProof[], verify = true): Promise<void> => {
+  await withProofLock(async () => {
+    const existing = await loadProofs();
+    const combined = [...existing, ...newProofs];
+    await saveProofs(combined, verify);
+    logger.info('Added proofs', { added: newProofs.length, total: combined.length });
+  });
 
   // Notify listeners that proofs have changed (triggers balance refresh)
   notifyProofChange();
@@ -201,17 +245,20 @@ export const addProofs = async (newProofs: CashuProof[]): Promise<void> => {
 
 /**
  * Remove proofs from wallet (after spending)
+ * Uses mutex lock to prevent concurrent read-modify-write race conditions
  */
 export const removeProofs = async (proofsToRemove: CashuProof[]): Promise<void> => {
-  const existing = await loadProofs();
-  const secretsToRemove = new Set(proofsToRemove.map((p) => p.secret));
+  await withProofLock(async () => {
+    const existing = await loadProofs();
+    const secretsToRemove = new Set(proofsToRemove.map((p) => p.secret));
 
-  const remaining = existing.filter((p) => !secretsToRemove.has(p.secret));
-  await saveProofs(remaining);
+    const remaining = existing.filter((p) => !secretsToRemove.has(p.secret));
+    await saveProofs(remaining);
 
-  logger.info('Removed proofs', {
-    removed: proofsToRemove.length,
-    remaining: remaining.length,
+    logger.info('Removed proofs', {
+      removed: proofsToRemove.length,
+      remaining: remaining.length,
+    });
   });
 
   // Notify listeners that proofs have changed (triggers balance refresh)
@@ -222,35 +269,16 @@ export const removeProofs = async (proofsToRemove: CashuProof[]): Promise<void> 
  * Load proofs with optional limit for faster initial loading
  */
 export const loadProofsPartial = async (limit: number | null = null): Promise<CashuProof[]> => {
-  try {
-    const STORAGE_KEY = getStorageKey();
-    const stored = await SecureStore.getItemAsync(STORAGE_KEY);
-    if (!stored) {
-      return [];
-    }
-
-    let proofs: CashuProof[];
-    try {
-      proofs = JSON.parse(stored);
-    } catch (parseError) {
-      logger.error('Failed to parse stored proofs', { error: (parseError as Error).message });
-      return [];
-    }
-
-    if (limit !== null && proofs.length > limit) {
-      logger.info('Loaded partial proofs from storage', {
-        requested: limit,
-        total: proofs.length,
-        remaining: proofs.length - limit
-      });
-      return proofs.slice(0, limit);
-    }
-
-    return proofs;
-  } catch (error: unknown) {
-    logger.error('Failed to load proofs', { error: (error as Error).message });
-    return [];
+  const proofs = await readProofsUnsafe();
+  if (limit !== null && proofs.length > limit) {
+    logger.info('Loaded partial proofs from storage', {
+      requested: limit,
+      total: proofs.length,
+      remaining: proofs.length - limit
+    });
+    return proofs.slice(0, limit);
   }
+  return proofs;
 };
 
 interface RemoveSpentProofsResult {
@@ -263,7 +291,7 @@ interface RemoveSpentProofsResult {
  * Checks proof states with the mint and removes any that are already spent
  */
 export const removeSpentProofs = async (): Promise<RemoveSpentProofsResult> => {
-  try {
+  return withProofLock(async () => {
     logger.info('Starting cleanup of spent proofs');
 
     // Get all proofs from wallet
@@ -308,8 +336,5 @@ export const removeSpentProofs = async (): Promise<RemoveSpentProofsResult> => {
       removed: spentProofs.length,
       kept: validProofs.length,
     };
-  } catch (error: unknown) {
-    logger.error('Failed to remove spent proofs', { error: (error as Error).message });
-    throw error;
-  }
+  });
 };

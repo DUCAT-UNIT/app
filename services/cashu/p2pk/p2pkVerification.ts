@@ -96,8 +96,11 @@ export const verifyP2PKWitness = async (
     );
     const messageHash = new Uint8Array(messageHashBuffer);
 
-    // Get signature
+    // Validate and decode signature (Schnorr signatures are exactly 64 bytes = 128 hex chars)
     const signatureHex = witnessData.signatures[0];
+    if (typeof signatureHex !== 'string' || signatureHex.length !== 128 || !/^[0-9a-f]{128}$/i.test(signatureHex)) {
+      return false;
+    }
     const signatureBytes = Buffer.from(signatureHex, 'hex');
 
     // Get public key (remove 02/03 prefix if compressed, schnorr uses x-only)

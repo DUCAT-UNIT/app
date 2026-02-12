@@ -48,7 +48,6 @@ export interface RuneBalanceItem {
   amount: string | number;
   divisibility?: number;
   symbol?: string;
-  [key: string]: unknown;
 }
 
 /** Union type for transaction intents - either BTC or UNIT, with optional broadcast txid */
@@ -198,6 +197,51 @@ export function useTransactionBuilder({
     try {
       if (!wallet?.taprootAddress || !wallet?.segwitAddress) {
         throw new Error('Wallet not initialized');
+      }
+
+      // E2E bypass: skip UTXO lookup and PSBT building — no real Runes UTXOs exist
+      if (__DEV__ && process.env.EXPO_PUBLIC_E2E_BYPASS === 'true') {
+        const parsedAmount = parseFloat(sendAmount) || 0;
+        const fakeIntent: UnitTransactionIntent = {
+          id: `e2e-unit-${Date.now()}`,
+          type: 'send',
+          assetType: 'UNIT',
+          amount: Math.round(parsedAmount * 100),
+          amountDisplay: `${sendAmount} UNIT`,
+          recipient: sendRecipient,
+          fee: 445,
+          addressType: 'taproot',
+          sourceAddress: wallet.taprootAddress,
+          feeAddress: wallet.segwitAddress,
+          runeUtxos: [{
+            transaction: 'e2e-mock-rune-txid',
+            vout: 0,
+            value: 600,
+            runeAmount: Math.round(parsedAmount * 100),
+            status: { confirmed: true },
+          }],
+          runeUtxo: {
+            transaction: 'e2e-mock-rune-txid',
+            vout: 0,
+            value: 600,
+            runeAmount: Math.round(parsedAmount * 100),
+            status: { confirmed: true },
+          },
+          satUtxo: {
+            txid: 'e2e-mock-sat-txid',
+            vout: 0,
+            value: 30000,
+            status: { confirmed: true },
+          },
+          totalInput: 30600,
+          change: 30155,
+          psbt: 'e2e-mock-psbt',
+          timestamp: Date.now(),
+        };
+        logger.info('[createUnitIntent] E2E bypass: fake intent created', { amount: sendAmount });
+        setSendIntent(fakeIntent);
+        setIntentStep('reviewing');
+        return;
       }
 
       const unitAmount = runesBalance && runesBalance.length > 0

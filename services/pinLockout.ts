@@ -13,9 +13,23 @@ const LOCKOUT_DURATION = PIN.LOCKOUT_DURATION_MS;
 
 // Secure storage keys for lockout state
 const LOCKOUT_KEYS = {
+  FAILED_ATTEMPTS: 'pin_failed_attempts_v2',
+  LOCKOUT_UNTIL: 'pin_lockout_until_v2',
+} as const;
+const LEGACY_LOCKOUT_KEYS = {
   FAILED_ATTEMPTS: 'pin_failed_attempts',
   LOCKOUT_UNTIL: 'pin_lockout_until',
 } as const;
+
+// SECURITY: Use AFTER_FIRST_UNLOCK_THIS_DEVICE_ONLY to persist lockout state
+// across app reinstalls. This prevents brute-force bypass via reinstall.
+const LOCKOUT_STORE_OPTIONS: SecureStore.SecureStoreOptions = {
+  keychainAccessible: SecureStore.AFTER_FIRST_UNLOCK_THIS_DEVICE_ONLY,
+  requireAuthentication: true,
+};
+const LEGACY_LOCKOUT_OPTIONS: SecureStore.SecureStoreOptions = {
+  keychainAccessible: SecureStore.AFTER_FIRST_UNLOCK_THIS_DEVICE_ONLY,
+};
 
 export interface LockoutState {
   failedAttempts: number;
@@ -39,12 +53,24 @@ export interface FailedAttemptResult {
  */
 export const loadLockoutState = async (): Promise<LockoutState> => {
   try {
-    const failedAttempts = await SecureStore.getItemAsync(LOCKOUT_KEYS.FAILED_ATTEMPTS);
-    const lockoutUntil = await SecureStore.getItemAsync(LOCKOUT_KEYS.LOCKOUT_UNTIL);
+    const failedAttempts = await SecureStore.getItemAsync(LOCKOUT_KEYS.FAILED_ATTEMPTS, LOCKOUT_STORE_OPTIONS);
+    const lockoutUntil = await SecureStore.getItemAsync(LOCKOUT_KEYS.LOCKOUT_UNTIL, LOCKOUT_STORE_OPTIONS);
+
+    // Backwards compatibility: fall back to legacy keys if v2 not present
+    const legacyFailed = await SecureStore.getItemAsync(LEGACY_LOCKOUT_KEYS.FAILED_ATTEMPTS, LEGACY_LOCKOUT_OPTIONS);
+    const legacyUntil = await SecureStore.getItemAsync(LEGACY_LOCKOUT_KEYS.LOCKOUT_UNTIL, LEGACY_LOCKOUT_OPTIONS);
 
     return {
-      failedAttempts: failedAttempts ? parseInt(failedAttempts, 10) : 0,
-      lockoutUntil: lockoutUntil ? parseInt(lockoutUntil, 10) : null,
+      failedAttempts: failedAttempts
+        ? parseInt(failedAttempts, 10)
+        : legacyFailed
+          ? parseInt(legacyFailed, 10)
+          : 0,
+      lockoutUntil: lockoutUntil
+        ? parseInt(lockoutUntil, 10)
+        : legacyUntil
+          ? parseInt(legacyUntil, 10)
+          : null,
     };
   } catch (error: unknown) {
     // If we can't load state, return safe defaults
@@ -68,11 +94,14 @@ export const saveLockoutState = async (
   lockoutUntil: number | null
 ): Promise<void> => {
   try {
-    await SecureStore.setItemAsync(LOCKOUT_KEYS.FAILED_ATTEMPTS, failedAttempts.toString());
+    await SecureStore.setItemAsync(LOCKOUT_KEYS.FAILED_ATTEMPTS, failedAttempts.toString(), LOCKOUT_STORE_OPTIONS);
+    await SecureStore.setItemAsync(LEGACY_LOCKOUT_KEYS.FAILED_ATTEMPTS, failedAttempts.toString(), LEGACY_LOCKOUT_OPTIONS);
     if (lockoutUntil) {
-      await SecureStore.setItemAsync(LOCKOUT_KEYS.LOCKOUT_UNTIL, lockoutUntil.toString());
+      await SecureStore.setItemAsync(LOCKOUT_KEYS.LOCKOUT_UNTIL, lockoutUntil.toString(), LOCKOUT_STORE_OPTIONS);
+      await SecureStore.setItemAsync(LEGACY_LOCKOUT_KEYS.LOCKOUT_UNTIL, lockoutUntil.toString(), LEGACY_LOCKOUT_OPTIONS);
     } else {
-      await SecureStore.deleteItemAsync(LOCKOUT_KEYS.LOCKOUT_UNTIL);
+      await SecureStore.deleteItemAsync(LOCKOUT_KEYS.LOCKOUT_UNTIL, LOCKOUT_STORE_OPTIONS);
+      await SecureStore.deleteItemAsync(LEGACY_LOCKOUT_KEYS.LOCKOUT_UNTIL, LEGACY_LOCKOUT_OPTIONS);
     }
   } catch (error: unknown) {
     // SECURITY: Fail closed - if we can't save lockout state, throw error

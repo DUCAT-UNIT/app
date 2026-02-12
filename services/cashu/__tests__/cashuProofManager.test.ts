@@ -1,4 +1,3 @@
-// @ts-nocheck
 /**
  * Tests for cashuProofManager
  * Focused on covering uncovered lines: 69-70, 196-197
@@ -26,6 +25,11 @@ jest.mock('expo-secure-store', () => ({
     delete mockStorage[key];
     return Promise.resolve();
   }),
+}));
+
+jest.mock('expo-crypto', () => ({
+  digest: jest.fn().mockResolvedValue(new ArrayBuffer(32)),
+  CryptoDigestAlgorithm: { SHA256: 'SHA-256' },
 }));
 
 import * as SecureStore from 'expo-secure-store';

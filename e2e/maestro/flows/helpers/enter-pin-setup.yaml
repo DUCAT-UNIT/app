@@ -1,0 +1,86 @@
+appId: com.ducatprotocol.DucatProtocolWallet
+---
+- runFlow:
+    when:
+      visible:
+        id: "pin-keypad-1"
+    commands:
+      - tapOn:
+          id: "pin-keypad-1"
+- runFlow:
+    when:
+      visible:
+        id: "lock-keypad-1"
+    commands:
+      - tapOn:
+          id: "lock-keypad-1"
+- runFlow:
+    when:
+      visible:
+        id: "pin-keypad-2"
+    commands:
+      - tapOn:
+          id: "pin-keypad-2"
+- runFlow:
+    when:
+      visible:
+        id: "lock-keypad-2"
+    commands:
+      - tapOn:
+          id: "lock-keypad-2"
+- runFlow:
+    when:
+      visible:
+        id: "pin-keypad-3"
+    commands:
+      - tapOn:
+          id: "pin-keypad-3"
+- runFlow:
+    when:
+      visible:
+        id: "lock-keypad-3"
+    commands:
+      - tapOn:
+          id: "lock-keypad-3"
+- runFlow:
+    when:
+      visible:
+        id: "pin-keypad-4"
+    commands:
+      - tapOn:
+          id: "pin-keypad-4"
+- runFlow:
+    when:
+      visible:
+        id: "lock-keypad-4"
+    commands:
+      - tapOn:
+          id: "lock-keypad-4"
+- runFlow:
+    when:
+      visible:
+        id: "pin-keypad-5"
+    commands:
+      - tapOn:
+          id: "pin-keypad-5"
+- runFlow:
+    when:
+      visible:
+        id: "lock-keypad-5"
+    commands:
+      - tapOn:
+          id: "lock-keypad-5"
+- runFlow:
+    when:
+      visible:
+        id: "pin-keypad-6"
+    commands:
+      - tapOn:
+          id: "pin-keypad-6"
+- runFlow:
+    when:
+      visible:
+        id: "lock-keypad-6"
+    commands:
+      - tapOn:
+          id: "lock-keypad-6"

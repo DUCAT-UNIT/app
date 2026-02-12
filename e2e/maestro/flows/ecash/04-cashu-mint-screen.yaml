@@ -1,0 +1,75 @@
+appId: com.ducatprotocol.DucatProtocolWallet
+---
+# Cashu Mint Screen - Navigate to mint flow with funded wallet and verify interactive UI
+# Create wallet with vault (has UNIT) → settings → cashu → mint → verify input and interaction
+
+- runFlow: ../helpers/create-wallet-with-vault.yaml
+
+# Navigate to settings
+- tapOn:
+    id: "wallet-settings-btn"
+- extendedWaitUntil:
+    visible:
+      id: "settings-screen"
+    timeout: 5000
+
+# Enable dev mode (required for cashu settings)
+- tapOn:
+    id: "settings-advanced-btn"
+- extendedWaitUntil:
+    visible:
+      id: "advanced-screen"
+    timeout: 5000
+- tapOn:
+    id: "advanced-dev-mode-btn"
+- tapOn:
+    id: "advanced-back-btn"
+- extendedWaitUntil:
+    visible:
+      id: "settings-screen"
+    timeout: 5000
+
+# Open Cashu settings
+- tapOn:
+    id: "settings-cashu-btn"
+- extendedWaitUntil:
+    visible:
+      id: "cashu-settings-screen"
+    timeout: 5000
+
+# Tap Redeem Token to open CashuReceiveScreen
+- tapOn:
+    id: "cashu-redeem-token-btn"
+- waitForAnimationToEnd
+- extendedWaitUntil:
+    visible:
+      id: "cashu-receive-screen"
+    timeout: 10000
+
+# Choose Mint option
+- tapOn:
+    id: "cashu-receive-mint-btn"
+- waitForAnimationToEnd
+
+# Verify mint amount input screen UI elements
+- extendedWaitUntil:
+    visible:
+      id: "cashu-mint-screen"
+    timeout: 10000
+- assertVisible:
+    id: "cashu-mint-amount-input"
+- assertVisible:
+    id: "cashu-mint-btn"
+
+# Verify the screen title text is present
+- assertVisible:
+    text: "Mint Turbo UNIT"
+
+# Test amount input accepts numeric values
+- tapOn:
+    id: "cashu-mint-amount-input"
+- inputText: "100"
+
+# Verify mint button is interactive after entering amount
+- assertVisible:
+    id: "cashu-mint-btn"

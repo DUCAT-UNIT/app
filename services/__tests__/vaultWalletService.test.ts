@@ -1,4 +1,3 @@
-// @ts-nocheck
 /**
  * Tests for Vault Wallet Service
  * This service is a re-export module
@@ -52,8 +51,13 @@ jest.mock('../../utils/wallet/cryptoHelpers', () => ({
   getECPair: jest.fn(() => ({ fromPrivateKey: jest.fn() })),
 }));
 
-jest.mock('../../utils/wallet/psbtSigning', () => ({
+jest.mock('../signing', () => ({
   signPsbtRaw: jest.fn(),
+  signPsbtWithSdkObject: jest.fn(),
+  patchPreProcessFields: jest.fn((psbt) => psbt),
+  patchPostProcessFields: jest.fn((psbt) => psbt),
+  psbtPreProcess: jest.fn(),
+  psbtPostProcess: jest.fn(),
 }));
 
 jest.mock('../secureStorageService', () => ({

@@ -1,0 +1,175 @@
+appId: com.ducatprotocol.DucatProtocolWallet
+---
+# Change PIN with Re-Verification - Change PIN then verify it actually works
+# Import wallet → settings → security → change PIN → lock wallet → unlock with new PIN → change back
+
+- runFlow: ../helpers/import-wallet-typed.yaml
+
+# Navigate to settings → security
+- runFlow: ../helpers/navigate-to-settings.yaml
+- tapOn:
+    id: "settings-security-btn"
+- assertVisible:
+    id: "security-screen"
+
+# Tap change PIN
+- tapOn:
+    id: "security-change-pin-btn"
+
+# Enter current PIN (123456)
+- runFlow: ../helpers/enter-pin-lock.yaml
+
+# Enter new PIN (654321) twice
+- tapOn:
+    id: "pin-keypad-6"
+- tapOn:
+    id: "pin-keypad-5"
+- tapOn:
+    id: "pin-keypad-4"
+- tapOn:
+    id: "pin-keypad-3"
+- tapOn:
+    id: "pin-keypad-2"
+- tapOn:
+    id: "pin-keypad-1"
+
+# Confirm new PIN
+- tapOn:
+    id: "pin-keypad-6"
+- tapOn:
+    id: "pin-keypad-5"
+- tapOn:
+    id: "pin-keypad-4"
+- tapOn:
+    id: "pin-keypad-3"
+- tapOn:
+    id: "pin-keypad-2"
+- tapOn:
+    id: "pin-keypad-1"
+
+# Verify returns to security screen
+- extendedWaitUntil:
+    visible:
+      id: "security-screen"
+    timeout: 10000
+
+# === RE-VERIFICATION: Lock wallet and unlock with new PIN ===
+
+# Navigate back to settings screen (lock button is on settings, not security)
+- tapOn:
+    id: "security-back-btn"
+- extendedWaitUntil:
+    visible:
+      id: "settings-screen"
+    timeout: 5000
+
+# Tap lock wallet
+- tapOn:
+    id: "settings-lock-btn"
+
+# Confirmation modal appears - tap Lock button
+- extendedWaitUntil:
+    visible:
+      text: "Lock"
+    timeout: 3000
+- tapOn:
+    text: "Lock"
+
+# Verify we're at lock screen
+- extendedWaitUntil:
+    visible:
+      id: "lock-screen"
+    timeout: 5000
+
+# Enter NEW PIN (654321) to verify it works
+- tapOn:
+    id: "lock-keypad-6"
+- tapOn:
+    id: "lock-keypad-5"
+- tapOn:
+    id: "lock-keypad-4"
+- tapOn:
+    id: "lock-keypad-3"
+- tapOn:
+    id: "lock-keypad-2"
+- tapOn:
+    id: "lock-keypad-1"
+
+# Verify wallet screen loads (new PIN works!)
+- extendedWaitUntil:
+    visible:
+      id: "wallet-screen"
+    timeout: 15000
+
+# Dismiss modals that may appear after unlock
+- runFlow: ../helpers/dismiss-low-ecash.yaml
+- runFlow: ../helpers/dismiss-airdrop.yaml
+- runFlow:
+    when:
+      visible:
+        id: "passkey-migration-modal"
+    commands:
+      - tapOn:
+          id: "passkey-skip-btn"
+
+# === CLEANUP: Change PIN back to 123456 for other tests ===
+- tapOn:
+    id: "wallet-settings-btn"
+- extendedWaitUntil:
+    visible:
+      id: "settings-screen"
+    timeout: 5000
+- tapOn:
+    id: "settings-security-btn"
+- assertVisible:
+    id: "security-screen"
+- tapOn:
+    id: "security-change-pin-btn"
+
+# Enter current PIN (654321 — the one we just set)
+- tapOn:
+    id: "lock-keypad-6"
+- tapOn:
+    id: "lock-keypad-5"
+- tapOn:
+    id: "lock-keypad-4"
+- tapOn:
+    id: "lock-keypad-3"
+- tapOn:
+    id: "lock-keypad-2"
+- tapOn:
+    id: "lock-keypad-1"
+
+# Enter original PIN (123456) twice to restore
+- tapOn:
+    id: "pin-keypad-1"
+- tapOn:
+    id: "pin-keypad-2"
+- tapOn:
+    id: "pin-keypad-3"
+- tapOn:
+    id: "pin-keypad-4"
+- tapOn:
+    id: "pin-keypad-5"
+- tapOn:
+    id: "pin-keypad-6"
+
+# Confirm original PIN
+- tapOn:
+    id: "pin-keypad-1"
+- tapOn:
+    id: "pin-keypad-2"
+- tapOn:
+    id: "pin-keypad-3"
+- tapOn:
+    id: "pin-keypad-4"
+- tapOn:
+    id: "pin-keypad-5"
+- tapOn:
+    id: "pin-keypad-6"
+
+# Verify returns to security screen (cleanup complete)
+- extendedWaitUntil:
+    visible:
+      id: "security-screen"
+    timeout: 10000

@@ -1,4 +1,3 @@
-// @ts-nocheck
 /**
  * Tests for useTurboSnackbarQueue hook
  */
@@ -23,35 +22,35 @@ jest.mock('../../services/turbo/turboTokenStorage', () => ({
 }));
 
 // Helper to render hooks with props
-function renderHookWithProps(props) {
-  const result = { current: null };
-  function TestComponent({ hookProps }) {
+function renderHookWithProps(props: any) {
+  const result: { current: ReturnType<typeof useTurboSnackbarQueue> | null } = { current: null };
+  function TestComponent({ hookProps }: { hookProps?: any }) {
     result.current = useTurboSnackbarQueue(hookProps);
     return null;
   }
-  let component;
+  let component: ReturnType<typeof create> | undefined;
   act(() => {
     component = create(<TestComponent hookProps={props} />);
   });
   return {
     result,
-    unmount: component.unmount,
+    unmount: component!.unmount,
     component,
-    rerender: (newProps) => {
+    rerender: (newProps?: unknown) => {
       act(() => {
-        component.update(<TestComponent hookProps={newProps} />);
+        component?.update(<TestComponent hookProps={newProps} />);
       });
     },
   };
 }
 
 describe('useTurboSnackbarQueue', () => {
-  let mockProps;
+  let mockProps: Record<string, unknown>;
 
   beforeEach(() => {
     jest.clearAllMocks();
     jest.useFakeTimers();
-    delete global.pendingTurboSnackbars;
+    delete (global as any).pendingTurboSnackbars;
     mockProps = {
       isAuthenticated: true,
       shouldShowPinOverlay: false,
@@ -62,20 +61,21 @@ describe('useTurboSnackbarQueue', () => {
 
   afterEach(() => {
     jest.useRealTimers();
-    delete global.pendingTurboSnackbars;
+    delete (global as any).pendingTurboSnackbars;
   });
 
-  it('should return showSnackbarWithDedup function', () => {
+  it('should return showSnackbarWithDedup and checkQueuedSnackbars functions', () => {
     const { result } = renderHookWithProps(mockProps);
 
-    expect(typeof result.current.showSnackbarWithDedup).toBe('function');
+    expect(typeof result.current!.showSnackbarWithDedup).toBe('function');
+    expect(typeof result.current!.checkQueuedSnackbars).toBe('function');
   });
 
   it('should show snackbar without deduplication for first call', () => {
     const { result } = renderHookWithProps(mockProps);
 
     act(() => {
-      result.current.showSnackbarWithDedup({
+      result.current!.showSnackbarWithDedup({
         type: 'success',
         action: 'claim',
         description: 'Success!',
@@ -93,13 +93,13 @@ describe('useTurboSnackbarQueue', () => {
     const { result } = renderHookWithProps(mockProps);
 
     const snackbarParams = {
-      type: 'success',
+      type: 'success' as const,
       action: 'claim',
       description: 'Success!',
     };
 
     act(() => {
-      result.current.showSnackbarWithDedup(snackbarParams);
+      result.current!.showSnackbarWithDedup(snackbarParams);
     });
 
     expect(mockProps.showSnackbar).toHaveBeenCalledTimes(1);
@@ -107,7 +107,7 @@ describe('useTurboSnackbarQueue', () => {
     // Try to show same snackbar again within 3 seconds
     act(() => {
       jest.advanceTimersByTime(1000);
-      result.current.showSnackbarWithDedup(snackbarParams);
+      result.current!.showSnackbarWithDedup(snackbarParams);
     });
 
     expect(mockProps.showSnackbar).toHaveBeenCalledTimes(1);
@@ -117,13 +117,13 @@ describe('useTurboSnackbarQueue', () => {
     const { result } = renderHookWithProps(mockProps);
 
     const snackbarParams = {
-      type: 'success',
+      type: 'success' as const,
       action: 'claim',
       description: 'Success!',
     };
 
     act(() => {
-      result.current.showSnackbarWithDedup(snackbarParams);
+      result.current!.showSnackbarWithDedup(snackbarParams);
     });
 
     expect(mockProps.showSnackbar).toHaveBeenCalledTimes(1);
@@ -134,7 +134,7 @@ describe('useTurboSnackbarQueue', () => {
     });
 
     act(() => {
-      result.current.showSnackbarWithDedup(snackbarParams);
+      result.current!.showSnackbarWithDedup(snackbarParams);
     });
 
     expect(mockProps.showSnackbar).toHaveBeenCalledTimes(2);
@@ -144,7 +144,7 @@ describe('useTurboSnackbarQueue', () => {
     const { result } = renderHookWithProps(mockProps);
 
     act(() => {
-      result.current.showSnackbarWithDedup({
+      result.current!.showSnackbarWithDedup({
         type: 'success',
         action: 'claim',
         description: 'Success!',
@@ -152,7 +152,7 @@ describe('useTurboSnackbarQueue', () => {
     });
 
     act(() => {
-      result.current.showSnackbarWithDedup({
+      result.current!.showSnackbarWithDedup({
         type: 'error',
         action: 'claim',
         description: 'Error!',
@@ -162,33 +162,37 @@ describe('useTurboSnackbarQueue', () => {
     expect(mockProps.showSnackbar).toHaveBeenCalledTimes(2);
   });
 
-  it('should process queued snackbars on mount', () => {
-    global.pendingTurboSnackbars = [
+  it('should process queued snackbars when checkQueuedSnackbars is called', () => {
+    (global as any).pendingTurboSnackbars = [
       { type: 'success', message: 'Queued!' },
     ];
 
-    renderHookWithProps(mockProps);
+    const { result } = renderHookWithProps(mockProps);
+
+    act(() => {
+      result.current!.checkQueuedSnackbars();
+    });
 
     expect(mockProps.showSnackbar).toHaveBeenCalledWith({
       type: 'success',
       message: 'Queued!',
     });
-    expect(global.pendingTurboSnackbars).toEqual([]);
+    expect((global as any).pendingTurboSnackbars).toEqual([]);
   });
 
-  it('should poll for queued snackbars', () => {
-    renderHookWithProps(mockProps);
+  it('should process snackbars added after mount', () => {
+    const { result } = renderHookWithProps(mockProps);
 
     expect(mockProps.showSnackbar).not.toHaveBeenCalled();
 
     // Add queued snackbar
-    global.pendingTurboSnackbars = [
+    (global as any).pendingTurboSnackbars = [
       { type: 'info', message: 'Later!' },
     ];
 
-    // Advance poll interval
+    // Call check (simulating token processor polling loop)
     act(() => {
-      jest.advanceTimersByTime(500);
+      result.current!.checkQueuedSnackbars();
     });
 
     expect(mockProps.showSnackbar).toHaveBeenCalledWith({
@@ -198,23 +202,31 @@ describe('useTurboSnackbarQueue', () => {
   });
 
   it('should clear queue after processing', () => {
-    global.pendingTurboSnackbars = [
+    (global as any).pendingTurboSnackbars = [
       { type: 'success', message: 'Will be cleared' },
     ];
 
-    renderHookWithProps(mockProps);
+    const { result } = renderHookWithProps(mockProps);
 
-    expect(global.pendingTurboSnackbars).toEqual([]);
+    act(() => {
+      result.current!.checkQueuedSnackbars();
+    });
+
+    expect((global as any).pendingTurboSnackbars).toEqual([]);
   });
 
   it('should show only the last queued snackbar', () => {
-    global.pendingTurboSnackbars = [
+    (global as any).pendingTurboSnackbars = [
       { type: 'success', message: 'First' },
       { type: 'error', message: 'Second' },
       { type: 'info', message: 'Third' },
     ];
 
-    renderHookWithProps(mockProps);
+    const { result } = renderHookWithProps(mockProps);
+
+    act(() => {
+      result.current!.checkQueuedSnackbars();
+    });
 
     expect(mockProps.showSnackbar).toHaveBeenCalledWith({
       type: 'info',
@@ -224,86 +236,60 @@ describe('useTurboSnackbarQueue', () => {
   });
 
   it('should handle empty pendingTurboSnackbars', () => {
-    global.pendingTurboSnackbars = [];
+    (global as any).pendingTurboSnackbars = [];
 
-    renderHookWithProps(mockProps);
+    const { result } = renderHookWithProps(mockProps);
+
+    act(() => {
+      result.current!.checkQueuedSnackbars();
+    });
 
     expect(mockProps.showSnackbar).not.toHaveBeenCalled();
   });
 
   it('should handle undefined pendingTurboSnackbars', () => {
-    delete global.pendingTurboSnackbars;
+    delete (global as any).pendingTurboSnackbars;
 
-    renderHookWithProps(mockProps);
+    const { result } = renderHookWithProps(mockProps);
+
+    act(() => {
+      result.current!.checkQueuedSnackbars();
+    });
 
     expect(mockProps.showSnackbar).not.toHaveBeenCalled();
   });
 
   it('should not process snackbars when not authenticated', () => {
-    global.pendingTurboSnackbars = [
+    (global as any).pendingTurboSnackbars = [
       { type: 'success', message: 'Should not show' },
     ];
 
-    renderHookWithProps({
+    const { result } = renderHookWithProps({
       ...mockProps,
       isAuthenticated: false,
+    });
+
+    act(() => {
+      result.current!.checkQueuedSnackbars();
     });
 
     expect(mockProps.showSnackbar).not.toHaveBeenCalled();
   });
 
   it('should not process snackbars when pin overlay is shown', () => {
-    global.pendingTurboSnackbars = [
+    (global as any).pendingTurboSnackbars = [
       { type: 'success', message: 'Should not show' },
     ];
 
-    renderHookWithProps({
+    const { result } = renderHookWithProps({
       ...mockProps,
       shouldShowPinOverlay: true,
     });
 
-    expect(mockProps.showSnackbar).not.toHaveBeenCalled();
-  });
-
-  it('should cleanup interval on unmount', () => {
-    const { unmount } = renderHookWithProps(mockProps);
-
-    // Unmount the component
     act(() => {
-      unmount();
-    });
-
-    // Add snackbar after unmount
-    global.pendingTurboSnackbars = [
-      { type: 'success', message: 'After unmount' },
-    ];
-
-    // Advance timer - should not process since unmounted
-    act(() => {
-      jest.advanceTimersByTime(1000);
+      result.current!.checkQueuedSnackbars();
     });
 
     expect(mockProps.showSnackbar).not.toHaveBeenCalled();
   });
-
-  it('should not process snackbars after unmount even with queued items', () => {
-    const { unmount } = renderHookWithProps(mockProps);
-
-    // Queue a snackbar but unmount before it's processed
-    act(() => {
-      unmount();
-    });
-
-    // Even if we add snackbars after unmount, they shouldn't be processed
-    global.pendingTurboSnackbars = [
-      { type: 'error', message: 'Too late' },
-    ];
-
-    act(() => {
-      jest.advanceTimersByTime(500);
-    });
-
-    expect(mockProps.showSnackbar).not.toHaveBeenCalled();
-  });
-
 });

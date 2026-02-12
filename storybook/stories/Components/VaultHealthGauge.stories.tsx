@@ -192,10 +192,8 @@ const meta: Meta = {
 };
 
 export default meta;
-type Story = StoryObj;
-
-export const VaultHealthGauge: Story = {
-  render: (args: HealthDialProps) => {
+export const VaultHealthGauge: StoryObj<HealthDialProps> = {
+  render: (args) => {
     const config = DEVICE_CONFIGS.find(d => d.size === args.deviceSize) || DEVICE_CONFIGS[3];
     return (
       <View style={styles.container}>
@@ -234,8 +232,8 @@ const DeviceSizeOverviewStory = ({ healthPercentage }: { healthPercentage: numbe
   </ScrollView>
 );
 
-export const DeviceSizeOverview: Story = {
-  render: (args: HealthDialProps) => <DeviceSizeOverviewStory healthPercentage={args.healthPercentage} />,
+export const DeviceSizeOverview: StoryObj<HealthDialProps> = {
+  render: (args) => <DeviceSizeOverviewStory healthPercentage={args.healthPercentage} />,
   args: {
     healthPercentage: 245,
   },

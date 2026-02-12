@@ -1,0 +1,52 @@
+appId: com.ducatprotocol.DucatProtocolWallet
+---
+# App Restart Persistence - Create wallet, kill app, relaunch, verify persists
+# Verifies wallet state (including airdrop balance) survives app restart
+
+- runFlow: ../helpers/create-wallet.yaml
+
+- waitForAnimationToEnd
+- waitForAnimationToEnd
+
+# Verify initial funded balance
+- extendedWaitUntil:
+    visible:
+      text: "0.10000000"
+    timeout: 30000
+
+# Kill and relaunch app
+- stopApp
+- launchApp
+
+# Handle Expo dev client
+- openLink: "com.ducatprotocol.DucatProtocolWallet://expo-development-client/?url=http%3A%2F%2Flocalhost%3A8081"
+
+# Should show lock screen (wallet exists, requires PIN)
+- extendedWaitUntil:
+    visible:
+      id: "lock-screen"
+    timeout: 15000
+
+# Enter PIN to unlock (123456)
+- tapOn:
+    id: "lock-keypad-1"
+- tapOn:
+    id: "lock-keypad-2"
+- tapOn:
+    id: "lock-keypad-3"
+- tapOn:
+    id: "lock-keypad-4"
+- tapOn:
+    id: "lock-keypad-5"
+- tapOn:
+    id: "lock-keypad-6"
+
+# Verify wallet screen loads with balance intact
+- extendedWaitUntil:
+    visible:
+      id: "wallet-screen"
+    timeout: 15000
+- extendedWaitUntil:
+    visible:
+      id: "balance-section"
+    timeout: 10000

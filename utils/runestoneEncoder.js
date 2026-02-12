@@ -52,6 +52,23 @@ function decodeVarint(buffer, offset) {
 export function encodeRunestone(config) {
   const { edicts = [] } = config;
 
+  // Basic validation
+  edicts.forEach((edict) => {
+    if (!edict || typeof edict !== 'object') {
+      throw new Error('Invalid edict entry');
+    }
+    const { id, amount, output } = edict;
+    if (!id || typeof id.block === 'undefined' || typeof id.tx === 'undefined') {
+      throw new Error('Edict missing id.block or id.tx');
+    }
+    if (amount === undefined || amount < 0) {
+      throw new Error('Edict amount must be non-negative');
+    }
+    if (output === undefined || output < 0) {
+      throw new Error('Edict output must be non-negative');
+    }
+  });
+
   if (!edicts || edicts.length === 0) {
     // Empty runestone: OP_RETURN + OP_13
     return {
@@ -93,12 +110,20 @@ export function encodeRunestone(config) {
   const payloadBuffer = Buffer.from(payload);
 
   // Build the complete script:
-  // OP_RETURN (0x6a) + OP_13 (0x5d) + OP_PUSHBYTES_N (length) + payload
-  // OP_PUSHBYTES_1 to OP_PUSHBYTES_75 are opcodes 0x01 to 0x4b
+  // OP_RETURN (0x6a) + OP_13 (0x5d) + push payload with correct opcode
+  let pushOpcode;
+  if (payloadBuffer.length <= 75) {
+    pushOpcode = Buffer.from([payloadBuffer.length]);
+  } else if (payloadBuffer.length <= 0xff) {
+    pushOpcode = Buffer.from([0x4c, payloadBuffer.length]); // OP_PUSHDATA1
+  } else {
+    throw new Error('Runestone payload too large');
+  }
+
   const script = Buffer.concat([
     Buffer.from([0x6a]), // OP_RETURN
     Buffer.from([0x5d]), // OP_13 (Runes protocol identifier)
-    Buffer.from([payloadBuffer.length]), // OP_PUSHBYTES_N (where N is the length)
+    pushOpcode,
     payloadBuffer,
   ]);
 

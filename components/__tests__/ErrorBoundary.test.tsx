@@ -9,9 +9,23 @@ import * as Sentry from '@sentry/react-native';
 import { logger } from '../../utils/logger';
 import ErrorBoundary from '../ErrorBoundary';
 
+/**
+ * Sentry scope interface for testing
+ */
+interface SentryScope {
+  setContext: jest.Mock;
+}
+
+/**
+ * Global type extension for __DEV__ flag
+ */
+interface GlobalWithDev {
+  __DEV__: boolean | undefined;
+}
+
 // Mock Sentry
 jest.mock('@sentry/react-native', () => ({
-  withScope: jest.fn((callback) => callback({
+  withScope: jest.fn((callback: (scope: SentryScope) => void) => callback({
     setContext: jest.fn(),
   })),
   captureException: jest.fn(),
@@ -118,7 +132,7 @@ describe('ErrorBoundary', () => {
 
   it('should include extra context in Sentry report', () => {
     const mockSetContext = jest.fn();
-    (Sentry.withScope as jest.Mock).mockImplementationOnce((callback: (scope: any) => void) => callback({
+    (Sentry.withScope as jest.Mock).mockImplementationOnce((callback: (scope: SentryScope) => void) => callback({
       setContext: mockSetContext,
     }));
 
@@ -211,8 +225,9 @@ describe('ErrorBoundary', () => {
 
   it('should not display error details in production', () => {
     // Test runs in non-DEV mode by default due to jest setup
-    const originalDev = (global as any).__DEV__;
-    (global as any).__DEV__ = false;
+    const globalWithDev = global as unknown as GlobalWithDev;
+    const originalDev = globalWithDev.__DEV__;
+    globalWithDev.__DEV__ = false;
 
     const { queryByText } = render(
       <ErrorBoundary>
@@ -223,12 +238,13 @@ describe('ErrorBoundary', () => {
     // Error details should not be visible
     expect(queryByText('Error Details (Dev Only):')).toBeFalsy();
 
-    (global as any).__DEV__ = originalDev;
+    globalWithDev.__DEV__ = originalDev;
   });
 
   it('should display error details in development', () => {
-    const originalDev = (global as any).__DEV__;
-    (global as any).__DEV__ = true;
+    const globalWithDev = global as unknown as GlobalWithDev;
+    const originalDev = globalWithDev.__DEV__;
+    globalWithDev.__DEV__ = true;
 
     const { getByText } = render(
       <ErrorBoundary>
@@ -240,6 +256,6 @@ describe('ErrorBoundary', () => {
     expect(getByText('Error Details (Dev Only):')).toBeTruthy();
     expect(getByText(/Test error/)).toBeTruthy();
 
-    (global as any).__DEV__ = originalDev;
+    globalWithDev.__DEV__ = originalDev;
   });
 });

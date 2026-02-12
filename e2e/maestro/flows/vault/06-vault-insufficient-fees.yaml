@@ -1,0 +1,44 @@
+appId: com.ducatprotocol.DucatProtocolWallet
+---
+# Vault No Amounts - Verify vault creation blocked without selecting amounts
+# Creates fresh wallet, opens vault creation, verifies continue is blocked with 0 amounts
+
+- runFlow: ../helpers/create-wallet.yaml
+
+- waitForAnimationToEnd
+- waitForAnimationToEnd
+
+# Wait for balance to load
+- extendedWaitUntil:
+    visible:
+      text: "0.10000000"
+    timeout: 30000
+
+# Scroll to vault card and create
+- scrollUntilVisible:
+    element:
+      id: "vault-card"
+    direction: DOWN
+    timeout: 10000
+
+- extendedWaitUntil:
+    visible:
+      id: "create-vault-btn"
+    timeout: 5000
+- tapOn:
+    id: "create-vault-btn"
+
+# Vault amounts screen loads
+- extendedWaitUntil:
+    visible:
+      id: "vault-amounts-screen"
+    timeout: 10000
+
+# Don't select any amounts — continue should be disabled
+# Tap continue — should not navigate (button disabled without BTC + UNIT amounts)
+- tapOn:
+    id: "vault-create-continue-btn"
+
+# Should still be on vault amounts screen (didn't navigate)
+- assertVisible:
+    id: "vault-amounts-screen"

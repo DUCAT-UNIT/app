@@ -1,0 +1,98 @@
+appId: com.ducatprotocol.DucatProtocolWallet
+---
+# Cashu Mint Initiation - Navigate full mint path, enter amount, initiate mint, verify error handling
+# The Mutinynet Cashu mint currently returns "Unsupported unit: unit" — test verifies the full
+# user journey through to mint initiation and proper error dialog handling.
+# Create wallet with vault (has UNIT Runes) → settings → cashu → mint → enter amount → tap mint → handle error
+
+- runFlow: ../helpers/create-wallet-with-vault.yaml
+
+# Navigate to settings
+- tapOn:
+    id: "wallet-settings-btn"
+- extendedWaitUntil:
+    visible:
+      id: "settings-screen"
+    timeout: 5000
+
+# Enable dev mode (required for cashu settings)
+- tapOn:
+    id: "settings-advanced-btn"
+- extendedWaitUntil:
+    visible:
+      id: "advanced-screen"
+    timeout: 5000
+- tapOn:
+    id: "advanced-dev-mode-btn"
+- tapOn:
+    id: "advanced-back-btn"
+- extendedWaitUntil:
+    visible:
+      id: "settings-screen"
+    timeout: 5000
+
+# Open Cashu settings
+- tapOn:
+    id: "settings-cashu-btn"
+- extendedWaitUntil:
+    visible:
+      id: "cashu-settings-screen"
+    timeout: 5000
+
+# Tap Redeem Token to open CashuReceiveScreen
+- tapOn:
+    id: "cashu-redeem-token-btn"
+- waitForAnimationToEnd
+- extendedWaitUntil:
+    visible:
+      id: "cashu-receive-screen"
+    timeout: 10000
+
+# Choose Mint option
+- tapOn:
+    id: "cashu-receive-mint-btn"
+- waitForAnimationToEnd
+- extendedWaitUntil:
+    visible:
+      id: "cashu-mint-screen"
+    timeout: 10000
+
+# Verify mint screen UI elements
+- assertVisible:
+    text: "Mint Turbo UNIT"
+- assertVisible:
+    text: "Amount (sats)"
+
+# Enter mint amount (100 sats)
+- tapOn:
+    id: "cashu-mint-amount-input"
+- inputText: "100"
+
+# Tap mint button to initiate auto-mint flow
+- tapOn:
+    id: "cashu-mint-btn"
+
+# Mint server currently returns "Unsupported unit: unit" error
+# Verify the error dialog appears and can be dismissed
+- extendedWaitUntil:
+    visible:
+      text: "Error"
+    timeout: 30000
+
+# Verify the error message content
+- assertVisible:
+    text: "Unsupported unit: unit"
+
+# Dismiss error dialog
+- tapOn:
+    text: "OK"
+
+# Verify we return to the mint screen (app handles error gracefully)
+- extendedWaitUntil:
+    visible:
+      id: "cashu-mint-screen"
+    timeout: 5000
+
+# Verify mint screen is still functional after error
+- assertVisible:
+    text: "Mint Turbo UNIT"

@@ -1,0 +1,86 @@
+appId: com.ducatprotocol.DucatProtocolWallet
+---
+# Send Max UNIT - Send entire UNIT balance
+# Creates vault first to get UNIT, then sends MAX to taproot address
+
+- runFlow: ../helpers/create-wallet-with-vault.yaml
+
+- extendedWaitUntil:
+    visible:
+      id: "wallet-actions"
+    timeout: 15000
+
+# Open send UNIT screen
+- tapOn:
+    id: "wallet-withdraw-btn"
+- waitForAnimationToEnd
+- extendedWaitUntil:
+    visible:
+      id: "withdraw-unit"
+    timeout: 10000
+- tapOn:
+    id: "withdraw-unit"
+
+- waitForAnimationToEnd
+- extendedWaitUntil:
+    visible:
+      id: "send-input-screen"
+    timeout: 10000
+
+# Enter a valid taproot address (required for Runes/UNIT)
+- extendedWaitUntil:
+    visible:
+      text: "Recipient Bitcoin address.*"
+    timeout: 5000
+- tapOn:
+    text: "Recipient Bitcoin address.*"
+- inputText: "tb1pqqqqp399et2xygdj5xreqhjjvcmzhxw4aywxecjdzew6hylgvsesf3hn0c"
+- hideKeyboard
+
+- extendedWaitUntil:
+    visible:
+      text: "Valid"
+    timeout: 5000
+
+# Select MAX UNIT amount
+- tapOn:
+    id: "unit-slider-max-btn"
+- waitForAnimationToEnd
+
+# Disable Turbo toggle (enabled by default) to send on-chain
+- tapOn:
+    id: "send-turbo-toggle"
+- waitForAnimationToEnd
+
+# Review and confirm
+- extendedWaitUntil:
+    visible:
+      text: "Review transaction"
+    timeout: 5000
+- tapOn:
+    text: "Review transaction"
+
+- extendedWaitUntil:
+    visible:
+      id: "review-screen"
+    timeout: 10000
+- assertVisible:
+    text: "You will send"
+
+- tapOn:
+    text: "Confirm and Sign"
+
+- extendedWaitUntil:
+    visible:
+      id: "confirmation-screen"
+    timeout: 120000
+
+- assertVisible:
+    text: "Transaction Sent!"
+
+- tapOn:
+    id: "confirmation-done-btn"
+- extendedWaitUntil:
+    visible:
+      id: "wallet-screen"
+    timeout: 10000

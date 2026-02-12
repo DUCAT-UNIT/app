@@ -24,7 +24,7 @@ export default function RestoreChoiceScreen({
   const { s, sf } = useResponsive();
 
   return (
-    <View style={styles.container}>
+    <View style={styles.container} testID="restore-choice-screen">
       <View style={styles.content}>
         <Icon name="ducat_logo" size={s(100)} />
       </View>
@@ -48,6 +48,7 @@ export default function RestoreChoiceScreen({
             marginTop: s(8)
           }]}
           onPress={onSeedPhrase}
+          testID="restore-seed-phrase-btn"
         >
           <Text style={[styles.buttonText, { fontSize: sf(fontSizes.md) }]}>From Seed Phrase</Text>
         </TouchableOpacity>

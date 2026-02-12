@@ -96,10 +96,8 @@ const meta: Meta = {
 };
 
 export default meta;
-type Story = StoryObj;
-
-export const AirdropSuccess: Story = {
-  render: (args: ConfigurableProps) => <ConfigurableStory {...args} />,
+export const AirdropSuccess: StoryObj<ConfigurableProps> = {
+  render: (args) => <ConfigurableStory {...args} />,
   args: {
     deviceSize: 'L',
   },
@@ -112,7 +110,7 @@ export const AirdropSuccess: Story = {
   },
 };
 
-export const DeviceSizeOverview: Story = {
+export const DeviceSizeOverview: StoryObj = {
   render: () => <DeviceSizeOverviewStory />,
 };
 

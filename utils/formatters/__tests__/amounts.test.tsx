@@ -1,4 +1,3 @@
-// @ts-nocheck
 /**
  * Tests for Amount Formatting Utilities
  */
@@ -33,7 +32,7 @@ describe('formatFiat', () => {
   });
 
   it('should handle non-number types', () => {
-    expect(formatFiat('invalid')).toBe('0.00');
+    expect(formatFiat('invalid' as unknown as number)).toBe('0.00');
   });
 
   it('should format non-USD currencies', () => {
@@ -72,7 +71,7 @@ describe('formatSatoshis', () => {
   });
 
   it('should handle non-number types', () => {
-    expect(formatSatoshis('invalid')).toBe('0');
+    expect(formatSatoshis('invalid' as unknown as number)).toBe('0');
   });
 
   it('should handle zero', () => {
@@ -130,7 +129,7 @@ describe('formatAbbreviated', () => {
   });
 
   it('should handle non-number types', () => {
-    expect(formatAbbreviated('invalid')).toBe('0');
+    expect(formatAbbreviated('invalid' as unknown as number)).toBe('0');
   });
 });
 

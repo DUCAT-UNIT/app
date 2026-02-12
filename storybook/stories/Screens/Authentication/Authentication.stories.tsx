@@ -256,14 +256,12 @@ const meta: Meta = {
 };
 
 export default meta;
-type Story = StoryObj;
-
 // =============================================================================
 // STORIES
 // =============================================================================
 
-export const Interactive: Story = {
-  render: (args: StoryProps) => <PinStory {...args} />,
+export const Interactive: StoryObj<StoryProps> = {
+  render: (args) => <PinStory {...args} />,
   args: {
     screenSize: 'L',
     filledDots: 3,
@@ -292,8 +290,8 @@ export const Interactive: Story = {
   },
 };
 
-export const Overview: Story = {
-  render: (args: OverviewProps) => <PinOverview {...args} />,
+export const Overview: StoryObj<OverviewProps> = {
+  render: (args) => <PinOverview {...args} />,
   args: {
     filledDots: 3,
     authState: 'enterPin',
@@ -448,7 +446,7 @@ const styles = StyleSheet.create({
     fontFamily: fonts.regular,
     fontSize: 32,
     color: colors.text.primary,
-    fontWeight: fontWeights.light,
+    fontWeight: fontWeights.regular,
   },
 
   // Overview Container

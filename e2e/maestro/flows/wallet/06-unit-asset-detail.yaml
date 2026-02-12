@@ -1,0 +1,46 @@
+appId: com.ducatprotocol.DucatProtocolWallet
+---
+# UNIT Asset Detail - Verify UNIT card opens detail screen with zero balance
+# Create fresh wallet → tap UNIT card → verify detail screen shows 0.00 UNIT
+
+- runFlow: ../helpers/create-wallet.yaml
+
+# Dismiss low ecash modal if it appears
+- runFlow: ../helpers/dismiss-low-ecash.yaml
+
+# Dismiss airdrop modal if it appears
+- runFlow: ../helpers/dismiss-airdrop.yaml
+
+# Dismiss passkey migration modal if it appears
+- runFlow:
+    when:
+      visible:
+        id: "passkey-migration-modal"
+    commands:
+      - tapOn:
+          id: "passkey-skip-btn"
+
+# Wait for asset cards to load
+- extendedWaitUntil:
+    visible:
+      id: "asset-card-unit"
+    timeout: 15000
+
+# Tap UNIT asset card
+- tapOn:
+    id: "asset-card-unit"
+
+# Verify asset detail screen loads with UNIT content
+- waitForAnimationToEnd
+- extendedWaitUntil:
+    visible:
+      text: "UNIT"
+    timeout: 10000
+
+# Fresh wallet has 0 UNIT — verify zero balance shown
+- assertVisible:
+    text: "0.00 UNIT"
+
+# Verify Activity tab is visible
+- assertVisible:
+    text: "Activity"

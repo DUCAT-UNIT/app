@@ -81,7 +81,7 @@ export const createWalletWithPasskey = async ({
     }
 
     // Save PIN for daily unlock (generates and saves salt + hash)
-    // OPTIMIZATION: Returns the hashed PIN to avoid re-hashing (10k iterations = ~500ms)
+    // OPTIMIZATION: Returns the hashed PIN to avoid re-hashing (310k iterations = ~500ms)
     const { hashedPin, salt: pinSalt } = await savePinWithHash(pin);
 
     // Validate salt format: 32 bytes = 64 hex characters
@@ -90,7 +90,7 @@ export const createWalletWithPasskey = async ({
     }
 
     // Derive encryption key from passkey + hashed PIN
-    // OPTIMIZATION: Pass pre-hashed PIN to skip 10k PBKDF2 iterations (~500ms saved)
+    // OPTIMIZATION: Pass pre-hashed PIN to skip 310k PBKDF2 iterations (~500ms saved)
     // Uses RFC 5869 compliant HKDF
     const encryptionKey = await deriveEncryptionKey(credentialId, userHandle, hashedPin, pinSalt, true);
 

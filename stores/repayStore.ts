@@ -1,6 +1,8 @@
 /**
  * Repay Store (Zustand)
  * Manages the repay UI flow state for paying back UNIT debt
+ *
+ * Refactored to use common vault store pattern from stores/vault/
  */
 
 import { create } from 'zustand';
@@ -11,206 +13,140 @@ import {
   getHealthStatus,
   type HealthStatus,
 } from '../utils/vaultUtils';
+import {
+  createCommonVaultSlice,
+  computeVaultHealth,
+  computeNewVaultHealth,
+} from './vault';
+import type {
+  CommonVaultState,
+  CommonVaultActions,
+  VaultOperationStep,
+  ProcessingStep,
+} from './vault';
 
-export type RepayStep =
-  | 'input' // Step 1: Enter UNIT repay amount
-  | 'confirm' // Step 2: Review and confirm
-  | 'processing' // Step 3: Transaction in progress
-  | 'success'; // Step 4: Transaction complete
+// Re-export types for backwards compatibility
+export type RepayStep = VaultOperationStep;
+export type RepayProcessingStep = ProcessingStep;
 
-export type RepayProcessingStep = 1 | 2 | 3 | 4;
-// 1: Awaiting user signatures
-// 2: Request received by node
-// 3: Validation in progress
-// 4: Network approvals
-
-interface RepayState {
+/**
+ * Repay-specific state (extends common state)
+ */
+interface RepaySpecificState {
   // Form data
   repayAmountUnit: number; // UNIT to repay (in UNIT, not cents)
-  selectedFeeRate: number;
-
-  // Current vault data
-  currentUnitBorrowed: number; // Current UNIT debt in vault
-  currentBtcLocked: number; // Current BTC locked in vault (in BTC, not sats)
-  bitcoinPrice: number | null;
   availableUnitBalance: number; // Available UNIT balance for repay
-
-  // Process state
-  currentStep: RepayStep;
-  processingStep: RepayProcessingStep;
-  loading: boolean;
-  error: string | null;
   issueTxid: string | null;
-  vaultTxid: string | null;
 }
 
-interface RepayActions {
+/**
+ * Repay-specific actions (extends common actions)
+ */
+interface RepaySpecificActions {
   // Form actions
   setRepayAmountUnit: (amount: number) => void;
-  setSelectedFeeRate: (rate: number) => void;
-
-  // Vault data actions
-  setCurrentVaultData: (unitBorrowed: number, btcLocked: number) => void;
-  setBitcoinPrice: (price: number | null) => void;
   setAvailableUnitBalance: (balance: number) => void;
-
-  // Navigation
-  setCurrentStep: (step: RepayStep) => void;
-  setProcessingStep: (step: RepayProcessingStep) => void;
-
-  // Process actions
-  setLoading: (loading: boolean) => void;
-  setError: (error: string | null) => void;
   setIssueTxid: (txid: string | null) => void;
-  setVaultTxid: (vaultTxid: string | null) => void;
 
-  // Computed getters
+  // Repay-specific computed getters
   getNewDebt: () => number;
-  getHealthFactor: () => number;
   getNewHealthFactor: () => number;
-  getLiquidationPrice: () => number;
   getNewLiquidationPrice: () => number;
-  getHealthStatus: () => HealthStatus;
   getNewHealthStatus: () => HealthStatus;
   getMaxRepayable: () => number;
-
-  // Reset
-  reset: () => void;
 }
 
+// Full store types
+type RepayState = CommonVaultState & RepaySpecificState;
+type RepayActions = CommonVaultActions & RepaySpecificActions;
 type RepayStore = RepayState & RepayActions;
 
-const initialState: RepayState = {
+// Repay-specific initial state
+const repaySpecificInitialState: RepaySpecificState = {
   repayAmountUnit: 0,
-  selectedFeeRate: 1,
-  currentUnitBorrowed: 0,
-  currentBtcLocked: 0,
-  bitcoinPrice: null,
   availableUnitBalance: 0,
-  currentStep: 'input',
-  processingStep: 1,
-  loading: false,
-  error: null,
   issueTxid: null,
-  vaultTxid: null,
 };
 
-export const useRepayStore = create<RepayStore>((set, get) => ({
-  // Initial state
-  ...initialState,
+export const useRepayStore = create<RepayStore>()((set, get, store) => {
+  // Get common slice
+  const commonSlice = createCommonVaultSlice<RepayStore>({
+    storeName: 'RepayStore',
+  })(set, get, store);
 
-  // Form actions
-  setRepayAmountUnit: (repayAmountUnit) => {
-    logger.debug('[RepayStore] setRepayAmountUnit:', repayAmountUnit);
-    set({ repayAmountUnit, error: null });
-  },
+  return {
+    // Spread common state and actions
+    ...commonSlice,
 
-  setSelectedFeeRate: (selectedFeeRate) => {
-    logger.debug('[RepayStore] setSelectedFeeRate:', selectedFeeRate);
-    set({ selectedFeeRate });
-  },
+    // Repay-specific initial state
+    ...repaySpecificInitialState,
 
-  // Vault data actions
-  setCurrentVaultData: (unitBorrowed, btcLocked) => {
-    logger.debug('[RepayStore] setCurrentVaultData:', { unitBorrowed, btcLocked });
-    set({
-      currentUnitBorrowed: unitBorrowed,
-      currentBtcLocked: btcLocked,
-    });
-  },
+    // Repay-specific form actions
+    setRepayAmountUnit: (repayAmountUnit) => {
+      logger.debug('[RepayStore] setRepayAmountUnit:', repayAmountUnit);
+      set({ repayAmountUnit, error: null });
+    },
 
-  setBitcoinPrice: (bitcoinPrice) => {
-    set({ bitcoinPrice });
-  },
+    setAvailableUnitBalance: (availableUnitBalance) => {
+      logger.debug('[RepayStore] setAvailableUnitBalance:', availableUnitBalance);
+      set({ availableUnitBalance });
+    },
 
-  setAvailableUnitBalance: (availableUnitBalance) => {
-    logger.debug('[RepayStore] setAvailableUnitBalance:', availableUnitBalance);
-    set({ availableUnitBalance });
-  },
+    setIssueTxid: (issueTxid) => {
+      logger.debug('[RepayStore] setIssueTxid:', issueTxid);
+      set({ issueTxid });
+    },
 
-  // Navigation
-  setCurrentStep: (currentStep) => {
-    logger.debug('[RepayStore] setCurrentStep:', currentStep);
-    set({ currentStep, error: null });
-  },
+    // Repay-specific computed getters
+    getNewDebt: () => {
+      const { currentUnitBorrowed, repayAmountUnit } = get();
+      return Math.max(0, currentUnitBorrowed - repayAmountUnit);
+    },
 
-  setProcessingStep: (processingStep) => {
-    logger.debug('[RepayStore] setProcessingStep:', processingStep);
-    set({ processingStep });
-  },
+    getNewHealthFactor: () => {
+      const { repayAmountUnit, currentBtcLocked, currentUnitBorrowed, bitcoinPrice } = get();
+      const newDebt = Math.max(0, currentUnitBorrowed - repayAmountUnit);
+      if (!bitcoinPrice || currentBtcLocked <= 0 || newDebt <= 0) return 999; // Max health when fully repaid
+      return computeHealthFactor(currentBtcLocked, bitcoinPrice, newDebt);
+    },
 
-  // Process actions
-  setLoading: (loading) => set({ loading }),
+    getNewLiquidationPrice: () => {
+      const { repayAmountUnit, currentBtcLocked, currentUnitBorrowed } = get();
+      const newDebt = Math.max(0, currentUnitBorrowed - repayAmountUnit);
+      if (currentBtcLocked <= 0) return 0;
+      return computeLiquidationPrice(newDebt, currentBtcLocked);
+    },
 
-  setError: (error) => {
-    logger.debug('[RepayStore] setError:', error);
-    set({ error, loading: false });
-  },
+    getNewHealthStatus: () => {
+      const healthFactor = get().getNewHealthFactor();
+      return getHealthStatus(healthFactor);
+    },
 
-  setIssueTxid: (issueTxid) => {
-    logger.debug('[RepayStore] setIssueTxid:', issueTxid);
-    set({ issueTxid });
-  },
+    getMaxRepayable: () => {
+      const { currentUnitBorrowed, availableUnitBalance } = get();
+      // Can only repay up to the debt amount or available balance, whichever is smaller
+      return Math.min(currentUnitBorrowed, availableUnitBalance);
+    },
 
-  setVaultTxid: (vaultTxid) => {
-    logger.debug('[RepayStore] setVaultTxid:', vaultTxid);
-    set({ vaultTxid });
-  },
-
-  // Computed getters
-  getNewDebt: () => {
-    const { currentUnitBorrowed, repayAmountUnit } = get();
-    return Math.max(0, currentUnitBorrowed - repayAmountUnit);
-  },
-
-  getHealthFactor: () => {
-    const { currentBtcLocked, currentUnitBorrowed, bitcoinPrice } = get();
-    if (!bitcoinPrice || currentBtcLocked <= 0 || currentUnitBorrowed <= 0) return 0;
-    return computeHealthFactor(currentBtcLocked, bitcoinPrice, currentUnitBorrowed);
-  },
-
-  getNewHealthFactor: () => {
-    const { repayAmountUnit, currentBtcLocked, currentUnitBorrowed, bitcoinPrice } = get();
-    const newDebt = Math.max(0, currentUnitBorrowed - repayAmountUnit);
-    if (!bitcoinPrice || currentBtcLocked <= 0 || newDebt <= 0) return 999; // Max health when fully repaid
-    return computeHealthFactor(currentBtcLocked, bitcoinPrice, newDebt);
-  },
-
-  getLiquidationPrice: () => {
-    const { currentBtcLocked, currentUnitBorrowed } = get();
-    if (currentBtcLocked <= 0 || currentUnitBorrowed <= 0) return 0;
-    return computeLiquidationPrice(currentUnitBorrowed, currentBtcLocked);
-  },
-
-  getNewLiquidationPrice: () => {
-    const { repayAmountUnit, currentBtcLocked, currentUnitBorrowed } = get();
-    const newDebt = Math.max(0, currentUnitBorrowed - repayAmountUnit);
-    if (currentBtcLocked <= 0) return 0;
-    return computeLiquidationPrice(newDebt, currentBtcLocked);
-  },
-
-  getHealthStatus: () => {
-    const healthFactor = get().getHealthFactor();
-    return getHealthStatus(healthFactor);
-  },
-
-  getNewHealthStatus: () => {
-    const healthFactor = get().getNewHealthFactor();
-    return getHealthStatus(healthFactor);
-  },
-
-  getMaxRepayable: () => {
-    const { currentUnitBorrowed, availableUnitBalance } = get();
-    // Can only repay up to the debt amount or available balance, whichever is smaller
-    return Math.min(currentUnitBorrowed, availableUnitBalance);
-  },
-
-  // Reset
-  reset: () => {
-    logger.debug('[RepayStore] reset');
-    set(initialState);
-  },
-}));
+    // Override reset to include repay-specific state
+    reset: () => {
+      logger.debug('[RepayStore] reset');
+      set({
+        ...repaySpecificInitialState,
+        // Reset common state
+        selectedFeeRate: 1,
+        currentUnitBorrowed: 0,
+        currentBtcLocked: 0,
+        bitcoinPrice: null,
+        currentStep: 'input',
+        processingStep: 1,
+        loading: false,
+        error: null,
+        vaultTxid: null,
+      });
+    },
+  };
+});
 
 /**
  * Selector hooks for granular subscriptions
@@ -227,7 +163,7 @@ export const useRepayVaultTxid = () => useRepayStore((state) => state.vaultTxid)
  * Reset store to initial state (useful for testing)
  */
 export const resetRepayStore = () => {
-  useRepayStore.setState(initialState);
+  useRepayStore.getState().reset();
 };
 
 /**
@@ -266,23 +202,22 @@ export const useRepay = () => {
   // Compute derived values from reactive state
   const newDebt = Math.max(0, currentUnitBorrowed - repayAmountUnit);
 
-  const healthFactor = (!bitcoinPrice || currentBtcLocked <= 0 || currentUnitBorrowed <= 0)
-    ? 0
-    : computeHealthFactor(currentBtcLocked, bitcoinPrice, currentUnitBorrowed);
+  // Use helper functions for health calculations
+  const { healthFactor, liquidationPrice, healthStatus } = computeVaultHealth(
+    currentBtcLocked,
+    currentUnitBorrowed,
+    bitcoinPrice
+  );
 
+  // Special case for repay: max health when fully repaid
   const newHealthFactor = (!bitcoinPrice || currentBtcLocked <= 0 || newDebt <= 0)
     ? 999 // Max health when fully repaid
     : computeHealthFactor(currentBtcLocked, bitcoinPrice, newDebt);
-
-  const liquidationPrice = (currentBtcLocked <= 0 || currentUnitBorrowed <= 0)
-    ? 0
-    : computeLiquidationPrice(currentUnitBorrowed, currentBtcLocked);
 
   const newLiquidationPrice = (currentBtcLocked <= 0)
     ? 0
     : computeLiquidationPrice(newDebt, currentBtcLocked);
 
-  const healthStatus = getHealthStatus(healthFactor);
   const newHealthStatus = getHealthStatus(newHealthFactor);
 
   // Can only repay up to the debt amount or available balance, whichever is smaller

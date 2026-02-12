@@ -28,7 +28,7 @@ export default function InsufficientTurboSheet({
 }: InsufficientTurboSheetProps) {
   return (
     <BottomSheet visible={visible} onClose={onClose} title="Insufficient Turbo UNIT Balance">
-      <View style={styles.container}>
+      <View style={styles.container} testID="insufficient-turbo-sheet">
         <View style={styles.balanceInfo}>
           <View style={styles.balanceRow}>
             <Text style={styles.balanceLabel}>Required:</Text>
@@ -49,6 +49,7 @@ export default function InsufficientTurboSheet({
           style={styles.option}
           onPress={onUseTurbo}
           activeOpacity={0.7}
+          testID="turbo-use-turbo-btn"
         >
           <View style={styles.optionHeader}>
             <Icon name="unit_logo" size={24} color={COLORS.PRIMARY_BLUE} />
@@ -67,6 +68,7 @@ export default function InsufficientTurboSheet({
           style={styles.option}
           onPress={onSendNormally}
           activeOpacity={0.7}
+          testID="turbo-send-normally-btn"
         >
           <View style={styles.optionHeader}>
             <Icon name="bitcoin" size={24} color={COLORS.SECONDARY_TEXT} />

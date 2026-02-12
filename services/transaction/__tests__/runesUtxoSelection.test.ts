@@ -1,22 +1,29 @@
-// @ts-nocheck
 /**
  * Tests for Runes UTXO Selection
+ *
+ * NOTE: This file uses type-safe fetch mock pattern.
+ * See services/__tests__/testUtils/fetchMock.ts for the implementation.
  */
 
 import { findRuneUtxo, findSatUtxo } from '../runesUtxoSelection';
+import {
+  setupMockFetch,
+  getMockFetch,
+  createMockResponse,
+} from '../../__tests__/testUtils';
 
 // Mock constants
 jest.mock('../../../utils/constants', () => ({
-  getOrdAddressUrl: jest.fn((address) => `https://ord.api/address/${address}`),
-  getOrdOutputUrl: jest.fn((output) => `https://ord.api/output/${output}`),
-  getTxOutspendUrl: jest.fn((txid, vout) => `https://api/tx/${txid}/outspend/${vout}`),
-  getAddressUtxoUrl: jest.fn((address) => `https://api/address/${address}/utxo`),
+  getOrdAddressUrl: jest.fn((address: string) => `https://ord.api/address/${address}`),
+  getOrdOutputUrl: jest.fn((output: string) => `https://ord.api/output/${output}`),
+  getTxOutspendUrl: jest.fn((txid: string, vout: number) => `https://api/tx/${txid}/outspend/${vout}`),
+  getAddressUtxoUrl: jest.fn((address: string) => `https://api/address/${address}/utxo`),
 }));
 
 describe('runesUtxoSelection', () => {
   beforeEach(() => {
     jest.clearAllMocks();
-    (global as any).fetch = jest.fn();
+    setupMockFetch();
   });
 
   describe('findRuneUtxo', () => {
@@ -39,7 +46,7 @@ describe('runesUtxoSelection', () => {
         status: { confirmed: false },
       }]);
       // Should not call API if found in unconfirmed
-      expect((global as any).fetch).not.toHaveBeenCalled();
+      expect(getMockFetch()).not.toHaveBeenCalled();
     });
 
     it('should skip spent unconfirmed UTXOs', async () => {
@@ -69,15 +76,13 @@ describe('runesUtxoSelection', () => {
       const spentUtxos = new Set<string>();
 
       // Mock ord address response
-      (global as any).fetch.mockResolvedValueOnce({
-        json: async () => ({
-          outputs: ['txid1:0', 'txid2:1'],
-        }),
-      });
+      getMockFetch().mockResolvedValueOnce(
+        createMockResponse({ outputs: ['txid1:0', 'txid2:1'] })
+      );
 
       // Mock ord output response for first UTXO (txid1:0)
-      (global as any).fetch.mockResolvedValueOnce({
-        json: async () => ({
+      getMockFetch().mockResolvedValueOnce(
+        createMockResponse({
           transaction: 'txid1',
           value: 10000,
           runes: {
@@ -85,22 +90,22 @@ describe('runesUtxoSelection', () => {
               amount: '150',
             },
           },
-        }),
-      });
+        })
+      );
 
       // Mock ord output response for second UTXO (txid2:1) - fetched in parallel
-      (global as any).fetch.mockResolvedValueOnce({
-        json: async () => ({
+      getMockFetch().mockResolvedValueOnce(
+        createMockResponse({
           transaction: 'txid2',
           value: 5000,
           runes: {}, // No runes
-        }),
-      });
+        })
+      );
 
       // Mock outspend check for txid1:0 (unspent)
-      (global as any).fetch.mockResolvedValueOnce({
-        json: async () => ({ spent: false }),
-      });
+      getMockFetch().mockResolvedValueOnce(
+        createMockResponse({ spent: false })
+      );
 
       const result = await findRuneUtxo(taprootAddress, amountInRunes, unconfirmedUtxos, spentUtxos);
 
@@ -120,15 +125,13 @@ describe('runesUtxoSelection', () => {
       const spentUtxos = new Set(['txid1:0']);
 
       // Mock ord address response
-      (global as any).fetch.mockResolvedValueOnce({
-        json: async () => ({
-          outputs: ['txid1:0', 'txid2:1'],
-        }),
-      });
+      getMockFetch().mockResolvedValueOnce(
+        createMockResponse({ outputs: ['txid1:0', 'txid2:1'] })
+      );
 
       // Mock ord output response for first UTXO (will be skipped as spent)
-      (global as any).fetch.mockResolvedValueOnce({
-        json: async () => ({
+      getMockFetch().mockResolvedValueOnce(
+        createMockResponse({
           transaction: 'txid1',
           value: 10000,
           runes: {
@@ -136,12 +139,12 @@ describe('runesUtxoSelection', () => {
               amount: '150',
             },
           },
-        }),
-      });
+        })
+      );
 
       // Mock ord output response for second UTXO
-      (global as any).fetch.mockResolvedValueOnce({
-        json: async () => ({
+      getMockFetch().mockResolvedValueOnce(
+        createMockResponse({
           transaction: 'txid2',
           value: 12000,
           runes: {
@@ -149,13 +152,13 @@ describe('runesUtxoSelection', () => {
               amount: '200',
             },
           },
-        }),
-      });
+        })
+      );
 
       // Mock outspend check (unspent)
-      (global as any).fetch.mockResolvedValueOnce({
-        json: async () => ({ spent: false }),
-      });
+      getMockFetch().mockResolvedValueOnce(
+        createMockResponse({ spent: false })
+      );
 
       const result = await findRuneUtxo(taprootAddress, amountInRunes, unconfirmedUtxos, spentUtxos);
 
@@ -177,9 +180,9 @@ describe('runesUtxoSelection', () => {
       const spentUtxos = new Set<string>();
 
       // Mock ord address response with no outputs
-      (global as any).fetch.mockResolvedValueOnce({
-        json: async () => ({ outputs: [] }),
-      });
+      getMockFetch().mockResolvedValueOnce(
+        createMockResponse({ outputs: [] })
+      );
 
       const result = await findRuneUtxo(taprootAddress, amountInRunes, unconfirmedUtxos, spentUtxos);
 
@@ -205,7 +208,7 @@ describe('runesUtxoSelection', () => {
         status: { confirmed: false },
       });
       // Should not call API if found in unconfirmed
-      expect((global as any).fetch).not.toHaveBeenCalled();
+      expect(getMockFetch()).not.toHaveBeenCalled();
     });
 
     it('should skip spent unconfirmed sat UTXOs', async () => {
@@ -234,11 +237,11 @@ describe('runesUtxoSelection', () => {
       const spentUtxos = new Set<string>();
 
       // Mock blockchain UTXO response
-      (global as any).fetch.mockResolvedValueOnce({
-        json: async () => ([
+      getMockFetch().mockResolvedValueOnce(
+        createMockResponse([
           { txid: 'confirmed1', vout: 0, value: 15000, status: { confirmed: true } },
-        ]),
-      });
+        ])
+      );
 
       const result = await findSatUtxo(segwitAddress, unconfirmedUtxos, spentUtxos);
 
@@ -256,12 +259,12 @@ describe('runesUtxoSelection', () => {
       const spentUtxos = new Set<string>();
 
       // Mock blockchain UTXO response
-      (global as any).fetch.mockResolvedValueOnce({
-        json: async () => ([
+      getMockFetch().mockResolvedValueOnce(
+        createMockResponse([
           { txid: 'confirmed1', vout: 0, value: 15000, status: { confirmed: true } },
           { txid: 'confirmed2', vout: 1, value: 20000, status: { confirmed: true } },
-        ]),
-      });
+        ])
+      );
 
       const result = await findSatUtxo(segwitAddress, unconfirmedUtxos, spentUtxos);
 
@@ -279,12 +282,12 @@ describe('runesUtxoSelection', () => {
       const spentUtxos = new Set(['confirmed1:0']);
 
       // Mock blockchain UTXO response
-      (global as any).fetch.mockResolvedValueOnce({
-        json: async () => ([
+      getMockFetch().mockResolvedValueOnce(
+        createMockResponse([
           { txid: 'confirmed1', vout: 0, value: 15000, status: { confirmed: true } },
           { txid: 'confirmed2', vout: 1, value: 20000, status: { confirmed: true } },
-        ]),
-      });
+        ])
+      );
 
       const result = await findSatUtxo(segwitAddress, unconfirmedUtxos, spentUtxos);
 
@@ -302,11 +305,11 @@ describe('runesUtxoSelection', () => {
       const spentUtxos = new Set<string>();
 
       // Mock blockchain UTXO response with insufficient values
-      (global as any).fetch.mockResolvedValueOnce({
-        json: async () => ([
+      getMockFetch().mockResolvedValueOnce(
+        createMockResponse([
           { txid: 'small1', vout: 0, value: 5000, status: { confirmed: true } },
-        ]),
-      });
+        ])
+      );
 
       const result = await findSatUtxo(segwitAddress, unconfirmedUtxos, spentUtxos);
 

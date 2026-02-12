@@ -1,4 +1,3 @@
-// @ts-nocheck
 /**
  * Tests for Wallet Service
  * Tests wallet generation, import, loading, and account switching
@@ -39,6 +38,8 @@ describe('walletService', () => {
   const mockAddresses = {
     segwitAddress: 'tb1qw508d6qejxtdg4y5r3zarvary0c5xw7kxpjzsx',
     taprootAddress: 'tb1p5d7rjq7g6rdk2yhzks9smlaqtedr4dekq08ge8ztwac72sfr9rusxg3297',
+    segwitPubkey: 'mockSegwitPubkey',
+    taprootPubkey: 'mockTaprootPubkey',
   };
 
   beforeEach(() => {
@@ -170,6 +171,22 @@ describe('walletService', () => {
       expect(mockSecureStorage.getCachedAddresses).toHaveBeenCalledWith(0);
     });
 
+    it('should continue even if saveToMultiAccountCache fails when loading from single cache', async () => {
+      mockSecureStorage.getCurrentAccount.mockResolvedValueOnce(0);
+      mockSecureStorage.getMultiAccountCache.mockResolvedValueOnce(null);
+      mockSecureStorage.getCachedAddresses.mockResolvedValueOnce(mockAddresses);
+      // saveToMultiAccountCache fails but should not break the flow
+      mockSecureStorage.saveToMultiAccountCache.mockRejectedValueOnce(new Error('Cache write error'));
+
+      const result = await loadWalletFromStorage();
+
+      // Should still succeed even if caching fails
+      expect(result).toEqual({
+        addresses: mockAddresses,
+        accountIndex: 0,
+      });
+    });
+
     it('should derive addresses when all caches miss', async () => {
       const mockMnemonic = 'abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon about';
 
@@ -180,6 +197,8 @@ describe('walletService', () => {
         return callback(mockMnemonic);
       });
       mockBitcoin.deriveAddressesFromMnemonic.mockReturnValueOnce(mockAddresses);
+      mockSecureStorage.saveCachedAddresses.mockResolvedValueOnce(true);
+      mockSecureStorage.saveToMultiAccountCache.mockResolvedValueOnce(true);
 
       const result = await loadWalletFromStorage();
 
@@ -189,6 +208,29 @@ describe('walletService', () => {
       });
 
       expect(mockSecureStorage.withMnemonic).toHaveBeenCalled();
+    });
+
+    it('should continue even if caching derived addresses fails', async () => {
+      const mockMnemonic = 'abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon about';
+
+      mockSecureStorage.getCurrentAccount.mockResolvedValueOnce(0);
+      mockSecureStorage.getMultiAccountCache.mockResolvedValueOnce(null);
+      mockSecureStorage.getCachedAddresses.mockResolvedValueOnce(null);
+      mockSecureStorage.withMnemonic.mockImplementationOnce(async (callback) => {
+        return callback(mockMnemonic);
+      });
+      mockBitcoin.deriveAddressesFromMnemonic.mockReturnValueOnce(mockAddresses);
+      // Both cache saves fail
+      mockSecureStorage.saveCachedAddresses.mockRejectedValueOnce(new Error('Cache error'));
+      mockSecureStorage.saveToMultiAccountCache.mockRejectedValueOnce(new Error('Cache error'));
+
+      const result = await loadWalletFromStorage();
+
+      // Should still return the derived addresses even if caching fails
+      expect(result).toEqual({
+        addresses: mockAddresses,
+        accountIndex: 0,
+      });
     });
 
     it('should return null addresses if no mnemonic in storage', async () => {
@@ -231,6 +273,19 @@ describe('walletService', () => {
       expect(mockSecureStorage.saveCurrentAccount).toHaveBeenCalledWith(2);
       // Should NOT derive addresses when cache hit
       expect(mockSecureStorage.withMnemonic).not.toHaveBeenCalled();
+    });
+
+    it('should continue even if saveCurrentAccount fails when using cache (non-blocking)', async () => {
+      mockSecureStorage.getMultiAccountCache.mockResolvedValueOnce(mockAddresses);
+      // saveCurrentAccount fails but should not break the flow (non-blocking)
+      mockSecureStorage.saveCurrentAccount.mockRejectedValueOnce(new Error('Account save error'));
+
+      const result = await switchToAccount(2);
+
+      // Should still return the cached addresses even if save fails
+      expect(result).toEqual({
+        addresses: mockAddresses,
+      });
     });
 
     it('should derive addresses when cache misses (slow path)', async () => {
@@ -285,12 +340,10 @@ describe('walletService', () => {
     it('should save wallet mnemonic and account index', async () => {
       const mnemonic = 'abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon about';
 
-      mockSecureStorage.saveMnemonic.mockResolvedValueOnce(true);
+      mockSecureStorage.saveMnemonic.mockResolvedValueOnce(undefined);
       mockSecureStorage.saveCurrentAccount.mockResolvedValueOnce(true);
 
-      const result = await saveWalletToStorage(mnemonic, 0);
-
-      expect(result).toBe(true);
+      await expect(saveWalletToStorage(mnemonic, 0)).resolves.toBeUndefined();
       expect(mockSecureStorage.saveMnemonic).toHaveBeenCalledWith(mnemonic);
       expect(mockSecureStorage.saveCurrentAccount).toHaveBeenCalledWith(0);
     });
@@ -298,7 +351,7 @@ describe('walletService', () => {
     it('should save with custom account index', async () => {
       const mnemonic = 'abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon about';
 
-      mockSecureStorage.saveMnemonic.mockResolvedValueOnce(true);
+      mockSecureStorage.saveMnemonic.mockResolvedValueOnce(undefined);
       mockSecureStorage.saveCurrentAccount.mockResolvedValueOnce(true);
 
       await saveWalletToStorage(mnemonic, 5);
@@ -306,36 +359,29 @@ describe('walletService', () => {
       expect(mockSecureStorage.saveCurrentAccount).toHaveBeenCalledWith(5);
     });
 
-    it('should return false if mnemonic save fails', async () => {
+    it('should throw error if mnemonic save fails', async () => {
       const mnemonic = 'abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon about';
 
-      mockSecureStorage.saveMnemonic.mockResolvedValueOnce(false);
-      mockSecureStorage.saveCurrentAccount.mockResolvedValueOnce(true);
+      mockSecureStorage.saveMnemonic.mockRejectedValueOnce(new Error('Failed to save wallet securely'));
 
-      const result = await saveWalletToStorage(mnemonic);
-
-      expect(result).toBe(false);
+      await expect(saveWalletToStorage(mnemonic)).rejects.toThrow('Failed to save wallet securely');
     });
 
-    it('should return false if account save fails', async () => {
+    it('should throw error if account save fails', async () => {
       const mnemonic = 'abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon about';
 
-      mockSecureStorage.saveMnemonic.mockResolvedValueOnce(true);
-      mockSecureStorage.saveCurrentAccount.mockResolvedValueOnce(false);
+      mockSecureStorage.saveMnemonic.mockResolvedValueOnce(undefined);
+      mockSecureStorage.saveCurrentAccount.mockRejectedValueOnce(new Error('Storage error'));
 
-      const result = await saveWalletToStorage(mnemonic);
-
-      expect(result).toBe(false);
+      await expect(saveWalletToStorage(mnemonic)).rejects.toThrow();
     });
 
-    it('should return false on error', async () => {
+    it('should throw error on storage error', async () => {
       const mnemonic = 'abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon about';
 
       mockSecureStorage.saveMnemonic.mockRejectedValueOnce(new Error('Storage error'));
 
-      const result = await saveWalletToStorage(mnemonic);
-
-      expect(result).toBe(false);
+      await expect(saveWalletToStorage(mnemonic)).rejects.toThrow();
     });
   });
 });

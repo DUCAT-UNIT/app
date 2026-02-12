@@ -1,0 +1,37 @@
+appId: com.ducatprotocol.DucatProtocolWallet
+---
+# Ecash Mint Navigate - Navigate to UNIT receive screen and verify
+# Fresh wallet → deposit → UNIT → verify address screen
+
+- runFlow: ../helpers/create-wallet.yaml
+
+# Wait for wallet to be fully interactive
+- waitForAnimationToEnd
+- waitForAnimationToEnd
+
+# Wait for wallet actions to load
+- extendedWaitUntil:
+    visible:
+      id: "wallet-actions"
+    timeout: 15000
+
+# Navigate to deposit → UNIT
+- tapOn:
+    id: "wallet-deposit-btn"
+- extendedWaitUntil:
+    visible:
+      id: "deposit-unit"
+    timeout: 5000
+- tapOn:
+    id: "deposit-unit"
+
+# Verify UNIT receive screen loads
+- waitForAnimationToEnd
+- extendedWaitUntil:
+    visible:
+      text: "UNIT address"
+    timeout: 10000
+
+# Verify address info text is visible
+- assertVisible:
+    text: "Only use this address to receive UNIT."

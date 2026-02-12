@@ -40,6 +40,7 @@ export default memo(function TotalBalanceSection({
   totalBalanceUSD,
   styles,
   largeBalanceStyle,
+  testID,
 }: TotalBalanceSectionProps) {
   // Memoize the large balance style check
   const isLargeBalance = useMemo(
@@ -48,12 +49,17 @@ export default memo(function TotalBalanceSection({
   );
 
   return (
-    <View style={styles.xverseBalanceSection}>
+    <View style={styles.xverseBalanceSection} testID={testID} accessibilityRole="summary" accessibilityLabel="Total balance section">
       <View style={styles.xverseBalanceLeft}>
-        <Text style={styles.xverseBalanceLabel}>Total Balance USD</Text>
-        <TouchableOpacity onPress={onToggle}>
+        <Text style={styles.xverseBalanceLabel} accessibilityElementsHidden>Total Balance USD</Text>
+        <TouchableOpacity
+          onPress={onToggle}
+          accessibilityRole="button"
+          accessibilityLabel={showTotalInBTC ? `Total balance ${totalBTC} Bitcoin` : `Total balance $${totalUSD}`}
+          accessibilityHint={showTotalInBTC ? "Tap to show balance in USD" : "Tap to show balance in Bitcoin"}
+        >
           {showTotalInBTC ? (
-            <View style={styles.balanceWithIcon}>
+            <View style={styles.balanceWithIcon} accessibilityElementsHidden>
               <Icon
                 name="btc_symbol"
                 size={BTC_ICON_SIZE}
@@ -75,6 +81,7 @@ export default memo(function TotalBalanceSection({
                 styles.xverseBalanceAmount,
                 isLargeBalance && largeBalanceStyle,
               ]}
+              accessibilityElementsHidden
             >
               ${totalUSD}
             </Text>

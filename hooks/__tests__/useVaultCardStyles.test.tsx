@@ -56,7 +56,7 @@ describe('useVaultCardStyles', () => {
     });
 
     // Check base styles are merged
-    expect(result.current.vaultCard).toBeDefined();
+    expect(result.current!.vaultCard).toBeDefined();
     expect(result.current.vaultCard.backgroundColor).toBe('#1a1a1a');
 
     // Check scaled values at 1x
@@ -108,24 +108,24 @@ describe('useVaultCardStyles', () => {
     });
 
     // Check all expected properties exist
-    expect(result.current.vaultCard).toBeDefined();
-    expect(result.current.vaultIconContainer).toBeDefined();
-    expect(result.current.vaultStatusIndicator).toBeDefined();
-    expect(result.current.vaultContentWrapper).toBeDefined();
-    expect(result.current.vaultHeader).toBeDefined();
-    expect(result.current.vaultHeaderLeft).toBeDefined();
-    expect(result.current.assetInfo).toBeDefined();
-    expect(result.current.vaultAssetName).toBeDefined();
-    expect(result.current.assetValue).toBeDefined();
-    expect(result.current.vaultDetailsContainer).toBeDefined();
-    expect(result.current.vaultDetailRow).toBeDefined();
-    expect(result.current.vaultLabel).toBeDefined();
-    expect(result.current.vaultValueContainer).toBeDefined();
-    expect(result.current.assetAmountIcon).toBeDefined();
-    expect(result.current.assetAmount).toBeDefined();
-    expect(result.current.vaultOverlay).toBeDefined();
-    expect(result.current.createVaultButton).toBeDefined();
-    expect(result.current.createVaultButtonText).toBeDefined();
+    expect(result.current!.vaultCard).toBeDefined();
+    expect(result.current!.vaultIconContainer).toBeDefined();
+    expect(result.current!.vaultStatusIndicator).toBeDefined();
+    expect(result.current!.vaultContentWrapper).toBeDefined();
+    expect(result.current!.vaultHeader).toBeDefined();
+    expect(result.current!.vaultHeaderLeft).toBeDefined();
+    expect(result.current!.assetInfo).toBeDefined();
+    expect(result.current!.vaultAssetName).toBeDefined();
+    expect(result.current!.assetValue).toBeDefined();
+    expect(result.current!.vaultDetailsContainer).toBeDefined();
+    expect(result.current!.vaultDetailRow).toBeDefined();
+    expect(result.current!.vaultLabel).toBeDefined();
+    expect(result.current!.vaultValueContainer).toBeDefined();
+    expect(result.current!.assetAmountIcon).toBeDefined();
+    expect(result.current!.assetAmount).toBeDefined();
+    expect(result.current!.vaultOverlay).toBeDefined();
+    expect(result.current!.createVaultButton).toBeDefined();
+    expect(result.current!.createVaultButtonText).toBeDefined();
   });
 
   it('should set fixed margin to 0', () => {

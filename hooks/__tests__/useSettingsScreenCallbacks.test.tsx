@@ -1,4 +1,3 @@
-// @ts-nocheck
 /**
  * Tests for useSettingsScreenCallbacks hook
  */
@@ -26,7 +25,7 @@ jest.mock('../../utils/logger', () => ({
 // Mock cashuWalletService for dynamic import
 const mockRemoveSpentProofs = jest.fn();
 jest.mock('../../services/cashu/cashuWalletService', () => ({
-  removeSpentProofs: (...args) => mockRemoveSpentProofs(...args),
+  removeSpentProofs: (...args: unknown[]) => mockRemoveSpentProofs(...args),
 }));
 
 describe('useSettingsScreenCallbacks', () => {
@@ -54,7 +53,7 @@ describe('useSettingsScreenCallbacks', () => {
   const mockSetShowAccountPicker = jest.fn();
   const mockHandleEcashThresholdPress = jest.fn();
 
-  let callbacks;
+  let callbacks: ReturnType<typeof useSettingsScreenCallbacks>;
 
   beforeEach(() => {
     jest.clearAllMocks();
@@ -222,15 +221,19 @@ describe('useSettingsScreenCallbacks', () => {
     });
 
     describe('onRemoveSpentProofs', () => {
-      it('should handle onRemoveSpentProofs and show alert', async () => {
+      // Note: Dynamic imports (await import()) cannot be mocked in Jest
+      // without --experimental-vm-modules flag. The dynamic import fails
+      // with ERR_VM_DYNAMIC_IMPORT_CALLBACK_MISSING_FLAG.
+      // Lines 111-112 (success path) and 117 (error instanceof Error branch)
+      // cannot be tested without --experimental-vm-modules.
+
+      it('should show error alert when dynamic import fails', async () => {
         callbacks.handleViewCashuSettings();
         const params = mockNavigation.navigate.mock.calls[0][1];
 
-        // The dynamic import will fail in Jest test environment
-        // This tests the error handling path (lines 87-88)
         await params.onRemoveSpentProofs();
 
-        // Alert is called with Error title (due to dynamic import failing in Jest)
+        // Alert is called with Error title (due to dynamic import failure in Jest)
         expect(Alert.alert).toHaveBeenCalledWith(
           'Error',
           expect.stringContaining('Failed to remove spent proofs')

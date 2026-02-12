@@ -1,4 +1,3 @@
-// @ts-nocheck
 /**
  * Tests for useReviewScreenData hook
  */
@@ -8,13 +7,13 @@ import { create, act } from 'react-test-renderer';
 import { useReviewScreenData } from '../useReviewScreenData';
 
 // Helper to render hooks
-function renderHook(hook) {
-  const result = { current: null };
-  function TestComponent() {
+function renderHook<T>(hook: () => T) {
+  const result: { current: T | null } = { current: null };
+  function TestComponent(): null {
     result.current = hook();
     return null;
   }
-  let component;
+  let component: ReturnType<typeof create> | undefined;
   act(() => {
     component = create(<TestComponent />);
   });
@@ -22,13 +21,13 @@ function renderHook(hook) {
     result,
     rerender: () => {
       act(() => {
-        component.update(<TestComponent />);
+        component?.update(<TestComponent />);
       });
     },
-    unmount: () => component.unmount(),
+    unmount: () => component?.unmount(),
   };
 }
-import * as psbtService from '../../services/psbtService';
+import * as psbtService from '../../services/psbtAnalysis';
 import * as TransactionBuildContext from '../../contexts/TransactionBuildContext';
 import * as PriceContext from '../../stores/priceStore';
 
@@ -42,7 +41,7 @@ jest.mock('../../stores/priceStore', () => ({
 }));
 
 // Mock psbtService
-jest.mock('../../services/psbtService');
+jest.mock('../../services/psbtAnalysis');
 
 describe('useReviewScreenData', () => {
   const mockSendIntent = {
@@ -57,15 +56,15 @@ describe('useReviewScreenData', () => {
   beforeEach(() => {
     jest.clearAllMocks();
 
-    TransactionBuildContext.useTransactionBuild.mockReturnValue({
+    (TransactionBuildContext.useTransactionBuild as jest.Mock).mockReturnValue({
       sendIntent: mockSendIntent,
     });
 
-    PriceContext.usePrice.mockReturnValue({
+    (PriceContext.usePrice as jest.Mock).mockReturnValue({
       btcPrice: 50000,
     });
 
-    psbtService.parsePSBT.mockReturnValue({
+    (psbtService.parsePSBT as jest.Mock).mockReturnValue({
       psbtInputs: [{ value: 150000, address: 'tb1qsource', type: 'btc' }],
       psbtOutputs: [
         { value: 100000, address: 'tb1qrecipient123', type: 'recipient' },
@@ -74,31 +73,31 @@ describe('useReviewScreenData', () => {
       actualFee: 1000,
     });
 
-    psbtService.buildFallbackOutputs.mockReturnValue([
+    (psbtService.buildFallbackOutputs as jest.Mock).mockReturnValue([
       { value: 100000, address: 'tb1qrecipient123', type: 'recipient' },
     ]);
 
-    psbtService.hasUnconfirmedInputs.mockReturnValue(false);
+    (psbtService.hasUnconfirmedInputs as jest.Mock).mockReturnValue(false);
   });
 
   it('should return initial state correctly', () => {
     const { result } = renderHook(() => useReviewScreenData());
 
-    expect(result.current.sendIntent).toBeDefined();
-    expect(result.current.btcPrice).toBe(50000);
-    expect(result.current.isDetailsExpanded).toBe(false);
+    expect(result.current!.sendIntent).toBeDefined();
+    expect(result.current!.btcPrice).toBe(50000);
+    expect(result.current!.isDetailsExpanded).toBe(false);
   });
 
   it('should calculate BTC display amount correctly', () => {
     const { result } = renderHook(() => useReviewScreenData());
 
-    expect(result.current.displayAmount).toBe('0.001 BTC');
+    expect(result.current!.displayAmount).toBe('0.001 BTC');
   });
 
   it('should calculate BTC USD amount correctly', () => {
     const { result } = renderHook(() => useReviewScreenData());
 
-    expect(result.current.usdAmount).toBe('50.00');
+    expect(result.current!.usdAmount).toBe('50.00');
   });
 
   it('should calculate UNIT display amount correctly', () => {
@@ -108,13 +107,13 @@ describe('useReviewScreenData', () => {
       amount: 10000,
     };
 
-    TransactionBuildContext.useTransactionBuild.mockReturnValue({
+    (TransactionBuildContext.useTransactionBuild as jest.Mock).mockReturnValue({
       sendIntent: unitIntent,
     });
 
     const { result } = renderHook(() => useReviewScreenData());
 
-    expect(result.current.displayAmount).toBe('100.00 UNIT');
+    expect(result.current!.displayAmount).toBe('100.00 UNIT');
   });
 
   it('should calculate UNIT USD amount correctly', () => {
@@ -124,41 +123,41 @@ describe('useReviewScreenData', () => {
       amount: 10000,
     };
 
-    TransactionBuildContext.useTransactionBuild.mockReturnValue({
+    (TransactionBuildContext.useTransactionBuild as jest.Mock).mockReturnValue({
       sendIntent: unitIntent,
     });
 
     const { result } = renderHook(() => useReviewScreenData());
 
-    expect(result.current.usdAmount).toBe('100.00');
+    expect(result.current!.usdAmount).toBe('100.00');
   });
 
   it('should toggle details expanded state', () => {
     const { result } = renderHook(() => useReviewScreenData());
 
-    expect(result.current.isDetailsExpanded).toBe(false);
+    expect(result.current!.isDetailsExpanded).toBe(false);
 
     act(() => {
-      result.current.setIsDetailsExpanded(true);
+      result.current!.setIsDetailsExpanded(true);
     });
 
-    expect(result.current.isDetailsExpanded).toBe(true);
+    expect(result.current!.isDetailsExpanded).toBe(true);
   });
 
   it('should parse PSBT and return inputs/outputs', () => {
     const { result } = renderHook(() => useReviewScreenData());
 
-    expect(result.current.psbtInputs).toHaveLength(1);
-    expect(result.current.outputs).toHaveLength(2);
-    expect(result.current.actualFee).toBe(1000);
+    expect(result.current!.psbtInputs).toHaveLength(1);
+    expect(result.current!.outputs).toHaveLength(2);
+    expect(result.current!.actualFee).toBe(1000);
   });
 
   it('should detect unconfirmed inputs', () => {
-    psbtService.hasUnconfirmedInputs.mockReturnValue(true);
+    (psbtService.hasUnconfirmedInputs as jest.Mock).mockReturnValue(true);
 
     const { result } = renderHook(() => useReviewScreenData());
 
-    expect(result.current.hasUnconfirmedInputs).toBe(true);
+    expect(result.current!.hasUnconfirmedInputs).toBe(true);
   });
 
   it('should set rune UTXO balance for UNIT transactions', () => {
@@ -168,17 +167,17 @@ describe('useReviewScreenData', () => {
       runeUtxo: { runeAmount: 50000 },
     };
 
-    TransactionBuildContext.useTransactionBuild.mockReturnValue({
+    (TransactionBuildContext.useTransactionBuild as jest.Mock).mockReturnValue({
       sendIntent: unitIntent,
     });
 
     const { result } = renderHook(() => useReviewScreenData());
 
-    expect(result.current.runeUtxoBalance).toBe(50000);
+    expect(result.current!.runeUtxoBalance).toBe(50000);
   });
 
   it('should use fallback outputs if PSBT parsing fails', () => {
-    psbtService.parsePSBT.mockReturnValue({
+    (psbtService.parsePSBT as jest.Mock).mockReturnValue({
       psbtInputs: [],
       psbtOutputs: [], // Empty outputs
       actualFee: 0,
@@ -186,26 +185,26 @@ describe('useReviewScreenData', () => {
 
     const { result } = renderHook(() => useReviewScreenData());
 
-    expect(result.current.outputs).toHaveLength(1);
-    expect(result.current.outputs[0].type).toBe('recipient');
+    expect(result.current!.outputs).toHaveLength(1);
+    expect(result.current!.outputs[0].type).toBe('recipient');
   });
 
   it('should handle null sendIntent', () => {
-    TransactionBuildContext.useTransactionBuild.mockReturnValue({
+    (TransactionBuildContext.useTransactionBuild as jest.Mock).mockReturnValue({
       sendIntent: null,
     });
 
     const { result } = renderHook(() => useReviewScreenData());
 
-    expect(result.current.sendIntent).toBeNull();
-    expect(result.current.displayAmount).toBe('');
-    expect(result.current.usdAmount).toBe('0.00');
+    expect(result.current!.sendIntent).toBeNull();
+    expect(result.current!.displayAmount).toBe('');
+    expect(result.current!.usdAmount).toBe('0.00');
   });
 
   it('should recalculate when sendIntent changes', () => {
     const { result, rerender } = renderHook(() => useReviewScreenData());
 
-    expect(result.current.displayAmount).toBe('0.001 BTC');
+    expect(result.current!.displayAmount).toBe('0.001 BTC');
 
     const newIntent = {
       ...mockSendIntent,
@@ -213,26 +212,26 @@ describe('useReviewScreenData', () => {
       amountBTC: '0.002',
     };
 
-    TransactionBuildContext.useTransactionBuild.mockReturnValue({
+    (TransactionBuildContext.useTransactionBuild as jest.Mock).mockReturnValue({
       sendIntent: newIntent,
     });
 
     rerender();
 
-    expect(result.current.displayAmount).toBe('0.002 BTC');
+    expect(result.current!.displayAmount).toBe('0.002 BTC');
   });
 
   it('should recalculate USD amount when BTC price changes', () => {
     const { result, rerender } = renderHook(() => useReviewScreenData());
 
-    expect(result.current.usdAmount).toBe('50.00');
+    expect(result.current!.usdAmount).toBe('50.00');
 
-    PriceContext.usePrice.mockReturnValue({
+    (PriceContext.usePrice as jest.Mock).mockReturnValue({
       btcPrice: 60000,
     });
 
     rerender();
 
-    expect(result.current.usdAmount).toBe('60.00');
+    expect(result.current!.usdAmount).toBe('60.00');
   });
 });

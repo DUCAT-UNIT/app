@@ -1,4 +1,3 @@
-// @ts-nocheck
 /**
  * Tests for P2PK Key Manager (NUT-11)
  */
@@ -12,6 +11,8 @@ jest.mock('expo-secure-store', () => ({
 
 jest.mock('@bitcoinerlab/secp256k1', () => ({
   privateAdd: jest.fn(),
+  privateNegate: jest.fn(),
+  pointFromScalar: jest.fn(),
 }));
 
 jest.mock('bip32', () => ({
@@ -76,8 +77,8 @@ describe('p2pkKeyManager', () => {
       await clearP2PKCache();
 
       expect(SecureStore.deleteItemAsync).toHaveBeenCalledTimes(2);
-      expect(SecureStore.deleteItemAsync).toHaveBeenCalledWith('p2pk_taproot_address_v3');
-      expect(SecureStore.deleteItemAsync).toHaveBeenCalledWith('p2pk_private_key_v3');
+      expect(SecureStore.deleteItemAsync).toHaveBeenCalledWith('p2pk_taproot_address_v5');
+      expect(SecureStore.deleteItemAsync).toHaveBeenCalledWith('p2pk_private_key_v5');
     });
 
     it('should handle deletion errors gracefully', async () => {
@@ -93,6 +94,11 @@ describe('p2pkKeyManager', () => {
 
     beforeEach(() => {
       (getCurrentAccount as jest.Mock).mockResolvedValue(0);
+
+      // Mock withMnemonic to execute the callback
+      (withMnemonic as jest.Mock).mockImplementation(async (callback) => {
+        return callback('test mnemonic words');
+      });
 
       // Mock BIP32
       const mockChild = {
@@ -114,18 +120,16 @@ describe('p2pkKeyManager', () => {
         pubkey: Buffer.alloc(32),
       });
 
-      // Mock ecc
+      // Mock ecc functions
       (ecc.privateAdd as jest.Mock).mockReturnValue(Buffer.alloc(32, 0xab));
+      (ecc.privateNegate as jest.Mock).mockReturnValue(Buffer.alloc(32, 0xcd));
+      (ecc.pointFromScalar as jest.Mock).mockReturnValue(Buffer.alloc(33, 0x02)); // 33-byte compressed pubkey
     });
 
     it('should return match when pubkey found in current account', async () => {
       (bitcoin.payments.p2tr as jest.Mock).mockReturnValue({
         address: 'tb1ptest',
         pubkey: Buffer.from(targetPubkey, 'hex'),
-      });
-
-      (withMnemonic as jest.Mock).mockImplementation(async (callback) => {
-        return callback('test mnemonic words');
       });
 
       const result = await findAccountForP2PKToken(targetPubkey);
@@ -138,10 +142,6 @@ describe('p2pkKeyManager', () => {
       (bitcoin.payments.p2tr as jest.Mock).mockReturnValue({
         address: 'tb1ptest',
         pubkey: Buffer.from('cd'.repeat(32), 'hex'), // Different pubkey
-      });
-
-      (withMnemonic as jest.Mock).mockImplementation(async (callback) => {
-        return callback('test mnemonic words');
       });
 
       const result = await findAccountForP2PKToken(targetPubkey, 5); // Only scan 5 accounts
@@ -157,10 +157,6 @@ describe('p2pkKeyManager', () => {
         pubkey: Buffer.from('cd'.repeat(32), 'hex'),
       });
 
-      (withMnemonic as jest.Mock).mockImplementation(async (callback) => {
-        return callback('test mnemonic words');
-      });
-
       await findAccountForP2PKToken(targetPubkey, 3, progressCallback);
 
       expect(progressCallback).toHaveBeenCalled();
@@ -172,10 +168,6 @@ describe('p2pkKeyManager', () => {
       (bitcoin.payments.p2tr as jest.Mock).mockReturnValue({
         address: 'tb1ptest',
         pubkey: Buffer.from('cd'.repeat(32), 'hex'),
-      });
-
-      (withMnemonic as jest.Mock).mockImplementation(async (callback) => {
-        return callback('test mnemonic words');
       });
 
       // Should scan at least currentAccount + 1 = 81 accounts
@@ -196,10 +188,6 @@ describe('p2pkKeyManager', () => {
           address: 'tb1ptest',
           pubkey: Buffer.from(targetPubkey, 'hex'),
         };
-      });
-
-      (withMnemonic as jest.Mock).mockImplementation(async (callback) => {
-        return callback('test mnemonic words');
       });
 
       const result = await findAccountForP2PKToken(targetPubkey, 5);
@@ -299,8 +287,8 @@ describe('p2pkKeyManager', () => {
 
       await getP2PKPrivateKey();
 
-      expect(SecureStore.setItemAsync).toHaveBeenCalledWith('p2pk_taproot_address_v3', mockAddress);
-      expect(SecureStore.setItemAsync).toHaveBeenCalledWith('p2pk_private_key_v3', mockPrivateKey);
+      expect(SecureStore.setItemAsync).toHaveBeenCalledWith('p2pk_taproot_address_v5', mockAddress);
+      expect(SecureStore.setItemAsync).toHaveBeenCalledWith('p2pk_private_key_v5', mockPrivateKey);
     });
 
     it('should handle cache read errors gracefully', async () => {

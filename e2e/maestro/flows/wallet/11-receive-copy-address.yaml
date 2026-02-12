@@ -1,0 +1,51 @@
+appId: com.ducatprotocol.DucatProtocolWallet
+---
+# Receive BTC Address - Verify deposit flow opens receive screen with full BTC address UI
+# Import wallet → deposit → BTC → verify receive screen content including Share button
+
+- runFlow: ../helpers/import-wallet-typed.yaml
+
+# Wait for wallet screen
+- extendedWaitUntil:
+    visible:
+      id: "wallet-screen"
+    timeout: 15000
+
+# Dismiss modals
+- runFlow: ../helpers/dismiss-low-ecash.yaml
+- runFlow: ../helpers/dismiss-airdrop.yaml
+- runFlow:
+    when:
+      visible:
+        id: "passkey-migration-modal"
+    commands:
+      - tapOn:
+          id: "passkey-skip-btn"
+
+# Navigate to receive via Deposit button
+- tapOn:
+    id: "wallet-deposit-btn"
+
+# Deposit sheet opens - select BTC
+- extendedWaitUntil:
+    visible:
+      id: "deposit-btc"
+    timeout: 5000
+- tapOn:
+    id: "deposit-btc"
+
+# Wait for receive screen
+- waitForAnimationToEnd
+- extendedWaitUntil:
+    visible:
+      text: "Only use this address to receive Bitcoin."
+    timeout: 10000
+
+# Verify Bitcoin address title
+- assertVisible:
+    text: "Bitcoin address"
+
+
+# Verify Mutinynet banner
+- assertVisible:
+    text: "Mutinynet Edition"

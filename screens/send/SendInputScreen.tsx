@@ -3,47 +3,42 @@
  * Features: address input, amount slider with fee selector footer
  */
 
-import React, { useEffect, useRef, useState, useMemo, useCallback } from 'react';
+import React, { useEffect, useRef, useState, useCallback } from 'react';
 import {
   Text,
   View,
   TouchableOpacity,
-  TextInput,
-  Pressable,
   ScrollView,
   KeyboardAvoidingView,
   Platform,
   StyleSheet,
   ActivityIndicator,
   Keyboard,
-  Switch,
 } from 'react-native';
 import { NavigationProp, RouteProp } from '@react-navigation/native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import * as Clipboard from 'expo-clipboard';
 import { Ionicons } from '@expo/vector-icons';
-import { COLORS } from '../../theme';
-import Icon from '../../components/icons';
-import QRScanner from '../../components/scanner/QRScanner';
-import { validateBitcoinAddress } from '../../utils/bitcoin';
 import { useSendFlowStore, type AssetType } from '../../stores/sendFlowStore';
-import { useBalance } from '../../contexts/WalletDataContext';
 import { usePrice } from '../../stores/priceStore';
 import { useWallet } from '../../contexts/WalletContext';
 import { useKeyboard } from '../../hooks/useKeyboard';
 import { useFeeEstimate } from '../../hooks/useFeeEstimate';
 import { TransactionType } from '../../services/feeEstimationService';
-import { FeeRateDropdown } from '../../components/common/FeeRateSelectorCompact';
-import { AmountSlider } from '../../components/vaultAction/AmountSlider';
-import { UnitAmountSlider } from '../../components/vaultAction/UnitAmountSlider';
-import TouchableScale from '../../components/common/TouchableScale';
-import { getRunesAmount } from '../../utils/runesHelper';
 import { useTurboReview } from '../../hooks/useTurboReview';
-import { useNavigationHandlers } from '../../contexts/NavigationHandlersContext';
+import { useSettingsHandlers } from '../../contexts/NavigationHandlersContext';
+import QRScanner from '../../components/scanner/QRScanner';
 import InsufficientTurboSheet from '../../components/send/InsufficientTurboSheet';
-import { useCashu } from '../../contexts/CashuContext';
-import { logger } from '../../utils/logger';
+import TouchableScale from '../../components/common/TouchableScale';
 import { colors, fonts, fontSizes, spacing, radii } from '../../styles/theme';
+
+// Local hooks and components
+import { useAddressInput, useSendValidation, useSendBalances } from './hooks';
+import {
+  AddressInputSection,
+  AmountSection,
+  TurboToggle,
+  SendWarnings,
+} from './components';
 
 interface SendInputRouteParams {
   assetType?: AssetType;
@@ -73,24 +68,56 @@ export default function SendInputScreen({ navigation, route }: SendInputScreenPr
   const setTurboEnabled = useSendFlowStore((state) => state.setTurboEnabled);
 
   // Hooks
-  const { segwitBalance, runesBalance, utxos, unconfirmedSegwitBalance } = useBalance();
-  const { balance: cashuBalance } = useCashu();
   const { btcPrice } = usePrice();
   const { wallet } = useWallet();
   const { keyboardHeight } = useKeyboard();
-  const { settingsHandlers } = useNavigationHandlers();
+  const { settingsHandlers } = useSettingsHandlers();
   const ecashThreshold = settingsHandlers?.ecashThreshold || 100;
 
   // Local state
-  const addressInputRef = useRef<TextInput>(null);
-  const [addressError, setAddressError] = useState('');
-  const [isValidAddress, setIsValidAddress] = useState(false);
-  const [showQRScanner, setShowQRScanner] = useState(false);
   const [previewAmount, setPreviewAmount] = useState(0);
   const prevMaxRef = useRef<number>(0);
   const [isInitializing, setIsInitializing] = useState(true);
 
   const assetType = route.params?.assetType || sendAssetType;
+  const assetSymbol = assetType === 'btc' ? 'BTC' : 'UNIT';
+  const isBtc = assetType === 'btc';
+
+  // Fee estimation
+  const transactionType = isBtc ? TransactionType.BTC_SEND : TransactionType.UNIT_SEND;
+  const { feeEstimateSats } = useFeeEstimate({
+    type: transactionType,
+    sourceAddress: wallet?.segwitAddress,
+    feeRate: selectedFeeRate,
+    enabled: true,
+  });
+  const estimatedFeeSats = Math.ceil(feeEstimateSats * 1.1); // 10% buffer
+
+  // Balance calculations
+  const {
+    maxSendableBtc,
+    maxSendableUnit,
+    hasSufficientBtcForUnitFees,
+  } = useSendBalances({ estimatedFeeSats });
+
+  // Address input handling
+  const {
+    addressError,
+    isValidAddress,
+    showQRScanner,
+    setShowQRScanner,
+    handleRecipientChange,
+    handlePaste,
+    handleScanQR,
+    handleQRScanned,
+  } = useAddressInput({
+    assetType,
+    onRecipientChange: setSendRecipient,
+    onAddressTypeChange: setSendAddressType,
+  });
+
+  // Current amount as number
+  const currentAmount = parseFloat(sendAmount) || 0;
 
   // Turbo review hook for UNIT transactions
   const {
@@ -115,8 +142,23 @@ export default function SendInputScreen({ navigation, route }: SendInputScreenPr
     isCashuMint: false,
     cashuQuoteId: null,
   });
-  const assetSymbol = assetType === 'btc' ? 'BTC' : 'UNIT';
-  const isBtc = assetType === 'btc';
+
+  // Validation
+  const {
+    exceedsBalance,
+    insufficientBtcForFees,
+    canContinue,
+  } = useSendValidation({
+    isValidAddress,
+    addressError,
+    sendRecipient,
+    currentAmount,
+    isBtc,
+    maxSendableBtc,
+    maxSendableUnit,
+    hasSufficientBtcForUnitFees,
+    isRequestingMint,
+  });
 
   // Set asset type from route params
   useEffect(() => {
@@ -132,38 +174,6 @@ export default function SendInputScreen({ navigation, route }: SendInputScreenPr
       return () => clearTimeout(timer);
     }
   }, [isInitializing]);
-
-  // Fee estimation
-  const transactionType = isBtc ? TransactionType.BTC_SEND : TransactionType.UNIT_SEND;
-  const { feeEstimateSats } = useFeeEstimate({
-    type: transactionType,
-    sourceAddress: wallet?.segwitAddress,
-    feeRate: selectedFeeRate,
-    enabled: true,
-  });
-
-  const estimatedFeeSats = Math.ceil(feeEstimateSats * 1.1); // 10% buffer
-
-  // Balance calculations (include unconfirmed for transaction chaining)
-  const btcBalance = (segwitBalance || 0) + (unconfirmedSegwitBalance || 0);
-  // For UNIT, combine on-chain runes balance + ecash balance
-  // Runes come in display units, ecash is in smallest units (needs /100)
-  const unitRunesBalance = useMemo(() => getRunesAmount(runesBalance), [runesBalance]);
-  const unitBalance = unitRunesBalance + ((cashuBalance || 0) / 100);
-
-  // For BTC: max sendable = balance - fee
-  const maxSendableBtc = useMemo(() => {
-    const feeBtc = estimatedFeeSats / 100_000_000;
-    return Math.max(0, btcBalance - feeBtc);
-  }, [btcBalance, estimatedFeeSats]);
-
-  // For UNIT: max sendable = unit balance (but need BTC for fees)
-  const maxSendableUnit = unitBalance;
-  const btcBalanceSats = Math.round(btcBalance * 100_000_000);
-  const hasSufficientBtcForUnitFees = btcBalanceSats >= estimatedFeeSats;
-
-  // Current amount as number
-  const currentAmount = parseFloat(sendAmount) || 0;
 
   // Adjust amount when max changes based on fee rate (for BTC only)
   useEffect(() => {
@@ -196,55 +206,7 @@ export default function SendInputScreen({ navigation, route }: SendInputScreenPr
       setSendAmount(prefillAmount);
       setPreviewAmount(parseFloat(prefillAmount) || 0);
     }
-  }, [route.params?.prefillAddress, route.params?.prefillAmount]);
-
-
-  const handlePaste = async () => {
-    const text = await Clipboard.getStringAsync();
-    if (text) {
-      const firstLine = text.split(/[\r\n]/)[0].trim();
-      handleRecipientChange(firstLine);
-    }
-  };
-
-  const handleScanQR = () => {
-    setShowQRScanner(true);
-  };
-
-  const handleQRScanned = (data: string) => {
-    setShowQRScanner(false);
-    let address = data;
-    if (data.toLowerCase().startsWith('bitcoin:')) {
-      address = data.replace(/^bitcoin:/i, '').split('?')[0];
-    }
-    handleRecipientChange(address);
-  };
-
-  const handleRecipientChange = (text: string): void => {
-    const cleanText = text.split(/[\r\n]/)[0].trim();
-    setSendRecipient(cleanText);
-    setAddressError('');
-    setIsValidAddress(false);
-
-    if (cleanText) {
-      const validation = validateBitcoinAddress(cleanText);
-      if (!validation.valid) {
-        setAddressError(validation.error || 'Invalid address');
-      } else if (assetType === 'unit') {
-        const isTaproot = cleanText.startsWith('tb1p') || cleanText.startsWith('bc1p');
-        if (!isTaproot) {
-          setAddressError('UNIT requires Taproot (bc1p/tb1p)');
-        } else {
-          setSendAddressType('taproot');
-          setIsValidAddress(true);
-        }
-      } else {
-        const addressType = cleanText.startsWith('tb1p') || cleanText.startsWith('bc1p') ? 'taproot' : 'segwit';
-        setSendAddressType(addressType);
-        setIsValidAddress(true);
-      }
-    }
-  };
+  }, [route.params?.prefillAddress, route.params?.prefillAmount, handleRecipientChange, setSendAmount]);
 
   const handleAmountChange = useCallback((value: number) => {
     setSendAmount(value.toString());
@@ -255,16 +217,6 @@ export default function SendInputScreen({ navigation, route }: SendInputScreenPr
     Keyboard.dismiss();
     setPreviewAmount(value);
   }, []);
-
-  // Validation (moved before handlers that depend on canContinue)
-  const hasValidAddress = isValidAddress && !addressError && sendRecipient.length > 0;
-  const hasValidAmount = currentAmount > 0;
-  const exceedsBalance = isBtc
-    ? currentAmount > maxSendableBtc
-    : currentAmount > maxSendableUnit;
-  const insufficientBtcForFees = !isBtc && !hasSufficientBtcForUnitFees;
-
-  const canContinue = hasValidAddress && hasValidAmount && !exceedsBalance && !insufficientBtcForFees && !isRequestingMint;
 
   const handleClose = useCallback(() => {
     navigation.goBack();
@@ -296,10 +248,11 @@ export default function SendInputScreen({ navigation, route }: SendInputScreenPr
   }
 
   return (
-    <SafeAreaView style={styles.container} edges={['top']}>
+    <SafeAreaView style={styles.container} edges={['top']} testID="send-input-screen">
       <KeyboardAvoidingView
         behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
         style={styles.flex}
+        testID="send-input-content"
       >
         <ScrollView
           style={styles.flex}
@@ -310,133 +263,54 @@ export default function SendInputScreen({ navigation, route }: SendInputScreenPr
           {/* Header */}
           <View style={styles.header}>
             <Text style={styles.title}>Send {assetSymbol}</Text>
-            <TouchableOpacity onPress={handleClose} hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}>
+            <TouchableOpacity
+              onPress={handleClose}
+              hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+              accessibilityLabel="Close"
+              accessibilityRole="button"
+            >
               <Ionicons name="close" size={24} color={colors.text.secondary} />
             </TouchableOpacity>
           </View>
 
           {/* Address Input Section */}
-          <View style={styles.section}>
-            <View style={styles.labelRow}>
-              <Text style={styles.label}>Recipient Address</Text>
-              {addressError ? (
-                <View style={styles.statusRow}>
-                  <Ionicons name="close-circle" size={14} color={colors.semantic.error} />
-                  <Text style={styles.statusTextError}>Invalid</Text>
-                </View>
-              ) : isValidAddress ? (
-                <View style={styles.statusRow}>
-                  <Ionicons name="checkmark-circle" size={14} color={colors.semantic.success} />
-                  <Text style={styles.statusTextSuccess}>Valid</Text>
-                </View>
-              ) : null}
-            </View>
-
-            {addressError && (
-              <Text style={styles.errorText}>{addressError}</Text>
-            )}
-
-            <View style={styles.addressContainer}>
-              <TextInput
-                ref={addressInputRef}
-                style={styles.addressInput}
-                value={sendRecipient}
-                onChangeText={handleRecipientChange}
-                placeholder={assetType === 'unit' ? 'tb1p... or bc1p...' : 'tb1q... or tb1p...'}
-                placeholderTextColor={colors.text.tertiary}
-                autoCapitalize="none"
-                autoCorrect={false}
-                multiline
-                numberOfLines={2}
-              />
-              <View style={styles.addressIcons}>
-                <Pressable style={styles.addressIconBtn} onPress={handlePaste} hitSlop={8}>
-                  <Ionicons name="clipboard-outline" size={20} color={colors.text.tertiary} />
-                </Pressable>
-                <Pressable style={styles.addressIconBtn} onPress={handleScanQR} hitSlop={8}>
-                  <Ionicons name="qr-code-outline" size={20} color={colors.text.tertiary} />
-                </Pressable>
-              </View>
-            </View>
-          </View>
+          <AddressInputSection
+            value={sendRecipient}
+            assetType={assetType}
+            addressError={addressError}
+            isValidAddress={isValidAddress}
+            onChangeText={handleRecipientChange}
+            onPaste={handlePaste}
+            onScanQR={handleScanQR}
+          />
 
           {/* Amount Slider with Fee Selector */}
-          <View style={styles.section}>
-            {isBtc ? (
-              <AmountSlider
-                value={currentAmount}
-                maxValue={maxSendableBtc}
-                onValueChange={handleAmountChange}
-                onLiveValueChange={handleLiveAmountChange}
-                label="Amount to Send"
-                btcPrice={btcPrice ?? undefined}
-                disabled={maxSendableBtc <= 0}
-                renderFooter={() => (
-                  <FeeRateDropdown
-                    selectedRate={selectedFeeRate}
-                    onRateChange={setSelectedFeeRate}
-                    estimatedFeeSats={estimatedFeeSats}
-                    transparent
-                  />
-                )}
-              />
-            ) : (
-              <UnitAmountSlider
-                value={currentAmount}
-                maxValue={maxSendableUnit}
-                onValueChange={handleAmountChange}
-                onLiveValueChange={handleLiveAmountChange}
-                label="Amount to Send"
-                disabled={maxSendableUnit <= 0}
-                renderFooter={() => (
-                  <FeeRateDropdown
-                    selectedRate={selectedFeeRate}
-                    onRateChange={setSelectedFeeRate}
-                    estimatedFeeSats={estimatedFeeSats}
-                    transparent
-                  />
-                )}
-              />
-            )}
-          </View>
+          <AmountSection
+            isBtc={isBtc}
+            value={currentAmount}
+            maxValue={isBtc ? maxSendableBtc : maxSendableUnit}
+            onValueChange={handleAmountChange}
+            onLiveValueChange={handleLiveAmountChange}
+            btcPrice={btcPrice ?? undefined}
+            selectedFeeRate={selectedFeeRate}
+            onFeeRateChange={setSelectedFeeRate}
+            estimatedFeeSats={estimatedFeeSats}
+          />
 
           {/* Turbo Toggle for UNIT */}
           {!isBtc && (
-            <View style={styles.turboSection}>
-              <View style={styles.turboRow}>
-                <View style={styles.turboLabelContainer}>
-                  <Text style={styles.turboLabel}>⚡ Turbo UNIT</Text>
-                  <Text style={styles.turboDescription}>Instant transaction</Text>
-                </View>
-                <Switch
-                  value={turboEnabled}
-                  onValueChange={setTurboEnabled}
-                  trackColor={{ false: colors.bg.tertiary, true: colors.brand.primary }}
-                  thumbColor={colors.text.white}
-                />
-              </View>
-            </View>
+            <TurboToggle
+              enabled={turboEnabled}
+              onToggle={setTurboEnabled}
+            />
           )}
 
-          {/* Warning for insufficient BTC for UNIT fees */}
-          {insufficientBtcForFees && (
-            <View style={styles.warning}>
-              <Ionicons name="warning" size={20} color={colors.semantic.error} />
-              <Text style={styles.warningText}>
-                You need BTC in your wallet to pay for transaction fees
-              </Text>
-            </View>
-          )}
-
-          {/* Warning for exceeding balance */}
-          {exceedsBalance && currentAmount > 0 && (
-            <View style={styles.warning}>
-              <Ionicons name="warning" size={20} color={colors.semantic.error} />
-              <Text style={styles.warningText}>
-                Amount exceeds available balance
-              </Text>
-            </View>
-          )}
+          {/* Warnings */}
+          <SendWarnings
+            insufficientBtcForFees={insufficientBtcForFees}
+            exceedsBalance={exceedsBalance}
+            currentAmount={currentAmount}
+          />
         </ScrollView>
 
         {/* Footer */}
@@ -445,6 +319,8 @@ export default function SendInputScreen({ navigation, route }: SendInputScreenPr
             style={[styles.reviewBtn, !canContinue && styles.reviewBtnDisabled]}
             onPress={handleReview}
             disabled={!canContinue}
+            testID="send-review-btn"
+            accessibilityLabel="Review transaction"
           >
             <Text style={[styles.reviewBtnText, !canContinue && styles.reviewBtnTextDisabled]}>
               Review
@@ -492,113 +368,12 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    marginBottom: spacing.sm
+    marginBottom: spacing.sm,
   },
   title: {
     color: colors.text.primary,
     fontSize: fontSizes.xxl,
-    fontFamily: fonts.bold
-  },
-  section: { marginTop: spacing.md },
-  labelRow: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    marginBottom: spacing.sm,
-  },
-  label: {
-    color: colors.text.secondary,
-    fontSize: fontSizes.sm,
-    fontFamily: fonts.medium,
-    textTransform: 'uppercase',
-    letterSpacing: 0.5,
-  },
-  statusRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 4,
-  },
-  statusTextError: {
-    color: colors.semantic.error,
-    fontSize: fontSizes.xs,
-    fontFamily: fonts.medium,
-  },
-  statusTextSuccess: {
-    color: colors.semantic.success,
-    fontSize: fontSizes.xs,
-    fontFamily: fonts.medium,
-  },
-  errorText: {
-    color: colors.semantic.error,
-    fontSize: fontSizes.sm,
-    fontFamily: fonts.regular,
-    marginBottom: spacing.sm,
-  },
-  addressContainer: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: colors.bg.secondary,
-    borderRadius: radii.lg,
-    borderWidth: 1,
-    borderColor: colors.border.default,
-    paddingHorizontal: spacing.md,
-    paddingVertical: spacing.sm,
-  },
-  addressInput: {
-    flex: 1,
-    fontSize: fontSizes.md,
-    color: colors.text.primary,
-    fontFamily: fonts.regular,
-    minHeight: 52,
-    lineHeight: 22,
-    paddingRight: spacing.sm,
-  },
-  addressIcons: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: spacing.sm,
-  },
-  addressIconBtn: {
-    padding: spacing.xs,
-  },
-  turboSection: {
-    marginTop: spacing.lg,
-  },
-  turboRow: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    backgroundColor: colors.bg.secondary,
-    borderRadius: radii.lg,
-    padding: spacing.md,
-  },
-  turboLabelContainer: {
-    flex: 1,
-  },
-  turboLabel: {
-    color: colors.text.primary,
-    fontSize: fontSizes.md,
     fontFamily: fonts.bold,
-  },
-  turboDescription: {
-    color: colors.text.tertiary,
-    fontSize: fontSizes.sm,
-    fontFamily: fonts.regular,
-    marginTop: 2,
-  },
-  warning: {
-    flexDirection: 'row',
-    backgroundColor: 'rgba(208,76,104,0.1)',
-    borderRadius: radii.md,
-    padding: spacing.md,
-    marginTop: spacing.lg,
-    gap: spacing.sm
-  },
-  warningText: {
-    flex: 1,
-    color: colors.semantic.error,
-    fontSize: fontSizes.sm,
-    fontFamily: fonts.medium
   },
   footer: {
     position: 'absolute',
@@ -612,18 +387,18 @@ const styles = StyleSheet.create({
     backgroundColor: colors.brand.primary,
     borderRadius: radii.lg,
     paddingVertical: spacing.md,
-    alignItems: 'center'
+    alignItems: 'center',
   },
   reviewBtnDisabled: {
-    backgroundColor: colors.bg.tertiary
+    backgroundColor: colors.bg.tertiary,
   },
   reviewBtnText: {
     color: colors.text.white,
     fontSize: fontSizes.md,
-    fontFamily: fonts.bold
+    fontFamily: fonts.bold,
   },
   reviewBtnTextDisabled: {
-    color: colors.text.tertiary
+    color: colors.text.tertiary,
   },
   loadingOverlay: {
     ...StyleSheet.absoluteFillObject,

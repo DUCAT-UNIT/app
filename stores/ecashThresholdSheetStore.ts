@@ -5,28 +5,29 @@
 
 import { create } from 'zustand';
 
-// Module-level ref for the onSelect callback — avoids re-renders when setting it
-let _onSelectHandler: ((value: number) => void) | null = null;
-
-export const setThresholdSheetOnSelect = (handler: (value: number) => void) => {
-  _onSelectHandler = handler;
-};
-
-export const getThresholdSheetOnSelect = (): ((value: number) => void) | null => {
-  return _onSelectHandler;
-};
-
 interface EcashThresholdSheetState {
   visible: boolean;
+  onSelectHandler: ((value: number) => void) | null;
   show: () => void;
   hide: () => void;
+  setOnSelect: (handler: ((value: number) => void) | null) => void;
 }
 
 export const useEcashThresholdSheetStore = create<EcashThresholdSheetState>((set) => ({
   visible: false,
+  onSelectHandler: null,
   show: () => set({ visible: true }),
   hide: () => set({ visible: false }),
+  setOnSelect: (handler) => set({ onSelectHandler: handler }),
 }));
+
+export const setThresholdSheetOnSelect = (handler: (value: number) => void) => {
+  useEcashThresholdSheetStore.getState().setOnSelect(handler);
+};
+
+export const getThresholdSheetOnSelect = (): ((value: number) => void) | null => {
+  return useEcashThresholdSheetStore.getState().onSelectHandler;
+};
 
 // Convenience hooks
 export const useEcashThresholdSheetVisible = () =>

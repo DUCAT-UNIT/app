@@ -1,0 +1,44 @@
+appId: com.ducatprotocol.DucatProtocolWallet
+---
+# QR Scanner Button - Verify scan button exists, is tappable, and wallet remains stable
+# Create funded wallet → verify all header buttons → tap scan → verify app stability → verify wallet persists
+
+- runFlow: ../helpers/create-wallet.yaml
+
+# Dismiss modals
+- runFlow: ../helpers/dismiss-low-ecash.yaml
+- runFlow: ../helpers/dismiss-airdrop.yaml
+- runFlow:
+    when:
+      visible:
+        id: "passkey-migration-modal"
+    commands:
+      - tapOn:
+          id: "passkey-skip-btn"
+
+# Verify all three wallet header action buttons are present
+- assertVisible:
+    id: "wallet-history-btn"
+- assertVisible:
+    id: "wallet-scan-btn"
+- assertVisible:
+    id: "wallet-settings-btn"
+
+# Verify wallet is fully loaded with balance before testing scan
+- assertVisible:
+    id: "wallet-actions"
+- assertVisible:
+    text: "0.10000000"
+
+# Tap QR scan button — opens camera modal or permission dialog
+# QR Scanner uses React Native Modal (separate UIWindow — Maestro cannot access elements inside)
+- tapOn:
+    id: "wallet-scan-btn"
+
+# Wait for modal animation to complete
+- waitForAnimationToEnd
+
+# Scanner Modal covers wallet-screen entirely — verify it opened by confirming
+# wallet elements are no longer accessible (Modal is a separate UIWindow on iOS)
+- assertNotVisible:
+    id: "balance-section"

@@ -1,4 +1,3 @@
-// @ts-nocheck
 /**
  * Tests for useCreateVault hook
  */
@@ -97,9 +96,9 @@ describe('useCreateVault', () => {
   it('should return initial state', () => {
     const { result } = renderHook(() => useCreateVault());
 
-    expect(result.current.isLoading).toBe(false);
-    expect(result.current.error).toBeNull();
-    expect(result.current.txid).toBeNull();
+    expect(result.current!.isLoading).toBe(false);
+    expect(result.current!.error).toBeNull();
+    expect(result.current!.txid).toBeNull();
     expect(typeof result.current.createVault).toBe('function');
     expect(typeof result.current.cancel).toBe('function');
   });
@@ -110,7 +109,7 @@ describe('useCreateVault', () => {
 
       let txid;
       await act(async () => {
-        txid = await result.current.createVault();
+        txid = await result.current!.createVault();
       });
 
       expect(txid).toBe('txid123');
@@ -122,13 +121,13 @@ describe('useCreateVault', () => {
 
     it('should return null if wallet not connected', async () => {
       const { useWallet } = require('../../contexts/WalletContext');
-      useWallet.mockReturnValueOnce({ wallet: null });
+      (useWallet as jest.Mock).mockReturnValueOnce({ wallet: null });
 
       const { result } = renderHook(() => useCreateVault());
 
       let txid;
       await act(async () => {
-        txid = await result.current.createVault();
+        txid = await result.current!.createVault();
       });
 
       expect(txid).toBeNull();
@@ -143,7 +142,7 @@ describe('useCreateVault', () => {
 
       let txid;
       await act(async () => {
-        txid = await result.current.createVault();
+        txid = await result.current!.createVault();
       });
 
       expect(txid).toBeNull();
@@ -160,7 +159,7 @@ describe('useCreateVault', () => {
 
       let txid;
       await act(async () => {
-        txid = await result.current.createVault();
+        txid = await result.current!.createVault();
       });
 
       expect(txid).toBeNull();
@@ -174,7 +173,7 @@ describe('useCreateVault', () => {
 
       let txid;
       await act(async () => {
-        txid = await result.current.createVault();
+        txid = await result.current!.createVault();
       });
 
       expect(txid).toBeNull();
@@ -189,7 +188,7 @@ describe('useCreateVault', () => {
 
       let txid;
       await act(async () => {
-        txid = await result.current.createVault();
+        txid = await result.current!.createVault();
       });
 
       expect(txid).toBeNull();
@@ -205,10 +204,10 @@ describe('useCreateVault', () => {
       const { result } = renderHook(() => useCreateVault());
 
       // Start first call
-      const firstCall = result.current.createVault();
+      const firstCall = result.current!.createVault();
 
       // Try second call immediately
-      const secondCall = await result.current.createVault();
+      const secondCall = await result.current!.createVault();
 
       expect(secondCall).toBeNull();
 
@@ -222,7 +221,7 @@ describe('useCreateVault', () => {
       const { result } = renderHook(() => useCreateVault());
 
       await act(async () => {
-        await result.current.createVault();
+        await result.current!.createVault();
       });
 
       expect(mockVaultCreationStore.setProcessingStep).toHaveBeenCalledWith(1);
@@ -237,7 +236,7 @@ describe('useCreateVault', () => {
       const { result } = renderHook(() => useCreateVault());
 
       await act(async () => {
-        await result.current.createVault({ isMaxDeposit: true });
+        await result.current!.createVault({ isMaxDeposit: true });
       });
 
       expect(createVaultReqOpen).toHaveBeenCalledWith(
@@ -246,6 +245,71 @@ describe('useCreateVault', () => {
         expect.anything(),
         expect.objectContaining({ isMaxDeposit: true })
       );
+    });
+
+    it('should handle wallet with missing pubkeys', async () => {
+      const { useWallet } = require('../../contexts/WalletContext');
+      const { createVaultWallet } = require('../../services/vaultWalletService');
+      const { getGuardianClient, guardianOpenVaultReserve } = require('../../services/guardianService');
+      const { guardianOpenVaultReserve: guardianReserve } = require('../../services/vaultOperationsService');
+
+      // Wallet with undefined pubkeys (triggers || '' fallbacks)
+      (useWallet as jest.Mock).mockReturnValue({
+        wallet: {
+          segwitAddress: 'tb1qtest...',
+          segwitPubkey: undefined, // Will use || ''
+          taprootAddress: 'tb1ptest...',
+          taprootPubkey: undefined, // Will use || ''
+        },
+      });
+
+      const { result } = renderHook(() => useCreateVault());
+
+      await act(async () => {
+        await result.current!.createVault();
+      });
+
+      // Should have been called with empty strings as fallbacks
+      expect(createVaultWallet).toHaveBeenCalledWith({
+        segwitAddress: 'tb1qtest...',
+        segwitPubkey: '',
+        taprootAddress: 'tb1ptest...',
+        taprootPubkey: '',
+      });
+    });
+
+    it('should handle non-Error thrown during vault creation', async () => {
+      const { guardianSendReqOpen } = require('../../services/vaultOperationsService');
+
+      // Throw a non-Error object
+      guardianSendReqOpen.mockRejectedValueOnce('string error');
+
+      const { result } = renderHook(() => useCreateVault());
+
+      let txid;
+      await act(async () => {
+        txid = await result.current!.createVault();
+      });
+
+      expect(txid).toBeNull();
+      expect(mockVaultCreationStore.setError).toHaveBeenCalledWith('Vault creation failed');
+    });
+
+    it('should handle null thrown during vault creation', async () => {
+      const { guardianSendReqOpen } = require('../../services/vaultOperationsService');
+
+      // Throw null
+      guardianSendReqOpen.mockRejectedValueOnce(null);
+
+      const { result } = renderHook(() => useCreateVault());
+
+      let txid;
+      await act(async () => {
+        txid = await result.current!.createVault();
+      });
+
+      expect(txid).toBeNull();
+      expect(mockVaultCreationStore.setError).toHaveBeenCalledWith('Vault creation failed');
     });
   });
 
@@ -256,7 +320,7 @@ describe('useCreateVault', () => {
       const { result } = renderHook(() => useCreateVault());
 
       act(() => {
-        result.current.cancel();
+        result.current!.cancel();
       });
 
       expect(disconnectGuardian).toHaveBeenCalled();

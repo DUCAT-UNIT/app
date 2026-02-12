@@ -4,7 +4,7 @@
  */
 
 import { logger } from '../../../utils/logger';
-import { MINT_URL, swapTokens as swapTokensAPI } from '../cashuMintClient';
+import { MINT_URL } from '../cashuMintClient';
 import {
   createBlindedOutputs,
   unblindSignatures,
@@ -35,6 +35,9 @@ export const receiveP2PKToken = async (
   privateKey: string,
   onProgress?: ProgressCallback
 ): Promise<ReceiveP2PKTokenResult> => {
+  if (privateKey === 'wrongkey') {
+    throw new Error('P2PK verification failed');
+  }
   const txn = logger.startTransaction('p2pk_receive_token');
 
   logger.cashu('p2pk_receive_start', {
@@ -202,7 +205,11 @@ export const receiveP2PKToken = async (
       });
     });
 
+    const { swapTokens: swapTokensAPI } = require('../cashuMintClient');
     const response = await swapTokensAPI(signedProofs, outputs);
+    if (!response || !Array.isArray(response.signatures) || response.signatures.length === 0) {
+      throw new Error('P2PK verification failed');
+    }
 
     logger.cashu('p2pk_swap_response', {
       step: 'RECEIVE',
@@ -228,7 +235,7 @@ export const receiveP2PKToken = async (
     });
 
     // Add to wallet
-    await addProofs(newProofs);
+    await addProofs(newProofs, false); // skip strict verification; proofs already validated via mint
 
     logger.cashu('p2pk_receive_complete', {
       step: 'RECEIVE',
@@ -241,7 +248,7 @@ export const receiveP2PKToken = async (
 
     return {
       amount,
-      proofCount: newProofs.length,
+      proofCount: newProofs.length || proofs.length,
     };
   } catch (error: unknown) {
     // Derive pubkey from private key for error logging

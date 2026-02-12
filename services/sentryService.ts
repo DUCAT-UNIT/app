@@ -347,9 +347,14 @@ const SENSITIVE_VALUES = {
   pin: /\b\d{6}\b/g,
   // Cashu tokens
   cashuToken: /cashuA[A-Za-z0-9_-]+/g,
+  // Bitcoin addresses — SegWit (bc1/tb1), P2PKH (1/m/n), P2SH (3)
+  btcSegwit: /\b[tb]?bc1[a-zA-HJ-NP-Z0-9]{25,62}\b/g,
+  btcTestnetSegwit: /\btb1[a-zA-HJ-NP-Z0-9]{25,62}\b/g,
+  btcP2pkh: /\b[1mn][1-9A-HJ-NP-Za-km-z]{25,34}\b/g,
+  btcP2sh: /\b3[1-9A-HJ-NP-Za-km-z]{25,34}\b/g,
 };
 
-function sanitizeParams(params: Record<string, unknown>): Record<string, unknown> {
+export function sanitizeParams(params: Record<string, unknown>): Record<string, unknown> {
   if (!params || typeof params !== 'object') return params;
 
   const sanitized: Record<string, unknown> = {};
@@ -372,8 +377,13 @@ function sanitizeParams(params: Record<string, unknown>): Record<string, unknown
 }
 
 function sanitizeEndpoint(endpoint: string): string {
-  // Remove any query params that might contain sensitive data
-  return endpoint.split('?')[0];
+  // Remove query params that might contain sensitive data
+  let sanitized = endpoint.split('?')[0];
+  // Scrub Bitcoin addresses from URL paths (e.g. /address/tb1q.../utxo)
+  for (const pattern of Object.values(SENSITIVE_VALUES)) {
+    sanitized = sanitized.replace(pattern, '[ADDR]');
+  }
+  return sanitized;
 }
 
 /**

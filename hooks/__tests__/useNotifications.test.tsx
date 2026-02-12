@@ -1,4 +1,3 @@
-// @ts-nocheck
 /**
  * Tests for useNotifications Hook
  * Validates push notification permissions and local notification sending
@@ -28,41 +27,41 @@ jest.mock('expo-notifications', () => ({
 }));
 
 // Helper to render hooks
-function renderHook(hook) {
-  const result = { current: null };
+function renderHook<T>(hook: () => T) {
+  const result: { current: T | null } = { current: null };
   function TestComponent() {
     result.current = hook();
     return null;
   }
-  let component;
+  let component: ReturnType<typeof create> | undefined;
   act(() => {
     component = create(<TestComponent />);
   });
   return {
     result,
-    unmount: () => component.unmount(),
+    unmount: () => component?.unmount(),
   };
 }
 
 describe('useNotifications', () => {
   // Capture the notification handler before any tests run
-  let capturedNotificationHandler;
+  let capturedNotificationHandler: any;
 
   beforeAll(() => {
     // The setNotificationHandler is called at module load time
     // Capture it before any tests run
-    if (Notifications.setNotificationHandler.mock.calls.length > 0) {
-      capturedNotificationHandler = Notifications.setNotificationHandler.mock.calls[0][0];
+    if ((Notifications.setNotificationHandler as jest.Mock).mock.calls.length > 0) {
+      capturedNotificationHandler = (Notifications.setNotificationHandler as jest.Mock).mock.calls[0][0];
     }
   });
 
   beforeEach(() => {
     // Don't clear setNotificationHandler mock since it's called at module level
-    const setHandlerCalls = Notifications.setNotificationHandler.mock.calls;
+    const setHandlerCalls = (Notifications.setNotificationHandler as jest.Mock).mock.calls;
     jest.clearAllMocks();
     // Restore setNotificationHandler calls
     if (setHandlerCalls.length > 0) {
-      Notifications.setNotificationHandler.mock.calls = setHandlerCalls;
+      (Notifications.setNotificationHandler as jest.Mock).mock.calls = setHandlerCalls;
     }
     Platform.OS = 'ios';
   });
@@ -70,7 +69,7 @@ describe('useNotifications', () => {
   describe('Notification Handler Configuration', () => {
     it('should configure notification handler to show alerts and banners', async () => {
       // Use the captured handler or get from mock calls
-      const handler = capturedNotificationHandler || Notifications.setNotificationHandler.mock.calls[0][0];
+      const handler = capturedNotificationHandler || (Notifications.setNotificationHandler as jest.Mock).mock.calls[0][0];
       expect(handler).toBeDefined();
       expect(handler.handleNotification).toBeDefined();
 
@@ -89,17 +88,17 @@ describe('useNotifications', () => {
 
   describe('Initialization', () => {
     it('should initialize and request permissions on mount', () => {
-      Notifications.getPermissionsAsync.mockResolvedValue({ status: 'granted' });
+      (Notifications.getPermissionsAsync as jest.Mock).mockResolvedValue({ status: 'granted' });
 
       const { result } = renderHook(() => useNotifications());
 
       expect(result.current).toBeDefined();
-      expect(result.current.sendTransactionConfirmedNotification).toBeDefined();
-      expect(result.current.registerForPushNotificationsAsync).toBeDefined();
+      expect(result.current!.sendTransactionConfirmedNotification).toBeDefined();
+      expect(result.current!.registerForPushNotificationsAsync).toBeDefined();
     });
 
     it('should set up notification listeners on mount', () => {
-      Notifications.getPermissionsAsync.mockResolvedValue({ status: 'granted' });
+      (Notifications.getPermissionsAsync as jest.Mock).mockResolvedValue({ status: 'granted' });
 
       renderHook(() => useNotifications());
 
@@ -113,13 +112,13 @@ describe('useNotifications', () => {
 
   describe('Permission Handling', () => {
     it('should request permissions when not already granted', async () => {
-      Notifications.getPermissionsAsync.mockResolvedValue({ status: 'undetermined' });
-      Notifications.requestPermissionsAsync.mockResolvedValue({ status: 'granted' });
+      (Notifications.getPermissionsAsync as jest.Mock).mockResolvedValue({ status: 'undetermined' });
+      (Notifications.requestPermissionsAsync as jest.Mock).mockResolvedValue({ status: 'granted' });
 
       const { result } = renderHook(() => useNotifications());
 
       await act(async () => {
-        const success = await result.current.registerForPushNotificationsAsync();
+        const success = await result.current!.registerForPushNotificationsAsync();
         expect(success).toBe(true);
       });
 
@@ -127,24 +126,24 @@ describe('useNotifications', () => {
     });
 
     it('should return false when permissions are denied', async () => {
-      Notifications.getPermissionsAsync.mockResolvedValue({ status: 'denied' });
-      Notifications.requestPermissionsAsync.mockResolvedValue({ status: 'denied' });
+      (Notifications.getPermissionsAsync as jest.Mock).mockResolvedValue({ status: 'denied' });
+      (Notifications.requestPermissionsAsync as jest.Mock).mockResolvedValue({ status: 'denied' });
 
       const { result } = renderHook(() => useNotifications());
 
       await act(async () => {
-        const success = await result.current.registerForPushNotificationsAsync();
+        const success = await result.current!.registerForPushNotificationsAsync();
         expect(success).toBe(false);
       });
     });
 
     it('should not request permissions if already granted', async () => {
-      Notifications.getPermissionsAsync.mockResolvedValue({ status: 'granted' });
+      (Notifications.getPermissionsAsync as jest.Mock).mockResolvedValue({ status: 'granted' });
 
       const { result } = renderHook(() => useNotifications());
 
       await act(async () => {
-        const success = await result.current.registerForPushNotificationsAsync();
+        const success = await result.current!.registerForPushNotificationsAsync();
         expect(success).toBe(true);
       });
 
@@ -152,12 +151,12 @@ describe('useNotifications', () => {
     });
 
     it('should handle permission request errors gracefully', async () => {
-      Notifications.getPermissionsAsync.mockRejectedValue(new Error('Permission error'));
+      (Notifications.getPermissionsAsync as jest.Mock).mockRejectedValue(new Error('Permission error'));
 
       const { result } = renderHook(() => useNotifications());
 
       await act(async () => {
-        const success = await result.current.registerForPushNotificationsAsync();
+        const success = await result.current!.registerForPushNotificationsAsync();
         expect(success).toBe(false);
       });
     });
@@ -166,12 +165,12 @@ describe('useNotifications', () => {
   describe('Android Notification Channel', () => {
     it('should configure notification channel on Android', async () => {
       Platform.OS = 'android';
-      Notifications.getPermissionsAsync.mockResolvedValue({ status: 'granted' });
+      (Notifications.getPermissionsAsync as jest.Mock).mockResolvedValue({ status: 'granted' });
 
       const { result } = renderHook(() => useNotifications());
 
       await act(async () => {
-        await result.current.registerForPushNotificationsAsync();
+        await result.current!.registerForPushNotificationsAsync();
       });
 
       expect(Notifications.setNotificationChannelAsync).toHaveBeenCalledWith('default', {
@@ -184,12 +183,12 @@ describe('useNotifications', () => {
 
     it('should not configure notification channel on iOS', async () => {
       Platform.OS = 'ios';
-      Notifications.getPermissionsAsync.mockResolvedValue({ status: 'granted' });
+      (Notifications.getPermissionsAsync as jest.Mock).mockResolvedValue({ status: 'granted' });
 
       const { result } = renderHook(() => useNotifications());
 
       await act(async () => {
-        await result.current.registerForPushNotificationsAsync();
+        await result.current!.registerForPushNotificationsAsync();
       });
 
       expect(Notifications.setNotificationChannelAsync).not.toHaveBeenCalled();
@@ -201,7 +200,7 @@ describe('useNotifications', () => {
       const { result } = renderHook(() => useNotifications());
 
       await act(async () => {
-        await result.current.sendTransactionConfirmedNotification(
+        await result.current!.sendTransactionConfirmedNotification(
           'BTC',
           '0.001',
           'abc123txid',
@@ -218,7 +217,7 @@ describe('useNotifications', () => {
       const { result } = renderHook(() => useNotifications());
 
       await act(async () => {
-        await result.current.sendTransactionConfirmedNotification(
+        await result.current!.sendTransactionConfirmedNotification(
           'UNIT',
           '1000',
           'def456txid',
@@ -235,7 +234,7 @@ describe('useNotifications', () => {
 
       await act(async () => {
         // Call without the type parameter to test default value
-        await result.current.sendTransactionConfirmedNotification(
+        await result.current!.sendTransactionConfirmedNotification(
           'BTC',
           '0.002',
           'default-txid'
@@ -251,7 +250,7 @@ describe('useNotifications', () => {
       const { result } = renderHook(() => useNotifications());
 
       await act(async () => {
-        await result.current.sendTransactionConfirmedNotification(
+        await result.current!.sendTransactionConfirmedNotification(
           'BTC',
           '0.5',
           'immediate-txid',
@@ -269,7 +268,7 @@ describe('useNotifications', () => {
       const { result } = renderHook(() => useNotifications());
 
       await act(async () => {
-        await result.current.sendTransactionConfirmedNotification('', '', '', '');
+        await result.current!.sendTransactionConfirmedNotification('' as any, '', '', '' as any);
       });
 
       // Notifications are disabled - function should not throw even with empty data

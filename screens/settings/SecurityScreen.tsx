@@ -14,7 +14,7 @@ import {
 import { COLORS } from '../../theme';
 import Icon from '../../components/icons';
 import MutinynetBanner from '../../components/MutinynetBanner';
-import { useNavigationHandlers } from '../../contexts/NavigationHandlersContext';
+import { useSettingsHandlers } from '../../contexts/NavigationHandlersContext';
 
 // Get device dimensions for responsive sizing
 const { width: SCREEN_WIDTH } = require('react-native').Dimensions.get('window');
@@ -58,7 +58,7 @@ const SecurityScreen = React.memo(function SecurityScreen({ route }: SecurityScr
   const { onClose } = route.params;
 
   // Get live state from context instead of stale route params
-  const { settingsHandlers, biometricEnabled } = useNavigationHandlers();
+  const { settingsHandlers, biometricEnabled } = useSettingsHandlers();
   const {
     handleFaceIdToggle: onFaceIdToggle,
     handleChangePin: onChangePin,
@@ -72,11 +72,18 @@ const SecurityScreen = React.memo(function SecurityScreen({ route }: SecurityScr
     <View style={localStyles.container} testID="security-screen">
       <MutinynetBanner />
       {/* Header with back button and title on same line */}
-      <View style={localStyles.header}>
-        <TouchableOpacity onPress={onClose} style={localStyles.backButton} testID="security-back-btn">
+      <View style={localStyles.header} accessibilityRole="header">
+        <TouchableOpacity
+          onPress={onClose}
+          style={localStyles.backButton}
+          testID="security-back-btn"
+          accessibilityRole="button"
+          accessibilityLabel="Go back"
+          accessibilityHint="Returns to the settings screen"
+        >
           <Icon name="back" size={24} color={COLORS.VERY_LIGHT_GRAY} />
         </TouchableOpacity>
-        <Text style={localStyles.title}>Security</Text>
+        <Text style={localStyles.title} accessibilityRole="header">Security</Text>
       </View>
 
       <ScrollView style={localStyles.scrollView} showsVerticalScrollIndicator={false}>
@@ -124,13 +131,25 @@ const SettingsOption = React.memo(function SettingsOption({
   isDanger,
   testID
 }: SettingsOptionProps): React.ReactElement {
+  // Build accessibility label with status if available
+  const accessibilityLabel = rightText
+    ? `${title}, currently ${rightText}`
+    : title;
+
   return (
-    <TouchableOpacity style={localStyles.option} onPress={onPress} testID={testID}>
-      <View style={localStyles.optionLeft}>
+    <TouchableOpacity
+      style={localStyles.option}
+      onPress={onPress}
+      testID={testID}
+      accessibilityRole="button"
+      accessibilityLabel={accessibilityLabel}
+      accessibilityHint={isDanger ? "Warning: This is a destructive action" : undefined}
+    >
+      <View style={localStyles.optionLeft} accessibilityElementsHidden>
         <Icon name={iconName} size={24} color={isDanger ? COLORS.DANGER_RED : '#DDDDDD'} />
         <Text style={[localStyles.optionTitle, isDanger && localStyles.dangerText]}>{title}</Text>
       </View>
-      <View style={localStyles.optionRight}>
+      <View style={localStyles.optionRight} accessibilityElementsHidden>
         {rightText && <Text style={localStyles.optionRightText}>{rightText}</Text>}
         <Text style={localStyles.optionArrow}>›</Text>
       </View>

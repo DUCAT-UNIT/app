@@ -1,6 +1,9 @@
 /**
  * DepositProcessingScreen - Shows deposit operation progress
  * Features: 4-step progress tracker, animated indicators, background support
+ *
+ * @deprecated Use DepositProcessingScreenNew from screens/vault/screens instead.
+ * This screen will be removed in a future release.
  */
 
 import React, { useEffect, useRef, useState } from 'react';
@@ -11,6 +14,8 @@ import { useDeposit } from '../../stores/depositStore';
 import type { ProcessingStep } from '../../stores/vaultCreationStore';
 import { useNotificationStore } from '../../stores/notificationStore';
 import { useAuth } from '../../contexts/AuthContext';
+import { useDepositVault } from '../../hooks/useDepositVault';
+import { logger } from '../../utils/logger';
 import { colors, fonts, fontSizes, spacing } from '../../styles/theme';
 
 const STEP_DURATION_MS = 1000; // Minimum 1 second per step
@@ -21,10 +26,13 @@ interface DepositProcessingScreenProps {
 }
 
 export default function DepositProcessingScreen({ navigation }: DepositProcessingScreenProps) {
-  const { processingStep, currentStep, error, vaultTxid, reset } = useDeposit();
+  console.log('[DepositProcessing] RENDER - new code loaded');
+  const { processingStep, currentStep, error, vaultTxid, reset, setCurrentStep } = useDeposit();
+  const { deposit } = useDepositVault();
   const { isAuthenticated } = useAuth();
   const appState = useRef(AppState.currentState);
   const hasShownError = useRef(false);
+  const depositStarted = useRef(false);
 
   // Visual step state - advances at minimum 1 second per step
   const [visualStep, setVisualStep] = useState(1);
@@ -41,6 +49,25 @@ export default function DepositProcessingScreen({ navigation }: DepositProcessin
     }, 2000); // 2 second delay for FaceID to complete
 
     return () => clearTimeout(timer);
+  }, []);
+
+  // Execute deposit operation when screen mounts
+  useEffect(() => {
+    console.log('[DepositProcessing] useEffect fired, depositStarted:', depositStarted.current);
+    if (depositStarted.current) return;
+    depositStarted.current = true;
+
+    console.log('[DepositProcessing] Starting deposit operation...');
+    deposit().then((result) => {
+      if (result) {
+        logger.debug('[DepositProcessing] Deposit succeeded:', { vaultTxid: result.vaultTxid });
+        setCurrentStep('success');
+      } else {
+        logger.error('[DepositProcessing] Deposit returned null');
+      }
+    }).catch((err) => {
+      logger.error('[DepositProcessing] Deposit error:', { error: err });
+    });
   }, []);
 
   // Advance visual step every 1 second
@@ -114,7 +141,7 @@ export default function DepositProcessingScreen({ navigation }: DepositProcessin
   };
 
   return (
-    <View style={styles.container}>
+    <View style={styles.container} testID="vault-deposit-processing-screen">
       <View style={styles.content}>
         {/* Header */}
         <View style={styles.header}>

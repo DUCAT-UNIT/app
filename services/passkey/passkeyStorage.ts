@@ -84,7 +84,7 @@ export const backupToICloudWithVerification = async ({
       tag,
       credentialId: Buffer.from(credentialId).toString('base64'),
       userHandle: Buffer.from(userHandle).toString('base64'),
-      pinSalt, // CRITICAL: needed for 10k iteration hashing on recovery
+      pinSalt, // CRITICAL: needed for PBKDF2 hashing on recovery
     });
     logger.debug('Encrypted backup saved to iCloud');
 

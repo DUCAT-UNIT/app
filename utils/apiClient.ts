@@ -15,6 +15,7 @@ const DEFAULT_HEADERS = {
 export interface PostOptions {
   headers?: Record<string, string>;
   timeout?: number;
+  /** Human-readable label for logging/debugging (not used at runtime) */
   description?: string;
   retryOptions?: RetryOptions;
   /** AbortSignal for request cancellation (e.g., from useEffect cleanup) */
@@ -24,10 +25,20 @@ export interface PostOptions {
 export interface GetOptions {
   headers?: Record<string, string>;
   timeout?: number;
+  /** Human-readable label for logging/debugging (not used at runtime) */
   description?: string;
   retryOptions?: RetryOptions;
   /** AbortSignal for request cancellation (e.g., from useEffect cleanup) */
   signal?: AbortSignal;
+}
+
+/**
+ * Validate that a URL uses HTTPS in production
+ */
+function assertHttps(url: string): void {
+  if (!__DEV__ && url.startsWith('http://')) {
+    throw new Error(`Insecure HTTP request blocked: ${url.split('?')[0]}`);
+  }
 }
 
 /**
@@ -42,10 +53,10 @@ export async function postWithRetry(
   body: unknown,
   options: PostOptions = {}
 ): Promise<Response> {
+  assertHttps(url);
   const {
     headers = {},
     timeout = DEFAULT_TIMEOUT,
-    description = 'POST request',
     retryOptions = {},
     signal,
   } = options;
@@ -86,10 +97,10 @@ export async function postWithRetry(
  * @returns Fetch response object
  */
 export async function getWithRetry(url: string, options: GetOptions = {}): Promise<Response> {
+  assertHttps(url);
   const {
     headers = {},
     timeout = DEFAULT_TIMEOUT,
-    description = 'GET request',
     retryOptions = {},
     signal,
   } = options;

@@ -1,4 +1,3 @@
-// @ts-nocheck
 /**
  * Tests for useCashuSendReceive hook
  */
@@ -22,36 +21,42 @@ jest.mock('../../services/cashu/cashuWalletService', () => ({
   sendToken: jest.fn(),
 }));
 
+jest.mock('../../services/cashu/cashuLockedTokensService', () => ({
+  saveReceivedToken: jest.fn(),
+}));
+
 import { receiveToken, sendToken } from '../../services/cashu/cashuWalletService';
+import { saveReceivedToken } from '../../services/cashu/cashuLockedTokensService';
 
 // Helper to render hooks
-function renderHook(hook) {
-  const result = { current: null };
+function renderHook<T>(hook: () => T, _options = {}): { result: { current: T | null }; unmount: () => void; component: ReturnType<typeof create> } {
+  const result: { current: T | null } = { current: null };
   function TestComponent() {
     result.current = hook();
     return null;
   }
-  let component;
+  let component: ReturnType<typeof create> | undefined;
   act(() => {
     component = create(<TestComponent />);
   });
-  return { result, unmount: component.unmount, component };
+  return { result, unmount: component!.unmount, component: component! };
 }
 
 describe('useCashuSendReceive', () => {
-  let setIsLoading;
-  let setError;
-  let setBalance;
-  let fetchBalance;
+  let setIsLoading: jest.Mock;
+  let setError: jest.Mock;
+  let setBalance: jest.Mock;
+  let fetchBalance: jest.Mock;
 
   beforeEach(() => {
     jest.clearAllMocks();
     setIsLoading = jest.fn();
     setError = jest.fn();
     setBalance = jest.fn();
-    fetchBalance = jest.fn().mockResolvedValue();
-    receiveToken.mockResolvedValue({ amount: 100 });
-    sendToken.mockResolvedValue({ token: 'cashuA...', amount: 50, balance: 450 });
+    fetchBalance = jest.fn().mockResolvedValue(100);
+    (receiveToken as jest.Mock).mockResolvedValue({ amount: 100 });
+    (sendToken as jest.Mock).mockResolvedValue({ token: 'cashuA...', amount: 50, balance: 450 });
+    (saveReceivedToken as jest.Mock).mockResolvedValue(undefined);
   });
 
   it('should return receive and send functions', () => {
@@ -59,8 +64,8 @@ describe('useCashuSendReceive', () => {
       useCashuSendReceive({ setIsLoading, setError, setBalance, fetchBalance })
     );
 
-    expect(typeof result.current.receive).toBe('function');
-    expect(typeof result.current.send).toBe('function');
+    expect(typeof result.current!.receive).toBe('function');
+    expect(typeof result.current!.send).toBe('function');
   });
 
   describe('receive', () => {
@@ -69,9 +74,9 @@ describe('useCashuSendReceive', () => {
         useCashuSendReceive({ setIsLoading, setError, setBalance, fetchBalance })
       );
 
-      let receiveResult;
+      let receiveResult: { amount: number } | undefined;
       await act(async () => {
-        receiveResult = await result.current.receive('cashuA...');
+        receiveResult = await result.current!.receive('cashuA...');
       });
 
       expect(setIsLoading).toHaveBeenCalledWith(true);
@@ -83,7 +88,7 @@ describe('useCashuSendReceive', () => {
     });
 
     it('should handle receive error', async () => {
-      receiveToken.mockRejectedValue(new Error('Token invalid'));
+      (receiveToken as jest.Mock).mockRejectedValue(new Error('Token invalid'));
 
       const { result } = renderHook(() =>
         useCashuSendReceive({ setIsLoading, setError, setBalance, fetchBalance })
@@ -91,7 +96,7 @@ describe('useCashuSendReceive', () => {
 
       await expect(
         act(async () => {
-          await result.current.receive('cashuA...');
+          await result.current!.receive('cashuA...');
         })
       ).rejects.toThrow('Token invalid');
 
@@ -100,7 +105,7 @@ describe('useCashuSendReceive', () => {
     });
 
     it('should throw error on receive failure', async () => {
-      receiveToken.mockRejectedValue(new Error('Already spent'));
+      (receiveToken as jest.Mock).mockRejectedValue(new Error('Already spent'));
 
       const { result } = renderHook(() =>
         useCashuSendReceive({ setIsLoading, setError, setBalance, fetchBalance })
@@ -108,11 +113,86 @@ describe('useCashuSendReceive', () => {
 
       await act(async () => {
         try {
-          await result.current.receive('cashuA...');
+          await result.current!.receive('cashuA...');
         } catch (e) {
-          expect(e.message).toBe('Already spent');
+          expect((e as Error).message).toBe('Already spent');
         }
       });
+    });
+
+    it('should handle non-Error rejection in receive', async () => {
+      (receiveToken as jest.Mock).mockRejectedValue('string error');
+
+      const { result } = renderHook(() =>
+        useCashuSendReceive({ setIsLoading, setError, setBalance, fetchBalance })
+      );
+
+      await act(async () => {
+        try {
+          await result.current!.receive('cashuA...');
+        } catch {
+          // Expected to throw
+        }
+      });
+
+      expect(setError).toHaveBeenCalledWith('string error');
+    });
+
+    it('should continue even if saveReceivedToken fails', async () => {
+      (saveReceivedToken as jest.Mock).mockRejectedValue(new Error('Save failed'));
+
+      const { result } = renderHook(() =>
+        useCashuSendReceive({ setIsLoading, setError, setBalance, fetchBalance, taprootAddress: 'tb1ptest' })
+      );
+
+      let receiveResult: { amount: number } | undefined;
+      await act(async () => {
+        receiveResult = await result.current!.receive('cashuA...');
+      });
+
+      // Should still succeed even with save failure
+      expect(receiveResult).toEqual({ amount: 100 });
+      expect(fetchBalance).toHaveBeenCalled();
+    });
+
+    it('should handle non-Error saveReceivedToken failure', async () => {
+      (saveReceivedToken as jest.Mock).mockRejectedValue('save error string');
+
+      const { result } = renderHook(() =>
+        useCashuSendReceive({ setIsLoading, setError, setBalance, fetchBalance, taprootAddress: 'tb1ptest' })
+      );
+
+      let receiveResult: { amount: number } | undefined;
+      await act(async () => {
+        receiveResult = await result.current!.receive('cashuA...');
+      });
+
+      // Should still succeed even with save failure
+      expect(receiveResult).toEqual({ amount: 100 });
+    });
+
+    it('should pass taprootAddress to saveReceivedToken', async () => {
+      const { result } = renderHook(() =>
+        useCashuSendReceive({ setIsLoading, setError, setBalance, fetchBalance, taprootAddress: 'tb1ptestaddress' })
+      );
+
+      await act(async () => {
+        await result.current!.receive('cashuA...');
+      });
+
+      expect(saveReceivedToken).toHaveBeenCalledWith('cashuA...', 'Cashu Receive', 100, 'tb1ptestaddress');
+    });
+
+    it('should use empty string when taprootAddress is undefined', async () => {
+      const { result } = renderHook(() =>
+        useCashuSendReceive({ setIsLoading, setError, setBalance, fetchBalance })
+      );
+
+      await act(async () => {
+        await result.current!.receive('cashuA...');
+      });
+
+      expect(saveReceivedToken).toHaveBeenCalledWith('cashuA...', 'Cashu Receive', 100, '');
     });
   });
 
@@ -122,9 +202,9 @@ describe('useCashuSendReceive', () => {
         useCashuSendReceive({ setIsLoading, setError, setBalance, fetchBalance })
       );
 
-      let sendResult;
+      let sendResult: { token: string; amount: number; balance: number } | undefined;
       await act(async () => {
-        sendResult = await result.current.send(50);
+        sendResult = await result.current!.send(50);
       });
 
       expect(setIsLoading).toHaveBeenCalledWith(true);
@@ -136,7 +216,7 @@ describe('useCashuSendReceive', () => {
     });
 
     it('should handle send error', async () => {
-      sendToken.mockRejectedValue(new Error('Insufficient balance'));
+      (sendToken as jest.Mock).mockRejectedValue(new Error('Insufficient balance'));
 
       const { result } = renderHook(() =>
         useCashuSendReceive({ setIsLoading, setError, setBalance, fetchBalance })
@@ -144,7 +224,7 @@ describe('useCashuSendReceive', () => {
 
       await expect(
         act(async () => {
-          await result.current.send(1000);
+          await result.current!.send(1000);
         })
       ).rejects.toThrow('Insufficient balance');
 
@@ -153,7 +233,7 @@ describe('useCashuSendReceive', () => {
     });
 
     it('should throw error on send failure', async () => {
-      sendToken.mockRejectedValue(new Error('Network error'));
+      (sendToken as jest.Mock).mockRejectedValue(new Error('Network error'));
 
       const { result } = renderHook(() =>
         useCashuSendReceive({ setIsLoading, setError, setBalance, fetchBalance })
@@ -161,11 +241,29 @@ describe('useCashuSendReceive', () => {
 
       await act(async () => {
         try {
-          await result.current.send(50);
+          await result.current!.send(50);
         } catch (e) {
-          expect(e.message).toBe('Network error');
+          expect((e as Error).message).toBe('Network error');
         }
       });
+    });
+
+    it('should handle non-Error rejection in send', async () => {
+      (sendToken as jest.Mock).mockRejectedValue('string error');
+
+      const { result } = renderHook(() =>
+        useCashuSendReceive({ setIsLoading, setError, setBalance, fetchBalance })
+      );
+
+      await act(async () => {
+        try {
+          await result.current!.send(50);
+        } catch {
+          // Expected to throw
+        }
+      });
+
+      expect(setError).toHaveBeenCalledWith('string error');
     });
   });
 });

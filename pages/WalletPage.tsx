@@ -27,7 +27,7 @@ import { useWallet } from '../contexts/WalletContext';
 import { useSendFlow } from '../stores/sendFlowStore';
 import { useTransactionExecution } from '../contexts/TransactionExecutionContext';
 import { useOnboardingFlow } from '../contexts/AuthContext';
-import { useNavigationHandlers } from '../contexts/NavigationHandlersContext';
+import { useSettingsHandlers, useAccountSwitcherContext } from '../contexts/NavigationHandlersContext';
 import { useNotifications } from "../stores/notificationStore";
 import { useBalance, useVaultData } from '../contexts/WalletDataContext';
 import { usePrice } from '../stores/priceStore';
@@ -69,7 +69,8 @@ export default function WalletPage({ route }: WalletPageProps) {
 
   // Context consumption
   const { resetInactivityTimer } = useOnboardingFlow();
-  const { settingsHandlers, biometricEnabled, setShowAccountPicker, switchingAccount } = useNavigationHandlers();
+  const { settingsHandlers, biometricEnabled } = useSettingsHandlers();
+  const { setShowAccountPicker, switchingAccount } = useAccountSwitcherContext();
   const { runesBalance, segwitBalance, taprootBalance } = useBalance();
   const { vaultData } = useVaultData();
   const hasVault = !!(vaultData && (vaultData.totalCollateral ?? 0) > 0);

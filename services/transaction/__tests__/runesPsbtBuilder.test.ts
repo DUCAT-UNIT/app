@@ -1,4 +1,3 @@
-// @ts-nocheck
 /**
  * Tests for Runes PSBT Builder
  */
@@ -26,6 +25,7 @@ jest.mock('bitcoinjs-lib', () => ({
     fromBech32: jest.fn(() => ({
       data: Buffer.alloc(32, 0xab),
     })),
+    toOutputScript: jest.fn(() => Buffer.alloc(0)),
   },
 }));
 

@@ -11,7 +11,7 @@ import Icon from '../../components/icons';
 import TouchableScale from '../../components/common/TouchableScale';
 import { useReviewScreenData } from '../../hooks/useReviewScreenData';
 import { useTransactionBuild } from '../../contexts/TransactionBuildContext';
-import { useNavigationHandlers } from '../../contexts/NavigationHandlersContext';
+import { useSettingsHandlers } from '../../contexts/NavigationHandlersContext';
 import { useSendFlowStore } from '../../stores/sendFlowStore';
 import TransactionSummary from '../../components/review/TransactionSummary';
 import FeeBreakdown from '../../components/review/FeeBreakdown';
@@ -43,7 +43,7 @@ interface ReviewScreenProps {
 export default function ReviewScreen({ navigation, route }: ReviewScreenProps): React.JSX.Element | null {
   const { s, sf } = useResponsive();
   const isTurbo = route?.params?.isTurbo === true;
-  const { settingsHandlers } = useNavigationHandlers();
+  const { settingsHandlers } = useSettingsHandlers();
   const advancedMode = settingsHandlers?.advancedMode || false;
   const mintQuoteId = route?.params?.mintQuoteId;
   const mintAmount = route?.params?.mintAmount;
@@ -116,8 +116,12 @@ export default function ReviewScreen({ navigation, route }: ReviewScreenProps): 
     if (isTurbo) {
       await handleCancel();
     } else {
-      // Just go back to amount screen - keep intent active
+      // Navigate back first, then cancel intent.
+      // Order matters: goBack() before cancelIntent() prevents the
+      // useEffect (!sendIntent && isFocused) from triggering a second goBack()
+      // which would dismiss the entire modal stack.
       navigation.goBack();
+      await cancelIntent();
     }
   };
 

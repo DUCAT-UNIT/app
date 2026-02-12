@@ -607,6 +607,7 @@ const ChartScrubberWrapper = ({
 
   const getPosition = useCallback((clientX: number) => {
     if (!containerRef.current) return 0;
+    // @ts-expect-error storybook-only DOM API
     const rect = containerRef.current.getBoundingClientRect();
     const x = clientX - rect.left;
     return Math.max(0, Math.min(1, x / rect.width));
@@ -900,6 +901,7 @@ const InteractiveVaultHealthChart = ({
   // Mouse/touch handlers
   const getPosition = useCallback((clientX: number) => {
     if (!containerRef.current) return 0;
+    // @ts-expect-error storybook-only DOM API
     const rect = containerRef.current.getBoundingClientRect();
     return clientX - rect.left;
   }, []);
@@ -1428,6 +1430,7 @@ const ScrubOnlyVaultHealthChart = ({
 
   const getPosition = useCallback((clientX: number) => {
     if (!containerRef.current) return 0;
+    // @ts-expect-error storybook-only DOM API
     const rect = containerRef.current.getBoundingClientRect();
     return clientX - rect.left;
   }, []);
@@ -1868,10 +1871,8 @@ const meta: Meta = {
 };
 
 export default meta;
-type Story = StoryObj;
-
-export const PriceChartInteractive: Story = {
-  render: (args: PriceChartStoryProps) => <PriceChartStory {...args} />,
+export const PriceChartInteractive: StoryObj<PriceChartStoryProps> = {
+  render: (args) => <PriceChartStory {...args} />,
   args: {
     deviceSize: 'M',
     trend: 'up',
@@ -1895,8 +1896,8 @@ export const PriceChartInteractive: Story = {
   },
 };
 
-export const VaultHealthInteractive: Story = {
-  render: (args: VaultHealthStoryProps) => <VaultHealthStory {...args} />,
+export const VaultHealthInteractive: StoryObj<VaultHealthStoryProps> = {
+  render: (args) => <VaultHealthStory {...args} />,
   args: {
     deviceSize: 'XS',
     eventCount: 3,
@@ -1919,7 +1920,7 @@ export const VaultHealthInteractive: Story = {
   },
 };
 
-export const DeviceSizeOverview: Story = {
+export const DeviceSizeOverview: StoryObj = {
   render: () => <DeviceSizeOverviewStory />,
   parameters: {
     controls: { disable: true },

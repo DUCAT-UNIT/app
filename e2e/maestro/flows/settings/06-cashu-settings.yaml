@@ -1,0 +1,73 @@
+appId: com.ducatprotocol.DucatProtocolWallet
+---
+# Cashu Settings - Enable dev mode then navigate to Turbo UNIT settings
+# Import wallet → settings → advanced → dev mode → back → cashu settings → verify options
+
+- runFlow: ../helpers/import-wallet-typed.yaml
+
+# Navigate to settings
+- extendedWaitUntil:
+    visible:
+      id: "wallet-screen"
+    timeout: 15000
+- runFlow: ../helpers/dismiss-low-ecash.yaml
+- runFlow: ../helpers/dismiss-airdrop.yaml
+- runFlow:
+    when:
+      visible:
+        id: "passkey-migration-modal"
+    commands:
+      - tapOn:
+          id: "passkey-skip-btn"
+- tapOn:
+    id: "wallet-settings-btn"
+- extendedWaitUntil:
+    visible:
+      id: "settings-screen"
+    timeout: 5000
+
+# Enable dev mode first
+- tapOn:
+    id: "settings-advanced-btn"
+- extendedWaitUntil:
+    visible:
+      id: "advanced-screen"
+    timeout: 5000
+- tapOn:
+    id: "advanced-dev-mode-btn"
+- tapOn:
+    id: "advanced-back-btn"
+- extendedWaitUntil:
+    visible:
+      id: "settings-screen"
+    timeout: 5000
+
+# Open Turbo UNIT (cashu) settings
+- tapOn:
+    id: "settings-cashu-btn"
+- extendedWaitUntil:
+    visible:
+      id: "cashu-settings-screen"
+    timeout: 5000
+
+# Verify all cashu settings options
+- assertVisible:
+    id: "cashu-recover-locked-btn"
+- assertVisible:
+    id: "cashu-recover-mint-btn"
+- assertVisible:
+    id: "cashu-redeem-token-btn"
+- assertVisible:
+    id: "cashu-remove-proofs-btn"
+- assertVisible:
+    id: "cashu-clear-tokens-btn"
+- assertVisible:
+    id: "cashu-clear-cache-btn"
+
+# Go back
+- tapOn:
+    id: "cashu-settings-back-btn"
+- extendedWaitUntil:
+    visible:
+      id: "settings-screen"
+    timeout: 5000

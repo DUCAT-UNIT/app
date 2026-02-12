@@ -1,0 +1,10 @@
+appId: com.ducatprotocol.DucatProtocolWallet
+---
+# Dismiss Expo dev client "Open in DUCAT?" dialog if present
+- runFlow:
+    when:
+      visible:
+        text: "Cancel"
+    commands:
+      - tapOn:
+          point: "68%,53%"

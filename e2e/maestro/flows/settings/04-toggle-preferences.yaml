@@ -1,0 +1,111 @@
+appId: com.ducatprotocol.DucatProtocolWallet
+---
+# Toggle Preferences - Toggle show zero assets and verify DUCAT card appears/disappears
+# Import wallet → settings → preferences → toggle ON → back to wallet → verify DUCAT → toggle OFF → verify gone
+
+- runFlow: ../helpers/import-wallet-typed.yaml
+
+# Navigate to settings
+- extendedWaitUntil:
+    visible:
+      id: "wallet-screen"
+    timeout: 15000
+- runFlow: ../helpers/dismiss-low-ecash.yaml
+- runFlow: ../helpers/dismiss-airdrop.yaml
+- runFlow:
+    when:
+      visible:
+        id: "passkey-migration-modal"
+    commands:
+      - tapOn:
+          id: "passkey-skip-btn"
+
+# Verify DUCAT card is NOT visible before toggling (default = OFF)
+# Use Đ symbol — unique to DUCAT card (can't use "DUCAT" text since app name matches)
+- assertNotVisible:
+    text: "Đ 0.00"
+
+# Go to settings → preferences
+- tapOn:
+    id: "wallet-settings-btn"
+- extendedWaitUntil:
+    visible:
+      id: "settings-screen"
+    timeout: 5000
+
+# Open preferences
+- tapOn:
+    id: "settings-preferences-btn"
+- extendedWaitUntil:
+    visible:
+      id: "preferences-screen"
+    timeout: 5000
+
+# Toggle show zero assets ON
+- tapOn:
+    id: "preferences-zero-assets-btn"
+
+# Verify we're still on preferences screen
+- assertVisible:
+    id: "preferences-screen"
+
+# Navigate back to wallet to verify DUCAT card appeared
+- tapOn:
+    id: "preferences-back-btn"
+- extendedWaitUntil:
+    visible:
+      id: "settings-screen"
+    timeout: 5000
+- tapOn:
+    id: "settings-back-btn"
+- extendedWaitUntil:
+    visible:
+      id: "wallet-screen"
+    timeout: 5000
+
+# Scroll down to find DUCAT card (it appears after UNIT card)
+- scrollUntilVisible:
+    element:
+      text: "Đ 0.00"
+    direction: DOWN
+    timeout: 10000
+
+# Verify DUCAT card is now visible with zero balance
+- assertVisible:
+    text: "Đ 0.00"
+
+# === Toggle OFF and verify DUCAT disappears ===
+- tapOn:
+    id: "wallet-settings-btn"
+- extendedWaitUntil:
+    visible:
+      id: "settings-screen"
+    timeout: 5000
+- tapOn:
+    id: "settings-preferences-btn"
+- extendedWaitUntil:
+    visible:
+      id: "preferences-screen"
+    timeout: 5000
+
+# Toggle show zero assets OFF
+- tapOn:
+    id: "preferences-zero-assets-btn"
+
+# Navigate back to wallet
+- tapOn:
+    id: "preferences-back-btn"
+- extendedWaitUntil:
+    visible:
+      id: "settings-screen"
+    timeout: 5000
+- tapOn:
+    id: "settings-back-btn"
+- extendedWaitUntil:
+    visible:
+      id: "wallet-screen"
+    timeout: 5000
+
+# Verify DUCAT card is no longer visible
+- assertNotVisible:
+    text: "Đ 0.00"

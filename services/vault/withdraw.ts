@@ -14,6 +14,7 @@ import type {
 import { VAULT_CONFIG, BITCOIN_TX } from '../../utils/constants';
 import { logger } from '../../utils/logger';
 import { withGuardianTimeout } from '../guardianService';
+import { withVaultOperationLock } from './utils';
 
 export interface CreateWithdrawReqOptions {
   feeRate: number;
@@ -55,6 +56,8 @@ export async function createVaultReqWithdraw(
   withdrawConfig: WalletVaultWithdrawConfig,
   options: CreateWithdrawReqOptions
 ): Promise<WalletVaultWithdrawRequest> {
+  // SECURITY: Serialize vault operations to prevent concurrent UTXO usage
+  return withVaultOperationLock(async () => {
   logger.debug('[VaultOps] Creating withdraw request...');
 
   try {
@@ -92,6 +95,7 @@ export async function createVaultReqWithdraw(
     logger.error('[VaultOps] Failed to create withdraw request:', { error });
     throw error;
   }
+  }); // end withVaultOperationLock
 }
 
 /**

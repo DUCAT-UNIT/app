@@ -1,4 +1,3 @@
-// @ts-nocheck
 /**
  * Tests for cashuRecoverLockedChange
  */
@@ -34,6 +33,11 @@ import { decodeToken, sumProofs } from '../../crypto';
 import { isP2PKSecret } from '../../p2pk';
 import { getSentLockedTokens } from '../../cashuLockedTokensService';
 import { loadProofs, addProofs } from '../../cashuProofManager';
+
+/**
+ * Typed mock cast helper
+ */
+const mockFn = (fn: unknown): jest.Mock => fn as jest.Mock;
 
 describe('cashuRecoverLockedChange', () => {
   beforeEach(() => {
@@ -107,23 +111,23 @@ describe('cashuRecoverLockedChange', () => {
     });
 
     it('should handle decode errors for individual tokens (line 62)', async () => {
-      const { logger } = require('../../../../utils/logger');
+      const { logger } = jest.requireMock('../../../../utils/logger') as { logger: { warn: jest.Mock } };
 
-      (loadProofs as jest.Mock).mockResolvedValue([]);
-      (getSentLockedTokens as jest.Mock).mockResolvedValue([
+      mockFn(loadProofs).mockResolvedValue([]);
+      mockFn(getSentLockedTokens).mockResolvedValue([
         { id: 'token1', token: 'invalid_token' },
         { id: 'token2', token: 'cashuAtoken2...' },
       ]);
-      (decodeToken as jest.Mock)
-        .mockImplementationOnce((() => { throw new Error('Invalid token'); }) as any)
+      mockFn(decodeToken)
+        .mockImplementationOnce(() => { throw new Error('Invalid token'); })
         .mockReturnValueOnce({
           proofs: [
             { amount: 64, secret: '[\"P2PK\",{\"data\":\"pubkey\"}]' },
             { amount: 32, secret: 'change_secret', C: 'C', id: 'id' },
           ],
         });
-      (isP2PKSecret as jest.Mock).mockImplementation((secret: string) => secret.startsWith('[\"P2PK\"'));
-      (sumProofs as jest.Mock).mockReturnValue(32);
+      mockFn(isP2PKSecret).mockImplementation((secret: string) => secret.startsWith('[\"P2PK\"'));
+      mockFn(sumProofs).mockReturnValue(32);
 
       const result = await recoverLockedChange();
 

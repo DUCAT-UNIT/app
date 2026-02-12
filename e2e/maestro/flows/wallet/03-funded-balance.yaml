@@ -1,0 +1,45 @@
+appId: com.ducatprotocol.DucatProtocolWallet
+---
+# Funded Balance - Verify wallet loads with real BTC balance after airdrop
+# Create fresh wallet → airdrop → verify actual BTC amount displayed
+
+- runFlow: ../helpers/create-wallet.yaml
+
+# Wait for balance data to load from mutinynet
+- extendedWaitUntil:
+    visible:
+      id: "balance-section"
+    timeout: 15000
+
+# Skip passkey migration if it appears late
+- runFlow:
+    when:
+      visible:
+        id: "passkey-migration-modal"
+    commands:
+      - tapOn:
+          id: "passkey-skip-btn"
+
+# Verify BTC asset card is visible with balance data
+- extendedWaitUntil:
+    visible:
+      id: "asset-card-btc"
+    timeout: 10000
+
+# Assert real BTC balance from airdrop (0.1 BTC)
+- assertVisible:
+    text: "0.10000000"
+
+# Verify wallet action buttons loaded (confirms full data load)
+- assertVisible:
+    id: "wallet-actions"
+- assertVisible:
+    id: "wallet-deposit-btn"
+- assertVisible:
+    id: "wallet-withdraw-btn"
+
+# Verify vault card loaded (confirms vault data fetched)
+- extendedWaitUntil:
+    visible:
+      id: "vault-card"
+    timeout: 10000

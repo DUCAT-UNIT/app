@@ -253,10 +253,8 @@ const meta: Meta = {
 };
 
 export default meta;
-type Story = StoryObj;
-
-export const VaultHealth_: Story = {
-  render: (args: VaultHealthStoryProps) => <VaultHealthStory {...args} />,
+export const VaultHealth_: StoryObj<VaultHealthStoryProps> = {
+  render: (args) => <VaultHealthStory {...args} />,
   args: {
     deviceSize: 'M',
     healthPercentage: 225,
@@ -294,8 +292,8 @@ export const VaultHealth_: Story = {
   },
 };
 
-export const Healthy: Story = {
-  render: (args: HealthStateStoryProps) => <HealthyVaultStory {...args} />,
+export const Healthy: StoryObj<HealthStateStoryProps> = {
+  render: (args) => <HealthyVaultStory {...args} />,
   args: {
     deviceSize: 'M',
   },
@@ -308,8 +306,8 @@ export const Healthy: Story = {
   },
 };
 
-export const Moderate: Story = {
-  render: (args: HealthStateStoryProps) => <ModerateVaultStory {...args} />,
+export const Moderate: StoryObj<HealthStateStoryProps> = {
+  render: (args) => <ModerateVaultStory {...args} />,
   args: {
     deviceSize: 'M',
   },
@@ -322,8 +320,8 @@ export const Moderate: Story = {
   },
 };
 
-export const Risky: Story = {
-  render: (args: HealthStateStoryProps) => <RiskyVaultStory {...args} />,
+export const Risky: StoryObj<HealthStateStoryProps> = {
+  render: (args) => <RiskyVaultStory {...args} />,
   args: {
     deviceSize: 'M',
   },
@@ -336,8 +334,8 @@ export const Risky: Story = {
   },
 };
 
-export const AllHealthStates: Story = {
-  render: (args: HealthStateStoryProps) => <AllHealthStatesStory {...args} />,
+export const AllHealthStates: StoryObj<HealthStateStoryProps> = {
+  render: (args) => <AllHealthStatesStory {...args} />,
   args: {
     deviceSize: 'M',
   },
@@ -350,8 +348,8 @@ export const AllHealthStates: Story = {
   },
 };
 
-export const WithTransactions: Story = {
-  render: (args: HealthStateStoryProps) => (
+export const WithTransactions: StoryObj<HealthStateStoryProps> = {
+  render: (args) => (
     <VaultHealthStory
       deviceSize={args.deviceSize || 'M'}
       healthPercentage={225}
@@ -373,7 +371,7 @@ export const WithTransactions: Story = {
   },
 };
 
-export const DeviceSizeOverview: Story = {
+export const DeviceSizeOverview: StoryObj = {
   render: () => <DeviceSizeOverviewStory />,
   parameters: {
     controls: { disable: true },

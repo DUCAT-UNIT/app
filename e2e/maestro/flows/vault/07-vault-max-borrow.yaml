@@ -1,0 +1,51 @@
+appId: com.ducatprotocol.DucatProtocolWallet
+---
+# Vault Max Borrow - Borrow MAX UNIT from existing vault
+# Creates vault with conservative borrow, then borrows MAX additional
+
+- runFlow: ../helpers/create-wallet-with-vault.yaml
+
+# Wait for borrow button
+- extendedWaitUntil:
+    visible:
+      id: "wallet-borrow-btn"
+    timeout: 10000
+- tapOn:
+    id: "wallet-borrow-btn"
+
+- extendedWaitUntil:
+    visible:
+      id: "vault-borrow-input-screen"
+    timeout: 10000
+
+# Select MAX borrow amount
+- tapOn:
+    id: "unit-slider-max-btn"
+- waitForAnimationToEnd
+
+# Continue to confirm
+- tapOn:
+    id: "vault-borrow-continue-btn"
+
+- extendedWaitUntil:
+    visible:
+      id: "vault-borrow-confirm-screen"
+    timeout: 10000
+- tapOn:
+    id: "vault-borrow-confirm-btn"
+
+# Wait for success
+- extendedWaitUntil:
+    visible:
+      id: "vault-borrow-success-screen"
+    timeout: 120000
+- assertVisible:
+    text: "Borrow Complete!"
+- tapOn:
+    id: "vault-success-done-btn"
+
+# Verify back on wallet
+- extendedWaitUntil:
+    visible:
+      id: "wallet-screen"
+    timeout: 10000

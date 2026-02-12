@@ -1,0 +1,11 @@
+appId: com.ducatprotocol.DucatProtocolWallet
+---
+# Dismiss airdrop modal if visible
+- runFlow:
+    when:
+      visible:
+        text: "Get Started"
+    commands:
+      - tapOn:
+          text: "Get Started"
+      - waitForAnimationToEnd

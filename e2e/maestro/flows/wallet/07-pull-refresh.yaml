@@ -1,0 +1,49 @@
+appId: com.ducatprotocol.DucatProtocolWallet
+---
+# Pull to Refresh - Verify pull-to-refresh preserves real BTC balance
+# Create funded wallet → assert balance → swipe refresh → assert balance persists
+
+- runFlow: ../helpers/create-wallet.yaml
+
+# Dismiss low ecash modal if it appears
+- runFlow: ../helpers/dismiss-low-ecash.yaml
+
+# Dismiss airdrop modal if it appears
+- runFlow: ../helpers/dismiss-airdrop.yaml
+
+# Dismiss passkey migration modal if it appears
+- runFlow:
+    when:
+      visible:
+        id: "passkey-migration-modal"
+    commands:
+      - tapOn:
+          id: "passkey-skip-btn"
+
+# Assert BTC balance before refresh
+- assertVisible:
+    text: "0.10000000"
+
+# Pull to refresh by swiping down from top of wallet content
+- swipe:
+    direction: DOWN
+    duration: 1000
+
+# Wait for refresh to complete
+- waitForAnimationToEnd
+
+# Verify wallet screen is still visible after refresh
+- assertVisible:
+    id: "wallet-screen"
+
+# Verify balance section still present
+- extendedWaitUntil:
+    visible:
+      id: "balance-section"
+    timeout: 15000
+
+# Assert BTC balance persists after refresh
+- extendedWaitUntil:
+    visible:
+      text: "0.10000000"
+    timeout: 15000

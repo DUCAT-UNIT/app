@@ -1,0 +1,28 @@
+appId: com.ducatprotocol.DucatProtocolWallet
+---
+# Relaunch the app via Expo dev client deep link
+# Uses BOTH clearKeychain + clearState for complete reset:
+# - clearKeychain: removes SecureStore data (wallet, PIN, biometrics) from iOS Keychain
+#   (Keychain items persist across app uninstall/reinstall on iOS)
+# - clearState: removes app sandbox data (AsyncStorage, cached React state, Metro HMR state)
+
+# Step 1: Clear keychain (SecureStore: wallet keys, PIN hash, biometric prefs)
+- clearKeychain
+
+# Step 2: Clear app state (uninstall/reinstall — wipes AsyncStorage, cached data)
+- clearState
+
+# Step 3: Launch the app fresh
+- launchApp
+
+# Step 4: Open deep link to connect to Metro bundler
+- openLink: "com.ducatprotocol.DucatProtocolWallet://expo-development-client/?url=http%3A%2F%2Flocalhost%3A8081"
+
+# Step 5: Wait for the JS bundle to download and the welcome screen to appear
+- extendedWaitUntil:
+    visible:
+      id: "welcome-screen"
+    timeout: 120000
+
+# Step 6: Wait for animations to settle so buttons are interactive
+- waitForAnimationToEnd

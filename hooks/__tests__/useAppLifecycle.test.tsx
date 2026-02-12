@@ -1,14 +1,24 @@
-// @ts-nocheck
 /**
  * Tests for useAppLifecycle Hook
  * Validates app lifecycle management including auto-lock, inactivity timer, and screen capture
  */
 
-import React from 'react';
+import React, { MutableRefObject } from 'react';
 import { create, act } from 'react-test-renderer';
-import { AppState } from 'react-native';
+import { AppState, AppStateStatus } from 'react-native';
 import { useAppLifecycle } from '../useAppLifecycle';
 import * as ScreenCapture from 'expo-screen-capture';
+
+// Type for the hook params
+interface UseAppLifecycleParams {
+  isAuthenticated: boolean;
+  walletExists: MutableRefObject<boolean>;
+  seedConfirmedRef: MutableRefObject<boolean>;
+  isBiometricSupported: boolean;
+  biometricEnabled: boolean;
+  onLock: jest.Mock;
+  onAuthenticateUser: jest.Mock;
+}
 
 // Mock expo-screen-capture
 jest.mock('expo-screen-capture', () => ({
@@ -20,40 +30,42 @@ jest.mock('expo-screen-capture', () => ({
 jest.useFakeTimers();
 
 // Mock AppState listeners
-let mockAppStateListeners = {};
-AppState.addEventListener = jest.fn((event, handler) => {
-  mockAppStateListeners[event] = handler;
+let mockAppStateListeners: { change?: (state: AppStateStatus) => void } = {};
+(AppState.addEventListener as jest.Mock) = jest.fn((event: string, handler: (state: AppStateStatus) => void) => {
+  mockAppStateListeners[event as 'change'] = handler;
   return {
     remove: jest.fn(() => {
-      delete mockAppStateListeners[event];
+      delete mockAppStateListeners[event as 'change'];
     }),
   };
 });
 
 // Helper to render hooks with props
-function renderHook(hook, { initialProps } = {}) {
-  const result = { current: null };
-  function TestComponent({ hookProps }) {
-    result.current = hook(hookProps);
+function renderHook<T, P>(hook: (props: P) => T, { initialProps }: { initialProps: P }) {
+  const result: { current: T | null } = { current: null };
+  let currentProps = initialProps;
+  function TestComponent() {
+    result.current = hook(currentProps);
     return null;
   }
-  let component;
+  let component: ReturnType<typeof create> | undefined;
   act(() => {
-    component = create(<TestComponent hookProps={initialProps} />);
+    component = create(<TestComponent />);
   });
   return {
     result,
-    rerender: (newProps) => {
+    rerender: (newProps: P) => {
+      currentProps = newProps;
       act(() => {
-        component.update(<TestComponent hookProps={newProps} />);
+        component?.update(<TestComponent />);
       });
     },
-    unmount: () => component.unmount(),
+    unmount: () => component?.unmount(),
   };
 }
 
 describe('useAppLifecycle', () => {
-  let mockProps;
+  let mockProps: UseAppLifecycleParams;
 
   beforeEach(() => {
     jest.clearAllTimers();
@@ -74,9 +86,9 @@ describe('useAppLifecycle', () => {
 
   describe('Screen Capture Management', () => {
     it('should allow screen capture on mount', async () => {
-      ScreenCapture.allowScreenCaptureAsync.mockResolvedValue();
+      (ScreenCapture.allowScreenCaptureAsync as jest.Mock).mockResolvedValue(undefined);
 
-      renderHook(() => useAppLifecycle(mockProps), {
+      renderHook((props: UseAppLifecycleParams) => useAppLifecycle(props), {
         initialProps: mockProps,
       });
 
@@ -92,7 +104,7 @@ describe('useAppLifecycle', () => {
 
   describe('App State Changes', () => {
     it('should set up AppState listener on mount', () => {
-      renderHook(() => useAppLifecycle(mockProps), {
+      renderHook((props: UseAppLifecycleParams) => useAppLifecycle(props), {
         initialProps: mockProps,
       });
 
@@ -104,19 +116,19 @@ describe('useAppLifecycle', () => {
       mockProps.seedConfirmedRef.current = true;
       mockProps.isBiometricSupported = true;
 
-      renderHook(() => useAppLifecycle(mockProps), {
+      renderHook((props: UseAppLifecycleParams) => useAppLifecycle(props), {
         initialProps: mockProps,
       });
 
       // Simulate app going to background
       AppState.currentState = 'background';
       act(() => {
-        mockAppStateListeners.change('background');
+        mockAppStateListeners.change!('background');
       });
 
       // Simulate app coming back to foreground
       act(() => {
-        mockAppStateListeners.change('active');
+        mockAppStateListeners.change!('active');
       });
 
       expect(mockProps.onLock).toHaveBeenCalled();
@@ -128,19 +140,19 @@ describe('useAppLifecycle', () => {
       mockProps.isBiometricSupported = true;
       mockProps.biometricEnabled = true;
 
-      renderHook(() => useAppLifecycle(mockProps), {
+      renderHook((props: UseAppLifecycleParams) => useAppLifecycle(props), {
         initialProps: mockProps,
       });
 
       // Simulate app going to background
       AppState.currentState = 'background';
       act(() => {
-        mockAppStateListeners.change('background');
+        mockAppStateListeners.change!('background');
       });
 
       // Simulate app coming back to foreground
       act(() => {
-        mockAppStateListeners.change('active');
+        mockAppStateListeners.change!('active');
       });
 
       expect(mockProps.onLock).toHaveBeenCalled();
@@ -153,19 +165,19 @@ describe('useAppLifecycle', () => {
       mockProps.isBiometricSupported = true;
       mockProps.biometricEnabled = false;
 
-      renderHook(() => useAppLifecycle(mockProps), {
+      renderHook((props: UseAppLifecycleParams) => useAppLifecycle(props), {
         initialProps: mockProps,
       });
 
       // Simulate app going to background
       AppState.currentState = 'background';
       act(() => {
-        mockAppStateListeners.change('background');
+        mockAppStateListeners.change!('background');
       });
 
       // Simulate app coming back to foreground
       act(() => {
-        mockAppStateListeners.change('active');
+        mockAppStateListeners.change!('active');
       });
 
       expect(mockProps.onLock).toHaveBeenCalled();
@@ -177,19 +189,19 @@ describe('useAppLifecycle', () => {
       mockProps.seedConfirmedRef.current = true;
       mockProps.isBiometricSupported = true;
 
-      renderHook(() => useAppLifecycle(mockProps), {
+      renderHook((props: UseAppLifecycleParams) => useAppLifecycle(props), {
         initialProps: mockProps,
       });
 
       // Simulate app going to inactive (e.g., control center, Face ID)
       AppState.currentState = 'inactive';
       act(() => {
-        mockAppStateListeners.change('inactive');
+        mockAppStateListeners.change!('inactive');
       });
 
       // Simulate app coming back to active
       act(() => {
-        mockAppStateListeners.change('active');
+        mockAppStateListeners.change!('active');
       });
 
       expect(mockProps.onLock).not.toHaveBeenCalled();
@@ -200,18 +212,18 @@ describe('useAppLifecycle', () => {
       mockProps.seedConfirmedRef.current = true;
       mockProps.isBiometricSupported = true;
 
-      renderHook(() => useAppLifecycle(mockProps), {
+      renderHook((props: UseAppLifecycleParams) => useAppLifecycle(props), {
         initialProps: mockProps,
       });
 
       // Simulate app going to background and returning
       AppState.currentState = 'background';
       act(() => {
-        mockAppStateListeners.change('background');
+        mockAppStateListeners.change!('background');
       });
 
       act(() => {
-        mockAppStateListeners.change('active');
+        mockAppStateListeners.change!('active');
       });
 
       expect(mockProps.onLock).not.toHaveBeenCalled();
@@ -222,18 +234,18 @@ describe('useAppLifecycle', () => {
       mockProps.seedConfirmedRef.current = false;
       mockProps.isBiometricSupported = true;
 
-      renderHook(() => useAppLifecycle(mockProps), {
+      renderHook((props: UseAppLifecycleParams) => useAppLifecycle(props), {
         initialProps: mockProps,
       });
 
       // Simulate app going to background and returning
       AppState.currentState = 'background';
       act(() => {
-        mockAppStateListeners.change('background');
+        mockAppStateListeners.change!('background');
       });
 
       act(() => {
-        mockAppStateListeners.change('active');
+        mockAppStateListeners.change!('active');
       });
 
       expect(mockProps.onLock).not.toHaveBeenCalled();
@@ -244,18 +256,18 @@ describe('useAppLifecycle', () => {
       mockProps.seedConfirmedRef.current = true;
       mockProps.isBiometricSupported = false;
 
-      renderHook(() => useAppLifecycle(mockProps), {
+      renderHook((props: UseAppLifecycleParams) => useAppLifecycle(props), {
         initialProps: mockProps,
       });
 
       // Simulate app going to background and returning
       AppState.currentState = 'background';
       act(() => {
-        mockAppStateListeners.change('background');
+        mockAppStateListeners.change!('background');
       });
 
       act(() => {
-        mockAppStateListeners.change('active');
+        mockAppStateListeners.change!('active');
       });
 
       // Should lock even without biometric support (PIN fallback)
@@ -272,7 +284,7 @@ describe('useAppLifecycle', () => {
       mockProps.seedConfirmedRef.current = true;
       mockProps.isBiometricSupported = true;
 
-      renderHook(() => useAppLifecycle(mockProps), {
+      renderHook((props: UseAppLifecycleParams) => useAppLifecycle(props), {
         initialProps: mockProps,
       });
 
@@ -285,7 +297,7 @@ describe('useAppLifecycle', () => {
       mockProps.seedConfirmedRef.current = true;
       mockProps.isBiometricSupported = true;
 
-      renderHook(() => useAppLifecycle(mockProps), {
+      renderHook((props: UseAppLifecycleParams) => useAppLifecycle(props), {
         initialProps: mockProps,
       });
 
@@ -305,7 +317,7 @@ describe('useAppLifecycle', () => {
       mockProps.seedConfirmedRef.current = true;
       mockProps.isBiometricSupported = true;
 
-      renderHook(() => useAppLifecycle(mockProps), {
+      renderHook((props: UseAppLifecycleParams) => useAppLifecycle(props), {
         initialProps: mockProps,
       });
 
@@ -321,7 +333,7 @@ describe('useAppLifecycle', () => {
       mockProps.seedConfirmedRef.current = true;
       mockProps.isBiometricSupported = true;
 
-      renderHook(() => useAppLifecycle(mockProps), {
+      renderHook((props: UseAppLifecycleParams) => useAppLifecycle(props), {
         initialProps: mockProps,
       });
 
@@ -335,7 +347,7 @@ describe('useAppLifecycle', () => {
       mockProps.seedConfirmedRef.current = false;
       mockProps.isBiometricSupported = true;
 
-      renderHook(() => useAppLifecycle(mockProps), {
+      renderHook((props: UseAppLifecycleParams) => useAppLifecycle(props), {
         initialProps: mockProps,
       });
 
@@ -349,7 +361,7 @@ describe('useAppLifecycle', () => {
       mockProps.seedConfirmedRef.current = true;
       mockProps.isBiometricSupported = false;
 
-      renderHook(() => useAppLifecycle(mockProps), {
+      renderHook((props: UseAppLifecycleParams) => useAppLifecycle(props), {
         initialProps: mockProps,
       });
 
@@ -363,32 +375,32 @@ describe('useAppLifecycle', () => {
       mockProps.seedConfirmedRef.current = true;
       mockProps.isBiometricSupported = true;
 
-      const { result } = renderHook(() => useAppLifecycle(mockProps), {
+      const { result } = renderHook((props: UseAppLifecycleParams) => useAppLifecycle(props), {
         initialProps: mockProps,
       });
 
-      // Advance time almost to timeout
+      // Advance time almost to timeout (30 seconds inactivity)
       act(() => {
-        jest.advanceTimersByTime(110000); // 1 minute 50 seconds
+        jest.advanceTimersByTime(25000); // 25 seconds (5 seconds before 30s timeout)
       });
 
       expect(mockProps.onLock).not.toHaveBeenCalled();
 
       // Reset timer
       act(() => {
-        result.current.resetInactivityTimer();
+        result.current!.resetInactivityTimer();
       });
 
-      // Advance another 1 minute 50 seconds (should not lock yet because timer was reset)
+      // Advance another 25 seconds (should not lock yet because timer was reset)
       act(() => {
-        jest.advanceTimersByTime(110000);
+        jest.advanceTimersByTime(25000);
       });
 
       expect(mockProps.onLock).not.toHaveBeenCalled();
 
-      // Advance remaining 10 seconds to complete the 2 minutes from reset
+      // Advance remaining 5 seconds to complete the 30 seconds from reset
       act(() => {
-        jest.advanceTimersByTime(10000);
+        jest.advanceTimersByTime(5000);
       });
 
       expect(mockProps.onLock).toHaveBeenCalled();
@@ -402,13 +414,13 @@ describe('useAppLifecycle', () => {
       mockProps.seedConfirmedRef.current = false;
       mockProps.isBiometricSupported = false;
 
-      const { unmount, result } = renderHook(() => useAppLifecycle(mockProps), {
+      const { unmount, result } = renderHook((props: UseAppLifecycleParams) => useAppLifecycle(props), {
         initialProps: mockProps,
       });
 
       // Manually create a timer by calling resetInactivityTimer
       act(() => {
-        result.current.resetInactivityTimer();
+        result.current!.resetInactivityTimer();
       });
 
       // Verify timer was created
@@ -432,27 +444,27 @@ describe('useAppLifecycle', () => {
       mockProps.seedConfirmedRef.current = true;
       mockProps.isBiometricSupported = true;
 
-      renderHook(() => useAppLifecycle(mockProps), {
+      renderHook((props: UseAppLifecycleParams) => useAppLifecycle(props), {
         initialProps: mockProps,
       });
 
       // Rapid state changes
       AppState.currentState = 'background';
       act(() => {
-        mockAppStateListeners.change('background');
+        mockAppStateListeners.change!('background');
       });
 
       act(() => {
-        mockAppStateListeners.change('active');
+        mockAppStateListeners.change!('active');
       });
 
       AppState.currentState = 'background';
       act(() => {
-        mockAppStateListeners.change('background');
+        mockAppStateListeners.change!('background');
       });
 
       act(() => {
-        mockAppStateListeners.change('active');
+        mockAppStateListeners.change!('active');
       });
 
       // Should have locked twice
@@ -465,7 +477,7 @@ describe('useAppLifecycle', () => {
       mockProps.seedConfirmedRef.current = true;
       mockProps.isBiometricSupported = true;
 
-      const { rerender } = renderHook(() => useAppLifecycle(mockProps), {
+      const { rerender } = renderHook((props: UseAppLifecycleParams) => useAppLifecycle(props), {
         initialProps: mockProps,
       });
 
@@ -486,7 +498,7 @@ describe('useAppLifecycle', () => {
       mockProps.seedConfirmedRef.current = true;
       mockProps.isBiometricSupported = true;
 
-      const { rerender } = renderHook(() => useAppLifecycle(mockProps), {
+      const { rerender } = renderHook((props: UseAppLifecycleParams) => useAppLifecycle(props), {
         initialProps: mockProps,
       });
 
@@ -509,7 +521,7 @@ describe('useAppLifecycle', () => {
       mockProps.seedConfirmedRef.current = true;
       mockProps.isBiometricSupported = true;
 
-      const { rerender } = renderHook(() => useAppLifecycle(mockProps), {
+      const { rerender } = renderHook((props: UseAppLifecycleParams) => useAppLifecycle(props), {
         initialProps: mockProps,
       });
 
@@ -532,7 +544,7 @@ describe('useAppLifecycle', () => {
       mockProps.seedConfirmedRef.current = true;
       mockProps.isBiometricSupported = true;
 
-      const { rerender } = renderHook(() => useAppLifecycle(mockProps), {
+      const { rerender } = renderHook((props: UseAppLifecycleParams) => useAppLifecycle(props), {
         initialProps: mockProps,
       });
 

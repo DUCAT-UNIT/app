@@ -1,0 +1,77 @@
+appId: com.ducatprotocol.DucatProtocolWallet
+---
+# Create a fresh wallet with airdrop funding
+# clearState → welcome → passkey PIN (enter + confirm) → airdrop → wallet
+# Each test gets a unique wallet with fresh BTC from Mutinynet airdrop
+
+- runFlow: clear-and-launch.yaml
+
+# Wait for welcome screen to be fully interactive
+- waitForAnimationToEnd
+
+# Tap create button — first tap may dismiss Expo Dev Client overlay
+- tapOn:
+    id: "welcome-create-wallet-btn"
+
+# If overlay intercepted first tap, we're still on welcome screen — retry
+- runFlow:
+    when:
+      visible:
+        id: "welcome-screen"
+    commands:
+      - tapOn:
+          id: "welcome-create-wallet-btn"
+
+# PasskeyPinInput screen — enter 6-digit PIN
+- extendedWaitUntil:
+    visible:
+      id: "pin-setup-screen"
+    timeout: 30000
+
+# Enter PIN (123456)
+- runFlow: enter-pin-setup.yaml
+
+# Confirm PIN (123456 again)
+- runFlow: enter-pin-setup.yaml
+
+# Skip biometric if prompted
+- runFlow:
+    when:
+      visible:
+        id: "biometric-modal"
+    commands:
+      - tapOn:
+          id: "biometric-skip-btn"
+
+# Wait for airdrop modal — passkey flow is fast so AirdropContext's 3s delay
+# + network request may not have completed yet. Wait for it to appear.
+- extendedWaitUntil:
+    visible:
+      text: "Get Started"
+    timeout: 30000
+
+# Accept airdrop — tapping "Get Started" dismisses the airdrop success modal
+# The airdrop funds the wallet with BTC on Mutinynet automatically
+- runFlow: dismiss-airdrop.yaml
+
+# Dismiss low ecash modal if it appears
+- runFlow: dismiss-low-ecash.yaml
+
+# Verify wallet screen loads
+- extendedWaitUntil:
+    visible:
+      id: "wallet-screen"
+    timeout: 15000
+
+# Wait for balance section to appear
+- extendedWaitUntil:
+    visible:
+      id: "balance-section"
+    timeout: 30000
+
+# Wait for airdrop BTC to arrive (~30s on Mutinynet)
+# Airdrop gives 0.1 BTC — wait for the BTC amount to appear in the balance
+- extendedWaitUntil:
+    visible:
+      text: "0.10000000"
+    timeout: 90000

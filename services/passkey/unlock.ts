@@ -87,14 +87,14 @@ export const unlockWithPasskey = async (pin: string): Promise<UnlockResult> => {
       throw new Error('PIN is required to unlock wallet');
     }
 
-    // Get the PIN salt for 10k iteration hashing
+    // Get the PIN salt for PBKDF2 hashing
     const pinSalt = await SecureStore.getItemAsync(SECURE_KEYS.PIN_SALT);
     // Validate salt format: 32 bytes = 64 hex characters
     if (!pinSalt || pinSalt.length !== 64 || !/^[0-9a-f]{64}$/i.test(pinSalt)) {
       throw new Error('Invalid or corrupted PIN salt - wallet may need to be reset');
     }
 
-    // Derive encryption key using passkey + PIN (with 10k iterations)
+    // Derive encryption key using passkey + PIN (with 310k PBKDF2 iterations)
     const encryptionKey = await deriveEncryptionKey(credentialId, userHandle, pin, pinSalt);
 
     // Decrypt mnemonic
@@ -214,7 +214,7 @@ export const recoverWithPasskey = async (pin: string): Promise<UnlockResult> => 
     }
     debugSteps += '✅ PIN format valid\n';
 
-    // Use the PIN salt from the backup (critical for 10k iteration hashing)
+    // Use the PIN salt from the backup (critical for PBKDF2 hashing)
     debugSteps += '7. Checking PIN salt...\n';
     const pinSalt = backup.pinSalt;
     // Validate salt format: 32 bytes = 64 hex characters
@@ -223,7 +223,7 @@ export const recoverWithPasskey = async (pin: string): Promise<UnlockResult> => 
     }
     debugSteps += '✅ PIN salt valid\n';
 
-    // Derive encryption key using passkey + PIN (with 10k iterations)
+    // Derive encryption key using passkey + PIN (with 310k PBKDF2 iterations)
     debugSteps += '8. Deriving encryption key...\n';
     let encryptionKey: AesGcmKey;
     try {

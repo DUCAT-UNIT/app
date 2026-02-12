@@ -93,7 +93,7 @@ export default function VaultActionSuccess({
     : `${amount.toFixed(2)} UNIT`;
 
   return (
-    <SafeAreaView style={styles.container} edges={['top', 'bottom']}>
+    <SafeAreaView style={styles.container} edges={['top', 'bottom']} testID={`vault-${actionType}-success-screen`}>
       <View style={styles.content}>
         {/* Success Icon */}
         <View style={styles.iconContainer}>
@@ -132,7 +132,7 @@ export default function VaultActionSuccess({
 
       {/* Done Button */}
       <View style={styles.footer}>
-        <TouchableScale style={styles.doneButton} onPress={onDone}>
+        <TouchableScale style={styles.doneButton} onPress={onDone} testID="vault-success-done-btn">
           <Text style={styles.doneText}>Done</Text>
         </TouchableScale>
       </View>

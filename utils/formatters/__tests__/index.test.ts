@@ -1,4 +1,3 @@
-// @ts-nocheck
 /**
  * Tests for formatters/index.ts barrel export and formatBalance function
  */

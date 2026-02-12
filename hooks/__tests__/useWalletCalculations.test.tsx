@@ -1,4 +1,3 @@
-// @ts-nocheck
 /**
  * Tests for useWalletCalculations Hook
  */
@@ -9,27 +8,30 @@ import { useWalletCalculations } from '../useWalletCalculations';
 import { COLORS } from '../../theme';
 
 // Helper to render hooks with react-test-renderer
-function renderHook(hook, { initialProps } = {}) {
-  const result = { current: null };
+function renderHook<T, P = undefined>(
+  hook: P extends undefined ? () => T : (props: P) => T,
+  options?: { initialProps?: P }
+) {
+  const result: { current: T | null } = { current: null };
 
-  function TestComponent({ hookProps }) {
-    result.current = hook(hookProps);
+  function TestComponent({ hookProps }: { hookProps?: P }) {
+    result.current = (hook as (props?: P) => T)(hookProps);
     return null;
   }
 
-  let component;
+  let component: ReturnType<typeof create> | undefined;
   act(() => {
-    component = create(<TestComponent hookProps={initialProps} />);
+    component = create(<TestComponent hookProps={options?.initialProps} />);
   });
 
   return {
     result,
-    rerender: (newProps) => {
+    rerender: (newProps?: P) => {
       act(() => {
-        component.update(<TestComponent hookProps={newProps} />);
+        component?.update(<TestComponent hookProps={newProps} />);
       });
     },
-    unmount: () => component.unmount(),
+    unmount: () => component?.unmount(),
   };
 }
 
@@ -41,7 +43,11 @@ describe('useWalletCalculations', () => {
     latestTransaction: {
       amountBorrowed: 10000, // 100 UNIT in cents
       vaultAmount: 50000000, // 0.5 BTC in sats
+      btcAmount: 0.5,
+      unitAmt: 100,
       oraclePrice: 50000,
+      timestamp: 1700000000,
+      action: 'borrow',
     },
   };
 
@@ -55,7 +61,7 @@ describe('useWalletCalculations', () => {
         })
       );
 
-      expect(result.current.totalBalanceBTC).toBe(1.5);
+      expect(result.current!.totalBalanceBTC).toBe(1.5);
     });
 
     it('should calculate total BTC balance with BTC and UNIT', () => {
@@ -68,7 +74,7 @@ describe('useWalletCalculations', () => {
       );
 
       // 1 BTC + (5000 / 50000) BTC = 1 + 0.1 = 1.1 BTC
-      expect(result.current.totalBalanceBTC).toBe(1.1);
+      expect(result.current!.totalBalanceBTC).toBe(1.1);
     });
 
     it('should handle zero BTC price gracefully', () => {
@@ -81,7 +87,7 @@ describe('useWalletCalculations', () => {
       );
 
       // Should use fallback of 1 for division
-      expect(result.current.totalBalanceBTC).toBe(5001);
+      expect(result.current!.totalBalanceBTC).toBe(5001);
     });
 
     it('should handle empty balances', () => {
@@ -93,7 +99,7 @@ describe('useWalletCalculations', () => {
         })
       );
 
-      expect(result.current.totalBalanceBTC).toBe(0);
+      expect(result.current!.totalBalanceBTC).toBe(0);
     });
   });
 
@@ -107,7 +113,7 @@ describe('useWalletCalculations', () => {
         })
       );
 
-      expect(result.current.totalBalanceUSD).toBe(100000); // 2 * 50000
+      expect(result.current!.totalBalanceUSD).toBe(100000); // 2 * 50000
     });
 
     it('should calculate total USD balance with BTC and UNIT', () => {
@@ -120,7 +126,7 @@ describe('useWalletCalculations', () => {
       );
 
       // (1 * 50000) + 5000 = 55000
-      expect(result.current.totalBalanceUSD).toBe(55000);
+      expect(result.current!.totalBalanceUSD).toBe(55000);
     });
 
     it('should handle zero BTC price', () => {
@@ -132,7 +138,7 @@ describe('useWalletCalculations', () => {
         })
       );
 
-      expect(result.current.totalBalanceUSD).toBe(5000); // Only UNIT value
+      expect(result.current!.totalBalanceUSD).toBe(5000); // Only UNIT value
     });
   });
 
@@ -150,7 +156,7 @@ describe('useWalletCalculations', () => {
       // Collateral = 0.5 BTC * $50000 = $25000
       // Debt = 10000 / 100 = $100
       // Ratio = (25000 / 100) * 100 = 25000%
-      expect(result.current.vaultCollateralRatio).toBe(25000);
+      expect(result.current!.vaultCollateralRatio).toBe(25000);
     });
 
     it('should return 0 when no vault data', () => {
@@ -163,7 +169,7 @@ describe('useWalletCalculations', () => {
         })
       );
 
-      expect(result.current.vaultCollateralRatio).toBe(0);
+      expect(result.current!.vaultCollateralRatio).toBe(0);
     });
 
     it('should return 0 when debt is 0', () => {
@@ -179,13 +185,17 @@ describe('useWalletCalculations', () => {
             latestTransaction: {
               amountBorrowed: 0,
               vaultAmount: 50000000,
+              btcAmount: 0.5,
+              unitAmt: 0,
               oraclePrice: 50000,
+              timestamp: 1700000000,
+              action: 'borrow',
             },
           },
         })
       );
 
-      expect(result.current.vaultCollateralRatio).toBe(0);
+      expect(result.current!.vaultCollateralRatio).toBe(0);
     });
 
     it('should use oracle price when btcPrice is not available', () => {
@@ -199,7 +209,7 @@ describe('useWalletCalculations', () => {
       );
 
       // Should use oracle price (50000) from mockVaultData
-      expect(result.current.vaultCollateralRatio).toBe(25000);
+      expect(result.current!.vaultCollateralRatio).toBe(25000);
     });
   });
 
@@ -214,7 +224,7 @@ describe('useWalletCalculations', () => {
         })
       );
 
-      expect(result.current.vaultHealthPercentage).toBe(25000);
+      expect(result.current!.vaultHealthPercentage).toBe(25000);
     });
 
     it('should return 0 when no vault', () => {
@@ -227,7 +237,7 @@ describe('useWalletCalculations', () => {
         })
       );
 
-      expect(result.current.vaultHealthPercentage).toBe(0);
+      expect(result.current!.vaultHealthPercentage).toBe(0);
     });
   });
 
@@ -245,14 +255,18 @@ describe('useWalletCalculations', () => {
             latestTransaction: {
               amountBorrowed: 10000, // $100
               vaultAmount: 50000000,
+              btcAmount: 0.5,
+              unitAmt: 100,
               oraclePrice: 50000,
+              timestamp: 1700000000,
+              action: 'borrow',
             },
           },
         })
       );
 
       // Ratio = (200 / 100) * 100 = 200%
-      expect(result.current.vaultHealthColor).toBe(COLORS.GREEN);
+      expect(result.current!.vaultHealthColor).toBe(COLORS.GREEN);
     });
 
     it('should return YELLOW when ratio >= 161% and < 200%', () => {
@@ -268,14 +282,18 @@ describe('useWalletCalculations', () => {
             latestTransaction: {
               amountBorrowed: 10000, // $100
               vaultAmount: 50000000,
+              btcAmount: 0.5,
+              unitAmt: 100,
               oraclePrice: 50000,
+              timestamp: 1700000000,
+              action: 'borrow',
             },
           },
         })
       );
 
       // Ratio = (175 / 100) * 100 = 175%
-      expect(result.current.vaultHealthColor).toBe(COLORS.YELLOW);
+      expect(result.current!.vaultHealthColor).toBe(COLORS.YELLOW);
     });
 
     it('should return RED when ratio < 161%', () => {
@@ -291,14 +309,18 @@ describe('useWalletCalculations', () => {
             latestTransaction: {
               amountBorrowed: 10000, // $100
               vaultAmount: 50000000,
+              btcAmount: 0.5,
+              unitAmt: 100,
               oraclePrice: 50000,
+              timestamp: 1700000000,
+              action: 'borrow',
             },
           },
         })
       );
 
       // Ratio = (150 / 100) * 100 = 150%
-      expect(result.current.vaultHealthColor).toBe(COLORS.RED);
+      expect(result.current!.vaultHealthColor).toBe(COLORS.RED);
     });
 
     it('should return SECONDARY_TEXT (gray) when no vault', () => {
@@ -311,7 +333,7 @@ describe('useWalletCalculations', () => {
         })
       );
 
-      expect(result.current.vaultHealthColor).toBe(COLORS.SECONDARY_TEXT);
+      expect(result.current!.vaultHealthColor).toBe(COLORS.SECONDARY_TEXT);
     });
   });
 
@@ -326,7 +348,7 @@ describe('useWalletCalculations', () => {
       );
 
       // 10000 / 50000 = 0.2 BTC
-      expect(result.current.unitValueInBTC).toBe(0.2);
+      expect(result.current!.unitValueInBTC).toBe(0.2);
     });
 
     it('should return 0 when no runes balance', () => {
@@ -338,7 +360,7 @@ describe('useWalletCalculations', () => {
         })
       );
 
-      expect(result.current.unitValueInBTC).toBe(0);
+      expect(result.current!.unitValueInBTC).toBe(0);
     });
 
     it('should return 0 when BTC price is 0', () => {
@@ -350,7 +372,7 @@ describe('useWalletCalculations', () => {
         })
       );
 
-      expect(result.current.unitValueInBTC).toBe(0);
+      expect(result.current!.unitValueInBTC).toBe(0);
     });
   });
 
@@ -365,7 +387,7 @@ describe('useWalletCalculations', () => {
         })
       );
 
-      expect(result.current.vaultDebt).toBe(100); // 10000 / 100
+      expect(result.current!.vaultDebt).toBe(100); // 10000 / 100
     });
 
     it('should return 0 when no vault', () => {
@@ -378,7 +400,7 @@ describe('useWalletCalculations', () => {
         })
       );
 
-      expect(result.current.vaultDebt).toBe(0);
+      expect(result.current!.vaultDebt).toBe(0);
     });
   });
 
@@ -393,7 +415,7 @@ describe('useWalletCalculations', () => {
         })
       );
 
-      expect(result.current.vaultCollateral).toBe(0.5); // 50000000 / 100000000
+      expect(result.current!.vaultCollateral).toBe(0.5); // 50000000 / 100000000
     });
 
     it('should return 0 when no vault', () => {
@@ -406,7 +428,7 @@ describe('useWalletCalculations', () => {
         })
       );
 
-      expect(result.current.vaultCollateral).toBe(0);
+      expect(result.current!.vaultCollateral).toBe(0);
     });
   });
 
@@ -421,7 +443,7 @@ describe('useWalletCalculations', () => {
         })
       );
 
-      expect(result.current.hasVault).toBe(true);
+      expect(result.current!.hasVault).toBe(true);
     });
 
     it('should return false when no vault data', () => {
@@ -434,7 +456,7 @@ describe('useWalletCalculations', () => {
         })
       );
 
-      expect(result.current.hasVault).toBe(false);
+      expect(result.current!.hasVault).toBe(false);
     });
 
     it('should return false when vault data has no latestTransaction', () => {
@@ -443,17 +465,17 @@ describe('useWalletCalculations', () => {
           segwitBalance: 1.0,
           runesBalance: [],
           btcPrice: 50000,
-          vaultData: { latestTransaction: null },
+          vaultData: { latestTransaction: undefined },
         })
       );
 
-      expect(result.current.hasVault).toBe(false);
+      expect(result.current!.hasVault).toBe(false);
     });
   });
 
   describe('useMemo optimization', () => {
     it('should not recalculate when unrelated props change', () => {
-      const { result, rerender } = renderHook(
+      const { result, rerender } = renderHook<ReturnType<typeof useWalletCalculations>, { segwitBalance: number }>(
         ({ segwitBalance }) =>
           useWalletCalculations({
             segwitBalance,
@@ -463,17 +485,17 @@ describe('useWalletCalculations', () => {
         { initialProps: { segwitBalance: 1.0 } }
       );
 
-      const firstCalc = result.current.totalBalanceBTC;
+      const firstCalc = result.current!.totalBalanceBTC;
 
       // Rerender with same props
       rerender({ segwitBalance: 1.0 });
 
       // Should be the same reference (memoized)
-      expect(result.current.totalBalanceBTC).toBe(firstCalc);
+      expect(result.current!.totalBalanceBTC).toBe(firstCalc);
     });
 
     it('should recalculate when relevant props change', () => {
-      const { result, rerender } = renderHook(
+      const { result, rerender } = renderHook<ReturnType<typeof useWalletCalculations>, { segwitBalance: number }>(
         ({ segwitBalance }) =>
           useWalletCalculations({
             segwitBalance,
@@ -483,12 +505,12 @@ describe('useWalletCalculations', () => {
         { initialProps: { segwitBalance: 1.0 } }
       );
 
-      expect(result.current.totalBalanceBTC).toBe(1.0);
+      expect(result.current!.totalBalanceBTC).toBe(1.0);
 
       // Change balance
       rerender({ segwitBalance: 2.0 });
 
-      expect(result.current.totalBalanceBTC).toBe(2.0);
+      expect(result.current!.totalBalanceBTC).toBe(2.0);
     });
   });
 });

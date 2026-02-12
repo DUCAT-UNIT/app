@@ -10,15 +10,15 @@ import type {
 import { OracleAPI } from '@ducat-unit/client-sdk';
 import { TX, PSBT, hash160, taptweak_pubkey } from '@ducat-unit/client-sdk/util';
 import { API } from '../../utils/constants';
-import { signPsbtRaw } from '../../utils/wallet/psbtSigning';
 import { logger } from '../../utils/logger';
 import {
+  signPsbtRaw,
   signPsbtWithSdkObject,
   patchPreProcessFields,
   patchPostProcessFields,
   psbtPreProcess,
   psbtPostProcess,
-} from './psbtSigning';
+} from '../signing';
 import { extractOpReturnFromPsbt } from './psbtBinaryUtils';
 
 /**
@@ -93,7 +93,12 @@ export function createMobileWalletAPI(segwitAddress: string): WalletConnectAPI {
 
         // Sign with the mobile wallet
         const prePsbt = PSBT.encode(pre_pdata);
-        const signedPsbt = await signPsbtRaw(prePsbt, manifest);
+        const intent = {
+          recipient: client.acct.vault.address,
+          change: client.acct.sats.address,
+          minAmountSats: 0,
+        };
+        const signedPsbt = await signPsbtRaw(prePsbt, manifest, intent);
 
         // Post-process the signed PSBT (same as frontend sign_psbt_api)
         const post_pdata = PSBT.decode(signedPsbt);
@@ -142,7 +147,12 @@ export function createMobileWalletAPI(segwitAddress: string): WalletConnectAPI {
 
         // Sign
         const prePsbt = PSBT.encode(pdata);
-        const signedPsbt = await signPsbtRaw(prePsbt, manifest);
+        const intent = {
+          recipient: client.acct.vault.address,
+          change: client.acct.sats.address,
+          minAmountSats: 0,
+        };
+        const signedPsbt = await signPsbtRaw(prePsbt, manifest, intent);
 
         // Post-process
         const post_pdata = PSBT.decode(signedPsbt);
@@ -179,7 +189,12 @@ export function createMobileWalletAPI(segwitAddress: string): WalletConnectAPI {
 
           // Step 2: Sign using binary patching (preserves OP_RETURN outputs)
           const pre_pdata = PSBT.decode(preProcessedPsbt);
-          const signedPsbt = await signPsbtWithSdkObject(pre_pdata, signInputs, preProcessedPsbt);
+          const intent = {
+            recipient: client.acct.vault.address,
+            change: client.acct.sats.address,
+            minAmountSats: 0,
+          };
+          const signedPsbt = await signPsbtWithSdkObject(pre_pdata, signInputs, preProcessedPsbt, intent);
           logger.debug(`[VaultWalletService] PSBT ${psbtIndex + 1} signed`);
 
           const signedOpReturn = extractOpReturnFromPsbt(signedPsbt);

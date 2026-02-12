@@ -10,6 +10,9 @@ import { COLORS } from '../../theme';
 import { formatBalance, formatFiat } from '../../utils/formatters';
 import { useResponsive } from '../../hooks/useResponsive';
 
+// E2E bypass: disable accessibilityElementsHidden so Maestro can see inner text
+const isE2E = __DEV__ && process.env.EXPO_PUBLIC_E2E_BYPASS === 'true';
+
 // Constants
 const CURRENCY_ICON_SIZE = 10;
 const ASSET_LOGO_SIZE = 36;
@@ -60,17 +63,28 @@ const AssetCard = React.memo(function AssetCard({
   isLast,
   customAmountStyle,
   onPress,
+  testID,
 }: AssetCardProps) {
   const { s } = useResponsive();
   const CardWrapper = onPress ? TouchableOpacity : View;
+
+  // Format accessibility label
+  const formattedBtcValue = typeof btcValue === 'number' ? formatBalance(btcValue, BTC_DECIMAL_PLACES) : btcValue;
+  const formattedUsdValue = typeof usdValue === 'number' ? formatFiat(usdValue, USD_DECIMAL_PLACES) : usdValue;
+  const valueLabel = displayInBTC ? `${formattedBtcValue} Bitcoin` : `$${formattedUsdValue}`;
 
   return (
     <CardWrapper
       style={[styles.assetCard, isLast && styles.assetCardLast]}
       onPress={onPress}
       activeOpacity={0.7}
+      testID={testID}
+      accessible={isE2E ? false : undefined}
+      accessibilityRole={isE2E ? undefined : (onPress ? "button" : undefined)}
+      accessibilityLabel={isE2E ? undefined : `${assetName}: ${amountValue}, value ${valueLabel}`}
+      accessibilityHint={isE2E ? undefined : (onPress ? `View ${assetName} details` : undefined)}
     >
-      <View style={styles.assetRow}>
+      <View style={styles.assetRow} accessibilityElementsHidden={!isE2E}>
         <View style={styles.assetLeft}>
           <View style={[styles.btcIcon, assetName !== 'Bitcoin' && styles.ducatIcon, { marginRight: s(9) }]}>
             <Icon name={assetLogo} size={ASSET_LOGO_SIZE} />
@@ -86,7 +100,10 @@ const AssetCard = React.memo(function AssetCard({
                   style={styles.assetAmountIcon}
                 />
               )}
-              <Text style={[styles.assetAmount, customAmountStyle]}>
+              <Text
+                style={[styles.assetAmount, customAmountStyle]}
+                testID={isE2E && testID ? `${testID}-amount` : undefined}
+              >
                 {amountValue}
               </Text>
             </View>
@@ -101,17 +118,13 @@ const AssetCard = React.memo(function AssetCard({
               style={styles.assetIcon}
             />
             <Text style={styles.assetValue}>
-              {typeof btcValue === 'number'
-                ? formatBalance(btcValue, BTC_DECIMAL_PLACES)
-                : btcValue}
+              {formattedBtcValue}
             </Text>
           </View>
         ) : (
           <Text style={styles.assetValue}>
             ${' '}
-            {typeof usdValue === 'number'
-              ? formatFiat(usdValue, USD_DECIMAL_PLACES)
-              : usdValue}
+            {formattedUsdValue}
           </Text>
         )}
       </View>

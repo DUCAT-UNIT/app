@@ -17,6 +17,7 @@ import {
 } from '../services/vaultOperationsService';
 import { createVaultWallet } from '../services/vaultWalletService';
 import { computeLiquidationPrice, validateVaultParams } from '../utils/vaultUtils';
+import { e2eVaultState } from '../utils/e2eVaultState';
 import { logger } from '../utils/logger';
 import type { ProcessingStep } from '../stores/vaultCreationStore';
 
@@ -105,6 +106,27 @@ export function useCreateVault(): UseCreateVaultResult {
       setLoading(true);
       setError(null);
       setCurrentStep('processing');
+
+      // E2E bypass: skip Guardian and simulate instant vault creation
+      if (__DEV__ && process.env.EXPO_PUBLIC_E2E_BYPASS === 'true') {
+        try {
+          for (const step of [1, 2, 3, 4] as ProcessingStep[]) {
+            updateProcessingStep(step);
+            await new Promise((r) => setTimeout(r, 200));
+          }
+          const fakeTxid = `e2e-vault-${Date.now().toString(16)}`;
+          e2eVaultState.vaultCreated = true;
+          e2eVaultState.btcLocked = btcAmount;
+          e2eVaultState.unitBorrowed = unitAmount;
+          setTxid(fakeTxid);
+          setCurrentStep('success');
+          logger.info('[useCreateVault] E2E bypass: vault created', { fakeTxid, btcAmount, unitAmount });
+          return fakeTxid;
+        } finally {
+          operationInProgressRef.current = false;
+          setLoading(false);
+        }
+      }
 
       try {
         // Step 1: Creating VaultWallet and config

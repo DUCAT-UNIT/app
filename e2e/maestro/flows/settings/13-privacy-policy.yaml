@@ -1,0 +1,63 @@
+appId: com.ducatprotocol.DucatProtocolWallet
+---
+# Privacy Policy - Navigate to Privacy Policy screen and verify
+# Import wallet → settings → about → privacy policy → verify → back
+
+- runFlow: ../helpers/import-wallet-typed.yaml
+
+# Verify wallet screen
+- extendedWaitUntil:
+    visible:
+      id: "wallet-screen"
+    timeout: 15000
+
+# Dismiss low ecash modal if it appears
+- runFlow: ../helpers/dismiss-low-ecash.yaml
+
+# Dismiss airdrop modal if it appears
+- runFlow: ../helpers/dismiss-airdrop.yaml
+
+# Dismiss passkey migration modal if it appears
+- runFlow:
+    when:
+      visible:
+        id: "passkey-migration-modal"
+    commands:
+      - tapOn:
+          id: "passkey-skip-btn"
+
+# Navigate to settings
+- tapOn:
+    id: "wallet-settings-btn"
+- extendedWaitUntil:
+    visible:
+      id: "settings-screen"
+    timeout: 5000
+
+# Navigate to about
+- tapOn:
+    id: "settings-about-btn"
+- extendedWaitUntil:
+    visible:
+      id: "about-screen"
+    timeout: 5000
+
+# Tap Privacy Policy
+- tapOn:
+    id: "about-privacy-btn"
+
+# Verify Privacy Policy screen loads
+- extendedWaitUntil:
+    visible:
+      id: "privacy-policy-screen"
+    timeout: 10000
+- assertVisible:
+    text: "Privacy Policy"
+
+# Go back to about screen
+- tapOn:
+    id: "privacy-back-btn"
+- extendedWaitUntil:
+    visible:
+      id: "about-screen"
+    timeout: 5000

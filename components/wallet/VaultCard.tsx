@@ -80,12 +80,17 @@ export default memo(function VaultCard({
       onPress={hasVault ? onVaultPress : undefined}
       activeOpacity={hasVault ? 0.7 : 1}
       disabled={!hasVault}
+      testID="vault-card"
+      accessibilityRole="button"
+      accessibilityLabel={hasVault ? `Vault with ${vaultHealthPercentage}% health, ${formattedDebt} UNIT debt, ${formattedCollateral} BTC collateral` : "No vault created"}
+      accessibilityHint={hasVault ? "Opens vault details" : "Create a vault to borrow UNIT"}
+      accessibilityState={{ disabled: !hasVault }}
     >
-      <View style={styles.vaultIconContainer}>
+      <View style={styles.vaultIconContainer} accessibilityElementsHidden>
         <Icon name="vault_logo" size={VAULT_LOGO_SIZE} color={COLORS.VERY_LIGHT_GRAY} />
         <View style={[styles.vaultStatusIndicator, { backgroundColor: vaultHealthColor }]} />
       </View>
-      <View style={styles.vaultContentWrapper}>
+      <View style={styles.vaultContentWrapper} accessibilityElementsHidden>
         <View style={styles.vaultHeader}>
           <View style={styles.vaultHeaderLeft}>
             <View style={styles.assetInfo}>
@@ -135,12 +140,18 @@ export default memo(function VaultCard({
           style={styles.vaultOverlay}
           start={GRADIENT_START}
           end={GRADIENT_END}
+          testID="vault-overlay"
         >
           <TouchableOpacity
             style={styles.createVaultButton}
             onPress={onCreateVault}
             activeOpacity={0.8}
             disabled={creatingVault}
+            testID="create-vault-btn"
+            accessibilityRole="button"
+            accessibilityLabel="Create vault"
+            accessibilityHint="Creates a new vault to borrow UNIT against your Bitcoin"
+            accessibilityState={{ disabled: creatingVault }}
           >
             <Text style={styles.createVaultButtonText}>Create Vault</Text>
           </TouchableOpacity>

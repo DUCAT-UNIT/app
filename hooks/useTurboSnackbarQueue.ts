@@ -17,6 +17,7 @@ interface UseTurboSnackbarQueueParams {
 
 interface UseTurboSnackbarQueueReturn {
   showSnackbarWithDedup: (params: SnackbarParams) => void;
+  checkQueuedSnackbars: () => void;
 }
 
 /**
@@ -54,36 +55,19 @@ export function useTurboSnackbarQueue({
     lastShownTimeRef.current = now;
   }, [showSnackbar]);
 
-  // Poll for queued snackbars
-  React.useEffect(() => {
-    if (!isAuthenticated || shouldShowPinOverlay) {
-      return;
+  // Check for queued snackbars — called by useTurboTokenProcessor's polling loop
+  const checkQueuedSnackbars = React.useCallback(() => {
+    if (!isAuthenticated || shouldShowPinOverlay) return;
+    if (turboGlobal.pendingTurboSnackbars && turboGlobal.pendingTurboSnackbars.length > 0) {
+      logger.debug('[TURBO] Showing queued snackbar');
+      const lastSnackbar = turboGlobal.pendingTurboSnackbars[turboGlobal.pendingTurboSnackbars.length - 1];
+      showSnackbarWithDedup({
+        type: lastSnackbar.type as SnackbarType,
+        message: lastSnackbar.message,
+      });
+      turboGlobal.pendingTurboSnackbars = [];
     }
-
-    let isMounted = true;
-
-    const checkQueuedSnackbars = () => {
-      if (!isMounted) return;
-      if (turboGlobal.pendingTurboSnackbars && turboGlobal.pendingTurboSnackbars.length > 0) {
-        logger.debug('[TURBO] Showing queued snackbar');
-        const lastSnackbar = turboGlobal.pendingTurboSnackbars[turboGlobal.pendingTurboSnackbars.length - 1];
-        // Convert TurboSnackbarParams to SnackbarParams format with proper type
-        showSnackbarWithDedup({
-          type: lastSnackbar.type as SnackbarType,
-          message: lastSnackbar.message,
-        });
-        turboGlobal.pendingTurboSnackbars = [];
-      }
-    };
-
-    checkQueuedSnackbars();
-    const interval = setInterval(checkQueuedSnackbars, 500);
-
-    return () => {
-      isMounted = false;
-      clearInterval(interval);
-    };
   }, [isAuthenticated, shouldShowPinOverlay, showSnackbarWithDedup]);
 
-  return { showSnackbarWithDedup };
+  return { showSnackbarWithDedup, checkQueuedSnackbars };
 }

@@ -1,4 +1,3 @@
-// @ts-nocheck
 /**
  * Tests for P2PK Signing (NUT-11)
  *
@@ -14,12 +13,12 @@ jest.mock('react-native-quick-crypto', () => ({
   }),
 }));
 
-const mockSignSchnorr = jest.fn(() => Buffer.alloc(64, 0xde));
-const mockPointFromScalar = jest.fn(() => Buffer.alloc(33, 0xef));
+const mockSignSchnorr: jest.Mock = jest.fn(() => Buffer.alloc(64, 0xde));
+const mockPointFromScalar: jest.Mock = jest.fn(() => Buffer.alloc(33, 0xef));
 
 jest.mock('@bitcoinerlab/secp256k1', () => ({
-  signSchnorr: (...args) => mockSignSchnorr(...args),
-  pointFromScalar: (...args) => mockPointFromScalar(...args),
+  signSchnorr: (...args: any[]) => mockSignSchnorr(...(args as [any, any])),
+  pointFromScalar: (...args: any[]) => mockPointFromScalar(...(args as [any])),
 }));
 
 jest.mock('../../../../utils/logger', () => ({
@@ -34,7 +33,7 @@ jest.mock('../../../../utils/logger', () => ({
 
 const mockIsP2PKLocked = jest.fn();
 jest.mock('../p2pkVerification', () => ({
-  isP2PKLocked: (...args) => mockIsP2PKLocked(...args),
+  isP2PKLocked: (...args: unknown[]) => mockIsP2PKLocked(...args),
 }));
 
 import { signP2PKSecret, signP2PKProofs } from '../p2pkSigning';
@@ -106,8 +105,8 @@ describe('p2pkSigning', () => {
         await signP2PKSecret(validSecret, validPrivateKey);
         fail('Should have thrown');
       } catch (error) {
-        expect(error.message).toContain('Secret length:');
-        expect(error.message).toContain('Private key length:');
+        expect((error as Error).message).toContain('Secret length:');
+        expect((error as Error).message).toContain('Private key format valid:');
       }
     });
 
@@ -117,10 +116,10 @@ describe('p2pkSigning', () => {
       });
 
       try {
-        await signP2PKSecret(null, validPrivateKey);
+        await signP2PKSecret(null as unknown as string, validPrivateKey);
         fail('Should have thrown');
       } catch (error) {
-        expect(error.message).toContain('Secret is null/undefined');
+        expect((error as Error).message).toContain('Secret is null/undefined');
       }
     });
 
@@ -130,10 +129,10 @@ describe('p2pkSigning', () => {
       });
 
       try {
-        await signP2PKSecret(validSecret, null);
+        await signP2PKSecret(validSecret, null as unknown as string);
         fail('Should have thrown');
       } catch (error) {
-        expect(error.message).toContain('Private key is null/undefined');
+        expect((error as Error).message).toContain('Private key is null/undefined');
       }
     });
 

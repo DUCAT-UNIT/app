@@ -1,4 +1,3 @@
-// @ts-nocheck
 /**
  * Tests for useWalletImport Hook
  * Validates wallet import from existing seed phrase
@@ -40,29 +39,29 @@ jest.mock('../../utils/messages', () => ({
 }));
 
 // Helper to render hooks with props
-function renderHook(hook, { initialProps } = {}) {
-  const result = { current: null };
-  function TestComponent({ hookProps }) {
+function renderHook<T>(hook: (props?: unknown) => T, { initialProps }: { initialProps?: unknown } = {}) {
+  const result: { current: T | null } = { current: null };
+  function TestComponent({ hookProps }: { hookProps?: unknown }) {
     result.current = hook(hookProps);
     return null;
   }
-  let component;
+  let component: ReturnType<typeof create> | undefined;
   act(() => {
     component = create(<TestComponent hookProps={initialProps} />);
   });
   return {
     result,
-    rerender: (newProps) => {
+    rerender: (newProps?: unknown) => {
       act(() => {
-        component.update(<TestComponent hookProps={newProps} />);
+        component?.update(<TestComponent hookProps={newProps} />);
       });
     },
-    unmount: () => component.unmount(),
+    unmount: () => component?.unmount(),
   };
 }
 
 describe('useWalletImport', () => {
-  let mockProps;
+  let mockProps: { currentAccount: number; setSettingUpPin: jest.Mock; loadWallet?: null | jest.Mock; [key: string]: unknown };
   const mockAddresses = {
     address: 'tb1qtest',
     segwitAddress: 'tb1qsegwit',
@@ -71,11 +70,11 @@ describe('useWalletImport', () => {
 
   beforeEach(() => {
     jest.clearAllMocks();
-    AsyncStorage.getItem.mockResolvedValue(null);
-    AsyncStorage.setItem.mockResolvedValue();
-    AsyncStorage.removeItem.mockResolvedValue();
-    WalletService.importWallet.mockResolvedValue({ addresses: mockAddresses });
-    WalletService.saveWalletToStorage.mockResolvedValue();
+    (AsyncStorage.getItem as jest.Mock).mockResolvedValue(null);
+    (AsyncStorage.setItem as jest.Mock).mockResolvedValue(undefined);
+    (AsyncStorage.removeItem as jest.Mock).mockResolvedValue(undefined);
+    (WalletService.importWallet as jest.Mock).mockResolvedValue({ addresses: mockAddresses });
+    (WalletService.saveWalletToStorage as jest.Mock).mockResolvedValue(undefined);
 
     mockProps = {
       currentAccount: 0,
@@ -93,7 +92,7 @@ describe('useWalletImport', () => {
         await Promise.resolve();
       });
 
-      expect(result.current.importingWallet).toBe(false);
+      expect(result.current!.importingWallet).toBe(false);
     });
 
     it('should initialize with empty seed phrase array', async () => {
@@ -105,7 +104,7 @@ describe('useWalletImport', () => {
         await Promise.resolve();
       });
 
-      expect(result.current.importSeedPhrase).toEqual(Array(12).fill(''));
+      expect(result.current!.importSeedPhrase).toEqual(Array(12).fill(''));
     });
 
     it('should load persisted state on mount', async () => {
@@ -114,7 +113,7 @@ describe('useWalletImport', () => {
         importSeedPhrase: ['abandon', 'ability', 'able', '', '', '', '', '', '', '', '', ''],
         isImportedWallet: false,
       };
-      AsyncStorage.getItem.mockResolvedValue(JSON.stringify(savedState));
+      (AsyncStorage.getItem as jest.Mock).mockResolvedValue(JSON.stringify(savedState));
 
       const { result } = renderHook(() => useWalletImport(mockProps), {
         initialProps: mockProps,
@@ -124,12 +123,12 @@ describe('useWalletImport', () => {
         await Promise.resolve();
       });
 
-      expect(result.current.importingWallet).toBe(true);
-      expect(result.current.importSeedPhrase[0]).toBe('abandon');
+      expect(result.current!.importingWallet).toBe(true);
+      expect(result.current!.importSeedPhrase[0]).toBe('abandon');
     });
 
     it('should handle AsyncStorage errors gracefully', async () => {
-      AsyncStorage.getItem.mockRejectedValue(new Error('Storage error'));
+      (AsyncStorage.getItem as jest.Mock).mockRejectedValue(new Error('Storage error'));
 
       const { result } = renderHook(() => useWalletImport(mockProps), {
         initialProps: mockProps,
@@ -139,7 +138,7 @@ describe('useWalletImport', () => {
         await Promise.resolve();
       });
 
-      expect(result.current.importingWallet).toBe(false);
+      expect(result.current!.importingWallet).toBe(false);
     });
 
     it('should load partial persisted state', async () => {
@@ -147,7 +146,7 @@ describe('useWalletImport', () => {
       const savedState = {
         importingWallet: true,
       };
-      AsyncStorage.getItem.mockResolvedValue(JSON.stringify(savedState));
+      (AsyncStorage.getItem as jest.Mock).mockResolvedValue(JSON.stringify(savedState));
 
       const { result } = renderHook(() => useWalletImport(mockProps), {
         initialProps: mockProps,
@@ -157,9 +156,9 @@ describe('useWalletImport', () => {
         await Promise.resolve();
       });
 
-      expect(result.current.importingWallet).toBe(true);
-      expect(result.current.importSeedPhrase).toEqual(Array(12).fill(''));
-      expect(result.current.isImportedWallet).toBe(false);
+      expect(result.current!.importingWallet).toBe(true);
+      expect(result.current!.importSeedPhrase).toEqual(Array(12).fill(''));
+      expect(result.current!.isImportedWallet).toBe(false);
     });
 
     it('should handle persisted state with undefined values', async () => {
@@ -169,7 +168,7 @@ describe('useWalletImport', () => {
         importSeedPhrase: null,
         isImportedWallet: undefined,
       };
-      AsyncStorage.getItem.mockResolvedValue(JSON.stringify(savedState));
+      (AsyncStorage.getItem as jest.Mock).mockResolvedValue(JSON.stringify(savedState));
 
       const { result } = renderHook(() => useWalletImport(mockProps), {
         initialProps: mockProps,
@@ -180,9 +179,9 @@ describe('useWalletImport', () => {
       });
 
       // Should not set values when they are null/undefined
-      expect(result.current.importingWallet).toBe(false);
-      expect(result.current.importSeedPhrase).toEqual(Array(12).fill(''));
-      expect(result.current.isImportedWallet).toBe(false);
+      expect(result.current!.importingWallet).toBe(false);
+      expect(result.current!.importSeedPhrase).toEqual(Array(12).fill(''));
+      expect(result.current!.isImportedWallet).toBe(false);
     });
 
     it('should handle persisted state with false values', async () => {
@@ -192,7 +191,7 @@ describe('useWalletImport', () => {
         importSeedPhrase: ['test', 'words', '', '', '', '', '', '', '', '', '', ''],
         isImportedWallet: false,
       };
-      AsyncStorage.getItem.mockResolvedValue(JSON.stringify(savedState));
+      (AsyncStorage.getItem as jest.Mock).mockResolvedValue(JSON.stringify(savedState));
 
       const { result } = renderHook(() => useWalletImport(mockProps), {
         initialProps: mockProps,
@@ -202,9 +201,9 @@ describe('useWalletImport', () => {
         await Promise.resolve();
       });
 
-      expect(result.current.importingWallet).toBe(false);
-      expect(result.current.importSeedPhrase).toEqual(savedState.importSeedPhrase);
-      expect(result.current.isImportedWallet).toBe(false);
+      expect(result.current!.importingWallet).toBe(false);
+      expect(result.current!.importSeedPhrase).toEqual(savedState.importSeedPhrase);
+      expect(result.current!.isImportedWallet).toBe(false);
     });
   });
 
@@ -230,11 +229,11 @@ describe('useWalletImport', () => {
       ];
 
       act(() => {
-        result.current.setImportSeedPhrase(seedPhrase);
+        result.current!.setImportSeedPhrase(seedPhrase);
       });
 
       await act(async () => {
-        await result.current.importWallet();
+        await result.current!.importWallet();
       });
 
       // Import should succeed
@@ -272,11 +271,11 @@ describe('useWalletImport', () => {
       ];
 
       act(() => {
-        result.current.setImportSeedPhrase(seedPhraseWithSpaces);
+        result.current!.setImportSeedPhrase(seedPhraseWithSpaces);
       });
 
       await act(async () => {
-        await result.current.importWallet();
+        await result.current!.importWallet();
       });
 
       expect(WalletService.importWallet).toHaveBeenCalledWith(
@@ -293,14 +292,14 @@ describe('useWalletImport', () => {
       const seedPhrase = Array(12).fill('abandon');
 
       act(() => {
-        result.current.setImportSeedPhrase(seedPhrase);
+        result.current!.setImportSeedPhrase(seedPhrase);
       });
 
       await act(async () => {
-        await result.current.importWallet();
+        await result.current!.importWallet();
       });
 
-      expect(result.current.isImportedWallet).toBe(true);
+      expect(result.current!.isImportedWallet).toBe(true);
     });
 
     it('should clear import form on success', async () => {
@@ -311,16 +310,16 @@ describe('useWalletImport', () => {
       const seedPhrase = Array(12).fill('abandon');
 
       act(() => {
-        result.current.setImportingWallet(true);
-        result.current.setImportSeedPhrase(seedPhrase);
+        result.current!.setImportingWallet(true);
+        result.current!.setImportSeedPhrase(seedPhrase);
       });
 
       await act(async () => {
-        await result.current.importWallet();
+        await result.current!.importWallet();
       });
 
-      expect(result.current.importingWallet).toBe(false);
-      expect(result.current.importSeedPhrase).toEqual(Array(12).fill(''));
+      expect(result.current!.importingWallet).toBe(false);
+      expect(result.current!.importSeedPhrase).toEqual(Array(12).fill(''));
     });
 
     it('should clear persisted state on success', async () => {
@@ -331,18 +330,18 @@ describe('useWalletImport', () => {
       const seedPhrase = Array(12).fill('abandon');
 
       act(() => {
-        result.current.setImportSeedPhrase(seedPhrase);
+        result.current!.setImportSeedPhrase(seedPhrase);
       });
 
       await act(async () => {
-        await result.current.importWallet();
+        await result.current!.importWallet();
       });
 
       expect(AsyncStorage.removeItem).toHaveBeenCalledWith('wallet_import_state');
     });
 
     it('should handle import errors', async () => {
-      WalletService.importWallet.mockRejectedValue(new Error('Invalid mnemonic'));
+      (WalletService.importWallet as jest.Mock).mockRejectedValue(new Error('Invalid mnemonic'));
 
       const { result } = renderHook(() => useWalletImport(mockProps), {
         initialProps: mockProps,
@@ -351,11 +350,11 @@ describe('useWalletImport', () => {
       const seedPhrase = Array(12).fill('invalid');
 
       act(() => {
-        result.current.setImportSeedPhrase(seedPhrase);
+        result.current!.setImportSeedPhrase(seedPhrase);
       });
 
       await act(async () => {
-        await result.current.importWallet();
+        await result.current!.importWallet();
       });
 
       expect(notify.error).toHaveBeenCalled();
@@ -363,7 +362,7 @@ describe('useWalletImport', () => {
     });
 
     it('should not clear form on import error', async () => {
-      WalletService.importWallet.mockRejectedValue(new Error('Invalid mnemonic'));
+      (WalletService.importWallet as jest.Mock).mockRejectedValue(new Error('Invalid mnemonic'));
 
       const { result } = renderHook(() => useWalletImport(mockProps), {
         initialProps: mockProps,
@@ -372,14 +371,79 @@ describe('useWalletImport', () => {
       const seedPhrase = Array(12).fill('invalid');
 
       act(() => {
-        result.current.setImportSeedPhrase(seedPhrase);
+        result.current!.setImportSeedPhrase(seedPhrase);
       });
 
       await act(async () => {
-        await result.current.importWallet();
+        await result.current!.importWallet();
       });
 
-      expect(result.current.importSeedPhrase).toEqual(seedPhrase);
+      expect(result.current!.importSeedPhrase).toEqual(seedPhrase);
+    });
+
+    it('should prevent double-click by returning early when isImporting is true', async () => {
+      // Make importWallet take a long time
+      (WalletService.importWallet as jest.Mock).mockImplementation(
+        () => new Promise((resolve) => setTimeout(() => resolve({ addresses: mockAddresses }), 100))
+      );
+
+      const { result } = renderHook(() => useWalletImport(mockProps), {
+        initialProps: mockProps,
+      });
+
+      const seedPhrase = Array(12).fill('abandon');
+
+      act(() => {
+        result.current!.setImportSeedPhrase(seedPhrase);
+      });
+
+      // Start first import (don't await)
+      let firstPromise: Promise<void> | undefined;
+      act(() => {
+        firstPromise = result.current!.importWallet();
+      });
+
+      // Give React a chance to update state
+      await act(async () => {
+        await new Promise((resolve) => setTimeout(resolve, 10));
+      });
+
+      // Verify isImporting is true
+      expect(result.current!.isImporting).toBe(true);
+
+      // Try second import while first is still running
+      await act(async () => {
+        await result.current!.importWallet();
+      });
+
+      // Should only call importWallet once (the second call returns early)
+      expect(WalletService.importWallet).toHaveBeenCalledTimes(1);
+
+      // Wait for first promise to finish
+      await act(async () => {
+        await firstPromise;
+      });
+    });
+
+    it('should handle non-Error thrown during import', async () => {
+      (WalletService.importWallet as jest.Mock).mockRejectedValue('string error');
+
+      const { result } = renderHook(() => useWalletImport(mockProps), {
+        initialProps: mockProps,
+      });
+
+      const seedPhrase = Array(12).fill('test');
+
+      act(() => {
+        result.current!.setImportSeedPhrase(seedPhrase);
+      });
+
+      await act(async () => {
+        await result.current!.importWallet();
+      });
+
+      expect(notify.error).toHaveBeenCalled();
+      expect(result.current!.isImporting).toBe(false);
     });
 
     it('should work without loadWallet callback', async () => {
@@ -392,11 +456,11 @@ describe('useWalletImport', () => {
       const seedPhrase = Array(12).fill('abandon');
 
       act(() => {
-        result.current.setImportSeedPhrase(seedPhrase);
+        result.current!.setImportSeedPhrase(seedPhrase);
       });
 
       await act(async () => {
-        await result.current.importWallet();
+        await result.current!.importWallet();
       });
 
       expect(mockProps.setSettingUpPin).toHaveBeenCalledWith(true);
@@ -413,18 +477,18 @@ describe('useWalletImport', () => {
       });
 
       act(() => {
-        result.current.setImportingWallet(true);
-        result.current.setImportSeedPhrase(Array(12).fill('test'));
-        result.current.setIsImportedWallet(true);
+        result.current!.setImportingWallet(true);
+        result.current!.setImportSeedPhrase(Array(12).fill('test'));
+        result.current!.setIsImportedWallet(true);
       });
 
       await act(async () => {
-        await result.current.resetImportState();
+        await result.current!.resetImportState();
       });
 
-      expect(result.current.importingWallet).toBe(false);
-      expect(result.current.importSeedPhrase).toEqual(Array(12).fill(''));
-      expect(result.current.isImportedWallet).toBe(false);
+      expect(result.current!.importingWallet).toBe(false);
+      expect(result.current!.importSeedPhrase).toEqual(Array(12).fill(''));
+      expect(result.current!.isImportedWallet).toBe(false);
     });
 
     it('should clear persisted state', async () => {
@@ -433,7 +497,7 @@ describe('useWalletImport', () => {
       });
 
       await act(async () => {
-        await result.current.resetImportState();
+        await result.current!.resetImportState();
       });
 
       expect(AsyncStorage.removeItem).toHaveBeenCalledWith('wallet_import_state');
@@ -451,7 +515,7 @@ describe('useWalletImport', () => {
       });
 
       act(() => {
-        result.current.setImportingWallet(true);
+        result.current!.setImportingWallet(true);
       });
 
       await act(async () => {
@@ -469,8 +533,8 @@ describe('useWalletImport', () => {
         initialProps: mockProps,
       });
 
-      expect(result.current.seedInputRefs).toBeDefined();
-      expect(result.current.seedInputRefs.current).toEqual([]);
+      expect(result.current!.seedInputRefs).toBeDefined();
+      expect(result.current!.seedInputRefs.current).toEqual([]);
     });
   });
 
@@ -481,10 +545,10 @@ describe('useWalletImport', () => {
       });
 
       act(() => {
-        result.current.setImportingWallet(true);
+        result.current!.setImportingWallet(true);
       });
 
-      expect(result.current.importingWallet).toBe(true);
+      expect(result.current!.importingWallet).toBe(true);
     });
 
     it('should allow setting importSeedPhrase', () => {
@@ -495,10 +559,10 @@ describe('useWalletImport', () => {
       const newPhrase = ['abandon', 'ability', 'able', '', '', '', '', '', '', '', '', ''];
 
       act(() => {
-        result.current.setImportSeedPhrase(newPhrase);
+        result.current!.setImportSeedPhrase(newPhrase);
       });
 
-      expect(result.current.importSeedPhrase).toEqual(newPhrase);
+      expect(result.current!.importSeedPhrase).toEqual(newPhrase);
     });
 
     it('should allow setting isImportedWallet', () => {
@@ -507,10 +571,10 @@ describe('useWalletImport', () => {
       });
 
       act(() => {
-        result.current.setIsImportedWallet(true);
+        result.current!.setIsImportedWallet(true);
       });
 
-      expect(result.current.isImportedWallet).toBe(true);
+      expect(result.current!.isImportedWallet).toBe(true);
     });
   });
 });

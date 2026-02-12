@@ -1,4 +1,3 @@
-// @ts-nocheck
 /**
  * Tests for Secure Storage Service
  */
@@ -47,21 +46,20 @@ describe('SecureStorageService', () => {
     it('should save mnemonic to secure storage', async () => {
       mockSetItemAsync.mockResolvedValue();
 
-      const result = await saveMnemonic('word1 word2 word3 word4 word5 word6 word7 word8 word9 word10 word11 word12');
-
-      expect(result).toBe(true);
+      await expect(
+        saveMnemonic('word1 word2 word3 word4 word5 word6 word7 word8 word9 word10 word11 word12')
+      ).resolves.toBeUndefined();
       expect(mockSetItemAsync).toHaveBeenCalledWith(
         'wallet_mnemonic_v1',
-        'word1 word2 word3 word4 word5 word6 word7 word8 word9 word10 word11 word12'
+        'word1 word2 word3 word4 word5 word6 word7 word8 word9 word10 word11 word12',
+        { keychainAccessible: SecureStore.AFTER_FIRST_UNLOCK_THIS_DEVICE_ONLY }
       );
     });
 
-    it('should return false on storage error', async () => {
+    it('should throw error on storage error', async () => {
       mockSetItemAsync.mockRejectedValue(new Error('Storage error'));
 
-      const result = await saveMnemonic('test mnemonic');
-
-      expect(result).toBe(false);
+      await expect(saveMnemonic('test mnemonic')).rejects.toThrow('Failed to save wallet securely');
     });
   });
 
@@ -143,18 +141,14 @@ describe('SecureStorageService', () => {
     it('should delete mnemonic from secure storage', async () => {
       mockDeleteItemAsync.mockResolvedValue();
 
-      const result = await deleteMnemonic();
-
-      expect(result).toBe(true);
+      await expect(deleteMnemonic()).resolves.toBeUndefined();
       expect(mockDeleteItemAsync).toHaveBeenCalledWith('wallet_mnemonic_v1');
     });
 
-    it('should return false on storage error', async () => {
+    it('should throw error on storage error', async () => {
       mockDeleteItemAsync.mockRejectedValue(new Error('Storage error'));
 
-      const result = await deleteMnemonic();
-
-      expect(result).toBe(false);
+      await expect(deleteMnemonic()).rejects.toThrow('Failed to delete wallet securely');
     });
   });
 
@@ -225,9 +219,7 @@ describe('SecureStorageService', () => {
     it('should delete all wallet data from secure storage', async () => {
       mockDeleteItemAsync.mockResolvedValue();
 
-      const result = await deleteWalletData();
-
-      expect(result).toBe(true);
+      await expect(deleteWalletData()).resolves.toBeUndefined();
 
       // Check all expected keys are deleted
       expect(mockDeleteItemAsync).toHaveBeenCalledWith('wallet_mnemonic_v1');
@@ -255,19 +247,14 @@ describe('SecureStorageService', () => {
     it('should clear iCloud backup when requested (clearICloudBackup=true)', async () => {
       mockDeleteItemAsync.mockResolvedValue();
 
-      const result = await deleteWalletData(true);
-
-      // Result should be true and all keys should be deleted
-      expect(result).toBe(true);
+      await expect(deleteWalletData(true)).resolves.toBeUndefined();
       expect(mockDeleteItemAsync).toHaveBeenCalled();
     });
 
     it('should preserve iCloud backup by default (clearICloudBackup=false)', async () => {
       mockDeleteItemAsync.mockResolvedValue();
 
-      const result = await deleteWalletData();
-
-      expect(result).toBe(true);
+      await expect(deleteWalletData()).resolves.toBeUndefined();
       expect(mockDeleteItemAsync).toHaveBeenCalled();
     });
 
@@ -276,17 +263,13 @@ describe('SecureStorageService', () => {
       // The passkey module mock throws an error, simulating import failure
       // The function should still succeed
 
-      const result = await deleteWalletData();
-
-      expect(result).toBe(true);
+      await expect(deleteWalletData()).resolves.toBeUndefined();
     });
 
-    it('should return false on storage error', async () => {
+    it('should throw error on storage error', async () => {
       mockDeleteItemAsync.mockRejectedValue(new Error('Storage error'));
 
-      const result = await deleteWalletData();
-
-      expect(result).toBe(false);
+      await expect(deleteWalletData()).rejects.toThrow('Failed to delete wallet data securely');
     });
   });
 

@@ -17,6 +17,15 @@ export interface TouchableScaleProps {
   scaleAmount?: number;
   testID?: string;
   accessibilityLabel?: string;
+  accessibilityHint?: string;
+  accessibilityRole?: 'button' | 'link' | 'none' | 'text' | 'search' | 'image' | 'adjustable' | 'header' | 'summary' | 'alert' | 'checkbox' | 'combobox' | 'menu' | 'menubar' | 'menuitem' | 'progressbar' | 'radio' | 'radiogroup' | 'scrollbar' | 'spinbutton' | 'switch' | 'tab' | 'tablist' | 'timer' | 'toolbar';
+  accessibilityState?: {
+    disabled?: boolean;
+    selected?: boolean;
+    checked?: boolean | 'mixed';
+    busy?: boolean;
+    expanded?: boolean;
+  };
 }
 
 const TouchableScale = ({
@@ -28,6 +37,9 @@ const TouchableScale = ({
   scaleAmount = 0.95,
   testID,
   accessibilityLabel,
+  accessibilityHint,
+  accessibilityRole,
+  accessibilityState,
 }: TouchableScaleProps) => {
   const scale = useRef(new Animated.Value(1)).current;
 
@@ -69,6 +81,9 @@ const TouchableScale = ({
       style={style}
       testID={testID}
       accessibilityLabel={accessibilityLabel}
+      accessibilityHint={accessibilityHint}
+      accessibilityRole={accessibilityRole}
+      accessibilityState={accessibilityState}
     >
       <Animated.View style={{ transform: [{ scale }] }}>
         {children}

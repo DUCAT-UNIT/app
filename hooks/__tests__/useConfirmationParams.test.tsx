@@ -1,4 +1,3 @@
-// @ts-nocheck
 /**
  * Tests for useConfirmationParams hook
  */
@@ -18,23 +17,23 @@ jest.mock('../../utils/logger', () => ({
 }));
 
 // Helper to render hooks with props
-function renderHookWithProps(hook, route) {
-  const result = { current: null };
-  function TestComponent({ routeProp }) {
+function renderHookWithProps<T>(hook: (route: any) => T, route: any) {
+  const result: { current: T | null } = { current: null };
+  function TestComponent({ routeProp }: { routeProp: any }) {
     result.current = hook(routeProp);
     return null;
   }
-  let component;
+  let component: ReturnType<typeof create> | undefined;
   act(() => {
     component = create(<TestComponent routeProp={route} />);
   });
   return {
     result,
-    unmount: component.unmount,
+    unmount: component!.unmount,
     component,
-    rerender: (newRoute) => {
+    rerender: (newRoute: any) => {
       act(() => {
-        component.update(<TestComponent routeProp={newRoute} />);
+        component?.update(<TestComponent routeProp={newRoute} />);
       });
     },
   };
@@ -63,9 +62,9 @@ describe('useConfirmationParams', () => {
 
     const { result } = renderHookWithProps(useConfirmationParams, route);
 
-    expect(result.current.isTurbo).toBe(false);
-    expect(result.current.skipMint).toBe(false);
-    expect(result.current.cashuMint).toBe(false);
+    expect(result.current!.isTurbo).toBe(false);
+    expect(result.current!.skipMint).toBe(false);
+    expect(result.current!.cashuMint).toBe(false);
   });
 
   it('should extract Turbo transaction params', () => {
@@ -81,11 +80,11 @@ describe('useConfirmationParams', () => {
 
     const { result } = renderHookWithProps(useConfirmationParams, route);
 
-    expect(result.current.isTurbo).toBe(true);
-    expect(result.current.mintQuoteId).toBe('quote123');
-    expect(result.current.mintAmount).toBe(100);
-    expect(result.current.turboRecipient).toBe('tb1p...');
-    expect(result.current.skipMint).toBe(true);
+    expect(result.current!.isTurbo).toBe(true);
+    expect(result.current!.mintQuoteId).toBe('quote123');
+    expect(result.current!.mintAmount).toBe(100);
+    expect(result.current!.turboRecipient).toBe('tb1p...');
+    expect(result.current!.skipMint).toBe(true);
   });
 
   it('should extract Cashu mint params', () => {
@@ -98,8 +97,8 @@ describe('useConfirmationParams', () => {
 
     const { result } = renderHookWithProps(useConfirmationParams, route);
 
-    expect(result.current.cashuMint).toBe(true);
-    expect(result.current.quoteId).toBe('cashu-quote123');
+    expect(result.current!.cashuMint).toBe(true);
+    expect(result.current!.quoteId).toBe('cashu-quote123');
   });
 
   it('should extract regular transaction params', () => {
@@ -111,7 +110,7 @@ describe('useConfirmationParams', () => {
 
     const { result } = renderHookWithProps(useConfirmationParams, route);
 
-    expect(result.current.broadcastedTxid).toBe('txid123abc');
+    expect(result.current!.broadcastedTxid).toBe('txid123abc');
   });
 
   it('should convert isTurbo string to boolean false', () => {
@@ -123,7 +122,7 @@ describe('useConfirmationParams', () => {
 
     const { result } = renderHookWithProps(useConfirmationParams, route);
 
-    expect(result.current.isTurbo).toBe(false); // Only true for === true
+    expect(result.current!.isTurbo).toBe(false); // Only true for === true
   });
 
   it('should convert skipMint string to boolean false', () => {
@@ -135,7 +134,7 @@ describe('useConfirmationParams', () => {
 
     const { result } = renderHookWithProps(useConfirmationParams, route);
 
-    expect(result.current.skipMint).toBe(false);
+    expect(result.current!.skipMint).toBe(false);
   });
 
   it('should convert cashuMint string to boolean false', () => {
@@ -147,7 +146,7 @@ describe('useConfirmationParams', () => {
 
     const { result } = renderHookWithProps(useConfirmationParams, route);
 
-    expect(result.current.cashuMint).toBe(false);
+    expect(result.current!.cashuMint).toBe(false);
   });
 
   it('should memoize params object', () => {
@@ -181,7 +180,7 @@ describe('useConfirmationParams', () => {
     };
 
     const { result, rerender } = renderHookWithProps(useConfirmationParams, route1);
-    expect(result.current.mintQuoteId).toBe('quote123');
+    expect(result.current!.mintQuoteId).toBe('quote123');
 
     // Update with new values
     rerender({
@@ -191,7 +190,7 @@ describe('useConfirmationParams', () => {
       },
     });
 
-    expect(result.current.mintQuoteId).toBe('quote456');
+    expect(result.current!.mintQuoteId).toBe('quote456');
   });
 
   it('should handle all params together', () => {

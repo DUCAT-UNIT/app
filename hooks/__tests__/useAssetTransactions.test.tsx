@@ -1,4 +1,3 @@
-// @ts-nocheck
 /**
  * Tests for useAssetTransactions Hook
  *
@@ -13,7 +12,7 @@ import * as transactionHistoryService from '../../services/transactionHistorySer
 // Mock useEcashTokens from context
 const mockFetchEcashTokens = jest.fn();
 const mockResetEcashTokens = jest.fn();
-let mockEcashTokens = [];
+let mockEcashTokens: any[] = [];
 let mockLoadingEcashTokens = false;
 
 jest.mock('../../contexts/WalletDataContext', () => ({
@@ -38,18 +37,18 @@ jest.mock('../../utils/logger', () => ({
 const mockGetSentLockedTokens = jest.fn();
 const mockGetReceivedTokens = jest.fn();
 const mockUpdateTokenClaimedStatus = jest.fn();
-const mockSubscribeToTokenChanges = jest.fn(() => jest.fn()); // Returns unsubscribe function
+const mockSubscribeToTokenChanges: jest.Mock = jest.fn(() => jest.fn()); // Returns unsubscribe function
 
 jest.mock('../../services/cashu/cashuLockedTokensService', () => ({
-  getSentLockedTokens: (...args) => mockGetSentLockedTokens(...args),
-  getReceivedTokens: (...args) => mockGetReceivedTokens(...args),
-  updateTokenClaimedStatus: (...args) => mockUpdateTokenClaimedStatus(...args),
-  subscribeToTokenChanges: (...args) => mockSubscribeToTokenChanges(...args),
+  getSentLockedTokens: (...args: any[]) => mockGetSentLockedTokens(...args),
+  getReceivedTokens: (...args: any[]) => mockGetReceivedTokens(...args),
+  updateTokenClaimedStatus: (...args: any[]) => mockUpdateTokenClaimedStatus(...args),
+  subscribeToTokenChanges: (...args: any[]) => mockSubscribeToTokenChanges(...args),
 }));
 
 // Mock tokenStatusService - delegates to underlying token fetching mocks
 jest.mock('../../services/cashu/tokenStatusService', () => ({
-  loadTokensWithStatus: async (taprootAddress, getSentLockedTokens, getReceivedTokens) => {
+  loadTokensWithStatus: async (taprootAddress: any, getSentLockedTokens: any, getReceivedTokens: any) => {
     const sent = await getSentLockedTokens(taprootAddress);
     const received = await getReceivedTokens(taprootAddress);
     // Return tokens with claimed status (default to false if not specified)
@@ -62,19 +61,19 @@ jest.mock('../../services/cashu/tokenStatusService', () => ({
 
 const mockDecodeToken = jest.fn();
 jest.mock('../../services/cashu/crypto', () => ({
-  decodeToken: (...args) => mockDecodeToken(...args),
+  decodeToken: (...args: any[]) => mockDecodeToken(...args),
 }));
 
 const mockCheckProofsSpent = jest.fn();
 jest.mock('../../services/cashu/cashuMintClient', () => ({
-  checkProofsSpent: (...args) => mockCheckProofsSpent(...args),
+  checkProofsSpent: (...args: any[]) => mockCheckProofsSpent(...args),
 }));
 
 jest.mock('../../services/transactionHistoryService');
 
-// Mock pending transactions context
+// Mock pending transactions store
 let mockPendingTransactions = {};
-jest.mock('../../contexts/PendingTransactionsContext', () => ({
+jest.mock('../../stores/pendingTransactionsStore', () => ({
   usePendingTxs: () => mockPendingTransactions,
 }));
 
@@ -82,33 +81,33 @@ jest.mock('../../contexts/PendingTransactionsContext', () => ({
 const mockFromBech32 = jest.fn();
 jest.mock('bitcoinjs-lib', () => ({
   address: {
-    fromBech32: (...args) => mockFromBech32(...args),
+    fromBech32: (...args: any[]) => mockFromBech32(...args),
   },
 }));
 
 // Helper to render hooks with react-test-renderer
-function renderHook(initialProps) {
-  const result = { current: null };
+function renderHook(initialProps: any) {
+  const result: { current: any } = { current: null };
 
-  function TestComponent({ props }) {
+  function TestComponent({ props }: { props: any }) {
     const { txHistory, assetType, segwit, taproot, advancedMode } = props;
     result.current = useAssetTransactions(txHistory, assetType, segwit, taproot, advancedMode);
     return null;
   }
 
-  let component;
+  let component: ReturnType<typeof create> | undefined;
   act(() => {
     component = create(<TestComponent props={initialProps} />);
   });
 
   return {
     result,
-    rerender: (newProps) => {
+    rerender: (newProps?: unknown) => {
       act(() => {
-        component.update(<TestComponent props={newProps} />);
+        component?.update(<TestComponent props={newProps} />);
       });
     },
-    unmount: () => component.unmount(),
+    unmount: () => component?.unmount(),
   };
 }
 
@@ -141,9 +140,9 @@ describe('useAssetTransactions', () => {
       taproot: taprootAddress,
     });
 
-    expect(result.current.transactions).toEqual([]);
+    expect(result.current!.transactions).toEqual([]);
     // For BTC asset type, isLoading is false since no ecash tokens to wait for
-    expect(result.current.isLoading).toBe(false);
+    expect(result.current!.isLoading).toBe(false);
   });
 
   it('should return empty array when segwit address is missing', () => {
@@ -156,7 +155,7 @@ describe('useAssetTransactions', () => {
       taproot: taprootAddress,
     });
 
-    expect(result.current.transactions).toEqual([]);
+    expect(result.current!.transactions).toEqual([]);
   });
 
   it('should return empty array when taproot address is missing', () => {
@@ -169,7 +168,7 @@ describe('useAssetTransactions', () => {
       taproot: null,
     });
 
-    expect(result.current.transactions).toEqual([]);
+    expect(result.current!.transactions).toEqual([]);
   });
 
   it('should filter out vault transactions', () => {
@@ -178,7 +177,7 @@ describe('useAssetTransactions', () => {
       { txid: 'tx2', vaultTransaction: false },
     ];
 
-    transactionHistoryService.calculateTransactionAmount.mockReturnValue({
+    (transactionHistoryService.calculateTransactionAmount as jest.Mock).mockReturnValue({
       amount: 100000,
       type: 'BTC',
     });
@@ -190,7 +189,7 @@ describe('useAssetTransactions', () => {
       taproot: taprootAddress,
     });
 
-    expect(result.current.transactions).toHaveLength(1);
+    expect(result.current!.transactions).toHaveLength(1);
     expect(result.current.transactions[0].txid).toBe('tx2');
   });
 
@@ -215,7 +214,7 @@ describe('useAssetTransactions', () => {
       taproot: taprootAddress,
     });
 
-    expect(result.current.transactions).toHaveLength(1);
+    expect(result.current!.transactions).toHaveLength(1);
     expect(result.current.transactions[0].txData.amount).toBe(100000);
     expect(transactionHistoryService.calculateTransactionAmount).not.toHaveBeenCalled();
   });
@@ -225,7 +224,7 @@ describe('useAssetTransactions', () => {
       { txid: 'tx1', status: { confirmed: true } },
     ];
 
-    transactionHistoryService.calculateTransactionAmount.mockReturnValue({
+    (transactionHistoryService.calculateTransactionAmount as jest.Mock).mockReturnValue({
       amount: 50000,
       type: 'BTC',
     });
@@ -242,7 +241,7 @@ describe('useAssetTransactions', () => {
       segwitAddress,
       taprootAddress
     );
-    expect(result.current.transactions).toHaveLength(1);
+    expect(result.current!.transactions).toHaveLength(1);
     expect(result.current.transactions[0].txData.amount).toBe(50000);
     expect(result.current.transactions[0].txData.assetType).toBe('BTC');
   });
@@ -266,7 +265,7 @@ describe('useAssetTransactions', () => {
       taproot: taprootAddress,
     });
 
-    expect(result.current.transactions).toHaveLength(1);
+    expect(result.current!.transactions).toHaveLength(1);
     expect(result.current.transactions[0].txid).toBe('tx2');
   });
 
@@ -285,11 +284,11 @@ describe('useAssetTransactions', () => {
       taproot: taprootAddress,
     });
 
-    expect(result.current.transactions).toHaveLength(0);
+    expect(result.current!.transactions).toHaveLength(0);
   });
 
   it('should mark transactions as sent when amount is negative', () => {
-    transactionHistoryService.calculateTransactionAmount.mockReturnValue({
+    (transactionHistoryService.calculateTransactionAmount as jest.Mock).mockReturnValue({
       amount: -100000,
       type: 'BTC',
     });
@@ -308,7 +307,7 @@ describe('useAssetTransactions', () => {
   });
 
   it('should mark transactions as received when amount is positive', () => {
-    transactionHistoryService.calculateTransactionAmount.mockReturnValue({
+    (transactionHistoryService.calculateTransactionAmount as jest.Mock).mockReturnValue({
       amount: 100000,
       type: 'BTC',
     });
@@ -327,7 +326,7 @@ describe('useAssetTransactions', () => {
   });
 
   it('should handle bigint amounts', () => {
-    transactionHistoryService.calculateTransactionAmount.mockReturnValue({
+    (transactionHistoryService.calculateTransactionAmount as jest.Mock).mockReturnValue({
       amount: BigInt(100000),
       type: 'BTC',
     });
@@ -346,7 +345,7 @@ describe('useAssetTransactions', () => {
   });
 
   it('should handle legacy format (amount as number)', () => {
-    transactionHistoryService.calculateTransactionAmount.mockReturnValue(100000);
+    (transactionHistoryService.calculateTransactionAmount as jest.Mock).mockReturnValue(100000);
 
     const txHistory = [{ txid: 'tx1' }];
 
@@ -362,7 +361,7 @@ describe('useAssetTransactions', () => {
   });
 
   it('should preserve transaction properties', () => {
-    transactionHistoryService.calculateTransactionAmount.mockReturnValue({
+    (transactionHistoryService.calculateTransactionAmount as jest.Mock).mockReturnValue({
       amount: 100000,
       type: 'BTC',
     });
@@ -400,7 +399,7 @@ describe('useAssetTransactions', () => {
       taproot: taprootAddress,
     });
 
-    expect(result.current.isLoading).toBe(false);
+    expect(result.current!.isLoading).toBe(false);
   });
 
   it('should not show loading in advanced mode for UNIT', () => {
@@ -412,7 +411,7 @@ describe('useAssetTransactions', () => {
       advancedMode: true,
     });
 
-    expect(result.current.isLoading).toBe(false);
+    expect(result.current!.isLoading).toBe(false);
   });
 
   it('should filter transactions by asset type (filter out non-matching)', () => {
@@ -434,12 +433,12 @@ describe('useAssetTransactions', () => {
       taproot: taprootAddress,
     });
 
-    expect(result.current.transactions).toHaveLength(1);
+    expect(result.current!.transactions).toHaveLength(1);
     expect(result.current.transactions[0].txid).toBe('tx2');
   });
 
   it('should use cached transactions when hash unchanged', () => {
-    transactionHistoryService.calculateTransactionAmount.mockReturnValue({
+    (transactionHistoryService.calculateTransactionAmount as jest.Mock).mockReturnValue({
       amount: 100000,
       type: 'BTC',
     });
@@ -455,7 +454,7 @@ describe('useAssetTransactions', () => {
       taproot: taprootAddress,
     });
 
-    expect(result.current.transactions).toHaveLength(1);
+    expect(result.current!.transactions).toHaveLength(1);
     const firstResult = result.current.transactions;
 
     // Rerender with same data
@@ -467,7 +466,7 @@ describe('useAssetTransactions', () => {
     });
 
     // Should use cached result
-    expect(result.current.transactions).toBe(firstResult);
+    expect(result.current!.transactions).toBe(firstResult);
   });
 
   it('should sort transactions by timestamp', () => {
@@ -503,6 +502,8 @@ describe('useAssetTransactions', () => {
   });
 
   describe('UNIT asset type with ecash tokens', () => {
+    // NOTE: Ecash tokens are only processed when advancedMode=true for UNIT assets
+
     it('should show loading initially for UNIT assets when tokens loading', async () => {
       // Set loading state from context
       mockLoadingEcashTokens = true;
@@ -513,10 +514,10 @@ describe('useAssetTransactions', () => {
         assetType: 'UNIT',
         segwit: segwitAddress,
         taproot: taprootAddress,
-        advancedMode: false,
+        advancedMode: true, // Ecash tokens only used in advanced mode
       });
 
-      expect(result.current.isLoading).toBe(true);
+      expect(result.current!.isLoading).toBe(true);
     });
 
     it('should load and display ecash tokens for UNIT', async () => {
@@ -532,11 +533,11 @@ describe('useAssetTransactions', () => {
         assetType: 'UNIT',
         segwit: segwitAddress,
         taproot: taprootAddress,
-        advancedMode: false,
+        advancedMode: true, // Ecash tokens only used in advanced mode
       });
 
-      expect(result.current.isLoading).toBe(false);
-      expect(result.current.transactions).toHaveLength(2);
+      expect(result.current!.isLoading).toBe(false);
+      expect(result.current!.transactions).toHaveLength(2);
       expect(result.current.transactions[0].ecashToken).toBe(true);
     });
 
@@ -552,7 +553,7 @@ describe('useAssetTransactions', () => {
         assetType: 'UNIT',
         segwit: segwitAddress,
         taproot: taprootAddress,
-        advancedMode: false,
+        advancedMode: true, // Ecash tokens only used in advanced mode
       });
 
       expect(result.current.transactions[0].claimed).toBe(true);
@@ -570,7 +571,7 @@ describe('useAssetTransactions', () => {
         assetType: 'UNIT',
         segwit: segwitAddress,
         taproot: taprootAddress,
-        advancedMode: false,
+        advancedMode: true, // Ecash tokens only used in advanced mode
       });
 
       await act(async () => {
@@ -579,7 +580,7 @@ describe('useAssetTransactions', () => {
         await Promise.resolve();
       });
 
-      expect(result.current.transactions).toHaveLength(1);
+      expect(result.current!.transactions).toHaveLength(1);
       expect(result.current.transactions[0].claimed).toBe(false);
     });
 
@@ -595,7 +596,7 @@ describe('useAssetTransactions', () => {
         assetType: 'UNIT',
         segwit: segwitAddress,
         taproot: taprootAddress,
-        advancedMode: false,
+        advancedMode: true, // Ecash tokens only used in advanced mode
       });
 
       expect(result.current.transactions[0].claimed).toBe(false);
@@ -613,7 +614,7 @@ describe('useAssetTransactions', () => {
         assetType: 'UNIT',
         segwit: segwitAddress,
         taproot: taprootAddress,
-        advancedMode: false,
+        advancedMode: true, // Ecash tokens only used in advanced mode
       });
 
       expect(result.current.transactions[0].claimed).toBe(false);
@@ -631,7 +632,7 @@ describe('useAssetTransactions', () => {
         assetType: 'UNIT',
         segwit: segwitAddress,
         taproot: taprootAddress,
-        advancedMode: false,
+        advancedMode: true, // Ecash tokens only used in advanced mode
       });
 
       expect(result.current.transactions[0].claimed).toBe(false);
@@ -649,7 +650,7 @@ describe('useAssetTransactions', () => {
         assetType: 'UNIT',
         segwit: segwitAddress,
         taproot: taprootAddress,
-        advancedMode: false,
+        advancedMode: true, // Ecash tokens only used in advanced mode
       });
 
       expect(result.current.transactions[0].claimed).toBe(true);
@@ -667,7 +668,7 @@ describe('useAssetTransactions', () => {
         assetType: 'UNIT',
         segwit: segwitAddress,
         taproot: taprootAddress,
-        advancedMode: false,
+        advancedMode: true, // Ecash tokens only used in advanced mode
       });
 
       // Should show the pre-loaded claimed status (false)
@@ -690,11 +691,11 @@ describe('useAssetTransactions', () => {
         assetType: 'UNIT',
         segwit: segwitAddress,
         taproot: taprootAddress,
-        advancedMode: false,
+        advancedMode: true, // Ecash tokens only used in advanced mode
       });
 
       // All 5 tokens should be displayed
-      expect(result.current.transactions).toHaveLength(5);
+      expect(result.current!.transactions).toHaveLength(5);
     });
 
     it('should handle empty tokens from context', () => {
@@ -707,11 +708,11 @@ describe('useAssetTransactions', () => {
         assetType: 'UNIT',
         segwit: segwitAddress,
         taproot: taprootAddress,
-        advancedMode: false,
+        advancedMode: true, // Ecash tokens only used in advanced mode
       });
 
-      expect(result.current.isLoading).toBe(false);
-      expect(result.current.transactions).toEqual([]);
+      expect(result.current!.isLoading).toBe(false);
+      expect(result.current!.transactions).toEqual([]);
     });
 
     it('should convert ecash amounts from smallest units', () => {
@@ -726,7 +727,7 @@ describe('useAssetTransactions', () => {
         assetType: 'UNIT',
         segwit: segwitAddress,
         taproot: taprootAddress,
-        advancedMode: false,
+        advancedMode: true, // Ecash tokens only used in advanced mode
       });
 
       // Amount stays as integer (10000), negative because it's sent (not a self-claim)
@@ -759,29 +760,34 @@ describe('useAssetTransactions', () => {
         assetType: 'UNIT',
         segwit: segwitAddress,
         taproot: taprootAddress,
-        advancedMode: false,
+        advancedMode: true, // Ecash tokens only used in advanced mode
       });
 
-      expect(result.current.transactions).toHaveLength(3);
+      expect(result.current!.transactions).toHaveLength(3);
       // Sorted by time: tx2 (3000s), token1 (2000s from 2000000ms), tx1 (1000s)
       expect(result.current.transactions[0].txid).toBe('tx2');
       expect(result.current.transactions[1].txid).toBe('token1');
       expect(result.current.transactions[2].txid).toBe('tx1');
     });
 
-    it('should not load ecash when in advanced mode for UNIT', () => {
-      // In advanced mode, ecash tokens from context should not be used
+    it('should not load ecash when not in advanced mode for UNIT', () => {
+      // When NOT in advanced mode, ecash tokens from context should not be used
+      mockEcashTokens = [
+        { id: 'token1', token: 'cashuAbc', amount: 100, timestamp: 1000, claimed: false, recipient: 'someone' },
+      ];
+      mockLoadingEcashTokens = false;
+
       const { result } = renderHook({
         txHistory: [],
         assetType: 'UNIT',
         segwit: segwitAddress,
         taproot: taprootAddress,
-        advancedMode: true,
+        advancedMode: false, // NOT advanced mode - ecash tokens should not be displayed
       });
 
-      // fetchEcashTokens should not have been called since we're in advanced mode
-      expect(mockFetchEcashTokens).not.toHaveBeenCalled();
-      expect(result.current.isLoading).toBe(false);
+      // No ecash tokens should be shown when not in advanced mode
+      expect(result.current!.transactions).toHaveLength(0);
+      expect(result.current!.isLoading).toBe(false);
     });
 
     it('should cleanup on unmount gracefully', () => {
@@ -796,7 +802,7 @@ describe('useAssetTransactions', () => {
         assetType: 'UNIT',
         segwit: segwitAddress,
         taproot: taprootAddress,
-        advancedMode: false,
+        advancedMode: true, // Ecash tokens only used in advanced mode
       });
 
       // Unmount should not cause any crash
@@ -822,12 +828,12 @@ describe('useAssetTransactions', () => {
         assetType: 'UNIT',
         segwit: segwitAddress,
         taproot: taprootAddress,
-        advancedMode: false,
+        advancedMode: true, // Ecash tokens only used in advanced mode
       });
 
       // Data is immediately available since tokens are pre-loaded
-      expect(result.current.isLoading).toBe(false);
-      expect(result.current.transactions).toHaveLength(2); // 1 tx + 1 token
+      expect(result.current!.isLoading).toBe(false);
+      expect(result.current!.transactions).toHaveLength(2); // 1 tx + 1 token
     });
 
     it('should show loading state when tokens are still loading', () => {
@@ -840,10 +846,10 @@ describe('useAssetTransactions', () => {
         assetType: 'UNIT',
         segwit: segwitAddress,
         taproot: taprootAddress,
-        advancedMode: false,
+        advancedMode: true, // Ecash tokens only used in advanced mode
       });
 
-      expect(result.current.isLoading).toBe(true);
+      expect(result.current!.isLoading).toBe(true);
     });
 
     it('should display token with pre-loaded claimed status', () => {
@@ -858,7 +864,7 @@ describe('useAssetTransactions', () => {
         assetType: 'UNIT',
         segwit: segwitAddress,
         taproot: taprootAddress,
-        advancedMode: false,
+        advancedMode: true, // Ecash tokens only used in advanced mode
       });
 
       expect(result.current.transactions[0].claimed).toBe(false);
@@ -867,7 +873,7 @@ describe('useAssetTransactions', () => {
 
   describe('Transaction hash caching', () => {
     it('should recalculate when block_height changes (confirmation)', () => {
-      transactionHistoryService.calculateTransactionAmount.mockReturnValue({
+      (transactionHistoryService.calculateTransactionAmount as jest.Mock).mockReturnValue({
         amount: 100000,
         type: 'BTC',
       });
@@ -896,7 +902,7 @@ describe('useAssetTransactions', () => {
       });
 
       // Should have recalculated since confirmation status changed
-      expect(result.current.transactions).not.toBe(firstTxs);
+      expect(result.current!.transactions).not.toBe(firstTxs);
     });
 
     it('should recalculate when ecash tokens count changes', () => {
@@ -918,10 +924,10 @@ describe('useAssetTransactions', () => {
         assetType: 'UNIT',
         segwit: segwitAddress,
         taproot: taprootAddress,
-        advancedMode: false,
+        advancedMode: true, // Ecash tokens only used in advanced mode
       });
 
-      expect(result.current.transactions).toHaveLength(2); // 1 tx + 1 token
+      expect(result.current!.transactions).toHaveLength(2); // 1 tx + 1 token
 
       // Update tokens in context
       mockEcashTokens = [
@@ -934,11 +940,11 @@ describe('useAssetTransactions', () => {
         assetType: 'UNIT',
         segwit: segwitAddress,
         taproot: taprootAddress,
-        advancedMode: false,
+        advancedMode: true, // Ecash tokens only used in advanced mode
       });
 
       // After token count change, should have recalculated
-      expect(result.current.transactions).toHaveLength(3); // 1 tx + 2 tokens
+      expect(result.current!.transactions).toHaveLength(3); // 1 tx + 2 tokens
     });
   });
 
@@ -990,7 +996,7 @@ describe('useAssetTransactions', () => {
         assetType: 'UNIT',
         segwit: segwitAddress,
         taproot: taprootAddress,
-        advancedMode: false,
+        advancedMode: true, // Ecash tokens only used in advanced mode
       });
 
       // token1 (5000s from 5000000ms) should come first
@@ -1021,7 +1027,7 @@ describe('useAssetTransactions', () => {
       });
 
       // Both should be included, sorted by time (both have time=0)
-      expect(result.current.transactions).toHaveLength(2);
+      expect(result.current!.transactions).toHaveLength(2);
     });
   });
 
@@ -1046,13 +1052,13 @@ describe('useAssetTransactions', () => {
       });
 
       // Only tx2 should be included
-      expect(result.current.transactions).toHaveLength(1);
+      expect(result.current!.transactions).toHaveLength(1);
       expect(result.current.transactions[0].txid).toBe('tx2');
     });
 
     it('should filter out transaction when processed result object has no type property', () => {
       // Return object without type property - txAssetType will be undefined
-      transactionHistoryService.calculateTransactionAmount.mockReturnValue({
+      (transactionHistoryService.calculateTransactionAmount as jest.Mock).mockReturnValue({
         amount: 100000,
         // Missing type - becomes undefined, not 'BTC'
       });
@@ -1069,7 +1075,7 @@ describe('useAssetTransactions', () => {
       });
 
       // When type property is missing from object, assetType is undefined and doesn't match 'BTC'
-      expect(result.current.transactions).toHaveLength(0);
+      expect(result.current!.transactions).toHaveLength(0);
     });
 
     it('should handle transaction where txData has null values', () => {
@@ -1080,7 +1086,7 @@ describe('useAssetTransactions', () => {
         },
       ];
 
-      transactionHistoryService.calculateTransactionAmount.mockReturnValue({
+      (transactionHistoryService.calculateTransactionAmount as jest.Mock).mockReturnValue({
         amount: 100000,
         type: 'BTC',
       });
@@ -1093,7 +1099,7 @@ describe('useAssetTransactions', () => {
       });
 
       // Should process the transaction since txData is null (falsy)
-      expect(result.current.transactions).toHaveLength(1);
+      expect(result.current!.transactions).toHaveLength(1);
     });
   });
 
@@ -1110,7 +1116,7 @@ describe('useAssetTransactions', () => {
         },
       };
 
-      const txHistory = [];
+      const txHistory: any[] = [];
 
       const { result } = renderHook({
         txHistory,
@@ -1119,7 +1125,7 @@ describe('useAssetTransactions', () => {
         taproot: taprootAddress,
       });
 
-      expect(result.current.transactions).toHaveLength(1);
+      expect(result.current!.transactions).toHaveLength(1);
       expect(result.current.transactions[0].txid).toBe('pending_tx_1');
       expect(result.current.transactions[0].isPending).toBe(true);
       expect(result.current.transactions[0].txData.amount).toBe(-100000); // Negative for sent
@@ -1137,7 +1143,7 @@ describe('useAssetTransactions', () => {
         },
       };
 
-      const txHistory = [];
+      const txHistory: any[] = [];
 
       const { result } = renderHook({
         txHistory,
@@ -1147,7 +1153,7 @@ describe('useAssetTransactions', () => {
         advancedMode: true,
       });
 
-      expect(result.current.transactions).toHaveLength(1);
+      expect(result.current!.transactions).toHaveLength(1);
       expect(result.current.transactions[0].txData.amount).toBe(-500);
     });
 
@@ -1165,7 +1171,7 @@ describe('useAssetTransactions', () => {
         },
       };
 
-      const txHistory = [];
+      const txHistory: any[] = [];
 
       const { result } = renderHook({
         txHistory,
@@ -1174,7 +1180,7 @@ describe('useAssetTransactions', () => {
         taproot: taprootAddress,
       });
 
-      expect(result.current.transactions).toHaveLength(1);
+      expect(result.current!.transactions).toHaveLength(1);
       expect(result.current.transactions[0].txData.amount).toBe(-50000); // -(30000 + 20000)
     });
 
@@ -1192,7 +1198,7 @@ describe('useAssetTransactions', () => {
         },
       };
 
-      const txHistory = [];
+      const txHistory: any[] = [];
 
       const { result } = renderHook({
         txHistory,
@@ -1202,7 +1208,7 @@ describe('useAssetTransactions', () => {
         advancedMode: true,
       });
 
-      expect(result.current.transactions).toHaveLength(1);
+      expect(result.current!.transactions).toHaveLength(1);
       expect(result.current.transactions[0].txData.amount).toBe(-300); // -(100 + 200)
     });
 
@@ -1218,7 +1224,7 @@ describe('useAssetTransactions', () => {
         },
       };
 
-      const txHistory = [];
+      const txHistory: any[] = [];
 
       const { result } = renderHook({
         txHistory,
@@ -1227,7 +1233,7 @@ describe('useAssetTransactions', () => {
         taproot: taprootAddress,
       });
 
-      expect(result.current.transactions).toHaveLength(0);
+      expect(result.current!.transactions).toHaveLength(0);
     });
 
     it('should exclude pending transactions that are already confirmed', () => {
@@ -1258,7 +1264,7 @@ describe('useAssetTransactions', () => {
       });
 
       // Should only have the confirmed tx, not the pending one
-      expect(result.current.transactions).toHaveLength(1);
+      expect(result.current!.transactions).toHaveLength(1);
       expect(result.current.transactions[0].isPending).toBeUndefined();
     });
 
@@ -1289,7 +1295,7 @@ describe('useAssetTransactions', () => {
         taproot: taprootAddress,
       });
 
-      expect(result.current.transactions).toHaveLength(2);
+      expect(result.current!.transactions).toHaveLength(2);
       // Pending should be first even though its timestamp is lower
       expect(result.current.transactions[0].txid).toBe('pending_tx_1');
       expect(result.current.transactions[0].isPending).toBe(true);
@@ -1324,14 +1330,19 @@ describe('useAssetTransactions', () => {
       });
 
       // Should only show BTC pending tx
-      expect(result.current.transactions).toHaveLength(1);
+      expect(result.current!.transactions).toHaveLength(1);
       expect(result.current.transactions[0].txid).toBe('pending_btc');
     });
   });
 
   describe('Self-claim detection', () => {
-    it('should detect self-claimed sent tokens by taprootAddress match', () => {
-      // Sent token where taprootAddress matches the user's taproot address
+    it('should detect self-claimed sent tokens by pubkey match (decoded from taproot)', () => {
+      // Mock fromBech32 to return a pubkey that matches the recipient
+      const pubkeyBuffer = Buffer.from('0123456789abcdef', 'hex');
+      const pubkeyHex = pubkeyBuffer.toString('hex');
+      mockFromBech32.mockReturnValue({ data: pubkeyBuffer });
+
+      // Sent token where recipient pubkey matches the user's pubkey (decoded from taproot address)
       mockEcashTokens = [
         {
           id: 'self_claim_token',
@@ -1339,8 +1350,8 @@ describe('useAssetTransactions', () => {
           amount: 100,
           timestamp: 1000,
           claimed: true,
-          recipient: 'some_pubkey',
-          taprootAddress: taprootAddress, // Same as user's taproot address
+          recipient: pubkeyHex, // Matches decoded pubkey from taproot address
+          taprootAddress: null,
         },
       ];
       mockLoadingEcashTokens = false;
@@ -1350,10 +1361,10 @@ describe('useAssetTransactions', () => {
         assetType: 'UNIT',
         segwit: segwitAddress,
         taproot: taprootAddress,
-        advancedMode: false,
+        advancedMode: true, // Ecash tokens only used in advanced mode
       });
 
-      expect(result.current.transactions).toHaveLength(1);
+      expect(result.current!.transactions).toHaveLength(1);
       expect(result.current.transactions[0].isAutoclaim).toBe(true);
       // Self-claimed tokens show as positive (received back)
       expect(result.current.transactions[0].txData.numericAmount).toBe(100);
@@ -1381,10 +1392,10 @@ describe('useAssetTransactions', () => {
         assetType: 'UNIT',
         segwit: segwitAddress,
         taproot: taprootAddress,
-        advancedMode: false,
+        advancedMode: true, // Ecash tokens only used in advanced mode
       });
 
-      expect(result.current.transactions).toHaveLength(1);
+      expect(result.current!.transactions).toHaveLength(1);
       expect(result.current.transactions[0].isAutoclaim).toBe(true);
     });
 
@@ -1417,11 +1428,11 @@ describe('useAssetTransactions', () => {
         assetType: 'UNIT',
         segwit: segwitAddress,
         taproot: taprootAddress,
-        advancedMode: false,
+        advancedMode: true, // Ecash tokens only used in advanced mode
       });
 
       // Only the received token from different address should be included
-      expect(result.current.transactions).toHaveLength(1);
+      expect(result.current!.transactions).toHaveLength(1);
       expect(result.current.transactions[0].txid).toBe('received_from_other');
     });
   });
@@ -1450,12 +1461,12 @@ describe('useAssetTransactions', () => {
         assetType: 'UNIT',
         segwit: segwitAddress,
         taproot: taprootAddress,
-        advancedMode: false,
+        advancedMode: true, // Ecash tokens only used in advanced mode
       });
 
       // Should still work, just without self-claim detection by pubkey
-      expect(result.current.transactions).toHaveLength(1);
-      expect(result.current.isLoading).toBe(false);
+      expect(result.current!.transactions).toHaveLength(1);
+      expect(result.current!.isLoading).toBe(false);
     });
   });
 });

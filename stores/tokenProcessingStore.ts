@@ -8,6 +8,9 @@ import { create } from 'zustand';
 import * as Crypto from 'expo-crypto';
 import { logger } from '../utils/logger';
 
+// Max entries before evicting oldest half
+const MAX_PROCESSED_HASHES = 1000;
+
 interface TokenProcessingState {
   // Pending token to be processed
   pendingToken: string | null;
@@ -84,9 +87,14 @@ export const useTokenProcessingStore = create<TokenProcessingStore>((set, get) =
       token
     );
     logger.debug('[TokenProcessingStore] Marking token as processed', { hash: hash.substring(0, 8) });
-    set((state) => ({
-      processedTokenHashes: new Set([...state.processedTokenHashes, hash]),
-    }));
+    set((state) => {
+      const hashes = [...state.processedTokenHashes, hash];
+      // Evict oldest half when exceeding max to prevent unbounded growth
+      const trimmed = hashes.length > MAX_PROCESSED_HASHES
+        ? hashes.slice(hashes.length - Math.floor(MAX_PROCESSED_HASHES / 2))
+        : hashes;
+      return { processedTokenHashes: new Set(trimmed) };
+    });
   },
 
   isTokenProcessed: async (token: string) => {

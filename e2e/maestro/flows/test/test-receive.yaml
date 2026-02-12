@@ -1,0 +1,34 @@
+appId: com.ducatprotocol.DucatProtocolWallet
+---
+# Test receive flow - navigate to deposit BTC screen
+
+- runFlow: ../helpers/create-wallet.yaml
+
+# Wait for wallet to be fully interactive
+- waitForAnimationToEnd
+- waitForAnimationToEnd
+
+# Verify wallet screen
+- extendedWaitUntil:
+    visible:
+      id: "wallet-screen"
+    timeout: 20000
+
+# Tap deposit
+- tapOn:
+    id: "wallet-deposit-btn"
+
+# Select BTC
+- extendedWaitUntil:
+    visible:
+      id: "deposit-btc"
+    timeout: 5000
+- tapOn:
+    id: "deposit-btc"
+
+# Check for receive screen
+- waitForAnimationToEnd
+- extendedWaitUntil:
+    visible:
+      text: "Bitcoin address"
+    timeout: 10000

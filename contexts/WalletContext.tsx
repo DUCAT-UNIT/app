@@ -9,7 +9,6 @@ export interface WalletAddresses {
   taprootAddress: string;
   segwitPubkey: string;
   taprootPubkey: string;
-  [key: string]: unknown;
 }
 
 interface WalletContextValue {

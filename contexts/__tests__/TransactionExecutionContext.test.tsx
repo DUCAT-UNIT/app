@@ -1,4 +1,3 @@
-// @ts-nocheck
 /**
  * Tests for TransactionExecutionContext
  */
@@ -12,7 +11,7 @@ import {
 import { useSendFlow } from '../../stores/sendFlowStore';
 import { useTransactionBuild } from '../TransactionBuildContext';
 import { useWallet } from '../WalletContext';
-import { usePendingTransactions } from '../PendingTransactionsContext';
+import { usePendingTransactionsStore, usePendingTxs } from '../../stores/pendingTransactionsStore';
 import * as TransactionService from '../../services/transaction';
 import * as TransactionSigningService from '../../services/transactionSigningService';
 import * as TransactionBroadcastService from '../../services/transactionBroadcastService';
@@ -20,30 +19,38 @@ import * as BackgroundTaskService from '../../services/backgroundTaskService';
 import { ERRORS } from '../../utils/messages';
 import * as bitcoin from 'bitcoinjs-lib';
 
-// Helper to render hooks with react-test-renderer
-function renderHook(hook, { wrapper: Wrapper } = {}) {
-  const result = { current: null };
+// Type for renderHook options
+interface RenderHookOptions {
+  wrapper?: React.ComponentType<{ children: React.ReactNode }>;
+}
 
-  function TestComponent() {
+// Helper to render hooks with react-test-renderer
+function renderHook<T>(
+  hook: () => T,
+  { wrapper: Wrapper }: RenderHookOptions = {}
+): { result: { current: T | null }; rerender: (element: React.ReactElement) => void; unmount: () => void } {
+  const result: { current: T | null } = { current: null };
+
+  function TestComponent(): null {
     result.current = hook();
     return null;
   }
 
-  let component;
+  let component: ReturnType<typeof create> | undefined;
   act(() => {
     component = Wrapper
       ? create(<Wrapper><TestComponent /></Wrapper>)
       : create(<TestComponent />);
   });
 
-  return { result, rerender: component.update, unmount: component.unmount };
+  return { result, rerender: component!.update, unmount: component!.unmount };
 }
 
 // Mock dependencies
 jest.mock('../../stores/sendFlowStore');
 jest.mock('../TransactionBuildContext');
 jest.mock('../WalletContext');
-jest.mock('../PendingTransactionsContext');
+jest.mock('../../stores/pendingTransactionsStore');
 jest.mock('../../services/transaction');
 jest.mock('../../services/transactionSigningService');
 jest.mock('../../services/transactionBroadcastService');
@@ -76,26 +83,26 @@ describe('TransactionExecutionContext', () => {
     jest.clearAllMocks();
     jest.restoreAllMocks(); // Restore all spies
 
-    useSendFlow.mockReturnValue({
+    (useSendFlow as jest.Mock).mockReturnValue({
       setIntentStep: mockSetIntentStep,
       sendAssetType: 'btc',
       sendAmount: '0.001',
     });
 
-    useTransactionBuild.mockReturnValue({
+    (useTransactionBuild as jest.Mock).mockReturnValue({
       sendIntent: mockIntent,
       setSendIntent: mockSetSendIntent,
     });
 
-    useWallet.mockReturnValue({
+    (useWallet as jest.Mock).mockReturnValue({
       wallet: {
         segwitAddress: 'tb1qtest',
         taprootAddress: 'tb1ptest',
       },
     });
 
-    usePendingTransactions.mockReturnValue({
-      pendingTransactions: {},
+    (usePendingTxs as jest.Mock).mockReturnValue({});
+    (usePendingTransactionsStore as jest.Mock).mockReturnValue({
       addPendingTransaction: jest.fn(),
       confirmTransaction: jest.fn(),
       invalidateTransaction: jest.fn(),
@@ -103,8 +110,8 @@ describe('TransactionExecutionContext', () => {
       markUtxosAsSpent: jest.fn(),
     });
 
-    TransactionSigningService.signIntent = jest.fn().mockResolvedValue(mockSignedIntent);
-    TransactionBroadcastService.broadcastTransaction = jest.fn().mockResolvedValue('mock_txid');
+    jest.spyOn(TransactionSigningService, 'signIntent').mockResolvedValue(mockSignedIntent as any);
+    jest.spyOn(TransactionBroadcastService, 'broadcastTransaction').mockResolvedValue('mock_txid');
   });
 
   it('should throw error when used outside provider', () => {
@@ -118,7 +125,7 @@ describe('TransactionExecutionContext', () => {
   });
 
   it('should provide initial state', () => {
-    const wrapper = ({ children }) => (
+    const wrapper = ({ children }: { children: React.ReactNode }) => (
       <TransactionExecutionProvider
         currentAccount={0}
         showSnackbar={mockShowSnackbar}
@@ -132,19 +139,19 @@ describe('TransactionExecutionContext', () => {
     );
     const { result } = renderHook(() => useTransactionExecution(), { wrapper });
 
-    expect(result.current.broadcastedTxid).toBe(null);
-    expect(result.current.toastDismissed).toBe(false);
+    expect(result.current!.broadcastedTxid).toBe(null);
+    expect(result.current!.toastDismissed).toBe(false);
   });
 
   it('should sign intent successfully', async () => {
-    TransactionService.signIntent.mockResolvedValue({
+    (TransactionService.signIntent as jest.Mock).mockResolvedValue({
       signedTxHex: 'signed_hex',
       txid: 'mock_txid',
     });
 
-    TransactionService.broadcastTransaction.mockResolvedValue('mock_txid');
+    (TransactionService.broadcastTransaction as jest.Mock).mockResolvedValue('mock_txid');
 
-    const wrapper = ({ children }) => (
+    const wrapper = ({ children }: { children: React.ReactNode }) => (
       <TransactionExecutionProvider
         currentAccount={0}
         showSnackbar={mockShowSnackbar}
@@ -159,7 +166,7 @@ describe('TransactionExecutionContext', () => {
     const { result } = renderHook(() => useTransactionExecution(), { wrapper });
 
     await act(async () => {
-      await result.current.signIntent();
+      await result.current!.signIntent();
     });
 
     expect(mockSetIntentStep).toHaveBeenCalledWith('signing');
@@ -169,12 +176,12 @@ describe('TransactionExecutionContext', () => {
   });
 
   it('should handle missing intent when signing', async () => {
-    useTransactionBuild.mockReturnValue({
+    (useTransactionBuild as jest.Mock).mockReturnValue({
       sendIntent: null,
       setSendIntent: mockSetSendIntent,
     });
 
-    const wrapper = ({ children }) => (
+    const wrapper = ({ children }: { children: React.ReactNode }) => (
       <TransactionExecutionProvider
         currentAccount={0}
         showSnackbar={mockShowSnackbar}
@@ -189,7 +196,7 @@ describe('TransactionExecutionContext', () => {
     const { result } = renderHook(() => useTransactionExecution(), { wrapper });
 
     await act(async () => {
-      await result.current.signIntent();
+      await result.current!.signIntent();
     });
 
     expect(mockShowSnackbar).toHaveBeenCalledWith(
@@ -203,9 +210,9 @@ describe('TransactionExecutionContext', () => {
   });
 
   it('should handle signing error', async () => {
-    TransactionService.signIntent.mockRejectedValue(new Error('Signing failed'));
+    (TransactionService.signIntent as jest.Mock).mockRejectedValue(new Error('Signing failed'));
 
-    const wrapper = ({ children }) => (
+    const wrapper = ({ children }: { children: React.ReactNode }) => (
       <TransactionExecutionProvider
         currentAccount={0}
         showSnackbar={mockShowSnackbar}
@@ -220,7 +227,7 @@ describe('TransactionExecutionContext', () => {
     const { result } = renderHook(() => useTransactionExecution(), { wrapper });
 
     await act(async () => {
-      await result.current.signIntent();
+      await result.current!.signIntent();
     });
 
     expect(mockShowSnackbar).toHaveBeenCalledWith(
@@ -232,14 +239,14 @@ describe('TransactionExecutionContext', () => {
   });
 
   it('should broadcast intent successfully with BTC', async () => {
-    useTransactionBuild.mockReturnValue({
+    (useTransactionBuild as jest.Mock).mockReturnValue({
       sendIntent: mockSignedIntent,
       setSendIntent: mockSetSendIntent,
     });
 
-    TransactionService.broadcastTransaction.mockResolvedValue('mock_txid');
+    (TransactionService.broadcastTransaction as jest.Mock).mockResolvedValue('mock_txid');
 
-    const wrapper = ({ children }) => (
+    const wrapper = ({ children }: { children: React.ReactNode }) => (
       <TransactionExecutionProvider
         currentAccount={0}
         showSnackbar={mockShowSnackbar}
@@ -254,36 +261,36 @@ describe('TransactionExecutionContext', () => {
     const { result } = renderHook(() => useTransactionExecution(), { wrapper });
 
     await act(async () => {
-      await result.current.broadcastIntent();
+      await result.current!.broadcastIntent();
     });
 
     expect(TransactionService.broadcastTransaction).toHaveBeenCalledWith('signed_hex');
-    expect(result.current.broadcastedTxid).toBe('mock_txid');
+    expect(result.current!.broadcastedTxid).toBe('mock_txid');
     expect(mockSetIntentStep).toHaveBeenCalledWith('pending');
     expect(BackgroundTaskService.addPendingTransaction).toHaveBeenCalledWith(
       'mock_txid',
       'BTC',
       '0.001',
-      'withdraw'
+      'send'
     );
     expect(mockStartTransactionPolling).toHaveBeenCalled();
   });
 
   it('should broadcast UNIT intent successfully', async () => {
-    useSendFlow.mockReturnValue({
+    (useSendFlow as jest.Mock).mockReturnValue({
       setIntentStep: mockSetIntentStep,
       sendAssetType: 'unit',
       sendAmount: '100',
     });
 
-    useTransactionBuild.mockReturnValue({
+    (useTransactionBuild as jest.Mock).mockReturnValue({
       sendIntent: mockSignedIntent,
       setSendIntent: mockSetSendIntent,
     });
 
-    TransactionService.broadcastTransaction.mockResolvedValue('mock_txid_unit');
+    (TransactionService.broadcastTransaction as jest.Mock).mockResolvedValue('mock_txid_unit');
 
-    const wrapper = ({ children }) => (
+    const wrapper = ({ children }: { children: React.ReactNode }) => (
       <TransactionExecutionProvider
         currentAccount={0}
         showSnackbar={mockShowSnackbar}
@@ -298,19 +305,19 @@ describe('TransactionExecutionContext', () => {
     const { result } = renderHook(() => useTransactionExecution(), { wrapper });
 
     await act(async () => {
-      await result.current.broadcastIntent();
+      await result.current!.broadcastIntent();
     });
 
     expect(BackgroundTaskService.addPendingTransaction).toHaveBeenCalledWith(
       'mock_txid_unit',
       'UNIT',
       '100',
-      'withdraw'
+      'send'
     );
   });
 
   it('should use swap snackbar action for UNIT intent with turboEnabled', async () => {
-    useSendFlow.mockReturnValue({
+    (useSendFlow as jest.Mock).mockReturnValue({
       setIntentStep: mockSetIntentStep,
       sendAssetType: 'unit',
       sendAmount: '100',
@@ -318,12 +325,12 @@ describe('TransactionExecutionContext', () => {
     });
 
     // Mock null intent to trigger snackbar error (tests getSnackbarAction)
-    useTransactionBuild.mockReturnValue({
+    (useTransactionBuild as jest.Mock).mockReturnValue({
       sendIntent: null,
       setSendIntent: mockSetSendIntent,
     });
 
-    const wrapper = ({ children }) => (
+    const wrapper = ({ children }: { children: React.ReactNode }) => (
       <TransactionExecutionProvider
         currentAccount={0}
         showSnackbar={mockShowSnackbar}
@@ -338,7 +345,7 @@ describe('TransactionExecutionContext', () => {
     const { result } = renderHook(() => useTransactionExecution(), { wrapper });
 
     await act(async () => {
-      await result.current.broadcastIntent();
+      await result.current!.broadcastIntent();
     });
 
     // Verify snackbar uses 'swap' action when turboEnabled
@@ -360,14 +367,14 @@ describe('TransactionExecutionContext', () => {
       ],
     };
 
-    useTransactionBuild.mockReturnValue({
+    (useTransactionBuild as jest.Mock).mockReturnValue({
       sendIntent: btcSignedIntent,
       setSendIntent: mockSetSendIntent,
     });
 
-    TransactionService.broadcastTransaction.mockResolvedValue('mock_txid_btc');
+    (TransactionService.broadcastTransaction as jest.Mock).mockResolvedValue('mock_txid_btc');
 
-    const wrapper = ({ children }) => (
+    const wrapper = ({ children }: { children: React.ReactNode }) => (
       <TransactionExecutionProvider
         currentAccount={0}
         showSnackbar={mockShowSnackbar}
@@ -382,15 +389,15 @@ describe('TransactionExecutionContext', () => {
     const { result } = renderHook(() => useTransactionExecution(), { wrapper });
 
     await act(async () => {
-      await result.current.broadcastIntent();
+      await result.current!.broadcastIntent();
     });
 
     expect(TransactionService.broadcastTransaction).toHaveBeenCalledWith('signed_hex');
-    expect(result.current.broadcastedTxid).toBe('mock_txid_btc');
+    expect(result.current!.broadcastedTxid).toBe('mock_txid_btc');
   });
 
   it('should use unit_send snackbar action for UNIT intent without turboEnabled', async () => {
-    useSendFlow.mockReturnValue({
+    (useSendFlow as jest.Mock).mockReturnValue({
       setIntentStep: mockSetIntentStep,
       sendAssetType: 'unit',
       sendAmount: '100',
@@ -398,12 +405,12 @@ describe('TransactionExecutionContext', () => {
     });
 
     // Mock null intent to trigger snackbar error (tests getSnackbarAction)
-    useTransactionBuild.mockReturnValue({
+    (useTransactionBuild as jest.Mock).mockReturnValue({
       sendIntent: null,
       setSendIntent: mockSetSendIntent,
     });
 
-    const wrapper = ({ children }) => (
+    const wrapper = ({ children }: { children: React.ReactNode }) => (
       <TransactionExecutionProvider
         currentAccount={0}
         showSnackbar={mockShowSnackbar}
@@ -418,7 +425,7 @@ describe('TransactionExecutionContext', () => {
     const { result } = renderHook(() => useTransactionExecution(), { wrapper });
 
     await act(async () => {
-      await result.current.broadcastIntent();
+      await result.current!.broadcastIntent();
     });
 
     // Verify snackbar uses 'unit_send' action when turboEnabled is false
@@ -431,7 +438,7 @@ describe('TransactionExecutionContext', () => {
   });
 
   it('should broadcast UNIT intent with runeUtxo and satUtxo for logging', async () => {
-    useSendFlow.mockReturnValue({
+    (useSendFlow as jest.Mock).mockReturnValue({
       setIntentStep: mockSetIntentStep,
       sendAssetType: 'unit',
       sendAmount: '100',
@@ -444,14 +451,14 @@ describe('TransactionExecutionContext', () => {
       satUtxo: { txid: 'sat_txid', vout: 1 },
     };
 
-    useTransactionBuild.mockReturnValue({
+    (useTransactionBuild as jest.Mock).mockReturnValue({
       sendIntent: unitSignedIntent,
       setSendIntent: mockSetSendIntent,
     });
 
-    TransactionService.broadcastTransaction.mockResolvedValue('mock_txid_unit_log');
+    (TransactionService.broadcastTransaction as jest.Mock).mockResolvedValue('mock_txid_unit_log');
 
-    const wrapper = ({ children }) => (
+    const wrapper = ({ children }: { children: React.ReactNode }) => (
       <TransactionExecutionProvider
         currentAccount={0}
         showSnackbar={mockShowSnackbar}
@@ -466,23 +473,23 @@ describe('TransactionExecutionContext', () => {
     const { result } = renderHook(() => useTransactionExecution(), { wrapper });
 
     await act(async () => {
-      await result.current.broadcastIntent();
+      await result.current!.broadcastIntent();
     });
 
     expect(TransactionService.broadcastTransaction).toHaveBeenCalledWith('signed_hex');
-    expect(result.current.broadcastedTxid).toBe('mock_txid_unit_log');
+    expect(result.current!.broadcastedTxid).toBe('mock_txid_unit_log');
   });
 
   it('should handle intent.amount as number type', async () => {
     const mockAddPendingTransaction = jest.fn();
 
-    useSendFlow.mockReturnValue({
+    (useSendFlow as jest.Mock).mockReturnValue({
       setIntentStep: mockSetIntentStep,
       sendAssetType: 'unit',
       sendAmount: '100',
     });
 
-    usePendingTransactions.mockReturnValue({
+    (usePendingTransactionsStore as jest.Mock).mockReturnValue({
       pendingTransactions: {},
       addPendingTransaction: mockAddPendingTransaction,
       confirmTransaction: jest.fn(),
@@ -496,7 +503,7 @@ describe('TransactionExecutionContext', () => {
       outs: [{ script: Buffer.from('mock_script'), value: 10000 }],
     };
 
-    jest.spyOn(bitcoin.Transaction, 'fromHex').mockReturnValue(mockTx);
+    jest.spyOn(bitcoin.Transaction, 'fromHex').mockReturnValue(mockTx as unknown as bitcoin.Transaction);
     jest.spyOn(bitcoin.address, 'fromOutputScript').mockReturnValue('tb1ptest');
 
     const signedIntent = {
@@ -507,14 +514,14 @@ describe('TransactionExecutionContext', () => {
       amount: 100, // number type, not string
     };
 
-    useTransactionBuild.mockReturnValue({
+    (useTransactionBuild as jest.Mock).mockReturnValue({
       sendIntent: signedIntent,
       setSendIntent: mockSetSendIntent,
     });
 
-    TransactionService.broadcastTransaction.mockResolvedValue('mock_txid_num');
+    (TransactionService.broadcastTransaction as jest.Mock).mockResolvedValue('mock_txid_num');
 
-    const wrapper = ({ children }) => (
+    const wrapper = ({ children }: { children: React.ReactNode }) => (
       <TransactionExecutionProvider
         currentAccount={0}
         showSnackbar={mockShowSnackbar}
@@ -529,7 +536,7 @@ describe('TransactionExecutionContext', () => {
     const { result } = renderHook(() => useTransactionExecution(), { wrapper });
 
     await act(async () => {
-      await result.current.broadcastIntent();
+      await result.current!.broadcastIntent();
     });
 
     expect(mockAddPendingTransaction).toHaveBeenCalledWith(
@@ -545,13 +552,13 @@ describe('TransactionExecutionContext', () => {
   it('should handle runeUtxos with missing runeAmount (fallback to 0)', async () => {
     const mockAddPendingTransaction = jest.fn();
 
-    useSendFlow.mockReturnValue({
+    (useSendFlow as jest.Mock).mockReturnValue({
       setIntentStep: mockSetIntentStep,
       sendAssetType: 'unit',
       sendAmount: '50',
     });
 
-    usePendingTransactions.mockReturnValue({
+    (usePendingTransactionsStore as jest.Mock).mockReturnValue({
       pendingTransactions: {},
       addPendingTransaction: mockAddPendingTransaction,
       confirmTransaction: jest.fn(),
@@ -565,7 +572,7 @@ describe('TransactionExecutionContext', () => {
       outs: [{ script: Buffer.from('mock_script'), value: 10000 }],
     };
 
-    jest.spyOn(bitcoin.Transaction, 'fromHex').mockReturnValue(mockTx);
+    jest.spyOn(bitcoin.Transaction, 'fromHex').mockReturnValue(mockTx as unknown as bitcoin.Transaction);
     jest.spyOn(bitcoin.address, 'fromOutputScript').mockReturnValue('tb1ptest');
 
     // Intent with runeUtxos but some missing runeAmount
@@ -580,14 +587,14 @@ describe('TransactionExecutionContext', () => {
       amount: '50',
     };
 
-    useTransactionBuild.mockReturnValue({
+    (useTransactionBuild as jest.Mock).mockReturnValue({
       sendIntent: signedIntent,
       setSendIntent: mockSetSendIntent,
     });
 
-    TransactionService.broadcastTransaction.mockResolvedValue('mock_txid_missing');
+    (TransactionService.broadcastTransaction as jest.Mock).mockResolvedValue('mock_txid_missing');
 
-    const wrapper = ({ children }) => (
+    const wrapper = ({ children }: { children: React.ReactNode }) => (
       <TransactionExecutionProvider
         currentAccount={0}
         showSnackbar={mockShowSnackbar}
@@ -602,7 +609,7 @@ describe('TransactionExecutionContext', () => {
     const { result } = renderHook(() => useTransactionExecution(), { wrapper });
 
     await act(async () => {
-      await result.current.broadcastIntent();
+      await result.current!.broadcastIntent();
     });
 
     // runeChangeAmount = (200 + 0) - 50 = 150
@@ -619,13 +626,13 @@ describe('TransactionExecutionContext', () => {
   it('should handle invalid sendAmount with fallback to 0', async () => {
     const mockAddPendingTransaction = jest.fn();
 
-    useSendFlow.mockReturnValue({
+    (useSendFlow as jest.Mock).mockReturnValue({
       setIntentStep: mockSetIntentStep,
       sendAssetType: 'btc',
       sendAmount: 'invalid', // Invalid number
     });
 
-    usePendingTransactions.mockReturnValue({
+    (usePendingTransactionsStore as jest.Mock).mockReturnValue({
       pendingTransactions: {},
       addPendingTransaction: mockAddPendingTransaction,
       confirmTransaction: jest.fn(),
@@ -639,17 +646,17 @@ describe('TransactionExecutionContext', () => {
       outs: [{ script: Buffer.from('mock_script'), value: 10000 }],
     };
 
-    jest.spyOn(bitcoin.Transaction, 'fromHex').mockReturnValue(mockTx);
+    jest.spyOn(bitcoin.Transaction, 'fromHex').mockReturnValue(mockTx as unknown as bitcoin.Transaction);
     jest.spyOn(bitcoin.address, 'fromOutputScript').mockReturnValue('tb1qtest');
 
-    useTransactionBuild.mockReturnValue({
+    (useTransactionBuild as jest.Mock).mockReturnValue({
       sendIntent: mockSignedIntent,
       setSendIntent: mockSetSendIntent,
     });
 
-    TransactionService.broadcastTransaction.mockResolvedValue('mock_txid_invalid');
+    (TransactionService.broadcastTransaction as jest.Mock).mockResolvedValue('mock_txid_invalid');
 
-    const wrapper = ({ children }) => (
+    const wrapper = ({ children }: { children: React.ReactNode }) => (
       <TransactionExecutionProvider
         currentAccount={0}
         showSnackbar={mockShowSnackbar}
@@ -664,7 +671,7 @@ describe('TransactionExecutionContext', () => {
     const { result } = renderHook(() => useTransactionExecution(), { wrapper });
 
     await act(async () => {
-      await result.current.broadcastIntent();
+      await result.current!.broadcastIntent();
     });
 
     // sentAmountSmallest will be NaN due to invalid sendAmount
@@ -681,19 +688,19 @@ describe('TransactionExecutionContext', () => {
   });
 
   it('should handle polling callback with isConfirmed=false', async () => {
-    useTransactionBuild.mockReturnValue({
+    (useTransactionBuild as jest.Mock).mockReturnValue({
       sendIntent: mockSignedIntent,
       setSendIntent: mockSetSendIntent,
     });
 
-    TransactionService.broadcastTransaction.mockResolvedValue('mock_txid');
+    (TransactionService.broadcastTransaction as jest.Mock).mockResolvedValue('mock_txid');
 
-    let confirmCallback;
+    let confirmCallback: (isConfirmed: boolean) => void;
     mockStartTransactionPolling.mockImplementation((txid, onConfirm) => {
       confirmCallback = onConfirm;
     });
 
-    const wrapper = ({ children }) => (
+    const wrapper = ({ children }: { children: React.ReactNode }) => (
       <TransactionExecutionProvider
         currentAccount={0}
         showSnackbar={mockShowSnackbar}
@@ -708,7 +715,7 @@ describe('TransactionExecutionContext', () => {
     const { result } = renderHook(() => useTransactionExecution(), { wrapper });
 
     await act(async () => {
-      await result.current.broadcastIntent();
+      await result.current!.broadcastIntent();
     });
 
     // Simulate polling with isConfirmed=false (pending check)
@@ -723,25 +730,25 @@ describe('TransactionExecutionContext', () => {
   });
 
   it('should send UNIT notification when notificationsEnabled', async () => {
-    useSendFlow.mockReturnValue({
+    (useSendFlow as jest.Mock).mockReturnValue({
       setIntentStep: mockSetIntentStep,
       sendAssetType: 'unit',
       sendAmount: '100',
     });
 
-    useTransactionBuild.mockReturnValue({
+    (useTransactionBuild as jest.Mock).mockReturnValue({
       sendIntent: mockSignedIntent,
       setSendIntent: mockSetSendIntent,
     });
 
-    TransactionService.broadcastTransaction.mockResolvedValue('mock_txid_unit_notify');
+    (TransactionService.broadcastTransaction as jest.Mock).mockResolvedValue('mock_txid_unit_notify');
 
-    let confirmCallback;
+    let confirmCallback: (isConfirmed: boolean) => void;
     mockStartTransactionPolling.mockImplementation((txid, onConfirm) => {
       confirmCallback = onConfirm;
     });
 
-    const wrapper = ({ children }) => (
+    const wrapper = ({ children }: { children: React.ReactNode }) => (
       <TransactionExecutionProvider
         currentAccount={0}
         showSnackbar={mockShowSnackbar}
@@ -756,7 +763,7 @@ describe('TransactionExecutionContext', () => {
     const { result } = renderHook(() => useTransactionExecution(), { wrapper });
 
     await act(async () => {
-      await result.current.broadcastIntent();
+      await result.current!.broadcastIntent();
     });
 
     // Simulate confirmation
@@ -768,14 +775,14 @@ describe('TransactionExecutionContext', () => {
       'UNIT',
       100,
       'mock_txid_unit_notify',
-      'withdraw'
+      'send'
     );
   });
 
   it('should invalidate transaction on broadcast error when intent has txid', async () => {
     const mockInvalidateTransaction = jest.fn();
 
-    usePendingTransactions.mockReturnValue({
+    (usePendingTransactionsStore as jest.Mock).mockReturnValue({
       pendingTransactions: {},
       addPendingTransaction: jest.fn(),
       confirmTransaction: jest.fn(),
@@ -789,14 +796,14 @@ describe('TransactionExecutionContext', () => {
       txid: 'existing_txid', // Intent has txid
     };
 
-    useTransactionBuild.mockReturnValue({
+    (useTransactionBuild as jest.Mock).mockReturnValue({
       sendIntent: intentWithTxid,
       setSendIntent: mockSetSendIntent,
     });
 
-    TransactionService.broadcastTransaction.mockRejectedValue(new Error('Network error'));
+    (TransactionService.broadcastTransaction as jest.Mock).mockRejectedValue(new Error('Network error'));
 
-    const wrapper = ({ children }) => (
+    const wrapper = ({ children }: { children: React.ReactNode }) => (
       <TransactionExecutionProvider
         currentAccount={0}
         showSnackbar={mockShowSnackbar}
@@ -811,7 +818,7 @@ describe('TransactionExecutionContext', () => {
     const { result } = renderHook(() => useTransactionExecution(), { wrapper });
 
     await act(async () => {
-      await result.current.broadcastIntent();
+      await result.current!.broadcastIntent();
     });
 
     expect(mockInvalidateTransaction).toHaveBeenCalledWith('existing_txid', 'Transaction broadcast failed');
@@ -823,12 +830,12 @@ describe('TransactionExecutionContext', () => {
   });
 
   it('should handle missing signed transaction when broadcasting', async () => {
-    useTransactionBuild.mockReturnValue({
+    (useTransactionBuild as jest.Mock).mockReturnValue({
       sendIntent: mockIntent, // Not signed (no signedTxHex)
       setSendIntent: mockSetSendIntent,
     });
 
-    const wrapper = ({ children }) => (
+    const wrapper = ({ children }: { children: React.ReactNode }) => (
       <TransactionExecutionProvider
         currentAccount={0}
         showSnackbar={mockShowSnackbar}
@@ -843,7 +850,7 @@ describe('TransactionExecutionContext', () => {
     const { result } = renderHook(() => useTransactionExecution(), { wrapper });
 
     await act(async () => {
-      await result.current.broadcastIntent();
+      await result.current!.broadcastIntent();
     });
 
     expect(mockShowSnackbar).toHaveBeenCalledWith(
@@ -856,14 +863,14 @@ describe('TransactionExecutionContext', () => {
   });
 
   it('should handle broadcast error', async () => {
-    useTransactionBuild.mockReturnValue({
+    (useTransactionBuild as jest.Mock).mockReturnValue({
       sendIntent: mockSignedIntent,
       setSendIntent: mockSetSendIntent,
     });
 
-    TransactionService.broadcastTransaction.mockRejectedValue(new Error('Network error'));
+    (TransactionService.broadcastTransaction as jest.Mock).mockRejectedValue(new Error('Network error'));
 
-    const wrapper = ({ children }) => (
+    const wrapper = ({ children }: { children: React.ReactNode }) => (
       <TransactionExecutionProvider
         currentAccount={0}
         showSnackbar={mockShowSnackbar}
@@ -878,7 +885,7 @@ describe('TransactionExecutionContext', () => {
     const { result } = renderHook(() => useTransactionExecution(), { wrapper });
 
     await act(async () => {
-      await result.current.broadcastIntent();
+      await result.current!.broadcastIntent();
     });
 
     expect(mockShowSnackbar).toHaveBeenCalledWith(
@@ -890,19 +897,19 @@ describe('TransactionExecutionContext', () => {
   });
 
   it('should send notification when transaction confirms', async () => {
-    useTransactionBuild.mockReturnValue({
+    (useTransactionBuild as jest.Mock).mockReturnValue({
       sendIntent: mockSignedIntent,
       setSendIntent: mockSetSendIntent,
     });
 
-    TransactionService.broadcastTransaction.mockResolvedValue('mock_txid');
+    (TransactionService.broadcastTransaction as jest.Mock).mockResolvedValue('mock_txid');
 
-    let confirmCallback;
+    let confirmCallback: (isConfirmed: boolean) => void;
     mockStartTransactionPolling.mockImplementation((txid, onConfirm) => {
       confirmCallback = onConfirm;
     });
 
-    const wrapper = ({ children }) => (
+    const wrapper = ({ children }: { children: React.ReactNode }) => (
       <TransactionExecutionProvider
         currentAccount={0}
         showSnackbar={mockShowSnackbar}
@@ -917,7 +924,7 @@ describe('TransactionExecutionContext', () => {
     const { result } = renderHook(() => useTransactionExecution(), { wrapper });
 
     await act(async () => {
-      await result.current.broadcastIntent();
+      await result.current!.broadcastIntent();
     });
 
     // Simulate confirmation
@@ -929,7 +936,7 @@ describe('TransactionExecutionContext', () => {
       'BTC',
       0.001,
       'mock_txid',
-      'withdraw'
+      'send'
     );
     expect(BackgroundTaskService.removePendingTransaction).toHaveBeenCalledWith('mock_txid');
     expect(mockSetIntentStep).toHaveBeenCalledWith('confirmed');
@@ -937,19 +944,19 @@ describe('TransactionExecutionContext', () => {
   });
 
   it('should not send notification when disabled', async () => {
-    useTransactionBuild.mockReturnValue({
+    (useTransactionBuild as jest.Mock).mockReturnValue({
       sendIntent: mockSignedIntent,
       setSendIntent: mockSetSendIntent,
     });
 
-    TransactionService.broadcastTransaction.mockResolvedValue('mock_txid');
+    (TransactionService.broadcastTransaction as jest.Mock).mockResolvedValue('mock_txid');
 
-    let confirmCallback;
+    let confirmCallback: (isConfirmed: boolean) => void;
     mockStartTransactionPolling.mockImplementation((txid, onConfirm) => {
       confirmCallback = onConfirm;
     });
 
-    const wrapper = ({ children }) => (
+    const wrapper = ({ children }: { children: React.ReactNode }) => (
       <TransactionExecutionProvider
         currentAccount={0}
         showSnackbar={mockShowSnackbar}
@@ -964,7 +971,7 @@ describe('TransactionExecutionContext', () => {
     const { result } = renderHook(() => useTransactionExecution(), { wrapper });
 
     await act(async () => {
-      await result.current.broadcastIntent();
+      await result.current!.broadcastIntent();
     });
 
     act(() => {
@@ -976,19 +983,19 @@ describe('TransactionExecutionContext', () => {
   });
 
   it('should handle polling error gracefully', async () => {
-    useTransactionBuild.mockReturnValue({
+    (useTransactionBuild as jest.Mock).mockReturnValue({
       sendIntent: mockSignedIntent,
       setSendIntent: mockSetSendIntent,
     });
 
-    TransactionService.broadcastTransaction.mockResolvedValue('mock_txid');
+    (TransactionService.broadcastTransaction as jest.Mock).mockResolvedValue('mock_txid');
 
-    let errorCallback;
+    let errorCallback: (error: Error) => void;
     mockStartTransactionPolling.mockImplementation((txid, onConfirm, onError) => {
       errorCallback = onError;
     });
 
-    const wrapper = ({ children }) => (
+    const wrapper = ({ children }: { children: React.ReactNode }) => (
       <TransactionExecutionProvider
         currentAccount={0}
         showSnackbar={mockShowSnackbar}
@@ -1003,7 +1010,7 @@ describe('TransactionExecutionContext', () => {
     const { result } = renderHook(() => useTransactionExecution(), { wrapper });
 
     await act(async () => {
-      await result.current.broadcastIntent();
+      await result.current!.broadcastIntent();
     });
 
     // Simulate polling error
@@ -1018,19 +1025,19 @@ describe('TransactionExecutionContext', () => {
   it('should call fetchTransactionHistory when provided', async () => {
     const mockFetchTransactionHistory = jest.fn();
 
-    useTransactionBuild.mockReturnValue({
+    (useTransactionBuild as jest.Mock).mockReturnValue({
       sendIntent: mockSignedIntent,
       setSendIntent: mockSetSendIntent,
     });
 
-    TransactionService.broadcastTransaction.mockResolvedValue('mock_txid');
+    (TransactionService.broadcastTransaction as jest.Mock).mockResolvedValue('mock_txid');
 
-    let confirmCallback;
+    let confirmCallback: (isConfirmed: boolean) => void;
     mockStartTransactionPolling.mockImplementation((txid, onConfirm) => {
       confirmCallback = onConfirm;
     });
 
-    const wrapper = ({ children }) => (
+    const wrapper = ({ children }: { children: React.ReactNode }) => (
       <TransactionExecutionProvider
         currentAccount={0}
         showSnackbar={mockShowSnackbar}
@@ -1046,7 +1053,7 @@ describe('TransactionExecutionContext', () => {
     const { result } = renderHook(() => useTransactionExecution(), { wrapper });
 
     await act(async () => {
-      await result.current.broadcastIntent();
+      await result.current!.broadcastIntent();
     });
 
     // Should call after broadcast
@@ -1065,19 +1072,19 @@ describe('TransactionExecutionContext', () => {
   it('should call fetchTransactionHistory on polling error', async () => {
     const mockFetchTransactionHistory = jest.fn();
 
-    useTransactionBuild.mockReturnValue({
+    (useTransactionBuild as jest.Mock).mockReturnValue({
       sendIntent: mockSignedIntent,
       setSendIntent: mockSetSendIntent,
     });
 
-    TransactionService.broadcastTransaction.mockResolvedValue('mock_txid');
+    (TransactionService.broadcastTransaction as jest.Mock).mockResolvedValue('mock_txid');
 
-    let errorCallback;
+    let errorCallback: (error: Error) => void;
     mockStartTransactionPolling.mockImplementation((txid, onConfirm, onError) => {
       errorCallback = onError;
     });
 
-    const wrapper = ({ children }) => (
+    const wrapper = ({ children }: { children: React.ReactNode }) => (
       <TransactionExecutionProvider
         currentAccount={0}
         showSnackbar={mockShowSnackbar}
@@ -1093,7 +1100,7 @@ describe('TransactionExecutionContext', () => {
     const { result } = renderHook(() => useTransactionExecution(), { wrapper });
 
     await act(async () => {
-      await result.current.broadcastIntent();
+      await result.current!.broadcastIntent();
     });
 
     mockFetchTransactionHistory.mockClear();
@@ -1107,19 +1114,19 @@ describe('TransactionExecutionContext', () => {
   });
 
   it('should skip auto-confirm when skipAutoConfirm is true (turbo mint flow)', async () => {
-    useTransactionBuild.mockReturnValue({
+    (useTransactionBuild as jest.Mock).mockReturnValue({
       sendIntent: mockSignedIntent,
       setSendIntent: mockSetSendIntent,
     });
 
-    TransactionService.broadcastTransaction.mockResolvedValue('mock_txid');
+    (TransactionService.broadcastTransaction as jest.Mock).mockResolvedValue('mock_txid');
 
-    let confirmCallback;
+    let confirmCallback: (isConfirmed: boolean) => void;
     mockStartTransactionPolling.mockImplementation((txid, onConfirm) => {
       confirmCallback = onConfirm;
     });
 
-    const wrapper = ({ children }) => (
+    const wrapper = ({ children }: { children: React.ReactNode }) => (
       <TransactionExecutionProvider
         currentAccount={0}
         showSnackbar={mockShowSnackbar}
@@ -1135,7 +1142,7 @@ describe('TransactionExecutionContext', () => {
 
     // Call broadcastIntent with skipAutoConfirm option
     await act(async () => {
-      await result.current.broadcastIntent(mockSignedIntent, { skipAutoConfirm: true });
+      await result.current!.broadcastIntent(mockSignedIntent as any, { skipAutoConfirm: true });
     });
 
     // Clear the setIntentStep calls from broadcasting
@@ -1153,19 +1160,19 @@ describe('TransactionExecutionContext', () => {
   });
 
   it('should skip auto-confirm on polling error when skipAutoConfirm is true', async () => {
-    useTransactionBuild.mockReturnValue({
+    (useTransactionBuild as jest.Mock).mockReturnValue({
       sendIntent: mockSignedIntent,
       setSendIntent: mockSetSendIntent,
     });
 
-    TransactionService.broadcastTransaction.mockResolvedValue('mock_txid');
+    (TransactionService.broadcastTransaction as jest.Mock).mockResolvedValue('mock_txid');
 
-    let errorCallback;
+    let errorCallback: (error: Error) => void;
     mockStartTransactionPolling.mockImplementation((txid, onConfirm, onError) => {
       errorCallback = onError;
     });
 
-    const wrapper = ({ children }) => (
+    const wrapper = ({ children }: { children: React.ReactNode }) => (
       <TransactionExecutionProvider
         currentAccount={0}
         showSnackbar={mockShowSnackbar}
@@ -1181,7 +1188,7 @@ describe('TransactionExecutionContext', () => {
 
     // Call broadcastIntent with skipAutoConfirm option
     await act(async () => {
-      await result.current.broadcastIntent(mockSignedIntent, { skipAutoConfirm: true });
+      await result.current!.broadcastIntent(mockSignedIntent as any, { skipAutoConfirm: true });
     });
 
     mockSetIntentStep.mockClear();
@@ -1197,7 +1204,7 @@ describe('TransactionExecutionContext', () => {
   });
 
   it('should reset toastDismissed when broadcastedTxid changes', () => {
-    const wrapper = ({ children }) => (
+    const wrapper = ({ children }: { children: React.ReactNode }) => (
       <TransactionExecutionProvider
         currentAccount={0}
         showSnackbar={mockShowSnackbar}
@@ -1213,24 +1220,24 @@ describe('TransactionExecutionContext', () => {
 
     // Set toastDismissed to true
     act(() => {
-      result.current.setToastDismissed(true);
+      result.current!.setToastDismissed(true);
     });
 
-    expect(result.current.toastDismissed).toBe(true);
+    expect(result.current!.toastDismissed).toBe(true);
 
     // Set broadcastedTxid (should reset toastDismissed via useEffect)
     act(() => {
-      result.current.setBroadcastedTxid('new_txid');
+      result.current!.setBroadcastedTxid('new_txid');
     });
 
-    expect(result.current.toastDismissed).toBe(false);
+    expect(result.current!.toastDismissed).toBe(false);
   });
 
   describe('Transaction Output Extraction', () => {
     it('should extract BTC change outputs and track as pending', async () => {
       const mockAddPendingTransaction = jest.fn();
 
-      usePendingTransactions.mockReturnValue({
+      (usePendingTransactionsStore as jest.Mock).mockReturnValue({
         pendingTransactions: {},
         addPendingTransaction: mockAddPendingTransaction,
         confirmTransaction: jest.fn(),
@@ -1256,7 +1263,7 @@ describe('TransactionExecutionContext', () => {
         ],
       };
 
-      jest.spyOn(bitcoin.Transaction, 'fromHex').mockReturnValue(mockTx);
+      jest.spyOn(bitcoin.Transaction, 'fromHex').mockReturnValue(mockTx as unknown as bitcoin.Transaction);
 
       // Mock address decoding - first output is recipient, second is change
       jest.spyOn(bitcoin.address, 'fromOutputScript')
@@ -1268,14 +1275,14 @@ describe('TransactionExecutionContext', () => {
         signedTxHex: 'mock_signed_hex',
       };
 
-      useTransactionBuild.mockReturnValue({
+      (useTransactionBuild as jest.Mock).mockReturnValue({
         sendIntent: signedIntent,
         setSendIntent: mockSetSendIntent,
       });
 
-      TransactionService.broadcastTransaction.mockResolvedValue('mock_txid');
+      (TransactionService.broadcastTransaction as jest.Mock).mockResolvedValue('mock_txid');
 
-      const wrapper = ({ children }) => (
+      const wrapper = ({ children }: { children: React.ReactNode }) => (
         <TransactionExecutionProvider
           currentAccount={0}
           showSnackbar={mockShowSnackbar}
@@ -1290,7 +1297,7 @@ describe('TransactionExecutionContext', () => {
       const { result } = renderHook(() => useTransactionExecution(), { wrapper });
 
       await act(async () => {
-        await result.current.broadcastIntent();
+        await result.current!.broadcastIntent();
       });
 
       // Verify change output was tracked
@@ -1309,13 +1316,13 @@ describe('TransactionExecutionContext', () => {
     it('should extract UNIT change outputs with rune amount', async () => {
       const mockAddPendingTransaction = jest.fn();
 
-      useSendFlow.mockReturnValue({
+      (useSendFlow as jest.Mock).mockReturnValue({
         setIntentStep: mockSetIntentStep,
         sendAssetType: 'unit',
         sendAmount: '100',
       });
 
-      usePendingTransactions.mockReturnValue({
+      (usePendingTransactionsStore as jest.Mock).mockReturnValue({
         pendingTransactions: {},
         addPendingTransaction: mockAddPendingTransaction,
         confirmTransaction: jest.fn(),
@@ -1345,7 +1352,7 @@ describe('TransactionExecutionContext', () => {
         ],
       };
 
-      jest.spyOn(bitcoin.Transaction, 'fromHex').mockReturnValue(mockTx);
+      jest.spyOn(bitcoin.Transaction, 'fromHex').mockReturnValue(mockTx as unknown as bitcoin.Transaction);
 
       // Mock address decoding - vout 0 is rune return (taproot), vout 1 is recipient, vout 2 is btc change (segwit)
       jest.spyOn(bitcoin.address, 'fromOutputScript')
@@ -1361,14 +1368,14 @@ describe('TransactionExecutionContext', () => {
         amount: 100, // Sending 100 runes
       };
 
-      useTransactionBuild.mockReturnValue({
+      (useTransactionBuild as jest.Mock).mockReturnValue({
         sendIntent: signedIntent,
         setSendIntent: mockSetSendIntent,
       });
 
-      TransactionService.broadcastTransaction.mockResolvedValue('mock_txid_unit');
+      (TransactionService.broadcastTransaction as jest.Mock).mockResolvedValue('mock_txid_unit');
 
-      const wrapper = ({ children }) => (
+      const wrapper = ({ children }: { children: React.ReactNode }) => (
         <TransactionExecutionProvider
           currentAccount={0}
           showSnackbar={mockShowSnackbar}
@@ -1383,7 +1390,7 @@ describe('TransactionExecutionContext', () => {
       const { result } = renderHook(() => useTransactionExecution(), { wrapper });
 
       await act(async () => {
-        await result.current.broadcastIntent();
+        await result.current!.broadcastIntent();
       });
 
       // Verify rune change was calculated (500 - 100 = 400)
@@ -1405,13 +1412,13 @@ describe('TransactionExecutionContext', () => {
     it('should calculate rune change from multiple runeUtxos', async () => {
       const mockAddPendingTransaction = jest.fn();
 
-      useSendFlow.mockReturnValue({
+      (useSendFlow as jest.Mock).mockReturnValue({
         setIntentStep: mockSetIntentStep,
         sendAssetType: 'unit',
         sendAmount: '100',
       });
 
-      usePendingTransactions.mockReturnValue({
+      (usePendingTransactionsStore as jest.Mock).mockReturnValue({
         pendingTransactions: {},
         addPendingTransaction: mockAddPendingTransaction,
         confirmTransaction: jest.fn(),
@@ -1436,7 +1443,7 @@ describe('TransactionExecutionContext', () => {
         ],
       };
 
-      jest.spyOn(bitcoin.Transaction, 'fromHex').mockReturnValue(mockTx);
+      jest.spyOn(bitcoin.Transaction, 'fromHex').mockReturnValue(mockTx as unknown as bitcoin.Transaction);
 
       jest.spyOn(bitcoin.address, 'fromOutputScript')
         .mockReturnValueOnce('tb1ptest') // Our taproot address
@@ -1455,14 +1462,14 @@ describe('TransactionExecutionContext', () => {
         amount: 100, // Sending 100 runes
       };
 
-      useTransactionBuild.mockReturnValue({
+      (useTransactionBuild as jest.Mock).mockReturnValue({
         sendIntent: signedIntent,
         setSendIntent: mockSetSendIntent,
       });
 
-      TransactionService.broadcastTransaction.mockResolvedValue('mock_txid_multi_utxo');
+      (TransactionService.broadcastTransaction as jest.Mock).mockResolvedValue('mock_txid_multi_utxo');
 
-      const wrapper = ({ children }) => (
+      const wrapper = ({ children }: { children: React.ReactNode }) => (
         <TransactionExecutionProvider
           currentAccount={0}
           showSnackbar={mockShowSnackbar}
@@ -1477,7 +1484,7 @@ describe('TransactionExecutionContext', () => {
       const { result } = renderHook(() => useTransactionExecution(), { wrapper });
 
       await act(async () => {
-        await result.current.broadcastIntent();
+        await result.current!.broadcastIntent();
       });
 
       // Verify rune change was calculated from multiple UTXOs (600 - 100 = 500)
@@ -1501,11 +1508,11 @@ describe('TransactionExecutionContext', () => {
       const pendingTxid1 = 'a'.repeat(64);
       const pendingTxid2 = 'b'.repeat(64);
 
-      usePendingTransactions.mockReturnValue({
-        pendingTransactions: {
-          [pendingTxid1]: { status: 'pending', outputs: [] },
-          [pendingTxid2]: { status: 'pending', outputs: [] },
-        },
+      (usePendingTxs as jest.Mock).mockReturnValue({
+        [pendingTxid1]: { status: 'pending', outputs: [] },
+        [pendingTxid2]: { status: 'pending', outputs: [] },
+      });
+      (usePendingTransactionsStore as jest.Mock).mockReturnValue({
         addPendingTransaction: mockAddPendingTransaction,
         confirmTransaction: jest.fn(),
         invalidateTransaction: jest.fn(),
@@ -1522,17 +1529,17 @@ describe('TransactionExecutionContext', () => {
         outs: [{ script: Buffer.from('mock_script'), value: 10000 }],
       };
 
-      jest.spyOn(bitcoin.Transaction, 'fromHex').mockReturnValue(mockTx);
+      jest.spyOn(bitcoin.Transaction, 'fromHex').mockReturnValue(mockTx as unknown as bitcoin.Transaction);
       jest.spyOn(bitcoin.address, 'fromOutputScript').mockReturnValue('tb1qtest');
 
-      useTransactionBuild.mockReturnValue({
+      (useTransactionBuild as jest.Mock).mockReturnValue({
         sendIntent: { ...mockSignedIntent, signedTxHex: 'mock_hex' },
         setSendIntent: mockSetSendIntent,
       });
 
-      TransactionService.broadcastTransaction.mockResolvedValue('child_txid');
+      (TransactionService.broadcastTransaction as jest.Mock).mockResolvedValue('child_txid');
 
-      const wrapper = ({ children }) => (
+      const wrapper = ({ children }: { children: React.ReactNode }) => (
         <TransactionExecutionProvider
           currentAccount={0}
           showSnackbar={mockShowSnackbar}
@@ -1547,7 +1554,7 @@ describe('TransactionExecutionContext', () => {
       const { result } = renderHook(() => useTransactionExecution(), { wrapper });
 
       await act(async () => {
-        await result.current.broadcastIntent();
+        await result.current!.broadcastIntent();
       });
 
       // Should mark both UTXOs as spent
@@ -1567,13 +1574,13 @@ describe('TransactionExecutionContext', () => {
     it('should use runeUtxo.runeAmount fallback when runeUtxos is empty', async () => {
       const mockAddPendingTransaction = jest.fn();
 
-      useSendFlow.mockReturnValue({
+      (useSendFlow as jest.Mock).mockReturnValue({
         setIntentStep: mockSetIntentStep,
         sendAssetType: 'unit',
         sendAmount: '50',
       });
 
-      usePendingTransactions.mockReturnValue({
+      (usePendingTransactionsStore as jest.Mock).mockReturnValue({
         pendingTransactions: {},
         addPendingTransaction: mockAddPendingTransaction,
         confirmTransaction: jest.fn(),
@@ -1587,7 +1594,7 @@ describe('TransactionExecutionContext', () => {
         outs: [{ script: Buffer.from('mock_script'), value: 10000 }],
       };
 
-      jest.spyOn(bitcoin.Transaction, 'fromHex').mockReturnValue(mockTx);
+      jest.spyOn(bitcoin.Transaction, 'fromHex').mockReturnValue(mockTx as unknown as bitcoin.Transaction);
       jest.spyOn(bitcoin.address, 'fromOutputScript').mockReturnValue('tb1ptest');
 
       // Intent with empty runeUtxos array but has runeUtxo (backward compat)
@@ -1600,14 +1607,14 @@ describe('TransactionExecutionContext', () => {
         amount: '50',
       };
 
-      useTransactionBuild.mockReturnValue({
+      (useTransactionBuild as jest.Mock).mockReturnValue({
         sendIntent: signedIntent,
         setSendIntent: mockSetSendIntent,
       });
 
-      TransactionService.broadcastTransaction.mockResolvedValue('mock_txid_fallback');
+      (TransactionService.broadcastTransaction as jest.Mock).mockResolvedValue('mock_txid_fallback');
 
-      const wrapper = ({ children }) => (
+      const wrapper = ({ children }: { children: React.ReactNode }) => (
         <TransactionExecutionProvider
           currentAccount={0}
           showSnackbar={mockShowSnackbar}
@@ -1622,7 +1629,7 @@ describe('TransactionExecutionContext', () => {
       const { result } = renderHook(() => useTransactionExecution(), { wrapper });
 
       await act(async () => {
-        await result.current.broadcastIntent();
+        await result.current!.broadcastIntent();
       });
 
       // runeChangeAmount = 300 - 50 = 250
@@ -1642,13 +1649,13 @@ describe('TransactionExecutionContext', () => {
       // Use a proper 64-character hex txid
       const pendingParentTxid = 'a'.repeat(64);
 
-      usePendingTransactions.mockReturnValue({
-        pendingTransactions: {
-          [pendingParentTxid]: {
-            status: 'pending',
-            outputs: [{ address: 'tb1qtest', value: 50000, vout: 0 }],
-          },
+      (usePendingTxs as jest.Mock).mockReturnValue({
+        [pendingParentTxid]: {
+          status: 'pending',
+          outputs: [{ address: 'tb1qtest', value: 50000, vout: 0 }],
         },
+      });
+      (usePendingTransactionsStore as jest.Mock).mockReturnValue({
         addPendingTransaction: mockAddPendingTransaction,
         confirmTransaction: jest.fn(),
         invalidateTransaction: jest.fn(),
@@ -1670,7 +1677,7 @@ describe('TransactionExecutionContext', () => {
         ],
       };
 
-      jest.spyOn(bitcoin.Transaction, 'fromHex').mockReturnValue(mockTx);
+      jest.spyOn(bitcoin.Transaction, 'fromHex').mockReturnValue(mockTx as unknown as bitcoin.Transaction);
 
       jest.spyOn(bitcoin.address, 'fromOutputScript')
         .mockReturnValueOnce('tb1qtest'); // Our segwit address
@@ -1680,14 +1687,14 @@ describe('TransactionExecutionContext', () => {
         signedTxHex: 'mock_signed_hex',
       };
 
-      useTransactionBuild.mockReturnValue({
+      (useTransactionBuild as jest.Mock).mockReturnValue({
         sendIntent: signedIntent,
         setSendIntent: mockSetSendIntent,
       });
 
-      TransactionService.broadcastTransaction.mockResolvedValue('child_txid');
+      (TransactionService.broadcastTransaction as jest.Mock).mockResolvedValue('child_txid');
 
-      const wrapper = ({ children }) => (
+      const wrapper = ({ children }: { children: React.ReactNode }) => (
         <TransactionExecutionProvider
           currentAccount={0}
           showSnackbar={mockShowSnackbar}
@@ -1702,7 +1709,7 @@ describe('TransactionExecutionContext', () => {
       const { result } = renderHook(() => useTransactionExecution(), { wrapper });
 
       await act(async () => {
-        await result.current.broadcastIntent();
+        await result.current!.broadcastIntent();
       });
 
       // Verify parent txid was tracked
@@ -1721,7 +1728,7 @@ describe('TransactionExecutionContext', () => {
     it('should not track outputs when there are no change outputs', async () => {
       const mockAddPendingTransaction = jest.fn();
 
-      usePendingTransactions.mockReturnValue({
+      (usePendingTransactionsStore as jest.Mock).mockReturnValue({
         pendingTransactions: {},
         addPendingTransaction: mockAddPendingTransaction,
         confirmTransaction: jest.fn(),
@@ -1743,7 +1750,7 @@ describe('TransactionExecutionContext', () => {
         ],
       };
 
-      jest.spyOn(bitcoin.Transaction, 'fromHex').mockReturnValue(mockTx);
+      jest.spyOn(bitcoin.Transaction, 'fromHex').mockReturnValue(mockTx as unknown as bitcoin.Transaction);
 
       const fromOutputScriptSpy = jest.spyOn(bitcoin.address, 'fromOutputScript');
       fromOutputScriptSpy.mockClear();
@@ -1754,14 +1761,14 @@ describe('TransactionExecutionContext', () => {
         signedTxHex: 'mock_signed_hex',
       };
 
-      useTransactionBuild.mockReturnValue({
+      (useTransactionBuild as jest.Mock).mockReturnValue({
         sendIntent: signedIntent,
         setSendIntent: mockSetSendIntent,
       });
 
-      TransactionService.broadcastTransaction.mockResolvedValue('mock_txid');
+      (TransactionService.broadcastTransaction as jest.Mock).mockResolvedValue('mock_txid');
 
-      const wrapper = ({ children }) => (
+      const wrapper = ({ children }: { children: React.ReactNode }) => (
         <TransactionExecutionProvider
           currentAccount={0}
           showSnackbar={mockShowSnackbar}
@@ -1776,7 +1783,7 @@ describe('TransactionExecutionContext', () => {
       const { result } = renderHook(() => useTransactionExecution(), { wrapper });
 
       await act(async () => {
-        await result.current.broadcastIntent();
+        await result.current!.broadcastIntent();
       });
 
       // Should not call addPendingTransaction when no change outputs
@@ -1786,7 +1793,7 @@ describe('TransactionExecutionContext', () => {
     it('should handle OP_RETURN outputs gracefully', async () => {
       const mockAddPendingTransaction = jest.fn();
 
-      usePendingTransactions.mockReturnValue({
+      (usePendingTransactionsStore as jest.Mock).mockReturnValue({
         pendingTransactions: {},
         addPendingTransaction: mockAddPendingTransaction,
         confirmTransaction: jest.fn(),
@@ -1812,7 +1819,7 @@ describe('TransactionExecutionContext', () => {
         ],
       };
 
-      jest.spyOn(bitcoin.Transaction, 'fromHex').mockReturnValue(mockTx);
+      jest.spyOn(bitcoin.Transaction, 'fromHex').mockReturnValue(mockTx as unknown as bitcoin.Transaction);
 
       // First call throws (OP_RETURN can't be decoded), second succeeds
       jest.spyOn(bitcoin.address, 'fromOutputScript')
@@ -1824,14 +1831,14 @@ describe('TransactionExecutionContext', () => {
         signedTxHex: 'mock_signed_hex',
       };
 
-      useTransactionBuild.mockReturnValue({
+      (useTransactionBuild as jest.Mock).mockReturnValue({
         sendIntent: signedIntent,
         setSendIntent: mockSetSendIntent,
       });
 
-      TransactionService.broadcastTransaction.mockResolvedValue('mock_txid');
+      (TransactionService.broadcastTransaction as jest.Mock).mockResolvedValue('mock_txid');
 
-      const wrapper = ({ children }) => (
+      const wrapper = ({ children }: { children: React.ReactNode }) => (
         <TransactionExecutionProvider
           currentAccount={0}
           showSnackbar={mockShowSnackbar}
@@ -1846,7 +1853,7 @@ describe('TransactionExecutionContext', () => {
       const { result } = renderHook(() => useTransactionExecution(), { wrapper });
 
       await act(async () => {
-        await result.current.broadcastIntent();
+        await result.current!.broadcastIntent();
       });
 
       // Should only track the valid change output, skip OP_RETURN
@@ -1865,7 +1872,7 @@ describe('TransactionExecutionContext', () => {
     it('should handle output extraction errors gracefully', async () => {
       const mockAddPendingTransaction = jest.fn();
 
-      usePendingTransactions.mockReturnValue({
+      (usePendingTransactionsStore as jest.Mock).mockReturnValue({
         pendingTransactions: {},
         addPendingTransaction: mockAddPendingTransaction,
         confirmTransaction: jest.fn(),
@@ -1884,14 +1891,14 @@ describe('TransactionExecutionContext', () => {
         signedTxHex: 'invalid_hex',
       };
 
-      useTransactionBuild.mockReturnValue({
+      (useTransactionBuild as jest.Mock).mockReturnValue({
         sendIntent: signedIntent,
         setSendIntent: mockSetSendIntent,
       });
 
-      TransactionService.broadcastTransaction.mockResolvedValue('mock_txid');
+      (TransactionService.broadcastTransaction as jest.Mock).mockResolvedValue('mock_txid');
 
-      const wrapper = ({ children }) => (
+      const wrapper = ({ children }: { children: React.ReactNode }) => (
         <TransactionExecutionProvider
           currentAccount={0}
           showSnackbar={mockShowSnackbar}
@@ -1906,24 +1913,24 @@ describe('TransactionExecutionContext', () => {
       const { result } = renderHook(() => useTransactionExecution(), { wrapper });
 
       await act(async () => {
-        await result.current.broadcastIntent();
+        await result.current!.broadcastIntent();
       });
 
       // Should not crash, just continue with broadcast
-      expect(result.current.broadcastedTxid).toBe('mock_txid');
+      expect(result.current!.broadcastedTxid).toBe('mock_txid');
       expect(mockAddPendingTransaction).not.toHaveBeenCalled();
     });
 
     it('should not add rune amount when runeChangeAmount is zero', async () => {
       const mockAddPendingTransaction = jest.fn();
 
-      useSendFlow.mockReturnValue({
+      (useSendFlow as jest.Mock).mockReturnValue({
         setIntentStep: mockSetIntentStep,
         sendAssetType: 'unit',
         sendAmount: '500', // Sending all runes
       });
 
-      usePendingTransactions.mockReturnValue({
+      (usePendingTransactionsStore as jest.Mock).mockReturnValue({
         pendingTransactions: {},
         addPendingTransaction: mockAddPendingTransaction,
         confirmTransaction: jest.fn(),
@@ -1948,7 +1955,7 @@ describe('TransactionExecutionContext', () => {
         ],
       };
 
-      jest.spyOn(bitcoin.Transaction, 'fromHex').mockReturnValue(mockTx);
+      jest.spyOn(bitcoin.Transaction, 'fromHex').mockReturnValue(mockTx as unknown as bitcoin.Transaction);
 
       jest.spyOn(bitcoin.address, 'fromOutputScript')
         .mockReturnValueOnce('tb1ptest') // Our taproot address
@@ -1961,14 +1968,14 @@ describe('TransactionExecutionContext', () => {
         amount: 500, // Sending all runes, no change
       };
 
-      useTransactionBuild.mockReturnValue({
+      (useTransactionBuild as jest.Mock).mockReturnValue({
         sendIntent: signedIntent,
         setSendIntent: mockSetSendIntent,
       });
 
-      TransactionService.broadcastTransaction.mockResolvedValue('mock_txid_unit');
+      (TransactionService.broadcastTransaction as jest.Mock).mockResolvedValue('mock_txid_unit');
 
-      const wrapper = ({ children }) => (
+      const wrapper = ({ children }: { children: React.ReactNode }) => (
         <TransactionExecutionProvider
           currentAccount={0}
           showSnackbar={mockShowSnackbar}
@@ -1983,7 +1990,7 @@ describe('TransactionExecutionContext', () => {
       const { result } = renderHook(() => useTransactionExecution(), { wrapper });
 
       await act(async () => {
-        await result.current.broadcastIntent();
+        await result.current!.broadcastIntent();
       });
 
       // Verify no rune amount added when change is 0

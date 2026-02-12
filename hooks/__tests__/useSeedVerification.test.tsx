@@ -1,4 +1,3 @@
-// @ts-nocheck
 /**
  * Tests for useSeedVerification Hook
  * Validates seed phrase verification for new wallets
@@ -20,29 +19,35 @@ jest.mock('../../utils/messages', () => ({
 }));
 
 // Helper to render hooks with props
-function renderHook(hook, { initialProps } = {}) {
-  const result = { current: null };
-  function TestComponent({ hookProps }) {
+function renderHook<T>(hook: (props?: unknown) => T, { initialProps }: { initialProps?: unknown } = {}) {
+  const result: { current: T | null } = { current: null };
+  function TestComponent({ hookProps }: { hookProps?: unknown }) {
     result.current = hook(hookProps);
     return null;
   }
-  let component;
+  let component: ReturnType<typeof create> | undefined;
   act(() => {
     component = create(<TestComponent hookProps={initialProps} />);
   });
   return {
     result,
-    rerender: (newProps) => {
+    rerender: (newProps?: unknown) => {
       act(() => {
-        component.update(<TestComponent hookProps={newProps} />);
+        component?.update(<TestComponent hookProps={newProps} />);
       });
     },
-    unmount: () => component.unmount(),
+    unmount: () => component?.unmount(),
   };
 }
 
+interface UseSeedVerificationParams {
+  tempMnemonicWords: string[];
+  setSettingUpPin: (value: boolean) => void;
+  setShowingSeeds: (value: boolean) => void;
+}
+
 describe('useSeedVerification', () => {
-  let mockProps;
+  let mockProps: UseSeedVerificationParams;
   const mockMnemonic = [
     'abandon',
     'ability',
@@ -60,9 +65,9 @@ describe('useSeedVerification', () => {
 
   beforeEach(() => {
     jest.clearAllMocks();
-    AsyncStorage.getItem.mockResolvedValue(null);
-    AsyncStorage.setItem.mockResolvedValue();
-    AsyncStorage.removeItem.mockResolvedValue();
+    (AsyncStorage.getItem as jest.Mock).mockResolvedValue(null);
+    (AsyncStorage.setItem as jest.Mock).mockResolvedValue(undefined);
+    (AsyncStorage.removeItem as jest.Mock).mockResolvedValue(undefined);
 
     mockProps = {
       tempMnemonicWords: mockMnemonic,
@@ -81,7 +86,7 @@ describe('useSeedVerification', () => {
         await Promise.resolve();
       });
 
-      expect(result.current.verifyingSeeds).toBe(false);
+      expect(result.current!.verifyingSeeds).toBe(false);
     });
 
     it('should load persisted state on mount', async () => {
@@ -91,7 +96,7 @@ describe('useSeedVerification', () => {
         requiredIndices: [0, 3, 6],
         wordChoices: { 0: ['abandon', 'ability', 'able', 'about'] },
       };
-      AsyncStorage.getItem.mockResolvedValue(JSON.stringify(savedState));
+      (AsyncStorage.getItem as jest.Mock).mockResolvedValue(JSON.stringify(savedState));
 
       const { result } = renderHook(() => useSeedVerification(mockProps), {
         initialProps: mockProps,
@@ -101,13 +106,13 @@ describe('useSeedVerification', () => {
         await Promise.resolve();
       });
 
-      expect(result.current.verifyingSeeds).toBe(true);
-      expect(result.current.verificationWords).toEqual({ 0: 'abandon' });
-      expect(result.current.requiredIndices).toEqual([0, 3, 6]);
+      expect(result.current!.verifyingSeeds).toBe(true);
+      expect(result.current!.verificationWords).toEqual({ 0: 'abandon' });
+      expect(result.current!.requiredIndices).toEqual([0, 3, 6]);
     });
 
     it('should handle AsyncStorage errors gracefully', async () => {
-      AsyncStorage.getItem.mockRejectedValue(new Error('Storage error'));
+      (AsyncStorage.getItem as jest.Mock).mockRejectedValue(new Error('Storage error'));
 
       const { result } = renderHook(() => useSeedVerification(mockProps), {
         initialProps: mockProps,
@@ -117,7 +122,7 @@ describe('useSeedVerification', () => {
         await Promise.resolve();
       });
 
-      expect(result.current.verifyingSeeds).toBe(false);
+      expect(result.current!.verifyingSeeds).toBe(false);
     });
   });
 
@@ -128,10 +133,10 @@ describe('useSeedVerification', () => {
       });
 
       act(() => {
-        result.current.proceedToVerification();
+        result.current!.proceedToVerification();
       });
 
-      expect(result.current.requiredIndices).toHaveLength(3);
+      expect(result.current!.requiredIndices).toHaveLength(3);
     });
 
     it('should generate choices for each selected word', () => {
@@ -140,15 +145,15 @@ describe('useSeedVerification', () => {
       });
 
       act(() => {
-        result.current.proceedToVerification();
+        result.current!.proceedToVerification();
       });
 
-      const indices = result.current.requiredIndices;
-      expect(Object.keys(result.current.wordChoices)).toHaveLength(3);
+      const indices = result.current!.requiredIndices;
+      expect(Object.keys(result.current!.wordChoices)).toHaveLength(3);
 
       indices.forEach((index) => {
-        expect(result.current.wordChoices[index]).toHaveLength(4);
-        expect(result.current.wordChoices[index]).toContain(mockMnemonic[index]);
+        expect(result.current!.wordChoices[index]).toHaveLength(4);
+        expect(result.current!.wordChoices[index]).toContain(mockMnemonic[index]);
       });
     });
 
@@ -158,10 +163,10 @@ describe('useSeedVerification', () => {
       });
 
       act(() => {
-        result.current.proceedToVerification();
+        result.current!.proceedToVerification();
       });
 
-      expect(result.current.verifyingSeeds).toBe(true);
+      expect(result.current!.verifyingSeeds).toBe(true);
     });
 
     it('should hide showing seeds screen', () => {
@@ -170,7 +175,7 @@ describe('useSeedVerification', () => {
       });
 
       act(() => {
-        result.current.proceedToVerification();
+        result.current!.proceedToVerification();
       });
 
       expect(mockProps.setShowingSeeds).toHaveBeenCalledWith(false);
@@ -183,14 +188,14 @@ describe('useSeedVerification', () => {
 
       // Set some words first
       act(() => {
-        result.current.setVerificationWords({ 0: 'test' });
+        result.current!.setVerificationWords({ 0: 'test' });
       });
 
       act(() => {
-        result.current.proceedToVerification();
+        result.current!.proceedToVerification();
       });
 
-      expect(result.current.verificationWords).toEqual({});
+      expect(result.current!.verificationWords).toEqual({});
     });
 
     it('should select unique indices', () => {
@@ -199,10 +204,10 @@ describe('useSeedVerification', () => {
       });
 
       act(() => {
-        result.current.proceedToVerification();
+        result.current!.proceedToVerification();
       });
 
-      const indices = result.current.requiredIndices;
+      const indices = result.current!.requiredIndices;
       const uniqueIndices = [...new Set(indices)];
       expect(uniqueIndices.length).toBe(3);
     });
@@ -213,10 +218,10 @@ describe('useSeedVerification', () => {
       });
 
       act(() => {
-        result.current.proceedToVerification();
+        result.current!.proceedToVerification();
       });
 
-      const indices = result.current.requiredIndices;
+      const indices = result.current!.requiredIndices;
       const sortedIndices = [...indices].sort((a, b) => a - b);
       expect(indices).toEqual(sortedIndices);
     });
@@ -229,11 +234,11 @@ describe('useSeedVerification', () => {
       });
 
       act(() => {
-        result.current.proceedToVerification();
+        result.current!.proceedToVerification();
       });
 
       act(() => {
-        result.current.verifySeeds();
+        result.current!.verifySeeds();
       });
 
       expect(notify.seed.incomplete).toHaveBeenCalled();
@@ -245,25 +250,25 @@ describe('useSeedVerification', () => {
       });
 
       act(() => {
-        result.current.proceedToVerification();
+        result.current!.proceedToVerification();
       });
 
-      const indices = result.current.requiredIndices;
-      const correctWords = {};
+      const indices = result.current!.requiredIndices;
+      const correctWords: Record<number, string> = {};
       indices.forEach((index) => {
         correctWords[index] = mockMnemonic[index];
       });
 
       act(() => {
-        result.current.setVerificationWords(correctWords);
+        result.current!.setVerificationWords(correctWords);
       });
 
       act(() => {
-        result.current.verifySeeds();
+        result.current!.verifySeeds();
       });
 
       expect(mockProps.setSettingUpPin).toHaveBeenCalledWith(true);
-      expect(result.current.verifyingSeeds).toBe(false);
+      expect(result.current!.verifyingSeeds).toBe(false);
     });
 
     it('should show error if any word is incorrect', () => {
@@ -272,21 +277,21 @@ describe('useSeedVerification', () => {
       });
 
       act(() => {
-        result.current.proceedToVerification();
+        result.current!.proceedToVerification();
       });
 
-      const indices = result.current.requiredIndices;
-      const incorrectWords = {};
+      const indices = result.current!.requiredIndices;
+      const incorrectWords: Record<number, string> = {};
       indices.forEach((index, i) => {
         incorrectWords[index] = i === 0 ? 'wrong' : mockMnemonic[index];
       });
 
       act(() => {
-        result.current.setVerificationWords(incorrectWords);
+        result.current!.setVerificationWords(incorrectWords);
       });
 
       act(() => {
-        result.current.verifySeeds();
+        result.current!.verifySeeds();
       });
 
       expect(notify.seed.incorrect).toHaveBeenCalled();
@@ -299,24 +304,24 @@ describe('useSeedVerification', () => {
       });
 
       act(() => {
-        result.current.proceedToVerification();
+        result.current!.proceedToVerification();
       });
 
-      const indices = result.current.requiredIndices;
-      const incorrectWords = {};
+      const indices = result.current!.requiredIndices;
+      const incorrectWords: Record<number, string> = {};
       indices.forEach((index) => {
         incorrectWords[index] = 'wrong';
       });
 
       act(() => {
-        result.current.setVerificationWords(incorrectWords);
+        result.current!.setVerificationWords(incorrectWords);
       });
 
       act(() => {
-        result.current.verifySeeds();
+        result.current!.verifySeeds();
       });
 
-      expect(result.current.verificationWords).toEqual({});
+      expect(result.current!.verificationWords).toEqual({});
     });
 
     it('should handle case-insensitive word comparison', () => {
@@ -325,21 +330,21 @@ describe('useSeedVerification', () => {
       });
 
       act(() => {
-        result.current.proceedToVerification();
+        result.current!.proceedToVerification();
       });
 
-      const indices = result.current.requiredIndices;
-      const mixedCaseWords = {};
+      const indices = result.current!.requiredIndices;
+      const mixedCaseWords: Record<number, string> = {};
       indices.forEach((index) => {
         mixedCaseWords[index] = mockMnemonic[index].toUpperCase();
       });
 
       act(() => {
-        result.current.setVerificationWords(mixedCaseWords);
+        result.current!.setVerificationWords(mixedCaseWords);
       });
 
       act(() => {
-        result.current.verifySeeds();
+        result.current!.verifySeeds();
       });
 
       expect(mockProps.setSettingUpPin).toHaveBeenCalledWith(true);
@@ -351,21 +356,21 @@ describe('useSeedVerification', () => {
       });
 
       act(() => {
-        result.current.proceedToVerification();
+        result.current!.proceedToVerification();
       });
 
-      const indices = result.current.requiredIndices;
-      const wordsWithSpaces = {};
+      const indices = result.current!.requiredIndices;
+      const wordsWithSpaces: Record<number, string> = {};
       indices.forEach((index) => {
         wordsWithSpaces[index] = `  ${mockMnemonic[index]}  `;
       });
 
       act(() => {
-        result.current.setVerificationWords(wordsWithSpaces);
+        result.current!.setVerificationWords(wordsWithSpaces);
       });
 
       act(() => {
-        result.current.verifySeeds();
+        result.current!.verifySeeds();
       });
 
       expect(mockProps.setSettingUpPin).toHaveBeenCalledWith(true);
@@ -377,21 +382,21 @@ describe('useSeedVerification', () => {
       });
 
       act(() => {
-        result.current.proceedToVerification();
+        result.current!.proceedToVerification();
       });
 
-      const indices = result.current.requiredIndices;
-      const correctWords = {};
+      const indices = result.current!.requiredIndices;
+      const correctWords: Record<number, string> = {};
       indices.forEach((index) => {
         correctWords[index] = mockMnemonic[index];
       });
 
       act(() => {
-        result.current.setVerificationWords(correctWords);
+        result.current!.setVerificationWords(correctWords);
       });
 
       await act(async () => {
-        result.current.verifySeeds();
+        result.current!.verifySeeds();
         await Promise.resolve();
       });
 
@@ -406,17 +411,17 @@ describe('useSeedVerification', () => {
       });
 
       act(() => {
-        result.current.proceedToVerification();
+        result.current!.proceedToVerification();
       });
 
       await act(async () => {
-        await result.current.resetVerificationState();
+        await result.current!.resetVerificationState();
       });
 
-      expect(result.current.verifyingSeeds).toBe(false);
-      expect(result.current.verificationWords).toEqual({});
-      expect(result.current.requiredIndices).toEqual([]);
-      expect(result.current.wordChoices).toEqual({});
+      expect(result.current!.verifyingSeeds).toBe(false);
+      expect(result.current!.verificationWords).toEqual({});
+      expect(result.current!.requiredIndices).toEqual([]);
+      expect(result.current!.wordChoices).toEqual({});
     });
 
     it('should clear persisted state', async () => {
@@ -425,7 +430,7 @@ describe('useSeedVerification', () => {
       });
 
       await act(async () => {
-        await result.current.resetVerificationState();
+        await result.current!.resetVerificationState();
       });
 
       expect(AsyncStorage.removeItem).toHaveBeenCalledWith('seed_verification_state');
@@ -443,7 +448,7 @@ describe('useSeedVerification', () => {
       });
 
       act(() => {
-        result.current.proceedToVerification();
+        result.current!.proceedToVerification();
       });
 
       await act(async () => {
@@ -465,12 +470,12 @@ describe('useSeedVerification', () => {
       });
 
       act(() => {
-        result.current.proceedToVerification();
+        result.current!.proceedToVerification();
       });
 
-      const indices = result.current.requiredIndices;
+      const indices = result.current!.requiredIndices;
       indices.forEach((index) => {
-        const choices = result.current.wordChoices[index];
+        const choices = result.current!.wordChoices[index];
         expect(choices).toHaveLength(4);
         expect(choices).toContain(mockMnemonic[index]);
       });
@@ -482,12 +487,12 @@ describe('useSeedVerification', () => {
       });
 
       act(() => {
-        result.current.proceedToVerification();
+        result.current!.proceedToVerification();
       });
 
-      const indices = result.current.requiredIndices;
+      const indices = result.current!.requiredIndices;
       indices.forEach((index) => {
-        const choices = result.current.wordChoices[index];
+        const choices = result.current!.wordChoices[index];
         const uniqueChoices = [...new Set(choices)];
         expect(uniqueChoices.length).toBe(4);
       });
@@ -503,7 +508,7 @@ describe('useSeedVerification', () => {
         wordChoices: { 0: ['a', 'b', 'c', 'd'] },
       };
 
-      AsyncStorage.getItem.mockResolvedValue(JSON.stringify(savedState));
+      (AsyncStorage.getItem as jest.Mock).mockResolvedValue(JSON.stringify(savedState));
 
       const { result } = renderHook(() => useSeedVerification(mockProps), {
         initialProps: mockProps,
@@ -514,10 +519,10 @@ describe('useSeedVerification', () => {
       });
 
       // Lines 38-41 branches - should load all saved properties
-      expect(result.current.verifyingSeeds).toBe(true);
-      expect(result.current.verificationWords).toEqual(savedState.verificationWords);
-      expect(result.current.requiredIndices).toEqual(savedState.requiredIndices);
-      expect(result.current.wordChoices).toEqual(savedState.wordChoices);
+      expect(result.current!.verifyingSeeds).toBe(true);
+      expect(result.current!.verificationWords).toEqual(savedState.verificationWords);
+      expect(result.current!.requiredIndices).toEqual(savedState.requiredIndices);
+      expect(result.current!.wordChoices).toEqual(savedState.wordChoices);
     });
 
     it('should handle verification with mismatched words', () => {
@@ -526,27 +531,27 @@ describe('useSeedVerification', () => {
       });
 
       act(() => {
-        result.current.proceedToVerification();
+        result.current!.proceedToVerification();
       });
 
       // Set incorrect verification words
-      const indices = result.current.requiredIndices;
-      const wrongWords = {};
+      const indices = result.current!.requiredIndices;
+      const wrongWords: Record<number, string> = {};
       indices.forEach((index) => {
         wrongWords[index] = 'wrongword'; // Intentionally wrong
       });
 
       act(() => {
-        result.current.setVerificationWords(wrongWords);
+        result.current!.setVerificationWords(wrongWords);
       });
 
       act(() => {
-        result.current.verifySeeds();
+        result.current!.verifySeeds();
       });
 
       // Lines 142-145 branches - allCorrect should be false due to mismatch
       expect(notify.seed.incorrect).toHaveBeenCalled();
-      expect(result.current.verificationWords).toEqual({});
+      expect(result.current!.verificationWords).toEqual({});
     });
   });
 });

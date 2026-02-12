@@ -29,8 +29,8 @@ import { useFeeEstimate } from '../../hooks/useFeeEstimate';
 import { TransactionType } from '../../services/feeEstimationService';
 import { RecipientHeader } from '../../components/amountInput';
 import InsufficientTurboSheet from '../../components/send/InsufficientTurboSheet';
-import { useCashu } from '../../contexts/CashuContext';
-import { useNavigationHandlers } from '../../contexts/NavigationHandlersContext';
+import { useCashuBalanceState } from '../../contexts/CashuContext';
+import { useSettingsHandlers } from '../../contexts/NavigationHandlersContext';
 import { useResponsive } from '../../hooks/useResponsive';
 import { logger } from '../../utils/logger';
 import styles from './AmountInputScreen.styles';
@@ -85,10 +85,10 @@ export default function AmountInputScreen({ navigation, route }: AmountInputScre
   const setSendAmount = useSendFlowStore((state) => state.setSendAmount);
   const setTurboEnabled = useSendFlowStore((state) => state.setTurboEnabled);
   const setSendRecipient = useSendFlowStore((state) => state.setSendRecipient);
-  const { settingsHandlers } = useNavigationHandlers();
+  const { settingsHandlers } = useSettingsHandlers();
   const ecashThreshold = settingsHandlers?.ecashThreshold || 100;
   const { segwitBalance, taprootBalance, runesBalance, unconfirmedSegwitBalance } = useBalance();
-  const { balance: cashuBalance } = useCashu();
+  const { balance: cashuBalance } = useCashuBalanceState();
   const { btcPrice } = usePrice();
   const { wallet } = useWallet();
   const { keyboardHeight } = useKeyboard();
@@ -310,7 +310,9 @@ export default function AmountInputScreen({ navigation, route }: AmountInputScre
   const btcAmountPlusFee = sendAssetType === 'btc' ? enteredAmount + estimatedFeeBtc : 0;
   const btcExceedsWithFees = sendAssetType === 'btc' && sendAmount && btcAmountPlusFee > (segwitBalance || 0);
 
-  const isReviewDisabled = !sendAmount || hasInsufficientBalance || hasInsufficientBtcForFees || btcExceedsWithFees || isRequestingMint;
+  // SECURITY: Also disable when enteredAmount is 0 (prevents creating intent with 0 amount
+  // when balance hasn't loaded yet, e.g. MAX pressed with 0 balance)
+  const isReviewDisabled = !sendAmount || enteredAmount <= 0 || hasInsufficientBalance || hasInsufficientBtcForFees || btcExceedsWithFees || isRequestingMint;
 
   // Show turbo toggle for UNIT transactions
   const showTurboToggle = sendAssetType === 'unit';

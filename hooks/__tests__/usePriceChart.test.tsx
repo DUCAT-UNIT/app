@@ -1,4 +1,3 @@
-// @ts-nocheck
 /**
  * Tests for usePriceChart Hook
  */
@@ -12,8 +11,8 @@ const mockGetItem = jest.fn();
 const mockSetItem = jest.fn();
 
 jest.mock('@react-native-async-storage/async-storage', () => ({
-  getItem: (...args) => mockGetItem(...args),
-  setItem: (...args) => mockSetItem(...args),
+  getItem: (...args: any[]) => mockGetItem(...args),
+  setItem: (...args: any[]) => mockSetItem(...args),
 }));
 
 // Mock fetch before importing
@@ -21,27 +20,27 @@ const mockFetch = jest.fn();
 global.fetch = mockFetch;
 
 // Helper to render hooks with react-test-renderer
-function renderHookWithProps(props) {
-  const result = { current: null };
+function renderHookWithProps(props: { assetType: string; timeframe: string }) {
+  const result: { current: ReturnType<typeof usePriceChart> | null } = { current: null };
 
-  function TestComponent({ hookProps }) {
-    result.current = usePriceChart(hookProps.assetType, hookProps.timeframe);
+  function TestComponent({ hookProps }: { hookProps: { assetType: string; timeframe: string } }) {
+    result.current = usePriceChart(hookProps.assetType as any, hookProps.timeframe as any);
     return null;
   }
 
-  let component;
+  let component: ReturnType<typeof create> | undefined;
   act(() => {
     component = create(<TestComponent hookProps={props} />);
   });
 
   return {
     result,
-    rerender: (newProps) => {
+    rerender: (newProps: { assetType: string; timeframe: string }) => {
       act(() => {
-        component.update(<TestComponent hookProps={newProps} />);
+        component?.update(<TestComponent hookProps={newProps} />);
       });
     },
-    unmount: () => component.unmount(),
+    unmount: () => component?.unmount(),
   };
 }
 
@@ -50,7 +49,7 @@ describe('usePriceChart', () => {
     jest.clearAllMocks();
     _resetPriceCache(); // Reset in-memory cache between tests
     mockGetItem.mockResolvedValue(null);
-    mockSetItem.mockResolvedValue();
+    mockSetItem.mockResolvedValue(undefined);
     mockFetch.mockResolvedValue({
       ok: true,
       status: 200,
@@ -69,8 +68,8 @@ describe('usePriceChart', () => {
     it('should return initial state with priceDirection', () => {
       const { result } = renderHookWithProps({ assetType: 'BTC', timeframe: '1D' });
 
-      expect(result.current.priceError).toBe(null);
-      expect(result.current.priceDirection).toMatchObject({
+      expect(result.current!.priceError).toBe(null);
+      expect(result.current!.priceDirection).toMatchObject({
         isPositive: expect.any(Boolean),
         percentChange: expect.any(String),
         dollarChange: expect.any(String),
@@ -80,13 +79,13 @@ describe('usePriceChart', () => {
     it('should not show loading for non-BTC assets', () => {
       const { result } = renderHookWithProps({ assetType: 'UNIT', timeframe: '1D' });
 
-      expect(result.current.priceLoading).toBe(false);
+      expect(result.current!.priceLoading).toBe(false);
     });
 
     it('should return setPriceError function', () => {
       const { result } = renderHookWithProps({ assetType: 'BTC', timeframe: '1D' });
 
-      expect(typeof result.current.setPriceError).toBe('function');
+      expect(typeof result.current!.setPriceError).toBe('function');
     });
   });
 
@@ -102,8 +101,8 @@ describe('usePriceChart', () => {
       });
 
       // The key behavior is that UNIT assets don't show loading and don't have price data
-      expect(result.current.priceLoading).toBe(false);
-      expect(result.current.priceData).toBe(null);
+      expect(result.current!.priceLoading).toBe(false);
+      expect(result.current!.priceData).toBe(null);
     });
 
     it('should set priceLoading to false for non-BTC assets', async () => {
@@ -113,7 +112,7 @@ describe('usePriceChart', () => {
         await Promise.resolve();
       });
 
-      expect(result.current.priceLoading).toBe(false);
+      expect(result.current!.priceLoading).toBe(false);
     });
   });
 
@@ -132,7 +131,7 @@ describe('usePriceChart', () => {
         await Promise.resolve();
       });
 
-      expect(result.current.priceError).toBe(null);
+      expect(result.current!.priceError).toBe(null);
     });
 
     it('should handle non-ok response', async () => {
@@ -150,7 +149,7 @@ describe('usePriceChart', () => {
       });
 
       // Should not throw error
-      expect(result.current.priceError).toBe(null);
+      expect(result.current!.priceError).toBe(null);
     });
 
     it('should handle empty prices array', async () => {
@@ -168,7 +167,7 @@ describe('usePriceChart', () => {
         await Promise.resolve();
       });
 
-      expect(result.current.priceError).toBe(null);
+      expect(result.current!.priceError).toBe(null);
     });
   });
 
@@ -181,10 +180,10 @@ describe('usePriceChart', () => {
       });
 
       act(() => {
-        result.current.setPriceError('Custom error');
+        result.current!.setPriceError('Custom error');
       });
 
-      expect(result.current.priceError).toBe('Custom error');
+      expect(result.current!.priceError).toBe('Custom error');
     });
 
     it('should allow clearing error', async () => {
@@ -195,16 +194,16 @@ describe('usePriceChart', () => {
       });
 
       act(() => {
-        result.current.setPriceError('Error');
+        result.current!.setPriceError('Error');
       });
 
-      expect(result.current.priceError).toBe('Error');
+      expect(result.current!.priceError).toBe('Error');
 
       act(() => {
-        result.current.setPriceError(null);
+        result.current!.setPriceError(null);
       });
 
-      expect(result.current.priceError).toBe(null);
+      expect(result.current!.priceError).toBe(null);
     });
   });
 
@@ -212,16 +211,16 @@ describe('usePriceChart', () => {
     it('should have correct structure for priceDirection', () => {
       const { result } = renderHookWithProps({ assetType: 'BTC', timeframe: '1D' });
 
-      expect(result.current.priceDirection).toHaveProperty('isPositive');
-      expect(result.current.priceDirection).toHaveProperty('percentChange');
-      expect(result.current.priceDirection).toHaveProperty('dollarChange');
+      expect(result.current!.priceDirection).toHaveProperty('isPositive');
+      expect(result.current!.priceDirection).toHaveProperty('percentChange');
+      expect(result.current!.priceDirection).toHaveProperty('dollarChange');
     });
 
     it('should return numeric string for percentChange', () => {
       const { result } = renderHookWithProps({ assetType: 'BTC', timeframe: '1D' });
 
       // percentChange should be a numeric string
-      expect(result.current.priceDirection.percentChange).toMatch(/^-?\d+\.?\d*$/);
+      expect(result.current!.priceDirection.percentChange).toMatch(/^-?\d+\.?\d*$/);
     });
   });
 
@@ -239,13 +238,13 @@ describe('usePriceChart', () => {
     it('should have priceData as null or array', () => {
       const { result } = renderHookWithProps({ assetType: 'BTC', timeframe: '1D' });
 
-      expect(result.current.priceData === null || Array.isArray(result.current.priceData)).toBe(true);
+      expect(result.current!.priceData === null || Array.isArray(result.current!.priceData)).toBe(true);
     });
 
     it('should have priceLoading as boolean', () => {
       const { result } = renderHookWithProps({ assetType: 'BTC', timeframe: '1D' });
 
-      expect(typeof result.current.priceLoading).toBe('boolean');
+      expect(typeof result.current!.priceLoading).toBe('boolean');
     });
   });
 
@@ -298,12 +297,12 @@ describe('usePriceChart', () => {
       });
 
       // Should have some price data (sampled or full depending on cache state)
-      expect(result.current.priceData).toBeDefined();
-      if (result.current.priceData) {
-        expect(result.current.priceData.length).toBeGreaterThan(0);
+      expect(result.current!.priceData).toBeDefined();
+      if (result.current!.priceData) {
+        expect(result.current!.priceData.length).toBeGreaterThan(0);
         // When data is fresh from fetch, it should be sampled to <=62 points
         // When coming from cache, it might be the original 4 points from beforeEach
-        expect(result.current.priceData.length).toBeLessThanOrEqual(100);
+        expect(result.current!.priceData.length).toBeLessThanOrEqual(100);
       }
     });
 
@@ -329,8 +328,8 @@ describe('usePriceChart', () => {
       });
 
       // Should not sample (return all 3 points)
-      if (result.current.priceData) {
-        expect(result.current.priceData.length).toBe(3);
+      if (result.current!.priceData) {
+        expect(result.current!.priceData.length).toBe(3);
       }
     });
 
@@ -355,8 +354,8 @@ describe('usePriceChart', () => {
       });
 
       // Last point should always be included
-      if (result.current.priceData && result.current.priceData.length > 0) {
-        const lastSampledPoint = result.current.priceData[result.current.priceData.length - 1];
+      if (result.current!.priceData && result.current!.priceData.length > 0) {
+        const lastSampledPoint = result.current!.priceData[result.current!.priceData.length - 1];
         const originalLastPoint = largePricesArray[largePricesArray.length - 1];
         expect(lastSampledPoint[0]).toBe(originalLastPoint[0]);
         expect(lastSampledPoint[1]).toBe(originalLastPoint[1]);
@@ -469,7 +468,7 @@ describe('usePriceChart', () => {
       });
 
       // Should still complete successfully
-      expect(result.current.priceLoading).toBe(false);
+      expect(result.current!.priceLoading).toBe(false);
     });
   });
 
@@ -533,7 +532,7 @@ describe('usePriceChart', () => {
       });
 
       // Should not show error when cache is available
-      expect(result.current.priceError).toBe(null);
+      expect(result.current!.priceError).toBe(null);
     });
   });
 
@@ -559,7 +558,7 @@ describe('usePriceChart', () => {
         await Promise.resolve();
       });
 
-      expect(result.current.priceError).toBe(null);
+      expect(result.current!.priceError).toBe(null);
     });
 
     it('should not show error on invalid data when cache exists', async () => {
@@ -584,7 +583,7 @@ describe('usePriceChart', () => {
         await Promise.resolve();
       });
 
-      expect(result.current.priceError).toBe(null);
+      expect(result.current!.priceError).toBe(null);
     });
 
     it('should show error when fetch fails and no cache exists', async () => {
@@ -593,7 +592,7 @@ describe('usePriceChart', () => {
       _resetPriceCache();
 
       mockGetItem.mockResolvedValue(null);
-      mockSetItem.mockResolvedValue();
+      mockSetItem.mockResolvedValue(undefined);
       mockFetch.mockRejectedValue(new Error('Network error'));
 
       const { result } = renderHookWithProps({ assetType: 'BTC', timeframe: '1D' });
@@ -606,7 +605,7 @@ describe('usePriceChart', () => {
       // The error should be set when fetch fails and no cache exists
       // Note: priceError might be null if there's any stale data in scope
       // Test that at least loading is false
-      expect(result.current.priceLoading).toBe(false);
+      expect(result.current!.priceLoading).toBe(false);
       // The priceError behavior depends on whether priceData is null in closure
       // which can be flaky, so we just verify loading completes
     });
@@ -623,7 +622,7 @@ describe('usePriceChart', () => {
         await Promise.resolve();
       });
 
-      expect(result.current.priceError).toBe('String error');
+      expect(result.current!.priceError).toBe('String error');
     });
   });
 
@@ -648,8 +647,8 @@ describe('usePriceChart', () => {
         await Promise.resolve();
       });
 
-      expect(result.current.priceDirection.isPositive).toBe(true);
-      const percentChange = parseFloat(result.current.priceDirection.percentChange);
+      expect(result.current!.priceDirection.isPositive).toBe(true);
+      const percentChange = parseFloat(result.current!.priceDirection.percentChange);
       expect(percentChange).toBeGreaterThan(0);
     });
 
@@ -673,8 +672,8 @@ describe('usePriceChart', () => {
         await Promise.resolve();
       });
 
-      expect(result.current.priceDirection.isPositive).toBe(false);
-      const percentChange = parseFloat(result.current.priceDirection.percentChange);
+      expect(result.current!.priceDirection.isPositive).toBe(false);
+      const percentChange = parseFloat(result.current!.priceDirection.percentChange);
       expect(percentChange).toBeLessThan(0);
     });
 
@@ -699,7 +698,7 @@ describe('usePriceChart', () => {
       });
 
       // Dollar change should be formatted with 2 decimal places
-      expect(result.current.priceDirection.dollarChange).toMatch(/^\d{1,3}(,\d{3})*\.\d{2}$/);
+      expect(result.current!.priceDirection.dollarChange).toMatch(/^\d{1,3}(,\d{3})*\.\d{2}$/);
     });
   });
 });

@@ -13,7 +13,7 @@ import {
 import { COLORS } from '../../theme';
 import Icon from '../../components/icons';
 import MutinynetBanner from '../../components/MutinynetBanner';
-import { useNavigationHandlers } from '../../contexts/NavigationHandlersContext';
+import { useSettingsHandlers } from '../../contexts/NavigationHandlersContext';
 import { logger } from '../../utils/logger';
 import { styles } from './AdvancedScreen.styles';
 
@@ -62,7 +62,7 @@ const AdvancedScreen = React.memo(function AdvancedScreen({ route }: AdvancedScr
   } = route.params;
 
   // Get advancedMode and ecashThreshold directly from context so they update when toggled
-  const { settingsHandlers } = useNavigationHandlers();
+  const { settingsHandlers } = useSettingsHandlers();
   const advancedMode = settingsHandlers?.advancedMode || false;
   const ecashThreshold = settingsHandlers?.ecashThreshold || 100;
 

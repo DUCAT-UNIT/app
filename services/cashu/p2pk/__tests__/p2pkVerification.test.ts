@@ -1,4 +1,3 @@
-// @ts-nocheck
 /**
  * Tests for P2PK Verification (NUT-11)
  */
@@ -118,7 +117,7 @@ describe('p2pkVerification', () => {
     });
 
     it('should return true for valid signature (64 char x-only pubkey)', async () => {
-      const witness = JSON.stringify({ signatures: ['sig'.repeat(43)] }); // 129 chars
+      const witness = JSON.stringify({ signatures: ['ab'.repeat(64)] }); // 128 hex chars = 64 bytes
       const publicKey = 'ab'.repeat(32); // 64 chars - x-only
 
       (schnorr.verify as jest.Mock).mockReturnValue(true);
@@ -128,7 +127,7 @@ describe('p2pkVerification', () => {
     });
 
     it('should return true for valid signature (66 char compressed pubkey)', async () => {
-      const witness = JSON.stringify({ signatures: ['sig'.repeat(43)] });
+      const witness = JSON.stringify({ signatures: ['ab'.repeat(64)] });
       const publicKey = '02' + 'ab'.repeat(32); // 66 chars - compressed with prefix
 
       (schnorr.verify as jest.Mock).mockReturnValue(true);
@@ -229,7 +228,7 @@ describe('p2pkVerification', () => {
     it('should return false for proof with null secret', () => {
       const proof = {
         amount: 100,
-        secret: null,
+        secret: null as any,
         C: 'commitment',
         id: 'keysetId',
       };

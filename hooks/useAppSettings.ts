@@ -10,7 +10,7 @@ import { clearWallet } from '../services/cashu/cashuWalletService';
 import logger from '../utils/logger';
 import { notify } from '../utils/notify';
 
-interface UseAppSettingsParams {
+export interface UseAppSettingsParams {
   biometricEnabled: boolean;
   setIsAuthenticated: (value: boolean) => void;
 }

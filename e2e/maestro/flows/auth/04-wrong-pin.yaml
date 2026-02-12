@@ -1,0 +1,65 @@
+appId: com.ducatprotocol.DucatProtocolWallet
+---
+# Wrong PIN - Enter wrong PIN on lock screen and verify error
+# Import wallet → kill app → relaunch → wrong PIN → verify error → correct PIN → wallet
+
+# First set up a wallet
+- runFlow: ../helpers/import-wallet-typed.yaml
+
+# Kill and relaunch the app (without clearing state - wallet persists in SecureStore)
+- stopApp
+- launchApp
+- openLink: "com.ducatprotocol.DucatProtocolWallet://expo-development-client/?url=http%3A%2F%2Flocalhost%3A8081"
+
+# Lock screen should appear (wallet exists, seedConfirmed=true, not authenticated)
+- extendedWaitUntil:
+    visible:
+      id: "lock-screen"
+    timeout: 60000
+
+# Dismiss any Expo Dev Client overlay (same pattern as clear-and-launch)
+- waitForAnimationToEnd
+- tapOn:
+    point: "50%,10%"
+- waitForAnimationToEnd
+
+# Wait for keypad to be fully interactive
+- extendedWaitUntil:
+    visible:
+      id: "lock-keypad-1"
+    timeout: 5000
+
+# Enter wrong PIN (654321) — rapid taps, matching working enter-pin-lock.yaml pattern
+- tapOn:
+    id: "lock-keypad-6"
+- tapOn:
+    id: "lock-keypad-5"
+- tapOn:
+    id: "lock-keypad-4"
+- tapOn:
+    id: "lock-keypad-3"
+- tapOn:
+    id: "lock-keypad-2"
+- tapOn:
+    id: "lock-keypad-1"
+
+# Verify error message appears (PIN hashing via PBKDF2 takes a few seconds)
+- extendedWaitUntil:
+    visible:
+      id: "lock-error"
+    timeout: 15000
+
+# Now enter correct PIN
+- runFlow: ../helpers/enter-pin-lock.yaml
+
+# Dismiss airdrop modal if it appears
+- runFlow: ../helpers/dismiss-airdrop.yaml
+
+# Dismiss low ecash modal if it appears
+- runFlow: ../helpers/dismiss-low-ecash.yaml
+
+# Verify wallet screen loads after correct unlock
+- extendedWaitUntil:
+    visible:
+      id: "wallet-screen"
+    timeout: 15000

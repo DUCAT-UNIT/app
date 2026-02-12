@@ -1,4 +1,3 @@
-// @ts-nocheck
 /**
  * Tests for Pending Transactions Utilities
  */
@@ -14,6 +13,8 @@ import {
   cleanupInvalidTransactions,
   markUtxosAsSpent,
   unmarkUtxosAsSpent,
+  PendingTransaction,
+  UnconfirmedUTXO,
 } from '../pendingTransactionsUtils';
 
 describe('buildExclusionSet', () => {
@@ -138,10 +139,10 @@ describe('getUnconfirmedUTXOsFromPending', () => {
       assetType: 'btc',
       outputs: [{ vout: 0, address: 'bc1qsegwit', value: 10000 }],
     },
-  };
+  } as Record<string, PendingTransaction>;
 
   it('should get all UTXOs with "all" filter', () => {
-    const result = getUnconfirmedUTXOsFromPending(mockPendingTxs, 'all', new Set());
+    const result = getUnconfirmedUTXOsFromPending(mockPendingTxs, 'all', new Set<string>());
 
     expect(result.length).toBe(2);
     expect(result[0].txid).toBe('tx1');
@@ -149,14 +150,14 @@ describe('getUnconfirmedUTXOsFromPending', () => {
   });
 
   it('should filter by segwit addresses', () => {
-    const result = getUnconfirmedUTXOsFromPending(mockPendingTxs, 'segwit', new Set());
+    const result = getUnconfirmedUTXOsFromPending(mockPendingTxs, 'segwit', new Set<string>());
 
     expect(result.length).toBe(1);
     expect(result[0].address).toBe('bc1qsegwit');
   });
 
   it('should filter by taproot addresses', () => {
-    const result = getUnconfirmedUTXOsFromPending(mockPendingTxs, 'taproot', new Set());
+    const result = getUnconfirmedUTXOsFromPending(mockPendingTxs, 'taproot', new Set<string>());
 
     expect(result.length).toBe(1);
     expect(result[0].address).toBe('bc1ptaproot');
@@ -171,7 +172,7 @@ describe('getUnconfirmedUTXOsFromPending', () => {
   });
 
   it('should skip invalid transactions', () => {
-    const result = getUnconfirmedUTXOsFromPending(mockPendingTxs, 'all', new Set());
+    const result = getUnconfirmedUTXOsFromPending(mockPendingTxs, 'all', new Set<string>());
 
     expect(result).not.toContainEqual(expect.objectContaining({ txid: 'tx2' }));
   });
@@ -185,9 +186,9 @@ describe('getUnconfirmedUTXOsFromPending', () => {
         parentTxid: 'parent1',
         outputs: [{ vout: 0, address: 'bc1qtest', value: 1000 }],
       },
-    };
+    } as Record<string, PendingTransaction>;
 
-    const result = getUnconfirmedUTXOsFromPending(txsWithParent, 'all', new Set());
+    const result = getUnconfirmedUTXOsFromPending(txsWithParent, 'all', new Set<string>());
 
     expect(result[0].parentTxid).toBe('parent1');
     expect(result[0].assetType).toBe('runes');
@@ -200,7 +201,7 @@ describe('calculateUnconfirmedBalance', () => {
       { value: 50000 },
       { value: 30000 },
       { value: 20000 },
-    ];
+    ] as UnconfirmedUTXO[];
 
     const result = calculateUnconfirmedBalance(utxos);
 
@@ -211,7 +212,7 @@ describe('calculateUnconfirmedBalance', () => {
     const utxos = [
       { runeAmount: 500 },
       { runeAmount: 300 },
-    ];
+    ] as UnconfirmedUTXO[];
 
     const result = calculateUnconfirmedBalance(utxos);
 
@@ -221,7 +222,7 @@ describe('calculateUnconfirmedBalance', () => {
   it('should handle mixed BTC and runes', () => {
     const utxos = [
       { value: 100000000, runeAmount: 1000 },
-    ];
+    ] as UnconfirmedUTXO[];
 
     const result = calculateUnconfirmedBalance(utxos);
 
@@ -240,7 +241,7 @@ describe('calculateUnconfirmedBalance', () => {
     const utxos = [
       {},
       { value: 50000 },
-    ];
+    ] as UnconfirmedUTXO[];
 
     const result = calculateUnconfirmedBalance(utxos);
 
@@ -254,8 +255,8 @@ describe('invalidateChildrenRecursive', () => {
       parent: { status: 'pending', parentTxid: null },
       child1: { status: 'pending', parentTxid: 'parent' },
       child2: { status: 'pending', parentTxid: 'parent' },
-    };
-    const invalidated = [];
+    } as unknown as Record<string, PendingTransaction>;
+    const invalidated: string[] = [];
 
     invalidateChildrenRecursive(transactions, 'parent', invalidated);
 
@@ -269,8 +270,8 @@ describe('invalidateChildrenRecursive', () => {
       parent: { status: 'pending', parentTxid: null },
       child: { status: 'pending', parentTxid: 'parent' },
       grandchild: { status: 'pending', parentTxid: 'child' },
-    };
-    const invalidated = [];
+    } as unknown as Record<string, PendingTransaction>;
+    const invalidated: string[] = [];
 
     invalidateChildrenRecursive(transactions, 'parent', invalidated);
 
@@ -286,8 +287,8 @@ describe('invalidateChildrenRecursive', () => {
       parent2: { status: 'pending', parentTxid: null },
       child1: { status: 'pending', parentTxid: 'parent1' },
       child2: { status: 'pending', parentTxid: 'parent2' },
-    };
-    const invalidated = [];
+    } as unknown as Record<string, PendingTransaction>;
+    const invalidated: string[] = [];
 
     invalidateChildrenRecursive(transactions, 'parent1', invalidated);
 
@@ -301,7 +302,7 @@ describe('invalidateTransactionTree', () => {
   it('should invalidate transaction and return it in invalidated list', () => {
     const pendingTxs = {
       tx1: { status: 'pending', parentTxid: null },
-    };
+    } as unknown as Record<string, PendingTransaction>;
 
     const result = invalidateTransactionTree(pendingTxs, 'tx1');
 
@@ -313,7 +314,7 @@ describe('invalidateTransactionTree', () => {
     const pendingTxs = {
       parent: { status: 'pending', parentTxid: null },
       child: { status: 'pending', parentTxid: 'parent' },
-    };
+    } as unknown as Record<string, PendingTransaction>;
 
     const result = invalidateTransactionTree(pendingTxs, 'parent');
 
@@ -325,7 +326,7 @@ describe('invalidateTransactionTree', () => {
   it('should create new object (immutable)', () => {
     const pendingTxs = {
       tx1: { status: 'pending', parentTxid: null },
-    };
+    } as unknown as Record<string, PendingTransaction>;
 
     const result = invalidateTransactionTree(pendingTxs, 'tx1');
 
@@ -336,7 +337,7 @@ describe('invalidateTransactionTree', () => {
   it('should handle non-existent transaction', () => {
     const pendingTxs = {
       tx1: { status: 'pending', parentTxid: null },
-    };
+    } as unknown as Record<string, PendingTransaction>;
 
     const result = invalidateTransactionTree(pendingTxs, 'nonexistent');
 
@@ -354,7 +355,7 @@ describe('removeUtxoFromPending', () => {
           { vout: 1, value: 2000 },
         ],
       },
-    };
+    } as unknown as Record<string, PendingTransaction>;
 
     const result = removeUtxoFromPending(pendingTxs, 'tx1', 0);
 
@@ -367,7 +368,7 @@ describe('removeUtxoFromPending', () => {
       tx1: {
         outputs: [{ vout: 0, value: 1000 }],
       },
-    };
+    } as unknown as Record<string, PendingTransaction>;
 
     const result = removeUtxoFromPending(pendingTxs, 'tx1', 0);
 
@@ -379,7 +380,7 @@ describe('removeUtxoFromPending', () => {
       tx1: {
         outputs: [{ vout: 0, value: 1000 }],
       },
-    };
+    } as unknown as Record<string, PendingTransaction>;
 
     const result = removeUtxoFromPending(pendingTxs, 'tx1', 0);
 
@@ -390,7 +391,7 @@ describe('removeUtxoFromPending', () => {
   it('should handle non-existent transaction', () => {
     const pendingTxs = {
       tx1: { outputs: [{ vout: 0 }] },
-    };
+    } as unknown as Record<string, PendingTransaction>;
 
     const result = removeUtxoFromPending(pendingTxs, 'nonexistent', 0);
 
@@ -400,7 +401,7 @@ describe('removeUtxoFromPending', () => {
   it('should handle transaction without outputs', () => {
     const pendingTxs = {
       tx1: {},
-    };
+    } as unknown as Record<string, PendingTransaction>;
 
     const result = removeUtxoFromPending(pendingTxs, 'tx1', 0);
 
@@ -414,7 +415,7 @@ describe('cleanupInvalidTransactions', () => {
       tx1: { status: 'pending' },
       tx2: { status: 'invalid' },
       tx3: { status: 'invalid' },
-    };
+    } as unknown as Record<string, PendingTransaction>;
 
     const result = cleanupInvalidTransactions(pendingTxs);
 
@@ -428,7 +429,7 @@ describe('cleanupInvalidTransactions', () => {
     const pendingTxs = {
       tx1: { status: 'pending' },
       tx2: { status: 'pending' },
-    };
+    } as unknown as Record<string, PendingTransaction>;
 
     const result = cleanupInvalidTransactions(pendingTxs);
 
@@ -439,7 +440,7 @@ describe('cleanupInvalidTransactions', () => {
   it('should not modify original object', () => {
     const pendingTxs = {
       tx1: { status: 'invalid' },
-    };
+    } as unknown as Record<string, PendingTransaction>;
 
     const result = cleanupInvalidTransactions(pendingTxs);
 
@@ -450,7 +451,7 @@ describe('cleanupInvalidTransactions', () => {
 
 describe('markUtxosAsSpent', () => {
   it('should mark single UTXO as spent', () => {
-    const spentUtxos = new Set();
+    const spentUtxos = new Set<string>();
     const utxos = [{ txid: 'abc', vout: 0 }];
 
     const result = markUtxosAsSpent(spentUtxos, utxos);
@@ -460,7 +461,7 @@ describe('markUtxosAsSpent', () => {
   });
 
   it('should mark multiple UTXOs as spent', () => {
-    const spentUtxos = new Set();
+    const spentUtxos = new Set<string>();
     const utxos = [
       { txid: 'abc', vout: 0 },
       { txid: 'def', vout: 1 },
@@ -474,7 +475,7 @@ describe('markUtxosAsSpent', () => {
   });
 
   it('should not modify original set', () => {
-    const spentUtxos = new Set();
+    const spentUtxos = new Set<string>();
     const utxos = [{ txid: 'abc', vout: 0 }];
 
     const result = markUtxosAsSpent(spentUtxos, utxos);

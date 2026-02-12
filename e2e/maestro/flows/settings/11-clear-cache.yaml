@@ -1,0 +1,73 @@
+appId: com.ducatprotocol.DucatProtocolWallet
+---
+# Clear Cache - Verify clear cache button is accessible and tappable
+# Requires developer mode to be enabled
+# Import wallet → settings → advanced → dev mode → settings → clear cache
+
+- runFlow: ../helpers/import-wallet-typed.yaml
+
+# Navigate to settings
+- extendedWaitUntil:
+    visible:
+      id: "wallet-screen"
+    timeout: 15000
+- runFlow: ../helpers/dismiss-low-ecash.yaml
+- runFlow: ../helpers/dismiss-airdrop.yaml
+- runFlow:
+    when:
+      visible:
+        id: "passkey-migration-modal"
+    commands:
+      - tapOn:
+          id: "passkey-skip-btn"
+- tapOn:
+    id: "wallet-settings-btn"
+- extendedWaitUntil:
+    visible:
+      id: "settings-screen"
+    timeout: 5000
+
+# Enable developer mode first (clear cache only visible in dev mode)
+- tapOn:
+    id: "settings-advanced-btn"
+- extendedWaitUntil:
+    visible:
+      id: "advanced-screen"
+    timeout: 5000
+- tapOn:
+    id: "advanced-dev-mode-btn"
+- waitForAnimationToEnd
+
+# Go back to settings
+- tapOn:
+    id: "advanced-back-btn"
+- extendedWaitUntil:
+    visible:
+      id: "settings-screen"
+    timeout: 5000
+
+# Scroll to clear cache button if needed
+- scrollUntilVisible:
+    element:
+      id: "settings-clear-cache-btn"
+    direction: DOWN
+    timeout: 5000
+
+# Tap clear cache
+- tapOn:
+    id: "settings-clear-cache-btn"
+
+# Wait for confirmation dialog
+- extendedWaitUntil:
+    visible:
+      text: "Clear App Cache"
+    timeout: 5000
+
+# Cancel the clear cache action (don't actually clear)
+- tapOn:
+    text: "Cancel"
+- waitForAnimationToEnd
+
+# Verify we're still on settings screen
+- assertVisible:
+    id: "settings-screen"

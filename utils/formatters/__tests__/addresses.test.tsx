@@ -1,4 +1,3 @@
-// @ts-nocheck
 /**
  * Tests for Address Formatting Utilities
  */
@@ -35,7 +34,7 @@ describe('truncateAddress', () => {
   });
 
   it('should handle non-string addresses by converting to string', () => {
-    expect(truncateAddress(12345)).toBe('12345');
+    expect(truncateAddress(12345 as unknown as string)).toBe('12345');
   });
 
   it('should handle addresses exactly at length threshold', () => {
@@ -69,7 +68,7 @@ describe('truncateTxid', () => {
   });
 
   it('should handle non-string txids by converting to string', () => {
-    expect(truncateTxid(12345)).toBe('12345');
+    expect(truncateTxid(12345 as unknown as string)).toBe('12345');
   });
 });
 
@@ -114,7 +113,7 @@ describe('looksLikeBitcoinAddress', () => {
   });
 
   it('should return false for non-string addresses', () => {
-    expect(looksLikeBitcoinAddress(12345)).toBe(false);
+    expect(looksLikeBitcoinAddress(12345 as unknown as string)).toBe(false);
   });
 });
 
@@ -154,6 +153,6 @@ describe('getAddressType', () => {
   });
 
   it('should return unknown for non-string addresses', () => {
-    expect(getAddressType(12345)).toBe('unknown');
+    expect(getAddressType(12345 as unknown as string)).toBe('unknown');
   });
 });

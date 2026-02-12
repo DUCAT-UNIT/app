@@ -1,0 +1,25 @@
+appId: com.ducatprotocol.DucatProtocolWallet
+---
+# Navigate to Settings from the wallet screen
+- extendedWaitUntil:
+    visible:
+      id: "wallet-screen"
+    timeout: 15000
+
+# Dismiss modals that may appear after wallet loads
+- runFlow: dismiss-low-ecash.yaml
+- runFlow: dismiss-airdrop.yaml
+- runFlow:
+    when:
+      visible:
+        id: "passkey-migration-modal"
+    commands:
+      - tapOn:
+          id: "passkey-skip-btn"
+
+- tapOn:
+    id: "wallet-settings-btn"
+- extendedWaitUntil:
+    visible:
+      id: "settings-screen"
+    timeout: 5000

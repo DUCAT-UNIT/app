@@ -1,4 +1,3 @@
-// @ts-nocheck
 /**
  * Tests for useConfirmationHandlers hook
  */
@@ -11,19 +10,19 @@ import { notify } from '../../utils/notify';
 // Mock dependencies
 jest.mock('react-native', () => ({
   Linking: {
-    openURL: jest.fn().mockResolvedValue(),
+    openURL: jest.fn().mockResolvedValue(undefined),
   },
   Share: {
-    share: jest.fn().mockResolvedValue(),
+    share: jest.fn().mockResolvedValue(undefined),
   },
 }));
 
 jest.mock('expo-clipboard', () => ({
-  setStringAsync: jest.fn().mockResolvedValue(),
+  setStringAsync: jest.fn().mockResolvedValue(undefined),
 }));
 
 jest.mock('../../utils/constants', () => ({
-  getTxUrl: jest.fn((txid) => `https://mempool.space/tx/${txid}`),
+  getTxUrl: jest.fn((txid: string) => `https://mempool.space/tx/${txid}`),
 }));
 
 jest.mock('../../utils/logger', () => ({
@@ -40,22 +39,22 @@ import * as Clipboard from 'expo-clipboard';
 import { getTxUrl } from '../../utils/constants';
 
 // Helper to render hooks
-function renderHook(hook) {
-  const result = { current: null };
+function renderHook<T>(hook: () => T) {
+  const result: { current: T | null } = { current: null };
   function TestComponent() {
     result.current = hook();
     return null;
   }
-  let component;
+  let component: ReturnType<typeof create> | undefined;
   act(() => {
     component = create(<TestComponent />);
   });
-  return { result, unmount: component.unmount, component };
+  return { result, unmount: component!.unmount, component };
 }
 
 describe('useConfirmationHandlers', () => {
-  let fetchTransactionHistory;
-  let navigation;
+  let fetchTransactionHistory: jest.Mock;
+  let navigation: { getParent: jest.Mock };
 
   beforeEach(() => {
     jest.clearAllMocks();
@@ -82,11 +81,11 @@ describe('useConfirmationHandlers', () => {
       })
     );
 
-    expect(typeof result.current.handleViewExplorer).toBe('function');
-    expect(typeof result.current.handleShareDeeplink).toBe('function');
-    expect(typeof result.current.handleCopyDeeplink).toBe('function');
-    expect(typeof result.current.handleOpenInBrowser).toBe('function');
-    expect(typeof result.current.handleDone).toBe('function');
+    expect(typeof result.current!.handleViewExplorer).toBe('function');
+    expect(typeof result.current!.handleShareDeeplink).toBe('function');
+    expect(typeof result.current!.handleCopyDeeplink).toBe('function');
+    expect(typeof result.current!.handleOpenInBrowser).toBe('function');
+    expect(typeof result.current!.handleDone).toBe('function');
   });
 
   describe('handleViewExplorer', () => {
@@ -94,14 +93,14 @@ describe('useConfirmationHandlers', () => {
       const { result } = renderHook(() =>
         useConfirmationHandlers({
           broadcastedTxid: 'txid123',
-          turboDeeplink: null,
+          turboDeeplink: undefined,
           fetchTransactionHistory,
           navigation,
         })
       );
 
       act(() => {
-        result.current.handleViewExplorer();
+        result.current!.handleViewExplorer();
       });
 
       expect(getTxUrl).toHaveBeenCalledWith('txid123');
@@ -111,15 +110,15 @@ describe('useConfirmationHandlers', () => {
     it('should not open URL when txid is null', () => {
       const { result } = renderHook(() =>
         useConfirmationHandlers({
-          broadcastedTxid: null,
-          turboDeeplink: null,
+          broadcastedTxid: undefined,
+          turboDeeplink: undefined,
           fetchTransactionHistory,
           navigation,
         })
       );
 
       act(() => {
-        result.current.handleViewExplorer();
+        result.current!.handleViewExplorer();
       });
 
       expect(Linking.openURL).not.toHaveBeenCalled();
@@ -130,7 +129,7 @@ describe('useConfirmationHandlers', () => {
     it('should share deeplink when present', async () => {
       const { result } = renderHook(() =>
         useConfirmationHandlers({
-          broadcastedTxid: null,
+          broadcastedTxid: undefined,
           turboDeeplink: 'https://ducat.app/turbo/token123',
           fetchTransactionHistory,
           navigation,
@@ -138,7 +137,7 @@ describe('useConfirmationHandlers', () => {
       );
 
       await act(async () => {
-        await result.current.handleShareDeeplink();
+        await result.current!.handleShareDeeplink();
       });
 
       expect(Share.share).toHaveBeenCalledWith({
@@ -150,26 +149,26 @@ describe('useConfirmationHandlers', () => {
     it('should not share when deeplink is null', async () => {
       const { result } = renderHook(() =>
         useConfirmationHandlers({
-          broadcastedTxid: null,
-          turboDeeplink: null,
+          broadcastedTxid: undefined,
+          turboDeeplink: undefined,
           fetchTransactionHistory,
           navigation,
         })
       );
 
       await act(async () => {
-        await result.current.handleShareDeeplink();
+        await result.current!.handleShareDeeplink();
       });
 
       expect(Share.share).not.toHaveBeenCalled();
     });
 
     it('should show error toast on share failure', async () => {
-      Share.share.mockRejectedValue(new Error('Share failed'));
+      (Share.share as jest.Mock).mockRejectedValue(new Error('Share failed'));
 
       const { result } = renderHook(() =>
         useConfirmationHandlers({
-          broadcastedTxid: null,
+          broadcastedTxid: undefined,
           turboDeeplink: 'https://ducat.app/...',
           fetchTransactionHistory,
           navigation,
@@ -177,7 +176,7 @@ describe('useConfirmationHandlers', () => {
       );
 
       await act(async () => {
-        await result.current.handleShareDeeplink();
+        await result.current!.handleShareDeeplink();
       });
 
       expect(notify.link.shareFailed).toHaveBeenCalled();
@@ -188,7 +187,7 @@ describe('useConfirmationHandlers', () => {
     it('should copy deeplink to clipboard', async () => {
       const { result } = renderHook(() =>
         useConfirmationHandlers({
-          broadcastedTxid: null,
+          broadcastedTxid: undefined,
           turboDeeplink: 'https://ducat.app/turbo/token123',
           fetchTransactionHistory,
           navigation,
@@ -196,7 +195,7 @@ describe('useConfirmationHandlers', () => {
       );
 
       await act(async () => {
-        await result.current.handleCopyDeeplink();
+        await result.current!.handleCopyDeeplink();
       });
 
       expect(Clipboard.setStringAsync).toHaveBeenCalledWith(
@@ -208,26 +207,26 @@ describe('useConfirmationHandlers', () => {
     it('should not copy when deeplink is null', async () => {
       const { result } = renderHook(() =>
         useConfirmationHandlers({
-          broadcastedTxid: null,
-          turboDeeplink: null,
+          broadcastedTxid: undefined,
+          turboDeeplink: undefined,
           fetchTransactionHistory,
           navigation,
         })
       );
 
       await act(async () => {
-        await result.current.handleCopyDeeplink();
+        await result.current!.handleCopyDeeplink();
       });
 
       expect(Clipboard.setStringAsync).not.toHaveBeenCalled();
     });
 
     it('should show error toast on copy failure', async () => {
-      Clipboard.setStringAsync.mockRejectedValue(new Error('Copy failed'));
+      (Clipboard.setStringAsync as jest.Mock).mockRejectedValue(new Error('Copy failed'));
 
       const { result } = renderHook(() =>
         useConfirmationHandlers({
-          broadcastedTxid: null,
+          broadcastedTxid: undefined,
           turboDeeplink: 'https://ducat.app/...',
           fetchTransactionHistory,
           navigation,
@@ -235,7 +234,7 @@ describe('useConfirmationHandlers', () => {
       );
 
       await act(async () => {
-        await result.current.handleCopyDeeplink();
+        await result.current!.handleCopyDeeplink();
       });
 
       expect(notify.link.copyFailed).toHaveBeenCalled();
@@ -246,7 +245,7 @@ describe('useConfirmationHandlers', () => {
     it('should open deeplink in browser', async () => {
       const { result } = renderHook(() =>
         useConfirmationHandlers({
-          broadcastedTxid: null,
+          broadcastedTxid: undefined,
           turboDeeplink: 'https://ducat.app/turbo/token123',
           fetchTransactionHistory,
           navigation,
@@ -254,7 +253,7 @@ describe('useConfirmationHandlers', () => {
       );
 
       await act(async () => {
-        await result.current.handleOpenInBrowser();
+        await result.current!.handleOpenInBrowser();
       });
 
       expect(Linking.openURL).toHaveBeenCalledWith(
@@ -265,26 +264,26 @@ describe('useConfirmationHandlers', () => {
     it('should not open when deeplink is null', async () => {
       const { result } = renderHook(() =>
         useConfirmationHandlers({
-          broadcastedTxid: null,
-          turboDeeplink: null,
+          broadcastedTxid: undefined,
+          turboDeeplink: undefined,
           fetchTransactionHistory,
           navigation,
         })
       );
 
       await act(async () => {
-        await result.current.handleOpenInBrowser();
+        await result.current!.handleOpenInBrowser();
       });
 
       expect(Linking.openURL).not.toHaveBeenCalled();
     });
 
     it('should show error toast on open failure', async () => {
-      Linking.openURL.mockRejectedValue(new Error('Open failed'));
+      (Linking.openURL as jest.Mock).mockRejectedValue(new Error('Open failed'));
 
       const { result } = renderHook(() =>
         useConfirmationHandlers({
-          broadcastedTxid: null,
+          broadcastedTxid: undefined,
           turboDeeplink: 'https://ducat.app/...',
           fetchTransactionHistory,
           navigation,
@@ -292,7 +291,7 @@ describe('useConfirmationHandlers', () => {
       );
 
       await act(async () => {
-        await result.current.handleOpenInBrowser();
+        await result.current!.handleOpenInBrowser();
       });
 
       expect(notify.link.openFailed).toHaveBeenCalled();
@@ -311,14 +310,14 @@ describe('useConfirmationHandlers', () => {
       const { result } = renderHook(() =>
         useConfirmationHandlers({
           broadcastedTxid: 'txid123',
-          turboDeeplink: null,
+          turboDeeplink: undefined,
           fetchTransactionHistory,
           navigation: mockNavigation,
         })
       );
 
       act(() => {
-        result.current.handleDone();
+        result.current!.handleDone();
       });
 
       expect(fetchTransactionHistory).toHaveBeenCalled();
@@ -343,14 +342,14 @@ describe('useConfirmationHandlers', () => {
       const { result } = renderHook(() =>
         useConfirmationHandlers({
           broadcastedTxid: 'txid123',
-          turboDeeplink: null,
-          fetchTransactionHistory: null,
+          turboDeeplink: undefined,
+          fetchTransactionHistory: undefined,
           navigation: mockNavigation,
         })
       );
 
       act(() => {
-        result.current.handleDone();
+        result.current!.handleDone();
       });
 
       // Should not throw

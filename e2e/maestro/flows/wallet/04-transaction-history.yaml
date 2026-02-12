@@ -1,0 +1,33 @@
+appId: com.ducatprotocol.DucatProtocolWallet
+---
+# Transaction History - Verify funded wallet shows transaction history with transactions
+# Create fresh wallet (airdrop) → tap history → verify history loads with transactions (not empty)
+
+- runFlow: ../helpers/create-wallet.yaml
+
+# Dismiss modals
+- runFlow: ../helpers/dismiss-low-ecash.yaml
+- runFlow: ../helpers/dismiss-airdrop.yaml
+- runFlow:
+    when:
+      visible:
+        id: "passkey-migration-modal"
+    commands:
+      - tapOn:
+          id: "passkey-skip-btn"
+
+# Tap history button
+- tapOn:
+    id: "wallet-history-btn"
+
+# Verify transaction history screen loads
+- waitForAnimationToEnd
+- extendedWaitUntil:
+    visible:
+      text: "Transaction History"
+    timeout: 15000
+
+# Verify the list is NOT empty — "No transactions yet" should not appear
+# (airdrop creates at least one "Received" BTC transaction)
+- assertNotVisible:
+    text: "No transactions yet"

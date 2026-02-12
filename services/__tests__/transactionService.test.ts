@@ -1,6 +1,8 @@
-// @ts-nocheck
 /**
  * Tests for transactionService
+ *
+ * NOTE: This file uses type-safe fetch mock pattern.
+ * See testUtils/fetchMock.ts for the implementation.
  */
 
 import * as TransactionService from '../transaction';
@@ -9,17 +11,23 @@ import * as balanceService from '../balanceService';
 import * as SecureStorageService from '../secureStorageService';
 import { ERRORS } from '../../utils/messages';
 import * as bitcoinUtils from '../../utils/bitcoin';
+import {
+  setupMockFetch,
+  getMockFetch,
+  createMockResponse,
+  createMockTextResponse,
+} from './testUtils';
 
 jest.mock('../balanceService');
 jest.mock('../secureStorageService');
 jest.mock('../../utils/retry', () => ({
-  retrySilently: jest.fn((fn) => fn()),
+  retrySilently: jest.fn((fn: () => unknown) => fn()),
 }));
 
 // Mock utils/bitcoin to prevent BIP32Factory from running
 jest.mock('../../utils/bitcoin', () => ({
   MUTINYNET_NETWORK: {},
-  validateAndNormalizeAddress: jest.fn((addr) => addr),
+  validateAndNormalizeAddress: jest.fn((addr: string) => addr),
   deriveAddressesFromMnemonic: jest.fn(),
   deriveSigningKeys: jest.fn(),
 }));
@@ -30,8 +38,46 @@ jest.mock('../../utils/runestoneEncoder', () => ({
   })),
 }));
 
-// Mock fetch
-(global as any).fetch = jest.fn();
+/**
+ * Mock callback type for withMnemonic
+ */
+type MnemonicCallback<T> = (mnemonic: string) => T;
+
+/**
+ * Mock signing key interface
+ */
+interface MockSigningKey {
+  publicKey: Buffer;
+  privateKey: Buffer;
+  tweak?: jest.Mock;
+}
+
+/**
+ * Mock PSBT interface for testing
+ */
+interface MockPsbtData {
+  inputs: Array<{
+    witnessUtxo?: {
+      script: Buffer;
+      value: number;
+    };
+    tapKeySig?: Buffer;
+  }>;
+}
+
+interface MockPsbt {
+  data: MockPsbtData;
+  __CACHE?: {
+    __TX: {
+      clone: jest.Mock;
+    };
+  };
+  signInput: jest.Mock;
+  updateInput?: jest.Mock;
+  finalizeInput?: jest.Mock;
+  finalizeAllInputs: jest.Mock;
+  extractTransaction: jest.Mock;
+}
 
 // Mock bitcoinjs-lib
 const mockPsbtInstance = {
@@ -41,9 +87,8 @@ const mockPsbtInstance = {
   txOutputs: [],
 };
 
-const mockTransaction = {
-  outs: [{ script: Buffer.from('mock_script'), value: 100000, status: { confirmed: true } }],
-};
+// Counter for correlating fromHex calls with tx-hex fetch URLs
+let mockFromHexCallIdx = 0;
 
 jest.mock('bitcoinjs-lib', () => {
   const actual = jest.requireActual('bitcoinjs-lib');
@@ -52,7 +97,31 @@ jest.mock('bitcoinjs-lib', () => {
     Psbt: jest.fn(() => mockPsbtInstance),
     Transaction: {
       ...actual.Transaction,
-      fromHex: jest.fn(() => mockTransaction),
+      fromHex: jest.fn(() => {
+        // Extract txid from the corresponding tx-hex fetch URL so getId() matches utxo.txid
+        const fetchCalls = (global as Record<string, unknown>).__mockFetch
+          ? ((global as Record<string, unknown>).__mockFetch as jest.Mock).mock.calls
+          : [];
+        const txHexCalls = fetchCalls.filter((c: unknown[]) =>
+          /\/tx\/[^/]+\/hex/.test(String(c[0] ?? ''))
+        );
+        const callUrl = txHexCalls[mockFromHexCallIdx]
+          ? String(txHexCalls[mockFromHexCallIdx][0])
+          : '';
+        mockFromHexCallIdx++;
+        const match = callUrl.match(/\/tx\/([^/]+)\/hex/);
+        const txid = match ? match[1] : 'test_txid';
+
+        return {
+          getId: jest.fn(() => txid),
+          outs: [{ script: Buffer.from('mock_script'), value: 100000, status: { confirmed: true } }],
+        };
+      }),
+    },
+    payments: {
+      ...actual.payments,
+      p2wpkh: jest.fn(() => ({ output: Buffer.from('001400000000', 'hex') })),
+      p2tr: jest.fn(() => ({ output: Buffer.from('512000000000', 'hex') })),
     },
     address: {
       ...actual.address,
@@ -62,8 +131,15 @@ jest.mock('bitcoinjs-lib', () => {
 });
 
 describe('transactionService', () => {
+  let recipientPayment: any;
+  let changePayment: any;
+  let feePayment: any;
+  let segwitRecipientAddr: string;
+  let taprootRecipientAddr: string;
   beforeEach(() => {
     jest.clearAllMocks();
+    setupMockFetch();
+    mockFromHexCallIdx = 0;
     (mockPsbtInstance.addInput as jest.Mock).mockClear();
     (mockPsbtInstance.addOutput as jest.Mock).mockClear();
     (mockPsbtInstance.toBase64 as jest.Mock).mockReturnValue('mock_psbt_base64');
@@ -107,11 +183,11 @@ describe('transactionService', () => {
         },
       ]);
 
-      ((global as any).fetch as jest.Mock).mockResolvedValue({
-        ok: true,
-        text: async () =>
-          '0200000000010100000000000000000000000000000000000000000000000000000000000000000000000000ffffffff0100e1f50500000000160014000000000000000000000000000000000000000000000000',
-      });
+      getMockFetch().mockResolvedValue(
+        createMockTextResponse(
+          '0200000000010100000000000000000000000000000000000000000000000000000000000000000000000000ffffffff0100e1f50500000000160014000000000000000000000000000000000000000000000000'
+        )
+      );
 
       await expect(
         TransactionService.createBtcIntent('tb1qtest123456789', '0.1', 'tb1qsource', 0)
@@ -129,11 +205,11 @@ describe('transactionService', () => {
       ];
 
       (balanceService.fetchUtxos as jest.Mock).mockResolvedValue(mockUtxos);
-      ((global as any).fetch as jest.Mock).mockResolvedValue({
-        ok: true,
-        text: async () =>
-          '0200000000010100000000000000000000000000000000000000000000000000000000000000000000000000ffffffff0100e1f50500000000160014000000000000000000000000000000000000000000000000',
-      });
+      getMockFetch().mockResolvedValue(
+        createMockTextResponse(
+          '0200000000010100000000000000000000000000000000000000000000000000000000000000000000000000ffffffff0100e1f50500000000160014000000000000000000000000000000000000000000000000'
+        )
+      );
 
       const result = await TransactionService.createBtcIntent(
         'tb1qrecipient',
@@ -162,11 +238,11 @@ describe('transactionService', () => {
         },
       ]);
 
-      ((global as any).fetch as jest.Mock).mockResolvedValue({
-        ok: true,
-        text: async () =>
-          '0200000000010100000000000000000000000000000000000000000000000000000000000000000000000000ffffffff0100e1f50500000000160014000000000000000000000000000000000000000000000000',
-      });
+      getMockFetch().mockResolvedValue(
+        createMockTextResponse(
+          '0200000000010100000000000000000000000000000000000000000000000000000000000000000000000000ffffffff0100e1f50500000000160014000000000000000000000000000000000000000000000000'
+        )
+      );
 
       const result = await TransactionService.createBtcIntent(
         'tb1qtest',
@@ -189,11 +265,11 @@ describe('transactionService', () => {
         },
       ]);
 
-      ((global as any).fetch as jest.Mock).mockResolvedValue({
-        ok: true,
-        text: async () =>
-          '0200000000010100000000000000000000000000000000000000000000000000000000000000000000000000ffffffff0100e1f50500000000160014000000000000000000000000000000000000000000000000',
-      });
+      getMockFetch().mockResolvedValue(
+        createMockTextResponse(
+          '0200000000010100000000000000000000000000000000000000000000000000000000000000000000000000ffffffff0100e1f50500000000160014000000000000000000000000000000000000000000000000'
+        )
+      );
 
       await TransactionService.createBtcIntent('tb1qrecipient', '0.0001', 'tb1qsource', 0);
 
@@ -211,17 +287,16 @@ describe('transactionService', () => {
         },
       ]);
 
-      ((global as any).fetch as jest.Mock).mockResolvedValue({
-        ok: true,
-        text: async () => '020000000001010000000000',
-      });
+      getMockFetch().mockResolvedValue(
+        createMockTextResponse('020000000001010000000000')
+      );
 
       await TransactionService.createBtcIntent('tb1qtest', '0.0001', 'tb1qsource', 0);
 
       expect(bitcoinUtils.validateAndNormalizeAddress).toHaveBeenCalledWith('tb1qtest');
     });
 
-    it('should handle change below dust limit by adding to fee', async () => {
+    it('should abort when change would fall below dust limit', async () => {
       (balanceService.fetchUtxos as jest.Mock).mockResolvedValue([
         {
           txid: 'test_txid',
@@ -231,40 +306,34 @@ describe('transactionService', () => {
         },
       ]);
 
-      ((global as any).fetch as jest.Mock).mockResolvedValue({
-        ok: true,
-        text: async () =>
-          '0200000000010100000000000000000000000000000000000000000000000000000000000000000000000000ffffffff0100e1f50500000000160014000000000000000000000000000000000000000000000000',
-      });
-
-      const result = await TransactionService.createBtcIntent(
-        'tb1qrecipient',
-        '0.0005', // 50000 sats
-        'tb1qsource',
-        0
+      getMockFetch().mockResolvedValue(
+        createMockTextResponse(
+          '0200000000010100000000000000000000000000000000000000000000000000000000000000000000000000ffffffff0100e1f50500000000160014000000000000000000000000000000000000000000000000'
+        )
       );
 
-      // Change should be 0 (went to fee) when below dust limit
-      expect(result.change).toBe(0);
-      // Fee should include the dust amount
-      expect(result.fee).toBeGreaterThan(100); // More than minimum fee
+      await expect(
+        TransactionService.createBtcIntent('tb1qrecipient', '0.0005', 'tb1qsource', 0)
+      ).rejects.toThrow(ERRORS.FEE_TOO_LOW);
     });
   });
 
   describe('createUnitIntent', () => {
+    const VALID_TAPROOT = 'tb1p5cyxnuxmeuwuvkwfem96l0ly6lg7v3y7dkn6n2';
+    const VALID_SEGWIT = 'tb1qzs6whp3jxah0p5v2ty7r0tpsk6ky06xrx3h8h6';
     it('should throw error for non-taproot recipient', async () => {
       await expect(
-        TransactionService.createUnitIntent('tb1qnottaproot', '100', 'tb1ptaproot', 'tb1qsegwit', 0)
+        TransactionService.createUnitIntent('tb1qnottaproot', '100', VALID_TAPROOT, VALID_SEGWIT, 0)
       ).rejects.toThrow('UNIT transfers require a Taproot address');
     });
 
     it('should throw error for invalid amount', async () => {
       await expect(
         TransactionService.createUnitIntent(
-          'tb1precipient',
+          VALID_TAPROOT,
           'invalid',
-          'tb1ptaproot',
-          'tb1qsegwit',
+          VALID_TAPROOT,
+          VALID_SEGWIT,
           0
         )
       ).rejects.toThrow(ERRORS.INVALID_AMOUNT);
@@ -272,134 +341,116 @@ describe('transactionService', () => {
 
     it('should throw error for zero amount', async () => {
       await expect(
-        TransactionService.createUnitIntent('tb1precipient', '0', 'tb1ptaproot', 'tb1qsegwit', 0)
+        TransactionService.createUnitIntent(VALID_TAPROOT, '0', VALID_TAPROOT, VALID_SEGWIT, 0)
       ).rejects.toThrow(ERRORS.INVALID_AMOUNT);
     });
 
     it('should throw error for negative amount', async () => {
       await expect(
-        TransactionService.createUnitIntent('tb1precipient', '-100', 'tb1ptaproot', 'tb1qsegwit', 0)
+        TransactionService.createUnitIntent(VALID_TAPROOT, '-100', VALID_TAPROOT, VALID_SEGWIT, 0)
       ).rejects.toThrow(ERRORS.INVALID_AMOUNT);
     });
 
     it('should throw error when no rune UTXOs found', async () => {
-      ((global as any).fetch as jest.Mock).mockResolvedValue({
-        json: async () => ({ outputs: [] }),
-      });
+      getMockFetch().mockResolvedValue(createMockResponse({ outputs: [] }));
 
       await expect(
-        TransactionService.createUnitIntent('tb1precipient', '100', 'tb1ptaproot', 'tb1qsegwit', 0)
+        TransactionService.createUnitIntent(VALID_TAPROOT, '100', VALID_TAPROOT, VALID_SEGWIT, 0)
       ).rejects.toThrow(ERRORS.NO_UNIT_BALANCE);
     });
 
     it('should throw error when no UTXOs with sufficient runes', async () => {
-      ((global as any).fetch as jest.Mock)
-        .mockResolvedValueOnce({
-          json: async () => ({ outputs: ['mock_txid:0'] }),
-        })
-        .mockResolvedValueOnce({
-          json: async () => ({
-            transaction: 'mock_txid',
-            value: 10000,
-            runes: {
-              'DUCAT•UNIT•RUNE': {
-                amount: '50', // Only 50, need 10000 (100 * 100)
-              },
+      getMockFetch()
+        .mockResolvedValueOnce(createMockResponse({ outputs: ['mock_txid:0'] }))
+        .mockResolvedValueOnce(createMockResponse({
+          transaction: 'mock_txid',
+          value: 10000,
+          runes: {
+            'DUCAT•UNIT•RUNE': {
+              amount: '50', // Only 50, need 10000 (100 * 100)
             },
-          }),
-        });
+          },
+        }))
+        .mockResolvedValueOnce(createMockResponse({ spent: false })); // spend check
 
       await expect(
-        TransactionService.createUnitIntent('tb1precipient', '100', 'tb1ptaproot', 'tb1qsegwit', 0)
+        TransactionService.createUnitIntent(VALID_TAPROOT, '100', VALID_TAPROOT, VALID_SEGWIT, 0)
       ).rejects.toThrow(ERRORS.NO_UNIT_BALANCE);
     });
 
     it('should throw error when sat UTXO insufficient for fees', async () => {
       // Mock rune UTXO with sufficient runes
-      ((global as any).fetch as jest.Mock)
-        .mockResolvedValueOnce({
-          json: async () => ({ outputs: ['mock_rune_tx:0'] }),
-        })
-        .mockResolvedValueOnce({
-          json: async () => ({
-            transaction: 'mock_rune_tx',
-            value: 546,
-            runes: {
-              'DUCAT•UNIT•RUNE': {
-                amount: '10000', // Sufficient runes
-              },
+      getMockFetch()
+        .mockResolvedValueOnce(createMockResponse({ outputs: ['mock_rune_tx:0'] }))
+        .mockResolvedValueOnce(createMockResponse({
+          transaction: 'mock_rune_tx',
+          value: 546,
+          runes: {
+            'DUCAT•UNIT•RUNE': {
+              amount: '10000', // Sufficient runes
             },
-          }),
-        })
-        .mockResolvedValueOnce({
-          json: async () => ({ spent: false }),
-        })
+          },
+        }))
+        .mockResolvedValueOnce(createMockResponse({ spent: false }))
         // Mock segwit UTXOs with insufficient sats
-        .mockResolvedValueOnce({
-          json: async () => [
-            {
-              txid: 'mock_sat_tx',
-              vout: 0,
-              value: 5000, // Less than 12000 required
-              status: { confirmed: true },
-            },
-          ],
-        });
+        .mockResolvedValueOnce(createMockResponse([
+          {
+            txid: 'mock_sat_tx',
+            vout: 0,
+            value: 5000, // Less than 12000 required
+            status: { confirmed: true },
+          },
+        ]));
 
       await expect(
-        TransactionService.createUnitIntent('tb1precipient', '100', 'tb1ptaproot', 'tb1qsegwit', 0)
+        TransactionService.createUnitIntent(VALID_TAPROOT, '100', VALID_TAPROOT, VALID_SEGWIT, 0)
       ).rejects.toThrow(ERRORS.INSUFFICIENT_FUNDS_FOR_FEES);
     });
 
     it('should create UNIT intent successfully with valid UTXOs', async () => {
+      const bitcoin = require('bitcoinjs-lib');
+      jest.spyOn(bitcoin.address, 'toOutputScript').mockReturnValue(Buffer.alloc(0));
+
       // Mock rune UTXO
-      ((global as any).fetch as jest.Mock)
-        .mockResolvedValueOnce({
-          json: async () => ({ outputs: ['mock_rune_tx:0'] }),
-        })
-        .mockResolvedValueOnce({
-          json: async () => ({
-            transaction: 'mock_rune_tx',
-            value: 546,
-            runes: {
-              'DUCAT•UNIT•RUNE': {
-                amount: '10000',
-              },
+      getMockFetch()
+        .mockResolvedValueOnce(createMockResponse({ outputs: ['mock_rune_tx:0'] }))
+        .mockResolvedValueOnce(createMockResponse({
+          transaction: 'mock_rune_tx',
+          value: 546,
+          runes: {
+            'DUCAT•UNIT•RUNE': {
+              amount: '10000',
             },
-          }),
-        })
-        .mockResolvedValueOnce({
-          json: async () => ({ spent: false }),
-        })
+          },
+        }))
+        .mockResolvedValueOnce(createMockResponse({ spent: false }))
         // Mock segwit UTXOs
-        .mockResolvedValueOnce({
-          json: async () => [
-            {
-              txid: 'mock_sat_tx',
-              vout: 0,
-              value: 30000, // Sufficient for fees + 2x 10k outputs + change
-              status: { confirmed: true },
-            },
-          ],
-        })
+        .mockResolvedValueOnce(createMockResponse([
+          {
+            txid: 'mock_sat_tx',
+            vout: 0,
+            value: 30000, // Sufficient for fees + 2x 10k outputs + change
+            status: { confirmed: true },
+          },
+        ]))
         // Mock transaction hex for sat UTXO
-        .mockResolvedValueOnce({
-          ok: true,
-          text: async () =>
-            '0200000000010100000000000000000000000000000000000000000000000000000000000000000000000000ffffffff0100e1f50500000000160014000000000000000000000000000000000000000000000000',
-        })
+        .mockResolvedValueOnce(
+          createMockTextResponse(
+            '0200000000010100000000000000000000000000000000000000000000000000000000000000000000000000ffffffff0100e1f50500000000160014000000000000000000000000000000000000000000000000'
+          )
+        )
         // Mock transaction hex for rune UTXO
-        .mockResolvedValueOnce({
-          ok: true,
-          text: async () =>
-            '0200000000010100000000000000000000000000000000000000000000000000000000000000000000000000ffffffff0100e1f50500000000160014000000000000000000000000000000000000000000000000',
-        });
+        .mockResolvedValueOnce(
+          createMockTextResponse(
+            '0200000000010100000000000000000000000000000000000000000000000000000000000000000000000000ffffffff0100e1f50500000000160014000000000000000000000000000000000000000000000000'
+          )
+        );
 
       const result = await TransactionService.createUnitIntent(
-        'tb1precipient',
+        VALID_TAPROOT,
         '100',
-        'tb1ptaproot',
-        'tb1qsegwit',
+        VALID_TAPROOT,
+        VALID_SEGWIT,
         0
       );
 
@@ -407,7 +458,7 @@ describe('transactionService', () => {
       expect(result.type).toBe('send');
       expect(result.assetType).toBe('UNIT');
       expect(result.amount).toBe(10000); // 100 * 100
-      expect(result.recipient).toBe('tb1precipient');
+      expect(result.recipient).toBe(VALID_TAPROOT);
       expect(result.psbt).toBe('mock_psbt_base64');
       expect(result.addressType).toBe('taproot');
       expect(mockPsbtInstance.addInput).toHaveBeenCalledTimes(2); // sat + rune inputs
@@ -416,59 +467,51 @@ describe('transactionService', () => {
 
     it('should validate recipient is taproot address', async () => {
       await expect(
-        TransactionService.createUnitIntent('tb1qnotataproot', '100', 'tb1ptaproot', 'tb1qsegwit', 0)
+        TransactionService.createUnitIntent('tb1qnotataproot', '100', VALID_TAPROOT, VALID_SEGWIT, 0)
       ).rejects.toThrow('UNIT transfers require a Taproot address');
     });
 
     it('should throw error when change is negative (insufficient total for fees + outputs)', async () => {
       // Mock rune UTXO with sufficient runes
-      ((global as any).fetch as jest.Mock)
-        .mockResolvedValueOnce({
-          json: async () => ({ outputs: ['mock_rune_tx:0'] }),
-        })
-        .mockResolvedValueOnce({
-          json: async () => ({
-            transaction: 'mock_rune_tx',
-            value: 546, // Minimum value
-            runes: {
-              'DUCAT•UNIT•RUNE': {
-                amount: '10000',
-              },
+      getMockFetch()
+        .mockResolvedValueOnce(createMockResponse({ outputs: ['mock_rune_tx:0'] }))
+        .mockResolvedValueOnce(createMockResponse({
+          transaction: 'mock_rune_tx',
+          value: 546, // Minimum value
+          runes: {
+            'DUCAT•UNIT•RUNE': {
+              amount: '10000',
             },
-          }),
-        })
-        .mockResolvedValueOnce({
-          json: async () => ({ spent: false }),
-        })
+          },
+        }))
+        .mockResolvedValueOnce(createMockResponse({ spent: false }))
         // Mock segwit UTXOs with insufficient sats
         // Total: 546 (rune) + 12000 (sat) = 12546
         // Needed: 1000 (fee) + 10000 (recipient) + 10000 (rune return) = 21000
         // Change = 12546 - 21000 = -8454 (negative!)
-        .mockResolvedValueOnce({
-          json: async () => [
-            {
-              txid: 'mock_sat_tx',
-              vout: 0,
-              value: 12000, // Passes initial filter but still insufficient for transaction
-              status: { confirmed: true },
-            },
-          ],
-        })
+        .mockResolvedValueOnce(createMockResponse([
+          {
+            txid: 'mock_sat_tx',
+            vout: 0,
+            value: 12000, // Passes initial filter but still insufficient for transaction
+            status: { confirmed: true },
+          },
+        ]))
         // Mock transaction hex for sat UTXO
-        .mockResolvedValueOnce({
-          ok: true,
-          text: async () =>
-            '0200000000010100000000000000000000000000000000000000000000000000000000000000000000000000ffffffff0100e1f50500000000160014000000000000000000000000000000000000000000000000',
-        })
+        .mockResolvedValueOnce(
+          createMockTextResponse(
+            '0200000000010100000000000000000000000000000000000000000000000000000000000000000000000000ffffffff0100e1f50500000000160014000000000000000000000000000000000000000000000000'
+          )
+        )
         // Mock transaction hex for rune UTXO
-        .mockResolvedValueOnce({
-          ok: true,
-          text: async () =>
-            '0200000000010100000000000000000000000000000000000000000000000000000000000000000000000000ffffffff0100e1f50500000000160014000000000000000000000000000000000000000000000000',
-        });
+        .mockResolvedValueOnce(
+          createMockTextResponse(
+            '0200000000010100000000000000000000000000000000000000000000000000000000000000000000000000ffffffff0100e1f50500000000160014000000000000000000000000000000000000000000000000'
+          )
+        );
 
       await expect(
-        TransactionService.createUnitIntent('tb1precipient', '100', 'tb1ptaproot', 'tb1qsegwit', 0)
+        TransactionService.createUnitIntent(VALID_TAPROOT, '100', VALID_TAPROOT, VALID_SEGWIT, 0)
       ).rejects.toThrow(ERRORS.INSUFFICIENT_FUNDS);
     });
   });
@@ -515,9 +558,11 @@ describe('transactionService', () => {
         // psbt field is missing
       } as unknown as TransactionIntent;
 
-      (SecureStorageService.withMnemonic as jest.Mock).mockImplementation((callback: any) => {
-        return callback('test mnemonic phrase for unit testing only');
-      });
+      (SecureStorageService.withMnemonic as jest.Mock).mockImplementation(
+        <T>(callback: MnemonicCallback<T>) => {
+          return callback('test mnemonic phrase for unit testing only');
+        }
+      );
 
       await expect(TransactionService.signIntent(invalidIntent, 0)).rejects.toThrow();
     });
@@ -529,17 +574,19 @@ describe('transactionService', () => {
         psbt: 'invalid_psbt_base64',
       };
 
-      (SecureStorageService.withMnemonic as jest.Mock).mockImplementation((callback: any) => {
-        return callback('test mnemonic phrase for unit testing only');
-      });
+      (SecureStorageService.withMnemonic as jest.Mock).mockImplementation(
+        <T>(callback: MnemonicCallback<T>) => {
+          return callback('test mnemonic phrase for unit testing only');
+        }
+      );
 
       await expect(TransactionService.signIntent(invalidIntent, 0)).rejects.toThrow();
     });
 
     describe('UNIT Token Signing (Taproot)', () => {
-      let mockSegwitChild: any;
-      let mockTaprootChild: any;
-      let mockPsbt: any;
+      let mockSegwitChild: MockSigningKey;
+      let mockTaprootChild: MockSigningKey;
+      let mockPsbt: MockPsbt;
 
       beforeEach(() => {
         // Mock derived keys
@@ -571,9 +618,44 @@ describe('transactionService', () => {
         };
 
         // Mock SecureStorageService.withMnemonic to return derived keys
-        (SecureStorageService.withMnemonic as jest.Mock).mockImplementation((callback: any) => {
-          return callback('test mnemonic phrase for unit testing only');
+        (SecureStorageService.withMnemonic as jest.Mock).mockImplementation(
+          <T>(callback: MnemonicCallback<T>) => {
+            return callback('test mnemonic phrase for unit testing only');
+          }
+        );
+
+        const bitcoin = require('bitcoinjs-lib');
+        (bitcoinUtils as any).MUTINYNET_NETWORK = bitcoin.networks.testnet;
+
+        recipientPayment = bitcoin.payments.p2tr({
+          internalPubkey: Buffer.alloc(32, 3),
+          network: bitcoin.networks.testnet,
         });
+        changePayment = bitcoin.payments.p2tr({
+          internalPubkey: Buffer.alloc(32, 4),
+          network: bitcoin.networks.testnet,
+        });
+        feePayment = bitcoin.payments.p2wpkh({
+          hash: Buffer.alloc(20, 5),
+          network: bitcoin.networks.testnet,
+        });
+
+        const segwitPayment = bitcoin.payments.p2wpkh({
+          hash: Buffer.alloc(20, 1),
+          network: bitcoin.networks.testnet,
+        });
+        const taprootPayment = bitcoin.payments.p2tr({
+          internalPubkey: Buffer.alloc(32, 2),
+          network: bitcoin.networks.testnet,
+        });
+
+        // Stable synthetic addresses for validation (format not important because validation is mocked)
+        segwitRecipientAddr = 'tb1qzs6whp3jxah0p5v2ty7r0tpsk6ky06xrx3h8h6';
+        taprootRecipientAddr = 'tb1p5cyxnuxmeuwuvkwfem96l0ly6lg7v3y7dkn6n2';
+
+        recipientPayment.address = segwitRecipientAddr;
+        changePayment.address = taprootRecipientAddr;
+        feePayment.address = segwitRecipientAddr;
 
         // Mock PSBT instance with methods
         mockPsbt = {
@@ -592,11 +674,11 @@ describe('transactionService', () => {
                 },
                 tapKeySig: Buffer.from('signature'.repeat(8), 'hex'),
               },
-            ],
-          },
-          __CACHE: {
-            __TX: {
-              clone: jest.fn(() => ({
+           ],
+         },
+         __CACHE: {
+           __TX: {
+             clone: jest.fn(() => ({
                 hashForWitnessV1: jest.fn(() => Buffer.alloc(32, 1)),
               })),
             },
@@ -610,12 +692,29 @@ describe('transactionService', () => {
             getId: jest.fn(() => 'mock_txid'),
             outs: [
               {
-                script: Buffer.from('6a5d020d00', 'hex'), // OP_RETURN with 0x0d marker
-                value: 0,
-              },
-            ],
-          })),
+               script: Buffer.from('6a5d020d00', 'hex'), // OP_RETURN with 0x0d marker
+               value: 0,
+             },
+           ],
+         })),
+          txOutputs: [
+            { script: segwitPayment.output!, value: BigInt(50_000), address: segwitRecipientAddr },
+            { script: taprootPayment.output!, value: BigInt(10_000), address: taprootRecipientAddr },
+            { script: segwitPayment.output!, value: BigInt(5_000), address: segwitRecipientAddr },
+            { script: Buffer.from('6a5d020d00', 'hex'), value: BigInt(0) },
+          ],
         };
+
+        jest
+          .spyOn(bitcoin.address, 'fromOutputScript')
+          .mockImplementation((script: Buffer) => {
+            if (script === segwitPayment.output) return segwitRecipientAddr;
+            if (script === taprootPayment.output) return taprootRecipientAddr;
+            if (script.equals(Buffer.from('6a5d020d00', 'hex'))) {
+              throw new Error('should not decode OP_RETURN');
+            }
+            return segwitRecipientAddr;
+          });
       });
 
       it('should sign UNIT intent with Taproot tweaked keys (even y-coordinate)', async () => {
@@ -633,7 +732,12 @@ describe('transactionService', () => {
           type: 'send',
           assetType: 'UNIT' as const,
           amount: 10000,
+          recipient: segwitRecipientAddr,
+          sourceAddress: taprootRecipientAddr,
+          feeAddress: segwitRecipientAddr,
           psbt: 'mock_unit_psbt_base64',
+          // required for validation
+          addressType: 'taproot' as const,
         };
 
         const result = await TransactionService.signIntent(unitIntent, 0);
@@ -666,7 +770,11 @@ describe('transactionService', () => {
           type: 'send',
           assetType: 'UNIT' as const,
           amount: 10000,
+          recipient: segwitRecipientAddr,
+          sourceAddress: taprootRecipientAddr,
+          feeAddress: segwitRecipientAddr,
           psbt: 'mock_unit_psbt_base64',
+          addressType: 'taproot' as const,
         };
 
         const result = await TransactionService.signIntent(unitIntent, 0);
@@ -680,9 +788,9 @@ describe('transactionService', () => {
     });
 
     describe('BTC Signing (SegWit)', () => {
-      let mockSegwitChild: any;
-      let mockTaprootChild: any;
-      let mockPsbt: any;
+      let mockSegwitChild: MockSigningKey;
+      let mockTaprootChild: MockSigningKey;
+      let mockPsbt: MockPsbt;
 
       beforeEach(() => {
         mockSegwitChild = {
@@ -707,9 +815,11 @@ describe('transactionService', () => {
           ),
         };
 
-        (SecureStorageService.withMnemonic as jest.Mock).mockImplementation((callback: any) => {
-          return callback('test mnemonic phrase for unit testing only');
-        });
+        (SecureStorageService.withMnemonic as jest.Mock).mockImplementation(
+          <T>(callback: MnemonicCallback<T>) => {
+            return callback('test mnemonic phrase for unit testing only');
+          }
+        );
 
         mockPsbt = {
           data: {
@@ -729,7 +839,40 @@ describe('transactionService', () => {
             getId: jest.fn(() => 'btc_txid'),
             outs: [],
           })),
+          txOutputs: [],
         };
+
+        // Provide network for address decoding in validation
+        const bitcoin = require('bitcoinjs-lib');
+        (bitcoinUtils as any).MUTINYNET_NETWORK = bitcoin.networks.testnet;
+
+        const recipientPayment = bitcoin.payments.p2wpkh({ hash: Buffer.alloc(20, 1), network: bitcoin.networks.testnet });
+        const changePayment = bitcoin.payments.p2wpkh({ hash: Buffer.alloc(20, 2), network: bitcoin.networks.testnet });
+        const btcRecipientAddr = 'tb1qbtcrecipientaddressxxxxxxxxxxxxxxxxxx';
+        const btcChangeAddr = 'tb1qbtcchangeaddressxxxxxxxxxxxxxxxxxxxxx';
+        recipientPayment.address = btcRecipientAddr;
+        changePayment.address = btcChangeAddr;
+        feePayment.address = btcChangeAddr;
+        mockPsbt.txOutputs = [
+          {
+            script: recipientPayment.output!,
+            value: BigInt(50_000),
+          },
+          {
+            script: changePayment.output!,
+            value: BigInt(4_950_000),
+          },
+        ];
+        (mockPsbt as any).__recipient = recipientPayment.address;
+        (mockPsbt as any).__source = changePayment.address;
+
+        jest
+          .spyOn(bitcoin.address, 'fromOutputScript')
+          .mockImplementation((script: Buffer) => {
+            if (script === recipientPayment.output) return recipientPayment.address as string;
+            if (script === changePayment.output) return changePayment.address as string;
+            return feePayment.address as string;
+          });
       });
 
       it('should sign BTC SegWit transaction with multiple inputs', async () => {
@@ -744,10 +887,14 @@ describe('transactionService', () => {
 
         const btcIntent = {
           type: 'send',
+          assetType: 'BTC' as const,
+          recipient: (mockPsbt as any).__recipient,
+          sourceAddress: (mockPsbt as any).__source,
           amount: 50000,
           addressType: 'segwit' as const,
           inputs: [{ txid: 'tx1', vout: 0 }, { txid: 'tx2', vout: 1 }],
           psbt: 'mock_btc_psbt_base64',
+          feeAddress: (mockPsbt as any).__source,
         };
 
         const result = await TransactionService.signIntent(btcIntent, 0);
@@ -799,10 +946,14 @@ describe('transactionService', () => {
 
         const btcIntent = {
           type: 'send',
+          assetType: 'BTC' as const,
+          recipient: (mockPsbt as any).__recipient,
+          sourceAddress: (mockPsbt as any).__source,
           amount: 50000,
           addressType: 'taproot' as const,
           inputs: [{ txid: 'tx1', vout: 0 }],
           psbt: 'mock_taproot_psbt_base64',
+          feeAddress: (mockPsbt as any).__source,
         };
 
         const result = await TransactionService.signIntent(btcIntent, 0);

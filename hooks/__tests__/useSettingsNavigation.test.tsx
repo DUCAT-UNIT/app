@@ -1,4 +1,3 @@
-// @ts-nocheck
 /**
  * Tests for useSettingsNavigation Hook
  * Validates settings screen navigation including visibility, animation, swipe-to-close, and return-to-settings flow
@@ -33,26 +32,26 @@ jest.mock('../../contexts/SeedPhraseContext', () => ({
 }));
 
 // Helper to render hooks
-function renderHook(hook) {
-  const result = { current: null };
+function renderHook<T>(hook: () => T) {
+  const result: { current: T | null } = { current: null };
   function TestComponent() {
     result.current = hook();
     return null;
   }
-  let component;
+  let component: ReturnType<typeof create> | undefined;
   act(() => {
     component = create(<TestComponent />);
   });
   return {
     result,
-    unmount: () => component.unmount(),
+    unmount: () => component?.unmount(),
   };
 }
 
 describe('useSettingsNavigation', () => {
   beforeEach(() => {
     jest.clearAllMocks();
-    SecureStore.getItemAsync.mockResolvedValue(null);
+    (SecureStore.getItemAsync as jest.Mock).mockResolvedValue(null);
     mockSetReturnToSettings.mockClear();
     mockSeedPhraseContext = {
       viewingSeedPhrase: false,
@@ -69,7 +68,7 @@ describe('useSettingsNavigation', () => {
         await new Promise((resolve) => setTimeout(resolve, 0));
       });
 
-      expect(result.current.showSettings).toBe(false);
+      expect(result.current!.showSettings).toBe(false);
     });
 
     it('should provide all animation values', async () => {
@@ -79,9 +78,9 @@ describe('useSettingsNavigation', () => {
         await new Promise((resolve) => setTimeout(resolve, 0));
       });
 
-      expect(result.current.settingsTranslateX).toBeDefined();
-      expect(result.current.settingsOpacity).toBeDefined();
-      expect(result.current.settingsPanResponderRef).toBeDefined();
+      expect(result.current!.settingsTranslateX).toBeDefined();
+      expect(result.current!.settingsOpacity).toBeDefined();
+      expect(result.current!.settingsPanResponderRef).toBeDefined();
     });
 
     it('should provide open and close functions', async () => {
@@ -91,8 +90,8 @@ describe('useSettingsNavigation', () => {
         await new Promise((resolve) => setTimeout(resolve, 0));
       });
 
-      expect(result.current.openSettings).toBeDefined();
-      expect(result.current.closeSettings).toBeDefined();
+      expect(result.current!.openSettings).toBeDefined();
+      expect(result.current!.closeSettings).toBeDefined();
     });
 
     it('should set hasCheckedInitialFlags after layout effect', async () => {
@@ -102,13 +101,13 @@ describe('useSettingsNavigation', () => {
         await new Promise((resolve) => setTimeout(resolve, 0));
       });
 
-      expect(result.current.hasCheckedInitialFlags).toBe(true);
+      expect(result.current!.hasCheckedInitialFlags).toBe(true);
     });
   });
 
   describe('Return to Settings After Auth', () => {
     it('should open settings when returnToSettingsAfterAuth flag is set', async () => {
-      SecureStore.getItemAsync.mockImplementation((key) => {
+      (SecureStore.getItemAsync as jest.Mock).mockImplementation((key) => {
         if (key === 'returnToSettingsAfterAuth') return Promise.resolve('true');
         return Promise.resolve(null);
       });
@@ -119,12 +118,12 @@ describe('useSettingsNavigation', () => {
         await new Promise((resolve) => setTimeout(resolve, 10));
       });
 
-      expect(result.current.showSettings).toBe(true);
+      expect(result.current!.showSettings).toBe(true);
       expect(SecureStore.deleteItemAsync).toHaveBeenCalledWith('returnToSettingsAfterAuth');
     });
 
     it('should open settings when returnToSettingsAfterPinChange flag is set', async () => {
-      SecureStore.getItemAsync.mockImplementation((key) => {
+      (SecureStore.getItemAsync as jest.Mock).mockImplementation((key) => {
         if (key === 'returnToSettingsAfterPinChange') return Promise.resolve('true');
         return Promise.resolve(null);
       });
@@ -135,12 +134,12 @@ describe('useSettingsNavigation', () => {
         await new Promise((resolve) => setTimeout(resolve, 10));
       });
 
-      expect(result.current.showSettings).toBe(true);
+      expect(result.current!.showSettings).toBe(true);
       expect(SecureStore.deleteItemAsync).toHaveBeenCalledWith('returnToSettingsAfterPinChange');
     });
 
     it('should open settings when returnToSettingsAfterSeedPhrase flag is set', async () => {
-      SecureStore.getItemAsync.mockImplementation((key) => {
+      (SecureStore.getItemAsync as jest.Mock).mockImplementation((key) => {
         if (key === 'returnToSettingsAfterSeedPhrase') return Promise.resolve('true');
         return Promise.resolve(null);
       });
@@ -151,12 +150,12 @@ describe('useSettingsNavigation', () => {
         await new Promise((resolve) => setTimeout(resolve, 10));
       });
 
-      expect(result.current.showSettings).toBe(true);
+      expect(result.current!.showSettings).toBe(true);
       expect(SecureStore.deleteItemAsync).toHaveBeenCalledWith('returnToSettingsAfterSeedPhrase');
     });
 
     it('should clear returnToSettings context flag', async () => {
-      SecureStore.getItemAsync.mockImplementation((key) => {
+      (SecureStore.getItemAsync as jest.Mock).mockImplementation((key) => {
         if (key === 'returnToSettingsAfterAuth') return Promise.resolve('true');
         return Promise.resolve(null);
       });
@@ -171,7 +170,7 @@ describe('useSettingsNavigation', () => {
     });
 
     it('should clear all return flags when any are set', async () => {
-      SecureStore.getItemAsync.mockImplementation((key) => {
+      (SecureStore.getItemAsync as jest.Mock).mockImplementation((key) => {
         if (key === 'returnToSettingsAfterAuth') return Promise.resolve('true');
         return Promise.resolve(null);
       });
@@ -190,7 +189,7 @@ describe('useSettingsNavigation', () => {
 
   describe('Initial Flag Check (useLayoutEffect)', () => {
     it('should open settings immediately if returnToSettingsAfterAuth flag is set on mount', async () => {
-      SecureStore.getItemAsync.mockImplementation((key) => {
+      (SecureStore.getItemAsync as jest.Mock).mockImplementation((key) => {
         if (key === 'returnToSettingsAfterAuth') return Promise.resolve('true');
         return Promise.resolve(null);
       });
@@ -201,11 +200,11 @@ describe('useSettingsNavigation', () => {
         await new Promise((resolve) => setTimeout(resolve, 10));
       });
 
-      expect(result.current.showSettings).toBe(true);
+      expect(result.current!.showSettings).toBe(true);
     });
 
     it('should set opacity to 1 immediately when flag is set on mount', async () => {
-      SecureStore.getItemAsync.mockImplementation((key) => {
+      (SecureStore.getItemAsync as jest.Mock).mockImplementation((key) => {
         if (key === 'returnToSettingsAfterAuth') return Promise.resolve('true');
         return Promise.resolve(null);
       });
@@ -217,7 +216,7 @@ describe('useSettingsNavigation', () => {
       });
 
       // Opacity should be set to 1 to prevent flicker
-      expect(result.current.settingsOpacity).toBeDefined();
+      expect(result.current!.settingsOpacity).toBeDefined();
     });
   });
 
@@ -230,14 +229,14 @@ describe('useSettingsNavigation', () => {
       });
 
       act(() => {
-        result.current.openSettings();
+        result.current!.openSettings();
       });
 
-      expect(result.current.showSettings).toBe(true);
+      expect(result.current!.showSettings).toBe(true);
     });
 
     it('should close settings when closeSettings is called', async () => {
-      SecureStore.getItemAsync.mockImplementation((key) => {
+      (SecureStore.getItemAsync as jest.Mock).mockImplementation((key) => {
         if (key === 'returnToSettingsAfterAuth') return Promise.resolve('true');
         return Promise.resolve(null);
       });
@@ -248,13 +247,13 @@ describe('useSettingsNavigation', () => {
         await new Promise((resolve) => setTimeout(resolve, 10));
       });
 
-      expect(result.current.showSettings).toBe(true);
+      expect(result.current!.showSettings).toBe(true);
 
       act(() => {
-        result.current.closeSettings();
+        result.current!.closeSettings();
       });
 
-      expect(result.current.showSettings).toBe(false);
+      expect(result.current!.showSettings).toBe(false);
     });
 
   });
@@ -267,9 +266,9 @@ describe('useSettingsNavigation', () => {
         await new Promise((resolve) => setTimeout(resolve, 0));
       });
 
-      expect(result.current.settingsPanResponderRef).toBeDefined();
-      expect(result.current.settingsPanResponderRef.current).toBeDefined();
-      expect(result.current.settingsPanResponderRef.current.panHandlers).toBeDefined();
+      expect(result.current!.settingsPanResponderRef).toBeDefined();
+      expect(result.current!.settingsPanResponderRef.current).toBeDefined();
+      expect(result.current!.settingsPanResponderRef.current!.panHandlers).toBeDefined();
     });
 
     it('should have onStartShouldSetPanResponder return true', async () => {
@@ -279,8 +278,8 @@ describe('useSettingsNavigation', () => {
         await new Promise((resolve) => setTimeout(resolve, 0));
       });
 
-      const panResponder = result.current.settingsPanResponderRef.current;
-      expect(panResponder.panHandlers.onStartShouldSetResponder()).toBe(true);
+      const panResponder = result.current!.settingsPanResponderRef.current!;
+      expect((panResponder.panHandlers as any).onStartShouldSetResponder()).toBe(true);
     });
 
     it('should return true for onMoveShouldSetPanResponder when dx > 10', async () => {
@@ -290,8 +289,8 @@ describe('useSettingsNavigation', () => {
         await new Promise((resolve) => setTimeout(resolve, 0));
       });
 
-      const panResponder = result.current.settingsPanResponderRef.current;
-      const config = panResponder.panHandlers;
+      const panResponder = result.current!.settingsPanResponderRef.current!;
+      const config = panResponder.panHandlers as any;
 
       // Find the onMoveShouldSetPanResponder function in the config
       // It's created in PanResponder.create, so we need to access it differently
@@ -307,8 +306,8 @@ describe('useSettingsNavigation', () => {
         await new Promise((resolve) => setTimeout(resolve, 0));
       });
 
-      const panResponder = result.current.settingsPanResponderRef.current;
-      const config = panResponder.panHandlers;
+      const panResponder = result.current!.settingsPanResponderRef.current!;
+      const config = panResponder.panHandlers as any;
 
       const shouldSet = config.onMoveShouldSetResponder({}, { dx: 5, dy: 0 });
 
@@ -322,8 +321,8 @@ describe('useSettingsNavigation', () => {
         await new Promise((resolve) => setTimeout(resolve, 0));
       });
 
-      const panResponder = result.current.settingsPanResponderRef.current;
-      const config = panResponder.panHandlers;
+      const panResponder = result.current!.settingsPanResponderRef.current!;
+      const config = panResponder.panHandlers as any;
 
       // Simulate pan responder move
       act(() => {
@@ -331,7 +330,7 @@ describe('useSettingsNavigation', () => {
       });
 
       // translateX should be updated (we can't directly test Animated values, but we can verify no errors)
-      expect(result.current.settingsTranslateX).toBeDefined();
+      expect(result.current!.settingsTranslateX).toBeDefined();
     });
 
     it('should not update translateX on pan responder move when dx <= 0', async () => {
@@ -341,15 +340,15 @@ describe('useSettingsNavigation', () => {
         await new Promise((resolve) => setTimeout(resolve, 0));
       });
 
-      const panResponder = result.current.settingsPanResponderRef.current;
-      const config = panResponder.panHandlers;
+      const panResponder = result.current!.settingsPanResponderRef.current!;
+      const config = panResponder.panHandlers as any;
 
       // Simulate pan responder move with negative dx
       act(() => {
         config.onResponderMove({}, { dx: -10, dy: 0 });
       });
 
-      expect(result.current.settingsTranslateX).toBeDefined();
+      expect(result.current!.settingsTranslateX).toBeDefined();
     });
 
     it('should close settings on pan responder release when dx > 40% screen width', async () => {
@@ -361,13 +360,13 @@ describe('useSettingsNavigation', () => {
 
       // Open settings first
       act(() => {
-        result.current.openSettings();
+        result.current!.openSettings();
       });
 
-      expect(result.current.showSettings).toBe(true);
+      expect(result.current!.showSettings).toBe(true);
 
-      const panResponder = result.current.settingsPanResponderRef.current;
-      const config = panResponder.panHandlers;
+      const panResponder = result.current!.settingsPanResponderRef.current!;
+      const config = panResponder.panHandlers as any;
 
       // Simulate release with large dx (> 40% of screen width)
       await act(async () => {
@@ -376,7 +375,7 @@ describe('useSettingsNavigation', () => {
         await new Promise((resolve) => setTimeout(resolve, 250));
       });
 
-      expect(result.current.showSettings).toBe(false);
+      expect(result.current!.showSettings).toBe(false);
     });
 
     it('should spring back on pan responder release when dx < 40% screen width', async () => {
@@ -388,13 +387,13 @@ describe('useSettingsNavigation', () => {
 
       // Open settings first
       act(() => {
-        result.current.openSettings();
+        result.current!.openSettings();
       });
 
-      expect(result.current.showSettings).toBe(true);
+      expect(result.current!.showSettings).toBe(true);
 
-      const panResponder = result.current.settingsPanResponderRef.current;
-      const config = panResponder.panHandlers;
+      const panResponder = result.current!.settingsPanResponderRef.current!;
+      const config = panResponder.panHandlers as any;
 
       // Simulate release with small dx (< 40% of screen width)
       act(() => {
@@ -402,7 +401,7 @@ describe('useSettingsNavigation', () => {
       });
 
       // Settings should still be open
-      expect(result.current.showSettings).toBe(true);
+      expect(result.current!.showSettings).toBe(true);
     });
   });
 
@@ -437,7 +436,7 @@ describe('useSettingsNavigation', () => {
         await new Promise((resolve) => setTimeout(resolve, 10));
       });
 
-      expect(result2.current.showSettings).toBe(true);
+      expect(result2.current!.showSettings).toBe(true);
       expect(mockSetReturnToSettings).toHaveBeenCalledWith(false);
     });
 
@@ -478,7 +477,7 @@ describe('useSettingsNavigation', () => {
 
   describe('Edge Cases', () => {
     it('should not open settings when all flags are null', async () => {
-      SecureStore.getItemAsync.mockResolvedValue(null);
+      (SecureStore.getItemAsync as jest.Mock).mockResolvedValue(null);
 
       const { result } = renderHook(() => useSettingsNavigation());
 
@@ -486,11 +485,11 @@ describe('useSettingsNavigation', () => {
         await new Promise((resolve) => setTimeout(resolve, 10));
       });
 
-      expect(result.current.showSettings).toBe(false);
+      expect(result.current!.showSettings).toBe(false);
     });
 
     it('should handle flag values other than "true"', async () => {
-      SecureStore.getItemAsync.mockImplementation((key) => {
+      (SecureStore.getItemAsync as jest.Mock).mockImplementation((key) => {
         if (key === 'returnToSettingsAfterAuth') return Promise.resolve('false');
         return Promise.resolve(null);
       });
@@ -501,15 +500,15 @@ describe('useSettingsNavigation', () => {
         await new Promise((resolve) => setTimeout(resolve, 10));
       });
 
-      expect(result.current.showSettings).toBe(false);
+      expect(result.current!.showSettings).toBe(false);
     });
 
     it('should prevent concurrent flag checks in useFocusEffect', async () => {
       // Set up a slow async response to simulate concurrent calls
-      let resolveFirst;
+      let resolveFirst: ((value: unknown) => void) | undefined;
       let callCount = 0;
 
-      SecureStore.getItemAsync.mockImplementation((key) => {
+      (SecureStore.getItemAsync as jest.Mock).mockImplementation((key) => {
         callCount++;
         return new Promise((resolve) => {
           if (callCount === 1) {
@@ -522,8 +521,8 @@ describe('useSettingsNavigation', () => {
 
       // Mock useFocusEffect to call the callback multiple times
       const { useFocusEffect } = require('@react-navigation/native');
-      let focusCallback;
-      useFocusEffect.mockImplementation((callback) => {
+      let focusCallback: (() => void) | undefined;
+      (useFocusEffect as jest.Mock).mockImplementation((callback: () => void) => {
         focusCallback = callback;
         callback(); // Call once immediately
       });
@@ -545,7 +544,7 @@ describe('useSettingsNavigation', () => {
       });
 
       // The second call should have been prevented by the checkingFlags guard
-      expect(result.current.showSettings).toBe(false);
+      expect(result.current!.showSettings).toBe(false);
     });
   });
 });

@@ -137,6 +137,15 @@ export function useSeedVerification({
    * Verify seed phrase words
    */
   const verifySeeds = (): void => {
+    // E2E bypass: auto-pass verification in dev builds with explicit env var
+    if (__DEV__ && process.env.EXPO_PUBLIC_E2E_BYPASS === 'true') {
+      setSettingUpPin(true);
+      setShowingSeeds(false);
+      setVerifyingSeeds(false);
+      clearPersistedState();
+      return;
+    }
+
     // Check if all words have been selected
     if (Object.keys(verificationWords).length !== requiredIndices.length) {
       notify.seed.incomplete();

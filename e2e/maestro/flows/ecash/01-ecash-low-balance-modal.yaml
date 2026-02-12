@@ -1,0 +1,28 @@
+appId: com.ducatprotocol.DucatProtocolWallet
+---
+# Ecash Low Balance Modal - Verify wallet loads and modal handling works
+# Fresh wallet → verify wallet screen → dismiss any modals → verify functional
+
+- runFlow: ../helpers/create-wallet.yaml
+
+# If low ecash modal is visible, verify and dismiss it
+- runFlow:
+    when:
+      visible:
+        id: "low-ecash-modal"
+    commands:
+      - tapOn:
+          id: "low-ecash-dismiss-btn"
+      - waitForAnimationToEnd
+
+# Verify wallet screen is accessible
+- extendedWaitUntil:
+    visible:
+      id: "wallet-screen"
+    timeout: 10000
+
+# Verify wallet is functional by checking balance section
+- extendedWaitUntil:
+    visible:
+      id: "balance-section"
+    timeout: 15000

@@ -1,0 +1,82 @@
+appId: com.ducatprotocol.DucatProtocolWallet
+---
+# Vault Creation Flow - Full vault creation through UI screens
+# Fresh wallet → scroll to vault → select amounts → confirm → processing → success
+
+- runFlow: ../helpers/create-wallet.yaml
+
+- waitForAnimationToEnd
+- waitForAnimationToEnd
+
+# Wait for funded balance
+- extendedWaitUntil:
+    visible:
+      text: "0.10000000"
+    timeout: 30000
+
+# Scroll to vault card
+- scrollUntilVisible:
+    element:
+      id: "vault-card"
+    direction: DOWN
+    timeout: 10000
+
+# Verify vault overlay (no vault yet)
+- extendedWaitUntil:
+    visible:
+      id: "create-vault-btn"
+    timeout: 5000
+
+# Open vault creation
+- tapOn:
+    id: "create-vault-btn"
+
+# Verify vault amounts screen
+- extendedWaitUntil:
+    visible:
+      id: "vault-amounts-screen"
+    timeout: 10000
+
+# Select HALF BTC deposit
+- tapOn:
+    id: "btc-slider-half-btn"
+- waitForAnimationToEnd
+
+# Select QTR UNIT borrow
+- tapOn:
+    id: "unit-slider-quarter-btn"
+- waitForAnimationToEnd
+
+# Continue to confirm
+- tapOn:
+    id: "vault-create-continue-btn"
+
+# Verify confirm screen
+- extendedWaitUntil:
+    visible:
+      id: "vault-create-confirm-screen"
+    timeout: 10000
+- assertVisible:
+    text: "Confirm Vault"
+
+# Confirm & Sign
+- tapOn:
+    id: "vault-create-confirm-btn"
+
+# Wait for success (skip transient processing screen)
+- extendedWaitUntil:
+    visible:
+      id: "vault-create-success-screen"
+    timeout: 120000
+- assertVisible:
+    text: "Vault Created!"
+
+# Tap Done
+- tapOn:
+    id: "vault-success-done-btn"
+
+# Verify back on wallet
+- extendedWaitUntil:
+    visible:
+      id: "wallet-screen"
+    timeout: 10000

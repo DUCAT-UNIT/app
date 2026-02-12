@@ -1,0 +1,146 @@
+appId: com.ducatprotocol.DucatProtocolWallet
+---
+# Import Seed via Typing - Type seed phrase word by word and import
+# Uses Enter key to advance between inputs (triggers onSubmitEditing)
+# which keeps the keyboard open and lets KeyboardAvoidingView auto-scroll
+
+- runFlow: ../helpers/clear-and-launch.yaml
+
+# Tap restore button — first tap may dismiss Expo Dev Client overlay
+- tapOn:
+    id: "welcome-restore-wallet-btn"
+
+# If overlay intercepted first tap, we're still on welcome screen — retry
+- runFlow:
+    when:
+      visible:
+        id: "welcome-screen"
+    commands:
+      - tapOn:
+          id: "welcome-restore-wallet-btn"
+
+# Restore choice screen (wait for navigation)
+- extendedWaitUntil:
+    visible:
+      id: "restore-choice-screen"
+    timeout: 5000
+- tapOn:
+    id: "restore-seed-phrase-btn"
+
+# Import wallet screen
+- assertVisible:
+    id: "import-wallet-screen"
+
+# Verify progress shows 0/12
+- assertVisible:
+    text: "0/12"
+
+# Tap first input to focus it
+- tapOn:
+    id: "seed-word-container-0"
+- inputText: "abandon"
+- pressKey: Enter
+
+# Word 2 (auto-focused via onSubmitEditing)
+- inputText: "abandon"
+- pressKey: Enter
+
+# Word 3
+- inputText: "abandon"
+- pressKey: Enter
+
+# Word 4
+- inputText: "abandon"
+- pressKey: Enter
+
+# Word 5
+- inputText: "abandon"
+- pressKey: Enter
+
+# Word 6
+- inputText: "abandon"
+- pressKey: Enter
+
+# Word 7
+- inputText: "abandon"
+- pressKey: Enter
+
+# Word 8
+- inputText: "abandon"
+- pressKey: Enter
+
+# Word 9
+- inputText: "abandon"
+- pressKey: Enter
+
+# Word 10
+- inputText: "abandon"
+- pressKey: Enter
+
+# Word 11
+- inputText: "abandon"
+- pressKey: Enter
+
+# Word 12 (last word is "about")
+- inputText: "about"
+
+# Hide keyboard
+- hideKeyboard
+
+# Verify all 12 words populated
+- extendedWaitUntil:
+    visible:
+      text: "12/12"
+    timeout: 5000
+
+# Tap import button (pinned to bottom, always visible)
+- tapOn:
+    id: "import-wallet-btn"
+
+# PIN setup (import + key derivation can take time)
+- extendedWaitUntil:
+    visible:
+      id: "pin-setup-title"
+    timeout: 30000
+- runFlow: ../helpers/enter-pin-setup.yaml
+- runFlow: ../helpers/enter-pin-setup.yaml
+
+# Skip biometric if prompted
+- runFlow:
+    when:
+      visible:
+        id: "biometric-modal"
+    commands:
+      - tapOn:
+          id: "biometric-skip-btn"
+
+# Skip passkey migration if prompted
+- runFlow:
+    when:
+      visible:
+        id: "passkey-migration-modal"
+    commands:
+      - tapOn:
+          id: "passkey-skip-btn"
+
+# Dismiss airdrop modal if it appears
+- runFlow: ../helpers/dismiss-airdrop.yaml
+
+# Dismiss low ecash modal if it appears
+- runFlow: ../helpers/dismiss-low-ecash.yaml
+
+# Verify wallet screen loads
+- extendedWaitUntil:
+    visible:
+      id: "wallet-screen"
+    timeout: 15000
+
+# Verify balance data loaded
+- extendedWaitUntil:
+    visible:
+      id: "balance-section"
+    timeout: 15000
+- extendedWaitUntil:
+    visible:
+      id: "asset-card-btc"
+    timeout: 10000

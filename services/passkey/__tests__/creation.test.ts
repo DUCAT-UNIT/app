@@ -1,4 +1,3 @@
-// @ts-nocheck
 /**
  * Tests for Passkey Creation Service
  * Covers createWalletWithPasskey and addPasskeyToExistingWallet

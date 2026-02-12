@@ -10,6 +10,7 @@ import EcashTransactionItem from './EcashTransactionItem';
 import RegularTransactionItem from './RegularTransactionItem';
 import type { DisplayAssetType, VaultAction, VaultTransactionData } from '../../types/assets';
 import type { TransactionStatus } from '../../types/transaction';
+import type { TransactionOutput } from '../../services/transactionHistoryService';
 
 export interface TransactionItemStyles {
   historyTxRow: ViewStyle;
@@ -36,10 +37,7 @@ interface TransactionData {
   isReceived: boolean;
 }
 
-interface TransactionOutput {
-  scriptpubkey_address?: string;
-  value?: number;
-}
+
 
 // Union type for all transaction types
 export interface BaseTransaction {

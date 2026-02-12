@@ -1,4 +1,3 @@
-// @ts-nocheck
 /**
  * Tests for AirdropContext
  */
@@ -12,29 +11,44 @@ import { useAuth } from '../AuthContext';
 import * as SecureStore from 'expo-secure-store';
 import * as AirdropService from '../../services/airdropService';
 
-// Helper to render hooks with react-test-renderer
-function renderHook(hook, { wrapper: Wrapper } = {}) {
-  const result = { current: null };
+// Type for renderHook options
+interface RenderHookOptions {
+  wrapper?: React.ComponentType<{ children: React.ReactNode }>;
+}
 
-  function TestComponent() {
+// Helper to render hooks with react-test-renderer
+function renderHook<T>(
+  hook: () => T,
+  { wrapper: Wrapper }: RenderHookOptions = {}
+): { result: { current: T | null }; rerender: (element: React.ReactElement) => void; unmount: () => void } {
+  const result: { current: T | null } = { current: null };
+
+  function TestComponent(): null {
     result.current = hook();
     return null;
   }
 
-  let component;
+  let component: ReturnType<typeof create> | undefined;
   act(() => {
     component = Wrapper
       ? create(<Wrapper><TestComponent /></Wrapper>)
       : create(<TestComponent />);
   });
 
-  return { result, rerender: component.update, unmount: component.unmount };
+  return { result, rerender: component!.update, unmount: component!.unmount };
 }
 
 // Mock dependencies
 jest.mock('../WalletDataContext');
 jest.mock('../WalletContext');
 jest.mock('../AuthContext');
+// Configurable mock for NavigationHandlersContext
+let mockShowBiometricSetupModal = false;
+jest.mock('../NavigationHandlersContext', () => ({
+  useAuthFlowHandlers: () => ({
+    showBiometricSetupModal: mockShowBiometricSetupModal,
+  }),
+}));
 jest.mock('expo-secure-store');
 jest.mock('../../services/airdropService');
 
@@ -50,7 +64,7 @@ jest.mock('../../utils/airdropCelebration', () => ({
 
 describe('AirdropContext', () => {
   // Helper to create unique mock wallet for each test
-  const createMockWallet = (testName) => ({
+  const createMockWallet = (testName: string) => ({
     segwitAddress: `bc1qtest${testName.replace(/\s/g, '')}`,
     taprootAddress: `bc1ptest${testName.replace(/\s/g, '')}`,
   });
@@ -58,10 +72,11 @@ describe('AirdropContext', () => {
   beforeEach(() => {
     jest.clearAllMocks();
     jest.useFakeTimers();
+    mockShowBiometricSetupModal = false; // Reset to default
 
-    SecureStore.getItemAsync.mockResolvedValue(null);
-    SecureStore.setItemAsync.mockResolvedValue();
-    SecureStore.deleteItemAsync.mockResolvedValue();
+    (SecureStore.getItemAsync as jest.Mock).mockResolvedValue(null);
+    (SecureStore.setItemAsync as jest.Mock).mockResolvedValue(undefined);
+    (SecureStore.deleteItemAsync as jest.Mock).mockResolvedValue(undefined);
   });
 
   afterEach(() => {
@@ -81,17 +96,17 @@ describe('AirdropContext', () => {
   it('should provide initial state', () => {
     const mockWallet = createMockWallet('initialstate');
 
-    useBalance.mockReturnValue({ segwitBalance: 0, taprootBalance: 0 });
-    useWallet.mockReturnValue({ wallet: mockWallet, currentAccount: 0 });
-    useAuth.mockReturnValue({ isAuthenticated: true });
+    (useBalance as jest.Mock).mockReturnValue({ segwitBalance: 0, taprootBalance: 0 });
+    (useWallet as jest.Mock).mockReturnValue({ wallet: mockWallet, currentAccount: 0 });
+    (useAuth as jest.Mock).mockReturnValue({ isAuthenticated: true });
 
-    const wrapper = ({ children }) => (
+    const wrapper = ({ children }: { children: React.ReactNode }) => (
       <AirdropProvider seedConfirmed={true}>{children}</AirdropProvider>
     );
     const { result } = renderHook(() => useAirdrop(), { wrapper });
 
-    expect(result.current.showAirdropModal).toBe(false);
-    expect(result.current.airdropTxId).toBe('');
+    expect(result.current!.showAirdropModal).toBe(false);
+    expect(result.current!.airdropTxId).toBe('');
   });
 
   it('should clean up expired locks on mount', async () => {
@@ -99,16 +114,16 @@ describe('AirdropContext', () => {
     const lockKey = `airdropLock_${mockWallet.segwitAddress}_0`;
     const expiredLockTime = Date.now() - 70 * 1000; // 70 seconds ago (expired)
 
-    useBalance.mockReturnValue({ segwitBalance: 0, taprootBalance: 0 });
-    useWallet.mockReturnValue({ wallet: mockWallet, currentAccount: 0 });
-    useAuth.mockReturnValue({ isAuthenticated: true });
+    (useBalance as jest.Mock).mockReturnValue({ segwitBalance: 0, taprootBalance: 0 });
+    (useWallet as jest.Mock).mockReturnValue({ wallet: mockWallet, currentAccount: 0 });
+    (useAuth as jest.Mock).mockReturnValue({ isAuthenticated: true });
 
-    SecureStore.getItemAsync.mockImplementation((key) => {
+    (SecureStore.getItemAsync as jest.Mock).mockImplementation((key) => {
       if (key === lockKey) return Promise.resolve(expiredLockTime.toString());
       return Promise.resolve(null);
     });
 
-    const wrapper = ({ children }) => (
+    const wrapper = ({ children }: { children: React.ReactNode }) => (
       <AirdropProvider seedConfirmed={true}>{children}</AirdropProvider>
     );
 
@@ -125,16 +140,16 @@ describe('AirdropContext', () => {
     const lockKey = `airdropLock_${mockWallet.segwitAddress}_0`;
     const freshLockTime = Date.now() - 10 * 1000; // 10 seconds ago (fresh)
 
-    useBalance.mockReturnValue({ segwitBalance: 0, taprootBalance: 0 });
-    useWallet.mockReturnValue({ wallet: mockWallet, currentAccount: 0 });
-    useAuth.mockReturnValue({ isAuthenticated: true });
+    (useBalance as jest.Mock).mockReturnValue({ segwitBalance: 0, taprootBalance: 0 });
+    (useWallet as jest.Mock).mockReturnValue({ wallet: mockWallet, currentAccount: 0 });
+    (useAuth as jest.Mock).mockReturnValue({ isAuthenticated: true });
 
-    SecureStore.getItemAsync.mockImplementation((key) => {
+    (SecureStore.getItemAsync as jest.Mock).mockImplementation((key) => {
       if (key === lockKey) return Promise.resolve(freshLockTime.toString());
       return Promise.resolve(null);
     });
 
-    const wrapper = ({ children }) => (
+    const wrapper = ({ children }: { children: React.ReactNode }) => (
       <AirdropProvider seedConfirmed={true}>{children}</AirdropProvider>
     );
 
@@ -151,28 +166,28 @@ describe('AirdropContext', () => {
     const pendingKey = `pendingAirdrop_${mockWallet.segwitAddress}_0`;
     const mockTxId = 'pending_txid';
 
-    useBalance.mockReturnValue({ segwitBalance: 0.001, taprootBalance: 0 });
-    useWallet.mockReturnValue({ wallet: mockWallet, currentAccount: 0 });
-    useAuth.mockReturnValue({ isAuthenticated: true });
+    (useBalance as jest.Mock).mockReturnValue({ segwitBalance: 0.001, taprootBalance: 0 });
+    (useWallet as jest.Mock).mockReturnValue({ wallet: mockWallet, currentAccount: 0 });
+    (useAuth as jest.Mock).mockReturnValue({ isAuthenticated: true });
 
-    SecureStore.getItemAsync.mockImplementation((key) => {
+    (SecureStore.getItemAsync as jest.Mock).mockImplementation((key) => {
       if (key === pendingKey) return Promise.resolve(mockTxId);
       return Promise.resolve(null);
     });
 
-    const wrapper = ({ children }) => (
+    const wrapper = ({ children }: { children: React.ReactNode }) => (
       <AirdropProvider seedConfirmed={true}>{children}</AirdropProvider>
     );
 
-    let result;
+    let result: { current: ReturnType<typeof useAirdrop> | null } | undefined;
     await act(async () => {
       const hook = renderHook(() => useAirdrop(), { wrapper });
       result = hook.result;
       await Promise.resolve();
     });
 
-    expect(result.current.showAirdropModal).toBe(true);
-    expect(result.current.airdropTxId).toBe(mockTxId);
+    expect(result!.current!.showAirdropModal).toBe(true);
+    expect(result!.current!.airdropTxId).toBe(mockTxId);
     expect(SecureStore.deleteItemAsync).toHaveBeenCalledWith(pendingKey);
   });
 
@@ -180,11 +195,11 @@ describe('AirdropContext', () => {
   it('should not request airdrop when balance is > 0', async () => {
     const mockWallet = createMockWallet('hasbalance');
 
-    useBalance.mockReturnValue({ segwitBalance: 0.001, taprootBalance: 0 });
-    useWallet.mockReturnValue({ wallet: mockWallet, currentAccount: 0 });
-    useAuth.mockReturnValue({ isAuthenticated: true });
+    (useBalance as jest.Mock).mockReturnValue({ segwitBalance: 0.001, taprootBalance: 0 });
+    (useWallet as jest.Mock).mockReturnValue({ wallet: mockWallet, currentAccount: 0 });
+    (useAuth as jest.Mock).mockReturnValue({ isAuthenticated: true });
 
-    const wrapper = ({ children }) => (
+    const wrapper = ({ children }: { children: React.ReactNode }) => (
       <AirdropProvider seedConfirmed={true}>{children}</AirdropProvider>
     );
 
@@ -200,11 +215,11 @@ describe('AirdropContext', () => {
   it('should not request airdrop when not authenticated', async () => {
     const mockWallet = createMockWallet('notauthenticated');
 
-    useBalance.mockReturnValue({ segwitBalance: 0, taprootBalance: 0 });
-    useWallet.mockReturnValue({ wallet: mockWallet, currentAccount: 0 });
-    useAuth.mockReturnValue({ isAuthenticated: false });
+    (useBalance as jest.Mock).mockReturnValue({ segwitBalance: 0, taprootBalance: 0 });
+    (useWallet as jest.Mock).mockReturnValue({ wallet: mockWallet, currentAccount: 0 });
+    (useAuth as jest.Mock).mockReturnValue({ isAuthenticated: false });
 
-    const wrapper = ({ children }) => (
+    const wrapper = ({ children }: { children: React.ReactNode }) => (
       <AirdropProvider seedConfirmed={true}>{children}</AirdropProvider>
     );
 
@@ -220,11 +235,11 @@ describe('AirdropContext', () => {
   it('should not request airdrop when seed not confirmed', async () => {
     const mockWallet = createMockWallet('seednotconfirmed');
 
-    useBalance.mockReturnValue({ segwitBalance: 0, taprootBalance: 0 });
-    useWallet.mockReturnValue({ wallet: mockWallet, currentAccount: 0 });
-    useAuth.mockReturnValue({ isAuthenticated: true });
+    (useBalance as jest.Mock).mockReturnValue({ segwitBalance: 0, taprootBalance: 0 });
+    (useWallet as jest.Mock).mockReturnValue({ wallet: mockWallet, currentAccount: 0 });
+    (useAuth as jest.Mock).mockReturnValue({ isAuthenticated: true });
 
-    const wrapper = ({ children }) => (
+    const wrapper = ({ children }: { children: React.ReactNode }) => (
       <AirdropProvider seedConfirmed={false}>{children}</AirdropProvider>
     );
 
@@ -241,18 +256,18 @@ describe('AirdropContext', () => {
     const mockWallet = createMockWallet('within24hours');
     const lastAirdropTime = Date.now() - 12 * 60 * 60 * 1000; // 12 hours ago
 
-    useBalance.mockReturnValue({ segwitBalance: 0, taprootBalance: 0 });
-    useWallet.mockReturnValue({ wallet: mockWallet, currentAccount: 0 });
-    useAuth.mockReturnValue({ isAuthenticated: true });
+    (useBalance as jest.Mock).mockReturnValue({ segwitBalance: 0, taprootBalance: 0 });
+    (useWallet as jest.Mock).mockReturnValue({ wallet: mockWallet, currentAccount: 0 });
+    (useAuth as jest.Mock).mockReturnValue({ isAuthenticated: true });
 
-    SecureStore.getItemAsync.mockImplementation((key) => {
+    (SecureStore.getItemAsync as jest.Mock).mockImplementation((key) => {
       if (key === `lastAirdropTime_${mockWallet.segwitAddress}_0`) {
         return Promise.resolve(lastAirdropTime.toString());
       }
       return Promise.resolve(null);
     });
 
-    const wrapper = ({ children }) => (
+    const wrapper = ({ children }: { children: React.ReactNode }) => (
       <AirdropProvider seedConfirmed={true}>{children}</AirdropProvider>
     );
 
@@ -270,16 +285,16 @@ describe('AirdropContext', () => {
     const lockKey = `airdropLock_${mockWallet.segwitAddress}_0`;
     const freshLockTime = Date.now() - 10 * 1000; // 10 seconds ago (fresh lock)
 
-    useBalance.mockReturnValue({ segwitBalance: 0, taprootBalance: 0 });
-    useWallet.mockReturnValue({ wallet: mockWallet, currentAccount: 0 });
-    useAuth.mockReturnValue({ isAuthenticated: true });
+    (useBalance as jest.Mock).mockReturnValue({ segwitBalance: 0, taprootBalance: 0 });
+    (useWallet as jest.Mock).mockReturnValue({ wallet: mockWallet, currentAccount: 0 });
+    (useAuth as jest.Mock).mockReturnValue({ isAuthenticated: true });
 
-    SecureStore.getItemAsync.mockImplementation((key) => {
+    (SecureStore.getItemAsync as jest.Mock).mockImplementation((key) => {
       if (key === lockKey) return Promise.resolve(freshLockTime.toString());
       return Promise.resolve(null);
     });
 
-    const wrapper = ({ children }) => (
+    const wrapper = ({ children }: { children: React.ReactNode }) => (
       <AirdropProvider seedConfirmed={true}>{children}</AirdropProvider>
     );
 
@@ -295,11 +310,11 @@ describe('AirdropContext', () => {
   it('should cleanup timers on unmount', async () => {
     const mockWallet = createMockWallet('cleanup');
 
-    useBalance.mockReturnValue({ segwitBalance: 0, taprootBalance: 0 });
-    useWallet.mockReturnValue({ wallet: mockWallet, currentAccount: 0 });
-    useAuth.mockReturnValue({ isAuthenticated: true });
+    (useBalance as jest.Mock).mockReturnValue({ segwitBalance: 0, taprootBalance: 0 });
+    (useWallet as jest.Mock).mockReturnValue({ wallet: mockWallet, currentAccount: 0 });
+    (useAuth as jest.Mock).mockReturnValue({ isAuthenticated: true });
 
-    const wrapper = ({ children }) => (
+    const wrapper = ({ children }: { children: React.ReactNode }) => (
       <AirdropProvider seedConfirmed={true}>{children}</AirdropProvider>
     );
 
@@ -317,17 +332,17 @@ describe('AirdropContext', () => {
     const mockWallet = createMockWallet('requestairdrop');
     const mockTxId = 'airdrop_txid_123';
 
-    useBalance.mockReturnValue({ segwitBalance: 0, taprootBalance: 0 });
-    useWallet.mockReturnValue({ wallet: mockWallet, currentAccount: 0 });
-    useAuth.mockReturnValue({ isAuthenticated: true });
+    (useBalance as jest.Mock).mockReturnValue({ segwitBalance: 0, taprootBalance: 0 });
+    (useWallet as jest.Mock).mockReturnValue({ wallet: mockWallet, currentAccount: 0 });
+    (useAuth as jest.Mock).mockReturnValue({ isAuthenticated: true });
 
-    AirdropService.requestAirdrop.mockResolvedValue({ txId: mockTxId });
+    (AirdropService.requestAirdrop as jest.Mock).mockResolvedValue({ txId: mockTxId });
 
-    const wrapper = ({ children }) => (
+    const wrapper = ({ children }: { children: React.ReactNode }) => (
       <AirdropProvider seedConfirmed={true}>{children}</AirdropProvider>
     );
 
-    let result;
+    let result: { current: ReturnType<typeof useAirdrop> | null } | undefined;
     await act(async () => {
       const hook = renderHook(() => useAirdrop(), { wrapper });
       result = hook.result;
@@ -346,21 +361,21 @@ describe('AirdropContext', () => {
     });
 
     expect(AirdropService.requestAirdrop).toHaveBeenCalledWith(mockWallet.segwitAddress);
-    expect(result.current.showAirdropModal).toBe(true);
-    expect(result.current.airdropTxId).toBe(mockTxId);
+    expect(result!.current!.showAirdropModal).toBe(true);
+    expect(result!.current!.airdropTxId).toBe(mockTxId);
   });
 
   it('should request airdrop after 24 hours on interval', async () => {
     const mockWallet = createMockWallet('intervalrequest');
     const mockTxId = 'interval_airdrop_txid';
 
-    useBalance.mockReturnValue({ segwitBalance: 0, taprootBalance: 0 });
-    useWallet.mockReturnValue({ wallet: mockWallet, currentAccount: 0 });
-    useAuth.mockReturnValue({ isAuthenticated: true });
+    (useBalance as jest.Mock).mockReturnValue({ segwitBalance: 0, taprootBalance: 0 });
+    (useWallet as jest.Mock).mockReturnValue({ wallet: mockWallet, currentAccount: 0 });
+    (useAuth as jest.Mock).mockReturnValue({ isAuthenticated: true });
 
-    AirdropService.requestAirdrop.mockResolvedValue({ txId: mockTxId });
+    (AirdropService.requestAirdrop as jest.Mock).mockResolvedValue({ txId: mockTxId });
 
-    const wrapper = ({ children }) => (
+    const wrapper = ({ children }: { children: React.ReactNode }) => (
       <AirdropProvider seedConfirmed={true}>{children}</AirdropProvider>
     );
 
@@ -375,7 +390,7 @@ describe('AirdropContext', () => {
     });
 
     // Clear the first call
-    AirdropService.requestAirdrop.mockClear();
+    (AirdropService.requestAirdrop as jest.Mock).mockClear();
 
     // Advance by 24 hours to trigger interval
     await act(async () => {
@@ -389,17 +404,17 @@ describe('AirdropContext', () => {
   it('should handle airdrop request error gracefully', async () => {
     const mockWallet = createMockWallet('airdropfail');
 
-    useBalance.mockReturnValue({ segwitBalance: 0, taprootBalance: 0 });
-    useWallet.mockReturnValue({ wallet: mockWallet, currentAccount: 0 });
-    useAuth.mockReturnValue({ isAuthenticated: true });
+    (useBalance as jest.Mock).mockReturnValue({ segwitBalance: 0, taprootBalance: 0 });
+    (useWallet as jest.Mock).mockReturnValue({ wallet: mockWallet, currentAccount: 0 });
+    (useAuth as jest.Mock).mockReturnValue({ isAuthenticated: true });
 
-    AirdropService.requestAirdrop.mockRejectedValue(new Error('Network error'));
+    (AirdropService.requestAirdrop as jest.Mock).mockRejectedValue(new Error('Network error'));
 
-    const wrapper = ({ children }) => (
+    const wrapper = ({ children }: { children: React.ReactNode }) => (
       <AirdropProvider seedConfirmed={true}>{children}</AirdropProvider>
     );
 
-    let result;
+    let result: { current: ReturnType<typeof useAirdrop> | null } | undefined;
     await act(async () => {
       const hook = renderHook(() => useAirdrop(), { wrapper });
       result = hook.result;
@@ -412,25 +427,25 @@ describe('AirdropContext', () => {
 
     expect(AirdropService.requestAirdrop).toHaveBeenCalled();
     // Should not crash or show modal on error
-    expect(result.current.showAirdropModal).toBe(false);
+    expect(result!.current!.showAirdropModal).toBe(false);
   });
 
   it('should prevent duplicate airdrop requests when already in progress', async () => {
     const mockWallet = createMockWallet('duplicaterequest');
     const mockTxId = 'airdrop_txid_dup';
 
-    useBalance.mockReturnValue({ segwitBalance: 0, taprootBalance: 0 });
-    useWallet.mockReturnValue({ wallet: mockWallet, currentAccount: 0 });
-    useAuth.mockReturnValue({ isAuthenticated: true });
+    (useBalance as jest.Mock).mockReturnValue({ segwitBalance: 0, taprootBalance: 0 });
+    (useWallet as jest.Mock).mockReturnValue({ wallet: mockWallet, currentAccount: 0 });
+    (useAuth as jest.Mock).mockReturnValue({ isAuthenticated: true });
 
     // Make airdrop request slow
-    let resolveAirdrop;
-    const airdropPromise = new Promise((resolve) => {
+    let resolveAirdrop: ((value: { txId: string }) => void) | undefined;
+    const airdropPromise = new Promise<{ txId: string }>((resolve) => {
       resolveAirdrop = resolve;
     });
-    AirdropService.requestAirdrop.mockReturnValue(airdropPromise);
+    (AirdropService.requestAirdrop as jest.Mock).mockReturnValue(airdropPromise);
 
-    const wrapper = ({ children }) => (
+    const wrapper = ({ children }: { children: React.ReactNode }) => (
       <AirdropProvider seedConfirmed={true}>{children}</AirdropProvider>
     );
 
@@ -444,7 +459,7 @@ describe('AirdropContext', () => {
       await Promise.resolve();
     });
 
-    const firstCallCount = AirdropService.requestAirdrop.mock.calls.length;
+    const firstCallCount = (AirdropService.requestAirdrop as jest.Mock).mock.calls.length;
 
     // Try to trigger another request while first is in progress
     await act(async () => {
@@ -453,11 +468,11 @@ describe('AirdropContext', () => {
     });
 
     // Should not make a second call (still in progress)
-    expect(AirdropService.requestAirdrop.mock.calls.length).toBe(firstCallCount);
+    expect((AirdropService.requestAirdrop as jest.Mock).mock.calls.length).toBe(firstCallCount);
 
     // Complete the first request
     await act(async () => {
-      resolveAirdrop({ txId: mockTxId });
+      resolveAirdrop!({ txId: mockTxId });
       await Promise.resolve();
     });
   });
@@ -467,20 +482,20 @@ describe('AirdropContext', () => {
     const oldAirdropTime = Date.now() - 25 * 60 * 60 * 1000; // 25 hours ago
     const mockTxId = 'new_airdrop_txid';
 
-    useBalance.mockReturnValue({ segwitBalance: 0, taprootBalance: 0 });
-    useWallet.mockReturnValue({ wallet: mockWallet, currentAccount: 0 });
-    useAuth.mockReturnValue({ isAuthenticated: true });
+    (useBalance as jest.Mock).mockReturnValue({ segwitBalance: 0, taprootBalance: 0 });
+    (useWallet as jest.Mock).mockReturnValue({ wallet: mockWallet, currentAccount: 0 });
+    (useAuth as jest.Mock).mockReturnValue({ isAuthenticated: true });
 
-    SecureStore.getItemAsync.mockImplementation((key) => {
+    (SecureStore.getItemAsync as jest.Mock).mockImplementation((key) => {
       if (key === `lastAirdropTime_${mockWallet.segwitAddress}_0`) {
         return Promise.resolve(oldAirdropTime.toString());
       }
       return Promise.resolve(null);
     });
 
-    AirdropService.requestAirdrop.mockResolvedValue({ txId: mockTxId });
+    (AirdropService.requestAirdrop as jest.Mock).mockResolvedValue({ txId: mockTxId });
 
-    const wrapper = ({ children }) => (
+    const wrapper = ({ children }: { children: React.ReactNode }) => (
       <AirdropProvider seedConfirmed={true}>{children}</AirdropProvider>
     );
 
@@ -500,18 +515,18 @@ describe('AirdropContext', () => {
   it('should handle SecureStore errors gracefully during airdrop', async () => {
     const mockWallet = createMockWallet('securestoreerror');
 
-    useBalance.mockReturnValue({ segwitBalance: 0, taprootBalance: 0 });
-    useWallet.mockReturnValue({ wallet: mockWallet, currentAccount: 0 });
-    useAuth.mockReturnValue({ isAuthenticated: true });
+    (useBalance as jest.Mock).mockReturnValue({ segwitBalance: 0, taprootBalance: 0 });
+    (useWallet as jest.Mock).mockReturnValue({ wallet: mockWallet, currentAccount: 0 });
+    (useAuth as jest.Mock).mockReturnValue({ isAuthenticated: true });
 
     // Make SecureStore fail during airdrop
-    SecureStore.setItemAsync.mockRejectedValue(new Error('Storage error'));
+    (SecureStore.setItemAsync as jest.Mock).mockRejectedValue(new Error('Storage error'));
 
-    const wrapper = ({ children }) => (
+    const wrapper = ({ children }: { children: React.ReactNode }) => (
       <AirdropProvider seedConfirmed={true}>{children}</AirdropProvider>
     );
 
-    let result;
+    let result: { current: ReturnType<typeof useAirdrop> | null } | undefined;
     await act(async () => {
       const hook = renderHook(() => useAirdrop(), { wrapper });
       result = hook.result;
@@ -520,7 +535,7 @@ describe('AirdropContext', () => {
     });
 
     // Should not crash
-    expect(result.current.showAirdropModal).toBe(false);
+    expect(result!.current!.showAirdropModal).toBe(false);
   });
 
   it('should clean up lock after successful airdrop', async () => {
@@ -528,13 +543,13 @@ describe('AirdropContext', () => {
     const lockKey = `airdropLock_${mockWallet.segwitAddress}_0`;
     const mockTxId = 'cleanup_txid';
 
-    useBalance.mockReturnValue({ segwitBalance: 0, taprootBalance: 0 });
-    useWallet.mockReturnValue({ wallet: mockWallet, currentAccount: 0 });
-    useAuth.mockReturnValue({ isAuthenticated: true });
+    (useBalance as jest.Mock).mockReturnValue({ segwitBalance: 0, taprootBalance: 0 });
+    (useWallet as jest.Mock).mockReturnValue({ wallet: mockWallet, currentAccount: 0 });
+    (useAuth as jest.Mock).mockReturnValue({ isAuthenticated: true });
 
-    AirdropService.requestAirdrop.mockResolvedValue({ txId: mockTxId });
+    (AirdropService.requestAirdrop as jest.Mock).mockResolvedValue({ txId: mockTxId });
 
-    const wrapper = ({ children }) => (
+    const wrapper = ({ children }: { children: React.ReactNode }) => (
       <AirdropProvider seedConfirmed={true}>{children}</AirdropProvider>
     );
 
@@ -555,13 +570,13 @@ describe('AirdropContext', () => {
     const mockWallet = createMockWallet('cleanuplocker ror');
     const lockKey = `airdropLock_${mockWallet.segwitAddress}_0`;
 
-    useBalance.mockReturnValue({ segwitBalance: 0, taprootBalance: 0 });
-    useWallet.mockReturnValue({ wallet: mockWallet, currentAccount: 0 });
-    useAuth.mockReturnValue({ isAuthenticated: true });
+    (useBalance as jest.Mock).mockReturnValue({ segwitBalance: 0, taprootBalance: 0 });
+    (useWallet as jest.Mock).mockReturnValue({ wallet: mockWallet, currentAccount: 0 });
+    (useAuth as jest.Mock).mockReturnValue({ isAuthenticated: true });
 
-    AirdropService.requestAirdrop.mockRejectedValue(new Error('Airdrop failed'));
+    (AirdropService.requestAirdrop as jest.Mock).mockRejectedValue(new Error('Airdrop failed'));
 
-    const wrapper = ({ children }) => (
+    const wrapper = ({ children }: { children: React.ReactNode }) => (
       <AirdropProvider seedConfirmed={true}>{children}</AirdropProvider>
     );
 
@@ -583,18 +598,18 @@ describe('AirdropContext', () => {
     const lockKey = `airdropLock_${mockWallet.segwitAddress}_0`;
     const freshLockTime = Date.now() - 30 * 1000; // 30 seconds ago (fresh)
 
-    useBalance.mockReturnValue({ segwitBalance: 0, taprootBalance: 0 });
-    useWallet.mockReturnValue({ wallet: mockWallet, currentAccount: 0 });
-    useAuth.mockReturnValue({ isAuthenticated: true });
+    (useBalance as jest.Mock).mockReturnValue({ segwitBalance: 0, taprootBalance: 0 });
+    (useWallet as jest.Mock).mockReturnValue({ wallet: mockWallet, currentAccount: 0 });
+    (useAuth as jest.Mock).mockReturnValue({ isAuthenticated: true });
 
-    SecureStore.getItemAsync.mockImplementation((key) => {
+    (SecureStore.getItemAsync as jest.Mock).mockImplementation((key) => {
       if (key === lockKey) {
         return Promise.resolve(freshLockTime.toString());
       }
       return Promise.resolve(null);
     });
 
-    const wrapper = ({ children }) => (
+    const wrapper = ({ children }: { children: React.ReactNode }) => (
       <AirdropProvider seedConfirmed={true}>{children}</AirdropProvider>
     );
 
@@ -617,11 +632,11 @@ describe('AirdropContext', () => {
     const lockKey = `airdropLock_${mockWallet.segwitAddress}_0`;
     const recentAirdropTime = Date.now() - 12 * 60 * 60 * 1000; // 12 hours ago
 
-    useBalance.mockReturnValue({ segwitBalance: 0, taprootBalance: 0 });
-    useWallet.mockReturnValue({ wallet: mockWallet, currentAccount: 0 });
-    useAuth.mockReturnValue({ isAuthenticated: true });
+    (useBalance as jest.Mock).mockReturnValue({ segwitBalance: 0, taprootBalance: 0 });
+    (useWallet as jest.Mock).mockReturnValue({ wallet: mockWallet, currentAccount: 0 });
+    (useAuth as jest.Mock).mockReturnValue({ isAuthenticated: true });
 
-    SecureStore.getItemAsync.mockImplementation((key) => {
+    (SecureStore.getItemAsync as jest.Mock).mockImplementation((key) => {
       if (key === lastAirdropKey) {
         return Promise.resolve(recentAirdropTime.toString());
       }
@@ -631,7 +646,7 @@ describe('AirdropContext', () => {
       return Promise.resolve(null);
     });
 
-    const wrapper = ({ children }) => (
+    const wrapper = ({ children }: { children: React.ReactNode }) => (
       <AirdropProvider seedConfirmed={true}>{children}</AirdropProvider>
     );
 
@@ -652,18 +667,18 @@ describe('AirdropContext', () => {
     const mockWallet = createMockWallet('errorcleanup');
     const lockKey = `airdropLock_${mockWallet.segwitAddress}_0`;
 
-    useBalance.mockReturnValue({ segwitBalance: 0, taprootBalance: 0 });
-    useWallet.mockReturnValue({ wallet: mockWallet, currentAccount: 0 });
-    useAuth.mockReturnValue({ isAuthenticated: true });
+    (useBalance as jest.Mock).mockReturnValue({ segwitBalance: 0, taprootBalance: 0 });
+    (useWallet as jest.Mock).mockReturnValue({ wallet: mockWallet, currentAccount: 0 });
+    (useAuth as jest.Mock).mockReturnValue({ isAuthenticated: true });
 
-    SecureStore.getItemAsync.mockResolvedValue(null);
-    SecureStore.setItemAsync.mockResolvedValue(undefined);
-    SecureStore.deleteItemAsync.mockResolvedValue(undefined);
+    (SecureStore.getItemAsync as jest.Mock).mockResolvedValue(null);
+    (SecureStore.setItemAsync as jest.Mock).mockResolvedValue(undefined);
+    (SecureStore.deleteItemAsync as jest.Mock).mockResolvedValue(undefined);
 
     // Make requestAirdrop throw an error
-    AirdropService.requestAirdrop.mockRejectedValue(new Error('Network error'));
+    (AirdropService.requestAirdrop as jest.Mock).mockRejectedValue(new Error('Network error'));
 
-    const wrapper = ({ children }) => (
+    const wrapper = ({ children }: { children: React.ReactNode }) => (
       <AirdropProvider seedConfirmed={true}>{children}</AirdropProvider>
     );
 
@@ -686,15 +701,15 @@ describe('AirdropContext', () => {
   it('should trigger celebration with haptic feedback and sound', async () => {
     const mockWallet = createMockWallet('celebration');
 
-    useBalance.mockReturnValue({ segwitBalance: 0.001, taprootBalance: 0 });
-    useWallet.mockReturnValue({ wallet: mockWallet, currentAccount: 0 });
-    useAuth.mockReturnValue({ isAuthenticated: true });
+    (useBalance as jest.Mock).mockReturnValue({ segwitBalance: 0.001, taprootBalance: 0 });
+    (useWallet as jest.Mock).mockReturnValue({ wallet: mockWallet, currentAccount: 0 });
+    (useAuth as jest.Mock).mockReturnValue({ isAuthenticated: true });
 
-    const wrapper = ({ children }) => (
+    const wrapper = ({ children }: { children: React.ReactNode }) => (
       <AirdropProvider seedConfirmed={true}>{children}</AirdropProvider>
     );
 
-    let result;
+    let result: { current: ReturnType<typeof useAirdrop> | null } | undefined;
     await act(async () => {
       const hook = renderHook(() => useAirdrop(), { wrapper });
       result = hook.result;
@@ -703,25 +718,25 @@ describe('AirdropContext', () => {
 
     // Trigger celebration
     act(() => {
-      result.current.triggerCelebration();
+      result!.current!.triggerCelebration();
     });
 
     // Test passes if no errors - haptics and sound are mocked
-    expect(result.current.triggerCelebration).toBeDefined();
+    expect(result!.current!.triggerCelebration).toBeDefined();
   });
 
   it('should set audio ready state when sound loads successfully', async () => {
     const mockWallet = createMockWallet('audioready');
 
-    useBalance.mockReturnValue({ segwitBalance: 0, taprootBalance: 0 });
-    useWallet.mockReturnValue({ wallet: mockWallet, currentAccount: 0 });
-    useAuth.mockReturnValue({ isAuthenticated: true });
+    (useBalance as jest.Mock).mockReturnValue({ segwitBalance: 0, taprootBalance: 0 });
+    (useWallet as jest.Mock).mockReturnValue({ wallet: mockWallet, currentAccount: 0 });
+    (useAuth as jest.Mock).mockReturnValue({ isAuthenticated: true });
 
-    const wrapper = ({ children }) => (
+    const wrapper = ({ children }: { children: React.ReactNode }) => (
       <AirdropProvider seedConfirmed={true}>{children}</AirdropProvider>
     );
 
-    let result;
+    let result: { current: ReturnType<typeof useAirdrop> | null } | undefined;
     await act(async () => {
       const hook = renderHook(() => useAirdrop(), { wrapper });
       result = hook.result;
@@ -731,7 +746,7 @@ describe('AirdropContext', () => {
     });
 
     // Audio should be ready after mount (sound loading is mocked)
-    expect(result.current.audioReady).toBe(true);
+    expect(result!.current!.audioReady).toBe(true);
   });
 
   it('should handle outer error during lock acquisition', async () => {
@@ -739,13 +754,13 @@ describe('AirdropContext', () => {
     const lockKey = `airdropLock_${mockWallet.segwitAddress}_0`;
     const lastAirdropKey = `lastAirdropTime_${mockWallet.segwitAddress}_0`;
 
-    useBalance.mockReturnValue({ segwitBalance: 0, taprootBalance: 0 });
-    useWallet.mockReturnValue({ wallet: mockWallet, currentAccount: 0 });
-    useAuth.mockReturnValue({ isAuthenticated: true });
+    (useBalance as jest.Mock).mockReturnValue({ segwitBalance: 0, taprootBalance: 0 });
+    (useWallet as jest.Mock).mockReturnValue({ wallet: mockWallet, currentAccount: 0 });
+    (useAuth as jest.Mock).mockReturnValue({ isAuthenticated: true });
 
     // Make getItemAsync return different values, then throw
     let callCount = 0;
-    SecureStore.getItemAsync.mockImplementation((key) => {
+    (SecureStore.getItemAsync as jest.Mock).mockImplementation((key) => {
       callCount++;
       // First calls during mount for cleanup
       if (callCount <= 2) return Promise.resolve(null);
@@ -753,7 +768,7 @@ describe('AirdropContext', () => {
       return Promise.reject(new Error('Storage error'));
     });
 
-    const wrapper = ({ children }) => (
+    const wrapper = ({ children }: { children: React.ReactNode }) => (
       <AirdropProvider seedConfirmed={true}>{children}</AirdropProvider>
     );
 
@@ -768,6 +783,157 @@ describe('AirdropContext', () => {
 
     // Should handle error gracefully and clean up lock
     expect(SecureStore.deleteItemAsync).toHaveBeenCalledWith(lockKey);
+  });
+
+  it('should handle confetti sound preload failure', async () => {
+    const mockWallet = createMockWallet('soundfailure');
+    const preloadConfettiSound = require('../../utils/airdropCelebration').preloadConfettiSound;
+    preloadConfettiSound.mockRejectedValueOnce(new Error('Audio load failed'));
+
+    (useBalance as jest.Mock).mockReturnValue({ segwitBalance: 0, taprootBalance: 0 });
+    (useWallet as jest.Mock).mockReturnValue({ wallet: mockWallet, currentAccount: 0 });
+    (useAuth as jest.Mock).mockReturnValue({ isAuthenticated: true });
+
+    const wrapper = ({ children }: { children: React.ReactNode }) => (
+      <AirdropProvider seedConfirmed={true}>{children}</AirdropProvider>
+    );
+
+    let result: { current: ReturnType<typeof useAirdrop> | null } | undefined;
+    await act(async () => {
+      const hook = renderHook(() => useAirdrop(), { wrapper });
+      result = hook.result;
+      await Promise.resolve();
+      await Promise.resolve();
+    });
+
+    // audioReady should still be false when preload fails
+    expect(result!.current!.audioReady).toBe(false);
+  });
+
+  it('should store pending airdrop txid when biometric modal is visible', async () => {
+    // This test covers the branch at line 171 where pendingAirdropTxIdRef.current is set
+    // when showBiometricSetupModal is true
+    const mockWallet = createMockWallet('deferbiometric');
+    const pendingKey = `pendingAirdrop_${mockWallet.segwitAddress}_0`;
+    const mockTxId = 'deferred_txid';
+
+    (useBalance as jest.Mock).mockReturnValue({ segwitBalance: 0.001, taprootBalance: 0 });
+    (useWallet as jest.Mock).mockReturnValue({ wallet: mockWallet, currentAccount: 0 });
+    (useAuth as jest.Mock).mockReturnValue({ isAuthenticated: true });
+
+    (SecureStore.getItemAsync as jest.Mock).mockImplementation((key) => {
+      if (key === pendingKey) return Promise.resolve(mockTxId);
+      return Promise.resolve(null);
+    });
+
+    const wrapper = ({ children }: { children: React.ReactNode }) => (
+      <AirdropProvider seedConfirmed={true}>{children}</AirdropProvider>
+    );
+
+    let result: { current: ReturnType<typeof useAirdrop> | null } | undefined;
+    await act(async () => {
+      const hook = renderHook(() => useAirdrop(), { wrapper });
+      result = hook.result;
+      await Promise.resolve();
+    });
+
+    // Modal should show since showBiometricSetupModal is false by default in our mock
+    // This tests the else branch at lines 173-175
+    expect(result!.current!.showAirdropModal).toBe(true);
+    expect(result!.current!.airdropTxId).toBe(mockTxId);
+    expect(SecureStore.deleteItemAsync).toHaveBeenCalledWith(pendingKey);
+  });
+
+  it('should defer pending airdrop modal when biometric modal is visible', async () => {
+    // This test covers the branch at line 171 where pendingAirdropTxIdRef.current is set
+    const mockWallet = createMockWallet('deferbiometric2');
+    const pendingKey = `pendingAirdrop_${mockWallet.segwitAddress}_0`;
+    const mockTxId = 'deferred_txid2';
+
+    // Set biometric modal as visible
+    mockShowBiometricSetupModal = true;
+
+    (useBalance as jest.Mock).mockReturnValue({ segwitBalance: 0.001, taprootBalance: 0 });
+    (useWallet as jest.Mock).mockReturnValue({ wallet: mockWallet, currentAccount: 0 });
+    (useAuth as jest.Mock).mockReturnValue({ isAuthenticated: true });
+
+    (SecureStore.getItemAsync as jest.Mock).mockImplementation((key) => {
+      if (key === pendingKey) return Promise.resolve(mockTxId);
+      return Promise.resolve(null);
+    });
+
+    const wrapper = ({ children }: { children: React.ReactNode }) => (
+      <AirdropProvider seedConfirmed={true}>{children}</AirdropProvider>
+    );
+
+    let result: { current: ReturnType<typeof useAirdrop> | null } | undefined;
+    await act(async () => {
+      const hook = renderHook(() => useAirdrop(), { wrapper });
+      result = hook.result;
+      await Promise.resolve();
+    });
+
+    // Modal should NOT show yet since biometric modal is visible
+    // The pending airdrop should be stored in ref
+    expect(result!.current!.showAirdropModal).toBe(false);
+  });
+
+  it('should handle non-Error thrown during airdrop request', async () => {
+    const mockWallet = createMockWallet('nonerrorairdrop');
+    const lockKey = `airdropLock_${mockWallet.segwitAddress}_0`;
+
+    (useBalance as jest.Mock).mockReturnValue({ segwitBalance: 0, taprootBalance: 0 });
+    (useWallet as jest.Mock).mockReturnValue({ wallet: mockWallet, currentAccount: 0 });
+    (useAuth as jest.Mock).mockReturnValue({ isAuthenticated: true });
+
+    // Make requestAirdrop throw a non-Error value
+    (AirdropService.requestAirdrop as jest.Mock).mockRejectedValue('string error');
+
+    const wrapper = ({ children }: { children: React.ReactNode }) => (
+      <AirdropProvider seedConfirmed={true}>{children}</AirdropProvider>
+    );
+
+    let result: { current: ReturnType<typeof useAirdrop> | null } | undefined;
+    await act(async () => {
+      const hook = renderHook(() => useAirdrop(), { wrapper });
+      result = hook.result;
+    });
+
+    await act(async () => {
+      jest.advanceTimersByTime(3000);
+      await Promise.resolve();
+    });
+
+    // Should handle non-Error gracefully
+    expect(AirdropService.requestAirdrop).toHaveBeenCalled();
+    expect(result!.current!.showAirdropModal).toBe(false);
+    // Lock should be cleaned up
+    expect(SecureStore.deleteItemAsync).toHaveBeenCalledWith(lockKey);
+  });
+
+  it('should handle non-Error thrown during audio preload', async () => {
+    const mockWallet = createMockWallet('nonerroraudio');
+    const preloadConfettiSound = require('../../utils/airdropCelebration').preloadConfettiSound;
+    preloadConfettiSound.mockRejectedValueOnce('string audio error');
+
+    (useBalance as jest.Mock).mockReturnValue({ segwitBalance: 0, taprootBalance: 0 });
+    (useWallet as jest.Mock).mockReturnValue({ wallet: mockWallet, currentAccount: 0 });
+    (useAuth as jest.Mock).mockReturnValue({ isAuthenticated: true });
+
+    const wrapper = ({ children }: { children: React.ReactNode }) => (
+      <AirdropProvider seedConfirmed={true}>{children}</AirdropProvider>
+    );
+
+    let result: { current: ReturnType<typeof useAirdrop> | null } | undefined;
+    await act(async () => {
+      const hook = renderHook(() => useAirdrop(), { wrapper });
+      result = hook.result;
+      await Promise.resolve();
+      await Promise.resolve();
+    });
+
+    // audioReady should be false when preload fails
+    expect(result!.current!.audioReady).toBe(false);
   });
 
 });

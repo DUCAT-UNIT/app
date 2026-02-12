@@ -1,4 +1,3 @@
-// @ts-nocheck
 /**
  * Tests for Balance Service
  * Tests wallet balance fetching, UTXO retrieval, and BTC price fetching
@@ -18,20 +17,27 @@ jest.mock('../../utils/apiClient', () => ({
 }));
 
 jest.mock('../../utils/constants', () => ({
-  getAddressUrl: jest.fn((address) => `https://api.example.com/address/${address}`),
-  getAddressUtxoUrl: jest.fn((address) => `https://api.example.com/address/${address}/utxo`),
-  getOrdAddressUrl: jest.fn((address) => `https://api.example.com/ord/address/${address}`),
+  getAddressUrl: jest.fn((address: string) => `https://api.example.com/address/${address}`),
+  getAddressUtxoUrl: jest.fn((address: string) => `https://api.example.com/address/${address}/utxo`),
+  getOrdAddressUrl: jest.fn((address: string) => `https://api.example.com/ord/address/${address}`),
   API_KEYS: {
     COINGECKO: undefined, // No API key by default in tests
   },
 }));
 
-const { getJSON, fetchParallel } = require('../../utils/apiClient');
+/**
+ * Typed mock references for apiClient
+ */
+interface ApiClientMocks {
+  getJSON: jest.Mock;
+  fetchParallel: jest.Mock;
+}
+
+const { getJSON, fetchParallel } = jest.requireMock('../../utils/apiClient') as ApiClientMocks;
 
 describe('balanceService', () => {
   beforeEach(() => {
     jest.clearAllMocks();
-    (global as any).fetch = jest.fn();
   });
 
   describe('fetchWalletBalances', () => {
@@ -269,6 +275,28 @@ describe('balanceService', () => {
 
       expect(result).toBeNull();
     });
+
+    it('should include API key header when configured', async () => {
+      // Temporarily set API key
+      const constantsMock = jest.requireMock('../../utils/constants');
+      const originalApiKeys = constantsMock.API_KEYS;
+      constantsMock.API_KEYS = { COINGECKO: 'test-api-key' };
+
+      const mockPriceData = { bitcoin: { usd: 50000 } };
+      getJSON.mockResolvedValueOnce(mockPriceData);
+
+      await fetchBtcPrice();
+
+      expect(getJSON).toHaveBeenCalledWith(
+        expect.any(String),
+        expect.objectContaining({
+          headers: { 'x-cg-demo-api-key': 'test-api-key' },
+        })
+      );
+
+      // Restore original API keys
+      constantsMock.API_KEYS = originalApiKeys;
+    });
   });
 
   describe('fetchWalletBalances additional tests', () => {
@@ -312,6 +340,72 @@ describe('balanceService', () => {
       const result = await fetchWalletBalances('tb1qsegwit', 'tb1ptaproot');
 
       expect(result.runesBalance).toEqual(runesBalance);
+    });
+
+    it('should return 0 for negative balance (segwit) via real implementation', async () => {
+      const segwitAddress = 'tb1qnegativebalance';
+      const taprootAddress = 'tb1pnegativebalance';
+
+      // Restore fetchParallel to use real implementation
+      const realFetchParallel = jest.requireActual('../../utils/apiClient').fetchParallel;
+      fetchParallel.mockImplementationOnce(realFetchParallel);
+
+      // Mock getJSON to return data where spent > funded (negative balance)
+      getJSON
+        .mockResolvedValueOnce({
+          chain_stats: {
+            funded_txo_sum: 50000000,   // 0.5 BTC received
+            spent_txo_sum: 100000000,   // 1 BTC spent (more than received!)
+          },
+        })
+        .mockResolvedValueOnce({
+          chain_stats: {
+            funded_txo_sum: 100000000,  // Normal positive
+            spent_txo_sum: 50000000,
+          },
+        })
+        .mockResolvedValueOnce({
+          runes_balances: [],
+        });
+
+      const result = await fetchWalletBalances(segwitAddress, taprootAddress);
+
+      // Negative balance should be clamped to 0
+      expect(result.segwitBalance).toBe(0);
+      expect(result.taprootBalance).toBe(0.5); // Normal positive balance
+    });
+
+    it('should return 0 for negative balance (taproot) via real implementation', async () => {
+      const segwitAddress = 'tb1qnegativebalance';
+      const taprootAddress = 'tb1pnegativebalance';
+
+      // Restore fetchParallel to use real implementation
+      const realFetchParallel = jest.requireActual('../../utils/apiClient').fetchParallel;
+      fetchParallel.mockImplementationOnce(realFetchParallel);
+
+      // Mock getJSON to return data where spent > funded (negative balance) for taproot
+      getJSON
+        .mockResolvedValueOnce({
+          chain_stats: {
+            funded_txo_sum: 100000000,  // Normal positive
+            spent_txo_sum: 50000000,
+          },
+        })
+        .mockResolvedValueOnce({
+          chain_stats: {
+            funded_txo_sum: 50000000,   // 0.5 BTC received
+            spent_txo_sum: 100000000,   // 1 BTC spent (more than received!)
+          },
+        })
+        .mockResolvedValueOnce({
+          runes_balances: [],
+        });
+
+      const result = await fetchWalletBalances(segwitAddress, taprootAddress);
+
+      expect(result.segwitBalance).toBe(0.5); // Normal positive balance
+      // Negative balance should be clamped to 0
+      expect(result.taprootBalance).toBe(0);
     });
   });
 });

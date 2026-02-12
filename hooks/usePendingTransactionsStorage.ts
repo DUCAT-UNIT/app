@@ -6,7 +6,7 @@
 import { useState, useEffect, useCallback, Dispatch, SetStateAction } from 'react';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { logger } from '../utils/logger';
-import type { PendingTransaction } from '../contexts/PendingTransactionsContext';
+import type { PendingTransaction } from '../stores/pendingTransactionsStore';
 
 interface UsePendingTransactionsStorageReturn {
   pendingTransactions: Record<string, PendingTransaction>;

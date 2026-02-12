@@ -1,0 +1,39 @@
+appId: com.ducatprotocol.DucatProtocolWallet
+---
+# Vault Detail - Navigate to vault detail and verify tabs
+# Create wallet with vault → tap vault card → verify detail screen content
+
+- runFlow: ../helpers/create-wallet-with-vault.yaml
+
+- waitForAnimationToEnd
+
+# Scroll to vault card
+- scrollUntilVisible:
+    element:
+      id: "vault-card"
+    direction: DOWN
+    timeout: 10000
+
+# Tap vault card to open detail
+- tapOn:
+    id: "vault-card"
+- waitForAnimationToEnd
+
+# Verify vault detail loads — Activity tab is default
+- extendedWaitUntil:
+    visible:
+      text: "Activity"
+    timeout: 10000
+- assertVisible:
+    text: "About"
+
+# Switch to About tab
+- tapOn:
+    text: "About"
+- waitForAnimationToEnd
+
+# Verify About content loads
+- extendedWaitUntil:
+    visible:
+      text: "What is a Vault?"
+    timeout: 5000

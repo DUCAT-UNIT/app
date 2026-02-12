@@ -1,0 +1,77 @@
+appId: com.ducatprotocol.DucatProtocolWallet
+---
+# Import Wallet - Seed phrase import flow
+# E2E bypass auto-fills test seed when import button is tapped with empty fields
+# clearState → welcome → restore choice → import screen → tap import → PIN → wallet
+
+- runFlow: ../helpers/clear-and-launch.yaml
+
+# Tap restore button — first tap may dismiss Expo Dev Client overlay
+- tapOn:
+    id: "welcome-restore-wallet-btn"
+
+# If overlay intercepted first tap, we're still on welcome screen — retry
+- runFlow:
+    when:
+      visible:
+        id: "welcome-screen"
+    commands:
+      - tapOn:
+          id: "welcome-restore-wallet-btn"
+
+# Restore choice screen
+- extendedWaitUntil:
+    visible:
+      id: "restore-choice-screen"
+    timeout: 5000
+- tapOn:
+    id: "restore-seed-phrase-btn"
+
+# Import wallet screen - E2E bypass auto-fills seed
+- assertVisible:
+    id: "import-wallet-screen"
+- scrollUntilVisible:
+    element:
+      id: "import-wallet-btn"
+    direction: DOWN
+    timeout: 5000
+- tapOn:
+    id: "import-wallet-btn"
+
+# PIN setup - enter PIN twice (key derivation takes time)
+- extendedWaitUntil:
+    visible:
+      id: "pin-setup-title"
+    timeout: 30000
+- runFlow: ../helpers/enter-pin-setup.yaml
+- runFlow: ../helpers/enter-pin-setup.yaml
+
+# Skip biometric if prompted
+- runFlow:
+    when:
+      visible:
+        id: "biometric-modal"
+    commands:
+      - tapOn:
+          id: "biometric-skip-btn"
+
+# Skip passkey migration if prompted
+- runFlow:
+    when:
+      visible:
+        id: "passkey-migration-modal"
+    commands:
+      - tapOn:
+          id: "passkey-skip-btn"
+
+# Dismiss airdrop modal if it appears
+- runFlow: ../helpers/dismiss-airdrop.yaml
+
+# Dismiss low ecash modal if it appears
+- runFlow: ../helpers/dismiss-low-ecash.yaml
+
+# Verify wallet screen loads
+- extendedWaitUntil:
+    visible:
+      id: "wallet-screen"
+    timeout: 15000

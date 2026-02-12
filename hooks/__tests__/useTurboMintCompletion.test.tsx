@@ -1,4 +1,3 @@
-// @ts-nocheck
 /**
  * Tests for useTurboMintCompletion hook
  * Covers mint completion polling, P2PK token creation, and error handling
@@ -28,47 +27,47 @@ const mockSaveSentLockedToken = jest.fn();
 const mockShortenCashuToken = jest.fn();
 
 jest.mock('../../services/cashu/cashuWalletService', () => ({
-  completeMint: (...args) => mockCompleteMint(...args),
+  completeMint: (...args: any[]) => mockCompleteMint(...args),
 }));
 
 jest.mock('../../services/cashu/cashuMintClient', () => ({
-  checkMintQuote: (...args) => mockCheckMintQuote(...args),
+  checkMintQuote: (...args: any[]) => mockCheckMintQuote(...args),
 }));
 
 jest.mock('../../services/cashu/operations/cashuSendP2PK', () => ({
-  sendP2PKToken: (...args) => mockSendP2PKToken(...args),
+  sendP2PKToken: (...args: any[]) => mockSendP2PKToken(...args),
 }));
 
 jest.mock('../../utils/bitcoin', () => ({
-  extractPubkeyFromTaprootAddress: (...args) => mockExtractPubkeyFromTaprootAddress(...args),
+  extractPubkeyFromTaprootAddress: (...args: any[]) => mockExtractPubkeyFromTaprootAddress(...args),
 }));
 
 jest.mock('../../services/cashu/cashuLockedTokensService', () => ({
-  saveSentLockedToken: (...args) => mockSaveSentLockedToken(...args),
+  saveSentLockedToken: (...args: any[]) => mockSaveSentLockedToken(...args),
 }));
 
 jest.mock('../../services/urlShortener', () => ({
-  shortenCashuToken: (...args) => mockShortenCashuToken(...args),
+  shortenCashuToken: (...args: any[]) => mockShortenCashuToken(...args),
 }));
 
 // Helper to render hooks with props
-function renderHookWithProps(props) {
-  const result = { current: null };
-  function TestComponent({ hookProps }) {
+function renderHookWithProps(props: any) {
+  const result: { current: ReturnType<typeof useTurboMintCompletion> | null } = { current: null };
+  function TestComponent({ hookProps }: { hookProps?: any }) {
     result.current = useTurboMintCompletion(hookProps);
     return null;
   }
-  let component;
+  let component: ReturnType<typeof create> | undefined;
   act(() => {
     component = create(<TestComponent hookProps={props} />);
   });
   return {
     result,
-    unmount: component.unmount,
+    unmount: component!.unmount,
     component,
-    rerender: (newProps) => {
+    rerender: (newProps?: unknown) => {
       act(() => {
-        component.update(<TestComponent hookProps={newProps} />);
+        component?.update(<TestComponent hookProps={newProps} />);
       });
     },
   };
@@ -83,7 +82,7 @@ const flushPromisesAndTimers = async () => {
 };
 
 describe('useTurboMintCompletion', () => {
-  let mockProps;
+  let mockProps: Record<string, unknown>;
 
   beforeEach(() => {
     jest.clearAllMocks();
@@ -96,8 +95,8 @@ describe('useTurboMintCompletion', () => {
       turboRecipient: null,
       skipMint: false,
       senderTaprootAddress: 'tb1psender123',
-      fetchTransactionHistory: jest.fn().mockResolvedValue(),
-      refreshCashuBalance: jest.fn().mockResolvedValue(),
+      fetchTransactionHistory: jest.fn().mockResolvedValue(undefined),
+      refreshCashuBalance: jest.fn().mockResolvedValue(undefined),
     };
 
     // Default mocks
@@ -116,10 +115,10 @@ describe('useTurboMintCompletion', () => {
   it('should return initial state', () => {
     const { result } = renderHookWithProps(mockProps);
 
-    expect(result.current.turboToken).toBe(null);
-    expect(result.current.turboDeeplink).toBe(null);
-    expect(result.current.processingStage).toBe('ready');
-    expect(result.current.isCompletingMint).toBe(false);
+    expect(result.current!.turboToken).toBe(null);
+    expect(result.current!.turboDeeplink).toBe(null);
+    expect(result.current!.processingStage).toBe('ready');
+    expect(result.current!.isCompletingMint).toBe(false);
   });
 
   it('should set processingStage to ready when skipMint is true', () => {
@@ -129,7 +128,7 @@ describe('useTurboMintCompletion', () => {
       skipMint: true,
     });
 
-    expect(result.current.processingStage).toBe('ready');
+    expect(result.current!.processingStage).toBe('ready');
   });
 
   it('should set processingStage to ready when isTurbo is false', () => {
@@ -138,7 +137,7 @@ describe('useTurboMintCompletion', () => {
       isTurbo: false,
     });
 
-    expect(result.current.processingStage).toBe('ready');
+    expect(result.current!.processingStage).toBe('ready');
   });
 
   it('should set processingStage to converting when isTurbo is true and not skipped', () => {
@@ -148,7 +147,7 @@ describe('useTurboMintCompletion', () => {
       skipMint: false,
     });
 
-    expect(result.current.processingStage).toBe('converting');
+    expect(result.current!.processingStage).toBe('converting');
   });
 
   it('should not start completion when isTurbo is false', () => {
@@ -158,7 +157,7 @@ describe('useTurboMintCompletion', () => {
       mintQuoteId: 'quote123',
     });
 
-    expect(result.current.isCompletingMint).toBe(false);
+    expect(result.current!.isCompletingMint).toBe(false);
     expect(mockCheckMintQuote).not.toHaveBeenCalled();
   });
 
@@ -170,7 +169,7 @@ describe('useTurboMintCompletion', () => {
       skipMint: true,
     });
 
-    expect(result.current.isCompletingMint).toBe(false);
+    expect(result.current!.isCompletingMint).toBe(false);
     expect(mockCheckMintQuote).not.toHaveBeenCalled();
   });
 
@@ -181,7 +180,7 @@ describe('useTurboMintCompletion', () => {
       mintQuoteId: null,
     });
 
-    expect(result.current.isCompletingMint).toBe(false);
+    expect(result.current!.isCompletingMint).toBe(false);
     expect(mockCheckMintQuote).not.toHaveBeenCalled();
   });
 
@@ -192,13 +191,13 @@ describe('useTurboMintCompletion', () => {
     };
 
     const { result, rerender } = renderHookWithProps(props);
-    const firstToken = result.current.turboToken;
-    const firstDeeplink = result.current.turboDeeplink;
+    const firstToken = result.current!.turboToken;
+    const firstDeeplink = result.current!.turboDeeplink;
 
     rerender(props);
 
-    expect(result.current.turboToken).toBe(firstToken);
-    expect(result.current.turboDeeplink).toBe(firstDeeplink);
+    expect(result.current!.turboToken).toBe(firstToken);
+    expect(result.current!.turboDeeplink).toBe(firstDeeplink);
   });
 
   it('should have correct return type structure', () => {
@@ -218,7 +217,7 @@ describe('useTurboMintCompletion', () => {
     });
 
     // Should still set converting stage
-    expect(result.current.processingStage).toBe('converting');
+    expect(result.current!.processingStage).toBe('converting');
   });
 
   it('should handle different mintAmount values', () => {
@@ -228,7 +227,7 @@ describe('useTurboMintCompletion', () => {
       mintAmount: 500,
     });
 
-    expect(result.current.processingStage).toBe('converting');
+    expect(result.current!.processingStage).toBe('converting');
   });
 
   describe('Mint completion flow', () => {
@@ -424,7 +423,7 @@ describe('useTurboMintCompletion', () => {
       });
 
       // Should still transition to ready on error
-      expect(result.current.processingStage).toBe('ready');
+      expect(result.current!.processingStage).toBe('ready');
     });
 
     it('should handle error when sendP2PKToken returns no token', async () => {
@@ -449,7 +448,7 @@ describe('useTurboMintCompletion', () => {
       });
 
       // Should still transition to ready on error
-      expect(result.current.processingStage).toBe('ready');
+      expect(result.current!.processingStage).toBe('ready');
     });
 
     it('should refresh transaction history after successful mint', async () => {
@@ -554,7 +553,7 @@ describe('useTurboMintCompletion', () => {
       });
 
       // Should still transition to ready on error
-      expect(result.current.processingStage).toBe('ready');
+      expect(result.current!.processingStage).toBe('ready');
     });
   });
 });

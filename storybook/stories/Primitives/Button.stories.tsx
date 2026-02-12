@@ -19,7 +19,7 @@ interface ButtonProps {
 
 const Button = ({ variant, label, disabled = false, loading = false, icon, size = 'medium' }: ButtonProps) => {
   const getButtonStyle = () => {
-    const base = [styles.button];
+    const base: object[] = [styles.button];
     switch (variant) {
       case 'primary': base.push(styles.primaryButton); break;
       case 'secondary': base.push(styles.secondaryButton); break;
@@ -37,7 +37,7 @@ const Button = ({ variant, label, disabled = false, loading = false, icon, size 
   };
 
   const getTextStyle = () => {
-    const base = [styles.buttonText];
+    const base: object[] = [styles.buttonText];
     if (variant === 'outline') base.push({ color: COLORS.PRIMARY_BLUE });
     if (variant === 'ghost') base.push({ color: COLORS.PRIMARY_BLUE });
     if (size === 'small') base.push(styles.buttonTextSmall);

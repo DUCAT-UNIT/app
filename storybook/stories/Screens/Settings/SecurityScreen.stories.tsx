@@ -128,10 +128,8 @@ const meta: Meta = {
 };
 
 export default meta;
-type Story = StoryObj;
-
-export const Interactive: Story = {
-  render: (args: StoryProps) => <SecurityStory {...args} />,
+export const Interactive: StoryObj<StoryProps> = {
+  render: (args) => <SecurityStory {...args} />,
   args: {
     screenSize: 'L',
     biometricEnabled: true,

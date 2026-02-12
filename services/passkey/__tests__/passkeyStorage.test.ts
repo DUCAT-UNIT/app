@@ -1,4 +1,3 @@
-// @ts-nocheck
 /**
  * Tests for Passkey Data Storage Utilities
  */
@@ -7,6 +6,14 @@ import * as SecureStore from 'expo-secure-store';
 import { SECURE_KEYS } from '../../../utils/constants';
 import { logger } from '../../../utils/logger';
 import { saveToICloud, loadFromICloud } from '../../icloudStorage';
+
+/**
+ * Interface for error objects with optional code and name
+ */
+interface ErrorWithCode extends Error {
+  code?: string;
+  name: string;
+}
 
 // Mock expo-secure-store
 jest.mock('expo-secure-store', () => ({
@@ -194,9 +201,9 @@ describe('Passkey Storage', () => {
     });
 
     it('should throw detailed error when saveToICloud fails', async () => {
-      const error = new Error('iCloud not available');
-      (error as any).code = 'ERR_ICLOUD_NOT_AVAILABLE';
-      (error as any).name = 'iCloudError';
+      const error = new Error('iCloud not available') as ErrorWithCode;
+      error.code = 'ERR_ICLOUD_NOT_AVAILABLE';
+      error.name = 'iCloudError';
       (saveToICloud as jest.Mock).mockRejectedValue(error);
 
       await expect(backupToICloudWithVerification(mockBackupData)).rejects.toThrow(

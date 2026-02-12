@@ -6,6 +6,7 @@
 
 import { useState, useCallback, useRef, useEffect } from 'react';
 import { fetchVaultData, fetchVaultHistory, VaultData, VaultHistoryTransaction } from '../services/vaultService';
+import { e2eVaultState } from '../utils/e2eVaultState';
 import logger from '../utils/logger';
 import type { WalletAddresses } from '../contexts/WalletContext';
 
@@ -74,6 +75,42 @@ export function useVaultDataFetch(wallet: WalletAddresses | null): UseVaultDataF
     try {
       setLoadingVault(true);
       setVaultError(null);
+
+      // E2E bypass: return fake vault data when vault was "created" via bypass
+      if (__DEV__ && process.env.EXPO_PUBLIC_E2E_BYPASS === 'true' && e2eVaultState.vaultCreated) {
+        const fakeData: VaultData = {
+          vaultId: 'e2e-vault-001',
+          vaultTag: 'e2e-test',
+          totalDebt: e2eVaultState.unitBorrowed,
+          totalCollateral: e2eVaultState.btcLocked,
+          currentPrice: 100000,
+          vaultInfo: {
+            vault_id: 'e2e-vault-001',
+            vault_tag: 'e2e-test',
+            vault_pubkey: vaultPubkey,
+            btc_locked: Math.round(e2eVaultState.btcLocked * 100_000_000),
+            unit_borrowed: Math.round(e2eVaultState.unitBorrowed * 100),
+            collateral_ratio: 200,
+            creation_account: 'e2e-account',
+            guard_pubkey: 'e2e-guard-pubkey',
+            master_id: 'e2e-master-id',
+            liquidation_hash: 'e2e-liq-hash',
+            liquidation_price: 50000,
+            oracle_price: 100000,
+            oracle_timestamp: Math.floor(Date.now() / 1000),
+            utxo: `e2e-vault-${Date.now().toString(16)}:0`,
+            vault_last_action: 'open',
+            vault_version: 1,
+          },
+        };
+        if (!isVaultDataEqual(prevVaultDataRef.current, fakeData)) {
+          prevVaultDataRef.current = fakeData;
+          setVaultData(fakeData);
+        }
+        setLoadingVault(false);
+        return;
+      }
+
       const data = await fetchVaultData(vaultPubkey);
 
       // Only update state if vault data has actually changed

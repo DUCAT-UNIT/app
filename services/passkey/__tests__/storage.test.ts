@@ -1,4 +1,3 @@
-// @ts-nocheck
 /**
  * Tests for Passkey Storage Service
  * Covers isPasskeyEnabled, getWalletCreationMethod, removePasskey, clearPasskeyData

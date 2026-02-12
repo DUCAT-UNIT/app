@@ -33,7 +33,7 @@ export default function VaultProcessingScreen({ navigation }: VaultProcessingScr
   }, [error, currentStep, navigation]);
 
   return (
-    <SafeAreaView style={styles.container} edges={['top']}>
+    <SafeAreaView style={styles.container} edges={['top']} testID="vault-create-processing-screen">
       <View style={styles.content}>
         {/* Header */}
         <View style={styles.header}>

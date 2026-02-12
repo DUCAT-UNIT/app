@@ -8,9 +8,13 @@ import * as Device from 'expo-device';
 import * as Haptics from 'expo-haptics';
 import * as LocalAuthentication from 'expo-local-authentication';
 import * as PasskeyService from '../services/passkey';
+import * as WalletService from '../services/walletService';
+import { savePin } from '../services/pinService';
 import type { WalletAddresses } from '../contexts/WalletContext';
 import { notify } from '../utils/notify';
 import { logger } from '../utils/logger';
+
+const isE2E = __DEV__ && process.env.EXPO_PUBLIC_E2E_BYPASS === 'true';
 
 interface UsePasskeyCreationParams {
   setIsAuthenticated: (value: boolean) => void;
@@ -58,11 +62,13 @@ export function usePasskeyCreation({
    */
   const startPasskeyCreation = async (): Promise<void> => {
     try {
-      // Check if passkeys are supported
-      const supported = await PasskeyService.isPasskeySupported();
-      if (!supported) {
-        notify.passkey.notSupported();
-        return;
+      // In E2E mode, skip native passkey support check (simulator can't do passkeys)
+      if (!isE2E) {
+        const supported = await PasskeyService.isPasskeySupported();
+        if (!supported) {
+          notify.passkey.notSupported();
+          return;
+        }
       }
 
       // Show PIN input
@@ -125,6 +131,19 @@ export function usePasskeyCreation({
   const createWalletWithPasskey = async (pin: string): Promise<void> => {
     try {
       // Note: setIsCreating(true) is called in handlePinEntry for instant feedback
+
+      if (isE2E) {
+        // E2E bypass: skip native passkey dialog, create wallet directly
+        const { mnemonic, addresses } = await WalletService.generateWallet(0);
+        await WalletService.saveWalletToStorage(mnemonic, 0);
+        await savePin(pin);
+
+        walletExistsRef.current = true;
+        setWalletAddresses(addresses, 0);
+        completePasskeySetup();
+        notify.passkey.created();
+        return;
+      }
 
       // Get device name for passkey display
       const deviceName = Device.deviceName || 'iPhone';

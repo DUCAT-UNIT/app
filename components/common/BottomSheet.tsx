@@ -110,6 +110,38 @@ export default function BottomSheet({
     })
   ).current;
 
+  // E2E bypass: render as View overlay instead of Modal so elements are
+  // accessible to Maestro (React Native Modal creates a separate UIWindow
+  // on iOS that Maestro's XCUITest queries cannot reach)
+  const isE2E = __DEV__ && process.env.EXPO_PUBLIC_E2E_BYPASS === 'true';
+
+  if (isE2E) {
+    if (!visible) return null;
+    return (
+      <View style={styles.e2eOverlay}>
+        <TouchableWithoutFeedback onPress={onClose}>
+          <View style={[styles.backdrop, { opacity: 0.7 }]} />
+        </TouchableWithoutFeedback>
+        <View style={styles.sheet}>
+          <View style={styles.handleContainer}>
+            <View style={styles.handle} />
+          </View>
+          {(title || showCloseButton) && (
+            <View style={styles.header}>
+              {title && <Text style={styles.title}>{title}</Text>}
+              {showCloseButton && (
+                <TouchableOpacity onPress={onClose} style={styles.closeButton}>
+                  <Icon name="close" size={24} color={COLORS.WHITE} />
+                </TouchableOpacity>
+              )}
+            </View>
+          )}
+          {children}
+        </View>
+      </View>
+    );
+  }
+
   return (
     <Modal
       visible={visible}
@@ -168,6 +200,11 @@ export default function BottomSheet({
 
 
 const styles = StyleSheet.create({
+  e2eOverlay: {
+    ...StyleSheet.absoluteFillObject,
+    justifyContent: 'flex-end',
+    zIndex: 9999,
+  },
   container: {
     flex: 1,
     justifyContent: 'flex-end',

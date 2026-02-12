@@ -1,6 +1,8 @@
 /**
  * Withdraw Store (Zustand)
  * Manages the withdraw UI flow state for withdrawing BTC collateral from an existing vault
+ *
+ * Refactored to use common vault store pattern from stores/vault/
  */
 
 import { create } from 'zustand';
@@ -12,213 +14,154 @@ import {
   type HealthStatus,
 } from '../utils/vaultUtils';
 import { VAULT_CONFIG } from '../utils/constants';
+import {
+  createCommonVaultSlice,
+  computeVaultHealth,
+  computeNewVaultHealth,
+} from './vault';
+import type {
+  CommonVaultState,
+  CommonVaultActions,
+  VaultOperationStep,
+  ProcessingStep,
+} from './vault';
 
-export type WithdrawStep =
-  | 'input' // Step 1: Enter BTC withdraw amount
-  | 'confirm' // Step 2: Review and confirm
-  | 'processing' // Step 3: Transaction in progress
-  | 'success'; // Step 4: Transaction complete
+// Re-export types for backwards compatibility
+export type WithdrawStep = VaultOperationStep;
+export type WithdrawProcessingStep = ProcessingStep;
 
-export type WithdrawProcessingStep = 1 | 2 | 3 | 4;
-// 1: Awaiting user signatures
-// 2: Request received by node
-// 3: Validation in progress
-// 4: Network approvals
-
-interface WithdrawState {
+/**
+ * Withdraw-specific state (extends common state)
+ */
+interface WithdrawSpecificState {
   // Form data
   withdrawAmountSats: number; // BTC to withdraw in satoshis
-  selectedFeeRate: number;
-
-  // Current vault data
-  currentUnitBorrowed: number; // Current UNIT debt in vault
-  currentBtcLocked: number; // Current BTC locked in vault (in BTC, not sats)
-  bitcoinPrice: number | null;
-
-  // Process state
-  currentStep: WithdrawStep;
-  processingStep: WithdrawProcessingStep;
-  loading: boolean;
-  error: string | null;
-  vaultTxid: string | null;
 }
 
-interface WithdrawActions {
+/**
+ * Withdraw-specific actions (extends common actions)
+ */
+interface WithdrawSpecificActions {
   // Form actions
   setWithdrawAmountSats: (amount: number) => void;
   setWithdrawAmountBtc: (amount: number) => void;
-  setSelectedFeeRate: (rate: number) => void;
 
-  // Vault data actions
-  setCurrentVaultData: (unitBorrowed: number, btcLocked: number) => void;
-  setBitcoinPrice: (price: number | null) => void;
-
-  // Navigation
-  setCurrentStep: (step: WithdrawStep) => void;
-  setProcessingStep: (step: WithdrawProcessingStep) => void;
-
-  // Process actions
-  setLoading: (loading: boolean) => void;
-  setError: (error: string | null) => void;
-  setVaultTxid: (vaultTxid: string | null) => void;
-
-  // Computed getters
+  // Withdraw-specific computed getters
   getWithdrawAmountBtc: () => number;
   getNewCollateral: () => number;
-  getHealthFactor: () => number;
   getNewHealthFactor: () => number;
-  getLiquidationPrice: () => number;
   getNewLiquidationPrice: () => number;
-  getHealthStatus: () => HealthStatus;
   getNewHealthStatus: () => HealthStatus;
   getMaxWithdrawable: () => number; // Max BTC that can be withdrawn while maintaining min health
-
-  // Reset
-  reset: () => void;
 }
 
+// Full store types
+type WithdrawState = CommonVaultState & WithdrawSpecificState;
+type WithdrawActions = CommonVaultActions & WithdrawSpecificActions;
 type WithdrawStore = WithdrawState & WithdrawActions;
 
-const initialState: WithdrawState = {
+// Withdraw-specific initial state
+const withdrawSpecificInitialState: WithdrawSpecificState = {
   withdrawAmountSats: 0,
-  selectedFeeRate: 1,
-  currentUnitBorrowed: 0,
-  currentBtcLocked: 0,
-  bitcoinPrice: null,
-  currentStep: 'input',
-  processingStep: 1,
-  loading: false,
-  error: null,
-  vaultTxid: null,
 };
 
-export const useWithdrawStore = create<WithdrawStore>((set, get) => ({
-  // Initial state
-  ...initialState,
+export const useWithdrawStore = create<WithdrawStore>()((set, get, store) => {
+  // Get common slice
+  const commonSlice = createCommonVaultSlice<WithdrawStore>({
+    storeName: 'WithdrawStore',
+  })(set, get, store);
 
-  // Form actions
-  setWithdrawAmountSats: (withdrawAmountSats) => {
-    logger.debug('[WithdrawStore] setWithdrawAmountSats:', withdrawAmountSats);
-    set({ withdrawAmountSats, error: null });
-  },
+  return {
+    // Spread common state and actions
+    ...commonSlice,
 
-  setWithdrawAmountBtc: (btcAmount) => {
-    const sats = Math.round(btcAmount * 100_000_000);
-    logger.debug('[WithdrawStore] setWithdrawAmountBtc:', { btcAmount, sats });
-    set({ withdrawAmountSats: sats, error: null });
-  },
+    // Withdraw-specific initial state
+    ...withdrawSpecificInitialState,
 
-  setSelectedFeeRate: (selectedFeeRate) => {
-    logger.debug('[WithdrawStore] setSelectedFeeRate:', selectedFeeRate);
-    set({ selectedFeeRate });
-  },
+    // Withdraw-specific form actions
+    setWithdrawAmountSats: (withdrawAmountSats) => {
+      logger.debug('[WithdrawStore] setWithdrawAmountSats:', withdrawAmountSats);
+      set({ withdrawAmountSats, error: null });
+    },
 
-  // Vault data actions
-  setCurrentVaultData: (unitBorrowed, btcLocked) => {
-    logger.debug('[WithdrawStore] setCurrentVaultData:', { unitBorrowed, btcLocked });
-    set({
-      currentUnitBorrowed: unitBorrowed,
-      currentBtcLocked: btcLocked,
-    });
-  },
+    setWithdrawAmountBtc: (btcAmount) => {
+      const sats = Math.round(btcAmount * 100_000_000);
+      logger.debug('[WithdrawStore] setWithdrawAmountBtc:', { btcAmount, sats });
+      set({ withdrawAmountSats: sats, error: null });
+    },
 
-  setBitcoinPrice: (bitcoinPrice) => {
-    set({ bitcoinPrice });
-  },
+    // Withdraw-specific computed getters
+    getWithdrawAmountBtc: () => {
+      const { withdrawAmountSats } = get();
+      return withdrawAmountSats / 100_000_000;
+    },
 
-  // Navigation
-  setCurrentStep: (currentStep) => {
-    logger.debug('[WithdrawStore] setCurrentStep:', currentStep);
-    set({ currentStep, error: null });
-  },
+    getNewCollateral: () => {
+      const { currentBtcLocked, withdrawAmountSats } = get();
+      return Math.max(0, currentBtcLocked - withdrawAmountSats / 100_000_000);
+    },
 
-  setProcessingStep: (processingStep) => {
-    logger.debug('[WithdrawStore] setProcessingStep:', processingStep);
-    set({ processingStep });
-  },
+    getNewHealthFactor: () => {
+      const { withdrawAmountSats, currentBtcLocked, currentUnitBorrowed, bitcoinPrice } = get();
+      const newCollateral = currentBtcLocked - withdrawAmountSats / 100_000_000;
+      if (!bitcoinPrice || newCollateral <= 0 || currentUnitBorrowed <= 0) return 0;
+      return computeHealthFactor(newCollateral, bitcoinPrice, currentUnitBorrowed);
+    },
 
-  // Process actions
-  setLoading: (loading) => set({ loading }),
+    getNewLiquidationPrice: () => {
+      const { withdrawAmountSats, currentBtcLocked, currentUnitBorrowed } = get();
+      const newCollateral = currentBtcLocked - withdrawAmountSats / 100_000_000;
+      if (newCollateral <= 0 || currentUnitBorrowed <= 0) return 0;
+      return computeLiquidationPrice(currentUnitBorrowed, newCollateral);
+    },
 
-  setError: (error) => {
-    logger.debug('[WithdrawStore] setError:', error);
-    set({ error, loading: false });
-  },
+    getNewHealthStatus: () => {
+      const healthFactor = get().getNewHealthFactor();
+      return getHealthStatus(healthFactor);
+    },
 
-  setVaultTxid: (vaultTxid) => {
-    logger.debug('[WithdrawStore] setVaultTxid:', vaultTxid);
-    set({ vaultTxid });
-  },
+    getMaxWithdrawable: () => {
+      const { currentBtcLocked, currentUnitBorrowed, bitcoinPrice } = get();
+      if (currentBtcLocked <= 0) return 0;
 
-  // Computed getters
-  getWithdrawAmountBtc: () => {
-    const { withdrawAmountSats } = get();
-    return withdrawAmountSats / 100_000_000;
-  },
+      // No debt: can withdraw all collateral
+      if (currentUnitBorrowed <= 0) {
+        return Math.floor(currentBtcLocked * 100_000_000);
+      }
 
-  getNewCollateral: () => {
-    const { currentBtcLocked, withdrawAmountSats } = get();
-    return Math.max(0, currentBtcLocked - withdrawAmountSats / 100_000_000);
-  },
+      if (!bitcoinPrice) return 0;
 
-  getHealthFactor: () => {
-    const { currentBtcLocked, currentUnitBorrowed, bitcoinPrice } = get();
-    if (!bitcoinPrice || currentBtcLocked <= 0 || currentUnitBorrowed <= 0) return 0;
-    return computeHealthFactor(currentBtcLocked, bitcoinPrice, currentUnitBorrowed);
-  },
+      // Calculate min collateral needed to maintain MIN_COL_RATE (160%)
+      // health = (collateral * btcPrice) / debt * 100
+      // minCollateral * btcPrice / debt * 100 = MIN_COL_RATE * 100
+      // minCollateral = (MIN_COL_RATE * 100 * debt) / (btcPrice * 100)
+      const minHealthRatio = VAULT_CONFIG.MIN_COL_RATE * 100;
+      const minCollateral = (minHealthRatio * currentUnitBorrowed) / (bitcoinPrice * 100);
 
-  getNewHealthFactor: () => {
-    const { withdrawAmountSats, currentBtcLocked, currentUnitBorrowed, bitcoinPrice } = get();
-    const newCollateral = currentBtcLocked - withdrawAmountSats / 100_000_000;
-    if (!bitcoinPrice || newCollateral <= 0 || currentUnitBorrowed <= 0) return 0;
-    return computeHealthFactor(newCollateral, bitcoinPrice, currentUnitBorrowed);
-  },
+      // Max withdrawable is current - minimum (in sats)
+      const maxWithdrawableBtc = Math.max(0, currentBtcLocked - minCollateral);
+      return Math.floor(maxWithdrawableBtc * 100_000_000);
+    },
 
-  getLiquidationPrice: () => {
-    const { currentBtcLocked, currentUnitBorrowed } = get();
-    if (currentBtcLocked <= 0 || currentUnitBorrowed <= 0) return 0;
-    return computeLiquidationPrice(currentUnitBorrowed, currentBtcLocked);
-  },
-
-  getNewLiquidationPrice: () => {
-    const { withdrawAmountSats, currentBtcLocked, currentUnitBorrowed } = get();
-    const newCollateral = currentBtcLocked - withdrawAmountSats / 100_000_000;
-    if (newCollateral <= 0 || currentUnitBorrowed <= 0) return 0;
-    return computeLiquidationPrice(currentUnitBorrowed, newCollateral);
-  },
-
-  getHealthStatus: () => {
-    const healthFactor = get().getHealthFactor();
-    return getHealthStatus(healthFactor);
-  },
-
-  getNewHealthStatus: () => {
-    const healthFactor = get().getNewHealthFactor();
-    return getHealthStatus(healthFactor);
-  },
-
-  getMaxWithdrawable: () => {
-    const { currentBtcLocked, currentUnitBorrowed, bitcoinPrice } = get();
-    if (!bitcoinPrice || currentBtcLocked <= 0 || currentUnitBorrowed <= 0) return 0;
-
-    // Calculate min collateral needed to maintain MIN_COL_RATE (160%)
-    // health = (collateral * btcPrice) / debt * 100
-    // minCollateral * btcPrice / debt * 100 = MIN_COL_RATE * 100
-    // minCollateral = (MIN_COL_RATE * 100 * debt) / (btcPrice * 100)
-    const minHealthRatio = VAULT_CONFIG.MIN_COL_RATE * 100;
-    const minCollateral = (minHealthRatio * currentUnitBorrowed) / (bitcoinPrice * 100);
-
-    // Max withdrawable is current - minimum (in sats)
-    const maxWithdrawableBtc = Math.max(0, currentBtcLocked - minCollateral);
-    return Math.floor(maxWithdrawableBtc * 100_000_000);
-  },
-
-  // Reset
-  reset: () => {
-    logger.debug('[WithdrawStore] reset');
-    set(initialState);
-  },
-}));
+    // Override reset to include withdraw-specific state
+    reset: () => {
+      logger.debug('[WithdrawStore] reset');
+      set({
+        ...withdrawSpecificInitialState,
+        // Reset common state
+        selectedFeeRate: 1,
+        currentUnitBorrowed: 0,
+        currentBtcLocked: 0,
+        bitcoinPrice: null,
+        currentStep: 'input',
+        processingStep: 1,
+        loading: false,
+        error: null,
+        vaultTxid: null,
+      });
+    },
+  };
+});
 
 /**
  * Selector hooks for granular subscriptions
@@ -234,7 +177,7 @@ export const useWithdrawVaultTxid = () => useWithdrawStore((state) => state.vaul
  * Reset store to initial state (useful for testing)
  */
 export const resetWithdrawStore = () => {
-  useWithdrawStore.setState(initialState);
+  useWithdrawStore.getState().reset();
 };
 
 /**
@@ -271,32 +214,32 @@ export const useWithdraw = () => {
   const withdrawAmountBtc = withdrawAmountSats / 100_000_000;
   const newCollateral = Math.max(0, currentBtcLocked - withdrawAmountSats / 100_000_000);
 
-  const healthFactor = (!bitcoinPrice || currentBtcLocked <= 0 || currentUnitBorrowed <= 0)
-    ? 0
-    : computeHealthFactor(currentBtcLocked, bitcoinPrice, currentUnitBorrowed);
+  // Use helper functions for health calculations
+  const { healthFactor, liquidationPrice, healthStatus } = computeVaultHealth(
+    currentBtcLocked,
+    currentUnitBorrowed,
+    bitcoinPrice
+  );
 
-  const newHealthFactor = (!bitcoinPrice || newCollateral <= 0 || currentUnitBorrowed <= 0)
-    ? 0
-    : computeHealthFactor(newCollateral, bitcoinPrice, currentUnitBorrowed);
-
-  const liquidationPrice = (currentBtcLocked <= 0 || currentUnitBorrowed <= 0)
-    ? 0
-    : computeLiquidationPrice(currentUnitBorrowed, currentBtcLocked);
-
-  const newLiquidationPrice = (newCollateral <= 0 || currentUnitBorrowed <= 0)
-    ? 0
-    : computeLiquidationPrice(currentUnitBorrowed, newCollateral);
-
-  const healthStatus = getHealthStatus(healthFactor);
-  const newHealthStatus = getHealthStatus(newHealthFactor);
+  const { newHealthFactor, newLiquidationPrice, newHealthStatus } = computeNewVaultHealth(
+    newCollateral,
+    currentUnitBorrowed,
+    bitcoinPrice
+  );
 
   // Calculate max withdrawable
   let maxWithdrawable = 0;
-  if (bitcoinPrice && currentBtcLocked > 0 && currentUnitBorrowed > 0) {
-    const minHealthRatio = VAULT_CONFIG.MIN_COL_RATE * 100;
-    const minCollateral = (minHealthRatio * currentUnitBorrowed) / (bitcoinPrice * 100);
-    const maxWithdrawableBtc = Math.max(0, currentBtcLocked - minCollateral);
-    maxWithdrawable = Math.floor(maxWithdrawableBtc * 100_000_000);
+  if (currentBtcLocked > 0) {
+    if (currentUnitBorrowed > 0 && bitcoinPrice) {
+      // Has debt: constrain by health factor
+      const minHealthRatio = VAULT_CONFIG.MIN_COL_RATE * 100;
+      const minCollateral = (minHealthRatio * currentUnitBorrowed) / (bitcoinPrice * 100);
+      const maxWithdrawableBtc = Math.max(0, currentBtcLocked - minCollateral);
+      maxWithdrawable = Math.floor(maxWithdrawableBtc * 100_000_000);
+    } else {
+      // No debt: can withdraw all collateral
+      maxWithdrawable = Math.floor(currentBtcLocked * 100_000_000);
+    }
   }
 
   return {

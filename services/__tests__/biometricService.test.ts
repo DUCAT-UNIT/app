@@ -1,4 +1,3 @@
-// @ts-nocheck
 /**
  * Tests for Biometric Authentication Service
  */
@@ -33,6 +32,8 @@ jest.mock('../../utils/logger', () => ({
 // Mock pinLockout
 jest.mock('../pinLockout', () => ({
   resetPinAttempts: jest.fn().mockResolvedValue(undefined),
+  loadLockoutState: jest.fn().mockResolvedValue({ failedAttempts: 0, lockoutUntil: null }),
+  recordFailedAttempt: jest.fn().mockResolvedValue({ shouldLockout: false, newFailedAttempts: 1 }),
 }));
 
 // Typed mock references
@@ -305,7 +306,7 @@ describe('BiometricService', () => {
       mockGetItemAsync
         .mockResolvedValueOnce(null) // checkBiometricLockout
         .mockResolvedValueOnce('4'); // recordBiometricAttempt
-      mockAuthenticateAsync.mockResolvedValue({ success: false, error: 'failed' });
+      mockAuthenticateAsync.mockResolvedValue({ success: false, error: 'failed' } as any);
       mockSetItemAsync.mockResolvedValue();
 
       const result = await authenticateWithBiometrics();

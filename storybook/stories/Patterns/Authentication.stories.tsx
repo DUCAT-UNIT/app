@@ -222,7 +222,7 @@ const ErrorStatesStory = () => (
     {/* PIN Mismatch */}
     <View style={styles.errorSection}>
       <View style={styles.errorHeader}>
-        <View style={[styles.errorIndicator, { backgroundColor: COLORS.WARNING_YELLOW }]} />
+        <View style={[styles.errorIndicator, { backgroundColor: COLORS.WARNING_ORANGE }]} />
         <Text style={styles.errorLabel}>PIN Mismatch</Text>
       </View>
       <View style={[styles.errorCard, { width: 320 }]}>
@@ -294,10 +294,8 @@ const meta: Meta = {
 };
 
 export default meta;
-type Story = StoryObj;
-
-export const PinInput: Story = {
-  render: (args: ConfigurableProps) => <ConfigurableStory {...args} />,
+export const PinInput: StoryObj<ConfigurableProps> = {
+  render: (args) => <ConfigurableStory {...args} />,
   args: {
     context: 'unlock',
     deviceSize: 'L',
@@ -327,12 +325,12 @@ export const PinInput: Story = {
   },
 };
 
-export const ErrorStates: Story = {
+export const ErrorStates: StoryObj = {
   render: () => <ErrorStatesStory />,
 };
 
-export const DeviceSizeOverview: Story = {
-  render: (args: OverviewProps) => <DeviceSizeOverviewStory {...args} />,
+export const DeviceSizeOverview: StoryObj<OverviewProps> = {
+  render: (args) => <DeviceSizeOverviewStory {...args} />,
   args: {
     context: 'create',
   },

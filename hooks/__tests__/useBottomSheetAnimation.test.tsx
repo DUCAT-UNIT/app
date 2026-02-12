@@ -1,4 +1,3 @@
-// @ts-nocheck
 /**
  * Tests for useBottomSheetAnimation hook
  */
@@ -8,27 +7,30 @@ import { create, act } from 'react-test-renderer';
 import { useBottomSheetAnimation } from '../useBottomSheetAnimation';
 
 // Helper to render hooks
-function renderHook(hookCallback, options = {}) {
-  const result = { current: null };
+function renderHook<T, P extends Record<string, unknown> = Record<string, unknown>>(
+  hookCallback: (props: P) => T,
+  options: { initialProps?: P } = {}
+) {
+  const result: { current: T | null } = { current: null };
 
-  function TestComponent(props) {
+  function TestComponent(props: P) {
     result.current = hookCallback(props);
     return null;
   }
 
-  let component;
+  let component: ReturnType<typeof create> | undefined;
   act(() => {
-    component = create(<TestComponent {...(options.initialProps || {})} />);
+    component = create(<TestComponent {...(options.initialProps || ({} as P))} />);
   });
 
   return {
     result,
-    rerender: (newProps) => {
+    rerender: (newProps?: P) => {
       act(() => {
-        component.update(<TestComponent {...newProps} />);
+        component?.update(<TestComponent {...(newProps || ({} as P))} />);
       });
     },
-    unmount: () => component.unmount(),
+    unmount: () => component?.unmount(),
   };
 }
 
@@ -45,10 +47,10 @@ describe('useBottomSheetAnimation', () => {
       { initialProps: { isVisible: false, onClose: mockOnClose } }
     );
 
-    expect(result.current.opacity).toBeDefined();
-    expect(result.current.translateY).toBeDefined();
-    expect(result.current.panResponder).toBeDefined();
-    expect(result.current.handleDismiss).toBeDefined();
+    expect(result.current!.opacity).toBeDefined();
+    expect(result.current!.translateY).toBeDefined();
+    expect(result.current!.panResponder).toBeDefined();
+    expect(result.current!.handleDismiss).toBeDefined();
   });
 
   it('should have pan responder handlers', () => {
@@ -57,9 +59,10 @@ describe('useBottomSheetAnimation', () => {
       { initialProps: { isVisible: true, onClose: mockOnClose } }
     );
 
-    expect(result.current.panResponder.panHandlers).toBeDefined();
-    expect(result.current.panResponder.panHandlers.onStartShouldSetPanResponder).toBeDefined();
-    expect(result.current.panResponder.panHandlers.onMoveShouldSetPanResponder).toBeDefined();
+    const handlers = result.current!.panResponder.panHandlers as Record<string, unknown>;
+    expect(result.current!.panResponder.panHandlers).toBeDefined();
+    expect(handlers.onStartShouldSetResponder).toBeDefined();
+    expect(handlers.onMoveShouldSetResponder).toBeDefined();
   });
 
   it('should call onClose when handleDismiss is called', () => {
@@ -69,7 +72,7 @@ describe('useBottomSheetAnimation', () => {
     );
 
     act(() => {
-      result.current.handleDismiss();
+      result.current!.handleDismiss();
     });
 
     expect(mockOnClose).toHaveBeenCalled();
@@ -106,8 +109,8 @@ describe('useBottomSheetAnimation', () => {
         { initialProps: { isVisible: true, onClose: mockOnClose } }
       );
 
-      const shouldSet =
-        result.current.panResponder.panHandlers.onStartShouldSetResponder();
+      const handlers = result.current!.panResponder.panHandlers as Record<string, (...args: unknown[]) => unknown>;
+      const shouldSet = handlers.onStartShouldSetResponder();
       expect(shouldSet).toBe(true);
     });
 
@@ -118,11 +121,11 @@ describe('useBottomSheetAnimation', () => {
       );
 
       const gestureState = { dy: 10, dx: 2 };
-      const shouldMove =
-        result.current.panResponder.panHandlers.onMoveShouldSetResponder(
-          null,
-          gestureState
-        );
+      const handlers = result.current!.panResponder.panHandlers as Record<string, (...args: unknown[]) => unknown>;
+      const shouldMove = handlers.onMoveShouldSetResponder(
+        null,
+        gestureState
+      );
       expect(shouldMove).toBe(true);
     });
 
@@ -133,11 +136,11 @@ describe('useBottomSheetAnimation', () => {
       );
 
       const gestureState = { dy: -10, dx: 2 };
-      const shouldMove =
-        result.current.panResponder.panHandlers.onMoveShouldSetResponder(
-          null,
-          gestureState
-        );
+      const handlers = result.current!.panResponder.panHandlers as Record<string, (...args: unknown[]) => unknown>;
+      const shouldMove = handlers.onMoveShouldSetResponder(
+        null,
+        gestureState
+      );
       expect(shouldMove).toBe(false);
     });
 
@@ -148,11 +151,11 @@ describe('useBottomSheetAnimation', () => {
       );
 
       const gestureState = { dy: 2, dx: 10 };
-      const shouldMove =
-        result.current.panResponder.panHandlers.onMoveShouldSetResponder(
-          null,
-          gestureState
-        );
+      const handlers = result.current!.panResponder.panHandlers as Record<string, (...args: unknown[]) => unknown>;
+      const shouldMove = handlers.onMoveShouldSetResponder(
+        null,
+        gestureState
+      );
       expect(shouldMove).toBe(false);
     });
 
@@ -163,11 +166,11 @@ describe('useBottomSheetAnimation', () => {
       );
 
       const gestureState = { dy: 3, dx: 2 };
-      const shouldMove =
-        result.current.panResponder.panHandlers.onMoveShouldSetResponder(
-          null,
-          gestureState
-        );
+      const handlers = result.current!.panResponder.panHandlers as Record<string, (...args: unknown[]) => unknown>;
+      const shouldMove = handlers.onMoveShouldSetResponder(
+        null,
+        gestureState
+      );
       expect(shouldMove).toBe(false);
     });
 
@@ -177,10 +180,11 @@ describe('useBottomSheetAnimation', () => {
         { initialProps: { isVisible: true, onClose: mockOnClose } }
       );
 
+      const handlers = result.current!.panResponder.panHandlers as Record<string, (...args: unknown[]) => unknown>;
       // Verify both downward and upward moves work without errors
       expect(() => {
-        result.current.panResponder.panHandlers.onResponderMove(null, { dy: 50, dx: 0 });
-        result.current.panResponder.panHandlers.onResponderMove(null, { dy: -50, dx: 0 });
+        handlers.onResponderMove(null, { dy: 50, dx: 0 });
+        handlers.onResponderMove(null, { dy: -50, dx: 0 });
       }).not.toThrow();
     });
 
@@ -191,7 +195,8 @@ describe('useBottomSheetAnimation', () => {
       );
 
       const gestureState = { dy: 150, vy: 0.3 };
-      result.current.panResponder.panHandlers.onResponderRelease(
+      const handlers = result.current!.panResponder.panHandlers as Record<string, (...args: unknown[]) => unknown>;
+      handlers.onResponderRelease(
         null,
         gestureState
       );
@@ -206,7 +211,8 @@ describe('useBottomSheetAnimation', () => {
       );
 
       const gestureState = { dy: 50, vy: 0.6 };
-      result.current.panResponder.panHandlers.onResponderRelease(
+      const handlers = result.current!.panResponder.panHandlers as Record<string, (...args: unknown[]) => unknown>;
+      handlers.onResponderRelease(
         null,
         gestureState
       );
@@ -221,7 +227,8 @@ describe('useBottomSheetAnimation', () => {
       );
 
       const gestureState = { dy: 50, vy: 0.2 };
-      result.current.panResponder.panHandlers.onResponderRelease(
+      const handlers = result.current!.panResponder.panHandlers as Record<string, (...args: unknown[]) => unknown>;
+      handlers.onResponderRelease(
         null,
         gestureState
       );
@@ -237,7 +244,8 @@ describe('useBottomSheetAnimation', () => {
 
       // Exactly at threshold (100)
       const gestureState = { dy: 100, vy: 0.3 };
-      result.current.panResponder.panHandlers.onResponderRelease(
+      const handlers = result.current!.panResponder.panHandlers as Record<string, (...args: unknown[]) => unknown>;
+      handlers.onResponderRelease(
         null,
         gestureState
       );
@@ -254,7 +262,8 @@ describe('useBottomSheetAnimation', () => {
 
       // Just above threshold (101)
       const gestureState = { dy: 101, vy: 0.3 };
-      result.current.panResponder.panHandlers.onResponderRelease(
+      const handlers = result.current!.panResponder.panHandlers as Record<string, (...args: unknown[]) => unknown>;
+      handlers.onResponderRelease(
         null,
         gestureState
       );
@@ -271,7 +280,8 @@ describe('useBottomSheetAnimation', () => {
 
       // Exactly at velocity threshold (0.5)
       const gestureState = { dy: 50, vy: 0.5 };
-      result.current.panResponder.panHandlers.onResponderRelease(
+      const handlers = result.current!.panResponder.panHandlers as Record<string, (...args: unknown[]) => unknown>;
+      handlers.onResponderRelease(
         null,
         gestureState
       );
@@ -288,7 +298,8 @@ describe('useBottomSheetAnimation', () => {
 
       // Just above velocity threshold (0.51)
       const gestureState = { dy: 50, vy: 0.51 };
-      result.current.panResponder.panHandlers.onResponderRelease(
+      const handlers = result.current!.panResponder.panHandlers as Record<string, (...args: unknown[]) => unknown>;
+      handlers.onResponderRelease(
         null,
         gestureState
       );

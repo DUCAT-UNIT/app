@@ -1,6 +1,9 @@
 /**
  * DepositConfirmScreen - Review and confirm deposit operation
  * Features: Summary display, biometric authentication before signing
+ *
+ * @deprecated Use DepositConfirmScreenNew from screens/vault/screens instead.
+ * This screen will be removed in a future release.
  */
 
 import React, { useCallback, useState, useMemo } from 'react';
@@ -13,6 +16,7 @@ import TouchableScale from '../../components/common/TouchableScale';
 import Icon from '../../components/icons';
 import { useDeposit } from '../../stores/depositStore';
 import { useDepositVault } from '../../hooks/useDepositVault';
+import { logger } from '../../utils/logger';
 import { usePrice } from '../../stores/priceStore';
 import { useBalance } from '../../contexts/WalletDataContext';
 import { formatFiat } from '../../utils/formatters';
@@ -59,25 +63,30 @@ export default function DepositConfirmScreen({ navigation }: DepositConfirmScree
     try {
       setIsAuthenticating(true);
 
-      // Check if biometrics are available
-      const hasHardware = await LocalAuthentication.hasHardwareAsync();
-      const isEnrolled = await LocalAuthentication.isEnrolledAsync();
+      // Skip biometric auth entirely in E2E mode
+      const isE2E = __DEV__ && process.env.EXPO_PUBLIC_E2E_BYPASS === 'true';
 
-      if (hasHardware && isEnrolled) {
-        // Authenticate with biometrics
-        const result = await LocalAuthentication.authenticateAsync({
-          promptMessage: 'Authenticate to deposit BTC',
-          fallbackLabel: 'Use PIN',
-          cancelLabel: 'Cancel',
-          disableDeviceFallback: false,
-        });
+      if (!isE2E) {
+        // Check if biometrics are available
+        const hasHardware = await LocalAuthentication.hasHardwareAsync();
+        const isEnrolled = await LocalAuthentication.isEnrolledAsync();
 
-        if (!result.success) {
-          if (result.error !== 'user_cancel') {
-            Alert.alert('Authentication Failed', 'Please try again');
+        if (hasHardware && isEnrolled) {
+          // Authenticate with biometrics
+          const result = await LocalAuthentication.authenticateAsync({
+            promptMessage: 'Authenticate to deposit BTC',
+            fallbackLabel: 'Use PIN',
+            cancelLabel: 'Cancel',
+            disableDeviceFallback: false,
+          });
+
+          if (!result.success) {
+            if (result.error !== 'user_cancel') {
+              Alert.alert('Authentication Failed', 'Please try again');
+            }
+            setIsAuthenticating(false);
+            return;
           }
-          setIsAuthenticating(false);
-          return;
         }
       }
 
@@ -86,12 +95,10 @@ export default function DepositConfirmScreen({ navigation }: DepositConfirmScree
       setCurrentStep('processing');
       navigation.navigate('DepositProcessing');
 
-      const result = await deposit();
-      if (result) {
-        setCurrentStep('success');
-        navigation.navigate('DepositSuccess', { vaultTxid: result.vaultTxid });
-      }
+      // NOTE: deposit() is called from DepositProcessingScreen via useEffect
+      // Do NOT call deposit() here — this screen unmounts after navigation
     } catch (err) {
+      logger.error('[DepositConfirm] handleConfirm error:', { error: err });
       setIsAuthenticating(false);
       Alert.alert('Error', 'Failed to complete deposit. Please try again.');
     }
@@ -104,7 +111,7 @@ export default function DepositConfirmScreen({ navigation }: DepositConfirmScree
   }, [setCurrentStep, navigation]);
 
   return (
-    <SafeAreaView style={styles.container} edges={['top']}>
+    <SafeAreaView style={styles.container} edges={['top']} testID="vault-deposit-confirm-screen">
       <ScrollView
         style={styles.scrollView}
         contentContainerStyle={styles.scrollContent}
@@ -227,6 +234,7 @@ export default function DepositConfirmScreen({ navigation }: DepositConfirmScree
           style={[styles.confirmButton, (isLoading || isAuthenticating) && styles.buttonDisabled]}
           onPress={handleConfirm}
           disabled={isLoading || isAuthenticating}
+          testID="vault-deposit-confirm-btn"
         >
           {isAuthenticating ? (
             <Ionicons name="finger-print" size={20} color={colors.text.white} />

@@ -150,8 +150,9 @@ export function useTurboMintCompletion({
               }
               logger.debug('[useTurboMintCompletion] P2PK token created:', token.substring(0, 50));
 
-              // Update stage: P2PK created
-              await updateTurboSendStage('p2pk_created');
+              // SECURITY: Save token in recovery state IMMEDIATELY after creation.
+              // If app crashes before saveSentLockedToken, recovery can re-save.
+              await updateTurboSendStage('p2pk_created', { token });
 
               // Generate shortened URL for the token
               const shortUrl = await shortenCashuToken(token);

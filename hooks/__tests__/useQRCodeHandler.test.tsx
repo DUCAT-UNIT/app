@@ -1,4 +1,3 @@
-// @ts-nocheck
 /**
  * Tests for useQRCodeHandler hook
  * Covers QR code scanning for Bitcoin addresses, Cashu tokens, JSON tokens, and Turbo URLs
@@ -36,7 +35,7 @@ jest.mock('@react-navigation/native', () => ({
 
 const mockDigestStringAsync = jest.fn();
 jest.mock('expo-crypto', () => ({
-  digestStringAsync: (...args) => mockDigestStringAsync(...args),
+  digestStringAsync: (...args: unknown[]) => mockDigestStringAsync(...args),
   CryptoDigestAlgorithm: {
     SHA256: 'SHA-256',
   },
@@ -44,19 +43,19 @@ jest.mock('expo-crypto', () => ({
 
 const mockHasP2PKProofs = jest.fn();
 jest.mock('../../services/cashu/p2pk', () => ({
-  hasP2PKProofs: (...args) => mockHasP2PKProofs(...args),
+  hasP2PKProofs: (...args: unknown[]) => mockHasP2PKProofs(...args),
 }));
 
 const mockDecodeToken = jest.fn();
 const mockEncodeToken = jest.fn();
 jest.mock('../../services/cashu/crypto', () => ({
-  decodeToken: (...args) => mockDecodeToken(...args),
-  encodeToken: (...args) => mockEncodeToken(...args),
+  decodeToken: (...args: unknown[]) => mockDecodeToken(...args),
+  encodeToken: (...args: unknown[]) => mockEncodeToken(...args),
 }));
 
 const mockCheckProofsSpent = jest.fn();
 jest.mock('../../services/cashu/cashuMintClient', () => ({
-  checkProofsSpent: (...args) => mockCheckProofsSpent(...args),
+  checkProofsSpent: (...args: unknown[]) => mockCheckProofsSpent(...args),
 }));
 
 // Mock tokenProcessingStore
@@ -75,38 +74,41 @@ jest.mock('../../stores/tokenProcessingStore', () => ({
 global.atob = jest.fn((str) => Buffer.from(str, 'base64').toString('utf8'));
 
 // Helper to render hooks with props
-function renderHookWithProps(props) {
-  const result = { current: null };
-  function TestComponent({ hookProps }) {
-    result.current = useQRCodeHandler(hookProps);
+type UseQRCodeHandlerParams = Parameters<typeof useQRCodeHandler>[0];
+type UseQRCodeHandlerReturn = ReturnType<typeof useQRCodeHandler>;
+
+function renderHookWithProps(props: Record<string, unknown>) {
+  const result: { current: UseQRCodeHandlerReturn | null } = { current: null };
+  function TestComponent({ hookProps }: { hookProps?: UseQRCodeHandlerParams }) {
+    result.current = useQRCodeHandler(hookProps!);
     return null;
   }
-  let component;
+  let component: ReturnType<typeof create> | undefined;
   act(() => {
-    component = create(<TestComponent hookProps={props} />);
+    component = create(<TestComponent hookProps={props as unknown as UseQRCodeHandlerParams} />);
   });
   return {
     result,
-    unmount: component.unmount,
+    unmount: component!.unmount,
     component,
-    rerender: (newProps) => {
+    rerender: (newProps?: unknown) => {
       act(() => {
-        component.update(<TestComponent hookProps={newProps} />);
+        component?.update(<TestComponent hookProps={newProps as UseQRCodeHandlerParams} />);
       });
     },
   };
 }
 
 describe('useQRCodeHandler', () => {
-  let mockProps;
-  let originalRaf;
+  let mockProps: Record<string, unknown>;
+  let originalRaf: typeof global.requestAnimationFrame;
 
   beforeEach(() => {
     jest.clearAllMocks();
     // Mock requestAnimationFrame globally
     originalRaf = global.requestAnimationFrame;
-    global.requestAnimationFrame = jest.fn((cb) => {
-      cb();
+    global.requestAnimationFrame = jest.fn((cb: (time: number) => void) => {
+      cb(0);
       return 1;
     });
 
@@ -150,12 +152,12 @@ describe('useQRCodeHandler', () => {
       const { result } = renderHookWithProps(mockProps);
 
       await act(async () => {
-        await result.current('bitcoin:bc1qtest123');
+        await result.current!('bitcoin:bc1qtest123');
       });
 
       expect(mockNavigate).toHaveBeenCalledWith('SendFlow', {
-        screen: 'AddressInput',
-        params: { scannedAddress: 'bitcoin:bc1qtest123' },
+        screen: 'SendInput',
+        params: { assetType: 'btc', prefillAddress: 'bc1qtest123' },
       });
     });
 
@@ -163,12 +165,12 @@ describe('useQRCodeHandler', () => {
       const { result } = renderHookWithProps(mockProps);
 
       await act(async () => {
-        await result.current('tb1qtest123');
+        await result.current!('tb1qtest123');
       });
 
       expect(mockNavigate).toHaveBeenCalledWith('SendFlow', {
-        screen: 'AddressInput',
-        params: { scannedAddress: 'tb1qtest123' },
+        screen: 'SendInput',
+        params: { assetType: 'btc', prefillAddress: 'tb1qtest123' },
       });
     });
 
@@ -176,12 +178,12 @@ describe('useQRCodeHandler', () => {
       const { result } = renderHookWithProps(mockProps);
 
       await act(async () => {
-        await result.current('bc1qtest123');
+        await result.current!('bc1qtest123');
       });
 
       expect(mockNavigate).toHaveBeenCalledWith('SendFlow', {
-        screen: 'AddressInput',
-        params: { scannedAddress: 'bc1qtest123' },
+        screen: 'SendInput',
+        params: { assetType: 'btc', prefillAddress: 'bc1qtest123' },
       });
     });
 
@@ -189,7 +191,7 @@ describe('useQRCodeHandler', () => {
       const { result } = renderHookWithProps(mockProps);
 
       await act(async () => {
-        await result.current('bitcoin:bc1qtest');
+        await result.current!('bitcoin:bc1qtest');
       });
 
       expect(mockProps.setShowQRScanner).toHaveBeenCalledWith(false);
@@ -199,12 +201,13 @@ describe('useQRCodeHandler', () => {
       const { result } = renderHookWithProps(mockProps);
 
       await act(async () => {
-        await result.current('bitcoin:bc1qtest?amount=0.001');
+        await result.current!('bitcoin:bc1qtest?amount=0.001');
       });
 
+      // Implementation strips the query params from the address
       expect(mockNavigate).toHaveBeenCalledWith('SendFlow', {
-        screen: 'AddressInput',
-        params: { scannedAddress: 'bitcoin:bc1qtest?amount=0.001' },
+        screen: 'SendInput',
+        params: { assetType: 'btc', prefillAddress: 'bc1qtest' },
       });
     });
   });
@@ -218,7 +221,7 @@ describe('useQRCodeHandler', () => {
       const { result } = renderHookWithProps(mockProps);
 
       await act(async () => {
-        await result.current('cashuAtestP2PKtoken');
+        await result.current!('cashuAtestP2PKtoken');
       });
 
       expect(mockSetPendingToken).toHaveBeenCalledWith('cashuAtestP2PKtoken');
@@ -229,7 +232,7 @@ describe('useQRCodeHandler', () => {
       const { result } = renderHookWithProps(mockProps);
 
       await act(async () => {
-        await result.current('cashuAtestP2PKtoken');
+        await result.current!('cashuAtestP2PKtoken');
       });
 
       expect(mockTriggerTokenCheck).toHaveBeenCalled();
@@ -241,7 +244,7 @@ describe('useQRCodeHandler', () => {
       const { result } = renderHookWithProps(mockProps);
 
       await act(async () => {
-        await result.current('cashuAtestP2PKtoken');
+        await result.current!('cashuAtestP2PKtoken');
       });
 
       expect(mockProps.showSnackbar).toHaveBeenCalledWith({
@@ -258,7 +261,7 @@ describe('useQRCodeHandler', () => {
       const { result } = renderHookWithProps(mockProps);
 
       await act(async () => {
-        await result.current('cashuAtestP2PKtoken');
+        await result.current!('cashuAtestP2PKtoken');
       });
 
       expect(mockSetPendingToken).toHaveBeenCalledWith('cashuAtestP2PKtoken');
@@ -274,7 +277,7 @@ describe('useQRCodeHandler', () => {
       const { result } = renderHookWithProps(mockProps);
 
       await act(async () => {
-        await result.current('cashuAtesttoken');
+        await result.current!('cashuAtesttoken');
       });
 
       expect(notify.token.checking).toHaveBeenCalled();
@@ -295,7 +298,7 @@ describe('useQRCodeHandler', () => {
       const { result } = renderHookWithProps(mockProps);
 
       await act(async () => {
-        await result.current('cashuAtesttoken');
+        await result.current!('cashuAtesttoken');
       });
 
       expect(mockProps.showSnackbar).toHaveBeenCalledWith({
@@ -321,7 +324,7 @@ describe('useQRCodeHandler', () => {
       const { result } = renderHookWithProps(mockProps);
 
       await act(async () => {
-        await result.current('cashuAtesttoken');
+        await result.current!('cashuAtesttoken');
       });
 
       expect(Alert.alert).toHaveBeenCalledWith(
@@ -351,11 +354,11 @@ describe('useQRCodeHandler', () => {
       const { result } = renderHookWithProps(mockProps);
 
       await act(async () => {
-        await result.current('cashuAtesttoken');
+        await result.current!('cashuAtesttoken');
       });
 
       // Get the Claim button callback
-      const alertCall = Alert.alert.mock.calls[0];
+      const alertCall = (Alert.alert as jest.Mock).mock.calls[0];
       const claimButton = alertCall[2][1];
 
       await act(async () => {
@@ -384,15 +387,15 @@ describe('useQRCodeHandler', () => {
       mockCheckProofsSpent.mockResolvedValue({
         states: [{ state: 'SPENT' }, { state: 'UNSPENT' }],
       });
-      mockProps.receiveCashuToken.mockRejectedValue(new Error('Claim failed'));
+      (mockProps.receiveCashuToken as jest.Mock).mockRejectedValue(new Error('Claim failed'));
 
       const { result } = renderHookWithProps(mockProps);
 
       await act(async () => {
-        await result.current('cashuAtesttoken');
+        await result.current!('cashuAtesttoken');
       });
 
-      const alertCall = Alert.alert.mock.calls[0];
+      const alertCall = (Alert.alert as jest.Mock).mock.calls[0];
       const claimButton = alertCall[2][1];
 
       await act(async () => {
@@ -418,15 +421,15 @@ describe('useQRCodeHandler', () => {
       mockCheckProofsSpent.mockResolvedValue({
         states: [{ state: 'SPENT' }, { state: 'UNSPENT' }],
       });
-      mockProps.receiveCashuToken.mockRejectedValue('String error');
+      (mockProps.receiveCashuToken as jest.Mock).mockRejectedValue('String error');
 
       const { result } = renderHookWithProps(mockProps);
 
       await act(async () => {
-        await result.current('cashuAtesttoken');
+        await result.current!('cashuAtesttoken');
       });
 
-      const alertCall = Alert.alert.mock.calls[0];
+      const alertCall = (Alert.alert as jest.Mock).mock.calls[0];
       const claimButton = alertCall[2][1];
 
       await act(async () => {
@@ -448,7 +451,7 @@ describe('useQRCodeHandler', () => {
       const { result } = renderHookWithProps(mockProps);
 
       await act(async () => {
-        await result.current('cashuAtesttoken');
+        await result.current!('cashuAtesttoken');
       });
 
       expect(mockProps.showSnackbar).toHaveBeenCalledWith({
@@ -466,7 +469,7 @@ describe('useQRCodeHandler', () => {
       const { result } = renderHookWithProps(mockProps);
 
       await act(async () => {
-        await result.current('cashuAtesttoken');
+        await result.current!('cashuAtesttoken');
       });
 
       expect(mockProps.showSnackbar).toHaveBeenCalledWith({
@@ -489,7 +492,7 @@ describe('useQRCodeHandler', () => {
       });
 
       await act(async () => {
-        await result.current(jsonToken);
+        await result.current!(jsonToken);
       });
 
       expect(mockEncodeToken).toHaveBeenCalled();
@@ -510,7 +513,7 @@ describe('useQRCodeHandler', () => {
       });
 
       await act(async () => {
-        await result.current(rawProofs);
+        await result.current!(rawProofs);
       });
 
       expect(mockProps.showSnackbar).toHaveBeenCalledWith({
@@ -524,7 +527,7 @@ describe('useQRCodeHandler', () => {
       const { result } = renderHookWithProps(mockProps);
 
       await act(async () => {
-        await result.current('[{"id":"proof1","amount":100}]');
+        await result.current!('[{"id":"proof1","amount":100}]');
       });
 
       expect(mockProps.showSnackbar).toHaveBeenCalledWith({
@@ -538,7 +541,7 @@ describe('useQRCodeHandler', () => {
       const { result } = renderHookWithProps(mockProps);
 
       await act(async () => {
-        await result.current('{"other":"data"}');
+        await result.current!('{"other":"data"}');
       });
 
       expect(mockProps.showSnackbar).toHaveBeenCalledWith({
@@ -552,7 +555,7 @@ describe('useQRCodeHandler', () => {
       const { result } = renderHookWithProps(mockProps);
 
       await act(async () => {
-        await result.current('{invalid json}');
+        await result.current!('{invalid json}');
       });
 
       expect(mockProps.showSnackbar).toHaveBeenCalledWith({
@@ -563,7 +566,7 @@ describe('useQRCodeHandler', () => {
     });
 
     it('should handle error during JSON token claim', async () => {
-      mockProps.receiveCashuToken.mockRejectedValue(new Error('Claim failed'));
+      (mockProps.receiveCashuToken as jest.Mock).mockRejectedValue(new Error('Claim failed'));
 
       const { result } = renderHookWithProps(mockProps);
 
@@ -575,7 +578,7 @@ describe('useQRCodeHandler', () => {
       });
 
       await act(async () => {
-        await result.current(jsonToken);
+        await result.current!(jsonToken);
       });
 
       expect(mockProps.showSnackbar).toHaveBeenCalledWith({
@@ -586,7 +589,7 @@ describe('useQRCodeHandler', () => {
     });
 
     it('should handle non-Error exception during JSON token claim', async () => {
-      mockProps.receiveCashuToken.mockRejectedValue('String claim error');
+      (mockProps.receiveCashuToken as jest.Mock).mockRejectedValue('String claim error');
 
       const { result } = renderHookWithProps(mockProps);
 
@@ -598,7 +601,7 @@ describe('useQRCodeHandler', () => {
       });
 
       await act(async () => {
-        await result.current(jsonToken);
+        await result.current!(jsonToken);
       });
 
       expect(mockProps.showSnackbar).toHaveBeenCalledWith({
@@ -614,7 +617,7 @@ describe('useQRCodeHandler', () => {
       const { result } = renderHookWithProps(mockProps);
 
       await act(async () => {
-        await result.current('ducat://turbo/cashuAbc123xyz');
+        await result.current!('ducat://turbo/cashuAbc123xyz');
       });
 
       expect(mockNavigate).toHaveBeenCalledWith('SendFlow', {
@@ -632,7 +635,7 @@ describe('useQRCodeHandler', () => {
       const { result } = renderHookWithProps(mockProps);
 
       await act(async () => {
-        await result.current(`https://ducatprotocol.com/unit?t=${base64Token}`);
+        await result.current!(`https://ducatprotocol.com/unit?t=${base64Token}`);
       });
 
       expect(mockNavigate).toHaveBeenCalledWith('SendFlow', {
@@ -652,7 +655,7 @@ describe('useQRCodeHandler', () => {
       const { result } = renderHookWithProps(mockProps);
 
       await act(async () => {
-        await result.current(`https://ducatprotocol.com/unit?t=${base64Token}`);
+        await result.current!(`https://ducatprotocol.com/unit?t=${base64Token}`);
       });
 
       expect(mockNavigate).toHaveBeenCalledWith('SendFlow', {
@@ -665,7 +668,7 @@ describe('useQRCodeHandler', () => {
       const { result } = renderHookWithProps(mockProps);
 
       await act(async () => {
-        await result.current('https://ducatprotocol.com/unit?other=param');
+        await result.current!('https://ducatprotocol.com/unit?other=param');
       });
 
       expect(notify.token.extractFailed).toHaveBeenCalled();
@@ -681,7 +684,7 @@ describe('useQRCodeHandler', () => {
       const { result } = renderHookWithProps(mockProps);
 
       await act(async () => {
-        await result.current('https://ducatprotocol.com/unit?t=invalid!!!');
+        await result.current!('https://ducatprotocol.com/unit?t=invalid!!!');
       });
 
       expect(notify.token.extractError).toHaveBeenCalled();
@@ -698,7 +701,7 @@ describe('useQRCodeHandler', () => {
       const { result } = renderHookWithProps(mockProps);
 
       await act(async () => {
-        await result.current('https://ducatprotocol.com/unit?t=invalid');
+        await result.current!('https://ducatprotocol.com/unit?t=invalid');
       });
 
       expect(notify.token.extractError).toHaveBeenCalled();
@@ -712,7 +715,7 @@ describe('useQRCodeHandler', () => {
       const { result } = renderHookWithProps(mockProps);
 
       await act(async () => {
-        await result.current('random-unknown-data');
+        await result.current!('random-unknown-data');
       });
 
       expect(notify.token.unknownFormat).toHaveBeenCalled();
@@ -722,7 +725,7 @@ describe('useQRCodeHandler', () => {
       const { result } = renderHookWithProps(mockProps);
 
       await act(async () => {
-        await result.current('');
+        await result.current!('');
       });
 
       expect(notify.token.unknownFormat).toHaveBeenCalled();
@@ -732,7 +735,7 @@ describe('useQRCodeHandler', () => {
       const { result } = renderHookWithProps(mockProps);
 
       await act(async () => {
-        await result.current('https://example.com/some-page');
+        await result.current!('https://example.com/some-page');
       });
 
       expect(notify.token.unknownFormat).toHaveBeenCalled();

@@ -149,7 +149,7 @@ const meta: Meta<typeof MutinynetBannerStory> = {
 };
 
 export default meta;
-type Story = StoryObj<typeof MutinynetBannerStory>;
+type Story = StoryObj<{ deviceSize: DeviceSize; errorMessage?: string }>;
 
 export const MutinynetBanner: Story = {
   args: {

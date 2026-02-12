@@ -1,4 +1,3 @@
-// @ts-nocheck
 /**
  * Tests for Bitcoin Conversion Utilities
  */
@@ -43,7 +42,7 @@ describe('satsToBTC', () => {
   });
 
   it('should handle invalid input', () => {
-    expect(satsToBTC('invalid')).toBe(0);
+    expect(satsToBTC('invalid' as unknown as number)).toBe(0);
     expect(satsToBTC(NaN)).toBe(0);
   });
 
@@ -59,9 +58,11 @@ describe('btcToSats', () => {
     expect(btcToSats(0.00000001)).toBe(1);
   });
 
-  it('should floor fractional satoshis', () => {
+  it('should round fractional satoshis', () => {
+    // IEEE 754: 0.000000015 * 1e8 = 1.4999999999999998 (rounds to 1)
     expect(btcToSats(0.000000015)).toBe(1);
-    expect(btcToSats(0.000000019)).toBe(1);
+    // IEEE 754: 0.000000019 * 1e8 = 1.8999999999999997 (rounds to 2)
+    expect(btcToSats(0.000000019)).toBe(2);
   });
 
   it('should handle string input', () => {
@@ -90,8 +91,8 @@ describe('btcToSats', () => {
     expect(btcToSats(NaN)).toBe(0);
   });
 
-  it('should handle negative values', () => {
-    expect(btcToSats(-1)).toBe(-100000000);
+  it('should reject negative values', () => {
+    expect(btcToSats(-1)).toBe(0);
   });
 });
 
@@ -117,7 +118,7 @@ describe('formatBTC', () => {
   });
 
   it('should handle invalid input', () => {
-    expect(formatBTC('invalid', 2)).toBe('0.00');
+    expect(formatBTC('invalid' as unknown as number, 2)).toBe('0.00');
     expect(formatBTC(NaN, 2)).toBe('0.00');
   });
 
@@ -152,7 +153,7 @@ describe('formatBTCSmart', () => {
   });
 
   it('should handle invalid input', () => {
-    expect(formatBTCSmart('invalid')).toBe('0.00');
+    expect(formatBTCSmart('invalid' as unknown as number)).toBe('0.00');
   });
 
   it('should handle small amounts', () => {
@@ -266,7 +267,7 @@ describe('formatBTCAuto', () => {
   });
 
   it('should handle invalid input', () => {
-    const result = formatBTCAuto('invalid');
+    const result = formatBTCAuto('invalid' as unknown as number);
     expect(result.value).toBe('0');
     expect(result.unit).toBe('BTC');
   });

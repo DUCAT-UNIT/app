@@ -1,4 +1,3 @@
-// @ts-nocheck
 /**
  * Tests for Vault Utilities
  */
@@ -161,9 +160,9 @@ describe('vaultUtils', () => {
       expect(price).toBe(0);
     });
 
-    it('should return Infinity for zero UNIT (no debt = no liquidation risk)', () => {
+    it('should return 0 for zero UNIT (no debt = no liquidation risk)', () => {
       const price = computeLiquidationPrice(0, 1);
-      expect(price).toBe(Infinity);
+      expect(price).toBe(0);
     });
 
     it('should floor to 2 decimal places', () => {

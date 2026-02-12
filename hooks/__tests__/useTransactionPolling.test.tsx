@@ -1,4 +1,3 @@
-// @ts-nocheck
 /**
  * Tests for useTransactionPolling Hook
  */
@@ -9,17 +8,17 @@ import { useTransactionPolling } from '../useTransactionPolling';
 import * as constants from '../../utils/constants';
 
 // Helper to render hooks
-function renderHook(hook) {
-  const result = { current: null };
+function renderHook<T>(hook: () => T) {
+  const result: { current: T | null } = { current: null };
   function TestComponent() {
     result.current = hook();
     return null;
   }
-  let component;
+  let component: ReturnType<typeof create> | undefined;
   act(() => {
     component = create(<TestComponent />);
   });
-  return { result, unmount: () => component.unmount() };
+  return { result, unmount: () => component?.unmount() };
 }
 
 // Mock fetch
@@ -36,7 +35,7 @@ jest.mock('../../utils/constants', () => ({
 describe('useTransactionPolling', () => {
   beforeEach(() => {
     jest.clearAllMocks();
-    global.fetch.mockClear();
+    (global.fetch as jest.Mock).mockClear();
   });
 
   afterEach(() => {
@@ -47,13 +46,13 @@ describe('useTransactionPolling', () => {
     const { result } = renderHook(() => useTransactionPolling());
     const onConfirmed = jest.fn();
 
-    global.fetch.mockResolvedValue({
+    (global.fetch as jest.Mock).mockResolvedValue({
       ok: true,
       json: async () => ({ status: { confirmed: true } }),
     });
 
     act(() => {
-      result.current.startPolling('test-txid', onConfirmed);
+      result.current!.startPolling('test-txid', onConfirmed);
     });
 
     // Wait for first poll (5 seconds)
@@ -70,13 +69,13 @@ describe('useTransactionPolling', () => {
     const { result } = renderHook(() => useTransactionPolling());
     const onConfirmed = jest.fn();
 
-    global.fetch.mockResolvedValue({
+    (global.fetch as jest.Mock).mockResolvedValue({
       ok: true,
       json: async () => ({ status: { confirmed: true } }),
     });
 
     act(() => {
-      result.current.startPolling('test-txid', onConfirmed);
+      result.current!.startPolling('test-txid', onConfirmed);
     });
 
     await act(async () => {
@@ -99,10 +98,10 @@ describe('useTransactionPolling', () => {
     const onConfirmed = jest.fn();
     const onError = jest.fn();
 
-    global.fetch.mockRejectedValue(new Error('Network error'));
+    (global.fetch as jest.Mock).mockRejectedValue(new Error('Network error'));
 
     act(() => {
-      result.current.startPolling('test-txid', onConfirmed, onError);
+      result.current!.startPolling('test-txid', onConfirmed, onError);
     });
 
     await act(async () => {
@@ -117,18 +116,18 @@ describe('useTransactionPolling', () => {
     const { result } = renderHook(() => useTransactionPolling());
     const onConfirmed = jest.fn();
 
-    global.fetch.mockResolvedValue({
+    (global.fetch as jest.Mock).mockResolvedValue({
       ok: true,
       json: async () => ({ status: { confirmed: false } }),
     });
 
     act(() => {
-      result.current.startPolling('test-txid', onConfirmed);
+      result.current!.startPolling('test-txid', onConfirmed);
     });
 
     // Stop before first poll
     act(() => {
-      result.current.stopPolling();
+      result.current!.stopPolling();
     });
 
     await act(async () => {
@@ -143,13 +142,13 @@ describe('useTransactionPolling', () => {
     const { result } = renderHook(() => useTransactionPolling());
     const onConfirmed = jest.fn();
 
-    global.fetch.mockResolvedValue({
+    (global.fetch as jest.Mock).mockResolvedValue({
       ok: true,
       json: async () => ({ status: { confirmed: false } }),
     });
 
     act(() => {
-      result.current.startPolling('test-txid', onConfirmed);
+      result.current!.startPolling('test-txid', onConfirmed);
     });
 
     // First poll - not confirmed
@@ -174,13 +173,13 @@ describe('useTransactionPolling', () => {
     const onConfirmed = jest.fn();
     const onError = jest.fn();
 
-    global.fetch.mockResolvedValue({
+    (global.fetch as jest.Mock).mockResolvedValue({
       ok: false,
       status: 404,
     });
 
     act(() => {
-      result.current.startPolling('test-txid', onConfirmed, onError);
+      result.current!.startPolling('test-txid', onConfirmed, onError);
     });
 
     await act(async () => {
@@ -197,19 +196,19 @@ describe('useTransactionPolling', () => {
     const onConfirmed1 = jest.fn();
     const onConfirmed2 = jest.fn();
 
-    global.fetch.mockResolvedValue({
+    (global.fetch as jest.Mock).mockResolvedValue({
       ok: true,
       json: async () => ({ status: { confirmed: false } }),
     });
 
     // Start first poll
     act(() => {
-      result.current.startPolling('txid-1', onConfirmed1);
+      result.current!.startPolling('txid-1', onConfirmed1);
     });
 
     // Start second poll immediately (should clear first)
     act(() => {
-      result.current.startPolling('txid-2', onConfirmed2);
+      result.current!.startPolling('txid-2', onConfirmed2);
     });
 
     await act(async () => {
@@ -226,13 +225,13 @@ describe('useTransactionPolling', () => {
     const { result } = renderHook(() => useTransactionPolling());
     const onConfirmed = jest.fn();
 
-    global.fetch.mockResolvedValue({
+    (global.fetch as jest.Mock).mockResolvedValue({
       ok: true,
       json: async () => ({ status: { confirmed: false } }),
     });
 
     act(() => {
-      result.current.startPolling('test-txid', onConfirmed);
+      result.current!.startPolling('test-txid', onConfirmed);
     });
 
     // Advance through all 60 attempts (60 * 5 seconds = 300 seconds)
@@ -250,10 +249,10 @@ describe('useTransactionPolling', () => {
     const { result } = renderHook(() => useTransactionPolling());
     const onConfirmed = jest.fn();
 
-    global.fetch.mockRejectedValue(new Error('Network error'));
+    (global.fetch as jest.Mock).mockRejectedValue(new Error('Network error'));
 
     act(() => {
-      result.current.startPolling('test-txid', onConfirmed);
+      result.current!.startPolling('test-txid', onConfirmed);
     });
 
     await act(async () => {
@@ -268,13 +267,13 @@ describe('useTransactionPolling', () => {
   it('should handle onConfirmed being undefined', async () => {
     const { result } = renderHook(() => useTransactionPolling());
 
-    global.fetch.mockResolvedValue({
+    (global.fetch as jest.Mock).mockResolvedValue({
       ok: true,
       json: async () => ({ status: { confirmed: true } }),
     });
 
     act(() => {
-      result.current.startPolling('test-txid');
+      result.current!.startPolling('test-txid', jest.fn());
     });
 
     await act(async () => {
@@ -282,7 +281,7 @@ describe('useTransactionPolling', () => {
       await Promise.resolve();
     });
 
-    // Should not throw when onConfirmed is undefined
+    // Should not throw when onConfirmed is a no-op
     expect(global.fetch).toHaveBeenCalled();
   });
 
@@ -291,7 +290,7 @@ describe('useTransactionPolling', () => {
 
     // Call stopPolling without starting any poll
     act(() => {
-      result.current.stopPolling();
+      result.current!.stopPolling();
     });
 
     // Should not throw
@@ -302,13 +301,13 @@ describe('useTransactionPolling', () => {
     const { result, unmount } = renderHook(() => useTransactionPolling());
     const onConfirmed = jest.fn();
 
-    global.fetch.mockResolvedValue({
+    (global.fetch as jest.Mock).mockResolvedValue({
       ok: true,
       json: async () => ({ status: { confirmed: false } }),
     });
 
     act(() => {
-      result.current.startPolling('test-txid', onConfirmed);
+      result.current!.startPolling('test-txid', onConfirmed);
     });
 
     // Unmount while polling is still active

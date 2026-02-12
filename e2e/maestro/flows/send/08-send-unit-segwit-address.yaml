@@ -1,0 +1,83 @@
+appId: com.ducatprotocol.DucatProtocolWallet
+---
+# Send BTC to Taproot Address - Verify BTC sends work with tb1p addresses
+# Tests that BTC can be sent to taproot (not just segwit) addresses
+
+- runFlow: ../helpers/create-wallet.yaml
+
+- waitForAnimationToEnd
+- waitForAnimationToEnd
+
+- extendedWaitUntil:
+    visible:
+      id: "wallet-actions"
+    timeout: 15000
+
+# Open send BTC screen
+- tapOn:
+    id: "wallet-withdraw-btn"
+- waitForAnimationToEnd
+- extendedWaitUntil:
+    visible:
+      id: "withdraw-btc"
+    timeout: 10000
+- tapOn:
+    id: "withdraw-btc"
+
+- waitForAnimationToEnd
+- extendedWaitUntil:
+    visible:
+      id: "send-input-screen"
+    timeout: 10000
+
+# Enter a taproot address (tb1p instead of usual tb1q)
+- extendedWaitUntil:
+    visible:
+      text: "Recipient Bitcoin address.*"
+    timeout: 5000
+- tapOn:
+    text: "Recipient Bitcoin address.*"
+- inputText: "tb1pqqqqp399et2xygdj5xreqhjjvcmzhxw4aywxecjdzew6hylgvsesf3hn0c"
+- hideKeyboard
+
+- extendedWaitUntil:
+    visible:
+      text: "Valid"
+    timeout: 5000
+
+# Select QTR amount
+- tapOn:
+    id: "btc-slider-quarter-btn"
+- waitForAnimationToEnd
+
+# Review and confirm
+- extendedWaitUntil:
+    visible:
+      text: "Review transaction"
+    timeout: 5000
+- tapOn:
+    text: "Review transaction"
+
+- extendedWaitUntil:
+    visible:
+      id: "review-screen"
+    timeout: 10000
+- assertVisible:
+    text: "You will send"
+
+- tapOn:
+    text: "Confirm and Sign"
+
+- extendedWaitUntil:
+    visible:
+      id: "confirmation-screen"
+    timeout: 120000
+- assertVisible:
+    text: "Transaction Sent!"
+
+- tapOn:
+    id: "confirmation-done-btn"
+- extendedWaitUntil:
+    visible:
+      id: "wallet-screen"
+    timeout: 10000

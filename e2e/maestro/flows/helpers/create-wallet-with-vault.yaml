@@ -1,0 +1,114 @@
+appId: com.ducatprotocol.DucatProtocolWallet
+---
+# Create a fresh wallet, fund it via airdrop, create a vault, and wait for on-chain confirmation
+# After this helper completes:
+#   - Wallet has remaining BTC (~half of airdrop)
+#   - Wallet has UNIT (from vault borrow)
+#   - Vault exists with BTC collateral and UNIT debt
+#   - Borrow/Repay buttons are enabled
+#   - isPendingVaultTx = false
+# Takes ~3-4 minutes total (airdrop + vault creation + confirmation wait)
+
+# Step 1: Create wallet and wait for airdrop BTC
+- runFlow: create-wallet.yaml
+
+# Wait for wallet to be fully interactive
+- waitForAnimationToEnd
+- waitForAnimationToEnd
+
+# Step 2: Scroll to vault card and create vault
+- scrollUntilVisible:
+    element:
+      id: "vault-card"
+    direction: DOWN
+    timeout: 10000
+
+- extendedWaitUntil:
+    visible:
+      id: "create-vault-btn"
+    timeout: 5000
+- tapOn:
+    id: "create-vault-btn"
+
+# Wait for vault amounts screen
+- extendedWaitUntil:
+    visible:
+      id: "vault-amounts-screen"
+    timeout: 10000
+
+# Select HALF BTC deposit + QTR UNIT borrow (conservative for high health)
+- tapOn:
+    id: "btc-slider-half-btn"
+- waitForAnimationToEnd
+- tapOn:
+    id: "unit-slider-quarter-btn"
+- waitForAnimationToEnd
+
+# Continue to confirm
+- tapOn:
+    id: "vault-create-continue-btn"
+- extendedWaitUntil:
+    visible:
+      id: "vault-create-confirm-screen"
+    timeout: 10000
+
+# Confirm & Sign
+- tapOn:
+    id: "vault-create-confirm-btn"
+
+# Wait for success (skip transient processing screen)
+- extendedWaitUntil:
+    visible:
+      id: "vault-create-success-screen"
+    timeout: 120000
+- assertVisible:
+    text: "Vault Created!"
+
+# Tap Done to return to wallet
+- tapOn:
+    id: "vault-success-done-btn"
+- extendedWaitUntil:
+    visible:
+      id: "wallet-screen"
+    timeout: 10000
+
+# Step 3: Wait for vault creation tx to confirm on Mutinynet (~30-90 seconds)
+# When unconfirmed: vault-overlay (Create Vault button) is shown over vault card
+# When confirmed: vault-overlay disappears and vault data shows (hasVault=true)
+# The app polls every 10s and auto-clears isPendingVaultTx when confirmed
+- scrollUntilVisible:
+    element:
+      id: "vault-card"
+    direction: DOWN
+    timeout: 10000
+- extendedWaitUntil:
+    notVisible:
+      id: "vault-overlay"
+    timeout: 120000
+
+# Step 4: Wait for Runes UNIT balance to appear in wallet
+# Ord indexer lags behind vault API — may take 1-3 minutes after block confirmation
+# With accessible={false} in E2E mode, Maestro sees individual text elements inside AssetCard
+# The amount text has testID="asset-card-unit-amount" — check it shows non-zero value
+# When Runes balance is 0: amount text is "0.00"
+# When available: amount text is "548.25" (non-zero, varies per run)
+- swipe:
+    start: "50%, 30%"
+    end: "50%, 80%"
+- waitForAnimationToEnd
+- scrollUntilVisible:
+    element:
+      id: "asset-card-unit"
+    direction: DOWN
+    timeout: 10000
+- extendedWaitUntil:
+    visible:
+      text: "^[1-9]\\d*\\.\\d{2}$"
+    timeout: 180000
+
+# Scroll back to top for the test to interact with wallet actions
+- swipe:
+    start: "50%, 30%"
+    end: "50%, 80%"
+- waitForAnimationToEnd
+- waitForAnimationToEnd

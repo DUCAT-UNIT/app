@@ -159,7 +159,7 @@ export const sendP2PKToken = async (
     if (onProgress) onProgress(++currentStep, totalSteps, 'Creating P2PK secrets');
 
     // Create P2PK secrets for the send amount
-    const sendAmounts = splitAmount(amount);
+    let sendAmounts = splitAmount(amount);
     const p2pkSecrets: string[] = [];
 
     for (const _amt of sendAmounts) {
@@ -182,9 +182,9 @@ export const sendP2PKToken = async (
     }
 
     // CRITICAL: Verify amounts match before swap
-    const totalSendAmount = sendAmounts.reduce((sum, amt) => sum + amt, 0);
-    const totalChangeAmount = changeAmounts.reduce((sum, amt) => sum + amt, 0);
-    const totalOutputAmount = totalSendAmount + totalChangeAmount;
+    let totalSendAmount = sendAmounts.reduce((sum, amt) => sum + amt, 0);
+    let totalChangeAmount = changeAmounts.reduce((sum, amt) => sum + amt, 0);
+    let totalOutputAmount = totalSendAmount + totalChangeAmount;
 
     logger.info('SWAP AMOUNT VERIFICATION', {
       selectedAmount,
@@ -203,7 +203,7 @@ export const sendP2PKToken = async (
 
     // Track which secrets are P2PK vs normal (for identification after sorting)
     // This is needed because createBlindedOutputsWithSecrets sorts outputs by amount
-    const secretTypeMap = new Map<string, 'p2pk' | 'change'>();
+    const secretTypeMap = new Map<string, 'p2pk' | 'change'>(); 
     p2pkSecrets.forEach(secret => secretTypeMap.set(secret, 'p2pk'));
     changeSecrets.forEach(secret => secretTypeMap.set(secret, 'change'));
 

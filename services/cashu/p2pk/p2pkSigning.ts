@@ -50,11 +50,8 @@ export const signP2PKSecret = async (secret: string, privateKey: string): Promis
   logger.cashu('p2pk_sign_start', {
     step: 'SIGNING',
     secretLength: secret?.length ?? 0,
-    secretPreview: secret ? secret.substring(0, 40) + '...' : 'NULL',
-    privateKeyLength: privateKey?.length ?? 0,
-    privateKeyType: typeof privateKey,
-    expectedPubkey: expectedPubkey ?? 'UNKNOWN',
-    expectedPubkeyLength: expectedPubkey?.length ?? 0,
+    hasPrivateKey: !!privateKey && privateKey.length === 64,
+    hasExpectedPubkey: !!expectedPubkey,
   });
 
   try {
@@ -65,7 +62,6 @@ export const signP2PKSecret = async (secret: string, privateKey: string): Promis
     logger.cashu('p2pk_message_hashed', {
       step: 'SIGNING',
       messageHashLength: messageHash.length,
-      messageHashHex: Buffer.from(messageHash).toString('hex'),
     });
 
     // Convert private key to Buffer if needed
@@ -90,10 +86,8 @@ export const signP2PKSecret = async (secret: string, privateKey: string): Promis
 
     logger.cashu('p2pk_key_comparison', {
       step: 'SIGNING',
-      expectedPubkey: expectedPubkey || 'NOT_FOUND_IN_SECRET',
-      derivedPubkey: derivedPubkey || 'DERIVATION_FAILED',
       pubkeysMatch: expectedPubkey && derivedPubkey ? expectedPubkey === derivedPubkey : 'CANNOT_COMPARE',
-      privateKeyFirst8: typeof privateKey === 'string' ? privateKey.substring(0, 8) + '...' : 'BUFFER',
+      derivedPubkeyAvailable: !!derivedPubkey,
     });
 
     // Ensure both are proper Buffers and correct length
@@ -123,9 +117,6 @@ export const signP2PKSecret = async (secret: string, privateKey: string): Promis
     logger.cashu('p2pk_signature_created', {
       step: 'SIGNING',
       signatureLength: signatureHex.length,
-      signatureFull: signatureHex,
-      expectedPubkey: expectedPubkey || 'UNKNOWN',
-      derivedPubkey: derivedPubkey || 'UNKNOWN',
     });
 
     // Create witness structure
@@ -155,14 +146,8 @@ export const signP2PKSecret = async (secret: string, privateKey: string): Promis
     }
 
     if (privateKey) {
-      if (typeof privateKey === 'string') {
-        diagnostics.push(`Private key length: ${privateKey.length} chars`);
-        if (privateKey.length !== 64) {
-          diagnostics.push(`Expected 64 chars, got ${privateKey.length}`);
-        }
-      } else {
-        diagnostics.push(`Private key is ${typeof privateKey}, expected string`);
-      }
+      const validFormat = typeof privateKey === 'string' && privateKey.length === 64;
+      diagnostics.push(`Private key format valid: ${validFormat}`);
     } else {
       diagnostics.push('Private key is null/undefined');
     }
@@ -196,7 +181,7 @@ export const signP2PKProofs = async (proofs: CashuProof[], privateKey: string): 
     totalProofs: proofs.length,
     p2pkProofs: p2pkCount,
     regularProofs: proofs.length - p2pkCount,
-    privateKeyLength: privateKey?.length,
+    hasPrivateKey: !!privateKey && privateKey.length === 64,
   });
 
   const startTime = Date.now();
@@ -209,7 +194,6 @@ export const signP2PKProofs = async (proofs: CashuProof[], privateKey: string): 
           step: 'SIGNING',
           proofIndex: index,
           amount: proof.amount,
-          secretPreview: proof.secret?.substring(0, 30) + '...',
         });
 
         // Sign the P2PK secret to create witness

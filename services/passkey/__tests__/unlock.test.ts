@@ -1,4 +1,3 @@
-// @ts-nocheck
 /**
  * Tests for Passkey Unlock Service
  * Covers unlockWithPasskey and recoverWithPasskey
@@ -355,8 +354,8 @@ describe('Passkey Unlock', () => {
       try {
         await recoverWithPasskey(mockPin);
       } catch (error) {
-        expect(error.message).toContain('Starting recovery');
-        expect(error.message).toContain('Checking passkey support');
+        expect((error as Error).message).toContain('Starting recovery');
+        expect((error as Error).message).toContain('Checking passkey support');
       }
     });
 

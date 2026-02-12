@@ -38,6 +38,7 @@ interface VaultAmountsScreenProps {
 }
 
 export default function VaultAmountsScreen({ navigation }: VaultAmountsScreenProps) {
+  console.log('[VaultAmounts] RENDER');
   const {
     btcAmount,
     unitAmount,
@@ -60,8 +61,9 @@ export default function VaultAmountsScreen({ navigation }: VaultAmountsScreenPro
     navigation.getParent()?.goBack();
   }, [reset, navigation]);
 
-  const { segwitBalance, utxos } = useBalance();
+  const { segwitBalance, utxos, loadingBalance } = useBalance();
   const { btcPrice } = usePrice();
+  console.log('[VaultAmounts] segwitBalance:', segwitBalance, 'loadingBalance:', loadingBalance, 'utxos:', utxos?.length, 'btcPrice:', btcPrice);
 
   // Calculate estimated fee based on selected rate and UTXOs
   const estimatedFeeSats = useMemo(() => {
@@ -90,9 +92,12 @@ export default function VaultAmountsScreen({ navigation }: VaultAmountsScreenPro
 
   // Calculate available BTC (balance minus fees)
   const availableBtc = useMemo(() => {
+    console.log('[VaultAmounts] availableBtc calc: segwitBalance=', segwitBalance, 'selectedFeeRate=', selectedFeeRate);
     if (!segwitBalance) return 0;
     const feeCost = getOpCostOpen(selectedFeeRate) / 100_000_000;
-    return Math.max(segwitBalance - feeCost - 0.00001, 0); // Leave small buffer
+    const result = Math.max(segwitBalance - feeCost - 0.00001, 0);
+    console.log('[VaultAmounts] availableBtc result:', result, 'feeCost:', feeCost);
+    return result; // Leave small buffer
   }, [segwitBalance, selectedFeeRate]);
 
   // Calculate max borrowable for preview BTC amount (at 160% minimum health)
@@ -147,7 +152,7 @@ export default function VaultAmountsScreen({ navigation }: VaultAmountsScreenPro
   const hasChanges = previewBtcAmount > 0 && previewUnitAmount > 0;
 
   return (
-    <SafeAreaView style={styles.container} edges={['top']}>
+    <SafeAreaView style={styles.container} edges={['top']} testID="vault-amounts-screen">
       <KeyboardAvoidingView
         behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
         style={styles.flex}
@@ -242,6 +247,7 @@ export default function VaultAmountsScreen({ navigation }: VaultAmountsScreenPro
             style={[styles.continueBtn, !canContinue && styles.continueBtnDisabled]}
             onPress={handleContinue}
             disabled={!canContinue}
+            testID="vault-create-continue-btn"
           >
             <Text style={[styles.continueBtnText, !canContinue && styles.continueBtnTextDisabled]}>
               Continue

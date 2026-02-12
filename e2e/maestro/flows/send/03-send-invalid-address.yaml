@@ -1,0 +1,52 @@
+appId: com.ducatprotocol.DucatProtocolWallet
+---
+# Send Invalid Address - Verify address validation rejects bad input
+# Fresh wallet → withdraw → BTC → type invalid address → verify error
+
+- runFlow: ../helpers/create-wallet.yaml
+
+# Wait for wallet to be fully interactive
+- waitForAnimationToEnd
+- waitForAnimationToEnd
+
+# Wait for wallet actions to load
+- extendedWaitUntil:
+    visible:
+      id: "wallet-actions"
+    timeout: 15000
+
+# Open send BTC screen
+- tapOn:
+    id: "wallet-withdraw-btn"
+- waitForAnimationToEnd
+- extendedWaitUntil:
+    visible:
+      id: "withdraw-btc"
+    timeout: 10000
+- tapOn:
+    id: "withdraw-btc"
+
+# Verify send input screen loads
+- waitForAnimationToEnd
+- extendedWaitUntil:
+    visible:
+      id: "send-input-screen"
+    timeout: 10000
+
+# Tap the address input field
+- extendedWaitUntil:
+    visible:
+      text: "Recipient Bitcoin address.*"
+    timeout: 5000
+- tapOn:
+    text: "Recipient Bitcoin address.*"
+- inputText: "invalidaddress123"
+
+# Dismiss keyboard to trigger validation
+- hideKeyboard
+
+# Verify address error appears
+- extendedWaitUntil:
+    visible:
+      text: "Invalid"
+    timeout: 5000

@@ -1,4 +1,3 @@
-// @ts-nocheck
 /**
  * Tests for usePendingTransactionsStorage Hook
  */
@@ -9,27 +8,27 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import { usePendingTransactionsStorage } from '../usePendingTransactionsStorage';
 
 // Helper to render hooks with react-test-renderer
-function renderHook(hook, { initialProps } = {}) {
-  const result = { current: null };
+function renderHook<T, P = unknown>(hook: (props?: P) => T, { initialProps }: { initialProps?: P } = {}) {
+  const result: { current: T | null } = { current: null };
 
-  function TestComponent({ hookProps }) {
+  function TestComponent({ hookProps }: { hookProps?: P }) {
     result.current = hook(hookProps);
     return null;
   }
 
-  let component;
+  let component: ReturnType<typeof create> | undefined;
   act(() => {
     component = create(<TestComponent hookProps={initialProps} />);
   });
 
   return {
     result,
-    rerender: (newProps) => {
+    rerender: (newProps?: P) => {
       act(() => {
-        component.update(<TestComponent hookProps={newProps} />);
+        component?.update(<TestComponent hookProps={newProps} />);
       });
     },
-    unmount: () => component.unmount(),
+    unmount: () => component?.unmount(),
   };
 }
 
@@ -47,35 +46,37 @@ jest.mock('../../utils/logger', () => ({
   },
 }));
 
+const { logger } = require('../../utils/logger');
+
 describe('usePendingTransactionsStorage', () => {
   const mockAccount = 'account_0';
 
   beforeEach(() => {
     jest.clearAllMocks();
-    AsyncStorage.getItem.mockResolvedValue(null);
-    AsyncStorage.setItem.mockResolvedValue(null);
+    (AsyncStorage.getItem as jest.Mock).mockResolvedValue(null);
+    (AsyncStorage.setItem as jest.Mock).mockResolvedValue(null);
   });
 
   it('should initialize with empty state', () => {
-    const { result } = renderHook((account) => usePendingTransactionsStorage(account), {
+    const { result } = renderHook((account: any) => usePendingTransactionsStorage(account), {
       initialProps: mockAccount,
     });
 
-    expect(result.current.pendingTransactions).toEqual({});
-    expect(result.current.spentUtxos).toBeInstanceOf(Set);
-    expect(result.current.spentUtxos.size).toBe(0);
+    expect(result.current!.pendingTransactions).toEqual({});
+    expect(result.current!.spentUtxos).toBeInstanceOf(Set);
+    expect(result.current!.spentUtxos.size).toBe(0);
   });
 
   it('should load pending transactions on mount', async () => {
     const mockPendingTxs = { 'tx1': { txid: 'tx1', amount: 100000 } };
-    AsyncStorage.getItem.mockImplementation((key) => {
+    (AsyncStorage.getItem as jest.Mock).mockImplementation((key) => {
       if (key === `pending_txs_${mockAccount}`) {
         return Promise.resolve(JSON.stringify(mockPendingTxs));
       }
       return Promise.resolve(null);
     });
 
-    const { result } = renderHook((account) => usePendingTransactionsStorage(account), {
+    const { result } = renderHook((account: any) => usePendingTransactionsStorage(account), {
       initialProps: mockAccount,
     });
 
@@ -85,19 +86,19 @@ describe('usePendingTransactionsStorage', () => {
     });
 
     expect(AsyncStorage.getItem).toHaveBeenCalledWith(`pending_txs_${mockAccount}`);
-    expect(result.current.pendingTransactions).toEqual(mockPendingTxs);
+    expect(result.current!.pendingTransactions).toEqual(mockPendingTxs);
   });
 
   it('should load spent UTXOs on mount', async () => {
     const mockSpentUtxos = ['utxo1', 'utxo2', 'utxo3'];
-    AsyncStorage.getItem.mockImplementation((key) => {
+    (AsyncStorage.getItem as jest.Mock).mockImplementation((key) => {
       if (key === `spent_utxos_${mockAccount}`) {
         return Promise.resolve(JSON.stringify(mockSpentUtxos));
       }
       return Promise.resolve(null);
     });
 
-    const { result } = renderHook((account) => usePendingTransactionsStorage(account), {
+    const { result } = renderHook((account: any) => usePendingTransactionsStorage(account), {
       initialProps: mockAccount,
     });
 
@@ -107,18 +108,18 @@ describe('usePendingTransactionsStorage', () => {
     });
 
     expect(AsyncStorage.getItem).toHaveBeenCalledWith(`spent_utxos_${mockAccount}`);
-    expect(result.current.spentUtxos).toBeInstanceOf(Set);
-    expect(result.current.spentUtxos.has('utxo1')).toBe(true);
-    expect(result.current.spentUtxos.has('utxo2')).toBe(true);
-    expect(result.current.spentUtxos.has('utxo3')).toBe(true);
-    expect(result.current.spentUtxos.size).toBe(3);
+    expect(result.current!.spentUtxos).toBeInstanceOf(Set);
+    expect(result.current!.spentUtxos.has('utxo1')).toBe(true);
+    expect(result.current!.spentUtxos.has('utxo2')).toBe(true);
+    expect(result.current!.spentUtxos.has('utxo3')).toBe(true);
+    expect(result.current!.spentUtxos.size).toBe(3);
   });
 
   it('should reload when account changes', async () => {
     const mockAccount1 = 'account_0';
     const mockAccount2 = 'account_1';
 
-    AsyncStorage.getItem.mockImplementation((key) => {
+    (AsyncStorage.getItem as jest.Mock).mockImplementation((key) => {
       if (key === `pending_txs_${mockAccount1}`) {
         return Promise.resolve(JSON.stringify({ tx1: { txid: 'tx1' } }));
       }
@@ -128,7 +129,7 @@ describe('usePendingTransactionsStorage', () => {
       return Promise.resolve(null);
     });
 
-    const { result, rerender } = renderHook((account) => usePendingTransactionsStorage(account), {
+    const { result, rerender } = renderHook((account: any) => usePendingTransactionsStorage(account), {
       initialProps: mockAccount1,
     });
 
@@ -137,7 +138,7 @@ describe('usePendingTransactionsStorage', () => {
       await new Promise((resolve) => setTimeout(resolve, 0));
     });
 
-    expect(result.current.pendingTransactions).toEqual({ tx1: { txid: 'tx1' } });
+    expect(result.current!.pendingTransactions).toEqual({ tx1: { txid: 'tx1' } });
 
     // Clear mock calls
     jest.clearAllMocks();
@@ -151,13 +152,13 @@ describe('usePendingTransactionsStorage', () => {
     });
 
     expect(AsyncStorage.getItem).toHaveBeenCalledWith(`pending_txs_${mockAccount2}`);
-    expect(result.current.pendingTransactions).toEqual({ tx2: { txid: 'tx2' } });
+    expect(result.current!.pendingTransactions).toEqual({ tx2: { txid: 'tx2' } });
   });
 
   it('should handle missing storage data gracefully', async () => {
-    AsyncStorage.getItem.mockResolvedValue(null);
+    (AsyncStorage.getItem as jest.Mock).mockResolvedValue(null);
 
-    const { result } = renderHook((account) => usePendingTransactionsStorage(account), {
+    const { result } = renderHook((account: any) => usePendingTransactionsStorage(account), {
       initialProps: mockAccount,
     });
 
@@ -165,15 +166,15 @@ describe('usePendingTransactionsStorage', () => {
       await new Promise((resolve) => setTimeout(resolve, 0));
     });
 
-    expect(result.current.pendingTransactions).toEqual({});
-    expect(result.current.spentUtxos.size).toBe(0);
+    expect(result.current!.pendingTransactions).toEqual({});
+    expect(result.current!.spentUtxos.size).toBe(0);
   });
 
   it('should handle storage load errors gracefully', async () => {
     const mockError = new Error('Storage error');
-    AsyncStorage.getItem.mockRejectedValue(mockError);
+    (AsyncStorage.getItem as jest.Mock).mockRejectedValue(mockError);
 
-    const { result } = renderHook((account) => usePendingTransactionsStorage(account), {
+    const { result } = renderHook((account: any) => usePendingTransactionsStorage(account), {
       initialProps: mockAccount,
     });
 
@@ -182,19 +183,97 @@ describe('usePendingTransactionsStorage', () => {
     });
 
     // Should still have initial state
-    expect(result.current.pendingTransactions).toEqual({});
-    expect(result.current.spentUtxos.size).toBe(0);
+    expect(result.current!.pendingTransactions).toEqual({});
+    expect(result.current!.spentUtxos.size).toBe(0);
+  });
+
+  it('should handle non-Error objects in loadPendingTransactions error', async () => {
+    (AsyncStorage.getItem as jest.Mock).mockImplementation((key) => {
+      if (key === `pending_txs_${mockAccount}`) {
+        return Promise.reject('string error');
+      }
+      return Promise.resolve(null);
+    });
+
+    const { result } = renderHook((account: any) => usePendingTransactionsStorage(account), {
+      initialProps: mockAccount,
+    });
+
+    await act(async () => {
+      await new Promise((resolve) => setTimeout(resolve, 0));
+    });
+
+    expect(result.current!.pendingTransactions).toEqual({});
+    expect(logger.error).toHaveBeenCalledWith('Error loading pending transactions:', { error: 'string error' });
+  });
+
+  it('should handle non-Error objects in loadSpentUtxos error', async () => {
+    (AsyncStorage.getItem as jest.Mock).mockImplementation((key) => {
+      if (key === `spent_utxos_${mockAccount}`) {
+        return Promise.reject({ custom: 'error object' });
+      }
+      return Promise.resolve(null);
+    });
+
+    const { result } = renderHook((account: any) => usePendingTransactionsStorage(account), {
+      initialProps: mockAccount,
+    });
+
+    await act(async () => {
+      await new Promise((resolve) => setTimeout(resolve, 0));
+    });
+
+    expect(result.current!.spentUtxos.size).toBe(0);
+    expect(logger.error).toHaveBeenCalledWith('Error loading spent UTXOs:', { error: '[object Object]' });
+  });
+
+  it('should handle non-Error objects in savePendingTransactions error', async () => {
+    (AsyncStorage.setItem as jest.Mock).mockImplementation((key) => {
+      if (key === `pending_txs_${mockAccount}`) {
+        return Promise.reject('save string error');
+      }
+      return Promise.resolve(null);
+    });
+
+    const { result } = renderHook((account: any) => usePendingTransactionsStorage(account), {
+      initialProps: mockAccount,
+    });
+
+    await act(async () => {
+      await result.current!.savePendingTransactions({ tx1: {} });
+    });
+
+    expect(logger.error).toHaveBeenCalledWith('Error saving pending transactions:', { error: 'save string error' });
+  });
+
+  it('should handle non-Error objects in saveSpentUtxos error', async () => {
+    (AsyncStorage.setItem as jest.Mock).mockImplementation((key) => {
+      if (key === `spent_utxos_${mockAccount}`) {
+        return Promise.reject(12345);
+      }
+      return Promise.resolve(null);
+    });
+
+    const { result } = renderHook((account: any) => usePendingTransactionsStorage(account), {
+      initialProps: mockAccount,
+    });
+
+    await act(async () => {
+      await result.current!.saveSpentUtxos(new Set(['utxo1']));
+    });
+
+    expect(logger.error).toHaveBeenCalledWith('Error saving spent UTXOs:', { error: '12345' });
   });
 
   it('should save pending transactions', async () => {
-    const { result } = renderHook((account) => usePendingTransactionsStorage(account), {
+    const { result } = renderHook((account: any) => usePendingTransactionsStorage(account), {
       initialProps: mockAccount,
     });
 
     const newTxs = { tx1: { txid: 'tx1', amount: 100000 } };
 
     await act(async () => {
-      await result.current.savePendingTransactions(newTxs);
+      await result.current!.savePendingTransactions(newTxs);
     });
 
     expect(AsyncStorage.setItem).toHaveBeenCalledWith(
@@ -204,14 +283,14 @@ describe('usePendingTransactionsStorage', () => {
   });
 
   it('should save spent UTXOs', async () => {
-    const { result } = renderHook((account) => usePendingTransactionsStorage(account), {
+    const { result } = renderHook((account: any) => usePendingTransactionsStorage(account), {
       initialProps: mockAccount,
     });
 
     const newSpent = new Set(['utxo1', 'utxo2']);
 
     await act(async () => {
-      await result.current.saveSpentUtxos(newSpent);
+      await result.current!.saveSpentUtxos(newSpent);
     });
 
     expect(AsyncStorage.setItem).toHaveBeenCalledWith(
@@ -221,16 +300,16 @@ describe('usePendingTransactionsStorage', () => {
   });
 
   it('should handle save errors gracefully', async () => {
-    AsyncStorage.setItem.mockRejectedValue(new Error('Save error'));
+    (AsyncStorage.setItem as jest.Mock).mockRejectedValue(new Error('Save error'));
 
-    const { result } = renderHook((account) => usePendingTransactionsStorage(account), {
+    const { result } = renderHook((account: any) => usePendingTransactionsStorage(account), {
       initialProps: mockAccount,
     });
 
     // Should not throw
     await act(async () => {
-      await result.current.savePendingTransactions({ tx1: {} });
-      await result.current.saveSpentUtxos(new Set(['utxo1']));
+      await result.current!.savePendingTransactions({ tx1: {} });
+      await result.current!.saveSpentUtxos(new Set(['utxo1']));
     });
 
     // Errors should be logged but not thrown
@@ -238,35 +317,35 @@ describe('usePendingTransactionsStorage', () => {
   });
 
   it('should update pending transactions state', () => {
-    const { result } = renderHook((account) => usePendingTransactionsStorage(account), {
+    const { result } = renderHook((account: any) => usePendingTransactionsStorage(account), {
       initialProps: mockAccount,
     });
 
-    const newTxs = { tx1: { txid: 'tx1' } };
+    const newTxs = { tx1: { txid: 'tx1' } } as any;
 
     act(() => {
-      result.current.setPendingTransactions(newTxs);
+      result.current!.setPendingTransactions(newTxs);
     });
 
-    expect(result.current.pendingTransactions).toEqual(newTxs);
+    expect(result.current!.pendingTransactions).toEqual(newTxs);
   });
 
   it('should update spent UTXOs state', () => {
-    const { result } = renderHook((account) => usePendingTransactionsStorage(account), {
+    const { result } = renderHook((account: any) => usePendingTransactionsStorage(account), {
       initialProps: mockAccount,
     });
 
     const newSpent = new Set(['utxo1', 'utxo2']);
 
     act(() => {
-      result.current.setSpentUtxos(newSpent);
+      result.current!.setSpentUtxos(newSpent);
     });
 
-    expect(result.current.spentUtxos).toEqual(newSpent);
+    expect(result.current!.spentUtxos).toEqual(newSpent);
   });
 
   it('should not load when account is null', async () => {
-    renderHook((account) => usePendingTransactionsStorage(account), {
+    renderHook((account: any) => usePendingTransactionsStorage(account), {
       initialProps: null,
     });
 
@@ -278,7 +357,7 @@ describe('usePendingTransactionsStorage', () => {
   });
 
   it('should return all expected properties', () => {
-    const { result } = renderHook((account) => usePendingTransactionsStorage(account), {
+    const { result } = renderHook((account: any) => usePendingTransactionsStorage(account), {
       initialProps: mockAccount,
     });
 
@@ -288,9 +367,9 @@ describe('usePendingTransactionsStorage', () => {
     expect(result.current).toHaveProperty('spentUtxos');
     expect(result.current).toHaveProperty('setSpentUtxos');
     expect(result.current).toHaveProperty('saveSpentUtxos');
-    expect(typeof result.current.setPendingTransactions).toBe('function');
-    expect(typeof result.current.savePendingTransactions).toBe('function');
-    expect(typeof result.current.setSpentUtxos).toBe('function');
-    expect(typeof result.current.saveSpentUtxos).toBe('function');
+    expect(typeof result.current!.setPendingTransactions).toBe('function');
+    expect(typeof result.current!.savePendingTransactions).toBe('function');
+    expect(typeof result.current!.setSpentUtxos).toBe('function');
+    expect(typeof result.current!.saveSpentUtxos).toBe('function');
   });
 });

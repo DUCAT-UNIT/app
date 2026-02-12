@@ -259,10 +259,10 @@ const TransactionHistoryMock = ({
     if (isEmpty) return [];
     if (filter === 'vault') return [];
     if (filter === 'btc') {
-      return MOCK_ASSET_TRANSACTIONS.filter(tx => tx.txData?.assetType === 'BTC');
+      return MOCK_ASSET_TRANSACTIONS.filter(tx => tx.txData && 'assetType' in tx.txData && tx.txData.assetType === 'BTC');
     }
     if (filter === 'unit') {
-      return MOCK_ASSET_TRANSACTIONS.filter(tx => tx.txData?.assetType === 'UNIT');
+      return MOCK_ASSET_TRANSACTIONS.filter(tx => tx.txData && 'assetType' in tx.txData && tx.txData.assetType === 'UNIT');
     }
     return MOCK_ASSET_TRANSACTIONS;
   };
@@ -433,14 +433,12 @@ const meta: Meta = {
 };
 
 export default meta;
-type Story = StoryObj;
-
 // =============================================================================
 // STORIES
 // =============================================================================
 
-export const Interactive: Story = {
-  render: (args: StoryProps) => <TransactionHistoryStory {...args} />,
+export const Interactive: StoryObj<StoryProps> = {
+  render: (args) => <TransactionHistoryStory {...args} />,
   args: {
     screenSize: 'L',
     filter: 'all',
@@ -469,8 +467,8 @@ export const Interactive: Story = {
   },
 };
 
-export const Overview: Story = {
-  render: (args: OverviewProps) => <TransactionHistoryOverview {...args} />,
+export const Overview: StoryObj<OverviewProps> = {
+  render: (args) => <TransactionHistoryOverview {...args} />,
   args: {
     filter: 'all',
     isEmpty: false,

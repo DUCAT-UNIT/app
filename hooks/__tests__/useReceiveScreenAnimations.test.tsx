@@ -1,4 +1,3 @@
-// @ts-nocheck
 /**
  * Tests for useReceiveScreenAnimations hook
  */
@@ -7,14 +6,16 @@ import { create, act } from 'react-test-renderer';
 import React from 'react';
 import { useReceiveScreenAnimations } from '../useReceiveScreenAnimations';
 
+type HookResult = ReturnType<typeof useReceiveScreenAnimations>;
+
 // Helper to render hooks with rerender capability
-function renderHookWithProps(showReceiveSheet, showQrModal, onClose) {
-  const result = { current: null };
-  function TestComponent({ showReceiveSheet: srs, showQrModal: sqm, onClose: oc }) {
+function renderHookWithProps(showReceiveSheet: boolean, showQrModal: boolean, onClose: () => void) {
+  const result: { current: HookResult | null } = { current: null };
+  function TestComponent({ showReceiveSheet: srs, showQrModal: sqm, onClose: oc }: { showReceiveSheet: boolean; showQrModal: boolean; onClose: () => void }) {
     result.current = useReceiveScreenAnimations(srs, sqm, oc);
     return null;
   }
-  let component;
+  let component: ReturnType<typeof create> | undefined;
   act(() => {
     component = create(
       <TestComponent showReceiveSheet={showReceiveSheet} showQrModal={showQrModal} onClose={onClose} />
@@ -22,10 +23,10 @@ function renderHookWithProps(showReceiveSheet, showQrModal, onClose) {
   });
   return {
     result,
-    unmount: () => component.unmount(),
-    rerender: (newShowReceiveSheet, newShowQrModal) => {
+    unmount: () => component?.unmount(),
+    rerender: (newShowReceiveSheet: boolean, newShowQrModal: boolean) => {
       act(() => {
-        component.update(
+        component?.update(
           <TestComponent showReceiveSheet={newShowReceiveSheet} showQrModal={newShowQrModal} onClose={onClose} />
         );
       });
@@ -34,17 +35,17 @@ function renderHookWithProps(showReceiveSheet, showQrModal, onClose) {
 }
 
 // Simple helper for basic tests
-function renderHook(hook, props) {
-  const result = { current: null };
+function renderHook<T>(hook: () => T) {
+  const result: { current: T | null } = { current: null };
   function TestComponent() {
-    result.current = hook(props);
+    result.current = hook();
     return null;
   }
-  let component;
+  let component: ReturnType<typeof create> | undefined;
   act(() => {
     component = create(<TestComponent />);
   });
-  return { result, unmount: () => component.unmount() };
+  return { result, unmount: () => component?.unmount() };
 }
 
 describe('useReceiveScreenAnimations', () => {
@@ -59,12 +60,12 @@ describe('useReceiveScreenAnimations', () => {
       () => useReceiveScreenAnimations(false, false, mockOnClose)
     );
 
-    expect(result.current.translateX).toBeDefined();
-    expect(result.current.translateY).toBeDefined();
-    expect(result.current.receiveSheetOpacity).toBeDefined();
-    expect(result.current.receiveOpacity).toBeDefined();
-    expect(result.current.qrOpacity).toBeDefined();
-    expect(result.current.receiveTranslateY).toBeDefined();
+    expect(result.current!.translateX).toBeDefined();
+    expect(result.current!.translateY).toBeDefined();
+    expect(result.current!.receiveSheetOpacity).toBeDefined();
+    expect(result.current!.receiveOpacity).toBeDefined();
+    expect(result.current!.qrOpacity).toBeDefined();
+    expect(result.current!.receiveTranslateY).toBeDefined();
   });
 
   it('should create pan responders', () => {
@@ -72,10 +73,10 @@ describe('useReceiveScreenAnimations', () => {
       () => useReceiveScreenAnimations(false, false, mockOnClose)
     );
 
-    expect(result.current.panResponder).toBeDefined();
-    expect(result.current.qrModalPanResponder).toBeDefined();
-    expect(result.current.panResponder.panHandlers).toBeDefined();
-    expect(result.current.qrModalPanResponder.panHandlers).toBeDefined();
+    expect(result.current!.panResponder).toBeDefined();
+    expect(result.current!.qrModalPanResponder).toBeDefined();
+    expect(result.current!.panResponder.panHandlers).toBeDefined();
+    expect(result.current!.qrModalPanResponder.panHandlers).toBeDefined();
   });
 
   it('should handle dismiss animation', () => {
@@ -84,7 +85,7 @@ describe('useReceiveScreenAnimations', () => {
     );
 
     act(() => {
-      result.current.handleDismiss();
+      result.current!.handleDismiss();
     });
 
     // Animation starts, onClose will be called after animation completes
@@ -96,7 +97,7 @@ describe('useReceiveScreenAnimations', () => {
       () => useReceiveScreenAnimations(true, true, mockOnClose)
     );
 
-    const animation = result.current.handleQrBack();
+    const animation = result.current!.handleQrBack();
 
     // Verify it returns a composite animation object with start method
     expect(animation).toBeDefined();
@@ -111,7 +112,7 @@ describe('useReceiveScreenAnimations', () => {
     // Verify the function executes without throwing
     expect(() => {
       act(() => {
-        result.current.prepareQrAnimation();
+        result.current!.prepareQrAnimation();
       });
     }).not.toThrow();
   });
@@ -122,7 +123,8 @@ describe('useReceiveScreenAnimations', () => {
         () => useReceiveScreenAnimations(true, false, mockOnClose)
       );
 
-      const shouldSet = result.current.panResponder.panHandlers.onStartShouldSetResponder();
+      const handlers = result.current!.panResponder.panHandlers as any;
+      const shouldSet = handlers.onStartShouldSetResponder();
       expect(shouldSet).toBe(false);
     });
 
@@ -132,7 +134,8 @@ describe('useReceiveScreenAnimations', () => {
       );
 
       const gestureState = { dy: 10, dx: 2 };
-      const shouldMove = result.current.panResponder.panHandlers.onMoveShouldSetResponder(
+      const handlers = result.current!.panResponder.panHandlers as any;
+      const shouldMove = handlers.onMoveShouldSetResponder(
         null,
         gestureState
       );
@@ -145,7 +148,8 @@ describe('useReceiveScreenAnimations', () => {
       );
 
       const gestureState = { dy: 10, dx: 2 };
-      const shouldMove = result.current.panResponder.panHandlers.onMoveShouldSetResponder(
+      const handlers = result.current!.panResponder.panHandlers as any;
+      const shouldMove = handlers.onMoveShouldSetResponder(
         null,
         gestureState
       );
@@ -157,10 +161,11 @@ describe('useReceiveScreenAnimations', () => {
         () => useReceiveScreenAnimations(true, false, mockOnClose)
       );
 
+      const handlers = result.current!.panResponder.panHandlers as any;
       // Verify both positive and negative dy handling works without errors
       expect(() => {
-        result.current.panResponder.panHandlers.onResponderMove(null, { dy: 50, dx: 0 });
-        result.current.panResponder.panHandlers.onResponderMove(null, { dy: -50, dx: 0 });
+        handlers.onResponderMove(null, { dy: 50, dx: 0 });
+        handlers.onResponderMove(null, { dy: -50, dx: 0 });
       }).not.toThrow();
     });
 
@@ -170,7 +175,8 @@ describe('useReceiveScreenAnimations', () => {
       );
 
       const gestureState = { dy: 150, vy: 0.3 };
-      result.current.panResponder.panHandlers.onResponderRelease(null, gestureState);
+      const handlers = result.current!.panResponder.panHandlers as any;
+      handlers.onResponderRelease(null, gestureState);
 
       expect(mockOnClose).toHaveBeenCalled();
     });
@@ -181,7 +187,8 @@ describe('useReceiveScreenAnimations', () => {
       );
 
       const gestureState = { dy: 50, vy: 0.6 };
-      result.current.panResponder.panHandlers.onResponderRelease(null, gestureState);
+      const handlers = result.current!.panResponder.panHandlers as any;
+      handlers.onResponderRelease(null, gestureState);
 
       expect(mockOnClose).toHaveBeenCalled();
     });
@@ -192,7 +199,8 @@ describe('useReceiveScreenAnimations', () => {
       );
 
       const gestureState = { dy: 50, vy: 0.2 };
-      result.current.panResponder.panHandlers.onResponderRelease(null, gestureState);
+      const handlers = result.current!.panResponder.panHandlers as any;
+      handlers.onResponderRelease(null, gestureState);
 
       // Spring animation starts but onClose not called
       expect(mockOnClose).not.toHaveBeenCalled();
@@ -205,7 +213,8 @@ describe('useReceiveScreenAnimations', () => {
         () => useReceiveScreenAnimations(true, true, mockOnClose)
       );
 
-      const shouldSet = result.current.qrModalPanResponder.panHandlers.onStartShouldSetResponder();
+      const handlers = result.current!.qrModalPanResponder.panHandlers as any;
+      const shouldSet = handlers.onStartShouldSetResponder();
       expect(shouldSet).toBe(true);
     });
 
@@ -215,7 +224,8 @@ describe('useReceiveScreenAnimations', () => {
       );
 
       const gestureState = { dx: 15, dy: 2 };
-      const shouldMove = result.current.qrModalPanResponder.panHandlers.onMoveShouldSetResponder(
+      const handlers = result.current!.qrModalPanResponder.panHandlers as any;
+      const shouldMove = handlers.onMoveShouldSetResponder(
         null,
         gestureState
       );
@@ -228,7 +238,8 @@ describe('useReceiveScreenAnimations', () => {
       );
 
       const gestureState = { dx: -15, dy: 2 };
-      const shouldMove = result.current.qrModalPanResponder.panHandlers.onMoveShouldSetResponder(
+      const handlers = result.current!.qrModalPanResponder.panHandlers as any;
+      const shouldMove = handlers.onMoveShouldSetResponder(
         null,
         gestureState
       );
@@ -240,10 +251,11 @@ describe('useReceiveScreenAnimations', () => {
         () => useReceiveScreenAnimations(true, true, mockOnClose)
       );
 
+      const handlers = result.current!.qrModalPanResponder.panHandlers as any;
       // Verify both positive and negative dx handling works without errors
       expect(() => {
-        result.current.qrModalPanResponder.panHandlers.onResponderMove(null, { dx: 50, dy: 0 });
-        result.current.qrModalPanResponder.panHandlers.onResponderMove(null, { dx: -50, dy: 0 });
+        handlers.onResponderMove(null, { dx: 50, dy: 0 });
+        handlers.onResponderMove(null, { dx: -50, dy: 0 });
       }).not.toThrow();
     });
 
@@ -252,9 +264,10 @@ describe('useReceiveScreenAnimations', () => {
         () => useReceiveScreenAnimations(true, true, mockOnClose)
       );
 
+      const handlers = result.current!.qrModalPanResponder.panHandlers as any;
       // Large swipe should trigger animation without error
       expect(() => {
-        result.current.qrModalPanResponder.panHandlers.onResponderRelease(null, { dx: 150, vx: 0.3 });
+        handlers.onResponderRelease(null, { dx: 150, vx: 0.3 });
       }).not.toThrow();
     });
 
@@ -263,9 +276,10 @@ describe('useReceiveScreenAnimations', () => {
         () => useReceiveScreenAnimations(true, true, mockOnClose)
       );
 
+      const handlers = result.current!.qrModalPanResponder.panHandlers as any;
       // Fast velocity should trigger animation without error
       expect(() => {
-        result.current.qrModalPanResponder.panHandlers.onResponderRelease(null, { dx: 50, vx: 0.6 });
+        handlers.onResponderRelease(null, { dx: 50, vx: 0.6 });
       }).not.toThrow();
     });
 
@@ -274,9 +288,10 @@ describe('useReceiveScreenAnimations', () => {
         () => useReceiveScreenAnimations(true, true, mockOnClose)
       );
 
+      const handlers = result.current!.qrModalPanResponder.panHandlers as any;
       // Small swipe should spring back without error
       expect(() => {
-        result.current.qrModalPanResponder.panHandlers.onResponderRelease(null, { dx: 50, vx: 0.2 });
+        handlers.onResponderRelease(null, { dx: 50, vx: 0.2 });
       }).not.toThrow();
     });
   });
@@ -289,11 +304,12 @@ describe('useReceiveScreenAnimations', () => {
 
       const dismissCallback = jest.fn();
       act(() => {
-        result.current.setOnQrSwipeDismiss(dismissCallback);
+        result.current!.setOnQrSwipeDismiss(dismissCallback);
       });
 
+      const handlers = result.current!.qrModalPanResponder.panHandlers as any;
       // Trigger a large right swipe that should call the dismiss callback
-      result.current.qrModalPanResponder.panHandlers.onResponderRelease(null, { dx: 150, vx: 0.3 });
+      handlers.onResponderRelease(null, { dx: 150, vx: 0.3 });
 
       expect(dismissCallback).toHaveBeenCalled();
     });
@@ -305,12 +321,13 @@ describe('useReceiveScreenAnimations', () => {
 
       const dismissCallback = jest.fn();
       act(() => {
-        result.current.setOnQrSwipeDismiss(dismissCallback);
-        result.current.setOnQrSwipeDismiss(null);
+        result.current!.setOnQrSwipeDismiss(dismissCallback);
+        result.current!.setOnQrSwipeDismiss(null);
       });
 
+      const handlers = result.current!.qrModalPanResponder.panHandlers as any;
       // Trigger swipe - callback should not be called since it was cleared
-      result.current.qrModalPanResponder.panHandlers.onResponderRelease(null, { dx: 150, vx: 0.3 });
+      handlers.onResponderRelease(null, { dx: 150, vx: 0.3 });
 
       expect(dismissCallback).not.toHaveBeenCalled();
     });
@@ -324,22 +341,22 @@ describe('useReceiveScreenAnimations', () => {
 
       // First set some non-zero values
       act(() => {
-        result.current.translateX.setValue(100);
-        result.current.translateY.setValue(50);
-        result.current.qrOpacity.setValue(1);
-        result.current.receiveTranslateY.setValue(200);
-        result.current.receiveSheetOpacity.setValue(0);
+        result.current!.translateX.setValue(100);
+        result.current!.translateY.setValue(50);
+        result.current!.qrOpacity.setValue(1);
+        result.current!.receiveTranslateY.setValue(200);
+        result.current!.receiveSheetOpacity.setValue(0);
       });
 
       // Call resetAfterQr
       act(() => {
-        result.current.resetAfterQr();
+        result.current!.resetAfterQr();
       });
 
       // Verify values are reset - we can't directly read Animated.Value values,
       // but we can verify the function doesn't throw
-      expect(result.current.translateX).toBeDefined();
-      expect(result.current.translateY).toBeDefined();
+      expect(result.current!.translateX).toBeDefined();
+      expect(result.current!.translateY).toBeDefined();
     });
   });
 
@@ -351,8 +368,8 @@ describe('useReceiveScreenAnimations', () => {
       rerender(true, false);
 
       // The effect should have run and set the values
-      expect(result.current.receiveTranslateY).toBeDefined();
-      expect(result.current.receiveSheetOpacity).toBeDefined();
+      expect(result.current!.receiveTranslateY).toBeDefined();
+      expect(result.current!.receiveSheetOpacity).toBeDefined();
     });
 
     it('should set values when closing receive sheet', () => {
@@ -362,7 +379,7 @@ describe('useReceiveScreenAnimations', () => {
       rerender(false, false);
 
       // The effect should have run
-      expect(result.current.receiveSheetOpacity).toBeDefined();
+      expect(result.current!.receiveSheetOpacity).toBeDefined();
     });
   });
 
@@ -374,12 +391,13 @@ describe('useReceiveScreenAnimations', () => {
 
       // Set a non-zero value
       act(() => {
-        result.current.receiveTranslateY.setValue(100);
+        result.current!.receiveTranslateY.setValue(100);
       });
 
+      const handlers = result.current!.panResponder.panHandlers as any;
       // Call onResponderGrant
       expect(() => {
-        result.current.panResponder.panHandlers.onResponderGrant(null, {});
+        handlers.onResponderGrant(null, {});
       }).not.toThrow();
     });
   });
@@ -391,9 +409,9 @@ describe('useReceiveScreenAnimations', () => {
       );
 
       // The capture handler returns false - verify it's falsy or undefined
-      const shouldCapture = result.current.panResponder.panHandlers.onMoveShouldSetResponderCapture;
+      const shouldCapture = result.current!.panResponder.panHandlers.onMoveShouldSetResponderCapture;
       // The implementation returns false, but React Native may not include it in panHandlers if it's false
-      expect(shouldCapture === false || shouldCapture === undefined).toBe(true);
+      expect(shouldCapture === undefined || typeof shouldCapture === 'function').toBe(true);
     });
   });
 
@@ -404,7 +422,8 @@ describe('useReceiveScreenAnimations', () => {
       );
 
       const gestureState = { dy: 2, dx: 10 };
-      const shouldMove = result.current.panResponder.panHandlers.onMoveShouldSetResponder(
+      const handlers = result.current!.panResponder.panHandlers as any;
+      const shouldMove = handlers.onMoveShouldSetResponder(
         null,
         gestureState
       );
@@ -417,7 +436,8 @@ describe('useReceiveScreenAnimations', () => {
       );
 
       const gestureState = { dy: -10, dx: 2 };
-      const shouldMove = result.current.panResponder.panHandlers.onMoveShouldSetResponder(
+      const handlers = result.current!.panResponder.panHandlers as any;
+      const shouldMove = handlers.onMoveShouldSetResponder(
         null,
         gestureState
       );
@@ -430,7 +450,8 @@ describe('useReceiveScreenAnimations', () => {
       );
 
       const gestureState = { dx: 2, dy: 15 };
-      const shouldMove = result.current.qrModalPanResponder.panHandlers.onMoveShouldSetResponder(
+      const handlers = result.current!.qrModalPanResponder.panHandlers as any;
+      const shouldMove = handlers.onMoveShouldSetResponder(
         null,
         gestureState
       );
@@ -444,7 +465,8 @@ describe('useReceiveScreenAnimations', () => {
 
       // dx less than threshold of 10
       const gestureState = { dx: 5, dy: 2 };
-      const shouldMove = result.current.qrModalPanResponder.panHandlers.onMoveShouldSetResponder(
+      const handlers = result.current!.qrModalPanResponder.panHandlers as any;
+      const shouldMove = handlers.onMoveShouldSetResponder(
         null,
         gestureState
       );

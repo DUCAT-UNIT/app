@@ -1,4 +1,3 @@
-// @ts-nocheck
 /**
  * Tests for PIN Authentication Service
  */
@@ -38,12 +37,12 @@ const mockLoadLockoutState = jest.fn();
 const mockGetMaxPinAttempts = jest.fn();
 
 jest.mock('../pinLockout', () => ({
-  checkPinLockout: (...args) => mockCheckPinLockout(...args),
-  resetPinAttempts: (...args) => mockResetPinAttempts(...args),
-  getRemainingPinAttempts: (...args) => mockGetRemainingPinAttempts(...args),
-  recordFailedAttempt: (...args) => mockRecordFailedAttempt(...args),
-  loadLockoutState: (...args) => mockLoadLockoutState(...args),
-  getMaxPinAttempts: (...args) => mockGetMaxPinAttempts(...args),
+  checkPinLockout: (...args: unknown[]) => mockCheckPinLockout(...args),
+  resetPinAttempts: (...args: unknown[]) => mockResetPinAttempts(...args),
+  getRemainingPinAttempts: (...args: unknown[]) => mockGetRemainingPinAttempts(...args),
+  recordFailedAttempt: (...args: unknown[]) => mockRecordFailedAttempt(...args),
+  loadLockoutState: (...args: unknown[]) => mockLoadLockoutState(...args),
+  getMaxPinAttempts: (...args: unknown[]) => mockGetMaxPinAttempts(...args),
 }));
 
 // Mock pinHashing
@@ -54,11 +53,11 @@ const mockGenerateSaltHmac = jest.fn();
 const mockVerifySaltHmac = jest.fn();
 
 jest.mock('../pinHashing', () => ({
-  generateSalt: (...args) => mockGenerateSalt(...args),
-  hashPin: (...args) => mockHashPin(...args),
-  verifyPinHash: (...args) => mockVerifyPinHash(...args),
-  generateSaltHmac: (...args) => mockGenerateSaltHmac(...args),
-  verifySaltHmac: (...args) => mockVerifySaltHmac(...args),
+  generateSalt: (...args: unknown[]) => mockGenerateSalt(...args),
+  hashPin: (...args: unknown[]) => mockHashPin(...args),
+  verifyPinHash: (...args: unknown[]) => mockVerifyPinHash(...args),
+  generateSaltHmac: (...args: unknown[]) => mockGenerateSaltHmac(...args),
+  verifySaltHmac: (...args: unknown[]) => mockVerifySaltHmac(...args),
 }));
 
 // Typed mock references
@@ -341,8 +340,8 @@ describe('PinService', () => {
       mockHashPin.mockResolvedValue('stored-hash');
       mockVerifyPinHash.mockReturnValue(true);
       mockVerifySaltHmac.mockReturnValue(true);
-      mockResetPinAttempts.mockResolvedValue();
-      mockSetItemAsync.mockResolvedValue(); // For migration
+      mockResetPinAttempts.mockResolvedValue(undefined);
+      mockSetItemAsync.mockResolvedValue(undefined); // For migration
 
       const result = await verifyPin('123456');
 
@@ -451,7 +450,7 @@ describe('PinService', () => {
       const result = await verifyPin('wrong-pin');
 
       expect(result.success).toBe(false);
-      expect(result.error).toBe('Unable to enforce rate limiting. Access denied for security.');
+      expect(result.success === false && result.error).toBe('Unable to enforce rate limiting. Access denied for security.');
     });
 
     it('should handle generic verification errors', async () => {
@@ -460,7 +459,7 @@ describe('PinService', () => {
       const result = await verifyPin('123456');
 
       expect(result.success).toBe(false);
-      expect(result.error).toBe('Failed to verify PIN');
+      expect(result.success === false && result.error).toBe('Failed to verify PIN');
     });
 
     it('should use constant-time comparison', async () => {
@@ -476,8 +475,8 @@ describe('PinService', () => {
       mockHashPin.mockResolvedValue('entered-hash');
       mockVerifyPinHash.mockReturnValue(true);
       mockVerifySaltHmac.mockReturnValue(true);
-      mockResetPinAttempts.mockResolvedValue();
-      mockSetItemAsync.mockResolvedValue(); // For migration
+      mockResetPinAttempts.mockResolvedValue(undefined);
+      mockSetItemAsync.mockResolvedValue(undefined); // For migration
 
       await verifyPin('123456');
 
@@ -504,7 +503,7 @@ describe('PinService', () => {
 
       const result = await verifyPin('wrong-pin');
 
-      expect(result.remainingAttempts).toBe(0); // Math.max(0, 10-15) = 0
+      expect(result.success === false && result.remainingAttempts).toBe(0); // Math.max(0, 10-15) = 0
     });
 
     it('should handle empty stored hash', async () => {
@@ -522,8 +521,10 @@ describe('PinService', () => {
 
       // Should return error when PIN hash is not configured
       expect(result.success).toBe(false);
-      expect(result.error).toBe('PIN not configured. Please set up authentication.');
-      expect(result.remainingAttempts).toBe(0);
+      if (result.success === false) {
+        expect(result.error).toBe('PIN not configured. Please set up authentication.');
+        expect(result.remainingAttempts).toBe(0);
+      }
       // verifyPinHash should not be called when there's no stored hash
       expect(mockVerifyPinHash).not.toHaveBeenCalled();
     });
@@ -540,7 +541,7 @@ describe('PinService', () => {
     });
 
     it('should re-export resetPinAttempts', async () => {
-      mockResetPinAttempts.mockResolvedValue();
+      mockResetPinAttempts.mockResolvedValue(undefined);
 
       await resetPinAttempts();
 

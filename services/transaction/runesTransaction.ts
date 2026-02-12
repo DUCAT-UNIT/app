@@ -8,6 +8,8 @@ import { ERRORS } from '../../utils/messages';
 import { BITCOIN_TX } from '../../utils/constants';
 import { findRuneUtxo, findSatUtxo, RuneUtxo, SatUtxo } from './runesUtxoSelection';
 import { buildRunesPsbt } from './runesPsbtBuilder';
+import { getRecommendedFeeRate } from '../feeEstimationService';
+import { createFeeCalculator } from './utxoSelection';
 
 export interface UnitTransactionIntent {
   id: string;
@@ -89,10 +91,15 @@ export async function createUnitIntent(
     }
 
     // Calculate transaction amounts
-    const fee = BITCOIN_TX.ESTIMATED_TX_FEE;
     const recipientSats = BITCOIN_TX.RUNE_OUTPUT_AMOUNT;
     const runeReturnSats = BITCOIN_TX.RUNE_OUTPUT_AMOUNT;
     const dustLimit = BITCOIN_TX.DUST_LIMIT;
+
+    const feeRate = await getRecommendedFeeRate();
+    const outputCount = BITCOIN_TX.RUNE_OUTPUT_AMOUNT > dustLimit && change > dustLimit ? 4 : 3; // return, recipient, optional change, OP_RETURN
+    const inputCount = runeUtxos.length + 1; // rune inputs + sat input
+    const feeCalculator = createFeeCalculator(feeRate);
+    const fee = feeCalculator(inputCount, outputCount);
 
     // Sum up all rune UTXO values
     const totalRuneUtxoValue = runeUtxos.reduce((sum, utxo) => sum + utxo.value, 0);
@@ -151,15 +158,24 @@ export async function createUnitIntent(
  * @returns Amount in runes (multiplied by 100)
  */
 function parseRuneAmount(amount: string): number {
-  const normalizedAmount = amount.replace(',', '.');
-  const userAmount = parseFloat(normalizedAmount);
-
-  if (isNaN(userAmount) || userAmount <= 0) {
+  const normalized = amount.replace(',', '.').trim();
+  if (!/^\d+(\.\d{1,2})?$/.test(normalized)) {
     throw new Error(ERRORS.INVALID_AMOUNT);
   }
 
-  // Multiply by 100 for runestone encoding (UNIT display amount * 100)
-  // Use Math.round to ensure we get an integer and avoid floating point errors
-  // (e.g., 8.45 * 100 = 844.9999... should become 845, not 844)
-  return Math.round(userAmount * 100);
+  const [whole, frac = ''] = normalized.split('.');
+  const wholeInt = BigInt(whole);
+  const fracInt = BigInt(frac.padEnd(2, '0'));
+
+  const total = wholeInt * 100n + fracInt;
+
+  if (total <= 0) {
+    throw new Error(ERRORS.INVALID_AMOUNT);
+  }
+
+  if (total > BigInt(Number.MAX_SAFE_INTEGER)) {
+    throw new Error(ERRORS.INVALID_AMOUNT);
+  }
+
+  return Number(total);
 }

@@ -36,34 +36,32 @@ describe('WalletHeader', () => {
   });
 
   it('should render without crashing', () => {
-    const { getByText } = render(<WalletHeader {...mockProps} />);
-    expect(getByText('Account 1')).toBeTruthy();
+    const { getByLabelText } = render(<WalletHeader {...mockProps} />);
+    expect(getByLabelText('Account 1 wallet')).toBeTruthy();
   });
 
   it('should display correct account number', () => {
-    const { getByText } = render(<WalletHeader {...mockProps} accountNumber={3} />);
-    expect(getByText('Account 3')).toBeTruthy();
+    const { getByLabelText } = render(<WalletHeader {...mockProps} accountNumber={3} />);
+    expect(getByLabelText('Account 3 wallet')).toBeTruthy();
   });
 
   it('should call onHistoryPress when history button is pressed', () => {
-    const { getByText } = render(<WalletHeader {...mockProps} />);
-    // The icon mock renders the icon name as text
-    fireEvent.press(getByText('transaction_history'));
+    const { getByLabelText } = render(<WalletHeader {...mockProps} />);
+    fireEvent.press(getByLabelText('Transaction history'));
     expect(mockProps.onHistoryPress).toHaveBeenCalledTimes(1);
   });
 
   it('should call onSettingsPress when settings button is pressed', () => {
-    const { getByText } = render(<WalletHeader {...mockProps} />);
-    // The icon mock renders the icon name as text
-    fireEvent.press(getByText('settings'));
+    const { getByLabelText } = render(<WalletHeader {...mockProps} />);
+    fireEvent.press(getByLabelText('Settings'));
     expect(mockProps.onSettingsPress).toHaveBeenCalledTimes(1);
   });
 
   it('should render with different account numbers', () => {
-    const { getByText: getByText1 } = render(<WalletHeader {...mockProps} accountNumber={1} />);
-    const { getByText: getByText2 } = render(<WalletHeader {...mockProps} accountNumber={5} />);
+    const { getByLabelText: getByLabel1 } = render(<WalletHeader {...mockProps} accountNumber={1} />);
+    const { getByLabelText: getByLabel2 } = render(<WalletHeader {...mockProps} accountNumber={5} />);
 
-    expect(getByText1('Account 1')).toBeTruthy();
-    expect(getByText2('Account 5')).toBeTruthy();
+    expect(getByLabel1('Account 1 wallet')).toBeTruthy();
+    expect(getByLabel2('Account 5 wallet')).toBeTruthy();
   });
 });

@@ -1,0 +1,47 @@
+appId: com.ducatprotocol.DucatProtocolWallet
+---
+# Receive QR Valid - Verify receive screen shows valid BTC address with QR and instructions
+# Opens deposit → BTC → verifies QR modal shows Bitcoin receive info with subtitle
+
+- runFlow: ../helpers/import-wallet-typed.yaml
+
+- extendedWaitUntil:
+    visible:
+      id: "wallet-screen"
+    timeout: 15000
+- runFlow: ../helpers/dismiss-low-ecash.yaml
+- runFlow: ../helpers/dismiss-airdrop.yaml
+- runFlow:
+    when:
+      visible:
+        id: "passkey-migration-modal"
+    commands:
+      - tapOn:
+          id: "passkey-skip-btn"
+
+# Open deposit sheet → BTC
+- tapOn:
+    id: "wallet-deposit-btn"
+- waitForAnimationToEnd
+- extendedWaitUntil:
+    visible:
+      id: "deposit-btc"
+    timeout: 10000
+- tapOn:
+    id: "deposit-btc"
+
+# Verify QR modal loaded with Bitcoin receive content
+- waitForAnimationToEnd
+- extendedWaitUntil:
+    visible:
+      text: "Bitcoin address"
+    timeout: 10000
+
+# Verify subtitle instruction text
+- assertVisible:
+    text: "Only use this address to receive Bitcoin."
+
+# Verify Mutinynet banner is present (confirms we're on the QR screen)
+- assertVisible:
+    text: "Mutinynet Edition"
+

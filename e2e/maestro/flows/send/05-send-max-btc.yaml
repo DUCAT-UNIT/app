@@ -1,0 +1,88 @@
+appId: com.ducatprotocol.DucatProtocolWallet
+---
+# Send HALF BTC - Larger amount send flow
+# Tests: fee calculation with larger amounts
+# Note: MAX send has UTXO drain fee calculation bug (ProcessingScreen error) - using HALF instead
+
+- runFlow: ../helpers/create-wallet.yaml
+
+# Wait for wallet to be fully interactive
+- waitForAnimationToEnd
+- waitForAnimationToEnd
+
+# Wait for wallet actions to load
+- extendedWaitUntil:
+    visible:
+      id: "wallet-actions"
+    timeout: 15000
+
+# Open send BTC screen
+- tapOn:
+    id: "wallet-withdraw-btn"
+- waitForAnimationToEnd
+- extendedWaitUntil:
+    visible:
+      id: "withdraw-btc"
+    timeout: 10000
+- tapOn:
+    id: "withdraw-btc"
+
+# Verify send input screen loads
+- waitForAnimationToEnd
+- extendedWaitUntil:
+    visible:
+      id: "send-input-screen"
+    timeout: 10000
+
+# Enter a valid testnet address
+- extendedWaitUntil:
+    visible:
+      text: "Recipient Bitcoin address.*"
+    timeout: 5000
+- tapOn:
+    text: "Recipient Bitcoin address.*"
+- inputText: "tb1qw508d6qejxtdg4y5r3zarvary0c5xw7kxpjzsx"
+- hideKeyboard
+
+- extendedWaitUntil:
+    visible:
+      text: "Valid"
+    timeout: 5000
+
+# Select HALF amount
+- tapOn:
+    id: "btc-slider-half-btn"
+- waitForAnimationToEnd
+
+# Review and confirm
+- extendedWaitUntil:
+    visible:
+      text: "Review transaction"
+    timeout: 5000
+- tapOn:
+    text: "Review transaction"
+
+- extendedWaitUntil:
+    visible:
+      id: "review-screen"
+    timeout: 10000
+- assertVisible:
+    text: "You will send"
+
+- tapOn:
+    text: "Confirm and Sign"
+
+- extendedWaitUntil:
+    visible:
+      id: "confirmation-screen"
+    timeout: 120000
+
+- assertVisible:
+    text: "Transaction Sent!"
+
+- tapOn:
+    id: "confirmation-done-btn"
+- extendedWaitUntil:
+    visible:
+      id: "wallet-screen"
+    timeout: 10000

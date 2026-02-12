@@ -1,0 +1,59 @@
+appId: com.ducatprotocol.DucatProtocolWallet
+---
+# Create Wallet - Passkey PIN creation flow (E2E bypasses native passkey dialog)
+# clearState → welcome → passkey PIN (enter + confirm) → wallet
+
+- runFlow: ../helpers/clear-and-launch.yaml
+
+# Tap create button — first tap may dismiss Expo Dev Client overlay
+- tapOn:
+    id: "welcome-create-wallet-btn"
+
+# If overlay intercepted first tap, we're still on welcome screen — retry
+- runFlow:
+    when:
+      visible:
+        id: "welcome-screen"
+    commands:
+      - tapOn:
+          id: "welcome-create-wallet-btn"
+
+# PasskeyPinInput screen — enter 6-digit PIN
+- extendedWaitUntil:
+    visible:
+      id: "pin-setup-screen"
+    timeout: 30000
+
+# Enter PIN (123456)
+- runFlow: ../helpers/enter-pin-setup.yaml
+
+# Confirm PIN (123456 again)
+- runFlow: ../helpers/enter-pin-setup.yaml
+
+# Skip biometric if prompted
+- runFlow:
+    when:
+      visible:
+        id: "biometric-modal"
+    commands:
+      - tapOn:
+          id: "biometric-skip-btn"
+
+# Wait for airdrop modal — passkey flow is fast so AirdropContext's 3s delay
+# + network request may not have completed yet
+- extendedWaitUntil:
+    visible:
+      text: "Get Started"
+    timeout: 30000
+
+# Dismiss airdrop modal if it appears
+- runFlow: ../helpers/dismiss-airdrop.yaml
+
+# Dismiss low ecash modal if it appears
+- runFlow: ../helpers/dismiss-low-ecash.yaml
+
+# Verify wallet screen loads (may take time after PIN setup)
+- extendedWaitUntil:
+    visible:
+      id: "wallet-screen"
+    timeout: 15000

@@ -1,4 +1,3 @@
-// @ts-nocheck
 /**
  * Tests for usePolling hook
  */
@@ -8,17 +7,17 @@ import { create, act } from 'react-test-renderer';
 import { usePolling } from '../usePolling';
 
 // Helper to render hooks
-function renderHook(hook) {
-  const result = { current: null };
+function renderHook<T>(hook: () => T) {
+  const result: { current: T | null } = { current: null };
   function TestComponent() {
     result.current = hook();
     return null;
   }
-  let component;
+  let component: ReturnType<typeof create> | undefined;
   act(() => {
     component = create(<TestComponent />);
   });
-  return { result, unmount: component.unmount };
+  return { result, unmount: component!.unmount };
 }
 
 describe('usePolling', () => {
@@ -135,7 +134,7 @@ describe('usePolling', () => {
     const onPoll1 = jest.fn(() => { pollCount++; });
     const onPoll2 = jest.fn(() => { pollCount++; });
 
-    function TestComponent({ callback }) {
+    function TestComponent({ callback }: { callback: () => void }) {
       usePolling({
         onPoll: callback,
         interval: 1000,
@@ -144,7 +143,7 @@ describe('usePolling', () => {
       return null;
     }
 
-    let component;
+    let component: ReturnType<typeof create> | undefined;
     act(() => {
       component = create(<TestComponent callback={onPoll1} />);
     });
@@ -158,7 +157,7 @@ describe('usePolling', () => {
 
     // Update to use new callback
     act(() => {
-      component.update(<TestComponent callback={onPoll2} />);
+      component?.update(<TestComponent callback={onPoll2} />);
     });
 
     act(() => {

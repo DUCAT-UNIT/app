@@ -1,0 +1,40 @@
+appId: com.ducatprotocol.DucatProtocolWallet
+---
+# Account Switcher - Enable dev mode then open account switcher modal
+- runFlow: ../helpers/import-wallet-typed.yaml
+- extendedWaitUntil:
+    visible:
+      id: "wallet-screen"
+    timeout: 15000
+- runFlow: ../helpers/dismiss-low-ecash.yaml
+- runFlow: ../helpers/dismiss-airdrop.yaml
+- runFlow:
+    when:
+      visible:
+        id: "passkey-migration-modal"
+    commands:
+      - tapOn:
+          id: "passkey-skip-btn"
+- tapOn:
+    id: "wallet-settings-btn"
+- extendedWaitUntil:
+    visible:
+      id: "settings-screen"
+    timeout: 5000
+- tapOn:
+    id: "settings-advanced-btn"
+- extendedWaitUntil:
+    visible:
+      id: "advanced-screen"
+    timeout: 5000
+- tapOn:
+    id: "advanced-dev-mode-btn"
+- extendedWaitUntil:
+    visible:
+      id: "advanced-switch-account-btn"
+    timeout: 3000
+- tapOn:
+    id: "advanced-switch-account-btn"
+- waitForAnimationToEnd
+- assertVisible:
+    text: "Switch Account"

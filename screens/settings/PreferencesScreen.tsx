@@ -14,7 +14,7 @@ import {
 import { COLORS } from '../../theme';
 import Icon from '../../components/icons';
 import MutinynetBanner from '../../components/MutinynetBanner';
-import { useNavigationHandlers } from '../../contexts/NavigationHandlersContext';
+import { useSettingsHandlers } from '../../contexts/NavigationHandlersContext';
 
 // Get device dimensions for responsive sizing
 const { width: SCREEN_WIDTH } = require('react-native').Dimensions.get('window');
@@ -66,7 +66,7 @@ function PreferencesScreen({ route }: PreferencesScreenProps): React.ReactElemen
   const { onClose } = route.params;
 
   // Get live state from context instead of stale route params
-  const { settingsHandlers } = useNavigationHandlers();
+  const { settingsHandlers } = useSettingsHandlers();
   const {
     handleShowZeroAssetsToggle: onShowZeroAssetsToggle,
     handleNotificationsToggle: onNotificationsToggle,
@@ -78,11 +78,18 @@ function PreferencesScreen({ route }: PreferencesScreenProps): React.ReactElemen
     <View style={localStyles.container} testID="preferences-screen">
       <MutinynetBanner />
       {/* Header with back button and title on same line */}
-      <View style={localStyles.header}>
-        <TouchableOpacity onPress={onClose} style={localStyles.backButton} testID="preferences-back-btn">
+      <View style={localStyles.header} accessibilityRole="header">
+        <TouchableOpacity
+          onPress={onClose}
+          style={localStyles.backButton}
+          testID="preferences-back-btn"
+          accessibilityRole="button"
+          accessibilityLabel="Go back"
+          accessibilityHint="Returns to the settings screen"
+        >
           <Icon name="back" size={24} color={COLORS.VERY_LIGHT_GRAY} />
         </TouchableOpacity>
-        <Text style={localStyles.title}>Preferences</Text>
+        <Text style={localStyles.title} accessibilityRole="header">Preferences</Text>
       </View>
 
       <ScrollView style={localStyles.scrollView} showsVerticalScrollIndicator={false}>
@@ -118,13 +125,25 @@ function SettingsOption({
   isDanger,
   testID
 }: SettingsOptionProps): React.ReactElement {
+  // Build accessibility label with status if available
+  const accessibilityLabel = rightText
+    ? `${title}, currently ${rightText}`
+    : title;
+
   return (
-    <TouchableOpacity style={localStyles.option} onPress={onPress} testID={testID}>
-      <View style={localStyles.optionLeft}>
+    <TouchableOpacity
+      style={localStyles.option}
+      onPress={onPress}
+      testID={testID}
+      accessibilityRole="button"
+      accessibilityLabel={accessibilityLabel}
+      accessibilityHint="Tap to toggle this setting"
+    >
+      <View style={localStyles.optionLeft} accessibilityElementsHidden>
         <Icon name={iconName} size={24} color={isDanger ? COLORS.DANGER_RED : '#DDDDDD'} />
         <Text style={[localStyles.optionTitle, isDanger && localStyles.dangerText]}>{title}</Text>
       </View>
-      <View style={localStyles.optionRight}>
+      <View style={localStyles.optionRight} accessibilityElementsHidden>
         {rightText && <Text style={localStyles.optionRightText}>{rightText}</Text>}
         <Text style={localStyles.optionArrow}>›</Text>
       </View>

@@ -1,4 +1,3 @@
-// @ts-nocheck
 /**
  * Tests for useRedeemCashuToken hook
  * Covers token redemption flow including regular and P2PK tokens
@@ -51,54 +50,57 @@ const mockReceiveP2PKToken = jest.fn();
 const mockReceiveToken = jest.fn();
 
 jest.mock('../../services/cashu/crypto', () => ({
-  decodeToken: (...args) => mockDecodeToken(...args),
+  decodeToken: (...args: unknown[]) => mockDecodeToken(...args),
 }));
 
 jest.mock('../../services/cashu/p2pk', () => ({
-  isP2PKSecret: (...args) => mockIsP2PKSecret(...args),
-  getP2PKRecipient: (...args) => mockGetP2PKRecipient(...args),
-  findAccountForP2PKToken: (...args) => mockFindAccountForP2PKToken(...args),
+  isP2PKSecret: (...args: unknown[]) => mockIsP2PKSecret(...args),
+  getP2PKRecipient: (...args: unknown[]) => mockGetP2PKRecipient(...args),
+  findAccountForP2PKToken: (...args: unknown[]) => mockFindAccountForP2PKToken(...args),
 }));
 
 jest.mock('../../services/secureStorageService', () => ({
-  getCurrentAccount: (...args) => mockGetCurrentAccount(...args),
+  getCurrentAccount: (...args: unknown[]) => mockGetCurrentAccount(...args),
 }));
 
 jest.mock('../../services/cashu/cashuWalletService', () => ({
-  receiveP2PKToken: (...args) => mockReceiveP2PKToken(...args),
-  receiveToken: (...args) => mockReceiveToken(...args),
+  receiveP2PKToken: (...args: unknown[]) => mockReceiveP2PKToken(...args),
+  receiveToken: (...args: unknown[]) => mockReceiveToken(...args),
 }));
 
+// Type for the hook's return value
+type UseRedeemCashuTokenReturn = ReturnType<typeof useRedeemCashuToken>;
+
 // Helper to render hooks with props
-function renderHookWithProps(props) {
-  const result = { current: null };
-  function TestComponent({ hookProps }) {
-    result.current = useRedeemCashuToken(hookProps);
+function renderHookWithProps(props: Record<string, unknown>) {
+  const result: { current: UseRedeemCashuTokenReturn | null } = { current: null };
+  function TestComponent({ hookProps }: { hookProps?: Parameters<typeof useRedeemCashuToken>[0] }) {
+    result.current = useRedeemCashuToken(hookProps!);
     return null;
   }
-  let component;
+  let component: ReturnType<typeof create> | undefined;
   act(() => {
-    component = create(<TestComponent hookProps={props} />);
+    component = create(<TestComponent hookProps={props as unknown as Parameters<typeof useRedeemCashuToken>[0]} />);
   });
   return {
     result,
-    unmount: component.unmount,
+    unmount: component!.unmount,
     component,
-    rerender: (newProps) => {
+    rerender: (newProps?: Record<string, unknown>) => {
       act(() => {
-        component.update(<TestComponent hookProps={newProps} />);
+        component?.update(<TestComponent hookProps={newProps as unknown as Parameters<typeof useRedeemCashuToken>[0]} />);
       });
     },
   };
 }
 
 describe('useRedeemCashuToken', () => {
-  let mockProps;
+  let mockProps: Record<string, unknown>;
 
   beforeEach(() => {
     jest.clearAllMocks();
     mockProps = {
-      fetchTransactionHistory: jest.fn().mockResolvedValue(),
+      fetchTransactionHistory: jest.fn().mockResolvedValue(undefined),
     };
 
     // Default mock implementations
@@ -120,14 +122,14 @@ describe('useRedeemCashuToken', () => {
   it('should return handleRedeemToken function', () => {
     const { result } = renderHookWithProps(mockProps);
 
-    expect(typeof result.current.handleRedeemToken).toBe('function');
+    expect(typeof result.current!.handleRedeemToken).toBe('function');
   });
 
   it('should show prompt when handleRedeemToken is called', () => {
     const { result } = renderHookWithProps(mockProps);
 
     act(() => {
-      result.current.handleRedeemToken();
+      result.current!.handleRedeemToken();
     });
 
     expect(Alert.prompt).toHaveBeenCalledWith(
@@ -145,11 +147,11 @@ describe('useRedeemCashuToken', () => {
     const { result } = renderHookWithProps(mockProps);
 
     act(() => {
-      result.current.handleRedeemToken();
+      result.current!.handleRedeemToken();
     });
 
     // Get the onPress handler from the Redeem button
-    const redeemButton = Alert.prompt.mock.calls[0][2][1];
+    const redeemButton = (Alert.prompt as jest.Mock).mock.calls[0][2][1];
 
     await act(async () => {
       await redeemButton.onPress('');
@@ -162,10 +164,10 @@ describe('useRedeemCashuToken', () => {
     const { result } = renderHookWithProps(mockProps);
 
     act(() => {
-      result.current.handleRedeemToken();
+      result.current!.handleRedeemToken();
     });
 
-    const redeemButton = Alert.prompt.mock.calls[0][2][1];
+    const redeemButton = (Alert.prompt as jest.Mock).mock.calls[0][2][1];
 
     await act(async () => {
       await redeemButton.onPress('   ');
@@ -178,10 +180,10 @@ describe('useRedeemCashuToken', () => {
     const { result } = renderHookWithProps(mockProps);
 
     act(() => {
-      result.current.handleRedeemToken();
+      result.current!.handleRedeemToken();
     });
 
-    const redeemButton = Alert.prompt.mock.calls[0][2][1];
+    const redeemButton = (Alert.prompt as jest.Mock).mock.calls[0][2][1];
 
     await act(async () => {
       await redeemButton.onPress(null);
@@ -194,10 +196,10 @@ describe('useRedeemCashuToken', () => {
     const { result } = renderHookWithProps(mockProps);
 
     act(() => {
-      result.current.handleRedeemToken();
+      result.current!.handleRedeemToken();
     });
 
-    const redeemButton = Alert.prompt.mock.calls[0][2][1];
+    const redeemButton = (Alert.prompt as jest.Mock).mock.calls[0][2][1];
 
     await act(async () => {
       await redeemButton.onPress(undefined);
@@ -208,32 +210,32 @@ describe('useRedeemCashuToken', () => {
 
   it('should memoize handleRedeemToken based on fetchTransactionHistory', () => {
     const { result, rerender } = renderHookWithProps(mockProps);
-    const firstCallback = result.current.handleRedeemToken;
+    const firstCallback = result.current!.handleRedeemToken;
 
     // Same props - callback should be same
     rerender(mockProps);
-    expect(result.current.handleRedeemToken).toBe(firstCallback);
+    expect(result.current!.handleRedeemToken).toBe(firstCallback);
 
     // Different fetchTransactionHistory - callback should change
     rerender({ fetchTransactionHistory: jest.fn() });
-    expect(result.current.handleRedeemToken).not.toBe(firstCallback);
+    expect(result.current!.handleRedeemToken).not.toBe(firstCallback);
   });
 
   it('should return object with handleRedeemToken property', () => {
     const { result } = renderHookWithProps(mockProps);
 
     expect(result.current).toHaveProperty('handleRedeemToken');
-    expect(Object.keys(result.current)).toHaveLength(1);
+    expect(Object.keys(result.current!)).toHaveLength(1);
   });
 
   it('should have cancel and redeem buttons in prompt', () => {
     const { result } = renderHookWithProps(mockProps);
 
     act(() => {
-      result.current.handleRedeemToken();
+      result.current!.handleRedeemToken();
     });
 
-    const promptCall = Alert.prompt.mock.calls[0];
+    const promptCall = (Alert.prompt as jest.Mock).mock.calls[0];
     const buttons = promptCall[2];
 
     expect(buttons).toHaveLength(2);
@@ -247,30 +249,30 @@ describe('useRedeemCashuToken', () => {
     const { result } = renderHookWithProps(mockProps);
 
     act(() => {
-      result.current.handleRedeemToken();
+      result.current!.handleRedeemToken();
     });
 
-    expect(Alert.prompt.mock.calls[0][3]).toBe('plain-text');
+    expect((Alert.prompt as jest.Mock).mock.calls[0][3]).toBe('plain-text');
   });
 
   it('should have correct prompt title', () => {
     const { result } = renderHookWithProps(mockProps);
 
     act(() => {
-      result.current.handleRedeemToken();
+      result.current!.handleRedeemToken();
     });
 
-    expect(Alert.prompt.mock.calls[0][0]).toBe('Redeem Cashu Token');
+    expect((Alert.prompt as jest.Mock).mock.calls[0][0]).toBe('Redeem Cashu Token');
   });
 
   it('should have correct prompt message', () => {
     const { result } = renderHookWithProps(mockProps);
 
     act(() => {
-      result.current.handleRedeemToken();
+      result.current!.handleRedeemToken();
     });
 
-    expect(Alert.prompt.mock.calls[0][1]).toBe('Paste your Cashu token to redeem:');
+    expect((Alert.prompt as jest.Mock).mock.calls[0][1]).toBe('Paste your Cashu token to redeem:');
   });
 
   describe('Token redemption flow', () => {
@@ -278,10 +280,10 @@ describe('useRedeemCashuToken', () => {
       const { result } = renderHookWithProps(mockProps);
 
       act(() => {
-        result.current.handleRedeemToken();
+        result.current!.handleRedeemToken();
       });
 
-      const redeemButton = Alert.prompt.mock.calls[0][2][1];
+      const redeemButton = (Alert.prompt as jest.Mock).mock.calls[0][2][1];
 
       await act(async () => {
         await redeemButton.onPress('cashuAvalidtoken');
@@ -297,10 +299,10 @@ describe('useRedeemCashuToken', () => {
       const { result } = renderHookWithProps(mockProps);
 
       act(() => {
-        result.current.handleRedeemToken();
+        result.current!.handleRedeemToken();
       });
 
-      const redeemButton = Alert.prompt.mock.calls[0][2][1];
+      const redeemButton = (Alert.prompt as jest.Mock).mock.calls[0][2][1];
 
       await act(async () => {
         await redeemButton.onPress('  cashuAvalidtoken  ');
@@ -314,10 +316,10 @@ describe('useRedeemCashuToken', () => {
       const { result } = renderHookWithProps(mockProps);
 
       act(() => {
-        result.current.handleRedeemToken();
+        result.current!.handleRedeemToken();
       });
 
-      const redeemButton = Alert.prompt.mock.calls[0][2][1];
+      const redeemButton = (Alert.prompt as jest.Mock).mock.calls[0][2][1];
 
       await act(async () => {
         await redeemButton.onPress('invalidtoken');
@@ -331,10 +333,10 @@ describe('useRedeemCashuToken', () => {
       const { result } = renderHookWithProps(mockProps);
 
       act(() => {
-        result.current.handleRedeemToken();
+        result.current!.handleRedeemToken();
       });
 
-      const redeemButton = Alert.prompt.mock.calls[0][2][1];
+      const redeemButton = (Alert.prompt as jest.Mock).mock.calls[0][2][1];
 
       await act(async () => {
         await redeemButton.onPress('invalidtoken');
@@ -348,10 +350,10 @@ describe('useRedeemCashuToken', () => {
       const { result } = renderHookWithProps(mockProps);
 
       act(() => {
-        result.current.handleRedeemToken();
+        result.current!.handleRedeemToken();
       });
 
-      const redeemButton = Alert.prompt.mock.calls[0][2][1];
+      const redeemButton = (Alert.prompt as jest.Mock).mock.calls[0][2][1];
 
       await act(async () => {
         await redeemButton.onPress('invalidtoken');
@@ -367,10 +369,10 @@ describe('useRedeemCashuToken', () => {
       const { result } = renderHookWithProps(mockProps);
 
       act(() => {
-        result.current.handleRedeemToken();
+        result.current!.handleRedeemToken();
       });
 
-      const redeemButton = Alert.prompt.mock.calls[0][2][1];
+      const redeemButton = (Alert.prompt as jest.Mock).mock.calls[0][2][1];
 
       await act(async () => {
         await redeemButton.onPress('invalidtoken');
@@ -386,10 +388,10 @@ describe('useRedeemCashuToken', () => {
       const { result } = renderHookWithProps(mockProps);
 
       act(() => {
-        result.current.handleRedeemToken();
+        result.current!.handleRedeemToken();
       });
 
-      const redeemButton = Alert.prompt.mock.calls[0][2][1];
+      const redeemButton = (Alert.prompt as jest.Mock).mock.calls[0][2][1];
 
       await act(async () => {
         await redeemButton.onPress('invalidtoken');
@@ -416,10 +418,10 @@ describe('useRedeemCashuToken', () => {
       const { result } = renderHookWithProps(mockProps);
 
       act(() => {
-        result.current.handleRedeemToken();
+        result.current!.handleRedeemToken();
       });
 
-      const redeemButton = Alert.prompt.mock.calls[0][2][1];
+      const redeemButton = (Alert.prompt as jest.Mock).mock.calls[0][2][1];
 
       await act(async () => {
         await redeemButton.onPress('cashuAp2pktoken');
@@ -439,10 +441,10 @@ describe('useRedeemCashuToken', () => {
       const { result } = renderHookWithProps(mockProps);
 
       act(() => {
-        result.current.handleRedeemToken();
+        result.current!.handleRedeemToken();
       });
 
-      const redeemButton = Alert.prompt.mock.calls[0][2][1];
+      const redeemButton = (Alert.prompt as jest.Mock).mock.calls[0][2][1];
 
       await act(async () => {
         await redeemButton.onPress('cashuAp2pktoken');
@@ -459,10 +461,10 @@ describe('useRedeemCashuToken', () => {
       const { result } = renderHookWithProps(mockProps);
 
       act(() => {
-        result.current.handleRedeemToken();
+        result.current!.handleRedeemToken();
       });
 
-      const redeemButton = Alert.prompt.mock.calls[0][2][1];
+      const redeemButton = (Alert.prompt as jest.Mock).mock.calls[0][2][1];
 
       await act(async () => {
         await redeemButton.onPress('cashuAp2pktoken');
@@ -477,10 +479,10 @@ describe('useRedeemCashuToken', () => {
       const { result } = renderHookWithProps(mockProps);
 
       act(() => {
-        result.current.handleRedeemToken();
+        result.current!.handleRedeemToken();
       });
 
-      const redeemButton = Alert.prompt.mock.calls[0][2][1];
+      const redeemButton = (Alert.prompt as jest.Mock).mock.calls[0][2][1];
 
       await act(async () => {
         await redeemButton.onPress('cashuAp2pktoken');
@@ -503,10 +505,10 @@ describe('useRedeemCashuToken', () => {
       const { result } = renderHookWithProps(mockProps);
 
       act(() => {
-        result.current.handleRedeemToken();
+        result.current!.handleRedeemToken();
       });
 
-      const redeemButton = Alert.prompt.mock.calls[0][2][1];
+      const redeemButton = (Alert.prompt as jest.Mock).mock.calls[0][2][1];
 
       await act(async () => {
         await redeemButton.onPress('cashuAp2pktoken');
@@ -541,10 +543,10 @@ describe('useRedeemCashuToken', () => {
       const { result } = renderHookWithProps(mockProps);
 
       act(() => {
-        result.current.handleRedeemToken();
+        result.current!.handleRedeemToken();
       });
 
-      const redeemButton = Alert.prompt.mock.calls[0][2][1];
+      const redeemButton = (Alert.prompt as jest.Mock).mock.calls[0][2][1];
 
       await act(async () => {
         await redeemButton.onPress('cashuAp2pktoken');
@@ -577,10 +579,10 @@ describe('useRedeemCashuToken', () => {
       const { result } = renderHookWithProps(mockProps);
 
       act(() => {
-        result.current.handleRedeemToken();
+        result.current!.handleRedeemToken();
       });
 
-      const redeemButton = Alert.prompt.mock.calls[0][2][1];
+      const redeemButton = (Alert.prompt as jest.Mock).mock.calls[0][2][1];
 
       await act(async () => {
         await redeemButton.onPress('cashuAp2pktoken');
@@ -598,10 +600,10 @@ describe('useRedeemCashuToken', () => {
       const { result } = renderHookWithProps(mockProps);
 
       act(() => {
-        result.current.handleRedeemToken();
+        result.current!.handleRedeemToken();
       });
 
-      const redeemButton = Alert.prompt.mock.calls[0][2][1];
+      const redeemButton = (Alert.prompt as jest.Mock).mock.calls[0][2][1];
 
       await act(async () => {
         await redeemButton.onPress('cashuAvalidtoken');
@@ -623,10 +625,10 @@ describe('useRedeemCashuToken', () => {
       const { result } = renderHookWithProps(mockProps);
 
       act(() => {
-        result.current.handleRedeemToken();
+        result.current!.handleRedeemToken();
       });
 
-      const redeemButton = Alert.prompt.mock.calls[0][2][1];
+      const redeemButton = (Alert.prompt as jest.Mock).mock.calls[0][2][1];
 
       await act(async () => {
         await redeemButton.onPress('cashuAp2pktoken');
@@ -641,10 +643,10 @@ describe('useRedeemCashuToken', () => {
       const { result } = renderHookWithProps(mockProps);
 
       act(() => {
-        result.current.handleRedeemToken();
+        result.current!.handleRedeemToken();
       });
 
-      const redeemButton = Alert.prompt.mock.calls[0][2][1];
+      const redeemButton = (Alert.prompt as jest.Mock).mock.calls[0][2][1];
 
       await act(async () => {
         await redeemButton.onPress('cashuAvalidtoken');

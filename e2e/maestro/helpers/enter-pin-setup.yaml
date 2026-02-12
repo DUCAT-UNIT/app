@@ -1,0 +1,14 @@
+appId: com.ducatprotocol.DucatProtocolWallet
+---
+- tapOn:
+    id: "pin-keypad-1"
+- tapOn:
+    id: "pin-keypad-2"
+- tapOn:
+    id: "pin-keypad-3"
+- tapOn:
+    id: "pin-keypad-4"
+- tapOn:
+    id: "pin-keypad-5"
+- tapOn:
+    id: "pin-keypad-6"

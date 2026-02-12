@@ -1,6 +1,19 @@
 /**
  * useWithdrawVault Hook
  * Orchestrates the full withdraw flow for removing BTC collateral from an existing vault
+ *
+ * @deprecated This hook is deprecated. Use `useWithdrawVaultNew` from `hooks/vault` instead.
+ * The new implementation uses the unified `useVaultOperation` base hook which consolidates
+ * common patterns across all vault operations (borrow, deposit, repay, withdraw).
+ *
+ * Migration:
+ * ```ts
+ * // Before
+ * import { useWithdrawVault } from '../hooks/useWithdrawVault';
+ *
+ * // After
+ * import { useWithdrawVaultNew } from '../hooks/vault';
+ * ```
  */
 
 import { useCallback, useRef, useEffect, useState } from 'react';
@@ -23,6 +36,7 @@ import { createVaultWallet } from '../services/vaultWalletService';
 import { fetchVaultData, fetchVaultHistory } from '../services/vaultService';
 import { computeLiquidationPrice } from '../utils/vaultUtils';
 import { VAULT_CONFIG } from '../utils/constants';
+import { e2eVaultState } from '../utils/e2eVaultState';
 import { logger } from '../utils/logger';
 import type { WithdrawProcessingStep } from '../stores/withdrawStore';
 import type { VaultProfile } from '@ducat-unit/client-sdk';
@@ -236,6 +250,25 @@ export function useWithdrawVault(): UseWithdrawVaultResult {
     setLoading(true);
     setError(null);
     setCurrentStep('processing');
+
+    // E2E bypass: skip Guardian and simulate instant withdraw
+    if (__DEV__ && process.env.EXPO_PUBLIC_E2E_BYPASS === 'true') {
+      try {
+        for (const step of [1, 2, 3, 4] as WithdrawProcessingStep[]) {
+          updateProcessingStep(step);
+          await new Promise((r) => setTimeout(r, 200));
+        }
+        const fakeTxid = `e2e-withdraw-${Date.now().toString(16)}`;
+        e2eVaultState.btcLocked = Math.max(0, e2eVaultState.btcLocked - withdrawAmountSats / 100_000_000);
+        setVaultTxid(fakeTxid);
+        setCurrentStep('success');
+        logger.info('[useWithdrawVault] E2E bypass: withdraw completed', { fakeTxid, withdrawAmountSats });
+        return { vaultTxid: fakeTxid };
+      } finally {
+        operationInProgressRef.current = false;
+        setLoading(false);
+      }
+    }
 
     try {
       // Step 1: Build VaultProfile and create config

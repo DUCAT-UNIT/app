@@ -1,4 +1,3 @@
-// @ts-nocheck
 /**
  * Tests for useTransactionNotifications hook
  */
@@ -20,7 +19,7 @@ jest.mock('../../utils/logger', () => ({
 jest.mock('react-native', () => ({
   Linking: {
     canOpenURL: jest.fn().mockResolvedValue(true),
-    openURL: jest.fn().mockResolvedValue(),
+    openURL: jest.fn().mockResolvedValue(undefined),
   },
 }));
 
@@ -32,31 +31,39 @@ jest.mock('../../utils/constants', () => ({
 import { Linking } from 'react-native';
 import { getTxUrl, getOrdTxUrl } from '../../utils/constants';
 
+interface UseTransactionNotificationsParams {
+  intentStep: string | undefined;
+  broadcastedTxid: string | undefined;
+  sendAssetType: string | undefined;
+  turboEnabled?: boolean;
+  showSnackbar: (params: unknown) => void;
+}
+
 // Helper to render hooks with props
-function renderHookWithProps(props) {
-  const result = { current: null };
-  function TestComponent({ hookProps }) {
+function renderHookWithProps(props: UseTransactionNotificationsParams) {
+  const result: { current: void | null } = { current: null };
+  function TestComponent({ hookProps }: { hookProps: UseTransactionNotificationsParams }) {
     result.current = useTransactionNotifications(hookProps);
     return null;
   }
-  let component;
+  let component: ReturnType<typeof create> | undefined;
   act(() => {
     component = create(<TestComponent hookProps={props} />);
   });
   return {
     result,
-    unmount: component.unmount,
+    unmount: component!.unmount,
     component,
-    rerender: (newProps) => {
+    rerender: (newProps: UseTransactionNotificationsParams) => {
       act(() => {
-        component.update(<TestComponent hookProps={newProps} />);
+        component?.update(<TestComponent hookProps={newProps} />);
       });
     },
   };
 }
 
 describe('useTransactionNotifications', () => {
-  let showSnackbar;
+  let showSnackbar: jest.Mock;
 
   beforeEach(() => {
     jest.clearAllMocks();
@@ -66,7 +73,7 @@ describe('useTransactionNotifications', () => {
   it('should not show snackbar when broadcastedTxid is null', () => {
     renderHookWithProps({
       intentStep: 'pending',
-      broadcastedTxid: null,
+      broadcastedTxid: undefined,
       sendAssetType: 'unit',
       showSnackbar,
     });
@@ -85,7 +92,7 @@ describe('useTransactionNotifications', () => {
     expect(showSnackbar).toHaveBeenCalledWith(
       expect.objectContaining({
         type: 'submitted',
-        action: 'swap',
+        action: 'unit_send',
         txid: 'txid123',
       })
     );
@@ -102,13 +109,13 @@ describe('useTransactionNotifications', () => {
     expect(showSnackbar).toHaveBeenCalledWith(
       expect.objectContaining({
         type: 'success',
-        action: 'swap',
+        action: 'unit_send',
         txid: 'txid123',
       })
     );
   });
 
-  it('should use withdraw action for non-unit asset type', () => {
+  it('should use btc_send action for non-unit asset type', () => {
     renderHookWithProps({
       intentStep: 'pending',
       broadcastedTxid: 'txid123',
@@ -118,12 +125,12 @@ describe('useTransactionNotifications', () => {
 
     expect(showSnackbar).toHaveBeenCalledWith(
       expect.objectContaining({
-        action: 'withdraw',
+        action: 'btc_send',
       })
     );
   });
 
-  it('should use swap action for unit asset type', () => {
+  it('should use unit_send action for unit asset type', () => {
     renderHookWithProps({
       intentStep: 'pending',
       broadcastedTxid: 'txid123',
@@ -133,7 +140,7 @@ describe('useTransactionNotifications', () => {
 
     expect(showSnackbar).toHaveBeenCalledWith(
       expect.objectContaining({
-        action: 'swap',
+        action: 'unit_send',
       })
     );
   });
@@ -178,7 +185,7 @@ describe('useTransactionNotifications', () => {
   });
 
   it('should not open URL if canOpenURL returns false', async () => {
-    Linking.canOpenURL.mockResolvedValue(false);
+    (Linking.canOpenURL as jest.Mock).mockResolvedValue(false);
 
     renderHookWithProps({
       intentStep: 'pending',

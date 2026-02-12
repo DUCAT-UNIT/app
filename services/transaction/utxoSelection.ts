@@ -5,6 +5,7 @@
 
 import logger from '../../utils/logger';
 import { BITCOIN_TX } from '../../utils/constants';
+import { ERRORS } from '../../utils/messages';
 
 export interface UTXO {
   txid: string;
@@ -148,14 +149,36 @@ export function selectUtxosForTransaction(
     preliminaryChange = totalInput - amountInSats - estimatedFee;
   }
 
+  // Verify sufficient funds
+  if (totalInput < amountInSats + estimatedFee) {
+    logger.warn('[selectUtxos] Insufficient funds', {
+      totalInput,
+      amountInSats,
+      estimatedFee,
+      shortfall: amountInSats + estimatedFee - totalInput,
+    });
+    return {
+      selectedUtxos,
+      totalInput,
+      fee: estimatedFee,
+      change: totalInput - amountInSats - estimatedFee,
+    };
+  }
+
   // Calculate final change
   let change = totalInput - amountInSats - estimatedFee;
   let finalFee = estimatedFee;
 
   // If change is below dust, it goes entirely to miners
   if (change > 0 && change < dustLimit) {
-    finalFee = totalInput - amountInSats;
-    change = 0;
+    logger.warn('[selectUtxos] Change below dust; aborting to avoid silent fee burn', {
+      change,
+      dustLimit,
+      totalInput,
+      amountInSats,
+      estimatedFee,
+    });
+    throw new Error(ERRORS.FEE_TOO_LOW);
   }
 
   return {
@@ -178,6 +201,10 @@ export function createFeeCalculator(feeRate = 1): FeeCalculator {
 
   return (numInputs: number, numOutputs: number): number => {
     const txSize = BASE_TX_SIZE + numInputs * P2WPKH_INPUT_SIZE + numOutputs * P2WPKH_OUTPUT_SIZE;
-    return Math.ceil(txSize * feeRate);
+    const fee = Math.ceil(txSize * feeRate);
+    if (fee <= 0) {
+      throw new Error(ERRORS.FEE_TOO_LOW);
+    }
+    return fee;
   };
 }

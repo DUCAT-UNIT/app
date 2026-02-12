@@ -9,7 +9,7 @@ import { NavigationProp, RouteProp, StackActions } from '@react-navigation/nativ
 import { COLORS } from '../../theme';
 import { useSendFlow, type AssetType } from '../../stores/sendFlowStore';
 import { useTransactionBuild } from '../../contexts/TransactionBuildContext';
-import { usePendingTransactions } from '../../contexts/PendingTransactionsContext';
+import { usePendingTransactionsStore } from '../../stores/pendingTransactionsStore';
 import { logger } from '../../utils/logger';
 import { releaseOrphanedUtxos } from '../../utils/pendingTransactionsUtils';
 
@@ -37,7 +37,7 @@ export default function TurboLoadingScreen({ navigation, route }: TurboLoadingSc
   const { prefillAddress, prefillAmount, assetType, isTurbo, mintQuoteId, mintAmount } = route.params || {};
   const { setSendAssetType, setSendAmount, setSendRecipient, setRequireConfirmedUtxos, intentStep, resetSendFlow, sendAssetType: currentAssetType, sendAmount: currentAmount, sendRecipient: currentRecipient } = useSendFlow();
   const { createSendIntent, sendIntent } = useTransactionBuild();
-  const { getSpentUtxos, unmarkUtxosAsSpent } = usePendingTransactions();
+  const { getSpentUtxos, unmarkUtxosAsSpent } = usePendingTransactionsStore();
   const hasStarted = useRef(false);
   const hasNavigated = useRef(false);
   const errorTimeout = useRef<ReturnType<typeof setTimeout> | null>(null);

@@ -29,9 +29,14 @@ jest.mock('@ducat-unit/client-sdk', () => ({
   },
 }));
 
-// Mock utils/wallet/psbtSigning
-jest.mock('../../../utils/wallet/psbtSigning', () => ({
+// Mock signing service
+jest.mock('../../signing', () => ({
   signPsbtRaw: jest.fn(),
+  signPsbtWithSdkObject: jest.fn(),
+  patchPreProcessFields: jest.fn((psbt) => psbt),
+  patchPostProcessFields: jest.fn((psbt) => psbt),
+  psbtPreProcess: jest.fn(),
+  psbtPostProcess: jest.fn(),
 }));
 
 // Mock @cmdcode/buff

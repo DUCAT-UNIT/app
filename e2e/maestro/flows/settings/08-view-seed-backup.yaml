@@ -1,0 +1,59 @@
+appId: com.ducatprotocol.DucatProtocolWallet
+---
+# View Seed Backup - Verify seed phrase can be viewed from security settings
+# Import wallet → settings → security → backup → PIN → verify seed words display
+
+- runFlow: ../helpers/import-wallet-typed.yaml
+
+# Navigate to settings
+- extendedWaitUntil:
+    visible:
+      id: "wallet-screen"
+    timeout: 15000
+- runFlow: ../helpers/dismiss-low-ecash.yaml
+- runFlow: ../helpers/dismiss-airdrop.yaml
+- runFlow:
+    when:
+      visible:
+        id: "passkey-migration-modal"
+    commands:
+      - tapOn:
+          id: "passkey-skip-btn"
+- tapOn:
+    id: "wallet-settings-btn"
+- extendedWaitUntil:
+    visible:
+      id: "settings-screen"
+    timeout: 5000
+
+# Navigate to security
+- tapOn:
+    id: "settings-security-btn"
+- extendedWaitUntil:
+    visible:
+      id: "security-screen"
+    timeout: 5000
+
+# Wait for screen to settle
+- waitForAnimationToEnd
+
+# Tap backup wallet
+- tapOn:
+    id: "security-backup-btn"
+
+# Enter PIN to authorize viewing seed (app locks to verify identity)
+- extendedWaitUntil:
+    visible:
+      id: "lock-screen"
+    timeout: 10000
+- runFlow: ../helpers/enter-pin-lock.yaml
+
+# Verify seed display screen loads - wait for Show Recovery Phrase button
+- extendedWaitUntil:
+    visible:
+      text: "Show Recovery Phrase"
+    timeout: 10000
+
+# Verify Done button is also visible (confirms we're on seed display)
+- assertVisible:
+    text: "Done"

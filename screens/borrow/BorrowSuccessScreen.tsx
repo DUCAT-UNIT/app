@@ -36,9 +36,8 @@ export default function BorrowSuccessScreen({ navigation, route }: BorrowSuccess
                 state: {
                   routes: [
                     { name: 'WalletHome' },
-                    { name: 'VaultDetail' },
                   ],
-                  index: 1,
+                  index: 0,
                 },
               },
             ],

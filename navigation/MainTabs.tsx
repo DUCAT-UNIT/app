@@ -20,8 +20,8 @@ export default function MainTabs(): React.JSX.Element {
         tabBarStyle: { display: 'none' }, // We'll use custom BottomNavigationBar component
         tabBarActiveTintColor: COLORS.BITCOIN_ORANGE,
         tabBarInactiveTintColor: COLORS.MEDIUM_GRAY,
+        sceneStyle: { backgroundColor: COLORS.DARK_BG },
       }}
-      sceneContainerStyle={{ backgroundColor: COLORS.DARK_BG }}
     >
       <Tab.Screen name="WalletTab" component={WalletStackNavigator} />
     </Tab.Navigator>

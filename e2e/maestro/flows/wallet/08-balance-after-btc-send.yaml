@@ -1,0 +1,96 @@
+appId: com.ducatprotocol.DucatProtocolWallet
+---
+# Balance After BTC Send - Verify balance decreases after real send
+# Confirms tx actually broadcast and balance polling updates
+
+- runFlow: ../helpers/create-wallet.yaml
+
+- waitForAnimationToEnd
+- waitForAnimationToEnd
+
+# Verify initial balance is 0.10000000 from airdrop
+- extendedWaitUntil:
+    visible:
+      text: "0.10000000"
+    timeout: 30000
+
+# Send QTR BTC
+- tapOn:
+    id: "wallet-withdraw-btn"
+- waitForAnimationToEnd
+- extendedWaitUntil:
+    visible:
+      id: "withdraw-btc"
+    timeout: 10000
+- tapOn:
+    id: "withdraw-btc"
+
+- waitForAnimationToEnd
+- extendedWaitUntil:
+    visible:
+      id: "send-input-screen"
+    timeout: 10000
+
+- extendedWaitUntil:
+    visible:
+      text: "Recipient Bitcoin address.*"
+    timeout: 5000
+- tapOn:
+    text: "Recipient Bitcoin address.*"
+- inputText: "tb1qw508d6qejxtdg4y5r3zarvary0c5xw7kxpjzsx"
+- hideKeyboard
+
+- extendedWaitUntil:
+    visible:
+      text: "Valid"
+    timeout: 5000
+
+- tapOn:
+    id: "btc-slider-quarter-btn"
+- waitForAnimationToEnd
+
+- extendedWaitUntil:
+    visible:
+      text: "Review transaction"
+    timeout: 5000
+- tapOn:
+    text: "Review transaction"
+
+- extendedWaitUntil:
+    visible:
+      id: "review-screen"
+    timeout: 10000
+- tapOn:
+    text: "Confirm and Sign"
+
+- extendedWaitUntil:
+    visible:
+      id: "confirmation-screen"
+    timeout: 120000
+- assertVisible:
+    text: "Transaction Sent!"
+
+- tapOn:
+    id: "confirmation-done-btn"
+
+# Back on wallet — balance should no longer show 0.10000000
+# (it will be less due to send amount + fees)
+- extendedWaitUntil:
+    visible:
+      id: "wallet-screen"
+    timeout: 10000
+
+# Wait for balance polling to reflect the change
+# Balance updates may take time on Mutinynet as the mempool processes the tx
+- waitForAnimationToEnd
+- extendedWaitUntil:
+    visible:
+      id: "balance-section"
+    timeout: 10000
+
+# Verify balance is NOT 0.10000000 anymore (confirms tx was broadcast)
+# Use extendedWaitUntil with notVisible to give polling time to refresh
+- extendedWaitUntil:
+    notVisible:
+      text: "0.10000000"
+    timeout: 60000

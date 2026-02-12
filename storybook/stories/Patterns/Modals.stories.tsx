@@ -208,10 +208,8 @@ const meta: Meta = {
 };
 
 export default meta;
-type Story = StoryObj;
-
-export const Modal: Story = {
-  render: (args: ConfigurableProps) => <ConfigurableStory {...args} />,
+export const Modal: StoryObj<ConfigurableProps> = {
+  render: (args) => <ConfigurableStory {...args} />,
   args: {
     type: 'destructive',
     deviceSize: 'L',
@@ -238,12 +236,12 @@ export const Modal: Story = {
   },
 };
 
-export const AllTypes: Story = {
+export const AllTypes: StoryObj = {
   render: () => <AllTypesStory />,
 };
 
-export const DeviceSizeOverview: Story = {
-  render: (args: OverviewProps) => <DeviceSizeOverviewStory {...args} />,
+export const DeviceSizeOverview: StoryObj<OverviewProps> = {
+  render: (args) => <DeviceSizeOverviewStory {...args} />,
   args: {
     type: 'destructive',
   },

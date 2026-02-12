@@ -1,4 +1,3 @@
-// @ts-nocheck
 /**
  * Tests for Passkey PIN Change Service
  * Covers atomicPinChangeWithPasskey and reencryptPasskeyMnemonicAfterPinChange
@@ -7,6 +6,14 @@
 import * as SecureStore from 'expo-secure-store';
 import { SECURE_KEYS } from '../../../utils/constants';
 import { logger } from '../../../utils/logger';
+
+/**
+ * Interface for error objects with optional code and name
+ */
+interface ErrorWithCode extends Error {
+  code?: string;
+  name: string;
+}
 
 // Mock dependencies
 jest.mock('expo-secure-store', () => ({
@@ -445,9 +452,9 @@ describe('Passkey PIN Change', () => {
     });
 
     it('should include error details when iCloud fails', async () => {
-      const error = new Error('Network error');
-      (error as any).code = 'ERR_NETWORK';
-      (error as any).name = 'NetworkError';
+      const error = new Error('Network error') as ErrorWithCode;
+      error.code = 'ERR_NETWORK';
+      error.name = 'NetworkError';
       (saveToICloud as jest.Mock).mockRejectedValue(error);
 
       await reencryptPasskeyMnemonicAfterPinChange(mockNewPin);

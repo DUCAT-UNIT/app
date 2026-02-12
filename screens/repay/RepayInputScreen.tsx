@@ -1,5 +1,8 @@
 /**
  * RepayInputScreen - Enter UNIT repay amount
+ *
+ * @deprecated Use RepayInputScreenNew from screens/vault/screens instead.
+ * This screen will be removed in a future release.
  */
 
 import React, { useEffect, useMemo, useCallback, useState } from 'react';
@@ -240,7 +243,7 @@ export default function RepayInputScreen({ navigation }: RepayInputScreenProps) 
   const hasChanges = previewAmount > 0;
 
   return (
-    <SafeAreaView style={styles.container} edges={['top']}>
+    <SafeAreaView style={styles.container} edges={['top']} testID="vault-repay-input-screen">
       <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : 'height'} style={styles.flex}>
         <ScrollView style={styles.flex} contentContainerStyle={styles.scroll} showsVerticalScrollIndicator={false}>
           {/* Header */}
@@ -321,6 +324,7 @@ export default function RepayInputScreen({ navigation }: RepayInputScreenProps) 
             style={[styles.continueBtn, !canContinue && styles.continueBtnDisabled]}
             onPress={handleContinue}
             disabled={!canContinue}
+            testID="vault-repay-continue-btn"
           >
             <Text style={[styles.continueBtnText, !canContinue && styles.continueBtnTextDisabled]}>
               Continue

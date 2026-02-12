@@ -6,8 +6,8 @@
  * Should be tested via E2E tests.
  */
 
-import React, { createContext, useContext, useState, useRef, useMemo, useCallback, ReactNode, MutableRefObject } from 'react';
-import { Animated, Dimensions, PanResponder, GestureResponderHandlers } from 'react-native';
+import React, { createContext, useContext, useState, useRef, useMemo, useCallback, useEffect, ReactNode, MutableRefObject } from 'react';
+import { Animated, Dimensions, PanResponder, GestureResponderHandlers, AppState } from 'react-native';
 import * as SecureStore from 'expo-secure-store';
 import { withMnemonic } from '../services/secureStorageService';
 import { authenticateWithBiometrics } from '../services/biometricService';
@@ -158,6 +158,34 @@ export const SeedPhraseProvider: React.FC<SeedPhraseProviderProps> = ({ children
     // Keep returnToSettings flag so useSettingsNavigation can re-open settings
     // The flag will be cleared by useSettingsNavigation after re-opening settings
   }, []);
+
+  // SECURITY: Auto-clear seed phrase from memory after 30 seconds
+  useEffect(() => {
+    if (seedPhraseWords.length === 0) return;
+
+    const timer = setTimeout(() => {
+      setSeedPhraseWords([]);
+      setSeedPhraseVisible(false);
+      setViewingSeedPhrase(false);
+    }, 30_000);
+
+    return () => clearTimeout(timer);
+  }, [seedPhraseWords]);
+
+  // SECURITY: Clear seed phrase when app goes to background
+  useEffect(() => {
+    if (seedPhraseWords.length === 0) return;
+
+    const subscription = AppState.addEventListener('change', (nextState) => {
+      if (nextState !== 'active') {
+        setSeedPhraseWords([]);
+        setSeedPhraseVisible(false);
+        setViewingSeedPhrase(false);
+      }
+    });
+
+    return () => subscription.remove();
+  }, [seedPhraseWords]);
 
   const value = useMemo(
     () => ({

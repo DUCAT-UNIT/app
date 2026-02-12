@@ -1,0 +1,51 @@
+appId: com.ducatprotocol.DucatProtocolWallet
+---
+# Vault Max Repay - Repay MAX (all) UNIT debt
+# Creates vault, then repays entire debt at once
+
+- runFlow: ../helpers/create-wallet-with-vault.yaml
+
+# Wait for repay button
+- extendedWaitUntil:
+    visible:
+      id: "wallet-repay-btn"
+    timeout: 10000
+- tapOn:
+    id: "wallet-repay-btn"
+
+- extendedWaitUntil:
+    visible:
+      id: "vault-repay-input-screen"
+    timeout: 10000
+
+# Select MAX repay amount (all debt)
+- tapOn:
+    id: "unit-slider-max-btn"
+- waitForAnimationToEnd
+
+# Continue to confirm
+- tapOn:
+    id: "vault-repay-continue-btn"
+
+- extendedWaitUntil:
+    visible:
+      id: "vault-repay-confirm-screen"
+    timeout: 10000
+- tapOn:
+    id: "vault-repay-confirm-btn"
+
+# Wait for success
+- extendedWaitUntil:
+    visible:
+      id: "vault-repay-success-screen"
+    timeout: 120000
+- assertVisible:
+    text: "Repayment Complete!"
+- tapOn:
+    id: "vault-success-done-btn"
+
+# Verify back on wallet
+- extendedWaitUntil:
+    visible:
+      id: "wallet-screen"
+    timeout: 10000

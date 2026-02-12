@@ -6,6 +6,8 @@ import * as bip39 from 'bip39';
 import { logger } from '../../utils/logger';
 import { hashPinForEncryption } from '../pinService';
 import type { AesGcmKey, EncryptedMnemonicData } from '../../types/crypto';
+import * as SecureStore from 'expo-secure-store';
+import { SECURE_KEYS } from '../../utils/constants';
 // eslint-disable-next-line @typescript-eslint/no-var-requires
 const { subtle, getRandomValues, createHmac } = require('react-native-quick-crypto');
 
@@ -40,8 +42,17 @@ export const deriveEncryptionKey = async (
   isPreHashed = false
 ): Promise<AesGcmKey> => {
   try {
-    // SECURITY: Apply same 10,000 iteration hashing used for PIN verification
-    // This makes brute force ~10,000x harder (1 second → 28 hours)
+    // Device-bound pepper to raise brute force cost beyond 6-digit PIN space
+    let pepper = await SecureStore.getItemAsync(SECURE_KEYS.PASSKEY_PEPPER);
+    if (!pepper) {
+      const bytes = new Uint8Array(16); // 128-bit pepper
+      getRandomValues(bytes);
+      pepper = Buffer.from(bytes).toString('hex');
+      await SecureStore.setItemAsync(SECURE_KEYS.PASSKEY_PEPPER, pepper);
+    }
+
+    // SECURITY: Apply same 310,000 iteration PBKDF2 hashing used for PIN verification
+    // This makes brute force ~310,000x harder per attempt
     let derivedPin: string;
     if (isPreHashed) {
       // Performance optimization: Use pre-computed hash (saves ~500ms)
@@ -54,10 +65,12 @@ export const deriveEncryptionKey = async (
     // Combine passkey data + derived PIN for Apple-proof encryption
     // Apple has passkey but NOT the PIN (and would need 28 hours to brute force)
     const derivedPinBytes = Buffer.from(derivedPin, 'hex');
+    const pepperBytes = Buffer.from(pepper, 'hex');
     const ikm = Buffer.concat([
       Buffer.from(credentialId),
       Buffer.from(userHandle),
       derivedPinBytes,
+      pepperBytes,
     ]);
 
     // RFC 5869 compliant HKDF with SHA-256

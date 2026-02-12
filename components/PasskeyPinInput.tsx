@@ -48,7 +48,7 @@ export default function PasskeyPinInput({
   };
 
   return (
-    <View style={localStyles.container}>
+    <View style={localStyles.container} testID="pin-setup-screen">
       <MutinynetBanner />
 
       {/* Cancel button - top right, below MutinynetBanner */}
@@ -62,7 +62,7 @@ export default function PasskeyPinInput({
 
       <View style={localStyles.contentWrapper}>
         <View style={localStyles.passkeyPinContainer}>
-          <Text style={styles.lockTitle}>{title}</Text>
+          <Text style={styles.lockTitle} testID="pin-setup-title">{title}</Text>
           <Text style={localStyles.passkeyPinSubtitle}>{subtitle}</Text>
 
           <View style={styles.lockPinDots}>
@@ -89,6 +89,7 @@ export default function PasskeyPinInput({
                     key={num}
                     style={styles.lockKey}
                     onPress={() => handleDigit(String(num))}
+                    testID={`pin-keypad-${num}`}
                   >
                     <Text style={styles.lockKeyText}>{num}</Text>
                   </TouchableOpacity>
@@ -100,12 +101,14 @@ export default function PasskeyPinInput({
               <TouchableOpacity
                 style={styles.lockKey}
                 onPress={() => handleDigit('0')}
+                testID="pin-keypad-0"
               >
                 <Text style={styles.lockKeyText}>0</Text>
               </TouchableOpacity>
               <TouchableOpacity
                 style={styles.lockKey}
                 onPress={handleDelete}
+                testID="pin-keypad-delete"
               >
                 <Icon name="delete" size={28} color={COLORS.WHITE} />
               </TouchableOpacity>

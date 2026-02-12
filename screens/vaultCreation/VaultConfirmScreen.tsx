@@ -56,11 +56,14 @@ export default function VaultConfirmScreen({ navigation }: VaultConfirmScreenPro
     try {
       setIsAuthenticating(true);
 
+      // Skip biometric auth in E2E mode
+      const isE2E = __DEV__ && process.env.EXPO_PUBLIC_E2E_BYPASS === 'true';
+
       // Check if biometrics are available
       const hasHardware = await LocalAuthentication.hasHardwareAsync();
       const isEnrolled = await LocalAuthentication.isEnrolledAsync();
 
-      if (hasHardware && isEnrolled) {
+      if (!isE2E && hasHardware && isEnrolled) {
         // Authenticate with biometrics
         const result = await LocalAuthentication.authenticateAsync({
           promptMessage: 'Authenticate to create vault',
@@ -101,7 +104,7 @@ export default function VaultConfirmScreen({ navigation }: VaultConfirmScreenPro
   }, [setCurrentStep, navigation]);
 
   return (
-    <SafeAreaView style={styles.container} edges={['top']}>
+    <SafeAreaView style={styles.container} edges={['top']} testID="vault-create-confirm-screen">
       <ScrollView
         style={styles.scrollView}
         contentContainerStyle={styles.scrollContent}
@@ -198,6 +201,7 @@ export default function VaultConfirmScreen({ navigation }: VaultConfirmScreenPro
           style={[styles.confirmButton, (isLoading || isAuthenticating) && styles.buttonDisabled]}
           onPress={handleConfirm}
           disabled={isLoading || isAuthenticating}
+          testID="vault-create-confirm-btn"
         >
           {isAuthenticating ? (
             <Ionicons name="finger-print" size={20} color={colors.text.white} />

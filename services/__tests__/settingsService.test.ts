@@ -1,4 +1,3 @@
-// @ts-nocheck
 /**
  * Tests for Settings Service
  */
@@ -18,6 +17,17 @@ import {
   exists,
   getMultiple,
   setMultiple,
+  // Convenience methods
+  getBiometricEnabled,
+  setBiometricEnabled,
+  getNotificationsEnabled,
+  setNotificationsEnabled,
+  getShowZeroAssets,
+  setShowZeroAssets,
+  getAutoLockTimeout,
+  setAutoLockTimeout,
+  getCurrentAccount,
+  setCurrentAccount,
 } from '../settingsService';
 import * as SecureStore from 'expo-secure-store';
 
@@ -504,5 +514,204 @@ describe('setMultiple', () => {
     const result = await setMultiple({ key: 'value' });
 
     expect(result).toBe(false);
+  });
+
+  it('should return false on non-Error thrown', async () => {
+    (SecureStore.setItemAsync as jest.Mock).mockRejectedValue('string error');
+
+    const result = await setMultiple({ key: 'value' });
+
+    expect(result).toBe(false);
+  });
+});
+
+// Convenience methods tests
+describe('getBiometricEnabled', () => {
+  beforeEach(() => {
+    jest.clearAllMocks();
+  });
+
+  it('should return biometric enabled state', async () => {
+    (SecureStore.getItemAsync as jest.Mock).mockResolvedValue('true');
+
+    const result = await getBiometricEnabled();
+
+    expect(SecureStore.getItemAsync).toHaveBeenCalledWith(SettingKeys.BIOMETRIC_ENABLED);
+    expect(result).toBe(true);
+  });
+
+  it('should return false as default', async () => {
+    (SecureStore.getItemAsync as jest.Mock).mockResolvedValue(null);
+
+    const result = await getBiometricEnabled();
+
+    expect(result).toBe(false);
+  });
+});
+
+describe('setBiometricEnabled', () => {
+  beforeEach(() => {
+    jest.clearAllMocks();
+  });
+
+  it('should set biometric enabled state', async () => {
+    (SecureStore.setItemAsync as jest.Mock).mockResolvedValue(undefined);
+
+    const result = await setBiometricEnabled(true);
+
+    expect(SecureStore.setItemAsync).toHaveBeenCalledWith(SettingKeys.BIOMETRIC_ENABLED, 'true');
+    expect(result).toBe(true);
+  });
+});
+
+describe('getNotificationsEnabled', () => {
+  beforeEach(() => {
+    jest.clearAllMocks();
+  });
+
+  it('should return notifications enabled state', async () => {
+    (SecureStore.getItemAsync as jest.Mock).mockResolvedValue('true');
+
+    const result = await getNotificationsEnabled();
+
+    expect(SecureStore.getItemAsync).toHaveBeenCalledWith(SettingKeys.NOTIFICATIONS_ENABLED);
+    expect(result).toBe(true);
+  });
+
+  it('should return false as default', async () => {
+    (SecureStore.getItemAsync as jest.Mock).mockResolvedValue(null);
+
+    const result = await getNotificationsEnabled();
+
+    expect(result).toBe(false);
+  });
+});
+
+describe('setNotificationsEnabled', () => {
+  beforeEach(() => {
+    jest.clearAllMocks();
+  });
+
+  it('should set notifications enabled state', async () => {
+    (SecureStore.setItemAsync as jest.Mock).mockResolvedValue(undefined);
+
+    const result = await setNotificationsEnabled(true);
+
+    expect(SecureStore.setItemAsync).toHaveBeenCalledWith(SettingKeys.NOTIFICATIONS_ENABLED, 'true');
+    expect(result).toBe(true);
+  });
+});
+
+describe('getShowZeroAssets', () => {
+  beforeEach(() => {
+    jest.clearAllMocks();
+  });
+
+  it('should return show zero assets state', async () => {
+    (SecureStore.getItemAsync as jest.Mock).mockResolvedValue('true');
+
+    const result = await getShowZeroAssets();
+
+    expect(SecureStore.getItemAsync).toHaveBeenCalledWith(SettingKeys.SHOW_ZERO_ASSETS);
+    expect(result).toBe(true);
+  });
+
+  it('should return false as default', async () => {
+    (SecureStore.getItemAsync as jest.Mock).mockResolvedValue(null);
+
+    const result = await getShowZeroAssets();
+
+    expect(result).toBe(false);
+  });
+});
+
+describe('setShowZeroAssets', () => {
+  beforeEach(() => {
+    jest.clearAllMocks();
+  });
+
+  it('should set show zero assets state', async () => {
+    (SecureStore.setItemAsync as jest.Mock).mockResolvedValue(undefined);
+
+    const result = await setShowZeroAssets(true);
+
+    expect(SecureStore.setItemAsync).toHaveBeenCalledWith(SettingKeys.SHOW_ZERO_ASSETS, 'true');
+    expect(result).toBe(true);
+  });
+});
+
+describe('getAutoLockTimeout', () => {
+  beforeEach(() => {
+    jest.clearAllMocks();
+  });
+
+  it('should return auto lock timeout', async () => {
+    (SecureStore.getItemAsync as jest.Mock).mockResolvedValue('600000');
+
+    const result = await getAutoLockTimeout();
+
+    expect(SecureStore.getItemAsync).toHaveBeenCalledWith(SettingKeys.AUTO_LOCK_TIMEOUT);
+    expect(result).toBe(600000);
+  });
+
+  it('should return 300000 (5 minutes) as default', async () => {
+    (SecureStore.getItemAsync as jest.Mock).mockResolvedValue(null);
+
+    const result = await getAutoLockTimeout();
+
+    expect(result).toBe(300000);
+  });
+});
+
+describe('setAutoLockTimeout', () => {
+  beforeEach(() => {
+    jest.clearAllMocks();
+  });
+
+  it('should set auto lock timeout', async () => {
+    (SecureStore.setItemAsync as jest.Mock).mockResolvedValue(undefined);
+
+    const result = await setAutoLockTimeout(120000);
+
+    expect(SecureStore.setItemAsync).toHaveBeenCalledWith(SettingKeys.AUTO_LOCK_TIMEOUT, '120000');
+    expect(result).toBe(true);
+  });
+});
+
+describe('getCurrentAccount', () => {
+  beforeEach(() => {
+    jest.clearAllMocks();
+  });
+
+  it('should return current account', async () => {
+    (SecureStore.getItemAsync as jest.Mock).mockResolvedValue('1');
+
+    const result = await getCurrentAccount();
+
+    expect(SecureStore.getItemAsync).toHaveBeenCalledWith(SettingKeys.CURRENT_ACCOUNT);
+    expect(result).toBe('1');
+  });
+
+  it('should return "0" as default', async () => {
+    (SecureStore.getItemAsync as jest.Mock).mockResolvedValue(null);
+
+    const result = await getCurrentAccount();
+
+    expect(result).toBe('0');
+  });
+});
+
+describe('setCurrentAccount', () => {
+  beforeEach(() => {
+    jest.clearAllMocks();
+  });
+
+  it('should set current account', async () => {
+    (SecureStore.setItemAsync as jest.Mock).mockResolvedValue(undefined);
+
+    const result = await setCurrentAccount('2');
+
+    expect(SecureStore.setItemAsync).toHaveBeenCalledWith(SettingKeys.CURRENT_ACCOUNT, '2');
+    expect(result).toBe(true);
   });
 });

@@ -1,4 +1,3 @@
-// @ts-nocheck
 /**
  * Tests for Sentry Service
  */
@@ -80,6 +79,26 @@ describe('sentryService', () => {
 
       expect(id1).toBe(id2);
     });
+
+    it('should return stored device ID from AsyncStorage', async () => {
+      const storedId = 'Apple-iPhone13-stored123-abc456';
+      mockGetItem.mockResolvedValue(storedId);
+
+      const deviceId = await sentryService.getDeviceId();
+
+      expect(deviceId).toBe(storedId);
+      expect(mockGetItem).toHaveBeenCalledWith('@ducat_device_id');
+    });
+
+    it('should generate fallback device ID when AsyncStorage throws', async () => {
+      mockGetItem.mockRejectedValue(new Error('Storage error'));
+
+      const deviceId = await sentryService.getDeviceId();
+
+      expect(deviceId).toBeTruthy();
+      expect(typeof deviceId).toBe('string');
+      // Should not call setItem since getItem failed
+    });
   });
 
   describe('initializeSentrySession', () => {
@@ -94,9 +113,27 @@ describe('sentryService', () => {
       await sentryService.initializeSentrySession();
       jest.clearAllMocks();
 
-      await sentryService.initializeSentrySession();
+      const result = await sentryService.initializeSentrySession();
 
+      expect(result).toBeNull(); // Returns null when already initialized
       expect(Sentry.setUser).not.toHaveBeenCalled();
+    });
+
+    it('should return null when initialization fails', async () => {
+      // Make getDeviceId throw by causing AsyncStorage to throw
+      mockGetItem.mockImplementation(() => { throw new Error('Critical storage error'); });
+      // The service will try to generate fallback, so we need to make that fail too
+      // Actually, getDeviceId has its own try-catch, so this won't propagate
+      // Let's mock Sentry.setUser to throw instead
+      (Sentry.setUser as jest.Mock).mockImplementation(() => {
+        throw new Error('Sentry error');
+      });
+
+      const result = await sentryService.initializeSentrySession();
+
+      // Should capture the exception and return null
+      expect(Sentry.captureException).toHaveBeenCalled();
+      expect(result).toBeNull();
     });
   });
 
@@ -376,6 +413,14 @@ describe('sentryService', () => {
           level: 'info',
         })
       );
+    });
+
+    it('should not log if session was never started', () => {
+      // Session not started (reset already done in beforeEach)
+      sentryService.endSession();
+
+      // Should not add breadcrumb since sessionStartTime is null
+      expect(Sentry.addBreadcrumb).not.toHaveBeenCalled();
     });
   });
 

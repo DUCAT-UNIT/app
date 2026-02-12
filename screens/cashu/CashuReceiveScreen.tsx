@@ -18,7 +18,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { useNavigation, NavigationProp, RouteProp } from '@react-navigation/native';
 import QRCode from 'react-native-qrcode-svg';
 import * as Clipboard from 'expo-clipboard';
-import { useCashu } from '../../contexts/CashuContext';
+import { useCashuOperations } from '../../contexts/CashuContext';
 import { COLORS } from '../../theme';
 import Icon from '../../components/icons';
 import TouchableScale from '../../components/common/TouchableScale';
@@ -43,7 +43,7 @@ interface CashuReceiveScreenProps {
 
 export default function CashuReceiveScreen({ route }: CashuReceiveScreenProps): React.JSX.Element {
   const navigation = useNavigation<NavigationProp<Record<string, object | undefined>>>();
-  const { startMint, checkAndCompleteMint, receive } = useCashu();
+  const { startMint, checkAndCompleteMint, receive } = useCashuOperations();
 
   const {
     mode,

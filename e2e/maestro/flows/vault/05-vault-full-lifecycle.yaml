@@ -1,0 +1,109 @@
+appId: com.ducatprotocol.DucatProtocolWallet
+---
+# Vault Full Lifecycle - Deposit → Borrow → Repay ALL → Withdraw ALL
+# Tests zero-debt and zero-collateral edge cases in a single flow
+
+# Step 1: Create wallet with vault (HALF BTC deposit + QTR UNIT borrow)
+- runFlow: ../helpers/create-wallet-with-vault.yaml
+
+# Step 2: Repay ALL UNIT debt
+- extendedWaitUntil:
+    visible:
+      id: "wallet-repay-btn"
+    timeout: 10000
+- tapOn:
+    id: "wallet-repay-btn"
+
+- extendedWaitUntil:
+    visible:
+      id: "vault-repay-input-screen"
+    timeout: 10000
+
+# Repay MAX (all debt)
+- tapOn:
+    id: "unit-slider-max-btn"
+- waitForAnimationToEnd
+
+- tapOn:
+    id: "vault-repay-continue-btn"
+
+- extendedWaitUntil:
+    visible:
+      id: "vault-repay-confirm-screen"
+    timeout: 10000
+- tapOn:
+    id: "vault-repay-confirm-btn"
+
+- extendedWaitUntil:
+    visible:
+      id: "vault-repay-success-screen"
+    timeout: 120000
+- assertVisible:
+    text: "Repayment Complete!"
+- tapOn:
+    id: "vault-success-done-btn"
+
+# Step 3: Withdraw BTC collateral (possible now that debt = 0)
+- extendedWaitUntil:
+    visible:
+      id: "wallet-screen"
+    timeout: 10000
+- waitForAnimationToEnd
+- waitForAnimationToEnd
+
+# Wait for vault state to refresh after repay TX
+- swipe:
+    direction: DOWN
+    duration: 500
+- waitForAnimationToEnd
+
+# Use withdraw button → select vault withdrawal from sheet
+- extendedWaitUntil:
+    visible:
+      id: "wallet-withdraw-btn"
+    timeout: 10000
+- tapOn:
+    id: "wallet-withdraw-btn"
+- waitForAnimationToEnd
+
+- extendedWaitUntil:
+    visible:
+      id: "withdraw-vault"
+    timeout: 10000
+- tapOn:
+    id: "withdraw-vault"
+
+- extendedWaitUntil:
+    visible:
+      id: "vault-withdraw-input-screen"
+    timeout: 10000
+
+# Withdraw HALF collateral (conservative — avoids UTXO conflict with unconfirmed repay TX)
+- tapOn:
+    id: "btc-slider-half-btn"
+- waitForAnimationToEnd
+
+- tapOn:
+    id: "vault-withdraw-continue-btn"
+
+- extendedWaitUntil:
+    visible:
+      id: "vault-withdraw-confirm-screen"
+    timeout: 10000
+- tapOn:
+    id: "vault-withdraw-confirm-btn"
+
+- extendedWaitUntil:
+    visible:
+      id: "vault-withdraw-success-screen"
+    timeout: 120000
+- assertVisible:
+    text: "Withdrawal Complete!"
+- tapOn:
+    id: "vault-success-done-btn"
+
+# Verify back on wallet
+- extendedWaitUntil:
+    visible:
+      id: "wallet-screen"
+    timeout: 10000

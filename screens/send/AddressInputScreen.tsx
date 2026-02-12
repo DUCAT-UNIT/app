@@ -21,7 +21,7 @@ import { validateBitcoinAddress } from '../../utils/bitcoin';
 import { useSendFlowStore, type AssetType } from '../../stores/sendFlowStore';
 import { useKeyboard } from '../../hooks/useKeyboard';
 import { logger } from '../../utils/logger';
-import { useNavigationHandlers } from '../../contexts/NavigationHandlersContext';
+import { useSettingsHandlers } from '../../contexts/NavigationHandlersContext';
 import { useResponsive } from '../../hooks/useResponsive';
 import styles from './AddressInputScreen.styles';
 
@@ -53,7 +53,7 @@ export default function AddressInputScreen({ navigation, route }: AddressInputSc
   const setSendAddressType = useSendFlowStore((state) => state.setSendAddressType);
   const setSendAssetType = useSendFlowStore((state) => state.setSendAssetType);
   const setTurboEnabled = useSendFlowStore((state) => state.setTurboEnabled);
-  const { settingsHandlers } = useNavigationHandlers();
+  const { settingsHandlers } = useSettingsHandlers();
   const advancedMode = settingsHandlers?.advancedMode || false;
   const { keyboardHeight } = useKeyboard();
   const { s, sf, scale } = useResponsive();
@@ -83,9 +83,16 @@ export default function AddressInputScreen({ navigation, route }: AddressInputSc
   useEffect(() => {
     const { prefillAddress, prefillAmount } = route.params || {};
     if (prefillAddress) {
+      // SECURITY: Validate prefilled address before using (deep link injection defense)
+      const validation = validateBitcoinAddress(prefillAddress);
+      if (!validation.valid) {
+        logger.warn('AddressInputScreen: Rejected invalid prefilled address from deep link');
+        return;
+      }
       logger.debug('AddressInputScreen: Prefilling address from params:', prefillAddress);
       handleRecipientChange(prefillAddress);
-      if (prefillAmount) {
+      // SECURITY: Validate prefilled amount is a valid positive number
+      if (prefillAmount && /^\d+(\.\d+)?$/.test(prefillAmount) && parseFloat(prefillAmount) > 0) {
         setTimeout(() => {
           navigation.navigate('AmountInput', { prefillAmount, autoAdvance: true });
         }, 100);
@@ -102,8 +109,8 @@ export default function AddressInputScreen({ navigation, route }: AddressInputSc
   const handlePaste = async () => {
     const text = await Clipboard.getStringAsync();
     if (text) {
-      // Only use first line (remove newlines and extra whitespace)
-      const firstLine = text.split(/[\r\n]/)[0].trim();
+      // Only use first line, strip control chars, enforce max length (bech32m max ~90 chars)
+      const firstLine = text.split(/[\r\n]/)[0].trim().replace(/[^\x20-\x7E]/g, '').slice(0, 128);
       handleRecipientChange(firstLine);
       setTimeout(() => addressInputRef.current?.focus(), 50);
     }

@@ -13,8 +13,8 @@ import { COLORS } from '../../theme';
 import { useBalance, useTransactionHistory, useVaultData } from '../../contexts/WalletDataContext';
 import { usePrice } from '../../stores/priceStore';
 import { useWallet } from '../../contexts/WalletContext';
-import { useCashu } from '../../contexts/CashuContext';
-import { usePendingTransactions } from '../../contexts/PendingTransactionsContext';
+import { useCashuBalanceState } from '../../contexts/CashuContext';
+import { usePendingTransactionsStore } from '../../stores/pendingTransactionsStore';
 import { useWalletCalculations } from '../../hooks/useWalletCalculations';
 import {
   AssetHeader,
@@ -84,9 +84,9 @@ function AssetDetailScreen({ route = {}, navigation }: AssetDetailScreenProps): 
   const { segwitBalance, runesBalance, loadingBalance } = useBalance();
   const { btcPrice } = usePrice();
   const { wallet } = useWallet();
-  const { balance: cashuBalance, isLoading: loadingCashu } = useCashu();
+  const { balance: cashuBalance, isLoading: loadingCashu } = useCashuBalanceState();
   const { transactionHistory, loadingTransactionHistory, fetchTransactionHistory } = useTransactionHistory();
-  const { getSpentUtxos, unmarkUtxosAsSpent } = usePendingTransactions();
+  const { getSpentUtxos, unmarkUtxosAsSpent } = usePendingTransactionsStore();
 
   // Vault data from shared context (participates in 10s polling)
   const { vaultData, loadingVault } = useVaultData();
@@ -265,7 +265,7 @@ function AssetDetailScreen({ route = {}, navigation }: AssetDetailScreenProps): 
 
   return (
     <>
-      <SafeAreaView style={styles.container}>
+      <SafeAreaView style={styles.container} testID="asset-detail-screen">
         <AssetHeader onBackPress={() => navigation.goBack()} />
 
         <Animated.ScrollView
