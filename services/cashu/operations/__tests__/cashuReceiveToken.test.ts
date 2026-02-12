@@ -29,6 +29,7 @@ jest.mock('../../../../utils/logger', () => ({
 jest.mock('../../cashuMintClient', () => ({
   MINT_URL: 'https://mint.test.com',
   swapTokens: jest.fn(),
+  checkProofsSpent: jest.fn(async () => ({ states: [] })),
 }));
 
 jest.mock('../../crypto', () => ({
@@ -45,6 +46,7 @@ jest.mock('../../p2pk', () => ({
   findAccountForP2PKToken: jest.fn(),
   getP2PKPrivateKey: jest.fn(),
   signP2PKProofs: jest.fn(),
+  verifyP2PKWitness: jest.fn().mockResolvedValue(true),
 }));
 
 jest.mock('../../../secureStorageService', () => ({

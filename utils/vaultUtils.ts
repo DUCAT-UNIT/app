@@ -111,11 +111,10 @@ export function getMaxUnitRounded(btc: number, bitcoinPrice: number | undefined)
  * Computes the liquidation price threshold
  * @param unitInVault - Total UNIT in vault
  * @param btcInVault - Total BTC in vault
- * @returns Liquidation price in USD, or Infinity if no debt (cannot be liquidated)
+ * @returns Liquidation price in USD, or 0 if no debt/collateral (cannot be liquidated)
  */
 export function computeLiquidationPrice(unitInVault: number, btcInVault: number): number {
-  if (btcInVault === 0) return 0;
-  if (unitInVault === 0) return Infinity;
+  if (btcInVault === 0 || unitInVault === 0) return 0;
   const tholdPrice = (unitInVault * VAULT_CONFIG.LIQUIDATION_RATE) / btcInVault;
   return Math.floor(tholdPrice * 100) / 100;
 }
@@ -133,8 +132,21 @@ export function computeHealthFactor(
   unitInVault: number
 ): number {
   if (unitInVault === 0) return 0;
-  const factor = ((btcInVault * bitcoinPrice) / unitInVault) * 100;
-  return Number.isFinite(factor) ? Math.round(factor) : 0;
+  // Use bigint math to avoid overflow for large positions while keeping original units.
+  const scaledBtc = BigInt(Math.trunc(btcInVault * 1e8));       // sats
+  const scaledPrice = BigInt(Math.trunc(bitcoinPrice * 1e2));   // cents
+  const scaledUnit = BigInt(Math.trunc(unitInVault * 1e2));     // UNIT cents
+
+  if (scaledUnit === 0n) return 0;
+
+  // health = (btc * price / unit) * 100
+  // We scaled btc by 1e8, price by 1e2, unit by 1e2.
+  // Multiply by 100 then divide by 1e8 to remove btc scaling.
+  const factorBig = (scaledBtc * scaledPrice * 100n) / (scaledUnit * 1_0000_0000n);
+  const factor = Number(factorBig);
+  // SECURITY: Use Math.floor to always show conservative (worse) health factor
+  // Math.round could show 160% for 159.5%, hiding that vault is below minimum threshold
+  return Number.isFinite(factor) ? Math.floor(factor) : 0;
 }
 
 /**

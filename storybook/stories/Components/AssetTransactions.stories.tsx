@@ -76,14 +76,14 @@ const getScaledStyles = (config: DeviceConfig) => ({
   },
   balanceWithIcon: {
     ...wallet.balanceWithIcon,
-    alignItems: 'center',
+    alignItems: 'center' as const,
   },
   // Amount column - right aligned with fixed min width for vertical alignment
   historyTxColumn3: {
     ...history.historyTxColumn3,
     minWidth: config.minWidth,
-    alignItems: 'flex-end',
-    justifyContent: 'center',
+    alignItems: 'flex-end' as const,
+    justifyContent: 'center' as const,
   },
   // Logo size for the main asset icon
   logoSize: config.iconSize,
@@ -594,7 +594,7 @@ export const VaultTransaction: Story = {
     assetType: { table: { disable: true } },
     action: { table: { disable: true } },
     status: { table: { disable: true } },
-  },
+  } as any,
 };
 
 // ============================================================================

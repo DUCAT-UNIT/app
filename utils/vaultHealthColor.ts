@@ -12,6 +12,6 @@ import { colors } from '../styles/theme';
  */
 export function getHealthColor(health: number): string {
   if (health >= 200) return colors.semantic.success;
-  if (health > 160) return '#fde37b';
+  if (health >= 161) return '#fde37b';
   return colors.semantic.error;
 }

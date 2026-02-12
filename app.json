@@ -32,8 +32,6 @@
       "infoPlist": {
         "UIBackgroundModes": [
           "remote-notification",
-          "fetch",
-          "remote-notification",
           "fetch"
         ],
         "NSFaceIDUsageDescription": "We use Face ID to securely authenticate and protect your wallet.",
@@ -47,7 +45,7 @@
         "backgroundColor": "#111015"
       },
       "edgeToEdgeEnabled": true,
-      "package": "com.anonymous.SimpleWallet"
+      "package": "com.ducatprotocol.DucatProtocolWallet"
     },
     "web": {
       "favicon": "./assets/logos/favicon.png"

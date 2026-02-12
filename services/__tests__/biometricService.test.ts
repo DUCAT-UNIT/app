@@ -32,6 +32,8 @@ jest.mock('../../utils/logger', () => ({
 // Mock pinLockout
 jest.mock('../pinLockout', () => ({
   resetPinAttempts: jest.fn().mockResolvedValue(undefined),
+  loadLockoutState: jest.fn().mockResolvedValue({ failedAttempts: 0, lockoutUntil: null }),
+  recordFailedAttempt: jest.fn().mockResolvedValue({ shouldLockout: false, newFailedAttempts: 1 }),
 }));
 
 // Typed mock references

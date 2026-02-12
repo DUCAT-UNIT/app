@@ -307,10 +307,8 @@ const meta: Meta = {
 };
 
 export default meta;
-type Story = StoryObj;
-
-export const BottomSheetDemo: Story = {
-  render: (args: ConfigurableProps) => <ConfigurableStory {...args} />,
+export const BottomSheetDemo: StoryObj<ConfigurableProps> = {
+  render: (args) => <ConfigurableStory {...args} />,
   args: {
     sheetType: 'asset_select',
     deviceSize: 'L',
@@ -329,7 +327,7 @@ export const BottomSheetDemo: Story = {
   },
 };
 
-export const AllTypes: Story = {
+export const AllTypes: StoryObj = {
   render: () => <AllTypesStory />,
 };
 

@@ -14,7 +14,7 @@ import {
 import { COLORS } from '../../theme';
 import Icon from '../../components/icons';
 import MutinynetBanner from '../../components/MutinynetBanner';
-import { useNavigationHandlers } from '../../contexts/NavigationHandlersContext';
+import { useSettingsHandlers } from '../../contexts/NavigationHandlersContext';
 
 // Get device dimensions for responsive sizing
 const { width: SCREEN_WIDTH } = require('react-native').Dimensions.get('window');
@@ -58,7 +58,7 @@ const SecurityScreen = React.memo(function SecurityScreen({ route }: SecurityScr
   const { onClose } = route.params;
 
   // Get live state from context instead of stale route params
-  const { settingsHandlers, biometricEnabled } = useNavigationHandlers();
+  const { settingsHandlers, biometricEnabled } = useSettingsHandlers();
   const {
     handleFaceIdToggle: onFaceIdToggle,
     handleChangePin: onChangePin,

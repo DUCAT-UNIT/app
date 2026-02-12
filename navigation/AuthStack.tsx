@@ -8,7 +8,7 @@ import { createStackNavigator } from '@react-navigation/stack';
 import { withErrorBoundary } from '../components/withErrorBoundary';
 import OnboardingPageComponent from '../pages/OnboardingPage';
 import { useOnboardingFlow } from '../contexts/AuthContext';
-import { useNavigationHandlers } from '../contexts/NavigationHandlersContext';
+import { useAuthFlowHandlers } from '../contexts/NavigationHandlersContext';
 import { useBalance, useTransactionHistory } from '../contexts/WalletDataContext';
 import { useNotifications } from '../stores/notificationStore';
 import { useKeyboard } from '../hooks/useKeyboard';
@@ -40,7 +40,7 @@ export default function AuthStack(): React.JSX.Element {
     handlePinChangeCompleteWrapper,
     handleCancelPinChange,
     handleLockScreenAuthenticatedWrapper,
-  } = useNavigationHandlers();
+  } = useAuthFlowHandlers();
 
   return (
     <Stack.Navigator

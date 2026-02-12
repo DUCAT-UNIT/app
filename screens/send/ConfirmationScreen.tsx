@@ -14,7 +14,7 @@ import { COLORS } from '../../theme';
 import Icon from '../../components/icons';
 import { useTransactionHistory } from '../../contexts/WalletDataContext';
 import { useWallet } from '../../contexts/WalletContext';
-import { useCashu } from '../../contexts/CashuContext';
+import { useCashuOperations } from '../../contexts/CashuContext';
 import { logger } from '../../utils/logger';
 import { useConfirmationParams } from '../../hooks/useConfirmationParams';
 import { useTurboMintCompletion } from '../../hooks/useTurboMintCompletion';
@@ -53,7 +53,7 @@ interface ConfirmationScreenProps {
 export default function ConfirmationScreen({ navigation, route }: ConfirmationScreenProps): React.JSX.Element {
   const { fetchTransactionHistory } = useTransactionHistory();
   const { wallet } = useWallet();
-  const { refresh: refreshCashuBalance } = useCashu();
+  const { refresh: refreshCashuBalance } = useCashuOperations();
   const { s, sf } = useResponsive();
   const { showToast } = useNotifications();
 

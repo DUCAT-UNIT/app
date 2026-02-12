@@ -28,7 +28,7 @@ import { useAuth, useOnboardingFlow } from '../contexts/AuthContext';
 import { useWallet } from '../contexts/WalletContext';
 import { useAirdrop } from '../contexts/AirdropContext';
 import { useSeedPhrase } from '../contexts/SeedPhraseContext';
-import { useNavigationHandlers } from '../contexts/NavigationHandlersContext';
+import { useSettingsHandlers, useAccountSwitcherContext } from '../contexts/NavigationHandlersContext';
 import { useNotifications } from '../stores/notificationStore';
 import type { WalletAddresses } from '../contexts/WalletContext';
 
@@ -45,7 +45,7 @@ import styles from '../styles';
 function EcashThresholdSheetGlobal() {
   const visible = useEcashThresholdSheetStore((state) => state.visible);
   const hide = useEcashThresholdSheetStore((state) => state.hide);
-  const { settingsHandlers } = useNavigationHandlers();
+  const { settingsHandlers } = useSettingsHandlers();
 
   const handleSelectThreshold = (value: number) => {
     const onSelect = getThresholdSheetOnSelect();
@@ -86,7 +86,7 @@ export default function AppNavigatorContent({
   const { setIsAuthenticated } = useAuth();
   const { wallet } = useWallet();
 
-  // Navigation handlers from context
+  // Settings handlers from context
   const {
     settingsHandlers,
     biometricEnabled,
@@ -102,13 +102,17 @@ export default function AppNavigatorContent({
     cancelFaceIdToggle,
     confirmNotificationsToggle,
     cancelNotificationsToggle,
+  } = useSettingsHandlers();
+
+  // Account switcher from context
+  const {
     showAccountPicker,
     setShowAccountPicker,
     newAccountIndex,
     setNewAccountIndex,
     switchingAccount,
     switchAccount,
-  } = useNavigationHandlers();
+  } = useAccountSwitcherContext();
 
   // Onboarding context
   const { setSeedConfirmed } = useOnboardingFlow();
@@ -140,34 +144,7 @@ export default function AppNavigatorContent({
   });
 
   // Check for pending turbo transaction on startup
-  const pendingTurboChecked = useRef(false);
-  const pendingTurboState = useRef<{ sendAmount: string; sendRecipient: string } | null>(null);
-
-  useEffect(() => {
-    if (pendingTurboChecked.current || isLoading) return;
-    pendingTurboChecked.current = true;
-
-    const checkPendingTurbo = async () => {
-      const pendingState = await checkPendingTurboTransaction();
-      if (pendingState && pendingState.isProcessing) {
-        logger.info('[AppNavigatorContent] Found pending turbo transaction, will resume:', {
-          amount: pendingState.sendAmount,
-          recipient: pendingState.sendRecipient,
-        });
-        // Store for navigation to pick up
-        pendingTurboState.current = {
-          sendAmount: pendingState.sendAmount,
-          sendRecipient: pendingState.sendRecipient,
-        };
-        // Set the send flow state so TurboProcessingScreen has the data
-        useSendFlowStore.getState().setSendAmount(pendingState.sendAmount);
-        useSendFlowStore.getState().setSendRecipient(pendingState.sendRecipient);
-        useSendFlowStore.getState().setSendAssetType('unit');
-      }
-    };
-
-    checkPendingTurbo();
-  }, [isLoading]);
+  // Turbo resume is handled centrally in RootNavigator; avoid duplicate resume here.
 
   // Show loading splash (initial load only)
   if (isLoading) {

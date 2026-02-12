@@ -27,7 +27,7 @@ function renderHook<T>(hook: () => T) {
     unmount: () => component?.unmount(),
   };
 }
-import * as psbtService from '../../services/psbtService';
+import * as psbtService from '../../services/psbtAnalysis';
 import * as TransactionBuildContext from '../../contexts/TransactionBuildContext';
 import * as PriceContext from '../../stores/priceStore';
 
@@ -41,7 +41,7 @@ jest.mock('../../stores/priceStore', () => ({
 }));
 
 // Mock psbtService
-jest.mock('../../services/psbtService');
+jest.mock('../../services/psbtAnalysis');
 
 describe('useReviewScreenData', () => {
   const mockSendIntent = {

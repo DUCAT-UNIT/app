@@ -1,5 +1,5 @@
 /**
- * Tests for psbtService
+ * Tests for psbtAnalysis (PSBT parsing and analysis)
  */
 
 import * as bitcoin from 'bitcoinjs-lib';
@@ -8,7 +8,7 @@ import {
   buildFallbackOutputs,
   hasUnconfirmedInputs,
   type SendIntent,
-} from '../psbtService';
+} from '../psbtAnalysis';
 
 // Mock bitcoinjs-lib
 jest.mock('bitcoinjs-lib', () => {

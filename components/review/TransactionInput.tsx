@@ -10,7 +10,7 @@ import { truncateAddress } from '../../utils/formatters/addresses';
 import { formatBTC, satsToBTC } from '../../utils/bitcoin/conversions';
 import { formatUnitAmount, formatFiat } from '../../utils/formatters/amounts';
 import { useResponsive } from '../../hooks/useResponsive';
-import type { PSBTInput } from '../../services/psbtService';
+import type { PSBTInput } from '../../services/psbtAnalysis';
 
 // Re-export for backwards compatibility
 export type { PSBTInput };

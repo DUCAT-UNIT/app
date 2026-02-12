@@ -81,6 +81,7 @@ appId: com.ducatprotocol.DucatProtocolWallet
     timeout: 10000
 
 # Wait for balance polling to reflect the change
+# Balance updates may take time on Mutinynet as the mempool processes the tx
 - waitForAnimationToEnd
 - extendedWaitUntil:
     visible:
@@ -88,5 +89,8 @@ appId: com.ducatprotocol.DucatProtocolWallet
     timeout: 10000
 
 # Verify balance is NOT 0.10000000 anymore (confirms tx was broadcast)
-- assertNotVisible:
-    text: "0.10000000"
+# Use extendedWaitUntil with notVisible to give polling time to refresh
+- extendedWaitUntil:
+    notVisible:
+      text: "0.10000000"
+    timeout: 60000

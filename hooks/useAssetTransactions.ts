@@ -10,7 +10,7 @@ import { calculateTransactionAmount, Transaction } from '../services/transaction
 import { EcashTokenRecord } from '../services/cashu/cashuLockedTokensService';
 import { TokenWithStatus } from '../services/cashu/tokenStatusService';
 import { useEcashTokens } from '../contexts/WalletDataContext';
-import { usePendingTxs } from '../contexts/PendingTransactionsContext';
+import { usePendingTxs } from '../stores/pendingTransactionsStore';
 import { logger } from '../utils/logger';
 import type { DisplayAssetType } from '../types/assets';
 import {

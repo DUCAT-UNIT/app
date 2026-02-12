@@ -71,7 +71,11 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children, onSeedConf
   }, [seedConfirmed]);
 
   // Reset wallet and all onboarding state - memoized to prevent recreation
+  // SECURITY: Requires authentication to prevent unauthorized wallet wipe
   const resetWalletAndState = useCallback(async () => {
+    if (!authState.isAuthenticated) {
+      throw new Error('Authentication required to reset wallet');
+    }
     await SecureStore.deleteItemAsync(SECURE_KEYS.MNEMONIC);
     await SecureStore.deleteItemAsync(SECURE_KEYS.CURRENT_ACCOUNT);
     await resetOnboardingState();
@@ -79,7 +83,7 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children, onSeedConf
       resetWallet();
     }
     setSeedConfirmed(false);
-  }, [resetWallet]);
+  }, [resetWallet, authState.isAuthenticated]);
 
   // Reset inactivity timer - memoized to prevent recreation
   const resetInactivityTimer = useCallback(() => {

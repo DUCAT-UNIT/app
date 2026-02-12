@@ -27,6 +27,11 @@ jest.mock('expo-secure-store', () => ({
   }),
 }));
 
+jest.mock('expo-crypto', () => ({
+  digest: jest.fn().mockResolvedValue(new ArrayBuffer(32)),
+  CryptoDigestAlgorithm: { SHA256: 'SHA-256' },
+}));
+
 import * as SecureStore from 'expo-secure-store';
 import {
   setCurrentAccount,

@@ -1,55 +1,17 @@
 /**
  * Wallet Type Definitions
+ *
+ * Note: Most wallet types are defined at their source:
+ *   - RuneBalance, WalletBalances → services/balanceService.ts
+ *   - UTXO, TransactionStatus → services/balanceService.ts
+ *   - WalletAddresses (canonical) → contexts/WalletContext.tsx
+ *
+ * This file exists only for types/crypto.d.ts ambient reference.
  */
 
-export interface WalletAccount {
-  index: number;
-  name: string;
+export interface WalletAddresses {
   segwitAddress: string;
   taprootAddress: string;
   segwitPubkey: string;
   taprootPubkey: string;
-}
-
-export interface Wallet {
-  mnemonic: string;
-  segwitAddress: string;
-  taprootAddress: string;
-  segwitPubkey: string;
-  taprootPubkey: string;
-  accounts?: WalletAccount[];
-  currentAccountIndex?: number;
-}
-
-export interface WalletBalance {
-  segwitBalance: number;
-  taprootBalance: number;
-  runesBalance: RuneBalance[];
-  unconfirmedSegwitBalance: number;
-  unconfirmedTaprootBalance: number;
-  unconfirmedRunesBalance: Record<string, bigint>;
-}
-
-export interface RuneBalance {
-  id: string;
-  name: string;
-  symbol: string;
-  amount: bigint;
-  divisibility: number;
-  spacedName?: string;
-}
-
-export interface UTXO {
-  txid: string;
-  vout: number;
-  value: number;
-  status: TransactionStatus;
-  runeAmount?: number;
-}
-
-export interface TransactionStatus {
-  confirmed: boolean;
-  block_height?: number;
-  block_hash?: string;
-  block_time?: number;
 }

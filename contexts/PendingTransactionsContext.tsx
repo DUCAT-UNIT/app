@@ -12,7 +12,7 @@
  * - useSpentUtxos() - only re-renders on spent UTXO changes
  */
 
-import React, { useEffect, ReactNode, useCallback, useMemo } from 'react';
+import React, { useEffect, useContext, ReactNode, useCallback, useMemo } from 'react';
 import {
   usePendingTransactionsStore,
   usePendingTxs,
@@ -65,27 +65,26 @@ interface PendingTransactionsContextValue {
   getSpentUtxos: () => Set<string>;
 }
 
-// Store the showSnackbar function in module scope for the hook
-let _showSnackbar: ((params: SnackbarParams) => void) | null = null;
-let _showSnackbarSetCount = 0;
+const ShowSnackbarContext = React.createContext<((params: SnackbarParams) => void) | null>(null);
 
 /**
  * Legacy hook - returns all pending transactions values
  * For better performance, use selector hooks: usePendingTxs, useSpentUtxos
  */
 export const usePendingTransactions = (): PendingTransactionsContextValue => {
+  const showSnackbar = useContext(ShowSnackbarContext);
   const pendingTransactions = usePendingTxs();
   const store = usePendingTransactionsStore();
 
   // Wrap invalidateTransaction to inject showSnackbar
   const invalidateTransaction = useCallback(
     async (txid: string, reason = 'Parent transaction failed'): Promise<string[]> => {
-      if (!_showSnackbar) {
+      if (!showSnackbar) {
         throw new Error('usePendingTransactions must be used within a PendingTransactionsProvider');
       }
-      return store.invalidateTransaction(txid, reason, _showSnackbar);
+      return store.invalidateTransaction(txid, reason, showSnackbar);
     },
-    [store]
+    [store, showSnackbar]
   );
 
   return useMemo(() => ({
@@ -121,20 +120,6 @@ export const PendingTransactionsProvider: React.FC<PendingTransactionsProviderPr
 }) => {
   const loadFromStorage = usePendingTransactionsStore((state) => state.loadFromStorage);
 
-  // Store showSnackbar in module scope for the hook
-  useEffect(() => {
-    if (_showSnackbar !== null) {
-      console.warn('[PendingTransactionsProvider] Multiple providers detected - _showSnackbar is being overwritten', {
-        setCount: _showSnackbarSetCount + 1,
-      });
-    }
-    _showSnackbar = showSnackbar;
-    _showSnackbarSetCount++;
-    return () => {
-      _showSnackbar = null;
-    };
-  }, [showSnackbar]);
-
   // Load from storage when account changes
   useEffect(() => {
     if (currentAccount !== undefined && currentAccount !== null) {
@@ -142,5 +127,9 @@ export const PendingTransactionsProvider: React.FC<PendingTransactionsProviderPr
     }
   }, [currentAccount, loadFromStorage]);
 
-  return <>{children}</>;
+  return (
+    <ShowSnackbarContext.Provider value={showSnackbar}>
+      {children}
+    </ShowSnackbarContext.Provider>
+  );
 };

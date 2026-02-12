@@ -5,16 +5,17 @@
 import { getJSON, fetchParallel } from '../utils/apiClient';
 import { getAddressUrl, getAddressUtxoUrl, getOrdAddressUrl, API_KEYS } from '../utils/constants';
 import { satsToBTC } from '../utils/bitcoin/conversions';
+import { e2eVaultState } from '../utils/e2eVaultState';
 import { logger } from '../utils/logger';
 
 const BALANCE_FETCH_TIMEOUT = 10000; // 10 seconds
 
 export interface RuneBalance {
   rune: string;
+  runeid?: string;
   amount: string;
   divisibility: number;
   symbol?: string;
-  [key: string]: unknown;
 }
 
 export interface WalletBalances {
@@ -81,7 +82,7 @@ export const fetchWalletBalances = async (
         logger.info('[balanceService] SegWit raw:', { totalReceived, totalSpent, balance, btc: satsToBTC(balance) });
         if (balance < 0) {
           logger.warn('Negative balance detected, returning 0', {
-            address: segwitAddress.slice(0, 10) + '...',
+            addressType: 'segwit',
             totalReceived,
             totalSpent,
             calculated: balance,
@@ -105,7 +106,7 @@ export const fetchWalletBalances = async (
         logger.info('[balanceService] Taproot raw:', { totalReceived, totalSpent, balance, btc: satsToBTC(balance) });
         if (balance < 0) {
           logger.warn('Negative balance detected, returning 0', {
-            address: taprootAddress.slice(0, 10) + '...',
+            addressType: 'taproot',
             totalReceived,
             totalSpent,
             calculated: balance,
@@ -119,6 +120,18 @@ export const fetchWalletBalances = async (
     {
       name: 'Runes balance',
       fn: async () => {
+        // E2E bypass: return fake Runes balance when vault was created via bypass
+        // Note: ord indexer returns amounts in display format (divisibility already applied)
+        // so getRunesAmount uses parseFloat(amount) directly
+        if (__DEV__ && process.env.EXPO_PUBLIC_E2E_BYPASS === 'true' && e2eVaultState.vaultCreated && e2eVaultState.unitBorrowed > 0) {
+          return [{
+            rune: 'DUCAT•UNIT•RUNE',
+            runeid: '1527352:1',
+            amount: String(e2eVaultState.unitBorrowed),
+            divisibility: 2,
+            symbol: '¤',
+          }] as RuneBalance[];
+        }
         const data = await getJSON<OrdAddressData>(getOrdAddressUrl(taprootAddress), {
           timeout: BALANCE_FETCH_TIMEOUT,
           headers: { Accept: 'application/json' },

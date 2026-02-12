@@ -11,8 +11,12 @@ export { useWallet } from './WalletContext';
 export { useBalance, useVaultData } from './WalletDataContext';
 
 // Navigation handlers
-export { useNavigationHandlers } from './NavigationHandlersContext';
+export {
+  useSettingsHandlers,
+  useAccountSwitcherContext,
+  useAuthFlowHandlers,
+} from './NavigationHandlersContext';
 
 // Feature contexts
-export { useCashu } from './CashuContext';
+export { useCashu, useCashuBalanceState, useCashuOperations } from './CashuContext';
 export { useAirdrop } from './AirdropContext';

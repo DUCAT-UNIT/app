@@ -35,6 +35,7 @@ import { fetchPriceQuote } from '../services/oracleService';
 import { createVaultWallet } from '../services/vaultWalletService';
 import { fetchVaultData, fetchVaultHistory } from '../services/vaultService';
 import { computeLiquidationPrice } from '../utils/vaultUtils';
+import { e2eVaultState } from '../utils/e2eVaultState';
 import { logger } from '../utils/logger';
 import type { DepositProcessingStep } from '../stores/depositStore';
 import type { VaultProfile } from '@ducat-unit/client-sdk';
@@ -241,6 +242,25 @@ export function useDepositVault(): UseDepositVaultResult {
     setLoading(true);
     setError(null);
     setCurrentStep('processing');
+
+    // E2E bypass: skip Guardian and simulate instant deposit
+    if (__DEV__ && process.env.EXPO_PUBLIC_E2E_BYPASS === 'true') {
+      try {
+        for (const step of [1, 2, 3, 4] as DepositProcessingStep[]) {
+          updateProcessingStep(step);
+          await new Promise((r) => setTimeout(r, 200));
+        }
+        const fakeTxid = `e2e-deposit-${Date.now().toString(16)}`;
+        e2eVaultState.btcLocked += depositAmountSats / 100_000_000;
+        setVaultTxid(fakeTxid);
+        setCurrentStep('success');
+        logger.info('[useDepositVault] E2E bypass: deposit completed', { fakeTxid, depositAmountSats });
+        return { vaultTxid: fakeTxid };
+      } finally {
+        operationInProgressRef.current = false;
+        setLoading(false);
+      }
+    }
 
     try {
       // Step 1: Build VaultProfile and create config

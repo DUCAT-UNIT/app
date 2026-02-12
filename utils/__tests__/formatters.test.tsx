@@ -41,9 +41,9 @@ describe('formatters', () => {
       expect(btcToSats(21000000)).toBe(2100000000000000);
     });
 
-    it('should floor decimal values', () => {
-      expect(btcToSats(0.123456789)).toBe(12345678); // Floors to 8 decimals
-      expect(btcToSats(1.999999999)).toBe(199999999); // Floors
+    it('should round decimal values', () => {
+      expect(btcToSats(0.123456789)).toBe(12345679); // Rounds to nearest sat
+      expect(btcToSats(1.999999999)).toBe(200000000); // Rounds up
     });
 
     it('should handle very small amounts', () => {

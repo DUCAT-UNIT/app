@@ -19,7 +19,9 @@ export type VaultCreationStep =
   | 'processing' // Step 3: Transaction in progress
   | 'success'; // Step 4: Transaction complete
 
-export type ProcessingStep = 1 | 2 | 3 | 4;
+// ProcessingStep sourced from canonical vault store types
+import type { ProcessingStep } from './vault/vaultStoreTypes';
+export type { ProcessingStep } from './vault/vaultStoreTypes';
 // 1: Awaiting user signatures
 // 2: Request received by node
 // 3: Validation in progress

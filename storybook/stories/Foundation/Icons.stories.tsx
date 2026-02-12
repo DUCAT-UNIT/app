@@ -118,14 +118,7 @@ const meta: Meta<typeof AllIconsAllSizes> = {
   argTypes: {
     color: {
       control: 'select',
-      options: {
-        White: COLORS.WHITE,
-        Blue: COLORS.PRIMARY_BLUE,
-        Gray: COLORS.LIGHT_GRAY,
-        Green: COLORS.SUCCESS_GREEN,
-        Yellow: COLORS.YELLOW,
-        Red: COLORS.DANGER_RED,
-      },
+      options: [COLORS.WHITE, COLORS.PRIMARY_BLUE, COLORS.LIGHT_GRAY, COLORS.SUCCESS_GREEN, COLORS.YELLOW, COLORS.DANGER_RED],
       description: 'Icon color',
     },
   },

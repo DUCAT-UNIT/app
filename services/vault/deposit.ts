@@ -14,7 +14,7 @@ import type {
 import { VAULT_CONFIG, BITCOIN_TX } from '../../utils/constants';
 import { logger } from '../../utils/logger';
 import { withGuardianTimeout } from '../guardianService';
-import { Utxo } from './utils';
+import { Utxo, withVaultOperationLock } from './utils';
 
 export interface CreateDepositReqOptions {
   feeRate: number;
@@ -58,6 +58,8 @@ export async function createVaultReqDeposit(
   depositConfig: WalletVaultDepositConfig,
   options: CreateDepositReqOptions
 ): Promise<WalletVaultDepositRequest> {
+  // SECURITY: Serialize vault operations to prevent concurrent UTXO usage
+  return withVaultOperationLock(async () => {
   logger.debug('[VaultOps] Creating deposit request...');
 
   try {
@@ -108,6 +110,7 @@ export async function createVaultReqDeposit(
     logger.error('[VaultOps] Failed to create deposit request:', { error });
     throw error;
   }
+  }); // end withVaultOperationLock
 }
 
 /**

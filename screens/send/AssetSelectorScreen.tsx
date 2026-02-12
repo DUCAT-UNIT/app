@@ -11,7 +11,7 @@ import Icon from '../../components/icons';
 import { useBalance } from '../../contexts/WalletDataContext';
 import { usePrice } from '../../stores/priceStore';
 import { useSendFlow, type AssetType } from '../../stores/sendFlowStore';
-import { useCashu } from '../../contexts/CashuContext';
+import { useCashuBalanceState } from '../../contexts/CashuContext';
 import { logger } from '../../utils/logger';
 import { getRunesAmount } from '../../utils/runesHelper';
 import { formatBalance, formatFiat } from '../../utils/formatters';
@@ -28,7 +28,7 @@ export default function AssetSelectorScreen({ navigation }: AssetSelectorScreenP
   const { segwitBalance, taprootBalance, runesBalance } = useBalance();
   const { btcPrice } = usePrice();
   const { setSendAssetType } = useSendFlow();
-  const { balance: cashuBalance } = useCashu();
+  const { balance: cashuBalance } = useCashuBalanceState();
   const { s, sf } = useResponsive();
 
   // Memoize balance calculations to prevent recalculation on every render

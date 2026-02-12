@@ -69,6 +69,16 @@ export async function buildRunesPsbt(
   ]);
   const satTx = bitcoin.Transaction.fromHex(satTxHex);
 
+  // Validate addresses early to prevent malformed change/recipient outputs
+  if (typeof bitcoin.address.toOutputScript === 'function') {
+    try {
+      bitcoin.address.toOutputScript(recipient, MUTINYNET_NETWORK);
+      bitcoin.address.toOutputScript(segwitAddress, MUTINYNET_NETWORK);
+    } catch (err) {
+      throw new Error(`Invalid runes recipient or change address: ${(err as Error).message}`);
+    }
+  }
+
   // Decode taproot address
   const { data: taprootData } = bitcoin.address.fromBech32(taprootAddress);
   const tapInternalKey = Buffer.from(taprootData);
@@ -133,6 +143,9 @@ export async function buildRunesPsbt(
   });
 
   // Output 1: Recipient (gets specified runes via edict)
+  if (recipientSats < dustLimit) {
+    throw new Error('Recipient output below dust limit');
+  }
   psbt.addOutput({
     address: recipient,
     value: BigInt(recipientSats),

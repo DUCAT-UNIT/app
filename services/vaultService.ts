@@ -183,8 +183,13 @@ export const fetchVaultData = async (vaultPubkey: string): Promise<VaultData | n
     }
 
     // Always use first vault in the array
-    const vaultId = vaultListData.vaults[0].vault_id;
-    const vaultTag = vaultListData.vaults[0].vault_tag;
+    const firstVault = vaultListData.vaults[0];
+    if (!firstVault) {
+      return null;
+    }
+
+    const vaultId = firstVault.vault_id;
+    const vaultTag = firstVault.vault_tag;
     logger.debug('🏦 Using vault:', { vault_id: vaultId, vault_tag: vaultTag });
 
     // Step 2: Get vault history to retrieve transaction details
@@ -204,26 +209,43 @@ export const fetchVaultData = async (vaultPubkey: string): Promise<VaultData | n
 
     const vaultHistoryData = await vaultHistoryResponse.json() as VaultHistoryResponse;
 
-    // Use data from first vault only (not totals across all vaults)
-    const firstVault = vaultListData.vaults[0];
+    // Validate required fields for vault operations before constructing VaultInfo
+    const requiredFields = {
+      vault_pubkey: firstVault.vault_pubkey,
+      creation_account: firstVault.creation_account,
+      guard_pubkey: firstVault.guard_pubkey,
+      master_id: firstVault.master_id,
+      utxo: firstVault.utxo,
+    } as const;
+
+    const missingFields = Object.entries(requiredFields)
+      .filter(([_, value]) => !value)
+      .map(([key]) => key);
+
+    if (missingFields.length > 0) {
+      logger.warn('[VaultService] Vault missing required fields', {
+        vaultId,
+        missingFields,
+      });
+      return null;
+    }
 
     // Construct full VaultInfo for borrow/deposit/repay/withdraw operations
-    // This is needed even when there's no recent history
     const vaultInfo: VaultInfo = {
       vault_id: firstVault.vault_id,
       vault_tag: firstVault.vault_tag,
-      vault_pubkey: firstVault.vault_pubkey || '',
+      vault_pubkey: requiredFields.vault_pubkey!,
       btc_locked: firstVault.btc_locked,
       unit_borrowed: firstVault.unit_borrowed,
       collateral_ratio: firstVault.collateral_ratio || 0,
-      creation_account: firstVault.creation_account || '',
-      guard_pubkey: firstVault.guard_pubkey || '',
-      master_id: firstVault.master_id || '',
+      creation_account: requiredFields.creation_account!,
+      guard_pubkey: requiredFields.guard_pubkey!,
+      master_id: requiredFields.master_id!,
       liquidation_hash: firstVault.liquidation_hash || '',
       liquidation_price: firstVault.liquidation_price || 0,
       oracle_price: firstVault.oracle_price || vaultListData.current_price,
       oracle_timestamp: firstVault.oracle_timestamp || 0,
-      utxo: firstVault.utxo || '',
+      utxo: requiredFields.utxo!,
       vault_last_action: firstVault.vault_last_action || '',
       vault_version: firstVault.vault_version || 1,
     };

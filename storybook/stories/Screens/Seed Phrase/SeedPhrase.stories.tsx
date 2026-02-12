@@ -114,7 +114,7 @@ const ImportWalletMock = ({ scale = 1, width = 393, size = 'L' }: { scale?: numb
   const dynamicStyles = {
     seedInputContainer: {
       marginBottom: 6,
-      width: '47%',
+      width: '47%' as const,
     },
     seedInputNumber: {
       fontSize: 11,
@@ -213,8 +213,6 @@ const meta: Meta = {
 };
 
 export default meta;
-type Story = StoryObj;
-
 // =============================================================================
 // STORIES
 // =============================================================================
@@ -240,8 +238,8 @@ const InteractiveStory = ({ screenSize, view, showWords }: InteractiveProps) => 
   );
 };
 
-export const Interactive: Story = {
-  render: (args: InteractiveProps) => <InteractiveStory {...args} />,
+export const Interactive: StoryObj<InteractiveProps> = {
+  render: (args) => <InteractiveStory {...args} />,
   args: {
     screenSize: 'L',
     view: 'Display',
@@ -266,8 +264,8 @@ export const Interactive: Story = {
   },
 };
 
-export const Overview: Story = {
-  render: (args: OverviewProps) => <SeedPhraseOverview {...args} />,
+export const Overview: StoryObj<OverviewProps> = {
+  render: (args) => <SeedPhraseOverview {...args} />,
   args: {
     view: 'Display',
     showWords: true,

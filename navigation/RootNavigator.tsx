@@ -32,8 +32,8 @@ import {
   useOnboardingFlow,
   useWallet,
   useBalance,
-  useNavigationHandlers,
-  useCashu,
+  useAuthFlowHandlers,
+  useCashuOperations,
   useAirdrop,
 } from '../contexts';
 import { useNotifications } from '../stores/notificationStore';
@@ -101,10 +101,18 @@ export default function RootNavigator(): React.JSX.Element {
   const { seedConfirmedRef } = useOnboardingFlow();
   const { fetchBalance } = useBalance();
   const { showToast, showSnackbar, dismissSnackbar } = useNotifications();
-  const { receive, refresh: refreshCashu } = useCashu();
+  const { receive, refresh: refreshCashu } = useCashuOperations();
   const { setShowAirdropModal } = useAirdrop();
 
-  // Turbo token processing
+  // Turbo snackbar queue (must be before token processor — provides checkQueuedSnackbars)
+  const { checkQueuedSnackbars } = useTurboSnackbarQueue({
+    isAuthenticated,
+    shouldShowPinOverlay,
+    showSnackbar,
+    dismissSnackbar,
+  });
+
+  // Turbo token processing (single 500ms polling loop handles both tokens and snackbars)
   const { isVerifyingToken } = useTurboTokenProcessor({
     isAuthenticated,
     shouldShowPinOverlay,
@@ -115,14 +123,7 @@ export default function RootNavigator(): React.JSX.Element {
     showSnackbar,
     dismissSnackbar,
     switchAccount,
-  });
-
-  // Turbo snackbar queue
-  useTurboSnackbarQueue({
-    isAuthenticated,
-    shouldShowPinOverlay,
-    showSnackbar,
-    dismissSnackbar,
+    checkQueuedSnackbars,
   });
 
   // Wallet exists ref for useAppLifecycle
@@ -186,7 +187,7 @@ export default function RootNavigator(): React.JSX.Element {
     hideBiometricSetupPrompt,
     handleBiometricSetupEnable,
     handleBiometricSetupSkip,
-  } = useNavigationHandlers();
+  } = useAuthFlowHandlers();
 
   // Handle lock/unlock - dismiss all modals and reset navigation
   const handleLock = useCallback(() => {
@@ -313,40 +314,46 @@ export default function RootNavigator(): React.JSX.Element {
           ) : (
             <React.Fragment>
               <Stack.Screen name="Main" component={MainTabs} />
-              <Stack.Screen
-                name="SendFlow"
-                component={SendNavigator}
-                options={{
-                  presentation: 'modal',
-                }}
-              />
-              <Stack.Screen
-                name="VaultCreateFlow"
-                component={VaultCreateNavigator}
-                options={{
-                  presentation: 'modal',
-                }}
-              />
-              <Stack.Screen
-                name="BorrowFlow"
-                component={BorrowNavigator}
-                options={noAnimationOptions}
-              />
-              <Stack.Screen
-                name="DepositFlow"
-                component={DepositNavigator}
-                options={noAnimationOptions}
-              />
-              <Stack.Screen
-                name="RepayFlow"
-                component={RepayNavigator}
-                options={noAnimationOptions}
-              />
-              <Stack.Screen
-                name="WithdrawFlow"
-                component={WithdrawNavigator}
-                options={noAnimationOptions}
-              />
+              {/* SECURITY: Only register financial flow screens when authenticated.
+                  Prevents deep-link access to transaction flows while lock overlay is shown. */}
+              {isAuthenticated && (
+                <React.Fragment>
+                  <Stack.Screen
+                    name="SendFlow"
+                    component={SendNavigator}
+                    options={{
+                      presentation: 'modal',
+                    }}
+                  />
+                  <Stack.Screen
+                    name="VaultCreateFlow"
+                    component={VaultCreateNavigator}
+                    options={{
+                      presentation: 'modal',
+                    }}
+                  />
+                  <Stack.Screen
+                    name="BorrowFlow"
+                    component={BorrowNavigator}
+                    options={noAnimationOptions}
+                  />
+                  <Stack.Screen
+                    name="DepositFlow"
+                    component={DepositNavigator}
+                    options={noAnimationOptions}
+                  />
+                  <Stack.Screen
+                    name="RepayFlow"
+                    component={RepayNavigator}
+                    options={noAnimationOptions}
+                  />
+                  <Stack.Screen
+                    name="WithdrawFlow"
+                    component={WithdrawNavigator}
+                    options={noAnimationOptions}
+                  />
+                </React.Fragment>
+              )}
             </React.Fragment>
           )}
         </Stack.Navigator>

@@ -8,10 +8,10 @@ import { useState, useEffect, useMemo, useCallback, useRef } from 'react';
 import { Linking } from 'react-native';
 import * as bitcoin from 'bitcoinjs-lib';
 import { useTransactionHistory, useEcashTokens } from '../contexts/WalletDataContext';
-import { usePendingTxs } from '../contexts/PendingTransactionsContext';
+import { usePendingTxs } from '../stores/pendingTransactionsStore';
 import { calculateTransactionAmount, Transaction } from '../services/transactionHistoryService';
 import { getTxUrl, getOrdTxUrl } from '../utils/constants';
-import { useNavigationHandlers } from '../contexts/NavigationHandlersContext';
+import { useSettingsHandlers } from '../contexts/NavigationHandlersContext';
 import { TokenWithStatus } from '../services/cashu/tokenStatusService';
 import { logger } from '../utils/logger';
 import {
@@ -63,7 +63,7 @@ export function useTransactionHistoryData(
   const { transactionHistory: rawTransactionHistory, loadingTransactionHistory, fetchTransactionHistory } =
     useTransactionHistory();
   const transactionHistory = rawTransactionHistory as Transaction[];
-  const { settingsHandlers } = useNavigationHandlers();
+  const { settingsHandlers } = useSettingsHandlers();
   const advancedMode = settingsHandlers.advancedMode;
 
   // Get pending transactions from store

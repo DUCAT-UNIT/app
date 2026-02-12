@@ -106,7 +106,7 @@ describe('p2pkSigning', () => {
         fail('Should have thrown');
       } catch (error) {
         expect((error as Error).message).toContain('Secret length:');
-        expect((error as Error).message).toContain('Private key length:');
+        expect((error as Error).message).toContain('Private key format valid:');
       }
     });
 

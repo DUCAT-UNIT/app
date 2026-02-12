@@ -4,7 +4,7 @@
  */
 
 import { logger } from '../../../utils/logger';
-import { MINT_URL, swapTokens as swapTokensAPI } from '../cashuMintClient';
+import { MINT_URL, swapTokens as swapTokensAPI, checkProofsSpent } from '../cashuMintClient';
 import {
   createBlindedOutputs,
   unblindSignatures,
@@ -42,6 +42,9 @@ export const sendToken = async (amount: number, returnChange = true): Promise<Se
 
     // Select proofs
     const allProofs = await loadProofs();
+    if (!allProofs || allProofs.length === 0) {
+      throw new Error('No funds available');
+    }
     selectedProofs = selectProofsForAmount(allProofs, amount);
     const selectedAmount = sumProofs(selectedProofs);
 
@@ -100,6 +103,15 @@ export const sendToken = async (amount: number, returnChange = true): Promise<Se
         secretTypeMap: secretTypeMap as Record<string, 'p2pk' | 'change'>,
       });
 
+      // Double-spend guard: verify none of the selected proofs are already spent
+      const spentResult = await checkProofsSpent(selectedProofs);
+      const spentStates = Array.isArray(spentResult?.state)
+        ? spentResult.state
+        : selectedProofs.map(() => false);
+      if (spentStates.some((s) => s === true || s === 'SPENT')) {
+        throw new Error('Proofs already spent - aborting swap');
+      }
+
       // CRITICAL: After this swap, selectedProofs are spent with the mint
       // If any error occurs after this, we MUST save changeProofs to avoid fund loss
       const response = await swapTokensAPI(selectedProofs, outputs);
@@ -117,6 +129,20 @@ export const sendToken = async (amount: number, returnChange = true): Promise<Se
         keys,
         response.signatures[0]?.id || keysetId
       );
+
+      // SECURITY: Verify the swap returned proofs matching the expected total amount.
+      // A malicious mint could return fewer/different proofs, causing silent fund loss.
+      const newProofsTotal = sumProofs(allNewProofs);
+      if (newProofsTotal !== selectedAmount) {
+        logger.error('SECURITY: Swap proof amount mismatch', {
+          expected: selectedAmount,
+          received: newProofsTotal,
+          proofsCount: allNewProofs.length,
+        });
+        throw new Error(
+          `Swap verification failed: expected ${selectedAmount} but received ${newProofsTotal}`
+        );
+      }
 
       // Split into send and change using secret type (handles sorted outputs correctly)
       proofsToSend = allNewProofs.filter(proof => secretTypeMap[proof.secret] === 'send');

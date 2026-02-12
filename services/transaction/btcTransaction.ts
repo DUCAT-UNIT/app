@@ -6,42 +6,24 @@
 import * as bitcoin from 'bitcoinjs-lib';
 import * as ecc from '@bitcoinerlab/secp256k1';
 import { MUTINYNET_NETWORK, validateAndNormalizeAddress } from '../../utils/bitcoin';
+import { btcToSats } from '../../utils/bitcoin/conversions';
 import { fetchUtxos as fetchUtxosService } from '../balanceService';
 import { ERRORS } from '../../utils/messages';
 import { getTxHexUrl, BITCOIN_TX } from '../../utils/constants';
 import { logger } from '../../utils/logger';
 import { fetchWithTimeout } from '../../utils/api';
+import { getRecommendedFeeRate } from '../feeEstimationService';
 import {
   mergeAndFilterUtxos,
   selectUtxosForTransaction,
   createFeeCalculator,
   UTXO,
 } from './utxoSelection';
+import * as Crypto from 'expo-crypto';
+import { Buffer } from 'buffer';
 
 // Initialize ECC library
 bitcoin.initEccLib(ecc);
-
-/**
- * Safe BTC to satoshi conversion avoiding floating point errors
- * @param btcString - BTC amount as string (e.g. "0.001")
- * @returns Amount in satoshis
- * @throws Error if amount is negative
- */
-function btcToSats(btcString: string): number {
-  // Check for negative amounts
-  if (btcString.startsWith('-')) {
-    throw new Error(ERRORS.INVALID_AMOUNT);
-  }
-
-  // Split on decimal point and handle each part as integer
-  const parts = btcString.replace(',', '.').split('.');
-  const wholePart = parseInt(parts[0] || '0', 10) * BITCOIN_TX.SATOSHIS_PER_BTC;
-  if (parts.length === 1) return wholePart;
-
-  // Pad or truncate decimal part to 8 digits
-  const decimalPart = (parts[1] || '').padEnd(8, '0').slice(0, 8);
-  return wholePart + parseInt(decimalPart, 10);
-}
 
 export interface BtcTransactionIntent {
   id: string;
@@ -81,7 +63,8 @@ export async function createBtcIntent(
   segwitAddress: string,
   _currentAccount: number,
   unconfirmedUtxos: UTXO[] = [],
-  spentUtxos: Set<string> = new Set()
+  spentUtxos: Set<string> = new Set(),
+  feeRateOverride?: number
 ): Promise<BtcTransactionIntent> {
   try {
     // Validate and normalize recipient address
@@ -133,8 +116,19 @@ export async function createBtcIntent(
       throw new Error(hasUnconfirmed ? ERRORS.NO_CONFIRMED_FUNDS : (allSpent ? 'All UTXOs are currently locked' : ERRORS.NO_CONFIRMED_FUNDS));
     }
 
+    // Determine fee rate (dynamic recommendation with optional override)
+    let feeRate = feeRateOverride;
+    if (feeRate === undefined) {
+      try {
+        feeRate = await getRecommendedFeeRate();
+      } catch {
+        feeRate = 1;
+      }
+    }
+    feeRate = feeRate ?? 1;
+
     // Create fee calculator
-    const calculateFee = createFeeCalculator(1); // 1 sat/vbyte for testnet
+    const calculateFee = createFeeCalculator(feeRate);
 
     // Select UTXOs and calculate fee
     const { selectedUtxos, totalInput, fee, change } = selectUtxosForTransaction(
@@ -182,7 +176,7 @@ export async function createBtcIntent(
 
     // Create intent object
     return {
-      id: `${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
+      id: `${Date.now()}-${Buffer.from(Crypto.getRandomBytes(8)).toString('hex')}`,
       type: 'send',
       assetType: 'BTC',
       amount: amountInSats,
@@ -223,6 +217,24 @@ async function fetchInputTransactions(selectedUtxos: UTXO[]): Promise<UtxoWithTx
         throw new Error(`Failed to fetch transaction ${utxo.txid}: HTTP ${txResponse.status}`);
       }
       const txHex = await txResponse.text();
+
+      // SECURITY: Validate that the returned tx hex matches the expected TXID
+      // A compromised API could return fake transaction data to manipulate PSBT inputs
+      const tx = bitcoin.Transaction.fromHex(txHex);
+      const calculatedTxid = tx.getId();
+      if (calculatedTxid !== utxo.txid) {
+        throw new Error(
+          `SECURITY: TXID mismatch for input - expected ${utxo.txid}, got ${calculatedTxid}`
+        );
+      }
+
+      // Validate that the referenced output exists and has the expected value
+      if (!tx.outs[utxo.vout]) {
+        throw new Error(
+          `SECURITY: Output index ${utxo.vout} does not exist in transaction ${utxo.txid}`
+        );
+      }
+
       return {
         ...utxo,
         txHex,
@@ -275,6 +287,14 @@ function buildBtcPsbt(
 
   // Add change output if above dust limit
   if (change > dustLimit) {
+    // SECURITY: Validate change address is a valid Bitcoin address before adding output
+    // This prevents fund loss if sourceAddress is corrupted or manipulated
+    const changeAddressValid = validateAndNormalizeAddress(sourceAddress);
+    if (changeAddressValid !== sourceAddress) {
+      throw new Error(
+        'SECURITY: Change address validation failed - address mismatch'
+      );
+    }
     psbt.addOutput({
       address: sourceAddress,
       value: BigInt(change),

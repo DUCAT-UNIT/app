@@ -14,9 +14,9 @@ import { deriveAddressesFromMnemonic, MUTINYNET_NETWORK } from '../../../utils/b
 import { getPrivateKeyForAddress } from '../../../utils/wallet';
 
 // Cache keys for P2PK private key (cleared when account changes)
-// v4: Fixed BIP-341 parity handling for odd Y coordinate pubkeys
-const CACHE_KEY_ADDRESS = 'p2pk_taproot_address_v4';
-const CACHE_KEY_PRIVKEY = 'p2pk_private_key_v4';
+// v5: Hardened account-level derivation + no key material logging
+const CACHE_KEY_ADDRESS = 'p2pk_taproot_address_v5';
+const CACHE_KEY_PRIVKEY = 'p2pk_private_key_v5';
 
 export interface AccountMatch {
   accountIndex: number;
@@ -129,31 +129,12 @@ export const findAccountForP2PKToken = async (
         const outputPubkey = taprootPayment.pubkey ? taprootPayment.pubkey : Buffer.alloc(0);
         const outputPubkeyHex = Buffer.from(outputPubkey).toString('hex');
 
-        // Log every 10th account or specific accounts for debugging
-        const isCurrentAccount = accountIndex === currentAccountIndex;
-        const isHighAccount = accountIndex >= 80;
-        const shouldLogDetailed = isCurrentAccount || isHighAccount || accountIndex % 20 === 0;
-
-        if (shouldLogDetailed) {
-          logger.info(`[P2PK SCAN] Account ${accountIndex}${isCurrentAccount ? ' (CURRENT)' : ''}:`);
-          logger.info(`  Path: ${taprootPath}`);
-          logger.info(`  Address: ${taprootPayment.address}`);
-          logger.info(`  Derived pubkey:  ${outputPubkeyHex}`);
-          logger.info(`  Target pubkey:   ${recipientPubkey}`);
-          logger.info(`  Match: ${outputPubkeyHex === recipientPubkey ? '✅ YES!' : '❌ No'}`);
-          if (outputPubkeyHex.length !== recipientPubkey.length) {
-            logger.warn(`  ⚠️ LENGTH MISMATCH: derived=${outputPubkeyHex.length} vs target=${recipientPubkey.length}`);
-          }
-        }
-
         // Compare tweaked output pubkeys (from Taproot addresses)
         if (outputPubkeyHex === recipientPubkey) {
           logger.cashu('p2pk_account_match_found', {
             step: 'ACCOUNT_MATCH',
             accountIndex,
             address: taprootPayment.address,
-            derivedPubkey: outputPubkeyHex?.substring(0, 16) + '...',
-            targetPubkey: recipientPubkey?.substring(0, 16) + '...',
             scanTimeMs: Date.now() - startTime,
             accountsChecked: idx + 1,
           });
@@ -172,12 +153,10 @@ export const findAccountForP2PKToken = async (
           const hasOddY = internalPubkey[0] === 0x03; // 0x03 prefix means odd Y
 
           if (hasOddY) {
-            // Negate the private key: negated = n - key (where n is the curve order)
             internalPrivkey = ecc.privateNegate(internalPrivkey);
             if (!internalPrivkey) {
               throw new Error('Failed to negate internal private key');
             }
-            logger.info('[P2PK KEY] Negated internal private key (odd Y coordinate)');
           }
 
           const tweakedPrivkey = ecc.privateAdd(internalPrivkey, tweak);
@@ -189,17 +168,6 @@ export const findAccountForP2PKToken = async (
           // Verify the tweaked private key derives back to the expected pubkey
           const verifyPubkey = ecc.pointFromScalar(tweakedPrivkey);
           const verifyPubkeyXOnly = verifyPubkey ? Buffer.from(verifyPubkey).slice(1).toString('hex') : 'FAILED';
-
-          logger.cashu('p2pk_private_key_derived', {
-            step: 'ACCOUNT_MATCH',
-            accountIndex,
-            privateKeyLength: tweakedPrivkeyHex?.length,
-            privateKeyFirst8: tweakedPrivkeyHex?.substring(0, 8) + '...',
-            verifyPubkeyXOnly,
-            expectedPubkey: recipientPubkey,
-            pubkeyVerified: verifyPubkeyXOnly === recipientPubkey,
-            message: 'Tweaked private key derived successfully',
-          });
 
           return {
             accountIndex,

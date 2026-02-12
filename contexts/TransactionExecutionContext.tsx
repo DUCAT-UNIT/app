@@ -8,10 +8,11 @@ import React, { createContext, useContext, useState, useEffect, useMemo, useCall
 import { useSendFlow } from '../stores/sendFlowStore';
 import { useTransactionBuild } from './TransactionBuildContext';
 import type { SendIntent } from './TransactionBuildContext';
-import { usePendingTransactions } from './PendingTransactionsContext';
+import { usePendingTransactionsStore, usePendingTxs } from '../stores/pendingTransactionsStore';
 import { useWallet } from './WalletContext';
 import { useTransactionSigning, useTransactionBroadcast } from '../hooks/transaction';
 import type { SnackbarParams } from '../stores/notificationStore';
+import { logger } from '../utils/logger';
 
 interface BroadcastOptions {
   skipAutoConfirm?: boolean;
@@ -73,14 +74,14 @@ export const TransactionExecutionProvider: React.FC<TransactionExecutionProvider
   const { setIntentStep, sendAssetType, sendAmount, turboEnabled } = useSendFlow();
   const { sendIntent, setSendIntent } = useTransactionBuild();
   const { wallet } = useWallet();
+  const pendingTransactions = usePendingTxs();
   const {
     addPendingTransaction,
     confirmTransaction,
     invalidateTransaction,
-    pendingTransactions,
     markUtxoAsSpent,
     markUtxosAsSpent,
-  } = usePendingTransactions();
+  } = usePendingTransactionsStore();
 
   // Execution state
   const [broadcastedTxid, setBroadcastedTxid] = useState<string | null>(null);
@@ -138,6 +139,15 @@ export const TransactionExecutionProvider: React.FC<TransactionExecutionProvider
   // Sign and broadcast the PSBT
   const signIntent = useCallback(
     async (options: SignOptions = {}): Promise<string | null> => {
+      // E2E bypass: skip real signing/broadcasting for mock intents
+      if (__DEV__ && process.env.EXPO_PUBLIC_E2E_BYPASS === 'true' && sendIntent?.psbt === 'e2e-mock-psbt') {
+        const fakeTxid = `e2e-send-${Date.now().toString(16)}`;
+        logger.info('[signIntent] E2E bypass: fake txid', { fakeTxid });
+        setBroadcastedTxid(fakeTxid);
+        setIntentStep('confirmed');
+        return fakeTxid;
+      }
+
       const result = await signTransaction();
       if (!result) return null;
 
@@ -145,7 +155,7 @@ export const TransactionExecutionProvider: React.FC<TransactionExecutionProvider
       await broadcast(result.signedIntent, options);
       return result.txid;
     },
-    [signTransaction, broadcast]
+    [signTransaction, broadcast, sendIntent, setBroadcastedTxid, setIntentStep]
   );
 
   // Broadcast an already-signed intent

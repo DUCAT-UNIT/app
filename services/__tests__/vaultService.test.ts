@@ -29,6 +29,15 @@ jest.mock('../../utils/constants', () => ({
   },
 }));
 
+// Required fields for VaultInfo validation
+const REQUIRED_VAULT_FIELDS = {
+  vault_pubkey: 'vpk_test_123',
+  creation_account: 'acct_test_123',
+  guard_pubkey: 'gpk_test_123',
+  master_id: 'mid_test_123',
+  utxo: 'txid:0',
+};
+
 describe('vaultService', () => {
   beforeEach(() => {
     jest.clearAllMocks();
@@ -235,6 +244,7 @@ describe('vaultService', () => {
             vault_tag: 'My Vault',
             unit_borrowed: 1000,
             btc_locked: 5000,
+            ...REQUIRED_VAULT_FIELDS,
           },
         ],
         total_debt: 1000,
@@ -286,12 +296,12 @@ describe('vaultService', () => {
           vault_version: 1,
           collateral_ratio: 0,
           liquidation_price: 0,
-          master_id: '',
-          creation_account: '',
-          guard_pubkey: '',
-          vault_pubkey: '',
+          master_id: REQUIRED_VAULT_FIELDS.master_id,
+          creation_account: REQUIRED_VAULT_FIELDS.creation_account,
+          guard_pubkey: REQUIRED_VAULT_FIELDS.guard_pubkey,
+          vault_pubkey: REQUIRED_VAULT_FIELDS.vault_pubkey,
           liquidation_hash: '',
-          utxo: '',
+          utxo: REQUIRED_VAULT_FIELDS.utxo,
           oracle_timestamp: 0,
           vault_last_action: '',
         },
@@ -308,6 +318,7 @@ describe('vaultService', () => {
             vault_tag: 'My Vault',
             unit_borrowed: 1000,
             btc_locked: 5000,
+            ...REQUIRED_VAULT_FIELDS,
           },
         ],
         total_debt: 1000,
@@ -357,7 +368,7 @@ describe('vaultService', () => {
       const vaultPubkey = 'vault_pubkey_123';
 
       const vaultListResponse = {
-        vaults: [{ vault_id: 'vault_1', vault_tag: 'My Vault' }],
+        vaults: [{ vault_id: 'vault_1', vault_tag: 'My Vault', ...REQUIRED_VAULT_FIELDS }],
         total_debt: 0,
         total_collateral: 0,
         current_price: 0,
@@ -400,18 +411,21 @@ describe('vaultService', () => {
             vault_tag: 'First Vault',
             unit_borrowed: 1000,
             btc_locked: 5000,
+            ...REQUIRED_VAULT_FIELDS,
           },
           {
             vault_id: 'vault_2',
             vault_tag: 'Second Vault',
             unit_borrowed: 2000,
             btc_locked: 10000,
+            ...REQUIRED_VAULT_FIELDS,
           },
           {
             vault_id: 'vault_3',
             vault_tag: 'Third Vault',
             unit_borrowed: 3000,
             btc_locked: 15000,
+            ...REQUIRED_VAULT_FIELDS,
           },
         ],
         current_price: 50000,
@@ -446,8 +460,8 @@ describe('vaultService', () => {
 
       const vaultListResponse = {
         vaults: [
-          { vault_id: 'vault_1', vault_tag: 'Vault 1', unit_borrowed: 100, btc_locked: 500 },
-          { vault_id: 'vault_2', vault_tag: 'Vault 2', unit_borrowed: 200, btc_locked: 1000 },
+          { vault_id: 'vault_1', vault_tag: 'Vault 1', unit_borrowed: 100, btc_locked: 500, ...REQUIRED_VAULT_FIELDS },
+          { vault_id: 'vault_2', vault_tag: 'Vault 2', unit_borrowed: 200, btc_locked: 1000, ...REQUIRED_VAULT_FIELDS },
         ],
         current_price: 50000,
       };
@@ -473,6 +487,7 @@ describe('vaultService', () => {
             vault_tag: 'Only Vault',
             unit_borrowed: 1000,
             btc_locked: 5000,
+            ...REQUIRED_VAULT_FIELDS,
           },
         ],
         current_price: 50000,
@@ -495,6 +510,30 @@ describe('vaultService', () => {
       expect(result?.vaultInfo?.vault_id).toBe('vault_1');
     });
 
+    it('should return null when vault is missing required fields', async () => {
+      const vaultPubkey = 'vault_pubkey_123';
+
+      const vaultListResponse = {
+        vaults: [
+          {
+            vault_id: 'vault_1',
+            vault_tag: 'Incomplete Vault',
+            unit_borrowed: 1000,
+            btc_locked: 5000,
+            // Missing vault_pubkey, creation_account, guard_pubkey, master_id, utxo
+          },
+        ],
+        current_price: 50000,
+      };
+
+      getMockFetch()
+        .mockResolvedValueOnce(createMockResponse(vaultListResponse));
+
+      const result = await fetchVaultData(vaultPubkey);
+
+      expect(result).toBeNull();
+    });
+
     it('should use first vault data in latestTransaction', async () => {
       const vaultPubkey = 'vault_pubkey_123';
 
@@ -505,12 +544,14 @@ describe('vaultService', () => {
             vault_tag: 'First Vault',
             unit_borrowed: 1000,
             btc_locked: 5000,
+            ...REQUIRED_VAULT_FIELDS,
           },
           {
             vault_id: 'vault_2',
             vault_tag: 'Second Vault',
             unit_borrowed: 2000,
             btc_locked: 10000,
+            ...REQUIRED_VAULT_FIELDS,
           },
         ],
         current_price: 50000,

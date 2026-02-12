@@ -15,7 +15,7 @@ const mockSettingsHandlers = {
 };
 
 jest.mock('../../../contexts/NavigationHandlersContext', () => ({
-  useNavigationHandlers: () => ({
+  useSettingsHandlers: () => ({
     settingsHandlers: mockSettingsHandlers,
     biometricEnabled: true,
   }),

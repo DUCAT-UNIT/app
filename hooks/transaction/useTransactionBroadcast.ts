@@ -10,7 +10,7 @@ import { parseErrorMessage } from '../../utils/errorParser';
 import { ERRORS } from '../../utils/messages';
 import { logger } from '../../utils/logger';
 import type { SendIntent } from '../../contexts/TransactionBuildContext';
-import type { PendingTransactionOutput } from '../../contexts/PendingTransactionsContext';
+import type { PendingTransactionOutput } from '../../stores/pendingTransactionsStore';
 import type { SnackbarParams } from '../../stores/notificationStore';
 import type { IntentStep, AssetType } from '../../stores/sendFlowStore';
 import { useOutputExtraction } from './useOutputExtraction';

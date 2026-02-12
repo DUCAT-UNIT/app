@@ -63,12 +63,4 @@ export interface TransactionHistory {
   lastUpdated: number;
 }
 
-export interface PendingTransaction {
-  id: string;
-  txid?: string;
-  type: 'send' | 'receive' | 'vault' | 'cashu';
-  amount: number;
-  timestamp: number;
-  status: 'pending' | 'confirmed' | 'failed';
-  error?: string;
-}
+// PendingTransaction: canonical definition in stores/pendingTransactionsStore.ts

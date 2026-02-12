@@ -45,7 +45,7 @@ jest.mock('../AuthContext');
 // Configurable mock for NavigationHandlersContext
 let mockShowBiometricSetupModal = false;
 jest.mock('../NavigationHandlersContext', () => ({
-  useNavigationHandlers: () => ({
+  useAuthFlowHandlers: () => ({
     showBiometricSetupModal: mockShowBiometricSetupModal,
   }),
 }));

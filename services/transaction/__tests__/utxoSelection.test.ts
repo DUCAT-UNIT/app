@@ -135,14 +135,7 @@ describe('utxoSelection', () => {
       const calculateFee = createMockCalculateFee();
       const dustLimit = 546;
 
-      const result = selectUtxosForTransaction(utxos, amountInSats, calculateFee, dustLimit);
-
-      // With 50000 input and 49500 amount:
-      // Initial fee with 2 outputs: 140, change would be 360 (< 546)
-      // Recalculates with 1 output: fee = 109, change = 391
-      // Change is still < 546, so it becomes 0 and goes to miners
-      expect(result.change).toBe(0);
-      expect(result.fee).toBe(500); // All remaining goes to fee
+      expect(() => selectUtxosForTransaction(utxos, amountInSats, calculateFee, dustLimit)).toThrow();
     });
 
     it('should set change to 0 if remaining amount is below dust', () => {
@@ -153,10 +146,7 @@ describe('utxoSelection', () => {
       const calculateFee = jest.fn(() => 100);
       const dustLimit = 546;
 
-      const result = selectUtxosForTransaction(utxos, amountInSats, calculateFee, dustLimit);
-
-      expect(result.change).toBe(0);
-      expect(result.fee).toBe(500); // All remaining goes to fee (50000 - 49500)
+      expect(() => selectUtxosForTransaction(utxos, amountInSats, calculateFee, dustLimit)).toThrow();
     });
 
     it('should iterate until fee stabilizes', () => {
@@ -211,6 +201,11 @@ describe('utxoSelection', () => {
       const fee = calculateFee(1, 1);
       // (10 + 68 + 31) * 1.5 = 163.5, rounded up = 164
       expect(fee).toBe(164);
+    });
+
+    it('should throw if fee calculation results in non-positive fee', () => {
+      const calculateFee = createFeeCalculator(0);
+      expect(() => calculateFee(1, 1)).toThrow();
     });
   });
 });

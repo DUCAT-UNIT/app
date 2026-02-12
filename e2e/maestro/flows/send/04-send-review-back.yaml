@@ -1,7 +1,7 @@
 appId: com.ducatprotocol.DucatProtocolWallet
 ---
-# Send Review Back - Reach review screen then go back, verify state preserved
-# Fresh wallet → send BTC → address → amount → review → back → verify state
+# Send Review Back - Verify navigation back from review preserves state
+# Navigate to review → go back → verify send input state is preserved
 
 - runFlow: ../helpers/create-wallet.yaml
 
@@ -26,13 +26,14 @@ appId: com.ducatprotocol.DucatProtocolWallet
 - tapOn:
     id: "withdraw-btc"
 
+# Verify send input screen loads
 - waitForAnimationToEnd
 - extendedWaitUntil:
     visible:
       id: "send-input-screen"
     timeout: 10000
 
-# Enter address + amount
+# Enter a valid testnet address
 - extendedWaitUntil:
     visible:
       text: "Recipient Bitcoin address.*"
@@ -41,36 +42,43 @@ appId: com.ducatprotocol.DucatProtocolWallet
     text: "Recipient Bitcoin address.*"
 - inputText: "tb1qw508d6qejxtdg4y5r3zarvary0c5xw7kxpjzsx"
 - hideKeyboard
+
+# Wait for address validation
 - extendedWaitUntil:
     visible:
       text: "Valid"
     timeout: 5000
+
+# Select QTR (smallest amount)
 - tapOn:
     id: "btc-slider-quarter-btn"
 - waitForAnimationToEnd
 
-# Go to review
+# Tap review button
 - extendedWaitUntil:
     visible:
       text: "Review transaction"
     timeout: 5000
 - tapOn:
     text: "Review transaction"
+
+# Wait for review screen
 - extendedWaitUntil:
     visible:
       id: "review-screen"
     timeout: 10000
+- assertVisible:
+    text: "You will send"
 
-# Tap back button to return to send input
+# Go back to send input screen
 - tapOn:
     id: "review-back-btn"
 
-# Verify we're back on send input screen
+# Verify we're back on send input with state preserved
+- waitForAnimationToEnd
 - extendedWaitUntil:
     visible:
       id: "send-input-screen"
     timeout: 10000
-
-# Verify address is still populated (state preserved)
 - assertVisible:
     text: "Valid"

@@ -15,6 +15,7 @@ import {
   recordFailedAttempt,
   getMaxPinAttempts,
 } from './pinLockout';
+import { resetBiometricAttempts } from './biometricService';
 import {
   generateSalt,
   hashPin,
@@ -22,6 +23,18 @@ import {
   generateSaltHmac,
   verifySaltHmac,
 } from './pinHashing';
+import * as Crypto from 'expo-crypto';
+import { Buffer } from 'buffer';
+
+const getOrCreateHmacKey = async (): Promise<string> => {
+  let key = await SecureStore.getItemAsync(SECURE_KEYS.PIN_HMAC_KEY);
+  if (!key) {
+    const bytes = await Crypto.getRandomBytesAsync(32);
+    key = Buffer.from(bytes).toString('hex');
+    await SecureStore.setItemAsync(SECURE_KEYS.PIN_HMAC_KEY, key);
+  }
+  return key;
+};
 
 /**
  * Discriminated union for PIN verification results
@@ -93,10 +106,10 @@ export const savePinWithHash = async (pin: string): Promise<SavePinResult> => {
     // Generate a unique salt for this user
     const salt = await generateSalt();
     const hashedPin = await hashPin(pin, salt);
+    const hmacKey = await getOrCreateHmacKey();
 
-    // Generate HMAC for salt integrity verification
-    // Use PIN hash as HMAC key (device-bound, derivable from user input)
-    const saltHmac = generateSaltHmac(salt, hashedPin);
+    // Generate HMAC for salt integrity verification using device-bound random key
+    const saltHmac = generateSaltHmac(salt, hmacKey);
 
     // Store the hashed PIN, salt, HMAC, and version (using new 310K iteration standard)
     await SecureStore.setItemAsync(SECURE_KEYS.PIN, hashedPin);
@@ -108,6 +121,7 @@ export const savePinWithHash = async (pin: string): Promise<SavePinResult> => {
     const verifiedSalt = await SecureStore.getItemAsync(SECURE_KEYS.PIN_SALT);
     const verifiedPin = await SecureStore.getItemAsync(SECURE_KEYS.PIN);
     const verifiedHmac = await SecureStore.getItemAsync(SECURE_KEYS.PIN_SALT_HMAC);
+    const verifiedHmacKey = await SecureStore.getItemAsync(SECURE_KEYS.PIN_HMAC_KEY);
     const verifiedVersion = await SecureStore.getItemAsync(SECURE_KEYS.PIN_VERSION);
 
     // Verify all critical values were stored correctly
@@ -174,9 +188,10 @@ export const savePin = async (pin: string): Promise<boolean> => {
     // Generate a unique salt for this user
     const salt = await generateSalt();
     const hashedPin = await hashPin(pin, salt);
+    const hmacKey = await getOrCreateHmacKey();
 
     // Generate HMAC for salt integrity verification
-    const saltHmac = generateSaltHmac(salt, hashedPin);
+    const saltHmac = generateSaltHmac(salt, hmacKey);
 
     // Store the hashed PIN, salt, HMAC, and version (using new 310K iteration standard)
     await SecureStore.setItemAsync(SECURE_KEYS.PIN, hashedPin);
@@ -189,6 +204,7 @@ export const savePin = async (pin: string): Promise<boolean> => {
     const verifiedSalt = await SecureStore.getItemAsync(SECURE_KEYS.PIN_SALT);
     const verifiedPin = await SecureStore.getItemAsync(SECURE_KEYS.PIN);
     const verifiedHmac = await SecureStore.getItemAsync(SECURE_KEYS.PIN_SALT_HMAC);
+    const verifiedHmacKey = await SecureStore.getItemAsync(SECURE_KEYS.PIN_HMAC_KEY);
     const verifiedVersion = await SecureStore.getItemAsync(SECURE_KEYS.PIN_VERSION);
 
     // Verify all critical values were stored correctly
@@ -255,7 +271,8 @@ export const savePinWithExistingSalt = async (pin: string, existingSalt: string)
     const hashedPin = await hashPin(pin, existingSalt);
 
     // Generate HMAC for salt integrity verification (salt already exists)
-    const saltHmac = generateSaltHmac(existingSalt, hashedPin);
+    const hmacKey = await getOrCreateHmacKey();
+    const saltHmac = generateSaltHmac(existingSalt, hmacKey);
 
     // Store the hashed PIN, HMAC, and version (salt already exists, using new 310K iteration standard)
     await SecureStore.setItemAsync(SECURE_KEYS.PIN, hashedPin);
@@ -338,6 +355,7 @@ export const verifyPin = async (enteredPin: string): Promise<PinVerificationResu
     const storedHashedPin = await SecureStore.getItemAsync(SECURE_KEYS.PIN);
     const storedSalt = await SecureStore.getItemAsync(SECURE_KEYS.PIN_SALT);
     const storedHmac = await SecureStore.getItemAsync(SECURE_KEYS.PIN_SALT_HMAC);
+    let hmacKey = await SecureStore.getItemAsync(SECURE_KEYS.PIN_HMAC_KEY);
     const storedVersion = await SecureStore.getItemAsync(SECURE_KEYS.PIN_VERSION);
 
     // If salt doesn't exist, this is a corrupted state
@@ -360,8 +378,14 @@ export const verifyPin = async (enteredPin: string): Promise<PinVerificationResu
 
     // Verify salt integrity using HMAC (if HMAC exists)
     // HMAC may not exist for legacy installations - that's OK, we'll create it on next save
+    if (!hmacKey) {
+      // Generate and persist a new HMAC key if missing (legacy installs)
+      hmacKey = Buffer.from(await Crypto.getRandomBytesAsync(32)).toString('hex');
+      await SecureStore.setItemAsync(SECURE_KEYS.PIN_HMAC_KEY, hmacKey);
+    }
+
     if (storedHmac) {
-      const isIntegrityValid = verifySaltHmac(storedSalt, storedHmac, storedHashedPin);
+      const isIntegrityValid = verifySaltHmac(storedSalt, storedHmac, hmacKey);
       if (!isIntegrityValid) {
         logger.error('Salt integrity check failed - possible corruption detected');
         return {
@@ -384,8 +408,9 @@ export const verifyPin = async (enteredPin: string): Promise<PinVerificationResu
     const isValid = verifyPinHash(storedHashedPin, enteredHashedPin);
 
     if (isValid) {
-      // Success - reset attempts
+      // Success - reset both PIN and biometric attempts (unified lockout)
       await resetPinAttempts();
+      await resetBiometricAttempts();
 
       // AUTOMATIC MIGRATION: If user is on legacy version or missing HMAC, migrate to new version
       const needsMigration = isLegacyVersion || !storedHmac;
@@ -401,7 +426,7 @@ export const verifyPin = async (enteredPin: string): Promise<PinVerificationResu
           const newHashedPin = isLegacyVersion ? await hashPin(enteredPin, storedSalt) : storedHashedPin;
 
           // Generate HMAC for salt integrity
-          const saltHmac = generateSaltHmac(storedSalt, newHashedPin);
+          const saltHmac = generateSaltHmac(storedSalt, hmacKey);
 
           // Update stored hash, HMAC, and version
           await SecureStore.setItemAsync(SECURE_KEYS.PIN, newHashedPin);

@@ -2,6 +2,11 @@
  * NavigationHandlersContext
  * Centralizes all navigation and flow control handlers to eliminate prop drilling
  *
+ * Split into 3 focused sub-contexts for granular subscriptions:
+ * - SettingsHandlersContext: settings state, handlers, and confirmation modals
+ * - AccountSwitcherContext: account picker UI state
+ * - AuthFlowContext: PIN/auth, passkey migration, and biometric setup handlers
+ *
  * @jest-coverage-ignore - Complex integration context with many dependencies
  * Testing this context requires mocking 10+ contexts/hooks which makes tests
  * brittle and not valuable. This should be tested via integration/E2E tests.
@@ -22,7 +27,6 @@ import { useCashuOperations } from './CashuContext';
 import { useSettings } from '../hooks/useSettings';
 import { useAccountSwitcher } from '../hooks/useAccountSwitcher';
 import { usePostAuthHandler } from '../hooks/usePostAuthHandler';
-import { notify } from '../utils/notify';
 
 interface SettingsHandlers {
   notificationsEnabled: boolean;
@@ -48,12 +52,9 @@ interface PasskeyMigrationData {
   pin: string;
 }
 
-interface NavigationHandlersContextValue {
-  handlePinSetupCompleteWrapper: () => Promise<void>;
-  handlePinChangeCompleteWrapper: () => Promise<void>;
-  handleCancelPinChange: () => Promise<void>;
-  handleLockScreenAuthenticatedWrapper: () => Promise<void>;
-  resetWalletAndState: () => Promise<void>;
+// --- Sub-context value interfaces ---
+
+export interface SettingsContextValue {
   settingsHandlers: SettingsHandlers;
   biometricEnabled: boolean;
   showLogoutModal: boolean;
@@ -68,12 +69,23 @@ interface NavigationHandlersContextValue {
   cancelFaceIdToggle: () => void;
   confirmNotificationsToggle: () => void;
   cancelNotificationsToggle: () => void;
+}
+
+export interface AccountSwitcherContextValue {
   showAccountPicker: boolean;
   setShowAccountPicker: React.Dispatch<React.SetStateAction<boolean>>;
   newAccountIndex: string;
   setNewAccountIndex: React.Dispatch<React.SetStateAction<string>>;
   switchingAccount: boolean;
   switchAccount: (index: number) => Promise<void>;
+}
+
+export interface AuthFlowContextValue {
+  handlePinSetupCompleteWrapper: () => Promise<void>;
+  handlePinChangeCompleteWrapper: () => Promise<void>;
+  handleCancelPinChange: () => Promise<void>;
+  handleLockScreenAuthenticatedWrapper: () => Promise<void>;
+  resetWalletAndState: () => Promise<void>;
   showPasskeyMigrationModal: boolean;
   passkeyMigrationData: PasskeyMigrationData | null;
   showPasskeyMigrationPrompt: (mnemonic: string, pin: string) => void;
@@ -85,7 +97,13 @@ interface NavigationHandlersContextValue {
   handleBiometricSetupSkip: () => Promise<void>;
 }
 
-const NavigationHandlersContext = createContext<NavigationHandlersContextValue | undefined>(undefined);
+// --- Sub-contexts ---
+
+const SettingsHandlersContext = createContext<SettingsContextValue | undefined>(undefined);
+const AccountSwitcherCtx = createContext<AccountSwitcherContextValue | undefined>(undefined);
+const AuthFlowCtx = createContext<AuthFlowContextValue | undefined>(undefined);
+
+// --- Provider ---
 
 interface NavigationHandlersProviderProps {
   children: ReactNode;
@@ -299,7 +317,7 @@ export const NavigationHandlersProvider: React.FC<NavigationHandlersProviderProp
   }, [setBiometricEnabled]);
 
   // Settings handlers object - memoized to prevent recreation on every render
-  const settingsHandlers = useMemo(
+  const settingsHandlersObj = useMemo(
     (): SettingsHandlers => ({
       notificationsEnabled: notificationsEnabled || false,
       showZeroAssets: showZeroAssets || false,
@@ -338,20 +356,12 @@ export const NavigationHandlersProvider: React.FC<NavigationHandlersProviderProp
     ]
   );
 
-  const value = useMemo(
-    (): NavigationHandlersContextValue => ({
-      // Primary handlers
-      handlePinSetupCompleteWrapper,
-      handlePinChangeCompleteWrapper,
-      handleCancelPinChange,
-      handleLockScreenAuthenticatedWrapper: handlePostAuth,
-      resetWalletAndState,
+  // --- Sub-context values ---
 
-      // Settings
-      settingsHandlers,
+  const settingsValue = useMemo(
+    (): SettingsContextValue => ({
+      settingsHandlers: settingsHandlersObj,
       biometricEnabled,
-
-      // Settings modals
       showLogoutModal,
       showDeleteModal,
       showFaceIdModal,
@@ -364,22 +374,55 @@ export const NavigationHandlersProvider: React.FC<NavigationHandlersProviderProp
       cancelFaceIdToggle,
       confirmNotificationsToggle,
       cancelNotificationsToggle,
+    }),
+    [
+      settingsHandlersObj,
+      biometricEnabled,
+      showLogoutModal,
+      showDeleteModal,
+      showFaceIdModal,
+      showNotificationsModal,
+      confirmLogout,
+      cancelLogout,
+      confirmDeleteWallet,
+      cancelDeleteWallet,
+      confirmFaceIdToggle,
+      cancelFaceIdToggle,
+      confirmNotificationsToggle,
+      cancelNotificationsToggle,
+    ]
+  );
 
-      // Account switcher
+  const accountSwitcherValue = useMemo(
+    (): AccountSwitcherContextValue => ({
       showAccountPicker,
       setShowAccountPicker,
       newAccountIndex,
       setNewAccountIndex,
       switchingAccount,
       switchAccount,
+    }),
+    [
+      showAccountPicker,
+      setShowAccountPicker,
+      newAccountIndex,
+      setNewAccountIndex,
+      switchingAccount,
+      switchAccount,
+    ]
+  );
 
-      // Passkey migration
+  const authFlowValue = useMemo(
+    (): AuthFlowContextValue => ({
+      handlePinSetupCompleteWrapper,
+      handlePinChangeCompleteWrapper,
+      handleCancelPinChange,
+      handleLockScreenAuthenticatedWrapper: handlePostAuth,
+      resetWalletAndState,
       showPasskeyMigrationModal,
       passkeyMigrationData,
       showPasskeyMigrationPrompt,
       hidePasskeyMigrationPrompt,
-
-      // Biometric setup
       showBiometricSetupModal,
       showBiometricSetupPrompt,
       hideBiometricSetupPrompt,
@@ -392,26 +435,6 @@ export const NavigationHandlersProvider: React.FC<NavigationHandlersProviderProp
       handleCancelPinChange,
       handlePostAuth,
       resetWalletAndState,
-      settingsHandlers,
-      biometricEnabled,
-      showLogoutModal,
-      showDeleteModal,
-      showFaceIdModal,
-      showNotificationsModal,
-      confirmLogout,
-      cancelLogout,
-      confirmDeleteWallet,
-      cancelDeleteWallet,
-      confirmFaceIdToggle,
-      cancelFaceIdToggle,
-      confirmNotificationsToggle,
-      cancelNotificationsToggle,
-      showAccountPicker,
-      setShowAccountPicker,
-      newAccountIndex,
-      setNewAccountIndex,
-      switchingAccount,
-      switchAccount,
       showPasskeyMigrationModal,
       passkeyMigrationData,
       showPasskeyMigrationPrompt,
@@ -425,16 +448,38 @@ export const NavigationHandlersProvider: React.FC<NavigationHandlersProviderProp
   );
 
   return (
-    <NavigationHandlersContext.Provider value={value}>
-      {children}
-    </NavigationHandlersContext.Provider>
+    <SettingsHandlersContext.Provider value={settingsValue}>
+      <AccountSwitcherCtx.Provider value={accountSwitcherValue}>
+        <AuthFlowCtx.Provider value={authFlowValue}>
+          {children}
+        </AuthFlowCtx.Provider>
+      </AccountSwitcherCtx.Provider>
+    </SettingsHandlersContext.Provider>
   );
 };
 
-export const useNavigationHandlers = (): NavigationHandlersContextValue => {
-  const context = useContext(NavigationHandlersContext);
+// --- Focused consumer hooks ---
+
+export const useSettingsHandlers = (): SettingsContextValue => {
+  const context = useContext(SettingsHandlersContext);
   if (!context) {
-    throw new Error('useNavigationHandlers must be used within NavigationHandlersProvider');
+    throw new Error('useSettingsHandlers must be used within NavigationHandlersProvider');
+  }
+  return context;
+};
+
+export const useAccountSwitcherContext = (): AccountSwitcherContextValue => {
+  const context = useContext(AccountSwitcherCtx);
+  if (!context) {
+    throw new Error('useAccountSwitcherContext must be used within NavigationHandlersProvider');
+  }
+  return context;
+};
+
+export const useAuthFlowHandlers = (): AuthFlowContextValue => {
+  const context = useContext(AuthFlowCtx);
+  if (!context) {
+    throw new Error('useAuthFlowHandlers must be used within NavigationHandlersProvider');
   }
   return context;
 };

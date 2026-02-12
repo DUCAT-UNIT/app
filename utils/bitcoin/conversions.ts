@@ -21,7 +21,12 @@ export function satsToBTC(satoshis: number | null | undefined): number {
   }
 
   if (typeof satoshis !== 'number' || isNaN(satoshis)) {
-    logger.warn('satsToBTC: Invalid satoshis value', { satoshis });
+    logger.warn('satsToBTC: Invalid satoshis value', { type: typeof satoshis });
+    return 0;
+  }
+
+  if (Math.abs(satoshis) > Number.MAX_SAFE_INTEGER) {
+    logger.warn('satsToBTC: Value exceeds MAX_SAFE_INTEGER');
     return 0;
   }
 
@@ -31,7 +36,7 @@ export function satsToBTC(satoshis: number | null | undefined): number {
 /**
  * Convert BTC to satoshis
  * @param btc - Amount in BTC (can be string for user input)
- * @returns Amount in satoshis (floored to integer)
+ * @returns Amount in satoshis (rounded to nearest integer)
  */
 export function btcToSats(btc: number | string | null | undefined): number {
   if (btc === null || btc === undefined || btc === '') {
@@ -43,11 +48,23 @@ export function btcToSats(btc: number | string | null | undefined): number {
   const btcValue = parseFloat(normalized.toString());
 
   if (isNaN(btcValue)) {
-    logger.warn('btcToSats: Invalid BTC value', { btc });
+    logger.warn('btcToSats: Invalid BTC value');
     return 0;
   }
 
-  return Math.floor(btcValue * SATS_PER_BTC);
+  if (btcValue < 0) {
+    logger.warn('btcToSats: Negative BTC value');
+    return 0;
+  }
+
+  const satoshis = Math.round(btcValue * SATS_PER_BTC);
+
+  if (satoshis > Number.MAX_SAFE_INTEGER) {
+    logger.warn('btcToSats: Result exceeds MAX_SAFE_INTEGER');
+    return 0;
+  }
+
+  return satoshis;
 }
 
 /**

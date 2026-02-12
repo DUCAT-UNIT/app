@@ -6,8 +6,8 @@
 
 import React, { createContext, useContext, useEffect, useCallback, useMemo, useRef, useState, ReactNode } from 'react';
 import { useWallet } from './WalletContext';
-import { usePendingTransactions } from './PendingTransactionsContext';
-import { useCashu } from './CashuContext';
+import { usePendingTransactionsStore } from '../stores/pendingTransactionsStore';
+import { useCashuBalanceState } from './CashuContext';
 import { usePolling } from '../hooks/usePolling';
 import { useBalanceData, UseBalanceDataReturn } from '../hooks/useBalanceData';
 import { useTransactionHistoryFetch, UseTransactionHistoryFetchReturn } from '../hooks/useTransactionHistoryFetch';
@@ -22,11 +22,6 @@ import { logger } from '../utils/logger';
 // Polling intervals (in milliseconds)
 const POLL_INTERVAL = 10000; // 10 seconds - for balance and vault data
 
-// Import types from services
-import type { RuneBalance, UTXO } from '../services/balanceService';
-import type { Transaction } from '../services/transactionHistoryService';
-import type { VaultData } from '../services/vaultService';
-
 // Use hook return types directly for consistency
 export type BalanceDataValue = UseBalanceDataReturn;
 export type TransactionHistoryValue = UseTransactionHistoryFetchReturn;
@@ -34,51 +29,6 @@ export type VaultDataValue = UseVaultDataFetchReturn;
 
 // Ecash tokens context value
 export interface EcashTokensValue {
-  ecashTokens: TokenWithStatus[];
-  loadingEcashTokens: boolean;
-  fetchEcashTokens: () => Promise<void>;
-  resetEcashTokens: () => void;
-}
-
-// Legacy combined type for backwards compatibility
-// Note: This combines all properties from the individual contexts
-export interface WalletDataContextValue {
-  balance: BalanceDataValue;
-  history: TransactionHistoryValue;
-  vault: VaultDataValue;
-  ecash: EcashTokensValue;
-  // Direct exports for backwards compatibility - matching hook return types
-  segwitBalance: number;
-  taprootBalance: number;
-  runesBalance: RuneBalance[];
-  unconfirmedSegwitBalance: number;
-  unconfirmedTaprootBalance: number;
-  unconfirmedRunesBalance: number;
-  loadingBalance: boolean;
-  refreshing: boolean;
-  balanceError: string | null;
-  setBalanceError: React.Dispatch<React.SetStateAction<string | null>>;
-  utxos: UTXO[];
-  loadingUtxos: boolean;
-  fetchBalance: (segwitAddr?: string, taprootAddr?: string) => Promise<void>;
-  onRefresh: () => Promise<void>;
-  fetchUtxos: (address: string) => Promise<UTXO[]>;
-  resetBalances: () => void;
-  transactionHistory: Transaction[];
-  loadingTransactionHistory: boolean;
-  historyError: string | null;
-  fetchTransactionHistory: () => Promise<void>;
-  resetTransactionHistory: () => void;
-  vaultData: VaultData | null;
-  loadingVault: boolean;
-  vaultError: string | null;
-  fetchVault: () => Promise<void>;
-  resetVaultData: () => void;
-  // Vault transactions (cached like BTC transaction history)
-  vaultTransactions: import('../services/vaultService').VaultHistoryTransaction[];
-  loadingVaultTransactions: boolean;
-  fetchVaultTransactions: () => Promise<void>;
-  // Ecash tokens
   ecashTokens: TokenWithStatus[];
   loadingEcashTokens: boolean;
   fetchEcashTokens: () => Promise<void>;
@@ -94,16 +44,6 @@ const BalanceContext = createContext<BalanceDataValue | undefined>(undefined);
 const HistoryContext = createContext<TransactionHistoryValue | undefined>(undefined);
 const VaultDataContext = createContext<VaultDataValue | undefined>(undefined);
 const EcashTokensContext = createContext<EcashTokensValue | undefined>(undefined);
-const WalletDataContext = createContext<WalletDataContextValue | undefined>(undefined); // Legacy - for backwards compatibility
-
-export const useWalletData = (): WalletDataContextValue => {
-  const context = useContext(WalletDataContext);
-  if (!context) {
-    throw new Error('useWalletData must be used within a WalletDataProvider');
-  }
-  return context;
-};
-
 // OPTIMIZED: Direct context access - no re-render unless balance changes
 export const useBalance = (): BalanceDataValue => {
   const context = useContext(BalanceContext);
@@ -146,8 +86,8 @@ interface WalletDataProviderProps {
 
 export const WalletDataProvider: React.FC<WalletDataProviderProps> = ({ children }) => {
   const { wallet } = useWallet();
-  const { getUnconfirmedBalance, getUnconfirmedUTXOs } = usePendingTransactions();
-  const { isLoading: loadingCashu, balance: cashuBalance } = useCashu();
+  const { getUnconfirmedBalance, getUnconfirmedUTXOs } = usePendingTransactionsStore();
+  const { isLoading: loadingCashu, balance: cashuBalance } = useCashuBalanceState();
 
   // ============================================================
   // USE EXTRACTED HOOKS FOR DATA MANAGEMENT
@@ -375,61 +315,12 @@ export const WalletDataProvider: React.FC<WalletDataProviderProps> = ({ children
     resetEcashTokens,
   }), [ecashTokens, loadingEcashTokens, fetchEcashTokens, resetEcashTokens]);
 
-  // Legacy consolidated value (for backwards compatibility with useWalletData())
-  // This still has the old behavior - updates when ANY data changes
-  const legacyValue = useMemo(
-    () => ({
-      // Namespaced data (recommended for new code)
-      balance,
-      history,
-      vault,
-      ecash: ecashValue,
-      // Direct exports for backwards compatibility
-      segwitBalance: balance.segwitBalance,
-      taprootBalance: balance.taprootBalance,
-      runesBalance: balance.runesBalance,
-      unconfirmedSegwitBalance: balance.unconfirmedSegwitBalance,
-      unconfirmedTaprootBalance: balance.unconfirmedTaprootBalance,
-      unconfirmedRunesBalance: balance.unconfirmedRunesBalance,
-      loadingBalance: balance.loadingBalance,
-      refreshing: balance.refreshing,
-      balanceError: balance.balanceError,
-      setBalanceError: balance.setBalanceError,
-      utxos: balance.utxos,
-      loadingUtxos: balance.loadingUtxos,
-      fetchBalance: balance.fetchBalance,
-      onRefresh: balance.onRefresh,
-      fetchUtxos: balance.fetchUtxos,
-      resetBalances: balance.resetBalances,
-      transactionHistory: history.transactionHistory,
-      loadingTransactionHistory: history.loadingTransactionHistory,
-      historyError: history.historyError,
-      fetchTransactionHistory: history.fetchTransactionHistory,
-      resetTransactionHistory: history.resetTransactionHistory,
-      vaultData: vault.vaultData,
-      loadingVault: vault.loadingVault,
-      vaultError: vault.vaultError,
-      fetchVault: vault.fetchVault,
-      resetVaultData: vault.resetVaultData,
-      // Vault transactions (cached like BTC transaction history)
-      vaultTransactions: vault.vaultTransactions,
-      loadingVaultTransactions: vault.loadingVaultTransactions,
-      fetchVaultTransactions: vault.fetchVaultTransactions,
-      // Ecash tokens
-      ecashTokens,
-      loadingEcashTokens,
-      fetchEcashTokens,
-      resetEcashTokens,
-    }),
-    [balance, history, vault, ecashValue, ecashTokens, loadingEcashTokens, fetchEcashTokens, resetEcashTokens]
-  );
-
   return (
     <BalanceContext.Provider value={balanceValue}>
       <HistoryContext.Provider value={historyValue}>
         <VaultDataContext.Provider value={vaultValue}>
           <EcashTokensContext.Provider value={ecashValue}>
-            <WalletDataContext.Provider value={legacyValue}>{children}</WalletDataContext.Provider>
+            {children}
           </EcashTokensContext.Provider>
         </VaultDataContext.Provider>
       </HistoryContext.Provider>

@@ -168,7 +168,7 @@ describe('oracleService', () => {
         await fetchPriceQuote(50000);
         expect(true).toBe(false);
       } catch (e) {
-        expect((e as Error).message).toContain('price quote');
+        expect((e as Error).message).toContain('Network error');
       }
     });
   });

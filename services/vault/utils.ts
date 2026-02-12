@@ -13,6 +13,26 @@ import { Buffer } from 'buffer';
 import { logger } from '../../utils/logger';
 import { varIntSize } from '../../utils/wallet/cryptoHelpers';
 
+/**
+ * Vault operation mutex — serializes vault operations to prevent concurrent
+ * UTXO usage that could cause double-spend rejections from Guardian.
+ * Without this, simultaneous deposit + borrow could select the same UTXOs.
+ */
+let _vaultOpLock: Promise<void> = Promise.resolve();
+
+export function withVaultOperationLock<T>(fn: () => Promise<T>): Promise<T> {
+  let release: () => void;
+  const next = new Promise<void>((resolve) => {
+    release = resolve;
+  });
+  const result = _vaultOpLock.then(fn);
+  _vaultOpLock = result.then(
+    () => { release(); },
+    () => { release(); }
+  );
+  return result;
+}
+
 export interface Utxo {
   txid: string;
   vout: number;

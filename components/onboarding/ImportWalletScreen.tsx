@@ -67,6 +67,13 @@ export default function ImportWalletScreen({
           newPhrase[i] = word;
         });
         setImportSeedPhrase(newPhrase);
+
+        // SECURITY: Clear clipboard after pasting seed phrase to prevent leakage
+        try {
+          await Clipboard.setStringAsync('');
+        } catch {
+          // Clipboard clear failure is non-critical
+        }
       }
     } catch (error: unknown) {
       // Clipboard access may be denied by user or system

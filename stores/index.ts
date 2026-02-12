@@ -40,7 +40,7 @@ export {
   resetSendFlowStore,
   type IntentStep,
   type AssetType,
-  type AddressType,
+  type SendAddressType,
 } from './sendFlowStore';
 
 // Notifications

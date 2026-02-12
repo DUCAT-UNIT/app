@@ -36,6 +36,7 @@ import { fetchPriceQuote } from '../services/oracleService';
 import { createVaultWallet } from '../services/vaultWalletService';
 import { fetchVaultData, fetchVaultHistory } from '../services/vaultService';
 import { computeLiquidationPrice } from '../utils/vaultUtils';
+import { e2eVaultState } from '../utils/e2eVaultState';
 import { logger } from '../utils/logger';
 import type { BorrowProcessingStep } from '../stores/borrowStore';
 import type { VaultProfile } from '@ducat-unit/client-sdk';
@@ -223,6 +224,26 @@ export function useBorrowVault(): UseBorrowVaultResult {
     setLoading(true);
     setError(null);
     setCurrentStep('processing');
+
+    // E2E bypass: skip Guardian and simulate instant borrow
+    if (__DEV__ && process.env.EXPO_PUBLIC_E2E_BYPASS === 'true') {
+      try {
+        for (const step of [1, 2, 3, 4] as BorrowProcessingStep[]) {
+          updateProcessingStep(step);
+          await new Promise((r) => setTimeout(r, 200));
+        }
+        const fakeTxid = `e2e-borrow-${Date.now().toString(16)}`;
+        const fakeVaultTxid = `e2e-borrow-vault-${Date.now().toString(16)}`;
+        e2eVaultState.unitBorrowed += borrowAmount;
+        setTxid(fakeTxid, fakeVaultTxid);
+        setCurrentStep('success');
+        logger.info('[useBorrowVault] E2E bypass: borrow completed', { fakeTxid, borrowAmount });
+        return { txid: fakeTxid, vaultTxid: fakeVaultTxid };
+      } finally {
+        operationInProgressRef.current = false;
+        setLoading(false);
+      }
+    }
 
     try {
       // Step 1: Build VaultProfile and create config

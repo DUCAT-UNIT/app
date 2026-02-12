@@ -27,6 +27,10 @@ export interface PendingTurboSend {
   createdAt: number;
   /** Current stage of the turbo send */
   stage: 'waiting_for_mint' | 'mint_completed' | 'p2pk_created';
+  /** P2PK token saved for crash recovery (set when stage = p2pk_created) */
+  token?: string;
+  /** Shortened URL for the token (set after URL shortening) */
+  shortUrl?: string;
 }
 
 /**
@@ -65,16 +69,21 @@ export const savePendingTurboSend = async (
 
 /**
  * Update the stage of a pending turbo send
+ * @param stage - New stage
+ * @param data - Optional additional data to persist (e.g., token for crash recovery)
  */
 export const updateTurboSendStage = async (
-  stage: PendingTurboSend['stage']
+  stage: PendingTurboSend['stage'],
+  data?: { token?: string; shortUrl?: string }
 ): Promise<void> => {
   try {
     const pending = await loadPendingTurboSend();
     if (pending) {
       pending.stage = stage;
+      if (data?.token) pending.token = data.token;
+      if (data?.shortUrl) pending.shortUrl = data.shortUrl;
       await SecureStore.setItemAsync(PENDING_TURBO_SEND_KEY, JSON.stringify(pending));
-      logger.debug('[TurboRecovery] Updated turbo send stage', { stage });
+      logger.debug('[TurboRecovery] Updated turbo send stage', { stage, hasToken: !!data?.token });
     }
   } catch (error) {
     logger.error('[TurboRecovery] Failed to update turbo send stage', {
@@ -220,13 +229,26 @@ export const recoverPendingTurboSend = async (
       };
     }
 
-    // P2PK was created but maybe not saved - try to clear
+    // P2PK was created but maybe not saved to locked tokens — re-save using persisted token
     if (pending.stage === 'p2pk_created') {
-      logger.info('[TurboRecovery] P2PK was created, clearing pending state');
-      // The token was already created, we just need to clear the pending state
-      // The user will see it in their sent tokens list
+      logger.info('[TurboRecovery] P2PK was created, attempting to re-save token');
+
+      if (pending.token) {
+        try {
+          // Re-generate short URL if not saved
+          const shortUrl = pending.shortUrl || await shortenToken(pending.token);
+          // Re-save the locked token
+          await saveToken(pending.token, pending.recipient, pending.amount, null, shortUrl, pending.senderTaprootAddress);
+          logger.info('[TurboRecovery] Re-saved token from recovery data');
+        } catch (saveError) {
+          logger.error('[TurboRecovery] Failed to re-save token, clearing state', {
+            error: saveError instanceof Error ? saveError.message : String(saveError),
+          });
+        }
+      }
+
       await clearPendingTurboSend();
-      return { recovered: true };
+      return { recovered: true, token: pending.token, recipient: pending.recipient, amount: pending.amount };
     }
 
     return { recovered: false };

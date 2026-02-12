@@ -9,16 +9,32 @@ jest.mock('bitcoinjs-lib', () => {
     addOutput: jest.fn(),
     toBase64: jest.fn(() => 'base64_psbt_string'),
   };
+  (global as Record<string, unknown>).__mockFromHexIdx = 0;
   return {
     initEccLib: jest.fn(),
     Psbt: jest.fn(() => mockPsbt),
     Transaction: {
-      fromHex: jest.fn(() => ({
-        outs: [
-          { script: Buffer.from('script1', 'hex'), value: 100000 },
-          { script: Buffer.from('script2', 'hex'), value: 50000 },
-        ],
-      })),
+      fromHex: jest.fn(() => {
+        // Extract txid from the corresponding tx-hex fetch URL so getId() matches utxo.txid
+        const fetchMock = global.fetch as jest.Mock;
+        const fetchCalls = fetchMock?.mock?.calls ?? [];
+        const txHexCalls = fetchCalls.filter((c: unknown[]) =>
+          /\/tx\/[^/]+\/hex/.test(String(c[0] ?? ''))
+        );
+        const idx = (global as Record<string, unknown>).__mockFromHexIdx as number;
+        const callUrl = txHexCalls[idx] ? String(txHexCalls[idx][0]) : '';
+        (global as Record<string, unknown>).__mockFromHexIdx = idx + 1;
+        const match = callUrl.match(/\/tx\/([^/]+)\/hex/);
+        const txid = match ? match[1] : 'tx1';
+
+        return {
+          getId: jest.fn(() => txid),
+          outs: [
+            { script: Buffer.from('script1', 'hex'), value: 100000 },
+            { script: Buffer.from('script2', 'hex'), value: 50000 },
+          ],
+        };
+      }),
     },
   };
 });
@@ -53,6 +69,10 @@ jest.mock('../../../utils/constants', () => ({
   },
 }));
 
+jest.mock('../../feeEstimationService', () => ({
+  getRecommendedFeeRate: jest.fn(async () => 1),
+}));
+
 // Mock fetch globally
 global.fetch = jest.fn();
 
@@ -63,6 +83,7 @@ import { validateAndNormalizeAddress } from '../../../utils/bitcoin';
 describe('btcTransaction', () => {
   beforeEach(() => {
     jest.clearAllMocks();
+    (global as Record<string, unknown>).__mockFromHexIdx = 0;
 
     // Default mock for fetch - returns tx hex
     (global.fetch as jest.Mock).mockResolvedValue({

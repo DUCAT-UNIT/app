@@ -5,7 +5,7 @@
 
 import * as SecureStore from 'expo-secure-store';
 import { logger } from '../../../utils/logger';
-import { MINT_URL, swapTokens as swapTokensAPI } from '../cashuMintClient';
+import { MINT_URL, swapTokens as swapTokensAPI, checkProofsSpent } from '../cashuMintClient';
 import {
   createBlindedOutputs,
   unblindSignatures,
@@ -18,6 +18,7 @@ import {
   getP2PKRecipient,
   findAccountForP2PKToken,
   signP2PKProofs,
+  verifyP2PKWitness,
 } from '../p2pk';
 import { getCurrentAccount } from '../../secureStorageService';
 import { getOrFetchKeys } from '../cashuBalanceService';
@@ -98,6 +99,15 @@ export const receiveToken = async (tokenString: string): Promise<ReceiveTokenRes
       throw new Error('Token already received');
     }
 
+    // Mint-side double-spend check before any processing
+    const spendCheck = await checkProofsSpent(proofs as any);
+    const spendStates = Array.isArray(spendCheck?.states)
+      ? spendCheck.states
+      : proofs.map(() => ({ state: false }));
+    if (spendStates.some((s) => s.state === 'spent' || s.state === true)) {
+      throw new Error('Token proofs already spent');
+    }
+
     // Check if any proofs are P2PK locked (do this first, it's fast)
     const t3 = Date.now();
     const hasP2PKProofs = proofs.some(p => isP2PKLocked(p));
@@ -155,7 +165,6 @@ export const receiveToken = async (tokenString: string): Promise<ReceiveTokenRes
         // Use the private key from accountMatch - this is the correct key for this specific token
         p2pkPrivateKey = accountMatch.privateKey;
         logger.info('[P2PK TOKEN] 🔑 Using private key from account match (not cached key)', {
-          privateKeyFirst8: accountMatch.privateKey?.substring(0, 8) + '...',
           privateKeyLength: accountMatch.privateKey?.length,
           expectedPubkey: recipientPubkey?.substring(0, 16) + '...',
         });
@@ -191,15 +200,25 @@ export const receiveToken = async (tokenString: string): Promise<ReceiveTokenRes
     // If P2PK locked, sign them with the private key we already got
     if (hasP2PKProofs && privateKey) {
       const t5 = Date.now();
-      logger.info('[P2PK TOKEN] 🔑 About to sign proofs with privateKey:', {
-        privateKeyFirst8: privateKey.substring(0, 8) + '...',
-        privateKeyLength: privateKey.length,
-        p2pkPrivateKeyFirst8: p2pkPrivateKey?.substring(0, 8) + '...',
-        p2pkPrivateKeyLength: p2pkPrivateKey?.length,
-        keysMatch: privateKey === p2pkPrivateKey,
-      });
+      logger.info('[P2PK TOKEN] About to sign proofs with privateKey');
       proofsToSwap = await signP2PKProofs(proofs, privateKey);
       logger.info('[PERF] P2PK signing took', { durationMs: Date.now() - t5 });
+
+      // Client-side witness verification before sending to mint
+      for (const proof of proofsToSwap) {
+        if (isP2PKLocked(proof) && proof.witness) {
+          const recipientPub = getP2PKRecipient(proof.secret);
+          if (recipientPub) {
+            const valid = await verifyP2PKWitness(proof.secret, proof.witness, recipientPub);
+            if (!valid) {
+              logger.error('P2PK witness verification failed before swap', {
+                proofAmount: proof.amount,
+              });
+              throw new Error('P2PK witness signature invalid - aborting swap');
+            }
+          }
+        }
+      }
     }
 
     // Create new blinded outputs for the same amounts

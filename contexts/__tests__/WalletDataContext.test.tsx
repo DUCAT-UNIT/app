@@ -4,9 +4,9 @@
 
 import React from 'react';
 import { renderHook, act } from '@testing-library/react-native';
-import { WalletDataProvider, useWalletData, useBalance, useTransactionHistory, useVaultData, useEcashTokens } from '../WalletDataContext';
+import { WalletDataProvider, useBalance, useTransactionHistory, useVaultData, useEcashTokens } from '../WalletDataContext';
 import { useWallet } from '../WalletContext';
-import { usePendingTransactions } from '../PendingTransactionsContext';
+import { usePendingTransactionsStore } from '../../stores/pendingTransactionsStore';
 import { usePolling } from '../../hooks/usePolling';
 import { useBalanceData } from '../../hooks/useBalanceData';
 import { useTransactionHistoryFetch } from '../../hooks/useTransactionHistoryFetch';
@@ -14,14 +14,14 @@ import { useVaultDataFetch } from '../../hooks/useVaultDataFetch';
 
 // Mock all dependencies
 jest.mock('../WalletContext');
-jest.mock('../PendingTransactionsContext');
+jest.mock('../../stores/pendingTransactionsStore');
 jest.mock('../../hooks/usePolling');
 jest.mock('../../hooks/useBalanceData');
 jest.mock('../../hooks/useTransactionHistoryFetch');
 jest.mock('../../hooks/useVaultDataFetch');
-const mockUseCashu = jest.fn();
+const mockUseCashuBalanceState = jest.fn();
 jest.mock('../CashuContext', () => ({
-  useCashu: () => mockUseCashu(),
+  useCashuBalanceState: () => mockUseCashuBalanceState(),
 }));
 
 // Mock cashu locked tokens service
@@ -124,40 +124,18 @@ describe('WalletDataContext', () => {
   beforeEach(() => {
     jest.clearAllMocks();
     (useWallet as jest.Mock).mockReturnValue({ wallet: mockWallet });
-    (usePendingTransactions as jest.Mock).mockReturnValue({ getUnconfirmedBalance: jest.fn(), getUnconfirmedUTXOs: jest.fn() });
+    (usePendingTransactionsStore as jest.Mock).mockReturnValue({ getUnconfirmedBalance: jest.fn(), getUnconfirmedUTXOs: jest.fn() });
     (useBalanceData as jest.Mock).mockReturnValue(mockBalance);
     (useTransactionHistoryFetch as jest.Mock).mockReturnValue(mockHistory);
     (useVaultDataFetch as jest.Mock).mockReturnValue(mockVault);
     (usePolling as jest.Mock).mockImplementation(() => {});
-    mockUseCashu.mockReturnValue({
+    mockUseCashuBalanceState.mockReturnValue({
       balance: 0,
       isLoading: false,
       fetchBalance: jest.fn(),
     });
     mockSubscribeToTokenChanges.mockReturnValue(jest.fn()); // Return unsubscribe function
     mockLoadTokensWithStatus.mockResolvedValue([]);
-  });
-
-  describe('useWalletData', () => {
-    it('should throw error when used outside provider', () => {
-      const consoleError = jest.spyOn(console, 'error').mockImplementation(() => {});
-
-      expect(() => {
-        renderHook(() => useWalletData());
-      }).toThrow('useWalletData must be used within a WalletDataProvider');
-
-      consoleError.mockRestore();
-    });
-
-    it('should return context value when used inside provider', () => {
-      const wrapper = ({ children }: { children: React.ReactNode }) => <WalletDataProvider>{children}</WalletDataProvider>;
-      const { result } = renderHook(() => useWalletData(), { wrapper });
-
-      expect(result.current).toBeDefined();
-      expect(result.current!.balance).toBe(mockBalance);
-      expect(result.current!.history).toBe(mockHistory);
-      expect(result.current!.vault).toBe(mockVault);
-    });
   });
 
   describe('Hook error handling', () => {
@@ -236,7 +214,7 @@ describe('WalletDataContext', () => {
   describe('WalletDataProvider', () => {
     it('should render provider', () => {
       const wrapper = ({ children }: { children: React.ReactNode }) => <WalletDataProvider>{children}</WalletDataProvider>;
-      const { result } = renderHook(() => useWalletData(), { wrapper });
+      const { result } = renderHook(() => useBalance(), { wrapper });
 
       expect(result.current).toBeDefined();
     });
@@ -244,34 +222,34 @@ describe('WalletDataContext', () => {
     it('should call useBalanceData with wallet and getUnconfirmedBalance', () => {
       const mockGetUnconfirmed = jest.fn();
       const mockGetUnconfirmedUTXOs = jest.fn();
-      (usePendingTransactions as jest.Mock).mockReturnValue({
+      (usePendingTransactionsStore as jest.Mock).mockReturnValue({
         getUnconfirmedBalance: mockGetUnconfirmed,
         getUnconfirmedUTXOs: mockGetUnconfirmedUTXOs,
       });
 
       const wrapper = ({ children }: { children: React.ReactNode }) => <WalletDataProvider>{children}</WalletDataProvider>;
-      renderHook(() => useWalletData(), { wrapper });
+      renderHook(() => useBalance(), { wrapper });
 
       expect(useBalanceData).toHaveBeenCalledWith(mockWallet, mockGetUnconfirmed, mockGetUnconfirmedUTXOs);
     });
 
     it('should call useTransactionHistoryFetch with wallet', () => {
       const wrapper = ({ children }: { children: React.ReactNode }) => <WalletDataProvider>{children}</WalletDataProvider>;
-      renderHook(() => useWalletData(), { wrapper });
+      renderHook(() => useBalance(), { wrapper });
 
       expect(useTransactionHistoryFetch).toHaveBeenCalledWith(mockWallet);
     });
 
     it('should call useVaultDataFetch with wallet', () => {
       const wrapper = ({ children }: { children: React.ReactNode }) => <WalletDataProvider>{children}</WalletDataProvider>;
-      renderHook(() => useWalletData(), { wrapper });
+      renderHook(() => useBalance(), { wrapper });
 
       expect(useVaultDataFetch).toHaveBeenCalledWith(mockWallet);
     });
 
     it('should set up polling with correct parameters', () => {
       const wrapper = ({ children }: { children: React.ReactNode }) => <WalletDataProvider>{children}</WalletDataProvider>;
-      renderHook(() => useWalletData(), { wrapper });
+      renderHook(() => useBalance(), { wrapper });
 
       expect(usePolling).toHaveBeenCalledWith({
         onPoll: expect.any(Function),
@@ -285,7 +263,7 @@ describe('WalletDataContext', () => {
       (useWallet as jest.Mock).mockReturnValue({ wallet: null });
 
       const wrapper = ({ children }: { children: React.ReactNode }) => <WalletDataProvider>{children}</WalletDataProvider>;
-      renderHook(() => useWalletData(), { wrapper });
+      renderHook(() => useBalance(), { wrapper });
 
       expect(usePolling).toHaveBeenCalledWith({
         onPoll: expect.any(Function),
@@ -302,7 +280,7 @@ describe('WalletDataContext', () => {
       });
 
       const wrapper = ({ children }: { children: React.ReactNode }) => <WalletDataProvider>{children}</WalletDataProvider>;
-      renderHook(() => useWalletData(), { wrapper });
+      renderHook(() => useBalance(), { wrapper });
 
       act(() => {
         pollCallback();
@@ -320,7 +298,7 @@ describe('WalletDataContext', () => {
       });
 
       const wrapper = ({ children }: { children: React.ReactNode }) => <WalletDataProvider>{children}</WalletDataProvider>;
-      renderHook(() => useWalletData(), { wrapper });
+      renderHook(() => useBalance(), { wrapper });
 
       // Clear mock calls from initial wallet load (but keep the mock implementations)
       mockHistory.fetchTransactionHistory.mockClear();
@@ -354,7 +332,7 @@ describe('WalletDataContext', () => {
       });
 
       const wrapper = ({ children }: { children: React.ReactNode }) => <WalletDataProvider>{children}</WalletDataProvider>;
-      renderHook(() => useWalletData(), { wrapper });
+      renderHook(() => useBalance(), { wrapper });
 
       act(() => {
         pollCallback();
@@ -366,7 +344,7 @@ describe('WalletDataContext', () => {
 
     it('should reset data when wallet is removed', () => {
       const wrapper = ({ children }: { children: React.ReactNode }) => <WalletDataProvider>{children}</WalletDataProvider>;
-      const { rerender } = renderHook(() => useWalletData(), { wrapper });
+      const { rerender } = renderHook(() => useBalance(), { wrapper });
 
       // Change wallet to null
       (useWallet as jest.Mock).mockReturnValue({ wallet: null });
@@ -384,7 +362,7 @@ describe('WalletDataContext', () => {
       (useWallet as jest.Mock).mockReturnValue({ wallet: null });
 
       const wrapper = ({ children }: { children: React.ReactNode }) => <WalletDataProvider>{children}</WalletDataProvider>;
-      const { rerender } = renderHook(() => useWalletData(), { wrapper });
+      const { rerender } = renderHook(() => useBalance(), { wrapper });
 
       jest.clearAllMocks();
 
@@ -407,7 +385,7 @@ describe('WalletDataContext', () => {
 
     it('should not fetch when wallet account changes (handled by useAccountSwitcher)', () => {
       const wrapper = ({ children }: { children: React.ReactNode }) => <WalletDataProvider>{children}</WalletDataProvider>;
-      const { rerender } = renderHook(() => useWalletData(), { wrapper });
+      const { rerender } = renderHook(() => useBalance(), { wrapper });
 
       jest.clearAllMocks();
 
@@ -432,7 +410,7 @@ describe('WalletDataContext', () => {
 
     it('should not fetch when wallet object changes but addresses are same', () => {
       const wrapper = ({ children }: { children: React.ReactNode }) => <WalletDataProvider>{children}</WalletDataProvider>;
-      const { rerender } = renderHook(() => useWalletData(), { wrapper });
+      const { rerender } = renderHook(() => useBalance(), { wrapper });
 
       jest.clearAllMocks();
 
@@ -453,9 +431,9 @@ describe('WalletDataContext', () => {
       expect(mockHistory.fetchTransactionHistory).not.toHaveBeenCalled();
     });
 
-    it('should expose all balance properties', () => {
+    it('should expose all balance properties via useBalance', () => {
       const wrapper = ({ children }: { children: React.ReactNode }) => <WalletDataProvider>{children}</WalletDataProvider>;
-      const { result } = renderHook(() => useWalletData(), { wrapper });
+      const { result } = renderHook(() => useBalance(), { wrapper });
 
       expect(result.current!.segwitBalance).toBe(mockBalance.segwitBalance);
       expect(result.current!.taprootBalance).toBe(mockBalance.taprootBalance);
@@ -464,18 +442,18 @@ describe('WalletDataContext', () => {
       expect(result.current!.fetchBalance).toBe(mockBalance.fetchBalance);
     });
 
-    it('should expose all history properties', () => {
+    it('should expose all history properties via useTransactionHistory', () => {
       const wrapper = ({ children }: { children: React.ReactNode }) => <WalletDataProvider>{children}</WalletDataProvider>;
-      const { result } = renderHook(() => useWalletData(), { wrapper });
+      const { result } = renderHook(() => useTransactionHistory(), { wrapper });
 
       expect(result.current!.transactionHistory).toBe(mockHistory.transactionHistory);
       expect(result.current!.loadingTransactionHistory).toBe(mockHistory.loadingTransactionHistory);
       expect(result.current!.fetchTransactionHistory).toBe(mockHistory.fetchTransactionHistory);
     });
 
-    it('should expose all vault properties', () => {
+    it('should expose all vault properties via useVaultData', () => {
       const wrapper = ({ children }: { children: React.ReactNode }) => <WalletDataProvider>{children}</WalletDataProvider>;
-      const { result } = renderHook(() => useWalletData(), { wrapper });
+      const { result } = renderHook(() => useVaultData(), { wrapper });
 
       expect(result.current!.vaultData).toBe(mockVault.vaultData);
       expect(result.current!.loadingVault).toBe(mockVault.loadingVault);
@@ -567,7 +545,7 @@ describe('WalletDataContext', () => {
   describe('Polling with balances not loaded', () => {
     it('should skip transaction history when cashu balance is not loaded', () => {
       const { logger } = require('../../utils/logger');
-      mockUseCashu.mockReturnValue({
+      mockUseCashuBalanceState.mockReturnValue({
         balance: null, // Not loaded yet
         isLoading: true,
         fetchBalance: jest.fn(),
@@ -579,7 +557,7 @@ describe('WalletDataContext', () => {
       });
 
       const wrapper = ({ children }: { children: React.ReactNode }) => <WalletDataProvider>{children}</WalletDataProvider>;
-      renderHook(() => useWalletData(), { wrapper });
+      renderHook(() => useBalance(), { wrapper });
 
       jest.clearAllMocks();
 

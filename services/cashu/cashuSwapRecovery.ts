@@ -12,6 +12,8 @@
 import * as SecureStore from 'expo-secure-store';
 import { logger } from '../../utils/logger';
 import { CashuProof, BlindingData } from './crypto';
+import * as crypto from 'expo-crypto';
+import { Buffer } from 'buffer';
 
 const PENDING_SWAP_KEY = 'cashu_pending_swap';
 
@@ -49,7 +51,8 @@ export interface PendingSwapTransaction {
  * Save a pending swap transaction before calling the mint
  */
 export const savePendingSwap = async (txn: Omit<PendingSwapTransaction, 'id' | 'timestamp' | 'status'>): Promise<string> => {
-  const id = `swap_${Date.now()}_${Math.random().toString(36).substring(7)}`;
+  const random = Buffer.from(crypto.getRandomBytes(8)).toString('hex');
+  const id = `swap_${Date.now()}_${random}`;
   const pendingTxn: PendingSwapTransaction = {
     ...txn,
     id,

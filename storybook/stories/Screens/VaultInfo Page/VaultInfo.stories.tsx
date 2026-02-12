@@ -1521,14 +1521,12 @@ const meta: Meta = {
 };
 
 export default meta;
-type Story = StoryObj;
-
 // =============================================================================
 // STORIES
 // =============================================================================
 
-export const Interactive: Story = {
-  render: (args: StoryProps) => <VaultDetailStory {...args} />,
+export const Interactive: StoryObj<StoryProps> = {
+  render: (args) => <VaultDetailStory {...args} />,
   args: {
     screenSize: 'L',
     healthState: 'healthy',
@@ -1552,8 +1550,8 @@ export const Interactive: Story = {
   },
 };
 
-export const Overview: Story = {
-  render: (args: OverviewProps) => <VaultDetailOverview {...args} />,
+export const Overview: StoryObj<OverviewProps> = {
+  render: (args) => <VaultDetailOverview {...args} />,
   args: {
     healthState: 'healthy',
     eventCount: 5,

@@ -16,6 +16,8 @@ import { bip32, ecc, getECPair, getDerivationPath } from './cryptoHelpers';
 // v5: Fixed BIP-341 parity handling for odd Y coordinate pubkeys
 const DERIVED_KEY_VERSION = 'v5_';
 const DERIVED_KEY_PREFIX = 'derived_key_' + DERIVED_KEY_VERSION;
+const CACHE_TTL_MS = 15 * 60 * 1000; // 15 minutes
+const CACHE_SCHEMA_VERSION = 1;
 
 export interface DerivedKeyData {
   privateKey: string;
@@ -40,8 +42,26 @@ export async function getPrivateKeyForAddress(
   try {
     const cached = await SecureStore.getItemAsync(cacheKey);
     if (cached) {
-      logger.debug('[getPrivateKeyForAddress] Using cached key');
-      return JSON.parse(cached) as DerivedKeyData;
+      const parsed = JSON.parse(cached) as
+        | DerivedKeyData
+        | { data: DerivedKeyData; expires: number; version: number };
+
+      const entry =
+        'data' in parsed && 'expires' in parsed
+          ? parsed
+          : { data: parsed as DerivedKeyData, expires: Date.now() + CACHE_TTL_MS, version: 0 };
+
+      if (entry.expires > Date.now()) {
+        logger.debug('[getPrivateKeyForAddress] Using cached key');
+        // Refresh to latest schema asynchronously (best effort)
+        if (entry.version !== CACHE_SCHEMA_VERSION) {
+          const envelope = { data: entry.data, expires: Date.now() + CACHE_TTL_MS, version: CACHE_SCHEMA_VERSION };
+          SecureStore.setItemAsync(cacheKey, JSON.stringify(envelope)).catch(() => undefined);
+        }
+        return entry.data;
+      }
+
+      await SecureStore.deleteItemAsync(cacheKey);
     }
   } catch (error: unknown) {
     logger.warn('[getPrivateKeyForAddress] Failed to read cache:', { error: (error as Error).message });
@@ -96,7 +116,12 @@ export async function getPrivateKeyForAddress(
 
   // Cache the result
   try {
-    await SecureStore.setItemAsync(cacheKey, JSON.stringify(result));
+    const envelope = {
+      data: result,
+      expires: Date.now() + CACHE_TTL_MS,
+      version: CACHE_SCHEMA_VERSION,
+    };
+    await SecureStore.setItemAsync(cacheKey, JSON.stringify(envelope));
     logger.debug('[getPrivateKeyForAddress] Cached key');
   } catch (error: unknown) {
     logger.warn('[getPrivateKeyForAddress] Failed to cache:', { error: (error as Error).message });

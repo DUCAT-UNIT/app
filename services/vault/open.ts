@@ -99,7 +99,7 @@ export async function createVaultReqOpen(
   logger.debug('[VaultOps] Creating vault request...');
 
   try {
-    // Fetch oracle price quote
+    // Fetch oracle price quote (staleness enforced in service)
     const oracleQuote = await fetchPriceQuote(options.liquidationPrice);
 
     // Create vault context
@@ -160,6 +160,9 @@ export async function createVaultReqOpen(
     if (issueTxOpReturn) {
       const isCorrupted = issueTxOpReturn.includes('6a5d00') && !issueTxOpReturn.includes('6a5d09');
       logger.debug('[VaultOps] issue_txhex OP_RETURN appears corrupted:', { isCorrupted });
+      if (isCorrupted) {
+        throw new Error('Vault issue transaction has corrupted runestone (OP_RETURN 6a5d00). Aborting to prevent fund loss.');
+      }
     }
     // ===== END DEBUG =====
 

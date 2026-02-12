@@ -21,12 +21,6 @@ const shouldSuppressMessage = (message) => {
   if (message.includes('current testing environment is not configured to support act')) return true;
   if (message.includes('act(async () => ...) without await')) return true;
 
-  // Application logger output during tests - expected in error handling tests
-  if (message.startsWith('[ERROR]')) return true;
-  if (message.startsWith('[WARN]')) return true;
-  if (message.startsWith('[INFO]')) return true;
-  if (message.startsWith('[DEBUG]')) return true;
-
   return false;
 };
 
@@ -99,11 +93,12 @@ jest.mock('react-native-icloudstore', () => ({
   },
 }));
 
-// Mock expo-secure-store
+// Mock expo-secure-store (getItemAsync returns null by default, matching real SecureStore behavior)
 jest.mock('expo-secure-store', () => ({
-  getItemAsync: jest.fn(),
-  setItemAsync: jest.fn(),
-  deleteItemAsync: jest.fn(),
+  getItemAsync: jest.fn().mockResolvedValue(null),
+  setItemAsync: jest.fn().mockResolvedValue(undefined),
+  deleteItemAsync: jest.fn().mockResolvedValue(undefined),
+  AFTER_FIRST_UNLOCK_THIS_DEVICE_ONLY: 8,
 }));
 
 // Mock expo-local-authentication

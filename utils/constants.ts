@@ -11,12 +11,14 @@ export const SECURE_KEYS = {
   PIN: 'wallet_pin_v1',
   PIN_SALT: 'wallet_pin_salt_v1',
   PIN_SALT_HMAC: 'wallet_pin_salt_hmac_v1', // HMAC for salt integrity verification
+  PIN_HMAC_KEY: 'wallet_pin_hmac_key_v1', // Separate key for salt HMAC (not derived from PIN)
   PIN_VERSION: 'wallet_pin_version_v1', // Track PIN hashing algorithm version
   BIOMETRIC_ENABLED: 'wallet_biometric_enabled_v1',
   // Passkey authentication keys
   PASSKEY_ENABLED: 'passkey_enabled_v1',
   PASSKEY_CREDENTIAL_ID: 'passkey_credential_id_v1',
   PASSKEY_USER_HANDLE: 'passkey_user_handle_v1',
+  PASSKEY_PEPPER: 'passkey_pepper_v1',
   WALLET_CREATION_METHOD: 'wallet_creation_method_v1', // 'passkey', 'pin', or 'biometric'
 } as const;
 

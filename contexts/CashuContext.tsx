@@ -184,16 +184,19 @@ export const CashuProvider: React.FC<CashuProviderProps> = ({ children }) => {
       return;
     }
     recoveryChecked.current = true;
+    let cancelled = false;
 
     const runRecovery = async () => {
       try {
         // Check for pending swap recovery (proofs lost mid-swap)
         logger.info('[CashuContext] Checking for pending swap recovery...');
         await checkAndRecoverSwaps();
+        if (cancelled) return;
 
         // Check for unclaimed mint quotes (paid but not claimed)
         logger.info('[CashuContext] Checking for unclaimed mint quotes...');
         const mintRecovery = await recoverUnclaimedMintQuotes();
+        if (cancelled) return;
         if (mintRecovery.recovered > 0) {
           logger.info('[CashuContext] Recovered unclaimed mint quotes on startup', {
             recovered: mintRecovery.recovered,
@@ -209,6 +212,7 @@ export const CashuProvider: React.FC<CashuProviderProps> = ({ children }) => {
           shortenCashuToken,
           saveSentLockedToken
         );
+        if (cancelled) return;
         if (turboRecovery.recovered) {
           logger.info('[CashuContext] Recovered pending turbo send on startup', {
             recipient: turboRecovery.recipient?.substring(0, 12) + '...',
@@ -224,6 +228,7 @@ export const CashuProvider: React.FC<CashuProviderProps> = ({ children }) => {
         // Refresh balance after potential recovery
         await fetchBalance();
       } catch (error) {
+        if (cancelled) return;
         logger.error('[CashuContext] Recovery check failed', {
           error: error instanceof Error ? error.message : String(error),
         });
@@ -231,6 +236,7 @@ export const CashuProvider: React.FC<CashuProviderProps> = ({ children }) => {
     };
 
     runRecovery();
+    return () => { cancelled = true; };
   }, [wallet?.taprootAddress, fetchBalance]);
 
   /**

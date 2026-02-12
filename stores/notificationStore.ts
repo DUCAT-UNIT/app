@@ -26,6 +26,8 @@ const DEFAULT_DURATIONS: Record<SnackbarType, number> = {
 
 interface NotificationState {
   snackbar: SnackbarParams | null;
+  lastSnackbar: SnackbarParams | null;
+  snackbarKey: number;
 }
 
 interface NotificationActions {
@@ -48,15 +50,15 @@ interface NotificationActions {
 
 type NotificationStore = NotificationState & NotificationActions;
 
-// External refs for timeout management (not part of store state)
+// Timer refs kept module-scoped (not serializable state)
 let snackbarTimeout: NodeJS.Timeout | null = null;
-let lastSnackbar: SnackbarParams | null = null;
 let dismissCooldown = false;
-let snackbarKey = 0;
 
 export const useNotificationStore = create<NotificationStore>((set, get) => ({
   // State
   snackbar: null,
+  lastSnackbar: null,
+  snackbarKey: 0,
 
   // Snackbar Actions
   showSnackbar: (snackbarParams: SnackbarParams) => {
@@ -80,34 +82,38 @@ export const useNotificationStore = create<NotificationStore>((set, get) => ({
       error: 99, // errors always show
     };
 
+    const { lastSnackbar: prevSnackbar, snackbarKey: prevKey } = get();
+
     // If we have a previous snackbar, check if this is the same transaction
-    if (lastSnackbar && snackbarParams.action === lastSnackbar.action) {
+    if (prevSnackbar && snackbarParams.action === prevSnackbar.action) {
       // Same action type - check if it's the same transaction
       const sameTx =
-        (snackbarParams.txid && lastSnackbar.txid && snackbarParams.txid === lastSnackbar.txid) ||
-        (!snackbarParams.txid && !lastSnackbar.txid);
+        (snackbarParams.txid && prevSnackbar.txid && snackbarParams.txid === prevSnackbar.txid) ||
+        (!snackbarParams.txid && !prevSnackbar.txid);
 
-      if (sameTx || !snackbarParams.txid || !lastSnackbar.txid) {
+      if (sameTx || !snackbarParams.txid || !prevSnackbar.txid) {
         const currentRank = stateRank[snackbarParams.type] || 0;
-        const lastRank = stateRank[lastSnackbar.type] || 0;
+        const lastRank = stateRank[prevSnackbar.type] || 0;
 
         // Don't allow going backwards in state (e.g., submitted -> pending)
         if (currentRank < lastRank && snackbarParams.type !== 'error') {
-          logger.debug('🎯 Ignoring backward state transition:', lastSnackbar.type, '->', snackbarParams.type);
+          logger.debug('🎯 Ignoring backward state transition:', prevSnackbar.type, '->', snackbarParams.type);
           return;
         }
       }
     }
 
-    lastSnackbar = snackbarParams;
-
     // Increment key to force new component instance
-    snackbarKey += 1;
+    const newKey = prevKey + 1;
 
     // Get duration - use provided, or default based on type
     const duration = snackbarParams.duration ?? DEFAULT_DURATIONS[snackbarParams.type] ?? 5000;
 
-    set({ snackbar: { ...snackbarParams, key: snackbarKey, duration } });
+    set({
+      snackbar: { ...snackbarParams, key: newKey, duration },
+      lastSnackbar: snackbarParams,
+      snackbarKey: newKey,
+    });
 
     // Clear any existing timeout first
     if (snackbarTimeout) {
@@ -131,8 +137,7 @@ export const useNotificationStore = create<NotificationStore>((set, get) => ({
       snackbarTimeout = null;
     }
 
-    set({ snackbar: null });
-    lastSnackbar = null;
+    set({ snackbar: null, lastSnackbar: null });
 
     // Clear any queued turbo snackbars
     if (typeof global !== 'undefined' && turboGlobal.pendingTurboSnackbars) {
@@ -176,10 +181,9 @@ export const resetNotificationStore = () => {
     clearTimeout(snackbarTimeout);
     snackbarTimeout = null;
   }
-  lastSnackbar = null;
   dismissCooldown = false;
 
-  useNotificationStore.setState({ snackbar: null });
+  useNotificationStore.setState({ snackbar: null, lastSnackbar: null, snackbarKey: 0 });
 };
 
 /**

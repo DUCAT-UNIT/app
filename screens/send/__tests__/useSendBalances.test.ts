@@ -15,7 +15,7 @@ jest.mock('../../../contexts/WalletDataContext', () => ({
 }));
 
 jest.mock('../../../contexts/CashuContext', () => ({
-  useCashu: jest.fn(() => ({
+  useCashuBalanceState: jest.fn(() => ({
     balance: 5000, // 50.00 UNIT in smallest units
   })),
 }));

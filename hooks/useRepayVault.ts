@@ -36,6 +36,7 @@ import { fetchPriceQuote } from '../services/oracleService';
 import { createVaultWallet } from '../services/vaultWalletService';
 import { fetchVaultData, fetchVaultHistory } from '../services/vaultService';
 import { computeLiquidationPrice } from '../utils/vaultUtils';
+import { e2eVaultState } from '../utils/e2eVaultState';
 import { logger } from '../utils/logger';
 import type { RepayProcessingStep } from '../stores/repayStore';
 import type { VaultProfile } from '@ducat-unit/client-sdk';
@@ -230,6 +231,27 @@ export function useRepayVault(): UseRepayVaultResult {
     setLoading(true);
     setError(null);
     setCurrentStep('processing');
+
+    // E2E bypass: skip Guardian and simulate instant repay
+    if (__DEV__ && process.env.EXPO_PUBLIC_E2E_BYPASS === 'true') {
+      try {
+        for (const step of [1, 2, 3, 4] as RepayProcessingStep[]) {
+          updateProcessingStep(step);
+          await new Promise((r) => setTimeout(r, 200));
+        }
+        const fakeTxid = `e2e-repay-${Date.now().toString(16)}`;
+        const fakeVaultTxid = `e2e-repay-vault-${Date.now().toString(16)}`;
+        e2eVaultState.unitBorrowed = Math.max(0, e2eVaultState.unitBorrowed - repayAmountUnit);
+        setIssueTxid(fakeTxid);
+        setVaultTxid(fakeVaultTxid);
+        setCurrentStep('success');
+        logger.info('[useRepayVault] E2E bypass: repay completed', { fakeTxid, repayAmountUnit });
+        return { txid: fakeTxid, vaultTxid: fakeVaultTxid };
+      } finally {
+        operationInProgressRef.current = false;
+        setLoading(false);
+      }
+    }
 
     try {
       // Step 1: Build VaultProfile and create config

@@ -72,10 +72,8 @@ const meta: Meta = {
 };
 
 export default meta;
-type Story = StoryObj;
-
-export const DistributionBar: Story = {
-  render: (args: ProgressBarProps) => {
+export const DistributionBar: StoryObj<ProgressBarProps> = {
+  render: (args) => {
     const config = DEVICE_CONFIGS.find(d => d.size === args.deviceSize) || DEVICE_CONFIGS[3];
     return (
       <View style={styles.container}>
@@ -121,7 +119,7 @@ const DeviceSizeOverviewStory = () => (
   </ScrollView>
 );
 
-export const DeviceSizeOverview: Story = {
+export const DeviceSizeOverview: StoryObj = {
   render: () => <DeviceSizeOverviewStory />,
 };
 

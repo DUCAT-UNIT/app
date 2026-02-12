@@ -14,10 +14,10 @@ jest.mock('../../utils/logger', () => ({
   logger: { debug: jest.fn(), info: jest.fn(), warn: jest.fn(), error: jest.fn() },
 }));
 
-jest.mock('@react-native-async-storage/async-storage', () => ({
-  setItem: jest.fn().mockResolvedValue(undefined),
-  getItem: jest.fn().mockResolvedValue(null),
-  removeItem: jest.fn().mockResolvedValue(undefined),
+jest.mock('expo-secure-store', () => ({
+  setItemAsync: jest.fn().mockResolvedValue(undefined),
+  getItemAsync: jest.fn().mockResolvedValue(null),
+  deleteItemAsync: jest.fn().mockResolvedValue(undefined),
 }));
 
 jest.mock('../../utils/pendingTransactionsUtils', () => ({
@@ -111,14 +111,18 @@ describe('pendingTransactionsStore', () => {
 
   describe('invalidateTransaction', () => {
     it('should invalidate transaction and show snackbar', async () => {
-      const { addPendingTransaction, invalidateTransaction } = usePendingTransactionsStore.getState();
       const mockShowSnackbar = jest.fn();
+      jest.doMock('../notificationStore', () => ({
+        useNotificationStore: { getState: () => ({ showSnackbar: mockShowSnackbar }) },
+      }));
+
+      const { addPendingTransaction, invalidateTransaction } = usePendingTransactionsStore.getState();
 
       await act(async () => { await addPendingTransaction('txid_to_invalidate', [], 'BTC'); });
 
       let invalidated: string[] = [];
       await act(async () => {
-        invalidated = await invalidateTransaction('txid_to_invalidate', 'Test reason', mockShowSnackbar);
+        invalidated = await invalidateTransaction('txid_to_invalidate', 'Test reason');
       });
 
       expect(invalidated).toContain('txid_to_invalidate');

@@ -77,7 +77,6 @@ export interface DerivedAddresses {
   taprootAddress: string;
   segwitPubkey: string;
   taprootPubkey: string;
-  [key: string]: unknown;
 }
 
 /**
@@ -129,7 +128,9 @@ export const deriveAddressesFromMnemonic = (mnemonic: string, accountIndex = 0):
   };
 };
 
-export type AddressType = 'taproot' | 'segwit' | 'legacy' | 'unknown';
+// AddressType canonical definition in utils/formatters/addresses.ts
+import type { AddressType } from './formatters/addresses';
+export type { AddressType };
 
 export interface AddressValidation {
   valid: boolean;

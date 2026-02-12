@@ -13,13 +13,9 @@ import { formatBalance } from '../../utils/formatters';
 import { useResponsive } from '../../hooks/useResponsive';
 import localStyles from './TransactionItem.styles';
 import type { DisplayAssetType } from '../../types/assets';
+import type { TransactionOutput } from '../../services/transactionHistoryService';
 
 const TURBO_MINT_ADDRESS = 'tb1p7p74tg67aaw94vz2kewzeyuq80x0a65wpgegnat98f5hkcnpfjsqntv2em';
-
-interface TransactionOutput {
-  scriptpubkey_address?: string;
-  value?: number;
-}
 
 interface RegularTransactionStyles {
   historyTxRow: ViewStyle;

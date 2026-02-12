@@ -496,7 +496,7 @@ describe('cashuP2PK', () => {
         throw new Error('Signing failed');
       });
 
-      await expect(signP2PKSecret('secret', 'short')).rejects.toThrow('Expected 64 chars');
+      await expect(signP2PKSecret('secret', 'short')).rejects.toThrow('Private key format valid: false');
     });
 
     it('should include diagnostics for non-string private key', async () => {
@@ -505,7 +505,7 @@ describe('cashuP2PK', () => {
       });
 
       // Test with wrong type - convert to string representation of number
-      await expect(signP2PKSecret('secret', String(12345))).rejects.toThrow('Expected 64 chars');
+      await expect(signP2PKSecret('secret', String(12345))).rejects.toThrow('Private key format valid: false');
     });
 
     it('should throw error for invalid hash length', async () => {
@@ -672,8 +672,8 @@ describe('cashuP2PK', () => {
     it('should delete cache keys from SecureStore', async () => {
       await clearP2PKCache();
 
-      expect(SecureStore.deleteItemAsync).toHaveBeenCalledWith('p2pk_taproot_address_v4');
-      expect(SecureStore.deleteItemAsync).toHaveBeenCalledWith('p2pk_private_key_v4');
+      expect(SecureStore.deleteItemAsync).toHaveBeenCalledWith('p2pk_taproot_address_v5');
+      expect(SecureStore.deleteItemAsync).toHaveBeenCalledWith('p2pk_private_key_v5');
     });
 
     it('should handle delete error gracefully', async () => {
@@ -825,8 +825,8 @@ describe('cashuP2PK', () => {
 
       expect(result).toBe('derived_private_key_hex');
       expect(getPrivateKeyForAddress).toHaveBeenCalledWith('tb1ptest123', 0);
-      expect(SecureStore.setItemAsync).toHaveBeenCalledWith('p2pk_taproot_address_v4', 'tb1ptest123');
-      expect(SecureStore.setItemAsync).toHaveBeenCalledWith('p2pk_private_key_v4', 'derived_private_key_hex');
+      expect(SecureStore.setItemAsync).toHaveBeenCalledWith('p2pk_taproot_address_v5', 'tb1ptest123');
+      expect(SecureStore.setItemAsync).toHaveBeenCalledWith('p2pk_private_key_v5', 'derived_private_key_hex');
     });
 
     it('should clear cache and re-derive when address mismatch', async () => {
@@ -838,8 +838,8 @@ describe('cashuP2PK', () => {
       const result = await getP2PKPrivateKey();
 
       expect(result).toBe('derived_private_key_hex');
-      expect(SecureStore.deleteItemAsync).toHaveBeenCalledWith('p2pk_taproot_address_v4');
-      expect(SecureStore.deleteItemAsync).toHaveBeenCalledWith('p2pk_private_key_v4');
+      expect(SecureStore.deleteItemAsync).toHaveBeenCalledWith('p2pk_taproot_address_v5');
+      expect(SecureStore.deleteItemAsync).toHaveBeenCalledWith('p2pk_private_key_v5');
       expect(getPrivateKeyForAddress).toHaveBeenCalled();
     });
 

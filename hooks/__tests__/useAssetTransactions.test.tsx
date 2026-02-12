@@ -71,9 +71,9 @@ jest.mock('../../services/cashu/cashuMintClient', () => ({
 
 jest.mock('../../services/transactionHistoryService');
 
-// Mock pending transactions context
+// Mock pending transactions store
 let mockPendingTransactions = {};
-jest.mock('../../contexts/PendingTransactionsContext', () => ({
+jest.mock('../../stores/pendingTransactionsStore', () => ({
   usePendingTxs: () => mockPendingTransactions,
 }));
 

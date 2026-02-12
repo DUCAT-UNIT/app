@@ -13,7 +13,7 @@ import { Linking } from 'react-native';
 jest.mock('../../contexts/WalletDataContext');
 jest.mock('../../services/transactionHistoryService');
 jest.mock('../../contexts/NavigationHandlersContext', () => ({
-  useNavigationHandlers: jest.fn(() => ({
+  useSettingsHandlers: jest.fn(() => ({
     settingsHandlers: {
       advancedMode: false,
     },
@@ -420,7 +420,7 @@ describe('useTransactionHistoryData', () => {
   describe('Advanced mode behavior', () => {
     it('should clear ecash tokens when advanced mode is on', () => {
       jest.mock('../../contexts/NavigationHandlersContext', () => ({
-        useNavigationHandlers: () => ({
+        useSettingsHandlers: () => ({
           settingsHandlers: {
             advancedMode: true,
           },
@@ -451,8 +451,8 @@ describe('useTransactionHistoryData', () => {
     it('should use pre-loaded ecash tokens from context when sheet opens', async () => {
       // Now ecash tokens are pre-loaded from context, not fetched on demand
       // fetchEcashTokens is only called when advancedMode is true
-      const { useNavigationHandlers } = jest.requireMock('../../contexts/NavigationHandlersContext');
-      (useNavigationHandlers as jest.Mock).mockReturnValue({
+      const { useSettingsHandlers } = jest.requireMock('../../contexts/NavigationHandlersContext');
+      (useSettingsHandlers as jest.Mock).mockReturnValue({
         settingsHandlers: {
           advancedMode: true, // Must be true for fetchEcashTokens to be called
         },
@@ -981,8 +981,8 @@ describe('useTransactionHistoryData', () => {
       // Token subscription is now handled in WalletDataContext, not in this hook
       // This hook uses pre-loaded tokens from context and triggers background refresh
       // fetchEcashTokens is only called when advancedMode is true
-      const { useNavigationHandlers } = jest.requireMock('../../contexts/NavigationHandlersContext');
-      (useNavigationHandlers as jest.Mock).mockReturnValue({
+      const { useSettingsHandlers } = jest.requireMock('../../contexts/NavigationHandlersContext');
+      (useSettingsHandlers as jest.Mock).mockReturnValue({
         settingsHandlers: {
           advancedMode: true, // Must be true for fetchEcashTokens to be called
         },

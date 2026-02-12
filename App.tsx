@@ -26,14 +26,14 @@ import * as Sentry from '@sentry/react-native';
 // Contexts
 import { AuthProvider } from './contexts/AuthContext';
 import { WalletProvider, useWallet } from './contexts/WalletContext';
-import { PendingTransactionsProvider } from './contexts/PendingTransactionsContext';
+import { usePendingTransactionsStore } from './stores/pendingTransactionsStore';
 import { WalletDataProvider } from './contexts/WalletDataContext';
 import { usePriceStore } from './stores/priceStore';
 import { CashuProvider } from './contexts/CashuContext';
-// AirdropProvider removed - not currently used in provider hierarchy
-import { UIProvider } from './contexts/UIContext';
+// UIProvider removed — fully migrated to Zustand (displayPreferencesStore, notificationStore)
+// AirdropProvider removed — airdrop logic lives in AirdropContext, used via hooks only
 import { ResponsiveProvider } from './contexts/ResponsiveContext';
-import { useNotifications } from './stores/notificationStore';
+
 
 // Navigation
 import AppNavigator from './navigation/AppNavigator';
@@ -196,8 +196,8 @@ Sentry.init({
 // Inner component to access wallet and notification contexts
 function AppProviders({ children }: { children: React.ReactNode }) {
   const { currentAccount } = useWallet();
-  const { showSnackbar } = useNotifications();
   const startAutoRefresh = usePriceStore((state) => state.startAutoRefresh);
+  const loadFromStorage = usePendingTransactionsStore((state) => state.loadFromStorage);
 
   // Start BTC price auto-refresh on mount
   useEffect(() => {
@@ -205,14 +205,19 @@ function AppProviders({ children }: { children: React.ReactNode }) {
     return cleanup;
   }, [startAutoRefresh]);
 
+  // Load pending transactions from storage when account changes
+  useEffect(() => {
+    if (currentAccount !== undefined && currentAccount !== null) {
+      loadFromStorage(currentAccount);
+    }
+  }, [currentAccount, loadFromStorage]);
+
   return (
-    <PendingTransactionsProvider currentAccount={currentAccount} showSnackbar={showSnackbar}>
-      <CashuProvider>
-        <WalletDataProvider>
-          {children}
-        </WalletDataProvider>
-      </CashuProvider>
-    </PendingTransactionsProvider>
+    <CashuProvider>
+      <WalletDataProvider>
+        {children}
+      </WalletDataProvider>
+    </CashuProvider>
   );
 }
 
@@ -235,15 +240,13 @@ export default function App() {
       fallbackMessage="A critical error occurred. Please restart the app."
     >
       <AuthProvider>
-        <UIProvider>
-          <ResponsiveProvider>
-            <WalletProvider>
-              <AppProviders>
-                <AppNavigator />
-              </AppProviders>
-            </WalletProvider>
-          </ResponsiveProvider>
-        </UIProvider>
+        <ResponsiveProvider>
+          <WalletProvider>
+            <AppProviders>
+              <AppNavigator />
+            </AppProviders>
+          </WalletProvider>
+        </ResponsiveProvider>
       </AuthProvider>
     </ErrorBoundary>
   );

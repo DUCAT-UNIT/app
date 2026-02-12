@@ -41,6 +41,7 @@ import {
   patchPsbtInputFields,
   encodeWitnessStack,
 } from '../vaultWallet/psbtBinaryUtils';
+import { validateAndNormalizeAddress, MUTINYNET_NETWORK as NETWORK } from '../../utils/bitcoin';
 
 /**
  * Sign a PSBT with the mobile wallet (with finalization)
@@ -54,10 +55,13 @@ import {
  */
 export async function signPsbt(
   psbtBase64: string,
-  signInputs: Record<string, number[]>
+  signInputs: Record<string, number[]>,
+  intent: { recipient: string; change?: string; minAmountSats?: number; allowOpReturn?: boolean }
 ): Promise<string> {
   return withSigningContext(async (mnemonic, accountIndex) => {
     const psbt = bitcoin.Psbt.fromBase64(psbtBase64, { network: MUTINYNET_NETWORK });
+
+    enforceIntentOutputs(psbt, intent);
 
     for (const [address, inputIndices] of Object.entries(signInputs)) {
       const scriptHex = ''; // Will be determined by address prefix
@@ -106,11 +110,13 @@ export async function signPsbt(
  */
 export async function signPsbtRaw(
   psbtBase64: string,
-  signInputs: Record<string, number[]>
+  signInputs: Record<string, number[]>,
+  intent: { recipient: string; change?: string; minAmountSats?: number; allowOpReturn?: boolean }
 ): Promise<string> {
   return withSigningContext(async (mnemonic, accountIndex) => {
     const psbt = bitcoin.Psbt.fromBase64(psbtBase64, { network: MUTINYNET_NETWORK });
 
+    enforceIntentOutputs(psbt, intent);
     logger.debug(`[signPsbtRaw] Loaded PSBT with ${psbt.inputCount} inputs`);
 
     for (const [address, inputIndices] of Object.entries(signInputs)) {
@@ -186,7 +192,8 @@ export async function signPsbtRaw(
 export async function signPsbtWithSdkObject(
   sdkPdata: any,
   signInputs: Record<string, number[]>,
-  originalPsbtBase64?: string
+  originalPsbtBase64?: string,
+  intent?: { recipient: string; change?: string; minAmountSats?: number; allowOpReturn?: boolean }
 ): Promise<string> {
   return withSigningContext(async (mnemonic, accountIndex) => {
     // Use original PSBT if provided, otherwise encode from SDK object
@@ -194,6 +201,8 @@ export async function signPsbtWithSdkObject(
 
     // Decode with bitcoinjs-lib for sighash computation
     const bjsPsbt = bitcoin.Psbt.fromBase64(psbtBase64, { network: MUTINYNET_NETWORK });
+
+    enforceIntentOutputs(bjsPsbt, intent);
 
     logger.debug(`[signPsbtWithSdkObject] Processing ${Object.keys(signInputs).length} addresses`);
 
@@ -545,5 +554,53 @@ function signKeyPathWithFallback(
     }
     const signature = signSchnorr(sighash, Buffer.from(tweakedKeyPair.privateKey));
     psbt.updateInput(inputIndex, { tapKeySig: signature });
+  }
+}
+
+/**
+ * Basic intent enforcement for wallet/vault PSBT signing.
+ * - Ensures all outputs are either the reviewed recipient or wallet-derived change.
+ * - Ensures recipient amount is at least the approved minimum.
+ */
+function enforceIntentOutputs(
+  psbt: bitcoin.Psbt,
+  intent?: { recipient: string; change?: string; minAmountSats?: number; allowOpReturn?: boolean }
+): void {
+  if (!intent?.recipient) {
+    throw new Error('SECURITY: Missing intent for PSBT signing');
+  }
+
+  if (!psbt.txOutputs || psbt.txOutputs.length === 0) {
+    throw new Error('SECURITY: PSBT has no outputs to validate');
+  }
+
+  const recipient = validateAndNormalizeAddress(intent.recipient);
+  const change = intent.change ? validateAndNormalizeAddress(intent.change) : null;
+  const minAmount = intent.minAmountSats ?? 0;
+  const allowOpReturn = intent.allowOpReturn ?? true;
+
+  let recipientValue = 0n;
+
+  for (const out of psbt.txOutputs) {
+    // Allow OP_RETURN data (runestones etc.)
+    if (allowOpReturn && out.script[0] === 0x6a) {
+      continue;
+    }
+
+    const addr = bitcoin.address.fromOutputScript(out.script, NETWORK);
+    if (addr === recipient) {
+      recipientValue += out.value;
+      continue;
+    }
+
+    if (change && addr === change) {
+      continue;
+    }
+
+    throw new Error('SECURITY: PSBT has outputs not matching recipient/change');
+  }
+
+  if (recipientValue < BigInt(minAmount)) {
+    throw new Error('SECURITY: PSBT recipient amount below approved value');
   }
 }

@@ -136,14 +136,24 @@ export function parseUnitToSmallestUnits(displayAmount: string | number | null |
     return 0;
   }
 
-  const numValue = typeof displayAmount === 'string' ? parseFloat(displayAmount) : displayAmount;
+  // Parse string inputs directly to avoid floating point multiplication errors
+  if (typeof displayAmount === 'string') {
+    const trimmed = displayAmount.trim().replace(',', '.');
+    const isNeg = trimmed.startsWith('-');
+    const abs = isNeg ? trimmed.slice(1) : trimmed;
+    if (!/^\d+\.?\d*$/.test(abs)) return 0;
+    const [whole = '0', frac = ''] = abs.split('.');
+    const cents = (frac + '00').slice(0, 2);
+    const result = parseInt(whole, 10) * 100 + parseInt(cents, 10);
+    if (isNaN(result)) return 0;
+    return isNeg ? -result : result;
+  }
 
-  if (isNaN(numValue)) {
+  if (isNaN(displayAmount)) {
     return 0;
   }
 
-  // Multiply by 100 and round to avoid floating point issues
-  return Math.round(numValue * 100);
+  return Math.round(displayAmount * 100);
 }
 
 /**

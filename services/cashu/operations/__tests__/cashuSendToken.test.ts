@@ -23,6 +23,7 @@ jest.mock('../../../../utils/logger', () => ({
 jest.mock('../../cashuMintClient', () => ({
   MINT_URL: 'https://mint.test.com',
   swapTokens: jest.fn(),
+  checkProofsSpent: jest.fn(async () => ({ state: [] })),
 }));
 
 jest.mock('../../crypto', () => ({

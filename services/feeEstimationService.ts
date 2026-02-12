@@ -5,7 +5,9 @@
  */
 
 import { BITCOIN_TX, VAULT_CONFIG } from '../utils/constants';
+import { MIN_FEE_RATE, DEFAULT_FEE_RATE_SAT_PER_VBYTE } from '../constants/bitcoin';
 import { fetchUtxosForAddress, calculateTransactionFee } from './transactionCalculationService';
+import { fetchWithTimeout } from '../utils/api';
 import {
   TransactionType,
   FeeEstimate,
@@ -95,6 +97,40 @@ export async function estimateTransactionFee(
     numOutputs: baseShape.outputs,
   };
 }
+
+/**
+ * Fetch recommended fee rate (sats/vbyte) from mempool.space testnet endpoint.
+ * Falls back to DEFAULT_FEE_RATE on error.
+ */
+export async function getRecommendedFeeRate(): Promise<number> {
+  const now = Date.now();
+  if (feeCache.rate !== null && now - feeCache.fetchedAt < 60_000) {
+    return feeCache.rate;
+  }
+
+  let rate = BASE_FEE_RATE;
+  try {
+    const res = await fetchWithTimeout('https://mempool.space/testnet/api/v1/fees/recommended', {}, 8000);
+    if (res.ok) {
+      const body = await res.json();
+      const fast = Number(body.fastestFee);
+      if (Number.isFinite(fast) && fast > 0) {
+        rate = fast;
+      }
+    }
+  } catch {
+    // ignore and use default
+  }
+
+  // Enforce bounds
+  rate = Math.max(MIN_FEE, Math.min(rate, 50));
+  feeCache = { rate, fetchedAt: now };
+  return rate;
+}
+
+let feeCache: { rate: number | null; fetchedAt: number } = { rate: null, fetchedAt: 0 };
+const BASE_FEE_RATE = Number(DEFAULT_FEE_RATE_SAT_PER_VBYTE ?? 1);
+const MIN_FEE = Number(MIN_FEE_RATE ?? 1);
 
 /**
  * Quick fee estimate without UTXO lookup (for UI responsiveness)

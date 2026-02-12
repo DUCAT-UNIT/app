@@ -206,7 +206,7 @@ const componentStyles = StyleSheet.create({
     fontFamily: fonts.medium,
     fontSize: fontSizes.md,
     fontWeight: fontWeights.semibold,
-    color: colors.text.white,
+    color: COLORS.WHITE,
   },
 
   // AssetCard styles
@@ -335,7 +335,7 @@ interface WalletScreenMockProps {
 
 const getVaultHealthColor = (health: string) => {
   switch (health) {
-    case 'warning': return COLORS.ORANGE;
+    case 'warning': return COLORS.WARNING_ORANGE;
     case 'danger': return COLORS.RED;
     default: return COLORS.SUCCESS_GREEN;
   }
@@ -528,14 +528,12 @@ const meta: Meta = {
 };
 
 export default meta;
-type Story = StoryObj;
-
 // =============================================================================
 // STORIES
 // =============================================================================
 
-export const Interactive: Story = {
-  render: (args: StoryProps) => <WalletStory {...args} />,
+export const Interactive: StoryObj<StoryProps> = {
+  render: (args) => <WalletStory {...args} />,
   args: {
     screenSize: 'L',
     hasVault: true,
@@ -564,8 +562,8 @@ export const Interactive: Story = {
   },
 };
 
-export const Overview: Story = {
-  render: (args: OverviewProps) => <WalletOverview {...args} />,
+export const Overview: StoryObj<OverviewProps> = {
+  render: (args) => <WalletOverview {...args} />,
   args: {
     hasVault: true,
     showInBTC: false,

@@ -8,7 +8,7 @@
  */
 
 import { create } from 'zustand';
-import AsyncStorage from '@react-native-async-storage/async-storage';
+import * as SecureStore from 'expo-secure-store';
 import { logger } from '../utils/logger';
 import {
   buildExclusionSet,
@@ -27,7 +27,7 @@ import type {
   UnconfirmedUTXO,
   PendingTransaction as UtilsPendingTransaction,
 } from '../utils/pendingTransactionsUtils';
-import type { SnackbarParams } from '../types/notification';
+
 import type { UtxoRef } from '../types/assets';
 
 export interface PendingTransactionOutput {
@@ -67,8 +67,7 @@ interface PendingTransactionsActions {
   confirmTransaction: (txid: string) => Promise<void>;
   invalidateTransaction: (
     txid: string,
-    reason: string,
-    showSnackbar: (params: SnackbarParams) => void
+    reason?: string,
   ) => Promise<string[]>;
 
   // UTXO getters
@@ -105,7 +104,7 @@ const savePendingTransactions = async (
   accountIndex: number
 ): Promise<void> => {
   try {
-    await AsyncStorage.setItem(getStorageKey(accountIndex, 'txs'), JSON.stringify(txs));
+    await SecureStore.setItemAsync(getStorageKey(accountIndex, 'txs'), JSON.stringify(txs));
   } catch (error: unknown) {
     logger.error('Error saving pending transactions:', {
       error: error instanceof Error ? error.message : String(error),
@@ -115,7 +114,7 @@ const savePendingTransactions = async (
 
 const saveSpentUtxos = async (spent: Set<string>, accountIndex: number): Promise<void> => {
   try {
-    await AsyncStorage.setItem(getStorageKey(accountIndex, 'spent'), JSON.stringify(Array.from(spent)));
+    await SecureStore.setItemAsync(getStorageKey(accountIndex, 'spent'), JSON.stringify(Array.from(spent)));
   } catch (error: unknown) {
     logger.error('Error saving spent UTXOs:', {
       error: error instanceof Error ? error.message : String(error),
@@ -155,7 +154,7 @@ export const usePendingTransactionsStore = create<PendingTransactionsStore>((set
 
     try {
       const txsKey = getStorageKey(accountIndex, 'txs');
-      const stored = await AsyncStorage.getItem(txsKey);
+      const stored = await SecureStore.getItemAsync(txsKey);
       if (stored) {
         set({ pendingTransactions: JSON.parse(stored) });
       }
@@ -167,7 +166,7 @@ export const usePendingTransactionsStore = create<PendingTransactionsStore>((set
 
     try {
       const spentKey = getStorageKey(accountIndex, 'spent');
-      const stored = await AsyncStorage.getItem(spentKey);
+      const stored = await SecureStore.getItemAsync(spentKey);
       if (stored) {
         set({ spentUtxos: new Set(JSON.parse(stored)) });
       }
@@ -254,7 +253,7 @@ export const usePendingTransactionsStore = create<PendingTransactionsStore>((set
   },
 
   // Invalidate transaction and all children
-  invalidateTransaction: async (txid, reason = 'Parent transaction failed', showSnackbar) => {
+  invalidateTransaction: async (txid, reason = 'Parent transaction failed') => {
     const { pendingTransactions, currentAccount } = get();
 
     const { updated, invalidated } = invalidateTransactionTree(
@@ -277,7 +276,9 @@ export const usePendingTransactionsStore = create<PendingTransactionsStore>((set
       const transaction = pendingTransactions[txid];
       const action = transaction?.assetType === 'UNIT' ? 'swap' : 'btc_send';
 
-      showSnackbar({
+      // Get showSnackbar from notification store (avoids Context dependency)
+      const { useNotificationStore } = require('./notificationStore');
+      useNotificationStore.getState().showSnackbar({
         type: 'error',
         action,
         message,

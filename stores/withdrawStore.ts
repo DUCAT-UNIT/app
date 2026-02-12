@@ -122,7 +122,14 @@ export const useWithdrawStore = create<WithdrawStore>()((set, get, store) => {
 
     getMaxWithdrawable: () => {
       const { currentBtcLocked, currentUnitBorrowed, bitcoinPrice } = get();
-      if (!bitcoinPrice || currentBtcLocked <= 0 || currentUnitBorrowed <= 0) return 0;
+      if (currentBtcLocked <= 0) return 0;
+
+      // No debt: can withdraw all collateral
+      if (currentUnitBorrowed <= 0) {
+        return Math.floor(currentBtcLocked * 100_000_000);
+      }
+
+      if (!bitcoinPrice) return 0;
 
       // Calculate min collateral needed to maintain MIN_COL_RATE (160%)
       // health = (collateral * btcPrice) / debt * 100
@@ -222,11 +229,17 @@ export const useWithdraw = () => {
 
   // Calculate max withdrawable
   let maxWithdrawable = 0;
-  if (bitcoinPrice && currentBtcLocked > 0 && currentUnitBorrowed > 0) {
-    const minHealthRatio = VAULT_CONFIG.MIN_COL_RATE * 100;
-    const minCollateral = (minHealthRatio * currentUnitBorrowed) / (bitcoinPrice * 100);
-    const maxWithdrawableBtc = Math.max(0, currentBtcLocked - minCollateral);
-    maxWithdrawable = Math.floor(maxWithdrawableBtc * 100_000_000);
+  if (currentBtcLocked > 0) {
+    if (currentUnitBorrowed > 0 && bitcoinPrice) {
+      // Has debt: constrain by health factor
+      const minHealthRatio = VAULT_CONFIG.MIN_COL_RATE * 100;
+      const minCollateral = (minHealthRatio * currentUnitBorrowed) / (bitcoinPrice * 100);
+      const maxWithdrawableBtc = Math.max(0, currentBtcLocked - minCollateral);
+      maxWithdrawable = Math.floor(maxWithdrawableBtc * 100_000_000);
+    } else {
+      // No debt: can withdraw all collateral
+      maxWithdrawable = Math.floor(currentBtcLocked * 100_000_000);
+    }
   }
 
   return {

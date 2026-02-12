@@ -4,7 +4,7 @@
  */
 
 import { useState, useEffect, useMemo, Dispatch, SetStateAction } from 'react';
-import { parsePSBT, buildFallbackOutputs, hasUnconfirmedInputs as checkUnconfirmedInputs, PSBTInput, PSBTOutput } from '../services/psbtService';
+import { parsePSBT, buildFallbackOutputs, hasUnconfirmedInputs as checkUnconfirmedInputs, PSBTInput, PSBTOutput } from '../services/psbtAnalysis';
 import { useTransactionBuild } from '../contexts/TransactionBuildContext';
 import type { SendIntent } from '../contexts/TransactionBuildContext';
 import { usePrice } from '../stores/priceStore';

@@ -94,11 +94,9 @@ const meta: Meta = {
 };
 
 export default meta;
-type Story = StoryObj;
-
 // Interactive story with device size selector
-export const Interactive: Story = {
-  render: (args: StoryProps) => <SplashStory {...args} />,
+export const Interactive: StoryObj<StoryProps> = {
+  render: (args) => <SplashStory {...args} />,
   args: {
     screenSize: 'L',
   },
@@ -112,7 +110,7 @@ export const Interactive: Story = {
 };
 
 // Overview showing all device sizes
-export const Overview: Story = {
+export const Overview: StoryObj = {
   render: () => <SplashOverview />,
   parameters: {
     notes: 'Overview of Splash screen across all device sizes',

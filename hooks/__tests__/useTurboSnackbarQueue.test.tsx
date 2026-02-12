@@ -64,10 +64,11 @@ describe('useTurboSnackbarQueue', () => {
     delete (global as any).pendingTurboSnackbars;
   });
 
-  it('should return showSnackbarWithDedup function', () => {
+  it('should return showSnackbarWithDedup and checkQueuedSnackbars functions', () => {
     const { result } = renderHookWithProps(mockProps);
 
     expect(typeof result.current!.showSnackbarWithDedup).toBe('function');
+    expect(typeof result.current!.checkQueuedSnackbars).toBe('function');
   });
 
   it('should show snackbar without deduplication for first call', () => {
@@ -161,12 +162,16 @@ describe('useTurboSnackbarQueue', () => {
     expect(mockProps.showSnackbar).toHaveBeenCalledTimes(2);
   });
 
-  it('should process queued snackbars on mount', () => {
+  it('should process queued snackbars when checkQueuedSnackbars is called', () => {
     (global as any).pendingTurboSnackbars = [
       { type: 'success', message: 'Queued!' },
     ];
 
-    renderHookWithProps(mockProps);
+    const { result } = renderHookWithProps(mockProps);
+
+    act(() => {
+      result.current!.checkQueuedSnackbars();
+    });
 
     expect(mockProps.showSnackbar).toHaveBeenCalledWith({
       type: 'success',
@@ -175,8 +180,8 @@ describe('useTurboSnackbarQueue', () => {
     expect((global as any).pendingTurboSnackbars).toEqual([]);
   });
 
-  it('should poll for queued snackbars', () => {
-    renderHookWithProps(mockProps);
+  it('should process snackbars added after mount', () => {
+    const { result } = renderHookWithProps(mockProps);
 
     expect(mockProps.showSnackbar).not.toHaveBeenCalled();
 
@@ -185,9 +190,9 @@ describe('useTurboSnackbarQueue', () => {
       { type: 'info', message: 'Later!' },
     ];
 
-    // Advance poll interval
+    // Call check (simulating token processor polling loop)
     act(() => {
-      jest.advanceTimersByTime(500);
+      result.current!.checkQueuedSnackbars();
     });
 
     expect(mockProps.showSnackbar).toHaveBeenCalledWith({
@@ -201,7 +206,11 @@ describe('useTurboSnackbarQueue', () => {
       { type: 'success', message: 'Will be cleared' },
     ];
 
-    renderHookWithProps(mockProps);
+    const { result } = renderHookWithProps(mockProps);
+
+    act(() => {
+      result.current!.checkQueuedSnackbars();
+    });
 
     expect((global as any).pendingTurboSnackbars).toEqual([]);
   });
@@ -213,7 +222,11 @@ describe('useTurboSnackbarQueue', () => {
       { type: 'info', message: 'Third' },
     ];
 
-    renderHookWithProps(mockProps);
+    const { result } = renderHookWithProps(mockProps);
+
+    act(() => {
+      result.current!.checkQueuedSnackbars();
+    });
 
     expect(mockProps.showSnackbar).toHaveBeenCalledWith({
       type: 'info',
@@ -225,7 +238,11 @@ describe('useTurboSnackbarQueue', () => {
   it('should handle empty pendingTurboSnackbars', () => {
     (global as any).pendingTurboSnackbars = [];
 
-    renderHookWithProps(mockProps);
+    const { result } = renderHookWithProps(mockProps);
+
+    act(() => {
+      result.current!.checkQueuedSnackbars();
+    });
 
     expect(mockProps.showSnackbar).not.toHaveBeenCalled();
   });
@@ -233,7 +250,11 @@ describe('useTurboSnackbarQueue', () => {
   it('should handle undefined pendingTurboSnackbars', () => {
     delete (global as any).pendingTurboSnackbars;
 
-    renderHookWithProps(mockProps);
+    const { result } = renderHookWithProps(mockProps);
+
+    act(() => {
+      result.current!.checkQueuedSnackbars();
+    });
 
     expect(mockProps.showSnackbar).not.toHaveBeenCalled();
   });
@@ -243,9 +264,13 @@ describe('useTurboSnackbarQueue', () => {
       { type: 'success', message: 'Should not show' },
     ];
 
-    renderHookWithProps({
+    const { result } = renderHookWithProps({
       ...mockProps,
       isAuthenticated: false,
+    });
+
+    act(() => {
+      result.current!.checkQueuedSnackbars();
     });
 
     expect(mockProps.showSnackbar).not.toHaveBeenCalled();
@@ -256,53 +281,15 @@ describe('useTurboSnackbarQueue', () => {
       { type: 'success', message: 'Should not show' },
     ];
 
-    renderHookWithProps({
+    const { result } = renderHookWithProps({
       ...mockProps,
       shouldShowPinOverlay: true,
     });
 
-    expect(mockProps.showSnackbar).not.toHaveBeenCalled();
-  });
-
-  it('should cleanup interval on unmount', () => {
-    const { unmount } = renderHookWithProps(mockProps);
-
-    // Unmount the component
     act(() => {
-      unmount();
-    });
-
-    // Add snackbar after unmount
-    (global as any).pendingTurboSnackbars = [
-      { type: 'success', message: 'After unmount' },
-    ];
-
-    // Advance timer - should not process since unmounted
-    act(() => {
-      jest.advanceTimersByTime(1000);
+      result.current!.checkQueuedSnackbars();
     });
 
     expect(mockProps.showSnackbar).not.toHaveBeenCalled();
   });
-
-  it('should not process snackbars after unmount even with queued items', () => {
-    const { unmount } = renderHookWithProps(mockProps);
-
-    // Queue a snackbar but unmount before it's processed
-    act(() => {
-      unmount();
-    });
-
-    // Even if we add snackbars after unmount, they shouldn't be processed
-    (global as any).pendingTurboSnackbars = [
-      { type: 'error', message: 'Too late' },
-    ];
-
-    act(() => {
-      jest.advanceTimersByTime(500);
-    });
-
-    expect(mockProps.showSnackbar).not.toHaveBeenCalled();
-  });
-
 });

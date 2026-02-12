@@ -8,7 +8,8 @@ import React, { useState, useEffect, useCallback, useRef, memo } from 'react';
 import { Text, View, TouchableOpacity, Animated, StyleSheet } from 'react-native';
 import { StatusBar } from 'expo-status-bar';
 import * as Haptics from 'expo-haptics';
-import { verifyPin } from '../../services/pinService';
+import { verifyPin, checkPinLockout } from '../../services/pinService';
+import { loadLockoutState, recordFailedAttempt } from '../../services/pinLockout';
 import * as PasskeyService from '../../services/passkey';
 import { ERRORS } from '../../utils/messages';
 import { COLORS } from '../../theme';
@@ -126,9 +127,28 @@ export default function LockScreen({ onAuthenticated, showFaceIdButton, onFaceId
         return;
       }
 
+      // SECURITY: Check lockout before passkey attempt to prevent brute-force via passkey path
+      const lockStatus = await checkPinLockout();
+      if (lockStatus.isLocked) {
+        setPinError(`Too many failed attempts. Try again in ${lockStatus.remainingTime} minutes.`);
+        setPin('');
+        return;
+      }
+
       await PasskeyService.unlockWithPasskey(pin);
       onAuthenticated();
     } catch (error: unknown) {
+      // SECURITY: Record failed passkey attempt for rate limiting
+      try {
+        const { failedAttempts } = await loadLockoutState();
+        await recordFailedAttempt(failedAttempts);
+      } catch (lockoutError) {
+        // If lockout recording fails, deny access (fail closed)
+        setPinError('Unable to verify. Please try again.');
+        setPin('');
+        return;
+      }
+
       const errorMessage = error instanceof Error ? error.message : 'Passkey authentication failed';
       setPinError(errorMessage);
       setPin('');

@@ -5,7 +5,7 @@
 
 import { useMemo, useRef } from 'react';
 import { useBalance } from '../../../contexts/WalletDataContext';
-import { useCashu } from '../../../contexts/CashuContext';
+import { useCashuBalanceState } from '../../../contexts/CashuContext';
 import { getRunesAmount } from '../../../utils/runesHelper';
 
 export interface UseSendBalancesOptions {
@@ -32,7 +32,7 @@ export function useSendBalances({
   estimatedFeeSats,
 }: UseSendBalancesOptions): UseSendBalancesResult {
   const { segwitBalance, runesBalance, unconfirmedSegwitBalance } = useBalance();
-  const { balance: cashuBalance } = useCashu();
+  const { balance: cashuBalance } = useCashuBalanceState();
 
   // Balance calculations (include unconfirmed for transaction chaining)
   const btcBalance = (segwitBalance || 0) + (unconfirmedSegwitBalance || 0);

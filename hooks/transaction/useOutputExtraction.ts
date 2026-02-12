@@ -7,7 +7,7 @@ import { useCallback } from 'react';
 import * as bitcoin from 'bitcoinjs-lib';
 import { MUTINYNET_NETWORK } from '../../utils/bitcoin';
 import { logger } from '../../utils/logger';
-import type { PendingTransactionOutput } from '../../contexts/PendingTransactionsContext';
+import type { PendingTransactionOutput } from '../../stores/pendingTransactionsStore';
 import type { SendIntent } from '../../contexts/TransactionBuildContext';
 
 /**

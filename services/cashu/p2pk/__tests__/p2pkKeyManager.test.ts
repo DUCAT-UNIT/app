@@ -77,8 +77,8 @@ describe('p2pkKeyManager', () => {
       await clearP2PKCache();
 
       expect(SecureStore.deleteItemAsync).toHaveBeenCalledTimes(2);
-      expect(SecureStore.deleteItemAsync).toHaveBeenCalledWith('p2pk_taproot_address_v4');
-      expect(SecureStore.deleteItemAsync).toHaveBeenCalledWith('p2pk_private_key_v4');
+      expect(SecureStore.deleteItemAsync).toHaveBeenCalledWith('p2pk_taproot_address_v5');
+      expect(SecureStore.deleteItemAsync).toHaveBeenCalledWith('p2pk_private_key_v5');
     });
 
     it('should handle deletion errors gracefully', async () => {
@@ -287,8 +287,8 @@ describe('p2pkKeyManager', () => {
 
       await getP2PKPrivateKey();
 
-      expect(SecureStore.setItemAsync).toHaveBeenCalledWith('p2pk_taproot_address_v4', mockAddress);
-      expect(SecureStore.setItemAsync).toHaveBeenCalledWith('p2pk_private_key_v4', mockPrivateKey);
+      expect(SecureStore.setItemAsync).toHaveBeenCalledWith('p2pk_taproot_address_v5', mockAddress);
+      expect(SecureStore.setItemAsync).toHaveBeenCalledWith('p2pk_private_key_v5', mockPrivateKey);
     });
 
     it('should handle cache read errors gracefully', async () => {

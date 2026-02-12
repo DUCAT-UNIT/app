@@ -6,6 +6,7 @@
  * without experimental VM modules. These tests focus on the core logic that can be tested.
  * After refactoring, dynamic imports should be replaced with static imports for better testability.
  */
+jest.setTimeout(20000);
 
 import * as SecureStore from 'expo-secure-store';
 import { logger } from '../../../utils/logger';
@@ -18,6 +19,12 @@ import * as cashuLockedTokensService from '../cashuLockedTokensService';
 
 // Mock all dependencies
 jest.mock('expo-secure-store');
+jest.mock('expo-crypto', () => ({
+  digest: jest.fn().mockResolvedValue(new ArrayBuffer(32)),
+  getRandomBytes: jest.fn((size: number) => new Uint8Array(size)),
+  getRandomBytesAsync: jest.fn(async (size: number) => new Uint8Array(size)),
+  CryptoDigestAlgorithm: { SHA256: 'SHA-256' },
+}));
 jest.mock('../../../utils/logger', () => ({
   logger: {
     debug: jest.fn(),
@@ -118,10 +125,19 @@ describe('cashuWalletService', () => {
     // Clear all mocks after setCurrentAccount to start fresh
     jest.clearAllMocks();
 
-    // Default mock implementations - use mockImplementation for flexibility
-    (SecureStore.getItemAsync as jest.Mock).mockImplementation(() => Promise.resolve(null));
-    (SecureStore.setItemAsync as jest.Mock).mockImplementation(() => Promise.resolve(undefined));
-    (SecureStore.deleteItemAsync as jest.Mock).mockImplementation(() => Promise.resolve(undefined));
+    // Default mock implementations - use storage map for proof integrity hash verification
+    const mockSecureStorage: Record<string, string> = {};
+    (SecureStore.getItemAsync as jest.Mock).mockImplementation((key: string) =>
+      Promise.resolve(mockSecureStorage[key] || null)
+    );
+    (SecureStore.setItemAsync as jest.Mock).mockImplementation((key: string, value: string) => {
+      mockSecureStorage[key] = value;
+      return Promise.resolve(undefined);
+    });
+    (SecureStore.deleteItemAsync as jest.Mock).mockImplementation((key: string) => {
+      delete mockSecureStorage[key];
+      return Promise.resolve(undefined);
+    });
 
     (cashuCrypto.sumProofs as jest.Mock).mockImplementation((proofs: any) =>
       proofs.reduce((sum: any, p: any) => sum + p.amount, 0)

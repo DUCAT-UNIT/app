@@ -16,6 +16,7 @@ import type {
 import { VAULT_CONFIG, BITCOIN_TX } from '../../utils/constants';
 import { logger } from '../../utils/logger';
 import { withGuardianTimeout } from '../guardianService';
+import { withVaultOperationLock } from './utils';
 import { checkBatchAllowed, Utxo } from './utils';
 
 export interface CreateRepayReqOptions {
@@ -92,10 +93,20 @@ export async function createVaultReqRepay(
   acctRes: UnitAccountResponse,
   options: CreateRepayReqOptions
 ): Promise<WalletVaultRepayRequest> {
+  // SECURITY: Serialize vault operations to prevent concurrent UTXO usage
+  return withVaultOperationLock(async () => {
   logger.debug('[VaultOps] Creating repay request...');
 
   try {
     const { feeRate, oracleQuote, vaultProfile } = options;
+
+    // SECURITY: Re-validate oracle price freshness before building transaction.
+    const quoteAgeSec = Math.floor(Date.now() / 1000) - oracleQuote.latest_stamp;
+    if (quoteAgeSec > 300) {
+      throw new Error(
+        `Oracle price is stale (${Math.floor(quoteAgeSec / 60)} min old). Please go back and refresh.`
+      );
+    }
 
     logger.debug('[VaultOps] Repay context inputs:', {
       mintAccount: !!acctRes.mint_account,
@@ -166,6 +177,7 @@ export async function createVaultReqRepay(
     logger.error('[VaultOps] Failed to create repay request:', { error });
     throw error;
   }
+  }); // end withVaultOperationLock
 }
 
 /**

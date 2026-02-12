@@ -95,6 +95,9 @@ module.exports = {
     },
   },
   testEnvironment: 'node',
+  // resetMocks: false — mocks persist across tests within a file. This is intentional:
+  // jest.setup.js configures global mocks (SecureStore, logger, etc.) that must survive
+  // between tests. Individual test files use beforeEach/clearAllMocks for isolation.
   resetMocks: false,
   transform: {
     '^.+\\.(js|jsx|ts|tsx)$': 'babel-jest',

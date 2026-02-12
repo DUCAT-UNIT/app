@@ -136,10 +136,8 @@ const meta: Meta = {
 };
 
 export default meta;
-type Story = StoryObj;
-
-export const Interactive: Story = {
-  render: (args: StoryProps) => <SettingsStory {...args} />,
+export const Interactive: StoryObj<StoryProps> = {
+  render: (args) => <SettingsStory {...args} />,
   args: {
     screenSize: 'L',
   },

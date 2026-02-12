@@ -15,7 +15,7 @@ import type {
 import { VAULT_CONFIG, BITCOIN_TX } from '../../utils/constants';
 import { logger } from '../../utils/logger';
 import { withGuardianTimeout } from '../guardianService';
-import { checkBatchAllowed, Utxo } from './utils';
+import { checkBatchAllowed, Utxo, withVaultOperationLock } from './utils';
 
 export interface CreateBorrowReqOptions {
   feeRate: number;
@@ -91,10 +91,21 @@ export async function createVaultReqBorrow(
   acctRes: UnitAccountResponse,
   options: CreateBorrowReqOptions
 ): Promise<WalletVaultBorrowRequest> {
+  // SECURITY: Serialize vault operations to prevent concurrent UTXO usage
+  return withVaultOperationLock(async () => {
   logger.debug('[VaultOps] Creating borrow request...');
 
   try {
     const { feeRate, oracleQuote, vaultProfile } = options;
+
+    // SECURITY: Re-validate oracle price freshness before building transaction.
+    // User may have been on the confirmation screen for several minutes.
+    const quoteAgeSec = Math.floor(Date.now() / 1000) - oracleQuote.latest_stamp;
+    if (quoteAgeSec > 300) {
+      throw new Error(
+        `Oracle price is stale (${Math.floor(quoteAgeSec / 60)} min old). Please go back and refresh.`
+      );
+    }
 
     logger.debug('[VaultOps] Borrow context inputs:', {
       mintAccount: !!acctRes.mint_account,
@@ -151,6 +162,7 @@ export async function createVaultReqBorrow(
     logger.error('[VaultOps] Failed to create borrow request:', { error });
     throw error;
   }
+  }); // end withVaultOperationLock
 }
 
 /**

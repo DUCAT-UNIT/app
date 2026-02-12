@@ -25,6 +25,7 @@ interface UseTurboTokenProcessorParams {
   showSnackbar: (params: SnackbarParams) => void;
   dismissSnackbar: () => void;
   switchAccount: (accountIndex: number) => Promise<WalletAddresses>;
+  checkQueuedSnackbars?: () => void;
 }
 
 interface UseTurboTokenProcessorReturn {
@@ -44,6 +45,7 @@ export function useTurboTokenProcessor({
   showSnackbar,
   dismissSnackbar,
   switchAccount,
+  checkQueuedSnackbars,
 }: UseTurboTokenProcessorParams): UseTurboTokenProcessorReturn {
   const [isVerifyingToken, setIsVerifyingToken] = React.useState(false);
   const [pendingSuccessMessage, setPendingSuccessMessage] = React.useState<string | null>(null);
@@ -208,6 +210,9 @@ export function useTurboTokenProcessor({
         logger.debug('[TURBO] Processing pending token', { tokenLength: token.length });
         processToken(token);
       }
+
+      // Also check queued snackbars (consolidated from useTurboSnackbarQueue)
+      checkQueuedSnackbars?.();
     };
 
     // Check immediately and poll
@@ -222,7 +227,7 @@ export function useTurboTokenProcessor({
       clearInterval(interval);
       unregisterTokenCheckCallback();
     };
-  }, [isAuthenticated, shouldShowPinOverlay, isVerifyingToken, processToken, consumePendingToken, registerTokenCheckCallback, unregisterTokenCheckCallback]);
+  }, [isAuthenticated, shouldShowPinOverlay, isVerifyingToken, processToken, consumePendingToken, registerTokenCheckCallback, unregisterTokenCheckCallback, checkQueuedSnackbars]);
 
   return { isVerifyingToken };
 }

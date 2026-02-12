@@ -7,7 +7,7 @@ import * as SecureStore from 'expo-secure-store';
 import * as LocalAuthentication from 'expo-local-authentication';
 import { SECURE_KEYS } from '../utils/constants';
 import { logger } from '../utils/logger';
-import { resetPinAttempts } from './pinLockout';
+import { resetPinAttempts, loadLockoutState, recordFailedAttempt } from './pinLockout';
 
 // Rate limiting constants
 const BIOMETRIC_KEYS = {
@@ -70,11 +70,17 @@ export const recordBiometricAttempt = async (success: boolean): Promise<void> =>
     return;
   }
 
-  // Increment failed attempts
+  // Increment biometric-specific counter
   const attemptsStr = await SecureStore.getItemAsync(BIOMETRIC_KEYS.FAILED_ATTEMPTS);
   const attempts = attemptsStr ? parseInt(attemptsStr, 10) + 1 : 1;
 
   await SecureStore.setItemAsync(BIOMETRIC_KEYS.FAILED_ATTEMPTS, attempts.toString());
+
+  // SECURITY: Also increment unified PIN lockout counter so biometric failures
+  // count toward the shared auth lockout (prevents lockout bypass via method switching)
+  const pinState = await loadLockoutState();
+  await recordFailedAttempt(pinState.failedAttempts);
+
   logger.warn('Biometric auth failed', { attempts, maxAttempts: BIOMETRIC_MAX_ATTEMPTS });
 
   if (attempts >= BIOMETRIC_MAX_ATTEMPTS) {
@@ -91,6 +97,14 @@ export const recordBiometricAttempt = async (success: boolean): Promise<void> =>
         `Locked out for 15 minutes. Please use your PIN instead.`
     );
   }
+};
+
+/**
+ * Reset biometric failed attempt counter (call after any successful auth)
+ */
+export const resetBiometricAttempts = async (): Promise<void> => {
+  await SecureStore.deleteItemAsync(BIOMETRIC_KEYS.FAILED_ATTEMPTS);
+  await SecureStore.deleteItemAsync(BIOMETRIC_KEYS.LOCKOUT_UNTIL);
 };
 
 /**

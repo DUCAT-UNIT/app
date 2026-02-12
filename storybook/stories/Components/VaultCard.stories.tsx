@@ -96,7 +96,7 @@ const DeviceSizeOverviewStory = () => (
             onVaultPress={() => {}}
             onCreateVault={() => {}}
             creatingVault={false}
-            styles={getScaledStyles(scale)}
+            styles={getScaledStyles(scale) as any}
           />
         </View>
       </View>
@@ -151,7 +151,7 @@ const VaultHealthCardStory = ({ healthState, screenSize, debtAmount, collateralA
           onVaultPress={() => {}}
           onCreateVault={() => {}}
           creatingVault={false}
-          styles={getScaledStyles(scale)}
+          styles={getScaledStyles(scale) as any}
         />
         {isLiquidated && (
           <LinearGradient
@@ -181,14 +181,12 @@ const meta: Meta = {
 };
 
 export default meta;
-type Story = StoryObj;
-
-export const DeviceSizeOverview: Story = {
+export const DeviceSizeOverview: StoryObj = {
   render: () => <DeviceSizeOverviewStory />,
 };
 
-export const VaultHealthCard: Story = {
-  render: (args: VaultHealthCardProps) => <VaultHealthCardStory {...args} />,
+export const VaultHealthCard: StoryObj<VaultHealthCardProps> = {
+  render: (args) => <VaultHealthCardStory {...args} />,
   args: {
     healthState: 'healthy',
     screenSize: 'L',

@@ -150,10 +150,8 @@ const meta: Meta = {
 };
 
 export default meta;
-type Story = StoryObj;
-
-export const Interactive: Story = {
-  render: (args: StoryProps) => <AdvancedStory {...args} />,
+export const Interactive: StoryObj<StoryProps> = {
+  render: (args) => <AdvancedStory {...args} />,
   args: {
     screenSize: 'L',
     advancedMode: false,

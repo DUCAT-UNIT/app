@@ -42,6 +42,18 @@ export const shortenCashuToken = async (cashuToken: string): Promise<string> => 
     }
 
     const shortUrl = result.data.shortUrl;
+
+    // Validate the returned URL is from the expected domain
+    try {
+      const parsed = new URL(shortUrl);
+      if (!parsed.hostname.endsWith('.ducatprotocol.com')) {
+        throw new Error(`Unexpected shortener domain: ${parsed.hostname}`);
+      }
+    } catch (urlError) {
+      if (urlError instanceof Error && urlError.message.startsWith('Unexpected')) throw urlError;
+      throw new Error('Shortener returned invalid URL');
+    }
+
     logger.info('Token shortened successfully', { shortUrl, shortCode: result.data.shortCode });
     return shortUrl;
   } catch (error: unknown) {

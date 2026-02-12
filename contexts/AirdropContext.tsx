@@ -3,7 +3,7 @@ import { Audio } from 'expo-av';
 import { useBalance } from './WalletDataContext';
 import { useWallet } from './WalletContext';
 import { useAuth } from './AuthContext';
-import { useNavigationHandlers } from './NavigationHandlersContext';
+import { useAuthFlowHandlers } from './NavigationHandlersContext';
 import * as AirdropService from '../services/airdropService';
 import { logger } from '../utils/logger';
 import {
@@ -56,7 +56,7 @@ export const AirdropProvider: React.FC<AirdropProviderProps> = ({ children, seed
   const { segwitBalance, taprootBalance } = useBalance();
   const { wallet, currentAccount } = useWallet();
   const { isAuthenticated } = useAuth();
-  const { showBiometricSetupModal } = useNavigationHandlers();
+  const { showBiometricSetupModal } = useAuthFlowHandlers();
 
   // Airdrop modal state
   const [showAirdropModal, setShowAirdropModal] = useState(false);
@@ -147,22 +147,35 @@ export const AirdropProvider: React.FC<AirdropProviderProps> = ({ children, seed
 
   // Clean up expired airdrop locks on mount
   useEffect(() => {
+    if (!wallet?.segwitAddress) return;
+    let cancelled = false;
+
     const cleanup = async () => {
-      if (!wallet?.segwitAddress) return;
-      const lockKey = getLockKey(wallet.segwitAddress, currentAccount);
-      await cleanupExpiredLock(lockKey);
+      try {
+        const lockKey = getLockKey(wallet.segwitAddress, currentAccount);
+        await cleanupExpiredLock(lockKey);
+      } catch (error) {
+        if (!cancelled) {
+          logger.warn('[Airdrop] Failed to clean expired lock', {
+            error: error instanceof Error ? error.message : String(error),
+          });
+        }
+      }
     };
 
     cleanup();
+    return () => { cancelled = true; };
   }, [wallet?.segwitAddress, currentAccount]);
 
   // Check for pending airdrop modal on mount and when balance updates
   useEffect(() => {
-    const checkPending = async () => {
-      if (!wallet?.segwitAddress) return;
+    if (!wallet?.segwitAddress) return;
+    let cancelled = false;
 
+    const checkPending = async () => {
       const pendingKey = getPendingKey(wallet.segwitAddress, currentAccount);
       const pendingTxId = await getPendingAirdrop(pendingKey);
+      if (cancelled) return;
 
       // If there's a pending airdrop and balance is now > 0, show the modal
       if (pendingTxId && (segwitBalance > 0 || taprootBalance > 0)) {
@@ -180,6 +193,7 @@ export const AirdropProvider: React.FC<AirdropProviderProps> = ({ children, seed
     };
 
     checkPending();
+    return () => { cancelled = true; };
   }, [wallet, currentAccount, segwitBalance, taprootBalance, showBiometricSetupModal]);
 
   // Auto-request airdrop when BTC balance is 0 (check once per day)
@@ -196,6 +210,8 @@ export const AirdropProvider: React.FC<AirdropProviderProps> = ({ children, seed
       logger.debug('[Airdrop] Skipping: seed not confirmed');
       return;
     }
+
+    let cancelled = false;
 
     logger.debug('[Airdrop] All conditions met, scheduling check in 3s', {
       address: wallet.segwitAddress.slice(0, 12) + '...',
@@ -250,6 +266,7 @@ export const AirdropProvider: React.FC<AirdropProviderProps> = ({ children, seed
             await storePendingAirdrop(pendingKey, result.txId);
 
             // Show modal - defer if biometric setup modal is visible
+            if (cancelled) return;
             pendingAirdropTxIdRef.current = result.txId;
             // If biometric modal is not showing, display immediately (use ref for fresh value)
             if (!showBiometricSetupModalRef.current) {
@@ -293,6 +310,7 @@ export const AirdropProvider: React.FC<AirdropProviderProps> = ({ children, seed
     ); // 24 hours
 
     return () => {
+      cancelled = true;
       clearTimeout(initialTimeout);
       clearInterval(intervalId);
     };

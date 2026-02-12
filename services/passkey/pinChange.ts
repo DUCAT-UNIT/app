@@ -170,7 +170,7 @@ export const reencryptPasskeyMnemonicAfterPinChange = async (newPin: string): Pr
       throw new Error('Invalid new PIN salt - cannot re-encrypt passkey data');
     }
 
-    // Derive encryption key using passkey + NEW PIN with 10k iterations
+    // Derive encryption key using passkey + NEW PIN with 310k PBKDF2 iterations
     const encryptionKey = await deriveEncryptionKey(credentialId, userHandle, newPin, newPinSalt);
 
     // Encrypt mnemonic with new key

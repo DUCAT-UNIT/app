@@ -28,6 +28,9 @@ const mockGetItemAsync = SecureStore.getItemAsync as jest.MockedFunction<typeof 
 const mockSetItemAsync = SecureStore.setItemAsync as jest.MockedFunction<typeof SecureStore.setItemAsync>;
 const mockDeleteItemAsync = SecureStore.deleteItemAsync as jest.MockedFunction<typeof SecureStore.deleteItemAsync>;
 
+// SecureStore options used by pinLockout (AFTER_FIRST_UNLOCK_THIS_DEVICE_ONLY)
+const LOCKOUT_OPTS = { keychainAccessible: SecureStore.AFTER_FIRST_UNLOCK_THIS_DEVICE_ONLY };
+
 describe('loadLockoutState', () => {
   beforeEach(() => {
     jest.clearAllMocks();
@@ -104,8 +107,8 @@ describe('saveLockoutState', () => {
 
     await saveLockoutState(5, 1234567890);
 
-    expect(mockSetItemAsync).toHaveBeenCalledWith('pin_failed_attempts', '5');
-    expect(mockSetItemAsync).toHaveBeenCalledWith('pin_lockout_until', '1234567890');
+    expect(mockSetItemAsync).toHaveBeenCalledWith('pin_failed_attempts', '5', LOCKOUT_OPTS);
+    expect(mockSetItemAsync).toHaveBeenCalledWith('pin_lockout_until', '1234567890', LOCKOUT_OPTS);
   });
 
   it('should delete lockout time when null', async () => {
@@ -114,8 +117,8 @@ describe('saveLockoutState', () => {
 
     await saveLockoutState(2, null);
 
-    expect(mockSetItemAsync).toHaveBeenCalledWith('pin_failed_attempts', '2');
-    expect(mockDeleteItemAsync).toHaveBeenCalledWith('pin_lockout_until');
+    expect(mockSetItemAsync).toHaveBeenCalledWith('pin_failed_attempts', '2', LOCKOUT_OPTS);
+    expect(mockDeleteItemAsync).toHaveBeenCalledWith('pin_lockout_until', LOCKOUT_OPTS);
   });
 
   it('should throw error when storage fails (security critical)', async () => {
@@ -132,7 +135,7 @@ describe('saveLockoutState', () => {
 
     await saveLockoutState(0, null);
 
-    expect(mockSetItemAsync).toHaveBeenCalledWith('pin_failed_attempts', '0');
+    expect(mockSetItemAsync).toHaveBeenCalledWith('pin_failed_attempts', '0', LOCKOUT_OPTS);
   });
 });
 
@@ -178,7 +181,7 @@ describe('checkPinLockout', () => {
     const result = await checkPinLockout();
 
     expect(result.isLocked).toBe(false);
-    expect(mockSetItemAsync).toHaveBeenCalledWith('pin_failed_attempts', '0');
+    expect(mockSetItemAsync).toHaveBeenCalledWith('pin_failed_attempts', '0', LOCKOUT_OPTS);
   });
 
   it('should calculate remaining time in minutes', async () => {
@@ -206,8 +209,8 @@ describe('resetPinAttempts', () => {
 
     await resetPinAttempts();
 
-    expect(mockSetItemAsync).toHaveBeenCalledWith('pin_failed_attempts', '0');
-    expect(mockDeleteItemAsync).toHaveBeenCalledWith('pin_lockout_until');
+    expect(mockSetItemAsync).toHaveBeenCalledWith('pin_failed_attempts', '0', LOCKOUT_OPTS);
+    expect(mockDeleteItemAsync).toHaveBeenCalledWith('pin_lockout_until', LOCKOUT_OPTS);
   });
 });
 
@@ -278,7 +281,7 @@ describe('recordFailedAttempt', () => {
 
     expect(result.newFailedAttempts).toBe(4);
     expect(result.shouldLockout).toBe(false);
-    expect(mockSetItemAsync).toHaveBeenCalledWith('pin_failed_attempts', '4');
+    expect(mockSetItemAsync).toHaveBeenCalledWith('pin_failed_attempts', '4', LOCKOUT_OPTS);
   });
 
   it('should trigger lockout when max attempts reached', async () => {
@@ -289,10 +292,11 @@ describe('recordFailedAttempt', () => {
     expect(result.newFailedAttempts).toBe(10);
     expect(result.shouldLockout).toBe(true);
     expect(result.lockoutUntil).toBeGreaterThan(1000000);
-    expect(mockSetItemAsync).toHaveBeenCalledWith('pin_failed_attempts', '10');
+    expect(mockSetItemAsync).toHaveBeenCalledWith('pin_failed_attempts', '10', LOCKOUT_OPTS);
     expect(mockSetItemAsync).toHaveBeenCalledWith(
       'pin_lockout_until',
-      expect.any(String)
+      expect.any(String),
+      LOCKOUT_OPTS
     );
   });
 

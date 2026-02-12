@@ -91,7 +91,9 @@ const securelyWipeString = (str: string | null): string => {
  */
 export const saveMnemonic = async (mnemonic: string): Promise<void> => {
   try {
-    await SecureStore.setItemAsync(SECURE_KEYS.MNEMONIC, mnemonic);
+    await SecureStore.setItemAsync(SECURE_KEYS.MNEMONIC, mnemonic, {
+      keychainAccessible: SecureStore.AFTER_FIRST_UNLOCK_THIS_DEVICE_ONLY,
+    });
   } catch (error: unknown) {
     logger.error('Failed to save mnemonic', { error: error instanceof Error ? error.message : String(error) });
     throw new Error('Failed to save wallet securely');
@@ -181,6 +183,7 @@ export const getCurrentAccount = async (): Promise<number> => {
  * Cache format for derived addresses
  */
 interface CachedAddresses {
+  version: number;
   accountIndex: number;
   addresses: {
     segwitAddress: string;
@@ -201,7 +204,7 @@ export const saveCachedAddresses = async (
   addresses: { segwitAddress: string; taprootAddress: string; segwitPubkey: string; taprootPubkey: string }
 ): Promise<boolean> => {
   try {
-    const cached: CachedAddresses = { accountIndex, addresses };
+    const cached: CachedAddresses = { version: 2, accountIndex, addresses };
     await SecureStore.setItemAsync(SECURE_KEYS.CACHED_ADDRESSES, JSON.stringify(cached));
     return true;
   } catch (error: unknown) {
@@ -234,9 +237,16 @@ export const getCachedAddresses = async (
     // Validate structure
     if (typeof parsed !== 'object' || parsed === null ||
         typeof parsed.accountIndex !== 'number' ||
+        typeof parsed.version !== 'number' ||
         !parsed.addresses ||
         typeof parsed.addresses.segwitAddress !== 'string') {
       logger.warn('Invalid cached addresses structure, clearing cache');
+      await SecureStore.deleteItemAsync(SECURE_KEYS.CACHED_ADDRESSES);
+      return null;
+    }
+
+    if (parsed.version !== 2) {
+      logger.warn('Cached addresses version mismatch, clearing cache');
       await SecureStore.deleteItemAsync(SECURE_KEYS.CACHED_ADDRESSES);
       return null;
     }
@@ -270,6 +280,7 @@ export const deleteCachedAddresses = async (): Promise<boolean> => {
  * Stores addresses for multiple accounts to enable fast account switching
  */
 interface MultiAccountCache {
+  __version?: number;
   [accountIndex: string]: {
     segwitAddress: string;
     taprootAddress: string;
@@ -319,6 +330,12 @@ export const getMultiAccountCache = async (
       return null;
     }
 
+    if (parsed.__version !== 2) {
+      logger.warn('Multi-account cache version mismatch, clearing cache');
+      await SecureStore.deleteItemAsync(SECURE_KEYS.MULTI_ACCOUNT_CACHE);
+      return null;
+    }
+
     // Populate memory cache
     memoryCache = parsed;
 
@@ -352,7 +369,7 @@ export const saveToMultiAccountCache = async (
 
   try {
     // Load existing cache or create new
-    let cache: MultiAccountCache = {};
+    let cache: MultiAccountCache = { __version: 2 };
 
     if (memoryCache) {
       cache = { ...memoryCache };
@@ -363,7 +380,7 @@ export const saveToMultiAccountCache = async (
           const parsed = JSON.parse(existing);
           // Validate structure
           if (typeof parsed === 'object' && parsed !== null && !Array.isArray(parsed)) {
-            cache = parsed;
+            cache = { __version: 2, ...parsed };
           }
         } catch (parseError) {
           logger.warn('Invalid JSON in multi-account cache during save, resetting', { error: parseError instanceof Error ? parseError.message : String(parseError) });

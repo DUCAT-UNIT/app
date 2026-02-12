@@ -20,7 +20,7 @@ import PasskeyPinInput from '../components/PasskeyPinInput';
 // Contexts
 import { useAuth } from '../contexts/AuthContext';
 import { useWallet } from '../contexts/WalletContext';
-import { useNavigationHandlers } from '../contexts/NavigationHandlersContext';
+import { useAuthFlowHandlers } from '../contexts/NavigationHandlersContext';
 
 // Hooks
 import { useWalletCreation } from '../hooks/useWalletCreation';
@@ -57,7 +57,7 @@ export default function OnboardingPage({
   } = useAuth();
 
   const { wallet, currentAccount, loadWallet, setWalletAddresses } = useWallet();
-  const { showPasskeyMigrationPrompt: showPasskeyMigrationPromptGlobal, showBiometricSetupPrompt } = useNavigationHandlers();
+  const { showPasskeyMigrationPrompt: showPasskeyMigrationPromptGlobal, showBiometricSetupPrompt } = useAuthFlowHandlers();
 
   // Wallet creation hook
   const {

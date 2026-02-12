@@ -4,9 +4,9 @@
  * Depends on SendFlowContext for form data
  */
 
-import React, { createContext, useContext, useState, useMemo, ReactNode } from 'react';
+import React, { createContext, useContext, useState, useMemo, useEffect, useRef, ReactNode } from 'react';
 import { useSendFlow } from '../stores/sendFlowStore';
-import { usePendingTransactions } from './PendingTransactionsContext';
+import { usePendingTransactionsStore } from '../stores/pendingTransactionsStore';
 import { useBalance } from './WalletDataContext';
 import { useTransactionBuilder } from '../hooks/useTransactionBuilder';
 import type { SendIntent, RuneBalanceItem } from '../hooks/useTransactionBuilder';
@@ -58,7 +58,7 @@ export const TransactionBuildProvider: React.FC<TransactionBuildProviderProps> =
     getSpentUtxos,
     unmarkUtxosAsSpent,
     markUtxosAsSpent,
-  } = usePendingTransactions();
+  } = usePendingTransactionsStore();
 
   const { runesBalance } = useBalance();
 
@@ -84,6 +84,19 @@ export const TransactionBuildProvider: React.FC<TransactionBuildProviderProps> =
     unmarkUtxosAsSpent,
     setSendRecipient,
   });
+
+  // Keep ref to latest cancelIntent for unmount cleanup
+  const cancelIntentRef = useRef(cancelIntent);
+  useEffect(() => {
+    cancelIntentRef.current = cancelIntent;
+  }, [cancelIntent]);
+
+  // Release locked UTXOs on unmount to prevent orphaned locks
+  useEffect(() => {
+    return () => {
+      void cancelIntentRef.current();
+    };
+  }, []);
 
   const value = useMemo(
     () => ({

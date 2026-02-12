@@ -355,7 +355,6 @@ const AssetDetailMock = ({
             currentPrice={assetType === 'BTC' ? 97000 : 1}
             width={width - spacing.lg * 2}
             height={143 * scale}
-            scale={scale}
           />
         </View>
 
@@ -461,14 +460,12 @@ const meta: Meta = {
 };
 
 export default meta;
-type Story = StoryObj;
-
 // =============================================================================
 // STORIES
 // =============================================================================
 
-export const Interactive: Story = {
-  render: (args: StoryProps) => <AssetDetailStory {...args} />,
+export const Interactive: StoryObj<StoryProps> = {
+  render: (args) => <AssetDetailStory {...args} />,
   args: {
     screenSize: 'L',
     assetType: 'BTC',
@@ -492,8 +489,8 @@ export const Interactive: Story = {
   },
 };
 
-export const Overview: Story = {
-  render: (args: OverviewProps) => <AssetDetailOverview {...args} />,
+export const Overview: StoryObj<OverviewProps> = {
+  render: (args) => <AssetDetailOverview {...args} />,
   args: {
     assetType: 'BTC',
     isPositive: true,

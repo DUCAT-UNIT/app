@@ -25,7 +25,7 @@ import { useKeyboard } from '../../hooks/useKeyboard';
 import { useFeeEstimate } from '../../hooks/useFeeEstimate';
 import { TransactionType } from '../../services/feeEstimationService';
 import { useTurboReview } from '../../hooks/useTurboReview';
-import { useNavigationHandlers } from '../../contexts/NavigationHandlersContext';
+import { useSettingsHandlers } from '../../contexts/NavigationHandlersContext';
 import QRScanner from '../../components/scanner/QRScanner';
 import InsufficientTurboSheet from '../../components/send/InsufficientTurboSheet';
 import TouchableScale from '../../components/common/TouchableScale';
@@ -71,7 +71,7 @@ export default function SendInputScreen({ navigation, route }: SendInputScreenPr
   const { btcPrice } = usePrice();
   const { wallet } = useWallet();
   const { keyboardHeight } = useKeyboard();
-  const { settingsHandlers } = useNavigationHandlers();
+  const { settingsHandlers } = useSettingsHandlers();
   const ecashThreshold = settingsHandlers?.ecashThreshold || 100;
 
   // Local state
@@ -252,6 +252,7 @@ export default function SendInputScreen({ navigation, route }: SendInputScreenPr
       <KeyboardAvoidingView
         behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
         style={styles.flex}
+        testID="send-input-content"
       >
         <ScrollView
           style={styles.flex}

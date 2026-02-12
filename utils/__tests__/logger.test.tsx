@@ -32,6 +32,7 @@ jest.mock('../../services/sentryService', () => ({
     setSessionContext: jest.fn(),
     setTag: jest.fn(),
   },
+  sanitizeParams: jest.fn((params: Record<string, unknown>) => params),
 }));
 
 // Store original __DEV__ value

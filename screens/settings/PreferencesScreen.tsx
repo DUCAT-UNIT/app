@@ -14,7 +14,7 @@ import {
 import { COLORS } from '../../theme';
 import Icon from '../../components/icons';
 import MutinynetBanner from '../../components/MutinynetBanner';
-import { useNavigationHandlers } from '../../contexts/NavigationHandlersContext';
+import { useSettingsHandlers } from '../../contexts/NavigationHandlersContext';
 
 // Get device dimensions for responsive sizing
 const { width: SCREEN_WIDTH } = require('react-native').Dimensions.get('window');
@@ -66,7 +66,7 @@ function PreferencesScreen({ route }: PreferencesScreenProps): React.ReactElemen
   const { onClose } = route.params;
 
   // Get live state from context instead of stale route params
-  const { settingsHandlers } = useNavigationHandlers();
+  const { settingsHandlers } = useSettingsHandlers();
   const {
     handleShowZeroAssetsToggle: onShowZeroAssetsToggle,
     handleNotificationsToggle: onNotificationsToggle,

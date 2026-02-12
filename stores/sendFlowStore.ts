@@ -22,14 +22,14 @@ export type IntentStep =
   | 'confirmed';
 
 export type AssetType = 'btc' | 'unit' | null;
-export type AddressType = 'segwit' | 'taproot';
+export type SendAddressType = 'segwit' | 'taproot';
 
 interface SendFlowState {
   intentStep: IntentStep;
   sendAssetType: AssetType;
   sendAmount: string;
   sendRecipient: string;
-  sendAddressType: AddressType;
+  sendAddressType: SendAddressType;
   requireConfirmedUtxos: boolean;
   turboEnabled: boolean;
   selectedFeeRate: number;
@@ -40,7 +40,7 @@ interface SendFlowActions {
   setSendAssetType: (type: AssetType) => void;
   setSendAmount: (amount: string) => void;
   setSendRecipient: (recipient: string) => void;
-  setSendAddressType: (type: AddressType) => void;
+  setSendAddressType: (type: SendAddressType) => void;
   setRequireConfirmedUtxos: (required: boolean) => void;
   setTurboEnabled: (enabled: boolean) => void;
   setSelectedFeeRate: (rate: number) => void;
@@ -106,6 +106,10 @@ export const useSendFlowStore = create<SendFlowStore>((set) => ({
 
   resetSendFlow: () => {
     logger.debug('[SendFlowStore] resetSendFlow');
+    if (resetTimer) {
+      clearTimeout(resetTimer);
+      resetTimer = null;
+    }
     set(initialState);
   },
 }));
@@ -170,7 +174,7 @@ export const useSendFlow = () => {
         store.setSendRecipient(value);
       }
     },
-    setSendAddressType: (value: AddressType | ((prev: AddressType) => AddressType)) => {
+    setSendAddressType: (value: SendAddressType | ((prev: SendAddressType) => SendAddressType)) => {
       if (typeof value === 'function') {
         store.setSendAddressType(value(useSendFlowStore.getState().sendAddressType));
       } else {
