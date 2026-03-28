@@ -22,23 +22,25 @@ interface CachedKeysets {
  * Get cached keyset or fetch from mint
  * @returns Mint public keys
  */
-export const getOrFetchKeys = async (): Promise<MintKeys> => {
+export const getOrFetchKeys = async (forceRefresh = false): Promise<MintKeys> => {
   try {
-    // Try to load from cache
-    const cached = await SecureStore.getItemAsync(KEYSETS_KEY);
-    if (cached) {
-      try {
-        const parsed: CachedKeysets = JSON.parse(cached);
-        // Check if it's the new format
-        if (parsed.keysetData && parsed.timestamp) {
-          // Cache for 1 hour
-          if (Date.now() - parsed.timestamp < 60 * 60 * 1000) {
-            return parsed.keysetData;
+    // Try to load from cache (skip if force refresh)
+    if (!forceRefresh) {
+      const cached = await SecureStore.getItemAsync(KEYSETS_KEY);
+      if (cached) {
+        try {
+          const parsed: CachedKeysets = JSON.parse(cached);
+          // Check if it's the new format
+          if (parsed.keysetData && parsed.timestamp) {
+            // Cache for 1 hour
+            if (Date.now() - parsed.timestamp < 60 * 60 * 1000) {
+              return parsed.keysetData;
+            }
           }
+          // Old format or expired - will refetch below
+        } catch (parseError) {
+          logger.warn('Failed to parse cached keys, will refetch', { error: (parseError as Error).message });
         }
-        // Old format or expired - will refetch below
-      } catch (parseError) {
-        logger.warn('Failed to parse cached keys, will refetch', { error: (parseError as Error).message });
       }
     }
 

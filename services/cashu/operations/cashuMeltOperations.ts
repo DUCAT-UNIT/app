@@ -93,8 +93,11 @@ export const completeMelt = async (quoteId: string, totalAmount: number): Promis
       let keys: Record<string, string>;
       let keysetId: string;
       if (keyData.keysets && keyData.keysets.length > 0) {
-        keysetId = keyData.keysets[0].id;
-        keys = keyData.keysets[0].keys;
+        const unitKeyset = keyData.keysets.find(
+          (ks: { unit?: string }) => ks.unit === 'unit'
+        ) || keyData.keysets[0];
+        keysetId = unitKeyset.id;
+        keys = unitKeyset.keys;
       } else if (keyData.keys) {
         keys = keyData.keys;
         // Don't use empty string - throw error if no keyset available
@@ -128,6 +131,20 @@ export const completeMelt = async (quoteId: string, totalAmount: number): Promis
         keys,
         keysetIdFromResponse
       );
+
+      // SECURITY: Verify the swap returned proofs matching the expected total amount.
+      // A malicious mint could return fewer/different proofs, causing silent fund loss.
+      const newProofsTotal = sumProofs(allNewProofs);
+      if (newProofsTotal !== selectedAmount) {
+        logger.error('SECURITY: Swap proof amount mismatch', {
+          expected: selectedAmount,
+          received: newProofsTotal,
+          proofsCount: allNewProofs.length,
+        });
+        throw new Error(
+          `Swap verification failed: expected ${selectedAmount} but received ${newProofsTotal}`
+        );
+      }
 
       proofsToMelt = allNewProofs.slice(0, meltAmounts.length);
       changeProofs = allNewProofs.slice(meltAmounts.length);
@@ -229,8 +246,11 @@ export const completeMeltWithoutCleanup = async (quoteId: string, totalAmount: n
       let keys: Record<string, string>;
       let keysetId: string;
       if (keyData.keysets && keyData.keysets.length > 0) {
-        keysetId = keyData.keysets[0].id;
-        keys = keyData.keysets[0].keys;
+        const unitKeyset = keyData.keysets.find(
+          (ks: { unit?: string }) => ks.unit === 'unit'
+        ) || keyData.keysets[0];
+        keysetId = unitKeyset.id;
+        keys = unitKeyset.keys;
       } else if (keyData.keys) {
         keys = keyData.keys;
         // Don't use empty string - throw error if no keyset available
@@ -262,6 +282,20 @@ export const completeMeltWithoutCleanup = async (quoteId: string, totalAmount: n
         keys,
         keysetIdFromResponse
       );
+
+      // SECURITY: Verify the swap returned proofs matching the expected total amount.
+      // A malicious mint could return fewer/different proofs, causing silent fund loss.
+      const newProofsTotal = sumProofs(allNewProofs);
+      if (newProofsTotal !== selectedAmount) {
+        logger.error('SECURITY: Swap proof amount mismatch', {
+          expected: selectedAmount,
+          received: newProofsTotal,
+          proofsCount: allNewProofs.length,
+        });
+        throw new Error(
+          `Swap verification failed: expected ${selectedAmount} but received ${newProofsTotal}`
+        );
+      }
 
       proofsToMelt = allNewProofs.slice(0, meltAmounts.length);
       changeProofs = allNewProofs.slice(meltAmounts.length);

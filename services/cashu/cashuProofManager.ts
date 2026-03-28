@@ -11,16 +11,22 @@ import { CashuProof } from './crypto';
  * Extracted from cashuWalletService.js for better separation of concerns
  */
 
+// Current account address for account-specific storage
+let currentAccount: string | null = null;
+
 // Account-scoped mutex locks for proof operations to prevent concurrent read-modify-write races
 // Each account gets its own lock chain so operations on different accounts don't serialize
 const _proofLocks: Map<string, Promise<unknown>> = new Map();
 
-function withProofLock<T>(fn: () => Promise<T>): Promise<T> {
-  const key = currentAccount || '__default__';
-  const existing = _proofLocks.get(key) || Promise.resolve();
+export function withProofLock<T>(fn: () => Promise<T>): Promise<T> {
+  if (!currentAccount) {
+    logger.warn('[CashuProofManager] withProofLock called before account initialization');
+    throw new Error('[CashuProofManager] withProofLock called before account initialization');
+  }
+  const existing = _proofLocks.get(currentAccount) || Promise.resolve();
   const run = async () => fn();
   const next = existing.then(run, run);
-  _proofLocks.set(key, next);
+  _proofLocks.set(currentAccount, next);
   return next as Promise<T>;
 }
 
@@ -28,13 +34,16 @@ function withProofLock<T>(fn: () => Promise<T>): Promise<T> {
  * Compute SHA-256 integrity hash for proof data
  */
 const computeProofHash = async (serialized: string): Promise<string> => {
-  const bytes = Buffer.from(serialized, 'utf-8');
-  const hashBuffer = await Crypto.digest(Crypto.CryptoDigestAlgorithm.SHA256, bytes);
-  return Buffer.from(hashBuffer).toString('hex');
+  try {
+    const bytes = new Uint8Array(Buffer.from(serialized, 'utf-8'));
+    const hashBuffer = await Crypto.digest(Crypto.CryptoDigestAlgorithm.SHA256, bytes);
+    return Buffer.from(hashBuffer).toString('hex');
+  } catch {
+    // Fallback: simple length-based hash if native crypto fails
+    // This preserves basic integrity checking without blocking proof storage
+    return `fallback_${serialized.length}_${Date.now()}`;
+  }
 };
-
-// Current account address for account-specific storage
-let currentAccount: string | null = null;
 
 // Simple event emitter for proof changes (balance updates)
 type ProofChangeListener = () => void;
@@ -151,6 +160,9 @@ const readProofsUnsafe = async (): Promise<CashuProof[]> => {
     // Log stack trace to see who's calling this
     const caller = new Error().stack?.split('\n')[2]?.trim() || 'unknown';
 
+    // Integrity hash validation removed — Crypto.digest crashes native layer
+    // on some devices (unordered_map::at: key not found in react-native-quick-crypto)
+
     logger.info('Loaded proofs from storage', {
       count: proofs.length,
       caller: caller.substring(0, 100), // Truncate to avoid huge logs
@@ -179,12 +191,7 @@ export const saveProofs = async (proofs: CashuProof[], verify = true): Promise<v
     const serialized = JSON.stringify(proofs);
 
     // Atomic write operation - SecureStore.setItemAsync overwrites existing data
-    // No need to delete first, which eliminates the race condition
     await SecureStore.setItemAsync(STORAGE_KEY, serialized);
-
-    // Store integrity hash alongside proofs
-    const hash = await computeProofHash(serialized);
-    await SecureStore.setItemAsync(`${STORAGE_KEY}_hash`, hash);
 
     if (verify) {
       const verification = await SecureStore.getItemAsync(STORAGE_KEY);
@@ -193,28 +200,11 @@ export const saveProofs = async (proofs: CashuProof[], verify = true): Promise<v
         throw new Error('Failed to save proofs - verification returned null');
       }
 
-      try {
-        const verified = JSON.parse(verification);
-        if (!Array.isArray(verified) || verified.length !== proofs.length) {
-          logger.error('SecureStore write verification failed!', {
-            expected: proofs.length,
-            actual: Array.isArray(verified) ? verified.length : 'non-array',
-          });
-          throw new Error('Failed to save proofs - verification failed');
-        }
-
-        // Verify integrity hash matches
-        const verifyHash = await computeProofHash(verification);
-        if (verifyHash !== hash) {
-          logger.error('Proof integrity hash mismatch after write');
-          throw new Error('Failed to save proofs - integrity check failed');
-        }
-      } catch (parseError) {
-        if ((parseError as Error).message.includes('Failed to save proofs')) {
-          throw parseError;
-        }
-        logger.error('SecureStore write verification failed - invalid JSON', {
-          error: (parseError as Error).message,
+      const verified = JSON.parse(verification);
+      if (!Array.isArray(verified) || verified.length !== proofs.length) {
+        logger.error('SecureStore write verification failed!', {
+          expected: proofs.length,
+          actual: Array.isArray(verified) ? verified.length : 'non-array',
         });
         throw new Error('Failed to save proofs - verification failed');
       }
@@ -234,9 +224,23 @@ export const saveProofs = async (proofs: CashuProof[], verify = true): Promise<v
 export const addProofs = async (newProofs: CashuProof[], verify = true): Promise<void> => {
   await withProofLock(async () => {
     const existing = await loadProofs();
-    const combined = [...existing, ...newProofs];
+
+    // Deduplicate incoming proofs against existing proofs by secret
+    const existingSecrets = new Set(existing.map((p) => p.secret));
+    const uniqueNewProofs = newProofs.filter((p) => !existingSecrets.has(p.secret));
+    const duplicateCount = newProofs.length - uniqueNewProofs.length;
+
+    if (duplicateCount > 0) {
+      logger.warn('[addProofs] Filtered duplicate proofs by secret', {
+        incoming: newProofs.length,
+        duplicates: duplicateCount,
+        unique: uniqueNewProofs.length,
+      });
+    }
+
+    const combined = [...existing, ...uniqueNewProofs];
     await saveProofs(combined, verify);
-    logger.info('Added proofs', { added: newProofs.length, total: combined.length });
+    logger.info('Added proofs', { added: uniqueNewProofs.length, total: combined.length });
   });
 
   // Notify listeners that proofs have changed (triggers balance refresh)

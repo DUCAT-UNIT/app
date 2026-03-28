@@ -13,7 +13,7 @@ import * as ScreenCapture from 'expo-screen-capture';
 import { logger } from '../utils/logger';
 
 const IS_E2E = __DEV__ && process.env.EXPO_PUBLIC_E2E_BYPASS === 'true';
-const INACTIVITY_TIMEOUT = IS_E2E ? 600 * 1000 : 30 * 1000; // 10 min for E2E, 30s normal
+const INACTIVITY_TIMEOUT = __DEV__ ? 600 * 1000 : 30 * 1000; // 10 min dev, 30s prod
 
 interface UseAppLifecycleParams {
   isAuthenticated: boolean;
@@ -21,6 +21,7 @@ interface UseAppLifecycleParams {
   seedConfirmedRef: MutableRefObject<boolean>;
   isBiometricSupported: boolean;
   biometricEnabled: boolean;
+  isProcessing?: boolean;
   onLock: () => void;
   onAuthenticateUser: () => void;
 }
@@ -35,6 +36,7 @@ export function useAppLifecycle({
   seedConfirmedRef,
   isBiometricSupported,
   biometricEnabled,
+  isProcessing = false,
   onLock,
   onAuthenticateUser,
 }: UseAppLifecycleParams): UseAppLifecycleReturn {
@@ -42,9 +44,10 @@ export function useAppLifecycle({
   const inactivityTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const wasInBackground = useRef(false);
 
-  // Use refs for callbacks to avoid stale closures in timers
+  // Use refs for callbacks and state to avoid stale closures in timers
   const onLockRef = useRef(onLock);
   const onAuthenticateUserRef = useRef(onAuthenticateUser);
+  const isProcessingRef = useRef(isProcessing);
 
   // Keep refs updated
   useEffect(() => {
@@ -54,6 +57,10 @@ export function useAppLifecycle({
   useEffect(() => {
     onAuthenticateUserRef.current = onAuthenticateUser;
   }, [onAuthenticateUser]);
+
+  useEffect(() => {
+    isProcessingRef.current = isProcessing;
+  }, [isProcessing]);
 
   // Allow screenshots by default
   useEffect(() => {
@@ -142,6 +149,11 @@ export function useAppLifecycle({
 
     // Set new timer
     inactivityTimer.current = setTimeout(() => {
+      // Don't lock during active transaction processing
+      if (isProcessingRef.current) {
+        logger.debug('[useAppLifecycle] ⏱️ Inactivity timeout reached but processing active - deferring lock');
+        return;
+      }
       // Lock the wallet after inactivity timeout
       logger.info('[useAppLifecycle] ⏱️ Inactivity timeout reached - locking wallet');
       onLockRef.current();

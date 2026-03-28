@@ -10,6 +10,7 @@ import {
   createBlindedOutputs,
   unblindSignatures,
   splitAmount,
+  sumProofs,
   decodeToken,
   CashuProof,
 } from '../crypto';
@@ -100,7 +101,7 @@ export const receiveToken = async (tokenString: string): Promise<ReceiveTokenRes
     }
 
     // Mint-side double-spend check before any processing
-    const spendCheck = await checkProofsSpent(proofs as any);
+    const spendCheck = await checkProofsSpent(proofs);
     const spendStates = Array.isArray(spendCheck?.states)
       ? spendCheck.states
       : proofs.map(() => ({ state: false }));
@@ -186,8 +187,11 @@ export const receiveToken = async (tokenString: string): Promise<ReceiveTokenRes
     let keys: Record<string, string>;
     let keysetId: string;
     if (keyData.keysets && keyData.keysets.length > 0) {
-      keysetId = keyData.keysets[0].id;
-      keys = keyData.keysets[0].keys;
+      const unitKeyset = keyData.keysets.find(
+        (ks: { unit?: string }) => ks.unit === 'unit'
+      ) || keyData.keysets[0];
+      keysetId = unitKeyset.id;
+      keys = unitKeyset.keys;
     } else if (keyData.keys) {
       keys = keyData.keys;
       keysetId = '';
@@ -244,6 +248,20 @@ export const receiveToken = async (tokenString: string): Promise<ReceiveTokenRes
       response.signatures[0]?.id || keysetId
     );
     logger.info('[PERF] Unblind signatures took', { durationMs: Date.now() - t8 });
+
+    // SECURITY: Verify the swap returned proofs matching the expected total amount.
+    // A malicious mint could return fewer/different proofs, causing silent fund loss.
+    const newProofsTotal = sumProofs(newProofs);
+    if (newProofsTotal !== totalSmallestUnits) {
+      logger.error('SECURITY: Swap proof amount mismatch', {
+        expected: totalSmallestUnits,
+        received: newProofsTotal,
+        proofsCount: newProofs.length,
+      });
+      throw new Error(
+        `Swap verification failed: expected ${totalSmallestUnits} but received ${newProofsTotal}`
+      );
+    }
 
     // Add swapped proofs to wallet with retry logic to prevent fund loss
     const t9 = Date.now();

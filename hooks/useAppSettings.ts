@@ -7,7 +7,7 @@ import { useState, useEffect, useCallback, useMemo } from 'react';
 import * as SecureStore from 'expo-secure-store';
 import { authenticateWithBiometrics } from '../services/biometricService';
 import { clearWallet } from '../services/cashu/cashuWalletService';
-import logger from '../utils/logger';
+import { logger } from '../utils/logger';
 import { notify } from '../utils/notify';
 
 export interface UseAppSettingsParams {
@@ -202,7 +202,7 @@ export function useAppSettings({ biometricEnabled, setIsAuthenticated }: UseAppS
 
   const handleClearLockedTokens = useCallback(async (): Promise<void> => {
     try {
-      const { clearSentLockedTokens } = await import('../services/cashu/cashuLockedTokensService.js');
+      const { clearSentLockedTokens } = await import('../services/cashu/cashuLockedTokensService');
       await clearSentLockedTokens();
       notify.cashu.lockedTokensCleared();
     } catch (error) {

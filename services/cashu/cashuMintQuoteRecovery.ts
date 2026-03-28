@@ -226,6 +226,14 @@ export const recoverUnclaimedMintQuotes = async (): Promise<MintQuoteRecoveryRes
     for (const quote of quotes) {
       result.checked++;
 
+      // Skip quotes that are actively being processed by turbo flow
+      if (quote.state === 'PENDING') {
+        logger.debug('[MintQuoteRecovery] Skipping PENDING quote (active processing)', {
+          quoteId: quote.quoteId.substring(0, 8),
+        });
+        continue;
+      }
+
       try {
         // Check quote status with mint
         const mintQuote = await checkMintQuote(quote.quoteId);
@@ -238,17 +246,21 @@ export const recoverUnclaimedMintQuotes = async (): Promise<MintQuoteRecoveryRes
 
         if (mintQuote.state === 'PAID') {
           // Quote is paid but not yet claimed - recover it!
+          // Use the mint's reported amount (actual deposit), not the locally saved amount
+          const claimAmount = mintQuote.amount ?? quote.amount;
           logger.info('[MintQuoteRecovery] Found paid unclaimed quote, recovering...', {
             quoteId: quote.quoteId.substring(0, 8),
-            amount: quote.amount,
+            savedAmount: quote.amount,
+            mintAmount: mintQuote.amount,
+            claimAmount,
           });
 
           try {
             // Mark as pending to prevent double-claim attempts
             await updateMintQuoteState(quote.quoteId, 'PENDING');
 
-            // Complete the mint (claim tokens)
-            const proofs = await completeMint(quote.quoteId, quote.amount);
+            // Complete the mint (claim tokens) - use mint's amount to match deposit
+            const proofs = await completeMint(quote.quoteId, claimAmount);
 
             // Remove the quote after successful claim
             await removeMintQuote(quote.quoteId);

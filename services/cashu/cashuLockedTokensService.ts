@@ -197,7 +197,8 @@ export const updateTokenClaimedStatus = async (tokenId: string, claimed: boolean
 export const clearSentLockedTokens = async (): Promise<void> => {
   try {
     logger.info('Clearing all sent locked tokens');
-    await SecureStore.deleteItemAsync(SENT_TOKENS_KEY);
+    // Set to empty array instead of deleting — avoids errors if key doesn't exist
+    await SecureStore.setItemAsync(SENT_TOKENS_KEY, '[]');
     logger.info('All sent locked tokens cleared');
   } catch (error: unknown) {
     logger.error('Failed to clear sent locked tokens', { error: (error as Error).message });

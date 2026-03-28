@@ -146,8 +146,11 @@ export const sendP2PKToken = async (
     let keys: Record<string, string>;
     let keysetId: string;
     if (keyData.keysets && keyData.keysets.length > 0) {
-      keysetId = keyData.keysets[0].id;
-      keys = keyData.keysets[0].keys;
+      const unitKeyset = keyData.keysets.find(
+        (ks: { unit?: string }) => ks.unit === 'unit'
+      ) || keyData.keysets[0];
+      keysetId = unitKeyset.id;
+      keys = unitKeyset.keys;
     } else if (keyData.keys) {
       keys = keyData.keys;
       keysetId = '';
@@ -257,6 +260,20 @@ export const sendP2PKToken = async (
       keys,
       response.signatures[0]?.id || keysetId
     );
+
+    // SECURITY: Verify the swap returned proofs matching the expected total amount.
+    // A malicious mint could return fewer/different proofs, causing silent fund loss.
+    const newProofsTotal = sumProofs(allNewProofs);
+    if (newProofsTotal !== selectedAmount) {
+      logger.error('SECURITY: Swap proof amount mismatch', {
+        expected: selectedAmount,
+        received: newProofsTotal,
+        proofsCount: allNewProofs.length,
+      });
+      throw new Error(
+        `Swap verification failed: expected ${selectedAmount} but received ${newProofsTotal}`
+      );
+    }
 
     // Split into send and change using secret type instead of array slicing
     // This works correctly even after sorting because we identify by the secret itself

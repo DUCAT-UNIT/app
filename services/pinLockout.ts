@@ -25,7 +25,6 @@ const LEGACY_LOCKOUT_KEYS = {
 // across app reinstalls. This prevents brute-force bypass via reinstall.
 const LOCKOUT_STORE_OPTIONS: SecureStore.SecureStoreOptions = {
   keychainAccessible: SecureStore.AFTER_FIRST_UNLOCK_THIS_DEVICE_ONLY,
-  requireAuthentication: true,
 };
 const LEGACY_LOCKOUT_OPTIONS: SecureStore.SecureStoreOptions = {
   keychainAccessible: SecureStore.AFTER_FIRST_UNLOCK_THIS_DEVICE_ONLY,

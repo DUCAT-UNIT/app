@@ -67,8 +67,11 @@ export const sendToken = async (amount: number, returnChange = true): Promise<Se
       let keys: Record<string, string>;
       let keysetId: string;
       if (keyData.keysets && keyData.keysets.length > 0) {
-        keysetId = keyData.keysets[0].id;
-        keys = keyData.keysets[0].keys;
+        const unitKeyset = keyData.keysets.find(
+          (ks: { unit?: string }) => ks.unit === 'unit'
+        ) || keyData.keysets[0];
+        keysetId = unitKeyset.id;
+        keys = unitKeyset.keys;
       } else if (keyData.keys) {
         keys = keyData.keys;
         keysetId = '';
@@ -104,11 +107,20 @@ export const sendToken = async (amount: number, returnChange = true): Promise<Se
       });
 
       // Double-spend guard: verify none of the selected proofs are already spent
-      const spentResult = await checkProofsSpent(selectedProofs);
-      const spentStates = Array.isArray(spentResult?.state)
-        ? spentResult.state
-        : selectedProofs.map(() => false);
-      if (spentStates.some((s) => s === true || s === 'SPENT')) {
+      let spentStates: { state: string }[];
+      try {
+        const spentResult = await checkProofsSpent(selectedProofs);
+        if (!Array.isArray(spentResult?.states)) {
+          throw new Error('Invalid spent check response');
+        }
+        spentStates = spentResult.states;
+      } catch (spentCheckError) {
+        logger.error('[CashuSendToken] Spent check failed - aborting send for safety', {
+          error: (spentCheckError as Error).message,
+        });
+        throw new Error('Unable to verify proof state - aborting send for safety');
+      }
+      if (spentStates.some((s: { state: string }) => s.state === 'SPENT')) {
         throw new Error('Proofs already spent - aborting swap');
       }
 

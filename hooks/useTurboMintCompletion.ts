@@ -97,19 +97,27 @@ export function useTurboMintCompletion({
         logger.debug('[useTurboMintCompletion] Starting to poll for payment confirmation');
 
         // Poll for payment confirmation
+        // Mutinynet blocks ~30s + Ord indexing + mint deposit monitor (30s poll)
+        // Need at least 120s to reliably catch deposits
         let paidQuote = null;
         let attempts = 0;
-        const maxAttempts = 30; // 30 seconds
+        const maxAttempts = 120;
 
         while (!paidQuote && attempts < maxAttempts) {
           if (!mountedRef.current) return;
-          await new Promise(resolve => setTimeout(resolve, 1000));
+          await new Promise(resolve => setTimeout(resolve, 2000));
           if (!mountedRef.current) return;
-          const quote = await checkMintQuote(mintQuoteId);
-          logger.debug(`[useTurboMintCompletion] Check ${attempts + 1}/${maxAttempts}:`, quote);
-          if (quote.state === 'PAID' || quote.state === 'ISSUED') {
-            paidQuote = quote;
-            break;
+          try {
+            const quote = await checkMintQuote(mintQuoteId);
+            logger.debug(`[useTurboMintCompletion] Check ${attempts + 1}/${maxAttempts}:`, quote);
+            if (quote.state === 'PAID' || quote.state === 'ISSUED') {
+              paidQuote = quote;
+              break;
+            }
+          } catch (pollError: unknown) {
+            logger.warn(`[useTurboMintCompletion] Poll ${attempts + 1}/${maxAttempts} failed, retrying`, {
+              error: pollError instanceof Error ? pollError.message : String(pollError),
+            });
           }
           attempts++;
         }
@@ -204,7 +212,7 @@ export function useTurboMintCompletion({
             notify.transaction.success('convert');
           }
         } else {
-          logger.debug('[useTurboMintCompletion] Payment not confirmed after 30 seconds');
+          logger.debug('[useTurboMintCompletion] Payment not confirmed after 4 minutes');
           // Don't clear pending turbo send - will resume polling on next app start
           if (mountedRef.current) setIsCompletingMint(false);
           notify.cashu.paymentSentAwaiting();

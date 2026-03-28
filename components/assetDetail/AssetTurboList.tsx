@@ -5,13 +5,14 @@
  */
 
 import React, { useState, useEffect, useCallback, memo } from 'react';
-import { View, Text, TouchableOpacity, ActivityIndicator } from 'react-native';
+import { View, Text, TouchableOpacity, ActivityIndicator, Modal, Share, StyleSheet as RNStyleSheet } from 'react-native';
 import * as Clipboard from 'expo-clipboard';
 
 import { COLORS } from '../../theme';
 import Icon from '../icons';
 import { formatTransactionDate } from '../../utils/formatters/dates';
 import { formatUnitAmount } from '../../utils/formatters/amounts';
+import { truncateAddress } from '../../utils/formatters/addresses';
 import globalStyles from '../../styles';
 import { useResponsive } from '../../hooks/useResponsive';
 import {
@@ -22,6 +23,7 @@ import { checkProofsSpent } from '../../services/cashu/cashuMintClient';
 import { useNotifications } from '../../stores/notificationStore';
 import { useWallet } from '../../contexts/WalletContext';
 import { logger } from '../../utils/logger';
+import { colors, spacing, fonts, fontSizes, radii } from '../../styles/theme';
 
 interface TokenRecord {
   id: string;
@@ -29,13 +31,15 @@ interface TokenRecord {
   amount: number;
   timestamp: number;
   taprootAddress?: string | null;
+  shortUrl?: string | null;
+  recipient?: string | null;
 }
 
 interface TurboTokenItemProps {
   item: TokenRecord;
   isClaimed: boolean;
   isSelfClaim: boolean;
-  onCopy: (tokenRecord: TokenRecord) => Promise<void>;
+  onCopy: (tokenRecord: TokenRecord) => void;
 }
 
 // Memoized token item component to prevent unnecessary re-renders
@@ -221,15 +225,35 @@ export function AssetTurboList() {
     return () => clearInterval(pollInterval);
   }, [wallet?.taprootAddress, tokens, claimedTokens, checkTokensClaimed]);
 
-  const handleCopyToken = useCallback(async (tokenRecord: TokenRecord) => {
+  const [selectedToken, setSelectedToken] = useState<TokenRecord | null>(null);
+
+  const handleTokenPress = useCallback((tokenRecord: TokenRecord) => {
+    setSelectedToken(tokenRecord);
+  }, []);
+
+  const handleCopyLink = useCallback(async () => {
+    if (!selectedToken) return;
     try {
-      await Clipboard.setStringAsync(tokenRecord.token);
-      showToast('Cashu token copied to clipboard', 'success');
+      const textToCopy = selectedToken.shortUrl || selectedToken.token;
+      await Clipboard.setStringAsync(textToCopy);
+      showToast(selectedToken.shortUrl ? 'Link copied' : 'Token copied', 'success');
     } catch (error: unknown) {
-      logger.error(error, { component: 'AssetTurboList', action: 'handleCopyToken' });
-      showToast('Failed to copy token to clipboard', 'error');
+      logger.error(error, { component: 'AssetTurboList', action: 'handleCopyLink' });
+      showToast('Failed to copy', 'error');
     }
-  }, [showToast]);
+  }, [selectedToken, showToast]);
+
+  const handleShare = useCallback(async () => {
+    if (!selectedToken) return;
+    try {
+      const shareUrl = selectedToken.shortUrl || selectedToken.token;
+      await Share.share({
+        message: shareUrl,
+      });
+    } catch (error: unknown) {
+      logger.error(error, { component: 'AssetTurboList', action: 'handleShare' });
+    }
+  }, [selectedToken]);
 
   // Show loading spinner while checking token states
   if (isLoading) {
@@ -283,9 +307,187 @@ export function AssetTurboList() {
           item={item}
           isClaimed={claimedTokens.has(item.id)}
           isSelfClaim={selfClaimTokens.has(item.id)}
-          onCopy={handleCopyToken}
+          onCopy={handleTokenPress}
         />
       ))}
+
+      {/* Token Detail Modal */}
+      {selectedToken && (
+        <Modal
+          visible={!!selectedToken}
+          transparent
+          animationType="fade"
+          onRequestClose={() => setSelectedToken(null)}
+        >
+          <TouchableOpacity
+            style={detailStyles.overlay}
+            activeOpacity={1}
+            onPress={() => setSelectedToken(null)}
+          >
+            <View style={[detailStyles.modal, { borderRadius: s(radii.xl), padding: s(spacing.xl) }]}>
+              {/* Header */}
+              <View style={detailStyles.header}>
+                <Icon name="turbo" size={s(40)} color="#DDDDDD" />
+                <Text style={[detailStyles.title, { fontSize: sf(fontSizes.lg), marginLeft: s(12) }]}>
+                  Turbo UNIT
+                </Text>
+              </View>
+
+              {/* Amount */}
+              <View style={[detailStyles.row, { marginTop: s(spacing.lg) }]}>
+                <Text style={[detailStyles.label, { fontSize: sf(fontSizes.sm) }]}>Amount</Text>
+                <View style={{ flexDirection: 'row', alignItems: 'center' }}>
+                  <Icon name="unit_symbol" size={s(12)} color={COLORS.GREEN} style={{ marginRight: s(4) }} />
+                  <Text style={[detailStyles.value, { fontSize: sf(fontSizes.md), color: COLORS.GREEN }]}>
+                    {formatUnitAmount(selectedToken.amount)}
+                  </Text>
+                </View>
+              </View>
+
+              {/* Recipient */}
+              {selectedToken.recipient && (
+                <View style={[detailStyles.row, { marginTop: s(spacing.sm) }]}>
+                  <Text style={[detailStyles.label, { fontSize: sf(fontSizes.sm) }]}>Recipient</Text>
+                  <Text style={[detailStyles.value, { fontSize: sf(fontSizes.sm) }]}>
+                    {truncateAddress(selectedToken.recipient)}
+                  </Text>
+                </View>
+              )}
+
+              {/* Date */}
+              <View style={[detailStyles.row, { marginTop: s(spacing.sm) }]}>
+                <Text style={[detailStyles.label, { fontSize: sf(fontSizes.sm) }]}>Date</Text>
+                <Text style={[detailStyles.value, { fontSize: sf(fontSizes.sm) }]}>
+                  {formatTransactionDate(Math.floor(selectedToken.timestamp / 1000))}
+                </Text>
+              </View>
+
+              {/* Status */}
+              <View style={[detailStyles.row, { marginTop: s(spacing.sm) }]}>
+                <Text style={[detailStyles.label, { fontSize: sf(fontSizes.sm) }]}>Status</Text>
+                <Text style={[detailStyles.value, {
+                  fontSize: sf(fontSizes.sm),
+                  color: claimedTokens.has(selectedToken.id) ? COLORS.PRIMARY_BLUE : COLORS.GREEN,
+                }]}>
+                  {selfClaimTokens.has(selectedToken.id) ? 'Self Claim' : claimedTokens.has(selectedToken.id) ? 'Claimed' : 'Active'}
+                </Text>
+              </View>
+
+              {/* Link */}
+              {selectedToken.shortUrl && (
+                <View style={[detailStyles.linkContainer, { marginTop: s(spacing.lg), borderRadius: s(radii.md), padding: s(spacing.md) }]}>
+                  <Text style={[detailStyles.linkText, { fontSize: sf(fontSizes.sm) }]} numberOfLines={2}>
+                    {selectedToken.shortUrl}
+                  </Text>
+                </View>
+              )}
+
+              {/* Action Buttons */}
+              <View style={[detailStyles.buttons, { marginTop: s(spacing.lg), gap: s(12) }]}>
+                <TouchableOpacity
+                  style={[detailStyles.button, detailStyles.shareBtn, { paddingVertical: s(14), borderRadius: s(radii.lg) }]}
+                  onPress={handleShare}
+                >
+                  <Icon name="share" size={s(16)} color={COLORS.PRIMARY_BLUE} />
+                  <Text style={[detailStyles.shareBtnText, { fontSize: sf(fontSizes.md), marginLeft: s(8) }]}>Share</Text>
+                </TouchableOpacity>
+                <TouchableOpacity
+                  style={[detailStyles.button, detailStyles.copyBtn, { paddingVertical: s(14), borderRadius: s(radii.lg) }]}
+                  onPress={handleCopyLink}
+                >
+                  <Icon name="copy" size={s(16)} color={colors.text.primary} />
+                  <Text style={[detailStyles.copyBtnText, { fontSize: sf(fontSizes.md), marginLeft: s(8) }]}>
+                    {selectedToken.shortUrl ? 'Copy Link' : 'Copy Token'}
+                  </Text>
+                </TouchableOpacity>
+              </View>
+
+              {/* Close */}
+              <TouchableOpacity
+                style={[detailStyles.closeBtn, { marginTop: s(spacing.md), paddingVertical: s(12) }]}
+                onPress={() => setSelectedToken(null)}
+              >
+                <Text style={[detailStyles.closeBtnText, { fontSize: sf(fontSizes.md) }]}>Close</Text>
+              </TouchableOpacity>
+            </View>
+          </TouchableOpacity>
+        </Modal>
+      )}
     </View>
   );
 }
+
+const detailStyles = RNStyleSheet.create({
+  overlay: {
+    flex: 1,
+    backgroundColor: 'rgba(0, 0, 0, 0.6)',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  modal: {
+    backgroundColor: colors.bg.secondary,
+    width: '88%',
+    maxWidth: 400,
+  },
+  header: {
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
+  title: {
+    fontFamily: fonts.bold,
+    fontWeight: 'bold' as const,
+    color: colors.text.primary,
+  },
+  row: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+  },
+  label: {
+    fontFamily: fonts.regular,
+    color: colors.text.secondary,
+  },
+  value: {
+    fontFamily: fonts.medium,
+    color: colors.text.primary,
+  },
+  linkContainer: {
+    backgroundColor: colors.bg.tertiary,
+  },
+  linkText: {
+    fontFamily: fonts.regular,
+    color: COLORS.PRIMARY_BLUE,
+  },
+  buttons: {
+    flexDirection: 'row',
+  },
+  button: {
+    flex: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  shareBtn: {
+    backgroundColor: 'rgba(59, 130, 246, 0.15)',
+  },
+  shareBtnText: {
+    fontFamily: fonts.medium,
+    fontWeight: '600' as const,
+    color: COLORS.PRIMARY_BLUE,
+  },
+  copyBtn: {
+    backgroundColor: colors.bg.tertiary,
+  },
+  copyBtnText: {
+    fontFamily: fonts.medium,
+    fontWeight: '600' as const,
+    color: colors.text.primary,
+  },
+  closeBtn: {
+    alignItems: 'center',
+  },
+  closeBtnText: {
+    fontFamily: fonts.regular,
+    color: colors.text.secondary,
+  },
+});

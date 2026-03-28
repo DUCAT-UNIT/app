@@ -45,7 +45,7 @@ import { SECURE_KEYS } from '../utils/constants';
 import { useTurboTokenProcessor } from '../hooks/useTurboTokenProcessor';
 import { useTurboSnackbarQueue } from '../hooks/useTurboSnackbarQueue';
 import { useTurboProcessingStore } from '../stores/turboProcessingStore';
-import logger from '../utils/logger';
+import { logger } from '../utils/logger';
 
 import type { RootNavigatorParamList } from './types';
 import type { LogContext } from '../types';
@@ -73,21 +73,22 @@ const PinSetupScreen: AnyComponent = withErrorBoundary(PinSetupScreenComponent, 
 // Create linking config once
 const linking = createLinkingConfig();
 
-// Track navigation state changes
+// Navigation container ref (stable across renders)
 const navigationRef = createRef<NavigationContainerRef<RootNavigatorParamList>>();
-let currentRouteName = '';
-
-function onNavigationStateChange(): void {
-  const previousRouteName = currentRouteName;
-  const currentRoute = navigationRef.current?.getCurrentRoute() as Route<string> | undefined;
-  currentRouteName = currentRoute?.name || '';
-
-  if (previousRouteName !== currentRouteName && currentRouteName) {
-    logger.screen(currentRouteName, (currentRoute?.params || {}) as LogContext);
-  }
-}
 
 export default function RootNavigator(): React.JSX.Element {
+  // Track current route name for navigation state change logging
+  const currentRouteNameRef = useRef('');
+
+  const onNavigationStateChange = useCallback((): void => {
+    const previousRouteName = currentRouteNameRef.current;
+    const currentRoute = navigationRef.current?.getCurrentRoute() as Route<string> | undefined;
+    currentRouteNameRef.current = currentRoute?.name || '';
+
+    if (previousRouteName !== currentRouteNameRef.current && currentRouteNameRef.current) {
+      logger.screen(currentRouteNameRef.current, (currentRoute?.params || {}) as LogContext);
+    }
+  }, []);
   const { shouldShowAuth, shouldShowPinOverlay, shouldShowLockOverlay } = useNavigationState();
 
   const {
@@ -141,6 +142,8 @@ export default function RootNavigator(): React.JSX.Element {
     if (pendingTurboChecked.current) return;
     if (!isAuthenticated || shouldShowAuth || shouldShowPinOverlay || shouldShowLockOverlay) return;
 
+    let timeoutId: NodeJS.Timeout | null = null;
+
     // Load persisted state first, then check if we need to resume
     const checkAndResume = async () => {
       // Load persisted state from AsyncStorage if not already loaded
@@ -157,7 +160,7 @@ export default function RootNavigator(): React.JSX.Element {
         sendStore.getState().setTurboEnabled(true);
 
         // Navigate to TurboProcessing after a short delay to ensure navigation is ready
-        setTimeout(() => {
+        timeoutId = setTimeout(() => {
           logger.info('[RootNavigator] Resuming pending turbo transaction', {
             amount: persistedState.sendAmount,
             recipient: persistedState.sendRecipient,
@@ -171,6 +174,10 @@ export default function RootNavigator(): React.JSX.Element {
     };
 
     checkAndResume();
+
+    return () => {
+      if (timeoutId) clearTimeout(timeoutId);
+    };
   }, [isAuthenticated, shouldShowAuth, shouldShowPinOverlay, shouldShowLockOverlay, loadPersistedState]);
 
   // Get handlers from context (needed for handleLock)
@@ -276,6 +283,7 @@ export default function RootNavigator(): React.JSX.Element {
     seedConfirmedRef,
     isBiometricSupported,
     biometricEnabled,
+    isProcessing: turboIsProcessing,
     onLock: handleLock,
     onAuthenticateUser: handleBiometricAuth,
   });
@@ -399,11 +407,13 @@ export default function RootNavigator(): React.JSX.Element {
         )}
 
         {/* Biometric Setup Modal (after passkey wallet creation or migration) */}
-        <BiometricSetupModal
-          visible={showBiometricSetupModal}
-          onEnable={handleBiometricSetupEnable}
-          onSkip={handleBiometricSetupSkip}
-        />
+        {showBiometricSetupModal && (
+          <BiometricSetupModal
+            visible={showBiometricSetupModal}
+            onEnable={handleBiometricSetupEnable}
+            onSkip={handleBiometricSetupSkip}
+          />
+        )}
 
         {/* Token Verification Loading Overlay */}
         {isVerifyingToken && (
