@@ -4,6 +4,7 @@
  */
 
 import { useState, useRef, Dispatch, SetStateAction, MutableRefObject } from 'react';
+import { Alert } from 'react-native';
 import * as Device from 'expo-device';
 import * as Haptics from 'expo-haptics';
 import * as LocalAuthentication from 'expo-local-authentication';
@@ -32,6 +33,7 @@ interface UsePasskeyCreationReturn {
   passkeyPin: string;
   confirmingPin: boolean;
   passkeyPinConfirm: string;
+  icloudBackupFailed: boolean;
   walletExistsRef: MutableRefObject<boolean>;
   setPasskeyPin: Dispatch<SetStateAction<string>>;
   setPasskeyPinConfirm: Dispatch<SetStateAction<string>>;
@@ -55,6 +57,7 @@ export function usePasskeyCreation({
   const [passkeyPin, setPasskeyPin] = useState('');
   const [confirmingPin, setConfirmingPin] = useState(false);
   const [passkeyPinConfirm, setPasskeyPinConfirm] = useState('');
+  const [icloudBackupFailed, setIcloudBackupFailed] = useState(false);
   const walletExistsRef = useRef(false);
 
   /**
@@ -111,6 +114,8 @@ export function usePasskeyCreation({
           Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
           setIsCreating(false);
           notify.passkey.walletCreationFailed();
+          // Return to Welcome screen so user can retry or choose a different path
+          setShowPinInput(false);
           setCreatingWithPasskey(false);
           setConfirmingPin(false);
           setPasskeyPin('');
@@ -183,10 +188,23 @@ export function usePasskeyCreation({
       }
 
       // Handle iCloud backup result in background (non-blocking)
+      // On failure, show a native Alert that the user must acknowledge —
+      // this persists across navigation and cannot be accidentally dismissed.
       if (icloudBackupPromise) {
         icloudBackupPromise.then((result) => {
           if (!result.success) {
-            notify.passkey.icloudFailed();
+            logger.error('[usePasskeyCreation] iCloud backup failed after wallet creation', {
+              error: result.error,
+            });
+            setIcloudBackupFailed(true);
+            Alert.alert(
+              'Cloud Backup Failed',
+              'Your wallet was created but could not be backed up to iCloud. ' +
+              'Without a backup, you cannot recover this wallet on a new device.\n\n' +
+              'Please check that iCloud is enabled in Settings and try again from Settings > Backup.',
+              [{ text: 'I Understand', style: 'destructive' }],
+              { cancelable: false }
+            );
           }
         });
       }
@@ -239,6 +257,7 @@ export function usePasskeyCreation({
     passkeyPin,
     confirmingPin,
     passkeyPinConfirm,
+    icloudBackupFailed,
     walletExistsRef,
 
     // Setters

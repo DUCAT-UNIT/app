@@ -4,22 +4,23 @@
  * Used after wallet creation or import (Step 4 of onboarding)
  */
 
-import React, { useState } from 'react';
-import { Text, View, TouchableOpacity, Animated, StyleSheet, ScrollView } from 'react-native';
-import { StatusBar } from 'expo-status-bar';
-import * as SecureStore from 'expo-secure-store';
-import * as LocalAuthentication from 'expo-local-authentication';
 import * as Haptics from 'expo-haptics';
-import { savePin } from '../../services/pinService';
-import { SECURE_KEYS } from '../../utils/constants';
-import { ERRORS } from '../../utils/messages';
-import { COLORS } from '../../theme';
-import { colors, spacing, fonts, fontSizes, radii } from '../../styles/theme';
-import Icon from '../../components/icons';
+import { StatusBar } from 'expo-status-bar';
+import React,{ useState } from 'react';
+import { Animated,ScrollView,StyleSheet,Text,TouchableOpacity,View } from 'react-native';
 import TouchableScale from '../../components/common/TouchableScale';
+import Icon from '../../components/icons';
 import { useResponsive } from '../../hooks/useResponsive';
-import { notify } from '../../utils/notify';
+import {
+  authenticateWithBiometrics,
+  setBiometricEnabled as persistBiometricEnabled,
+} from '../../services/biometricService';
+import { savePin } from '../../services/pinService';
+import { colors,fonts,fontSizes,radii,spacing } from '../../styles/theme';
+import { COLORS } from '../../theme';
 import { logger } from '../../utils/logger';
+import { ERRORS } from '../../utils/messages';
+import { notify } from '../../utils/notify';
 
 /**
  * Type for the PIN setup step
@@ -137,6 +138,15 @@ export default function PinSetupScreen({
                   setConfirmPin('');
                   setPinStep('enter');
                 }
+              }).catch((error: unknown) => {
+                logger.error('[PinSetupScreen] savePin failed', {
+                  error: error instanceof Error ? error.message : String(error),
+                });
+                shakeError();
+                setPinError(ERRORS.PIN_SAVE_FAILED);
+                setPin('');
+                setConfirmPin('');
+                setPinStep('enter');
               });
             }
           } else {
@@ -164,27 +174,25 @@ export default function PinSetupScreen({
   const handleBiometricEnable = async (): Promise<void> => {
     setShowBiometricPrompt(false);
     try {
-      // Save the preference
-      await SecureStore.setItemAsync(SECURE_KEYS.BIOMETRIC_ENABLED, 'true');
+      const result = await authenticateWithBiometrics(
+        'Authenticate to enable biometric login',
+        'Use PIN instead'
+      );
 
-      // Trigger biometric authentication
-      const _result = await LocalAuthentication.authenticateAsync({
-        promptMessage: 'Authenticate to enable biometric login',
-        fallbackLabel: 'Use PIN instead',
-      });
+      await persistBiometricEnabled(Boolean(result.success));
 
       // Complete setup regardless of biometric result
       // Pass the PIN back to parent for potential passkey migration
       onPinSetupComplete(pin);
     } catch (error: unknown) {
+      await persistBiometricEnabled(false);
       onPinSetupComplete(pin);
     }
   };
 
-  const handleBiometricSkip = (): void => {
+  const handleBiometricSkip = async (): Promise<void> => {
     setShowBiometricPrompt(false);
-    // Save the preference as disabled (non-blocking for instant feedback)
-    SecureStore.setItemAsync(SECURE_KEYS.BIOMETRIC_ENABLED, 'false');
+    await persistBiometricEnabled(false);
     // Pass the PIN back to parent for potential passkey migration
     onPinSetupComplete(pin);
   };
