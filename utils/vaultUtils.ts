@@ -96,7 +96,8 @@ export function getMaxUnit(btc: number, bitcoinPrice: number | undefined): numbe
   if (bitcoinPrice === undefined || btc <= 0) {
     return null;
   }
-  return Number(((btc * bitcoinPrice) / VAULT_CONFIG.MIN_COL_RATE).toFixed(2));
+  // Subtract 1 UNIT to ensure health rounds to >= 160% after Math.floor in computeHealthFactor
+  return Math.max(Number(((btc * bitcoinPrice) / VAULT_CONFIG.MIN_COL_RATE).toFixed(2)) - 1, 0);
 }
 
 /**
@@ -156,7 +157,7 @@ export type HealthStatus = 'healthy' | 'warning' | 'danger';
 
 export function getHealthStatus(healthFactor: number): HealthStatus {
   if (healthFactor >= 200) return 'healthy';
-  if (healthFactor >= 161) return 'warning';
+  if (healthFactor >= 160) return 'warning';
   return 'danger';
 }
 
@@ -166,12 +167,22 @@ export function getHealthStatus(healthFactor: number): HealthStatus {
 export function getHealthColor(status: HealthStatus): string {
   switch (status) {
     case 'healthy':
-      return '#22C55E'; // Green
+      return '#59AA8A'; // Green (semantic.success)
     case 'warning':
-      return '#F59E0B'; // Yellow/Orange
+      return '#F5A623'; // Yellow/Orange (semantic.warning)
     case 'danger':
-      return '#EF4444'; // Red
+      return '#D04C68'; // Red (semantic.error)
   }
+}
+
+/**
+ * Gets the color for a numeric health factor value.
+ * Convenience wrapper that derives HealthStatus from the number first.
+ * @param health - Health factor percentage (e.g. 160, 200, 250)
+ * @returns Hex color string
+ */
+export function getHealthColorFromValue(health: number): string {
+  return getHealthColor(getHealthStatus(health));
 }
 
 /**

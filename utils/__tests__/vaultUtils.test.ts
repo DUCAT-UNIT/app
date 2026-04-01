@@ -108,9 +108,9 @@ describe('vaultUtils', () => {
 
   describe('getMaxUnit', () => {
     it('should calculate max UNIT correctly', () => {
-      // btc * price / MIN_COL_RATE = 1 * 100000 / 1.6 = 62500
+      // btc * price / MIN_COL_RATE = 1 * 100000 / 1.6 = 62500, minus 1 = 62499
       const maxUnit = getMaxUnit(1, 100000);
-      expect(maxUnit).toBe(62500);
+      expect(maxUnit).toBe(62499);
     });
 
     it('should return null for undefined price', () => {
@@ -130,15 +130,16 @@ describe('vaultUtils', () => {
 
     it('should handle decimal BTC amounts', () => {
       const maxUnit = getMaxUnit(0.5, 100000);
-      expect(maxUnit).toBe(31250);
+      // 0.5 * 100000 / 1.6 = 31250, minus 1 for conservative rounding = 31249
+      expect(maxUnit).toBe(31249);
     });
   });
 
   describe('getMaxUnitRounded', () => {
     it('should return floored max UNIT', () => {
       const maxUnit = getMaxUnitRounded(0.001, 100000);
-      // 0.001 * 100000 / 1.6 = 62.5 -> 62
-      expect(maxUnit).toBe(62);
+      // 0.001 * 100000 / 1.6 = 62.5 -> floor = 62, minus 1 = 61
+      expect(maxUnit).toBe(61);
     });
 
     it('should return null for invalid inputs', () => {
@@ -206,14 +207,15 @@ describe('vaultUtils', () => {
       expect(getHealthStatus(500)).toBe('healthy');
     });
 
-    it('should return warning for factor 161-199', () => {
+    it('should return warning for factor 160-199', () => {
+      expect(getHealthStatus(160)).toBe('warning');
       expect(getHealthStatus(161)).toBe('warning');
       expect(getHealthStatus(180)).toBe('warning');
       expect(getHealthStatus(199)).toBe('warning');
     });
 
-    it('should return danger for factor < 161', () => {
-      expect(getHealthStatus(160)).toBe('danger');
+    it('should return danger for factor < 160', () => {
+      expect(getHealthStatus(159)).toBe('danger');
       expect(getHealthStatus(100)).toBe('danger');
       expect(getHealthStatus(0)).toBe('danger');
     });
@@ -221,15 +223,15 @@ describe('vaultUtils', () => {
 
   describe('getHealthColor', () => {
     it('should return green for healthy', () => {
-      expect(getHealthColor('healthy')).toBe('#22C55E');
+      expect(getHealthColor('healthy')).toBe('#59AA8A');
     });
 
     it('should return yellow/orange for warning', () => {
-      expect(getHealthColor('warning')).toBe('#F59E0B');
+      expect(getHealthColor('warning')).toBe('#F5A623');
     });
 
     it('should return red for danger', () => {
-      expect(getHealthColor('danger')).toBe('#EF4444');
+      expect(getHealthColor('danger')).toBe('#D04C68');
     });
   });
 
