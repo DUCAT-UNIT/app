@@ -36,7 +36,8 @@ export function useEcashBalanceCheck(
       }
 
       // Only check once per session and if we have valid data
-      if (hasChecked.current || cashuBalance === null || cashuBalance === undefined) {
+      // unitBalance > 0 implies a wallet with UNIT exists (skip for fresh/locked wallets)
+      if (hasChecked.current || cashuBalance === null || cashuBalance === undefined || unitBalance <= 0) {
         return;
       }
 
