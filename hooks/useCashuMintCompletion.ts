@@ -1,4 +1,5 @@
 import { useState, useEffect, useRef } from 'react';
+import type { NavigationProp } from '@react-navigation/native';
 import { logger } from '../utils/logger';
 import { useCashuBalanceState, useCashuOperations } from '../contexts/CashuContext';
 
@@ -8,6 +9,7 @@ interface UseCashuMintCompletionParams {
   mintAmount: number | undefined;
   fetchTransactionHistory?: () => Promise<void>;
   refreshCashuBalance: () => Promise<void>;
+  navigation?: NavigationProp<Record<string, object | undefined>>;
 }
 
 interface UseCashuMintCompletionReturn {
@@ -27,6 +29,7 @@ export function useCashuMintCompletion({
   cashuMint,
   quoteId,
   mintAmount,
+  navigation,
 }: UseCashuMintCompletionParams): UseCashuMintCompletionReturn {
   const [isCompletingMint, setIsCompletingMint] = useState(false);
   const hasRegistered = useRef(false);
@@ -67,8 +70,16 @@ export function useCashuMintCompletion({
       // The app-level polling completed our mint
       logger.debug('[useCashuMintCompletion] Mint completed by app-level polling', { quoteId: quoteId.substring(0, 8) });
       setIsCompletingMint(false);
+
+      // Dismiss the SendFlow modal so the user can interact with the wallet again
+      if (navigation) {
+        const parent = navigation.getParent?.();
+        if (parent) {
+          parent.goBack();
+        }
+      }
     }
-  }, [pendingMints, quoteId, isCompletingMint]);
+  }, [pendingMints, quoteId, isCompletingMint, navigation]);
 
   return {
     isCompletingMint,
