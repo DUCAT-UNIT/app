@@ -146,11 +146,11 @@ export const fetchVaultHistory = async (vaultPubkey: string): Promise<VaultHisto
 export const fetchVaultData = async (vaultPubkey: string): Promise<VaultData | null> => {
   try {
     if (!vaultPubkey) {
-      logger.debug('⚠️ fetchVaultData: No vaultPubkey provided');
+      logger.debug('[VaultService] fetchVaultData: No vaultPubkey provided');
       return null;
     }
 
-    logger.debug('🏦 Fetching vault data for pubkey:', { vaultPubkey });
+    logger.debug('[VaultService] Fetching vault data for pubkey:', { vaultPubkey });
 
     // Step 1: Get vault list to retrieve vault_id
     const vaultListResponse = await postWithRetry(
@@ -160,17 +160,17 @@ export const fetchVaultData = async (vaultPubkey: string): Promise<VaultData | n
     );
 
     const vaultListData = await vaultListResponse.json() as VaultListResponse;
-    logger.debug('🏦 Vault list response:', { vaultListData });
-    logger.debug('🏦 Number of vaults found:', { count: vaultListData.vaults?.length || 0 });
+    logger.debug('[VaultService] Vault list response:', { vaultListData });
+    logger.debug('[VaultService] Number of vaults found:', { count: vaultListData.vaults?.length || 0 });
 
     if (!vaultListData.vaults || vaultListData.vaults.length === 0) {
-      logger.debug('⚠️ No vaults found for this pubkey - vault not created yet');
+      logger.debug('[VaultService] No vaults found for this pubkey - vault not created yet');
       return null;
     }
 
     // If multiple vaults exist for this pubkey, always use the FIRST one
     if (vaultListData.vaults.length > 1) {
-      logger.debug('⚠️ MULTIPLE VAULTS FOUND for this pubkey - using FIRST vault:');
+      logger.debug('[VaultService] MULTIPLE VAULTS FOUND for this pubkey - using FIRST vault:');
       vaultListData.vaults.forEach((vault, index) => {
         logger.debug(`  Vault ${index + 1}:`, {
           vault_id: vault.vault_id,
@@ -179,7 +179,7 @@ export const fetchVaultData = async (vaultPubkey: string): Promise<VaultData | n
           unit_borrowed: vault.unit_borrowed,
         });
       });
-      logger.debug('📌 Selected: Using vault #1 (first in array)');
+      logger.debug('[VaultService] Selected: Using vault #1 (first in array)');
     }
 
     // Always use first vault in the array
@@ -190,7 +190,7 @@ export const fetchVaultData = async (vaultPubkey: string): Promise<VaultData | n
 
     const vaultId = firstVault.vault_id;
     const vaultTag = firstVault.vault_tag;
-    logger.debug('🏦 Using vault:', { vault_id: vaultId, vault_tag: vaultTag });
+    logger.debug('[VaultService] Using vault:', { vault_id: vaultId, vault_tag: vaultTag });
 
     // Step 2: Get vault history to retrieve transaction details
     const now = Math.floor(Date.now() / 1000);
@@ -230,6 +230,17 @@ export const fetchVaultData = async (vaultPubkey: string): Promise<VaultData | n
       return null;
     }
 
+    // Validate numeric fields to prevent health factor computation with bad data
+    const oraclePrice = firstVault.oracle_price ?? vaultListData.current_price;
+    if (!oraclePrice || oraclePrice <= 0) {
+      logger.error('[VaultService] Invalid oracle price in vault data', {
+        vaultId,
+        oracle_price: firstVault.oracle_price,
+        current_price: vaultListData.current_price,
+      });
+      throw new Error('Invalid oracle price data from vault API');
+    }
+
     // Construct full VaultInfo for borrow/deposit/repay/withdraw operations
     const vaultInfo: VaultInfo = {
       vault_id: firstVault.vault_id,
@@ -243,7 +254,7 @@ export const fetchVaultData = async (vaultPubkey: string): Promise<VaultData | n
       master_id: requiredFields.master_id!,
       liquidation_hash: firstVault.liquidation_hash || '',
       liquidation_price: firstVault.liquidation_price || 0,
-      oracle_price: firstVault.oracle_price || vaultListData.current_price,
+      oracle_price: oraclePrice,
       oracle_timestamp: firstVault.oracle_timestamp || 0,
       utxo: requiredFields.utxo!,
       vault_last_action: firstVault.vault_last_action || '',
@@ -274,7 +285,7 @@ export const fetchVaultData = async (vaultPubkey: string): Promise<VaultData | n
       };
     }
 
-    logger.debug('✅ Vault data fetched successfully (first vault only):', {
+    logger.debug('[VaultService] Vault data fetched successfully (first vault only):', {
       vaultTag,
       totalDebt: firstVault.unit_borrowed,
       totalCollateral: firstVault.btc_locked,
@@ -283,7 +294,7 @@ export const fetchVaultData = async (vaultPubkey: string): Promise<VaultData | n
 
     return vaultData;
   } catch (error: unknown) {
-    logger.error('❌ Error fetching vault data:', { error });
+    logger.warn('[VaultService] Error fetching vault data:', { error: error instanceof Error ? error.message : String(error) });
     return null;
   }
 };
