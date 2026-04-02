@@ -253,7 +253,9 @@ export async function fetchParallel<T = unknown>(operations: ParallelOperation<T
       const isNetworkError = errorMessage.includes('HTTP 5') ||
                              errorMessage.includes('timeout') ||
                              errorMessage.includes('network') ||
-                             errorMessage.includes('Expected JSON');
+                             errorMessage.includes('Expected JSON') ||
+                             errorMessage.includes('Aborted') ||
+                             error instanceof DOMException;
       if (isNetworkError) {
         logger.debug(`⚠️ ${name} failed (using default): ${errorMessage}`);
       } else {
