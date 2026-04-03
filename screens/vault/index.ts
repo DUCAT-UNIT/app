@@ -1,21 +1,23 @@
 /**
- * Vault Screens Module
- * Provides generic screens and configurations for vault operations
+ * Vault Operation Screens
  */
 
-// Types
-export * from './types';
+// Borrow screens
+export { default as BorrowInputScreen } from './BorrowInputScreen';
+export { default as BorrowConfirmScreen } from './BorrowConfirmScreen';
+export { default as BorrowProcessingScreen } from './BorrowProcessingScreen';
 
-// Configurations
-export * from './configs';
+// Deposit screens
+export { default as DepositInputScreen } from './DepositInputScreen';
+export { default as DepositConfirmScreen } from './DepositConfirmScreen';
+export { default as DepositProcessingScreen } from './DepositProcessingScreen';
 
-// Hooks
-export * from './hooks';
+// Repay screens
+export { default as RepayInputScreen } from './RepayInputScreen';
+export { default as RepayConfirmScreen } from './RepayConfirmScreen';
+export { default as RepayProcessingScreen } from './RepayProcessingScreen';
 
-// Generic Screens
-export { default as VaultInputScreen } from './VaultInputScreen';
-export { default as VaultConfirmScreen } from './VaultConfirmScreen';
-export { default as VaultProcessingScreen } from './VaultProcessingScreen';
-
-// Operation-specific screens (wrappers around generic screens)
-export * from './screens';
+// Withdraw screens
+export { default as WithdrawInputScreen } from './WithdrawInputScreen';
+export { default as WithdrawConfirmScreen } from './WithdrawConfirmScreen';
+export { default as WithdrawProcessingScreen } from './WithdrawProcessingScreen';

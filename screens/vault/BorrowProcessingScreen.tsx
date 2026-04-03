@@ -4,9 +4,9 @@
 
 import React from 'react';
 import { NavigationProp } from '@react-navigation/native';
-import VaultProcessingScreen from '../VaultProcessingScreen';
-import { borrowProcessingConfig } from '../configs';
-import { useBorrow } from '../../../stores/borrowStore';
+import VaultProcessingScreen from './VaultProcessingScreen';
+import { borrowProcessingConfig } from './configs';
+import { useBorrow } from '../../stores/borrowStore';
 
 interface BorrowProcessingScreenNewProps {
   navigation: NavigationProp<Record<string, object | undefined>>;

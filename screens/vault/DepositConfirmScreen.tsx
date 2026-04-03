@@ -4,10 +4,10 @@
 
 import React from 'react';
 import { NavigationProp } from '@react-navigation/native';
-import VaultConfirmScreen from '../VaultConfirmScreen';
-import { depositConfirmConfig } from '../configs';
-import { useDeposit } from '../../../stores/depositStore';
-import { useDepositVaultNew as useDepositVault } from '../../../hooks/vault';
+import VaultConfirmScreen from './VaultConfirmScreen';
+import { depositConfirmConfig } from './configs';
+import { useDeposit } from '../../stores/depositStore';
+import { useDepositVaultNew as useDepositVault } from '../../hooks/vault';
 
 interface DepositConfirmScreenNewProps {
   navigation: NavigationProp<Record<string, object | undefined>>;
