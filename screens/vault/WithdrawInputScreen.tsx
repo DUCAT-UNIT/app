@@ -7,7 +7,7 @@ import { NavigationProp } from '@react-navigation/native';
 import VaultInputScreen from './VaultInputScreen';
 import { withdrawInputConfig } from './configs';
 import { useWithdraw } from '../../stores/withdrawStore';
-import { useWithdrawVaultNew as useWithdrawVault } from '../../hooks/vault';
+import { useWithdrawVault } from '../../hooks/vault';
 
 interface WithdrawInputScreenNewProps {
   navigation: NavigationProp<Record<string, object | undefined>>;

@@ -7,7 +7,7 @@ import { NavigationProp } from '@react-navigation/native';
 import VaultConfirmScreen from './VaultConfirmScreen';
 import { borrowConfirmConfig } from './configs';
 import { useBorrow } from '../../stores/borrowStore';
-import { useBorrowVaultNew as useBorrowVault } from '../../hooks/vault';
+import { useBorrowVault } from '../../hooks/vault';
 
 interface BorrowConfirmScreenNewProps {
   navigation: NavigationProp<Record<string, object | undefined>>;

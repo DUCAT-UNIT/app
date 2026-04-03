@@ -155,4 +155,3 @@ export const useTokenProcessingStore = create<TokenProcessingStore>((set, get) =
 
 // Selectors for optimal re-rendering
 export const selectPendingToken = (state: TokenProcessingStore) => state.pendingToken;
-export const selectHasPendingToken = (state: TokenProcessingStore) => state.pendingToken !== null;

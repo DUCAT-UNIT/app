@@ -58,14 +58,6 @@ export const useDisplayPreferencesStore = create<DisplayPreferencesStore>()(
 );
 
 /**
- * Selector hooks for granular subscriptions
- * Use these to only re-render when specific values change
- */
-export const useShowTotalInBTC = () => useDisplayPreferencesStore((state) => state.showTotalInBTC);
-export const useShowBTCInBTC = () => useDisplayPreferencesStore((state) => state.showBTCInBTC);
-export const useShowUnitInUnit = () => useDisplayPreferencesStore((state) => state.showUnitInUnit);
-
-/**
  * Reset store to initial state (useful for testing)
  */
 export const resetDisplayPreferencesStore = () => {

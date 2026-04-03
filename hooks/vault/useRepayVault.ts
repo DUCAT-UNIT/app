@@ -247,7 +247,7 @@ export interface UseRepayVaultResult {
  *
  * Orchestrates the full repay flow using the unified vault operation hook.
  */
-export function useRepayVaultNew(): UseRepayVaultResult {
+export function useRepayVault(): UseRepayVaultResult {
   const result = useVaultOperation(repayConfig);
 
   // Map to original interface

@@ -221,7 +221,7 @@ export interface UseDepositVaultResult {
  *
  * Orchestrates the full deposit flow using the unified vault operation hook.
  */
-export function useDepositVaultNew(): UseDepositVaultResult {
+export function useDepositVault(): UseDepositVaultResult {
   const result = useVaultOperation(depositConfig);
 
   // Map to original interface
