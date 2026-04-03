@@ -32,7 +32,6 @@ export interface UseAuthReturn {
   showFaceIdButton: boolean;
   isPasskeySupported: boolean;
   passkeyEnabled: boolean;
-  showPasskeyPrompt: boolean;
   settingUpPin: boolean;
   changingPin: boolean;
   showPinEntry: boolean;
@@ -46,7 +45,6 @@ export interface UseAuthReturn {
   setShowBiometricPrompt: Dispatch<SetStateAction<boolean>>;
   setShowFaceIdButton: Dispatch<SetStateAction<boolean>>;
   setPasskeyEnabled: Dispatch<SetStateAction<boolean>>;
-  setShowPasskeyPrompt: Dispatch<SetStateAction<boolean>>;
   setShowPinEntry: Dispatch<SetStateAction<boolean>>;
   setSettingUpPin: Dispatch<SetStateAction<boolean>>;
   setChangingPin: Dispatch<SetStateAction<boolean>>;
@@ -78,7 +76,6 @@ export function useAuth({ onSeedConfirmed }: UseAuthParams): UseAuthReturn {
   // Passkey state
   const [isPasskeySupported, setIsPasskeySupported] = useState(false);
   const [passkeyEnabled, setPasskeyEnabled] = useState(false);
-  const [showPasskeyPrompt, setShowPasskeyPrompt] = useState(false);
 
   // PIN state
   const [settingUpPin, setSettingUpPin] = useState(false);
@@ -285,7 +282,6 @@ export function useAuth({ onSeedConfirmed }: UseAuthParams): UseAuthReturn {
     showFaceIdButton,
     isPasskeySupported,
     passkeyEnabled,
-    showPasskeyPrompt,
     settingUpPin,
     changingPin,
     showPinEntry,
@@ -295,7 +291,7 @@ export function useAuth({ onSeedConfirmed }: UseAuthParams): UseAuthReturn {
     pinStep,
   }), [
     isAuthenticated, isBiometricSupported, biometricEnabled, showBiometricPrompt,
-    showFaceIdButton, isPasskeySupported, passkeyEnabled, showPasskeyPrompt,
+    showFaceIdButton, isPasskeySupported, passkeyEnabled,
     settingUpPin, changingPin, showPinEntry, pin, confirmPin, pinError, pinStep,
   ]);
 
@@ -306,7 +302,6 @@ export function useAuth({ onSeedConfirmed }: UseAuthParams): UseAuthReturn {
     setShowBiometricPrompt,
     setShowFaceIdButton,
     setPasskeyEnabled,
-    setShowPasskeyPrompt,
     setShowPinEntry,
     setSettingUpPin,
     setChangingPin,
@@ -320,7 +315,6 @@ export function useAuth({ onSeedConfirmed }: UseAuthParams): UseAuthReturn {
     setShowBiometricPrompt,
     setShowFaceIdButton,
     setPasskeyEnabled,
-    setShowPasskeyPrompt,
     setShowPinEntry,
     setSettingUpPin,
     setChangingPin,
