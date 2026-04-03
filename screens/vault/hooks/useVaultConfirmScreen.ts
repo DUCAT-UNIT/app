@@ -148,7 +148,7 @@ export function useVaultConfirmScreen<TStore extends VaultStoreState, THook exte
 function getOperationFunction(operationType: string): string {
   switch (operationType) {
     case 'borrow':
-      return 'borrowMore';
+      return 'borrow';
     case 'deposit':
       return 'deposit';
     case 'repay':
