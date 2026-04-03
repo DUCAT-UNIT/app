@@ -4,9 +4,9 @@
 
 import React from 'react';
 import { NavigationProp } from '@react-navigation/native';
-import VaultProcessingScreen from '../VaultProcessingScreen';
-import { repayProcessingConfig } from '../configs';
-import { useRepay } from '../../../stores/repayStore';
+import VaultProcessingScreen from './VaultProcessingScreen';
+import { repayProcessingConfig } from './configs';
+import { useRepay } from '../../stores/repayStore';
 
 interface RepayProcessingScreenNewProps {
   navigation: NavigationProp<Record<string, object | undefined>>;

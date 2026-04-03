@@ -4,9 +4,9 @@
 
 import React from 'react';
 import { NavigationProp } from '@react-navigation/native';
-import VaultProcessingScreen from '../VaultProcessingScreen';
-import { withdrawProcessingConfig } from '../configs';
-import { useWithdraw } from '../../../stores/withdrawStore';
+import VaultProcessingScreen from './VaultProcessingScreen';
+import { withdrawProcessingConfig } from './configs';
+import { useWithdraw } from '../../stores/withdrawStore';
 
 interface WithdrawProcessingScreenNewProps {
   navigation: NavigationProp<Record<string, object | undefined>>;

@@ -155,22 +155,6 @@ export const useWithdrawStore = create<WithdrawStore>()((set, get, store) => {
   };
 });
 
-/**
- * Selector hooks for granular subscriptions
- */
-export const useWithdrawAmountSats = () => useWithdrawStore((state) => state.withdrawAmountSats);
-export const useWithdrawCurrentStep = () => useWithdrawStore((state) => state.currentStep);
-export const useWithdrawProcessingStep = () => useWithdrawStore((state) => state.processingStep);
-export const useWithdrawLoading = () => useWithdrawStore((state) => state.loading);
-export const useWithdrawError = () => useWithdrawStore((state) => state.error);
-export const useWithdrawVaultTxid = () => useWithdrawStore((state) => state.vaultTxid);
-
-/**
- * Reset store to initial state (useful for testing)
- */
-export const resetWithdrawStore = () => {
-  useWithdrawStore.getState().reset();
-};
 
 /**
  * useWithdraw - Hook that returns commonly used state and actions

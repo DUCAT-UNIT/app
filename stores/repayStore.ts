@@ -140,13 +140,6 @@ export const useRepayStore = create<RepayStore>()((set, get, store) => {
 });
 
 /**
- * Reset store to initial state (useful for testing)
- */
-export const resetRepayStore = () => {
-  useRepayStore.getState().reset();
-};
-
-/**
  * useRepay - Hook that returns commonly used state and actions
  * Uses individual selectors for reactive computed values
  */

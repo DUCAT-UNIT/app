@@ -4,9 +4,9 @@
 
 import React from 'react';
 import { NavigationProp } from '@react-navigation/native';
-import VaultProcessingScreen from '../VaultProcessingScreen';
-import { depositProcessingConfig } from '../configs';
-import { useDeposit } from '../../../stores/depositStore';
+import VaultProcessingScreen from './VaultProcessingScreen';
+import { depositProcessingConfig } from './configs';
+import { useDeposit } from '../../stores/depositStore';
 
 interface DepositProcessingScreenNewProps {
   navigation: NavigationProp<Record<string, object | undefined>>;

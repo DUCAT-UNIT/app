@@ -1,7 +1,7 @@
 /**
  * Borrow Screens - Export all borrow flow screens
  */
-export { BorrowInputScreenNew as BorrowInputScreen } from '../vault/screens';
-export { BorrowConfirmScreenNew as BorrowConfirmScreen } from '../vault/screens';
-export { BorrowProcessingScreenNew as BorrowProcessingScreen } from '../vault/screens';
+export { BorrowInputScreen } from '../vault';
+export { BorrowConfirmScreen } from '../vault';
+export { BorrowProcessingScreen } from '../vault';
 export { default as BorrowSuccessScreen } from './BorrowSuccessScreen';
