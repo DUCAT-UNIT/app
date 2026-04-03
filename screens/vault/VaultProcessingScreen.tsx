@@ -98,7 +98,7 @@ export default function VaultProcessingScreen({
     }
   }, [currentStep, txid, isAuthenticated, visualStep, navigateToSuccess]);
 
-  // Show error snackbar when error occurs
+  // Show error snackbar and navigate back when error occurs
   useEffect(() => {
     if (error && !hasShownError.current) {
       hasShownError.current = true;
@@ -107,11 +107,15 @@ export default function VaultProcessingScreen({
         description: error,
         type: 'error',
       });
+      // Navigate back to input screen after showing error
+      setTimeout(() => {
+        navigation.navigate(config.routes.input);
+      }, 500);
     }
     if (!error) {
       hasShownError.current = false;
     }
-  }, [error, config.operationType]);
+  }, [error, config.operationType, navigation, config.routes.input]);
 
   // Handle cancel button press
   const handleCancel = () => {
